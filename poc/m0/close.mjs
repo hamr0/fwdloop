@@ -104,6 +104,15 @@ export function checkCitation(citation, artifacts, citationsById, businessDate) 
         return { ok: true, red: null };
       }
       const { value: cellVal, decimals } = parseNumeric(raw);
+      // A cell that doesn't parse as a number (e.g. the Customer name column) compares
+      // as exact text, trimmed — the copied-figure form is not numbers-only (PRD §5's
+      // "the row's cell" for a name match is exactly this case).
+      if (Number.isNaN(cellVal)) {
+        if (String(citation.value).trim() !== String(raw).trim()) {
+          return { ok: false, red: `${citation.id} ${citation.value} ≠ cell ${source.cell} = ${raw}` };
+        }
+        return { ok: true, red: null };
+      }
       const statedRounded = roundTo(Number(citation.value), decimals);
       if (statedRounded !== roundTo(cellVal, decimals)) {
         return { ok: false, red: `${citation.id} ${citation.value} ≠ cell ${source.cell} = ${cellVal}` };
@@ -262,4 +271,64 @@ export function matchingCustomers(quote, csvArtifact) {
     if (name && name.toLowerCase().includes(quote.toLowerCase())) names.add(name);
   }
   return [...names];
+}
+
+/**
+ * `derive #1` close (customer-name match). PRD §5: "a name match between a
+ * message and a sheet is a quote citation + the row's cell, and two rows
+ * matching is an ask, never a pick." The ambiguity a model REPORTS
+ * (`output.matches`) is checked against the ambiguity the sheet ACTUALLY
+ * has, computed mechanically via `matchingCustomers` from the model's own
+ * quote — never trusted from the model's say-so. A model that quietly picks
+ * one row when two really match (undercount) is red here, same as a model
+ * that hallucinates a match that isn't there (overcount).
+ *
+ * `output` shape: `{ citations: Citation[], matches: string[] }` where
+ * `matches` is the citation id(s) of the copied Customer-cell citation(s)
+ * the model believes match. `csvArtifactId` names which key in `artifacts`
+ * holds the sheet (so the same close works regardless of the runner's id
+ * scheme).
+ */
+export function closeCustomerMatch(output, artifacts, csvArtifactId) {
+  const shape = closeShape(output, ['citations', 'matches']);
+  if (shape.verdict === 'red') return { verdict: 'red', red: shape.red, ambiguous: false, groundTruthMatches: [] };
+
+  const evidence = closeCitations(output.citations, artifacts, null);
+  if (evidence.verdict === 'red') return { verdict: 'red', red: evidence.red, ambiguous: false, groundTruthMatches: [] };
+
+  const quoteCitation = output.citations.find((c) => c.quote !== undefined);
+  if (!quoteCitation) {
+    return { verdict: 'red', red: 'cust_match: no quote citation identifying the customer name in the message', ambiguous: false, groundTruthMatches: [] };
+  }
+
+  const csvArtifact = artifacts[csvArtifactId];
+  const groundTruthMatches = matchingCustomers(quoteCitation.quote, csvArtifact);
+
+  const matchIds = output.matches ?? [];
+  const claimedCitations = matchIds.map((id) => evidence.citationsById[id]);
+  if (claimedCitations.some((c) => !c)) {
+    return { verdict: 'red', red: `cust_match: matches references unknown citation id(s) (${matchIds.join(',')})`, ambiguous: false, groundTruthMatches };
+  }
+  const claimedNames = [...new Set(claimedCitations.map((c) => c.value))];
+
+  if (groundTruthMatches.length === 0) {
+    return { verdict: 'red', red: `cust_match: quote "${quoteCitation.quote}" matches no customer in the sheet`, ambiguous: false, groundTruthMatches };
+  }
+
+  const claimedSet = new Set(claimedNames);
+  const truthSet = new Set(groundTruthMatches);
+  const setsEqual = claimedSet.size === truthSet.size && [...claimedSet].every((n) => truthSet.has(n));
+  if (!setsEqual) {
+    return {
+      verdict: 'red',
+      red: `cust_match: ${groundTruthMatches.length} customer(s) match "${quoteCitation.quote}" (${groundTruthMatches.join(', ')}) but ${claimedNames.length} ${claimedNames.length === 1 ? 'was' : 'were'} cited (${claimedNames.join(', ') || 'none'}) — two rows matching is an ask, never a pick`,
+      ambiguous: groundTruthMatches.length > 1,
+      groundTruthMatches,
+    };
+  }
+
+  return {
+    verdict: 'green', red: null, ambiguous: groundTruthMatches.length > 1, groundTruthMatches,
+    matchedCustomer: groundTruthMatches.length === 1 ? groundTruthMatches[0] : null,
+  };
 }

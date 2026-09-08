@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { parseCsv } from './csv.mjs';
 import {
   hashFile, verifyArtifactHash, checkCitation, closeCitations, closeDerive,
-  closeCompose, matchingCustomers, daysBetween, parseNumeric,
+  closeCompose, matchingCustomers, closeCustomerMatch, daysBetween, parseNumeric,
 } from './close.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'm0-close-'));
@@ -168,4 +168,71 @@ test('matchingCustomers: two distinct customers matching (plant c) is detected m
   const matches = matchingCustomers('Northwind', ambiguousArtifact);
   assert.equal(matches.length, 2);
   assert.deepEqual(matches.sort(), ['Northwind Supplies', 'Northwind Trading']);
+});
+
+// --- closeCustomerMatch: PRD §5 "two rows matching is an ask, never a pick" ---
+// (item 4's "test that path with a hand-made artifact first", ahead of wiring the runner.)
+
+const ambiguousText = csvText + 'Northwind Supplies,INV-1050,2026-06-01,2026-07-01,300\n';
+const ambiguousParsed = parseCsv(ambiguousText);
+const ambiguousPath = join(dir, 'ar-aging.plant-c-close-test.csv');
+writeFileSync(ambiguousPath, ambiguousText);
+const ambiguousArtifact = { id: 'a3', kind: 'csv', path: ambiguousPath, sha256: hashFile(ambiguousPath), ...ambiguousParsed };
+const artifactsWithAmbiguous = { a1: csvArtifact, a2: textArtifact, a3: ambiguousArtifact };
+
+test('closeCustomerMatch: a single unambiguous match, correctly cited, is green', () => {
+  const output = {
+    citations: [
+      { id: 'q1', quote: 'Northwind', source: { kind: 'text', artifact: 'a2', line: 1 } },
+      { id: 'c1', value: 'Northwind Trading', asStated: 'Northwind Trading', source: { kind: 'csv', artifact: 'a1', cell: 'A2' } },
+    ],
+    matches: ['c1'],
+  };
+  const result = closeCustomerMatch(output, artifacts, 'a1');
+  assert.equal(result.verdict, 'green');
+  assert.equal(result.ambiguous, false);
+  assert.equal(result.matchedCustomer, 'Northwind Trading');
+});
+
+test('closeCustomerMatch: two customers really match and the model correctly cites both — green, flagged ambiguous (plant c, happy path)', () => {
+  const output = {
+    citations: [
+      { id: 'q1', quote: 'Northwind', source: { kind: 'text', artifact: 'a2', line: 1 } },
+      { id: 'c1', value: 'Northwind Trading', asStated: 'Northwind Trading', source: { kind: 'csv', artifact: 'a3', cell: 'A2' } },
+      { id: 'c2', value: 'Northwind Supplies', asStated: 'Northwind Supplies', source: { kind: 'csv', artifact: 'a3', cell: 'A4' } },
+    ],
+    matches: ['c1', 'c2'],
+  };
+  const result = closeCustomerMatch(output, artifactsWithAmbiguous, 'a3');
+  assert.equal(result.verdict, 'green');
+  assert.equal(result.ambiguous, true);
+  assert.deepEqual(result.groundTruthMatches.sort(), ['Northwind Supplies', 'Northwind Trading']);
+});
+
+test('PROOF the test can fail: two customers really match but the model picks only ONE — red, never a silent pick (plant c, the case the close must catch)', () => {
+  const output = {
+    citations: [
+      { id: 'q1', quote: 'Northwind', source: { kind: 'text', artifact: 'a2', line: 1 } },
+      { id: 'c1', value: 'Northwind Trading', asStated: 'Northwind Trading', source: { kind: 'csv', artifact: 'a3', cell: 'A2' } },
+    ],
+    matches: ['c1'],
+  };
+  const result = closeCustomerMatch(output, artifactsWithAmbiguous, 'a3');
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /2 customer\(s\) match "Northwind"/);
+  assert.match(result.red, /never a pick/);
+});
+
+test('PROOF the test can fail: a quote that matches nothing in the sheet is red', () => {
+  const output = {
+    citations: [
+      // "does" is a verbatim substring of the message (so the quote citation itself is
+      // green) but matches no Customer cell — the no-match path, not the bad-quote path.
+      { id: 'q1', quote: 'does', source: { kind: 'text', artifact: 'a2', line: 1 } },
+    ],
+    matches: [],
+  };
+  const result = closeCustomerMatch(output, artifacts, 'a1');
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /matches no customer/);
 });
