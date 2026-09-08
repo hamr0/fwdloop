@@ -15,12 +15,7 @@ it · the fix (upstream commit/PR) · the version fwdloop consumed.**
 
 ## Queue
 
-- **bare-agent · `OpenAIProvider.generate()` has no way to force a tool call** (`tool_choice`
-  never sent; `src/provider-openai.js:72`). Surfaced by F4: GLM-5.2 on synthetic.new answered
-  the M0 drafter in prose 5/5 times; raw curl with `tool_choice: {type:'function',
-  function:{name}}` gets the call every time (F2). Ask: accept `options.toolChoice`
-  (`'auto' | 'required' | { name }`) in `generate()` and pass it through as `tool_choice`;
-  Loop to accept the same per call. Fix: *(pending)*. Consumed: *(pending)*. **Blocks M0.**
+*(empty — F4 was filed here and retracted the same day; see watch list)*
 
 ## Watch list (not asks — becomes one only when a run proves it)
 
@@ -36,3 +31,11 @@ it · the fix (upstream commit/PR) · the version fwdloop consumed.**
   `onLlmResult` payload. fwdloop reads tool args from the tool's `execute()` and the model from
   the metering payload. Becomes an ask if M0's audit row needs either on the awaited result;
   at minimum a doc fix upstream.
+- **bare-agent · `OpenAIProvider.generate()` never sends `tool_choice`** (`src/provider-openai.js:72`).
+  Looked load-bearing in F4, was not: the empty rounds were `finish_reason: length` from
+  reasoning tokens; unforced tool calls land whenever the round finishes. Becomes an ask only
+  if a finished round (`stopReason` ≠ `length`) returns text instead of the tool >1 in 10.
+- **bare-agent · Loop does not shout on `stopReason: 'length'`** — a truncated round has empty
+  text and no tool calls and is indistinguishable from a refusal unless the caller reads
+  `stopReason` (F4). Ask candidate: a `loop:truncated` event or a warn. fwdloop reads
+  `stopReason` itself.

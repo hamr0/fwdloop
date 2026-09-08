@@ -96,23 +96,30 @@ is only on the `onLlmResult` payload. The runner reads both from the side channe
 Kimi-K3 threw one HTTP 503 on first attempt: the "one retry on transport-class failure" rung
 of the self-heal ladder (PRD §3.6) is exercised on day one.
 
-## F4 — bare-agent OpenAI provider cannot force a tool call; GLM-5.2 answers the drafter in prose (2026-09-08)
+## F4 — "GLM answers in prose" was a token cap: thinking spends the output budget (2026-09-08)
 
-M0 drafter (`poc/m0/drafter.mjs`, branch `m0-poc`): GLM-5.2 returned prose describing the
-declaration instead of calling `emit_declaration` on **5 of 5** attempts, including a
-minimal two-message prompt with a trivial schema and a system line saying any non-tool
-answer is a failure. Kimi-K3 could not be compared: two consecutive provider errors (502,
-503), beyond the one-retry ladder.
+M0 drafter (`poc/m0/drafter.mjs`): GLM-5.2 came back with **no tool call and empty text**
+5/5 times. First read: the model ignores the tool, and bare-agent's OpenAI provider never
+sends `tool_choice` (`src/provider-openai.js:72`, verified) so nothing forces it. Filed as an
+upstream ask for about an hour, then **retracted** by measurement:
 
-Cause, verified in `node_modules/bare-agent/src/provider-openai.js:72-83` (0.41.1): the
-request body carries `tools` but never `tool_choice`, so the API default `auto` applies and
-the model is free to answer in text. F2's raw-curl smoke test set
-`tool_choice: {type:'function', function:{name}}` and got clean tool calls from both models,
-so the API supports forcing it; the wrapper does not expose it. This is the watch-list item
-"tool-call-as-output" turning into an ask: without a forced tool call, "structured output =
-tool call with JSON schema" is a hope, not a contract.
+| cap (maxTokens) | outputTokens | finish | tool call |
+|---|---|---|---|
+| 600 (raw, ×2, forced and unforced) | 600 | length | no |
+| 1500 / 4000 (drafter) | 1500 / 4000 exactly | length | no |
+| 4000 (raw, unforced, ×2) | 2069 / 1295 | tool_calls | **yes** |
+| 4000 (raw, forced `tool_choice`) | 4000 / 2575 | length / tool_calls | no / yes |
+| 16000 (drafter) | 615 | tool_calls | **yes**, clean 7-step declaration, $0.0022 |
 
-Not patched locally (hamr's rule: upstream asks, wait for delivery). Queued in
-`docs/product/UPSTREAM-ASKS.md`. Closes and mechanical steps are built and tested with no
-model (35 `node --test` cases, every red path shown failing first); the runner, plants and
-run log wait on the fix. Spend so far ≈ $0.016.
+GLM-5.2 reasons before answering and the reasoning is billed as completion tokens; with the
+1.1k-token drafter prompt it sometimes reasons past 4000. A cut round has empty `content`,
+no `tool_calls`, `finish_reason: length` — which looks exactly like "the model refused the
+tool" unless you read the stop reason. Forcing `tool_choice` does not help (the cut happens
+in thinking) and is not needed (unforced calls landed every time it finished). Reasoning
+length is nondeterministic (615 vs >4000 on the same prompt).
+
+Rulings for M0: `maxTokens` 16000 on every model round; a round whose `stopReason` is
+`length` is a **red named "truncated"**, never "no tool call"; cost of a wasted long think
+is bounded by the cap (16k × $0.0022/1k ≈ $0.035). bare-agent surfaces `stopReason` on the
+result, so this is a caller discipline, not an upstream gap; the `tool_choice` pass-through
+stays on the watch list (nice to have, not load-bearing). Diagnostic spend ≈ $0.05.

@@ -131,7 +131,7 @@ export async function runDrafter(modelId, { ungroundable = false, runLabel = 'dr
   ];
 
   const startedAt = Date.now();
-  await loop.run(messages, tools, { maxTokens: 4000 });
+  await loop.run(messages, tools, { maxTokens: 16000 });
   const wallMs = Date.now() - startedAt;
 
   const suffixMatch = metering?.model != null && metering.model.replace(/^hf:/, '') === suffix;
