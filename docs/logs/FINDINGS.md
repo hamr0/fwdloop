@@ -71,3 +71,27 @@ The watch-list items in `docs/product/UPSTREAM-ASKS.md` for tool-call pass-throu
 DeepSeek's cached-token field are moot for M0 and stay as watches. Key lives in `pass` at
 `amr/synthetic_api` and reaches the process only as `SYNTHETIC_API_KEY` in the environment
 (hard line: never the tree).
+
+## F3 — bare-agent 0.41.1 talks to synthetic.new; metering row is authoritative (2026-09-08)
+
+`poc/probe-synthetic.mjs` (branch `m0-poc`): `OpenAI` provider with `baseUrl`, one tool
+`emit_figure`, caller `rates`. One call per model, both exit 0:
+
+| model | tool call | usage in/out/cacheRead | cost USD | rateSource | wall ms |
+|---|---|---|---|---|---|
+| hf:zai-org/GLM-5.2 | `{value:4200, cell:"E2", asStated:"4200"}` | 98 / 27 / 192 | 0.00012972 | caller | 6973 |
+| hf:moonshotai/Kimi-K3 | same | 193 / 63 / 192 | 0.00028482 | caller | 35778 (one 503, retried once) |
+
+Cost and usage come from `new Loop({ onLlmResult })` — payload `{ model, provider, usage,
+costUsd, pricing, rateSource, durationMs, kind:'turn' }`, usage normalised to
+`{ inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens }` (no reasoning field on
+the OpenAI provider; reasoning is inside output, priced at the output rate). Suffix match on
+the returned model id holds (F2 note 1).
+
+Two surprises, neither blocks M0, both logged in `docs/product/UPSTREAM-ASKS.md` watch list:
+(1) `loop.run()` returns `toolCalls: []` on every path — the tool's own `execute()` closure is
+the only place the args land; (2) `loop.run()` returns no `model` field; the resolved model
+is only on the `onLlmResult` payload. The runner reads both from the side channel.
+
+Kimi-K3 threw one HTTP 503 on first attempt: the "one retry on transport-class failure" rung
+of the self-heal ladder (PRD §3.6) is exercised on day one.

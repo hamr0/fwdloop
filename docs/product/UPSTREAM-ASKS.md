@@ -25,3 +25,9 @@ it · the fix (upstream commit/PR) · the version fwdloop consumed.**
 - **bare-agent · DeepSeek cached-token field name.** If DeepSeek reports cache hits outside
   `prompt_tokens_details.cached_tokens`, cached tokens price at the full input rate and the
   audit row under-reports `cacheReadTokens`. Measure on the first paid round.
+- **bare-agent · `loop.run()` result always has `toolCalls: []` and no `model` field** (F3,
+  0.41.1). Every return path in `src/loop.js` hardcodes `toolCalls: []`; the quickstart in
+  `bareagent.context.md` implies it populates. The resolved model reaches only the
+  `onLlmResult` payload. fwdloop reads tool args from the tool's `execute()` and the model from
+  the metering payload. Becomes an ask if M0's audit row needs either on the awaited result;
+  at minimum a doc fix upstream.
