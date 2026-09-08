@@ -1,0 +1,2 @@
+{"runId":"drafter-zai-org/GLM-5.2","step":"draft","model":"hf:zai-org/GLM-5.2","modelReturned":"zai-org/GLM-5.2","tokens":{"inputTokens":1142,"outputTokens":1500,"cacheReadTokens":0,"cacheCreationTokens":0},"costUsd":0.0039852,"rateSource":"caller","wallMs":24173}
+{"runId":"drafter-zai-org/GLM-5.2","step":"draft","model":"hf:zai-org/GLM-5.2","modelReturned":"zai-org/GLM-5.2","tokens":{"inputTokens":1151,"outputTokens":4000,"cacheReadTokens":0,"cacheCreationTokens":0},"costUsd":0.0094906,"rateSource":"caller","wallMs":53858}
