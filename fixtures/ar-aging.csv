@@ -1,0 +1,9 @@
+Customer,Invoice #,Invoice date,Due date,Amount,Days overdue,Current,1-30,31-60,61-90,90+
+Northwind Trading,INV-1021,2026-05-10,2026-06-09,4200,,,,,,
+Northwind Trading,INV-1009,2026-04-20,2026-05-20,1500,,,,,,
+Blue Mountain Cafe,INV-0998,2026-04-12,2026-05-12,980,,,,,,
+Blue Mountain Cafe,INV-0975,2026-03-15,2026-04-14,980,,,,,,
+Harbor Logistics,INV-1033,2026-05-15,2026-06-14,8000,,,,,,
+Harbor Logistics,INV-0960,2026-03-01,2026-03-31,3200,,,,,,
+Vertex Builders,INV-0904,2026-01-10,2026-02-09,6500,,,,,,
+Sunrise Retail,INV-1040,2026-05-25,2026-06-24,2400,,,,,,
