@@ -41,6 +41,10 @@ step is not automation. So the load-bearing claim is:
 > cited value equals the value stated. The judge (if any) only extracts; a fixed rule decides
 > (bareloop softgreen doctrine **[B]** close-verdicts §5). Unsure = red.
 
+**Proven 2026-09-08 (M0, F5): yes.** Planted wrong total and wrong cell went red naming the
+figure and the formula/cell; the ambiguous name landed at an ask; clean went green; an
+ungroundable step was refused at draft. Two providers. fwdloop v1 proceeds as specified.
+
 Module 0's POC aims at exactly this. Pre-registered pass: on job #1 with a **planted wrong
 number** in the model's output (not in the check), the citation close goes red and names the
 gap; with no plant it goes green; a step whose output cannot be grounded is refused at draft
@@ -293,6 +297,12 @@ signed skillset checkbox enables (bareloop: a widened menu is inert without a re
     bookkeeper at $50/h = **$12.50 per day**; M0's $ per run is reported against it.
   - *Blocks on M0 start:* (1) hamr's go; (2) a provider key from hamr. Nothing else in this
     PRD blocks; every other **[?]** is a design detail that lands when its need arises.
+  **M0 RESULT (2026-09-08, F5, `docs/logs/2026-09-08-m0-run.md`): GO.** Plants (a) (b) (c)
+  (d) as stated on Kimi-K3; (a) (c) (d) on GLM-5.2, (b) not reached (provider variance,
+  three attempts); ungroundable step refused at draft by both; false reds 0/2 after three
+  close/prompt bugs fixed with tests; clean run $0.003–0.006 vs $12.50 human; ≈$0.16 of the
+  $5 cap spent. Carried to M1 as spec questions: date-aware `min`/`max`; a filter for
+  `count`; transport failure cost = unknown, never 0. Runner is job-#1-shaped only (M2).
 - **M1 — spec + validator + hash.** Step-kind menu, guardrail schema, arbiter fields
   inexpressible to the drafter, ReDoS-safe patterns, mutation-proven.
 - **M2 — runner.** Fold over steps, per-step fresh context, artifacts/notes, spine, money +
