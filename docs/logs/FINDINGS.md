@@ -60,9 +60,10 @@ priced at the output rate, which is right.
 
 Two notes for the audit row: (1) the **returned model id drops the `hf:` prefix** — the
 signed flow pins `hf:zai-org/GLM-5.2`, the response says `zai-org/GLM-5.2`; the runner must
-compare on the suffix or the audit will show a mismatch on every row; (2) the subscription is
-flat-rate, so each round is priced at the model's public list rate as a **ceiling**, stated
-as such — unknown is never 0, and flat is not free.
+compare on the suffix or the audit will show a mismatch on every row; (2) billing is
+**usage-based** (prepaid balance, recharged as needed — hamr, 2026-09-08: "it's usage based,
+we will see if this works or the monthly based on how many times we recharge"), so each round
+is priced at the model's public list rate and the $5 cap is real money — unknown is never 0.
 
 **Verdict:** synthetic.new is M0's provider, one key, two labs (GLM-5.2 primary, Kimi-K3
 second, §11 P10). No upstream ask: bare-agent's `OpenAI` provider with `baseUrl` fits as-is.
