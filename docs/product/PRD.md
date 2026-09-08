@@ -274,7 +274,7 @@ signed skillset checkbox enables (bareloop: a widened menu is inert without a re
     is a **tool call whose input schema is the citation schema** (bare-agent has no
     `response_format` pass-through; its documented path is tools with JSON Schema). The
     provider is an **egress destination**: it goes on the signed allow-list like any other,
-    and `local-only` (§11 P7) is how a flow refuses cloud models. Suite gaps go to
+    and `local-only` (§11 P7) is how a flow refuses cloud models. Superseded same day by F2: **synthetic.new** (one $30/mo subscription, any app allowed, OpenAI shape at `api.synthetic.new/openai/v1`) — **`hf:zai-org/GLM-5.2` primary, `hf:moonshotai/Kimi-K3` second**; tool calls and usage verified on both; key from `pass show amr/synthetic_api` → `SYNTHETIC_API_KEY` env only. Suite gaps go to
     `docs/product/UPSTREAM-ASKS.md` and we wait for delivery (hamr's rule, 2026-09-08).
   - *Fixture (real, not authored):* `ar-aging-report-template.csv` from accounting.events
     (sha256 `f2960d9e…`, 572 bytes): columns `Customer, Invoice #, Invoice date, Due date,
