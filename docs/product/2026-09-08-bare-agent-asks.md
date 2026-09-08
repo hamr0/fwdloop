@@ -110,5 +110,14 @@ Sent to the bareagent session "agent" 2026-09-08; all four validated against 0.4
 and accepted as one set, mutation-proven per fix. Ship version is hamr's decision; not yet
 bound.
 
-Consumed-version column lands here when a release ships. bareloop's BA-24/BA-25 point at
+**2026-09-08, later:** all four built on bareagent branch
+`feat/provider-transport-and-observability`, cut locally as **v0.42.0** (release commit
+68800e8; 1147 tests pass). fwdloop re-ran `harness-drop.mjs` against that branch's
+`src/provider-openai.js` @ 091b709: all seven cases settle, the two partial-body cases reject
+with "response stream aborted before the body completed". Waiting on hamr to push, merge,
+tag and publish (OIDC `workflow_dispatch`). Bump note: 0.42.0's OpenAI provider defaults to
+`max_completion_tokens`; synthetic.new accepts both keys (checked with one 50-token call
+each), so fwdloop does not need `legacyMaxTokens`.
+
+Consumed-version column lands here when 0.42.0 is on npm. bareloop's BA-24/BA-25 point at
 this file with a "carried by fwdloop" note (barelo owns that edit).
