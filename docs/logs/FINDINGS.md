@@ -233,6 +233,20 @@ finding had two headlines. Agreed text, four points:
    model whitelist.** (barelo's amendment, taken: fwdloop's 88 zero-error rounds are strong
    evidence for fwdloop's ~31s round shape and do not transfer unchanged to a project whose
    rounds ask for thousands of output tokens.)
+5. **Timing is necessary but not sufficient: the model must also be capable of the project's
+   own authoring artifact, a separate threshold.** (barelo's second amendment, taken, and their
+   evidence is decisive — Kimi-K3 died at 104s, comfortably fast, and still failed bareloop's
+   plan validation twice running: draft 1 omitted `exit` on every step, draft 2 used absolute
+   paths and `..` segments.)
+
+**bareloop's controlled comparison (F146), which revises rather than confirms the above:** same
+job, same signed spec, same patient, same $5/30-min ceiling, four models. 0 of 3 synthetic
+models cleared their bar; gpt-5-mini on OpenAI did. Crucially **only one of the three failures
+is the cliff** — GLM-5.2 hit it; Qwen3.8-27B died on an unexplained HTTP 400 at ~25k
+accumulated context (136s); Kimi-K3 failed on plan capability (104s). So the honest suite-level
+statement is narrower and worse than "GLM is slow": no model tested there could author a
+bareloop plan. It does not touch fwdloop's bake-off, and it explains why — fwdloop's steps ask
+for a few hundred output tokens against no comparable schema.
 
 fwdloop's own bar under point 4: baseline Qwen3.8-27B, median round 11s against a ~250s cap —
 roughly 20× headroom. See F7.
@@ -307,3 +321,37 @@ wall second (~4× faster, and F6's ~250s per-request cliff makes speed a reliabi
 not a nicety). GLM-5.2 stays as the second provider. gpt-oss-120b is disqualified, not kept as
 a cheap fallback: it is the model the fix targets. **No more model shopping** — a change of
 baseline needs a measured reason recorded here.
+
+## F8 — Qwen and Kimi handle 120k input tokens fine; bareloop's HTTP 400 is not context size (2026-09-08)
+
+bareloop's F146 left an unexplained HTTP 400 from `hf:Qwen/Qwen3.8-27B` at ~25k accumulated
+context, well inside its 262k window. Since Qwen is fwdloop's baseline model (F7), fwdloop
+probed it directly — raw requests, growing single-turn prompts, one tool:
+
+| model | prompt tokens | status | tool called | wall |
+|---|---|---|---|---|
+| Qwen3.8-27B | 10,329 | 200 | yes | 4.1s |
+| Qwen3.8-27B | 30,329 | 200 | yes | 6.5s |
+| Qwen3.8-27B | 60,329 | 200 | yes | 9.3s |
+| Qwen3.8-27B | **120,329** | 200 | yes | 14.6s |
+| Kimi-K3 | 120,188 | 200 | yes | 11.8s |
+
+Both models answer cleanly at **120k input tokens**, ~5× the size at which bareloop's 400
+fired, with the tool call intact and wall time growing linearly and gently. **Raw context size
+is disconfirmed as the cause.** The 400 belongs to the SHAPE of an accumulated multi-turn
+transcript — assistant turns carrying `tool_calls`, tool-result messages, empty content fields
+— not to its size.
+
+**Why this matters to fwdloop and why it is structural, not luck:** PRD §5 runs each step in a
+fresh context carrying only the goal line plus prior compact artifacts, never prior
+transcripts. fwdloop therefore never builds the accumulating multi-turn transcript that the 400
+attaches to. The baseline holds; the protection is a design property, not a model property, and
+it should be treated as load-bearing rather than incidental if the runner is ever tempted to
+carry a conversation across steps.
+
+**Related gap, ours as much as bareloop's:** neither project sets bare-agent's
+`exposeErrorBody`, so a provider HTTP error arrives as a bare status with the vendor's
+explanation discarded — which is precisely why the 400 is still unexplained. Not a free fix (an
+error body can echo auth material and must route through a scrub first), so it is recorded here
+as a real diagnostic gap rather than built: **fwdloop's runner should set `exposeErrorBody` and
+scrub, carried to M2.**
