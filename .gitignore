@@ -14,3 +14,9 @@ scratch-*
 # then re-admit only the ones we ship. Default-deny beats chasing each new scratch dir.
 .*/
 !.github/
+# The rules file is the one thing under .claude/ that ships with the repo
+!.claude/
+.claude/*
+!.claude/remember/
+.claude/remember/*
+!.claude/remember/AGENT_RULES.md

@@ -1,12 +1,26 @@
 {
   "name": "fwdloop",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Describe a job as steps and guardrails; an agent builds the workflow, pauses for humans where you said, checks every step happened, and reruns it under budgets it cannot touch.",
   "type": "module",
   "main": "./src/index.js",
   "license": "Apache-2.0",
   "author": "hamr0",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hamr0/fwdloop.git"
+  },
+  "homepage": "https://github.com/hamr0/fwdloop#readme",
+  "bugs": {
+    "url": "https://github.com/hamr0/fwdloop/issues"
+  },
+  "keywords": [
+    "agent",
+    "workflow",
+    "automation",
+    "human-in-the-loop",
+    "bare-suite"
+  ],
   "engines": {
     "node": ">=20"
   },
