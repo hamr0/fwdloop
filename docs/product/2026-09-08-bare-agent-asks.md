@@ -78,9 +78,14 @@ nothing in Loop shouts about.
 round record carries no `stopReason` field at all, so the class is invisible after the fact
 on bareloop's side too (that part is bareloop's to fix, not bare-agent's — context only).
 
-**Ask:** make a `length`/`max_tokens` stop loud — a `loop:truncated` stream event and/or a
-`console.warn` once per Loop, and carry `stopReason` on the `onLlmResult` metering payload
-so the audit row records it without reading the awaited result. (Related, not blocking:
+**Correction from the bareagent session (2026-09-08):** Loop ALREADY tags such a round on
+the awaited result — `error: 'truncated:max_tokens'`, `stopReason`, and
+`loop:done { truncated: true }` (BA-13). fwdloop's drafter did not read those fields; that
+part was our miss. What is genuinely missing, and what is being added: `stopReason` on the
+`onLlmResult` metering payload, a `loop:truncated` event, and one `console.warn` per Loop.
+
+**Ask (as accepted):** `stopReason` on the metering payload plus the loud signal; F3's
+`model` field on the run result folded in. (Related, not blocking:
 `loop.run()` returns `toolCalls: []` on every path and no `model` field — F3.)
 
 ## ASK 4 — OpenAI provider never sends `tool_choice` (fwdloop, watch-list grade)
@@ -96,10 +101,14 @@ only if a finished round (`stopReason` ≠ `length`) returns text instead of the
 
 | ask | severity | repro | filed with bareagent |
 |---|---|---|---|
-| 1 non-settle on cut body | blocks any unattended run | harness-drop.mjs ($0, 2 cases) | pending |
-| 2 `max_tokens` on GPT-5 | hard 400 on every GPT-5 call | probe-openai-2.mjs (needs OpenAI key) | pending |
-| 3 silent truncation | misdiagnosis class, cost | fwdloop drafter, cap 4000 vs 16000 | pending |
-| 4 `tool_choice` | nice-to-have | — | pending |
+| 1 non-settle on cut body | blocks any unattended run | harness-drop.mjs ($0, 2 cases) | accepted 2026-09-08, in build |
+| 2 `max_tokens` on GPT-5 | hard 400 on every GPT-5 call | probe-openai-2.mjs (needs OpenAI key) | accepted, in build |
+| 3 silent truncation | misdiagnosis class, cost | fwdloop drafter, cap 4000 vs 16000 | accepted with correction, in build |
+| 4 `tool_choice` | nice-to-have | — | accepted, in build |
+
+Sent to the bareagent session "agent" 2026-09-08; all four validated against 0.41.1 source
+and accepted as one set, mutation-proven per fix. Ship version is hamr's decision; not yet
+bound.
 
 Consumed-version column lands here when a release ships. bareloop's BA-24/BA-25 point at
 this file with a "carried by fwdloop" note (barelo owns that edit).
