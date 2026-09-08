@@ -20,3 +20,6 @@ scratch-*
 !.claude/remember/
 .claude/remember/*
 !.claude/remember/AGENT_RULES.md
+
+# docs-builder machine state
+docs/.docs-builder/

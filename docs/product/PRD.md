@@ -83,7 +83,7 @@ that is a different, smaller product.**
    no trigger beyond "run now", and works on local docs — matches "start small with local reads."
    The inbox monitor becomes job #2 once triggers + mail land (M5/M6).
    *Round 4 — the concrete case (derived from the field's cash-application workflow, see
-   `docs/product/2026-09-08-fde-use-cases.md`; hamr: "we can use that example, but a text/chat
+   `docs/logs/2026-09-08-fde-use-cases.md`; hamr: "we can use that example, but a text/chat
    at the beginning instead of email with name"; "start with csv and docs"):* inputs are
    `ar-aging.csv` (Customer, Invoice, Issued, Due, Amount, Paid, Balance; ~20 rows, 4–6
    customers) and a **chat message as text** ("what does Acme owe and when is it due?" — a file
@@ -265,7 +265,7 @@ signed skillset checkbox enables (bareloop: a widened menu is inert without a re
     will get something else." M0's paid rounds run on the provider(s) hamr supplies by env
     key; Anthropic is not used for M0 even if a key is present. Cap **$5 total** across all
     plants and providers (hamr: "we can do $5"). *Research
-    (`docs/product/2026-09-08-m0-provider-research.md`):* **GLM-5.3** primary (z.ai,
+    (`docs/logs/2026-09-08-m0-provider-research.md`):* **GLM-5.3** primary (z.ai,
     OpenAI-compatible at `api.z.ai/api/paas/v4`, general-API key), **DeepSeek V4 Flash** as the
     second provider for P10, **GLM-4.7-Flash (free)** for every $0 iteration before the paid
     fire. All three ride bare-agent's `OpenAI` provider with `baseUrl` — no upstream ask.
@@ -361,7 +361,7 @@ needs a 10-of-10 calibration per provider. v1 skips it: the human at the `ask` r
    reader would be a fourth (post-M0; CSV is stdlib).
 3. **Ask notification.** Chat ping (beeperbox `note_to_self`) that an ask is waiting, answer
    still via CLI — M3 or M6? Recommendation: M6, with the other IO. **[?]**
-4. **Round-4 additions** (from `docs/product/2026-09-08-prd-gaps-review.md` §2, hamr's word
+4. **Round-4 additions** (from `docs/logs/2026-09-08-prd-gaps-review.md` §2, hamr's word
    needed on each): input-shape drift as its own red (2.4, and freshness per §11 P4); `send`
    dedupe key on rerun (2.5); `businessDate` on the trigger instance (2.6); **retention of
    customer data** in `artifacts/`/`audit.jsonl` and a `purge` that keeps the audit shape
