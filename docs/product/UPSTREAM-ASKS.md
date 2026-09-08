@@ -15,7 +15,12 @@ it · the fix (upstream commit/PR) · the version fwdloop consumed.**
 
 ## Queue
 
-*(empty — nothing has been exercised yet; M0 has not run)*
+- **bare-agent · `OpenAIProvider.generate()` has no way to force a tool call** (`tool_choice`
+  never sent; `src/provider-openai.js:72`). Surfaced by F4: GLM-5.2 on synthetic.new answered
+  the M0 drafter in prose 5/5 times; raw curl with `tool_choice: {type:'function',
+  function:{name}}` gets the call every time (F2). Ask: accept `options.toolChoice`
+  (`'auto' | 'required' | { name }`) in `generate()` and pass it through as `tool_choice`;
+  Loop to accept the same per call. Fix: *(pending)*. Consumed: *(pending)*. **Blocks M0.**
 
 ## Watch list (not asks — becomes one only when a run proves it)
 

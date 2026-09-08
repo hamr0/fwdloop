@@ -95,3 +95,24 @@ is only on the `onLlmResult` payload. The runner reads both from the side channe
 
 Kimi-K3 threw one HTTP 503 on first attempt: the "one retry on transport-class failure" rung
 of the self-heal ladder (PRD §3.6) is exercised on day one.
+
+## F4 — bare-agent OpenAI provider cannot force a tool call; GLM-5.2 answers the drafter in prose (2026-09-08)
+
+M0 drafter (`poc/m0/drafter.mjs`, branch `m0-poc`): GLM-5.2 returned prose describing the
+declaration instead of calling `emit_declaration` on **5 of 5** attempts, including a
+minimal two-message prompt with a trivial schema and a system line saying any non-tool
+answer is a failure. Kimi-K3 could not be compared: two consecutive provider errors (502,
+503), beyond the one-retry ladder.
+
+Cause, verified in `node_modules/bare-agent/src/provider-openai.js:72-83` (0.41.1): the
+request body carries `tools` but never `tool_choice`, so the API default `auto` applies and
+the model is free to answer in text. F2's raw-curl smoke test set
+`tool_choice: {type:'function', function:{name}}` and got clean tool calls from both models,
+so the API supports forcing it; the wrapper does not expose it. This is the watch-list item
+"tool-call-as-output" turning into an ask: without a forced tool call, "structured output =
+tool call with JSON schema" is a hope, not a contract.
+
+Not patched locally (hamr's rule: upstream asks, wait for delivery). Queued in
+`docs/product/UPSTREAM-ASKS.md`. Closes and mechanical steps are built and tested with no
+model (35 `node --test` cases, every red path shown failing first); the runner, plants and
+run log wait on the fix. Spend so far ≈ $0.016.
