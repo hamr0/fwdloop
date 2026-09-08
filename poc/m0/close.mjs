@@ -250,6 +250,9 @@ export function closeCompose(output, artifacts, businessDate) {
   // merely contain digits (invoice ids like "INV-1021"), then anything
   // numeric left over is an uncited figure.
   const withoutCitedFigures = text
+    // An ISO date (YYYY-MM-DD) immediately before its bracket — checked FIRST so the plain
+    // number pattern below (which stops at the first "-") doesn't leave "2026-06-" behind.
+    .replace(/\d{4}-\d{2}-\d{2}\s*\[[a-zA-Z0-9_]+\]/g, '')
     .replace(/[\d,]+(\.\d+)?\s*\[[a-zA-Z0-9_]+\]/g, '')
     .replace(/[A-Za-z]+-\d+/g, '');
   const bareNumber = /\d/.test(withoutCitedFigures);

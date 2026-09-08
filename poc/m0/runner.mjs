@@ -78,7 +78,7 @@ const CITATION_ITEM_SCHEMA = {
   type: 'object',
   properties: {
     id: { type: 'string', description: 'short id, e.g. c1' },
-    value: { description: 'the number, date (YYYY-MM-DD), or exact text, for copied/derived forms' },
+    value: { description: 'REQUIRED for copied and derived forms (omit only for a text-evidence/quote citation): the number, date (YYYY-MM-DD), or exact text' },
     asStated: { type: 'string', description: 'copied form only: the value as it literally appears' },
     formula: { type: 'string', enum: ['sum', 'count', 'min', 'max', 'sub', 'daysBetween'], description: 'derived form only' },
     inputs: { type: 'array', items: { type: 'string' }, description: 'derived form only: citation ids the formula runs over' },
@@ -100,9 +100,12 @@ const CITATION_ITEM_SCHEMA = {
 };
 
 const CLOSED_GRAMMAR_NOTE = 'Closed formula grammar: sum, count, min, max, sub, daysBetween — no expression '
-  + 'evaluation. A copied figure needs source.cell (csv) or source.line+quote (text). A derived figure needs '
-  + 'formula+inputs (citation ids already in your own citations array). Numbers compare stripped of commas/$; '
-  + 'dates compare as ISO strings; a quote must be a verbatim substring of the pointed line.';
+  + 'evaluation. A COPIED figure needs value (the number/date/text — REQUIRED, not just asStated) + '
+  + 'source.cell (csv) or source.quote+source.line (text). A DERIVED figure needs value + formula + inputs '
+  + '(citation ids already in your own citations array) — no source. A TEXT-EVIDENCE citation needs quote + '
+  + 'source.line, no value. Every citation MUST be exactly one of these three forms — never mix value with '
+  + 'quote, never omit value from a copied or derived citation. Numbers compare stripped of commas/$; dates '
+  + 'compare as ISO strings; a quote must be a verbatim substring of the pointed line.';
 
 // ---------------------------------------------------------------------------
 // One model round: fresh Loop, fresh messages, ONE tool. Retries per the
@@ -140,11 +143,21 @@ async function runModelStep({
     } catch (err) {
       const transportRetryable = err?.retryable === true
         || err?.status === 502 || err?.status === 503 || err?.status === 524;
+      // A pre-response transport failure (connection reset, gateway timeout) never reached a
+      // completed generation, so it carries no billed usage — logging it as costUsd:null would
+      // trip spend.mjs's "unknown is never rendered as 0" guard and permanently block ALL further
+      // spend for the rest of the session over a $0 event. Log costUsd:0 with a note explaining
+      // why 0 is asserted (not defaulted), not null. On the FIRST such failure, retry once
+      // silently without logging at all — nothing happened yet worth an audit row.
+      if (transportRetryable && attempt === 1) continue; // one retry, then red
       appendSpendRow(SPEND_PATH, {
         runId, step: stepLabel, model: modelId, modelReturned: null, tokens: null,
-        costUsd: null, rateSource: null, wallMs: Date.now() - startedAt, error: err.message,
+        costUsd: transportRetryable ? 0 : null, rateSource: null, wallMs: Date.now() - startedAt,
+        error: err.message,
+        note: transportRetryable
+          ? 'pre-response transport failure (no completion reached) — $0 asserted, not defaulted'
+          : undefined,
       });
-      if (transportRetryable && attempt === 1) continue; // one retry, then red
       const e = new Error(`provider-red: ${err.message}`);
       e.red = `provider-red: ${err.message}`;
       throw e;
@@ -324,7 +337,10 @@ export async function runDeclaration({
     + `inputs = one daysBetween DERIVED citation per invoice whose due date is overdue, i.e. `
     + `daysBetween(due date, businessDate) > 0 — businessDate is ${BUSINESS_DATE}, put every invoice's `
     + `daysBetween citation in your citations array regardless, but only the OVERDUE ones' ids in count_overdue's `
-    + `inputs). ${CLOSED_GRAMMAR_NOTE} Return output.fields = {"total_owed": "<citation id>", `
+    + `inputs). A daysBetween citation takes EXACTLY ONE input: the due-date citation id. businessDate is `
+    + `IMPLICIT — it is never cited, never given its own citation, and never a second daysBetween input; it is `
+    + `not part of any artifact, so there is nothing to cite it against. ${CLOSED_GRAMMAR_NOTE} Return `
+    + `output.fields = {"total_owed": "<citation id>", `
     + `"earliest_due": "<citation id>", "count_overdue": "<citation id>"}. Answer ONLY by calling emit_derive.`;
   const derive2User = `${renderCsvArtifact(csvArtifact)}\n\nMatched customer: ${customer}. Their rows: `
     + `${customerRows.map((r) => `row ${r.rowNumber} (${r.byName['Invoice #']})`).join(', ')}.\n\n`

@@ -145,6 +145,19 @@ test('PROOF the test can fail: a bare number outside any citation bracket is red
   assert.match(result.red, /bare \(uncited\) number/);
 });
 
+test('compose close: a bracketed ISO date (YYYY-MM-DD [cN]) is not a false-positive bare number '
+  + '(regression: the plain-number cleanup regex stops at the first hyphen and leaves "2026-06-" behind)', () => {
+  const output = {
+    citations: [
+      { id: 'c1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
+      { id: 'c3', value: '2026-06-09', source: { kind: 'csv', artifact: 'a1', cell: 'D2' } },
+    ],
+    text: 'INV-1021 is 4200 [c1], due 2026-06-09 [c3]',
+  };
+  const result = closeCompose(output, artifacts, '2026-06-01');
+  assert.equal(result.verdict, 'green');
+});
+
 test('PROOF the test can fail: a bracket pointing at a nonexistent citation id is red', () => {
   const output = {
     citations: [{ id: 'c1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } }],
