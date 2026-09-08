@@ -264,7 +264,18 @@ signed skillset checkbox enables (bareloop: a widened menu is inert without a re
   - *Provider:* hamr — "this one will have real api firing, so we won't use claude for it, i
     will get something else." M0's paid rounds run on the provider(s) hamr supplies by env
     key; Anthropic is not used for M0 even if a key is present. Cap **$5 total** across all
-    plants and providers (hamr: "we can do $5").
+    plants and providers (hamr: "we can do $5"). *Research
+    (`docs/product/2026-09-08-m0-provider-research.md`):* **GLM-5.3** primary (z.ai,
+    OpenAI-compatible at `api.z.ai/api/paas/v4`, general-API key), **DeepSeek V4 Flash** as the
+    second provider for P10, **GLM-4.7-Flash (free)** for every $0 iteration before the paid
+    fire. All three ride bare-agent's `OpenAI` provider with `baseUrl` — no upstream ask.
+    Pricing is the adapter's designed path: caller rates from the vendor price page passed as
+    `new Loop({ rates })` (rateSource `'caller'`), never a handrolled table. Structured output
+    is a **tool call whose input schema is the citation schema** (bare-agent has no
+    `response_format` pass-through; its documented path is tools with JSON Schema). The
+    provider is an **egress destination**: it goes on the signed allow-list like any other,
+    and `local-only` (§11 P7) is how a flow refuses cloud models. Suite gaps go to
+    `docs/product/UPSTREAM-ASKS.md` and we wait for delivery (hamr's rule, 2026-09-08).
   - *Fixture (real, not authored):* `ar-aging-report-template.csv` from accounting.events
     (sha256 `f2960d9e…`, 572 bytes): columns `Customer, Invoice #, Invoice date, Due date,
     Amount, Days overdue, Current, 1-30, 31-60, 61-90, 90+`; 8 invoices, 5 customers
