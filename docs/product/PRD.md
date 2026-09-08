@@ -41,9 +41,29 @@ step is not automation. So the load-bearing claim is:
 > cited value equals the value stated. The judge (if any) only extracts; a fixed rule decides
 > (bareloop softgreen doctrine **[B]** close-verdicts §5). Unsure = red.
 
-**Proven 2026-09-08 (M0, F5): yes.** Planted wrong total and wrong cell went red naming the
-figure and the formula/cell; the ambiguous name landed at an ask; clean went green; an
-ungroundable step was refused at draft. Two providers. fwdloop v1 proceeds as specified.
+**M0 result 2026-09-08 (F5, `docs/logs/2026-09-08-m0-run.md`): the narrow claim holds; the
+evidence behind it is thin, and both halves are load-bearing.** What was proven: a planted
+wrong derived total and a planted wrong copied cell each went red naming the figure and the
+formula/cell; the ambiguous name landed at an `ask` and never a pick; a clean run went green
+through `send`; an ungroundable step was refused at draft. Two models.
+
+What was NOT proven, and must not be read into the above:
+- **The plants test the CLOSE, not the model.** The wrong values are injected into the
+  model's captured output before the close runs. M0 says "if a figure is wrong, the machine
+  catches it." It says nothing about how often a model is wrong unaided.
+- **One clean green per model, at the end, after tuning.** The clean run went red 3× on
+  GLM-5.2 and 1× on Kimi-K3 first. Three fixes landed in between: one genuine close bug (a
+  cited ISO date miscounted as a bare number — the fix made the check stricter, not looser),
+  one spend-guard bug, and three compose-prompt tightenings that constrain FORMAT only. "False
+  reds 0/2" is the count after those fixes, not a stability measure.
+- **The runner does not execute the drafter's declaration.** It is a hand-wired fold for job
+  #1's shape. The declaration was produced and shape-checked, never run. (M2.)
+- **`earliest_due` and `count_overdue` are not independently recomputed** — no date-aware
+  `min`, no filter primitive for `count`. See §7's carried spec questions.
+- **Sample: one 8-row sheet, one question, one clean run per model.** A mechanism proof, not
+  a reliability figure.
+
+fwdloop v1 proceeds as specified. §2 is answered; every later module still owns its own exit.
 
 Module 0's POC aims at exactly this. Pre-registered pass: on job #1 with a **planted wrong
 number** in the model's output (not in the check), the citation close goes red and names the
