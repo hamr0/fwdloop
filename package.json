@@ -1,0 +1,23 @@
+{
+  "name": "fwdloop",
+  "version": "0.0.0",
+  "description": "Describe a job as steps and guardrails; an agent builds the workflow, pauses for humans where you said, checks every step happened, and reruns it under budgets it cannot touch.",
+  "type": "module",
+  "main": "./src/index.js",
+  "license": "Apache-2.0",
+  "author": "hamr0",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "files": [
+    "src",
+    "bin",
+    "fwdloop.context.md",
+    "LICENSE",
+    "NOTICE"
+  ]
+}

@@ -1,0 +1,16 @@
+node_modules/
+.env
+*.env
+!.env.example
+/types/
+*.log
+*.db
+
+# Flow directories and probe scratch are never committed
+flows/
+scratch-*
+
+# Agent / IDE / tooling scratch — ignore EVERY dot-directory by default,
+# then re-admit only the ones we ship. Default-deny beats chasing each new scratch dir.
+.*/
+!.github/
