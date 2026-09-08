@@ -1,4 +1,4 @@
-# fwdloop — preliminary PRD (DRAFT v0.3, 2026-09-08, for discussion, NOT signed)
+# fwdloop — preliminary PRD (DRAFT v0.4, 2026-09-08, for discussion, NOT signed)
 
 > Status: discussion draft in AGENT_RULES shape (problem/goal, go/no-go, out of scope, modules,
 > open questions). v0.1 assumed a repo patient and N hops of bareloop; hamr's interview
@@ -10,6 +10,7 @@
 > baremobile 0.11, litectx 0.32, beeperbox 0.9, mailproof 1.3).
 > **[B]** = borrowed with source. **[NEW]** = proposed here. **[?]** = needs hamr's word.
 > v0.3 folds in interview round 2 (§3 items 11–14, §5 effect checks, §9 answers, §10 ceilings).
+> v0.4 records round-3 rulings: egress rule, optional compose judge, provider-red ladder, ceiling shape B.
 
 ## §1 Problem & goal
 
@@ -117,6 +118,13 @@ human-authored, inexpressible to the drafter (bareloop's locked-kinds pattern **
 | `ask` | render question + evidence, PAUSE | disposition recorded with exact words | — | ISOLATE |
 | `send` | egress: mail / chat / file | delivery id / file path captured | target ∈ signed allow-list; prior `ask` accept this run | io |
 | `remember` | write facts to memory (supersede by id) | row count or hash changed | schema valid | WRITE |
+
+**Optional judge on `compose` (ruled 2026-09-08: "have it in prd optional").** A `compose` step
+may carry a signed `judge: { provider, model }`; OFF by default. When on, a second cheap model
+EXTRACTS facts/quotes only and a deterministic rule decides (bareloop softgreen **[B]**); unsure =
+red. It is refused at $0 unless a 10-of-10 calibration record exists for that exact
+`(provider, model)` pair — never a silent substitute. Its cost lands on the run's cap like any
+round. v1 ships the flag and the refusal; calibration itself is a later module (M6+).
 
 The four buckets are litectx's context-engineering taxonomy (build-studies:1126-1168). Proposed
 use: **internal**, to organise the primitive catalogue the drafter selects from — not the
@@ -255,34 +263,34 @@ needs a 10-of-10 calibration per provider. v1 skips it: the human at the `ask` r
    as optional peers only when a skill is checked. Confirm 3 is acceptable. **[?]**
 3. **Ask notification.** Chat ping (beeperbox `note_to_self`) that an ask is waiting, answer
    still via CLI — M3 or M6? Recommendation: M6, with the other IO. **[?]**
-4. **Monthly shape.** Pick A or B in §10. **[?]**
 
-## §10 Ceilings and outages — proposed rules (discussion)
+## §10 Ceilings and outages — RULED 2026-09-08 (hamr: "shape b agreed", "provider red agreed", "egress agreed")
 
 **Why monthly matters** (hamr): companies ask up front how to make the best use of tokens so
-the machine stays cheaper than the human. So the audit row carries $ per run and per step, and
-a monthly wall exists that the trigger itself respects.
+the machine stays cheaper than the human. So every audit row carries $ per run and per step,
+and a monthly wall exists that the trigger itself respects.
 
-**Shape A — hamr's sketch.** Monthly `M` signed; daily = `M / 30`; resets on the 1st; a run in
-its LAST step may exceed its daily by 10%, debited against `M`.
-Cost of A: three numbers (monthly, daily, grace) and one exception. The exception is a widening
-rule, and bareloop's record says every widening rule gets found by the agent (F-series: a run
-learns where the slack is). It also has a hole: a run paused at an `ask` for two days resumes
-on day N+2 — whose daily does it debit?
+**Two signed walls, both hard, both tighten-only:**
+- `cap.usd` — per RUN. Binds between rounds; may overshoot by at most one round (bareloop **[B]**).
+- `cap.monthlyUsd` — per calendar month, reset on the 1st at 00:00 local. The trigger fires
+  ONLY if `monthlyUsd − spentThisMonth ≥ cap.usd`: the whole run is funded before it starts
+  (bareloop: fund the attempt plus its close **[B]**). Otherwise the trigger records
+  `monthly-exhausted` in `history.jsonl` and does not start. No daily number, no grace, no
+  borrowing. A run resumed after an ask debits the month it spends in.
+- `spentThisMonth` is summed from `history.jsonl`; any row with `spendComplete: false` makes
+  the sum a floor, and a floor at or over the wall halts (unknown never reads as 0 **[B]**).
+- Informative only, never a rule: CLI/UI prints "at this pace, N runs left this month."
+- The only way to get more runs is a human raising `monthlyUsd` and re-signing the flow.
 
-**Shape B — recommended, simpler, tighten-only.** Two signed walls, both hard:
-- `cap.usd` per RUN (already in §5). Overshoot only by one round, as bareloop **[B]**.
-- `cap.monthlyUsd`. The trigger fires ONLY if `monthlyUsd − spentThisMonth ≥ cap.usd`, i.e.
-  the whole run is funded before it starts (bareloop: fund the attempt plus its close **[B]**).
-  Otherwise the trigger records `monthly-exhausted` and does not start. No daily number, no
-  grace, nothing to borrow: a resumed run debits the month it spends in.
-- Month = calendar month, reset on the 1st 00:00 local; `spentThisMonth` is summed from
-  `history.jsonl`, `spendComplete` false makes it a floor (unknown never reads as 0).
-- Informative only, in the UI/CLI: "at this pace, `N` runs left this month."
-Under B the "last step" case cannot strand a run, because the run was funded whole at start.
-The only way to get more runs is a human raising `monthlyUsd` and re-signing.
+**Egress (ruled).** Signed allow-list of destinations + a human accept at an `ask` earlier in
+the SAME run before any `send` fires. Dry-run mode forces every `send` to a file.
 
-**Provider-red** (the model API down / 5xx / timeout): one immediate transport retry (bareloop
-rule **[B]**), then the run parks as `provider-red` (resumable, nothing lost), the trigger retries
-the parked run at +5, +15, +45 min (three tries, fixed, tighten-only), then escalates to the
-human with the error text. A run parked this way is funded already; retries do not re-fund.
+**Provider-red (ruled)** — the model API down / 5xx / timeout: one immediate transport retry
+(bareloop **[B]**), then the run parks as `provider-red` (resumable, nothing lost); the trigger
+retries the parked run at +5, +15, +45 min (three tries, fixed, tighten-only); then it
+escalates to the human with the error text. A parked run is already funded; retries do not
+re-fund and cannot start a second run of the same flow while one is parked.
+
+**Shape A (hamr's first sketch — monthly/30 daily with a 10% last-step grace) was considered
+and NOT adopted:** three numbers plus an exception, the exception is a widening rule, and a run
+paused at an ask across days has no clear daily to debit. Recorded so it is not re-raised.
