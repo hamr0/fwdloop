@@ -23,3 +23,7 @@ scratch-*
 
 # docs-builder machine state
 docs/.docs-builder/
+
+# M0 POC run output — never committed except the spend tally
+poc/m0/out/*
+!poc/m0/out/spend.jsonl

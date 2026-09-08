@@ -1,0 +1,12 @@
+steps:
+1. read the sheet
+2. read the message and work out which customer
+3. list their open invoices, total owed, earliest due, count overdue as of today
+4. write a short reply, one line per invoice
+5. check with me
+6. on accept, send
+guardrails:
+- every number must point to the cell it came from or the formula that made it
+- if more than one customer matches, ask me, do not pick
+- nothing goes out before I accept
+- cap $0.25 per run
