@@ -101,10 +101,10 @@ only if a finished round (`stopReason` ≠ `length`) returns text instead of the
 
 | ask | severity | repro | filed with bareagent |
 |---|---|---|---|
-| 1 non-settle on cut body | blocks any unattended run | harness-drop.mjs ($0, 2 cases) | accepted 2026-09-08, in build |
-| 2 `max_tokens` on GPT-5 | hard 400 on every GPT-5 call | probe-openai-2.mjs (needs OpenAI key) | accepted, in build |
-| 3 silent truncation | misdiagnosis class, cost | fwdloop drafter, cap 4000 vs 16000 | accepted with correction, in build |
-| 4 `tool_choice` | nice-to-have | — | accepted, in build |
+| 1 non-settle on cut body | blocks any unattended run | harness-drop.mjs ($0, 2 cases) | shipped 0.42.0 |
+| 2 `max_tokens` on GPT-5 | hard 400 on every GPT-5 call | probe-openai-2.mjs (needs OpenAI key) | shipped 0.42.0 |
+| 3 silent truncation | misdiagnosis class, cost | fwdloop drafter, cap 4000 vs 16000 | shipped 0.42.0 |
+| 4 `tool_choice` | nice-to-have | — | shipped 0.42.0 |
 
 Sent to the bareagent session "agent" 2026-09-08; all four validated against 0.41.1 source
 and accepted as one set, mutation-proven per fix. Ship version is hamr's decision; not yet
@@ -119,5 +119,8 @@ tag and publish (OIDC `workflow_dispatch`). Bump note: 0.42.0's OpenAI provider 
 `max_completion_tokens`; synthetic.new accepts both keys (checked with one 50-token call
 each), so fwdloop does not need `legacyMaxTokens`.
 
-Consumed-version column lands here when 0.42.0 is on npm. bareloop's BA-24/BA-25 point at
+**Consumed: bare-agent 0.42.0** (npm latest, bareagent main 8ee93e9, tag v0.42.0). fwdloop
+bumped on branch `m0-poc`; `harness-drop.mjs` all seven cases settle on the installed
+package; 48 POC tests pass. Paid drafter re-run deferred until the null spend row is
+reconciled (F5). bareloop's BA-24/BA-25 point at
 this file with a "carried by fwdloop" note (barelo owns that edit).

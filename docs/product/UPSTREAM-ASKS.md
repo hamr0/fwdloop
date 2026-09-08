@@ -20,7 +20,7 @@ it · the fix (upstream commit/PR) · the version fwdloop consumed.**
   2026-09-08): (1) `generate()` never settles on a body cut after headers — bareloop BA-25,
   reproduced on 0.41.1 by fwdloop at $0; (2) `max_tokens` rejected by GPT-5 models — bareloop
   BA-24; (3) silent `stopReason: length` — fwdloop F4, bareloop corroborates; (4) no
-  `tool_choice` — fwdloop, nice-to-have. Fix: *(pending)*. Consumed: *(pending)*. (1) does not
+  `tool_choice` — fwdloop, nice-to-have. Fix: bare-agent 0.42.0 (main 8ee93e9). Consumed: **0.42.0** on `m0-poc`, harness verified. (1) does not
   block M0's paid runs today but blocks any unattended rerun (M5+).
 
 ## Watch list (not asks — becomes one only when a run proves it)

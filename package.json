@@ -35,6 +35,6 @@
     "NOTICE"
   ],
   "dependencies": {
-    "bare-agent": "^0.41.1"
+    "bare-agent": "^0.42.0"
   }
 }
