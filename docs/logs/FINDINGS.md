@@ -210,3 +210,10 @@ it is a tripwire to watch, not a redesign.
 
 GLM-5.2 stays usable for fwdloop's job shape; it loses the baseline slot on results and speed
 (F7), not on this.
+
+Filed jointly as bareloop **F144** (bareloop main `700e64f`). The 524 question is closed on
+both sides for the same measured reason. Ledgers deliberately NOT pooled: bareloop's 9,548
+rounds are one provider and one model family, fwdloop's are a 9-model bake-off — a merged
+median would read as a fact about model latency while actually being a fact about whichever
+population dominates the count. The useful comparison, if wanted later, is segmented:
+fwdloop's per-model tokens/sec against bareloop's per-phase distribution, populations named.
