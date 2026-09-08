@@ -168,6 +168,148 @@ test('PROOF the test can fail: a bracket pointing at a nonexistent citation id i
   assert.match(result.red, /\[c9\]/);
 });
 
+// --- compose completeness: every field the prior derive step declared must
+// appear, cited, in the composed text (the gpt-oss-120b hole: 3/3 green on
+// evidence alone by omitting total/earliest-due/overdue-count entirely). ---
+
+const derive2Fields = { total_owed: 'c7', earliest_due: 'c8', count_overdue: 'c9' };
+const derive2Citations = [
+  { id: 'c1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
+  { id: 'c2', value: 1500, source: { kind: 'csv', artifact: 'a1', cell: 'E3' } },
+  { id: 'c3', value: '2026-06-09', source: { kind: 'csv', artifact: 'a1', cell: 'D2' } },
+  { id: 'c4', value: '2026-05-20', source: { kind: 'csv', artifact: 'a1', cell: 'D3' } },
+  { id: 'c7', value: 5700, formula: 'sum', inputs: ['c1', 'c2'] },
+  { id: 'c8', value: '2026-05-20', source: { kind: 'csv', artifact: 'a1', cell: 'D3' } },
+  { id: 'd1', value: '2026-06-09', source: { kind: 'csv', artifact: 'a1', cell: 'D2' } },
+  { id: 'c9', value: 1, formula: 'count', inputs: ['e1'] },
+  { id: 'e1', value: -8, formula: 'daysBetween', inputs: ['d1'] },
+];
+
+test('PROOF the test can fail (RED before the fix, per the brief): gpt-oss-120b\'s exact '
+  + 'text — evidence-clean but omits total/earliest-due/overdue-count entirely — is red, '
+  + 'naming a missing declared field', () => {
+  const output = {
+    citations: [
+      { id: 'c_amt1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
+      { id: 'c_due1', value: '2026-06-09', source: { kind: 'csv', artifact: 'a1', cell: 'D2' } },
+      { id: 'c_amt2', value: 1500, source: { kind: 'csv', artifact: 'a1', cell: 'E3' } },
+      { id: 'c_due2', value: '2026-05-20', source: { kind: 'csv', artifact: 'a1', cell: 'D3' } },
+    ],
+    text: 'INV-1: 4200[c_amt1] due 2026-06-09[c_due1]\nINV-2: 1500[c_amt2] due 2026-05-20[c_due2]',
+  };
+  const result = closeCompose(output, artifacts, '2026-06-01', derive2Fields, derive2Citations);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /compose: declared field/);
+  assert.match(result.red, /"total_owed"|"earliest_due"|"count_overdue"/);
+});
+
+test('compose completeness: gpt-oss-120b\'s exact text is GREEN when no fields were declared '
+  + '(pre-fix behavior preserved — completeness is opt-in via the new parameter, not a change '
+  + 'to the existing evidence/bracket/bare-number gates)', () => {
+  const output = {
+    citations: [
+      { id: 'c_amt1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
+      { id: 'c_due1', value: '2026-06-09', source: { kind: 'csv', artifact: 'a1', cell: 'D2' } },
+      { id: 'c_amt2', value: 1500, source: { kind: 'csv', artifact: 'a1', cell: 'E3' } },
+      { id: 'c_due2', value: '2026-05-20', source: { kind: 'csv', artifact: 'a1', cell: 'D3' } },
+    ],
+    text: 'INV-1: 4200[c_amt1] due 2026-06-09[c_due1]\nINV-2: 1500[c_amt2] due 2026-05-20[c_due2]',
+  };
+  assert.equal(closeCompose(output, artifacts, '2026-06-01').verdict, 'green');
+});
+
+test('compose completeness: Qwen run3\'s exact text stays GREEN, including earliest_due cited '
+  + 'under a DIFFERENT citation id (c4) than derive2 originally assigned (c8) — a model may '
+  + 'legitimately re-cite the same resolved value under a new id', () => {
+  const output = {
+    citations: [
+      { id: 'c1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
+      { id: 'c2', value: 1500, source: { kind: 'csv', artifact: 'a1', cell: 'E3' } },
+      { id: 'c3', value: '2026-06-09', source: { kind: 'csv', artifact: 'a1', cell: 'D2' } },
+      { id: 'c4', value: '2026-05-20', source: { kind: 'csv', artifact: 'a1', cell: 'D3' } },
+      { id: 'c7', value: 5700, formula: 'sum', inputs: ['c1', 'c2'] },
+      { id: 'd1', value: '2026-06-09', source: { kind: 'csv', artifact: 'a1', cell: 'D2' } },
+      { id: 'c8', value: 1, formula: 'count', inputs: ['e1'] },
+      { id: 'e1', value: -8, formula: 'daysBetween', inputs: ['d1'] },
+    ],
+    text: '- 4200[c1] due 2026-06-09[c3]\n- 1500[c2] due 2026-05-20[c4]\n'
+      + '- Total owed: 5700[c7], earliest due 2026-05-20[c4], 1[c8] invoice overdue',
+  };
+  // derive2 declared earliest_due -> c8 in THIS test's fixture (derive2Fields), but Qwen's
+  // compose citations reuse c8 for count_overdue and re-cite the earliest-due VALUE under c4
+  // instead (the id derive2 assigned to earliest_due never appears in compose's own array at
+  // all — it was legitimately dropped as a redundant duplicate of the invoice-2 due-date cell).
+  const result = closeCompose(output, artifacts, '2026-06-01', derive2Fields, derive2Citations);
+  assert.equal(result.verdict, 'green');
+});
+
+test('compose completeness: all three declared fields present and cited — green', () => {
+  const output = {
+    citations: [
+      { id: 'c1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
+      { id: 'c2', value: 1500, source: { kind: 'csv', artifact: 'a1', cell: 'E3' } },
+      { id: 'c7', value: 5700, formula: 'sum', inputs: ['c1', 'c2'] },
+      { id: 'c8', value: '2026-05-20', source: { kind: 'csv', artifact: 'a1', cell: 'D3' } },
+      { id: 'd1', value: '2026-06-09', source: { kind: 'csv', artifact: 'a1', cell: 'D2' } },
+      { id: 'c9', value: 1, formula: 'count', inputs: ['e1'] },
+      { id: 'e1', value: -8, formula: 'daysBetween', inputs: ['d1'] },
+    ],
+    text: 'Total owed: 5700[c7], earliest due 2026-05-20[c8], 1[c9] invoice overdue',
+  };
+  const result = closeCompose(output, artifacts, '2026-06-01', derive2Fields, derive2Citations);
+  assert.equal(result.verdict, 'green');
+});
+
+test('compose completeness: PROOF the test can fail — removing "total_owed" alone (c7\'s '
+  + 'bracket + its equal-value fallback) turns green red, naming exactly that field', () => {
+  const output = {
+    citations: [
+      { id: 'c8', value: '2026-05-20', source: { kind: 'csv', artifact: 'a1', cell: 'D3' } },
+      { id: 'd1', value: '2026-06-09', source: { kind: 'csv', artifact: 'a1', cell: 'D2' } },
+      { id: 'c9', value: 1, formula: 'count', inputs: ['e1'] },
+      { id: 'e1', value: -8, formula: 'daysBetween', inputs: ['d1'] },
+    ],
+    text: 'Earliest due 2026-05-20[c8], 1[c9] invoice overdue',
+  };
+  const result = closeCompose(output, artifacts, '2026-06-01', derive2Fields, derive2Citations);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /"total_owed"/);
+});
+
+test('compose completeness: PROOF the test can fail — removing "earliest_due" alone turns '
+  + 'green red, naming exactly that field', () => {
+  const output = {
+    citations: [
+      { id: 'c1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
+      { id: 'c2', value: 1500, source: { kind: 'csv', artifact: 'a1', cell: 'E3' } },
+      { id: 'c7', value: 5700, formula: 'sum', inputs: ['c1', 'c2'] },
+      { id: 'd1', value: '2026-06-09', source: { kind: 'csv', artifact: 'a1', cell: 'D2' } },
+      { id: 'c9', value: 1, formula: 'count', inputs: ['e1'] },
+      { id: 'e1', value: -8, formula: 'daysBetween', inputs: ['d1'] },
+    ],
+    text: 'Total owed: 5700[c7], 1[c9] invoice overdue',
+  };
+  const result = closeCompose(output, artifacts, '2026-06-01', derive2Fields, derive2Citations);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /"earliest_due"/);
+});
+
+test('compose completeness: PROOF the test can fail — removing "count_overdue" alone turns '
+  + 'green red, naming exactly that field', () => {
+  const output = {
+    citations: [
+      { id: 'c1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
+      { id: 'c2', value: 1500, source: { kind: 'csv', artifact: 'a1', cell: 'E3' } },
+      { id: 'c7', value: 5700, formula: 'sum', inputs: ['c1', 'c2'] },
+      { id: 'c8', value: '2026-05-20', source: { kind: 'csv', artifact: 'a1', cell: 'D3' } },
+    ],
+    text: 'Total owed: 5700[c7], earliest due 2026-05-20[c8]',
+  };
+  const result = closeCompose(output, artifacts, '2026-06-01', derive2Fields, derive2Citations);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /"count_overdue"/);
+});
+
 test('matchingCustomers: a single unambiguous name match', () => {
   assert.deepEqual(matchingCustomers('Northwind', csvArtifact), ['Northwind Trading']);
 });

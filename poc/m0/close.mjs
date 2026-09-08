@@ -232,8 +232,19 @@ export function closeDerive(output, artifacts, businessDate) {
 /**
  * `compose` close: shape, evidence over citations, then the text has no bare
  * (uncited) number and every bracketed [cN] id resolves to a real citation.
+ *
+ * `declaredFields` (optional) is the PRIOR derive step's `fields` map
+ * (fieldName -> citationId, e.g. `{ total_owed: 'c7', earliest_due: 'c8' }`)
+ * and `declaredCitations` (optional) is that same prior step's `citations`
+ * array. Together they gate an ADDITIONAL completeness check, never a
+ * loosening of anything above: every field the prior step declared must
+ * still appear, cited, in the composed text — either under its original
+ * citation id, or under a different id whose resolved value is identical (a
+ * model may legitimately re-cite the same figure under a new id when
+ * composing). A model that silently omits a promised field (grounded or
+ * not) is red here, first-red-wins, named by field.
  */
-export function closeCompose(output, artifacts, businessDate) {
+export function closeCompose(output, artifacts, businessDate, declaredFields, declaredCitations) {
   const shape = closeShape(output, ['citations', 'text']);
   if (shape.verdict === 'red') return shape;
   const evidence = closeCitations(output.citations, artifacts, businessDate);
@@ -257,6 +268,29 @@ export function closeCompose(output, artifacts, businessDate) {
     .replace(/[A-Za-z]+-\d+/g, '');
   const bareNumber = /\d/.test(withoutCitedFigures);
   if (bareNumber) return { verdict: 'red', red: `compose: bare (uncited) number found in text: "${text}"` };
+
+  // Completeness: every field the prior derive step declared must appear,
+  // cited, in the reply — omission is invisible to every check above, so a
+  // model wins by doing less unless this closes the gap.
+  if (declaredFields) {
+    const priorById = Object.fromEntries((declaredCitations ?? []).map((c) => [c.id, c]));
+    for (const [fieldName, citationId] of Object.entries(declaredFields)) {
+      const expectedValue = priorById[citationId]?.value;
+      const found = bracketIds.some((id) => {
+        if (id === citationId) return true;
+        if (expectedValue === undefined) return false;
+        const cited = evidence.citationsById[id];
+        return cited && cited.value !== undefined && String(cited.value) === String(expectedValue);
+      });
+      if (!found) {
+        const valueLabel = expectedValue !== undefined ? expectedValue : '?';
+        return {
+          verdict: 'red',
+          red: `compose: declared field "${fieldName}" (${valueLabel}, ${citationId}) does not appear cited in the reply`,
+        };
+      }
+    }
+  }
 
   return { verdict: 'green', red: null };
 }

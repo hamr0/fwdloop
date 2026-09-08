@@ -110,7 +110,12 @@ the exact GLM-5.2/Kimi-K3 plant runs in the original M0 session (F5,
 `docs/logs/2026-09-08-m0-run.md`). The winner did not fail any plant; no finding to report
 here beyond "it passed."
 
-## RULING
+## RULING — VOID, see "Completeness hole + corrected ruling" below
+
+The ruling below minted a green on `hf:openai/gpt-oss-120b` that turned out to be
+incomplete: `closeCompose` never checked that a reply contained what the step promised, and
+gpt-oss-120b's winning runs exploited exactly that gap. Kept verbatim for the record; do not
+use it to pick a model.
 
 **Baseline model: `hf:openai/gpt-oss-120b`.** Best completion record (3/3, tied with
 GLM-5.2 and Qwen3.8-27B), zero provider errors, zero truncations, tool called on the first
@@ -174,3 +179,150 @@ model in this session).
 - `/home/hamr/PycharmProjects/fwdloop/poc/m0/out/bakeoff-results.json` — per-run structured
   results (gitignored; the table above is derived from it)
 - `/home/hamr/PycharmProjects/fwdloop/docs/logs/2026-09-08-model-bakeoff.md` — this file
+
+---
+
+## Completeness hole + corrected ruling (same day, continuation)
+
+### The hole
+
+`closeCompose` (PRD §5 tier-2 compose close) verified three things: (1) every bracketed
+citation id resolves to a real citation, (2) cited values match their source, (3) no bare
+(uncited) number survives in the text. It never verified the reply **contains** what the
+step promised. `derive2`'s `fields` map (`{ total_owed, earliest_due, count_overdue }`) and
+hamr's step-3 goal ("list their open invoices, total owed, earliest due, count overdue")
+both name three figures the compose step must report — but nothing checked that they
+actually landed in the text. A model could pass all three existing gates by simply writing
+less.
+
+`hf:openai/gpt-oss-120b` — the model this file's now-VOID ruling above picked as the M0
+baseline on a 3/3 completion record — won by doing exactly that. Its `compose` text on the
+re-run that exposed this (`bakeoff-openai_gpt-oss-120b-run1`, post-fix) was:
+
+```
+- 4200[c1] due 2026-06-09[c3]
+- 1500[c2] due 2026-05-20[c4]
+```
+
+No total owed, no earliest due, no overdue count — all three were declared fields of
+`derive2` (`fields: { total_owed: "c7", earliest_due: "c4", count_overdue: "c8" }`, citation
+`c7` = `sum` = 5700, present and evidence-clean in its own `citations` array) and all three
+were named in the step goal. The old `closeCompose` had nothing to say about the omission:
+every bracket resolved, every value matched, and there was no bare number — 3/3 green. That
+is a minted green, exactly what PRD §2 exists to prevent.
+
+### The fix
+
+Added a completeness check to `closeCompose` (`poc/m0/close.mjs`) as an ADDITIONAL gate —
+every existing check is unchanged, this never loosens anything. New parameters
+`declaredFields` and `declaredCitations` (the prior derive step's `fields` map and
+`citations` array): for each declared field, the citation id it maps to — or a *different*
+id whose resolved value is identical (a model may legitimately re-cite the same figure
+under a new id, as Qwen3.8-27B's run3 did, citing `earliest_due`'s value under `c4` where
+`derive2` had assigned it `c8`) — must be bracketed somewhere in the composed text. Missing
+→ red, first-red-wins, gap text in the existing style: e.g.
+`compose: declared field "total_owed" (5700, c7) does not appear cited in the reply`.
+
+Wired in `poc/m0/runner.mjs`: `closeCompose` now receives `derive2ArgsForClose.fields` and
+`derive2ArgsForClose.citations` (the post-plant values already used by `closeDerive`, so the
+compose close stays consistent with whatever `derive2` was actually judged against). The
+compose system prompt was **not** touched — the point is to catch models that omit a
+promised field, not to coach them into passing by naming this new check in the prompt. The
+prompt already instructs the model to answer the step goal (which names all three fields)
+and to carry every prior citation forward verbatim; that was already sufficient instruction,
+never itself in question.
+
+Tests added to `poc/m0/close.test.mjs` (7 new, 59 total, all passing —
+`node --test poc/m0/*.test.mjs`):
+- gpt-oss-120b's exact minimal text → red, naming a missing field (and a paired test proving
+  the SAME text is green when `declaredFields` is omitted, i.e. the new gate is strictly
+  additive and does not change any pre-existing call site's behavior).
+- Qwen run3's exact text → green, including `earliest_due` cited under `c4` where the fixture's
+  `derive2` declared it `c8` — the re-citation-under-a-different-id path.
+- All three declared fields present → green; each removed individually → red, naming exactly
+  that field (3 tests).
+
+### Re-run — narrow, under the fixed close
+
+Re-ran the existing bake-off harness (`poc/m0/bakeoff.mjs`, unmodified) on only the two
+models that matter under the corrected close, N=3 each, plus one confirmation run on
+gpt-oss-120b:
+
+| Model | Green (fixed close) | Mean $/run | Median $/run | Mean wall/run | Median wall/run |
+|---|---|---|---|---|---|
+| `hf:Qwen/Qwen3.8-27B` | **3/3** | $0.001728 | $0.001441 | 42,834 ms | 44,419 ms |
+| `hf:zai-org/GLM-5.2` | **3/3** | $0.003713 | $0.003394 | 161,751 ms | 137,525 ms |
+| `hf:openai/gpt-oss-120b` (confirmation, N=1) | **0/1 — RED** | $0.0000667 | — | 30,634 ms | — |
+
+gpt-oss-120b's confirmation run went red exactly as expected:
+`compose: declared field "total_owed" (5700, c7) does not appear cited in the reply` — the
+fix catches it. Qwen3.8-27B and GLM-5.2 both stayed 3/3 green under the added gate; neither
+run needed the value-match fallback to pass except Qwen's known re-citation case, matching
+the pre-fix bake-off's completion counts for both models exactly (this is not a coincidence
+— both models' compose replies already spelled out all three fields in every one of the
+original 3+3 runs; only gpt-oss-120b's minimal style was ever exploiting the hole).
+
+Spend: this re-run added **$0.0177** across 7 runs (Qwen $0.00518, GLM-5.2 $0.01114,
+gpt-oss-120b confirmation $0.0000667). Running total after this session:
+**$0.148330** — 3.0% of the $5 global cap.
+
+### RULING (corrected — supersedes the VOID ruling above)
+
+**Baseline model: `hf:Qwen/Qwen3.8-27B`.** 3/3 under the completeness-gated close, zero
+provider errors, zero truncations, cheapest of the two remaining 3/3 finishers
+($0.001728 mean/run) and fastest (42,834 ms mean/run) — the only model of the original
+top-3 that both (a) reported every declared field every run and (b) never needed a retry.
+
+**Second model (PRD §11 P10's two-provider rule): `hf:zai-org/GLM-5.2`.** Also 3/3 under
+the fixed close, zero provider errors, same lab lineage as the earlier F2 research-doc
+ruling (Zhipu) but now measured rather than assumed — genuine provider diversity from
+Qwen3.8-27B (Alibaba), same as the two-provider requirement the VOID ruling above already
+satisfied with a different pairing. Costs ~2.1x more and runs ~3.8x slower per run than the
+new baseline for the identical job, matching the shape (if not the exact multiple) of the
+same trade-off noted against gpt-oss-120b in the VOID ruling.
+
+`hf:openai/gpt-oss-120b` is disqualified from both baseline and fallback: it is the model
+this fix was written to catch, confirmed red on re-run under the completeness gate. It is
+not carried forward as a third-choice fallback either — a model that wins by omitting
+declared fields is a worse failure mode than GLM-5.2's cost/latency demotion in the VOID
+ruling, not a milder one.
+
+**Numbers that become the (corrected) M0 baseline everything later is measured against**
+(plant-d clean run, `hf:Qwen/Qwen3.8-27B`, N=3, completeness-gated close):
+- **Completion rate: 3/3 (100%)**
+- **$/run: $0.001728 mean, $0.001441 median** (list-rate ceiling; real synthetic.new
+  billing is subscription-flat, so this is a comparability figure, not a bill)
+- **Wall/run: 42,834 ms mean, 44,419 ms median**
+- Provider errors: 0/3 runs. Truncations: 0/3 runs.
+
+### Anything surprising (this continuation)
+
+- The completion counts for Qwen3.8-27B and GLM-5.2 did not move at all under the new gate
+  (still 3/3 each) — only gpt-oss-120b's numbers changed. The three models were never
+  equally "complete" in the original bake-off; two of them were just never tested against
+  the property that mattered.
+- gpt-oss-120b's minimal reply style (bare invoice lines, no summary) is plausibly a
+  legitimate response *shape* to a badly-underspecified prompt in isolation — the compose
+  system prompt does say "write a short reply, one line per invoice" — but it never
+  instructs the model to include total/earliest-due/overdue-count, and the step goal that
+  DOES name them lives in the `derive2` prompt, three model rounds and a context reset
+  earlier (each step runs in a fresh `Loop`/messages array, PRD §5). This reads as a real
+  prompt gap worth carrying forward as a finding for M1 (not fixed here per the brief — the
+  brief was explicit not to coach the compose prompt), not solely a gpt-oss-120b weakness:
+  the close closing this gap mechanically is more robust than trying to word the prompt
+  around it, since a differently-phrased omission would just re-open the hole.
+- The fix cost seven cents and confirmed the exploit in one run — cheap to catch, expensive
+  (a shipped omission a customer would notice) had it gone unnoticed to M1.
+
+### Files (this continuation)
+
+- `/home/hamr/PycharmProjects/fwdloop/poc/m0/close.mjs` — `closeCompose` completeness check
+  (new `declaredFields`/`declaredCitations` params, additive)
+- `/home/hamr/PycharmProjects/fwdloop/poc/m0/runner.mjs` — wires `derive2ArgsForClose.fields`
+  + `.citations` into the `closeCompose` call
+- `/home/hamr/PycharmProjects/fwdloop/poc/m0/close.test.mjs` — 7 new tests (59 total)
+- `/home/hamr/PycharmProjects/fwdloop/poc/m0/out/bakeoff-openai_gpt-oss-120b-run1/result.json`
+  — the confirmation run's full log (compose text, red, derive2 fields), overwritten in place
+  by this continuation's single re-run of that runId
+- `/home/hamr/PycharmProjects/fwdloop/poc/m0/out/spend.jsonl` — extended with this
+  continuation's 7 runs (tracked in git)

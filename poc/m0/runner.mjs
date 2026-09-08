@@ -440,7 +440,9 @@ export async function runDeclaration({
     return writeResult('red', { red: err.red ?? err.message });
   }
 
-  const close3 = closeCompose(compose.args, artifacts, BUSINESS_DATE);
+  const close3 = closeCompose(
+    compose.args, artifacts, BUSINESS_DATE, derive2ArgsForClose.fields, derive2ArgsForClose.citations,
+  );
   log.steps.push({ step: 'compose', outcome: close3.verdict, red: close3.red, args: compose.args, wallMs: compose.wallMs });
   if (close3.verdict === 'red') return writeResult('red', { red: close3.red });
 
