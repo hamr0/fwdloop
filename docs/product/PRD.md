@@ -260,6 +260,28 @@ signed skillset checkbox enables (bareloop: a widened menu is inert without a re
   false reds 0/N, $ per run vs hamr's stated human cost, wall. Riskiest assumption is §2,
   aimed first; if formula extraction from model output is itself unreliable, that is a
   finding and a spec change, not a reason to plant an easier number.
+  **Pre-registration (round 4, hamr's rulings folded):**
+  - *Provider:* hamr — "this one will have real api firing, so we won't use claude for it, i
+    will get something else." M0's paid rounds run on the provider(s) hamr supplies by env
+    key; Anthropic is not used for M0 even if a key is present. Cap **$5 total** across all
+    plants and providers (hamr: "we can do $5").
+  - *Fixture (real, not authored):* `ar-aging-report-template.csv` from accounting.events
+    (sha256 `f2960d9e…`, 572 bytes): columns `Customer, Invoice #, Invoice date, Due date,
+    Amount, Days overdue, Current, 1-30, 31-60, 61-90, 90+`; 8 invoices, 5 customers
+    (Northwind Trading ×2, Blue Mountain Cafe ×2, Harbor Logistics ×2, Vertex Builders,
+    Sunrise Retail); `Amount` is the outstanding balance; bucket columns are empty (they were
+    spreadsheet formulas). Truth for plant (a): Northwind owes 4200 + 1500 = **5700**; Harbor
+    8000 + 3200 = **11200**. The chat message is one line ("what does Northwind owe and when
+    is it due?"). Plant (c) needs a second near-name the real file lacks; one declared row
+    (e.g. `Northwind Supplies`) is added for that run only, stated in the fixture README —
+    synthetic, but the test can still fail (the model may pick one). **[?]** if hamr prefers a
+    different second name or a different fixture.
+  - *"As of today":* the run passes `businessDate` explicitly (the fixture is dated May 2026);
+    the close computes days overdue from it, never from the wall clock.
+  - *Human cost to beat:* **[?]** hamr's number. Stated assumption until then: 15 min of a
+    bookkeeper at $50/h = **$12.50 per day**; M0's $ per run is reported against it.
+  - *Blocks on M0 start:* (1) hamr's go; (2) a provider key from hamr. Nothing else in this
+    PRD blocks; every other **[?]** is a design detail that lands when its need arises.
 - **M1 — spec + validator + hash.** Step-kind menu, guardrail schema, arbiter fields
   inexpressible to the drafter, ReDoS-safe patterns, mutation-proven.
 - **M2 — runner.** Fold over steps, per-step fresh context, artifacts/notes, spine, money +
