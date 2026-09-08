@@ -400,8 +400,10 @@ export async function runDeclaration({
   // --- compose ---
   const composeSystemPrompt = `You are the fwdloop runner executing ONE step of a signed declaration. `
     + `Step goal: write a short reply, one line per invoice, to the message "${messageArtifact.lines[0]}". `
-    + `Every figure in the text must be a citation bracket like [c3] immediately after the number — no bare `
-    + `(uncited) numbers anywhere in the text. Your citations array MUST include EVERY citation object from `
+    + `Every figure in the text must be a citation bracket like [c3] placed with NOTHING between the number and `
+    + `the bracket — e.g. "12[c7] days overdue" or "12 [c7] days overdue", never "12 days [c7]" (the bracket `
+    + `must sit immediately after the number itself, not after trailing words) — no bare (uncited) numbers `
+    + `anywhere in the text. Your citations array MUST include EVERY citation object from `
     + `"Prior citations" below VERBATIM AND UNCHANGED, in full — do not drop any, even ones you don't bracket `
     + `directly in the text (a formula citation like count/sum/daysBetween needs every citation id in its own `
     + `"inputs" to ALSO be present in the array, or the evidence check cannot resolve it) — plus anything new `
