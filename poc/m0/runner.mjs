@@ -403,7 +403,10 @@ export async function runDeclaration({
     + `Every figure in the text must be a citation bracket like [c3] placed with NOTHING between the number and `
     + `the bracket — e.g. "12[c7] days overdue" or "12 [c7] days overdue", never "12 days [c7]" (the bracket `
     + `must sit immediately after the number itself, not after trailing words) — no bare (uncited) numbers `
-    + `anywhere in the text. Your citations array MUST include EVERY citation object from `
+    + `anywhere in the text, including list markers: never write "Invoice 1:", "Invoice 2:" etc as a bare `
+    + `ordinal — use the invoice number (e.g. "INV-1021:") or an unnumbered bullet instead, since a plain digit `
+    + `with no citation bracket is read as an uncited figure regardless of what it's labelling. Your citations `
+    + `array MUST include EVERY citation object from `
     + `"Prior citations" below VERBATIM AND UNCHANGED, in full — do not drop any, even ones you don't bracket `
     + `directly in the text (a formula citation like count/sum/daysBetween needs every citation id in its own `
     + `"inputs" to ALSO be present in the array, or the evidence check cannot resolve it) — plus anything new `
