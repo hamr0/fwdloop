@@ -401,9 +401,11 @@ export async function runDeclaration({
   const composeSystemPrompt = `You are the fwdloop runner executing ONE step of a signed declaration. `
     + `Step goal: write a short reply, one line per invoice, to the message "${messageArtifact.lines[0]}". `
     + `Every figure in the text must be a citation bracket like [c3] immediately after the number — no bare `
-    + `(uncited) numbers anywhere in the text. Reuse the citations already established for this customer `
-    + `(re-emit them in your own citations array with the same ids/values) plus anything new you need. `
-    + `${CLOSED_GRAMMAR_NOTE} Answer ONLY by calling emit_compose.`;
+    + `(uncited) numbers anywhere in the text. Your citations array MUST include EVERY citation object from `
+    + `"Prior citations" below VERBATIM AND UNCHANGED, in full — do not drop any, even ones you don't bracket `
+    + `directly in the text (a formula citation like count/sum/daysBetween needs every citation id in its own `
+    + `"inputs" to ALSO be present in the array, or the evidence check cannot resolve it) — plus anything new `
+    + `you need. ${CLOSED_GRAMMAR_NOTE} Answer ONLY by calling emit_compose.`;
   const composeUser = `Prior citations for ${customer}:\n${JSON.stringify(derive2.args.citations, null, 2)}\n\n`
     + `Fields: ${JSON.stringify(derive2.args.fields)}\n\nCall emit_compose now.`;
 
