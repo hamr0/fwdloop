@@ -116,7 +116,11 @@ const CLOSED_GRAMMAR_NOTE = 'Closed formula grammar: sum, count, min, max, sub, 
 async function runModelStep({
   runId, stepLabel, modelId, apiKey, rates, systemPrompt, userContent, toolName, toolDescription, toolSchema,
 }) {
-  const provider = new OpenAI({ apiKey, model: modelId, baseUrl: SYNTHETIC_BASE_URL });
+  // timeoutMs bounds a silent/never-answering socket (BA-18). Without it explicitly set, a raw
+  // socket-level failure (observed live: "read ETIMEDOUT" after 3045006ms — three million ms, well
+  // past any sane wait) can hang far longer than the provider's documented 600000ms default appears
+  // to actually enforce for this baseUrl. 300s is the orchestrator's ruling for M0's hard per-round cap.
+  const provider = new OpenAI({ apiKey, model: modelId, baseUrl: SYNTHETIC_BASE_URL, timeoutMs: 300_000 });
   let noToolCallStreak = 0;
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
