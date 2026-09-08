@@ -161,3 +161,32 @@ the POC's "pre-response failure = $0" shortcut is retired for M2.
 Provider: synthetic.new is usable but flaky on long GLM rounds (two 524s, one dead socket
 in 8 runs); Kimi-K3 finished every round first try. Both stay; the flow's one-retry ladder
 and a per-round timeout are load-bearing, not nice-to-have.
+
+## F6 — synthetic.new cuts any single request at ~250s; steps must be sized under it (2026-09-08)
+
+Jointly established with the bareloop session (barelo), two independent jobs, same gateway:
+
+| | bareloop | fwdloop |
+|---|---|---|
+| slowest request that succeeded | 104s | 102s |
+| request cut with HTTP 524 | 252s | 251s, 252s |
+
+Neither project observed anything in the 104–251s band. It is a fixed origin timeout at the
+gateway, **not** a token or job-length effect: fwdloop's 524s carried a 4000-token output cap
+while bareloop had a 9,182-output-token round succeed under the wall. fwdloop's third failure
+(`read ETIMEDOUT` at 3045s) was the same cut with no `timeoutMs` bound to catch it; rounds are
+now bounded at 300s.
+
+**Retrying a 524 is not a fix** — it re-sends a four-minute request into the same wall and pays
+twice. bareloop drops GLM-5.2+synthetic from its worker menu because its drafting pass puts a
+whole planning run in one request and lives past the cliff by construction.
+
+**fwdloop's exposure is different and the rule is a spec rule, not a provider verdict.** Our
+steps are small: median round 31s, max 102s, and the 9-model bake-off ran 81 rounds with zero
+provider errors. So:
+
+> **A step whose model round can exceed ~2 minutes is a spec bug.** It is split at draft time,
+> not retried at run time. This is a step-sizing constraint on the drafter, carried to M1.
+
+GLM-5.2 stays usable for fwdloop's job shape; it loses the baseline slot on results and speed
+(F7), not on this.
