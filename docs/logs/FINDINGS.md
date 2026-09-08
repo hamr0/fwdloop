@@ -211,6 +211,32 @@ it is a tripwire to watch, not a redesign.
 GLM-5.2 stays usable for fwdloop's job shape; it loses the baseline slot on results and speed
 (F7), not on this.
 
+### JOINT VERDICT on synthetic.new (agreed with the bareloop session, 2026-09-08)
+
+hamr asked for one verdict where the two sessions appeared to disagree. We did not: the same
+finding had two headlines. Agreed text, four points:
+
+1. **synthetic.new's gateway caps how long ONE request may live at ~240–250s.** Jointly
+   measured (bareloop 104s fine / 252s cut; fwdloop 102s fine / 251s+252s cut; empty 104–251s
+   band on both sides). It is a hard connection-lifetime cap, not an idle timeout — fwdloop's
+   streaming test settles the mechanism (first byte 92s, 3,951 chunks still arriving when the
+   socket died at 231s). Retrying a 524 re-sends the same doomed request and pays twice.
+2. **The budget that cap spends is `output tokens the round needs ÷ model tokens-per-sec`.**
+   So it is a model-speed constraint, not a step-shape one. bareloop's archive settled that:
+   draft rounds median 34.1s, p95 76.7s, max 107.4s over 130 observations; 8 of 9,548 rounds
+   exceed 240s, none of them drafts.
+3. **GLM-5.2 through this gateway runs ~50–95 output tok/s, which is what puts it at the wall.
+   That is a verdict on one model, not on synthetic.new.** barelo's own note: their evidence
+   covered exactly one model on that gateway, and n=1 model is not a provider verdict.
+4. **synthetic.new is usable, provided `output tokens the round needs ÷ model tok/sec` stays
+   well under the cap — a bar each project computes from its own round shape, not a single
+   model whitelist.** (barelo's amendment, taken: fwdloop's 88 zero-error rounds are strong
+   evidence for fwdloop's ~31s round shape and do not transfer unchanged to a project whose
+   rounds ask for thousands of output tokens.)
+
+fwdloop's own bar under point 4: baseline Qwen3.8-27B, median round 11s against a ~250s cap —
+roughly 20× headroom. See F7.
+
 Filed jointly as bareloop **F144** (bareloop main `700e64f`). The 524 question is closed on
 both sides for the same measured reason. Ledgers deliberately NOT pooled: bareloop's 9,548
 rounds are one provider and one model family, fwdloop's are a 9-model bake-off — a merged
