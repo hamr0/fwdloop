@@ -217,3 +217,67 @@ rounds are one provider and one model family, fwdloop's are a 9-model bake-off �
 median would read as a fact about model latency while actually being a fact about whichever
 population dominates the count. The useful comparison, if wanted later, is segmented:
 fwdloop's per-model tokens/sec against bareloop's per-phase distribution, populations named.
+
+## F7 — a green can be minted by OMISSION; baseline model is Qwen3.8-27B (2026-09-08)
+
+Full record: `docs/logs/2026-09-08-model-bakeoff.md`. 9 models × 3 runs of the clean job,
+identical prompts, no per-model tuning, 27 runs for $0.13.
+
+**The hole.** `hf:openai/gpt-oss-120b` scored 3/3 green by sending:
+
+```
+INV-1: 4200[c_amt1] due 2026-06-09[c_due1]
+INV-2: 1500[c_amt2] due 2026-05-20[c_due2]
+```
+
+Every citation resolved, every value matched the sheet, no uncited number — and the reply
+carries no total, no earliest due, no overdue count, all three declared fields of the prior
+step and all three named in hamr's own step 3. **The close verified truth and never
+completeness.** A model won by doing less. This is the minted-green class PRD §2 exists to
+prevent, found by reading the sent text, not by reading the scoreboard.
+
+**The fix** (`closeCompose`, +7 tests, 59 total): every field the prior derive step declared
+must appear in the composed text, cited — by its id or by a citation resolving to the identical
+value (a model may legitimately re-cite the same figure under a new id, as Qwen did). Red names
+the field: `compose: declared field "total_owed" (5700, c7) does not appear cited in the reply`.
+Additional gate; nothing existing was loosened. Re-run confirms: gpt-oss-120b red, Qwen and
+GLM-5.2 unchanged at 3/3 — they were never exploiting the hole.
+
+**Caveat on the disqualification, stated rather than buried:** the compose step's prompt never
+explicitly asks for total/earliest/count (that instruction lives in the earlier derive2 context,
+a separate step per §5's fresh-context rule). gpt-oss-120b did what it was literally told;
+Qwen and GLM-5.2 inferred the rest. So this is partly a prompt gap (carried to M1) and not
+purely a model verdict. The close is right either way — an incomplete reply is incomplete
+whoever's fault it is — but a re-test with an explicit prompt is one run if the ruling is ever
+challenged.
+
+**Unaided model failures the close caught** — no plants involved, which is stronger evidence
+for §2 than the plants themselves:
+
+| model | what it got wrong |
+|---|---|
+| GLM-4.7-Flash, syn:large:text | `daysBetween` sign flip: said 8, answer is −8 (not yet due) |
+| syn:small:text | said 11 days overdue, answer is 12 |
+| GLM-5.3-Flash, syn:large:text | cited 2 customers where the sheet has 1 |
+| Kimi-K3 | citation pointing at artifact `"undefined"` |
+| gpt-oss-120b | omitted every declared field |
+
+Date arithmetic is the recurring weak spot across cheap models — two distinct failures, both
+`daysBetween`.
+
+**RULING. Baseline: `hf:Qwen/Qwen3.8-27B`. Second (§11 P10's two-provider rule): `hf:zai-org/GLM-5.2`.**
+Baseline numbers everything later is measured against:
+
+| | Qwen3.8-27B | GLM-5.2 |
+|---|---|---|
+| complete runs | 3/3 | 3/3 |
+| provider errors | 0 | 0 |
+| mean $/run | $0.0017 | $0.0037 |
+| mean wall/run | 43s | 162s |
+| context | 262k | 524k |
+
+Qwen wins on results first (3/3 with every declared field present in all three replies) and on
+wall second (~4× faster, and F6's ~250s per-request cliff makes speed a reliability property,
+not a nicety). GLM-5.2 stays as the second provider. gpt-oss-120b is disqualified, not kept as
+a cheap fallback: it is the model the fix targets. **No more model shopping** — a change of
+baseline needs a measured reason recorded here.

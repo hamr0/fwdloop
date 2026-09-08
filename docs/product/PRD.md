@@ -317,6 +317,15 @@ signed skillset checkbox enables (bareloop: a widened menu is inert without a re
     bookkeeper at $50/h = **$12.50 per day**; M0's $ per run is reported against it.
   - *Blocks on M0 start:* (1) hamr's go; (2) a provider key from hamr. Nothing else in this
     PRD blocks; every other **[?]** is a design detail that lands when its need arises.
+  **BASELINE MODEL (2026-09-08, F7, `docs/logs/2026-09-08-model-bakeoff.md`): `hf:Qwen/Qwen3.8-27B`,
+  second `hf:zai-org/GLM-5.2`.** Chosen last and by the suite, per §11 P10: 9 models × 3 runs of
+  the clean job, identical prompts, no per-model tuning. Baseline numbers: 3/3 complete, 0
+  provider errors, $0.0017 and 43s per run. The bake-off exposed a **minted green by omission**
+  — a model scored 3/3 by writing a reply with no total and no due date, because the close
+  checked truth and never completeness; `closeCompose` now requires every declared field to
+  appear cited. GLM-5.2's earlier "primary" slot came from a research doc written before
+  anything ran; it is superseded. A change of baseline needs a measured reason in FINDINGS.
+
   **M0 RESULT (2026-09-08, F5, `docs/logs/2026-09-08-m0-run.md`): GO.** Plants (a) (b) (c)
   (d) as stated on Kimi-K3; (a) (c) (d) on GLM-5.2, (b) not reached (provider variance,
   three attempts); ungroundable step refused at draft by both; false reds 0/2 after three
