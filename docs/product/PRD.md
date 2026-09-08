@@ -1,4 +1,4 @@
-# fwdloop — preliminary PRD (DRAFT v0.4, 2026-09-08, for discussion, NOT signed)
+# fwdloop — preliminary PRD (DRAFT v0.5, 2026-09-08, for discussion, NOT signed)
 
 > Status: discussion draft in AGENT_RULES shape (problem/goal, go/no-go, out of scope, modules,
 > open questions). v0.1 assumed a repo patient and N hops of bareloop; hamr's interview
@@ -11,6 +11,9 @@
 > **[B]** = borrowed with source. **[NEW]** = proposed here. **[?]** = needs hamr's word.
 > v0.3 folds in interview round 2 (§3 items 11–14, §5 effect checks, §9 answers, §10 ceilings).
 > v0.4 records round-3 rulings: egress rule, optional compose judge, provider-red ladder, ceiling shape B.
+> v0.5 (fwdloop session, round 4): name settled (F1); three check tiers agreed; evidence on every
+> calculable; input = steps + guardrails as UX, drafter may merge/split; M0 on CSV + text, job #1
+> opens with a chat message; §5 citation schema; §11 production-playbook items P1–P10.
 
 ## §1 Problem & goal
 
@@ -60,8 +63,15 @@ that is a different, smaller product.**
    bridges/inheritance do NOT transfer — hamr: "it won't change").
 4. **Human input shape = steps + guardrails.** Steps: one line each, action verbs, free text
    allowed. Guardrails: expectations as a checkbox skillset (memory, accounting, read pdf,
-   browse, mail, chat…) plus limits. The drafter may **reorder or insert** steps at draft time if
-   the human erred; it shows a diff; the human signs the whole. After signing, immovable.
+   browse, mail, chat…) plus limits. The drafter may **reorder, insert, merge, or split** steps
+   at draft time if the human erred or cut at the wrong grain (bareloop F81: few large
+   outcome-checked steps beat many self-graded ones); it shows a diff; the human signs the
+   whole. After signing, immovable.
+   *Round 4 (hamr):* steps vs prose is **untested** — steps + guardrails is kept as the UX
+   because the split is a mental separation for the human ("and oh, remember that step, do
+   this after"), not a claim about what the model needs; a human's "oh, also…" is an edit at
+   draft time and shows in the same diff. M0's drafter step is where this is first observed;
+   prose input stays allowed. **[?]** until M0 reports.
 5. **One cap per run.** Agent allocates per-step shares, replan on variance (bareloop T·A **[B]**).
    Wall = machine time only. Ask TTL = 60 days, same for all, tighten-only later.
 6. **Self-heal ladder.** One retry on transport-class failure only; two strikes on a step's close
@@ -72,6 +82,16 @@ that is a different, smaller product.**
    calculated/verified with citations → ask (review) → on accept, send. It needs no live inbox,
    no trigger beyond "run now", and works on local docs — matches "start small with local reads."
    The inbox monitor becomes job #2 once triggers + mail land (M5/M6).
+   *Round 4 — the concrete case (derived from the field's cash-application workflow, see
+   `docs/product/2026-09-08-fde-use-cases.md`; hamr: "we can use that example, but a text/chat
+   at the beginning instead of email with name"; "start with csv and docs"):* inputs are
+   `ar-aging.csv` (Customer, Invoice, Issued, Due, Amount, Paid, Balance; ~20 rows, 4–6
+   customers) and a **chat message as text** ("what does Acme owe and when is it due?" — a file
+   in M0, a chat channel in M6). Steps in hamr's verbs: read the sheet · read the message and
+   work out which customer · list their open invoices, total owed, earliest due, count overdue
+   as of today · write a short reply, one line per invoice · check with me · on accept, send.
+   Both artifacts are authored by hamr, never by the session that checks them. **xlsx and
+   docx come later** (a `.xlsx` is a zip of XML — a dependency question under §9b, not M0's).
 9. **LLM-agnostic from day one** via bareagent's providers (OpenAI / Anthropic / Ollama), one
    factory, env-key by name. bareloop's item 28 shape, done first here instead of last.
 10. **bareloop item 21 closes by ruling**: `human-confirms` is not deleted; it is copied into
@@ -125,6 +145,41 @@ EXTRACTS facts/quotes only and a deterministic rule decides (bareloop softgreen 
 red. It is refused at $0 unless a 10-of-10 calibration record exists for that exact
 `(provider, model)` pair — never a silent substitute. Its cost lands on the run's cap like any
 round. v1 ships the flag and the refusal; calibration itself is a later module (M6+).
+
+**Three check tiers (ruled round 4: "agree in 3 shapes").** Cheapest first, every step gets the
+first, numbers get the second, judgement gets the third:
+
+1. **Shape check** — the effect check: output exists, has the fields the next step needs. $0,
+   every step (this is hamr's "rubric: shape of it is like this, then pass it on").
+2. **Evidence check** — every figure or calculable thing carries its evidence (ruled: "numbers
+   or calculable things should carry its evidence"); the machine resolves and recomputes. $0.
+3. **Human at the ask** — tone, sense, "should this go out". Only where the human placed it.
+   `accept` moves on; `rerun "<words>"` redoes the step (bareloop F103). A step's output may
+   contain judgement only if an `ask` sits between it and any `send` — which the egress rule
+   already guarantees.
+
+**Citation schema [NEW, pre-reg for M0].** hamr: "like we come from this cell A2 value =
+25690?" — yes, exactly that, in three forms:
+
+```jsonc
+// copied figure — one pointer, one value
+{ "id": "c1", "value": 25690, "asStated": "25,690.00",
+  "source": { "kind": "csv", "artifact": "a3", "sha256": "…", "row": 2, "col": "Balance", "cell": "G2" } }
+// derived figure — a formula over cited inputs; the close recomputes it
+{ "id": "c4", "value": 1750, "formula": "sum", "inputs": ["c1", "c2", "c3"] }
+// text evidence — a quote that must appear verbatim at the pointer
+{ "id": "c7", "quote": "Acme", "source": { "kind": "text", "artifact": "a1", "line": 1 } }
+```
+
+Rules, fixed before the run so the first red cannot be "fixed" by widening them: the artifact
+is opened **by hash** (mismatch = input drift, red); numbers compare as decimals after
+stripping thousands separators and currency symbols, exact at the **source's** precision
+(1,250.00 vs 1250 → equal; 1250.4 vs 1250 → red); dates compare as ISO dates; the formula
+grammar is closed — `sum`, `count`, `min`, `max`, `sub`, `daysBetween` — no expression
+evaluation; a quote must be a verbatim substring of the pointed line; a name match between a
+message and a sheet is `quote` + the row's cell, and **two rows matching is an `ask`, never a
+pick**. Anything the schema cannot express is refused at draft — the drafter cannot emit an
+uncited figure.
 
 The four buckets are litectx's context-engineering taxonomy (build-studies:1126-1168). Proposed
 use: **internal**, to organise the primitive catalogue the drafter selects from — not the
@@ -190,13 +245,21 @@ signed skillset checkbox enables (bareloop: a widened menu is inert without a re
 
 ## §7 Modules, in order (one at a time; a rung that cannot meet its exit stops)
 
-- **M0 — go/no-go POC** (~1 day, one paid draft + one paid dry-run ≤ $5, rest $0). Hand-written
-  steps+guardrails for the accountant → drafter emits a declaration over the kind menu →
-  runner executes on a local sheet + a local mail file → citation close on `derive`/`compose` →
-  `ask` pauses → `answer accept` from another process resumes → `send` writes a file.
-  Exit: planted-wrong-number goes red with the cell named; unplanted goes green; an ungroundable
-  step is refused at draft. Measure: $ per run, tokens per step, wall. Riskiest assumption is
-  §2, aimed first.
+- **M0 — go/no-go POC** (~1 day, paid rounds ≤ $5 total, rest $0). Hand-written
+  steps+guardrails for job #1 (§3.8 round 4) → drafter emits a declaration over the kind menu →
+  runner executes on `ar-aging.csv` + the chat-message text → citation close on
+  `derive`/`compose` → `ask` pauses → `answer accept` from another process resumes → `send`
+  writes a file.
+  **Plants, hardest first (round 4):** (a) the **total owed is wrong while every invoice line
+  is right and cited** — a derived-figure plant; the close must go red naming the figure and
+  the formula ("total 1,850 ≠ sum(G4,G7,G9) = 1,750"); (b) one invoice balance wrong — a copied
+  plant; red names the cell; (c) the message says "Acme" and the sheet has "Acme Ltd" and
+  "Acme Trading" — must land at an `ask`, never a pick; (d) no plant — green. Run (a)–(d)
+  on **two providers** via the factory (§11 P10). Exit: all four as stated; an ungroundable
+  step refused at draft. Measure against pre-registered numbers (§11 P2): plants caught N/N,
+  false reds 0/N, $ per run vs hamr's stated human cost, wall. Riskiest assumption is §2,
+  aimed first; if formula extraction from model output is itself unreliable, that is a
+  finding and a spec change, not a reason to plant an easier number.
 - **M1 — spec + validator + hash.** Step-kind menu, guardrail schema, arbiter fields
   inexpressible to the drafter, ReDoS-safe patterns, mutation-proven.
 - **M2 — runner.** Fold over steps, per-step fresh context, artifacts/notes, spine, money +
@@ -257,12 +320,22 @@ needs a 10-of-10 calibration per provider. v1 skips it: the human at the `ask` r
 
 ## §9b Still open (do not block M0)
 
-1. **Name** (blocks repo creation only): `open-loop` / `bareflow` / `fwdloopjs`. **[?]**
+1. ~~**Name**~~ — **closed round 4 (F1):** `fwdloop`, on npm as 0.0.1 since 2026-09-08. §9 (1)
+   above is stale and stands only as the record of the check.
 2. **Dependency count under lib conventions.** Suite packages are the budget's first claim
    (bareloop ships 3). fwdloop needs bareagent + bareguard + litectx; mail/chat/browse arrive
-   as optional peers only when a skill is checked. Confirm 3 is acceptable. **[?]**
+   as optional peers only when a skill is checked. Confirm 3 is acceptable. **[?]** An xlsx
+   reader would be a fourth (post-M0; CSV is stdlib).
 3. **Ask notification.** Chat ping (beeperbox `note_to_self`) that an ask is waiting, answer
    still via CLI — M3 or M6? Recommendation: M6, with the other IO. **[?]**
+4. **Round-4 additions** (from `docs/product/2026-09-08-prd-gaps-review.md` §2, hamr's word
+   needed on each): input-shape drift as its own red (2.4, and freshness per §11 P4); `send`
+   dedupe key on rerun (2.5); `businessDate` on the trigger instance (2.6); **retention of
+   customer data** in `artifacts/`/`audit.jsonl` and a `purge` that keeps the audit shape
+   (2.7); `remember` = data memory, not behaviour memory — one sentence in §3.3 (2.8); dry-run
+   reads are real, only egress is redirected (2.9); the human cost M0 is measured against
+   (2.10); persona touches `compose` wording only (2.11); every module states its exit before
+   it starts (2.12). **[?]**
 
 ## §10 Ceilings and outages — RULED 2026-09-08 (hamr: "shape b agreed", "provider red agreed", "egress agreed")
 
@@ -294,3 +367,37 @@ re-fund and cannot start a second run of the same flow while one is parked.
 **Shape A (hamr's first sketch — monthly/30 daily with a 10% last-step grace) was considered
 and NOT adopted:** three numbers plus an exception, the exception is a widening rule, and a run
 paused at an ask across days has no clear daily to debit. Recorded so it is not re-raised.
+
+## §11 Production playbook items — from the Databricks FDE talk (round 4, 2026-09-08)
+
+Full mapping, with what is taken and what is deliberately left, in
+`docs/product/2026-09-08-production-ai-playbook-guideline.md`. The items v0.4 lacked, each
+one line, each **[NEW]** until hamr signs or strikes:
+
+- **P1 — case library per flow.** `cases/<id>/` in the flow directory: inputs, expected close
+  verdict, tag, origin (planted / escalated run / hamr's rerun answer). Every human-resolved
+  red becomes a case; every edit and every model change re-runs the cases before re-accept.
+- **P2 — numbers before M0.** Plants caught N/N, false reds 0/N, $ per run vs the human's cost,
+  wall. A pass with no number cannot be tracked.
+- **P3 — behavioural columns in the audit row.** `toolCalls`, `reads`, `rounds`, `retries`,
+  `duplicateReads`; a signed per-step `toolCalls` ceiling is a guardrail, exceeding it a strike.
+  The `send` row also carries the accepting ask id + exact words, so one row answers "why".
+- **P4 — freshness at `gather`.** A daily input older than its window → `stale-input` red,
+  beside shape drift (§9b.4) and hash (exists).
+- **P5 — prompts as code.** fwdloop's own prompts live in `src/prompts/`, hashed;
+  `promptVersion` in every audit row; a prompt change names the failure it fixes and re-runs
+  the fixture flows' cases before merge.
+- **P6 — model change = maintenance mode.** `provider` + `model` are signed flow fields;
+  changing either is a new version, dry-run against cases, re-accept. Never a config flip.
+- **P7 — data residency as a guardrail.** A `local-only` checkbox restricts the factory to
+  Ollama for that flow; cloud providers refused at draft. Cheaper and more honest than PII
+  scrubbing; secrets scrubbing stays as in §5.
+- **P8 — incident loop.** Detect (`history.jsonl` outcome, `inbox`) → Diagnose (`audit <run>`)
+  → Contain (park, or P9 rollback) → Fix & extend (the red becomes a P1 case).
+- **P9 — rollback.** `accept --version <previous hash>` re-activates the last accepted
+  version; part of M4's exit.
+- **P10 — the model is chosen last, by the suite.** No module selects or tunes a provider
+  before its cases exist; M0 runs its plants on ≥2 providers and records which passed at what $.
+
+**Left, with reasons (guideline §5):** LLM-as-judge as the semantic layer, confidence-threshold
+HITL, multi-agent patterns and a message bus, catalogues and vector stores.
