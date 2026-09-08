@@ -123,3 +123,41 @@ Rulings for M0: `maxTokens` 16000 on every model round; a round whose `stopReaso
 is bounded by the cap (16k × $0.0022/1k ≈ $0.035). bare-agent surfaces `stopReason` on the
 result, so this is a caller discipline, not an upstream gap; the `tool_choice` pass-through
 stays on the watch list (nice to have, not load-bearing). Diagnostic spend ≈ $0.05.
+
+## F5 — M0 verdict: GO. Grounded structured output is mechanically checkable (2026-09-08)
+
+Full record: `docs/logs/2026-09-08-m0-run.md` (branch `m0-poc`). Pre-registered in PRD §2/§7;
+rules fixed before the first run; no close rule widened to turn a red green.
+
+| plant | GLM-5.2 | Kimi-K3 |
+|---|---|---|
+| (a) wrong derived total | red `total_owed 5850 ≠ sum(E2,E3) = 5700` | same |
+| (b) wrong copied cell | not reached (provider 524, then socket timeout) | red `c1 4300 ≠ cell E2 = 4200` |
+| (c) two Northwinds | landed at `ask`, no pick | landed at `ask`, no pick |
+| (d) clean | green through `send`, accept from another process | green |
+| ungroundable step at draft | refused with reason | refused with reason |
+
+Plants caught 7/7 reached (one cell not reached, provider variance only, same model call
+green on (a) and (d)). False reds after fixes: 0/2 clean runs. Three false reds found and
+fixed along the way, each with a regression test: a cited ISO date miscounted as a bare
+number (close bug, not a rule change), a retry that poisoned its own spend guard, and two
+prompt gaps on the compose step (fixed as prompts, not by loosening the close).
+
+Money: clean run $0.003–0.006 end to end vs the $12.50/day human-cost assumption. Session
+spend ≈ $0.16 of the $5 cap. Wall per clean run 1–3 min; GLM reasoning rounds are slow
+(30–90 s) and one round ran 51 min into a socket timeout before a 300 s bound was added.
+
+Three things M0 could not prove, carried as spec questions (not silently fixed):
+1. `earliest_due` is copied, not recomputed — the closed grammar has no date-aware `min`.
+2. `count` verifies the count of what the model included, not that it included the right
+   set — no filter primitive.
+3. The runner is a hand-wired fold for job #1's shape, not a declaration interpreter (M2).
+
+Open money item: one spend row is `costUsd: null` (raw `read ETIMEDOUT` on a GLM round).
+By rule it blocks further spend until a human reconciles it against the synthetic.new
+dashboard. Transport failures after the request left the machine are **unknown, never 0**;
+the POC's "pre-response failure = $0" shortcut is retired for M2.
+
+Provider: synthetic.new is usable but flaky on long GLM rounds (two 524s, one dead socket
+in 8 runs); Kimi-K3 finished every round first try. Both stay; the flow's one-retry ladder
+and a per-round timeout are load-bearing, not nice-to-have.
