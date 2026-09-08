@@ -177,9 +177,24 @@ while bareloop had a 9,182-output-token round succeed under the wall. fwdloop's 
 (`read ETIMEDOUT` at 3045s) was the same cut with no `timeoutMs` bound to catch it; rounds are
 now bounded at 300s.
 
+**Streaming does not rescue it** (fwdloop, measured after the above): a `stream: true` request
+to GLM-5.2 returned its first byte at 92s and delivered 3,951 chunks before the socket was
+killed at **231s** — bytes were flowing continuously right up to the cut. So the cliff is a
+hard ceiling on how long one connection may live, not an idle timeout. That also rules out a
+model swap as a fix: every model on this gateway shares the wall.
+
 **Retrying a 524 is not a fix** — it re-sends a four-minute request into the same wall and pays
-twice. bareloop drops GLM-5.2+synthetic from its worker menu because its drafting pass puts a
-whole planning run in one request and lives past the cliff by construction.
+twice.
+
+**Correction (same day, from barelo).** This finding first recorded, on barelo's word, that
+bareloop "lives past the cliff by construction" because its drafting pass is one big request.
+barelo then read its own archive — 233 runs, 9,548 worker rounds on Anthropic — and withdrew
+it: draft rounds median 34.1s, p95 76.7s, max 107.4s over 130 observations, and 8 of 9,548
+rounds (0.08%) exceed 240s, none of them drafts. bareloop already satisfies the step-sizing
+rule. **The real variable is model generation speed, not step shape:** GLM-5.2 through this
+gateway emits ~50–95 output tokens/sec, so the same request that a faster model answers in
+seconds runs it into the wall. fwdloop published the original claim without measuring it —
+a peer's mechanism accepted as a fact. Recorded here rather than quietly edited out.
 
 **fwdloop's exposure is different and the rule is a spec rule, not a provider verdict.** Our
 steps are small: median round 31s, max 102s, and the 9-model bake-off ran 81 rounds with zero
@@ -187,6 +202,11 @@ provider errors. So:
 
 > **A step whose model round can exceed ~2 minutes is a spec bug.** It is split at draft time,
 > not retried at run time. This is a step-sizing constraint on the drafter, carried to M1.
+
+The budget that rule spends is `output tokens needed × the model's tokens/sec`, so a faster
+model raises how much work fits in one step. At GLM-5.2's ~50–95 tok/s the wall lands near
+15–20k output tokens; fwdloop's steps ask for a few hundred. Both projects pass it today;
+it is a tripwire to watch, not a redesign.
 
 GLM-5.2 stays usable for fwdloop's job shape; it loses the baseline slot on results and speed
 (F7), not on this.
