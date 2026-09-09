@@ -28,12 +28,9 @@ it · the fix (upstream commit/PR) · the version fwdloop consumed.**
 - **bare-agent · `response_format` / JSON-schema pass-through in the OpenAI provider.** The
   designed path is tool-call-as-output (context.md:987). Becomes an ask only if a model
   returns the typed artifact as text instead of a tool call >1 in 10 on the citation schema.
-- **bare-agent · DeepSeek prompt-cache tokens are read as zero** (`src/provider-openai.js:172`,
-  0.42.0). Was a watch-list item; **promoted to an ask 2026-09-09 by measurement (F9)**. The
-  provider reads `u?.prompt_tokens_details?.cached_tokens`; DeepSeek reports caching as
-  top-level `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`, so `cacheReadTokens` is
-  always 0 and every cached token prices at the full input rate. DeepSeek's cache hits cost an
-  order of magnitude less than misses, so the audit row overstates spend — a money-honesty
-  defect. Ask: fall back to `prompt_cache_hit_tokens` when `prompt_tokens_details` is absent
-  (no model-name sniffing; both are plain fields on the OpenAI-shaped response). Fix:
-  *(pending)*. Consumed: *(pending)*.
+- ~~**bare-agent · DeepSeek prompt-cache tokens are read as zero**~~ — **RETRACTED 2026-09-09,
+  same day as filed.** Measured with a repeated prefix: DeepSeek populates BOTH
+  `prompt_cache_hit_tokens` and `prompt_tokens_details.cached_tokens`, and they agree (4,352 of
+  4,361). bare-agent reads the latter and prices it correctly. The original claim came from a
+  cold call where every cache field reads 0 — absence of a value mistaken for absence of a
+  field. No ask. See F9.

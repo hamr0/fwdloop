@@ -391,9 +391,27 @@ baseline stays Qwen3.8-27B (F7, unchanged — it wins on fwdloop's short steps);
 provider becomes DeepSeek rather than GLM-5.2**, so the pair actually survives losing either
 one.
 
-**Upstream ask surfaced (was on the watch list, now real).** DeepSeek reports prompt caching as
-top-level `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`. bare-agent 0.42.0 reads only
-`prompt_tokens_details.cached_tokens` (`src/provider-openai.js:172`), so against DeepSeek it
-records `cacheReadTokens: 0` and prices every cached token at the full input rate. DeepSeek's
-cache-hit rate is an order of magnitude cheaper than a miss, so this is a money-honesty defect,
-not a cosmetic one. Filed in `docs/product/UPSTREAM-ASKS.md`.
+**Prompt caching works and bare-agent reads it correctly — an ask filed here and RETRACTED the
+same hour.** The first version of this finding claimed DeepSeek reports caching only as
+top-level `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`, which bare-agent does not
+read. That was wrong, and it was wrong for a lazy reason: the probe that produced it was a
+COLD call, where every cache field is 0, and absence of a value was read as absence of a field.
+
+Measured properly — same 4,361-token prefix sent twice:
+
+| call | prompt | `prompt_cache_hit_tokens` | `prompt_tokens_details.cached_tokens` |
+|---|---|---|---|
+| cold | 4,361 | 0 | 0 |
+| repeat | 4,361 | **4,352** | **4,352** |
+
+DeepSeek populates **both** shapes and they agree. bare-agent 0.42.0 reads
+`prompt_tokens_details.cached_tokens` (`src/provider-openai.js:172`), so it prices DeepSeek's
+cache correctly with no change. **No upstream ask.** The watch-list entry is closed as
+disconfirmed rather than promoted.
+
+For contrast, synthetic.new returns `prompt_tokens_details: None` — no prompt caching exposed
+there at all, so nothing is mispriced, there is simply no discount to record.
+
+99.8% of a repeated prefix came back cached on the second call. That matters for fwdloop's
+shape: every step re-sends a stable system prompt, so a cached prefix is the normal case, not
+the exception.
