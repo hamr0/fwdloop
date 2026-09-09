@@ -1,0 +1,7 @@
+When the AR aging sheet lands, read it, then read the chat message and work out which customer it is about. Pull their open invoices, what they owe in total, the earliest due date, and how many are overdue as of the business date. Write me a short reply with one line per invoice, check it with me, and send it once I accept.
+
+Guardrails:
+- every number must point to the cell it came from or the formula that made it
+- if more than one customer matches, ask me, do not pick
+- nothing goes out before I accept
+- cap $0.25 per run
