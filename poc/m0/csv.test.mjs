@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { parseCsv, colLetter, colIndex } from './csv.mjs';
+import { parseCsv, colLetter, colIndex, parseCellRef } from './csv.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturePath = join(__dirname, '..', '..', 'fixtures', 'ar-aging.csv');
@@ -36,4 +36,12 @@ test('a wrong cell value in a hand-made CSV is visible as a different string (pa
   const { rows } = parseCsv('Customer,Amount\nAcme,4200\n');
   assert.equal(rows[0].cells.B, '4200');
   assert.notEqual(rows[0].cells.B, '4300'); // proves the parser can produce a value that fails a later equality check
+});
+
+test('parseCellRef is the one writer for what a cell address means', () => {
+  assert.deepEqual(parseCellRef('E2'), { col: 'E', row: 2 });
+  assert.deepEqual(parseCellRef('AA10'), { col: 'AA', row: 10 });
+  assert.throws(() => parseCellRef('2E'), /bad cell ref/);
+  assert.throws(() => parseCellRef('e2'), /bad cell ref/);
+  assert.throws(() => parseCellRef('E'), /bad cell ref/);
 });

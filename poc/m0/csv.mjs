@@ -23,6 +23,18 @@ export function colIndex(letter) {
 }
 
 /**
+ * Parse a cell ref like "E2" into { col: 'E', row: 2 }. One writer for what a
+ * cell address MEANS: it is the citation contract (F13, ruled 2026-09-09 —
+ * addressable cells are fwdloop's, not a baresuite primitive), so it lives
+ * with the reader that produces those addresses, never copied per consumer.
+ */
+export function parseCellRef(cell) {
+  const m = /^([A-Z]+)(\d+)$/.exec(cell);
+  if (!m) throw new Error(`bad cell ref "${cell}"`);
+  return { col: m[1], row: Number(m[2]) };
+}
+
+/**
  * Parse CSV text with no quoted fields into { header, rows }.
  * `rows[i]` is `{ rowNumber, cells: { A: '...', B: '...' }, byName: { Customer: '...' } }`
  * where `rowNumber` is the 1-based sheet row (header is row 1, first data row is row 2).
