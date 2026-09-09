@@ -118,11 +118,23 @@ derived from field research (`docs/logs/2026-09-08-fde-use-cases.md`).
    unlocks a tool subset. The drafter only sees what is enabled. Menu-is-inventory: a checkbox
    with no skill directory is a validation red.
 4. **Persona.** A signed persona line shapes how `compose` output reads. Voice, never correctness.
-5. **The drafter selects primitives, it does not wire them** (hamr, 2026-09-09). It takes
-   prose + guardrails and names, per step, which primitive to use and how that step closes.
+5. **Scout looks, drafter writes, neither acts** (borrowed verbatim from `bareloop
+   src/authorscout.js:4`, adopted 2026-09-09). Three separate things, and the separation is the
+   point:
+   - **The scout LOOKS.** Before any drafting, a bounded read-only pass over the real inputs —
+     the CSV's actual columns, the message's actual shape — so the drafter proposes steps against
+     what is there instead of inventing a column name. Write-class and store-class primitives are
+     filtered **out of its menu, so it is read-only by construction and not by promise**;
+     round-bounded; output-capped. Its grant is **fixed in code and is not spec-authorable**,
+     because at job-creation time no signed ceiling exists yet to derive one from — the same
+     arbiter line, one step earlier than usual.
+   - **The drafter WRITES.** It never gets a tool. It takes prose + guardrails + the scout's facts
+     and names, per step, which primitive to use and how that step closes.
+   - **Neither acts.** Signing does not replay a recording; it runs the plan for the first time.
 
-   **The drafter is multi-turn, and that is where the turns live (RULED 2026-09-09).** You send
-   prose + guardrails; it replies with a **clean table** — one row per step, its close, its
+   **The drafter is multi-turn, and that is where the turns live (RULED 2026-09-09).** The
+   pipeline is *scout → draft → negotiate → sign → run*. You send prose + guardrails; the scout
+   looks at the real inputs; the drafter replies with a **clean table** — one row per step, its close, its
    primitives. You reply with changes. It redrafts. That repeats until you agree on the shape,
    and only then do you sign and fire. **This is the multi-turn conversation**, and it is the
    whole of it: at run time every step is one shot with fresh context and no negotiation.
@@ -147,18 +159,36 @@ trusted.
    citation did not resolve, the exact red string, and the $ and wall spent to that point. A run
    that stops is `escalated` in `history.jsonl` with the gap text, never a silent no-op.
 
-   **What the machine may fix by itself: mechanical transport, and nothing else.** One immediate
-   retry on a provider 5xx/timeout, then the run parks as `provider-red` (resumable, nothing lost)
-   and the trigger retries the parked run at +5, +15, +45 minutes — three tries, fixed,
-   tighten-only — then escalates with the error text. A parked run is already funded; retries do
-   not re-fund.
+   **Transport.** One immediate retry on a provider 5xx/timeout, then the run parks as
+   `provider-red` (resumable, nothing lost) and the trigger retries the parked run at +5, +15,
+   +45 minutes — three tries, fixed, tighten-only — then escalates with the error text. A parked
+   run is already funded; retries do not re-fund.
 
-   **It never retries a close-red, never rewrites a step, never re-picks a primitive.** A wrong
-   *answer* is always a human's to fix. Feeding a gap back for another attempt was considered and
-   refused: it teaches the model to satisfy the check rather than do the work, which is the
-   fitting-to-pass failure AGENT_RULES bans. This is also the deterministic analogue of the
-   playbook's confidence-threshold handoff (§7) — a close-red escalates; a model's self-report
-   never routes anything.
+   **Close-reds: the ralph loop, borrowed whole (RE-RULED 2026-09-09).** `while close-red and
+   under-cap: run the step again`, **stopping at first green** (`bareloop src/ralph.js:499`).
+   Transport-only healing was ruled first and then reversed on evidence — bareloop retries
+   close-reds and has done for 680 commits, and diverging from that needs a reason we do not have.
+
+   **What makes the retry safe is one line, and fwdloop must copy it exactly: the step never sees
+   its own close, and never sees the cap.** bareloop's signature says it outright — *"the emergent
+   middle; never sees close/cap"*. Only the **gap text** comes back. A worker that cannot read the
+   check cannot tune to it, which is the fit-to-pass fence. Two other bounds ride with it: the
+   loop stops at the first green (further tuning past a visible green is itself the fit-to-pass
+   surface), and it is governed by **strikes** — a repeated identical gap is no progress and
+   strikes out, so a step that will never go green cannot burn the cap.
+
+   **The subtlety fwdloop has and bareloop does not.** bareloop's close is a command exit; a
+   worker needs no knowledge of it to do the work. Ours can be a **softgreen declared shape**,
+   which reads like an instruction. So the split must be stated: the step sees its **goal** ("write
+   a reply, one line per invoice"), never its **close** ("the artifact must carry N invoice-line
+   figures, a total and a due date, each cited, and here is the field list"). Goal in, gap back,
+   close never. If a shape cannot be split from its goal that way, that step is **hitl**, not
+   softgreen.
+
+   **Still never:** rewriting a step, re-picking a primitive, or re-drafting the flow. Those are
+   edits to a signed artifact and need a human and a new hash (M4). A close-red that strikes out
+   escalates with the gap text — the deterministic analogue of the playbook's confidence-threshold
+   handoff (§7). A model's self-report never routes anything.
 
 8. **Token cost is a go/no-go the buyer applies before we build (hamr, 2026-09-09).** People ask
    "how do I make best use of tokens" *before* anything is built, and a job that is technically
@@ -340,21 +370,25 @@ is built, before the next starts. Never ship the POC.
 
 Two POCs, ordered. M0a must pass before M0b starts.
 
-**M0a — selection + walkable chain.** Give the drafter job #1 as prose+guardrails and the
-baresuite primitive catalogue. Copying bareloop's shape: it emits steps that each carry a
+**M0a — scout + selection + walkable chain.** A bounded read-only scout looks at
+`fixtures/ar-aging.csv` and `fixtures/message.txt` first; its menu has write and store primitives
+filtered out by construction. Then give the drafter job #1 as prose+guardrails, the scout's facts,
+and the baresuite primitive catalogue. Copying bareloop's shape: it emits steps that each carry a
 **granted primitive list** (menu-is-inventory — every entry an existing implementation) and the
 **artifact ids it reads**; it authors no bodies and no plumbing. Steps share one artifact space,
 which is fwdloop's stand-in for bareloop's tree. A deterministic validator then proves the chain
 is walkable: every artifact a step reads was declared by an earlier step, and every primitive
 named exists in the catalogue and is unlocked by the flow's skillset.
 - *Exit:* the chain is walkable end to end on the baseline model, and the validator names both
-  primitives when it is not.
+  primitives when it is not. The scout's facts appear in the draft — a column name in the
+  declaration matches the fixture and was not invented.
 - *Negative scenarios (the test must be able to fail):* (i) a step reading an artifact no earlier
   step declared is a red naming the step and the artifact; (ii) a job line with no groundable
   check is refused at draft, never given a proxy check (F10's 6/6 must hold when the menu is
   primitives, not kinds); (iii) a primitive not in the catalogue is a red, **never invented** —
   this is the (f) rule made mechanical; (iv) a primitive outside the flow's signed skillset is a
-  red even though it exists.
+  red even though it exists; (v) the scout attempting a write-class primitive is impossible, not
+  merely refused — the verb is absent from its menu, and a test proves the menu is filtered.
 - *Kills the module:* the catalogue cannot express job #1 without a new primitive → upstream ask,
   and M0 stops until it is delivered.
 
@@ -388,7 +422,10 @@ an arbiter field in any position.
 
 ### M2 — runner
 *Scope:* fold over steps, fresh context per step (artifacts, never transcripts), effect check per
-step, citation close, `audit.jsonl` + `history.jsonl`, money honesty, strikes, provider-red ladder.
+step, close by declared class, the **ralph loop** (`while close-red and under-cap`, stop at first
+green, strikes govern), `audit.jsonl` + `history.jsonl`, money honesty, provider-red ladder.
+*Load-bearing invariant:* the step executor is constructed without its close and without the cap —
+goal in, gap back. A test must prove the close is not reachable from the executor's context.
 *Exit:* an arbitrary valid declaration runs — not job #1's shape hand-wired (v0.5's M0 could not
 do this; it is logged as its scope limit).
 *Negative:* a step whose effect check fails halts the run and names the step.
