@@ -6,7 +6,10 @@ Rebuilt from scratch on 2026-09-09 after v0.5 drifted. v0.5 is parked at
 `docs/archive/2026-09-08-PRD-v0.5-PARKED.md` — read it for evidence (F1–F11 still stand), never
 for scope. This document is the only scope.
 
-Binds: `.claude/remember/AGENT_RULES.md`, `~/PycharmProjects/hamr0/LIBRARY_CONVENTIONS.md`.
+Binds: `.claude/remember/AGENT_RULES.md` and `.claude/remember/LIBRARY_CONVENTIONS.md` (both tracked
+in this repo; the `hamr0/` copies are byte-identical). **AGENT_RULES wins where the two disagree**
+— LIBRARY_CONVENTIONS says so itself. It adds only what is specific to shipping a JS library to
+npm, and it binds from M5 onward; `poc/` is exempt while it is a POC.
 Context-engineering reference: `~/PycharmProjects/litectx/docs/product/build-studies.md`.
 Findings live in `docs/logs/FINDINGS.md` — never in this file.
 
