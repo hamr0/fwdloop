@@ -33,6 +33,12 @@ prints when it refuses (`:293`):
 
 **fwdloop is the job bareloop refuses.** Not a metaphor — that is the error message.
 
+*Citation pinned to `bareloop@05ea1ab`, read 2026-09-09.* **That text is being rewritten upstream
+and this quote will rot** (bareloop session, 2026-09-09): bareloop is unlocking `softgreen` as a
+judged close, and **`hitl` is being retired there and moved here** — it is fwdloop's class now,
+which is the same boundary this PRD draws from the other side. What does not change is the reason
+the refusal existed: no repo, no seed, nothing deterministic to decide it came back done.
+
 **The goal.** fwdloop replaces **a human's job** with code. Not a repo — a job. The human
 describes the job in their own words plus guardrails; the machine works out the steps, picks
 which primitives to use, wires them, runs them, and stops where the human said to stop. **The
@@ -280,6 +286,7 @@ One flow, one hash, signed whole. Any edit flips the hash and demands re-accept 
   "askTtlMs":   ...,                  // ARBITER
   "egress":     { "allowList": [...] },              // ARBITER
   "skills":     ["..."], "persona": "...",           // ARBITER (signed checkboxes)
+  "provider":   "deepseek", "model": "deepseek-v4-flash", // ARBITER — INSIDE the hash
   "guardrails": "<the human's own words, verbatim>", // the SOURCE of every class
   "steps": [
     { "goal": "...",                  // drafted
@@ -310,6 +317,13 @@ the signature.
 `softgreen`, because a shape is the human's to write. This is the one-way default: unclassifiable
 means a person, which is the mechanical form of "unsure = red".
 
+**`provider` and `model` live inside the signed hash, not beside it (2026-09-09).** Borrowed from
+bareloop's calibration design: storing the model *with* the thing it graded means a model bump
+makes every signed spec hash differently — the signature dies and re-acceptance is forced **by
+construction, not by policy**. This is playbook P6 (model change = maintenance mode) given a
+mechanism instead of a rule. It applies to fwdloop with no judge at all, because the same argument
+holds for the step executor: a flow proven on one model is not proven on another.
+
 **Why the guardrails stay in the signed spec after mapping.** They are the human's own words, and
 three things need them: the audit must be able to say *"this step is hitl because you wrote 'check
 with me'"*; every class must trace to a guardrail or be hitl; and re-drafting after a prose edit
@@ -329,9 +343,20 @@ the default compressor. No self-adjusted budgets, ever. No cloud, no multi-user,
 inbox is a list). No mobile control. No learning or inheritance between flows. No fully
 automated flow without a human stop. **No patching or inventing a baresuite primitive.**
 
-**No LLM judge (ruled 2026-09-09).** softgreen is a declared shape checked mechanically. A second
-model never decides a close. bareloop built three modules for a judge — calibration gate,
-quarantine, holds — and still refused it in v1; we do not start there.
+**No LLM judge (ruled 2026-09-09).** softgreen here is a **declared shape checked mechanically**.
+A second model never decides a close.
+
+*Name collision to keep straight:* bareloop's `softgreen` is a **judged** close — an LLM judge
+against a rubric, with a calibration gate. Ours is a declared shape with no model in it. Same word,
+different mechanism. When the two projects talk, say which one is meant.
+
+*Their calibration gate is offered and declined for now (bareloop session, 2026-09-09):*
+`src/calibrate.js`, `src/judged.js` at `05ea1ab` — a 10-of-10 floor with itemized reds, no partial
+credit, before a judged close may sign. **It has never run: 0 calibrations across 167 archived
+runs**, only because no softgreen job was ever authorable there. Reviewed and unit-tested, not
+live-proven. We have no judge to calibrate, so borrowing it now would be machinery ahead of need —
+and unproven machinery at that. Recorded in §8 with the four ideas worth taking if a judge ever
+arrives.
 
 **No CLI as a product surface (ruled 2026-09-09).** `npm install`, one command, a localhost server
 starts and **the browser is the product**. The server owns the scheduler, so a trigger never needs
@@ -579,3 +604,27 @@ pointers**, not by asking a second model.
    *When to build it — a number, not a feeling.* Job #1 costs $0.003–0.006 per run against a
    $12.50/day human, so pinning saves a rounding error today. The trigger is a measurement showing
    a flow's token cost is blocking a greenlight (§3.8), never a hunch.
+8. **If a judge ever arrives, borrow these four, not the plumbing** (offered by the bareloop
+   session, 2026-09-09; `src/calibrate.js`, `src/judged.js`, `src/declaredclose.js`,
+   `src/cardauthor.js` at `05ea1ab`). Recorded now so it is not re-derived later. **Not scope** —
+   §4 rules no judge in v1.
+   1. **Locate vs decide.** The model never says pass/fail. It extracts facts and quotes only; a
+      deterministic `decide()` renders the verdict; unsure = red. This is what stops a
+      probabilistic judge becoming the arbiter, and it is the same split our citation close
+      already uses — which is why it reads as familiar rather than new.
+   2. **Three readings never mixed.** A *graded case* compares verdict **and** itemized reds as
+      sets of `(rule, fn)` — a pipe that reds the right case for the wrong reason was lucky, not
+      calibrated. An *injection style* resists only when it moved neither the located list nor a
+      single fact. A *casualty* (call failed, cut off, unpriced, unparseable after retry) is **no
+      evidence in either direction** and stops the gate on its own axis — the same shape as our
+      "unknown cost is never 0".
+   3. **The gate reports and never signs.** It picks no number; a separate step turns a failed
+      calibration into a refusal.
+   4. **An absent judge seam is a wiring gap that stops the gate, never a silent skip.**
+
+   *Already taken from this, ahead of any judge:* the judge-model-inside-the-hash mechanism, now
+   §3's signed artifact — `provider` and `model` sit inside the signature, so a bump forces
+   re-acceptance by construction rather than by policy.
+
+   *Sizing, if it is ever needed:* locate+decide ran ~$0.002–0.004 per call; haiku emitted
+   malformed JSON on locate roughly 1 in 6, mitigated with one retry and **never JSON repair**.
