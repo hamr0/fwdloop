@@ -5,19 +5,20 @@
 // (PRD §5: "trigger, cap, askTtlMs, egress, and every ask step's position
 // are arbiter fields: human-authored, inexpressible to the drafter").
 //
-// Usage: SYNTHETIC_API_KEY="..." node poc/m0/drafter.mjs <model-id> [--ungroundable]
+// Usage: SYNTHETIC_API_KEY="..." node poc/m0/drafter.mjs <model-id> [--slot synthetic|deepseek] [--prose] [--ungroundable]
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Loop } from 'bare-agent';
-import { OpenAI } from 'bare-agent/providers';
-import { assertUnderGlobalCap, appendSpendRow, RATES_BY_SUFFIX, RUN_CAP_USD } from './spend.mjs';
+import { assertUnderGlobalCap, appendSpendRow, RUN_CAP_USD } from './spend.mjs';
+import { makeProvider } from './provider.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(__dirname, 'out');
 const SPEND_PATH = join(OUT_DIR, 'spend.jsonl');
 const STEPS_PATH = join(__dirname, 'steps.txt');
+const PROSE_PATH = join(__dirname, 'prose.txt');
 
 const STEP_KIND_MENU = `
 Step kinds (menu, frozen — anything else is a red at validation):
@@ -87,26 +88,26 @@ const DECLARATION_SCHEMA = {
   required: ['steps'],
 };
 
-export async function runDrafter(modelId, { ungroundable = false, runLabel = 'drafter' } = {}) {
-  const apiKey = process.env.SYNTHETIC_API_KEY;
-  if (!apiKey) throw new Error('SYNTHETIC_API_KEY is not set');
-
-  const suffix = modelId.replace(/^hf:/, '');
-  const rates = RATES_BY_SUFFIX[suffix];
-  if (!rates) throw new Error(`no hand-entered rate for model suffix "${suffix}"`);
+export async function runDrafter(modelId, {
+  ungroundable = false, runLabel = 'drafter', slot = 'synthetic', prose = false,
+} = {}) {
+  const { provider, rates, suffix } = makeProvider(slot, { model: modelId });
 
   assertUnderGlobalCap(SPEND_PATH);
   mkdirSync(OUT_DIR, { recursive: true });
 
-  let stepsText = readFileSync(STEPS_PATH, 'utf8');
+  let stepsText = readFileSync(prose ? PROSE_PATH : STEPS_PATH, 'utf8');
   if (ungroundable) {
-    stepsText = stepsText.replace(
-      'guardrails:',
-      '7. rate how friendly the customer sounds\nguardrails:',
-    );
+    stepsText = prose
+      ? stepsText.replace(
+        '\n\nGuardrails:',
+        ' Also rate how friendly the customer sounds.\n\nGuardrails:',
+      )
+      : stepsText.replace(
+        'guardrails:',
+        '7. rate how friendly the customer sounds\nguardrails:',
+      );
   }
-
-  const provider = new OpenAI({ apiKey, model: modelId, baseUrl: 'https://api.synthetic.new/openai/v1' });
 
   let capturedArgs = null;
   let capturedText = null;
@@ -159,12 +160,19 @@ export async function runDrafter(modelId, { ungroundable = false, runLabel = 'dr
 if (import.meta.url === `file://${process.argv[1]}`) {
   const modelId = process.argv[2];
   const ungroundable = process.argv.includes('--ungroundable');
+  const prose = process.argv.includes('--prose');
+  const slotIdx = process.argv.indexOf('--slot');
+  const slot = slotIdx !== -1 ? process.argv[slotIdx + 1] : 'synthetic';
   if (!modelId) {
-    console.error('usage: node poc/m0/drafter.mjs <model-id> [--ungroundable]');
+    console.error('usage: node poc/m0/drafter.mjs <model-id> [--slot synthetic|deepseek] [--prose] [--ungroundable]');
     process.exit(1);
   }
-  const report = await runDrafter(modelId, { ungroundable, runLabel: `drafter-${suffixOf(modelId)}${ungroundable ? '-ungroundable' : ''}` });
-  const outPath = join(OUT_DIR, `draft-${suffixOf(modelId).replace(/\//g, '_')}${ungroundable ? '-ungroundable' : ''}.json`);
+  const shapeTag = prose ? 'prose' : 'steps';
+  const tag = `${suffixOf(modelId).replace(/\//g, '_')}-${slot}-${shapeTag}${ungroundable ? '-ungroundable' : ''}`;
+  const report = await runDrafter(modelId, {
+    ungroundable, prose, slot, runLabel: `drafter-${tag}`,
+  });
+  const outPath = join(OUT_DIR, `draft-${tag}.json`);
   writeFileSync(outPath, JSON.stringify(report, null, 2));
   console.log(JSON.stringify({ ...report, declaration: '(see ' + outPath + ')' }, null, 2));
 }

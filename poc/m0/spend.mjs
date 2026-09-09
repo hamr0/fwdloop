@@ -79,4 +79,6 @@ export const RATES_BY_SUFFIX = {
   'nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4': { in: 0.000085, out: 0.0004, source: 'published' }, // OpenRouter list price, $0.085/$0.40 per 1M (base variant; NVFP4 quant price not separately listed)
   'syn:large:text': { in: 0.0006, out: 0.0025, source: 'ceiling' }, // no published rate found for this synthetic.new alias — ceilinged at the highest rate in this table (Kimi-K3's)
   'syn:small:text': { in: 0.0006, out: 0.0025, source: 'ceiling' }, // same — no published rate found
+  'deepseek-v4-flash': { in: 0.00044, out: 0.00132, source: 'published' }, // DeepSeek official pricing (https://api-docs.deepseek.com/quick_start/pricing, read 2026-09-09): cache-MISS, PEAK $0.44/$1.32 per 1M tokens — peak (the higher of peak/off-peak) used as the ceiling; cache-hit input is cheaper ($0.007-$0.014/1M) and not used, per the cache-miss ceiling rule
+  'deepseek-v4-pro': { in: 0.00132, out: 0.00396, source: 'published' }, // DeepSeek official pricing (https://api-docs.deepseek.com/quick_start/pricing, read 2026-09-09): cache-MISS, PEAK $1.32/$3.96 per 1M tokens — see deepseek-v4-flash note above
 };

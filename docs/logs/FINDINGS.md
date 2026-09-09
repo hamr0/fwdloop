@@ -415,3 +415,101 @@ there at all, so nothing is mispriced, there is simply no discount to record.
 99.8% of a repeated prefix came back cached on the second call. That matters for fwdloop's
 shape: every step re-sends a stable system prompt, so a cached prefix is the normal case, not
 the exception.
+
+## F10 — the prose turn holds; the drafter's instability is exactly where it must not be (2026-09-09)
+
+**The probe.** `poc/m0/drafter.mjs` had only ever been fed `poc/m0/steps.txt` — an already-cut
+step list. The product promise is *"describe a flow"*, and `2026-09-08-prd-gaps-review.md` §1
+rules the input may be prose **or** steps. The prose leg had never run. New `poc/m0/prose.txt`
+says the same job in one paragraph with the guardrails still stated as guardrails; new
+`poc/m0/provider.mjs` is one writer for provider+rates+key so the same drafter can face either
+provider. 18 rounds: 2 providers × 3 inputs (prose, steps as control, prose+ungroundable) × 3.
+Total spend ≈ **$0.018**; M0 cap now $0.167 of $5.00, zero null-cost rows.
+
+**Everything that was supposed to hold, held.**
+
+| measure | Qwen3.8-27B (synthetic) | deepseek-v4-flash |
+|---|---|---|
+| valid declaration via tool call | 9/9 | 9/9 |
+| provider reds | 0 | 0 |
+| ungroundable line refused, no proxy check invented | **3/3** | **3/3** |
+| arbiter-field leak ($ cap, TTL, trigger, send target, egress) | 0/9 | 0/9 |
+| step count, prose | 7, 7, 9 | 11, 8, 8 |
+| step count, steps.txt (control) | 8, 8, 7 | 7, 8, 7 |
+| $ per draft, median | 0.00080 | 0.00052 |
+| wall, median | 33s | 55s |
+
+Refusal reasons were the right shape every time and named the reason, not a substitute — e.g.
+*"subjective tone rating has no verifiable ground truth; cannot be expressed as a typed, cited
+artifact."* **No run invented a proxy check.** That is the F87/F104 failure mode this probe was
+built to hunt, tested at draft time where no citation close exists to catch it, and it did not
+appear in 6/6 attempts across two providers.
+
+**Prose is not harder than steps.** The control is the point: step counts on prose (7–11) sit in
+the same band as step counts on the already-cut list (7–8). Prose loses no grounding and invents
+no steps. F81's grain worry (many small self-graded steps) did not materialise — nothing came
+back with a long tail of substeps.
+
+**The real finding is where the wobble is.** Neither provider is stable, and both are unstable in
+the *same* place: whether an `ask` step is emitted for the ambiguous-customer case. Runs that
+emitted it are 8–9 steps; runs that folded ambiguity into the `derive` are 7. Both readings are
+defensible from the prose — the guardrail says *"if more than one customer matches, ask me, do
+not pick"*, which states that a stop exists without fixing where.
+
+That is an **ask's position**, and PRD §5 makes an ask's position an arbiter field: human-authored,
+inexpressible to the drafter. Today the drafter is told not to *move* an ask, but nothing stops it
+deciding whether one *exists*. Two runs of the same prose therefore produce flows with a different
+number of human stops. **The leak is not in what the drafter emits; it is in what the schema lets
+it decide.** M1's grammar must make ask positions declared slots the drafter fills, never steps it
+may add or omit — and the human diff must show a missing ask as a change, not as an absence.
+
+**Baseline ruling: Qwen3.8-27B stays.** Ranked rule, applied after the runs: correctness first
+(tie, both perfect), then provider reds (tie, 0–0), then stability (Qwen's step-count spread is 2
+vs DeepSeek's 3, and DeepSeek produced the single 11-step outlier), then cost, then wall — where
+they split, DeepSeek cheaper, Qwen faster. Tie above the money line, so the incumbent keeps the
+slot (F7 unchanged). **DeepSeek v4-flash is confirmed as the second provider** (F9) on measured
+evidence rather than the long-call argument alone: 9/9 clean, 0 reds, and materially cheaper.
+DeepSeek's cache discount was deliberately excluded as a tiebreaker — these rounds are cold, so
+it would flatter a workload that is not this one.
+
+**Not proven here.** The drafter is one-shot: it never asks a clarifying question when the prose
+has a hole (hamr, 2026-09-09: that is part of the flow, parked until the loop exists). And the
+drafted declarations were not executed — `poc/m0/runner.mjs` is still a hand-wired fold for job
+#1's shape and still constructs its own provider inline, so it cannot yet run an arbitrary
+declaration on either slot. Feeding a drafted declaration through the runner against plants
+(a)–(d) is the next measurement, and it is the one that closes the front half to the back half.
+
+## F11 — DeepSeek ignores `max_completion_tokens`; our output cap was theatre (2026-09-09)
+
+Raised by the bareloop session (their F149) and **reproduced here on fwdloop's own path** before
+being accepted. bare-agent 0.42.0 sends `max_completion_tokens` by default (`provider-openai.js`
+BA-24 — GPT-5 models 400 on the legacy key) and exposes `legacyMaxTokens` for compat servers.
+A/B on `deepseek-v4-flash`, identical prompt, `maxTokens: 64`:
+
+| `legacyMaxTokens` | output tokens | stopReason |
+|---|---|---|
+| `false` (bare-agent default) | **783** | `end_turn` |
+| `true` | **64** | `max_tokens` |
+
+DeepSeek accepts the request and silently drops the parameter — no error, no warning. Every
+DeepSeek round in F10 therefore ran with **no enforced output ceiling**. It cost us nothing (the
+drafter's answers are short and the $5 cap held at $0.167), but an unbounded output cap on a
+provider is a money guardrail that does not exist. **Fixed:** `legacyMaxTokens` is now a property
+of the slot in `poc/m0/provider.mjs` — `true` for `deepseek`, `false` for `synthetic` — so the key
+is chosen once, by the one writer, and never by a call site. Test added and proven to fail when
+either expectation is flipped (66/66 suite green).
+
+**Their other finding does not apply to us, and we checked rather than assumed.** bareloop's F147:
+`Loop.run()` prepends `system` and returns that transcript, so re-feeding the returned `msgs` into
+a second `Loop` built with the same `system` yields `system system user …`, which vLLM-class
+backends (synthetic fronts them) reject with `400 System message must be at the beginning`. That
+was the real cause of the HTTP 400 F8 could not explain — it was never context size and never
+transcript size; it was two system messages.
+
+fwdloop is **immune by construction, not by luck**: `grep` over `poc/` finds no reuse of a returned
+`msgs`/`messages` array anywhere. Every call site builds a fresh `messages` literal —
+`drafter.mjs:129`, `runner.mjs:146` (fresh context per step is the design, PRD §7 M2), and
+`probe-synthetic.mjs:84`. There is exactly one `loop.run` per constructed `Loop`. **This becomes a
+live risk the moment a step is retried, a conversation is continued, or the drafter gains the
+follow-up-question turn** (parked, hamr 2026-09-09) — all three re-feed a transcript. The rule to
+carry into M1/M2: *strip a leading `system` before continuing any transcript, or never continue one.*
