@@ -23,6 +23,22 @@ it · the fix (upstream commit/PR) · the version fwdloop consumed.**
   `tool_choice` — fwdloop, nice-to-have. Fix: bare-agent 0.42.0 (main 8ee93e9). Consumed: **0.42.0** on `m0-poc`, harness verified. (1) does not
   block M0's paid runs today but blocks any unattended rerun (M5+).
 
+- **bare-agent · a silently dropped output cap is not detected.** `legacyMaxTokens` (BA-24,
+  delivered in 0.42.0) lets a caller choose the request key, but nothing tells a caller the key
+  was **ignored**. Proven by a run, not suspected: F11 A/B'd `deepseek-v4-flash` with
+  `maxTokens: 64` — with the 0.42.0 default (`max_completion_tokens`) it returned **783 output
+  tokens, `stopReason: 'end_turn'`, no error and no warning**; with `legacyMaxTokens: true`,
+  exactly 64 and `stopReason: 'max_tokens'`. DeepSeek accepts the request and drops the parameter.
+  Every DeepSeek round in F10 therefore ran with **no enforced output ceiling** — a money guardrail
+  that silently did not exist, which is the one failure class the money doctrine says must never be
+  silent (unknown is never rendered as 0; a cap that is not enforced is worse than no cap, because
+  the caller believes it holds). **The detection is deterministic and cheap:** a cap was requested,
+  `outputTokens` exceeds it, and `stopReason` is not `max_tokens` ⇒ the cap was dropped — warn
+  once per Loop, the same shape as the existing truncation warning. *Does not block:* fwdloop's own
+  fix is applied (`legacyMaxTokens` is a property of the `deepseek` slot in
+  `poc/m0/provider.mjs`, tested). It matters for the **next** provider that does this quietly, and
+  F12 has now made that flag load-bearing on the default path. Surfaced by F11, 2026-09-09.
+
 ## Watch list (not asks — becomes one only when a run proves it)
 
 - **bare-agent · `response_format` / JSON-schema pass-through in the OpenAI provider.** The
