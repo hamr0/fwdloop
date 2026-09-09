@@ -533,3 +533,34 @@ pointers**, not by asking a second model.
    replaces this and M0's ratio is restated.
 5. **Memory across runs** (litectx as the store, facts superseded by id) — not in any module yet.
 6. **What does a flow directory look like on disk?** Deferred to M1.
+7. **Pinning a proven step — "3D-print the mockup" (hamr, 2026-09-09). Recorded, NOT a module.**
+   After a flow works, can its probabilistic part be frozen into deterministic code to stop
+   spending tokens on it?
+
+   **Yes, and it does not contradict "wiring ages, closes don't"** — that argument is about
+   building wiring *up front*, guessing what the model cannot do. This is the opposite: recording
+   what the model already did, N times, with the close still watching.
+
+   *The mechanism already exists.* A green step's citation **is** a program —
+   `{value: 4200, source: {col: "Amount", cell: "E2"}}` says exactly where the number came from.
+   The arithmetic is already ours (the closed formula grammar is machine-computed, never
+   modelled), so the only thing a model does in a green step is **extraction**. Freeze the
+   extraction and the step costs $0.
+
+   *The catch.* A citation records `row: 2`; tomorrow the row moves. Pinning requires promoting a
+   citation to a **rule** — not "row 2" but "the row where Customer = the matched name" — and
+   generalising from one run is where it gets dangerous. From twenty, much less so.
+
+   *Why freezing stays safe.* You lose adaptability, never safety: a wrong frozen selector goes
+   **red on the same close** a model would have. Red → unpin → the model takes over. The close is
+   what makes freezing survivable.
+
+   *The shape, using only what is already planned.* M7's case library accumulates runs; a step
+   whose citations resolve to the same shape across N greens (same column, same formula, row
+   picked by the same predicate) becomes a **pin candidate**; pinning is an **edit**, so it takes a
+   new hash and a human re-accept (M4); the close is unchanged, and a pinned step is judged
+   identically to a modelled one.
+
+   *When to build it — a number, not a feeling.* Job #1 costs $0.003–0.006 per run against a
+   $12.50/day human, so pinning saves a rounding error today. The trigger is a measurement showing
+   a flow's token cost is blocking a greenlight (§3.8), never a hunch.
