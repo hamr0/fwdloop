@@ -607,3 +607,20 @@ lives with the close. Filing it as an ask would block M0 on a 60-line parser to 
 
 **Premise (f) survives its first test with one asterisk.** Eight of nine needs are covered by an
 existing, exported implementation. Nothing had to be invented and nothing had to be patched.
+
+### RULED 2026-09-09 — it is ours
+
+hamr ruled it **fwdloop's**, and gave a reason the recommendation above did not state:
+**the baresuite is simple boilerplate agentic-automation primitives — CSV reading is not
+boilerplate.** A suite that tries to cover every file format stops being a primitive set. That
+reason is stronger than the parsing/addressing split argued above and supersedes it as the
+governing rationale; the split still holds as the mechanical boundary.
+
+Consequences, binding on M0a:
+- No upstream ask is filed for this. **M0 does not wait.**
+- `poc/m0/csv.mjs` stops being a rule-(f) violation and becomes part of the **citation contract**.
+  It must be documented as such, not as a convenience parser.
+- Premise (f)'s asterisk is closed: 8 of 9 needs are baresuite primitives, and the 9th was never
+  a primitive — it is fwdloop's own contract.
+- The line to hold for every future gap: **if it is file-format or domain knowledge, it is ours;
+  if it is agent plumbing, it is a baresuite ask.**
