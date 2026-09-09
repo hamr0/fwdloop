@@ -365,6 +365,22 @@ undocumented, unsupported, and carries no stability promise. One surface, not tw
 
 ---
 
+## §4b Stack — vanilla JS (RULED 2026-09-09)
+
+**Vanilla JavaScript, ESM, node stdlib.** No TypeScript, no framework, no build step. Types where
+they help go in JSDoc, the way bareloop and litectx do it — checkable without a compiler.
+
+AGENT_RULES' dependency hierarchy binds as written: **vanilla → stdlib → external, and external
+only when stdlib cannot do it in <100 lines**, with the standing exception that security-critical
+code (crypto, auth, sanitisation) always uses a vetted library. The bare suite is a **dependency,
+not an external** in that sense — it is the thing under validation.
+
+This is what the POC already is (`poc/m0/*.mjs`, one declared dependency: `bare-agent`), stated
+here so the language is not an inference. The one place this will be tested is M5's UI: **vanilla
+over frameworks** holds there too, and a framework needs a reason, not a preference.
+
+---
+
 ## §5 Baseline model — SETTLED, not reopened
 
 **`deepseek-v4-flash` (DeepSeek direct) is the baseline for every experiment**
@@ -428,9 +444,19 @@ named exists in the catalogue and is unlocked by the flow's skillset.
   primitives, not kinds); (iii) a primitive not in the catalogue is a red, **never invented** —
   this is the (f) rule made mechanical; (iv) a primitive outside the flow's signed skillset is a
   red even though it exists; (v) the scout attempting a write-class primitive is impossible, not
-  merely refused — the verb is absent from its menu, and a test proves the menu is filtered.
+  merely refused — the verb is absent from its menu, and a test proves the menu is filtered;
+  (vi) **the uncovered-line plant** — one prose line no guardrail covers (e.g. "flag anything that
+  looks unusual") must land at **hitl**, never at a green or a softgreen the drafter invented a
+  shape for. Job #1's own guardrails cover every step, so without this plant the
+  unclassifiable-falls-to-hitl rule (§3) is never exercised — and that rule is the mechanical form
+  of the F104 proxy-check lesson, so it is the one that most needs a test that can fail.
 - *Kills the module:* the catalogue cannot express job #1 without a new primitive → upstream ask,
   and M0 stops until it is delivered.
+
+*What M0 is actually asking (hamr, 2026-09-09):* **a job → its close → can the LLM form one →
+citations.** Primitive selection is in M0a because a close cannot be formed without knowing what
+the step does; it is the means, never the point. If a measurement forces a choice between proving
+primitive selection and proving close formation, close formation wins.
 
 **M0b — run it, close it.** Execute M0a's declaration against job #1 using **only** baresuite
 primitives. Every step closes under its declared class (§2): **green** on the `derive` steps
