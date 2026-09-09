@@ -355,3 +355,45 @@ explanation discarded — which is precisely why the 400 is still unexplained. N
 error body can echo auth material and must route through a scrub first), so it is recorded here
 as a real diagnostic gap rather than built: **fwdloop's runner should set `exposeErrorBody` and
 scrub, carried to M2.**
+
+## F9 — DeepSeek direct API has no ~250s cliff; it is fwdloop's first genuinely independent second provider (2026-09-09)
+
+Key at `pass amr/deepseek_api` → `DEEPSEEK_API_KEY` (env only). Base `https://api.deepseek.com`,
+OpenAI-shaped. Balance $5.00 topped up. Models: `deepseek-v4-flash`, `deepseek-v4-pro`,
+`deepseek-v4-flash-vision-exp`.
+
+**Same probe as F2/F3, both models clean:**
+
+| model | tool call | in/out tok | reasoning tok | wall | tok/sec |
+|---|---|---|---|---|---|
+| deepseek-v4-flash | `{value:4200, cell:"E2", asStated:"4200"}` | 437 / 169 | 87 | 2.0s | 86 |
+| deepseek-v4-pro | same | 437 / 245 | 163 | 3.5s | 70 |
+
+**No cliff — the headline.** Three long calls, each a single non-streamed request:
+
+| output tokens | wall | status | ended because |
+|---|---|---|---|
+| 12,109 | 202s | 200 | model stopped naturally |
+| 12,725 | 246s | 200 | model stopped naturally |
+| **32,000** | **296s** | **200** | **our `max_tokens`, not a gateway cut** |
+
+296 seconds with a complete response body. synthetic.new kills a connection at ~250s
+regardless of streaming (F6). **DeepSeek does not have that wall**, which makes it the escape
+hatch F6 said we would need for any step that genuinely cannot be split. Note the generation
+rate (52–108 tok/s) is comparable to GLM-5.2's — DeepSeek does not win on speed, it wins by not
+being behind that gateway.
+
+**Why this matters beyond long calls.** PRD §11 P10 wants two providers. fwdloop's current
+pair (Qwen3.8-27B + GLM-5.2, F7) are both on synthetic.new — one gateway, one key, one failure
+mode. That is two models, not two providers, and a synthetic outage takes both. DeepSeek is a
+different company, different infrastructure, separate key and balance. **Recommendation:
+baseline stays Qwen3.8-27B (F7, unchanged — it wins on fwdloop's short steps); the P10 second
+provider becomes DeepSeek rather than GLM-5.2**, so the pair actually survives losing either
+one.
+
+**Upstream ask surfaced (was on the watch list, now real).** DeepSeek reports prompt caching as
+top-level `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`. bare-agent 0.42.0 reads only
+`prompt_tokens_details.cached_tokens` (`src/provider-openai.js:172`), so against DeepSeek it
+records `cacheReadTokens: 0` and prices every cached token at the full input rate. DeepSeek's
+cache-hit rate is an order of magnitude cheaper than a miss, so this is a money-honesty defect,
+not a cosmetic one. Filed in `docs/product/UPSTREAM-ASKS.md`.

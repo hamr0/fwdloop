@@ -28,20 +28,12 @@ it · the fix (upstream commit/PR) · the version fwdloop consumed.**
 - **bare-agent · `response_format` / JSON-schema pass-through in the OpenAI provider.** The
   designed path is tool-call-as-output (context.md:987). Becomes an ask only if a model
   returns the typed artifact as text instead of a tool call >1 in 10 on the citation schema.
-- **bare-agent · DeepSeek cached-token field name.** If DeepSeek reports cache hits outside
-  `prompt_tokens_details.cached_tokens`, cached tokens price at the full input rate and the
-  audit row under-reports `cacheReadTokens`. Measure on the first paid round.
-- **bare-agent · `loop.run()` result always has `toolCalls: []` and no `model` field** (F3,
-  0.41.1). Every return path in `src/loop.js` hardcodes `toolCalls: []`; the quickstart in
-  `bareagent.context.md` implies it populates. The resolved model reaches only the
-  `onLlmResult` payload. fwdloop reads tool args from the tool's `execute()` and the model from
-  the metering payload. Becomes an ask if M0's audit row needs either on the awaited result;
-  at minimum a doc fix upstream.
-- **bare-agent · `OpenAIProvider.generate()` never sends `tool_choice`** (`src/provider-openai.js:72`).
-  Looked load-bearing in F4, was not: the empty rounds were `finish_reason: length` from
-  reasoning tokens; unforced tool calls land whenever the round finishes. Becomes an ask only
-  if a finished round (`stopReason` ≠ `length`) returns text instead of the tool >1 in 10.
-- **bare-agent · Loop does not shout on `stopReason: 'length'`** — a truncated round has empty
-  text and no tool calls and is indistinguishable from a refusal unless the caller reads
-  `stopReason` (F4). Ask candidate: a `loop:truncated` event or a warn. fwdloop reads
-  `stopReason` itself.
+- **bare-agent · DeepSeek prompt-cache tokens are read as zero** (`src/provider-openai.js:172`,
+  0.42.0). Was a watch-list item; **promoted to an ask 2026-09-09 by measurement (F9)**. The
+  provider reads `u?.prompt_tokens_details?.cached_tokens`; DeepSeek reports caching as
+  top-level `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`, so `cacheReadTokens` is
+  always 0 and every cached token prices at the full input rate. DeepSeek's cache hits cost an
+  order of magnitude less than misses, so the audit row overstates spend — a money-honesty
+  defect. Ask: fall back to `prompt_cache_hit_tokens` when `prompt_tokens_details` is absent
+  (no model-name sniffing; both are plain fields on the OpenAI-shaped response). Fix:
+  *(pending)*. Consumed: *(pending)*.
