@@ -513,3 +513,40 @@ fwdloop is **immune by construction, not by luck**: `grep` over `poc/` finds no 
 live risk the moment a step is retried, a conversation is continued, or the drafter gains the
 follow-up-question turn** (parked, hamr 2026-09-09) — all three re-feed a transcript. The rule to
 carry into M1/M2: *strip a leading `system` before continuing any transcript, or never continue one.*
+
+## F12 — baseline flipped to deepseek-v4-flash; the reason was measured and F10 set it aside (2026-09-09)
+
+**Ruled by hamr, 2026-09-09.** Baseline for every experiment is now **`deepseek-v4-flash`**
+(DeepSeek direct); **`hf:Qwen/Qwen3.8-27B`** on synthetic.new becomes the second provider. This
+supersedes F7's and F10's baseline, and it satisfies F7's standing rule that a baseline change
+needs a measured reason filed here.
+
+**The reason F10 excluded, and why excluding it was right then and wrong now.** F10 ranked the two
+providers and kept the incumbent on a tie, explicitly refusing to let DeepSeek's cache discount
+break it: *"these rounds are cold, so it would flatter a workload that is not this one."* That was
+correct for 18 single-round drafts. It is not correct for fwdloop's actual shape. A run is a fold
+over steps, each step re-sending the same standing instructions with a fresh context — so a
+**repeated prefix is the normal case, not the exception**. F9 measured it: the same 4,361-token
+prefix came back **4,352 tokens cached (99.8%)** on the repeat, at roughly a tenth of the input
+price. synthetic returns `prompt_tokens_details: None` — no prompt caching exposed at all, so there
+is nothing to discount there, ever.
+
+**Second measured reason: no ~250s cliff.** synthetic cuts any single request at ~250s regardless
+of streaming (F6), which forces every step to be sized under that wall and makes a genuinely long
+step unrunnable. DeepSeek returned a complete 32,000-token response at **296s**, ending on our own
+`max_tokens` and not a gateway cut (F9).
+
+**Stated against the flip, so it is not a one-sided record.** F10's ranked rule put DeepSeek
+slightly behind on stability (step-count spread 3 vs 2, including the only 11-step outlier) and on
+wall (55s vs 33s median). Neither is a correctness signal: correctness was 9/9 both, refusal of the
+ungroundable line 3/3 both, provider-reds 0 both. Both sat below the money line in the ranking.
+
+**Operational note carried forward.** DeepSeek silently ignores `max_completion_tokens` and honours
+only legacy `max_tokens` (F11). The output cap is real only because `legacyMaxTokens: true` is a
+property of the `deepseek` slot in `poc/m0/provider.mjs`. Promoting DeepSeek to baseline makes that
+flag load-bearing rather than incidental — the test asserting it (`provider.test.mjs`) is now
+guarding the default path, not a secondary one.
+
+**What would flip it back:** a correctness or provider-red gap in either direction, or the
+warm-cache advantage failing to appear on a real multi-step run. Both are measurable in M0b, whose
+per-step table will show `cacheReadTokens` on every round.

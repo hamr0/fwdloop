@@ -9,7 +9,8 @@
 import { OpenAI } from 'bare-agent/providers';
 import { RATES_BY_SUFFIX } from './spend.mjs';
 
-/** Provider slots. Frozen — add a new slot here, never inline a baseUrl/env var elsewhere. */
+/** Provider slots. Frozen — add a new slot here, never inline a baseUrl/env var elsewhere.
+ *  F12 (2026-09-09): `deepseek` is the BASELINE slot, `synthetic` the second provider. */
 export const PROVIDER_SLOTS = Object.freeze({
   synthetic: Object.freeze({
     baseUrl: 'https://api.synthetic.new/openai/v1',

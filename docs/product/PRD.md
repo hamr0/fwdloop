@@ -342,11 +342,26 @@ undocumented, unsupported, and carries no stability promise. One surface, not tw
 
 ## §5 Baseline model — SETTLED, not reopened
 
-`hf:Qwen/Qwen3.8-27B` on synthetic.new is the baseline for **every** experiment
-(`pass show amr/synthetic_api` → `SYNTHETIC_API_KEY`). `deepseek-v4-flash` is the second
-provider (`pass show amr/deepseek_api` → `DEEPSEEK_API_KEY`) — a genuinely independent company,
-so losing one does not lose both. Chosen by measurement, not assertion: F7 (bake-off, 9 models ×
-3 runs) and F10 (18 rounds, both providers, ranked rule).
+**`deepseek-v4-flash` (DeepSeek direct) is the baseline for every experiment**
+(`pass show amr/deepseek_api` → `DEEPSEEK_API_KEY`). **`hf:Qwen/Qwen3.8-27B` on synthetic.new is
+the second provider** (`pass show amr/synthetic_api` → `SYNTHETIC_API_KEY`) — a different company
+behind a different gateway, so losing one does not lose both.
+
+**Flipped 2026-09-09 (F12), and the reason was already measured.** F10 ranked them and kept the
+incumbent on a tie, but it *deliberately excluded* DeepSeek's cache discount because those 18
+rounds were cold — "it would flatter a workload that is not this one." fwdloop's real workload is
+not cold. Every step re-sends the same standing instructions, so a repeated prefix is the **normal
+case**, and F9 measured 99.8% of a 4,361-token prefix coming back cached on a repeat at roughly a
+tenth the price. synthetic exposes no prompt caching at all (`prompt_tokens_details: None`), so
+there is nothing to discount there. Second measured reason: **no ~250s cliff** (F9) — synthetic
+cuts any single request at ~250s regardless of streaming (F6), which forces every step to be sized
+under it; DeepSeek returned a complete 32,000-token response at 296s.
+
+*Stated against the flip, honestly:* F10 gave DeepSeek the slightly worse step-count spread (3 vs
+2, including the lone 11-step outlier) and the slower median wall (55s vs 33s). Both were below the
+money line in the ranked rule, and neither is a correctness signal — correctness and provider-reds
+were dead even at 9/9 and 0. *What would flip it back:* a correctness or provider-red gap in either
+direction, or the warm-cache advantage failing to appear on a real multi-step run.
 
 **Claude / OpenAI are a differential probe only** — one round, to split "is this our mechanical
 code or the model" when we are stuck. Never a baseline. Never a default. Always named in the
