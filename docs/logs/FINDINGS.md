@@ -550,3 +550,60 @@ guarding the default path, not a secondary one.
 **What would flip it back:** a correctness or provider-red gap in either direction, or the
 warm-cache advantage failing to appear on a real multi-step run. Both are measurable in M0b, whose
 per-step table will show `cacheReadTokens` on every round.
+
+## F13 — the primitive catalogue exists upstream; job #1 needs one thing baresuite does not have (2026-09-09)
+
+M0a step 1, $0, no API calls. Premise (f) — *"the agent has a lib of primitives that should cover
+all its needs"* — gets its first mechanical test.
+
+**The catalogue shape does not need inventing; two upstream projects already have it.**
+- `bareloop src/tools.js:93` — `TOOL_BY_VERB`, 14 verbs in four components, every verb mapped to an
+  **existing implementation** (menu-is-inventory).
+- `litectx src/contextgraph.js:38` — the CE taxonomy **already exported as data**:
+  `PRIMITIVES = ["Write","Select","Compress","Isolate"]`, `VERBS_BY_PRIMITIVE`
+  (`Write: remember/forget/write-gate · Select: recall/impact · Compress:
+  assemble/compress/summaryWindow · Isolate: stash/peek/evict/scope`), and a flat `PRIMITIVE`
+  lookup. It also records `SUBSTRATE` (`index/get/related/getNode`) as *"recorded, but not a CE
+  primitive"* — the same distinction fwdloop needs between a primitive and its plumbing.
+
+fwdloop's catalogue is these two shapes plus one component neither has: **`io`**, because
+bareloop's steps never send anything and litectx's never leave the store.
+
+**What is installed vs what exists.** `package.json` declares only `bare-agent@^0.42.0`;
+`barebrowse` and `baremobile` are present transitively. On disk: bareagent 0.42.0, bareguard
+0.15.0, litectx 0.32.0, barebrowse 0.20.0, baremobile 0.11.2, mailproof 1.3.3, beeperbox (no
+package.json — Docker-shaped, not a library). Nothing was `npm install`ed for this finding.
+
+**Job #1 mapped against what is really exported:**
+
+| job #1 needs | primitive that covers it | verdict |
+|---|---|---|
+| read the message text | `bare-agent/tools` → `shell_read` | ✅ |
+| read the AR sheet as **addressable cells** | — | ❌ **gap, see below** |
+| match a customer, derive figures | model round + fwdloop's own close | ✅ (ours by design) |
+| pause for a human | `bare-agent` → `Checkpoint` | ✅ |
+| write the reply out (dry-run egress) | `shell_write` | ✅ |
+| real mail egress (M9) | `mailproof` → `create`, `sendmail` | ✅ |
+| fence fs/net/secrets/budget per step | `bareguard` → `Gate`, `redact`; `bare-agent` → `wireGate` | ✅ |
+| memory across runs | `litectx` → `LiteCtx`, `remember`, `recall`, `stash` | ✅ |
+
+**The one gap: nothing turns a file into a typed tabular artifact with stable cell addresses.**
+`shell_read` returns bytes. fwdloop's citation contract is built on addressing — `{row: 2, col:
+"Amount", cell: "E2"}` — and today `poc/m0/csv.mjs` is a **handroll**, which rule (f) forbids.
+
+**This is a judgment call, not a ruling, and it is hamr's** (recorded, not decided here):
+- *It is a primitive:* "read a sheet into a typed artifact" is a `gather`, and gather is a
+  primitive class. If every consumer handrolls CSV parsing that is real duplication → upstream ask,
+  and **M0 waits**, which is what rule (f) says happens.
+- *It is ours:* `shell_read` already does the I/O; what is missing is only **parsing**, and the
+  *addressing scheme* is fwdloop's own citation contract, not a shared concern. The CE primitives
+  are Write/Select/Compress/Isolate — a CSV reader is none of them.
+
+**Recommendation: it is ours, narrowly.** The split that holds: reading bytes is a primitive
+(`shell_read`, have it); *deciding a citation resolves* is fwdloop's close (ours); and the thin
+layer between them — bytes → rows with a stable address — is part of the citation contract, so it
+lives with the close. Filing it as an ask would block M0 on a 60-line parser to earn a definition.
+**If hamr rules the other way, M0 stops and the ask is filed** — the wait is a legitimate state.
+
+**Premise (f) survives its first test with one asterisk.** Eight of nine needs are covered by an
+existing, exported implementation. Nothing had to be invented and nothing had to be patched.
