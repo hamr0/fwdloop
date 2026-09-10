@@ -25,7 +25,9 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Loop } from 'bare-agent';
-import { assertUnderGlobalCap, appendSpendRow, RUN_CAP_USD } from './spend.mjs';
+import {
+  assertUnderGlobalCap, appendSpendRow, sumMeterings, RUN_CAP_USD,
+} from './spend.mjs';
 import { makeProvider } from './provider.mjs';
 import { menu } from './catalogue.mjs';
 import { guardrailList } from './validator.mjs';
@@ -210,11 +212,12 @@ export async function runDrafter(modelId, {
     execute: async (args) => { capturedArgs = args; return { ok: true }; },
   }];
 
-  let metering = null;
+  // Every round, not just the last (F15).
+  const meterings = [];
   const loop = new Loop({
     provider,
     rates,
-    onLlmResult: async (event) => { metering = event; },
+    onLlmResult: async (event) => { meterings.push(event); },
     onText: async (t) => { capturedText = t; },
   });
 
@@ -233,13 +236,15 @@ export async function runDrafter(modelId, {
   await loop.run(messages, tools, { maxTokens: DRAFTER_MAX_TOKENS });
   const wallMs = Date.now() - startedAt;
 
-  const suffixMatch = metering?.model != null && metering.model.replace(/^hf:/, '') === suffix;
-  const costUsd = metering?.costUsd ?? null;
+  const metered = sumMeterings(meterings);
+  const suffixMatch = metered.model != null && metered.model.replace(/^hf:/, '') === suffix;
+  const costUsd = metered.costUsd;
 
   if (live) {
     appendSpendRow(SPEND_PATH, {
-      runId: runLabel, step: 'draft', model: modelId, modelReturned: metering?.model ?? null,
-      tokens: metering?.usage ?? null, costUsd, rateSource: metering?.rateSource ?? null, wallMs,
+      runId: runLabel, step: 'draft', model: modelId, modelReturned: metered.model,
+      tokens: metered.tokens, costUsd, rounds: metered.rounds,
+      rateSource: metered.rateSource, wallMs,
     });
     if (costUsd !== null && costUsd > RUN_CAP_USD) {
       console.error(`WARNING: draft round cost $${costUsd} exceeds the per-run $${RUN_CAP_USD} cap (informational only for M0's single-round draft)`);
@@ -249,9 +254,9 @@ export async function runDrafter(modelId, {
   const declaration = capturedArgs != null ? assembleDeclaration(capturedArgs, { guardrails }) : null;
 
   const report = {
-    modelRequested: modelId, modelReturned: metering?.model ?? null, suffixMatch,
+    modelRequested: modelId, modelReturned: metered.model, suffixMatch,
     toolCalled: capturedArgs != null, declaration, textInstead: capturedArgs ? null : capturedText,
-    usage: metering?.usage ?? null, costUsd, rateSource: metering?.rateSource ?? null, wallMs,
+    usage: metered.tokens, rounds: metered.rounds, costUsd, rateSource: metered.rateSource, wallMs,
     ungroundable, uncovered,
   };
   return report;

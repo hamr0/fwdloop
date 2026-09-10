@@ -77,6 +77,46 @@ export function classifyModelId(requested, returned) {
   return 'substituted';
 }
 
+/**
+ * Sum EVERY round of a Loop into one spend row (F15). bare-agent fires
+ * `onLlmResult` once per round, and a tool-calling run has at least two: the
+ * round that emits the tool call, then a short finishing round. A call site
+ * that assigns `metering = event` keeps only the LAST one, so the ledger
+ * recorded the finishing round's tokens and silently dropped the round that did
+ * the work. That understates spend, which PRD §5 forbids.
+ *
+ * Money honesty is preserved in the strict direction: if ANY round has no
+ * priced cost, the total is `null` — unknown, never 0, never a partial sum
+ * passed off as complete. `rounds` records how many rounds were folded in, so
+ * a row can never again look like a one-round run when it was not.
+ */
+export function sumMeterings(events) {
+  const rounds = Array.isArray(events) ? events.filter(Boolean) : [];
+  if (rounds.length === 0) {
+    return {
+      rounds: 0, tokens: null, costUsd: null, model: null, rateSource: null,
+    };
+  }
+  const tokens = {
+    inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0,
+  };
+  let costUsd = 0;
+  let costKnown = true;
+  for (const ev of rounds) {
+    for (const key of Object.keys(tokens)) tokens[key] += ev?.usage?.[key] ?? 0;
+    if (ev?.costUsd == null) costKnown = false;
+    else costUsd += ev.costUsd;
+  }
+  const last = rounds[rounds.length - 1];
+  return {
+    rounds: rounds.length,
+    tokens,
+    costUsd: costKnown ? costUsd : null,
+    model: last?.model ?? null,
+    rateSource: last?.rateSource ?? null,
+  };
+}
+
 export function appendSpendRow(path, row) {
   mkdirSync(dirname(path), { recursive: true });
   const modelMatch = classifyModelId(row.model, row.modelReturned);

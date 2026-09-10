@@ -36,7 +36,9 @@ import { gather } from './mechanical.mjs';
 import { makeArtifact } from './artifacts.mjs';
 import { menu } from './catalogue.mjs';
 import { makeProvider } from './provider.mjs';
-import { assertUnderGlobalCap, appendSpendRow, RUN_CAP_USD } from './spend.mjs';
+import {
+  assertUnderGlobalCap, appendSpendRow, sumMeterings, RUN_CAP_USD,
+} from './spend.mjs';
 import { renderCsvArtifact, renderTextArtifact } from './runner.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -172,8 +174,10 @@ export async function runScoutRound(modelId, {
 
   const { tool, getCapturedArgs } = makeReportFactsTool();
 
-  let metering = null;
-  const loop = new Loop({ provider, rates, onLlmResult: async (event) => { metering = event; } });
+  // Every round, not just the last (F15): a tool-calling run has at least two,
+  // and keeping only the last recorded the finishing round and dropped the work.
+  const meterings = [];
+  const loop = new Loop({ provider, rates, onLlmResult: async (event) => { meterings.push(event); } });
   const messages = [
     {
       role: 'system',
@@ -190,23 +194,24 @@ export async function runScoutRound(modelId, {
   const startedAt = Date.now();
   await loop.run(messages, [tool], { maxTokens: SCOUT_MAX_TOKENS });
   const wallMs = Date.now() - startedAt;
+  const metered = sumMeterings(meterings);
 
   if (live) {
     appendSpendRow(SPEND_PATH, {
-      runId: runLabel, step: 'scout', model: modelId, modelReturned: metering?.model ?? null,
-      tokens: metering?.usage ?? null, costUsd: metering?.costUsd ?? null,
-      rateSource: metering?.rateSource ?? null, wallMs,
+      runId: runLabel, step: 'scout', model: modelId, modelReturned: metered.model,
+      tokens: metered.tokens, costUsd: metered.costUsd, rounds: metered.rounds,
+      rateSource: metered.rateSource, wallMs,
     });
-    if (metering?.costUsd != null && metering.costUsd > RUN_CAP_USD) {
-      console.error(`WARNING: scout round cost $${metering.costUsd} exceeds the per-run $${RUN_CAP_USD} cap`);
+    if (metered.costUsd != null && metered.costUsd > RUN_CAP_USD) {
+      console.error(`WARNING: scout run cost $${metered.costUsd} exceeds the per-run $${RUN_CAP_USD} cap`);
     }
   }
 
   const rawFacts = getCapturedArgs();
   const facts = groundFacts(rawFacts, { csvArtifact, textArtifact });
   return {
-    facts, toolCalled: rawFacts != null, usage: metering?.usage ?? null,
-    costUsd: metering?.costUsd ?? null, wallMs,
+    facts, toolCalled: rawFacts != null, usage: metered.tokens, rounds: metered.rounds,
+    costUsd: metered.costUsd, wallMs,
   };
 }
 

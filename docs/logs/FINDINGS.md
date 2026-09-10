@@ -663,3 +663,46 @@ whether the signed hash should cover the SERVED model rather than the requested 
 cannot be done at sign time, because what a provider will serve is unknown until it serves it.
 The shape that likely works is a run-time check: the signature pins the request, and a run whose
 served model differs from the last accepted served model needs a human. That is M4's problem.
+
+## F15 — the ledger recorded the wrong round; every tool-calling run was understated (2026-09-10)
+
+**$0, found while building the token probe, confirmed by reading our own call sites.**
+
+The question the probe was built to answer was whether the PROVIDER under-counts tool-call output
+tokens. It does not. **We were recording the wrong round.**
+
+bare-agent's `Loop` fires `onLlmResult` once per round. A tool-calling run has at least two: the
+round that emits the tool call, then a short finishing round after the tool returns. Both
+`drafter.mjs` and `scout.mjs` had `onLlmResult: async (event) => { metering = event; }` — an
+assignment, not an accumulation — so the last event won and **every earlier round was dropped from
+the ledger entirely**.
+
+That is what the 2026-09-10 live drafter run's `outputTokens: 106` was: not the 1,415-character
+declaration, but the "done" message after it. The declaration's own round was never priced.
+
+**Same trap one level up.** `Loop.run()`'s returned top-level `usage` is documented in bare-agent's
+own source as last-round-only, kept for back-compat; `result.metrics` is the cumulative figure. A
+call site reaching for `result.usage` gets the finishing round too. We were not using it, but any
+future call site would hit the same wall.
+
+**Why this is a hard-line violation and not a rounding error.** PRD §5: unknown cost is never
+rendered as 0. A dropped round is worse than an unknown one — it is rendered as *nothing at all*,
+and the sum still looks complete. Every `$5` M0 cap check and every `cap.usd` per-run check has
+been made against an understated number. The direction is always the same: too low, never too high.
+
+**Fixed.** `spend.mjs` gains `sumMeterings(events)` — one writer — folding every round into one
+row and stamping `rounds` so a row can never again look like a one-round run when it was not. Both
+call sites now push to an array. Money honesty is kept in the strict direction: **if any round has
+no priced cost, the total is `null`, never a partial sum passed off as complete.** Three tests, two
+proven to fail when the fold is reverted to last-round-only or when the unknown-cost guard is
+dropped.
+
+**Not restated: the historical ledger.** Every row written before this commit is understated by
+whatever its unrecorded rounds cost, and there is no way to recover them — the events are gone.
+`poc/m0/out/spend.jsonl` rows without a `rounds` field are the affected ones. The recorded M0 spend
+of ~$0.168 is therefore a FLOOR, not a total. It is nowhere near the $5 cap, so nothing that was
+allowed to run should have been refused; the number is wrong, not the decisions it drove.
+
+**The probe still has a question worth asking**, now a smaller one: with rounds summed correctly,
+does the tool arm's chars-per-output-token still differ from the text arm's? That is a real
+provider-side question and `poc/m0/tokenprobe.mjs` answers it in one round per arm.
