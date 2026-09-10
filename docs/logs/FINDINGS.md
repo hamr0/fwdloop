@@ -624,3 +624,42 @@ Consequences, binding on M0a:
   a primitive — it is fwdloop's own contract.
 - The line to hold for every future gap: **if it is file-format or domain knowledge, it is ours;
   if it is agent plumbing, it is a baresuite ask.**
+
+## F14 — the model we ask for is not always the model we get, and nothing was watching (2026-09-10)
+
+**$0.000176, one live scout round.** Requested `deepseek-v4-flash`; the ledger row came back
+`"modelReturned":"deepseek-flash"`. Nine earlier DeepSeek rows returned `deepseek-v4-flash`, so
+this is a change in what the endpoint serves, not a constant naming quirk. No error, no warning —
+the same shape as F11: a request honoured in appearance and not in fact.
+
+Sweeping the whole of `poc/m0/out/spend.jsonl` (152 rows) for requested-vs-served turned up a
+second, older case that had never been noticed:
+
+| requested | served | verdict |
+|---|---|---|
+| `hf:openai/gpt-oss-120b` | `openai/gpt-oss-120b` | prefix — the provider's router prepends `hf:`; cosmetic |
+| `syn:large:text` | `zai-org/GLM-5.3-Flash` | alias — a declared alias naming no concrete model, resolving is its job |
+| `hf:nvidia/…-A12B-NVFP4` | `nvidia/…-A12B-FP8` | **substituted** — a different QUANTISATION, 6 rows, from the 2026-09-08 bake-off |
+| `deepseek-v4-flash` | `deepseek-flash` | **substituted** — today, 1 row |
+
+**Why this is load-bearing and not a curiosity.** This session took bareloop's judge-model-in-hash
+mechanism precisely so that changing the model forces re-acceptance BY CONSTRUCTION. But the hash
+records the model we REQUEST. A provider that silently serves a different concrete model changes
+what actually ran while the hash stays identical — the mechanism protects the request, not the
+run. Playbook P6 ("model change = maintenance") has the same hole.
+
+The Nemotron case also touches money: `RATES_BY_SUFFIX` prices the NVFP4 variant with the note
+"NVFP4 quant price not separately listed", and the rows it priced were served FP8. The rate was a
+ceiling, so the number did not understate — but it was priced against a model that did not run.
+
+**Fixed here, narrowly.** `spend.mjs` gains `classifyModelId(requested, returned)` →
+`match | prefix | alias | substituted | unreported`, and `appendSpendRow` stamps every row with
+`modelMatch` and emits a process warning on `substituted`. A provider reporting nothing is
+`unreported`, never silently a match. Two tests, both proven to fail when the classifier is
+neutered. This makes the swap VISIBLE; it does not yet make it a red.
+
+**Carried forward, not decided here**: whether a `substituted` row should red a run outright, and
+whether the signed hash should cover the SERVED model rather than the requested one — the second
+cannot be done at sign time, because what a provider will serve is unknown until it serves it.
+The shape that likely works is a run-time check: the signature pins the request, and a run whose
+served model differs from the last accepted served model needs a human. That is M4's problem.

@@ -54,9 +54,39 @@ export function assertUnderGlobalCap(path, capUsd = GLOBAL_CAP_USD) {
   return total;
 }
 
+/**
+ * Compare the model we ASKED for against the model the provider says it SERVED.
+ * F14: they are not always the same, and nothing was watching.
+ *
+ * - `match`      — identical.
+ * - `prefix`     — identical once a routing prefix is stripped (`hf:openai/x` -> `openai/x`).
+ *                  Cosmetic; the provider's own router prepends it.
+ * - `alias`      — the request was a DECLARED alias (`syn:large:text`) that names no concrete
+ *                  model, so resolving it to one is the alias doing its job. Recorded, not a red.
+ * - `substituted`— we named a concrete model and got a DIFFERENT concrete model. This is the
+ *                  one that matters: the signed hash records what we REQUESTED, so a silent
+ *                  swap changes what actually ran without changing the hash.
+ * - `unreported` — the provider told us nothing. Never treated as a match.
+ */
+export function classifyModelId(requested, returned) {
+  if (!requested) return 'unreported';
+  if (returned === null || returned === undefined || returned === '') return 'unreported';
+  if (requested === returned) return 'match';
+  if (String(requested).replace(/^[a-z]+:/, '') === returned) return 'prefix';
+  if (/^syn:/.test(requested)) return 'alias';
+  return 'substituted';
+}
+
 export function appendSpendRow(path, row) {
   mkdirSync(dirname(path), { recursive: true });
-  appendFileSync(path, `${JSON.stringify(row)}\n`);
+  const modelMatch = classifyModelId(row.model, row.modelReturned);
+  if (modelMatch === 'substituted') {
+    process.emitWarning(
+      `spend: asked for model "${row.model}" but the provider served "${row.modelReturned}" `
+      + '— the signed hash records the request, not what ran',
+    );
+  }
+  appendFileSync(path, `${JSON.stringify({ ...row, modelMatch })}\n`);
 }
 
 /**

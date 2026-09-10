@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readSpend, assertUnderGlobalCap, appendSpendRow } from './spend.mjs';
+import {
+  readSpend, assertUnderGlobalCap, appendSpendRow, classifyModelId,
+} from './spend.mjs';
 
 test('readSpend sums costUsd across rows; empty file is 0 and known', () => {
   const path = join(mkdtempSync(join(tmpdir(), 'm0-spend-')), 'spend.jsonl');
@@ -83,3 +85,37 @@ test('assertUnderGlobalCap passes through the total when comfortably under cap',
   appendSpendRow(path, { runId: 'r1', costUsd: 0.01 });
   assert.equal(assertUnderGlobalCap(path, 5.00), 0.01);
 });
+
+// F14 — the model we ask for is not always the model we get, and until now
+// nothing was watching. Both real cases below are taken verbatim from rows
+// already sitting in poc/m0/out/spend.jsonl.
+test('classifyModelId separates a real substitution from a prefix or an alias', () => {
+  assert.equal(classifyModelId('deepseek-v4-flash', 'deepseek-v4-flash'), 'match');
+  assert.equal(classifyModelId('hf:openai/gpt-oss-120b', 'openai/gpt-oss-120b'), 'prefix');
+  assert.equal(classifyModelId('syn:large:text', 'zai-org/GLM-5.3-Flash'), 'alias');
+
+  // The two that actually happened and went unnoticed.
+  assert.equal(classifyModelId('deepseek-v4-flash', 'deepseek-flash'), 'substituted');
+  assert.equal(
+    classifyModelId(
+      'hf:nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4',
+      'nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8',
+    ),
+    'substituted',
+  );
+
+  // A provider that reports nothing is never silently a match.
+  assert.equal(classifyModelId('deepseek-v4-flash', null), 'unreported');
+  assert.equal(classifyModelId('deepseek-v4-flash', ''), 'unreported');
+});
+
+test('appendSpendRow stamps every row with its modelMatch verdict', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'fwd-spend-'));
+  const path = join(dir, 'spend.jsonl');
+  appendSpendRow(path, { model: 'deepseek-v4-flash', modelReturned: 'deepseek-v4-flash', costUsd: 0.001 });
+  appendSpendRow(path, { model: 'deepseek-v4-flash', modelReturned: 'deepseek-flash', costUsd: 0.001 });
+  const rows = readFileSync(path, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(rows[0].modelMatch, 'match');
+  assert.equal(rows[1].modelMatch, 'substituted');
+});
+
