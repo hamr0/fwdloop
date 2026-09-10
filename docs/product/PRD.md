@@ -277,6 +277,19 @@ drafter maps each to machinery:
 
 A guardrail the drafter cannot map is **surfaced in the draft table**, never silently dropped.
 
+**A shape stated only in the prose is NOT a softgreen (RULED 2026-09-10).** Job #1's prose says
+"write me a short reply with one line per invoice", and that sentence is a shape — but it is not a
+guardrail, so the drafter may not turn it into one. The step falls to `hitl`. The human's fix is to
+restate it as a guardrail bullet, which is what job #1's fixture now does.
+
+The alternative — letting the drafter read a shape out of the job description — was raised and
+declined. It puts the machine in the position of deciding that a sentence was a shape, which is the
+one thing softgreen exists to prevent: *a shape is the human's to write*. The cost of the hard rule
+is one line of typing and a step that falls safely to a person when the human forgets. The cost of
+the soft rule is a wrong inferred shape that closes green, and the only place it could be caught is
+the draft table, before signing. Prose says WHAT the job is; guardrails say HOW each step is proven
+done — and there is no judge in v1 to fall back on, so an unstated close is always a person.
+
 ### The signed artifact (RULED 2026-09-09)
 
 One flow, one hash, signed whole. Any edit flips the hash and demands re-accept (M4).

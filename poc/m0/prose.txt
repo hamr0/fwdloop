@@ -2,6 +2,7 @@ When the AR aging sheet lands, read it, then read the chat message and work out 
 
 Guardrails:
 - every number must point to the cell it came from or the formula that made it
+- one line per invoice in the reply
 - if more than one customer matches, ask me, do not pick
 - nothing goes out before I accept
 - cap $0.25 per run

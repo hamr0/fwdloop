@@ -18,6 +18,7 @@ import { validate } from './validator.mjs';
 // that leaks prose into guardrails (or drops a guardrail line) is visible.
 const REAL_GUARDRAILS = [
   '- every number must point to the cell it came from or the formula that made it',
+  '- one line per invoice in the reply',
   '- if more than one customer matches, ask me, do not pick',
   '- nothing goes out before I accept',
   '- cap $0.25 per run',
@@ -71,7 +72,17 @@ function job1ModelSteps() {
         close: { class: 'green', tracesTo: 'every number must point to the cell it came from or the formula that made it' },
       },
       {
-        goal: 'compose reply', primitives: [], reads: ['a3'], emits: 'a4', close: { class: 'hitl' },
+        // Softgreen, and only because a guardrail says so. Before 2026-09-10 the
+        // shape lived in the prose alone and this step correctly fell to hitl.
+        goal: 'compose reply',
+        primitives: [],
+        reads: ['a3'],
+        emits: 'a4',
+        close: {
+          class: 'softgreen',
+          shape: { linesPerInvoice: 1, mustCarry: ['total', 'earliestDueDate'] },
+          tracesTo: 'one line per invoice in the reply',
+        },
       },
       {
         goal: 'check with me', primitives: ['checkpoint'], reads: ['a4'], emits: 'a5', close: { class: 'hitl' },
