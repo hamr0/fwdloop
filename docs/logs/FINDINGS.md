@@ -727,6 +727,16 @@ plants: all three produce declarations that `validate()` passes green. The scout
 numbered guardrail mapping both hold on a real model — steps trace `g1`, `g2`, `g3`, `g4` as
 integers, and every unmapped step falls to `hitl`.
 
+> **Correction (2026-09-10): the scout half of the sentence above is wrong.** The drafter never
+> receives the scout's output: `poc/m0/drafter.mjs:415` reads only the prose/steps text, and
+> "scout" appears in `drafter.mjs` and `redraft.mjs` only inside comments. The latest baseline
+> draft (`poc/m0/out/draft-deepseek-v4-flash-*-unjudgeable-guardrail-1789025084328.json`) names
+> no fixture column at all. So M0a's exit item "a column name in the declaration matches the
+> fixture and was not invented" is **unproven**. Only the guardrail mapping claim stands. The
+> design to borrow is bareloop's: the scout emits a facts object, the authoring call gets it as
+> input and stays toolless, and an empty `{}` reads as "scout did not complete", never "no
+> facts needed" (bareloop `docs/product/2026-08-07-close-authoring-design.md:345-370`, F59).
+
 **Negative ii holds, cleanly.** `--ungroundable` plants *"rate how friendly the customer sounds"*.
 The drafter refused it, in `refused[]`, with its own reason: *"Subjective tone judgment with no
 groundable check — no cell/formula provenance and no guardrail that makes it a human-check stop; it
