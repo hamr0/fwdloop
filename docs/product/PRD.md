@@ -720,3 +720,13 @@ pointers**, not by asking a second model.
 
    *Sizing, if it is ever needed:* locate+decide ran ~$0.002–0.004 per call; haiku emitted
    malformed JSON on locate roughly 1 in 6, mitigated with one retry and **never JSON repair**.
+
+9. **Where are a flow's inputs pinned? (raised 2026-09-10, F19 — hamr to sign.)** A live draft's step
+   reads `fixtures/message.txt` straight through its `read` primitive, and no step emits it as an
+   artifact, so the walkable-chain validator can't see it. bareloop's answer (its live session,
+   2026-09-10): steps declare no reads at all. Inputs are implicit and the whole tree is pinned
+   by the git seed the run starts from (`src/plan.js:105-110`, `src/kinds.js:532`,
+   `scripts/run-u.mjs:59`). fwdloop has no git. **Proposal:** at job start, hash every input
+   file into a manifest. The human signs WHICH input sources the job may read (the listing, an
+   arbiter field); each run records the hashes it actually read. Per-step source declarations
+   stay unneeded. Lands in M0b, where inputs are first read for real. Not an M0a blocker.

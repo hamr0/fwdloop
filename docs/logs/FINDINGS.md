@@ -875,3 +875,47 @@ could never fail. Rewritten with non-canonical keys (`'05'`, `'02'`, `'04'`).
 
 **Verdict:** ruling 1 holds for safety on both providers and for disclosure on the baseline only.
 Synthetic cannot be trusted to tell unjudgeable from blank.
+
+## F19 — bareloop pins inputs by seed, not by declared reads; columns need the listing rule (2026-09-10)
+
+**Date** 2026-09-10 · **Status** answered, proposal open (PRD §8 item 9) · **Class** borrow /
+spec gap · **Grounded in** the bareloop `loop` session's reply of 2026-09-10, citing bareloop
+`src/plan.js:105-110`, `src/planrun.js:2250`, `src/kinds.js:532`, `scripts/run-u.mjs:59`,
+`src/authorflow.js:757,1408,1489`, `src/authorscout.js:284-303`, `src/authoring.js:43-48,1599`.
+
+**The gap.** The latest baseline draft's step 2, "read the chat message …", grants `read` + `grep`
+and declares `reads: ['ar_aging_sheet']` only. No step emits the message, so the walkable-chain
+validator passes green on a step that depends on an input nothing tracked.
+
+**bareloop never had this problem, because it never had the chain.** Plan steps carry no
+reads/emits (`STEP_FIELDS`, `src/plan.js:110`; "array order IS the order"). A worker may read the
+whole run dir (`readScope: [workdir]`, `src/planrun.js:2250`). Nothing reds an undeclared read.
+What pins inputs is the SEED: every run starts from a frozen git commit, so every input file is
+byte-pinned by one hash for the whole tree. Declared paths exist only for WRITES and for the
+close. bareloop's doctrine: only the close is truth; it never checks that a plan is walkable.
+
+**What that means for fwdloop.** The walkable chain is fwdloop's own addition, not a borrow. It
+stays: it is $0 and catches drafts whose step-to-step hand-offs don't line up. But it is the
+wrong tool for source inputs. The borrow is the seed, reshaped for a machine with no git: hash
+the job's input files at job start into a manifest. Proposed in PRD §8 item 9. It lands in M0b
+and is **not an M0a blocker**.
+
+**Gap 1 sharpened by the same reply.** bareloop has **no facts-vs-declaration diff**. Facts go
+verbatim into the author prompt (`authorflow.js:757`). An ABSENT or empty survey is REFUSED
+before authoring (`authorflow.js:1408`, `authorscout.js:284-303`). Invention is caught by the
+**listing rule**: every path-like param must SELECT from the real mechanical listing, and a
+value matching nothing is a distinct red (`authoring.js:43-48`, `checkPaths` `:1599`). That
+rule checks the mechanical listing, never the facts. An invented non-path value, such as a CSV
+column, is caught only indirectly by bareloop's seed read. fwdloop's direct fix is the listing
+rule's analogue: a declared column field that must select from the real header `lookFixtures`
+reads. Folded into the ready gap 1 brief
+(`.claude/stash/2026-09-10-fwd-m0a-scout-handoff-brief.md`).
+
+**Heads-up, not ours to act on:** bareloop F159: its soft-green judge turned out to have a
+doc-comments-only rulebook (`src/judged.js:391`). fwdloop's softgreen is a declared shape, not a
+judge, so nothing is borrowed from it. Don't start.
+
+**Verdict:** gap 2 is not an M0a blocker. It becomes M0b's input manifest, pending hamr's
+signature on PRD §8 item 9. Gap 1 stays the one M0a blocker, and its fix is now the listing
+rule for columns.
+
