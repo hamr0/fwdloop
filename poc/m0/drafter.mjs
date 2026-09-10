@@ -28,6 +28,7 @@ import { Loop } from 'bare-agent';
 import { assertUnderGlobalCap, appendSpendRow, RUN_CAP_USD } from './spend.mjs';
 import { makeProvider } from './provider.mjs';
 import { menu } from './catalogue.mjs';
+import { guardrailList } from './validator.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(__dirname, 'out');
@@ -67,18 +68,19 @@ There is no wiring layer. Steps share ONE artifact space. Each step you emit:
 - "emits": exactly ONE new artifact id this step declares
 You author no step bodies and no plumbing — only this declaration.
 
-Close classing, mapped from the human's own guardrail lines below:
-| guardrail phrase | close it produces |
+The guardrails below are a NUMBERED LIST. Your steps are a second list. You are
+mapping one onto the other: every close points at a guardrail BY ITS NUMBER.
+| guardrail | close it produces |
 |---|---|
-| "every number must point to the cell/formula it came from" | green — tracesTo that exact line |
-| a declared SHAPE the human wrote (e.g. "one line per invoice") | softgreen — tracesTo that exact line |
+| "every number must point to the cell/formula it came from" | green — tracesTo that guardrail's number |
+| a declared SHAPE the human wrote (e.g. "one line per invoice") | softgreen — tracesTo that guardrail's number |
 | "ask me" / "check with me" / "nothing goes out before I accept" | hitl (an ask/send step), position as the human wrote it |
 
-"tracesTo" must be copied VERBATIM as one WHOLE line from the guardrails text
-you were given below — not a paraphrase, not a fragment, not a word out of
-it. A step whose check is not covered by ANY guardrail line falls to hitl —
-NEVER green, NEVER a softgreen shape you invented coverage for. Unsure = hitl,
-always.
+"tracesTo" is the NUMBER of one guardrail — an integer, nothing else. Do not
+paraphrase a guardrail, do not quote one, do not invent a number that is not in
+the list. A step whose check is covered by NO guardrail falls to hitl — NEVER
+green, NEVER a softgreen shape you invented coverage for. Unsure = hitl, always.
+A step you say nothing about is hitl too, so silence is safe and guessing is not.
 
 Arbiter fields — YOU DO NOT EMIT THESE, EVER, under any field name: the
 trigger, the $ cap, an ask/send step's POSITION in the sequence (guardrails
@@ -109,12 +111,14 @@ const STEP_SCHEMA = {
       properties: {
         class: { type: 'string', enum: ['green', 'softgreen', 'hitl'] },
         shape: { type: 'object', description: 'softgreen only: the declared shape' },
-        tracesTo: { type: 'string', description: 'a WHOLE guardrail line, copied verbatim; omit for hitl' },
+        tracesTo: { type: 'integer', description: 'the NUMBER of the guardrail this close comes from; omit for hitl' },
       },
-      required: ['class'],
     },
   },
-  required: ['goal', 'primitives', 'reads', 'emits', 'close'],
+  // `close` is deliberately NOT required: a step the drafter says nothing
+  // about is hitl (ruled 2026-09-10), so silence must be expressible rather
+  // than forced into a guess.
+  required: ['goal', 'primitives', 'reads', 'emits'],
 };
 
 const DECLARATION_SCHEMA = {
@@ -216,7 +220,13 @@ export async function runDrafter(modelId, {
 
   const messages = [
     { role: 'system', content: `You are the fwdloop drafter. You answer ONLY by calling emit_declaration — never plain text. ${PRIMITIVE_MENU}` },
-    { role: 'user', content: `hamr's steps + guardrails for job #1:\n\n${stepsText}\n\nCall emit_declaration now.` },
+    {
+      role: 'user',
+      content: `hamr's steps + guardrails for job #1:\n\n${stepsText}\n\n`
+        + `The guardrails, numbered — "tracesTo" is one of these numbers:\n`
+        + `${guardrailList(guardrails).map((g) => `${g.n}. ${g.text}`).join('\n')}\n\n`
+        + 'Call emit_declaration now.',
+    },
   ];
 
   const startedAt = Date.now();

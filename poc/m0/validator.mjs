@@ -22,21 +22,82 @@ import { ArtifactSpace, unwalkableReads } from './artifacts.mjs';
 import { primitiveFor } from './catalogue.mjs';
 
 /**
- * The signed guardrails split into whole lines, each stripped of its bullet or
- * number marker. `tracesTo` must equal ONE OF THESE, never merely appear inside
- * the text: a substring match is a fit-to-pass surface — a drafter could trace a
- * green close to a single letter and pass. A close traces to a guardrail the
- * human wrote, whole, or it falls to hitl.
+ * Guardrails and steps are TWO MAPPING LISTS (RULED 2026-09-10). The guardrails
+ * are a numbered list of the human's own bullets; a step's close points at one
+ * BY ITS NUMBER. The number is the join key, not the text.
+ *
+ * This replaces text matching. Matching on text was fragile in both directions:
+ * a substring match let a green close trace to a single letter (a fit-to-pass
+ * surface), and a whole-line match broke the moment the drafter re-wrapped or
+ * re-punctuated the human's words. A number cannot be partially right.
+ *
+ * It also makes the PRD's "a guardrail the drafter cannot map is surfaced in
+ * the draft table" computable rather than aspirational — see unmappedGuardrails.
  */
 function stripMarker(line) {
   return String(line ?? '').replace(/^\s*(?:[-*\u2022]|\d+[.)])\s*/, '').trim();
 }
 
-function guardrailLines(guardrails) {
+/** The guardrails as `[{ n, text }]`, n 1-based in the order the human wrote them. */
+export function guardrailList(guardrails) {
   return String(guardrails ?? '')
     .split(/\r?\n/)
     .map(stripMarker)
-    .filter((l) => l.length > 0);
+    .filter((l) => l.length > 0)
+    .map((text, i) => ({ n: i + 1, text }));
+}
+
+/**
+ * Resolve a step's `tracesTo` to a guardrail number, or null if it resolves to
+ * nothing. A number is the contract. A string is accepted ONLY when it equals a
+ * whole guardrail line — the human's own text, unaltered — and is resolved to
+ * that line's number; it is a convenience for a hand-written declaration, never
+ * a second matching rule.
+ */
+export function resolveTracesTo(tracesTo, guardrails) {
+  const list = guardrailList(guardrails);
+  if (typeof tracesTo === 'number' && Number.isInteger(tracesTo)) {
+    return list.some((g) => g.n === tracesTo) ? tracesTo : null;
+  }
+  if (typeof tracesTo === 'string' && tracesTo.trim()) {
+    const hit = list.find((g) => g.text === stripMarker(tracesTo));
+    return hit ? hit.n : null;
+  }
+  return null;
+}
+
+/**
+ * The guardrail numbers no step's close traced to. The PRD requires these be
+ * SURFACED in the draft table, never silently dropped — a guardrail the human
+ * wrote and the drafter could not map is the human's to place.
+ */
+export function unmappedGuardrails(declaration) {
+  const list = guardrailList(declaration?.guardrails);
+  const traced = new Set(
+    (declaration?.steps ?? [])
+      .map((st) => resolveTracesTo(st?.close?.tracesTo, declaration?.guardrails))
+      .filter((n) => n !== null),
+  );
+  return list.filter((g) => !traced.has(g.n));
+}
+
+/**
+ * EVERY STEP HAS A CLOSE, and a MISSING one IS hitl (RULED 2026-09-10) — not a
+ * red. That is the same rule as "anything fitting no class falls to hitl",
+ * applied to the case where the drafter said nothing at all: silence about how a
+ * step is proven done means a person proves it.
+ *
+ * An INVENTED class is a different thing and stays a red. "yellow" is not
+ * silence, it is a wrong answer, and normalising it to hitl would hide a drafter
+ * that is making up machinery.
+ */
+export function normalizeClose(close) {
+  if (close === null || close === undefined) return { class: 'hitl' };
+  if (typeof close !== 'object') return close;
+  if (close.class === null || close.class === undefined || close.class === '') {
+    return { ...close, class: 'hitl' };
+  }
+  return close;
 }
 
 const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
@@ -76,8 +137,11 @@ export function validate(declaration) {
     if (!Array.isArray(step.primitives)) {
       return { verdict: 'red', red: `validator: ${label} "primitives" must be an array of catalogue verbs` };
     }
-    if (!step.close || typeof step.close !== 'object' || Array.isArray(step.close)) {
-      return { verdict: 'red', red: `validator: ${label} has no "close"` };
+    // A close that is ABSENT is hitl, handled by normalizeClose below. A close
+    // that is present but not an object is a wrong answer, not silence.
+    if (step.close !== null && step.close !== undefined
+        && (typeof step.close !== 'object' || Array.isArray(step.close))) {
+      return { verdict: 'red', red: `validator: ${label} "close" must be an object` };
     }
 
     // Declare this step's own artifact BEFORE checking its reads.
@@ -118,13 +182,15 @@ export function validate(declaration) {
       }
     }
 
-    // Check 4 — close.class must be exactly one of green/softgreen/hitl.
-    // Absent or anything else is a red — never green-by-default.
-    const { class: cls, tracesTo } = step.close;
+    // Check 4 — EVERY step has a close, and a MISSING one IS hitl, not a red
+    // (ruled 2026-09-10): silence about how a step is proven done means a
+    // person proves it. An INVENTED class is not silence — it is a wrong
+    // answer, and stays a red. Never green-by-default in either direction.
+    const { class: cls, tracesTo } = normalizeClose(step.close);
     if (!VALID_CLASSES.includes(cls)) {
       return {
         verdict: 'red',
-        red: `validator: ${label} close.class "${cls ?? '(absent)'}" is not one of ${VALID_CLASSES.join(', ')}`,
+        red: `validator: ${label} close.class "${cls}" is not one of ${VALID_CLASSES.join(', ')}`,
       };
     }
 
@@ -134,7 +200,7 @@ export function validate(declaration) {
     // an uncovered line must land at hitl, never at a class the drafter
     // invented coverage for. hitl needs no guardrail — it IS the fallback.
     if (cls !== 'hitl') {
-      if (typeof tracesTo !== 'string' || !tracesTo || !guardrailLines(guardrails).includes(stripMarker(tracesTo))) {
+      if (resolveTracesTo(tracesTo, guardrails) === null) {
         return {
           verdict: 'red',
           red: `validator: ${label} close.class "${cls}" traces to "${tracesTo ?? '(absent)'}", which is not in the signed guardrails — an uncovered line must fall to hitl`,

@@ -277,6 +277,21 @@ drafter maps each to machinery:
 
 A guardrail the drafter cannot map is **surfaced in the draft table**, never silently dropped.
 
+**Guardrails and steps are two MAPPING LISTS (RULED 2026-09-10).** The guardrails are a numbered
+list of the human's own bullets. The steps are a second list. A step's close points at a guardrail
+**by its number** — the number is the join key, never the text. Text matching was tried and dropped
+in both forms it can take: a substring match lets a green close trace to a single letter, and a
+whole-line match breaks the moment the drafter re-wraps or re-punctuates the human's words. A
+number cannot be partially right. It also makes the surfacing rule above *computable* rather than
+aspirational: the guardrails no step traced to are exactly the unmapped numbers.
+
+**Every step has a close, and a MISSING close IS `hitl` (RULED 2026-09-10)** — not a red. This is
+the same rule as *anything fitting no class falls to hitl*, applied to the case where the drafter
+said nothing at all: silence about how a step is proven done means a person proves it. Silence is
+therefore safe and guessing is not, which is the incentive we want. An **invented** class is a
+different thing and stays a red — `"yellow"` is not silence, it is a wrong answer, and normalising
+it to hitl would hide a drafter making up machinery.
+
 **A shape stated only in the prose is NOT a softgreen (RULED 2026-09-10).** Job #1's prose says
 "write me a short reply with one line per invoice", and that sentence is a shape — but it is not a
 guardrail, so the drafter may not turn it into one. The step falls to `hitl`. The human's fix is to

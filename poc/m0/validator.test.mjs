@@ -5,7 +5,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validate } from './validator.mjs';
+import {
+  validate, normalizeClose, guardrailList, resolveTracesTo, unmappedGuardrails,
+} from './validator.mjs';
 
 // The signed guardrails text job #1 actually carries (verbatim block, PRD
 // §6's "guardrails": "<the human's own words, verbatim>"), plus one extra
@@ -125,12 +127,29 @@ test('PROOF check 3 can fail: granting "mail-egress" makes the same declaration 
 
 // --- check 4: close class not declared / not one of the three -----------
 
-test('check 4 — an undeclared close class is a red naming it as absent', () => {
-  const decl = validDeclaration();
-  delete decl.steps[2].close.class;
-  const result = validate(decl);
-  assert.equal(result.verdict, 'red');
-  assert.match(result.red, /close\.class "\(absent\)" is not one of green, softgreen, hitl/);
+// RULED 2026-09-10: every step has a close, and a MISSING one IS hitl — not a
+// red. Silence about how a step is proven done means a person proves it. The
+// step under test declares `green` in the valid fixture, so dropping its class
+// must DEMOTE it to a human, never promote a red and never keep the green.
+test('check 4 — a missing close class is hitl, not a red', () => {
+  for (const drop of ['class', 'close']) {
+    const decl = validDeclaration();
+    if (drop === 'class') delete decl.steps[2].close.class;
+    else delete decl.steps[2].close;
+    const result = validate(decl);
+    assert.equal(result.verdict, 'green', `dropping "${drop}" must not red`);
+    assert.equal(normalizeClose(decl.steps[2].close).class, 'hitl');
+  }
+});
+
+test('check 4 — a close that is present but not an object is a wrong answer, not silence', () => {
+  for (const bad of ['green', 42, ['green']]) {
+    const decl = validDeclaration();
+    decl.steps[2].close = bad;
+    const result = validate(decl);
+    assert.equal(result.verdict, 'red');
+    assert.match(result.red, /"close" must be an object/);
+  }
 });
 
 test('check 4 — an invented close class ("yellow") is a red naming it, never green-by-default', () => {
@@ -196,5 +215,53 @@ test('a whole guardrail line traces whether or not the drafter copied the bullet
     compose.close.tracesTo = traced;
     assert.equal(validate(decl).verdict, 'green', `"${traced}" should trace`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Guardrails and steps as MAPPING LISTS (ruled 2026-09-10). The guardrails are
+// a numbered list of the human's bullets; a close points at one BY ITS NUMBER.
+// ---------------------------------------------------------------------------
+
+test('guardrailList numbers the human\'s bullets 1..n in the order written', () => {
+  const list = guardrailList(GUARDRAILS);
+  assert.equal(list.length, 5);
+  assert.deepEqual(list[0], { n: 1, text: 'every number must point to the cell it came from or the formula that made it' });
+  assert.deepEqual(list[1], { n: 2, text: 'one line per invoice in the reply' });
+  assert.equal(list[4].n, 5);
+});
+
+test('a close traces by guardrail NUMBER — the number is the join key', () => {
+  const decl = validDeclaration();
+  const derive = decl.steps.find((st) => st.close.class === 'green');
+  derive.close.tracesTo = 1;
+  assert.equal(validate(decl).verdict, 'green');
+
+  // A number that names no guardrail is a red, exactly like unmapped text.
+  derive.close.tracesTo = 99;
+  assert.equal(validate(decl).verdict, 'red');
+  assert.match(validate(decl).red, /an uncovered line must fall to hitl/);
+});
+
+test('the human\'s own whole line still resolves, to its number', () => {
+  assert.equal(resolveTracesTo(1, GUARDRAILS), 1);
+  assert.equal(resolveTracesTo('one line per invoice in the reply', GUARDRAILS), 2);
+  assert.equal(resolveTracesTo('- one line per invoice in the reply', GUARDRAILS), 2);
+  // A fragment resolves to nothing — text is never partially right.
+  assert.equal(resolveTracesTo('one line per', GUARDRAILS), null);
+  assert.equal(resolveTracesTo('', GUARDRAILS), null);
+  assert.equal(resolveTracesTo(undefined, GUARDRAILS), null);
+});
+
+test('unmappedGuardrails names the bullets no step traced to, for the draft table', () => {
+  const decl = validDeclaration();
+  const unmapped = unmappedGuardrails(decl).map((g) => g.n);
+  // The fixture's steps trace to guardrails 1 (citations) and 2 (one line per
+  // invoice) only; 3, 4 and 5 become ask/accept positions and a cap, which are
+  // arbiter fields no step's close may claim. They must be SURFACED, not dropped.
+  assert.deepEqual(unmapped, [3, 4, 5]);
+
+  // Trace one more and it leaves the unmapped list — the two lists really map.
+  decl.steps[0].close = { class: 'softgreen', shape: {}, tracesTo: 3 };
+  assert.deepEqual(unmappedGuardrails(decl).map((g) => g.n), [4, 5]);
 });
 
