@@ -343,6 +343,22 @@ pass. The human replies with changes in prose ("merge 3 and 4", "make step 5 my 
 total should be green"). Redraft, re-read, repeat. **Fire only on agreement**, and agreement is
 the signature.
 
+**Both lists are numbered, and the link is shown from both ends (RULED 2026-09-10).** The draft
+table is not one table but two, joined by the number: guardrails with the step each one proves,
+and steps with the guardrail each one is proven by. Numbering both sides is what makes the mapping
+readable without being explained, and — the reason it is a rule, not a formatting preference — it
+makes both kinds of hole impossible to miss:
+
+- a guardrail with **no step** is a blank on the left: the human wrote a rule nothing uses;
+- a step with **no guardrail** shows `hitl` on the right: the human will be checking that step by
+  hand on every run, and can see the cost of that before signing rather than after.
+
+Neither hole is inferred, and neither is an error — a `hitl` step is a legitimate outcome and an
+unmapped guardrail is often an arbiter field (job #1's ask position, accept and cap are guardrails
+3, 4 and 5, and no step's close may claim them). They are *decisions the human is being shown*.
+The same numbered pair is the CLI's output, the draft table and M5's screen — one object, no
+second format to keep in sync.
+
 **A step no guardrail covers falls to `hitl`.** Never to green-by-default. The machine may claim
 `green` only where every figure in that step cites a source and recomputes; it may never claim
 `softgreen`, because a shape is the human's to write. This is the one-way default: unclassifiable
