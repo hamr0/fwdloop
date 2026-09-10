@@ -719,3 +719,42 @@ chosen: an echo task with nothing to escape.)
 So the entire discrepancy was ours. The provider reported honestly for every round; we recorded one
 of them. **Explanation (b) is dead, on measurement rather than on argument**, which is the point of
 having run it at $0.001 instead of reasoning about it.
+
+## F16 — the uncovered-line plant collapses into the ungroundable one; negative vi never ran (2026-09-10)
+
+**Three live drafter rounds, deepseek baseline, prose input, $0.0132 total.** Clean run and both
+plants: all three produce declarations that `validate()` passes green. The scout's facts and the
+numbered guardrail mapping both hold on a real model — steps trace `g1`, `g2`, `g3`, `g4` as
+integers, and every unmapped step falls to `hitl`.
+
+**Negative ii holds, cleanly.** `--ungroundable` plants *"rate how friendly the customer sounds"*.
+The drafter refused it, in `refused[]`, with its own reason: *"Subjective tone judgment with no
+groundable check — no cell/formula provenance and no guardrail that makes it a human-check stop; it
+cannot be expressed as a typed, cited artifact."* No proxy check invented. This is F10's 6/6 result
+surviving the move from a step-kind menu to a primitive menu, which is what M0a existed to test.
+
+**Negative vi did NOT run, and cannot run as written.** `--uncovered` plants *"flag anything that
+looks unusual"* — the PRD's own example, quoted verbatim in §6. The drafter **refused** it too,
+with a near-identical reason. That is not a failure of the drafter; it is a failure of the plant.
+
+The two plants are supposed to test different things:
+- **ii (ungroundable)** — no groundable check exists at all ⇒ must be REFUSED.
+- **vi (uncovered)** — a real, groundable check exists, but NO GUARDRAIL covers it ⇒ must land at
+  `hitl`, never green and never a softgreen shape the drafter invented.
+
+*"Flag anything that looks unusual"* is subjective, so it satisfies (ii) and never reaches (vi).
+**The PRD's own example for negative vi is an example of negative ii.** The rule vi exists to
+prove — *unclassifiable falls to hitl, never green-by-default* — is therefore still unexercised
+against a live model, and M0a's exit cannot honestly be claimed until it is.
+
+**Why a replacement line is not obvious**, and why this is recorded rather than fixed here: job #1's
+guardrail 1 (*"every number must point to the cell it came from or the formula that made it"*) is
+broad enough to cover ANY figure-producing line, so the obvious candidates — "also tell me the
+largest single invoice", "also count how many customers are overdue" — are *covered*, and would
+correctly close green. A line that is groundable but genuinely uncovered has to produce something
+that is not a cited figure. That is a judgment about job #1's shape, so it is hamr's.
+
+**Also confirmed here: F15's fix is load-bearing.** The same clean run, before and after summing
+rounds: `rounds` 1 → 2, output tokens 106 → 2,097, cost $0.00071 → $0.00315. The ledger was
+understating this run by **4.4x**. F15's "the recorded total is a floor" is now measured, not
+inferred.
