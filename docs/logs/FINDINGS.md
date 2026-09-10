@@ -703,6 +703,19 @@ whatever its unrecorded rounds cost, and there is no way to recover them — the
 of ~$0.168 is therefore a FLOOR, not a total. It is nowhere near the $5 cap, so nothing that was
 allowed to run should have been refused; the number is wrong, not the decisions it drove.
 
-**The probe still has a question worth asking**, now a smaller one: with rounds summed correctly,
-does the tool arm's chars-per-output-token still differ from the text arm's? That is a real
-provider-side question and `poc/m0/tokenprobe.mjs` answers it in one round per arm.
+**The probe's own question, answered the same day: the provider's count is HONEST.** One live run,
+`deepseek` slot, both arms compliant so both are evidence, not casualties:
+
+| arm | chars | outputTok | chars/outTok | costUsd |
+|---|---|---|---|---|
+| TEXT | 293 | 237 | 1.24 | $0.000437 |
+| TOOL | 305 | 255 | 1.20 | $0.000591 |
+
+**Verdict (a)** — the two ratios are within 3% of each other, far inside the 1.5x threshold set
+before the run. Nothing is hidden in the tool channel. (1.2 chars per token looks low only because
+the payload is bare integers and commas, each its own token — which is exactly why integers were
+chosen: an echo task with nothing to escape.)
+
+So the entire discrepancy was ours. The provider reported honestly for every round; we recorded one
+of them. **Explanation (b) is dead, on measurement rather than on argument**, which is the point of
+having run it at $0.001 instead of reasoning about it.

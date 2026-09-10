@@ -290,6 +290,10 @@ export async function runArm(kind, modelId, {
 
   const measurement = {
     kind,
+    // Both, always: the CLI takes no model argument, so the requested id comes
+    // from the slot's own default, and F14 says the served one can differ.
+    modelRequested: resolvedModelId ?? null,
+    modelServed: metering?.model ?? null,
     error,
     compliant,
     charCount,
@@ -361,7 +365,8 @@ export function formatReport(probeResult) {
   const widths = rows[0].map((_, col) => Math.max(...rows.map((r) => String(r[col]).length)));
   const lines = rows.map((r) => r.map((cell, i) => String(cell).padEnd(widths[i])).join('  '));
   return [
-    `tokenprobe — slot=${slot} model=${modelId}`,
+    `tokenprobe — slot=${slot} requested=${text.modelRequested ?? modelId ?? '(slot default)'}`
+      + ` served=${text.modelServed ?? '(unreported)'}`,
     ...lines,
     `VERDICT: ${v.verdict} — ${v.detail}`,
   ].join('\n');
