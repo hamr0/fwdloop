@@ -375,3 +375,47 @@ test('formatProves says step or steps, and nothing at all for none', () => {
   assert.equal(formatProves([4]), 'step 4');
   assert.equal(formatProves([1, 4]), 'steps 1,4');
 });
+
+// ---------------------------------------------------------------------------
+// RULING 1 (2026-09-10) — an unjudgeable guardrail renders distinctly from a
+// blank one in the GUARDRAILS table.
+// ---------------------------------------------------------------------------
+
+test('the draft table shows an unjudgeable guardrail with its reason, distinct from a blank one', () => {
+  const decl = job1Declaration();
+  decl.unjudgeable = { 2: 'the wording gives no cell or formula to check against' };
+  const rendered = renderDraftTable(decl);
+  assert.match(rendered, /unjudgeable:.*wording gives no cell or formula/);
+  // line 6 is genuinely blank in this fixture and must show no such note.
+  assert.doesNotMatch(rendered.split('STEPS')[0], /6\.[\s\S]*unjudgeable/);
+});
+
+test('PROOF the test can fail: a job1 table with no unjudgeable entries shows no "unjudgeable" note at all', () => {
+  const rendered = renderDraftTable(job1Declaration());
+  assert.doesNotMatch(rendered, /unjudgeable/);
+});
+
+// ---------------------------------------------------------------------------
+// RULING 3 (2026-09-10) — a step naming no primitives shows a visible NOTE,
+// never a red, never inferred from the step's wording.
+// ---------------------------------------------------------------------------
+
+test('the draft table shows a step that names no primitives as a visible note', () => {
+  const decl = job1Declaration();
+  // "compose reply" already has primitives: [] in this fixture.
+  const rendered = renderDraftTable(decl);
+  const lines = rendered.split('\n');
+  const idx = lines.findIndex((l) => l.trim() === '4. compose reply');
+  const block = lines.slice(idx, idx + 5).join('\n');
+  assert.match(block, /NOTE:\s+names no primitives/);
+  assert.doesNotMatch(rendered, /VALIDATION: red.*primitives/s);
+});
+
+test('PROOF the test can fail: a step WITH primitives shows no such note', () => {
+  const decl = job1Declaration();
+  const rendered = renderDraftTable(decl);
+  const lines = rendered.split('\n');
+  const idx = lines.findIndex((l) => l.trim() === '1. read the sheet'); // primitives: ['addressCells']
+  const block = lines.slice(idx, idx + 4).join('\n');
+  assert.doesNotMatch(block, /NOTE:/);
+});

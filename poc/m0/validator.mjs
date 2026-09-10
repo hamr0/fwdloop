@@ -262,6 +262,45 @@ export function effectiveGuardrailClass(n, declaration) {
 }
 
 /**
+ * --- RULING 1 (2026-09-10): UNJUDGEABLE, distinct from BLANK ---------------
+ *
+ * A blank guardrail (`line.guardrail === ''`) means the human chose to
+ * leave it blank — they will check that line by hand. Normal, expected, not
+ * a problem, and (per `guardrailList` above) it never even appears in the
+ * guardrail table at all: there is nothing to show.
+ *
+ * An UNJUDGEABLE guardrail is a different fact: the human WROTE something
+ * on that line, and the drafter could not turn those words into a
+ * green/softgreen check. The class is STILL `hitl` — being unjudgeable
+ * never upgrades or downgrades safety, it only explains WHY the guardrail
+ * landed on hitl — but the human almost certainly wants to reword it, and
+ * must be told which is which.
+ *
+ * Field shape (declaration-level, alongside `guardrailClasses`):
+ *   `unjudgeable: { "<lineNumber>": "<one-line reason, the drafter's own
+ *   words>" }` — the SAME join key `guardrailClasses`/`fromLine` already
+ * use everywhere else (no second numbering scheme to keep in sync), and the
+ * same "one reason string" shape `refused[]` already carries for a line
+ * refused outright. Chosen over a boolean flag because the reason is the
+ * whole point: "hitl, and here is why the words resisted a check" is what
+ * the human needs to read before deciding whether to reword the line.
+ */
+export function unjudgeableList(declaration) {
+  const raw = declaration?.unjudgeable;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+  const lines = parseLines(declaration?.guardrails);
+  const byN = new Map(lines.map((l) => [l.n, l]));
+  const out = [];
+  for (const [key, reason] of Object.entries(raw)) {
+    const n = Number(key);
+    const line = byN.get(n);
+    if (!line || !line.guardrail || typeof reason !== 'string' || !reason) continue;
+    out.push({ n, reason });
+  }
+  return out.sort((a, b) => a.n - b.n);
+}
+
+/**
  * The guardrail numbers (line numbers) NO STEP declared a `fromLine` for.
  * The PRD requires these be SURFACED in the draft table, never silently
  * dropped — a guardrail the human wrote that no step serves is often an
@@ -294,6 +333,10 @@ export function validate(declaration) {
       && (typeof declaration.guardrailClasses !== 'object' || Array.isArray(declaration.guardrailClasses))) {
     return { verdict: 'red', red: 'validator: declaration "guardrailClasses" must be an object keyed by line number' };
   }
+  if (declaration.unjudgeable !== undefined && declaration.unjudgeable !== null
+      && (typeof declaration.unjudgeable !== 'object' || Array.isArray(declaration.unjudgeable))) {
+    return { verdict: 'red', red: 'validator: declaration "unjudgeable" must be an object keyed by line number' };
+  }
 
   const skills = Array.isArray(declaration.skills) ? declaration.skills : [];
   const guardrails = typeof declaration.guardrails === 'string' ? declaration.guardrails : '';
@@ -307,6 +350,41 @@ export function validate(declaration) {
     const resolved = resolveGuardrailClass({ n: g.n, guardrail: g.text }, guardrailClasses);
     if (!resolved.ok) {
       return { verdict: 'red', red: `validator: ${resolved.error}` };
+    }
+  }
+
+  // Ruling 1 (2026-09-10) — `unjudgeable` may only name a line that actually
+  // HAS a guardrail (a blank line has nothing to be unjudgeable about — that
+  // is what "blank" already means), each reason must be a real one-line
+  // string, and marking a guardrail unjudgeable can never coexist with a
+  // proposed class other than hitl: unjudgeable NEVER upgrades or downgrades
+  // safety, it only explains a hitl, so a drafter that proposes green/
+  // softgreen while ALSO flagging the same line unjudgeable contradicted
+  // itself — that is a wrong answer, not silence, and stays a red rather
+  // than being silently resolved one way or the other.
+  const unjudgeableRaw = declaration.unjudgeable && typeof declaration.unjudgeable === 'object'
+    && !Array.isArray(declaration.unjudgeable)
+    ? declaration.unjudgeable
+    : {};
+  for (const [key, reason] of Object.entries(unjudgeableRaw)) {
+    const n = Number(key);
+    if (!Number.isInteger(n)) {
+      return { verdict: 'red', red: `validator: unjudgeable key "${key}" must be an integer line number` };
+    }
+    if (typeof reason !== 'string' || !reason) {
+      return { verdict: 'red', red: `validator: unjudgeable reason for line ${n} must be a non-empty string` };
+    }
+    const line = lines.find((l) => l.n === n);
+    if (!line || !line.guardrail) {
+      return { verdict: 'red', red: `validator: unjudgeable names line ${n}, which has no guardrail to be unjudgeable about` };
+    }
+    const proposed = guardrailClasses && typeof guardrailClasses === 'object' ? guardrailClasses[key] : undefined;
+    if (proposed !== undefined && proposed !== 'hitl') {
+      return {
+        verdict: 'red',
+        red: `validator: line ${n} is marked unjudgeable ("${reason}") but guardrailClasses proposes `
+          + `"${proposed}" — unjudgeable never upgrades or downgrades the class, it can only explain a hitl`,
+      };
     }
   }
 

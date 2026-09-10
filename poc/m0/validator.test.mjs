@@ -30,7 +30,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   validate, guardrailList, unmappedGuardrails, parseLines, parseArbiterGuardrails,
-  resolveGuardrailClass, deriveFromLine, effectiveClass, effectiveGuardrailClass,
+  resolveGuardrailClass, deriveFromLine, effectiveClass, effectiveGuardrailClass, unjudgeableList,
 } from './validator.mjs';
 
 // The signed guardrails text job #1 actually carries, as the NUMBERED JOB
@@ -525,4 +525,92 @@ test('PROOF unmappedGuardrails can fail: re-adding a step with fromLine 5 remove
     goal: 'check with me', primitives: ['checkpoint'], reads: ['a4'], emits: 'a5', fromLine: 5, close: { class: 'hitl' },
   });
   assert.deepEqual(unmappedGuardrails(decl).map((g) => g.n), []);
+});
+
+// ---------------------------------------------------------------------------
+// RULING 1 (2026-09-10) — UNJUDGEABLE, distinct from BLANK. Both are hitl;
+// only one of them means the human should reword the line.
+// ---------------------------------------------------------------------------
+
+test('an unjudgeable guardrail is hitl AND is reported as unjudgeable with its reason', () => {
+  const decl = validDeclaration();
+  // Line 2 ("if more than one customer matches, ask me...") is already
+  // proposed hitl — mark it unjudgeable too, as if the drafter had judged
+  // the WORDING itself unreadable rather than judging it a deliberate gate.
+  decl.unjudgeable = { 2: 'no cell or formula named — cannot tell what would make this figure correct' };
+  assert.equal(validate(decl).verdict, 'green');
+  assert.equal(effectiveClass(decl.steps[1], decl), 'hitl');
+  const list = unjudgeableList(decl);
+  assert.deepEqual(list, [{ n: 2, reason: 'no cell or formula named — cannot tell what would make this figure correct' }]);
+});
+
+test('a BLANK guardrail is hitl and is NOT reported as unjudgeable', () => {
+  const decl = validDeclaration();
+  // Line 1 and line 6 are blank in the fixture and carry no `unjudgeable`
+  // entry at all — the two facts (blank vs unjudgeable) must never collapse
+  // into the same rendering.
+  assert.equal(effectiveClass(decl.steps[0], decl), 'hitl'); // fromLine 1, blank
+  assert.deepEqual(unjudgeableList(decl), []);
+});
+
+test('PROOF the test can fail: an unjudgeable entry for a genuinely blank line is dropped by unjudgeableList, not smuggled in as real', () => {
+  const decl = validDeclaration();
+  decl.unjudgeable = { 1: 'this should never surface — line 1 is blank' };
+  assert.deepEqual(unjudgeableList(decl), []);
+});
+
+test('validate: unjudgeable naming a line with no guardrail is a red (a blank line has nothing to be unjudgeable about)', () => {
+  const decl = validDeclaration();
+  decl.unjudgeable = { 1: 'line 1 is blank, this is invalid' };
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /line 1.*no guardrail/);
+});
+
+test('validate: unjudgeable naming a line that does not exist is a red', () => {
+  const decl = validDeclaration();
+  decl.unjudgeable = { 99: 'no such line' };
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /line 99.*no guardrail/);
+});
+
+test('validate: an empty-string reason is a red, never silently accepted', () => {
+  const decl = validDeclaration();
+  decl.unjudgeable = { 2: '' };
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /non-empty string/);
+});
+
+test('validate: marking a line unjudgeable while proposing green/softgreen for it is a red — unjudgeable never upgrades or downgrades the class', () => {
+  const decl = validDeclaration();
+  decl.unjudgeable = { 3: 'the wording resisted a check' }; // line 3 is proposed "green" in the fixture
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /unjudgeable.*never upgrades or downgrades/);
+});
+
+test('PROOF the test can fail: the same unjudgeable entry against a line already proposed hitl validates green', () => {
+  const decl = validDeclaration();
+  decl.unjudgeable = { 2: 'the wording resisted a check' }; // line 2 is proposed "hitl" already
+  assert.equal(validate(decl).verdict, 'green');
+});
+
+// ---------------------------------------------------------------------------
+// RULING 2 verification (already true; guarded here so it cannot regress) —
+// a blank guardrail always yields hitl, on every path that can produce a
+// class: resolveGuardrailClass, deriveFromLine, effectiveClass, and a full
+// validate() pass.
+// ---------------------------------------------------------------------------
+
+test('RULING 2 held: a blank guardrail resolves to hitl on every path, never anything else', () => {
+  const blankLine = { n: 1, guardrail: '' };
+  assert.equal(resolveGuardrailClass(blankLine, { 1: 'green' }).class, 'hitl'); // even a stray proposal can't strengthen it
+  assert.equal(resolveGuardrailClass(blankLine, {}).class, 'hitl');
+  const lines = parseLines(GUARDRAILS);
+  assert.equal(deriveFromLine(1, lines, { 1: 'softgreen' }).class, 'hitl');
+  assert.equal(effectiveClass({ fromLine: 1 }, validDeclaration()), 'hitl');
+  const decl = validDeclaration();
+  assert.equal(validate(decl).verdict, 'green'); // the fixture's own blank-line steps (1, 6) are hitl and it still passes
 });

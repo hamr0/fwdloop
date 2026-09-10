@@ -103,6 +103,13 @@ const REDRAFT_SCHEMA = {
         + 'deliberately changing the class of; anything omitted keeps its previous class.',
       additionalProperties: { type: 'string', enum: ['green', 'softgreen', 'hitl'] },
     },
+    unjudgeable: {
+      type: 'object',
+      description: 'RULING 1: reproposed unjudgeable reasons, keyed by line number (string) — only for '
+        + 'lines you are deliberately flagging or unflagging; anything omitted keeps its previous state. '
+        + 'Never upgrades or downgrades the class.',
+      additionalProperties: { type: 'string' },
+    },
     refused: {
       type: 'array',
       items: {
@@ -206,8 +213,11 @@ export async function runRedraft(modelId, previousDeclaration, humanReply, {
   // passed as the base so an untouched guardrail keeps its class even if
   // this round's model says nothing about guardrailClasses at all.
   const previousGuardrailClasses = previousDeclaration?.guardrailClasses;
+  const previousUnjudgeable = previousDeclaration?.unjudgeable;
   const declaration = capturedArgs != null
-    ? assembleDeclaration(capturedArgs, { skills, guardrails, guardrailClasses: previousGuardrailClasses })
+    ? assembleDeclaration(capturedArgs, {
+      skills, guardrails, guardrailClasses: previousGuardrailClasses, unjudgeable: previousUnjudgeable,
+    })
     : null;
 
   return {

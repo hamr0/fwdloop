@@ -122,6 +122,20 @@ string, e.g. "3"), value one of "green"/"softgreen"/"hitl":
   - if a guardrail is itself an ARBITER field restated in prose (e.g. a $
     cap), propose "hitl" for it too — an arbiter field can never be claimed
     by a step's close, and "hitl" is the safe, unclaimable answer.
+
+"unjudgeable": OPTIONAL, keyed the same way as "guardrailClasses" (line
+number as a string). Use it when a guardrail line HAS wording but that
+wording itself could not be turned into a green/softgreen check — you are
+proposing "hitl" for it in "guardrailClasses" anyway (this never changes:
+unjudgeable does not upgrade or downgrade the class, it only explains WHY),
+but the human likely wants to reword the line, and should be told. Give a
+one-line reason in your own words, e.g. "no cell or formula named — cannot
+tell what would make this figure correct". Do NOT use this for a guardrail
+that is legitimately an ask/accept/review gate — you DID judge that one; it
+is meant to be hitl. Only use it when the words themselves resisted
+judgment. Never key a blank line with it — a blank line already means the
+human chose to check it by hand, which is not the same fact.
+
 Do not propose a class for a blank ("[no guardrail]") line, and do not
 invent line numbers that aren't in the list below. Flow-level arbiter
 guardrails (a $ cap, a trigger, etc.) belong to NO line at all and never
@@ -184,6 +198,14 @@ const DECLARATION_SCHEMA = {
         + 'never per step and never by matching some other guardrail\'s exact phrasing.',
       additionalProperties: { type: 'string', enum: ['green', 'softgreen', 'hitl'] },
     },
+    unjudgeable: {
+      type: 'object',
+      description: 'RULING 1: one reason per guardrail line whose WORDING (not its intent) resisted a '
+        + 'green/softgreen check, keyed by line number (as a string) — the same join key as '
+        + '"guardrailClasses". Never upgrades or downgrades the class (still "hitl" in guardrailClasses); '
+        + 'only explains why. Never key a blank line.',
+      additionalProperties: { type: 'string' },
+    },
     refused: {
       type: 'array',
       items: {
@@ -230,6 +252,15 @@ export function extractGuardrails(rawText) {
  * reds on it rather than silently downgrading it to hitl, exactly as an
  * invented `close.class` already does.
  *
+ * `unjudgeable` is built the same way, per guardrail (RULING 1, 2026-09-10):
+ * the model's reason for a line wins when it named that line, else a
+ * redraft's previous `unjudgeable` carries over, else the line has no entry
+ * (meaning it was not flagged unjudgeable — silent, not distinguished from
+ * "the drafter didn't say", which is fine: the class it derives to is what
+ * matters, and this field only ever adds an explanation, never authority).
+ * A proposal for a blank line, or for a line that is not one of the human's
+ * numbered lines, is dropped outright — same reasoning as `guardrailClasses`.
+ *
  * Each step's `close` is RECOMPUTED here from its own `fromLine` against the
  * assembled `guardrailClasses` (validator.mjs's deriveFromLine — the one
  * writer for this, never reimplemented) — never taken from the model, even
@@ -240,6 +271,7 @@ export function extractGuardrails(rawText) {
  */
 export function assembleDeclaration(modelArgs, {
   skills = DRAFTER_SKILLS, guardrails = '', guardrailClasses: baseGuardrailClasses = {},
+  unjudgeable: baseUnjudgeable = {},
 } = {}) {
   const lines = parseLines(guardrails);
   const guardrailBearingLines = lines.filter((l) => l.guardrail.length > 0);
@@ -258,6 +290,24 @@ export function assembleDeclaration(modelArgs, {
       guardrailClasses[key] = proposedRaw[key];
     } else if (Object.prototype.hasOwnProperty.call(base, key)) {
       guardrailClasses[key] = base[key];
+    }
+  }
+
+  const proposedUnjudgeableRaw = modelArgs?.unjudgeable && typeof modelArgs.unjudgeable === 'object'
+    && !Array.isArray(modelArgs.unjudgeable)
+    ? modelArgs.unjudgeable
+    : {};
+  const baseUnjudgeableSafe = baseUnjudgeable && typeof baseUnjudgeable === 'object'
+    && !Array.isArray(baseUnjudgeable)
+    ? baseUnjudgeable
+    : {};
+  const unjudgeable = {};
+  for (const line of guardrailBearingLines) {
+    const key = String(line.n);
+    if (Object.prototype.hasOwnProperty.call(proposedUnjudgeableRaw, key)) {
+      unjudgeable[key] = proposedUnjudgeableRaw[key];
+    } else if (Object.prototype.hasOwnProperty.call(baseUnjudgeableSafe, key)) {
+      unjudgeable[key] = baseUnjudgeableSafe[key];
     }
   }
 
@@ -284,6 +334,7 @@ export function assembleDeclaration(modelArgs, {
     skills: [...skills],
     guardrails,
     guardrailClasses,
+    unjudgeable,
     steps,
     refused: Array.isArray(modelArgs?.refused) ? modelArgs.refused : [],
   };

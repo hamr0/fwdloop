@@ -32,7 +32,7 @@
 // the rendering is shortened).
 
 import {
-  guardrailList, unmappedGuardrails, effectiveClass, effectiveGuardrailClass, validate,
+  guardrailList, unmappedGuardrails, effectiveClass, effectiveGuardrailClass, validate, unjudgeableList,
 } from './validator.mjs';
 
 const WIDTH = 80;
@@ -112,6 +112,13 @@ function renderGuardrails(declaration) {
     ...[...provesCells.values()].map((c) => c.length),
   );
   const textW = WIDTH - numW - 1 - classW - 1 - provesW - 1;
+  // Ruling 1 (2026-09-10): a guardrail the drafter FLAGGED unjudgeable (it
+  // has wording, but the wording resisted a green/softgreen check) gets its
+  // own note line, distinct from a BLANK guardrail — which never appears in
+  // this table at all (there is nothing to show for a line the human simply
+  // left unchecked). This never changes the class shown above (still hitl,
+  // never upgraded or downgraded) — it only says WHY.
+  const unjudgeableByN = new Map(unjudgeableList(declaration).map((u) => [u.n, u.reason]));
   lines.push(`${padRight('#', numW)} ${padRight('class', classW)} ${padRight('proves', provesW)} text`);
   for (const g of list) {
     const classText = classCells.get(g.n) ?? '';
@@ -119,6 +126,9 @@ function renderGuardrails(declaration) {
     lines.push(
       `${padRight(`${g.n}.`, numW)} ${padRight(classText, classW)} ${padRight(provesText, provesW)} ${truncate(g.text, textW)}`,
     );
+    if (unjudgeableByN.has(g.n)) {
+      lines.push(truncate(`   unjudgeable: ${unjudgeableByN.get(g.n)}`, WIDTH));
+    }
   }
   return lines;
 }
@@ -146,6 +156,18 @@ function renderSteps(declaration) {
     lines.push(`${n}. ${goal}`);
     lines.push(truncate(`   close:      ${closeCell}`, WIDTH));
     lines.push(truncate(`   primitives: ${primitives}`, WIDTH));
+    // Ruling 3 (2026-09-10): a step naming NO primitives cannot produce
+    // anything real when it runs (the universal happened check, mechanical.
+    // mjs, will red on it at run time) — shown here as a plain NOTE, never a
+    // red and never inferred from the step's wording, because guessing at
+    // draft time what a step's words mean is exactly the bug that produced
+    // a regex-fitted class deriver earlier. This shows unconditionally,
+    // including on a step that legitimately needs no tool call (pure
+    // reasoning over artifacts an earlier step already read) — the note
+    // carries no judgment about which case this is; only the human decides.
+    if (Array.isArray(step?.primitives) && step.primitives.length === 0) {
+      lines.push(truncate('   NOTE:       names no primitives — produces nothing when it runs', WIDTH));
+    }
     lines.push(truncate(`   reads:      ${reads}  ->  emits: ${emits}`, WIDTH));
     if (n < steps.length) lines.push('');
   });
