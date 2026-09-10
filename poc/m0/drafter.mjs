@@ -370,8 +370,36 @@ export function plantLine(rawText, line) {
   return `${trimmed}\n${nextN}. ${line}\n`;
 }
 
+// RULING 1 live probe (2026-09-10): hamr's own canonical example of a
+// guardrail whose WORDING resists a mechanical check — "rate how friendly
+// the customer sounds" — used here as a GUARDRAIL (not, as `--ungroundable`
+// above uses the same phrase, as a whole job line with no guardrail at all).
+// This is a different negative scenario than `UNGROUNDABLE_LINE`: the job
+// line itself is ordinary and groundable (a step can genuinely emit an
+// artifact for it), only its guardrail resists judgment. The question this
+// exists to answer live: does the drafter flag it `unjudgeable` with a
+// reason (correct), or silently propose "hitl" in `guardrailClasses` with no
+// `unjudgeable` entry — which the draft table renders IDENTICALLY to a
+// guardrail the human left BLANK, exactly the silent-fall failure ruling 1
+// exists to kill (see validator.mjs's header)?
+const UNJUDGEABLE_GUARDRAIL_LINE = 'add a one-line note about how the reply reads';
+const UNJUDGEABLE_GUARDRAIL_TEXT = 'rate how friendly the customer sounds';
+
+/**
+ * Plant one extra job line WITH a guardrail attached, numbered one past the
+ * highest line already in `rawText` — same append-only discipline as
+ * `plantLine`, never touching any existing line or guardrail.
+ */
+export function plantLineWithGuardrail(rawText, line, guardrail) {
+  const parsed = parseLines(rawText);
+  const nextN = parsed.length > 0 ? Math.max(...parsed.map((l) => l.n)) + 1 : 1;
+  const trimmed = String(rawText ?? '').replace(/\s+$/, '');
+  return `${trimmed}\n${nextN}. ${line}\n   guardrail: ${guardrail}\n`;
+}
+
 export async function runDrafter(modelId, {
-  ungroundable = false, uncovered = false, runLabel = 'drafter', slot = 'synthetic', prose = false,
+  ungroundable = false, uncovered = false, unjudgeableGuardrail = false,
+  runLabel = 'drafter', slot = 'synthetic', prose = false,
   provider: injectedProvider, rates: injectedRates,
 } = {}) {
   let provider = injectedProvider;
@@ -387,6 +415,9 @@ export async function runDrafter(modelId, {
   let stepsText = readFileSync(prose ? PROSE_PATH : STEPS_PATH, 'utf8');
   if (ungroundable) stepsText = plantLine(stepsText, UNGROUNDABLE_LINE);
   if (uncovered) stepsText = plantLine(stepsText, UNCOVERED_LINE);
+  if (unjudgeableGuardrail) {
+    stepsText = plantLineWithGuardrail(stepsText, UNJUDGEABLE_GUARDRAIL_LINE, UNJUDGEABLE_GUARDRAIL_TEXT);
+  }
 
   const guardrails = extractGuardrails(stepsText);
 
@@ -445,7 +476,7 @@ export async function runDrafter(modelId, {
     modelRequested: modelId, modelReturned: metered.model, suffixMatch,
     toolCalled: capturedArgs != null, declaration, textInstead: capturedArgs ? null : capturedText,
     usage: metered.tokens, rounds: metered.rounds, costUsd, rateSource: metered.rateSource, wallMs,
-    ungroundable, uncovered,
+    ungroundable, uncovered, unjudgeableGuardrail,
   };
   return report;
 }
@@ -462,19 +493,22 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const modelId = process.argv[2];
   const ungroundable = process.argv.includes('--ungroundable');
   const uncovered = process.argv.includes('--uncovered');
+  const unjudgeableGuardrail = process.argv.includes('--unjudgeable-guardrail');
   const prose = process.argv.includes('--prose');
   const slotIdx = process.argv.indexOf('--slot');
   const slot = slotIdx !== -1 ? process.argv[slotIdx + 1] : 'synthetic';
   if (!modelId) {
-    console.error('usage: DRAFTER_LIVE=1 node poc/m0/drafter.mjs <model-id> [--slot synthetic|deepseek] [--prose] [--ungroundable] [--uncovered]');
+    console.error('usage: DRAFTER_LIVE=1 node poc/m0/drafter.mjs <model-id> [--slot synthetic|deepseek] [--prose] [--ungroundable] [--uncovered] [--unjudgeable-guardrail]');
     process.exit(1);
   }
   const shapeTag = prose ? 'prose' : 'steps';
-  const tag = `${suffixOf(modelId).replace(/\//g, '_')}-${slot}-${shapeTag}${ungroundable ? '-ungroundable' : ''}${uncovered ? '-uncovered' : ''}`;
+  const tag = `${suffixOf(modelId).replace(/\//g, '_')}-${slot}-${shapeTag}${ungroundable ? '-ungroundable' : ''}${uncovered ? '-uncovered' : ''}${unjudgeableGuardrail ? '-unjudgeable-guardrail' : ''}`;
   const report = await runDrafter(modelId, {
-    ungroundable, uncovered, prose, slot, runLabel: `drafter-${tag}`,
+    ungroundable, uncovered, unjudgeableGuardrail, prose, slot, runLabel: `drafter-${tag}`,
   });
-  const outPath = join(OUT_DIR, `draft-${tag}.json`);
+  // Timestamped: repeated stability runs of the SAME plant/model/slot must
+  // never overwrite each other's evidence.
+  const outPath = join(OUT_DIR, `draft-${tag}-${Date.now()}.json`);
   writeFileSync(outPath, JSON.stringify(report, null, 2));
   console.log(JSON.stringify({ ...report, declaration: '(see ' + outPath + ')' }, null, 2));
 }

@@ -604,6 +604,74 @@ test('PROOF the test can fail: the same unjudgeable entry against a line already
 // validate() pass.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// unjudgeableList() unit coverage — direct calls, independent of validate().
+// unjudgeableList() itself never throws and never reds; it silently drops
+// anything malformed (that is validate()'s job, on the declaration as a
+// whole) and only ever returns entries that are genuinely well-formed.
+// ---------------------------------------------------------------------------
+
+test('unjudgeableList returns [] when the field is absent, null, an array, or garbage', () => {
+  const base = validDeclaration();
+  assert.deepEqual(unjudgeableList({ ...base }), []); // absent
+  assert.deepEqual(unjudgeableList({ ...base, unjudgeable: null }), []);
+  assert.deepEqual(unjudgeableList({ ...base, unjudgeable: [] }), []); // an array, not a map
+  assert.deepEqual(unjudgeableList({ ...base, unjudgeable: 'nope' }), []); // a bare string
+});
+
+test('PROOF the test can fail: the same base declaration with a well-formed unjudgeable entry is non-empty', () => {
+  const base = validDeclaration();
+  assert.deepEqual(unjudgeableList({ ...base, unjudgeable: [] }), []);
+  assert.deepEqual(
+    unjudgeableList({ ...base, unjudgeable: { 2: 'the wording resisted a check' } }),
+    [{ n: 2, reason: 'the wording resisted a check' }],
+  );
+});
+
+test('unjudgeableList drops an entry naming a line with no matching guardrail at all (not just a blank one)', () => {
+  const base = validDeclaration();
+  // Line 99 does not exist in GUARDRAILS at all — distinct from line 1, which
+  // exists but is blank (covered elsewhere).
+  assert.deepEqual(unjudgeableList({ ...base, unjudgeable: { 99: 'no such line' } }), []);
+});
+
+test('unjudgeableList drops an entry whose reason is not a string, or is an empty string', () => {
+  const base = validDeclaration();
+  for (const badReason of [42, true, null, undefined, [], {}, '']) {
+    assert.deepEqual(
+      unjudgeableList({ ...base, unjudgeable: { 2: badReason } }),
+      [],
+      `expected reason ${JSON.stringify(badReason)} to be dropped`,
+    );
+  }
+});
+
+// Keys are zero-padded ("05" not "5") deliberately: a canonical integer-index
+// key ("5") is auto-sorted ascending by JS's own object-key ordering rules
+// before this code ever runs, so a plain {5:.., 2:.., 4:..} literal can never
+// actually arrive out of insertion order — it would prove nothing about
+// unjudgeableList's own .sort() call. A non-canonical numeric string ("05")
+// is ordered by INSERTION instead, and Number("05") === 5 still resolves the
+// line number correctly, so this is the one shape that can genuinely show
+// the output would be out of order without the explicit sort.
+test('unjudgeableList output is sorted by line number, regardless of key insertion order', () => {
+  const base = validDeclaration();
+  const decl = {
+    ...base,
+    unjudgeable: { '05': 'ask/accept gate, worded oddly', '02': 'no cell or formula named', '04': 'shape is ambiguous' },
+  };
+  assert.deepEqual(unjudgeableList(decl).map((u) => u.n), [2, 4, 5]);
+});
+
+test('PROOF the test can fail: the raw insertion order of the padded keys is genuinely NOT [2,4,5]', () => {
+  const decl = {
+    unjudgeable: { '05': 'ask/accept gate, worded oddly', '02': 'no cell or formula named', '04': 'shape is ambiguous' },
+  };
+  const insertionOrder = Object.keys(decl.unjudgeable).map(Number);
+  assert.deepEqual(insertionOrder, [5, 2, 4], 'sanity: the raw insertion order is genuinely out of order');
+  assert.notDeepEqual(insertionOrder, [2, 4, 5]);
+});
+
 test('RULING 2 held: a blank guardrail resolves to hitl on every path, never anything else', () => {
   const blankLine = { n: 1, guardrail: '' };
   assert.equal(resolveGuardrailClass(blankLine, { 1: 'green' }).class, 'hitl'); // even a stray proposal can't strengthen it

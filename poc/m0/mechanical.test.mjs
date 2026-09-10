@@ -38,6 +38,17 @@ test('PROOF the test can fail: gather refuses an empty artifact', () => {
   assert.throws(() => gather('a3', path, 'csv'), /empty/);
 });
 
+// gather() was rewritten (RULING 3) to delegate its emptiness check to
+// happened() instead of carrying its own inline check — this proves the
+// text-kind path did not drift when that happened, exactly like the csv-kind
+// proof above already does for csv.
+test('PROOF the test can fail: gather refuses an empty text artifact too, via the same happened() delegation', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'm0-gather-'));
+  const path = join(dir, 'empty.txt');
+  writeFileSync(path, '');
+  assert.throws(() => gather('a3b', path, 'text'), /empty/);
+});
+
 test('ask: pauses (writes ask.json), then resolves green once answer.json appears (polling contract)', async () => {
   const runId = `test-accept-${Date.now()}`;
   const outDir = mkdtempSync(join(tmpdir(), 'm0-ask-'));
@@ -165,6 +176,34 @@ test('the happened check runs for a softgreen step with an empty artifact', () =
   const result = checkStepHappened(step, null);
   assert.equal(result.verdict, 'red');
   assert.match(result.red, /softgreen/);
+});
+
+// The three tests above use DIFFERENT empty shapes ('', [], null) per class —
+// suggestive, but not proof the check is class-blind. This drives the exact
+// SAME empty artifact through all three classes and asserts the reds match
+// (once the step-label/class wording is stripped out), so "regardless of
+// close class" is measured, not merely illustrated three separate ways.
+test('a green, a softgreen and a hitl step carrying the SAME empty artifact all red identically', () => {
+  const sameEmptyArtifact = '';
+  const reds = ['green', 'softgreen', 'hitl'].map((cls) => {
+    const step = { goal: 'x', close: { class: cls } };
+    return checkStepHappened(step, sameEmptyArtifact);
+  });
+  for (const r of reds) assert.equal(r.verdict, 'red');
+  // Strip the step label/class tag (the only part that legitimately differs
+  // per call) and confirm the underlying happened() diagnosis is identical.
+  const stripped = reds.map((r) => r.red.replace(/^happened: "x" \([a-z]+\) produced nothing — /, ''));
+  assert.equal(stripped[0], stripped[1]);
+  assert.equal(stripped[1], stripped[2]);
+  assert.equal(stripped[0], 'artifact is an empty string');
+});
+
+test('PROOF the test can fail: a non-empty artifact makes the same three-class comparison pass instead of red', () => {
+  const sameRealArtifact = 'real content';
+  for (const cls of ['green', 'softgreen', 'hitl']) {
+    const step = { goal: 'x', close: { class: cls } };
+    assert.equal(checkStepHappened(step, sameRealArtifact).verdict, 'green');
+  }
 });
 
 test('PROOF the test can fail: the same three classes are all green on a real, non-empty artifact', () => {

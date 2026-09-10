@@ -813,3 +813,55 @@ ask or send steps, and mostly-true is exactly the loophole F16 measured.
 **Cap moved out of the numbered lines.** `cap $0.25 per run` had been attached to line 6 because no
 job line was about it. It is an arbiter field, not a close, and now sits in its own section
 belonging to no line, where a `fromLine` structurally cannot reach it.
+
+## F18 — ruling 1's safety holds live; its disclosure does not, on the second provider (2026-09-10)
+
+**Date** 2026-09-10 · **Status** measured, open (no fix attempted, by ruling) · **Class** drafter
+stability · **Grounded in** 10 evidence files
+`poc/m0/out/draft-*-prose-unjudgeable-guardrail-*.json` (5 deepseek, 5 synthetic), 10 rows in
+`poc/m0/out/spend.jsonl` (runId `drafter-*-prose-unjudgeable-guardrail`), plant at
+`poc/m0/drafter.mjs:393` (`plantLineWithGuardrail`), flag `--unjudgeable-guardrail`.
+
+**10 live drafter rounds, prose input, $0.1168 total.** hamr's canonical example — *"rate how
+friendly the customer sounds"* — attached as a GUARDRAIL on an ordinary, groundable job line ("add
+a one-line note about how the reply reads"). This is distinct from the `--ungroundable` plant,
+which uses the same phrase as a whole job LINE and tests `refused[]` (F17 negative ii). This is the
+case ruling 1 exists for: a line that is fine, carrying a guardrail whose wording resists a
+green/softgreen check.
+
+**The class is safe, 10/10.** Every run on both providers proposed `hitl` for that guardrail. Never
+upgraded, never a proxy check invented. Every declaration validated green.
+
+**The disclosure is not, on synthetic.** Ruling 1's point is that `unjudgeable` must be told apart
+from a guardrail the human left blank. Both are hitl; only one means "the words resisted a check,
+reword me." Counted by reading the `unjudgeable` field in each evidence file directly:
+
+| provider | `unjudgeable` flagged, with a reason |
+|---|---|
+| deepseek-v4-flash (baseline) | **5/5** |
+| hf:Qwen/Qwen3.8-27B (synthetic) | **2/5** |
+
+3 of 5 synthetic runs returned `unjudgeable: {}` beside the correct `hitl`. The draft table renders
+that **identically to a guardrail the human deliberately left blank** — the silent collapse ruling
+1 was written to kill, reproduced live. deepseek gave a specific, differently worded reason every
+round ("no cell, formula or declared shape named …"), never a templated string.
+
+**n=5 per provider is enough to call synthetic unstable here and deepseek stable. It does not bound
+synthetic's true failure rate.**
+
+**Not fixed, by ruling (hamr, 2026-09-10).** Tuning the prompt until synthetic flags it at n=5 is
+fitting to pass. The safety half needs no fix; the disclosure half is trusted on the baseline only.
+
+**Two test defects found on the way, both in tests, neither in the rulings' code.** (1) Three tests
+claimed "the identical empty artifact reds the same for green, softgreen and hitl" but used three
+DIFFERENT empty values (`''`, `[]`, `null`); the claim was never tested. A test now drives the same
+`''` through all three classes and compares the reds. (2) A new sort-order proof assumed
+`Object.keys({5:…,2:…,4:…})` keeps insertion order; JS sorts integer-like keys first, so the proof
+could never fail. Rewritten with non-canonical keys (`'05'`, `'02'`, `'04'`).
+
+**Scope note.** At the time of these runs `happened()` (ruling 3) was unit-tested only —
+`poc/m0/runner.mjs` never called it (its gates are `closeCustomerMatch`/`closeDerive`/
+`closeCompose`). These runs say nothing about ruling 3.
+
+**Verdict:** ruling 1 holds for safety on both providers and for disclosure on the baseline only.
+Synthetic cannot be trusted to tell unjudgeable from blank.
