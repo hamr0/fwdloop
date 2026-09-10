@@ -4,21 +4,27 @@
 // IO — same declaration in, byte-identical string out.
 //
 // borrowed-from (rule only, never imported): validator.mjs is the ONE writer
-// for guardrail numbering (guardrailList), tracesTo resolution
-// (resolveTracesTo), unmapped detection (unmappedGuardrails) and close
-// normalisation (normalizeClose). This module never reimplements any of
-// those — it only renders what they compute.
+// for line/guardrail parsing (parseLines), guardrail numbering
+// (guardrailList), close derivation (deriveFromLine/effectiveClass), the
+// per-guardrail class the drafter proposed (effectiveGuardrailClass) and
+// unmapped detection (unmappedGuardrails). This module never reimplements
+// any of those — it only renders what they compute.
 //
-// Two joined tables, per the ruling:
-//   GUARDRAILS — numbered as the human wrote them, each showing which step
-//     (by number) proves it. A guardrail no step traced to is a BLANK
-//     "proves" cell — never inferred, never an error (often an arbiter
-//     field, e.g. job #1's ask position/accept/cap).
-//   STEPS — numbered, each showing goal, close class, the guardrail NUMBER
-//     that proves it, its primitives, and what it reads/emits. A step with
-//     no guardrail (close.class 'hitl', including a MISSING close —
-//     normalizeClose turns that into 'hitl' for display) shows "hitl", never
-//     a red and never green-by-default.
+// Two joined tables, per the ruling — now joined by `fromLine` (the STRICT
+// 1-FOR-1 line<->guardrail model, RULED 2026-09-10, replacing "trace to any
+// guardrail by number"; see validator.mjs's header for why):
+//   GUARDRAILS — numbered by the human's own line numbers, each showing the
+//     PROPOSED class (what the drafter read that guardrail's own wording
+//     as, RULED 2026-09-10 — this is now the thing the human reviews before
+//     signing, not a hardcoded pattern match) and which step (by number)
+//     proves it. A guardrail no step traced to is a BLANK "proves" cell —
+//     never inferred, never an error (often an arbiter field; the flow's
+//     own $ cap and similar never even appear here — see
+//     parseArbiterGuardrails).
+//   STEPS — numbered, each showing goal, DERIVED close class, the line
+//     number it serves (`fromLine`), its primitives, and what it reads/
+//     emits. A step with no fromLine, or one naming a blank-guardrail line,
+//     shows "hitl", never a red and never green-by-default.
 //
 // 80-column terminal safety: every rendered line is truncated (ASCII "..."
 // only — no unicode ellipsis, no colour) rather than wrapped, so nothing
@@ -26,15 +32,11 @@
 // the rendering is shortened).
 
 import {
-  guardrailList, resolveTracesTo, unmappedGuardrails, normalizeClose,
+  guardrailList, unmappedGuardrails, effectiveClass, effectiveGuardrailClass, validate,
 } from './validator.mjs';
-import { validate } from './validator.mjs';
 
 const WIDTH = 80;
 
-/** Truncate to `max` columns, ASCII "..." only (never a unicode ellipsis —
- *  CLAUDE.md's "no colour libraries — plain text only" extends to no
- *  non-ASCII decoration either). Never wraps; a long goal loses its tail. */
 /**
  * The steps a guardrail proves, as one cell: "step 4" or "steps 1,4". Plural
  * because a guardrail proving several steps is the normal case — job #1's
@@ -61,18 +63,19 @@ function rule(char = '-') {
   return char.repeat(WIDTH);
 }
 
-/** Step numbers (1-based, declaration order) whose close traces to guardrail
- *  number `n`. Delegates entirely to validator.mjs's resolveTracesTo — this
- *  is the ONE extra bit of joining the table needs (guardrail -> steps,
- *  the reverse direction from what resolveTracesTo gives per-step). */
+/** Step numbers (1-based, declaration order) whose `fromLine` names
+ *  guardrail (line) number `n` AND whose derived class isn't hitl — hitl
+ *  needs no guardrail, ever, so it never counts as "proving" one. Delegates
+ *  entirely to validator.mjs's effectiveClass — this is the ONE extra bit of
+ *  joining the table needs (guardrail -> steps, the reverse direction from
+ *  what `fromLine` gives per-step). */
 function stepsProving(declaration, guardrailN) {
   const steps = Array.isArray(declaration?.steps) ? declaration.steps : [];
   const hits = [];
   steps.forEach((step, i) => {
-    const close = normalizeClose(step?.close);
-    if (close.class === 'hitl') return; // hitl needs no guardrail, ever
-    const n = resolveTracesTo(close.tracesTo, declaration?.guardrails);
-    if (n === guardrailN) hits.push(i + 1);
+    if (step?.fromLine !== guardrailN) return;
+    if (effectiveClass(step, declaration) === 'hitl') return;
+    hits.push(i + 1);
   });
   return hits;
 }
@@ -85,8 +88,16 @@ function renderGuardrails(declaration) {
     lines.push('(none)');
     return lines;
   }
-  // columns: "#" (3) + "proves" (sized to fit, never truncated) + gap(1) + text (rest)
+  // columns: "#" (3) + "class" (sized to fit) + "proves" (sized to fit,
+  // never truncated) + gap(1) + text (rest)
   const numW = 3;
+  // The per-guardrail PROPOSED class (RULED 2026-09-10 — this is now what
+  // the human reviews before signing, replacing a hardcoded text pattern
+  // that only ever matched job #1's own wording). Never truncated: it is a
+  // short, fixed vocabulary (green/softgreen/hitl/red) and hiding half of
+  // it ("softgr...") is worse than giving up a column's width for it.
+  const classCells = new Map(list.map((g) => [g.n, effectiveGuardrailClass(g.n, declaration)]));
+  const classW = Math.max('class'.length, ...[...classCells.values()].map((c) => c.length));
   // The "proves" cell is the join — the one thing this table exists to show —
   // so it is sized to its widest value and NEVER truncated. Truncating
   // "steps 1,4" to "step 1,..." hides the second half of the mapping, which is
@@ -94,17 +105,20 @@ function renderGuardrails(declaration) {
   // TEXT gives up the width instead: it is the human's own words, so they
   // already know it, and it is printed in full a few lines above.
   const provesCells = new Map(
-    list.map((g) => [g.n, unmapped.has(g.n) ? "" : formatProves(stepsProving(declaration, g.n))]),
+    list.map((g) => [g.n, unmapped.has(g.n) ? '' : formatProves(stepsProving(declaration, g.n))]),
   );
   const provesW = Math.max(
     'proves'.length,
     ...[...provesCells.values()].map((c) => c.length),
   );
-  const textW = WIDTH - numW - 1 - provesW - 1;
-  lines.push(`${padRight('#', numW)} ${padRight('proves', provesW)} text`);
+  const textW = WIDTH - numW - 1 - classW - 1 - provesW - 1;
+  lines.push(`${padRight('#', numW)} ${padRight('class', classW)} ${padRight('proves', provesW)} text`);
   for (const g of list) {
+    const classText = classCells.get(g.n) ?? '';
     const provesText = provesCells.get(g.n) ?? '';
-    lines.push(`${padRight(`${g.n}.`, numW)} ${padRight(provesText, provesW)} ${truncate(g.text, textW)}`);
+    lines.push(
+      `${padRight(`${g.n}.`, numW)} ${padRight(classText, classW)} ${padRight(provesText, provesW)} ${truncate(g.text, textW)}`,
+    );
   }
   return lines;
 }
@@ -118,11 +132,10 @@ function renderSteps(declaration) {
   }
   steps.forEach((step, i) => {
     const n = i + 1;
-    const close = normalizeClose(step?.close);
-    const guardrailN = close.class === 'hitl' ? null : resolveTracesTo(close.tracesTo, declaration?.guardrails);
-    const closeCell = close.class === 'hitl'
+    const cls = effectiveClass(step, declaration);
+    const closeCell = cls === 'hitl'
       ? 'hitl'
-      : `${close.class}  (guardrail ${guardrailN !== null ? guardrailN : '?'})`;
+      : `${cls}  (guardrail ${step?.fromLine})`;
     const goal = truncate(step?.goal ?? '(no goal)', WIDTH - 4);
     const primitives = Array.isArray(step?.primitives) && step.primitives.length > 0
       ? step.primitives.join(', ')
@@ -153,7 +166,7 @@ function renderRefused(declaration) {
 function renderValidation(declaration) {
   const result = validate(declaration);
   if (result.verdict === 'green') {
-    return ['', `VALIDATION: green`];
+    return ['', 'VALIDATION: green'];
   }
   return ['', 'VALIDATION: red', truncate(result.red ?? '(no detail)', WIDTH)];
 }

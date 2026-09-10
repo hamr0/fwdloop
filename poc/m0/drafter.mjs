@@ -1,14 +1,21 @@
 // Part 1 — DRAFTER. One paid round per model. Give the model the PRIMITIVE
 // catalogue (PRD §6 M0a, menu-is-inventory — every entry an existing
-// implementation, catalogue.mjs) + the artifact-space/close-classing rules +
-// hamr's steps.txt/prose.txt; it answers ONLY via `emit_declaration`. It
-// authors ONLY `steps` (goal, primitives, reads, emits, close) — no step
-// bodies, no plumbing, and NEVER an arbiter field (PRD §5/§6: trigger, cap,
-// askTtlMs, egress, the signed skillset, and "done" are human-signed,
-// inexpressible to the drafter). `skills` and `guardrails` on the final
-// declaration are stitched in by THIS module from the signed grant and the
-// human's own words, verbatim — never taken from the model's tool call, so
-// even a model that tries to emit them is ignored, not merely discouraged.
+// implementation, catalogue.mjs) + the artifact-space rules + hamr's
+// steps.txt/prose.txt; it answers ONLY via `emit_declaration`. It authors
+// `steps` (goal, primitives, reads, emits, fromLine, optional shape) — no
+// step bodies, no plumbing, NO per-step close class (that is DERIVED, never
+// chosen — see validator.mjs) — and NEVER an arbiter field (PRD §5/§6:
+// trigger, cap, askTtlMs, egress, the signed skillset, and "done" are
+// human-signed, inexpressible to the drafter). It ALSO proposes, once per
+// guardrail (never per step, never by matching the guardrail's TEXT against
+// a hardcoded pattern), the class that guardrail's own wording earns —
+// `guardrailClasses`, keyed by the human's line number (RULED 2026-09-10,
+// replaces a regex `deriveClass` fitted to job #1's exact phrasing; see
+// validator.mjs's header for why that had to go). `skills` and `guardrails`
+// on the final declaration are stitched in by THIS module from the signed
+// grant and the human's own words, verbatim — never taken from the model's
+// tool call, so even a model that tries to emit them is ignored, not merely
+// discouraged.
 //
 // Usage:
 //   SYNTHETIC_API_KEY="..." node poc/m0/drafter.mjs <model-id> [--slot synthetic|deepseek] [--prose] [--ungroundable] [--uncovered]
@@ -17,9 +24,11 @@
 // --ungroundable plants a line with NO groundable check at all (M0a negative
 // scenario ii — must be refused via "refused", never given a proxy check).
 // --uncovered plants a line WITH a groundable check but no guardrail that
-// covers it (M0a negative scenario vi, "the uncovered-line plant") — it must
-// land at close.class "hitl", never a green/softgreen the drafter invented
-// coverage for.
+// covers it (M0a negative scenario vi, "the uncovered-line plant") — a
+// planted line has no guardrail beside it by construction (plantLine never
+// attaches one), so any step naming it via `fromLine` derives to `hitl`
+// automatically (validator.mjs's blank-guardrail rule) — never a
+// green/softgreen the drafter invented coverage for.
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -30,7 +39,7 @@ import {
 } from './spend.mjs';
 import { makeProvider } from './provider.mjs';
 import { menu } from './catalogue.mjs';
-import { guardrailList } from './validator.mjs';
+import { parseLines, deriveFromLine } from './validator.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(__dirname, 'out');
@@ -55,7 +64,14 @@ function primitiveMenuText() {
     .join('\n');
 }
 
-const PRIMITIVE_MENU = `
+function jobLinesText(rawText) {
+  return parseLines(rawText)
+    .map((l) => `${l.n}. ${l.text}${l.guardrail ? ` [guardrail: ${l.guardrail}]` : ' [no guardrail]'}`)
+    .join('\n');
+}
+
+function primitiveMenuBlock(rawGuardrails) {
+  return `
 Primitive catalogue (menu-is-inventory — a grant list, every entry an
 existing implementation; a verb outside this list is a red at validation,
 never invented):
@@ -68,34 +84,66 @@ There is no wiring layer. Steps share ONE artifact space. Each step you emit:
 - "reads": artifact ids DECLARED BY AN EARLIER STEP ONLY — never itself, never
   a step that comes later
 - "emits": exactly ONE new artifact id this step declares
+- "fromLine": the ONE number, from the numbered job lines below, that this
+  step SERVES. This is the only thing you declare about how the step is
+  proven done — you do NOT choose a close class yourself and you do NOT
+  pick which guardrail applies to THIS step. Whatever guardrail sits beside
+  that line (or its absence) is what the class is derived from — see
+  "guardrailClasses" below, which is where YOU say what each guardrail's
+  own wording earns, once, independent of any step. Omit "fromLine" for a
+  step that serves no particular line (it will be hitl).
 You author no step bodies and no plumbing — only this declaration.
 
-The guardrails below are a NUMBERED LIST. Your steps are a second list. You are
-mapping one onto the other: every close points at a guardrail BY ITS NUMBER.
-| guardrail | close it produces |
-|---|---|
-| "every number must point to the cell/formula it came from" | green — tracesTo that guardrail's number |
-| a declared SHAPE the human wrote (e.g. "one line per invoice") | softgreen — tracesTo that guardrail's number |
-| "ask me" / "check with me" / "nothing goes out before I accept" | hitl (an ask/send step), position as the human wrote it |
+You may optionally emit "close": { "shape": {...} } ONLY when the line you
+name has a guardrail you proposed "softgreen" for below — this is the shape
+itself, the human's own words made structured. Emit nothing else under
+"close": no "class", no "tracesTo". Those do not exist any more — picking a
+class from a menu of guardrails, PER STEP, is exactly the mistake this
+format exists to prevent (a step could otherwise point at a STRONGER
+guardrail than the one covering it). You cannot point at a different line's
+guardrail: "fromLine" names exactly one line, and that line's own guardrail
+is the only thing that can ever produce a class other than hitl for it.
 
-"tracesTo" is the NUMBER of one guardrail — an integer, nothing else. Do not
-paraphrase a guardrail, do not quote one, do not invent a number that is not in
-the list. A step whose check is covered by NO guardrail falls to hitl — NEVER
-green, NEVER a softgreen shape you invented coverage for. Unsure = hitl, always.
-A step you say nothing about is hitl too, so silence is safe and guessing is not.
+"guardrailClasses": propose a class for EACH guardrail below that is not
+"[no guardrail]" — read that guardrail's own wording, once, on its own
+merits (never by matching it against some other guardrail's exact phrasing;
+a same-meaning guardrail worded differently must still get the class its
+meaning earns). Key it by the line number the guardrail belongs to (as a
+string, e.g. "3"), value one of "green"/"softgreen"/"hitl":
+  - the human wrote a rule that every figure must cite the cell or formula
+    it came from -> "green"
+  - the human declared a SHAPE the output must take (e.g. one line per
+    invoice) -> "softgreen", and supply that shape via "close.shape" on
+    whichever step(s) name that line
+  - the human wrote an ask/accept/review gate, or anything you are not
+    confident is a citation or a declared shape -> "hitl". When unsure,
+    "hitl" — guessing green or softgreen you cannot justify is worse than
+    saying nothing.
+  - if a guardrail is itself an ARBITER field restated in prose (e.g. a $
+    cap), propose "hitl" for it too — an arbiter field can never be claimed
+    by a step's close, and "hitl" is the safe, unclaimable answer.
+Do not propose a class for a blank ("[no guardrail]") line, and do not
+invent line numbers that aren't in the list below. Flow-level arbiter
+guardrails (a $ cap, a trigger, etc.) belong to NO line at all and never
+appear in this numbered list — do not propose anything for them, and do not
+try to attach a "fromLine" to one; there is no number that could ever name
+one.
 
 Arbiter fields — YOU DO NOT EMIT THESE, EVER, under any field name: the
 trigger, the $ cap, an ask/send step's POSITION in the sequence (guardrails
 already state where; respect it, never restate or move it), the egress
 allow-list or send target, the signed skillset, or what "done" means for the
-whole flow. If a line asks for a stop somewhere, that is a hitl step — never
-a restated cap or destination.
+whole flow.
 
 If a line cannot be expressed as a typed, cited artifact at all (e.g. it asks
 for a subjective judgment with no groundable check whatsoever — not even a
 human check), put it in "refused" with a one-line reason instead of
 inventing a proxy check or a primitive that does not exist.
+
+The numbered job lines, each showing its guardrail or "[no guardrail]":
+${jobLinesText(rawGuardrails)}
 `.trim();
+}
 
 const STEP_SCHEMA = {
   type: 'object',
@@ -108,18 +156,20 @@ const STEP_SCHEMA = {
       type: 'array', items: { type: 'string' }, description: 'artifact ids this step reads, each declared by an EARLIER step',
     },
     emits: { type: 'string', description: 'the one new artifact id this step declares' },
+    fromLine: {
+      type: 'integer',
+      description: 'the ONE numbered job line this step serves. Its close class is DERIVED from that line\'s guardrail — never chosen. Omit for a step that serves no particular line (hitl).',
+    },
     close: {
       type: 'object',
       properties: {
-        class: { type: 'string', enum: ['green', 'softgreen', 'hitl'] },
-        shape: { type: 'object', description: 'softgreen only: the declared shape' },
-        tracesTo: { type: 'integer', description: 'the NUMBER of the guardrail this close comes from; omit for hitl' },
+        shape: { type: 'object', description: 'ONLY when fromLine\'s guardrail declares a shape (derives softgreen): the human\'s declared shape, structured. Omit otherwise — no "class", no "tracesTo".' },
       },
     },
   },
-  // `close` is deliberately NOT required: a step the drafter says nothing
-  // about is hitl (ruled 2026-09-10), so silence must be expressible rather
-  // than forced into a guess.
+  // `fromLine` is deliberately NOT required: a step that serves no
+  // particular line is hitl (silence is safe), so omitting it must be
+  // expressible rather than forced into a guess.
   required: ['goal', 'primitives', 'reads', 'emits'],
 };
 
@@ -127,6 +177,13 @@ const DECLARATION_SCHEMA = {
   type: 'object',
   properties: {
     steps: { type: 'array', items: STEP_SCHEMA },
+    guardrailClasses: {
+      type: 'object',
+      description: 'one proposed class per NON-BLANK guardrail line, keyed by that line\'s number '
+        + '(as a string) — "green"/"softgreen"/"hitl", read from the guardrail\'s own wording once, '
+        + 'never per step and never by matching some other guardrail\'s exact phrasing.',
+      additionalProperties: { type: 'string', enum: ['green', 'softgreen', 'hitl'] },
+    },
     refused: {
       type: 'array',
       items: {
@@ -136,19 +193,18 @@ const DECLARATION_SCHEMA = {
       },
     },
   },
-  required: ['steps'],
+  required: ['steps', 'guardrailClasses'],
 };
 
 /**
- * Extract the guardrails block verbatim (the human's own words) from the
- * prose/steps text — everything after a "guardrails:" line (case-insensitive)
- * to the end of the text. Returns '' if no such marker exists — never
- * invents one. Pure function: this is the ONE place `declaration.guardrails`
- * comes from, so the validator's tracesTo matching is checkable against it.
+ * The human's own words, verbatim — the numbered job lines and their
+ * guardrails, exactly as written on disk (prose.txt / steps.txt, plus any
+ * planted line). This is the ONE source `declaration.guardrails` comes from
+ * and the ONE source every fromLine resolves against, so a fromLine can
+ * never resolve against text that isn't what was actually signed.
  */
 export function extractGuardrails(rawText) {
-  const match = /guardrails:[ \t]*\r?\n([\s\S]*)$/i.exec(String(rawText ?? ''));
-  return match ? match[1].trim() : '';
+  return String(rawText ?? '').trim();
 }
 
 /**
@@ -157,30 +213,110 @@ export function extractGuardrails(rawText) {
  * mechanical form of "the drafter does not author arbiter fields": even a
  * model that tries to emit its own `skills`/`guardrails` is ignored, not
  * merely discouraged by the prompt.
+ *
+ * `guardrailClasses` is built here too, per GUARDRAIL (not per step): the
+ * model's proposal for a line wins when it named that line, else the
+ * caller's `guardrailClasses` (a redraft's previous declaration, so an
+ * unchanged guardrail keeps whatever class it already carried — the
+ * guardrails themselves never change in a redraft, and neither should a
+ * class nobody revisited) is carried over, else the line has no entry at
+ * all — which resolveGuardrailClass (validator.mjs) treats as hitl, silence
+ * being safe. A proposal for a BLANK line, or for a line number that is not
+ * one of the human's numbered lines at all, is dropped outright: it can
+ * never do anything (blank always forces hitl) and it can never be aimed at
+ * a flow-level arbiter guardrail, which has no line number to receive it.
+ * An invalid proposal (not green/softgreen/hitl) for a real guardrail-
+ * bearing line is passed through UNCHANGED, never normalised — validator.mjs
+ * reds on it rather than silently downgrading it to hitl, exactly as an
+ * invented `close.class` already does.
+ *
+ * Each step's `close` is RECOMPUTED here from its own `fromLine` against the
+ * assembled `guardrailClasses` (validator.mjs's deriveFromLine — the one
+ * writer for this, never reimplemented) — never taken from the model, even
+ * if the model tries to emit a `class` or `tracesTo`. This is the
+ * structural half of "the drafter does not choose a step's class": the tool
+ * schema doesn't offer the field, and even if a model invents one anyway,
+ * it is discarded here.
  */
-export function assembleDeclaration(modelArgs, { skills = DRAFTER_SKILLS, guardrails = '' } = {}) {
+export function assembleDeclaration(modelArgs, {
+  skills = DRAFTER_SKILLS, guardrails = '', guardrailClasses: baseGuardrailClasses = {},
+} = {}) {
+  const lines = parseLines(guardrails);
+  const guardrailBearingLines = lines.filter((l) => l.guardrail.length > 0);
+  const proposedRaw = modelArgs?.guardrailClasses && typeof modelArgs.guardrailClasses === 'object'
+    && !Array.isArray(modelArgs.guardrailClasses)
+    ? modelArgs.guardrailClasses
+    : {};
+  const base = baseGuardrailClasses && typeof baseGuardrailClasses === 'object'
+    && !Array.isArray(baseGuardrailClasses)
+    ? baseGuardrailClasses
+    : {};
+  const guardrailClasses = {};
+  for (const line of guardrailBearingLines) {
+    const key = String(line.n);
+    if (Object.prototype.hasOwnProperty.call(proposedRaw, key)) {
+      guardrailClasses[key] = proposedRaw[key];
+    } else if (Object.prototype.hasOwnProperty.call(base, key)) {
+      guardrailClasses[key] = base[key];
+    }
+  }
+
+  const steps = Array.isArray(modelArgs?.steps)
+    ? modelArgs.steps.map((step) => {
+      const fromLine = Number.isInteger(step?.fromLine) ? step.fromLine : null;
+      const resolved = deriveFromLine(fromLine, lines, guardrailClasses);
+      const cls = resolved.ok ? resolved.class : 'hitl';
+      const shape = step?.close && typeof step.close === 'object' && !Array.isArray(step.close)
+        ? step.close.shape
+        : undefined;
+      const close = cls === 'softgreen' && shape !== undefined ? { class: cls, shape } : { class: cls };
+      return {
+        goal: step?.goal,
+        primitives: Array.isArray(step?.primitives) ? step.primitives : [],
+        reads: Array.isArray(step?.reads) ? step.reads : [],
+        emits: step?.emits,
+        fromLine,
+        close,
+      };
+    })
+    : [];
   return {
     skills: [...skills],
     guardrails,
-    steps: Array.isArray(modelArgs?.steps) ? modelArgs.steps : [],
+    guardrailClasses,
+    steps,
     refused: Array.isArray(modelArgs?.refused) ? modelArgs.refused : [],
   };
 }
 
 const UNGROUNDABLE_LINE = 'rate how friendly the customer sounds';
-const UNCOVERED_LINE = 'flag anything that looks unusual';
+// F16: the PRD's own example for negative vi ("flag anything that looks
+// unusual") is SUBJECTIVE, so the drafter refuses it as ungroundable and
+// negative vi never runs. This replacement is groundable two ways and has no
+// guardrail beside it (plantLine never attaches one):
+//   - the archive copy is the PRD's own mechanical "happened" check — a file
+//     either exists at that path with non-zero bytes, or it does not;
+//   - "are the overdue dates complete" is a fact about the real fixture, which
+//     the scout already established: fixtures/ar-aging.csv's "Days overdue"
+//     column is EMPTY in all 8 rows.
+// Neither produces a cited figure, so the citation guardrail does not reach
+// either — which is what makes the line uncovered rather than merely
+// unmapped. Both must land at hitl.
+const UNCOVERED_LINE = 'save a copy of the reply to poc/m0/out/archive/reply.txt '
+  + 'and tell me whether the overdue dates on the sheet are complete';
 
 /**
- * Plant one extra job line BEFORE the "Guardrails:" marker — for negative
- * scenario (ii) (`UNGROUNDABLE_LINE`: no check at all is expressible, must
- * be refused) or (vi) (`UNCOVERED_LINE`: a real, groundable check with no
- * guardrail covering it, must land at hitl). Never touches the guardrails
- * block itself, so `extractGuardrails` on the result is unaffected.
+ * Plant one extra job line, numbered one past the highest line already in
+ * `rawText` (negative scenario (ii) `UNGROUNDABLE_LINE`, or (vi)
+ * `UNCOVERED_LINE`) — with NO guardrail beside it. Never touches any
+ * existing line or guardrail, so parsing the result changes nothing about
+ * what came before.
  */
-export function plantLine(rawText, line, { prose }) {
-  return prose
-    ? rawText.replace('\n\nGuardrails:', ` Also ${line}.\n\nGuardrails:`)
-    : rawText.replace(/guardrails:/i, `7. ${line}\nguardrails:`);
+export function plantLine(rawText, line) {
+  const parsed = parseLines(rawText);
+  const nextN = parsed.length > 0 ? Math.max(...parsed.map((l) => l.n)) + 1 : 1;
+  const trimmed = String(rawText ?? '').replace(/\s+$/, '');
+  return `${trimmed}\n${nextN}. ${line}\n`;
 }
 
 export async function runDrafter(modelId, {
@@ -198,8 +334,8 @@ export async function runDrafter(modelId, {
   mkdirSync(OUT_DIR, { recursive: true });
 
   let stepsText = readFileSync(prose ? PROSE_PATH : STEPS_PATH, 'utf8');
-  if (ungroundable) stepsText = plantLine(stepsText, UNGROUNDABLE_LINE, { prose });
-  if (uncovered) stepsText = plantLine(stepsText, UNCOVERED_LINE, { prose });
+  if (ungroundable) stepsText = plantLine(stepsText, UNGROUNDABLE_LINE);
+  if (uncovered) stepsText = plantLine(stepsText, UNCOVERED_LINE);
 
   const guardrails = extractGuardrails(stepsText);
 
@@ -222,12 +358,13 @@ export async function runDrafter(modelId, {
   });
 
   const messages = [
-    { role: 'system', content: `You are the fwdloop drafter. You answer ONLY by calling emit_declaration — never plain text. ${PRIMITIVE_MENU}` },
+    {
+      role: 'system',
+      content: `You are the fwdloop drafter. You answer ONLY by calling emit_declaration — never plain text. ${primitiveMenuBlock(guardrails)}`,
+    },
     {
       role: 'user',
-      content: `hamr's steps + guardrails for job #1:\n\n${stepsText}\n\n`
-        + `The guardrails, numbered — "tracesTo" is one of these numbers:\n`
-        + `${guardrailList(guardrails).map((g) => `${g.n}. ${g.text}`).join('\n')}\n\n`
+      content: `hamr's numbered job lines for job #1:\n\n${jobLinesText(guardrails)}\n\n`
         + 'Call emit_declaration now.',
     },
   ];

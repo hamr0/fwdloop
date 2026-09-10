@@ -758,3 +758,58 @@ that is not a cited figure. That is a judgment about job #1's shape, so it is ha
 rounds: `rounds` 1 → 2, output tokens 106 → 2,097, cost $0.00071 → $0.00315. The ledger was
 understating this run by **4.4x**. F15's "the recorded total is a floor" is now measured, not
 inferred.
+
+## F17 — 1-for-1 kills the stretch: negative vi passes, measured (2026-09-10)
+
+**Six live drafter rounds on the baseline, ~$0.021.** F16 left M0a's exit unclaimable: the drafter
+stretched job #1's broad citation guardrail 3 runs out of 3 to justify `green` on a step emitting a
+yes/no and no figures. The 1-for-1 refactor removes the mechanism rather than discouraging the
+behaviour, and the result reproduces.
+
+**What changed.** The human's job is a numbered list; guardrail *n* belongs to line *n*. A step
+declares only `fromLine: n`; `tracesTo` is DELETED, not deprecated — there is no field left with
+which to name another line's guardrail. The drafter proposes one class PER GUARDRAIL
+(`guardrailClasses`), never per step, and `assembleDeclaration` recomputes every step's class from
+`guardrailClasses[fromLine]`, so a class the model invents anyway is overwritten rather than
+argued with. The drafter's tool schema no longer offers a `class` field at all.
+
+**Negative vi, the plant that could not pass before:**
+
+| run | step | before (F16) | after |
+|---|---|---|---|
+| 1-3 | "report whether the overdue dates are complete" | `green`, guardrail 1 | **`hitl`** |
+| 1-3 | "save a copy to .../archive/reply.txt" | `hitl` | `hitl` |
+
+3 of 3, identical. The plant's line carries no guardrail, so there is nothing to inherit and
+nowhere to point. **Negative vi now runs and passes** — the rule it exists to prove,
+*unclassifiable falls to hitl and never green-by-default*, is exercised against a live model for
+the first time.
+
+**Negative ii still holds** on the same build: *"rate how friendly the customer sounds"* is refused
+with the drafter's own reason — "no cell, formula, or other groundable check … without inventing a
+proxy check." No proxy invented, 1 of 1 on this build and 1 of 1 on the previous one.
+
+**One line, many steps, one class.** The plant line became TWO steps (archive the copy; report on
+the dates) and both inherited `hitl` from the one blank guardrail. Cutting a line into several
+steps is the drafter's job and it survives the refactor untouched.
+
+**`guardrailClasses` came back byte-identical on every run**: `{2:hitl, 3:green, 4:softgreen,
+5:hitl}`. That is now the whole surface a human reviews before signing — four values on one screen
+instead of eight step classes scattered down a page. F10's measured instability was the ASK
+POSITION, an arbiter field; this design does not let the drafter near it.
+
+**A regex-fitted `deriveClass` was written and rejected in between.** The first refactor derived a
+class by matching the guardrail's literal text (`/cell it came from|formula that made it/` →
+green). It passed 215 tests because the fixture used the exact strings the regex was written
+against — fitting to the fixture, which AGENT_RULES forbids, and a silent failure for any human who
+reworded their own guardrail. Replaced with the PRD's own mechanism: the drafter reads each
+guardrail once and proposes its class, and the human confirms at sign time. Recorded because the
+bug was invisible while green.
+
+**The `#` generic-rule form is dead** and should not return. hamr's reason, kept: *a rule stops
+being generic once it doesn't apply to all* — job #1's citation rule does not apply to the read,
+ask or send steps, and mostly-true is exactly the loophole F16 measured.
+
+**Cap moved out of the numbered lines.** `cap $0.25 per run` had been attached to line 6 because no
+job line was about it. It is an arbiter field, not a close, and now sits in its own section
+belonging to no line, where a `fromLine` structurally cannot reach it.

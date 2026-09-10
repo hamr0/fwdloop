@@ -3,6 +3,12 @@
 // scout.test.mjs. A live probe exists only behind REDRAFT_LIVE=1 in
 // redraft.mjs's own CLI block, never here and never in the default `npm
 // test` path.
+//
+// Steps declare `fromLine`, never a class or tracesTo (the strict 1-for-1
+// line<->guardrail model, RULED 2026-09-10) — assembleDeclaration derives
+// close.class mechanically from the guardrail's own PROPOSED class
+// (`guardrailClasses`, DEFECT 1 fix), which carries over from the previous
+// declaration unless this round's model explicitly reproposes a line.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,41 +16,51 @@ import { runRedraft } from './redraft.mjs';
 import { validate } from './validator.mjs';
 
 const REAL_GUARDRAILS = [
-  'every number must point to the cell it came from or the formula that made it',
-  'one line per invoice in the reply',
-  'if more than one customer matches, ask me, do not pick',
-  'nothing goes out before I accept',
-  'cap $0.25 per run',
+  '1. read the sheet',
+  '2. read the message and work out which customer',
+  '   guardrail: if more than one customer matches, ask me, do not pick',
+  '3. list their open invoices, total owed, earliest due, count overdue as of today',
+  '   guardrail: every number must point to the cell it came from or the formula that made it',
+  '4. write a short reply, one line per invoice',
+  '   guardrail: one line per invoice in the reply',
+  '5. check with me',
+  '   guardrail: nothing goes out before I accept',
+  '6. on accept, send',
+  '',
+  'Arbiter guardrails (belong to no line):',
+  'guardrail: cap $0.25 per run',
 ].join('\n');
+
+const REAL_GUARDRAIL_CLASSES = { 2: 'hitl', 3: 'green', 4: 'softgreen', 5: 'hitl' };
 
 function job1Declaration() {
   return {
     skills: ['core'],
     guardrails: REAL_GUARDRAILS,
+    guardrailClasses: { ...REAL_GUARDRAIL_CLASSES },
     steps: [
       {
-        goal: 'read the sheet', primitives: ['addressCells'], reads: [], emits: 'a1', close: { class: 'hitl' },
+        goal: 'read the sheet', primitives: ['addressCells'], reads: [], emits: 'a1', fromLine: 1, close: { class: 'hitl' },
       },
       {
-        goal: 'read the message', primitives: ['read'], reads: [], emits: 'a2', close: { class: 'hitl' },
+        goal: 'read the message', primitives: ['read'], reads: [], emits: 'a2', fromLine: 2, close: { class: 'hitl' },
       },
       {
-        goal: 'match customer, derive totals', primitives: [], reads: ['a1', 'a2'], emits: 'a3', close: { class: 'green', tracesTo: 1 },
+        goal: 'match customer, derive totals', primitives: [], reads: ['a1', 'a2'], emits: 'a3', fromLine: 3, close: { class: 'green' },
       },
       {
         goal: 'compose reply',
         primitives: [],
         reads: ['a3'],
         emits: 'a4',
-        close: {
-          class: 'softgreen', shape: { linesPerInvoice: 1, mustCarry: ['total', 'earliestDueDate'] }, tracesTo: 2,
-        },
+        fromLine: 4,
+        close: { class: 'softgreen', shape: { linesPerInvoice: 1, mustCarry: ['total', 'earliestDueDate'] } },
       },
       {
-        goal: 'check with me', primitives: ['checkpoint'], reads: ['a4'], emits: 'a5', close: { class: 'hitl' },
+        goal: 'check with me', primitives: ['checkpoint'], reads: ['a4'], emits: 'a5', fromLine: 5, close: { class: 'hitl' },
       },
       {
-        goal: 'send (dry-run egress)', primitives: ['write'], reads: ['a4'], emits: 'a6', close: { class: 'hitl' },
+        goal: 'send (dry-run egress)', primitives: ['write'], reads: ['a4'], emits: 'a6', fromLine: 6, close: { class: 'hitl' },
       },
     ],
     refused: [],
@@ -79,10 +95,12 @@ function toolReply(args) {
   };
 }
 
-// "merge 3 and 4": collapse the derive+compose steps into one step. Still
-// closes green on guardrail 1 (the derive rule) — a merged step keeping only
-// one close class is a legitimate redraft outcome; the guardrails it can
-// point at do not change.
+// "merge 3 and 4": collapse the derive+compose steps into one step, serving
+// line 3 (the citation guardrail) — a merged step keeping only one derived
+// class is a legitimate redraft outcome; the guardrails it can derive from,
+// and their proposed classes, do not change. The model need not repropose
+// guardrailClasses at all here — line 3's "green" proposal from the previous
+// round carries straight over.
 function mergedSteps() {
   const prev = job1Declaration();
   return {
@@ -90,7 +108,7 @@ function mergedSteps() {
       prev.steps[0],
       prev.steps[1],
       {
-        goal: 'match customer, derive totals, and compose reply', primitives: [], reads: ['a1', 'a2'], emits: 'a3', close: { class: 'green', tracesTo: 1 },
+        goal: 'match customer, derive totals, and compose reply', primitives: [], reads: ['a1', 'a2'], emits: 'a3', fromLine: 3,
       },
       { ...prev.steps[4], reads: ['a3'] },
       { ...prev.steps[5], reads: ['a3'] },
@@ -116,6 +134,28 @@ test('PROOF the test can fail: a model trying to smuggle an edited guardrails st
   const result = await runRedraft('fake-model', previous, 'merge 3 and 4', { provider, rates: { in: 0, out: 0 } });
   assert.equal(result.declaration.guardrails, previous.guardrails);
   assert.notEqual(result.declaration.guardrails, 'FAKE OVERRIDE — the human never wrote this');
+});
+
+// ---------------------------------------------------------------------------
+// Must-have — a redraft's guardrailClasses carry over unchanged unless this
+// round explicitly reproposes a line (DEFECT 1's mechanism, exercised
+// through a second round).
+// ---------------------------------------------------------------------------
+
+test('guardrailClasses carry over from the previous declaration when the redraft model says nothing about them', async () => {
+  const previous = job1Declaration();
+  const provider = fakeProvider(toolReply(mergedSteps())); // no guardrailClasses at all in this round's reply
+  const result = await runRedraft('fake-model', previous, 'merge 3 and 4', { provider, rates: { in: 0, out: 0 } });
+  assert.deepEqual(result.declaration.guardrailClasses, previous.guardrailClasses);
+});
+
+test('PROOF the test can fail: a redraft that DOES repropose one line changes only that line\'s class, leaving the rest untouched', async () => {
+  const previous = job1Declaration();
+  const args = { ...mergedSteps(), guardrailClasses: { 4: 'hitl' } }; // "make the reply shape my call"
+  const provider = fakeProvider(toolReply(args));
+  const result = await runRedraft('fake-model', previous, 'make step 4 my call', { provider, rates: { in: 0, out: 0 } });
+  assert.equal(result.declaration.guardrailClasses['4'], 'hitl');
+  assert.equal(result.declaration.guardrailClasses['3'], previous.guardrailClasses['3'], 'line 3 was not touched by this round, so it must carry over');
 });
 
 // ---------------------------------------------------------------------------
@@ -152,15 +192,18 @@ test('PROOF the test can fail: a clean redraft (no smuggled fields) carries no a
 });
 
 // ---------------------------------------------------------------------------
-// Must-have — the result still passes validate().
+// Must-have — the result still passes validate(), and the merged step's
+// class is DERIVED from line 3 (green), not carried over or chosen.
 // ---------------------------------------------------------------------------
 
-test('a redrafted declaration ("merge 3 and 4") still passes validate()', async () => {
+test('a redrafted declaration ("merge 3 and 4") still passes validate() and derives the merged step\'s class from its fromLine', async () => {
   const previous = job1Declaration();
   const provider = fakeProvider(toolReply(mergedSteps()));
   const result = await runRedraft('fake-model', previous, 'merge 3 and 4', { provider, rates: { in: 0, out: 0 } });
   const verdict = validate(result.declaration);
   assert.equal(verdict.verdict, 'green', verdict.red);
+  const merged = result.declaration.steps.find((s) => s.goal.includes('and compose reply'));
+  assert.equal(merged.close.class, 'green');
 });
 
 test('PROOF the test can fail: dropping the merged step\'s "emits" makes the same redraft red', async () => {

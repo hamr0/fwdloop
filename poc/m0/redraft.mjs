@@ -32,7 +32,10 @@
 //     words; passed straight through from `previousDeclaration.guardrails`
 //     to assembleDeclaration, never re-derived from the reply text and never
 //     taken from the model's tool call. The redraft only re-maps STEPS onto
-//     the SAME numbered guardrails.
+//     the SAME numbered guardrails. `previousDeclaration.guardrailClasses`
+//     is carried through the same way — a guardrail's proposed class only
+//     changes if THIS round's model explicitly reproposes it for that line
+//     number, never as a side effect of re-mapping steps.
 //   - `skills` likewise carries over from `previousDeclaration.skills` (the
 //     signed grant), never from the model or the reply.
 //   - The result must still pass validate().
@@ -43,7 +46,7 @@ import { makeProvider } from './provider.mjs';
 import {
   DRAFTER_MAX_TOKENS, assembleDeclaration,
 } from './drafter.mjs';
-import { guardrailList } from './validator.mjs';
+import { parseLines } from './validator.mjs';
 import { renderDraftTable } from './drafttable.mjs';
 
 import { join, dirname } from 'node:path';
@@ -69,15 +72,19 @@ const STEP_SCHEMA = {
       type: 'array', items: { type: 'string' }, description: 'artifact ids this step reads, each declared by an EARLIER step',
     },
     emits: { type: 'string', description: 'the one new artifact id this step declares' },
+    fromLine: {
+      type: 'integer',
+      description: 'the ONE numbered job line this step serves. Its close class is DERIVED from that line\'s guardrail — never chosen. Omit for a step that serves no particular line (hitl).',
+    },
     close: {
       type: 'object',
       properties: {
-        class: { type: 'string', enum: ['green', 'softgreen', 'hitl'] },
-        shape: { type: 'object', description: 'softgreen only: the declared shape' },
-        tracesTo: { type: 'integer', description: 'the NUMBER of the guardrail this close comes from; omit for hitl' },
+        shape: { type: 'object', description: 'ONLY when fromLine\'s guardrail declares a shape (derives softgreen): the human\'s declared shape, structured. Omit otherwise — no "class", no "tracesTo".' },
       },
     },
   },
+  // `fromLine` is deliberately NOT required: a step that serves no
+  // particular line is hitl (silence is safe).
   required: ['goal', 'primitives', 'reads', 'emits'],
 };
 
@@ -85,6 +92,17 @@ const REDRAFT_SCHEMA = {
   type: 'object',
   properties: {
     steps: { type: 'array', items: STEP_SCHEMA },
+    // Optional here (unlike the first draft): the guardrails haven't
+    // changed, so the previous declaration's proposals carry over by
+    // default (see redraft.mjs's runRedraft / drafter.mjs's
+    // assembleDeclaration). Only emit an entry for a line whose class you
+    // are deliberately reproposing.
+    guardrailClasses: {
+      type: 'object',
+      description: 'reproposed classes, keyed by line number (string) — only for guardrails you are '
+        + 'deliberately changing the class of; anything omitted keeps its previous class.',
+      additionalProperties: { type: 'string', enum: ['green', 'softgreen', 'hitl'] },
+    },
     refused: {
       type: 'array',
       items: {
@@ -99,13 +117,20 @@ const REDRAFT_SCHEMA = {
 
 function redraftPromptFor(previousDeclaration, humanReply) {
   const guardrails = previousDeclaration?.guardrails ?? '';
-  const numbered = guardrailList(guardrails).map((g) => `${g.n}. ${g.text}`).join('\n');
+  const numbered = parseLines(guardrails)
+    .map((l) => `${l.n}. ${l.text}${l.guardrail ? ` [guardrail: ${l.guardrail}]` : ' [no guardrail]'}`)
+    .join('\n');
   return `Here is the current draft table:\n\n${renderDraftTable(previousDeclaration)}\n\n`
-    + `The guardrails are FIXED and numbered — do not restate, reword, add, or remove any of `
-    + `them; "tracesTo" is one of these numbers:\n${numbered}\n\n`
+    + 'The job lines and their guardrails are FIXED — do not restate, reword, add, or remove any '
+    + `of them; "fromLine" is one of these numbers:\n${numbered}\n\n`
     + `The human replied with this change, in their own words:\n"${humanReply}"\n\n`
-    + 'Redraft the STEPS to satisfy the reply, re-mapping each close to the SAME numbered '
-    + 'guardrails above. Do not emit a trigger, cap, askTtlMs, egress, skills, or guardrails — '
+    + 'Redraft the STEPS to satisfy the reply, re-mapping each step\'s "fromLine" onto the SAME '
+    + 'numbered lines above — never a "class", never a "tracesTo"; a step\'s close class is derived, '
+    + 'not chosen. Every guardrail already has a proposed class from the last round, shown in the '
+    + 'table above (or the guardrail column, or "hitl" for one no step names) — leave '
+    + '"guardrailClasses" out entirely unless the reply itself asks you to change what a guardrail '
+    + 'means (e.g. "that total should be green"), in which case emit ONLY the line numbers you are '
+    + 'deliberately reproposing. Do not emit a trigger, cap, askTtlMs, egress, skills, or guardrails — '
     + 'those are not yours to set, and will be ignored even if you emit them. '
     + 'Call emit_declaration now with the full, redrafted step list.';
 }
@@ -177,8 +202,13 @@ export async function runRedraft(modelId, previousDeclaration, humanReply, {
   // assembleDeclaration is drafter.mjs's ONE filter for "skills/guardrails
   // are always the harness-supplied value, never the model's" — reused
   // verbatim so a redraft cannot smuggle a changed guardrail or skillset any
-  // more than a first draft can.
-  const declaration = capturedArgs != null ? assembleDeclaration(capturedArgs, { skills, guardrails }) : null;
+  // more than a first draft can. `previousDeclaration.guardrailClasses` is
+  // passed as the base so an untouched guardrail keeps its class even if
+  // this round's model says nothing about guardrailClasses at all.
+  const previousGuardrailClasses = previousDeclaration?.guardrailClasses;
+  const declaration = capturedArgs != null
+    ? assembleDeclaration(capturedArgs, { skills, guardrails, guardrailClasses: previousGuardrailClasses })
+    : null;
 
   return {
     modelRequested: modelId,

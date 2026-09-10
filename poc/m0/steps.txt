@@ -1,12 +1,13 @@
-steps:
 1. read the sheet
 2. read the message and work out which customer
+   guardrail: if more than one customer matches, ask me, do not pick
 3. list their open invoices, total owed, earliest due, count overdue as of today
+   guardrail: every number must point to the cell it came from or the formula that made it
 4. write a short reply, one line per invoice
+   guardrail: one line per invoice in the reply
 5. check with me
+   guardrail: nothing goes out before I accept
 6. on accept, send
-guardrails:
-- every number must point to the cell it came from or the formula that made it
-- if more than one customer matches, ask me, do not pick
-- nothing goes out before I accept
-- cap $0.25 per run
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.25 per run
