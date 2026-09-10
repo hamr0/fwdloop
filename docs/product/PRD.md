@@ -277,13 +277,32 @@ drafter maps each to machinery:
 
 A guardrail the drafter cannot map is **surfaced in the draft table**, never silently dropped.
 
-**Guardrails and steps are two MAPPING LISTS (RULED 2026-09-10).** The guardrails are a numbered
-list of the human's own bullets. The steps are a second list. A step's close points at a guardrail
-**by its number** — the number is the join key, never the text. Text matching was tried and dropped
-in both forms it can take: a substring match lets a green close trace to a single letter, and a
-whole-line match breaks the moment the drafter re-wraps or re-punctuates the human's words. A
-number cannot be partially right. It also makes the surfacing rule above *computable* rather than
-aspirational: the guardrails no step traced to are exactly the unmapped numbers.
+**One line, one guardrail — strict 1-for-1 (RULED 2026-09-10, superseding the mapping-lists form
+ruled earlier the same day).** The human's job description is a numbered list of lines. Beside each
+line the human writes ONE guardrail, or leaves it blank. Guardrail *n* belongs to line *n* and to
+nothing else. The drafter may still cut one line into several steps — that is its job — but every
+step declares **`fromLine: n`**, the human's line it serves, and its close class is **derived from
+guardrail *n*, never chosen**. A blank guardrail *n* makes every step serving line *n* `hitl`.
+
+The number is still the join key and text matching is still dead — a substring match let a green
+close trace to a single letter, and a whole-line match broke the moment the drafter re-punctuated
+the human's words. What changed is *who picks the number*: the drafter no longer picks one at all.
+
+**Why the choice had to go, measured (F16).** A live drafter stretched job #1's broad citation
+guardrail — 3 runs out of 3 — to justify `green` on a step that emitted a yes/no and no figures at
+all. It could do that because it was allowed to POINT at any guardrail. Removing the pointing
+removes the stretch: a step can only say which of the human's lines it serves, and the guardrail
+there is whatever the human wrote.
+
+**A "generic rule" (`#` = applies to every step) was built to fix the same problem and then
+REJECTED**, in hamr's words: *a rule stops being generic once it doesn't apply to all*. Job #1's
+citation rule does not apply to the read step, the ask step or the send step — it applies to
+*most*, and mostly-true is precisely the loophole the drafter walked through. The cost of the
+rejection is real and accepted: the human repeats a guardrail on each line where it applies rather
+than stating it once. Explicit and repeated beats clever and mostly-true.
+
+The surfacing rule above stays computable: the guardrails no step declared a `fromLine` for are
+exactly the unmapped numbers.
 
 **Every step has a close, and a MISSING close IS `hitl` (RULED 2026-09-10)** — not a red. This is
 the same rule as *anything fitting no class falls to hitl*, applied to the case where the drafter
