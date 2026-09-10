@@ -1,11 +1,25 @@
-// Part 1 — DRAFTER. One paid round per model. Give the model the step-kind
-// menu (PRD §5) + the citation schema + hamr's steps.txt; it answers ONLY via
-// `emit_declaration`. It may merge/split hamr's steps but must NOT emit the
-// cap, an ask's position, or the send target — those are arbiter fields
-// (PRD §5: "trigger, cap, askTtlMs, egress, and every ask step's position
-// are arbiter fields: human-authored, inexpressible to the drafter").
+// Part 1 — DRAFTER. One paid round per model. Give the model the PRIMITIVE
+// catalogue (PRD §6 M0a, menu-is-inventory — every entry an existing
+// implementation, catalogue.mjs) + the artifact-space/close-classing rules +
+// hamr's steps.txt/prose.txt; it answers ONLY via `emit_declaration`. It
+// authors ONLY `steps` (goal, primitives, reads, emits, close) — no step
+// bodies, no plumbing, and NEVER an arbiter field (PRD §5/§6: trigger, cap,
+// askTtlMs, egress, the signed skillset, and "done" are human-signed,
+// inexpressible to the drafter). `skills` and `guardrails` on the final
+// declaration are stitched in by THIS module from the signed grant and the
+// human's own words, verbatim — never taken from the model's tool call, so
+// even a model that tries to emit them is ignored, not merely discouraged.
 //
-// Usage: SYNTHETIC_API_KEY="..." node poc/m0/drafter.mjs <model-id> [--slot synthetic|deepseek] [--prose] [--ungroundable]
+// Usage:
+//   SYNTHETIC_API_KEY="..." node poc/m0/drafter.mjs <model-id> [--slot synthetic|deepseek] [--prose] [--ungroundable] [--uncovered]
+//   (live calls also require DRAFTER_LIVE=1 — see the CLI guard below)
+//
+// --ungroundable plants a line with NO groundable check at all (M0a negative
+// scenario ii — must be refused via "refused", never given a proxy check).
+// --uncovered plants a line WITH a groundable check but no guardrail that
+// covers it (M0a negative scenario vi, "the uncovered-line plant") — it must
+// land at close.class "hitl", never a green/softgreen the drafter invented
+// coverage for.
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -13,6 +27,7 @@ import { fileURLToPath } from 'node:url';
 import { Loop } from 'bare-agent';
 import { assertUnderGlobalCap, appendSpendRow, RUN_CAP_USD } from './spend.mjs';
 import { makeProvider } from './provider.mjs';
+import { menu } from './catalogue.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(__dirname, 'out');
@@ -20,100 +35,173 @@ const SPEND_PATH = join(OUT_DIR, 'spend.jsonl');
 const STEPS_PATH = join(__dirname, 'steps.txt');
 const PROSE_PATH = join(__dirname, 'prose.txt');
 
-const STEP_KIND_MENU = `
-Step kinds (menu, frozen — anything else is a red at validation):
+/** The declaration's signed skillset for M0a's job #1. Real mail egress
+ *  (catalogue.mjs's "mail-egress" skill: draftMail/sendMail) is explicitly
+ *  out of scope here (PRD §6 M9) — job #1 is dry-run egress only, so the
+ *  drafter is granted "core" and nothing else. */
+export const DRAFTER_SKILLS = Object.freeze(['core']);
 
-| kind | does | effect check (always) | grounding close (where prose) |
-|---|---|---|---|
-| gather | read inbox / sheet / doc / url -> typed artifact | artifact non-empty, source hash recorded | - |
-| derive | compute, match, verify from artifacts | output non-empty | every figure cites a source; cited == stated |
-| compose | summary / mail draft from artifacts | output > 0 bytes, shape valid | every claim cites; no uncited figure |
-| ask | render question + evidence, PAUSE | disposition recorded with exact words | - |
-| send | egress: mail / chat / file | delivery id / file path captured | target in signed allow-list; prior ask accept this run |
-| remember | write facts to memory (supersede by id) | row count or hash changed | schema valid | (unused in this job)
+/** Fixed in code, not spec-authorable — the drafter's own output cap (F11:
+ *  DeepSeek honours only the legacy `max_tokens`; provider.mjs's
+ *  `legacyMaxTokens` per slot is what makes this actually bind). */
+export const DRAFTER_MAX_TOKENS = 16000;
 
-Citation schema, three forms:
-// copied figure — one pointer, one value
-{ "id": "c1", "value": 25690, "asStated": "25,690.00",
-  "source": { "kind": "csv", "artifact": "a3", "row": 2, "col": "Balance", "cell": "G2" } }
-// derived figure — a formula over cited inputs; the close recomputes it
-{ "id": "c4", "value": 1750, "formula": "sum", "inputs": ["c1", "c2", "c3"] }
-// text evidence — a quote that must appear verbatim at the pointer
-{ "id": "c7", "quote": "Acme", "source": { "kind": "text", "artifact": "a1", "line": 1 } }
+function primitiveMenuText() {
+  return menu({ skills: DRAFTER_SKILLS })
+    .map((e) => `- ${e.verb} (${e.component}, class: ${e.class}) — ${e.package}#${e.symbol}`)
+    .join('\n');
+}
 
-Closed formula grammar: sum, count, min, max, sub, daysBetween. No expression evaluation.
-A quote must be a verbatim substring of the pointed line. A name match between a message and
-a sheet is a quote citation + the row's cell; if more than one row could match, that step must
-be flagged (never picked) — the runner decides ambiguity mechanically, you only report it.
+const PRIMITIVE_MENU = `
+Primitive catalogue (menu-is-inventory — a grant list, every entry an
+existing implementation; a verb outside this list is a red at validation,
+never invented):
 
-Arbiter fields — YOU DO NOT EMIT THESE, EVER: the cap ($ limit), an ask step's position in the
-sequence (guardrails already state where the human wants to be asked — respect it, don't
-restate or move it), the send target/destination. If hamr's steps ask you to put a stop
-somewhere, put an "ask" step there — but never invent or restate a $ cap or a send target as a
-declaration field.
+${primitiveMenuText()}
 
-If a hamr step cannot be expressed as a typed, cited artifact under this schema (e.g. it asks
-for a subjective judgment with no verifiable ground truth), you MUST refuse it via
-"refuse_step" with a one-line reason, instead of inventing a proxy check.
+There is no wiring layer. Steps share ONE artifact space. Each step you emit:
+- "primitives": the verbs above it needs (may be empty for a step that only
+  reasons over artifacts already read, e.g. matching a customer / deriving figures)
+- "reads": artifact ids DECLARED BY AN EARLIER STEP ONLY — never itself, never
+  a step that comes later
+- "emits": exactly ONE new artifact id this step declares
+You author no step bodies and no plumbing — only this declaration.
+
+Close classing, mapped from the human's own guardrail lines below:
+| guardrail phrase | close it produces |
+|---|---|
+| "every number must point to the cell/formula it came from" | green — tracesTo that exact line |
+| a declared SHAPE the human wrote (e.g. "one line per invoice") | softgreen — tracesTo that exact line |
+| "ask me" / "check with me" / "nothing goes out before I accept" | hitl (an ask/send step), position as the human wrote it |
+
+"tracesTo" must be copied VERBATIM as one WHOLE line from the guardrails text
+you were given below — not a paraphrase, not a fragment, not a word out of
+it. A step whose check is not covered by ANY guardrail line falls to hitl —
+NEVER green, NEVER a softgreen shape you invented coverage for. Unsure = hitl,
+always.
+
+Arbiter fields — YOU DO NOT EMIT THESE, EVER, under any field name: the
+trigger, the $ cap, an ask/send step's POSITION in the sequence (guardrails
+already state where; respect it, never restate or move it), the egress
+allow-list or send target, the signed skillset, or what "done" means for the
+whole flow. If a line asks for a stop somewhere, that is a hitl step — never
+a restated cap or destination.
+
+If a line cannot be expressed as a typed, cited artifact at all (e.g. it asks
+for a subjective judgment with no groundable check whatsoever — not even a
+human check), put it in "refused" with a one-line reason instead of
+inventing a proxy check or a primitive that does not exist.
 `.trim();
+
+const STEP_SCHEMA = {
+  type: 'object',
+  properties: {
+    goal: { type: 'string', description: 'one line: what this step is for' },
+    primitives: {
+      type: 'array', items: { type: 'string' }, description: 'verbs granted in the catalogue above — never invented',
+    },
+    reads: {
+      type: 'array', items: { type: 'string' }, description: 'artifact ids this step reads, each declared by an EARLIER step',
+    },
+    emits: { type: 'string', description: 'the one new artifact id this step declares' },
+    close: {
+      type: 'object',
+      properties: {
+        class: { type: 'string', enum: ['green', 'softgreen', 'hitl'] },
+        shape: { type: 'object', description: 'softgreen only: the declared shape' },
+        tracesTo: { type: 'string', description: 'a WHOLE guardrail line, copied verbatim; omit for hitl' },
+      },
+      required: ['class'],
+    },
+  },
+  required: ['goal', 'primitives', 'reads', 'emits', 'close'],
+};
 
 const DECLARATION_SCHEMA = {
   type: 'object',
   properties: {
-    steps: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          kind: { type: 'string', enum: ['gather', 'derive', 'compose', 'ask', 'send', 'remember'] },
-          goal: { type: 'string', description: 'one line' },
-          inputs: { type: 'array', items: { type: 'string' }, description: 'artifact ids this step reads' },
-          figures: { type: 'array', items: { type: 'string' }, description: 'for derive/compose: figure ids this step will emit' },
-        },
-        required: ['kind', 'goal', 'inputs'],
-      },
-    },
+    steps: { type: 'array', items: STEP_SCHEMA },
     refused: {
       type: 'array',
       items: {
         type: 'object',
-        properties: {
-          hamrStepText: { type: 'string' },
-          reason: { type: 'string' },
-        },
-        required: ['hamrStepText', 'reason'],
+        properties: { hamrLine: { type: 'string' }, reason: { type: 'string' } },
+        required: ['hamrLine', 'reason'],
       },
     },
   },
   required: ['steps'],
 };
 
-export async function runDrafter(modelId, {
-  ungroundable = false, runLabel = 'drafter', slot = 'synthetic', prose = false,
-} = {}) {
-  const { provider, rates, suffix } = makeProvider(slot, { model: modelId });
+/**
+ * Extract the guardrails block verbatim (the human's own words) from the
+ * prose/steps text — everything after a "guardrails:" line (case-insensitive)
+ * to the end of the text. Returns '' if no such marker exists — never
+ * invents one. Pure function: this is the ONE place `declaration.guardrails`
+ * comes from, so the validator's tracesTo matching is checkable against it.
+ */
+export function extractGuardrails(rawText) {
+  const match = /guardrails:[ \t]*\r?\n([\s\S]*)$/i.exec(String(rawText ?? ''));
+  return match ? match[1].trim() : '';
+}
 
-  assertUnderGlobalCap(SPEND_PATH);
+/**
+ * Assemble the final declaration. `skills` and `guardrails` are ALWAYS the
+ * harness-supplied values, NEVER read from the model's tool-call args — the
+ * mechanical form of "the drafter does not author arbiter fields": even a
+ * model that tries to emit its own `skills`/`guardrails` is ignored, not
+ * merely discouraged by the prompt.
+ */
+export function assembleDeclaration(modelArgs, { skills = DRAFTER_SKILLS, guardrails = '' } = {}) {
+  return {
+    skills: [...skills],
+    guardrails,
+    steps: Array.isArray(modelArgs?.steps) ? modelArgs.steps : [],
+    refused: Array.isArray(modelArgs?.refused) ? modelArgs.refused : [],
+  };
+}
+
+const UNGROUNDABLE_LINE = 'rate how friendly the customer sounds';
+const UNCOVERED_LINE = 'flag anything that looks unusual';
+
+/**
+ * Plant one extra job line BEFORE the "Guardrails:" marker — for negative
+ * scenario (ii) (`UNGROUNDABLE_LINE`: no check at all is expressible, must
+ * be refused) or (vi) (`UNCOVERED_LINE`: a real, groundable check with no
+ * guardrail covering it, must land at hitl). Never touches the guardrails
+ * block itself, so `extractGuardrails` on the result is unaffected.
+ */
+export function plantLine(rawText, line, { prose }) {
+  return prose
+    ? rawText.replace('\n\nGuardrails:', ` Also ${line}.\n\nGuardrails:`)
+    : rawText.replace(/guardrails:/i, `7. ${line}\nguardrails:`);
+}
+
+export async function runDrafter(modelId, {
+  ungroundable = false, uncovered = false, runLabel = 'drafter', slot = 'synthetic', prose = false,
+  provider: injectedProvider, rates: injectedRates,
+} = {}) {
+  let provider = injectedProvider;
+  let rates = injectedRates;
+  let suffix = modelId.replace(/^hf:/, '');
+  const live = injectedProvider == null;
+  if (live) {
+    assertUnderGlobalCap(SPEND_PATH);
+    ({ provider, rates, suffix } = makeProvider(slot, { model: modelId }));
+  }
   mkdirSync(OUT_DIR, { recursive: true });
 
   let stepsText = readFileSync(prose ? PROSE_PATH : STEPS_PATH, 'utf8');
-  if (ungroundable) {
-    stepsText = prose
-      ? stepsText.replace(
-        '\n\nGuardrails:',
-        ' Also rate how friendly the customer sounds.\n\nGuardrails:',
-      )
-      : stepsText.replace(
-        'guardrails:',
-        '7. rate how friendly the customer sounds\nguardrails:',
-      );
-  }
+  if (ungroundable) stepsText = plantLine(stepsText, UNGROUNDABLE_LINE, { prose });
+  if (uncovered) stepsText = plantLine(stepsText, UNCOVERED_LINE, { prose });
+
+  const guardrails = extractGuardrails(stepsText);
 
   let capturedArgs = null;
   let capturedText = null;
   const tools = [{
     name: 'emit_declaration',
-    description: 'Emit the flow declaration over the fixed step-kind menu, or refuse a step you cannot ground.',
+    description: 'Emit the flow declaration over the granted primitive catalogue, or refuse a line you cannot ground at all.',
     parameters: DECLARATION_SCHEMA,
     execute: async (args) => { capturedArgs = args; return { ok: true }; },
   }];
@@ -127,50 +215,61 @@ export async function runDrafter(modelId, {
   });
 
   const messages = [
-    { role: 'system', content: `You are the fwdloop drafter. You answer ONLY by calling emit_declaration — never plain text. ${STEP_KIND_MENU}` },
+    { role: 'system', content: `You are the fwdloop drafter. You answer ONLY by calling emit_declaration — never plain text. ${PRIMITIVE_MENU}` },
     { role: 'user', content: `hamr's steps + guardrails for job #1:\n\n${stepsText}\n\nCall emit_declaration now.` },
   ];
 
   const startedAt = Date.now();
-  await loop.run(messages, tools, { maxTokens: 16000 });
+  await loop.run(messages, tools, { maxTokens: DRAFTER_MAX_TOKENS });
   const wallMs = Date.now() - startedAt;
 
   const suffixMatch = metering?.model != null && metering.model.replace(/^hf:/, '') === suffix;
   const costUsd = metering?.costUsd ?? null;
 
-  appendSpendRow(SPEND_PATH, {
-    runId: runLabel, step: 'draft', model: modelId, modelReturned: metering?.model ?? null,
-    tokens: metering?.usage ?? null, costUsd, rateSource: metering?.rateSource ?? null, wallMs,
-  });
-
-  if (costUsd !== null && costUsd > RUN_CAP_USD) {
-    console.error(`WARNING: draft round cost $${costUsd} exceeds the per-run $${RUN_CAP_USD} cap (informational only for M0's single-round draft)`);
+  if (live) {
+    appendSpendRow(SPEND_PATH, {
+      runId: runLabel, step: 'draft', model: modelId, modelReturned: metering?.model ?? null,
+      tokens: metering?.usage ?? null, costUsd, rateSource: metering?.rateSource ?? null, wallMs,
+    });
+    if (costUsd !== null && costUsd > RUN_CAP_USD) {
+      console.error(`WARNING: draft round cost $${costUsd} exceeds the per-run $${RUN_CAP_USD} cap (informational only for M0's single-round draft)`);
+    }
   }
+
+  const declaration = capturedArgs != null ? assembleDeclaration(capturedArgs, { guardrails }) : null;
 
   const report = {
     modelRequested: modelId, modelReturned: metering?.model ?? null, suffixMatch,
-    toolCalled: capturedArgs != null, declaration: capturedArgs, textInstead: capturedArgs ? null : capturedText,
+    toolCalled: capturedArgs != null, declaration, textInstead: capturedArgs ? null : capturedText,
     usage: metering?.usage ?? null, costUsd, rateSource: metering?.rateSource ?? null, wallMs,
-    ungroundable,
+    ungroundable, uncovered,
   };
   return report;
 }
 
-// CLI entry point.
+// CLI entry point — live, opt-in ONLY (DRAFTER_LIVE=1), same discipline as
+// scout.mjs: never runs under `npm test` (node --test never executes this
+// block; no test file imports it), and a stray manual invocation without the
+// flag refuses instead of silently spending money.
 if (import.meta.url === `file://${process.argv[1]}`) {
+  if (process.env.DRAFTER_LIVE !== '1') {
+    console.error('A live drafter round costs real money — set DRAFTER_LIVE=1 to run it. Refusing.');
+    process.exit(1);
+  }
   const modelId = process.argv[2];
   const ungroundable = process.argv.includes('--ungroundable');
+  const uncovered = process.argv.includes('--uncovered');
   const prose = process.argv.includes('--prose');
   const slotIdx = process.argv.indexOf('--slot');
   const slot = slotIdx !== -1 ? process.argv[slotIdx + 1] : 'synthetic';
   if (!modelId) {
-    console.error('usage: node poc/m0/drafter.mjs <model-id> [--slot synthetic|deepseek] [--prose] [--ungroundable]');
+    console.error('usage: DRAFTER_LIVE=1 node poc/m0/drafter.mjs <model-id> [--slot synthetic|deepseek] [--prose] [--ungroundable] [--uncovered]');
     process.exit(1);
   }
   const shapeTag = prose ? 'prose' : 'steps';
-  const tag = `${suffixOf(modelId).replace(/\//g, '_')}-${slot}-${shapeTag}${ungroundable ? '-ungroundable' : ''}`;
+  const tag = `${suffixOf(modelId).replace(/\//g, '_')}-${slot}-${shapeTag}${ungroundable ? '-ungroundable' : ''}${uncovered ? '-uncovered' : ''}`;
   const report = await runDrafter(modelId, {
-    ungroundable, prose, slot, runLabel: `drafter-${tag}`,
+    ungroundable, uncovered, prose, slot, runLabel: `drafter-${tag}`,
   });
   const outPath = join(OUT_DIR, `draft-${tag}.json`);
   writeFileSync(outPath, JSON.stringify(report, null, 2));
