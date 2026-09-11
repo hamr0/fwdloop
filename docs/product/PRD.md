@@ -742,5 +742,11 @@ pointers**, not by asking a second model.
    original, so the run and its close judge the same bytes. *Why not hidden git:* its extra
    powers are diff, undo and resume over files a run EDITS. bareloop edits code; job #1 reads two
    inputs and writes one reply. `gather()` already hashes each input (`poc/m0/mechanical.mjs`),
-   so the copy is the only new part. Revisit if a fwdloop flow ever edits its inputs or needs
-   resume.
+   so the copy is the only new part. **Re-confirmed by hamr 2026-09-11** after weighing git's four
+   powers ("ok, keep hashes"): *what changed* and *undo* serve runs that edit files, and a run
+   folder already deletes whole; *the starting point* is the frozen copy; *resume*, which fwdloop
+   needs MORE than bareloop because humans pause runs, restarts from the frozen inputs plus the
+   step artifacts already on disk, not from a half-edited tree. bareloop's hidden git was also
+   unbuilt at the time (`feat/item-33` had only PRD commits), so there was nothing to borrow.
+   **Switch to hidden git when:** a fwdloop flow edits a file and then checks the edit, or
+   bareloop's hidden git ships and hamr wants one mechanism across both repos.
