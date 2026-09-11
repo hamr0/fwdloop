@@ -106,10 +106,19 @@ export function lookFixtures(csvPath, textPath) {
  * this is the field the M0a exit check (validator.mjs's column listing rule)
  * reads, exactly per the drafter task's "the mechanical read, never the
  * model's facts."
+ *
+ * `reported` (F59 fix) is the ONE bit that says whether the MODEL actually
+ * reported something usable — `rawFacts` had a non-empty `csvColumns` array —
+ * independent of the mechanical fallback below. The fallback exists so
+ * `csv.columns` is never empty (the header is real either way), but it must
+ * never be read as "the scout completed": `classifyFacts` is the one place
+ * that decides ABSENT/PRESENT, and it reads `reported`, never re-derives it
+ * from whether `columns` happens to look like the real header.
  */
 export function groundFacts(rawFacts, { csvArtifact, textArtifact }) {
   const realColumns = csvArtifact.header;
   const reportedColumns = Array.isArray(rawFacts?.csvColumns) ? rawFacts.csvColumns : [];
+  const reported = reportedColumns.length > 0;
   const invented = reportedColumns.filter((c) => !realColumns.includes(c));
   const groundedColumns = reportedColumns.filter((c) => realColumns.includes(c));
   return {
@@ -129,6 +138,7 @@ export function groundFacts(rawFacts, { csvArtifact, textArtifact }) {
     customerMentioned: typeof rawFacts?.customerMentioned === 'string' ? rawFacts.customerMentioned : null,
     notes: typeof rawFacts?.notes === 'string' ? rawFacts.notes : null,
     invented,
+    reported,
   };
 }
 
@@ -144,6 +154,12 @@ export const FACTS_CAUSES = Object.freeze({
   MISSING: 'missing',
   /** present, but not the shape groundFacts produces (not a plain object) */
   MALFORMED: 'malformed',
+  /** F59: report_facts was never called, or was called with no usable `csvColumns` at all
+   *  (missing, empty, or not an array) — the scout did not complete. Checked via the
+   *  `reported` bit `groundFacts` carries on the facts object, NEVER re-derived from whether
+   *  `csv.columns` happens to look like the real header (that would be exactly F59's mistake:
+   *  the mechanical fallback makes an incomplete survey LOOK like a complete one). */
+  SURVEY_NOT_REPORTED: 'survey-not-reported',
   /** the mechanical look itself found no header at all (e.g. an empty or header-less CSV) —
    *  the one case groundFacts's own fallback cannot paper over, because the fallback IS the
    *  (empty) real header */
@@ -162,6 +178,13 @@ export const FACTS_CAUSES = Object.freeze({
  * MECHANICAL read never having produced usable facts at all, which
  * `groundFacts`'s own fallback-to-real-header cannot paper over only when
  * the real header itself came back empty.
+ *
+ * F59 fix: a facts object whose survey never actually reported (`reported`
+ * is not `true` — report_facts was never called, or was called with no
+ * usable `csvColumns`) is ABSENT here too, even though `groundFacts`'s own
+ * mechanical fallback has already filled `csv.columns` in with the real
+ * header. This is the ONE gate: `runDrafter` never re-checks `toolCalled` or
+ * anything else itself — `classifyFacts` is the only place that decides.
  */
 export function classifyFacts(facts) {
   if (facts === null || facts === undefined) {
@@ -176,6 +199,15 @@ export function classifyFacts(facts) {
       state: 'ABSENT',
       cause: FACTS_CAUSES.MALFORMED,
       reason: `facts is a ${Array.isArray(facts) ? 'array' : typeof facts}, not the object groundFacts produces`,
+    };
+  }
+  if (facts.reported !== true) {
+    return {
+      state: 'ABSENT',
+      cause: FACTS_CAUSES.SURVEY_NOT_REPORTED,
+      reason: 'the scout\'s report_facts was never called, or reported nothing usable (F59: this is the scout '
+        + 'not completing, never "no facts needed" — the mechanical header fallback must never be read as a '
+        + 'completed survey)',
     };
   }
   if (!facts.csv || typeof facts.csv !== 'object' || !Array.isArray(facts.csv.columns) || facts.csv.columns.length === 0) {

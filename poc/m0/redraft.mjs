@@ -149,7 +149,10 @@ function redraftPromptFor(previousDeclaration, humanReply) {
     + '"guardrailClasses" out entirely unless the reply itself asks you to change what a guardrail '
     + 'means (e.g. "that total should be green"), in which case emit ONLY the line numbers you are '
     + 'deliberately reproposing. Do not emit a trigger, cap, askTtlMs, egress, skills, or guardrails — '
-    + 'those are not yours to set, and will be ignored even if you emit them. '
+    + 'those are not yours to set, and will be ignored even if you emit them. The send step ITSELF is '
+    + 'not arbiter (PRD: "the send step" is an ordinary step; dry-run egress is the "write" primitive) '
+    + '— draft or re-map it like any other step; only its target, its egress allow-list, and its '
+    + 'position are off-limits. '
     + 'Call emit_declaration now with the full, redrafted step list.';
 }
 

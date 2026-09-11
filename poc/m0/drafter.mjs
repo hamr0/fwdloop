@@ -178,7 +178,13 @@ Arbiter fields — YOU DO NOT EMIT THESE, EVER, under any field name: the
 trigger, the $ cap, an ask/send step's POSITION in the sequence (guardrails
 already state where; respect it, never restate or move it), the egress
 allow-list or send target, the signed skillset, or what "done" means for the
-whole flow.
+whole flow. The SEND STEP ITSELF IS NOT ARBITER (PRD: "the send step" is
+listed as an ordinary step; F13: dry-run egress is the "write" primitive,
+already in your catalogue above) — draft it exactly like any other step:
+goal, "write" among its primitives, a fromLine, a close. Only its TARGET,
+its egress allow-list, and its POSITION are arbiter and off-limits — never
+refuse a send line on the theory that "sending is egress" in general; that
+confuses the step (yours to draft) with its destination (never yours).
 
 If a line cannot be expressed as a typed, cited artifact at all (e.g. it asks
 for a subjective judgment with no groundable check whatsoever — not even a

@@ -34,7 +34,7 @@ import {
 } from './drafter.mjs';
 import { validate, parseArbiterGuardrails } from './validator.mjs';
 import {
-  lookFixtures, groundFacts, FACTS_CAUSES,
+  lookFixtures, groundFacts, FACTS_CAUSES, runScoutRound,
 } from './scout.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -42,13 +42,14 @@ const REPO_ROOT = join(__dirname, '..', '..');
 const CSV_PATH = join(REPO_ROOT, 'fixtures', 'ar-aging.csv');
 const TEXT_PATH = join(REPO_ROOT, 'fixtures', 'message.txt');
 
-// The scout's grounded facts over the REAL fixtures, model round omitted
-// (rawFacts null -> groundFacts's own "fall back to the mechanical truth"
-// path, never invented, never empty — same as scout.test.mjs's own coverage
-// of that path). This is what a well-behaved runDrafter call is handed.
+// The scout's grounded facts over the REAL fixtures, with a genuine (real,
+// non-empty) reported column list — F59 fix: `groundFacts(null, ...)` is now
+// SURVEY_NOT_REPORTED (see the dedicated tests below), so a fixture meant to
+// exercise the NORMAL, well-behaved path must actually report something, not
+// rely on the mechanical fallback to fill facts.csv.columns in behind it.
 function realFacts() {
   const { csvArtifact, textArtifact } = lookFixtures(CSV_PATH, TEXT_PATH);
-  return groundFacts(null, { csvArtifact, textArtifact });
+  return groundFacts({ csvColumns: csvArtifact.header }, { csvArtifact, textArtifact });
 }
 const REAL_FACTS = realFacts();
 
@@ -554,6 +555,7 @@ test('PROOF the test can fail: a facts object grounded against a DIFFERENT (fake
     customerMentioned: null,
     notes: null,
     invented: [],
+    reported: true,
   };
   const provider = fakeProvider(toolReply(job1ModelSteps()));
   await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: fakeFacts });
@@ -582,6 +584,8 @@ test('ABSENT (malformed): runDrafter with a non-object facts value refuses, nami
 
 test('ABSENT (no-columns): a facts object whose mechanical read found no header at all refuses, never treated as empty-OK', async () => {
   const provider = fakeProvider(toolReply(job1ModelSteps()));
+  // `reported: true` isolates this from SURVEY_NOT_REPORTED: the model DID report something,
+  // but the mechanical read itself found no header at all (realColumns/columns both empty).
   const noHeaderFacts = {
     csv: {
       artifactId: 'x', sha256: 'y', rowCount: 0, columns: [], realColumns: [],
@@ -590,6 +594,7 @@ test('ABSENT (no-columns): a facts object whose mechanical read found no header 
     customerMentioned: null,
     notes: null,
     invented: [],
+    reported: true,
   };
   const report = await runDrafter('fake-model', {
     prose: true, provider, rates: { in: 0, out: 0 }, facts: noHeaderFacts,
@@ -597,6 +602,52 @@ test('ABSENT (no-columns): a facts object whose mechanical read found no header 
   assert.equal(report.declaration, null);
   assert.equal(report.absent.cause, FACTS_CAUSES.NO_COLUMNS);
   assert.equal(provider.calls.length, 0);
+});
+
+// F59 fix: a scout round whose model NEVER called report_facts (or reported
+// nothing usable) must be ABSENT — never treated as PRESENT just because
+// groundFacts's own mechanical fallback filled csv.columns in with the real
+// header behind it. This exercises the REAL scout->drafter wiring end to
+// end: a fake scout provider that returns no tool call at all, fed straight
+// into runDrafter.
+test('ABSENT (survey-not-reported): a scout round with no report_facts call produces facts the drafter refuses on, $0 spent', async () => {
+  const scoutProvider = {
+    generate: async () => ({
+      text: 'I cannot help with that.', toolCalls: [], usage: { inputTokens: 30, outputTokens: 10 }, stopReason: 'stop', model: 'fake-model',
+    }),
+  };
+  const scoutReport = await runScoutRound('fake-model', {
+    csvPath: CSV_PATH, textPath: TEXT_PATH, provider: scoutProvider, rates: { in: 0, out: 0 },
+  });
+  assert.equal(scoutReport.toolCalled, false, 'sanity: the scout genuinely never got a tool call');
+  assert.equal(scoutReport.facts.reported, false, 'groundFacts must record that nothing was reported');
+
+  const drafterProvider = fakeProvider(toolReply(job1ModelSteps()));
+  const report = await runDrafter('fake-model', {
+    prose: true, provider: drafterProvider, rates: { in: 0, out: 0 }, facts: scoutReport.facts,
+  });
+  assert.equal(report.declaration, null, 'ABSENT must never produce a draft, not even one with a warning');
+  assert.equal(report.toolCalled, false);
+  assert.equal(report.absent.cause, FACTS_CAUSES.SURVEY_NOT_REPORTED);
+  assert.equal(drafterProvider.calls.length, 0, 'the drafter model must never be called — $0 spent');
+});
+
+test('PROOF the test can fail: the SAME scout facts, with reported forced true, produce a normal draft instead', async () => {
+  const scoutProvider = {
+    generate: async () => ({
+      text: 'I cannot help with that.', toolCalls: [], usage: { inputTokens: 30, outputTokens: 10 }, stopReason: 'stop', model: 'fake-model',
+    }),
+  };
+  const scoutReport = await runScoutRound('fake-model', {
+    csvPath: CSV_PATH, textPath: TEXT_PATH, provider: scoutProvider, rates: { in: 0, out: 0 },
+  });
+  const forcedFacts = { ...scoutReport.facts, reported: true };
+  const drafterProvider = fakeProvider(toolReply(job1ModelSteps()));
+  const report = await runDrafter('fake-model', {
+    prose: true, provider: drafterProvider, rates: { in: 0, out: 0 }, facts: forcedFacts,
+  });
+  assert.notEqual(report.declaration, null);
+  assert.equal(report.absent, undefined);
 });
 
 test('PROOF the ABSENT tests can fail: the SAME calls with REAL_FACTS produce a normal draft, no refusal', async () => {

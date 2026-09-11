@@ -31,6 +31,7 @@ import assert from 'node:assert/strict';
 import {
   validate, guardrailList, unmappedGuardrails, parseLines, parseArbiterGuardrails,
   resolveGuardrailClass, deriveFromLine, effectiveClass, effectiveGuardrailClass, unjudgeableList,
+  refusedLineNumber,
 } from './validator.mjs';
 
 // The signed guardrails text job #1 actually carries, as the NUMBERED JOB
@@ -187,6 +188,10 @@ test('a step with NO fromLine at all is hitl, never a red, even with no close', 
   const decl = validDeclaration();
   delete decl.steps[0].fromLine;
   delete decl.steps[0].close;
+  // Fix 2 (validate()'s dropped-job-line check): step 1 no longer claims
+  // line 1, so it must be refused instead — otherwise line 1 is silently
+  // dropped, which is a DIFFERENT red than the one this test isolates.
+  decl.refused = [{ hamrLine: '1', reason: 'no step names it, for this test' }];
   assert.equal(validate(decl).verdict, 'green');
   assert.equal(effectiveClass(decl.steps[0], decl), 'hitl');
 });
@@ -245,6 +250,10 @@ test('PROOF: the same step is green once correctly landed at hitl', () => {
   decl.steps[2].close = { class: 'green' };
   assert.equal(validate(decl).verdict, 'red');
   decl.steps[2].close = { class: 'hitl' };
+  // Fix 2 (validate()'s dropped-job-line check): moving step 3's fromLine
+  // away from 3 leaves line 3 unclaimed — refuse it so this test still
+  // isolates its own point (a step landed correctly at hitl is green).
+  decl.refused = [{ hamrLine: '3', reason: 'no step names it any more, for this test' }];
   assert.equal(validate(decl).verdict, 'green');
 });
 
@@ -681,4 +690,107 @@ test('RULING 2 held: a blank guardrail resolves to hitl on every path, never any
   assert.equal(effectiveClass({ fromLine: 1 }, validDeclaration()), 'hitl');
   const decl = validDeclaration();
   assert.equal(validate(decl).verdict, 'green'); // the fixture's own blank-line steps (1, 6) are hitl and it still passes
+});
+
+// ---------------------------------------------------------------------------
+// Fix 2 — a dropped job line must be a red (coordinator review, live evidence
+// draft-deepseek-v4-flash-deepseek-prose-unjudgeable-guardrail-1789024978756.json):
+// lines 5 and 6 had no step naming them AND no refused entry, and validate()
+// passed anyway. `unmappedGuardrails` only ever covered GUARDRAIL-BEARING
+// lines for the draft table's own info display — it was never an enforced
+// red, and a BLANK line (no guardrail at all) could vanish just as silently.
+// Every numbered job line must now be served by a step OR refused; arbiter
+// guardrails belong to no line and stay exempt (`parseLines` excludes them).
+// ---------------------------------------------------------------------------
+
+test('a job line with no step naming it and no refused entry is a red naming the line number', () => {
+  const decl = validDeclaration();
+  // Drop the step serving line 5 ("check with me") entirely — no fromLine
+  // anywhere claims it, and nothing refuses it either.
+  decl.steps.splice(5, 1);
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /job line 5 \("check with me"\) is neither served .* nor refused/);
+});
+
+test('PROOF the test can fail: refusing the same dropped line makes the declaration green again', () => {
+  const decl = validDeclaration();
+  decl.steps.splice(5, 1);
+  assert.equal(validate(decl).verdict, 'red');
+  decl.refused = [{ hamrLine: '5', reason: 'the human can check this by hand, no step needed' }];
+  assert.equal(validate(decl).verdict, 'green');
+});
+
+test('a BLANK job line (no guardrail at all) is just as much a red when dropped — not only guardrail-bearing lines', () => {
+  const decl = validDeclaration();
+  // Line 1 ("read the sheet") is BLANK — no guardrail. Keep the step (so the
+  // artifact chain still walks; another step reads "a1") but drop its CLAIM
+  // on line 1, same as the earlier "no fromLine" tests.
+  delete decl.steps[0].fromLine;
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /job line 1 \("read the sheet"\) is neither served .* nor refused/);
+});
+
+test('PROOF the test can fail: unmappedGuardrails alone (the pre-existing, informational-only check) would have said nothing about a dropped BLANK line', () => {
+  const decl = validDeclaration();
+  delete decl.steps[0].fromLine; // line 1 is blank, so it never appears in guardrailList at all
+  assert.deepEqual(unmappedGuardrails(decl), [], 'a blank line never shows up here — this is exactly the gap Fix 2 closes');
+  assert.equal(validate(decl).verdict, 'red', 'but validate() itself must still catch it');
+});
+
+// The exact live shape that exposed the gap: two numbered lines (5, 6) with
+// no step and no refused entry, alongside a planted line 7 that IS served.
+test('the live evidence shape (unjudgeable-guardrail-1789024978756) reds on the first dropped line, naming it', () => {
+  const decl = {
+    skills: ['core'],
+    guardrails: GUARDRAILS.replace(
+      '6. on accept, send',
+      '6. and send it once I accept.',
+    ),
+    guardrailClasses: { 2: 'hitl', 3: 'green', 4: 'softgreen', 5: 'hitl' },
+    steps: [
+      { goal: 'read the sheet', primitives: [], reads: [], emits: 'a1', fromLine: 1, close: { class: 'hitl' } },
+      { goal: 'read the message', primitives: [], reads: [], emits: 'a2', fromLine: 2, close: { class: 'hitl' } },
+      {
+        goal: 'derive totals', primitives: [], reads: ['a1', 'a2'], emits: 'a3', fromLine: 3, close: { class: 'green' },
+      },
+      {
+        goal: 'compose reply', primitives: [], reads: ['a3'], emits: 'a4', fromLine: 4, close: { class: 'softgreen' },
+      },
+      // No step names fromLine 5 or 6 at all — exactly the live gap.
+    ],
+    refused: [],
+  };
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /job line 5 \("check with me"\) is neither served .* nor refused/);
+});
+
+// ---------------------------------------------------------------------------
+// refusedLineNumber — mechanical extraction of a refusal's line number,
+// never a content match against the line's own words. Live drafts return
+// `hamrLine` in two shapes: a bare number and the numbered line verbatim.
+// ---------------------------------------------------------------------------
+
+test('refusedLineNumber extracts the leading number from both live-observed shapes', () => {
+  assert.equal(refusedLineNumber('6'), 6);
+  assert.equal(refusedLineNumber('6. and send it once I accept.'), 6);
+  assert.equal(refusedLineNumber('  6  '), 6);
+});
+
+test('refusedLineNumber returns null, never a guess, when there is no leading digit at all', () => {
+  assert.equal(refusedLineNumber('the send line'), null);
+  assert.equal(refusedLineNumber(''), null);
+  assert.equal(refusedLineNumber(undefined), null);
+  assert.equal(refusedLineNumber(null), null);
+});
+
+test('PROOF the test can fail: a refusal with no leading digit does NOT cover the line it describes in prose', () => {
+  const decl = validDeclaration();
+  decl.steps.splice(5, 1); // drop the step for line 5
+  decl.refused = [{ hamrLine: 'check with me', reason: 'described in prose, no number at all' }];
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red', 'a prose-only refusal must not silently satisfy coverage for line 5');
+  assert.match(result.red, /job line 5/);
 });

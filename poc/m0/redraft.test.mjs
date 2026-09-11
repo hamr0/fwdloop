@@ -121,6 +121,11 @@ function mergedSteps() {
       { ...prev.steps[4], reads: ['a3'] },
       { ...prev.steps[5], reads: ['a3'] },
     ],
+    // Fix 2 (validate()'s dropped-job-line check): the merge folds line 4's
+    // work into the step serving line 3, so no step names fromLine 4 any
+    // more — line 4 must still be ACCOUNTED for, never silently dropped, so
+    // the merge explicitly refuses it with the reason.
+    refused: [{ hamrLine: '4', reason: 'folded into the step serving line 3 ("merge 3 and 4")' }],
   };
 }
 

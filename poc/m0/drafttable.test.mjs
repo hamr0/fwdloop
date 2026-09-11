@@ -237,6 +237,11 @@ test('a step with NO fromLine at all displays as hitl too', () => {
   const decl = job1Declaration();
   delete decl.steps[0].fromLine;
   delete decl.steps[0].close;
+  // Fix 2 (validate()'s dropped-job-line check): with step 1's fromLine gone,
+  // line 1 is no longer served by any step — refuse it explicitly so THIS
+  // test still isolates its own point (a step with no fromLine renders
+  // hitl), independent of the unrelated line-coverage rule.
+  decl.refused = [{ hamrLine: '1', reason: 'line 1 intentionally unclaimed by any step, for this rendering test' }];
   const rendered = renderDraftTable(decl);
   const lines = rendered.split('\n');
   const idx = lines.findIndex((l) => l.trim() === '1. read the sheet');

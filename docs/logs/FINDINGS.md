@@ -1012,3 +1012,28 @@ at n=5 and not iterated. Tuning the prompt until 5/5 would be fitting to pass.
 **Verdict:** M0a's scout-facts exit item is met. M0a is not signable until the three holes close,
 because a declaration that drops or refuses the send line cannot reach M0b's "green through send".
 
+**Closed the same day (Sonnet, reviewed and re-proven by the orchestrator).**
+1. *F59*: `groundFacts` carries `reported`, and `classifyFacts`, the one gate, reds
+   `SURVEY_NOT_REPORTED` at $0. Switched off: 3 tests red. Edge case left open: a survey that
+   reports only invented columns counts as reported. The drafter still gets the real header,
+   and the invented names are kept in `invented`.
+2. *Dropped line*: `validate()` reds any numbered job line that is neither served by a
+   `fromLine` nor refused. `refusedLineNumber` parses only the leading integer, never the words.
+   Switched off: 6 tests red, including the reconstructed 1789024978756 draft.
+3. *Send*: one wording change in the drafter's arbiter block (mirrored in redraft): the send
+   step is the drafter's to draft with `write`; only its target, allow-list and position are
+   arbiter. Measured once, not iterated.
+
+Live, deepseek, final build, every draft opened and run through `validate()` by the orchestrator:
+
+| set | n | line 6 | plant result | validate | invented |
+|---|---|---|---|---|---|
+| clean prose | 5 | step, `write`, 5/5 | — | green 5/5 | 0 |
+| `--ungroundable` (neg. ii) | 2 | step, `write`, 2/2 | line 7 refused 2/2 | green | 0 |
+| `--uncovered` (neg. vi) | 2 | step, `write`, 2/2 | line 7 hitl 2/2 | green | 0 |
+| `--unjudgeable-guardrail` (F18) | 2 | step, `write`, 2/2 | flagged, hitl 2/2 | green | 0 |
+
+Send, before → after the wording: 6/11 drafted → **11/11**. The plants were rerun specifically
+to check the wording did not suppress legitimate refusals. It didn't. 275/275 tests. Ledger
+$0.4648 of $5.00.
+

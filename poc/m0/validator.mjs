@@ -319,6 +319,22 @@ export function unmappedGuardrails(declaration) {
 }
 
 /**
+ * Mechanically extract the leading line number from a `refused[].hamrLine`
+ * string — NEVER a content match against the line's own words (that would be
+ * exactly the F16-style fitted-regex mistake this validator already rejects
+ * elsewhere). Live drafts return this field in two observed shapes: a bare
+ * number ("6") and the numbered line text verbatim ("6. and send it once I
+ * accept."), both of which start with the digits — so a leading-integer
+ * parse handles both without guessing at which line a description refers to.
+ * A `hamrLine` with no leading digit at all cannot be matched mechanically
+ * and returns null — it is never counted toward any line, not guessed at.
+ */
+export function refusedLineNumber(hamrLine) {
+  const m = /^\s*(\d+)\b/.exec(String(hamrLine ?? ''));
+  return m ? Number(m[1]) : null;
+}
+
+/**
  * Validate one declaration's walkable chain. Returns { verdict, red } —
  * 'green'/null on a clean pass, 'red'/<gap-style string> on the FIRST
  * failure found, walking steps in declared order (declaration order IS
@@ -523,6 +539,34 @@ export function validate(declaration) {
             + 'does not produce, and an uncovered or blank-guardrail line must fall to hitl',
         };
       }
+    }
+  }
+
+  // Check 6 (Fix 2 — a dropped job line must be a red, PRD strict 1-for-1 +
+  // negative scenario ii): every NUMBERED job line — guardrail-bearing or
+  // blank, it makes no difference — must be either served by at least one
+  // step's `fromLine` or refused with a reason in `refused[]`. A line that
+  // is neither is silently DROPPED, never surfaced anywhere, and that is a
+  // red naming the line — never merely an "unmapped guardrail" left for the
+  // draft table to note (that check only ever covered guardrail-BEARING
+  // lines; a blank line like job #1's line 1 or 6 could vanish just as
+  // easily and previously validated green). Arbiter guardrails belong to no
+  // line at all and are exempt by construction — `parseLines` never returns
+  // them, so they can never appear in `lines` here.
+  const claimedLines = new Set(
+    declaration.steps.map((st) => st.fromLine).filter((n) => Number.isInteger(n)),
+  );
+  const refusedList = Array.isArray(declaration.refused) ? declaration.refused : [];
+  const refusedLines = new Set(
+    refusedList.map((r) => refusedLineNumber(r?.hamrLine)).filter((n) => n !== null),
+  );
+  for (const line of lines) {
+    if (!claimedLines.has(line.n) && !refusedLines.has(line.n)) {
+      return {
+        verdict: 'red',
+        red: `validator: job line ${line.n} ("${line.text}") is neither served by any step's fromLine `
+          + 'nor refused with a reason — a numbered line must never be silently dropped',
+      };
     }
   }
 

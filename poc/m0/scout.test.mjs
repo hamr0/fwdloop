@@ -112,6 +112,15 @@ test('groundFacts falls back to the mechanical truth when the model reports noth
   const facts = groundFacts({}, { csvArtifact, textArtifact });
   assert.deepEqual(facts.csv.columns, csvArtifact.header);
   assert.deepEqual(facts.invented, []);
+  // F59: the fallback fills csv.columns in with the real header, but that must
+  // never be read as "the scout completed" — `reported` says so explicitly.
+  assert.equal(facts.reported, false, 'nothing usable was reported, so `reported` must be false even though columns is filled in');
+});
+
+test('PROOF the test can fail: a genuine (even partial) report sets reported to true', () => {
+  const { csvArtifact, textArtifact } = lookFixtures(CSV_PATH, TEXT_PATH);
+  const facts = groundFacts({ csvColumns: [csvArtifact.header[0]] }, { csvArtifact, textArtifact });
+  assert.equal(facts.reported, true);
 });
 
 // ---------------------------------------------------------------------------
@@ -220,6 +229,11 @@ test('PROOF the test can fail: no tool call at all leaves toolCalled false and f
   assert.equal(report.toolCalled, false);
   const realHeader = parseCsv(readFileSync(CSV_PATH, 'utf8')).header;
   assert.deepEqual(report.facts.csv.columns, realHeader);
+  // F59: a mechanically-filled-in columns list must never be read as a completed
+  // survey — `reported` is false and classifyFacts must say ABSENT/SURVEY_NOT_REPORTED.
+  assert.equal(report.facts.reported, false);
+  assert.equal(classifyFacts(report.facts).state, 'ABSENT');
+  assert.equal(classifyFacts(report.facts).cause, FACTS_CAUSES.SURVEY_NOT_REPORTED);
 });
 
 // ---------------------------------------------------------------------------
@@ -270,6 +284,8 @@ test('classifyFacts: a non-object facts value is ABSENT, cause MALFORMED', () =>
 });
 
 test('classifyFacts: an object whose mechanical read found no CSV header at all is ABSENT, cause NO_COLUMNS', () => {
+  // `reported: true` isolates this from SURVEY_NOT_REPORTED — the model DID
+  // report something, but the mechanical read itself found no header at all.
   const noHeader = {
     csv: {
       artifactId: 'x', sha256: 'y', rowCount: 0, columns: [], realColumns: [],
@@ -278,17 +294,30 @@ test('classifyFacts: an object whose mechanical read found no CSV header at all 
     customerMentioned: null,
     notes: null,
     invented: [],
+    reported: true,
   };
   assert.equal(classifyFacts(noHeader).cause, FACTS_CAUSES.NO_COLUMNS);
 });
 
-test('classifyFacts: a real, mechanically-grounded facts object is PRESENT, never ABSENT', () => {
+test('classifyFacts: a facts object whose survey never reported is ABSENT, cause SURVEY_NOT_REPORTED — the F59 gap', () => {
   const { csvArtifact, textArtifact } = lookFixtures(CSV_PATH, TEXT_PATH);
+  // groundFacts(null, ...) is EXACTLY "the model never called report_facts" —
+  // the mechanical fallback still fills csv.columns in with the real header,
+  // but that must never read as a completed survey.
   const facts = groundFacts(null, { csvArtifact, textArtifact });
+  assert.equal(facts.reported, false, 'sanity: this really is the not-reported path');
+  assert.deepEqual(facts.csv.columns, csvArtifact.header, 'sanity: the fallback DID fill columns in with the real header');
+  assert.equal(classifyFacts(facts).state, 'ABSENT');
+  assert.equal(classifyFacts(facts).cause, FACTS_CAUSES.SURVEY_NOT_REPORTED);
+});
+
+test('classifyFacts: a real, mechanically-grounded facts object with a genuine report is PRESENT, never ABSENT', () => {
+  const { csvArtifact, textArtifact } = lookFixtures(CSV_PATH, TEXT_PATH);
+  const facts = groundFacts({ csvColumns: csvArtifact.header }, { csvArtifact, textArtifact });
   assert.deepEqual(classifyFacts(facts), { state: 'PRESENT', cause: null, reason: null });
 });
 
-test('PROOF the classifyFacts tests can fail: a facts object with a genuinely non-empty csv.columns is not ABSENT', () => {
+test('PROOF the classifyFacts tests can fail: a facts object with a genuinely non-empty csv.columns AND reported:true is not ABSENT', () => {
   const facts = {
     csv: {
       artifactId: 'x', sha256: 'y', rowCount: 1, columns: ['Customer'], realColumns: ['Customer'],
@@ -297,6 +326,7 @@ test('PROOF the classifyFacts tests can fail: a facts object with a genuinely no
     customerMentioned: null,
     notes: null,
     invented: [],
+    reported: true,
   };
   assert.equal(classifyFacts(facts).state, 'PRESENT');
 });
