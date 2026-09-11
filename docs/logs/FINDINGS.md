@@ -732,7 +732,8 @@ integers, and every unmapped step falls to `hitl`.
 > "scout" appears in `drafter.mjs` and `redraft.mjs` only inside comments. The latest baseline
 > draft (`poc/m0/out/draft-deepseek-v4-flash-*-unjudgeable-guardrail-1789025084328.json`) names
 > no fixture column at all. So M0a's exit item "a column name in the declaration matches the
-> fixture and was not invented" is **unproven**. Only the guardrail mapping claim stands. The
+> fixture and was not invented" is **unproven**. *(Closed by F21, 2026-09-11: 3/3 live drafts name only real
+> columns.)* Only the guardrail mapping claim stands. The
 > design to borrow is bareloop's: the scout emits a facts object, the authoring call gets it as
 > input and stays toolless, and an empty `{}` reads as "scout did not complete", never "no
 > facts needed" (bareloop `docs/product/2026-08-07-close-authoring-design.md:345-370`, F59).
@@ -956,4 +957,58 @@ one reply, and `gather()` already hashes. Written into PRD §8 item 9 and as an 
   form is fwdloop's. Noted, no module.
 
 **Verdict:** scope settled from both sides; nothing in M0a changes. M0b gains one input rule.
+
+## F21 — the scout's facts reach the drafter: 3/3 real columns, 0 invented; three older holes surface (2026-09-11)
+
+**Date** 2026-09-11 · **Status** exit item measured; three holes open, sent back to Sonnet ·
+**Class** M0a exit / drafter stability · **Grounded in** commit `f60d513`; live drafts
+`poc/m0/out/draft-deepseek-v4-flash-deepseek-prose-1789098{132037,148504,168855}.json`, each
+opened by the orchestrator; a tally over all 11 deepseek prose drafts in `poc/m0/out/`;
+`poc/m0/drafter.mjs:177-185`; `poc/m0/scout.mjs` (`runScoutRound`, `groundFacts`, `classifyFacts`).
+
+**The exit item holds.** The drafter now gets the scout's grounded facts, and each step may
+declare `columns`. Every value must select from `realColumns`, the header the mechanical read
+returned. Harness-supplied, never the model's: bareloop's listing rule applied to columns
+(`checkPaths`, `authoring.js:1599`). Live, deepseek, n=3, scout → drafter, $0.018 total:
+
+| run | columns named (all steps) | invented |
+|---|---|---|
+| 132037 | Customer, Invoice #, Invoice date, Due date, Amount, Days overdue, Current, 1-30, 31-60, 61-90, 90+ | 0 |
+| 148504 | Customer, Invoice #, Invoice date, Due date, Amount, Days overdue | 0 |
+| 168855 | all 11 real columns | 0 |
+
+The column check was switched off by hand and tests 94 and 156 went red; ABSENT facts refuse
+at $0 before any model call. 263/263 tests.
+
+**Three holes, all older than this change, found while checking it.**
+
+1. **F59, reproduced in fwdloop.** `runScoutRound` records `toolCalled: false` when the model
+   never reports, but `groundFacts` falls back to the real header and `classifyFacts` never sees
+   the flag. So a scout that did not complete reads PRESENT. Exactly the mistake bareloop's F59
+   exists to prevent (`authorscout.js:284-303`).
+2. **A job line can vanish.** The validator reds a guardrail no step serves, but not a job line.
+   Draft `…-unjudgeable-guardrail-1789024978756.json` has no step and no refusal for line 6, and
+   passed.
+3. **The drafter falsely refuses the send line.** Line 6, "and send it once I accept", across
+   all 11 deepseek prose drafts:
+
+   | | step | refused | dropped |
+   |---|---|---|---|
+   | before scout facts (8) | 5 | 2 | 1 |
+   | with scout facts (3) | 1 | 2 | 0 |
+   | **total (11)** | **6** | **4** | **1** |
+
+   Reasons given: "sending is egress… the send target, allow-list and position are arbiter
+   fields". The PRD says otherwise. The send step is ordinary (PRD:297; F13 maps dry-run egress
+   to `write` ✅; M0b's exit is "green through `send`"), and only its target (`egress.allowList`,
+   PRD:335) and its position are arbiter. Cause: `drafter.mjs:177-185` lists the send target and
+   position as arbiter fields, then says to refuse what can't be grounded, and never says the
+   step itself is the drafter's. n=3 can't say whether the facts made it worse (2/8 → 2/3).
+
+**Sent back** (same Sonnet agent): a named ABSENT route for an unreported survey; a red for a job
+line neither served nor refused; one wording change stating the PRD's send rule, measured once
+at n=5 and not iterated. Tuning the prompt until 5/5 would be fitting to pass.
+
+**Verdict:** M0a's scout-facts exit item is met. M0a is not signable until the three holes close,
+because a declaration that drops or refuses the send line cannot reach M0b's "green through send".
 
