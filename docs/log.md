@@ -25,3 +25,7 @@
 ## [2026-09-11] index-flat | 13 row(s) (5 product, 7 logs, 1 archive)
 ## [2026-09-11] apply-reorg | moved 2, skipped 0, 0 oversized split candidate(s), 4 link(s) rewritten, 0 sync failure(s), 0 empty dir(s) removed, CLAUDE.md updated: true
 ## [2026-09-11] reorg | discover+apply-reorg+lint over 11 doc(s), due reported
+## [2026-09-11] validate | PASS — 0 gate failure(s)
+## [2026-09-11] validate | PASS — 0 gate failure(s)
+## [2026-09-11] archive | docs/product/PRD.md -> docs/archive/PRD.md, 153 link(s) rewritten
+## [2026-09-11] index-flat | 17 row(s) (8 product, 7 logs, 2 archive)
