@@ -1037,3 +1037,38 @@ Send, before → after the wording: 6/11 drafted → **11/11**. The plants were 
 to check the wording did not suppress legitimate refusals. It didn't. 275/275 tests. Ledger
 $0.4648 of $5.00.
 
+## F22 — the baseline model was retired under us; M0a's proof ran on V4.1 Flash (2026-09-11)
+
+**Date** 2026-09-11 · **Status** measured; naming fix sent to Sonnet · **Class** provider /
+F14 follow-up · **Grounded in** `GET https://api.deepseek.com/models` (2026-09-11) → `['deepseek-flash',
+'deepseek-v4-pro']`; DeepSeek pricing page (`api-docs.deepseek.com/quick_start/pricing`, read
+2026-09-11); `poc/m0/out/spend.jsonl` (57 deepseek rows); `poc/m0/provider.mjs:24`,
+`poc/m0/spend.mjs:152`.
+
+**What F14 saw was a retirement, and nobody acted on it.** F14 built the `modelMatch` stamp and
+left "should `substituted` red a run" for M4. Since then, **47 of 57** deepseek rounds were stamped
+`substituted` (requested `deepseek-v4-flash`, served `deepseek-flash`), each with a process
+warning. No run stopped, and the orchestrator didn't check until hamr asked what had been glossed
+over. DeepSeek's own page: *"Use deepseek-flash as the model name. The legacy names
+deepseek-v4-flash … are still accepted, but the corresponding models have been retired, their
+requests are served by the DeepSeek-V4.1-Flash"*, billed at the Flash price.
+
+**What it means for M0a.** Every live M0a proof (F17, F18, F21) ran on **V4.1 Flash**,
+consistently (all post-switch rows served `deepseek-flash`). The evidence holds, for V4.1 Flash.
+F12's baseline flip was measured on the retired V4 Flash, and that model no longer exists to run.
+No re-run is needed: asking for `deepseek-flash` gets the same model that produced the evidence.
+
+**Money: the ledger over-counts, the safe way.** Our rate is $0.44 in / $1.32 out per 1M tokens.
+V4.1 Flash is $0.30 / $1.20 at peak (01:00–04:00 and 06:00–10:00 UTC, weekdays) and half that
+off-peak. The ledger's $0.46 is a ceiling. Unknown cost is never rendered as 0, and it wasn't.
+
+**Also on that page:** from 2026-09-14 12:00 Beijing time, `deepseek-v4-pro` routes to V4.1 Flash
+too. We don't use it; noted so it isn't picked as a "second DeepSeek" later.
+
+**Fix (sent to Sonnet):** request `deepseek-flash` so request = served and the stamp reads `match`;
+price it at the published V4.1 Flash peak rate. F14's open question stands, and this case is a
+reason to answer it in M4: a warning that fires 47 times and changes nothing is not a watcher.
+
+**Verdict:** M0a's evidence is valid, and it is evidence about DeepSeek-V4.1-Flash. The baseline is
+renamed to what actually runs.
+
