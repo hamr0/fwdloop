@@ -621,7 +621,7 @@ allow-list and a prior `ask` accept in the same run.
 
 ## §7 Playbook — split by target (ruled 2026-09-09)
 
-`docs/product/playbook.md`. Each rule binds either **how we build fwdloop** or **every flow
+`docs/wiki/playbook.md`. Each rule binds either **how we build fwdloop** or **every flow
 fwdloop produces**.
 
 **Binds us (construction):**
