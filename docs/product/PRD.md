@@ -733,8 +733,8 @@ pointers**, not by asking a second model.
    arbiter field); each run records the hashes it actually read. Per-step source declarations
    stay unneeded. Lands in M0b, where inputs are first read for real. Not an M0a blocker.
 
-   **RESOLVED 2026-09-11.** hamr delegated the mechanism ("hidden git or hash, whichever is
-   easier"). Chosen: **a frozen copy plus sha256**, borrowing bareloop item 33's *source and
+   **RESOLVED and SIGNED by hamr 2026-09-11** ("i can sign off the fingerprint idea"). hamr
+   delegated the mechanism ("hidden git or hash, whichever is easier"). Chosen: **a frozen copy plus sha256**, borrowing bareloop item 33's *source and
    destination proven at job start, mechanically, $0*. At job start, before any tokens: read each
    signed input source, copy its bytes into the run's own folder, and record each one's sha256 in
    the run log; prove the destination writable. A source that can't be read or a destination
