@@ -334,7 +334,7 @@ One flow, one hash, signed whole. Any edit flips the hash and demands re-accept 
   "askTtlMs":   ...,                  // ARBITER
   "egress":     { "allowList": [...] },              // ARBITER
   "skills":     ["..."], "persona": "...",           // ARBITER (signed checkboxes)
-  "provider":   "deepseek", "model": "deepseek-v4-flash", // ARBITER — INSIDE the hash
+  "provider":   "deepseek", "model": "deepseek-flash",    // ARBITER — INSIDE the hash
   "guardrails": "<the human's own words, verbatim>", // the SOURCE of every class
   "steps": [
     { "goal": "...",                  // drafted
@@ -447,7 +447,7 @@ over frameworks** holds there too, and a framework needs a reason, not a prefere
 
 ## §5 Baseline model — SETTLED, not reopened
 
-**`deepseek-v4-flash` (DeepSeek direct) is the baseline for every experiment**
+**`deepseek-flash` (DeepSeek direct, DeepSeek-V4.1-Flash) is the baseline for every experiment** *(renamed 2026-09-11, F22: DeepSeek retired V4 Flash and routes the legacy name `deepseek-v4-flash` to V4.1 Flash, which is what every M0a proof ran on)*
 (`pass show amr/deepseek_api` → `DEEPSEEK_API_KEY`). **`hf:Qwen/Qwen3.8-27B` on synthetic.new is
 the second provider** (`pass show amr/synthetic_api` → `SYNTHETIC_API_KEY`) — a different company
 behind a different gateway, so losing one does not lose both.
