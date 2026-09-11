@@ -919,3 +919,41 @@ judge, so nothing is borrowed from it. Don't start.
 signature on PRD §8 item 9. Gap 1 stays the one M0a blocker, and its fix is now the listing
 rule for columns.
 
+## F20 — the bareloop/fwdloop line is ruled: fwdloop is the job with a human in it (2026-09-11)
+
+**Date** 2026-09-11 · **Status** ruled upstream; PRD §1 reworded, §8 item 9 resolved · **Class**
+scope / borrow · **Grounded in** bareloop `docs/product/PRD.md:684-814` (item 33, signed by hamr
+2026-09-10; commits `75561c4`, `38d376a` on bareloop main, unpushed at time of reading), relayed
+by the bareloop `loop` session 2026-09-10; hamr 2026-09-11: "hidden git or hash whichever is
+easier".
+
+**The line.** bareloop = `green`/`softgreen`, repo or plain folder, no human mid-run, one-shot,
+self-healing by retry. fwdloop = jobs with humans in them: hitl windows, chat, daily/monthly
+budgets, prose + guardrails, escalating to a person more than retrying. A non-code job a machine
+or judge can close with no human is bareloop's. PRD §1's old frame, "fwdloop is the job bareloop
+refuses", rotted as its own citation predicted: bareloop now takes plain folders via hidden git.
+§1 now says "fwdloop is the job with a human in it"; the old frame is kept marked superseded.
+
+**Inputs: a frozen copy plus sha256, not hidden git.** hamr delegated the choice. Hidden git's
+extra powers (diff, undo, resume) serve runs that EDIT files; job #1 reads two inputs and writes
+one reply, and `gather()` already hashes. Written into PRD §8 item 9 and as an M0b input bullet.
+
+**What bareloop just ruled that fwdloop already has, stronger.**
+- *Output rule* ("destination exists and is not empty") = `happened()`, which fwdloop runs on
+  EVERY step, not only the destination (wired in `2b7188c`).
+- *Citation rule* ("every claim points to a real input line") = the green citation close
+  (`poc/m0/close.mjs`), which also recomputes derived figures. bareloop's stated ceiling applies
+  to our copied citations too: code proves the cited cell EXISTS and matches, not that the step
+  chose the right cell for the claim.
+
+**What is not borrowed, and why.**
+- *Intake form + a 2-round confirm turn.* bareloop's own words: the cap "is what keeps this
+  one-shot and not fwdloop's chat". fwdloop's intake is prose + numbered guardrails negotiated
+  over the draft table (§3.5).
+- *Calibration and the rubric judge.* fwdloop's `softgreen` is a declared shape, not a judge; see
+  bareloop F159.
+- *Web search (bareloop H6).* Reading and searching is bareloop's; submitting a booking or payment
+  form is fwdloop's. Noted, no module.
+
+**Verdict:** scope settled from both sides; nothing in M0a changes. M0b gains one input rule.
+

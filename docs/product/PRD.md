@@ -17,30 +17,28 @@ Findings live in `docs/logs/FINDINGS.md` — never in this file.
 
 ## §1 Problem & goal
 
-**The problem.** bareloop closes work because the work lands in a **repo**: files change, tests
-run, and its two rails — `green` (deterministic) and `softgreen` (rubric) — have something real
-to check. Human-in-the-loop never fit those rails. A HITL turn has different hardness
+**The problem.** bareloop closes jobs that need no human mid-run: a machine check (`green`) or
+a rubric judge (`softgreen`), over a repo or a plain folder, run once or now and then, healing
+itself by retry. Human-in-the-loop never fit those rails. A HITL turn has different hardness
 requirements from either rail, and bolting it into bareloop would entangle two sets of rails so
 badly that every small change becomes a release nightmare (hamr, 2026-09-09). So HITL was never
 built there.
 
-**bareloop says this in its own source, and it is the sharpest statement of the problem we have.**
-`src/authorjob.js` carries a declared radio — `green | soft-green | hitl` — and *"v1 STILL ADMITS
-ONLY `green`. A soft-green or hitl pick returns the honest counted refusal"* (`:38`). What it
-prints when it refuses (`:293`):
+**The line, ruled from both sides** (bareloop PRD item 33, signed by hamr 2026-09-10,
+`bareloop@38d376a`). bareloop = `green`/`softgreen`, repo or plain folder, no human mid-run,
+one-shot jobs with a fixed shape, self-healing by retry, a review door at the end. **fwdloop =
+jobs with humans in them:** daily-grind automation of part of a person's work, hitl windows, chat
+and multi-turn, daily/monthly budgets, prose + guardrails. It escalates to a person more than it
+retries, and it may still carry deterministic or rubric steps. A non-code job that a machine or a
+judge can close with no human is bareloop's, not ours.
 
-> *"This job has no code repository, so there is no seed to measure against and no changed set to
-> read — nothing deterministic can decide whether it came back done. That needs a judged
-> (soft-green) or a human close; this authoring flow drafts code-genre closes against a git seed
-> only."*
+**fwdloop is the job with a human in it.** Job #1 fits: a person asks in chat, and nothing goes
+out before they accept.
 
-**fwdloop is the job bareloop refuses.** Not a metaphor — that is the error message.
-
-*Citation pinned to `bareloop@05ea1ab`, read 2026-09-09.* **That text is being rewritten upstream
-and this quote will rot** (bareloop session, 2026-09-09): bareloop is unlocking `softgreen` as a
-judged close, and **`hitl` is being retired there and moved here** — it is fwdloop's class now,
-which is the same boundary this PRD draws from the other side. What does not change is the reason
-the refusal existed: no repo, no seed, nothing deterministic to decide it came back done.
+*Superseded framing, kept so it is not re-derived.* This PRD used to say "fwdloop is the job
+bareloop refuses", quoting bareloop's no-repo refusal (`src/authorjob.js:293` @05ea1ab). That
+refusal is going away: bareloop now takes plain folders by running git in a hidden scratch copy.
+So the dividing line was never "no repo". It is the human.
 
 **The goal.** fwdloop replaces **a human's job** with code. Not a repo — a job. The human
 describes the job in their own words plus guardrails; the machine works out the steps, picks
@@ -540,6 +538,10 @@ on all of them.
   what a truth-only close missed; (iii) a step whose class is not declared is refused at
   validation — the machine never picks a class.
 
+- *Inputs (§8 item 9):* both fixtures are frozen and hashed at job start, and every step reads
+  the frozen copy. An unreadable source or unwritable destination refuses by name, at $0, before
+  any model call.
+
 *Numbers before firing (playbook P2):* plants caught N/N, false reds 0/N, $ per run against the
 human cost, wall per run. Cap: **$5 total**, spend so far $0.167.
 
@@ -721,7 +723,7 @@ pointers**, not by asking a second model.
    *Sizing, if it is ever needed:* locate+decide ran ~$0.002–0.004 per call; haiku emitted
    malformed JSON on locate roughly 1 in 6, mitigated with one retry and **never JSON repair**.
 
-9. **Where are a flow's inputs pinned? (raised 2026-09-10, F19 — hamr to sign.)** A live draft's step
+9. **Where are a flow's inputs pinned? (raised 2026-09-10, F19; RESOLVED 2026-09-11, F20.)** A live draft's step
    reads `fixtures/message.txt` straight through its `read` primitive, and no step emits it as an
    artifact, so the walkable-chain validator can't see it. bareloop's answer (its live session,
    2026-09-10): steps declare no reads at all. Inputs are implicit and the whole tree is pinned
@@ -730,3 +732,15 @@ pointers**, not by asking a second model.
    file into a manifest. The human signs WHICH input sources the job may read (the listing, an
    arbiter field); each run records the hashes it actually read. Per-step source declarations
    stay unneeded. Lands in M0b, where inputs are first read for real. Not an M0a blocker.
+
+   **RESOLVED 2026-09-11.** hamr delegated the mechanism ("hidden git or hash, whichever is
+   easier"). Chosen: **a frozen copy plus sha256**, borrowing bareloop item 33's *source and
+   destination proven at job start, mechanically, $0*. At job start, before any tokens: read each
+   signed input source, copy its bytes into the run's own folder, and record each one's sha256 in
+   the run log; prove the destination writable. A source that can't be read or a destination
+   that can't be written refuses there, by name. Every step reads the frozen copy, never the
+   original, so the run and its close judge the same bytes. *Why not hidden git:* its extra
+   powers are diff, undo and resume over files a run EDITS. bareloop edits code; job #1 reads two
+   inputs and writes one reply. `gather()` already hashes each input (`poc/m0/mechanical.mjs`),
+   so the copy is the only new part. Revisit if a fwdloop flow ever edits its inputs or needs
+   resume.
