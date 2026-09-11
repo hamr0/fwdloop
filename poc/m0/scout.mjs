@@ -98,6 +98,14 @@ export function lookFixtures(csvPath, textPath) {
  * `invented` — never silently kept. When the model reports nothing usable, the
  * mechanical truth is used directly (still never invented, never empty). Pure
  * function: no IO, no model — this is what the exit-criterion test runs against.
+ *
+ * `csv.columns` may be a PARTIAL subset of the real header (whatever the model
+ * actually reported, grounded) — it is display/context, not the listing a
+ * drafter's declared column names get validated against. `csv.realColumns` is
+ * the FULL mechanical header, always, independent of anything the model said —
+ * this is the field the M0a exit check (validator.mjs's column listing rule)
+ * reads, exactly per the drafter task's "the mechanical read, never the
+ * model's facts."
  */
 export function groundFacts(rawFacts, { csvArtifact, textArtifact }) {
   const realColumns = csvArtifact.header;
@@ -110,6 +118,7 @@ export function groundFacts(rawFacts, { csvArtifact, textArtifact }) {
       sha256: csvArtifact.sha256,
       rowCount: csvArtifact.rows.length,
       columns: groundedColumns.length > 0 ? groundedColumns : realColumns,
+      realColumns,
     },
     text: {
       artifactId: textArtifact.id,
@@ -121,6 +130,62 @@ export function groundFacts(rawFacts, { csvArtifact, textArtifact }) {
     notes: typeof rawFacts?.notes === 'string' ? rawFacts.notes : null,
     invented,
   };
+}
+
+/**
+ * Named routes to ABSENT (borrowed-from bareloop's `classifySurvey`/D11 in
+ * spirit, never imported — this module's own facts object is a different,
+ * always-grounded shape, so the check is structural rather than a byte
+ * floor). Every route names WHICH thing failed; there is no unnamed "facts
+ * are falsy" catch-all.
+ */
+export const FACTS_CAUSES = Object.freeze({
+  /** no facts object was ever handed to the drafter — the scout never ran, or its result was never threaded through */
+  MISSING: 'missing',
+  /** present, but not the shape groundFacts produces (not a plain object) */
+  MALFORMED: 'malformed',
+  /** the mechanical look itself found no header at all (e.g. an empty or header-less CSV) —
+   *  the one case groundFacts's own fallback cannot paper over, because the fallback IS the
+   *  (empty) real header */
+  NO_COLUMNS: 'no-columns',
+});
+
+/**
+ * Classify a facts object as ABSENT or PRESENT before the drafter's model
+ * call ever runs (PRD's ABSENT rule, borrowed-from bareloop authorflow.js:1408
+ * — an ABSENT facts object is refused, never treated as "no special facts
+ * needed"). $0, pure, no IO — the mechanical look already happened in
+ * `lookFixtures`/`groundFacts`; this only reads the shape of their output.
+ *
+ * NOT the same fact as `invented` (groundFacts already grounds a model's
+ * over-claim down to nothing invented) — ABSENT is about the scout's
+ * MECHANICAL read never having produced usable facts at all, which
+ * `groundFacts`'s own fallback-to-real-header cannot paper over only when
+ * the real header itself came back empty.
+ */
+export function classifyFacts(facts) {
+  if (facts === null || facts === undefined) {
+    return {
+      state: 'ABSENT',
+      cause: FACTS_CAUSES.MISSING,
+      reason: 'no facts object was given to the drafter — the scout never ran, or its result was never threaded through',
+    };
+  }
+  if (typeof facts !== 'object' || Array.isArray(facts)) {
+    return {
+      state: 'ABSENT',
+      cause: FACTS_CAUSES.MALFORMED,
+      reason: `facts is a ${Array.isArray(facts) ? 'array' : typeof facts}, not the object groundFacts produces`,
+    };
+  }
+  if (!facts.csv || typeof facts.csv !== 'object' || !Array.isArray(facts.csv.columns) || facts.csv.columns.length === 0) {
+    return {
+      state: 'ABSENT',
+      cause: FACTS_CAUSES.NO_COLUMNS,
+      reason: 'facts.csv.columns is empty — the mechanical read found no CSV header at all',
+    };
+  }
+  return { state: 'PRESENT', cause: null, reason: null };
 }
 
 /**

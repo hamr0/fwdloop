@@ -40,6 +40,7 @@ import {
 import { makeProvider } from './provider.mjs';
 import { menu } from './catalogue.mjs';
 import { parseLines, deriveFromLine } from './validator.mjs';
+import { classifyFacts, runScoutRound } from './scout.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(__dirname, 'out');
@@ -68,6 +69,36 @@ function jobLinesText(rawText) {
   return parseLines(rawText)
     .map((l) => `${l.n}. ${l.text}${l.guardrail ? ` [guardrail: ${l.guardrail}]` : ' [no guardrail]'}`)
     .join('\n');
+}
+
+/**
+ * The scout's grounded facts, rendered for the drafter's prompt (PRD §M0a
+ * exit: "the scout's facts appear in the draft"). `realColumns` — the FULL
+ * mechanical CSV header from scout.mjs's `lookFixtures` — is what the
+ * drafter is told to pick "columns" values FROM; `columns` (the scout's own,
+ * possibly-partial, reported subset) is shown as context only, never as the
+ * list a declared column is checked against (that check is validator.mjs's
+ * job, against `declaration.realColumns`, never this prose).
+ */
+function factsBlock(facts) {
+  const realColumns = Array.isArray(facts?.csv?.realColumns) ? facts.csv.realColumns : [];
+  const reportedColumns = Array.isArray(facts?.csv?.columns) ? facts.csv.columns : [];
+  const lines = [
+    'The scout already looked at the real inputs before you were called — these are grounded facts, never invented:',
+    `- the CSV's real header, mechanically read (${realColumns.length} columns): ${realColumns.join(', ')}`,
+    `- columns the scout's own survey reported (a subset of the above, context only): ${reportedColumns.join(', ') || '(none)'}`,
+    `- CSV row count: ${facts?.csv?.rowCount ?? 0}`,
+    `- message line count: ${Array.isArray(facts?.text?.lines) ? facts.text.lines.length : 0}`,
+  ];
+  if (facts?.customerMentioned) lines.push(`- customer mentioned in the message: ${facts.customerMentioned}`);
+  if (facts?.notes) lines.push(`- scout notes: ${facts.notes}`);
+  lines.push(
+    '',
+    'Each step may optionally declare "columns": the CSV column names it reads or writes, each one copied '
+      + 'VERBATIM from the real header above — never invented, never scraped out of goal prose. A name not in '
+      + 'that real header is a red at validation. Omit "columns" for a step that touches no CSV column.',
+  );
+  return lines.join('\n');
 }
 
 function primitiveMenuBlock(rawGuardrails) {
@@ -170,6 +201,12 @@ const STEP_SCHEMA = {
       type: 'array', items: { type: 'string' }, description: 'artifact ids this step reads, each declared by an EARLIER step',
     },
     emits: { type: 'string', description: 'the one new artifact id this step declares' },
+    columns: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'CSV column names this step reads or writes, copied VERBATIM from the real header shown '
+        + 'below — never invented, never scraped out of goal prose. Omit for a step that touches no CSV column.',
+    },
     fromLine: {
       type: 'integer',
       description: 'the ONE numbered job line this step serves. Its close class is DERIVED from that line\'s guardrail — never chosen. Omit for a step that serves no particular line (hitl).',
@@ -271,7 +308,7 @@ export function extractGuardrails(rawText) {
  */
 export function assembleDeclaration(modelArgs, {
   skills = DRAFTER_SKILLS, guardrails = '', guardrailClasses: baseGuardrailClasses = {},
-  unjudgeable: baseUnjudgeable = {},
+  unjudgeable: baseUnjudgeable = {}, realColumns = [],
 } = {}) {
   const lines = parseLines(guardrails);
   const guardrailBearingLines = lines.filter((l) => l.guardrail.length > 0);
@@ -325,6 +362,7 @@ export function assembleDeclaration(modelArgs, {
         primitives: Array.isArray(step?.primitives) ? step.primitives : [],
         reads: Array.isArray(step?.reads) ? step.reads : [],
         emits: step?.emits,
+        columns: Array.isArray(step?.columns) ? step.columns : [],
         fromLine,
         close,
       };
@@ -335,6 +373,10 @@ export function assembleDeclaration(modelArgs, {
     guardrails,
     guardrailClasses,
     unjudgeable,
+    // Harness-supplied, exactly like skills/guardrails — never taken from
+    // modelArgs, so a model naming its own "realColumns" cannot smuggle a
+    // fake listing for validator.mjs's column check to trust.
+    realColumns: [...(Array.isArray(realColumns) ? realColumns : [])],
     steps,
     refused: Array.isArray(modelArgs?.refused) ? modelArgs.refused : [],
   };
@@ -400,8 +442,24 @@ export function plantLineWithGuardrail(rawText, line, guardrail) {
 export async function runDrafter(modelId, {
   ungroundable = false, uncovered = false, unjudgeableGuardrail = false,
   runLabel = 'drafter', slot = 'synthetic', prose = false,
-  provider: injectedProvider, rates: injectedRates,
+  provider: injectedProvider, rates: injectedRates, facts,
 } = {}) {
+  // ABSENT handling (PRD's M0a exit gap, borrowed-from bareloop
+  // authorflow.js:1408 in spirit): checked BEFORE any provider is built or
+  // spend cap even consulted, so an ABSENT facts object costs exactly $0 —
+  // not a flag on a draft, not a draft with a warning, a REFUSAL with a
+  // named cause. See scout.mjs's `classifyFacts` for the named routes.
+  const factsCheck = classifyFacts(facts);
+  if (factsCheck.state === 'ABSENT') {
+    return {
+      modelRequested: modelId, modelReturned: null, suffixMatch: null,
+      toolCalled: false, declaration: null, textInstead: null,
+      usage: null, rounds: 0, costUsd: null, rateSource: null, wallMs: 0,
+      ungroundable, uncovered, unjudgeableGuardrail,
+      absent: { cause: factsCheck.cause, reason: factsCheck.reason },
+    };
+  }
+
   let provider = injectedProvider;
   let rates = injectedRates;
   let suffix = modelId.replace(/^hf:/, '');
@@ -442,7 +500,8 @@ export async function runDrafter(modelId, {
   const messages = [
     {
       role: 'system',
-      content: `You are the fwdloop drafter. You answer ONLY by calling emit_declaration — never plain text. ${primitiveMenuBlock(guardrails)}`,
+      content: `You are the fwdloop drafter. You answer ONLY by calling emit_declaration — never plain text. `
+        + `${primitiveMenuBlock(guardrails)}\n\n${factsBlock(facts)}`,
     },
     {
       role: 'user',
@@ -470,7 +529,8 @@ export async function runDrafter(modelId, {
     }
   }
 
-  const declaration = capturedArgs != null ? assembleDeclaration(capturedArgs, { guardrails }) : null;
+  const realColumns = Array.isArray(facts?.csv?.realColumns) ? facts.csv.realColumns : [];
+  const declaration = capturedArgs != null ? assembleDeclaration(capturedArgs, { guardrails, realColumns }) : null;
 
   const report = {
     modelRequested: modelId, modelReturned: metered.model, suffixMatch,
@@ -503,8 +563,16 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
   const shapeTag = prose ? 'prose' : 'steps';
   const tag = `${suffixOf(modelId).replace(/\//g, '_')}-${slot}-${shapeTag}${ungroundable ? '-ungroundable' : ''}${uncovered ? '-uncovered' : ''}${unjudgeableGuardrail ? '-unjudgeable-guardrail' : ''}`;
+  // Live path: scout -> drafter (PRD §M0a exit). The scout's mechanical look
+  // and its one bounded model round run first, on the SAME real fixtures;
+  // its grounded facts (never the drafter's own guess) are what the drafter
+  // gets handed below.
+  const REPO_ROOT = join(__dirname, '..', '..');
+  const csvPath = join(REPO_ROOT, 'fixtures', 'ar-aging.csv');
+  const textPath = join(REPO_ROOT, 'fixtures', 'message.txt');
+  const scoutReport = await runScoutRound(modelId, { slot, csvPath, textPath, runLabel: `scout-${tag}` });
   const report = await runDrafter(modelId, {
-    ungroundable, uncovered, unjudgeableGuardrail, prose, slot, runLabel: `drafter-${tag}`,
+    ungroundable, uncovered, unjudgeableGuardrail, prose, slot, runLabel: `drafter-${tag}`, facts: scoutReport.facts,
   });
   // Timestamped: repeated stability runs of the SAME plant/model/slot must
   // never overwrite each other's evidence.

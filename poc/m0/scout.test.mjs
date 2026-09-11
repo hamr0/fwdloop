@@ -15,6 +15,7 @@ import { menu } from './catalogue.mjs';
 import {
   SCOUT_MENU, SCOUT_ROUND_BOUND, SCOUT_MAX_TOKENS,
   lookFixtures, groundFacts, makeReportFactsTool, runScoutRound,
+  classifyFacts, FACTS_CAUSES,
 } from './scout.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -219,4 +220,83 @@ test('PROOF the test can fail: no tool call at all leaves toolCalled false and f
   assert.equal(report.toolCalled, false);
   const realHeader = parseCsv(readFileSync(CSV_PATH, 'utf8')).header;
   assert.deepEqual(report.facts.csv.columns, realHeader);
+});
+
+// ---------------------------------------------------------------------------
+// groundFacts's `csv.realColumns` — the FULL mechanical header, always,
+// independent of whatever (possibly partial) subset the model reported. This
+// is the field the drafter's column listing rule checks against, never
+// `csv.columns` (which may legitimately be a subset — see the test above,
+// where the model reported nothing and `columns` happens to equal the full
+// header only because of the empty-report fallback, not because `columns`
+// is always complete).
+// ---------------------------------------------------------------------------
+
+test('groundFacts.csv.realColumns is the FULL real header even when the model reports only a partial subset', () => {
+  const { csvArtifact, textArtifact } = lookFixtures(CSV_PATH, TEXT_PATH);
+  const realHeader = csvArtifact.header;
+  const partial = realHeader.slice(0, 2); // a genuine subset, not all of it
+  const facts = groundFacts({ csvColumns: partial }, { csvArtifact, textArtifact });
+  assert.deepEqual(facts.csv.columns, partial, 'columns stays the partial, grounded report');
+  assert.deepEqual(facts.csv.realColumns, realHeader, 'realColumns is always the FULL mechanical header');
+});
+
+test('PROOF the test can fail: with a partial report, csv.columns and csv.realColumns are genuinely different arrays', () => {
+  const { csvArtifact, textArtifact } = lookFixtures(CSV_PATH, TEXT_PATH);
+  const realHeader = csvArtifact.header;
+  const partial = realHeader.slice(0, 2);
+  const facts = groundFacts({ csvColumns: partial }, { csvArtifact, textArtifact });
+  assert.ok(facts.csv.columns.length < facts.csv.realColumns.length, 'columns must be the strictly smaller, partial list');
+});
+
+// ---------------------------------------------------------------------------
+// classifyFacts — the M0a exit gap's ABSENT gate, checked before the
+// drafter's model call ever runs. Every route to ABSENT is named (no unnamed
+// "facts are falsy" catch-all), mirroring bareloop's classifySurvey in
+// spirit, never in code (this module's facts object is a different, always-
+// grounded shape, so the check is structural rather than a byte floor).
+// ---------------------------------------------------------------------------
+
+test('classifyFacts: no facts object at all is ABSENT, cause MISSING', () => {
+  assert.deepEqual(classifyFacts(undefined).state, 'ABSENT');
+  assert.equal(classifyFacts(undefined).cause, FACTS_CAUSES.MISSING);
+  assert.equal(classifyFacts(null).cause, FACTS_CAUSES.MISSING);
+});
+
+test('classifyFacts: a non-object facts value is ABSENT, cause MALFORMED', () => {
+  assert.equal(classifyFacts('a string').cause, FACTS_CAUSES.MALFORMED);
+  assert.equal(classifyFacts(42).cause, FACTS_CAUSES.MALFORMED);
+  assert.equal(classifyFacts(['an', 'array']).cause, FACTS_CAUSES.MALFORMED);
+});
+
+test('classifyFacts: an object whose mechanical read found no CSV header at all is ABSENT, cause NO_COLUMNS', () => {
+  const noHeader = {
+    csv: {
+      artifactId: 'x', sha256: 'y', rowCount: 0, columns: [], realColumns: [],
+    },
+    text: { artifactId: 'z', sha256: 'w', lineCount: 0, lines: [] },
+    customerMentioned: null,
+    notes: null,
+    invented: [],
+  };
+  assert.equal(classifyFacts(noHeader).cause, FACTS_CAUSES.NO_COLUMNS);
+});
+
+test('classifyFacts: a real, mechanically-grounded facts object is PRESENT, never ABSENT', () => {
+  const { csvArtifact, textArtifact } = lookFixtures(CSV_PATH, TEXT_PATH);
+  const facts = groundFacts(null, { csvArtifact, textArtifact });
+  assert.deepEqual(classifyFacts(facts), { state: 'PRESENT', cause: null, reason: null });
+});
+
+test('PROOF the classifyFacts tests can fail: a facts object with a genuinely non-empty csv.columns is not ABSENT', () => {
+  const facts = {
+    csv: {
+      artifactId: 'x', sha256: 'y', rowCount: 1, columns: ['Customer'], realColumns: ['Customer'],
+    },
+    text: { artifactId: 'z', sha256: 'w', lineCount: 0, lines: [] },
+    customerMentioned: null,
+    notes: null,
+    invented: [],
+  };
+  assert.equal(classifyFacts(facts).state, 'PRESENT');
 });

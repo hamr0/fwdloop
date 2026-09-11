@@ -13,7 +13,9 @@
 // askTtlMs/egress/provider are not this module's concern):
 //   { skills: string[], guardrails: string,           // arbiter, verbatim
 //     guardrailClasses: { "<lineNumber>": 'green'|'softgreen'|'hitl' },
+//     realColumns: string[],       // harness-supplied, the scout's mechanical CSV header — never the model's
 //     steps: [ { goal, primitives: string[], reads: string[], emits: string,
+//                columns: string[],  // optional; must SELECT from realColumns (F17's listing rule)
 //                fromLine: number|null,
 //                close: { class: 'green'|'softgreen'|'hitl', shape? } } ] }
 //
@@ -406,6 +408,9 @@ export function validate(declaration) {
     if (!Array.isArray(step.primitives)) {
       return { verdict: 'red', red: `validator: ${label} "primitives" must be an array of catalogue verbs` };
     }
+    if (step.columns !== undefined && !Array.isArray(step.columns)) {
+      return { verdict: 'red', red: `validator: ${label} "columns" must be an array of column names` };
+    }
     // A close that is ABSENT is fine — the class is derived, not authored.
     // A close that is present but not an object is a wrong answer.
     if (step.close !== null && step.close !== undefined
@@ -445,6 +450,37 @@ export function validate(declaration) {
           verdict: 'red',
           red: `validator: ${label} primitive "${verb}" needs skill "${entry.skill}", which is not in the granted skillset (${skills.join(', ') || 'none'})`,
         };
+      }
+    }
+
+    // Check 3.5 (M0a exit criterion, F17) — THE LISTING RULE for columns,
+    // borrowed-from bareloop src/authoring.js:1599 `checkPaths` (style only,
+    // never imported — that checker walks a seed FILE tree, this one walks a
+    // CSV HEADER, so the shape differs even though the rule is identical in
+    // spirit): every value in a step's "columns" must SELECT from the REAL
+    // mechanical CSV header (`declaration.realColumns`, harness-supplied from
+    // scout.mjs's `lookFixtures`/`groundFacts` — never the model's own facts,
+    // which may report only a PARTIAL subset of the real header). A name
+    // matching no real column is its own distinct red, naming it — never
+    // dropped, never silently accepted, and never derived from goal prose
+    // (F17: a regex fitted to today's fixture strings was rejected exactly
+    // for this reason). Mirrors bareloop's `haveListing` guard: with no
+    // listing at all on the declaration (an older or hand-built declaration
+    // that never wired the scout through), this check is skipped rather than
+    // redding on something it has no truth to check against — never twice
+    // over per step, exactly like the borrowed original.
+    if (Array.isArray(step.columns) && step.columns.length > 0) {
+      const realColumns = Array.isArray(declaration.realColumns) ? declaration.realColumns : [];
+      if (realColumns.length > 0) {
+        for (const col of step.columns) {
+          if (typeof col !== 'string' || !realColumns.includes(col)) {
+            return {
+              verdict: 'red',
+              red: `validator: ${label} names column "${col}" — invented column, not in the real fixture `
+                + `header (${realColumns.join(', ')})`,
+            };
+          }
+        }
       }
     }
 

@@ -72,6 +72,12 @@ const STEP_SCHEMA = {
       type: 'array', items: { type: 'string' }, description: 'artifact ids this step reads, each declared by an EARLIER step',
     },
     emits: { type: 'string', description: 'the one new artifact id this step declares' },
+    columns: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'CSV column names this step reads or writes, copied VERBATIM from the real header (fixed, '
+        + 'shown below) — never invented. Omit for a step that touches no CSV column.',
+    },
     fromLine: {
       type: 'integer',
       description: 'the ONE numbered job line this step serves. Its close class is DERIVED from that line\'s guardrail — never chosen. Omit for a step that serves no particular line (hitl).',
@@ -127,9 +133,14 @@ function redraftPromptFor(previousDeclaration, humanReply) {
   const numbered = parseLines(guardrails)
     .map((l) => `${l.n}. ${l.text}${l.guardrail ? ` [guardrail: ${l.guardrail}]` : ' [no guardrail]'}`)
     .join('\n');
+  const realColumns = Array.isArray(previousDeclaration?.realColumns) ? previousDeclaration.realColumns : [];
+  const columnsLine = realColumns.length > 0
+    ? `\n\nThe real CSV columns are also FIXED (the scout's mechanical read, from the first draft) — any `
+      + `"columns" you emit on a step must be copied verbatim from this list: ${realColumns.join(', ')}`
+    : '';
   return `Here is the current draft table:\n\n${renderDraftTable(previousDeclaration)}\n\n`
     + 'The job lines and their guardrails are FIXED — do not restate, reword, add, or remove any '
-    + `of them; "fromLine" is one of these numbers:\n${numbered}\n\n`
+    + `of them; "fromLine" is one of these numbers:\n${numbered}${columnsLine}\n\n`
     + `The human replied with this change, in their own words:\n"${humanReply}"\n\n`
     + 'Redraft the STEPS to satisfy the reply, re-mapping each step\'s "fromLine" onto the SAME '
     + 'numbered lines above — never a "class", never a "tracesTo"; a step\'s close class is derived, '
@@ -214,9 +225,14 @@ export async function runRedraft(modelId, previousDeclaration, humanReply, {
   // this round's model says nothing about guardrailClasses at all.
   const previousGuardrailClasses = previousDeclaration?.guardrailClasses;
   const previousUnjudgeable = previousDeclaration?.unjudgeable;
+  // The real CSV header carries over the same way — it did not change
+  // between rounds, and it is never taken from this round's model any more
+  // than skills/guardrails are.
+  const previousRealColumns = Array.isArray(previousDeclaration?.realColumns) ? previousDeclaration.realColumns : [];
   const declaration = capturedArgs != null
     ? assembleDeclaration(capturedArgs, {
       skills, guardrails, guardrailClasses: previousGuardrailClasses, unjudgeable: previousUnjudgeable,
+      realColumns: previousRealColumns,
     })
     : null;
 

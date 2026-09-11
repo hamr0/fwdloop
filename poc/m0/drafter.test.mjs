@@ -17,14 +17,40 @@
 // The job #1 fixture's cap now lives under its own "Arbiter guardrails"
 // section, belonging to no numbered line (DEFECT 2 fix) — prose.txt/
 // steps.txt were restructured accordingly.
+//
+// M0a exit gap (F16 correction): runDrafter now REQUIRES the scout's
+// grounded facts object (never invented, never empty — see scout.mjs). Every
+// call below that expects a normal draft passes REAL_FACTS, built the exact
+// same way scout.test.mjs builds its own — lookFixtures + groundFacts over
+// the REAL repo fixtures, never a hand-typed fake column list.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   DRAFTER_SKILLS, DRAFTER_MAX_TOKENS,
   extractGuardrails, assembleDeclaration, plantLine, runDrafter,
 } from './drafter.mjs';
 import { validate, parseArbiterGuardrails } from './validator.mjs';
+import {
+  lookFixtures, groundFacts, FACTS_CAUSES,
+} from './scout.mjs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = join(__dirname, '..', '..');
+const CSV_PATH = join(REPO_ROOT, 'fixtures', 'ar-aging.csv');
+const TEXT_PATH = join(REPO_ROOT, 'fixtures', 'message.txt');
+
+// The scout's grounded facts over the REAL fixtures, model round omitted
+// (rawFacts null -> groundFacts's own "fall back to the mechanical truth"
+// path, never invented, never empty — same as scout.test.mjs's own coverage
+// of that path). This is what a well-behaved runDrafter call is handed.
+function realFacts() {
+  const { csvArtifact, textArtifact } = lookFixtures(CSV_PATH, TEXT_PATH);
+  return groundFacts(null, { csvArtifact, textArtifact });
+}
+const REAL_FACTS = realFacts();
 
 // hamr's real, signed job lines for job #1 (prose.txt), verbatim — the
 // control every test below checks assembled declarations against, so a bug
@@ -168,7 +194,7 @@ test('PROOF the test can fail: dropping the "Arbiter guardrails" heading pushes 
 test('a drafted declaration for job #1 passes validate() end to end', async () => {
   const provider = fakeProvider(toolReply(job1ModelSteps()));
   const report = await runDrafter('fake-model', {
-    prose: true, provider, rates: { in: 0, out: 0 },
+    prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS,
   });
   assert.equal(report.toolCalled, true);
   assert.deepEqual(report.declaration.skills, DRAFTER_SKILLS);
@@ -181,7 +207,7 @@ test('PROOF the test can fail: dropping a step\'s "emits" makes the same declara
   const steps = job1ModelSteps();
   delete steps.steps[0].emits;
   const provider = fakeProvider(toolReply(steps));
-  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 } });
+  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS });
   assert.equal(validate(report.declaration).verdict, 'red');
 });
 
@@ -192,7 +218,7 @@ test('PROOF the test can fail: dropping a step\'s "emits" makes the same declara
 
 test('the assembled declaration derives each close.class from fromLine against the proposed guardrailClasses', async () => {
   const provider = fakeProvider(toolReply(job1ModelSteps()));
-  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 } });
+  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS });
   const byGoal = Object.fromEntries(report.declaration.steps.map((s) => [s.goal, s.close.class]));
   assert.equal(byGoal['read the sheet'], 'hitl'); // line 1, blank, no proposal
   assert.equal(byGoal['match customer, derive totals'], 'green'); // line 3, proposed green
@@ -206,7 +232,7 @@ test('PROOF the test can fail: even a model that tries to claim "green" via clos
   // anyway via a field the schema doesn't define.
   steps.steps[0].close = { class: 'green' };
   const provider = fakeProvider(toolReply(steps));
-  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 } });
+  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS });
   const readStep = report.declaration.steps.find((s) => s.goal === 'read the sheet');
   assert.equal(readStep.close.class, 'hitl', 'the smuggled class must never survive assembleDeclaration');
 });
@@ -261,7 +287,7 @@ test('a guardrail proposed an INVALID class is a red at validate(), never silent
   const steps = job1ModelSteps();
   steps.guardrailClasses[3] = 'yellow';
   const provider = fakeProvider(toolReply(steps));
-  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 } });
+  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS });
   const result = validate(report.declaration);
   assert.equal(result.verdict, 'red');
   assert.match(result.red, /guardrail 3 was proposed class "yellow"/);
@@ -270,7 +296,7 @@ test('a guardrail proposed an INVALID class is a red at validate(), never silent
 test('PROOF the test can fail: a valid proposal for line 3 validates green again', async () => {
   const steps = job1ModelSteps();
   const provider = fakeProvider(toolReply(steps));
-  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 } });
+  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS });
   assert.equal(validate(report.declaration).verdict, 'green');
 });
 
@@ -295,7 +321,7 @@ test('the F16 stretch is structurally impossible even if the model tries: pointi
     goal: 'flag anything that looks unusual', primitives: [], reads: ['a2'], emits: 'a2b', fromLine: 3,
   });
   const provider = fakeProvider(toolReply(steps));
-  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 } });
+  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS });
   const flagStep = report.declaration.steps.find((s) => s.goal === 'flag anything that looks unusual');
   const deriveStep = report.declaration.steps.find((s) => s.goal === 'match customer, derive totals');
   assert.equal(flagStep.close.class, deriveStep.close.class, 'every step naming the same line derives the SAME class — there is no per-step choice');
@@ -310,7 +336,7 @@ test('a primitive the model invents is passed through untouched and surfaces as 
   const steps = job1ModelSteps();
   steps.steps[0].primitives = ['telepathy'];
   const provider = fakeProvider(toolReply(steps));
-  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 } });
+  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS });
   // Not silently dropped: the invented verb is still right there in the declaration.
   assert.ok(report.declaration.steps[0].primitives.includes('telepathy'));
   const result = validate(report.declaration);
@@ -321,7 +347,7 @@ test('a primitive the model invents is passed through untouched and surfaces as 
 test('PROOF the test can fail: the same declaration with a real catalogue verb validates green', async () => {
   const steps = job1ModelSteps();
   const provider = fakeProvider(toolReply(steps));
-  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 } });
+  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS });
   assert.equal(validate(report.declaration).verdict, 'green');
 });
 
@@ -342,7 +368,7 @@ test('zero arbiter-field leaks: a model trying to smuggle trigger/cap/askTtlMs/e
     done: 'whenever the model feels like it',
   };
   const provider = fakeProvider(toolReply(args));
-  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 } });
+  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS });
   const decl = report.declaration;
   assert.deepEqual(decl.skills, DRAFTER_SKILLS, 'skills must be the harness grant, never the model\'s own');
   assert.equal(decl.guardrails, REAL_GUARDRAILS, 'guardrails must be the real signed text, never a model override');
@@ -356,7 +382,7 @@ test('zero arbiter-field leaks: a model trying to smuggle trigger/cap/askTtlMs/e
 
 test('PROOF the test can fail: a clean model call (no smuggled fields) carries no arbiter keys either, by the same check', async () => {
   const provider = fakeProvider(toolReply(job1ModelSteps()));
-  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 } });
+  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS });
   for (const forbidden of ['trigger', 'cap', 'askTtlMs', 'egress', 'done']) {
     assert.equal(Object.prototype.hasOwnProperty.call(report.declaration, forbidden), false);
   }
@@ -375,7 +401,7 @@ test('the uncovered-line plant lands at hitl and validates green', async () => {
   });
   const provider = fakeProvider(toolReply(steps));
   const report = await runDrafter('fake-model', {
-    prose: true, uncovered: true, provider, rates: { in: 0, out: 0 },
+    prose: true, uncovered: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS,
   });
   assert.equal(
     report.declaration.guardrails.includes('flag anything that looks unusual'),
@@ -394,7 +420,7 @@ test('PROOF the test can fail: naming a REAL, guardrail-bearing line instead of 
   });
   const provider = fakeProvider(toolReply(steps));
   const report = await runDrafter('fake-model', {
-    prose: true, uncovered: true, provider, rates: { in: 0, out: 0 },
+    prose: true, uncovered: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS,
   });
   const flagStep = report.declaration.steps.find((s) => s.goal === 'flag anything that looks unusual');
   assert.notEqual(flagStep.close.class, 'hitl');
@@ -417,7 +443,7 @@ test('F11: the deepseek slot the drafter can run against carries legacyMaxTokens
 
 test('the fixed DRAFTER_MAX_TOKENS reaches every request option — no call site or caller can widen it', async () => {
   const provider = fakeProvider(toolReply(job1ModelSteps()));
-  await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 } });
+  await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS });
   assert.ok(provider.calls.length >= 1 && provider.calls.length <= 2, `expected 1-2 provider calls, got ${provider.calls.length}`);
   for (const call of provider.calls) assert.equal(call.options.maxTokens, DRAFTER_MAX_TOKENS);
 });
@@ -496,8 +522,104 @@ test('a refused line flows through to declaration.refused untouched', async () =
   steps.refused = [{ hamrLine: 'rate how friendly the customer sounds', reason: 'no groundable check — subjective, no citation is possible' }];
   const provider = fakeProvider(toolReply(steps));
   const report = await runDrafter('fake-model', {
-    prose: true, ungroundable: true, provider, rates: { in: 0, out: 0 },
+    prose: true, ungroundable: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS,
   });
   assert.equal(report.declaration.refused.length, 1);
   assert.match(report.declaration.refused[0].hamrLine, /friendly/);
+});
+
+// ---------------------------------------------------------------------------
+// M0a exit gap (F16 correction) — the scout's facts reach the drafter's
+// prompt, an ABSENT facts object is refused before any model call, and a
+// declared "columns" value is checked against the real mechanical header,
+// never the model's own facts.
+// ---------------------------------------------------------------------------
+
+test("the scout's facts reach the drafter's prompt — a real fixture column name appears, not invented", async () => {
+  const provider = fakeProvider(toolReply(job1ModelSteps()));
+  await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS });
+  assert.ok(provider.calls.length >= 1, 'sanity: the fake provider was actually called');
+  const systemContent = provider.calls[0].messages.find((m) => m.role === 'system').content;
+  assert.match(systemContent, /Customer/, 'the real CSV header (from lookFixtures/groundFacts) must reach the system prompt');
+  assert.match(systemContent, /Invoice #/, 'a second real column must also be present, not just the first one');
+  assert.match(systemContent, new RegExp(`row count: ${REAL_FACTS.csv.rowCount}`), 'the row count fact must reach the prompt too');
+});
+
+test('PROOF the test can fail: a facts object grounded against a DIFFERENT (fake) header does not mention the real columns', async () => {
+  const fakeFacts = {
+    csv: {
+      artifactId: 'x', sha256: 'y', rowCount: 0, columns: ['TotallyFake'], realColumns: ['TotallyFake'],
+    },
+    text: { artifactId: 'z', sha256: 'w', lineCount: 0, lines: [] },
+    customerMentioned: null,
+    notes: null,
+    invented: [],
+  };
+  const provider = fakeProvider(toolReply(job1ModelSteps()));
+  await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: fakeFacts });
+  const systemContent = provider.calls[0].messages.find((m) => m.role === 'system').content;
+  assert.doesNotMatch(systemContent, /Customer/, 'a facts object built from a different header must not mention the real one');
+});
+
+test('ABSENT (missing): runDrafter with no facts at all refuses before any model call — $0 spent', async () => {
+  const provider = fakeProvider(toolReply(job1ModelSteps()));
+  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 } });
+  assert.equal(report.declaration, null, 'ABSENT must never produce a draft, not even one with a warning');
+  assert.equal(report.toolCalled, false);
+  assert.equal(report.absent.cause, FACTS_CAUSES.MISSING);
+  assert.equal(provider.calls.length, 0, 'the model must never be called on an ABSENT facts object — $0 spent');
+});
+
+test('ABSENT (malformed): runDrafter with a non-object facts value refuses, naming the cause', async () => {
+  const provider = fakeProvider(toolReply(job1ModelSteps()));
+  const report = await runDrafter('fake-model', {
+    prose: true, provider, rates: { in: 0, out: 0 }, facts: 'not an object',
+  });
+  assert.equal(report.declaration, null);
+  assert.equal(report.absent.cause, FACTS_CAUSES.MALFORMED);
+  assert.equal(provider.calls.length, 0);
+});
+
+test('ABSENT (no-columns): a facts object whose mechanical read found no header at all refuses, never treated as empty-OK', async () => {
+  const provider = fakeProvider(toolReply(job1ModelSteps()));
+  const noHeaderFacts = {
+    csv: {
+      artifactId: 'x', sha256: 'y', rowCount: 0, columns: [], realColumns: [],
+    },
+    text: { artifactId: 'z', sha256: 'w', lineCount: 0, lines: [] },
+    customerMentioned: null,
+    notes: null,
+    invented: [],
+  };
+  const report = await runDrafter('fake-model', {
+    prose: true, provider, rates: { in: 0, out: 0 }, facts: noHeaderFacts,
+  });
+  assert.equal(report.declaration, null);
+  assert.equal(report.absent.cause, FACTS_CAUSES.NO_COLUMNS);
+  assert.equal(provider.calls.length, 0);
+});
+
+test('PROOF the ABSENT tests can fail: the SAME calls with REAL_FACTS produce a normal draft, no refusal', async () => {
+  const provider = fakeProvider(toolReply(job1ModelSteps()));
+  const report = await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS });
+  assert.notEqual(report.declaration, null);
+  assert.equal(report.absent, undefined);
+  assert.equal(provider.calls.length >= 1, true);
+});
+
+test('an invented column is its own distinct red at validate(), naming it — never dropped, never scraped from goal prose', () => {
+  const steps = job1ModelSteps();
+  steps.steps[0].columns = ['NotARealColumn'];
+  const decl = assembleDeclaration(steps, { guardrails: REAL_GUARDRAILS, realColumns: REAL_FACTS.csv.realColumns });
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /names column "NotARealColumn" — invented column/);
+});
+
+test('PROOF the test can fail: a REAL column name (verbatim from the mechanical header) passes validate()', () => {
+  const steps = job1ModelSteps();
+  steps.steps[0].columns = ['Customer'];
+  const decl = assembleDeclaration(steps, { guardrails: REAL_GUARDRAILS, realColumns: REAL_FACTS.csv.realColumns });
+  const result = validate(decl);
+  assert.equal(result.verdict, 'green', result.red);
 });

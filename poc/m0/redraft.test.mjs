@@ -33,11 +33,19 @@ const REAL_GUARDRAILS = [
 
 const REAL_GUARDRAIL_CLASSES = { 2: 'hitl', 3: 'green', 4: 'softgreen', 5: 'hitl' };
 
+// The scout's mechanical CSV header (job #1's real fixture), carried on a
+// previous declaration exactly like `skills`/`guardrails` — fixed across a
+// redraft, never re-derived from the model.
+const REAL_COLUMNS = [
+  'Customer', 'Invoice #', 'Invoice date', 'Due date', 'Amount', 'Days overdue', 'Current', '1-30', '31-60', '61-90', '90+',
+];
+
 function job1Declaration() {
   return {
     skills: ['core'],
     guardrails: REAL_GUARDRAILS,
     guardrailClasses: { ...REAL_GUARDRAIL_CLASSES },
+    realColumns: [...REAL_COLUMNS],
     steps: [
       {
         goal: 'read the sheet', primitives: ['addressCells'], reads: [], emits: 'a1', fromLine: 1, close: { class: 'hitl' },
@@ -134,6 +142,40 @@ test('PROOF the test can fail: a model trying to smuggle an edited guardrails st
   const result = await runRedraft('fake-model', previous, 'merge 3 and 4', { provider, rates: { in: 0, out: 0 } });
   assert.equal(result.declaration.guardrails, previous.guardrails);
   assert.notEqual(result.declaration.guardrails, 'FAKE OVERRIDE — the human never wrote this');
+});
+
+// ---------------------------------------------------------------------------
+// M0a exit gap wiring — the real CSV header carries over from the previous
+// declaration exactly like guardrails/skills (never re-derived, never taken
+// from this round's model), and a redrafted step's declared "columns" is
+// still checked against it.
+// ---------------------------------------------------------------------------
+
+test("realColumns carries over from the previous declaration into a redraft, unchanged", async () => {
+  const previous = job1Declaration();
+  const provider = fakeProvider(toolReply(mergedSteps()));
+  const result = await runRedraft('fake-model', previous, 'merge 3 and 4', { provider, rates: { in: 0, out: 0 } });
+  assert.deepEqual(result.declaration.realColumns, previous.realColumns);
+});
+
+test('a redrafted step naming an invented column is still a red at validate(), against the carried-over realColumns', async () => {
+  const previous = job1Declaration();
+  const steps = mergedSteps();
+  steps.steps[0] = { ...steps.steps[0], columns: ['NotARealColumn'] };
+  const provider = fakeProvider(toolReply(steps));
+  const result = await runRedraft('fake-model', previous, 'merge 3 and 4', { provider, rates: { in: 0, out: 0 } });
+  const verdict = validate(result.declaration);
+  assert.equal(verdict.verdict, 'red');
+  assert.match(verdict.red, /invented column/);
+});
+
+test('PROOF the test can fail: the same redraft with a REAL column name passes validate() again', async () => {
+  const previous = job1Declaration();
+  const steps = mergedSteps();
+  steps.steps[0] = { ...steps.steps[0], columns: ['Customer'] };
+  const provider = fakeProvider(toolReply(steps));
+  const result = await runRedraft('fake-model', previous, 'merge 3 and 4', { provider, rates: { in: 0, out: 0 } });
+  assert.equal(validate(result.declaration).verdict, 'green', validate(result.declaration).red);
 });
 
 // ---------------------------------------------------------------------------
