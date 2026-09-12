@@ -1079,3 +1079,38 @@ rate plus its PROOF partner. One live scout round on the new default, run by ham
 `modelReturned` == `deepseek-flash`, `modelMatch: "match"`, $0.00049, 2 rounds, 2.6s. The ledger
 now holds 47 `substituted` rows and 1 `match`; the 47 are history and stay as recorded.
 
+
+## F23 — ten of the catalogue's primitives name symbols that do not exist (2026-09-12)
+
+**Date** 2026-09-12 · **Status** measured at $0; fix lands as M0b's first step · **Class** catalogue /
+Claim 1 precondition · **Grounded in** `poc/m0/catalogue.mjs`; word-match grep of each catalogue
+`symbol` in the sibling repos (litectx@7af2836, bareguard@3c496ab, mailproof@ff33e38) and in
+`node_modules/bare-agent`; litectx's real export list read via `import('./src/index.js')`.
+
+**What was checked.** M0a proved the drafter picks bricks *from the catalogue*. It never proved the
+catalogue's bricks are real — the catalogue is hand-written data, and M0a never calls a primitive.
+M0b is the first module that does, so each `package#symbol` was checked against the code it names.
+
+| package | entries | resolve | missing |
+|---|---|---|---|
+| bare-agent (+ /tools) | 6 | 6 | — |
+| bareguard | 2 | 2 | — |
+| mailproof | 2 | 2 | — |
+| **litectx** | **10** | **0** | every `ctx_*` symbol |
+
+litectx exports `LiteCtx`, `ContextGraph`, `Store`, `compress`, `assemble`, `PRIMITIVES`,
+`VERBS_BY_PRIMITIVE` and others — no `ctx_` name. Its MCP tool names are `recall`, `get`,
+`impact`, `recent`, `remember`, `forget`, `index`, `promotions`: nothing called `related`,
+`peek` or `stash` at that layer. The `ctx_` names look invented, or copied from an older surface.
+
+**What it does and does not mean.** Job #1 is granted the `core` skill, and its steps use the
+bare-agent `shell_*` tools, fwdloop's own CSV reader and bareguard's fence — all of which resolve.
+So M0a's evidence stands. But the drafter was offered ten litectx entries it could have picked, and
+the validator would have scored a pick green on a symbol that does not exist. **A catalogue that
+lists a brick nobody can call is the "never invent a primitive" rule broken by us, not by the model.**
+
+**Fix (M0b, step 1, $0):** a test that imports every catalogue entry's `package` and asserts its
+`symbol` resolves — the proof-can-fail partner is an entry with a made-up symbol. Correct or drop
+the litectx rows against litectx's real surface; a verb M0b needs that litectx genuinely lacks is an
+upstream ask, not a rename. litectx, bareguard and mailproof are not yet installed in fwdloop —
+only bare-agent is.
