@@ -24,6 +24,10 @@ Two POCs, ordered: **M0a must pass before M0b starts** (docs/archive/PRD.md:493-
 
 ### M0a — scout, primitive selection, walkable chain
 
+**SIGNED by hamr, 2026-09-12.** Exit met on DeepSeek-V4.1-Flash (`deepseek-flash`); branch `m0a`
+review-clean (9/9 findings fixed, each with a test proven to fail without its fix; security
+review clean). Signing M0a proves Claim 2's first half only — it does not close go/no-go.
+
 A bounded read-only scout looks at the fixtures first, its menu stripped of write and store
 primitives by construction. The drafter then gets job #1 as prose plus guardrails, the scout's
 facts, and the primitive catalogue, and emits steps carrying a **granted primitive list** and the
@@ -72,6 +76,51 @@ under its declared class — green on the `derive` steps, softgreen on `compose`
 
 Numbers before firing: plants caught N/N, false reds 0/N, $ per run against the human cost, wall per
 run, under a **$5 total** cap (docs/archive/PRD.md:554-555).
+
+### PROPOSED AMENDMENT to M0b — unsigned, drafted 2026-09-12
+
+Nothing below is in force until hamr signs it. It does not change M0b's exit above.
+
+**A. The redo edge at an `ask`.** Today an `ask` has two outcomes: the human accepts and the run
+moves on, or the run stops. This adds a third: the human **rejects**, and the run re-executes the
+step the `ask` sits behind. Bound by three things the drafter cannot express or alter:
+
+- **Cap: 3 redos per `ask`.** The 4th rejection halts the run and names the step. Human-signed,
+  tighten-only, and inexpressible to the drafter — same class as the spend cap.
+- **Reason required.** A rejection with no reason is refused at the `ask`; the run does not
+  advance and does not redo. The reason is rubric-shaped free text ("this was wrong, should be
+  more X") and is carried into the redo as an input to that step, so attempt N+1 differs from
+  attempt N by something a human wrote.
+- **Every attempt is recorded.** Each attempt's artifact, its rejection reason, and its cost land
+  in `audit.jsonl`. A redo is not a retry that overwrites; it is a new attempt with a parent.
+
+Rationale: without the reason, a redo re-runs the same step on the same inputs and burns the cap
+producing the same artifact. The reason is the only thing that makes attempt 2 a different step.
+
+**B. Job #2 — the resume/JD job, described cold by hamr.** Job #1 (AR-aging) remains M0b's exit,
+unchanged. Job #2 is an **additional** run after M0b's exit is met, and is the first job whose
+prose was written by hamr rather than by us. It is the only evidence Claim 2 has that is not in
+our own words.
+
+- Inputs, frozen and hashed at job start:
+  `/home/hamr/Documents/resumes/Amr Hassan - Resume.docx`
+  (sha256 3d6b24a881e5600e1dc2910cdcb11ce6e65c4f6d46c2238d74b4c7a7f7c5beab)
+  `/home/hamr/Documents/resumes/jd-anthropic-applied-ai-architect.md`
+  (sha256 7eaea1c00e8b7487f0ea5d910b33acd2fd32d354817bef80ec026b4b1fc12c00)
+- Shape: read the resume; read the JD; write a summary under 600 words in three sections
+  (story of experience / technical skills / soft skills), compared against the JD; `ask` — hamr
+  accepts or rejects with a reason; on accept, write the summary to a document.
+- Why it earns its place: it closes on **two** classes in one job — "under 600 words, three
+  sections present" is a mechanical `softgreen` shape, and "is it any good" is a `hitl` — and it
+  is the only job that exercises the redo edge in A.
+- New code it requires: a `.docx` text reader. A `.docx` is a zip of XML; file-format knowledge
+  is ours to write, not an upstream ask (F13). It is in M0b's scope only as an input reader and
+  carries no stability promise.
+
+**C. Stability numbers.** M0b's exit says "both providers" without a count. This sets one: **20
+runs per scenario per provider, both on the same day**, bar declared before the runs at **19/20**.
+Same-day/two-model separates "the shape works" from "we fitted to DeepSeek's habits"; it does not
+detect a model changing under us, which the request-vs-served stamp (F22) covers instead.
 
 ## M1 — declaration spec, validator, hash
 
