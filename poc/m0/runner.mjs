@@ -36,7 +36,8 @@ import {
 import {
   closeDerive, closeCompose, closeCustomerMatch, hashFile, matchingCustomers,
 } from './close.mjs';
-import { assertUnderGlobalCap, appendSpendRow, RATES_BY_SUFFIX, RUN_CAP_USD } from './spend.mjs';
+import { assertUnderGlobalCap, appendSpendRow, RUN_CAP_USD } from './spend.mjs';
+import { resolveModelRate } from './provider.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..');
@@ -253,9 +254,9 @@ export async function runDeclaration({
 }) {
   const apiKey = apiKeyOverride ?? process.env.SYNTHETIC_API_KEY;
   if (!apiKey) throw new Error('SYNTHETIC_API_KEY is not set');
-  const suffix = modelId.replace(/^hf:/, '');
-  const rates = RATES_BY_SUFFIX[suffix];
-  if (!rates) throw new Error(`no hand-entered rate for model suffix "${suffix}"`);
+  // resolveModelRate (provider.mjs) is the ONE writer for this lookup — never a second
+  // hand-rolled suffix-strip + table-lookup here.
+  const { suffix, rates } = resolveModelRate(modelId);
 
   mkdirSync(OUT_DIR, { recursive: true });
   const outDir = join(OUT_DIR, runId);

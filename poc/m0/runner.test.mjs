@@ -11,6 +11,20 @@ import {
   renderCsvArtifact, renderTextArtifact, generatePlantCCsv, applyPlant, BUSINESS_DATE, runDeclaration,
 } from './runner.mjs';
 
+// F9/finding 2: runDeclaration's rate lookup now delegates to provider.mjs's resolveModelRate —
+// the ONE writer for suffix-strip + table-lookup — rather than a second hand-rolled copy. A
+// model suffix naming an inherited Object.prototype member ("constructor") is the proof: the old
+// hand-rolled `RATES_BY_SUFFIX[suffix]` truthiness check would have resolved to the inherited
+// function and never thrown, letting the run proceed with rates.in/rates.out undefined.
+test('runDeclaration rejects a poisoned model suffix via the shared resolveModelRate, never silently proceeding', async () => {
+  await assert.rejects(
+    () => runDeclaration({
+      modelId: 'constructor', plant: 'd', runId: `test-poisoned-rate-${Date.now()}`, apiKeyOverride: 'stub-key',
+    }),
+    /no hand-entered rate for model suffix "constructor"/,
+  );
+});
+
 test('BUSINESS_DATE is the fixed run date, never the wall clock', () => {
   assert.equal(BUSINESS_DATE, '2026-06-01');
 });
@@ -164,7 +178,7 @@ test('PROOF the test can fail: a clean stubbed run (derive1/derive2/compose all 
     derive1: CLEAN_DERIVE1_ARGS, derive2: CLEAN_DERIVE2_ARGS, compose: CLEAN_COMPOSE_ARGS,
   });
   const result = await runDeclaration({
-    modelId: 'deepseek-v4-flash', plant: 'd', runId, apiKeyOverride: 'stub-key', askTimeoutMs: 3000, modelStep,
+    modelId: 'deepseek-flash', plant: 'd', runId, apiKeyOverride: 'stub-key', askTimeoutMs: 3000, modelStep,
   });
   assert.equal(result.outcome, 'complete');
   const sentPath = join(process.cwd(), 'poc', 'm0', 'out', runId, 'sent.txt');
@@ -180,7 +194,7 @@ test('derive2 returning {citations: [], fields: {}} reds on "happened:", naming 
     derive1: CLEAN_DERIVE1_ARGS, derive2: { citations: [], fields: {} },
   });
   const result = await runDeclaration({
-    modelId: 'deepseek-v4-flash', plant: 'd', runId, apiKeyOverride: 'stub-key', askTimeoutMs: 3000, modelStep,
+    modelId: 'deepseek-flash', plant: 'd', runId, apiKeyOverride: 'stub-key', askTimeoutMs: 3000, modelStep,
   });
   assert.equal(result.outcome, 'red');
   assert.match(result.red, /^happened:/);
@@ -200,7 +214,7 @@ test('compose returning text: "" reds on "happened:", not on completeness/bracke
     compose: { citations: CLEAN_DERIVE2_ARGS.citations, text: '' },
   });
   const result = await runDeclaration({
-    modelId: 'deepseek-v4-flash', plant: 'd', runId, apiKeyOverride: 'stub-key', askTimeoutMs: 3000, modelStep,
+    modelId: 'deepseek-flash', plant: 'd', runId, apiKeyOverride: 'stub-key', askTimeoutMs: 3000, modelStep,
   });
   assert.equal(result.outcome, 'red');
   assert.match(result.red, /^happened:/);
@@ -225,7 +239,7 @@ test('send writing a 0-byte sent.txt reds the run on "happened:" and is never lo
     return { deliveryId: deliveryPath };
   };
   const result = await runDeclaration({
-    modelId: 'deepseek-v4-flash', plant: 'd', runId, apiKeyOverride: 'stub-key', askTimeoutMs: 3000,
+    modelId: 'deepseek-flash', plant: 'd', runId, apiKeyOverride: 'stub-key', askTimeoutMs: 3000,
     modelStep, sendFn: zeroByteSend,
   });
   assert.equal(result.outcome, 'red');

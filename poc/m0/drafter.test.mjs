@@ -436,7 +436,7 @@ test('F11: the deepseek slot the drafter can run against carries legacyMaxTokens
   const saved = process.env.DEEPSEEK_API_KEY;
   process.env.DEEPSEEK_API_KEY = 'test-key-not-real';
   try {
-    assert.equal(makeProvider('deepseek', { model: 'deepseek-v4-flash' }).provider.legacyMaxTokens, true);
+    assert.equal(makeProvider('deepseek', { model: 'deepseek-flash' }).provider.legacyMaxTokens, true);
   } finally {
     if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved; else delete process.env.DEEPSEEK_API_KEY;
   }
