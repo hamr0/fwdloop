@@ -1039,7 +1039,7 @@ $0.4648 of $5.00.
 
 ## F22 — the baseline model was retired under us; M0a's proof ran on V4.1 Flash (2026-09-11)
 
-**Date** 2026-09-11 · **Status** measured; naming fix sent to Sonnet · **Class** provider /
+**Date** 2026-09-11 · **Status** closed 2026-09-12 (f0269bf; live row 212 reads `match`) · **Class** provider /
 F14 follow-up · **Grounded in** `GET https://api.deepseek.com/models` (2026-09-11) → `['deepseek-flash',
 'deepseek-v4-pro']`; DeepSeek pricing page (`api-docs.deepseek.com/quick_start/pricing`, read
 2026-09-11); `poc/m0/out/spend.jsonl` (57 deepseek rows); `poc/m0/provider.mjs:24`,
@@ -1071,4 +1071,11 @@ reason to answer it in M4: a warning that fires 47 times and changes nothing is 
 
 **Verdict:** M0a's evidence is valid, and it is evidence about DeepSeek-V4.1-Flash. The baseline is
 renamed to what actually runs.
+
+**Closed 2026-09-12.** f0269bf requests `deepseek-flash`, prices it at $0.30/$1.20 (re-read from
+the pricing page that day), and adds a test that every slot's default model resolves to a non-zero
+rate plus its PROOF partner. One live scout round on the new default, run by hamr from a TTY
+(agent shells cannot unlock `pass`): `poc/m0/out/spend.jsonl` row 212 — `model` ==
+`modelReturned` == `deepseek-flash`, `modelMatch: "match"`, $0.00049, 2 rounds, 2.6s. The ledger
+now holds 47 `substituted` rows and 1 `match`; the 47 are history and stay as recorded.
 
