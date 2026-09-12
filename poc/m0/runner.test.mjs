@@ -4,12 +4,20 @@ import {
   writeFileSync, mkdtempSync, readFileSync, mkdirSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseCsv } from './csv.mjs';
 import { hashFile } from './close.mjs';
 import {
-  renderCsvArtifact, renderTextArtifact, generatePlantCCsv, applyPlant, BUSINESS_DATE, runDeclaration,
+  renderCsvArtifact, renderTextArtifact, generatePlantCCsv, applyPlant, BUSINESS_DATE, runDeclaration, OUT_DIR,
 } from './runner.mjs';
+
+// Derived from this file's own location, never process.cwd() — the same pattern every sibling
+// test file (drafter.test.mjs, scout.test.mjs) already uses. A path built off process.cwd()
+// only works when `node --test` happens to be invoked from the repo root; from poc/m0 itself it
+// silently resolves to a poc/m0/poc/m0/ litter directory instead of failing loudly.
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = join(__dirname, '..', '..');
 
 // F9/finding 2: runDeclaration's rate lookup now delegates to provider.mjs's resolveModelRate —
 // the ONE writer for suffix-strip + table-lookup — rather than a second hand-rolled copy. A
@@ -63,7 +71,7 @@ test('PROOF the test can fail: generatePlantCCsv appends exactly the declared ro
 test('generatePlantCCsv against the REAL fixture produces the ambiguous set from fixtures/README.md', () => {
   const dir = mkdtempSync(join(tmpdir(), 'm0-plantc-real-'));
   const destPath = join(dir, 'ar-aging.plant-c.csv');
-  const fixturePath = join(process.cwd(), 'fixtures', 'ar-aging.csv');
+  const fixturePath = join(REPO_ROOT, 'fixtures', 'ar-aging.csv');
   generatePlantCCsv(fixturePath, destPath);
   const parsed = parseCsv(readFileSync(destPath, 'utf8'));
   assert.equal(parsed.rows.length, 9); // 8 real invoices + 1 planted
@@ -165,7 +173,7 @@ function stubModelStep(argsByStep) {
 
 /** Pre-answer the runner's final send-ask so a stubbed run can reach `send` without a human. */
 function preAnswerFinalAsk(runId) {
-  const outDir = join(process.cwd(), 'poc', 'm0', 'out', runId);
+  const outDir = join(OUT_DIR, runId);
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, 'answer.json'), JSON.stringify({ decision: 'accept', text: null }));
   return outDir;
@@ -181,7 +189,7 @@ test('PROOF the test can fail: a clean stubbed run (derive1/derive2/compose all 
     modelId: 'deepseek-flash', plant: 'd', runId, apiKeyOverride: 'stub-key', askTimeoutMs: 3000, modelStep,
   });
   assert.equal(result.outcome, 'complete');
-  const sentPath = join(process.cwd(), 'poc', 'm0', 'out', runId, 'sent.txt');
+  const sentPath = join(OUT_DIR, runId, 'sent.txt');
   const sentBytes = readFileSync(sentPath);
   assert.ok(sentBytes.byteLength > 0, 'sent.txt must not be 0 bytes on a clean run');
   const sendStep = result.log.steps.find((s) => s.step === 'send');

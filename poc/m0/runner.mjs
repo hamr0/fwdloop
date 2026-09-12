@@ -41,7 +41,7 @@ import { resolveModelRate } from './provider.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..');
-const OUT_DIR = join(__dirname, 'out');
+export const OUT_DIR = join(__dirname, 'out');
 const SPEND_PATH = join(OUT_DIR, 'spend.jsonl');
 const SYNTHETIC_BASE_URL = 'https://api.synthetic.new/openai/v1';
 export const BUSINESS_DATE = '2026-06-01'; // the run's explicit "as of today" — never the wall clock (PRD §5).
