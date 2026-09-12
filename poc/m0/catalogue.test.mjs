@@ -11,7 +11,8 @@ test('unknown verb throws — never returns undefined, never defaults', () => {
 test('PROOF the test can fail: a known verb resolves to its real implementation', () => {
   const entry = primitiveFor('read');
   assert.equal(entry.package, 'bare-agent/tools');
-  assert.equal(entry.symbol, 'shell_read');
+  assert.equal(entry.symbol, 'createShellTools');
+  assert.equal(entry.tool, 'shell_read');
   assert.equal(entry.class, 'read');
   // (deliberately broken + restored below, see report)
 });

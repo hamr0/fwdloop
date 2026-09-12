@@ -1,6 +1,9 @@
 // The primitive catalogue, as data — the menu-is-inventory grant list M0a's
 // drafter picks steps' primitives from. Every entry names an EXISTING
-// implementation; nothing here is invented (PRD rule (f), F13).
+// implementation; nothing here is invented (PRD rule (f), F13) — proven
+// mechanically, not by reading: catalogue.resolve.test.mjs dynamically
+// imports every entry's `package` and checks its `symbol`/`method`/`tool`
+// resolves against the real installed package (F23).
 //
 // borrowed-from (shape only, never imported):
 //   bareloop src/tools.js ~line 93 — TOOL_BY_VERB: 14 verbs in four
@@ -25,54 +28,65 @@
 export const CLASSES = Object.freeze(['read', 'write', 'store']);
 
 export const CATALOGUE = Object.freeze([
-  // write — bareloop's tree-mutation component (bare-agent/tools)
+  // write — bareloop's tree-mutation component (bare-agent/tools). The
+  // package exports a factory (createShellTools); `symbol` names the
+  // factory and `tool` names the tool it produces (F23 fix — the old
+  // `symbol: 'shell_write'` etc. named tool output, not an export).
   {
-    verb: 'write', component: 'write', package: 'bare-agent/tools', symbol: 'shell_write', class: 'write', skill: 'core',
+    verb: 'write', component: 'write', package: 'bare-agent/tools', symbol: 'createShellTools', tool: 'shell_write', class: 'write', skill: 'core',
   },
   {
-    verb: 'edit', component: 'write', package: 'bare-agent/tools', symbol: 'shell_edit', class: 'write', skill: 'core',
+    verb: 'edit', component: 'write', package: 'bare-agent/tools', symbol: 'createShellTools', tool: 'shell_edit', class: 'write', skill: 'core',
   },
   // select — read-only retrieval (bare-agent/tools + litectx)
   {
-    verb: 'read', component: 'select', package: 'bare-agent/tools', symbol: 'shell_read', class: 'read', skill: 'core',
+    verb: 'read', component: 'select', package: 'bare-agent/tools', symbol: 'createShellTools', tool: 'shell_read', class: 'read', skill: 'core',
   },
   {
-    verb: 'grep', component: 'select', package: 'bare-agent/tools', symbol: 'shell_grep', class: 'read', skill: 'core',
+    verb: 'grep', component: 'select', package: 'bare-agent/tools', symbol: 'createShellTools', tool: 'shell_grep', class: 'read', skill: 'core',
+  },
+  // litectx's ten verbs below are methods on its LiteCtx class, not the
+  // `ctx_*` names bareloop's tool wrappers give them (F23 — corrected: the
+  // bricks are real, only the catalogue's names were bareloop's, not
+  // litectx's own exports). `symbol: 'LiteCtx'` + `method` names the
+  // instance method fwdloop actually calls.
+  {
+    verb: 'recall', component: 'select', package: 'litectx', symbol: 'LiteCtx', method: 'recall', class: 'read', skill: 'core',
   },
   {
-    verb: 'recall', component: 'select', package: 'litectx', symbol: 'ctx_recall', class: 'read', skill: 'core',
+    verb: 'get', component: 'select', package: 'litectx', symbol: 'LiteCtx', method: 'get', class: 'read', skill: 'core',
+  },
+  // `impact`/`related` REMOVED (M0b orchestrator ruling): both walk a code
+  // graph (callers/callees, import edges) and `impact` needs ripgrep.
+  // fwdloop jobs have no code repo (PRD: "closes deterministically with no
+  // repo") — a brick with no meaning in any fwdloop job is noise on the
+  // drafter's menu, not a primitive to offer.
+  {
+    // recentActivity() is litectx's "recently edited code chunks" view —
+    // not a job verb fwdloop has (no code repo). recentMemory() is the
+    // recency sibling over saved notes, which fwdloop jobs do have.
+    verb: 'recent', component: 'select', package: 'litectx', symbol: 'LiteCtx', method: 'recentMemory', class: 'read', skill: 'core',
+  },
+  // compress — read-only condensation (litectx). `compress` is a plain
+  // module export (a function), not a LiteCtx method.
+  {
+    verb: 'compress', component: 'compress', package: 'litectx', symbol: 'compress', class: 'read', skill: 'core',
   },
   {
-    verb: 'get', component: 'select', package: 'litectx', symbol: 'ctx_get', class: 'read', skill: 'core',
-  },
-  {
-    verb: 'impact', component: 'select', package: 'litectx', symbol: 'ctx_impact', class: 'read', skill: 'core',
-  },
-  {
-    verb: 'related', component: 'select', package: 'litectx', symbol: 'ctx_related', class: 'read', skill: 'core',
-  },
-  {
-    verb: 'recent', component: 'select', package: 'litectx', symbol: 'ctx_recent', class: 'read', skill: 'core',
-  },
-  // compress — read-only condensation (litectx)
-  {
-    verb: 'compress', component: 'compress', package: 'litectx', symbol: 'ctx_compress', class: 'read', skill: 'core',
-  },
-  {
-    verb: 'peek', component: 'compress', package: 'litectx', symbol: 'ctx_peek', class: 'read', skill: 'core',
+    verb: 'peek', component: 'compress', package: 'litectx', symbol: 'LiteCtx', method: 'peek', class: 'read', skill: 'core',
   },
   // isolate — cross-run store (litectx). litectx's own taxonomy files
   // stash/remember/forget under its "Write" primitive; fwdloop's `class`
   // splits that further into `store` (mutates the cross-run store) so a
   // read-only scout's filter removes it same as a tree `write`.
   {
-    verb: 'stash', component: 'isolate', package: 'litectx', symbol: 'ctx_stash', class: 'store', skill: 'core',
+    verb: 'stash', component: 'isolate', package: 'litectx', symbol: 'LiteCtx', method: 'stash', class: 'store', skill: 'core',
   },
   {
-    verb: 'remember', component: 'isolate', package: 'litectx', symbol: 'ctx_remember', class: 'store', skill: 'core',
+    verb: 'remember', component: 'isolate', package: 'litectx', symbol: 'LiteCtx', method: 'remember', class: 'store', skill: 'core',
   },
   {
-    verb: 'forget', component: 'isolate', package: 'litectx', symbol: 'ctx_forget', class: 'store', skill: 'core',
+    verb: 'forget', component: 'isolate', package: 'litectx', symbol: 'LiteCtx', method: 'forget', class: 'store', skill: 'core',
   },
   // io — fwdloop's addition (see header): crosses outside the process.
   // Checkpoint pauses out to a human; mailproof sends out to the world.
