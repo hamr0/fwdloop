@@ -117,6 +117,19 @@ test('groundFacts falls back to the mechanical truth when the model reports noth
   assert.equal(facts.reported, false, 'nothing usable was reported, so `reported` must be false even though columns is filled in');
 });
 
+// F59 continued: `reported` must be computed from the GROUNDED columns, not the raw ones — a
+// survey whose every reported column is invented (never matches the real header at all) is not a
+// genuine report, it is a hallucinated one, and must classify ABSENT/SURVEY_NOT_REPORTED so the
+// drafter refuses at $0 instead of paying a round on facts nobody actually grounded.
+test('F59: a survey whose every column is invented (nothing grounded) is NOT reported — classifies ABSENT/SURVEY_NOT_REPORTED', () => {
+  const { csvArtifact, textArtifact } = lookFixtures(CSV_PATH, TEXT_PATH);
+  const facts = groundFacts({ csvColumns: ['Client', 'Balance'] }, { csvArtifact, textArtifact });
+  assert.deepEqual(facts.invented.sort(), ['Balance', 'Client']);
+  assert.equal(facts.reported, false, 'an all-invented survey must not count as reported');
+  assert.equal(classifyFacts(facts).state, 'ABSENT');
+  assert.equal(classifyFacts(facts).cause, FACTS_CAUSES.SURVEY_NOT_REPORTED);
+});
+
 test('PROOF the test can fail: a genuine (even partial) report sets reported to true', () => {
   const { csvArtifact, textArtifact } = lookFixtures(CSV_PATH, TEXT_PATH);
   const facts = groundFacts({ csvColumns: [csvArtifact.header[0]] }, { csvArtifact, textArtifact });

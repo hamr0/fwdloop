@@ -108,19 +108,23 @@ export function lookFixtures(csvPath, textPath) {
  * model's facts."
  *
  * `reported` (F59 fix) is the ONE bit that says whether the MODEL actually
- * reported something usable — `rawFacts` had a non-empty `csvColumns` array —
- * independent of the mechanical fallback below. The fallback exists so
- * `csv.columns` is never empty (the header is real either way), but it must
- * never be read as "the scout completed": `classifyFacts` is the one place
- * that decides ABSENT/PRESENT, and it reads `reported`, never re-derives it
- * from whether `columns` happens to look like the real header.
+ * reported something usable — `rawFacts` had a non-empty `csvColumns` array
+ * AND at least one of those names is a REAL column, never invented wholesale
+ * — independent of the mechanical fallback below. A survey whose every
+ * column is invented is not a genuine report; it is exactly the ungrounded
+ * "hallucinated survey" F59's own fix exists to catch, so `reported` reads
+ * the GROUNDED list, never the raw one. The fallback exists so `csv.columns`
+ * is never empty (the header is real either way), but it must never be read
+ * as "the scout completed": `classifyFacts` is the one place that decides
+ * ABSENT/PRESENT, and it reads `reported`, never re-derives it from whether
+ * `columns` happens to look like the real header.
  */
 export function groundFacts(rawFacts, { csvArtifact, textArtifact }) {
   const realColumns = csvArtifact.header;
   const reportedColumns = Array.isArray(rawFacts?.csvColumns) ? rawFacts.csvColumns : [];
-  const reported = reportedColumns.length > 0;
   const invented = reportedColumns.filter((c) => !realColumns.includes(c));
   const groundedColumns = reportedColumns.filter((c) => realColumns.includes(c));
+  const reported = groundedColumns.length > 0;
   return {
     csv: {
       artifactId: csvArtifact.id,
