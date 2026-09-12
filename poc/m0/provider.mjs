@@ -21,13 +21,31 @@ export const PROVIDER_SLOTS = Object.freeze({
   deepseek: Object.freeze({
     baseUrl: 'https://api.deepseek.com',
     envVar: 'DEEPSEEK_API_KEY',
-    defaultModel: 'deepseek-v4-flash',
+    // F22 (2026-09-11): DeepSeek retired the `deepseek-v4-flash` name. It's still ACCEPTED but
+    // now routed to DeepSeek-V4.1-Flash, so requesting it stamps every row 'substituted'. Ask
+    // for the live name so request = served and the stamp reads 'match'.
+    defaultModel: 'deepseek-flash',
     // F11: DeepSeek silently IGNORES `max_completion_tokens` (bare-agent 0.42.0's default key)
     // — asked for 64 output tokens, got 783, stopReason 'end_turn'. It honours only the legacy
     // `max_tokens`. Without this the output cap is theatre and a runaway step is unbounded.
     legacyMaxTokens: true,
   }),
 });
+
+/**
+ * Resolve a modelId to its hand-entered rate row. ONE writer for this lookup
+ * (makeProvider below, and provider.test.mjs's coverage check, both call this
+ * — never duplicate the suffix-strip + table-lookup elsewhere). Throws rather
+ * than returning undefined so a caller can never carry forward a 0 rate.
+ * `ratesTable` is injectable (defaults to the real RATES_BY_SUFFIX) so a test
+ * can run this exact logic against a table that deliberately lacks an entry.
+ */
+export function resolveModelRate(modelId, ratesTable = RATES_BY_SUFFIX) {
+  const suffix = modelId.replace(/^hf:/, '');
+  const rates = ratesTable[suffix];
+  if (!rates) throw new Error(`no hand-entered rate for model suffix "${suffix}"`);
+  return { suffix, rates };
+}
 
 /**
  * Build a provider for the given slot. Throws (never defaults) on: an unknown
@@ -44,9 +62,7 @@ export function makeProvider(slotName, { model } = {}) {
   if (!apiKey) throw new Error(`${slot.envVar} is not set`);
 
   const modelId = model ?? slot.defaultModel;
-  const suffix = modelId.replace(/^hf:/, '');
-  const rates = RATES_BY_SUFFIX[suffix];
-  if (!rates) throw new Error(`no hand-entered rate for model suffix "${suffix}"`);
+  const { suffix, rates } = resolveModelRate(modelId);
 
   const provider = new OpenAI({
     apiKey, model: modelId, baseUrl: slot.baseUrl, legacyMaxTokens: slot.legacyMaxTokens === true,

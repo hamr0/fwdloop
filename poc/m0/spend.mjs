@@ -149,6 +149,12 @@ export const RATES_BY_SUFFIX = {
   'nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4': { in: 0.000085, out: 0.0004, source: 'published' }, // OpenRouter list price, $0.085/$0.40 per 1M (base variant; NVFP4 quant price not separately listed)
   'syn:large:text': { in: 0.0006, out: 0.0025, source: 'ceiling' }, // no published rate found for this synthetic.new alias — ceilinged at the highest rate in this table (Kimi-K3's)
   'syn:small:text': { in: 0.0006, out: 0.0025, source: 'ceiling' }, // same — no published rate found
+  // F22 (2026-09-11): 'deepseek-v4-flash' is RETIRED — DeepSeek's own pricing page says the
+  // legacy name is still accepted but every request it names is now served by DeepSeek-V4.1-
+  // Flash. Kept here, numbers untouched, only because the 57 historical ledger rows that
+  // already recorded this name were priced against these numbers and must stay priced as they
+  // were; nothing new should request this name (provider.mjs's default is 'deepseek-flash').
   'deepseek-v4-flash': { in: 0.00044, out: 0.00132, source: 'published' }, // DeepSeek official pricing (https://api-docs.deepseek.com/quick_start/pricing, read 2026-09-09): cache-MISS, PEAK $0.44/$1.32 per 1M tokens — peak (the higher of peak/off-peak) used as the ceiling; cache-hit input is cheaper ($0.007-$0.014/1M) and not used, per the cache-miss ceiling rule
+  'deepseek-flash': { in: 0.0003, out: 0.0012, source: 'published' }, // F22: DeepSeek official pricing (https://api-docs.deepseek.com/quick_start/pricing, read 2026-09-11): this is DeepSeek-V4.1-Flash, cache-MISS, PEAK $0.30/$1.20 per 1M tokens — peak (the higher of peak/off-peak) used as the ceiling, same rule as every other row in this table
   'deepseek-v4-pro': { in: 0.00132, out: 0.00396, source: 'published' }, // DeepSeek official pricing (https://api-docs.deepseek.com/quick_start/pricing, read 2026-09-09): cache-MISS, PEAK $1.32/$3.96 per 1M tokens — see deepseek-v4-flash note above
 };

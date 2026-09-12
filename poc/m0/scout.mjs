@@ -35,7 +35,7 @@ import { Loop } from 'bare-agent';
 import { gather } from './mechanical.mjs';
 import { makeArtifact } from './artifacts.mjs';
 import { menu } from './catalogue.mjs';
-import { makeProvider } from './provider.mjs';
+import { makeProvider, PROVIDER_SLOTS } from './provider.mjs';
 import {
   assertUnderGlobalCap, appendSpendRow, sumMeterings, RUN_CAP_USD,
 } from './spend.mjs';
@@ -320,9 +320,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   }
   const REPO_ROOT = join(__dirname, '..', '..');
-  const modelId = process.argv[2] || 'deepseek-v4-flash';
   const slotIdx = process.argv.indexOf('--slot');
   const slot = slotIdx !== -1 ? process.argv[slotIdx + 1] : 'deepseek';
+  // F22: default to the slot's own live model (provider.mjs is the one writer for it),
+  // never a hard-coded name here that can go stale when a provider renames a model.
+  const modelId = process.argv[2] || PROVIDER_SLOTS[slot].defaultModel;
   const csvPath = join(REPO_ROOT, 'fixtures', 'ar-aging.csv');
   const textPath = join(REPO_ROOT, 'fixtures', 'message.txt');
   const report = await runScoutRound(modelId, {
