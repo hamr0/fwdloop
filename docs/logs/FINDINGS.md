@@ -1080,37 +1080,42 @@ rate plus its PROOF partner. One live scout round on the new default, run by ham
 now holds 47 `substituted` rows and 1 `match`; the 47 are history and stay as recorded.
 
 
-## F23 — ten of the catalogue's primitives name symbols that do not exist (2026-09-12)
+## F23 — CORRECTED same day: the litectx bricks are real; our catalogue names bareloop's tool wrappers, not litectx (2026-09-12)
 
-**Date** 2026-09-12 · **Status** measured at $0; fix lands as M0b's first step · **Class** catalogue /
-Claim 1 precondition · **Grounded in** `poc/m0/catalogue.mjs`; word-match grep of each catalogue
-`symbol` in the sibling repos (litectx@7af2836, bareguard@3c496ab, mailproof@ff33e38) and in
-`node_modules/bare-agent`; litectx's real export list read via `import('./src/index.js')`.
+**Date** 2026-09-12 · **Status** corrected within the hour; small fix lands as M0b's first step ·
+**Class** catalogue / Claim 1 precondition · **Grounded in** `poc/m0/catalogue.mjs:43-76`;
+`Object.getOwnPropertyNames(LiteCtx.prototype)` and `VERBS_BY_PRIMITIVE` read from litectx's
+`src/index.js`; `bareloop/src/behaviour.js:11-13`; `node_modules/bare-agent/bareagent.context.md:920`.
 
-**What was checked.** M0a proved the drafter picks bricks *from the catalogue*. It never proved the
-catalogue's bricks are real — the catalogue is hand-written data, and M0a never calls a primitive.
-M0b is the first module that does, so each `package#symbol` was checked against the code it names.
+**Correction first.** The first version of F23 said "ten catalogue primitives name symbols that do
+not exist" and read that as bricks nobody can call. That was wrong. The check searched litectx for
+the catalogue's `symbol` strings (`ctx_recall`, `ctx_stash`, …), found none, and stopped. It never
+asked where the `ctx_` names come from. They are **bareloop's** names for its tool wrappers around
+litectx (`bareloop/src/behaviour.js:13`). bare-agent's own bridge calls the same verbs
+`litectx_recall`, `litectx_get`. Absence of a name was read as absence of the brick — the F4/F9
+mistake again.
 
-| package | entries | resolve | missing |
-|---|---|---|---|
-| bare-agent (+ /tools) | 6 | 6 | — |
-| bareguard | 2 | 2 | — |
-| mailproof | 2 | 2 | — |
-| **litectx** | **10** | **0** | every `ctx_*` symbol |
+**What is true.** Every one of the ten verbs exists as a real litectx method:
 
-litectx exports `LiteCtx`, `ContextGraph`, `Store`, `compress`, `assemble`, `PRIMITIVES`,
-`VERBS_BY_PRIMITIVE` and others — no `ctx_` name. Its MCP tool names are `recall`, `get`,
-`impact`, `recent`, `remember`, `forget`, `index`, `promotions`: nothing called `related`,
-`peek` or `stash` at that layer. The `ctx_` names look invented, or copied from an older surface.
+| catalogue verb | litectx has it as |
+|---|---|
+| recall, get, impact, related | `LiteCtx#recall`, `#get`, `#impact`, `#related` |
+| recent | `LiteCtx#recentActivity` / `#recentMemory` |
+| compress | `compress` (module export) |
+| peek, stash | `LiteCtx#peek`, `#stash` |
+| remember, forget | `LiteCtx#remember`, `#forget` |
 
-**What it does and does not mean.** Job #1 is granted the `core` skill, and its steps use the
-bare-agent `shell_*` tools, fwdloop's own CSV reader and bareguard's fence — all of which resolve.
-So M0a's evidence stands. But the drafter was offered ten litectx entries it could have picked, and
-the validator would have scored a pick green on a symbol that does not exist. **A catalogue that
-lists a brick nobody can call is the "never invent a primitive" rule broken by us, not by the model.**
+bare-agent (6), bareguard (2) and mailproof (2) entries resolve by their catalogue names as written.
 
-**Fix (M0b, step 1, $0):** a test that imports every catalogue entry's `package` and asserts its
-`symbol` resolves — the proof-can-fail partner is an entry with a made-up symbol. Correct or drop
-the litectx rows against litectx's real surface; a verb M0b needs that litectx genuinely lacks is an
-upstream ask, not a rename. litectx, bareguard and mailproof are not yet installed in fwdloop —
-only bare-agent is.
+**What is left, and it is small.** The catalogue's `symbol` field for litectx points at a
+bareloop-shaped tool name that fwdloop does not have. M0a never called a brick, so nothing broke.
+M0b calls them, so the field must name something fwdloop can actually import: `LiteCtx#recall` and
+so on, or a tool wrapper borrowed from bareloop by copy with its header. `recent` maps to two
+methods, which is a small choice for when a step needs it. Job #1 uses no litectx verb.
+
+**Fix (M0b, step 1, $0):** a test that resolves every catalogue entry's `package` + `symbol` against
+the installed package, and its proof-can-fail partner with a made-up symbol. Then fix the litectx
+`symbol` fields. litectx, bareguard and mailproof are not yet installed in fwdloop.
+
+**Lesson:** a string that isn't where you looked is a question about where it lives, not proof it
+doesn't exist.
