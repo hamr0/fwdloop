@@ -33,17 +33,17 @@ export const CATALOGUE = Object.freeze([
   // factory and `tool` names the tool it produces (F23 fix — the old
   // `symbol: 'shell_write'` etc. named tool output, not an export).
   {
-    verb: 'write', component: 'write', package: 'bare-agent/tools', symbol: 'createShellTools', tool: 'shell_write', class: 'write', skill: 'core',
+    verb: 'write', component: 'write', package: 'bare-agent/tools', symbol: 'createShellTools', tool: 'shell_write', class: 'write', skill: 'core', desc: 'Create or overwrite a file with given contents.',
   },
   {
-    verb: 'edit', component: 'write', package: 'bare-agent/tools', symbol: 'createShellTools', tool: 'shell_edit', class: 'write', skill: 'core',
+    verb: 'edit', component: 'write', package: 'bare-agent/tools', symbol: 'createShellTools', tool: 'shell_edit', class: 'write', skill: 'core', desc: 'Change part of an existing file in place.',
   },
   // select — read-only retrieval (bare-agent/tools + litectx)
   {
-    verb: 'read', component: 'select', package: 'bare-agent/tools', symbol: 'createShellTools', tool: 'shell_read', class: 'read', skill: 'core',
+    verb: 'read', component: 'select', package: 'bare-agent/tools', symbol: 'createShellTools', tool: 'shell_read', class: 'read', skill: 'core', desc: "Read a file's text.",
   },
   {
-    verb: 'grep', component: 'select', package: 'bare-agent/tools', symbol: 'createShellTools', tool: 'shell_grep', class: 'read', skill: 'core',
+    verb: 'grep', component: 'select', package: 'bare-agent/tools', symbol: 'createShellTools', tool: 'shell_grep', class: 'read', skill: 'core', desc: 'Find lines matching a pattern across files.',
   },
   // litectx's ten verbs below are methods on its LiteCtx class, not the
   // `ctx_*` names bareloop's tool wrappers give them (F23 — corrected: the
@@ -51,10 +51,10 @@ export const CATALOGUE = Object.freeze([
   // litectx's own exports). `symbol: 'LiteCtx'` + `method` names the
   // instance method fwdloop actually calls.
   {
-    verb: 'recall', component: 'select', package: 'litectx', symbol: 'LiteCtx', method: 'recall', class: 'read', skill: 'core',
+    verb: 'recall', component: 'select', package: 'litectx', symbol: 'LiteCtx', method: 'recall', class: 'read', skill: 'core', desc: 'Search saved notes by meaning; returns the best matches, not their full text.',
   },
   {
-    verb: 'get', component: 'select', package: 'litectx', symbol: 'LiteCtx', method: 'get', class: 'read', skill: 'core',
+    verb: 'get', component: 'select', package: 'litectx', symbol: 'LiteCtx', method: 'get', class: 'read', skill: 'core', desc: "Fetch the full text of one saved note or parked item by its id.",
   },
   // `impact`/`related` REMOVED (M0b orchestrator ruling): both walk a code
   // graph (callers/callees, import edges) and `impact` needs ripgrep.
@@ -65,45 +65,45 @@ export const CATALOGUE = Object.freeze([
     // recentActivity() is litectx's "recently edited code chunks" view —
     // not a job verb fwdloop has (no code repo). recentMemory() is the
     // recency sibling over saved notes, which fwdloop jobs do have.
-    verb: 'recent', component: 'select', package: 'litectx', symbol: 'LiteCtx', method: 'recentMemory', class: 'read', skill: 'core',
+    verb: 'recent', component: 'select', package: 'litectx', symbol: 'LiteCtx', method: 'recentMemory', class: 'read', skill: 'core', desc: 'List the most recently saved notes, newest first.',
   },
   // compress — read-only condensation (litectx). `compress` is a plain
   // module export (a function), not a LiteCtx method.
   {
-    verb: 'compress', component: 'compress', package: 'litectx', symbol: 'compress', class: 'read', skill: 'core',
+    verb: 'compress', component: 'compress', package: 'litectx', symbol: 'compress', class: 'read', skill: 'core', desc: 'Shorten a piece of text to fit a small prompt (full, signature-only, or dropped).',
   },
   {
-    verb: 'peek', component: 'compress', package: 'litectx', symbol: 'LiteCtx', method: 'peek', class: 'read', skill: 'core',
+    verb: 'peek', component: 'compress', package: 'litectx', symbol: 'LiteCtx', method: 'peek', class: 'read', skill: 'core', desc: "Preview a parked item's start and end without loading all of it.",
   },
   // isolate — cross-run store (litectx). litectx's own taxonomy files
   // stash/remember/forget under its "Write" primitive; fwdloop's `class`
   // splits that further into `store` (mutates the cross-run store) so a
   // read-only scout's filter removes it same as a tree `write`.
   {
-    verb: 'stash', component: 'isolate', package: 'litectx', symbol: 'LiteCtx', method: 'stash', class: 'store', skill: 'core',
+    verb: 'stash', component: 'isolate', package: 'litectx', symbol: 'LiteCtx', method: 'stash', class: 'store', skill: 'core', desc: 'Park a large piece of text outside the prompt under an id, to fetch back later.',
   },
   {
-    verb: 'remember', component: 'isolate', package: 'litectx', symbol: 'LiteCtx', method: 'remember', class: 'store', skill: 'core',
+    verb: 'remember', component: 'isolate', package: 'litectx', symbol: 'LiteCtx', method: 'remember', class: 'store', skill: 'core', desc: 'Save a note that persists across runs, under an id.',
   },
   {
-    verb: 'forget', component: 'isolate', package: 'litectx', symbol: 'LiteCtx', method: 'forget', class: 'store', skill: 'core',
+    verb: 'forget', component: 'isolate', package: 'litectx', symbol: 'LiteCtx', method: 'forget', class: 'store', skill: 'core', desc: 'Delete a saved note by id.',
   },
   // io — fwdloop's addition (see header): crosses outside the process.
   // Checkpoint pauses out to a human; mailproof sends out to the world.
   // Both are gated `write`-class for the same reason a tree write is: a
   // read-only scout must never be able to reach either.
   {
-    verb: 'checkpoint', component: 'io', package: 'bare-agent', symbol: 'Checkpoint', class: 'write', skill: 'core',
+    verb: 'checkpoint', component: 'io', package: 'bare-agent', symbol: 'Checkpoint', class: 'write', skill: 'core', desc: "Pause the run and wait for a human's answer.",
   },
   // Real mail egress is explicitly gated behind its own signed allow-list
   // (PRD §6 M9: "behind the signed allow-list and a prior ask accept in the
   // same run") — a separate skill from the core drafting primitives above,
   // not the default M0a job #1 skillset.
   {
-    verb: 'draftMail', component: 'io', package: 'mailproof', symbol: 'create', class: 'write', skill: 'mail-egress',
+    verb: 'draftMail', component: 'io', package: 'mailproof', symbol: 'create', class: 'write', skill: 'mail-egress', desc: 'Prepare an email without sending it.',
   },
   {
-    verb: 'sendMail', component: 'io', package: 'mailproof', symbol: 'sendmail', class: 'write', skill: 'mail-egress',
+    verb: 'sendMail', component: 'io', package: 'mailproof', symbol: 'sendmail', class: 'write', skill: 'mail-egress', desc: 'Send an email (only to a signed destination, after a human accept).',
   },
   // fwdloop's own citation contract — NOT a baresuite primitive.
   // F13 RULED 2026-09-09 ("it is ours"): reading bytes is bareloop's
@@ -111,7 +111,7 @@ export const CATALOGUE = Object.freeze([
   // is fwdloop's own domain contract, kept out of the baresuite components
   // above on purpose.
   {
-    verb: 'addressCells', component: 'fwdloop', package: 'poc/m0/csv.mjs', symbol: 'parseCsv', class: 'read', skill: 'core',
+    verb: 'addressCells', component: 'fwdloop', package: 'poc/m0/csv.mjs', symbol: 'parseCsv', class: 'read', skill: 'core', desc: 'Read a spreadsheet as cells, each with an address that can be cited.',
   },
 ]);
 

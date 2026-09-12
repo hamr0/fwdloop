@@ -61,7 +61,7 @@ export const DRAFTER_MAX_TOKENS = 16000;
 
 function primitiveMenuText() {
   return menu({ skills: DRAFTER_SKILLS })
-    .map((e) => `- ${e.verb} (${e.component}, class: ${e.class}) — ${e.package}#${e.symbol}`)
+    .map((e) => `- ${e.verb}: ${e.desc} (${e.component}, class: ${e.class}) — ${e.package}#${e.symbol}`)
     .join('\n');
 }
 

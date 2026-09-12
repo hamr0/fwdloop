@@ -25,6 +25,8 @@ test('every catalogue entry has the minimum required fields', () => {
     assert.equal(typeof entry.symbol, 'string');
     assert.ok(['read', 'write', 'store'].includes(entry.class), `${entry.verb} has an invalid class "${entry.class}"`);
     assert.equal(typeof entry.skill, 'string');
+    assert.equal(typeof entry.desc, 'string', `${entry.verb} is missing a "desc"`);
+    assert.ok(entry.desc.length > 0, `${entry.verb}'s "desc" must not be empty`);
   }
 });
 
