@@ -188,8 +188,10 @@ confuses the step (yours to draft) with its destination (never yours).
 
 If a line cannot be expressed as a typed, cited artifact at all (e.g. it asks
 for a subjective judgment with no groundable check whatsoever — not even a
-human check), put it in "refused" with a one-line reason instead of
-inventing a proxy check or a primitive that does not exist.
+human check), put it in "refused" with that line's NUMBER (the "line" field —
+the same numbered job line, never guessed from the words of "hamrLine") plus
+a one-line reason, instead of inventing a proxy check or a primitive that
+does not exist.
 
 The numbered job lines, each showing its guardrail or "[no guardrail]":
 ${jobLinesText(rawGuardrails)}
@@ -253,8 +255,12 @@ const DECLARATION_SCHEMA = {
       type: 'array',
       items: {
         type: 'object',
-        properties: { hamrLine: { type: 'string' }, reason: { type: 'string' } },
-        required: ['hamrLine', 'reason'],
+        properties: {
+          hamrLine: { type: 'string', description: 'the human-readable job line being refused, your own words — never parsed for its number' },
+          line: { type: 'integer', description: 'the exact numbered job line this refusal covers, e.g. 6 — the one mechanical join key, same role as a step\'s "fromLine"' },
+          reason: { type: 'string' },
+        },
+        required: ['hamrLine', 'line', 'reason'],
       },
     },
   },

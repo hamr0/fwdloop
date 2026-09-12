@@ -31,7 +31,6 @@ import assert from 'node:assert/strict';
 import {
   validate, guardrailList, unmappedGuardrails, parseLines, parseArbiterGuardrails,
   resolveGuardrailClass, deriveFromLine, effectiveClass, effectiveGuardrailClass, unjudgeableList,
-  refusedLineNumber,
 } from './validator.mjs';
 
 // The signed guardrails text job #1 actually carries, as the NUMBERED JOB
@@ -191,7 +190,7 @@ test('a step with NO fromLine at all is hitl, never a red, even with no close', 
   // Fix 2 (validate()'s dropped-job-line check): step 1 no longer claims
   // line 1, so it must be refused instead — otherwise line 1 is silently
   // dropped, which is a DIFFERENT red than the one this test isolates.
-  decl.refused = [{ hamrLine: '1', reason: 'no step names it, for this test' }];
+  decl.refused = [{ hamrLine: '1', line: 1, reason: 'no step names it, for this test' }];
   assert.equal(validate(decl).verdict, 'green');
   assert.equal(effectiveClass(decl.steps[0], decl), 'hitl');
 });
@@ -253,7 +252,7 @@ test('PROOF: the same step is green once correctly landed at hitl', () => {
   // Fix 2 (validate()'s dropped-job-line check): moving step 3's fromLine
   // away from 3 leaves line 3 unclaimed — refuse it so this test still
   // isolates its own point (a step landed correctly at hitl is green).
-  decl.refused = [{ hamrLine: '3', reason: 'no step names it any more, for this test' }];
+  decl.refused = [{ hamrLine: '3', line: 3, reason: 'no step names it any more, for this test' }];
   assert.equal(validate(decl).verdict, 'green');
 });
 
@@ -717,7 +716,7 @@ test('PROOF the test can fail: refusing the same dropped line makes the declarat
   const decl = validDeclaration();
   decl.steps.splice(5, 1);
   assert.equal(validate(decl).verdict, 'red');
-  decl.refused = [{ hamrLine: '5', reason: 'the human can check this by hand, no step needed' }];
+  decl.refused = [{ hamrLine: '5', line: 5, reason: 'the human can check this by hand, no step needed' }];
   assert.equal(validate(decl).verdict, 'green');
 });
 
@@ -768,29 +767,27 @@ test('the live evidence shape (unjudgeable-guardrail-1789024978756) reds on the 
 });
 
 // ---------------------------------------------------------------------------
-// refusedLineNumber — mechanical extraction of a refusal's line number,
-// never a content match against the line's own words. Live drafts return
-// `hamrLine` in two shapes: a bare number and the numbered line verbatim.
+// Finding 3 (2026-09-12) — check 6 keys on `refused[].line`, a REQUIRED typed
+// integer, never a leading-integer regex parsed out of the free-text
+// `hamrLine` field. A live draft refused line 6 with
+// `hamrLine: "and send it once I accept."` — prose with no leading digit at
+// all — which the old mechanism could not cover at all. `hamrLine` stays the
+// human-readable description; it is never read for its number any more.
 // ---------------------------------------------------------------------------
 
-test('refusedLineNumber extracts the leading number from both live-observed shapes', () => {
-  assert.equal(refusedLineNumber('6'), 6);
-  assert.equal(refusedLineNumber('6. and send it once I accept.'), 6);
-  assert.equal(refusedLineNumber('  6  '), 6);
+test('a refusal with a digit-less hamrLine (prose only) still covers its line, via the typed "line" field', () => {
+  const decl = validDeclaration();
+  decl.steps.splice(5, 1); // drop the step for line 5 ("check with me")
+  decl.refused = [{ hamrLine: 'and send it once I accept.', line: 5, reason: 'described in prose, no number in the words at all' }];
+  const result = validate(decl);
+  assert.equal(result.verdict, 'green', 'the typed "line" field covers it — hamrLine\'s wording is irrelevant to coverage');
 });
 
-test('refusedLineNumber returns null, never a guess, when there is no leading digit at all', () => {
-  assert.equal(refusedLineNumber('the send line'), null);
-  assert.equal(refusedLineNumber(''), null);
-  assert.equal(refusedLineNumber(undefined), null);
-  assert.equal(refusedLineNumber(null), null);
-});
-
-test('PROOF the test can fail: a refusal with no leading digit does NOT cover the line it describes in prose', () => {
+test('PROOF the test can fail: a refusal with hamrLine text but NO "line" field does NOT cover the line it describes in prose', () => {
   const decl = validDeclaration();
   decl.steps.splice(5, 1); // drop the step for line 5
-  decl.refused = [{ hamrLine: 'check with me', reason: 'described in prose, no number at all' }];
+  decl.refused = [{ hamrLine: 'check with me', reason: 'described in prose, no "line" field at all' }];
   const result = validate(decl);
-  assert.equal(result.verdict, 'red', 'a prose-only refusal must not silently satisfy coverage for line 5');
+  assert.equal(result.verdict, 'red', 'a prose-only refusal (no "line") must not silently satisfy coverage for line 5');
   assert.match(result.red, /job line 5/);
 });

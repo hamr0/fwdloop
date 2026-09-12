@@ -319,22 +319,6 @@ export function unmappedGuardrails(declaration) {
 }
 
 /**
- * Mechanically extract the leading line number from a `refused[].hamrLine`
- * string — NEVER a content match against the line's own words (that would be
- * exactly the F16-style fitted-regex mistake this validator already rejects
- * elsewhere). Live drafts return this field in two observed shapes: a bare
- * number ("6") and the numbered line text verbatim ("6. and send it once I
- * accept."), both of which start with the digits — so a leading-integer
- * parse handles both without guessing at which line a description refers to.
- * A `hamrLine` with no leading digit at all cannot be matched mechanically
- * and returns null — it is never counted toward any line, not guessed at.
- */
-export function refusedLineNumber(hamrLine) {
-  const m = /^\s*(\d+)\b/.exec(String(hamrLine ?? ''));
-  return m ? Number(m[1]) : null;
-}
-
-/**
  * Validate one declaration's walkable chain. Returns { verdict, red } —
  * 'green'/null on a clean pass, 'red'/<gap-style string> on the FIRST
  * failure found, walking steps in declared order (declaration order IS
@@ -553,12 +537,21 @@ export function validate(declaration) {
   // easily and previously validated green). Arbiter guardrails belong to no
   // line at all and are exempt by construction — `parseLines` never returns
   // them, so they can never appear in `lines` here.
+  //
+  // Keyed on `refused[].line` — a REQUIRED typed integer (drafter.mjs /
+  // redraft.mjs's DECLARATION_SCHEMA/REDRAFT_SCHEMA), never parsed out of the
+  // free-text `hamrLine` field (Finding 3, 2026-09-12). A live draft refused
+  // line 6 with `hamrLine: "and send it once I accept."` — prose with no
+  // leading digit at all — and a leading-integer regex over that text
+  // (the previous mechanism) silently failed to cover it, reading it as a
+  // dropped line. `hamrLine` stays as the human-readable description; `line`
+  // is the one mechanical join key, exactly like `fromLine` is for steps.
   const claimedLines = new Set(
     declaration.steps.map((st) => st.fromLine).filter((n) => Number.isInteger(n)),
   );
   const refusedList = Array.isArray(declaration.refused) ? declaration.refused : [];
   const refusedLines = new Set(
-    refusedList.map((r) => refusedLineNumber(r?.hamrLine)).filter((n) => n !== null),
+    refusedList.map((r) => r?.line).filter((n) => Number.isInteger(n)),
   );
   for (const line of lines) {
     if (!claimedLines.has(line.n) && !refusedLines.has(line.n)) {
