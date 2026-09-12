@@ -119,7 +119,9 @@ export function lookFixtures(csvPath, textPath) {
  * ABSENT/PRESENT, and it reads `reported`, never re-derives it from whether
  * `columns` happens to look like the real header.
  */
-export function groundFacts(rawFacts, { csvArtifact, textArtifact }) {
+export function groundFacts(rawFacts, {
+  csvArtifact, textArtifact, truncated = false, outputTokens = null,
+}) {
   const realColumns = csvArtifact.header;
   const reportedColumns = Array.isArray(rawFacts?.csvColumns) ? rawFacts.csvColumns : [];
   const invented = reportedColumns.filter((c) => !realColumns.includes(c));
@@ -143,6 +145,15 @@ export function groundFacts(rawFacts, { csvArtifact, textArtifact }) {
     notes: typeof rawFacts?.notes === 'string' ? rawFacts.notes : null,
     invented,
     reported,
+    // Finding 6 (2026-09-12) — a `max_tokens` stop is a TRUNCATION, never a
+    // genuine no-call (the F4 misread): `reported` alone cannot tell the two
+    // apart (both leave `rawFacts` null), so this is carried on the facts
+    // object as its own distinct fact, mirroring runner.mjs's `truncated: N
+    // tokens` wording. `classifyFacts` below reads it BEFORE the
+    // SURVEY_NOT_REPORTED check, so a truncated round is never reported as
+    // "the scout said nothing" — it is reported as "the scout was cut off".
+    truncated,
+    outputTokens,
   };
 }
 
@@ -164,6 +175,12 @@ export const FACTS_CAUSES = Object.freeze({
    *  `csv.columns` happens to look like the real header (that would be exactly F59's mistake:
    *  the mechanical fallback makes an incomplete survey LOOK like a complete one). */
   SURVEY_NOT_REPORTED: 'survey-not-reported',
+  /** Finding 6 (2026-09-12): the scout's round stopped at the output cap (`max_tokens`) before
+   *  ever finishing a generation — a cut-mid-think round, not a genuine no-call. `reported` alone
+   *  cannot distinguish the two (both leave `rawFacts` null), so this is its own named cause,
+   *  never folded into SURVEY_NOT_REPORTED (the F4 misread this mirrors, runner.mjs's existing
+   *  `truncated: N tokens` handling). */
+  TRUNCATED: 'truncated',
   /** the mechanical look itself found no header at all (e.g. an empty or header-less CSV) —
    *  the one case groundFacts's own fallback cannot paper over, because the fallback IS the
    *  (empty) real header */
@@ -203,6 +220,20 @@ export function classifyFacts(facts) {
       state: 'ABSENT',
       cause: FACTS_CAUSES.MALFORMED,
       reason: `facts is a ${Array.isArray(facts) ? 'array' : typeof facts}, not the object groundFacts produces`,
+    };
+  }
+  // Finding 6 (2026-09-12): checked BEFORE `reported` — a truncated round never
+  // called report_facts either, so `reported` would also read false here, and
+  // folding it into SURVEY_NOT_REPORTED is exactly the F4 misread (a cut-off
+  // round reading as "the scout said nothing" instead of "the scout was cut
+  // off mid-think"). Mirrors runner.mjs's `truncated: N tokens` wording.
+  if (facts.truncated === true) {
+    return {
+      state: 'ABSENT',
+      cause: FACTS_CAUSES.TRUNCATED,
+      reason: `truncated: ${facts.outputTokens ?? '?'} tokens, no tool call — the scout's round hit the `
+        + 'output cap (stopReason=max_tokens); this is not the survey completing and saying nothing, it '
+        + 'never finished generating at all',
     };
   }
   if (facts.reported !== true) {
@@ -293,15 +324,21 @@ export async function runScoutRound(modelId, {
   ];
 
   const startedAt = Date.now();
-  await loop.run(messages, [tool], { maxTokens: SCOUT_MAX_TOKENS });
+  // Finding 6 (2026-09-12) — keep the result: `loop.run`'s return carries the
+  // round's real `stopReason` (bare-agent's neutral name; see loop.js's own
+  // classifyStopReason/BA-13), which used to be discarded here entirely.
+  // runner.mjs (~176-184) already reads this same field the same way.
+  const result = await loop.run(messages, [tool], { maxTokens: SCOUT_MAX_TOKENS });
   const wallMs = Date.now() - startedAt;
   const metered = sumMeterings(meterings);
+  const stopReason = result.stopReason ?? null;
+  const truncated = stopReason === 'max_tokens';
 
   if (live) {
     appendSpendRow(SPEND_PATH, {
       runId: runLabel, step: 'scout', model: modelId, modelReturned: metered.model,
       tokens: metered.tokens, costUsd: metered.costUsd, rounds: metered.rounds,
-      rateSource: metered.rateSource, wallMs,
+      rateSource: metered.rateSource, wallMs, stopReason,
     });
     if (metered.costUsd != null && metered.costUsd > RUN_CAP_USD) {
       console.error(`WARNING: scout run cost $${metered.costUsd} exceeds the per-run $${RUN_CAP_USD} cap`);
@@ -309,10 +346,12 @@ export async function runScoutRound(modelId, {
   }
 
   const rawFacts = getCapturedArgs();
-  const facts = groundFacts(rawFacts, { csvArtifact, textArtifact });
+  const facts = groundFacts(rawFacts, {
+    csvArtifact, textArtifact, truncated, outputTokens: metered.tokens?.outputTokens ?? null,
+  });
   return {
     facts, toolCalled: rawFacts != null, usage: metered.tokens, rounds: metered.rounds,
-    costUsd: metered.costUsd, wallMs,
+    costUsd: metered.costUsd, wallMs, stopReason,
   };
 }
 

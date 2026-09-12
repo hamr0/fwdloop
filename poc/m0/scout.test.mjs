@@ -250,6 +250,52 @@ test('PROOF the test can fail: no tool call at all leaves toolCalled false and f
 });
 
 // ---------------------------------------------------------------------------
+// Finding 6 (2026-09-12) — a `max_tokens` stop is a TRUNCATION, never the
+// same fact as "the scout said nothing" (SURVEY_NOT_REPORTED). Both leave
+// `toolCalled` false (report_facts was never reached), so `toolCalled`/
+// `reported` alone cannot tell them apart — this is exactly the F4 misread,
+// now mirrored at the scout's own call site (runner.mjs already handles it
+// for the runner's model steps).
+// ---------------------------------------------------------------------------
+
+test('a max_tokens stop is TRUNCATED, never SURVEY_NOT_REPORTED', async () => {
+  const provider = fakeProvider({
+    text: '',
+    toolCalls: [],
+    usage: { inputTokens: 40, outputTokens: 2000 },
+    stopReason: 'max_tokens',
+    model: 'fake-model',
+  });
+  const report = await runScoutRound('fake-model', {
+    csvPath: CSV_PATH, textPath: TEXT_PATH, provider, rates: { in: 0, out: 0 },
+  });
+  assert.equal(report.toolCalled, false);
+  assert.equal(report.stopReason, 'max_tokens');
+  assert.equal(report.facts.truncated, true);
+  assert.equal(report.facts.outputTokens, 2000);
+  const classified = classifyFacts(report.facts);
+  assert.equal(classified.state, 'ABSENT');
+  assert.equal(classified.cause, FACTS_CAUSES.TRUNCATED);
+  assert.match(classified.reason, /truncated: 2000 tokens/);
+});
+
+test('PROOF the test can fail: the same no-tool-call shape with a CLEAN stop (not max_tokens) is SURVEY_NOT_REPORTED, not TRUNCATED', async () => {
+  const provider = fakeProvider({
+    text: 'I cannot help with that.',
+    toolCalls: [],
+    usage: { inputTokens: 40, outputTokens: 10 },
+    stopReason: 'stop',
+    model: 'fake-model',
+  });
+  const report = await runScoutRound('fake-model', {
+    csvPath: CSV_PATH, textPath: TEXT_PATH, provider, rates: { in: 0, out: 0 },
+  });
+  assert.equal(report.facts.truncated, false);
+  assert.equal(classifyFacts(report.facts).cause, FACTS_CAUSES.SURVEY_NOT_REPORTED);
+  assert.notEqual(classifyFacts(report.facts).cause, FACTS_CAUSES.TRUNCATED);
+});
+
+// ---------------------------------------------------------------------------
 // groundFacts's `csv.realColumns` — the FULL mechanical header, always,
 // independent of whatever (possibly partial) subset the model reported. This
 // is the field the drafter's column listing rule checks against, never
