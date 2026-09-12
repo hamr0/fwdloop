@@ -147,6 +147,25 @@ function job1ModelSteps() {
 }
 
 // ---------------------------------------------------------------------------
+// The numbered job lines must reach the model exactly once per round — they
+// used to be embedded in the system prompt (primitiveMenuBlock) AND repeated
+// verbatim in the user message, doubling the same text for no reason every
+// round.
+// ---------------------------------------------------------------------------
+
+test('the numbered job lines appear exactly once across the assembled prompt (system + user), never duplicated', async () => {
+  const provider = fakeProvider(toolReply(job1ModelSteps()));
+  await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS });
+  const { messages } = provider.calls[0];
+  const wholePrompt = messages.map((m) => m.content).join('\n');
+  // A distinctive, verbatim job-line string that would appear once per copy of the list.
+  const needle = 'Pull their open invoices, what they owe in total, the earliest due date';
+  const occurrences = wholePrompt.split(needle).length - 1;
+  assert.equal(occurrences, 1, `expected the job lines to appear exactly once in the prompt, found ${occurrences}`);
+  assert.match(messages.find((m) => m.role === 'user').content, /Call emit_declaration now\./, 'the user message must still carry the call-to-action');
+});
+
+// ---------------------------------------------------------------------------
 // extractGuardrails / plantLine — pure functions, checked directly first.
 // ---------------------------------------------------------------------------
 

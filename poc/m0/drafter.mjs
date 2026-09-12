@@ -509,10 +509,12 @@ export async function runDrafter(modelId, {
       content: `You are the fwdloop drafter. You answer ONLY by calling emit_declaration — never plain text. `
         + `${primitiveMenuBlock(guardrails)}\n\n${factsBlock(facts)}`,
     },
+    // The numbered job lines already appear once, in the system prompt (primitiveMenuBlock's own
+    // "The numbered job lines..." block) — every "below" reference there points at that one copy.
+    // A second, identical copy here duplicated the job lines every round for no reason.
     {
       role: 'user',
-      content: `hamr's numbered job lines for job #1:\n\n${jobLinesText(guardrails)}\n\n`
-        + 'Call emit_declaration now.',
+      content: 'Call emit_declaration now.',
     },
   ];
 
