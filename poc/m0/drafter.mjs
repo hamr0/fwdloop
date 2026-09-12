@@ -310,6 +310,17 @@ export function extractGuardrails(rawText) {
  * A proposal for a blank line, or for a line that is not one of the human's
  * numbered lines, is dropped outright — same reasoning as `guardrailClasses`.
  *
+ * `refused` carries the same way too (Finding 4, 2026-09-12): a prior
+ * refusal (`refused: baseRefused`, a redraft's previous declaration) SURVIVES
+ * a round that neither re-refuses that line nor maps a step onto it — a
+ * redraft that only touches OTHER lines must not silently un-refuse one it
+ * never revisited (validator.mjs's check 6 would otherwise red the line as
+ * dropped). Keyed on `refused[].line` (Finding 3's typed field), never
+ * `hamrLine` text. The one exception: if THIS round's assembled steps now
+ * claim that line via `fromLine`, the step wins and the stale refusal is
+ * dropped — a line cannot be both served and refused at once, and a step the
+ * model just drafted for it is the stronger, more current signal.
+ *
  * Each step's `close` is RECOMPUTED here from its own `fromLine` against the
  * assembled `guardrailClasses` (validator.mjs's deriveFromLine — the one
  * writer for this, never reimplemented) — never taken from the model, even
@@ -320,7 +331,7 @@ export function extractGuardrails(rawText) {
  */
 export function assembleDeclaration(modelArgs, {
   skills = DRAFTER_SKILLS, guardrails = '', guardrailClasses: baseGuardrailClasses = {},
-  unjudgeable: baseUnjudgeable = {}, realColumns = [],
+  unjudgeable: baseUnjudgeable = {}, realColumns = [], refused: baseRefused = [],
 } = {}) {
   const lines = parseLines(guardrails);
   const guardrailBearingLines = lines.filter((l) => l.guardrail.length > 0);
@@ -380,6 +391,20 @@ export function assembleDeclaration(modelArgs, {
       };
     })
     : [];
+
+  // Finding 4 (2026-09-12) — a prior refusal survives a round that neither
+  // re-refuses that line nor maps a step onto it. `claimedLines` reads the
+  // STEPS JUST ASSEMBLED above (their real, resolved `fromLine`s), never
+  // modelArgs directly, so a step this round wins over a refusal carried
+  // from an earlier one. Keyed on `refused[].line` throughout — never
+  // `hamrLine` text (Finding 3).
+  const modelRefused = Array.isArray(modelArgs?.refused) ? modelArgs.refused : [];
+  const claimedLines = new Set(steps.map((st) => st.fromLine).filter((n) => Number.isInteger(n)));
+  const modelRefusedLines = new Set(modelRefused.map((r) => r?.line).filter((n) => Number.isInteger(n)));
+  const carriedRefused = (Array.isArray(baseRefused) ? baseRefused : [])
+    .filter((r) => Number.isInteger(r?.line) && !claimedLines.has(r.line) && !modelRefusedLines.has(r.line));
+  const refused = [...modelRefused, ...carriedRefused];
+
   return {
     skills: [...skills],
     guardrails,
@@ -390,7 +415,7 @@ export function assembleDeclaration(modelArgs, {
     // fake listing for validator.mjs's column check to trust.
     realColumns: [...(Array.isArray(realColumns) ? realColumns : [])],
     steps,
-    refused: Array.isArray(modelArgs?.refused) ? modelArgs.refused : [],
+    refused,
   };
 }
 

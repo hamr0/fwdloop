@@ -243,10 +243,16 @@ export async function runRedraft(modelId, previousDeclaration, humanReply, {
   // between rounds, and it is never taken from this round's model any more
   // than skills/guardrails are.
   const previousRealColumns = Array.isArray(previousDeclaration?.realColumns) ? previousDeclaration.realColumns : [];
+  // Finding 4 (2026-09-12) — a prior refusal carries over the same way too:
+  // assembleDeclaration keeps any `previousDeclaration.refused` entry whose
+  // line neither this round's model nor its assembled steps claim, so a
+  // redraft that never revisits a refused line does not silently un-refuse
+  // it (and drop it into validator.mjs check 6's "silently dropped" red).
+  const previousRefused = Array.isArray(previousDeclaration?.refused) ? previousDeclaration.refused : [];
   const declaration = capturedArgs != null
     ? assembleDeclaration(capturedArgs, {
       skills, guardrails, guardrailClasses: previousGuardrailClasses, unjudgeable: previousUnjudgeable,
-      realColumns: previousRealColumns,
+      realColumns: previousRealColumns, refused: previousRefused,
     })
     : null;
 

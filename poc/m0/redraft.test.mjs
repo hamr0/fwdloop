@@ -125,7 +125,7 @@ function mergedSteps() {
     // work into the step serving line 3, so no step names fromLine 4 any
     // more — line 4 must still be ACCOUNTED for, never silently dropped, so
     // the merge explicitly refuses it with the reason.
-    refused: [{ hamrLine: '4', reason: 'folded into the step serving line 3 ("merge 3 and 4")' }],
+    refused: [{ hamrLine: '4', line: 4, reason: 'folded into the step serving line 3 ("merge 3 and 4")' }],
   };
 }
 
@@ -260,6 +260,53 @@ test('PROOF the test can fail: dropping the merged step\'s "emits" makes the sam
   const provider = fakeProvider(toolReply(steps));
   const result = await runRedraft('fake-model', previous, 'merge 3 and 4', { provider, rates: { in: 0, out: 0 } });
   assert.equal(validate(result.declaration).verdict, 'red');
+});
+
+// ---------------------------------------------------------------------------
+// Finding 4 (2026-09-12) — a refusal survives a FURTHER redraft round that
+// neither re-refuses that line nor maps a step onto it. Before this fix,
+// `runRedraft` carried skills/guardrails/guardrailClasses/unjudgeable/
+// realColumns from `previousDeclaration` but never `refused` —
+// `assembleDeclaration` took `refused` only from THIS round's model args, so
+// a redraft that legitimately left an earlier refusal untouched silently
+// un-refused it, and validator.mjs's check 6 (Finding 2/Fix 2) then reds the
+// line as dropped.
+// ---------------------------------------------------------------------------
+
+test('Finding 4: a prior refusal survives a further redraft that does not touch that line', async () => {
+  // Start from the ALREADY-MERGED declaration (line 4 refused, folded into
+  // line 3's step) — exactly what a second redraft round would receive.
+  const previous = { ...job1Declaration(), ...mergedSteps() };
+  // This round's reply only touches the "check with me" step (line 5); the
+  // model's tool call carries no "refused" at all and no step claims line 4.
+  const secondRoundSteps = {
+    steps: previous.steps.map((s) => (s.fromLine === 5 ? { ...s, goal: 'check with me, explicitly' } : s)),
+  };
+  const provider = fakeProvider(toolReply(secondRoundSteps));
+  const result = await runRedraft('fake-model', previous, 'reword the check-with-me step', { provider, rates: { in: 0, out: 0 } });
+  assert.deepEqual(result.declaration.refused, previous.refused, 'the line-4 refusal from the prior round is carried forward untouched');
+  const verdict = validate(result.declaration);
+  assert.equal(verdict.verdict, 'green', verdict.red);
+});
+
+test('PROOF the test can fail: a step that NOW claims the previously-refused line wins, and the stale refusal is dropped', async () => {
+  const previous = { ...job1Declaration(), ...mergedSteps() };
+  // This round re-introduces a step for line 4 (the human said "actually,
+  // give me line 4 back as its own step") — the model does not re-refuse it,
+  // it maps a step onto it instead.
+  const secondRoundSteps = {
+    steps: [
+      ...previous.steps,
+      {
+        goal: 'compose reply (line 4, un-merged)', primitives: [], reads: ['a3'], emits: 'a7', fromLine: 4,
+      },
+    ],
+  };
+  const provider = fakeProvider(toolReply(secondRoundSteps));
+  const result = await runRedraft('fake-model', previous, 'give me line 4 back as its own step', { provider, rates: { in: 0, out: 0 } });
+  assert.equal(result.declaration.refused.length, 0, 'the step claiming line 4 wins — the stale refusal must not also survive');
+  const verdict = validate(result.declaration);
+  assert.equal(verdict.verdict, 'green', verdict.red);
 });
 
 // ---------------------------------------------------------------------------
