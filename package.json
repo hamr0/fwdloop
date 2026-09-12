@@ -35,6 +35,9 @@
     "NOTICE"
   ],
   "dependencies": {
-    "bare-agent": "^0.42.0"
+    "bare-agent": "^0.42.0",
+    "bareguard": "^0.15.0",
+    "litectx": "^0.32.0",
+    "mailproof": "^1.3.3"
   }
 }
