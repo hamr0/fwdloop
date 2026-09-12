@@ -42,8 +42,11 @@ export const PROVIDER_SLOTS = Object.freeze({
  */
 export function resolveModelRate(modelId, ratesTable = RATES_BY_SUFFIX) {
   const suffix = modelId.replace(/^hf:/, '');
+  // Object.hasOwn (not `ratesTable[suffix]` truthiness, not `in`): a suffix like "constructor" or
+  // "toString" would otherwise resolve to an inherited Object.prototype member, skip the "no rate
+  // -> throw" guard below, and let the run proceed with `rates.in`/`rates.out` undefined.
+  if (!Object.hasOwn(ratesTable, suffix)) throw new Error(`no hand-entered rate for model suffix "${suffix}"`);
   const rates = ratesTable[suffix];
-  if (!rates) throw new Error(`no hand-entered rate for model suffix "${suffix}"`);
   return { suffix, rates };
 }
 

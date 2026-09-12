@@ -116,6 +116,26 @@ test('every provider slot default model resolves to a real, non-zero rate', () =
 // against an injected slot list whose default model has no rate entry, and confirm it is
 // rejected. The injected model id is randomised per run so this can never be satisfied by
 // coincidentally matching a real table entry — it proves the mechanism, not today's fixture.
+// A model suffix that names an Object.prototype member ("constructor", "toString", ...) must
+// still be rejected: `ratesTable[suffix]` truthiness resolves to the INHERITED function on a
+// plain object, skipping the "no rate -> throw" guard and letting a run proceed with
+// rates.in/rates.out undefined — never rendered as 0, PRD §5. Object.hasOwn is the fix.
+test('resolveModelRate rejects a suffix that names an inherited Object.prototype member, never falling through to it', () => {
+  for (const poisoned of ['constructor', 'toString', 'hasOwnProperty', '__proto__']) {
+    assert.throws(
+      () => resolveModelRate(poisoned),
+      /no hand-entered rate for model suffix/,
+      `expected suffix "${poisoned}" to be rejected, not resolved to an inherited prototype member`,
+    );
+  }
+});
+
+test('PROOF the test above can fail: a real table entry (not on the prototype) still resolves fine', () => {
+  const { rates } = resolveModelRate('deepseek-flash');
+  assert.ok(rates.in > 0);
+  assert.ok(rates.out > 0);
+});
+
 test('PROOF the test above can fail: a slot whose default model has no rate entry is rejected by resolveModelRate', () => {
   const neverPricedModelId = `test-only-unpriced-model-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const injectedSlots = {
