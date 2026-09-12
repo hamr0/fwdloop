@@ -77,9 +77,9 @@ under its declared class — green on the `derive` steps, softgreen on `compose`
 Numbers before firing: plants caught N/N, false reds 0/N, $ per run against the human cost, wall per
 run, under a **$5 total** cap (docs/archive/PRD.md:554-555).
 
-### PROPOSED AMENDMENT to M0b — unsigned, drafted 2026-09-12
+### AMENDMENT to M0b — SIGNED by hamr, 2026-09-12
 
-Nothing below is in force until hamr signs it. It does not change M0b's exit above.
+In force. It does not change M0b's exit above; A, B and C add to it.
 
 **A. The redo edge at an `ask`.** Today an `ask` has two outcomes: the human accepts and the run
 moves on, or the run stops. This adds a third: the human **rejects**, and the run re-executes the
