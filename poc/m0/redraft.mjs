@@ -20,7 +20,8 @@
 // not grow a second copy.
 //
 // borrowed-from (style only, never imported): drafter.mjs's runDrafter — the
-// injected provider/rates seam, the metering/spend bookkeeping, and the
+// injected provider/rates seam, the metering/spend bookkeeping (sumMeterings
+// over EVERY onLlmResult event, F15 — never just the last one), and the
 // live-opt-in CLI guard, all mirrored here for the same reasons.
 //
 // RULES THAT MUST SURVIVE THE REDRAFT (the point of this module):
@@ -41,7 +42,9 @@
 //   - The result must still pass validate().
 
 import { Loop } from 'bare-agent';
-import { assertUnderGlobalCap, appendSpendRow, RUN_CAP_USD } from './spend.mjs';
+import {
+  assertUnderGlobalCap, appendSpendRow, sumMeterings, RUN_CAP_USD,
+} from './spend.mjs';
 import { makeProvider } from './provider.mjs';
 import {
   DRAFTER_MAX_TOKENS, assembleDeclaration,
@@ -187,11 +190,13 @@ export async function runRedraft(modelId, previousDeclaration, humanReply, {
     execute: async (args) => { capturedArgs = args; return { ok: true }; },
   }];
 
-  let metering = null;
+  // Every round, not just the last (F15): a tool-calling run has at least two, and keeping only
+  // the last recorded the finishing round and dropped the round that did the work.
+  const meterings = [];
   const loop = new Loop({
     provider,
     rates,
-    onLlmResult: async (event) => { metering = event; },
+    onLlmResult: async (event) => { meterings.push(event); },
     onText: async (t) => { capturedText = t; },
   });
 
@@ -209,11 +214,13 @@ export async function runRedraft(modelId, previousDeclaration, humanReply, {
   await loop.run(messages, tools, { maxTokens: DRAFTER_MAX_TOKENS });
   const wallMs = Date.now() - startedAt;
 
-  const costUsd = metering?.costUsd ?? null;
+  const metered = sumMeterings(meterings);
+  const costUsd = metered.costUsd;
   if (live) {
     appendSpendRow(SPEND_PATH, {
-      runId: runLabel, step: 'redraft', model: modelId, modelReturned: metering?.model ?? null,
-      tokens: metering?.usage ?? null, costUsd, rateSource: metering?.rateSource ?? null, wallMs,
+      runId: runLabel, step: 'redraft', model: modelId, modelReturned: metered.model,
+      tokens: metered.tokens, costUsd, rounds: metered.rounds,
+      rateSource: metered.rateSource, wallMs,
     });
     if (costUsd !== null && costUsd > RUN_CAP_USD) {
       console.error(`WARNING: redraft round cost $${costUsd} exceeds the per-run $${RUN_CAP_USD} cap (informational only)`);
@@ -241,14 +248,15 @@ export async function runRedraft(modelId, previousDeclaration, humanReply, {
 
   return {
     modelRequested: modelId,
-    modelReturned: metering?.model ?? null,
+    modelReturned: metered.model,
     toolCalled: capturedArgs != null,
     declaration,
     table: declaration != null ? renderDraftTable(declaration) : null,
     textInstead: capturedArgs ? null : capturedText,
-    usage: metering?.usage ?? null,
+    usage: metered.tokens,
+    rounds: metered.rounds,
     costUsd,
-    rateSource: metering?.rateSource ?? null,
+    rateSource: metered.rateSource,
     wallMs,
     humanReply,
   };

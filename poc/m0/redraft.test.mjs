@@ -292,3 +292,24 @@ test('the fixed DRAFTER_MAX_TOKENS reaches the redraft request options too', asy
   assert.ok(provider.calls.length >= 1 && provider.calls.length <= 2);
   for (const call of provider.calls) assert.equal(call.options.maxTokens, DRAFTER_MAX_TOKENS);
 });
+
+// ---------------------------------------------------------------------------
+// F15 (redraft under-counts spend) — runRedraft must sum EVERY onLlmResult
+// round into its cost/token totals, not keep only the last one. The fake
+// provider below fires two rounds (the tool-call round, 200/150 tokens, then
+// the finishing round, 5/1 tokens) — exactly bare-agent's normal shape for a
+// tool-calling run. With rates {in: 0, out: 1}, costUsd is driven entirely by
+// outputTokens: round 1 costs 150, round 2 costs 1. A "keep only the last
+// event" implementation reports costUsd 1 and outputTokens 1 — the round
+// that did the actual work (the tool call) silently dropped. Summing reports
+// costUsd 151, outputTokens 151, and rounds: 2.
+// ---------------------------------------------------------------------------
+
+test('F15: runRedraft sums every onLlmResult round into costUsd/tokens and records "rounds"', async () => {
+  const previous = job1Declaration();
+  const provider = fakeProvider(toolReply(mergedSteps()));
+  const result = await runRedraft('fake-model', previous, 'merge 3 and 4', { provider, rates: { in: 0, out: 1 } });
+  assert.equal(result.rounds, 2, 'a tool-calling run fires at least two onLlmResult rounds — both must be counted');
+  assert.equal(result.usage.outputTokens, 151, 'outputTokens must be the SUM across both rounds (150 + 1), not just the last (1)');
+  assert.equal(result.costUsd, 0.151, 'costUsd must be the SUM across both rounds (150 + 1 tokens), not just the last round\'s 1');
+});
