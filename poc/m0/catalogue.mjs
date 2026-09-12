@@ -175,3 +175,59 @@ export function resolveJob1Need(row) {
   if (row.fence) return FENCE;
   return row.verbs.map(primitiveFor);
 }
+
+// ---- resolution: prove every entry's package+symbol actually loads --------
+// M0b, step 1 (F23): a catalogue entry is data the drafter trusts blind — an
+// entry naming a symbol that doesn't exist is a brick nobody ever calls, and
+// nothing before this caught it (F23). `resolveEntry` proves one entry by
+// dynamically importing its `package` and checking the shape its `symbol`
+// (plus `method`/`tool` where present) claims:
+//   - a named export:      symbol -> typeof export === 'function'
+//   - a class method:      symbol names an exported class, `method` an
+//                           instance method on its prototype
+//   - a factory-made tool: symbol names an exported factory; calling it
+//                           (no args — must be side-effect-free) must yield
+//                           a `{ tools }` array containing one named `tool`
+//   - fwdloop's own module: `package` ending in `.mjs` resolves relative to
+//     this file, same as any other named export
+// Throws with a specific reason on failure; never returns false silently —
+// same discipline as primitiveFor.
+async function loadEntryModule(pkg) {
+  if (pkg.endsWith('.mjs')) {
+    const fileName = pkg.split('/').pop();
+    return import(new URL(`./${fileName}`, import.meta.url));
+  }
+  return import(pkg);
+}
+
+export async function resolveEntry(entry) {
+  const mod = await loadEntryModule(entry.package);
+
+  if (entry.method) {
+    const Cls = mod[entry.symbol];
+    if (typeof Cls !== 'function') {
+      throw new Error(`${entry.package}#${entry.symbol} is not an exported class (verb "${entry.verb}")`);
+    }
+    if (typeof Cls.prototype?.[entry.method] !== 'function') {
+      throw new Error(`${entry.package}#${entry.symbol} has no method "${entry.method}" (verb "${entry.verb}")`);
+    }
+    return true;
+  }
+
+  if (entry.tool) {
+    const factory = mod[entry.symbol];
+    if (typeof factory !== 'function') {
+      throw new Error(`${entry.package}#${entry.symbol} is not an exported factory (verb "${entry.verb}")`);
+    }
+    const { tools } = factory();
+    if (!Array.isArray(tools) || !tools.some((t) => t.name === entry.tool)) {
+      throw new Error(`${entry.package}#${entry.symbol}() does not produce a tool named "${entry.tool}" (verb "${entry.verb}")`);
+    }
+    return true;
+  }
+
+  if (typeof mod[entry.symbol] !== 'function') {
+    throw new Error(`${entry.package} has no exported function "${entry.symbol}" (verb "${entry.verb}")`);
+  }
+  return true;
+}
