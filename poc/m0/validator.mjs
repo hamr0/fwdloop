@@ -157,6 +157,51 @@ export function parseArbiterGuardrails(rawText) {
 }
 
 /**
+ * --- THE SEND LOCK (M0b Part 1, 2026-09-13) --------------------------------
+ *
+ * F21 fixed the send line by prompt WORDING only (6/11 -> 11/11 drafted as a
+ * step) — a wording fix is not a mechanism, and a declaration that still
+ * refuses or drops line 6 validated green because line 6 carried no
+ * guardrail and check 6 above accepts a refused line unconditionally. The
+ * PRD's own hard line says the drafter never authors an ask's POSITION, the
+ * send TARGET, or the egress allow-list — those are arbiter, human-signed,
+ * typed data, not prose the validator interprets. `parseArbiterSlots` reads
+ * a FIXED grammar under the "Arbiter guardrails" heading —
+ *   `ask at line <int>`
+ *   `send at line <int> to <target>`
+ * — into `{ ask: { line }, send: { line, target } }`. Any OTHER arbiter line
+ * (the cap, today) is left untouched; only a line that STARTS `ask at` or
+ * `send at` and then fails to match the grammar is an error, named so it is
+ * never silently ignored (a human who mistyped the slot deserves to see
+ * that, not a validator that quietly treated it as an ordinary cap-shaped
+ * guardrail).
+ */
+export function parseArbiterSlots(rawText) {
+  const arbiterLines = parseArbiterGuardrails(rawText);
+  const slots = {};
+  const errors = [];
+  for (const line of arbiterLines) {
+    const askMatch = /^ask at line (\d+)$/i.exec(line.trim());
+    if (askMatch) {
+      slots.ask = { line: Number(askMatch[1]) };
+      continue;
+    }
+    const sendMatch = /^send at line (\d+) to (\S+)$/i.exec(line.trim());
+    if (sendMatch) {
+      slots.send = { line: Number(sendMatch[1]), target: sendMatch[2] };
+      continue;
+    }
+    if (/^ask at\b/i.test(line) || /^send at\b/i.test(line)) {
+      errors.push(`arbiter guardrail "${line}" starts with "ask at"/"send at" but does not match the signed `
+        + 'grammar ("ask at line <int>" / "send at line <int> to <target>") — never silently ignored');
+    }
+    // Any other arbiter line (the $ cap, today) belongs to no slot and is
+    // left alone — this parser only ever recognises the two fixed forms above.
+  }
+  return { slots, errors };
+}
+
+/**
  * The guardrails as `[{ n, text }]`, n = THE LINE NUMBER it belongs to
  * (never resequenced — a blank line 1 means the list can start at 2). Only
  * lines with a non-blank guardrail appear here. This is the "GUARDRAILS"
@@ -521,6 +566,68 @@ export function validate(declaration) {
           red: `validator: ${label} close.class "${declaredClass}" does not match "${derived}", `
             + `which is what ${lineDesc} derives to — a step cannot claim a class its own guardrail `
             + 'does not produce, and an uncovered or blank-guardrail line must fall to hitl',
+        };
+      }
+    }
+  }
+
+  // --- THE SEND LOCK (M0b Part 1, negative scenario) ------------------------
+  // A mechanism, not wording (F21 fixed the send line by prompt wording only).
+  // Skipped entirely when the declaration carries no arbiter slots at all —
+  // same "no listing, skip" rule check 3.5 uses above, for an older or
+  // hand-built declaration that never wired the ask/send slots through.
+  const { slots: arbiterSlots, errors: arbiterSlotErrors } = parseArbiterSlots(guardrails);
+  if (arbiterSlotErrors.length > 0) {
+    return { verdict: 'red', red: `validator: ${arbiterSlotErrors[0]}` };
+  }
+  if (arbiterSlots.ask || arbiterSlots.send) {
+    const allLineNumbers = new Set(lines.map((l) => l.n));
+    for (const [slotName, slot] of Object.entries(arbiterSlots)) {
+      if (!allLineNumbers.has(slot.line)) {
+        return {
+          verdict: 'red',
+          red: `validator: the signed "${slotName}" slot names line ${slot.line}, which is not one of the human's numbered lines`,
+        };
+      }
+    }
+
+    const refusedList2 = Array.isArray(declaration.refused) ? declaration.refused : [];
+    const refusedLineNumbers = new Set(refusedList2.map((r) => r?.line).filter((n) => Number.isInteger(n)));
+    for (const [slotName, slot] of Object.entries(arbiterSlots)) {
+      if (refusedLineNumbers.has(slot.line)) {
+        return {
+          verdict: 'red',
+          red: `validator: line ${slot.line} is the signed ${slotName} slot and cannot be refused`,
+        };
+      }
+    }
+
+    const stepsByLine = (n) => declaration.steps.filter((st) => st.fromLine === n);
+    let askStep = null;
+    if (arbiterSlots.ask) {
+      const askSteps = stepsByLine(arbiterSlots.ask.line);
+      if (askSteps.length === 0) {
+        return { verdict: 'red', red: `validator: no step has fromLine ${arbiterSlots.ask.line}, the signed ask slot` };
+      }
+      [askStep] = askSteps;
+    }
+    if (arbiterSlots.send) {
+      const sendSteps = stepsByLine(arbiterSlots.send.line);
+      if (sendSteps.length === 0) {
+        return { verdict: 'red', red: `validator: no step has fromLine ${arbiterSlots.send.line}, the signed send slot` };
+      }
+      const [sendStep] = sendSteps;
+      if (!Array.isArray(sendStep.primitives) || !sendStep.primitives.includes('write')) {
+        return {
+          verdict: 'red',
+          red: `validator: the send step (fromLine ${arbiterSlots.send.line}) is not granted "write"`,
+        };
+      }
+      if (askStep && !(Array.isArray(sendStep.reads) && sendStep.reads.includes(askStep.emits))) {
+        return {
+          verdict: 'red',
+          red: `validator: the send step (fromLine ${arbiterSlots.send.line}) does not read "${askStep.emits}", `
+            + `the artifact emitted by the ask step (fromLine ${arbiterSlots.ask.line})`,
         };
       }
     }
