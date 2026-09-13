@@ -25,8 +25,10 @@
 //   SYNTHETIC_API_KEY="$(pass show amr/synthetic_api | head -1)" \
 //     node poc/m0/runner.mjs <model-id> --plant a|b|c|d [--run-id <id>] [--ask-timeout-ms N]
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import {
+  readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync, statSync, accessSync, constants as fsConstants,
+} from 'node:fs';
+import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Loop } from 'bare-agent';
 import { OpenAI } from 'bare-agent/providers';
@@ -38,6 +40,7 @@ import {
 } from './close.mjs';
 import { assertUnderGlobalCap, appendSpendRow, RUN_CAP_USD } from './spend.mjs';
 import { resolveModelRate } from './provider.mjs';
+import { validate, parseArbiterSlots } from './validator.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..');
@@ -109,6 +112,183 @@ const CLOSED_GRAMMAR_NOTE = 'Closed formula grammar: sum, count, min, max, sub, 
   + 'source.line, no value. Every citation MUST be exactly one of these three forms — never mix value with '
   + 'quote, never omit value from a copied or derived citation. Numbers compare stripped of commas/$; dates '
   + 'compare as ISO strings; a quote must be a verbatim substring of the pointed line.';
+
+// ---------------------------------------------------------------------------
+// M0b PART 2.1 — PREFLIGHT (2026-09-13). Everything below runs at $0, before
+// any model call: load -> validate() (Part 1's send lock included) -> freeze
+// inputs -> bind steps to declaration lines -> check grants -> check the
+// send destination -> assertUnderGlobalCap. Every function here returns
+// { ok: true, ... } or { ok: false, red } — never throws — mirroring
+// validate()'s own contract, so a caller can chain checks without a
+// try/catch per step. This is the NEW declaration-driven path; it does not
+// yet replace runDeclaration below (the F5 bespoke fold) — that replacement
+// is 2.2/2.3's job, landing in later commits.
+// ---------------------------------------------------------------------------
+
+/**
+ * Freeze — copy each named source into `<runDir>/inputs/`, hash the FROZEN
+ * copy (never the original again after this), and write `inputs.json`.
+ * Every later read must read the frozen copy only (PRD: "both fixtures are
+ * frozen and hashed at job start and every step reads the frozen copy").
+ * `sources` is `[{ id, path }]`. An unreadable source refuses by name.
+ */
+export function freezeInputs(runDir, sources) {
+  const inputsDir = join(runDir, 'inputs');
+  mkdirSync(inputsDir, { recursive: true });
+  const manifest = [];
+  for (const { id, path: sourcePath } of sources) {
+    if (!existsSync(sourcePath)) {
+      return { ok: false, red: `freeze: input "${id}" is unreadable at ${sourcePath}` };
+    }
+    const frozenPath = join(inputsDir, `${id}${extname(sourcePath)}`);
+    copyFileSync(sourcePath, frozenPath);
+    const sha256 = hashFile(frozenPath);
+    const { size: bytes } = statSync(frozenPath);
+    manifest.push({ id, source: sourcePath, frozen: frozenPath, sha256, bytes });
+  }
+  writeFileSync(join(runDir, 'inputs.json'), JSON.stringify(manifest, null, 2));
+  return { ok: true, manifest };
+}
+
+// job #1's fold stages, each bound to exactly ONE of the human's numbered
+// lines (PRD/M0b brief): sheet read = line 1, message read + customer match
+// = line 2, derive = line 3, compose = line 4. The ask/send stages bind to
+// whatever line the SIGNED arbiter slots name (validator.mjs's
+// parseArbiterSlots) — never hard-coded to 5/6 a second time, one writer.
+const JOB1_FIXED_STAGE_LINES = Object.freeze({
+  sheetRead: 1, messageMatch: 2, derive: 3, compose: 4,
+});
+
+/**
+ * Bind — find the ONE step each stage's line names. A line with 0 steps or
+ * 2+ steps refuses, naming the line and the count (never picks one).
+ */
+export function bindSteps(declaration, arbiterSlots) {
+  const lineByStage = {
+    ...JOB1_FIXED_STAGE_LINES,
+    ask: arbiterSlots?.ask?.line,
+    send: arbiterSlots?.send?.line,
+  };
+  const stages = {};
+  for (const [stage, lineNumber] of Object.entries(lineByStage)) {
+    if (!Number.isInteger(lineNumber)) {
+      return { ok: false, red: `bind: no signed line number for stage "${stage}"` };
+    }
+    const matches = (declaration.steps ?? []).filter((st) => st.fromLine === lineNumber);
+    if (matches.length !== 1) {
+      return {
+        ok: false,
+        red: `bind: line ${lineNumber} (stage "${stage}") has ${matches.length} step(s) bound to it — exactly 1 required`,
+      };
+    }
+    stages[stage] = matches[0];
+  }
+  return { ok: true, stages };
+}
+
+// Grants — a stage may only call a primitive its bound step was granted.
+// The ask stage uses Checkpoint with NO grant check: its position is
+// arbiter (the human signed it), never the drafter's primitive list to prove.
+const GRANT_REQUIREMENTS = Object.freeze([
+  ['sheetRead', Object.freeze(['read', 'addressCells'])],
+  ['messageMatch', Object.freeze(['read'])],
+  ['send', Object.freeze(['write'])],
+]);
+
+export function checkGrants(stages) {
+  for (const [stage, verbs] of GRANT_REQUIREMENTS) {
+    const step = stages[stage];
+    for (const verb of verbs) {
+      if (!Array.isArray(step?.primitives) || !step.primitives.includes(verb)) {
+        return {
+          ok: false,
+          red: `grants: step for line ${step?.fromLine} (stage "${stage}") is not granted "${verb}"`,
+        };
+      }
+    }
+  }
+  return { ok: true };
+}
+
+/** Destination — the send slot's target directory must exist and be writable. */
+export function checkSendDestination(target) {
+  const match = /^file:(.+)$/.exec(target ?? '');
+  if (!match) {
+    return { ok: false, red: `destination: send target "${target}" is not a "file:<path>" target` };
+  }
+  const dir = join(REPO_ROOT, match[1]);
+  try {
+    accessSync(dir, fsConstants.W_OK);
+  } catch (err) {
+    return { ok: false, red: `destination: send target directory "${dir}" is not writable (${err.code})` };
+  }
+  return { ok: true, dir };
+}
+
+/**
+ * The full preflight, in the brief's order: validate() (Part 1's send lock
+ * included) -> freeze -> bind -> grants -> destination -> global spend cap.
+ * First red wins, exactly like validate() itself. Never calls a model, never
+ * appends a spend row — every check here is read-only against the
+ * declaration, the filesystem and the existing spend ledger.
+ */
+export function preflight(declaration, { runDir, sources, spendPath = SPEND_PATH } = {}) {
+  const validated = validate(declaration);
+  if (validated.verdict !== 'green') {
+    return { ok: false, red: validated.red };
+  }
+
+  const { slots: arbiterSlots, errors } = parseArbiterSlots(declaration.guardrails);
+  if (errors.length > 0) {
+    return { ok: false, red: `preflight: ${errors[0]}` };
+  }
+  if (!arbiterSlots.ask || !arbiterSlots.send) {
+    return { ok: false, red: 'preflight: declaration carries no signed ask/send arbiter slots — cannot bind a primitive-driven run to it' };
+  }
+
+  const frozen = freezeInputs(runDir, sources);
+  if (!frozen.ok) return frozen;
+
+  const bound = bindSteps(declaration, arbiterSlots);
+  if (!bound.ok) return bound;
+
+  const granted = checkGrants(bound.stages);
+  if (!granted.ok) return granted;
+
+  const destination = checkSendDestination(arbiterSlots.send.target);
+  if (!destination.ok) return destination;
+
+  try {
+    assertUnderGlobalCap(spendPath);
+  } catch (err) {
+    return { ok: false, red: `cap: ${err.message}` };
+  }
+
+  return {
+    ok: true, stages: bound.stages, inputsManifest: frozen.manifest, arbiterSlots, sendDir: destination.dir,
+  };
+}
+
+/**
+ * The primitive-driven run's entry point (2.1: preflight only — 2.2/2.3 add
+ * the execution phase in later commits). `modelStep` is injected so a test
+ * can prove it is NEVER called on a preflight refusal — production always
+ * gets the real one once 2.2 lands. Never appends a spend row itself; the
+ * execution phase (not yet built) owns spend rows for model rounds.
+ */
+export async function runOnPrimitives({
+  declaration, runId, outDir, sources, spendPath = SPEND_PATH, modelStep,
+}) {
+  const runDir = outDir ?? join(OUT_DIR, runId);
+  mkdirSync(runDir, { recursive: true });
+  const pre = preflight(declaration, { runDir, sources, spendPath });
+  if (!pre.ok) {
+    return { outcome: 'red', red: pre.red, phase: 'preflight' };
+  }
+  // Execution phase (2.2/2.3) is not yet built — a caller that reaches here
+  // today gets an explicit "not implemented" rather than a silent no-op.
+  return { outcome: 'red', red: 'runOnPrimitives: preflight passed but the execution phase (2.2/2.3) is not yet built', phase: 'execution', pre };
+}
 
 // ---------------------------------------------------------------------------
 // One model round: fresh Loop, fresh messages, ONE tool. Retries per the

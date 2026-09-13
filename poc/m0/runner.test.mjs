@@ -1,15 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  writeFileSync, mkdtempSync, readFileSync, mkdirSync,
+  writeFileSync, mkdtempSync, readFileSync, mkdirSync, existsSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseCsv } from './csv.mjs';
 import { hashFile } from './close.mjs';
+import { parseArbiterSlots } from './validator.mjs';
 import {
   renderCsvArtifact, renderTextArtifact, generatePlantCCsv, applyPlant, BUSINESS_DATE, runDeclaration, OUT_DIR,
+  freezeInputs, bindSteps, checkGrants, checkSendDestination, preflight, runOnPrimitives,
 } from './runner.mjs';
 
 // Derived from this file's own location, never process.cwd() — the same pattern every sibling
@@ -255,4 +257,261 @@ test('send writing a 0-byte sent.txt reds the run on "happened:" and is never lo
   const sendSteps = result.log.steps.filter((st) => st.step === 'send');
   assert.equal(sendSteps.length, 1);
   assert.equal(sendSteps[0].outcome, 'red');
+});
+
+// ---------------------------------------------------------------------------
+// M0b PART 2.1 — PREFLIGHT (2026-09-13). freezeInputs / bindSteps /
+// checkGrants / checkSendDestination / preflight / runOnPrimitives. Every
+// check runs at $0, before any model call: tests prove zero modelStep calls
+// and zero spend rows on every refusal.
+// ---------------------------------------------------------------------------
+
+const SIGNED_GUARDRAILS = [
+  '1. When the AR aging sheet lands, read it,',
+  '2. then read the chat message and work out which customer it is about.',
+  '   guardrail: if more than one customer matches, ask me, do not pick',
+  '3. Pull their open invoices, what they owe in total, the earliest due date, and how many are overdue as of the business date.',
+  '   guardrail: every number must point to the cell it came from or the formula that made it',
+  '4. Write me a short reply with one line per invoice,',
+  '   guardrail: one line per invoice in the reply',
+  '5. check it with me,',
+  '   guardrail: nothing goes out before I accept',
+  '6. and send it once I accept.',
+  '',
+  'Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):',
+  'guardrail: cap $0.25 per run',
+  'guardrail: ask at line 5',
+  'guardrail: send at line 6 to file:poc/m0/out',
+].join('\n');
+
+function primitivesDeclaration() {
+  return {
+    skills: ['core'],
+    guardrails: SIGNED_GUARDRAILS,
+    guardrailClasses: {
+      2: 'hitl', 3: 'green', 4: 'softgreen', 5: 'hitl',
+    },
+    steps: [
+      {
+        goal: 'read the sheet', primitives: ['read', 'addressCells'], reads: [], emits: 'aging-sheet', fromLine: 1,
+      },
+      {
+        goal: 'read the message and match the customer', primitives: ['read'], reads: ['aging-sheet'], emits: 'customer-match', fromLine: 2,
+      },
+      {
+        goal: 'derive totals', primitives: [], reads: ['aging-sheet', 'customer-match'], emits: 'ar-summary', fromLine: 3, close: { class: 'green' },
+      },
+      {
+        goal: 'compose reply', primitives: [], reads: ['ar-summary'], emits: 'reply-draft', fromLine: 4, close: { class: 'softgreen', shape: { linePerInvoice: true } },
+      },
+      {
+        goal: 'check with me', primitives: ['checkpoint'], reads: ['reply-draft'], emits: 'accepted-reply', fromLine: 5,
+      },
+      {
+        goal: 'send', primitives: ['write'], reads: ['accepted-reply'], emits: 'sent-confirmation', fromLine: 6,
+      },
+    ],
+  };
+}
+
+function tempRunDir() {
+  return mkdtempSync(join(tmpdir(), 'm0-preflight-'));
+}
+
+function realSources() {
+  return [
+    { id: 'sheet', path: join(REPO_ROOT, 'fixtures', 'ar-aging.csv') },
+    { id: 'message', path: join(REPO_ROOT, 'fixtures', 'message.txt') },
+  ];
+}
+
+// --- freezeInputs -----------------------------------------------------
+
+test('freezeInputs copies real sources into <runDir>/inputs/, hashes the FROZEN copy, writes inputs.json', () => {
+  const runDir = tempRunDir();
+  const result = freezeInputs(runDir, realSources());
+  assert.equal(result.ok, true);
+  assert.equal(result.manifest.length, 2);
+  for (const entry of result.manifest) {
+    assert.equal(hashFile(entry.frozen), entry.sha256, 'the manifest hash must match the frozen copy on disk');
+    assert.ok(entry.bytes > 0);
+  }
+  const written = JSON.parse(readFileSync(join(runDir, 'inputs.json'), 'utf8'));
+  assert.deepEqual(written, result.manifest);
+});
+
+test('PROOF freezeInputs can fail: an unreadable source refuses by name, before writing any manifest entry for it', () => {
+  const runDir = tempRunDir();
+  const result = freezeInputs(runDir, [{ id: 'ghost', path: join(REPO_ROOT, 'fixtures', 'does-not-exist.csv') }]);
+  assert.equal(result.ok, false);
+  assert.match(result.red, /freeze: input "ghost" is unreadable at/);
+});
+
+// --- bindSteps ----------------------------------------------------------
+
+test('bindSteps finds exactly one step per stage, keyed by fromLine, including the SIGNED ask/send lines', () => {
+  const decl = primitivesDeclaration();
+  const { slots } = parseArbiterSlots(decl.guardrails);
+  const result = bindSteps(decl, slots);
+  assert.equal(result.ok, true);
+  assert.equal(result.stages.sheetRead.fromLine, 1);
+  assert.equal(result.stages.messageMatch.fromLine, 2);
+  assert.equal(result.stages.derive.fromLine, 3);
+  assert.equal(result.stages.compose.fromLine, 4);
+  assert.equal(result.stages.ask.fromLine, 5);
+  assert.equal(result.stages.send.fromLine, 6);
+});
+
+test('PROOF bindSteps can fail: a line with 0 steps refuses naming the line and the count', () => {
+  const decl = primitivesDeclaration();
+  decl.steps.splice(2, 1); // drop the fromLine:3 (derive) step
+  const { slots } = parseArbiterSlots(decl.guardrails);
+  const result = bindSteps(decl, slots);
+  assert.equal(result.ok, false);
+  assert.match(result.red, /bind: line 3 \(stage "derive"\) has 0 step\(s\)/);
+});
+
+test('bindSteps refuses a line with 2+ steps, naming the line and the count', () => {
+  const decl = primitivesDeclaration();
+  decl.steps.push({
+    goal: 'duplicate derive', primitives: [], reads: ['aging-sheet'], emits: 'ar-summary-2', fromLine: 3,
+  });
+  const { slots } = parseArbiterSlots(decl.guardrails);
+  const result = bindSteps(decl, slots);
+  assert.equal(result.ok, false);
+  assert.match(result.red, /bind: line 3 \(stage "derive"\) has 2 step\(s\)/);
+});
+
+// --- checkGrants ----------------------------------------------------------
+
+test('checkGrants passes when every stage carries the primitives the brief requires', () => {
+  const decl = primitivesDeclaration();
+  const { slots } = parseArbiterSlots(decl.guardrails);
+  const { stages } = bindSteps(decl, slots);
+  assert.equal(checkGrants(stages).ok, true);
+});
+
+test('PROOF checkGrants can fail: the sheet-read stage missing "addressCells" refuses naming the step, line and verb', () => {
+  const decl = primitivesDeclaration();
+  decl.steps[0].primitives = ['read']; // drops addressCells
+  const { slots } = parseArbiterSlots(decl.guardrails);
+  const { stages } = bindSteps(decl, slots);
+  const result = checkGrants(stages);
+  assert.equal(result.ok, false);
+  assert.match(result.red, /grants: step for line 1 \(stage "sheetRead"\) is not granted "addressCells"/);
+});
+
+test('checkGrants: the send stage missing "write" refuses naming it', () => {
+  const decl = primitivesDeclaration();
+  decl.steps[5].primitives = [];
+  const { slots } = parseArbiterSlots(decl.guardrails);
+  const { stages } = bindSteps(decl, slots);
+  const result = checkGrants(stages);
+  assert.equal(result.ok, false);
+  assert.match(result.red, /grants: step for line 6 \(stage "send"\) is not granted "write"/);
+});
+
+test('checkGrants never checks the ask stage — Checkpoint carries no grant requirement (its position is arbiter)', () => {
+  const decl = primitivesDeclaration();
+  decl.steps[4].primitives = []; // ask stage, no primitives granted at all
+  const { slots } = parseArbiterSlots(decl.guardrails);
+  const { stages } = bindSteps(decl, slots);
+  assert.equal(checkGrants(stages).ok, true);
+});
+
+// --- checkSendDestination ------------------------------------------------
+
+test('checkSendDestination passes for the real, writable poc/m0/out directory', () => {
+  const result = checkSendDestination('file:poc/m0/out');
+  assert.equal(result.ok, true);
+  assert.match(result.dir, /poc\/m0\/out$/);
+});
+
+test('PROOF checkSendDestination can fail: a non-existent directory refuses, naming it', () => {
+  const result = checkSendDestination(`file:poc/m0/does-not-exist-${Date.now()}`);
+  assert.equal(result.ok, false);
+  assert.match(result.red, /destination: send target directory .* is not writable/);
+});
+
+test('checkSendDestination refuses a non-"file:" target outright', () => {
+  const result = checkSendDestination('mailto:someone@example.com');
+  assert.equal(result.ok, false);
+  assert.match(result.red, /is not a "file:<path>" target/);
+});
+
+// --- preflight (full chain) -----------------------------------------------
+
+test('preflight passes end to end on a clean, slotted declaration with real inputs', () => {
+  const runDir = tempRunDir();
+  const spendPath = join(runDir, 'spend.jsonl'); // fresh — no rows, well under cap
+  const result = preflight(primitivesDeclaration(), { runDir, sources: realSources(), spendPath });
+  assert.equal(result.ok, true);
+  assert.equal(result.stages.send.fromLine, 6);
+  assert.equal(result.inputsManifest.length, 2);
+  assert.equal(result.arbiterSlots.send.target, 'file:poc/m0/out');
+});
+
+test('PROOF preflight can fail: validate()\'s own red (Part 1\'s send lock) surfaces through preflight unchanged', () => {
+  const runDir = tempRunDir();
+  const decl = primitivesDeclaration();
+  decl.steps[5].primitives = []; // Part 1's send-lock red: send step not granted "write"
+  const result = preflight(decl, { runDir, sources: realSources(), spendPath: join(runDir, 'spend.jsonl') });
+  assert.equal(result.ok, false);
+  assert.match(result.red, /the send step \(fromLine 6\) is not granted "write"/);
+});
+
+test('PROOF preflight can fail: an unwritable send destination refuses even though validate()/bind/grants all pass', () => {
+  const runDir = tempRunDir();
+  const decl = primitivesDeclaration();
+  decl.guardrails = decl.guardrails.replace('send at line 6 to file:poc/m0/out', `send at line 6 to file:poc/m0/no-such-dir-${Date.now()}`);
+  const result = preflight(decl, { runDir, sources: realSources(), spendPath: join(runDir, 'spend.jsonl') });
+  assert.equal(result.ok, false);
+  assert.match(result.red, /destination: send target directory .* is not writable/);
+});
+
+test('preflight refuses under the global spend cap, naming the cap, before freezing anything', () => {
+  const runDir = tempRunDir();
+  const spendPath = join(runDir, 'spend.jsonl');
+  mkdirSync(dirname(spendPath), { recursive: true });
+  writeFileSync(spendPath, `${JSON.stringify({ costUsd: 5.0 })}\n`); // already at the $5 global cap
+  const result = preflight(primitivesDeclaration(), { runDir, sources: realSources(), spendPath });
+  assert.equal(result.ok, false);
+  assert.match(result.red, /^cap: global spend cap reached/);
+});
+
+// --- runOnPrimitives — zero modelStep calls, zero spend rows on refusal --
+
+test('runOnPrimitives never calls modelStep and appends zero spend rows on a preflight refusal', async () => {
+  const runId = `test-preflight-refusal-${Date.now()}`;
+  const runDir = join(OUT_DIR, runId);
+  const spendPath = join(runDir, 'spend.jsonl');
+  const decl = primitivesDeclaration();
+  decl.steps[5].primitives = []; // any preflight red will do — this one is Part 1's send lock
+  let modelStepCalls = 0;
+  const spyModelStep = async () => { modelStepCalls += 1; return {}; };
+  const result = await runOnPrimitives({
+    declaration: decl, runId, outDir: runDir, sources: realSources(), spendPath, modelStep: spyModelStep,
+  });
+  assert.equal(result.outcome, 'red');
+  assert.equal(result.phase, 'preflight');
+  assert.equal(modelStepCalls, 0, 'modelStep must never be called when preflight refuses');
+  const spendRows = existsSync(spendPath) ? readFileSync(spendPath, 'utf8').split('\n').filter((l) => l.trim()) : [];
+  assert.equal(spendRows.length, 0, 'no spend row may be appended on a preflight refusal');
+});
+
+test('PROOF the above can fail: a genuinely clean declaration passes preflight and modelStep WOULD be reachable (execution phase not yet built)', async () => {
+  const runId = `test-preflight-clean-${Date.now()}`;
+  const runDir = join(OUT_DIR, runId);
+  const spendPath = join(runDir, 'spend.jsonl');
+  let modelStepCalls = 0;
+  const spyModelStep = async () => { modelStepCalls += 1; return {}; };
+  const result = await runOnPrimitives({
+    declaration: primitivesDeclaration(), runId, outDir: runDir, sources: realSources(), spendPath, modelStep: spyModelStep,
+  });
+  // 2.1 ships preflight only — the execution phase (2.2/2.3) lands in later commits, so a clean
+  // declaration reaches "execution not yet built" today rather than actually calling modelStep.
+  assert.equal(result.outcome, 'red');
+  assert.equal(result.phase, 'execution');
+  assert.equal(result.pre.ok, true, 'preflight itself must have passed for this declaration');
+  assert.equal(modelStepCalls, 0);
 });
