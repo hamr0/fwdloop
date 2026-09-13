@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import {
-  writeFileSync, mkdirSync, mkdtempSync, existsSync, readFileSync,
+  writeFileSync, mkdirSync, mkdtempSync, existsSync, readFileSync, readdirSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -17,6 +17,13 @@ import {
   EXPECTED_BY_PLANT, classifyVerdict, sumRunCost, batchFilePath, writeBarFile, appendRunRecord,
   shouldStopBatch, renderAskBlock, promptAndAnswer, parseRunnerStdout, runOneBatchRun, runBatch,
 } from './batch.mjs';
+
+// Pollution guard (hamr's review, 2026-09-13): every test below must pass its own outDir (a
+// mkdtempSync temp dir) to runOneBatchRun/runBatch/batchFilePath — none of them may touch the
+// REAL poc/m0/out/. Snapshotted here, at module load, before any test runs; compared against the
+// same listing at the very end of this file (the last test), so any test that forgets outDir and
+// leaves a batch-*/m0b-*-test* entry in the real OUT_DIR turns that final test red.
+const REAL_OUT_DIR_SNAPSHOT_BEFORE = new Set(readdirSync(OUT_DIR));
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -319,6 +326,7 @@ test('runOneBatchRun: no ask reached (plant a) — spawns the child with the rig
   const record = await runOneBatchRun({
     i: 1, total: 20, runId, declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'a', tag: 'test',
     pollMs: 10, spawnFn, spendPath: join(mkdtempSync(join(tmpdir(), 'm0-batch-spend-')), 'spend.jsonl'),
+    outDir: mkdtempSync(join(tmpdir(), 'm0-batch-out-')),
   });
   assert.equal(record.verdict, 'pass');
   assert.equal(record.answeredBy, null);
@@ -351,6 +359,7 @@ test('FIX 2: a crashed child (no parseable stdout, zero ledger rows) reports cos
   const record = await runOneBatchRun({
     i: 1, total: 20, runId, declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'a', tag: 'test',
     pollMs: 10, spawnFn, spendPath: join(mkdtempSync(join(tmpdir(), 'm0-batch-spend-')), 'spend.jsonl'),
+    outDir: mkdtempSync(join(tmpdir(), 'm0-batch-out-')),
   });
   assert.equal(record.outcome, 'crashed');
   assert.equal(record.costUsd, null, 'a crashed run\'s cost must be unknown, never $0');
@@ -371,6 +380,7 @@ test('PROOF FIX 2 can fail: a clean preflight-style refusal (also zero ledger ro
   const record = await runOneBatchRun({
     i: 1, total: 20, runId, declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'a', tag: 'test',
     pollMs: 10, spawnFn, spendPath: join(mkdtempSync(join(tmpdir(), 'm0-batch-spend-')), 'spend.jsonl'),
+    outDir: mkdtempSync(join(tmpdir(), 'm0-batch-out-')),
   });
   assert.equal(record.outcome, 'red');
   assert.equal(record.costUsd, 0, 'no model round ever ran — $0 is correct, not null');
@@ -389,6 +399,7 @@ test('FIX 2 (batch-level): a crashed run with an unpriced cost stops the whole b
   const { results } = await runBatch({
     declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'a', tag: `crash-stop-${Date.now()}`, runs: 20, isTTY: false,
     spawnFn, spendPath: join(mkdtempSync(join(tmpdir(), 'm0-batch-spend-')), 'spend.jsonl'),
+    outDir: mkdtempSync(join(tmpdir(), 'm0-batch-out-')),
   });
   assert.equal(results.length, 1, 'the batch must stop after the crashed run, never reaching run 2');
   assert.equal(spawnCount, 1);
@@ -412,6 +423,7 @@ test('FIX 4: one progress line is printed per run via writeLine, naming the verd
   await runBatch({
     declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'a', tag: `progress-${Date.now()}`, runs: 1, isTTY: false,
     spawnFn, writeLine: (s) => written.push(s), spendPath: join(mkdtempSync(join(tmpdir(), 'm0-batch-spend-')), 'spend.jsonl'),
+    outDir: mkdtempSync(join(tmpdir(), 'm0-batch-out-')),
   });
   const progressLine = written.find((l) => l.startsWith('run 1/1'));
   assert.ok(progressLine, `expected a "run 1/1 ..." progress line among: ${JSON.stringify(written)}`);
@@ -437,6 +449,7 @@ test('PROOF FIX 4 can fail: a non-pass run\'s progress line also carries its red
   await runBatch({
     declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'b', tag: `progress-miss-${Date.now()}`, runs: 1, isTTY: false,
     spawnFn, writeLine: (s) => written.push(s), spendPath: join(mkdtempSync(join(tmpdir(), 'm0-batch-spend-')), 'spend.jsonl'),
+    outDir: mkdtempSync(join(tmpdir(), 'm0-batch-out-')),
   });
   const progressLine = written.find((l) => l.startsWith('run 1/1'));
   assert.match(progressLine, /\bmiss\b/);
@@ -445,11 +458,12 @@ test('PROOF FIX 4 can fail: a non-pass run\'s progress line also carries its red
 
 test('runOneBatchRun: an ask is reached, "y" accepts — answeredBy human-tty, verdict per outcome', async () => {
   const runId = 'm0b-deepseek-c-test-1';
+  const testOutDir = mkdtempSync(join(tmpdir(), 'm0-batch-out-'));
   const spawnFn = (cmd, args) => {
     const child = fakeChild();
     const runDirIdx = args.indexOf('--run-id');
     const askedRunId = args[runDirIdx + 1];
-    const runDir = join(OUT_DIR, askedRunId);
+    const runDir = join(testOutDir, askedRunId);
     mkdirSync(runDir, { recursive: true });
     const askPath = join(runDir, 'ask.json');
     const answerPath = join(runDir, 'answer.json');
@@ -473,6 +487,7 @@ test('runOneBatchRun: an ask is reached, "y" accepts — answeredBy human-tty, v
   const record = await runOneBatchRun({
     i: 1, total: 20, runId, declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'c', tag: 'test',
     pollMs: 10, spawnFn, readLineFn: async () => 'y', spendPath: join(mkdtempSync(join(tmpdir(), 'm0-batch-spend-')), 'spend.jsonl'),
+    outDir: testOutDir,
   });
   assert.equal(record.answeredBy, 'human-tty');
   assert.equal(record.verdict, 'pass');
@@ -480,12 +495,13 @@ test('runOneBatchRun: an ask is reached, "y" accepts — answeredBy human-tty, v
 
 test('runOneBatchRun: an ask is reached, "n" kills the child and records human-rejected', async () => {
   const runId = 'm0b-deepseek-c-test-2';
+  const testOutDir = mkdtempSync(join(tmpdir(), 'm0-batch-out-'));
   let killed = false;
   const spawnFn = (cmd, args) => {
     const child = fakeChild();
     const runDirIdx = args.indexOf('--run-id');
     const askedRunId = args[runDirIdx + 1];
-    const runDir = join(OUT_DIR, askedRunId);
+    const runDir = join(testOutDir, askedRunId);
     mkdirSync(runDir, { recursive: true });
     setTimeout(() => {
       writeFileSync(join(runDir, 'ask.json'), JSON.stringify({ question: 'ok?', evidence: {} }));
@@ -496,6 +512,7 @@ test('runOneBatchRun: an ask is reached, "n" kills the child and records human-r
   const record = await runOneBatchRun({
     i: 1, total: 20, runId, declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'c', tag: 'test',
     pollMs: 10, spawnFn, readLineFn: async () => 'n', spendPath: join(mkdtempSync(join(tmpdir(), 'm0-batch-spend-')), 'spend.jsonl'),
+    outDir: testOutDir,
   });
   assert.equal(killed, true, 'the child must be killed on rejection');
   assert.equal(record.answeredBy, 'human-rejected');
@@ -533,7 +550,7 @@ test('PROOF the above can fail: plants a/b/e never require a TTY (no ask in thei
   };
   const { results, path } = await runBatch({
     declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'a', tag: `notty-${Date.now()}`, runs: 1, isTTY: false,
-    spawnFn, spendPath: join(dir, 'spend.jsonl'),
+    spawnFn, spendPath: join(dir, 'spend.jsonl'), outDir: mkdtempSync(join(tmpdir(), 'm0-batch-out-')),
   });
   assert.equal(results.length, 1);
   assert.equal(results[0].verdict, 'pass');
@@ -542,7 +559,8 @@ test('PROOF the above can fail: plants a/b/e never require a TTY (no ask in thei
 
 test('runBatch: writes the bar file BEFORE run 1 — even a spawn that never calls back leaves the bar on disk', async () => {
   const tag = `bar-first-${Date.now()}`;
-  const path = batchFilePath('deepseek', 'a', tag);
+  const testOutDir = mkdtempSync(join(tmpdir(), 'm0-batch-out-'));
+  const path = batchFilePath('deepseek', 'a', tag, testOutDir);
   const spawnFn = () => {
     // A child that never emits anything — runBatch's write of the bar file must have ALREADY
     // happened by the time spawnFn is even called.
@@ -557,7 +575,7 @@ test('runBatch: writes the bar file BEFORE run 1 — even a spawn that never cal
   assert.equal(existsSync(path), false, 'sanity: the bar file must not exist before runBatch is called at all');
   await runBatch({
     declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'a', tag, runs: 1, isTTY: false,
-    spawnFn, spendPath: join(mkdtempSync(join(tmpdir(), 'm0-batch-spend-')), 'spend.jsonl'),
+    spawnFn, spendPath: join(mkdtempSync(join(tmpdir(), 'm0-batch-spend-')), 'spend.jsonl'), outDir: testOutDir,
   });
 });
 
@@ -582,7 +600,7 @@ test('runBatch: a spend-cap refusal stops the batch — never burning past run 1
   };
   const { results } = await runBatch({
     declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'a', tag: `capstop-${Date.now()}`, runs: 20, isTTY: false,
-    spawnFn, spendPath,
+    spawnFn, spendPath, outDir: mkdtempSync(join(tmpdir(), 'm0-batch-out-')),
   });
   assert.equal(results.length, 1, 'the batch must stop after the FIRST unpriced run, never reaching run 2');
   assert.equal(spawnCount, 1);
@@ -608,8 +626,17 @@ test('PROOF the cap-stop test can fail: a normally-priced run 1 lets the batch c
   };
   const { results } = await runBatch({
     declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'a', tag: `capstop-control-${Date.now()}`, runs: 2, isTTY: false,
-    spawnFn, spendPath,
+    spawnFn, spendPath, outDir: mkdtempSync(join(tmpdir(), 'm0-batch-out-')),
   });
   assert.equal(results.length, 2);
   assert.equal(spawnCount, 2);
+});
+
+// Must be the LAST test in this file (node --test runs a file's tests in declaration order) —
+// diffs the real poc/m0/out/ listing against the module-load snapshot above.
+test('pollution guard: this whole test file leaves no new batch-* file or m0b-*-test* dir in the REAL poc/m0/out/', () => {
+  const after = readdirSync(OUT_DIR);
+  const newEntries = after.filter((name) => !REAL_OUT_DIR_SNAPSHOT_BEFORE.has(name));
+  const pollutingEntries = newEntries.filter((name) => /^batch-/.test(name) || /^m0b-.*-test/.test(name));
+  assert.deepEqual(pollutingEntries, [], `batch.test.mjs must never write into the real ${OUT_DIR}`);
 });

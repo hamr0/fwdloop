@@ -109,8 +109,8 @@ export function sumRunCost(spendPath, runId) {
 }
 
 /** The bar file's path — one per slot+plant+tag, written before run 1, never after. */
-export function batchFilePath(slot, plant, tag) {
-  return join(OUT_DIR, `batch-${slot}-${plant}-${tag}.json`);
+export function batchFilePath(slot, plant, tag, outDir = OUT_DIR) {
+  return join(outDir, `batch-${slot}-${plant}-${tag}.json`);
 }
 
 /** Write the declared bar, before any run. Fails loudly rather than silently if a run has already appended to this file (never overwrite live evidence). */
@@ -250,8 +250,9 @@ export function parseRunnerStdout(stdout) {
 export async function runOneBatchRun({
   i, total, runId, declarationPath, slot, plant, tag, askTimeoutMs = DEFAULT_ASK_TIMEOUT_MS,
   pollMs = DEFAULT_POLL_MS, spawnFn = nodeSpawn, readLineFn, writeLine, spendPath = SPEND_PATH,
+  outDir = OUT_DIR,
 }) {
-  const runDir = join(OUT_DIR, runId);
+  const runDir = join(outDir, runId);
   const askPath = join(runDir, 'ask.json');
   const answerPath = join(runDir, 'answer.json');
 
@@ -360,12 +361,13 @@ export async function runOneBatchRun({
 export async function runBatch({
   declarationPath, slot, plant, tag, runs = 20, isTTY = process.stdin.isTTY === true,
   spawnFn, readLineFn, writeLine = (s) => { process.stdout.write(`${s}\n`); }, spendPath = SPEND_PATH,
+  outDir = OUT_DIR,
 }) {
   if ((plant === 'c' || plant === 'd') && !isTTY) {
     throw new Error(`batch: plant "${plant}" needs a real human accept over a TTY — refusing to start without one (stdin is not a TTY)`);
   }
 
-  const path = batchFilePath(slot, plant, tag);
+  const path = batchFilePath(slot, plant, tag, outDir);
   writeBarFile(path, {
     slot, plant, tag, runs,
   });
@@ -375,7 +377,7 @@ export async function runBatch({
     const runId = `m0b-${slot}-${plant}-${tag}-${i}`;
     // eslint-disable-next-line no-await-in-loop
     const record = await runOneBatchRun({
-      i, total: runs, runId, declarationPath, slot, plant, tag, spawnFn, readLineFn, writeLine, spendPath,
+      i, total: runs, runId, declarationPath, slot, plant, tag, spawnFn, readLineFn, writeLine, spendPath, outDir,
     });
     appendRunRecord(path, record);
     results.push(record);
