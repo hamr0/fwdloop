@@ -192,9 +192,12 @@ const derive2Citations = [
   { id: 'e1', value: -8, formula: 'daysBetween', inputs: ['d1'] },
 ];
 
-test('PROOF the test can fail (RED before the fix, per the brief): gpt-oss-120b\'s exact '
-  + 'text — evidence-clean but omits total/earliest-due/overdue-count entirely — is red, '
-  + 'naming a missing declared field', () => {
+// Claim 1's identifier fix (2026-09-13) now reds this text BEFORE completeness ever runs: "INV-1"/
+// "INV-2" are bare list labels with no citation bracket, and gpt-oss-120b's exact wording is kept
+// VERBATIM (it is quoted evidence from a live 2026-09-08 run, F7/FINDINGS.md) — so these two tests
+// now prove the identifier check, not completeness. Completeness gets its OWN isolated proof below.
+test('the identifier fix reds gpt-oss-120b\'s exact text FIRST, before completeness ever runs '
+  + '(RED before the identifier fix, per hamr\'s ruling 2026-09-13)', () => {
   const output = {
     citations: [
       { id: 'c_amt1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
@@ -206,13 +209,11 @@ test('PROOF the test can fail (RED before the fix, per the brief): gpt-oss-120b\
   };
   const result = closeCompose(output, artifacts, '2026-06-01', derive2Fields, derive2Citations);
   assert.equal(result.verdict, 'red');
-  assert.match(result.red, /compose: declared field/);
-  assert.match(result.red, /"total_owed"|"earliest_due"|"count_overdue"/);
+  assert.match(result.red, /compose: identifier "INV-1" has no citation bracket/);
 });
 
-test('compose completeness: gpt-oss-120b\'s exact text is GREEN when no fields were declared '
-  + '(pre-fix behavior preserved — completeness is opt-in via the new parameter, not a change '
-  + 'to the existing evidence/bracket/bare-number gates)', () => {
+test('gpt-oss-120b\'s exact text is ALSO red with no declared fields at all — the identifier fix '
+  + 'fires regardless of completeness (RED before the identifier fix, per hamr\'s ruling 2026-09-13)', () => {
   const output = {
     citations: [
       { id: 'c_amt1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
@@ -221,6 +222,48 @@ test('compose completeness: gpt-oss-120b\'s exact text is GREEN when no fields w
       { id: 'c_due2', value: '2026-05-20', source: { kind: 'csv', artifact: 'a1', cell: 'D3' } },
     ],
     text: 'INV-1: 4200[c_amt1] due 2026-06-09[c_due1]\nINV-2: 1500[c_amt2] due 2026-05-20[c_due2]',
+  };
+  const result = closeCompose(output, artifacts, '2026-06-01');
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /compose: identifier "INV-1" has no citation bracket/);
+});
+
+// --- completeness, isolated from the identifier fix (2026-09-13) -----------
+// The gpt-oss-120b fixture above can no longer prove completeness on its own (it now reds on the
+// identifier check first). Same omission shape — amounts and due dates cited, NO total/
+// earliest-due/overdue-count — but with no identifier tokens at all, so completeness is the ONLY
+// gate this text can fail.
+
+const omissionTextNoIdentifiers = '4200[c_amt1] due 2026-06-09[c_due1]\n1500[c_amt2] due 2026-05-20[c_due2]';
+
+test('compose completeness (isolated): the SAME omission shape, with no identifier tokens at all, '
+  + 'reds naming a missing declared field', () => {
+  const output = {
+    citations: [
+      { id: 'c_amt1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
+      { id: 'c_due1', value: '2026-06-09', source: { kind: 'csv', artifact: 'a1', cell: 'D2' } },
+      { id: 'c_amt2', value: 1500, source: { kind: 'csv', artifact: 'a1', cell: 'E3' } },
+      { id: 'c_due2', value: '2026-05-20', source: { kind: 'csv', artifact: 'a1', cell: 'D3' } },
+    ],
+    text: omissionTextNoIdentifiers,
+  };
+  const result = closeCompose(output, artifacts, '2026-06-01', derive2Fields, derive2Citations);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /compose: declared field/);
+  assert.match(result.red, /"total_owed"|"earliest_due"|"count_overdue"/);
+});
+
+test('compose completeness (isolated): the same text is GREEN when no fields were declared '
+  + '(completeness stays opt-in via the new parameter, not a change to the existing evidence/'
+  + 'bracket/bare-number gates)', () => {
+  const output = {
+    citations: [
+      { id: 'c_amt1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
+      { id: 'c_due1', value: '2026-06-09', source: { kind: 'csv', artifact: 'a1', cell: 'D2' } },
+      { id: 'c_amt2', value: 1500, source: { kind: 'csv', artifact: 'a1', cell: 'E3' } },
+      { id: 'c_due2', value: '2026-05-20', source: { kind: 'csv', artifact: 'a1', cell: 'D3' } },
+    ],
+    text: omissionTextNoIdentifiers,
   };
   assert.equal(closeCompose(output, artifacts, '2026-06-01').verdict, 'green');
 });
