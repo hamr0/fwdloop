@@ -62,7 +62,12 @@ export function classifyVerdict(plant, actual, answeredBy, sentFileOk) {
   if (answeredBy === 'human-rejected') return 'human-rejected';
 
   if (plant === 'd') {
-    if (actual.outcome === 'complete') return sentFileOk ? 'pass' : 'miss';
+    if (actual.outcome === 'complete') {
+      // A pass on d must come from THIS batch's own human accept (hamr's review, 2026-09-13) —
+      // a "complete" outcome with no human-tty answer this run (e.g. a stale/mismatched record)
+      // is never silently counted as a real accept.
+      return (sentFileOk && answeredBy === 'human-tty') ? 'pass' : 'miss';
+    }
     if (actual.outcome === 'red' && STAGES_BEFORE_ASK.includes(actual.phase)) return 'false-red';
     return 'miss';
   }
@@ -71,7 +76,8 @@ export function classifyVerdict(plant, actual, answeredBy, sentFileOk) {
   if (!expected) return 'miss';
 
   if (plant === 'c') {
-    return (actual.outcome === expected.outcome && actual.phase === expected.phase) ? 'pass' : 'miss';
+    // Same rule as d: paused-ask-answered must have come from THIS batch's own human accept.
+    return (actual.outcome === expected.outcome && actual.phase === expected.phase && answeredBy === 'human-tty') ? 'pass' : 'miss';
   }
 
   // a, b, e — outcome + phase + the close's own red text shape.
@@ -145,8 +151,26 @@ export function appendRunRecord(path, record) {
  */
 export function shouldStopBatch(record) {
   if (record.costUsd === null) return true;
-  if (typeof record.red === 'string' && /global spend cap reached/.test(record.red)) return true;
+  // Covers BOTH refusal texts spend.mjs's assertUnderGlobalCap can produce — the global-cap-
+  // reached red and the unpriced-round red ("spend tally has an unpriced round ..."). Once the
+  // ledger holds one null row, every subsequent child refuses at preflight with the latter, and
+  // without this the batch would burn through 20 quick, uninformative misses instead of stopping.
+  if (typeof record.red === 'string' && record.red.startsWith('cap:')) return true;
   return false;
+}
+
+/**
+ * One progress line per run, printed via `writeLine` (hamr's review,
+ * 2026-09-13): child stdout/stderr are captured, not inherited, so without
+ * this a/b/e's 20 runs print NOTHING for the whole batch. Format:
+ *   run i/N  <verdict>  <outcome>/<phase>  $<cost|unknown>  <wall>s
+ * plus the red text for any non-pass verdict.
+ */
+export function renderProgressLine(record, total) {
+  const costLabel = record.costUsd === null ? 'unknown' : record.costUsd.toFixed(6);
+  const wallLabel = (record.wallMs / 1000).toFixed(1);
+  const base = `run ${record.i}/${total}  ${record.verdict}  ${record.outcome}/${record.phase ?? '-'}  $${costLabel}  ${wallLabel}s`;
+  return record.verdict === 'pass' ? base : `${base}  ${record.red ?? ''}`;
 }
 
 /**
@@ -281,7 +305,12 @@ export async function runOneBatchRun({
     ? { outcome: 'red', phase: null, red: 'human-rejected' }
     : parseRunnerStdout(stdout);
 
-  const { costUsd } = sumRunCost(spendPath, runId);
+  // A crashed child's cost is UNKNOWN, never $0 (hamr's review, 2026-09-13): sumRunCost's
+  // zero-rows-means-$0 rule is correct for a clean preflight refusal (no model round ever ran)
+  // but wrong here — a child that died mid-round, before its spend row landed, leaves zero rows
+  // for a reason that has nothing to do with cost being genuinely zero.
+  const { costUsd: summedCostUsd } = sumRunCost(spendPath, runId);
+  const costUsd = actual.outcome === 'crashed' ? null : summedCostUsd;
 
   let sentFileOk = false;
   if (plant === 'd' && actual.outcome === 'complete') {
@@ -299,12 +328,22 @@ export async function runOneBatchRun({
 
   const verdict = classifyVerdict(plant, actual, answeredBy, sentFileOk);
 
+  // Name the specific miss reason when a c/d run reached its expected outcome but not through
+  // THIS batch's own human accept — otherwise the red field would read null/misleading in the
+  // summary's misses list.
+  const wouldHavePassedOnAcceptAlone = verdict === 'miss'
+    && answeredBy !== 'human-rejected'
+    && answeredBy !== 'human-tty'
+    && ((plant === 'd' && actual.outcome === 'complete' && sentFileOk)
+      || (plant === 'c' && actual.outcome === EXPECTED_BY_PLANT.c.outcome && actual.phase === EXPECTED_BY_PLANT.c.phase));
+  const red = wouldHavePassedOnAcceptAlone ? 'accepted without this batch\'s human accept' : (actual.red ?? null);
+
   return {
     i,
     runId,
     outcome: actual.outcome,
     phase: actual.phase ?? null,
-    red: actual.red ?? null,
+    red,
     costUsd,
     wallMs,
     answeredBy,
@@ -340,6 +379,7 @@ export async function runBatch({
     });
     appendRunRecord(path, record);
     results.push(record);
+    writeLine(renderProgressLine(record, runs));
     if (shouldStopBatch(record)) {
       writeLine(`STOPPED at run ${i}/${runs}: ${record.red ?? 'unpriced spend row'} — never burning past an unknown cost`);
       break;

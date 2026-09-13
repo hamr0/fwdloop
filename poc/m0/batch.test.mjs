@@ -54,22 +54,38 @@ test('PROOF: plant e reporting "count_overdue" (not in the pattern) is a miss', 
   assert.equal(verdict, 'miss');
 });
 
-test('classifyVerdict: plant c passes on paused-ask-answered / messageMatch-ambiguous', () => {
-  const verdict = classifyVerdict('c', { outcome: 'paused-ask-answered', phase: 'messageMatch-ambiguous', red: null }, null, false);
+test('classifyVerdict: plant c passes on paused-ask-answered / messageMatch-ambiguous, WITH this batch\'s human accept', () => {
+  const verdict = classifyVerdict('c', { outcome: 'paused-ask-answered', phase: 'messageMatch-ambiguous', red: null }, 'human-tty', false);
   assert.equal(verdict, 'pass');
 });
 
 test('PROOF: plant c reaching derive instead (a silent pick) is a miss', () => {
-  const verdict = classifyVerdict('c', { outcome: 'red', phase: 'derive', red: 'anything' }, null, false);
+  const verdict = classifyVerdict('c', { outcome: 'red', phase: 'derive', red: 'anything' }, 'human-tty', false);
   assert.equal(verdict, 'miss');
 });
 
-test('classifyVerdict: plant d passes on complete + a real non-empty sent file', () => {
-  assert.equal(classifyVerdict('d', { outcome: 'complete', phase: null, red: null }, null, true), 'pass');
+test('classifyVerdict: plant d passes on complete + a real non-empty sent file, WITH this batch\'s human accept', () => {
+  assert.equal(classifyVerdict('d', { outcome: 'complete', phase: null, red: null }, 'human-tty', true), 'pass');
 });
 
 test('PROOF: plant d complete but the sent file is missing/empty is a miss, never a pass', () => {
-  assert.equal(classifyVerdict('d', { outcome: 'complete', phase: null, red: null }, null, false), 'miss');
+  assert.equal(classifyVerdict('d', { outcome: 'complete', phase: null, red: null }, 'human-tty', false), 'miss');
+});
+
+// hamr's review (2026-09-13): a pass on c/d must come from THIS batch's own human accept.
+test('FIX 1: plant d complete with answeredBy null (not this batch\'s accept) is a miss, never a pass', () => {
+  const verdict = classifyVerdict('d', { outcome: 'complete', phase: null, red: null }, null, true);
+  assert.equal(verdict, 'miss');
+});
+
+test('PROOF FIX 1 can fail: the SAME shape with answeredBy "human-tty" is a pass', () => {
+  const verdict = classifyVerdict('d', { outcome: 'complete', phase: null, red: null }, 'human-tty', true);
+  assert.equal(verdict, 'pass');
+});
+
+test('FIX 1: plant c paused-ask-answered with answeredBy null is a miss, never a pass', () => {
+  const verdict = classifyVerdict('c', { outcome: 'paused-ask-answered', phase: 'messageMatch-ambiguous', red: null }, null, false);
+  assert.equal(verdict, 'miss');
 });
 
 test('classifyVerdict: plant d — a red BEFORE the ask is a FALSE RED, not a miss', () => {
@@ -79,7 +95,7 @@ test('classifyVerdict: plant d — a red BEFORE the ask is a FALSE RED, not a mi
 });
 
 test('PROOF: plant d — a red AT or AFTER the ask (e.g. "send") is a miss, never a false-red', () => {
-  assert.equal(classifyVerdict('d', { outcome: 'red', phase: 'send', red: 'anything' }, null, false), 'miss');
+  assert.equal(classifyVerdict('d', { outcome: 'red', phase: 'send', red: 'anything' }, 'human-tty', false), 'miss');
 });
 
 test('classifyVerdict: answeredBy "human-rejected" always wins, for every plant, never folded into pass or miss', () => {
@@ -130,6 +146,16 @@ test('shouldStopBatch: an unpriced (null) run stops the batch', () => {
 
 test('shouldStopBatch: a red naming the global spend cap stops the batch', () => {
   assert.equal(shouldStopBatch({ costUsd: 0.01, red: 'cap: global spend cap reached: $5.000000 >= $5.00' }), true);
+});
+
+// FIX 3 (hamr's review, 2026-09-13): once the ledger holds one null row, every later child
+// refuses at preflight with the UNPRICED-round text, not the global-cap text — both start "cap:".
+test('FIX 3: shouldStopBatch also stops on the unpriced-round refusal text ("cap: spend tally has an unpriced round...")', () => {
+  assert.equal(shouldStopBatch({ costUsd: 0.01, red: 'cap: spend tally has an unpriced round — cost unknown is never rendered as $0; refusing further spend (poc/m0/out/spend.jsonl)' }), true);
+});
+
+test('PROOF FIX 3 can fail: a red that merely MENTIONS "cap" without starting with "cap:" never stops the batch', () => {
+  assert.equal(shouldStopBatch({ costUsd: 0.01, red: 'compose: declared field "total_owed" (5700, c3) does not appear cited — over the per-run cap threshold' }), false);
 });
 
 test('PROOF shouldStopBatch can fail: a normal priced red never stops the batch', () => {
@@ -306,6 +332,115 @@ test('runOneBatchRun: no ask reached (plant a) — spawns the child with the rig
   assert.ok(spawnCalls[0].args.includes('--run-id'));
   assert.ok(spawnCalls[0].args.includes(runId));
   assert.ok(spawnCalls[0].args.includes('--ask-timeout-ms'));
+});
+
+// FIX 2 (hamr's review, 2026-09-13): a crashed child's cost is UNKNOWN, never $0. Without this,
+// a child that died mid-round (before its spend row landed) would read zero ledger rows and be
+// priced at $0 by sumRunCost's own "no rows ran = $0" rule — correct for a clean preflight
+// refusal, wrong for a crash.
+test('FIX 2: a crashed child (no parseable stdout, zero ledger rows) reports costUsd null, not $0', async () => {
+  const runId = 'm0b-deepseek-a-crash-test';
+  const spawnFn = () => {
+    const child = fakeChild();
+    setTimeout(() => {
+      child.stderr.emit('data', Buffer.from('TypeError: something exploded\n'));
+      child.emit('exit', 1); // no JSON ever printed on stdout
+    }, 5);
+    return child;
+  };
+  const record = await runOneBatchRun({
+    i: 1, total: 20, runId, declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'a', tag: 'test',
+    pollMs: 10, spawnFn, spendPath: join(mkdtempSync(join(tmpdir(), 'm0-batch-spend-')), 'spend.jsonl'),
+  });
+  assert.equal(record.outcome, 'crashed');
+  assert.equal(record.costUsd, null, 'a crashed run\'s cost must be unknown, never $0');
+});
+
+test('PROOF FIX 2 can fail: a clean preflight-style refusal (also zero ledger rows) still reports $0, not null', async () => {
+  const runId = 'm0b-deepseek-a-refuse-test';
+  const spawnFn = () => {
+    const child = fakeChild();
+    setTimeout(() => {
+      child.stdout.emit('data', Buffer.from(`RUN_ID=${runId}\n${JSON.stringify({
+        runId, outcome: 'red', phase: 'preflight', red: 'preflight: run dir already holds ask.json from an earlier run — use a new --run-id',
+      }, null, 2)}`));
+      child.emit('exit', 1);
+    }, 5);
+    return child;
+  };
+  const record = await runOneBatchRun({
+    i: 1, total: 20, runId, declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'a', tag: 'test',
+    pollMs: 10, spawnFn, spendPath: join(mkdtempSync(join(tmpdir(), 'm0-batch-spend-')), 'spend.jsonl'),
+  });
+  assert.equal(record.outcome, 'red');
+  assert.equal(record.costUsd, 0, 'no model round ever ran — $0 is correct, not null');
+});
+
+test('FIX 2 (batch-level): a crashed run with an unpriced cost stops the whole batch', async () => {
+  let spawnCount = 0;
+  const spawnFn = () => {
+    spawnCount += 1;
+    const child = fakeChild();
+    setTimeout(() => {
+      child.emit('exit', 1); // crashes: no stdout at all
+    }, 5);
+    return child;
+  };
+  const { results } = await runBatch({
+    declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'a', tag: `crash-stop-${Date.now()}`, runs: 20, isTTY: false,
+    spawnFn, spendPath: join(mkdtempSync(join(tmpdir(), 'm0-batch-spend-')), 'spend.jsonl'),
+  });
+  assert.equal(results.length, 1, 'the batch must stop after the crashed run, never reaching run 2');
+  assert.equal(spawnCount, 1);
+});
+
+// FIX 4 (hamr's review, 2026-09-13): child stdout/stderr are captured, not inherited, so without
+// a printed progress line hamr sees nothing for plants a/b/e's 20 runs.
+test('FIX 4: one progress line is printed per run via writeLine, naming the verdict, outcome/phase, cost and wall time', async () => {
+  const runId = 'm0b-deepseek-a-progress-test';
+  const spawnFn = () => {
+    const child = fakeChild();
+    setTimeout(() => {
+      child.stdout.emit('data', Buffer.from(`RUN_ID=${runId}\n${JSON.stringify({
+        runId, outcome: 'red', phase: 'derive', red: 'total_owed 5850 ≠ sum(E2,E3) = 5700',
+      }, null, 2)}`));
+      child.emit('exit', 1);
+    }, 5);
+    return child;
+  };
+  const written = [];
+  await runBatch({
+    declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'a', tag: `progress-${Date.now()}`, runs: 1, isTTY: false,
+    spawnFn, writeLine: (s) => written.push(s), spendPath: join(mkdtempSync(join(tmpdir(), 'm0-batch-spend-')), 'spend.jsonl'),
+  });
+  const progressLine = written.find((l) => l.startsWith('run 1/1'));
+  assert.ok(progressLine, `expected a "run 1/1 ..." progress line among: ${JSON.stringify(written)}`);
+  assert.match(progressLine, /\bpass\b/);
+  assert.match(progressLine, /red\/derive/);
+  assert.match(progressLine, /\$\d/);
+  assert.match(progressLine, /\d+(\.\d+)?s/);
+});
+
+test('PROOF FIX 4 can fail: a non-pass run\'s progress line also carries its red text', async () => {
+  const runId = 'm0b-deepseek-b-progress-test';
+  const spawnFn = () => {
+    const child = fakeChild();
+    setTimeout(() => {
+      child.stdout.emit('data', Buffer.from(`RUN_ID=${runId}\n${JSON.stringify({
+        runId, outcome: 'red', phase: 'derive', red: 'this text will never match plant b\'s expected shape',
+      }, null, 2)}`));
+      child.emit('exit', 1);
+    }, 5);
+    return child;
+  };
+  const written = [];
+  await runBatch({
+    declarationPath: tempDeclarationPath(), slot: 'deepseek', plant: 'b', tag: `progress-miss-${Date.now()}`, runs: 1, isTTY: false,
+    spawnFn, writeLine: (s) => written.push(s), spendPath: join(mkdtempSync(join(tmpdir(), 'm0-batch-spend-')), 'spend.jsonl'),
+  });
+  const progressLine = written.find((l) => l.startsWith('run 1/1'));
+  assert.match(progressLine, /\bmiss\b/);
+  assert.match(progressLine, /this text will never match plant b's expected shape/);
 });
 
 test('runOneBatchRun: an ask is reached, "y" accepts — answeredBy human-tty, verdict per outcome', async () => {
