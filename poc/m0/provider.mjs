@@ -54,8 +54,18 @@ export function resolveModelRate(modelId, ratesTable = RATES_BY_SUFFIX) {
  * Build a provider for the given slot. Throws (never defaults) on: an unknown
  * slot, a missing env key, or a model with no hand-entered rate.
  * Returns { provider, rates, modelId, suffix, slot }.
+ *
+ * `timeoutMs` (M0b Part 2.2, 2026-09-13): bounds a silent/never-answering
+ * socket (BA-18) — without it, a raw socket-level failure can hang far
+ * longer than the provider's documented default appears to actually enforce
+ * for a given baseUrl (observed live: "read ETIMEDOUT" after 3045006ms).
+ * Optional and undefined by default (bare-agent's own default applies) so
+ * every EXISTING caller of makeProvider is unaffected; the runner passes
+ * 300_000 for its own rounds — this is the ONE writer for provider
+ * construction, so that value is passed in here rather than a second
+ * `new OpenAI(...)` call constructing its own provider inline.
  */
-export function makeProvider(slotName, { model } = {}) {
+export function makeProvider(slotName, { model, timeoutMs } = {}) {
   const slot = PROVIDER_SLOTS[slotName];
   if (!slot) {
     throw new Error(`unknown provider slot "${slotName}" — known slots: ${Object.keys(PROVIDER_SLOTS).join(', ')}`);
@@ -68,7 +78,11 @@ export function makeProvider(slotName, { model } = {}) {
   const { suffix, rates } = resolveModelRate(modelId);
 
   const provider = new OpenAI({
-    apiKey, model: modelId, baseUrl: slot.baseUrl, legacyMaxTokens: slot.legacyMaxTokens === true,
+    apiKey,
+    model: modelId,
+    baseUrl: slot.baseUrl,
+    legacyMaxTokens: slot.legacyMaxTokens === true,
+    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
   });
 
   return {

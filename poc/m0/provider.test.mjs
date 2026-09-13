@@ -136,6 +136,33 @@ test('PROOF the test above can fail: a real table entry (not on the prototype) s
   assert.ok(rates.out > 0);
 });
 
+// M0b Part 2.2 — makeProvider is the ONE writer for provider construction;
+// the runner passes timeoutMs THROUGH it rather than constructing its own
+// `new OpenAI(...)` a second time.
+test('timeoutMs reaches the constructed provider when supplied', () => {
+  const envVar = PROVIDER_SLOTS.deepseek.envVar;
+  const saved = process.env[envVar];
+  process.env[envVar] = 'test-key-not-real';
+  try {
+    const { provider } = makeProvider('deepseek', { timeoutMs: 300_000 });
+    assert.equal(provider.timeoutMs, 300_000);
+  } finally {
+    if (saved !== undefined) process.env[envVar] = saved; else delete process.env[envVar];
+  }
+});
+
+test('PROOF the test above can fail: omitting timeoutMs never sets it to 300_000 by accident', () => {
+  const envVar = PROVIDER_SLOTS.deepseek.envVar;
+  const saved = process.env[envVar];
+  process.env[envVar] = 'test-key-not-real';
+  try {
+    const { provider } = makeProvider('deepseek', {});
+    assert.notEqual(provider.timeoutMs, 300_000);
+  } finally {
+    if (saved !== undefined) process.env[envVar] = saved; else delete process.env[envVar];
+  }
+});
+
 test('PROOF the test above can fail: a slot whose default model has no rate entry is rejected by resolveModelRate', () => {
   const neverPricedModelId = `test-only-unpriced-model-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const injectedSlots = {

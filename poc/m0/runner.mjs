@@ -30,16 +30,21 @@ import {
 } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Loop } from 'bare-agent';
+import { createHash } from 'node:crypto';
+import { Loop, Checkpoint } from 'bare-agent';
 import { OpenAI } from 'bare-agent/providers';
+import { createShellTools } from 'bare-agent/tools';
 import {
   gather, ask, send, checkStepHappened,
 } from './mechanical.mjs';
 import {
   closeDerive, closeCompose, closeCustomerMatch, hashFile, matchingCustomers,
 } from './close.mjs';
-import { assertUnderGlobalCap, appendSpendRow, RUN_CAP_USD } from './spend.mjs';
-import { resolveModelRate } from './provider.mjs';
+import { parseCsv } from './csv.mjs';
+import {
+  assertUnderGlobalCap, appendSpendRow, sumMeterings, RUN_CAP_USD,
+} from './spend.mjs';
+import { resolveModelRate, makeProvider } from './provider.mjs';
 import { validate, parseArbiterSlots } from './validator.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -285,9 +290,208 @@ export async function runOnPrimitives({
   if (!pre.ok) {
     return { outcome: 'red', red: pre.red, phase: 'preflight' };
   }
-  // Execution phase (2.2/2.3) is not yet built — a caller that reaches here
-  // today gets an explicit "not implemented" rather than a silent no-op.
-  return { outcome: 'red', red: 'runOnPrimitives: preflight passed but the execution phase (2.2/2.3) is not yet built', phase: 'execution', pre };
+  // Execution phase (2.3 wires these primitives into the actual job #1 fold
+  // and the plants) is not yet assembled here — a caller that reaches this
+  // point today gets an explicit "not implemented" rather than a silent
+  // no-op. The primitives themselves (below) are already real and tested.
+  return { outcome: 'red', red: 'runOnPrimitives: preflight passed but the execution phase (2.3) is not yet assembled', phase: 'execution', pre };
+}
+
+// ---------------------------------------------------------------------------
+// M0b PART 2.2 — PRIMITIVES DO THE I/O (2026-09-13). Every read, ask and
+// write below goes through a real baresuite primitive — never a second,
+// bespoke fs call standing in for one. The model is never handed these
+// tools directly (PRD-signed decision, M0b brief: "inside a step the LLM is
+// the wiring" — tools-in-the-loop would add rounds and variance F5 never
+// had); the RUNNER calls each tool's own `execute` directly.
+// ---------------------------------------------------------------------------
+
+const { tools: SHELL_TOOLS } = createShellTools();
+const shellTool = (name) => {
+  const found = SHELL_TOOLS.find((t) => t.name === name);
+  if (!found) throw new Error(`M0b primitives: bare-agent/tools does not export a "${name}" tool`);
+  return found;
+};
+
+/**
+ * Read a frozen input through `shell_read` (never a second `readFileSync`
+ * standing in for it) and prove the bytes that came back are the SAME bytes
+ * `freezeInputs` hashed — never trust a read that silently truncated.
+ * `frozenEntry` is one row of `freezeInputs`'s manifest ({ frozen, sha256 }).
+ * Red, naming the file, when: the re-hash mismatches, OR the text carries
+ * bare-agent's own `[truncated: … more bytes not shown]` notice (a
+ * truncated read must never be parsed as though it were a complete row).
+ */
+export async function readFrozenText(frozenEntry, { maxBytes } = {}) {
+  const text = await shellTool('shell_read').execute({ path: frozenEntry.frozen, maxBytes });
+  if (/\[truncated: \d+ more bytes not shown\]/.test(text)) {
+    return { ok: false, red: `read: "${frozenEntry.frozen}" was truncated by shell_read — never parsed as a complete row` };
+  }
+  const actualSha256 = createHash('sha256').update(text, 'utf8').digest('hex');
+  if (actualSha256 !== frozenEntry.sha256) {
+    return {
+      ok: false,
+      red: `read: "${frozenEntry.frozen}" re-hashed to ${actualSha256}, the frozen manifest recorded ${frozenEntry.sha256} — the bytes read do not match what was frozen`,
+    };
+  }
+  return { ok: true, text };
+}
+
+/** A frozen CSV, read through shell_read then parsed via `addressCells`'s own `parseCsv` — the artifact id is the bound step's `emits`, never a hand-picked "a1"/"a2". */
+export async function readFrozenCsv(emitsId, frozenEntry, opts) {
+  const read = await readFrozenText(frozenEntry, opts);
+  if (!read.ok) return read;
+  const { header, rows } = parseCsv(read.text);
+  return {
+    ok: true, id: emitsId, kind: 'csv', sha256: frozenEntry.sha256, header, rows,
+  };
+}
+
+/** A frozen text file, read through shell_read — same id-and-hash discipline as `readFrozenCsv`. */
+export async function readFrozenTextArtifact(emitsId, frozenEntry, opts) {
+  const read = await readFrozenText(frozenEntry, opts);
+  if (!read.ok) return read;
+  const lines = read.text.split(/\r?\n/).filter((l) => l.length > 0);
+  return {
+    ok: true, id: emitsId, kind: 'text', sha256: frozenEntry.sha256, lines,
+  };
+}
+
+/**
+ * The ask stage, on `bare-agent`'s `Checkpoint` — never a hand-rolled poll
+ * loop a second time. `send` writes `ask.json`, `waitForReply` polls
+ * `answer.json`, the SAME file protocol `mechanical.mjs`'s `ask()` and
+ * `answer.mjs` already use (one writer for the file shape; Checkpoint is
+ * the new caller). A `TimeoutError` reds "ask expired". `answer.decision`
+ * of anything but `'accept'`/`'reject'` — in particular a redo/`rerun`
+ * request — reds naming it: the redo edge is Amendment A, explicitly OUT of
+ * this brief's scope, never silently implemented here.
+ */
+export async function checkpointAsk(question, evidence, { outDir, timeoutMs = 120_000, pollMs = 500 } = {}) {
+  mkdirSync(outDir, { recursive: true });
+  const askPath = join(outDir, 'ask.json');
+  const answerPath = join(outDir, 'answer.json');
+  // `cancelled` stops the poll loop the instant checkpoint.ask() settles (timeout OR answer) —
+  // without it, a TIMED-OUT ask's waitForReply keeps scheduling setTimeout forever in the
+  // background (a live timer node --test will wait on), hanging the whole process after every
+  // test has otherwise finished.
+  const state = { cancelled: false };
+  const checkpoint = new Checkpoint({
+    timeout: timeoutMs,
+    send: async (q, context) => {
+      writeFileSync(askPath, JSON.stringify({ question: q, evidence: context, askedAt: new Date().toISOString() }, null, 2));
+    },
+    waitForReply: async () => {
+      while (!state.cancelled) {
+        if (existsSync(answerPath)) return readFileSync(answerPath, 'utf8');
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, pollMs));
+      }
+      return null;
+    },
+  });
+  let raw;
+  try {
+    raw = await checkpoint.ask(question, evidence);
+  } catch (err) {
+    if (err?.name === 'TimeoutError') return { ok: false, red: 'ask expired' };
+    throw err;
+  } finally {
+    state.cancelled = true;
+  }
+  const answer = JSON.parse(raw);
+  // answer.mjs's real protocol: decision is 'accept' or 'rerun' — there is
+  // no 'reject' today. 'rerun' is the redo edge (Amendment A), explicitly
+  // OUT of this brief's scope — reds naming it rather than silently
+  // implementing a redo, and never treated as a plain refusal either.
+  if (answer.decision === 'accept') return { ok: true, accepted: true, answer };
+  if (answer.decision === 'rerun') {
+    return { ok: false, red: 'ask: a "rerun" decision is Amendment A\'s redo edge, out of this brief\'s scope — not handled' };
+  }
+  return { ok: false, red: `ask: unrecognised decision "${answer.decision}"` };
+}
+
+/**
+ * The send stage, on `shell_write` (never `writeFileSync` standing in for
+ * it a second time). Only ever called after an accept THIS run. The
+ * "happened" effect check reads the bytes ACTUALLY on disk afterwards —
+ * never the in-memory content handed in — so a write that silently
+ * truncates to 0 bytes reds here, not upstream.
+ */
+export async function sendViaPrimitive(dir, filename, content) {
+  const path = join(dir, filename);
+  await shellTool('shell_write').execute({ path, content });
+  const bytes = readFileSync(path);
+  const happened = checkStepHappened({ goal: 'send: deliver reply', close: { class: 'hitl' } }, bytes);
+  if (happened.verdict === 'red') return { ok: false, red: happened.red, path };
+  return { ok: true, path, bytes: bytes.byteLength };
+}
+
+/**
+ * One model round on a provider SLOT (never a hand-rolled `new OpenAI(...)`
+ * a second time — `makeProvider` is the one writer, brief 2.2). Meters
+ * EVERY round via `sumMeterings` (F15's fix, applied here — the OLD
+ * `runModelStep` below still carries the F15 bug: `metering = event`,
+ * last-round-only) and writes one spend row with `rounds`, `modelReturned`,
+ * `modelMatch` (via `appendSpendRow`'s own `classifyModelId` stamp).
+ *
+ * `provider`/`rates`/`modelId` are injectable (same pattern as
+ * drafter.mjs's `runDrafter`) so a test can prove this function's own
+ * retry/metering/spend-row wiring at $0 with a fake provider — never a
+ * live model call. Production and the CLI always omit them, which builds
+ * the real provider through `makeProvider(slot, ...)`, the one writer.
+ */
+export async function runModelStepOnPrimitives({
+  runId, stepLabel, slot, model, spendPath = SPEND_PATH, systemPrompt, userContent, toolName, toolDescription, toolSchema,
+  provider: injectedProvider, rates: injectedRates, modelId: injectedModelId,
+}) {
+  const live = injectedProvider == null;
+  let provider = injectedProvider;
+  let rates = injectedRates;
+  let modelId = injectedModelId;
+  if (live) {
+    assertUnderGlobalCap(spendPath);
+    ({ provider, rates, modelId } = makeProvider(slot, { model, timeoutMs: 300_000 }));
+  }
+
+  let capturedArgs = null;
+  const tools = [{
+    name: toolName,
+    description: toolDescription,
+    parameters: toolSchema,
+    execute: async (args) => { capturedArgs = args; return { ok: true }; },
+  }];
+  const meterings = [];
+  const loop = new Loop({ provider, rates, onLlmResult: async (event) => { meterings.push(event); } });
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userContent },
+  ];
+
+  const startedAt = Date.now();
+  const result = await loop.run(messages, tools, { maxTokens: 16000 });
+  const wallMs = Date.now() - startedAt;
+
+  // Written regardless of live/injected (unlike makeProvider/assertUnderGlobalCap above, which
+  // only run live): a stub round still represents "a model round happened" for test purposes,
+  // and the brief's own test ("a stub emitting 2 rounds -> the row sums both") reads this row
+  // back. A test always supplies its own temp spendPath, so this never touches the real ledger.
+  const metered = sumMeterings(meterings);
+  appendSpendRow(spendPath, {
+    runId, step: stepLabel, model: modelId, modelReturned: metered.model,
+    tokens: metered.tokens, costUsd: metered.costUsd, rounds: metered.rounds,
+    rateSource: metered.rateSource, wallMs, stopReason: result.stopReason ?? null,
+  });
+
+  if (result.stopReason === 'max_tokens') {
+    return { ok: false, red: `truncated: ${metered.tokens?.outputTokens ?? '?'} tokens, no tool call` };
+  }
+  if (capturedArgs == null) {
+    return { ok: false, red: `${stepLabel}: a FINISHED round (stopReason=${result.stopReason}) returned text instead of the tool` };
+  }
+  return {
+    ok: true, args: capturedArgs, metered, wallMs, stopReason: result.stopReason,
+  };
 }
 
 // ---------------------------------------------------------------------------

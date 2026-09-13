@@ -515,3 +515,213 @@ test('PROOF the above can fail: a genuinely clean declaration passes preflight a
   assert.equal(result.pre.ok, true, 'preflight itself must have passed for this declaration');
   assert.equal(modelStepCalls, 0);
 });
+
+// ---------------------------------------------------------------------------
+// M0b PART 2.2 — PRIMITIVES DO THE I/O (2026-09-13). readFrozenText/Csv/
+// TextArtifact (shell_read + hash/truncation), checkpointAsk (Checkpoint,
+// the real answer.mjs file protocol), sendViaPrimitive (shell_write),
+// runModelStepOnPrimitives (makeProvider + metering that sums every round).
+// ---------------------------------------------------------------------------
+
+import {
+  readFrozenText, readFrozenCsv, readFrozenTextArtifact, checkpointAsk, sendViaPrimitive, runModelStepOnPrimitives,
+} from './runner.mjs';
+
+// --- readFrozenText / readFrozenCsv / readFrozenTextArtifact --------------
+
+test('readFrozenText reads the frozen copy through shell_read and matches the manifest hash', async () => {
+  const runDir = tempRunDir();
+  const { manifest } = freezeInputs(runDir, [{ id: 'sheet', path: join(REPO_ROOT, 'fixtures', 'ar-aging.csv') }]);
+  const result = await readFrozenText(manifest[0]);
+  assert.equal(result.ok, true);
+  assert.equal(result.text, readFileSync(manifest[0].frozen, 'utf8'));
+});
+
+test('PROOF readFrozenText can fail: a truncated read (small maxBytes) reds, never parsed as a complete row', async () => {
+  const runDir = tempRunDir();
+  const { manifest } = freezeInputs(runDir, [{ id: 'sheet', path: join(REPO_ROOT, 'fixtures', 'ar-aging.csv') }]);
+  const result = await readFrozenText(manifest[0], { maxBytes: 16 }); // real fixture is far bigger than 16 bytes
+  assert.equal(result.ok, false);
+  assert.match(result.red, /was truncated by shell_read/);
+});
+
+test('PROOF readFrozenText can fail: a mismatched manifest hash reds, naming both hashes', async () => {
+  const runDir = tempRunDir();
+  const { manifest } = freezeInputs(runDir, [{ id: 'sheet', path: join(REPO_ROOT, 'fixtures', 'ar-aging.csv') }]);
+  const poisoned = { ...manifest[0], sha256: '0'.repeat(64) };
+  const result = await readFrozenText(poisoned);
+  assert.equal(result.ok, false);
+  assert.match(result.red, /re-hashed to .* the frozen manifest recorded 0{64}/);
+});
+
+test('readFrozenCsv parses the frozen CSV and stamps it with the bound step\'s emits id, never a1/a2', async () => {
+  const runDir = tempRunDir();
+  const { manifest } = freezeInputs(runDir, [{ id: 'sheet', path: join(REPO_ROOT, 'fixtures', 'ar-aging.csv') }]);
+  const artifact = await readFrozenCsv('aging-sheet', manifest[0]);
+  assert.equal(artifact.ok, true);
+  assert.equal(artifact.id, 'aging-sheet');
+  assert.ok(artifact.header.includes('Customer'));
+  assert.ok(artifact.rows.length > 0);
+});
+
+test('readFrozenTextArtifact parses the frozen text file into 1-based lines, stamped with the emits id', async () => {
+  const runDir = tempRunDir();
+  const { manifest } = freezeInputs(runDir, [{ id: 'message', path: join(REPO_ROOT, 'fixtures', 'message.txt') }]);
+  const artifact = await readFrozenTextArtifact('message-artifact', manifest[0]);
+  assert.equal(artifact.ok, true);
+  assert.equal(artifact.id, 'message-artifact');
+  assert.ok(artifact.lines.length > 0);
+});
+
+// --- checkpointAsk ----------------------------------------------------------
+
+test('checkpointAsk accepts once answer.mjs\'s real protocol writes {decision:"accept"}', async () => {
+  const outDir = mkdtempSync(join(tmpdir(), 'm0-checkpoint-'));
+  const pending = checkpointAsk('ok to send?', { text: 'draft' }, { outDir, timeoutMs: 3000, pollMs: 20 });
+  await new Promise((r) => setTimeout(r, 50));
+  writeFileSync(join(outDir, 'answer.json'), JSON.stringify({ decision: 'accept', text: null }));
+  const result = await pending;
+  assert.equal(result.ok, true);
+  assert.equal(result.accepted, true);
+  assert.ok(existsSync(join(outDir, 'ask.json')), 'checkpointAsk must write ask.json through Checkpoint\'s send callback');
+});
+
+test('PROOF checkpointAsk can fail: no answer ever arrives -> "ask expired" (Checkpoint\'s own TimeoutError)', async () => {
+  const outDir = mkdtempSync(join(tmpdir(), 'm0-checkpoint-timeout-'));
+  const result = await checkpointAsk('ok to send?', {}, { outDir, timeoutMs: 200, pollMs: 20 });
+  assert.equal(result.ok, false);
+  assert.equal(result.red, 'ask expired');
+});
+
+test('checkpointAsk reds a "rerun" decision naming it as Amendment A\'s redo edge, out of scope', async () => {
+  const outDir = mkdtempSync(join(tmpdir(), 'm0-checkpoint-rerun-'));
+  const pending = checkpointAsk('ok to send?', {}, { outDir, timeoutMs: 3000, pollMs: 20 });
+  await new Promise((r) => setTimeout(r, 50));
+  writeFileSync(join(outDir, 'answer.json'), JSON.stringify({ decision: 'rerun', text: 'try again' }));
+  const result = await pending;
+  assert.equal(result.ok, false);
+  assert.match(result.red, /Amendment A's redo edge, out of this brief's scope/);
+});
+
+// --- sendViaPrimitive -------------------------------------------------------
+
+test('sendViaPrimitive writes through shell_write and the happened() check passes on real bytes', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'm0-sendprim-'));
+  const result = await sendViaPrimitive(dir, 'sent.txt', 'INV-1021 [c1]\n');
+  assert.equal(result.ok, true);
+  assert.equal(readFileSync(result.path, 'utf8'), 'INV-1021 [c1]\n');
+});
+
+test('PROOF sendViaPrimitive can fail: an empty write reds on "happened", reading the bytes actually on disk', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'm0-sendprim-empty-'));
+  const result = await sendViaPrimitive(dir, 'sent.txt', '');
+  assert.equal(result.ok, false);
+  assert.match(result.red, /^happened:/);
+});
+
+// --- runModelStepOnPrimitives — metering sums every round -------------------
+
+test('runModelStepOnPrimitives sums every round via sumMeterings, never just the last one (F15)', async () => {
+  const runId = `test-metering-${Date.now()}`;
+  const spendPath = join(mkdtempSync(join(tmpdir(), 'm0-spend-')), 'spend.jsonl');
+  const envVar = 'DEEPSEEK_API_KEY';
+  const saved = process.env[envVar];
+  process.env[envVar] = 'test-key-not-real';
+  // Stub bare-agent's Loop is not injected here (runModelStepOnPrimitives builds its own) — instead
+  // this proves the metering FOLD itself via sumMeterings on a realistic two-round event list, the
+  // same shape onLlmResult delivers: round 1 emits the tool call, round 2 is the short finishing
+  // round. This is the exact F15 scenario (drafter.mjs/scout.mjs already fixed; the OLD runModelStep
+  // in this same file still has NOT: `metering = event` drops round 1 entirely).
+  try {
+    const { sumMeterings } = await import('./spend.mjs');
+    const rounds = [
+      { usage: { inputTokens: 100, outputTokens: 50 }, costUsd: 0.001, model: 'deepseek-flash' },
+      { usage: { inputTokens: 10, outputTokens: 5 }, costUsd: 0.0001, model: 'deepseek-flash' },
+    ];
+    const metered = sumMeterings(rounds);
+    assert.equal(metered.rounds, 2);
+    assert.equal(metered.tokens.outputTokens, 55, 'both rounds\' output tokens must be summed, not just the last');
+    assert.ok(Math.abs(metered.costUsd - 0.0011) < 1e-9);
+  } finally {
+    if (saved !== undefined) process.env[envVar] = saved; else delete process.env[envVar];
+  }
+});
+
+test('PROOF the metering test can fail: reading only the LAST round (the F15 bug) understates both tokens and cost', async () => {
+  const { sumMeterings } = await import('./spend.mjs');
+  const rounds = [
+    { usage: { inputTokens: 100, outputTokens: 50 }, costUsd: 0.001, model: 'deepseek-flash' },
+    { usage: { inputTokens: 10, outputTokens: 5 }, costUsd: 0.0001, model: 'deepseek-flash' },
+  ];
+  const lastRoundOnly = rounds[rounds.length - 1]; // the F15 bug: `metering = event`
+  assert.notEqual(lastRoundOnly.usage.outputTokens, sumMeterings(rounds).tokens.outputTokens);
+});
+
+// A fake provider matching bare-agent's own `generate(messages, tools, options)` contract (same
+// shape drafter.test.mjs's fakeProvider uses) — Loop calls .generate() itself and fires
+// onLlmResult once per round; the FIRST round emits the tool call, the SECOND (the "finishing"
+// round" after the tool result) returns plain text. This is the exact F15 shape: a call site that
+// keeps only the last round's metering understates every tool-calling run.
+function fakeTwoRoundProvider() {
+  let n = 0;
+  return {
+    generate: async () => {
+      n += 1;
+      if (n === 1) {
+        return {
+          text: null,
+          toolCalls: [{ id: 't1', name: 'emit_x', arguments: { ok: true } }],
+          usage: { inputTokens: 100, outputTokens: 50 },
+          stopReason: 'tool_calls',
+          model: 'deepseek-flash',
+        };
+      }
+      return {
+        text: '', toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 }, stopReason: 'stop', model: 'deepseek-flash',
+      };
+    },
+  };
+}
+
+test('runModelStepOnPrimitives ($0, injected stub provider — zero live model calls) writes one spend row summing EVERY round, never just the last', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'm0-modelstep-'));
+  const spendPath = join(runDir, 'spend.jsonl');
+  const provider = fakeTwoRoundProvider();
+  const result = await runModelStepOnPrimitives({
+    runId: 'test-run', stepLabel: 'derive1', spendPath,
+    systemPrompt: 'x', userContent: 'y', toolName: 'emit_x', toolDescription: 'd',
+    toolSchema: { type: 'object', properties: {} },
+    provider, rates: { in: 0, out: 0 }, modelId: 'deepseek-flash',
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.args, { ok: true });
+  const rows = readFileSync(spendPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].rounds, 2, 'both rounds must be folded into ONE spend row (F15)');
+  assert.equal(rows[0].tokens.outputTokens, 55, '50 (tool-call round) + 5 (finishing round), never just 5');
+  assert.equal(rows[0].modelReturned, 'deepseek-flash');
+  assert.equal(rows[0].modelMatch, 'match');
+});
+
+test('PROOF the above can fail: a stub provider that returns text instead of the tool reds, naming the step', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'm0-modelstep-notool-'));
+  const spendPath = join(runDir, 'spend.jsonl');
+  let calls = 0;
+  const provider = {
+    generate: async () => {
+      calls += 1;
+      return {
+        text: 'not a tool call', toolCalls: [], usage: { inputTokens: 5, outputTokens: 5 }, stopReason: 'stop', model: 'deepseek-flash',
+      };
+    },
+  };
+  const result = await runModelStepOnPrimitives({
+    runId: 'test-run', stepLabel: 'derive1', spendPath,
+    systemPrompt: 'x', userContent: 'y', toolName: 'emit_x', toolDescription: 'd',
+    toolSchema: { type: 'object', properties: {} },
+    provider, rates: { in: 0, out: 0 }, modelId: 'deepseek-flash',
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.red, /derive1: a FINISHED round \(stopReason=stop\) returned text instead of the tool/);
+  assert.ok(calls >= 1);
+});
