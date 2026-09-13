@@ -1119,3 +1119,38 @@ the installed package, and its proof-can-fail partner with a made-up symbol. The
 
 **Lesson:** a string that isn't where you looked is a question about where it lives, not proof it
 doesn't exist.
+
+## F24 — the send lock: a signed slot, not wording; it finds a send F21 counted as present (2026-09-13)
+
+**Date** 2026-09-13 · **Status** fixed, reviewed · **Class** M0b / Claim 2 lock · **Grounded in**
+commits `7db38ec`, `288cb8a`, `089c8a1`; `poc/m0/validator.mjs` (`parseArbiterSlots`, the send-lock
+block in `validate()`); the 9 saved clean prose drafts
+`poc/m0/out/draft-deepseek-v4-flash-deepseek-prose*.json`, re-validated at $0, files untouched.
+
+**Problem.** F21 fixed the send line by prompt wording (6/11 → 11/11). A draft that refused line 6
+still validated green: line 6 has no guardrail, and check 6 accepts a refused line.
+
+**Fix.** The human-signed arbiter block now carries two typed slots in a fixed grammar,
+`ask at line 5` and `send at line 6 to file:poc/m0/out`. `validate()` reds when a slot line is
+refused, no step serves it, the send step is not granted `write`, the send step does not read the
+ask step's artifact, or a slot names a line that does not exist. A line that starts `ask at` /
+`send at` and does not parse is a red, never ignored. `send()` takes its allow-list from the caller,
+with no hard-coded default. The drafter prompt was not touched. 291 → 311 tests.
+
+**Proof it can fail.** The orchestrator replaced only the lock's `if` with `if (false)`: 10 lock tests
+red. Restored: 311/311. Reverting `send()`'s allow-list requirement alone: 2 tests red.
+
+**Evidence over the saved drafts** (slots injected, $0):
+
+| drafts | line 6 | verdict |
+|---|---|---|
+| 5 (post-F21 wording, `1789099035197`…`090060`) | step, `write`, reads the ask artifact | green |
+| 2 (`1789098132037`, `168855`) | refused, in the old shape with no `refused[].line` | red: no step has fromLine 6 |
+| 2 (`1789098148504`, base `prose.json`) | a step with **no primitives** | red: send step not granted `write` |
+
+**The new fact.** F21's table counted `148504` as "step" for line 6. It was a step with an empty
+grant — it could never have sent anything. F21 checked that a step existed, not what it was allowed
+to do. The old-shape refusals red for the right outcome under a less precise label (a known nit:
+old drafts lack `refused[].line`).
+
+**Lesson:** count what a step is granted, not that it exists.
