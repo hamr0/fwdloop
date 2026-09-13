@@ -1120,6 +1120,48 @@ export async function runDeclaration({
 // ---------------------------------------------------------------------------
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  const declarationIdx = process.argv.indexOf('--declaration');
+
+  if (declarationIdx !== -1) {
+    // M0b Part 2 CLI shape (brief): node poc/m0/runner.mjs --declaration <draft.json>
+    //   --slot deepseek|synthetic [--model <id>] --plant a|b|c|d|e [--run-id <id>] [--ask-timeout-ms N]
+    const declarationPath = process.argv[declarationIdx + 1];
+    const slotIdx = process.argv.indexOf('--slot');
+    const slot = slotIdx !== -1 ? process.argv[slotIdx + 1] : null;
+    const modelIdx = process.argv.indexOf('--model');
+    const model = modelIdx !== -1 ? process.argv[modelIdx + 1] : undefined;
+    const plantIdx = process.argv.indexOf('--plant');
+    const plant = plantIdx !== -1 ? process.argv[plantIdx + 1] : null;
+    const runIdIdx = process.argv.indexOf('--run-id');
+    const runId = runIdIdx !== -1 ? process.argv[runIdIdx + 1] : `m0b-${slot}-plant-${plant}-${Date.now()}`;
+    const askTimeoutIdx = process.argv.indexOf('--ask-timeout-ms');
+    const askTimeoutMs = askTimeoutIdx !== -1 ? Number(process.argv[askTimeoutIdx + 1]) : 120_000;
+
+    if (!declarationPath || !['deepseek', 'synthetic'].includes(slot) || !['a', 'b', 'c', 'd', 'e'].includes(plant)) {
+      console.error('usage: node poc/m0/runner.mjs --declaration <draft.json> --slot deepseek|synthetic '
+        + '[--model <id>] --plant a|b|c|d|e [--run-id <id>] [--ask-timeout-ms N]');
+      process.exit(1);
+    }
+
+    const raw = JSON.parse(readFileSync(declarationPath, 'utf8'));
+    const declaration = raw.declaration ?? raw;
+    const sources = [
+      { id: 'sheet', path: join(REPO_ROOT, 'fixtures', 'ar-aging.csv') },
+      { id: 'message', path: join(REPO_ROOT, 'fixtures', 'message.txt') },
+    ];
+
+    console.log(`RUN_ID=${runId}`);
+    const result = await runOnPrimitives({
+      declaration, runId, sources, plant, slot, model, askTimeoutMs,
+    });
+    console.log(JSON.stringify({
+      runId, outcome: result.outcome, phase: result.phase ?? null, red: result.red ?? null,
+    }, null, 2));
+    process.exit(result.outcome === 'complete' || result.outcome === 'paused-ask-answered' ? 0 : 1);
+  }
+
+  // OLD CLI (F5 bespoke fold, pre-M0b-Part-2) — untouched, kept for the existing job#1-hand-wired
+  // path until a decision is made to retire it (see the M0b Part 2.3 commit / report).
   const modelId = process.argv[2];
   const plantIdx = process.argv.indexOf('--plant');
   const plant = plantIdx !== -1 ? process.argv[plantIdx + 1] : null;
