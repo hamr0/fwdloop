@@ -49,11 +49,11 @@ test('PROOF the test can fail: an unfiltered menu DOES include write/store verbs
   assert.ok(verbs.includes('stash'));
 });
 
-test('menu also filters by skill — mail-egress verbs are absent from a core-only menu', () => {
+test('menu also filters by skill — memory verbs are absent from a core-only menu', () => {
   const coreMenu = menu({ skills: ['core'] });
   const verbs = coreMenu.map((e) => e.verb);
-  assert.ok(!verbs.includes('draftMail'));
-  assert.ok(!verbs.includes('sendMail'));
+  assert.ok(!verbs.includes('remember'));
+  assert.ok(!verbs.includes('forget'));
 });
 
 test('the fence (Gate/redact/wireGate) is plumbing, never a selectable primitive', () => {

@@ -79,14 +79,20 @@ export const CATALOGUE = Object.freeze([
   // stash/remember/forget under its "Write" primitive; fwdloop's `class`
   // splits that further into `store` (mutates the cross-run store) so a
   // read-only scout's filter removes it same as a tree `write`.
+  //
+  // `remember`/`forget` carry skill "memory", NOT "core" (M0b orchestrator
+  // ruling): the PRD's "Out of scope for v1" says "no learning between
+  // flows" — these two write/delete memory that PERSISTS ACROSS RUNS, so a
+  // job only gets them once a human signs the `memory` skill. `stash` stays
+  // `core`: it parks text within the same run, no cross-run persistence.
   {
     verb: 'stash', component: 'isolate', package: 'litectx', symbol: 'LiteCtx', method: 'stash', class: 'store', skill: 'core', desc: 'Park a large piece of text outside the prompt under an id, to fetch back later.',
   },
   {
-    verb: 'remember', component: 'isolate', package: 'litectx', symbol: 'LiteCtx', method: 'remember', class: 'store', skill: 'core', desc: 'Save a note that persists across runs, under an id.',
+    verb: 'remember', component: 'isolate', package: 'litectx', symbol: 'LiteCtx', method: 'remember', class: 'store', skill: 'memory', desc: 'Save a note that persists across runs, under an id.',
   },
   {
-    verb: 'forget', component: 'isolate', package: 'litectx', symbol: 'LiteCtx', method: 'forget', class: 'store', skill: 'core', desc: 'Delete a saved note by id.',
+    verb: 'forget', component: 'isolate', package: 'litectx', symbol: 'LiteCtx', method: 'forget', class: 'store', skill: 'memory', desc: 'Delete a saved note by id.',
   },
   // io — fwdloop's addition (see header): crosses outside the process.
   // Checkpoint pauses out to a human; mailproof sends out to the world.

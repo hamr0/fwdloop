@@ -152,18 +152,18 @@ test('check 2 — a primitive not in the catalogue is a red naming the invented 
 
 test('check 3 — a primitive that exists but is outside the signed skillset is a red', () => {
   const decl = validDeclaration();
-  decl.steps[6].primitives = ['write', 'sendMail']; // sendMail is skill "mail-egress"; skillset only grants "core"
+  decl.steps[6].primitives = ['write', 'remember']; // remember is skill "memory"; skillset only grants "core"
   const result = validate(decl);
   assert.equal(result.verdict, 'red');
   assert.match(result.red, /step 7 \("send \(dry-run egress\)"\)/);
-  assert.match(result.red, /primitive "sendMail" needs skill "mail-egress", which is not in the granted skillset \(core\)/);
+  assert.match(result.red, /primitive "remember" needs skill "memory", which is not in the granted skillset \(core\)/);
 });
 
-test('PROOF check 3 can fail: granting "mail-egress" makes the same declaration green', () => {
+test('PROOF check 3 can fail: granting "memory" makes the same declaration green', () => {
   const decl = validDeclaration();
-  decl.steps[6].primitives = ['write', 'sendMail'];
+  decl.steps[6].primitives = ['write', 'remember'];
   assert.equal(validate(decl).verdict, 'red');
-  decl.skills = ['core', 'mail-egress'];
+  decl.skills = ['core', 'memory'];
   assert.equal(validate(decl).verdict, 'green');
 });
 

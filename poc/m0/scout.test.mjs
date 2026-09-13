@@ -36,8 +36,6 @@ test('negative #5: SCOUT_MENU has no write-class or store-class verb — absence
   assert.ok(!verbs.includes('write'));
   assert.ok(!verbs.includes('edit'));
   assert.ok(!verbs.includes('checkpoint'));
-  assert.ok(!verbs.includes('draftMail'));
-  assert.ok(!verbs.includes('sendMail'));
   assert.ok(!verbs.includes('stash'));
   assert.ok(!verbs.includes('remember'));
   assert.ok(!verbs.includes('forget'));
