@@ -493,7 +493,13 @@ export async function runDeclaration({
   }
 
   // --- send ---
-  const sendResult = sendFn(runId, 'file:poc/m0/out', compose.args.text, { acceptedThisRun: true, outDir });
+  // M0b Part 1: send() no longer hard-codes its allow-list (mechanical.mjs)
+  // — this bespoke fold is job #1-shaped and about to be replaced by the
+  // declaration-driven runner (M0b Part 2), so it passes the one target job
+  // #1's own signed slot names rather than duplicating a second copy.
+  const sendResult = sendFn(runId, 'file:poc/m0/out', compose.args.text, {
+    acceptedThisRun: true, outDir, allowedTargets: ['file:poc/m0/out'],
+  });
   // Bytes before meaning (ruling 3), and the one hamr cares about most ("no 0kb output"): send's real
   // artifact is the bytes ACTUALLY on disk after the write — not the in-memory string that was handed
   // to send() — so this stats the file that send() just produced, not compose.args.text again. A write

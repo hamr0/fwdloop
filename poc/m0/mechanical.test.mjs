@@ -82,20 +82,44 @@ test('PROOF the test can fail: ask times out red "ask expired" when no answer ev
 
 test('send: writes the file and returns its path when accepted and target is allow-listed', () => {
   const outDir = mkdtempSync(join(tmpdir(), 'm0-send-'));
-  const result = send('r1', 'file:poc/m0/out', 'INV-1021 [c1]\n', { acceptedThisRun: true, outDir });
+  const result = send('r1', 'file:poc/m0/out', 'INV-1021 [c1]\n', {
+    acceptedThisRun: true, outDir, allowedTargets: ['file:poc/m0/out'],
+  });
   assert.equal(readFileSync(result.deliveryId, 'utf8'), 'INV-1021 [c1]\n');
 });
 
 test('PROOF the test can fail: send refuses without a prior accept this run', () => {
   const outDir = mkdtempSync(join(tmpdir(), 'm0-send-'));
-  assert.throws(() => send('r2', 'file:poc/m0/out', 'x', { acceptedThisRun: false, outDir }), /no prior accept/);
+  assert.throws(
+    () => send('r2', 'file:poc/m0/out', 'x', { acceptedThisRun: false, outDir, allowedTargets: ['file:poc/m0/out'] }),
+    /no prior accept/,
+  );
 });
 
 test('PROOF the test can fail: send refuses a target outside the signed allow-list', () => {
   const outDir = mkdtempSync(join(tmpdir(), 'm0-send-'));
   assert.throws(
-    () => send('r3', 'mailto:someone@example.com', 'x', { acceptedThisRun: true, outDir }),
+    () => send('r3', 'mailto:someone@example.com', 'x', { acceptedThisRun: true, outDir, allowedTargets: ['file:poc/m0/out'] }),
     /not in the signed allow-list/,
+  );
+});
+
+// M0b Part 1 — send() no longer carries its own hard-coded allow-list; a
+// caller that forgets to pass one refuses loudly rather than silently
+// falling back to a copy that could drift from the signed declaration.
+test('send: refuses when no allowedTargets is supplied at all — there is no hard-coded default any more', () => {
+  const outDir = mkdtempSync(join(tmpdir(), 'm0-send-'));
+  assert.throws(
+    () => send('r4', 'file:poc/m0/out', 'x', { acceptedThisRun: true, outDir }),
+    /allowedTargets must be a non-empty array/,
+  );
+});
+
+test('PROOF the test can fail: send: an empty allowedTargets array also refuses (no bare default)', () => {
+  const outDir = mkdtempSync(join(tmpdir(), 'm0-send-'));
+  assert.throws(
+    () => send('r5', 'file:poc/m0/out', 'x', { acceptedThisRun: true, outDir, allowedTargets: [] }),
+    /allowedTargets must be a non-empty array/,
   );
 });
 
