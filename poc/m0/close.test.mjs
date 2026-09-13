@@ -129,16 +129,22 @@ test('PROOF: a wrong daysBetween value is red', () => {
 
 test('compose close: every bracketed id resolves and no bare uncited number survives', () => {
   const output = {
-    citations: [{ id: 'c1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } }],
-    text: 'INV-1021 is 4200 [c1]',
+    citations: [
+      { id: 'c0', value: 'INV-1021', source: { kind: 'csv', artifact: 'a1', cell: 'B2' } },
+      { id: 'c1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
+    ],
+    text: 'INV-1021[c0] is 4200 [c1]',
   };
   assert.equal(closeCompose(output, artifacts, '2026-06-01').verdict, 'green');
 });
 
 test('PROOF the test can fail: a bare number outside any citation bracket is red', () => {
   const output = {
-    citations: [{ id: 'c1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } }],
-    text: 'INV-1021 is 4200 [c1], also owes 99',
+    citations: [
+      { id: 'c0', value: 'INV-1021', source: { kind: 'csv', artifact: 'a1', cell: 'B2' } },
+      { id: 'c1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
+    ],
+    text: 'INV-1021[c0] is 4200 [c1], also owes 99',
   };
   const result = closeCompose(output, artifacts, '2026-06-01');
   assert.equal(result.verdict, 'red');
@@ -149,10 +155,11 @@ test('compose close: a bracketed ISO date (YYYY-MM-DD [cN]) is not a false-posit
   + '(regression: the plain-number cleanup regex stops at the first hyphen and leaves "2026-06-" behind)', () => {
   const output = {
     citations: [
+      { id: 'c0', value: 'INV-1021', source: { kind: 'csv', artifact: 'a1', cell: 'B2' } },
       { id: 'c1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
       { id: 'c3', value: '2026-06-09', source: { kind: 'csv', artifact: 'a1', cell: 'D2' } },
     ],
-    text: 'INV-1021 is 4200 [c1], due 2026-06-09 [c3]',
+    text: 'INV-1021[c0] is 4200 [c1], due 2026-06-09 [c3]',
   };
   const result = closeCompose(output, artifacts, '2026-06-01');
   assert.equal(result.verdict, 'green');
@@ -390,4 +397,98 @@ test('PROOF the test can fail: a quote that matches nothing in the sheet is red'
   const result = closeCustomerMatch(output, artifacts, 'a1');
   assert.equal(result.verdict, 'red');
   assert.match(result.red, /matches no customer/);
+});
+
+// ---------------------------------------------------------------------------
+// Claim 1 hole (2026-09-13, hamr's first live M0b run, m0b-ds-d) — a made-up
+// invoice number closed GREEN because the old "no bare number" cleanup
+// stripped every identifier-shaped token ("[A-Za-z]+-\d+") unconditionally,
+// before the uncited-figure check ever saw it. An identifier is exactly as
+// much a claim as a figure: it must carry its own citation bracket
+// immediately after it, resolving through a COPIED citation whose value
+// equals the token — the same cell check every other copied citation uses,
+// no new citation form.
+// ---------------------------------------------------------------------------
+
+// The live run's own citation ids and values (m0b-ds-d, deepseek): c1=E2
+// (INV-1021's Amount 4200), c2=E3 (INV-1009's Amount, but the reply MISTAKENLY
+// labelled that row "INV-1022" — the sheet's row 3 is INV-1009, INV-1022 is
+// in no cell), c3/c4 = the two Due dates, c5 = the sum, c6/c7 = daysBetween,
+// c8 = the overdue count.
+const liveRunCitations = [
+  { id: 'c1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
+  { id: 'c2', value: 1500, source: { kind: 'csv', artifact: 'a1', cell: 'E3' } },
+  { id: 'c3', value: '2026-06-09', source: { kind: 'csv', artifact: 'a1', cell: 'D2' } },
+  { id: 'c4', value: '2026-05-20', source: { kind: 'csv', artifact: 'a1', cell: 'D3' } },
+  { id: 'c5', value: 5700, formula: 'sum', inputs: ['c1', 'c2'] },
+  { id: 'c6', value: -8, formula: 'daysBetween', inputs: ['c3'] },
+  { id: 'c7', value: 12, formula: 'daysBetween', inputs: ['c4'] },
+  { id: 'c8', value: 1, formula: 'count', inputs: ['c7'] },
+];
+
+// Verbatim from poc/m0/out/m0b-ds-d/ask.json's evidence.text (never edited).
+const liveRunTextWithMadeUpInvoice = 'Northwind owes 5700[c5] in total; the earliest due date is 2026-05-20[c4].\n\n'
+  + '- INV-1021: 4200[c1], due 2026-06-09[c3], not yet overdue (-8[c6] days until due)\n'
+  + '- INV-1022: 1500[c2], due 2026-05-20[c4], 12[c7] days overdue\n\n'
+  + 'Overdue invoices: 1[c8].';
+
+test('Claim 1 hole: the exact m0b-ds-d reply (made-up "INV-1022", real row is INV-1009) reds', () => {
+  const result = closeCompose({ citations: liveRunCitations, text: liveRunTextWithMadeUpInvoice }, artifacts, '2026-06-01');
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /identifier "INV-10(21|22)"/);
+});
+
+// The corrected reply: both invoice numbers cited to their REAL Invoice # cells
+// (B2 = INV-1021, B3 = INV-1009 — never INV-1022, which is in no cell).
+const correctedCitations = [
+  ...liveRunCitations,
+  { id: 'c9', value: 'INV-1021', source: { kind: 'csv', artifact: 'a1', cell: 'B2' } },
+  { id: 'c10', value: 'INV-1009', source: { kind: 'csv', artifact: 'a1', cell: 'B3' } },
+];
+const correctedText = 'Northwind owes 5700[c5] in total; the earliest due date is 2026-05-20[c4].\n\n'
+  + '- INV-1021[c9]: 4200[c1], due 2026-06-09[c3], not yet overdue (-8[c6] days until due)\n'
+  + '- INV-1009[c10]: 1500[c2], due 2026-05-20[c4], 12[c7] days overdue\n\n'
+  + 'Overdue invoices: 1[c8].';
+
+test('Claim 1 fix: the same reply with the REAL invoice number (INV-1009) cited to its own cell (B3) is green', () => {
+  const result = closeCompose({ citations: correctedCitations, text: correctedText }, artifacts, '2026-06-01');
+  assert.equal(result.verdict, 'green');
+});
+
+test('PROOF the fix can fail: dropping ONLY the INV-1009 bracket (leaving INV-1021 cited) reds again, naming INV-1009', () => {
+  const uncitedText = correctedText.replace('INV-1009[c10]', 'INV-1009');
+  const result = closeCompose({ citations: correctedCitations, text: uncitedText }, artifacts, '2026-06-01');
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /identifier "INV-1009" has no citation bracket/);
+});
+
+test('Claim 1: a bracketed identifier whose cited value does NOT match the token is red, naming both', () => {
+  // c0 is a perfectly VALID copied citation (B3 really is INV-1009) — the bug is that the model
+  // slapped a real, correctly-resolving citation onto the WRONG token in the text.
+  const output = {
+    citations: [
+      { id: 'c0', value: 'INV-1009', source: { kind: 'csv', artifact: 'a1', cell: 'B3' } },
+    ],
+    text: 'INV-1021[c0] is the invoice.',
+  };
+  const result = closeCompose(output, artifacts, '2026-06-01');
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /identifier "INV-1021" cites \[c0\]/);
+  assert.match(result.red, /does not match the identifier/);
+});
+
+test('Claim 1: an identifier bracket pointing at a DERIVED citation (not copied) is red, never accepted as a match', () => {
+  const output = {
+    citations: [
+      // c1/c0 are evidence-VALID (sum of one input equals that input) — the point is that c0 is a
+      // FORMULA citation, never eligible to stand in for an identifier's copied-cell citation,
+      // whatever its numeric value happens to be.
+      { id: 'c1', value: 4200, source: { kind: 'csv', artifact: 'a1', cell: 'E2' } },
+      { id: 'c0', value: 4200, formula: 'sum', inputs: ['c1'] },
+    ],
+    text: 'INV-1021[c0] is the invoice.',
+  };
+  const result = closeCompose(output, artifacts, '2026-06-01');
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /not a copied citation/);
 });
