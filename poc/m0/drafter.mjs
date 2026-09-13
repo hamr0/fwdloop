@@ -51,9 +51,9 @@ const PROSE_PATH = join(__dirname, 'prose.txt');
 /** The declaration's signed skillset for M0a's job #1. Real mail egress is
  *  explicitly out of scope here (PRD §6 M9) — job #1 is dry-run egress only
  *  (writes a file behind the allow-list + accept), so the drafter is granted
- *  "core" and nothing else. (The package once catalogued for real egress was
- *  removed at M0b as a wrong fit — no job used it — and real egress may
- *  return at M9 in a different role, scoped then.) */
+ *  "core" and nothing else. (mailproof, once catalogued under "mail-egress"
+ *  for real egress, was removed at M0b as a wrong fit — no job used it —
+ *  and real egress may return at M9 in a different role, scoped then.) */
 export const DRAFTER_SKILLS = Object.freeze(['core']);
 
 /** Fixed in code, not spec-authorable — the drafter's own output cap (F11:

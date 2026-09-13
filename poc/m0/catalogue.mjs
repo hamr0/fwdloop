@@ -97,14 +97,14 @@ export const CATALOGUE = Object.freeze([
   // io — fwdloop's addition (see header): crosses outside the process.
   // Checkpoint pauses out to a human. Gated `write`-class for the same
   // reason a tree write is: a read-only scout must never be able to reach
-  // it. A real email-sending package was catalogued here through M0a as
-  // fwdloop's egress primitive; M0b removed those two entries — the package
-  // turned an email REPLY into cryptographic proof of a sign-off, not a
-  // send-this-email function, so it was a wrong fit, and no fwdloop job used
-  // it (job #1's send writes a file behind the allow-list + accept). Real
-  // mail egress may return at M9 in a different role (a human's accept
-  // proven by email reply), scoped then — see docs/logs/FINDINGS.md for the
-  // package this fenced off.
+  // it. mailproof's draftMail/sendMail were catalogued here through M0a,
+  // under the "mail-egress" skill, as fwdloop's egress primitive; M0b
+  // removed those two entries — mailproof turns an email REPLY into
+  // cryptographic proof of a sign-off, not a send-this-email function, so
+  // it was a wrong fit, and no fwdloop job used it (job #1's send writes a
+  // file behind the allow-list + accept). Real mail egress may return at M9
+  // in a different role (a human's accept proven by email reply), scoped
+  // then — see docs/logs/FINDINGS.md for the package this fenced off.
   {
     verb: 'checkpoint', component: 'io', package: 'bare-agent', symbol: 'Checkpoint', class: 'write', skill: 'core', desc: "Pause the run and wait for a human's answer.",
   },
@@ -170,10 +170,10 @@ export const FENCE = Object.freeze([
 // model-round + close machinery — never a catalogue primitive, `own: true`
 // below; the 9th is the addressCells entry above). JOB1_NEEDS here drops
 // F13's "real mail egress (M9)" row (7 rows remain): no fwdloop job uses it
-// — job #1's send writes a file behind the allow-list + accept — and the
-// catalogued egress package was a wrong fit for it anyway (see the removed
-// catalogue entries above). resolveJob1Need throws if a listed verb isn't in
-// the catalogue, same as primitiveFor.
+// — job #1's send writes a file behind the allow-list + accept — and
+// mailproof (the catalogued egress package) was a wrong fit for it anyway
+// (see the removed catalogue entries above). resolveJob1Need throws if a
+// listed verb isn't in the catalogue, same as primitiveFor.
 export const JOB1_NEEDS = Object.freeze([
   { need: 'read the message text', verbs: ['read'] },
   { need: 'read the AR sheet as addressable cells', verbs: ['addressCells'] },

@@ -65,8 +65,8 @@ test('the fence (Gate/redact/wireGate) is plumbing, never a selectable primitive
 
 test('every one of job #1\'s needs resolves (F13\'s table)', () => {
   // F13's original table had 8 rows; M0b dropped "real mail egress (M9)" —
-  // no fwdloop job used it and the catalogued egress package was a wrong
-  // fit for it anyway.
+  // no fwdloop job used it and mailproof (the catalogued egress package)
+  // was a wrong fit for it anyway.
   assert.equal(JOB1_NEEDS.length, 7, 'F13 table minus the removed real-egress row');
   for (const row of JOB1_NEEDS) {
     const resolved = resolveJob1Need(row);
