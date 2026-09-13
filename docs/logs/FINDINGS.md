@@ -1216,8 +1216,28 @@ dir that already holds an ask or answer.
 same reply line as its own row's amount. Two real ids swapped between lines would pass. Closing it
 needs a line-to-row binding in the close; left for a measured reason, not guessed at.
 
-**Not yet measured:** clean run green through send; synthetic; Amendment C's 20 runs; the tightened
-compose on a live model (the prompt change could raise false reds — that is what the rerun measures).
+**Rerun on the fixed build (`d8ed48e`), deepseek-flash, same draft, $0.0239 over two passes.**
+
+| plant | pass 2 (`-2`) | pass 3 (`-3`) |
+|---|---|---|
+| a | `total_owed 5850 ≠ sum(E2,E3) = 5700` | — |
+| b | `c2 4300 ≠ cell E2 = 4200` | — |
+| e | `compose: declared field "total_owed" (5700, c5) does not appear cited in the reply` | — |
+| c | ask raised, no pick; expired unanswered | ask raised, hamr accepted → `paused-ask-answered` |
+| d | compose green, ids correct; expired unanswered | compose green, hamr accepted → `complete` |
+
+Pass 3's clean run sent `poc/m0/out/m0b-ds-d-3-sent.txt`, 217 bytes, with both invoice ids cited and
+correct (`INV-1021[c1]`, `INV-1009[c3]`). The frozen inputs in `m0b-ds-d-3/inputs/` hash identical to
+the fixtures (`f2960d9e…`, `345d066a…`). Every ledger row `modelMatch: "match"`, none unpriced. The
+tightened compose raised no false red in 2 of 2 live composes that reached it. The ASK OPEN line did
+print in pass 2, but it was lost in the scroll; pass 3 used a shell helper that waited for `ask.json`,
+showed the reply, and read hamr's y/N.
+
+**M0b's four plants reproduce on primitives at n=1, deepseek only.** This is not the exit: the exit
+says both providers, and Amendment C sets 20 runs per scenario per provider at 19/20.
+
+**Not yet measured:** synthetic; Amendment C's 20 runs; negative (iii), undeclared class refused at
+validation — which conflicts with the 2026-09-10 "silence is hitl" ruling and needs hamr.
 
 **Lesson:** a check that strips what it doesn't understand passes it. Invented text hides in the part
 the close was told to ignore.
