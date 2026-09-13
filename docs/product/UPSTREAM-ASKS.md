@@ -16,7 +16,7 @@ it · the fix (upstream commit/PR) · the version fwdloop consumed.**
 ## Queue
 
 - **bare-agent · four asks from fwdloop + bareloop, consolidated in
-  [`2026-09-08-bare-agent-asks.md`](2026-09-08-bare-agent-asks.md)** (hamr's word via barelo,
+  [`2026-09-08-bare-agent-asks.md`](../logs/2026-09-08-bare-agent-asks.md)** (hamr's word via barelo,
   2026-09-08): (1) `generate()` never settles on a body cut after headers — bareloop BA-25,
   reproduced on 0.41.1 by fwdloop at $0; (2) `max_tokens` rejected by GPT-5 models — bareloop
   BA-24; (3) silent `stopReason: length` — fwdloop F4, bareloop corroborates; (4) no

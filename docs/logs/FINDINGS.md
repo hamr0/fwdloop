@@ -607,3 +607,515 @@ lives with the close. Filing it as an ask would block M0 on a 60-line parser to 
 
 **Premise (f) survives its first test with one asterisk.** Eight of nine needs are covered by an
 existing, exported implementation. Nothing had to be invented and nothing had to be patched.
+
+### RULED 2026-09-09 — it is ours
+
+hamr ruled it **fwdloop's**, and gave a reason the recommendation above did not state:
+**the baresuite is simple boilerplate agentic-automation primitives — CSV reading is not
+boilerplate.** A suite that tries to cover every file format stops being a primitive set. That
+reason is stronger than the parsing/addressing split argued above and supersedes it as the
+governing rationale; the split still holds as the mechanical boundary.
+
+Consequences, binding on M0a:
+- No upstream ask is filed for this. **M0 does not wait.**
+- `poc/m0/csv.mjs` stops being a rule-(f) violation and becomes part of the **citation contract**.
+  It must be documented as such, not as a convenience parser.
+- Premise (f)'s asterisk is closed: 8 of 9 needs are baresuite primitives, and the 9th was never
+  a primitive — it is fwdloop's own contract.
+- The line to hold for every future gap: **if it is file-format or domain knowledge, it is ours;
+  if it is agent plumbing, it is a baresuite ask.**
+
+## F14 — the model we ask for is not always the model we get, and nothing was watching (2026-09-10)
+
+**$0.000176, one live scout round.** Requested `deepseek-v4-flash`; the ledger row came back
+`"modelReturned":"deepseek-flash"`. Nine earlier DeepSeek rows returned `deepseek-v4-flash`, so
+this is a change in what the endpoint serves, not a constant naming quirk. No error, no warning —
+the same shape as F11: a request honoured in appearance and not in fact.
+
+Sweeping the whole of `poc/m0/out/spend.jsonl` (152 rows) for requested-vs-served turned up a
+second, older case that had never been noticed:
+
+| requested | served | verdict |
+|---|---|---|
+| `hf:openai/gpt-oss-120b` | `openai/gpt-oss-120b` | prefix — the provider's router prepends `hf:`; cosmetic |
+| `syn:large:text` | `zai-org/GLM-5.3-Flash` | alias — a declared alias naming no concrete model, resolving is its job |
+| `hf:nvidia/…-A12B-NVFP4` | `nvidia/…-A12B-FP8` | **substituted** — a different QUANTISATION, 6 rows, from the 2026-09-08 bake-off |
+| `deepseek-v4-flash` | `deepseek-flash` | **substituted** — today, 1 row |
+
+**Why this is load-bearing and not a curiosity.** This session took bareloop's judge-model-in-hash
+mechanism precisely so that changing the model forces re-acceptance BY CONSTRUCTION. But the hash
+records the model we REQUEST. A provider that silently serves a different concrete model changes
+what actually ran while the hash stays identical — the mechanism protects the request, not the
+run. Playbook P6 ("model change = maintenance") has the same hole.
+
+The Nemotron case also touches money: `RATES_BY_SUFFIX` prices the NVFP4 variant with the note
+"NVFP4 quant price not separately listed", and the rows it priced were served FP8. The rate was a
+ceiling, so the number did not understate — but it was priced against a model that did not run.
+
+**Fixed here, narrowly.** `spend.mjs` gains `classifyModelId(requested, returned)` →
+`match | prefix | alias | substituted | unreported`, and `appendSpendRow` stamps every row with
+`modelMatch` and emits a process warning on `substituted`. A provider reporting nothing is
+`unreported`, never silently a match. Two tests, both proven to fail when the classifier is
+neutered. This makes the swap VISIBLE; it does not yet make it a red.
+
+**Carried forward, not decided here**: whether a `substituted` row should red a run outright, and
+whether the signed hash should cover the SERVED model rather than the requested one — the second
+cannot be done at sign time, because what a provider will serve is unknown until it serves it.
+The shape that likely works is a run-time check: the signature pins the request, and a run whose
+served model differs from the last accepted served model needs a human. That is M4's problem.
+
+## F15 — the ledger recorded the wrong round; every tool-calling run was understated (2026-09-10)
+
+**$0, found while building the token probe, confirmed by reading our own call sites.**
+
+The question the probe was built to answer was whether the PROVIDER under-counts tool-call output
+tokens. It does not. **We were recording the wrong round.**
+
+bare-agent's `Loop` fires `onLlmResult` once per round. A tool-calling run has at least two: the
+round that emits the tool call, then a short finishing round after the tool returns. Both
+`drafter.mjs` and `scout.mjs` had `onLlmResult: async (event) => { metering = event; }` — an
+assignment, not an accumulation — so the last event won and **every earlier round was dropped from
+the ledger entirely**.
+
+That is what the 2026-09-10 live drafter run's `outputTokens: 106` was: not the 1,415-character
+declaration, but the "done" message after it. The declaration's own round was never priced.
+
+**Same trap one level up.** `Loop.run()`'s returned top-level `usage` is documented in bare-agent's
+own source as last-round-only, kept for back-compat; `result.metrics` is the cumulative figure. A
+call site reaching for `result.usage` gets the finishing round too. We were not using it, but any
+future call site would hit the same wall.
+
+**Why this is a hard-line violation and not a rounding error.** PRD §5: unknown cost is never
+rendered as 0. A dropped round is worse than an unknown one — it is rendered as *nothing at all*,
+and the sum still looks complete. Every `$5` M0 cap check and every `cap.usd` per-run check has
+been made against an understated number. The direction is always the same: too low, never too high.
+
+**Fixed.** `spend.mjs` gains `sumMeterings(events)` — one writer — folding every round into one
+row and stamping `rounds` so a row can never again look like a one-round run when it was not. Both
+call sites now push to an array. Money honesty is kept in the strict direction: **if any round has
+no priced cost, the total is `null`, never a partial sum passed off as complete.** Three tests, two
+proven to fail when the fold is reverted to last-round-only or when the unknown-cost guard is
+dropped.
+
+**Not restated: the historical ledger.** Every row written before this commit is understated by
+whatever its unrecorded rounds cost, and there is no way to recover them — the events are gone.
+`poc/m0/out/spend.jsonl` rows without a `rounds` field are the affected ones. The recorded M0 spend
+of ~$0.168 is therefore a FLOOR, not a total. It is nowhere near the $5 cap, so nothing that was
+allowed to run should have been refused; the number is wrong, not the decisions it drove.
+
+**The probe's own question, answered the same day: the provider's count is HONEST.** One live run,
+`deepseek` slot, both arms compliant so both are evidence, not casualties:
+
+| arm | chars | outputTok | chars/outTok | costUsd |
+|---|---|---|---|---|
+| TEXT | 293 | 237 | 1.24 | $0.000437 |
+| TOOL | 305 | 255 | 1.20 | $0.000591 |
+
+**Verdict (a)** — the two ratios are within 3% of each other, far inside the 1.5x threshold set
+before the run. Nothing is hidden in the tool channel. (1.2 chars per token looks low only because
+the payload is bare integers and commas, each its own token — which is exactly why integers were
+chosen: an echo task with nothing to escape.)
+
+So the entire discrepancy was ours. The provider reported honestly for every round; we recorded one
+of them. **Explanation (b) is dead, on measurement rather than on argument**, which is the point of
+having run it at $0.001 instead of reasoning about it.
+
+## F16 — the uncovered-line plant collapses into the ungroundable one; negative vi never ran (2026-09-10)
+
+**Three live drafter rounds, deepseek baseline, prose input, $0.0132 total.** Clean run and both
+plants: all three produce declarations that `validate()` passes green. The scout's facts and the
+numbered guardrail mapping both hold on a real model — steps trace `g1`, `g2`, `g3`, `g4` as
+integers, and every unmapped step falls to `hitl`.
+
+> **Correction (2026-09-10): the scout half of the sentence above is wrong.** The drafter never
+> receives the scout's output: `poc/m0/drafter.mjs:415` reads only the prose/steps text, and
+> "scout" appears in `drafter.mjs` and `redraft.mjs` only inside comments. The latest baseline
+> draft (`poc/m0/out/draft-deepseek-v4-flash-*-unjudgeable-guardrail-1789025084328.json`) names
+> no fixture column at all. So M0a's exit item "a column name in the declaration matches the
+> fixture and was not invented" is **unproven**. *(Closed by F21, 2026-09-11: 3/3 live drafts name only real
+> columns.)* Only the guardrail mapping claim stands. The
+> design to borrow is bareloop's: the scout emits a facts object, the authoring call gets it as
+> input and stays toolless, and an empty `{}` reads as "scout did not complete", never "no
+> facts needed" (bareloop `docs/product/2026-08-07-close-authoring-design.md:345-370`, F59).
+
+**Negative ii holds, cleanly.** `--ungroundable` plants *"rate how friendly the customer sounds"*.
+The drafter refused it, in `refused[]`, with its own reason: *"Subjective tone judgment with no
+groundable check — no cell/formula provenance and no guardrail that makes it a human-check stop; it
+cannot be expressed as a typed, cited artifact."* No proxy check invented. This is F10's 6/6 result
+surviving the move from a step-kind menu to a primitive menu, which is what M0a existed to test.
+
+**Negative vi did NOT run, and cannot run as written.** `--uncovered` plants *"flag anything that
+looks unusual"* — the PRD's own example, quoted verbatim in §6. The drafter **refused** it too,
+with a near-identical reason. That is not a failure of the drafter; it is a failure of the plant.
+
+The two plants are supposed to test different things:
+- **ii (ungroundable)** — no groundable check exists at all ⇒ must be REFUSED.
+- **vi (uncovered)** — a real, groundable check exists, but NO GUARDRAIL covers it ⇒ must land at
+  `hitl`, never green and never a softgreen shape the drafter invented.
+
+*"Flag anything that looks unusual"* is subjective, so it satisfies (ii) and never reaches (vi).
+**The PRD's own example for negative vi is an example of negative ii.** The rule vi exists to
+prove — *unclassifiable falls to hitl, never green-by-default* — is therefore still unexercised
+against a live model, and M0a's exit cannot honestly be claimed until it is.
+
+**Why a replacement line is not obvious**, and why this is recorded rather than fixed here: job #1's
+guardrail 1 (*"every number must point to the cell it came from or the formula that made it"*) is
+broad enough to cover ANY figure-producing line, so the obvious candidates — "also tell me the
+largest single invoice", "also count how many customers are overdue" — are *covered*, and would
+correctly close green. A line that is groundable but genuinely uncovered has to produce something
+that is not a cited figure. That is a judgment about job #1's shape, so it is hamr's.
+
+**Also confirmed here: F15's fix is load-bearing.** The same clean run, before and after summing
+rounds: `rounds` 1 → 2, output tokens 106 → 2,097, cost $0.00071 → $0.00315. The ledger was
+understating this run by **4.4x**. F15's "the recorded total is a floor" is now measured, not
+inferred.
+
+## F17 — 1-for-1 kills the stretch: negative vi passes, measured (2026-09-10)
+
+**Six live drafter rounds on the baseline, ~$0.021.** F16 left M0a's exit unclaimable: the drafter
+stretched job #1's broad citation guardrail 3 runs out of 3 to justify `green` on a step emitting a
+yes/no and no figures. The 1-for-1 refactor removes the mechanism rather than discouraging the
+behaviour, and the result reproduces.
+
+**What changed.** The human's job is a numbered list; guardrail *n* belongs to line *n*. A step
+declares only `fromLine: n`; `tracesTo` is DELETED, not deprecated — there is no field left with
+which to name another line's guardrail. The drafter proposes one class PER GUARDRAIL
+(`guardrailClasses`), never per step, and `assembleDeclaration` recomputes every step's class from
+`guardrailClasses[fromLine]`, so a class the model invents anyway is overwritten rather than
+argued with. The drafter's tool schema no longer offers a `class` field at all.
+
+**Negative vi, the plant that could not pass before:**
+
+| run | step | before (F16) | after |
+|---|---|---|---|
+| 1-3 | "report whether the overdue dates are complete" | `green`, guardrail 1 | **`hitl`** |
+| 1-3 | "save a copy to .../archive/reply.txt" | `hitl` | `hitl` |
+
+3 of 3, identical. The plant's line carries no guardrail, so there is nothing to inherit and
+nowhere to point. **Negative vi now runs and passes** — the rule it exists to prove,
+*unclassifiable falls to hitl and never green-by-default*, is exercised against a live model for
+the first time.
+
+**Negative ii still holds** on the same build: *"rate how friendly the customer sounds"* is refused
+with the drafter's own reason — "no cell, formula, or other groundable check … without inventing a
+proxy check." No proxy invented, 1 of 1 on this build and 1 of 1 on the previous one.
+
+**One line, many steps, one class.** The plant line became TWO steps (archive the copy; report on
+the dates) and both inherited `hitl` from the one blank guardrail. Cutting a line into several
+steps is the drafter's job and it survives the refactor untouched.
+
+**`guardrailClasses` came back byte-identical on every run**: `{2:hitl, 3:green, 4:softgreen,
+5:hitl}`. That is now the whole surface a human reviews before signing — four values on one screen
+instead of eight step classes scattered down a page. F10's measured instability was the ASK
+POSITION, an arbiter field; this design does not let the drafter near it.
+
+**A regex-fitted `deriveClass` was written and rejected in between.** The first refactor derived a
+class by matching the guardrail's literal text (`/cell it came from|formula that made it/` →
+green). It passed 215 tests because the fixture used the exact strings the regex was written
+against — fitting to the fixture, which AGENT_RULES forbids, and a silent failure for any human who
+reworded their own guardrail. Replaced with the PRD's own mechanism: the drafter reads each
+guardrail once and proposes its class, and the human confirms at sign time. Recorded because the
+bug was invisible while green.
+
+**The `#` generic-rule form is dead** and should not return. hamr's reason, kept: *a rule stops
+being generic once it doesn't apply to all* — job #1's citation rule does not apply to the read,
+ask or send steps, and mostly-true is exactly the loophole F16 measured.
+
+**Cap moved out of the numbered lines.** `cap $0.25 per run` had been attached to line 6 because no
+job line was about it. It is an arbiter field, not a close, and now sits in its own section
+belonging to no line, where a `fromLine` structurally cannot reach it.
+
+## F18 — ruling 1's safety holds live; its disclosure does not, on the second provider (2026-09-10)
+
+**Date** 2026-09-10 · **Status** measured, open (no fix attempted, by ruling) · **Class** drafter
+stability · **Grounded in** 10 evidence files
+`poc/m0/out/draft-*-prose-unjudgeable-guardrail-*.json` (5 deepseek, 5 synthetic), 10 rows in
+`poc/m0/out/spend.jsonl` (runId `drafter-*-prose-unjudgeable-guardrail`), plant at
+`poc/m0/drafter.mjs:393` (`plantLineWithGuardrail`), flag `--unjudgeable-guardrail`.
+
+**10 live drafter rounds, prose input, $0.1168 total.** hamr's canonical example — *"rate how
+friendly the customer sounds"* — attached as a GUARDRAIL on an ordinary, groundable job line ("add
+a one-line note about how the reply reads"). This is distinct from the `--ungroundable` plant,
+which uses the same phrase as a whole job LINE and tests `refused[]` (F17 negative ii). This is the
+case ruling 1 exists for: a line that is fine, carrying a guardrail whose wording resists a
+green/softgreen check.
+
+**The class is safe, 10/10.** Every run on both providers proposed `hitl` for that guardrail. Never
+upgraded, never a proxy check invented. Every declaration validated green.
+
+**The disclosure is not, on synthetic.** Ruling 1's point is that `unjudgeable` must be told apart
+from a guardrail the human left blank. Both are hitl; only one means "the words resisted a check,
+reword me." Counted by reading the `unjudgeable` field in each evidence file directly:
+
+| provider | `unjudgeable` flagged, with a reason |
+|---|---|
+| deepseek-v4-flash (baseline) | **5/5** |
+| hf:Qwen/Qwen3.8-27B (synthetic) | **2/5** |
+
+3 of 5 synthetic runs returned `unjudgeable: {}` beside the correct `hitl`. The draft table renders
+that **identically to a guardrail the human deliberately left blank** — the silent collapse ruling
+1 was written to kill, reproduced live. deepseek gave a specific, differently worded reason every
+round ("no cell, formula or declared shape named …"), never a templated string.
+
+**n=5 per provider is enough to call synthetic unstable here and deepseek stable. It does not bound
+synthetic's true failure rate.**
+
+**Not fixed, by ruling (hamr, 2026-09-10).** Tuning the prompt until synthetic flags it at n=5 is
+fitting to pass. The safety half needs no fix; the disclosure half is trusted on the baseline only.
+
+**Two test defects found on the way, both in tests, neither in the rulings' code.** (1) Three tests
+claimed "the identical empty artifact reds the same for green, softgreen and hitl" but used three
+DIFFERENT empty values (`''`, `[]`, `null`); the claim was never tested. A test now drives the same
+`''` through all three classes and compares the reds. (2) A new sort-order proof assumed
+`Object.keys({5:…,2:…,4:…})` keeps insertion order; JS sorts integer-like keys first, so the proof
+could never fail. Rewritten with non-canonical keys (`'05'`, `'02'`, `'04'`).
+
+**Scope note.** At the time of these runs `happened()` (ruling 3) was unit-tested only —
+`poc/m0/runner.mjs` never called it (its gates are `closeCustomerMatch`/`closeDerive`/
+`closeCompose`). These runs say nothing about ruling 3.
+
+**Verdict:** ruling 1 holds for safety on both providers and for disclosure on the baseline only.
+Synthetic cannot be trusted to tell unjudgeable from blank.
+
+## F19 — bareloop pins inputs by seed, not by declared reads; columns need the listing rule (2026-09-10)
+
+**Date** 2026-09-10 · **Status** answered, proposal open (PRD §8 item 9) · **Class** borrow /
+spec gap · **Grounded in** the bareloop `loop` session's reply of 2026-09-10, citing bareloop
+`src/plan.js:105-110`, `src/planrun.js:2250`, `src/kinds.js:532`, `scripts/run-u.mjs:59`,
+`src/authorflow.js:757,1408,1489`, `src/authorscout.js:284-303`, `src/authoring.js:43-48,1599`.
+
+**The gap.** The latest baseline draft's step 2, "read the chat message …", grants `read` + `grep`
+and declares `reads: ['ar_aging_sheet']` only. No step emits the message, so the walkable-chain
+validator passes green on a step that depends on an input nothing tracked.
+
+**bareloop never had this problem, because it never had the chain.** Plan steps carry no
+reads/emits (`STEP_FIELDS`, `src/plan.js:110`; "array order IS the order"). A worker may read the
+whole run dir (`readScope: [workdir]`, `src/planrun.js:2250`). Nothing reds an undeclared read.
+What pins inputs is the SEED: every run starts from a frozen git commit, so every input file is
+byte-pinned by one hash for the whole tree. Declared paths exist only for WRITES and for the
+close. bareloop's doctrine: only the close is truth; it never checks that a plan is walkable.
+
+**What that means for fwdloop.** The walkable chain is fwdloop's own addition, not a borrow. It
+stays: it is $0 and catches drafts whose step-to-step hand-offs don't line up. But it is the
+wrong tool for source inputs. The borrow is the seed, reshaped for a machine with no git: hash
+the job's input files at job start into a manifest. Proposed in PRD §8 item 9. It lands in M0b
+and is **not an M0a blocker**.
+
+**Gap 1 sharpened by the same reply.** bareloop has **no facts-vs-declaration diff**. Facts go
+verbatim into the author prompt (`authorflow.js:757`). An ABSENT or empty survey is REFUSED
+before authoring (`authorflow.js:1408`, `authorscout.js:284-303`). Invention is caught by the
+**listing rule**: every path-like param must SELECT from the real mechanical listing, and a
+value matching nothing is a distinct red (`authoring.js:43-48`, `checkPaths` `:1599`). That
+rule checks the mechanical listing, never the facts. An invented non-path value, such as a CSV
+column, is caught only indirectly by bareloop's seed read. fwdloop's direct fix is the listing
+rule's analogue: a declared column field that must select from the real header `lookFixtures`
+reads. Folded into the ready gap 1 brief
+(`.claude/stash/2026-09-10-fwd-m0a-scout-handoff-brief.md`).
+
+**Heads-up, not ours to act on:** bareloop F159: its soft-green judge turned out to have a
+doc-comments-only rulebook (`src/judged.js:391`). fwdloop's softgreen is a declared shape, not a
+judge, so nothing is borrowed from it. Don't start.
+
+**Verdict:** gap 2 is not an M0a blocker. It becomes M0b's input manifest, pending hamr's
+signature on PRD §8 item 9. Gap 1 stays the one M0a blocker, and its fix is now the listing
+rule for columns.
+
+## F20 — the bareloop/fwdloop line is ruled: fwdloop is the job with a human in it (2026-09-11)
+
+**Date** 2026-09-11 · **Status** ruled upstream; PRD §1 reworded, §8 item 9 resolved · **Class**
+scope / borrow · **Grounded in** bareloop `docs/product/PRD.md:684-814` (item 33, signed by hamr
+2026-09-10; commits `75561c4`, `38d376a` on bareloop main, unpushed at time of reading), relayed
+by the bareloop `loop` session 2026-09-10; hamr 2026-09-11: "hidden git or hash whichever is
+easier".
+
+**The line.** bareloop = `green`/`softgreen`, repo or plain folder, no human mid-run, one-shot,
+self-healing by retry. fwdloop = jobs with humans in them: hitl windows, chat, daily/monthly
+budgets, prose + guardrails, escalating to a person more than retrying. A non-code job a machine
+or judge can close with no human is bareloop's. PRD §1's old frame, "fwdloop is the job bareloop
+refuses", rotted as its own citation predicted: bareloop now takes plain folders via hidden git.
+§1 now says "fwdloop is the job with a human in it"; the old frame is kept marked superseded.
+
+**Inputs: a frozen copy plus sha256, not hidden git.** hamr delegated the choice. Hidden git's
+extra powers (diff, undo, resume) serve runs that EDIT files; job #1 reads two inputs and writes
+one reply, and `gather()` already hashes. Written into PRD §8 item 9 and as an M0b input bullet.
+
+**What bareloop just ruled that fwdloop already has, stronger.**
+- *Output rule* ("destination exists and is not empty") = `happened()`, which fwdloop runs on
+  EVERY step, not only the destination (wired in `2b7188c`).
+- *Citation rule* ("every claim points to a real input line") = the green citation close
+  (`poc/m0/close.mjs`), which also recomputes derived figures. bareloop's stated ceiling applies
+  to our copied citations too: code proves the cited cell EXISTS and matches, not that the step
+  chose the right cell for the claim.
+
+**What is not borrowed, and why.**
+- *Intake form + a 2-round confirm turn.* bareloop's own words: the cap "is what keeps this
+  one-shot and not fwdloop's chat". fwdloop's intake is prose + numbered guardrails negotiated
+  over the draft table (§3.5).
+- *Calibration and the rubric judge.* fwdloop's `softgreen` is a declared shape, not a judge; see
+  bareloop F159.
+- *Web search (bareloop H6).* Reading and searching is bareloop's; submitting a booking or payment
+  form is fwdloop's. Noted, no module.
+
+**Verdict:** scope settled from both sides; nothing in M0a changes. M0b gains one input rule.
+
+## F21 — the scout's facts reach the drafter: 3/3 real columns, 0 invented; three older holes surface (2026-09-11)
+
+**Date** 2026-09-11 · **Status** exit item measured; three holes open, sent back to Sonnet ·
+**Class** M0a exit / drafter stability · **Grounded in** commit `f60d513`; live drafts
+`poc/m0/out/draft-deepseek-v4-flash-deepseek-prose-1789098{132037,148504,168855}.json`, each
+opened by the orchestrator; a tally over all 11 deepseek prose drafts in `poc/m0/out/`;
+`poc/m0/drafter.mjs:177-185`; `poc/m0/scout.mjs` (`runScoutRound`, `groundFacts`, `classifyFacts`).
+
+**The exit item holds.** The drafter now gets the scout's grounded facts, and each step may
+declare `columns`. Every value must select from `realColumns`, the header the mechanical read
+returned. Harness-supplied, never the model's: bareloop's listing rule applied to columns
+(`checkPaths`, `authoring.js:1599`). Live, deepseek, n=3, scout → drafter, $0.018 total:
+
+| run | columns named (all steps) | invented |
+|---|---|---|
+| 132037 | Customer, Invoice #, Invoice date, Due date, Amount, Days overdue, Current, 1-30, 31-60, 61-90, 90+ | 0 |
+| 148504 | Customer, Invoice #, Invoice date, Due date, Amount, Days overdue | 0 |
+| 168855 | all 11 real columns | 0 |
+
+The column check was switched off by hand and tests 94 and 156 went red; ABSENT facts refuse
+at $0 before any model call. 263/263 tests.
+
+**Three holes, all older than this change, found while checking it.**
+
+1. **F59, reproduced in fwdloop.** `runScoutRound` records `toolCalled: false` when the model
+   never reports, but `groundFacts` falls back to the real header and `classifyFacts` never sees
+   the flag. So a scout that did not complete reads PRESENT. Exactly the mistake bareloop's F59
+   exists to prevent (`authorscout.js:284-303`).
+2. **A job line can vanish.** The validator reds a guardrail no step serves, but not a job line.
+   Draft `…-unjudgeable-guardrail-1789024978756.json` has no step and no refusal for line 6, and
+   passed.
+3. **The drafter falsely refuses the send line.** Line 6, "and send it once I accept", across
+   all 11 deepseek prose drafts:
+
+   | | step | refused | dropped |
+   |---|---|---|---|
+   | before scout facts (8) | 5 | 2 | 1 |
+   | with scout facts (3) | 1 | 2 | 0 |
+   | **total (11)** | **6** | **4** | **1** |
+
+   Reasons given: "sending is egress… the send target, allow-list and position are arbiter
+   fields". The PRD says otherwise. The send step is ordinary (PRD:297; F13 maps dry-run egress
+   to `write` ✅; M0b's exit is "green through `send`"), and only its target (`egress.allowList`,
+   PRD:335) and its position are arbiter. Cause: `drafter.mjs:177-185` lists the send target and
+   position as arbiter fields, then says to refuse what can't be grounded, and never says the
+   step itself is the drafter's. n=3 can't say whether the facts made it worse (2/8 → 2/3).
+
+**Sent back** (same Sonnet agent): a named ABSENT route for an unreported survey; a red for a job
+line neither served nor refused; one wording change stating the PRD's send rule, measured once
+at n=5 and not iterated. Tuning the prompt until 5/5 would be fitting to pass.
+
+**Verdict:** M0a's scout-facts exit item is met. M0a is not signable until the three holes close,
+because a declaration that drops or refuses the send line cannot reach M0b's "green through send".
+
+**Closed the same day (Sonnet, reviewed and re-proven by the orchestrator).**
+1. *F59*: `groundFacts` carries `reported`, and `classifyFacts`, the one gate, reds
+   `SURVEY_NOT_REPORTED` at $0. Switched off: 3 tests red. Edge case left open: a survey that
+   reports only invented columns counts as reported. The drafter still gets the real header,
+   and the invented names are kept in `invented`.
+2. *Dropped line*: `validate()` reds any numbered job line that is neither served by a
+   `fromLine` nor refused. `refusedLineNumber` parses only the leading integer, never the words.
+   Switched off: 6 tests red, including the reconstructed 1789024978756 draft.
+3. *Send*: one wording change in the drafter's arbiter block (mirrored in redraft): the send
+   step is the drafter's to draft with `write`; only its target, allow-list and position are
+   arbiter. Measured once, not iterated.
+
+Live, deepseek, final build, every draft opened and run through `validate()` by the orchestrator:
+
+| set | n | line 6 | plant result | validate | invented |
+|---|---|---|---|---|---|
+| clean prose | 5 | step, `write`, 5/5 | — | green 5/5 | 0 |
+| `--ungroundable` (neg. ii) | 2 | step, `write`, 2/2 | line 7 refused 2/2 | green | 0 |
+| `--uncovered` (neg. vi) | 2 | step, `write`, 2/2 | line 7 hitl 2/2 | green | 0 |
+| `--unjudgeable-guardrail` (F18) | 2 | step, `write`, 2/2 | flagged, hitl 2/2 | green | 0 |
+
+Send, before → after the wording: 6/11 drafted → **11/11**. The plants were rerun specifically
+to check the wording did not suppress legitimate refusals. It didn't. 275/275 tests. Ledger
+$0.4648 of $5.00.
+
+## F22 — the baseline model was retired under us; M0a's proof ran on V4.1 Flash (2026-09-11)
+
+**Date** 2026-09-11 · **Status** closed 2026-09-12 (f0269bf; live row 212 reads `match`) · **Class** provider /
+F14 follow-up · **Grounded in** `GET https://api.deepseek.com/models` (2026-09-11) → `['deepseek-flash',
+'deepseek-v4-pro']`; DeepSeek pricing page (`api-docs.deepseek.com/quick_start/pricing`, read
+2026-09-11); `poc/m0/out/spend.jsonl` (57 deepseek rows); `poc/m0/provider.mjs:24`,
+`poc/m0/spend.mjs:152`.
+
+**What F14 saw was a retirement, and nobody acted on it.** F14 built the `modelMatch` stamp and
+left "should `substituted` red a run" for M4. Since then, **47 of 57** deepseek rounds were stamped
+`substituted` (requested `deepseek-v4-flash`, served `deepseek-flash`), each with a process
+warning. No run stopped, and the orchestrator didn't check until hamr asked what had been glossed
+over. DeepSeek's own page: *"Use deepseek-flash as the model name. The legacy names
+deepseek-v4-flash … are still accepted, but the corresponding models have been retired, their
+requests are served by the DeepSeek-V4.1-Flash"*, billed at the Flash price.
+
+**What it means for M0a.** Every live M0a proof (F17, F18, F21) ran on **V4.1 Flash**,
+consistently (all post-switch rows served `deepseek-flash`). The evidence holds, for V4.1 Flash.
+F12's baseline flip was measured on the retired V4 Flash, and that model no longer exists to run.
+No re-run is needed: asking for `deepseek-flash` gets the same model that produced the evidence.
+
+**Money: the ledger over-counts, the safe way.** Our rate is $0.44 in / $1.32 out per 1M tokens.
+V4.1 Flash is $0.30 / $1.20 at peak (01:00–04:00 and 06:00–10:00 UTC, weekdays) and half that
+off-peak. The ledger's $0.46 is a ceiling. Unknown cost is never rendered as 0, and it wasn't.
+
+**Also on that page:** from 2026-09-14 12:00 Beijing time, `deepseek-v4-pro` routes to V4.1 Flash
+too. We don't use it; noted so it isn't picked as a "second DeepSeek" later.
+
+**Fix (sent to Sonnet):** request `deepseek-flash` so request = served and the stamp reads `match`;
+price it at the published V4.1 Flash peak rate. F14's open question stands, and this case is a
+reason to answer it in M4: a warning that fires 47 times and changes nothing is not a watcher.
+
+**Verdict:** M0a's evidence is valid, and it is evidence about DeepSeek-V4.1-Flash. The baseline is
+renamed to what actually runs.
+
+**Closed 2026-09-12.** f0269bf requests `deepseek-flash`, prices it at $0.30/$1.20 (re-read from
+the pricing page that day), and adds a test that every slot's default model resolves to a non-zero
+rate plus its PROOF partner. One live scout round on the new default, run by hamr from a TTY
+(agent shells cannot unlock `pass`): `poc/m0/out/spend.jsonl` row 212 — `model` ==
+`modelReturned` == `deepseek-flash`, `modelMatch: "match"`, $0.00049, 2 rounds, 2.6s. The ledger
+now holds 47 `substituted` rows and 1 `match`; the 47 are history and stay as recorded.
+
+
+## F23 — CORRECTED same day: the litectx bricks are real; our catalogue names bareloop's tool wrappers, not litectx (2026-09-12)
+
+**Date** 2026-09-12 · **Status** corrected within the hour; small fix lands as M0b's first step ·
+**Class** catalogue / Claim 1 precondition · **Grounded in** `poc/m0/catalogue.mjs:43-76`;
+`Object.getOwnPropertyNames(LiteCtx.prototype)` and `VERBS_BY_PRIMITIVE` read from litectx's
+`src/index.js`; `bareloop/src/behaviour.js:11-13`; `node_modules/bare-agent/bareagent.context.md:920`.
+
+**Correction first.** The first version of F23 said "ten catalogue primitives name symbols that do
+not exist" and read that as bricks nobody can call. That was wrong. The check searched litectx for
+the catalogue's `symbol` strings (`ctx_recall`, `ctx_stash`, …), found none, and stopped. It never
+asked where the `ctx_` names come from. They are **bareloop's** names for its tool wrappers around
+litectx (`bareloop/src/behaviour.js:13`). bare-agent's own bridge calls the same verbs
+`litectx_recall`, `litectx_get`. Absence of a name was read as absence of the brick — the F4/F9
+mistake again.
+
+**What is true.** Every one of the ten verbs exists as a real litectx method:
+
+| catalogue verb | litectx has it as |
+|---|---|
+| recall, get, impact, related | `LiteCtx#recall`, `#get`, `#impact`, `#related` |
+| recent | `LiteCtx#recentActivity` / `#recentMemory` |
+| compress | `compress` (module export) |
+| peek, stash | `LiteCtx#peek`, `#stash` |
+| remember, forget | `LiteCtx#remember`, `#forget` |
+
+bare-agent (6), bareguard (2) and mailproof (2) entries resolve by their catalogue names as written.
+
+**What is left, and it is small.** The catalogue's `symbol` field for litectx points at a
+bareloop-shaped tool name that fwdloop does not have. M0a never called a brick, so nothing broke.
+M0b calls them, so the field must name something fwdloop can actually import: `LiteCtx#recall` and
+so on, or a tool wrapper borrowed from bareloop by copy with its header. `recent` maps to two
+methods, which is a small choice for when a step needs it. Job #1 uses no litectx verb.
+
+**Fix (M0b, step 1, $0):** a test that resolves every catalogue entry's `package` + `symbol` against
+the installed package, and its proof-can-fail partner with a made-up symbol. Then fix the litectx
+`symbol` fields. litectx, bareguard and mailproof are not yet installed in fwdloop.
+
+**Lesson:** a string that isn't where you looked is a question about where it lives, not proof it
+doesn't exist.

@@ -54,9 +54,79 @@ export function assertUnderGlobalCap(path, capUsd = GLOBAL_CAP_USD) {
   return total;
 }
 
+/**
+ * Compare the model we ASKED for against the model the provider says it SERVED.
+ * F14: they are not always the same, and nothing was watching.
+ *
+ * - `match`      — identical.
+ * - `prefix`     — identical once a routing prefix is stripped (`hf:openai/x` -> `openai/x`).
+ *                  Cosmetic; the provider's own router prepends it.
+ * - `alias`      — the request was a DECLARED alias (`syn:large:text`) that names no concrete
+ *                  model, so resolving it to one is the alias doing its job. Recorded, not a red.
+ * - `substituted`— we named a concrete model and got a DIFFERENT concrete model. This is the
+ *                  one that matters: the signed hash records what we REQUESTED, so a silent
+ *                  swap changes what actually ran without changing the hash.
+ * - `unreported` — the provider told us nothing. Never treated as a match.
+ */
+export function classifyModelId(requested, returned) {
+  if (!requested) return 'unreported';
+  if (returned === null || returned === undefined || returned === '') return 'unreported';
+  if (requested === returned) return 'match';
+  if (String(requested).replace(/^[a-z]+:/, '') === returned) return 'prefix';
+  if (/^syn:/.test(requested)) return 'alias';
+  return 'substituted';
+}
+
+/**
+ * Sum EVERY round of a Loop into one spend row (F15). bare-agent fires
+ * `onLlmResult` once per round, and a tool-calling run has at least two: the
+ * round that emits the tool call, then a short finishing round. A call site
+ * that assigns `metering = event` keeps only the LAST one, so the ledger
+ * recorded the finishing round's tokens and silently dropped the round that did
+ * the work. That understates spend, which PRD §5 forbids.
+ *
+ * Money honesty is preserved in the strict direction: if ANY round has no
+ * priced cost, the total is `null` — unknown, never 0, never a partial sum
+ * passed off as complete. `rounds` records how many rounds were folded in, so
+ * a row can never again look like a one-round run when it was not.
+ */
+export function sumMeterings(events) {
+  const rounds = Array.isArray(events) ? events.filter(Boolean) : [];
+  if (rounds.length === 0) {
+    return {
+      rounds: 0, tokens: null, costUsd: null, model: null, rateSource: null,
+    };
+  }
+  const tokens = {
+    inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0,
+  };
+  let costUsd = 0;
+  let costKnown = true;
+  for (const ev of rounds) {
+    for (const key of Object.keys(tokens)) tokens[key] += ev?.usage?.[key] ?? 0;
+    if (ev?.costUsd == null) costKnown = false;
+    else costUsd += ev.costUsd;
+  }
+  const last = rounds[rounds.length - 1];
+  return {
+    rounds: rounds.length,
+    tokens,
+    costUsd: costKnown ? costUsd : null,
+    model: last?.model ?? null,
+    rateSource: last?.rateSource ?? null,
+  };
+}
+
 export function appendSpendRow(path, row) {
   mkdirSync(dirname(path), { recursive: true });
-  appendFileSync(path, `${JSON.stringify(row)}\n`);
+  const modelMatch = classifyModelId(row.model, row.modelReturned);
+  if (modelMatch === 'substituted') {
+    process.emitWarning(
+      `spend: asked for model "${row.model}" but the provider served "${row.modelReturned}" `
+      + '— the signed hash records the request, not what ran',
+    );
+  }
+  appendFileSync(path, `${JSON.stringify({ ...row, modelMatch })}\n`);
 }
 
 /**
@@ -79,6 +149,12 @@ export const RATES_BY_SUFFIX = {
   'nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4': { in: 0.000085, out: 0.0004, source: 'published' }, // OpenRouter list price, $0.085/$0.40 per 1M (base variant; NVFP4 quant price not separately listed)
   'syn:large:text': { in: 0.0006, out: 0.0025, source: 'ceiling' }, // no published rate found for this synthetic.new alias — ceilinged at the highest rate in this table (Kimi-K3's)
   'syn:small:text': { in: 0.0006, out: 0.0025, source: 'ceiling' }, // same — no published rate found
+  // F22 (2026-09-11): 'deepseek-v4-flash' is RETIRED — DeepSeek's own pricing page says the
+  // legacy name is still accepted but every request it names is now served by DeepSeek-V4.1-
+  // Flash. Kept here, numbers untouched, only because the 57 historical ledger rows that
+  // already recorded this name were priced against these numbers and must stay priced as they
+  // were; nothing new should request this name (provider.mjs's default is 'deepseek-flash').
   'deepseek-v4-flash': { in: 0.00044, out: 0.00132, source: 'published' }, // DeepSeek official pricing (https://api-docs.deepseek.com/quick_start/pricing, read 2026-09-09): cache-MISS, PEAK $0.44/$1.32 per 1M tokens — peak (the higher of peak/off-peak) used as the ceiling; cache-hit input is cheaper ($0.007-$0.014/1M) and not used, per the cache-miss ceiling rule
+  'deepseek-flash': { in: 0.0003, out: 0.0012, source: 'published' }, // F22: DeepSeek official pricing (https://api-docs.deepseek.com/quick_start/pricing, read 2026-09-11): this is DeepSeek-V4.1-Flash, cache-MISS, PEAK $0.30/$1.20 per 1M tokens — peak (the higher of peak/off-peak) used as the ceiling, same rule as every other row in this table
   'deepseek-v4-pro': { in: 0.00132, out: 0.00396, source: 'published' }, // DeepSeek official pricing (https://api-docs.deepseek.com/quick_start/pricing, read 2026-09-09): cache-MISS, PEAK $1.32/$3.96 per 1M tokens — see deepseek-v4-flash note above
 };

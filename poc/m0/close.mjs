@@ -8,7 +8,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { colIndex } from './csv.mjs';
+import { colIndex, parseCellRef } from './csv.mjs';
 
 /** sha256 of a file's current bytes, re-read from disk — never trusted from the artifact object alone. */
 export function hashFile(path) {
@@ -19,13 +19,6 @@ export function hashFile(path) {
 export function verifyArtifactHash(artifact) {
   const actual = hashFile(artifact.path);
   return { ok: actual === artifact.sha256, expected: artifact.sha256, actual };
-}
-
-/** Parse a cell ref like "E2" into { col: 'E', row: 2 }. */
-function parseCellRef(cell) {
-  const m = /^([A-Z]+)(\d+)$/.exec(cell);
-  if (!m) throw new Error(`bad cell ref "${cell}"`);
-  return { col: m[1], row: Number(m[2]) };
 }
 
 /** Raw cell text for a csv artifact + cell ref, or null if the row/col doesn't exist. */

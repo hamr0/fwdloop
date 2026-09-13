@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { gather, ask, send } from './mechanical.mjs';
+import {
+  gather, ask, send, happened, checkStepHappened,
+} from './mechanical.mjs';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const answerScript = join(__dirname, 'answer.mjs');
@@ -34,6 +36,17 @@ test('PROOF the test can fail: gather refuses an empty artifact', () => {
   const path = join(dir, 'empty.csv');
   writeFileSync(path, '');
   assert.throws(() => gather('a3', path, 'csv'), /empty/);
+});
+
+// gather() was rewritten (RULING 3) to delegate its emptiness check to
+// happened() instead of carrying its own inline check — this proves the
+// text-kind path did not drift when that happened, exactly like the csv-kind
+// proof above already does for csv.
+test('PROOF the test can fail: gather refuses an empty text artifact too, via the same happened() delegation', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'm0-gather-'));
+  const path = join(dir, 'empty.txt');
+  writeFileSync(path, '');
+  assert.throws(() => gather('a3b', path, 'text'), /empty/);
 });
 
 test('ask: pauses (writes ask.json), then resolves green once answer.json appears (polling contract)', async () => {
@@ -84,6 +97,120 @@ test('PROOF the test can fail: send refuses a target outside the signed allow-li
     () => send('r3', 'mailto:someone@example.com', 'x', { acceptedThisRun: true, outDir }),
     /not in the signed allow-list/,
   );
+});
+
+// ---------------------------------------------------------------------------
+// RULING 3 (2026-09-10) — the UNIVERSAL "happened" check: no None output, no
+// 0kb output. Applies to every step, with no exceptions and no judgment: did
+// the artifact come out as real bytes, yes or no. Unlike the rejected `#`
+// "generic rule" (F16/F17), this needs no judgment about WHERE it applies —
+// it is the same yes/no question about bytes for every step there is.
+// ---------------------------------------------------------------------------
+
+test('happened: reds on a null artifact', () => {
+  const result = happened(null);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /null/);
+});
+
+test('happened: reds on an undefined artifact', () => {
+  const result = happened(undefined);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /undefined/);
+});
+
+test('happened: reds on a zero-byte artifact (a Buffer with byteLength 0)', () => {
+  const result = happened(Buffer.alloc(0));
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /zero bytes/);
+});
+
+test('happened: reds on an empty string', () => {
+  const result = happened('');
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /empty string/);
+});
+
+test('happened: reds on an empty array', () => {
+  const result = happened([]);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /empty array/);
+});
+
+test('PROOF the test can fail: happened is green on real, non-empty content', () => {
+  assert.equal(happened('hello').verdict, 'green');
+  assert.equal(happened(['a']).verdict, 'green');
+  assert.equal(happened(Buffer.from('x')).verdict, 'green');
+  assert.equal(happened({ some: 'object' }).verdict, 'green');
+});
+
+// The check is REUSED by gather() (never a second copy) — proven by the
+// existing "gather refuses an empty artifact" test above still passing
+// unchanged; this test proves the reuse the other direction, that happened()
+// itself is what fires for exactly the same csv/text shapes gather() reads.
+test('happened fires on the same shapes gather() itself reads (rows/lines), proving it is the one check, not two', () => {
+  assert.equal(happened([]).verdict, 'red'); // an empty csv's `rows`
+  assert.equal(happened([{ rowNumber: 1, cells: {} }]).verdict, 'green');
+});
+
+// --- "regardless of close class" is structural, not a promise -------------
+// checkStepHappened does not branch on step.close.class at all; these three
+// steps differ ONLY in their declared class, with the identical empty
+// artifact, and all three red identically — a hitl step is never exempt.
+test('the happened check runs for a hitl step too — a hitl step with an empty artifact is a red', () => {
+  const step = { goal: 'check with me', close: { class: 'hitl' } };
+  const result = checkStepHappened(step, '');
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /hitl/);
+});
+
+test('the happened check runs for a green step with an empty artifact', () => {
+  const step = { goal: 'derive totals', close: { class: 'green' } };
+  const result = checkStepHappened(step, []);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /green/);
+});
+
+test('the happened check runs for a softgreen step with an empty artifact', () => {
+  const step = { goal: 'compose reply', close: { class: 'softgreen' } };
+  const result = checkStepHappened(step, null);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /softgreen/);
+});
+
+// The three tests above use DIFFERENT empty shapes ('', [], null) per class —
+// suggestive, but not proof the check is class-blind. This drives the exact
+// SAME empty artifact through all three classes and asserts the reds match
+// (once the step-label/class wording is stripped out), so "regardless of
+// close class" is measured, not merely illustrated three separate ways.
+test('a green, a softgreen and a hitl step carrying the SAME empty artifact all red identically', () => {
+  const sameEmptyArtifact = '';
+  const reds = ['green', 'softgreen', 'hitl'].map((cls) => {
+    const step = { goal: 'x', close: { class: cls } };
+    return checkStepHappened(step, sameEmptyArtifact);
+  });
+  for (const r of reds) assert.equal(r.verdict, 'red');
+  // Strip the step label/class tag (the only part that legitimately differs
+  // per call) and confirm the underlying happened() diagnosis is identical.
+  const stripped = reds.map((r) => r.red.replace(/^happened: "x" \([a-z]+\) produced nothing — /, ''));
+  assert.equal(stripped[0], stripped[1]);
+  assert.equal(stripped[1], stripped[2]);
+  assert.equal(stripped[0], 'artifact is an empty string');
+});
+
+test('PROOF the test can fail: a non-empty artifact makes the same three-class comparison pass instead of red', () => {
+  const sameRealArtifact = 'real content';
+  for (const cls of ['green', 'softgreen', 'hitl']) {
+    const step = { goal: 'x', close: { class: cls } };
+    assert.equal(checkStepHappened(step, sameRealArtifact).verdict, 'green');
+  }
+});
+
+test('PROOF the test can fail: the same three classes are all green on a real, non-empty artifact', () => {
+  for (const cls of ['green', 'softgreen', 'hitl']) {
+    const result = checkStepHappened({ goal: 'x', close: { class: cls } }, 'real content');
+    assert.equal(result.verdict, 'green', `expected green for class ${cls}`);
+  }
 });
 
 test('answer.mjs (separate process): forking it actually writes answer.json for the runId it is given', async () => {

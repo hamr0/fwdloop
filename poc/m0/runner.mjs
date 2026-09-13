@@ -30,15 +30,18 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Loop } from 'bare-agent';
 import { OpenAI } from 'bare-agent/providers';
-import { gather, ask, send } from './mechanical.mjs';
+import {
+  gather, ask, send, checkStepHappened,
+} from './mechanical.mjs';
 import {
   closeDerive, closeCompose, closeCustomerMatch, hashFile, matchingCustomers,
 } from './close.mjs';
-import { assertUnderGlobalCap, appendSpendRow, RATES_BY_SUFFIX, RUN_CAP_USD } from './spend.mjs';
+import { assertUnderGlobalCap, appendSpendRow, RUN_CAP_USD } from './spend.mjs';
+import { resolveModelRate } from './provider.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..');
-const OUT_DIR = join(__dirname, 'out');
+export const OUT_DIR = join(__dirname, 'out');
 const SPEND_PATH = join(OUT_DIR, 'spend.jsonl');
 const SYNTHETIC_BASE_URL = 'https://api.synthetic.new/openai/v1';
 export const BUSINESS_DATE = '2026-06-01'; // the run's explicit "as of today" — never the wall clock (PRD §5).
@@ -242,12 +245,18 @@ export function applyPlant(plant, stepName, args) {
 
 export async function runDeclaration({
   modelId, plant, runId, askTimeoutMs = 120_000, csvPath: csvPathOverride, apiKeyOverride,
+  // Injected for tests only, so the fold-level happened() wiring can be proven with a $0 stub
+  // instead of a live model call — production and the CLI always get the real runModelStep.
+  modelStep = runModelStep,
+  // Same, for send: lets a test force a 0-byte write through the real fold, so the send effect
+  // check below can be proven to fail. Production and the CLI always get the real send.
+  sendFn = send,
 }) {
   const apiKey = apiKeyOverride ?? process.env.SYNTHETIC_API_KEY;
   if (!apiKey) throw new Error('SYNTHETIC_API_KEY is not set');
-  const suffix = modelId.replace(/^hf:/, '');
-  const rates = RATES_BY_SUFFIX[suffix];
-  if (!rates) throw new Error(`no hand-entered rate for model suffix "${suffix}"`);
+  // resolveModelRate (provider.mjs) is the ONE writer for this lookup — never a second
+  // hand-rolled suffix-strip + table-lookup here.
+  const { suffix, rates } = resolveModelRate(modelId);
 
   mkdirSync(OUT_DIR, { recursive: true });
   const outDir = join(OUT_DIR, runId);
@@ -290,7 +299,7 @@ export async function runDeclaration({
 
   let derive1;
   try {
-    derive1 = await runModelStep({
+    derive1 = await modelStep({
       runId, stepLabel: 'derive1', modelId, apiKey, rates,
       systemPrompt: derive1SystemPrompt, userContent: derive1User,
       toolName: 'emit_customer_match',
@@ -308,6 +317,16 @@ export async function runDeclaration({
     if (err instanceof StopAndReportError) throw err;
     log.steps.push({ step: 'derive1', outcome: 'red', red: err.red ?? err.message });
     return writeResult('red', { red: err.red ?? err.message });
+  }
+
+  // Bytes before meaning (ruling 3): derive1's artifact is its citations list — the evidence it
+  // produced. Not the whole args object: happened() looks at the top level only, and an object is
+  // never empty to it, so `{citations: [], matches: []}` would pass. closeCustomerMatch already reds
+  // on empty citations, so this catches nothing new here; it is wired so every derive checks alike.
+  const happened1 = checkStepHappened({ goal: 'derive1: customer match', close: { class: 'green' } }, derive1.args.citations);
+  if (happened1.verdict === 'red') {
+    log.steps.push({ step: 'derive1', outcome: 'red', red: happened1.red });
+    return writeResult('red', { red: happened1.red });
   }
 
   const close1 = closeCustomerMatch(derive1.args, artifacts, 'a1');
@@ -352,7 +371,7 @@ export async function runDeclaration({
 
   let derive2;
   try {
-    derive2 = await runModelStep({
+    derive2 = await modelStep({
       runId, stepLabel: 'derive2', modelId, apiKey, rates,
       systemPrompt: derive2SystemPrompt, userContent: derive2User,
       toolName: 'emit_derive',
@@ -376,6 +395,15 @@ export async function runDeclaration({
     if (err instanceof StopAndReportError) throw err;
     log.steps.push({ step: 'derive2', outcome: 'red', red: err.red ?? err.message });
     return writeResult('red', { red: err.red ?? err.message });
+  }
+
+  // Bytes before meaning (ruling 3): derive2's artifact is its citations list, checked on the
+  // model's own output before any plant touches it. closeDerive GREENS `{citations: [], fields: {}}`
+  // (measured 2026-09-10) — this is the hole. Same top-level reason as derive1 for not checking args.
+  const happened2 = checkStepHappened({ goal: 'derive2: invoices, total, due, overdue', close: { class: 'green' } }, derive2.args.citations);
+  if (happened2.verdict === 'red') {
+    log.steps.push({ step: 'derive2', outcome: 'red', red: happened2.red });
+    return writeResult('red', { red: happened2.red });
   }
 
   const derive2ArgsForClose = applyPlant(plant, 'derive2', derive2.args);
@@ -420,7 +448,7 @@ export async function runDeclaration({
 
   let compose;
   try {
-    compose = await runModelStep({
+    compose = await modelStep({
       runId, stepLabel: 'compose', modelId, apiKey, rates,
       systemPrompt: composeSystemPrompt, userContent: composeUser,
       toolName: 'emit_compose',
@@ -440,6 +468,17 @@ export async function runDeclaration({
     return writeResult('red', { red: err.red ?? err.message });
   }
 
+  // Bytes before meaning (ruling 3): compose's artifact is the reply text itself — an empty string
+  // means nothing was composed, and must red as "happened" before closeCompose's citation-bracket and
+  // completeness checks ever run, so the red names the right cause ("nothing came out", not "brackets
+  // missing" or "a declared field went uncited" — closeCompose's completeness check is silent on an
+  // empty string with no declaredFields, which is exactly the measured hole).
+  const happened3 = checkStepHappened({ goal: 'compose: reply text', close: { class: 'softgreen' } }, compose.args.text);
+  if (happened3.verdict === 'red') {
+    log.steps.push({ step: 'compose', outcome: 'red', red: happened3.red });
+    return writeResult('red', { red: happened3.red });
+  }
+
   const close3 = closeCompose(
     compose.args, artifacts, BUSINESS_DATE, derive2ArgsForClose.fields, derive2ArgsForClose.citations,
   );
@@ -454,7 +493,19 @@ export async function runDeclaration({
   }
 
   // --- send ---
-  const sendResult = send(runId, 'file:poc/m0/out', compose.args.text, { acceptedThisRun: true, outDir });
+  const sendResult = sendFn(runId, 'file:poc/m0/out', compose.args.text, { acceptedThisRun: true, outDir });
+  // Bytes before meaning (ruling 3), and the one hamr cares about most ("no 0kb output"): send's real
+  // artifact is the bytes ACTUALLY on disk after the write — not the in-memory string that was handed
+  // to send() — so this stats the file that send() just produced, not compose.args.text again. A write
+  // that silently truncates to 0 bytes must red here and never be logged green.
+  const sentBytes = readFileSync(sendResult.deliveryId);
+  const happenedSend = checkStepHappened({ goal: 'send: deliver reply', close: { class: 'hitl' } }, sentBytes);
+  if (happenedSend.verdict === 'red') {
+    log.steps.push({
+      step: 'send', outcome: 'red', red: happenedSend.red, deliveryId: sendResult.deliveryId,
+    });
+    return writeResult('red', { red: happenedSend.red });
+  }
   log.steps.push({ step: 'send', outcome: 'green', deliveryId: sendResult.deliveryId });
   return writeResult('complete', { deliveryId: sendResult.deliveryId });
 }

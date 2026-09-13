@@ -1,0 +1,377 @@
+// Part 0 — SCOUT. Runs BEFORE the drafter (PRD §3.5, borrowed verbatim from
+// bareloop src/authorscout.js:4 — "the scout LOOKS, the drafter WRITES, neither
+// acts"). Bounded read-only pass over the real inputs (fixtures/ar-aging.csv,
+// fixtures/message.txt) so the drafter proposes steps against what is actually
+// there instead of inventing a column name.
+//
+// Two halves, deliberately different in how "read-only" is enforced:
+//   1. THE LOOK (`lookFixtures`) — mechanical, $0, deterministic. It IS
+//      catalogue.mjs's `read`/`addressCells` primitives (via mechanical.gather),
+//      so the CSV's real header and the message's real lines never pass through
+//      a model at all. This is what makes a column name IMPOSSIBLE to invent,
+//      not merely unlikely.
+//   2. THE MODEL ROUND (`runScoutRound`) — ONE bounded round (SCOUT_ROUND_BOUND,
+//      fixed in code, not spec-authorable — PRD §3.5: "at job-creation time no
+//      signed ceiling exists yet to derive one from, the same arbiter line, one
+//      step earlier than usual") that reports facts about the data it was
+//      handed. It gets exactly ONE tool (`report_facts`) — no write/store
+//      primitive is ever wired as a callable tool, so a write attempt is
+//      IMPOSSIBLE, not merely refused (M0a negative scenario v). `SCOUT_MENU`
+//      (catalogue.mjs's `menu({classes:['read']})`) is surfaced to the model as
+//      context only, proving by construction that the grant it was told about
+//      excludes every write/store verb.
+//
+// Whatever the model reports is then mechanically GROUNDED (`groundFacts`)
+// against the real header from step 1 — a reported column not in the real file
+// is dropped and flagged in `invented`, never silently trusted. F11 (DeepSeek
+// silently ignores `max_completion_tokens`, honours only legacy `max_tokens`)
+// applies here exactly as it does to the drafter: the model is reached ONLY
+// through provider.mjs's makeProvider, never a hand-rolled client, so
+// `legacyMaxTokens` is never a call-site decision.
+
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { Loop } from 'bare-agent';
+import { gather } from './mechanical.mjs';
+import { makeArtifact } from './artifacts.mjs';
+import { menu } from './catalogue.mjs';
+import { makeProvider, PROVIDER_SLOTS } from './provider.mjs';
+import {
+  assertUnderGlobalCap, appendSpendRow, sumMeterings, RUN_CAP_USD,
+} from './spend.mjs';
+import { renderCsvArtifact, renderTextArtifact } from './runner.mjs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const OUT_DIR = join(__dirname, 'out');
+const SPEND_PATH = join(OUT_DIR, 'spend.jsonl');
+
+/** The scout's grant, computed from the catalogue — never hand-rolled. Write-class and
+ *  store-class primitives are ABSENT here, not refused (negative scenario v): a read-only
+ *  menu filter is catalogue.mjs's job, this is the scout's own call site for it. */
+export const SCOUT_MENU = menu({ classes: ['read'] });
+
+/** Fixed in code, not spec-authorable (PRD §3.5). One model round: the scout looks once and
+ *  reports; it does not get to revise or re-look. Enforced in `makeReportFactsTool` below,
+ *  not merely documented — a second `report_facts` call throws. */
+export const SCOUT_ROUND_BOUND = 1;
+
+/** Fixed in code, not spec-authorable. A facts report is small; this is far below the
+ *  drafter's 16000 on purpose — the scout reports shape, it does not write prose. */
+export const SCOUT_MAX_TOKENS = 2000;
+
+const FACTS_SCHEMA = {
+  type: 'object',
+  properties: {
+    csvColumns: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'the CSV header, exactly as it appears in the text you were given — never invent a column name',
+    },
+    customerMentioned: {
+      type: 'string',
+      description: 'the customer name literally present in the message text, if any',
+    },
+    notes: {
+      type: 'string',
+      description: 'one line: anything else about the SHAPE of these inputs the drafter needs — never a judgment call',
+    },
+  },
+  required: ['csvColumns'],
+};
+
+/**
+ * THE LOOK — mechanical, $0, deterministic. Reads the two real fixtures via
+ * mechanical.gather (catalogue.mjs's `read` and `addressCells` primitives) and
+ * wraps them as artifacts.mjs artifacts. Never touches the network.
+ */
+export function lookFixtures(csvPath, textPath) {
+  const csvRaw = gather('scout-csv', csvPath, 'csv');
+  const textRaw = gather('scout-text', textPath, 'text');
+  const csvArtifact = makeArtifact('scout-csv', 'csv', csvRaw);
+  const textArtifact = makeArtifact('scout-text', 'text', textRaw);
+  return { csvArtifact, textArtifact };
+}
+
+/**
+ * Ground a model-reported facts object against the mechanically-read truth.
+ * A reported CSV column that is not in the REAL header is dropped and named in
+ * `invented` — never silently kept. When the model reports nothing usable, the
+ * mechanical truth is used directly (still never invented, never empty). Pure
+ * function: no IO, no model — this is what the exit-criterion test runs against.
+ *
+ * `csv.columns` may be a PARTIAL subset of the real header (whatever the model
+ * actually reported, grounded) — it is display/context, not the listing a
+ * drafter's declared column names get validated against. `csv.realColumns` is
+ * the FULL mechanical header, always, independent of anything the model said —
+ * this is the field the M0a exit check (validator.mjs's column listing rule)
+ * reads, exactly per the drafter task's "the mechanical read, never the
+ * model's facts."
+ *
+ * `reported` (F59 fix) is the ONE bit that says whether the MODEL actually
+ * reported something usable — `rawFacts` had a non-empty `csvColumns` array
+ * AND at least one of those names is a REAL column, never invented wholesale
+ * — independent of the mechanical fallback below. A survey whose every
+ * column is invented is not a genuine report; it is exactly the ungrounded
+ * "hallucinated survey" F59's own fix exists to catch, so `reported` reads
+ * the GROUNDED list, never the raw one. The fallback exists so `csv.columns`
+ * is never empty (the header is real either way), but it must never be read
+ * as "the scout completed": `classifyFacts` is the one place that decides
+ * ABSENT/PRESENT, and it reads `reported`, never re-derives it from whether
+ * `columns` happens to look like the real header.
+ */
+export function groundFacts(rawFacts, {
+  csvArtifact, textArtifact, truncated = false, outputTokens = null,
+}) {
+  const realColumns = csvArtifact.header;
+  const reportedColumns = Array.isArray(rawFacts?.csvColumns) ? rawFacts.csvColumns : [];
+  const invented = reportedColumns.filter((c) => !realColumns.includes(c));
+  const groundedColumns = reportedColumns.filter((c) => realColumns.includes(c));
+  const reported = groundedColumns.length > 0;
+  return {
+    csv: {
+      artifactId: csvArtifact.id,
+      sha256: csvArtifact.sha256,
+      rowCount: csvArtifact.rows.length,
+      columns: groundedColumns.length > 0 ? groundedColumns : realColumns,
+      realColumns,
+    },
+    text: {
+      artifactId: textArtifact.id,
+      sha256: textArtifact.sha256,
+      lineCount: textArtifact.lines.length,
+      lines: textArtifact.lines,
+    },
+    customerMentioned: typeof rawFacts?.customerMentioned === 'string' ? rawFacts.customerMentioned : null,
+    notes: typeof rawFacts?.notes === 'string' ? rawFacts.notes : null,
+    invented,
+    reported,
+    // Finding 6 (2026-09-12) — a `max_tokens` stop is a TRUNCATION, never a
+    // genuine no-call (the F4 misread): `reported` alone cannot tell the two
+    // apart (both leave `rawFacts` null), so this is carried on the facts
+    // object as its own distinct fact, mirroring runner.mjs's `truncated: N
+    // tokens` wording. `classifyFacts` below reads it BEFORE the
+    // SURVEY_NOT_REPORTED check, so a truncated round is never reported as
+    // "the scout said nothing" — it is reported as "the scout was cut off".
+    truncated,
+    outputTokens,
+  };
+}
+
+/**
+ * Named routes to ABSENT (borrowed-from bareloop's `classifySurvey`/D11 in
+ * spirit, never imported — this module's own facts object is a different,
+ * always-grounded shape, so the check is structural rather than a byte
+ * floor). Every route names WHICH thing failed; there is no unnamed "facts
+ * are falsy" catch-all.
+ */
+export const FACTS_CAUSES = Object.freeze({
+  /** no facts object was ever handed to the drafter — the scout never ran, or its result was never threaded through */
+  MISSING: 'missing',
+  /** present, but not the shape groundFacts produces (not a plain object) */
+  MALFORMED: 'malformed',
+  /** F59: report_facts was never called, or was called with no usable `csvColumns` at all
+   *  (missing, empty, or not an array) — the scout did not complete. Checked via the
+   *  `reported` bit `groundFacts` carries on the facts object, NEVER re-derived from whether
+   *  `csv.columns` happens to look like the real header (that would be exactly F59's mistake:
+   *  the mechanical fallback makes an incomplete survey LOOK like a complete one). */
+  SURVEY_NOT_REPORTED: 'survey-not-reported',
+  /** Finding 6 (2026-09-12): the scout's round stopped at the output cap (`max_tokens`) before
+   *  ever finishing a generation — a cut-mid-think round, not a genuine no-call. `reported` alone
+   *  cannot distinguish the two (both leave `rawFacts` null), so this is its own named cause,
+   *  never folded into SURVEY_NOT_REPORTED (the F4 misread this mirrors, runner.mjs's existing
+   *  `truncated: N tokens` handling). */
+  TRUNCATED: 'truncated',
+  /** the mechanical look itself found no header at all (e.g. an empty or header-less CSV) —
+   *  the one case groundFacts's own fallback cannot paper over, because the fallback IS the
+   *  (empty) real header */
+  NO_COLUMNS: 'no-columns',
+});
+
+/**
+ * Classify a facts object as ABSENT or PRESENT before the drafter's model
+ * call ever runs (PRD's ABSENT rule, borrowed-from bareloop authorflow.js:1408
+ * — an ABSENT facts object is refused, never treated as "no special facts
+ * needed"). $0, pure, no IO — the mechanical look already happened in
+ * `lookFixtures`/`groundFacts`; this only reads the shape of their output.
+ *
+ * NOT the same fact as `invented` (groundFacts already grounds a model's
+ * over-claim down to nothing invented) — ABSENT is about the scout's
+ * MECHANICAL read never having produced usable facts at all, which
+ * `groundFacts`'s own fallback-to-real-header cannot paper over only when
+ * the real header itself came back empty.
+ *
+ * F59 fix: a facts object whose survey never actually reported (`reported`
+ * is not `true` — report_facts was never called, or was called with no
+ * usable `csvColumns`) is ABSENT here too, even though `groundFacts`'s own
+ * mechanical fallback has already filled `csv.columns` in with the real
+ * header. This is the ONE gate: `runDrafter` never re-checks `toolCalled` or
+ * anything else itself — `classifyFacts` is the only place that decides.
+ */
+export function classifyFacts(facts) {
+  if (facts === null || facts === undefined) {
+    return {
+      state: 'ABSENT',
+      cause: FACTS_CAUSES.MISSING,
+      reason: 'no facts object was given to the drafter — the scout never ran, or its result was never threaded through',
+    };
+  }
+  if (typeof facts !== 'object' || Array.isArray(facts)) {
+    return {
+      state: 'ABSENT',
+      cause: FACTS_CAUSES.MALFORMED,
+      reason: `facts is a ${Array.isArray(facts) ? 'array' : typeof facts}, not the object groundFacts produces`,
+    };
+  }
+  // Finding 6 (2026-09-12): checked BEFORE `reported` — a truncated round never
+  // called report_facts either, so `reported` would also read false here, and
+  // folding it into SURVEY_NOT_REPORTED is exactly the F4 misread (a cut-off
+  // round reading as "the scout said nothing" instead of "the scout was cut
+  // off mid-think"). Mirrors runner.mjs's `truncated: N tokens` wording.
+  if (facts.truncated === true) {
+    return {
+      state: 'ABSENT',
+      cause: FACTS_CAUSES.TRUNCATED,
+      reason: `truncated: ${facts.outputTokens ?? '?'} tokens, no tool call — the scout's round hit the `
+        + 'output cap (stopReason=max_tokens); this is not the survey completing and saying nothing, it '
+        + 'never finished generating at all',
+    };
+  }
+  if (facts.reported !== true) {
+    return {
+      state: 'ABSENT',
+      cause: FACTS_CAUSES.SURVEY_NOT_REPORTED,
+      reason: 'the scout\'s report_facts was never called, or reported nothing usable (F59: this is the scout '
+        + 'not completing, never "no facts needed" — the mechanical header fallback must never be read as a '
+        + 'completed survey)',
+    };
+  }
+  if (!facts.csv || typeof facts.csv !== 'object' || !Array.isArray(facts.csv.columns) || facts.csv.columns.length === 0) {
+    return {
+      state: 'ABSENT',
+      cause: FACTS_CAUSES.NO_COLUMNS,
+      reason: 'facts.csv.columns is empty — the mechanical read found no CSV header at all',
+    };
+  }
+  return { state: 'PRESENT', cause: null, reason: null };
+}
+
+/**
+ * The scout's one tool. A fresh instance per round — `execute` throws past
+ * SCOUT_ROUND_BOUND calls, which is the actual (not merely documented)
+ * enforcement of "one round, fixed in code". Exported standalone so the round
+ * bound is unit-testable without a model or a network call.
+ */
+export function makeReportFactsTool() {
+  let callCount = 0;
+  let capturedArgs = null;
+  const tool = {
+    name: 'report_facts',
+    description: 'Report facts about the real inputs you were given — never invent a column name or a fact not grounded in the text below.',
+    parameters: FACTS_SCHEMA,
+    execute: async (args) => {
+      callCount += 1;
+      if (callCount > SCOUT_ROUND_BOUND) {
+        throw new Error(`scout round bound exceeded (${SCOUT_ROUND_BOUND}) — the scout's grant is fixed in code, not spec-authorable`);
+      }
+      capturedArgs = args;
+      return { ok: true };
+    },
+  };
+  return { tool, getCapturedArgs: () => capturedArgs, getCallCount: () => callCount };
+}
+
+function scoutMenuText() {
+  return SCOUT_MENU.map((e) => `- ${e.verb} (${e.component}, ${e.package})`).join('\n');
+}
+
+/**
+ * THE MODEL ROUND. Takes the fixture paths, runs the mechanical look, then one
+ * bounded model round asking for facts about what it was shown. `provider`/
+ * `rates` are injectable (structure tests pass a fake — no network); when
+ * omitted, the REAL provider is built through provider.mjs's makeProvider,
+ * exactly like drafter.mjs and never a hand-rolled client (F11).
+ */
+export async function runScoutRound(modelId, {
+  slot = 'deepseek', csvPath, textPath, runLabel = 'scout', provider: injectedProvider, rates: injectedRates,
+} = {}) {
+  const { csvArtifact, textArtifact } = lookFixtures(csvPath, textPath);
+
+  let provider = injectedProvider;
+  let rates = injectedRates;
+  const live = injectedProvider == null;
+  if (live) {
+    assertUnderGlobalCap(SPEND_PATH);
+    ({ provider, rates } = makeProvider(slot, { model: modelId }));
+  }
+
+  const { tool, getCapturedArgs } = makeReportFactsTool();
+
+  // Every round, not just the last (F15): a tool-calling run has at least two,
+  // and keeping only the last recorded the finishing round and dropped the work.
+  const meterings = [];
+  const loop = new Loop({ provider, rates, onLlmResult: async (event) => { meterings.push(event); } });
+  const messages = [
+    {
+      role: 'system',
+      content: `You are the fwdloop scout. You LOOK; you never write, send, or act. You answer ONLY by `
+        + `calling report_facts, once. Available read-only primitives (context only — you do not call `
+        + `these directly, they are not offered as tools):\n${scoutMenuText()}`,
+    },
+    {
+      role: 'user',
+      content: `${renderCsvArtifact(csvArtifact)}\n\n${renderTextArtifact(textArtifact)}\n\nCall report_facts now.`,
+    },
+  ];
+
+  const startedAt = Date.now();
+  // Finding 6 (2026-09-12) — keep the result: `loop.run`'s return carries the
+  // round's real `stopReason` (bare-agent's neutral name; see loop.js's own
+  // classifyStopReason/BA-13), which used to be discarded here entirely.
+  // runner.mjs (~176-184) already reads this same field the same way.
+  const result = await loop.run(messages, [tool], { maxTokens: SCOUT_MAX_TOKENS });
+  const wallMs = Date.now() - startedAt;
+  const metered = sumMeterings(meterings);
+  const stopReason = result.stopReason ?? null;
+  const truncated = stopReason === 'max_tokens';
+
+  if (live) {
+    appendSpendRow(SPEND_PATH, {
+      runId: runLabel, step: 'scout', model: modelId, modelReturned: metered.model,
+      tokens: metered.tokens, costUsd: metered.costUsd, rounds: metered.rounds,
+      rateSource: metered.rateSource, wallMs, stopReason,
+    });
+    if (metered.costUsd != null && metered.costUsd > RUN_CAP_USD) {
+      console.error(`WARNING: scout run cost $${metered.costUsd} exceeds the per-run $${RUN_CAP_USD} cap`);
+    }
+  }
+
+  const rawFacts = getCapturedArgs();
+  const facts = groundFacts(rawFacts, {
+    csvArtifact, textArtifact, truncated, outputTokens: metered.tokens?.outputTokens ?? null,
+  });
+  return {
+    facts, toolCalled: rawFacts != null, usage: metered.tokens, rounds: metered.rounds,
+    costUsd: metered.costUsd, wallMs, stopReason,
+  };
+}
+
+// CLI entry point — live, opt-in ONLY (SCOUT_LIVE=1). Never runs under `npm test`:
+// node --test never executes this block (import.meta.url check), and no test file imports it.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  if (process.env.SCOUT_LIVE !== '1') {
+    console.error('A live scout round costs real money — set SCOUT_LIVE=1 to run it. Refusing.');
+    process.exit(1);
+  }
+  const REPO_ROOT = join(__dirname, '..', '..');
+  const slotIdx = process.argv.indexOf('--slot');
+  const slot = slotIdx !== -1 ? process.argv[slotIdx + 1] : 'deepseek';
+  // F22: default to the slot's own live model (provider.mjs is the one writer for it),
+  // never a hard-coded name here that can go stale when a provider renames a model.
+  const modelId = process.argv[2] || PROVIDER_SLOTS[slot].defaultModel;
+  const csvPath = join(REPO_ROOT, 'fixtures', 'ar-aging.csv');
+  const textPath = join(REPO_ROOT, 'fixtures', 'message.txt');
+  const report = await runScoutRound(modelId, {
+    slot, csvPath, textPath, runLabel: 'scout-live',
+  });
+  console.log(JSON.stringify(report, null, 2));
+}

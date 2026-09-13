@@ -11,19 +11,81 @@ import { join } from 'node:path';
 import { parseCsv } from './csv.mjs';
 import { hashFile } from './close.mjs';
 
-/** `gather`: read a file into a typed, hashed artifact. Effect check: non-empty, source hash recorded. */
+// --- THE UNIVERSAL "HAPPENED" CHECK (RULED 2026-09-10, Ruling 3) ----------
+//
+// PRD §4: "Every step also carries a mechanical happened check, always, on
+// top of its class — the artifact exists and is non-empty ... Never 'it
+// ran'." This is the ONE rule with no exceptions and no judgment: does the
+// step's own artifact exist as BYTES — not null/undefined, not zero bytes,
+// not an empty string/array. It applies to every step, green, softgreen and
+// hitl alike, because "did anything come out" is a yes/no question about
+// bytes, never a question about what the words mean.
+//
+// This is deliberately UNLIKE the rejected `#` "generic rule" (F16/F17): the
+// `#` rule needed a JUDGMENT call about WHERE it applied (it covered most
+// steps — read/ask/send were exempt — and "mostly true" was exactly the
+// loophole a live drafter walked through 3 runs out of 3). `happened()`
+// needs no such judgment: it is the same check, unconditionally, for every
+// step there is, and it reads no meaning from anyone's words — only bytes.
+// That is why this generic rule is allowed to exist and the other one was
+// rejected outright.
+//
+// One writer for this concept: `gather()` below REUSES it (replacing its
+// own former inline emptiness checks) rather than carrying a second,
+// drifting copy.
+export function happened(artifact) {
+  if (artifact === null) return { verdict: 'red', red: 'happened: artifact is null' };
+  if (artifact === undefined) return { verdict: 'red', red: 'happened: artifact is undefined' };
+  if (typeof artifact === 'string') {
+    return artifact.length === 0
+      ? { verdict: 'red', red: 'happened: artifact is an empty string' }
+      : { verdict: 'green', red: null };
+  }
+  if (Array.isArray(artifact)) {
+    return artifact.length === 0
+      ? { verdict: 'red', red: 'happened: artifact is an empty array' }
+      : { verdict: 'green', red: null };
+  }
+  if (Buffer.isBuffer(artifact) || (artifact && typeof artifact === 'object' && typeof artifact.byteLength === 'number')) {
+    return artifact.byteLength === 0
+      ? { verdict: 'red', red: 'happened: artifact is zero bytes' }
+      : { verdict: 'green', red: null };
+  }
+  return { verdict: 'green', red: null };
+}
+
+/**
+ * `happened()`, wrapped to make the "regardless of close class" rule
+ * structural rather than a promise in a comment: this function does not
+ * even ACCEPT a branch on `closeClass` — it is here only to LABEL the red
+ * with the step and its declared class, so a test (or a caller) can prove
+ * that a green, a softgreen and a hitl step with the same empty artifact
+ * all red identically. A hitl step is never exempted: a human accepting an
+ * empty artifact is still an empty artifact.
+ */
+export function checkStepHappened(step, artifact) {
+  const result = happened(artifact);
+  if (result.verdict === 'red') {
+    const label = step?.goal ? `"${step.goal}"` : (step?.emits ?? 'step');
+    const cls = step?.close?.class ?? 'hitl';
+    return { verdict: 'red', red: `happened: ${label} (${cls}) produced nothing — ${result.red.replace(/^happened: /, '')}` };
+  }
+  return { verdict: 'green', red: null };
+}
+
+/** `gather`: read a file into a typed, hashed artifact. Effect check: non-empty (via `happened()`), source hash recorded. */
 export function gather(id, path, kind) {
   const sha256 = hashFile(path);
   if (kind === 'csv') {
     const text = readFileSync(path, 'utf8');
     const { header, rows } = parseCsv(text);
-    if (rows.length === 0) throw new Error(`gather ${id}: artifact is empty (${path})`);
+    if (happened(rows).verdict === 'red') throw new Error(`gather ${id}: artifact is empty (${path})`);
     return { id, kind: 'csv', path, sha256, header, rows };
   }
   if (kind === 'text') {
     const text = readFileSync(path, 'utf8');
     const lines = text.split(/\r?\n/).filter((l) => l.length > 0);
-    if (lines.length === 0) throw new Error(`gather ${id}: artifact is empty (${path})`);
+    if (happened(lines).verdict === 'red') throw new Error(`gather ${id}: artifact is empty (${path})`);
     return { id, kind: 'text', path, sha256, lines };
   }
   throw new Error(`gather ${id}: unknown kind "${kind}"`);
