@@ -356,7 +356,7 @@ export async function runOnPrimitives({
     // PRD §5 / plant c: two rows matching is an ask, never a pick — route here instead of derive.
     const question = `More than one customer matches: ${close1.groundTruthMatches.join(', ')}. Which one?`;
     const evidence = { citations: derive1.args.citations, groundTruthMatches: close1.groundTruthMatches };
-    const askResult = await askStep(question, evidence, { outDir: runDir, timeoutMs: askTimeoutMs });
+    const askResult = await askStep(question, evidence, { outDir: runDir, timeoutMs: askTimeoutMs, runId });
     record('messageMatch', askResult.ok && askResult.accepted ? 'paused-ask-answered' : 'red', { red: askResult.red ?? null });
     return {
       outcome: askResult.ok && askResult.accepted ? 'paused-ask-answered' : 'red',
@@ -374,7 +374,8 @@ export async function runOnPrimitives({
   // --- derive (line 3) ---
   const derive2SystemPrompt = `You are the fwdloop runner executing ONE step of a signed declaration. `
     + `Step goal: for customer "${customer}" (rows already matched — do not re-derive the match), list every `
-    + `open invoice's Amount as a COPIED citation, a "total_owed" DERIVED citation (formula sum, inputs = every `
+    + `open invoice's Invoice # as a COPIED citation (value = the Invoice # cell's text, e.g. "INV-1009") AND `
+    + `its Amount as a separate COPIED citation, a "total_owed" DERIVED citation (formula sum, inputs = every `
     + `Amount citation id), an "earliest_due" citation naming the row whose Due date is earliest (copy that `
     + `cell — the closed grammar's min/max compare numbers, not dates, so express earliest-due as a copied `
     + `citation on the correct cell, not a formula), and a "count_overdue" DERIVED citation (formula count, `
@@ -430,7 +431,10 @@ export async function runOnPrimitives({
     + `the bracket — e.g. "12[c7] days overdue" or "12 [c7] days overdue", never "12 days [c7]" (the bracket `
     + `must sit immediately after the number itself, not after trailing words) — no bare (uncited) numbers `
     + `anywhere in the text, including list markers: never write "Invoice 1:", "Invoice 2:" etc as a bare `
-    + `ordinal — use the invoice number (e.g. "INV-1021:") or an unnumbered bullet instead, since a plain digit `
+    + `ordinal — use the invoice number instead. EVERY invoice number you write (e.g. "INV-1009") is exactly `
+    + `as much a citation as a figure: it MUST carry its own bracket immediately after it, e.g. "INV-1009[c2]", `
+    + `citing the SAME COPIED Invoice # citation "Prior citations" gives you for that row — never invent an `
+    + `invoice number and never write one with no bracket. A plain digit or identifier `
     + `with no citation bracket is read as an uncited figure regardless of what it's labelling. Your citations `
     + `array MUST include EVERY citation object from `
     + `"Prior citations" below VERBATIM AND UNCHANGED, in full — do not drop any, even ones you don't bracket `
@@ -472,7 +476,7 @@ export async function runOnPrimitives({
   record('compose', 'green');
 
   // --- ask (the signed ask slot line) ---
-  const finalAskResult = await askStep('Reply drafted — ok to send?', { text: compose.args.text }, { outDir: runDir, timeoutMs: askTimeoutMs });
+  const finalAskResult = await askStep('Reply drafted — ok to send?', { text: compose.args.text }, { outDir: runDir, timeoutMs: askTimeoutMs, runId });
   if (!finalAskResult.ok) { record('ask', 'red', { red: finalAskResult.red }); return { outcome: 'red', red: finalAskResult.red, phase: 'ask', log }; }
   if (!finalAskResult.accepted) { record('ask', 'red', { red: 'ask not accepted' }); return { outcome: 'red', red: 'ask not accepted', phase: 'ask', log }; }
   record('ask', 'green');
@@ -557,7 +561,10 @@ export async function readFrozenTextArtifact(emitsId, frozenEntry, opts) {
  * request — reds naming it: the redo edge is Amendment A, explicitly OUT of
  * this brief's scope, never silently implemented here.
  */
-export async function checkpointAsk(question, evidence, { outDir, timeoutMs = 120_000, pollMs = 500 } = {}) {
+export async function checkpointAsk(question, evidence, {
+  outDir, timeoutMs = 120_000, pollMs = 500, runId,
+  writeLine = (line) => { process.stderr.write(`${line}\n`); },
+} = {}) {
   mkdirSync(outDir, { recursive: true });
   const askPath = join(outDir, 'ask.json');
   const answerPath = join(outDir, 'answer.json');
@@ -570,6 +577,12 @@ export async function checkpointAsk(question, evidence, { outDir, timeoutMs = 12
     timeout: timeoutMs,
     send: async (q, context) => {
       writeFileSync(askPath, JSON.stringify({ question: q, evidence: context, askedAt: new Date().toISOString() }, null, 2));
+      // Hamr's first two live asks both expired: checkpointAsk wrote ask.json and polled in
+      // silence, so a human in another terminal had no way to know a run was waiting on them.
+      // `writeLine` is injectable (never a global console spy) so a test can prove this without
+      // capturing real stderr.
+      writeLine(`ASK OPEN (${runId}, expires in ${Math.round(timeoutMs / 1000)}s): ${q} — `
+        + `answer with: node poc/m0/answer.mjs ${runId} accept`);
     },
     waitForReply: async () => {
       while (!state.cancelled) {

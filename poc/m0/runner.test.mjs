@@ -586,6 +586,23 @@ test('checkpointAsk accepts once answer.mjs\'s real protocol writes {decision:"a
   assert.ok(existsSync(join(outDir, 'ask.json')), 'checkpointAsk must write ask.json through Checkpoint\'s send callback');
 });
 
+// FIX 2 (2026-09-13, hamr's first live run): both of hamr's live asks expired because
+// checkpointAsk wrote ask.json and polled in total silence — a human in another terminal had no
+// way to know a run was waiting. `writeLine` is injected (never a global console/stderr spy) so
+// this proves the notice is emitted without capturing real process output.
+test('checkpointAsk prints an ASK OPEN notice (via the injected writeLine) naming the runId, question and the answer.mjs command', async () => {
+  const outDir = mkdtempSync(join(tmpdir(), 'm0-checkpoint-notice-'));
+  const lines = [];
+  const pending = checkpointAsk('ok to send?', { text: 'draft' }, {
+    outDir, timeoutMs: 3000, pollMs: 20, runId: 'test-run-42', writeLine: (l) => lines.push(l),
+  });
+  await new Promise((r) => setTimeout(r, 50));
+  writeFileSync(join(outDir, 'answer.json'), JSON.stringify({ decision: 'accept', text: null }));
+  await pending;
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /^ASK OPEN \(test-run-42, expires in 3s\): ok to send\? — answer with: node poc\/m0\/answer\.mjs test-run-42 accept$/);
+});
+
 test('PROOF checkpointAsk can fail: no answer ever arrives -> "ask expired" (Checkpoint\'s own TimeoutError)', async () => {
   const outDir = mkdtempSync(join(tmpdir(), 'm0-checkpoint-timeout-'));
   const result = await checkpointAsk('ok to send?', {}, { outDir, timeoutMs: 200, pollMs: 20 });
@@ -751,9 +768,18 @@ function stubModelStepOnPrimitives(argsByStep) {
 }
 
 /** Writes answer.json BEFORE the run starts, so checkpointAsk's very first poll finds it. */
+// FIX 3 (2026-09-13): preflight now refuses a run dir that already holds ask.json/answer.json
+// (checkFreshRunDir), so pre-writing answer.json before the run starts would itself trip the
+// stale-answer refusal. Schedule the write on a macrotask instead: the ENTIRE synchronous
+// preflight chain (including checkFreshRunDir) runs before runOnPrimitives' first `await`
+// (inside readFrozenCsv) ever yields to the event loop, so a setTimeout scheduled here — however
+// short — cannot fire until preflight has already completed and found no file. By the time
+// checkpointAsk's own poll loop checks for answer.json (after the ask/send stages), it is there.
 function acceptFinalAsk(runDir) {
   mkdirSync(runDir, { recursive: true });
-  writeFileSync(join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', text: null }));
+  setTimeout(() => {
+    writeFileSync(join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', text: null }));
+  }, 0);
 }
 
 const FOLD_DERIVE1_ARGS = {
