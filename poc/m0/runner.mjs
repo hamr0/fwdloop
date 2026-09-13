@@ -275,26 +275,216 @@ export function preflight(declaration, { runDir, sources, spendPath = SPEND_PATH
 }
 
 /**
- * The primitive-driven run's entry point (2.1: preflight only — 2.2/2.3 add
- * the execution phase in later commits). `modelStep` is injected so a test
- * can prove it is NEVER called on a preflight refusal — production always
- * gets the real one once 2.2 lands. Never appends a spend row itself; the
- * execution phase (not yet built) owns spend rows for model rounds.
+ * The primitive-driven run's entry point. `modelStep`/`askStep`/`sendStep`
+ * are injected (defaulting to the real primitive-backed functions below) so
+ * a test can run the REAL fold — preflight, binding, both derive stages,
+ * compose, the ask, the send — at $0 with a stub model and a stub ask, per
+ * M0b Part 2.3. On any preflight refusal, modelStep is never called and no
+ * spend row is appended (proven in the 2.1 tests above).
  */
 export async function runOnPrimitives({
-  declaration, runId, outDir, sources, spendPath = SPEND_PATH, modelStep,
+  declaration, runId, outDir, sources, spendPath = SPEND_PATH, plant = 'd',
+  slot, model, askTimeoutMs = 120_000,
+  modelStep = runModelStepOnPrimitives, askStep = checkpointAsk, sendStep = sendViaPrimitive,
 }) {
   const runDir = outDir ?? join(OUT_DIR, runId);
   mkdirSync(runDir, { recursive: true });
-  const pre = preflight(declaration, { runDir, sources, spendPath });
+
+  // Plant (c): the ambiguous-customer fixture is generated BEFORE freezing,
+  // so its own bytes (not the clean fixture's) are what gets frozen and
+  // hashed — the ambiguity is real input, never a check-time special case.
+  let effectiveSources = sources;
+  if (plant === 'c') {
+    const sheetSource = sources.find((s) => s.id === 'sheet');
+    const plantedPath = generatePlantCCsv(sheetSource.path, join(runDir, 'ar-aging.plant-c.csv'));
+    effectiveSources = sources.map((s) => (s.id === 'sheet' ? { ...s, path: plantedPath } : s));
+  }
+
+  const pre = preflight(declaration, { runDir, sources: effectiveSources, spendPath });
   if (!pre.ok) {
     return { outcome: 'red', red: pre.red, phase: 'preflight' };
   }
-  // Execution phase (2.3 wires these primitives into the actual job #1 fold
-  // and the plants) is not yet assembled here — a caller that reaches this
-  // point today gets an explicit "not implemented" rather than a silent
-  // no-op. The primitives themselves (below) are already real and tested.
-  return { outcome: 'red', red: 'runOnPrimitives: preflight passed but the execution phase (2.3) is not yet assembled', phase: 'execution', pre };
+  const { stages, inputsManifest, sendDir } = pre;
+  const bySourceId = Object.fromEntries(inputsManifest.map((m) => [m.id, m]));
+
+  const log = { runId, plant, stages: {} };
+  const record = (stage, outcome, extra = {}) => { log.stages[stage] = { outcome, ...extra }; };
+
+  // --- sheetRead (line 1) ---
+  const csvArtifact = await readFrozenCsv(stages.sheetRead.emits, bySourceId.sheet);
+  if (!csvArtifact.ok) { record('sheetRead', 'red', { red: csvArtifact.red }); return { outcome: 'red', red: csvArtifact.red, phase: 'sheetRead', log }; }
+  record('sheetRead', 'green');
+  const artifacts = { [stages.sheetRead.emits]: csvArtifact };
+
+  // --- messageMatch (line 2): mechanical read, then a model step for the match itself ---
+  const messageArtifact = await readFrozenTextArtifact('message-raw', bySourceId.message);
+  if (!messageArtifact.ok) { record('messageMatch', 'red', { red: messageArtifact.red }); return { outcome: 'red', red: messageArtifact.red, phase: 'messageMatch', log }; }
+  artifacts['message-raw'] = messageArtifact;
+
+  const derive1SystemPrompt = `You are the fwdloop runner executing ONE step of a signed declaration. `
+    + `Step goal: match the customer named in the message to the row(s) in the sheet whose Customer cell `
+    + `names them. ${CLOSED_GRAMMAR_NOTE} A name match is a QUOTE citation (verbatim substring of the `
+    + `message line) plus a COPIED citation for EVERY Customer cell that matches — if more than one row `
+    + `could match, cite ALL of them and list ALL their citation ids in "matches"; do not pick one. `
+    + `businessDate is ${BUSINESS_DATE} (never use today's real date). Answer ONLY by calling emit_customer_match.`;
+  const derive1User = `${renderCsvArtifact(csvArtifact)}\n\n${renderTextArtifact(messageArtifact)}\n\n`
+    + `Call emit_customer_match now.`;
+
+  const derive1 = await modelStep({
+    runId, stepLabel: 'messageMatch', slot, model, spendPath,
+    systemPrompt: derive1SystemPrompt, userContent: derive1User,
+    toolName: 'emit_customer_match',
+    toolDescription: 'Report the quote + matching Customer cell citation(s) for the message.',
+    toolSchema: {
+      type: 'object',
+      properties: {
+        citations: { type: 'array', items: CITATION_ITEM_SCHEMA },
+        matches: { type: 'array', items: { type: 'string' }, description: 'citation ids of the matching Customer cell(s)' },
+      },
+      required: ['citations', 'matches'],
+    },
+  });
+  if (!derive1.ok) { record('messageMatch', 'red', { red: derive1.red }); return { outcome: 'red', red: derive1.red, phase: 'messageMatch', log }; }
+
+  const happened1 = checkStepHappened({ goal: 'messageMatch', close: { class: 'green' } }, derive1.args.citations);
+  if (happened1.verdict === 'red') { record('messageMatch', 'red', { red: happened1.red }); return { outcome: 'red', red: happened1.red, phase: 'messageMatch', log }; }
+
+  const close1 = closeCustomerMatch(derive1.args, artifacts, stages.sheetRead.emits);
+  if (close1.verdict === 'red') { record('messageMatch', 'red', { red: close1.red }); return { outcome: 'red', red: close1.red, phase: 'messageMatch', log }; }
+
+  if (close1.ambiguous) {
+    // PRD §5 / plant c: two rows matching is an ask, never a pick — route here instead of derive.
+    const question = `More than one customer matches: ${close1.groundTruthMatches.join(', ')}. Which one?`;
+    const evidence = { citations: derive1.args.citations, groundTruthMatches: close1.groundTruthMatches };
+    const askResult = await askStep(question, evidence, { outDir: runDir, timeoutMs: askTimeoutMs });
+    record('messageMatch', askResult.ok && askResult.accepted ? 'paused-ask-answered' : 'red', { red: askResult.red ?? null });
+    return {
+      outcome: askResult.ok && askResult.accepted ? 'paused-ask-answered' : 'red',
+      red: askResult.ok ? (askResult.accepted ? null : 'run stopped at the customer-ambiguity ask') : askResult.red,
+      phase: 'messageMatch-ambiguous',
+      log,
+    };
+  }
+  record('messageMatch', 'green');
+
+  const customer = close1.matchedCustomer;
+  const customerRows = csvArtifact.rows.filter((r) => r.byName.Customer === customer);
+  artifacts[stages.messageMatch.emits] = { id: stages.messageMatch.emits, kind: 'derived', citations: derive1.args.citations };
+
+  // --- derive (line 3) ---
+  const derive2SystemPrompt = `You are the fwdloop runner executing ONE step of a signed declaration. `
+    + `Step goal: for customer "${customer}" (rows already matched — do not re-derive the match), list every `
+    + `open invoice's Amount as a COPIED citation, a "total_owed" DERIVED citation (formula sum, inputs = every `
+    + `Amount citation id), an "earliest_due" citation naming the row whose Due date is earliest (copy that `
+    + `cell — the closed grammar's min/max compare numbers, not dates, so express earliest-due as a copied `
+    + `citation on the correct cell, not a formula), and a "count_overdue" DERIVED citation (formula count, `
+    + `inputs = one daysBetween DERIVED citation per invoice whose due date is overdue, i.e. `
+    + `daysBetween(due date, businessDate) > 0 — businessDate is ${BUSINESS_DATE}, put every invoice's `
+    + `daysBetween citation in your citations array regardless, but only the OVERDUE ones' ids in count_overdue's `
+    + `inputs). A daysBetween citation takes EXACTLY ONE input: the due-date citation id. businessDate is `
+    + `IMPLICIT — it is never cited, never given its own citation, and never a second daysBetween input; it is `
+    + `not part of any artifact, so there is nothing to cite it against. ${CLOSED_GRAMMAR_NOTE} Return `
+    + `output.fields = {"total_owed": "<citation id>", `
+    + `"earliest_due": "<citation id>", "count_overdue": "<citation id>"}. Answer ONLY by calling emit_derive.`;
+  const derive2User = `${renderCsvArtifact(csvArtifact)}\n\nMatched customer: ${customer}. Their rows: `
+    + `${customerRows.map((r) => `row ${r.rowNumber} (${r.byName['Invoice #']})`).join(', ')}.\n\n`
+    + `Call emit_derive now.`;
+
+  const derive2 = await modelStep({
+    runId, stepLabel: 'derive', slot, model, spendPath,
+    systemPrompt: derive2SystemPrompt, userContent: derive2User,
+    toolName: 'emit_derive',
+    toolDescription: 'Report the invoices/total/earliest-due/overdue-count citations for the matched customer.',
+    toolSchema: {
+      type: 'object',
+      properties: {
+        citations: { type: 'array', items: CITATION_ITEM_SCHEMA },
+        fields: {
+          type: 'object',
+          properties: {
+            total_owed: { type: 'string' }, earliest_due: { type: 'string' }, count_overdue: { type: 'string' },
+          },
+          required: ['total_owed', 'earliest_due', 'count_overdue'],
+        },
+      },
+      required: ['citations', 'fields'],
+    },
+  });
+  if (!derive2.ok) { record('derive', 'red', { red: derive2.red }); return { outcome: 'red', red: derive2.red, phase: 'derive', log }; }
+
+  const happened2 = checkStepHappened({ goal: 'derive', close: { class: 'green' } }, derive2.args.citations);
+  if (happened2.verdict === 'red') { record('derive', 'red', { red: happened2.red }); return { outcome: 'red', red: happened2.red, phase: 'derive', log }; }
+
+  // Plants a/b mutate the model's OUTPUT before the close, never the check (existing applyPlant,
+  // unchanged — F5's plants a/b must still red on primitives, per this brief's negative i).
+  const derive2ArgsForClose = applyPlant(plant, 'derive2', derive2.args);
+  const close2 = closeDerive(derive2ArgsForClose, artifacts, BUSINESS_DATE);
+  if (close2.verdict === 'red') { record('derive', 'red', { red: close2.red }); return { outcome: 'red', red: close2.red, phase: 'derive', log }; }
+  record('derive', 'green');
+  artifacts[stages.derive.emits] = { id: stages.derive.emits, kind: 'derived', ...derive2ArgsForClose };
+
+  // --- compose (line 4) ---
+  const composeSystemPrompt = `You are the fwdloop runner executing ONE step of a signed declaration. `
+    + `Step goal: write a short reply, one line per invoice, to the message "${messageArtifact.lines[0]}". `
+    + `Every figure in the text must be a citation bracket like [c3] placed with NOTHING between the number and `
+    + `the bracket — e.g. "12[c7] days overdue" or "12 [c7] days overdue", never "12 days [c7]" (the bracket `
+    + `must sit immediately after the number itself, not after trailing words) — no bare (uncited) numbers `
+    + `anywhere in the text, including list markers: never write "Invoice 1:", "Invoice 2:" etc as a bare `
+    + `ordinal — use the invoice number (e.g. "INV-1021:") or an unnumbered bullet instead, since a plain digit `
+    + `with no citation bracket is read as an uncited figure regardless of what it's labelling. Your citations `
+    + `array MUST include EVERY citation object from `
+    + `"Prior citations" below VERBATIM AND UNCHANGED, in full — do not drop any, even ones you don't bracket `
+    + `directly in the text (a formula citation like count/sum/daysBetween needs every citation id in its own `
+    + `"inputs" to ALSO be present in the array, or the evidence check cannot resolve it) — plus anything new `
+    + `you need. ${CLOSED_GRAMMAR_NOTE} Answer ONLY by calling emit_compose.`;
+  const composeUser = `Prior citations for ${customer}:\n${JSON.stringify(derive2.args.citations, null, 2)}\n\n`
+    + `Fields: ${JSON.stringify(derive2.args.fields)}\n\nCall emit_compose now.`;
+
+  const compose = await modelStep({
+    runId, stepLabel: 'compose', slot, model, spendPath,
+    systemPrompt: composeSystemPrompt, userContent: composeUser,
+    toolName: 'emit_compose',
+    toolDescription: 'Report the reply text with every figure in a citation bracket.',
+    toolSchema: {
+      type: 'object',
+      properties: {
+        citations: { type: 'array', items: CITATION_ITEM_SCHEMA },
+        text: { type: 'string' },
+      },
+      required: ['citations', 'text'],
+    },
+  });
+  if (!compose.ok) { record('compose', 'red', { red: compose.red }); return { outcome: 'red', red: compose.red, phase: 'compose', log }; }
+
+  const happened3 = checkStepHappened({ goal: 'compose', close: { class: 'softgreen' } }, compose.args.text);
+  if (happened3.verdict === 'red') { record('compose', 'red', { red: happened3.red }); return { outcome: 'red', red: happened3.red, phase: 'compose', log }; }
+
+  // Plant e (NEW, F7 green-by-omission): strip the total/earliest-due FIGURES and their citation
+  // brackets from the composed text before the close — mutating the model's OUTPUT, never the
+  // check, exactly like plants a/b above.
+  const composeTextForClose = plant === 'e'
+    ? applyPlantE(compose.args.text, derive2ArgsForClose.fields)
+    : compose.args.text;
+  const close3 = closeCompose(
+    { ...compose.args, text: composeTextForClose }, artifacts, BUSINESS_DATE, derive2ArgsForClose.fields, derive2ArgsForClose.citations,
+  );
+  if (close3.verdict === 'red') { record('compose', 'red', { red: close3.red, plantApplied: plant === 'e' ? 'e' : null }); return { outcome: 'red', red: close3.red, phase: 'compose', log }; }
+  record('compose', 'green');
+
+  // --- ask (the signed ask slot line) ---
+  const finalAskResult = await askStep('Reply drafted — ok to send?', { text: compose.args.text }, { outDir: runDir, timeoutMs: askTimeoutMs });
+  if (!finalAskResult.ok) { record('ask', 'red', { red: finalAskResult.red }); return { outcome: 'red', red: finalAskResult.red, phase: 'ask', log }; }
+  if (!finalAskResult.accepted) { record('ask', 'red', { red: 'ask not accepted' }); return { outcome: 'red', red: 'ask not accepted', phase: 'ask', log }; }
+  record('ask', 'green');
+
+  // --- send (the signed send slot line) ---
+  const sendResult = await sendStep(sendDir, `${runId}-sent.txt`, compose.args.text);
+  if (!sendResult.ok) { record('send', 'red', { red: sendResult.red }); return { outcome: 'red', red: sendResult.red, phase: 'send', log }; }
+  record('send', 'green');
+
+  return {
+    outcome: 'complete', deliveryId: sendResult.path, log,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -343,7 +533,7 @@ export async function readFrozenCsv(emitsId, frozenEntry, opts) {
   if (!read.ok) return read;
   const { header, rows } = parseCsv(read.text);
   return {
-    ok: true, id: emitsId, kind: 'csv', sha256: frozenEntry.sha256, header, rows,
+    ok: true, id: emitsId, kind: 'csv', path: frozenEntry.frozen, sha256: frozenEntry.sha256, header, rows,
   };
 }
 
@@ -353,7 +543,7 @@ export async function readFrozenTextArtifact(emitsId, frozenEntry, opts) {
   if (!read.ok) return read;
   const lines = read.text.split(/\r?\n/).filter((l) => l.length > 0);
   return {
-    ok: true, id: emitsId, kind: 'text', sha256: frozenEntry.sha256, lines,
+    ok: true, id: emitsId, kind: 'text', path: frozenEntry.frozen, sha256: frozenEntry.sha256, lines,
   };
 }
 
@@ -618,6 +808,31 @@ export function applyPlant(plant, stepName, args) {
   if (plant === 'b' && stepName === 'derive2') {
     const e2 = (mutated.citations ?? []).find((c) => c.source?.cell === 'E2');
     if (e2) e2.value = 4300;
+  }
+  return mutated;
+}
+
+/**
+ * Plant e (NEW, M0b Part 2.3, F7 green-by-omission) — strip the total_owed
+ * and earliest_due FIGURES and their citation brackets out of the composed
+ * TEXT before the close (never the check, never the citations array itself
+ * — only the rendered words a human would read). This is the same class F7
+ * found live in gpt-oss-120b's output: a reply that answers truthfully but
+ * incompletely, omitting a field job #1's own line 3 declared. Matches
+ * ONLY the exact citation id closeCompose's own `declaredFields` names —
+ * it does not attempt to detect a re-cited duplicate value under a
+ * different id (closeCompose's own completeness check already tolerates
+ * that legitimately; this plant is not trying to defeat that leniency, it
+ * is reproducing the omission F7 actually saw).
+ */
+export function applyPlantE(text, declaredFields) {
+  if (typeof text !== 'string' || !declaredFields) return text;
+  let mutated = text;
+  for (const field of ['total_owed', 'earliest_due']) {
+    const id = declaredFields[field];
+    if (!id) continue;
+    const bracketPattern = new RegExp(`(?:\\d{4}-\\d{2}-\\d{2}|[\\d,]+(?:\\.\\d+)?)\\s*\\[${id}\\]`, 'g');
+    mutated = mutated.replace(bracketPattern, '');
   }
   return mutated;
 }

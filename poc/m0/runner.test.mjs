@@ -499,21 +499,21 @@ test('runOnPrimitives never calls modelStep and appends zero spend rows on a pre
   assert.equal(spendRows.length, 0, 'no spend row may be appended on a preflight refusal');
 });
 
-test('PROOF the above can fail: a genuinely clean declaration passes preflight and modelStep WOULD be reachable (execution phase not yet built)', async () => {
+test('PROOF the above can fail: a genuinely clean declaration passes preflight and DOES reach modelStep (2.3\'s execution phase is real)', async () => {
   const runId = `test-preflight-clean-${Date.now()}`;
   const runDir = join(OUT_DIR, runId);
   const spendPath = join(runDir, 'spend.jsonl');
   let modelStepCalls = 0;
-  const spyModelStep = async () => { modelStepCalls += 1; return {}; };
+  const spyModelStep = async () => { modelStepCalls += 1; return { ok: false, red: 'spy: stub does not answer' }; };
   const result = await runOnPrimitives({
     declaration: primitivesDeclaration(), runId, outDir: runDir, sources: realSources(), spendPath, modelStep: spyModelStep,
   });
-  // 2.1 ships preflight only — the execution phase (2.2/2.3) lands in later commits, so a clean
-  // declaration reaches "execution not yet built" today rather than actually calling modelStep.
+  // Once 2.3 landed, a clean declaration's preflight passes and the fold genuinely reaches
+  // modelStep at the messageMatch stage — this is the negative-proof twin of the test above: a
+  // preflight REFUSAL never calls modelStep, but a preflight PASS must.
   assert.equal(result.outcome, 'red');
-  assert.equal(result.phase, 'execution');
-  assert.equal(result.pre.ok, true, 'preflight itself must have passed for this declaration');
-  assert.equal(modelStepCalls, 0);
+  assert.equal(result.phase, 'messageMatch');
+  assert.ok(modelStepCalls >= 1, 'modelStep must be reachable once preflight passes');
 });
 
 // ---------------------------------------------------------------------------
@@ -724,4 +724,157 @@ test('PROOF the above can fail: a stub provider that returns text instead of the
   assert.equal(result.ok, false);
   assert.match(result.red, /derive1: a FINISHED round \(stopReason=stop\) returned text instead of the tool/);
   assert.ok(calls >= 1);
+});
+
+// ---------------------------------------------------------------------------
+// M0b PART 2.3 — PLANTS a-e THROUGH THE REAL FOLD (2026-09-13). Only the
+// model round is stubbed ($0, zero live calls); freeze, bind, grants,
+// destination, shell_read/shell_write, and the REAL Checkpoint/answer.mjs
+// file protocol all run for real, through runOnPrimitives. Artifact ids
+// match what the fold ACTUALLY names them (stages.sheetRead.emits =
+// "aging-sheet", the raw message read = "message-raw") — never the OLD
+// fold's "a1"/"a2", which resolve to nothing in this artifact space.
+// ---------------------------------------------------------------------------
+
+/** Injected modelStep stub matching runModelStepOnPrimitives's real { ok, args } contract. */
+function stubModelStepOnPrimitives(argsByStep) {
+  const calls = {};
+  const fn = async ({ stepLabel }) => {
+    calls[stepLabel] = (calls[stepLabel] ?? 0) + 1;
+    if (!(stepLabel in argsByStep)) return { ok: false, red: `stub: no wiring for step "${stepLabel}"` };
+    return {
+      ok: true, args: argsByStep[stepLabel], metered: { rounds: 1 }, wallMs: 1, stopReason: 'tool_calls',
+    };
+  };
+  fn.calls = calls;
+  return fn;
+}
+
+/** Writes answer.json BEFORE the run starts, so checkpointAsk's very first poll finds it. */
+function acceptFinalAsk(runDir) {
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', text: null }));
+}
+
+const FOLD_DERIVE1_ARGS = {
+  citations: [
+    { id: 'c1', quote: 'Northwind', source: { kind: 'text', artifact: 'message-raw', line: 1 } },
+    { id: 'c2', value: 'Northwind Trading', source: { kind: 'csv', artifact: 'aging-sheet', cell: 'A2' } },
+  ],
+  matches: ['c2'],
+};
+
+// Northwind Trading: E2=4200 due 2026-06-09, E3=1500 due 2026-05-20, against BUSINESS_DATE
+// 2026-06-01 -> total 5700, earliest due 2026-05-20, 1 invoice (INV-1009) overdue by 12 days.
+const FOLD_DERIVE2_ARGS = {
+  citations: [
+    { id: 'c1', value: 4200, source: { kind: 'csv', artifact: 'aging-sheet', cell: 'E2' } },
+    { id: 'c2', value: 1500, source: { kind: 'csv', artifact: 'aging-sheet', cell: 'E3' } },
+    { id: 'c3', value: 5700, formula: 'sum', inputs: ['c1', 'c2'] },
+    { id: 'c4', value: '2026-05-20', source: { kind: 'csv', artifact: 'aging-sheet', cell: 'D3' } },
+    { id: 'c5', value: 12, formula: 'daysBetween', inputs: ['c4'] },
+    { id: 'c6', value: '2026-06-09', source: { kind: 'csv', artifact: 'aging-sheet', cell: 'D2' } },
+    { id: 'c7', value: -8, formula: 'daysBetween', inputs: ['c6'] },
+    { id: 'c8', value: 1, formula: 'count', inputs: ['c5'] },
+  ],
+  fields: { total_owed: 'c3', earliest_due: 'c4', count_overdue: 'c8' },
+};
+
+const FOLD_COMPOSE_ARGS = {
+  citations: FOLD_DERIVE2_ARGS.citations,
+  text: 'Northwind Trading owes 5700[c3], earliest due 2026-05-20[c4], with 1[c8] invoice overdue.',
+};
+
+function foldStub(overrides = {}) {
+  return stubModelStepOnPrimitives({
+    messageMatch: FOLD_DERIVE1_ARGS, derive: FOLD_DERIVE2_ARGS, compose: FOLD_COMPOSE_ARGS, ...overrides,
+  });
+}
+
+test('plant d (clean) reaches send through the REAL fold — shell_read, Checkpoint/answer.mjs, shell_write — with non-zero bytes on disk', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'm0-fold-d-'));
+  acceptFinalAsk(runDir);
+  const result = await runOnPrimitives({
+    declaration: primitivesDeclaration(), runId: `fold-d-${Date.now()}`, outDir: runDir,
+    sources: realSources(), spendPath: join(runDir, 'spend.jsonl'), plant: 'd', modelStep: foldStub(),
+  });
+  assert.equal(result.outcome, 'complete', result.red);
+  const bytes = readFileSync(result.deliveryId);
+  assert.ok(bytes.byteLength > 0, 'the sent file must carry non-zero bytes');
+});
+
+test('plant a (wrong derived total) reds through the REAL fold, naming the figure and formula', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'm0-fold-a-'));
+  acceptFinalAsk(runDir);
+  const result = await runOnPrimitives({
+    declaration: primitivesDeclaration(), runId: `fold-a-${Date.now()}`, outDir: runDir,
+    sources: realSources(), spendPath: join(runDir, 'spend.jsonl'), plant: 'a', modelStep: foldStub(),
+  });
+  assert.equal(result.outcome, 'red');
+  assert.equal(result.phase, 'derive');
+  assert.match(result.red, /5850/);
+  assert.match(result.red, /sum/);
+});
+
+test('plant b (wrong copied cell) reds through the REAL fold, naming the cell', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'm0-fold-b-'));
+  acceptFinalAsk(runDir);
+  const result = await runOnPrimitives({
+    declaration: primitivesDeclaration(), runId: `fold-b-${Date.now()}`, outDir: runDir,
+    sources: realSources(), spendPath: join(runDir, 'spend.jsonl'), plant: 'b', modelStep: foldStub(),
+  });
+  assert.equal(result.outcome, 'red');
+  assert.equal(result.phase, 'derive');
+  assert.match(result.red, /E2/);
+});
+
+test('plant c (two Northwinds) lands at an ask through the REAL fold — never a pick, zero derive calls', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'm0-fold-c-'));
+  // The planted row (generatePlantCCsv) is the 10th data row -> cell A10; deliberately NOT
+  // pre-answering the ambiguity ask, so the run must stop there rather than proceed.
+  const ambiguousDerive1 = {
+    citations: [
+      { id: 'c1', quote: 'Northwind', source: { kind: 'text', artifact: 'message-raw', line: 1 } },
+      { id: 'c2', value: 'Northwind Trading', source: { kind: 'csv', artifact: 'aging-sheet', cell: 'A2' } },
+      { id: 'c3', value: 'Northwind Supplies', source: { kind: 'csv', artifact: 'aging-sheet', cell: 'A10' } },
+    ],
+    matches: ['c2', 'c3'],
+  };
+  const modelStep = foldStub({ messageMatch: ambiguousDerive1 });
+  const result = await runOnPrimitives({
+    declaration: primitivesDeclaration(), runId: `fold-c-${Date.now()}`, outDir: runDir,
+    sources: realSources(), spendPath: join(runDir, 'spend.jsonl'), plant: 'c', modelStep, askTimeoutMs: 300,
+  });
+  assert.notEqual(result.outcome, 'complete');
+  assert.equal(result.phase, 'messageMatch-ambiguous');
+  assert.equal(modelStep.calls.derive ?? 0, 0, 'zero derive calls after an ambiguous match — never a pick');
+  assert.ok(existsSync(join(runDir, 'ask.json')), 'the ambiguity ask must actually be asked (ask.json written)');
+  const askedQuestion = JSON.parse(readFileSync(join(runDir, 'ask.json'), 'utf8'));
+  assert.match(askedQuestion.question, /Northwind Trading/);
+  assert.match(askedQuestion.question, /Northwind Supplies/);
+});
+
+test('plant e (green-by-omission, NEW) reds through the REAL fold when total/earliest-due are stripped from the composed text', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'm0-fold-e-'));
+  acceptFinalAsk(runDir);
+  const result = await runOnPrimitives({
+    declaration: primitivesDeclaration(), runId: `fold-e-${Date.now()}`, outDir: runDir,
+    sources: realSources(), spendPath: join(runDir, 'spend.jsonl'), plant: 'e', modelStep: foldStub(),
+  });
+  assert.equal(result.outcome, 'red');
+  assert.equal(result.phase, 'compose');
+  // Report item 5: WHICH check catches it — closeCompose's completeness check (F7's fix, keyed on
+  // derive's declaredFields), never a "declared close.shape" checker — nothing mechanically
+  // enforces step.close.shape today (softgreen's `{form, perInvoice, ...}` is descriptive only).
+  assert.match(result.red, /compose: declared field "(total_owed|earliest_due)"/);
+});
+
+test('PROOF plant e can fail: the SAME declaration and stub, with plant "d" instead of "e", goes green through send', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'm0-fold-e-control-'));
+  acceptFinalAsk(runDir);
+  const result = await runOnPrimitives({
+    declaration: primitivesDeclaration(), runId: `fold-e-control-${Date.now()}`, outDir: runDir,
+    sources: realSources(), spendPath: join(runDir, 'spend.jsonl'), plant: 'd', modelStep: foldStub(),
+  });
+  assert.equal(result.outcome, 'complete', result.red);
 });
