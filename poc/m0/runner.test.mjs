@@ -11,7 +11,7 @@ import { hashFile } from './close.mjs';
 import { parseArbiterSlots } from './validator.mjs';
 import {
   renderCsvArtifact, renderTextArtifact, generatePlantCCsv, applyPlant, BUSINESS_DATE, runDeclaration, OUT_DIR,
-  freezeInputs, bindSteps, checkGrants, checkSendDestination, preflight, runOnPrimitives,
+  freezeInputs, bindSteps, checkGrants, checkSendDestination, checkFreshRunDir, preflight, runOnPrimitives,
 } from './runner.mjs';
 
 // Derived from this file's own location, never process.cwd() — the same pattern every sibling
@@ -477,6 +477,65 @@ test('preflight refuses under the global spend cap, naming the cap, before freez
   const result = preflight(primitivesDeclaration(), { runDir, sources: realSources(), spendPath });
   assert.equal(result.ok, false);
   assert.match(result.red, /^cap: global spend cap reached/);
+});
+
+// --- FIX 3 (2026-09-13 live run): stale answer.json/ask.json = pre-accept ---
+// A run dir reused across runs (same --run-id) that already holds an answer
+// from an EARLIER run must never be treated as this run's accept. Refuses at
+// $0, before freeze — checkFreshRunDir is a pure filesystem check.
+
+test('checkFreshRunDir passes on a brand-new run dir', () => {
+  assert.equal(checkFreshRunDir(tempRunDir()).ok, true);
+});
+
+test('PROOF checkFreshRunDir can fail: a run dir already holding ask.json refuses, naming the file and the path', () => {
+  const runDir = tempRunDir();
+  writeFileSync(join(runDir, 'ask.json'), '{}');
+  const result = checkFreshRunDir(runDir);
+  assert.equal(result.ok, false);
+  assert.match(result.red, new RegExp(`run dir ${runDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} already holds ask\\.json from an earlier run`));
+});
+
+test('checkFreshRunDir also refuses on a pre-existing answer.json alone (no ask.json)', () => {
+  const runDir = tempRunDir();
+  writeFileSync(join(runDir, 'answer.json'), '{}');
+  const result = checkFreshRunDir(runDir);
+  assert.equal(result.ok, false);
+  assert.match(result.red, /already holds answer\.json from an earlier run — use a new --run-id/);
+});
+
+// The real evidence named in the fix: two run dirs from hamr's live M0b run genuinely hold
+// answer.json (and ask.json) from that earlier run. Read-only — never deleted, never edited.
+test('preflight refuses on the REAL m0b-ds-c and m0b-ds-d run dirs (real live-run evidence, untouched)', () => {
+  for (const runId of ['m0b-ds-c', 'm0b-ds-d']) {
+    const runDir = join(OUT_DIR, runId);
+    assert.ok(existsSync(join(runDir, 'answer.json')), `expected ${runDir}/answer.json to exist (real evidence)`);
+    const result = preflight(primitivesDeclaration(), {
+      runDir, sources: realSources(), spendPath: join(tempRunDir(), 'spend.jsonl'),
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.red, /already holds (ask|answer)\.json from an earlier run — use a new --run-id/);
+  }
+});
+
+test('PROOF the above can fail: preflight passes on a FRESH run dir with the same declaration/sources', () => {
+  const runDir = tempRunDir();
+  const result = preflight(primitivesDeclaration(), { runDir, sources: realSources(), spendPath: join(runDir, 'spend.jsonl') });
+  assert.equal(result.ok, true);
+});
+
+test('runOnPrimitives on a stale run dir never calls modelStep — the stale-answer refusal happens before any model round', async () => {
+  const runDir = join(OUT_DIR, 'm0b-ds-d'); // real, pre-existing answer.json/ask.json
+  let modelStepCalls = 0;
+  const spyModelStep = async () => { modelStepCalls += 1; return { ok: false, red: 'must not be called' }; };
+  const result = await runOnPrimitives({
+    declaration: primitivesDeclaration(), runId: 'm0b-ds-d', outDir: runDir, sources: realSources(),
+    spendPath: join(tempRunDir(), 'spend.jsonl'), plant: 'd', modelStep: spyModelStep,
+  });
+  assert.equal(result.outcome, 'red');
+  assert.equal(result.phase, 'preflight');
+  assert.match(result.red, /already holds (ask|answer)\.json from an earlier run/);
+  assert.equal(modelStepCalls, 0);
 });
 
 // --- runOnPrimitives — zero modelStep calls, zero spend rows on refusal --

@@ -231,6 +231,26 @@ export function checkSendDestination(target) {
 }
 
 /**
+ * Fresh run dir (FIX 3, 2026-09-13 live run): a run dir that already holds
+ * `ask.json` or `answer.json` from an EARLIER run is a stale-answer hazard —
+ * a new run reusing that `--run-id` would have `checkpointAsk` see the old
+ * `answer.json` and treat it as an instant accept, sending something the
+ * human never actually saw THIS run. Refuses at $0, before freeze — never
+ * silently proceeds, never deletes or edits the offending file.
+ */
+export function checkFreshRunDir(runDir) {
+  for (const file of ['ask.json', 'answer.json']) {
+    if (existsSync(join(runDir, file))) {
+      return {
+        ok: false,
+        red: `preflight: run dir ${runDir} already holds ${file} from an earlier run — use a new --run-id`,
+      };
+    }
+  }
+  return { ok: true };
+}
+
+/**
  * The full preflight, in the brief's order: validate() (Part 1's send lock
  * included) -> freeze -> bind -> grants -> destination -> global spend cap.
  * First red wins, exactly like validate() itself. Never calls a model, never
@@ -250,6 +270,9 @@ export function preflight(declaration, { runDir, sources, spendPath = SPEND_PATH
   if (!arbiterSlots.ask || !arbiterSlots.send) {
     return { ok: false, red: 'preflight: declaration carries no signed ask/send arbiter slots — cannot bind a primitive-driven run to it' };
   }
+
+  const freshRunDir = checkFreshRunDir(runDir);
+  if (!freshRunDir.ok) return freshRunDir;
 
   const frozen = freezeInputs(runDir, sources);
   if (!frozen.ok) return frozen;
