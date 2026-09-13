@@ -630,6 +630,29 @@ export async function sendViaPrimitive(dir, filename, content) {
  * retry/metering/spend-row wiring at $0 with a fake provider — never a
  * live model call. Production and the CLI always omit them, which builds
  * the real provider through `makeProvider(slot, ...)`, the one writer.
+ *
+ * Standing round rules (ported from the OLD `runModelStep` below, 2026-09-13
+ * fix — this function had DROPPED them, which meant a live provider error
+ * would throw straight out of `runOnPrimitives`, crash the run, and write NO
+ * spend row at all): bare-agent's `Loop` defaults `throwOnError: true`
+ * (`node_modules/bare-agent/src/loop.js` ~line 831), so `loop.run()` really
+ * does throw the raw provider error — this is not a result-field surface.
+ *   1. A retryable transport error (`err.retryable === true` or status
+ *      502/503/524) on attempt 1 -> retry once. A second failure -> red
+ *      `provider-red: <message>`.
+ *   2. EVERY failed attempt appends a spend row carrying the error text.
+ *      `costUsd` is `null` unless partial meterings arrived before the
+ *      throw (a round can complete, get priced, and THEN a later round in
+ *      the same `loop.run()` call throws — `onLlmResult` already captured
+ *      the priced one) — sum those and keep the row's cost real; never the
+ *      OLD code's "$0 asserted" shortcut, which F5 retired for exactly this
+ *      reason (a request that left the machine has an UNKNOWN cost, and
+ *      unknown is never rendered as 0).
+ *   3. A FINISHED round (stopReason != 'max_tokens') with no tool call ->
+ *      retry once. Twice in a row -> red naming the step, quoting the text.
+ *   4. `stopReason === 'max_tokens'` -> immediate red, never retried.
+ *   5. This function never throws for a model failure — always
+ *      `{ ok: false, red }` — so `runOnPrimitives` never throws either.
  */
 export async function runModelStepOnPrimitives({
   runId, stepLabel, slot, model, spendPath = SPEND_PATH, systemPrompt, userContent, toolName, toolDescription, toolSchema,
@@ -644,44 +667,82 @@ export async function runModelStepOnPrimitives({
     ({ provider, rates, modelId } = makeProvider(slot, { model, timeoutMs: 300_000 }));
   }
 
-  let capturedArgs = null;
-  const tools = [{
-    name: toolName,
-    description: toolDescription,
-    parameters: toolSchema,
-    execute: async (args) => { capturedArgs = args; return { ok: true }; },
-  }];
-  const meterings = [];
-  const loop = new Loop({ provider, rates, onLlmResult: async (event) => { meterings.push(event); } });
   const messages = [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userContent },
   ];
 
-  const startedAt = Date.now();
-  const result = await loop.run(messages, tools, { maxTokens: 16000 });
-  const wallMs = Date.now() - startedAt;
+  let noToolCallStreak = 0;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    let capturedArgs = null;
+    const tools = [{
+      name: toolName,
+      description: toolDescription,
+      parameters: toolSchema,
+      execute: async (args) => { capturedArgs = args; return { ok: true }; },
+    }];
+    const meterings = [];
+    const loop = new Loop({ provider, rates, onLlmResult: async (event) => { meterings.push(event); } });
 
-  // Written regardless of live/injected (unlike makeProvider/assertUnderGlobalCap above, which
-  // only run live): a stub round still represents "a model round happened" for test purposes,
-  // and the brief's own test ("a stub emitting 2 rounds -> the row sums both") reads this row
-  // back. A test always supplies its own temp spendPath, so this never touches the real ledger.
-  const metered = sumMeterings(meterings);
-  appendSpendRow(spendPath, {
-    runId, step: stepLabel, model: modelId, modelReturned: metered.model,
-    tokens: metered.tokens, costUsd: metered.costUsd, rounds: metered.rounds,
-    rateSource: metered.rateSource, wallMs, stopReason: result.stopReason ?? null,
-  });
+    const startedAt = Date.now();
+    let result;
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      result = await loop.run(messages, tools, { maxTokens: 16000 });
+    } catch (err) {
+      const wallMs = Date.now() - startedAt;
+      const transportRetryable = err?.retryable === true
+        || err?.status === 502 || err?.status === 503 || err?.status === 524;
+      // Rule 2: EVERY failed attempt gets a row — never skipped, never the OLD "first retry logs
+      // nothing" behaviour. costUsd comes from whatever rounds actually completed and priced
+      // before the throw (real evidence), never a guessed $0.
+      const partial = sumMeterings(meterings);
+      appendSpendRow(spendPath, {
+        runId, step: stepLabel, model: modelId, modelReturned: partial.model,
+        tokens: partial.tokens, costUsd: partial.costUsd, rounds: partial.rounds,
+        rateSource: partial.rateSource, wallMs, error: err.message,
+      });
+      if (transportRetryable && attempt === 1) continue; // one retry, then red
+      return { ok: false, red: `provider-red: ${err.message}` };
+    }
+    const wallMs = Date.now() - startedAt;
 
-  if (result.stopReason === 'max_tokens') {
-    return { ok: false, red: `truncated: ${metered.tokens?.outputTokens ?? '?'} tokens, no tool call` };
+    // Written regardless of live/injected (unlike makeProvider/assertUnderGlobalCap above, which
+    // only run live): a stub round still represents "a model round happened" for test purposes,
+    // and the brief's own test ("a stub emitting 2 rounds -> the row sums both") reads this row
+    // back. A test always supplies its own temp spendPath, so this never touches the real ledger.
+    const metered = sumMeterings(meterings);
+    appendSpendRow(spendPath, {
+      runId, step: stepLabel, model: modelId, modelReturned: metered.model,
+      tokens: metered.tokens, costUsd: metered.costUsd, rounds: metered.rounds,
+      rateSource: metered.rateSource, wallMs, stopReason: result.stopReason ?? null,
+    });
+
+    if (result.stopReason === 'max_tokens') {
+      // Rule 4: never retried — a truncated round is deterministic (the step needs fewer output
+      // tokens or a bigger cap), not a transient fault a retry could fix.
+      return { ok: false, red: `truncated: ${metered.tokens?.outputTokens ?? '?'} tokens, no tool call` };
+    }
+
+    if (capturedArgs == null) {
+      noToolCallStreak += 1;
+      if (noToolCallStreak >= 2) {
+        return {
+          ok: false,
+          red: `${stepLabel}: a FINISHED round (stopReason=${result.stopReason}) returned text instead of the `
+            + `tool twice in a row. Text: ${JSON.stringify(result.text)}`,
+        };
+      }
+      continue; // retry once
+    }
+
+    return {
+      ok: true, args: capturedArgs, metered, wallMs, stopReason: result.stopReason,
+    };
   }
-  if (capturedArgs == null) {
-    return { ok: false, red: `${stepLabel}: a FINISHED round (stopReason=${result.stopReason}) returned text instead of the tool` };
-  }
-  return {
-    ok: true, args: capturedArgs, metered, wallMs, stopReason: result.stopReason,
-  };
+  // Unreachable under the 3-attempt ceiling given the logic above, but keep the contract explicit
+  // (rule 5: never throw for a model failure).
+  return { ok: false, red: `${stepLabel}: exhausted retries without a clean result` };
 }
 
 // ---------------------------------------------------------------------------

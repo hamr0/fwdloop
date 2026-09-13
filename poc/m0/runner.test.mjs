@@ -878,3 +878,209 @@ test('PROOF plant e can fail: the SAME declaration and stub, with plant "d" inst
   });
   assert.equal(result.outcome, 'complete', result.red);
 });
+
+// ---------------------------------------------------------------------------
+// Coordinator fix (2026-09-13) — runModelStepOnPrimitives had DROPPED the
+// standing round rules the old runModelStep carries: no try/catch around
+// loop.run (a live provider error would throw straight out of
+// runOnPrimitives, crash the run, and write NO spend row), and no retry at
+// all. Ported: rule 1 (retryable transport error retries once), rule 2
+// (every failed attempt gets a spend row, costUsd null unless partial
+// meterings priced something real), rule 3 (no-tool-call retries once),
+// rule 4 (max_tokens never retried), rule 5 (never throws for a model
+// failure). $0, fake providers only.
+// ---------------------------------------------------------------------------
+
+function readSpendRows(spendPath) {
+  if (!existsSync(spendPath)) return [];
+  return readFileSync(spendPath, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+}
+
+/** A provider whose generate() consumes a fixed script of responses/throws in order — needed
+ *  because bare-agent's Loop keeps calling generate() (tool round -> finishing round) until it
+ *  sees a FINISHED round with no tool call, so a naive "throw once, then always return a tool
+ *  call" stub loops forever re-issuing the same tool call. */
+function scriptedProvider(script) {
+  let i = 0;
+  return {
+    calls: () => i,
+    generate: async () => {
+      const step = script[i];
+      i += 1;
+      if (typeof step === 'function') return step();
+      return step;
+    },
+  };
+}
+
+const TOOL_CALL_ROUND = {
+  text: null, toolCalls: [{ id: 't1', name: 'emit_x', arguments: { ok: true } }], usage: { inputTokens: 5, outputTokens: 5 }, stopReason: 'tool_calls', model: 'deepseek-flash',
+};
+const FINISHING_ROUND = {
+  text: '', toolCalls: [], usage: { inputTokens: 2, outputTokens: 1 }, stopReason: 'stop', model: 'deepseek-flash',
+};
+
+test('rule 1: a retryable transport error (status 502) on attempt 1 retries once, then succeeds', async () => {
+  const spendPath = join(mkdtempSync(join(tmpdir(), 'm0-retry-')), 'spend.jsonl');
+  const provider = scriptedProvider([
+    () => { const e = new Error('gateway timeout'); e.status = 502; throw e; }, // attempt 1: fails outright
+    TOOL_CALL_ROUND, // attempt 2, round 1: the tool call
+    FINISHING_ROUND, // attempt 2, round 2: the finishing round that ends the loop cleanly
+  ]);
+  const result = await runModelStepOnPrimitives({
+    runId: 'test-run', stepLabel: 'derive1', spendPath,
+    systemPrompt: 'x', userContent: 'y', toolName: 'emit_x', toolDescription: 'd',
+    toolSchema: { type: 'object', properties: {} },
+    provider, rates: { in: 0, out: 0 }, modelId: 'deepseek-flash',
+  });
+  assert.equal(result.ok, true);
+  assert.equal(provider.calls(), 3, 'one failed call (attempt 1) + two rounds for the succeeding attempt 2');
+  const rows = readSpendRows(spendPath);
+  assert.equal(rows.length, 2, 'the failed attempt AND the succeeding attempt each get a row');
+  assert.equal(rows[0].costUsd, null, 'a transport failure with no partial metering is never asserted at $0');
+  assert.match(rows[0].error, /gateway timeout/);
+});
+
+test('PROOF rule 1 can fail: a SECOND transport error (no more retries) reds "provider-red", with an error row for BOTH attempts', async () => {
+  const spendPath = join(mkdtempSync(join(tmpdir(), 'm0-retry-fail-')), 'spend.jsonl');
+  let calls = 0;
+  const provider = {
+    generate: async () => {
+      calls += 1;
+      const e = new Error(`gateway timeout #${calls}`); e.status = 503; throw e;
+    },
+  };
+  const result = await runModelStepOnPrimitives({
+    runId: 'test-run', stepLabel: 'derive1', spendPath,
+    systemPrompt: 'x', userContent: 'y', toolName: 'emit_x', toolDescription: 'd',
+    toolSchema: { type: 'object', properties: {} },
+    provider, rates: { in: 0, out: 0 }, modelId: 'deepseek-flash',
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.red, /^provider-red: gateway timeout #2$/);
+  assert.equal(calls, 2, 'exactly one retry, never a third attempt');
+  const rows = readSpendRows(spendPath);
+  assert.equal(rows.length, 2, 'both the retried AND the final failed attempt get their own row');
+  assert.ok(rows.every((r) => r.costUsd === null));
+  assert.match(rows[0].error, /gateway timeout #1/);
+  assert.match(rows[1].error, /gateway timeout #2/);
+});
+
+test('rule 2: a round priced for real BEFORE a later round throws is summed into the error row, never asserted at $0', async () => {
+  // Realistic two-round shape through the REAL Loop: round 1 emits the tool call (priced for real,
+  // onLlmResult fires with real usage against non-zero rates), THEN the finishing round (bare-
+  // agent's second internal generate() call, after the tool executes) throws a transport error.
+  // throwOnError:true (the default) means loop.run() throws straight out with round 1's pricing
+  // already captured by onLlmResult — this is the exact scenario rule 2 exists for.
+  const spendPath = join(mkdtempSync(join(tmpdir(), 'm0-partial-metering-')), 'spend.jsonl');
+  let calls = 0;
+  const provider = {
+    generate: async () => {
+      calls += 1;
+      if (calls === 1) {
+        return {
+          text: null, toolCalls: [{ id: 't1', name: 'emit_x', arguments: { ok: true } }], usage: { inputTokens: 100, outputTokens: 50 }, stopReason: 'tool_calls', model: 'deepseek-flash',
+        };
+      }
+      const e = new Error('finishing round: socket reset'); e.status = 502; throw e;
+    },
+  };
+  const result = await runModelStepOnPrimitives({
+    runId: 'test-run', stepLabel: 'derive1', spendPath,
+    systemPrompt: 'x', userContent: 'y', toolName: 'emit_x', toolDescription: 'd',
+    toolSchema: { type: 'object', properties: {} },
+    provider, rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash',
+  });
+  // 502 is retryable, but this happens on the SAME attempt's internal second round — attempt 1
+  // as a whole fails and (being attempt 1) gets one retry at the OUTER loop; the retried attempt's
+  // provider call count restarts from 1 (a fresh Loop/messages each attempt), so it succeeds the
+  // second time around (calls 3 = attempt 2's first round: tool call; loop finishes there since a
+  // captured tool call ends the round cleanly). What matters for THIS rule is the FIRST attempt's
+  // error row: it must carry the real, non-zero cost from round 1, never null and never $0-by-default.
+  const rows = readSpendRows(spendPath);
+  const errorRows = rows.filter((r) => r.error);
+  assert.ok(errorRows.length >= 1, 'the failed attempt must have its own row');
+  assert.ok(errorRows[0].costUsd > 0, `expected a real priced cost from round 1, got ${errorRows[0].costUsd}`);
+  assert.equal(errorRows[0].rounds, 1, 'exactly the one round that completed before the throw');
+  assert.match(errorRows[0].error, /finishing round: socket reset/);
+});
+
+test('rule 3: a FINISHED round with no tool call retries once, then succeeds', async () => {
+  const spendPath = join(mkdtempSync(join(tmpdir(), 'm0-notool-retry-')), 'spend.jsonl');
+  const provider = scriptedProvider([
+    { text: 'thinking out loud', toolCalls: [], usage: { inputTokens: 5, outputTokens: 5 }, stopReason: 'stop', model: 'deepseek-flash' }, // attempt 1: no tool call
+    TOOL_CALL_ROUND, // attempt 2, round 1: the tool call
+    FINISHING_ROUND, // attempt 2, round 2: the finishing round
+  ]);
+  const result = await runModelStepOnPrimitives({
+    runId: 'test-run', stepLabel: 'derive1', spendPath,
+    systemPrompt: 'x', userContent: 'y', toolName: 'emit_x', toolDescription: 'd',
+    toolSchema: { type: 'object', properties: {} },
+    provider, rates: { in: 0, out: 0 }, modelId: 'deepseek-flash',
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.args, { ok: true });
+  assert.equal(provider.calls(), 3);
+});
+
+test('PROOF rule 3 can fail: no tool call twice in a row reds, naming the step and quoting the text', async () => {
+  const spendPath = join(mkdtempSync(join(tmpdir(), 'm0-notool-twice-')), 'spend.jsonl');
+  let calls = 0;
+  const provider = {
+    generate: async () => {
+      calls += 1;
+      return {
+        text: `still thinking #${calls}`, toolCalls: [], usage: { inputTokens: 5, outputTokens: 5 }, stopReason: 'stop', model: 'deepseek-flash',
+      };
+    },
+  };
+  const result = await runModelStepOnPrimitives({
+    runId: 'test-run', stepLabel: 'derive1', spendPath,
+    systemPrompt: 'x', userContent: 'y', toolName: 'emit_x', toolDescription: 'd',
+    toolSchema: { type: 'object', properties: {} },
+    provider, rates: { in: 0, out: 0 }, modelId: 'deepseek-flash',
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.red, /derive1: a FINISHED round \(stopReason=stop\) returned text instead of the tool twice in a row\. Text: "still thinking #2"/);
+  assert.equal(calls, 2, 'exactly one retry, never a third attempt');
+});
+
+test('rule 4: max_tokens is an immediate red, never retried', async () => {
+  const spendPath = join(mkdtempSync(join(tmpdir(), 'm0-maxtok-')), 'spend.jsonl');
+  let calls = 0;
+  const provider = {
+    generate: async () => {
+      calls += 1;
+      return {
+        text: '', toolCalls: [], usage: { inputTokens: 5, outputTokens: 16000 }, stopReason: 'max_tokens', model: 'deepseek-flash',
+      };
+    },
+  };
+  const result = await runModelStepOnPrimitives({
+    runId: 'test-run', stepLabel: 'derive1', spendPath,
+    systemPrompt: 'x', userContent: 'y', toolName: 'emit_x', toolDescription: 'd',
+    toolSchema: { type: 'object', properties: {} },
+    provider, rates: { in: 0, out: 0 }, modelId: 'deepseek-flash',
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.red, /^truncated: 16000 tokens, no tool call$/);
+  assert.equal(calls, 1, 'max_tokens must never be retried');
+});
+
+test('rule 5: runOnPrimitives never throws when the model round fails — returns { outcome: "red", red, phase }', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'm0-fold-provider-red-'));
+  acceptFinalAsk(runDir);
+  let calls = 0;
+  const throwingModelStep = async () => {
+    calls += 1;
+    return { ok: false, red: 'provider-red: simulated transport failure' };
+  };
+  const result = await runOnPrimitives({
+    declaration: primitivesDeclaration(), runId: `fold-provider-red-${Date.now()}`, outDir: runDir,
+    sources: realSources(), spendPath: join(runDir, 'spend.jsonl'), plant: 'd', modelStep: throwingModelStep,
+  });
+  assert.equal(result.outcome, 'red');
+  assert.equal(result.phase, 'messageMatch');
+  assert.match(result.red, /provider-red: simulated transport failure/);
+  assert.ok(calls >= 1);
+});
