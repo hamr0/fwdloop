@@ -693,13 +693,19 @@ export async function runModelStepOnPrimitives({
       const wallMs = Date.now() - startedAt;
       const transportRetryable = err?.retryable === true
         || err?.status === 502 || err?.status === 503 || err?.status === 524;
-      // Rule 2: EVERY failed attempt gets a row — never skipped, never the OLD "first retry logs
-      // nothing" behaviour. costUsd comes from whatever rounds actually completed and priced
-      // before the throw (real evidence), never a guessed $0.
+      // Rule 2 (corrected 2026-09-13): EVERY failed attempt gets a row — never skipped. `costUsd`
+      // is ALWAYS null on a caught error: even when round 1 was priced for real, a LATER round in
+      // the same attempt throwing means THAT round's request left the machine with an unknown
+      // cost, and a known partial passed off as the attempt's cost understates spend — exactly
+      // what sumMeterings' own doc forbids ("never a partial sum passed off as complete"). A
+      // priced-looking row would also let assertUnderGlobalCap wave it through, which is wrong:
+      // an attempt with any unpriced round must block further spend until a human reconciles it
+      // (F5's rule), same as any other unknown-cost row. The known part (if any) is kept
+      // separately in `knownPartialUsd` — informational, never fed to the cap.
       const partial = sumMeterings(meterings);
       appendSpendRow(spendPath, {
         runId, step: stepLabel, model: modelId, modelReturned: partial.model,
-        tokens: partial.tokens, costUsd: partial.costUsd, rounds: partial.rounds,
+        tokens: partial.tokens, costUsd: null, knownPartialUsd: partial.costUsd, rounds: partial.rounds,
         rateSource: partial.rateSource, wallMs, error: err.message,
       });
       if (transportRetryable && attempt === 1) continue; // one retry, then red

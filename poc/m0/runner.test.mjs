@@ -966,12 +966,15 @@ test('PROOF rule 1 can fail: a SECOND transport error (no more retries) reds "pr
   assert.match(rows[1].error, /gateway timeout #2/);
 });
 
-test('rule 2: a round priced for real BEFORE a later round throws is summed into the error row, never asserted at $0', async () => {
+test('rule 2 (corrected): costUsd is ALWAYS null on a caught error, even when round 1 priced for real — the known part lands in knownPartialUsd only', async () => {
   // Realistic two-round shape through the REAL Loop: round 1 emits the tool call (priced for real,
   // onLlmResult fires with real usage against non-zero rates), THEN the finishing round (bare-
   // agent's second internal generate() call, after the tool executes) throws a transport error.
   // throwOnError:true (the default) means loop.run() throws straight out with round 1's pricing
-  // already captured by onLlmResult — this is the exact scenario rule 2 exists for.
+  // already captured by onLlmResult. Round 2's own request left the machine with an unknown cost
+  // — a known partial (round 1) passed off as the ATTEMPT's cost would understate spend and let
+  // assertUnderGlobalCap wave the row through, so costUsd stays null; the known part is kept
+  // separately, informational only.
   const spendPath = join(mkdtempSync(join(tmpdir(), 'm0-partial-metering-')), 'spend.jsonl');
   let calls = 0;
   const provider = {
@@ -996,11 +999,13 @@ test('rule 2: a round priced for real BEFORE a later round throws is summed into
   // provider call count restarts from 1 (a fresh Loop/messages each attempt), so it succeeds the
   // second time around (calls 3 = attempt 2's first round: tool call; loop finishes there since a
   // captured tool call ends the round cleanly). What matters for THIS rule is the FIRST attempt's
-  // error row: it must carry the real, non-zero cost from round 1, never null and never $0-by-default.
+  // error row: costUsd is null (the attempt as a whole has an unknown cost — round 2 never
+  // completed), but knownPartialUsd carries round 1's real, non-zero priced cost, never lost.
   const rows = readSpendRows(spendPath);
   const errorRows = rows.filter((r) => r.error);
   assert.ok(errorRows.length >= 1, 'the failed attempt must have its own row');
-  assert.ok(errorRows[0].costUsd > 0, `expected a real priced cost from round 1, got ${errorRows[0].costUsd}`);
+  assert.equal(errorRows[0].costUsd, null, 'the attempt\'s cost is unknown — round 2\'s request left the machine and never priced');
+  assert.ok(errorRows[0].knownPartialUsd > 0, `expected round 1's real priced cost in knownPartialUsd, got ${errorRows[0].knownPartialUsd}`);
   assert.equal(errorRows[0].rounds, 1, 'exactly the one round that completed before the throw');
   assert.match(errorRows[0].error, /finishing round: socket reset/);
 });
