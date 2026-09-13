@@ -11,3 +11,5 @@
 
 Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
 guardrail: cap $0.25 per run
+guardrail: ask at line 5
+guardrail: send at line 6 to file:poc/m0/out
