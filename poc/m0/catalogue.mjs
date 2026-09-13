@@ -95,21 +95,18 @@ export const CATALOGUE = Object.freeze([
     verb: 'forget', component: 'isolate', package: 'litectx', symbol: 'LiteCtx', method: 'forget', class: 'store', skill: 'memory', desc: 'Delete a saved note by id.',
   },
   // io — fwdloop's addition (see header): crosses outside the process.
-  // Checkpoint pauses out to a human; mailproof sends out to the world.
-  // Both are gated `write`-class for the same reason a tree write is: a
-  // read-only scout must never be able to reach either.
+  // Checkpoint pauses out to a human. Gated `write`-class for the same
+  // reason a tree write is: a read-only scout must never be able to reach
+  // it. A real email-sending package was catalogued here through M0a as
+  // fwdloop's egress primitive; M0b removed those two entries — the package
+  // turned an email REPLY into cryptographic proof of a sign-off, not a
+  // send-this-email function, so it was a wrong fit, and no fwdloop job used
+  // it (job #1's send writes a file behind the allow-list + accept). Real
+  // mail egress may return at M9 in a different role (a human's accept
+  // proven by email reply), scoped then — see docs/logs/FINDINGS.md for the
+  // package this fenced off.
   {
     verb: 'checkpoint', component: 'io', package: 'bare-agent', symbol: 'Checkpoint', class: 'write', skill: 'core', desc: "Pause the run and wait for a human's answer.",
-  },
-  // Real mail egress is explicitly gated behind its own signed allow-list
-  // (PRD §6 M9: "behind the signed allow-list and a prior ask accept in the
-  // same run") — a separate skill from the core drafting primitives above,
-  // not the default M0a job #1 skillset.
-  {
-    verb: 'draftMail', component: 'io', package: 'mailproof', symbol: 'create', class: 'write', skill: 'mail-egress', desc: 'Prepare an email without sending it.',
-  },
-  {
-    verb: 'sendMail', component: 'io', package: 'mailproof', symbol: 'sendmail', class: 'write', skill: 'mail-egress', desc: 'Send an email (only to a signed destination, after a human accept).',
   },
   // fwdloop's own citation contract — NOT a baresuite primitive.
   // F13 RULED 2026-09-09 ("it is ours"): reading bytes is bareloop's
@@ -167,19 +164,22 @@ export const FENCE = Object.freeze([
   },
 ]);
 
-// ---- job #1's needs, verbatim from F13's table --------------------------
-// F13's table has 8 rows covering 9 needs (one row, "match a customer,
-// derive figures", bundles two needs into fwdloop's own model-round + close
-// machinery — never a catalogue primitive, `own: true` below). The 9th is
-// the addressCells entry above. resolveJob1Need throws if a listed verb
-// isn't in the catalogue, same as primitiveFor.
+// ---- job #1's needs, from F13's table (minus real egress, M0b) ----------
+// F13's original table has 8 rows covering 9 needs (one row, "match a
+// customer, derive figures", bundles two needs into fwdloop's own
+// model-round + close machinery — never a catalogue primitive, `own: true`
+// below; the 9th is the addressCells entry above). JOB1_NEEDS here drops
+// F13's "real mail egress (M9)" row (7 rows remain): no fwdloop job uses it
+// — job #1's send writes a file behind the allow-list + accept — and the
+// catalogued egress package was a wrong fit for it anyway (see the removed
+// catalogue entries above). resolveJob1Need throws if a listed verb isn't in
+// the catalogue, same as primitiveFor.
 export const JOB1_NEEDS = Object.freeze([
   { need: 'read the message text', verbs: ['read'] },
   { need: 'read the AR sheet as addressable cells', verbs: ['addressCells'] },
   { need: 'match a customer, derive figures', own: true },
   { need: 'pause for a human', verbs: ['checkpoint'] },
   { need: 'write the reply out (dry-run egress)', verbs: ['write'] },
-  { need: 'real mail egress (M9)', verbs: ['draftMail', 'sendMail'] },
   { need: 'fence fs/net/secrets/budget per step', fence: true },
   { need: 'memory across runs', verbs: ['remember', 'recall', 'stash'] },
 ]);
