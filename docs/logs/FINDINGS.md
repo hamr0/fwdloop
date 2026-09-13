@@ -1154,3 +1154,54 @@ to do. The old-shape refusals red for the right outcome under a less precise lab
 old drafts lack `refused[].line`).
 
 **Lesson:** count what a step is granted, not that it exists.
+
+## F25 — M0b live: F5's plants still red on primitives; the compose close passes a made-up invoice number (2026-09-13)
+
+**Date** 2026-09-13 · **Status** measured; close fix sent to Sonnet · **Class** M0b hard case / Claim 1
+· **Grounded in** draft `poc/m0/out/draft-deepseek-flash-deepseek-prose-1789326506971.json`; run dirs
+`poc/m0/out/m0b-ds-{a,b,c,d,e}/`; 13 rows in `poc/m0/out/spend.jsonl` (runIds `m0b-ds-*`,
+`scout-`/`drafter-deepseek-flash-deepseek-prose`), all `modelMatch: "match"`; `poc/m0/close.mjs:261`;
+`fixtures/ar-aging.csv` row 3. Code at `066389f`. Run by hamr from his TTY.
+
+**One live pass, deepseek-flash, n=1 per plant, $0.0233.** Fresh scout → drafter round on the prose
+carrying the signed ask/send slots, then the primitive runner (`runOnPrimitives`) per plant.
+
+| plant | red / outcome | verdict |
+|---|---|---|
+| draft | passed preflight, including the F24 send lock | as expected |
+| a wrong total | `total_owed 5850 ≠ sum(E2,E3) = 5700` | caught, same text as F5 |
+| b wrong cell | `c1 4300 ≠ cell E2 = 4200` | caught, same text as F5 |
+| e omission (F7) | `compose: declared field "total_owed" (5700, c7) does not appear cited in the reply` | caught by compose completeness |
+| c two Northwinds | ask raised naming both, no pick; then `ask expired` | ask reached; answer came after the 10 min timeout |
+| d clean | compose green, ask raised; then `ask expired` | send NOT reached |
+
+**Negative (i) holds at n=1:** the plants F5 caught on bespoke code still red on primitives, same messages.
+
+**The hole.** Run d's composed reply, which closed green and was put to the human for accept:
+
+```
+- INV-1021: 4200[c1], due 2026-06-09[c3], not yet overdue (-8[c6] days until due)
+- INV-1022: 1500[c2], due 2026-05-20[c4], 12[c7] days overdue
+```
+
+The sheet's row 3 is `INV-1009`. `INV-1022` exists nowhere in the fixture. The model was handed
+`row 3 (INV-1009)` in its derive input and still wrote a different id. `closeCompose` strips every
+`[A-Za-z]+-\d+` token before looking for uncited figures (`close.mjs:261`), so an invoice id is never
+checked against anything. Every amount and date was cited and correct; the one identifier that tells
+the customer which invoice to pay was invented, and the close said green. Only a human reading closely
+at the ask stood between it and send. This is a close that verifies figures and not identifiers —
+the same shape as F7 (truth, not completeness): here, numbers, not names.
+
+**Two run defects, no money lost.** (1) The runner prints nothing when an ask opens, so the human cannot
+know it is waiting; both asks expired unanswered. (2) An `answer.json` left in a run dir is accepted
+instantly by the next run reusing that id — a pre-accept of a send the human never saw. `m0b-ds-c` and
+`m0b-ds-d` now hold one; those ids must not be reused.
+
+**Fix sent (tighten only):** an identifier in the composed text must be cited to its cell like any
+figure, or red; the runner announces an open ask with the exact answer command; preflight refuses a run
+dir that already holds an ask or answer.
+
+**Not yet measured:** clean run green through send; synthetic; Amendment C's 20 runs.
+
+**Lesson:** a check that strips what it doesn't understand passes it. Invented text hides in the part
+the close was told to ignore.
