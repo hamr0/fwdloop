@@ -1201,7 +1201,23 @@ instantly by the next run reusing that id — a pre-accept of a send the human n
 figure, or red; the runner announces an open ask with the exact answer command; preflight refuses a run
 dir that already holds an ask or answer.
 
-**Not yet measured:** clean run green through send; synthetic; Amendment C's 20 runs.
+**Fixed the same day (Sonnet, reviewed by the orchestrator), $0:**
+- `05c6b9b` — `closeCompose` now requires every `[A-Za-z]+-\d+` identifier to carry a bracket to a COPIED
+  citation whose value equals the token, resolved through the existing cell check. No new citation
+  form. Run d's exact `INV-1022` reply reds; `INV-1009[c]` cited to B3 is green. The runner's derive
+  prompt now emits a copied Invoice # citation per row, and compose is told to cite them. F7's quoted
+  gpt-oss-120b text (`INV-1:` / `INV-2:` labels in no cell) now reds on the identifier first. Its tests
+  were re-pointed and completeness got its own isolated proof, so both checks stay provable.
+- `cb9ed9b` — an open ask prints `ASK OPEN (<runId>, expires in Ns): … — answer with: node
+  poc/m0/answer.mjs <runId> accept`.
+- `4fe2ca6` — preflight refuses at $0 a run dir that already holds `ask.json` or `answer.json`.
+
+**Residual, not fixed:** the identifier check proves an invoice id is REAL, not that it sits on the
+same reply line as its own row's amount. Two real ids swapped between lines would pass. Closing it
+needs a line-to-row binding in the close; left for a measured reason, not guessed at.
+
+**Not yet measured:** clean run green through send; synthetic; Amendment C's 20 runs; the tightened
+compose on a live model (the prompt change could raise false reds — that is what the rerun measures).
 
 **Lesson:** a check that strips what it doesn't understand passes it. Invented text hides in the part
 the close was told to ignore.
