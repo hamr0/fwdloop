@@ -1,0 +1,142 @@
+{
+  "skills": [
+    "core"
+  ],
+  "guardrails": "1. When the AR aging sheet lands, read it,\n2. then read the chat message and work out which customer it is about.\n   guardrail: if more than one customer matches, ask me, do not pick\n3. Pull their open invoices, what they owe in total, the earliest due date, and how many are overdue as of the business date.\n   guardrail: every number must point to the cell it came from or the formula that made it\n4. Write me a short reply with one line per invoice,\n   guardrail: one line per invoice in the reply\n5. check it with me,\n   guardrail: nothing goes out before I accept\n6. and send it once I accept.\n\nArbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):\nguardrail: cap $0.25 per run\nguardrail: ask at line 5\nguardrail: send at line 6 to file:poc/m0/out",
+  "guardrailClasses": {
+    "2": "hitl",
+    "3": "green",
+    "4": "softgreen",
+    "5": "hitl"
+  },
+  "unjudgeable": {},
+  "realColumns": [
+    "Customer",
+    "Invoice #",
+    "Invoice date",
+    "Due date",
+    "Amount",
+    "Days overdue",
+    "Current",
+    "1-30",
+    "31-60",
+    "61-90",
+    "90+"
+  ],
+  "steps": [
+    {
+      "goal": "Read the AR aging sheet as it lands, parsing every row into addressable cells",
+      "primitives": [
+        "addressCells"
+      ],
+      "reads": [],
+      "emits": "aging_sheet",
+      "columns": [
+        "Customer",
+        "Invoice #",
+        "Invoice date",
+        "Due date",
+        "Amount",
+        "Days overdue",
+        "Current",
+        "1-30",
+        "31-60",
+        "61-90",
+        "90+"
+      ],
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      }
+    },
+    {
+      "goal": "Read the chat message and match it to a customer in the aging sheet; if more than one customer matches, pause and ask the human rather than picking",
+      "primitives": [
+        "read",
+        "checkpoint"
+      ],
+      "reads": [
+        "aging_sheet"
+      ],
+      "emits": "customer_match",
+      "columns": [],
+      "fromLine": 2,
+      "close": {
+        "class": "hitl"
+      }
+    },
+    {
+      "goal": "Pull the matched customer's open invoices, total amount owed, earliest due date, and overdue count as of the business date, citing each figure to the cell or formula it came from",
+      "primitives": [
+        "addressCells"
+      ],
+      "reads": [
+        "aging_sheet",
+        "customer_match"
+      ],
+      "emits": "invoice_figures",
+      "columns": [
+        "Customer",
+        "Invoice #",
+        "Due date",
+        "Amount",
+        "Days overdue"
+      ],
+      "fromLine": 3,
+      "close": {
+        "class": "green"
+      }
+    },
+    {
+      "goal": "Write a short reply with one line per invoice",
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "invoice_figures"
+      ],
+      "emits": "reply_draft",
+      "columns": [],
+      "fromLine": 4,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "unit": "invoice",
+          "linesPerUnit": 1
+        }
+      }
+    },
+    {
+      "goal": "Present the reply draft to the human and wait for explicit acceptance before anything is sent",
+      "primitives": [
+        "checkpoint"
+      ],
+      "reads": [
+        "reply_draft"
+      ],
+      "emits": "human_acceptance",
+      "columns": [],
+      "fromLine": 5,
+      "close": {
+        "class": "hitl"
+      }
+    },
+    {
+      "goal": "Send the accepted reply once the human has accepted",
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "reply_draft",
+        "human_acceptance"
+      ],
+      "emits": "sent_reply",
+      "columns": [],
+      "fromLine": 6,
+      "close": {
+        "class": "hitl"
+      }
+    }
+  ],
+  "refused": []
+}

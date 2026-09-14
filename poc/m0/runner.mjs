@@ -195,7 +195,7 @@ export function bindSteps(declaration, arbiterSlots) {
 // The ask stage uses Checkpoint with NO grant check: its position is
 // arbiter (the human signed it), never the drafter's primitive list to prove.
 const GRANT_REQUIREMENTS = Object.freeze([
-  ['sheetRead', Object.freeze(['read', 'addressCells'])],
+  ['sheetRead', Object.freeze(['addressCells'])],
   ['messageMatch', Object.freeze(['read'])],
   ['send', Object.freeze(['write'])],
 ]);

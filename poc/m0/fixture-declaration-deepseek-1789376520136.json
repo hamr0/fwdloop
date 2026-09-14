@@ -1,0 +1,149 @@
+{
+  "skills": [
+    "core"
+  ],
+  "guardrails": "1. When the AR aging sheet lands, read it,\n2. then read the chat message and work out which customer it is about.\n   guardrail: if more than one customer matches, ask me, do not pick\n3. Pull their open invoices, what they owe in total, the earliest due date, and how many are overdue as of the business date.\n   guardrail: every number must point to the cell it came from or the formula that made it\n4. Write me a short reply with one line per invoice,\n   guardrail: one line per invoice in the reply\n5. check it with me,\n   guardrail: nothing goes out before I accept\n6. and send it once I accept.\n\nArbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):\nguardrail: cap $0.25 per run\nguardrail: ask at line 5\nguardrail: send at line 6 to file:poc/m0/out",
+  "guardrailClasses": {
+    "2": "hitl",
+    "3": "green",
+    "4": "softgreen",
+    "5": "hitl"
+  },
+  "unjudgeable": {},
+  "realColumns": [
+    "Customer",
+    "Invoice #",
+    "Invoice date",
+    "Due date",
+    "Amount",
+    "Days overdue",
+    "Current",
+    "1-30",
+    "31-60",
+    "61-90",
+    "90+"
+  ],
+  "steps": [
+    {
+      "goal": "Read the AR aging sheet as addressable cells so every figure downstream can be cited back to a cell.",
+      "primitives": [
+        "addressCells"
+      ],
+      "reads": [],
+      "emits": "aging_cells",
+      "columns": [
+        "Customer",
+        "Invoice #",
+        "Invoice date",
+        "Due date",
+        "Amount",
+        "Days overdue",
+        "Current",
+        "1-30",
+        "31-60",
+        "61-90",
+        "90+"
+      ],
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      }
+    },
+    {
+      "goal": "Read the chat message and work out which customer in the aging sheet it is about; if more than one customer matches, ask the human instead of picking one.",
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "aging_cells"
+      ],
+      "emits": "customer_match",
+      "columns": [
+        "Customer"
+      ],
+      "fromLine": 2,
+      "close": {
+        "class": "hitl"
+      }
+    },
+    {
+      "goal": "For the matched customer, pull their open invoices, total owed, earliest due date, and count of invoices overdue as of the business date, each figure tied to the cell or formula it came from.",
+      "primitives": [
+        "addressCells"
+      ],
+      "reads": [
+        "aging_cells",
+        "customer_match"
+      ],
+      "emits": "invoice_facts",
+      "columns": [
+        "Customer",
+        "Invoice #",
+        "Due date",
+        "Amount"
+      ],
+      "fromLine": 3,
+      "close": {
+        "class": "green"
+      }
+    },
+    {
+      "goal": "Write a short reply to the customer containing one line per open invoice.",
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "invoice_facts"
+      ],
+      "emits": "reply_draft",
+      "columns": [
+        "Invoice #",
+        "Due date",
+        "Amount"
+      ],
+      "fromLine": 4,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "oneLinePerInvoice": true,
+          "lineFields": [
+            "Invoice #",
+            "Due date",
+            "Amount"
+          ]
+        }
+      }
+    },
+    {
+      "goal": "Show the drafted reply to the human and wait for their acceptance before anything leaves.",
+      "primitives": [
+        "checkpoint"
+      ],
+      "reads": [
+        "reply_draft"
+      ],
+      "emits": "approved_reply",
+      "columns": [],
+      "fromLine": 5,
+      "close": {
+        "class": "hitl"
+      }
+    },
+    {
+      "goal": "Send the accepted reply to the customer.",
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "approved_reply"
+      ],
+      "emits": "sent_reply",
+      "columns": [],
+      "fromLine": 6,
+      "close": {
+        "class": "hitl"
+      }
+    }
+  ],
+  "refused": []
+}

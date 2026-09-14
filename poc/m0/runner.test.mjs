@@ -401,6 +401,29 @@ test('PROOF checkGrants can fail: the sheet-read stage missing "addressCells" re
   assert.match(result.red, /grants: step for line 1 \(stage "sheetRead"\) is not granted "addressCells"/);
 });
 
+// The runner now agrees with the drafter's menu (catalogue.mjs): addressCells alone reads the
+// sheet. readFrozenCsv (line ~558) never calls a separate "read" primitive at runtime — it goes
+// straight through shell_read then addressCells's own parseCsv — so sheetRead's grant requirement
+// must not demand "read" too, or a declaration that follows the menu refuses at preflight forever.
+
+test('checkGrants passes for a sheet-read stage granted ONLY "addressCells" (no "read") — the menu-matching shape', () => {
+  const decl = primitivesDeclaration();
+  decl.steps[0].primitives = ['addressCells']; // menu shape: addressCells alone
+  const { slots } = parseArbiterSlots(decl.guardrails);
+  const { stages } = bindSteps(decl, slots);
+  assert.equal(checkGrants(stages).ok, true);
+});
+
+test('PROOF checkGrants can fail: a sheet-read stage granted ONLY "read" (no "addressCells") still refuses, naming "addressCells"', () => {
+  const decl = primitivesDeclaration();
+  decl.steps[0].primitives = ['read']; // the inverse shape: read alone is never enough
+  const { slots } = parseArbiterSlots(decl.guardrails);
+  const { stages } = bindSteps(decl, slots);
+  const result = checkGrants(stages);
+  assert.equal(result.ok, false);
+  assert.match(result.red, /grants: step for line 1 \(stage "sheetRead"\) is not granted "addressCells"/);
+});
+
 test('checkGrants: the send stage missing "write" refuses naming it', () => {
   const decl = primitivesDeclaration();
   decl.steps[5].primitives = [];
@@ -467,6 +490,21 @@ test('PROOF preflight can fail: an unwritable send destination refuses even thou
   const result = preflight(decl, { runDir, sources: realSources(), spendPath: join(runDir, 'spend.jsonl') });
   assert.equal(result.ok, false);
   assert.match(result.red, /destination: send target directory .* is not writable/);
+});
+
+// Real evidence: two fresh live drafts (deepseek and Qwen/synthetic) both wrote line 1's
+// primitives as ["addressCells"] alone, matching the drafter's own menu (catalogue.mjs:117,179),
+// and both refused at preflight under the old ['read','addressCells'] requirement. Their
+// `declaration` fields are untracked in poc/m0/out/, so they are copied here as fixtures rather
+// than depended on live: fixture-declaration-deepseek-1789376520136.json and
+// fixture-declaration-qwen-1789376657229.json.
+test('preflight passes on the REAL deepseek and Qwen draft declarations that follow the menu (addressCells alone on line 1)', () => {
+  for (const fixture of ['fixture-declaration-deepseek-1789376520136.json', 'fixture-declaration-qwen-1789376657229.json']) {
+    const decl = JSON.parse(readFileSync(join(__dirname, fixture), 'utf8'));
+    const runDir = tempRunDir();
+    const result = preflight(decl, { runDir, sources: realSources(), spendPath: join(runDir, 'spend.jsonl') });
+    assert.equal(result.ok, true, `${fixture}: expected preflight to pass, got red: ${result.red}`);
+  }
 });
 
 test('preflight refuses under the global spend cap, naming the cap, before freezing anything', () => {
