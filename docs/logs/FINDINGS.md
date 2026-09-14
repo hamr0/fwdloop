@@ -1334,7 +1334,11 @@ has a BA-19 *deadline* (`deadlineMs`, total wall) that we leave disabled. Not ch
 $0.0614). The same-day rule means synthetic was not run alone.
 
 **Open, for the next batch day (a new tag, e.g. `2026-09-15`):**
-- set `deadlineMs` (e.g. 240 s) next to `timeoutMs` so a hang reds in 4 min, retryable false — Sonnet;
+- DONE the same night (`dd96d87`, Sonnet, reviewed): `LIVE_PROVIDER_OPTIONS = { timeoutMs: 300_000,
+  deadlineMs: 240_000 }` on the one live call; proven against a local server that sends 200 + one byte
+  and never ends (rejects `EDEADLINE`, `retryable: false`, not retried, one null row). The first
+  revert-proof test accepted `deadlineMs: 0` — which bare-agent treats as OFF — and was tightened to
+  `> 0`; 422 → 429 tests. scout/drafter/redraft still call `makeProvider` with no timeout at all;
 - when `choices` is missing, keep the body's first ~300 bytes in the red so a hang and a 4xx-in-200 can
   be told apart — that is an upstream bare-agent ask (`provider-openai.js:128`), not ours;
 - the 22 leftover `batch-*`/`m0b-*-2026-09-14*` entries in `poc/m0/out/` are evidence of the aborted day
