@@ -1241,3 +1241,54 @@ validation — which conflicts with the 2026-09-10 "silence is hitl" ruling and 
 
 **Lesson:** a check that strips what it doesn't understand passes it. Invented text hides in the part
 the close was told to ignore.
+
+## F26 — batch day: both fresh drafts refuse at preflight, because our menu and our grant check disagree (2026-09-14)
+
+**Date** 2026-09-14 · **Status** fixed, reviewed (hamr ruled: the runner comes to agree with the
+menu) · **Class** M0b / Amendment C preflight · **Grounded in** drafts
+`poc/m0/out/draft-deepseek-flash-deepseek-prose-1789376520136.json` and
+`poc/m0/out/draft-Qwen_Qwen3.8-27B-synthetic-prose-1789376657229.json`; control
+`poc/m0/out/draft-deepseek-flash-deepseek-prose-1789326506971.json`; `poc/m0/catalogue.mjs:117`, `:179`;
+`poc/m0/runner.mjs:198`, `:337`; 4 rows in `poc/m0/out/spend.jsonl` (`scout-`/`drafter-` for both slots).
+Code at `5d49b54`. Drafts run by hamr from his TTY.
+
+**What happened.** Batch day step 1 made a fresh draft per provider (scout + drafter, $0.01505 total:
+deepseek $0.00503 `modelMatch: "match"`, synthetic $0.01002 `modelMatch: "prefix"`). Before any batch
+run, the orchestrator ran `preflight()` on both at $0 in a scratch run dir:
+
+| draft | line 1 primitives | preflight |
+|---|---|---|
+| deepseek `1789376520136` (fresh) | `["addressCells"]` | red: `grants: step for line 1 (stage "sheetRead") is not granted "read"` |
+| synthetic `1789376657229` (fresh) | `["addressCells"]` | red: same |
+| deepseek `1789326506971` (F25's, control) | `["read","addressCells"]` | ok |
+
+The control passing proves the probe, not the drafts, is sound. No batch run was started.
+
+**Cause.** Two writers of one rule. The drafter's menu says `addressCells` alone reads the sheet: its
+desc is "Read a spreadsheet as cells", class `read`, and `JOB1_NEEDS` maps "read the AR sheet as
+addressable cells" to `['addressCells']`. The runner's grant check demands `read` AND `addressCells` for
+the sheet stage. At run time the sheet stage uses no separate `read`: `readFrozenCsv` reads the frozen
+copy and parses it. Both models followed the menu; the check refused them for a verb the stage never uses.
+
+**The new fact.** F25's live pass rested on a draft that happened to list both verbs. That green was
+real for that draft but not repeatable from the menu. n=1 hid it; two fresh drafts on two providers
+showed it at once. The batch's own scoring would not have miscounted it: `classifyVerdict` requires the
+expected phase, so a preflight red is a miss for a/b/e, never a pass.
+
+**Fix (Sonnet, reviewed by the orchestrator), $0.** `runner.mjs` sheet stage now requires
+`addressCells` only; `messageMatch` still needs `read`, send still needs `write`. No signed PRD or ladder
+line required `read` on line 1; the only source was the orchestrator's own unsigned M0b brief. Three
+tests: `addressCells` alone passes; `read` alone still refuses naming `addressCells`; preflight passes on
+both real drafts, copied byte-identical as `poc/m0/fixture-declaration-{deepseek-1789376520136,qwen-1789376657229}.json`.
+The orchestrator reverted only the grant line: 2 tests red; restored: 422/422.
+
+**Not redrafted to pass.** The two drafts above stay as evidence. Fresh drafts follow after the fix.
+
+**Nit found on the way, not fixed:** six older `runner.test.mjs` tests (`test-happened-*`,
+`test-preflight-*`) and two fold tests still leave 8 entries in `poc/m0/out/` per suite run. They are
+git-ignored and nothing reads them; the orchestrator deleted today's 16 by exact name.
+
+**Residual, not fixed:** the grant table and `JOB1_NEEDS` are still two hand-kept lists; nothing makes
+them agree. The next drift between them refuses the same way.
+
+**Lesson:** a check and the menu it judges need one source. A pass at n=1 can be luck in the draft.
