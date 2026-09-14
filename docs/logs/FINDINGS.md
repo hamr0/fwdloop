@@ -1292,3 +1292,53 @@ git-ignored and nothing reads them; the orchestrator deleted today's 16 by exact
 them agree. The next drift between them refuses the same way.
 
 **Lesson:** a check and the menu it judges need one source. A pass at n=1 can be luck in the draft.
+
+## F27 — batch day stopped: DeepSeek accepts every chat request and answers none; three 900 s hangs, priced at ceiling (2026-09-14)
+
+**Date** 2026-09-14 evening · **Status** measured, batch day aborted; nothing fixed · **Class** provider /
+money · **Grounded in** ledger rows 245–249 in `poc/m0/out/spend.jsonl` (`m0b-deepseek-a-2026-09-14-1`,
+`m0b-deepseek-c-2026-09-14b-1`, `probe-ds-old-a-2026-09-14`, `probe-ds-curl-{1,2}-2026-09-14`); bar files
+`poc/m0/out/batch-*-2026-09-14*.json`; `node_modules/bare-agent/src/provider-openai.js:128`;
+`poc/m0/runner.mjs` `makeProvider(..., { timeoutMs: 300_000 })`. DeepSeek status page read 22:00 CEST:
+"everything is running smoothly". Balance endpoint: $9.26, unchanged through the evening (hamr).
+
+**What happened, in order.**
+1. Terminal 1's four c/d batches crashed in 0.2 s each: the shell had no API keys (the `export` lines
+   were in another window). $0, no ledger row; the batch reported `crashed` and `$unknown`, correct.
+   Cost: the tags `2026-09-14` for c/d are consumed (a bar file with results is never overwritten).
+2. Terminal 2 (keys present) ran `deepseek a` run 1: the first model round (messageMatch) returned after
+   900.4 s with a body bare-agent could not read (`Cannot read properties of undefined (reading '0')` —
+   `data.choices[0]`, the body is not logged). Row 245 `costUsd: null`, `rounds: 0`.
+3. That one null row locked every following batch at preflight on both slots (`cap: spend tally has an
+   unpriced round`), 0.2 s each, $0 — the F5 rule doing its job.
+4. hamr's c retry (`2026-09-14b`) hung the same way, 901.1 s. Row 246.
+5. hamr checked the DeepSeek dashboard: no usage, balance not moving. He ruled ceiling pricing per the
+   2026-09-08 precedent (`221d918`): 4000 in + 16000 out at peak = $0.0204 a row. Rows 245–246 repriced,
+   `rateSource: "ceiling"`, `reconciled` note. Lock lifted.
+6. Orchestrator probe from its own shell (pass is readable there; keys never printed): F25's known-good
+   draft, plant a → the same 900.7 s hang. Row 247, ceiling. So it is not today's draft.
+7. Two direct `curl` calls, 90 s limit: `"Say hi"`, `max_tokens 5`, no tools → HTTP 200 headers, 1 byte of
+   body, then nothing for 90 s. Same with one tool declared. Rows 248–249 at ceiling ($0.00001, $0.00008).
+   `GET /models` and `GET /user/balance` answered in under a second.
+
+**The fact.** `api.deepseek.com/chat/completions` accepted every request tonight, sent 200 headers, and
+never sent a body; the CloudFront edge in front of it closed each at ~900 s (its origin ceiling) with a
+non-chat body. This is independent of draft, plant, tool use, and prompt size. It is not on the status
+page. The scout and drafter rounds at 21:2x on the same key worked in 16–19 s.
+
+**Why it cost 15 minutes a try and not 5.** `makeProvider` sets bare-agent's BA-18 *idle* timeout to
+300 s; that timer resets on any socket byte, and the edge kept the socket alive. bare-agent 0.42.0 also
+has a BA-19 *deadline* (`deadlineMs`, total wall) that we leave disabled. Not changed tonight.
+
+**Batch day result: none.** 0 of 200 runs happened. Spend today $0.0764 (drafts $0.0150, hangs at ceiling
+$0.0614). The same-day rule means synthetic was not run alone.
+
+**Open, for the next batch day (a new tag, e.g. `2026-09-15`):**
+- set `deadlineMs` (e.g. 240 s) next to `timeoutMs` so a hang reds in 4 min, retryable false — Sonnet;
+- when `choices` is missing, keep the body's first ~300 bytes in the red so a hang and a 4xx-in-200 can
+  be told apart — that is an upstream bare-agent ask (`provider-openai.js:128`), not ours;
+- the 22 leftover `batch-*`/`m0b-*-2026-09-14*` entries in `poc/m0/out/` are evidence of the aborted day
+  and stay; the next day's tag must differ.
+
+**Lesson:** a green status page and a live balance endpoint prove the door is open, not that anyone is
+home. Probe the paid path with the smallest possible call before spending a batch on it.
