@@ -690,6 +690,17 @@ export async function sendViaPrimitive(dir, filename, content) {
  *   5. This function never throws for a model failure — always
  *      `{ ok: false, red }` — so `runOnPrimitives` never throws either.
  */
+// F27 (2026-09-14): DeepSeek's `chat/completions` sent HTTP 200 + headers + one byte, then
+// nothing — a "zombie stream". `timeoutMs`'s BA-18 idle bound resets on any socket byte, so it
+// never trips on this shape; only CloudFront's own ~900s edge close ended it. `deadlineMs` is
+// bare-agent's BA-19 TOTAL wall-clock ceiling, which does not reset on socket activity: 240s <
+// 300s idle bound, so a hung request reds in 4 minutes, not 15. On trip it rejects with
+// `code: 'EDEADLINE', retryable: false` — the `transportRetryable` check below is deliberately
+// false for that code, so it is NOT retried (a retry would spend up to another full deadline on
+// a request that has already proven it will never answer). Frozen + exported so the revert-proof
+// test can assert on the live call's actual config, not a copy of these numbers.
+export const LIVE_PROVIDER_OPTIONS = Object.freeze({ timeoutMs: 300_000, deadlineMs: 240_000 });
+
 export async function runModelStepOnPrimitives({
   runId, stepLabel, slot, model, spendPath = SPEND_PATH, systemPrompt, userContent, toolName, toolDescription, toolSchema,
   provider: injectedProvider, rates: injectedRates, modelId: injectedModelId,
@@ -700,7 +711,7 @@ export async function runModelStepOnPrimitives({
   let modelId = injectedModelId;
   if (live) {
     assertUnderGlobalCap(spendPath);
-    ({ provider, rates, modelId } = makeProvider(slot, { model, timeoutMs: 300_000 }));
+    ({ provider, rates, modelId } = makeProvider(slot, { model, ...LIVE_PROVIDER_OPTIONS }));
   }
 
   const messages = [

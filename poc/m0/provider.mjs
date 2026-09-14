@@ -64,8 +64,17 @@ export function resolveModelRate(modelId, ratesTable = RATES_BY_SUFFIX) {
  * 300_000 for its own rounds — this is the ONE writer for provider
  * construction, so that value is passed in here rather than a second
  * `new OpenAI(...)` call constructing its own provider inline.
+ *
+ * `deadlineMs` (F27, 2026-09-14): bare-agent's BA-19 TOTAL wall-clock ceiling
+ * (`applyRequestDeadline` in provider-http.js) — distinct from `timeoutMs`'s
+ * BA-18 IDLE bound, which resets on any socket byte and so never trips on a
+ * "zombie stream" (200 + headers + one byte, then silence — DeepSeek,
+ * observed live, ~900s per hang before the CloudFront edge itself closed
+ * it). On trip: `TimeoutError`, `code: 'EDEADLINE'`, `retryable: false`.
+ * Optional and undefined by default, same conditional-spread pattern as
+ * `timeoutMs`, so every existing caller is unaffected.
  */
-export function makeProvider(slotName, { model, timeoutMs } = {}) {
+export function makeProvider(slotName, { model, timeoutMs, deadlineMs } = {}) {
   const slot = PROVIDER_SLOTS[slotName];
   if (!slot) {
     throw new Error(`unknown provider slot "${slotName}" — known slots: ${Object.keys(PROVIDER_SLOTS).join(', ')}`);
@@ -83,6 +92,7 @@ export function makeProvider(slotName, { model, timeoutMs } = {}) {
     baseUrl: slot.baseUrl,
     legacyMaxTokens: slot.legacyMaxTokens === true,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+    ...(deadlineMs !== undefined ? { deadlineMs } : {}),
   });
 
   return {

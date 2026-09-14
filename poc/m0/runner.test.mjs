@@ -622,6 +622,7 @@ test('PROOF the above can fail: a genuinely clean declaration passes preflight a
 
 import {
   readFrozenText, readFrozenCsv, readFrozenTextArtifact, checkpointAsk, sendViaPrimitive, runModelStepOnPrimitives,
+  LIVE_PROVIDER_OPTIONS,
 } from './runner.mjs';
 
 // --- readFrozenText / readFrozenCsv / readFrozenTextArtifact --------------
@@ -731,6 +732,82 @@ test('PROOF sendViaPrimitive can fail: an empty write reds on "happened", readin
   const result = await sendViaPrimitive(dir, 'sent.txt', '');
   assert.equal(result.ok, false);
   assert.match(result.red, /^happened:/);
+});
+
+// F27 (2026-09-14) — LIVE_PROVIDER_OPTIONS is the runner's ONE live call site's config, frozen
+// and exported so a revert (deleting `deadlineMs: 240_000` from the live makeProvider(...) call)
+// reds THIS test even though it never touches a network or a real provider. `< timeoutMs` is the
+// intended relationship (F27's brief): the deadline must trip BEFORE the idle bound would ever
+// have a chance to (300s idle vs 240s deadline — a hung request reds in 4 min, not 15).
+// `> 0` is load-bearing, not decorative: bare-agent's `applyRequestDeadline` treats `deadlineMs`
+// as DISABLED whenever `!(deadlineMs > 0)` — so `deadlineMs: 0` is a NUMBER, and IS `< timeoutMs`,
+// yet silently reintroduces the exact zombie-stream hang F27 exists to close. Without this
+// assertion a revert to `0` passes this test while turning the deadline back off in production.
+test('LIVE_PROVIDER_OPTIONS carries a positive, finite deadlineMs strictly under its timeoutMs (F27)', () => {
+  assert.equal(typeof LIVE_PROVIDER_OPTIONS.timeoutMs, 'number');
+  assert.equal(typeof LIVE_PROVIDER_OPTIONS.deadlineMs, 'number');
+  assert.ok(Number.isFinite(LIVE_PROVIDER_OPTIONS.deadlineMs));
+  assert.ok(LIVE_PROVIDER_OPTIONS.deadlineMs > 0, 'deadlineMs must be > 0 — bare-agent treats 0 (and any !(deadlineMs > 0)) as DISABLED');
+  assert.ok(LIVE_PROVIDER_OPTIONS.deadlineMs < LIVE_PROVIDER_OPTIONS.timeoutMs);
+  assert.ok(Object.isFrozen(LIVE_PROVIDER_OPTIONS));
+});
+
+// F27's runner-level proof: a provider whose FIRST round rejects exactly like a tripped BA-19
+// deadline (`code: 'EDEADLINE', retryable: false`) must be classified NON-retryable by
+// `transportRetryable` (retryable !== true, status not 502/503/524) — so the standing "one retry
+// then red" rule (rule 1) does NOT retry it, and exactly one spend row is written (rule 2, cost
+// unknown -> null) before the red. This exercises the exact catch branch a live deadline trip
+// would hit; only the transport call is stubbed ($0, no network).
+test('a provider rejecting with EDEADLINE/retryable:false is never retried — one spend row, provider-red names the deadline', async () => {
+  const runId = `test-deadline-${Date.now()}`;
+  const spendPath = join(mkdtempSync(join(tmpdir(), 'm0-spend-deadline-')), 'spend.jsonl');
+  let calls = 0;
+  const deadlineErr = Object.assign(new Error('[OpenAIProvider] request exceeded its total deadline of 240000ms'), {
+    code: 'EDEADLINE', retryable: false,
+  });
+  const provider = {
+    generate: async () => {
+      calls += 1;
+      throw deadlineErr;
+    },
+  };
+  const result = await runModelStepOnPrimitives({
+    runId, stepLabel: 'derive1', spendPath,
+    systemPrompt: 'x', userContent: 'y', toolName: 'emit_x', toolDescription: 'd',
+    toolSchema: { type: 'object', properties: {} },
+    provider, rates: { in: 0, out: 0 }, modelId: 'deepseek-flash',
+  });
+  assert.equal(calls, 1, 'EDEADLINE/retryable:false must not trigger rule 1\'s one retry');
+  assert.equal(result.ok, false);
+  assert.match(result.red, /provider-red: .*deadline/);
+  const rows = readFileSync(spendPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(rows.length, 1, 'exactly one spend row — no retry means no second row');
+  assert.equal(rows[0].costUsd, null, 'an attempt that threw carries an unknown cost, never $0');
+});
+
+// PROOF the test above can fail: a RETRYABLE transport error (502) on attempt 1 DOES retry —
+// contrast with EDEADLINE above to prove transportRetryable's classification is doing real work,
+// not just always-false.
+test('PROOF the deadline test above can fail: a retryable 502 IS retried once, writing two spend rows', async () => {
+  const runId = `test-retry-${Date.now()}`;
+  const spendPath = join(mkdtempSync(join(tmpdir(), 'm0-spend-retry-')), 'spend.jsonl');
+  let calls = 0;
+  const provider = {
+    generate: async () => {
+      calls += 1;
+      throw Object.assign(new Error('bad gateway'), { status: 502 });
+    },
+  };
+  const result = await runModelStepOnPrimitives({
+    runId, stepLabel: 'derive1', spendPath,
+    systemPrompt: 'x', userContent: 'y', toolName: 'emit_x', toolDescription: 'd',
+    toolSchema: { type: 'object', properties: {} },
+    provider, rates: { in: 0, out: 0 }, modelId: 'deepseek-flash',
+  });
+  assert.equal(calls, 2, 'a 502 gets exactly one retry (attempt 1 + attempt 2)');
+  assert.equal(result.ok, false);
+  const rows = readFileSync(spendPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(rows.length, 2, 'both attempts each write a row');
 });
 
 // --- runModelStepOnPrimitives — metering sums every round -------------------

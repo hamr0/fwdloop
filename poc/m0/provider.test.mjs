@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
+import { OpenAI } from 'bare-agent/providers';
 import {
   makeProvider, PROVIDER_SLOTS, resolveModelRate,
 } from './provider.mjs';
@@ -160,6 +162,103 @@ test('PROOF the test above can fail: omitting timeoutMs never sets it to 300_000
     assert.notEqual(provider.timeoutMs, 300_000);
   } finally {
     if (saved !== undefined) process.env[envVar] = saved; else delete process.env[envVar];
+  }
+});
+
+// F27 (2026-09-14) — BA-19 TOTAL wall-clock deadline, beside BA-18's idle `timeoutMs`. Same
+// conditional-spread pattern as timeoutMs above: passes through when supplied, absent otherwise.
+test('deadlineMs reaches the constructed provider when supplied', () => {
+  const envVar = PROVIDER_SLOTS.deepseek.envVar;
+  const saved = process.env[envVar];
+  process.env[envVar] = 'test-key-not-real';
+  try {
+    const { provider } = makeProvider('deepseek', { deadlineMs: 5 });
+    assert.equal(provider.deadlineMs, 5);
+  } finally {
+    if (saved !== undefined) process.env[envVar] = saved; else delete process.env[envVar];
+  }
+});
+
+test('PROOF the test above can fail: omitting deadlineMs never sets it by accident', () => {
+  const envVar = PROVIDER_SLOTS.deepseek.envVar;
+  const saved = process.env[envVar];
+  process.env[envVar] = 'test-key-not-real';
+  try {
+    const { provider } = makeProvider('deepseek', {});
+    assert.equal(provider.deadlineMs, undefined);
+  } finally {
+    if (saved !== undefined) process.env[envVar] = saved; else delete process.env[envVar];
+  }
+});
+
+// F27's real proof: a local server that behaves EXACTLY like the observed DeepSeek hang — HTTP
+// 200 + headers + one byte, then never another byte, socket held open (so BA-18's idle bound
+// never trips — this is the "zombie stream" shape, not a dead connection). $0, no network: this
+// is 127.0.0.1. `timeoutMs: 5000` proves the IDLE bound does not save us (it's way bigger than
+// the deadline and the socket stays "active" from the server's point of view — one byte flowed);
+// `deadlineMs: 300` is the ceiling under test. Asserts rejection well under 5000ms with the BA-19
+// discriminators: `code: 'EDEADLINE'`, `retryable: false`.
+test('a zombie stream (200 + one byte, then silence forever) trips deadlineMs, not the idle timeoutMs', async () => {
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.write('{'); // one byte, then hang — never res.end()
+  });
+  server.keepAliveTimeout = 60_000;
+  server.headersTimeout = 60_000;
+  const sockets = new Set();
+  server.on('connection', (sock) => {
+    sockets.add(sock);
+    sock.on('close', () => sockets.delete(sock));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  try {
+    const provider = new OpenAI({
+      apiKey: 'test-key-not-real',
+      model: 'deepseek-flash',
+      baseUrl: `http://127.0.0.1:${port}`,
+      timeoutMs: 5000,
+      deadlineMs: 300,
+    });
+    const startedAt = Date.now();
+    await assert.rejects(
+      () => provider.generate([{ role: 'user', content: 'hi' }], []),
+      (err) => {
+        assert.equal(err.code, 'EDEADLINE');
+        assert.equal(err.retryable, false);
+        return true;
+      },
+    );
+    const elapsedMs = Date.now() - startedAt;
+    assert.ok(elapsedMs < 5000, `expected the deadline (300ms) to trip well under the idle bound (5000ms); took ${elapsedMs}ms`);
+  } finally {
+    for (const sock of sockets) sock.destroy();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('PROOF the test above can fail: a server that answers promptly never trips the deadline', async () => {
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      choices: [{ message: { content: 'ok', tool_calls: [] } }],
+      usage: { prompt_tokens: 1, completion_tokens: 1 },
+    }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  try {
+    const provider = new OpenAI({
+      apiKey: 'test-key-not-real',
+      model: 'deepseek-flash',
+      baseUrl: `http://127.0.0.1:${port}`,
+      timeoutMs: 5000,
+      deadlineMs: 300,
+    });
+    const result = await provider.generate([{ role: 'user', content: 'hi' }], []);
+    assert.equal(result.text, 'ok');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
   }
 });
 
