@@ -1411,3 +1411,25 @@ both do not. Every miss ended in a red and nothing wrong was sent. M0b's sign-of
 
 **Lesson:** when the same red repeats at the same byte position, it is a shape, not weather. Capture the body
 before blaming the wire. And a check that cannot show what it refused cannot be told from a bug.
+
+**Addendum, plant d rerun with `log.json` (`958ee66`), same day.** deepseek d (tag 15d) **19/20**, Qwen d (tag
+15e) 17/20; $0.44; 40 more human accepts. Every red now carries the reply it refused, so the open question above
+is answered: **the compose close was right every time; the model left things out.**
+
+| run | red | what the saved reply shows |
+|---|---|---|
+| Qwen 15e-17 | `total_owed (5700, c9) … not cited` | the reply has no total at all — two invoice lines, nothing else |
+| Qwen 15e-13 | `count_overdue (1, c10) … not cited` | the reply never says how many are overdue |
+| Qwen 15e-4 | `bracket [c1] does not resolve` | the model named its citations `inv_1021`, `amt_1021`… then wrote `[c1]`, `[c3]` — brackets to ids it never declared |
+| deepseek 15d-1 | `preflight: run dir … already holds ask.json` | not a model red: two batches were started ~60 s apart in the same window (11:15:29 and 11:16:32); the second's child refused the first's run dir at $0 while the first's ask was the one hamr answered. Nothing was sent (`…15d-1-sent.txt` does not exist). Operator double-start; the fresh-run-dir refusal (F25 fix) worked as designed |
+
+So the two shapes stand corrected: (1) the model mis-computes days-until-due ~1 in 13 runs and the derive close
+catches it; (2) Qwen omits a declared figure or mis-labels a bracket ~1 in 7 clean composes and the compose close
+catches it — the same behaviour plant e is planted to provoke, arriving unplanted. deepseek did neither in this
+rerun. **In 240 plant-d runs today nothing incomplete or wrong reached a send.** Amendment C's bar, read literally,
+counts each of those correct refusals against the cell; hamr's ruling on that reading is what separates
+"7 of 10" from "9 of 10" (Qwen a and e stay short either way on the literal reading; on the "correct red counts"
+reading they too are 20/20).
+
+**Nit, not fixed:** a second batch started into a tag whose bar file has no results yet silently coexists with the
+first; the bar file should refuse when a run dir for run 1 already exists. Sonnet, small.
