@@ -115,7 +115,7 @@ undocumented and carries no stability promise (docs/archive/PRD.md:427-431).
 
 ## Guiding principles — borrowed from bareloop, reminders not features
 
-DRAFT 2026-09-15, unsigned. Lifted from bareloop `docs/logs/CYBERNETICS.md@4bd52fe` (Ashby, Beer,
+Signed by hamr 2026-09-15. Lifted from bareloop `docs/logs/CYBERNETICS.md@4bd52fe` (Ashby, Beer,
 Wiener, and gate-level digital design), kept only where fwdloop has already been bitten or
 already leans on it. None of these is a module or a feature. Each is a question to ask of any
 new piece before it is built. The date is the day it cost us.
