@@ -140,6 +140,24 @@ Noted, not ruled: negative (ii) says the F7 omission plant must red "on the soft
 Live, it reds on `closeCompose`'s completeness check; no code checks a step's declared `close.shape`
 (F25). The plant is caught; the named mechanism is not the one that catches it.
 
+### RULING on M0b's exit reading — by hamr, 2026-09-15
+
+In force. Asked after Amendment C's 240 counting runs (F28): the literal 19/20 counted a correct red on
+a clean input against the cell.
+
+3. **The sign-off logic is: if the LLM fails, the mechanical harness (the arbiter) catches it.** A run
+   where the model slipped on a clean input and the close refused it is the harness doing exactly what
+   M0b exists to prove — it counts as a catch, not a miss. What counts against a cell is a model
+   failure that reached a send or an accept unrefused, or a close that refused a correct artifact.
+
+Under that reading, F28's ten cells recount (catches folded in): deepseek a 20, b 20, e 20, c 20,
+d 20 (the one preflight refusal was the harness refusing an operator double-start, nothing sent);
+Qwen a 20, b 20, e 20, c 20 (the one human-rejected was the harness honouring an empty Enter as no),
+d 20 (three omissions and a dangling bracket, all refused by the compose close). No cell holds a
+model failure that got through, and no cell holds a close that refused a correct artifact — the
+saved replies in each red run's `log.json` show what was refused. Signature on the exit itself is
+recorded below only when hamr gives it.
+
 ## M1 — declaration spec, validator, hash
 
 The grammar M0 proved, written down and mutation-tested: primitive catalogue as data, arbiter

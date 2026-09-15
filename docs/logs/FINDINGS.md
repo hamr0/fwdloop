@@ -1433,3 +1433,10 @@ reading they too are 20/20).
 
 **Nit, not fixed:** a second batch started into a tag whose bar file has no results yet silently coexists with the
 first; the bar file should refuse when a run dir for run 1 already exists. Sonnet, small.
+
+**Ruling, 2026-09-15 (hamr, recorded in `docs/wiki/the-module-ladder.md` RULING 3):** M0b's sign-off
+logic is *if the LLM fails, the mechanical harness catches it*. A correct red on a clean input is a
+catch, not a miss. Recount under that reading: all ten cells 20/20 — every non-pass above was the close
+refusing a model slip (days-until-due arithmetic, an omitted figure, a dangling bracket), a preflight
+refusal of an operator double-start, or the batch honouring an empty Enter as a rejection. Nothing got
+through unrefused; nothing correct was refused.
