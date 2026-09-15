@@ -1,0 +1,7 @@
+{
+  "question": "Reply drafted — ok to send?",
+  "evidence": {
+    "text": "Northwind owes 5700[c5] in total; the earliest due date is 2026-05-20[c4].\n\n- INV-1021: 4200[c1], due 2026-06-09[c3], not yet overdue (-8[c6] days until due)\n- INV-1022: 1500[c2], due 2026-05-20[c4], 12[c7] days overdue\n\nOverdue invoices: 1[c8]."
+  },
+  "askedAt": "2026-09-13T19:19:24.951Z"
+}

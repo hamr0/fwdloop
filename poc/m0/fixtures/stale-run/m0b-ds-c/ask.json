@@ -1,0 +1,51 @@
+{
+  "question": "More than one customer matches: Northwind Trading, Northwind Supplies. Which one?",
+  "evidence": {
+    "citations": [
+      {
+        "id": "c1",
+        "quote": "Northwind",
+        "source": {
+          "kind": "text",
+          "artifact": "message-raw",
+          "line": 1
+        }
+      },
+      {
+        "id": "c2",
+        "value": "Northwind Trading",
+        "asStated": "Northwind Trading",
+        "source": {
+          "kind": "csv",
+          "artifact": "aging-sheet",
+          "cell": "A2"
+        }
+      },
+      {
+        "id": "c3",
+        "value": "Northwind Trading",
+        "asStated": "Northwind Trading",
+        "source": {
+          "kind": "csv",
+          "artifact": "aging-sheet",
+          "cell": "A3"
+        }
+      },
+      {
+        "id": "c4",
+        "value": "Northwind Supplies",
+        "asStated": "Northwind Supplies",
+        "source": {
+          "kind": "csv",
+          "artifact": "aging-sheet",
+          "cell": "A10"
+        }
+      }
+    ],
+    "groundTruthMatches": [
+      "Northwind Trading",
+      "Northwind Supplies"
+    ]
+  },
+  "askedAt": "2026-09-13T19:09:08.229Z"
+}
