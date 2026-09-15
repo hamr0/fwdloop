@@ -779,7 +779,21 @@ export async function runModelStepOnPrimitives({
 
     if (capturedArgs == null) {
       noToolCallStreak += 1;
+      // F28: `loop.run()`'s return is a fixed field set — it does not forward a round's
+      // `malformedToolCall` extra field — so the ONE channel back is the provider instance itself
+      // (`MalformedToolCallTolerantOpenAI` stashes it on `this`, reset every `generate()` call).
+      // Reading it here, right after this attempt's `loop.run()`, tells "the model's arguments
+      // were not valid JSON" apart from "the model just returned text" without changing the
+      // retry-once-then-red shape below.
+      const malformed = provider?.lastMalformedToolCall ?? null;
       if (noToolCallStreak >= 2) {
+        if (malformed) {
+          return {
+            ok: false,
+            red: `${stepLabel}: the tool call's arguments were not valid JSON twice in a row `
+              + `(${malformed.error}); raw: ${malformed.rawArguments}`,
+          };
+        }
         return {
           ok: false,
           red: `${stepLabel}: a FINISHED round (stopReason=${result.stopReason}) returned text instead of the `

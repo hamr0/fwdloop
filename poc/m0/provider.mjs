@@ -9,6 +9,91 @@
 import { OpenAI } from 'bare-agent/providers';
 import { RATES_BY_SUFFIX } from './spend.mjs';
 
+/**
+ * F28 (2026-09-15, captured live): DeepSeek sometimes emits a tool-call whose
+ * `function.arguments` is not valid JSON (observed: a trailing `}` — body
+ * ending `..."matches": ["c2", "c3"]}}`). bare-agent 0.42.0 parses it at
+ * `provider-openai.js`'s `generate()` with a bare `JSON.parse(tc.function.arguments)`
+ * — AFTER the HTTP round already succeeded and `data.usage` came back — so the
+ * `SyntaxError` escapes `generate()` entirely. `Loop` never calls `onLlmResult`
+ * for that round, `runModelStepOnPrimitives` lands in its transport-catch
+ * branch, writes a `costUsd: null` spend row, and reds `provider-red: ...`.
+ * That null row then locks the global cap (F5's rule is correct — an unpriced
+ * row must block further spend) even though the cost was KNOWN: `data.usage`
+ * was sitting right there when the parse blew up.
+ *
+ * The right class for this is bare-agent's OWN "no usable tool call" path
+ * (retry once, then red) with the round METERED — a model failure, not a
+ * transport one. bare-agent's `generate()` has no seam for that (the parse
+ * throws unconditionally), so this wraps it here, fwdloop-side, until the
+ * upstream ask lands (filed separately — never patch node_modules).
+ *
+ * Wrapping strategy:
+ *  - `_request` is overridden only to stash the resolved `data` on the
+ *    instance (`_lastData`) before returning it — same signature, so every
+ *    other behaviour (timeouts, deadlines, insecure-http warning, JSON
+ *    parsing of the HTTP body itself) is untouched.
+ *  - `generate` calls `super.generate(...)`; if it throws a `SyntaxError`
+ *    AND the last response actually carried a tool call (the parse failure
+ *    is exactly `tc.function.arguments` being bad JSON, never anything
+ *    else), synthesize a result shaped exactly like a normal `generate()`
+ *    return (see `provider-openai.js`'s `generate()`: `text`, `toolCalls`,
+ *    `model`, `stopReason`, `usage`) with `toolCalls: []` (the call could
+ *    not be parsed, so there is nothing to execute) and an extra
+ *    `malformedToolCall` field carrying what broke. Any other error
+ *    (network, HTTP 4xx/5xx, a SyntaxError with no tool call in the
+ *    response) rethrows unchanged.
+ *  - `usage` is normalized via the INHERITED `_normalizeUsage` (never
+ *    reimplemented) so the cache-token accounting (BA-24) stays exactly the
+ *    library's own math.
+ *  - `stopReason: 'tool_use'` — OpenAI's `finish_reason: 'tool_calls'` maps
+ *    to the neutral `'tool_use'` unconditionally in bare-agent's own
+ *    `provider-stop-reason.js` OPENAI table (no `ctx.hasToolCalls` branch
+ *    for OpenAI; that promotion path is Gemini/Ollama-only), so this is the
+ *    honest, standing raw-value report, not an invention.
+ *  - `Loop` (`node_modules/bare-agent/src/loop.js` ~line 823) doesn't
+ *    special-case unknown fields on the `generate()` return, and its final
+ *    `loop.run()` return object is a fixed field set — `malformedToolCall`
+ *    does NOT survive into `loop.run()`'s result. So it is ALSO stashed on
+ *    the instance (`this.lastMalformedToolCall`, reset at the top of every
+ *    `generate()` call) — the one channel `runModelStepOnPrimitives` (same
+ *    provider reference) can read after `loop.run()` returns, to tell a
+ *    genuinely-malformed round apart from a model that just returned text.
+ */
+export class MalformedToolCallTolerantOpenAI extends OpenAI {
+  async _request(path, body, timeoutMs, deadlineMs) {
+    const data = await super._request(path, body, timeoutMs, deadlineMs);
+    this._lastData = data;
+    return data;
+  }
+
+  async generate(messages, tools = [], options = {}) {
+    this.lastMalformedToolCall = null;
+    try {
+      return await super.generate(messages, tools, options);
+    } catch (err) {
+      if (!(err instanceof SyntaxError)) throw err;
+      const msg = this._lastData?.choices?.[0]?.message;
+      const toolCalls = msg?.tool_calls;
+      if (!Array.isArray(toolCalls) || toolCalls.length === 0) throw err;
+      const tc = toolCalls[0];
+      const rawArguments = typeof tc?.function?.arguments === 'string'
+        ? tc.function.arguments.slice(0, 500)
+        : '';
+      const malformedToolCall = { name: tc?.function?.name ?? null, rawArguments, error: err.message };
+      this.lastMalformedToolCall = malformedToolCall;
+      return {
+        text: msg.content || '',
+        toolCalls: [],
+        model: this._lastData.model || this.model,
+        stopReason: 'tool_use',
+        usage: this._normalizeUsage(this._lastData.usage),
+        malformedToolCall,
+      };
+    }
+  }
+}
+
 /** Provider slots. Frozen — add a new slot here, never inline a baseUrl/env var elsewhere.
  *  F12 (2026-09-09): `deepseek` is the BASELINE slot, `synthetic` the second provider. */
 export const PROVIDER_SLOTS = Object.freeze({
@@ -86,7 +171,10 @@ export function makeProvider(slotName, { model, timeoutMs, deadlineMs } = {}) {
   const modelId = model ?? slot.defaultModel;
   const { suffix, rates } = resolveModelRate(modelId);
 
-  const provider = new OpenAI({
+  // F28: every slot goes through the malformed-tool-call-tolerant wrapper — it is a pure superset
+  // of OpenAI's own behaviour (transparent on a clean parse, see provider.test.mjs), so there is no
+  // reason to special-case `deepseek` here even though that is the only slot the bug was caught on.
+  const provider = new MalformedToolCallTolerantOpenAI({
     apiKey,
     model: modelId,
     baseUrl: slot.baseUrl,

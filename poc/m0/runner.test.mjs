@@ -918,6 +918,91 @@ test('PROOF the above can fail: a stub provider that returns text instead of the
 });
 
 // ---------------------------------------------------------------------------
+// F28 — a malformed tool-call ("arguments" not valid JSON) must be METERED
+// (a real costUsd, never null) and named distinctly from "the model just
+// returned text". `loop.run()`'s own return doesn't forward a round's
+// `malformedToolCall` field, so the provider stub sets `lastMalformedToolCall`
+// on itself exactly like the real `MalformedToolCallTolerantOpenAI` wrapper
+// does — that instance property is the channel runModelStepOnPrimitives reads.
+// ---------------------------------------------------------------------------
+
+/** A stub provider whose generate() always returns the malformed-tool-call shape. */
+function fakeAlwaysMalformedProvider() {
+  return {
+    lastMalformedToolCall: null,
+    generate: async function generate() {
+      const malformedToolCall = { name: 'emit_x', rawArguments: '{"a":1}}', error: 'Unexpected non-whitespace character after JSON at position 8' };
+      this.lastMalformedToolCall = malformedToolCall;
+      return {
+        text: '', toolCalls: [], usage: { inputTokens: 100, outputTokens: 20 }, stopReason: 'tool_use', model: 'deepseek-flash', malformedToolCall,
+      };
+    },
+  };
+}
+
+test('F28: a malformed tool-call twice in a row is metered on BOTH attempts (costUsd a number, never null) and reds naming the malformed case', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'm0-modelstep-malformed-'));
+  const spendPath = join(runDir, 'spend.jsonl');
+  const provider = fakeAlwaysMalformedProvider();
+  const result = await runModelStepOnPrimitives({
+    runId: 'test-run', stepLabel: 'derive1', spendPath,
+    systemPrompt: 'x', userContent: 'y', toolName: 'emit_x', toolDescription: 'd',
+    toolSchema: { type: 'object', properties: {} },
+    provider, rates: { in: 1, out: 1 }, modelId: 'deepseek-flash',
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.red, /derive1: the tool call's arguments were not valid JSON twice in a row/);
+  assert.match(result.red, /position 8/);
+  assert.match(result.red, /\{"a":1\}\}/);
+  const rows = readFileSync(spendPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(rows.length, 2, 'one spend row per attempt');
+  for (const row of rows) {
+    assert.equal(typeof row.costUsd, 'number', `expected a real costUsd, never null, for row ${JSON.stringify(row)}`);
+    assert.ok(row.costUsd > 0);
+  }
+});
+
+test('PROOF the above can fail: a malformed round FOLLOWED by a valid one is ok:true and writes two rows', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'm0-modelstep-malformed-then-ok-'));
+  const spendPath = join(runDir, 'spend.jsonl');
+  let attempt = 0;
+  const provider = {
+    lastMalformedToolCall: null,
+    generate: async function generate() {
+      attempt += 1;
+      if (attempt === 1) {
+        const malformedToolCall = { name: 'emit_x', rawArguments: '{"a":1}}', error: 'bad json' };
+        this.lastMalformedToolCall = malformedToolCall;
+        return {
+          text: '', toolCalls: [], usage: { inputTokens: 100, outputTokens: 20 }, stopReason: 'tool_use', model: 'deepseek-flash', malformedToolCall,
+        };
+      }
+      this.lastMalformedToolCall = null;
+      return {
+        text: null,
+        toolCalls: [{ id: 't1', name: 'emit_x', arguments: { ok: true } }],
+        usage: { inputTokens: 10, outputTokens: 5 },
+        stopReason: 'tool_use',
+        model: 'deepseek-flash',
+      };
+    },
+  };
+  const result = await runModelStepOnPrimitives({
+    runId: 'test-run', stepLabel: 'derive1', spendPath,
+    systemPrompt: 'x', userContent: 'y', toolName: 'emit_x', toolDescription: 'd',
+    toolSchema: { type: 'object', properties: {} },
+    provider, rates: { in: 1, out: 1 }, modelId: 'deepseek-flash',
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.args, { ok: true });
+  const rows = readFileSync(spendPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(rows.length, 2);
+  for (const row of rows) {
+    assert.equal(typeof row.costUsd, 'number');
+  }
+});
+
+// ---------------------------------------------------------------------------
 // M0b PART 2.3 — PLANTS a-e THROUGH THE REAL FOLD (2026-09-13). Only the
 // model round is stubbed ($0, zero live calls); freeze, bind, grants,
 // destination, shell_read/shell_write, and the REAL Checkpoint/answer.mjs

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { OpenAI } from 'bare-agent/providers';
 import {
-  makeProvider, PROVIDER_SLOTS, resolveModelRate,
+  makeProvider, PROVIDER_SLOTS, resolveModelRate, MalformedToolCallTolerantOpenAI,
 } from './provider.mjs';
 
 test('unknown slot throws', () => {
@@ -276,5 +276,113 @@ test('PROOF the test above can fail: a slot whose default model has no rate entr
       /no hand-entered rate for model suffix/,
       `expected slot "${slotName}"'s unpriced default model to be rejected, not silently priced at 0`,
     );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// F28 (2026-09-15) — a tool-call whose `function.arguments` is not valid JSON
+// (captured live: a trailing `}`) must be METERED, not lost to a transport-shaped
+// null-cost row. Real bare-agent `OpenAIProvider._request` parses the local
+// server's own JSON body fine (that part is untouched) — the SyntaxError under
+// test is bare-agent's OWN `JSON.parse(tc.function.arguments)` inside `generate()`.
+// ---------------------------------------------------------------------------
+
+test('F28: a malformed tool-call arguments string resolves generate() instead of throwing, carrying usage + malformedToolCall', async () => {
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      choices: [{
+        message: {
+          content: null,
+          tool_calls: [{ id: 'call_1', function: { name: 'emit_x', arguments: '{"a":1}}' } }],
+        },
+        finish_reason: 'tool_calls',
+      }],
+      model: 'deepseek-flash',
+      usage: { prompt_tokens: 100, completion_tokens: 20, prompt_tokens_details: { cached_tokens: 0 } },
+    }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  try {
+    const provider = new MalformedToolCallTolerantOpenAI({
+      apiKey: 'test-key-not-real',
+      model: 'deepseek-flash',
+      baseUrl: `http://127.0.0.1:${port}`,
+    });
+    const result = await provider.generate(
+      [{ role: 'user', content: 'hi' }],
+      [{ name: 'emit_x', description: 'd', parameters: { type: 'object', properties: {} } }],
+    );
+    assert.deepEqual(result.toolCalls, []);
+    assert.ok(result.malformedToolCall, 'expected malformedToolCall to be set on the returned result');
+    assert.equal(result.malformedToolCall.rawArguments, '{"a":1}}');
+    assert.equal(result.malformedToolCall.name, 'emit_x');
+    assert.match(result.malformedToolCall.error, /JSON/);
+    assert.equal(result.usage.inputTokens, 100);
+    assert.equal(result.usage.outputTokens, 20);
+    // Also stashed on the instance — the channel runModelStepOnPrimitives reads (Loop's own
+    // `loop.run()` return does not forward unknown `generate()` fields).
+    assert.deepEqual(provider.lastMalformedToolCall, result.malformedToolCall);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('PROOF the test above can fail: valid tool-call arguments still parse — the wrapper is transparent', async () => {
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      choices: [{
+        message: {
+          content: null,
+          tool_calls: [{ id: 'call_1', function: { name: 'emit_x', arguments: '{"a":1}' } }],
+        },
+        finish_reason: 'tool_calls',
+      }],
+      model: 'deepseek-flash',
+      usage: { prompt_tokens: 100, completion_tokens: 20, prompt_tokens_details: { cached_tokens: 0 } },
+    }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  try {
+    const provider = new MalformedToolCallTolerantOpenAI({
+      apiKey: 'test-key-not-real',
+      model: 'deepseek-flash',
+      baseUrl: `http://127.0.0.1:${port}`,
+    });
+    const result = await provider.generate(
+      [{ role: 'user', content: 'hi' }],
+      [{ name: 'emit_x', description: 'd', parameters: { type: 'object', properties: {} } }],
+    );
+    assert.equal(result.toolCalls.length, 1);
+    assert.deepEqual(result.toolCalls[0].arguments, { a: 1 });
+    assert.equal(result.malformedToolCall, undefined);
+    assert.equal(provider.lastMalformedToolCall, null);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('PROOF the wrapper only catches a SyntaxError-with-tool-calls: an HTTP 500 still rejects', async () => {
+  const server = http.createServer((req, res) => {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: { message: 'boom' } }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  try {
+    const provider = new MalformedToolCallTolerantOpenAI({
+      apiKey: 'test-key-not-real',
+      model: 'deepseek-flash',
+      baseUrl: `http://127.0.0.1:${port}`,
+    });
+    await assert.rejects(
+      () => provider.generate([{ role: 'user', content: 'hi' }], []),
+      /boom|500/,
+    );
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
   }
 });
