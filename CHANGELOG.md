@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-09-15
+
+### Fixed
+- Runner tests seeded from committed fixtures under `poc/m0/fixtures/stale-run/`
+  instead of git-ignored `poc/m0/out/` dirs, so the suite passes on a
+  tracked-files-only checkout (CI). v0.2.0 was tagged but never published to
+  npm because the publish workflow's Test step failed on these two tests.
+
 ## [0.2.0] - 2026-09-15
 
 M0b: "run it, close it" — the drafter's declaration runs for real, against real
