@@ -333,6 +333,12 @@ export async function runOnPrimitives({
   const log = { runId, plant, stages: {} };
   const record = (stage, outcome, extra = {}) => { log.stages[stage] = { outcome, ...extra }; };
 
+  // Everything below runs inside one closure so `result` below is the SAME object every branch
+  // returns (red at any stage, paused-ask-*, complete) — the single writer for `<runDir>/log.json`
+  // sits right after this closure, once, rather than at each of its ~15 internal returns (F28's
+  // gap: a red run kept nothing but the red string, so a compose bracket miss could never be told
+  // apart from closeCompose misreading a label).
+  const result = await (async () => {
   // --- sheetRead (line 1) ---
   const csvArtifact = await readFrozenCsv(stages.sheetRead.emits, bySourceId.sheet);
   if (!csvArtifact.ok) { record('sheetRead', 'red', { red: csvArtifact.red }); return { outcome: 'red', red: csvArtifact.red, phase: 'sheetRead', log }; }
@@ -367,20 +373,20 @@ export async function runOnPrimitives({
       required: ['citations', 'matches'],
     },
   });
-  if (!derive1.ok) { record('messageMatch', 'red', { red: derive1.red }); return { outcome: 'red', red: derive1.red, phase: 'messageMatch', log }; }
+  if (!derive1.ok) { record('messageMatch', 'red', { red: derive1.red, args: null }); return { outcome: 'red', red: derive1.red, phase: 'messageMatch', log }; }
 
   const happened1 = checkStepHappened({ goal: 'messageMatch', close: { class: 'green' } }, derive1.args.citations);
-  if (happened1.verdict === 'red') { record('messageMatch', 'red', { red: happened1.red }); return { outcome: 'red', red: happened1.red, phase: 'messageMatch', log }; }
+  if (happened1.verdict === 'red') { record('messageMatch', 'red', { red: happened1.red, args: derive1.args }); return { outcome: 'red', red: happened1.red, phase: 'messageMatch', log }; }
 
   const close1 = closeCustomerMatch(derive1.args, artifacts, stages.sheetRead.emits);
-  if (close1.verdict === 'red') { record('messageMatch', 'red', { red: close1.red }); return { outcome: 'red', red: close1.red, phase: 'messageMatch', log }; }
+  if (close1.verdict === 'red') { record('messageMatch', 'red', { red: close1.red, args: derive1.args }); return { outcome: 'red', red: close1.red, phase: 'messageMatch', log }; }
 
   if (close1.ambiguous) {
     // PRD §5 / plant c: two rows matching is an ask, never a pick — route here instead of derive.
     const question = `More than one customer matches: ${close1.groundTruthMatches.join(', ')}. Which one?`;
     const evidence = { citations: derive1.args.citations, groundTruthMatches: close1.groundTruthMatches };
     const askResult = await askStep(question, evidence, { outDir: runDir, timeoutMs: askTimeoutMs, runId });
-    record('messageMatch', askResult.ok && askResult.accepted ? 'paused-ask-answered' : 'red', { red: askResult.red ?? null });
+    record('messageMatch', askResult.ok && askResult.accepted ? 'paused-ask-answered' : 'red', { red: askResult.red ?? null, args: derive1.args });
     return {
       outcome: askResult.ok && askResult.accepted ? 'paused-ask-answered' : 'red',
       red: askResult.ok ? (askResult.accepted ? null : 'run stopped at the customer-ambiguity ask') : askResult.red,
@@ -388,7 +394,7 @@ export async function runOnPrimitives({
       log,
     };
   }
-  record('messageMatch', 'green');
+  record('messageMatch', 'green', { args: derive1.args });
 
   const customer = close1.matchedCustomer;
   const customerRows = csvArtifact.rows.filter((r) => r.byName.Customer === customer);
@@ -434,17 +440,17 @@ export async function runOnPrimitives({
       required: ['citations', 'fields'],
     },
   });
-  if (!derive2.ok) { record('derive', 'red', { red: derive2.red }); return { outcome: 'red', red: derive2.red, phase: 'derive', log }; }
+  if (!derive2.ok) { record('derive', 'red', { red: derive2.red, args: null }); return { outcome: 'red', red: derive2.red, phase: 'derive', log }; }
 
   const happened2 = checkStepHappened({ goal: 'derive', close: { class: 'green' } }, derive2.args.citations);
-  if (happened2.verdict === 'red') { record('derive', 'red', { red: happened2.red }); return { outcome: 'red', red: happened2.red, phase: 'derive', log }; }
+  if (happened2.verdict === 'red') { record('derive', 'red', { red: happened2.red, args: derive2.args }); return { outcome: 'red', red: happened2.red, phase: 'derive', log }; }
 
   // Plants a/b mutate the model's OUTPUT before the close, never the check (existing applyPlant,
   // unchanged — F5's plants a/b must still red on primitives, per this brief's negative i).
   const derive2ArgsForClose = applyPlant(plant, 'derive2', derive2.args);
   const close2 = closeDerive(derive2ArgsForClose, artifacts, BUSINESS_DATE);
-  if (close2.verdict === 'red') { record('derive', 'red', { red: close2.red }); return { outcome: 'red', red: close2.red, phase: 'derive', log }; }
-  record('derive', 'green');
+  if (close2.verdict === 'red') { record('derive', 'red', { red: close2.red, args: derive2.args }); return { outcome: 'red', red: close2.red, phase: 'derive', log }; }
+  record('derive', 'green', { args: derive2.args });
   artifacts[stages.derive.emits] = { id: stages.derive.emits, kind: 'derived', ...derive2ArgsForClose };
 
   // --- compose (line 4) ---
@@ -481,10 +487,10 @@ export async function runOnPrimitives({
       required: ['citations', 'text'],
     },
   });
-  if (!compose.ok) { record('compose', 'red', { red: compose.red }); return { outcome: 'red', red: compose.red, phase: 'compose', log }; }
+  if (!compose.ok) { record('compose', 'red', { red: compose.red, args: null }); return { outcome: 'red', red: compose.red, phase: 'compose', log }; }
 
   const happened3 = checkStepHappened({ goal: 'compose', close: { class: 'softgreen' } }, compose.args.text);
-  if (happened3.verdict === 'red') { record('compose', 'red', { red: happened3.red }); return { outcome: 'red', red: happened3.red, phase: 'compose', log }; }
+  if (happened3.verdict === 'red') { record('compose', 'red', { red: happened3.red, args: compose.args }); return { outcome: 'red', red: happened3.red, phase: 'compose', log }; }
 
   // Plant e (NEW, F7 green-by-omission): strip the total/earliest-due FIGURES and their citation
   // brackets from the composed text before the close — mutating the model's OUTPUT, never the
@@ -495,8 +501,8 @@ export async function runOnPrimitives({
   const close3 = closeCompose(
     { ...compose.args, text: composeTextForClose }, artifacts, BUSINESS_DATE, derive2ArgsForClose.fields, derive2ArgsForClose.citations,
   );
-  if (close3.verdict === 'red') { record('compose', 'red', { red: close3.red, plantApplied: plant === 'e' ? 'e' : null }); return { outcome: 'red', red: close3.red, phase: 'compose', log }; }
-  record('compose', 'green');
+  if (close3.verdict === 'red') { record('compose', 'red', { red: close3.red, plantApplied: plant === 'e' ? 'e' : null, args: compose.args }); return { outcome: 'red', red: close3.red, phase: 'compose', log }; }
+  record('compose', 'green', { args: compose.args });
 
   // --- ask (the signed ask slot line) ---
   const finalAskResult = await askStep('Reply drafted — ok to send?', { text: compose.args.text }, { outDir: runDir, timeoutMs: askTimeoutMs, runId });
@@ -512,6 +518,18 @@ export async function runOnPrimitives({
   return {
     outcome: 'complete', deliveryId: sendResult.path, log,
   };
+  })();
+
+  // Single writer for the debug log (F28): every outcome above returns through `result` here,
+  // so this is the ONE place `<runDir>/log.json` is written, on every outcome (red at any stage,
+  // paused-ask-*, complete). `runDir` was mkdir'd during preflight above, so it always exists by
+  // this point — a preflight refusal returns before `log`/`result` even exist and never reaches
+  // here, which is the one case this debug log does not cover.
+  writeFileSync(join(runDir, 'log.json'), JSON.stringify({
+    runId, outcome: result.outcome, phase: result.phase ?? null, red: result.red ?? null, stages: log.stages,
+  }, null, 2));
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------

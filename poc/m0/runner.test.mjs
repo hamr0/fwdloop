@@ -1165,6 +1165,52 @@ test('PROOF plant e can fail: the SAME declaration and stub, with plant "d" inst
 });
 
 // ---------------------------------------------------------------------------
+// F28 fix (2026-09-15) — a red run kept nothing but the red string, so a
+// compose bracket miss could never be told apart from closeCompose
+// mis-reading a label. `<runDir>/log.json` now carries every stage's model
+// args (green AND red), written once per run. Temp dirs only — never
+// poc/m0/out/.
+// ---------------------------------------------------------------------------
+
+test('F28: plant e (red at compose) writes <runDir>/log.json carrying the composed text closeCompose actually judged', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'm0-fold-e-log-'));
+  acceptFinalAsk(runDir);
+  const result = await runOnPrimitives({
+    declaration: primitivesDeclaration(), runId: `fold-e-log-${Date.now()}`, outDir: runDir,
+    sources: realSources(), spendPath: join(runDir, 'spend.jsonl'), plant: 'e', modelStep: foldStub(),
+  });
+  assert.equal(result.outcome, 'red');
+  assert.equal(result.phase, 'compose');
+
+  const logPath = join(runDir, 'log.json');
+  assert.ok(existsSync(logPath), 'log.json must exist after a red-at-compose run');
+  const log = JSON.parse(readFileSync(logPath, 'utf8'));
+  assert.equal(log.outcome, 'red');
+  assert.equal(log.phase, 'compose');
+  assert.ok(log.stages.compose.args, 'stages.compose.args must be present on a compose red');
+  // Literal substring from FOLD_COMPOSE_ARGS.text (the stub's own fixture) — proves this is the
+  // model's ACTUAL returned text, never a copy of the red string or a stand-in value.
+  assert.match(log.stages.compose.args.text, /Northwind Trading owes 5700\[c3\]/);
+});
+
+test('F28: a clean run to completion writes log.json with outcome complete and derive.args present', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'm0-fold-d-log-'));
+  acceptFinalAsk(runDir);
+  const result = await runOnPrimitives({
+    declaration: primitivesDeclaration(), runId: `fold-d-log-${Date.now()}`, outDir: runDir,
+    sources: realSources(), spendPath: join(runDir, 'spend.jsonl'), plant: 'd', modelStep: foldStub(),
+  });
+  assert.equal(result.outcome, 'complete', result.red);
+
+  const logPath = join(runDir, 'log.json');
+  assert.ok(existsSync(logPath), 'log.json must exist after a clean completion');
+  const log = JSON.parse(readFileSync(logPath, 'utf8'));
+  assert.equal(log.outcome, 'complete');
+  assert.ok(log.stages.derive.args, 'stages.derive.args must be present on a clean run');
+  assert.equal(log.stages.derive.args.fields.total_owed, 'c3');
+});
+
+// ---------------------------------------------------------------------------
 // Coordinator fix (2026-09-13) — runModelStepOnPrimitives had DROPPED the
 // standing round rules the old runModelStep carries: no try/catch around
 // loop.run (a live provider error would throw straight out of
