@@ -8,8 +8,10 @@ import { join } from 'node:path';
 import { deflateRawSync } from 'node:zlib';
 import {
   runJob2, bindJob2Stages, JOB2_SHAPE,
+  bindJob2DeclarationSteps, checkJob2Grants, preflightJob2FromDeclaration,
 } from './job2.mjs';
 import { appendSpendRow } from './spend.mjs';
+import { validate } from './validator.mjs';
 
 // ---------------------------------------------------------------------------
 // Synthetic .docx builder — same zip-by-hand pattern as docx.test.mjs (not
@@ -600,4 +602,261 @@ test('(k2) ask at line 5 / send at line 6, with a gap in the numbering, still bi
 test('JOB2_SHAPE is the signed Amendment B shape (600 words, 3 named sections)', () => {
   assert.equal(JOB2_SHAPE.maxWords, 600);
   assert.deepEqual(JOB2_SHAPE.sections, ['story of experience', 'technical skills', 'soft skills']);
+});
+
+// ---------------------------------------------------------------------------
+// DECLARATION-DRIVEN BINDING (Claim 2 — the fold obeys the DRAFTER's own
+// declaration: binds stages by `fromLine`, checks grants before any model
+// round — never guesses stages from position). `bindJob2Stages` still does
+// the line-level half from the prose alone (unchanged, tested above);
+// `bindJob2DeclarationSteps`/`checkJob2Grants` are the new declaration half.
+// ---------------------------------------------------------------------------
+
+const FIXTURE_PROSE_TEXT = readFileSync(FIXTURE_PROSE_PATH, 'utf8');
+const FIXTURE_BOUND = bindJob2Stages(FIXTURE_PROSE_TEXT);
+
+/** A well-formed job #2 declaration matching job2.prose.example.txt's own
+ *  lines (1=resume, 2=jd, 3=compose, 4=ask, 5=send) — primitives PICKED
+ *  from the catalogue (readDocx for the resume, plain read for the JD),
+ *  overridable per test to plant a grants/duplicate-line defect. */
+function job2Declaration({
+  resumePrimitives = ['readDocx'], jdPrimitives = ['read'], resumeFromLine = 1, jdFromLine = 2,
+} = {}) {
+  return {
+    skills: ['core'],
+    guardrails: FIXTURE_PROSE_TEXT,
+    guardrailClasses: { 3: 'softgreen', 4: 'hitl' },
+    steps: [
+      {
+        goal: 'read the resume', primitives: resumePrimitives, reads: [], emits: 'r1', fromLine: resumeFromLine, close: { class: 'hitl' },
+      },
+      {
+        goal: 'read the job description', primitives: jdPrimitives, reads: [], emits: 'r2', fromLine: jdFromLine, close: { class: 'hitl' },
+      },
+      {
+        goal: 'compose the summary',
+        primitives: [],
+        reads: ['r1', 'r2'],
+        emits: 'r3',
+        fromLine: 3,
+        close: { class: 'softgreen', shape: { maxWords: 600, sections: JOB2_SHAPE.sections } },
+      },
+      {
+        goal: 'check it with me', primitives: ['checkpoint'], reads: ['r3'], emits: 'r4', fromLine: 4, close: { class: 'hitl' },
+      },
+      {
+        goal: 'send the accepted summary', primitives: ['write'], reads: ['r4'], emits: 'r5', fromLine: 5, close: { class: 'hitl' },
+      },
+    ],
+    refused: [],
+  };
+}
+
+test('a good job #2 declaration passes validate() end to end (Claim 2 evidence, generic validator.mjs)', () => {
+  const result = validate(job2Declaration());
+  assert.equal(result.verdict, 'green', result.red);
+});
+
+test('bindJob2DeclarationSteps: resolves all five stages from fromLine, matching the prose\'s own line binding', () => {
+  const result = bindJob2DeclarationSteps(job2Declaration(), FIXTURE_BOUND);
+  assert.equal(result.ok, true);
+  assert.equal(result.stages.readResume.emits, 'r1');
+  assert.equal(result.stages.readJd.emits, 'r2');
+  assert.equal(result.stages.compose.emits, 'r3');
+  assert.equal(result.stages.ask.emits, 'r4');
+  assert.equal(result.stages.send.emits, 'r5');
+});
+
+test('bindJob2DeclarationSteps: a duplicate fromLine (two steps both claiming line 1) reds naming the line and the count, never picks one', () => {
+  const declaration = job2Declaration();
+  declaration.steps.push({
+    goal: 'a second step also claiming line 1', primitives: [], reads: [], emits: 'r1b', fromLine: 1, close: { class: 'hitl' },
+  });
+  const result = bindJob2DeclarationSteps(declaration, FIXTURE_BOUND);
+  assert.equal(result.ok, false);
+  assert.match(result.red, /line 1 \(stage "readResume"\) has 2 step\(s\) bound to it/);
+});
+
+test('PROOF can fail: removing the duplicate-fromLine step clears the bind red', () => {
+  const declaration = job2Declaration();
+  declaration.steps.push({
+    goal: 'dup', primitives: [], reads: [], emits: 'r1b', fromLine: 1, close: { class: 'hitl' },
+  });
+  assert.equal(bindJob2DeclarationSteps(declaration, FIXTURE_BOUND).ok, false);
+  declaration.steps.pop();
+  assert.equal(bindJob2DeclarationSteps(declaration, FIXTURE_BOUND).ok, true);
+});
+
+test('checkJob2Grants: the resume step granted "read" instead of "readDocx" reds naming the missing grant — the walkability case (a step claiming the wrong read primitive for its own line)', () => {
+  const declaration = job2Declaration({ resumePrimitives: ['read'] });
+  const bound = bindJob2DeclarationSteps(declaration, FIXTURE_BOUND);
+  assert.equal(bound.ok, true);
+  const result = checkJob2Grants(bound.stages);
+  assert.equal(result.ok, false);
+  assert.match(result.red, /grants: step for line 1 \(stage "readResume"\) is not granted "readDocx"/);
+});
+
+test('PROOF can fail: granting readDocx on the resume step clears the grants red', () => {
+  const badBound = bindJob2DeclarationSteps(job2Declaration({ resumePrimitives: ['read'] }), FIXTURE_BOUND);
+  assert.equal(checkJob2Grants(badBound.stages).ok, false);
+  const goodBound = bindJob2DeclarationSteps(job2Declaration(), FIXTURE_BOUND);
+  assert.equal(checkJob2Grants(goodBound.stages).ok, true);
+});
+
+test('checkJob2Grants: an EXTRA grant beyond what a stage needs is not a red — follows job #1\'s own checkGrants precedent (runner.mjs), which never checks for extra grants either', () => {
+  const declaration = job2Declaration({ jdPrimitives: ['read', 'readDocx'] });
+  const bound = bindJob2DeclarationSteps(declaration, FIXTURE_BOUND);
+  assert.equal(checkJob2Grants(bound.stages).ok, true);
+});
+
+test('preflightJob2FromDeclaration: a good declaration binds and grants clean, ready for the fold', () => {
+  const { resumePath, jdPath, outDir } = setup();
+  const pre = preflightJob2FromDeclaration(job2Declaration(), FIXTURE_PROSE_TEXT, {
+    runDir: outDir, sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+  });
+  assert.equal(pre.ok, true, pre.red);
+  assert.equal(pre.stages.readResume.emits, 'r1');
+});
+
+// ---------------------------------------------------------------------------
+// (l)-(o) end-to-end through runJob2's own `declaration` option.
+// ---------------------------------------------------------------------------
+
+test('(l) declaration-driven fold: happy path via an injected declaration — bound is "declaration", outcome green', async () => {
+  const {
+    resumePath, jdPath, prosePath, outDir, spendPath, sendDir,
+  } = setup();
+  const calls = [];
+  const result = await runJob2({
+    prosePath,
+    sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+    runId: 'l',
+    outDir,
+    spendPath,
+    slot: 'deepseek',
+    declaration: job2Declaration(),
+    modelStep: fakeModelStepFactory(outDir, { calls }),
+    askStep: scriptedAskStep([{ decision: 'accept', text: null }]),
+    sendStep: fakeSendStep(sendDir),
+  });
+  assert.equal(result.outcome, 'green', result.red);
+  assert.equal(result.bound, 'declaration');
+  assert.equal(calls.length, 1);
+});
+
+test('(m) declaration-driven fold: a resume step granted "read" instead of "readDocx" reds at preflight, no model round', async () => {
+  const {
+    resumePath, jdPath, prosePath, outDir, spendPath, sendDir,
+  } = setup();
+  const modelStep = async () => { throw new Error('modelStep must never be called when grants red'); };
+  const result = await runJob2({
+    prosePath,
+    sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+    runId: 'm',
+    outDir,
+    spendPath,
+    slot: 'deepseek',
+    declaration: job2Declaration({ resumePrimitives: ['read'] }),
+    modelStep,
+    askStep: scriptedAskStep([]),
+    sendStep: fakeSendStep(sendDir),
+  });
+  assert.equal(result.outcome, 'red');
+  assert.equal(result.phase, 'preflight');
+  assert.match(result.red, /not granted "readDocx"/);
+  assert.equal(result.bound, 'declaration');
+});
+
+test('PROOF (m) can fail: the SAME run with readDocx correctly granted goes green', async () => {
+  const {
+    resumePath, jdPath, prosePath, outDir, spendPath, sendDir,
+  } = setup();
+  const result = await runJob2({
+    prosePath,
+    sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+    runId: 'm2',
+    outDir,
+    spendPath,
+    slot: 'deepseek',
+    declaration: job2Declaration(),
+    modelStep: fakeModelStepFactory(outDir),
+    askStep: scriptedAskStep([{ decision: 'accept', text: null }]),
+    sendStep: fakeSendStep(sendDir),
+  });
+  assert.equal(result.outcome, 'green', result.red);
+});
+
+test('(n) declaration-driven fold: `declaration` accepts a JSON file PATH (the CLI\'s --declaration shape), same as an object', async () => {
+  const {
+    resumePath, jdPath, prosePath, outDir, spendPath, sendDir,
+  } = setup();
+  mkdirSync(outDir, { recursive: true });
+  const declPath = join(outDir, 'declaration.json');
+  writeFileSync(declPath, JSON.stringify(job2Declaration()));
+  const result = await runJob2({
+    prosePath,
+    sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+    runId: 'n',
+    outDir,
+    spendPath,
+    slot: 'deepseek',
+    declaration: declPath,
+    modelStep: fakeModelStepFactory(outDir),
+    askStep: scriptedAskStep([{ decision: 'accept', text: null }]),
+    sendStep: fakeSendStep(sendDir),
+  });
+  assert.equal(result.outcome, 'green', result.red);
+  assert.equal(result.bound, 'declaration');
+});
+
+// ---------------------------------------------------------------------------
+// "ask/send slots missing" — validator.mjs deliberately SKIPS the send lock
+// entirely when a declaration carries no arbiter slots at all (a signed,
+// tested ruling — validator.test.mjs's "send lock — a declaration with no
+// arbiter slots at all skips the lock entirely (old/hand-built
+// declarations)"); loosening that for job #2 would silently un-red an
+// already-signed job #1 behaviour. So this refusal lives where job #1's own
+// analogous check already lives — the FOLD's bind step (bindJob2Stages,
+// reused unchanged inside preflightJob2FromDeclaration) — not inside
+// validate() itself. See this file's header / the task report for why.
+// ---------------------------------------------------------------------------
+
+test('"ask/send slots missing": prose with no signed ask/send arbiter lines refuses at bind, before grants or any model round', () => {
+  const proseNoSlots = FIXTURE_PROSE_TEXT.replace(/\nguardrail: ask at line 4\nguardrail: send at line 5 to file:poc\/m0\/out/, '');
+  const { resumePath, jdPath, outDir } = setup();
+  const pre = preflightJob2FromDeclaration(job2Declaration(), proseNoSlots, {
+    runDir: outDir, sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+  });
+  assert.equal(pre.ok, false);
+  assert.match(pre.red, /bind: prose carries no signed ask\/send arbiter slots/);
+});
+
+test('PROOF can fail: the SAME declaration with the slots restored binds clean', () => {
+  const { resumePath, jdPath, outDir } = setup();
+  const proseNoSlots = FIXTURE_PROSE_TEXT.replace(/\nguardrail: ask at line 4\nguardrail: send at line 5 to file:poc\/m0\/out/, '');
+  assert.equal(preflightJob2FromDeclaration(job2Declaration(), proseNoSlots, {
+    runDir: outDir, sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+  }).ok, false);
+  assert.equal(preflightJob2FromDeclaration(job2Declaration(), FIXTURE_PROSE_TEXT, {
+    runDir: outDir, sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+  }).ok, true);
+});
+
+test('(o) without a declaration, runJob2 still binds by prose (bound === "prose") — the prose-only path stays available for tests', async () => {
+  const {
+    resumePath, jdPath, prosePath, outDir, spendPath, sendDir,
+  } = setup();
+  const result = await runJob2({
+    prosePath,
+    sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+    runId: 'o',
+    outDir,
+    spendPath,
+    slot: 'deepseek',
+    modelStep: fakeModelStepFactory(outDir),
+    askStep: scriptedAskStep([{ decision: 'accept', text: null }]),
+    sendStep: fakeSendStep(sendDir),
+  });
+  assert.equal(result.outcome, 'green', result.red);
+  assert.equal(result.bound, 'prose');
 });

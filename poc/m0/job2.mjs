@@ -45,7 +45,9 @@ import {
 } from './runner.mjs';
 import { checkStepHappened } from './mechanical.mjs';
 import { assertUnderGlobalCap, RUN_CAP_USD } from './spend.mjs';
-import { parseLines, parseArbiterSlots, parseArbiterGuardrails } from './validator.mjs';
+import {
+  parseLines, parseArbiterSlots, parseArbiterGuardrails, validate,
+} from './validator.mjs';
 import { readDocxText } from './docx.mjs';
 import { closeWordsAndSections } from './shape.mjs';
 import { askWithRedo } from './redo.mjs';
@@ -150,6 +152,129 @@ export function preflightJob2(proseText, { runDir, sources, spendPath = SPEND_PA
 
   return {
     ok: true, ...bound, inputsManifest: frozen.manifest, sendDir: destination.dir,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// DECLARATION-DRIVEN BINDING (Claim 2 — the fold obeys the drafter's own
+// declaration instead of guessing stages from position). `bindJob2Stages`
+// above still does the LINE-LEVEL half from the prose alone (which line
+// number is the compose line, the two read lines, the signed ask/send
+// slots) — that fact does not change just because a declaration now exists.
+// What follows is the NEW half: resolving each of those line numbers to the
+// ONE step a DRAFTED declaration names via `fromLine`, and checking that
+// step's grants — mirrors runner.mjs's `bindSteps`/`checkGrants` (M0b Part
+// 2.1) exactly, on job #2's own five stage names instead of job #1's fixed
+// JOB1_FIXED_STAGE_LINES.
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve job #2's five stages from a drafted declaration's `fromLine`
+ * fields, given the line numbers `bindJob2Stages` already worked out from
+ * the prose. A line with 0 or 2+ steps bound to it refuses, naming the line
+ * and the count — never picks one (same discipline as runner.mjs's
+ * `bindSteps`).
+ */
+export function bindJob2DeclarationSteps(declaration, bound) {
+  const lineByStage = {
+    readResume: bound.readLines[0].n,
+    readJd: bound.readLines[1].n,
+    compose: bound.composeLine.n,
+    ask: bound.arbiterSlots.ask.line,
+    send: bound.arbiterSlots.send.line,
+  };
+  const stages = {};
+  for (const [stage, lineNumber] of Object.entries(lineByStage)) {
+    const matches = (declaration?.steps ?? []).filter((st) => st?.fromLine === lineNumber);
+    if (matches.length !== 1) {
+      return {
+        ok: false,
+        red: `bind: line ${lineNumber} (stage "${stage}") has ${matches.length} step(s) bound to it — exactly 1 required`,
+      };
+    }
+    [stages[stage]] = matches;
+  }
+  return { ok: true, stages };
+}
+
+// Grants — job #2's own version of runner.mjs's GRANT_REQUIREMENTS/
+// checkGrants: a stage may only run using primitives its bound step was
+// actually granted, checked before any model round (the compose round is
+// the only paid one, and it runs strictly after this). `compose` needs NO
+// primitive grant — it is our own model round + declared-shape close, the
+// same footing as job #1's "match a customer, derive figures" JOB1_NEEDS
+// row (`own: true`, catalogue.mjs), never a catalogue primitive. `ask` uses
+// Checkpoint with no grant check either, same as job #1: its POSITION is
+// arbiter (the human-signed slot), never the drafter's primitive list to
+// prove. Job #1's `checkGrants` never reds on an EXTRA grant beyond what's
+// required (it only checks the required verbs are present) — this follows
+// that precedent rather than adding a least-privilege "no extra grants"
+// check job #1 itself does not enforce, so job #2 does not silently hold a
+// stricter bar than job #1 for the same kind of step.
+const JOB2_GRANT_REQUIREMENTS = Object.freeze([
+  ['readResume', Object.freeze(['readDocx'])],
+  ['readJd', Object.freeze(['read'])],
+  ['send', Object.freeze(['write'])],
+]);
+
+export function checkJob2Grants(stages) {
+  for (const [stage, verbs] of JOB2_GRANT_REQUIREMENTS) {
+    const step = stages[stage];
+    for (const verb of verbs) {
+      if (!Array.isArray(step?.primitives) || !step.primitives.includes(verb)) {
+        return {
+          ok: false,
+          red: `grants: step for line ${step?.fromLine} (stage "${stage}") is not granted "${verb}"`,
+        };
+      }
+    }
+  }
+  return { ok: true };
+}
+
+/**
+ * Full DECLARATION-DRIVEN preflight — same order as `preflightJob2`
+ * (bind lines -> fresh run dir -> freeze -> bind declaration steps -> grants
+ * -> send destination -> global spend cap), mirroring runner.mjs's own
+ * `preflight` ordering (validate -> freeze -> bind -> grants -> destination
+ * -> cap) with job #2's line-level bind standing in for job #1's `validate`.
+ */
+export function preflightJob2FromDeclaration(declaration, proseText, { runDir, sources, spendPath = SPEND_PATH }) {
+  // Mirrors runner.mjs's `preflight`: validate() first, $0, before anything
+  // filesystem- or model-shaped even runs — proves the declaration's own
+  // walkable chain (validator.mjs, unmodified for job #2, see its header)
+  // before this function's job #2-specific binding/grants even start.
+  const validated = validate(declaration);
+  if (validated.verdict !== 'green') {
+    return { ok: false, red: validated.red };
+  }
+
+  const bound = bindJob2Stages(proseText);
+  if (!bound.ok) return bound;
+
+  const freshRunDir = checkFreshRunDir(runDir);
+  if (!freshRunDir.ok) return freshRunDir;
+
+  const frozen = freezeInputs(runDir, sources);
+  if (!frozen.ok) return frozen;
+
+  const declBound = bindJob2DeclarationSteps(declaration, bound);
+  if (!declBound.ok) return declBound;
+
+  const granted = checkJob2Grants(declBound.stages);
+  if (!granted.ok) return granted;
+
+  const destination = checkSendDestination(bound.arbiterSlots.send.target);
+  if (!destination.ok) return destination;
+
+  try {
+    assertUnderGlobalCap(spendPath);
+  } catch (err) {
+    return { ok: false, red: `cap: ${err.message}` };
+  }
+
+  return {
+    ok: true, ...bound, stages: declBound.stages, inputsManifest: frozen.manifest, sendDir: destination.dir,
   };
 }
 
@@ -296,27 +421,44 @@ async function defaultSendStep(target, filename, content) {
 export async function runJob2({
   prosePath, sources, runId, outDir, spendPath = SPEND_PATH, slot, model,
   redoCap = 3, modelStep, askStep, sendStep, askTimeoutMs = 120_000,
+  declaration,
 }) {
   const runDir = outDir ?? join(OUT_DIR, runId);
   mkdirSync(runDir, { recursive: true });
   const proseText = readFileSync(prosePath, 'utf8');
+
+  // `declaration` may be an already-parsed object (tests, programmatic
+  // callers) or a path to a JSON file (the CLI's `--declaration <path>`) —
+  // one accepted shape, resolved once, here.
+  const declarationObj = declaration === undefined
+    ? null
+    : (typeof declaration === 'string' ? JSON.parse(readFileSync(declaration, 'utf8')) : declaration);
+  const bound = declarationObj != null ? 'declaration' : 'prose';
 
   const logEntries = [];
   const record = (entry) => { logEntries.push(entry); };
   const writeLog = () => writeFileSync(join(runDir, 'log.json'), JSON.stringify({ runId, stages: logEntries }, null, 2));
   const finish = (outcome, phase, red, extra = {}) => {
     writeLog();
-    const result = { outcome, phase: phase ?? null, red: red ?? null, ...extra };
+    const result = {
+      outcome, phase: phase ?? null, red: red ?? null, bound, ...extra,
+    };
     writeFileSync(join(runDir, 'result.json'), JSON.stringify(result, null, 2));
     return result;
   };
 
-  const pre = preflightJob2(proseText, { runDir, sources, spendPath });
+  // Claim 2 (PRD): with a declaration, the fold binds its stages from the
+  // DRAFTER's own `fromLine`s and checks grants before any model round —
+  // never guesses from position. Without one (prose-only path, `--no-drafter`),
+  // stages bind by KIND from the prose alone, exactly as before this task.
+  const pre = declarationObj != null
+    ? preflightJob2FromDeclaration(declarationObj, proseText, { runDir, sources, spendPath })
+    : preflightJob2(proseText, { runDir, sources, spendPath });
   if (!pre.ok) {
-    record({ stage: 'preflight', outcome: 'red', red: pre.red });
+    record({ stage: 'preflight', outcome: 'red', red: pre.red, bound });
     return finish('red', 'preflight', pre.red);
   }
-  record({ stage: 'preflight', outcome: 'green' });
+  record({ stage: 'preflight', outcome: 'green', bound });
 
   const { inputsManifest, arbiterSlots } = pre;
   const bySourceId = Object.fromEntries(inputsManifest.map((m) => [m.id, m]));
@@ -399,6 +541,7 @@ export async function runJob2({
   const result = {
     outcome: 'green',
     phase: null,
+    bound,
     attempts: redoResult.attempts,
     costUsd: redoResult.costUsd,
     costUnknown: redoResult.costUnknown,
@@ -410,6 +553,25 @@ export async function runJob2({
 
 // ---------------------------------------------------------------------------
 // CLI entry point.
+//
+// LIVE, opt-in only, never run under `npm test` — the full Claim-2 pipeline,
+// draft for real then run the fold on the drafted declaration:
+//
+//   SCOUT_LIVE=1 node poc/m0/scout.mjs --job2 --resume <resume.docx> \
+//     --jd <jd.md> > /tmp/facts.json   # $0, no model round — see scout.mjs
+//
+//   DRAFTER_LIVE=1 node poc/m0/drafter.mjs <model-id> --job2 \
+//     --prose <prose.txt> --resume <resume.docx> --jd <jd.md> \
+//     --slot deepseek   # one paid round; writes poc/m0/out/draft-*.json
+//
+//   # pull the "declaration" field out of that draft-*.json into its own
+//   # file (e.g. with `jq .declaration`), then validate it ($0):
+//   node -e "import('./poc/m0/validator.mjs').then(({validate}) => \
+//     console.log(validate(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')))))" \
+//     /tmp/declaration.json
+//
+//   node poc/m0/job2.mjs --prose <prose.txt> --resume <resume.docx> \
+//     --jd <jd.md> --slot deepseek --declaration /tmp/declaration.json
 // ---------------------------------------------------------------------------
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -426,10 +588,23 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const model = get('--model');
   const runId = get('--run-id') ?? `job2-${slot}-${Date.now()}`;
   const askTimeoutMs = get('--ask-timeout-ms') !== undefined ? Number(get('--ask-timeout-ms')) : 120_000;
+  const declarationPath = get('--declaration');
+  const noDrafter = args.includes('--no-drafter');
 
   if (!prosePath || !resumePath || !jdPath || !['deepseek', 'synthetic'].includes(slot)) {
     console.error('usage: node poc/m0/job2.mjs --prose <path> --resume <docx> --jd <md> --slot deepseek|synthetic '
-      + '[--model <id>] [--run-id <id>] [--ask-timeout-ms N]');
+      + '[--model <id>] [--run-id <id>] [--ask-timeout-ms N] (--declaration <path.json> | --no-drafter)');
+    process.exit(1);
+  }
+  // Claim 2 (PRD §go/no-go): a counting run must bind through the drafter's
+  // own declaration, never guess stages from position — so the CLI REFUSES
+  // to run without `--declaration` unless `--no-drafter` is passed
+  // explicitly, naming the choice, rather than silently falling back to the
+  // prose-only path (which stays available for tests and for this one
+  // named opt-out).
+  if (!declarationPath && !noDrafter) {
+    console.error('refusing: no --declaration given — pass --declaration <path.json> (a drafted, validated job #2 '
+      + 'declaration) or explicitly --no-drafter to run the prose-only binding (never the silent default).');
     process.exit(1);
   }
 
@@ -441,6 +616,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     slot,
     model,
     askTimeoutMs,
+    declaration: declarationPath,
   });
 
   try {

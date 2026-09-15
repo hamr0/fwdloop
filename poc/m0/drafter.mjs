@@ -40,7 +40,7 @@ import {
 import { makeProvider } from './provider.mjs';
 import { menu } from './catalogue.mjs';
 import { parseLines, deriveFromLine } from './validator.mjs';
-import { classifyFacts, runScoutRound } from './scout.mjs';
+import { classifyFacts, runScoutRound, scoutJob2 } from './scout.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(__dirname, 'out');
@@ -478,27 +478,17 @@ export function plantLineWithGuardrail(rawText, line, guardrail) {
   return `${trimmed}\n${nextN}. ${line}\n   guardrail: ${guardrail}\n`;
 }
 
-export async function runDrafter(modelId, {
-  ungroundable = false, uncovered = false, unjudgeableGuardrail = false,
-  runLabel = 'drafter', slot = 'synthetic', prose = false,
-  provider: injectedProvider, rates: injectedRates, facts,
+/**
+ * THE PAID ROUND, shared by job #1's `runDrafter` and job #2's `draftJob2` —
+ * the SAME `emit_declaration` tool call, the SAME `assembleDeclaration`
+ * stitching, over WHATEVER `stepsText`/`factsText` the caller hands in. This
+ * is the one writer for "call the model, capture its declaration args";
+ * every job-specific concern (ABSENT-facts handling, which facts shape to
+ * render, plant lines) stays in the caller, never duplicated here.
+ */
+async function runDeclarationRound(modelId, {
+  stepsText, factsText, runLabel, slot, provider: injectedProvider, rates: injectedRates,
 } = {}) {
-  // ABSENT handling (PRD's M0a exit gap, borrowed-from bareloop
-  // authorflow.js:1408 in spirit): checked BEFORE any provider is built or
-  // spend cap even consulted, so an ABSENT facts object costs exactly $0 —
-  // not a flag on a draft, not a draft with a warning, a REFUSAL with a
-  // named cause. See scout.mjs's `classifyFacts` for the named routes.
-  const factsCheck = classifyFacts(facts);
-  if (factsCheck.state === 'ABSENT') {
-    return {
-      modelRequested: modelId, modelReturned: null, suffixMatch: null,
-      toolCalled: false, declaration: null, textInstead: null,
-      usage: null, rounds: 0, costUsd: null, rateSource: null, wallMs: 0,
-      ungroundable, uncovered, unjudgeableGuardrail,
-      absent: { cause: factsCheck.cause, reason: factsCheck.reason },
-    };
-  }
-
   let provider = injectedProvider;
   let rates = injectedRates;
   let suffix = modelId.replace(/^hf:/, '');
@@ -508,13 +498,6 @@ export async function runDrafter(modelId, {
     ({ provider, rates, suffix } = makeProvider(slot, { model: modelId }));
   }
   mkdirSync(OUT_DIR, { recursive: true });
-
-  let stepsText = readFileSync(prose ? PROSE_PATH : STEPS_PATH, 'utf8');
-  if (ungroundable) stepsText = plantLine(stepsText, UNGROUNDABLE_LINE);
-  if (uncovered) stepsText = plantLine(stepsText, UNCOVERED_LINE);
-  if (unjudgeableGuardrail) {
-    stepsText = plantLineWithGuardrail(stepsText, UNJUDGEABLE_GUARDRAIL_LINE, UNJUDGEABLE_GUARDRAIL_TEXT);
-  }
 
   const guardrails = extractGuardrails(stepsText);
 
@@ -540,7 +523,7 @@ export async function runDrafter(modelId, {
     {
       role: 'system',
       content: `You are the fwdloop drafter. You answer ONLY by calling emit_declaration — never plain text. `
-        + `${primitiveMenuBlock(guardrails)}\n\n${factsBlock(facts)}`,
+        + `${primitiveMenuBlock(guardrails)}\n\n${factsText}`,
     },
     // The numbered job lines already appear once, in the system prompt (primitiveMenuBlock's own
     // "The numbered job lines..." block) — every "below" reference there points at that one copy.
@@ -570,16 +553,128 @@ export async function runDrafter(modelId, {
     }
   }
 
+  return {
+    guardrails, capturedArgs, capturedText, metered, suffixMatch, costUsd, wallMs,
+  };
+}
+
+export async function runDrafter(modelId, {
+  ungroundable = false, uncovered = false, unjudgeableGuardrail = false,
+  runLabel = 'drafter', slot = 'synthetic', prose = false,
+  provider: injectedProvider, rates: injectedRates, facts,
+} = {}) {
+  // ABSENT handling (PRD's M0a exit gap, borrowed-from bareloop
+  // authorflow.js:1408 in spirit): checked BEFORE any provider is built or
+  // spend cap even consulted, so an ABSENT facts object costs exactly $0 —
+  // not a flag on a draft, not a draft with a warning, a REFUSAL with a
+  // named cause. See scout.mjs's `classifyFacts` for the named routes.
+  const factsCheck = classifyFacts(facts);
+  if (factsCheck.state === 'ABSENT') {
+    return {
+      modelRequested: modelId, modelReturned: null, suffixMatch: null,
+      toolCalled: false, declaration: null, textInstead: null,
+      usage: null, rounds: 0, costUsd: null, rateSource: null, wallMs: 0,
+      ungroundable, uncovered, unjudgeableGuardrail,
+      absent: { cause: factsCheck.cause, reason: factsCheck.reason },
+    };
+  }
+
+  let stepsText = readFileSync(prose ? PROSE_PATH : STEPS_PATH, 'utf8');
+  if (ungroundable) stepsText = plantLine(stepsText, UNGROUNDABLE_LINE);
+  if (uncovered) stepsText = plantLine(stepsText, UNCOVERED_LINE);
+  if (unjudgeableGuardrail) {
+    stepsText = plantLineWithGuardrail(stepsText, UNJUDGEABLE_GUARDRAIL_LINE, UNJUDGEABLE_GUARDRAIL_TEXT);
+  }
+
+  const round = await runDeclarationRound(modelId, {
+    stepsText, factsText: factsBlock(facts), runLabel, slot, provider: injectedProvider, rates: injectedRates,
+  });
+
   const realColumns = Array.isArray(facts?.csv?.realColumns) ? facts.csv.realColumns : [];
-  const declaration = capturedArgs != null ? assembleDeclaration(capturedArgs, { guardrails, realColumns }) : null;
+  const declaration = round.capturedArgs != null
+    ? assembleDeclaration(round.capturedArgs, { guardrails: round.guardrails, realColumns })
+    : null;
 
   const report = {
-    modelRequested: modelId, modelReturned: metered.model, suffixMatch,
-    toolCalled: capturedArgs != null, declaration, textInstead: capturedArgs ? null : capturedText,
-    usage: metered.tokens, rounds: metered.rounds, costUsd, rateSource: metered.rateSource, wallMs,
+    modelRequested: modelId, modelReturned: round.metered.model, suffixMatch: round.suffixMatch,
+    toolCalled: round.capturedArgs != null, declaration, textInstead: round.capturedArgs ? null : round.capturedText,
+    usage: round.metered.tokens, rounds: round.metered.rounds, costUsd: round.costUsd,
+    rateSource: round.metered.rateSource, wallMs: round.wallMs,
     ungroundable, uncovered, unjudgeableGuardrail,
   };
   return report;
+}
+
+/**
+ * Job #2's own facts block — kept separate from `factsBlock` (job #1's
+ * CSV-shaped scout facts) rather than overloading one renderer to branch on
+ * two unrelated shapes; each job renders its own scout's own facts.
+ * `facts` is `scoutJob2`'s output shape (scout.mjs) — never the CSV/text
+ * shape `groundFacts` produces. Neither file's body text is included (see
+ * `scoutJob2`'s own header for why): the drafter picks primitives, it does
+ * not compose.
+ */
+function job2FactsBlock(facts) {
+  const headings = Array.isArray(facts?.jd?.headings) ? facts.jd.headings : [];
+  const lines = [
+    'The scout already looked at the real inputs before you were called — these are grounded facts, never invented:',
+    `- resume: a .docx file, ${facts?.resume?.paragraphs ?? 0} paragraphs, ~${facts?.resume?.words ?? 0} words`,
+    `- job description: a markdown file, ~${facts?.jd?.words ?? 0} words, headings: ${headings.join(', ') || '(none)'}`,
+    '',
+    'Neither file\'s body text is shown to you here — you pick PRIMITIVES from the catalogue to read them '
+      + '(the resume is a .docx file: use "readDocx"; the job description is plain/markdown text: use "read"). '
+      + 'You never compose the summary yourself; that is a later step outside this declaration. Omit "columns" '
+      + 'for every step — job #2 has no CSV.',
+  ];
+  return lines.join('\n');
+}
+
+/**
+ * Job #2's drafter invocation (M0b Amendment B / Claim 2 evidence): the
+ * SAME paid `emit_declaration` round and the SAME `assembleDeclaration`
+ * stitching as job #1's `runDrafter`, over job #2's own prose and scout
+ * facts (`scoutJob2`'s output) instead of job #1's steps/prose files and
+ * CSV-shaped facts. No `JOB1_NEEDS`-style table: the catalogue menu
+ * (`primitiveMenuBlock`, unchanged) already carries `readDocx` under the
+ * same "core" skill everything else here is granted, so nothing extra is
+ * needed for the model to select it.
+ *
+ * ABSENT handling mirrors `runDrafter`'s (checked before any provider is
+ * built, $0), but is NOT `classifyFacts` — that function's checks are
+ * job #1's CSV-shaped facts (`facts.csv.columns` etc.) and would misread a
+ * job #2 facts object entirely. This is the smallest job #2-shaped
+ * equivalent, not a stretched reuse of a job #1 function.
+ */
+export async function draftJob2(modelId, {
+  proseText, facts, runLabel = 'drafter-job2', slot = 'synthetic',
+  provider: injectedProvider, rates: injectedRates,
+} = {}) {
+  if (!facts || typeof facts !== 'object' || !facts.resume || !facts.jd) {
+    return {
+      modelRequested: modelId, modelReturned: null, suffixMatch: null,
+      toolCalled: false, declaration: null, textInstead: null,
+      usage: null, rounds: 0, costUsd: null, rateSource: null, wallMs: 0,
+      absent: {
+        cause: 'missing',
+        reason: 'no job #2 scout facts (resume/jd, scout.mjs\'s scoutJob2) were given to the drafter',
+      },
+    };
+  }
+
+  const round = await runDeclarationRound(modelId, {
+    stepsText: proseText, factsText: job2FactsBlock(facts), runLabel, slot, provider: injectedProvider, rates: injectedRates,
+  });
+
+  const declaration = round.capturedArgs != null
+    ? assembleDeclaration(round.capturedArgs, { guardrails: round.guardrails, realColumns: [] })
+    : null;
+
+  return {
+    modelRequested: modelId, modelReturned: round.metered.model, suffixMatch: round.suffixMatch,
+    toolCalled: round.capturedArgs != null, declaration, textInstead: round.capturedArgs ? null : round.capturedText,
+    usage: round.metered.tokens, rounds: round.metered.rounds, costUsd: round.costUsd,
+    rateSource: round.metered.rateSource, wallMs: round.wallMs,
+  };
 }
 
 // CLI entry point — live, opt-in ONLY (DRAFTER_LIVE=1), same discipline as
@@ -590,6 +685,38 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (process.env.DRAFTER_LIVE !== '1') {
     console.error('A live drafter round costs real money — set DRAFTER_LIVE=1 to run it. Refusing.');
     process.exit(1);
+  }
+  if (process.argv.includes('--job2')) {
+    const get = (flag) => {
+      const i = process.argv.indexOf(flag);
+      return i !== -1 ? process.argv[i + 1] : undefined;
+    };
+    const modelId = process.argv[2];
+    const prosePath = get('--prose');
+    const resumePath = get('--resume');
+    const jdPath = get('--jd');
+    const slotIdx = process.argv.indexOf('--slot');
+    const slot = slotIdx !== -1 ? process.argv[slotIdx + 1] : 'synthetic';
+    if (!modelId || !prosePath || !resumePath || !jdPath) {
+      console.error('usage: DRAFTER_LIVE=1 node poc/m0/drafter.mjs <model-id> --job2 --prose <path> --resume <docx> --jd <md> [--slot synthetic|deepseek]');
+      process.exit(1);
+    }
+    // Live path: scout -> drafter, job #2 shape (M0b Amendment B). scoutJob2 is $0
+    // (no model round) so no separate opt-in gate is needed for it — see scout.mjs's CLI.
+    const scoutReport = scoutJob2({ resumePath, jdPath });
+    if (!scoutReport.ok) {
+      console.error(JSON.stringify(scoutReport, null, 2));
+      process.exit(1);
+    }
+    const proseText = readFileSync(prosePath, 'utf8');
+    const tag = `${suffixOf(modelId).replace(/\//g, '_')}-${slot}-job2`;
+    const report = await draftJob2(modelId, {
+      proseText, facts: scoutReport.facts, slot, runLabel: `drafter-${tag}`,
+    });
+    const outPath = join(OUT_DIR, `draft-${tag}-${Date.now()}.json`);
+    writeFileSync(outPath, JSON.stringify(report, null, 2));
+    console.log(JSON.stringify({ ...report, declaration: '(see ' + outPath + ')' }, null, 2));
+    process.exit(0);
   }
   const modelId = process.argv[2];
   const ungroundable = process.argv.includes('--ungroundable');
