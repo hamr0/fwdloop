@@ -508,10 +508,15 @@ export async function runJob2({
 
   // `declaration` may be an already-parsed object (tests, programmatic
   // callers) or a path to a JSON file (the CLI's `--declaration <path>`) —
-  // one accepted shape, resolved once, here.
-  const declarationObj = declaration === undefined
+  // one accepted shape, resolved once, here. Either shape may itself be a
+  // drafter REPORT (`{modelRequested, ..., declaration: {...}}`) rather than
+  // a bare declaration — unwrap exactly like runner.mjs's CLI does
+  // (`raw.declaration ?? raw`), so a report-wrapped file loads the same way
+  // in both places.
+  const declarationRaw = declaration === undefined
     ? null
     : (typeof declaration === 'string' ? JSON.parse(readFileSync(declaration, 'utf8')) : declaration);
+  const declarationObj = declarationRaw != null ? (declarationRaw.declaration ?? declarationRaw) : declarationRaw;
   const bound = declarationObj != null ? 'declaration' : 'prose';
 
   const logEntries = [];

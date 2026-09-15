@@ -810,6 +810,76 @@ test('(n) declaration-driven fold: `declaration` accepts a JSON file PATH (the C
   assert.equal(result.bound, 'declaration');
 });
 
+test('(p1) declaration-driven fold: `declaration` accepts a drafter REPORT-wrapped file PATH (the shape a real draft-*.json is saved as, `{modelRequested, ..., declaration: {...}}`) — unwrapped the same way runner.mjs\'s CLI does (`raw.declaration ?? raw`), the bug this test guards', async () => {
+  const {
+    resumePath, jdPath, prosePath, outDir, spendPath, sendDir,
+  } = setup();
+  mkdirSync(outDir, { recursive: true });
+  const reportPath = join(outDir, 'report.json');
+  writeFileSync(reportPath, JSON.stringify({
+    modelRequested: 'deepseek-flash', modelUsed: 'deepseek-flash', costUsd: 0.01, declaration: job2Declaration(),
+  }));
+  const result = await runJob2({
+    prosePath,
+    sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+    runId: 'p1',
+    outDir,
+    spendPath,
+    slot: 'deepseek',
+    declaration: reportPath,
+    modelStep: fakeModelStepFactory(outDir),
+    askStep: scriptedAskStep([{ decision: 'accept', text: null }]),
+    sendStep: fakeSendStep(sendDir),
+  });
+  assert.equal(result.outcome, 'green', result.red);
+  assert.equal(result.bound, 'declaration');
+});
+
+test('(p2) declaration-driven fold: `declaration` also accepts a report-wrapped OBJECT (not a path — the programmatic-caller shape) — same unwrap covers both', async () => {
+  const {
+    resumePath, jdPath, prosePath, outDir, spendPath, sendDir,
+  } = setup();
+  const report = {
+    modelRequested: 'deepseek-flash', modelUsed: 'deepseek-flash', costUsd: 0.01, declaration: job2Declaration(),
+  };
+  const result = await runJob2({
+    prosePath,
+    sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+    runId: 'p2',
+    outDir,
+    spendPath,
+    slot: 'deepseek',
+    declaration: report,
+    modelStep: fakeModelStepFactory(outDir),
+    askStep: scriptedAskStep([{ decision: 'accept', text: null }]),
+    sendStep: fakeSendStep(sendDir),
+  });
+  assert.equal(result.outcome, 'green', result.red);
+  assert.equal(result.bound, 'declaration');
+});
+
+test('(p3) declaration-driven fold: a BARE declaration object (no `.declaration` key) still passes through unchanged — the unwrap does not eat a real declaration', async () => {
+  const {
+    resumePath, jdPath, prosePath, outDir, spendPath, sendDir,
+  } = setup();
+  const bareDeclaration = job2Declaration();
+  assert.equal(bareDeclaration.declaration, undefined);
+  const result = await runJob2({
+    prosePath,
+    sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+    runId: 'p3',
+    outDir,
+    spendPath,
+    slot: 'deepseek',
+    declaration: bareDeclaration,
+    modelStep: fakeModelStepFactory(outDir),
+    askStep: scriptedAskStep([{ decision: 'accept', text: null }]),
+    sendStep: fakeSendStep(sendDir),
+  });
+  assert.equal(result.outcome, 'green', result.red);
+  assert.equal(result.bound, 'declaration');
+});
+
 // ---------------------------------------------------------------------------
 // "ask/send slots missing" — validator.mjs deliberately SKIPS the send lock
 // entirely when a declaration carries no arbiter slots at all (a signed,
