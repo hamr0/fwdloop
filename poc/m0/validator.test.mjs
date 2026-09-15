@@ -29,7 +29,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  validate, guardrailList, unmappedGuardrails, parseLines, parseArbiterGuardrails,
+  validate, guardrailList, unmappedGuardrails, parseLines, parseArbiterGuardrails, parseArbiterSlots,
   resolveGuardrailClass, deriveFromLine, effectiveClass, effectiveGuardrailClass, unjudgeableList,
 } from './validator.mjs';
 
@@ -152,18 +152,18 @@ test('check 2 — a primitive not in the catalogue is a red naming the invented 
 
 test('check 3 — a primitive that exists but is outside the signed skillset is a red', () => {
   const decl = validDeclaration();
-  decl.steps[6].primitives = ['write', 'sendMail']; // sendMail is skill "mail-egress"; skillset only grants "core"
+  decl.steps[6].primitives = ['write', 'remember']; // remember is skill "memory"; skillset only grants "core"
   const result = validate(decl);
   assert.equal(result.verdict, 'red');
   assert.match(result.red, /step 7 \("send \(dry-run egress\)"\)/);
-  assert.match(result.red, /primitive "sendMail" needs skill "mail-egress", which is not in the granted skillset \(core\)/);
+  assert.match(result.red, /primitive "remember" needs skill "memory", which is not in the granted skillset \(core\)/);
 });
 
-test('PROOF check 3 can fail: granting "mail-egress" makes the same declaration green', () => {
+test('PROOF check 3 can fail: granting "memory" makes the same declaration green', () => {
   const decl = validDeclaration();
-  decl.steps[6].primitives = ['write', 'sendMail'];
+  decl.steps[6].primitives = ['write', 'remember'];
   assert.equal(validate(decl).verdict, 'red');
-  decl.skills = ['core', 'mail-egress'];
+  decl.skills = ['core', 'memory'];
   assert.equal(validate(decl).verdict, 'green');
 });
 
@@ -790,4 +790,173 @@ test('PROOF the test can fail: a refusal with hamrLine text but NO "line" field 
   const result = validate(decl);
   assert.equal(result.verdict, 'red', 'a prose-only refusal (no "line") must not silently satisfy coverage for line 5');
   assert.match(result.red, /job line 5/);
+});
+
+// ---------------------------------------------------------------------------
+// M0b Part 1 — THE SEND LOCK (2026-09-13). F21 fixed the send line by prompt
+// WORDING only (6/11 -> 11/11): a declaration that still refuses or drops
+// line 6 could validate green, because line 6 carries no guardrail and check
+// 6 accepts a refused line unconditionally. The lock is a MECHANISM: the
+// human signs typed `ask at line <n>` / `send at line <n> to <target>`
+// arbiter slots (never the drafter's to author), and the validator proves
+// the declaration actually wires them up.
+// ---------------------------------------------------------------------------
+
+const SLOTTED_GUARDRAILS = `${GUARDRAILS}\nguardrail: ask at line 5\nguardrail: send at line 6 to file:poc/m0/out`;
+
+function slottedDeclaration() {
+  const decl = validDeclaration();
+  decl.guardrails = SLOTTED_GUARDRAILS;
+  // The send lock's "direct reads" check: the send step (fromLine 6) must
+  // read the artifact the ask step (fromLine 5, emits "a5") emitted.
+  decl.steps[6].reads = ['a5'];
+  return decl;
+}
+
+test('parseArbiterSlots reads the fixed grammar into typed { ask, send } data, leaving the cap alone', () => {
+  const { slots, errors } = parseArbiterSlots(SLOTTED_GUARDRAILS);
+  assert.deepEqual(errors, []);
+  assert.deepEqual(slots, { ask: { line: 5 }, send: { line: 6, target: 'file:poc/m0/out' } });
+});
+
+test('PROOF parseArbiterSlots can fail: an arbiter line that does not start "ask at"/"send at" is never mistaken for a slot', () => {
+  const { slots } = parseArbiterSlots(GUARDRAILS); // only the cap, no slots at all
+  assert.deepEqual(slots, {});
+});
+
+test('parseArbiterSlots reds an "ask at"/"send at" line that does not match the signed grammar, naming it', () => {
+  const broken = `${GUARDRAILS}\nguardrail: send at file:poc/m0/out`; // missing "line <n>"
+  const { slots, errors } = parseArbiterSlots(broken);
+  assert.deepEqual(slots, {});
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /send at file:poc\/m0\/out.*does not match the signed grammar/);
+});
+
+test('a slotted declaration with the send step wired to read the ask step\'s emit validates green', () => {
+  const result = validate(slottedDeclaration());
+  assert.equal(result.verdict, 'green');
+  assert.equal(result.red, null);
+});
+
+test('PROOF the slotted-clean test can fail: reverting the send step\'s reads back to the pre-lock shape reds it', () => {
+  const decl = slottedDeclaration();
+  decl.steps[6].reads = ['a4']; // pre-lock shape: reads the draft, not the ask's emit
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+});
+
+test('send lock — a malformed arbiter slot line reds, naming the line, before any step check runs', () => {
+  const decl = slottedDeclaration();
+  decl.guardrails = `${GUARDRAILS}\nguardrail: send at line six to file:poc/m0/out`; // "six", not an integer
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /send at line six to file:poc\/m0\/out.*does not match the signed grammar/);
+});
+
+test('send lock — refusing the signed send line is a red: it cannot be refused', () => {
+  const decl = slottedDeclaration();
+  decl.steps.splice(6, 1); // drop the send step (line 6)
+  decl.refused = [{ hamrLine: 'and send it once I accept.', line: 6, reason: 'looked like egress, refused' }];
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /line 6 is the signed send slot and cannot be refused/);
+});
+
+test('PROOF can fail: the same declaration validates (differently) once line 6 is served by a step again', () => {
+  const decl = slottedDeclaration();
+  decl.steps.splice(6, 1);
+  decl.refused = [{ hamrLine: 'and send it once I accept.', line: 6, reason: 'looked like egress, refused' }];
+  assert.equal(validate(decl).verdict, 'red');
+  // restore a step for line 6 rather than a refusal
+  decl.refused = [];
+  decl.steps.push({
+    goal: 'send (dry-run egress)', primitives: ['write'], reads: ['a5'], emits: 'a6', fromLine: 6, close: { class: 'hitl' },
+  });
+  assert.equal(validate(decl).verdict, 'green');
+});
+
+test('send lock — refusing the signed ask line is a red: it cannot be refused either', () => {
+  const decl = slottedDeclaration();
+  decl.steps.splice(5, 1); // drop the ask step (line 5)
+  decl.steps[5].reads = ['a4']; // the send step (now at index 5) had read 'a5'; nothing emits it any more
+  decl.refused = [{ hamrLine: 'check it with me,', line: 5, reason: 'refused' }];
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /line 5 is the signed ask slot and cannot be refused/);
+});
+
+test('send lock — no step at all names fromLine 6 (dropped, not refused) is a red naming the send slot', () => {
+  const decl = slottedDeclaration();
+  decl.steps.splice(6, 1); // drop the send step, no refusal either
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  // Check 6 (dropped-line, generic) would also catch this — the send-lock
+  // check runs first in step order here, so assert on either equally valid
+  // red rather than pin an ordering that isn't load-bearing.
+  assert.match(result.red, /fromLine 6, the signed send slot|job line 6 .* is neither served/);
+});
+
+test('PROOF can fail: putting the send step back (fromLine 6) clears the "dropped line" red', () => {
+  const decl = slottedDeclaration();
+  decl.steps.splice(6, 1);
+  assert.equal(validate(decl).verdict, 'red');
+  decl.steps.push({
+    goal: 'send (dry-run egress)', primitives: ['write'], reads: ['a5'], emits: 'a6', fromLine: 6, close: { class: 'hitl' },
+  });
+  assert.equal(validate(decl).verdict, 'green');
+});
+
+test('send lock — the send step not granted "write" is a red naming it', () => {
+  const decl = slottedDeclaration();
+  decl.steps[6].primitives = []; // no "write" any more
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /the send step \(fromLine 6\) is not granted "write"/);
+});
+
+test('PROOF can fail: restoring "write" on the send step clears the red', () => {
+  const decl = slottedDeclaration();
+  decl.steps[6].primitives = [];
+  assert.equal(validate(decl).verdict, 'red');
+  decl.steps[6].primitives = ['write'];
+  assert.equal(validate(decl).verdict, 'green');
+});
+
+test('send lock — the send step not reading the ask step\'s emitted artifact is a red naming both steps', () => {
+  const decl = slottedDeclaration();
+  decl.steps[6].reads = ['a4']; // reads the pre-accept draft, never the ask's own emit "a5"
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /does not read "a5", the artifact emitted by the ask step \(fromLine 5\)/);
+});
+
+test('PROOF can fail: adding "a5" to the send step\'s reads clears the red', () => {
+  const decl = slottedDeclaration();
+  decl.steps[6].reads = ['a4'];
+  assert.equal(validate(decl).verdict, 'red');
+  decl.steps[6].reads = ['a4', 'a5'];
+  assert.equal(validate(decl).verdict, 'green');
+});
+
+test('send lock — a slot naming a line number that does not exist is a red naming the slot', () => {
+  const decl = slottedDeclaration();
+  decl.guardrails = `${GUARDRAILS}\nguardrail: ask at line 5\nguardrail: send at line 99 to file:poc/m0/out`;
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /the signed "send" slot names line 99, which is not one of the human's numbered lines/);
+});
+
+test('PROOF can fail: pointing the slot back at a real line (6) clears the red', () => {
+  const decl = slottedDeclaration();
+  decl.guardrails = `${GUARDRAILS}\nguardrail: ask at line 5\nguardrail: send at line 99 to file:poc/m0/out`;
+  assert.equal(validate(decl).verdict, 'red');
+  decl.guardrails = SLOTTED_GUARDRAILS;
+  assert.equal(validate(decl).verdict, 'green');
+});
+
+test('send lock — a declaration with no arbiter slots at all skips the lock entirely (old/hand-built declarations)', () => {
+  const decl = validDeclaration(); // GUARDRAILS carries only the cap, no ask/send slots
+  decl.steps[6].reads = ['a4']; // would red under the lock if slots were present — never checked here
+  const result = validate(decl);
+  assert.equal(result.verdict, 'green');
 });

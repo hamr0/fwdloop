@@ -36,8 +36,6 @@ test('negative #5: SCOUT_MENU has no write-class or store-class verb — absence
   assert.ok(!verbs.includes('write'));
   assert.ok(!verbs.includes('edit'));
   assert.ok(!verbs.includes('checkpoint'));
-  assert.ok(!verbs.includes('draftMail'));
-  assert.ok(!verbs.includes('sendMail'));
   assert.ok(!verbs.includes('stash'));
   assert.ok(!verbs.includes('remember'));
   assert.ok(!verbs.includes('forget'));
@@ -304,6 +302,35 @@ test('PROOF the test can fail: the same no-tool-call shape with a CLEAN stop (no
 // header only because of the empty-report fallback, not because `columns`
 // is always complete).
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// scoutMenuText's `${e.desc}` field (added when mailproof's verbs were
+// dropped from SCOUT_MENU) had no assertion anywhere — a typo or missing
+// `desc` in a SCOUT_MENU entry would render "undefined" into the drafter/
+// scout prompt text silently. Asserted via the fake provider's recorded
+// system message, the same call path runScoutRound actually sends.
+// ---------------------------------------------------------------------------
+
+test("scoutMenuText renders each menu entry's desc into the system message", async () => {
+  const realHeader = parseCsv(readFileSync(CSV_PATH, 'utf8')).header;
+  const provider = fakeProvider({
+    text: null,
+    toolCalls: [{ id: 't1', name: 'report_facts', arguments: { csvColumns: realHeader } }],
+    usage: { inputTokens: 50, outputTokens: 20 },
+    stopReason: 'tool_calls',
+    model: 'fake-model',
+  });
+  await runScoutRound('fake-model', {
+    csvPath: CSV_PATH, textPath: TEXT_PATH, provider, rates: { in: 0, out: 0 },
+  });
+  const readEntry = SCOUT_MENU.find((e) => e.verb === 'read');
+  assert.ok(readEntry, 'sanity: the read-class menu has a "read" verb entry');
+  const systemMessage = provider.calls[0].messages[0].content;
+  assert.ok(
+    systemMessage.includes(readEntry.desc),
+    `system message should include the menu entry's desc ("${readEntry.desc}")`,
+  );
+});
 
 test('groundFacts.csv.realColumns is the FULL real header even when the model reports only a partial subset', () => {
   const { csvArtifact, textArtifact } = lookFixtures(CSV_PATH, TEXT_PATH);

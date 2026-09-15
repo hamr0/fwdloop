@@ -71,6 +71,8 @@ const REAL_GUARDRAILS = [
   '',
   'Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):',
   'guardrail: cap $0.25 per run',
+  'guardrail: ask at line 5',
+  'guardrail: send at line 6 to file:poc/m0/out',
 ].join('\n');
 
 // job #1's real per-guardrail proposals a well-behaved model should emit,
@@ -140,7 +142,9 @@ function job1ModelSteps() {
         goal: 'check with me', primitives: ['checkpoint'], reads: ['a4'], emits: 'a5', fromLine: 5,
       },
       {
-        goal: 'send (dry-run egress)', primitives: ['write'], reads: ['a4'], emits: 'a6', fromLine: 6,
+        // M0b Part 1 send lock: the send step must directly read the artifact
+        // the ask step (fromLine 5) emitted — 'a5', not 'a4' (the pre-accept draft).
+        goal: 'send (dry-run egress)', primitives: ['write'], reads: ['a5'], emits: 'a6', fromLine: 6,
       },
     ],
   };
@@ -194,12 +198,12 @@ test('plantLine adds one extra numbered line, one past the highest existing numb
 
 test('DEFECT 2 — the real prose.txt carries the cap as an arbiter guardrail, not on any numbered line', () => {
   const arbiter = parseArbiterGuardrails(REAL_GUARDRAILS);
-  assert.deepEqual(arbiter, ['cap $0.25 per run']);
+  assert.deepEqual(arbiter, ['cap $0.25 per run', 'ask at line 5', 'send at line 6 to file:poc/m0/out']);
 });
 
 test('PROOF the test can fail: dropping the "Arbiter guardrails" heading pushes the cap back onto the last line', () => {
   const collapsed = REAL_GUARDRAILS.replace(
-    /\n\nArbiter guardrails.*\nguardrail: cap \$0\.25 per run\n?$/s,
+    /\n\nArbiter guardrails.*\nguardrail: send at line 6 to file:poc\/m0\/out\n?$/s,
     '\n   guardrail: cap $0.25 per run',
   );
   const arbiter = parseArbiterGuardrails(collapsed);

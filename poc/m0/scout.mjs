@@ -281,7 +281,7 @@ export function makeReportFactsTool() {
 }
 
 function scoutMenuText() {
-  return SCOUT_MENU.map((e) => `- ${e.verb} (${e.component}, ${e.package})`).join('\n');
+  return SCOUT_MENU.map((e) => `- ${e.verb}: ${e.desc} (${e.component}, ${e.package})`).join('\n');
 }
 
 /**

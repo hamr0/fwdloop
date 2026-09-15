@@ -113,6 +113,56 @@ unproven machinery ahead of need (docs/archive/PRD.md:419-425).
 browser is the product**; the server owns the scheduler. A CLI exists for M0–M4 but is
 undocumented and carries no stability promise (docs/archive/PRD.md:427-431).
 
+## Guiding principles — borrowed from bareloop, reminders not features
+
+Signed by hamr 2026-09-15. Lifted from bareloop `docs/logs/CYBERNETICS.md@4bd52fe` (Ashby, Beer,
+Wiener, and gate-level digital design), kept only where fwdloop has already been bitten or
+already leans on it. None of these is a module or a feature. Each is a question to ask of any
+new piece before it is built. The date is the day it cost us.
+
+1. **Only a clean yes/no crosses a step boundary.** A model's artifact is analog — plausible,
+   degraded in ways nobody can see. The close collapses it to one bit before the next step
+   reads it. No score, confidence, or "mostly passing" ever travels between steps or feeds a
+   decision. (2026-09-10 F7: a model minted greens by omitting fields; the fix was a harder bit,
+   not a softer one.)
+2. **Right and cheap are two numbers, never one.** Green gates; cost ranks. No function in the
+   tree may combine verdict and cost into one scalar. A "fitness score" is the smell; reject it
+   on sight. (2026-09-15 F28 reports pass/20 and $/run in separate columns for this reason.)
+3. **Every check names its third outcomes.** Besides green and red there is always a forbidden
+   zone — a crash, an unparseable reply, an unpriced round, a killed close. Each gets its own
+   name and its own path; rounding one to green or red is itself the fault. (2026-09-14 F27
+   `cost unknown`; 2026-09-15 F28 `malformed tool call` — both were third outcomes, and the
+   one we rounded to "provider-red" cost a day of restarts.)
+4. **The human's alarm goes by a wire nothing summarises.** An ask reaches the human word for
+   word, on a path no log, fold, or emergent component rewrites or filters. What the shell
+   emitted is what the human reads. (2026-09-13 F25: `ASK OPEN` printed once and was lost in
+   scroll; both asks expired; the fix was a blocking prompt, not a better log line.)
+5. **Test the checker before trusting what it says.** Every close ships with a fixture that
+   must fail and a fixture that must pass, run token-free before any batch is believed. "The
+   test must be able to fail" is this rule; "revert the fix alone, see red, restore" is its
+   manual form. (2026-09-15: a deadline test accepted `0`, which means *off* — caught only by
+   reverting by hand.)
+6. **The doer never writes its own judge.** The agent authors steps; a human signs the
+   trigger, the cap, the ask, the allow-list, and what "done" means. A confident fake green is
+   an accountability sink; this is the wall against it. (Standing since 2026-09-08; the hard
+   lines in CLAUDE.md are this rule spelled out.)
+7. **Every summary says what it threw away.** A fold, a ledger row, a red string, an ask text:
+   per field, what is destroyed, what survives, and why nothing downstream needs the dropped
+   part. A summariser without that manifest is a review blocker. (2026-09-15 F28: a red run
+   kept only its red string; five misses could not be told from a close bug until `log.json`
+   kept the reply.)
+8. **Green steps do not add up to a green job.** Each step is its own small viable system with
+   its own close; the job still needs its own last check — for fwdloop, the human accept in the
+   same run — or the steps are individually green and jointly wrong. (Plant d exists to prove
+   this; 2026-09-15: 240 clean runs, nothing incomplete reached a send.)
+9. **A repeat at the same byte is a shape, not weather.** When a provider red recurs with the
+   same position, size, or timing, capture the body before blaming the wire. (2026-09-15 F28:
+   three "provider" reds at position 476/476/432 were our own parser dropping the model's usage.)
+
+Deliberately not borrowed (no home in fwdloop v1): the across-run learning items — contrast
+bits per knob, one-knob mutation, toggle coverage, order-from-noise pre-flight. fwdloop does
+not yet learn across runs; if it ever does, those come in as their own signed module.
+
 ## Stack — vanilla JS
 
 **Vanilla JavaScript, ESM, node stdlib.** No TypeScript, no framework, no build step; types go in

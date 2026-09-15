@@ -1119,3 +1119,324 @@ the installed package, and its proof-can-fail partner with a made-up symbol. The
 
 **Lesson:** a string that isn't where you looked is a question about where it lives, not proof it
 doesn't exist.
+
+## F24 — the send lock: a signed slot, not wording; it finds a send F21 counted as present (2026-09-13)
+
+**Date** 2026-09-13 · **Status** fixed, reviewed · **Class** M0b / Claim 2 lock · **Grounded in**
+commits `7db38ec`, `288cb8a`, `089c8a1`; `poc/m0/validator.mjs` (`parseArbiterSlots`, the send-lock
+block in `validate()`); the 9 saved clean prose drafts
+`poc/m0/out/draft-deepseek-v4-flash-deepseek-prose*.json`, re-validated at $0, files untouched.
+
+**Problem.** F21 fixed the send line by prompt wording (6/11 → 11/11). A draft that refused line 6
+still validated green: line 6 has no guardrail, and check 6 accepts a refused line.
+
+**Fix.** The human-signed arbiter block now carries two typed slots in a fixed grammar,
+`ask at line 5` and `send at line 6 to file:poc/m0/out`. `validate()` reds when a slot line is
+refused, no step serves it, the send step is not granted `write`, the send step does not read the
+ask step's artifact, or a slot names a line that does not exist. A line that starts `ask at` /
+`send at` and does not parse is a red, never ignored. `send()` takes its allow-list from the caller,
+with no hard-coded default. The drafter prompt was not touched. 291 → 311 tests.
+
+**Proof it can fail.** The orchestrator replaced only the lock's `if` with `if (false)`: 10 lock tests
+red. Restored: 311/311. Reverting `send()`'s allow-list requirement alone: 2 tests red.
+
+**Evidence over the saved drafts** (slots injected, $0):
+
+| drafts | line 6 | verdict |
+|---|---|---|
+| 5 (post-F21 wording, `1789099035197`…`090060`) | step, `write`, reads the ask artifact | green |
+| 2 (`1789098132037`, `168855`) | refused, in the old shape with no `refused[].line` | red: no step has fromLine 6 |
+| 2 (`1789098148504`, base `prose.json`) | a step with **no primitives** | red: send step not granted `write` |
+
+**The new fact.** F21's table counted `148504` as "step" for line 6. It was a step with an empty
+grant — it could never have sent anything. F21 checked that a step existed, not what it was allowed
+to do. The old-shape refusals red for the right outcome under a less precise label (a known nit:
+old drafts lack `refused[].line`).
+
+**Lesson:** count what a step is granted, not that it exists.
+
+## F25 — M0b live: F5's plants still red on primitives; the compose close passes a made-up invoice number (2026-09-13)
+
+**Date** 2026-09-13 · **Status** measured; close fix sent to Sonnet · **Class** M0b hard case / Claim 1
+· **Grounded in** draft `poc/m0/out/draft-deepseek-flash-deepseek-prose-1789326506971.json`; run dirs
+`poc/m0/out/m0b-ds-{a,b,c,d,e}/`; 13 rows in `poc/m0/out/spend.jsonl` (runIds `m0b-ds-*`,
+`scout-`/`drafter-deepseek-flash-deepseek-prose`), all `modelMatch: "match"`; `poc/m0/close.mjs:261`;
+`fixtures/ar-aging.csv` row 3. Code at `066389f`. Run by hamr from his TTY.
+
+**One live pass, deepseek-flash, n=1 per plant, $0.0233.** Fresh scout → drafter round on the prose
+carrying the signed ask/send slots, then the primitive runner (`runOnPrimitives`) per plant.
+
+| plant | red / outcome | verdict |
+|---|---|---|
+| draft | passed preflight, including the F24 send lock | as expected |
+| a wrong total | `total_owed 5850 ≠ sum(E2,E3) = 5700` | caught, same text as F5 |
+| b wrong cell | `c1 4300 ≠ cell E2 = 4200` | caught, same text as F5 |
+| e omission (F7) | `compose: declared field "total_owed" (5700, c7) does not appear cited in the reply` | caught by compose completeness |
+| c two Northwinds | ask raised naming both, no pick; then `ask expired` | ask reached; answer came after the 10 min timeout |
+| d clean | compose green, ask raised; then `ask expired` | send NOT reached |
+
+**Negative (i) holds at n=1:** the plants F5 caught on bespoke code still red on primitives, same messages.
+
+**The hole.** Run d's composed reply, which closed green and was put to the human for accept:
+
+```
+- INV-1021: 4200[c1], due 2026-06-09[c3], not yet overdue (-8[c6] days until due)
+- INV-1022: 1500[c2], due 2026-05-20[c4], 12[c7] days overdue
+```
+
+The sheet's row 3 is `INV-1009`. `INV-1022` exists nowhere in the fixture. The model was handed
+`row 3 (INV-1009)` in its derive input and still wrote a different id. `closeCompose` strips every
+`[A-Za-z]+-\d+` token before looking for uncited figures (`close.mjs:261`), so an invoice id is never
+checked against anything. Every amount and date was cited and correct; the one identifier that tells
+the customer which invoice to pay was invented, and the close said green. Only a human reading closely
+at the ask stood between it and send. This is a close that verifies figures and not identifiers —
+the same shape as F7 (truth, not completeness): here, numbers, not names.
+
+**Two run defects, no money lost.** (1) The runner prints nothing when an ask opens, so the human cannot
+know it is waiting; both asks expired unanswered. (2) An `answer.json` left in a run dir is accepted
+instantly by the next run reusing that id — a pre-accept of a send the human never saw. `m0b-ds-c` and
+`m0b-ds-d` now hold one; those ids must not be reused.
+
+**Fix sent (tighten only):** an identifier in the composed text must be cited to its cell like any
+figure, or red; the runner announces an open ask with the exact answer command; preflight refuses a run
+dir that already holds an ask or answer.
+
+**Fixed the same day (Sonnet, reviewed by the orchestrator), $0:**
+- `05c6b9b` — `closeCompose` now requires every `[A-Za-z]+-\d+` identifier to carry a bracket to a COPIED
+  citation whose value equals the token, resolved through the existing cell check. No new citation
+  form. Run d's exact `INV-1022` reply reds; `INV-1009[c]` cited to B3 is green. The runner's derive
+  prompt now emits a copied Invoice # citation per row, and compose is told to cite them. F7's quoted
+  gpt-oss-120b text (`INV-1:` / `INV-2:` labels in no cell) now reds on the identifier first. Its tests
+  were re-pointed and completeness got its own isolated proof, so both checks stay provable.
+- `cb9ed9b` — an open ask prints `ASK OPEN (<runId>, expires in Ns): … — answer with: node
+  poc/m0/answer.mjs <runId> accept`.
+- `4fe2ca6` — preflight refuses at $0 a run dir that already holds `ask.json` or `answer.json`.
+
+**Residual, not fixed:** the identifier check proves an invoice id is REAL, not that it sits on the
+same reply line as its own row's amount. Two real ids swapped between lines would pass. Closing it
+needs a line-to-row binding in the close; left for a measured reason, not guessed at.
+
+**Rerun on the fixed build (`d8ed48e`), deepseek-flash, same draft, $0.0239 over two passes.**
+
+| plant | pass 2 (`-2`) | pass 3 (`-3`) |
+|---|---|---|
+| a | `total_owed 5850 ≠ sum(E2,E3) = 5700` | — |
+| b | `c2 4300 ≠ cell E2 = 4200` | — |
+| e | `compose: declared field "total_owed" (5700, c5) does not appear cited in the reply` | — |
+| c | ask raised, no pick; expired unanswered | ask raised, hamr accepted → `paused-ask-answered` |
+| d | compose green, ids correct; expired unanswered | compose green, hamr accepted → `complete` |
+
+Pass 3's clean run sent `poc/m0/out/m0b-ds-d-3-sent.txt`, 217 bytes, with both invoice ids cited and
+correct (`INV-1021[c1]`, `INV-1009[c3]`). The frozen inputs in `m0b-ds-d-3/inputs/` hash identical to
+the fixtures (`f2960d9e…`, `345d066a…`). Every ledger row `modelMatch: "match"`, none unpriced. The
+tightened compose raised no false red in 2 of 2 live composes that reached it. The ASK OPEN line did
+print in pass 2, but it was lost in the scroll; pass 3 used a shell helper that waited for `ask.json`,
+showed the reply, and read hamr's y/N.
+
+**M0b's four plants reproduce on primitives at n=1, deepseek only.** This is not the exit: the exit
+says both providers, and Amendment C sets 20 runs per scenario per provider at 19/20.
+
+**Not yet measured:** synthetic; Amendment C's 20 runs; negative (iii), undeclared class refused at
+validation — which conflicts with the 2026-09-10 "silence is hitl" ruling and needs hamr.
+
+**Lesson:** a check that strips what it doesn't understand passes it. Invented text hides in the part
+the close was told to ignore.
+
+## F26 — batch day: both fresh drafts refuse at preflight, because our menu and our grant check disagree (2026-09-14)
+
+**Date** 2026-09-14 · **Status** fixed, reviewed (hamr ruled: the runner comes to agree with the
+menu) · **Class** M0b / Amendment C preflight · **Grounded in** drafts
+`poc/m0/out/draft-deepseek-flash-deepseek-prose-1789376520136.json` and
+`poc/m0/out/draft-Qwen_Qwen3.8-27B-synthetic-prose-1789376657229.json`; control
+`poc/m0/out/draft-deepseek-flash-deepseek-prose-1789326506971.json`; `poc/m0/catalogue.mjs:117`, `:179`;
+`poc/m0/runner.mjs:198`, `:337`; 4 rows in `poc/m0/out/spend.jsonl` (`scout-`/`drafter-` for both slots).
+Code at `5d49b54`. Drafts run by hamr from his TTY.
+
+**What happened.** Batch day step 1 made a fresh draft per provider (scout + drafter, $0.01505 total:
+deepseek $0.00503 `modelMatch: "match"`, synthetic $0.01002 `modelMatch: "prefix"`). Before any batch
+run, the orchestrator ran `preflight()` on both at $0 in a scratch run dir:
+
+| draft | line 1 primitives | preflight |
+|---|---|---|
+| deepseek `1789376520136` (fresh) | `["addressCells"]` | red: `grants: step for line 1 (stage "sheetRead") is not granted "read"` |
+| synthetic `1789376657229` (fresh) | `["addressCells"]` | red: same |
+| deepseek `1789326506971` (F25's, control) | `["read","addressCells"]` | ok |
+
+The control passing proves the probe, not the drafts, is sound. No batch run was started.
+
+**Cause.** Two writers of one rule. The drafter's menu says `addressCells` alone reads the sheet: its
+desc is "Read a spreadsheet as cells", class `read`, and `JOB1_NEEDS` maps "read the AR sheet as
+addressable cells" to `['addressCells']`. The runner's grant check demands `read` AND `addressCells` for
+the sheet stage. At run time the sheet stage uses no separate `read`: `readFrozenCsv` reads the frozen
+copy and parses it. Both models followed the menu; the check refused them for a verb the stage never uses.
+
+**The new fact.** F25's live pass rested on a draft that happened to list both verbs. That green was
+real for that draft but not repeatable from the menu. n=1 hid it; two fresh drafts on two providers
+showed it at once. The batch's own scoring would not have miscounted it: `classifyVerdict` requires the
+expected phase, so a preflight red is a miss for a/b/e, never a pass.
+
+**Fix (Sonnet, reviewed by the orchestrator), $0.** `runner.mjs` sheet stage now requires
+`addressCells` only; `messageMatch` still needs `read`, send still needs `write`. No signed PRD or ladder
+line required `read` on line 1; the only source was the orchestrator's own unsigned M0b brief. Three
+tests: `addressCells` alone passes; `read` alone still refuses naming `addressCells`; preflight passes on
+both real drafts, copied byte-identical as `poc/m0/fixture-declaration-{deepseek-1789376520136,qwen-1789376657229}.json`.
+The orchestrator reverted only the grant line: 2 tests red; restored: 422/422.
+
+**Not redrafted to pass.** The two drafts above stay as evidence. Fresh drafts follow after the fix.
+
+**Nit found on the way, not fixed:** six older `runner.test.mjs` tests (`test-happened-*`,
+`test-preflight-*`) and two fold tests still leave 8 entries in `poc/m0/out/` per suite run. They are
+git-ignored and nothing reads them; the orchestrator deleted today's 16 by exact name.
+
+**Residual, not fixed:** the grant table and `JOB1_NEEDS` are still two hand-kept lists; nothing makes
+them agree. The next drift between them refuses the same way.
+
+**Lesson:** a check and the menu it judges need one source. A pass at n=1 can be luck in the draft.
+
+## F27 — batch day stopped: DeepSeek accepts every chat request and answers none; three 900 s hangs, priced at ceiling (2026-09-14)
+
+**Date** 2026-09-14 evening · **Status** measured, batch day aborted; nothing fixed · **Class** provider /
+money · **Grounded in** ledger rows 245–249 in `poc/m0/out/spend.jsonl` (`m0b-deepseek-a-2026-09-14-1`,
+`m0b-deepseek-c-2026-09-14b-1`, `probe-ds-old-a-2026-09-14`, `probe-ds-curl-{1,2}-2026-09-14`); bar files
+`poc/m0/out/batch-*-2026-09-14*.json`; `node_modules/bare-agent/src/provider-openai.js:128`;
+`poc/m0/runner.mjs` `makeProvider(..., { timeoutMs: 300_000 })`. DeepSeek status page read 22:00 CEST:
+"everything is running smoothly". Balance endpoint: $9.26, unchanged through the evening (hamr).
+
+**What happened, in order.**
+1. Terminal 1's four c/d batches crashed in 0.2 s each: the shell had no API keys (the `export` lines
+   were in another window). $0, no ledger row; the batch reported `crashed` and `$unknown`, correct.
+   Cost: the tags `2026-09-14` for c/d are consumed (a bar file with results is never overwritten).
+2. Terminal 2 (keys present) ran `deepseek a` run 1: the first model round (messageMatch) returned after
+   900.4 s with a body bare-agent could not read (`Cannot read properties of undefined (reading '0')` —
+   `data.choices[0]`, the body is not logged). Row 245 `costUsd: null`, `rounds: 0`.
+3. That one null row locked every following batch at preflight on both slots (`cap: spend tally has an
+   unpriced round`), 0.2 s each, $0 — the F5 rule doing its job.
+4. hamr's c retry (`2026-09-14b`) hung the same way, 901.1 s. Row 246.
+5. hamr checked the DeepSeek dashboard: no usage, balance not moving. He ruled ceiling pricing per the
+   2026-09-08 precedent (`221d918`): 4000 in + 16000 out at peak = $0.0204 a row. Rows 245–246 repriced,
+   `rateSource: "ceiling"`, `reconciled` note. Lock lifted.
+6. Orchestrator probe from its own shell (pass is readable there; keys never printed): F25's known-good
+   draft, plant a → the same 900.7 s hang. Row 247, ceiling. So it is not today's draft.
+7. Two direct `curl` calls, 90 s limit: `"Say hi"`, `max_tokens 5`, no tools → HTTP 200 headers, 1 byte of
+   body, then nothing for 90 s. Same with one tool declared. Rows 248–249 at ceiling ($0.00001, $0.00008).
+   `GET /models` and `GET /user/balance` answered in under a second.
+
+**The fact.** `api.deepseek.com/chat/completions` accepted every request tonight, sent 200 headers, and
+never sent a body; the CloudFront edge in front of it closed each at ~900 s (its origin ceiling) with a
+non-chat body. This is independent of draft, plant, tool use, and prompt size. It is not on the status
+page. The scout and drafter rounds at 21:2x on the same key worked in 16–19 s.
+
+**Why it cost 15 minutes a try and not 5.** `makeProvider` sets bare-agent's BA-18 *idle* timeout to
+300 s; that timer resets on any socket byte, and the edge kept the socket alive. bare-agent 0.42.0 also
+has a BA-19 *deadline* (`deadlineMs`, total wall) that we leave disabled. Not changed tonight.
+
+**Batch day result: none.** 0 of 200 runs happened. Spend today $0.0764 (drafts $0.0150, hangs at ceiling
+$0.0614). The same-day rule means synthetic was not run alone.
+
+**Open, for the next batch day (a new tag, e.g. `2026-09-15`):**
+- DONE the same night (`dd96d87`, Sonnet, reviewed): `LIVE_PROVIDER_OPTIONS = { timeoutMs: 300_000,
+  deadlineMs: 240_000 }` on the one live call; proven against a local server that sends 200 + one byte
+  and never ends (rejects `EDEADLINE`, `retryable: false`, not retried, one null row). The first
+  revert-proof test accepted `deadlineMs: 0` — which bare-agent treats as OFF — and was tightened to
+  `> 0`; 422 → 429 tests. scout/drafter/redraft still call `makeProvider` with no timeout at all;
+- when `choices` is missing, keep the body's first ~300 bytes in the red so a hang and a 4xx-in-200 can
+  be told apart — that is an upstream bare-agent ask (`provider-openai.js:128`), not ours;
+- the 22 leftover `batch-*`/`m0b-*-2026-09-14*` entries in `poc/m0/out/` are evidence of the aborted day
+  and stay; the next day's tag must differ.
+
+**Lesson:** a green status page and a live balance endpoint prove the door is open, not that anyone is
+home. Probe the paid path with the smallest possible call before spending a batch on it.
+
+## F28 — Amendment C, batch day 2026-09-15: 200 runs on two providers; 7 of 10 cells meet 19/20; a malformed tool call was our red, not the provider's (2026-09-15)
+
+**Date** 2026-09-15 · **Status** measured; F28 fix landed (`b51c2c6`); M0b exit NOT claimed · **Class** M0b /
+Amendment C · **Grounded in** the ten counting bar files `poc/m0/out/batch-{deepseek,synthetic}-{a,b,c,d,e}-2026-09-15*.json`
+(tags below), 520 ledger rows 252–771 in `poc/m0/out/spend.jsonl` (515 `match`/`prefix`, 5 `unreported` = the
+killed/malformed rounds, 0 `substituted`), the captured body in the orchestrator's scratch `bad-json.log`, and
+bareloop's independent F179/F180 (same error, same day, their run `mu2bjmed`). Drafts reused from 2026-09-14
+(hamr: "reuse"). c/d accepts: all 80 typed by hamr from his TTY (`answeredBy: "human-tty"`), per the 2026-09-13
+ruling. a/b/e run by the orchestrator from its own shell (pass is readable there; no key printed or written).
+
+**Result — pass / 20, bar 19/20:**
+
+| plant | deepseek-flash | Qwen3.8-27B (synthetic) | what the non-passes were |
+|---|---|---|---|
+| a wrong total | **20** ✅ (15e) | 18 ✗ (15c) | Qwen ×2: red at derive on a *different* slip — the model's days-until-due (8, 0) ≠ −8 |
+| b wrong cell | **20** ✅ (15e) | **20** ✅ (15c) | — |
+| e omitted total | **20** ✅ (15d) | 18 ✗ (15c) | Qwen: 1 days-until-due slip; 1 `bracket [c1] does not resolve to a citation` |
+| c two Northwinds | **20** ✅ (15c) | **19** ✅ (15c) | Qwen: 1 human-rejected (an empty Enter — the batch counts anything but `y` as no) |
+| d clean, accept, send | 17 ✗ (15c) | 15 ✗ (15d) | deepseek: 1 `count_overdue … not cited`, 2 days-until-due slips (8, −9). Qwen: 4 `total_owed … not cited`, 1 days slip |
+
+Cost of the ten counting cells $1.34; whole day $1.68 (ledger $0.589 → $2.273, incl. 5 ceiling rows $0.10 and
+the aborted cells). Per run: deepseek $0.0010–0.0058, Qwen $0.0022–0.0139. Wall: deepseek 8–25 s, Qwen 18–52 s.
+The 2026-09-13 stash guessed ≈$1.20 and ~1 min/run; both within 2×. Against the $12.50/day human cost, a full
+job-#1 run (plant d) is $0.006–0.014.
+
+**Three things the day found.**
+
+1. **The "provider-red" was ours.** Three deepseek stops (`Unexpected non-whitespace character after JSON at
+   position 476/476/432`, ~2 s) each wrote a `costUsd: null` row and locked every batch on both slots (F5, correct).
+   A `JSON.parse` capture on the fourth showed the MODEL's tool-call `arguments` ending `…"matches": ["c2", "c3"]}}`
+   — one trailing brace. bare-agent 0.42.0 throws from `provider-openai.js:131` after the HTTP round succeeded and
+   `data.usage` was in hand, so the cost was never unknown; we dropped it. hamr said it first ("deepseek can't be
+   the blame every run"). Fix `b51c2c6` (Sonnet, reviewed): `MalformedToolCallTolerantOpenAI` overrides `_request`
+   to keep the body and `generate` to turn a SyntaxError-with-tool-calls into a metered no-tool-call round;
+   `runModelStepOnPrimitives` retries once (existing class) and reds naming the raw arguments the second time.
+   Proven against a local server; 429 → 434 tests. After the fix: 60 deepseek runs, 0 stops, 0 second-time reds.
+   Upstream ask sent to bareloop's session; they hit the same throw the same day (position 5734) and will
+   corroborate in their UPSTREAM-ASKS.md rather than file a second shape. Before the fix, each stop restarted a
+   20-run cell at run 1 — deepseek a reached 11/11 and 3/3 before the two stops; those cells stay on disk (tags
+   15, 15b, 15c) and do not count.
+
+2. **Plant d misses the bar on both providers, and every miss is a red on a clean input.** Two shapes:
+   - *days-until-due arithmetic* (5 of 8 misses across d and a/e): the model wrote 8, 0 or −9 for a −8; the
+     derive close caught it every time. The machine did its job; the bar counts it as a false red because the
+     input was clean. Rate ≈ 1 in 13 runs on both models.
+   - *`declared field … does not appear cited`* (5 misses, 4 on Qwen): the compose close says the reply lacks a
+     bracket for the total. In the 15 Qwen and 17 deepseek passes hamr saw, the total was always cited (`5700[c9]`,
+     `[tot]`, `[total]`…). **We cannot see the red replies:** a red run keeps only the red string, not the composed
+     text, so whether the model omitted the bracket or the close mis-read a label like `[tot]` is undetermined.
+     That is the next measurement, not a guess.
+   Neither shape is the F25 identifier hole; no wrong figure reached an accept. Amendment C's 19/20 as written
+   counts a correct red on a clean run against the machine. Whether it should is hamr's to rule.
+
+3. **Amendment C's tag discipline held, at a price.** A bar file with any result is never overwritten, so every
+   stop (keys missing in a window, the cap lock, a kill) consumed a tag: 30 bar files exist for 10 cells. All stay.
+
+**Also measured:** the deadline fix (`dd96d87`) was never exercised — no hang today. Qwen's `tool_calls` came back
+`null`-shaped once (`[c1] does not resolve`); not investigated.
+
+**Not the exit.** Amendment C says 19/20 per scenario per provider. 7 of 10 cells meet it; a, e on Qwen and d on
+both do not. Every miss ended in a red and nothing wrong was sent. M0b's sign-off is hamr's.
+
+**Lesson:** when the same red repeats at the same byte position, it is a shape, not weather. Capture the body
+before blaming the wire. And a check that cannot show what it refused cannot be told from a bug.
+
+**Addendum, plant d rerun with `log.json` (`958ee66`), same day.** deepseek d (tag 15d) **19/20**, Qwen d (tag
+15e) 17/20; $0.44; 40 more human accepts. Every red now carries the reply it refused, so the open question above
+is answered: **the compose close was right every time; the model left things out.**
+
+| run | red | what the saved reply shows |
+|---|---|---|
+| Qwen 15e-17 | `total_owed (5700, c9) … not cited` | the reply has no total at all — two invoice lines, nothing else |
+| Qwen 15e-13 | `count_overdue (1, c10) … not cited` | the reply never says how many are overdue |
+| Qwen 15e-4 | `bracket [c1] does not resolve` | the model named its citations `inv_1021`, `amt_1021`… then wrote `[c1]`, `[c3]` — brackets to ids it never declared |
+| deepseek 15d-1 | `preflight: run dir … already holds ask.json` | not a model red: two batches were started ~60 s apart in the same window (11:15:29 and 11:16:32); the second's child refused the first's run dir at $0 while the first's ask was the one hamr answered. Nothing was sent (`…15d-1-sent.txt` does not exist). Operator double-start; the fresh-run-dir refusal (F25 fix) worked as designed |
+
+So the two shapes stand corrected: (1) the model mis-computes days-until-due ~1 in 13 runs and the derive close
+catches it; (2) Qwen omits a declared figure or mis-labels a bracket ~1 in 7 clean composes and the compose close
+catches it — the same behaviour plant e is planted to provoke, arriving unplanted. deepseek did neither in this
+rerun. **In 240 plant-d runs today nothing incomplete or wrong reached a send.** Amendment C's bar, read literally,
+counts each of those correct refusals against the cell; hamr's ruling on that reading is what separates
+"7 of 10" from "9 of 10" (Qwen a and e stay short either way on the literal reading; on the "correct red counts"
+reading they too are 20/20).
+
+**Nit, not fixed:** a second batch started into a tag whose bar file has no results yet silently coexists with the
+first; the bar file should refuse when a run dir for run 1 already exists. Sonnet, small.
+
+**Ruling, 2026-09-15 (hamr, recorded in `docs/wiki/the-module-ladder.md` RULING 3):** M0b's sign-off
+logic is *if the LLM fails, the mechanical harness catches it*. A correct red on a clean input is a
+catch, not a miss. Recount under that reading: all ten cells 20/20 — every non-pass above was the close
+refusing a model slip (days-until-due arithmetic, an omitted figure, a dangling bracket), a preflight
+refusal of an operator double-start, or the batch honouring an empty Enter as a rejection. Nothing got
+through unrefused; nothing correct was refused.

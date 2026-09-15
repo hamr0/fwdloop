@@ -120,16 +120,27 @@ export async function ask(runId, question, evidence, opts = {}) {
   return { verdict: 'red', red: 'ask expired', answer: null };
 }
 
-const ALLOWED_TARGETS = ['file:poc/m0/out'];
-
 /**
  * `send`: egress. Requires a prior accept THIS run and a target inside the
  * signed allow-list (PRD §5: "target ∈ signed allow-list; prior `ask` accept
  * this run"). Writes the file and returns its path as the delivery id.
+ *
+ * `allowedTargets` is NOT hard-coded here any more (M0b Part 1, send-lock
+ * finding): the allow-list is a human-signed arbiter field that lives in the
+ * declaration's guardrails text (`guardrail: send at line N to <target>`,
+ * validator.mjs's `parseArbiterSlots`) — ONE writer for that data. Every
+ * caller (the runner, in production; a test, standing in for the parsed
+ * declaration) must pass the signed target(s) explicitly; there is no
+ * fallback default, so a caller that forgets to wire it refuses loudly
+ * rather than silently falling back to a second, drifting copy of the list.
  */
-export function send(runId, target, content, { acceptedThisRun, outDir } = {}) {
+export function send(runId, target, content, { acceptedThisRun, outDir, allowedTargets } = {}) {
   if (!acceptedThisRun) throw new Error('send: no prior accept in this run');
-  if (!ALLOWED_TARGETS.includes(target)) throw new Error(`send: target "${target}" is not in the signed allow-list (${ALLOWED_TARGETS.join(',')})`);
+  if (!Array.isArray(allowedTargets) || allowedTargets.length === 0) {
+    throw new Error('send: allowedTargets must be a non-empty array — the allow-list is signed data parsed '
+      + 'from the declaration (validator.mjs parseArbiterSlots), never a hard-coded default here');
+  }
+  if (!allowedTargets.includes(target)) throw new Error(`send: target "${target}" is not in the signed allow-list (${allowedTargets.join(',')})`);
   const dir = outDir ?? join(process.cwd(), 'poc', 'm0', 'out', runId);
   mkdirSync(dir, { recursive: true });
   const deliveryPath = join(dir, 'sent.txt');

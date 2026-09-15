@@ -11,7 +11,8 @@ test('unknown verb throws — never returns undefined, never defaults', () => {
 test('PROOF the test can fail: a known verb resolves to its real implementation', () => {
   const entry = primitiveFor('read');
   assert.equal(entry.package, 'bare-agent/tools');
-  assert.equal(entry.symbol, 'shell_read');
+  assert.equal(entry.symbol, 'createShellTools');
+  assert.equal(entry.tool, 'shell_read');
   assert.equal(entry.class, 'read');
   // (deliberately broken + restored below, see report)
 });
@@ -24,6 +25,8 @@ test('every catalogue entry has the minimum required fields', () => {
     assert.equal(typeof entry.symbol, 'string');
     assert.ok(['read', 'write', 'store'].includes(entry.class), `${entry.verb} has an invalid class "${entry.class}"`);
     assert.equal(typeof entry.skill, 'string');
+    assert.equal(typeof entry.desc, 'string', `${entry.verb} is missing a "desc"`);
+    assert.ok(entry.desc.length > 0, `${entry.verb}'s "desc" must not be empty`);
   }
 });
 
@@ -46,11 +49,11 @@ test('PROOF the test can fail: an unfiltered menu DOES include write/store verbs
   assert.ok(verbs.includes('stash'));
 });
 
-test('menu also filters by skill — mail-egress verbs are absent from a core-only menu', () => {
+test('menu also filters by skill — memory verbs are absent from a core-only menu', () => {
   const coreMenu = menu({ skills: ['core'] });
   const verbs = coreMenu.map((e) => e.verb);
-  assert.ok(!verbs.includes('draftMail'));
-  assert.ok(!verbs.includes('sendMail'));
+  assert.ok(!verbs.includes('remember'));
+  assert.ok(!verbs.includes('forget'));
 });
 
 test('the fence (Gate/redact/wireGate) is plumbing, never a selectable primitive', () => {
@@ -61,7 +64,10 @@ test('the fence (Gate/redact/wireGate) is plumbing, never a selectable primitive
 });
 
 test('every one of job #1\'s needs resolves (F13\'s table)', () => {
-  assert.equal(JOB1_NEEDS.length, 8, 'F13 table has 8 rows covering 9 needs');
+  // F13's original table had 8 rows; M0b dropped "real mail egress (M9)" —
+  // no fwdloop job used it and mailproof (the catalogued egress package)
+  // was a wrong fit for it anyway.
+  assert.equal(JOB1_NEEDS.length, 7, 'F13 table minus the removed real-egress row');
   for (const row of JOB1_NEEDS) {
     const resolved = resolveJob1Need(row);
     assert.ok(resolved, `need "${row.need}" did not resolve to anything`);

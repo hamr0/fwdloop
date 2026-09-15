@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
+import { OpenAI } from 'bare-agent/providers';
 import {
-  makeProvider, PROVIDER_SLOTS, resolveModelRate,
+  makeProvider, PROVIDER_SLOTS, resolveModelRate, MalformedToolCallTolerantOpenAI,
 } from './provider.mjs';
 
 test('unknown slot throws', () => {
@@ -136,6 +138,130 @@ test('PROOF the test above can fail: a real table entry (not on the prototype) s
   assert.ok(rates.out > 0);
 });
 
+// M0b Part 2.2 — makeProvider is the ONE writer for provider construction;
+// the runner passes timeoutMs THROUGH it rather than constructing its own
+// `new OpenAI(...)` a second time.
+test('timeoutMs reaches the constructed provider when supplied', () => {
+  const envVar = PROVIDER_SLOTS.deepseek.envVar;
+  const saved = process.env[envVar];
+  process.env[envVar] = 'test-key-not-real';
+  try {
+    const { provider } = makeProvider('deepseek', { timeoutMs: 300_000 });
+    assert.equal(provider.timeoutMs, 300_000);
+  } finally {
+    if (saved !== undefined) process.env[envVar] = saved; else delete process.env[envVar];
+  }
+});
+
+test('PROOF the test above can fail: omitting timeoutMs never sets it to 300_000 by accident', () => {
+  const envVar = PROVIDER_SLOTS.deepseek.envVar;
+  const saved = process.env[envVar];
+  process.env[envVar] = 'test-key-not-real';
+  try {
+    const { provider } = makeProvider('deepseek', {});
+    assert.notEqual(provider.timeoutMs, 300_000);
+  } finally {
+    if (saved !== undefined) process.env[envVar] = saved; else delete process.env[envVar];
+  }
+});
+
+// F27 (2026-09-14) — BA-19 TOTAL wall-clock deadline, beside BA-18's idle `timeoutMs`. Same
+// conditional-spread pattern as timeoutMs above: passes through when supplied, absent otherwise.
+test('deadlineMs reaches the constructed provider when supplied', () => {
+  const envVar = PROVIDER_SLOTS.deepseek.envVar;
+  const saved = process.env[envVar];
+  process.env[envVar] = 'test-key-not-real';
+  try {
+    const { provider } = makeProvider('deepseek', { deadlineMs: 5 });
+    assert.equal(provider.deadlineMs, 5);
+  } finally {
+    if (saved !== undefined) process.env[envVar] = saved; else delete process.env[envVar];
+  }
+});
+
+test('PROOF the test above can fail: omitting deadlineMs never sets it by accident', () => {
+  const envVar = PROVIDER_SLOTS.deepseek.envVar;
+  const saved = process.env[envVar];
+  process.env[envVar] = 'test-key-not-real';
+  try {
+    const { provider } = makeProvider('deepseek', {});
+    assert.equal(provider.deadlineMs, undefined);
+  } finally {
+    if (saved !== undefined) process.env[envVar] = saved; else delete process.env[envVar];
+  }
+});
+
+// F27's real proof: a local server that behaves EXACTLY like the observed DeepSeek hang — HTTP
+// 200 + headers + one byte, then never another byte, socket held open (so BA-18's idle bound
+// never trips — this is the "zombie stream" shape, not a dead connection). $0, no network: this
+// is 127.0.0.1. `timeoutMs: 5000` proves the IDLE bound does not save us (it's way bigger than
+// the deadline and the socket stays "active" from the server's point of view — one byte flowed);
+// `deadlineMs: 300` is the ceiling under test. Asserts rejection well under 5000ms with the BA-19
+// discriminators: `code: 'EDEADLINE'`, `retryable: false`.
+test('a zombie stream (200 + one byte, then silence forever) trips deadlineMs, not the idle timeoutMs', async () => {
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.write('{'); // one byte, then hang — never res.end()
+  });
+  server.keepAliveTimeout = 60_000;
+  server.headersTimeout = 60_000;
+  const sockets = new Set();
+  server.on('connection', (sock) => {
+    sockets.add(sock);
+    sock.on('close', () => sockets.delete(sock));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  try {
+    const provider = new OpenAI({
+      apiKey: 'test-key-not-real',
+      model: 'deepseek-flash',
+      baseUrl: `http://127.0.0.1:${port}`,
+      timeoutMs: 5000,
+      deadlineMs: 300,
+    });
+    const startedAt = Date.now();
+    await assert.rejects(
+      () => provider.generate([{ role: 'user', content: 'hi' }], []),
+      (err) => {
+        assert.equal(err.code, 'EDEADLINE');
+        assert.equal(err.retryable, false);
+        return true;
+      },
+    );
+    const elapsedMs = Date.now() - startedAt;
+    assert.ok(elapsedMs < 5000, `expected the deadline (300ms) to trip well under the idle bound (5000ms); took ${elapsedMs}ms`);
+  } finally {
+    for (const sock of sockets) sock.destroy();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('PROOF the test above can fail: a server that answers promptly never trips the deadline', async () => {
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      choices: [{ message: { content: 'ok', tool_calls: [] } }],
+      usage: { prompt_tokens: 1, completion_tokens: 1 },
+    }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  try {
+    const provider = new OpenAI({
+      apiKey: 'test-key-not-real',
+      model: 'deepseek-flash',
+      baseUrl: `http://127.0.0.1:${port}`,
+      timeoutMs: 5000,
+      deadlineMs: 300,
+    });
+    const result = await provider.generate([{ role: 'user', content: 'hi' }], []);
+    assert.equal(result.text, 'ok');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test('PROOF the test above can fail: a slot whose default model has no rate entry is rejected by resolveModelRate', () => {
   const neverPricedModelId = `test-only-unpriced-model-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const injectedSlots = {
@@ -150,5 +276,113 @@ test('PROOF the test above can fail: a slot whose default model has no rate entr
       /no hand-entered rate for model suffix/,
       `expected slot "${slotName}"'s unpriced default model to be rejected, not silently priced at 0`,
     );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// F28 (2026-09-15) — a tool-call whose `function.arguments` is not valid JSON
+// (captured live: a trailing `}`) must be METERED, not lost to a transport-shaped
+// null-cost row. Real bare-agent `OpenAIProvider._request` parses the local
+// server's own JSON body fine (that part is untouched) — the SyntaxError under
+// test is bare-agent's OWN `JSON.parse(tc.function.arguments)` inside `generate()`.
+// ---------------------------------------------------------------------------
+
+test('F28: a malformed tool-call arguments string resolves generate() instead of throwing, carrying usage + malformedToolCall', async () => {
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      choices: [{
+        message: {
+          content: null,
+          tool_calls: [{ id: 'call_1', function: { name: 'emit_x', arguments: '{"a":1}}' } }],
+        },
+        finish_reason: 'tool_calls',
+      }],
+      model: 'deepseek-flash',
+      usage: { prompt_tokens: 100, completion_tokens: 20, prompt_tokens_details: { cached_tokens: 0 } },
+    }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  try {
+    const provider = new MalformedToolCallTolerantOpenAI({
+      apiKey: 'test-key-not-real',
+      model: 'deepseek-flash',
+      baseUrl: `http://127.0.0.1:${port}`,
+    });
+    const result = await provider.generate(
+      [{ role: 'user', content: 'hi' }],
+      [{ name: 'emit_x', description: 'd', parameters: { type: 'object', properties: {} } }],
+    );
+    assert.deepEqual(result.toolCalls, []);
+    assert.ok(result.malformedToolCall, 'expected malformedToolCall to be set on the returned result');
+    assert.equal(result.malformedToolCall.rawArguments, '{"a":1}}');
+    assert.equal(result.malformedToolCall.name, 'emit_x');
+    assert.match(result.malformedToolCall.error, /JSON/);
+    assert.equal(result.usage.inputTokens, 100);
+    assert.equal(result.usage.outputTokens, 20);
+    // Also stashed on the instance — the channel runModelStepOnPrimitives reads (Loop's own
+    // `loop.run()` return does not forward unknown `generate()` fields).
+    assert.deepEqual(provider.lastMalformedToolCall, result.malformedToolCall);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('PROOF the test above can fail: valid tool-call arguments still parse — the wrapper is transparent', async () => {
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      choices: [{
+        message: {
+          content: null,
+          tool_calls: [{ id: 'call_1', function: { name: 'emit_x', arguments: '{"a":1}' } }],
+        },
+        finish_reason: 'tool_calls',
+      }],
+      model: 'deepseek-flash',
+      usage: { prompt_tokens: 100, completion_tokens: 20, prompt_tokens_details: { cached_tokens: 0 } },
+    }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  try {
+    const provider = new MalformedToolCallTolerantOpenAI({
+      apiKey: 'test-key-not-real',
+      model: 'deepseek-flash',
+      baseUrl: `http://127.0.0.1:${port}`,
+    });
+    const result = await provider.generate(
+      [{ role: 'user', content: 'hi' }],
+      [{ name: 'emit_x', description: 'd', parameters: { type: 'object', properties: {} } }],
+    );
+    assert.equal(result.toolCalls.length, 1);
+    assert.deepEqual(result.toolCalls[0].arguments, { a: 1 });
+    assert.equal(result.malformedToolCall, undefined);
+    assert.equal(provider.lastMalformedToolCall, null);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('PROOF the wrapper only catches a SyntaxError-with-tool-calls: an HTTP 500 still rejects', async () => {
+  const server = http.createServer((req, res) => {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: { message: 'boom' } }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  try {
+    const provider = new MalformedToolCallTolerantOpenAI({
+      apiKey: 'test-key-not-real',
+      model: 'deepseek-flash',
+      baseUrl: `http://127.0.0.1:${port}`,
+    });
+    await assert.rejects(
+      () => provider.generate([{ role: 'user', content: 'hi' }], []),
+      /boom|500/,
+    );
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
   }
 });

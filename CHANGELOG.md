@@ -5,6 +5,59 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-09-15
+
+M0b: "run it, close it" — the drafter's declaration runs for real, against real
+baresuite primitives, under a signed send lock.
+
+### Added
+- Runner: executes a drafter declaration as a fold over steps (PRD §5) on real
+  baresuite primitives (`gather`/`ask`/`send`/`derive`/`compose`) instead of
+  mocked I/O — each step in a fresh Loop carrying only its goal line and the
+  prior steps' compact artifacts.
+- Signed arbiter send lock: typed slots wired to a real job line, proven by
+  preflight grant checks rather than prompt wording (F24).
+- Preflight: freezes inputs, binds by line, checks grants, and resolves the
+  destination and cap before a run starts.
+- `close.mjs`: deterministic $0 close per step that decides green/red; first
+  red ends the run. Close classes cover the mechanical and model-derived
+  steps.
+- Batch harness (`poc/m0/batch.mjs`) for repeated stability runs (Amendment
+  C, 20 runs per plant per provider), every accept a real human accept.
+- Every primitive run writes `<runDir>/log.json` with each model stage's
+  args and reply, so a compose red keeps the reply it refused (F28).
+- A 240s total deadline on every live model round, so a zombie stream reds
+  in 4 minutes, not 15 (F27).
+- A malformed tool-call arguments string is now metered and retried once,
+  never read as an unknown-cost transport red (F28).
+- `litectx` and `bareguard` installed as real dependencies; catalogue
+  entries resolve against the real package exports, not bareloop's tool
+  wrappers (F23), and every entry carries a `desc` shown on the
+  drafter/scout menus.
+- PRD guiding principles, borrowed from bareloop's `CYBERNETICS.md` as
+  reminders (not features), signed by hamr 2026-09-15.
+
+### Changed
+- Catalogue's `remember`/`forget` moved to a new "memory" skill (M0b
+  orchestrator ruling).
+- `send()` takes its allow-list from the caller instead of a hard-coded
+  copy.
+
+### Fixed
+- Sheet stage grant now requires `addressCells` only, matching the
+  drafter's menu — the two had disagreed and refused fresh drafts at
+  preflight (F26).
+- An identifier must carry its own citation: compose could pass a made-up
+  invoice number through the close undetected (F25 / M0b negative
+  scenario).
+- `checkpointAsk` prints an ASK OPEN notice instead of silence; a stale
+  `answer.json`/`ask.json` is now caught as a pre-accept hazard.
+- A failed attempt's spend row always carries `costUsd: null`.
+
+### Removed
+- Real mail egress (`mailproof`) dropped as a wrong-fit primitive for this
+  catalogue.
+
 ## [0.1.0] - 2026-09-13
 
 ### Added

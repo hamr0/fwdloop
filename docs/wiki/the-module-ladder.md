@@ -122,6 +122,44 @@ runs per scenario per provider, both on the same day**, bar declared before the 
 Same-day/two-model separates "the shape works" from "we fitted to DeepSeek's habits"; it does not
 detect a model changing under us, which the request-vs-served stamp (F22) covers instead.
 
+### RULINGS on M0b — by hamr, 2026-09-13
+
+In force. Asked by the orchestrator after the first live M0b pass (F25); answers recorded verbatim in
+meaning, nothing added.
+
+1. **Negative (iii) reworded.** It clashed with the 2026-09-10 ruling that a step with no class falls
+   to `hitl` (silence is safe, F16/F17). hamr kept that ruling. Negative (iii) now reads: **the
+   machine never gives an undeclared step a `green` or `softgreen` close** — a step whose class is not
+   declared derives `hitl`, and a declared class its own line does not derive is a red. It is no
+   longer "refused at validation".
+2. **Every accept in Amendment C's runs is a human accept.** Plants c and d stop at an `ask` in each
+   of their 20 runs per provider — 80 accepts. hamr answers all of them by hand; no scripted answerer,
+   in any batch. A rejected reply is recorded as its own count, never as a pass or a miss.
+
+Noted, not ruled: negative (ii) says the F7 omission plant must red "on the softgreen shape check".
+Live, it reds on `closeCompose`'s completeness check; no code checks a step's declared `close.shape`
+(F25). The plant is caught; the named mechanism is not the one that catches it.
+
+### RULING on M0b's exit reading — by hamr, 2026-09-15
+
+In force. Asked after Amendment C's 240 counting runs (F28): the literal 19/20 counted a correct red on
+a clean input against the cell.
+
+3. **The sign-off logic is: if the LLM fails, the mechanical harness (the arbiter) catches it.** A run
+   where the model slipped on a clean input and the close refused it is the harness doing exactly what
+   M0b exists to prove — it counts as a catch, not a miss. What counts against a cell is a model
+   failure that reached a send or an accept unrefused, or a close that refused a correct artifact.
+
+Under that reading, F28's ten cells recount (catches folded in): deepseek a 20, b 20, e 20, c 20,
+d 20 (the one preflight refusal was the harness refusing an operator double-start, nothing sent);
+Qwen a 20, b 20, e 20, c 20 (the one human-rejected was the harness honouring an empty Enter as no),
+d 20 (three omissions and a dangling bracket, all refused by the compose close). No cell holds a
+model failure that got through, and no cell holds a close that refused a correct artifact — the
+saved replies in each red run's `log.json` show what was refused.
+
+**M0b EXIT SIGNED — hamr, 2026-09-15** ("m0b signed"). Evidence: F28 and its addendum; 240 counting
+runs on deepseek-flash and Qwen3.8-27B, all 120 c/d accepts human; code at `958ee66`, branch m0b.
+
 ## M1 — declaration spec, validator, hash
 
 The grammar M0 proved, written down and mutation-tested: primitive catalogue as data, arbiter

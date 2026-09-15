@@ -249,6 +249,37 @@ export function closeCompose(output, artifacts, businessDate, declaredFields, de
     if (!evidence.citationsById[id]) return { verdict: 'red', red: `compose: bracket [${id}] does not resolve to a citation` };
   }
 
+  // Claim 1 hole (2026-09-13 live run, m0b-ds-d): an identifier token (invoice numbers like
+  // "INV-1009") is exactly as much a claim as a figure, but the old bare-number stripping below
+  // erased every "[A-Za-z]+-\d+" token UNCONDITIONALLY before the uncited-figure check ever saw
+  // it — so a made-up invoice number, cited or not, was invisible. An identifier must carry a
+  // citation bracket immediately after it, like a figure ("INV-1009[c9]"), and that citation must
+  // be the COPIED form (a value + a source, never a formula) whose value equals the token
+  // verbatim — resolved through the SAME checkCitation/getCellRaw text-cell comparison every
+  // other copied citation already uses (no new citation form, per the brief).
+  for (const match of text.matchAll(/([A-Za-z]+-\d+)(\s*\[([a-zA-Z0-9_]+)\])?/g)) {
+    const [, token, bracket, citationId] = match;
+    if (!bracket) {
+      return { verdict: 'red', red: `compose: identifier "${token}" has no citation bracket immediately after it` };
+    }
+    const cited = evidence.citationsById[citationId];
+    const isCopiedForm = cited && cited.source !== undefined && cited.value !== undefined && !cited.formula;
+    if (!isCopiedForm) {
+      return {
+        verdict: 'red',
+        red: `compose: identifier "${token}" cites [${citationId}], which is not a copied citation `
+          + '(an identifier must resolve through a copied cell citation, never a derived/formula one)',
+      };
+    }
+    if (String(cited.value) !== token) {
+      return {
+        verdict: 'red',
+        red: `compose: identifier "${token}" cites [${citationId}] (value "${cited.value}") — `
+          + 'the cited value does not match the identifier',
+      };
+    }
+  }
+
   // No bare number outside a citation bracket: strip every "[cN]" bracket AND
   // the figure immediately before it (its citation), strip identifiers that
   // merely contain digits (invoice ids like "INV-1021"), then anything
