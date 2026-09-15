@@ -60,7 +60,7 @@ Not courtesies. These bind you as written, whether or not your tool enforces the
 
 - **Always** identify affected files before making changes, and explain what will change and why
 - **Ask first** — stop and get explicit sign-off — before modifying authentication systems, database schema or migrations, CI workflows, or `.claude/settings.json`
-- **Never** write secrets into the tree (`.env`/`*.env`, keys, credentials). They load from the environment at runtime; only a value-less `.env.example` is committed
+- **Never** put secrets in the tree — see [Security & Robustness Invariants §1](#security--robustness-invariants)
 - **Never** commit to `main`. Commit to a new branch (name doesn't matter), then propose `/branch-review` followed by `/release`; merging and releasing are my call, made by name — "approve", "good", or "go" on a draft is not that call
 
 ---
@@ -113,6 +113,7 @@ Before adding any external dependency, all of these must be true:
 - **Containerize only when necessary.** Start with a virtualenv or bare metal. Docker adds value for deployment parity and isolation — not for running a script
 - **Responsive web UI is mandatory in dev projects.** Any web UI must be usable on mobile by default — fluid layouts, viewport meta tag, breakpoints for narrow screens, no horizontal scroll. Test in DevTools device emulation before declaring a UI task done. POCs are exempt (validate the idea first), but the moment a POC graduates to a real project this becomes a hard requirement
 - **Surgical changes only.** Touch what the task requires; nothing else. Don't "improve" adjacent code, comments, or formatting. Match existing style even if you'd do it differently. Only clean up orphans your own change created. Dead code, nits, bugs you pass on the way: if it's inside or affects the code you're already changing, and the fix changes no behavior, fix it and say so. Otherwise report it — say what it costs to leave it. "It would be nicer" is not a cost. Every changed line traces to the request or to a fix you named
+- **Meter the whole unit of work.** Usage and cost sum every call a unit of work makes; the last call's number is never the total, and one unpriced call makes the total unknown, not zero
 
 ### Red Flags — Stop and Flag These
 - Over-engineering simple problems
@@ -130,90 +131,50 @@ A problem you see and don't fix goes in the report, never in a comment. Comments
 
 ## Testing Standards
 
-### Rules
+Principles, not a framework. Whatever the language, follow its ecosystem's conventions for
+runner, layout and fixtures — these rules govern what a test must *do*, never how a
+particular toolchain spells it.
 
-**Test behavior, not implementation.** A test suite must give you confidence to refactor freely. If changing internal code (without changing behavior) breaks tests, those tests are liabilities, not assets.
+### What a test is for
 
-**Follow the Testing Trophy** (not the Testing Pyramid):
-- Few unit tests — only for pure logic, algorithms, and complex calculations
-- Many integration tests — the sweet spot; test real components working together
-- Some E2E tests — cover critical user journeys end-to-end
-- Static analysis — types and linters catch bugs cheaper than tests
+**Test behavior, not implementation.** A suite must give you confidence to refactor freely. If changing internal code without changing behavior breaks tests, those tests are liabilities, not assets.
 
-### When to Write Tests
+**Shape — the Testing Trophy, not the Pyramid:** static analysis catches the cheapest bugs; few unit tests, for pure logic and algorithms; many integration tests, the sweet spot, real components working together; some end-to-end tests over the critical journeys. Target roughly 20% unit, 60% integration, 15% E2E, 5% manual.
 
-- **After the design stabilizes, not during exploration.** Do not TDD a prototype — you'll write 500 tests for code you delete tomorrow. First make it work (POC), then make it right (refactor + tests), then make it fast
-- **Write tests when the code has users.** If a function is called by other modules or exposed to users, it needs tests. Internal helpers that only serve one caller don't need their own test file
-- **Write tests for bugs.** Every bug fix must include a regression test that fails before the fix and passes after. This is the highest-value test you can write
-- **Write tests before refactoring.** Before changing working code, write characterization tests first to lock in current behavior, then refactor with confidence
-- **Do not write tests for glue code.** Code that just wires components together (calls A then B then C) is tested at the integration level, not unit level
+### When to write them
 
-### TDD: When It Works and When It Doesn't
+- **After the design stabilizes, not during exploration.** Do not test a prototype — you will write tests for code you delete tomorrow. First make it work (POC), then make it right (tests), then make it fast
+- **Tests first when you already know the contract.** Pure functions, algorithms, parsers, validators, data transformations — write the test, watch it fail, then implement. When you are still discovering the interface, that same discipline produces churn and false confidence
+- **Write tests for bugs.** Every fix ships a regression test — the highest-value test there is
+- **Write tests before refactoring.** Characterization tests lock in current behavior first, then change the code
+- **Write tests when the code has users.** Called by other modules or exposed externally means it needs tests; a helper serving one caller does not need its own file
+- **Do not test glue code.** Something that only wires A to B to C is covered at the integration level
 
-- **TDD works for:** Pure functions, algorithms, parsers, validators, data transformations — anything with clear inputs and outputs
-- **TDD does not work for:** Exploring a design, building a POC, or unstable interfaces. Writing tests for unstable APIs creates churn and false confidence
-- **The rule:** You must understand what you're building before you TDD it. TDD is a design tool for known problems, not a discovery tool for unknown ones
-- **Red-green-refactor discipline:** If you do TDD, follow the cycle strictly. Write a failing test, write minimal code to pass, refactor. Do not write 20 tests then implement — that's front-loading waste
+### What makes a good test
 
-### What Makes a Good Test
+- **Tests real behavior.** Call the public interface, assert on observable output. Never reach into internals
+- **Fails for the right reason — prove it.** It breaks when the feature breaks, not when the implementation moves. Revert the fix (or switch the check off), run the test, watch it go red, then restore it: a test you have never seen fail is unverified, however right it reads
+- **Reads like a spec.** Someone new to the code should learn what the feature does by reading it
+- **Self-contained.** Sets up its own state, runs, cleans up. No ordering dependencies, and no reliance on project directories, user config, or ambient environment
+- **Deterministic.** Flaky tests erode trust. A dependency on timing, network, or global state is a defect in the test
+- **Never sleep for a condition — poll for it.** Sleeping then asserting is wrong at every value: too short and it flakes under load, too long and the suite drags, and a real async bug looks identical to a guess that was too short. Wait on the condition itself, re-reading the state *inside* the loop, with a timeout that names what it was waiting for. A fixed delay is only correct once you have waited for the triggering condition, the delay comes from a documented interval rather than a guess, and a comment says why
 
-- **Tests real behavior.** Call the public API, assert on observable output. Do not reach into internals
-- **Fails for the right reason.** A good test fails when the feature is broken, not when the implementation changes
-- **Reads like a spec.** Someone unfamiliar with the code must understand what the feature does by reading the test
-- **Self-contained.** Each test sets up its own state, runs, and cleans up. No ordering dependencies between tests
-- **Fast and deterministic.** Flaky tests erode trust. If a test depends on timing, network, or global state, fix that dependency
+### Anti-patterns
 
-### Anti-Patterns — Do Not Do These
+- **Mocking most of the test.** If mock setup outweighs the logic, you are testing mocks. Prefer the real thing against a temporary directory, an in-memory store, or a disposable container
+- **Partial mocks.** Mirror the complete structure the real thing returns, not only the fields this test reads. A mock missing a field downstream code consumes passes here and fails in production
+- **Smoke tests.** Asserting a result merely exists proves nothing. Assert on specific values, structure, or side effects
+- **Testing private internals.** If it needs its own test, it should be part of the public interface; otherwise the public tests should reach it
+- **Mirroring implementation.** A test that restates the source line by line breaks on every refactor and catches nothing
+- **Test-only production code.** Never add a method, flag, or branch to production solely for tests. Inject the dependency instead
+- **Chasing a coverage number.** 80% of meaningless tests is worse than 40% of behavioural ones. Coverage tells you what is *not* tested, never that what is covered is correct. Cover the critical path first — data, auth, money, core logic — before helpers
 
-- **Mocking more than 60% of the test.** If most of the test is mock setup, you're testing mocks, not code. Use real implementations with `tmp_path`, `:memory:` SQLite, or test containers
-- **Smoke tests.** `assert result is not None` proves nothing. Assert on specific values, structure, or side effects
-- **Testing private methods.** If you need to test a private method, either it should be public or the public method's tests should cover it
-- **Mirroring implementation.** Tests that replicate the source code line-by-line break on every refactor and catch zero bugs
-- **Test-only production code.** Never add methods, flags, or branches to production code solely for testing. Use dependency injection instead
+### Organization
 
-### Test Organization
-
-- **Co-locate tests with packages:** `packages/<pkg>/tests/` not a root `tests/` directory. Each package owns its tests
-- **Separate by type:**
-  ```
-  packages/<pkg>/tests/
-    unit/           # Fast, isolated, mocked deps, <1s each
-    integration/    # Real DB, filesystem, multi-component, <10s each
-    e2e/            # Full workflows, subprocess calls, <60s each
-    conftest.py     # Shared fixtures for this package
-  ```
-- **One test file per module** (not per function). `test_auth.py` tests the auth module, not `test_login.py` + `test_logout.py` + `test_session.py`
-- **No duplicate test files.** Before creating a new test file, check if one already exists for that module
-
-### Markers and Signals
-
-| Marker | Purpose | CI Behavior |
-|--------|---------|-------------|
-| `@pytest.mark.slow` | Runtime > 5s | Run in full suite, skip in quick checks |
-| `@pytest.mark.ml` | Requires ML deps (torch, etc.) | Skip if deps not installed |
-| `@pytest.mark.real_api` | Calls external APIs | Skip in CI — run manually before release |
-
-**CI runs for fast signals:**
-- `pytest -m "not slow and not ml and not real_api"` — fast gate on every push (~30s)
-- `pytest` — full suite on PR merge or nightly
-- Package-level runs for targeted debugging: `pytest packages/core/tests/`
-
-### Coverage and Ratios
-
-- **Do not chase a coverage number.** 80% coverage with meaningless tests is worse than 40% with behavior-testing integration tests
-- **Cover the critical path first.** Data layer, auth, payment, core business logic — before helper utilities
-- **Coverage tells you what's NOT tested, not what IS tested.** High coverage with bad assertions is false confidence
-- **Delete tests that don't catch bugs.** If a test has never failed (or only fails on refactors), it's not providing value
-
-**Target ratio:** ~20% unit, ~60% integration, ~15% E2E, ~5% manual/exploratory
-
-### Test Tooling Standards
-
-- Use `tmp_path` for filesystem tests, `:memory:` or `tmp_path` SQLite for DB tests
-- Use dependency injection over `@patch` — it's more readable and survives refactors
-- Tests must be self-sufficient — no dependency on project directories, user config, or environment state
-- Use factories or builders for test data, not raw constructors with 15 arguments
-- Keep test fixtures close to where they're used. Shared fixtures in `conftest.py`, not a global test utilities package
+- **Mirror the source structure**, at whatever level the ecosystem puts tests. One test file per module, not per function, and never a second file covering a module that already has one
+- **Separate by cost so CI gets a fast signal.** Keep quick isolated tests apart from ones needing real IO or a full workflow, and let the slow ones — long runtimes, heavy optional dependencies, live external APIs — be excluded from the gate that runs on every push and included in the full run
+- **Fixtures live near what uses them**, shared upward only when genuinely shared. Build test data with factories or builders, never a constructor taking fifteen positional arguments
+- **Delete tests that never catch anything.** A test that has only ever failed during refactors is a maintenance cost, not a safety net
 
 ---
 
@@ -226,15 +187,22 @@ Throwaway POCs are exempt while you validate logic (per **POC first** above) —
 1. **No secrets in the repo.** Keys, tokens, and credentials load from the environment / a secret store at runtime — never hardcoded, never logged. `.env` is gitignored; only a value-less `.env.example` is committed. Scan history before trusting a repo. One leaked key is a breached database or a runaway bill.
 2. **Scope every data access to its owner.** Each record read or written is constrained to the requesting principal — via DB-level rules (RLS / row policies) and/or an application-layer ownership check. Never trust a client-supplied id without a gate. If the storage layer offers row-level policies, enabling them is not optional, and "on but too broad" still fails.
 3. **Bound every reachable endpoint.** Rate-limit public routes AND authenticated mutation/write routes AND abuse-prone inbound paths (mail, webhooks). An unbounded route is a free DoS and bill amplifier — a script in a loop should not be able to take the service down.
-4. **Handle the unhappy path.** Every IO / network / DB / third-party call has an explicit failure path. Nothing fails silently. Internal detail (stack traces, queries, secrets) never reaches the client. Async/background work carries its own catch.
+4. **Handle the unhappy path.** Every IO / network / DB / third-party call has an explicit failure path. Nothing fails silently. Internal detail (stack traces, queries, secrets) never reaches the client. Async/background work carries its own catch. A warning nobody has to act on is not a check — either it halts / reds the run, or it is counted and surfaced where a human reads it. Record what you asked a dependency for and what you got back. Read and record the stop/finish reason of every external or model call — a cut-off answer (length/max_tokens) is never the same as no answer.
 5. **Authorization is not authentication.** "Logged in" never implies "allowed". Every state-changing or privileged action checks ownership AND role/permission. If swapping an id in a request would expose or mutate someone else's data, it's a bug — return 403.
 6. **Data access scales.** No queries inside loops, no per-render repeated round-trips, indexes on every filtered/joined column. Code that's fine at 10 users and collapses at 1,000 is a latent outage.
 
-Also hold the line on: input validation at every trust boundary (untrusted uploads, inbound mail, webhooks, and spoofable headers like `X-Forwarded-For` — trust them only behind a vetted proxy); parameterized queries (never string-built SQL); vetted libraries for crypto / auth / sanitization (never roll your own); and least-privilege binding (loopback, not `0.0.0.0`, unless the port is deliberately public).
+Also hold the line on:
+
+- **Validate input at every trust boundary.** Untrusted uploads, inbound mail, webhooks, and spoofable headers like `X-Forwarded-For` — trust the latter only behind a vetted proxy.
+- **Model output is untrusted input too.** Validate it against a schema and key every decision on a typed field — never regex-parse the model's prose for a number, id, or verdict.
+- **Guard lookups keyed by an external string.** Look the key up only among the map's own entries, never inherited ones — an inherited member can otherwise answer for a key the map never had, so "not found → throw" is bypassed.
+- **Parameterize every query.** Never string-build SQL.
+- **Use vetted libraries for security-critical code** — see [External Dependency Checklist](#external-dependency-checklist).
+- **Bind least-privilege.** Loopback, not `0.0.0.0`, unless the port is deliberately public.
 
 **Verify at two moments, not one.**
 - **While building** — this list shapes the code as it's written.
-- **Before deploy/merge** — run **`/branch-review`**, whose second stage runs **`/security`** in full; `/release` then runs **`/ship`** as the mechanical pre-deploy gate. A Critical/High finding blocks the ship; lower-severity findings get logged and triaged, not silently shipped. Proactively remind the user to run them whenever a change touches auth, data access, endpoints, secrets, or untrusted input.
+- **Before deploy/merge** — see [Operating Flow §2](#operating-flow). A Critical/High finding blocks the ship; lower-severity findings get logged and triaged, not silently shipped. Proactively remind the user to run `/branch-review` whenever a change touches auth, data access, endpoints, secrets, or untrusted input.
 
 ---
 
