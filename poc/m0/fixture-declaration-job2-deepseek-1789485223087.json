@@ -1,0 +1,117 @@
+{
+  "modelRequested": "deepseek-flash",
+  "modelReturned": "deepseek-flash",
+  "suffixMatch": true,
+  "toolCalled": true,
+  "declaration": {
+    "skills": [
+      "core"
+    ],
+    "guardrails": "1. Read my resume,\n2. and read the JD to compare it against,\n3. write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,\n   guardrail: 3 sections, all under 600 words\n4. check it with me,\n   guardrail: nothing goes out before I accept\n5. and once I accept, write it out.\n\nArbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):\nguardrail: cap $0.25 per run\nguardrail: ask at line 4\nguardrail: send at line 5 to file:poc/m0/out",
+    "guardrailClasses": {
+      "3": "softgreen",
+      "4": "hitl"
+    },
+    "unjudgeable": {},
+    "realColumns": [],
+    "steps": [
+      {
+        "goal": "Read the resume .docx and expose its full text as an artifact.",
+        "primitives": [
+          "readDocx"
+        ],
+        "reads": [],
+        "emits": "resume-text",
+        "columns": [],
+        "fromLine": 1,
+        "close": {
+          "class": "hitl"
+        }
+      },
+      {
+        "goal": "Read the job description markdown file and expose its full text as an artifact.",
+        "primitives": [
+          "read"
+        ],
+        "reads": [],
+        "emits": "jd-text",
+        "columns": [],
+        "fromLine": 2,
+        "close": {
+          "class": "hitl"
+        }
+      },
+      {
+        "goal": "Draft the summary resume comparing the resume against the JD, in three sections (work-history blurb, professional skills, soft skills), each ~200 words and the whole under 600 words.",
+        "primitives": [
+          "compress"
+        ],
+        "reads": [
+          "resume-text",
+          "jd-text"
+        ],
+        "emits": "resume-summary",
+        "columns": [],
+        "fromLine": 3,
+        "close": {
+          "class": "softgreen",
+          "shape": {
+            "sections": [
+              "summary of work history blurb",
+              "professional skills",
+              "soft skills"
+            ],
+            "sectionCount": 3,
+            "wordBudget": {
+              "total": 600,
+              "perSection": 200
+            }
+          }
+        }
+      },
+      {
+        "goal": "Show the drafted summary resume to the human and pause until they accept it; nothing is written out before that acceptance.",
+        "primitives": [
+          "checkpoint"
+        ],
+        "reads": [
+          "resume-summary"
+        ],
+        "emits": "resume-summary-approved",
+        "columns": [],
+        "fromLine": 4,
+        "close": {
+          "class": "hitl"
+        }
+      },
+      {
+        "goal": "Write the human-accepted summary resume out to a file.",
+        "primitives": [
+          "write"
+        ],
+        "reads": [
+          "resume-summary",
+          "resume-summary-approved"
+        ],
+        "emits": "resume-summary-output",
+        "columns": [],
+        "fromLine": 5,
+        "close": {
+          "class": "hitl"
+        }
+      }
+    ],
+    "refused": []
+  },
+  "textInstead": null,
+  "usage": {
+    "inputTokens": 3063,
+    "outputTokens": 2025,
+    "cacheReadTokens": 4992,
+    "cacheCreationTokens": 0
+  },
+  "rounds": 2,
+  "costUsd": 0.0034986600000000002,
+  "rateSource": "caller",
+  "wallMs": 9476
+}
