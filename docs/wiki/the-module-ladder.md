@@ -155,8 +155,10 @@ d 20 (the one preflight refusal was the harness refusing an operator double-star
 Qwen a 20, b 20, e 20, c 20 (the one human-rejected was the harness honouring an empty Enter as no),
 d 20 (three omissions and a dangling bracket, all refused by the compose close). No cell holds a
 model failure that got through, and no cell holds a close that refused a correct artifact — the
-saved replies in each red run's `log.json` show what was refused. Signature on the exit itself is
-recorded below only when hamr gives it.
+saved replies in each red run's `log.json` show what was refused.
+
+**M0b EXIT SIGNED — hamr, 2026-09-15** ("m0b signed"). Evidence: F28 and its addendum; 240 counting
+runs on deepseek-flash and Qwen3.8-27B, all 120 c/d accepts human; code at `958ee66`, branch m0b.
 
 ## M1 — declaration spec, validator, hash
 
