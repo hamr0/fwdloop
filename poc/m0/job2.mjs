@@ -35,7 +35,7 @@
 // which assume a drafted declaration this task explicitly has none of.
 
 import {
-  readFileSync, writeFileSync, mkdirSync, existsSync,
+  readFileSync, writeFileSync, mkdirSync, existsSync, renameSync, appendFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { Checkpoint } from 'bare-agent';
@@ -365,22 +365,95 @@ function closeStage(artifactPath) {
  * exactly the decision this fold must accept. The question text carries the
  * attempt number and artifact path so hamr can open it before answering.
  */
-function makeDefaultAskStep({ runDir, runId, askTimeoutMs }) {
+// An answer is consumed EXACTLY ONCE (F-review, job2 redo edge): each call to
+// `defaultAskStep` (one per ask — including the re-ask `askWithRedo` issues
+// for the SAME attempt after a reason-less rerun is refused) mints its own
+// `askedAt` and, the moment it reads `answer.json`, renames it out of the way
+// before returning — so the NEXT poll (next attempt, or a re-ask of this same
+// attempt) can only ever see a file written after this ask started. Belt and
+// braces: any `answer.json` whose own `answeredAt` predates this ask's
+// `askedAt` is treated as stale even if it's sitting there fresh-looking
+// (e.g. written between two asks by mistake) — quarantined the same way and
+// logged to `auditPath` as `{kind:'stale-answer-ignored'}` rather than acted
+// on. `checkFreshRunDir` (runner.mjs) already refuses a pre-existing
+// `answer.json` at run START; this covers the mid-run case that check can't
+// see.
+function appendJsonl(auditPath, row) {
+  mkdirSync(join(auditPath, '..'), { recursive: true });
+  appendFileSync(auditPath, `${JSON.stringify(row)}\n`);
+}
+
+function makeDefaultAskStep({
+  runDir, runId, askTimeoutMs, auditPath,
+}) {
+  let askSeq = 0;
   return async function defaultAskStep(n, artifactPath) {
     mkdirSync(runDir, { recursive: true });
     const askPath = join(runDir, 'ask.json');
     const answerPath = join(runDir, 'answer.json');
+    askSeq += 1;
+    const seq = askSeq;
+    const askedAtMs = Date.now();
+    const askedAtIso = new Date(askedAtMs).toISOString();
     const state = { cancelled: false };
     const checkpoint = new Checkpoint({
       timeout: askTimeoutMs,
       send: async (q, context) => {
-        writeFileSync(askPath, JSON.stringify({ question: q, evidence: context, askedAt: new Date().toISOString() }, null, 2));
+        writeFileSync(askPath, JSON.stringify({ question: q, evidence: context, askedAt: askedAtIso }, null, 2));
         process.stderr.write(`ASK OPEN (${runId}, attempt ${n}, expires in ${Math.round(askTimeoutMs / 1000)}s): ${q} — `
           + `answer with: node poc/m0/answer.mjs ${runId} accept (or rerun with a reason)\n`);
       },
       waitForReply: async () => {
         while (!state.cancelled) {
-          if (existsSync(answerPath)) return readFileSync(answerPath, 'utf8');
+          if (existsSync(answerPath)) {
+            let raw;
+            try {
+              raw = readFileSync(answerPath, 'utf8');
+            } catch {
+              // Vanished between existsSync and readFileSync (another reader
+              // won the race) — keep polling for the next write.
+              raw = null;
+            }
+            if (raw !== null) {
+              let parsed = null;
+              try {
+                parsed = JSON.parse(raw);
+              } catch {
+                parsed = null;
+              }
+              const answeredAtMs = parsed?.answeredAt ? Date.parse(parsed.answeredAt) : NaN;
+              const isStale = Number.isFinite(answeredAtMs) && answeredAtMs < askedAtMs;
+              if (isStale) {
+                const stalePath = join(runDir, `answer.stale.attempt${n}.${seq}.${Date.now()}.json`);
+                try {
+                  renameSync(answerPath, stalePath);
+                } catch {
+                  // Already moved by a racing consumer — nothing to ignore.
+                }
+                if (auditPath) {
+                  appendJsonl(auditPath, {
+                    kind: 'stale-answer-ignored',
+                    attempt: n,
+                    askedAt: askedAtIso,
+                    staleAnsweredAt: parsed?.answeredAt ?? null,
+                    movedTo: stalePath,
+                    at: new Date().toISOString(),
+                    runDir,
+                  });
+                }
+                // eslint-disable-next-line no-await-in-loop
+                await new Promise((r) => { setTimeout(r, 500); });
+                // eslint-disable-next-line no-continue
+                continue;
+              }
+              // Fresh reply — consume it once: rename it away BEFORE
+              // returning, so a later poll (next attempt, or a re-ask of
+              // this attempt) never reads it again.
+              const consumedPath = join(runDir, `answer.attempt${n}.${seq}.consumed.json`);
+              renameSync(answerPath, consumedPath);
+              return raw;
+            }
+          }
           // eslint-disable-next-line no-await-in-loop
           await new Promise((r) => { setTimeout(r, 500); });
         }
@@ -510,7 +583,9 @@ export async function runJob2({
     jdText: jdRead.text,
     record,
   });
-  const resolvedAskStep = askStep ?? makeDefaultAskStep({ runDir, runId, askTimeoutMs });
+  const resolvedAskStep = askStep ?? makeDefaultAskStep({
+    runDir, runId, askTimeoutMs, auditPath,
+  });
 
   let redoResult;
   try {

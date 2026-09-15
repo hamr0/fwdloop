@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync,
+  mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -860,4 +860,191 @@ test('(o) without a declaration, runJob2 still binds by prose (bound === "prose"
   });
   assert.equal(result.outcome, 'green', result.red);
   assert.equal(result.bound, 'prose');
+});
+
+// ---------------------------------------------------------------------------
+// The REAL ask step (`makeDefaultAskStep`, not `scriptedAskStep`) — the
+// ask.json/answer.json file protocol a human answers from another process
+// via `answer.mjs`. These tests never call `answer.mjs` as a subprocess (no
+// network, no process spawn needed for the protocol itself) but write
+// answer.json in the exact shape `answer.mjs` writes, at the exact moments a
+// human process would: only after the ask this answer is FOR has actually
+// been opened (its ask.json is on disk), so `answeredAt` is never engineered
+// to be earlier than the ask it answers — that would just be a different,
+// synthetic bug.
+//
+// Bug this covers (found in review, not yet hit live): `askWithRedo` calls
+// the ask step again for attempt 2 after a `rerun`, and again for the SAME
+// attempt after a reason-less `rerun` is refused — in both cases the OLD
+// answer.json was still on disk, so `waitForReply` returned the stale
+// decision instantly. One human rejection became four and halted at the
+// cap with no human in the loop for the second case; a reason-less rerun
+// became a tight refusal loop for the second.
+// ---------------------------------------------------------------------------
+
+function writeAnswerFile(runDir, decision, text, { answeredAt } = {}) {
+  writeFileSync(join(runDir, 'answer.json'), JSON.stringify({
+    decision, text: text ?? null, answeredAt: answeredAt ?? new Date().toISOString(),
+  }, null, 2));
+}
+
+async function waitForAskJson(runDir, predicate, { timeoutMs = 5000, intervalMs = 20 } = {}) {
+  const askPath = join(runDir, 'ask.json');
+  const start = Date.now();
+  for (;;) {
+    if (existsSync(askPath)) {
+      let parsed;
+      try {
+        parsed = JSON.parse(readFileSync(askPath, 'utf8'));
+      } catch {
+        parsed = null;
+      }
+      if (parsed && predicate(parsed)) return parsed;
+    }
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`waitForAskJson: timed out after ${timeoutMs}ms waiting for a matching ask.json in ${runDir}`);
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => { setTimeout(r, intervalMs); });
+  }
+}
+
+function waitForAskAttempt(runDir, attempt, opts) {
+  return waitForAskJson(runDir, (a) => a.evidence?.attempt === attempt, opts);
+}
+
+test('(real ask) rerun-with-reason then a SECOND human write of accept: attempt 2 asked, result green, sent == attempt 2, one consumed file per answer', async () => {
+  const {
+    resumePath, jdPath, prosePath, outDir, spendPath, sendDir,
+  } = setup();
+  const calls = [];
+  const runPromise = runJob2({
+    prosePath,
+    sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+    runId: 'real-ask-1',
+    outDir,
+    spendPath,
+    slot: 'deepseek',
+    askTimeoutMs: 5000,
+    modelStep: fakeModelStepFactory(outDir, { calls }),
+    sendStep: fakeSendStep(sendDir),
+    // no askStep — exercises the REAL makeDefaultAskStep.
+  });
+
+  await waitForAskAttempt(outDir, 1);
+  writeAnswerFile(outDir, 'rerun', 'name the actual tools');
+
+  await waitForAskAttempt(outDir, 2);
+  writeAnswerFile(outDir, 'accept', null);
+
+  const result = await runPromise;
+  assert.equal(result.outcome, 'green', result.red);
+  assert.equal(result.attempts, 2);
+  assert.equal(calls.length, 2);
+
+  const consumed = readdirSync(outDir).filter((f) => f.endsWith('.consumed.json'));
+  assert.equal(consumed.length, 2, `expected exactly one consumed file per answer, got: ${consumed.join(', ')}`);
+  assert.equal(existsSync(join(outDir, 'answer.json')), false, 'answer.json must not linger after being consumed');
+
+  const sentText = readFileSync(result.sent, 'utf8');
+  const attempt2Text = readFileSync(join(outDir, 'a3-summary.attempt2.md'), 'utf8');
+  assert.equal(sentText, attempt2Text);
+});
+
+test('(real ask) rerun-with-reason then NO second write: attempt 2\'s ask expires — the stale answer.json is never re-read', async () => {
+  const {
+    resumePath, jdPath, prosePath, outDir, spendPath, sendDir,
+  } = setup();
+  const runPromise = runJob2({
+    prosePath,
+    sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+    runId: 'real-ask-2',
+    outDir,
+    spendPath,
+    slot: 'deepseek',
+    askTimeoutMs: 1500,
+    modelStep: fakeModelStepFactory(outDir),
+    sendStep: fakeSendStep(sendDir),
+  });
+
+  await waitForAskAttempt(outDir, 1);
+  writeAnswerFile(outDir, 'rerun', 'name the actual tools');
+
+  const result = await runPromise;
+  assert.equal(result.outcome, 'red');
+  assert.equal(result.phase, 'compose');
+  assert.match(result.red, /ask expired at compose attempt 2/);
+});
+
+test('(real ask) reason-less rerun re-asks the SAME attempt; a fresh accept then greens on attempt 1', async () => {
+  const {
+    resumePath, jdPath, prosePath, outDir, spendPath, sendDir,
+  } = setup();
+  const runPromise = runJob2({
+    prosePath,
+    sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+    runId: 'real-ask-3',
+    outDir,
+    spendPath,
+    slot: 'deepseek',
+    askTimeoutMs: 5000,
+    modelStep: fakeModelStepFactory(outDir),
+    sendStep: fakeSendStep(sendDir),
+  });
+
+  const firstAsk = await waitForAskAttempt(outDir, 1);
+  writeAnswerFile(outDir, 'rerun', ''); // reason-less — refused, re-asks the SAME attempt.
+
+  // The re-ask for attempt 1 is a NEW `defaultAskStep` call, so it writes a
+  // fresh ask.json with a new `askedAt` even though `evidence.attempt` is
+  // still 1 — wait for that to distinguish it from the first ask.
+  await waitForAskJson(outDir, (a) => a.evidence?.attempt === 1 && a.askedAt !== firstAsk.askedAt);
+  writeAnswerFile(outDir, 'accept', null);
+
+  const result = await runPromise;
+  assert.equal(result.outcome, 'green', result.red);
+  assert.equal(result.attempts, 1);
+
+  const audit = readJsonl(join(outDir, 'audit.jsonl'));
+  const refused = audit.filter((r) => r.kind === 'refused' && r.why === 'reason required');
+  assert.equal(refused.length, 1);
+});
+
+test('(real ask) an answer.json that predates this ask (mid-run stale write) is ignored and logged, then a fresh accept proceeds', async () => {
+  const {
+    resumePath, jdPath, prosePath, outDir, spendPath, sendDir,
+  } = setup();
+  const auditPath = join(outDir, 'audit.jsonl');
+  const runPromise = runJob2({
+    prosePath,
+    sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
+    runId: 'real-ask-4',
+    outDir,
+    spendPath,
+    slot: 'deepseek',
+    askTimeoutMs: 5000,
+    modelStep: fakeModelStepFactory(outDir),
+    sendStep: fakeSendStep(sendDir),
+  });
+
+  const askedAt1 = await waitForAskAttempt(outDir, 1);
+  // A stale write during attempt 1's poll window — answeredAt predates the
+  // ask it landed in, as if it were meant for an ask that already closed.
+  const staleAnsweredAt = new Date(Date.parse(askedAt1.askedAt) - 5000).toISOString();
+  writeAnswerFile(outDir, 'accept', null, { answeredAt: staleAnsweredAt });
+
+  // Give the poll loop a couple of cycles to see and quarantine the stale
+  // file before the real, fresh answer lands.
+  await new Promise((r) => { setTimeout(r, 1100); });
+  assert.equal(existsSync(join(outDir, 'answer.json')), false, 'the stale file should already have been moved out of the way');
+  writeAnswerFile(outDir, 'accept', null);
+
+  const result = await runPromise;
+  assert.equal(result.outcome, 'green', result.red);
+  assert.equal(result.attempts, 1);
+
+  const audit = readJsonl(auditPath);
+  const stale = audit.filter((r) => r.kind === 'stale-answer-ignored');
+  assert.equal(stale.length, 1, `expected exactly one stale-answer-ignored row, got: ${JSON.stringify(audit)}`);
+  assert.equal(stale[0].attempt, 1);
 });
