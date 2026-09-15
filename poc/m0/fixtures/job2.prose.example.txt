@@ -1,0 +1,12 @@
+1. Read my resume,
+2. and read the job description,
+3. write me a summary under 600 words in three sections: story of experience, technical skills, soft skills, compared against the job description,
+   guardrail: under 600 words, three sections present
+4. check it with me,
+   guardrail: nothing goes out before I accept
+5. and once I accept, write it to a file.
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.25 per run
+guardrail: ask at line 4
+guardrail: send at line 5 to file:poc/m0/out

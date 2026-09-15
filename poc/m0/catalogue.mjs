@@ -116,6 +116,12 @@ export const CATALOGUE = Object.freeze([
   {
     verb: 'addressCells', component: 'fwdloop', package: 'poc/m0/csv.mjs', symbol: 'parseCsv', class: 'read', skill: 'core', desc: 'Read a spreadsheet as cells, each with an address that can be cited.',
   },
+  // fwdloop's own .docx reader (M0b Amendment B, job #2, F13: file-format
+  // knowledge is ours to write, not an upstream ask) — same footing as
+  // addressCells above: not a baresuite primitive, backed by our own module.
+  {
+    verb: 'readDocx', component: 'fwdloop', package: 'poc/m0/docx.mjs', symbol: 'readDocxText', class: 'read', skill: 'core', desc: "Read a Word (.docx) file's text.",
+  },
 ]);
 
 const BY_VERB = new Map(CATALOGUE.map((entry) => [entry.verb, entry]));
