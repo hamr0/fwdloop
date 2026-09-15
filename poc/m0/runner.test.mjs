@@ -542,12 +542,18 @@ test('checkFreshRunDir also refuses on a pre-existing answer.json alone (no ask.
   assert.match(result.red, /already holds answer\.json from an earlier run — use a new --run-id/);
 });
 
-// The real evidence named in the fix: two run dirs from hamr's live M0b run genuinely hold
-// answer.json (and ask.json) from that earlier run. Read-only — never deleted, never edited.
-test('preflight refuses on the REAL m0b-ds-c and m0b-ds-d run dirs (real live-run evidence, untouched)', () => {
+// The real evidence named in the fix: two run dirs from hamr's live M0b run (2026-09-13)
+// genuinely held answer.json (and ask.json) from that earlier run. poc/m0/out/* is
+// git-ignored, so those dirs are absent on CI — a fixture is a committed, verbatim copy of
+// the two files from that run, under poc/m0/fixtures/stale-run/<runId>/. The test copies the
+// fixture into a fresh tempRunDir() so it runs the same locally and on CI.
+test('preflight refuses on a stale run dir seeded from the REAL m0b-ds-c and m0b-ds-d live-run evidence', () => {
   for (const runId of ['m0b-ds-c', 'm0b-ds-d']) {
-    const runDir = join(OUT_DIR, runId);
-    assert.ok(existsSync(join(runDir, 'answer.json')), `expected ${runDir}/answer.json to exist (real evidence)`);
+    const fixtureDir = join(__dirname, 'fixtures', 'stale-run', runId);
+    assert.ok(existsSync(join(fixtureDir, 'answer.json')), `expected ${fixtureDir}/answer.json to exist (committed fixture)`);
+    const runDir = tempRunDir();
+    writeFileSync(join(runDir, 'answer.json'), readFileSync(join(fixtureDir, 'answer.json')));
+    writeFileSync(join(runDir, 'ask.json'), readFileSync(join(fixtureDir, 'ask.json')));
     const result = preflight(primitivesDeclaration(), {
       runDir, sources: realSources(), spendPath: join(tempRunDir(), 'spend.jsonl'),
     });
@@ -563,7 +569,14 @@ test('PROOF the above can fail: preflight passes on a FRESH run dir with the sam
 });
 
 test('runOnPrimitives on a stale run dir never calls modelStep — the stale-answer refusal happens before any model round', async () => {
-  const runDir = join(OUT_DIR, 'm0b-ds-d'); // real, pre-existing answer.json/ask.json
+  // Seeded from the committed fixture (poc/m0/fixtures/stale-run/m0b-ds-d/), a verbatim copy of
+  // hamr's real 2026-09-13 live-run answer.json/ask.json — poc/m0/out/* is git-ignored so the
+  // original run dir is absent on CI.
+  const fixtureDir = join(__dirname, 'fixtures', 'stale-run', 'm0b-ds-d');
+  assert.ok(existsSync(join(fixtureDir, 'answer.json')), `expected ${fixtureDir}/answer.json to exist (committed fixture)`);
+  const runDir = tempRunDir();
+  writeFileSync(join(runDir, 'answer.json'), readFileSync(join(fixtureDir, 'answer.json')));
+  writeFileSync(join(runDir, 'ask.json'), readFileSync(join(fixtureDir, 'ask.json')));
   let modelStepCalls = 0;
   const spyModelStep = async () => { modelStepCalls += 1; return { ok: false, red: 'must not be called' }; };
   const result = await runOnPrimitives({
