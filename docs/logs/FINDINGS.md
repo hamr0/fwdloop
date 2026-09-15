@@ -1440,3 +1440,54 @@ catch, not a miss. Recount under that reading: all ten cells 20/20 — every non
 refusing a model slip (days-until-due arithmetic, an omitted figure, a dangling bracket), a preflight
 refusal of an operator double-start, or the batch honouring an empty Enter as a rejection. Nothing got
 through unrefused; nothing correct was refused.
+
+## F29 — Job #2 built: docx reader, declared-shape close, the Amendment A redo edge; a stale answer replayed one rejection as four (2026-09-15)
+
+**Date** 2026-09-15 · **Status** built and probed live; counting run with hamr pending · **Class** M0b /
+Amendment B (job #2) and Amendment A (redo edge) · **Grounded in** branch `job2` commits `6b19b61`
+(docx), `a421f5b` (shape + redo), `c4f272e` (fold), `5168f3c` (drafter path), `f423f47` (hamr's
+headings), `3ffcd69` (hamr's prose + first real draft), `2fd9043` (stale-answer fix); live probe
+`poc/m0/out/job2-probe-2/` and draft `poc/m0/fixture-declaration-job2-deepseek-1789485223087.json`;
+ledger rows for both (deepseek-flash, `modelReturned` matches).
+
+**What was built.** Four standalone modules, each proven red before green, then one fold:
+`docx.mjs` (stdlib zip + regex; the real resume yields 52 paragraphs / 891 of 904 tag-stripped
+words; sha256 pinned in the test), `shape.mjs` (`closeWordsAndSections`: 600 green / 601 red naming
+the count; headings must appear in order, mid-sentence mentions don't count), `redo.mjs`
+(`askWithRedo`: cap typed 1..3 and >3 refused, reason-less rerun refused and re-asked without a redo,
+every attempt in `audit.jsonl` with a parent, the 4th rejection halts naming the step — reading
+chosen: attempts 1..4 may run), and `job2.mjs` (own fold, hard-wired to job #2's shape as job #1's
+was; generalising the runner is M2). The drafter path (`scoutJob2` $0 facts with body text withheld,
+`draftJob2` on the same paid round, unchanged `validate()`) is what makes job #2 Claim-2 evidence:
+hamr's prose named no primitive and DeepSeek picked `readDocx / read / compress / checkpoint / write`
+for lines 1–5, `guardrailClasses {3: softgreen, 4: hitl}`, refused none, $0.0035. The fold binds by
+`fromLine` (0 or 2+ steps on a line refuses, never picks) and checks grants
+(`readResume→readDocx`, `readJd→read`, `send→write`; extras allowed as in job #1).
+
+**hamr's words won over the ladder's paraphrase.** His cold description names the sections
+"summary of work history blurb, professional skills, soft skills"; Amendment B had written "story of
+experience / technical skills / soft skills". `JOB2_SHAPE` now carries his three headings, and the
+compose prompt reads the constant (one writer). His raw text is kept verbatim in
+`poc/m0/job2.prose.raw.txt`; the numbered split he signed is `poc/m0/job2.prose.txt`. "200ish each"
+is guidance the model receives, not a check — a per-section limit would be a new signed check.
+
+**The live probe** (example prose, real inputs, 20 s ask timeout): both inputs frozen with the
+ladder's hashes, resume and JD read, 321 words with all three headings → shape green, `ask.json`
+written with the artifact path, ask expired → correct red, nothing sent, $0.0035.
+
+**The catch — a stale answer is a repeated human decision.** Review of the real ask step before
+the counting run: it polled `<runDir>/answer.json`, and nothing removed that file after it was read.
+Under `askWithRedo` the ask is called again for attempt 2 (after a rerun) or for the same attempt
+(after a reason-less rerun is refused), so the old file answered instantly. Reproduced through the
+real ask step with one human `rerun`: `redo cap 3 reached at step compose after 4 rejections` — one
+rejection became four and halted with no human in the loop; the reason-less case would have looped
+on refusals. Fix `2fd9043`: an answer is consumed exactly once (`renameSync` to
+`answer.attempt<n>.<seq>.consumed.json` the moment it is read), and an answer whose `answeredAt`
+predates the ask's `askedAt` is quarantined and logged as `stale-answer-ignored` in `audit.jsonl`.
+Proven red by removing the rename (`expected exactly one consumed file per answer, got 0 !== 2`);
+the timeout scenario stayed green without the rename because the timestamp check overlaps it — two
+defences, reported as such rather than reshaped to force a red. `checkFreshRunDir` (F-era
+stale-answer hazard at run *start*) was the same shape one level up; this is the mid-run half.
+
+**Open, hamr's to sign.** §10 in `docs/wiki/playbook-and-open-questions.md`: where sources live in
+the signed text (today the destination is in the arbiter block, sources are launch flags).
