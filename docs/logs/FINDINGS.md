@@ -1346,3 +1346,68 @@ $0.0614). The same-day rule means synthetic was not run alone.
 
 **Lesson:** a green status page and a live balance endpoint prove the door is open, not that anyone is
 home. Probe the paid path with the smallest possible call before spending a batch on it.
+
+## F28 — Amendment C, batch day 2026-09-15: 200 runs on two providers; 7 of 10 cells meet 19/20; a malformed tool call was our red, not the provider's (2026-09-15)
+
+**Date** 2026-09-15 · **Status** measured; F28 fix landed (`b51c2c6`); M0b exit NOT claimed · **Class** M0b /
+Amendment C · **Grounded in** the ten counting bar files `poc/m0/out/batch-{deepseek,synthetic}-{a,b,c,d,e}-2026-09-15*.json`
+(tags below), 520 ledger rows 252–771 in `poc/m0/out/spend.jsonl` (515 `match`/`prefix`, 5 `unreported` = the
+killed/malformed rounds, 0 `substituted`), the captured body in the orchestrator's scratch `bad-json.log`, and
+bareloop's independent F179/F180 (same error, same day, their run `mu2bjmed`). Drafts reused from 2026-09-14
+(hamr: "reuse"). c/d accepts: all 80 typed by hamr from his TTY (`answeredBy: "human-tty"`), per the 2026-09-13
+ruling. a/b/e run by the orchestrator from its own shell (pass is readable there; no key printed or written).
+
+**Result — pass / 20, bar 19/20:**
+
+| plant | deepseek-flash | Qwen3.8-27B (synthetic) | what the non-passes were |
+|---|---|---|---|
+| a wrong total | **20** ✅ (15e) | 18 ✗ (15c) | Qwen ×2: red at derive on a *different* slip — the model's days-until-due (8, 0) ≠ −8 |
+| b wrong cell | **20** ✅ (15e) | **20** ✅ (15c) | — |
+| e omitted total | **20** ✅ (15d) | 18 ✗ (15c) | Qwen: 1 days-until-due slip; 1 `bracket [c1] does not resolve to a citation` |
+| c two Northwinds | **20** ✅ (15c) | **19** ✅ (15c) | Qwen: 1 human-rejected (an empty Enter — the batch counts anything but `y` as no) |
+| d clean, accept, send | 17 ✗ (15c) | 15 ✗ (15d) | deepseek: 1 `count_overdue … not cited`, 2 days-until-due slips (8, −9). Qwen: 4 `total_owed … not cited`, 1 days slip |
+
+Cost of the ten counting cells $1.34; whole day $1.68 (ledger $0.589 → $2.273, incl. 5 ceiling rows $0.10 and
+the aborted cells). Per run: deepseek $0.0010–0.0058, Qwen $0.0022–0.0139. Wall: deepseek 8–25 s, Qwen 18–52 s.
+The 2026-09-13 stash guessed ≈$1.20 and ~1 min/run; both within 2×. Against the $12.50/day human cost, a full
+job-#1 run (plant d) is $0.006–0.014.
+
+**Three things the day found.**
+
+1. **The "provider-red" was ours.** Three deepseek stops (`Unexpected non-whitespace character after JSON at
+   position 476/476/432`, ~2 s) each wrote a `costUsd: null` row and locked every batch on both slots (F5, correct).
+   A `JSON.parse` capture on the fourth showed the MODEL's tool-call `arguments` ending `…"matches": ["c2", "c3"]}}`
+   — one trailing brace. bare-agent 0.42.0 throws from `provider-openai.js:131` after the HTTP round succeeded and
+   `data.usage` was in hand, so the cost was never unknown; we dropped it. hamr said it first ("deepseek can't be
+   the blame every run"). Fix `b51c2c6` (Sonnet, reviewed): `MalformedToolCallTolerantOpenAI` overrides `_request`
+   to keep the body and `generate` to turn a SyntaxError-with-tool-calls into a metered no-tool-call round;
+   `runModelStepOnPrimitives` retries once (existing class) and reds naming the raw arguments the second time.
+   Proven against a local server; 429 → 434 tests. After the fix: 60 deepseek runs, 0 stops, 0 second-time reds.
+   Upstream ask sent to bareloop's session; they hit the same throw the same day (position 5734) and will
+   corroborate in their UPSTREAM-ASKS.md rather than file a second shape. Before the fix, each stop restarted a
+   20-run cell at run 1 — deepseek a reached 11/11 and 3/3 before the two stops; those cells stay on disk (tags
+   15, 15b, 15c) and do not count.
+
+2. **Plant d misses the bar on both providers, and every miss is a red on a clean input.** Two shapes:
+   - *days-until-due arithmetic* (5 of 8 misses across d and a/e): the model wrote 8, 0 or −9 for a −8; the
+     derive close caught it every time. The machine did its job; the bar counts it as a false red because the
+     input was clean. Rate ≈ 1 in 13 runs on both models.
+   - *`declared field … does not appear cited`* (5 misses, 4 on Qwen): the compose close says the reply lacks a
+     bracket for the total. In the 15 Qwen and 17 deepseek passes hamr saw, the total was always cited (`5700[c9]`,
+     `[tot]`, `[total]`…). **We cannot see the red replies:** a red run keeps only the red string, not the composed
+     text, so whether the model omitted the bracket or the close mis-read a label like `[tot]` is undetermined.
+     That is the next measurement, not a guess.
+   Neither shape is the F25 identifier hole; no wrong figure reached an accept. Amendment C's 19/20 as written
+   counts a correct red on a clean run against the machine. Whether it should is hamr's to rule.
+
+3. **Amendment C's tag discipline held, at a price.** A bar file with any result is never overwritten, so every
+   stop (keys missing in a window, the cap lock, a kill) consumed a tag: 30 bar files exist for 10 cells. All stay.
+
+**Also measured:** the deadline fix (`dd96d87`) was never exercised — no hang today. Qwen's `tool_calls` came back
+`null`-shaped once (`[c1] does not resolve`); not investigated.
+
+**Not the exit.** Amendment C says 19/20 per scenario per provider. 7 of 10 cells meet it; a, e on Qwen and d on
+both do not. Every miss ended in a red and nothing wrong was sent. M0b's sign-off is hamr's.
+
+**Lesson:** when the same red repeats at the same byte position, it is a shape, not weather. Capture the body
+before blaming the wire. And a check that cannot show what it refused cannot be told from a bug.
