@@ -29,3 +29,4 @@
 ## [2026-09-11] validate | PASS — 0 gate failure(s)
 ## [2026-09-11] archive | docs/product/PRD.md -> docs/archive/PRD.md, 153 link(s) rewritten
 ## [2026-09-11] index-flat | 17 row(s) (8 product, 7 logs, 2 archive)
+## [2026-09-15] index-flat | 17 row(s) (8 product, 7 logs, 2 archive)
