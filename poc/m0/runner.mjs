@@ -38,7 +38,7 @@ import {
   gather, ask, send, checkStepHappened,
 } from './mechanical.mjs';
 import {
-  closeDerive, closeCompose, closeCustomerMatch, hashFile, matchingCustomers,
+  closeDerive, closeCompose, closeCustomerMatch, hashFile,
 } from './close.mjs';
 import { parseCsv } from './csv.mjs';
 import {
