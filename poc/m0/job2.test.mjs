@@ -139,8 +139,8 @@ function fakeSendStep(sendDir) {
 
 /** A valid three-section summary under the word cap, so `closeWordsAndSections` greens it. */
 function goodSummary(marker = '') {
-  return `story of experience\nWorked on agent systems${marker ? ` (${marker})` : ''}.\n\n`
-    + 'technical skills\nJavaScript, Node.js, LLM tooling.\n\n'
+  return `summary of work history\nWorked on agent systems${marker ? ` (${marker})` : ''}.\n\n`
+    + 'professional skills\nJavaScript, Node.js, LLM tooling.\n\n'
     + 'soft skills\nCommunication and collaboration.\n';
 }
 
@@ -275,7 +275,7 @@ test('(b) PROOF the test can fail: break the reason carry-over, watch it red, re
 
 function tooLongSummary() {
   const filler = Array(650).fill('w').join(' ');
-  return `story of experience\n${filler}\n\ntechnical skills\nx\n\nsoft skills\nx\n`;
+  return `summary of work history\n${filler}\n\nprofessional skills\nx\n\nsoft skills\nx\n`;
 }
 
 test('(c) 650 words closes red; ask never called; nothing sent; result red at phase compose', async () => {
@@ -306,9 +306,10 @@ test('(c) PROOF the test can fail: a 600-word (boundary) summary does NOT red', 
     resumePath, jdPath, prosePath, outDir, spendPath, sendDir,
   } = setup();
   const okAt600 = () => {
-    // 3 headings (3+2+2=7 words) + 593 filler = 600.
-    const filler = Array(593).fill('w').join(' ');
-    return `story of experience\ntechnical skills\nsoft skills\n${filler}`;
+    // 3 headings ("summary of work history"=4, "professional skills"=2,
+    // "soft skills"=2 -> 8 words) + 592 filler = 600.
+    const filler = Array(592).fill('w').join(' ');
+    return `summary of work history\nprofessional skills\nsoft skills\n${filler}`;
   };
   const result = await runJob2({
     prosePath,
@@ -335,7 +336,7 @@ test('(d) missing a required section heading closes red, ask never called, nothi
     resumePath, jdPath, prosePath, outDir, spendPath, sendDir,
   } = setup();
   let askCalled = false;
-  const missingSoftSkills = () => 'story of experience\nx\n\ntechnical skills\nx\n';
+  const missingSoftSkills = () => 'summary of work history\nx\n\nprofessional skills\nx\n';
   const result = await runJob2({
     prosePath,
     sources: [{ id: 'resume', path: resumePath }, { id: 'jd', path: jdPath }],
@@ -425,7 +426,7 @@ test('(f) 4 rejections halt the run, naming step "compose", nothing sent', async
 
 const PROSE_NO_SEND = `1. Read my resume,
 2. and read the job description,
-3. write me a summary under 600 words in three sections: story of experience, technical skills, soft skills,
+3. write me a summary under 600 words in three sections: summary of work history, professional skills, soft skills,
    guardrail: under 600 words, three sections present
 4. check it with me,
    guardrail: nothing goes out before I accept
@@ -463,7 +464,7 @@ test('(g) missing send arbiter slot refuses at preflight, no model call', async 
 
 const PROSE_BIG_CAP = `1. Read my resume,
 2. and read the job description,
-3. write me a summary under 600 words in three sections: story of experience, technical skills, soft skills,
+3. write me a summary under 600 words in three sections: summary of work history, professional skills, soft skills,
 4. check it with me,
 5. and once I accept, write it to a file.
 
@@ -553,7 +554,7 @@ test('(j) a throwing modelStep reds the run at compose; the ledger row it wrote 
 const PROSE_EXTRA_READ_LINE = `1. Read my notes,
 2. Read my resume,
 3. Read the job description,
-4. Write a summary under 600 words in three sections: story of experience, technical skills, soft skills,
+4. Write a summary under 600 words in three sections: summary of work history, professional skills, soft skills,
 5. Check it with me,
 6. Write it to a file.
 
@@ -571,7 +572,7 @@ test('(k1) an extra read line before the compose line refuses, naming the count'
 
 const PROSE_GAPPED_NUMBERING = `1. Read my resume,
 2. Read the job description,
-4. Write a summary under 600 words in three sections: story of experience, technical skills, soft skills,
+4. Write a summary under 600 words in three sections: summary of work history, professional skills, soft skills,
 5. Check it with me,
 6. Write it to a file.
 
@@ -601,7 +602,7 @@ test('(k2) ask at line 5 / send at line 6, with a gap in the numbering, still bi
 
 test('JOB2_SHAPE is the signed Amendment B shape (600 words, 3 named sections)', () => {
   assert.equal(JOB2_SHAPE.maxWords, 600);
-  assert.deepEqual(JOB2_SHAPE.sections, ['story of experience', 'technical skills', 'soft skills']);
+  assert.deepEqual(JOB2_SHAPE.sections, ['summary of work history', 'professional skills', 'soft skills']);
 });
 
 // ---------------------------------------------------------------------------

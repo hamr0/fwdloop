@@ -55,18 +55,24 @@ import { askWithRedo } from './redo.mjs';
 const SPEND_PATH = join(OUT_DIR, 'spend.jsonl');
 
 /**
- * The declared softgreen shape for job #2's compose step (Amendment B,
- * ladder ~108-119: "a summary under 600 words in three sections"). Signed
- * data, a typed constant — NOT parsed from the human's prose. The prose's
- * own guardrail text on the compose line ("under 600 words, three sections
- * present") is there for the MODEL to read as an instruction; this fold
- * never regexes it to derive the check itself, same discipline job #1's
- * closeCompose/closeDerive already hold (the close's numbers are code, not
- * prose-mined).
+ * The declared softgreen shape for job #2's compose step. hamr's own cold
+ * prose (`job2.prose.raw.txt`, verbatim): "...summary of work histry blurb,
+ * professional skills, soft skills, 3 sections all under 600 words/200ish
+ * each". His words win (Claim 2 evidence must be his words) — the sections
+ * below are those three headings ("histry" corrected to "history" for the
+ * heading text the model must emit), not the ladder's paraphrase this
+ * constant used to carry. Signed data, a typed constant — NOT parsed from
+ * the human's prose (see `job2.prose.raw.txt`, untouched). The prose's own
+ * guardrail text on the compose line is there for the MODEL to read as an
+ * instruction; this fold never regexes it to derive the check itself, same
+ * discipline job #1's closeCompose/closeDerive already hold (the close's
+ * numbers are code, not prose-mined). "200ish each" is guidance carried in
+ * the prose to the model, not a check — a per-section word limit would be a
+ * NEW check hamr has not signed.
  */
 export const JOB2_SHAPE = Object.freeze({
   maxWords: 600,
-  sections: Object.freeze(['story of experience', 'technical skills', 'soft skills']),
+  sections: Object.freeze(['summary of work history', 'professional skills', 'soft skills']),
 });
 
 const CAP_LINE_RE = /^cap\s+\$([0-9]+(?:\.[0-9]+)?)\s+per\s+run$/i;

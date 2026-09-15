@@ -737,7 +737,7 @@ function job2ModelSteps() {
         reads: ['r1', 'r2'],
         emits: 'r3',
         fromLine: 3,
-        close: { shape: { maxWords: 600, sections: ['story of experience', 'technical skills', 'soft skills'] } },
+        close: { shape: { maxWords: 600, sections: ['summary of work history', 'professional skills', 'soft skills'] } },
       },
       {
         goal: 'check with me', primitives: ['checkpoint'], reads: ['r3'], emits: 'r4', fromLine: 4,

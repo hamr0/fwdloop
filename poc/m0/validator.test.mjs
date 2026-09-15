@@ -974,7 +974,7 @@ test('send lock — a declaration with no arbiter slots at all skips the lock en
 const JOB2_GUARDRAILS = [
   '1. Read my resume,',
   '2. and read the job description,',
-  '3. write me a summary under 600 words in three sections: story of experience, technical skills, soft skills, compared against the job description,',
+  '3. write me a summary under 600 words in three sections: summary of work history, professional skills, soft skills, compared against the job description,',
   '   guardrail: under 600 words, three sections present',
   '4. check it with me,',
   '   guardrail: nothing goes out before I accept',
@@ -1006,7 +1006,7 @@ function job2Declaration() {
         reads: ['r1', 'r2'],
         emits: 'r3',
         fromLine: 3,
-        close: { class: 'softgreen', shape: { maxWords: 600, sections: ['story of experience', 'technical skills', 'soft skills'] } },
+        close: { class: 'softgreen', shape: { maxWords: 600, sections: ['summary of work history', 'professional skills', 'soft skills'] } },
       },
       {
         goal: 'check it with me', primitives: ['checkpoint'], reads: ['r3'], emits: 'r4', fromLine: 4, close: { class: 'hitl' },
