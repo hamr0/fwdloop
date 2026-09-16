@@ -59,7 +59,9 @@ None of these block M0 (docs/archive/PRD.md:654-654).
 5. **Memory across runs** (litectx as the store, facts superseded by id) — not in any module yet
    (docs/archive/PRD.md:667-667).
 6. **What does a flow directory look like on disk?** Deferred to M1
-   (docs/archive/PRD.md:668-668).
+   (docs/archive/PRD.md:668-668). **Proposed 2026-09-16, unsigned:** `flows/<name>/` holding
+   `prose.txt`, `declaration.json`, `signature.json` and `runs/<run-id>/` — see the M1 DRAFT in
+   `the-module-ladder.md`, item 7.
 
 ### 7. Pinning a proven step — recorded, not a module
 
@@ -160,3 +162,7 @@ Two shapes on the table, hamr's to sign:
 
 A live URL as a source (the JD came from a job board) is M9 real IO behind the allow-list either way;
 until then the JD is a fetched, hashed markdown file. Not decided; job #2 runs with launch flags.
+
+**Recommendation restated with the M1 DRAFT (2026-09-16):** option 1 — `source <role> = <file>`
+as typed arbiter lines. Cost of option 2: the signed block stops being the full picture, and the
+launch flags stay a second writer of what gets pinned. Still hamr's to sign.

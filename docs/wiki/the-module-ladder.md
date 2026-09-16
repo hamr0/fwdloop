@@ -178,6 +178,96 @@ hash that flips on any edit (docs/archive/PRD.md:557-562).
 - **Negative:** a declaration missing a required `ask` slot is a red, not an absence
   (docs/archive/PRD.md:565-565).
 
+### M1 DRAFT — scope, exit, negative — proposed 2026-09-16, UNSIGNED
+
+Nothing below is in force until hamr signs it. It restates the M1 paragraph above as the three
+things the binding rule needs, using what M0 actually built. M1 writes the spec and the checks;
+it runs nothing (M2) and asks nothing (M3).
+
+**Scope.**
+
+1. **One signed text, one typed arbiter block.** The human's job is `prose.txt` as today: numbered
+   lines, a `guardrail:` under the lines that carry one (strict 1-for-1), and an arbiter block at
+   the bottom. The arbiter block becomes a typed grammar, not free text the runner regexes:
+   `cap $N per run`, `ask at line N` (with `ttl <duration>`, default 30m), `redo cap N` (1..3),
+   `send at line N to <target>`, `skills <list>`, and — if §10 is signed as option 1 —
+   `source <role> = <file>` per input. Every field is human-signed, tighten-only; each has exactly
+   one parser and one writer. Unknown lines in the block are a red naming the line, never ignored.
+2. **The drafter's half is a schema with no arbiter fields in it.** `declaration.json` carries
+   steps (`goal, primitives, reads, emits, columns, fromLine, close`) plus `guardrailClasses`,
+   `unjudgeable`, `refused` — the fields M0a/M0b already validate. It has no place for a cap, an
+   ask, a TTL, a target, a source or a trigger: not "forbidden", absent from the schema, and the
+   validator refuses any unknown key at any depth by name.
+3. **`ask` positions are slots, not steps.** `ask at line N` in the arbiter block means: exactly
+   one step must bind to line N and its close must be `hitl`. The drafter fills the slot; it
+   cannot add a second ask, drop this one, or move it. (F10: both providers wobbled on exactly
+   this when it was theirs to decide.)
+4. **A hash that flips on any edit.** `signature.json` pins sha256 over the canonical bytes of
+   `prose.txt` and `declaration.json`, plus who signed and when. The M2 runner will refuse a run
+   whose files do not hash to the signature, naming the file. In M1 the check exists and is
+   tested; nothing runs yet.
+5. **Catalogue as data.** The primitive catalogue is a data file the validator reads, not code the
+   drafter can reach. Skills gate the visible subset (M6 does persona; M1 only makes the
+   catalogue a file).
+6. **Patterns are literal or typed, never user regex.** No field in the signed text is
+   interpreted as a regular expression; a guardrail is matched by its line number, a shape by its
+   typed fields. ReDoS is impossible by construction, and a test proves no `new RegExp` is built
+   from signed text.
+7. **The flow directory** (§6, deferred here) — proposed shape, hamr to sign:
+
+   ```
+   flows/<flow-name>/
+     prose.txt          the signed text: numbered lines + guardrails + arbiter block
+     declaration.json   the drafter's half, validated
+     signature.json     sha256 of both, signed-by, signed-at
+     runs/<run-id>/     inputs/ (frozen + sha256), step artifacts, audit.jsonl,
+                        log.json, result.json — exactly M0b's run dir, moved under the flow
+   ```
+   One flow, one directory, three signed files, N runs. `poc/m0/out/` becomes `runs/`.
+
+8. **Carried in from M0, as fields not features:** a per-step round budget lives in the arbiter
+   block (`round budget 120s`, F-era rule: a step that can exceed ~2 min is a spec bug, split at
+   draft time); the compose prompt states its own outputs (F-era prompt gap) — a drafter-prompt
+   change, tested at $0 like the fence.
+
+**Not in M1:** running a declaration (M2), the inbox (M3), dry-run and versions (M4), any UI,
+learning across runs.
+
+**POC first — the riskiest assumption:** that slots kill the wobble. Twenty drafts of job #1's
+prose on `deepseek-flash` under the slot grammar: every draft binds exactly the signed asks (one
+at the signed line, `hitl`) or is refused by name. The bar is **20/20 — zero wobble — or the
+grammar is wrong**, not the model. Under M0 the count differed between runs of the same prose.
+Cost: about 20 × $0.004.
+
+**Exit.**
+
+- The mutation suite: for every field of `prose.txt`'s arbiter block and of `declaration.json`,
+  each single-field corruption (removed, retyped, value swapped, unknown key added, moved to
+  another depth) is caught by a red that names the field. Every corruption is a separate test
+  that can fail; the count of fields equals the count of mutations, checked by the suite itself.
+- The drafter cannot express an arbiter field in any position: a declaration carrying `cap`,
+  `ask`, `ttl`, `send`, `source`, `trigger` or `skills` at top level, inside a step, or inside a
+  close is refused naming the key and the path.
+- Both job #1 and job #2 are expressed under the one grammar with **no per-job field** — the
+  validator has no code path that knows which job it is reading.
+- The slot POC above at 20/20.
+
+**Negative scenarios**, each of which must be able to fail:
+
+- (i) a declaration missing a required `ask` slot is a **red naming the slot**, never an absence;
+- (ii) a declaration with an ask the arbiter block did not sign is a red naming the extra step;
+- (iii) a one-byte edit to `prose.txt` or `declaration.json` after signing flips the hash and the
+  check reds naming the file;
+- (iv) an arbiter-block line the grammar does not know is a red naming the line, not skipped;
+- (v) a signed text containing regex metacharacters is matched literally — a test plants
+  `(a+)+$` in a guardrail and proves no regex is compiled from it.
+
+**Kills the module:** job #1 or job #2 cannot be expressed without a per-job field, or the slot
+POC lands below 20/20 and the fix on the table is prompt wording rather than grammar.
+
+**Open, hamr's to sign with this:** §6 (the directory above), §10 (sources as typed arbiter lines,
+option 1 — recommended, because a source you can swap at launch is a hole in the pin).
+
 ## M2 — runner
 
 A fold over steps with fresh context per step (artifacts, never transcripts), an effect check per
