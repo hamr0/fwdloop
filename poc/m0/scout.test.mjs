@@ -9,13 +9,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { deflateRawSync } from 'node:zlib';
 import { parseCsv } from './csv.mjs';
 import { menu } from './catalogue.mjs';
 import {
   SCOUT_MENU, SCOUT_ROUND_BOUND, SCOUT_MAX_TOKENS,
   lookFixtures, groundFacts, makeReportFactsTool, runScoutRound,
-  classifyFacts, FACTS_CAUSES,
+  classifyFacts, FACTS_CAUSES, scoutJob2,
 } from './scout.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -415,4 +417,131 @@ test('PROOF the classifyFacts tests can fail: a facts object with a genuinely no
     reported: true,
   };
   assert.equal(classifyFacts(facts).state, 'PRESENT');
+});
+
+// ---------------------------------------------------------------------------
+// JOB #2's LOOK (M0b Amendment B, Claim 2 evidence) — `scoutJob2`, $0,
+// deterministic, over a resume .docx and a markdown JD instead of job #1's
+// CSV/text fixtures. No model round (see scoutJob2's own header for why),
+// so these tests need no fake provider at all — same "no network" discipline
+// as the rest of this file, trivially satisfied.
+//
+// The zip-by-hand builder below mirrors job2.test.mjs's own `makeZip`/
+// `makeDocxBuffer` (not imported from it — that file's own header explains
+// why: never read hamr's real resume in a test file, and no test file
+// imports another test file's helpers here either).
+// ---------------------------------------------------------------------------
+
+function crc32(buf) {
+  let crc = ~0;
+  for (let i = 0; i < buf.length; i++) {
+    crc ^= buf[i];
+    for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (~crc) >>> 0;
+}
+
+function makeDocxBuffer(paragraphs) {
+  const bodyXml = paragraphs.map((p) => `<w:p><w:r><w:t>${p}</w:t></w:r></w:p>`).join('');
+  const xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+    + `<w:body>${bodyXml}</w:body></w:document>`;
+  const data = Buffer.from(xml, 'utf8');
+  const name = 'word/document.xml';
+  const nameBuf = Buffer.from(name, 'utf8');
+  const compressed = deflateRawSync(data);
+  const crc = crc32(data);
+
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt16LE(20, 4);
+  local.writeUInt16LE(0, 6);
+  local.writeUInt16LE(8, 8);
+  local.writeUInt16LE(0, 10);
+  local.writeUInt16LE(0, 12);
+  local.writeUInt32LE(crc, 14);
+  local.writeUInt32LE(compressed.length, 18);
+  local.writeUInt32LE(data.length, 22);
+  local.writeUInt16LE(nameBuf.length, 26);
+  local.writeUInt16LE(0, 28);
+
+  const cdir = Buffer.alloc(46);
+  cdir.writeUInt32LE(0x02014b50, 0);
+  cdir.writeUInt16LE(20, 4);
+  cdir.writeUInt16LE(20, 6);
+  cdir.writeUInt16LE(8, 10);
+  cdir.writeUInt32LE(crc, 16);
+  cdir.writeUInt32LE(compressed.length, 20);
+  cdir.writeUInt32LE(data.length, 24);
+  cdir.writeUInt16LE(nameBuf.length, 28);
+  cdir.writeUInt32LE(0, 42); // localOffset 0
+
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(1, 8);
+  eocd.writeUInt16LE(1, 10);
+  eocd.writeUInt32LE(cdir.length + nameBuf.length, 12);
+  eocd.writeUInt32LE(local.length + nameBuf.length + compressed.length, 16);
+
+  return Buffer.concat([local, nameBuf, compressed, cdir, nameBuf, eocd]);
+}
+
+function job2TmpFiles({ resumeParagraphs, jdText }) {
+  const base = mkdtempSync(join(tmpdir(), 'm0-scout-job2-'));
+  const resumePath = join(base, 'resume.docx');
+  writeFileSync(resumePath, makeDocxBuffer(resumeParagraphs));
+  const jdPath = join(base, 'jd.md');
+  writeFileSync(jdPath, jdText);
+  return { resumePath, jdPath };
+}
+
+test('scoutJob2: resume facts are {kind:"docx", paragraphs, words, firstLine} from readDocxText, never the body text itself', () => {
+  const { resumePath, jdPath } = job2TmpFiles({
+    resumeParagraphs: ['AMR HASSAN', 'Story of experience filler text here.'],
+    jdText: '# Applied AI Architect\n\nBuild agents.\n',
+  });
+  const report = scoutJob2({ resumePath, jdPath });
+  assert.equal(report.ok, true);
+  assert.deepEqual(report.facts.resume, {
+    kind: 'docx', paragraphs: 2, words: 8, firstLine: 'AMR HASSAN',
+  });
+  assert.ok(!('text' in report.facts.resume), 'the resume body text never travels forward to the drafter');
+});
+
+test('scoutJob2: JD facts are {kind:"markdown", words, headings[]}, headings read from real "#" lines', () => {
+  const { resumePath, jdPath } = job2TmpFiles({
+    resumeParagraphs: ['AMR HASSAN'],
+    jdText: '# Applied AI Architect\n\nWe need agents.\n\n## Requirements\n\n5 years experience.\n',
+  });
+  const report = scoutJob2({ resumePath, jdPath });
+  assert.equal(report.ok, true);
+  assert.equal(report.facts.jd.kind, 'markdown');
+  assert.deepEqual(report.facts.jd.headings, ['Applied AI Architect', 'Requirements']);
+  assert.equal(report.facts.jd.words, 12);
+});
+
+test('scoutJob2: a corrupt/unreadable resume reds BY NAME (readDocx), never silently produces empty facts', () => {
+  const base = mkdtempSync(join(tmpdir(), 'm0-scout-job2-bad-'));
+  const resumePath = join(base, 'resume.docx');
+  writeFileSync(resumePath, Buffer.from('not a zip at all'));
+  const jdPath = join(base, 'jd.md');
+  writeFileSync(jdPath, '# JD\n\nsome text\n');
+
+  const report = scoutJob2({ resumePath, jdPath });
+  assert.equal(report.ok, false);
+  assert.match(report.red, /scout: resume \(readDocx\)/);
+});
+
+test('scoutJob2: an unreadable JD path reds BY NAME (read), distinct from the resume\'s own red', () => {
+  const { resumePath } = job2TmpFiles({ resumeParagraphs: ['AMR HASSAN'], jdText: 'x' });
+  const report = scoutJob2({ resumePath, jdPath: join(tmpdir(), 'does-not-exist-m0-scout-job2.md') });
+  assert.equal(report.ok, false);
+  assert.match(report.red, /scout: jd \(read\)/);
+});
+
+test('PROOF scoutJob2 can fail: a real resume + real jd passes; corrupting the resume alone reds it', () => {
+  const { resumePath, jdPath } = job2TmpFiles({ resumeParagraphs: ['AMR HASSAN'], jdText: '# JD\n\ntext\n' });
+  assert.equal(scoutJob2({ resumePath, jdPath }).ok, true);
+  writeFileSync(resumePath, Buffer.from('corrupted'));
+  assert.equal(scoutJob2({ resumePath, jdPath }).ok, false);
 });

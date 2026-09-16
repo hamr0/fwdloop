@@ -28,9 +28,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 import {
   DRAFTER_SKILLS, DRAFTER_MAX_TOKENS,
-  extractGuardrails, assembleDeclaration, plantLine, runDrafter,
+  extractGuardrails, assembleDeclaration, plantLine, runDrafter, draftJob2,
 } from './drafter.mjs';
 import { validate, parseArbiterGuardrails } from './validator.mjs';
 import {
@@ -696,4 +697,109 @@ test('PROOF the test can fail: a REAL column name (verbatim from the mechanical 
   const decl = assembleDeclaration(steps, { guardrails: REAL_GUARDRAILS, realColumns: REAL_FACTS.csv.realColumns });
   const result = validate(decl);
   assert.equal(result.verdict, 'green', result.red);
+});
+
+// ---------------------------------------------------------------------------
+// JOB #2 (M0b Amendment B) — `draftJob2` runs the SAME emit_declaration
+// round and the SAME assembleDeclaration stitching as job #1's runDrafter,
+// over job #2's own prose (fixtures/job2.prose.example.txt) and scout facts
+// (scout.mjs's scoutJob2 shape) instead of job #1's steps/prose files and
+// CSV-shaped facts. Every model round here goes through the SAME injected
+// fake provider as the rest of this file — no network.
+// ---------------------------------------------------------------------------
+
+const JOB2_PROSE = readFileSync(join(__dirname, 'fixtures', 'job2.prose.example.txt'), 'utf8');
+const JOB2_FACTS = {
+  resume: {
+    kind: 'docx', paragraphs: 3, words: 20, firstLine: 'AMR HASSAN',
+  },
+  jd: { kind: 'markdown', words: 15, headings: ['Applied AI Architect'] },
+};
+
+// The well-behaved model's own steps: primitives PICKED from the catalogue
+// (readDocx for the resume, read for the JD, checkpoint for the ask, write
+// for the send) — never guessed by position, this is the whole point of
+// Claim 2. fromLine binds each step to job #2's own numbered lines (1-5,
+// job2.prose.example.txt).
+function job2ModelSteps() {
+  return {
+    guardrailClasses: { 3: 'softgreen', 4: 'hitl' },
+    steps: [
+      {
+        goal: 'read the resume', primitives: ['readDocx'], reads: [], emits: 'r1', fromLine: 1,
+      },
+      {
+        goal: 'read the job description', primitives: ['read'], reads: [], emits: 'r2', fromLine: 2,
+      },
+      {
+        goal: 'compose the summary',
+        primitives: [],
+        reads: ['r1', 'r2'],
+        emits: 'r3',
+        fromLine: 3,
+        close: { shape: { maxWords: 600, sections: ['summary of work history', 'professional skills', 'soft skills'] } },
+      },
+      {
+        goal: 'check with me', primitives: ['checkpoint'], reads: ['r3'], emits: 'r4', fromLine: 4,
+      },
+      {
+        goal: 'send the accepted summary', primitives: ['write'], reads: ['r4'], emits: 'r5', fromLine: 5,
+      },
+    ],
+  };
+}
+
+test('draftJob2: a well-behaved model draft picks primitives from the catalogue and validates green (Claim 2)', async () => {
+  const provider = fakeProvider(toolReply(job2ModelSteps()));
+  const report = await draftJob2('fake-model', {
+    proseText: JOB2_PROSE, facts: JOB2_FACTS, provider, rates: { in: 0, out: 0 },
+  });
+  assert.equal(report.toolCalled, true);
+  assert.deepEqual(report.declaration.skills, DRAFTER_SKILLS);
+  assert.equal(report.declaration.guardrails, JOB2_PROSE.trim());
+  const result = validate(report.declaration);
+  assert.equal(result.verdict, 'green', result.red);
+  // primitives were PICKED, not positional filler — readDocx for the resume
+  // line, plain read for the JD line, never the other way round.
+  const byGoal = Object.fromEntries(report.declaration.steps.map((s) => [s.goal, s.primitives]));
+  assert.deepEqual(byGoal['read the resume'], ['readDocx']);
+  assert.deepEqual(byGoal['read the job description'], ['read']);
+});
+
+test('draftJob2: the primitive catalogue menu handed to the model includes readDocx', async () => {
+  const provider = fakeProvider(toolReply(job2ModelSteps()));
+  await draftJob2('fake-model', {
+    proseText: JOB2_PROSE, facts: JOB2_FACTS, provider, rates: { in: 0, out: 0 },
+  });
+  const systemPrompt = provider.calls[0].messages.find((m) => m.role === 'system').content;
+  assert.match(systemPrompt, /readDocx: Read a Word \(\.docx\) file's text\./);
+});
+
+test('draftJob2: neither the resume nor the JD body text is shown to the model — only shape facts', async () => {
+  const provider = fakeProvider(toolReply(job2ModelSteps()));
+  await draftJob2('fake-model', {
+    proseText: JOB2_PROSE, facts: JOB2_FACTS, provider, rates: { in: 0, out: 0 },
+  });
+  const systemPrompt = provider.calls[0].messages.find((m) => m.role === 'system').content;
+  assert.match(systemPrompt, /~20 words/);
+  assert.match(systemPrompt, /Applied AI Architect/); // the heading fact, not any resume/JD body sentence
+});
+
+test('draftJob2: ABSENT scout facts (no resume/jd) refuse at $0 — no provider call, no declaration', async () => {
+  const provider = {
+    generate: async () => { throw new Error('draftJob2 must never call the model when facts are ABSENT'); },
+  };
+  const report = await draftJob2('fake-model', { proseText: JOB2_PROSE, facts: null, provider, rates: { in: 0, out: 0 } });
+  assert.equal(report.toolCalled, false);
+  assert.equal(report.declaration, null);
+  assert.equal(report.absent.cause, 'missing');
+});
+
+test('PROOF the ABSENT test can fail: the SAME call with real JOB2_FACTS produces a normal draft, no refusal', async () => {
+  const provider = fakeProvider(toolReply(job2ModelSteps()));
+  const report = await draftJob2('fake-model', {
+    proseText: JOB2_PROSE, facts: JOB2_FACTS, provider, rates: { in: 0, out: 0 },
+  });
+  assert.notEqual(report.declaration, null);
+  assert.equal(report.absent, undefined);
 });

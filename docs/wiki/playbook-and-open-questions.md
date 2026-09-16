@@ -139,3 +139,24 @@ restarts from the frozen inputs plus the step artifacts already on disk, not fro
 (docs/archive/PRD.md:748-752). **Switch to hidden git when** a fwdloop flow edits a file and then
 checks the edit, or bareloop's hidden git ships and one mechanism across both repos is wanted
 (docs/archive/PRD.md:748-752).
+
+### 10. Where do a job's *sources* live in the signed text? — OPEN, raised by hamr 2026-09-15
+
+Raised while writing job #2's prose cold ("a resume in, and jd to compare against — not sure how
+to have two sources"). Today the two are asymmetric: the **destination** is signed inside the prose
+(`send at line 5 to file:poc/m0/out`, arbiter block), while **sources** are handed to the run at
+launch (`--resume`, `--jd` for job #2; the sheet and message paths for job #1) and only then frozen
+and hashed (§9). The prose names sources by role ("my resume", "the JD"), never by path — that part
+holds Claim 2 (the human never names a primitive, and a path is close to one).
+
+Two shapes on the table, hamr's to sign:
+
+1. **Sources join the arbiter block as typed lines** — e.g. `source resume = <file>` / `source jd =
+   <file>`, human-signed, next to `send at … to …`. One block then holds everything a human pins:
+   cap, ask, destination, inputs. The drafter still sees roles only. (Orchestrator's recommendation:
+   it makes the signed block the full picture and removes the launch-time flags as a second writer.)
+2. **Sources stay outside the prose**, attached at intake like a mail attachment or a trigger's
+   payload (M8). Simpler prose; the signed block no longer shows the full picture.
+
+A live URL as a source (the JD came from a job board) is M9 real IO behind the allow-list either way;
+until then the JD is a fetched, hashed markdown file. Not decided; job #2 runs with launch flags.

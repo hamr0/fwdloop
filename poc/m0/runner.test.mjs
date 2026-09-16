@@ -462,6 +462,28 @@ test('checkSendDestination refuses a non-"file:" target outright', () => {
   assert.match(result.red, /is not a "file:<path>" target/);
 });
 
+test('checkSendDestination refuses a target that resolves outside the repo via ..', () => {
+  const result = checkSendDestination('file:../outside');
+  assert.equal(result.ok, false);
+  assert.match(result.red, /resolves outside the repo/);
+});
+
+test('checkSendDestination still passes a target that normalizes back inside the repo', () => {
+  const result = checkSendDestination('file:poc/m0/out/../out');
+  assert.equal(result.ok, true);
+  assert.match(result.dir, /poc\/m0\/out$/);
+});
+
+test('checkSendDestination: an absolute-looking target stays inside the repo (join, not resolve, semantics)', () => {
+  // join(REPO_ROOT, '/tmp') === REPO_ROOT/tmp — this is documented, existing
+  // behaviour of node:path join and is NOT changed here; it just needs a
+  // writable poc/m0/out-shaped equivalent to assert against, so use a target
+  // that also resolves under REPO_ROOT via the leading-slash join quirk.
+  const result = checkSendDestination('file:/poc/m0/out');
+  assert.equal(result.ok, true);
+  assert.match(result.dir, /poc\/m0\/out$/);
+});
+
 // --- preflight (full chain) -----------------------------------------------
 
 test('preflight passes end to end on a clean, slotted declaration with real inputs', () => {

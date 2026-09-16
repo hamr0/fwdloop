@@ -960,3 +960,90 @@ test('send lock — a declaration with no arbiter slots at all skips the lock en
   const result = validate(decl);
   assert.equal(result.verdict, 'green');
 });
+
+// ---------------------------------------------------------------------------
+// JOB #2 (M0b Amendment B) — validate() carries NO job #1-specific naming at
+// all (confirmed by grep: nothing here matches "sheet"/"customer"/"csv"/
+// "messageMatch" — those strings do not appear in validator.mjs), so a
+// job #2-shaped declaration (a resume/JD pair instead of a CSV+message) is
+// judged by the exact same generic checks, unmodified. These tests are that
+// proof, on job #2's own numbered lines (job2.prose.example.txt: 1=resume,
+// 2=jd, 3=compose, 4=ask, 5=send).
+// ---------------------------------------------------------------------------
+
+const JOB2_GUARDRAILS = [
+  '1. Read my resume,',
+  '2. and read the job description,',
+  '3. write me a summary under 600 words in three sections: summary of work history, professional skills, soft skills, compared against the job description,',
+  '   guardrail: under 600 words, three sections present',
+  '4. check it with me,',
+  '   guardrail: nothing goes out before I accept',
+  '5. and once I accept, write it to a file.',
+  '',
+  'Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):',
+  'guardrail: cap $0.25 per run',
+  'guardrail: ask at line 4',
+  'guardrail: send at line 5 to file:poc/m0/out',
+].join('\n');
+
+const JOB2_GUARDRAIL_CLASSES = { 3: 'softgreen', 4: 'hitl' };
+
+function job2Declaration() {
+  return {
+    skills: ['core'],
+    guardrails: JOB2_GUARDRAILS,
+    guardrailClasses: { ...JOB2_GUARDRAIL_CLASSES },
+    steps: [
+      {
+        goal: 'read the resume', primitives: ['readDocx'], reads: [], emits: 'r1', fromLine: 1, close: { class: 'hitl' },
+      },
+      {
+        goal: 'read the job description', primitives: ['read'], reads: [], emits: 'r2', fromLine: 2, close: { class: 'hitl' },
+      },
+      {
+        goal: 'compose the summary against the JD',
+        primitives: [],
+        reads: ['r1', 'r2'],
+        emits: 'r3',
+        fromLine: 3,
+        close: { class: 'softgreen', shape: { maxWords: 600, sections: ['summary of work history', 'professional skills', 'soft skills'] } },
+      },
+      {
+        goal: 'check it with me', primitives: ['checkpoint'], reads: ['r3'], emits: 'r4', fromLine: 4, close: { class: 'hitl' },
+      },
+      {
+        goal: 'send the accepted summary', primitives: ['write'], reads: ['r4'], emits: 'r5', fromLine: 5, close: { class: 'hitl' },
+      },
+    ],
+    refused: [],
+  };
+}
+
+test('job #2: a fully valid, walkable resume/JD declaration passes clean — validate() is generic over the declaration shape', () => {
+  const result = validate(job2Declaration());
+  assert.equal(result.verdict, 'green', result.red);
+});
+
+test('job #2: a step naming a primitive not in the catalogue is a red — same check 2/3 as job #1, no job #2-specific code needed', () => {
+  const decl = job2Declaration();
+  decl.steps[0].primitives = ['ocrScan']; // not in catalogue.mjs's CATALOGUE
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /unknown primitive verb "ocrScan"/);
+});
+
+test('PROOF can fail: swapping "ocrScan" back for "readDocx" clears the red', () => {
+  const decl = job2Declaration();
+  decl.steps[0].primitives = ['ocrScan'];
+  assert.equal(validate(decl).verdict, 'red');
+  decl.steps[0].primitives = ['readDocx'];
+  assert.equal(validate(decl).verdict, 'green');
+});
+
+test('job #2: send lock still applies — the send step must read what the ask step emitted, on job #2\'s own lines', () => {
+  const decl = job2Declaration();
+  decl.steps[4].reads = []; // send no longer reads the ask step's emitted artifact
+  const result = validate(decl);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /the send step \(fromLine 5\) does not read "r4"/);
+});

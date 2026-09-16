@@ -29,6 +29,7 @@
 // through provider.mjs's makeProvider, never a hand-rolled client, so
 // `legacyMaxTokens` is never a call-site decision.
 
+import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Loop } from 'bare-agent';
@@ -40,6 +41,7 @@ import {
   assertUnderGlobalCap, appendSpendRow, sumMeterings, RUN_CAP_USD,
 } from './spend.mjs';
 import { renderCsvArtifact, renderTextArtifact } from './runner.mjs';
+import { readDocxText } from './docx.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(__dirname, 'out');
@@ -355,9 +357,89 @@ export async function runScoutRound(modelId, {
   };
 }
 
+/**
+ * THE LOOK for JOB #2 (M0b Amendment B) — mechanical, $0, deterministic,
+ * same discipline as `lookFixtures`/`groundFacts` above but over job #2's
+ * OWN input shapes (a .docx resume, a markdown job description), which
+ * have neither a CSV header nor message lines. Deliberately NOT
+ * `lookFixtures`/`groundFacts` — those are job #1's concrete CSV/text
+ * artifact shapes; a resume/JD pair is a different shape entirely, so this
+ * is its own function rather than a job #1 function stretched to fit.
+ *
+ * NO model round: unlike job #1's scout, job #2's drafter is never handed
+ * the FILES' content at all (see the discard note below), so there is
+ * nothing for a model to report facts ABOUT beyond what the mechanical
+ * look already establishes — a paid round here would have nothing to add.
+ *
+ * What this throws away, and why nothing downstream needs it (PRD guiding
+ * principle: every summary declares what it discards): the resume's and
+ * the JD's BODY TEXT never reach the drafter. The drafter's job is to pick
+ * PRIMITIVES from the catalogue (`readDocx`, `read`, ...) for each step —
+ * it never composes the resume/JD summary itself (that is the fold's own
+ * paid compose round, job2.mjs) — so handing it prose content would be
+ * pure waste, and a citation-shaped surface the drafter has no business
+ * touching (job #2's close is a declared SHAPE check, shape.mjs, never a
+ * citation close). Only SHAPE facts (paragraph/word counts, headings)
+ * travel forward.
+ *
+ * Returns `{ ok: true, facts }` or `{ ok: false, red }` — red BY NAME when
+ * the .docx reader itself reds (a corrupt/unreadable resume), never a
+ * silent empty-facts fallback.
+ */
+export function scoutJob2({ resumePath, jdPath }) {
+  const resumeRead = readDocxText(resumePath);
+  if (!resumeRead.ok) {
+    return { ok: false, red: `scout: resume (readDocx) — ${resumeRead.red}` };
+  }
+  const resumeTrimmed = resumeRead.text.trim();
+  const resumeWords = resumeTrimmed.length > 0 ? resumeTrimmed.split(/\s+/).length : 0;
+  const resumeLines = resumeRead.text.split(/\r?\n/).filter((l) => l.length > 0);
+
+  let jdRaw;
+  try {
+    jdRaw = readFileSync(jdPath, 'utf8');
+  } catch (err) {
+    return { ok: false, red: `scout: jd (read) — cannot read file: ${err.message}` };
+  }
+  const jdTrimmed = jdRaw.trim();
+  if (jdTrimmed.length === 0) {
+    return { ok: false, red: `scout: jd (read) — "${jdPath}" is empty` };
+  }
+  const jdWords = jdTrimmed.split(/\s+/).length;
+  const headings = jdRaw.split(/\r?\n/)
+    .filter((l) => /^#{1,6}\s+\S/.test(l))
+    .map((l) => l.replace(/^#{1,6}\s*/, '').trim());
+
+  return {
+    ok: true,
+    facts: {
+      resume: {
+        kind: 'docx', paragraphs: resumeRead.paragraphs, words: resumeWords, firstLine: resumeLines[0] ?? '',
+      },
+      jd: { kind: 'markdown', words: jdWords, headings },
+    },
+  };
+}
+
 // CLI entry point — live, opt-in ONLY (SCOUT_LIVE=1). Never runs under `npm test`:
 // node --test never executes this block (import.meta.url check), and no test file imports it.
 if (import.meta.url === `file://${process.argv[1]}`) {
+  // job #2's look is $0 (no model round) — never gated behind SCOUT_LIVE.
+  if (process.argv.includes('--job2')) {
+    const get = (flag) => {
+      const i = process.argv.indexOf(flag);
+      return i !== -1 ? process.argv[i + 1] : undefined;
+    };
+    const resumePath = get('--resume');
+    const jdPath = get('--jd');
+    if (!resumePath || !jdPath) {
+      console.error('usage: node poc/m0/scout.mjs --job2 --resume <docx> --jd <md>');
+      process.exit(1);
+    }
+    const report = scoutJob2({ resumePath, jdPath });
+    console.log(JSON.stringify(report, null, 2));
+    process.exit(report.ok ? 0 : 1);
+  }
   if (process.env.SCOUT_LIVE !== '1') {
     console.error('A live scout round costs real money — set SCOUT_LIVE=1 to run it. Refusing.');
     process.exit(1);

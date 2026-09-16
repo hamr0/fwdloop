@@ -1440,3 +1440,119 @@ catch, not a miss. Recount under that reading: all ten cells 20/20 — every non
 refusing a model slip (days-until-due arithmetic, an omitted figure, a dangling bracket), a preflight
 refusal of an operator double-start, or the batch honouring an empty Enter as a rejection. Nothing got
 through unrefused; nothing correct was refused.
+
+## F29 — Job #2 built: docx reader, declared-shape close, the Amendment A redo edge; a stale answer replayed one rejection as four (2026-09-15)
+
+**Date** 2026-09-15 · **Status** built and probed live; counting run with hamr pending · **Class** M0b /
+Amendment B (job #2) and Amendment A (redo edge) · **Grounded in** branch `job2` commits `6b19b61`
+(docx), `a421f5b` (shape + redo), `c4f272e` (fold), `5168f3c` (drafter path), `f423f47` (hamr's
+headings), `3ffcd69` (hamr's prose + first real draft), `2fd9043` (stale-answer fix); live probe
+`poc/m0/out/job2-probe-2/` and draft `poc/m0/fixture-declaration-job2-deepseek-1789485223087.json`;
+ledger rows for both (deepseek-flash, `modelReturned` matches).
+
+**What was built.** Four standalone modules, each proven red before green, then one fold:
+`docx.mjs` (stdlib zip + regex; the real resume yields 52 paragraphs / 891 of 904 tag-stripped
+words; sha256 pinned in the test), `shape.mjs` (`closeWordsAndSections`: 600 green / 601 red naming
+the count; headings must appear in order, mid-sentence mentions don't count), `redo.mjs`
+(`askWithRedo`: cap typed 1..3 and >3 refused, reason-less rerun refused and re-asked without a redo,
+every attempt in `audit.jsonl` with a parent, the 4th rejection halts naming the step — reading
+chosen: attempts 1..4 may run), and `job2.mjs` (own fold, hard-wired to job #2's shape as job #1's
+was; generalising the runner is M2). The drafter path (`scoutJob2` $0 facts with body text withheld,
+`draftJob2` on the same paid round, unchanged `validate()`) is what makes job #2 Claim-2 evidence:
+hamr's prose named no primitive and DeepSeek picked `readDocx / read / compress / checkpoint / write`
+for lines 1–5, `guardrailClasses {3: softgreen, 4: hitl}`, refused none, $0.0035. The fold binds by
+`fromLine` (0 or 2+ steps on a line refuses, never picks) and checks grants
+(`readResume→readDocx`, `readJd→read`, `send→write`; extras allowed as in job #1).
+
+**hamr's words won over the ladder's paraphrase.** His cold description names the sections
+"summary of work history blurb, professional skills, soft skills"; Amendment B had written "story of
+experience / technical skills / soft skills". `JOB2_SHAPE` now carries his three headings, and the
+compose prompt reads the constant (one writer). His raw text is kept verbatim in
+`poc/m0/job2.prose.raw.txt`; the numbered split he signed is `poc/m0/job2.prose.txt`. "200ish each"
+is guidance the model receives, not a check — a per-section limit would be a new signed check.
+
+**The live probe** (example prose, real inputs, 20 s ask timeout): both inputs frozen with the
+ladder's hashes, resume and JD read, 321 words with all three headings → shape green, `ask.json`
+written with the artifact path, ask expired → correct red, nothing sent, $0.0035.
+
+**The catch — a stale answer is a repeated human decision.** Review of the real ask step before
+the counting run: it polled `<runDir>/answer.json`, and nothing removed that file after it was read.
+Under `askWithRedo` the ask is called again for attempt 2 (after a rerun) or for the same attempt
+(after a reason-less rerun is refused), so the old file answered instantly. Reproduced through the
+real ask step with one human `rerun`: `redo cap 3 reached at step compose after 4 rejections` — one
+rejection became four and halted with no human in the loop; the reason-less case would have looped
+on refusals. Fix `2fd9043`: an answer is consumed exactly once (`renameSync` to
+`answer.attempt<n>.<seq>.consumed.json` the moment it is read), and an answer whose `answeredAt`
+predates the ask's `askedAt` is quarantined and logged as `stale-answer-ignored` in `audit.jsonl`.
+Proven red by removing the rename (`expected exactly one consumed file per answer, got 0 !== 2`);
+the timeout scenario stayed green without the rename because the timestamp check overlaps it — two
+defences, reported as such rather than reshaped to force a red. `checkFreshRunDir` (F-era
+stale-answer hazard at run *start*) was the same shape one level up; this is the mid-run half.
+
+**Open, hamr's to sign.** §10 in `docs/wiki/playbook-and-open-questions.md`: where sources live in
+the signed text (today the destination is in the arbiter block, sources are launch flags).
+
+## F30 — Job #2 counting run with hamr: rejected once, redrafted, accepted; a second answer sent mid-redraft was quarantined live, not replayed (2026-09-15)
+
+**Date** 2026-09-15 · **Status** live n=1 with a human in the loop, green · **Class** M0b /
+Amendment A (redo edge) and Amendment B (job #2) · **Grounded in** branch `job2` at `a1805fb`;
+run `poc/m0/out/job2-hamr-3/` (`ask.json`, `audit.jsonl`, `answer.attempt1.1.consumed.json`,
+`answer.stale.attempt2.2.1789495719937.json`, `answer.attempt2.2.consumed.json`, `result.json`,
+`log.json`); sent artifact `poc/m0/out/job2-hamr-3-summary.md`; two ledger rows in
+`poc/m0/out/spend.jsonl` (`deepseek-flash`, `modelMatch: match`, `stopReason: end_turn`);
+hamr's terminal transcript, kept outside the tree.
+
+**The run.** Launched detached with the signed prose, the first real DeepSeek draft
+(`fixture-declaration-job2-deepseek-1789485223087.json`), hamr's resume and the JD, 30 min ask
+timeout. Both inputs frozen and pinned (resume `3d6b24a8…`, 463 552 bytes; JD `7eaea1c0…`,
+1 885 bytes). Attempt 1: 471 words, three headings in order, shape green, `ask.json` written
+at 18:00:51Z with the artifact path.
+
+**What hamr did, from his transcript.** He pasted two of my lines as one: `cat` of attempt 1
+and `answer.mjs … rerun "your reason"`. Both ran, so the first rejection carried the literal
+placeholder as its reason (18:08:24Z). Ten seconds later he sent the real reason, `rerun "too
+long, cut the enterprise paragraph in half"` (18:08:34Z), while the run was already redrafting.
+Then `cat` of attempt 2 and `accept`, again as one paste (18:08:42Z, three seconds after the
+attempt-2 ask).
+
+**What the harness did.**
+- Rejection 1 consumed exactly once: renamed to `answer.attempt1.1.consumed.json`, audit row
+  `{attempt 1, parent null, decision rerun, reason "your reason", $0.0047}`. Attempt 2 was
+  drafted with the parent's reason (`parent: 1`).
+- The second `rerun` was sitting in `answer.json` when attempt 2's ask opened at 18:08:39.935Z.
+  Its `answeredAt` (18:08:34.757Z) predated `askedAt`; it was renamed to
+  `answer.stale.attempt2.2.…json` and logged as `stale-answer-ignored`, never acted on. This is
+  F29's fix `2fd9043` firing on a real human keystroke, not on the reproduction. Without it the
+  real reason would have rejected attempt 2 unread and spent a third draft.
+- Accept consumed once, attempt 2 (538 words, shape green) copied verbatim to the sent path
+  (`diff -q` identical). `result.json`: `outcome green, attempts 2, costUsd 0.0102,
+  costUnknown false, bound declaration`. Two paid rounds, both metered, both on the requested
+  model.
+
+**What this proves.** The Amendment A redo edge end to end with a human: reject → redraft with the
+parent's reason → accept → send, every attempt in the audit with a parent and a price. And the
+mid-run stale-answer defence in the wild: a human who answers twice gets the second answer
+quarantined, not replayed. n=1; Amendment C's 20-run bar does not apply to a human-in-the-loop
+step and no such bar is signed for it.
+
+**What it does not prove.** Attempt 2 is not the draft hamr asked for: the model saw "your
+reason", not "cut the enterprise paragraph in half", and came back longer (538 vs 471). The
+harness was right and the output is still not his. Cause is my instruction shape — two commands
+on adjacent lines invite a single paste — not the ask step. Also: the accept landed three
+seconds after the ask, so attempt 2 was accepted unread; fine for a mechanism test, not a
+quality signal.
+
+**Open.** (a) `answer.mjs` could refuse a reason that is a known placeholder or under N
+words — a new signed check, not added. (b) The stale quarantine is silent to the human: nothing
+tells the person their second answer was dropped. Cost of leaving it: a human who meant the
+second answer thinks it counted. Report only; the ask's UX surface is unsigned.
+
+**Addendum 2026-09-16 — three trust spots made checks, signed by hamr.** After `/branch-review`
+(ready, four ledger items) and `/refactor` (one test added, three left as behaviour changes), hamr
+signed: (1) docx uncompressed cap **20 MB**, two layers — declared size refused by name before any
+data is touched, and `inflateRawSync` bounded by `maxOutputLength` so a lying header is refused
+too; (2) the send target must resolve inside the repo, a `..` that escapes is a red naming the
+target; (3) resume and JD are fenced in the compose prompt as INPUT DATA with a one-line
+not-an-instruction rule. Ruled **no detector** for "out of norm" input: that would be regex on
+prose or an LLM judge, both outside v1 — the human accept is the detector. Each proven red first;
+518/518 after. Ledger empty.
