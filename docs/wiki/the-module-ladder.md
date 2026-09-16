@@ -122,6 +122,12 @@ runs per scenario per provider, both on the same day**, bar declared before the 
 Same-day/two-model separates "the shape works" from "we fitted to DeepSeek's habits"; it does not
 detect a model changing under us, which the request-vs-served stamp (F22) covers instead.
 
+**A and B built and probed, 2026-09-15** (branch `job2`): the redo edge (`redo.mjs`) and job #2's
+own fold (docx reader, declared-shape close, drafter path) are live — one probe on example prose
+(F29) and one counting run with hamr in the loop, reject → redraft → accept (F30). n=1 for the
+human-in-the-loop step; Amendment C's 20-run bar was never signed for it. See F29/F30
+(`docs/logs/FINDINGS.md`) for the evidence and the stale-answer fix the live run needed.
+
 ### RULINGS on M0b — by hamr, 2026-09-13
 
 In force. Asked by the orchestrator after the first live M0b pass (F25); answers recorded verbatim in
