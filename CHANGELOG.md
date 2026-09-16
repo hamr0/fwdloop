@@ -5,6 +5,51 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-09-16
+
+M0b Amendments A and B: the redo edge (`askWithRedo`) and job #2 — a second
+job, resume/JD in from a `.docx`, drafted and run through the same signed
+fold as job #1.
+
+### Added
+- `shape.mjs`: declared-shape close (`closeWordsAndSections(text, {maxWords,
+  sections})`) — green/red naming the word count and limit, or the
+  missing/out-of-order heading; unparseable for non-string input.
+- `redo.mjs` (Amendment A): `askWithRedo` — a typed, tighten-only redo cap
+  (1..3, >3 refused); a reason-less rerun is refused and re-asked without
+  spending a redo; every attempt/reason/cost is written to `audit.jsonl`
+  with a parent; a 4th rejection halts the run naming the step; unknown
+  cost is never rendered as 0.
+- `docx.mjs`: stdlib `.docx` text reader — hand-parsed zip (EOCD, central
+  directory, local header, inflateRaw/stored, CRC-32 and size verified)
+  plus paragraph/run extraction from `word/document.xml`; negatives
+  (non-zip, missing `document.xml`, truncated, CRC mismatch) never throw.
+- `job2.mjs`: job #2's own fold, hard-wired to its shape — read docx, read
+  JD, compose under `askWithRedo`, send on accept. Reuses `freezeInputs`,
+  `checkFreshRunDir`, `checkSendDestination`, `runModelStepOnPrimitives`,
+  `sendViaPrimitive`, `checkStepHappened`. Catalogue gains `readDocx`.
+- Drafter/scout job #2 path: `scoutJob2` gives $0 shape facts (docx
+  paragraphs/words, md headings) with body text withheld; `draftJob2`
+  reuses job #1's paid `emit_declaration` round; `bindJob2DeclarationSteps`
+  and `checkJob2Grants` bind steps by line and check grants
+  (readResume→readDocx, readJd→read, send→write).
+- `JOB2_SHAPE` headings taken verbatim from hamr's own prose ("summary of
+  work history" etc.) rather than the ladder's paraphrase.
+- Three signed checks on job #2's compose step: a `.docx` 20 MB cap
+  enforced at two layers, the send target must resolve inside the repo,
+  and job #2's inputs are fenced as data in the compose prompt (not
+  instructions) — plus the CRC-mismatch test the review ledger asked for.
+
+### Fixed
+- (F29) One human rerun replayed as four rejections and halted the run at
+  the redo cap with no human in the loop; `answer.mjs` now renames each
+  answer to `answer.attempt<n>.<seq>.consumed.json` the moment it is read,
+  and quarantines (`stale-answer-ignored`) any answer whose `answeredAt`
+  predates its ask's `askedAt`.
+- (F30) A drafter report file passed as `--declaration` reds at preflight
+  ("declaration must have a non-empty steps array"); `job2.mjs` now
+  unwraps it the same way `runner.mjs` already does.
+
 ## [0.2.1] - 2026-09-15
 
 ### Fixed
