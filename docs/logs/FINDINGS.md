@@ -1546,3 +1546,13 @@ quality signal.
 words — a new signed check, not added. (b) The stale quarantine is silent to the human: nothing
 tells the person their second answer was dropped. Cost of leaving it: a human who meant the
 second answer thinks it counted. Report only; the ask's UX surface is unsigned.
+
+**Addendum 2026-09-16 — three trust spots made checks, signed by hamr.** After `/branch-review`
+(ready, four ledger items) and `/refactor` (one test added, three left as behaviour changes), hamr
+signed: (1) docx uncompressed cap **20 MB**, two layers — declared size refused by name before any
+data is touched, and `inflateRawSync` bounded by `maxOutputLength` so a lying header is refused
+too; (2) the send target must resolve inside the repo, a `..` that escapes is a red naming the
+target; (3) resume and JD are fenced in the compose prompt as INPUT DATA with a one-line
+not-an-instruction rule. Ruled **no detector** for "out of norm" input: that would be regex on
+prose or an LLM judge, both outside v1 — the human accept is the detector. Each proven red first;
+518/518 after. Ledger empty.

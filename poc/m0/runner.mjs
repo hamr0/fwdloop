@@ -28,7 +28,9 @@
 import {
   readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync, statSync, accessSync, constants as fsConstants,
 } from 'node:fs';
-import { join, dirname, extname } from 'node:path';
+import {
+  join, dirname, extname, resolve, sep,
+} from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { Loop, Checkpoint } from 'bare-agent';
@@ -222,6 +224,11 @@ export function checkSendDestination(target) {
     return { ok: false, red: `destination: send target "${target}" is not a "file:<path>" target` };
   }
   const dir = join(REPO_ROOT, match[1]);
+  const resolvedDir = resolve(dir);
+  const resolvedRoot = resolve(REPO_ROOT);
+  if (resolvedDir !== resolvedRoot && !resolvedDir.startsWith(resolvedRoot + sep)) {
+    return { ok: false, red: `destination: send target "${target}" resolves outside the repo (${dir})` };
+  }
   try {
     accessSync(dir, fsConstants.W_OK);
   } catch (err) {

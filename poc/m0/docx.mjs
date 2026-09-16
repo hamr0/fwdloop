@@ -27,6 +27,13 @@ const CDIR_SIG = 0x02014b50;
 const LOCAL_SIG = 0x04034b50;
 const TARGET = 'word/document.xml';
 
+// Cap on the uncompressed size of word/document.xml — a zip bomb defense.
+// Two layers enforce it (readEntryBytes): the DECLARED size from the central
+// directory is checked before any data is touched, and the REAL inflated
+// size is bounded via inflateRawSync's maxOutputLength so a lying header
+// (small declared size, huge real payload) is also refused.
+export const DOCX_MAX_UNCOMPRESSED_BYTES = 20 * 1024 * 1024;
+
 // Bit-by-bit CRC-32 (no precomputed table — POC scope, not a hot path).
 function crc32(buf) {
   let crc = ~0;
@@ -72,6 +79,9 @@ function findEntry(buf) {
 
 function readEntryBytes(buf, entry) {
   const { localOffset, method, compSize, uncompSize, crc } = entry;
+  if (uncompSize > DOCX_MAX_UNCOMPRESSED_BYTES) {
+    return { red: `entry too large: declared ${uncompSize} bytes exceeds cap ${DOCX_MAX_UNCOMPRESSED_BYTES}` };
+  }
   if (localOffset + 30 > buf.length || buf.readUInt32LE(localOffset) !== LOCAL_SIG) {
     return { red: `local file header missing signature (0x04034b50) at offset ${localOffset}` };
   }
@@ -84,8 +94,11 @@ function readEntryBytes(buf, entry) {
   if (method === 0) data = Buffer.from(raw);
   else if (method === 8) {
     try {
-      data = inflateRawSync(raw);
+      data = inflateRawSync(raw, { maxOutputLength: DOCX_MAX_UNCOMPRESSED_BYTES });
     } catch (e) {
+      if (e instanceof RangeError) {
+        return { red: `inflate exceeded cap ${DOCX_MAX_UNCOMPRESSED_BYTES} bytes` };
+      }
       return { red: `inflate failed: ${e.message}` };
     }
   } else return { red: `unsupported compression method ${method} (only 0=stored, 8=deflate)` };
