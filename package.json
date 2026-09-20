@@ -25,7 +25,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "check:lockfile": "node scripts/check-lockfile.mjs"
   },
   "files": [
     "src",
