@@ -6,19 +6,124 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  mkdtempSync, readFileSync, writeFileSync, existsSync,
+  mkdtempSync, readFileSync, readdirSync, writeFileSync, existsSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   runSlotBatch, runOneDraft, ceilingCostUsd, outFilePaths, assertFreshTag, realFacts,
   renderSummaryLine, renderProgressLine, checkKeyPreflight, rescoreSlotBatch, rescoreFilePath,
+  JOBS, prosePathForJob, M1_CAP_USD, defaultM1SpendPath, OUT_DIR,
 } from './slot-batch.mjs';
 import { parseAskSlots } from './slots.mjs';
 
 const PROSE_TEXT = readFileSync(join(process.cwd(), 'poc', 'm0', 'prose.txt'), 'utf8');
 const { lines: ASK_LINES } = parseAskSlots(PROSE_TEXT); // [5], the real signed slot
 const REAL_FACTS = realFacts();
+
+// ---------------------------------------------------------------------------
+// job #2 / twoask fixtures — $0, zero network, same fakeProvider discipline.
+// ---------------------------------------------------------------------------
+
+// askLines for job2/twoask are never hard-coded here — runSlotBatch/rescoreSlotBatch derive
+// them from parseAskSlots(proseText) internally (job2: [4], twoask: [2, 5]), same as job1.
+const JOB2_PROSE_TEXT = readFileSync(join(process.cwd(), 'poc', 'm0', 'job2.prose.txt'), 'utf8');
+const TWOASK_PROSE_TEXT = readFileSync(join(process.cwd(), 'poc', 'm1', 'fixtures', 'twoask.prose.txt'), 'utf8');
+
+// Mirrors poc/m0/drafter.test.mjs's own JOB2_FACTS (scoutJob2's output shape) — a plain object,
+// never a real resume/JD file (no in-repo fixture exists; see this task's own report).
+const JOB2_FACTS = {
+  resume: { kind: 'docx', paragraphs: 3, words: 20, firstLine: 'AMR HASSAN' },
+  jd: { kind: 'markdown', words: 15, headings: ['Applied AI Architect'] },
+};
+
+// job #2's own well-behaved model steps (mirrors poc/m0/drafter.test.mjs's job2ModelSteps()),
+// EXCEPT the ask step (line 4) grants NO primitive rather than 'checkpoint' — checkAskSlots'
+// own rule (b) reds any step anywhere granting "checkpoint" (the pause belongs to the runner,
+// never the drafter), so a declaration built to also pass the M1 slot check must never grant it.
+function job2ConformingSteps() {
+  return {
+    guardrailClasses: { 3: 'softgreen', 4: 'hitl' },
+    steps: [
+      {
+        goal: 'read the resume', primitives: ['readDocx'], reads: [], emits: 'r1', fromLine: 1,
+      },
+      {
+        goal: 'read the job description', primitives: ['read'], reads: [], emits: 'r2', fromLine: 2,
+      },
+      {
+        goal: 'compose the summary',
+        primitives: [],
+        reads: ['r1', 'r2'],
+        emits: 'r3',
+        fromLine: 3,
+        close: { shape: { maxWords: 600, sections: ['summary of work history', 'professional skills', 'soft skills'] } },
+      },
+      {
+        goal: 'check with me', primitives: [], reads: ['r3'], emits: 'r4', fromLine: 4,
+      },
+      {
+        goal: 'send the accepted summary', primitives: ['write'], reads: ['r4'], emits: 'r5', fromLine: 5,
+      },
+    ],
+  };
+}
+
+// twoask's own well-behaved steps: job #1's EXACT shape (poc/m0/prose.txt's job lines are
+// byte-identical in the twoask fixture) — line 2's own "ask me, do not pick" guardrail already
+// derives to hitl by default (no explicit proposal needed, same as line 5's), so job #1's
+// existing conformingModelArgs() shape already carries a hitl step at BOTH signed ask lines
+// (2 and 5) once twoask's signed slots are [2, 5] instead of job #1's own [5] alone.
+function twoaskBothAsksSteps() {
+  return {
+    guardrailClasses: {
+      2: 'hitl', 3: 'green', 4: 'softgreen', 5: 'hitl',
+    },
+    steps: [
+      {
+        goal: 'read the sheet', primitives: ['addressCells'], reads: [], emits: 'a1', fromLine: 1,
+      },
+      {
+        goal: 'read the message', primitives: ['read'], reads: [], emits: 'a2', fromLine: 2,
+      },
+      {
+        goal: 'match customer, derive totals', primitives: ['read'], reads: ['a1', 'a2'], emits: 'a3', fromLine: 3,
+      },
+      {
+        goal: 'compose reply', primitives: ['read'], reads: ['a3'], emits: 'a4', fromLine: 4, close: { shape: { linesPerInvoice: 1, mustCarry: ['total'] } },
+      },
+      {
+        goal: 'check with me', primitives: [], reads: ['a4'], emits: 'a5', fromLine: 5,
+      },
+      {
+        goal: 'send (dry-run egress)', primitives: ['write'], reads: ['a5'], emits: 'a6', fromLine: 6,
+      },
+    ],
+  };
+}
+
+// SAME shape, but with the line-2 step dropped entirely — one of twoask's two signed ask
+// lines (2) now has NO step bound to it at all.
+function twoaskMissingOneAskSteps() {
+  const decl = twoaskBothAsksSteps();
+  decl.steps = decl.steps.filter((s) => s.fromLine !== 2);
+  return decl;
+}
+
+// `toolReply` is defined further down this file as a `function` declaration — hoisted, so this
+// helper (itself also hoisted) can call it safely regardless of source order.
+function fakeProviderFor(stepsArgs) {
+  let n = 0;
+  return {
+    generate: async () => {
+      n += 1;
+      if (n === 1) return toolReply(stepsArgs);
+      return {
+        text: '', toolCalls: [], usage: { inputTokens: 5, outputTokens: 1 }, stopReason: 'stop', model: 'fake-model',
+      };
+    },
+  };
+}
 
 function tmpOutDir() {
   return mkdtempSync(join(tmpdir(), 'm1-slot-batch-'));
@@ -529,4 +634,148 @@ test('PROOF the test can fail: rescoreSlotBatch requires --tag, same discipline 
     () => rescoreSlotBatch({ grammar: 'slot', tag: '', outDir, proseText: PROSE_TEXT, writeLine: () => {} }),
     /--tag is required/,
   );
+});
+
+// ---------------------------------------------------------------------------
+// --job job1|job2|twoask (item 1 of this task's brief). job1 is the default
+// (every test above never passes `job` at all) — these tests cover job2 and
+// twoask, plus the unknown-job refusal shared by every job.
+// ---------------------------------------------------------------------------
+
+test('JOBS lists exactly job1, job2, twoask; prosePathForJob resolves each to a real file', () => {
+  assert.deepEqual(JOBS, ['job1', 'job2', 'twoask']);
+  for (const job of JOBS) {
+    assert.ok(existsSync(prosePathForJob(job)), `prosePathForJob(${job}) must name a real file`);
+  }
+});
+
+test('PROOF the test can fail: prosePathForJob refuses an unknown job, naming it', () => {
+  assert.throws(() => prosePathForJob('nope'), /--job must be one of job1\|job2\|twoask, got "nope"/);
+});
+
+test('runSlotBatch --job job2: rows carry job, files land under job-specific names, slot check green', async () => {
+  const outDir = tmpOutDir();
+  const { jsonlPath, declDir } = outFilePaths('slot', 'job2tag', outDir, 'job2');
+  const { records, completed } = await runSlotBatch({
+    grammar: 'slot', n: 2, tag: 'job2tag', job: 'job2', outDir,
+    facts: JOB2_FACTS, proseText: JOB2_PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeProviderFor(job2ConformingSteps())),
+    writeLine: () => {},
+  });
+  assert.equal(completed, true);
+  assert.equal(records.length, 2);
+  for (const r of records) {
+    assert.equal(r.job, 'job2');
+    assert.equal(r.toolCalled, true);
+    assert.equal(r.slot.verdict, 'green', JSON.stringify(r.slot));
+  }
+  assert.ok(existsSync(jsonlPath));
+  assert.match(jsonlPath, /slot-batch-slot-job2-job2tag\.jsonl$/);
+  assert.ok(existsSync(join(declDir, 'draft-1.json')));
+  assert.ok(existsSync(join(declDir, 'draft-2.json')));
+  // job1's OWN naming (no "job2" segment) must never be touched by a job2 run.
+  const { jsonlPath: job1ShapedPath } = outFilePaths('slot', 'job2tag', outDir);
+  assert.equal(existsSync(job1ShapedPath), false);
+});
+
+test('PROOF the test can fail: a job2 declaration missing its signed ask step (line 4) reds the slot check', async () => {
+  const outDir = tmpOutDir();
+  const badSteps = job2ConformingSteps();
+  badSteps.steps = badSteps.steps.filter((s) => s.fromLine !== 4);
+  const { records } = await runSlotBatch({
+    grammar: 'slot', n: 1, tag: 'job2bad', job: 'job2', outDir,
+    facts: JOB2_FACTS, proseText: JOB2_PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeProviderFor(badSteps)),
+    writeLine: () => {},
+  });
+  assert.equal(records[0].slot.verdict, 'red');
+  assert.match(records[0].slot.red, /ask at line 4 has no step/);
+});
+
+test('runSlotBatch --job twoask: a declaration binding BOTH signed ask lines (2 and 5) is slot green', async () => {
+  const outDir = tmpOutDir();
+  const { jsonlPath, declDir } = outFilePaths('slot', 'twoasktag', outDir, 'twoask');
+  const { records, completed } = await runSlotBatch({
+    grammar: 'slot', n: 2, tag: 'twoasktag', job: 'twoask', outDir,
+    facts: REAL_FACTS, proseText: TWOASK_PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeProviderFor(twoaskBothAsksSteps())),
+    writeLine: () => {},
+  });
+  assert.equal(completed, true);
+  for (const r of records) {
+    assert.equal(r.job, 'twoask');
+    assert.equal(r.slot.verdict, 'green', JSON.stringify(r.slot));
+  }
+  assert.match(jsonlPath, /slot-batch-slot-twoask-twoasktag\.jsonl$/);
+  assert.ok(existsSync(declDir));
+});
+
+test('runSlotBatch --job twoask: a declaration binding only ONE of the two signed ask lines is a slot red naming the missing line', async () => {
+  const outDir = tmpOutDir();
+  const { records } = await runSlotBatch({
+    grammar: 'slot', n: 1, tag: 'twoaskmissing', job: 'twoask', outDir,
+    facts: REAL_FACTS, proseText: TWOASK_PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeProviderFor(twoaskMissingOneAskSteps())),
+    writeLine: () => {},
+  });
+  assert.equal(records.length, 1);
+  assert.equal(records[0].slot.verdict, 'red');
+  assert.match(records[0].slot.red, /ask at line 2 has no step/);
+});
+
+test('PROOF the test can fail: the SAME missing-ask declaration against job1\'s OWN single ask slot (line 5 only) is slot green — the second slot is twoask-only', async () => {
+  const record = await runOneDraft({
+    i: 1, grammar: 'slot', job: 'job1', askLines: ASK_LINES, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeProviderFor(twoaskMissingOneAskSteps())),
+  });
+  assert.equal(record.slot.verdict, 'green', JSON.stringify(record.slot));
+});
+
+test('runSlotBatch: an unknown --job is refused at $0, before any ledger write', async () => {
+  const outDir = tmpOutDir();
+  await assert.rejects(
+    () => runSlotBatch({
+      grammar: 'slot', n: 1, tag: 'badjob', job: 'nope', outDir, facts: REAL_FACTS, proseText: PROSE_TEXT,
+      providerForDraft: providerForDraftOf(fakeConformingProvider), writeLine: () => {},
+    }),
+    /--job must be one of job1\|job2\|twoask, got "nope"/,
+  );
+  assert.deepEqual(readdirSync(outDir), [], 'nothing must be written when --job is refused');
+});
+
+test('rescoreSlotBatch --job job2: rescores under the job2-shaped filename, using job2\'s own signed ask line', async () => {
+  const outDir = tmpOutDir();
+  await runSlotBatch({
+    grammar: 'slot', n: 1, tag: 'rescore-job2', job: 'job2', outDir,
+    facts: JOB2_FACTS, proseText: JOB2_PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeProviderFor(job2ConformingSteps())),
+    writeLine: () => {},
+  });
+  const dateStr = '2026-09-21';
+  const { records, outPath } = rescoreSlotBatch({
+    grammar: 'slot', tag: 'rescore-job2', job: 'job2', outDir, proseText: JOB2_PROSE_TEXT, writeLine: () => {}, dateStr,
+  });
+  assert.equal(records.length, 1);
+  assert.equal(records[0].slot.verdict, 'green');
+  assert.equal(outPath, rescoreFilePath('slot', 'rescore-job2', outDir, dateStr, 'job2'));
+  assert.match(outPath, /slot-batch-slot-job2-rescore-job2\.rescore-2026-09-21\.jsonl$/);
+});
+
+// ---------------------------------------------------------------------------
+// M1's own spend ledger/cap (item 2 of this task's brief) — separate from
+// M0's poc/m0/out/spend.jsonl / $5 GLOBAL_CAP_USD, even though the number
+// happens to match today.
+// ---------------------------------------------------------------------------
+
+test('M1_CAP_USD is 5.00 and defaultM1SpendPath resolves under poc/m1/out, never poc/m0/out', () => {
+  assert.equal(M1_CAP_USD, 5.00);
+  const path = defaultM1SpendPath();
+  assert.equal(path, join(OUT_DIR, 'spend.jsonl'));
+  assert.match(path, /poc[\\/]m1[\\/]out[\\/]spend\.jsonl$/);
+  assert.doesNotMatch(path, /poc[\\/]m0[\\/]out/);
+});
+
+test('PROOF the test can fail: defaultM1SpendPath honours an explicit outDir override', () => {
+  const path = defaultM1SpendPath('/tmp/somewhere-else');
+  assert.equal(path, join('/tmp/somewhere-else', 'spend.jsonl'));
 });

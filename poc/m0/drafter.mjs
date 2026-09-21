@@ -590,6 +590,15 @@ export async function runDrafter(modelId, {
   // batch.mjs) computes it via poc/m1/slots.mjs's `parseAskSlots` and passes
   // it in.
   slotGrammar = false, askLines,
+  // M1 ADDITIVE (poc/m1/slot-batch.mjs's `--job twoask`): when given, used
+  // VERBATIM as the job-lines text instead of reading PROSE_PATH/STEPS_PATH
+  // off disk — lets a caller run this SAME paid round over a DIFFERENT
+  // prose file (e.g. one carrying an extra signed ask line) without
+  // poc/m0/prose.txt itself ever changing. Omitted (every existing caller,
+  // including a plain `prose: true`/`prose: false` call): byte-identical to
+  // today's file-read behaviour — `prose` still selects WHICH file this
+  // falls back to reading.
+  proseText: proseTextOverride,
 } = {}) {
   // ABSENT handling (PRD's M0a exit gap, borrowed-from bareloop
   // authorflow.js:1408 in spirit): checked BEFORE any provider is built or
@@ -623,7 +632,9 @@ export async function runDrafter(modelId, {
     };
   }
 
-  let stepsText = readFileSync(prose ? PROSE_PATH : STEPS_PATH, 'utf8');
+  let stepsText = proseTextOverride !== undefined
+    ? proseTextOverride
+    : readFileSync(prose ? PROSE_PATH : STEPS_PATH, 'utf8');
   if (ungroundable) stepsText = plantLine(stepsText, UNGROUNDABLE_LINE);
   if (uncovered) stepsText = plantLine(stepsText, UNCOVERED_LINE);
   if (unjudgeableGuardrail) {
@@ -693,6 +704,13 @@ function job2FactsBlock(facts) {
 export async function draftJob2(modelId, {
   proseText, facts, runLabel = 'drafter-job2', slot = 'synthetic',
   provider: injectedProvider, rates: injectedRates,
+  // M1 ADDITIVE — mirrors runDrafter's own slotGrammar/askLines option,
+  // same discipline (false/[] is byte-identical to today's prompt for every
+  // existing caller; poc/m1/slot-batch.mjs's `--job job2` is the first
+  // caller to pass true). `askLines` is never derived in here, exactly like
+  // runDrafter — the caller computes it via poc/m1/slots.mjs's
+  // `parseAskSlots` and passes it in.
+  slotGrammar = false, askLines = [],
 } = {}) {
   if (!facts || typeof facts !== 'object' || !facts.resume || !facts.jd) {
     return {
@@ -706,8 +724,22 @@ export async function draftJob2(modelId, {
     };
   }
 
+  // Same refusal shape as runDrafter's own slotGrammar guard: never draft
+  // without slots once slotGrammar is on.
+  if (slotGrammar && (!Array.isArray(askLines) || askLines.length === 0)) {
+    return {
+      modelRequested: modelId, modelReturned: null, suffixMatch: null,
+      toolCalled: false, declaration: null, textInstead: null,
+      usage: null, rounds: 0, costUsd: null, rateSource: null, wallMs: 0,
+      refusedSlotGrammar: {
+        reason: 'slotGrammar requires a non-empty "askLines" array — refusing to draft without signed ask slots',
+      },
+    };
+  }
+
   const round = await runDeclarationRound(modelId, {
     stepsText: proseText, factsText: job2FactsBlock(facts), runLabel, slot, provider: injectedProvider, rates: injectedRates,
+    slotGrammar, askLines,
   });
 
   const declaration = round.capturedArgs != null

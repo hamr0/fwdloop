@@ -17,9 +17,9 @@ import {
 } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runDrafter } from '../m0/drafter.mjs';
+import { runDrafter, draftJob2 } from '../m0/drafter.mjs';
 import { validate } from '../m0/validator.mjs';
-import { lookFixtures, groundFacts } from '../m0/scout.mjs';
+import { lookFixtures, groundFacts, scoutJob2 } from '../m0/scout.mjs';
 import { makeProvider, resolveModelRate, PROVIDER_SLOTS } from '../m0/provider.mjs';
 import {
   classifyModelId, assertUnderGlobalCap, appendSpendRow, ceilingCostUsd,
@@ -29,7 +29,6 @@ import {
 // script no longer keeps its own local copy (that helper was deleted in favour of the one
 // writer in poc/m0/spend.mjs).
 export { ceilingCostUsd };
-import { OUT_DIR as M0_OUT_DIR } from '../m0/runner.mjs';
 import { parseAskSlots, checkAskSlots } from './slots.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -38,6 +37,36 @@ export const OUT_DIR = join(__dirname, 'out');
 const PROSE_PATH = join(REPO_ROOT, 'poc', 'm0', 'prose.txt');
 const CSV_PATH = join(REPO_ROOT, 'fixtures', 'ar-aging.csv');
 const TEXT_PATH = join(REPO_ROOT, 'fixtures', 'message.txt');
+
+// --job job1|job2|twoask — which prose (and which paid round: job #1/twoask
+// run through runDrafter, job #2 through its own draftJob2) this batch runs
+// against. `job1` is the default so every existing caller/test is untouched.
+export const JOBS = Object.freeze(['job1', 'job2', 'twoask']);
+const JOB2_PROSE_PATH = join(REPO_ROOT, 'poc', 'm0', 'job2.prose.txt');
+const TWOASK_PROSE_PATH = join(__dirname, 'fixtures', 'twoask.prose.txt');
+
+/** The prose file path for a given `--job` value. Throws naming the bad value — never a silent
+ *  fallback to job #1's file. */
+export function prosePathForJob(job) {
+  if (job === 'job1') return PROSE_PATH;
+  if (job === 'job2') return JOB2_PROSE_PATH;
+  if (job === 'twoask') return TWOASK_PROSE_PATH;
+  throw new Error(`slot-batch: --job must be one of ${JOBS.join('|')}, got "${job}"`);
+}
+
+// M1's own $5.00 cap, signed 2026-09-21 — separate from M0's own $5.00
+// GLOBAL_CAP_USD (poc/m0/spend.mjs): a different signature, a different
+// ledger file (poc/m1/out/spend.jsonl, never poc/m0/out/spend.jsonl), even
+// though the two numbers happen to match today. `assertUnderGlobalCap`/
+// `appendSpendRow` themselves are reused UNCHANGED from spend.mjs (one
+// writer for the mechanism); only the path and the cap number are M1's own.
+export const M1_CAP_USD = 5.00;
+
+/** The live CLI's default M1 spend ledger path — a small pure function so this is testable
+ *  without running the CLI (never poc/m0/out/spend.jsonl; M1's ledger is its own file). */
+export function defaultM1SpendPath(outDir = OUT_DIR) {
+  return join(outDir, 'spend.jsonl');
+}
 
 export const DEFAULT_DEADLINE_MS = 240_000;
 
@@ -54,11 +83,18 @@ export function realFacts() {
   return groundFacts({ csvColumns: csvArtifact.header }, { csvArtifact, textArtifact });
 }
 
-/** The bar-file path discipline (borrowed-from poc/m0/batch.mjs's own naming, never imported). */
-export function outFilePaths(grammar, tag, outDir = OUT_DIR) {
+/**
+ * The bar-file path discipline (borrowed-from poc/m0/batch.mjs's own naming, never imported).
+ * `job` defaults to 'job1' so every existing 3-arg call keeps TODAY's exact naming
+ * (`slot-batch-<grammar>-<tag>`, no job segment) — consumed job #1 evidence still resolves
+ * under `--rescore` with no `--job` given. job2/twoask get their own segment
+ * (`slot-batch-<grammar>-<job>-<tag>`) so a tag can never collide across jobs.
+ */
+export function outFilePaths(grammar, tag, outDir = OUT_DIR, job = 'job1') {
+  const suffix = job === 'job1' ? `${grammar}-${tag}` : `${grammar}-${job}-${tag}`;
   return {
-    jsonlPath: join(outDir, `slot-batch-${grammar}-${tag}.jsonl`),
-    declDir: join(outDir, `slot-batch-${grammar}-${tag}`),
+    jsonlPath: join(outDir, `slot-batch-${suffix}.jsonl`),
+    declDir: join(outDir, `slot-batch-${suffix}`),
   };
 }
 
@@ -158,7 +194,7 @@ function deriveStopReason(report) {
  * tests (fake, $0), or the live default at the bottom of this file.
  */
 export async function runOneDraft({
-  i, grammar, askLines, facts, proseText, providerForDraft, deadlineMs = DEFAULT_DEADLINE_MS,
+  i, grammar, job = 'job1', askLines, facts, proseText, providerForDraft, deadlineMs = DEFAULT_DEADLINE_MS,
 }) {
   const { provider, rates, modelId } = providerForDraft(i);
   const startedAt = Date.now();
@@ -167,12 +203,18 @@ export async function runOneDraft({
   let outcome;
   const { promise: timeoutPromise, cancel: cancelTimeout } = timeoutAfter(deadlineMs);
   try {
-    outcome = await Promise.race([
-      runDrafter(modelId, {
-        prose: true, provider, rates, facts, slotGrammar, askLines,
-      }),
-      timeoutPromise,
-    ]);
+    // job #2 runs through its own paid round (draftJob2 — different facts shape, different
+    // ABSENT check) — job #1 and twoask both run through runDrafter's job #1-shaped path,
+    // over WHATEVER prose text this draft was given (job #1's own file for job1, the fixture
+    // carrying the extra signed ask line for twoask).
+    const draftPromise = job === 'job2'
+      ? draftJob2(modelId, {
+        proseText, facts, provider, rates, slotGrammar, askLines,
+      })
+      : runDrafter(modelId, {
+        prose: true, provider, rates, facts, slotGrammar, askLines, proseText,
+      });
+    outcome = await Promise.race([draftPromise, timeoutPromise]);
   } catch (err) {
     // The provider itself threw — before the request ever left the machine
     // (a header-value validation throw, a DNS failure, a refused
@@ -187,7 +229,7 @@ export async function runOneDraft({
     const wallMs = Date.now() - startedAt;
     const costUsd = ceilingCostUsd(modelId);
     return {
-      i, grammar, toolCalled: false, stopReason: 'provider-red', validator: null, slot: null,
+      i, grammar, job, toolCalled: false, stopReason: 'provider-red', validator: null, slot: null,
       stepCount: 0, hitlSteps: 0, checkpointGrants: 0, zeroPrimitiveSteps: 0,
       costUsd, costUnknown: false, estimated: true,
       wallMs, modelRequested: modelId, modelReturned: null,
@@ -201,7 +243,7 @@ export async function runOneDraft({
   if (outcome.__timedOut) {
     const costUsd = ceilingCostUsd(modelId);
     return {
-      i, grammar, toolCalled: false, stopReason: 'timeout', validator: null, slot: null,
+      i, grammar, job, toolCalled: false, stopReason: 'timeout', validator: null, slot: null,
       stepCount: 0, hitlSteps: 0, checkpointGrants: 0, zeroPrimitiveSteps: 0,
       costUsd, costUnknown: false, estimated: true, wallMs, modelRequested: modelId, modelReturned: null,
       modelMatch: classifyModelId(modelId, null), declaration: null,
@@ -222,6 +264,7 @@ export async function runOneDraft({
   return {
     i,
     grammar,
+    job,
     toolCalled: report.toolCalled,
     stopReason: deriveStopReason(report),
     validator: validatorResult,
@@ -283,8 +326,11 @@ export function renderSummaryLine(records, grammar, n) {
  * same grammar+tag just overwrites that day's rescore file, never the
  * original evidence.
  */
-export function rescoreFilePath(grammar, tag, outDir = OUT_DIR, dateStr = new Date().toISOString().slice(0, 10)) {
-  return join(outDir, `slot-batch-${grammar}-${tag}.rescore-${dateStr}.jsonl`);
+export function rescoreFilePath(
+  grammar, tag, outDir = OUT_DIR, dateStr = new Date().toISOString().slice(0, 10), job = 'job1',
+) {
+  const suffix = job === 'job1' ? `${grammar}-${tag}` : `${grammar}-${job}-${tag}`;
+  return join(outDir, `slot-batch-${suffix}.rescore-${dateStr}.jsonl`);
 }
 
 /**
@@ -301,21 +347,25 @@ export function rescoreFilePath(grammar, tag, outDir = OUT_DIR, dateStr = new Da
  * this function imports nothing from provider.mjs or spend.mjs's writers.
  */
 export function rescoreSlotBatch({
-  grammar, tag, outDir = OUT_DIR, proseText = readFileSync(PROSE_PATH, 'utf8'),
+  grammar, tag, job = 'job1', outDir = OUT_DIR, proseText,
   writeLine = (s) => { process.stdout.write(`${s}\n`); }, dateStr,
 }) {
   if (!['slot', 'legacy'].includes(grammar)) {
     throw new Error(`slot-batch --rescore: grammar must be "slot" or "legacy", got "${grammar}"`);
   }
+  if (!JOBS.includes(job)) {
+    throw new Error(`slot-batch --rescore: --job must be one of ${JOBS.join('|')}, got "${job}"`);
+  }
   if (!tag) {
     throw new Error('slot-batch --rescore: --tag is required');
   }
-  const { jsonlPath, declDir } = outFilePaths(grammar, tag, outDir);
+  const resolvedProseText = proseText !== undefined ? proseText : readFileSync(prosePathForJob(job), 'utf8');
+  const { jsonlPath, declDir } = outFilePaths(grammar, tag, outDir, job);
   if (!existsSync(jsonlPath)) {
     throw new Error(`slot-batch --rescore: ${jsonlPath} not found — nothing recorded for grammar=${grammar} tag=${tag}`);
   }
   const original = readFileSync(jsonlPath, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
-  const { lines: askLines } = parseAskSlots(proseText);
+  const { lines: askLines } = parseAskSlots(resolvedProseText);
 
   const rescored = [];
   for (const rec of original) {
@@ -340,7 +390,7 @@ export function rescoreSlotBatch({
     + `validatorGreen=${validatorGreen} bothGreen=${bothGreen}`;
   writeLine(summaryLine);
 
-  const outPath = rescoreFilePath(grammar, tag, outDir, dateStr);
+  const outPath = rescoreFilePath(grammar, tag, outDir, dateStr, job);
   writeFileSync(outPath, rescored.map((r) => JSON.stringify(r)).join('\n') + (rescored.length ? '\n' : ''));
 
   return {
@@ -355,19 +405,22 @@ export function rescoreSlotBatch({
  * network by omitting it.
  */
 export async function runSlotBatch({
-  grammar, n = 20, tag, outDir = OUT_DIR, providerForDraft,
-  facts = realFacts(), proseText = readFileSync(PROSE_PATH, 'utf8'),
+  grammar, n = 20, tag, job = 'job1', outDir = OUT_DIR, providerForDraft,
+  facts, proseText,
   deadlineMs = DEFAULT_DEADLINE_MS, writeLine = (s) => { process.stdout.write(`${s}\n`); },
   // Optional: when given (the live CLI path only — never a test), every
-  // draft is ALSO checked against and recorded into m0's own global $5 cap
-  // ledger (poc/m0/spend.mjs's assertUnderGlobalCap/appendSpendRow) — the
-  // SAME ledger poc/m0's other live tools spend against, so this script's
-  // spend is never invisible to that cap. Omitted, this script keeps its
-  // own per-tag jsonl ledger only (every test path).
+  // draft is ALSO checked against and recorded into M1's own $5 cap ledger
+  // (poc/m1/out/spend.jsonl, M1_CAP_USD above — poc/m0/spend.mjs's
+  // assertUnderGlobalCap/appendSpendRow mechanism, reused unchanged, but
+  // never M0's own poc/m0/out/spend.jsonl file or cap). Omitted, this script
+  // keeps its own per-tag jsonl ledger only (every test path).
   spendPath,
 }) {
   if (!['slot', 'legacy'].includes(grammar)) {
     throw new Error(`slot-batch: --grammar must be "slot" or "legacy", got "${grammar}"`);
+  }
+  if (!JOBS.includes(job)) {
+    throw new Error(`slot-batch: --job must be one of ${JOBS.join('|')}, got "${job}"`);
   }
   if (!Number.isInteger(n) || n < 1) {
     throw new Error(`slot-batch: --n must be a positive integer, got "${n}"`);
@@ -379,12 +432,19 @@ export async function runSlotBatch({
     throw new Error('slot-batch: providerForDraft is required (this function never builds a live provider itself)');
   }
 
-  const { jsonlPath, declDir } = outFilePaths(grammar, tag, outDir);
+  // Resolved AFTER every $0 validation above, so an unknown --job (or any
+  // other bad argument) refuses before touching disk at all — never even a
+  // read of the wrong prose file, let alone a ledger write.
+  const resolvedProseText = proseText !== undefined ? proseText : readFileSync(prosePathForJob(job), 'utf8');
+  const resolvedFacts = facts !== undefined ? facts : (job === 'job2' ? null : realFacts());
+
+  const { jsonlPath, declDir } = outFilePaths(grammar, tag, outDir, job);
   assertFreshTag(jsonlPath);
   mkdirSync(outDir, { recursive: true });
   mkdirSync(declDir, { recursive: true });
 
-  const { lines: askLines } = parseAskSlots(proseText);
+  // Ask lines always come from parseAskSlots on the CHOSEN prose — never hard-coded per job.
+  const { lines: askLines } = parseAskSlots(resolvedProseText);
 
   const records = [];
   let consecutiveProviderReds = 0;
@@ -393,15 +453,15 @@ export async function runSlotBatch({
   for (let i = 1; i <= n; i += 1) {
     if (spendPath) {
       // eslint-disable-next-line no-await-in-loop
-      assertUnderGlobalCap(spendPath); // throws (caught by the CLI wrapper) if already at/over m0's $5 cap
+      assertUnderGlobalCap(spendPath, M1_CAP_USD); // throws (caught by the CLI wrapper) if already at/over M1's $5 cap
     }
     // eslint-disable-next-line no-await-in-loop
     const record = await runOneDraft({
-      i, grammar, askLines, facts, proseText, providerForDraft, deadlineMs,
+      i, grammar, job, askLines, facts: resolvedFacts, proseText: resolvedProseText, providerForDraft, deadlineMs,
     });
     if (spendPath) {
       appendSpendRow(spendPath, {
-        runId: `m1-slot-batch-${grammar}-${tag}-${i}`, step: 'draft-m1', model: record.modelRequested,
+        runId: `m1-slot-batch-${grammar}-${job}-${tag}-${i}`, step: 'draft-m1', model: record.modelRequested,
         modelReturned: record.modelReturned, costUsd: record.costUsd, wallMs: record.wallMs,
         ...(record.estimated ? { estimated: true } : {}),
       });
@@ -447,18 +507,19 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     return idx !== -1 ? process.argv[idx + 1] : undefined;
   };
 
-  // --rescore <grammar> --tag <tag> — $0, no provider, no key, no spend row.
+  // --rescore <grammar> --tag <tag> [--job job1|job2|twoask] — $0, no provider, no key, no spend row.
   // Checked FIRST, before any of the live-batch flags below are even read,
   // so `--rescore` can never accidentally fall through into the paid path.
   const rescoreGrammar = arg('rescore');
   if (rescoreGrammar !== undefined) {
     const rescoreTag = arg('tag');
-    if (!['slot', 'legacy'].includes(rescoreGrammar) || !rescoreTag) {
-      console.error('usage: node poc/m1/slot-batch.mjs --rescore slot|legacy --tag <tag>');
+    const rescoreJob = arg('job') ?? 'job1';
+    if (!['slot', 'legacy'].includes(rescoreGrammar) || !rescoreTag || !JOBS.includes(rescoreJob)) {
+      console.error('usage: node poc/m1/slot-batch.mjs --rescore slot|legacy --tag <tag> [--job job1|job2|twoask]');
       process.exit(1);
     }
     try {
-      rescoreSlotBatch({ grammar: rescoreGrammar, tag: rescoreTag });
+      rescoreSlotBatch({ grammar: rescoreGrammar, tag: rescoreTag, job: rescoreJob });
       process.exit(0);
     } catch (err) {
       console.error(err.message);
@@ -469,22 +530,48 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const grammar = arg('grammar');
   const n = Number(arg('n') ?? 20);
   const tag = arg('tag');
+  const job = arg('job') ?? 'job1';
   const slot = arg('slot') ?? 'deepseek';
   const model = arg('model') ?? PROVIDER_SLOTS[slot]?.defaultModel;
+  const resumePath = arg('resume');
+  const jdPath = arg('jd');
 
-  if (!['slot', 'legacy'].includes(grammar) || !tag || !PROVIDER_SLOTS[slot]) {
+  // Unknown --job (like every other bad argument here) is refused at $0, before any ledger
+  // write — same place checkKeyPreflight refuses below, never after.
+  if (!['slot', 'legacy'].includes(grammar) || !tag || !PROVIDER_SLOTS[slot] || !JOBS.includes(job)) {
     console.error('usage: node poc/m1/slot-batch.mjs --grammar slot|legacy --n 20 --tag <tag> '
-      + '[--slot deepseek|synthetic] [--model <model-id>]');
+      + '[--job job1|job2|twoask] [--slot deepseek|synthetic] [--model <model-id>] '
+      + '[--resume <resume.docx> --jd <jd.md>]  (required for --job job2 — scoutJob2 runs over '
+      + 'the real files you point it at; there is no in-repo fixture)');
     process.exit(1);
   }
 
   // $0 key preflight — before any draft, before any ledger write (see checkKeyPreflight's own
   // header for the live incident this closes: a newline-terminated key passed makeProvider's
-  // truthiness check and only blew up mid-round, locking m0's global cap).
+  // truthiness check and only blew up mid-round, locking the cap).
   const keyCheck = checkKeyPreflight(slot);
   if (!keyCheck.ok) {
     console.error(keyCheck.message);
     process.exit(1);
+  }
+
+  // job #2 needs its own scout facts (scoutJob2, imported — never reimplemented) BEFORE any
+  // draft, over resume/JD files the caller points it at: no in-repo fixture exists for these
+  // (poc/m0/job2.mjs's own live CLI has the same --resume/--jd requirement, for the same
+  // reason — hamr's real resume is never checked into this tree).
+  let job2Facts;
+  if (job === 'job2') {
+    if (!resumePath || !jdPath) {
+      console.error('slot-batch --job job2 requires --resume <resume.docx> and --jd <jd.md> — refusing '
+        + 'rather than inventing a fixture.');
+      process.exit(1);
+    }
+    const scoutReport = scoutJob2({ resumePath, jdPath });
+    if (!scoutReport.ok) {
+      console.error(scoutReport.red);
+      process.exit(1);
+    }
+    job2Facts = scoutReport.facts;
   }
 
   // Resolve the rate ONCE, up front — makeProvider re-resolves the same rate per draft (cheap,
@@ -499,7 +586,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   try {
     const { completed } = await runSlotBatch({
-      grammar, n, tag, slot, providerForDraft, spendPath: join(M0_OUT_DIR, 'spend.jsonl'),
+      grammar, n, tag, job, providerForDraft,
+      ...(job2Facts !== undefined ? { facts: job2Facts } : {}),
+      spendPath: defaultM1SpendPath(),
     });
     process.exit(completed ? 0 : 1);
   } catch (err) {
