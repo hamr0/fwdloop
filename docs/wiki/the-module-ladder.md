@@ -265,8 +265,9 @@ Cost: about 20 × $0.004.
 **Kills the module:** job #1 or job #2 cannot be expressed without a per-job field, or the slot
 POC lands below 20/20 and the fix on the table is prompt wording rather than grammar.
 
-**Open, hamr's to sign with this:** §6 (the directory above), §10 (sources as typed arbiter lines,
-option 1 — recommended, because a source you can swap at launch is a hole in the pin).
+**§6 and §10 SIGNED by hamr 2026-09-21** ("agree on both"): the directory in item 7, and sources
+as typed arbiter lines, one per line (`guardrail: source <role> = file:<path>`), option 1. The
+scope, exit and negative above remain UNSIGNED until hamr says so.
 
 ## M2 — runner
 

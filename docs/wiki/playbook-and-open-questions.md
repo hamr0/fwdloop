@@ -59,7 +59,7 @@ None of these block M0 (docs/archive/PRD.md:654-654).
 5. **Memory across runs** (litectx as the store, facts superseded by id) — not in any module yet
    (docs/archive/PRD.md:667-667).
 6. **What does a flow directory look like on disk?** Deferred to M1
-   (docs/archive/PRD.md:668-668). **Proposed 2026-09-16, unsigned:** `flows/<name>/` holding
+   (docs/archive/PRD.md:668-668). **SIGNED by hamr 2026-09-21** ("agree on both", with §10): `flows/<name>/` holding
    `prose.txt`, `declaration.json`, `signature.json` and `runs/<run-id>/` — see the M1 DRAFT in
    `the-module-ladder.md`, item 7.
 
@@ -142,7 +142,7 @@ restarts from the frozen inputs plus the step artifacts already on disk, not fro
 checks the edit, or bareloop's hidden git ships and one mechanism across both repos is wanted
 (docs/archive/PRD.md:748-752).
 
-### 10. Where do a job's *sources* live in the signed text? — OPEN, raised by hamr 2026-09-15
+### 10. Where do a job's *sources* live in the signed text? — SIGNED option 1, hamr 2026-09-21
 
 Raised while writing job #2's prose cold ("a resume in, and jd to compare against — not sure how
 to have two sources"). Today the two are asymmetric: the **destination** is signed inside the prose
@@ -164,5 +164,7 @@ A live URL as a source (the JD came from a job board) is M9 real IO behind the a
 until then the JD is a fetched, hashed markdown file. Not decided; job #2 runs with launch flags.
 
 **Recommendation restated with the M1 DRAFT (2026-09-16):** option 1 — `source <role> = <file>`
-as typed arbiter lines. Cost of option 2: the signed block stops being the full picture, and the
+as typed arbiter lines. **SIGNED by hamr 2026-09-21** ("agree on both", with §6): one source per
+line, newline-delimited like every other guardrail, in the arbiter block next to cap/ask/send; the
+prose names roles only; a `url:` source is M9 and until then the fetched file is the source. Cost of option 2: the signed block stops being the full picture, and the
 launch flags stay a second writer of what gets pinned. Still hamr's to sign.
