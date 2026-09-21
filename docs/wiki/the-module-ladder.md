@@ -318,6 +318,19 @@ Cost if signed: one $0 build pass (parser, its mutation suite, both jobs' fixtur
 paid re-measure of the slot bar under the marked prose, because F31 to F34 were measured with the
 bottom-block form in front of the model.
 
+**Amendment 3 — built, and one correction to its cost line (2026-09-21).** Built in f61d05e (the
+mark) and 4deca9c (item 4: the step on a marked line grants no primitive — a hole that predated the
+mark and let a `read` step on the ask line validate green). The cost line above says a paid
+re-measure is needed "because F31 to F34 were measured with the bottom-block form in front of the
+model". That reason is wrong, checked in `poc/m0/drafter.mjs`: the drafter's prompt never contains
+the arbiter block. It contains the parsed numbered lines (`5. check it with me, [guardrail: …]`) and
+a `SIGNED ASK SLOTS: line(s) 5` sentence built from the parsed ask lines. `parseSignedText` strips
+the mark from a line's text and yields the same ask lines, so the prompt under the mark is the same
+bytes the 160 drafts of F31 to F34 were measured on. A re-measure would buy the same number twice;
+it was not run and no money was spent. What this rests on, and M2 must keep: the drafter is fed the
+parsed line text without the mark plus the slots sentence. If M2 ever shows the model the raw
+`ask:` prefix, that is a new prompt and needs its own 20 drafts.
+
 **Not ruled, carried:** `close.shape` is an open map in M1 — any key is accepted inside it except the
 arbiter keys — because no signed text names the shape vocabulary. An unknown key inside a shape is
 therefore NOT caught, and the exit's "unknown key added" mutation does not cover that one position.
