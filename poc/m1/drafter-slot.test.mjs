@@ -94,6 +94,15 @@ test('slotGrammar=true: the menu text excludes "checkpoint" and the SIGNED ASK S
   const content = systemPromptOf(provider);
   assert.doesNotMatch(content, /- checkpoint:/, 'slotGrammar must strip "checkpoint" from the menu the model is shown');
   assert.match(content, /SIGNED ASK SLOTS: line\(s\) 5\./, 'the block must name the real signed ask line, 5');
+  // 2026-09-21: the refusal sentence must name "hitl" — a zero-primitive
+  // step at an unsigned line is only a refused pause when it ALSO waits on
+  // a human (poc/m1/slots.mjs check (c)); JOB1_NEEDS' own, no-primitive
+  // derive step is neither a pause nor refused.
+  assert.match(
+    content,
+    /A step with no primitives that waits on a human \(hitl\) at an unsigned line is refused\./,
+    'the refusal sentence must match slots.mjs check (c)\'s actual, hitl-qualified rule',
+  );
 });
 
 test('PROOF the test can fail: a plain runDrafter call (no slotGrammar) still shows "checkpoint" even when askLines is passed', async () => {

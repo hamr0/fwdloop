@@ -263,6 +263,91 @@ export function renderSummaryLine(records, grammar, n) {
     + `noToolCall=${noToolCall} timeouts=${timeouts} costUsd=${costUsd}`;
 }
 
+// ---------------------------------------------------------------------------
+// $0 rescore — re-run TODAY's validate()/checkAskSlots over YESTERDAY's
+// saved drafts. A live batch spends real money on the provider round; the
+// scoring that follows (validate/checkAskSlots) is pure $0 code, and that
+// code keeps changing (e.g. the 2026-09-21 fix to slots.mjs check (c)).
+// Re-running the whole paid batch just to re-score old output would burn
+// money to re-prove something already on disk. `--rescore` never builds a
+// provider, never reads a key, never writes a spend row — it only re-reads
+// poc/m1/out/slot-batch-<grammar>-<tag>/draft-<i>.json (written by every
+// live/test run of runSlotBatch, win or lose) and re-scores them with
+// whatever validate()/checkAskSlots are TODAY.
+// ---------------------------------------------------------------------------
+
+/**
+ * Never overwrites the original per-tag .jsonl (consumed results are never
+ * overwritten, same discipline as `assertFreshTag`) — every rescore lands
+ * in its own dated file, so re-running `--rescore` twice in one day on the
+ * same grammar+tag just overwrites that day's rescore file, never the
+ * original evidence.
+ */
+export function rescoreFilePath(grammar, tag, outDir = OUT_DIR, dateStr = new Date().toISOString().slice(0, 10)) {
+  return join(outDir, `slot-batch-${grammar}-${tag}.rescore-${dateStr}.jsonl`);
+}
+
+/**
+ * Reads `poc/m1/out/slot-batch-<grammar>-<tag>/draft-<i>.json` for every `i`
+ * recorded in that grammar+tag's original .jsonl (so "how many drafts" is
+ * read from what the live run actually wrote, never re-guessed as `n`), and
+ * re-scores each one against the CURRENT `validate()`/`checkAskSlots` code.
+ * A draft file holding the literal `null` (the run never produced a
+ * declaration — no tool call, a timeout, a provider red) rescoures to
+ * `{ validator: null, slot: null }`, same shape `runOneDraft` itself uses.
+ *
+ * Never touches the original .jsonl; writes only the new dated rescore
+ * file. No provider is built, no key is read, no spend row is written —
+ * this function imports nothing from provider.mjs or spend.mjs's writers.
+ */
+export function rescoreSlotBatch({
+  grammar, tag, outDir = OUT_DIR, proseText = readFileSync(PROSE_PATH, 'utf8'),
+  writeLine = (s) => { process.stdout.write(`${s}\n`); }, dateStr,
+}) {
+  if (!['slot', 'legacy'].includes(grammar)) {
+    throw new Error(`slot-batch --rescore: grammar must be "slot" or "legacy", got "${grammar}"`);
+  }
+  if (!tag) {
+    throw new Error('slot-batch --rescore: --tag is required');
+  }
+  const { jsonlPath, declDir } = outFilePaths(grammar, tag, outDir);
+  if (!existsSync(jsonlPath)) {
+    throw new Error(`slot-batch --rescore: ${jsonlPath} not found — nothing recorded for grammar=${grammar} tag=${tag}`);
+  }
+  const original = readFileSync(jsonlPath, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
+  const { lines: askLines } = parseAskSlots(proseText);
+
+  const rescored = [];
+  for (const rec of original) {
+    const declPath = join(declDir, `draft-${rec.i}.json`);
+    const declaration = existsSync(declPath) ? JSON.parse(readFileSync(declPath, 'utf8')) : null;
+    const validator = declaration ? validate(declaration) : null;
+    const slot = declaration ? checkAskSlots(declaration, askLines) : null;
+    const out = { i: rec.i, validator, slot };
+    rescored.push(out);
+    const vLabel = validator?.verdict ?? '-';
+    const sLabel = slot?.verdict ?? '-';
+    let line = `rescore draft ${rec.i}  validator=${vLabel}  slot=${sLabel}`;
+    if (validator?.verdict === 'red') line += `  validatorRed="${validator.red}"`;
+    if (slot?.verdict === 'red') line += `  slotRed="${slot.red}"`;
+    writeLine(line);
+  }
+
+  const slotGreen = rescored.filter((r) => r.slot?.verdict === 'green').length;
+  const validatorGreen = rescored.filter((r) => r.validator?.verdict === 'green').length;
+  const bothGreen = rescored.filter((r) => r.slot?.verdict === 'green' && r.validator?.verdict === 'green').length;
+  const summaryLine = `RESCORE grammar=${grammar} tag=${tag} n=${rescored.length} slotGreen=${slotGreen} `
+    + `validatorGreen=${validatorGreen} bothGreen=${bothGreen}`;
+  writeLine(summaryLine);
+
+  const outPath = rescoreFilePath(grammar, tag, outDir, dateStr);
+  writeFileSync(outPath, rescored.map((r) => JSON.stringify(r)).join('\n') + (rescored.length ? '\n' : ''));
+
+  return {
+    records: rescored, summaryLine, outPath,
+  };
+}
+
 /**
  * The whole batch. `providerForDraft` is REQUIRED — this function never
  * builds a live provider itself; the CLI block below is the one live call
@@ -361,6 +446,26 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const idx = process.argv.indexOf(`--${name}`);
     return idx !== -1 ? process.argv[idx + 1] : undefined;
   };
+
+  // --rescore <grammar> --tag <tag> — $0, no provider, no key, no spend row.
+  // Checked FIRST, before any of the live-batch flags below are even read,
+  // so `--rescore` can never accidentally fall through into the paid path.
+  const rescoreGrammar = arg('rescore');
+  if (rescoreGrammar !== undefined) {
+    const rescoreTag = arg('tag');
+    if (!['slot', 'legacy'].includes(rescoreGrammar) || !rescoreTag) {
+      console.error('usage: node poc/m1/slot-batch.mjs --rescore slot|legacy --tag <tag>');
+      process.exit(1);
+    }
+    try {
+      rescoreSlotBatch({ grammar: rescoreGrammar, tag: rescoreTag });
+      process.exit(0);
+    } catch (err) {
+      console.error(err.message);
+      process.exit(1);
+    }
+  }
+
   const grammar = arg('grammar');
   const n = Number(arg('n') ?? 20);
   const tag = arg('tag');

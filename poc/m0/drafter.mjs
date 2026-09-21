@@ -82,8 +82,8 @@ function signedAskSlotsBlock(askLines) {
   return `SIGNED ASK SLOTS: line(s) ${askLines.join(', ')}. For each signed ask line emit EXACTLY ONE step: `
     + 'that line\'s fromLine, close.class "hitl", primitives []. The runner supplies the pause; there is no '
     + 'primitive for it. Never emit a pause anywhere else: a line whose guardrail says "ask me" inside another '
-    + 'step\'s work is that step\'s hitl close, not a new step. A step with no primitives at an unsigned line is '
-    + 'refused.';
+    + 'step\'s work is that step\'s hitl close, not a new step. A step with no primitives that waits on a human '
+    + '(hitl) at an unsigned line is refused.';
 }
 
 function jobLinesText(rawText) {

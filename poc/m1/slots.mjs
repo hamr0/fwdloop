@@ -22,6 +22,19 @@
 // returns green (checking slot shape on a declaration that doesn't even
 // walk is meaningless).
 //
+// The mechanical shape of a PAUSE (checkAskSlots' check (c), below) is a
+// step that does nothing AND waits on a human: zero primitives AND
+// close.class === "hitl" — never zero primitives alone. Fixed 2026-09-21
+// after a live batch (poc/m1/out/slot-batch-slot-2026-09-21c/draft-
+// {1,5,12}.json) reded 3/20 declarations on their DERIVE step (fromLine 3,
+// close.class "green", primitives []), which is not a pause at all:
+// poc/m0/catalogue.mjs's JOB1_NEEDS carries `{ need: 'match a customer,
+// derive figures', own: true }` — fwdloop's own model round, by design no
+// catalogue primitive, closed green by the MACHINE (validator.mjs), never a
+// human. The original check (c) — "zero primitives alone" — was specified
+// wrong; see poc/m1/slots.test.mjs's RED-FIRST test for the exact red it
+// produced.
+//
 // borrowed-from (style only, never imported): validator.mjs's FIRST-RED-
 // WINS strategy and its "never throw, always red" discipline for a
 // malformed declaration.
@@ -81,9 +94,16 @@ export function parseAskSlots(rawText) {
  *       that step's close.class must be "hitl".
  *   (b) no step anywhere may grant "checkpoint" — that primitive belongs to
  *       the runner alone; a drafter that reaches for it is exactly F10's leak.
- *   (c) no step with ZERO primitives may sit at a line that is not a signed
- *       ask line — a primitive-less step is a pause, mechanically, and a
- *       pause anywhere but a signed slot is unsigned.
+ *   (c) no step that is BOTH zero-primitive AND close.class "hitl" may sit
+ *       at a line that is not a signed ask line. Zero primitives ALONE is
+ *       not the mechanical shape of a pause: poc/m0/catalogue.mjs's
+ *       JOB1_NEEDS carries `{ need: 'match a customer, derive figures',
+ *       own: true }` — fwdloop's own model round, which by design takes no
+ *       catalogue primitive and is closed "green" by the MACHINE, never a
+ *       human (F-2026-09-21, 3/20 live drafts reded here on exactly that
+ *       derive step before this fix). A pause is a step that does nothing
+ *       AND waits on a human — zero primitives AND close.class "hitl" —
+ *       and a pause anywhere but a signed slot is unsigned.
  */
 export function checkAskSlots(declaration, askLines) {
   if (!declaration || typeof declaration !== 'object' || Array.isArray(declaration)) {
@@ -139,16 +159,22 @@ export function checkAskSlots(declaration, askLines) {
     }
   }
 
-  // (c) — a zero-primitive step is the mechanical SHAPE of a pause. One at a
-  // signed ask line is exactly what (a) already requires; one anywhere else
-  // is an unsigned pause smuggled in without ever naming "checkpoint".
+  // (c) — a step that is BOTH zero-primitive AND close.class "hitl" is the
+  // mechanical SHAPE of a pause (a step that does nothing and waits on a
+  // human). One at a signed ask line is exactly what (a) already requires;
+  // one anywhere else is an unsigned pause smuggled in without ever naming
+  // "checkpoint". Zero primitives alone is NOT this shape — see this
+  // function's header for JOB1_NEEDS' own, no-primitive derive step.
   const signedSet = new Set(lines);
   for (let i = 0; i < steps.length; i += 1) {
     const primitives = Array.isArray(steps[i].primitives) ? steps[i].primitives : [];
-    if (primitives.length === 0 && !signedSet.has(steps[i].fromLine)) {
+    const cls = steps[i].close && typeof steps[i].close === 'object' && !Array.isArray(steps[i].close)
+      ? steps[i].close.class
+      : undefined;
+    if (primitives.length === 0 && cls === 'hitl' && !signedSet.has(steps[i].fromLine)) {
       return {
         verdict: 'red',
-        red: `slot: step ${i + 1} (line ${steps[i].fromLine}) is a pause (no primitives) at an unsigned line`,
+        red: `slot: step ${i + 1} (line ${steps[i].fromLine}) is a pause (no primitives, hitl) at an unsigned line`,
       };
     }
   }

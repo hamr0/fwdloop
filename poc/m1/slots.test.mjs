@@ -184,20 +184,59 @@ test('PROOF (b): dropping the "checkpoint" grant turns the same declaration gree
 });
 
 // --- (c) unsigned pause ---
+//
+// RED-FIRST (2026-09-21): checkAskSlots' live batch (poc/m1/out/slot-batch-
+// slot-2026-09-21c/draft-{1,5,12}.json) reds 3/20 declarations at their
+// DERIVE step — fromLine 3, close.class "green", primitives [] — which is
+// not a pause at all. poc/m0/catalogue.mjs's JOB1_NEEDS row `{ need: 'match
+// a customer, derive figures', own: true }` is fwdloop's OWN model round: it
+// takes no catalogue primitive by design, and a "green" close is closed by
+// the MACHINE (validator.mjs), never a human. Check (c) as first specified
+// ("zero primitives" alone) mistook that shape for a pause. The mechanical
+// shape of a pause is a step that does nothing AND waits on a human: zero
+// primitives AND close.class === 'hitl'. The test below is the RED this
+// file started at against the OLD check (c) — the assertion is GREEN, but
+// the code at the time returned red `slot: step 1 (line 3) is a pause (no
+// primitives) at an unsigned line`, quoted verbatim in the commit that adds
+// this test.
 
-test('checkAskSlots (c): a zero-primitive step at an unsigned line is red — the mechanical shape of an unsigned ask', () => {
+test('checkAskSlots (c) RED-FIRST: a green-class, zero-primitive DERIVE step at an unsigned line is not a pause — green', () => {
+  const decl = {
+    steps: [
+      { goal: 'read sheet', primitives: ['addressCells'], reads: [], emits: 'a1', fromLine: 1 },
+      { goal: 'read message', primitives: ['read'], reads: [], emits: 'a2', fromLine: 2 },
+      // fwdloop's own model round (JOB1_NEEDS: own: true) — no primitive,
+      // closed green by the machine, at an UNSIGNED line (3). Not a pause.
+      {
+        goal: 'derive', primitives: [], reads: ['a1', 'a2'], emits: 'a3', fromLine: 3, close: { class: 'green' },
+      },
+      {
+        goal: 'ask', primitives: [], reads: ['a3'], emits: 'a4', fromLine: 5, close: { class: 'hitl' },
+      },
+    ],
+  };
+  const result = checkAskSlots(decl, [5]);
+  assert.equal(result.verdict, 'green', `expected green, got: ${JSON.stringify(result)}`);
+});
+
+test('checkAskSlots (c): a zero-primitive HITL step at an unsigned line is red — the mechanical shape of an unsigned pause', () => {
   const decl = conformingDeclaration();
-  // line 4 (compose) is not a signed ask line, but drops all primitives —
-  // exactly the shape F10 measured: a pause with nothing signing it.
-  decl.steps.find((st) => st.fromLine === 4).primitives = [];
+  // line 4 (compose) is not a signed ask line, drops all primitives AND
+  // waits on a human — exactly the shape F10 measured: a pause with nothing
+  // signing it.
+  const composeStep = decl.steps.find((st) => st.fromLine === 4);
+  composeStep.primitives = [];
+  composeStep.close = { class: 'hitl' };
   const result = checkAskSlots(decl, [5]);
   assert.equal(result.verdict, 'red');
-  assert.match(result.red, /step 4 \(line 4\) is a pause \(no primitives\) at an unsigned line/);
+  assert.match(result.red, /step 4 \(line 4\) is a pause \(no primitives, hitl\) at an unsigned line/);
 });
 
 test('PROOF (c): granting compose a primitive back turns the same declaration green', () => {
   const decl = conformingDeclaration();
-  decl.steps.find((st) => st.fromLine === 4).primitives = [];
+  const composeStep = decl.steps.find((st) => st.fromLine === 4);
+  composeStep.primitives = [];
+  composeStep.close = { class: 'hitl' };
   assert.equal(checkAskSlots(decl, [5]).verdict, 'red');
   const fixed = conformingDeclaration();
   assert.equal(checkAskSlots(fixed, [5]).verdict, 'green');
@@ -235,5 +274,5 @@ test('checkAskSlots with no signed ask lines at all: only checks (b) and (c) sti
   // It is the FIRST zero-primitive step in declared order, so it is the one named.
   const result = checkAskSlots(decl, []);
   assert.equal(result.verdict, 'red');
-  assert.match(result.red, /step 5 \(line 5\) is a pause \(no primitives\) at an unsigned line/);
+  assert.match(result.red, /step 5 \(line 5\) is a pause \(no primitives, hitl\) at an unsigned line/);
 });

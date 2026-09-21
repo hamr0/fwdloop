@@ -5,12 +5,14 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, existsSync } from 'node:fs';
+import {
+  mkdtempSync, readFileSync, writeFileSync, existsSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   runSlotBatch, runOneDraft, ceilingCostUsd, outFilePaths, assertFreshTag, realFacts,
-  renderSummaryLine, renderProgressLine, checkKeyPreflight,
+  renderSummaryLine, renderProgressLine, checkKeyPreflight, rescoreSlotBatch, rescoreFilePath,
 } from './slot-batch.mjs';
 import { parseAskSlots } from './slots.mjs';
 
@@ -28,10 +30,13 @@ function tmpOutDir() {
 // job1ModelSteps() itself, the "derive"/"compose" steps here carry a
 // placeholder "read" grant rather than m0's legitimate empty-primitives
 // shape (catalogue.mjs's JOB1_NEEDS: "match a customer, derive figures" is
-// `own: true`, no primitive at all) — poc/m1/slots.mjs's check (c) treats
-// ANY zero-primitive step at an unsigned line as the mechanical shape of an
-// unsigned pause, by design (see its own header), so a fixture meant to
-// stay green under it must not carry that otherwise-legitimate shape.
+// `own: true`, no primitive at all). This placeholder is no longer load-
+// bearing for staying green under poc/m1/slots.mjs's check (c) — as of
+// 2026-09-21, (c) only fires on a step that is BOTH zero-primitive AND
+// close.class "hitl" (the mechanical shape of a pause), so the legitimate
+// own:true derive shape (no primitive, close.class "green") is fine either
+// way. Kept as-is (harmless, still a faithful stand-in for m0's real
+// "read"-grant steps) rather than churned for its own sake.
 function conformingModelArgs() {
   return {
     guardrailClasses: {
@@ -419,4 +424,109 @@ test('renderProgressLine never includes a provider rates object or a raw key-sha
   const line = renderProgressLine(record, 5);
   assert.match(line, /^draft 1\/5/);
   assert.doesNotMatch(line, /sk-|Bearer /);
+});
+
+// ---------------------------------------------------------------------------
+// --rescore mode — $0, re-scores SAVED drafts with the CURRENT validate()/
+// checkAskSlots code, never re-drafts, never builds a provider, never
+// touches the spend ledger, never overwrites the original .jsonl.
+// ---------------------------------------------------------------------------
+
+test('rescoreSlotBatch: re-scores each saved draft, writes a NEW dated file, and never touches the original jsonl', async () => {
+  const outDir = tmpOutDir();
+  const { jsonlPath, declDir } = outFilePaths('slot', 'rescore-fixture', outDir);
+  await runSlotBatch({
+    grammar: 'slot', n: 2, tag: 'rescore-fixture', outDir, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(fakeConformingProvider), writeLine: () => {},
+  });
+  const originalBefore = readFileSync(jsonlPath, 'utf8');
+
+  const dateStr = '2026-09-21';
+  const { records, summaryLine, outPath } = rescoreSlotBatch({
+    grammar: 'slot', tag: 'rescore-fixture', outDir, proseText: PROSE_TEXT, writeLine: () => {}, dateStr,
+  });
+
+  assert.equal(records.length, 2);
+  for (const r of records) {
+    assert.equal(r.validator.verdict, 'green');
+    assert.equal(r.slot.verdict, 'green');
+  }
+  assert.equal(summaryLine, 'RESCORE grammar=slot tag=rescore-fixture n=2 slotGreen=2 validatorGreen=2 bothGreen=2');
+  assert.equal(outPath, rescoreFilePath('slot', 'rescore-fixture', outDir, dateStr));
+  assert.ok(existsSync(outPath));
+  assert.match(outPath, /\.rescore-2026-09-21\.jsonl$/);
+
+  // the original .jsonl is byte-identical after the rescore — consumed evidence is never overwritten.
+  assert.equal(readFileSync(jsonlPath, 'utf8'), originalBefore);
+
+  // the rescore file itself holds one JSON line per draft.
+  const rescoreLines = readFileSync(outPath, 'utf8').split('\n').filter((l) => l.trim());
+  assert.equal(rescoreLines.length, 2);
+  assert.deepEqual(JSON.parse(rescoreLines[0]).slot, { verdict: 'green' });
+
+  // sanity: the declaration files themselves were never touched either.
+  assert.ok(existsSync(join(declDir, 'draft-1.json')));
+  assert.ok(existsSync(join(declDir, 'draft-2.json')));
+});
+
+test('rescoreSlotBatch reflects the CURRENT slots.mjs code, not whatever scored the draft originally', async () => {
+  // Simulate what a live batch actually wrote BEFORE the 2026-09-21 check-(c)
+  // fix: a saved draft.json whose derive step (fromLine 3) is fwdloop's own,
+  // no-primitive, "green"-close model round — the exact shape that reded
+  // under the old check (c) but is fine under the current one.
+  const outDir = tmpOutDir();
+  const { jsonlPath, declDir } = outFilePaths('slot', 'rescore-oldbug', outDir);
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(declDir, { recursive: true });
+  writeFileSync(jsonlPath, `${JSON.stringify({ i: 1, grammar: 'slot' })}\n`);
+  writeFileSync(join(declDir, 'draft-1.json'), JSON.stringify({
+    steps: [
+      { goal: 'read sheet', primitives: ['addressCells'], reads: [], emits: 'a1', fromLine: 1 },
+      { goal: 'read message', primitives: ['read'], reads: [], emits: 'a2', fromLine: 2 },
+      {
+        goal: 'derive', primitives: [], reads: ['a1', 'a2'], emits: 'a3', fromLine: 3, close: { class: 'green' },
+      },
+      {
+        goal: 'ask', primitives: [], reads: ['a3'], emits: 'a4', fromLine: 5, close: { class: 'hitl' },
+      },
+    ],
+  }, null, 2));
+
+  const { records } = rescoreSlotBatch({
+    grammar: 'slot', tag: 'rescore-oldbug', outDir, proseText: PROSE_TEXT, writeLine: () => {}, dateStr: '2026-09-21',
+  });
+  assert.equal(records.length, 1);
+  assert.equal(records[0].slot.verdict, 'green', `expected green under the current check (c), got: ${JSON.stringify(records[0].slot)}`);
+});
+
+test('rescoreSlotBatch: a null (never-produced) declaration rescoures to null validator/slot, not a throw', async () => {
+  const outDir = tmpOutDir();
+  const { jsonlPath, declDir } = outFilePaths('slot', 'rescore-null', outDir);
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(declDir, { recursive: true });
+  writeFileSync(jsonlPath, `${JSON.stringify({ i: 1, grammar: 'slot', stopReason: 'no-tool-call' })}\n`);
+  writeFileSync(join(declDir, 'draft-1.json'), 'null');
+
+  const { records } = rescoreSlotBatch({
+    grammar: 'slot', tag: 'rescore-null', outDir, proseText: PROSE_TEXT, writeLine: () => {}, dateStr: '2026-09-21',
+  });
+  assert.equal(records.length, 1);
+  assert.equal(records[0].validator, null);
+  assert.equal(records[0].slot, null);
+});
+
+test('rescoreSlotBatch refuses when the grammar+tag has no recorded jsonl at all', () => {
+  const outDir = tmpOutDir();
+  assert.throws(
+    () => rescoreSlotBatch({ grammar: 'slot', tag: 'never-ran', outDir, proseText: PROSE_TEXT, writeLine: () => {} }),
+    /not found — nothing recorded for grammar=slot tag=never-ran/,
+  );
+});
+
+test('PROOF the test can fail: rescoreSlotBatch requires --tag, same discipline as the live batch', () => {
+  const outDir = tmpOutDir();
+  assert.throws(
+    () => rescoreSlotBatch({ grammar: 'slot', tag: '', outDir, proseText: PROSE_TEXT, writeLine: () => {} }),
+    /--tag is required/,
+  );
 });
