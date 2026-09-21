@@ -1740,3 +1740,13 @@ the model or the provider returned was not kept (F33 saw the same).
 **Where the claim stands, all proses, both providers.** Drafts that slipped an unsigned human stop or
 missed a signed one past the checks: 0 of 160. Bound cleanly: deepseek 20/20, 20/20, 19/19; Qwen
 19/20, 15/20, 17/19.
+
+**F34 RETRACTION, same day — "a deadline that did not hold" is wrong.** Checked instead of guessed:
+the batch tool's race covers both draft paths (`Promise.race` against `timeoutAfter(240 s)` wraps
+`draftJob2` and `runDrafter` alike), and the provider is built with `deadlineMs: 240_000`. Draft 8's
+error was `read ECONNRESET`. The machine suspended at 18:07:58 and resumed at 18:18:36 (journalctl);
+draft 7 was written 18:07:10 and draft 8 at 18:18:41. Timers do not run during a suspend and the
+wall clock jumps, so 691 s is 48 s of run, a 638 s sleep, and a reset socket 5 s after resume. The
+240 s bound was never exceeded in running time. What stands: the row was priced at ceiling, and a
+laptop that sleeps mid-batch costs one ceiling-priced round. What the orchestrator did wrong: wrote
+"the bound is not enforced on this path" into a finding before reading the error message on the row.
