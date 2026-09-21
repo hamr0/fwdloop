@@ -99,6 +99,87 @@ export function outFilePaths(grammar, tag, outDir = OUT_DIR, job = 'job1') {
 }
 
 /**
+ * Redact every literal occurrence of each string in `secrets` (length >= 8)
+ * out of `text`, replacing it with the fixed literal `[redacted-key]` via
+ * `String.prototype.split`/`join` — never a `RegExp` built from input (a
+ * secret can contain regex metacharacters; a literal split/join has no such
+ * hazard). Non-string `text` is returned unchanged (never coerced, never
+ * thrown on). A secret shorter than 8 characters is skipped entirely, so an
+ * unset/empty/short env var can never blank out ordinary text.
+ *
+ * `secrets` defaults to `[]` — every existing caller of `runOneDraft`/
+ * `runSlotBatch` (every test, and this file's own CLI block before this
+ * fix) is byte-identical, since an empty list redacts nothing.
+ *
+ * What this does NOT catch, by design: a MASKED or TRUNCATED echo of the
+ * key (e.g. a provider printing only its first 4 + last 4 characters, or a
+ * proxy hashing it). That is not a literal occurrence of the secret string
+ * this process holds, so it is not "the secret" under this mechanism and is
+ * left alone — a broader heuristic (fuzzy/partial matching) is exactly the
+ * kind of RegExp-from-input hazard this function is built to avoid.
+ */
+export function redactSecrets(text, secrets = []) {
+  if (typeof text !== 'string') return text;
+  let result = text;
+  for (const secret of secrets) {
+    if (typeof secret === 'string' && secret.length >= 8) {
+      result = result.split(secret).join('[redacted-key]');
+    }
+  }
+  return result;
+}
+
+/**
+ * Builds the `secrets` list `redactSecrets` scrubs for, from ONE raw env
+ * value — the ONE place this list is ever built (the CLI block below is the
+ * ONE caller; nothing else constructs this list).
+ *
+ * Live edge: bare-agent's own provider TRIMS the key before it ever goes on
+ * the wire (`node_modules/bare-agent/src/provider-openai.js:74`,
+ * `this.apiKey = options.apiKey?.trim()`), so a provider echo of the live
+ * key is the TRIMMED form. If the env var itself carries a trailing
+ * newline/space (an un-`tr -d`'d `pass` entry — the exact live shape
+ * `checkKeyPreflight` already refuses to draft against), building `secrets`
+ * from the raw value alone means the literal string `redactSecrets` looks
+ * for is never the one the provider can actually echo back — the trimmed
+ * echo sails straight past it.
+ *
+ * Returns `[]` for a non-string value or one that is empty/whitespace-only
+ * after trimming (never redacts against nothing — `redactSecrets`'s own
+ * length >= 8 gate is the second, independent guard against that). Returns
+ * `[trimmed]` when the value has no surrounding whitespace to strip, or
+ * `[trimmed, raw]` (trimmed FIRST) when trimming changed the value — so
+ * EITHER the wire form or a literal echo of the untrimmed env value is
+ * caught, without ever inventing a third form.
+ */
+export function secretsFromEnv(envValue) {
+  if (typeof envValue !== 'string') return [];
+  const trimmed = envValue.trim();
+  if (trimmed === '') return [];
+  return trimmed === envValue ? [trimmed] : [trimmed, envValue];
+}
+
+/**
+ * Reads `draft-<i>.json` and returns either a real declaration object, or
+ * `null` for "no declaration" — treating a legacy bare `null` file (every
+ * draft saved before this fix) and this fix's own wrapper object
+ * (`{ declaration: null, outcome, ... }`, from `buildNoDeclarationArtifact`)
+ * identically, so `--rescore` never has to know which era wrote the file.
+ * A wrapper object is told apart from a real declaration by the OWN marker
+ * (`declaration === null` on the parsed object) — never by shape-guessing
+ * (a real declaration has no `declaration` key of its own to collide with).
+ */
+export function readDraftDeclaration(declPath) {
+  const raw = JSON.parse(readFileSync(declPath, 'utf8'));
+  if (raw === null) return null;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)
+    && Object.prototype.hasOwnProperty.call(raw, 'declaration') && raw.declaration === null) {
+    return null;
+  }
+  return raw;
+}
+
+/**
  * Refuse to start if this grammar+tag already has ≥1 recorded line — never
  * overwrite live evidence (same discipline as poc/m0/batch.mjs's
  * `writeBarFile`). A zero-byte or missing file is fine to start against.
@@ -185,6 +266,73 @@ function deriveStopReason(report) {
 }
 
 /**
+ * The "a red run keeps what the model wrote" artifact for a draft that
+ * produced NO declaration — F33/F34 (draft 1 of job #2, draft 10 of
+ * two-ask, draft 8 of job #2): before this, `draft-<i>.json` was the
+ * literal `null` for every one of these outcomes, throwing away the one
+ * thing that would tell a right check from a broken one afterwards.
+ *
+ * Only the THREE outcomes this batch actually distinguishes get an object
+ * here: `no-tool-call` / `unknown` (the model answered in text, or
+ * finished with neither a tool call nor text — `deriveStopReason`'s own
+ * two non-refusal, non-tool-called buckets), `provider-red` (the provider
+ * threw), and `timeout` (the deadline race lost). `absent-facts` and
+ * `refused-no-slots` are UNCHANGED by this fix and still persist as the
+ * bare `null` — those are $0 refusals this script makes itself, before any
+ * provider round, never observed live losing an artifact (the two live
+ * gaps this fix closes are both mid-round outcomes), and out of this
+ * task's stated three-outcome scope.
+ *
+ * Deliberately thrown away, not persisted (declared here per the "every
+ * summary declares what it drops" rule):
+ *   - `modelReturned`/`suffixMatch`/`rateSource`/`costUsd`/`rateSource` off
+ *     the drafter report — already the ONE writer's job (`runOneDraft`'s
+ *     own return record, and its jsonl row) to carry the run's costing;
+ *     duplicating them into the per-draft file would be a second writer
+ *     for the same fact.
+ *   - a literal `stopReason` key: `outcome` (below) IS this script's own
+ *     name for exactly the same derived classification `deriveStopReason`
+ *     produces and the jsonl row's own `stopReason` field already carries
+ *     — a second key holding the identical value would be a faked-looking
+ *     duplicate, not a distinct fact, so it is omitted rather than written
+ *     twice under two names.
+ *
+ * Never a secret, defensively, not just by argument: our own code never
+ * puts the Authorization header into a thrown message or model text (traced
+ * against poc/m0/provider.mjs's `MalformedToolCallTolerantOpenAI` and
+ * bare-agent's own `provider-openai.js` `OpenAIProvider._request` — the
+ * header is written on OUTBOUND requests only). But TWO of the three shapes
+ * a caught error can take carry the PROVIDER'S OWN response text
+ * (`parsed.error?.message` on a >=400 response, or the first 200 bytes of a
+ * non-JSON body) — external text this process does not control, and real
+ * providers do sometimes echo a presented key back in a 401 body. `report.
+ * textInstead` is model output, same standing: also not ours to trust.
+ * `providerRedMessage` (passed in already redacted by the caller — see
+ * `runOneDraft`'s catch block, the one place it is computed) and `report.
+ * textInstead` (redacted here, the one place it is read into persisted
+ * state) both go through `redactSecrets` before they can reach disk.
+ */
+function buildNoDeclarationArtifact({
+  outcome, report, wallMs, providerRedMessage, secrets = [],
+}) {
+  if (outcome === 'provider-red') {
+    return { declaration: null, outcome, providerRedMessage, wallMs };
+  }
+  if (outcome === 'timeout') {
+    return { declaration: null, outcome, wallMs };
+  }
+  // 'no-tool-call' / 'unknown' — the report-based branch.
+  return {
+    declaration: null,
+    outcome,
+    ...(report.textInstead != null ? { textInstead: redactSecrets(report.textInstead, secrets) } : {}),
+    ...(report.usage != null ? { usage: report.usage } : {}),
+    ...(report.rounds != null ? { rounds: report.rounds } : {}),
+    wallMs,
+  };
+}
+
+/**
  * Run ONE draft under the 240s hard deadline. Returns a fully-formed record
  * per the brief's shape:
  *   { i, grammar, toolCalled, stopReason, validator, slot, stepCount,
@@ -195,6 +343,13 @@ function deriveStopReason(report) {
  */
 export async function runOneDraft({
   i, grammar, job = 'job1', askLines, facts, proseText, providerForDraft, deadlineMs = DEFAULT_DEADLINE_MS,
+  // The live key value(s) to scrub out of anything persisted below (see
+  // `redactSecrets`'s own header). Defaults to `[]` — every existing
+  // caller/test is byte-identical, since redacting against no secrets is a
+  // no-op. The CLI block at the bottom of this file is the one live caller
+  // that ever passes a non-empty list, built from the SAME env var
+  // `checkKeyPreflight` already reads (never a second table).
+  secrets = [],
 }) {
   const { provider, rates, modelId } = providerForDraft(i);
   const startedAt = Date.now();
@@ -228,12 +383,18 @@ export async function runOneDraft({
     // exact state this whole fix closes — see poc/m0/spend.mjs's header).
     const wallMs = Date.now() - startedAt;
     const costUsd = ceilingCostUsd(modelId);
+    // ONE writer for this value — redacted here, once, before it reaches EITHER destination
+    // (the top-level field below, which lands in the jsonl row; and the artifact).
+    const providerRedMessage = redactSecrets(err.message, secrets);
     return {
       i, grammar, job, toolCalled: false, stopReason: 'provider-red', validator: null, slot: null,
       stepCount: 0, hitlSteps: 0, checkpointGrants: 0, zeroPrimitiveSteps: 0,
       costUsd, costUnknown: false, estimated: true,
       wallMs, modelRequested: modelId, modelReturned: null,
-      modelMatch: classifyModelId(modelId, null), declaration: null, providerRedMessage: err.message,
+      modelMatch: classifyModelId(modelId, null), declaration: null, providerRedMessage,
+      noDeclarationArtifact: buildNoDeclarationArtifact({
+        outcome: 'provider-red', report: null, wallMs, providerRedMessage,
+      }),
     };
   } finally {
     cancelTimeout();
@@ -247,6 +408,7 @@ export async function runOneDraft({
       stepCount: 0, hitlSteps: 0, checkpointGrants: 0, zeroPrimitiveSteps: 0,
       costUsd, costUnknown: false, estimated: true, wallMs, modelRequested: modelId, modelReturned: null,
       modelMatch: classifyModelId(modelId, null), declaration: null,
+      noDeclarationArtifact: buildNoDeclarationArtifact({ outcome: 'timeout', report: null, wallMs }),
     };
   }
 
@@ -261,12 +423,22 @@ export async function runOneDraft({
   const checkpointGrants = steps.filter((st) => Array.isArray(st?.primitives) && st.primitives.includes('checkpoint')).length;
   const zeroPrimitiveSteps = steps.filter((st) => Array.isArray(st?.primitives) && st.primitives.length === 0).length;
 
+  const stopReason = deriveStopReason(report);
+  // Only the two non-refusal, non-tool-called buckets get the richer artifact (see
+  // buildNoDeclarationArtifact's own header for why 'absent-facts'/'refused-no-slots' are excluded).
+  const noDeclarationArtifact = !report.toolCalled && !declaration
+    && (stopReason === 'no-tool-call' || stopReason === 'unknown')
+    ? buildNoDeclarationArtifact({
+      outcome: stopReason, report, wallMs, secrets,
+    })
+    : undefined;
+
   return {
     i,
     grammar,
     job,
     toolCalled: report.toolCalled,
-    stopReason: deriveStopReason(report),
+    stopReason,
     validator: validatorResult,
     slot: slotResult,
     stepCount,
@@ -280,6 +452,7 @@ export async function runOneDraft({
     modelReturned: report.modelReturned,
     modelMatch: classifyModelId(report.modelRequested, report.modelReturned),
     declaration,
+    ...(noDeclarationArtifact !== undefined ? { noDeclarationArtifact } : {}),
   };
 }
 
@@ -370,7 +543,7 @@ export function rescoreSlotBatch({
   const rescored = [];
   for (const rec of original) {
     const declPath = join(declDir, `draft-${rec.i}.json`);
-    const declaration = existsSync(declPath) ? JSON.parse(readFileSync(declPath, 'utf8')) : null;
+    const declaration = existsSync(declPath) ? readDraftDeclaration(declPath) : null;
     const validator = declaration ? validate(declaration) : null;
     const slot = declaration ? checkAskSlots(declaration, askLines) : null;
     const out = { i: rec.i, validator, slot };
@@ -415,6 +588,10 @@ export async function runSlotBatch({
   // never M0's own poc/m0/out/spend.jsonl file or cap). Omitted, this script
   // keeps its own per-tag jsonl ledger only (every test path).
   spendPath,
+  // Threaded straight to `runOneDraft` (see its own header) — defaults to `[]` so every
+  // existing caller/test is unaffected. The CLI block builds this from the SAME env var
+  // `checkKeyPreflight` already reads.
+  secrets = [],
 }) {
   if (!['slot', 'legacy'].includes(grammar)) {
     throw new Error(`slot-batch: --grammar must be "slot" or "legacy", got "${grammar}"`);
@@ -457,7 +634,7 @@ export async function runSlotBatch({
     }
     // eslint-disable-next-line no-await-in-loop
     const record = await runOneDraft({
-      i, grammar, job, askLines, facts: resolvedFacts, proseText: resolvedProseText, providerForDraft, deadlineMs,
+      i, grammar, job, askLines, facts: resolvedFacts, proseText: resolvedProseText, providerForDraft, deadlineMs, secrets,
     });
     if (spendPath) {
       appendSpendRow(spendPath, {
@@ -466,9 +643,12 @@ export async function runSlotBatch({
         ...(record.estimated ? { estimated: true } : {}),
       });
     }
-    const { declaration, ...jsonlRecord } = record;
-    writeFileSync(jsonlPath, `${JSON.stringify(jsonlRecord)}\n`, { flag: 'a' });
-    writeFileSync(join(declDir, `draft-${i}.json`), JSON.stringify(declaration ?? null, null, 2));
+    const { declaration, noDeclarationArtifact, ...jsonlRecord } = record;
+    // hasTextInstead — jsonl-only signal (item added by the F33/F34 fix): a reader of the jsonl
+    // alone can tell whether draft-<i>.json holds text worth going to read, without opening it.
+    const hasTextInstead = typeof noDeclarationArtifact?.textInstead === 'string';
+    writeFileSync(jsonlPath, `${JSON.stringify({ ...jsonlRecord, hasTextInstead })}\n`, { flag: 'a' });
+    writeFileSync(join(declDir, `draft-${i}.json`), JSON.stringify(declaration ?? noDeclarationArtifact ?? null, null, 2));
     records.push(record);
     writeLine(renderProgressLine(record, n));
 
@@ -555,6 +735,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   }
 
+  // The ONE place the live secrets list is built — the SAME env var checkKeyPreflight just
+  // validated above (PROVIDER_SLOTS[slot].envVar), never a second table, via `secretsFromEnv`
+  // (never the raw env value spread into a list directly — see its own header for why: the
+  // wire key is TRIMMED by bare-agent, so an untrimmed-only list misses a trimmed echo).
+  // Threaded into runSlotBatch -> runOneDraft so a provider error or model text-instead output
+  // that echoes the live key back never reaches disk unredacted.
+  const secrets = secretsFromEnv(process.env[PROVIDER_SLOTS[slot].envVar]);
+
   // job #2 needs its own scout facts (scoutJob2, imported — never reimplemented) BEFORE any
   // draft, over resume/JD files the caller points it at: no in-repo fixture exists for these
   // (poc/m0/job2.mjs's own live CLI has the same --resume/--jd requirement, for the same
@@ -589,6 +777,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       grammar, n, tag, job, providerForDraft,
       ...(job2Facts !== undefined ? { facts: job2Facts } : {}),
       spendPath: defaultM1SpendPath(),
+      secrets,
     });
     process.exit(completed ? 0 : 1);
   } catch (err) {

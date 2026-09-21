@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import {
   runSlotBatch, runOneDraft, ceilingCostUsd, outFilePaths, assertFreshTag, realFacts,
   renderSummaryLine, renderProgressLine, checkKeyPreflight, rescoreSlotBatch, rescoreFilePath,
-  JOBS, prosePathForJob, M1_CAP_USD, defaultM1SpendPath, OUT_DIR,
+  JOBS, prosePathForJob, M1_CAP_USD, defaultM1SpendPath, OUT_DIR, redactSecrets, secretsFromEnv,
 } from './slot-batch.mjs';
 import { parseAskSlots } from './slots.mjs';
 
@@ -197,6 +197,14 @@ function fakeNoToolCallProvider() {
   return {
     generate: async () => ({
       text: 'I refuse.', toolCalls: [], usage: { inputTokens: 10, outputTokens: 10 }, stopReason: 'stop', model: 'fake-model',
+    }),
+  };
+}
+
+function fakeNoToolCallProviderWithText(text) {
+  return {
+    generate: async () => ({
+      text, toolCalls: [], usage: { inputTokens: 10, outputTokens: 10 }, stopReason: 'stop', model: 'fake-model',
     }),
   };
 }
@@ -778,4 +786,284 @@ test('M1_CAP_USD is 5.00 and defaultM1SpendPath resolves under poc/m1/out, never
 test('PROOF the test can fail: defaultM1SpendPath honours an explicit outDir override', () => {
   const path = defaultM1SpendPath('/tmp/somewhere-else');
   assert.equal(path, join('/tmp/somewhere-else', 'spend.jsonl'));
+});
+
+// ---------------------------------------------------------------------------
+// F33/F34 — a draft with no declaration keeps what the model wrote. Before
+// this fix, draft-<i>.json for EVERY no-declaration outcome (no-tool-call,
+// provider-red, timeout) was the literal `null`, throwing away textInstead/
+// usage/rounds/providerRedMessage that runOneDraft/the drafter report
+// already carried. `null` is still legal on disk (old evidence) and must
+// keep rescoring the same way.
+// ---------------------------------------------------------------------------
+
+test('no-tool-call draft file keeps declaration:null, the outcome, and the exact text (never the literal null)', async () => {
+  const outDir = tmpOutDir();
+  const { declDir, jsonlPath } = outFilePaths('slot', 'notool-file', outDir);
+  await runSlotBatch({
+    grammar: 'slot', n: 1, tag: 'notool-file', outDir, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(fakeNoToolCallProvider), writeLine: () => {},
+  });
+  const fileRaw = readFileSync(join(declDir, 'draft-1.json'), 'utf8');
+  assert.notEqual(fileRaw.trim(), 'null', 'RED (pre-fix): draft-1.json is the literal null — the refused text is gone');
+  const parsed = JSON.parse(fileRaw);
+  assert.equal(parsed.declaration, null);
+  assert.equal(parsed.outcome, 'no-tool-call');
+  assert.equal(parsed.textInstead, 'I refuse.');
+  assert.ok(parsed.usage);
+  assert.ok(Number.isInteger(parsed.rounds));
+
+  const row = JSON.parse(readFileSync(jsonlPath, 'utf8').split('\n').filter((l) => l.trim())[0]);
+  assert.equal(row.hasTextInstead, true);
+  assert.ok(!('declaration' in row));
+});
+
+test('provider-red draft file keeps outcome:provider-red and the provider message; cost stays at the ceiling, never 0/null', async () => {
+  const outDir = tmpOutDir();
+  const { declDir, jsonlPath } = outFilePaths('slot', 'red-file', outDir);
+  await runSlotBatch({
+    grammar: 'slot', n: 1, tag: 'red-file', outDir, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeThrowingProvider('read ECONNRESET')), writeLine: () => {},
+  });
+  const parsed = JSON.parse(readFileSync(join(declDir, 'draft-1.json'), 'utf8'));
+  assert.equal(parsed.declaration, null);
+  assert.equal(parsed.outcome, 'provider-red');
+  assert.equal(parsed.providerRedMessage, 'read ECONNRESET');
+  assert.ok(!('textInstead' in parsed));
+
+  const row = JSON.parse(readFileSync(jsonlPath, 'utf8').split('\n').filter((l) => l.trim())[0]);
+  assert.equal(row.costUnknown, false);
+  assert.ok(row.costUsd > 0);
+  assert.equal(row.hasTextInstead, false);
+});
+
+test('timeout draft file keeps outcome:timeout and never hangs the test', async () => {
+  const outDir = tmpOutDir();
+  const { declDir } = outFilePaths('slot', 'timeout-file', outDir);
+  await runSlotBatch({
+    grammar: 'slot', n: 1, tag: 'timeout-file', outDir, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(fakeHangingProvider), deadlineMs: 20, writeLine: () => {},
+  });
+  const parsed = JSON.parse(readFileSync(join(declDir, 'draft-1.json'), 'utf8'));
+  assert.equal(parsed.declaration, null);
+  assert.equal(parsed.outcome, 'timeout');
+  assert.ok(typeof parsed.wallMs === 'number' && parsed.wallMs >= 0);
+});
+
+test('a draft WITH a declaration writes the declaration byte-for-byte unchanged from before this fix (unwrapped, no outcome wrapper)', async () => {
+  const outDir = tmpOutDir();
+  const { declDir } = outFilePaths('slot', 'green-file', outDir);
+  const record = await runOneDraft({
+    i: 1, grammar: 'slot', askLines: ASK_LINES, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(fakeConformingProvider),
+  });
+  await runSlotBatch({
+    grammar: 'slot', n: 1, tag: 'green-file', outDir, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(fakeConformingProvider), writeLine: () => {},
+  });
+  const fileRaw = readFileSync(join(declDir, 'draft-1.json'), 'utf8');
+  assert.equal(fileRaw, JSON.stringify(record.declaration, null, 2));
+  const parsed = JSON.parse(fileRaw);
+  assert.ok(!('outcome' in parsed), 'a real declaration must never be wrapped in the no-declaration shape');
+});
+
+test('--rescore treats a no-declaration wrapper object exactly like a legacy bare null, and never overwrites either', async () => {
+  const outDir = tmpOutDir();
+  const { jsonlPath, declDir } = outFilePaths('slot', 'rescore-mixed', outDir);
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(declDir, { recursive: true });
+  writeFileSync(jsonlPath, [
+    { i: 1, grammar: 'slot' },
+    { i: 2, grammar: 'slot' },
+    { i: 3, grammar: 'slot' },
+  ].map((r) => JSON.stringify(r)).join('\n') + '\n');
+  // A real ASSEMBLED declaration (assembleDeclaration's own shape — "skills"/derived "close"
+  // included), same as what a live draft actually writes to disk.
+  const realDeclarationRecord = await runOneDraft({
+    i: 1, grammar: 'slot', askLines: ASK_LINES, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(fakeConformingProvider),
+  });
+  // 1: legacy bare null (old evidence, must keep working).
+  writeFileSync(join(declDir, 'draft-1.json'), 'null');
+  // 2: new no-declaration wrapper object.
+  writeFileSync(join(declDir, 'draft-2.json'), JSON.stringify({
+    declaration: null, outcome: 'no-tool-call', textInstead: 'nope', usage: { inputTokens: 1, outputTokens: 1 }, rounds: 1, wallMs: 5,
+  }, null, 2));
+  // 3: a real declaration.
+  writeFileSync(join(declDir, 'draft-3.json'), JSON.stringify(realDeclarationRecord.declaration, null, 2));
+
+  const before1 = readFileSync(join(declDir, 'draft-1.json'), 'utf8');
+  const before2 = readFileSync(join(declDir, 'draft-2.json'), 'utf8');
+  const before3 = readFileSync(join(declDir, 'draft-3.json'), 'utf8');
+
+  const { records } = rescoreSlotBatch({
+    grammar: 'slot', tag: 'rescore-mixed', outDir, proseText: PROSE_TEXT, writeLine: () => {}, dateStr: '2026-09-21',
+  });
+
+  assert.equal(records.length, 3);
+  assert.equal(records[0].validator, null, 'legacy bare null');
+  assert.equal(records[0].slot, null);
+  assert.equal(records[1].validator, null, 'new no-declaration wrapper');
+  assert.equal(records[1].slot, null);
+  assert.equal(records[2].validator.verdict, 'green', 'real declaration still scores');
+  assert.equal(records[2].slot.verdict, 'green');
+
+  // nothing on disk was overwritten.
+  assert.equal(readFileSync(join(declDir, 'draft-1.json'), 'utf8'), before1);
+  assert.equal(readFileSync(join(declDir, 'draft-2.json'), 'utf8'), before2);
+  assert.equal(readFileSync(join(declDir, 'draft-3.json'), 'utf8'), before3);
+});
+
+test('PROOF the test can fail: a no-declaration wrapper is never mistaken for a real declaration by validate()', async () => {
+  const outDir = tmpOutDir();
+  const { jsonlPath, declDir } = outFilePaths('slot', 'rescore-wrapper-only', outDir);
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(declDir, { recursive: true });
+  writeFileSync(jsonlPath, `${JSON.stringify({ i: 1, grammar: 'slot' })}\n`);
+  writeFileSync(join(declDir, 'draft-1.json'), JSON.stringify({ declaration: null, outcome: 'unknown', wallMs: 1 }, null, 2));
+  const { records } = rescoreSlotBatch({
+    grammar: 'slot', tag: 'rescore-wrapper-only', outDir, proseText: PROSE_TEXT, writeLine: () => {}, dateStr: '2026-09-21',
+  });
+  assert.equal(records[0].validator, null);
+  assert.equal(records[0].slot, null);
+});
+
+// ---------------------------------------------------------------------------
+// Secret redaction — a real provider (or model) can echo the presented key
+// back in its own response text (OpenAI-style 401 bodies do exactly this).
+// "our code never puts the header in a message" is not the same claim as
+// "the message can never contain the key" — the PROVIDER'S OWN response
+// body is external text this script does not control. `redactSecrets` is
+// the mechanism: a literal split/join replacement (never a RegExp built
+// from input) applied at the one point each field becomes persisted state.
+// ---------------------------------------------------------------------------
+
+test('redactSecrets: replaces every occurrence of each secret with the fixed literal [redacted-key]', () => {
+  const text = 'key=SECRET12345 and again SECRET12345 done';
+  assert.equal(redactSecrets(text, ['SECRET12345']), 'key=[redacted-key] and again [redacted-key] done');
+});
+
+test('redactSecrets: handles two distinct secrets in the same text', () => {
+  const text = 'a=AAAAAAAA1 b=BBBBBBBB2';
+  assert.equal(redactSecrets(text, ['AAAAAAAA1', 'BBBBBBBB2']), 'a=[redacted-key] b=[redacted-key]');
+});
+
+test('redactSecrets: a "Bearer <key>" echo is redacted too — nothing more clever than literal replacement is needed', () => {
+  const text = 'sent header Authorization: Bearer SECRETKEY1 to the provider';
+  assert.equal(redactSecrets(text, ['SECRETKEY1']), 'sent header Authorization: Bearer [redacted-key] to the provider');
+});
+
+test('redactSecrets: a secret shorter than 8 characters is never redacted (an empty/short env var can never blank ordinary text)', () => {
+  const text = 'the word cat appears here';
+  assert.equal(redactSecrets(text, ['cat']), text);
+});
+
+test('redactSecrets: non-string input is returned unchanged', () => {
+  assert.equal(redactSecrets(null, ['abcdefgh']), null);
+  assert.equal(redactSecrets(undefined, ['abcdefgh']), undefined);
+  const obj = { a: 1 };
+  assert.equal(redactSecrets(obj, ['abcdefgh']), obj);
+});
+
+test('redactSecrets: an empty secrets list (the default) returns the text unchanged', () => {
+  assert.equal(redactSecrets('hello world', []), 'hello world');
+  assert.equal(redactSecrets('hello world'), 'hello world');
+});
+
+test('PROOF the test can fail: redactSecrets actually rewrites text containing the secret (sanity against a no-op stub)', () => {
+  assert.notEqual(redactSecrets('contains ABCDEFGH12 here', ['ABCDEFGH12']), 'contains ABCDEFGH12 here');
+});
+
+test('a thrown provider error echoing the live key is redacted before it touches disk, in BOTH the artifact and the jsonl row', async () => {
+  const outDir = tmpOutDir();
+  const { declDir, jsonlPath } = outFilePaths('slot', 'secret-red', outDir);
+  const secret = 'FAKE-SECRET-1234567890';
+  await runSlotBatch({
+    grammar: 'slot', n: 1, tag: 'secret-red', outDir, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeThrowingProvider(`Incorrect API key provided: ${secret}. You can find your key at https://example.invalid/keys.`)),
+    writeLine: () => {},
+    secrets: [secret],
+  });
+  const fileRaw = readFileSync(join(declDir, 'draft-1.json'), 'utf8');
+  const jsonlRaw = readFileSync(jsonlPath, 'utf8');
+  assert.ok(!fileRaw.includes(secret), `RED (pre-fix): the secret leaked into draft-1.json: ${fileRaw}`);
+  assert.ok(!jsonlRaw.includes(secret), `RED (pre-fix): the secret leaked into the jsonl row: ${jsonlRaw}`);
+  assert.ok(fileRaw.includes('[redacted-key]'), 'the artifact must carry the redaction marker');
+  assert.ok(jsonlRaw.includes('[redacted-key]'), 'the jsonl row must carry the redaction marker too');
+});
+
+test('model text-instead output echoing the live key is redacted before it touches disk', async () => {
+  const outDir = tmpOutDir();
+  const { declDir } = outFilePaths('slot', 'secret-text', outDir);
+  const secret = 'FAKE-SECRET-ABCDEFGH99';
+  await runSlotBatch({
+    grammar: 'slot', n: 1, tag: 'secret-text', outDir, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeNoToolCallProviderWithText(`My key is ${secret}, sorry I can't call the tool.`)),
+    writeLine: () => {},
+    secrets: [secret],
+  });
+  const fileRaw = readFileSync(join(declDir, 'draft-1.json'), 'utf8');
+  assert.ok(!fileRaw.includes(secret), `RED (pre-fix): the secret leaked into draft-1.json: ${fileRaw}`);
+  assert.ok(fileRaw.includes('[redacted-key]'), 'the artifact must carry the redaction marker');
+});
+
+test('runOneDraft/runSlotBatch: default secrets=[] leaves messages byte-identical to before this fix (no regression)', async () => {
+  const record = await runOneDraft({
+    i: 1, grammar: 'slot', askLines: ASK_LINES, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeThrowingProvider('read ECONNRESET')),
+  });
+  assert.equal(record.providerRedMessage, 'read ECONNRESET');
+});
+
+// ---------------------------------------------------------------------------
+// secretsFromEnv — bare-agent's OWN provider trims the key before it ever
+// goes on the wire (node_modules/bare-agent/src/provider-openai.js:74,
+// `this.apiKey = options.apiKey?.trim()`), so a provider echo of the live
+// key is the TRIMMED form. The CLI must never build `secrets` from the raw
+// env value alone — a trailing newline/space (an un-`tr -d`'d `pass` entry)
+// would then let a trimmed echo sail past `redactSecrets` untouched. One
+// pure function, one call site (the CLI block), never a second builder.
+// ---------------------------------------------------------------------------
+
+test('secretsFromEnv: a trailing-newline env value yields the TRIMMED secret', () => {
+  const secrets = secretsFromEnv('FAKE-SECRET-1234567890\n');
+  assert.ok(secrets.includes('FAKE-SECRET-1234567890'), `expected the trimmed form in ${JSON.stringify(secrets)}`);
+});
+
+test('secretsFromEnv: when the raw value differs from its trim, BOTH forms are returned, trimmed first', () => {
+  const secrets = secretsFromEnv('FAKE-SECRET-1234567890\n');
+  assert.deepEqual(secrets, ['FAKE-SECRET-1234567890', 'FAKE-SECRET-1234567890\n']);
+});
+
+test('secretsFromEnv: a clean value with no leading/trailing whitespace returns just the one form (no duplicate)', () => {
+  assert.deepEqual(secretsFromEnv('FAKE-SECRET-1234567890'), ['FAKE-SECRET-1234567890']);
+});
+
+test('secretsFromEnv: undefined, empty, and whitespace-only values all yield []', () => {
+  assert.deepEqual(secretsFromEnv(undefined), []);
+  assert.deepEqual(secretsFromEnv(''), []);
+  assert.deepEqual(secretsFromEnv('   '), []);
+});
+
+test('PROOF the test can fail: secretsFromEnv does not return [] for a real, non-empty key', () => {
+  assert.notDeepEqual(secretsFromEnv('FAKE-SECRET-1234567890'), []);
+});
+
+test('end to end: a provider echo of the TRIMMED key is caught even though the env value carried a trailing newline', async () => {
+  const outDir = tmpOutDir();
+  const { declDir, jsonlPath } = outFilePaths('slot', 'secret-untrimmed-env', outDir);
+  const trimmedSecret = 'FAKE-SECRET-1234567890';
+  const rawEnvValue = `${trimmedSecret}\n`; // an un-tr'd `pass` entry, exactly the live incident's shape
+  await runSlotBatch({
+    grammar: 'slot', n: 1, tag: 'secret-untrimmed-env', outDir, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeThrowingProvider(`Incorrect API key provided: ${trimmedSecret}. See https://example.invalid/keys.`)),
+    writeLine: () => {},
+    secrets: secretsFromEnv(rawEnvValue),
+  });
+  const fileRaw = readFileSync(join(declDir, 'draft-1.json'), 'utf8');
+  const jsonlRaw = readFileSync(jsonlPath, 'utf8');
+  assert.ok(!fileRaw.includes(trimmedSecret), `RED (pre-fix, secrets: ['${rawEnvValue}'] built from the raw env value alone): the trimmed key leaked into draft-1.json: ${fileRaw}`);
+  assert.ok(!jsonlRaw.includes(trimmedSecret), `RED (pre-fix, secrets: ['${rawEnvValue}'] built from the raw env value alone): the trimmed key leaked into the jsonl row: ${jsonlRaw}`);
+  assert.ok(fileRaw.includes('[redacted-key]'));
+  assert.ok(jsonlRaw.includes('[redacted-key]'));
 });
