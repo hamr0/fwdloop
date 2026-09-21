@@ -27,3 +27,6 @@ docs/.docs-builder/
 # M0 POC run output — never committed except the spend tally
 poc/m0/out/*
 !poc/m0/out/spend.jsonl
+
+# M1 POC run output (poc/m1/slot-batch.mjs's per-draft jsonl + declarations)
+poc/m1/out/*
