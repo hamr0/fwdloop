@@ -1652,3 +1652,11 @@ step (a grammar change), the second needs nothing. Nothing was changed to turn t
 $5.00 cap was signed on 2026-09-21; ledger reads $3.18 after this run, $0.065 estimated. The audit
 file was not edited. Still not measured: job #2's prose and a two-ask prose under the slot grammar
 — the batch tool hard-codes job #1's prose path.
+
+**F32 ruling — hamr, 2026-09-21 ("1"): it is a catch, leave it.** Asked whether draft 16 was a catch
+or a wrong refusal, with the grammar change (a typed marker for an ask step) as the alternative.
+The red stands, the check is unchanged, no field is added. Same footing as the M0b ruling that a
+correct red on a clean input is a catch: the signed bar is "binds the signed asks, or is refused by
+name", and the draft was refused by name. Known cost, accepted: Qwen earns a redraft about 1 time in
+20 on job #1's prose when it splits a hitl line into a read step and an own-round step. The check
+still cannot tell an own round closed by a human from an ask; that is recorded, not fixed.
