@@ -19,7 +19,7 @@
 /**
  * @typedef {object} SendTarget
  * @property {'file'} kind - only `file:` targets are available before M9.
- * @property {string} path - the target path, verbatim after `file:`.
+ * @property {string} path - everything after `file:` to end of line, trimmed.
  */
 
 /**
@@ -32,7 +32,7 @@
  * @typedef {object} SourceSlot
  * @property {string} role - `[a-z][a-z0-9_-]*`, unique across sources.
  * @property {'file'} kind - only `file:` sources are available before M9.
- * @property {string} path - the source path, verbatim after `file:`.
+ * @property {string} path - everything after `file:` to end of line, trimmed.
  */
 
 /**
@@ -60,5 +60,61 @@
  */
 
 /** @typedef {SignedTextOk | SignedTextRed} SignedTextResult */
+
+/**
+ * @typedef {object} CanonicalBytesOk
+ * @property {true} ok
+ * @property {Buffer} bytes
+ */
+
+/**
+ * @typedef {object} CanonicalBytesRed
+ * @property {false} ok
+ * @property {string} red
+ */
+
+/** @typedef {CanonicalBytesOk | CanonicalBytesRed} CanonicalBytesResult */
+
+/**
+ * sha256 hex digests of each signed file's canonical bytes.
+ * @typedef {{ 'prose.txt': string, 'declaration.json': string }} SignatureFiles
+ */
+
+/**
+ * @typedef {object} Signature
+ * @property {1} version
+ * @property {'sha256'} algorithm
+ * @property {SignatureFiles} files
+ * @property {string} flow - sha256 hex of the two file hashes joined in fixed order.
+ * @property {string} signedBy
+ * @property {string} signedAt - ISO-8601.
+ */
+
+/**
+ * @typedef {object} SignFlowOk
+ * @property {true} ok
+ * @property {Signature} signature
+ */
+
+/**
+ * @typedef {object} SignFlowRed
+ * @property {false} ok
+ * @property {string[]} reds
+ */
+
+/** @typedef {SignFlowOk | SignFlowRed} SignFlowResult */
+
+/**
+ * @typedef {object} VerifyFlowOk
+ * @property {true} ok
+ */
+
+/**
+ * @typedef {object} VerifyFlowRed
+ * @property {false} ok
+ * @property {string[]} reds
+ */
+
+/** @typedef {VerifyFlowOk | VerifyFlowRed} VerifyFlowResult */
 
 export {};

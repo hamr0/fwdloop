@@ -39,10 +39,15 @@ const ASK_PREFIX_RE = /^ask at\b/i;
 const ASK_RE = /^ask at line (\d+)(?: ttl (\d+)(s|m|h))?$/i;
 const REDO_RE = /^redo cap (\S+)$/i;
 const SEND_PREFIX_RE = /^send at\b/i;
-const SEND_RE = /^send at line (\d+) to (\S+)$/i;
+const SEND_RE = /^send at line (\d+) to (.+)$/i;
 const SKILLS_RE = /^skills (.+)$/i;
 const SKILL_NAME_RE = /^[a-z][a-z0-9_-]*$/;
 const SOURCE_RE = /^([a-z][a-z0-9_-]*) = (.+)$/;
+// One source per line (M1 review correction b): a red only when the text
+// after the first "file:" contains a second `source <role> =` clause — a
+// fixed literal, anchored fragment, no nested quantifiers, so a legitimate
+// path containing "," or ";" (e.g. "file:/tmp/a,b; c.docx") is not flagged.
+const SECOND_SOURCE_RE = /[;,]\s*source\s+[a-z][a-z0-9_-]*\s*=/i;
 const ROUND_RE = /^round budget (\d+)(s|m|h)$/i;
 
 const INT_RE = /^\d+$/;
@@ -236,7 +241,7 @@ function parseArbiter(arbiterRawLines, lineNumbers, reds) {
       const target = m[2];
       const colon = target.indexOf(':');
       const kind = colon === -1 ? target : target.slice(0, colon);
-      const path = colon === -1 ? '' : target.slice(colon + 1);
+      const path = colon === -1 ? '' : target.slice(colon + 1).trim();
       if (!lineNumbers.has(line)) {
         reds.push(`arbiter: line ${fileLine} field "sends" names line ${line}, which is not one of the numbered lines`);
         continue;
@@ -282,7 +287,9 @@ function parseArbiter(arbiterRawLines, lineNumbers, reds) {
     }
 
     if (lower.startsWith('source ')) {
-      if (text.includes(';') || text.includes(',')) {
+      const fileIdx = lower.indexOf('file:');
+      const afterFile = fileIdx === -1 ? '' : text.slice(fileIdx);
+      if (SECOND_SOURCE_RE.test(afterFile)) {
         reds.push(`arbiter: line ${fileLine} field "sources" carries more than one source (";"/"," joined), one source per line: "${text}"`);
         continue;
       }

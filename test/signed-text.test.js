@@ -239,6 +239,86 @@ describe('mutation suite', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Part 1a — send path is everything after "file:" to end of line, trimmed
+// (same rule as source), so a path containing a space parses.
+// ---------------------------------------------------------------------------
+
+describe('send path parsing (M1 review correction a)', () => {
+  test('a send path containing a space parses, trimmed', () => {
+    const text = buildText([
+      ...BASE_ARBITER_ORDER.filter((k) => k !== 'sends').map((k) => BASE_ARBITER[k]),
+      'guardrail: send at line 4 to file:out/my result.txt',
+    ]);
+    const result = parseSignedText(text);
+    assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+    assert.deepEqual(result.arbiter.sends, [
+      { line: 4, target: { kind: 'file', path: 'out/my result.txt' } },
+    ]);
+  });
+
+  test('a send path with leading/trailing space around the content is trimmed', () => {
+    const text = buildText([
+      ...BASE_ARBITER_ORDER.filter((k) => k !== 'sends').map((k) => BASE_ARBITER[k]),
+      'guardrail: send at line 4 to file:  out/result.txt  ',
+    ]);
+    const result = parseSignedText(text);
+    assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+    assert.deepEqual(result.arbiter.sends, [
+      { line: 4, target: { kind: 'file', path: 'out/result.txt' } },
+    ]);
+  });
+
+  test('an empty send path is still a red', () => {
+    const text = buildText([
+      ...BASE_ARBITER_ORDER.filter((k) => k !== 'sends').map((k) => BASE_ARBITER[k]),
+      'guardrail: send at line 4 to file:',
+    ]);
+    const result = parseSignedText(text);
+    assert.equal(result.ok, false);
+    assert.ok(result.reds.some((r) => /field "sends" has an empty path/.test(r)));
+  });
+
+  test('an empty send path with trailing spaces is still a red', () => {
+    const text = buildText([
+      ...BASE_ARBITER_ORDER.filter((k) => k !== 'sends').map((k) => BASE_ARBITER[k]),
+      'guardrail: send at line 4 to file:   ',
+    ]);
+    const result = parseSignedText(text);
+    assert.equal(result.ok, false);
+    assert.ok(result.reds.some((r) => /field "sends" has an empty path/.test(r)));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Part 1b — "one source per line" reds only on a real second source clause,
+// never on a path that merely contains "," or ";".
+// ---------------------------------------------------------------------------
+
+describe('source path comma/semicolon false-positive (M1 review correction b)', () => {
+  test('a source path containing a comma is accepted as one source', () => {
+    const text = buildText([
+      ...BASE_ARBITER_ORDER.filter((k) => k !== 'sources').map((k) => BASE_ARBITER[k]),
+      'guardrail: source resume = file:/tmp/a,b; c.docx',
+    ]);
+    const result = parseSignedText(text);
+    assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+    assert.deepEqual(result.arbiter.sources, [
+      { role: 'resume', kind: 'file', path: '/tmp/a,b; c.docx' },
+    ]);
+  });
+
+  test('a genuine second "source x =" clause after the first file: is still a red naming "one source per line"', () => {
+    const text = buildText([
+      ...BASE_ARBITER_ORDER.filter((k) => k !== 'sources').map((k) => BASE_ARBITER[k]),
+      'guardrail: source a = file:/x; source b = file:/y',
+    ]);
+    const result = parseSignedText(text);
+    assert.equal(result.ok, false);
+    assert.ok(result.reds.some((r) => /one source per line/.test(r)));
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Unknown keyword / grammar reds
 // ---------------------------------------------------------------------------
 
