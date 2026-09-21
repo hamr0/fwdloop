@@ -117,4 +117,28 @@
 
 /** @typedef {VerifyFlowOk | VerifyFlowRed} VerifyFlowResult */
 
+/**
+ * One catalogue entry — passed in by the caller (M1 piece 3: the catalogue
+ * is a parameter here; piece 4 makes it a data file).
+ * @typedef {object} CatalogueEntry
+ * @property {string} verb
+ * @property {string} skill
+ * @property {string} class
+ */
+
+/**
+ * @typedef {object} ValidateDeclarationOk
+ * @property {true} ok
+ * @property {Record<string, string>} classes - keyed by each step's `emits`
+ *   id, value the step's effective guardrail class.
+ */
+
+/**
+ * @typedef {object} ValidateDeclarationRed
+ * @property {false} ok
+ * @property {string[]} reds
+ */
+
+/** @typedef {ValidateDeclarationOk | ValidateDeclarationRed} ValidateDeclarationResult */
+
 export {};

@@ -1,0 +1,61 @@
+{
+  "guardrailClasses": {
+    "3": "softgreen",
+    "4": "hitl"
+  },
+  "unjudgeable": {},
+  "refused": [],
+  "inputFacts": {
+    "resume": [],
+    "jd": ["Responsibilities", "Qualifications", "About the role"]
+  },
+  "steps": [
+    {
+      "goal": "Read the resume .docx and expose its full text as an artifact.",
+      "primitives": ["readDocx"],
+      "reads": [],
+      "emits": "resume-text",
+      "fromLine": 1,
+      "close": { "class": "hitl" }
+    },
+    {
+      "goal": "Read the job description markdown file and expose its full text as an artifact.",
+      "primitives": ["read"],
+      "reads": [],
+      "emits": "jd-text",
+      "fromLine": 2,
+      "close": { "class": "hitl" }
+    },
+    {
+      "goal": "Draft the summary resume comparing the resume against the JD, in three sections (work-history blurb, professional skills, soft skills), each ~200 words and the whole under 600 words.",
+      "primitives": ["compress"],
+      "reads": ["resume-text", "jd-text"],
+      "emits": "resume-summary",
+      "fromLine": 3,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "sections": ["summary of work history blurb", "professional skills", "soft skills"],
+          "sectionCount": 3,
+          "wordBudget": { "total": 600, "perSection": 200 }
+        }
+      }
+    },
+    {
+      "goal": "Show the drafted summary resume to the human and pause until they accept it; nothing is written out before that acceptance.",
+      "primitives": [],
+      "reads": ["resume-summary"],
+      "emits": "resume-summary-approved",
+      "fromLine": 4,
+      "close": { "class": "hitl" }
+    },
+    {
+      "goal": "Write the human-accepted summary resume out to a file.",
+      "primitives": ["write"],
+      "reads": ["resume-summary", "resume-summary-approved"],
+      "emits": "resume-summary-output",
+      "fromLine": 5,
+      "close": { "class": "hitl" }
+    }
+  ]
+}

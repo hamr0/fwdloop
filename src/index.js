@@ -3,3 +3,4 @@
 
 export { parseSignedText, ARBITER_FIELDS } from './signed-text.js';
 export { signFlow, verifyFlow, canonicalBytes, SIGNATURE_FIELDS } from './signature.js';
+export { validateDeclaration, DECLARATION_FIELDS } from './declaration.js';
