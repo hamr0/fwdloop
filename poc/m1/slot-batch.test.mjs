@@ -108,18 +108,19 @@ function providerForDraftOf(makeFakeProvider) {
 }
 
 // ---------------------------------------------------------------------------
-// ceilingCostUsd — never 0, never null; bounded by DRAFTER_MAX_TOKENS on the
-// output side and a documented input ceiling.
+// ceilingCostUsd — re-exported from poc/m0/spend.mjs (one writer for the
+// ceiling; this script no longer keeps its own local copy). Never 0, never
+// null; bounded by spend.mjs's CEILING_OUTPUT_TOKENS/CEILING_INPUT_TOKENS.
 // ---------------------------------------------------------------------------
 
-test('ceilingCostUsd is a positive, non-zero number for any real rate row', () => {
-  const cost = ceilingCostUsd({ in: 0.0003, out: 0.0012 });
+test('ceilingCostUsd is a positive, non-zero number for a known model', () => {
+  const cost = ceilingCostUsd('deepseek-flash');
   assert.equal(typeof cost, 'number');
   assert.ok(cost > 0);
 });
 
-test('PROOF the test can fail: a zero-rate row prices the ceiling at exactly 0 — the ceiling tracks the rate, it does not hide a bug', () => {
-  assert.equal(ceilingCostUsd({ in: 0, out: 0 }), 0);
+test('PROOF the test can fail: an unknown model still prices positive — the ceiling never hides a bug behind 0', () => {
+  assert.ok(ceilingCostUsd('some-model-never-seen-before') > 0);
 });
 
 // ---------------------------------------------------------------------------
@@ -224,30 +225,31 @@ test('runOneDraft: a round that never returns is timed out and priced at the cei
 });
 
 // ---------------------------------------------------------------------------
-// Provider errors — genuinely unknown cost, never rendered as 0
+// Provider errors — hamr's ruling, 2026-09-21: no session starts at $0 or
+// unknown pricing. EVERY thrown error, whatever its shape (a header-value
+// validation throw that never left the machine, a DNS failure, a refused
+// connection, or a genuine mid-response ECONNRESET), is priced at the
+// CEILING now — never 0, never null. This closes the exact hole a3cf07f's
+// isClientSideThrow $0 branch reopened (a "client-side" throw priced at
+// literal $0 is its own kind of "unknown cost rendered as 0": the row LOOKS
+// priced but the number is fabricated, not measured or bounded against
+// what a round could really cost) and the hole a genuinely-unknown-cost
+// null row left (poc/m0/out/spend.jsonl's own live null row, which this
+// fix must make priceable at read time without editing the ledger).
 // ---------------------------------------------------------------------------
 
-test('runOneDraft: a thrown provider error records stopReason "provider-red" with costUnknown true and costUsd null', async () => {
+test('runOneDraft: a thrown provider error (crash-after-send, e.g. ECONNRESET) is priced at the ceiling, estimated, never $0 or null', async () => {
   const record = await runOneDraft({
     i: 1, grammar: 'slot', askLines: ASK_LINES, facts: REAL_FACTS, proseText: PROSE_TEXT,
     providerForDraft: providerForDraftOf(() => fakeThrowingProvider('ECONNRESET')),
   });
   assert.equal(record.stopReason, 'provider-red');
-  assert.equal(record.costUnknown, true);
-  assert.equal(record.costUsd, null);
+  assert.equal(record.costUnknown, false);
+  assert.ok(record.costUsd > 0);
+  assert.equal(record.estimated, true);
 });
 
-// ---------------------------------------------------------------------------
-// Client-side throws (crash-before-send: request never left the machine) vs
-// provider throws (crash-after-send: the provider was reached, usage
-// genuinely unknown) — the live failure that motivated this: a two-line
-// `pass` entry exported DEEPSEEK_API_KEY with a trailing newline, node's
-// fetch threw "Invalid character in header content" 6ms in, no bytes left
-// the machine, yet the old code priced it costUnknown:true and locked the
-// global cap for every run after it.
-// ---------------------------------------------------------------------------
-
-test('runOneDraft: a header-validation throw (request never left the machine) prices costUsd 0, costUnknown false, with a note', async () => {
+test('runOneDraft: a header-validation throw (request never left the machine) is ALSO priced at the ceiling, never a fabricated $0', async () => {
   const err = new TypeError('Invalid character in header content ["Authorization"]');
   const record = await runOneDraft({
     i: 1, grammar: 'slot', askLines: ASK_LINES, facts: REAL_FACTS, proseText: PROSE_TEXT,
@@ -255,11 +257,11 @@ test('runOneDraft: a header-validation throw (request never left the machine) pr
   });
   assert.equal(record.stopReason, 'provider-red');
   assert.equal(record.costUnknown, false);
-  assert.equal(record.costUsd, 0);
-  assert.equal(record.note, 'client-side: no request sent');
+  assert.ok(record.costUsd > 0);
+  assert.equal(record.estimated, true);
 });
 
-test('runOneDraft: ENOTFOUND (DNS failure before any response) prices costUsd 0, costUnknown false', async () => {
+test('runOneDraft: ENOTFOUND (DNS failure before any response) is ALSO priced at the ceiling, never $0', async () => {
   const err = new Error('getaddrinfo ENOTFOUND api.deepseek.com');
   err.code = 'ENOTFOUND';
   const record = await runOneDraft({
@@ -267,16 +269,20 @@ test('runOneDraft: ENOTFOUND (DNS failure before any response) prices costUsd 0,
     providerForDraft: providerForDraftOf(() => fakeThrowingProviderErr(err)),
   });
   assert.equal(record.costUnknown, false);
-  assert.equal(record.costUsd, 0);
+  assert.ok(record.costUsd > 0);
+  assert.equal(record.estimated, true);
 });
 
-test('PROOF the test can fail / existing rule preserved: ECONNRESET (mid-response, provider was already reached) stays cost-unknown and still locks the cap', async () => {
-  const record = await runOneDraft({
+test('PROOF the test can fail: every thrown-error record carries the SAME ceiling cost for the same model, not a coincidentally-different number', async () => {
+  const a = await runOneDraft({
     i: 1, grammar: 'slot', askLines: ASK_LINES, facts: REAL_FACTS, proseText: PROSE_TEXT,
     providerForDraft: providerForDraftOf(() => fakeThrowingProvider('ECONNRESET')),
   });
-  assert.equal(record.costUnknown, true);
-  assert.equal(record.costUsd, null);
+  const b = await runOneDraft({
+    i: 1, grammar: 'slot', askLines: ASK_LINES, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeThrowingProviderErr(new TypeError('Invalid character in header content'))),
+  });
+  assert.equal(a.costUsd, b.costUsd);
 });
 
 // ---------------------------------------------------------------------------

@@ -17,13 +17,18 @@ import {
 } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runDrafter, DRAFTER_MAX_TOKENS } from '../m0/drafter.mjs';
+import { runDrafter } from '../m0/drafter.mjs';
 import { validate } from '../m0/validator.mjs';
 import { lookFixtures, groundFacts } from '../m0/scout.mjs';
 import { makeProvider, resolveModelRate, PROVIDER_SLOTS } from '../m0/provider.mjs';
 import {
-  classifyModelId, assertUnderGlobalCap, appendSpendRow,
+  classifyModelId, assertUnderGlobalCap, appendSpendRow, ceilingCostUsd,
 } from '../m0/spend.mjs';
+
+// Re-exported so callers/tests of this script have one place to import the ceiling from — this
+// script no longer keeps its own local copy (that helper was deleted in favour of the one
+// writer in poc/m0/spend.mjs).
+export { ceilingCostUsd };
 import { OUT_DIR as M0_OUT_DIR } from '../m0/runner.mjs';
 import { parseAskSlots, checkAskSlots } from './slots.mjs';
 
@@ -68,25 +73,6 @@ export function assertFreshTag(jsonlPath) {
   if (lines.length > 0) {
     throw new Error(`slot-batch: ${jsonlPath} already has ${lines.length} result(s) — use a new --tag, never overwrite live evidence`);
   }
-}
-
-/**
- * The ceiling cost of ONE draft round that never returned in time (money
- * honesty, PRD §5 + CLAUDE.md: unknown cost is never rendered as 0). Bounds
- * both sides of the round:
- *   - output: `DRAFTER_MAX_TOKENS` (16000) — the drafter's own hard cap
- *     (drafter.mjs), so no round can ever emit more than this regardless of
- *     how long it hangs.
- *   - input: `inputTokenCeiling` — this script's prompt (the primitive
- *     catalogue + job #1's ~6 numbered lines + the scout's facts block) is a
- *     few thousand tokens in practice; 20,000 is a documented, generous
- *     ceiling on it, never a measured number passed off as exact.
- * `rates` is `{in, out}` USD/1K tokens, exactly the shape provider.mjs's
- * `resolveModelRate` returns — the one writer for rate lookups, never a
- * second table here.
- */
-export function ceilingCostUsd(rates, { inputTokenCeiling = 20_000, outputTokenCeiling = DRAFTER_MAX_TOKENS } = {}) {
-  return (inputTokenCeiling / 1000) * rates.in + (outputTokenCeiling / 1000) * rates.out;
 }
 
 /**
@@ -148,31 +134,6 @@ export function checkKeyPreflight(slotName, env = process.env) {
 }
 
 /**
- * A thrown provider error has exactly three possible outcomes (name them
- * explicitly — never conflate them):
- *  - crash-before-send: the request never left the machine (a header-value
- *    validation throw, a DNS failure, a refused connection, or fetch's own
- *    argument validation). The cost is KNOWN — $0 — because nothing was
- *    sent. This is the live 2026-09-21 shape: a newline in the Authorization
- *    header value threw `TypeError: Invalid character in header content
- *    ["Authorization"]` 6ms in, before any socket write.
- *  - crash-after-send: the request reached the provider (or a socket was
- *    already open) and usage is genuinely UNKNOWN (e.g. ECONNRESET
- *    mid-response). Stays cost-unknown — this rule is NOT widened by the
- *    case above, and assertUnderGlobalCap must still lock on it.
- *  - timeout: handled separately in runOneDraft (Promise.race above) —
- *    priced at the ceiling, never 0, never unknown.
- */
-export function isClientSideThrow(err) {
-  if (!err) return false;
-  if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED' || err.code === 'ERR_INVALID_CHAR') return true;
-  const msg = err.message || '';
-  if (/Invalid character in header/i.test(msg)) return true;
-  if (err instanceof TypeError && /header|Headers|Failed to parse URL/i.test(msg)) return true;
-  return false;
-}
-
-/**
  * Coarse stopReason, derived from what `runDrafter`'s report actually
  * exposes (it does not surface the provider's raw stopReason string — this
  * script never edits drafter.mjs a second time to add one, per the M1
@@ -213,23 +174,24 @@ export async function runOneDraft({
       timeoutPromise,
     ]);
   } catch (err) {
-    // The provider itself threw. Two shapes, priced differently (see
-    // isClientSideThrow's header comment for the full three-way split):
-    //  - crash-before-send: nothing was sent, cost is KNOWN at $0.
-    //  - crash-after-send: no metered rounds ever reached this script
-    //    (runDeclarationRound's own `meterings` array is scoped inside it and
-    //    lost on throw), so cost is genuinely UNKNOWN, never 0 — same rule
-    //    runner.mjs's rule 2 applies, and assertUnderGlobalCap still locks on it.
+    // The provider itself threw — before the request ever left the machine
+    // (a header-value validation throw, a DNS failure, a refused
+    // connection) or after it reached the provider (ECONNRESET
+    // mid-response). hamr's ruling, 2026-09-21: no session starts at $0 or
+    // unknown pricing — EVERY thrown error is priced at the CEILING here,
+    // never 0 (a3cf07f's isClientSideThrow $0 branch is deleted: a
+    // "client-side" throw priced at a literal $0 is its own kind of
+    // "unknown cost rendered as 0", since nothing actually measured or
+    // bounded that round at 0) and never null (a null costUsd row is the
+    // exact state this whole fix closes — see poc/m0/spend.mjs's header).
     const wallMs = Date.now() - startedAt;
-    const clientSide = isClientSideThrow(err);
+    const costUsd = ceilingCostUsd(modelId);
     return {
       i, grammar, toolCalled: false, stopReason: 'provider-red', validator: null, slot: null,
       stepCount: 0, hitlSteps: 0, checkpointGrants: 0, zeroPrimitiveSteps: 0,
-      costUsd: clientSide ? 0 : null,
-      costUnknown: !clientSide,
+      costUsd, costUnknown: false, estimated: true,
       wallMs, modelRequested: modelId, modelReturned: null,
       modelMatch: classifyModelId(modelId, null), declaration: null, providerRedMessage: err.message,
-      ...(clientSide ? { note: 'client-side: no request sent' } : {}),
     };
   } finally {
     cancelTimeout();
@@ -237,11 +199,11 @@ export async function runOneDraft({
   const wallMs = Date.now() - startedAt;
 
   if (outcome.__timedOut) {
-    const costUsd = ceilingCostUsd(rates);
+    const costUsd = ceilingCostUsd(modelId);
     return {
       i, grammar, toolCalled: false, stopReason: 'timeout', validator: null, slot: null,
       stepCount: 0, hitlSteps: 0, checkpointGrants: 0, zeroPrimitiveSteps: 0,
-      costUsd, costUnknown: false, wallMs, modelRequested: modelId, modelReturned: null,
+      costUsd, costUnknown: false, estimated: true, wallMs, modelRequested: modelId, modelReturned: null,
       modelMatch: classifyModelId(modelId, null), declaration: null,
     };
   }
@@ -356,7 +318,7 @@ export async function runSlotBatch({
       appendSpendRow(spendPath, {
         runId: `m1-slot-batch-${grammar}-${tag}-${i}`, step: 'draft-m1', model: record.modelRequested,
         modelReturned: record.modelReturned, costUsd: record.costUsd, wallMs: record.wallMs,
-        ...(record.note ? { note: record.note } : {}),
+        ...(record.estimated ? { estimated: true } : {}),
       });
     }
     const { declaration, ...jsonlRecord } = record;

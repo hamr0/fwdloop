@@ -4,31 +4,42 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  readSpend, assertUnderGlobalCap, appendSpendRow, classifyModelId, sumMeterings,
+  readSpend, assertUnderGlobalCap, appendSpendRow, classifyModelId, sumMeterings, ceilingCostUsd,
 } from './spend.mjs';
 
 test('readSpend sums costUsd across rows; empty file is 0 and known', () => {
   const path = join(mkdtempSync(join(tmpdir(), 'm0-spend-')), 'spend.jsonl');
   assert.deepEqual(readSpend(path), {
-    total: 0, estimatedPortion: 0, unknown: false, rows: 0,
+    total: 0, estimatedPortion: 0, unknown: false, rows: 0, repricedRows: 0,
   });
   appendSpendRow(path, { runId: 'r1', costUsd: 0.001 });
   appendSpendRow(path, { runId: 'r1', costUsd: 0.002 });
   const {
-    total, estimatedPortion, unknown, rows,
+    total, estimatedPortion, unknown, rows, repricedRows,
   } = readSpend(path);
   assert.ok(Math.abs(total - 0.003) < 1e-9);
   assert.equal(estimatedPortion, 0);
   assert.equal(unknown, false);
   assert.equal(rows, 2);
+  assert.equal(repricedRows, 0);
 });
 
-test('PROOF the test can fail: a null costUsd row is flagged unknown, never treated as $0', () => {
+// Signed behaviour change (hamr's ruling, 2026-09-21): a null costUsd row is no longer a
+// standing "unknown" state — it is repriced at its ceiling the moment readSpend reads it, is
+// counted fully in `total`/`estimatedPortion`, and is tallied in `repricedRows`. `unknown` is
+// never set true for a well-formed row any more (was: the old rule this test proved before).
+test('PROOF the test can fail: a null costUsd row is repriced at ceiling, counted, never left unknown', () => {
   const path = join(mkdtempSync(join(tmpdir(), 'm0-spend-')), 'spend.jsonl');
-  appendSpendRow(path, { runId: 'r1', costUsd: 0.001 });
-  appendSpendRow(path, { runId: 'r1', costUsd: null });
-  const { unknown } = readSpend(path);
-  assert.equal(unknown, true);
+  appendSpendRow(path, { runId: 'r1', costUsd: 0.001, model: 'deepseek-flash' });
+  appendSpendRow(path, { runId: 'r1', costUsd: null, model: 'deepseek-flash' });
+  const {
+    unknown, total, estimatedPortion, repricedRows,
+  } = readSpend(path);
+  assert.equal(unknown, false);
+  const ceiling = ceilingCostUsd('deepseek-flash');
+  assert.ok(Math.abs(total - (0.001 + ceiling)) < 1e-9);
+  assert.ok(Math.abs(estimatedPortion - ceiling) < 1e-9);
+  assert.equal(repricedRows, 1);
 });
 
 test('a row with estimated:true counts its full cost and does NOT set unknown', () => {
@@ -66,18 +77,34 @@ test('assertUnderGlobalCap throws once the tally reaches the cap', () => {
   assert.throws(() => assertUnderGlobalCap(path, 5.00), /global spend cap reached/);
 });
 
-test('assertUnderGlobalCap throws when any row is unpriced, even under the numeric cap', () => {
+// Signed behaviour change (hamr's ruling, 2026-09-21): a null row no longer blocks by existing
+// (the old "unpriced round" refusal is gone) — it is repriced at ceiling and counted like any
+// other row, so a single small null row well under the cap now passes through cleanly.
+test('assertUnderGlobalCap does not block on a single null row well under the cap — it is repriced and counted, not refused', () => {
   const path = join(mkdtempSync(join(tmpdir(), 'm0-spend-')), 'spend.jsonl');
   appendSpendRow(path, { runId: 'r1', costUsd: 0.01 });
-  appendSpendRow(path, { runId: 'r1', costUsd: null });
-  assert.throws(() => assertUnderGlobalCap(path, 5.00), /unpriced round/);
+  appendSpendRow(path, { runId: 'r1', costUsd: null, model: 'deepseek-flash' });
+  const total = assertUnderGlobalCap(path, 5.00);
+  assert.ok(total > 0.01, 'the null row must have been priced at a real, positive ceiling');
 });
 
-test('a null costUsd row still blocks even alongside an estimated row (unrecoverable stays unpriced)', () => {
+test('a null costUsd row does not block alongside an estimated row when the total stays under cap', () => {
   const path = join(mkdtempSync(join(tmpdir(), 'm0-spend-')), 'spend.jsonl');
   appendSpendRow(path, { runId: 'r1', costUsd: 0.036526, estimated: true });
-  appendSpendRow(path, { runId: 'r1', costUsd: null });
-  assert.throws(() => assertUnderGlobalCap(path, 5.00), /unpriced round/);
+  appendSpendRow(path, { runId: 'r1', costUsd: null, model: 'deepseek-flash' });
+  assert.doesNotThrow(() => assertUnderGlobalCap(path, 5.00));
+});
+
+// The lock still exists — as money, not as a state: enough null rows repriced at ceiling can
+// still exceed the cap on their own, and assertUnderGlobalCap must still refuse that.
+test('a ledger of null rows large enough to exceed the cap at ceiling DOES refuse — the lock still exists, as money', () => {
+  const path = join(mkdtempSync(join(tmpdir(), 'm0-spend-')), 'spend.jsonl');
+  const ceiling = ceilingCostUsd('deepseek-flash');
+  const rowsNeeded = Math.ceil(5.00 / ceiling) + 1;
+  for (let i = 0; i < rowsNeeded; i += 1) {
+    appendSpendRow(path, { runId: `r${i}`, costUsd: null, model: 'deepseek-flash' });
+  }
+  assert.throws(() => assertUnderGlobalCap(path, 5.00), /global spend cap reached/);
 });
 
 test('assertUnderGlobalCap passes through the total when comfortably under cap', () => {
@@ -157,3 +184,25 @@ test('sumMeterings on no rounds is unknown, never a free run', () => {
   }
 });
 
+
+// ---------------------------------------------------------------------------
+// ceilingCostUsd — never 0, never null; one writer for the suffix lookup
+// (lookupRate), shared with provider.mjs's resolveModelRate.
+// ---------------------------------------------------------------------------
+
+test('ceilingCostUsd prices a known model at its own rate, bounded by the ceiling token counts', () => {
+  const cost = ceilingCostUsd('deepseek-flash');
+  const expected = (32000 / 1000) * 0.0003 + (16000 / 1000) * 0.0012;
+  assert.ok(Math.abs(cost - expected) < 1e-9);
+});
+
+test('ceilingCostUsd prices an unknown/missing model at least as high as any known model\'s own ceiling, never 0', () => {
+  const unknownCost = ceilingCostUsd('some-model-never-seen-before');
+  const knownCost = ceilingCostUsd('deepseek-flash');
+  assert.ok(unknownCost > 0);
+  assert.ok(unknownCost >= knownCost, 'an unknown model must never price cheaper than a known one');
+});
+
+test('ceilingCostUsd(undefined) still returns a positive number (missing model, ceilinged)', () => {
+  assert.ok(ceilingCostUsd(undefined) > 0);
+});
