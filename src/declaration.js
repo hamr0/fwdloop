@@ -468,6 +468,15 @@ export function validateDeclaration(declaration, context = {}) {
     } else if (matches[0].effectiveClass !== 'hitl') {
       reds.push(`declaration: ask at line ${n} step's effective class is "${matches[0].effectiveClass}" — must be "hitl"`);
     }
+    // (a2) M1 amendment 3 item 4: a marked line is ONLY the stop — the one
+    // step bound to it grants no primitive. Independent of (and collected
+    // alongside) the class check above: a step can be both the wrong class
+    // AND carrying work, and both reds should surface.
+    if (matches.length === 1 && matches[0].primitives.length > 0) {
+      const stepIdx = stepInfo.indexOf(matches[0]);
+      reds.push(`declaration: ask at line ${n} (steps[${stepIdx}]) is a stop only — granting primitive(s) `
+        + `[${matches[0].primitives.join(', ')}] is work, which belongs on its own line`);
+    }
   }
   // (b) no step, anywhere, grants "checkpoint" — that belongs to the runner.
   stepInfo.forEach((st, i) => {

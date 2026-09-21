@@ -362,6 +362,20 @@ describe('negative scenarios', () => {
     assert.equal(result.ok, false);
     assert.ok(result.reds.some((r) => r.includes('steps[3]') && /pause/.test(r) && /unsigned line/.test(r)));
   });
+
+  // M1 amendment 3 item 4: "A marked line is only the stop: exactly one step
+  // binds to it, human-checked, granting no primitive. Work drafted onto it
+  // is a red naming the line."
+  test('(iii) a step bound to the signed ask line granting a primitive is a red naming the line, step index, and the primitive', () => {
+    const decl = baseDeclaration();
+    decl.steps[1].primitives = ['read']; // the step bound to the signed ask line (2)
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('ask at line 2') && r.includes('steps[1]') && r.includes('read')),
+      `expected a red naming line 2, steps[1], and "read", got:\n${result.reds.join('\n')}`,
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
