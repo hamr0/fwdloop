@@ -231,7 +231,7 @@ describe('negative (iii): a changed byte on disk is caught, naming the file', ()
     }
   });
 
-  test('editing signature.json\'s signedBy after signing — reported finding, not asserted behaviour either way', () => {
+  test('editing signature.json\'s signedBy after signing -> red naming signature.json', () => {
     const root = tmpRoot();
     try {
       const written = writeJob1(root);
@@ -241,12 +241,11 @@ describe('negative (iii): a changed byte on disk is caught, naming the file', ()
       writeFileSync(p, `${JSON.stringify(sig, null, 2)}\n`, 'utf8');
 
       const read = readFlow({ root, name: 'flow-a', catalogue: CATALOGUE });
-      // This assertion documents, rather than mandates, today's behaviour:
-      // signedBy is not part of the flow hash inputs used to derive `flow`
-      // (files["prose.txt"] + files["declaration.json"]), so verifyFlow's
-      // own recompute-and-compare of `flow` does not change. See the final
-      // report for the finding this produces.
-      assert.equal(read.ok, true, read.ok ? '' : read.reds.join('\n'));
+      // signedBy is now one of the four values hashed into `flow`
+      // (JSON.stringify([proseHash, declHash, signedBy, signedAt])), so
+      // hand-editing it after signing is caught, naming signature.json.
+      assert.equal(read.ok, false);
+      assert.ok(read.reds.some((r) => r.includes('signature.json')), read.reds.join('\n'));
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

@@ -82,10 +82,14 @@
 
 /**
  * @typedef {object} Signature
- * @property {1} version
+ * @property {2} version
  * @property {'sha256'} algorithm
  * @property {SignatureFiles} files
- * @property {string} flow - sha256 hex of the two file hashes joined in fixed order.
+ * @property {string} flow - sha256 hex of
+ *   `JSON.stringify([files['prose.txt'], files['declaration.json'], signedBy, signedAt])`,
+ *   in that fixed order — pins WHAT was signed (the two file hashes) and
+ *   WHO/WHEN (signedBy/signedAt); editing any of the four after signing
+ *   changes this hash.
  * @property {string} signedBy
  * @property {string} signedAt - ISO-8601.
  */

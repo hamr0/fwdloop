@@ -87,6 +87,33 @@ function hashHex(bytes) {
 }
 
 /**
+ * The one function that computes `signature.flow` — called by both signFlow
+ * and verifyFlow, never duplicated (one writer per piece of state).
+ *
+ * Hashes sha256 over `JSON.stringify([proseHash, declHash, signedBy,
+ * signedAt])`, in that fixed order. `flow` pins WHAT was signed (the two
+ * file hashes) AND WHO/WHEN (signedBy/signedAt) — editing any of the four
+ * afterwards changes the bytes hashed. A JSON array of strings is used
+ * instead of a bare `join('some-separator')` specifically because signedBy
+ * is a human-chosen name that could itself contain any separator character;
+ * `JSON.stringify` quotes and escapes each element, so the byte position of
+ * every element's boundary is unambiguous and no two distinct 4-tuples can
+ * ever serialise to the same bytes. This function does not itself validate
+ * shape (that is signFlow's/verifyFlow's job) — it only encodes and hashes
+ * whatever four values it is given.
+ *
+ * @param {string} proseHash
+ * @param {string} declHash
+ * @param {unknown} signedBy
+ * @param {unknown} signedAt
+ * @returns {string} sha256 hex digest
+ */
+export function computeFlowHash(proseHash, declHash, signedBy, signedAt) {
+  const encoded = JSON.stringify([proseHash, declHash, signedBy, signedAt]);
+  return hashHex(Buffer.from(encoded, 'utf8'));
+}
+
+/**
  * Sign a flow: hash `proseText` and `declarationText` (canonically) and pin
  * who signed and when. Pure — never reads the clock, never touches disk.
  *
@@ -112,12 +139,12 @@ export function signFlow({ proseText, declarationText, signedBy, signedAt }) {
 
   const proseHash = hashHex(prose.bytes);
   const declarationHash = hashHex(declaration.bytes);
-  const flowHash = hashHex(Buffer.from(proseHash + declarationHash, 'utf8'));
+  const flowHash = computeFlowHash(proseHash, declarationHash, signedBy, signedAt);
 
   return deepFreeze({
     ok: true,
     signature: {
-      version: 1,
+      version: 2,
       algorithm: 'sha256',
       files: { 'prose.txt': proseHash, 'declaration.json': declarationHash },
       flow: flowHash,
@@ -143,8 +170,8 @@ export function verifyFlow({ proseText, declarationText, signature }) {
   /** @type {any} */
   const sig = signature;
 
-  if (sig.version !== 1) {
-    reds.push(`signature: field "version" is unknown (expected 1, got ${JSON.stringify(sig.version)})`);
+  if (sig.version !== 2) {
+    reds.push(`signature: field "version" is unknown (expected 2, got ${JSON.stringify(sig.version)})`);
   }
   if (sig.algorithm !== 'sha256') {
     reds.push(`signature: field "algorithm" is unknown (expected "sha256", got ${JSON.stringify(sig.algorithm)})`);
@@ -172,20 +199,24 @@ export function verifyFlow({ proseText, declarationText, signature }) {
     }
   }
 
+  const signedByOk = typeof sig.signedBy === 'string' && sig.signedBy.trim().length > 0;
+  if (!signedByOk) {
+    reds.push('signature: field "signedBy" is required and must be a non-empty string');
+  }
+  const signedAtOk = typeof sig.signedAt === 'string' && ISO8601_RE.test(sig.signedAt);
+  if (!signedAtOk) {
+    reds.push('signature: field "signedAt" is required and must be an ISO-8601 string');
+  }
+
   if (typeof sig.flow !== 'string' || !HEX64_RE.test(sig.flow)) {
     reds.push('signature: field "flow" is not a valid sha256 hex digest');
   } else if (filesOk) {
-    const expectedFlow = hashHex(Buffer.from(files['prose.txt'] + files['declaration.json'], 'utf8'));
+    const expectedFlow = computeFlowHash(files['prose.txt'], files['declaration.json'], sig.signedBy, sig.signedAt);
     if (expectedFlow !== sig.flow) {
-      reds.push('signature: field "flow" does not match the two file hashes (signature may have been hand-edited)');
+      reds.push(
+        'signature: field "flow" does not match signedBy/signedAt/the file hashes — signature.json was changed after signing',
+      );
     }
-  }
-
-  if (typeof sig.signedBy !== 'string' || sig.signedBy.trim().length === 0) {
-    reds.push('signature: field "signedBy" is required and must be a non-empty string');
-  }
-  if (typeof sig.signedAt !== 'string' || !ISO8601_RE.test(sig.signedAt)) {
-    reds.push('signature: field "signedAt" is required and must be an ISO-8601 string');
   }
 
   if (filesOk) {

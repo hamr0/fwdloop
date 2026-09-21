@@ -16,7 +16,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-import { signFlow, verifyFlow, canonicalBytes, SIGNATURE_FIELDS } from '../src/signature.js';
+import {
+  signFlow, verifyFlow, canonicalBytes, computeFlowHash, SIGNATURE_FIELDS,
+} from '../src/signature.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -90,7 +92,7 @@ describe('round trip on real fixtures', () => {
   test('signFlow succeeds and shapes the signature', () => {
     const result = signFlow({ proseText, declarationText, signedBy: SIGNED_BY, signedAt: SIGNED_AT });
     assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
-    assert.equal(result.signature.version, 1);
+    assert.equal(result.signature.version, 2);
     assert.equal(result.signature.algorithm, 'sha256');
     assert.match(result.signature.files['prose.txt'], /^[0-9a-f]{64}$/);
     assert.match(result.signature.files['declaration.json'], /^[0-9a-f]{64}$/);
@@ -200,6 +202,47 @@ describe('one-byte edit (negative iii)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// THE HOLE (found in piece 5, ruled by hamr): signedBy/signedAt are checked
+// for shape but are in no hash, so hand-editing them in signature.json after
+// signing must be caught. RED-FIRST against the current code (flow is only
+// hashHex(files['prose.txt'] + files['declaration.json'])), which does not
+// pin signedBy/signedAt at all.
+// ---------------------------------------------------------------------------
+
+describe('the hole: signedBy/signedAt are pinned into `flow` (WHO/WHEN, not just WHAT)', () => {
+  test('editing signedBy on disk after signing reds, naming signature.json', () => {
+    const signature = { ...baseSignature(), signedBy: 'someone-else' };
+    const result = verifyFlow({ proseText, declarationText, signature });
+    assert.equal(result.ok, false);
+    assert.ok(result.reds.some((r) => r.includes('signature.json')), result.reds.join('\n'));
+  });
+
+  test('editing signedAt (to another valid ISO date) after signing reds, naming signature.json', () => {
+    const signature = { ...baseSignature(), signedAt: '2099-01-01T00:00:00Z' };
+    const result = verifyFlow({ proseText, declarationText, signature });
+    assert.equal(result.ok, false);
+    assert.ok(result.reds.some((r) => r.includes('signature.json')), result.reds.join('\n'));
+  });
+
+  test('two different (signedBy, signedAt) pairs never collide to the same flow bytes (JSON-array encoding, not a bare-join)', () => {
+    // Classic delimiter-join ambiguity: with a bare "a" + sep + "b" join, the
+    // pair ("a", "b|c") and ("a|b", "c") produce the identical joined string
+    // "a|b|c" for any single-character separator that can appear in a name.
+    // computeFlowHash must be the one function both signFlow and verifyFlow
+    // call, and it must not be reachable this way. Exercise it directly
+    // (bypassing signFlow's own ISO-8601 shape check on signedAt) so the
+    // encoding property is proved independent of that separate validation.
+    const proseHash = '1'.repeat(64);
+    const declHash = '2'.repeat(64);
+    const a = computeFlowHash(proseHash, declHash, 'a', 'b|c');
+    const b = computeFlowHash(proseHash, declHash, 'a|b', 'c');
+    assert.notEqual(a, b);
+    // And the encoding is still deterministic / pure for identical inputs.
+    assert.equal(a, computeFlowHash(proseHash, declHash, 'a', 'b|c'));
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Structural reds: non-object signature, unknown version/algorithm,
 // missing/extra files entries, malformed hex
 // ---------------------------------------------------------------------------
@@ -214,7 +257,16 @@ describe('structural reds', () => {
   }
 
   test('unknown version is a red naming "version"', () => {
-    const signature = { ...baseSignature(), version: 2 };
+    const signature = { ...baseSignature(), version: 3 };
+    const result = verifyFlow({ proseText, declarationText, signature });
+    assert.equal(result.ok, false);
+    assert.ok(result.reds.some((r) => r.includes('field "version"')));
+  });
+
+  test('a version-1 signature is refused, not silently accepted under the old rule', () => {
+    // Never shipped on main (git log main -- src/signature.js is empty), but
+    // refuse it by name anyway rather than accept it quietly.
+    const signature = { ...baseSignature(), version: 1 };
     const result = verifyFlow({ proseText, declarationText, signature });
     assert.equal(result.ok, false);
     assert.ok(result.reds.some((r) => r.includes('field "version"')));
@@ -317,8 +369,8 @@ function mutationCase(field, name, value) {
 
 describe('mutation suite', () => {
   mutationCase('version', 'removed', REMOVE);
-  mutationCase('version', 'retyped number->string', '1');
-  mutationCase('version', 'value swapped', 2);
+  mutationCase('version', 'retyped number->string', '2');
+  mutationCase('version', 'value swapped (old v1)', 1);
 
   mutationCase('algorithm', 'removed', REMOVE);
   mutationCase('algorithm', 'retyped string->number', 256);
