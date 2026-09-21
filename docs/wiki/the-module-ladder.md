@@ -289,6 +289,32 @@ says `signature.json` carries "who signed and when"; piece 5 found those two fie
 so a name or date edited after signing stayed green. They are folded into the flow hash, and an edit
 to either is a red naming `signature.json`.
 
+**M1 amendment 3 — the ask is a mark on its own line — PROPOSED 2026-09-21, NOT SIGNED.** hamr chose
+the direction ("use the ask"); the rule below is the text to sign. Why: `ask at line N` points at a
+line by number from the bottom block, so inserting a line by hand silently moves the stop to the wrong
+step and the text still signs (the same drift a UI with separate step and guardrail lists would have);
+and F34 showed a stop signed on a line that also carries work leaves the drafter no honest binding.
+
+1. A numbered line that starts with `ask:` is a stop: `5. ask: check it with me,`. With a wait time:
+   `5. ask 30m: check it with me,` (`<int>` then `s`, `m` or `h`; default 30m, as today).
+2. The words after the mark are required and are the human's own; they are what the ask shows.
+3. A marked line may carry its own `guardrail:` under it, free wording, strict 1-for-1 as any line.
+4. A marked line is only the stop: exactly one step binds to it, human-checked, granting no
+   primitive. Work drafted onto it is a red naming the line; the human splits the line. The parser
+   does not read the sentence to decide this — the declaration check does, as today.
+5. `guardrail: ask at line N` in the arbiter block is no longer grammar: it is a red naming the line
+   and saying to mark the line instead. Both forms never coexist. (`src/signed-text.js` has never
+   been on `main`, so no signed flow exists under the old form.)
+6. Unchanged: the drafter cannot add, drop or move a stop; `checkpoint` stays off its menu; the mark
+   is inside `prose.txt`, so the signature pins it. `send at line N to <target>` stays in the arbiter
+   block and still points by number; the existing rule that a send needs an earlier ask stays.
+7. A UI maps one row per step to this one for one: step box is the numbered line, guardrail box is
+   the `guardrail:` under it, the ticked "stop and wait for me" box is the `ask:` mark.
+
+Cost if signed: one $0 build pass (parser, its mutation suite, both jobs' fixtures), and one small
+paid re-measure of the slot bar under the marked prose, because F31 to F34 were measured with the
+bottom-block form in front of the model.
+
 **Not ruled, carried:** `close.shape` is an open map in M1 — any key is accepted inside it except the
 arbiter keys — because no signed text names the shape vocabulary. An unknown key inside a shape is
 therefore NOT caught, and the exit's "unknown key added" mutation does not cover that one position.
