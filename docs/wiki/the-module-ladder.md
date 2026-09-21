@@ -289,8 +289,11 @@ says `signature.json` carries "who signed and when"; piece 5 found those two fie
 so a name or date edited after signing stayed green. They are folded into the flow hash, and an edit
 to either is a red naming `signature.json`.
 
-**M1 amendment 3 — the ask is a mark on its own line — PROPOSED 2026-09-21, NOT SIGNED.** hamr chose
-the direction ("use the ask"); the rule below is the text to sign. Why: `ask at line N` points at a
+**M1 amendment 3 — the ask is a mark on its own line — SIGNED by hamr 2026-09-21** ("sign amendment
+3"). Proposed the same day after hamr chose the direction ("use the ask"); the seven items below are
+the signed text. hamr's bound on it: good to this point, no deeper until the design step for the
+other parts — what an ask shows and which answers it takes stays as M0b Amendment A signed it and is
+M3's to build, not M1's. Why: `ask at line N` points at a
 line by number from the bottom block, so inserting a line by hand silently moves the stop to the wrong
 step and the text still signs (the same drift a UI with separate step and guardrail lists would have);
 and F34 showed a stop signed on a line that also carries work leaves the drafter no honest binding.
