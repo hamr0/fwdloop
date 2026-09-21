@@ -175,4 +175,51 @@
 
 /** @typedef {ValidateDeclarationOk | ValidateDeclarationRed} ValidateDeclarationResult */
 
+/**
+ * @typedef {object} CheckFlowNameOk
+ * @property {true} ok
+ */
+
+/**
+ * @typedef {object} CheckFlowNameRed
+ * @property {false} ok
+ * @property {string} red
+ */
+
+/** @typedef {CheckFlowNameOk | CheckFlowNameRed} CheckFlowNameResult */
+
+/**
+ * @typedef {object} WriteFlowOk
+ * @property {true} ok
+ * @property {string} dir
+ * @property {Signature} signature
+ */
+
+/**
+ * @typedef {object} WriteFlowRed
+ * @property {false} ok
+ * @property {string[]} reds
+ */
+
+/** @typedef {WriteFlowOk | WriteFlowRed} WriteFlowResult */
+
+/**
+ * @typedef {object} ReadFlowOk
+ * @property {true} ok
+ * @property {string} dir
+ * @property {SignedLine[]} lines
+ * @property {Arbiter} arbiter
+ * @property {Record<string, any>} declaration
+ * @property {Signature} signature
+ * @property {Record<string, string>} classes
+ */
+
+/**
+ * @typedef {object} ReadFlowRed
+ * @property {false} ok
+ * @property {string[]} reds
+ */
+
+/** @typedef {ReadFlowOk | ReadFlowRed} ReadFlowResult */
+
 export {};

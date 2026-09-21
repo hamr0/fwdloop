@@ -7,3 +7,6 @@ export { validateDeclaration, DECLARATION_FIELDS } from './declaration.js';
 export {
   parseCatalogue, loadCatalogue, menu, primitiveFor, resolveEntry, CATALOGUE_FIELDS,
 } from './catalogue.js';
+export {
+  checkFlowName, writeFlow, readFlow, FLOW_FILES,
+} from './flow.js';
