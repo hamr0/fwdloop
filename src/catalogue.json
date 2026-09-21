@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "primitives": [
+    {
+      "verb": "write", "component": "write", "package": "bare-agent/tools", "symbol": "createShellTools", "tool": "shell_write", "class": "write", "skill": "core", "desc": "Create or overwrite a file with given contents."
+    },
+    {
+      "verb": "edit", "component": "write", "package": "bare-agent/tools", "symbol": "createShellTools", "tool": "shell_edit", "class": "write", "skill": "core", "desc": "Change part of an existing file in place."
+    },
+    {
+      "verb": "read", "component": "select", "package": "bare-agent/tools", "symbol": "createShellTools", "tool": "shell_read", "class": "read", "skill": "core", "desc": "Read a file's text."
+    },
+    {
+      "verb": "grep", "component": "select", "package": "bare-agent/tools", "symbol": "createShellTools", "tool": "shell_grep", "class": "read", "skill": "core", "desc": "Find lines matching a pattern across files."
+    },
+    {
+      "verb": "recall", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "recall", "class": "read", "skill": "core", "desc": "Search saved notes by meaning; returns the best matches, not their full text."
+    },
+    {
+      "verb": "get", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "get", "class": "read", "skill": "core", "desc": "Fetch the full text of one saved note or parked item by its id."
+    },
+    {
+      "verb": "recent", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "recentMemory", "class": "read", "skill": "core", "desc": "List the most recently saved notes, newest first."
+    },
+    {
+      "verb": "compress", "component": "compress", "package": "litectx", "symbol": "compress", "class": "read", "skill": "core", "desc": "Shorten a piece of text to fit a small prompt (full, signature-only, or dropped)."
+    },
+    {
+      "verb": "peek", "component": "compress", "package": "litectx", "symbol": "LiteCtx", "method": "peek", "class": "read", "skill": "core", "desc": "Preview a parked item's start and end without loading all of it."
+    },
+    {
+      "verb": "stash", "component": "isolate", "package": "litectx", "symbol": "LiteCtx", "method": "stash", "class": "store", "skill": "core", "desc": "Park a large piece of text outside the prompt under an id, to fetch back later."
+    },
+    {
+      "verb": "remember", "component": "isolate", "package": "litectx", "symbol": "LiteCtx", "method": "remember", "class": "store", "skill": "memory", "desc": "Save a note that persists across runs, under an id."
+    },
+    {
+      "verb": "forget", "component": "isolate", "package": "litectx", "symbol": "LiteCtx", "method": "forget", "class": "store", "skill": "memory", "desc": "Delete a saved note by id."
+    },
+    {
+      "verb": "addressCells", "component": "fwdloop", "package": "fwdloop", "symbol": "parseCsv", "class": "read", "skill": "core", "desc": "Read a spreadsheet as cells, each with an address that can be cited."
+    },
+    {
+      "verb": "readDocx", "component": "fwdloop", "package": "fwdloop", "symbol": "readDocxText", "class": "read", "skill": "core", "desc": "Read a Word (.docx) file's text."
+    }
+  ],
+  "plumbing": [
+    {
+      "name": "fence", "package": "bareguard", "symbol": "Gate"
+    },
+    {
+      "name": "redact", "package": "bareguard", "symbol": "redact"
+    },
+    {
+      "name": "wireGate", "package": "bare-agent", "symbol": "wireGate"
+    },
+    {
+      "name": "checkpoint", "package": "bare-agent", "symbol": "Checkpoint"
+    }
+  ]
+}

@@ -118,13 +118,47 @@
 /** @typedef {VerifyFlowOk | VerifyFlowRed} VerifyFlowResult */
 
 /**
- * One catalogue entry — passed in by the caller (M1 piece 3: the catalogue
- * is a parameter here; piece 4 makes it a data file).
+ * One catalogue primitive entry. M1 piece 3 only needed `verb`/`skill`/
+ * `class` (the catalogue was a caller-supplied parameter); piece 4 makes
+ * `src/catalogue.json` the real data file, so this typedef grew the rest
+ * of the fields the file actually carries. `method`/`tool` are mutually
+ * exclusive and optional.
  * @typedef {object} CatalogueEntry
  * @property {string} verb
- * @property {string} skill
+ * @property {string} component
+ * @property {string} package
+ * @property {string} symbol
+ * @property {string} [method]
+ * @property {string} [tool]
  * @property {string} class
+ * @property {string} skill
+ * @property {string} desc
  */
+
+/**
+ * One catalogue plumbing entry — the runner wires these around every step;
+ * the drafter never selects them, so they never appear in `primitives`,
+ * `menu()`, or `primitiveFor()`.
+ * @typedef {object} PlumbingEntry
+ * @property {string} name
+ * @property {string} package
+ * @property {string} symbol
+ */
+
+/**
+ * @typedef {object} ParseCatalogueOk
+ * @property {true} ok
+ * @property {CatalogueEntry[]} primitives
+ * @property {PlumbingEntry[]} plumbing
+ */
+
+/**
+ * @typedef {object} ParseCatalogueRed
+ * @property {false} ok
+ * @property {string[]} reds
+ */
+
+/** @typedef {ParseCatalogueOk | ParseCatalogueRed} ParseCatalogueResult */
 
 /**
  * @typedef {object} ValidateDeclarationOk
