@@ -274,6 +274,25 @@ branch `m1`.
 $5.00; the POC's $0.18 (F31) ran under M0's cap before this was signed and is not re-charged.
 **POC bar met** (F31: slot 20/20, control 0/20); build started the same day.
 
+**M1 amendment 1 — input facts, not columns — SIGNED by hamr 2026-09-21** ("i think form should be
+flexible", then "1"). Scope item 2 above lists `columns` among a step's fields, and M0's declaration
+carried a top-level `realColumns`. Both are spreadsheet-only; job #2 carried them empty, which is a
+per-job field by another name and would have failed the exit. They are replaced, not kept beside:
+`inputFacts` (top level, one list per signed `source` role — column names for a sheet, headings for
+a doc; harness-supplied, never the model's) and `picks` (per step, per role). The listing rule is
+unchanged in spirit and stricter in one place: a pick whose role has no listing is a red, where M0
+skipped the check. `columns` and `realColumns` are now unknown keys and are refused by name. Built in
+piece 3 (f918dfe). Item 2's wording above is left as signed; this paragraph is what is in force.
+
+**M1 amendment 2 — the signature pins who and when — SIGNED by hamr 2026-09-21** ("1"). Scope item 4
+says `signature.json` carries "who signed and when"; piece 5 found those two fields were in no hash,
+so a name or date edited after signing stayed green. They are folded into the flow hash, and an edit
+to either is a red naming `signature.json`.
+
+**Not ruled, carried:** `close.shape` is an open map in M1 — any key is accepted inside it except the
+arbiter keys — because no signed text names the shape vocabulary. An unknown key inside a shape is
+therefore NOT caught, and the exit's "unknown key added" mutation does not cover that one position.
+
 ## M2 — runner
 
 A fold over steps with fresh context per step (artifacts, never transcripts), an effect check per
