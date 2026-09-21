@@ -108,6 +108,71 @@ function timeoutAfter(ms) {
 }
 
 /**
+ * $0 preflight, before any draft round and before any ledger write: the key
+ * env var for `slotName` (poc/m0/provider.mjs's PROVIDER_SLOTS is the ONE
+ * writer for the var name per slot — never a second table here) must be
+ * set, non-empty, and free of any whitespace/control character.
+ *
+ * Live failure (2026-09-21): a two-line `pass` entry exported
+ * DEEPSEEK_API_KEY with a trailing newline. A newline-terminated string is
+ * still truthy, so makeProvider's own `if (!apiKey) throw` never caught it
+ * — the defect only surfaced 6ms into the real fetch call, deep inside
+ * runOneDraft's try/catch, AFTER assertUnderGlobalCap had already passed for
+ * that iteration, and got recorded as a genuinely-unknown-cost provider red
+ * (see the classifier below) that then locked m0's global cap for every run
+ * after it. Checking this BEFORE the loop starts turns that into a $0,
+ * zero-row red instead.
+ *
+ * `env` is injectable (defaults to `process.env`) so a test never needs to
+ * mutate the real process environment. Never throws itself — returns
+ * `{ ok: true }` or `{ ok: false, message }` so the CLI block controls the
+ * exit path (print + exit 1, write no row to any file). `message` never
+ * includes the key's value or its length beyond "contains whitespace".
+ */
+export function checkKeyPreflight(slotName, env = process.env) {
+  const slotDef = PROVIDER_SLOTS[slotName];
+  if (!slotDef) return { ok: false, message: `key: unknown provider slot "${slotName}"` };
+  const varName = slotDef.envVar;
+  const value = env[varName];
+  if (value === undefined || value === '') {
+    return { ok: false, message: `key: ${varName} is not set — export it before running` };
+  }
+  if (/[\r\n]/.test(value)) {
+    return { ok: false, message: `key: ${varName} contains a newline — export only the first line of the pass entry` };
+  }
+  // eslint-disable-next-line no-control-regex -- deliberately matching whitespace/control chars, never logged
+  if (/[\s\x00-\x1F\x7F]/.test(value)) {
+    return { ok: false, message: `key: ${varName} contains whitespace/control characters — export only the first line of the pass entry` };
+  }
+  return { ok: true };
+}
+
+/**
+ * A thrown provider error has exactly three possible outcomes (name them
+ * explicitly — never conflate them):
+ *  - crash-before-send: the request never left the machine (a header-value
+ *    validation throw, a DNS failure, a refused connection, or fetch's own
+ *    argument validation). The cost is KNOWN — $0 — because nothing was
+ *    sent. This is the live 2026-09-21 shape: a newline in the Authorization
+ *    header value threw `TypeError: Invalid character in header content
+ *    ["Authorization"]` 6ms in, before any socket write.
+ *  - crash-after-send: the request reached the provider (or a socket was
+ *    already open) and usage is genuinely UNKNOWN (e.g. ECONNRESET
+ *    mid-response). Stays cost-unknown — this rule is NOT widened by the
+ *    case above, and assertUnderGlobalCap must still lock on it.
+ *  - timeout: handled separately in runOneDraft (Promise.race above) —
+ *    priced at the ceiling, never 0, never unknown.
+ */
+export function isClientSideThrow(err) {
+  if (!err) return false;
+  if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED' || err.code === 'ERR_INVALID_CHAR') return true;
+  const msg = err.message || '';
+  if (/Invalid character in header/i.test(msg)) return true;
+  if (err instanceof TypeError && /header|Headers|Failed to parse URL/i.test(msg)) return true;
+  return false;
+}
+
+/**
  * Coarse stopReason, derived from what `runDrafter`'s report actually
  * exposes (it does not surface the provider's raw stopReason string — this
  * script never edits drafter.mjs a second time to add one, per the M1
@@ -148,15 +213,23 @@ export async function runOneDraft({
       timeoutPromise,
     ]);
   } catch (err) {
-    // The provider itself threw (transport error) — no metered rounds ever reached this
-    // script (runDeclarationRound's own `meterings` array is scoped inside it and lost on
-    // throw), so the cost is genuinely UNKNOWN, never 0 — same rule runner.mjs's rule 2 applies.
+    // The provider itself threw. Two shapes, priced differently (see
+    // isClientSideThrow's header comment for the full three-way split):
+    //  - crash-before-send: nothing was sent, cost is KNOWN at $0.
+    //  - crash-after-send: no metered rounds ever reached this script
+    //    (runDeclarationRound's own `meterings` array is scoped inside it and
+    //    lost on throw), so cost is genuinely UNKNOWN, never 0 — same rule
+    //    runner.mjs's rule 2 applies, and assertUnderGlobalCap still locks on it.
     const wallMs = Date.now() - startedAt;
+    const clientSide = isClientSideThrow(err);
     return {
       i, grammar, toolCalled: false, stopReason: 'provider-red', validator: null, slot: null,
       stepCount: 0, hitlSteps: 0, checkpointGrants: 0, zeroPrimitiveSteps: 0,
-      costUsd: null, costUnknown: true, wallMs, modelRequested: modelId, modelReturned: null,
+      costUsd: clientSide ? 0 : null,
+      costUnknown: !clientSide,
+      wallMs, modelRequested: modelId, modelReturned: null,
       modelMatch: classifyModelId(modelId, null), declaration: null, providerRedMessage: err.message,
+      ...(clientSide ? { note: 'client-side: no request sent' } : {}),
     };
   } finally {
     cancelTimeout();
@@ -283,6 +356,7 @@ export async function runSlotBatch({
       appendSpendRow(spendPath, {
         runId: `m1-slot-batch-${grammar}-${tag}-${i}`, step: 'draft-m1', model: record.modelRequested,
         modelReturned: record.modelReturned, costUsd: record.costUsd, wallMs: record.wallMs,
+        ...(record.note ? { note: record.note } : {}),
       });
     }
     const { declaration, ...jsonlRecord } = record;
@@ -334,6 +408,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (!['slot', 'legacy'].includes(grammar) || !tag || !PROVIDER_SLOTS[slot]) {
     console.error('usage: node poc/m1/slot-batch.mjs --grammar slot|legacy --n 20 --tag <tag> '
       + '[--slot deepseek|synthetic] [--model <model-id>]');
+    process.exit(1);
+  }
+
+  // $0 key preflight — before any draft, before any ledger write (see checkKeyPreflight's own
+  // header for the live incident this closes: a newline-terminated key passed makeProvider's
+  // truthiness check and only blew up mid-round, locking m0's global cap).
+  const keyCheck = checkKeyPreflight(slot);
+  if (!keyCheck.ok) {
+    console.error(keyCheck.message);
     process.exit(1);
   }
 

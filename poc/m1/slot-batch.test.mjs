@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   runSlotBatch, runOneDraft, ceilingCostUsd, outFilePaths, assertFreshTag, realFacts,
-  renderSummaryLine, renderProgressLine,
+  renderSummaryLine, renderProgressLine, checkKeyPreflight,
 } from './slot-batch.mjs';
 import { parseAskSlots } from './slots.mjs';
 
@@ -97,6 +97,10 @@ function fakeHangingProvider() {
 
 function fakeThrowingProvider(message = 'connection reset') {
   return { generate: async () => { throw new Error(message); } };
+}
+
+function fakeThrowingProviderErr(err) {
+  return { generate: async () => { throw err; } };
 }
 
 function providerForDraftOf(makeFakeProvider) {
@@ -234,6 +238,48 @@ test('runOneDraft: a thrown provider error records stopReason "provider-red" wit
 });
 
 // ---------------------------------------------------------------------------
+// Client-side throws (crash-before-send: request never left the machine) vs
+// provider throws (crash-after-send: the provider was reached, usage
+// genuinely unknown) — the live failure that motivated this: a two-line
+// `pass` entry exported DEEPSEEK_API_KEY with a trailing newline, node's
+// fetch threw "Invalid character in header content" 6ms in, no bytes left
+// the machine, yet the old code priced it costUnknown:true and locked the
+// global cap for every run after it.
+// ---------------------------------------------------------------------------
+
+test('runOneDraft: a header-validation throw (request never left the machine) prices costUsd 0, costUnknown false, with a note', async () => {
+  const err = new TypeError('Invalid character in header content ["Authorization"]');
+  const record = await runOneDraft({
+    i: 1, grammar: 'slot', askLines: ASK_LINES, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeThrowingProviderErr(err)),
+  });
+  assert.equal(record.stopReason, 'provider-red');
+  assert.equal(record.costUnknown, false);
+  assert.equal(record.costUsd, 0);
+  assert.equal(record.note, 'client-side: no request sent');
+});
+
+test('runOneDraft: ENOTFOUND (DNS failure before any response) prices costUsd 0, costUnknown false', async () => {
+  const err = new Error('getaddrinfo ENOTFOUND api.deepseek.com');
+  err.code = 'ENOTFOUND';
+  const record = await runOneDraft({
+    i: 1, grammar: 'slot', askLines: ASK_LINES, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeThrowingProviderErr(err)),
+  });
+  assert.equal(record.costUnknown, false);
+  assert.equal(record.costUsd, 0);
+});
+
+test('PROOF the test can fail / existing rule preserved: ECONNRESET (mid-response, provider was already reached) stays cost-unknown and still locks the cap', async () => {
+  const record = await runOneDraft({
+    i: 1, grammar: 'slot', askLines: ASK_LINES, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeThrowingProvider('ECONNRESET')),
+  });
+  assert.equal(record.costUnknown, true);
+  assert.equal(record.costUsd, null);
+});
+
+// ---------------------------------------------------------------------------
 // runSlotBatch — summary counts, early stop on 2 consecutive provider reds
 // ---------------------------------------------------------------------------
 
@@ -319,6 +365,46 @@ test('runSlotBatch writes one jsonl line and one declaration file per draft', as
 // ---------------------------------------------------------------------------
 // Progress line rendering — never prints anything that could be a key
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Key preflight — $0, before any draft round or ledger write. Live failure
+// (2026-09-21): a two-line `pass` entry exported DEEPSEEK_API_KEY with a
+// trailing newline; makeProvider's own `if (!apiKey) throw` never catches
+// this (a newline-terminated string is still truthy), so this must be
+// checked separately, before the loop, never printing the key's value.
+// ---------------------------------------------------------------------------
+
+test('checkKeyPreflight: an unset key is refused, naming the variable', () => {
+  const result = checkKeyPreflight('deepseek', {});
+  assert.equal(result.ok, false);
+  assert.match(result.message, /DEEPSEEK_API_KEY/);
+  assert.match(result.message, /not set/);
+});
+
+test('checkKeyPreflight: an empty-string key is refused, naming the variable', () => {
+  const result = checkKeyPreflight('deepseek', { DEEPSEEK_API_KEY: '' });
+  assert.equal(result.ok, false);
+  assert.match(result.message, /DEEPSEEK_API_KEY/);
+});
+
+test('checkKeyPreflight: a key with a trailing newline (two-line pass entry) is refused, naming the defect, never the value', () => {
+  const result = checkKeyPreflight('deepseek', { DEEPSEEK_API_KEY: 'sk-realkeyvalue\n' });
+  assert.equal(result.ok, false);
+  assert.match(result.message, /DEEPSEEK_API_KEY/);
+  assert.match(result.message, /newline/);
+  assert.doesNotMatch(result.message, /sk-realkeyvalue/);
+});
+
+test('checkKeyPreflight: a clean single-line key passes', () => {
+  const result = checkKeyPreflight('deepseek', { DEEPSEEK_API_KEY: 'sk-realkeyvalue' });
+  assert.equal(result.ok, true);
+});
+
+test('PROOF the test can fail: a key with an internal space is also refused', () => {
+  const result = checkKeyPreflight('synthetic', { SYNTHETIC_API_KEY: 'sk-has space' });
+  assert.equal(result.ok, false);
+  assert.match(result.message, /SYNTHETIC_API_KEY/);
+});
 
 test('renderProgressLine never includes a provider rates object or a raw key-shaped string', () => {
   const record = {
