@@ -1556,3 +1556,68 @@ target; (3) resume and JD are fenced in the compose prompt as INPUT DATA with a 
 not-an-instruction rule. Ruled **no detector** for "out of norm" input: that would be regex on
 prose or an LLM judge, both outside v1 — the human accept is the detector. Each proven red first;
 518/518 after. Ledger empty.
+
+## F31 — M1 POC: ask slots kill the F10 wobble, 20/20; the first bar miss was the orchestrator's check, not the model; a default ceiling price always exists (2026-09-21)
+
+**Date** 2026-09-21 · **Status** POC bar met on the baseline provider; M1's build not started ·
+**Class** M1 (signed by hamr 2026-09-21 with §6 and §10) · **Grounded in** branch `m1` commits
+`be73dad` (slots, drafter option, counting script), `a3cf07f` (key preflight), `e1cca8d` (ceiling
+pricing), `92313d7` (check (c) corrected, `--rescore`); result files
+`poc/m1/out/slot-batch-{legacy,slot}-2026-09-21c.jsonl`, their `.rescore-2026-09-21.jsonl`, and
+`poc/m1/out/slot-batch-slot-2026-09-21d.jsonl`, each with its saved drafts; 61 ledger rows
+(`deepseek-flash`, `modelMatch: match` on all 60 paid drafts).
+
+**The mechanism under test.** F10's wobble had a cause a grep could find: `checkpoint` ("pause
+for a human") was a primitive in the drafter's menu, so the drafter could grant a pause on any
+step, while the runner already inserts the ask mechanically at the signed `ask at line N` with no
+grant check. Under the slot grammar (`runDrafter({ slotGrammar, askLines })`) the verb is absent
+from the menu and the prompt names the signed slots; `checkAskSlots` then proves, per draft:
+(a) exactly one step on each signed ask line, class `hitl`; (b) no step grants `checkpoint`;
+(c) no step that is a pause — zero primitives AND `hitl` — sits on an unsigned line.
+
+**Control first — the wobble reproduced on today's model.** 20 drafts of job #1's prose, old
+grammar, `deepseek-flash`: the M0 validator passed 20/20; the slot check passed 0/20. 12 drafts
+granted two pauses (line 2 and line 5), 8 granted one (line 5). Same prose, same model, a
+different number of human stops — and nothing in M0 saw it. $0.047.
+
+**Slot grammar, first batch (tag c): 17/20 on the literal bar, and the miss was mine.** Pause
+grants 0/20, exactly one `hitl` step at line 5 in 20/20, 6 steps in 20/20 — the wobble was gone.
+The three reds were check (c) as first specified ("zero primitives = a pause"): each was the
+line-3 derive step, class `green`, primitives `[]`. That is not a pause — `JOB1_NEEDS` has said
+since M0 that "match a customer, derive figures" is fwdloop's own model round (`own: true`), and
+a green close is closed by the machine. The correction (a pause is zero primitives AND `hitl`) was
+made red-first and the 40 saved drafts re-scored at $0 into new files: slot 20/20, legacy 0/20.
+A fourth draft (16) was refused by the M0 validator, by name — its send step did not read the ask
+step's artifact — a catch under hamr's 2026-09-15 ruling.
+
+**A re-score is weaker than a run, so it was run again.** The correction also changed one
+sentence of the slot prompt, so the saved drafts were not drafted under the final wording. Fresh
+batch, final code, tag d: **slot 20/20, validator 20/20**, pause grants 0/20, 6 steps in 20/20,
+$0.068. This is the number the M1 exit's POC line rests on; the 17/20 stands in the record as what
+the first check measured. Bar set before the run; the check that was changed was the
+orchestrator's invention in the brief, not the signed text (signed scope item 3 names only the
+slot rule).
+
+**Two launch failures, both ours, both now mechanisms.**
+1. The `pass` entry for the DeepSeek key has two lines; the launcher exported both and Node
+   refused the header in 6 ms. `checkKeyPreflight` now refuses an unset, empty or
+   whitespace-carrying key at $0, naming the variable and never the value, before any ledger write.
+2. The script recorded that never-sent round as `costUsd: null`, and one null row locked all
+   spend (and failed two job #2 tests that read the live ledger). hamr's ruling, 2026-09-21: **a
+   default price always exists and a human can override it; nothing starts at $0 or unknown.**
+   `ceilingCostUsd` (one writer, `spend.mjs`) prices any row with no cost at read time — known model
+   at its own peak rate, unknown model at the table's highest — marked estimated, counted against
+   the cap. The cap lock survives as money (a test proves enough null rows still refuse). The
+   override is the hand-entered rate table. The audit row was not edited: the orchestrator's attempt
+   to edit it was refused by the permission classifier as audit tampering, correctly, and the
+   mechanism made the edit unnecessary. A `$0 for client-side throws` branch written the same hour
+   was removed under the same ruling.
+
+**Not yet measured.** The second provider (Qwen) under the slot grammar; job #2's prose under it
+(one ask at line 4); a prose with two signed asks; a prose whose ambiguity guardrail is on a line
+with no other work. M1's exit also needs the mutation suite, the arbiter-field refusal at every
+depth, one grammar for both jobs, and the hash — none started.
+
+**Spend.** $0.18 for 60 paid drafts; ledger total $2.94 of the $5.00 M0 cap, of which $0.065 is
+estimated (F27's hangs and today's one repriced row). **M1 has no signed cap of its own** — the
+POC ran under M0's. hamr's to sign.
