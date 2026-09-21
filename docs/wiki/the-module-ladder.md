@@ -178,9 +178,9 @@ hash that flips on any edit (docs/archive/PRD.md:557-562).
 - **Negative:** a declaration missing a required `ask` slot is a red, not an absence
   (docs/archive/PRD.md:565-565).
 
-### M1 DRAFT — scope, exit, negative — proposed 2026-09-16, UNSIGNED
+### M1 — scope, exit, negative — SIGNED by hamr 2026-09-21 ("sign m1, start poc")
 
-Nothing below is in force until hamr signs it. It restates the M1 paragraph above as the three
+In force. Proposed 2026-09-16, signed with §6 and §10. It restates the M1 paragraph above as the three
 things the binding rule needs, using what M0 actually built. M1 writes the spec and the checks;
 it runs nothing (M2) and asks nothing (M3).
 
@@ -267,7 +267,8 @@ POC lands below 20/20 and the fix on the table is prompt wording rather than gra
 
 **§6 and §10 SIGNED by hamr 2026-09-21** ("agree on both"): the directory in item 7, and sources
 as typed arbiter lines, one per line (`guardrail: source <role> = file:<path>`), option 1. The
-scope, exit and negative above remain UNSIGNED until hamr says so.
+scope, exit and negative above were signed the same day. POC (the slot grammar, 20/20) starts on
+branch `m1`.
 
 ## M2 — runner
 
