@@ -13,8 +13,9 @@
 // (F23) rather than trusted blind.
 //
 // `plumbing` carries poc's three FENCE entries plus `checkpoint`. Reason:
-// M1's slot grammar (F31) means a pause exists only where a human signed
-// `ask at line N` in the arbiter text; the runner inserts the checkpoint
+// M1's slot grammar (F31; amendment 3, 2026-09-21) means a pause exists only
+// where a human marked a numbered job line `ask:` (or `ask <int><s|m|h>:`);
+// the runner inserts the checkpoint
 // mechanically once that slot resolves, and the drafter never selects it —
 // exactly poc's own definition of plumbing ("the runner wires these... the
 // drafter never selects them, so they are deliberately absent from

@@ -63,13 +63,12 @@ describe('both jobs validate green through the SAME call with the SAME catalogue
 const BASE_SIGNED_TEXT = [
   '1. Read the data.',
   '   guardrail: check it before moving on',
-  '2. Ask if unsure.',
+  '2. ask: Ask if unsure.',
   '   guardrail: ask if unsure',
   '3. Send the result.',
   '',
   'Arbiter guardrails (belong to no line; human-signed, tighten-only):',
   'guardrail: cap $0.25 per run',
-  'guardrail: ask at line 2',
   'guardrail: send at line 3 to file:out/result.txt',
   'guardrail: source data = file:/tmp/data.csv-file',
 ].join('\n');

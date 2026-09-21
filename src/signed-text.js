@@ -35,8 +35,18 @@ const NUMBERED_RE = /^(\d+)\.\s?(.*)$/;
 const GUARDRAIL_RE = /^guardrail:\s?(.*)$/i;
 
 const CAP_RE = /^cap \$([^\s]+) per run$/i;
-const ASK_PREFIX_RE = /^ask at\b/i;
-const ASK_RE = /^ask at line (\d+)(?: ttl (\d+)(s|m|h))?$/i;
+// M1 amendment 3 (docs/wiki/the-module-ladder.md, "M1 amendment 3 — the ask
+// is a mark on its own line — SIGNED by hamr 2026-09-21"): the ask is no
+// longer a bottom-block arbiter line — it is a mark at the START of a
+// numbered job line's own text: `ask:` (default 30m wait) or
+// `ask <int><s|m|h>:` (explicit wait), the words after the mark being the
+// human's own question. OLD_ASK_ARBITER_RE below only detects the RETIRED
+// bottom-block form (`guardrail: ask at line N`) so it can be refused by
+// name, one red, never silently accepted.
+const ASK_MARK_ATTEMPT_RE = /^ask[: ]/i;
+const ASK_MARK_DEFAULT_RE = /^ask:(.*)$/i;
+const ASK_MARK_TIMED_RE = /^ask (\d+)(s|m|h):(.*)$/i;
+const OLD_ASK_ARBITER_RE = /^ask at\b/i;
 const REDO_RE = /^redo cap (\S+)$/i;
 const SEND_PREFIX_RE = /^send at\b/i;
 const SEND_RE = /^send at line (\d+) to (.+)$/i;
@@ -59,6 +69,48 @@ const DEFAULT_SKILLS = Object.freeze(['core']);
 const DEFAULT_ROUND_BUDGET_MS = 120000;
 
 /**
+ * Detect and parse the ask mark at the start of a numbered line's own text
+ * (already trimmed). Returns `{ attempted: false }` when the text is plain
+ * prose (never a mark, never a red — e.g. "asking the customer...",
+ * "askew..."). When `attempted` is true, either `ok: true` with
+ * `{ ttlMs, question }`, or `ok: false` with a human-readable `error`
+ * fragment naming what's wrong (the caller prefixes it with the file line
+ * and field "asks").
+ *
+ * @param {string} text
+ * @returns {{ attempted: false }
+ *   | { attempted: true, ok: false, error: string }
+ *   | { attempted: true, ok: true, ttlMs: number, question: string }}
+ */
+function parseAskMark(text) {
+  if (!ASK_MARK_ATTEMPT_RE.test(text)) {
+    return { attempted: false };
+  }
+  const def = ASK_MARK_DEFAULT_RE.exec(text);
+  if (def) {
+    const question = def[1].trim();
+    if (question.length === 0) {
+      return { attempted: true, ok: false, error: 'has no words after the mark' };
+    }
+    return { attempted: true, ok: true, ttlMs: DEFAULT_ASK_TTL_MS, question };
+  }
+  const timed = ASK_MARK_TIMED_RE.exec(text);
+  if (timed) {
+    const value = Number(timed[1]);
+    const unit = timed[2].toLowerCase();
+    const question = timed[3].trim();
+    if (value <= 0) {
+      return { attempted: true, ok: false, error: 'wait must be greater than 0' };
+    }
+    if (question.length === 0) {
+      return { attempted: true, ok: false, error: 'has no words after the mark' };
+    }
+    return { attempted: true, ok: true, ttlMs: value * UNIT_MS[unit], question };
+  }
+  return { attempted: true, ok: false, error: 'is not "ask:" or "ask <int><s|m|h>:"' };
+}
+
+/**
  * Parse the human's signed text. Never throws — any input that isn't a
  * usable signed text comes back as `{ ok: false, reds }`, never an
  * exception, and a non-string input is itself a red.
@@ -75,6 +127,7 @@ export function parseSignedText(rawText) {
   const reds = [];
   const lines = [];
   const arbiterRawLines = [];
+  const asks = [];
   let current = null;
   let inArbiter = false;
   let lastN = 0;
@@ -107,7 +160,18 @@ export function parseSignedText(rawText) {
         reds.push(`signed-text: line ${fileLine} number ${n} is not increasing after ${lastN}`);
       }
       lastN = Math.max(lastN, n);
-      current = { n, text: nm[2].trim(), guardrail: '' };
+      const rawLineText = nm[2].trim();
+      let lineText = rawLineText;
+      const mark = parseAskMark(rawLineText);
+      if (mark.attempted) {
+        if (!mark.ok) {
+          reds.push(`signed-text: line ${fileLine} field "asks" ${mark.error}: "${rawLineText}"`);
+        } else {
+          lineText = mark.question;
+          asks.push({ line: n, ttlMs: mark.ttlMs, question: mark.question });
+        }
+      }
+      current = { n, text: lineText, guardrail: '' };
       lines.push(current);
       continue;
     }
@@ -133,7 +197,8 @@ export function parseSignedText(rawText) {
     reds.push('arbiter: missing "Arbiter guardrails" heading (field "capUsd" is required)');
   }
 
-  const arbiter = parseArbiter(arbiterRawLines, new Set(lines.map((l) => l.n)), reds);
+  const sortedAsks = [...asks].sort((a, b) => a.line - b.line);
+  const arbiter = parseArbiter(arbiterRawLines, new Set(lines.map((l) => l.n)), reds, sortedAsks);
 
   if (reds.length > 0) {
     return deepFreeze({ ok: false, reds });
@@ -152,11 +217,9 @@ export function parseSignedText(rawText) {
  * fields. Called even when `reds` already carries earlier failures, so all
  * reds in the document are reported together, in source-line order.
  */
-function parseArbiter(arbiterRawLines, lineNumbers, reds) {
+function parseArbiter(arbiterRawLines, lineNumbers, reds, asks) {
   let capUsd;
   let capSeen = 0;
-  const asks = [];
-  const askLinesSeen = new Set();
   let redoCap;
   let redoSeen = 0;
   const sends = [];
@@ -190,24 +253,11 @@ function parseArbiter(arbiterRawLines, lineNumbers, reds) {
       continue;
     }
 
-    if (ASK_PREFIX_RE.test(text)) {
-      const m = ASK_RE.exec(text);
-      if (!m) {
-        reds.push(`arbiter: line ${fileLine} field "asks" is not "ask at line <int>" (optional " ttl <int><s|m|h>"): "${text}"`);
-        continue;
-      }
-      const line = Number(m[1]);
-      if (!lineNumbers.has(line)) {
-        reds.push(`arbiter: line ${fileLine} field "asks" names line ${line}, which is not one of the numbered lines`);
-        continue;
-      }
-      if (askLinesSeen.has(line)) {
-        reds.push(`arbiter: line ${fileLine} field "asks" duplicates "ask at line ${line}"`);
-        continue;
-      }
-      askLinesSeen.add(line);
-      const ttlMs = m[2] ? Number(m[2]) * UNIT_MS[m[3].toLowerCase()] : DEFAULT_ASK_TTL_MS;
-      asks.push({ line, ttlMs });
+    if (OLD_ASK_ARBITER_RE.test(text)) {
+      // M1 amendment 3 item 5: this bottom-block form is retired — the ask
+      // is now a mark on the numbered line itself. One red naming it, never
+      // also falling through to the generic "not in the grammar" red below.
+      reds.push(`arbiter: line ${fileLine} field "asks" "guardrail: ask at line N" is no longer grammar — mark the numbered line itself with "ask:" (or "ask <int><s|m|h>:") instead: "${text}"`);
       continue;
     }
 

@@ -12,8 +12,11 @@
 
 /**
  * @typedef {object} AskSlot
- * @property {number} line - the numbered line this ask binds to.
+ * @property {number} line - the numbered line this ask binds to (the line
+ *   carries the `ask:`/`ask <int><s|m|h>:` mark itself, M1 amendment 3).
  * @property {number} ttlMs - the ask's time-to-live in milliseconds.
+ * @property {string} question - the words after the mark, trimmed — the
+ *   human's own question. Nothing reads this yet outside signed-text.js.
  */
 
 /**
@@ -38,7 +41,8 @@
 /**
  * @typedef {object} Arbiter
  * @property {number} capUsd - `cap $<decimal> per run`. Required, > 0.
- * @property {AskSlot[]} asks - zero or more `ask at line <int>` slots.
+ * @property {AskSlot[]} asks - zero or more marked lines (`ask:` /
+ *   `ask <int><s|m|h>:` at the start of a numbered job line, M1 amendment 3).
  * @property {number} redoCap - `redo cap <int>`, 1..3. Default 3.
  * @property {SendSlot[]} sends - zero or more `send at line <int> to ...`.
  * @property {string[]} skills - `skills <name>[, <name>...]`. Default ['core'].

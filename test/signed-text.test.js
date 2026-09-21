@@ -28,7 +28,7 @@ describe('real fixtures parse green', () => {
     assert.equal(result.ok, true);
     assert.deepEqual(result.arbiter, {
       capUsd: 0.25,
-      asks: [{ line: 5, ttlMs: 30 * 60000 }],
+      asks: [{ line: 5, ttlMs: 30 * 60000, question: 'check it with me,' }],
       redoCap: 3,
       sends: [{ line: 6, target: { kind: 'file', path: 'poc/m0/out' } }],
       skills: ['core'],
@@ -48,7 +48,7 @@ describe('real fixtures parse green', () => {
     assert.equal(result.ok, true);
     assert.deepEqual(result.arbiter, {
       capUsd: 0.25,
-      asks: [{ line: 4, ttlMs: 30 * 60000 }],
+      asks: [{ line: 4, ttlMs: 30 * 60000, question: 'check it with me,' }],
       redoCap: 3,
       sends: [{ line: 5, target: { kind: 'file', path: 'poc/m0/out' } }],
       skills: ['core'],
@@ -66,7 +66,7 @@ describe('real fixtures parse green', () => {
     assert.equal(result.ok, true);
     assert.deepEqual(result.arbiter, {
       capUsd: 0.25,
-      asks: [{ line: 4, ttlMs: 30 * 60000 }],
+      asks: [{ line: 4, ttlMs: 30 * 60000, question: 'check it with me,' }],
       redoCap: 3,
       sends: [{ line: 5, target: { kind: 'file', path: 'poc/m0/out' } }],
       skills: ['core'],
@@ -98,18 +98,25 @@ describe('real fixtures parse green', () => {
 // line is the only thing that could have flipped the verdict — the same
 // "revert it alone, see red, restore" discipline as a regression test.
 
-const BASE_JOB = [
-  '1. Step one.',
-  '2. Step two.',
-  '3. Step three, this is the ask point.',
-  '   guardrail: check it before moving on',
-  '4. Step four, this is the send point.',
-  '5. Step five.',
-].join('\n');
+// The ask is a mark on job line 3 itself (M1 amendment 3), not an arbiter
+// guardrail line, so the base job is a function of that one line's text —
+// every other mutation case in this suite uses the DEFAULT_ASK_LINE below
+// and only the "asks" mutations vary it.
+const DEFAULT_ASK_LINE = '3. ask 45m: Step three, this is the ask point.';
+
+function buildJob(askLine) {
+  return [
+    '1. Step one.',
+    '2. Step two.',
+    askLine,
+    '   guardrail: check it before moving on',
+    '4. Step four, this is the send point.',
+    '5. Step five.',
+  ].join('\n');
+}
 
 const BASE_ARBITER = {
   capUsd: 'guardrail: cap $0.25 per run',
-  asks: 'guardrail: ask at line 3 ttl 45m',
   redoCap: 'guardrail: redo cap 2',
   sends: 'guardrail: send at line 4 to file:out/result.txt',
   skills: 'guardrail: skills core, custom',
@@ -119,7 +126,7 @@ const BASE_ARBITER = {
 
 const BASE_EXPECTED_ARBITER = {
   capUsd: 0.25,
-  asks: [{ line: 3, ttlMs: 45 * 60000 }],
+  asks: [{ line: 3, ttlMs: 45 * 60000, question: 'Step three, this is the ask point.' }],
   redoCap: 2,
   sends: [{ line: 4, target: { kind: 'file', path: 'out/result.txt' } }],
   skills: ['core', 'custom'],
@@ -130,12 +137,14 @@ const BASE_EXPECTED_ARBITER = {
 const HEADING = 'Arbiter guardrails (belong to no line; human-signed, tighten-only):';
 
 /** Build the full signed text from the base job + an ordered list of
- *  arbiter guardrail lines (each the full "guardrail: ..." text). */
-function buildText(arbiterLines) {
-  return [BASE_JOB, '', HEADING, ...arbiterLines].join('\n');
+ *  arbiter guardrail lines (each the full "guardrail: ..." text). `askLine`
+ *  defaults to the base's valid mark so every non-"asks" mutation case
+ *  leaves the ask slot untouched. */
+function buildText(arbiterLines, askLine = DEFAULT_ASK_LINE) {
+  return [buildJob(askLine), '', HEADING, ...arbiterLines].join('\n');
 }
 
-const BASE_ARBITER_ORDER = ['capUsd', 'asks', 'redoCap', 'sends', 'skills', 'sources', 'roundBudgetMs'];
+const BASE_ARBITER_ORDER = ['capUsd', 'redoCap', 'sends', 'skills', 'sources', 'roundBudgetMs'];
 const BASE_TEXT = buildText(BASE_ARBITER_ORDER.map((k) => BASE_ARBITER[k]));
 
 test('PROOF — the unmutated base control parses green with the expected arbiter', () => {
@@ -193,12 +202,41 @@ describe('mutation suite', () => {
   mutationCase('capUsd', 'missing unit words', withMutation('capUsd', 'guardrail: cap $5'));
   mutationCase('capUsd', 'duplicated', buildText(withDuplicate('capUsd', 'guardrail: cap $0.10 per run')));
 
-  // --- asks -------------------------------------------------------------
-  mutationCase('asks', 'ttl unit wrong', withMutation('asks', 'guardrail: ask at line 3 ttl 45x'));
-  mutationCase('asks', 'line number decimal', withMutation('asks', 'guardrail: ask at line 3.5'));
-  mutationCase('asks', 'line number negative', withMutation('asks', 'guardrail: ask at line -1'));
-  mutationCase('asks', 'line points at a missing line', withMutation('asks', 'guardrail: ask at line 99'));
-  mutationCase('asks', 'duplicated', buildText(withDuplicate('asks', 'guardrail: ask at line 3')));
+  // --- asks (M1 amendment 3: the mark is on the job line itself, not an
+  // arbiter guardrail line) ------------------------------------------------
+  covered.add('asks');
+  test('mutation: asks — removed mark (no ask exists at all; caught downstream by the send lock, naming "sends", not "asks")', () => {
+    const text = buildText(
+      BASE_ARBITER_ORDER.map((k) => BASE_ARBITER[k]),
+      '3. Step three, this is the ask point.',
+    );
+    const result = parseSignedText(text);
+    assert.equal(result.ok, false, 'expected a red for asks/removed mark, got green');
+    assert.ok(
+      result.reds.some((r) => r.includes('field "sends"') && r.includes('no ask at an earlier line')),
+      `expected the send-lock red naming "sends", got:\n${result.reds.join('\n')}`,
+    );
+  });
+  mutationCase('asks', 'retyped duration (decimal)', buildText(
+    BASE_ARBITER_ORDER.map((k) => BASE_ARBITER[k]),
+    '3. ask 45.5m: Step three, this is the ask point.',
+  ));
+  mutationCase('asks', 'invalid unit', buildText(
+    BASE_ARBITER_ORDER.map((k) => BASE_ARBITER[k]),
+    '3. ask 45x: Step three, this is the ask point.',
+  ));
+  mutationCase('asks', 'zero wait', buildText(
+    BASE_ARBITER_ORDER.map((k) => BASE_ARBITER[k]),
+    '3. ask 0m: Step three, this is the ask point.',
+  ));
+  mutationCase('asks', 'empty question', buildText(
+    BASE_ARBITER_ORDER.map((k) => BASE_ARBITER[k]),
+    '3. ask 45m:',
+  ));
+  mutationCase('asks', 'mark moved to the arbiter block (old form)', buildText(
+    [...BASE_ARBITER_ORDER.map((k) => BASE_ARBITER[k]), 'guardrail: ask at line 3'],
+    '3. Step three, this is the ask point.',
+  ));
 
   // --- redoCap ------------------------------------------------------------
   mutationCase('redoCap', 'retyped int->decimal', withMutation('redoCap', 'guardrail: redo cap 1.5'));
@@ -327,6 +365,177 @@ test('unrecognised arbiter keyword is a red naming the line and the grammar', ()
   const result = parseSignedText(text);
   assert.equal(result.ok, false);
   assert.ok(result.reds.some((r) => /is not in the grammar/.test(r)));
+});
+
+// ---------------------------------------------------------------------------
+// M1 amendment 3 — the ask is a mark on its own numbered line, SIGNED by
+// hamr 2026-09-21 (docs/wiki/the-module-ladder.md). A numbered line whose
+// text starts with the mark (`ask:` or `ask <int><s|m|h>:`) is a stop; the
+// words after the mark are the ask's own question and go into
+// `arbiter.asks[]` alongside `line`/`ttlMs`. The old bottom-block form
+// (`guardrail: ask at line N`) is no longer grammar (item 5).
+// ---------------------------------------------------------------------------
+
+function buildAskDoc(askLineText, extraArbiterLines = []) {
+  return [
+    '1. Step one.',
+    '2. Step two.',
+    askLineText,
+    '4. Step four, this is the send point.',
+    '',
+    'Arbiter guardrails (belong to no line; human-signed, tighten-only):',
+    'guardrail: cap $1.00 per run',
+    ...extraArbiterLines,
+  ].join('\n');
+}
+
+describe('the ask mark (M1 amendment 3)', () => {
+  describe('the two accepted forms', () => {
+    test('default form "ask:" — default 30m wait', () => {
+      const text = buildAskDoc('3. ask: check it with me,');
+      const result = parseSignedText(text);
+      assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+      assert.deepEqual(result.arbiter.asks, [
+        { line: 3, ttlMs: 30 * 60000, question: 'check it with me,' },
+      ]);
+      assert.equal(result.lines.find((l) => l.n === 3).text, 'check it with me,');
+    });
+
+    test('explicit wait in seconds', () => {
+      const text = buildAskDoc('3. ask 45s: check it with me,');
+      const result = parseSignedText(text);
+      assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+      assert.deepEqual(result.arbiter.asks, [
+        { line: 3, ttlMs: 45 * 1000, question: 'check it with me,' },
+      ]);
+    });
+
+    test('explicit wait in minutes', () => {
+      const text = buildAskDoc('3. ask 45m: check it with me,');
+      const result = parseSignedText(text);
+      assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+      assert.deepEqual(result.arbiter.asks, [
+        { line: 3, ttlMs: 45 * 60000, question: 'check it with me,' },
+      ]);
+    });
+
+    test('explicit wait in hours', () => {
+      const text = buildAskDoc('3. ask 2h: check it with me,');
+      const result = parseSignedText(text);
+      assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+      assert.deepEqual(result.arbiter.asks, [
+        { line: 3, ttlMs: 2 * 3600000, question: 'check it with me,' },
+      ]);
+    });
+  });
+
+  describe('malformed marks are a red naming the file line and field "asks"', () => {
+    const cases = [
+      ['ask 30: x (missing unit)', '3. ask 30: x'],
+      ['ask 30x: x (bad unit)', '3. ask 30x: x'],
+      ['ask : x (space then colon, no duration)', '3. ask : x'],
+      ['ask 0m: x (zero wait)', '3. ask 0m: x'],
+      ['ask: (nothing after)', '3. ask:'],
+      ['ask 30m: (nothing after, timed form)', '3. ask 30m:'],
+    ];
+    for (const [name, lineText] of cases) {
+      test(name, () => {
+        const text = buildAskDoc(lineText);
+        const result = parseSignedText(text);
+        assert.equal(result.ok, false, `expected red for "${lineText}"`);
+        assert.ok(
+          result.reds.some((r) => r.includes('line 3') && r.includes('field "asks"')),
+          `expected a red naming line 3 and field "asks", got:\n${result.reds.join('\n')}`,
+        );
+      });
+    }
+  });
+
+  describe('plain prose starting with "ask" is neither a mark nor a red', () => {
+    test('"asking the customer for a PO" parses as plain prose', () => {
+      const text = buildAskDoc('3. asking the customer for a PO.');
+      const result = parseSignedText(text);
+      assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+      assert.deepEqual(result.arbiter.asks, []);
+      assert.equal(result.lines.find((l) => l.n === 3).text, 'asking the customer for a PO.');
+    });
+
+    test('"askew" parses as plain prose', () => {
+      const text = buildAskDoc('3. askew, but fine.');
+      const result = parseSignedText(text);
+      assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+      assert.deepEqual(result.arbiter.asks, []);
+    });
+  });
+
+  test('the old bottom-block form "guardrail: ask at line N" is no longer grammar — exactly ONE red, naming the line and mentioning "ask:"', () => {
+    const text = [
+      '1. Do the thing.',
+      '',
+      'Arbiter guardrails (belong to no line; human-signed, tighten-only):',
+      'guardrail: cap $1.00 per run',
+      'guardrail: ask at line 1',
+    ].join('\n');
+    const result = parseSignedText(text);
+    assert.equal(result.ok, false);
+    assert.equal(result.reds.length, 1, `expected exactly one red, got:\n${result.reds.join('\n')}`);
+    assert.ok(result.reds[0].includes('line 5'));
+    assert.ok(result.reds[0].includes('ask:'));
+  });
+
+  test('a marked line may carry its own guardrail — both are kept', () => {
+    const text = [
+      '1. Step one.',
+      '2. Step two.',
+      '3. ask 15m: check it with me,',
+      '   guardrail: nothing goes out before I accept',
+      '4. Step four, this is the send point.',
+      '',
+      'Arbiter guardrails (belong to no line; human-signed, tighten-only):',
+      'guardrail: cap $1.00 per run',
+      'guardrail: send at line 4 to file:out/result.txt',
+    ].join('\n');
+    const result = parseSignedText(text);
+    assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+    assert.deepEqual(result.arbiter.asks, [
+      { line: 3, ttlMs: 15 * 60000, question: 'check it with me,' },
+    ]);
+    assert.equal(result.lines.find((l) => l.n === 3).guardrail, 'nothing goes out before I accept');
+  });
+
+  describe('send needs an earlier marked line', () => {
+    test('send with no earlier marked line is a red', () => {
+      const text = buildAskDoc('3. Step three, no mark here.', ['guardrail: send at line 4 to file:out/result.txt']);
+      const result = parseSignedText(text);
+      assert.equal(result.ok, false);
+      assert.ok(result.reds.some((r) => r.includes('field "sends"') && r.includes('no ask at an earlier line')));
+    });
+
+    test('send after a marked line is green', () => {
+      const text = buildAskDoc('3. ask: check it with me,', ['guardrail: send at line 4 to file:out/result.txt']);
+      const result = parseSignedText(text);
+      assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+    });
+  });
+
+  test('two marked lines produce two asks, sorted by line', () => {
+    const text = [
+      '1. ask: first question,',
+      '2. Step two.',
+      '3. ask 10m: second question,',
+      '4. Step four, this is the send point.',
+      '',
+      'Arbiter guardrails (belong to no line; human-signed, tighten-only):',
+      'guardrail: cap $1.00 per run',
+      'guardrail: send at line 4 to file:out/result.txt',
+    ].join('\n');
+    const result = parseSignedText(text);
+    assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+    assert.deepEqual(result.arbiter.asks, [
+      { line: 1, ttlMs: 30 * 60000, question: 'first question,' },
+      { line: 3, ttlMs: 10 * 60000, question: 'second question,' },
+    ]);
+  });
 });
 
 // ---------------------------------------------------------------------------
