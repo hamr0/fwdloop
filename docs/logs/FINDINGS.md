@@ -1621,3 +1621,34 @@ depth, one grammar for both jobs, and the hash — none started.
 **Spend.** $0.18 for 60 paid drafts; ledger total $2.94 of the $5.00 M0 cap, of which $0.065 is
 estimated (F27's hangs and today's one repriced row). **M1 has no signed cap of its own** — the
 POC ran under M0's. hamr's to sign.
+
+## F32 — M1 slot grammar on the second provider: Qwen 19/20 green, 1 refused by name; the refused draft shows the pause check cannot tell "our own model round, closed by a human" from "an ask" (2026-09-21)
+
+**Run.** `poc/m1/slot-batch.mjs --grammar slot --n 20 --tag 2026-09-21e --slot synthetic`, job #1's
+prose, detached, after a $0.0001-scale probe (http 200, 1.7 s, served `Qwen/Qwen3.8-27B`).
+20 of 20 called the tool, 20 of 20 stop `tool-called`, no timeouts, no null-cost rows, `modelMatch`
+`prefix` on all 20 (requested `hf:Qwen/Qwen3.8-27B`, served `Qwen/Qwen3.8-27B`). Cost $0.2382.
+
+**Literal result.** Validator 20/20 green. Slot check 19/20 green, 1 red, by name:
+`slot: step 3 (line 2) is a pause (no primitives, hitl) at an unsigned line` (draft 16, the only
+7-step draft; the other 19 have 6 steps). Not re-scored. The signed bar reads "every draft binds
+exactly the signed asks … or is refused by name": 19 bound, 1 refused by name, 0 slipped through.
+
+**What draft 16 actually did.** It split line 2 in two: step 2 `["read"]` reads the chat message,
+step 3 `[]` "work out which customer the chat message is about". Line 2's guardrail ("if more than
+one customer matches, ask me, do not pick") derives `hitl`, so step 3 is zero primitives AND hitl —
+the check's definition of a pause. But step 3 is the same kind of step as line 3's derive
+(fwdloop's own model round, `own: true`, no catalogue primitive), which F31 ruled is not a pause
+when it closes green. Here it closes hitl only because its line's guardrail does. The check has no
+field that separates "own round whose output a human verifies" from "stop and ask a human". In the
+19 green drafts the model folded the matching into the `read` step, so the question never arose.
+DeepSeek never produced this split in 40 slot-grammar drafts.
+
+**Not decided here.** Whether that split is a legitimate draft the check wrongly refuses, or an
+extra human stop the check rightly refuses. It is hamr's: the first needs a typed field for an ask
+step (a grammar change), the second needs nothing. Nothing was changed to turn the red green.
+
+**Carried.** The batch tool still charges `poc/m0/out/spend.jsonl` (M0's ledger) though M1's own
+$5.00 cap was signed on 2026-09-21; ledger reads $3.18 after this run, $0.065 estimated. The audit
+file was not edited. Still not measured: job #2's prose and a two-ask prose under the slot grammar
+— the batch tool hard-codes job #1's prose path.
