@@ -1660,3 +1660,39 @@ correct red on a clean input is a catch: the signed bar is "binds the signed ask
 name", and the draft was refused by name. Known cost, accepted: Qwen earns a redraft about 1 time in
 20 on job #1's prose when it splits a hitl line into a read step and an own-round step. The check
 still cannot tell an own round closed by a human from an ask; that is recorded, not fixed.
+
+## F33 — M1 slot grammar, the last two unmeasured proses on deepseek-flash: two signed asks 20/20; job #2 19/19 of the drafts that called the tool; the old M0 validator cannot score a two-ask prose (2026-09-21)
+
+**Runs.** Tag `2026-09-21f`, detached, sequential, after a tiny probe (http 200, 1.2 s, served
+`deepseek-flash`). First runs on M1's own ledger `poc/m1/out/spend.jsonl` (cap $5.00): 40 rows,
+$0.1626, nothing estimated, nothing repriced, `modelMatch` `match` on all 40.
+
+**Two signed asks** (`--job twoask`: job #1's prose plus `ask at line 2`, so asks at 2 and 5).
+Slot check **20/20 green**: every draft bound exactly one hitl step to line 2 and one to line 5,
+0 checkpoint grants in 20, no pause at an unsigned line. 10 drafts had 6 steps, 10 had 7. $0.1146.
+The M0 validator column reads **0/20 green**, all 20 the same red: "the send step (fromLine 6) does
+not read …, the artifact emitted by the ask step (fromLine 2)". That is the M0 validator's limit,
+not 20 model faults: `parseArbiterSlots` keeps only the LAST `ask at` line it reads (one ask per
+flow was M0b's world), so it demands the send read line 2's answer. `src/declaration.js` (piece 3)
+already carries the many-ask rule (the send reads at least one earlier signed ask). These 20 drafts
+were NOT re-scored under it: they are M0-shaped declarations (`skills`, `guardrails`, `columns`)
+and the M1 schema refuses those keys by name; writing a converter to score them would be fitting.
+So the two-ask send lock is proven by piece 3's $0 tests only, not on a live draft. Stated, not
+hidden.
+
+**Job #2's prose** (`--job job2`, one signed ask at line 4, real resume + JD as shape facts only).
+19 of 20 called the tool; of those, slot check **19/19 green**, 5 steps each, 0 checkpoint grants.
+Validator 17 green, 2 red — drafts 8 and 15, both real send-lock catches by name ("the send step
+(fromLine 5) does not read …, the artifact emitted by the ask step (fromLine 4)"): the model wrote
+a send that did not read the human's accept, and the mechanism refused it. Catches, per the M0b
+ruling. Draft 1 made **no tool call** (stop `no-tool-call`, $0.0027 — priced, and too cheap to be a
+16000-token truncation, but that is an inference). $0.0481.
+
+**Tool gap found.** For the no-tool-call draft the batch saved `null` as `draft-1.json`; what the
+model wrote instead was not kept. The standing rule is that a red keeps the model's output, because
+without it a right check and a broken one look the same afterwards. Not fixed here; reported.
+
+**Where the POC claim stands.** Slot grammar, asks bound or refused by name, nothing slipped:
+deepseek job #1 20/20 (F31), Qwen job #1 19 bound + 1 refused (F32, ruled a catch), deepseek two
+asks 20/20, deepseek job #2 19/19 with 1 no-tool-call. Not measured: Qwen on job #2 and on two
+asks; a prose whose ambiguity guardrail sits on a line with no other work.
