@@ -270,6 +270,10 @@ as typed arbiter lines, one per line (`guardrail: source <role> = file:<path>`),
 scope, exit and negative above were signed the same day. POC (the slot grammar, 20/20) starts on
 branch `m1`.
 
+**M1 spend cap: $5.00 — SIGNED by hamr 2026-09-21** ("cap $5, go"). M1's own, separate from M0's
+$5.00; the POC's $0.18 (F31) ran under M0's cap before this was signed and is not re-charged.
+**POC bar met** (F31: slot 20/20, control 0/20); build started the same day.
+
 ## M2 — runner
 
 A fold over steps with fresh context per step (artifacts, never transcripts), an effect check per
