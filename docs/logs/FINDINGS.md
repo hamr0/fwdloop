@@ -1696,3 +1696,47 @@ without it a right check and a broken one look the same afterwards. Not fixed he
 deepseek job #1 20/20 (F31), Qwen job #1 19 bound + 1 refused (F32, ruled a catch), deepseek two
 asks 20/20, deepseek job #2 19/19 with 1 no-tool-call. Not measured: Qwen on job #2 and on two
 asks; a prose whose ambiguity guardrail sits on a line with no other work.
+
+## F34 — M1 slot grammar on Qwen, two asks and job #2: nothing slipped, but the two-ask fixture put an ask on a line that carries work, and the grammar has no honest answer for that (2026-09-21)
+
+**Runs.** Tag `2026-09-21g`, `--slot synthetic`, detached, sequential, after a tiny probe (http 200,
+1.6 s, served `Qwen/Qwen3.8-27B`). 40 rows on M1's ledger, `modelMatch` `prefix` on 39, `unreported`
+on the 1 provider red. No null-cost rows. Ledger after: $0.8458 of $5.00, $0.0368 estimated.
+
+**Two signed asks** (asks at lines 2 and 5). Slot check 15 green, 4 refused by name, 1 draft with no
+declaration (draft 10: stop `unknown`, 180.8 s, $0.0321). 0 checkpoint grants. $0.4302. The M0
+validator column is red on all 19 scored drafts for the F33 reason (it knows one ask per flow); not
+a model result.
+- Drafts 4, 6, 16: `ask at line 2 has 2 steps bound to it — exactly 1 required`. Each bound
+  `["read"]` "read the chat message" AND the zero-primitive ask to line 2.
+- Draft 12: a zero-primitive hitl "work out which customer" step with `fromLine: null` — F32's case.
+
+**The fixture is the cause of the first three, and it is the orchestrator's.** `twoask.prose.txt`
+signs an ask on line 2, which also carries work ("read the chat message and work out which customer
+it is about"). Strict 1-for-1 says the read step serves line 2; the slot rule says line 2 takes
+exactly one step. Both cannot hold. Qwen bound the read to line 2 (truthful, refused). DeepSeek, all
+20 drafts in F33, gave the read step `fromLine: null` — it passes, and the read step no longer says
+which human line it serves. So F33's 20/20 on this prose was reached by dropping traceability, not
+by the grammar being right; F33's number stands as measured, its reading is corrected here. In jobs
+#1 and #2 as hamr wrote them, every signed ask sits on a line of its own ("check it with me"), which
+is why this never showed before. Not decided: an ask must be its own line (the parser refuses an
+ask on a line with work), or an ask line may carry work (exactly one pause step, others allowed).
+hamr's.
+
+**Job #2's prose** (one ask at line 4). 19 of 20 returned a declaration. Slot check 17 green, 2
+refused by name (drafts 7 and 14: `step 3 (line 2) is a pause (no primitives, hitl) at an unsigned
+line` — a zero-primitive own-round step on a blank-guardrail line, F32's case again, ruled a catch).
+Validator 18 green, 1 red by name (draft 9: the ask step has no `emits`). $0.2530.
+
+**A deadline that did not hold.** Draft 8 of job #2: stop `provider-red`, no declaration, **691.4 s**
+wall. The standing rule is a 240 s hard total deadline on every provider call (F27). It was priced at
+ceiling ($0.0368, the ledger's whole estimated portion), so money is safe, but the bound is not
+enforced on this path — `draftJob2` was wired into the batch tool today (355a6a2) and the race
+against `DEFAULT_DEADLINE_MS` may cover only `runDrafter`. Not root-caused, not fixed; reported.
+
+**Tool gap, second sighting.** Both no-declaration drafts (two-ask 10, job #2 8) saved `null`; what
+the model or the provider returned was not kept (F33 saw the same).
+
+**Where the claim stands, all proses, both providers.** Drafts that slipped an unsigned human stop or
+missed a signed one past the checks: 0 of 160. Bound cleanly: deepseek 20/20, 20/20, 19/19; Qwen
+19/20, 15/20, 17/19.
