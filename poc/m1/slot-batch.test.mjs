@@ -69,15 +69,17 @@ function job2ConformingSteps() {
   };
 }
 
-// twoask's own well-behaved steps: job #1's EXACT shape (poc/m0/prose.txt's job lines are
-// byte-identical in the twoask fixture) — line 2's own "ask me, do not pick" guardrail already
-// derives to hitl by default (no explicit proposal needed, same as line 5's), so job #1's
-// existing conformingModelArgs() shape already carries a hitl step at BOTH signed ask lines
-// (2 and 5) once twoask's signed slots are [2, 5] instead of job #1's own [5] alone.
+// twoask's own well-behaved steps, over its own 7-line shape (poc/m1/fixtures/twoask.prose.txt,
+// M1 amendment 3's mark grammar): line 3 is its own "ask: which customer is this about?" mark
+// (no guardrail of its own — blank derives hitl unconditionally) and line 6 is the "ask: check it
+// with me," mark (guardrail "nothing goes out before I accept" — also hitl). Signed ask lines are
+// [3, 6], never [2, 5] any more — line 2 (read message + work out customer) now carries real work
+// (primitives) alongside its own guardrail, which amendment 3 forbids ON an ask line but is fine
+// here precisely because line 2 is NOT a signed ask line under the new fixture.
 function twoaskBothAsksSteps() {
   return {
     guardrailClasses: {
-      2: 'hitl', 3: 'green', 4: 'softgreen', 5: 'hitl',
+      2: 'hitl', 4: 'green', 5: 'softgreen', 6: 'hitl',
     },
     steps: [
       {
@@ -87,26 +89,29 @@ function twoaskBothAsksSteps() {
         goal: 'read the message', primitives: ['read'], reads: [], emits: 'a2', fromLine: 2,
       },
       {
-        goal: 'match customer, derive totals', primitives: ['read'], reads: ['a1', 'a2'], emits: 'a3', fromLine: 3,
+        goal: 'ask which customer', primitives: [], reads: ['a2'], emits: 'a3', fromLine: 3,
       },
       {
-        goal: 'compose reply', primitives: ['read'], reads: ['a3'], emits: 'a4', fromLine: 4, close: { shape: { linesPerInvoice: 1, mustCarry: ['total'] } },
+        goal: 'pull invoices, derive totals', primitives: ['read'], reads: ['a1', 'a3'], emits: 'a4', fromLine: 4,
       },
       {
-        goal: 'check with me', primitives: [], reads: ['a4'], emits: 'a5', fromLine: 5,
+        goal: 'compose reply', primitives: ['read'], reads: ['a4'], emits: 'a5', fromLine: 5, close: { shape: { linesPerInvoice: 1, mustCarry: ['total'] } },
       },
       {
-        goal: 'send (dry-run egress)', primitives: ['write'], reads: ['a5'], emits: 'a6', fromLine: 6,
+        goal: 'check with me', primitives: [], reads: ['a5'], emits: 'a6', fromLine: 6,
+      },
+      {
+        goal: 'send (dry-run egress)', primitives: ['write'], reads: ['a6'], emits: 'a7', fromLine: 7,
       },
     ],
   };
 }
 
-// SAME shape, but with the line-2 step dropped entirely — one of twoask's two signed ask
-// lines (2) now has NO step bound to it at all.
+// SAME shape, but with the line-3 step dropped entirely — one of twoask's two signed ask
+// lines (3) now has NO step bound to it at all.
 function twoaskMissingOneAskSteps() {
   const decl = twoaskBothAsksSteps();
-  decl.steps = decl.steps.filter((s) => s.fromLine !== 2);
+  decl.steps = decl.steps.filter((s) => s.fromLine !== 3);
   return decl;
 }
 
@@ -312,7 +317,9 @@ test('PROOF the test can fail: the legacy grammar (checkpoint still on the menu)
   });
   assert.equal(record.checkpointGrants, 1);
   assert.equal(record.slot.verdict, 'red');
-  assert.match(record.slot.red, /grants "checkpoint"/);
+  // (a2) catches this first (checkpoint is itself a primitive on the stop-only signed ask step) —
+  // see poc/m1/slots.test.mjs's own (a2) vs (b) test for the isolated case.
+  assert.match(record.slot.red, /is a stop only — granting \[checkpoint\] is work/);
 });
 
 test('runOneDraft: no tool call records stopReason "no-tool-call" and null validator/slot', async () => {
@@ -612,6 +619,124 @@ test('rescoreSlotBatch reflects the CURRENT slots.mjs code, not whatever scored 
   assert.equal(records[0].slot.verdict, 'green', `expected green under the current check (c), got: ${JSON.stringify(records[0].slot)}`);
 });
 
+// ---------------------------------------------------------------------------
+// item 5 — runSlotBatch saves the prose it ran against to <declDir>/prose.txt
+// once per tag; rescoreSlotBatch (given no explicit proseText) reads THAT
+// file when present, falling back to the current prose file only for a tag
+// that predates this fix.
+// ---------------------------------------------------------------------------
+
+test('runSlotBatch saves the prose text it used to <declDir>/prose.txt', async () => {
+  const outDir = tmpOutDir();
+  const { declDir } = outFilePaths('slot', 'prosesave', outDir);
+  await runSlotBatch({
+    grammar: 'slot', n: 1, tag: 'prosesave', outDir, facts: REAL_FACTS, proseText: PROSE_TEXT,
+    providerForDraft: providerForDraftOf(fakeConformingProvider), writeLine: () => {},
+  });
+  assert.ok(existsSync(join(declDir, 'prose.txt')));
+  assert.equal(readFileSync(join(declDir, 'prose.txt'), 'utf8'), PROSE_TEXT);
+});
+
+test('runSlotBatch refuses to overwrite an existing saved prose.txt under the same declDir', async () => {
+  const outDir = tmpOutDir();
+  const { declDir } = outFilePaths('slot', 'prosesave2', outDir);
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(declDir, { recursive: true });
+  writeFileSync(join(declDir, 'prose.txt'), 'stale prose already here');
+  await assert.rejects(
+    () => runSlotBatch({
+      grammar: 'slot', n: 1, tag: 'prosesave2', outDir, facts: REAL_FACTS, proseText: PROSE_TEXT,
+      providerForDraft: providerForDraftOf(fakeConformingProvider), writeLine: () => {},
+    }),
+    /prose\.txt already exists — refusing to overwrite/,
+  );
+});
+
+// RED-FIRST (item 5): without the fix, rescoreSlotBatch (no explicit proseText) always falls back
+// to the CURRENT prose file on disk, even for a tag whose declarations were drafted against a
+// DIFFERENT prose text (here, one whose signed ask mark sits on line 2, not line 5). The saved
+// declaration is only slot-green under the prose it actually ran against.
+const VARIANT_PROSE_TEXT = PROSE_TEXT
+  .replace('2. then read the chat message and work out which customer it is about.', '2. ask: which customer is this about?')
+  .replace('5. ask: check it with me,', '5. check it with me,');
+
+function variantAskAtLine2Steps() {
+  return {
+    guardrailClasses: { 3: 'green', 4: 'softgreen' },
+    steps: [
+      { goal: 'read the sheet', primitives: ['addressCells'], reads: [], emits: 'a1', fromLine: 1 },
+      { goal: 'ask which customer', primitives: [], reads: [], emits: 'a2', fromLine: 2 },
+      {
+        goal: 'match customer, derive totals', primitives: ['read'], reads: ['a1', 'a2'], emits: 'a3', fromLine: 3,
+      },
+      {
+        goal: 'compose reply', primitives: ['read'], reads: ['a3'], emits: 'a4', fromLine: 4, close: { shape: { linesPerInvoice: 1, mustCarry: ['total'] } },
+      },
+      {
+        goal: 'check with me', primitives: ['write'], reads: ['a4'], emits: 'a5', fromLine: 5,
+      },
+      {
+        goal: 'send (dry-run egress)', primitives: ['write'], reads: ['a5'], emits: 'a6', fromLine: 6,
+      },
+    ],
+  };
+}
+
+test('rescoreSlotBatch (RED-FIRST): a saved prose whose ask line differs from the current file drives the rescore', async () => {
+  const outDir = tmpOutDir();
+  const { jsonlPath } = outFilePaths('slot', 'prosevariant', outDir);
+  await runSlotBatch({
+    grammar: 'slot', n: 1, tag: 'prosevariant', outDir, facts: REAL_FACTS, proseText: VARIANT_PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeProviderFor(variantAskAtLine2Steps())),
+    writeLine: () => {},
+  });
+  // Sanity: the ORIGINAL run, scored against the variant prose it was actually drafted for, is
+  // slot green (the ask mark sits on line 2 in this variant).
+  const originalRecord = JSON.parse(readFileSync(jsonlPath, 'utf8').trim());
+  assert.equal(originalRecord.slot.verdict, 'green', JSON.stringify(originalRecord));
+
+  const lines = [];
+  const { records } = rescoreSlotBatch({
+    grammar: 'slot', tag: 'prosevariant', outDir, writeLine: (s) => lines.push(s), dateStr: '2026-09-21',
+    // no proseText override — must read the SAVED prose (declDir/prose.txt), never the current
+    // poc/m0/prose.txt (whose own ask mark sits on line 5, not 2).
+  });
+  assert.equal(records[0].slot.verdict, 'green', `expected green (rescored against the SAVED prose), got: ${JSON.stringify(records[0])}`);
+  assert.ok(lines.some((l) => l === 'prose=saved'), `expected a "prose=saved" line, got: ${JSON.stringify(lines)}`);
+});
+
+test('rescoreSlotBatch prints "prose=current-file (tag predates saved prose)" when no saved prose.txt exists for the tag', async () => {
+  const outDir = tmpOutDir();
+  const { jsonlPath, declDir } = outFilePaths('slot', 'rescore-predates', outDir);
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(declDir, { recursive: true });
+  writeFileSync(jsonlPath, `${JSON.stringify({ i: 1, grammar: 'slot' })}\n`);
+  writeFileSync(join(declDir, 'draft-1.json'), 'null');
+  // Deliberately no prose.txt written under declDir — simulates a tag recorded before this fix.
+
+  const lines = [];
+  rescoreSlotBatch({
+    grammar: 'slot', tag: 'rescore-predates', outDir, writeLine: (s) => lines.push(s), dateStr: '2026-09-21',
+  });
+  assert.ok(lines.some((l) => l === 'prose=current-file (tag predates saved prose)'), JSON.stringify(lines));
+});
+
+test('rescoreSlotBatch: an explicit proseText override is used as-is and prints no prose= line', async () => {
+  const outDir = tmpOutDir();
+  const { jsonlPath, declDir } = outFilePaths('slot', 'rescore-override', outDir);
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(declDir, { recursive: true });
+  writeFileSync(jsonlPath, `${JSON.stringify({ i: 1, grammar: 'slot' })}\n`);
+  writeFileSync(join(declDir, 'draft-1.json'), 'null');
+  writeFileSync(join(declDir, 'prose.txt'), VARIANT_PROSE_TEXT); // present, but must be ignored — proseText wins
+
+  const lines = [];
+  rescoreSlotBatch({
+    grammar: 'slot', tag: 'rescore-override', outDir, proseText: PROSE_TEXT, writeLine: (s) => lines.push(s), dateStr: '2026-09-21',
+  });
+  assert.ok(!lines.some((l) => l.startsWith('prose=')), JSON.stringify(lines));
+});
+
 test('rescoreSlotBatch: a null (never-produced) declaration rescoures to null validator/slot, not a throw', async () => {
   const outDir = tmpOutDir();
   const { jsonlPath, declDir } = outFilePaths('slot', 'rescore-null', outDir);
@@ -700,7 +825,7 @@ test('PROOF the test can fail: a job2 declaration missing its signed ask step (l
   assert.match(records[0].slot.red, /ask at line 4 has no step/);
 });
 
-test('runSlotBatch --job twoask: a declaration binding BOTH signed ask lines (2 and 5) is slot green', async () => {
+test('runSlotBatch --job twoask: a declaration binding BOTH signed ask lines (3 and 6) is slot green', async () => {
   const outDir = tmpOutDir();
   const { jsonlPath, declDir } = outFilePaths('slot', 'twoasktag', outDir, 'twoask');
   const { records, completed } = await runSlotBatch({
@@ -728,15 +853,28 @@ test('runSlotBatch --job twoask: a declaration binding only ONE of the two signe
   });
   assert.equal(records.length, 1);
   assert.equal(records[0].slot.verdict, 'red');
-  assert.match(records[0].slot.red, /ask at line 2 has no step/);
+  assert.match(records[0].slot.red, /ask at line 3 has no step/);
 });
 
-test('PROOF the test can fail: the SAME missing-ask declaration against job1\'s OWN single ask slot (line 5 only) is slot green — the second slot is twoask-only', async () => {
+test('PROOF the test can fail: the SAME missing-ask declaration against job1\'s OWN single ask slot (line 5 only) is ALSO slot red — twoask\'s own lines never coincide with job1\'s numbering any more (its own remaining ask-shaped step, line 6, is simply an unsigned pause under job1\'s slot)', async () => {
   const record = await runOneDraft({
     i: 1, grammar: 'slot', job: 'job1', askLines: ASK_LINES, facts: REAL_FACTS, proseText: PROSE_TEXT,
     providerForDraft: providerForDraftOf(() => fakeProviderFor(twoaskMissingOneAskSteps())),
   });
-  assert.equal(record.slot.verdict, 'green', JSON.stringify(record.slot));
+  assert.equal(record.slot.verdict, 'red', JSON.stringify(record.slot));
+  // job1's line 5 is now twoask's ordinary "compose reply" step (softgreen) — not an ask at all.
+  assert.match(record.slot.red, /ask at line 5 step's close\.class is "softgreen" — must be "hitl"/);
+});
+
+test('runSlotBatch --job twoask: adding the missing ask step (line 3) back turns the slot check green — the check is not vacuous', async () => {
+  const outDir = tmpOutDir();
+  const { records } = await runSlotBatch({
+    grammar: 'slot', n: 1, tag: 'twoaskfixed', job: 'twoask', outDir,
+    facts: REAL_FACTS, proseText: TWOASK_PROSE_TEXT,
+    providerForDraft: providerForDraftOf(() => fakeProviderFor(twoaskBothAsksSteps())),
+    writeLine: () => {},
+  });
+  assert.equal(records[0].slot.verdict, 'green', JSON.stringify(records[0].slot));
 });
 
 test('runSlotBatch: an unknown --job is refused at $0, before any ledger write', async () => {

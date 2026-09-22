@@ -79,7 +79,10 @@ function primitiveMenuText(slotGrammar = false) {
 // (poc/m0/runner.mjs's checkpointAsk, wired at the signed slot with no grant
 // check) so it never needs — and is never granted — "checkpoint" itself.
 function signedAskSlotsBlock(askLines) {
-  return `SIGNED ASK SLOTS: line(s) ${askLines.join(', ')}. For each signed ask line emit EXACTLY ONE step: `
+  return `SIGNED ASK SLOTS: line(s) ${askLines.join(', ')}. Each of these lines carries the mark "ask:" `
+    + '(or "ask <int><s|m|h>:") at the START of its own text — the words after the mark are the human\'s own '
+    + 'question, already signed; you are never choosing where an ask goes, only drafting the one step it names. '
+    + 'For each signed ask line emit EXACTLY ONE step: '
     + 'that line\'s fromLine, close.class "hitl", primitives []. The runner supplies the pause; there is no '
     + 'primitive for it. Never emit a pause anywhere else: a line whose guardrail says "ask me" inside another '
     + 'step\'s work is that step\'s hitl close, not a new step. A step with no primitives that waits on a human '

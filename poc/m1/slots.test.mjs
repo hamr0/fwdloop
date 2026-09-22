@@ -8,19 +8,20 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseAskSlots, checkAskSlots } from './slots.mjs';
 
+// M1 amendment 3 (signed 2026-09-21): the ask is now a MARK on the numbered
+// line's own text, never the bottom-block "ask at line N" form.
 const RAW_TEXT = [
   '1. read the sheet',
   '2. read the message and work out which customer it is about.',
   '   guardrail: if more than one customer matches, ask me, do not pick',
   '3. derive the figures',
   '4. compose the reply',
-  '5. check it with me,',
+  '5. ask: check it with me,',
   '   guardrail: nothing goes out before I accept',
   '6. send it once I accept.',
   '',
   'Arbiter guardrails (belong to no line):',
   'guardrail: cap $0.25 per run',
-  'guardrail: ask at line 5',
   'guardrail: send at line 6 to file:poc/m0/out',
 ].join('\n');
 
@@ -28,37 +29,33 @@ const RAW_TEXT = [
 // parseAskSlots
 // ---------------------------------------------------------------------------
 
-test('parseAskSlots collects a single signed ask line', () => {
+test('parseAskSlots collects a single signed ask mark', () => {
   const { lines, errors } = parseAskSlots(RAW_TEXT);
   assert.deepEqual(lines, [5]);
   assert.deepEqual(errors, []);
 });
 
-test('parseAskSlots collects EVERY "ask at line N" line, sorted, over m0\'s parseArbiterSlots which keeps only the last', () => {
+test('parseAskSlots collects EVERY ask mark, sorted, over m0\'s parseArbiterSlots which keeps only the last', () => {
   const multi = RAW_TEXT.replace(
-    'guardrail: ask at line 5\n',
-    'guardrail: ask at line 5\nguardrail: ask at line 2\n',
+    '2. read the message and work out which customer it is about.',
+    '2. ask: which customer is this about?',
   );
   const { lines, errors } = parseAskSlots(multi);
   assert.deepEqual(lines, [2, 5], 'both signed ask lines must survive, sorted ascending');
   assert.deepEqual(errors, []);
 });
 
-test('parseAskSlots dedupes a repeated identical ask line', () => {
-  const dup = RAW_TEXT.replace(
-    'guardrail: ask at line 5\n',
-    'guardrail: ask at line 5\nguardrail: ask at line 5\n',
-  );
-  const { lines } = parseAskSlots(dup);
+test('parseAskSlots dedupes a repeated identical ask line (each numbered line appears once by construction)', () => {
+  const { lines } = parseAskSlots(RAW_TEXT);
   assert.deepEqual(lines, [5]);
 });
 
-test('parseAskSlots names a malformed "ask at" line as an error, never silently drops it', () => {
-  const malformed = RAW_TEXT.replace('guardrail: ask at line 5\n', 'guardrail: ask at the end\n');
+test('parseAskSlots names a malformed ask-mark attempt as an error, never silently drops it', () => {
+  const malformed = RAW_TEXT.replace('5. ask: check it with me,', '5. ask x check it with me,');
   const { lines, errors } = parseAskSlots(malformed);
   assert.deepEqual(lines, []);
   assert.equal(errors.length, 1);
-  assert.match(errors[0], /ask at the end/);
+  assert.match(errors[0], /ask x check it with me,/);
 });
 
 test('parseAskSlots leaves other arbiter lines (cap, send) alone', () => {
@@ -67,9 +64,30 @@ test('parseAskSlots leaves other arbiter lines (cap, send) alone', () => {
   assert.deepEqual(errors, []);
 });
 
-test('PROOF the test can fail: a line with no "ask at" prefix is never reported as a malformed slot', () => {
+test('PROOF the test can fail: a line with no "ask:"/"ask " prefix is never reported as a malformed mark', () => {
   const { errors } = parseAskSlots(RAW_TEXT); // "cap $0.25 per run" / "send at line 6 ..." present, no false positive
   assert.deepEqual(errors, []);
+});
+
+// ---------------------------------------------------------------------------
+// The retired bottom-block "ask at line N" grammar — refused by name, never
+// silently accepted as a slot (M1 amendment 3: this form is no longer
+// grammar at all, unlike M0's own parseArbiterSlots which still accepts it
+// for M0 fixtures).
+// ---------------------------------------------------------------------------
+
+test('parseAskSlots refuses the retired "ask at line N" bottom-block form, naming it, and it is NOT counted as a line', () => {
+  const legacy = `${RAW_TEXT}\nguardrail: ask at line 2`;
+  const { lines, errors } = parseAskSlots(legacy);
+  assert.deepEqual(lines, [5], 'the retired form must never be counted as a signed ask line');
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /arbiter guardrail "ask at line 2" is no longer grammar — mark the numbered line itself with "ask:" \(or "ask <int><s\|m\|h>:"\) instead/);
+});
+
+test('PROOF the test can fail: removing the retired line leaves no such error', () => {
+  const legacy = `${RAW_TEXT}\nguardrail: ask at line 2`;
+  assert.equal(parseAskSlots(legacy).errors.length, 1);
+  assert.deepEqual(parseAskSlots(RAW_TEXT).errors, []);
 });
 
 // ---------------------------------------------------------------------------
@@ -165,22 +183,57 @@ test('PROOF (a)/wrong-class: setting close.class back to "hitl" turns the same d
   assert.equal(checkAskSlots(fixed, [5]).verdict, 'green');
 });
 
-// --- (b) checkpoint grant ---
+// --- (a2) stop only — the signed ask step grants no primitive ---
+//
+// RED-FIRST (M1 amendment 3 item 4, 2026-09-21): before this check existed,
+// a signed ask step carrying work (a primitive) validated GREEN — quoted in
+// this file's report. The fix reds it, naming the line, the step, and the
+// verbs granted.
 
-test('checkAskSlots (b): any step granting "checkpoint" is red, naming the step and line — F10\'s exact leak', () => {
+test('checkAskSlots (a2): the signed ask step granting a primitive is red, naming the line, step, and verbs', () => {
   const decl = conformingDeclaration();
-  decl.steps.find((st) => st.fromLine === 5).primitives = ['checkpoint'];
+  decl.steps.find((st) => st.fromLine === 5).primitives = ['write'];
   const result = checkAskSlots(decl, [5]);
   assert.equal(result.verdict, 'red');
-  assert.match(result.red, /step 5 \(line 5\) grants "checkpoint" — the pause belongs to the runner, never the drafter/);
+  assert.match(result.red, /ask at line 5 \(step 5\) is a stop only — granting \[write\] is work, which belongs on its own line/);
+});
+
+test('PROOF (a2): dropping the primitive back to [] turns the same declaration green', () => {
+  const decl = conformingDeclaration();
+  decl.steps.find((st) => st.fromLine === 5).primitives = ['write'];
+  assert.equal(checkAskSlots(decl, [5]).verdict, 'red');
+  const fixed = conformingDeclaration();
+  assert.equal(checkAskSlots(fixed, [5]).verdict, 'green');
+});
+
+// --- (b) checkpoint grant ---
+
+// (b) is exercised on line 4 (compose), NOT the signed ask line 5 — a
+// "checkpoint" grant AT the signed line is now caught first by (a2) (it is
+// also a primitive on the stop-only step), so isolating (b) needs a
+// checkpoint grant somewhere else entirely.
+test('checkAskSlots (b): any step granting "checkpoint" is red, naming the step and line — F10\'s exact leak', () => {
+  const decl = conformingDeclaration();
+  decl.steps.find((st) => st.fromLine === 4).primitives = ['checkpoint'];
+  const result = checkAskSlots(decl, [5]);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /step 4 \(line 4\) grants "checkpoint" — the pause belongs to the runner, never the drafter/);
 });
 
 test('PROOF (b): dropping the "checkpoint" grant turns the same declaration green', () => {
   const decl = conformingDeclaration();
-  decl.steps.find((st) => st.fromLine === 5).primitives = ['checkpoint'];
+  decl.steps.find((st) => st.fromLine === 4).primitives = ['checkpoint'];
   assert.equal(checkAskSlots(decl, [5]).verdict, 'red');
   const fixed = conformingDeclaration();
   assert.equal(checkAskSlots(fixed, [5]).verdict, 'green');
+});
+
+test('checkAskSlots (a2) vs (b): a "checkpoint" grant AT the signed ask line is caught by (a2) first (checkpoint is itself work)', () => {
+  const decl = conformingDeclaration();
+  decl.steps.find((st) => st.fromLine === 5).primitives = ['checkpoint'];
+  const result = checkAskSlots(decl, [5]);
+  assert.equal(result.verdict, 'red');
+  assert.match(result.red, /ask at line 5 \(step 5\) is a stop only — granting \[checkpoint\] is work/);
 });
 
 // --- (c) unsigned pause ---

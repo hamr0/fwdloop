@@ -532,10 +532,29 @@ export function rescoreSlotBatch({
   if (!tag) {
     throw new Error('slot-batch --rescore: --tag is required');
   }
-  const resolvedProseText = proseText !== undefined ? proseText : readFileSync(prosePathForJob(job), 'utf8');
   const { jsonlPath, declDir } = outFilePaths(grammar, tag, outDir, job);
   if (!existsSync(jsonlPath)) {
     throw new Error(`slot-batch --rescore: ${jsonlPath} not found — nothing recorded for grammar=${grammar} tag=${tag}`);
+  }
+  // The prose this tag actually ran against — `runSlotBatch` saves it once, at
+  // `<declDir>/prose.txt`, before the first draft (see its own header). A tag
+  // recorded before that fix existed has no such file; falling back to
+  // WHATEVER prose file is on disk TODAY is the best available answer for
+  // it, but it is a DIFFERENT fact from "the prose this tag actually ran
+  // against" (the file may have moved on since), so the caller is told which
+  // one this rescore used. An explicit `proseText` (every test above this
+  // one) always wins — it is the caller's own, deliberate override, never
+  // guessed from either disk source.
+  let resolvedProseText = proseText;
+  if (resolvedProseText === undefined) {
+    const savedProsePath = join(declDir, 'prose.txt');
+    if (existsSync(savedProsePath)) {
+      resolvedProseText = readFileSync(savedProsePath, 'utf8');
+      writeLine('prose=saved');
+    } else {
+      resolvedProseText = readFileSync(prosePathForJob(job), 'utf8');
+      writeLine('prose=current-file (tag predates saved prose)');
+    }
   }
   const original = readFileSync(jsonlPath, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
   const { lines: askLines } = parseAskSlots(resolvedProseText);
@@ -619,6 +638,21 @@ export async function runSlotBatch({
   assertFreshTag(jsonlPath);
   mkdirSync(outDir, { recursive: true });
   mkdirSync(declDir, { recursive: true });
+
+  // The prose text THIS tag actually ran against, saved once, before the
+  // first draft — so a later `--rescore` (or a human reading the evidence
+  // months on) re-scores against what the run actually used, never whatever
+  // the prose FILE happens to say today (see rescoreSlotBatch's own header).
+  // Same "never overwrite live evidence" discipline as `assertFreshTag`:
+  // `assertFreshTag` above already refuses a second run against this exact
+  // grammar+tag, so this file existing at all here would mean a caller built
+  // its OWN `declDir` outside that discipline — refused rather than silently
+  // overwritten either way.
+  const prosePath = join(declDir, 'prose.txt');
+  if (existsSync(prosePath)) {
+    throw new Error(`slot-batch: ${prosePath} already exists — refusing to overwrite the prose text a tag ran against`);
+  }
+  writeFileSync(prosePath, resolvedProseText);
 
   // Ask lines always come from parseAskSlots on the CHOSEN prose — never hard-coded per job.
   const { lines: askLines } = parseAskSlots(resolvedProseText);

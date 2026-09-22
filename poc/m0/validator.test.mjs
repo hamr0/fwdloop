@@ -31,6 +31,7 @@ import assert from 'node:assert/strict';
 import {
   validate, guardrailList, unmappedGuardrails, parseLines, parseArbiterGuardrails, parseArbiterSlots,
   resolveGuardrailClass, deriveFromLine, effectiveClass, effectiveGuardrailClass, unjudgeableList,
+  parseAskMarks,
 } from './validator.mjs';
 
 // The signed guardrails text job #1 actually carries, as the NUMBERED JOB
@@ -1046,4 +1047,129 @@ test('job #2: send lock still applies — the send step must read what the ask s
   const result = validate(decl);
   assert.equal(result.verdict, 'red');
   assert.match(result.red, /the send step \(fromLine 5\) does not read "r4"/);
+});
+
+// ---------------------------------------------------------------------------
+// M1 amendment 3 — THE ASK MARK (2026-09-21). The ask is now signed as a mark
+// on the numbered line's own text ("ask: <words>" / "ask <int><s|m|h>: <words>"),
+// not the bottom-block "ask at line N" form. parseAskMarks is the reader;
+// parseArbiterSlots (M0's own) is widened to prefer it while still accepting
+// the legacy bottom-block form for every M0 fixture that still uses it.
+// ---------------------------------------------------------------------------
+
+test('parseAskMarks finds a default-wait mark ("ask:") on a numbered line, naming the line', () => {
+  const text = [
+    '1. read the sheet',
+    '2. ask: which customer is this about?',
+  ].join('\n');
+  const { lines, errors } = parseAskMarks(text);
+  assert.deepEqual(lines, [2]);
+  assert.deepEqual(errors, []);
+});
+
+test('PROOF the test can fail: plain prose starting "asking"/"askew" is never mistaken for a mark', () => {
+  const text = [
+    '1. asking the customer nicely is not a mark',
+    '2. askew text is not a mark either',
+  ].join('\n');
+  const { lines, errors } = parseAskMarks(text);
+  assert.deepEqual(lines, []);
+  assert.deepEqual(errors, []);
+});
+
+test('parseAskMarks finds a timed mark ("ask <int><s|m|h>:")', () => {
+  const text = '1. ask 5m: which customer is this about?';
+  const { lines, errors } = parseAskMarks(text);
+  assert.deepEqual(lines, [1]);
+  assert.deepEqual(errors, []);
+});
+
+test('parseAskMarks reds a mark with no words after it, naming the line and its text', () => {
+  const text = '1. ask:';
+  const { lines, errors } = parseAskMarks(text);
+  assert.deepEqual(lines, []);
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /line 1 \("ask:"\) ask mark has no words after it/);
+});
+
+test('PROOF can fail: putting words back after the mark clears the error', () => {
+  const bad = parseAskMarks('1. ask:');
+  assert.equal(bad.errors.length, 1);
+  const fixed = parseAskMarks('1. ask: check with me');
+  assert.deepEqual(fixed.errors, []);
+  assert.deepEqual(fixed.lines, [1]);
+});
+
+test('parseAskMarks reds a timed mark whose wait is <= 0, naming the line and its text', () => {
+  const text = '1. ask 0m: check with me';
+  const { lines, errors } = parseAskMarks(text);
+  assert.deepEqual(lines, []);
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /line 1 .*wait must be greater than 0/);
+});
+
+test('PROOF can fail: a positive wait value clears the error', () => {
+  const bad = parseAskMarks('1. ask 0m: check with me');
+  assert.equal(bad.errors.length, 1);
+  const fixed = parseAskMarks('1. ask 5m: check with me');
+  assert.deepEqual(fixed.errors, []);
+});
+
+test('parseAskMarks reds text that starts "ask:"/"ask " but matches neither typed form, naming the line', () => {
+  const text = '1. ask x: check with me';
+  const { lines, errors } = parseAskMarks(text);
+  assert.deepEqual(lines, []);
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /line 1 \("ask x: check with me"\) starts "ask:"\/"ask " but matches neither/);
+});
+
+test('PROOF can fail: a well-formed timed mark over the same words is never an error', () => {
+  const bad = parseAskMarks('1. ask x: check with me');
+  assert.equal(bad.errors.length, 1);
+  const fixed = parseAskMarks('1. ask 5m: check with me');
+  assert.deepEqual(fixed.errors, []);
+});
+
+const MARK_GUARDRAILS = [
+  '1. read the sheet',
+  '2. read the message and work out which customer',
+  '   guardrail: if more than one customer matches, ask me, do not pick',
+  '3. list their open invoices, total owed, earliest due, count overdue as of today',
+  '   guardrail: every number must point to the cell it came from or the formula that made it',
+  '4. write a short reply, one line per invoice',
+  '   guardrail: one line per invoice in the reply',
+  '5. ask: check with me',
+  '   guardrail: nothing goes out before I accept',
+  '6. on accept, send',
+  '',
+  'Arbiter guardrails (belong to no line):',
+  'guardrail: cap $0.25 per run',
+  'guardrail: send at line 6 to file:poc/m0/out',
+].join('\n');
+
+test('parseArbiterSlots: a mark-only declaration sets slots.ask from the mark, same shape as the legacy form', () => {
+  const { slots, errors } = parseArbiterSlots(MARK_GUARDRAILS);
+  assert.deepEqual(errors, []);
+  assert.deepEqual(slots, { ask: { line: 5 }, send: { line: 6, target: 'file:poc/m0/out' } });
+});
+
+test('PROOF can fail: removing the mark (and adding no legacy form) leaves slots.ask unset', () => {
+  const noMark = MARK_GUARDRAILS.replace('5. ask: check with me', '5. check with me');
+  const { slots } = parseArbiterSlots(noMark);
+  assert.equal(slots.ask, undefined);
+});
+
+test('parseArbiterSlots: a mark AND the legacy "ask at line N" both present is a red naming both, and slots.ask is left unset', () => {
+  const both = `${MARK_GUARDRAILS}\nguardrail: ask at line 5`;
+  const { slots, errors } = parseArbiterSlots(both);
+  assert.equal(slots.ask, undefined);
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /both a signed ask mark \(line 5\) and the legacy arbiter "ask at line 5" are present/);
+});
+
+test('PROOF can fail: dropping the legacy line leaves only the mark, and slots.ask resolves cleanly again', () => {
+  const both = `${MARK_GUARDRAILS}\nguardrail: ask at line 5`;
+  assert.equal(parseArbiterSlots(both).slots.ask, undefined);
+  const markOnly = parseArbiterSlots(MARK_GUARDRAILS);
+  assert.deepEqual(markOnly.slots.ask, { line: 5 });
 });

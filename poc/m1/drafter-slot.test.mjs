@@ -60,8 +60,9 @@ function toolReply(args) {
   };
 }
 
-// prose.txt's real, signed "ask at line 5" (poc/m0/prose.txt), read through
-// the same parser the batch script uses — never a hand-typed [5] here.
+// prose.txt's real, signed ask mark (line 5, "ask: check it with me,",
+// poc/m0/prose.txt), read through the same parser the batch script uses —
+// never a hand-typed [5] here.
 const PROSE_TEXT = readFileSync(join(REPO_ROOT, 'poc', 'm0', 'prose.txt'), 'utf8');
 const { lines: ASK_LINES } = parseAskSlots(PROSE_TEXT);
 

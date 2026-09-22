@@ -39,42 +39,48 @@
 // WINS strategy and its "never throw, always red" discipline for a
 // malformed declaration.
 
-import { parseArbiterGuardrails } from '../m0/validator.mjs';
+import { parseAskMarks, parseArbiterGuardrails } from '../m0/validator.mjs';
 
 /**
- * Every `ask at line <int>` line under the "Arbiter guardrails" heading, as
- * a SORTED, DEDUPED array of ints — unlike poc/m0/validator.mjs's
- * `parseArbiterSlots`, which keeps only the LAST `ask at` line it sees (one
- * ask slot per flow was M0b's whole world; M1 widens that to "however many
- * a human actually signs"). `parseArbiterSlots` itself is untouched — this
- * is a new, separate reader over the same arbiter-guardrail lines.
+ * Every SIGNED ask line, as a SORTED, DEDUPED array of ints — M1 amendment 3
+ * (2026-09-21, docs/wiki/the-module-ladder.md "M1 amendment 3 — the ask is a
+ * mark on its own line"): the ask is no longer the bottom-block arbiter
+ * guardrail `ask at line N`; it is a MARK at the START of the numbered job
+ * line's own text (`ask: <words>` / `ask <int><s|m|h>: <words>`), read here
+ * via poc/m0/validator.mjs's `parseAskMarks` (the one writer for the mark
+ * grammar — restyled from src/signed-text.js's own `parseAskMark`, never
+ * imported from src; CLAUDE.md's "borrow, never import"). Unlike
+ * poc/m0/validator.mjs's OWN `parseArbiterSlots` — which still accepts the
+ * legacy bottom-block form too, for every M0 fixture still written that way
+ * — this M1 reader accepts ONLY the mark: a line under "Arbiter guardrails"
+ * that starts `ask at` is the RETIRED grammar and is refused below, never
+ * silently treated as a slot (M1 widens "one ask slot" to "however many a
+ * human actually marks", which the retired grammar's own bottom-block
+ * numbering could never express well over more than one slot anyway).
  *
- * A line that STARTS "ask at" but does not match the signed grammar
- * ("ask at line <int>") is never silently dropped: it is reported in
- * `errors`, naming the offending line, same discipline as
- * `parseArbiterSlots`'s own error path.
+ * A malformed mark attempt (`parseAskMarks`' own `errors`) is never silently
+ * dropped: it is reported here, naming the offending line and its text. A
+ * retired `ask at ...` line is reported the same way, naming the line and
+ * what replaces it.
  *
  * Returns `{ lines, errors }`. `lines` is the ints found; `errors` is a
  * list of human-readable strings, each naming one malformed line.
  */
 export function parseAskSlots(rawText) {
+  const { lines: markLines, errors: markErrors } = parseAskMarks(rawText);
+  const errors = [...markErrors];
+
   const arbiterLines = parseArbiterGuardrails(rawText);
-  const found = new Set();
-  const errors = [];
   for (const line of arbiterLines) {
-    const askMatch = /^ask at line (\d+)$/i.exec(line.trim());
-    if (askMatch) {
-      found.add(Number(askMatch[1]));
-      continue;
-    }
-    if (/^ask at\b/i.test(line)) {
-      errors.push(`arbiter guardrail "${line}" starts with "ask at" but does not match the signed `
-        + 'grammar ("ask at line <int>") — never silently ignored');
+    if (/^ask at\b/i.test(line.trim())) {
+      errors.push(`arbiter guardrail "${line}" is no longer grammar — mark the numbered line itself `
+        + 'with "ask:" (or "ask <int><s|m|h>:") instead');
     }
     // Any other arbiter line (a $ cap, "send at line N to <target>", etc.)
     // belongs to no ask slot and is left alone.
   }
-  return { lines: [...found].sort((a, b) => a - b), errors };
+
+  return { lines: [...new Set(markLines)].sort((a, b) => a - b), errors };
 }
 
 /**
@@ -92,6 +98,11 @@ export function parseAskSlots(rawText) {
  * First red wins, in this order:
  *   (a) for each signed line N: exactly one step with fromLine === N, and
  *       that step's close.class must be "hitl".
+ *   (a2) M1 amendment 3 item 4 (signed 2026-09-21): the one step bound to a
+ *       signed ask line is a STOP ONLY — it grants NO primitive. Checked
+ *       right after (a)'s class check, over the SAME single bound step, so
+ *       a step can be both the wrong class AND carrying work and (a) fires
+ *       first (first-red-wins, in this function's own declared order).
  *   (b) no step anywhere may grant "checkpoint" — that primitive belongs to
  *       the runner alone; a drafter that reaches for it is exactly F10's leak.
  *   (c) no step that is BOTH zero-primitive AND close.class "hitl" may sit
@@ -134,6 +145,7 @@ export function checkAskSlots(declaration, askLines) {
       };
     }
     const [step] = matches;
+    const stepIndex = steps.indexOf(step);
     const cls = step.close && typeof step.close === 'object' && !Array.isArray(step.close)
       ? step.close.class
       : undefined;
@@ -141,6 +153,18 @@ export function checkAskSlots(declaration, askLines) {
       return {
         verdict: 'red',
         red: `slot: ask at line ${n} step's close.class is "${cls ?? '(none)'}" — must be "hitl"`,
+      };
+    }
+    // (a2) — the one step bound to a signed ask line is a STOP ONLY. A
+    // marked line is the human's own question; the runner supplies the
+    // pause. Granting it a primitive smuggles work onto a line that is
+    // signed to do nothing but wait — that work belongs on its own line.
+    const stepPrimitives = Array.isArray(step.primitives) ? step.primitives : [];
+    if (stepPrimitives.length > 0) {
+      return {
+        verdict: 'red',
+        red: `slot: ask at line ${n} (step ${stepIndex + 1}) is a stop only — granting `
+          + `[${stepPrimitives.join(', ')}] is work, which belongs on its own line`,
       };
     }
   }
