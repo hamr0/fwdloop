@@ -5,6 +5,88 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-09-22
+
+M1: the flow module — signed prose and declaration become real `src/` code
+(five pieces: arbiter grammar, signature, declaration, catalogue, flow
+directory), plus the three signed M1 amendments and the paid-path batch
+tool.
+
+### Added
+- `src/signed-text.js` (piece 1): typed arbiter grammar (cap, ask+ttl, redo
+  cap, send, skills, source, round budget) — every red is by line and
+  field, no regex run against signed text. A send requires an earlier ask;
+  `url:` kinds refused until M9.
+- `src/signature.js` (piece 2): sha256 hash pinning over canonical prose
+  (CRLF→LF only) and canonical declaration JSON (sorted keys); signature
+  version 2 pins who signed and when (`[proseHash, declHash, signedBy,
+  signedAt]`), any other version refused by name; `verifyFlow` names the
+  file that changed.
+- `src/declaration.js` (piece 3): closed declaration schema — unknown key
+  refused by name and path, arbiter keys refused at any depth;
+  `inputFacts`/`picks` replace `realColumns`/`columns` (Amendment 1, signed
+  2026-09-21); ask slots and a send lock on `arbiter.asks[]`/`sends[]` with
+  writes checked by catalogue class and a walkable chain; job #1 and job #2
+  validate through one code path.
+- `src/catalogue.js` / `src/catalogue.json` (piece 4): the primitive
+  catalogue as a data file (14 primitives, 4 plumbing), parsed against a
+  closed schema; `checkpoint` moved from the drafter's menu to plumbing
+  (F31: a pause exists only where a human signed one); own readers
+  (`addressCells`, `readDocx`) pinned as unresolved until their modules
+  land in `src` at M2.
+- `src/flow.js` (piece 5): the one reader and one writer of
+  `flows/<name>/` (`prose.txt`, `declaration.json`, `signature.json`,
+  empty `runs/`) — `writeFlow` writes nothing unless the text parses, the
+  declaration validates and a caller-supplied `signedBy` signs it; never
+  overwrites a signed flow; signature written last and read back;
+  `readFlow` verifies the hash on the bytes on disk before trusting
+  anything and refuses symlinks.
+- `types/*.d.ts` for all five `src/` modules, per `LIBRARY_CONVENTIONS`.
+- Amendment 3 (signed 2026-09-21): the ask becomes a mark on its own
+  numbered line — `N. ask: <words>` or `N. ask <int><s|m|h>: <words>`,
+  words required, zero wait refused; `guardrail: ask at line N` is no
+  longer grammar and reds once, naming the line; duplicate-ask red deleted
+  as impossible by construction. The one step bound to a signed ask line
+  now grants no primitive, else reds naming the line, step and verbs
+  (before: a read/write step on the ask line validated green).
+- `poc/m1` batch tool: `--job job1|job2|twoask` selects the prose (ask
+  lines always parsed from the chosen one, job name in output paths,
+  unknown job refused at $0); M1's own ledger
+  (`poc/m1/out/spend.jsonl`) under `M1_CAP_USD` 5.00; a live batch saves
+  the prose it ran against per tag, and `--rescore` prefers the saved
+  prose and never overwrites consumed results; a draft with no
+  declaration now keeps what actually came back (outcome, the model's
+  text verbatim, the provider's message) instead of a bare null; the live
+  key is redacted by literal replacement (trimmed and raw forms) before
+  provider or model text reaches an artifact or the jsonl row.
+- A default ceiling price always exists (hamr's ruling 2026-09-21, F31): a
+  null-cost row is priced at read time — a known model at its own peak
+  rate, an unknown model at the table's highest — never rendered as
+  unknown or as $0; the cap lock survives as money, and the rate table is
+  the human override.
+
+### Fixed
+- (F35) The batch checker never had the stop-only rule, and the ask mark
+  had never actually run in front of a paid model; both fixed. Old
+  job1/job2 tags rescored at $0 with 0 stop-only hits; F34's two-ask count
+  corrected to 14; re-measured on `deepseek-flash`: job1 20/20, two asks on
+  their own lines 20/20 with every read bound to its line.
+- (F34) The two-ask fixture had signed an ask on a line that also carried
+  work, invalidating F33's 20/20 reading; corrected. A 691s provider red
+  on the job #2 path was traced to a machine suspend plus an `ECONNRESET`
+  on resume, not a deadline gap — the 240s race covers both draft paths
+  (retraction of the earlier F34 deadline claim).
+- `package.json` `files` drops `bin` and `fwdloop.context.md`, neither of
+  which exist (`npm pack` unchanged, 19 files).
+
+### Changed
+- `ledger`/steps.txt now carries the ask mark directly instead of the
+  retired `ask at line N` guardrail text (same parsed slot); the M1 ladder's
+  scope item 2 names `picks`/`inputFacts`, not the dead `columns`.
+- M0's `parseArbiterSlots` learns the ask mark (the legacy `ask at line N`
+  form is kept for M0 fixtures only; both forms present at once is an
+  error).
+
 ## [0.3.0] - 2026-09-16
 
 M0b Amendments A and B: the redo edge (`askWithRedo`) and job #2 — a second
