@@ -7,7 +7,7 @@
 // unknown slot, or a missing API key.
 
 import { OpenAI } from 'bare-agent/providers';
-import { RATES_BY_SUFFIX } from './spend.mjs';
+import { RATES_BY_SUFFIX, lookupRate } from './spend.mjs';
 
 /**
  * F28 (2026-09-15, captured live): DeepSeek sometimes emits a tool-call whose
@@ -118,21 +118,20 @@ export const PROVIDER_SLOTS = Object.freeze({
 });
 
 /**
- * Resolve a modelId to its hand-entered rate row. ONE writer for this lookup
- * (makeProvider below, and provider.test.mjs's coverage check, both call this
- * — never duplicate the suffix-strip + table-lookup elsewhere). Throws rather
- * than returning undefined so a caller can never carry forward a 0 rate.
- * `ratesTable` is injectable (defaults to the real RATES_BY_SUFFIX) so a test
- * can run this exact logic against a table that deliberately lacks an entry.
+ * Resolve a modelId to its hand-entered rate row. The actual suffix-strip +
+ * Object.hasOwn table lookup lives in spend.mjs's `lookupRate` (ONE writer,
+ * shared with `ceilingCostUsd` there — never a second table walked two
+ * different ways; spend.mjs never imports this file, so no circular
+ * import). This function's own job is just the "throw rather than return
+ * undefined" contract callers here rely on, so a caller can never carry
+ * forward a 0 rate. `ratesTable` is injectable (defaults to the real
+ * RATES_BY_SUFFIX) so a test can run this exact logic against a table that
+ * deliberately lacks an entry.
  */
 export function resolveModelRate(modelId, ratesTable = RATES_BY_SUFFIX) {
-  const suffix = modelId.replace(/^hf:/, '');
-  // Object.hasOwn (not `ratesTable[suffix]` truthiness, not `in`): a suffix like "constructor" or
-  // "toString" would otherwise resolve to an inherited Object.prototype member, skip the "no rate
-  // -> throw" guard below, and let the run proceed with `rates.in`/`rates.out` undefined.
-  if (!Object.hasOwn(ratesTable, suffix)) throw new Error(`no hand-entered rate for model suffix "${suffix}"`);
-  const rates = ratesTable[suffix];
-  return { suffix, rates };
+  const resolved = lookupRate(modelId, ratesTable);
+  if (!resolved) throw new Error(`no hand-entered rate for model suffix "${String(modelId).replace(/^hf:/, '')}"`);
+  return resolved;
 }
 
 /**

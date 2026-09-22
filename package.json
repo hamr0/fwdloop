@@ -1,9 +1,16 @@
 {
   "name": "fwdloop",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Describe a job as steps and guardrails; an agent builds the workflow, pauses for humans where you said, checks every step happened, and reruns it under budgets it cannot touch.",
   "type": "module",
   "main": "./src/index.js",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
   "license": "Apache-2.0",
   "author": "hamr0",
   "repository": {
@@ -26,12 +33,14 @@
   },
   "scripts": {
     "test": "node --test",
+    "typecheck": "tsc --noEmit",
+    "build:types": "tsc",
+    "prepack": "npm run build:types",
     "check:lockfile": "node scripts/check-lockfile.mjs"
   },
   "files": [
     "src",
-    "bin",
-    "fwdloop.context.md",
+    "types",
     "LICENSE",
     "NOTICE"
   ],
@@ -39,5 +48,9 @@
     "bare-agent": "^0.42.0",
     "bareguard": "^0.15.0",
     "litectx": "^0.32.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "@types/node": "^22.20.4"
   }
 }

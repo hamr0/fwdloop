@@ -132,15 +132,20 @@ test('sumRunCost: sums every row for the runId, ignoring other runs\' rows', () 
   assert.deepEqual(sumRunCost(spendPath, 'run-a'), { costUsd: 0.003, rows: 2 });
 });
 
-test('PROOF: any null row for this runId makes the sum null, never a partial passed off as complete', () => {
+// Signed behaviour change (hamr's ruling, 2026-09-21): a null-costUsd ledger row is no longer
+// a standing "unpriced" state — sumRunCost reprices it at its ceiling (spend.mjs's
+// ceilingCostUsd, the one writer) and folds it into the same running total, same as any other
+// row. It never again silently makes the whole sum null.
+test('PROOF: a null row for this runId is repriced at its ceiling and folded into the sum, never left null', () => {
   const dir = mkdtempSync(join(tmpdir(), 'm0-batch-spend-'));
   const spendPath = join(dir, 'spend.jsonl');
   writeFileSync(spendPath, [
     JSON.stringify({ runId: 'run-a', costUsd: 0.001 }),
-    JSON.stringify({ runId: 'run-a', costUsd: null }),
+    JSON.stringify({ runId: 'run-a', costUsd: null, model: 'deepseek-flash' }),
   ].join('\n'));
   const result = sumRunCost(spendPath, 'run-a');
-  assert.equal(result.costUsd, null);
+  assert.equal(result.rows, 2);
+  assert.ok(result.costUsd > 0.001, 'the null row must have added a real, positive ceiling to the total');
 });
 
 // ---------------------------------------------------------------------------
@@ -579,6 +584,11 @@ test('runBatch: writes the bar file BEFORE run 1 — even a spawn that never cal
   });
 });
 
+// Signed behaviour change (hamr's ruling, 2026-09-21): a null ledger row no longer simulates
+// "the cap is reached" on its own (sumRunCost now reprices it at ceiling, same as any other
+// row — see sumRunCost's own tests above). The mechanism that still stops the batch is a
+// child's own "cap:"-prefixed red (what a REAL child prints when its own preflight call to
+// poc/m0/spend.mjs's assertUnderGlobalCap refuses) — this test now simulates THAT.
 test('runBatch: a spend-cap refusal stops the batch — never burning past run 1 of 20', async () => {
   const spendDir = mkdtempSync(join(tmpdir(), 'm0-batch-spend-'));
   const spendPath = join(spendDir, 'spend.jsonl');
@@ -589,10 +599,11 @@ test('runBatch: a spend-cap refusal stops the batch — never burning past run 1
     const runIdIdx = args.indexOf('--run-id');
     const runId = args[runIdIdx + 1];
     setTimeout(() => {
-      // Every run's ledger row is unpriced (null) — simulating the cap already reached.
-      writeFileSync(spendPath, `${JSON.stringify({ runId, costUsd: null })}\n`, { flag: 'a' });
+      // A priced (not null) row, but the child's own preflight refused with a named cap: red —
+      // exactly what a real runner.mjs prints when assertUnderGlobalCap throws.
+      writeFileSync(spendPath, `${JSON.stringify({ runId, costUsd: 0.001 })}\n`, { flag: 'a' });
       child.stdout.emit('data', Buffer.from(`RUN_ID=${runId}\n${JSON.stringify({
-        runId, outcome: 'red', phase: 'derive', red: 'total_owed 5850 ≠ sum(E2,E3) = 5700',
+        runId, outcome: 'red', phase: 'preflight', red: 'cap: global spend cap reached: $5.000000 >= $5.00',
       }, null, 2)}`));
       child.emit('exit', 1);
     }, 5);

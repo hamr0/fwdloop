@@ -61,10 +61,32 @@ export const DRAFTER_SKILLS = Object.freeze(['core']);
  *  `legacyMaxTokens` per slot is what makes this actually bind). */
 export const DRAFTER_MAX_TOKENS = 16000;
 
-function primitiveMenuText() {
+// M1 ADDITIVE (docs/logs/FINDINGS.md F10): with `slotGrammar` true, the menu
+// excludes "checkpoint" outright — absence, not refusal, same discipline
+// catalogue.mjs's `menu({classes:['read']})` already uses for the scout's
+// read-only grant. Default `slotGrammar` false leaves the menu byte-identical
+// to before this option existed (see poc/m1/drafter-slot.test.mjs).
+function primitiveMenuText(slotGrammar = false) {
   return menu({ skills: DRAFTER_SKILLS })
+    .filter((e) => !(slotGrammar && e.verb === 'checkpoint'))
     .map((e) => `- ${e.verb}: ${e.desc} (${e.component}, class: ${e.class}) — ${e.package}#${e.symbol}`)
     .join('\n');
+}
+
+// M1 ADDITIVE — appended after the existing arbiter-fields paragraph
+// (primitiveMenuBlock, below) only when `slotGrammar` is true. Tells the
+// model the signed ask line(s) are handled mechanically by the runner
+// (poc/m0/runner.mjs's checkpointAsk, wired at the signed slot with no grant
+// check) so it never needs — and is never granted — "checkpoint" itself.
+function signedAskSlotsBlock(askLines) {
+  return `SIGNED ASK SLOTS: line(s) ${askLines.join(', ')}. Each of these lines carries the mark "ask:" `
+    + '(or "ask <int><s|m|h>:") at the START of its own text — the words after the mark are the human\'s own '
+    + 'question, already signed; you are never choosing where an ask goes, only drafting the one step it names. '
+    + 'For each signed ask line emit EXACTLY ONE step: '
+    + 'that line\'s fromLine, close.class "hitl", primitives []. The runner supplies the pause; there is no '
+    + 'primitive for it. Never emit a pause anywhere else: a line whose guardrail says "ask me" inside another '
+    + 'step\'s work is that step\'s hitl close, not a new step. A step with no primitives that waits on a human '
+    + '(hitl) at an unsigned line is refused.';
 }
 
 function jobLinesText(rawText) {
@@ -103,13 +125,13 @@ function factsBlock(facts) {
   return lines.join('\n');
 }
 
-function primitiveMenuBlock(rawGuardrails) {
+function primitiveMenuBlock(rawGuardrails, slotGrammar = false, askLines = []) {
   return `
 Primitive catalogue (menu-is-inventory — a grant list, every entry an
 existing implementation; a verb outside this list is a red at validation,
 never invented):
 
-${primitiveMenuText()}
+${primitiveMenuText(slotGrammar)}
 
 There is no wiring layer. Steps share ONE artifact space. Each step you emit:
 - "primitives": the verbs above it needs (may be empty for a step that only
@@ -187,7 +209,7 @@ goal, "write" among its primitives, a fromLine, a close. Only its TARGET,
 its egress allow-list, and its POSITION are arbiter and off-limits — never
 refuse a send line on the theory that "sending is egress" in general; that
 confuses the step (yours to draft) with its destination (never yours).
-
+${slotGrammar ? `\n${signedAskSlotsBlock(askLines)}\n` : ''}
 If a line cannot be expressed as a typed, cited artifact at all (e.g. it asks
 for a subjective judgment with no groundable check whatsoever — not even a
 human check), put it in "refused" with that line's NUMBER (the "line" field —
@@ -488,6 +510,7 @@ export function plantLineWithGuardrail(rawText, line, guardrail) {
  */
 async function runDeclarationRound(modelId, {
   stepsText, factsText, runLabel, slot, provider: injectedProvider, rates: injectedRates,
+  slotGrammar = false, askLines = [],
 } = {}) {
   let provider = injectedProvider;
   let rates = injectedRates;
@@ -523,7 +546,7 @@ async function runDeclarationRound(modelId, {
     {
       role: 'system',
       content: `You are the fwdloop drafter. You answer ONLY by calling emit_declaration — never plain text. `
-        + `${primitiveMenuBlock(guardrails)}\n\n${factsText}`,
+        + `${primitiveMenuBlock(guardrails, slotGrammar, askLines)}\n\n${factsText}`,
     },
     // The numbered job lines already appear once, in the system prompt (primitiveMenuBlock's own
     // "The numbered job lines..." block) — every "below" reference there points at that one copy.
@@ -562,6 +585,23 @@ export async function runDrafter(modelId, {
   ungroundable = false, uncovered = false, unjudgeableGuardrail = false,
   runLabel = 'drafter', slot = 'synthetic', prose = false,
   provider: injectedProvider, rates: injectedRates, facts,
+  // M1 ADDITIVE (F10): `slotGrammar` false (the default) leaves every
+  // byte of the prompt/menu unchanged from before this option existed — see
+  // poc/m1/drafter-slot.test.mjs's golden-snapshot test. `askLines` is
+  // NEVER derived in here (this file must not import poc/m1/*, which is the
+  // other direction across the m0/m1 line) — the caller (poc/m1/slot-
+  // batch.mjs) computes it via poc/m1/slots.mjs's `parseAskSlots` and passes
+  // it in.
+  slotGrammar = false, askLines,
+  // M1 ADDITIVE (poc/m1/slot-batch.mjs's `--job twoask`): when given, used
+  // VERBATIM as the job-lines text instead of reading PROSE_PATH/STEPS_PATH
+  // off disk — lets a caller run this SAME paid round over a DIFFERENT
+  // prose file (e.g. one carrying an extra signed ask line) without
+  // poc/m0/prose.txt itself ever changing. Omitted (every existing caller,
+  // including a plain `prose: true`/`prose: false` call): byte-identical to
+  // today's file-read behaviour — `prose` still selects WHICH file this
+  // falls back to reading.
+  proseText: proseTextOverride,
 } = {}) {
   // ABSENT handling (PRD's M0a exit gap, borrowed-from bareloop
   // authorflow.js:1408 in spirit): checked BEFORE any provider is built or
@@ -579,7 +619,25 @@ export async function runDrafter(modelId, {
     };
   }
 
-  let stepsText = readFileSync(prose ? PROSE_PATH : STEPS_PATH, 'utf8');
+  // M1 ADDITIVE — never draft without slots once slotGrammar is on: a
+  // missing or empty askLines is refused at $0, before any provider is
+  // built, exactly like the ABSENT check above (never a draft with a
+  // warning, never a silent fall-back to the old unfenced menu).
+  if (slotGrammar && (!Array.isArray(askLines) || askLines.length === 0)) {
+    return {
+      modelRequested: modelId, modelReturned: null, suffixMatch: null,
+      toolCalled: false, declaration: null, textInstead: null,
+      usage: null, rounds: 0, costUsd: null, rateSource: null, wallMs: 0,
+      ungroundable, uncovered, unjudgeableGuardrail,
+      refusedSlotGrammar: {
+        reason: 'slotGrammar requires a non-empty "askLines" array — refusing to draft without signed ask slots',
+      },
+    };
+  }
+
+  let stepsText = proseTextOverride !== undefined
+    ? proseTextOverride
+    : readFileSync(prose ? PROSE_PATH : STEPS_PATH, 'utf8');
   if (ungroundable) stepsText = plantLine(stepsText, UNGROUNDABLE_LINE);
   if (uncovered) stepsText = plantLine(stepsText, UNCOVERED_LINE);
   if (unjudgeableGuardrail) {
@@ -588,6 +646,7 @@ export async function runDrafter(modelId, {
 
   const round = await runDeclarationRound(modelId, {
     stepsText, factsText: factsBlock(facts), runLabel, slot, provider: injectedProvider, rates: injectedRates,
+    slotGrammar, askLines: Array.isArray(askLines) ? askLines : [],
   });
 
   const realColumns = Array.isArray(facts?.csv?.realColumns) ? facts.csv.realColumns : [];
@@ -600,7 +659,7 @@ export async function runDrafter(modelId, {
     toolCalled: round.capturedArgs != null, declaration, textInstead: round.capturedArgs ? null : round.capturedText,
     usage: round.metered.tokens, rounds: round.metered.rounds, costUsd: round.costUsd,
     rateSource: round.metered.rateSource, wallMs: round.wallMs,
-    ungroundable, uncovered, unjudgeableGuardrail,
+    ungroundable, uncovered, unjudgeableGuardrail, slotGrammar,
   };
   return report;
 }
@@ -648,6 +707,13 @@ function job2FactsBlock(facts) {
 export async function draftJob2(modelId, {
   proseText, facts, runLabel = 'drafter-job2', slot = 'synthetic',
   provider: injectedProvider, rates: injectedRates,
+  // M1 ADDITIVE — mirrors runDrafter's own slotGrammar/askLines option,
+  // same discipline (false/[] is byte-identical to today's prompt for every
+  // existing caller; poc/m1/slot-batch.mjs's `--job job2` is the first
+  // caller to pass true). `askLines` is never derived in here, exactly like
+  // runDrafter — the caller computes it via poc/m1/slots.mjs's
+  // `parseAskSlots` and passes it in.
+  slotGrammar = false, askLines = [],
 } = {}) {
   if (!facts || typeof facts !== 'object' || !facts.resume || !facts.jd) {
     return {
@@ -661,8 +727,22 @@ export async function draftJob2(modelId, {
     };
   }
 
+  // Same refusal shape as runDrafter's own slotGrammar guard: never draft
+  // without slots once slotGrammar is on.
+  if (slotGrammar && (!Array.isArray(askLines) || askLines.length === 0)) {
+    return {
+      modelRequested: modelId, modelReturned: null, suffixMatch: null,
+      toolCalled: false, declaration: null, textInstead: null,
+      usage: null, rounds: 0, costUsd: null, rateSource: null, wallMs: 0,
+      refusedSlotGrammar: {
+        reason: 'slotGrammar requires a non-empty "askLines" array — refusing to draft without signed ask slots',
+      },
+    };
+  }
+
   const round = await runDeclarationRound(modelId, {
     stepsText: proseText, factsText: job2FactsBlock(facts), runLabel, slot, provider: injectedProvider, rates: injectedRates,
+    slotGrammar, askLines,
   });
 
   const declaration = round.capturedArgs != null

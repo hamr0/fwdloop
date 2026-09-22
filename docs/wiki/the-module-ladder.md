@@ -178,6 +178,161 @@ hash that flips on any edit (docs/archive/PRD.md:557-562).
 - **Negative:** a declaration missing a required `ask` slot is a red, not an absence
   (docs/archive/PRD.md:565-565).
 
+### M1 — scope, exit, negative — SIGNED by hamr 2026-09-21 ("sign m1, start poc")
+
+In force. Proposed 2026-09-16, signed with §6 and §10. It restates the M1 paragraph above as the three
+things the binding rule needs, using what M0 actually built. M1 writes the spec and the checks;
+it runs nothing (M2) and asks nothing (M3).
+
+**Scope.**
+
+1. **One signed text, one typed arbiter block.** The human's job is `prose.txt` as today: numbered
+   lines, a `guardrail:` under the lines that carry one (strict 1-for-1), and an arbiter block at
+   the bottom. The arbiter block becomes a typed grammar, not free text the runner regexes:
+   `cap $N per run`, `ask at line N` (with `ttl <duration>`, default 30m), `redo cap N` (1..3),
+   `send at line N to <target>`, `skills <list>`, and — if §10 is signed as option 1 —
+   `source <role> = <file>` per input. Every field is human-signed, tighten-only; each has exactly
+   one parser and one writer. Unknown lines in the block are a red naming the line, never ignored.
+2. **The drafter's half is a schema with no arbiter fields in it.** `declaration.json` carries
+   steps (`goal, primitives, reads, emits, picks, fromLine, close`) plus `guardrailClasses`,
+   `unjudgeable`, `refused`, `inputFacts` — the fields M0a/M0b already validate. It has no place for a cap, an
+   ask, a TTL, a target, a source or a trigger: not "forbidden", absent from the schema, and the
+   validator refuses any unknown key at any depth by name.
+3. **`ask` positions are slots, not steps.** `ask at line N` in the arbiter block means: exactly
+   one step must bind to line N and its close must be `hitl`. The drafter fills the slot; it
+   cannot add a second ask, drop this one, or move it. (F10: both providers wobbled on exactly
+   this when it was theirs to decide.)
+4. **A hash that flips on any edit.** `signature.json` pins sha256 over the canonical bytes of
+   `prose.txt` and `declaration.json`, plus who signed and when. The M2 runner will refuse a run
+   whose files do not hash to the signature, naming the file. In M1 the check exists and is
+   tested; nothing runs yet.
+5. **Catalogue as data.** The primitive catalogue is a data file the validator reads, not code the
+   drafter can reach. Skills gate the visible subset (M6 does persona; M1 only makes the
+   catalogue a file).
+6. **Patterns are literal or typed, never user regex.** No field in the signed text is
+   interpreted as a regular expression; a guardrail is matched by its line number, a shape by its
+   typed fields. ReDoS is impossible by construction, and a test proves no `new RegExp` is built
+   from signed text.
+7. **The flow directory** (§6, deferred here) — proposed shape, hamr to sign:
+
+   ```
+   flows/<flow-name>/
+     prose.txt          the signed text: numbered lines + guardrails + arbiter block
+     declaration.json   the drafter's half, validated
+     signature.json     sha256 of both, signed-by, signed-at
+     runs/<run-id>/     inputs/ (frozen + sha256), step artifacts, audit.jsonl,
+                        log.json, result.json — exactly M0b's run dir, moved under the flow
+   ```
+   One flow, one directory, three signed files, N runs. `poc/m0/out/` becomes `runs/`.
+
+8. **Carried in from M0, as fields not features:** a per-step round budget lives in the arbiter
+   block (`round budget 120s`, F-era rule: a step that can exceed ~2 min is a spec bug, split at
+   draft time); the compose prompt states its own outputs (F-era prompt gap) — a drafter-prompt
+   change, tested at $0 like the fence.
+
+**Not in M1:** running a declaration (M2), the inbox (M3), dry-run and versions (M4), any UI,
+learning across runs.
+
+**POC first — the riskiest assumption:** that slots kill the wobble. Twenty drafts of job #1's
+prose on `deepseek-flash` under the slot grammar: every draft binds exactly the signed asks (one
+at the signed line, `hitl`) or is refused by name. The bar is **20/20 — zero wobble — or the
+grammar is wrong**, not the model. Under M0 the count differed between runs of the same prose.
+Cost: about 20 × $0.004.
+
+**Exit.**
+
+- The mutation suite: for every field of `prose.txt`'s arbiter block and of `declaration.json`,
+  each single-field corruption (removed, retyped, value swapped, unknown key added, moved to
+  another depth) is caught by a red that names the field. Every corruption is a separate test
+  that can fail; the count of fields equals the count of mutations, checked by the suite itself.
+- The drafter cannot express an arbiter field in any position: a declaration carrying `cap`,
+  `ask`, `ttl`, `send`, `source`, `trigger` or `skills` at top level, inside a step, or inside a
+  close is refused naming the key and the path.
+- Both job #1 and job #2 are expressed under the one grammar with **no per-job field** — the
+  validator has no code path that knows which job it is reading.
+- The slot POC above at 20/20.
+
+**Negative scenarios**, each of which must be able to fail:
+
+- (i) a declaration missing a required `ask` slot is a **red naming the slot**, never an absence;
+- (ii) a declaration with an ask the arbiter block did not sign is a red naming the extra step;
+- (iii) a one-byte edit to `prose.txt` or `declaration.json` after signing flips the hash and the
+  check reds naming the file;
+- (iv) an arbiter-block line the grammar does not know is a red naming the line, not skipped;
+- (v) a signed text containing regex metacharacters is matched literally — a test plants
+  `(a+)+$` in a guardrail and proves no regex is compiled from it.
+
+**Kills the module:** job #1 or job #2 cannot be expressed without a per-job field, or the slot
+POC lands below 20/20 and the fix on the table is prompt wording rather than grammar.
+
+**§6 and §10 SIGNED by hamr 2026-09-21** ("agree on both"): the directory in item 7, and sources
+as typed arbiter lines, one per line (`guardrail: source <role> = file:<path>`), option 1. The
+scope, exit and negative above were signed the same day. POC (the slot grammar, 20/20) starts on
+branch `m1`.
+
+**M1 spend cap: $5.00 — SIGNED by hamr 2026-09-21** ("cap $5, go"). M1's own, separate from M0's
+$5.00; the POC's $0.18 (F31) ran under M0's cap before this was signed and is not re-charged.
+**POC bar met** (F31: slot 20/20, control 0/20); build started the same day.
+
+**M1 amendment 1 — input facts, not columns — SIGNED by hamr 2026-09-21** ("i think form should be
+flexible", then "1"). Scope item 2 above lists `columns` among a step's fields, and M0's declaration
+carried a top-level `realColumns`. Both are spreadsheet-only; job #2 carried them empty, which is a
+per-job field by another name and would have failed the exit. They are replaced, not kept beside:
+`inputFacts` (top level, one list per signed `source` role — column names for a sheet, headings for
+a doc; harness-supplied, never the model's) and `picks` (per step, per role). The listing rule is
+unchanged in spirit and stricter in one place: a pick whose role has no listing is a red, where M0
+skipped the check. `columns` and `realColumns` are now unknown keys and are refused by name. Built in
+piece 3 (f918dfe). Item 2's wording above is left as signed; this paragraph is what is in force.
+
+**M1 amendment 2 — the signature pins who and when — SIGNED by hamr 2026-09-21** ("1"). Scope item 4
+says `signature.json` carries "who signed and when"; piece 5 found those two fields were in no hash,
+so a name or date edited after signing stayed green. They are folded into the flow hash, and an edit
+to either is a red naming `signature.json`.
+
+**M1 amendment 3 — the ask is a mark on its own line — SIGNED by hamr 2026-09-21** ("sign amendment
+3"). Proposed the same day after hamr chose the direction ("use the ask"); the seven items below are
+the signed text. hamr's bound on it: good to this point, no deeper until the design step for the
+other parts — what an ask shows and which answers it takes stays as M0b Amendment A signed it and is
+M3's to build, not M1's. Why: `ask at line N` points at a
+line by number from the bottom block, so inserting a line by hand silently moves the stop to the wrong
+step and the text still signs (the same drift a UI with separate step and guardrail lists would have);
+and F34 showed a stop signed on a line that also carries work leaves the drafter no honest binding.
+
+1. A numbered line that starts with `ask:` is a stop: `5. ask: check it with me,`. With a wait time:
+   `5. ask 30m: check it with me,` (`<int>` then `s`, `m` or `h`; default 30m, as today).
+2. The words after the mark are required and are the human's own; they are what the ask shows.
+3. A marked line may carry its own `guardrail:` under it, free wording, strict 1-for-1 as any line.
+4. A marked line is only the stop: exactly one step binds to it, human-checked, granting no
+   primitive. Work drafted onto it is a red naming the line; the human splits the line. The parser
+   does not read the sentence to decide this — the declaration check does, as today.
+5. `guardrail: ask at line N` in the arbiter block is no longer grammar: it is a red naming the line
+   and saying to mark the line instead. Both forms never coexist. (`src/signed-text.js` has never
+   been on `main`, so no signed flow exists under the old form.)
+6. Unchanged: the drafter cannot add, drop or move a stop; `checkpoint` stays off its menu; the mark
+   is inside `prose.txt`, so the signature pins it. `send at line N to <target>` stays in the arbiter
+   block and still points by number; the existing rule that a send needs an earlier ask stays.
+7. A UI maps one row per step to this one for one: step box is the numbered line, guardrail box is
+   the `guardrail:` under it, the ticked "stop and wait for me" box is the `ask:` mark.
+
+Cost if signed: one $0 build pass (parser, its mutation suite, both jobs' fixtures), and one small
+paid re-measure of the slot bar under the marked prose, because F31 to F34 were measured with the
+bottom-block form in front of the model.
+
+**Amendment 3 — built (2026-09-21), and its cost line was right after all (2026-09-22).** Built in
+f61d05e (the mark) and 4deca9c (item 4: the step on a marked line grants no primitive — a hole that
+predated the mark and let a `read` step on the ask line validate green). A note here (2e4d4b9)
+claimed no paid re-measure was needed because the drafter never sees the mark; the debrief showed
+that note rested on `parseSignedText`, which the paid batches never call, and that the batch checker
+in `poc/m1/slots.mjs` never had item 4 at all. Both fixed in 27647e6 and re-measured on
+deepseek-flash: job #1 with the mark on line 5, 20/20; two asks on their own lines, 20/20, every
+read step bound to its line, no `fromLine: null`. F35 has the rows. What M2 must keep: the model
+sees the numbered line text as written, mark included, plus the slots sentence — that is the prompt
+the numbers are for.
+
+**Not ruled, carried:** `close.shape` is an open map in M1 — any key is accepted inside it except the
+arbiter keys — because no signed text names the shape vocabulary. An unknown key inside a shape is
+therefore NOT caught, and the exit's "unknown key added" mutation does not cover that one position.
+
 ## M2 — runner
 
 A fold over steps with fresh context per step (artifacts, never transcripts), an effect check per

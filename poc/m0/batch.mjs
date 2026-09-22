@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 import { OUT_DIR, checkSendDestination } from './runner.mjs';
 import { parseArbiterSlots } from './validator.mjs';
+import { ceilingCostUsd } from './spend.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..');
@@ -92,7 +93,15 @@ export function classifyVerdict(plant, actual, answeredBy, sentFileOk) {
   return 'miss';
 }
 
-/** Sum a runId's ledger rows in spend.jsonl. Zero rows -> $0 (no model round ran). Any null row -> null (never a partial passed off as complete, spend.mjs's own rule). */
+/**
+ * Sum a runId's ledger rows in spend.jsonl. Zero rows -> $0 (no model round
+ * ran). A null/undefined-costUsd row is repriced at its ceiling via
+ * spend.mjs's `ceilingCostUsd` (the one writer for that — hamr's ruling,
+ * 2026-09-21: no session starts at $0 or unknown pricing, a null row is
+ * never a standing state), so this never returns `costUsd: null` for a
+ * ledger row any more; it is added to the same running total like any
+ * other row.
+ */
 export function sumRunCost(spendPath, runId) {
   if (!existsSync(spendPath)) return { costUsd: 0, rows: 0 };
   const lines = readFileSync(spendPath, 'utf8').split('\n').filter((l) => l.trim());
@@ -102,7 +111,10 @@ export function sumRunCost(spendPath, runId) {
     const row = JSON.parse(line);
     if (row.runId !== runId) continue;
     rows += 1;
-    if (row.costUsd === null || row.costUsd === undefined) return { costUsd: null, rows };
+    if (row.costUsd === null || row.costUsd === undefined) {
+      total += ceilingCostUsd(row.model);
+      continue;
+    }
     total += row.costUsd;
   }
   return { costUsd: total, rows };
@@ -146,15 +158,24 @@ export function appendRunRecord(path, record) {
 
 /**
  * The stop-the-batch circuit breaker: never keep burning past a run whose
- * cost is unknown (any unpriced ledger row) or whose red names the global
- * spend cap outright.
+ * cost is genuinely unknown, or whose red names the global spend cap
+ * outright.
+ *
+ * `record.costUsd === null` no longer fires off an unpriced LEDGER row —
+ * sumRunCost above reprices those at their ceiling now, so `record.costUsd`
+ * is never null for that reason any more. It still fires for the one
+ * remaining source of a null cost on this record: `runOneBatchRun`'s own
+ * `actual.outcome === 'crashed'` branch, a child that died before ANY spend
+ * row (priced or not) could land — genuinely unknown, not bounded by a
+ * ceiling, since no round is known to have even started.
  */
 export function shouldStopBatch(record) {
   if (record.costUsd === null) return true;
   // Covers BOTH refusal texts spend.mjs's assertUnderGlobalCap can produce — the global-cap-
-  // reached red and the unpriced-round red ("spend tally has an unpriced round ..."). Once the
-  // ledger holds one null row, every subsequent child refuses at preflight with the latter, and
-  // without this the batch would burn through 20 quick, uninformative misses instead of stopping.
+  // reached red and the unpriced-round red ("spend tally has an unpriced round ..."). A named
+  // "cap:" red is the mechanism that now carries the cap-reached signal (a null row in the
+  // ledger no longer implies it on its own — see sumRunCost above), so without this the batch
+  // would burn through 20 quick, uninformative misses instead of stopping.
   if (typeof record.red === 'string' && record.red.startsWith('cap:')) return true;
   return false;
 }

@@ -4,17 +4,27 @@
 // file enforces both caps in plain application code; <60 lines, vanilla
 // stdlib only, per the dependency hierarchy).
 //
-// Money honesty (PRD §5): unknown cost is NEVER rendered as 0. A row with a
-// null costUsd counts as "at the cap" for the purposes of the global guard —
-// it blocks further spend rather than being silently treated as free.
+// Money honesty (PRD §5, and hamr's ruling 2026-09-21, verbatim in spirit):
+// "we always have a default set price and a human can override it; we're on
+// deepseek so that's the default; no session should start with $0 or
+// unknown pricing." A row with a null/undefined costUsd is NOT a state this
+// ledger carries forward any more — `readSpend` reprices it at its CEILING
+// (`ceilingCostUsd` below) the moment it is read, so the hole this closes is
+// structural: a null row can never again sit in the ledger and lock the cap
+// just by existing. It IS counted fully against the cap, exactly like any
+// other row — the lock is money, not a state flag.
 //
 // `estimated` is a state, not a refusal (bareloop money doctrine, PRD §5): a
 // row priced at its CEILING (the most it could possibly have cost, because
-// the response never arrived) carries `estimated: true` and a real numeric
+// the response never arrived, OR because it was written before this fix and
+// left costUsd null) carries/receives `estimated: true` and a real numeric
 // `costUsd` — it counts fully against the cap like any other row, but does
 // NOT set the `unknown` flag, because its cost is not unknown, it's bounded.
-// A row with `costUsd: null` (no ceiling could be computed) still blocks —
-// that rule is not relaxed by this change.
+// The remaining third outcome — a ledger LINE that is not parseable JSON at
+// all — is not "unknown pricing", it's a corrupt file, and stays a hard
+// throw out of `JSON.parse` (see the comment on that line below); it is
+// never folded into `unknown`, which this file no longer sets to true for
+// any well-formed row.
 
 import { appendFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -22,34 +32,105 @@ import { dirname } from 'node:path';
 export const GLOBAL_CAP_USD = 5.00;
 export const RUN_CAP_USD = 0.25;
 
+// The two hard bounds every round is priced against when its real cost is
+// unavailable (a throw, a timeout, or an old ledger row stuck at null):
+//   - CEILING_OUTPUT_TOKENS (16000): the per-round `maxTokens` every round
+//     in this tree uses (drafter.mjs's DRAFTER_MAX_TOKENS et al) — no round
+//     can ever emit more than this regardless of how long it hangs.
+//   - CEILING_INPUT_TOKENS (32000): a documented, generous bound on the
+//     largest prompt this project sends (primitive catalogue + job lines +
+//     scout facts block, a few thousand tokens in practice) — never a
+//     measured number passed off as exact.
+export const CEILING_INPUT_TOKENS = 32000;
+export const CEILING_OUTPUT_TOKENS = 16000;
+
+/**
+ * Strip a `hf:` routing prefix and look up `suffix` in `ratesTable` with
+ * Object.hasOwn — never plain truthiness/`in`, which would let a suffix
+ * like "constructor" resolve to an inherited Object.prototype member. ONE
+ * writer for this lookup: provider.mjs's `resolveModelRate` calls this
+ * directly instead of duplicating the same walk, so there is never a second
+ * suffix table walked two different ways (and no circular import: this
+ * file never imports provider.mjs).
+ */
+export function lookupRate(modelId, ratesTable = RATES_BY_SUFFIX) {
+  if (!modelId) return null;
+  const suffix = String(modelId).replace(/^hf:/, '');
+  if (!Object.hasOwn(ratesTable, suffix)) return null;
+  return { suffix, rates: ratesTable[suffix] };
+}
+
+/**
+ * The ceiling cost (USD), never 0, never null, of one round of `modelId`:
+ * a known model prices at its OWN in/out rate; an unknown or missing model
+ * prices at the HIGHEST in rate and HIGHEST out rate anywhere in
+ * `ratesTable` (this file's existing ceiling convention — see the comment
+ * on RATES_BY_SUFFIX below). Bounded by CEILING_INPUT_TOKENS/
+ * CEILING_OUTPUT_TOKENS above.
+ */
+export function ceilingCostUsd(modelId, ratesTable = RATES_BY_SUFFIX) {
+  const resolved = lookupRate(modelId, ratesTable);
+  const rates = resolved ? resolved.rates : {
+    in: Math.max(...Object.values(ratesTable).map((r) => r.in)),
+    out: Math.max(...Object.values(ratesTable).map((r) => r.out)),
+  };
+  return (CEILING_INPUT_TOKENS / 1000) * rates.in + (CEILING_OUTPUT_TOKENS / 1000) * rates.out;
+}
+
 /**
  * Sum of costUsd across every row in spend.jsonl.
- * - `unknown: true` if any row's cost is null/undefined (no ceiling, genuinely unpriceable).
- * - `estimatedPortion`: sum of costUsd for rows carrying `estimated: true` (priced at a
- *   ceiling, not a real metered cost) — informational, already included in `total`.
+ * - A row with a null/undefined costUsd is REPRICED here, at read time, at
+ *   `ceilingCostUsd(row.model)` — added to both `total` and
+ *   `estimatedPortion`, and counted in `repricedRows`. `unknown` is false
+ *   for such a row: its cost is bounded, not unknown (hamr's ruling,
+ *   2026-09-21 — see the header comment above).
+ * - `estimatedPortion`: sum of costUsd for rows carrying `estimated: true`
+ *   PLUS every row repriced here — informational, already included in
+ *   `total`.
+ * - `repricedRows`: how many rows this read had to reprice from null —
+ *   never edits the ledger file itself, only what this read returns.
+ * - `unknown` stays in the return shape for callers that still check it,
+ *   but is now always `false`: the one remaining third outcome (an
+ *   unparseable ledger LINE — a corrupt file, not an unpriced round) is not
+ *   folded into it; `JSON.parse` below still throws on that line, same as
+ *   before this change, and the caller sees a hard crash, never a silent
+ *   `unknown: true`.
  */
 export function readSpend(path) {
-  if (!existsSync(path)) return { total: 0, estimatedPortion: 0, unknown: false, rows: 0 };
+  if (!existsSync(path)) {
+    return {
+      total: 0, estimatedPortion: 0, unknown: false, rows: 0, repricedRows: 0,
+    };
+  }
   const lines = readFileSync(path, 'utf8').split('\n').filter((l) => l.trim());
   let total = 0;
   let estimatedPortion = 0;
-  let unknown = false;
+  let repricedRows = 0;
   for (const line of lines) {
-    const row = JSON.parse(line);
+    const row = JSON.parse(line); // corrupt JSON: a hard throw, the remaining third outcome — never caught here
     if (row.costUsd === null || row.costUsd === undefined) {
-      unknown = true;
+      const ceiling = ceilingCostUsd(row.model);
+      total += ceiling;
+      estimatedPortion += ceiling;
+      repricedRows += 1;
       continue;
     }
     total += row.costUsd;
     if (row.estimated === true) estimatedPortion += row.costUsd;
   }
-  return { total, estimatedPortion, unknown, rows: lines.length };
+  return {
+    total, estimatedPortion, unknown: false, rows: lines.length, repricedRows,
+  };
 }
 
-/** Throws if the global spend is already at/over cap (unknown cost also blocks — never rendered as 0). */
+/**
+ * Throws only once total spend (every null row repriced at its ceiling) is
+ * at/over cap. hamr's ruling, 2026-09-21: a null row no longer blocks by
+ * existing — it is priced and counted like any other row, and the lock the
+ * cap enforces stays money, never a state.
+ */
 export function assertUnderGlobalCap(path, capUsd = GLOBAL_CAP_USD) {
-  const { total, unknown } = readSpend(path);
-  if (unknown) throw new Error(`spend tally has an unpriced round — cost unknown is never rendered as $0; refusing further spend (${path})`);
+  const { total } = readSpend(path);
   if (total >= capUsd) throw new Error(`global spend cap reached: $${total.toFixed(6)} >= $${capUsd.toFixed(2)} (${path})`);
   return total;
 }
@@ -138,6 +219,10 @@ export function appendSpendRow(path, row) {
  * never priced at 0. `source: 'published'` vs `'ceiling'` documents which is which; it is
  * informational (bare-agent's Loop stamps every row's rateSource 'caller' regardless, since
  * we always supply rates) and is the source of truth for the bake-off report's rate table.
+ *
+ * This hand-entered table IS the human override hamr's 2026-09-21 ruling refers to ("a human
+ * can override it") — a rate changes by editing a row here, by hand, never by adding a second
+ * table or a runtime flag.
  */
 export const RATES_BY_SUFFIX = {
   'zai-org/GLM-5.2': { in: 0.0006, out: 0.0022, source: 'published' },

@@ -156,6 +156,72 @@ export function parseArbiterGuardrails(rawText) {
   return out;
 }
 
+// --- THE ASK MARK (M1 amendment 3, signed 2026-09-21) ----------------------
+//
+// The human's ask is no longer a bottom-block arbiter guardrail ("ask at
+// line N") — it is a MARK at the START of a numbered job line's own text:
+// `ask: <words>` (default wait) or `ask <int><s|m|h>: <words>` (explicit
+// wait), the words after the mark being the human's own question. Mirrors
+// src/signed-text.js's `parseAskMark` (never imported — src must not be
+// imported by poc, CLAUDE.md's "borrow, never import"), restyled over this
+// module's own `parseLines` rather than a raw-line walk. Plain prose that
+// merely starts with the letters "ask" ("asking the customer...", "askew...")
+// is never mistaken for a mark — `ASK_MARK_ATTEMPT_RE` only fires on "ask:"
+// or "ask " (a literal space), and even then only a line that matches
+// neither typed form is an error, never a false positive on ordinary text.
+const ASK_MARK_ATTEMPT_RE = /^ask[: ]/i;
+const ASK_MARK_DEFAULT_RE = /^ask:(.*)$/i;
+const ASK_MARK_TIMED_RE = /^ask (\d+)(s|m|h):(.*)$/i;
+
+/**
+ * Walk `parseLines(rawText)` and pick out every numbered line whose OWN TEXT
+ * carries the ask mark at its start. Returns `{ lines, errors }`:
+ *   - `lines`: the line numbers (`l.n`) that carry a WELL-FORMED mark.
+ *   - `errors`: one string per malformed attempt, each naming the line
+ *     number and its text, never silently dropped — an empty-words mark
+ *     ("ask:" with nothing after it), a timed mark whose wait is <= 0, or
+ *     text that starts `ask:`/`ask ` but matches neither typed form.
+ * Plain prose that never attempts the mark contributes nothing to either
+ * list — `ASK_MARK_ATTEMPT_RE` is the sole gate for "was this an attempt".
+ */
+export function parseAskMarks(rawText) {
+  const lines = parseLines(rawText);
+  const found = [];
+  const errors = [];
+  for (const l of lines) {
+    const timed = ASK_MARK_TIMED_RE.exec(l.text);
+    if (timed) {
+      const value = Number(timed[1]);
+      const words = timed[3].trim();
+      if (value <= 0) {
+        errors.push(`line ${l.n} ("${l.text}") ask mark's wait must be greater than 0`);
+        continue;
+      }
+      if (!words) {
+        errors.push(`line ${l.n} ("${l.text}") ask mark has no words after it`);
+        continue;
+      }
+      found.push(l.n);
+      continue;
+    }
+    const def = ASK_MARK_DEFAULT_RE.exec(l.text);
+    if (def) {
+      const words = def[1].trim();
+      if (!words) {
+        errors.push(`line ${l.n} ("${l.text}") ask mark has no words after it`);
+        continue;
+      }
+      found.push(l.n);
+      continue;
+    }
+    if (ASK_MARK_ATTEMPT_RE.test(l.text)) {
+      errors.push(`line ${l.n} ("${l.text}") starts "ask:"/"ask " but matches neither "ask:" `
+        + 'nor "ask <int><s|m|h>:" — never silently ignored');
+    }
+  }
+  return { lines: found, errors };
+}
+
 /**
  * --- THE SEND LOCK (M0b Part 1, 2026-09-13) --------------------------------
  *
@@ -175,15 +241,31 @@ export function parseArbiterGuardrails(rawText) {
  * never silently ignored (a human who mistyped the slot deserves to see
  * that, not a validator that quietly treated it as an ordinary cap-shaped
  * guardrail).
+ *
+ * M1 amendment 3 (2026-09-21): the ask is now signed as a MARK on the
+ * numbered line itself (`parseAskMarks`, above), not this bottom-block
+ * `ask at line N` form — but THIS parser (M0's own) keeps accepting the
+ * legacy bottom-block form too, unchanged, for every M0 fixture/test still
+ * written that way (never a second, drifted copy of the M0 grammar). `ask`
+ * on the returned `slots` is built from WHICHEVER form is actually present:
+ *   - marks only -> the LAST mark by line number (M0's runner and this
+ *     module's own send-lock logic still know exactly one ask slot, the one
+ *     right before the send — restated here rather than changed).
+ *   - legacy `ask at line N` only -> that line, exactly as before.
+ *   - BOTH present -> an error naming both, and `slots.ask` is left unset —
+ *     a declaration signed twice, two different ways, is not silently
+ *     resolved one way or the other.
+ *   - neither -> `slots.ask` is left unset, exactly as before.
  */
 export function parseArbiterSlots(rawText) {
   const arbiterLines = parseArbiterGuardrails(rawText);
   const slots = {};
   const errors = [];
+  let legacyAskLine = null;
   for (const line of arbiterLines) {
     const askMatch = /^ask at line (\d+)$/i.exec(line.trim());
     if (askMatch) {
-      slots.ask = { line: Number(askMatch[1]) };
+      legacyAskLine = Number(askMatch[1]);
       continue;
     }
     const sendMatch = /^send at line (\d+) to (\S+)$/i.exec(line.trim());
@@ -198,6 +280,19 @@ export function parseArbiterSlots(rawText) {
     // Any other arbiter line (the $ cap, today) belongs to no slot and is
     // left alone — this parser only ever recognises the two fixed forms above.
   }
+
+  const { lines: markLines, errors: markErrors } = parseAskMarks(rawText);
+  errors.push(...markErrors);
+
+  if (markLines.length > 0 && legacyAskLine !== null) {
+    errors.push(`both a signed ask mark (line ${Math.max(...markLines)}) and the legacy arbiter `
+      + `"ask at line ${legacyAskLine}" are present — mark the numbered line, never both`);
+  } else if (markLines.length > 0) {
+    slots.ask = { line: Math.max(...markLines) };
+  } else if (legacyAskLine !== null) {
+    slots.ask = { line: legacyAskLine };
+  }
+
   return { slots, errors };
 }
 

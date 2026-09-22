@@ -9,3 +9,5 @@
 Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
 guardrail: cap $0.25 per run
 guardrail: send at line 5 to file:poc/m0/out
+guardrail: source resume = file:/home/hamr/Documents/resumes/Amr Hassan - Resume.docx
+guardrail: source jd = file:/home/hamr/Documents/resumes/jd-anthropic-applied-ai-architect.md

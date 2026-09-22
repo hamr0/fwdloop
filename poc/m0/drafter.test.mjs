@@ -66,13 +66,12 @@ const REAL_GUARDRAILS = [
   '   guardrail: every number must point to the cell it came from or the formula that made it',
   '4. Write me a short reply with one line per invoice,',
   '   guardrail: one line per invoice in the reply',
-  '5. check it with me,',
+  '5. ask: check it with me,',
   '   guardrail: nothing goes out before I accept',
   '6. and send it once I accept.',
   '',
   'Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):',
   'guardrail: cap $0.25 per run',
-  'guardrail: ask at line 5',
   'guardrail: send at line 6 to file:poc/m0/out',
 ].join('\n');
 
@@ -199,7 +198,7 @@ test('plantLine adds one extra numbered line, one past the highest existing numb
 
 test('DEFECT 2 — the real prose.txt carries the cap as an arbiter guardrail, not on any numbered line', () => {
   const arbiter = parseArbiterGuardrails(REAL_GUARDRAILS);
-  assert.deepEqual(arbiter, ['cap $0.25 per run', 'ask at line 5', 'send at line 6 to file:poc/m0/out']);
+  assert.deepEqual(arbiter, ['cap $0.25 per run', 'send at line 6 to file:poc/m0/out']);
 });
 
 test('PROOF the test can fail: dropping the "Arbiter guardrails" heading pushes the cap back onto the last line', () => {
