@@ -30,3 +30,7 @@
 ## [2026-09-11] archive | docs/product/PRD.md -> docs/archive/PRD.md, 153 link(s) rewritten
 ## [2026-09-11] index-flat | 17 row(s) (8 product, 7 logs, 2 archive)
 ## [2026-09-15] index-flat | 17 row(s) (8 product, 7 logs, 2 archive)
+## [2026-09-22] reorg | discover only — 6 of 15 row(s) await the classification interview
+## [2026-09-22] index-flat | 18 row(s) (8 product, 8 logs, 2 archive)
+## [2026-09-22] apply-reorg | moved 0, skipped 0, 0 oversized split candidate(s), 0 link(s) rewritten, 0 sync failure(s), 0 empty dir(s) removed, CLAUDE.md updated: true
+## [2026-09-22] reorg | discover+apply-reorg+lint over 13 doc(s), due reported
