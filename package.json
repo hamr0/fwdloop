@@ -35,7 +35,8 @@
     "test": "node --test",
     "typecheck": "tsc --noEmit",
     "build:types": "tsc",
-    "prepack": "npm run build:types"
+    "prepack": "npm run build:types",
+    "check:lockfile": "node scripts/check-lockfile.mjs"
   },
   "files": [
     "src",

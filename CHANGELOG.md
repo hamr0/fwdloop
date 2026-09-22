@@ -66,6 +66,7 @@ tool.
   the human override.
 
 ### Fixed
+- **The publish workflow now fails when `package-lock.json`'s version drifts from `package.json`.** npm writes that field on install, so a release that bumps `package.json` without running one leaves it behind — and nothing caught it: `npm ci` fails when the lockfile's *dependency* entries disagree, but never checks the lockfile's copy of the project's own version. `scripts/check-lockfile.mjs` (`npm run check:lockfile`) compares both places npm writes it and runs in the publish workflow. No lockfile is not a failure.
 - (F35) The batch checker never had the stop-only rule, and the ask mark
   had never actually run in front of a paid model; both fixed. Old
   job1/job2 tags rescored at $0 with 0 stop-only hits; F34's two-ask count
