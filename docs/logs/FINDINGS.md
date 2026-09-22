@@ -1750,3 +1750,47 @@ wall clock jumps, so 691 s is 48 s of run, a 638 s sleep, and a reset socket 5 s
 240 s bound was never exceeded in running time. What stands: the row was priced at ceiling, and a
 laptop that sleeps mid-batch costs one ceiling-priced round. What the orchestrator did wrong: wrote
 "the bound is not enforced on this path" into a finding before reading the error message on the row.
+
+## F35 — The debrief was right twice: the batch checker never had the stop-only rule, and the ask mark had never been in front of a paid model; both fixed, re-measured 40/40 on deepseek-flash (2026-09-22)
+
+**What the debrief found.** (1) Amendment 3 item 4 (the step on a signed ask line grants no
+primitive) was built in `src/declaration.js` (4deca9c) only. The batch tool scores with
+`poc/m1/slots.mjs`, which never got it: a stop step granting `["write"]` scored green there. Every
+slot number in F31 to F34 came from that checker. (2) The `ask:` mark had never reached a paid
+drafter: the three batch proses still carried `guardrail: ask at line N`, the poc parsers read only
+that form, and the "no re-measure needed" note under amendment 3 in the ladder rested on
+`parseSignedText`, which the batches never call. The two-ask fixture also still signed a stop on a
+line that carries work, which amendment 3 forbids.
+
+**Fixed (27647e6).** `checkAskSlots` gained check (a2): a signed ask line's one step with any
+primitive reds naming the line, the step and the verbs (red-first: `'green' !== 'red'` on a
+`["write"]` stop before the fix). `parseAskSlots` reads the mark on the numbered line and refuses
+`ask at line N` by name. M0's `parseArbiterSlots` learned the mark (last mark by line number is the
+one ask M0 knows; its legacy form stays for M0's own fixtures; both at once is an error). The three
+batch proses now carry the mark; the two-ask fixture is 7 lines with stops on lines 3 and 6 and the
+send at 7. The drafter's slot sentence names the mark. A live batch saves the prose it ran against
+in its tag directory and `--rescore` prefers it. 1009 tests, typecheck clean.
+
+**$0 rescore of the old evidence under the new checker.** job #1 tags 21c/21d/21e and job #2 tags
+21f/21g: 0 stop-only hits; slot greens unchanged (20, 20, 19, 19, 17). Two-ask tags 21f/21g cannot
+be rescored honestly against today's fixture (their ask lines were 2 and 5, now 3 and 6, and they
+predate the saved prose); the debrief worker's rescore under the old lines found exactly one hit,
+Qwen 21g draft 14 (line 2 bound `["read"]`), so F34's two-ask count is 14 bound, not 15. F31 to F33
+stand.
+
+**Paid re-measure, tag `2026-09-22a`, `--slot deepseek`, detached, after a warm `pass`.** 40 rows,
+`modelMatch` match on all 40, $0.1499, no unknown cost. Ledger $0.9957 of $5.00.
+- Job #1 with the mark visible on line 5: slot 20/20, validator 20/20, no-tool-call 0. $0.0671.
+- Two asks on their own lines (3 and 6): slot 20/20, validator 20/20. $0.0828. All 20 drafts bind
+  the read to line 2 with `fromLine: 2`; lines 3 and 6 carry a zero-primitive hitl step each; no
+  `fromLine: null`. The dodge F34 named on the old fixture does not appear once the ask is its own
+  line. The M0 validator is green here for the first time on a two-ask prose because it now takes
+  the last mark as its one ask, and the send at line 7 reads it.
+
+**What this corrects.** The ladder's "no re-measure" note (2e4d4b9) is withdrawn: the poc drafter
+shows the model the line text as written, so the mark IS in the prompt, and that is a new prompt.
+It now has its own 40 drafts. The claim stands with a measurement behind it, not an argument.
+
+**Left, named.** `poc/m0/steps.txt` still uses the legacy form (the M0 runner's default fixture,
+accepted by the M0 parser; unused by any batch). The two-ask tags 21f/21g stay scored as F33/F34
+recorded them, with the one-draft correction above.
