@@ -194,8 +194,8 @@ it runs nothing (M2) and asks nothing (M3).
    `source <role> = <file>` per input. Every field is human-signed, tighten-only; each has exactly
    one parser and one writer. Unknown lines in the block are a red naming the line, never ignored.
 2. **The drafter's half is a schema with no arbiter fields in it.** `declaration.json` carries
-   steps (`goal, primitives, reads, emits, columns, fromLine, close`) plus `guardrailClasses`,
-   `unjudgeable`, `refused` — the fields M0a/M0b already validate. It has no place for a cap, an
+   steps (`goal, primitives, reads, emits, picks, fromLine, close`) plus `guardrailClasses`,
+   `unjudgeable`, `refused`, `inputFacts` — the fields M0a/M0b already validate. It has no place for a cap, an
    ask, a TTL, a target, a source or a trigger: not "forbidden", absent from the schema, and the
    validator refuses any unknown key at any depth by name.
 3. **`ask` positions are slots, not steps.** `ask at line N` in the arbiter block means: exactly

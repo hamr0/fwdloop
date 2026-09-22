@@ -39,9 +39,7 @@
   },
   "files": [
     "src",
-    "bin",
     "types",
-    "fwdloop.context.md",
     "LICENSE",
     "NOTICE"
   ],

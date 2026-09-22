@@ -5,11 +5,10 @@
    guardrail: every number must point to the cell it came from or the formula that made it
 4. write a short reply, one line per invoice
    guardrail: one line per invoice in the reply
-5. check with me
+5. ask: check with me
    guardrail: nothing goes out before I accept
 6. on accept, send
 
 Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
 guardrail: cap $0.25 per run
-guardrail: ask at line 5
 guardrail: send at line 6 to file:poc/m0/out
