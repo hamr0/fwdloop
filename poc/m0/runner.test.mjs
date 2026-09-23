@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  writeFileSync, mkdtempSync, readFileSync, mkdirSync, existsSync,
+  writeFileSync, mkdtempSync, readFileSync, mkdirSync, existsSync, symlinkSync, rmSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -302,7 +302,7 @@ function primitivesDeclaration() {
         goal: 'derive totals', primitives: [], reads: ['aging-sheet', 'customer-match'], emits: 'ar-summary', fromLine: 3, close: { class: 'green' },
       },
       {
-        goal: 'compose reply', primitives: [], reads: ['ar-summary'], emits: 'reply-draft', fromLine: 4, close: { class: 'softgreen', shape: { linePerInvoice: true } },
+        goal: 'compose reply', primitives: [], reads: ['ar-summary'], emits: 'reply-draft', fromLine: 4, close: { class: 'softgreen', shape: { linesPerInvoice: 1 } },
       },
       {
         goal: 'check with me', primitives: ['checkpoint'], reads: ['reply-draft'], emits: 'accepted-reply', fromLine: 5,
@@ -466,6 +466,33 @@ test('checkSendDestination refuses a target that resolves outside the repo via .
   const result = checkSendDestination('file:../outside');
   assert.equal(result.ok, false);
   assert.match(result.red, /resolves outside the repo/);
+});
+
+test('checkSendDestination refuses a symlink inside the repo that resolves outside it', () => {
+  const outsideDir = mkdtempSync(join(tmpdir(), 'fwdloop-outside-'));
+  const linkName = `symlink-escape-${Date.now()}`;
+  const linkPath = join(REPO_ROOT, 'poc', 'm0', 'out', linkName);
+  try {
+    symlinkSync(outsideDir, linkPath);
+    const result = checkSendDestination(`file:poc/m0/out/${linkName}`);
+    assert.equal(result.ok, false);
+    assert.match(result.red, /symlink/);
+  } finally {
+    rmSync(linkPath, { force: true });
+    rmSync(outsideDir, { recursive: true, force: true });
+  }
+});
+
+test('checkSendDestination passes for a symlink inside the repo that resolves to another dir inside the repo', () => {
+  const linkName = `symlink-internal-${Date.now()}`;
+  const linkPath = join(REPO_ROOT, 'poc', 'm0', 'out', linkName);
+  try {
+    symlinkSync(join(REPO_ROOT, 'poc', 'm0'), linkPath);
+    const result = checkSendDestination(`file:poc/m0/out/${linkName}`);
+    assert.equal(result.ok, true);
+  } finally {
+    rmSync(linkPath, { force: true });
+  }
 });
 
 test('checkSendDestination still passes a target that normalizes back inside the repo', () => {

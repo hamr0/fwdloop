@@ -329,9 +329,10 @@ read step bound to its line, no `fromLine: null`. F35 has the rows. What M2 must
 sees the numbered line text as written, mark included, plus the slots sentence — that is the prompt
 the numbers are for.
 
-**Not ruled, carried:** `close.shape` is an open map in M1 — any key is accepted inside it except the
-arbiter keys — because no signed text names the shape vocabulary. An unknown key inside a shape is
-therefore NOT caught, and the exit's "unknown key added" mutation does not cover that one position.
+**Ruled 2026-09-23 (hamr):** `close.shape` has a signed v1 vocabulary — `maxWords`, `sections`,
+`linesPerInvoice`, `mustCarry` — enforced in `src/declaration.js` (`SHAPE_KEYS`). An unknown key
+inside a shape is red by name, and the exit's "unknown key added" mutation covers that position.
+Shipped in v0.4.1.
 
 ## M2 — runner
 

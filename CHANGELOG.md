@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- `poc/m0/runner.mjs` — `checkSendDestination` now follows a send target's
+  realpath after the lexical containment check, refusing a symlink inside
+  the repo that resolves outside it (was lexical-only).
+- `src/declaration.js` — `close.shape` now enforces a signed v1 vocabulary
+  (`maxWords`, `sections`, `linesPerInvoice`, `mustCarry`, exported as
+  `SHAPE_KEYS`); any other top-level key inside a shape reds by name.
+- `src/flow.js` — `readFlow` now checks `runs/` exists, is not a symlink,
+  and is a directory, combining with the other file-read reds.
+
 ## [0.4.0] - 2026-09-22
 
 M1: the flow module — signed prose and declaration become real `src/` code

@@ -94,13 +94,37 @@ function checkOwnKeys(obj, allowed, path, reds) {
   }
 }
 
-/** Arbiter-key refusal recursively through `close.shape` — any depth, any
- *  key named after the arbiter's vocabulary, in an object or nested inside
- *  an array. Every OTHER key inside `shape` is free (the typed shape
- *  vocabulary is not signed yet, per M1 scope item 2). */
-function scanShapeForArbiterKeys(value, path, reds) {
+/** The typed `close.shape` vocabulary, signed by hamr 2026-09-23 (v1):
+ *  exactly these four top-level keys. Anything else inside `shape` reds by
+ *  name. */
+export const SHAPE_KEYS = Object.freeze(['maxWords', 'sections', 'linesPerInvoice', 'mustCarry']);
+
+const SHAPE_TYPE_CHECKS = Object.freeze({
+  maxWords: {
+    expected: 'a positive integer',
+    check: (v) => Number.isInteger(v) && v > 0,
+  },
+  linesPerInvoice: {
+    expected: 'a positive integer',
+    check: (v) => Number.isInteger(v) && v > 0,
+  },
+  sections: {
+    expected: 'an array of non-empty strings',
+    check: (v) => Array.isArray(v) && v.every((s) => typeof s === 'string' && s.length > 0),
+  },
+  mustCarry: {
+    expected: 'an array of non-empty strings',
+    check: (v) => Array.isArray(v) && v.every((s) => typeof s === 'string' && s.length > 0),
+  },
+});
+
+/** Arbiter-key refusal recursively through a `close.shape` value — any
+ *  depth, any key named after the arbiter's vocabulary, in an object or
+ *  nested inside an array (e.g. inside a `sections` array entry that turns
+ *  out to be an object). */
+function scanForArbiterKeys(value, path, reds) {
   if (Array.isArray(value)) {
-    value.forEach((entry, i) => scanShapeForArbiterKeys(entry, `${path}[${i}]`, reds));
+    value.forEach((entry, i) => scanForArbiterKeys(entry, `${path}[${i}]`, reds));
     return;
   }
   if (isPlainObject(value)) {
@@ -109,8 +133,30 @@ function scanShapeForArbiterKeys(value, path, reds) {
       if (ARBITER_KEYS.includes(key)) {
         reds.push(`declaration: arbiter field "${key}" at ${childPath} — the drafter cannot author it`);
       }
-      scanShapeForArbiterKeys(value[key], childPath, reds);
+      scanForArbiterKeys(value[key], childPath, reds);
     }
+  }
+}
+
+/** `close.shape`'s own top-level keys must each be in SHAPE_KEYS (the signed
+ *  v1 vocabulary) — an arbiter key gets the existing arbiter-red wording, any
+ *  other unknown key reds by name, and a known key is type-checked. Nested
+ *  arbiter-key refusal still applies at any depth inside a shape value. */
+function checkShapeKeys(shape, path, reds) {
+  for (const key of Object.keys(shape)) {
+    const childPath = `${path}.${key}`;
+    const value = shape[key];
+    if (ARBITER_KEYS.includes(key)) {
+      reds.push(`declaration: arbiter field "${key}" at ${childPath} — the drafter cannot author it`);
+    } else if (!SHAPE_KEYS.includes(key)) {
+      reds.push(`declaration: unknown shape key "${key}" at ${childPath}`);
+    } else {
+      const typeCheck = SHAPE_TYPE_CHECKS[key];
+      if (!typeCheck.check(value)) {
+        reds.push(`declaration: shape key "${key}" at ${childPath} must be ${typeCheck.expected}`);
+      }
+    }
+    scanForArbiterKeys(value, childPath, reds);
   }
 }
 
@@ -417,7 +463,7 @@ export function validateDeclaration(declaration, context = {}) {
           if (!isPlainObject(step.close.shape)) {
             reds.push(`declaration: ${label}.close.shape must be an object`);
           } else {
-            scanShapeForArbiterKeys(step.close.shape, `declaration.${label}.close.shape`, reds);
+            checkShapeKeys(step.close.shape, `declaration.${label}.close.shape`, reds);
           }
         }
       }

@@ -26,7 +26,8 @@
 //     node poc/m0/runner.mjs <model-id> --plant a|b|c|d [--run-id <id>] [--ask-timeout-ms N]
 
 import {
-  readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync, statSync, accessSync, constants as fsConstants,
+  readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync, statSync, accessSync, realpathSync,
+  constants as fsConstants,
 } from 'node:fs';
 import {
   join, dirname, extname, resolve, sep,
@@ -228,6 +229,21 @@ export function checkSendDestination(target) {
   const resolvedRoot = resolve(REPO_ROOT);
   if (resolvedDir !== resolvedRoot && !resolvedDir.startsWith(resolvedRoot + sep)) {
     return { ok: false, red: `destination: send target "${target}" resolves outside the repo (${dir})` };
+  }
+  // Lexical containment (above) doesn't catch a symlink inside the repo that resolves outside
+  // it — realpath both sides and re-apply the same containment compare. If the directory
+  // doesn't exist yet, realpathSync throws and we fall through to the existing accessSync red.
+  try {
+    const realDir = realpathSync(dir);
+    const realRoot = realpathSync(REPO_ROOT);
+    if (realDir !== realRoot && !realDir.startsWith(realRoot + sep)) {
+      return {
+        ok: false,
+        red: `destination: send target "${target}" is a symlink that resolves outside the repo (${realDir})`,
+      };
+    }
+  } catch {
+    // dir doesn't exist — handled by the accessSync red below.
   }
   try {
     accessSync(dir, fsConstants.W_OK);

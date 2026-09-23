@@ -10,7 +10,9 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import { parseSignedText } from '../src/signed-text.js';
-import { validateDeclaration, DECLARATION_FIELDS } from '../src/declaration.js';
+import {
+  validateDeclaration, DECLARATION_FIELDS, SHAPE_KEYS,
+} from '../src/declaration.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -333,6 +335,97 @@ describe('arbiter keys are refused, distinguishably, at every position', () => {
       });
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// close.shape signed vocabulary (v1, hamr-signed 2026-09-23): exactly
+// maxWords, sections, linesPerInvoice, mustCarry — SHAPE_KEYS.
+// ---------------------------------------------------------------------------
+
+describe('close.shape signed vocabulary (v1)', () => {
+  test('SHAPE_KEYS is exactly the four signed keys', () => {
+    assert.deepEqual([...SHAPE_KEYS].sort(), ['linesPerInvoice', 'maxWords', 'mustCarry', 'sections'].sort());
+  });
+
+  test('an unknown key inside close.shape reds by name', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { maxWord: 500 }; // typo of maxWords
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('unknown shape key "maxWord"') && r.includes('declaration.steps[0].close.shape.maxWord')),
+      `expected a red naming unknown shape key "maxWord", got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  // mutation suite's "unknown key added beside it" (field: shape) adds a bogus
+  // key BESIDE close.shape itself; this covers a bogus key INSIDE it.
+  test('mutation: shape — unknown key added inside close.shape (not beside it)', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { sections: ['Summary'], __bogus_inside_shape__: true };
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('__bogus_inside_shape__') && r.includes('declaration.steps[0].close.shape.__bogus_inside_shape__')),
+      `expected a red naming the bogus shape key, got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('a shape with all four valid keys, correctly typed, validates green', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = {
+      maxWords: 500,
+      sections: ['Summary', 'Skills'],
+      linesPerInvoice: 1,
+      mustCarry: ['invoice_number'],
+    };
+    const result = run(decl);
+    assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+  });
+
+  test('maxWords must be a positive integer', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { maxWords: -1 };
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('shape key "maxWords"') && r.includes('must be')),
+      `expected a red for maxWords type violation, got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('linesPerInvoice must be a positive integer', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { linesPerInvoice: 0 };
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('shape key "linesPerInvoice"') && r.includes('must be')),
+      `expected a red for linesPerInvoice type violation, got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('sections must be an array of non-empty strings', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { sections: ['ok', ''] };
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('shape key "sections"') && r.includes('must be')),
+      `expected a red for sections type violation, got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('mustCarry must be an array of non-empty strings', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { mustCarry: [123] };
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('shape key "mustCarry"') && r.includes('must be')),
+      `expected a red for mustCarry type violation, got:\n${result.reds.join('\n')}`,
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

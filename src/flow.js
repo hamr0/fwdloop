@@ -284,6 +284,23 @@ export function readFlow({ root, name, catalogue }) {
     }
   }
 
+  // runs/ (M1 only creates the empty directory; reading inside it is M2's
+  // job — this only checks it exists, isn't a symlink, and is a directory).
+  const runsPath = path.join(dir, RUNS_DIR);
+  let runsStat;
+  try {
+    runsStat = lstatSync(runsPath);
+  } catch {
+    reds.push(`flow: directory "${dir}/${RUNS_DIR}" is missing`);
+  }
+  if (runsStat) {
+    if (runsStat.isSymbolicLink()) {
+      reds.push(`flow: directory "${dir}/${RUNS_DIR}" is a symlink, refused`);
+    } else if (!runsStat.isDirectory()) {
+      reds.push(`flow: "${dir}/${RUNS_DIR}" is not a directory`);
+    }
+  }
+
   if (reds.length > 0) return { ok: false, reds };
 
   // Verify against the bytes on disk, not a re-serialised object.

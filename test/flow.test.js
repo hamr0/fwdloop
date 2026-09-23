@@ -141,6 +141,101 @@ describe('writeFlow -> readFlow round trip, both real jobs', () => {
 });
 
 // ---------------------------------------------------------------------------
+// readFlow checks runs/ (M1 piece 5, fix 3): missing, symlink, or not a
+// directory each red naming "<dir>/runs" — M2's job is reading inside it,
+// not this.
+// ---------------------------------------------------------------------------
+
+describe('readFlow checks runs/', () => {
+  test('runs/ deleted after write: readFlow reds naming runs/, never throws', () => {
+    const root = tmpRoot();
+    try {
+      const written = writeFlow({
+        root,
+        name: 'flow-a',
+        proseText: JOBS[0].prose,
+        declaration: JOBS[0].declaration,
+        signedBy: SIGNED_BY,
+        signedAt: SIGNED_AT,
+        catalogue: CATALOGUE,
+      });
+      assert.equal(written.ok, true, written.ok ? '' : written.reds.join('\n'));
+
+      rmSync(path.join(written.dir, 'runs'), { recursive: true, force: true });
+
+      const read = readFlow({ root, name: 'flow-a', catalogue: CATALOGUE });
+      assert.equal(read.ok, false);
+      assert.ok(
+        read.reds.some((r) => r.includes(`${written.dir}/runs`) && r.includes('missing')),
+        `expected a red naming "${written.dir}/runs" as missing, got:\n${read.reds.join('\n')}`,
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test('runs/ replaced with a symlink to a temp dir: readFlow reds naming the symlink', () => {
+    const root = tmpRoot();
+    const elsewhere = mkdtempSync(path.join(tmpdir(), 'fwdloop-flow-test-runs-elsewhere-'));
+    try {
+      const written = writeFlow({
+        root,
+        name: 'flow-a',
+        proseText: JOBS[0].prose,
+        declaration: JOBS[0].declaration,
+        signedBy: SIGNED_BY,
+        signedAt: SIGNED_AT,
+        catalogue: CATALOGUE,
+      });
+      assert.equal(written.ok, true, written.ok ? '' : written.reds.join('\n'));
+
+      const runsPath = path.join(written.dir, 'runs');
+      rmSync(runsPath, { recursive: true, force: true });
+      symlinkSync(elsewhere, runsPath);
+
+      const read = readFlow({ root, name: 'flow-a', catalogue: CATALOGUE });
+      assert.equal(read.ok, false);
+      assert.ok(
+        read.reds.some((r) => r.includes(`${written.dir}/runs`) && r.includes('symlink')),
+        `expected a red naming "${written.dir}/runs" as a symlink, got:\n${read.reds.join('\n')}`,
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(elsewhere, { recursive: true, force: true });
+    }
+  });
+
+  test('runs/ replaced with a plain file: readFlow reds naming it "not a directory"', () => {
+    const root = tmpRoot();
+    try {
+      const written = writeFlow({
+        root,
+        name: 'flow-a',
+        proseText: JOBS[0].prose,
+        declaration: JOBS[0].declaration,
+        signedBy: SIGNED_BY,
+        signedAt: SIGNED_AT,
+        catalogue: CATALOGUE,
+      });
+      assert.equal(written.ok, true, written.ok ? '' : written.reds.join('\n'));
+
+      const runsPath = path.join(written.dir, 'runs');
+      rmSync(runsPath, { recursive: true, force: true });
+      writeFileSync(runsPath, 'not a directory', 'utf8');
+
+      const read = readFlow({ root, name: 'flow-a', catalogue: CATALOGUE });
+      assert.equal(read.ok, false);
+      assert.ok(
+        read.reds.some((r) => r.includes(`${written.dir}/runs`) && r.includes('not a directory')),
+        `expected a red naming "${written.dir}/runs" as not a directory, got:\n${read.reds.join('\n')}`,
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Negative (iii): one byte changed on disk -> readFlow red names the file
 // ---------------------------------------------------------------------------
 
