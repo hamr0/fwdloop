@@ -1833,3 +1833,35 @@ missing, `is a symlink, refused`, `is not a directory`. Roundtrip test unchanged
 
 **Numbers.** 1009 → 1022 tests (+13), typecheck clean. The ladder's "Not ruled, carried" paragraph
 under M1 is replaced by the ruling. The v0.4.0 ledger's three `change` bullets are closed.
+
+## F37 — The signed shape vocabulary was real code against an untold model: 2 of 60 old paid drafts fit it; once the prompt names the four keys, 40 of 40 do (2026-09-23)
+
+**What the debrief caught.** F36 made `close.shape` a closed vocabulary but nothing told the
+drafter. The prompt the model actually sees (`poc/m1/fixtures/default-prompt-golden.txt`, byte-
+checked against `poc/m0/drafter.mjs`) said when to emit a shape, never which keys exist. A prior
+paid draft showed DeepSeek inventing `oneLinePerInvoice`/`lineFields` unprompted. So the next paid
+run would red where it used to pass. The vocabulary was grepped from fixtures, never measured — the
+POC the ruling should have had.
+
+**$0 baseline, old drafts rescored with the new `checkShapes` column.** Sixty paid drafts made
+under the old prompt: job #1 tag 22a shapeGreen 0/20; job #2 tags 21f 0/20, 21g 2/20. Across the
+sixty, 60 distinct invented shape keys — `wordsPerSection` (12), `maxTotalWords` (10),
+`sectionCount` (10), `oneLinePerInvoice` (8), `unit` (6), `sectionNames` (5) … and 39 seen once.
+Two drafts in sixty landed on the signed words by luck.
+
+**Fix.** `poc/m0/drafter.mjs` builds one sentence from `SHAPE_KEYS` itself (a test asserts every
+key appears in the prompt text, so prompt and validator cannot drift) and the tool-schema `shape`
+description lists the same keys. Golden regenerated. Two debrief "Later" items fixed alongside:
+`sections: []`/`mustCarry: []` red (a shape that checks nothing is not a declared shape);
+`readFlow` reds an unreadable `runs/` (`R_OK|X_OK`).
+
+**Paid measure, tag `2026-09-23a`, deepseek-flash, detached after a warm `pass` and a 1 s probe.**
+- job #1: n=20, shapeGreen 20/20 (shapedDrafts 20), slot 20/20, validator 19/20. $0.0578.
+- job #2: n=20, shapeGreen 20/20 (shapedDrafts 20), slot 20/20, validator 18/20. $0.0501.
+- 40 rows, `modelMatch` match on all 40, $0.1079, no unknown cost. Ledger $1.1037 of $5.00.
+- The three validator reds are chain reds the earlier tags also showed, none shape: job #1 draft 2
+  and job #2 draft 12 have a send step that does not read the ask step's artifact; job #2 draft 4
+  drops job line 1 without a refusal. They count as catches (F-ruling of 2026-09-15).
+
+**Ruling this leaves standing.** The four keys are enough for both jobs as drafted today. A fifth
+word is a red by name, then hamr's signature — never a widening of the check.
