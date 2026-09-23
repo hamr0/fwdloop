@@ -783,17 +783,44 @@ test('checkpointAsk reds a "rerun" decision naming it as Amendment A\'s redo edg
 // --- sendViaPrimitive -------------------------------------------------------
 
 test('sendViaPrimitive writes through shell_write and the happened() check passes on real bytes', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'm0-sendprim-'));
-  const result = await sendViaPrimitive(dir, 'sent.txt', 'INV-1021 [c1]\n');
+  const dirName = `m0-sendprim-${Date.now()}`;
+  const dir = join(REPO_ROOT, 'poc', 'm0', 'out', dirName);
+  mkdirSync(dir, { recursive: true });
+  const result = await sendViaPrimitive(`file:poc/m0/out/${dirName}`, 'sent.txt', 'INV-1021 [c1]\n');
   assert.equal(result.ok, true);
   assert.equal(readFileSync(result.path, 'utf8'), 'INV-1021 [c1]\n');
 });
 
 test('PROOF sendViaPrimitive can fail: an empty write reds on "happened", reading the bytes actually on disk', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'm0-sendprim-empty-'));
-  const result = await sendViaPrimitive(dir, 'sent.txt', '');
+  const dirName = `m0-sendprim-empty-${Date.now()}`;
+  const dir = join(REPO_ROOT, 'poc', 'm0', 'out', dirName);
+  mkdirSync(dir, { recursive: true });
+  const result = await sendViaPrimitive(`file:poc/m0/out/${dirName}`, 'sent.txt', '');
   assert.equal(result.ok, false);
   assert.match(result.red, /^happened:/);
+});
+
+test('sendViaPrimitive refuses at write time when the destination became a symlink outside the repo after preflight', async () => {
+  const dirName = `m0-sendprim-toctou-${Date.now()}`;
+  const target = `file:poc/m0/out/${dirName}`;
+  const dir = join(REPO_ROOT, 'poc', 'm0', 'out', dirName);
+  mkdirSync(dir, { recursive: true });
+  const preflightCheck = checkSendDestination(target);
+  assert.equal(preflightCheck.ok, true);
+
+  const outsideDir = mkdtempSync(join(tmpdir(), 'fwdloop-outside-sendprim-'));
+  try {
+    rmSync(dir, { recursive: true, force: true });
+    symlinkSync(outsideDir, dir);
+
+    const result = await sendViaPrimitive(target, 'x.txt', 'hi');
+    assert.equal(result.ok, false);
+    assert.match(result.red, /symlink/);
+    assert.equal(existsSync(join(outsideDir, 'x.txt')), false);
+  } finally {
+    rmSync(dir, { force: true });
+    rmSync(outsideDir, { recursive: true, force: true });
+  }
 });
 
 // F27 (2026-09-14) — LIVE_PROVIDER_OPTIONS is the runner's ONE live call site's config, frozen

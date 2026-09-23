@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reds.
 - `poc/m1/slot-batch.mjs` — `shape=` column per draft, `shapeGreen` in
   SUMMARY and `--rescore`.
+- `poc/m0/runner.mjs` — `sendViaPrimitive` takes the signed `file:` target and
+  re-runs `checkSendDestination` at write time, so a destination swapped for
+  an outside symlink during the human ask pause reds instead of landing
+  outside the repo (was checked once at preflight only).
 
 ## [0.4.0] - 2026-09-22
 
