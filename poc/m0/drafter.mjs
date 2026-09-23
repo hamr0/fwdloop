@@ -41,6 +41,23 @@ import { makeProvider } from './provider.mjs';
 import { menu } from './catalogue.mjs';
 import { parseLines, deriveFromLine } from './validator.mjs';
 import { classifyFacts, runScoutRound, scoutJob2 } from './scout.mjs';
+import { SHAPE_KEYS } from '../../src/declaration.js';
+
+/** The signed v1 shape vocabulary's per-key description, shown to the
+ *  drafter so the prompt and src/declaration.js's SHAPE_TYPE_CHECKS cannot
+ *  drift apart (both read from SHAPE_KEYS; this map supplies only the
+ *  human-readable text for each key already in that list). */
+const SHAPE_KEY_DESCRIPTIONS = Object.freeze({
+  maxWords: '"maxWords" (positive integer, the whole output\'s word ceiling)',
+  sections: '"sections" (array of non-empty strings, the required section headings in order)',
+  linesPerInvoice: '"linesPerInvoice" (positive integer, lines the output must carry per invoice)',
+  mustCarry: '"mustCarry" (array of non-empty strings, the named fields every line/summary must carry)',
+});
+
+function shapeKeysSentence() {
+  const parts = SHAPE_KEYS.map((key) => SHAPE_KEY_DESCRIPTIONS[key] ?? `"${key}"`);
+  return `"shape" may contain ONLY these keys, nothing else: ${parts.join(', ')}. Any other key is refused.`;
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(__dirname, 'out');
@@ -159,6 +176,8 @@ guardrail than the one covering it). You cannot point at a different line's
 guardrail: "fromLine" names exactly one line, and that line's own guardrail
 is the only thing that can ever produce a class other than hitl for it.
 
+${shapeKeysSentence()}
+
 "guardrailClasses": propose a class for EACH guardrail below that is not
 "[no guardrail]" — read that guardrail's own wording, once, on its own
 merits (never by matching it against some other guardrail's exact phrasing;
@@ -246,7 +265,7 @@ const STEP_SCHEMA = {
     close: {
       type: 'object',
       properties: {
-        shape: { type: 'object', description: 'ONLY when fromLine\'s guardrail declares a shape (derives softgreen): the human\'s declared shape, structured. Omit otherwise — no "class", no "tracesTo".' },
+        shape: { type: 'object', description: `ONLY when fromLine's guardrail declares a shape (derives softgreen): the human's declared shape, structured. Omit otherwise — no "class", no "tracesTo". Keys limited to: ${SHAPE_KEYS.join(', ')}.` },
       },
     },
   },

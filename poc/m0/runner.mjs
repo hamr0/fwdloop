@@ -26,7 +26,8 @@
 //     node poc/m0/runner.mjs <model-id> --plant a|b|c|d [--run-id <id>] [--ask-timeout-ms N]
 
 import {
-  readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync, statSync, accessSync, constants as fsConstants,
+  readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync, statSync, accessSync, realpathSync,
+  constants as fsConstants,
 } from 'node:fs';
 import {
   join, dirname, extname, resolve, sep,
@@ -229,6 +230,21 @@ export function checkSendDestination(target) {
   if (resolvedDir !== resolvedRoot && !resolvedDir.startsWith(resolvedRoot + sep)) {
     return { ok: false, red: `destination: send target "${target}" resolves outside the repo (${dir})` };
   }
+  // Lexical containment (above) doesn't catch a symlink inside the repo that resolves outside
+  // it — realpath both sides and re-apply the same containment compare. If the directory
+  // doesn't exist yet, realpathSync throws and we fall through to the existing accessSync red.
+  try {
+    const realDir = realpathSync(dir);
+    const realRoot = realpathSync(REPO_ROOT);
+    if (realDir !== realRoot && !realDir.startsWith(realRoot + sep)) {
+      return {
+        ok: false,
+        red: `destination: send target "${target}" is a symlink that resolves outside the repo (${realDir})`,
+      };
+    }
+  } catch {
+    // dir doesn't exist — handled by the accessSync red below.
+  }
   try {
     accessSync(dir, fsConstants.W_OK);
   } catch (err) {
@@ -334,7 +350,7 @@ export async function runOnPrimitives({
   if (!pre.ok) {
     return { outcome: 'red', red: pre.red, phase: 'preflight' };
   }
-  const { stages, inputsManifest, sendDir } = pre;
+  const { stages, inputsManifest, arbiterSlots } = pre;
   const bySourceId = Object.fromEntries(inputsManifest.map((m) => [m.id, m]));
 
   const log = { runId, plant, stages: {} };
@@ -518,7 +534,7 @@ export async function runOnPrimitives({
   record('ask', 'green');
 
   // --- send (the signed send slot line) ---
-  const sendResult = await sendStep(sendDir, `${runId}-sent.txt`, compose.args.text);
+  const sendResult = await sendStep(arbiterSlots.send.target, `${runId}-sent.txt`, compose.args.text);
   if (!sendResult.ok) { record('send', 'red', { red: sendResult.red }); return { outcome: 'red', red: sendResult.red, phase: 'send', log }; }
   record('send', 'green');
 
@@ -664,13 +680,21 @@ export async function checkpointAsk(question, evidence, {
 
 /**
  * The send stage, on `shell_write` (never `writeFileSync` standing in for
- * it a second time). Only ever called after an accept THIS run. The
- * "happened" effect check reads the bytes ACTUALLY on disk afterwards —
- * never the in-memory content handed in — so a write that silently
- * truncates to 0 bytes reds here, not upstream.
+ * it a second time). Only ever called after an accept THIS run. Takes the
+ * signed `target` (e.g. `file:poc/m0/out`), NOT a resolved dir, and
+ * re-checks it via `checkSendDestination` — the one writer of the
+ * containment rule — right here, at write time: `preflight`'s own check of
+ * the same target ran minutes earlier, before the human ask paused the
+ * run, and a symlink swapped in during that pause would otherwise reach
+ * `shell_write` unchecked (time-of-check vs time-of-use). The "happened"
+ * effect check reads the bytes ACTUALLY on disk afterwards — never the
+ * in-memory content handed in — so a write that silently truncates to 0
+ * bytes reds here, not upstream.
  */
-export async function sendViaPrimitive(dir, filename, content) {
-  const path = join(dir, filename);
+export async function sendViaPrimitive(target, filename, content) {
+  const destination = checkSendDestination(target);
+  if (!destination.ok) return { ok: false, red: `send: ${destination.red}` };
+  const path = join(destination.dir, filename);
   await shellTool('shell_write').execute({ path, content });
   const bytes = readFileSync(path);
   const happened = checkStepHappened({ goal: 'send: deliver reply', close: { class: 'hitl' } }, bytes);

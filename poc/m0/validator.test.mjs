@@ -101,7 +101,7 @@ function validDeclaration() {
         reads: ['a3', 'a3b'],
         emits: 'a4',
         fromLine: 4,
-        close: { class: 'softgreen', shape: { linePerInvoice: true } },
+        close: { class: 'softgreen', shape: { linesPerInvoice: 1 } },
       },
       {
         goal: 'check with me', primitives: ['checkpoint'], reads: ['a4'], emits: 'a5', fromLine: 5, close: { class: 'hitl' },

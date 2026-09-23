@@ -20,7 +20,8 @@
 // caught and returned as a red naming the file or path involved.
 
 import {
-  existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync,
+  accessSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync,
+  writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
 
@@ -281,6 +282,29 @@ export function readFlow({ root, name, catalogue }) {
       signatureJson = JSON.parse(signatureText);
     } catch {
       reds.push('flow: signature.json is not valid JSON');
+    }
+  }
+
+  // runs/ (M1 only creates the empty directory; reading inside it is M2's
+  // job — this only checks it exists, isn't a symlink, and is a directory).
+  const runsPath = path.join(dir, RUNS_DIR);
+  let runsStat;
+  try {
+    runsStat = lstatSync(runsPath);
+  } catch {
+    reds.push(`flow: directory "${dir}/${RUNS_DIR}" is missing`);
+  }
+  if (runsStat) {
+    if (runsStat.isSymbolicLink()) {
+      reds.push(`flow: directory "${dir}/${RUNS_DIR}" is a symlink, refused`);
+    } else if (!runsStat.isDirectory()) {
+      reds.push(`flow: "${dir}/${RUNS_DIR}" is not a directory`);
+    } else {
+      try {
+        accessSync(runsPath, fsConstants.R_OK | fsConstants.X_OK);
+      } catch (err) {
+        reds.push(`flow: directory "${dir}/${RUNS_DIR}" is not readable (${err.code})`);
+      }
     }
   }
 

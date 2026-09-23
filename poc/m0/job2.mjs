@@ -482,17 +482,13 @@ function makeDefaultAskStep({
 }
 
 /**
- * The default (real) send: re-checks the destination right before writing
- * (the runner's own send allow-list is job #1-shaped — mechanical.mjs's
- * `send()` — so this re-runs `checkSendDestination` a second time here,
- * per the brief, rather than reusing that job #1-only allow-list), then
- * writes through `sendViaPrimitive` (shell_write + the mechanical happened
- * check — not a second bespoke fs call).
+ * The default (real) send. `sendViaPrimitive` now re-checks the
+ * destination itself, at write time, from the signed `target` string —
+ * so this wrapper just forwards to it rather than re-running
+ * `checkSendDestination` a second time here.
  */
 async function defaultSendStep(target, filename, content) {
-  const destination = checkSendDestination(target);
-  if (!destination.ok) return destination;
-  return sendViaPrimitive(destination.dir, filename, content);
+  return sendViaPrimitive(target, filename, content);
 }
 
 // ---------------------------------------------------------------------------

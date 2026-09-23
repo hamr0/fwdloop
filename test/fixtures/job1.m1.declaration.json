@@ -74,8 +74,8 @@
       "close": {
         "class": "softgreen",
         "shape": {
-          "oneLinePerInvoice": true,
-          "lineFields": ["Invoice #", "Due date", "Amount"]
+          "linesPerInvoice": 1,
+          "mustCarry": ["Invoice #", "Due date", "Amount"]
         }
       }
     },

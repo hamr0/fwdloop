@@ -36,8 +36,7 @@
         "class": "softgreen",
         "shape": {
           "sections": ["summary of work history blurb", "professional skills", "soft skills"],
-          "sectionCount": 3,
-          "wordBudget": { "total": 600, "perSection": 200 }
+          "maxWords": 600
         }
       }
     },

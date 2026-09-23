@@ -1794,3 +1794,74 @@ It now has its own 40 drafts. The claim stands with a measurement behind it, not
 **Left, named.** `poc/m0/steps.txt` still uses the legacy form (the M0 runner's default fixture,
 accepted by the M0 parser; unused by any batch). The two-ask tags 21f/21g stay scored as F33/F34
 recorded them, with the one-draft correction above.
+
+## F36 — Three v0.4.0 `change` ledger items ruled by hamr and closed: symlink containment, a signed `close.shape` vocabulary, `readFlow` checks `runs/` (2026-09-23)
+
+**Ruling (hamr, 2026-09-23).** Gap 1 A: real-path containment. Gap 2 A: sign the four shape keys
+in use as the v1 vocabulary. Gap 3 A: `readFlow` checks that `runs/` exists, is a directory, and is
+not a symlink; it does not read inside (M2). All three shipped on branch `v0.4.1`, red-first, each
+revert-proven by stashing the source file alone.
+
+**Gap 1 — `poc/m0/runner.mjs` `checkSendDestination`.** The containment check was `resolve()` plus a
+string-prefix compare, which is lexical: a symlink inside the repo pointing outside it passed. Red
+before the fix, on a repo-internal symlink to a tmp dir: `Expected values to be strictly equal:
+true !== false`. Fix: after the lexical check, `realpathSync` both the target and the repo root and
+apply the same compare; escape reds `is a symlink that resolves outside the repo (<real path>)`. A
+missing dir still falls to the existing not-writable red. An internal symlink to an internal dir
+still passes (positive test added).
+
+**Gap 2 — `src/declaration.js` `close.shape`.** The shape map accepted any key except arbiter words,
+so a typo (`maxWord`) checked nothing and the exit's "unknown key added" mutation did not cover that
+position. Signed v1 vocabulary, exported as `SHAPE_KEYS`: `maxWords` (positive integer), `sections`
+(array of non-empty strings), `linesPerInvoice` (positive integer), `mustCarry` (array of non-empty
+strings). Unknown key reds `unknown shape key "<key>" at <path>`; wrong type reds `shape key "<key>"
+at <path> must be <expected>`; arbiter keys keep their own red at any depth. Red before the fix was
+the missing export itself. Fallout, named: the M1 fixtures had grown their own keys —
+`test/fixtures/job1.m1.declaration.json` used `oneLinePerInvoice`/`lineFields` (now
+`linesPerInvoice: 1`/`mustCarry`), `job2.m1.declaration.json` used `sectionCount` (derivable from
+`sections`) and `wordBudget {total, perSection}` (now `maxWords: 600`; a per-section budget is not
+in the signed vocabulary and was dropped, not invented). The `linePerInvoice` typo in two M0 test
+fixtures became `linesPerInvoice: 1`; M0's own validator never inspected shape keys, so nothing
+there changed behaviour. `poc/m0/fixture-declaration-*.json` and `test/fixtures/job2.declaration.json`
+keep the old keys on purpose: one is a paid-run snapshot, the other is hashed as opaque bytes by the
+signature tests and never validated.
+
+**Gap 3 — `src/flow.js` `readFlow`.** The writer created an empty `runs/`; the reader never looked.
+Red before the fix, with `runs/` deleted, symlinked, or a plain file: `true !== false` on all three.
+Fix: `lstatSync` on `runs/` after the three file reads, pushing onto the same reds so they combine:
+missing, `is a symlink, refused`, `is not a directory`. Roundtrip test unchanged.
+
+**Numbers.** 1009 → 1022 tests (+13), typecheck clean. The ladder's "Not ruled, carried" paragraph
+under M1 is replaced by the ruling. The v0.4.0 ledger's three `change` bullets are closed.
+
+## F37 — The signed shape vocabulary was real code against an untold model: 2 of 60 old paid drafts fit it; once the prompt names the four keys, 40 of 40 do (2026-09-23)
+
+**What the debrief caught.** F36 made `close.shape` a closed vocabulary but nothing told the
+drafter. The prompt the model actually sees (`poc/m1/fixtures/default-prompt-golden.txt`, byte-
+checked against `poc/m0/drafter.mjs`) said when to emit a shape, never which keys exist. A prior
+paid draft showed DeepSeek inventing `oneLinePerInvoice`/`lineFields` unprompted. So the next paid
+run would red where it used to pass. The vocabulary was grepped from fixtures, never measured — the
+POC the ruling should have had.
+
+**$0 baseline, old drafts rescored with the new `checkShapes` column.** Sixty paid drafts made
+under the old prompt: job #1 tag 22a shapeGreen 0/20; job #2 tags 21f 0/20, 21g 2/20. Across the
+sixty, 60 distinct invented shape keys — `wordsPerSection` (12), `maxTotalWords` (10),
+`sectionCount` (10), `oneLinePerInvoice` (8), `unit` (6), `sectionNames` (5) … and 39 seen once.
+Two drafts in sixty landed on the signed words by luck.
+
+**Fix.** `poc/m0/drafter.mjs` builds one sentence from `SHAPE_KEYS` itself (a test asserts every
+key appears in the prompt text, so prompt and validator cannot drift) and the tool-schema `shape`
+description lists the same keys. Golden regenerated. Two debrief "Later" items fixed alongside:
+`sections: []`/`mustCarry: []` red (a shape that checks nothing is not a declared shape);
+`readFlow` reds an unreadable `runs/` (`R_OK|X_OK`).
+
+**Paid measure, tag `2026-09-23a`, deepseek-flash, detached after a warm `pass` and a 1 s probe.**
+- job #1: n=20, shapeGreen 20/20 (shapedDrafts 20), slot 20/20, validator 19/20. $0.0578.
+- job #2: n=20, shapeGreen 20/20 (shapedDrafts 20), slot 20/20, validator 18/20. $0.0501.
+- 40 rows, `modelMatch` match on all 40, $0.1079, no unknown cost. Ledger $1.1037 of $5.00.
+- The three validator reds are chain reds the earlier tags also showed, none shape: job #1 draft 2
+  and job #2 draft 12 have a send step that does not read the ask step's artifact; job #2 draft 4
+  drops job line 1 without a refusal. They count as catches (F-ruling of 2026-09-15).
+
+**Ruling this leaves standing.** The four keys are enough for both jobs as drafted today. A fifth
+word is a red by name, then hamr's signature — never a widening of the check.

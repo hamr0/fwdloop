@@ -94,13 +94,37 @@ function checkOwnKeys(obj, allowed, path, reds) {
   }
 }
 
-/** Arbiter-key refusal recursively through `close.shape` — any depth, any
- *  key named after the arbiter's vocabulary, in an object or nested inside
- *  an array. Every OTHER key inside `shape` is free (the typed shape
- *  vocabulary is not signed yet, per M1 scope item 2). */
-function scanShapeForArbiterKeys(value, path, reds) {
+/** The typed `close.shape` vocabulary, signed by hamr 2026-09-23 (v1):
+ *  exactly these four top-level keys. Anything else inside `shape` reds by
+ *  name. */
+export const SHAPE_KEYS = Object.freeze(['maxWords', 'sections', 'linesPerInvoice', 'mustCarry']);
+
+const SHAPE_TYPE_CHECKS = Object.freeze({
+  maxWords: {
+    expected: 'a positive integer',
+    check: (v) => Number.isInteger(v) && v > 0,
+  },
+  linesPerInvoice: {
+    expected: 'a positive integer',
+    check: (v) => Number.isInteger(v) && v > 0,
+  },
+  sections: {
+    expected: 'a non-empty array of non-empty strings',
+    check: (v) => Array.isArray(v) && v.length > 0 && v.every((s) => typeof s === 'string' && s.length > 0),
+  },
+  mustCarry: {
+    expected: 'a non-empty array of non-empty strings',
+    check: (v) => Array.isArray(v) && v.length > 0 && v.every((s) => typeof s === 'string' && s.length > 0),
+  },
+});
+
+/** Arbiter-key refusal recursively through a `close.shape` value — any
+ *  depth, any key named after the arbiter's vocabulary, in an object or
+ *  nested inside an array (e.g. inside a `sections` array entry that turns
+ *  out to be an object). */
+function scanForArbiterKeys(value, path, reds) {
   if (Array.isArray(value)) {
-    value.forEach((entry, i) => scanShapeForArbiterKeys(entry, `${path}[${i}]`, reds));
+    value.forEach((entry, i) => scanForArbiterKeys(entry, `${path}[${i}]`, reds));
     return;
   }
   if (isPlainObject(value)) {
@@ -109,9 +133,67 @@ function scanShapeForArbiterKeys(value, path, reds) {
       if (ARBITER_KEYS.includes(key)) {
         reds.push(`declaration: arbiter field "${key}" at ${childPath} — the drafter cannot author it`);
       }
-      scanShapeForArbiterKeys(value[key], childPath, reds);
+      scanForArbiterKeys(value[key], childPath, reds);
     }
   }
+}
+
+/** `close.shape`'s own top-level keys must each be in SHAPE_KEYS (the signed
+ *  v1 vocabulary) — an arbiter key gets the existing arbiter-red wording, any
+ *  other unknown key reds by name, and a known key is type-checked. Nested
+ *  arbiter-key refusal still applies at any depth inside a shape value. */
+function checkShapeKeys(shape, path, reds) {
+  for (const key of Object.keys(shape)) {
+    const childPath = `${path}.${key}`;
+    const value = shape[key];
+    if (ARBITER_KEYS.includes(key)) {
+      reds.push(`declaration: arbiter field "${key}" at ${childPath} — the drafter cannot author it`);
+    } else if (!SHAPE_KEYS.includes(key)) {
+      reds.push(`declaration: unknown shape key "${key}" at ${childPath}`);
+    } else {
+      const typeCheck = SHAPE_TYPE_CHECKS[key];
+      if (!typeCheck.check(value)) {
+        reds.push(`declaration: shape key "${key}" at ${childPath} must be ${typeCheck.expected}`);
+      }
+    }
+    scanForArbiterKeys(value, childPath, reds);
+  }
+}
+
+/**
+ * A small, pure walker over `declaration.steps` for callers that only want
+ * the shape-key verdict (e.g. poc/m1/slot-batch.mjs's `shape` column) —
+ * never a substitute for `validateDeclaration`, which is still the one
+ * check that decides pass/fail for a real declaration. Reuses the same
+ * `checkShapeKeys` `validateDeclaration` calls, so the two can never drift
+ * apart on what counts as a known shape key.
+ *
+ * A non-array `declaration.steps` (or a non-object `declaration` at all)
+ * reds `'no steps array'` rather than throwing. `shapedSteps` counts every
+ * step whose `close` carries a `shape` key at all — a step that TRIED to
+ * carry a shape, known-key or not, plain-object or not. A `shape` that
+ * isn't a plain object (array, string, number, null) reds
+ * `"... .close.shape must be an object"`, matching `validateDeclaration`'s
+ * own red for the same malformed input.
+ */
+export function checkShapes(declaration) {
+  const steps = isPlainObject(declaration) && Array.isArray(declaration.steps) ? declaration.steps : null;
+  if (steps === null) {
+    return { verdict: 'red', reds: ['no steps array'], shapedSteps: 0 };
+  }
+  const reds = [];
+  let shapedSteps = 0;
+  steps.forEach((step, i) => {
+    if (!isPlainObject(step?.close) || !('shape' in step.close)) return;
+    const shape = step.close.shape;
+    shapedSteps += 1;
+    if (isPlainObject(shape)) {
+      checkShapeKeys(shape, `declaration.steps[${i}].close.shape`, reds);
+    } else {
+      reds.push(`declaration.steps[${i}].close.shape must be an object`);
+    }
+  });
+  return { verdict: reds.length > 0 ? 'red' : 'green', reds, shapedSteps };
 }
 
 /**
@@ -417,7 +499,7 @@ export function validateDeclaration(declaration, context = {}) {
           if (!isPlainObject(step.close.shape)) {
             reds.push(`declaration: ${label}.close.shape must be an object`);
           } else {
-            scanShapeForArbiterKeys(step.close.shape, `declaration.${label}.close.shape`, reds);
+            checkShapeKeys(step.close.shape, `declaration.${label}.close.shape`, reds);
           }
         }
       }

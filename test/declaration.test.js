@@ -10,7 +10,9 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import { parseSignedText } from '../src/signed-text.js';
-import { validateDeclaration, DECLARATION_FIELDS } from '../src/declaration.js';
+import {
+  validateDeclaration, DECLARATION_FIELDS, SHAPE_KEYS, checkShapes,
+} from '../src/declaration.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -336,6 +338,119 @@ describe('arbiter keys are refused, distinguishably, at every position', () => {
 });
 
 // ---------------------------------------------------------------------------
+// close.shape signed vocabulary (v1, hamr-signed 2026-09-23): exactly
+// maxWords, sections, linesPerInvoice, mustCarry — SHAPE_KEYS.
+// ---------------------------------------------------------------------------
+
+describe('close.shape signed vocabulary (v1)', () => {
+  test('SHAPE_KEYS is exactly the four signed keys', () => {
+    assert.deepEqual([...SHAPE_KEYS].sort(), ['linesPerInvoice', 'maxWords', 'mustCarry', 'sections'].sort());
+  });
+
+  test('an unknown key inside close.shape reds by name', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { maxWord: 500 }; // typo of maxWords
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('unknown shape key "maxWord"') && r.includes('declaration.steps[0].close.shape.maxWord')),
+      `expected a red naming unknown shape key "maxWord", got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  // mutation suite's "unknown key added beside it" (field: shape) adds a bogus
+  // key BESIDE close.shape itself; this covers a bogus key INSIDE it.
+  test('mutation: shape — unknown key added inside close.shape (not beside it)', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { sections: ['Summary'], __bogus_inside_shape__: true };
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('__bogus_inside_shape__') && r.includes('declaration.steps[0].close.shape.__bogus_inside_shape__')),
+      `expected a red naming the bogus shape key, got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('a shape with all four valid keys, correctly typed, validates green', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = {
+      maxWords: 500,
+      sections: ['Summary', 'Skills'],
+      linesPerInvoice: 1,
+      mustCarry: ['invoice_number'],
+    };
+    const result = run(decl);
+    assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+  });
+
+  test('maxWords must be a positive integer', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { maxWords: -1 };
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('shape key "maxWords"') && r.includes('must be')),
+      `expected a red for maxWords type violation, got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('linesPerInvoice must be a positive integer', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { linesPerInvoice: 0 };
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('shape key "linesPerInvoice"') && r.includes('must be')),
+      `expected a red for linesPerInvoice type violation, got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('sections must be an array of non-empty strings', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { sections: ['ok', ''] };
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('shape key "sections"') && r.includes('must be')),
+      `expected a red for sections type violation, got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('mustCarry must be an array of non-empty strings', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { mustCarry: [123] };
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('shape key "mustCarry"') && r.includes('must be')),
+      `expected a red for mustCarry type violation, got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('sections: [] reds — an empty array is not a declared shape', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { sections: [] };
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('shape key "sections"') && r.includes('must be a non-empty array of non-empty strings')),
+      `expected a red for empty sections, got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('mustCarry: [] reds — an empty array is not a declared shape', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { mustCarry: [] };
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('shape key "mustCarry"') && r.includes('must be a non-empty array of non-empty strings')),
+      `expected a red for empty mustCarry, got:\n${result.reds.join('\n')}`,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Negative scenarios (i) and (ii)
 // ---------------------------------------------------------------------------
 
@@ -537,4 +652,100 @@ test('never throws on garbage input', () => {
 test('no `new RegExp(` in src/declaration.js', () => {
   const source = readFileSync(path.join(HERE, '..', 'src', 'declaration.js'), 'utf8');
   assert.ok(!source.includes('new RegExp('));
+});
+
+// ---------------------------------------------------------------------------
+// checkShapes — a small pure walker for poc/m1/slot-batch.mjs's `shape`
+// column: walks declaration.steps and runs the SAME shape-key check
+// validateDeclaration already runs, without re-running the whole validator.
+// ---------------------------------------------------------------------------
+
+describe('checkShapes', () => {
+  test('a declaration with no steps array reds "no steps array"', () => {
+    const result = checkShapes({});
+    assert.equal(result.verdict, 'red');
+    assert.deepEqual(result.reds, ['no steps array']);
+    assert.equal(result.shapedSteps, 0);
+  });
+
+  test('a declaration that is not an object at all also reds "no steps array"', () => {
+    for (const bad of [undefined, null, 42, 'x', [], true]) {
+      const result = checkShapes(bad);
+      assert.equal(result.verdict, 'red');
+      assert.deepEqual(result.reds, ['no steps array']);
+      assert.equal(result.shapedSteps, 0);
+    }
+  });
+
+  test('no step carries a shape -> green, shapedSteps 0', () => {
+    const result = checkShapes({ steps: [{ goal: 'x', close: {} }, { goal: 'y' }] });
+    assert.equal(result.verdict, 'green');
+    assert.deepEqual(result.reds, []);
+    assert.equal(result.shapedSteps, 0);
+  });
+
+  test('a step whose shape has an unknown key (e.g. oneLinePerInvoice) reds naming it, shapedSteps 1', () => {
+    const result = checkShapes({
+      steps: [
+        { goal: 'x', close: { shape: { oneLinePerInvoice: true } } },
+        { goal: 'y' },
+      ],
+    });
+    assert.equal(result.verdict, 'red');
+    assert.equal(result.shapedSteps, 1);
+    assert.ok(
+      result.reds.some((r) => r.includes('unknown shape key "oneLinePerInvoice"')),
+      `expected a red naming "oneLinePerInvoice", got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('a step whose shape uses only signed keys, correctly typed -> green, shapedSteps 1', () => {
+    const result = checkShapes({
+      steps: [
+        { goal: 'x', close: { shape: { maxWords: 100 } } },
+      ],
+    });
+    assert.equal(result.verdict, 'green');
+    assert.deepEqual(result.reds, []);
+    assert.equal(result.shapedSteps, 1);
+  });
+
+  test('does not change validateDeclaration\'s own behaviour — same declaration validates the same way before and after', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { sections: ['Summary'] };
+    const before = validateDeclaration(decl, { arbiter: SIGNED.arbiter, lines: SIGNED.lines, catalogue: CATALOGUE });
+    checkShapes(decl);
+    const after = validateDeclaration(decl, { arbiter: SIGNED.arbiter, lines: SIGNED.lines, catalogue: CATALOGUE });
+    assert.deepEqual(before, after);
+  });
+
+  test('a step whose close.shape is an array reds "must be an object", shapedSteps 1', () => {
+    const result = checkShapes({ steps: [{ goal: 'x', close: { shape: ['sections'] } }] });
+    assert.equal(result.verdict, 'red');
+    assert.equal(result.shapedSteps, 1);
+    assert.ok(
+      result.reds.some((r) => r.includes('must be an object')),
+      `expected a red containing "must be an object", got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('a step whose close.shape is a string reds "must be an object", shapedSteps 1', () => {
+    const result = checkShapes({ steps: [{ goal: 'x', close: { shape: 'x' } }] });
+    assert.equal(result.verdict, 'red');
+    assert.equal(result.shapedSteps, 1);
+    assert.ok(
+      result.reds.some((r) => r.includes('must be an object')),
+      `expected a red containing "must be an object", got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('a step whose close.shape is null reds "must be an object", shapedSteps 1', () => {
+    const result = checkShapes({ steps: [{ goal: 'x', close: { shape: null } }] });
+    assert.equal(result.verdict, 'red');
+    assert.equal(result.shapedSteps, 1);
+    assert.ok(
+      result.reds.some((r) => r.includes('must be an object')),
+      `expected a red containing "must be an object", got:\n${result.reds.join('\n')}`,
+    );
+  });
 });

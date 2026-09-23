@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  writeFileSync, mkdtempSync, readFileSync, mkdirSync, existsSync,
+  writeFileSync, mkdtempSync, readFileSync, mkdirSync, existsSync, symlinkSync, rmSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -302,7 +302,7 @@ function primitivesDeclaration() {
         goal: 'derive totals', primitives: [], reads: ['aging-sheet', 'customer-match'], emits: 'ar-summary', fromLine: 3, close: { class: 'green' },
       },
       {
-        goal: 'compose reply', primitives: [], reads: ['ar-summary'], emits: 'reply-draft', fromLine: 4, close: { class: 'softgreen', shape: { linePerInvoice: true } },
+        goal: 'compose reply', primitives: [], reads: ['ar-summary'], emits: 'reply-draft', fromLine: 4, close: { class: 'softgreen', shape: { linesPerInvoice: 1 } },
       },
       {
         goal: 'check with me', primitives: ['checkpoint'], reads: ['reply-draft'], emits: 'accepted-reply', fromLine: 5,
@@ -466,6 +466,33 @@ test('checkSendDestination refuses a target that resolves outside the repo via .
   const result = checkSendDestination('file:../outside');
   assert.equal(result.ok, false);
   assert.match(result.red, /resolves outside the repo/);
+});
+
+test('checkSendDestination refuses a symlink inside the repo that resolves outside it', () => {
+  const outsideDir = mkdtempSync(join(tmpdir(), 'fwdloop-outside-'));
+  const linkName = `symlink-escape-${Date.now()}`;
+  const linkPath = join(REPO_ROOT, 'poc', 'm0', 'out', linkName);
+  try {
+    symlinkSync(outsideDir, linkPath);
+    const result = checkSendDestination(`file:poc/m0/out/${linkName}`);
+    assert.equal(result.ok, false);
+    assert.match(result.red, /symlink/);
+  } finally {
+    rmSync(linkPath, { force: true });
+    rmSync(outsideDir, { recursive: true, force: true });
+  }
+});
+
+test('checkSendDestination passes for a symlink inside the repo that resolves to another dir inside the repo', () => {
+  const linkName = `symlink-internal-${Date.now()}`;
+  const linkPath = join(REPO_ROOT, 'poc', 'm0', 'out', linkName);
+  try {
+    symlinkSync(join(REPO_ROOT, 'poc', 'm0'), linkPath);
+    const result = checkSendDestination(`file:poc/m0/out/${linkName}`);
+    assert.equal(result.ok, true);
+  } finally {
+    rmSync(linkPath, { force: true });
+  }
 });
 
 test('checkSendDestination still passes a target that normalizes back inside the repo', () => {
@@ -756,17 +783,44 @@ test('checkpointAsk reds a "rerun" decision naming it as Amendment A\'s redo edg
 // --- sendViaPrimitive -------------------------------------------------------
 
 test('sendViaPrimitive writes through shell_write and the happened() check passes on real bytes', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'm0-sendprim-'));
-  const result = await sendViaPrimitive(dir, 'sent.txt', 'INV-1021 [c1]\n');
+  const dirName = `m0-sendprim-${Date.now()}`;
+  const dir = join(REPO_ROOT, 'poc', 'm0', 'out', dirName);
+  mkdirSync(dir, { recursive: true });
+  const result = await sendViaPrimitive(`file:poc/m0/out/${dirName}`, 'sent.txt', 'INV-1021 [c1]\n');
   assert.equal(result.ok, true);
   assert.equal(readFileSync(result.path, 'utf8'), 'INV-1021 [c1]\n');
 });
 
 test('PROOF sendViaPrimitive can fail: an empty write reds on "happened", reading the bytes actually on disk', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'm0-sendprim-empty-'));
-  const result = await sendViaPrimitive(dir, 'sent.txt', '');
+  const dirName = `m0-sendprim-empty-${Date.now()}`;
+  const dir = join(REPO_ROOT, 'poc', 'm0', 'out', dirName);
+  mkdirSync(dir, { recursive: true });
+  const result = await sendViaPrimitive(`file:poc/m0/out/${dirName}`, 'sent.txt', '');
   assert.equal(result.ok, false);
   assert.match(result.red, /^happened:/);
+});
+
+test('sendViaPrimitive refuses at write time when the destination became a symlink outside the repo after preflight', async () => {
+  const dirName = `m0-sendprim-toctou-${Date.now()}`;
+  const target = `file:poc/m0/out/${dirName}`;
+  const dir = join(REPO_ROOT, 'poc', 'm0', 'out', dirName);
+  mkdirSync(dir, { recursive: true });
+  const preflightCheck = checkSendDestination(target);
+  assert.equal(preflightCheck.ok, true);
+
+  const outsideDir = mkdtempSync(join(tmpdir(), 'fwdloop-outside-sendprim-'));
+  try {
+    rmSync(dir, { recursive: true, force: true });
+    symlinkSync(outsideDir, dir);
+
+    const result = await sendViaPrimitive(target, 'x.txt', 'hi');
+    assert.equal(result.ok, false);
+    assert.match(result.red, /symlink/);
+    assert.equal(existsSync(join(outsideDir, 'x.txt')), false);
+  } finally {
+    rmSync(dir, { force: true });
+    rmSync(outsideDir, { recursive: true, force: true });
+  }
 });
 
 // F27 (2026-09-14) — LIVE_PROVIDER_OPTIONS is the runner's ONE live call site's config, frozen

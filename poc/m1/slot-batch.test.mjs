@@ -296,6 +296,7 @@ test('runOneDraft: a conforming declaration under slotGrammar records validator 
   assert.equal(record.stopReason, 'tool-called');
   assert.deepEqual(record.validator, { verdict: 'green', red: null });
   assert.deepEqual(record.slot, { verdict: 'green' });
+  assert.deepEqual(record.shape, { verdict: 'green', reds: [], shapedSteps: 1 });
   assert.equal(record.stepCount, 6);
   assert.equal(record.hitlSteps, 4); // lines 1 (blank), 2 (ask-me guardrail -> hitl), 5 (ask), 6 (blank)
   assert.equal(record.checkpointGrants, 0);
@@ -331,6 +332,7 @@ test('runOneDraft: no tool call records stopReason "no-tool-call" and null valid
   assert.equal(record.stopReason, 'no-tool-call');
   assert.equal(record.validator, null);
   assert.equal(record.slot, null);
+  assert.equal(record.shape, null);
   assert.equal(record.stepCount, 0);
 });
 
@@ -429,7 +431,8 @@ test('runSlotBatch: summary counts slotGreen/validatorGreen/noToolCall/timeouts 
   });
   assert.equal(completed, true);
   assert.equal(records.length, 3);
-  assert.equal(summaryLine, 'SUMMARY grammar=slot n=3 slotGreen=2 validatorGreen=2 noToolCall=1 timeouts=0 costUsd=' + records.reduce((s, r) => s + r.costUsd, 0).toFixed(6));
+  assert.equal(summaryLine, 'SUMMARY grammar=slot n=3 slotGreen=2 validatorGreen=2 noToolCall=1 timeouts=0 costUsd='
+    + `${records.reduce((s, r) => s + r.costUsd, 0).toFixed(6)} shapeGreen=2 shapedDrafts=2`);
 });
 
 test('PROOF the test can fail: an all-green run reports noToolCall=0, not a nonzero placeholder', async () => {
@@ -546,6 +549,14 @@ test('renderProgressLine never includes a provider rates object or a raw key-sha
   assert.doesNotMatch(line, /sk-|Bearer /);
 });
 
+test('renderProgressLine includes shape=<verdict>/<shapedSteps> when the record carries one', () => {
+  const record = {
+    i: 1, grammar: 'slot', toolCalled: true, stopReason: 'tool-called', validator: { verdict: 'green' }, slot: { verdict: 'green' }, shape: { verdict: 'green', reds: [], shapedSteps: 2 }, costUsd: 0.001234, wallMs: 1200,
+  };
+  const line = renderProgressLine(record, 5);
+  assert.match(line, /shape=green\/2/);
+});
+
 // ---------------------------------------------------------------------------
 // --rescore mode — $0, re-scores SAVED drafts with the CURRENT validate()/
 // checkAskSlots code, never re-drafts, never builds a provider, never
@@ -570,8 +581,9 @@ test('rescoreSlotBatch: re-scores each saved draft, writes a NEW dated file, and
   for (const r of records) {
     assert.equal(r.validator.verdict, 'green');
     assert.equal(r.slot.verdict, 'green');
+    assert.equal(r.shape.verdict, 'green');
   }
-  assert.equal(summaryLine, 'RESCORE grammar=slot tag=rescore-fixture n=2 slotGreen=2 validatorGreen=2 bothGreen=2');
+  assert.equal(summaryLine, 'RESCORE grammar=slot tag=rescore-fixture n=2 slotGreen=2 validatorGreen=2 bothGreen=2 shapeGreen=2');
   assert.equal(outPath, rescoreFilePath('slot', 'rescore-fixture', outDir, dateStr));
   assert.ok(existsSync(outPath));
   assert.match(outPath, /\.rescore-2026-09-21\.jsonl$/);
@@ -617,6 +629,7 @@ test('rescoreSlotBatch reflects the CURRENT slots.mjs code, not whatever scored 
   });
   assert.equal(records.length, 1);
   assert.equal(records[0].slot.verdict, 'green', `expected green under the current check (c), got: ${JSON.stringify(records[0].slot)}`);
+  assert.deepEqual(records[0].shape, { verdict: 'green', reds: [], shapedSteps: 0 });
 });
 
 // ---------------------------------------------------------------------------
@@ -751,6 +764,7 @@ test('rescoreSlotBatch: a null (never-produced) declaration rescoures to null va
   assert.equal(records.length, 1);
   assert.equal(records[0].validator, null);
   assert.equal(records[0].slot, null);
+  assert.equal(records[0].shape, null);
 });
 
 test('rescoreSlotBatch refuses when the grammar+tag has no recorded jsonl at all', () => {

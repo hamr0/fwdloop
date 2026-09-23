@@ -5,6 +5,36 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-09-23
+
+### Fixed
+- `poc/m0/runner.mjs` — `checkSendDestination` now follows a send target's
+  realpath after the lexical containment check, refusing a symlink inside
+  the repo that resolves outside it (was lexical-only).
+- `src/declaration.js` — `close.shape` now enforces a signed v1 vocabulary
+  (`maxWords`, `sections`, `linesPerInvoice`, `mustCarry`, exported as
+  `SHAPE_KEYS`); any other top-level key inside a shape reds by name;
+  `sections`/`mustCarry` must be non-empty arrays; any shape that is not
+  an object reds too; new `checkShapes(declaration)` for batch scoring.
+- `poc/m0/drafter.mjs` — the drafter prompt and tool schema now name the
+  four signed shape keys, built from `SHAPE_KEYS` so prompt and validator
+  cannot drift; measured 40/40 shape-green on deepseek-flash vs 2/60
+  before (F37).
+- `src/flow.js` — `readFlow` now checks `runs/` exists, is not a symlink,
+  is a directory, and is readable, combining with the other file-read
+  reds.
+- `poc/m1/slot-batch.mjs` — `shape=` column per draft, `shapeGreen` in
+  SUMMARY and `--rescore`.
+- `poc/m0/runner.mjs` — `sendViaPrimitive` takes the signed `file:` target and
+  re-runs `checkSendDestination` at write time, so a destination swapped for
+  an outside symlink during the human ask pause reds instead of landing
+  outside the repo (was checked once at preflight only).
+- `src/declaration.js` — `checkShapes` now reds a `close.shape` that isn't a
+  plain object (array, string, number, null) and still counts it toward
+  `shapedSteps`, matching `validateDeclaration`'s existing red for the same
+  malformed input (previously it silently skipped a non-object shape,
+  counting and redding neither).
+
 ## [0.4.0] - 2026-09-22
 
 M1: the flow module — signed prose and declaration become real `src/` code

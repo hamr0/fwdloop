@@ -19,6 +19,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runDrafter, draftJob2 } from '../m0/drafter.mjs';
 import { validate } from '../m0/validator.mjs';
+import { checkShapes } from '../../src/declaration.js';
 import { lookFixtures, groundFacts, scoutJob2 } from '../m0/scout.mjs';
 import { makeProvider, resolveModelRate, PROVIDER_SLOTS } from '../m0/provider.mjs';
 import {
@@ -387,7 +388,7 @@ export async function runOneDraft({
     // (the top-level field below, which lands in the jsonl row; and the artifact).
     const providerRedMessage = redactSecrets(err.message, secrets);
     return {
-      i, grammar, job, toolCalled: false, stopReason: 'provider-red', validator: null, slot: null,
+      i, grammar, job, toolCalled: false, stopReason: 'provider-red', validator: null, slot: null, shape: null,
       stepCount: 0, hitlSteps: 0, checkpointGrants: 0, zeroPrimitiveSteps: 0,
       costUsd, costUnknown: false, estimated: true,
       wallMs, modelRequested: modelId, modelReturned: null,
@@ -404,7 +405,7 @@ export async function runOneDraft({
   if (outcome.__timedOut) {
     const costUsd = ceilingCostUsd(modelId);
     return {
-      i, grammar, job, toolCalled: false, stopReason: 'timeout', validator: null, slot: null,
+      i, grammar, job, toolCalled: false, stopReason: 'timeout', validator: null, slot: null, shape: null,
       stepCount: 0, hitlSteps: 0, checkpointGrants: 0, zeroPrimitiveSteps: 0,
       costUsd, costUnknown: false, estimated: true, wallMs, modelRequested: modelId, modelReturned: null,
       modelMatch: classifyModelId(modelId, null), declaration: null,
@@ -416,6 +417,7 @@ export async function runOneDraft({
   const declaration = report.declaration;
   const validatorResult = report.toolCalled && declaration ? validate(declaration) : null;
   const slotResult = report.toolCalled && declaration ? checkAskSlots(declaration, askLines) : null;
+  const shapeResult = report.toolCalled && declaration ? checkShapes(declaration) : null;
 
   const steps = Array.isArray(declaration?.steps) ? declaration.steps : [];
   const stepCount = steps.length;
@@ -441,6 +443,7 @@ export async function runOneDraft({
     stopReason,
     validator: validatorResult,
     slot: slotResult,
+    shape: shapeResult,
     stepCount,
     hitlSteps,
     checkpointGrants,
@@ -461,8 +464,9 @@ export function renderProgressLine(record, total) {
   const costLabel = record.costUsd === null ? 'unknown' : record.costUsd.toFixed(6);
   const v = record.validator?.verdict ?? '-';
   const s = record.slot?.verdict ?? '-';
+  const shapeLabel = record.shape ? `${record.shape.verdict}/${record.shape.shapedSteps}` : '-';
   return `draft ${record.i}/${total}  grammar=${record.grammar}  toolCalled=${record.toolCalled}  `
-    + `validator=${v}  slot=${s}  stopReason=${record.stopReason}  $${costLabel}  ${(record.wallMs / 1000).toFixed(1)}s`;
+    + `validator=${v}  slot=${s}  shape=${shapeLabel}  stopReason=${record.stopReason}  $${costLabel}  ${(record.wallMs / 1000).toFixed(1)}s`;
 }
 
 /** The final SUMMARY line, exact format the brief names. */
@@ -475,8 +479,10 @@ export function renderSummaryLine(records, grammar, n) {
   const costUsd = pricedCosts.length === records.length
     ? pricedCosts.reduce((s, c) => s + c, 0).toFixed(6)
     : 'unknown';
+  const shapeGreen = records.filter((r) => r.shape?.verdict === 'green').length;
+  const shapedDrafts = records.filter((r) => r.shape && r.shape.shapedSteps > 0).length;
   return `SUMMARY grammar=${grammar} n=${n} slotGreen=${slotGreen} validatorGreen=${validatorGreen} `
-    + `noToolCall=${noToolCall} timeouts=${timeouts} costUsd=${costUsd}`;
+    + `noToolCall=${noToolCall} timeouts=${timeouts} costUsd=${costUsd} shapeGreen=${shapeGreen} shapedDrafts=${shapedDrafts}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -565,21 +571,27 @@ export function rescoreSlotBatch({
     const declaration = existsSync(declPath) ? readDraftDeclaration(declPath) : null;
     const validator = declaration ? validate(declaration) : null;
     const slot = declaration ? checkAskSlots(declaration, askLines) : null;
-    const out = { i: rec.i, validator, slot };
+    const shape = declaration ? checkShapes(declaration) : null;
+    const out = {
+      i: rec.i, validator, slot, shape,
+    };
     rescored.push(out);
     const vLabel = validator?.verdict ?? '-';
     const sLabel = slot?.verdict ?? '-';
-    let line = `rescore draft ${rec.i}  validator=${vLabel}  slot=${sLabel}`;
+    const shLabel = shape ? `${shape.verdict}/${shape.shapedSteps}` : '-';
+    let line = `rescore draft ${rec.i}  validator=${vLabel}  slot=${sLabel}  shape=${shLabel}`;
     if (validator?.verdict === 'red') line += `  validatorRed="${validator.red}"`;
     if (slot?.verdict === 'red') line += `  slotRed="${slot.red}"`;
+    if (shape?.verdict === 'red') line += `  shapeRed="${shape.reds.join('; ')}"`;
     writeLine(line);
   }
 
   const slotGreen = rescored.filter((r) => r.slot?.verdict === 'green').length;
   const validatorGreen = rescored.filter((r) => r.validator?.verdict === 'green').length;
   const bothGreen = rescored.filter((r) => r.slot?.verdict === 'green' && r.validator?.verdict === 'green').length;
+  const shapeGreen = rescored.filter((r) => r.shape?.verdict === 'green').length;
   const summaryLine = `RESCORE grammar=${grammar} tag=${tag} n=${rescored.length} slotGreen=${slotGreen} `
-    + `validatorGreen=${validatorGreen} bothGreen=${bothGreen}`;
+    + `validatorGreen=${validatorGreen} bothGreen=${bothGreen} shapeGreen=${shapeGreen}`;
   writeLine(summaryLine);
 
   const outPath = rescoreFilePath(grammar, tag, outDir, dateStr, job);
