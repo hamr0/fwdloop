@@ -718,4 +718,34 @@ describe('checkShapes', () => {
     const after = validateDeclaration(decl, { arbiter: SIGNED.arbiter, lines: SIGNED.lines, catalogue: CATALOGUE });
     assert.deepEqual(before, after);
   });
+
+  test('a step whose close.shape is an array reds "must be an object", shapedSteps 1', () => {
+    const result = checkShapes({ steps: [{ goal: 'x', close: { shape: ['sections'] } }] });
+    assert.equal(result.verdict, 'red');
+    assert.equal(result.shapedSteps, 1);
+    assert.ok(
+      result.reds.some((r) => r.includes('must be an object')),
+      `expected a red containing "must be an object", got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('a step whose close.shape is a string reds "must be an object", shapedSteps 1', () => {
+    const result = checkShapes({ steps: [{ goal: 'x', close: { shape: 'x' } }] });
+    assert.equal(result.verdict, 'red');
+    assert.equal(result.shapedSteps, 1);
+    assert.ok(
+      result.reds.some((r) => r.includes('must be an object')),
+      `expected a red containing "must be an object", got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('a step whose close.shape is null reds "must be an object", shapedSteps 1', () => {
+    const result = checkShapes({ steps: [{ goal: 'x', close: { shape: null } }] });
+    assert.equal(result.verdict, 'red');
+    assert.equal(result.shapedSteps, 1);
+    assert.ok(
+      result.reds.some((r) => r.includes('must be an object')),
+      `expected a red containing "must be an object", got:\n${result.reds.join('\n')}`,
+    );
+  });
 });

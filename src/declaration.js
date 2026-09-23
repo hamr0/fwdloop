@@ -170,8 +170,11 @@ function checkShapeKeys(shape, path, reds) {
  *
  * A non-array `declaration.steps` (or a non-object `declaration` at all)
  * reds `'no steps array'` rather than throwing. `shapedSteps` counts every
- * step whose `close.shape` is a plain object, whether or not it validates —
- * a step that TRIED to carry a shape, known-key or not.
+ * step whose `close` carries a `shape` key at all — a step that TRIED to
+ * carry a shape, known-key or not, plain-object or not. A `shape` that
+ * isn't a plain object (array, string, number, null) reds
+ * `"... .close.shape must be an object"`, matching `validateDeclaration`'s
+ * own red for the same malformed input.
  */
 export function checkShapes(declaration) {
   const steps = isPlainObject(declaration) && Array.isArray(declaration.steps) ? declaration.steps : null;
@@ -181,10 +184,13 @@ export function checkShapes(declaration) {
   const reds = [];
   let shapedSteps = 0;
   steps.forEach((step, i) => {
-    const shape = step?.close?.shape;
+    if (!isPlainObject(step?.close) || !('shape' in step.close)) return;
+    const shape = step.close.shape;
+    shapedSteps += 1;
     if (isPlainObject(shape)) {
-      shapedSteps += 1;
       checkShapeKeys(shape, `declaration.steps[${i}].close.shape`, reds);
+    } else {
+      reds.push(`declaration.steps[${i}].close.shape must be an object`);
     }
   });
   return { verdict: reds.length > 0 ? 'red' : 'green', reds, shapedSteps };

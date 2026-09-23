@@ -332,7 +332,7 @@ the numbers are for.
 **Ruled 2026-09-23 (hamr):** `close.shape` has a signed v1 vocabulary — `maxWords`, `sections`,
 `linesPerInvoice`, `mustCarry` — enforced in `src/declaration.js` (`SHAPE_KEYS`). An unknown key
 inside a shape is red by name, and the exit's "unknown key added" mutation covers that position.
-Shipped in v0.4.1.
+Lands in the release after v0.4.0 (see CHANGELOG Unreleased).
 
 ## M2 — runner
 

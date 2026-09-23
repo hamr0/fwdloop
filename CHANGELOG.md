@@ -13,13 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the repo that resolves outside it (was lexical-only).
 - `src/declaration.js` — `close.shape` now enforces a signed v1 vocabulary
   (`maxWords`, `sections`, `linesPerInvoice`, `mustCarry`, exported as
-  `SHAPE_KEYS`); any other top-level key inside a shape reds by name.
+  `SHAPE_KEYS`); any other top-level key inside a shape reds by name;
+  `sections`/`mustCarry` must be non-empty arrays; any shape that is not
+  an object reds too; new `checkShapes(declaration)` for batch scoring.
+- `poc/m0/drafter.mjs` — the drafter prompt and tool schema now name the
+  four signed shape keys, built from `SHAPE_KEYS` so prompt and validator
+  cannot drift; measured 40/40 shape-green on deepseek-flash vs 2/60
+  before (F37).
 - `src/flow.js` — `readFlow` now checks `runs/` exists, is not a symlink,
-  and is a directory, combining with the other file-read reds.
-- `poc/m0/drafter.mjs`: the drafter prompt and tool schema now name the four signed shape keys, built from `SHAPE_KEYS` so prompt and validator cannot drift; measured 40/40 shape-green on deepseek-flash vs 2/60 before (F37)
-- `src/declaration.js`: `sections`/`mustCarry` must be non-empty arrays; new `checkShapes(declaration)` for batch scoring
-- `src/flow.js`: `readFlow` reds an unreadable `runs/`
-- `poc/m1/slot-batch.mjs`: `shape=` column per draft, `shapeGreen` in SUMMARY and `--rescore`
+  is a directory, and is readable, combining with the other file-read
+  reds.
+- `poc/m1/slot-batch.mjs` — `shape=` column per draft, `shapeGreen` in
+  SUMMARY and `--rescore`.
 
 ## [0.4.0] - 2026-09-22
 
