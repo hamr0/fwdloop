@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.1] - 2026-09-23
 
 ### Fixed
 - `poc/m0/runner.mjs` — `checkSendDestination` now follows a send target's
@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   re-runs `checkSendDestination` at write time, so a destination swapped for
   an outside symlink during the human ask pause reds instead of landing
   outside the repo (was checked once at preflight only).
+- `src/declaration.js` — `checkShapes` now reds a `close.shape` that isn't a
+  plain object (array, string, number, null) and still counts it toward
+  `shapedSteps`, matching `validateDeclaration`'s existing red for the same
+  malformed input (previously it silently skipped a non-object shape,
+  counting and redding neither).
 
 ## [0.4.0] - 2026-09-22
 
