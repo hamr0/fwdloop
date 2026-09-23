@@ -20,7 +20,8 @@
 // caught and returned as a red naming the file or path involved.
 
 import {
-  existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync,
+  accessSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync,
+  writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
 
@@ -298,6 +299,12 @@ export function readFlow({ root, name, catalogue }) {
       reds.push(`flow: directory "${dir}/${RUNS_DIR}" is a symlink, refused`);
     } else if (!runsStat.isDirectory()) {
       reds.push(`flow: "${dir}/${RUNS_DIR}" is not a directory`);
+    } else {
+      try {
+        accessSync(runsPath, fsConstants.R_OK | fsConstants.X_OK);
+      } catch (err) {
+        reds.push(`flow: directory "${dir}/${RUNS_DIR}" is not readable (${err.code})`);
+      }
     }
   }
 

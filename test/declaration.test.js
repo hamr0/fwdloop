@@ -11,7 +11,7 @@ import path from 'node:path';
 
 import { parseSignedText } from '../src/signed-text.js';
 import {
-  validateDeclaration, DECLARATION_FIELDS, SHAPE_KEYS,
+  validateDeclaration, DECLARATION_FIELDS, SHAPE_KEYS, checkShapes,
 } from '../src/declaration.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -426,6 +426,28 @@ describe('close.shape signed vocabulary (v1)', () => {
       `expected a red for mustCarry type violation, got:\n${result.reds.join('\n')}`,
     );
   });
+
+  test('sections: [] reds — an empty array is not a declared shape', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { sections: [] };
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('shape key "sections"') && r.includes('must be a non-empty array of non-empty strings')),
+      `expected a red for empty sections, got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('mustCarry: [] reds — an empty array is not a declared shape', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { mustCarry: [] };
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => r.includes('shape key "mustCarry"') && r.includes('must be a non-empty array of non-empty strings')),
+      `expected a red for empty mustCarry, got:\n${result.reds.join('\n')}`,
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -630,4 +652,70 @@ test('never throws on garbage input', () => {
 test('no `new RegExp(` in src/declaration.js', () => {
   const source = readFileSync(path.join(HERE, '..', 'src', 'declaration.js'), 'utf8');
   assert.ok(!source.includes('new RegExp('));
+});
+
+// ---------------------------------------------------------------------------
+// checkShapes — a small pure walker for poc/m1/slot-batch.mjs's `shape`
+// column: walks declaration.steps and runs the SAME shape-key check
+// validateDeclaration already runs, without re-running the whole validator.
+// ---------------------------------------------------------------------------
+
+describe('checkShapes', () => {
+  test('a declaration with no steps array reds "no steps array"', () => {
+    const result = checkShapes({});
+    assert.equal(result.verdict, 'red');
+    assert.deepEqual(result.reds, ['no steps array']);
+    assert.equal(result.shapedSteps, 0);
+  });
+
+  test('a declaration that is not an object at all also reds "no steps array"', () => {
+    for (const bad of [undefined, null, 42, 'x', [], true]) {
+      const result = checkShapes(bad);
+      assert.equal(result.verdict, 'red');
+      assert.deepEqual(result.reds, ['no steps array']);
+      assert.equal(result.shapedSteps, 0);
+    }
+  });
+
+  test('no step carries a shape -> green, shapedSteps 0', () => {
+    const result = checkShapes({ steps: [{ goal: 'x', close: {} }, { goal: 'y' }] });
+    assert.equal(result.verdict, 'green');
+    assert.deepEqual(result.reds, []);
+    assert.equal(result.shapedSteps, 0);
+  });
+
+  test('a step whose shape has an unknown key (e.g. oneLinePerInvoice) reds naming it, shapedSteps 1', () => {
+    const result = checkShapes({
+      steps: [
+        { goal: 'x', close: { shape: { oneLinePerInvoice: true } } },
+        { goal: 'y' },
+      ],
+    });
+    assert.equal(result.verdict, 'red');
+    assert.equal(result.shapedSteps, 1);
+    assert.ok(
+      result.reds.some((r) => r.includes('unknown shape key "oneLinePerInvoice"')),
+      `expected a red naming "oneLinePerInvoice", got:\n${result.reds.join('\n')}`,
+    );
+  });
+
+  test('a step whose shape uses only signed keys, correctly typed -> green, shapedSteps 1', () => {
+    const result = checkShapes({
+      steps: [
+        { goal: 'x', close: { shape: { maxWords: 100 } } },
+      ],
+    });
+    assert.equal(result.verdict, 'green');
+    assert.deepEqual(result.reds, []);
+    assert.equal(result.shapedSteps, 1);
+  });
+
+  test('does not change validateDeclaration\'s own behaviour — same declaration validates the same way before and after', () => {
+    const decl = baseDeclaration();
+    decl.steps[0].close.shape = { sections: ['Summary'] };
+    const before = validateDeclaration(decl, { arbiter: SIGNED.arbiter, lines: SIGNED.lines, catalogue: CATALOGUE });
+    checkShapes(decl);
+    const after = validateDeclaration(decl, { arbiter: SIGNED.arbiter, lines: SIGNED.lines, catalogue: CATALOGUE });
+    assert.deepEqual(before, after);
+  });
 });

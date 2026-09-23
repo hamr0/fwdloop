@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { runDrafter } from '../m0/drafter.mjs';
 import { lookFixtures, groundFacts } from '../m0/scout.mjs';
 import { parseAskSlots } from './slots.mjs';
+import { SHAPE_KEYS } from '../../src/declaration.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..');
@@ -133,4 +134,13 @@ test('slotGrammar=true with an empty askLines array also refuses — empty is no
   });
   assert.equal(report.toolCalled, false);
   assert.equal(provider.calls.length, 0);
+});
+
+test('the prompt names every SHAPE_KEYS entry — the drafter and the validator cannot drift apart', async () => {
+  const provider = fakeProvider(toolReply({ steps: [], guardrailClasses: {} }));
+  await runDrafter('fake-model', { prose: true, provider, rates: { in: 0, out: 0 }, facts: REAL_FACTS });
+  const content = systemPromptOf(provider);
+  for (const key of SHAPE_KEYS) {
+    assert.match(content, new RegExp(`"${key}"`), `prompt must name shape key "${key}"`);
+  }
 });

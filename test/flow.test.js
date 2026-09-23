@@ -12,7 +12,7 @@
 import assert from 'node:assert/strict';
 import { test, describe, before, after } from 'node:test';
 import {
-  readFileSync, writeFileSync, mkdtempSync, mkdirSync, symlinkSync, rmSync, readdirSync, statSync,
+  readFileSync, writeFileSync, mkdtempSync, mkdirSync, symlinkSync, rmSync, readdirSync, statSync, chmodSync,
 } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -230,6 +230,40 @@ describe('readFlow checks runs/', () => {
         `expected a red naming "${written.dir}/runs" as not a directory, got:\n${read.reds.join('\n')}`,
       );
     } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test('runs/ made unreadable (mode 0o000): readFlow reds naming it "not readable"', (t) => {
+    if (process.getuid?.() === 0) {
+      t.skip('running as root — file modes are not enforced, skipping');
+      return;
+    }
+    const root = tmpRoot();
+    let runsPath;
+    try {
+      const written = writeFlow({
+        root,
+        name: 'flow-a',
+        proseText: JOBS[0].prose,
+        declaration: JOBS[0].declaration,
+        signedBy: SIGNED_BY,
+        signedAt: SIGNED_AT,
+        catalogue: CATALOGUE,
+      });
+      assert.equal(written.ok, true, written.ok ? '' : written.reds.join('\n'));
+
+      runsPath = path.join(written.dir, 'runs');
+      chmodSync(runsPath, 0o000);
+
+      const read = readFlow({ root, name: 'flow-a', catalogue: CATALOGUE });
+      assert.equal(read.ok, false);
+      assert.ok(
+        read.reds.some((r) => r.includes(`${written.dir}/runs`) && r.includes('not readable')),
+        `expected a red naming "${written.dir}/runs" as not readable, got:\n${read.reds.join('\n')}`,
+      );
+    } finally {
+      if (runsPath) chmodSync(runsPath, 0o755);
       rmSync(root, { recursive: true, force: true });
     }
   });

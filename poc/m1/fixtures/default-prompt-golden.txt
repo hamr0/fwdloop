@@ -42,6 +42,8 @@ guardrail than the one covering it). You cannot point at a different line's
 guardrail: "fromLine" names exactly one line, and that line's own guardrail
 is the only thing that can ever produce a class other than hitl for it.
 
+"shape" may contain ONLY these keys, nothing else: "maxWords" (positive integer, the whole output's word ceiling), "sections" (array of non-empty strings, the required section headings in order), "linesPerInvoice" (positive integer, lines the output must carry per invoice), "mustCarry" (array of non-empty strings, the named fields every line/summary must carry). Any other key is refused.
+
 "guardrailClasses": propose a class for EACH guardrail below that is not
 "[no guardrail]" — read that guardrail's own wording, once, on its own
 merits (never by matching it against some other guardrail's exact phrasing;

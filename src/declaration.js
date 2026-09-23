@@ -109,12 +109,12 @@ const SHAPE_TYPE_CHECKS = Object.freeze({
     check: (v) => Number.isInteger(v) && v > 0,
   },
   sections: {
-    expected: 'an array of non-empty strings',
-    check: (v) => Array.isArray(v) && v.every((s) => typeof s === 'string' && s.length > 0),
+    expected: 'a non-empty array of non-empty strings',
+    check: (v) => Array.isArray(v) && v.length > 0 && v.every((s) => typeof s === 'string' && s.length > 0),
   },
   mustCarry: {
-    expected: 'an array of non-empty strings',
-    check: (v) => Array.isArray(v) && v.every((s) => typeof s === 'string' && s.length > 0),
+    expected: 'a non-empty array of non-empty strings',
+    check: (v) => Array.isArray(v) && v.length > 0 && v.every((s) => typeof s === 'string' && s.length > 0),
   },
 });
 
@@ -158,6 +158,36 @@ function checkShapeKeys(shape, path, reds) {
     }
     scanForArbiterKeys(value, childPath, reds);
   }
+}
+
+/**
+ * A small, pure walker over `declaration.steps` for callers that only want
+ * the shape-key verdict (e.g. poc/m1/slot-batch.mjs's `shape` column) —
+ * never a substitute for `validateDeclaration`, which is still the one
+ * check that decides pass/fail for a real declaration. Reuses the same
+ * `checkShapeKeys` `validateDeclaration` calls, so the two can never drift
+ * apart on what counts as a known shape key.
+ *
+ * A non-array `declaration.steps` (or a non-object `declaration` at all)
+ * reds `'no steps array'` rather than throwing. `shapedSteps` counts every
+ * step whose `close.shape` is a plain object, whether or not it validates —
+ * a step that TRIED to carry a shape, known-key or not.
+ */
+export function checkShapes(declaration) {
+  const steps = isPlainObject(declaration) && Array.isArray(declaration.steps) ? declaration.steps : null;
+  if (steps === null) {
+    return { verdict: 'red', reds: ['no steps array'], shapedSteps: 0 };
+  }
+  const reds = [];
+  let shapedSteps = 0;
+  steps.forEach((step, i) => {
+    const shape = step?.close?.shape;
+    if (isPlainObject(shape)) {
+      shapedSteps += 1;
+      checkShapeKeys(shape, `declaration.steps[${i}].close.shape`, reds);
+    }
+  });
+  return { verdict: reds.length > 0 ? 'red' : 'green', reds, shapedSteps };
 }
 
 /**
