@@ -1979,3 +1979,50 @@ false` is a **red naming the step and the blocker**, mechanically, no judge — 
 that it did not do the step is the one thing the machine may take at face value. (b) hitl steps not
 on a signed ask line: their artifacts are carried as evidence into the next signed ask (the human
 sees every unjudged artifact since the last ask, each labelled by step), instead of passing silently.
+
+## F40 — Second live run of `src/runner.js` after amendment 1: the JD was read by role, both unjudged artifacts reached the ask, two rejects redrafted live, an early accept was quarantined as stale, the third accept sent (2026-09-24)
+
+**Setup.** Same flow as F39 (`flows/job2-live-1`, frozen resume + JD, cap $0.25), runner at `a045b73`
+(amendment 1: `done`/`blocker` on every artifact, unjudged hitl artifacts carried into the next ask,
+`read`/`grep` by role). `poc/m2/live.mjs --run-id run-2 --slot deepseek --ask-timeout 1800000`,
+detached, key loaded in the foreground.
+
+**What happened, from the books.** 14 audit rows, $0.0446, every row priced, `modelMatch` match, no
+strikes, `outcome: complete`, sent to `poc/m0/out/run-2-resume-summary-output.json`.
+
+| step | attempts | verdicts | usd |
+|---|---|---|---|
+| resume-text (hitl) | 1 | hitl | 0.0028 |
+| jd-text (hitl) | 1 | hitl | 0.0011 |
+| resume-summary, draft 1 | 2 | red (3 headings), green | 0.0122 |
+| ask 1 → reject "cut the skills section to three lines" | | red, `unjudgedCount: 2` | 0 |
+| resume-summary, redraft 1 | 3 | red (2 headings), red (1 heading), green | 0.0143 |
+| ask 2 → same reject again | | red, `unjudgedCount: 2` | 0 |
+| resume-summary, redraft 2 | 3 | red (3 headings), red, green | 0.0142 |
+| ask 3 → accept written 37 s **before** the ask opened | | `stale-answer-ignored` | 0 |
+| ask 3 → fresh accept | | green, `unjudgedCount: 2` | 0 |
+| resume-summary-output (send) | 1 | green | 0 |
+
+**F39's three mechanisms, each closed live.**
+1. **Read by role.** `artifacts/jd-text.json` holds the real JD: 1882 characters starting "# Applied
+   AI Architect, Startups — Anthropic". No path guessing, no `status: blocked`, one round, 4 s.
+2. **Unjudged artifacts reach the human.** `ask.json` carries `evidence.unjudged` with both hitl
+   artifacts (resume text 7108 chars, JD text 1931 chars) labelled by step goal, beside the summary.
+   The audit row for every ask stamps `unjudgedCount: 2`.
+3. **A step that did not do its job cannot pass.** Not exercised this run — every step set `done:
+   true` — so the `done: false` halt is still proven only by tests (a045b73), not by a live model.
+
+**Consume-once and stale-quarantine, on real keystrokes.** hamr wrote reject, then (four minutes
+later, from the previous turn's instructions) reject and accept 7 s apart. Each consumed answer was
+renamed `answer.<askedAt>.consumed.json`; the accept that arrived mid-redraft was moved to
+`answer.stale.1.json` with the audit row naming both timestamps (`answeredAt 14:40:21 predates askedAt
+14:40:58`). A second accept, written into the open ask, was consumed and the run sent. Nothing was
+applied twice, nothing early was applied at all.
+
+**What is not proven.** The reject reason was never checked against the redraft — the human
+declares softgreen, and hamr accepted without reading the third draft. Whether "three lines" was
+honoured is unknown and no mechanism claims it. Also: three of the eight paid attempts were heading
+reds (the closer's gap names the exact missing heading; the model still needs 2–4 tries), ~$0.014 per
+redraft cycle. Same shape as F38; not a bug, a cost line for M2's exit.
+
+**Cost.** $0.0446 for a run with two human rejects. Human-cost bar is $12.50/day; this is 0.4 % of it.
