@@ -481,7 +481,7 @@ Both are mechanisms, not prompt wording: a test proves `done: false` halts with 
 called, and a test proves the ask's `evidence` lists every unasked hitl artifact since the previous
 ask.
 
-**M2 EXIT — evidence on the table, NOT yet signed** (proposed 2026-09-24, runner at `a045b73`, F40).
+**M2 EXIT SIGNED — hamr, 2026-09-24** ("both", after the F41 live plant). Evidence below, plus F41: `done: false` fired from a live model on an empty JD and the run halted `not-done`, nothing sent; the two book bugs F41 found are fixed at `55c1629`. Runner at `a045b73` + F41 fixes.
 
 | exit / negative | evidence |
 |---|---|
@@ -498,8 +498,14 @@ ask.
 | (vi) executor context carries no close/shape/cap/strike | same construction test as above |
 | amendment 1 | three `done:false` tests, three `evidence.unjudged` tests; F40 shows `unjudgedCount: 2` on every live ask row |
 
-Spend: $0.53 POC + $0.06 live = $0.59 of the $5.00 cap. Suite 1171/1171. Known gap: `done: false` is
-proven by tests, never yet fired by a live model. hamr signs or names what is missing.
+Spend: $0.53 POC + $0.21 live (F39, F40, F41) = $0.74 of the $5.00 cap. Suite 1173/1173.
+
+**M2 amendment 2 — `read`/`grep` serve text roles only — SIGNED by hamr 2026-09-24** ("both"). From F41
+item 3: a step granted `read` pulled a .docx role's raw bytes into context, 12 rounds, $0.15. `read` and
+`grep` list and accept only roles whose frozen input is text (`.md`, `.txt`); a `.docx` role is refused
+by name pointing at `readDocx`, a `.csv` role at `addressCells`, any other extension "no text primitive
+serves it". The refusal fires on the role name, not the schema alone. Mechanism, not wording; `readDocx`
+and `addressCells` unchanged.
 
 ## M3 — ask and inbox, the HITL window
 
