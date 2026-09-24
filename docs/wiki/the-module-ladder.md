@@ -505,7 +505,17 @@ item 3: a step granted `read` pulled a .docx role's raw bytes into context, 12 r
 `grep` list and accept only roles whose frozen input is text (`.md`, `.txt`); a `.docx` role is refused
 by name pointing at `readDocx`, a `.csv` role at `addressCells`, any other extension "no text primitive
 serves it". The refusal fires on the role name, not the schema alone. Mechanism, not wording; `readDocx`
-and `addressCells` unchanged.
+and `addressCells` unchanged. Suite 1180/1180.
+
+**F42 fix — the send ships the signed ask's artifact by identity, not `reads[0]` — found by
+`/branch-review` 2026-09-24.** The runner picked the send's content as the first id in the step's
+`reads` with an artifact on disk; every read names an earlier step, so that was always `reads[0]`.
+Neither fixture's send happened to expose it (job #2's `reads[0]` holds the same text as the
+accepted artifact). Fixed: the send ships the one artifact emitted by a signed ask step named in
+its `reads`, **only if that ask was accepted this run**; zero or more than one such id halts red
+naming the step and the ids, before `sendStep` is ever called. `validateDeclaration` now requires
+**exactly one** earlier signed ask's `emits` in a send's `reads` (was: at least one). First tests
+to enter the runner's send branch with a real `arbiter.sends` line. Suite 1185/1185.
 
 ## M3 — ask and inbox, the HITL window
 
