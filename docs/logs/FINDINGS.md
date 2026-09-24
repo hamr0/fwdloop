@@ -1914,3 +1914,21 @@ hash stable across attempts, so strikes will start to bite; worth watching in ba
 **Next: batch b** — closer reports every failing check (`reds[]`, joined); the heading sentence
 states the form ("no line is exactly … — a heading is a line that is only that text, optionally
 after #"); same plant, same bar, new tag.
+
+**Batch b (tag `2026-09-24b`, same plant, closer at `5343b4d`).** 20 runs, 46 attempts, $0.2080,
+`modelMatch` match on all 46, `spendComplete: true`.
+`greenAt1 0, healed 18, greenByAttempt3 17, struckOut 0, fallback 2`.
+
+- 16 runs healed on attempt 2, one on attempt 3, one on attempt 4 (run 17), two ran to the fallback
+  (runs 7 and 20). Every attempt-1 red carried all three heading sentences (and the word sentence
+  when it applied); every attempt-2 text put the three headings on their own lines.
+- The two fallbacks and run 17 are the same shape: headings fixed on attempt 2 but over 600 words;
+  shortened on attempt 3 and lost a heading; the gap was complete every time. That is the model
+  juggling two constraints, not a thin gap.
+- Strikes never fired in either batch: with all checks reported, consecutive gaps differ as the
+  failing set changes, so the seen-set never repeats. The fallback at 4 did all the bounding.
+
+**Against the signed bar (18/20 green by attempt 3): 17/20.** Missed by one; 18/20 by attempt 4.
+Batch a to batch b: 6 → 18 healed, the whole difference being what the gap says. Nothing passed
+that should not have: the two fallbacks halted naming the step and the last gap, under cap. Ruling
+on the bar is hamr's (a catch is a catch — the 2026-09-15 rule — or a third batch).
