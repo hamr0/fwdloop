@@ -349,6 +349,115 @@ context (docs/archive/PRD.md:572-573).
 - **Negative:** a step whose effect check fails halts the run and names the step
   (docs/archive/PRD.md:576-576).
 
+### M2 — scope, exit, negative — PROPOSED 2026-09-24, awaiting hamr's signature
+
+Restates the M2 paragraph above as the three things the binding rule needs, using what M1 built.
+Three design picks were made in the interview of 2026-09-24 (hamr: "1A, 2A 3A") and are folded in
+below; the spend cap is proposed, not signed.
+
+**Scope.**
+
+1. **One fold, no job code.** `src/runner.js` reads a flow directory through M1's `readFlow`
+   (three signed files, hash verified, refusing by file name) and folds over `declaration.steps`
+   in order. It has no code path that knows job #1 from job #2. What M0's `poc/m0/runner.mjs`
+   proved (freeze inputs with sha256, bind steps by line, check grants by what is granted, the
+   fresh-run-dir refusal, `shell_read`/`shell_write` through the catalogue, the write-time send
+   re-check) is borrowed by copy into `src/`, never imported from `poc/`. The POC is never shipped.
+2. **Fresh context per step.** A step's executor is constructed with its **goal**, its granted
+   primitives from the catalogue, the artifacts it `reads` (by id, from the run's artifact
+   space), and nothing else. No transcript crosses a step boundary. The step emits **one typed
+   artifact** under its `emits` id; the next step reads it by id. (bareloop F18: a carried
+   transcript is re-bought every round; F21: a never-green run needs an explicit channel.)
+3. **Goal in, gap back — the load-bearing invariant, as a mechanism.** The executor is built
+   **without its close and without the cap**: the object handed to the model step has no field,
+   closure or import through which the close function, the shape, the cap or the strike count
+   can be reached. A construction test proves it at $0: the executor's context is serialised and
+   searched for every close/cap identifier, and the close function is not callable from it. Only
+   the **gap text** (the red string, at most one sentence per failed check) goes back to the next
+   attempt. A softgreen shape that cannot be split from its goal is **hitl**, not softgreen.
+4. **Close by declared class, one closer per class.** `green`: the citation check (every stated
+   figure resolves to a cell or formula in a frozen input — M0's `closeDerive`, borrowed).
+   `softgreen`: the signed shape, one checker per `SHAPE_KEYS` entry (`maxWords`, `sections`,
+   `linesPerInvoice`, `mustCarry`) and nothing else; an unknown key cannot reach the runner
+   because M1 refuses it. `hitl`: the ask (item 6). Every closer names its third outcomes (crash,
+   unparseable, unpriced) besides green/red; a closer that renders no judgment is a **casualty,
+   never a red** (bareloop F17).
+5. **The ralph loop with strikes, borrowed whole.** `while close-red and under-cap: run the step
+   again`, stop at first green. A **strike** is a red attempt that either repeats a gap already
+   seen this step (normalised gap hash, a seen-set, never last-only) or wrote no artifact.
+   Strikes stick; **`STRIKE_LIMIT = 2`** is a constant the runner owns — not in the arbiter
+   block, not in the declaration, so nothing can raise it (hamr 2026-09-24, "2A"; bareloop
+   `src/ladder.js@cfa5447`). Striking out halts the run naming the step and its last gap. The
+   per-attempt bound is structural, constructed per attempt, never run-wide (bareloop F20). Never:
+   rewriting a step, re-picking a primitive, re-drafting the flow.
+6. **The ask, M0's file checkpoint, in-process** (hamr 2026-09-24, "3A"). A hitl step writes
+   `ask.json` (question plus evidence) into the run dir and waits for `answer.json`
+   (`accept` / `reject "<reason>"` / `rerun "<reason>"`), consumed exactly once; a rerun without
+   a reason is refused and re-asked; a stale answer arriving mid-redraft is quarantined. The
+   signed `redo cap` (default 3) governs; the 4th rejection halts naming the step. A pause spends
+   nothing. Cross-process inbox, TTL and resume are **M3**, not here.
+7. **Money honesty, per attempt.** Cost is `number | null`, never `?? 0`; a null or an unpriced
+   round halts `pricing-red`; an unknown model prices at the rate table's ceiling with the row
+   stamped `substituted`. `cap $ per run` binds **between attempts** and may overshoot by at most
+   one attempt; an attempt is funded together with its close (bareloop F45) or is not started. A
+   cut mid-attempt prices at ceiling and is a casualty, not evidence. `spendComplete: false` on
+   any row makes the run's total a **floor**. Every row carries `modelMatch`.
+8. **Provider-red, rungs 1 to 3 only.** Transport faults (`ECONNRESET`, `ETIMEDOUT`, `fetch
+   failed`, TLS) get exactly **one** immediate retry on the same attempt; an HTTP status is not
+   transport; a wall-clock timeout (`round budget`, default 120s) is never retried. A second
+   failure parks the run `provider-red` with `spendComplete: false`. The trigger's +5/+15/+45
+   retries are the trigger's (a later module); M2 has no trigger.
+9. **Two books, append-only, one writer each.** `runs/<run-id>/audit.jsonl`: one row per attempt
+   `{ step, attempt, class, verdict, gap, usd, spendComplete, wallMs, model, modelMatch, strike }`
+   plus one row per ask and per send. `flows/<name>/history.jsonl`: one row per run `{ runId, at,
+   outcome, spentUsd, spendComplete, capUsd, wallMs, signatureHash }`. Both written by the runner
+   through one function each; nothing else appends. `log.json` (what the model wrote, every
+   attempt, red runs included) stays, as M0 ruled.
+10. **Every step has a mechanical happened check** before its close: the emitted artifact exists
+    and is non-empty, for every class, no exception. A 0-byte write is a red naming the step
+    (bareloop F23).
+
+**Not in M2:** the trigger and its retry ladder, `cap.monthlyUsd`, the cross-process inbox and
+TTL (M3), dry-run/accept/versions (M4), any UI, learning across runs, an LLM judge.
+
+**POC first — the riskiest assumption** (hamr 2026-09-24, "1A"): **that a step which sees only
+the gap can heal.** Take job #2's compose step (softgreen: `maxWords 600`, three named
+`sections`). Plant a first attempt that must red (the goal handed in asks for four sections, or
+the word ceiling is set to 300 for attempt 1 only). Attempt 2 gets the goal plus the gap text
+("sections: expected 3, found 4") and nothing else. Twenty runs on `deepseek-flash`. The bar is
+**18/20 green by attempt 3 (within `STRIKE_LIMIT`)** — below that, a gap-only channel does not
+heal and the fence-plus-loop design is wrong, not the model. Alongside, at $0: the construction
+test of item 3 must fail against a deliberately leaky executor (the close passed as a field) and
+pass against the real one. Cost: about 20 × $0.015.
+
+**Exit.**
+
+- Both `test/fixtures` flows (job #1 and job #2) run end to end through `src/runner.js` with no
+  per-job code path, on fake primitives and a fake ask at $0, and job #2 live on `deepseek-flash`
+  reaching its ask with a green shape.
+- The construction test of item 3 is in the suite and can fail (proven by the leaky executor).
+- The POC bar above is met.
+- `audit.jsonl` and `history.jsonl` exist for every run, red runs included, and every row prices
+  (no null cost reaches a book).
+
+**Negative scenarios**, each of which must be able to fail:
+
+- (i) a step whose happened check fails (0-byte artifact) halts the run naming the step;
+- (ii) a step that reds its close with the same gap twice strikes out at the second strike, and
+  the run halts naming the step and the gap, under cap;
+- (iii) a run whose next attempt cannot be funded under `cap $ per run` halts `cap-halt` before
+  the attempt starts, never after;
+- (iv) a flow whose files do not hash to `signature.json` is refused naming the file, at $0;
+- (v) a transport fault twice on one attempt parks the run `provider-red` with
+  `spendComplete: false`, and the ledger shows the floor, never 0;
+- (vi) the executor's serialised context contains no close, shape, cap or strike identifier —
+  and the same test goes red when the close is smuggled in as a field.
+
+**Kills the module:** the POC lands below 18/20 and the fix on the table is showing the step its
+shape; or job #1 and job #2 cannot run through one fold without a per-job branch.
+
+**M2 spend cap: $5.00 — PROPOSED, not signed.** M2's own, separate from M1's $5.00 ($1.10 used).
+
 ## M3 — ask and inbox, the HITL window
 
 The inbox and its answers, TTL, and checkpoint/resume at step level. A pause spends nothing, and a
