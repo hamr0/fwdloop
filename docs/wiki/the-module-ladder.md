@@ -463,6 +463,24 @@ check at a time — the gap ping-ponged); batch b, closer reporting every failin
 17/20 by attempt 3, the two fallbacks halted honestly naming the step and the gap. Ruled on the
 2026-09-15 rule: a catch is a catch. $0.53 of the $5.00 cap. Build starts on `m2`.
 
+**M2 amendment 1 — the step's own word, and evidence at the next ask — SIGNED by hamr 2026-09-24**
+("sign both"). From F39 (first live run: the JD step was blocked, said so honestly, and passed).
+
+1. **`done` and `blocker` on every artifact.** The `emit_artifact` schema for every close class carries
+   `done: boolean` (required) and `blocker: string | null`. `done: false` is a **red naming the step and
+   the blocker**, mechanically, before any close runs and for every class, hitl included. No judge:
+   the model's own typed word that it did not do the step is the one statement the machine takes at
+   face value. `done: true` proves nothing — the close still decides.
+2. **Unjudged artifacts go to the next signed ask.** A hitl-class step that is not bound to a signed
+   ask line does not pause; its artifact is carried as **evidence into the next signed ask**, labelled
+   by step, alongside that ask's own artifact. The human's accept covers every artifact shown. A flow
+   whose last steps after the final ask are hitl-class and unasked is a validation red at M1 (nothing
+   may leave unseen), to be added to `validateDeclaration`.
+
+Both are mechanisms, not prompt wording: a test proves `done: false` halts with the close never
+called, and a test proves the ask's `evidence` lists every unasked hitl artifact since the previous
+ask.
+
 ## M3 — ask and inbox, the HITL window
 
 The inbox and its answers, TTL, and checkpoint/resume at step level. A pause spends nothing, and a
