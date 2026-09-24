@@ -1932,3 +1932,50 @@ after #"); same plant, same bar, new tag.
 Batch a to batch b: 6 → 18 healed, the whole difference being what the gap says. Nothing passed
 that should not have: the two fallbacks halted naming the step and the last gap, under cap. Ruling
 on the bar is hamr's (a catch is a catch — the 2026-09-15 rule — or a third batch).
+
+## F39 — First live run of `src/runner.js`: job #2 reached its ask, hamr accepted, the run sent a summary whose first line says the JD was never read (2026-09-24)
+
+**Setup.** Flow `flows/job2-live-1` written from `test/fixtures/job2.m1.*` by `poc/m2/mkflow.mjs`, sources
+= the frozen `job2-probe-1` resume and JD, cap $0.25. `poc/m2/live.mjs` → `runFlow` with the live model
+step (`deepseek-flash`), file ask, file send. Runner at `ce4f366`.
+
+**What happened, from the books.** Six audit rows, one history row, $0.0118, `modelMatch` match, all priced.
+`resume-text` hitl pass-through (8 s). `jd-text` hitl pass-through (12 s). `resume-summary` attempt 1 red
+on the headings, attempt 2 green — the gap-back loop healing in the real fold, as F38 measured. ASK OPEN;
+hamr wrote an accept, then a reject 8 s later; the accept was consumed and renamed, the run sent to
+`file:poc/m0/out`, `outcome: complete`; the reject sits unread in `answer.json`. Consume-once held.
+
+**The sent summary opens: "Note: the job description could not be read (status: blocked)".** The
+`jd-text` step was granted `read` — a path-based tool sandboxed to the run dir and its frozen inputs —
+but the executor context carries no paths (by design: goal, reads, gap, nothing else). The model tried
+`~`, `.`, `/`, `job_description.md`, was refused each time, and emitted an honest artifact: `status:
+blocked`, `content: null`, "none of the file's text was invented". Three mechanisms then let that
+through:
+
+1. **No way to read a text source by role.** `readDocx` and `addressCells` take a `role` (`resume`,
+   `jd`) and list the roles in their description; `read` takes a path the model was never given. The
+   JD was frozen (1885 bytes, sha256 in `inputs.json`) and unreachable. Fix: `read`/`grep` accept a
+   role and list the roles, same as the other two.
+2. **hitl steps not on a signed ask line pass through** once their artifact is non-empty (piece 1's
+   stated reading of "hitl: the ask"). The `jd-text` artifact was non-empty — it was a well-formed
+   report of failure — so the happened check passed, no close ran, and the fold moved on.
+3. **The next ask showed it, and the human accepted.** The ask's evidence was the summary text; its
+   first line was the blocked note; hamr accepted without reading. The machine did exactly what it
+   was told: a human accept in the same run, a signed destination. This is the failure class fwdloop
+   exists for: the step was not done, and the run reported `complete`.
+
+**Also short of the signed scope, found reading the run dir.** No `runs/<id>/artifacts/` — artifacts
+lived only inside `log.json` (item 2). `log.json` kept only final artifacts, not attempt 1's red text,
+and a halted run would have written `{ runId, outcome, red }` with nothing the model wrote (item 9 and
+the 2026-09-15 ruling). Both fixed in the follow-up commit with mechanism 1.
+
+**What the model did right.** It did not invent a JD. It typed `status: blocked` and `content: null`
+into its own artifact. A run that reads that field cannot mistake it for done. That is the lever for
+the ruling below.
+
+**For hamr to rule (see the ladder, M2 amendment 1).** (a) A step's own typed self-report: the
+`emit_artifact` schema for every class carries `done: boolean` and `blocker: string | null`; `done:
+false` is a **red naming the step and the blocker**, mechanically, no judge — the model's own word
+that it did not do the step is the one thing the machine may take at face value. (b) hitl steps not
+on a signed ask line: their artifacts are carried as evidence into the next signed ask (the human
+sees every unjudged artifact since the last ask, each labelled by step), instead of passing silently.
