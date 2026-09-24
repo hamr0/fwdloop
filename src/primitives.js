@@ -55,28 +55,65 @@ function sandboxError(verb, candidatePath) {
   return new Error(`${verb}: "${candidatePath}" is outside the sandbox (the run dir and its frozen inputs) — refused`);
 }
 
-function sandboxedReadTool(allowedRoots) {
+/** `read`/`grep` (unlike `write`) may also be granted a `role` naming one of
+ *  the run's frozen inputs — the same `inputsByRole` map `readDocx`/
+ *  `addressCells` use. `role` resolves to the frozen path and THEN goes
+ *  through the same sandbox check as any path (the frozen path is always
+ *  inside `allowedRoots`, so this can never widen what a path-only call
+ *  could already reach) — never a shortcut around the sandbox, just a name
+ *  for a path the model was never handed directly. `role` wins when both
+ *  `path` and `role` are given. */
+function roleDescription(real, roles) {
+  return `${real.description} Provide either "path" (sandboxed to the run dir and its frozen `
+    + `inputs) or "role" naming a frozen input by role instead of a path — at least one of `
+    + `path/role is required, and role wins if both are given. Available roles: ${roles.join(', ') || '(none)'}.`;
+}
+
+function roleParameters(real, roles) {
+  return {
+    ...real.parameters,
+    properties: { ...real.parameters.properties, role: { type: 'string', enum: roles } },
+    required: (real.parameters.required ?? []).filter((f) => f !== 'path'),
+  };
+}
+
+/** Resolves `args.role`/`args.path` down to the one path to actually use,
+ *  honouring "role wins if both given" and the sandbox check. Throws (never
+ *  silently falls through) when neither is usable. */
+function resolveRoleOrPath(verb, args, inputsByRole, roles, allowedRoots) {
+  if (args && Object.prototype.hasOwnProperty.call(args, 'role') && args.role !== undefined) {
+    const frozen = inputsByRole[args.role];
+    if (!frozen) throw new Error(`${verb}: no frozen input for role "${args.role}" (available: ${roles.join(', ')})`);
+    return frozen;
+  }
+  if (!isPathAllowed(args?.path, allowedRoots)) throw sandboxError(verb, args?.path);
+  return args.path;
+}
+
+function sandboxedReadTool(allowedRoots, inputsByRole) {
   const real = shellTool('shell_read');
+  const roles = Object.keys(inputsByRole);
   return {
     name: 'read',
-    description: real.description,
-    parameters: real.parameters,
+    description: roleDescription(real, roles),
+    parameters: roleParameters(real, roles),
     execute: async (args) => {
-      if (!isPathAllowed(args?.path, allowedRoots)) throw sandboxError('read', args?.path);
-      return real.execute(args);
+      const path = resolveRoleOrPath('read', args, inputsByRole, roles, allowedRoots);
+      return real.execute({ ...args, path });
     },
   };
 }
 
-function sandboxedGrepTool(allowedRoots) {
+function sandboxedGrepTool(allowedRoots, inputsByRole) {
   const real = shellTool('shell_grep');
+  const roles = Object.keys(inputsByRole);
   return {
     name: 'grep',
-    description: real.description,
-    parameters: real.parameters,
+    description: roleDescription(real, roles),
+    parameters: roleParameters(real, roles),
     execute: async (args) => {
-      if (!isPathAllowed(args?.path, allowedRoots)) throw sandboxError('grep', args?.path);
-      return real.execute(args);
+      const path = resolveRoleOrPath('grep', args, inputsByRole, roles, allowedRoots);
+      return real.execute({ ...args, path });
     },
   };
 }
@@ -161,10 +198,10 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
     }
     switch (verb) {
       case 'read':
-        tools.read = sandboxedReadTool(allowedRoots);
+        tools.read = sandboxedReadTool(allowedRoots, inputsByRole);
         break;
       case 'grep':
-        tools.grep = sandboxedGrepTool(allowedRoots);
+        tools.grep = sandboxedGrepTool(allowedRoots, inputsByRole);
         break;
       case 'write':
         tools.write = sandboxedWriteTool(allowedRoots);

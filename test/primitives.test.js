@@ -141,3 +141,84 @@ test('addressCells: an unknown role reds naming the role and the available ones'
   const { tools } = resolvePrimitives(CATALOGUE, ['addressCells'], { runDir, inputs: [] });
   await assert.rejects(() => tools.addressCells.execute({ role: 'nope' }), /no frozen input for role "nope"/);
 });
+
+// ---------------------------------------------------------------------------
+// Item 1: text sources (`read`/`grep`) are readable by role, not just by
+// sandboxed path — the live gap the job #2 run hit (jd-text granted `read`
+// but the executor context carries no paths to try).
+// ---------------------------------------------------------------------------
+
+test('read: by role returns the frozen file\'s text', async () => {
+  const runDir = tmpRunDir();
+  const inputsDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-role-'));
+  const jdPath = path.join(inputsDir, 'jd.md');
+  writeFileSync(jdPath, 'job description text');
+  const { tools } = resolvePrimitives(CATALOGUE, ['read'], {
+    runDir, inputs: [{ id: 'jd', frozen: jdPath }],
+  });
+  const text = await tools.read.execute({ role: 'jd' });
+  assert.match(text, /job description text/);
+});
+
+test('read: an unknown role reds naming the role and the available ones', async () => {
+  const runDir = tmpRunDir();
+  const inputsDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-role-'));
+  const jdPath = path.join(inputsDir, 'jd.md');
+  writeFileSync(jdPath, 'text');
+  const { tools } = resolvePrimitives(CATALOGUE, ['read'], {
+    runDir, inputs: [{ id: 'jd', frozen: jdPath }],
+  });
+  await assert.rejects(() => tools.read.execute({ role: 'nope' }), /no frozen input for role "nope" \(available: jd\)/);
+});
+
+test('read: a path outside the sandbox still reds even when roles are available', async () => {
+  const runDir = tmpRunDir();
+  const inputsDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-role-'));
+  const jdPath = path.join(inputsDir, 'jd.md');
+  writeFileSync(jdPath, 'text');
+  const outsideDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-outside-role-'));
+  const outsidePath = path.join(outsideDir, 'secret.txt');
+  writeFileSync(outsidePath, 'nope');
+  const { tools } = resolvePrimitives(CATALOGUE, ['read'], {
+    runDir, inputs: [{ id: 'jd', frozen: jdPath }],
+  });
+  await assert.rejects(() => tools.read.execute({ path: outsidePath }), /outside the sandbox/);
+});
+
+test('read: role wins when both path and role are given', async () => {
+  const runDir = tmpRunDir();
+  const inputsDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-role-'));
+  const jdPath = path.join(inputsDir, 'jd.md');
+  writeFileSync(jdPath, 'the role content');
+  const outsideDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-outside-both-'));
+  const outsidePath = path.join(outsideDir, 'ignored.txt');
+  writeFileSync(outsidePath, 'must never be read');
+  const { tools } = resolvePrimitives(CATALOGUE, ['read'], {
+    runDir, inputs: [{ id: 'jd', frozen: jdPath }],
+  });
+  const text = await tools.read.execute({ path: outsidePath, role: 'jd' });
+  assert.match(text, /the role content/);
+});
+
+test('read/grep: the tool description names every available role, the same way readDocx\'s does', () => {
+  const runDir = tmpRunDir();
+  const { tools } = resolvePrimitives(CATALOGUE, ['read', 'grep'], {
+    runDir, inputs: [{ id: 'resume', frozen: '/x/resume.docx' }, { id: 'jd', frozen: '/x/jd.md' }],
+  });
+  assert.match(tools.read.description, /Available roles: resume, jd/);
+  assert.match(tools.grep.description, /Available roles: resume, jd/);
+  assert.ok(tools.read.parameters.properties.role);
+  assert.deepEqual(tools.read.parameters.properties.role.enum, ['resume', 'jd']);
+});
+
+test('grep: by role searches the frozen file\'s text', async () => {
+  const runDir = tmpRunDir();
+  const inputsDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-role-grep-'));
+  const jdPath = path.join(inputsDir, 'jd.md');
+  writeFileSync(jdPath, 'requirements: five years experience\nlocation: remote');
+  const { tools } = resolvePrimitives(CATALOGUE, ['grep'], {
+    runDir, inputs: [{ id: 'jd', frozen: jdPath }],
+  });
+  const result = await tools.grep.execute({ pattern: 'remote', role: 'jd' });
+  assert.match(JSON.stringify(result), /remote/);
+});

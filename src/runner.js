@@ -284,6 +284,73 @@ export function checkSendDestination(target) {
 }
 
 // ---------------------------------------------------------------------------
+// Artifacts on disk (M2 scope item 2): every emitted artifact is written to
+// `runs/<runId>/artifacts/<emits>.json` the moment its step closes
+// (green/hitl pass-through/accepted) — ONE writer function, and later steps'
+// `reads` are loaded back from these files, never from the in-memory
+// `artifacts` object alone.
+// ---------------------------------------------------------------------------
+
+function artifactPath(runDir, id) {
+  return join(runDir, 'artifacts', `${id}.json`);
+}
+
+/** The one writer for a run's artifact files. Refuses (throws) to overwrite
+ *  an existing artifact id within a run UNLESS the caller explicitly asks
+ *  for it (`overwrite: true` — the ask-redo path's own deliberate
+ *  replacement of a step it is re-running; every other call site accepts
+ *  the default and gets the safety refusal). */
+export function writeArtifact(runDir, id, artifact, { overwrite = false } = {}) {
+  const dir = join(runDir, 'artifacts');
+  mkdirSync(dir, { recursive: true });
+  const target = artifactPath(runDir, id);
+  if (existsSync(target) && !overwrite) {
+    throw new Error(`writeArtifact: artifact "${id}" already exists in this run (${target}) — refused`);
+  }
+  writeFileSync(target, JSON.stringify(artifact, null, 2));
+}
+
+/** Reads one artifact back off disk; `undefined` when it was never written
+ *  (mirrors the in-memory map's own "absent" shape for a not-yet-produced
+ *  read). */
+export function readArtifact(runDir, id) {
+  const target = artifactPath(runDir, id);
+  if (!existsSync(target)) return undefined;
+  return JSON.parse(readFileSync(target, 'utf8'));
+}
+
+function readArtifactsMap(runDir, ids) {
+  return Object.fromEntries((ids ?? []).map((id) => [id, readArtifact(runDir, id)]));
+}
+
+// ---------------------------------------------------------------------------
+// Item 4 (small): an `answer.json` still on disk, unconsumed, at run end —
+// a late human answer that arrived after the run already moved on. One
+// audit row, never applied, so the human can see their late answer changed
+// nothing.
+// ---------------------------------------------------------------------------
+
+function recordLateAnswerIfAny(runDir) {
+  const file = join(runDir, 'answer.json');
+  if (!existsSync(file)) return;
+  appendAudit(runDir, {
+    step: null,
+    attempt: null,
+    class: null,
+    verdict: 'answer-after-run',
+    gap: null,
+    usd: 0,
+    spendComplete: true,
+    wallMs: 0,
+    model: null,
+    modelMatch: null,
+    strike: false,
+    kind: 'answer-after-run',
+    file,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // The ralph loop with strikes (M2 scope item 5) for ONE step.
 // ---------------------------------------------------------------------------
 
@@ -321,9 +388,10 @@ function makeAuditRow({
  * @param {{ value: number }} opts.spent
  * @param {number} opts.capUsd
  * @param {number} opts.ceilingUsd
- * @param {(row: any) => void} opts.recordAudit
+ * @param {(row: any, modelOutput?: any) => void} opts.recordAudit
  * @param {string|null} [opts.initialGap]
  * @param {number} [opts.attemptOffset]
+ * @returns {Promise<{ok:true, artifact:any, attempts:number} | {ok:false, outcome:string, red:string}>}
  */
 async function runStepRalph({
   step, primitivesMap, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd, recordAudit, initialGap = null, attemptOffset = 0,
@@ -381,7 +449,7 @@ async function runStepRalph({
       if (typeof result.costUsd === 'number') spent.value += result.costUsd;
       recordAudit(makeAuditRow({
         step, attempt, verdict: 'provider-red', gap, usd: result.costUsd ?? null, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
-      }));
+      }), result.red ?? 'transport fault twice');
       return { ok: false, outcome: 'provider-red', red: `provider-red: step "${step.goal}" attempt ${attempt}: ${result.red ?? 'transport fault twice'}` };
     }
 
@@ -397,7 +465,7 @@ async function runStepRalph({
       if (strike) strikes += 1;
       recordAudit(makeAuditRow({
         step, attempt, verdict: 'red', gap: red, usd: result?.costUsd ?? null, spendComplete: (result?.costUsd ?? null) !== null, wallMs, model: result?.model, modelMatch: result?.modelMatch, strike,
-      }));
+      }), red);
       if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: step "${step.goal}" — ${red}` };
       gap = red;
@@ -408,7 +476,7 @@ async function runStepRalph({
     if (result.costUsd === null || result.costUsd === undefined) {
       recordAudit(makeAuditRow({
         step, attempt, verdict: 'pricing-red', gap, usd: null, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
-      }));
+      }), result.artifact ?? null);
       return { ok: false, outcome: 'pricing-red', red: `pricing-red: step "${step.goal}" attempt ${attempt} returned no cost (never "?? 0")` };
     }
     spent.value += result.costUsd;
@@ -421,7 +489,7 @@ async function runStepRalph({
       strikes += 1;
       recordAudit(makeAuditRow({
         step, attempt, verdict: 'red', gap: happened.red, usd: result.costUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: true,
-      }));
+      }), result.artifact ?? null);
       if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: ${happened.red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: ${happened.red}` };
       gap = happened.red ?? null;
@@ -434,7 +502,7 @@ async function runStepRalph({
     if (closed.verdict === 'green' || closed.verdict === 'hitl') {
       recordAudit(makeAuditRow({
         step, attempt, verdict: closed.verdict, gap: null, usd: result.costUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
-      }));
+      }), result.artifact);
       return { ok: true, artifact: result.artifact, attempts: attempt };
     }
 
@@ -443,7 +511,7 @@ async function runStepRalph({
       // CASUALTY, never a red and never a strike (bareloop F17).
       recordAudit(makeAuditRow({
         step, attempt, verdict: 'close-casualty', gap: closed.red, usd: result.costUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
-      }));
+      }), result.artifact);
       return { ok: false, outcome: 'close-casualty', red: `close-casualty: step "${step.goal}" — ${closed.red} (${closed.verdict})` };
     }
 
@@ -453,7 +521,7 @@ async function runStepRalph({
     if (strike) strikes += 1;
     recordAudit(makeAuditRow({
       step, attempt, verdict: 'red', gap: closed.red, usd: result.costUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike,
-    }));
+    }), result.artifact);
 
     if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${closed.red}` };
     if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: step "${step.goal}" — ${closed.red}` };
@@ -530,7 +598,20 @@ export async function runFlow({
 
   const artifacts = {};
   const auditRows = [];
-  const recordAudit = (row) => { auditRows.push(row); appendAudit(runDir, row); };
+  // Item 3: what the model actually wrote, every attempt, red runs included
+  // — kept SEPARATELY from auditRows (which stay the signed book's own
+  // shape) and folded into log.json only, on every exit path.
+  /** @type {any[]} */
+  const attemptsLog = [];
+  const recordAudit = (row, modelOutput) => {
+    auditRows.push(row);
+    appendAudit(runDir, row);
+    if (modelOutput !== undefined) {
+      attemptsLog.push({
+        step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, modelOutput,
+      });
+    }
+  };
   const spent = { value: 0 };
   let acceptedThisRun = false;
 
@@ -543,19 +624,19 @@ export async function runFlow({
     if (sendLines.has(step.fromLine)) {
       if (!acceptedThisRun) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, spent,
+          flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts,
           outcome: 'red', red: `send: step "${step.goal}" reached with no accept this run`,
         });
       }
       const sendSlot = sendLines.get(step.fromLine);
       if (!sendSlot) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, spent, outcome: 'red', red: `send: no arbiter slot bound to line ${step.fromLine}`,
+          flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts, outcome: 'red', red: `send: no arbiter slot bound to line ${step.fromLine}`,
         });
       }
       const target = `${sendSlot.target.kind}:${sendSlot.target.path}`;
-      const contentArtifactId = (step.reads ?? []).find((id) => artifacts[id] !== undefined);
-      const content = artifacts[contentArtifactId];
+      const contentArtifactId = (step.reads ?? []).find((id) => readArtifact(runDir, id) !== undefined);
+      const content = readArtifact(runDir, contentArtifactId);
       const filename = `${runId}-${step.emits}.json`;
       // eslint-disable-next-line no-await-in-loop
       const sendResult = await sendStep(target, filename, content);
@@ -565,9 +646,10 @@ export async function runFlow({
       recordAudit(sendRow);
       if (!sendResult.ok) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, spent, outcome: 'red', red: `send: ${sendResult.red}`,
+          flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts, outcome: 'red', red: `send: ${sendResult.red}`,
         });
       }
+      writeArtifact(runDir, step.emits, content);
       artifacts[step.emits] = content;
       // eslint-disable-next-line no-continue
       continue;
@@ -578,7 +660,7 @@ export async function runFlow({
       const askSlot = askLines.get(step.fromLine);
       const priorId = (step.reads ?? [])[0];
       const priorStepIndex = steps.findIndex((s) => s.emits === priorId);
-      let priorArtifact = artifacts[priorId];
+      let priorArtifact = readArtifact(runDir, priorId);
       let redone = 0;
 
       for (;;) {
@@ -592,7 +674,7 @@ export async function runFlow({
             step, attempt: redone + 1, verdict: 'ask-timeout', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
           }));
           return haltRun({
-            flowDir, runDir, runId, capUsd, startedAt, now, spent,
+            flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts,
             outcome: 'ask-timeout', red: `ask-timeout: step "${step.goal}" expired waiting for a human answer`,
           });
         }
@@ -613,6 +695,7 @@ export async function runFlow({
           recordAudit(makeAuditRow({
             step, attempt: redone + 1, verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
           }));
+          writeArtifact(runDir, step.emits, priorArtifact);
           artifacts[step.emits] = priorArtifact;
           acceptedThisRun = true;
           break;
@@ -625,29 +708,32 @@ export async function runFlow({
           }));
           if (redone > redoCap) {
             return haltRun({
-              flowDir, runDir, runId, capUsd, startedAt, now, spent,
+              flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts,
               outcome: 'redo-halt', red: `redo cap ${redoCap} reached at step "${step.goal}" after ${redone} rejections`,
             });
           }
           const priorStep = steps[priorStepIndex];
-          const priorReads = Object.fromEntries((priorStep.reads ?? []).map((id) => [id, artifacts[id]]));
+          const priorReads = readArtifactsMap(runDir, priorStep.reads);
           // eslint-disable-next-line no-await-in-loop
           const redoResult = await runStepRalph({
             step: priorStep, primitivesMap: primitives, readsMap: priorReads, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone,
           });
           if (!redoResult.ok) {
             return haltRun({
-              flowDir, runDir, runId, capUsd, startedAt, now, spent, outcome: redoResult.outcome, red: redoResult.red,
+              flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts, outcome: redoResult.outcome, red: redoResult.red,
             });
           }
           priorArtifact = redoResult.artifact;
+          // A redo deliberately REPLACES the prior step's own artifact —
+          // the one case `writeArtifact` allows to overwrite on purpose.
+          writeArtifact(runDir, priorId, priorArtifact, { overwrite: true });
           artifacts[priorId] = priorArtifact;
           // eslint-disable-next-line no-continue
           continue;
         }
 
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, spent,
+          flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts,
           outcome: 'red', red: `ask: step "${step.goal}" got an unrecognised decision "${answer.decision}"`,
         });
       }
@@ -656,16 +742,17 @@ export async function runFlow({
     }
 
     // --- an ordinary step: green / softgreen / a non-ask hitl pass-through. ---
-    const readsMap = Object.fromEntries((step.reads ?? []).map((id) => [id, artifacts[id]]));
+    const readsMap = readArtifactsMap(runDir, step.reads);
     // eslint-disable-next-line no-await-in-loop
     const stepResult = await runStepRalph({
       step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit,
     });
     if (!stepResult.ok) {
       return haltRun({
-        flowDir, runDir, runId, capUsd, startedAt, now, spent, outcome: stepResult.outcome, red: stepResult.red,
+        flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts, outcome: stepResult.outcome, red: stepResult.red,
       });
     }
+    writeArtifact(runDir, step.emits, stepResult.artifact);
     artifacts[step.emits] = stepResult.artifact;
   }
 
@@ -673,14 +760,38 @@ export async function runFlow({
   appendHistory(flowDir, {
     runId, at: now(), outcome: 'complete', spentUsd: spent.value, spendComplete: true, capUsd, wallMs, signatureHash: signature.flow,
   });
-  writeFileSync(join(runDir, 'log.json'), JSON.stringify({ runId, outcome: 'complete', artifacts, auditRows }, null, 2));
+  recordLateAnswerIfAny(runDir);
+  writeLog(runDir, {
+    runId, outcome: 'complete', attempts: attemptsLog, artifacts,
+  });
   return {
     outcome: 'complete', runDir, artifacts, spentUsd: spent.value, auditRows,
   };
 }
 
+/** log.json's one writer, called from every exit path (complete + every
+ *  halt) — M2 scope item 9 / the M0 ruling: what the model wrote, every
+ *  attempt, red runs included, never just the final artifacts. */
+function writeLog(runDir, payload) {
+  writeFileSync(join(runDir, 'log.json'), JSON.stringify(payload, null, 2));
+}
+
+/**
+ * @param {object} opts
+ * @param {string} opts.flowDir
+ * @param {string} opts.runDir
+ * @param {string} opts.runId
+ * @param {number|null} opts.capUsd
+ * @param {number} opts.startedAt
+ * @param {() => string} opts.now
+ * @param {string} opts.outcome
+ * @param {string} [opts.red]
+ * @param {{ value: number }} opts.spent
+ * @param {any[]} [opts.attempts]
+ * @param {Record<string, any>} [opts.artifacts]
+ */
 function haltRun({
-  flowDir, runDir, runId, capUsd, startedAt, now, outcome, red, spent,
+  flowDir, runDir, runId, capUsd, startedAt, now, outcome, red, spent, attempts = [], artifacts = {},
 }) {
   const wallMs = Date.now() - startedAt;
   const spendComplete = outcome !== 'provider-red' && outcome !== 'pricing-red' && outcome !== 'cap-halt';
@@ -689,7 +800,10 @@ function haltRun({
     runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash: null,
   });
   if (existsSync(runDir)) {
-    writeFileSync(join(runDir, 'log.json'), JSON.stringify({ runId, outcome, red }, null, 2));
+    recordLateAnswerIfAny(runDir);
+    writeLog(runDir, {
+      runId, outcome, red, attempts, artifacts,
+    });
   }
   return { outcome, red, spentUsd: spent.value };
 }

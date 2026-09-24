@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  readFileSync, writeFileSync, mkdtempSync,
+  readFileSync, writeFileSync, mkdtempSync, existsSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -17,7 +17,7 @@ import path from 'node:path';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import {
-  runFlow, buildExecutorContext, findForbiddenInContext, STRIKE_LIMIT, MAX_ATTEMPTS,
+  runFlow, buildExecutorContext, findForbiddenInContext, STRIKE_LIMIT, MAX_ATTEMPTS, writeArtifact, readArtifact,
 } from '../src/runner.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -542,4 +542,289 @@ test('a reason-less rejection is refused and re-asked, never advances', async ()
 test('STRIKE_LIMIT and MAX_ATTEMPTS are the frozen constants the ladder signs', () => {
   assert.equal(STRIKE_LIMIT, 2);
   assert.equal(MAX_ATTEMPTS, 4);
+});
+
+// ---------------------------------------------------------------------------
+// Item 2: every emitted artifact lands on disk under runs/<runId>/artifacts/
+// the moment its step closes; a second write to the same id within a run is
+// refused (unless the caller deliberately asks to overwrite it).
+// ---------------------------------------------------------------------------
+
+test('writeArtifact/readArtifact: writes and reads back an artifact file', () => {
+  const runDir = tmpRoot('artifact-io');
+  writeArtifact(runDir, 'some-id', { text: 'hello' });
+  assert.deepEqual(readArtifact(runDir, 'some-id'), { text: 'hello' });
+});
+
+test('writeArtifact: refuses (throws) to overwrite an existing artifact id within a run', () => {
+  const runDir = tmpRoot('artifact-overwrite');
+  writeArtifact(runDir, 'some-id', { text: 'first' });
+  assert.throws(() => writeArtifact(runDir, 'some-id', { text: 'second' }), /already exists/);
+  assert.deepEqual(readArtifact(runDir, 'some-id'), { text: 'first' }, 'the refused write must not have touched the file');
+});
+
+test('writeArtifact: an explicit overwrite:true replaces the file (the ask-redo path\'s own case)', () => {
+  const runDir = tmpRoot('artifact-overwrite-allowed');
+  writeArtifact(runDir, 'some-id', { text: 'first' });
+  writeArtifact(runDir, 'some-id', { text: 'second' }, { overwrite: true });
+  assert.deepEqual(readArtifact(runDir, 'some-id'), { text: 'second' });
+});
+
+test('readArtifact: undefined for an artifact never written', () => {
+  const runDir = tmpRoot('artifact-missing');
+  assert.equal(readArtifact(runDir, 'never-written'), undefined);
+});
+
+test('runFlow: job #2 fixture writes all five artifacts to disk with the right content, and log.json reflects them', async () => {
+  const root = tmpRoot('job2-artifacts');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('job2-artifacts-sources');
+  const resume = writeTempDocxLike(srcDir, 'resume.docx', 'Resume text goes here.');
+  const jd = writeTempDocxLike(srcDir, 'jd.md', 'JD text goes here.');
+
+  const modelStep = async (ctx) => {
+    if (ctx.goal.includes('resume .docx')) return { ok: true, costUsd: 0.001, artifact: { text: 'resume text' } };
+    if (ctx.goal.includes('job description markdown')) return { ok: true, costUsd: 0.001, artifact: { text: 'jd text' } };
+    if (ctx.goal.includes('Draft the summary resume')) {
+      const text = '## summary of work history blurb\nworked places.\n'
+        + '## professional skills\nskills.\n'
+        + '## soft skills\nsoft skills.';
+      return { ok: true, costUsd: 0.001, artifact: { text } };
+    }
+    throw new Error(`unexpected job2 goal: ${ctx.goal}`);
+  };
+
+  const result = await runFlow({
+    root,
+    name: 'job2',
+    runId: 'run-1',
+    sources: [{ id: 'resume', path: resume }, { id: 'jd', path: jd }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'complete', result.red);
+
+  const expectedIds = ['resume-text', 'jd-text', 'resume-summary', 'resume-summary-approved', 'resume-summary-output'];
+  for (const id of expectedIds) {
+    const onDisk = readArtifact(result.runDir, id);
+    assert.notEqual(onDisk, undefined, `artifact "${id}" must exist on disk`);
+    assert.deepEqual(onDisk, result.artifacts[id], `artifact "${id}" on disk must match the run's own result`);
+  }
+  assert.equal(readArtifact(result.runDir, 'resume-text').text, 'resume text');
+  assert.equal(readArtifact(result.runDir, 'jd-text').text, 'jd text');
+
+  const logJson = JSON.parse(readFileSync(path.join(result.runDir, 'log.json'), 'utf8'));
+  for (const id of expectedIds) {
+    assert.deepEqual(logJson.artifacts[id], result.artifacts[id]);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Item 3: log.json keeps every attempt's raw model output, red attempts
+// included — a planted red on attempt 1 then green on 2 must show both.
+// ---------------------------------------------------------------------------
+
+test('log.json: a red attempt 1 then a green attempt 2 both appear in "attempts", attempt 1 with its own output', async () => {
+  const root = tmpRoot('log-attempts');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('log-attempts-sources');
+  const aging = writeTempCsv(srcDir);
+
+  let calls = 0;
+  const modelStep = async (ctx) => {
+    if (ctx.goal.includes('addressable cells')) {
+      return {
+        ok: true,
+        costUsd: 0.001,
+        artifact: {
+          kind: 'cells',
+          rows: [
+            { rowNumber: 2, cells: { A: 'Acme Corp', B: 'INV-1', C: '2026-05-01', D: '2026-05-15', E: '150.00' } },
+            { rowNumber: 3, cells: { A: 'Acme Corp', B: 'INV-2', C: '2026-05-05', D: '2026-05-20', E: '50.50' } },
+          ],
+        },
+      };
+    }
+    if (ctx.goal.includes('work out which customer')) return { ok: true, costUsd: 0.001, artifact: { matchedCustomer: 'Acme Corp' } };
+    if (ctx.goal.includes('pull their open invoices')) {
+      calls += 1;
+      if (calls === 1) {
+        // Attempt 1: a deliberately wrong artifact — must close-red.
+        return { ok: true, costUsd: 0.001, artifact: { fields: { total_owed: { value: 999, cite: 'aging_cells!E2' } } } };
+      }
+      return {
+        ok: true,
+        costUsd: 0.001,
+        artifact: {
+          fields: {
+            invoice1: { value: 150, cite: 'aging_cells!E2' },
+            invoice2: { value: 50.5, cite: 'aging_cells!E3' },
+            total_owed: { value: 200.5, cite: 'sum(#invoice1,#invoice2)' },
+          },
+        },
+      };
+    }
+    if (ctx.goal.includes('Write a short reply')) {
+      const text = 'Invoice # INV-1 Due date 2026-05-15 Amount 150\n'
+        + 'Invoice # INV-2 Due date 2026-05-20 Amount 50.50';
+      return { ok: true, costUsd: 0.001, artifact: { text } };
+    }
+    throw new Error(`unexpected step goal in test fake: ${ctx.goal}`);
+  };
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'complete', result.red);
+
+  const logJson = JSON.parse(readFileSync(path.join(result.runDir, 'log.json'), 'utf8'));
+  const invoiceAttempts = logJson.attempts.filter((a) => a.step === 'invoice_facts');
+  assert.equal(invoiceAttempts.length, 2, 'both the red attempt 1 and the green attempt 2 must be recorded');
+  assert.equal(invoiceAttempts[0].attempt, 1);
+  assert.equal(invoiceAttempts[0].verdict, 'red');
+  assert.equal(invoiceAttempts[0].modelOutput.fields.total_owed.value, 999, 'attempt 1\'s own (wrong) output must be kept, not overwritten by attempt 2');
+  assert.equal(invoiceAttempts[1].attempt, 2);
+  assert.equal(invoiceAttempts[1].verdict, 'green');
+  assert.equal(invoiceAttempts[1].modelOutput.fields.total_owed.value, 200.5);
+});
+
+test('log.json: a struck-out run still keeps every attempt\'s output', async () => {
+  const root = tmpRoot('log-struckout');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('log-struckout-sources');
+  const aging = writeTempCsv(srcDir);
+
+  const { fn: modelStep } = job1ModelStepWithContexts({ step3Behavior: 'always-wrong' });
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'struck-out');
+
+  const runDir = path.join(root, 'job1', 'runs', 'run-1');
+  const logJson = JSON.parse(readFileSync(path.join(runDir, 'log.json'), 'utf8'));
+  assert.equal(logJson.outcome, 'struck-out');
+  assert.ok(logJson.red, 'a halted log.json must still carry the red');
+  const invoiceAttempts = logJson.attempts.filter((a) => a.step === 'invoice_facts');
+  assert.equal(invoiceAttempts.length, 3, 'every attempt before striking out must be kept, including the model\'s output each time');
+  for (const a of invoiceAttempts) {
+    assert.equal(a.modelOutput.fields.total_owed.value, 999);
+  }
+});
+
+test('log.json: a model failure that emits no artifact keeps the model step\'s red string as modelOutput', async () => {
+  const root = tmpRoot('log-no-artifact');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('log-no-artifact-sources');
+  const aging = writeTempCsv(srcDir);
+
+  const modelStep = async (ctx) => {
+    if (ctx.goal.includes('addressable cells')) {
+      return {
+        ok: true,
+        costUsd: 0.001,
+        artifact: {
+          kind: 'cells',
+          rows: [{ rowNumber: 2, cells: { A: 'Acme Corp', B: 'INV-1', C: '2026-05-01', D: '2026-05-15', E: '150.00' } }],
+        },
+      };
+    }
+    if (ctx.goal.includes('work out which customer')) return { ok: false, red: 'the model refused to answer' };
+    throw new Error(`unexpected step goal in test fake: ${ctx.goal}`);
+  };
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.notEqual(result.outcome, 'complete');
+  const runDir = path.join(root, 'job1', 'runs', 'run-1');
+  const logJson = JSON.parse(readFileSync(path.join(runDir, 'log.json'), 'utf8'));
+  const found = logJson.attempts.find((a) => a.modelOutput === 'the model refused to answer');
+  assert.ok(found, 'the model step\'s own red string must be kept as modelOutput when nothing was emitted');
+});
+
+// ---------------------------------------------------------------------------
+// Item 4: an answer.json still on disk, unconsumed, at run end gets one
+// audit row so a human can see their late answer changed nothing.
+// ---------------------------------------------------------------------------
+
+test('a late answer.json (written after the run\'s own ask already decided) is recorded, never applied', async () => {
+  const root = tmpRoot('late-answer');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('late-answer-sources');
+  const aging = writeTempCsv(srcDir);
+
+  const { fn: modelStep } = job1ModelStepWithContexts();
+
+  // Simulates the live race: a human's answer arrives on disk through the
+  // real file-ask channel AFTER this ask already resolved via some other
+  // path (here: the injected fake's own return value) — the file is never
+  // consumed by anything in the run.
+  const askStep = async ({ runDir }) => {
+    writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'reject', reason: 'late', answeredAt: new Date().toISOString() }));
+    return { decision: 'accept' };
+  };
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'complete', result.red);
+
+  const runDir = path.join(root, 'job1', 'runs', 'run-1');
+  assert.ok(existsSync(path.join(runDir, 'answer.json')), 'the late answer file itself is left in place, only noted');
+
+  const auditPath = path.join(runDir, 'audit.jsonl');
+  const rows = readFileSync(auditPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const lateRow = rows.find((r) => r.kind === 'answer-after-run');
+  assert.ok(lateRow, 'must record one audit row for the unconsumed late answer');
+  assert.equal(lateRow.file, path.join(runDir, 'answer.json'));
+
+  // The run itself completed on the fake's OWN accept — the late reject on
+  // disk changed nothing about the outcome.
+  assert.ok(result.artifacts.sent_reply);
 });
