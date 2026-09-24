@@ -9,7 +9,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { resolvePrimitives } from '../src/primitives.js';
+import { resolvePrimitives, rolePrimitiveFor } from '../src/primitives.js';
 import { loadCatalogue } from '../src/catalogue.js';
 
 const loaded = loadCatalogue();
@@ -200,15 +200,117 @@ test('read: role wins when both path and role are given', async () => {
   assert.match(text, /the role content/);
 });
 
-test('read/grep: the tool description names every available role, the same way readDocx\'s does', () => {
+test('read/grep: the tool description and role enum name only TEXT roles — a .docx role is not offered (F41 item 3)', () => {
   const runDir = tmpRunDir();
   const { tools } = resolvePrimitives(CATALOGUE, ['read', 'grep'], {
     runDir, inputs: [{ id: 'resume', frozen: '/x/resume.docx' }, { id: 'jd', frozen: '/x/jd.md' }],
   });
-  assert.match(tools.read.description, /Available roles: resume, jd/);
-  assert.match(tools.grep.description, /Available roles: resume, jd/);
+  assert.match(tools.read.description, /Available roles: jd\b/);
+  assert.doesNotMatch(tools.read.description, /resume/);
+  assert.match(tools.grep.description, /Available roles: jd\b/);
+  assert.doesNotMatch(tools.grep.description, /resume/);
   assert.ok(tools.read.parameters.properties.role);
-  assert.deepEqual(tools.read.parameters.properties.role.enum, ['resume', 'jd']);
+  assert.deepEqual(tools.read.parameters.properties.role.enum, ['jd']);
+  assert.deepEqual(tools.grep.parameters.properties.role.enum, ['jd']);
+});
+
+test('rolePrimitiveFor: maps frozen path extension to the primitive that owns its text', () => {
+  assert.equal(rolePrimitiveFor('/x/jd.md'), 'read');
+  assert.equal(rolePrimitiveFor('/x/notes.txt'), 'read');
+  assert.equal(rolePrimitiveFor('/x/resume.docx'), 'readDocx');
+  assert.equal(rolePrimitiveFor('/x/aging.csv'), 'addressCells');
+  assert.equal(rolePrimitiveFor('/x/scan.pdf'), null);
+});
+
+test('read: a .docx role is refused BY NAME naming readDocx, never returning file bytes', async () => {
+  const runDir = tmpRunDir();
+  const inputsDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-role-docx-'));
+  const resumePath = path.join(inputsDir, 'resume.docx');
+  writeFileSync(resumePath, 'PK\x03\x04 fake zip bytes that must never come back as text');
+  const { tools } = resolvePrimitives(CATALOGUE, ['read'], {
+    runDir, inputs: [{ id: 'resume', frozen: resumePath }],
+  });
+  await assert.rejects(
+    () => tools.read.execute({ role: 'resume' }),
+    /read: role "resume" is a \.docx — use readDocx/,
+  );
+});
+
+test('grep: a .csv role is refused BY NAME naming addressCells', async () => {
+  const runDir = tmpRunDir();
+  const inputsDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-role-csv-'));
+  const sheetPath = path.join(inputsDir, 'sheet.csv');
+  writeFileSync(sheetPath, 'a,b\n1,2\n');
+  const { tools } = resolvePrimitives(CATALOGUE, ['grep'], {
+    runDir, inputs: [{ id: 'sheet', frozen: sheetPath }],
+  });
+  await assert.rejects(
+    () => tools.grep.execute({ pattern: 'x', role: 'sheet' }),
+    /grep: role "sheet" is a \.csv — use addressCells/,
+  );
+});
+
+test('read: an unknown-extension role is refused naming "no text primitive serves it", not silently read', async () => {
+  const runDir = tmpRunDir();
+  const inputsDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-role-pdf-'));
+  const pdfPath = path.join(inputsDir, 'scan.pdf');
+  writeFileSync(pdfPath, '%PDF-1.4 fake');
+  const { tools } = resolvePrimitives(CATALOGUE, ['read'], {
+    runDir, inputs: [{ id: 'scan', frozen: pdfPath }],
+  });
+  await assert.rejects(
+    () => tools.read.execute({ role: 'scan' }),
+    /read: role "scan" is a \.pdf — no text primitive serves it/,
+  );
+});
+
+test('read: this refusal fires even when the model passes a role never offered in the schema\'s enum (defence beyond the schema)', async () => {
+  const runDir = tmpRunDir();
+  const inputsDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-role-defence-'));
+  const resumePath = path.join(inputsDir, 'resume.docx');
+  writeFileSync(resumePath, 'zip bytes');
+  const jdPath = path.join(inputsDir, 'jd.md');
+  writeFileSync(jdPath, 'jd text');
+  const { tools } = resolvePrimitives(CATALOGUE, ['read'], {
+    runDir, inputs: [{ id: 'resume', frozen: resumePath }, { id: 'jd', frozen: jdPath }],
+  });
+  // The schema's enum offers only "jd" — "resume" is not in it — yet the refusal
+  // must still fire by name, not fall through to "no frozen input for role".
+  assert.deepEqual(tools.read.parameters.properties.role.enum, ['jd']);
+  await assert.rejects(
+    () => tools.read.execute({ role: 'resume' }),
+    /read: role "resume" is a \.docx — use readDocx/,
+  );
+});
+
+test('read: still works by role for a text (.md) input alongside a .docx input', async () => {
+  const runDir = tmpRunDir();
+  const inputsDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-role-mixed-'));
+  const resumePath = path.join(inputsDir, 'resume.docx');
+  writeFileSync(resumePath, 'zip bytes');
+  const jdPath = path.join(inputsDir, 'jd.md');
+  writeFileSync(jdPath, 'the real jd text');
+  const { tools } = resolvePrimitives(CATALOGUE, ['read'], {
+    runDir, inputs: [{ id: 'resume', frozen: resumePath }, { id: 'jd', frozen: jdPath }],
+  });
+  const text = await tools.read.execute({ role: 'jd' });
+  assert.match(text, /the real jd text/);
+});
+
+test('read: with only a .docx input, the description says "(none)" and there is no role property, but path still works', async () => {
+  const runDir = tmpRunDir();
+  const inputsDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-role-noneleft-'));
+  const resumePath = path.join(inputsDir, 'resume.docx');
+  writeFileSync(resumePath, 'zip bytes');
+  const { tools } = resolvePrimitives(CATALOGUE, ['read'], {
+    runDir, inputs: [{ id: 'resume', frozen: resumePath }],
+  });
+  assert.match(tools.read.description, /Available roles: \(none\)/);
+  assert.equal(tools.read.parameters.properties.role, undefined);
+  // path route is untouched: a plain text file in the run dir still reads fine.
+  writeFileSync(path.join(runDir, 'note.txt'), 'plain text');
+  const text = await tools.read.execute({ path: path.join(runDir, 'note.txt') });
+  assert.match(text, /plain text/);
 });
 
 test('grep: by role searches the frozen file\'s text', async () => {

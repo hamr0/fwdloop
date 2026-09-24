@@ -55,6 +55,18 @@ function sandboxError(verb, candidatePath) {
   return new Error(`${verb}: "${candidatePath}" is outside the sandbox (the run dir and its frozen inputs) — refused`);
 }
 
+/** Which primitive owns a frozen input's text, by extension of its frozen path —
+ *  `.md`/`.txt` are read/grep's own text roles, `.docx` belongs to `readDocx`,
+ *  `.csv` belongs to `addressCells`, anything else has no text primitive.
+ *  Pure and exported so tests can hit the four cases directly (F41 item 3). */
+export function rolePrimitiveFor(frozenPath) {
+  const ext = path.extname(frozenPath).toLowerCase();
+  if (ext === '.md' || ext === '.txt') return 'read';
+  if (ext === '.docx') return 'readDocx';
+  if (ext === '.csv') return 'addressCells';
+  return null;
+}
+
 /** `read`/`grep` (unlike `write`) may also be granted a `role` naming one of
  *  the run's frozen inputs — the same `inputsByRole` map `readDocx`/
  *  `addressCells` use. `role` resolves to the frozen path and THEN goes
@@ -70,20 +82,36 @@ function roleDescription(real, roles) {
 }
 
 function roleParameters(real, roles) {
+  const properties = { ...real.parameters.properties };
+  // An empty enum is invalid JSON Schema — when there are no text roles, omit
+  // `role` from the schema entirely rather than advertise a role that can never
+  // be picked (F41 item 3: read/grep list only roles they can actually serve).
+  if (roles.length > 0) properties.role = { type: 'string', enum: roles };
   return {
     ...real.parameters,
-    properties: { ...real.parameters.properties, role: { type: 'string', enum: roles } },
+    properties,
     required: (real.parameters.required ?? []).filter((f) => f !== 'path'),
   };
 }
 
 /** Resolves `args.role`/`args.path` down to the one path to actually use,
  *  honouring "role wins if both given" and the sandbox check. Throws (never
- *  silently falls through) when neither is usable. */
+ *  silently falls through) when neither is usable. `roles` is the TEXT-only
+ *  role list (for the "no frozen input" message); the role lookup itself
+ *  goes through the full `inputsByRole` map so a non-text role (e.g. a
+ *  .docx) is refused BY NAME naming the primitive that owns it, even if the
+ *  model passes a role the schema's enum never offered it (F41 item 3). */
 function resolveRoleOrPath(verb, args, inputsByRole, roles, allowedRoots) {
   if (args && Object.prototype.hasOwnProperty.call(args, 'role') && args.role !== undefined) {
     const frozen = inputsByRole[args.role];
     if (!frozen) throw new Error(`${verb}: no frozen input for role "${args.role}" (available: ${roles.join(', ')})`);
+    const owner = rolePrimitiveFor(frozen);
+    if (owner === 'readDocx') throw new Error(`${verb}: role "${args.role}" is a .docx — use readDocx`);
+    if (owner === 'addressCells') throw new Error(`${verb}: role "${args.role}" is a .csv — use addressCells`);
+    if (owner !== 'read') {
+      const ext = path.extname(frozen) || '(no extension)';
+      throw new Error(`${verb}: role "${args.role}" is a ${ext} — no text primitive serves it`);
+    }
     return frozen;
   }
   if (!isPathAllowed(args?.path, allowedRoots)) throw sandboxError(verb, args?.path);
@@ -92,13 +120,13 @@ function resolveRoleOrPath(verb, args, inputsByRole, roles, allowedRoots) {
 
 function sandboxedReadTool(allowedRoots, inputsByRole) {
   const real = shellTool('shell_read');
-  const roles = Object.keys(inputsByRole);
+  const textRoles = Object.keys(inputsByRole).filter((r) => rolePrimitiveFor(inputsByRole[r]) === 'read');
   return {
     name: 'read',
-    description: roleDescription(real, roles),
-    parameters: roleParameters(real, roles),
+    description: roleDescription(real, textRoles),
+    parameters: roleParameters(real, textRoles),
     execute: async (args) => {
-      const path = resolveRoleOrPath('read', args, inputsByRole, roles, allowedRoots);
+      const path = resolveRoleOrPath('read', args, inputsByRole, textRoles, allowedRoots);
       return real.execute({ ...args, path });
     },
   };
@@ -106,13 +134,13 @@ function sandboxedReadTool(allowedRoots, inputsByRole) {
 
 function sandboxedGrepTool(allowedRoots, inputsByRole) {
   const real = shellTool('shell_grep');
-  const roles = Object.keys(inputsByRole);
+  const textRoles = Object.keys(inputsByRole).filter((r) => rolePrimitiveFor(inputsByRole[r]) === 'read');
   return {
     name: 'grep',
-    description: roleDescription(real, roles),
-    parameters: roleParameters(real, roles),
+    description: roleDescription(real, textRoles),
+    parameters: roleParameters(real, textRoles),
     execute: async (args) => {
-      const path = resolveRoleOrPath('grep', args, inputsByRole, roles, allowedRoots);
+      const path = resolveRoleOrPath('grep', args, inputsByRole, textRoles, allowedRoots);
       return real.execute({ ...args, path });
     },
   };
