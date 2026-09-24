@@ -16,6 +16,7 @@ import path from 'node:path';
 
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
+import { makeFileAskStep } from '../src/ask.js';
 import {
   runFlow, buildExecutorContext, findForbiddenInContext, STRIKE_LIMIT, MAX_ATTEMPTS, writeArtifact, readArtifact,
 } from '../src/runner.js';
@@ -90,7 +91,7 @@ function writeJob2Flow(root, name = 'job2') {
 function makeJob1ModelStep({ step3Behavior = 'green', step1Behavior = 'green' } = {}) {
   return async function job1ModelStep(ctx) {
     if (ctx.goal.includes('addressable cells')) {
-      if (step1Behavior === 'empty') return { ok: true, artifact: {}, costUsd: 0.001 };
+      if (step1Behavior === 'empty') return { ok: true, artifact: { done: true }, costUsd: 0.001 };
       return {
         ok: true,
         costUsd: 0.001,
@@ -100,18 +101,19 @@ function makeJob1ModelStep({ step3Behavior = 'green', step1Behavior = 'green' } 
             { rowNumber: 2, cells: { A: 'Acme Corp', B: 'INV-1', C: '2026-05-01', D: '2026-05-15', E: '150.00' } },
             { rowNumber: 3, cells: { A: 'Acme Corp', B: 'INV-2', C: '2026-05-05', D: '2026-05-20', E: '50.50' } },
           ],
+          done: true,
         },
       };
     }
     if (ctx.goal.includes('work out which customer')) {
-      return { ok: true, costUsd: 0.001, artifact: { matchedCustomer: 'Acme Corp' } };
+      return { ok: true, costUsd: 0.001, artifact: { matchedCustomer: 'Acme Corp', done: true } };
     }
     if (ctx.goal.includes('pull their open invoices')) {
       if (step3Behavior === 'always-wrong') {
         return {
           ok: true,
           costUsd: 0.001,
-          artifact: { fields: { total_owed: { value: 999, cite: 'aging_cells!E2' } } },
+          artifact: { fields: { total_owed: { value: 999, cite: 'aging_cells!E2' } }, done: true },
         };
       }
       return {
@@ -123,13 +125,14 @@ function makeJob1ModelStep({ step3Behavior = 'green', step1Behavior = 'green' } 
             invoice2: { value: 50.5, cite: 'aging_cells!E3' },
             total_owed: { value: 200.5, cite: 'sum(#invoice1,#invoice2)' },
           },
+          done: true,
         },
       };
     }
     if (ctx.goal.includes('Write a short reply')) {
       const text = 'Invoice # INV-1 Due date 2026-05-15 Amount 150\n'
         + 'Invoice # INV-2 Due date 2026-05-20 Amount 50.50';
-      return { ok: true, costUsd: 0.001, artifact: { text } };
+      return { ok: true, costUsd: 0.001, artifact: { text, done: true } };
     }
     throw new Error(`unexpected step goal in test fake: ${ctx.goal}`);
   };
@@ -187,13 +190,13 @@ test('runFlow: job #2 fixture runs end to end, complete', async () => {
   const jd = writeTempDocxLike(srcDir, 'jd.md', 'JD text goes here.');
 
   const modelStep = async (ctx) => {
-    if (ctx.goal.includes('resume .docx')) return { ok: true, costUsd: 0.001, artifact: { text: 'resume text' } };
-    if (ctx.goal.includes('job description markdown')) return { ok: true, costUsd: 0.001, artifact: { text: 'jd text' } };
+    if (ctx.goal.includes('resume .docx')) return { ok: true, costUsd: 0.001, artifact: { text: 'resume text', done: true } };
+    if (ctx.goal.includes('job description markdown')) return { ok: true, costUsd: 0.001, artifact: { text: 'jd text', done: true } };
     if (ctx.goal.includes('Draft the summary resume')) {
       const text = '## summary of work history blurb\nworked places.\n'
         + '## professional skills\nskills.\n'
         + '## soft skills\nsoft skills.';
-      return { ok: true, costUsd: 0.001, artifact: { text } };
+      return { ok: true, costUsd: 0.001, artifact: { text, done: true } };
     }
     throw new Error(`unexpected job2 goal: ${ctx.goal}`);
   };
@@ -318,7 +321,7 @@ test('negative (iii): cap-halt fires before the attempt starts, never after', as
   let modelStepCalled = false;
   const modelStep = async () => {
     modelStepCalled = true;
-    return { ok: true, costUsd: 0.001, artifact: { x: 1 } };
+    return { ok: true, costUsd: 0.001, artifact: { x: 1, done: true } };
   };
 
   const result = await runFlow({
@@ -463,6 +466,429 @@ test('a transport fault\'s known partial cost survives as the floor in spentUsd,
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
+// M2 amendment 1 item 1 ("done"/"blocker" on every artifact) — SIGNED
+// 2026-09-24. The model's own typed word is taken at face value, mechanically,
+// BEFORE the happened check or the close ever runs: `done: false` is a HALT
+// naming the step and the blocker, never a strike, never a retry, and
+// `closeByClass` never runs for that attempt (proved here by the closer's
+// own effect — no artifact file, and the step AFTER it never gets a chance
+// to run its modelStep at all).
+// ---------------------------------------------------------------------------
+
+function makeJob1ModelStepDoneVariant(step3Artifact) {
+  const goalsSeen = [];
+  const fn = async (ctx) => {
+    goalsSeen.push(ctx.goal);
+    if (ctx.goal.includes('addressable cells')) {
+      return {
+        ok: true,
+        costUsd: 0.001,
+        artifact: {
+          kind: 'cells',
+          rows: [{ rowNumber: 2, cells: { A: 'Acme Corp', B: 'INV-1', C: '2026-05-01', D: '2026-05-15', E: '150.00' } }],
+          done: true,
+        },
+      };
+    }
+    if (ctx.goal.includes('work out which customer')) {
+      return { ok: true, costUsd: 0.001, artifact: { matchedCustomer: 'Acme Corp', done: true } };
+    }
+    if (ctx.goal.includes('pull their open invoices')) {
+      return { ok: true, costUsd: 0.001, artifact: step3Artifact };
+    }
+    throw new Error(`unexpected step goal in test fake: ${ctx.goal} — a step AFTER a not-done halt must never run`);
+  };
+  return { fn, goalsSeen };
+}
+
+test('M2 amendment 1 item 1: done:false halts "not-done", names the step and blocker, closeByClass never runs, no artifact, later steps never run', async () => {
+  const root = tmpRoot('done-false');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('done-false-sources');
+  const aging = writeTempCsv(srcDir);
+
+  const { fn: modelStep, goalsSeen } = makeJob1ModelStepDoneVariant({
+    fields: { total_owed: { value: 999, cite: 'aging_cells!E2' } }, done: false, blocker: 'jd not readable',
+  });
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'not-done');
+  assert.match(result.red, /"invoice_facts"/);
+  assert.match(result.red, /jd not readable/);
+
+  // closeByClass never ran for this attempt: no artifact was written (a
+  // green close would have written one), and the step immediately after
+  // (reply_draft, "Write a short reply") never got a chance to call
+  // modelStep at all — proof by effect, since closeByClass would only ever
+  // be reached AFTER this check in the same attempt.
+  const runDir = path.join(root, 'job1', 'runs', 'run-1');
+  assert.equal(readArtifact(runDir, 'invoice_facts'), undefined, 'a not-done halt must never write an artifact');
+  assert.ok(!goalsSeen.some((g) => g.includes('Write a short reply')), 'a step after a not-done halt must never run');
+
+  const auditPath = path.join(runDir, 'audit.jsonl');
+  const rows = readFileSync(auditPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const lastRow = rows[rows.length - 1];
+  assert.equal(lastRow.step, 'invoice_facts');
+  assert.equal(lastRow.verdict, 'not-done');
+
+  const historyPath = path.join(root, 'job1', 'history.jsonl');
+  const historyRows = readFileSync(historyPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(historyRows[historyRows.length - 1].outcome, 'not-done');
+});
+
+test('M2 amendment 1 item 1: a missing/non-boolean "done" halts naming the step, same as done:false', async () => {
+  const root = tmpRoot('done-missing');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('done-missing-sources');
+  const aging = writeTempCsv(srcDir);
+
+  // A legacy/non-compliant provider that never emits "done" at all.
+  const { fn: modelStep } = makeJob1ModelStepDoneVariant({
+    fields: {
+      invoice1: { value: 150, cite: 'aging_cells!E2' },
+      total_owed: { value: 150, cite: '#invoice1' },
+    },
+  });
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'not-done');
+  assert.match(result.red, /"invoice_facts" artifact has no boolean "done"/);
+
+  const runDir = path.join(root, 'job1', 'runs', 'run-1');
+  assert.equal(readArtifact(runDir, 'invoice_facts'), undefined);
+});
+
+test('M2 amendment 1 item 1: done:true proves nothing — a bad shape still reds through the ordinary close path', async () => {
+  // negative (ii), above, already exercises this exact path with `done: true`
+  // on every artifact (the fixture fakes were updated for the M2 amendment 1
+  // item 1 mechanism) — struck-out on the SAME close-red gap, never waved
+  // through by a true "done". Re-asserted explicitly here per the signed
+  // scope's own wording.
+  const root = tmpRoot('done-true-bad-shape');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('done-true-bad-shape-sources');
+  const aging = writeTempCsv(srcDir);
+
+  const { fn: modelStep } = job1ModelStepWithContexts({ step3Behavior: 'always-wrong' });
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'struck-out');
+  assert.match(result.red, /"total_owed" 999/);
+});
+
+// ---------------------------------------------------------------------------
+// M2 amendment 1 item 2 (unjudged artifacts as evidence at the next signed
+// ask) — SIGNED 2026-09-24. job #1's OWN fixture has two hitl steps not
+// bound to any signed ask line (fromLine 1 and 2, "silent default hitl") —
+// they must show up as `evidence.unjudged` on job #1's real ask (fromLine 5).
+// ---------------------------------------------------------------------------
+
+test('M2 amendment 1 item 2: job #1\'s unasked hitl steps (aging_cells, customer_match) are carried as evidence.unjudged into the signed ask', async () => {
+  const root = tmpRoot('unjudged-evidence');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('unjudged-evidence-sources');
+  const aging = writeTempCsv(srcDir);
+
+  const { fn: modelStep } = job1ModelStepWithContexts();
+
+  let seenEvidence = null;
+  const askStep = async ({ evidence }) => {
+    seenEvidence = evidence;
+    return { decision: 'accept' };
+  };
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'complete', result.red);
+  assert.ok(seenEvidence, 'the ask must have been called at least once');
+  assert.ok('artifact' in seenEvidence, 'evidence still carries the ask step\'s own artifact');
+  assert.equal(seenEvidence.unjudged.length, 2, 'both silent-default hitl steps (aging_cells, customer_match) must be carried');
+  assert.deepEqual(seenEvidence.unjudged.map((u) => u.emits), ['aging_cells', 'customer_match']);
+  assert.equal(seenEvidence.unjudged[0].artifact.kind, 'cells');
+  assert.equal(seenEvidence.unjudged[1].artifact.matchedCustomer, 'Acme Corp');
+  // Neither unjudged artifact carries the model's raw done/blocker self-report —
+  // it was stripped before this artifact was written/carried, same as any
+  // other artifact downstream of a "done:true" check.
+  assert.equal('done' in seenEvidence.unjudged[0].artifact, false);
+
+  const auditPath = path.join(root, 'job1', 'runs', 'run-1', 'audit.jsonl');
+  const rows = readFileSync(auditPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const askRow = rows.find((r) => r.step === 'approved_reply' && r.verdict === 'green');
+  assert.ok(askRow, 'the ask\'s own accept row must exist');
+  assert.equal(askRow.unjudgedCount, 2);
+
+  const askJsonPath = path.join(root, 'job1', 'runs', 'run-1', 'ask.json');
+  // ask.json is renamed away (consumed) once ACCEPT_ASK-style stand-ins are
+  // used with the real file protocol — here the fake askStep never wrote
+  // ask.json at all (it's a plain injected function), so this simply proves
+  // no stray ask.json was left behind.
+  assert.equal(existsSync(askJsonPath), false);
+});
+
+// A synthetic TWO-ask flow (job #1's own fixture, plus an extra ask inserted
+// at line 3 — same shape as poc/m1/fixtures/twoask.prose.txt) proves the
+// reset: ask #1 (line 3) must show the two unasked hitl steps before it
+// (aging_cells, customer_match); ask #2 (line 6) must show NOTHING, because
+// nothing unjudged happened between the two asks (invoice_facts is green,
+// reply_draft is softgreen — neither is hitl).
+const TWO_ASK_PROSE = `1. When the AR aging sheet lands, read it,
+2. then read the chat message and work out which customer it is about.
+   guardrail: if more than one customer matches, ask me, do not pick
+3. ask: which customer is this about?
+4. Pull their open invoices, what they owe in total, the earliest due date, and how many are overdue as of the business date.
+   guardrail: every number must point to the cell it came from or the formula that made it
+5. Write me a short reply with one line per invoice,
+   guardrail: one line per invoice in the reply
+6. ask: check it with me,
+   guardrail: nothing goes out before I accept
+7. and send it once I accept.
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.25 per run
+guardrail: send at line 7 to file:poc/m0/out
+guardrail: source aging = file:/home/hamr/Documents/ar/aging.csv
+`;
+
+const AGING_LISTING = [
+  'Customer', 'Invoice #', 'Invoice date', 'Due date', 'Amount', 'Days overdue', 'Current', '1-30', '31-60', '61-90', '90+',
+];
+
+const TWO_ASK_DECLARATION = {
+  guardrailClasses: { 2: 'hitl', 4: 'green', 5: 'softgreen' },
+  unjudgeable: {},
+  refused: [],
+  inputFacts: { aging: AGING_LISTING },
+  steps: [
+    {
+      goal: 'Read the AR aging sheet as addressable cells so every figure downstream can be cited back to a cell.',
+      primitives: ['addressCells'],
+      reads: [],
+      emits: 'aging_cells',
+      picks: { aging: AGING_LISTING },
+      fromLine: 1,
+      close: { class: 'hitl' },
+    },
+    {
+      goal: 'Read the chat message and work out which customer in the aging sheet it is about; if more than one customer matches, ask the human instead of picking one.',
+      primitives: ['read'],
+      reads: ['aging_cells'],
+      emits: 'customer_match',
+      picks: { aging: ['Customer'] },
+      fromLine: 2,
+      close: { class: 'hitl' },
+    },
+    {
+      goal: 'Confirm with the human which customer this is about.',
+      primitives: [],
+      reads: ['customer_match'],
+      emits: 'customer_confirmed',
+      fromLine: 3,
+      close: { class: 'hitl' },
+    },
+    {
+      goal: 'For the matched customer, pull their open invoices, total owed, earliest due date, and count of invoices overdue as of the business date, each figure tied to the cell or formula it came from.',
+      primitives: ['addressCells'],
+      reads: ['aging_cells', 'customer_confirmed'],
+      emits: 'invoice_facts',
+      picks: { aging: ['Customer', 'Invoice #', 'Due date', 'Amount'] },
+      fromLine: 4,
+      close: { class: 'green' },
+    },
+    {
+      goal: 'Write a short reply to the customer containing one line per open invoice.',
+      primitives: ['write'],
+      reads: ['invoice_facts'],
+      emits: 'reply_draft',
+      picks: { aging: ['Invoice #', 'Due date', 'Amount'] },
+      fromLine: 5,
+      close: {
+        class: 'softgreen',
+        shape: { linesPerInvoice: 1, mustCarry: ['Invoice #', 'Due date', 'Amount'] },
+      },
+    },
+    {
+      goal: 'Show the drafted reply to the human and wait for their acceptance before anything leaves.',
+      primitives: [],
+      reads: ['reply_draft'],
+      emits: 'approved_reply',
+      fromLine: 6,
+      close: { class: 'hitl' },
+    },
+    {
+      goal: 'Send the accepted reply to the customer.',
+      primitives: ['write'],
+      reads: ['approved_reply'],
+      emits: 'sent_reply',
+      fromLine: 7,
+      close: { class: 'hitl' },
+    },
+  ],
+};
+
+test('M2 amendment 1 item 2: the unjudged list resets after an ask — a synthetic two-ask flow only shows what happened since the previous ask', async () => {
+  const root = tmpRoot('unjudged-two-ask');
+  const written = writeFlow({
+    root,
+    name: 'twoask',
+    proseText: TWO_ASK_PROSE,
+    declaration: TWO_ASK_DECLARATION,
+    signedBy: SIGNED_BY,
+    signedAt: SIGNED_AT,
+    catalogue: CATALOGUE,
+  });
+  assert.equal(written.ok, true, written.ok ? '' : written.reds.join('\n'));
+
+  const srcDir = tmpRoot('unjudged-two-ask-sources');
+  const aging = writeTempCsv(srcDir);
+
+  const { fn: modelStep } = job1ModelStepWithContexts();
+
+  const evidences = [];
+  const askStep = async ({ evidence }) => {
+    evidences.push(evidence);
+    return { decision: 'accept' };
+  };
+
+  const result = await runFlow({
+    root,
+    name: 'twoask',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'complete', result.red);
+  assert.equal(evidences.length, 2, 'two signed asks, two evidence payloads');
+
+  assert.equal(evidences[0].unjudged.length, 2, 'ask #1 carries both silent-default hitl steps before it');
+  assert.deepEqual(evidences[0].unjudged.map((u) => u.emits), ['aging_cells', 'customer_match']);
+
+  assert.equal(evidences[1].unjudged.length, 0, 'ask #2 carries nothing — invoice_facts/reply_draft are not hitl, and the list reset after ask #1');
+
+  const auditPath = path.join(root, 'twoask', 'runs', 'run-1', 'audit.jsonl');
+  const rows = readFileSync(auditPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const ask1Row = rows.find((r) => r.step === 'customer_confirmed' && r.verdict === 'green');
+  const ask2Row = rows.find((r) => r.step === 'approved_reply' && r.verdict === 'green');
+  assert.equal(ask1Row.unjudgedCount, 2);
+  assert.equal(ask2Row.unjudgedCount, 0);
+});
+
+test('M2 amendment 1 item 2: ask.json on disk (the real file protocol) carries evidence.unjudged', async () => {
+  const root = tmpRoot('unjudged-ask-json');
+  const written = writeFlow({
+    root,
+    name: 'twoask',
+    proseText: TWO_ASK_PROSE,
+    declaration: TWO_ASK_DECLARATION,
+    signedBy: SIGNED_BY,
+    signedAt: SIGNED_AT,
+    catalogue: CATALOGUE,
+  });
+  assert.equal(written.ok, true, written.ok ? '' : written.reds.join('\n'));
+
+  const srcDir = tmpRoot('unjudged-ask-json-sources');
+  const aging = writeTempCsv(srcDir);
+
+  const { fn: modelStep } = job1ModelStepWithContexts();
+  const runId = 'run-1';
+  const runDir = path.join(root, 'twoask', 'runs', runId);
+  const askStep = makeFileAskStep({ pollMs: 20, timeoutMs: 5000 });
+
+  const runPromise = runFlow({
+    root,
+    name: 'twoask',
+    runId,
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  const askPath = path.join(runDir, 'ask.json');
+  const deadline = Date.now() + 3000;
+  while (!existsSync(askPath) && Date.now() < deadline) { await new Promise((r) => { setTimeout(r, 10); }); }
+  assert.ok(existsSync(askPath), 'the first ask must reach disk');
+  const askJson = JSON.parse(readFileSync(askPath, 'utf8'));
+  assert.equal(askJson.evidence.unjudged.length, 2);
+  assert.deepEqual(askJson.evidence.unjudged.map((u) => u.emits), ['aging_cells', 'customer_match']);
+
+  writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', answeredAt: new Date().toISOString() }));
+
+  // Wait for the SECOND ask to land, then answer it too.
+  const secondAskDeadline = Date.now() + 3000;
+  let secondAskJson = null;
+  while (Date.now() < secondAskDeadline) {
+    if (existsSync(askPath)) {
+      const parsed = JSON.parse(readFileSync(askPath, 'utf8'));
+      if (parsed.attempt === 2) { secondAskJson = parsed; break; }
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => { setTimeout(r, 10); });
+  }
+  assert.ok(secondAskJson, 'the second ask must reach disk');
+  assert.equal(secondAskJson.evidence.unjudged.length, 0, 'nothing unjudged happened between the two asks');
+  writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', answeredAt: new Date().toISOString() }));
+
+  const result = await runPromise;
+  assert.equal(result.outcome, 'complete', result.red);
+});
+
+// ---------------------------------------------------------------------------
 // A reject "<reason>" on job #1's ask re-runs the compose step with that
 // reason as the gap, and the audit shows attempt 2.
 // ---------------------------------------------------------------------------
@@ -583,13 +1009,13 @@ test('runFlow: job #2 fixture writes all five artifacts to disk with the right c
   const jd = writeTempDocxLike(srcDir, 'jd.md', 'JD text goes here.');
 
   const modelStep = async (ctx) => {
-    if (ctx.goal.includes('resume .docx')) return { ok: true, costUsd: 0.001, artifact: { text: 'resume text' } };
-    if (ctx.goal.includes('job description markdown')) return { ok: true, costUsd: 0.001, artifact: { text: 'jd text' } };
+    if (ctx.goal.includes('resume .docx')) return { ok: true, costUsd: 0.001, artifact: { text: 'resume text', done: true } };
+    if (ctx.goal.includes('job description markdown')) return { ok: true, costUsd: 0.001, artifact: { text: 'jd text', done: true } };
     if (ctx.goal.includes('Draft the summary resume')) {
       const text = '## summary of work history blurb\nworked places.\n'
         + '## professional skills\nskills.\n'
         + '## soft skills\nsoft skills.';
-      return { ok: true, costUsd: 0.001, artifact: { text } };
+      return { ok: true, costUsd: 0.001, artifact: { text, done: true } };
     }
     throw new Error(`unexpected job2 goal: ${ctx.goal}`);
   };
@@ -647,15 +1073,16 @@ test('log.json: a red attempt 1 then a green attempt 2 both appear in "attempts"
             { rowNumber: 2, cells: { A: 'Acme Corp', B: 'INV-1', C: '2026-05-01', D: '2026-05-15', E: '150.00' } },
             { rowNumber: 3, cells: { A: 'Acme Corp', B: 'INV-2', C: '2026-05-05', D: '2026-05-20', E: '50.50' } },
           ],
+          done: true,
         },
       };
     }
-    if (ctx.goal.includes('work out which customer')) return { ok: true, costUsd: 0.001, artifact: { matchedCustomer: 'Acme Corp' } };
+    if (ctx.goal.includes('work out which customer')) return { ok: true, costUsd: 0.001, artifact: { matchedCustomer: 'Acme Corp', done: true } };
     if (ctx.goal.includes('pull their open invoices')) {
       calls += 1;
       if (calls === 1) {
         // Attempt 1: a deliberately wrong artifact — must close-red.
-        return { ok: true, costUsd: 0.001, artifact: { fields: { total_owed: { value: 999, cite: 'aging_cells!E2' } } } };
+        return { ok: true, costUsd: 0.001, artifact: { fields: { total_owed: { value: 999, cite: 'aging_cells!E2' } }, done: true } };
       }
       return {
         ok: true,
@@ -666,13 +1093,14 @@ test('log.json: a red attempt 1 then a green attempt 2 both appear in "attempts"
             invoice2: { value: 50.5, cite: 'aging_cells!E3' },
             total_owed: { value: 200.5, cite: 'sum(#invoice1,#invoice2)' },
           },
+          done: true,
         },
       };
     }
     if (ctx.goal.includes('Write a short reply')) {
       const text = 'Invoice # INV-1 Due date 2026-05-15 Amount 150\n'
         + 'Invoice # INV-2 Due date 2026-05-20 Amount 50.50';
-      return { ok: true, costUsd: 0.001, artifact: { text } };
+      return { ok: true, costUsd: 0.001, artifact: { text, done: true } };
     }
     throw new Error(`unexpected step goal in test fake: ${ctx.goal}`);
   };
@@ -751,6 +1179,7 @@ test('log.json: a model failure that emits no artifact keeps the model step\'s r
         artifact: {
           kind: 'cells',
           rows: [{ rowNumber: 2, cells: { A: 'Acme Corp', B: 'INV-1', C: '2026-05-01', D: '2026-05-15', E: '150.00' } }],
+          done: true,
         },
       };
     }

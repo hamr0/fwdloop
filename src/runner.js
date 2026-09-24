@@ -177,6 +177,43 @@ export function normaliseGap(red) {
 // (for the generic hitl case with no declared contract) no own keys at all.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// M2 amendment 1 item 1 (docs/wiki/the-module-ladder.md, "M2 amendment 1 —
+// SIGNED"): the model's own typed word, taken at face value, BEFORE the
+// happened check or the close ever run. `done: false` — or a missing/non-
+// boolean `done` (a schema the provider ignored is not a pass) — is a HALT,
+// never a strike, never a retry. `done`/`blocker` are stripped from the
+// artifact before it reaches the happened check, the closer, or disk — a
+// self-report is not something a closer judges; it is kept verbatim only in
+// log.json's modelOutput (the raw `result.artifact`, untouched by this).
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {any} step
+ * @param {unknown} artifact
+ * @returns {{verdict:'not-done', red:string} | {verdict:'done'}}
+ */
+function checkDoneBlocker(step, artifact) {
+  const label = step?.emits ?? 'step';
+  const obj = /** @type {Record<string, unknown>} */ (artifact);
+  if (!artifact || typeof artifact !== 'object' || typeof obj.done !== 'boolean') {
+    return { verdict: 'not-done', red: `step "${label}" artifact has no boolean "done"` };
+  }
+  if (obj.done === false) {
+    const blocker = typeof obj.blocker === 'string' && obj.blocker.length > 0 ? obj.blocker : 'no blocker given';
+    return { verdict: 'not-done', red: `step "${label}" reports done: false — ${blocker}` };
+  }
+  return { verdict: 'done' };
+}
+
+/** @param {unknown} artifact */
+function stripDoneBlocker(artifact) {
+  if (!artifact || typeof artifact !== 'object') return artifact;
+  const obj = /** @type {Record<string, unknown>} */ (artifact);
+  const { done, blocker, ...rest } = obj;
+  return rest;
+}
+
 function checkArtifactHappened(step, artifact) {
   const label = step?.goal ? `"${step.goal}"` : (step?.emits ?? 'step');
   if (artifact === null || artifact === undefined) {
@@ -391,7 +428,7 @@ function makeAuditRow({
  * @param {(row: any, modelOutput?: any) => void} opts.recordAudit
  * @param {string|null} [opts.initialGap]
  * @param {number} [opts.attemptOffset]
- * @returns {Promise<{ok:true, artifact:any, attempts:number} | {ok:false, outcome:string, red:string}>}
+ * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string}>}
  */
 async function runStepRalph({
   step, primitivesMap, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd, recordAudit, initialGap = null, attemptOffset = 0,
@@ -481,7 +518,21 @@ async function runStepRalph({
     }
     spent.value += result.costUsd;
 
-    const happened = checkArtifactHappened(step, result.artifact);
+    // The model's own word, taken at face value — before the happened check,
+    // before any close, no exception (M2 amendment 1 item 1). A halt, not a
+    // strike, not a retry: `recordAudit`'s modelOutput arg keeps the RAW
+    // `result.artifact` (done/blocker included) for log.json; everything
+    // downstream of a `done: true` gets the STRIPPED artifact.
+    const doneCheck = checkDoneBlocker(step, result.artifact);
+    if (doneCheck.verdict === 'not-done') {
+      recordAudit(makeAuditRow({
+        step, attempt, verdict: 'not-done', gap: doneCheck.red, usd: result.costUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+      }), result.artifact ?? null);
+      return { ok: false, outcome: 'not-done', red: doneCheck.red };
+    }
+    const artifact = stripDoneBlocker(result.artifact);
+
+    const happened = checkArtifactHappened(step, artifact);
     if (happened.verdict === 'red') {
       // Item 5: "or wrote no artifact" strikes unconditionally, every time
       // (never gated by novelty — an empty artifact is always the same
@@ -497,13 +548,15 @@ async function runStepRalph({
       continue;
     }
 
-    const closed = closeByClass(step, result.artifact, { reads: readsMap, businessDate });
+    const closed = closeByClass(step, artifact, { reads: readsMap, businessDate });
 
     if (closed.verdict === 'green' || closed.verdict === 'hitl') {
       recordAudit(makeAuditRow({
         step, attempt, verdict: closed.verdict, gap: null, usd: result.costUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
       }), result.artifact);
-      return { ok: true, artifact: result.artifact, attempts: attempt };
+      return {
+        ok: true, artifact, attempts: attempt, hitl: closed.verdict === 'hitl',
+      };
     }
 
     if (closed.verdict !== 'red') {
@@ -603,9 +656,13 @@ export async function runFlow({
   // shape) and folded into log.json only, on every exit path.
   /** @type {any[]} */
   const attemptsLog = [];
-  const recordAudit = (row, modelOutput) => {
-    auditRows.push(row);
-    appendAudit(runDir, row);
+  const recordAudit = (row, modelOutput, unjudgedCount) => {
+    // M2 amendment 1 item 2: "audit row for the ask gains unjudgedCount" —
+    // only the ask's own rows pass a third argument; every other row is
+    // unaffected (the key is simply absent, never a stray 0/null).
+    const fullRow = unjudgedCount === undefined ? row : { ...row, unjudgedCount };
+    auditRows.push(fullRow);
+    appendAudit(runDir, fullRow);
     if (modelOutput !== undefined) {
       attemptsLog.push({
         step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, modelOutput,
@@ -614,6 +671,11 @@ export async function runFlow({
   };
   const spent = { value: 0 };
   let acceptedThisRun = false;
+  // M2 amendment 1 item 2: every hitl-class step NOT bound to a signed ask
+  // line is carried as evidence into the NEXT signed ask, in order, then
+  // reset — never silently passed through unseen.
+  /** @type {Array<{step:string|null, emits:string, artifact:unknown}>} */
+  let unjudgedSinceLastAsk = [];
 
   const steps = declaration.steps;
   for (let i = 0; i < steps.length; i += 1) {
@@ -663,16 +725,25 @@ export async function runFlow({
       let priorArtifact = readArtifact(runDir, priorId);
       let redone = 0;
 
+      // M2 amendment 1 item 2: every hitl artifact carried since the
+      // previous ask goes to THIS ask as evidence, alongside the ask step's
+      // own artifact — then the list resets (a fresh accumulator for the
+      // NEXT ask), so a later ask never re-shows what an earlier one covered.
+      const evidenceUnjudged = unjudgedSinceLastAsk;
+      const unjudgedCount = evidenceUnjudged.length;
+      unjudgedSinceLastAsk = [];
+
       for (;;) {
+        const evidence = { artifact: priorArtifact, unjudged: evidenceUnjudged };
         // eslint-disable-next-line no-await-in-loop
-        const answer = await askStep({ question: askSlot?.question ?? step.goal, evidence: priorArtifact, runDir });
+        const answer = await askStep({ question: askSlot?.question ?? step.goal, evidence, runDir });
 
         if (answer.decision === 'timeout') {
           // A pause spends nothing (M2 scope item 6) — a halt, never a red
           // with a fabricated cost, and never re-asked (the run is over).
           recordAudit(makeAuditRow({
             step, attempt: redone + 1, verdict: 'ask-timeout', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
-          }));
+          }), undefined, unjudgedCount);
           return haltRun({
             flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts,
             outcome: 'ask-timeout', red: `ask-timeout: step "${step.goal}" expired waiting for a human answer`,
@@ -685,7 +756,7 @@ export async function runFlow({
         if (isRedo && reason.length === 0) {
           recordAudit(makeAuditRow({
             step, attempt: redone + 1, verdict: 'refused', gap: 'a rejection/rerun needs a reason', usd: 0, spendComplete: true, wallMs: 0, strike: false,
-          }));
+          }), undefined, unjudgedCount);
           // Refused, re-asked for the SAME attempt — never re-runs the step.
           // eslint-disable-next-line no-continue
           continue;
@@ -694,7 +765,7 @@ export async function runFlow({
         if (answer.decision === 'accept') {
           recordAudit(makeAuditRow({
             step, attempt: redone + 1, verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
-          }));
+          }), undefined, unjudgedCount);
           writeArtifact(runDir, step.emits, priorArtifact);
           artifacts[step.emits] = priorArtifact;
           acceptedThisRun = true;
@@ -705,7 +776,7 @@ export async function runFlow({
           redone += 1;
           recordAudit(makeAuditRow({
             step, attempt: redone, verdict: 'red', gap: reason, usd: 0, spendComplete: true, wallMs: 0, strike: false,
-          }));
+          }), undefined, unjudgedCount);
           if (redone > redoCap) {
             return haltRun({
               flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts,
@@ -754,6 +825,13 @@ export async function runFlow({
     }
     writeArtifact(runDir, step.emits, stepResult.artifact);
     artifacts[step.emits] = stepResult.artifact;
+    // M2 amendment 1 item 2: a hitl-class step not bound to a signed ask
+    // line (the routing above already guarantees that — this branch is only
+    // reached when neither askLines nor sendLines claimed the step) passes
+    // through silently here; carry it as evidence for the NEXT signed ask.
+    if (stepResult.hitl) {
+      unjudgedSinceLastAsk.push({ step: step.goal ?? null, emits: step.emits, artifact: stepResult.artifact });
+    }
   }
 
   const wallMs = Date.now() - startedAt;

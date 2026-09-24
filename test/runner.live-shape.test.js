@@ -68,7 +68,7 @@ function scriptedArtifactProvider(artifacts) {
   };
 }
 
-const BAD_SUMMARY = { text: 'This draft has no headings at all and will not match the declared shape.' };
+const BAD_SUMMARY = { text: 'This draft has no headings at all and will not match the declared shape.', done: true };
 const GOOD_SUMMARY = {
   text: 'summary of work history blurb\n'
     + 'Led engineering teams for five years, shipping several distributed systems products.\n\n'
@@ -76,6 +76,7 @@ const GOOD_SUMMARY = {
     + 'Python, distributed systems, cloud infrastructure, API design.\n\n'
     + 'soft skills\n'
     + 'Clear technical writing, mentorship, and cross-team communication.',
+  done: true,
 };
 
 async function waitFor(predicate, { timeoutMs = 3000, pollMs = 20 } = {}) {
@@ -112,8 +113,8 @@ test('job #2 live-shape: a planted softgreen red heals on attempt 2, the file as
   const spendPath = path.join(runDir, 'spend.jsonl');
 
   const provider = scriptedArtifactProvider([
-    { text: 'Resume: five years of engineering leadership.' }, // step1 (hitl, readDocx)
-    { text: 'JD: looking for an applied AI architect.' }, // step2 (hitl, read)
+    { text: 'Resume: five years of engineering leadership.', done: true }, // step1 (hitl, readDocx)
+    { text: 'JD: looking for an applied AI architect.', done: true }, // step2 (hitl, read)
     BAD_SUMMARY, // step3 attempt 1 — plants the red (no headings at all)
     GOOD_SUMMARY, // step3 attempt 2 — heals on the gap alone
   ]);
@@ -197,8 +198,8 @@ test('job #2 live-shape: an ask timeout halts the run "ask-timeout", a pause spe
   const spendPath = path.join(root, 'job2', 'runs', runId, 'spend.jsonl');
 
   const provider = scriptedArtifactProvider([
-    { text: 'Resume placeholder.' },
-    { text: 'JD placeholder.' },
+    { text: 'Resume placeholder.', done: true },
+    { text: 'JD placeholder.', done: true },
     GOOD_SUMMARY,
   ]);
   const modelStep = makeLiveModelStep({

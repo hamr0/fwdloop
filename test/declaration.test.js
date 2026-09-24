@@ -585,6 +585,73 @@ describe('the send lock', () => {
 });
 
 // ---------------------------------------------------------------------------
+// M2 amendment 1 item 2 (docs/wiki/the-module-ladder.md, "M2 amendment 1 —
+// SIGNED"): nothing hitl-class may sit after the LAST signed ask, unseen.
+// The send step bound to a signed send line is the one exempt step.
+// ---------------------------------------------------------------------------
+
+describe('M2 amendment 1 item 2: nothing hitl after the last signed ask', () => {
+  test('both real fixtures still validate green: job #1\'s send (line 6, after ask line 5) and job #2\'s send (line 5, after ask line 4) are the exempt step', () => {
+    const signed1 = parseSignedText(fixture('job1.m1.signed.txt'));
+    assert.equal(signed1.ok, true, signed1.ok ? '' : signed1.reds.join('\n'));
+    const result1 = validateDeclaration(fixtureJson('job1.m1.declaration.json'), { arbiter: signed1.arbiter, lines: signed1.lines, catalogue: CATALOGUE });
+    assert.equal(result1.ok, true, result1.ok ? '' : result1.reds.join('\n'));
+
+    const signed2 = parseSignedText(fixture('job2-with-sources.signed.txt'));
+    assert.equal(signed2.ok, true, signed2.ok ? '' : signed2.reds.join('\n'));
+    const result2 = validateDeclaration(fixtureJson('job2.m1.declaration.json'), { arbiter: signed2.arbiter, lines: signed2.lines, catalogue: CATALOGUE });
+    assert.equal(result2.ok, true, result2.ok ? '' : result2.reds.join('\n'));
+  });
+
+  test('mutation: appending a hitl step after job #1\'s send is a red naming it', () => {
+    const signed = parseSignedText(fixture('job1.m1.signed.txt'));
+    assert.equal(signed.ok, true, signed.ok ? '' : signed.reds.join('\n'));
+    const declaration = fixtureJson('job1.m1.declaration.json');
+    declaration.steps.push({
+      goal: 'An extra step the drafter should never have appended after the send.',
+      primitives: [],
+      reads: ['sent_reply'],
+      emits: 'leaked_afterthought',
+      fromLine: null,
+      close: { class: 'hitl' },
+    });
+    const result = validateDeclaration(declaration, { arbiter: signed.arbiter, lines: signed.lines, catalogue: CATALOGUE });
+    assert.equal(result.ok, false);
+    assert.ok(result.reds.some((r) => /step "leaked_afterthought".*is hitl after the last signed ask — nothing may leave unseen/.test(r)), result.reds.join('\n'));
+  });
+
+  test('mutation: appending a hitl step after the minimal fixture\'s send is a red naming it (baseDeclaration/SIGNED)', () => {
+    const decl = baseDeclaration();
+    decl.steps.push({
+      goal: 'A hitl step smuggled in after the send.',
+      primitives: [],
+      reads: ['sent'],
+      emits: 'unseen',
+      fromLine: null,
+      close: { class: 'hitl' },
+    });
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(result.reds.some((r) => /step "unseen" \(line null\) is hitl after the last signed ask — nothing may leave unseen/.test(r)), result.reds.join('\n'));
+  });
+
+  test('no signed ask at all: nothing to anchor on, so this check never fires', () => {
+    const badArbiter = { ...SIGNED.arbiter, asks: [] };
+    const decl = baseDeclaration();
+    // With no ask signed, drop the ask step itself (it would otherwise trip
+    // the UNRELATED "pause at an unsigned line" rule) so this isolates the
+    // "no anchor" case cleanly.
+    decl.steps.splice(1, 1);
+    decl.refused.push({ line: 2, reason: 'no ask signed in this variant' });
+    const result = validateDeclaration(decl, { arbiter: badArbiter, lines: SIGNED.lines, catalogue: CATALOGUE });
+    // Still reds (rule (e) of the send lock: no earlier ask to read from) —
+    // but never for THIS check's wording, proving it is inert with no anchor.
+    assert.equal(result.ok, false);
+    assert.ok(!result.reds.some((r) => r.includes('is hitl after the last signed ask')), result.reds.join('\n'));
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Listing rule
 // ---------------------------------------------------------------------------
 

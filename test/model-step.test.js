@@ -62,6 +62,18 @@ test('buildEmitArtifactSchema: class-only — green/softgreen/hitl differ, and n
   }
 });
 
+// M2 amendment 1 item 1: every class's schema carries the step's own typed
+// self-report — done (required) and blocker — so runner.js can take the
+// model's own word at face value before any close runs.
+test('buildEmitArtifactSchema: every class gains a required "done" boolean and a "blocker" string|null', () => {
+  for (const cls of ['green', 'softgreen', 'hitl', undefined]) {
+    const schema = buildEmitArtifactSchema(cls);
+    assert.equal(schema.properties.done.type, 'boolean', cls);
+    assert.deepEqual(schema.properties.blocker.type, ['string', 'null'], cls);
+    assert.ok(schema.required.includes('done'), `${cls}: "done" must be required`);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Happy path metering
 // ---------------------------------------------------------------------------

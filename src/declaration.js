@@ -639,6 +639,31 @@ export function validateDeclaration(declaration, context = {}) {
     }
   }
 
+  // --- M2 amendment 1 item 2 (docs/wiki/the-module-ladder.md, "M2 amendment
+  // 1 — SIGNED"): nothing hitl-class may sit after the LAST signed ask,
+  // unseen — the send step bound to a signed send line is the one exempt
+  // step (it is itself hitl-class by silence in both fixtures, but it is
+  // the human-accepted egress, not a second undeclared pause). Anchored on
+  // STEP ORDER (a step's position in `declaration.steps`, not its line
+  // number) since that is the order the runner actually folds over. No
+  // anchor to check against when there is no signed ask at all.
+  if (askLines.length > 0) {
+    const lastAskLine = Math.max(...askLines);
+    const lastAskStepIdx = stepInfo.findIndex((st) => st.fromLine === lastAskLine);
+    if (lastAskStepIdx !== -1) {
+      const sendStepIndices = new Set();
+      for (const n of sendLines) {
+        const idx = stepInfo.findIndex((st) => st.fromLine === n);
+        if (idx !== -1) sendStepIndices.add(idx);
+      }
+      stepInfo.forEach((st, i) => {
+        if (i > lastAskStepIdx && st.effectiveClass === 'hitl' && !sendStepIndices.has(i)) {
+          reds.push(`declaration: step "${st.emits}" (line ${st.fromLine}) is hitl after the last signed ask — nothing may leave unseen`);
+        }
+      });
+    }
+  }
+
   // --- check 6: every numbered line must be served or refused, never dropped
   const claimedLines = new Set(stepInfo.map((st) => st.fromLine).filter((n) => Number.isInteger(n)));
   for (const line of safeLines) {

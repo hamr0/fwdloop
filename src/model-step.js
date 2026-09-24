@@ -64,6 +64,23 @@ export function isTransportFailure(err) {
   return false;
 }
 
+// M2 amendment 1 item 1 (docs/wiki/the-module-ladder.md, "M2 amendment 1 —
+// SIGNED"): every class's `emit_artifact` schema carries the step's own
+// typed self-report — `done` (required) and `blocker` — so `src/runner.js`
+// can take the model's own word at face value, mechanically, before any
+// close runs. Shared across all three schemas so their wording can never
+// drift apart.
+const DONE_PROPS = Object.freeze({
+  done: {
+    type: 'boolean',
+    description: "true only if this step's goal was actually accomplished with real data; false if anything blocked it",
+  },
+  blocker: {
+    type: ['string', 'null'],
+    description: 'when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true',
+  },
+});
+
 const GREEN_SCHEMA = Object.freeze({
   type: 'object',
   properties: {
@@ -75,8 +92,9 @@ const GREEN_SCHEMA = Object.freeze({
         required: ['value', 'cite'],
       },
     },
+    ...DONE_PROPS,
   },
-  required: ['fields'],
+  required: ['fields', 'done'],
 });
 
 const SOFTGREEN_SCHEMA = Object.freeze({
@@ -84,8 +102,9 @@ const SOFTGREEN_SCHEMA = Object.freeze({
   properties: {
     text: { type: 'string' },
     lines: { type: 'array', items: { type: 'string' } },
+    ...DONE_PROPS,
   },
-  required: ['text'],
+  required: ['text', 'done'],
 });
 
 // hitl/read-style steps: the documented common shapes are {text} or
@@ -98,7 +117,9 @@ const HITL_SCHEMA = Object.freeze({
   properties: {
     text: { type: 'string' },
     cells: { type: 'object' },
+    ...DONE_PROPS,
   },
+  required: ['done'],
   additionalProperties: true,
 });
 
