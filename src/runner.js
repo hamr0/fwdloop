@@ -251,7 +251,9 @@ export function freezeInputs(runDir, sources) {
 /** The send target's directory must resolve (lexically AND after
  *  realpath — a symlink inside the repo pointing outside it must not pass)
  *  inside the repo, and be writable. Re-checked at write time, not just at
- *  preflight (time-of-check vs time-of-use, M0's own fix). */
+ *  preflight (time-of-check vs time-of-use, M0's own fix).
+ *  @param {string} target
+ *  @returns {{ok:true, dir:string} | {ok:false, red:string}} */
 export function checkSendDestination(target) {
   const match = /^file:(.+)$/.exec(target ?? '');
   if (!match) return { ok: false, red: `destination: send target "${target}" is not a "file:<path>" target` };
@@ -315,7 +317,7 @@ function makeAuditRow({
  * @param {Record<string, any>} [opts.primitivesMap]
  * @param {Record<string, any>} opts.readsMap
  * @param {string} opts.businessDate
- * @param {(executorContext:object, grantedTools:Record<string,any>) => Promise<any>} opts.modelStep
+ * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<any>} opts.modelStep
  * @param {{ value: number }} opts.spent
  * @param {number} opts.capUsd
  * @param {number} opts.ceilingUsd
@@ -349,23 +351,36 @@ async function runStepRalph({
       goal: step.goal, primitives: step.primitives ?? [], reads: readsMap, gap,
     });
 
+    // `stepMeta` is a SEPARATE argument from `executorContext` — never a
+    // field on it. It carries the step's declared close CLASS only (never
+    // its shape), so a live `modelStep` can build its `emit_artifact` tool
+    // schema without the executor context ever needing to carry one (M2
+    // scope item 3's own invariant: the schema is class-only, and the
+    // construction test below proves the context itself stays clean).
+    const stepMeta = Object.freeze({ class: step.close?.class ?? null });
+
     const startedAt = Date.now();
     // eslint-disable-next-line no-await-in-loop
-    let result = await modelStep(executorContext, grantedTools);
+    let result = await modelStep(executorContext, grantedTools, stepMeta);
     if (result && result.ok === false && result.transport === true) {
+      // A known partial cost from the FIRST transport fault must survive as
+      // the floor even though this attempt goes on to retry — never
+      // dropped on the retry path (the brief's own gap, closed here).
+      if (typeof result.costUsd === 'number') spent.value += result.costUsd;
       // Exactly one immediate retry on the SAME attempt for a transport
       // fault; an HTTP status is not transport, a wall-clock timeout is
       // never retried (M2 scope item 8) — both are the caller's own
       // `modelStep`'s job to distinguish; this loop only ever retries the
       // `transport: true` shape, exactly once.
       // eslint-disable-next-line no-await-in-loop
-      result = await modelStep(executorContext, grantedTools);
+      result = await modelStep(executorContext, grantedTools, stepMeta);
     }
     const wallMs = Date.now() - startedAt;
 
     if (result && result.ok === false && result.transport === true) {
+      if (typeof result.costUsd === 'number') spent.value += result.costUsd;
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'provider-red', gap, usd: null, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: 'provider-red', gap, usd: result.costUsd ?? null, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
       }));
       return { ok: false, outcome: 'provider-red', red: `provider-red: step "${step.goal}" attempt ${attempt}: ${result.red ?? 'transport fault twice'}` };
     }
@@ -459,8 +474,8 @@ async function runStepRalph({
  * @param {string} opts.runId
  * @param {Array<{id:string, path:string}>} opts.sources - the real files to freeze for this run.
  * @param {unknown} opts.catalogue - passed straight through to `readFlow`.
- * @param {(executorContext:object, grantedTools:Record<string,any>) => Promise<{ok:boolean, artifact?:unknown, costUsd:number|null, red?:string, transport?:boolean, model?:string, modelMatch?:boolean}>} opts.modelStep
- * @param {(opts:{question:string, evidence:unknown, runDir:string}) => Promise<{decision:'accept'|'reject'|'rerun', reason?:string}>} opts.askStep
+ * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<{ok:boolean, artifact?:unknown, costUsd:number|null, red?:string, transport?:boolean, model?:string, modelMatch?:boolean}>} opts.modelStep
+ * @param {(opts:{question:string, evidence:unknown, runDir:string}) => Promise<{decision:'accept'|'reject'|'rerun'|'timeout', reason?:string}>} opts.askStep
  * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
  * @param {Record<string, any>} [opts.primitives] - injected primitive implementations, keyed by catalogue verb.
  * @param {() => string} [opts.clock] - returns the current ISO timestamp; defaults to the wall clock.
@@ -569,6 +584,19 @@ export async function runFlow({
       for (;;) {
         // eslint-disable-next-line no-await-in-loop
         const answer = await askStep({ question: askSlot?.question ?? step.goal, evidence: priorArtifact, runDir });
+
+        if (answer.decision === 'timeout') {
+          // A pause spends nothing (M2 scope item 6) — a halt, never a red
+          // with a fabricated cost, and never re-asked (the run is over).
+          recordAudit(makeAuditRow({
+            step, attempt: redone + 1, verdict: 'ask-timeout', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
+          }));
+          return haltRun({
+            flowDir, runDir, runId, capUsd, startedAt, now, spent,
+            outcome: 'ask-timeout', red: `ask-timeout: step "${step.goal}" expired waiting for a human answer`,
+          });
+        }
+
         const isRedo = answer.decision === 'reject' || answer.decision === 'rerun';
         const reason = typeof answer.reason === 'string' ? answer.reason.trim() : '';
 

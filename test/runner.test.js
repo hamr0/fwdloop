@@ -412,6 +412,51 @@ test('negative (v): a transport fault twice parks the run provider-red, spendCom
   assert.equal(rows[rows.length - 1].spendComplete, false);
 });
 
+// M2 piece 2's own fix to piece 1's gap (flagged in piece 1's report): a
+// KNOWN partial cost priced before a transport throw must survive as the
+// floor in `spent`/`history.jsonl`'s `spentUsd` — never dropped to 0 just
+// because the attempt as a whole ended in a provider-red.
+test('a transport fault\'s known partial cost survives as the floor in spentUsd, never dropped to 0', async () => {
+  const root = tmpRoot('transport-floor');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('transport-floor-sources');
+  const aging = writeTempCsv(srcDir);
+
+  let calls = 0;
+  const modelStep = async () => {
+    calls += 1;
+    // Both the first (retried) attempt AND the final failing one priced
+    // something real before the transport throw — the floor must be the
+    // SUM of both, never just the last one.
+    return {
+      ok: false, transport: true, costUsd: 0.002, spendComplete: false, red: 'ECONNRESET',
+    };
+  };
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'provider-red');
+  assert.equal(calls, 2);
+  assert.equal(result.spentUsd, 0.004, 'both priced rounds (retry + final) must be summed into the floor');
+
+  const historyPath = path.join(root, 'job1', 'history.jsonl');
+  const rows = readFileSync(historyPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const last = rows[rows.length - 1];
+  assert.equal(last.spendComplete, false);
+  assert.equal(last.spentUsd, 0.004, 'history.jsonl must record the floor, never 0, when money was actually spent');
+});
+
 // ---------------------------------------------------------------------------
 // Negative (vi): covered by the "construction test" above (real context vs.
 // a leaky double smuggling `close` in).
