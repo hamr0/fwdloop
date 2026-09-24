@@ -2026,3 +2026,44 @@ reds (the closer's gap names the exact missing heading; the model still needs 2�
 redraft cycle. Same shape as F38; not a bug, a cost line for M2's exit.
 
 **Cost.** $0.0446 for a run with two human rejects. Human-cost bar is $12.50/day; this is 0.4 % of it.
+
+## F41 — Live plant: an empty JD file; the step said `done: false` and the run halted `not-done` naming the step, nothing sent. Three books findings on the way (2026-09-24)
+
+**Setup.** `flows/job2-plant-notdone`: job #2's signed prose with `source jd` pointing at a 0-byte file
+(the frozen copy is 0 bytes, sha256 of empty), the real resume, cap $0.25. Runner at `a045b73`,
+`deepseek-flash`, detached, `--ask-timeout 600000`. The question: does amendment 1's `done: false`
+halt fire from a live model, not just the test double.
+
+**It fired.** Two audit rows, `outcome: not-done`, no ask opened, no send, `artifacts/` holds only
+`resume-text.json`. The JD step's artifact in `log.json`: `done: false`, `blocker: "Reading the frozen
+job description (role: "jd") consistently returned no content across repeated and size-capped
+attempts … path-based fallbacks were refused as outside the sandbox"`, `cells.jd_text: ""`. The model
+did not invent a JD. The runner took its word before any close, halted naming the step and the
+blocker verbatim, and the history row says `not-done`. Amendment 1 item 1 is live-proven.
+
+**Three things the books show that the tests did not.**
+
+1. **The halt path drops the signature hash.** `history.jsonl` row: `signatureHash: null`. The
+   complete path writes `signature.flow`; `haltRun` hard-codes `null` for every halt, including this
+   one, which read and verified the signature first. Item 9 says every history row carries it. A
+   halted run must name the flow version it halted on. Bug, one field.
+2. **Audit and history disagree by $0.061.** Audit rows sum to $0.0908; history says `spentUsd`
+   $0.1519. `spend.jsonl` has three rows: the JD step's first try died `socket hang up` after 4 rounds
+   ($0.0612), the item-8 retry then ran 8 rounds to `end_turn` ($0.0880). The retry's cost is on the
+   audit row; the fault's floor is only in the total. Money-honest (history is right, nothing dropped)
+   but item 9's "one row per attempt" row does not carry the attempt's cost. Fix: the attempt's audit
+   `usd` includes the retried fault's floor (or the fault gets its own audit row). Bug, one add.
+3. **`read` by role hands a step the raw .docx, and the step ate 400k tokens of zip.** Both spend
+   rows show ~200k input tokens per row with a 1–2 kB prompt: the JD step, finding `role: jd` empty,
+   read `role: resume` through `read` — which serves any frozen input, and returns the docx's bytes
+   as text (verified at $0: 248,730 chars, starts `PK\x03\x04`, truncated at 256 kB). Twelve rounds of
+   that is the $0.15, twice run-2's whole job. Nothing is wrong by the rules: the role list is every
+   frozen input, `read` has no notion of "this role is a docx". A ruling for hamr: **`read`/`grep`
+   offer only text roles; a .docx/.csv role names its own primitive in the refusal** ("role resume is a
+   .docx — use readDocx"). Mechanism, not wording. Recommended; not built until ruled.
+
+Also: no round trace exists, so which tool call carried the bytes is inferred from the tokens and the
+$0 replay, not read from a book. `log.json` keeps the model's artifact, not its tool calls. Cost line,
+not a defect under the 2026-09-15 ruling; noted for M3's inbox design.
+
+**Cost.** $0.152 for the plant. M2 total $0.74 of $5.00.
