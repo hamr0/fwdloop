@@ -2067,3 +2067,22 @@ $0 replay, not read from a book. `log.json` keeps the model's artifact, not its 
 not a defect under the 2026-09-15 ruling; noted for M3's inbox design.
 
 **Cost.** $0.152 for the plant. M2 total $0.74 of $5.00.
+
+## F42 — Branch review: the send shipped `reads[0]`, not the accepted artifact (2026-09-24)
+
+**Found by `/branch-review` at `ebffafe`, reproduced, confirmed.** The runner's send picked its content
+as the first id in the send step's `reads` that had an artifact on disk. Every read names an earlier
+step, so that was always `reads[0]`. A valid declaration whose send reads `['jd-text',
+'resume-summary-approved']` signed, ran, reported `complete`, and shipped the JD text. The live runs
+(F39–F41) were never exposed: job #2's send reads `resume-summary` first, which holds the same text as
+the accepted artifact. No test entered the runner's send branch with a real `arbiter.sends` line.
+
+**Fixed by identity, not position.** The send ships the artifact emitted by the one signed ask step
+in its `reads`, and only if that ask was accepted in this run. None, or more than one, halts red
+naming the ids before `sendStep` is called. `validateDeclaration` now requires exactly one earlier
+ask's `emits` in a send's `reads`. Each new test is red against the old code (content mismatch;
+`'complete' !== 'red'`; a two-ask send validating green).
+
+**Also seen.** `validateDeclaration` counts asks earlier by prose line; the runner counts every signed
+ask step. A signed ask on a later line but earlier in step order passes the validator and is caught
+by the runner's guard. Harmless now; worth one rule when M3 revisits ask placement.

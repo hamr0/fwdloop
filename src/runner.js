@@ -707,6 +707,16 @@ export async function runFlow({
   let unjudgedSinceLastAsk = [];
 
   const steps = declaration.steps;
+  // M2 fix: the send's content is identified by IDENTITY (the artifact
+  // emitted by a signed ask step), never by position in `reads` — every id
+  // in a send step's `reads` names an earlier step, so picking `reads[0]`
+  // silently ships whatever was read first instead of what was accepted.
+  // Derived the same way the loop below knows a step is an ask — bound to
+  // an `arbiter.asks[]` line.
+  const askStepEmits = new Set(steps.filter((s) => askLines.has(s.fromLine)).map((s) => s.emits));
+  // Tracks which specific ask emits were accepted THIS run (acceptedThisRun
+  // above stays run-wide, for the "reached with no accept this run" gate).
+  const acceptedAskEmitsThisRun = new Set();
   for (let i = 0; i < steps.length; i += 1) {
     const step = steps[i];
 
@@ -726,8 +736,21 @@ export async function runFlow({
         });
       }
       const target = `${sendSlot.target.kind}:${sendSlot.target.path}`;
-      const contentArtifactId = (step.reads ?? []).find((id) => readArtifact(runDir, id) !== undefined);
-      const content = readArtifact(runDir, contentArtifactId);
+      const askIdsInReads = (step.reads ?? []).filter((id) => askStepEmits.has(id));
+      if (askIdsInReads.length !== 1) {
+        return haltRun({
+          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts,
+          outcome: 'red', red: `send: step "${step.goal}" must read exactly one signed ask's artifact, found [${askIdsInReads.join(', ')}]`,
+        });
+      }
+      const [askArtifactId] = askIdsInReads;
+      if (!acceptedAskEmitsThisRun.has(askArtifactId)) {
+        return haltRun({
+          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts,
+          outcome: 'red', red: `send: step "${step.goal}" reads ask artifact "${askArtifactId}" that was not accepted this run`,
+        });
+      }
+      const content = readArtifact(runDir, askArtifactId);
       const filename = `${runId}-${step.emits}.json`;
       // eslint-disable-next-line no-await-in-loop
       const sendResult = await sendStep(target, filename, content);
@@ -798,6 +821,7 @@ export async function runFlow({
           writeArtifact(runDir, step.emits, priorArtifact);
           artifacts[step.emits] = priorArtifact;
           acceptedThisRun = true;
+          acceptedAskEmitsThisRun.add(step.emits);
           break;
         }
 

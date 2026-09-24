@@ -218,6 +218,143 @@ test('runFlow: job #2 fixture runs end to end, complete', async () => {
   assert.ok(result.artifacts['resume-summary-output']);
 });
 
+// ---------------------------------------------------------------------------
+// M2 fix — the send's content is the signed ask's artifact by IDENTITY,
+// never by position in `reads`. Every id in a send step's `reads` names an
+// earlier step, so a position-based pick (`reads[0]`) silently ships
+// whatever was read first — here the JD text — instead of what the human
+// actually accepted.
+// ---------------------------------------------------------------------------
+
+test('M2 fix (a): send content is the signed ask\'s artifact by identity, never reads[0]', async () => {
+  const root = tmpRoot('job2-identity');
+  const decl = fixtureJson('job2.m1.declaration.json');
+  const sendStep = decl.steps.find((s) => s.emits === 'resume-summary-output');
+  // The UNRELATED jd-text artifact is read FIRST, the human-accepted
+  // resume-summary-approved SECOND — still valid (readsAnAsk only checked
+  // .includes(), never position) before and after the declaration.js fix.
+  sendStep.reads = ['jd-text', 'resume-summary-approved'];
+
+  const written = writeFlow({
+    root, name: 'job2', proseText: fixture('job2-with-sources.signed.txt'), declaration: decl, signedBy: SIGNED_BY, signedAt: SIGNED_AT, catalogue: CATALOGUE,
+  });
+  assert.equal(written.ok, true, written.ok ? '' : written.reds.join('\n'));
+
+  const srcDir = tmpRoot('job2-identity-sources');
+  const resume = writeTempDocxLike(srcDir, 'resume.docx', 'Resume text goes here.');
+  const jd = writeTempDocxLike(srcDir, 'jd.md', 'JD text goes here.');
+
+  const modelStep = async (ctx) => {
+    if (ctx.goal.includes('resume .docx')) return { ok: true, costUsd: 0.001, artifact: { text: 'RESUME TEXT', done: true } };
+    if (ctx.goal.includes('job description markdown')) return { ok: true, costUsd: 0.001, artifact: { text: 'JD TEXT — SECRET, SHOULD NOT SHIP ALONE', done: true } };
+    if (ctx.goal.includes('Draft the summary resume')) {
+      const text = '## summary of work history blurb\nworked places.\n'
+        + '## professional skills\nskills.\n'
+        + '## soft skills\nsoft skills.';
+      return { ok: true, costUsd: 0.001, artifact: { text, done: true } };
+    }
+    throw new Error(`unexpected job2 goal: ${ctx.goal}`);
+  };
+
+  let sentContent = null;
+  const captureSend = async (target, filename, content) => {
+    sentContent = content;
+    return { ok: true, bytes: JSON.stringify(content ?? {}).length };
+  };
+
+  const result = await runFlow({
+    root,
+    name: 'job2',
+    runId: 'run-1',
+    sources: [{ id: 'resume', path: resume }, { id: 'jd', path: jd }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: captureSend,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'complete', result.red);
+  assert.deepEqual(sentContent, result.artifacts['resume-summary-approved']);
+  assert.notDeepEqual(sentContent, result.artifacts['jd-text']);
+});
+
+// ---------------------------------------------------------------------------
+// M2 fix (b): zero/more-than-one signed-ask ids in a send's `reads` halts
+// red naming the send step, before `sendStep` is called — never falls back
+// to position. declaration.js's own send-lock rule (checked against asks
+// STRICTLY EARLIER BY LINE NUMBER than the send) already makes the ZERO
+// case unconstructible through a validly-signed flow (a send always needs
+// at least one earlier-by-line ask to read from, or it is refused at
+// declaration-validation time — see declaration.test.js "(e)"). The
+// MORE-THAN-ONE case, however, is reachable: a signed ask can sit LATER in
+// the prose's line numbers than the send yet EARLIER in the declaration's
+// own step array (the walkable chain runs on step order, not line order —
+// same distinction M2 amendment 1 item 2 already documents for a different
+// check). declaration.js's rule only counts asks earlier BY LINE, so it
+// stays green; the runner's identity-based guard, which knows about every
+// signed ask regardless of line position, is the only thing that catches it.
+// ---------------------------------------------------------------------------
+
+const DIVERGENT_PROSE = [
+  '1. Step one, read the data.',
+  '2. ask: first question, is this ok?',
+  '3. Send the result.',
+  '50. ask: second question, are you sure?',
+  '',
+  'Arbiter guardrails (belong to no line; human-signed, tighten-only):',
+  'guardrail: cap $0.25 per run',
+  'guardrail: send at line 3 to file:out/result.txt',
+].join('\n');
+
+const DIVERGENT_DECLARATION = {
+  guardrailClasses: {},
+  unjudgeable: {},
+  refused: [],
+  inputFacts: {},
+  steps: [
+    {
+      goal: 'Step one, read the data.', primitives: ['read'], reads: [], emits: 'data_read', fromLine: 1, close: { class: 'hitl' },
+    },
+    {
+      goal: 'First question, is this ok?', primitives: [], reads: ['data_read'], emits: 'asked_early', fromLine: 2, close: { class: 'hitl' },
+    },
+    // Bound to line 50 (numerically AFTER the send's line 3) but placed
+    // EARLIER than the send in the step array — legal per the walkable
+    // chain, which runs on array order alone.
+    {
+      goal: 'Second question, are you sure?', primitives: [], reads: ['asked_early'], emits: 'asked_late', fromLine: 50, close: { class: 'hitl' },
+    },
+    {
+      goal: 'Send the result.', primitives: ['write'], reads: ['asked_early', 'asked_late'], emits: 'sent', fromLine: 3, close: { class: 'hitl' },
+    },
+  ],
+};
+
+test('M2 fix (b): a send reading more than one signed ask\'s artifact halts red, sendStep never called', async () => {
+  const root = tmpRoot('job-divergent');
+  const written = writeFlow({
+    root, name: 'div', proseText: DIVERGENT_PROSE, declaration: DIVERGENT_DECLARATION, signedBy: SIGNED_BY, signedAt: SIGNED_AT, catalogue: CATALOGUE,
+  });
+  // PROOF this is a legitimately signable flow — declaration.js's own
+  // send-lock rule only counts asks earlier BY LINE than the send (line 2
+  // only; line 50 is excluded), so it sees exactly one and validates green.
+  assert.equal(written.ok, true, written.ok ? '' : written.reds.join('\n'));
+
+  const modelStep = async () => ({ ok: true, costUsd: 0.0001, artifact: { text: 'x', done: true } });
+  let sendCalled = false;
+  const sendStep = async () => { sendCalled = true; return { ok: true, bytes: 1 }; };
+
+  const result = await runFlow({
+    root, name: 'div', runId: 'run-1', sources: [], catalogue: CATALOGUE, modelStep, askStep: ACCEPT_ASK, sendStep, primitives: {}, businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'red');
+  assert.match(result.red, /send: step "Send the result\." must read exactly one signed ask's artifact, found \[asked_early, asked_late\]/);
+  assert.equal(sendCalled, false, 'sendStep must never be called once the count check fails');
+});
+
 test('runFlow: src/runner.js itself never branches on a job name or step goal text', () => {
   const source = readFileSync(path.join(HERE, '..', 'src', 'runner.js'), 'utf8');
   for (const literal of ['job1', 'job2', 'aging', 'resume']) {

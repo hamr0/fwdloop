@@ -585,6 +585,72 @@ describe('the send lock', () => {
 });
 
 // ---------------------------------------------------------------------------
+// M2 fix — item 3: the send-lock's "reads an earlier ask" rule tightens from
+// "at least one" to "exactly one". Two signed asks, both earlier than the
+// send: reading both is a red naming both ids; reading exactly one is still
+// green (the base suite above already covers the single-ask case).
+// ---------------------------------------------------------------------------
+
+const TWO_EARLIER_ASKS_TEXT = [
+  '1. Read the data.',
+  '2. ask: Ask if unsure.',
+  '3. ask: Ask again.',
+  '4. Send the result.',
+  '',
+  'Arbiter guardrails (belong to no line; human-signed, tighten-only):',
+  'guardrail: cap $0.25 per run',
+  'guardrail: send at line 4 to file:out/result.txt',
+  'guardrail: source data = file:/tmp/data.csv-file',
+].join('\n');
+
+const TWO_EARLIER_ASKS_SIGNED = parseSignedText(TWO_EARLIER_ASKS_TEXT);
+
+function twoEarlierAsksDeclaration(sendReads) {
+  return {
+    guardrailClasses: {},
+    unjudgeable: {},
+    refused: [],
+    inputFacts: { data: ['Amount', 'Date'] },
+    steps: [
+      {
+        goal: 'Read the data', primitives: ['read'], reads: [], emits: 'data_read', fromLine: 1, close: { class: 'hitl' },
+      },
+      {
+        goal: 'Ask if unsure', primitives: [], reads: ['data_read'], emits: 'asked1', fromLine: 2, close: { class: 'hitl' },
+      },
+      {
+        goal: 'Ask again', primitives: [], reads: ['asked1'], emits: 'asked2', fromLine: 3, close: { class: 'hitl' },
+      },
+      {
+        goal: 'Send the result', primitives: ['write'], reads: sendReads, emits: 'sent', fromLine: 4, close: { class: 'hitl' },
+      },
+    ],
+  };
+}
+
+describe('M2 fix item 3: a send reading TWO earlier asks\' emits is a red; exactly one is still green', () => {
+  test('PROOF — the two-earlier-asks base text parses green', () => {
+    assert.equal(TWO_EARLIER_ASKS_SIGNED.ok, true, TWO_EARLIER_ASKS_SIGNED.ok ? '' : TWO_EARLIER_ASKS_SIGNED.reds.join('\n'));
+  });
+
+  test('reading both earlier asks\' emits is a red naming both ids', () => {
+    const decl = twoEarlierAsksDeclaration(['asked1', 'asked2']);
+    const result = validateDeclaration(decl, { arbiter: TWO_EARLIER_ASKS_SIGNED.arbiter, lines: TWO_EARLIER_ASKS_SIGNED.lines, catalogue: CATALOGUE });
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => /send at line 4 \(steps\[3\]\) reads the emits of more than one earlier signed ask step \(asked1, asked2\) — exactly 1 required/.test(r)),
+      result.reds.join('\n'),
+    );
+  });
+
+  test('reading exactly one earlier ask\'s emits is still green', () => {
+    const decl = twoEarlierAsksDeclaration(['asked2']);
+    const result = validateDeclaration(decl, { arbiter: TWO_EARLIER_ASKS_SIGNED.arbiter, lines: TWO_EARLIER_ASKS_SIGNED.lines, catalogue: CATALOGUE });
+    assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+  });
+});
+
+// ---------------------------------------------------------------------------
 // M2 amendment 1 item 2 (docs/wiki/the-module-ladder.md, "M2 amendment 1 —
 // SIGNED"): nothing hitl-class may sit after the LAST signed ask, unseen.
 // The send step bound to a signed send line is the one exempt step.

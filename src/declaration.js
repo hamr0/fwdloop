@@ -631,10 +631,13 @@ export function validateDeclaration(declaration, context = {}) {
         .map((a) => stepInfo.find((st) => st.fromLine === a))
         .filter((st) => st !== undefined)
         .map((st) => st.emits);
-      const readsAnAsk = earlierAskEmits.some((emits) => emits !== null && sendStep.reads.includes(emits));
-      if (!readsAnAsk) {
+      const readAskEmits = earlierAskEmits.filter((emits) => emits !== null && sendStep.reads.includes(emits));
+      if (readAskEmits.length === 0) {
         reds.push(`declaration: send at line ${n} (steps[${sendIdx}]) does not read the emits of any earlier signed `
           + `ask step (asks at lines ${earlierAskLines.join(', ')})`);
+      } else if (readAskEmits.length >= 2) {
+        reds.push(`declaration: send at line ${n} (steps[${sendIdx}]) reads the emits of more than one earlier signed `
+          + `ask step (${readAskEmits.join(', ')}) — exactly 1 required`);
       }
     }
   }
