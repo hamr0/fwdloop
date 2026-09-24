@@ -391,6 +391,21 @@ function recordLateAnswerIfAny(runDir) {
 // The ralph loop with strikes (M2 scope item 5) for ONE step.
 // ---------------------------------------------------------------------------
 
+/**
+ * Sums only the KNOWN (typeof === 'number') values, e.g. a transport fault's
+ * priced floor plus this attempt's own cost. Never `?? 0` — a value that is
+ * null/undefined is dropped from the sum rather than zeroing it out, so a
+ * lone known partial survives as itself and "no known cost at all" stays
+ * `null` (never coerced to 0).
+ * @param {...(number|null|undefined)} values
+ * @returns {number|null}
+ */
+function sumKnownUsd(...values) {
+  const known = values.filter((v) => typeof v === 'number');
+  if (known.length === 0) return null;
+  return known.reduce((a, b) => a + b, 0);
+}
+
 function makeAuditRow({
   step, attempt, verdict, gap, usd, spendComplete, wallMs, model = null, modelMatch = null, strike,
 }) {
@@ -440,6 +455,11 @@ async function runStepRalph({
 
   for (let n = 1; n <= MAX_ATTEMPTS; n += 1) {
     const attempt = attemptOffset + n;
+    // This attempt's known floor from a FIRST transport fault that then
+    // retried — every audit row this attempt still writes must carry this
+    // floor summed with its own cost (F41 books gap: the fault's cost was
+    // only ever in `spent.value`'s total, never on the attempt's own row).
+    let attemptFloorUsd = null;
     if (spent.value + ceilingUsd > capUsd) {
       recordAudit(makeAuditRow({
         step, attempt, verdict: 'cap-halt', gap, usd: null, spendComplete: false, wallMs: 0, strike: false,
@@ -471,7 +491,10 @@ async function runStepRalph({
       // A known partial cost from the FIRST transport fault must survive as
       // the floor even though this attempt goes on to retry — never
       // dropped on the retry path (the brief's own gap, closed here).
-      if (typeof result.costUsd === 'number') spent.value += result.costUsd;
+      if (typeof result.costUsd === 'number') {
+        spent.value += result.costUsd;
+        attemptFloorUsd = result.costUsd;
+      }
       // Exactly one immediate retry on the SAME attempt for a transport
       // fault; an HTTP status is not transport, a wall-clock timeout is
       // never retried (M2 scope item 8) — both are the caller's own
@@ -484,8 +507,12 @@ async function runStepRalph({
 
     if (result && result.ok === false && result.transport === true) {
       if (typeof result.costUsd === 'number') spent.value += result.costUsd;
+      // Both faults' known costs, summed — the first fault's floor was
+      // already added to `spent.value` above (never double-added here); a
+      // null second cost never zeroes out a known first floor.
+      const usd = sumKnownUsd(attemptFloorUsd, result.costUsd);
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'provider-red', gap, usd: result.costUsd ?? null, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: 'provider-red', gap, usd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
       }), result.red ?? 'transport fault twice');
       return { ok: false, outcome: 'provider-red', red: `provider-red: step "${step.goal}" attempt ${attempt}: ${result.red ?? 'transport fault twice'}` };
     }
@@ -500,8 +527,9 @@ async function runStepRalph({
       const strike = seenGaps.has(normalised);
       seenGaps.add(normalised);
       if (strike) strikes += 1;
+      const usd = sumKnownUsd(attemptFloorUsd, result?.costUsd);
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'red', gap: red, usd: result?.costUsd ?? null, spendComplete: (result?.costUsd ?? null) !== null, wallMs, model: result?.model, modelMatch: result?.modelMatch, strike,
+        step, attempt, verdict: 'red', gap: red, usd, spendComplete: usd !== null, wallMs, model: result?.model, modelMatch: result?.modelMatch, strike,
       }), red);
       if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: step "${step.goal}" — ${red}` };
@@ -512,11 +540,12 @@ async function runStepRalph({
 
     if (result.costUsd === null || result.costUsd === undefined) {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'pricing-red', gap, usd: null, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: 'pricing-red', gap, usd: attemptFloorUsd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
       }), result.artifact ?? null);
       return { ok: false, outcome: 'pricing-red', red: `pricing-red: step "${step.goal}" attempt ${attempt} returned no cost (never "?? 0")` };
     }
     spent.value += result.costUsd;
+    const attemptUsd = sumKnownUsd(attemptFloorUsd, result.costUsd);
 
     // The model's own word, taken at face value — before the happened check,
     // before any close, no exception (M2 amendment 1 item 1). A halt, not a
@@ -526,7 +555,7 @@ async function runStepRalph({
     const doneCheck = checkDoneBlocker(step, result.artifact);
     if (doneCheck.verdict === 'not-done') {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'not-done', gap: doneCheck.red, usd: result.costUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: 'not-done', gap: doneCheck.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
       }), result.artifact ?? null);
       return { ok: false, outcome: 'not-done', red: doneCheck.red };
     }
@@ -539,7 +568,7 @@ async function runStepRalph({
       // failure) — matches poc/m2/gapback.mjs's own rule exactly.
       strikes += 1;
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'red', gap: happened.red, usd: result.costUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: true,
+        step, attempt, verdict: 'red', gap: happened.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: true,
       }), result.artifact ?? null);
       if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: ${happened.red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: ${happened.red}` };
@@ -552,7 +581,7 @@ async function runStepRalph({
 
     if (closed.verdict === 'green' || closed.verdict === 'hitl') {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: closed.verdict, gap: null, usd: result.costUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: closed.verdict, gap: null, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
       }), result.artifact);
       return {
         ok: true, artifact, attempts: attempt, hitl: closed.verdict === 'hitl',
@@ -563,7 +592,7 @@ async function runStepRalph({
       // A closer that renders no judgment ('unparseable'/'crash') is a
       // CASUALTY, never a red and never a strike (bareloop F17).
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'close-casualty', gap: closed.red, usd: result.costUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: 'close-casualty', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
       }), result.artifact);
       return { ok: false, outcome: 'close-casualty', red: `close-casualty: step "${step.goal}" — ${closed.red} (${closed.verdict})` };
     }
@@ -573,7 +602,7 @@ async function runStepRalph({
     seenGaps.add(normalised);
     if (strike) strikes += 1;
     recordAudit(makeAuditRow({
-      step, attempt, verdict: 'red', gap: closed.red, usd: result.costUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike,
+      step, attempt, verdict: 'red', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike,
     }), result.artifact);
 
     if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${closed.red}` };
@@ -637,7 +666,7 @@ export async function runFlow({
   const fresh = checkFreshRunDir(runDir);
   if (!fresh.ok) {
     return haltRun({
-      flowDir, runDir, runId, capUsd, startedAt, now, outcome: 'preflight-red', red: fresh.red, spent: { value: 0 },
+      flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, outcome: 'preflight-red', red: fresh.red, spent: { value: 0 },
     });
   }
   mkdirSync(runDir, { recursive: true });
@@ -645,7 +674,7 @@ export async function runFlow({
   const frozen = freezeInputs(runDir, sources ?? []);
   if (!frozen.ok) {
     return haltRun({
-      flowDir, runDir, runId, capUsd, startedAt, now, outcome: 'preflight-red', red: frozen.red, spent: { value: 0 },
+      flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, outcome: 'preflight-red', red: frozen.red, spent: { value: 0 },
     });
   }
 
@@ -686,14 +715,14 @@ export async function runFlow({
     if (sendLines.has(step.fromLine)) {
       if (!acceptedThisRun) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts,
+          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts,
           outcome: 'red', red: `send: step "${step.goal}" reached with no accept this run`,
         });
       }
       const sendSlot = sendLines.get(step.fromLine);
       if (!sendSlot) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts, outcome: 'red', red: `send: no arbiter slot bound to line ${step.fromLine}`,
+          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts, outcome: 'red', red: `send: no arbiter slot bound to line ${step.fromLine}`,
         });
       }
       const target = `${sendSlot.target.kind}:${sendSlot.target.path}`;
@@ -708,7 +737,7 @@ export async function runFlow({
       recordAudit(sendRow);
       if (!sendResult.ok) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts, outcome: 'red', red: `send: ${sendResult.red}`,
+          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts, outcome: 'red', red: `send: ${sendResult.red}`,
         });
       }
       writeArtifact(runDir, step.emits, content);
@@ -745,7 +774,7 @@ export async function runFlow({
             step, attempt: redone + 1, verdict: 'ask-timeout', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
           }), undefined, unjudgedCount);
           return haltRun({
-            flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts,
+            flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts,
             outcome: 'ask-timeout', red: `ask-timeout: step "${step.goal}" expired waiting for a human answer`,
           });
         }
@@ -779,7 +808,7 @@ export async function runFlow({
           }), undefined, unjudgedCount);
           if (redone > redoCap) {
             return haltRun({
-              flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts,
+              flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts,
               outcome: 'redo-halt', red: `redo cap ${redoCap} reached at step "${step.goal}" after ${redone} rejections`,
             });
           }
@@ -791,7 +820,7 @@ export async function runFlow({
           });
           if (!redoResult.ok) {
             return haltRun({
-              flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts, outcome: redoResult.outcome, red: redoResult.red,
+              flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts, outcome: redoResult.outcome, red: redoResult.red,
             });
           }
           priorArtifact = redoResult.artifact;
@@ -804,7 +833,7 @@ export async function runFlow({
         }
 
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts,
+          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts,
           outcome: 'red', red: `ask: step "${step.goal}" got an unrecognised decision "${answer.decision}"`,
         });
       }
@@ -820,7 +849,7 @@ export async function runFlow({
     });
     if (!stepResult.ok) {
       return haltRun({
-        flowDir, runDir, runId, capUsd, startedAt, now, spent, attempts: attemptsLog, artifacts, outcome: stepResult.outcome, red: stepResult.red,
+        flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts, outcome: stepResult.outcome, red: stepResult.red,
       });
     }
     writeArtifact(runDir, step.emits, stepResult.artifact);
@@ -867,15 +896,20 @@ function writeLog(runDir, payload) {
  * @param {{ value: number }} opts.spent
  * @param {any[]} [opts.attempts]
  * @param {Record<string, any>} [opts.artifacts]
+ * @param {string|null} [opts.signatureHash] - the flow's `signature.json` `flow`
+ *   hash, when this halt happened AFTER `readFlow` succeeded (item 9: every
+ *   history row carries it, halts included). A halt before the signature was
+ *   read/verified (the pre-`readFlow`-success refused path, and any halt
+ *   before `signature` comes into scope) keeps the default `null`.
  */
 function haltRun({
-  flowDir, runDir, runId, capUsd, startedAt, now, outcome, red, spent, attempts = [], artifacts = {},
+  flowDir, runDir, runId, capUsd, startedAt, now, outcome, red, spent, attempts = [], artifacts = {}, signatureHash = null,
 }) {
   const wallMs = Date.now() - startedAt;
   const spendComplete = outcome !== 'provider-red' && outcome !== 'pricing-red' && outcome !== 'cap-halt';
   mkdirSync(flowDir, { recursive: true });
   appendHistory(flowDir, {
-    runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash: null,
+    runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash,
   });
   if (existsSync(runDir)) {
     recordLateAnswerIfAny(runDir);

@@ -375,6 +375,10 @@ test('negative (iv): a corrupted declaration.json is refused by name, at $0', as
   assert.equal(rows[0].outcome, 'refused');
   assert.equal(rows[0].spentUsd, 0);
   assert.equal(rows[0].spendComplete, true);
+  // The signature was never read/verified — `readFlow` refused before it got
+  // that far — so this row must keep `signatureHash: null`, unlike a halt
+  // reached after a successful `readFlow` (see the done:false test below).
+  assert.equal(rows[0].signatureHash, null);
 });
 
 // ---------------------------------------------------------------------------
@@ -458,6 +462,91 @@ test('a transport fault\'s known partial cost survives as the floor in spentUsd,
   const last = rows[rows.length - 1];
   assert.equal(last.spendComplete, false);
   assert.equal(last.spentUsd, 0.004, 'history.jsonl must record the floor, never 0, when money was actually spent');
+});
+
+// F41 books gap 2: a retried transport fault's own known floor must land on
+// the ATTEMPT'S audit row, not just the run total — the fault's cost was
+// previously only ever added to `spent.value`, never to the audit row of the
+// attempt that then went on to succeed (or fault again).
+test('F41 fix: a transport fault (priced) that then succeeds carries the fault\'s cost on the attempt\'s own audit row, summed with the audit rows equal to history', async () => {
+  const root = tmpRoot('audit-floor-success');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('audit-floor-success-sources');
+  const aging = writeTempCsv(srcDir);
+
+  let calls = 0;
+  const inner = makeJob1ModelStep();
+  const modelStep = async (ctx, tools) => {
+    calls += 1;
+    if (calls === 1 && ctx.goal.includes('addressable cells')) {
+      return {
+        ok: false, transport: true, costUsd: 0.05, red: 'socket hang up',
+      };
+    }
+    const stepResult = await inner(ctx, tools);
+    if (ctx.goal.includes('addressable cells')) return { ...stepResult, costUsd: 0.02 };
+    return stepResult;
+  };
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  const runDir = path.join(root, 'job1', 'runs', 'run-1');
+  const auditPath = path.join(runDir, 'audit.jsonl');
+  const rows = readFileSync(auditPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const firstStepRow = rows.find((r) => r.step === 'aging_cells');
+  assert.equal(firstStepRow.usd, 0.07, 'the retried attempt\'s audit row must carry the fault\'s floor (0.05) summed with its own cost (0.02)');
+
+  const historyPath = path.join(root, 'job1', 'history.jsonl');
+  const historyRows = readFileSync(historyPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const lastHistory = historyRows[historyRows.length - 1];
+  const auditSum = rows.reduce((a, r) => a + (typeof r.usd === 'number' ? r.usd : 0), 0);
+  assert.ok(Math.abs(auditSum - lastHistory.spentUsd) < 1e-9, `audit rows' usd must sum to history's spentUsd (audit sum ${auditSum}, history ${lastHistory.spentUsd})`);
+  assert.equal(result.outcome, 'complete');
+});
+
+test('F41 fix: two priced transport faults on the same attempt sum both known costs on the provider-red audit row', async () => {
+  const root = tmpRoot('audit-floor-double-fault');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('audit-floor-double-fault-sources');
+  const aging = writeTempCsv(srcDir);
+
+  let calls = 0;
+  const modelStep = async () => {
+    calls += 1;
+    return { ok: false, transport: true, costUsd: calls === 1 ? 0.05 : 0.03, red: 'ECONNRESET' };
+  };
+
+  await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  const runDir = path.join(root, 'job1', 'runs', 'run-1');
+  const auditPath = path.join(runDir, 'audit.jsonl');
+  const rows = readFileSync(auditPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const last = rows[rows.length - 1];
+  assert.equal(last.verdict, 'provider-red');
+  assert.equal(last.usd, 0.08, 'both faults\' known costs (0.05 + 0.03) must be summed on the provider-red row');
+  assert.equal(last.spendComplete, false);
 });
 
 // ---------------------------------------------------------------------------
@@ -546,6 +635,14 @@ test('M2 amendment 1 item 1: done:false halts "not-done", names the step and blo
   const historyPath = path.join(root, 'job1', 'history.jsonl');
   const historyRows = readFileSync(historyPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   assert.equal(historyRows[historyRows.length - 1].outcome, 'not-done');
+
+  // F41 books gap 1: a halt still names the flow version it halted on — the
+  // signature was read and verified before this halt happened (readFlow
+  // succeeded), so the history row must carry `signature.json`'s own `flow`
+  // hash, never null.
+  const signatureOnDisk = JSON.parse(readFileSync(path.join(root, 'job1', 'signature.json'), 'utf8'));
+  assert.match(signatureOnDisk.flow, /^[0-9a-f]{64}$/, 'signature.json\'s own flow hash must be a 64-hex sha256 digest');
+  assert.equal(historyRows[historyRows.length - 1].signatureHash, signatureOnDisk.flow, 'a halt AFTER readFlow succeeded must carry the flow\'s own signature hash, never null');
 });
 
 test('M2 amendment 1 item 1: a missing/non-boolean "done" halts naming the step, same as done:false', async () => {
