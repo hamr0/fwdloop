@@ -349,11 +349,11 @@ context (docs/archive/PRD.md:572-573).
 - **Negative:** a step whose effect check fails halts the run and names the step
   (docs/archive/PRD.md:576-576).
 
-### M2 — scope, exit, negative — PROPOSED 2026-09-24, awaiting hamr's signature
+### M2 — scope, exit, negative — SIGNED by hamr 2026-09-24 ("sign m2, cap $5")
 
 Restates the M2 paragraph above as the three things the binding rule needs, using what M1 built.
 Three design picks were made in the interview of 2026-09-24 (hamr: "1A, 2A 3A") and are folded in
-below; the spend cap is proposed, not signed.
+below; scope, exit, negative and the cap were signed together on 2026-09-24.
 
 **Scope.**
 
@@ -456,7 +456,8 @@ pass against the real one. Cost: about 20 × $0.015.
 **Kills the module:** the POC lands below 18/20 and the fix on the table is showing the step its
 shape; or job #1 and job #2 cannot run through one fold without a per-job branch.
 
-**M2 spend cap: $5.00 — PROPOSED, not signed.** M2's own, separate from M1's $5.00 ($1.10 used).
+**M2 spend cap: $5.00 — SIGNED by hamr 2026-09-24** ("sign m2, cap $5"). M2's own, separate from
+M1's $5.00 ($1.10 used). POC (gap-back healing, 18/20) starts on branch `m2`.
 
 ## M3 — ask and inbox, the HITL window
 
