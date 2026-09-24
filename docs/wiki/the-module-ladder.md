@@ -481,6 +481,26 @@ Both are mechanisms, not prompt wording: a test proves `done: false` halts with 
 called, and a test proves the ask's `evidence` lists every unasked hitl artifact since the previous
 ask.
 
+**M2 EXIT — evidence on the table, NOT yet signed** (proposed 2026-09-24, runner at `a045b73`, F40).
+
+| exit / negative | evidence |
+|---|---|
+| both fixtures through one fold, $0 | `test/runner.test.js` "job #1 fixture runs end to end" and "job #2 fixture runs end to end"; `src/runner.js` has no per-job branch |
+| job #2 live on `deepseek-flash`, ask reached, shape green | F39 (run-1, $0.0118) and F40 (run-2, $0.0446): JD read by role, two rejects redrafted live, stale accept quarantined, sent |
+| construction test can fail | `test/runner.test.js` "construction test … a leaky double is caught" |
+| POC bar 18/20 | RULED MET above (F38 batch b) |
+| both books every run, every row priced | `flows/job2-live-1/history.jsonl` has run-1 and run-2; 20 audit rows, no null `usd`, `spendComplete: true` |
+| (i) 0-byte artifact halts naming the step | `test/runner.test.js` "negative (i)" |
+| (ii) same gap twice strikes out | "negative (ii)" |
+| (iii) cap-halt before the attempt | "negative (iii)" |
+| (iv) tampered flow refused by name at $0 | "negative (iv)" plus `test/signature.test.js` |
+| (v) transport fault twice parks provider-red, floor never 0 | "negative (v)" and the floor test after it |
+| (vi) executor context carries no close/shape/cap/strike | same construction test as above |
+| amendment 1 | three `done:false` tests, three `evidence.unjudged` tests; F40 shows `unjudgedCount: 2` on every live ask row |
+
+Spend: $0.53 POC + $0.06 live = $0.59 of the $5.00 cap. Suite 1171/1171. Known gap: `done: false` is
+proven by tests, never yet fired by a live model. hamr signs or names what is missing.
+
 ## M3 — ask and inbox, the HITL window
 
 The inbox and its answers, TTL, and checkpoint/resume at step level. A pause spends nothing, and a
