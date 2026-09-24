@@ -1,0 +1,500 @@
+// Tests for src/runner.js — M2 piece 1 (docs/wiki/the-module-ladder.md,
+// "M2 — scope, exit, negative — SIGNED"). Every run happens at $0 against
+// fake modelStep/askStep/sendStep/primitives — no provider, no key.
+//
+// Every temp directory is created under `fs.mkdtempSync(path.join(os.tmpdir(),
+// ...))`, never a `flows/`/`runs/` directory inside the repo.
+
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import {
+  readFileSync, writeFileSync, mkdtempSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+import { writeFlow } from '../src/flow.js';
+import { loadCatalogue } from '../src/catalogue.js';
+import {
+  runFlow, buildExecutorContext, findForbiddenInContext, STRIKE_LIMIT, MAX_ATTEMPTS,
+} from '../src/runner.js';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
+const fixtureJson = (name) => JSON.parse(fixture(name));
+
+const catalogueLoaded = loadCatalogue();
+assert.equal(catalogueLoaded.ok, true, catalogueLoaded.ok ? '' : catalogueLoaded.reds.join('\n'));
+const CATALOGUE = catalogueLoaded.primitives;
+
+const SIGNED_BY = 'hamr';
+const SIGNED_AT = '2026-09-24T12:00:00Z';
+const BUSINESS_DATE = '2026-06-01';
+
+function tmpRoot(prefix) {
+  return mkdtempSync(path.join(tmpdir(), `fwdloop-${prefix}-`));
+}
+
+function writeTempCsv(dir) {
+  const csvPath = path.join(dir, 'aging.csv');
+  writeFileSync(
+    csvPath,
+    'Customer,Invoice #,Invoice date,Due date,Amount,Days overdue,Current,1-30,31-60,61-90,90+\n'
+    + 'Acme Corp,INV-1,2026-05-01,2026-05-15,150.00,,,,,,\n'
+    + 'Acme Corp,INV-2,2026-05-05,2026-05-20,50.50,,,,,,\n',
+  );
+  return csvPath;
+}
+
+function writeTempDocxLike(dir, name, text) {
+  const p = path.join(dir, name);
+  writeFileSync(p, text);
+  return p;
+}
+
+function writeJob1Flow(root, name = 'job1') {
+  const result = writeFlow({
+    root,
+    name,
+    proseText: fixture('job1.m1.signed.txt'),
+    declaration: fixtureJson('job1.m1.declaration.json'),
+    signedBy: SIGNED_BY,
+    signedAt: SIGNED_AT,
+    catalogue: CATALOGUE,
+  });
+  assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+  return result;
+}
+
+function writeJob2Flow(root, name = 'job2') {
+  const result = writeFlow({
+    root,
+    name,
+    proseText: fixture('job2-with-sources.signed.txt'),
+    declaration: fixtureJson('job2.m1.declaration.json'),
+    signedBy: SIGNED_BY,
+    signedAt: SIGNED_AT,
+    catalogue: CATALOGUE,
+  });
+  assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Job #1's fake modelStep — keyed off the DECLARATION's own goal text (test
+// fixture logic; src/runner.js itself never branches on any of this — see
+// the "no job-name branch" test below).
+// ---------------------------------------------------------------------------
+
+function makeJob1ModelStep({ step3Behavior = 'green', step1Behavior = 'green' } = {}) {
+  return async function job1ModelStep(ctx) {
+    if (ctx.goal.includes('addressable cells')) {
+      if (step1Behavior === 'empty') return { ok: true, artifact: {}, costUsd: 0.001 };
+      return {
+        ok: true,
+        costUsd: 0.001,
+        artifact: {
+          kind: 'cells',
+          rows: [
+            { rowNumber: 2, cells: { A: 'Acme Corp', B: 'INV-1', C: '2026-05-01', D: '2026-05-15', E: '150.00' } },
+            { rowNumber: 3, cells: { A: 'Acme Corp', B: 'INV-2', C: '2026-05-05', D: '2026-05-20', E: '50.50' } },
+          ],
+        },
+      };
+    }
+    if (ctx.goal.includes('work out which customer')) {
+      return { ok: true, costUsd: 0.001, artifact: { matchedCustomer: 'Acme Corp' } };
+    }
+    if (ctx.goal.includes('pull their open invoices')) {
+      if (step3Behavior === 'always-wrong') {
+        return {
+          ok: true,
+          costUsd: 0.001,
+          artifact: { fields: { total_owed: { value: 999, cite: 'aging_cells!E2' } } },
+        };
+      }
+      return {
+        ok: true,
+        costUsd: 0.001,
+        artifact: {
+          fields: {
+            invoice1: { value: 150, cite: 'aging_cells!E2' },
+            invoice2: { value: 50.5, cite: 'aging_cells!E3' },
+            total_owed: { value: 200.5, cite: 'sum(#invoice1,#invoice2)' },
+          },
+        },
+      };
+    }
+    if (ctx.goal.includes('Write a short reply')) {
+      const text = 'Invoice # INV-1 Due date 2026-05-15 Amount 150\n'
+        + 'Invoice # INV-2 Due date 2026-05-20 Amount 50.50';
+      return { ok: true, costUsd: 0.001, artifact: { text } };
+    }
+    throw new Error(`unexpected step goal in test fake: ${ctx.goal}`);
+  };
+}
+
+function job1ModelStepWithContexts(opts) {
+  const contexts = [];
+  const inner = makeJob1ModelStep(opts);
+  const fn = async (ctx, tools) => {
+    contexts.push(ctx);
+    return inner(ctx, tools);
+  };
+  return { fn, contexts };
+}
+
+const ACCEPT_ASK = async () => ({ decision: 'accept' });
+const NOOP_SEND = async (target, filename, content) => ({ ok: true, bytes: JSON.stringify(content ?? {}).length });
+
+test('runFlow: job #1 fixture runs end to end, complete, no forbidden context leak', async (t) => {
+  const root = tmpRoot('job1-e2e');
+  writeJob1Flow(root);
+  const runDir = tmpRoot('job1-e2e-sources');
+  const aging = writeTempCsv(runDir);
+
+  const { fn: modelStep, contexts } = job1ModelStepWithContexts();
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'complete', result.red);
+  assert.ok(result.artifacts.sent_reply);
+  assert.ok(result.auditRows.length > 0);
+
+  for (const ctx of contexts) {
+    const found = findForbiddenInContext(ctx);
+    assert.equal(found, null, found ?? '');
+  }
+});
+
+test('runFlow: job #2 fixture runs end to end, complete', async () => {
+  const root = tmpRoot('job2-e2e');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('job2-e2e-sources');
+  const resume = writeTempDocxLike(srcDir, 'resume.docx', 'Resume text goes here.');
+  const jd = writeTempDocxLike(srcDir, 'jd.md', 'JD text goes here.');
+
+  const modelStep = async (ctx) => {
+    if (ctx.goal.includes('resume .docx')) return { ok: true, costUsd: 0.001, artifact: { text: 'resume text' } };
+    if (ctx.goal.includes('job description markdown')) return { ok: true, costUsd: 0.001, artifact: { text: 'jd text' } };
+    if (ctx.goal.includes('Draft the summary resume')) {
+      const text = '## summary of work history blurb\nworked places.\n'
+        + '## professional skills\nskills.\n'
+        + '## soft skills\nsoft skills.';
+      return { ok: true, costUsd: 0.001, artifact: { text } };
+    }
+    throw new Error(`unexpected job2 goal: ${ctx.goal}`);
+  };
+
+  const result = await runFlow({
+    root,
+    name: 'job2',
+    runId: 'run-1',
+    sources: [{ id: 'resume', path: resume }, { id: 'jd', path: jd }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'complete', result.red);
+  assert.ok(result.artifacts['resume-summary-output']);
+});
+
+test('runFlow: src/runner.js itself never branches on a job name or step goal text', () => {
+  const source = readFileSync(path.join(HERE, '..', 'src', 'runner.js'), 'utf8');
+  for (const literal of ['job1', 'job2', 'aging', 'resume']) {
+    assert.equal(source.includes(literal), false, `src/runner.js must not mention "${literal}"`);
+  }
+});
+
+test('construction test: the real executor context carries no close/shape/cap/strike identifier, and a leaky double is caught', () => {
+  const real = buildExecutorContext({
+    goal: 'write a reply', primitives: ['write'], reads: { x: { text: 'hi' } }, gap: 'a prior gap',
+  });
+  assert.equal(findForbiddenInContext(real), null);
+
+  const leaky = { ...real, close: { class: 'green' } };
+  const found = findForbiddenInContext(leaky);
+  assert.notEqual(found, null);
+  assert.match(found, /close/);
+});
+
+test('buildExecutorContext: refuses an unknown field outright (e.g. "close")', () => {
+  assert.throws(() => buildExecutorContext({
+    goal: 'x', primitives: [], reads: {}, gap: null, close: { class: 'green' },
+  }), /unknown field "close"/);
+});
+
+// ---------------------------------------------------------------------------
+// Negative (i): a step whose happened check fails halts the run naming the step.
+// ---------------------------------------------------------------------------
+test('negative (i): a 0-byte/empty artifact halts the run naming the step', async () => {
+  const root = tmpRoot('neg-i');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('neg-i-sources');
+  const aging = writeTempCsv(srcDir);
+
+  const { fn: modelStep } = job1ModelStepWithContexts({ step1Behavior: 'empty' });
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'struck-out');
+  assert.match(result.red, /AR aging sheet as addressable cells/);
+});
+
+// ---------------------------------------------------------------------------
+// Negative (ii): a step that reds its close with the SAME gap twice strikes
+// out at the second strike, under cap.
+// ---------------------------------------------------------------------------
+test('negative (ii): the same close-red gap twice strikes out at the second strike', async () => {
+  const root = tmpRoot('neg-ii');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('neg-ii-sources');
+  const aging = writeTempCsv(srcDir);
+
+  const { fn: modelStep } = job1ModelStepWithContexts({ step3Behavior: 'always-wrong' });
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'struck-out');
+  assert.match(result.red, /"total_owed" 999/);
+
+  const auditPath = path.join(root, 'job1', 'runs', 'run-1', 'audit.jsonl');
+  const rows = readFileSync(auditPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const reds = rows.filter((r) => r.step === 'invoice_facts');
+  assert.equal(reds.length, 3, 'expects exactly 3 attempts before struck-out');
+  assert.equal(reds[0].strike, false);
+  assert.equal(reds[1].strike, true);
+  assert.equal(reds[2].strike, true);
+});
+
+// ---------------------------------------------------------------------------
+// Negative (iii): a run whose NEXT attempt cannot be funded under the cap
+// halts cap-halt BEFORE the attempt starts, never after.
+// ---------------------------------------------------------------------------
+test('negative (iii): cap-halt fires before the attempt starts, never after', async () => {
+  const root = tmpRoot('neg-iii');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('neg-iii-sources');
+  const aging = writeTempCsv(srcDir);
+
+  let modelStepCalled = false;
+  const modelStep = async () => {
+    modelStepCalled = true;
+    return { ok: true, costUsd: 0.001, artifact: { x: 1 } };
+  };
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+    ceilingUsd: 1, // job1's signed cap is $0.25 — a $1 ceiling can never be funded.
+  });
+
+  assert.equal(result.outcome, 'cap-halt');
+  assert.equal(modelStepCalled, false, 'modelStep must never be called once the cap check fails');
+});
+
+// ---------------------------------------------------------------------------
+// Negative (iv): a flow whose files do not hash to signature.json is refused
+// by name, at $0.
+// ---------------------------------------------------------------------------
+test('negative (iv): a corrupted declaration.json is refused by name, at $0', async () => {
+  const root = tmpRoot('neg-iv');
+  writeJob1Flow(root);
+  const declPath = path.join(root, 'job1', 'declaration.json');
+  const original = readFileSync(declPath, 'utf8');
+  writeFileSync(declPath, `${original.slice(0, -2)}\n`); // one-byte edit after signing
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [],
+    catalogue: CATALOGUE,
+    modelStep: async () => { throw new Error('modelStep must never be called'); },
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'refused');
+  assert.match(result.red, /declaration\.json/);
+
+  const historyPath = path.join(root, 'job1', 'history.jsonl');
+  const rows = readFileSync(historyPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].outcome, 'refused');
+  assert.equal(rows[0].spentUsd, 0);
+  assert.equal(rows[0].spendComplete, true);
+});
+
+// ---------------------------------------------------------------------------
+// Negative (v): a transport fault twice on one attempt parks the run
+// provider-red with spendComplete:false, and the ledger shows the floor,
+// never 0 when spend has actually happened.
+// ---------------------------------------------------------------------------
+test('negative (v): a transport fault twice parks the run provider-red, spendComplete:false', async () => {
+  const root = tmpRoot('neg-v');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('neg-v-sources');
+  const aging = writeTempCsv(srcDir);
+
+  let calls = 0;
+  const modelStep = async () => {
+    calls += 1;
+    return { ok: false, transport: true, red: 'ECONNRESET' };
+  };
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'provider-red');
+  assert.equal(calls, 2, 'exactly one retry on the same attempt');
+
+  const historyPath = path.join(root, 'job1', 'history.jsonl');
+  const rows = readFileSync(historyPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(rows[rows.length - 1].spendComplete, false);
+});
+
+// ---------------------------------------------------------------------------
+// Negative (vi): covered by the "construction test" above (real context vs.
+// a leaky double smuggling `close` in).
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// A reject "<reason>" on job #1's ask re-runs the compose step with that
+// reason as the gap, and the audit shows attempt 2.
+// ---------------------------------------------------------------------------
+test('a reject with a reason on job #1\'s ask re-runs the compose step with the reason as the gap', async () => {
+  const root = tmpRoot('reject-redo');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('reject-redo-sources');
+  const aging = writeTempCsv(srcDir);
+
+  const { fn: modelStep } = job1ModelStepWithContexts();
+
+  let asked = 0;
+  const askStep = async () => {
+    asked += 1;
+    if (asked === 1) return { decision: 'reject', reason: 'add labels to each figure' };
+    return { decision: 'accept' };
+  };
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'complete', result.red);
+  assert.match(result.artifacts.sent_reply.text, /Due date/);
+
+  const auditPath = path.join(root, 'job1', 'runs', 'run-1', 'audit.jsonl');
+  const rows = readFileSync(auditPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const composeRows = rows.filter((r) => r.step === 'reply_draft');
+  assert.equal(composeRows.length, 2, 'attempt 1 (before reject) and attempt 2 (after reject, with the reason as gap)');
+  assert.equal(composeRows[1].attempt, 2);
+});
+
+// ---------------------------------------------------------------------------
+// A reason-less rejection/rerun is refused and re-asked, never advances.
+// ---------------------------------------------------------------------------
+test('a reason-less rejection is refused and re-asked, never advances', async () => {
+  const root = tmpRoot('reasonless');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('reasonless-sources');
+  const aging = writeTempCsv(srcDir);
+
+  const { fn: modelStep } = job1ModelStepWithContexts();
+
+  let asked = 0;
+  const askStep = async () => {
+    asked += 1;
+    if (asked === 1) return { decision: 'reject', reason: '' };
+    return { decision: 'accept' };
+  };
+
+  const result = await runFlow({
+    root,
+    name: 'job1',
+    runId: 'run-1',
+    sources: [{ id: 'aging', path: aging }],
+    catalogue: CATALOGUE,
+    modelStep,
+    askStep,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'complete', result.red);
+  assert.equal(asked, 2);
+});
+
+test('STRIKE_LIMIT and MAX_ATTEMPTS are the frozen constants the ladder signs', () => {
+  assert.equal(STRIKE_LIMIT, 2);
+  assert.equal(MAX_ATTEMPTS, 4);
+});
