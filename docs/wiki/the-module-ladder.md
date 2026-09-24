@@ -458,6 +458,10 @@ shape; or job #1 and job #2 cannot run through one fold without a per-job branch
 
 **M2 spend cap: $5.00 — SIGNED by hamr 2026-09-24** ("sign m2, cap $5"). M2's own, separate from
 M1's $5.00 ($1.10 used). POC (gap-back healing, 18/20) starts on branch `m2`.
+**POC bar RULED MET by hamr 2026-09-24** ("pass"). F38: batch a 6/20 healed (closer reported one
+check at a time — the gap ping-ponged); batch b, closer reporting every failing check, 18/20 healed,
+17/20 by attempt 3, the two fallbacks halted honestly naming the step and the gap. Ruled on the
+2026-09-15 rule: a catch is a catch. $0.53 of the $5.00 cap. Build starts on `m2`.
 
 ## M3 — ask and inbox, the HITL window
 
