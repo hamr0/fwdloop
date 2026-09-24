@@ -1865,3 +1865,52 @@ description lists the same keys. Golden regenerated. Two debrief "Later" items f
 
 **Ruling this leaves standing.** The four keys are enough for both jobs as drafted today. A fifth
 word is a red by name, then hamr's signature — never a widening of the check.
+
+## F38 — M2 gap-back POC, batch a: 6 of 20 healed against a bar of 18. The channel works; the closer's gap was too thin to steer it (2026-09-24)
+
+**Setup (signed M2 POC).** Job #2's compose step; the executor sees the goal (job #2's line 3 verbatim
+plus the plant "and a fourth section: certifications."), the resume and JD as data, and, from
+attempt 2 on, ONLY the previous close's red string. Close: `closeWordsAndSections` with the real
+shape (`maxWords 600`, the three signed headings). `STRIKE_LIMIT 2`, attempt fallback 4. Tag
+`2026-09-24a`, `deepseek-flash`, 20 runs, 69 attempts, $0.3249, `modelMatch` match on all 69,
+`spendComplete: true`. `poc/m2/gapback.mjs` at `71c0795`.
+
+**Result.** `greenAt1 0, healed 6, greenByAttempt3 6, struckOut 0, fallback 14`. **6/20 against
+18/20 — the bar is missed.** Every run redded on attempt 1 (the plant works). Six healed on attempt 2
+or 3. Fourteen ran to the attempt fallback.
+
+**What the 14 did — read from the saved texts, not guessed.** The gaps ping-pong:
+`689 words, limit 600` → `missing section heading "summary of work history"` → `661 words, limit
+600` → `missing …`. Two causes, both in the close's red string:
+
+1. **First-red-wins hides the second failing check.** `closeWordsAndSections` returns on the word
+   count before it looks at headings. A text that is both over 600 words and missing a heading is
+   told only about the words; the model shortens, is then told only about the heading, expands to
+   add it, and is over the words again. The step never hears both complaints at once, so it cannot
+   fix both. The signed M2 text (item 3) says the gap is "at most one sentence **per failed
+   check**" — plural. The POC's closer did not do that.
+2. **The heading gap does not say what a heading is.** The model writes `**2. Work history in
+   brief**` or `## Professional Skills & Soft Skills` — bold, numbered, paraphrased, or two
+   headings merged on one line. The closer wants a line that IS the heading text (optional leading
+   `#`). The gap said `missing section heading "summary of work history"`, which names the text but
+   not the form, so the next attempt paraphrases again. Attempts that did put `## Summary of Work
+   History` on its own line passed that check (runs 2, 6, 13 — then failed the other).
+
+**Not the model.** In every healed run the model did exactly what the gap said. In the failed runs
+it did exactly what the gap said, and the gap said too little.
+
+**What this rules out and what it does not.** It does not show that a gap-only channel cannot heal;
+it shows that a gap of one sentence describing one check cannot steer a two-check close. Reporting
+every failing check, one sentence each, is inside the signed doctrine (a passed check is still never
+mentioned, the field list is still never shown). Accepting `**Heading**` or `2. Heading` as a heading
+would be **widening the close to turn red green** and is not done here — it is a separate ruling for
+hamr (below).
+
+**Also seen.** With `STRIKE_LIMIT 2` and fallback 4, `struck-out` cannot occur at attempt 4 (fallback
+wins the boundary by design), and a strike at attempt 3 needs the same gap on attempts 1, 2 and 3.
+With two checks alternating, strikes never accumulate. Reporting all failing checks makes the gap
+hash stable across attempts, so strikes will start to bite; worth watching in batch b.
+
+**Next: batch b** — closer reports every failing check (`reds[]`, joined); the heading sentence
+states the form ("no line is exactly … — a heading is a line that is only that text, optionally
+after #"); same plant, same bar, new tag.
