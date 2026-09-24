@@ -187,6 +187,23 @@ test('the same wrong gap twice strikes out at the second strike (attempt 3, 3 at
   assert.equal(result.attempts[2].strike, true); // strike 2 -> struck out
 });
 
+test('F38: a close reporting two reds joined carries the WHOLE joined string into attempt 2\'s system prompt', async () => {
+  const joinedRed = '601 words, limit 600; no line is exactly the heading "soft skills" '
+    + '(a heading is a line that is only that text, optionally after #)';
+  const fakeClose = () => ({ verdict: 'red', red: joinedRed });
+  const contexts = [];
+  const modelStep = async (executorContext) => {
+    contexts.push(executorContext);
+    return { ok: true, text: 'anything', costUsd: 0.01 };
+  };
+  await runGapBackStep({
+    goal: CLEAN_GOAL, reads: CLEAN_READS, close: fakeClose, modelStep, strikeLimit: 2, maxAttempts: 4,
+  });
+  assert.equal(contexts.length >= 2, true);
+  assert.match(contexts[1].systemPrompt, /601 words, limit 600/);
+  assert.match(contexts[1].systemPrompt, /no line is exactly the heading "soft skills"/);
+});
+
 test('an empty artifact strikes; two in a row strikes out at attempt 2', async () => {
   const modelStep = async () => ({ ok: true, text: '', costUsd: 0.01 });
   const result = await runGapBackStep({

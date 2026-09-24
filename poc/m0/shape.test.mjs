@@ -18,7 +18,7 @@ function buildDoc(fillerCounts, { headings = SECTIONS } = {}) {
 test('exactly 600 words (boundary) is green', () => {
   const doc = buildDoc([200, 200, 193]); // 7 heading words + 593 filler = 600
   const result = closeWordsAndSections(doc, { maxWords: 600, sections: SECTIONS });
-  assert.deepEqual(result, { verdict: 'green' });
+  assert.deepEqual(result, { verdict: 'green', reds: [] });
 });
 
 test('PROOF the test can fail: 601 words (one over boundary) is red naming the count and limit', () => {
@@ -26,14 +26,53 @@ test('PROOF the test can fail: 601 words (one over boundary) is red naming the c
   const result = closeWordsAndSections(doc, { maxWords: 600, sections: SECTIONS });
   assert.equal(result.verdict, 'red');
   assert.equal(result.red, '601 words, limit 600');
+  assert.deepEqual(result.reds, ['601 words, limit 600']);
 });
 
-test('missing a declared section heading is red naming it', () => {
+test('missing a declared section heading is red naming the form of a heading (F38)', () => {
   const doc = buildDoc([10, 10, 10], { headings: ['Story of experience', 'Technical skills'] })
     + '\n# Soft skills is not written here\nfiller';
   const result = closeWordsAndSections(doc, { maxWords: 1000, sections: SECTIONS });
   assert.equal(result.verdict, 'red');
-  assert.equal(result.red, 'missing section heading "Soft skills"');
+  assert.equal(
+    result.red,
+    'no line is exactly the heading "Soft skills" (a heading is a line that is only that text, optionally after #)',
+  );
+});
+
+test('F38 fix: over the word limit AND missing a heading reports BOTH failing checks, words first', () => {
+  const filler = (n) => Array(n).fill('w').join(' ');
+  // "Story of experience" (3) + 300 filler + "Technical skills" (2) + 300
+  // filler = 605, plus the non-matching third line below -> well over 600,
+  // and the third declared heading never appears as its own line.
+  const doc = `# Story of experience\n${filler(300)}\n`
+    + `# Technical skills\n${filler(300)}\n`
+    + '# Soft skills is not written here\nfiller';
+  const result = closeWordsAndSections(doc, { maxWords: 600, sections: SECTIONS });
+  assert.equal(result.verdict, 'red');
+  assert.equal(result.reds.length, 2);
+  assert.equal(result.reds[0], '612 words, limit 600');
+  assert.equal(
+    result.reds[1],
+    'no line is exactly the heading "Soft skills" (a heading is a line that is only that text, optionally after #)',
+  );
+  assert.equal(result.red, `${result.reds[0]}; ${result.reds[1]}`);
+});
+
+test('F38 fix: missing two headings reports two heading sentences', () => {
+  const doc = buildDoc([10, 10, 10], { headings: ['Story of experience'] });
+  const result = closeWordsAndSections(doc, { maxWords: 1000, sections: SECTIONS });
+  assert.equal(result.verdict, 'red');
+  assert.equal(result.reds.length, 2);
+  assert.equal(
+    result.reds[0],
+    'no line is exactly the heading "Technical skills" (a heading is a line that is only that text, optionally after #)',
+  );
+  assert.equal(
+    result.reds[1],
+    'no line is exactly the heading "Soft skills" (a heading is a line that is only that text, optionally after #)',
+  );
+  assert.equal(result.red, `${result.reds[0]}; ${result.reds[1]}`);
 });
 
 test('sections present but out of order is red naming the out-of-order heading', () => {
@@ -53,13 +92,16 @@ test('PROOF the test can fail: a heading phrase inside a sentence does not count
     + 'This paragraph casually mentions soft skills but is not a heading line.\n';
   const result = closeWordsAndSections(doc, { maxWords: 1000, sections: SECTIONS });
   assert.equal(result.verdict, 'red');
-  assert.equal(result.red, 'missing section heading "Soft skills"');
+  assert.equal(
+    result.red,
+    'no line is exactly the heading "Soft skills" (a heading is a line that is only that text, optionally after #)',
+  );
 });
 
 test('a heading line matches case-insensitively and with optional trailing colon', () => {
   const doc = '# STORY OF EXPERIENCE:\nfiller\n# technical skills\nfiller\n# Soft Skills\nfiller\n';
   const result = closeWordsAndSections(doc, { maxWords: 1000, sections: SECTIONS });
-  assert.deepEqual(result, { verdict: 'green' });
+  assert.deepEqual(result, { verdict: 'green', reds: [] });
 });
 
 test('non-string input is unparseable, not red', () => {
