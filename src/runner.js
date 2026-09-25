@@ -625,15 +625,19 @@ async function runStepRalph({
  * @param {Array<{id:string, path:string}>} opts.sources - the real files to freeze for this run.
  * @param {unknown} opts.catalogue - passed straight through to `readFlow`.
  * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<{ok:boolean, artifact?:unknown, costUsd:number|null, red?:string, transport?:boolean, model?:string, modelMatch?:boolean}>} opts.modelStep
- * @param {(opts:{question:string, evidence:unknown, runDir:string}) => Promise<{decision:'accept'|'reject'|'rerun'|'timeout', reason?:string}>} opts.askStep
+ * @param {(opts:{question:string, evidence:unknown, runDir:string}) => Promise<{decision:'accept'|'reject'|'rerun'|'timeout'|'park', reason?:string}>} opts.askStep
  * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
  * @param {Record<string, any>} [opts.primitives] - injected primitive implementations, keyed by catalogue verb.
  * @param {() => string} [opts.clock] - returns the current ISO timestamp; defaults to the wall clock.
  * @param {string} opts.businessDate - the run's explicit "as of today", never the wall clock.
  * @param {number} [opts.ceilingUsd] - per-attempt ceiling override; defaults to `resolveCeilingUsd(null)`.
+ * @param {string|null} [opts.initialGap] - M3 scope item 7 (rerun as a fresh
+ *   run): a human's rerun reason, carried as the FIRST ordinary step's
+ *   starting gap. Never used by a plain `runFlow` call outside `resumeRun`'s
+ *   own rerun path.
  */
 export async function runFlow({
-  root, name, runId, sources, catalogue, modelStep, askStep, sendStep, primitives, clock, businessDate, ceilingUsd,
+  root, name, runId, sources, catalogue, modelStep, askStep, sendStep, primitives, clock, businessDate, ceilingUsd, initialGap,
 }) {
   const now = typeof clock === 'function' ? clock : () => new Date().toISOString();
   const flowDir = join(root, name);
@@ -758,6 +762,7 @@ export async function runFlow({
     unjudgedSinceLastAsk,
     recordAudit,
     attemptsLog,
+    firstStepGap: initialGap ?? null,
   });
 
   if (result.outcome === 'complete') return { ...result, auditRows };
@@ -784,10 +789,11 @@ export async function runFlow({
 /** An ask step that never waits — it immediately tells the fold to park.
  *  The counterpart to `makeFileAskStep`'s in-process poll (M2 scope item 6);
  *  a caller wanting park-and-exit behaviour from a FRESH `runFlow` call
- *  passes this (or an equivalent) as `askStep`. */
+ *  passes this (or an equivalent) as `askStep`.
+ *  @returns {(opts?: any) => Promise<{decision: 'park'}>} */
 export function makeParkingAskStep() {
   return async function parkingAskStep() {
-    return { decision: 'park' };
+    return /** @type {{decision: 'park'}} */ ({ decision: 'park' });
   };
 }
 
@@ -978,6 +984,12 @@ async function foldFromStep({
   inputsManifest, capUsd, redoCap, effectiveCeilingUsd, primitives, businessDate, modelStep, askStep, sendStep,
   now, startedAt, spent, spendComplete, artifacts, acceptedThisRun, acceptedAskEmitsThisRun, unjudgedSinceLastAsk,
   recordAudit, attemptsLog,
+  // M3 scope item 7: a fresh rerun's own reason, carried as step `i0`'s
+  // starting gap (never any later step's). `/** @type */` here (rather than
+  // a JSDoc `@param opts.firstStepGap`, which would need a preceding typed
+  // `@param {object} opts` this function's block comment never declared)
+  // is what keeps every OTHER destructured field's inferred type intact.
+  firstStepGap = /** @type {string|null} */ (null),
 }) {
   let runAcceptedThisRun = acceptedThisRun;
   let runUnjudged = unjudgedSinceLastAsk;
@@ -1101,9 +1113,13 @@ async function foldFromStep({
 
     // --- an ordinary step: green / softgreen / a non-ask hitl pass-through. ---
     const readsMap = readArtifactsMap(runDir, step.reads);
+    // M3 scope item 7: a fresh rerun's own first step (and only that one —
+    // `i === i0` is this fold's own starting point, never any later step)
+    // starts with the human's rerun reason as its gap, exactly like a
+    // redo's `initialGap` above.
     // eslint-disable-next-line no-await-in-loop
     const stepResult = await runStepRalph({
-      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit,
+      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null,
     });
     if (!stepResult.ok) {
       return haltRun({
@@ -1283,9 +1299,72 @@ export async function resumeRun({
       return { outcome: 'ask-expired', runDir, spentUsd: spent.value };
     }
 
+    if (answer.decision === 'rerun') {
+      // M3 scope item 7 (hamr "2A"): `rerun` ends THIS run (one history row,
+      // `rerun`, its real spend, $0 added) and starts a brand-new run on the
+      // same signed flow — never a redo of the step before the ask.
+      const reason = typeof answer.reason === 'string' ? answer.reason.trim() : '';
+      if (reason.length === 0) {
+        // `answerAsk` already refuses a blank reason at write time — this
+        // re-check exists because `resumeRun` never trusts a file it did
+        // not itself just validate, same as every other field read above.
+        return { outcome: 'refused', red: `resume: rerun answer for run "${runId}" carries a blank reason` };
+      }
+
+      const priorArtifactsForLog = {};
+      for (let i = 0; i < state.stepIndex; i += 1) {
+        priorArtifactsForLog[steps[i].emits] = readArtifact(runDir, steps[i].emits);
+      }
+      appendHistory(flowDir, {
+        runId, at: now(), outcome: 'rerun', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: Date.now() - startedAt, signatureHash: state.signatureHash,
+      });
+      recordLateAnswerIfAny(runDir);
+      writeLog(runDir, { runId, outcome: 'rerun', attempts: [], artifacts: priorArtifactsForLog });
+
+      // Deterministic derived id (M3 scope item 7) — refused by name, never
+      // silently renumbered, if it already exists.
+      const newRunId = `${runId}-rerun-1`;
+      const newRunDir = join(flowDir, 'runs', newRunId);
+      if (existsSync(newRunDir)) {
+        return {
+          outcome: 'refused',
+          red: `resume: rerun target run "${newRunId}" already exists for run "${runId}" — refused`,
+        };
+      }
+
+      // Fresh inputs, re-frozen from the ORIGINAL source paths — carried in
+      // `inputsManifest[].source` since `freezeInputs` first wrote it (M3
+      // scope item 7's own note: "persist those in state.json at park if
+      // they aren't already" — they already are, via this field).
+      const rerunSources = (state.inputsManifest ?? []).map((entry) => ({ id: entry.id, path: entry.source }));
+
+      const newRun = await runFlow({
+        root,
+        name,
+        runId: newRunId,
+        sources: rerunSources,
+        catalogue,
+        modelStep,
+        // A fresh run never waits in-process — any signed ask it reaches
+        // parks immediately, exactly like any other `runFlow` call this
+        // piece drives.
+        askStep: makeParkingAskStep(),
+        sendStep,
+        primitives,
+        clock,
+        businessDate,
+        ceilingUsd,
+        // Item 7: the reason becomes the new run's FIRST step's starting gap.
+        initialGap: reason,
+      });
+
+      return {
+        outcome: 'rerun', runDir, runId, newRunId, spentUsd: spent.value, newRun,
+      };
+    }
+
     if (answer.decision !== 'accept' && answer.decision !== 'reject') {
-      // `rerun` (a fresh run) is M3 scope item 7 — piece 2, not this piece.
-      return { outcome: 'refused', red: `resume: decision "${answer.decision}" is not handled by this piece (rerun is M3 piece 2)` };
+      return { outcome: 'refused', red: `resume: unrecognised decision "${answer.decision}" for run "${runId}"` };
     }
 
     // Reconstruct the fold's accumulators from disk + state.json — never

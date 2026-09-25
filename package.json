@@ -11,6 +11,9 @@
       "default": "./src/index.js"
     }
   },
+  "bin": {
+    "fwdloop": "./bin/fwdloop"
+  },
   "license": "Apache-2.0",
   "author": "hamr0",
   "repository": {
@@ -40,6 +43,7 @@
   },
   "files": [
     "src",
+    "bin",
     "types",
     "LICENSE",
     "NOTICE"
