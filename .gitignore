@@ -31,3 +31,7 @@ poc/m0/out/*
 # M1 POC run output (poc/m1/slot-batch.mjs's per-draft jsonl + declarations)
 poc/m1/out/*
 !poc/m1/out/spend.jsonl
+
+# M2 POC run output (poc/m2/gapback.mjs's per-run jsonl/json + declarations)
+poc/m2/out/*
+!poc/m2/out/spend.jsonl

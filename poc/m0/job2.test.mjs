@@ -352,7 +352,7 @@ test('(d) missing a required section heading closes red, ask never called, nothi
 
   assert.equal(result.outcome, 'red');
   assert.equal(result.phase, 'compose');
-  assert.match(result.red, /missing section heading "soft skills"/);
+  assert.match(result.red, /no line is exactly the heading "soft skills"/);
   assert.equal(askCalled, false);
 });
 

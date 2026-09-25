@@ -10,3 +10,7 @@ export {
 export {
   checkFlowName, writeFlow, readFlow, FLOW_FILES,
 } from './flow.js';
+export {
+  runFlow, STRIKE_LIMIT, MAX_ATTEMPTS,
+} from './runner.js';
+export { closeByClass } from './closers.js';

@@ -29,7 +29,7 @@
 /**
  * @param {unknown} text - candidate artifact text
  * @param {{ maxWords: number, sections: string[] }} declared
- * @returns {{verdict:'green'}|{verdict:'red', red:string}|{verdict:'unparseable', red:string}}
+ * @returns {{verdict:'green', reds:[]}|{verdict:'red', red:string, reds:string[]}|{verdict:'unparseable', red:string}}
  */
 export function closeWordsAndSections(text, { maxWords, sections }) {
   if (typeof text !== 'string') {
@@ -37,6 +37,7 @@ export function closeWordsAndSections(text, { maxWords, sections }) {
   }
 
   const lines = text.split(/\r?\n/);
+  const reds = [];
 
   // Word count: strip a line's leading heading markers before splitting on
   // whitespace, so "# Story of experience" costs 3 words, not 4.
@@ -47,13 +48,15 @@ export function closeWordsAndSections(text, { maxWords, sections }) {
     wordCount += words.length;
   }
   if (wordCount > maxWords) {
-    return { verdict: 'red', red: `${wordCount} words, limit ${maxWords}` };
+    reds.push(`${wordCount} words, limit ${maxWords}`);
   }
 
   // Section order: each declared heading must appear as a line that IS that
   // heading (case-insensitive; optional leading #s; optional trailing ':'),
   // in the declared order. A heading occurring mid-sentence does not count
   // — only a line that, once trimmed of markers, equals the heading text.
+  // F38: every failing section is reported (not just the first), so a step
+  // that is both over the word cap and missing a heading hears both.
   const headingLines = lines
     .map((line) => line.replace(/^#+\s*/, '').replace(/:\s*$/, '').trim().toLowerCase())
     .filter((l) => l.length > 0);
@@ -68,12 +71,22 @@ export function closeWordsAndSections(text, { maxWords, sections }) {
       // violation; otherwise it's simply missing.
       const anywhere = headingLines.indexOf(want);
       if (anywhere === -1) {
-        return { verdict: 'red', red: `missing section heading "${section}"` };
+        // F38: names the FORM of a heading, not just the text, so a
+        // paraphrased/bolded/numbered line is told what shape is wanted.
+        reds.push(`no line is exactly the heading "${section}" (a heading is a line that is only that text, optionally after #)`);
+      } else {
+        reds.push(`section heading "${section}" is out of order`);
       }
-      return { verdict: 'red', red: `section heading "${section}" is out of order` };
+      // Don't advance searchFrom on a failing section — the next declared
+      // heading is still checked against the same pointer.
+    } else {
+      searchFrom = foundAt + 1;
     }
-    searchFrom = foundAt + 1;
   }
 
-  return { verdict: 'green' };
+  if (reds.length > 0) {
+    return { verdict: 'red', red: reds.join('; '), reds };
+  }
+
+  return { verdict: 'green', reds: [] };
 }

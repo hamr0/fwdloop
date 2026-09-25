@@ -349,6 +349,174 @@ context (docs/archive/PRD.md:572-573).
 - **Negative:** a step whose effect check fails halts the run and names the step
   (docs/archive/PRD.md:576-576).
 
+### M2 — scope, exit, negative — SIGNED by hamr 2026-09-24 ("sign m2, cap $5")
+
+Restates the M2 paragraph above as the three things the binding rule needs, using what M1 built.
+Three design picks were made in the interview of 2026-09-24 (hamr: "1A, 2A 3A") and are folded in
+below; scope, exit, negative and the cap were signed together on 2026-09-24.
+
+**Scope.**
+
+1. **One fold, no job code.** `src/runner.js` reads a flow directory through M1's `readFlow`
+   (three signed files, hash verified, refusing by file name) and folds over `declaration.steps`
+   in order. It has no code path that knows job #1 from job #2. What M0's `poc/m0/runner.mjs`
+   proved (freeze inputs with sha256, bind steps by line, check grants by what is granted, the
+   fresh-run-dir refusal, `shell_read`/`shell_write` through the catalogue, the write-time send
+   re-check) is borrowed by copy into `src/`, never imported from `poc/`. The POC is never shipped.
+2. **Fresh context per step.** A step's executor is constructed with its **goal**, its granted
+   primitives from the catalogue, the artifacts it `reads` (by id, from the run's artifact
+   space), and nothing else. No transcript crosses a step boundary. The step emits **one typed
+   artifact** under its `emits` id; the next step reads it by id. (bareloop F18: a carried
+   transcript is re-bought every round; F21: a never-green run needs an explicit channel.)
+3. **Goal in, gap back — the load-bearing invariant, as a mechanism.** The executor is built
+   **without its close and without the cap**: the object handed to the model step has no field,
+   closure or import through which the close function, the shape, the cap or the strike count
+   can be reached. A construction test proves it at $0: the executor's context is serialised and
+   searched for every close/cap identifier, and the close function is not callable from it. Only
+   the **gap text** (the red string, at most one sentence per failed check) goes back to the next
+   attempt. A softgreen shape that cannot be split from its goal is **hitl**, not softgreen.
+4. **Close by declared class, one closer per class.** `green`: the citation check (every stated
+   figure resolves to a cell or formula in a frozen input — M0's `closeDerive`, borrowed).
+   `softgreen`: the signed shape, one checker per `SHAPE_KEYS` entry (`maxWords`, `sections`,
+   `linesPerInvoice`, `mustCarry`) and nothing else; an unknown key cannot reach the runner
+   because M1 refuses it. `hitl`: the ask (item 6). Every closer names its third outcomes (crash,
+   unparseable, unpriced) besides green/red; a closer that renders no judgment is a **casualty,
+   never a red** (bareloop F17).
+5. **The ralph loop with strikes, borrowed whole.** `while close-red and under-cap: run the step
+   again`, stop at first green. A **strike** is a red attempt that either repeats a gap already
+   seen this step (normalised gap hash, a seen-set, never last-only) or wrote no artifact.
+   Strikes stick; **`STRIKE_LIMIT = 2`** is a constant the runner owns — not in the arbiter
+   block, not in the declaration, so nothing can raise it (hamr 2026-09-24, "2A"; bareloop
+   `src/ladder.js@cfa5447`). Striking out halts the run naming the step and its last gap. The
+   per-attempt bound is structural, constructed per attempt, never run-wide (bareloop F20). Never:
+   rewriting a step, re-picking a primitive, re-drafting the flow.
+6. **The ask, M0's file checkpoint, in-process** (hamr 2026-09-24, "3A"). A hitl step writes
+   `ask.json` (question plus evidence) into the run dir and waits for `answer.json`
+   (`accept` / `reject "<reason>"` / `rerun "<reason>"`), consumed exactly once; a rerun without
+   a reason is refused and re-asked; a stale answer arriving mid-redraft is quarantined. The
+   signed `redo cap` (default 3) governs; the 4th rejection halts naming the step. A pause spends
+   nothing. Cross-process inbox, TTL and resume are **M3**, not here.
+7. **Money honesty, per attempt.** Cost is `number | null`, never `?? 0`; a null or an unpriced
+   round halts `pricing-red`; an unknown model prices at the rate table's ceiling with the row
+   stamped `substituted`. `cap $ per run` binds **between attempts** and may overshoot by at most
+   one attempt; an attempt is funded together with its close (bareloop F45) or is not started. A
+   cut mid-attempt prices at ceiling and is a casualty, not evidence. `spendComplete: false` on
+   any row makes the run's total a **floor**. Every row carries `modelMatch`.
+8. **Provider-red, rungs 1 to 3 only.** Transport faults (`ECONNRESET`, `ETIMEDOUT`, `fetch
+   failed`, TLS) get exactly **one** immediate retry on the same attempt; an HTTP status is not
+   transport; a wall-clock timeout (`round budget`, default 120s) is never retried. A second
+   failure parks the run `provider-red` with `spendComplete: false`. The trigger's +5/+15/+45
+   retries are the trigger's (a later module); M2 has no trigger.
+9. **Two books, append-only, one writer each.** `runs/<run-id>/audit.jsonl`: one row per attempt
+   `{ step, attempt, class, verdict, gap, usd, spendComplete, wallMs, model, modelMatch, strike }`
+   plus one row per ask and per send. `flows/<name>/history.jsonl`: one row per run `{ runId, at,
+   outcome, spentUsd, spendComplete, capUsd, wallMs, signatureHash }`. Both written by the runner
+   through one function each; nothing else appends. `log.json` (what the model wrote, every
+   attempt, red runs included) stays, as M0 ruled.
+10. **Every step has a mechanical happened check** before its close: the emitted artifact exists
+    and is non-empty, for every class, no exception. A 0-byte write is a red naming the step
+    (bareloop F23).
+
+**Not in M2:** the trigger and its retry ladder, `cap.monthlyUsd`, the cross-process inbox and
+TTL (M3), dry-run/accept/versions (M4), any UI, learning across runs, an LLM judge.
+
+**POC first — the riskiest assumption** (hamr 2026-09-24, "1A"): **that a step which sees only
+the gap can heal.** Take job #2's compose step (softgreen: `maxWords 600`, three named
+`sections`). Plant a first attempt that must red (the goal handed in asks for four sections, or
+the word ceiling is set to 300 for attempt 1 only). Attempt 2 gets the goal plus the gap text
+("sections: expected 3, found 4") and nothing else. Twenty runs on `deepseek-flash`. The bar is
+**18/20 green by attempt 3 (within `STRIKE_LIMIT`)** — below that, a gap-only channel does not
+heal and the fence-plus-loop design is wrong, not the model. Alongside, at $0: the construction
+test of item 3 must fail against a deliberately leaky executor (the close passed as a field) and
+pass against the real one. Cost: about 20 × $0.015.
+
+**Exit.**
+
+- Both `test/fixtures` flows (job #1 and job #2) run end to end through `src/runner.js` with no
+  per-job code path, on fake primitives and a fake ask at $0, and job #2 live on `deepseek-flash`
+  reaching its ask with a green shape.
+- The construction test of item 3 is in the suite and can fail (proven by the leaky executor).
+- The POC bar above is met.
+- `audit.jsonl` and `history.jsonl` exist for every run, red runs included, and every row prices
+  (no null cost reaches a book).
+
+**Negative scenarios**, each of which must be able to fail:
+
+- (i) a step whose happened check fails (0-byte artifact) halts the run naming the step;
+- (ii) a step that reds its close with the same gap twice strikes out at the second strike, and
+  the run halts naming the step and the gap, under cap;
+- (iii) a run whose next attempt cannot be funded under `cap $ per run` halts `cap-halt` before
+  the attempt starts, never after;
+- (iv) a flow whose files do not hash to `signature.json` is refused naming the file, at $0;
+- (v) a transport fault twice on one attempt parks the run `provider-red` with
+  `spendComplete: false`, and the ledger shows the floor, never 0;
+- (vi) the executor's serialised context contains no close, shape, cap or strike identifier —
+  and the same test goes red when the close is smuggled in as a field.
+
+**Kills the module:** the POC lands below 18/20 and the fix on the table is showing the step its
+shape; or job #1 and job #2 cannot run through one fold without a per-job branch.
+
+**M2 spend cap: $5.00 — SIGNED by hamr 2026-09-24** ("sign m2, cap $5"). M2's own, separate from
+M1's $5.00 ($1.10 used). POC (gap-back healing, 18/20) starts on branch `m2`.
+**POC bar RULED MET by hamr 2026-09-24** ("pass"). F38: batch a 6/20 healed (closer reported one
+check at a time — the gap ping-ponged); batch b, closer reporting every failing check, 18/20 healed,
+17/20 by attempt 3, the two fallbacks halted honestly naming the step and the gap. Ruled on the
+2026-09-15 rule: a catch is a catch. $0.53 of the $5.00 cap. Build starts on `m2`.
+
+**M2 amendment 1 — the step's own word, and evidence at the next ask — SIGNED by hamr 2026-09-24**
+("sign both"). From F39 (first live run: the JD step was blocked, said so honestly, and passed).
+
+1. **`done` and `blocker` on every artifact.** The `emit_artifact` schema for every close class carries
+   `done: boolean` (required) and `blocker: string | null`. `done: false` is a **red naming the step and
+   the blocker**, mechanically, before any close runs and for every class, hitl included. No judge:
+   the model's own typed word that it did not do the step is the one statement the machine takes at
+   face value. `done: true` proves nothing — the close still decides.
+2. **Unjudged artifacts go to the next signed ask.** A hitl-class step that is not bound to a signed
+   ask line does not pause; its artifact is carried as **evidence into the next signed ask**, labelled
+   by step, alongside that ask's own artifact. The human's accept covers every artifact shown. A flow
+   whose last steps after the final ask are hitl-class and unasked is a validation red at M1 (nothing
+   may leave unseen), to be added to `validateDeclaration`.
+
+Both are mechanisms, not prompt wording: a test proves `done: false` halts with the close never
+called, and a test proves the ask's `evidence` lists every unasked hitl artifact since the previous
+ask.
+
+**M2 EXIT SIGNED — hamr, 2026-09-24** ("both", after the F41 live plant). Evidence below, plus F41: `done: false` fired from a live model on an empty JD and the run halted `not-done`, nothing sent; the two book bugs F41 found are fixed at `55c1629`. Runner at `a045b73` + F41 fixes.
+
+| exit / negative | evidence |
+|---|---|
+| both fixtures through one fold, $0 | `test/runner.test.js` "job #1 fixture runs end to end" and "job #2 fixture runs end to end"; `src/runner.js` has no per-job branch |
+| job #2 live on `deepseek-flash`, ask reached, shape green | F39 (run-1, $0.0118) and F40 (run-2, $0.0446): JD read by role, two rejects redrafted live, stale accept quarantined, sent |
+| construction test can fail | `test/runner.test.js` "construction test … a leaky double is caught" |
+| POC bar 18/20 | RULED MET above (F38 batch b) |
+| both books every run, every row priced | `flows/job2-live-1/history.jsonl` has run-1 and run-2; 20 audit rows, no null `usd`, `spendComplete: true` |
+| (i) 0-byte artifact halts naming the step | `test/runner.test.js` "negative (i)" |
+| (ii) same gap twice strikes out | "negative (ii)" |
+| (iii) cap-halt before the attempt | "negative (iii)" |
+| (iv) tampered flow refused by name at $0 | "negative (iv)" plus `test/signature.test.js` |
+| (v) transport fault twice parks provider-red, floor never 0 | "negative (v)" and the floor test after it |
+| (vi) executor context carries no close/shape/cap/strike | same construction test as above |
+| amendment 1 | three `done:false` tests, three `evidence.unjudged` tests; F40 shows `unjudgedCount: 2` on every live ask row |
+
+Spend: $0.53 POC + $0.21 live (F39, F40, F41) = $0.74 of the $5.00 cap. Suite 1173/1173.
+
+**M2 amendment 2 — `read`/`grep` serve text roles only — SIGNED by hamr 2026-09-24** ("both"). From F41
+item 3: a step granted `read` pulled a .docx role's raw bytes into context, 12 rounds, $0.15. `read` and
+`grep` list and accept only roles whose frozen input is text (`.md`, `.txt`); a `.docx` role is refused
+by name pointing at `readDocx`, a `.csv` role at `addressCells`, any other extension "no text primitive
+serves it". The refusal fires on the role name, not the schema alone. Mechanism, not wording; `readDocx`
+and `addressCells` unchanged. Suite 1180/1180.
+
+**F42 fix — the send ships the signed ask's artifact by identity, not `reads[0]` — found by
+`/branch-review` 2026-09-24.** The runner picked the send's content as the first id in the step's
+`reads` with an artifact on disk; every read names an earlier step, so that was always `reads[0]`.
+Neither fixture's send happened to expose it (job #2's `reads[0]` holds the same text as the
+accepted artifact). Fixed: the send ships the one artifact emitted by a signed ask step named in
+its `reads`, **only if that ask was accepted this run**; zero or more than one such id halts red
+naming the step and the ids, before `sendStep` is ever called. `validateDeclaration` now requires
+**exactly one** earlier signed ask's `emits` in a send's `reads` (was: at least one). First tests
+to enter the runner's send branch with a real `arbiter.sends` line. Suite 1185/1185.
+
 ## M3 — ask and inbox, the HITL window
 
 The inbox and its answers, TTL, and checkpoint/resume at step level. A pause spends nothing, and a

@@ -631,11 +631,39 @@ export function validateDeclaration(declaration, context = {}) {
         .map((a) => stepInfo.find((st) => st.fromLine === a))
         .filter((st) => st !== undefined)
         .map((st) => st.emits);
-      const readsAnAsk = earlierAskEmits.some((emits) => emits !== null && sendStep.reads.includes(emits));
-      if (!readsAnAsk) {
+      const readAskEmits = earlierAskEmits.filter((emits) => emits !== null && sendStep.reads.includes(emits));
+      if (readAskEmits.length === 0) {
         reds.push(`declaration: send at line ${n} (steps[${sendIdx}]) does not read the emits of any earlier signed `
           + `ask step (asks at lines ${earlierAskLines.join(', ')})`);
+      } else if (readAskEmits.length >= 2) {
+        reds.push(`declaration: send at line ${n} (steps[${sendIdx}]) reads the emits of more than one earlier signed `
+          + `ask step (${readAskEmits.join(', ')}) — exactly 1 required`);
       }
+    }
+  }
+
+  // --- M2 amendment 1 item 2 (docs/wiki/the-module-ladder.md, "M2 amendment
+  // 1 — SIGNED"): nothing hitl-class may sit after the LAST signed ask,
+  // unseen — the send step bound to a signed send line is the one exempt
+  // step (it is itself hitl-class by silence in both fixtures, but it is
+  // the human-accepted egress, not a second undeclared pause). Anchored on
+  // STEP ORDER (a step's position in `declaration.steps`, not its line
+  // number) since that is the order the runner actually folds over. No
+  // anchor to check against when there is no signed ask at all.
+  if (askLines.length > 0) {
+    const lastAskLine = Math.max(...askLines);
+    const lastAskStepIdx = stepInfo.findIndex((st) => st.fromLine === lastAskLine);
+    if (lastAskStepIdx !== -1) {
+      const sendStepIndices = new Set();
+      for (const n of sendLines) {
+        const idx = stepInfo.findIndex((st) => st.fromLine === n);
+        if (idx !== -1) sendStepIndices.add(idx);
+      }
+      stepInfo.forEach((st, i) => {
+        if (i > lastAskStepIdx && st.effectiveClass === 'hitl' && !sendStepIndices.has(i)) {
+          reds.push(`declaration: step "${st.emits}" (line ${st.fromLine}) is hitl after the last signed ask — nothing may leave unseen`);
+        }
+      });
     }
   }
 

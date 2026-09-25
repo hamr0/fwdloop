@@ -161,11 +161,11 @@ checked, or **you looked**. There is no fourth option, and "probably fine" is no
 
 | | what it adds | state |
 |---|---|---|
-| **Layer 0 — the close** | a step can prove it happened, with no repo to measure against | POC built; not closed |
+| **Layer 0 — the close** | a step can prove it happened, with no repo to measure against | built (M2) |
 | **Layer 1 — the description** | you describe the job in your words and never name a tool | POC built; holds on two providers |
-| **Layer 2 — the signature** | one hash over the whole thing; any edit means agreeing again | planned |
-| **Layer 3 — the run** | steps run one at a time, each with fresh context, joined only by what the last one produced | planned |
-| **Layer 4 — the ask** | the machine stops where you said, and waits, and spends nothing while waiting | planned |
+| **Layer 2 — the signature** | one hash over the whole thing; any edit means agreeing again | built (M1) |
+| **Layer 3 — the run** | steps run one at a time, each with fresh context, joined only by what the last one produced | built (M2) |
+| **Layer 4 — the ask** | the machine stops where you said, and waits, and spends nothing while waiting | built (M2, in-process; cross-process inbox is M3) |
 | **Layer 5 — the screen** | all of it in a browser; someone who has never opened a terminal can do the whole thing | planned — **the crux** |
 | **Layer 6 and on** | skills, a library of jobs that worked, triggers, real sending | planned |
 

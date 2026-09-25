@@ -585,6 +585,139 @@ describe('the send lock', () => {
 });
 
 // ---------------------------------------------------------------------------
+// M2 fix — item 3: the send-lock's "reads an earlier ask" rule tightens from
+// "at least one" to "exactly one". Two signed asks, both earlier than the
+// send: reading both is a red naming both ids; reading exactly one is still
+// green (the base suite above already covers the single-ask case).
+// ---------------------------------------------------------------------------
+
+const TWO_EARLIER_ASKS_TEXT = [
+  '1. Read the data.',
+  '2. ask: Ask if unsure.',
+  '3. ask: Ask again.',
+  '4. Send the result.',
+  '',
+  'Arbiter guardrails (belong to no line; human-signed, tighten-only):',
+  'guardrail: cap $0.25 per run',
+  'guardrail: send at line 4 to file:out/result.txt',
+  'guardrail: source data = file:/tmp/data.csv-file',
+].join('\n');
+
+const TWO_EARLIER_ASKS_SIGNED = parseSignedText(TWO_EARLIER_ASKS_TEXT);
+
+function twoEarlierAsksDeclaration(sendReads) {
+  return {
+    guardrailClasses: {},
+    unjudgeable: {},
+    refused: [],
+    inputFacts: { data: ['Amount', 'Date'] },
+    steps: [
+      {
+        goal: 'Read the data', primitives: ['read'], reads: [], emits: 'data_read', fromLine: 1, close: { class: 'hitl' },
+      },
+      {
+        goal: 'Ask if unsure', primitives: [], reads: ['data_read'], emits: 'asked1', fromLine: 2, close: { class: 'hitl' },
+      },
+      {
+        goal: 'Ask again', primitives: [], reads: ['asked1'], emits: 'asked2', fromLine: 3, close: { class: 'hitl' },
+      },
+      {
+        goal: 'Send the result', primitives: ['write'], reads: sendReads, emits: 'sent', fromLine: 4, close: { class: 'hitl' },
+      },
+    ],
+  };
+}
+
+describe('M2 fix item 3: a send reading TWO earlier asks\' emits is a red; exactly one is still green', () => {
+  test('PROOF — the two-earlier-asks base text parses green', () => {
+    assert.equal(TWO_EARLIER_ASKS_SIGNED.ok, true, TWO_EARLIER_ASKS_SIGNED.ok ? '' : TWO_EARLIER_ASKS_SIGNED.reds.join('\n'));
+  });
+
+  test('reading both earlier asks\' emits is a red naming both ids', () => {
+    const decl = twoEarlierAsksDeclaration(['asked1', 'asked2']);
+    const result = validateDeclaration(decl, { arbiter: TWO_EARLIER_ASKS_SIGNED.arbiter, lines: TWO_EARLIER_ASKS_SIGNED.lines, catalogue: CATALOGUE });
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.reds.some((r) => /send at line 4 \(steps\[3\]\) reads the emits of more than one earlier signed ask step \(asked1, asked2\) — exactly 1 required/.test(r)),
+      result.reds.join('\n'),
+    );
+  });
+
+  test('reading exactly one earlier ask\'s emits is still green', () => {
+    const decl = twoEarlierAsksDeclaration(['asked2']);
+    const result = validateDeclaration(decl, { arbiter: TWO_EARLIER_ASKS_SIGNED.arbiter, lines: TWO_EARLIER_ASKS_SIGNED.lines, catalogue: CATALOGUE });
+    assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M2 amendment 1 item 2 (docs/wiki/the-module-ladder.md, "M2 amendment 1 —
+// SIGNED"): nothing hitl-class may sit after the LAST signed ask, unseen.
+// The send step bound to a signed send line is the one exempt step.
+// ---------------------------------------------------------------------------
+
+describe('M2 amendment 1 item 2: nothing hitl after the last signed ask', () => {
+  test('both real fixtures still validate green: job #1\'s send (line 6, after ask line 5) and job #2\'s send (line 5, after ask line 4) are the exempt step', () => {
+    const signed1 = parseSignedText(fixture('job1.m1.signed.txt'));
+    assert.equal(signed1.ok, true, signed1.ok ? '' : signed1.reds.join('\n'));
+    const result1 = validateDeclaration(fixtureJson('job1.m1.declaration.json'), { arbiter: signed1.arbiter, lines: signed1.lines, catalogue: CATALOGUE });
+    assert.equal(result1.ok, true, result1.ok ? '' : result1.reds.join('\n'));
+
+    const signed2 = parseSignedText(fixture('job2-with-sources.signed.txt'));
+    assert.equal(signed2.ok, true, signed2.ok ? '' : signed2.reds.join('\n'));
+    const result2 = validateDeclaration(fixtureJson('job2.m1.declaration.json'), { arbiter: signed2.arbiter, lines: signed2.lines, catalogue: CATALOGUE });
+    assert.equal(result2.ok, true, result2.ok ? '' : result2.reds.join('\n'));
+  });
+
+  test('mutation: appending a hitl step after job #1\'s send is a red naming it', () => {
+    const signed = parseSignedText(fixture('job1.m1.signed.txt'));
+    assert.equal(signed.ok, true, signed.ok ? '' : signed.reds.join('\n'));
+    const declaration = fixtureJson('job1.m1.declaration.json');
+    declaration.steps.push({
+      goal: 'An extra step the drafter should never have appended after the send.',
+      primitives: [],
+      reads: ['sent_reply'],
+      emits: 'leaked_afterthought',
+      fromLine: null,
+      close: { class: 'hitl' },
+    });
+    const result = validateDeclaration(declaration, { arbiter: signed.arbiter, lines: signed.lines, catalogue: CATALOGUE });
+    assert.equal(result.ok, false);
+    assert.ok(result.reds.some((r) => /step "leaked_afterthought".*is hitl after the last signed ask — nothing may leave unseen/.test(r)), result.reds.join('\n'));
+  });
+
+  test('mutation: appending a hitl step after the minimal fixture\'s send is a red naming it (baseDeclaration/SIGNED)', () => {
+    const decl = baseDeclaration();
+    decl.steps.push({
+      goal: 'A hitl step smuggled in after the send.',
+      primitives: [],
+      reads: ['sent'],
+      emits: 'unseen',
+      fromLine: null,
+      close: { class: 'hitl' },
+    });
+    const result = run(decl);
+    assert.equal(result.ok, false);
+    assert.ok(result.reds.some((r) => /step "unseen" \(line null\) is hitl after the last signed ask — nothing may leave unseen/.test(r)), result.reds.join('\n'));
+  });
+
+  test('no signed ask at all: nothing to anchor on, so this check never fires', () => {
+    const badArbiter = { ...SIGNED.arbiter, asks: [] };
+    const decl = baseDeclaration();
+    // With no ask signed, drop the ask step itself (it would otherwise trip
+    // the UNRELATED "pause at an unsigned line" rule) so this isolates the
+    // "no anchor" case cleanly.
+    decl.steps.splice(1, 1);
+    decl.refused.push({ line: 2, reason: 'no ask signed in this variant' });
+    const result = validateDeclaration(decl, { arbiter: badArbiter, lines: SIGNED.lines, catalogue: CATALOGUE });
+    // Still reds (rule (e) of the send lock: no earlier ask to read from) —
+    // but never for THIS check's wording, proving it is inert with no anchor.
+    assert.equal(result.ok, false);
+    assert.ok(!result.reds.some((r) => r.includes('is hitl after the last signed ask')), result.reds.join('\n'));
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Listing rule
 // ---------------------------------------------------------------------------
 

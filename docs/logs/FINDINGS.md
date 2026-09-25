@@ -1865,3 +1865,224 @@ description lists the same keys. Golden regenerated. Two debrief "Later" items f
 
 **Ruling this leaves standing.** The four keys are enough for both jobs as drafted today. A fifth
 word is a red by name, then hamr's signature — never a widening of the check.
+
+## F38 — M2 gap-back POC, batch a: 6 of 20 healed against a bar of 18. The channel works; the closer's gap was too thin to steer it (2026-09-24)
+
+**Setup (signed M2 POC).** Job #2's compose step; the executor sees the goal (job #2's line 3 verbatim
+plus the plant "and a fourth section: certifications."), the resume and JD as data, and, from
+attempt 2 on, ONLY the previous close's red string. Close: `closeWordsAndSections` with the real
+shape (`maxWords 600`, the three signed headings). `STRIKE_LIMIT 2`, attempt fallback 4. Tag
+`2026-09-24a`, `deepseek-flash`, 20 runs, 69 attempts, $0.3249, `modelMatch` match on all 69,
+`spendComplete: true`. `poc/m2/gapback.mjs` at `71c0795`.
+
+**Result.** `greenAt1 0, healed 6, greenByAttempt3 6, struckOut 0, fallback 14`. **6/20 against
+18/20 — the bar is missed.** Every run redded on attempt 1 (the plant works). Six healed on attempt 2
+or 3. Fourteen ran to the attempt fallback.
+
+**What the 14 did — read from the saved texts, not guessed.** The gaps ping-pong:
+`689 words, limit 600` → `missing section heading "summary of work history"` → `661 words, limit
+600` → `missing …`. Two causes, both in the close's red string:
+
+1. **First-red-wins hides the second failing check.** `closeWordsAndSections` returns on the word
+   count before it looks at headings. A text that is both over 600 words and missing a heading is
+   told only about the words; the model shortens, is then told only about the heading, expands to
+   add it, and is over the words again. The step never hears both complaints at once, so it cannot
+   fix both. The signed M2 text (item 3) says the gap is "at most one sentence **per failed
+   check**" — plural. The POC's closer did not do that.
+2. **The heading gap does not say what a heading is.** The model writes `**2. Work history in
+   brief**` or `## Professional Skills & Soft Skills` — bold, numbered, paraphrased, or two
+   headings merged on one line. The closer wants a line that IS the heading text (optional leading
+   `#`). The gap said `missing section heading "summary of work history"`, which names the text but
+   not the form, so the next attempt paraphrases again. Attempts that did put `## Summary of Work
+   History` on its own line passed that check (runs 2, 6, 13 — then failed the other).
+
+**Not the model.** In every healed run the model did exactly what the gap said. In the failed runs
+it did exactly what the gap said, and the gap said too little.
+
+**What this rules out and what it does not.** It does not show that a gap-only channel cannot heal;
+it shows that a gap of one sentence describing one check cannot steer a two-check close. Reporting
+every failing check, one sentence each, is inside the signed doctrine (a passed check is still never
+mentioned, the field list is still never shown). Accepting `**Heading**` or `2. Heading` as a heading
+would be **widening the close to turn red green** and is not done here — it is a separate ruling for
+hamr (below).
+
+**Also seen.** With `STRIKE_LIMIT 2` and fallback 4, `struck-out` cannot occur at attempt 4 (fallback
+wins the boundary by design), and a strike at attempt 3 needs the same gap on attempts 1, 2 and 3.
+With two checks alternating, strikes never accumulate. Reporting all failing checks makes the gap
+hash stable across attempts, so strikes will start to bite; worth watching in batch b.
+
+**Next: batch b** — closer reports every failing check (`reds[]`, joined); the heading sentence
+states the form ("no line is exactly … — a heading is a line that is only that text, optionally
+after #"); same plant, same bar, new tag.
+
+**Batch b (tag `2026-09-24b`, same plant, closer at `5343b4d`).** 20 runs, 46 attempts, $0.2080,
+`modelMatch` match on all 46, `spendComplete: true`.
+`greenAt1 0, healed 18, greenByAttempt3 17, struckOut 0, fallback 2`.
+
+- 16 runs healed on attempt 2, one on attempt 3, one on attempt 4 (run 17), two ran to the fallback
+  (runs 7 and 20). Every attempt-1 red carried all three heading sentences (and the word sentence
+  when it applied); every attempt-2 text put the three headings on their own lines.
+- The two fallbacks and run 17 are the same shape: headings fixed on attempt 2 but over 600 words;
+  shortened on attempt 3 and lost a heading; the gap was complete every time. That is the model
+  juggling two constraints, not a thin gap.
+- Strikes never fired in either batch: with all checks reported, consecutive gaps differ as the
+  failing set changes, so the seen-set never repeats. The fallback at 4 did all the bounding.
+
+**Against the signed bar (18/20 green by attempt 3): 17/20.** Missed by one; 18/20 by attempt 4.
+Batch a to batch b: 6 → 18 healed, the whole difference being what the gap says. Nothing passed
+that should not have: the two fallbacks halted naming the step and the last gap, under cap. Ruling
+on the bar is hamr's (a catch is a catch — the 2026-09-15 rule — or a third batch).
+
+## F39 — First live run of `src/runner.js`: job #2 reached its ask, hamr accepted, the run sent a summary whose first line says the JD was never read (2026-09-24)
+
+**Setup.** Flow `flows/job2-live-1` written from `test/fixtures/job2.m1.*` by `poc/m2/mkflow.mjs`, sources
+= the frozen `job2-probe-1` resume and JD, cap $0.25. `poc/m2/live.mjs` → `runFlow` with the live model
+step (`deepseek-flash`), file ask, file send. Runner at `ce4f366`.
+
+**What happened, from the books.** Six audit rows, one history row, $0.0118, `modelMatch` match, all priced.
+`resume-text` hitl pass-through (8 s). `jd-text` hitl pass-through (12 s). `resume-summary` attempt 1 red
+on the headings, attempt 2 green — the gap-back loop healing in the real fold, as F38 measured. ASK OPEN;
+hamr wrote an accept, then a reject 8 s later; the accept was consumed and renamed, the run sent to
+`file:poc/m0/out`, `outcome: complete`; the reject sits unread in `answer.json`. Consume-once held.
+
+**The sent summary opens: "Note: the job description could not be read (status: blocked)".** The
+`jd-text` step was granted `read` — a path-based tool sandboxed to the run dir and its frozen inputs —
+but the executor context carries no paths (by design: goal, reads, gap, nothing else). The model tried
+`~`, `.`, `/`, `job_description.md`, was refused each time, and emitted an honest artifact: `status:
+blocked`, `content: null`, "none of the file's text was invented". Three mechanisms then let that
+through:
+
+1. **No way to read a text source by role.** `readDocx` and `addressCells` take a `role` (`resume`,
+   `jd`) and list the roles in their description; `read` takes a path the model was never given. The
+   JD was frozen (1885 bytes, sha256 in `inputs.json`) and unreachable. Fix: `read`/`grep` accept a
+   role and list the roles, same as the other two.
+2. **hitl steps not on a signed ask line pass through** once their artifact is non-empty (piece 1's
+   stated reading of "hitl: the ask"). The `jd-text` artifact was non-empty — it was a well-formed
+   report of failure — so the happened check passed, no close ran, and the fold moved on.
+3. **The next ask showed it, and the human accepted.** The ask's evidence was the summary text; its
+   first line was the blocked note; hamr accepted without reading. The machine did exactly what it
+   was told: a human accept in the same run, a signed destination. This is the failure class fwdloop
+   exists for: the step was not done, and the run reported `complete`.
+
+**Also short of the signed scope, found reading the run dir.** No `runs/<id>/artifacts/` — artifacts
+lived only inside `log.json` (item 2). `log.json` kept only final artifacts, not attempt 1's red text,
+and a halted run would have written `{ runId, outcome, red }` with nothing the model wrote (item 9 and
+the 2026-09-15 ruling). Both fixed in the follow-up commit with mechanism 1.
+
+**What the model did right.** It did not invent a JD. It typed `status: blocked` and `content: null`
+into its own artifact. A run that reads that field cannot mistake it for done. That is the lever for
+the ruling below.
+
+**For hamr to rule (see the ladder, M2 amendment 1).** (a) A step's own typed self-report: the
+`emit_artifact` schema for every class carries `done: boolean` and `blocker: string | null`; `done:
+false` is a **red naming the step and the blocker**, mechanically, no judge — the model's own word
+that it did not do the step is the one thing the machine may take at face value. (b) hitl steps not
+on a signed ask line: their artifacts are carried as evidence into the next signed ask (the human
+sees every unjudged artifact since the last ask, each labelled by step), instead of passing silently.
+
+## F40 — Second live run of `src/runner.js` after amendment 1: the JD was read by role, both unjudged artifacts reached the ask, two rejects redrafted live, an early accept was quarantined as stale, the third accept sent (2026-09-24)
+
+**Setup.** Same flow as F39 (`flows/job2-live-1`, frozen resume + JD, cap $0.25), runner at `a045b73`
+(amendment 1: `done`/`blocker` on every artifact, unjudged hitl artifacts carried into the next ask,
+`read`/`grep` by role). `poc/m2/live.mjs --run-id run-2 --slot deepseek --ask-timeout 1800000`,
+detached, key loaded in the foreground.
+
+**What happened, from the books.** 14 audit rows, $0.0446, every row priced, `modelMatch` match, no
+strikes, `outcome: complete`, sent to `poc/m0/out/run-2-resume-summary-output.json`.
+
+| step | attempts | verdicts | usd |
+|---|---|---|---|
+| resume-text (hitl) | 1 | hitl | 0.0028 |
+| jd-text (hitl) | 1 | hitl | 0.0011 |
+| resume-summary, draft 1 | 2 | red (3 headings), green | 0.0122 |
+| ask 1 → reject "cut the skills section to three lines" | | red, `unjudgedCount: 2` | 0 |
+| resume-summary, redraft 1 | 3 | red (2 headings), red (1 heading), green | 0.0143 |
+| ask 2 → same reject again | | red, `unjudgedCount: 2` | 0 |
+| resume-summary, redraft 2 | 3 | red (3 headings), red, green | 0.0142 |
+| ask 3 → accept written 37 s **before** the ask opened | | `stale-answer-ignored` | 0 |
+| ask 3 → fresh accept | | green, `unjudgedCount: 2` | 0 |
+| resume-summary-output (send) | 1 | green | 0 |
+
+**F39's three mechanisms, each closed live.**
+1. **Read by role.** `artifacts/jd-text.json` holds the real JD: 1882 characters starting "# Applied
+   AI Architect, Startups — Anthropic". No path guessing, no `status: blocked`, one round, 4 s.
+2. **Unjudged artifacts reach the human.** `ask.json` carries `evidence.unjudged` with both hitl
+   artifacts (resume text 7108 chars, JD text 1931 chars) labelled by step goal, beside the summary.
+   The audit row for every ask stamps `unjudgedCount: 2`.
+3. **A step that did not do its job cannot pass.** Not exercised this run — every step set `done:
+   true` — so the `done: false` halt is still proven only by tests (a045b73), not by a live model.
+
+**Consume-once and stale-quarantine, on real keystrokes.** hamr wrote reject, then (four minutes
+later, from the previous turn's instructions) reject and accept 7 s apart. Each consumed answer was
+renamed `answer.<askedAt>.consumed.json`; the accept that arrived mid-redraft was moved to
+`answer.stale.1.json` with the audit row naming both timestamps (`answeredAt 14:40:21 predates askedAt
+14:40:58`). A second accept, written into the open ask, was consumed and the run sent. Nothing was
+applied twice, nothing early was applied at all.
+
+**What is not proven.** The reject reason was never checked against the redraft — the human
+declares softgreen, and hamr accepted without reading the third draft. Whether "three lines" was
+honoured is unknown and no mechanism claims it. Also: three of the eight paid attempts were heading
+reds (the closer's gap names the exact missing heading; the model still needs 2–4 tries), ~$0.014 per
+redraft cycle. Same shape as F38; not a bug, a cost line for M2's exit.
+
+**Cost.** $0.0446 for a run with two human rejects. Human-cost bar is $12.50/day; this is 0.4 % of it.
+
+## F41 — Live plant: an empty JD file; the step said `done: false` and the run halted `not-done` naming the step, nothing sent. Three books findings on the way (2026-09-24)
+
+**Setup.** `flows/job2-plant-notdone`: job #2's signed prose with `source jd` pointing at a 0-byte file
+(the frozen copy is 0 bytes, sha256 of empty), the real resume, cap $0.25. Runner at `a045b73`,
+`deepseek-flash`, detached, `--ask-timeout 600000`. The question: does amendment 1's `done: false`
+halt fire from a live model, not just the test double.
+
+**It fired.** Two audit rows, `outcome: not-done`, no ask opened, no send, `artifacts/` holds only
+`resume-text.json`. The JD step's artifact in `log.json`: `done: false`, `blocker: "Reading the frozen
+job description (role: "jd") consistently returned no content across repeated and size-capped
+attempts … path-based fallbacks were refused as outside the sandbox"`, `cells.jd_text: ""`. The model
+did not invent a JD. The runner took its word before any close, halted naming the step and the
+blocker verbatim, and the history row says `not-done`. Amendment 1 item 1 is live-proven.
+
+**Three things the books show that the tests did not.**
+
+1. **The halt path drops the signature hash.** `history.jsonl` row: `signatureHash: null`. The
+   complete path writes `signature.flow`; `haltRun` hard-codes `null` for every halt, including this
+   one, which read and verified the signature first. Item 9 says every history row carries it. A
+   halted run must name the flow version it halted on. Bug, one field.
+2. **Audit and history disagree by $0.061.** Audit rows sum to $0.0908; history says `spentUsd`
+   $0.1519. `spend.jsonl` has three rows: the JD step's first try died `socket hang up` after 4 rounds
+   ($0.0612), the item-8 retry then ran 8 rounds to `end_turn` ($0.0880). The retry's cost is on the
+   audit row; the fault's floor is only in the total. Money-honest (history is right, nothing dropped)
+   but item 9's "one row per attempt" row does not carry the attempt's cost. Fix: the attempt's audit
+   `usd` includes the retried fault's floor (or the fault gets its own audit row). Bug, one add.
+3. **`read` by role hands a step the raw .docx, and the step ate 400k tokens of zip.** Both spend
+   rows show ~200k input tokens per row with a 1–2 kB prompt: the JD step, finding `role: jd` empty,
+   read `role: resume` through `read` — which serves any frozen input, and returns the docx's bytes
+   as text (verified at $0: 248,730 chars, starts `PK\x03\x04`, truncated at 256 kB). Twelve rounds of
+   that is the $0.15, twice run-2's whole job. Nothing is wrong by the rules: the role list is every
+   frozen input, `read` has no notion of "this role is a docx". A ruling for hamr: **`read`/`grep`
+   offer only text roles; a .docx/.csv role names its own primitive in the refusal** ("role resume is a
+   .docx — use readDocx"). Mechanism, not wording. Recommended; not built until ruled.
+
+Also: no round trace exists, so which tool call carried the bytes is inferred from the tokens and the
+$0 replay, not read from a book. `log.json` keeps the model's artifact, not its tool calls. Cost line,
+not a defect under the 2026-09-15 ruling; noted for M3's inbox design.
+
+**Cost.** $0.152 for the plant. M2 total $0.74 of $5.00.
+
+## F42 — Branch review: the send shipped `reads[0]`, not the accepted artifact (2026-09-24)
+
+**Found by `/branch-review` at `ebffafe`, reproduced, confirmed.** The runner's send picked its content
+as the first id in the send step's `reads` that had an artifact on disk. Every read names an earlier
+step, so that was always `reads[0]`. A valid declaration whose send reads `['jd-text',
+'resume-summary-approved']` signed, ran, reported `complete`, and shipped the JD text. The live runs
+(F39–F41) were never exposed: job #2's send reads `resume-summary` first, which holds the same text as
+the accepted artifact. No test entered the runner's send branch with a real `arbiter.sends` line.
+
+**Fixed by identity, not position.** The send ships the artifact emitted by the one signed ask step
+in its `reads`, and only if that ask was accepted in this run. None, or more than one, halts red
+naming the ids before `sendStep` is called. `validateDeclaration` now requires exactly one earlier
+ask's `emits` in a send's `reads`. Each new test is red against the old code (content mismatch;
+`'complete' !== 'red'`; a two-ask send validating green).
+
+**Also seen.** `validateDeclaration` counts asks earlier by prose line; the runner counts every signed
+ask step. A signed ask on a later line but earlier in step order passes the validator and is caught
+by the runner's guard. Harmless now; worth one rule when M3 revisits ask placement.

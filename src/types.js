@@ -230,4 +230,75 @@
 
 /** @typedef {ReadFlowOk | ReadFlowRed} ReadFlowResult */
 
+/**
+ * M2 piece 1 — a step's fresh executor context: "goal in, gap back". No
+ * other field may ever appear here (src/runner.js's construction test
+ * proves it) — in particular never the step's close, its shape, the cap, or
+ * the strike count.
+ * @typedef {object} ExecutorContext
+ * @property {string} goal
+ * @property {string[]} primitives
+ * @property {Record<string, any>} reads
+ * @property {string|null} gap
+ */
+
+/**
+ * A green-class field value: `value` is the number/ISO-date/text claimed;
+ * `cite` resolves it (src/closers.js's own grammar).
+ * @typedef {object} GreenField
+ * @property {string|number} value
+ * @property {string} cite
+ */
+
+/** @typedef {{ fields: Record<string, GreenField> }} GreenArtifact */
+/** @typedef {{ text: string, lines?: string[] }} SoftgreenArtifact */
+
+/**
+ * The result of any of src/closers.js's close functions.
+ * @typedef {object} CloseVerdict
+ * @property {'green'|'red'|'hitl'|'unparseable'|'crash'} verdict
+ * @property {string|null} [red]
+ * @property {string[]} [reds]
+ */
+
+/**
+ * One row appended to `runs/<run-id>/audit.jsonl` (M2 scope item 9).
+ * @typedef {object} AuditRow
+ * @property {string|null} step
+ * @property {number} attempt
+ * @property {string|null} class
+ * @property {string} verdict
+ * @property {string|null} gap
+ * @property {number|null} usd
+ * @property {boolean} spendComplete
+ * @property {number} wallMs
+ * @property {string|null} model
+ * @property {boolean|null} modelMatch
+ * @property {boolean} strike
+ */
+
+/**
+ * One row appended to `flows/<name>/history.jsonl` (M2 scope item 9).
+ * @typedef {object} HistoryRow
+ * @property {string} runId
+ * @property {string} at
+ * @property {string} outcome
+ * @property {number|null} spentUsd
+ * @property {boolean} spendComplete
+ * @property {number|null} capUsd
+ * @property {number} wallMs
+ * @property {string|null} signatureHash
+ */
+
+/**
+ * @typedef {object} RunFlowResult
+ * @property {string} outcome
+ * @property {string} [red]
+ * @property {string[]} [reds]
+ * @property {string} [runDir]
+ * @property {Record<string, any>} [artifacts]
+ * @property {number} [spentUsd]
+ * @property {AuditRow[]} [auditRows]
+ */
+
 export {};
