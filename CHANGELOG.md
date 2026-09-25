@@ -5,6 +5,59 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-25
+
+M2: the runner — one fold over a signed flow, live-wired to a provider, with
+an in-process human ask and a signed send.
+
+### Added
+- `src/runner.js`: one fold over a signed flow at $0 baseline — `readFlow`+
+  hash refusal, frozen inputs, executor built without close or cap (a leaky
+  double reds on construction), closers by class (citation core; every
+  `SHAPE_KEYS` checker, all failing checks reported), ralph loop
+  (`STRIKE_LIMIT` 2, attempt fallback 4), cap-halt before the attempt,
+  pricing-red on null cost, provider-red after one retry, ask with redo cap
+  and consume-once answers, write-time send re-check, `audit.jsonl` +
+  `history.jsonl` (one writer each).
+- `src/provider.js`: model slots, rates, ceiling, key preflight.
+- `src/model-step.js`: metered rounds, malformed tool-call retry, transport
+  floor, wall-halt never retried, `emit_artifact` schema by class only.
+  Amendment 1 (signed 2026-09-24): `done`/`blocker` required on every
+  artifact — `done:false` halts the step red and is kept in `log.json` but
+  stripped before closers/disk; unjudged hitl artifacts carry forward into
+  the next signed ask as `evidence.unjudged`/`unjudgedCount`;
+  `validateDeclaration` reds a hitl step after the last signed ask that
+  isn't the send slot.
+- `src/primitives.js`: sandboxed read/write/grep; `readDocx`/`addressCells`
+  by role. Amendment 2 (signed 2026-09-24): read/grep list and accept only
+  text roles (`.md`/`.txt`); a `.docx` role is refused by name pointing at
+  `readDocx`, `.csv` at `addressCells`, any other extension "no text
+  primitive serves it" — enforced on the role name beyond the schema enum;
+  no `role` property emitted when no text role exists.
+- `src/ask.js`: in-process file ask — consume-once answers, stale-answer
+  quarantine, timeout halt.
+- `src/send.js`: send ships the one signed ask's artifact by identity, only
+  if that ask was accepted this run (F42); none or several accepted asks
+  halt red before the send step; `validateDeclaration` requires exactly one
+  earlier ask emit in a send's `reads`.
+- `poc/m2/*` drivers (`live.mjs`, `mkflow.mjs`, `executor.mjs`,
+  `gapback.mjs`) for the gap-back healing POC and live wiring, and the M2
+  gap-back healing POC itself (executor built without close or cap, ralph
+  loop, pricing-red on null cost).
+
+### Fixed
+- Artifacts are written to `runs/<id>/artifacts/` by one writer and read
+  back from disk; `log.json` keeps every attempt's raw model output on every
+  exit path, including halts; a late `answer.json` is audited as
+  answer-after-run.
+- (F41) Halted runs carry `signatureHash` on the history row (`null` only
+  before `readFlow` succeeds); an attempt's audit `usd` sums a retried
+  transport fault's priced floor with its own cost, so audit rows sum to
+  history `spentUsd` (never `?? 0`, a known partial is never dropped).
+- `closeWordsAndSections` (shape closer) reports every failing check
+  (`reds[]`, joined red) instead of first-red-wins, and its heading sentence
+  states the form (F38).
+
 ## [0.4.1] - 2026-09-23
 
 ### Fixed
