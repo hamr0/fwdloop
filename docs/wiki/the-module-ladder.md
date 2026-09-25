@@ -527,6 +527,99 @@ resume never re-asks an answered question (docs/archive/PRD.md:578-581).
 - **Negative:** an expired TTL cancels; a rerun is a fresh engagement with its own counter
   (docs/archive/PRD.md:583-583).
 
+### M3 — scope, exit, negative — SIGNED by hamr 2026-09-25 ("1 A, 2A. $2 budget approved, sign m3")
+
+Restates the M3 paragraph above against what M2 built. Two design picks were made on 2026-09-25
+(hamr: "1 A, 2A"): park-and-exit at the ask (item 2) and rerun as a fresh run (item 7). Scope, exit,
+negative and the cap were signed together.
+
+**What M2 left for M3, found by reading the code at `9c6b420`.**
+
+- The ask lives inside the running process: `src/ask.js` polls `answer.json` every 500 ms and the
+  process holds the run open the whole time. If the process dies, the run dies with it.
+- **The signed TTL is parsed and never used.** `src/signed-text.js` turns `ask 30m:` into `ttlMs`,
+  but `src/runner.js:791` calls `askStep` without it, so every ask waits `makeFileAskStep`'s own
+  default (120 s) whatever the human signed. That breaks a hard line: an ask's TTL is signed by a
+  human, and the machine must not replace it.
+- `reject` and `rerun` do the same thing today (`src/runner.js:805`): both redo the step before the
+  ask, under one `redo cap` counter.
+- Parked from F42: `validateDeclaration` counts asks by prose line; the runner counts every step
+  bound to an ask line. The two can disagree.
+- There is no CLI. `package.json` has no `bin`.
+
+**Scope.**
+
+1. **The signed TTL governs.** Each ask's `ttlMs` comes from its own signed `ask <dur>:` line
+   (default 30m, as M1 parses it). No code-side default overrides it. `ask.json` carries
+   `askedAt` and `expiresAt`. A test proves a signed `ask 2s:` expires at 2 s and not at 120 s.
+2. **Park and exit** (hamr 2026-09-25, "1A"). At a signed ask, the run writes `ask.json` plus a run-state
+   file `state.json` (`{ runId, flow, signatureHash, inputsManifest, stepIndex, askId, expiresAt,
+   spent, redone }`), appends an audit row `paused`, and the process **exits**. No process waits, so
+   a pause spends nothing, not even a poll.
+3. **A separate process answers.** `fwdloop inbox` lists open asks across `flows/*/runs/*`: id,
+   flow, question, time left. An ask past `expiresAt` is shown as expired, never as open.
+   `fwdloop answer <askId> accept | reject "<reason>" | rerun "<reason>"` writes `answer.json`
+   **once**, stamped with `answeredAt` and the `askId`. It refuses a missing or blank reason, an
+   unknown or expired `askId`, and a second answer to the same ask, each by name. An answer for
+   ask A can never be consumed by ask B.
+4. **Resume into the next step.** `fwdloop resume <runId>` (or `answer` starting it right after it
+   writes) re-reads the flow through `readFlow`, then checks three things before anything else:
+   the signature hash equals `state.signatureHash`, every frozen input's sha256 equals
+   `state.inputsManifest`, and every earlier step's artifact is on disk. Any mismatch refuses by
+   name at $0. Then it consumes the answer exactly once and carries on from `stepIndex`. It
+   **never** re-runs a paid step that already went green and **never** re-asks an answered ask.
+5. **One resumer.** Resume takes an exclusive lock on the run (`O_EXCL` create of `resume.lock`).
+   A second resumer at the same time refuses and names the run. The lock is released on exit.
+   A lock left behind by a killed resumer is a red naming it for the human, never stolen silently.
+6. **Expiry cancels.** Answering or resuming an ask past `expiresAt` cancels the run: outcome
+   `ask-expired`, a `history.jsonl` row, $0, nothing sent. Nothing runs in the background, so
+   expiry is checked whenever anyone touches the run (`inbox`, `answer`, `resume`).
+7. **`reject` vs `rerun`** (hamr 2026-09-25, "2A"). `reject "<reason>"` stays M2's: it redoes the step before
+   the ask under `redo cap`. `rerun "<reason>"` becomes a **fresh run**: this run ends with outcome
+   `rerun`, and a new `runId` starts on the same signed flow with fresh inputs, its own redo
+   counter and its own cap, with the reason carried as the first step's starting gap.
+8. **One ask count.** `validateDeclaration` and the runner count asks the same way: by signed ask
+   line, one bound step per line (closes the F42 side note).
+9. **The CLI is stdlib only.** `bin/fwdloop` uses `node:util` `parseArgs` with four verbs: `run`,
+   `inbox`, `answer`, `resume`. It adds no dependency.
+
+**Not in M3:** resuming a run killed mid-step (that run is a casualty; start a fresh run), a
+daemon or timer that expires asks unattended, triggers, `pause` as an answer (an open ask already
+is a pause), dry-run/versions (M4), any UI (M5).
+
+**POC first, the riskiest assumption:** **a run can die at the ask and come back exactly as it
+was.** $0, fake model steps that count their calls, job #2's fixture flow. Twenty loops, each:
+start the run as a real child process, let it park, `SIGKILL` whatever is left, answer from a
+second process, resume from a third. Every loop must show: the pre-ask steps were called exactly
+once, `ask.json` was written exactly once, the answer was consumed exactly once, and the run
+finished with the same artifacts an in-process run produces. In five of the loops, two resumers
+start at the same moment and exactly one proceeds. In five more, an input is edited while the run
+is parked and resume refuses it by name. **Bar: 20/20.** Any loop that re-runs a paid step,
+re-asks, or double-consumes means the design is wrong.
+
+**Exit.**
+
+- The POC bar is met.
+- Job #2 live on `deepseek-flash`: the run parks at its ask and the process exits; hamr answers
+  `reject "<reason>"` from another terminal with `fwdloop answer`; the run resumes, redoes the step,
+  parks again; `accept`; it sends. Both books show one run, and the spend is only the model rounds.
+- A signed `ask 2s:` expires at its own TTL (item 1).
+
+**Negative scenarios**, each of which must be able to fail:
+
+- (i) an answer arriving after `expiresAt` cancels the run `ask-expired`, $0, nothing sent;
+- (ii) `rerun "<reason>"` starts a new `runId` whose redo counter starts at 0 and whose cap is its
+  own, and the old run's `history.jsonl` row says `rerun`;
+- (iii) a frozen input changed while parked makes resume refuse, naming the input, at $0;
+- (iv) a second `answer` to an answered ask is refused, and the first answer stands;
+- (v) two resumers at once: exactly one proceeds, the other refuses naming the run.
+
+**Kills the module:** the POC shows a resume can re-run a paid step or re-ask, and the only fix
+is keeping the process alive (which is M2's design, not a resume).
+
+**M3 spend cap: $2.00 — SIGNED by hamr 2026-09-25.** M3's own, separate from M2's $5.00 ($0.74 used).
+POC $0; live exit about $0.05 a run. POC starts on branch `chore/fix-ledger` (hamr: same branch).
+
 ## M4 — dry-run, accept, versions
 
 Placed here because the UI's "edit and add turns" is meaningless without versioning. Dry-run

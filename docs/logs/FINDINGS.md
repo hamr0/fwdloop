@@ -2086,3 +2086,16 @@ ask's `emits` in a send's `reads`. Each new test is red against the old code (co
 **Also seen.** `validateDeclaration` counts asks earlier by prose line; the runner counts every signed
 ask step. A signed ask on a later line but earlier in step order passes the validator and is caught
 by the runner's guard. Harmless now; worth one rule when M3 revisits ask placement.
+
+## F43 — The signed ask TTL is parsed and never reaches the ask (2026-09-25)
+
+**Found reading the code for the M3 draft, at `9c6b420`.** `src/signed-text.js` parses `ask 30m:`
+into `ttlMs` on each signed ask (default 30m). `src/runner.js:791` calls
+`askStep({ question, evidence, runDir })` without it. The wait time is whatever `timeoutMs` the
+caller passed to `makeFileAskStep` (`src/ask.js`, default 120 s). So every ask waits the code's
+number, not the human's. This breaks a hard line: an ask's TTL is signed by a human, and code
+never replaces it. No test covers it: every test sets `timeoutMs` by hand.
+
+**Not fixed here.** It belongs to M3 scope item 1 (the signed TTL governs), because M3 changes how an
+ask waits anyway (park and exit instead of an in-process poll). Until then a live run's ask expires at
+the caller's `timeoutMs`, whatever the prose says.
