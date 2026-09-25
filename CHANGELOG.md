@@ -18,16 +18,20 @@ an in-process human ask and a signed send.
   (`STRIKE_LIMIT` 2, attempt fallback 4), cap-halt before the attempt,
   pricing-red on null cost, provider-red after one retry, ask with redo cap
   and consume-once answers, write-time send re-check, `audit.jsonl` +
-  `history.jsonl` (one writer each).
+  `history.jsonl` (one writer each). Amendment 1 (signed 2026-09-24):
+  `checkDoneBlocker` halts a step red on `done:false` (outcome `not-done`,
+  kept in `log.json` but stripped before closers/disk); unjudged hitl
+  artifacts carry forward into the next signed ask as
+  `evidence.unjudged`/`unjudgedCount`. F42: a send whose `reads` hold none or
+  more than one signed ask's artifact halts red before `sendStep`, so does a
+  send whose ask was not accepted this run.
 - `src/provider.js`: model slots, rates, ceiling, key preflight.
 - `src/model-step.js`: metered rounds, malformed tool-call retry, transport
-  floor, wall-halt never retried, `emit_artifact` schema by class only.
-  Amendment 1 (signed 2026-09-24): `done`/`blocker` required on every
-  artifact — `done:false` halts the step red and is kept in `log.json` but
-  stripped before closers/disk; unjudged hitl artifacts carry forward into
-  the next signed ask as `evidence.unjudged`/`unjudgedCount`;
-  `validateDeclaration` reds a hitl step after the last signed ask that
-  isn't the send slot.
+  floor, wall-halt never retried, `emit_artifact` schema gains the typed
+  `done` (required)/`blocker` self-report fields, by class only.
+- `src/declaration.js`: `validateDeclaration` reds a hitl step after the last
+  signed ask that isn't the send slot (Amendment 1); requires exactly one
+  earlier ask emit in a send's `reads` (F42).
 - `src/primitives.js`: sandboxed read/write/grep; `readDocx`/`addressCells`
   by role. Amendment 2 (signed 2026-09-24): read/grep list and accept only
   text roles (`.md`/`.txt`); a `.docx` role is refused by name pointing at
@@ -36,14 +40,10 @@ an in-process human ask and a signed send.
   no `role` property emitted when no text role exists.
 - `src/ask.js`: in-process file ask — consume-once answers, stale-answer
   quarantine, timeout halt.
-- `src/send.js`: send ships the one signed ask's artifact by identity, only
-  if that ask was accepted this run (F42); none or several accepted asks
-  halt red before the send step; `validateDeclaration` requires exactly one
-  earlier ask emit in a send's `reads`.
-- `poc/m2/*` drivers (`live.mjs`, `mkflow.mjs`, `executor.mjs`,
-  `gapback.mjs`) for the gap-back healing POC and live wiring, and the M2
-  gap-back healing POC itself (executor built without close or cap, ralph
-  loop, pricing-red on null cost).
+- `src/send.js`: the file send primitive — ships to a signed destination,
+  re-checking it at write time.
+- The M2 gap-back healing POC and live-wiring drivers live under `poc/m2/`
+  in the repo (not shipped in the published package).
 
 ### Fixed
 - Artifacts are written to `runs/<id>/artifacts/` by one writer and read
