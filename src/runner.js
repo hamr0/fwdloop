@@ -36,10 +36,10 @@
 // ---------------------------------------------------------------------------
 
 import {
-  accessSync, constants as fsConstants, copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync,
-  statSync, writeFileSync,
+  accessSync, closeSync, constants as fsConstants, copyFileSync, existsSync, mkdirSync, openSync, readFileSync,
+  realpathSync, renameSync, statSync, unlinkSync, writeFileSync,
 } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   dirname, extname, join, resolve, sep,
 } from 'node:path';
@@ -685,6 +685,14 @@ export async function runFlow({
   // shape) and folded into log.json only, on every exit path.
   /** @type {any[]} */
   const attemptsLog = [];
+  // Orchestrator review fix (4): a floor stays a floor — once ANY row this
+  // run carries `spendComplete: false` (a cost that never resolved to a
+  // known number, e.g. a retried transport fault that still failed), the
+  // run's OWN aggregate never flips back to true, park or no park. Threaded
+  // into every book row `foldFromStep`/`runAskSlot` writes and persisted in
+  // `state.json` so a resumed run inherits the floor instead of quietly
+  // reporting complete.
+  const spendComplete = { value: true };
   const recordAudit = (row, modelOutput, unjudgedCount) => {
     // M2 amendment 1 item 2: "audit row for the ask gains unjudgedCount" —
     // only the ask's own rows pass a third argument; every other row is
@@ -692,6 +700,7 @@ export async function runFlow({
     const fullRow = unjudgedCount === undefined ? row : { ...row, unjudgedCount };
     auditRows.push(fullRow);
     appendAudit(runDir, fullRow);
+    if (row.spendComplete === false) spendComplete.value = false;
     if (modelOutput !== undefined) {
       attemptsLog.push({
         step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, modelOutput,
@@ -711,42 +720,298 @@ export async function runFlow({
   // emitted by a signed ask step), never by position in `reads` — every id
   // in a send step's `reads` names an earlier step, so picking `reads[0]`
   // silently ships whatever was read first instead of what was accepted.
-  // Derived the same way the loop below knows a step is an ask — bound to
+  // Derived the same way the fold below knows a step is an ask — bound to
   // an `arbiter.asks[]` line.
   const askStepEmits = new Set(steps.filter((s) => askLines.has(s.fromLine)).map((s) => s.emits));
   // Tracks which specific ask emits were accepted THIS run (acceptedThisRun
   // above stays run-wide, for the "reached with no accept this run" gate).
   const acceptedAskEmitsThisRun = new Set();
-  for (let i = 0; i < steps.length; i += 1) {
+
+  const result = await foldFromStep({
+    i0: 0,
+    steps,
+    askLines,
+    sendLines,
+    askStepEmits,
+    runDir,
+    flowDir,
+    runId,
+    flowRoot: root,
+    flowName: name,
+    signatureHash: signature.flow,
+    inputsManifest: frozen.manifest,
+    capUsd,
+    redoCap,
+    effectiveCeilingUsd,
+    primitives,
+    businessDate,
+    modelStep,
+    askStep,
+    sendStep,
+    now,
+    startedAt,
+    spent,
+    spendComplete,
+    artifacts,
+    acceptedThisRun,
+    acceptedAskEmitsThisRun,
+    unjudgedSinceLastAsk,
+    recordAudit,
+    attemptsLog,
+  });
+
+  if (result.outcome === 'complete') return { ...result, auditRows };
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// M3 piece 1 (docs/wiki/the-module-ladder.md, "M3 — scope, exit, negative —
+// SIGNED", scope items 1-2, 4-6, 8): park-and-exit at a signed ask, and
+// resuming into the SAME fold from a separate process later. ONE fold —
+// `foldFromStep` below is the loop `runFlow` always ran (M2), now starting
+// at an arbitrary step index with restored accumulators so `resumeRun` can
+// re-enter it exactly where a parked run left off, instead of a second
+// runner.
+//
+// borrowed-from: fwdloop poc/m3/park.mjs@afb85d7 (the park/answer/resume
+// protocol proved at F44 — ask.json+state.json's fields, the exclusive
+// `resume.lock`, consuming `answer.json` by rename BEFORE acting). Rewritten
+// against the real `runFlow` fold (the POC ran fake, hand-rolled steps
+// against a single hard-coded ask, never `runStepRalph`/`runAskSlot`) — src/
+// never imports from poc/.
+// ---------------------------------------------------------------------------
+
+/** An ask step that never waits — it immediately tells the fold to park.
+ *  The counterpart to `makeFileAskStep`'s in-process poll (M2 scope item 6);
+ *  a caller wanting park-and-exit behaviour from a FRESH `runFlow` call
+ *  passes this (or an equivalent) as `askStep`. */
+export function makeParkingAskStep() {
+  return async function parkingAskStep() {
+    return { decision: 'park' };
+  };
+}
+
+/** `resumeRun`'s own askStep: yields the human's already-consumed decision
+ *  exactly once (for the ask it was built for), then — if that decision was
+ *  a reject and the ask loops back around to ask again — parks under a NEW
+ *  askId, exactly like a fresh ask would. This is what turns "redo, then
+ *  ask again" into "redo, then re-park" for a resumed run, with no second
+ *  code path. */
+function makeOneShotThenParkAskStep({ decision, reason }) {
+  let used = false;
+  return async function resumeAskStep() {
+    if (!used) {
+      used = true;
+      return { decision, reason };
+    }
+    return { decision: 'park' };
+  };
+}
+
+/**
+ * One signed ask slot's own loop (M2's ask branch, unchanged in spirit,
+ * extracted so `resumeRun` can re-enter the SAME logic mid-ask instead of
+ * duplicating it). Returns exactly one of:
+ *   - `{ type: 'paused', result }` — `askStep` chose to park; ask.json +
+ *     state.json are written and `result` is `runFlow`/`resumeRun`'s own
+ *     return value.
+ *   - `{ type: 'halted', outcome, red }` — the caller wraps this in
+ *     `haltRun` (it knows the right `signatureHash`/`artifacts` to attach).
+ *   - `{ type: 'accepted', artifact }` — the human accepted; the caller
+ *     writes the ask step's own artifact and continues the fold.
+ *
+ * @param {object} opts
+ * @returns {Promise<any>}
+ */
+async function runAskSlot({
+  step, stepIndex, askSlot, priorId, priorStep, priorArtifact, redoCap, effectiveCeilingUsd, capUsd,
+  primitives, businessDate, modelStep, askStep, spent, spendComplete, recordAudit,
+  evidenceUnjudged, unjudgedCount, redone: initialRedone,
+  runDir, flowDir, runId, flowRoot, flowName, signatureHash, inputsManifest, attemptsLog, artifacts, now, startedAt,
+}) {
+  let redone = initialRedone;
+  let currentPrior = priorArtifact;
+
+  for (;;) {
+    const evidence = { artifact: currentPrior, unjudged: evidenceUnjudged };
+    // eslint-disable-next-line no-await-in-loop
+    const answer = await askStep({
+      question: askSlot?.question ?? step.goal, evidence, runDir, ttlMs: askSlot?.ttlMs, stepIndex,
+    });
+
+    if (answer.decision === 'park') {
+      // M3 scope item 1 (fixes F43): the wait is ALWAYS the signed ttlMs —
+      // no code default ever overrides it, on the first park or any re-park.
+      const askId = randomUUID();
+      const askedAt = now();
+      const expiresAt = new Date(Date.parse(askedAt) + askSlot.ttlMs).toISOString();
+      writeFileSync(join(runDir, 'ask.json'), JSON.stringify({
+        askId, question: askSlot?.question ?? step.goal, askedAt, expiresAt,
+      }, null, 2));
+      // M3 scope item 2: the minimum the fold needs to resume identically —
+      // WHERE (stepIndex), WHAT was frozen/signed (signatureHash,
+      // inputsManifest, to be re-verified before anything runs), WHAT this
+      // ask is (askId/expiresAt), and the two accumulators a mid-ask resume
+      // cannot recompute from disk alone: `redone` (the redo cap is spent
+      // across pauses, not per process) and the evidence bundle this
+      // specific ask already showed the human (`evidenceUnjudged`/
+      // `unjudgedCount` — recomputing them from `unjudgedSinceLastAsk` on
+      // resume would double-count anything a later, still-unparked ask
+      // hasn't reset yet). `spent` carries the run's money across pauses too
+      // (the cap binds over the whole run, never per process).
+      const state = {
+        runId,
+        flow: { root: flowRoot, name: flowName },
+        signatureHash,
+        inputsManifest,
+        stepIndex,
+        askId,
+        expiresAt,
+        spent: spent.value,
+        // Orchestrator review fix (4): the floor persists across a pause —
+        // once any pre-park row left `spendComplete: false`, a resume must
+        // inherit that, never quietly start "complete" again.
+        spendComplete: spendComplete.value,
+        redone,
+        evidenceUnjudged,
+        unjudgedCount,
+      };
+      writeFileSync(join(runDir, 'state.json'), JSON.stringify(state, null, 2));
+      recordAudit(makeAuditRow({
+        step, attempt: redone + 1, verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
+      }), undefined, unjudgedCount);
+      // Orchestrator review fix (3): M2 item 9 says history is ONE row per
+      // run; M3's signed scope item 2 only asks for an AUDIT row "paused"
+      // (already recorded above). A "paused" HISTORY row was the earlier
+      // draft's own error — removed here. The run's one history row lands
+      // at its final outcome (complete / a halt / ask-expired), written by
+      // `foldFromStep`/`resumeRun`, never here.
+      writeLog(runDir, { runId, outcome: 'paused', attempts: attemptsLog, artifacts });
+      return {
+        type: 'paused',
+        result: {
+          outcome: 'paused', runDir, askId, expiresAt, spentUsd: spent.value,
+        },
+      };
+    }
+
+    if (answer.decision === 'timeout') {
+      // A pause spends nothing (M2 scope item 6) — a halt, never a red
+      // with a fabricated cost, and never re-asked (the run is over).
+      recordAudit(makeAuditRow({
+        step, attempt: redone + 1, verdict: 'ask-timeout', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
+      }), undefined, unjudgedCount);
+      return {
+        type: 'halted',
+        outcome: 'ask-timeout',
+        red: `ask-timeout: step "${step.goal}" expired waiting for a human answer`,
+      };
+    }
+
+    const isRedo = answer.decision === 'reject' || answer.decision === 'rerun';
+    const reason = typeof answer.reason === 'string' ? answer.reason.trim() : '';
+
+    if (isRedo && reason.length === 0) {
+      recordAudit(makeAuditRow({
+        step, attempt: redone + 1, verdict: 'refused', gap: 'a rejection/rerun needs a reason', usd: 0, spendComplete: true, wallMs: 0, strike: false,
+      }), undefined, unjudgedCount);
+      // Refused, re-asked for the SAME attempt — never re-runs the step.
+      // eslint-disable-next-line no-continue
+      continue;
+    }
+
+    if (answer.decision === 'accept') {
+      recordAudit(makeAuditRow({
+        step, attempt: redone + 1, verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
+      }), undefined, unjudgedCount);
+      return { type: 'accepted', artifact: currentPrior };
+    }
+
+    if (isRedo) {
+      redone += 1;
+      recordAudit(makeAuditRow({
+        step, attempt: redone, verdict: 'red', gap: reason, usd: 0, spendComplete: true, wallMs: 0, strike: false,
+      }), undefined, unjudgedCount);
+      if (redone > redoCap) {
+        return {
+          type: 'halted',
+          outcome: 'redo-halt',
+          red: `redo cap ${redoCap} reached at step "${step.goal}" after ${redone} rejections`,
+        };
+      }
+      const priorReads = readArtifactsMap(runDir, priorStep.reads);
+      // eslint-disable-next-line no-await-in-loop
+      const redoResult = await runStepRalph({
+        step: priorStep, primitivesMap: primitives, readsMap: priorReads, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone,
+      });
+      if (!redoResult.ok) {
+        return { type: 'halted', outcome: redoResult.outcome, red: redoResult.red };
+      }
+      currentPrior = redoResult.artifact;
+      // A redo deliberately REPLACES the prior step's own artifact — the one
+      // case `writeArtifact` allows to overwrite on purpose.
+      writeArtifact(runDir, priorId, currentPrior, { overwrite: true });
+      artifacts[priorId] = currentPrior;
+      // eslint-disable-next-line no-continue
+      continue;
+    }
+
+    return {
+      type: 'halted',
+      outcome: 'red',
+      red: `ask: step "${step.goal}" got an unrecognised decision "${answer.decision}"`,
+    };
+  }
+}
+
+/**
+ * The fold itself (M2 scope item 1's "one fold", now start-anywhere): walks
+ * `steps` from `i0`, handling the signed send slot, the signed ask slot (via
+ * `runAskSlot`), and ordinary steps exactly as `runFlow` always did. Used by
+ * `runFlow` (i0 = 0, fresh accumulators) and by `resumeRun` (i0 = the step
+ * AFTER the ask it just resolved, accumulators restored from `state.json`
+ * plus disk).
+ * @returns {Promise<any>}
+ */
+async function foldFromStep({
+  i0, steps, askLines, sendLines, askStepEmits, runDir, flowDir, runId, flowRoot, flowName, signatureHash,
+  inputsManifest, capUsd, redoCap, effectiveCeilingUsd, primitives, businessDate, modelStep, askStep, sendStep,
+  now, startedAt, spent, spendComplete, artifacts, acceptedThisRun, acceptedAskEmitsThisRun, unjudgedSinceLastAsk,
+  recordAudit, attemptsLog,
+}) {
+  let runAcceptedThisRun = acceptedThisRun;
+  let runUnjudged = unjudgedSinceLastAsk;
+
+  for (let i = i0; i < steps.length; i += 1) {
     const step = steps[i];
 
     // --- the signed send slot: never through modelStep, only after an
     // accept THIS run, re-checked at write time. ---
     if (sendLines.has(step.fromLine)) {
-      if (!acceptedThisRun) {
+      if (!runAcceptedThisRun) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts,
+          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
           outcome: 'red', red: `send: step "${step.goal}" reached with no accept this run`,
         });
       }
       const sendSlot = sendLines.get(step.fromLine);
       if (!sendSlot) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts, outcome: 'red', red: `send: no arbiter slot bound to line ${step.fromLine}`,
+          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: 'red', red: `send: no arbiter slot bound to line ${step.fromLine}`,
         });
       }
       const target = `${sendSlot.target.kind}:${sendSlot.target.path}`;
       const askIdsInReads = (step.reads ?? []).filter((id) => askStepEmits.has(id));
       if (askIdsInReads.length !== 1) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts,
+          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
           outcome: 'red', red: `send: step "${step.goal}" must read exactly one signed ask's artifact, found [${askIdsInReads.join(', ')}]`,
         });
       }
       const [askArtifactId] = askIdsInReads;
       if (!acceptedAskEmitsThisRun.has(askArtifactId)) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts,
+          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
           outcome: 'red', red: `send: step "${step.goal}" reads ask artifact "${askArtifactId}" that was not accepted this run`,
         });
       }
@@ -760,7 +1025,7 @@ export async function runFlow({
       recordAudit(sendRow);
       if (!sendResult.ok) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts, outcome: 'red', red: `send: ${sendResult.red}`,
+          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: 'red', red: `send: ${sendResult.red}`,
         });
       }
       writeArtifact(runDir, step.emits, content);
@@ -769,98 +1034,67 @@ export async function runFlow({
       continue;
     }
 
-    // --- the signed ask slot: interactive, consume-once, reason-gated redo. ---
+    // --- the signed ask slot: interactive, consume-once, reason-gated redo,
+    // OR park-and-exit (M3 scope item 2). ---
     if (askLines.has(step.fromLine)) {
       const askSlot = askLines.get(step.fromLine);
       const priorId = (step.reads ?? [])[0];
       const priorStepIndex = steps.findIndex((s) => s.emits === priorId);
-      let priorArtifact = readArtifact(runDir, priorId);
-      let redone = 0;
+      const priorArtifact = readArtifact(runDir, priorId);
 
       // M2 amendment 1 item 2: every hitl artifact carried since the
       // previous ask goes to THIS ask as evidence, alongside the ask step's
       // own artifact — then the list resets (a fresh accumulator for the
       // NEXT ask), so a later ask never re-shows what an earlier one covered.
-      const evidenceUnjudged = unjudgedSinceLastAsk;
+      const evidenceUnjudged = runUnjudged;
       const unjudgedCount = evidenceUnjudged.length;
-      unjudgedSinceLastAsk = [];
+      runUnjudged = [];
 
-      for (;;) {
-        const evidence = { artifact: priorArtifact, unjudged: evidenceUnjudged };
-        // eslint-disable-next-line no-await-in-loop
-        const answer = await askStep({ question: askSlot?.question ?? step.goal, evidence, runDir });
+      // eslint-disable-next-line no-await-in-loop
+      const askResult = await runAskSlot({
+        step,
+        stepIndex: i,
+        askSlot,
+        priorId,
+        priorStep: steps[priorStepIndex],
+        priorArtifact,
+        redoCap,
+        effectiveCeilingUsd,
+        capUsd,
+        primitives,
+        businessDate,
+        modelStep,
+        askStep,
+        spent,
+        spendComplete,
+        recordAudit,
+        evidenceUnjudged,
+        unjudgedCount,
+        redone: 0,
+        runDir,
+        flowDir,
+        runId,
+        flowRoot,
+        flowName,
+        signatureHash,
+        inputsManifest,
+        attemptsLog,
+        artifacts,
+        now,
+        startedAt,
+      });
 
-        if (answer.decision === 'timeout') {
-          // A pause spends nothing (M2 scope item 6) — a halt, never a red
-          // with a fabricated cost, and never re-asked (the run is over).
-          recordAudit(makeAuditRow({
-            step, attempt: redone + 1, verdict: 'ask-timeout', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
-          }), undefined, unjudgedCount);
-          return haltRun({
-            flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts,
-            outcome: 'ask-timeout', red: `ask-timeout: step "${step.goal}" expired waiting for a human answer`,
-          });
-        }
-
-        const isRedo = answer.decision === 'reject' || answer.decision === 'rerun';
-        const reason = typeof answer.reason === 'string' ? answer.reason.trim() : '';
-
-        if (isRedo && reason.length === 0) {
-          recordAudit(makeAuditRow({
-            step, attempt: redone + 1, verdict: 'refused', gap: 'a rejection/rerun needs a reason', usd: 0, spendComplete: true, wallMs: 0, strike: false,
-          }), undefined, unjudgedCount);
-          // Refused, re-asked for the SAME attempt — never re-runs the step.
-          // eslint-disable-next-line no-continue
-          continue;
-        }
-
-        if (answer.decision === 'accept') {
-          recordAudit(makeAuditRow({
-            step, attempt: redone + 1, verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
-          }), undefined, unjudgedCount);
-          writeArtifact(runDir, step.emits, priorArtifact);
-          artifacts[step.emits] = priorArtifact;
-          acceptedThisRun = true;
-          acceptedAskEmitsThisRun.add(step.emits);
-          break;
-        }
-
-        if (isRedo) {
-          redone += 1;
-          recordAudit(makeAuditRow({
-            step, attempt: redone, verdict: 'red', gap: reason, usd: 0, spendComplete: true, wallMs: 0, strike: false,
-          }), undefined, unjudgedCount);
-          if (redone > redoCap) {
-            return haltRun({
-              flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts,
-              outcome: 'redo-halt', red: `redo cap ${redoCap} reached at step "${step.goal}" after ${redone} rejections`,
-            });
-          }
-          const priorStep = steps[priorStepIndex];
-          const priorReads = readArtifactsMap(runDir, priorStep.reads);
-          // eslint-disable-next-line no-await-in-loop
-          const redoResult = await runStepRalph({
-            step: priorStep, primitivesMap: primitives, readsMap: priorReads, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone,
-          });
-          if (!redoResult.ok) {
-            return haltRun({
-              flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts, outcome: redoResult.outcome, red: redoResult.red,
-            });
-          }
-          priorArtifact = redoResult.artifact;
-          // A redo deliberately REPLACES the prior step's own artifact —
-          // the one case `writeArtifact` allows to overwrite on purpose.
-          writeArtifact(runDir, priorId, priorArtifact, { overwrite: true });
-          artifacts[priorId] = priorArtifact;
-          // eslint-disable-next-line no-continue
-          continue;
-        }
-
+      if (askResult.type === 'paused') return askResult.result;
+      if (askResult.type === 'halted') {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts,
-          outcome: 'red', red: `ask: step "${step.goal}" got an unrecognised decision "${answer.decision}"`,
+          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
         });
       }
+
+      writeArtifact(runDir, step.emits, askResult.artifact);
+      artifacts[step.emits] = askResult.artifact;
+      runAcceptedThisRun = true;
+      acceptedAskEmitsThisRun.add(step.emits);
       // eslint-disable-next-line no-continue
       continue;
     }
@@ -873,7 +1107,7 @@ export async function runFlow({
     });
     if (!stepResult.ok) {
       return haltRun({
-        flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, spent, attempts: attemptsLog, artifacts, outcome: stepResult.outcome, red: stepResult.red,
+        flowDir, runDir, runId, capUsd, startedAt, now, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: stepResult.outcome, red: stepResult.red,
       });
     }
     writeArtifact(runDir, step.emits, stepResult.artifact);
@@ -883,21 +1117,308 @@ export async function runFlow({
     // reached when neither askLines nor sendLines claimed the step) passes
     // through silently here; carry it as evidence for the NEXT signed ask.
     if (stepResult.hitl) {
-      unjudgedSinceLastAsk.push({ step: step.goal ?? null, emits: step.emits, artifact: stepResult.artifact });
+      runUnjudged.push({ step: step.goal ?? null, emits: step.emits, artifact: stepResult.artifact });
     }
   }
 
   const wallMs = Date.now() - startedAt;
   appendHistory(flowDir, {
-    runId, at: now(), outcome: 'complete', spentUsd: spent.value, spendComplete: true, capUsd, wallMs, signatureHash: signature.flow,
+    runId, at: now(), outcome: 'complete', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd, wallMs, signatureHash,
   });
   recordLateAnswerIfAny(runDir);
   writeLog(runDir, {
     runId, outcome: 'complete', attempts: attemptsLog, artifacts,
   });
   return {
-    outcome: 'complete', runDir, artifacts, spentUsd: spent.value, auditRows,
+    outcome: 'complete', runDir, artifacts, spentUsd: spent.value,
   };
+}
+
+/**
+ * M3 scope items 4-6: re-enter a parked run's SAME fold from a separate
+ * process. Takes an exclusive `resume.lock` (refuses by name if already
+ * held; a lock left behind by a killed resumer is a red naming it, never
+ * stolen), re-reads the flow, refuses by name at $0 on any signature/input/
+ * missing-artifact mismatch, consumes `answer.json` by atomic rename BEFORE
+ * acting (F44), then either cancels an expired ask ($0, nothing sent) or
+ * resolves it and folds on to `complete`/the next pause/a halt.
+ *
+ * @param {object} opts
+ * @param {string} opts.root
+ * @param {string} opts.name
+ * @param {string} opts.runId
+ * @param {unknown} opts.catalogue
+ * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<any>} opts.modelStep
+ * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
+ * @param {Record<string, any>} [opts.primitives]
+ * @param {() => string} [opts.clock]
+ * @param {string} opts.businessDate
+ * @param {number} [opts.ceilingUsd]
+ */
+export async function resumeRun({
+  root, name, runId, catalogue, modelStep, sendStep, primitives, clock, businessDate, ceilingUsd,
+}) {
+  const now = typeof clock === 'function' ? clock : () => new Date().toISOString();
+  const flowDir = join(root, name);
+  const runDir = join(flowDir, 'runs', runId);
+  const startedAt = Date.now();
+  const lockPath = join(runDir, 'resume.lock');
+
+  let lockFd;
+  try {
+    lockFd = openSync(lockPath, 'wx');
+  } catch (err) {
+    if (err.code === 'EEXIST') {
+      return { outcome: 'refused', red: `resume: run "${runId}" is locked by another resumer (${lockPath})` };
+    }
+    return { outcome: 'refused', red: `resume: could not create lock ${lockPath} — ${err.message}` };
+  }
+
+  try {
+    const statePath = join(runDir, 'state.json');
+    if (!existsSync(statePath)) {
+      return { outcome: 'refused', red: `resume: no parked state for run "${runId}" (${statePath})` };
+    }
+    let state;
+    try {
+      state = JSON.parse(readFileSync(statePath, 'utf8'));
+    } catch (err) {
+      return { outcome: 'refused', red: `resume: state.json for run "${runId}" is not valid JSON — ${err.message}` };
+    }
+
+    // Orchestrator review fix (6): the CALLER's `root`/`name` are the source
+    // of truth — never `state.flow.root`/`state.flow.name` silently. A
+    // parked run whose recorded flow location disagrees with what THIS call
+    // was asked to resume is refused by name, never re-read from wherever
+    // the state file happens to point.
+    if (state.flow?.root !== root || state.flow?.name !== name) {
+      return {
+        outcome: 'refused',
+        red: `resume: run "${runId}" was parked against flow "${state.flow?.root}/${state.flow?.name}", `
+          + `not the requested "${root}/${name}" — refusing rather than reading a different flow than asked`,
+      };
+    }
+
+    const read = readFlow({ root, name, catalogue });
+    if (!read.ok) {
+      return { outcome: 'refused', red: `resume: flow re-read failed for run "${runId}": ${read.reds.join('; ')}` };
+    }
+    const { declaration, arbiter, signature } = read;
+
+    if (signature.flow !== state.signatureHash) {
+      return { outcome: 'refused', red: `resume: signature mismatch for run "${runId}" — the flow changed while parked` };
+    }
+
+    for (const entry of state.inputsManifest ?? []) {
+      if (!existsSync(entry.frozen)) {
+        return { outcome: 'refused', red: `resume: frozen input "${entry.id}" missing for run "${runId}" (${entry.frozen})` };
+      }
+      const sha256 = createHash('sha256').update(readFileSync(entry.frozen)).digest('hex');
+      if (sha256 !== entry.sha256) {
+        return { outcome: 'refused', red: `resume: frozen input "${entry.id}" changed while parked for run "${runId}"` };
+      }
+    }
+
+    const { steps } = declaration;
+    for (let i = 0; i < state.stepIndex; i += 1) {
+      if (readArtifact(runDir, steps[i].emits) === undefined) {
+        return { outcome: 'refused', red: `resume: artifact "${steps[i].emits}" missing for run "${runId}" — cannot resume` };
+      }
+    }
+
+    // Orchestrator review fix (1): unknown cost is never rendered as 0 — a
+    // missing/non-number/non-finite `state.spent` refuses the resume by
+    // name (naming the run AND the field), $0 further spend, rather than
+    // silently treating an unreadable ledger as "nothing spent yet". Checked
+    // BEFORE the answer is consumed — a refusal here must be replayable.
+    if (typeof state.spent !== 'number' || !Number.isFinite(state.spent)) {
+      return {
+        outcome: 'refused',
+        red: `resume: run "${runId}" state.json field "spent" is not a finite number (got ${JSON.stringify(state.spent)}) — `
+          + 'unknown cost is never rendered as 0; refusing further spend',
+      };
+    }
+    const spent = { value: state.spent };
+    // Orchestrator review fix (4): a floor persisted across the pause
+    // (`state.spendComplete`) is restored here, never quietly reset to
+    // `true` — an absent/non-boolean value defaults to `false` (unknown
+    // never renders as "complete"), never `true`.
+    const spendComplete = { value: state.spendComplete === true };
+
+    const answerPath = join(runDir, 'answer.json');
+    if (!existsSync(answerPath)) {
+      return { outcome: 'refused', red: `resume: no answer yet for run "${runId}"` };
+    }
+    let answer;
+    try {
+      answer = JSON.parse(readFileSync(answerPath, 'utf8'));
+    } catch (err) {
+      return { outcome: 'refused', red: `resume: answer.json for run "${runId}" is not valid JSON — ${err.message}` };
+    }
+    if (answer.askId !== state.askId) {
+      return { outcome: 'refused', red: `resume: answer askId "${answer.askId}" does not match open askId "${state.askId}" for run "${runId}"` };
+    }
+
+    // Consume-once, BEFORE acting on the decision (F44) — the rename is
+    // itself a one-winner gate, on top of the lock above.
+    const consumedPath = join(runDir, `answer.${answer.askId}.consumed.json`);
+    renameSync(answerPath, consumedPath);
+
+    // The run's own injected clock governs expiry, exactly like every other
+    // "now" in this module (never the bare wall clock) — the same fixed
+    // clock a test controls for `runFlow` also controls what "expired" means
+    // for `resumeRun`, with no real wait required to prove it.
+    if (Date.parse(now()) > Date.parse(state.expiresAt)) {
+      // Negative (i): an answer arriving after expiry cancels the run —
+      // adds NOTHING further, but the run's own already-spent total is
+      // real money and must be reported, never coerced to 0 (orchestrator
+      // review fix 2: "a pause spends nothing" means the pause adds
+      // nothing, not that the run's total resets).
+      appendAudit(runDir, {
+        step: null, attempt: null, class: null, verdict: 'ask-expired', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+      });
+      appendHistory(flowDir, {
+        runId, at: now(), outcome: 'ask-expired', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: Date.now() - startedAt, signatureHash: state.signatureHash,
+      });
+      return { outcome: 'ask-expired', runDir, spentUsd: spent.value };
+    }
+
+    if (answer.decision !== 'accept' && answer.decision !== 'reject') {
+      // `rerun` (a fresh run) is M3 scope item 7 — piece 2, not this piece.
+      return { outcome: 'refused', red: `resume: decision "${answer.decision}" is not handled by this piece (rerun is M3 piece 2)` };
+    }
+
+    // Reconstruct the fold's accumulators from disk + state.json — never
+    // re-running a step that already went green (M3 scope item 4).
+    const artifacts = {};
+    for (let i = 0; i < state.stepIndex; i += 1) {
+      artifacts[steps[i].emits] = readArtifact(runDir, steps[i].emits);
+    }
+    const askLines = new Map((arbiter.asks ?? []).map((a) => [a.line, a]));
+    const sendLines = new Map((arbiter.sends ?? []).map((s) => [s.line, s]));
+    const askStepEmits = new Set(steps.filter((s) => askLines.has(s.fromLine)).map((s) => s.emits));
+    const acceptedAskEmitsThisRun = new Set();
+    for (const emits of askStepEmits) {
+      const idx = steps.findIndex((s) => s.emits === emits);
+      if (idx !== -1 && idx < state.stepIndex && readArtifact(runDir, emits) !== undefined) {
+        acceptedAskEmitsThisRun.add(emits);
+      }
+    }
+
+    const attemptsLog = [];
+    const auditRows = [];
+    const recordAudit = (row, modelOutput, unjudgedCount) => {
+      const fullRow = unjudgedCount === undefined ? row : { ...row, unjudgedCount };
+      auditRows.push(fullRow);
+      appendAudit(runDir, fullRow);
+      if (row.spendComplete === false) spendComplete.value = false;
+      if (modelOutput !== undefined) {
+        attemptsLog.push({
+          step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, modelOutput,
+        });
+      }
+    };
+
+    const capUsd = arbiter.capUsd;
+    const redoCap = arbiter.redoCap ?? 3;
+    const effectiveCeilingUsd = ceilingUsd ?? resolveCeilingUsd(null);
+
+    const step = steps[state.stepIndex];
+    const askSlot = askLines.get(step.fromLine);
+    const priorId = (step.reads ?? [])[0];
+    const priorStepIndex = steps.findIndex((s) => s.emits === priorId);
+    const priorArtifact = readArtifact(runDir, priorId);
+
+    const oneShotAskStep = makeOneShotThenParkAskStep({ decision: answer.decision, reason: answer.reason });
+
+    const askResult = await runAskSlot({
+      step,
+      stepIndex: state.stepIndex,
+      askSlot,
+      priorId,
+      priorStep: steps[priorStepIndex],
+      priorArtifact,
+      redoCap,
+      effectiveCeilingUsd,
+      capUsd,
+      primitives,
+      businessDate,
+      modelStep,
+      askStep: oneShotAskStep,
+      spent,
+      spendComplete,
+      recordAudit,
+      evidenceUnjudged: state.evidenceUnjudged ?? [],
+      unjudgedCount: state.unjudgedCount ?? 0,
+      redone: typeof state.redone === 'number' ? state.redone : 0,
+      runDir,
+      flowDir,
+      runId,
+      flowRoot: root,
+      flowName: name,
+      signatureHash: state.signatureHash,
+      inputsManifest: state.inputsManifest,
+      attemptsLog,
+      artifacts,
+      now,
+      startedAt,
+    });
+
+    if (askResult.type === 'paused') return askResult.result;
+    if (askResult.type === 'halted') {
+      return haltRun({
+        flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: state.signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
+      });
+    }
+
+    // accepted — write the ask step's own artifact, then fold on to
+    // whatever comes next (another signed ask parks again; the ordinary
+    // send/step path completes exactly as `runFlow` would have, in-process).
+    writeArtifact(runDir, step.emits, askResult.artifact);
+    artifacts[step.emits] = askResult.artifact;
+    acceptedAskEmitsThisRun.add(step.emits);
+
+    const result = await foldFromStep({
+      i0: state.stepIndex + 1,
+      steps,
+      askLines,
+      sendLines,
+      askStepEmits,
+      runDir,
+      flowDir,
+      runId,
+      flowRoot: root,
+      flowName: name,
+      signatureHash: state.signatureHash,
+      inputsManifest: state.inputsManifest,
+      capUsd,
+      redoCap,
+      effectiveCeilingUsd,
+      primitives,
+      businessDate,
+      modelStep,
+      // A resumed run never waits in-process — any FURTHER signed ask it
+      // reaches parks immediately too, under its own signed ttl.
+      askStep: makeParkingAskStep(),
+      sendStep,
+      now,
+      startedAt,
+      spent,
+      spendComplete,
+      artifacts,
+      acceptedThisRun: true,
+      acceptedAskEmitsThisRun,
+      unjudgedSinceLastAsk: [],
+      recordAudit,
+      attemptsLog,
+    });
+
+    if (result.outcome === 'complete') return { ...result, auditRows };
+    return result;
+  } finally {
+    try { closeSync(lockFd); } catch { /* already closed */ }
+    try { unlinkSync(lockPath); } catch { /* already gone */ }
+  }
 }
 
 /** log.json's one writer, called from every exit path (complete + every
@@ -925,12 +1446,19 @@ function writeLog(runDir, payload) {
  *   history row carries it, halts included). A halt before the signature was
  *   read/verified (the pre-`readFlow`-success refused path, and any halt
  *   before `signature` comes into scope) keeps the default `null`.
+ * @param {boolean} [opts.priorSpendComplete] - orchestrator review fix (4):
+ *   a floor carried in from BEFORE this halt (e.g. a pre-park row, or an
+ *   earlier attempt this run, that already left `spendComplete: false`).
+ *   ANDed with this halt's own outcome-based verdict — once false, always
+ *   false. Defaults to `true` (every pre-existing call site is unaffected).
  */
 function haltRun({
   flowDir, runDir, runId, capUsd, startedAt, now, outcome, red, spent, attempts = [], artifacts = {}, signatureHash = null,
+  priorSpendComplete = true,
 }) {
   const wallMs = Date.now() - startedAt;
-  const spendComplete = outcome !== 'provider-red' && outcome !== 'pricing-red' && outcome !== 'cap-halt';
+  const spendComplete = priorSpendComplete
+    && outcome !== 'provider-red' && outcome !== 'pricing-red' && outcome !== 'cap-halt';
   mkdirSync(flowDir, { recursive: true });
   appendHistory(flowDir, {
     runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash,

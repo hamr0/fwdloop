@@ -177,10 +177,15 @@ function mktempInputs() {
 
 test('job #2 live-shape: an ask timeout halts the run "ask-timeout", a pause spends nothing beyond the steps already run', async () => {
   const root = tmpRoot('live-shape-timeout');
+  // M3 scope item 1 (fixes F43): the runner now threads the SIGNED ttl into
+  // every ask, and no code default (e.g. `makeFileAskStep`'s own
+  // `timeoutMs`) ever overrides it — so this test needs a short SIGNED ttl
+  // ("ask 1s:") rather than relying on `timeoutMs` alone to fire fast.
+  const shortTtlProse = fixture('job2-with-sources.signed.txt').replace('4. ask: check it with me,', '4. ask 1s: check it with me,');
   const written = writeFlow({
     root,
     name: 'job2',
-    proseText: fixture('job2-with-sources.signed.txt'),
+    proseText: shortTtlProse,
     declaration: fixtureJson('job2.m1.declaration.json'),
     signedBy: 'hamr',
     signedAt: '2026-09-24T12:00:00Z',
@@ -205,7 +210,7 @@ test('job #2 live-shape: an ask timeout halts the run "ask-timeout", a pause spe
   const modelStep = makeLiveModelStep({
     spendPath, provider, rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash',
   });
-  // A 50ms ask timeout — nobody ever answers.
+  // The signed "ask 1s:" governs the wait (F43) — nobody ever answers.
   const askStep = makeFileAskStep({ pollMs: 10, timeoutMs: 50 });
   const sendStep = async () => ({ ok: true, bytes: 1 });
 

@@ -623,7 +623,18 @@ export function validateDeclaration(declaration, context = {}) {
       reds.push(`declaration: send at line ${n} (steps[${sendIdx}]) is not granted a catalogue primitive of class "write"`);
     }
 
-    const earlierAskLines = askLines.filter((a) => a < n);
+    // M3 scope item 8 (F42's "Also seen" note): "earlier" is judged by STEP
+    // ORDER, never by prose line number — the runner folds over
+    // `declaration.steps` in array order (`acceptedAskEmitsThisRun` is
+    // populated as steps execute), so a line-number comparison here can
+    // disagree with what actually runs. A signed ask whose step sits before
+    // the send step in `declaration.steps`, whatever its own prose line
+    // number, is "earlier"; one whose step sits at or after the send step
+    // never is, even if its line number is smaller.
+    const earlierAskLines = askLines.filter((a) => {
+      const askIdx = stepInfo.findIndex((st) => st.fromLine === a);
+      return askIdx !== -1 && askIdx < sendIdx;
+    });
     if (earlierAskLines.length === 0) {
       reds.push(`declaration: send at line ${n} (steps[${sendIdx}]) has no signed ask at an earlier line to read from`);
     } else {

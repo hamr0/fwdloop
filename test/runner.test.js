@@ -281,20 +281,35 @@ test('M2 fix (a): send content is the signed ask\'s artifact by identity, never 
 });
 
 // ---------------------------------------------------------------------------
-// M2 fix (b): zero/more-than-one signed-ask ids in a send's `reads` halts
-// red naming the send step, before `sendStep` is called — never falls back
-// to position. declaration.js's own send-lock rule (checked against asks
-// STRICTLY EARLIER BY LINE NUMBER than the send) already makes the ZERO
+// M2 fix (b) / M3 item 8: zero/more-than-one signed-ask ids in a send's
+// `reads` is refused, naming the send step and both ids — never falls back
+// to position. declaration.js's own send-lock rule already makes the ZERO
 // case unconstructible through a validly-signed flow (a send always needs
-// at least one earlier-by-line ask to read from, or it is refused at
-// declaration-validation time — see declaration.test.js "(e)"). The
-// MORE-THAN-ONE case, however, is reachable: a signed ask can sit LATER in
-// the prose's line numbers than the send yet EARLIER in the declaration's
-// own step array (the walkable chain runs on step order, not line order —
-// same distinction M2 amendment 1 item 2 already documents for a different
-// check). declaration.js's rule only counts asks earlier BY LINE, so it
-// stays green; the runner's identity-based guard, which knows about every
-// signed ask regardless of line position, is the only thing that catches it.
+// at least one earlier ask to read from, or it is refused at
+// declaration-validation time — see declaration.test.js "(e)").
+//
+// The MORE-THAN-ONE case below was, before M3 item 8, only caught live by
+// the runner's own identity guard: a signed ask can sit LATER in the
+// prose's line numbers than the send yet EARLIER in the declaration's own
+// step array (the walkable chain runs on step order, not line order), and
+// declaration.js's send-lock rule used to count "earlier" by LINE NUMBER
+// alone — so it validated DIVERGENT_DECLARATION green, and only the
+// runner's own guard (which knows every signed ask by identity, regardless
+// of line position) caught it live, mid-run.
+//
+// M3 item 8 (closes F42's side note, docs/wiki/the-module-ladder.md,
+// "M3 — scope, exit, negative — SIGNED") fixed the root cause: the
+// send-lock's "reads an earlier ask" rule now judges "earlier" by STEP
+// ORDER, matching what the runner actually folds over. `writeFlow` now
+// refuses this exact declaration AT SIGNING TIME — this test's old premise
+// ("declaration.js can't see line 50, so it validates green and only the
+// runner's identity guard catches it live") is stale by design; the fix
+// working is exactly what makes it stale. Rewritten below to assert the
+// refusal directly. The runner's own identity guard (`src/runner.js`,
+// "must read exactly one signed ask's artifact") is left in place
+// unchanged — defense in depth for a declaration that reaches the runner
+// some other way (e.g. hand-built, bypassing `writeFlow`/`validateDeclaration`
+// entirely, as `runFlow` itself does not re-validate).
 // ---------------------------------------------------------------------------
 
 const DIVERGENT_PROSE = [
@@ -332,32 +347,29 @@ const DIVERGENT_DECLARATION = {
   ],
 };
 
-test('M2 fix (b): a send reading more than one signed ask\'s artifact halts red, sendStep never called', async () => {
+test('M3 item 8: a send reading more than one signed ask\'s artifact is refused at SIGNING time, naming both ids', () => {
   const root = tmpRoot('job-divergent');
   const written = writeFlow({
     root, name: 'div', proseText: DIVERGENT_PROSE, declaration: DIVERGENT_DECLARATION, signedBy: SIGNED_BY, signedAt: SIGNED_AT, catalogue: CATALOGUE,
   });
-  // PROOF this is a legitimately signable flow — declaration.js's own
-  // send-lock rule only counts asks earlier BY LINE than the send (line 2
-  // only; line 50 is excluded), so it sees exactly one and validates green.
-  assert.equal(written.ok, true, written.ok ? '' : written.reds.join('\n'));
-
-  const modelStep = async () => ({ ok: true, costUsd: 0.0001, artifact: { text: 'x', done: true } });
-  let sendCalled = false;
-  const sendStep = async () => { sendCalled = true; return { ok: true, bytes: 1 }; };
-
-  const result = await runFlow({
-    root, name: 'div', runId: 'run-1', sources: [], catalogue: CATALOGUE, modelStep, askStep: ACCEPT_ASK, sendStep, primitives: {}, businessDate: BUSINESS_DATE,
-  });
-
-  assert.equal(result.outcome, 'red');
-  assert.match(result.red, /send: step "Send the result\." must read exactly one signed ask's artifact, found \[asked_early, asked_late\]/);
-  assert.equal(sendCalled, false, 'sendStep must never be called once the count check fails');
+  // The fix working IS the point: this declaration is no longer signable.
+  assert.equal(written.ok, false, 'this declaration must now be REFUSED at signing time (item 8) — it was never valid, only invisible to the old line-based check');
+  assert.ok(
+    written.reds.some((r) => /reads the emits of more than one earlier signed ask step \(asked_early, asked_late\) — exactly 1 required/.test(r)),
+    `expected a red naming both "asked_early" and "asked_late", got:\n${written.reds.join('\n')}`,
+  );
 });
 
 test('runFlow: src/runner.js itself never branches on a job name or step goal text', () => {
   const source = readFileSync(path.join(HERE, '..', 'src', 'runner.js'), 'utf8');
-  for (const literal of ['job1', 'job2', 'aging', 'resume']) {
+  // M3 piece 1 note: the bare word "resume" is no longer job-specific on its
+  // own — `resumeRun`/`resume.lock` are M3's own SIGNED vocabulary (the
+  // module ladder's "resumeRun", "resume.lock" — docs/wiki/the-module-ladder.md,
+  // "M3 — scope, exit, negative"), not a branch on job #2's "resume" input
+  // role. This literal narrows to the goal-text fragment a job-specific
+  // branch would actually contain ("resume .docx", from job #2's own goal
+  // strings), which still fails loudly if runner.js ever hardcodes it.
+  for (const literal of ['job1', 'job2', 'aging', 'resume .docx']) {
     assert.equal(source.includes(literal), false, `src/runner.js must not mention "${literal}"`);
   }
 });
