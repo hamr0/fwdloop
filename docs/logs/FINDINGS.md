@@ -2099,3 +2099,33 @@ never replaces it. No test covers it: every test sets `timeoutMs` by hand.
 **Not fixed here.** It belongs to M3 scope item 1 (the signed TTL governs), because M3 changes how an
 ask waits anyway (park and exit instead of an in-process poll). Until then a live run's ask expires at
 the caller's `timeoutMs`, whatever the prose says.
+
+## F44 — M3 POC: a run parked at its ask and killed comes back exactly as it was, 20/20 (2026-09-25)
+
+**What ran.** `poc/m3/park.mjs` (park, answer, resume as three separate OS processes) and
+`poc/m3/loop.mjs` (the 20-loop driver), on job #2's fixture flow with fake call-counting model
+steps, $0. Each loop: `run` parks at the signed ask and exits on its own (a `SIGKILL` afterwards
+finds nothing left), `answer` from a second process, `resume` from a third. Final artifacts are
+compared to an in-process `runFlow` reference run.
+
+**Result: 20/20**, stable over 6 runs by the worker and 1 by the orchestrator. Loops 1–5 raced two
+resumers (exactly one proceeded). Loops 6–10 edited a frozen input while parked (resume refused it by
+name, $0, nothing sent). Loops 11–13 rejected once (redo, re-park under a new askId), then accepted.
+
+**The bar can fail**, shown with three deliberately broken resumers:
+- `rerun-from-start`: 5/20. Every non-tamper loop is red ("resume-summary" called 2 times, expected 1).
+- `no-input-check`: 15/20. Red on exactly loops 6–10.
+- `no-lock`: 14–17/20 over 6 runs. At least one of loops 1–5 is red each run (`successes=2`, both
+  resumers finished and both sent). It is racy by nature. Loops 11–13 also go red in this variant
+  for a side reason (the deferred rename leaves the old answer in place).
+
+**Lesson for the build.** Consuming `answer.json` by atomic `rename()` before acting is a mutex by
+itself. With the lock removed, no race showed until the broken variant was changed to act *before*
+renaming. The M3 build keeps both mechanisms: the lock (scope item 5) and rename-to-consume before
+acting.
+
+**POC shortcuts not to carry into `src/`.** A re-park after `reject` hard-codes a 30-minute TTL
+instead of re-reading the signed ask slot (F43's gap again). `rerun` (scope item 7) is not
+exercised: it is a separate assumption, and it gets its own test in the build.
+
+**Cost.** $0. M3 $0.00 of $2.00.

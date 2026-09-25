@@ -619,6 +619,9 @@ is keeping the process alive (which is M2's design, not a resume).
 
 **M3 spend cap: $2.00 — SIGNED by hamr 2026-09-25.** M3's own, separate from M2's $5.00 ($0.74 used).
 POC $0; live exit about $0.05 a run. POC starts on branch `chore/fix-ledger` (hamr: same branch).
+**POC bar RULED MET by hamr 2026-09-25** ("pass, commit"). F44: 20/20 at $0, stable over repeated
+runs; the three broken resumers go red where they should (rerun-from-start 5/20, no-input-check 15/20,
+no-lock 14–17/20). Build starts on the same branch.
 
 ## M4 — dry-run, accept, versions
 
