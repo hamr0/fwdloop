@@ -1,0 +1,480 @@
+#!/usr/bin/env node
+// M3 piece 2 (docs/wiki/the-module-ladder.md, "M3 — scope, exit, negative —
+// SIGNED", scope item 9): the CLI. Stdlib only (`node:util` `parseArgs`),
+// no new dependency. Four verbs — `run`, `inbox`, `answer`, `resume` — wired
+// from `src/` only (this file never imports from `poc/`; the live pieces
+// here are the same ones `poc/m2/live.mjs` proved: `makeLiveModelStep`,
+// `sendViaPrimitive`, `resolvePrimitives`, `checkKeyPreflight`).
+//
+// borrowed-from: fwdloop poc/m2/live.mjs@748359d (the live-run wiring shape:
+// preflight the key before touching a run dir, predict the frozen input
+// paths so `resolvePrimitives` can build sandboxed tools before `runFlow`
+// itself freezes anything, drive `runFlow`/`sendViaPrimitive` for real).
+// Rewritten as the shipped, four-verb CLI (park-and-exit instead of an
+// in-process wait, plus `inbox`/`answer`/`resume`) — src/ never imports
+// from poc/, and poc/ is not part of the published package.
+
+import { parseArgs } from 'node:util';
+import {
+  existsSync, mkdirSync, readFileSync, readdirSync,
+} from 'node:fs';
+import { extname, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { randomUUID } from 'node:crypto';
+
+import { readFlow, checkFlowName } from '../src/flow.js';
+import { loadCatalogue } from '../src/catalogue.js';
+import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
+import { makeLiveModelStep } from '../src/model-step.js';
+import { sendViaPrimitive } from '../src/send.js';
+import { resolvePrimitives } from '../src/primitives.js';
+import { checkKeyPreflight } from '../src/provider.js';
+import { answerAsk } from '../src/ask.js';
+
+// The baseline model (project rule, CLAUDE.md/AGENT_RULES: "deepseek-flash
+// ... Never Claude for fwdloop's own runs") — the ONE provider slot this CLI
+// drives. `PROVIDER_SLOTS.deepseek.envVar` is `DEEPSEEK_API_KEY`; this CLI
+// never reads a key any other way and never prints it.
+const MODEL_SLOT = 'deepseek';
+
+function fail(message) {
+  process.stderr.write(`fwdloop: ${message}\n`);
+  process.exit(1);
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Build the run's `modelStep`. Live by default (`makeLiveModelStep` against
+ * `MODEL_SLOT`, refusing an unset/empty/whitespace key via
+ * `checkKeyPreflight` BEFORE this function returns — i.e. before the caller
+ * has created a run dir or written any book row).
+ *
+ * Test-only escape hatch, never a user-facing flag: active ONLY when BOTH
+ * `NODE_ENV==='test'` AND `FWDLOOP_TEST_MODEL_STEP` (a module path) are set.
+ * A live invocation of this CLI is never launched with `NODE_ENV=test`, so
+ * there is no way to reach a fake model in production; and setting
+ * `FWDLOOP_TEST_MODEL_STEP` alone (without `NODE_ENV=test`) does nothing —
+ * two independent gates, neither of them a documented option, so it cannot
+ * be hit by a user typing `--something`. This is how the test suite drives
+ * every CLI scenario at $0 with zero chance of a real network call.
+ */
+async function resolveModelStep(spendPath) {
+  if (process.env.NODE_ENV === 'test' && process.env.FWDLOOP_TEST_MODEL_STEP) {
+    const modulePath = resolve(process.env.FWDLOOP_TEST_MODEL_STEP);
+    const mod = await import(pathToFileURL(modulePath).href);
+    if (typeof mod.default !== 'function') {
+      throw new Error(`FWDLOOP_TEST_MODEL_STEP module "${modulePath}" has no default export function`);
+    }
+    return mod.default({ spendPath });
+  }
+  const keyCheck = checkKeyPreflight(MODEL_SLOT);
+  if (!keyCheck.ok) throw new Error(keyCheck.message);
+  return makeLiveModelStep({ slot: MODEL_SLOT, spendPath });
+}
+
+function parseSourceFlags(list) {
+  const out = {};
+  for (const entry of list ?? []) {
+    const eq = entry.indexOf('=');
+    if (eq <= 0) throw new Error(`--source "${entry}" is not "role=path"`);
+    const role = entry.slice(0, eq);
+    const value = entry.slice(eq + 1);
+    if (value.length === 0) throw new Error(`--source "${entry}" has an empty path`);
+    out[role] = resolve(value);
+  }
+  return out;
+}
+
+function listDirNames(dir) {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+}
+
+function findRunDirByAskId(root, askId) {
+  for (const flow of listDirNames(root)) {
+    const runsDir = join(root, flow, 'runs');
+    for (const runId of listDirNames(runsDir)) {
+      const askPath = join(runsDir, runId, 'ask.json');
+      if (!existsSync(askPath)) continue;
+      let ask;
+      try {
+        ask = JSON.parse(readFileSync(askPath, 'utf8'));
+      } catch {
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+      if (ask.askId === askId) return join(runsDir, runId);
+    }
+  }
+  return null;
+}
+
+/** Reports a `runFlow`/`resumeRun` result to stdout/stderr and sets the
+ *  process exit code. A `rerun` outcome also reports the new run it just
+ *  started (recursively — the new run may itself be paused/complete/a red),
+ *  so a human watching a `run`/`resume` invocation sees the WHOLE chain,
+ *  never just the old run's own half of it. */
+function reportRunResult(result, { rootArg }) {
+  if (result.outcome === 'paused') {
+    process.stdout.write(`parked: askId=${result.askId} expiresAt=${result.expiresAt} spentUsd=${result.spentUsd}\n`);
+    process.stdout.write(`fwdloop answer ${result.askId} accept|reject "<reason>"|rerun "<reason>" --root ${rootArg}\n`);
+    return;
+  }
+  if (result.outcome === 'complete') {
+    process.stdout.write(`complete: spentUsd=${result.spentUsd}\n`);
+    return;
+  }
+  if (result.outcome === 'rerun') {
+    process.stdout.write(`rerun: oldRunId=${result.runId} newRunId=${result.newRunId} spentUsd=${result.spentUsd}\n`);
+    reportRunResult(result.newRun, { rootArg });
+    return;
+  }
+  if (result.outcome === 'ask-expired') {
+    process.stderr.write(`fwdloop: ask-expired — run cancelled, spentUsd=${result.spentUsd}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  process.stderr.write(`fwdloop: ${result.outcome}${result.red ? ` — ${result.red}` : ''}\n`);
+  process.exitCode = 1;
+}
+
+// ---------------------------------------------------------------------------
+// run
+// ---------------------------------------------------------------------------
+
+async function cmdRun(rest) {
+  const { values, positionals } = parseArgs({
+    args: rest,
+    options: {
+      root: { type: 'string' },
+      source: { type: 'string', multiple: true, default: [] },
+      'run-id': { type: 'string' },
+    },
+    allowPositionals: true,
+  });
+
+  const flowName = positionals[0];
+  if (!flowName) fail('run: a flow name is required — fwdloop run <flow> --root <dir> --source <role>=<path> ...');
+  if (!values.root) fail('run: --root <dir> is required');
+
+  const root = resolve(values.root);
+  const nameCheck = checkFlowName(flowName);
+  if (!nameCheck.ok) fail(nameCheck.red);
+
+  const loaded = loadCatalogue();
+  if (!loaded.ok) fail(`catalogue: ${loaded.reds.join('; ')}`);
+  const catalogue = loaded.primitives;
+
+  const read = readFlow({ root, name: flowName, catalogue });
+  if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
+  const { arbiter, declaration } = read;
+
+  let parsedSources;
+  try {
+    parsedSources = parseSourceFlags(values.source);
+  } catch (err) {
+    fail(`run: ${err.message}`);
+    return;
+  }
+  const declaredRoles = (arbiter.sources ?? []).map((s) => s.role);
+  for (const role of declaredRoles) {
+    if (!Object.hasOwn(parsedSources, role)) {
+      fail(`run: flow "${flowName}" declares source role "${role}" — pass --source ${role}=<path>`);
+    }
+  }
+  for (const role of Object.keys(parsedSources)) {
+    if (!declaredRoles.includes(role)) {
+      fail(`run: --source role "${role}" is not declared by flow "${flowName}" (known roles: ${declaredRoles.join(', ') || '(none)'})`);
+    }
+  }
+  const sources = declaredRoles.map((role) => ({ id: role, path: parsedSources[role] }));
+  for (const src of sources) {
+    if (!existsSync(src.path)) fail(`run: source "${src.id}" is unreadable at ${src.path}`);
+  }
+
+  const runId = values['run-id'] ?? `run-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
+  const runDir = join(root, flowName, 'runs', runId);
+  if (existsSync(runDir)) fail(`run: run dir "${runDir}" already exists — use a new --run-id`);
+
+  // The key preflight (item A: "refuses at $0 BEFORE any book write") runs
+  // here — before ANY directory for this run is created.
+  const spendPath = join(runDir, 'spend.jsonl');
+  let modelStep;
+  try {
+    modelStep = await resolveModelStep(spendPath);
+  } catch (err) {
+    fail(err.message);
+    return;
+  }
+
+  // Predict the frozen input paths `runFlow`'s own `freezeInputs` will use
+  // (deterministic: `<runDir>/inputs/<id><ext>`) so the primitives map can
+  // be built once, before `runFlow` itself freezes anything.
+  mkdirSync(join(runDir, 'inputs'), { recursive: true });
+  const predictedInputs = sources.map((s) => ({ id: s.id, frozen: join(runDir, 'inputs', `${s.id}${extname(s.path)}`) }));
+  const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
+  const { tools: primitives, reds: primitiveReds } = resolvePrimitives(catalogue, allVerbs, { runDir, inputs: predictedInputs });
+  for (const red of primitiveReds) process.stderr.write(`run: ${red}\n`);
+
+  const result = await runFlow({
+    root,
+    name: flowName,
+    runId,
+    sources,
+    catalogue,
+    modelStep,
+    askStep: makeParkingAskStep(),
+    sendStep: sendViaPrimitive,
+    primitives,
+    businessDate: today(),
+  });
+
+  reportRunResult(result, { rootArg: values.root });
+}
+
+// ---------------------------------------------------------------------------
+// inbox
+// ---------------------------------------------------------------------------
+
+function cmdInbox(rest) {
+  const { values } = parseArgs({
+    args: rest,
+    options: { root: { type: 'string' } },
+  });
+  const root = resolve(values.root ?? '.');
+  if (!existsSync(root)) fail(`inbox: root "${root}" does not exist`);
+
+  const rows = [];
+  for (const flow of listDirNames(root)) {
+    const runsDir = join(root, flow, 'runs');
+    for (const runId of listDirNames(runsDir)) {
+      const runDir = join(runsDir, runId);
+      const askPath = join(runDir, 'ask.json');
+      if (!existsSync(askPath)) continue;
+      let ask;
+      try {
+        ask = JSON.parse(readFileSync(askPath, 'utf8'));
+      } catch (err) {
+        // A malformed/unparseable ask.json must never crash inbox — show it
+        // naming the run as unreadable and move on to the next one.
+        rows.push({ flow, runId, status: 'unreadable', detail: `ask.json could not be parsed — ${err.message}` });
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+      // An M2-era ask.json carries no `askId`/`expiresAt` (this CLI's
+      // answer/resume verbs can't act on it — they key everything off
+      // `askId`). Shown as "legacy (not answerable)", never "open": an ask
+      // this CLI cannot answer must never be reported as one it can.
+      if (typeof ask.askId !== 'string' || typeof ask.expiresAt !== 'string') {
+        rows.push({ flow, runId, status: 'legacy', question: ask.question });
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+      // Signed item 6: expiry is checked whenever anyone touches the run —
+      // for `inbox` that means SHOWING an expired ask, never cancelling it
+      // (cancelling happens only at answer/resume, which re-verify anyway).
+      const consumedPath = join(runDir, `answer.${ask.askId}.consumed.json`);
+      if (existsSync(consumedPath)) continue; // this specific ask is already answered
+      // A present-but-unparseable expiresAt (Date.parse -> NaN) must never
+      // read as "not expired" — `Date.now() > NaN` is false, so the naive
+      // compare below would show this as [open] with a "NaNs left"
+      // countdown. Shown as [unreadable] naming the run instead, same as a
+      // malformed ask.json — never [open], never a NaN countdown.
+      if (Number.isNaN(Date.parse(ask.expiresAt))) {
+        rows.push({
+          flow, runId, status: 'unreadable', detail: `ask.json expiresAt "${ask.expiresAt}" is not a parseable date`,
+        });
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+      const expired = Date.now() > Date.parse(ask.expiresAt);
+      const timeLeftMs = Date.parse(ask.expiresAt) - Date.now();
+      rows.push({
+        askId: ask.askId, flow, runId, question: ask.question, status: expired ? 'expired' : 'open', timeLeftMs,
+      });
+    }
+  }
+
+  if (rows.length === 0) {
+    process.stdout.write('inbox: no open asks\n');
+    return;
+  }
+  for (const row of rows) {
+    if (row.status === 'unreadable') {
+      process.stdout.write(`flow=${row.flow} run=${row.runId} [unreadable] ${row.detail}\n`);
+      continue;
+    }
+    if (row.status === 'legacy') {
+      process.stdout.write(`flow=${row.flow} run=${row.runId} [legacy (not answerable)] — ${row.question}\n`);
+      continue;
+    }
+    const timeLeft = row.status === 'expired' ? 'expired' : `${Math.max(0, Math.round(row.timeLeftMs / 1000))}s left`;
+    process.stdout.write(`${row.askId}  flow=${row.flow} run=${row.runId} [${row.status}] ${timeLeft} — ${row.question}\n`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// show — read-only: prints a parked ask's question, expiry, and evidence
+// (the artifact under review, then each unjudged artifact labelled by
+// step). F45 finding 2's other half: `inbox` says an ask is open, `show`
+// is how a human actually sees what they'd be accepting. Never writes.
+// ---------------------------------------------------------------------------
+
+function artifactText(artifact) {
+  if (artifact && typeof artifact === 'object' && typeof artifact.text === 'string') return artifact.text;
+  return JSON.stringify(artifact, null, 2);
+}
+
+function cmdShow(rest) {
+  const { values, positionals } = parseArgs({
+    args: rest,
+    options: { root: { type: 'string' } },
+    allowPositionals: true,
+  });
+  const [askId] = positionals;
+  if (!askId) fail('show: an askId is required — fwdloop show <askId> --root <dir>');
+
+  const root = resolve(values.root ?? '.');
+  if (!existsSync(root)) fail(`show: root "${root}" does not exist`);
+  const runDir = findRunDirByAskId(root, askId);
+  if (!runDir) fail(`show: no open ask found for askId "${askId}" under ${root}`);
+
+  let ask;
+  try {
+    ask = JSON.parse(readFileSync(join(runDir, 'ask.json'), 'utf8'));
+  } catch (err) {
+    fail(`show: ask.json for askId "${askId}" is not valid JSON — ${err.message}`);
+    return;
+  }
+
+  process.stdout.write(`question: ${ask.question}\n`);
+  process.stdout.write(`expiresAt: ${ask.expiresAt}\n`);
+
+  const evidence = ask.evidence ?? null;
+  if (!evidence) {
+    process.stdout.write('\n(no evidence recorded on this ask — legacy park, before F45 finding 2 was fixed)\n');
+    return;
+  }
+  process.stdout.write('\n--- artifact under review ---\n');
+  process.stdout.write(`${artifactText(evidence.artifact)}\n`);
+  for (const item of evidence.unjudged ?? []) {
+    process.stdout.write(`\n--- unjudged: ${item.step ?? item.emits ?? '(step)'} ---\n`);
+    process.stdout.write(`${artifactText(item.artifact)}\n`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// answer
+// ---------------------------------------------------------------------------
+
+function cmdAnswer(rest) {
+  const { values, positionals } = parseArgs({
+    args: rest,
+    options: { root: { type: 'string' } },
+    allowPositionals: true,
+  });
+  const [askId, decision, reason] = positionals;
+  if (!askId) fail('answer: an askId is required — fwdloop answer <askId> accept|reject "<reason>"|rerun "<reason>"');
+  if (!decision) fail(`answer: a decision (accept|reject|rerun) is required for askId "${askId}"`);
+
+  const root = resolve(values.root ?? '.');
+  if (!existsSync(root)) fail(`answer: root "${root}" does not exist`);
+  const runDir = findRunDirByAskId(root, askId);
+  if (!runDir) fail(`answer: no open ask found for askId "${askId}" under ${root}`);
+
+  const result = answerAsk({
+    runDir, askId, decision, reason,
+  });
+  if (!result.ok) fail(result.red);
+
+  process.stdout.write(`answered: askId=${askId} decision=${decision}\n`);
+}
+
+// ---------------------------------------------------------------------------
+// resume
+// ---------------------------------------------------------------------------
+
+async function cmdResume(rest) {
+  const { values, positionals } = parseArgs({
+    args: rest,
+    options: {
+      flow: { type: 'string' },
+      root: { type: 'string' },
+    },
+    allowPositionals: true,
+  });
+  const runId = positionals[0];
+  if (!runId) fail('resume: a runId is required — fwdloop resume <runId> --flow <name> --root <dir>');
+  if (!values.flow) fail('resume: --flow <name> is required');
+  if (!values.root) fail('resume: --root <dir> is required');
+
+  const root = resolve(values.root);
+  const flowName = values.flow;
+
+  const loaded = loadCatalogue();
+  if (!loaded.ok) fail(`catalogue: ${loaded.reds.join('; ')}`);
+  const catalogue = loaded.primitives;
+
+  const read = readFlow({ root, name: flowName, catalogue });
+  if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
+  const { declaration } = read;
+
+  const runDir = join(root, flowName, 'runs', runId);
+  if (!existsSync(runDir)) fail(`resume: no run dir for runId "${runId}" under flow "${flowName}"`);
+
+  const spendPath = join(runDir, 'spend.jsonl');
+  let modelStep;
+  try {
+    modelStep = await resolveModelStep(spendPath);
+  } catch (err) {
+    fail(err.message);
+    return;
+  }
+
+  // Resume never re-freezes inputs — the run's own `inputs.json` (written at
+  // park by `freezeInputs`) is the one source of the already-frozen paths a
+  // sandboxed primitive may read.
+  const inputsManifestPath = join(runDir, 'inputs.json');
+  const inputsManifest = existsSync(inputsManifestPath) ? JSON.parse(readFileSync(inputsManifestPath, 'utf8')) : [];
+  const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
+  const { tools: primitives, reds: primitiveReds } = resolvePrimitives(catalogue, allVerbs, {
+    runDir, inputs: inputsManifest.map((m) => ({ id: m.id, frozen: m.frozen })),
+  });
+  for (const red of primitiveReds) process.stderr.write(`resume: ${red}\n`);
+
+  const result = await resumeRun({
+    root,
+    name: flowName,
+    runId,
+    catalogue,
+    modelStep,
+    sendStep: sendViaPrimitive,
+    primitives,
+    businessDate: today(),
+  });
+
+  reportRunResult(result, { rootArg: values.root });
+}
+
+// ---------------------------------------------------------------------------
+
+async function main() {
+  const [verb, ...rest] = process.argv.slice(2);
+  if (!verb) fail('usage: fwdloop run|inbox|show|answer|resume ...');
+
+  if (verb === 'run') return cmdRun(rest);
+  if (verb === 'inbox') return cmdInbox(rest);
+  if (verb === 'show') return cmdShow(rest);
+  if (verb === 'answer') return cmdAnswer(rest);
+  if (verb === 'resume') return cmdResume(rest);
+  fail(`unknown verb "${verb}" — expected run | inbox | show | answer | resume`);
+  return undefined;
+}
+
+main().catch((err) => {
+  process.stderr.write(`fwdloop: ${err.message}\n`);
+  process.exit(1);
+});

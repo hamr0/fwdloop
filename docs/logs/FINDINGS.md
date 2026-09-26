@@ -2086,3 +2086,94 @@ ask's `emits` in a send's `reads`. Each new test is red against the old code (co
 **Also seen.** `validateDeclaration` counts asks earlier by prose line; the runner counts every signed
 ask step. A signed ask on a later line but earlier in step order passes the validator and is caught
 by the runner's guard. Harmless now; worth one rule when M3 revisits ask placement.
+
+## F43 — The signed ask TTL is parsed and never reaches the ask (2026-09-25)
+
+**Found reading the code for the M3 draft, at `9c6b420`.** `src/signed-text.js` parses `ask 30m:`
+into `ttlMs` on each signed ask (default 30m). `src/runner.js:791` calls
+`askStep({ question, evidence, runDir })` without it. The wait time is whatever `timeoutMs` the
+caller passed to `makeFileAskStep` (`src/ask.js`, default 120 s). So every ask waits the code's
+number, not the human's. This breaks a hard line: an ask's TTL is signed by a human, and code
+never replaces it. No test covers it: every test sets `timeoutMs` by hand.
+
+**Not fixed here.** It belongs to M3 scope item 1 (the signed TTL governs), because M3 changes how an
+ask waits anyway (park and exit instead of an in-process poll). Until then a live run's ask expires at
+the caller's `timeoutMs`, whatever the prose says.
+
+## F44 — M3 POC: a run parked at its ask and killed comes back exactly as it was, 20/20 (2026-09-25)
+
+**What ran.** `poc/m3/park.mjs` (park, answer, resume as three separate OS processes) and
+`poc/m3/loop.mjs` (the 20-loop driver), on job #2's fixture flow with fake call-counting model
+steps, $0. Each loop: `run` parks at the signed ask and exits on its own (a `SIGKILL` afterwards
+finds nothing left), `answer` from a second process, `resume` from a third. Final artifacts are
+compared to an in-process `runFlow` reference run.
+
+**Result: 20/20**, stable over 6 runs by the worker and 1 by the orchestrator. Loops 1–5 raced two
+resumers (exactly one proceeded). Loops 6–10 edited a frozen input while parked (resume refused it by
+name, $0, nothing sent). Loops 11–13 rejected once (redo, re-park under a new askId), then accepted.
+
+**The bar can fail**, shown with three deliberately broken resumers:
+- `rerun-from-start`: 5/20. Every non-tamper loop is red ("resume-summary" called 2 times, expected 1).
+- `no-input-check`: 15/20. Red on exactly loops 6–10.
+- `no-lock`: 14–17/20 over 6 runs. At least one of loops 1–5 is red each run (`successes=2`, both
+  resumers finished and both sent). It is racy by nature. Loops 11–13 also go red in this variant
+  for a side reason (the deferred rename leaves the old answer in place).
+
+**Lesson for the build.** Consuming `answer.json` by atomic `rename()` before acting is a mutex by
+itself. With the lock removed, no race showed until the broken variant was changed to act *before*
+renaming. The M3 build keeps both mechanisms: the lock (scope item 5) and rename-to-consume before
+acting.
+
+**POC shortcuts not to carry into `src/`.** A re-park after `reject` hard-codes a 30-minute TTL
+instead of re-reading the signed ask slot (F43's gap again). `rerun` (scope item 7) is not
+exercised: it is a separate assumption, and it gets its own test in the build.
+
+**Cost.** $0. M3 $0.00 of $2.00.
+
+## F45 — M3 live exit: job #2 parked, answered from hamr's terminal, resumed twice, sent (2026-09-25)
+
+**What ran.** `bin/fwdloop` at `6599760` on `deepseek-flash`, flow `flows/job2-live-1`, run `m3-live-1`.
+Three separate processes, and each one exited on its own:
+1. `fwdloop run` read both inputs by role. The compose step went green on attempt 3, and the run
+   parked at the signed ask (default 30m TTL). No fwdloop process was left running.
+2. hamr, from their own terminal: `fwdloop answer <id> reject "cut the soft skills section to five lines"`.
+   `fwdloop resume` redid the compose step (green on its 3rd redo attempt, after two heading reds) and
+   re-parked under a new askId with a fresh 30m expiry.
+3. hamr: `fwdloop answer <id> accept`. `fwdloop resume` sent to
+   `poc/m0/out/m3-live-1-resume-summary-output.json`. Outcome `complete`.
+
+**Checked.** The sent text equals the accepted artifact byte for byte. `spend.jsonl` (8 rows) and
+`audit.jsonl` (13 rows) both sum to $0.0307. `history.jsonl` has exactly one row for the run. The
+pre-ask read steps ran once. Both answers were consumed once, by askId.
+
+**Not proven.** Whether the reject reason was honoured. The redrafted soft skills section is one
+~170-word paragraph, not five lines, and switched to third person. This is a hitl step, so the human
+judges it; there is no mechanical check, as ruled.
+
+**Found on the way (not fixed yet):**
+1. `fwdloop inbox` lists M2-era runs (`run-1`, `run-2`, whose `ask.json` has no `askId`/`expiresAt`)
+   as `[open] NaNs left`. It should never show an ask it cannot answer as open.
+2. A parked `ask.json` holds only `askId, question, askedAt, expiresAt`. The draft under review and
+   the unjudged evidence live in `state.json`/artifacts. A human answering from `inbox` cannot see
+   what they are accepting unless they know where to look. M2's in-process `ask.json` carried
+   `evidence`.
+3. The history row's `wallMs` is 19: it times only the last process, not the run.
+
+**Cost.** $0.0307. M3 total $0.03 of $2.00.
+
+**Fixed, same day, all three** (each test red before its fix). (1) `inbox` shows an M2-era ask as
+`legacy (not answerable)` and a malformed one as `unreadable`, naming the run, never `open`.
+(2) A parked `ask.json` carries `evidence` (`{ artifact, unjudged }`, the redrafted artifact on every
+re-park), and `fwdloop show <askId>` prints it read-only. (3) History `wallMs` runs from the run's
+first start (`state.startedAt`), so a pause counts as elapsed time. A run parked before this fix has
+no `startedAt` and falls back to the resuming process's start; that is a wall-time floor, not a money
+figure. Suite 1216/1216.
+
+**Fixes proven live, 2026-09-26** (`088163c`, run `m3-live-2`, `deepseek-flash`). `inbox` listed the
+new ask `[open] 1800s left` and both M2-era runs as `legacy (not answerable)`. hamr ran
+`fwdloop show` from their terminal and read the draft plus both unjudged inputs, labelled by step.
+They rejected ("shorter work history blurb"); the re-parked `ask.json` evidence equalled the redrafted
+artifact on disk, and the blurb went from about 190 to 157 words. `show` again, then accept, then
+sent. The sent text equals the accepted artifact. Both books sum to $0.0184. The one history row has
+`wallMs` 970,615 (16.2 min, the run's first start to the send, pauses included), matching the
+clock. M3 total $0.05 of $2.00.

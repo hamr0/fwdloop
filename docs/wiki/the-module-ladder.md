@@ -527,6 +527,245 @@ resume never re-asks an answered question (docs/archive/PRD.md:578-581).
 - **Negative:** an expired TTL cancels; a rerun is a fresh engagement with its own counter
   (docs/archive/PRD.md:583-583).
 
+### M3 — scope, exit, negative — SIGNED by hamr 2026-09-25 ("1 A, 2A. $2 budget approved, sign m3")
+
+Restates the M3 paragraph above against what M2 built. Two design picks were made on 2026-09-25
+(hamr: "1 A, 2A"): park-and-exit at the ask (item 2) and rerun as a fresh run (item 7). Scope, exit,
+negative and the cap were signed together.
+
+**What M2 left for M3, found by reading the code at `9c6b420`.**
+
+- The ask lives inside the running process: `src/ask.js` polls `answer.json` every 500 ms and the
+  process holds the run open the whole time. If the process dies, the run dies with it.
+- **The signed TTL is parsed and never used.** `src/signed-text.js` turns `ask 30m:` into `ttlMs`,
+  but `src/runner.js:791` calls `askStep` without it, so every ask waits `makeFileAskStep`'s own
+  default (120 s) whatever the human signed. That breaks a hard line: an ask's TTL is signed by a
+  human, and the machine must not replace it.
+- `reject` and `rerun` do the same thing today (`src/runner.js:805`): both redo the step before the
+  ask, under one `redo cap` counter.
+- Parked from F42: `validateDeclaration` counts asks by prose line; the runner counts every step
+  bound to an ask line. The two can disagree.
+- There is no CLI. `package.json` has no `bin`.
+
+**Scope.**
+
+1. **The signed TTL governs.** Each ask's `ttlMs` comes from its own signed `ask <dur>:` line
+   (default 30m, as M1 parses it). No code-side default overrides it. `ask.json` carries
+   `askedAt` and `expiresAt`. A test proves a signed `ask 2s:` expires at 2 s and not at 120 s.
+2. **Park and exit** (hamr 2026-09-25, "1A"). At a signed ask, the run writes `ask.json` plus a run-state
+   file `state.json` (`{ runId, flow, signatureHash, inputsManifest, stepIndex, askId, expiresAt,
+   spent, redone }`), appends an audit row `paused`, and the process **exits**. No process waits, so
+   a pause spends nothing, not even a poll.
+3. **A separate process answers.** `fwdloop inbox` lists open asks across `flows/*/runs/*`: id,
+   flow, question, time left. An ask past `expiresAt` is shown as expired, never as open.
+   `fwdloop answer <askId> accept | reject "<reason>" | rerun "<reason>"` writes `answer.json`
+   **once**, stamped with `answeredAt` and the `askId`. It refuses a missing or blank reason, an
+   unknown or expired `askId`, and a second answer to the same ask, each by name. An answer for
+   ask A can never be consumed by ask B.
+4. **Resume into the next step.** `fwdloop resume <runId>` (or `answer` starting it right after it
+   writes) re-reads the flow through `readFlow`, then checks three things before anything else:
+   the signature hash equals `state.signatureHash`, every frozen input's sha256 equals
+   `state.inputsManifest`, and every earlier step's artifact is on disk. Any mismatch refuses by
+   name at $0. Then it consumes the answer exactly once and carries on from `stepIndex`. It
+   **never** re-runs a paid step that already went green and **never** re-asks an answered ask.
+5. **One resumer.** Resume takes an exclusive lock on the run (`O_EXCL` create of `resume.lock`).
+   A second resumer at the same time refuses and names the run. The lock is released on exit.
+   A lock left behind by a killed resumer is a red naming it for the human, never stolen silently.
+6. **Expiry cancels.** Answering or resuming an ask past `expiresAt` cancels the run: outcome
+   `ask-expired`, a `history.jsonl` row, $0, nothing sent. Nothing runs in the background, so
+   expiry is checked whenever anyone touches the run (`inbox`, `answer`, `resume`).
+7. **`reject` vs `rerun`** (hamr 2026-09-25, "2A"). `reject "<reason>"` stays M2's: it redoes the step before
+   the ask under `redo cap`. `rerun "<reason>"` becomes a **fresh run**: this run ends with outcome
+   `rerun`, and a new `runId` starts on the same signed flow with fresh inputs, its own redo
+   counter and its own cap, with the reason carried as the first step's starting gap.
+8. **One ask count.** `validateDeclaration` and the runner count asks the same way: by signed ask
+   line, one bound step per line (closes the F42 side note).
+9. **The CLI is stdlib only.** `bin/fwdloop` uses `node:util` `parseArgs` with four verbs: `run`,
+   `inbox`, `answer`, `resume`. It adds no dependency.
+
+**Not in M3:** resuming a run killed mid-step (that run is a casualty; start a fresh run), a
+daemon or timer that expires asks unattended, triggers, `pause` as an answer (an open ask already
+is a pause), dry-run/versions (M4), any UI (M5).
+
+**POC first, the riskiest assumption:** **a run can die at the ask and come back exactly as it
+was.** $0, fake model steps that count their calls, job #2's fixture flow. Twenty loops, each:
+start the run as a real child process, let it park, `SIGKILL` whatever is left, answer from a
+second process, resume from a third. Every loop must show: the pre-ask steps were called exactly
+once, `ask.json` was written exactly once, the answer was consumed exactly once, and the run
+finished with the same artifacts an in-process run produces. In five of the loops, two resumers
+start at the same moment and exactly one proceeds. In five more, an input is edited while the run
+is parked and resume refuses it by name. **Bar: 20/20.** Any loop that re-runs a paid step,
+re-asks, or double-consumes means the design is wrong.
+
+**Exit.**
+
+- The POC bar is met.
+- Job #2 live on `deepseek-flash`: the run parks at its ask and the process exits; hamr answers
+  `reject "<reason>"` from another terminal with `fwdloop answer`; the run resumes, redoes the step,
+  parks again; `accept`; it sends. Both books show one run, and the spend is only the model rounds.
+- A signed `ask 2s:` expires at its own TTL (item 1).
+
+**Negative scenarios**, each of which must be able to fail:
+
+- (i) an answer arriving after `expiresAt` cancels the run `ask-expired`, $0, nothing sent;
+- (ii) `rerun "<reason>"` starts a new `runId` whose redo counter starts at 0 and whose cap is its
+  own, and the old run's `history.jsonl` row says `rerun`;
+- (iii) a frozen input changed while parked makes resume refuse, naming the input, at $0;
+- (iv) a second `answer` to an answered ask is refused, and the first answer stands;
+- (v) two resumers at once: exactly one proceeds, the other refuses naming the run.
+
+**Kills the module:** the POC shows a resume can re-run a paid step or re-ask, and the only fix
+is keeping the process alive (which is M2's design, not a resume).
+
+**M3 spend cap: $2.00 — SIGNED by hamr 2026-09-25.** M3's own, separate from M2's $5.00 ($0.74 used).
+POC $0; live exit about $0.05 a run. POC starts on branch `chore/fix-ledger` (hamr: same branch).
+**POC bar RULED MET by hamr 2026-09-25** ("pass, commit"). F44: 20/20 at $0, stable over repeated
+runs; the three broken resumers go red where they should (rerun-from-start 5/20, no-input-check 15/20,
+no-lock 14–17/20). Build starts on the same branch.
+
+**M3 EXIT SIGNED — hamr, 2026-09-26** ("sign m3 exit, commit"). Evidence below; F45's three bugs fixed first.
+
+| exit / negative | evidence |
+|---|---|
+| POC bar 20/20 | RULED MET above (F44) |
+| job #2 live: park, reject from another terminal, resume, re-park, accept, send | F45: run `m3-live-1`, three processes, sent text equals the accepted artifact, one history row, both books sum to $0.0307 |
+| signed `ask 2s:` expires at its own TTL | `test/park-resume.test.js` TTL tests (F43 fixed) |
+| (i) answer after `expiresAt` cancels `ask-expired`, nothing sent | `test/park-resume.test.js` "negative (i)", carries the run's real spend |
+| (ii) `rerun` starts a fresh run with its own counter and cap | `test/rerun.test.js` "negative (ii)" |
+| (iii) input changed while parked is refused by name at $0 | `test/park-resume.test.js` "negative (iii)", POC loops 6–10 |
+| (iv) second answer refused, first stands | `test/park-resume.test.js` "negative (iv)", `wx` write |
+| (v) two resumers: exactly one proceeds | `test/park-resume.test.js` "negative (v)", POC loops 1–5 |
+| item 8, one ask count | `test/declaration.test.js`, the F42 test rewritten to the signing-time refusal |
+| CLI (`run`, `inbox`, `answer`, `resume`, `show`) | `test/cli.test.js`; unset key refused at $0 before any book |
+
+Spend: $0.03 of the $2.00 cap. Suite 1216/1216.
+
+### RULING on the ladder order — by hamr, 2026-09-26 ("A")
+
+**The UI moves up to M4; dry-run, accept and versions move to M5.** Why: in bareloop the UI came late,
+and a lot of UX (what to show, what to hide) was never thought about until a person used it. fwdloop
+has a bareloop UI to borrow, so M4 is mostly adjusting, not designing.
+
+- **Start from bareloop's latest UI** (the one `loop` actively serves on port 4700) as the skeleton,
+  borrowed by copy with a pinned `borrowed-from` commit. It carries every change so far.
+- **M4 wires only what is built** (M0–M3: describe/sign, run, watch, the inbox with `show` /
+  accept / reject / rerun, the audit and history books). A screen whose feature is not built yet
+  stays unwired until its module lands. Nothing is faked to look live.
+- **"Edit an existing workflow and add turns" is not in M4.** It lands with versions (now M5),
+  because an edit must re-sign through accept/versioning. Every module after M4 ships its screen.
+- The M4/M5 texts below are unchanged until M4's scope is drafted and signed; read their numbers
+  as swapped.
+
+### M4 (the UI) — scope, exit, negative — DRAFT, NOT SIGNED (2026-09-26)
+
+**Where it comes from** (answered by the `loop` session, 2026-09-26). bareloop's panel:
+`src/panel/index.html` (one file, all CSS and JS inline, vanilla, no build step, no npm UI deps; only
+Google Fonts) and `src/panel/server.js` (`node:http` only, binds `127.0.0.1`). Visual contract:
+`design/panel-mockup.html`. Rulings: `docs/product/PANEL-BUILD.md` §5–§7 and
+`design/panel-feedback.jsonl`. **Pin: `4879437`** (bareloop `feat/panel-p1`, the latest per hamr's
+"start with the latest"; `loop` reports typecheck clean and 2961/2961 tests at that tree, and hamr
+checked it live). It is a local commit, not yet on bareloop's origin, so we copy from the local tree.
+It carries the audit Step column fix, run-window scoping and search by job, run id or model. What bareloop has wired: Workflows and History lists, the Run tab (step map,
+step cards → attempts → rounds), Audit/logs, Job. Not wired there: Chat (authoring), Settings, and
+any action buttons (their P1 is read-only).
+
+**What fwdloop has built that a screen can show** (M0–M3, in `src/` and `bin/`): signed flows
+(`readFlow`), both books (`audit.jsonl`, `history.jsonl`), `log.json`, artifacts, the parked ask with
+its evidence (`ask.json`, `state.json`), `answerAsk`, `resumeRun`, `runFlow`. **Not built:** the
+drafter in `src/` (it lives only in `poc/m0/drafter.mjs`), so "describe a job" has no engine yet.
+
+**Scope.**
+
+1. **Borrow by copy.** `src/panel/index.html` and `src/panel/server.js` copied from bareloop at the
+   pinned commit, each with a `borrowed-from: bareloop <path>@<commit>` header. bareloop internals the
+   server imports (runlist, replay, ledger, job, authorflow) are rewired to fwdloop's own books, never
+   imported. The live-canvas overlay is not copied. `fwdloop panel [--port 4700] [--root <dir>]`
+   serves on `127.0.0.1` only. No new dependency.
+2. **Wire what is built** (read-only screens):
+   - **Workflows**: every flow under `--root`, with its last run's glyph, cost and time.
+   - **History**: every run row from `history.jsonl`.
+   - **Run tab**: the step map from `declaration.steps`, and step cards → attempts from `audit.jsonl`
+     (verdict, gap, cost, model, strike) plus what the model wrote from `log.json`.
+   - **Audit/logs**: the raw audit rows, scoped to the one run.
+   - **Job**: the signed prose, the arbiter block (cap, asks with TTL, redo cap, sends, sources),
+     and the signature (who, when, hash).
+3. **The inbox is the one live action.** Open asks across all flows: question, time left, and the
+   evidence (the draft under review first, then each unjudged artifact labelled by step), the same
+   thing `fwdloop show` prints. Three doors: accept, reject "<reason>", rerun "<reason>". The server
+   calls `answerAsk` and nothing else, so every refusal (blank reason, expired, already answered) is
+   the library's, shown by name. The panel is a client of the arbiter, never a second arbiter
+   (bareloop §5).
+4. **Only a human click answers.** The server refuses an answer that did not come from the page: it
+   checks `Origin` and `Host` against its own address, requires a per-process token that is only
+   embedded in the served page, and accepts only `POST`. A scripted `curl` without the page's token
+   is a red naming the reason. Keys never reach the page.
+5. **Resume after an answer** (hamr 2026-09-26, "1b": the panel resumes the run itself). (a) The panel shows "answered — run `fwdloop resume <runId>`",
+   and the human resumes from a terminal, as today. (b) The panel resumes the run itself after the
+   answer, using a key from the server's own environment, and shows it running live. (b) is the
+   "no terminal" product; (a) keeps paid calls out of the panel for now.
+6. **Unbuilt screens stay honest.** Chat/describe says "authoring isn't built yet (the drafter is a
+   POC)". Settings and version or edit controls stay unwired until their module. Nothing shows fake
+   data.
+7. **fwdloop words, bareloop's rulings.** Results are glyphs only: `[✓]` passed, `[✗]` failed,
+   `[▶]` running, `[·]` waiting on you (parked, `ask.json` present, no `answer.json` and no consumed
+   answer for its askId), `[·]` answered, not resumed yet (parked, `answer.json` present; said in words,
+   not the same line as an unanswered ask), `[?]` died (no history row and no `state.json` park; never
+   `[✗]`). **Open for M4's POC** (debrief 2026-09-26): the books cannot tell "running right now" from
+   "died" today. `resume.lock` is an empty file with no pid and nothing checks liveness, so a crashed
+   resumer and a live one look the same. Either the runner writes a pid (and the panel checks it), or
+   the panel shows "running or died: unknown" and never guesses. A park never writes a history row, and `answerAsk` leaves
+   `ask.json` in place until resume consumes the answer (debrief 2026-09-26), so "no history row" alone
+   never means died. Close classes are shown as `cited` (green), `shape` (softgreen) and `human check`
+   (hitl), never the words green, red or softgreen. "took 6m08s" for a finished run, "Xs elapsed"
+   only while live. Every empty state says why. No list is truncated silently. Cost is never
+   rendered as `$0` when unknown, and a floor says "at least".
+8. **Mobile is mandatory.** Works at 390 px with no horizontal scroll; checked with a real screenshot,
+   not "verified" in prose.
+
+**Not in M4:** the drafter and describe/sign (a later module brings the drafter into `src/`), editing
+a flow or adding turns (M5, versions), dry-run and accept-a-version (M5), starting a new run from the
+panel (PICK 2), Settings, LAN or phone access (localhost only).
+
+**PICK 2: a Run button. DEFERRED by hamr 2026-09-26:** check the borrowed UI first and see what fits
+or is missing, then adjust the design. The scope is not final until then. Starting a run needs its input files and a paid key. bareloop's lesson is
+to ask "when would you use this?" before building a button. The recommendation is to leave it out of
+M4: runs start from the CLI or a trigger, and the panel is where a human watches and answers.
+
+**POC first, the riskiest assumption:** **that fwdloop's books hold everything the borrowed screens
+need.** No screen is built. A $0 script builds the panel's data for every real run already on disk
+(`flows/job2-live-1`: `run-1`, `run-2`, `m3-live-1`, `m3-live-2`; `flows/job2-plant-notdone`) and
+lists every field on the skeleton's screens that it cannot fill from the books. **Bar: every field is
+filled from a book, or has a stated why-empty. Zero fields filled with a made-up value, 0 or
+"unknown".** Each gap found is either a books change (its own small signed amendment) or a screen that
+stays unwired.
+
+**Exit.**
+
+- The POC bar is met.
+- Someone who has not used the CLI opens `fwdloop panel`. They find job #2's parked ask, read the
+  draft and both inputs, reject with a reason, see it re-park (after the resume, per PICK 1), accept,
+  and see the run's glyph turn `[✓]` and the sent artifact in the Run tab. hamr does this on a
+  live run.
+- They open a red run (the F41 plant, `not-done`) and can say which step stopped it and why, from one
+  screen.
+- A phone-width screenshot of every wired screen at 390 px shows no horizontal scroll.
+
+**Negative scenarios**, each of which must be able to fail:
+
+- (i) a scripted `POST` to the answer endpoint without the page's token, or from another `Origin`, is
+  refused, and no `answer.json` is written;
+- (ii) an answer the library refuses (expired, blank reason, second answer) shows that refusal by name
+  in the page, never a success;
+- (iii) a run with no history row and no park shows `[?]`, never `[✗]` and never `[✓]`; a run parked
+  and answered but not resumed shows "answered, not resumed yet", never `[?]` and never waiting on you;
+- (iv) a run whose spend is a floor (`spendComplete: false`) shows "at least $X", never a bare total;
+- (v) no screen renders a key, a secret, or a path outside `--root`.
+
+**Kills the module:** the books cannot fill the core screens (Run tab, inbox) without the panel
+inventing values; then the fix is in the books first, and M4 waits.
+
+**Proposed M4 spend cap: $1.00** (POC $0; the live exit is about $0.05 a run). Not signed.
+
 ## M4 — dry-run, accept, versions
 
 Placed here because the UI's "edit and add turns" is meaningless without versioning. Dry-run

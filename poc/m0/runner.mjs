@@ -316,7 +316,7 @@ export function preflight(declaration, { runDir, sources, spendPath = SPEND_PATH
   }
 
   return {
-    ok: true, stages: bound.stages, inputsManifest: frozen.manifest, arbiterSlots, sendDir: destination.dir,
+    ok: true, stages: bound.stages, inputsManifest: frozen.manifest, arbiterSlots,
   };
 }
 

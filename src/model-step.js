@@ -1,6 +1,6 @@
 // M2 piece 2 (docs/wiki/the-module-ladder.md, "M2 — scope, exit, negative —
 // SIGNED"): the live `modelStep(executorContext, grantedTools, stepMeta)`
-// piece 1's `runFlow` expects. One attempt = up to 3 rounds (a round is one
+// piece 1's `runFlow` expects. One attempt = up to 2 rounds (a round is one
 // fresh `bare-agent` `Loop` run; a round retries only on "no usable tool
 // call" or a malformed tool-call, never on a transport fault or a
 // wall-clock deadline). Every round is metered via `appendSpendRow`
@@ -192,7 +192,7 @@ export function makeLiveModelStep({
     let cumulative = { costUsd: 0, rounds: 0 };
     let noToolCallStreak = 0;
 
-    for (let round = 1; round <= 3; round += 1) {
+    for (let round = 1; round <= 2; round += 1) {
       let capturedArtifact;
       const emitTool = {
         name: 'emit_artifact',

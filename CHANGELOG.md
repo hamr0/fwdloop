@@ -5,6 +5,57 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-09-26
+
+M3: a run parks at a signed ask and resumes in another process, a `fwdloop`
+CLI, rerun as a fresh run.
+
+### Added
+- `resumeRun`/`makeParkingAskStep` (`src/runner.js`) and `answerAsk`/
+  `makeFileAskStep` (`src/ask.js`): a run now parks at the signed ask and
+  exits instead of blocking in-process; resume locks the run, re-verifies
+  flow identity, signature, frozen inputs, artifacts and spend, consumes the
+  answer once (rename), and continues from the same step index.
+- A per-ask signed TTL now governs expiry (F43) in place of a fixed
+  in-process wait; an expired ask cancels the run carrying its real spend,
+  never `$0`.
+- `bin/fwdloop` CLI: `run` (parks at the ask and prints the answer command),
+  `inbox` (lists open/expired asks, read-only), `answer`, `resume`, and
+  `show <askId>` (prints the parked ask's evidence, read-only); the key
+  loads from `DEEPSEEK_API_KEY` only, refused at $0 before any run dir or
+  book row is written.
+- `rerun "<reason>"`: starts a fresh run (`<runId>-rerun-1`) with its own
+  frozen inputs, cap and redo counter; the reason is recorded as the first
+  step's gap; the old run's history row is marked `rerun`.
+- `src/declaration.js`: a send's "earlier" signed ask is now judged by step
+  order in `declaration.steps`, not by prose line number (M3 item 8),
+  matching how the runner actually folds over steps.
+
+### Fixed
+- (F45) `inbox` no longer shows an unanswerable ask as open: an M2-era ask
+  reads as "legacy (not answerable)", a malformed one as "unreadable", both
+  naming the run.
+- (F45) A parked ask carries its evidence (`artifact`, `unjudged`) forward
+  on every park/re-park; a run's history `wallMs` is now measured from the
+  run's real first start, not from the resume that reported it.
+- An unparseable `expiresAt` (`Number.isNaN(Date.parse(...))`) is never
+  treated as unexpired, in both `answerAsk` and `resumeRun`.
+- `resumeRun` refuses a negative spend or a spend below the run's own
+  `audit.jsonl` sum, instead of resuming on a state row that doesn't add up.
+- The audit-sum check tolerates floating-point summation order
+  (`SPEND_TOLERANCE_USD` = `1e-9`), so an honest retry-floor run no longer
+  false-refuses.
+- Removed an unreachable send ask-count branch (`askIdsInReads.length !==
+  1`): `readFlow` already validates exactly one earlier signed ask at
+  signing time.
+
+### Known limits
+- Resume is manual after an answer is written — nothing watches for the
+  answer and resumes the run automatically.
+- A `runId` (`run --run-id`, `resume <runId>`) is not validated: a `..` in
+  it can place the run's files outside the flows tree. Only the operator
+  types it today; it is on the fix list before the UI takes run ids.
+
 ## [0.5.0] - 2026-09-25
 
 M2: the runner — one fold over a signed flow, live-wired to a provider, with

@@ -157,7 +157,7 @@ export function preflightJob2(proseText, { runDir, sources, spendPath = SPEND_PA
   }
 
   return {
-    ok: true, ...bound, inputsManifest: frozen.manifest, sendDir: destination.dir,
+    ok: true, ...bound, inputsManifest: frozen.manifest,
   };
 }
 
@@ -280,7 +280,7 @@ export function preflightJob2FromDeclaration(declaration, proseText, { runDir, s
   }
 
   return {
-    ok: true, ...bound, stages: declBound.stages, inputsManifest: frozen.manifest, sendDir: destination.dir,
+    ok: true, ...bound, stages: declBound.stages, inputsManifest: frozen.manifest,
   };
 }
 

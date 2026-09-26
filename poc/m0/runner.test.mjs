@@ -786,18 +786,26 @@ test('sendViaPrimitive writes through shell_write and the happened() check passe
   const dirName = `m0-sendprim-${Date.now()}`;
   const dir = join(REPO_ROOT, 'poc', 'm0', 'out', dirName);
   mkdirSync(dir, { recursive: true });
-  const result = await sendViaPrimitive(`file:poc/m0/out/${dirName}`, 'sent.txt', 'INV-1021 [c1]\n');
-  assert.equal(result.ok, true);
-  assert.equal(readFileSync(result.path, 'utf8'), 'INV-1021 [c1]\n');
+  try {
+    const result = await sendViaPrimitive(`file:poc/m0/out/${dirName}`, 'sent.txt', 'INV-1021 [c1]\n');
+    assert.equal(result.ok, true);
+    assert.equal(readFileSync(result.path, 'utf8'), 'INV-1021 [c1]\n');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('PROOF sendViaPrimitive can fail: an empty write reds on "happened", reading the bytes actually on disk', async () => {
   const dirName = `m0-sendprim-empty-${Date.now()}`;
   const dir = join(REPO_ROOT, 'poc', 'm0', 'out', dirName);
   mkdirSync(dir, { recursive: true });
-  const result = await sendViaPrimitive(`file:poc/m0/out/${dirName}`, 'sent.txt', '');
-  assert.equal(result.ok, false);
-  assert.match(result.red, /^happened:/);
+  try {
+    const result = await sendViaPrimitive(`file:poc/m0/out/${dirName}`, 'sent.txt', '');
+    assert.equal(result.ok, false);
+    assert.match(result.red, /^happened:/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('sendViaPrimitive refuses at write time when the destination became a symlink outside the repo after preflight', async () => {

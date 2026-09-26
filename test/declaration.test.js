@@ -651,6 +651,83 @@ describe('M2 fix item 3: a send reading TWO earlier asks\' emits is a red; exact
 });
 
 // ---------------------------------------------------------------------------
+// M3 scope item 8 (F42's "Also seen" note): the send lock's "reads an
+// earlier ask" rule must judge "earlier" by STEP ORDER (what the runner
+// actually folds over — `acceptedAskEmitsThisRun` fills in as
+// `declaration.steps` executes), never by prose LINE NUMBER.
+//
+// `parseSignedText` itself already requires every send to have SOME ask at
+// a smaller prose line number (signed-text.js's own arbiter check, "send at
+// line N has no ask at an earlier line") — so a send with NO earlier-line
+// ask at all can never be signed in the first place. The gap this test
+// targets is narrower and only shows up with TWO signed asks: one at a
+// smaller line (satisfying that prose-level check) and a SECOND one at a
+// LARGER line than the send, whose STEP nonetheless sits earlier than the
+// send in `declaration.steps` (nothing requires a step's array position to
+// match its `fromLine`'s numeric order) and whose emit is what the send
+// actually reads. The runner runs this fine — `acceptedAskEmitsThisRun` is
+// filled in step-order, not line-order. The OLD line-based rule wrongly reds
+// it (it only ever looks at the ask whose LINE is smaller, never the one
+// actually read).
+// ---------------------------------------------------------------------------
+
+const TWO_ASKS_STEP_ORDER_TEXT = [
+  '1. Read the data.',
+  '2. ask: Ask A.',
+  '3. Send the result.',
+  '4. ask: Ask B.',
+  '',
+  'Arbiter guardrails (belong to no line; human-signed, tighten-only):',
+  'guardrail: cap $0.25 per run',
+  'guardrail: send at line 3 to file:out/result.txt',
+  'guardrail: source data = file:/tmp/data.csv-file',
+].join('\n');
+
+const TWO_ASKS_STEP_ORDER_SIGNED = parseSignedText(TWO_ASKS_STEP_ORDER_TEXT);
+
+function twoAsksStepOrderDeclaration() {
+  return {
+    guardrailClasses: {},
+    unjudgeable: {},
+    refused: [],
+    inputFacts: {},
+    steps: [
+      {
+        goal: 'Read the data', primitives: ['read'], reads: [], emits: 'data_read', fromLine: 1, close: { class: 'hitl' },
+      },
+      {
+        goal: 'Ask A', primitives: [], reads: ['data_read'], emits: 'askedA', fromLine: 2, close: { class: 'hitl' },
+      },
+      // Ask B is bound to prose line 4 — numerically AFTER the send's line
+      // 3 — but its STEP sits earlier in `declaration.steps` than the send
+      // below, and the send reads ITS emit (not Ask A's). Legal: nothing
+      // requires array position to track `fromLine` order, and the prose-
+      // level check above is satisfied by Ask A alone (line 2 < line 3).
+      {
+        goal: 'Ask B', primitives: [], reads: ['data_read'], emits: 'askedB', fromLine: 4, close: { class: 'hitl' },
+      },
+      {
+        goal: 'Send the result', primitives: ['write'], reads: ['askedB'], emits: 'sent', fromLine: 3, close: { class: 'hitl' },
+      },
+    ],
+  };
+}
+
+describe('M3 item 8: the send lock judges "earlier ask" by step order, never by prose line number', () => {
+  test('PROOF the two-asks base text parses green (the prose-level "some earlier ask" check is satisfied by Ask A alone)', () => {
+    assert.equal(TWO_ASKS_STEP_ORDER_SIGNED.ok, true, TWO_ASKS_STEP_ORDER_SIGNED.ok ? '' : TWO_ASKS_STEP_ORDER_SIGNED.reds.join('\n'));
+  });
+
+  test('a send reading the emit of an ask whose LINE is numerically later but whose STEP is array-earlier validates green', () => {
+    const decl = twoAsksStepOrderDeclaration();
+    const result = validateDeclaration(decl, {
+      arbiter: TWO_ASKS_STEP_ORDER_SIGNED.arbiter, lines: TWO_ASKS_STEP_ORDER_SIGNED.lines, catalogue: CATALOGUE,
+    });
+    assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+  });
+});
+
+// ---------------------------------------------------------------------------
 // M2 amendment 1 item 2 (docs/wiki/the-module-ladder.md, "M2 amendment 1 —
 // SIGNED"): nothing hitl-class may sit after the LAST signed ask, unseen.
 // The send step bound to a signed send line is the one exempt step.
