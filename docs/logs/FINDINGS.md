@@ -2244,6 +2244,19 @@ today. **Fix class: screen/CLI adaptation, not a books change** — `artifactTex
 evidence reader needs to fall back to `evidence.text` when `evidence.artifact` is absent, never a
 `declaration.json`/`ask.json` shape change. Not fixed here (out of scope: "do not change src/").
 
+**Fixed 2026-09-27, `4e145ab`** (hamr ruling 2026-09-26, "1" — first M4a piece). One shared reader,
+`readAskEvidence()` (`src/ask.js`, re-exported from `src/index.js`), normalises ask.json evidence
+across all three real shapes on disk — M3 (`evidence.artifact.text` + `evidence.unjudged[]`), M2
+(`evidence.text`/`.lines`, no unjudged concept, this GAP's own case), and none (parked pre-F45, no
+`evidence` key at all) — into `{ draft, unjudged, why? }`; an unrecognised shape names a `why`,
+never `"undefined"`/`""`/`0`. `bin/fwdloop`'s `cmdShow` now uses it (`artifactText()` deleted) and
+so does `poc/m4/panel-data.mjs`'s Inbox evidence deriver. Re-running the POC now reports
+**114 FILLED, 11 EMPTY-WITH-WHY, 0 GAP**, exit 0 — the bar the ladder's M4a item 1 asked for.
+Tests: `test/ask.test.js` (5 new cases on fixtures copied from the real ask.json shapes,
+`test/fixtures/ask-shapes/`) and `test/cli.test.js` (1 new case: `fwdloop show` on a real M2-shape
+ask.json). Both suites' fixes were proven to fail on revert before being restored — see the commit
+message for the exact red-line assertion.
+
 **Two EMPTY-WITH-WHY worth flagging, not filed as their own findings:**
 - `m3-live-1`'s `ask.json` has no `evidence` key at all (a legacy park written before F45 finding 2
   landed the evidence-carry fix) — `m3-live-2`'s `ask.json`, parked after the fix, does carry
