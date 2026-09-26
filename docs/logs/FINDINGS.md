@@ -2168,3 +2168,12 @@ re-park), and `fwdloop show <askId>` prints it read-only. (3) History `wallMs` r
 first start (`state.startedAt`), so a pause counts as elapsed time. A run parked before this fix has
 no `startedAt` and falls back to the resuming process's start; that is a wall-time floor, not a money
 figure. Suite 1216/1216.
+
+**Fixes proven live, 2026-09-26** (`088163c`, run `m3-live-2`, `deepseek-flash`). `inbox` listed the
+new ask `[open] 1800s left` and both M2-era runs as `legacy (not answerable)`. hamr ran
+`fwdloop show` from their terminal and read the draft plus both unjudged inputs, labelled by step.
+They rejected ("shorter work history blurb"); the re-parked `ask.json` evidence equalled the redrafted
+artifact on disk, and the blurb went from about 190 to 157 words. `show` again, then accept, then
+sent. The sent text equals the accepted artifact. Both books sum to $0.0184. The one history row has
+`wallMs` 970,615 (16.2 min, the run's first start to the send, pauses included), matching the
+clock. M3 total $0.05 of $2.00.
