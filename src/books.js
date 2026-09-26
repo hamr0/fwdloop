@@ -18,12 +18,33 @@
 // history); both throw (never silently coerce) on a violation, so a bad
 // caller fails loudly at the one place that would otherwise hide it.
 
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 function appendLine(filePath, row) {
   mkdirSync(dirname(filePath), { recursive: true });
   appendFileSync(filePath, `${JSON.stringify(row)}\n`);
+}
+
+/**
+ * Raw read-back of one JSONL book, one writer's own sibling reader (M4a
+ * piece 2, docs/wiki/the-module-ladder.md M4a scope item 2: "one reader per
+ * book"). Never throws on a missing file (`[]`) or a malformed line (that
+ * one line is skipped, never crashes the whole read) — the panel and any
+ * other reader need an honest best-effort array, not a hard failure over one
+ * bad byte someone else wrote.
+ * @param {string} filePath
+ * @returns {any[]}
+ */
+function readLines(filePath) {
+  if (!existsSync(filePath)) return [];
+  const rows = [];
+  for (const line of readFileSync(filePath, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    try { rows.push(JSON.parse(trimmed)); } catch { /* malformed line: skip, never crash the read */ }
+  }
+  return rows;
 }
 
 /**
@@ -64,6 +85,17 @@ export function appendAudit(runDir, row) {
 }
 
 /**
+ * Read back every row `appendAudit` has written for one run, in file order
+ * (append order — never re-sorted). `[]` when the file doesn't exist yet
+ * (a run that hasn't made an attempt), never a thrown error.
+ * @param {string} runDir
+ * @returns {any[]}
+ */
+export function readAudit(runDir) {
+  return readLines(join(runDir, 'audit.jsonl'));
+}
+
+/**
  * One row per run. `row` shape: `{ runId, at, outcome, spentUsd,
  * spendComplete, capUsd, wallMs, signatureHash }`. Append-only, one writer.
  *
@@ -73,4 +105,15 @@ export function appendAudit(runDir, row) {
 export function appendHistory(flowDir, row) {
   checkCostField(row, 'spentUsd', 'appendHistory');
   appendLine(join(flowDir, 'history.jsonl'), row);
+}
+
+/**
+ * Read back every row `appendHistory` has written for one flow, in file
+ * order. `[]` when the file doesn't exist yet (a flow with no completed/
+ * halted run), never a thrown error.
+ * @param {string} flowDir
+ * @returns {any[]}
+ */
+export function readHistory(flowDir) {
+  return readLines(join(flowDir, 'history.jsonl'));
 }

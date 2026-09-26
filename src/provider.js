@@ -226,6 +226,27 @@ function readSpendTotal(path) {
   return total;
 }
 
+/**
+ * `appendSpendRow`'s own sibling reader (M4a piece 2, docs/wiki/the-module-
+ * ladder.md M4a scope item 2: "one reader per book") — every row as written,
+ * raw, in file order. `[]` when the file doesn't exist yet, and a malformed
+ * line is skipped rather than thrown on (an honest best-effort read, same
+ * posture as `src/books.js`'s readers — a caller that needs to know the row
+ * count decides how to treat a gap, this function never crashes over it).
+ * @param {string} path
+ * @returns {any[]}
+ */
+export function readSpendRows(path) {
+  if (!existsSync(path)) return [];
+  const rows = [];
+  for (const line of readFileSync(path, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    try { rows.push(JSON.parse(trimmed)); } catch { /* malformed line: skip, never crash the read */ }
+  }
+  return rows;
+}
+
 /** Throws once total spend (every null row repriced at its ceiling) is at
  *  or over `capUsd`. */
 export function assertUnderGlobalCap(path, capUsd) {

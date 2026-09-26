@@ -8,10 +8,12 @@ export {
   parseCatalogue, loadCatalogue, menu, primitiveFor, resolveEntry, CATALOGUE_FIELDS,
 } from './catalogue.js';
 export {
-  checkFlowName, writeFlow, readFlow, FLOW_FILES,
+  checkFlowName, checkRunId, resolveRunDir, writeFlow, readFlow, listFlowNames, listRunIds, FLOW_FILES,
 } from './flow.js';
 export {
-  runFlow, resumeRun, makeParkingAskStep, STRIKE_LIMIT, MAX_ATTEMPTS,
+  runFlow, resumeRun, makeParkingAskStep, STRIKE_LIMIT, MAX_ATTEMPTS, readAsk, readRunState, readLog,
 } from './runner.js';
 export { closeByClass } from './closers.js';
 export { makeFileAskStep, answerAsk, readAskEvidence } from './ask.js';
+export { appendAudit, appendHistory, readAudit, readHistory } from './books.js';
+export { readSpendRows } from './provider.js';

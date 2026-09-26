@@ -1738,6 +1738,47 @@ function writeLog(runDir, payload) {
 }
 
 /**
+ * `writeLog`'s own sibling reader (M4a piece 2, docs/wiki/the-module-
+ * ladder.md M4a scope item 2: "one reader per book") — `null` when the run
+ * hasn't reached an exit path yet (still running, or parked before any
+ * halt/complete), or the file is present but not valid JSON (a torn write),
+ * never a thrown error.
+ * @param {string} runDir
+ * @returns {any|null}
+ */
+export function readLog(runDir) {
+  const p = join(runDir, 'log.json');
+  if (!existsSync(p)) return null;
+  try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return null; }
+}
+
+/**
+ * `state.json`'s own sibling reader (same rule as {@link readLog}) — `null`
+ * when the run has never parked, or the file is present but not valid JSON.
+ * @param {string} runDir
+ * @returns {any|null}
+ */
+export function readRunState(runDir) {
+  const p = join(runDir, 'state.json');
+  if (!existsSync(p)) return null;
+  try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return null; }
+}
+
+/**
+ * `ask.json`'s own sibling reader (same rule as {@link readLog}) — the
+ * parking ask protocol's own writer lives in {@link runAskSlot} above.
+ * `null` when there is no open ask for this run, or the file is present but
+ * not valid JSON.
+ * @param {string} runDir
+ * @returns {any|null}
+ */
+export function readAsk(runDir) {
+  const p = join(runDir, 'ask.json');
+  if (!existsSync(p)) return null;
+  try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return null; }
+}
+
+/**
  * @param {object} opts
  * @param {string} opts.flowDir
  * @param {string} opts.runDir

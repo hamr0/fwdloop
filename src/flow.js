@@ -20,8 +20,8 @@
 // caught and returned as a red naming the file or path involved.
 
 import {
-  accessSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync,
-  writeFileSync,
+  accessSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync,
+  rmSync, writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
 
@@ -150,6 +150,55 @@ export function resolveRunDir(flowDir, runId) {
     return { ok: false, red: `run: runId "${runId}" resolves outside the runs directory — refused` };
   }
   return { ok: true, runDir: resolvedRunDir };
+}
+
+/**
+ * Every flow name that has a real, readable directory under `root` — M4a
+ * piece 2 (docs/wiki/the-module-ladder.md M4a scope item 2: "every flow
+ * under --root"). A directory entry that fails `checkFlowName` (should not
+ * happen for anything `writeFlow` itself created, but a hand-placed or
+ * legacy directory is possible) is skipped rather than crashing the whole
+ * listing — this is a best-effort enumeration, not a validator; a caller
+ * that wants to know a flow is well-formed calls `readFlow` on it.
+ * `[]` when `root` doesn't exist or has no entries — never a thrown error.
+ * Sorted so a caller gets a stable, deterministic order.
+ * @param {string} root
+ * @returns {string[]}
+ */
+export function listFlowNames(root) {
+  if (typeof root !== 'string' || root.length === 0 || !existsSync(root)) return [];
+  let entries;
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((e) => e.isDirectory() && checkFlowName(e.name).ok)
+    .map((e) => e.name)
+    .sort();
+}
+
+/**
+ * Every runId with a real, readable directory under a flow's own `runs/`
+ * (M4a scope item 2: "every run"). Same best-effort posture as {@link
+ * listFlowNames} — a malformed entry is skipped, never thrown on.
+ * @param {string} flowDir
+ * @returns {string[]}
+ */
+export function listRunIds(flowDir) {
+  const runsDir = path.join(flowDir, RUNS_DIR);
+  if (!existsSync(runsDir)) return [];
+  let entries;
+  try {
+    entries = readdirSync(runsDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((e) => e.isDirectory() && checkRunId(e.name).ok)
+    .map((e) => e.name)
+    .sort();
 }
 
 function readTextFile(filePath, label, reds) {
