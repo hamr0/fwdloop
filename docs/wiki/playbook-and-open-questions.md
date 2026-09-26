@@ -28,13 +28,13 @@ Each rule binds either **how we build fwdloop** or **every flow fwdloop produces
 
 | rule | becomes | lands |
 |---|---|---|
-| P1 — living case library | `cases/<id>/` per flow, owned and tagged | M7 |
+| P1 — living case library | `cases/<id>/` per flow, owned and tagged | M8 |
 | P3 — behavioural audit columns | `toolCalls`, `reads`, `rounds`, `retries`, `duplicateReads` | M2 |
 | P4 — freshness at `gather` | stale input is a red, not a confident hallucination downstream | M2 |
-| P6 — model change = maintenance | provider and model are signed fields; changing them needs re-accept | M4 + M7 |
-| P7 — data residency | a `local-only` guardrail restricts the provider factory | M6 |
-| P8 — incident loop | detect → diagnose → contain → extend cases | M7 |
-| P9 — rollback | `accept --version <hash>` re-activates the last accepted flow | M4 |
+| P6 — model change = maintenance | provider and model are signed fields; changing them needs re-accept | M5 + M8 |
+| P7 — data residency | a `local-only` guardrail restricts the provider factory | M7 |
+| P8 — incident loop | detect → diagnose → contain → extend cases | M8 |
+| P9 — rollback | `accept --version <hash>` re-activates the last accepted flow | M5 |
 
 **Where we deliberately do the opposite of the talk:** the human sits where the human **placed** the
 ask, never where a confidence number falls — confidence is unmeasured, uncalibrated and gameable,
@@ -158,13 +158,13 @@ Two shapes on the table, hamr's to sign:
    cap, ask, destination, inputs. The drafter still sees roles only. (Orchestrator's recommendation:
    it makes the signed block the full picture and removes the launch-time flags as a second writer.)
 2. **Sources stay outside the prose**, attached at intake like a mail attachment or a trigger's
-   payload (M8). Simpler prose; the signed block no longer shows the full picture.
+   payload (M9). Simpler prose; the signed block no longer shows the full picture.
 
-A live URL as a source (the JD came from a job board) is M9 real IO behind the allow-list either way;
+A live URL as a source (the JD came from a job board) is M10 real IO behind the allow-list either way;
 until then the JD is a fetched, hashed markdown file. Not decided; job #2 runs with launch flags.
 
 **Recommendation restated with the M1 DRAFT (2026-09-16):** option 1 — `source <role> = <file>`
 as typed arbiter lines. **SIGNED by hamr 2026-09-21** ("agree on both", with §6): one source per
 line, newline-delimited like every other guardrail, in the arbiter block next to cap/ask/send; the
-prose names roles only; a `url:` source is M9 and until then the fetched file is the source. Cost of option 2: the signed block stops being the full picture, and the
+prose names roles only; a `url:` source is M10 and until then the fetched file is the source. Cost of option 2: the signed block stops being the full picture, and the
 launch flags stay a second writer of what gets pinned. Still hamr's to sign.

@@ -716,9 +716,12 @@ doors, and does not start until M4a's exit is signed.
 1. **Borrow by copy.** `src/panel/index.html` and `src/panel/server.js` copied from bareloop at the
    pinned commit, each with a `borrowed-from: bareloop <path>@<commit>` header. bareloop internals the
    server imports (runlist, replay, ledger, job, authorflow) are rewired to fwdloop's own books, never
-   imported. The live-canvas overlay is not copied. `fwdloop panel [--port 4700] [--root <dir>]`
+   imported. The live-canvas overlay is not copied. `fwdloop panel [--port 4800] [--root <dir>]`
    serves on `127.0.0.1` only. No new dependency. **No POST route exists at all in M4a** — the server
    is GET/HEAD only, exactly like bareloop's own (405 on anything else).
+
+   **Ruling, hamr 2026-09-27:** fwdloop's panel default port is **4800**, not bareloop's 4700 — the
+   two panels must be able to run side by side (bareloop owns 4700).
 2. **Wire what is built** (read-only screens):
    - **Workflows**: every flow under `--root`, with its last run's glyph, cost and time.
    - **History**: every run row from `history.jsonl`.

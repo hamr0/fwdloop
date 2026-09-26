@@ -145,7 +145,7 @@ numbered above:
 | Fix & extend | the red's inputs + the human's answer become a case in `cases/` (P1); the next version must pass it before re-accept |
 
 → **P9: rollback to the previous accepted version** is not in v0.4. Versions and hashes are
-(M4); "re-activate an older one" is one command and belongs in M4's exit.
+(M5); "re-activate an older one" is one command and belongs in M5's exit.
 
 ## 4. The 8-week order, as a rule for module order
 
