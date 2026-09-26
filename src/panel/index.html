@@ -1,0 +1,1911 @@
+<!DOCTYPE html>
+<!-- borrowed-from: bareloop src/panel/index.html@a30bbef -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bareloop panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  /* Reused verbatim from design/panel-mockup.html (the visual contract, PANEL-BUILD.md §6) —
+     Tokyo Night box-drawing TUI look, same tokens, same responsive breakpoint. Fake-data rows
+     and the Settings/Chat-authoring styling are kept (Settings/Chat are out of P1's scope but
+     the CSS is harmless dead weight rather than a second stylesheet to maintain). */
+  :root{
+    --bg:#1a1b26; --panel:#1f2335; --panel2:#24283b; --border:#292e42; --border-strong:#3b4261;
+    --text:#c0caf5; --text-dim:#a9b1d6; --text-faint:#565f89;
+    --green:#9ece6a; --green-bg:#1c2b23;
+    --red:#f7768e; --red-bg:#2b1822;
+    --amber:#e0af68; --amber-bg:#2b2416;
+    --grey-dot:#878eac; --grey-bg:#20242f;
+    --cyan:#7dcfff; --cyan-bg:#182634;
+    --magenta:#bb9af7;
+    --accent:#7aa2f7;
+    --btn-bg:#1f2335; --btn-text:#c0caf5;
+    --primary-bg:#7aa2f7; --primary-text:#1a1b26; --primary-border:#7aa2f7;
+    font: 14px/1.5 "Courier Prime", "Courier New", Courier, ui-monospace, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);}
+  body{overflow-x:hidden;}
+  button{font:inherit;cursor:pointer;}
+  table{border-collapse:collapse;width:100%;}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px dotted var(--border-strong);font-size:12px;}
+  th{color:var(--text-dim);font-weight:700;background:var(--panel2);text-transform:uppercase;letter-spacing:0.04em;font-size:11px;border-bottom:1px solid var(--border-strong);}
+  /* item: Audit tab header stays visible while the row list scrolls. On
+     desktop >=900px .pane-body itself is height-bound and scrolls (see the
+     @media(min-width:900px) block above); on mobile #BareloopPanel/.main
+     are unbound and the PAGE scrolls instead, so .pane-body never actually
+     develops its own scroll offset there and a sticky th anchored to it
+     would scroll away with the page. Giving the table its own bounded,
+     always-scrolling wrapper makes the header genuinely sticky on both
+     breakpoints, and also owns the horizontal scroll for the Path column
+     on narrow (390px) screens instead of leaving it to .pane-body. */
+  .audit-table-scroll{overflow:auto;max-height:min(60vh,520px);}
+  /* z-index keeps rows from showing through the solid th background as
+     they scroll under it. */
+  [data-testid="audit-table"] th{position:sticky;top:0;z-index:1;}
+  td{border-right:1px dotted var(--border);}
+  td:last-child{border-right:none;}
+  a{color:var(--accent);text-decoration:underline;}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#e1e2e7; --panel:#d0d5e3; --panel2:#e9e9ed; --border:#c4c8da; --border-strong:#a8b0cc;
+      --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5;
+      --green:#567238; --green-bg:#dfe7d4;
+      --red:#c92353; --red-bg:#fbe0e8;
+      --amber:#82643a; --amber-bg:#f0e6d3;
+      --grey-dot:#626887; --grey-bg:#e2e2e8;
+      --cyan:#007197; --cyan-bg:#d6ecf1;
+      --magenta:#9854f1;
+      --accent:#2668c2;
+      --btn-bg:#e9e9ed; --btn-text:#3760bf;
+      --primary-bg:#2668c2; --primary-text:#e1e2e7; --primary-border:#2668c2;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#e1e2e7; --panel:#d0d5e3; --panel2:#e9e9ed; --border:#c4c8da; --border-strong:#a8b0cc;
+    --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5;
+    --green:#567238; --green-bg:#dfe7d4;
+    --red:#c92353; --red-bg:#fbe0e8;
+    --amber:#82643a; --amber-bg:#f0e6d3;
+    --grey-dot:#626887; --grey-bg:#e2e2e8;
+    --cyan:#007197; --cyan-bg:#d6ecf1;
+    --magenta:#9854f1;
+    --accent:#2668c2;
+    --btn-bg:#e9e9ed; --btn-text:#3760bf;
+    --primary-bg:#2668c2; --primary-text:#e1e2e7; --primary-border:#2668c2;
+  }
+  .theme-toggle{padding:4px 9px;min-height:32px;border:1px solid var(--border-strong);background:var(--btn-bg);color:var(--text);}
+
+  h2,h4{text-transform:uppercase;letter-spacing:0.06em;font-weight:700;}
+
+  #BareloopPanel{display:flex;flex-direction:column;min-height:100vh;}
+  /* item 4 (2026-09-25): on desktop the left list scrolls inside its own
+     pane and the right pane stays in view — the PAGE itself never scrolls
+     the list away. Bounding #BareloopPanel/.main to the viewport height
+     (desktop only — phone keeps its natural stacked-page scroll, see the
+     max-width:899px block below) is what lets each .pane-body's own
+     `overflow:auto` actually take effect instead of the whole document
+     growing taller than 100vh and dragging everything, list included, up
+     off screen together. */
+  @media (min-width: 900px){
+    html, body{height:100%;}
+    #BareloopPanel{height:100vh;min-height:0;overflow:hidden;}
+    .main{overflow:hidden;}
+  }
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 16px;border-bottom:2px solid var(--border-strong);
+    background:var(--panel);flex-wrap:wrap;gap:8px;
+  }
+  .topbar > div:first-child{display:flex;align-items:baseline;gap:0;white-space:nowrap;overflow:hidden;}
+  .topbar .brand{font-weight:700;font-size:17px;letter-spacing:0.06em;flex:none;}
+  .topbar .brand::before{content:"■ ";}
+  .topbar .tagline{font-size:12px;color:var(--text-dim);margin-left:8px;overflow:hidden;text-overflow:ellipsis;}
+  .topbar .tagline::before{content:"· ";color:var(--text-faint);}
+  @media (max-width: 600px){ .topbar .tagline{display:none;} }
+  .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+
+  [hidden]{display:none !important;}
+  .main{display:flex;flex:1;min-height:0;}
+  .left-pane{width:420px;flex:none;border-right:1px solid var(--border-strong);display:flex;flex-direction:column;background:var(--panel);}
+  .right-pane{flex:1;min-width:0;display:flex;flex-direction:column;}
+
+  .tabrow{display:flex;border-bottom:1px solid var(--border-strong);background:var(--panel2);counter-reset:tabnum;}
+  .tabrow button{
+    flex:1;padding:10px 6px;min-height:44px;background:transparent;border:none;
+    border-right:1px dotted var(--border-strong);font-size:13px;color:var(--text-dim);
+    counter-increment:tabnum;
+  }
+  .tabrow button::before{content:"[" counter(tabnum) "] ";color:var(--text-faint);font-weight:700;}
+  .tabrow button:last-child{border-right:none;}
+
+  .pane-body{padding:12px;overflow:auto;flex:1;min-height:0;}
+  .tabpanel{display:none;}
+  .tabpanel.active{display:block;}
+
+  .dot{display:inline-flex;align-items:center;justify-content:center;margin-right:6px;vertical-align:middle;font-weight:700;font-size:12px;}
+  .dot::before{content:"[·]";color:var(--grey-dot);}
+  .dot.green::before{content:"[✓]";color:var(--green);}
+  .dot.red::before{content:"[✗]";color:var(--red);}
+  .dot.amber::before{content:"[▶]";color:var(--amber);}
+  .dot.grey::before{content:"[·]";color:var(--grey-dot);}
+  /* died (hamr's ruling B, 2026-09-25): no ending was ever recorded — a
+     DIFFERENT fact from a real [✗] close/arbiter "no", so it gets its own
+     glyph and its own color (magenta), never red or amber. */
+  .dot.magenta::before{content:"[?]";color:var(--magenta);}
+
+  .badge{display:inline-block;font-size:11px;padding:1px 4px;color:var(--text-dim);background:none;font-weight:700;}
+  .badge::before{content:"[";color:var(--text-faint);}
+  .badge::after{content:"]";color:var(--text-faint);}
+  .badge.green{color:var(--green);}
+  .badge.red{color:var(--red);}
+  .badge.amber{color:var(--amber);}
+  .badge.grey{color:var(--grey-dot);}
+  .badge.magenta{color:var(--magenta);}
+  .badge.cyan{color:var(--cyan);}
+
+  .hint{font-size:11px;color:var(--text-faint);margin-top:4px;}
+  .btn{padding:8px 14px;min-height:44px;border:1px solid var(--border-strong);background:var(--panel2);color:var(--text);white-space:nowrap;flex:none;position:relative;}
+  .btn::before{content:"[ ";color:var(--text-faint);}
+  .btn::after{content:" ]";color:var(--text-faint);}
+  .btn:disabled{color:var(--text-faint);border-color:var(--border);cursor:not-allowed;}
+  .btn:disabled::before,.btn:disabled::after{color:var(--text-faint);opacity:0.4;}
+  .btn.small{padding:0 9px;height:32px;min-height:0;font-size:12px;}
+
+  .wf-row,.hist-row{
+    display:flex;flex-direction:column;row-gap:4px;min-width:0;
+    padding:8px 8px 8px 18px;position:relative;border:1px solid var(--border);margin-bottom:6px;background:var(--panel2);cursor:pointer;
+  }
+  .wf-row::before{content:" ";position:absolute;left:6px;top:8px;color:var(--accent);font-weight:700;}
+  .wf-row:hover,.hist-row:hover{border-color:var(--border-strong);}
+  .wf-row.selected::before{content:">";}
+  /* line 1: glyph + name, kept on ONE line — truncated with an ellipsis
+     (never wrapped) when the job/runid text is longer than the row; the
+     full text is still reachable via the span's own title attribute. */
+  .wf-line1{display:flex;align-items:center;column-gap:6px;min-width:0;}
+  .wf-name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  /* line 2: the meta bits, also kept on ONE line with an ellipsis rather
+     than wrapping onto a 3rd/4th line. */
+  .wf-meta-line{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  .wf-meta{font-size:12px;color:var(--text-dim);}
+  .wf-meta + .wf-meta::before{content:" · ";color:var(--text-faint);}
+  .wf-row.selected,.hist-row.selected{border:2px solid var(--accent);border-radius:4px;}
+  /* item 2 (2026-09-26 merge): a Workflows-view job row expands inline to
+     list ALL its runs (build spec's own design) — the caret glyph on the
+     job row, and the indent wrapper the expanded runs render into. */
+  .wf-job{margin-bottom:6px;}
+  .wf-job .wf-row{margin-bottom:0;}
+  .wf-caret{display:inline-block;width:11px;flex:none;color:var(--text-faint);font-size:10px;}
+  .wf-runs{margin:4px 0 8px 16px;padding-left:8px;border-left:2px solid var(--border);}
+  .wf-runs .hist-row{margin-bottom:4px;}
+
+  .rp-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:2px solid var(--border-strong);background:var(--panel);flex-wrap:wrap;gap:8px;}
+  .rp-header h2{margin:0;font-size:15px;}
+  .rp-header h2::before{content:"┤ ";color:var(--text-faint);}
+  .rp-header h2::after{content:" ├";color:var(--text-faint);}
+  .rp-header-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  /* item 4: phone-only jump-back link — hidden on desktop (the two panes
+     are already both on screen there, nothing to jump back to). */
+  .back-to-list-link{display:none;font-size:12px;color:var(--accent);text-decoration:underline;background:none;border:none;padding:0;cursor:pointer;}
+  @media (max-width: 899px){ .back-to-list-link{display:inline-block;} }
+  .rp-tabrow{display:flex;border-bottom:1px solid var(--border-strong);background:var(--panel2);counter-reset:rtabnum;}
+  .rp-tabrow button{padding:10px 14px;min-height:44px;background:transparent;border:none;border-right:1px dotted var(--border-strong);font-size:13px;color:var(--text-dim);counter-increment:rtabnum;}
+  .rp-tabrow button::before{content:"[" counter(rtabnum) "] ";color:var(--text-faint);font-weight:700;}
+  .tabrow button[aria-selected="true"],.rp-tabrow button[aria-selected="true"]{background:var(--panel);color:var(--accent);font-weight:700;box-shadow:inset 0 -2px 0 var(--accent);}
+  .tabrow button[aria-selected="true"]::before,.rp-tabrow button[aria-selected="true"]::before{color:var(--accent);}
+
+  .counters{display:block;padding:9px 12px;border:none;border-bottom:2px solid var(--border-strong);background:var(--panel2);color:var(--text-dim);margin:-12px -12px 14px;font-size:12px;font-weight:700;white-space:normal;overflow-wrap:break-word;}
+  .counters b,.counters span{color:var(--accent);}
+
+  .summary-box{position:relative;border:1px solid var(--border-strong);padding:16px 12px 12px;margin-top:16px;background:var(--panel2);font-size:12px;}
+  .summary-box.red{border-color:var(--red);}
+  .summary-box.amber{border-color:var(--amber);}
+  .summary-box.magenta{border-color:var(--magenta);}
+  .summary-box::before{content:"┤ SUMMARY ├";position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;}
+  .summary-headline{font-weight:700;margin-bottom:8px;font-size:13px;}
+  .summary-row{display:flex;gap:0;padding:2px 0;}
+  .sum-label{flex:none;width:66px;color:var(--text-faint);}
+  .sum-val{color:var(--text);}
+  .summary-box .num{color:var(--accent);font-weight:700;}
+
+  .map-box{border:1px solid var(--border-strong);padding:10px;overflow-x:auto;margin-top:16px;margin-bottom:14px;background:var(--panel2);}
+  .map-box::before{content:"┤ MAP ├";display:block;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;margin:-2px 0 8px 0;}
+  .map-box svg{display:block;max-width:100%;height:auto;}
+  .map-legend{display:flex;gap:14px;font-size:11px;color:var(--text-dim);margin-top:6px;flex-wrap:wrap;}
+
+  .step-card{position:relative;border:1px solid var(--border);padding:10px;margin-bottom:8px;background:var(--panel2);}
+  .step-card.running{border:1px double var(--amber);}
+  .step-card .step-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+  .step-card h4{margin:0;font-size:13px;}
+  .step-meta{font-size:12px;color:var(--text-dim);margin-top:4px;}
+  /* build item C: Audit tab attempt/rounds detail (reused by audit-part-toggle expansion) */
+  .attempts-list{margin-top:8px;border-top:1px dotted var(--border-strong);padding-top:8px;}
+  .attempt-row{margin-bottom:6px;}
+  .attempt-toggle{margin-bottom:4px;}
+  .rounds-list{margin:6px 0 6px 12px;padding-left:8px;border-left:2px solid var(--border-strong);}
+  /* item 1 (2026-09-26): a round's own model call renders as this table's
+     header ROW (visually distinct from its tool-call rows below it). */
+  tr.round-header-row td{background:var(--panel2);font-weight:700;}
+  /* the rounds table shares the Flat table's sticky-header/scroll-wrapper
+     rule (`.audit-table-scroll`) by being wrapped in the same class — this
+     extra selector (vs. the Flat table's own `[data-testid="audit-table"]`
+     one) covers every table inside that wrapper, Flat's included. */
+  .audit-table-scroll table th{position:sticky;top:0;z-index:1;}
+  .attempt-check{margin-top:4px;font-size:12px;}
+  .rounds-page-info{margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+
+  /* build item C: Audit tab grouped-by-part rows */
+  .audit-part{border:1px solid var(--border);margin-bottom:6px;background:var(--panel2);}
+  .audit-part-toggle{width:100%;text-align:left;display:block;white-space:normal;min-height:44px;padding:8px 10px;}
+  .audit-part-toggle::before,.audit-part-toggle::after{content:"";}
+  .audit-part-body{padding:8px 10px 10px;border-top:1px dotted var(--border-strong);}
+  .part-card{cursor:pointer;}
+  .part-card:hover{border-color:var(--border-strong);}
+
+  .chips{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
+  .chip{padding:5px 10px;min-height:32px;border:1px solid var(--border-strong);background:var(--panel2);font-size:12px;color:var(--text-dim);}
+  .chip::before{content:"[ ";color:var(--text-faint);}
+  .chip::after{content:" ]";color:var(--text-faint);}
+  .chip[aria-pressed="true"]{background:var(--panel);color:var(--accent);border-color:var(--accent);font-weight:700;}
+  /* Compact filter-bar chips (History + Workflows, shared component): single
+     letters/bare glyphs, no "[ ]" brackets — hamr's 2026-09-25 feedback on
+     the live panel ("icons are taking too much space", "one letter without
+     brackets"). */
+  .filterbar{margin-bottom:8px;}
+  .search-input{
+    display:block;width:100%;box-sizing:border-box;padding:6px 8px;min-height:32px;margin-bottom:6px;
+    border:1px solid var(--border-strong);background:var(--bg);color:var(--text);font:inherit;
+  }
+  .search-input::placeholder{color:var(--text-faint);}
+  .filterbar .chips{gap:4px;margin-bottom:4px;}
+  .chip.fchip{padding:3px 7px;min-height:28px;min-width:28px;font-size:12px;text-align:center;}
+  .chip.fchip::before,.chip.fchip::after{content:"";}
+  .row-blocked{background:var(--red-bg);}
+  .raw-log{margin-top:12px;}
+  .raw-log summary{cursor:pointer;font-size:13px;padding:6px 0;}
+  .raw-log pre{background:#0b0b0f;color:#e8e8f0;padding:10px;border:1px solid var(--border-strong);font-size:11px;overflow-x:auto;white-space:pre-wrap;word-break:break-word;}
+
+  .job-card{position:relative;border:1px solid var(--border-strong);padding:14px 10px 10px;background:var(--panel2);margin-top:10px;margin-bottom:10px;}
+  .job-card h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;}
+  .job-card h4::before{content:"┤ ";color:var(--text-faint);}
+  .job-card h4::after{content:" ├";color:var(--text-faint);}
+  .field{margin-bottom:10px;}
+  label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;text-transform:uppercase;letter-spacing:0.04em;}
+  .ro-value{padding:6px 8px;min-height:32px;box-sizing:border-box;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
+  .ro-value.scroll{max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;}
+  .field-row{display:flex;flex-wrap:wrap;gap:10px;}
+  .field-row .field{flex:1 1 140px;margin-bottom:10px;}
+
+  .chat-thread{padding:20px 8px;color:var(--text-faint);font-size:13px;}
+
+  @media (max-width: 899px){
+    .main{flex-direction:column;}
+    .left-pane{width:100%;border-right:none;border-bottom:1px solid var(--border-strong);}
+    .right-pane{width:100%;}
+    .topbar{flex-direction:column;align-items:flex-start;}
+    .topbar-right{width:100%;justify-content:space-between;}
+    .btn.small{height:44px;min-height:44px;padding:0 12px;}
+    .chip{min-height:44px;}
+    .chip.fchip{min-height:40px;min-width:40px;}
+    .rp-header{margin:8px 8px 0;}
+    .rp-tabrow{margin:0 8px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="BareloopPanel">
+
+  <header class="topbar">
+    <div>
+      <span class="brand">bareloop</span>
+      <span class="tagline">automate a job, verified</span>
+    </div>
+    <div class="topbar-right">
+      <span class="hint" id="host-line"></span>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle light/dark theme">&#9789;</button>
+    </div>
+  </header>
+
+  <div class="main" id="main-view">
+
+    <nav class="left-pane" aria-label="Job navigation" id="left-pane-anchor">
+      <div class="tabrow" role="tablist" aria-label="Left panel views">
+        <button role="tab" id="tab-chat" aria-controls="panel-chat" aria-selected="true" data-testid="left-tab-chat">Chat</button>
+        <button role="tab" id="tab-runs" aria-controls="panel-runs" aria-selected="false" data-testid="left-tab-runs">Runs</button>
+      </div>
+
+      <div class="pane-body">
+
+        <section id="panel-chat" class="tabpanel active" role="tabpanel" aria-labelledby="tab-chat">
+          <div class="chat-thread">
+            Authoring a new job from this page comes later (PANEL-BUILD.md P3). This build
+            (P1) is read-only: it shows runs already started from the command line
+            (<code>bareloop run</code> / <code>bareloop run-u</code>). Use the Runs tab to
+            look at one.
+          </div>
+        </section>
+
+        <section id="panel-runs" class="tabpanel" role="tabpanel" aria-labelledby="tab-runs" hidden>
+          <div class="chips" role="group" aria-label="Runs view" style="margin-bottom:8px;">
+            <button class="chip" type="button" aria-pressed="true" data-runs-view="workflows" data-testid="runs-view-workflows">Workflows</button>
+            <button class="chip" type="button" aria-pressed="false" data-runs-view="history" data-testid="runs-view-history">History</button>
+          </div>
+          <div id="runs-filterbar-anchor"></div>
+          <div id="wf-list" data-testid="wf-list"></div>
+          <div id="history-list" data-testid="history-list" hidden></div>
+        </section>
+
+      </div>
+    </nav>
+
+    <section class="right-pane" aria-label="Active workflow" id="right-pane-anchor">
+      <div class="rp-header">
+        <button type="button" class="back-to-list-link" id="back-to-list" data-testid="back-to-list">&#8593; list</button>
+        <div class="rp-header-title">
+          <span class="dot grey" id="active-wf-dot"></span>
+          <h2 id="active-wf-name">(none selected)</h2>
+          <span class="badge" id="active-wf-verdict">—</span>
+          <span class="badge" id="active-wf-date">—</span>
+        </div>
+      </div>
+
+      <div class="rp-tabrow" role="tablist" aria-label="Workflow views">
+        <button role="tab" id="tab-run" aria-controls="panel-run" aria-selected="true" data-testid="right-tab-run">Run</button>
+        <button role="tab" id="tab-audit" aria-controls="panel-audit" aria-selected="false" data-testid="right-tab-audit">Audit / logs</button>
+        <button role="tab" id="tab-details" aria-controls="panel-details" aria-selected="false" data-testid="right-tab-details">Job</button>
+      </div>
+
+      <div class="pane-body">
+
+        <section id="panel-run" class="tabpanel active" role="tabpanel" aria-labelledby="tab-run">
+          <div id="run-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run from Workflows or History</div>
+          <div id="run-content" hidden>
+            <div class="counters" id="run-counters" data-testid="live-counters"></div>
+            <div class="summary-box" id="run-summary" data-testid="run-summary"></div>
+            <div class="map-box" data-testid="step-map" id="map-box"><div id="map-mount"></div></div>
+            <div id="step-list"></div>
+          </div>
+        </section>
+
+        <section id="panel-audit" class="tabpanel" role="tabpanel" aria-labelledby="tab-audit" hidden>
+          <div id="audit-select-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
+          <div id="audit-body" hidden>
+            <div class="audit-toolbar" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+              <div class="chips" role="group" aria-label="Filter audit rows" style="margin-bottom:0;">
+                <button class="chip" aria-pressed="true" data-filter="all" data-testid="chip-all">All</button>
+                <button class="chip" aria-pressed="false" data-filter="write" data-testid="chip-writes">Writes</button>
+                <button class="chip" aria-pressed="false" data-filter="blocked" data-testid="chip-blocked">Blocked</button>
+              </div>
+              <div class="chips" role="group" aria-label="Audit view" style="margin-bottom:0;">
+                <button class="chip" aria-pressed="true" data-view="grouped" data-testid="audit-view-grouped">Grouped</button>
+                <button class="chip" aria-pressed="false" data-view="flat" data-testid="audit-view-flat">Flat</button>
+              </div>
+            </div>
+            <div id="audit-groups" data-testid="audit-groups"></div>
+            <div id="audit-flat-wrap" hidden>
+              <div id="audit-empty" class="hint" data-testid="audit-empty" style="font-size:13px;padding:24px 0;">select a run first</div>
+              <div id="audit-content" data-testid="audit-content" hidden>
+                <div class="audit-table-scroll">
+                  <table data-testid="audit-table">
+                    <thead><tr><th>Round</th><th>Step</th><th>Action</th><th>Path</th><th>Decision</th><th>Time</th></tr></thead>
+                    <tbody id="audit-tbody"></tbody>
+                  </table>
+                </div>
+                <details class="raw-log" data-testid="raw-spine-log">
+                  <summary>Raw gate-audit log</summary>
+                  <pre id="audit-rawlog"></pre>
+                </details>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="panel-details" class="tabpanel" role="tabpanel" aria-labelledby="tab-details" hidden data-testid="panel-details">
+          <div id="job-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
+          <div class="job-card" id="job-card" hidden data-testid="job-card-readonly">
+            <h4 id="details-title">Job card — signed</h4>
+            <div class="field"><label>Check type</label><div class="ro-value" id="details-verdict">—</div></div>
+            <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
+            <div class="field"><label>Job name</label><div class="ro-value" id="details-jobname">—</div></div>
+            <div class="field" id="details-description-field"><label>Description</label><div class="ro-value" id="details-description">—</div></div>
+            <div class="field"><label>Goal</label><div class="ro-value scroll" id="details-goal">—</div></div>
+            <div class="field"><label>Success</label><div class="ro-value" id="details-success">—</div></div>
+            <div class="field"><label>Guardrails</label><div class="ro-value" id="details-guardrails">—</div></div>
+            <div class="field"><label>Source</label><div class="ro-value" id="details-source">—</div></div>
+            <div class="field"><label>Destination</label><div class="ro-value" id="details-dest">—</div></div>
+            <div class="field"><label>Tools</label><div class="ro-value" id="details-tools">—</div></div>
+            <div class="field-row">
+              <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap-money">—</div></div>
+              <div class="field"><label>Time cap</label><div class="ro-value" id="details-cap-time">—</div></div>
+            </div>
+            <div class="hint" id="job-note"></div>
+          </div>
+        </section>
+
+      </div>
+    </section>
+
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var PORT = "__BARELOOP_PANEL_PORT__";
+  document.getElementById("host-line").textContent = "127.0.0.1:" + PORT;
+
+  function wireTabs(tabButtons){
+    tabButtons.forEach(function(btn){
+      btn.addEventListener("click", function(){
+        tabButtons.forEach(function(b){
+          b.setAttribute("aria-selected", "false");
+          var p = document.getElementById(b.getAttribute("aria-controls"));
+          if(p){ p.hidden = true; p.classList.remove("active"); }
+        });
+        btn.setAttribute("aria-selected", "true");
+        var panel = document.getElementById(btn.getAttribute("aria-controls"));
+        if(panel){ panel.hidden = false; panel.classList.add("active"); }
+        if(btn.id === "tab-run"){ reflowMap(); }
+      });
+    });
+  }
+  wireTabs([document.getElementById("tab-chat"), document.getElementById("tab-runs")]);
+  wireTabs([document.getElementById("tab-run"), document.getElementById("tab-audit"), document.getElementById("tab-details")]);
+
+  // ---- fetch helpers ----
+  function getJSON(path){
+    return fetch(path, { headers: { accept: "application/json" } }).then(function(r){
+      if(!r.ok) throw new Error(path + ": HTTP " + r.status);
+      return r.json();
+    });
+  }
+
+  // ---- step map renderer (verbatim algorithm from design/panel-mockup.html's
+  // buildStepMapSVG — ONE renderer, no second hand-authored map anywhere on this page) ----
+  function stepMapColors(state){
+    if(state === "done") return {stroke:"var(--green)", textFill:"#2e7d32"};
+    if(state === "running") return {stroke:"var(--amber)", textFill:"#b8860b"};
+    if(state === "stopped") return {stroke:"var(--red)", textFill:"var(--red)"};
+    // died (hamr's ruling B, 2026-09-25): distinct from stopped/red — no
+    // verdict was ever reached, so this box never shares the red look.
+    if(state === "died") return {stroke:"var(--magenta)", textFill:"var(--magenta)"};
+    return {stroke:"var(--border-strong)", textFill:"var(--text-faint)"};
+  }
+  function escapeXml(s){
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+  var stepMapUidCounter = 0;
+  var MAP_MARGIN = 10, MAP_GAP = 28;
+  var CHAR_W = 7.2;
+  var TITLE_HPAD = 16;
+  var MIN_BOX_W = 100;
+  var BOX_H = 60, BOX_H_2LINE = 78;
+  var ROW_GAP = 70;
+  // s.noNumber (F196): a synthetic placeholder box (e.g. "died during
+  // planning") is a LABEL, never a real step — it renders without the
+  // leading "<n> " step number a real step gets.
+  // item 4 (2026-09-25): each step box shows its attempts INLINE, e.g.
+  // "attempt 1 [✗] · attempt 2 [✓]" — appended to the box's own title text
+  // (the existing wrapTitleLines 2-line wrap handles overflow the same way
+  // it already does for a long step id; no third renderer, no new box shape).
+  function attemptGlyph(outcome){ return outcome === "green" ? "✓" : (outcome === null || outcome === undefined ? "?" : "✗"); }
+  function attemptsInlineText(attempts){
+    if(!attempts || !attempts.length) return "";
+    return attempts.map(function(a){ return "attempt " + a.n + " " + attemptGlyph(a.outcome); }).join(" · ");
+  }
+  function stepTitleText(idx, s){
+    var base = s.noNumber ? s.title : (idx + 1) + ' ' + s.title;
+    var at = attemptsInlineText(s.attempts);
+    return at ? base + ' — ' + at : base;
+  }
+  // item 5 (F197): a box's step NUMBER must count only over boxes without
+  // `noNumber` (a real plan step), skipping any noNumber box (scout+plan,
+  // fix loop, a synthetic "died during planning" placeholder) wherever it
+  // sits in the list — never the box's raw array position. Returns, per
+  // box, the `idx` value stepTitleText expects (its own +1 makes the
+  // display number), so a noNumber box's entry is unused/irrelevant.
+  function stepNumberIndices(steps){
+    var n = 0;
+    return steps.map(function(s){
+      if(s.noNumber) return -1;
+      n++;
+      return n - 1;
+    });
+  }
+  // build item B (2026-09-26 rewrite): the map+card list are now built from
+  // `detail.parts` — src/replay.js's own ONE ordered part list (scout, plan,
+  // each step occurrence, replan, fix, judge, or a single "run" box for an
+  // old-shape spine) — never a second client-side re-derivation off
+  // scoutPlan/steps/fixLoop separately (F198's own bug class: two ordering
+  // passes that could drift apart). `partIndex` on every box lets a click
+  // jump straight to that SAME part's Audit-tab row (build item B's
+  // click-through), with no re-lookup needed.
+  function partBoxState(part, isLastLivePart){
+    if(part.outcome === "green" || part.outcome === "satisfied" || part.outcome === "already-green") return "done";
+    if(typeof part.outcome === "string") return "stopped";
+    if(isLastLivePart) return "running";
+    return "done"; // scout/plan/replan/judge: no per-part verdict, but the part itself already happened
+  }
+  // scout/plan/replan/judge parts carry no per-part verdict at all — their
+  // ONE attempt is always the wholePartAttempt synthetic placeholder
+  // (outcome:null, src/replay.js), never a real green/red. Showing that as
+  // an inline "attempt 1 ?" on the map/card would read as an unresolved
+  // result when nothing was ever judged there; `step`/`fix` (real attempts)
+  // and `run` (its own real, non-null outcome) are the only kinds worth an
+  // inline attempt/result glyph.
+  function partHasNoVerdict(part){ return part.kind === "scout" || part.kind === "plan" || part.kind === "replan" || part.kind === "judge"; }
+  // ONE shared result-glyph rule for both the Run tab's cards and the Audit
+  // tab's grouped-row headers — `null` (never a fabricated "?") for a
+  // no-verdict part kind; a multi-attempt part (a step with retries, or the
+  // fix loop) joins every attempt's own glyph ("✗✗✗✓"); everything else
+  // (a single-attempt step, or the whole "run" box on an old-shape spine)
+  // reads the part's own outcome.
+  function partResultGlyph(part, box){
+    if(partHasNoVerdict(part)) return null;
+    if(box.attempts.length > 1) return box.attempts.map(function(a){ return attemptGlyph(a.outcome); }).join("");
+    var outcome = (part.outcome !== null && part.outcome !== undefined) ? part.outcome : (box.attempts[0] ? box.attempts[0].outcome : null);
+    return attemptGlyph(outcome);
+  }
+  function buildOrderedBoxes(parts, isLive){
+    var list = Array.isArray(parts) ? parts : [];
+    return list.map(function(part, idx){
+      var isLastLivePart = !!isLive && idx === list.length - 1;
+      var occSuffix = part.kind === "step" && part.occurrence > 1 ? " (try " + part.occurrence + ")" : "";
+      return {
+        kind: part.kind,
+        partIndex: idx,
+        title: part.label + occSuffix,
+        state: partBoxState(part, isLastLivePart),
+        noNumber: part.kind !== "step",
+        // display-only attempts (map inline text + card/audit result glyph
+        // fallback) — [] for a no-verdict part kind even though `part.attempts`
+        // itself still carries its one real synthetic window (needed by the
+        // Audit tab's expand-to-rounds, read off `box.part.attempts` directly).
+        attempts: partHasNoVerdict(part) ? [] : (Array.isArray(part.attempts) ? part.attempts : []),
+        blocked: typeof part.blocked === "number" ? part.blocked : 0,
+        part: part,
+      };
+    });
+  }
+  function naturalBoxWidth(steps){
+    var numIdx = stepNumberIndices(steps);
+    var maxChars = 0;
+    steps.forEach(function(s, idx){ maxChars = Math.max(maxChars, stepTitleText(numIdx[idx], s).length); });
+    return Math.max(MIN_BOX_W, Math.ceil(maxChars * CHAR_W) + TITLE_HPAD);
+  }
+  function computeMapLayout(n, availW, naturalW){
+    if(!availW) return {perRow:n, boxW:naturalW};
+    var usableW = availW - MAP_MARGIN * 2;
+    for(var perRow = n; perRow >= 2; perRow--){
+      var totalW = perRow * naturalW + (perRow - 1) * MAP_GAP;
+      if(totalW <= usableW){
+        var stretched = (usableW - (perRow - 1) * MAP_GAP) / perRow;
+        return {perRow:perRow, boxW:Math.max(naturalW, stretched)};
+      }
+    }
+    return {perRow:1, boxW:Math.max(MIN_BOX_W, usableW)};
+  }
+  function wrapTitleLines(text, maxWidth){
+    var maxChars = Math.max(1, Math.floor((maxWidth - TITLE_HPAD) / CHAR_W));
+    if(text.length <= maxChars) return [text];
+    var words = text.split(' ');
+    var line1 = '', i = 0;
+    for(; i < words.length; i++){
+      var cand = line1 ? line1 + ' ' + words[i] : words[i];
+      if(line1 && cand.length > maxChars) break;
+      line1 = cand;
+    }
+    if(!line1) return [text.slice(0, maxChars), text.slice(maxChars)];
+    var line2 = words.slice(i).join(' ');
+    return line2 ? [line1, line2] : [line1];
+  }
+  function buildStepMapSVG(steps, availWidth){
+    var n = steps.length;
+    var naturalW = naturalBoxWidth(steps);
+    var layout = computeMapLayout(n, availWidth, naturalW);
+    var perRow = layout.perRow, boxW = layout.boxW, gap = MAP_GAP;
+    var rows = Math.ceil(n / perRow);
+    var margin = MAP_MARGIN;
+    var numIdx = stepNumberIndices(steps);
+    var titleLines = steps.map(function(s, idx){ return wrapTitleLines(stepTitleText(numIdx[idx], s), boxW); });
+    var maxLines = titleLines.reduce(function(m, l){ return Math.max(m, l.length); }, 1);
+    var boxH = maxLines > 1 ? BOX_H_2LINE : BOX_H;
+    var rowH = boxH + ROW_GAP;
+    var totalW = margin * 2 + perRow * boxW + (perRow - 1) * gap;
+    var totalH = rows * rowH;
+    var uid = "sm" + (stepMapUidCounter++);
+    var body =
+      '<defs>' +
+        '<marker id="' + uid + '-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">' +
+          '<path d="M0,0 L6,3 L0,6 z" fill="var(--text-dim)"></path></marker>' +
+      '</defs>';
+    steps.forEach(function(s, idx){
+      var row = Math.floor(idx / perRow);
+      var col = idx % perRow;
+      var rtl = (row % 2) === 1;
+      var slotCol = rtl ? (perRow - 1 - col) : col;
+      var x = margin + slotCol * (boxW + gap);
+      var y = 30 + row * rowH;
+      var colors = stepMapColors(s.state);
+      var lines = titleLines[idx];
+      var stateY = y + boxH - 18;
+      var partIdxAttr = typeof s.partIndex === "number" ? (' data-part-index="' + s.partIndex + '" style="cursor:pointer;"') : '';
+      body += '<rect x="' + x + '" y="' + y + '" width="' + boxW + '" height="' + boxH +
+        '" rx="0" fill="var(--panel2)" stroke="' + colors.stroke + '" stroke-width="2"' + partIdxAttr + '></rect>';
+      if(s.blocked > 0){
+        body += '<text x="' + (x + boxW - 6) + '" y="' + (y + 12) +
+          '" text-anchor="end" font-size="10" fill="var(--red)">' + s.blocked + ' blocked</text>';
+      }
+      if(lines.length === 1){
+        body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 25) +
+          '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[0]) + '</text>';
+      } else {
+        body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 17) +
+          '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[0]) + '</text>';
+        body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 29) +
+          '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[1]) + '</text>';
+      }
+      body += '<text x="' + (x + boxW / 2) + '" y="' + stateY +
+        '" text-anchor="middle" font-size="10" fill="' + colors.textFill + '">' + escapeXml(s.state) + '</text>';
+      if(idx < n - 1){
+        var nextRow = Math.floor((idx + 1) / perRow);
+        if(nextRow === row){
+          var midY = y + boxH / 2;
+          if(!rtl){
+            var nx = x + boxW + gap;
+            body += '<line x1="' + (x + boxW) + '" y1="' + midY + '" x2="' + (nx - 2) + '" y2="' + midY +
+              '" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#' + uid + '-arrow)"></line>';
+          } else {
+            var px = x - gap - boxW;
+            body += '<line x1="' + x + '" y1="' + midY + '" x2="' + (px + boxW + 2) + '" y2="' + midY +
+              '" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#' + uid + '-arrow)"></line>';
+          }
+        } else {
+          var cx = x + boxW / 2;
+          body += '<line x1="' + cx + '" y1="' + (y + boxH) + '" x2="' + cx + '" y2="' + (y + rowH - 2) +
+            '" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#' + uid + '-arrow)"></line>';
+        }
+      }
+    });
+    return '<svg width="' + totalW + '" height="' + totalH + '" viewBox="0 0 ' + totalW + ' ' + totalH + '" role="img" aria-label="step map">' + body + '</svg>';
+  }
+  function stepMapLegendHTML(){
+    return '<div class="map-legend">' +
+      '<span><span class="dot green"></span>done</span>' +
+      '<span><span class="dot amber"></span>running</span>' +
+      '<span><span class="dot red"></span>stopped</span>' +
+      '<span><span class="dot grey"></span>waiting</span>' +
+      '<span><span class="dot magenta"></span>died</span>' +
+      '</div>';
+  }
+  var lastSteps = null;
+  var lastWidth = null;
+  function mapAvailWidth(wrapper){
+    if(!wrapper) return null;
+    var w = wrapper.getBoundingClientRect().width;
+    if(!w) return null;
+    return Math.max(0, w - 20);
+  }
+  function renderStepMap(steps){
+    var mount = document.getElementById("map-mount");
+    var wrapper = document.getElementById("map-box");
+    lastSteps = steps;
+    if(!steps || !steps.length){
+      mount.innerHTML = "";
+      wrapper.hidden = true;
+      return;
+    }
+    wrapper.hidden = false;
+    var w = mapAvailWidth(wrapper);
+    lastWidth = w;
+    mount.innerHTML = buildStepMapSVG(steps, w) + stepMapLegendHTML();
+    // build item B: a map box click jumps to the Audit tab, that same part
+    // expanded and scrolled into view — same click-through as the card list,
+    // sharing partIndex so the two can never disagree about which row a box
+    // maps to. Delegated once per render (mount.innerHTML above already
+    // wiped any previous listeners' targets along with the old markup).
+    mount.querySelectorAll("rect[data-part-index]").forEach(function(rect){
+      rect.addEventListener("click", function(){
+        var idx = Number(rect.getAttribute("data-part-index"));
+        document.getElementById("tab-audit").click();
+        openAuditPart(idx);
+      });
+    });
+  }
+  function reflowMap(){
+    var wrapper = document.getElementById("map-box");
+    if(!wrapper || wrapper.hidden || !lastSteps) return;
+    var w = mapAvailWidth(wrapper);
+    if(w === null || w === lastWidth) return;
+    lastWidth = w;
+    document.getElementById("map-mount").innerHTML = buildStepMapSVG(lastSteps, w) + stepMapLegendHTML();
+  }
+  if(typeof ResizeObserver !== "undefined"){
+    var ro = new ResizeObserver(function(){ reflowMap(); });
+    var mb = document.getElementById("map-box");
+    if(mb) ro.observe(mb);
+  } else {
+    window.addEventListener("resize", reflowMap);
+  }
+
+  // F196: a `synthetic` step (e.g. the "died during planning" placeholder
+  // box) is a LABEL, never a real step — excluded from the summary's "N of
+  // M done" count and from the numbered step-card list below the map (the
+  // map itself still keeps the one box, rendered via renderStepMap directly
+  // off detail.steps, unfiltered).
+  function realSteps(steps){ return steps.filter(function(s){ return !s.synthetic; }); }
+
+  // ---- glyph/badge helpers (only [✓]/[✗]/[▶]/[·]/[?] — never the words green/red/soft-green/died) ----
+  function glyphClass(g){
+    if(g === "✓") return "green";
+    if(g === "✗") return "red";
+    if(g === "▶") return "amber";
+    if(g === "?") return "magenta";
+    return "grey";
+  }
+
+  // ---- Runs tab: ONE run-row builder shared by History (flat) and the
+  // Workflows view's per-job expansion (item 2, 2026-09-26 merge) — the two
+  // never drift on how a run row reads.
+  function buildRunRowEl(r){
+    var row = document.createElement("div");
+    // build item (2026-09-26 fix): compute selected state here, off the
+    // module's own `currentRunid`, so a row freshly built by a RE-RENDER
+    // (switching Runs view mode, or a Workflows parent auto-expanding onto
+    // an older run picked from History) shows selected without needing a
+    // click on this exact element — `selectRun`'s imperative class toggle
+    // (used when a click passes its own `rowEl`) stays layered on top of
+    // this, never replaced by it.
+    var selected = r.runid === currentRunid;
+    row.className = "hist-row" + (selected ? " selected" : "");
+    row.setAttribute("data-testid", "hist-row-" + r.runid);
+    row.setAttribute("tabindex", "0");
+    row.setAttribute("role", "button");
+    row.setAttribute("aria-pressed", selected ? "true" : "false");
+    var histFullName = r.job + ' (' + r.runid + ')';
+    if(r.fileMissing){
+      row.innerHTML =
+        '<span class="wf-line1"><span class="dot grey"></span>' +
+        '<span class="wf-name" title="' + escapeXml(histFullName) + '">' + escapeXml(histFullName) + '</span></span>' +
+        '<span class="wf-meta-line">' +
+        '<span class="wf-meta">file missing</span>' +
+        '<span class="wf-meta">' + escapeXml((r.at || "").slice(0,10) || "unknown") + '</span>' +
+        '</span>';
+    } else {
+      row.innerHTML =
+        '<span class="wf-line1"><span class="dot ' + glyphClass(r.glyph) + '"></span>' +
+        '<span class="wf-name" title="' + escapeXml(histFullName) + '">' + escapeXml(histFullName) + '</span></span>' +
+        '<span class="wf-meta-line">' +
+        '<span class="wf-meta">' + escapeXml(r.checkType) + '</span>' +
+        '<span class="wf-meta">' + escapeXml(r.spend) + '</span>' +
+        '<span class="wf-meta">' + escapeXml(r.wall) + '</span>' +
+        '<span class="wf-meta">' + escapeXml(r.date || "unknown") + '</span>' +
+        '</span>';
+    }
+    row.addEventListener("click", function(){ selectRun(r.runid, row, ".hist-row"); document.getElementById("tab-run").click(); scrollRunIntoViewMobile(); });
+    row.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); } });
+    return row;
+  }
+
+  // ---- History view ----
+  function renderHistory(runs){
+    var el = document.getElementById("history-list");
+    el.innerHTML = "";
+    var listed = (runs || []).filter(function(r){ return !r.fileMissing; });
+    if(!listed.length){
+      el.innerHTML = '<div class="hint">no runs listed yet</div>';
+      return;
+    }
+    (runs || []).forEach(function(r){ el.appendChild(buildRunRowEl(r)); });
+  }
+
+  // ---- Workflows view (item 2, 2026-09-26 merge): groups the ONE /api/runs
+  // payload by job name client-side — the sole owner of that grouping now
+  // (the old /api/workflows endpoint is gone; see src/panel/server.js). Runs
+  // arrive newest-first (server contract, see listRuns), so the FIRST run
+  // seen for a job is its latest — no re-sort needed, and job order (first-
+  // job-seen order) is already newest-first by construction.
+  function groupRunsByJob(runs){
+    var byJob = {};
+    var order = [];
+    (runs || []).forEach(function(r){
+      if(!byJob[r.job]){ byJob[r.job] = []; order.push(r.job); }
+      byJob[r.job].push(r);
+    });
+    return order.map(function(job){
+      var jobRuns = byJob[job];
+      var last = jobRuns[0];
+      return {
+        job: job,
+        runs: jobRuns,
+        runCount: jobRuns.length,
+        lastRunid: last.runid,
+        lastAt: last.at,
+        lastGlyph: last.glyph || "▶",
+        lastCheckType: last.checkType || "unknown",
+        lastModel: last.model || null,
+        lastSpend: last.spend || "unknown",
+        lastWall: last.wall || "unknown",
+        lastDate: last.date,
+      };
+    });
+  }
+
+  // Matches a job if ANY of its runs match the filters (not only the
+  // latest) — a one-line adapter over filterRuns (never a reimplementation
+  // of the AND/OR/time/search semantics), same posture as the old
+  // filterWorkflows but now correct against the job's FULL run list.
+  function filterWorkflows(jobs, filters, nowMs){
+    return (jobs || []).filter(function(g){
+      return filterRuns(g.runs, filters, nowMs).length > 0;
+    });
+  }
+
+  function filtersActive(filters){
+    return !!(filters && (
+      (filters.checkTypes && filters.checkTypes.length) ||
+      (filters.results && filters.results.length) ||
+      (filters.time && filters.time !== "all") ||
+      (filters.search && String(filters.search).trim())
+    ));
+  }
+
+  // Pure rule (item 2 build spec): when filters/search are active, a job
+  // whose LATEST run doesn't match but an older one does auto-expands so the
+  // matching run is visible without an extra click; inactive filters never
+  // force an expand.
+  function autoExpandJob(group, matchingRuns, active){
+    if(!active || !matchingRuns.length) return false;
+    var latestId = group.runs.length ? group.runs[0].runid : null;
+    var latestIncluded = matchingRuns.some(function(r){ return r.runid === latestId; });
+    return !latestIncluded;
+  }
+
+  // build item (2026-09-26 fix, F: parent-row/older-run mismatch): ONE owner
+  // for "which run does this parent row stand for" — both its own selected
+  // state and what its click opens read this, never two separate rules that
+  // could drift. Unfiltered (or when the latest still matches), a job's
+  // parent always stands for its latest run, same as before this fix. With
+  // a filter/search that matches an OLDER run but excludes the latest, the
+  // parent stands for the newest MATCHING run instead — so its click opens
+  // the run the search actually found, and (once picked) the parent's own
+  // selected state follows that same run rather than silently reverting to
+  // the latest.
+  function representedRun(group, candidateRuns, active){
+    if(active && candidateRuns.length){
+      var latestIncluded = candidateRuns.some(function(r){ return r.runid === group.lastRunid; });
+      if(!latestIncluded) return candidateRuns[0].runid;
+    }
+    return group.lastRunid;
+  }
+
+  // Is `currentRunid` one of this job's OLDER runs (i.e. a run that
+  // belongs to this job but isn't its latest)? Selecting a run from History
+  // and switching to Workflows lands here: the job must auto-expand and its
+  // matching child row must carry the selected marker even though no
+  // filter/search is active and no click happened inside Workflows itself.
+  function activeOlderRun(group){
+    if(!currentRunid || currentRunid === group.lastRunid) return null;
+    var found = group.runs.some(function(r){ return r.runid === currentRunid; });
+    return found ? currentRunid : null;
+  }
+
+  // manual expand/collapse memory, keyed by job name — survives a re-render
+  // triggered by a filter/search change within the same page load, reset on
+  // full page reload (per-viewer convenience only, never persisted). A
+  // manual collapse click still wins over auto-expand-for-selection on the
+  // next render (simplest rule: one flag, no "but selection forces it back
+  // open" special case) — collapsing a job you're not looking at any more
+  // is a normal, expected action.
+  var wfExpanded = {};
+
+  function renderWorkflows(jobs){
+    var el = document.getElementById("wf-list");
+    el.innerHTML = "";
+    if(!jobs.length){
+      el.innerHTML = '<div class="hint">no runs listed yet — run `bareloop run-u` or `bareloop run`, or `bareloop runs backfill <dir>`</div>';
+      return;
+    }
+    var active = filtersActive(currentRunsFilters());
+    jobs.forEach(function(g){
+      // build item (2026-09-26 fix): the parent row IS the job's latest run
+      // (clicking it opens that run), so the inline child list must be the
+      // job's OTHER runs only — never repeat the latest as its own first
+      // child. Expand affordance (caret, aria-expanded, toggle) is gated on
+      // there being a child to actually show: with filters/search active,
+      // that's the FILTERED other-runs list, so a job whose only match is
+      // its own latest run gets no caret and never expands — clicking it
+      // still opens the run, same as any job row. With no filters active
+      // this is unchanged (childRuns = all other runs, same as runCount>1).
+      var candidateRuns = active ? filterRuns(g.runs, currentRunsFilters(), Date.now()) : g.runs;
+      var childRuns = candidateRuns.filter(function(r){ return r.runid !== g.lastRunid; });
+      var hasOtherRuns = childRuns.length > 0;
+      // build item (2026-09-26 fix): auto-expand for a filter/search match
+      // on an older run (existing rule) OR because the run picked elsewhere
+      // (e.g. History) IS one of this job's older runs — either way the
+      // matching child must be visible without an extra click.
+      var olderSelected = activeOlderRun(g);
+      var autoExpand = hasOtherRuns && (autoExpandJob(g, candidateRuns, active) || !!olderSelected);
+      var expanded = hasOtherRuns && (Object.prototype.hasOwnProperty.call(wfExpanded, g.job) ? wfExpanded[g.job] : autoExpand);
+      var targetRunid = representedRun(g, candidateRuns, active);
+
+      var wrap = document.createElement("div");
+      wrap.className = "wf-job";
+
+      var row = document.createElement("div");
+      // build item (2026-09-26): a job (parent) row also opens its latest
+      // run in the Run tab, same as a child row — so it carries the same
+      // "selected" visual state a child row gets from selectRun (the class
+      // is computed HERE, at render time, rather than left on the clicked
+      // element, since this function tears down and rebuilds every wf-row
+      // on every click — see below). `targetRunid` (see `representedRun`
+      // above) is normally the latest run, so this is unchanged in the
+      // common case; a filter/search that matched an older run instead
+      // makes the parent follow THAT run once it's the selected one.
+      var isSelected = currentRunid === targetRunid;
+      row.className = "wf-row" + (isSelected ? " selected" : "");
+      row.setAttribute("data-wf", g.job);
+      row.setAttribute("data-testid", "wf-row-" + g.job);
+      row.setAttribute("tabindex", "0");
+      row.setAttribute("role", "button");
+      row.setAttribute("aria-expanded", expanded ? "true" : "false");
+      row.setAttribute("aria-pressed", isSelected ? "true" : "false");
+      var wfFullName = g.job + ' (' + g.lastRunid + ')';
+      row.innerHTML =
+        '<span class="wf-line1"><span class="wf-caret">' + (hasOtherRuns ? (expanded ? "▼" : "▶") : "") + '</span><span class="dot ' + glyphClass(g.lastGlyph) + '"></span>' +
+        '<span class="wf-name" title="' + escapeXml(wfFullName) + '">' + escapeXml(wfFullName) + '</span></span>' +
+        '<span class="wf-meta-line">' +
+        '<span class="wf-meta">' + escapeXml(g.lastCheckType) + '</span>' +
+        '<span class="wf-meta">' + escapeXml(g.lastSpend) + '</span>' +
+        '<span class="wf-meta">' + escapeXml(g.lastWall) + '</span>' +
+        '<span class="wf-meta">' + escapeXml(g.lastDate || "unknown") + '</span>' +
+        '<span class="wf-meta">' + g.runCount + ' run' + (g.runCount === 1 ? '' : 's') + '</span>' +
+        '</span>';
+      row.addEventListener("click", function(){
+        // a single-run job has nothing to expand — the click still opens
+        // the run, it just never toggles `wfExpanded` for it.
+        if(hasOtherRuns) wfExpanded[g.job] = !expanded;
+        // build item (2026-09-26): clicking the parent also opens its
+        // latest run (as it did before the Workflows/History merge) — pass
+        // rowEl null since renderWorkflows(jobs) below rebuilds every row
+        // right after, so a class set directly on this element would be
+        // discarded; the fresh render marks selection off `currentRunid`
+        // instead (see `isSelected` above). build item (2026-09-26 fix):
+        // opens `targetRunid`, not always `g.lastRunid` — with a filter/
+        // search active that excludes the latest but matches an older run,
+        // that's the run the search actually found (see `representedRun`).
+        selectRun(targetRunid, null, ".hist-row");
+        document.getElementById("tab-run").click();
+        scrollRunIntoViewMobile();
+        renderWorkflows(jobs);
+      });
+      row.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); } });
+      wrap.appendChild(row);
+
+      if(expanded){
+        var runsWrap = document.createElement("div");
+        runsWrap.className = "wf-runs";
+        childRuns.forEach(function(r){ runsWrap.appendChild(buildRunRowEl(r)); });
+        wrap.appendChild(runsWrap);
+      }
+      el.appendChild(wrap);
+    });
+  }
+
+  // ---- Filter bar (item 5 + hamr's 2026-09-25 live-panel feedback) ----
+  // ONE component, ONE state shape ({checkTypes, results, time}), used by
+  // BOTH the History tab (filters individual runs) and the Workflows tab
+  // (filters by each workflow's OWN latest-run fields). Compact: check type
+  // is a single letter (tooltip carries the word), result is a bare glyph
+  // (no brackets — the generic ".chip" style still wraps other chips in
+  // "[ ]"; ".fchip" turns that off), time is a short label, then "clear".
+  // No "unknown" check-type chip — runs/workflows with unknown type still
+  // show whenever no type chip is selected (checkTypes stays empty).
+  function filterBarHTML(scope){
+    return (
+      '<div class="filterbar" data-scope="' + scope + '" data-testid="' + scope + '-filters">' +
+        '<input type="text" class="search-input" placeholder="search job, run id or model…" ' +
+          'id="' + scope + '-filter-search" data-testid="' + scope + '-filter-search" autocomplete="off">' +
+        '<div class="chips" role="group" aria-label="Filter">' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="checkType" data-filter-value="deterministic" title="deterministic" data-testid="chip-' + scope + '-ct-deterministic">D</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="checkType" data-filter-value="rubric" title="rubric" data-testid="chip-' + scope + '-ct-rubric">R</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="&#10003;" title="pass" data-testid="chip-' + scope + '-res-pass">&#10003;</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="&#10007;" title="fail" data-testid="chip-' + scope + '-res-fail">&#10007;</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="?" title="died" data-testid="chip-' + scope + '-res-died">?</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="&#9654;" title="running" data-testid="chip-' + scope + '-res-running">&#9654;</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="7d" title="last 7 days" data-testid="chip-' + scope + '-time-7d">7d</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="30d" title="last 30 days" data-testid="chip-' + scope + '-time-30d">30d</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="true" data-filter-group="time" data-filter-value="all" title="all time" data-testid="chip-' + scope + '-time-all">all</button>' +
+          '<button class="chip fchip" type="button" id="' + scope + '-filter-clear" data-testid="' + scope + '-filter-clear">clear</button>' +
+        '</div>' +
+        '<div class="hint" id="' + scope + '-filter-count" data-testid="' + scope + '-filter-count"></div>' +
+      '</div>'
+    );
+  }
+
+  // Pure function: chips toggle on/off independently and combine AND across
+  // the three groups (checkType/result/time), OR within a group (an empty
+  // group array means "no filter" for that group — everything passes it).
+  // `time` is single-select, default "all". `nowMs` is injectable for tests.
+  // Field names (checkType/glyph/at) match a History run row's own shape.
+  // item 1 (2026-09-25): case-insensitive substring match on job name AND
+  // runid, combined AND with the chip groups (an empty/whitespace-only query
+  // means "no search filter" — everything passes it, same posture as an
+  // empty chip group). item C (2026-09-26): also matches the run's model
+  // name (e.g. "deepseek", "sonnet") — `model` is `null`/absent on an older
+  // archived run, same posture as a missing job/runid.
+  function matchesSearch(job, runid, model, query){
+    if(!query) return true;
+    var q = String(query).trim().toLowerCase();
+    if(!q) return true;
+    var j = String(job || "").toLowerCase();
+    var r = String(runid || "").toLowerCase();
+    var m = String(model || "").toLowerCase();
+    return j.indexOf(q) !== -1 || r.indexOf(q) !== -1 || m.indexOf(q) !== -1;
+  }
+  function filterRuns(runs, filters, nowMs){
+    nowMs = (typeof nowMs === "number") ? nowMs : Date.now();
+    var ct = (filters && filters.checkTypes) || [];
+    var rs = (filters && filters.results) || [];
+    var time = (filters && filters.time) || "all";
+    var q = (filters && filters.search) || "";
+    return (runs || []).filter(function(r){
+      if(ct.length && ct.indexOf(r.checkType) === -1) return false;
+      if(rs.length && rs.indexOf(r.glyph) === -1) return false;
+      if(!matchesSearch(r.job, r.runid, r.model, q)) return false;
+      if(time !== "all"){
+        var days = time === "7d" ? 7 : 30;
+        var t = typeof r.at === "string" ? Date.parse(r.at) : NaN;
+        if(!isFinite(t)) return false;
+        if(nowMs - t > days * 24 * 60 * 60 * 1000) return false;
+      }
+      return true;
+    });
+  }
+
+  /**
+   * One filter-bar instance: its own localStorage key, its own DOM scope
+   * (`.filterbar[data-scope="..."]`), its own item list — but the same
+   * wiring as every other instance.
+   * @param {{scope:string, storageKey:string, filterFn:Function, applyFn:Function}} opts
+   */
+  function createFilterBar(opts){
+    var scope = opts.scope;
+    var storageKey = opts.storageKey;
+    var state = { checkTypes: [], results: [], time: "all", search: "" };
+    var allItems = [];
+
+    function load(){
+      try{
+        var raw = localStorage.getItem(storageKey);
+        if(raw){
+          var parsed = JSON.parse(raw);
+          if(parsed && typeof parsed === "object"){
+            state = {
+              checkTypes: Array.isArray(parsed.checkTypes) ? parsed.checkTypes : [],
+              results: Array.isArray(parsed.results) ? parsed.results : [],
+              time: typeof parsed.time === "string" ? parsed.time : "all",
+              search: typeof parsed.search === "string" ? parsed.search : "",
+            };
+          }
+        }
+      }catch(e){ /* per-viewer convenience only; a blocked/private store just means no memory */ }
+    }
+    function save(){
+      try{ localStorage.setItem(storageKey, JSON.stringify(state)); }catch(e){ /* best-effort only */ }
+    }
+    function paint(){
+      document.querySelectorAll('.filterbar[data-scope="' + scope + '"] .chip[data-filter-group]').forEach(function(chip){
+        var group = chip.getAttribute("data-filter-group");
+        var value = chip.getAttribute("data-filter-value");
+        var active;
+        if(group === "time"){ active = state.time === value; }
+        else if(group === "checkType"){ active = state.checkTypes.indexOf(value) !== -1; }
+        else { active = state.results.indexOf(value) !== -1; }
+        chip.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+      var searchEl = document.getElementById(scope + "-filter-search");
+      if(searchEl && searchEl.value !== state.search) searchEl.value = state.search;
+    }
+    function apply(){
+      var filtered = opts.filterFn(allItems, state, Date.now());
+      opts.applyFn(filtered);
+      var countEl = document.getElementById(scope + "-filter-count");
+      if(countEl) countEl.textContent = "showing " + filtered.length + " of " + allItems.length + " runs";
+    }
+    document.querySelectorAll('.filterbar[data-scope="' + scope + '"] .chip[data-filter-group]').forEach(function(chip){
+      chip.addEventListener("click", function(){
+        var group = chip.getAttribute("data-filter-group");
+        var value = chip.getAttribute("data-filter-value");
+        if(group === "time"){
+          state.time = value; // single-select within time
+        } else if(group === "checkType"){
+          var idx = state.checkTypes.indexOf(value);
+          if(idx === -1) state.checkTypes.push(value); else state.checkTypes.splice(idx, 1);
+        } else if(group === "result"){
+          var idx2 = state.results.indexOf(value);
+          if(idx2 === -1) state.results.push(value); else state.results.splice(idx2, 1);
+        }
+        paint();
+        save();
+        apply();
+      });
+    });
+    var clearBtn = document.getElementById(scope + "-filter-clear");
+    if(clearBtn){
+      clearBtn.addEventListener("click", function(){
+        state = { checkTypes: [], results: [], time: "all", search: "" };
+        paint();
+        save();
+        apply();
+      });
+    }
+    var searchInput = document.getElementById(scope + "-filter-search");
+    if(searchInput){
+      searchInput.addEventListener("input", function(){
+        state.search = searchInput.value;
+        save();
+        apply();
+      });
+    }
+    load();
+    paint();
+
+    return {
+      setItems: function(items){ allItems = items || []; apply(); },
+      getState: function(){ return state; },
+      refresh: function(){ apply(); },
+    };
+  }
+
+  // item 2 (2026-09-26 merge): Workflows/History view-mode memory — same
+  // per-viewer-convenience posture as every other localStorage read/write on
+  // this page (try/catch, never assumed available).
+  var RUNS_VIEW_KEY = "bareloop-panel-runs-view";
+  function loadRunsViewMode(){
+    try{
+      var v = localStorage.getItem(RUNS_VIEW_KEY);
+      if(v === "workflows" || v === "history") return v;
+    }catch(e){ /* per-viewer convenience only */ }
+    return "workflows";
+  }
+  function saveRunsViewMode(v){
+    try{ localStorage.setItem(RUNS_VIEW_KEY, v); }catch(e){ /* best-effort only */ }
+  }
+
+  // item 2 (2026-09-26 merge): ONE shared filter bar drives whichever view
+  // (Workflows/History) is currently on — one scope, one localStorage key,
+  // so switching views never loses the search/chip state.
+  document.getElementById("runs-filterbar-anchor").innerHTML = filterBarHTML("runs");
+
+  var runsViewMode = loadRunsViewMode();
+  function runsFilterFn(items, filters, nowMs){
+    if(runsViewMode === "history") return filterRuns(items, filters, nowMs);
+    return filterWorkflows(groupRunsByJob(items), filters, nowMs);
+  }
+  function runsApplyFn(filtered){
+    if(runsViewMode === "history") renderHistory(filtered);
+    else renderWorkflows(filtered);
+  }
+  var runsFilterBar = createFilterBar({
+    scope: "runs",
+    storageKey: "bareloop-panel-runs-filters",
+    filterFn: runsFilterFn,
+    applyFn: runsApplyFn,
+  });
+  function currentRunsFilters(){
+    return runsFilterBar ? runsFilterBar.getState() : { checkTypes: [], results: [], time: "all", search: "" };
+  }
+  function paintRunsViewToggle(){
+    document.querySelectorAll('.chip[data-runs-view]').forEach(function(c){
+      c.setAttribute("aria-pressed", c.getAttribute("data-runs-view") === runsViewMode ? "true" : "false");
+    });
+    document.getElementById("wf-list").hidden = runsViewMode !== "workflows";
+    document.getElementById("history-list").hidden = runsViewMode !== "history";
+  }
+  document.querySelectorAll('.chip[data-runs-view]').forEach(function(chip){
+    chip.addEventListener("click", function(){
+      var next = chip.getAttribute("data-runs-view");
+      if(next === runsViewMode) return;
+      runsViewMode = next;
+      saveRunsViewMode(runsViewMode);
+      paintRunsViewToggle();
+      runsFilterBar.refresh();
+    });
+  });
+  paintRunsViewToggle();
+
+  // item 4: phone-only "scroll the run view into view" on row select, and
+  // the matching "↑ list" jump back. Desktop never runs either — both panes
+  // are already on screen there (the <900px breakpoint here matches the
+  // CSS media query above, both named off the same 900px number).
+  function isMobileLayout(){
+    return typeof window.matchMedia === "function" && window.matchMedia("(max-width: 899px)").matches;
+  }
+  function scrollRunIntoViewMobile(){
+    if(!isMobileLayout()) return;
+    var target = document.getElementById("right-pane-anchor");
+    if(target && target.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  var backToListBtn = document.getElementById("back-to-list");
+  if(backToListBtn){
+    backToListBtn.addEventListener("click", function(){
+      var target = document.getElementById("left-pane-anchor");
+      if(target && target.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function clearSelection(selector){
+    document.querySelectorAll(".wf-row, .hist-row").forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
+  }
+
+  // ---- Run tab ----
+  function money(n){ return (n === null || n === undefined) ? "unknown" : "$" + Number(n).toFixed(4); }
+  function duration(ms){
+    if(ms === null || ms === undefined) return "unknown";
+    if(ms < 0) return "unknown";
+    var s = ms / 1000;
+    if(s < 60) return s.toFixed(1) + "s";
+    var m = Math.floor(s / 60), rem = Math.round(s - m * 60);
+    if(rem === 60){ m += 1; rem = 0; }
+    return m + "m" + String(rem).padStart(2, "0") + "s";
+  }
+
+  // ---- Audit row cell builders — ONE shared renderer for a gate-audit row,
+  // used by both the Flat table (renderAudit) and the Grouped view's
+  // per-attempt rounds table (renderRoundsTable) so the two views can never
+  // drift on how a model-call row vs a tool-call row reads (item 1,
+  // 2026-09-26). Each `r` here is a real gate-audit row shape (either a
+  // Flat-view row off `/audit`, or a round's own `toolCalls[]` entry off
+  // `/rounds` — both carry the same fields: `kind`, `action`, `path`,
+  // `pathShort`, `decision`, `time`/`ts`, plus a model-call row's own
+  // `costUsd`/`tokens`/`durationMs`).
+  function auditIsModelCall(r){ return r.kind === "model-call"; }
+  function auditIsBlocked(r){ return !auditIsModelCall(r) && (r.decision === "block" || r.decision === "deny" || r.decision === false); }
+  function auditRoundCellHtml(r){ return (typeof r.round === "number") ? String(r.round) : "&mdash;"; }
+  function auditActionCellHtml(r){ return auditIsModelCall(r) ? "model call" : escapeXml(r.action || "unknown"); }
+  // item 2 (2026-09-26): shows the SHORT (tree-root-relative) path with the
+  // full absolute path in a `title` tooltip — never losing the full path,
+  // never showing a short path that isn't real (server sends both fields;
+  // `pathShort` falls back to `path` when no tree root was resolvable).
+  function auditPathCellHtml(r){
+    if(auditIsModelCall(r)) return "&mdash;";
+    var full = r.path || "unknown";
+    var shown = r.pathShort || r.path || "unknown";
+    return '<span title="' + escapeXml(full) + '">' + escapeXml(shown) + '</span>';
+  }
+  function auditDecisionCellHtml(r){
+    if(auditIsModelCall(r)){
+      var bits = [];
+      bits.push(typeof r.costUsd === "number" ? money(r.costUsd) : "unknown");
+      bits.push((typeof r.tokens === "number" ? r.tokens : "unknown") + " tokens");
+      bits.push(duration(r.durationMs));
+      return escapeXml(bits.join(" · "));
+    }
+    return "<span class=\"badge " + (auditIsBlocked(r) ? "red" : "green") + "\">" + (r.decision || "unknown") + "</span>";
+  }
+  function auditRowClassName(r){
+    var isModelCall = auditIsModelCall(r);
+    var isWrite = !isModelCall && (r.action === "write" || r.action === "edit");
+    var cls = isWrite ? "row-write" : "";
+    if(auditIsBlocked(r)) cls = (cls ? cls + " " : "") + "row-blocked";
+    return cls;
+  }
+
+  // item 7: tools/cache summary rows — built ONLY from replay's own already-
+  // computed `behaviour`/`memoryCache` fields (never recomputed a second way).
+  // mirrors src/behaviour.js's own displayLabel() verbatim (strip shell_/ctx_
+  // prefixes) so the panel's tool names read the SAME as `bareloop replay`'s.
+  function toolDisplayLabel(key){ return String(key).replace(/^shell_/, "").replace(/^ctx_/, ""); }
+  // item 3 (2026-09-25): EVERY tool used, with counts — no top-5 truncation
+  // (was `entries.slice(0, 5)` + "…"; the build spec calls for the full list).
+  // item 3 (2026-09-26): Run summary "model:" line — `detail.model` +
+  // `detail.provider` off job-start's own real fields (src/run.js:360/368),
+  // never guessed. `provider` is shown alongside the model only when the
+  // spine actually recorded one (e.g. "deepseek-flash (openai-api)"); a
+  // spine predating either field reads "not recorded", never a default
+  // model name.
+  function modelLine(detail){
+    if(!detail.model) return "not recorded";
+    return detail.provider ? (detail.model + " (" + detail.provider + ")") : detail.model;
+  }
+  function toolsLine(behaviour){
+    if(!behaviour) return "unknown (no log saved)";
+    if(behaviour.totalCalls === 0) return "0 calls";
+    var entries = Object.keys(behaviour.byTool).map(function(k){ return [toolDisplayLabel(k), behaviour.byTool[k]]; });
+    entries.sort(function(a,b){ return b[1] - a[1]; });
+    var all = entries.map(function(e){ return e[0] + " " + e[1]; });
+    return behaviour.totalCalls + " calls — " + all.join(" · ");
+  }
+  // item 3 (2026-09-26 revision, hamr's word): "offered" — the FULL granted-
+  // tools list from the run's own resolved spec (`job.toolsList`), shown
+  // whenever a granted list exists at all — never subtracted against what
+  // was actually used (that used/never-used split was the ORIGINAL item 3
+  // shape; hamr asked it removed in favor of just showing everything the
+  // run was offered). `null` when the spec carries no granted-tools list at
+  // all (never shown).
+  function offeredLine(toolsList){
+    if(!toolsList || !toolsList.length) return null;
+    return toolsList.join(" · ");
+  }
+  // build item B: a part card's own 2nd line — every tool used, with counts,
+  // sorted by count descending (no "N calls —" prefix, that's line 1's job).
+  // `null` byTool (no gate-audit sidecar) reads the same "unknown (no log
+  // saved)" toolsLine already uses; an empty-but-known object reads "no tools".
+  function toolBreakdownLine(byTool){
+    if(!byTool) return "unknown (no log saved)";
+    var entries = Object.keys(byTool).map(function(k){ return [toolDisplayLabel(k), byTool[k]]; });
+    if(!entries.length) return "no tools";
+    entries.sort(function(a,b){ return b[1] - a[1]; });
+    return entries.map(function(e){ return e[0] + " " + e[1]; }).join(" · ");
+  }
+  function cacheLine(memoryCache){
+    if(!memoryCache) return "not recorded";
+    var kb = (memoryCache.bytesWithheld / 1024).toFixed(1);
+    return memoryCache.pointered + " re-reads answered from memory · " + kb + " KB not re-sent";
+  }
+
+  // item 3: the Run summary and Job tab load via two independent fetches
+  // (see selectRun below) that can resolve in either order; the Job fetch is
+  // the only one this row needs now (offeredLine no longer looks at run
+  // behaviour at all), but paintOfferedRow() stays idempotent-safe to call
+  // from either render function.
+  var lastJobToolsList = null;
+  function paintOfferedRow(){
+    var row = document.getElementById("summary-offered-row");
+    var val = document.getElementById("summary-offered-val");
+    if(!row || !val) return;
+    var line = offeredLine(lastJobToolsList);
+    if(line){ val.textContent = line; row.hidden = false; }
+    else { row.hidden = true; val.textContent = ""; }
+  }
+
+  function renderRun(detail){
+    var name = document.getElementById("active-wf-name");
+    var dot = document.getElementById("active-wf-dot");
+    var verdict = document.getElementById("active-wf-verdict");
+    var date = document.getElementById("active-wf-date");
+
+    if(detail.fileMissing){
+      name.textContent = detail.job + " (" + detail.runid + ")";
+      dot.className = "dot grey";
+      verdict.textContent = "unknown";
+      date.textContent = "file missing";
+      document.getElementById("run-empty").hidden = false;
+      document.getElementById("run-empty").textContent = "spine file no longer on disk";
+      document.getElementById("run-content").hidden = true;
+      document.getElementById("audit-select-empty").hidden = false;
+      document.getElementById("audit-body").hidden = true;
+      return;
+    }
+
+    document.getElementById("audit-select-empty").hidden = true;
+    document.getElementById("audit-body").hidden = false;
+
+    name.textContent = detail.job + " (" + detail.runid + ")";
+    dot.className = "dot " + glyphClass(detail.glyph);
+    verdict.textContent = detail.checkType;
+    if(detail.checkTypeTitle){ verdict.title = detail.checkTypeTitle; } else { verdict.removeAttribute("title"); }
+    date.textContent = detail.date || "unknown";
+
+    document.getElementById("run-empty").hidden = true;
+    document.getElementById("run-content").hidden = false;
+
+    // died: the two REAL figures the panel has (spentUsd/wallMs, both null —
+    // no job-end means no final totals were ever recorded) are replaced with
+    // the priced-rounds/first-to-last-record FLOORS the server derived —
+    // never "unknown" when a priced round actually exists.
+    var spendText = detail.died ? (detail.spendFloorUsd === null ? "unknown" : "at least " + money(detail.spendFloorUsd)) : money(detail.spentUsd);
+    var wallText = detail.died ? (detail.wallFloorMs === null ? "unknown" : "at least " + duration(detail.wallFloorMs)) : duration(detail.wallMs);
+    // item 6 (2026-09-25): "took" for a finished (job-end reached) OR died
+    // run — both are OVER, so the wall figure is a completed duration, never
+    // an in-progress one. "elapsed" is reserved for the one state that IS
+    // still in progress: a live [▶] run (glyph "▶" and not died).
+    var isLive = detail.glyph === "▶" && !detail.died;
+    var wallPhrase = isLive ? (wallText + " elapsed") : ("took " + wallText);
+
+    document.getElementById("run-counters").innerHTML =
+      spendText + " of $" + (detail.budgetUsd === null ? "unknown" : Number(detail.budgetUsd).toFixed(2)) +
+      " &middot; " + wallPhrase;
+
+    var box = document.getElementById("run-summary");
+    box.className = "summary-box " + (detail.died ? "magenta" : (detail.glyph === "✗" ? "red" : (detail.glyph === "▶" ? "amber" : "")));
+    // F196: a synthetic placeholder box (e.g. "died during planning") is a
+    // LABEL, not a real step — excluded from this count so a run that died
+    // before any step started reads "0 of 0 done" / "none started", never
+    // "0 of 1 done".
+    var rSteps = realSteps(detail.steps);
+    var stepsDone = rSteps.filter(function(s){ return s.state === "done"; }).length;
+    var stepsText = rSteps.length === 0 ? "none started" : ('<span class="num">' + stepsDone + '</span> of <span class="num">' + rSteps.length + '</span> done');
+    box.innerHTML =
+      '<div class="summary-headline"><span class="dot ' + glyphClass(detail.glyph) + '"></span><b>' + escapeXml(detail.checkType) + '</b> &middot; ' +
+        '<span class="num">' + spendText + '</span> &middot; <span class="num">' + wallText + '</span></div>' +
+      '<div class="summary-row" data-testid="summary-model"><span class="sum-label">model:</span><span class="sum-val">' + escapeXml(modelLine(detail)) + '</span></div>' +
+      (detail.judgeModel ? '<div class="summary-row" data-testid="summary-judge"><span class="sum-label">judge:</span><span class="sum-val">' + escapeXml(detail.judgeModel) + '</span></div>' : '') +
+      '<div class="summary-row"><span class="sum-label">steps:</span><span class="sum-val">' + stepsText +
+        (detail.replans ? ' &middot; ' + detail.replans + ' replan' + (detail.replans === 1 ? '' : 's') : '') + '</span></div>' +
+      '<div class="summary-row"><span class="sum-label">why:</span><span class="sum-val">' + escapeXml(detail.stopReason || (detail.glyph === "✓" ? "run ended clean" : "not recorded")) + '</span></div>' +
+      '<div class="summary-row"><span class="sum-label">close:</span><span class="sum-val">' + escapeXml(detail.close && detail.close.verdict ? detail.close.verdict : "none — the run ended before any close ran") + '</span></div>' +
+      '<div class="summary-row" data-testid="summary-tools"><span class="sum-label">tools:</span><span class="sum-val">' + escapeXml(toolsLine(detail.behaviour)) + '</span></div>' +
+      '<div class="summary-row" data-testid="summary-offered" id="summary-offered-row" hidden><span class="sum-label">offered:</span><span class="sum-val" id="summary-offered-val"></span></div>' +
+      '<div class="summary-row" data-testid="summary-cache"><span class="sum-label">cache:</span><span class="sum-val">' + escapeXml(cacheLine(detail.memoryCache)) + '</span></div>';
+
+    paintOfferedRow();
+
+    // build item B (2026-09-26 rewrite): the map AND the card list are both
+    // built from ONE list — `detail.parts` (src/replay.js's own ordered part
+    // list) via `buildOrderedBoxes` — so they can never drift apart (F198's
+    // own bug class). Cards are SUMMARY ONLY here, never expandable — every
+    // attempt/rounds detail now lives exclusively on the Audit tab; a card
+    // (or its map box) click switches to Audit with that same part expanded
+    // and scrolled into view (build item B's click-through).
+    var isLiveRun = detail.glyph === "▶" && !detail.died;
+    var orderedBoxes = buildOrderedBoxes(detail.parts, isLiveRun);
+    renderStepMap(orderedBoxes);
+
+    var cardStepNumbers = stepNumberIndices(orderedBoxes);
+
+    var listEl = document.getElementById("step-list");
+    listEl.innerHTML = "";
+    orderedBoxes.forEach(function(box, idx){
+      var part = box.part;
+      var badgeClass = box.state === "done" ? "green" : (box.state === "stopped" ? "red" : (box.state === "running" ? "amber" : (box.state === "died" ? "magenta" : "grey")));
+      var titleText = box.kind === "step" ? ((cardStepNumbers[idx] + 1) + ' &middot; ' + escapeXml(box.title)) : escapeXml(box.title);
+      var resultGlyph = partResultGlyph(part, box);
+      var line1Bits = [
+        (typeof part.rounds === "number" ? part.rounds : 0) + " call" + (part.rounds === 1 ? "" : "s"),
+        typeof part.toolCalls === "number" ? (part.toolCalls + " tool" + (part.toolCalls === 1 ? "" : "s")) : "unknown tools",
+        duration(part.wallMs),
+        part.unpricedRounds > 0 ? "unknown (" + part.unpricedRounds + " unpriced round" + (part.unpricedRounds === 1 ? "" : "s") + ")" : money(part.spentUsd),
+      ];
+      if(resultGlyph !== null) line1Bits.push(resultGlyph);
+      var card = document.createElement("div");
+      card.className = "step-card part-card" + (box.state === "running" ? " running" : "");
+      card.setAttribute("data-testid", "part-card-" + idx);
+      card.setAttribute("tabindex", "0");
+      card.setAttribute("role", "button");
+      card.innerHTML =
+        '<div class="step-head"><h4>' + titleText + '</h4>' +
+          '<span class="badge ' + badgeClass + '">' + escapeXml(box.state) + '</span>' +
+          (box.blocked > 0 ? '<span class="badge red" data-testid="part-blocked-badge">' + box.blocked + ' blocked</span>' : '') +
+        '</div>' +
+        '<div class="step-meta" title="a part is one piece of the run (scout, plan, a step, replan, fix, judge); a call is one model round">' + line1Bits.join(" &middot; ") + '</div>' +
+        '<div class="step-meta">' + escapeXml(toolBreakdownLine(box.part.byTool)) + '</div>';
+      listEl.appendChild(card);
+      var jumpToAudit = function(){
+        document.getElementById("tab-audit").click();
+        openAuditPart(idx);
+      };
+      card.addEventListener("click", jumpToAudit);
+      card.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); jumpToAudit(); } });
+    });
+
+    // build item C: the Audit tab's grouped-by-part view is built here too —
+    // off the SAME `detail.parts`/`buildOrderedBoxes` this function just used
+    // for the map+cards, never a second independently-fetched data source
+    // (the flat one-row-per-call table still comes from its own `/audit`
+    // fetch, wired separately in selectRun below).
+    renderAuditGroups(detail);
+  }
+
+  // build item C: Audit tab attempt row -> its rounds (server-built,
+  // lazy-fetched on expand via /api/runs/:runid/rounds?part=<i>&attempt=<n>).
+  function buildAttemptsList(container, partIndex, attempts){
+    container.innerHTML = "";
+    attempts.forEach(function(a){
+      var row = document.createElement("div");
+      row.className = "attempt-row";
+      row.setAttribute("data-testid", "audit-attempt-" + partIndex + "-" + a.n);
+      row.innerHTML =
+        '<button class="btn small attempt-toggle" type="button" aria-expanded="false">' +
+          'attempt ' + a.n + ' ' + attemptGlyph(a.outcome) +
+        '</button>' +
+        '<div class="rounds-list" hidden></div>';
+      container.appendChild(row);
+      var btn = row.querySelector(".attempt-toggle");
+      var roundsEl = row.querySelector(".rounds-list");
+      var built = false;
+      btn.addEventListener("click", function(){
+        var expanded = btn.getAttribute("aria-expanded") === "true";
+        btn.setAttribute("aria-expanded", expanded ? "false" : "true");
+        roundsEl.hidden = expanded;
+        if(!expanded && !built){
+          built = true;
+          loadRounds(roundsEl, partIndex, a, 0);
+        }
+      });
+    });
+  }
+
+  function roundsUrl(partIndex, attempt, offset){
+    var params = "part=" + encodeURIComponent(partIndex) + "&attempt=" + encodeURIComponent(attempt.n) + "&offset=" + offset;
+    return "/api/runs/" + encodeURIComponent(currentRunid) + "/rounds?" + params;
+  }
+
+  // item 1 (2026-09-26): the Grouped view's rounds render as a real TABLE,
+  // same column set as Flat minus Step (implied by the group): Round ·
+  // Action · Path · Decision · Time — reusing the SAME auditXCellHtml
+  // builders Flat's renderAudit uses, never a second hand-rolled format.
+  // A round's own model call IS a model-call row (`kind:'model-call'`) —
+  // the "round N · $cost · tokens · duration" header hamr approved renders
+  // as this table's own header ROW (`.round-header-row`, visually distinct),
+  // its tool calls following as normal rows (a denied one reads
+  // `.row-blocked`, same red as Flat).
+  function renderRoundHeaderRow(r){
+    var pseudo = {
+      kind: "model-call", round: r.n, time: r.ts,
+      costUsd: r.costUsd, tokens: r.tokens, durationMs: r.durationMs,
+    };
+    return '<tr class="round-header-row">' +
+      '<td>' + auditRoundCellHtml(pseudo) + '</td>' +
+      '<td>' + auditActionCellHtml(pseudo) + '</td>' +
+      '<td>' + auditPathCellHtml(pseudo) + '</td>' +
+      '<td>' + auditDecisionCellHtml(pseudo) + '</td>' +
+      '<td>' + escapeXml(pseudo.time || "unknown") + '</td>' +
+    '</tr>';
+  }
+  function renderRoundToolRow(tc){
+    var rowCls = auditRowClassName(tc);
+    return '<tr' + (rowCls ? ' class="' + rowCls + '"' : '') + '>' +
+      '<td>' + auditRoundCellHtml(tc) + '</td>' +
+      '<td>' + auditActionCellHtml(tc) + '</td>' +
+      '<td>' + auditPathCellHtml(tc) + '</td>' +
+      '<td>' + auditDecisionCellHtml(tc) + '</td>' +
+      '<td>' + escapeXml(tc.time || "unknown") + '</td>' +
+    '</tr>';
+  }
+  function renderRoundRows(r, toolLogSaved){
+    var rows = renderRoundHeaderRow(r);
+    if(toolLogSaved){
+      rows += (r.toolCalls && r.toolCalls.length)
+        ? r.toolCalls.map(renderRoundToolRow).join("")
+        : '<tr><td colspan="5" class="hint">no tool calls</td></tr>';
+    } else {
+      rows += '<tr><td colspan="5" class="hint">tool calls: no log saved</td></tr>';
+    }
+    return rows;
+  }
+
+  function renderRoundsPage(roundsEl, partIndex, attempt, data, appendMode){
+    var rowsHtml = data.rounds.map(function(r){ return renderRoundRows(r, data.toolLogSaved); }).join("");
+    var checkLine = data.check
+      ? '<div class="attempt-check">check: <span class="badge ' + (data.check.outcome === "green" ? "green" : "red") + '">' + escapeXml(data.check.outcome || "unknown") + '</span>' +
+        (data.check.detail ? ' — ' + escapeXml(data.check.detail) : '') + '</div>'
+      : '';
+    var shownTo = data.offset + data.rounds.length;
+    var hasMore = shownTo < data.totalRounds;
+    var pageInfo = '<div class="hint">showing ' + (data.offset + 1) + '–' + shownTo + ' of ' + data.totalRounds + '</div>';
+    var loadMoreHtml = hasMore ? '<button class="btn small rounds-load-more" type="button">load more</button>' : '';
+    if(appendMode){
+      var existingMore = roundsEl.querySelector(".rounds-load-more");
+      if(existingMore) existingMore.remove();
+      var existingInfo = roundsEl.querySelector(".rounds-page-info");
+      if(existingInfo) existingInfo.remove();
+      var tbody = roundsEl.querySelector(".rounds-table tbody");
+      tbody.insertAdjacentHTML("beforeend", rowsHtml);
+    } else {
+      roundsEl.innerHTML =
+        '<div class="audit-table-scroll"><table class="rounds-table" data-testid="rounds-table">' +
+        '<thead><tr><th>Round</th><th>Action</th><th>Path</th><th>Decision</th><th>Time</th></tr></thead>' +
+        '<tbody>' + rowsHtml + '</tbody></table></div>';
+    }
+    roundsEl.insertAdjacentHTML("beforeend", '<div class="rounds-page-info">' + pageInfo + checkLine + '</div>');
+    if(hasMore){
+      var loadMoreWrap = roundsEl.querySelector(".rounds-page-info");
+      loadMoreWrap.insertAdjacentHTML("beforeend", loadMoreHtml);
+      loadMoreWrap.querySelector(".rounds-load-more").addEventListener("click", function(){
+        loadRounds(roundsEl, partIndex, attempt, shownTo, true);
+      });
+    }
+  }
+
+  function loadRounds(roundsEl, partIndex, attempt, offset, appendMode){
+    if(!appendMode) roundsEl.innerHTML = '<div class="hint">loading…</div>';
+    getJSON(roundsUrl(partIndex, attempt, offset)).then(function(data){
+      renderRoundsPage(roundsEl, partIndex, attempt, data, !!appendMode);
+    }).catch(function(e){
+      roundsEl.innerHTML = '<div class="hint">failed to load rounds: ' + escapeXml(e.message) + '</div>';
+    });
+  }
+
+  // ---- Audit tab: GROUPED view (build item C, default) ----
+  // One collapsed row per part (build item B/C's ONE shared list,
+  // `detail.parts`), same one-line stats + blocked badge a Run-tab card
+  // shows — expand -> attempts (parts with >1, e.g. a multi-attempt step or
+  // the fix loop) or straight to a rounds table (every other part kind,
+  // which carries exactly one synthetic whole-part attempt).
+  function partHasWrites(part){
+    var bt = part.byTool;
+    if(!bt) return false;
+    return !!(bt.edit || bt.write);
+  }
+  function partLine1Text(part){
+    return [
+      (typeof part.rounds === "number" ? part.rounds : 0) + " call" + (part.rounds === 1 ? "" : "s"),
+      typeof part.toolCalls === "number" ? (part.toolCalls + " tool" + (part.toolCalls === 1 ? "" : "s")) : "unknown tools",
+      duration(part.wallMs),
+      part.unpricedRounds > 0 ? "unknown (" + part.unpricedRounds + " unpriced round" + (part.unpricedRounds === 1 ? "" : "s") + ")" : money(part.spentUsd),
+    ].join(" &middot; ");
+  }
+  var currentAuditFilter = "all";
+  function auditPartMatchesFilter(rowWrap, filter){
+    if(filter === "all") return true;
+    if(filter === "write") return rowWrap.getAttribute("data-writes") === "1";
+    if(filter === "blocked") return rowWrap.getAttribute("data-blocked") === "1";
+    return true;
+  }
+  function applyAuditFilter(filter){
+    currentAuditFilter = filter;
+    document.querySelectorAll(".audit-part").forEach(function(rowWrap){
+      var matches = auditPartMatchesFilter(rowWrap, filter);
+      rowWrap.style.display = matches ? "" : "none";
+      if(matches && filter !== "all"){
+        var btn = rowWrap.querySelector(".audit-part-toggle");
+        if(btn && btn.getAttribute("aria-expanded") !== "true") btn.click();
+      }
+    });
+  }
+  function renderAuditGroups(detail){
+    var container = document.getElementById("audit-groups");
+    container.innerHTML = "";
+    var parts = Array.isArray(detail.parts) ? detail.parts : [];
+    var isLiveRun = detail.glyph === "▶" && !detail.died;
+    var boxes = buildOrderedBoxes(parts, isLiveRun);
+    var numberMap = stepNumberIndices(boxes);
+    boxes.forEach(function(box, idx){
+      var part = box.part;
+      var titleText = box.kind === "step" ? ((numberMap[idx] + 1) + ' &middot; ' + escapeXml(box.title)) : escapeXml(box.title);
+      var badgeClass = box.state === "done" ? "green" : (box.state === "stopped" ? "red" : (box.state === "running" ? "amber" : (box.state === "died" ? "magenta" : "grey")));
+      var rowWrap = document.createElement("div");
+      rowWrap.className = "audit-part";
+      rowWrap.setAttribute("data-testid", "audit-part-" + idx);
+      if(box.blocked > 0) rowWrap.setAttribute("data-blocked", "1");
+      if(partHasWrites(part)) rowWrap.setAttribute("data-writes", "1");
+      var headBtn = document.createElement("button");
+      headBtn.type = "button";
+      headBtn.className = "btn audit-part-toggle";
+      var startExpanded = box.state === "running";
+      headBtn.setAttribute("aria-expanded", startExpanded ? "true" : "false");
+      headBtn.setAttribute("data-testid", "audit-part-toggle-" + idx);
+      var groupResultGlyph = partResultGlyph(part, box);
+      headBtn.innerHTML =
+        '<span class="badge ' + badgeClass + '">' + escapeXml(box.state) + '</span> ' + titleText + ' &middot; ' + partLine1Text(part) +
+        (groupResultGlyph !== null ? ' &middot; ' + groupResultGlyph : '') +
+        (box.blocked > 0 ? ' <span class="badge red" data-testid="audit-part-blocked-' + idx + '">' + box.blocked + ' blocked</span>' : '');
+      var body = document.createElement("div");
+      body.className = "audit-part-body";
+      body.hidden = !startExpanded;
+      body.setAttribute("data-testid", "audit-part-body-" + idx);
+      var attempts = Array.isArray(part.attempts) ? part.attempts : [];
+      var built = false;
+      var buildBody = function(){
+        built = true;
+        var toolsHeader = document.createElement("div");
+        toolsHeader.className = "hint";
+        toolsHeader.textContent = toolBreakdownLine(part.byTool);
+        body.appendChild(toolsHeader);
+        if(attempts.length > 1){
+          // parts WITH an attempt sub-loop (a multi-attempt step, or the fix
+          // loop) expand to attempt rows first — each attempt expands to its
+          // own rounds table on its own click, same as the Run tab used to.
+          var attemptsWrap = document.createElement("div");
+          attemptsWrap.className = "attempts-list";
+          body.appendChild(attemptsWrap);
+          buildAttemptsList(attemptsWrap, idx, attempts);
+        } else {
+          // parts with NO sub-loop (scout, plan, replan, judge, run, or a
+          // single-attempt step) expand STRAIGHT to their rounds table.
+          var roundsEl = document.createElement("div");
+          roundsEl.className = "rounds-list";
+          body.appendChild(roundsEl);
+          loadRounds(roundsEl, idx, attempts[0] || { n: 1 }, 0);
+        }
+      };
+      headBtn.addEventListener("click", function(){
+        var expanded = headBtn.getAttribute("aria-expanded") === "true";
+        headBtn.setAttribute("aria-expanded", expanded ? "false" : "true");
+        body.hidden = expanded;
+        if(!expanded && !built) buildBody();
+      });
+      rowWrap.appendChild(headBtn);
+      rowWrap.appendChild(body);
+      container.appendChild(rowWrap);
+      if(startExpanded && !built) buildBody(); // a live run's currently-running part opens by default
+    });
+    applyAuditFilter(currentAuditFilter);
+  }
+  // build item B: a Run-tab card (or map box) click switches to the Audit
+  // tab, that same part's row expanded and scrolled into view — sharing
+  // partIndex so the two tabs can never disagree about which row a click maps to.
+  function openAuditPart(idx){
+    setAuditView("grouped");
+    var row = document.querySelector('[data-testid="audit-part-' + idx + '"]');
+    if(!row) return;
+    var btn = row.querySelector(".audit-part-toggle");
+    if(btn && btn.getAttribute("aria-expanded") !== "true") btn.click();
+    if(typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "center" });
+  }
+  function setAuditView(view){
+    document.getElementById("audit-groups").hidden = view !== "grouped";
+    document.getElementById("audit-flat-wrap").hidden = view !== "flat";
+    document.querySelectorAll(".chip[data-view]").forEach(function(c){ c.setAttribute("aria-pressed", c.getAttribute("data-view") === view ? "true" : "false"); });
+  }
+  document.querySelectorAll(".chip[data-view]").forEach(function(chip){
+    chip.addEventListener("click", function(){ setAuditView(chip.getAttribute("data-view")); });
+  });
+
+  // ---- Audit tab: FLAT view (the old one-row-per-call time-ordered table) ----
+  var auditRowEls = [];
+  function renderAudit(result){
+    var empty = document.getElementById("audit-empty");
+    var content = document.getElementById("audit-content");
+    if(!result || result.empty){
+      empty.hidden = false;
+      var reason = result ? result.reason : "no-sidecar";
+      empty.textContent = reason === "sidecar-empty"
+        ? "log saved, no tool calls recorded"
+        : "no log was saved for this run (older version)";
+      content.hidden = true;
+      return;
+    }
+    empty.hidden = true;
+    content.hidden = false;
+    var tbody = document.getElementById("audit-tbody");
+    tbody.innerHTML = "";
+    result.rows.forEach(function(r){
+      var tr = document.createElement("tr");
+      var rowCls = auditRowClassName(r);
+      if(rowCls) tr.className = rowCls;
+      var roundCell = auditRoundCellHtml(r);
+      var decisionCell = auditDecisionCellHtml(r);
+      // build item C rewrite (2026-09-26): the Step cell is derived from this
+      // row's own ROUND's seq matched against `summary.parts`' own attempt
+      // windows (never phase-string guessing, never ts-guessing) —
+      // `r.partLabel` is a real part label (scout/plan/a step id/replan/fix/
+      // judge/run); `r.reason` names WHY it's null when it is: "no-round"
+      // (before the very first model call) vs "unassigned" (a round exists
+      // but its seq matched no part window).
+      var stepCell = r.partLabel === null
+        ? "<td title=\"" + (r.reason === "unassigned" ? "this round's part wasn't recorded" : "before the first model call") + "\">&mdash;</td>"
+        : "<td>" + escapeXml(r.partLabel) + (typeof r.attemptN === "number" ? " &middot; a" + r.attemptN : "") + "</td>";
+      // item 2 (2026-09-26): the Path cell shows the SHORT (tree-root-relative)
+      // path with the full absolute path in a title tooltip — a model-call row
+      // never carries a path at all (the real record: `phase:'record'`/
+      // `action.type:'llm'` has no `action.path`), so "&mdash;" says so
+      // plainly (see {@link auditPathCellHtml}).
+      var pathCell = auditPathCellHtml(r);
+      tr.innerHTML =
+        "<td>" + roundCell + "</td>" +
+        stepCell +
+        "<td>" + auditActionCellHtml(r) + "</td>" +
+        "<td>" + pathCell + "</td>" +
+        "<td>" + decisionCell + "</td>" +
+        "<td>" + escapeXml(r.time || "unknown") + "</td>";
+      tbody.appendChild(tr);
+    });
+    document.getElementById("audit-rawlog").textContent = result.raw || "";
+    auditRowEls = Array.prototype.slice.call(tbody.querySelectorAll("tr"));
+    // Scoped to [data-filter] — the audit tab's OWN chips (chip-all/writes/
+    // blocked). A bare ".chip" here also matched the History filter bar's
+    // chips (same class, different data- attributes), binding a second
+    // listener on them and forcing their aria-pressed back to "true" on
+    // every click regardless of the actual toggle state (hamr's live-panel
+    // feedback, 2026-09-25: "selection is buggy", "clear doesnt work").
+    document.querySelectorAll(".chip[data-filter]").forEach(function(c){ c.setAttribute("aria-pressed", c.getAttribute("data-filter") === "all" ? "true" : "false"); });
+    auditRowEls.forEach(function(row){ row.style.display = ""; });
+  }
+  document.querySelectorAll(".chip[data-filter]").forEach(function(chip){
+    chip.addEventListener("click", function(){
+      document.querySelectorAll(".chip[data-filter]").forEach(function(c){ c.setAttribute("aria-pressed","false"); });
+      chip.setAttribute("aria-pressed","true");
+      var f = chip.getAttribute("data-filter");
+      auditRowEls.forEach(function(row){
+        if(f === "all"){ row.style.display = ""; }
+        else if(f === "write"){ row.style.display = row.classList.contains("row-write") ? "" : "none"; }
+        else if(f === "blocked"){ row.style.display = row.classList.contains("row-blocked") ? "" : "none"; }
+      });
+      // same All/Writes/Blocked chip group also drives the grouped view
+      // (build item C): auto-open only the parts that match, hide the rest.
+      applyAuditFilter(f);
+    });
+  });
+
+  // ---- Job tab ----
+  function renderJob(job){
+    var empty = document.getElementById("job-empty");
+    var card = document.getElementById("job-card");
+    if(!job){ empty.hidden = false; card.hidden = true; return; }
+    empty.hidden = true;
+    card.hidden = false;
+    document.getElementById("details-title").textContent = "Job — " + job.job + (job.resolved ? " (signed)" : "");
+    document.getElementById("details-verdict").textContent = job.checkType;
+    var verdictEl = document.getElementById("details-verdict");
+    if(job.checkTypeTitle){ verdictEl.title = job.checkTypeTitle; } else { verdictEl.removeAttribute("title"); }
+    document.getElementById("details-model").textContent = job.model;
+    document.getElementById("details-jobname").textContent = job.job;
+    var descField = document.getElementById("details-description-field");
+    if(job.description){ descField.hidden = false; document.getElementById("details-description").textContent = job.description; }
+    else { descField.hidden = true; }
+    document.getElementById("details-goal").textContent = job.goal;
+    document.getElementById("details-success").textContent = job.success;
+    document.getElementById("details-guardrails").textContent = job.guardrails;
+    document.getElementById("details-source").textContent = job.source;
+    document.getElementById("details-dest").textContent = job.destination;
+    document.getElementById("details-tools").textContent = job.tools;
+    document.getElementById("details-cap-money").textContent = job.budgetUsd === null ? "unknown" : ("$" + Number(job.budgetUsd).toFixed(2));
+    document.getElementById("details-cap-time").textContent = job.maxWallMs === null ? "unknown" : duration(job.maxWallMs);
+    document.getElementById("job-note").textContent = job.note || "";
+    lastJobToolsList = Array.isArray(job.toolsList) ? job.toolsList : null;
+    paintOfferedRow();
+  }
+
+  // ---- selection + loading ----
+  var currentRunid = null;
+  function selectRun(runid, rowEl, siblingSelector){
+    clearSelection();
+    document.querySelectorAll(siblingSelector).forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
+    if(rowEl){ rowEl.classList.add("selected"); rowEl.setAttribute("aria-pressed","true"); }
+    currentRunid = runid;
+    lastJobToolsList = null;
+    getJSON("/api/runs/" + encodeURIComponent(runid)).then(renderRun).catch(function(e){
+      document.getElementById("run-empty").hidden = false;
+      document.getElementById("run-empty").textContent = "failed to load run: " + e.message;
+      document.getElementById("run-content").hidden = true;
+    });
+    getJSON("/api/runs/" + encodeURIComponent(runid) + "/audit").then(renderAudit).catch(function(){ renderAudit(null); });
+    getJSON("/api/runs/" + encodeURIComponent(runid) + "/job").then(renderJob).catch(function(){ renderJob(null); });
+  }
+
+  getJSON("/api/runs").then(function(result){
+    var runs = result.runs || [];
+    runsFilterBar.setItems(runs);
+    if(runs.length && !runs[0].fileMissing){
+      document.getElementById("tab-runs").click();
+      // newest run overall, opened directly — the Workflows view starts
+      // collapsed, but its job row still renders "selected" (build item,
+      // 2026-09-26: a job row shows selected state like a child row) since
+      // `runsFilterBar.refresh()` re-renders AFTER `currentRunid` is set.
+      selectRun(runs[0].runid, null, ".hist-row");
+      document.getElementById("tab-run").click();
+      runsFilterBar.refresh();
+    }
+  }).catch(function(e){
+    document.getElementById("wf-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
+    document.getElementById("history-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
+  });
+
+  // theme toggle
+  (function(){
+    var root = document.documentElement;
+    var btn = document.getElementById("theme-toggle");
+    var stored = null;
+    try{ stored = localStorage.getItem("bareloop-panel-theme"); }catch(e){}
+    if(stored === "light" || stored === "dark"){ root.setAttribute("data-theme", stored); }
+    function current(){
+      var attr = root.getAttribute("data-theme");
+      if(attr) return attr;
+      return (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
+    }
+    function paint(){ btn.textContent = current() === "dark" ? "☾" : "☀"; }
+    paint();
+    btn.addEventListener("click", function(){
+      var next = current() === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      try{ localStorage.setItem("bareloop-panel-theme", next); }catch(e){}
+      paint();
+    });
+  })();
+
+})();
+</script>
+</body>
+</html>

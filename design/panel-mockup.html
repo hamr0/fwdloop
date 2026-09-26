@@ -1,0 +1,2394 @@
+<!DOCTYPE html>
+<!-- borrowed-from: bareloop design/panel-mockup.html@a30bbef -->
+<!-- reference for inputs only; where it conflicts with src/panel/index.html, the panel wins (hamr 2026-09-26) -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bareloop panel — tty console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* dark theme (primary) — Tokyo Night */
+    --bg:#1a1b26; --panel:#1f2335; --panel2:#24283b; --border:#292e42; --border-strong:#3b4261;
+    --text:#c0caf5; --text-dim:#a9b1d6; --text-faint:#565f89;
+    --green:#9ece6a; --green-bg:#1c2b23;
+    --red:#f7768e; --red-bg:#2b1822;
+    --amber:#e0af68; --amber-bg:#2b2416;
+    --grey-dot:#878eac; --grey-bg:#20242f;
+    --cyan:#7dcfff; --cyan-bg:#182634;
+    --magenta:#bb9af7;
+    --accent:#7aa2f7;
+    --btn-bg:#1f2335; --btn-text:#c0caf5;
+    --primary-bg:#7aa2f7; --primary-text:#1a1b26; --primary-border:#7aa2f7;
+    font: 14px/1.5 "Courier Prime", "Courier New", Courier, ui-monospace, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);}
+  body{overflow-x:hidden;}
+  button{font:inherit;cursor:pointer;}
+  table{border-collapse:collapse;width:100%;}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px dotted var(--border-strong);font-size:12px;}
+  th{color:var(--text-dim);font-weight:700;background:var(--panel2);text-transform:uppercase;letter-spacing:0.04em;font-size:11px;border-bottom:1px solid var(--border-strong);}
+  td{border-right:1px dotted var(--border);}
+  td:last-child{border-right:none;}
+  input,select{font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);}
+  input::placeholder{color:var(--text-faint);}
+  label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;text-transform:uppercase;letter-spacing:0.04em;}
+  .field{margin-bottom:10px;}
+  .field input,.field select{width:100%;}
+  a{color:var(--accent);text-decoration:underline;}
+
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  /* light theme override — Tokyo Night Day (dim/status tones darkened to hold ≥4.5:1 on panel2) */
+  :root[data-theme="light"]{
+    --bg:#e1e2e7; --panel:#d0d5e3; --panel2:#e9e9ed; --border:#c4c8da; --border-strong:#a8b0cc;
+    --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5;
+    --green:#567238; --green-bg:#dfe7d4;
+    --red:#c92353; --red-bg:#fbe0e8;
+    --amber:#82643a; --amber-bg:#f0e6d3;
+    --grey-dot:#626887; --grey-bg:#e2e2e8;
+    --cyan:#007197; --cyan-bg:#d6ecf1;
+    --magenta:#9854f1;
+    --accent:#2668c2;
+    --btn-bg:#e9e9ed; --btn-text:#3760bf;
+    --primary-bg:#2668c2; --primary-text:#e1e2e7; --primary-border:#2668c2;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#e1e2e7; --panel:#d0d5e3; --panel2:#e9e9ed; --border:#c4c8da; --border-strong:#a8b0cc;
+      --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5;
+      --green:#567238; --green-bg:#dfe7d4;
+      --red:#c92353; --red-bg:#fbe0e8;
+      --amber:#82643a; --amber-bg:#f0e6d3;
+      --grey-dot:#626887; --grey-bg:#e2e2e8;
+      --cyan:#007197; --cyan-bg:#d6ecf1;
+      --magenta:#9854f1;
+      --accent:#2668c2;
+      --btn-bg:#e9e9ed; --btn-text:#3760bf;
+      --primary-bg:#2668c2; --primary-text:#e1e2e7; --primary-border:#2668c2;
+    }
+  }
+
+  .theme-toggle{padding:4px 9px;min-height:32px;border:1px solid var(--border-strong);background:var(--btn-bg);color:var(--text);}
+
+  /* section labels — no soft rule lines, TUI dotted divider instead */
+  h2, h4, .job-card h4{
+    text-transform:uppercase;letter-spacing:0.06em;font-weight:700;
+  }
+  .rule-label{
+    display:flex;align-items:center;gap:8px;color:var(--text-faint);font-size:11px;
+    text-transform:uppercase;letter-spacing:0.08em;margin:14px 0 8px;
+  }
+  .rule-label::after{content:"";flex:1;border-top:1px dotted var(--border-strong);}
+
+  #BareloopPanel{display:flex;flex-direction:column;min-height:100vh;}
+
+  /* top bar — single-rule TUI header */
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 16px;border-bottom:2px solid var(--border-strong);
+    background:var(--panel);flex-wrap:wrap;gap:8px;
+  }
+  .topbar > div:first-child{display:flex;align-items:baseline;gap:0;white-space:nowrap;overflow:hidden;}
+  .topbar .brand{font-weight:700;font-size:17px;letter-spacing:0.06em;flex:none;}
+  .topbar .brand::before{content:"■ ";}
+  .topbar .tagline{font-size:12px;color:var(--text-dim);margin-left:8px;overflow:hidden;text-overflow:ellipsis;}
+  .topbar .tagline::before{content:"· ";color:var(--text-faint);}
+  .topbar .host{font-size:11px;color:var(--text-faint);margin-left:8px;flex:none;}
+  .topbar .host::before{content:"· @";}
+  @media (max-width: 600px){
+    .topbar .tagline{display:none;}
+  }
+  .topbar .totals{font-size:13px;color:var(--text-dim);text-align:right;}
+  .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+
+  /* main layout */
+  [hidden]{display:none !important;}
+  .main{display:flex;flex:1;min-height:0;}
+  .left-pane{width:420px;flex:none;border-right:1px solid var(--border-strong);display:flex;flex-direction:column;background:var(--panel);}
+  .right-pane{flex:1;min-width:0;display:flex;flex-direction:column;}
+
+  /* tab switches — [1] Chat  [2] Workflows  [3] History, active = inverted
+     container carries --panel2 and buttons stay transparent (same pattern as .rp-tabrow
+     below) so the selected button's --panel fill contrasts against the row, not just
+     against .left-pane's own --panel background — otherwise a selected left tab visually
+     disappears into the pane around it while the right-pane tabs still show a clear box */
+  .tabrow{display:flex;border-bottom:1px solid var(--border-strong);background:var(--panel2);counter-reset:tabnum;}
+  .tabrow button{
+    flex:1;padding:10px 6px;min-height:44px;background:transparent;border:none;
+    border-right:1px dotted var(--border-strong);font-size:13px;color:var(--text-dim);
+    counter-increment:tabnum;
+  }
+  .tabrow button::before{content:"[" counter(tabnum) "] ";color:var(--text-faint);font-weight:700;}
+  .tabrow button:last-child{border-right:none;}
+
+  .pane-body{padding:12px;overflow:auto;flex:1;min-height:0;}
+  .tabpanel{display:none;}
+  .tabpanel.active{display:block;}
+
+  /* status dot -> bracketed TUI glyph, no fill circle */
+  .dot{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:auto;height:auto;border-radius:0;margin-right:6px;vertical-align:middle;
+    background:none;font-weight:700;font-size:12px;letter-spacing:0;
+  }
+  .dot::before{content:"[·]";color:var(--grey-dot);}
+  .dot.green::before{content:"[✓]";color:var(--green);}
+  .dot.red::before{content:"[✗]";color:var(--red);}
+  .dot.amber::before{content:"[▶]";color:var(--amber);}
+  .dot.grey::before{content:"[·]";color:var(--grey-dot);}
+  .dot.pulse::after{content:"▌";color:var(--amber);margin-left:2px;animation:pulse 1s steps(1) infinite;}
+  @media (prefers-reduced-motion: reduce){ .dot.pulse::after{animation:none;opacity:1;} }
+  @keyframes pulse{0%,49%{opacity:1;}50%,100%{opacity:0;}}
+
+  /* badges -> bracket outline text, not filled pills */
+  .badge{display:inline-block;font-size:11px;padding:1px 4px;border-radius:0;border:none;color:var(--text-dim);background:none;font-weight:700;letter-spacing:0.02em;}
+  .badge::before{content:"[";color:var(--text-faint);}
+  .badge::after{content:"]";color:var(--text-faint);}
+  .badge.green{color:var(--green);}
+  .badge.red{color:var(--red);}
+  .badge.amber{color:var(--amber);}
+  .badge.grey{color:var(--grey-dot);}
+
+  /* chat */
+  .chat-thread{display:flex;flex-direction:column;gap:10px;margin-bottom:10px;}
+  .msg{padding:8px 10px;border:1px solid var(--border);border-radius:0;max-width:100%;background:var(--panel2);}
+  .msg.bot{border-left:3px solid var(--border-strong);}
+  .msg.bot .who::before{content:"$ ";}
+  .msg.user{background:var(--bg);margin-left:20px;border-left:3px solid var(--accent);}
+  .msg.user .who::before{content:"> ";}
+  .msg .who{font-size:11px;color:var(--text-faint);margin-bottom:3px;}
+
+  /* job-card drawn as a TUI window: title inset on the top border */
+  .job-card{position:relative;border:1px solid var(--border-strong);border-radius:0;padding:14px 10px 10px;background:var(--panel2);margin-top:10px;margin-bottom:10px;}
+  .job-card h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;}
+  .job-card h4::before{content:"┤ ";color:var(--text-faint);}
+  .job-card h4::after{content:" ├";color:var(--text-faint);}
+  .edit-banner{font-size:12px;padding:6px 8px;border:1px dashed var(--red);color:var(--red);background:var(--red-bg);border-radius:0;margin-bottom:8px;}
+  .edit-banner::before{content:"[!] ";}
+
+  /* compact job card */
+  .job-card.compact{padding:14px 8px 8px;}
+  .job-card.compact .field{margin-bottom:6px;}
+  .job-card.compact label{margin-bottom:1px;font-size:11px;}
+  .job-card.compact input,
+  .job-card.compact select{padding:5px 7px;}
+  /* read-only job-card field value — same box rhythm as an input, no editable affordance */
+  .ro-value{padding:6px 8px;min-height:32px;box-sizing:border-box;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
+
+  /* Job tab: read-only past-runs list — same row shell as History, but static (no buttons, no click).
+     Result glyph reuses .badge (its ::before/::after already render the [ ] brackets). */
+  .wf-past-run{
+    display:flex;flex-wrap:wrap;align-items:center;column-gap:8px;row-gap:2px;
+    padding:6px 8px;border:1px solid var(--border);border-radius:0;margin-bottom:6px;background:var(--panel2);
+  }
+
+  .expand-field{text-overflow:ellipsis;transition:height 0.12s ease;}
+  .expand-field:focus{
+    height:52px;white-space:normal;
+  }
+  .cap-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px;}
+  .cap-field label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:1px;}
+  .cap-field input{width:100%;padding:5px 6px;}
+  @media (max-width: 899px){
+    .cap-row{grid-template-columns:1fr;}
+  }
+
+  /* money & limits strip */
+  .money-strip{display:grid;grid-template-columns:repeat(5, 1fr);gap:12px;align-items:end;padding:10px;border:1px solid var(--border-strong);border-radius:0;background:var(--panel2);}
+  .money-item label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;}
+  .money-value{font-size:16px;font-weight:700;padding:6px 0;}
+  .money-item input{width:100%;height:44px;box-sizing:border-box;}
+  .money-item-save{display:flex;}
+  .money-item-save .btn{width:100%;height:44px;}
+  @media (max-width: 899px){
+    .money-strip{grid-template-columns:1fr 1fr;}
+  }
+  .radio-row{display:flex;gap:14px;align-items:center;margin-bottom:10px;}
+  .radio-row label{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text);margin:0;}
+
+  .btn{padding:8px 14px;min-height:44px;border:1px solid var(--border-strong);border-radius:0;background:var(--panel2);color:var(--text);white-space:nowrap;flex:none;}
+  .btn:hover:not(:disabled){background:var(--panel2);border-color:var(--accent);}
+  .btn:disabled{color:var(--text-faint);border-color:var(--border);cursor:not-allowed;}
+  .btn.primary{background:var(--primary-bg);color:var(--primary-text);border-color:var(--primary-border);font-weight:700;}
+  /* keep the primary fill/text on hover AND active — a plain :hover background would
+     otherwise lose to the generic .btn:hover:not(:disabled) rule above (equal specificity,
+     declared later) and blank the button's text against its own colour */
+  .btn.primary:hover:not(:disabled),
+  .btn.primary:active:not(:disabled){background:var(--primary-bg);color:var(--primary-text);border-color:var(--primary-border);filter:brightness(1.08);}
+  .btn.small{padding:0 9px;height:32px;min-height:0;font-size:12px;}
+  .hint{font-size:11px;color:var(--text-faint);margin-top:4px;}
+
+  .chat-input-row{margin-top:10px;border-top:1px dotted var(--border-strong);padding-top:10px;}
+  .chat-input-row input{width:100%;}
+  /* chat message box reads as an unmistakable text box: ~2x the default input height,
+     same border token as the job-card/Settings inputs (var(--border-strong)), not a new colour.
+     Border is 2px (thicker than the page's other 1px inputs, per hamr's explicit ask) —
+     box-sizing:border-box (global, line 26) absorbs the extra 1px so min-height/width:100%
+     stay the outer box size; no row-layout shift. */
+  #chat-msg{min-height:64px;padding:8px 12px;border:2px solid var(--border-strong);}
+
+  .actions-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:stretch;}
+  .actions-row > .btn{flex:1 1 auto;}
+
+  /* workflows list — dotted rows, > prefix on selected */
+  .wf-toolbar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+  /* 3-line stack, all left-aligned, no right column:
+     line1 = dot + name · line2 (dim) = verdict · status · price · time · date · line3 = actions */
+  .wf-row{
+    display:flex;flex-wrap:wrap;align-items:center;
+    column-gap:8px;row-gap:4px;
+    padding:8px 8px 8px 18px;position:relative;border:1px solid var(--border);border-radius:0;margin-bottom:6px;background:var(--panel2);cursor:pointer;
+  }
+  .wf-row::before{content:" ";position:absolute;left:6px;top:8px;color:var(--accent);font-weight:700;}
+  .wf-row:hover{border-color:var(--border-strong);}
+  .wf-row.selected::before{content:">";}
+  .wf-name{font-weight:700;}
+  .wf-meta{font-size:12px;color:var(--text-dim);}
+  .wf-meta + .wf-meta::before{content:"· ";color:var(--text-faint);}
+  /* zero-height flex item: forces everything after it onto a fresh flex line
+     without claiming a visible line of its own (used between name and the
+     type/meta line, and again before the actions line) */
+  .row-break{flex-basis:100%;height:0;}
+  .wf-row-actions{display:flex;gap:6px;flex-basis:100%;margin-top:2px;}
+
+  /* history compact list */
+  /* 3-line stack, all left-aligned, no right column:
+     line1 = dot + name · line2 (dim) = type · price · time · date · line3 = actions */
+  .hist-row{
+    display:flex;flex-wrap:wrap;align-items:center;
+    column-gap:8px;row-gap:4px;
+    padding:8px;border:1px solid var(--border);border-radius:0;margin-bottom:6px;background:var(--panel2);border-bottom-style:dotted;
+    cursor:pointer;
+  }
+  .hist-row:hover{border-color:var(--border-strong);}
+  .imported-tag{font-size:11px;color:var(--text-faint);}
+
+  /* one shared selected-row look for Workflows and History rows: thicker accent border, rounded corners */
+  .wf-row.selected,
+  .hist-row.selected{border:2px solid var(--accent);border-radius:4px;background:var(--panel2);box-shadow:none;}
+
+  /* right pane header — bracketed run title, single rule below */
+  .rp-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:2px solid var(--border-strong);background:var(--panel);flex-wrap:wrap;gap:8px;}
+  .rp-header h2{margin:0;font-size:15px;}
+  .rp-header h2::before{content:"┤ ";color:var(--text-faint);}
+  .rp-header h2::after{content:" ├";color:var(--text-faint);}
+  .rp-header-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .rp-tabrow{display:flex;border-bottom:1px solid var(--border-strong);background:var(--panel2);counter-reset:rtabnum;}
+  .rp-tabrow button{padding:10px 14px;min-height:44px;background:transparent;border:none;border-right:1px dotted var(--border-strong);font-size:13px;color:var(--text-dim);counter-increment:rtabnum;}
+  .rp-tabrow button::before{content:"[" counter(rtabnum) "] ";color:var(--text-faint);font-weight:700;}
+  /* selected-tab style is shared verbatim between left-pane tabs, settings tabs, and the right-pane tabs — one rule, reused */
+  .tabrow button[aria-selected="true"],
+  .rp-tabrow button[aria-selected="true"]{background:var(--panel);color:var(--accent);font-weight:700;box-shadow:inset 0 -2px 0 var(--accent);}
+  .tabrow button[aria-selected="true"]::before,
+  .rp-tabrow button[aria-selected="true"]::before{color:var(--accent);}
+
+  /* counters restyled as a toolbar strip flush under the Run/Audit tabs — raised panel, not a solid fill */
+  .counters{
+    display:block;padding:9px 12px;border:none;border-bottom:2px solid var(--border-strong);border-radius:0;
+    background:var(--panel2);color:var(--text-dim);margin:-12px -12px 14px;
+    font-size:12px;font-weight:700;
+    white-space:normal;overflow-wrap:break-word;
+  }
+  .counters b, .counters span{color:var(--accent);}
+
+  /* after-run summary — TUI window with inset title, hidden while running */
+  .summary-box{position:relative;border:1px solid var(--border-strong);border-radius:0;padding:16px 12px 12px;margin-top:16px;background:var(--panel2);font-size:12px;}
+  .summary-box#summary-red{border-color:var(--red);}
+  .summary-box#summary-running{border-color:var(--amber);}
+  .summary-box::before{content:"┤ SUMMARY ├";position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;}
+  .summary-headline{font-weight:700;margin-bottom:8px;font-size:13px;}
+  .summary-row{display:flex;gap:0;padding:2px 0;}
+  .sum-label{flex:none;width:66px;color:var(--text-faint);}
+  .sum-val{color:var(--text);}
+  .summary-box .num{color:var(--accent);font-weight:700;}
+
+  .map-box{border:1px solid var(--border-strong);border-radius:0;padding:10px;overflow-x:auto;margin-top:16px;margin-bottom:14px;background:var(--panel2);}
+  .map-box::before{content:"┤ MAP ├";display:block;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;margin:-2px 0 8px 0;}
+  /* the JS layout below sizes the map to fit the box at render time (fewer boxes per row,
+     snaking down, at narrow widths); max-width:100% is only the belt-and-braces backstop for
+     a stale/pre-layout measurement — it shrinks an oversized map to fit, but (unlike width:100%)
+     never stretches an already-fitting map wider than its own natural size, so an unchanged
+     ≤3-step map keeps its original pixel size. */
+  .map-box svg{display:block;max-width:100%;height:auto;}
+  .map-legend{display:flex;gap:14px;font-size:11px;color:var(--text-dim);margin-top:6px;flex-wrap:wrap;}
+
+  .step-card{position:relative;border:1px solid var(--border);border-radius:0;padding:10px;margin-bottom:8px;background:var(--panel2);}
+  .step-card.running{border:1px double var(--amber);}
+  .step-card .step-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+  .step-card h4{margin:0;font-size:13px;}
+  .step-meta{font-size:12px;color:var(--text-dim);margin-top:4px;}
+  .events{margin-top:8px;padding:8px;background:var(--bg);border:1px dotted var(--border-strong);border-radius:0;font-family:"Courier Prime","Courier New",monospace;font-size:12px;color:var(--text);}
+  .events div{padding:2px 0;}
+  .earlier-attempt{font-size:12px;color:var(--text-faint);margin-top:6px;border-top:1px dotted var(--border);padding-top:6px;}
+
+  .toggle-link{font-size:11px;background:none;border:none;text-decoration:underline;color:var(--text-faint);padding:4px 0;}
+
+  /* audit */
+  .chips{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
+  .chip{padding:5px 10px;min-height:32px;border:1px solid var(--border-strong);border-radius:0;background:var(--panel2);font-size:12px;color:var(--text-dim);}
+  .chip::before{content:"[ ";color:var(--text-faint);}
+  .chip::after{content:" ]";color:var(--text-faint);}
+  .chip[aria-pressed="true"]{background:var(--panel);color:var(--accent);border-color:var(--accent);font-weight:700;}
+  .chip[aria-pressed="true"]::before,.chip[aria-pressed="true"]::after{color:var(--accent);opacity:0.8;}
+  .row-blocked{background:var(--red-bg);}
+  .raw-log{margin-top:12px;}
+  .raw-log summary{cursor:pointer;font-size:13px;padding:6px 0;}
+  .raw-log summary::marker{color:var(--text-faint);}
+  .raw-log pre{background:#0b0b0f;color:#e8e8f0;padding:10px;border:1px solid var(--border-strong);border-radius:0;font-size:11px;overflow-x:auto;font-family:"Courier Prime","Courier New",monospace;}
+
+  /* settings view */
+  .settings-view{display:flex;flex-direction:column;flex:1;min-height:0;}
+  .settings-header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:2px solid var(--border-strong);background:var(--panel);}
+  .settings-header h2{margin:0;font-size:15px;}
+  .settings-header h2::before{content:"┤ ";color:var(--text-faint);}
+  .settings-header h2::after{content:" ├";color:var(--text-faint);}
+  .rp-header h2, .settings-header h2{display:inline;}
+  .keyfile-strip{position:relative;border:1px solid var(--border-strong);border-radius:0;padding:12px 12px 8px;background:var(--panel2);margin-top:14px;margin-bottom:14px;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .keyfile-strip::before{content:"┤ KEYS ├";position:absolute;top:-9px;left:10px;background:var(--panel2);padding:0 4px;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;}
+  .keyfile-strip-main{display:flex;flex-direction:column;gap:3px;flex:1;min-width:220px;}
+  .keyfile-strip-actions{display:flex;gap:6px;flex:none;}
+  .keyfile-strip code{background:var(--bg);border:1px solid var(--border-strong);border-radius:0;padding:1px 5px;font-family:"Courier Prime","Courier New",monospace;font-size:11px;color:var(--amber);}
+
+  /* bracketed keys */
+  .btn{position:relative;}
+  .btn::before{content:"[ ";color:var(--text-faint);}
+  .btn::after{content:" ]";color:var(--text-faint);}
+  .btn.primary::before,.btn.primary::after{color:var(--primary-text);opacity:0.6;}
+  .btn:disabled::before,.btn:disabled::after{color:var(--text-faint);opacity:0.4;}
+
+  .radio-row label{white-space:nowrap;}
+
+  /* provider table (columns, not cards) — dotted column separators */
+  .table-wrap{overflow-x:auto;border:1px solid var(--border-strong);border-radius:0;background:var(--panel2);max-width:100%;}
+  .table-wrap table{min-width:1100px;table-layout:auto;}
+  .table-wrap th{white-space:nowrap;}
+  .table-wrap td{vertical-align:top;white-space:nowrap;}
+  .cell-input{width:100%;min-width:90px;height:32px;padding:0 6px;font-size:12px;box-sizing:border-box;}
+  .cell-input-narrow{width:80px;min-width:80px;}
+  /* row controls (input/select/button) share one 32px line; status text drops to its own dim line below */
+  .table-wrap .hint{display:block;margin-top:3px;white-space:nowrap;}
+  .table-wrap td > span, .table-wrap td{line-height:32px;}
+  .table-wrap .hint{line-height:1.4;}
+  td .hint{margin-top:2px;white-space:nowrap;}
+  td.row-actions{white-space:nowrap;}
+  td.row-actions .btn{margin-bottom:2px;}
+  /* input+button pairs in one cell (e.g. balance save) stay on one 32px line, never wrap */
+  .cell-inline{display:flex;align-items:center;gap:4px;white-space:nowrap;}
+
+  /* responsive */
+  @media (max-width: 899px){
+    .main{flex-direction:column;}
+    .left-pane{width:100%;border-right:none;border-bottom:1px solid var(--border-strong);}
+    .right-pane{width:100%;}
+    .msg.user{margin-left:8px;}
+    .topbar{flex-direction:column;align-items:flex-start;}
+    .topbar-right{width:100%;justify-content:space-between;}
+    .btn.small{height:44px;min-height:44px;padding:0 12px;}
+    .cell-input{height:44px;}
+    .chip{min-height:44px;}
+    .counters{position:static;}
+    .rp-header{margin:8px 8px 0;}
+    .rp-tabrow{margin:0 8px;}
+  }
+</style>
+</head>
+<body>
+
+<div role="note" style="background:#fefce8;border:1px solid #facc15;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;line-height:1.5;color:#854d0e;">
+  <b>This is a temporary design lab.</b> Click any element → leave a comment → Save.
+  Your feedback goes to Claude; the lab is deleted on Finish. The overlay
+  badge (bottom-right) tells you whether feedback is streaming live or being
+  collected as JSON.
+</div>
+
+<div id="BareloopPanel" data-variant="F">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div>
+      <span class="brand" id="brand-name">bareloop</span>
+      <span class="tagline">automate a job, verified</span>
+      <span class="host">127.0.0.1:4700</span>
+    </div>
+    <div class="topbar-right">
+      <div class="totals" id="totals-line">
+        Today $1.20 · This month $14.80 · Total $212.40 · Time run 3h 10m · <b>1 running</b>
+      </div>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle light/dark theme">☾</button>
+      <button class="btn small" id="btn-settings" data-testid="btn-settings" aria-haspopup="true">⚙ Settings</button>
+    </div>
+  </header>
+
+  <div class="main" id="main-view">
+
+    <!-- LEFT PANE -->
+    <nav class="left-pane" aria-label="Job navigation">
+      <div class="tabrow" role="tablist" aria-label="Left panel views">
+        <button role="tab" id="tab-chat" aria-controls="panel-chat" aria-selected="true" data-testid="left-tab-chat">Chat</button>
+        <button role="tab" id="tab-workflows" aria-controls="panel-workflows" aria-selected="false" data-testid="left-tab-workflows">Workflows</button>
+        <button role="tab" id="tab-history" aria-controls="panel-history" aria-selected="false" data-testid="left-tab-history">History</button>
+      </div>
+
+      <div class="pane-body">
+
+        <!-- CHAT TAB -->
+        <section id="panel-chat" class="tabpanel active" role="tabpanel" aria-labelledby="tab-chat">
+
+          <div class="msg bot" id="review-round-msg"><div class="who">bareloop</div>
+            <b>Review round 1 of 2</b> — drafted plan:
+            <ol style="margin:6px 0 0 18px;padding:0;">
+              <li>Read the errors — run tsc, collect the error list</li>
+              <li>Fix the types — edit src/checks.js to satisfy tsc</li>
+              <li>Run the check — re-run tsc, confirm 0 errors</li>
+            </ol>
+          </div>
+
+          <div class="job-card compact" data-testid="job-card">
+            <div class="edit-banner" id="edit-banner" data-testid="edit-banner" hidden>Editing a signed job — changes need a new signature</div>
+            <h4 id="job-card-title">Job card — draft</h4>
+
+            <div class="field">
+              <label id="jf-verdict-label">Check type</label>
+              <div class="radio-row" role="radiogroup" aria-labelledby="jf-verdict-label">
+                <label><input type="radio" name="verdict" checked> Deterministic</label>
+                <label><input type="radio" name="verdict"> Rubric</label>
+              </div>
+            </div>
+            <div class="field">
+              <label for="jf-model">Model</label>
+              <select id="jf-model">
+                <option value="deepseek-flash">deepseek-flash · DeepSeek</option>
+                <option value="claude-sonnet-5">claude-sonnet-5 · Anthropic</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="jf-name">Job name</label>
+              <input id="jf-name" type="text" value="fix-types-2">
+              <div class="hint" id="jf-name-hint" data-testid="jf-name-hint">⚠ must be unique — "fix-types" already exists</div>
+            </div>
+            <div class="field">
+              <label for="jf-goal">Goal</label>
+              <input class="expand-field" id="jf-goal" type="text" value="Fix failing type errors in src/checks.js; tsc must exit 0">
+            </div>
+            <div class="field">
+              <label for="jf-source">Source</label>
+              <input id="jf-source" type="text" value="~/code/bareguard (copy)">
+            </div>
+            <div class="field">
+              <label for="jf-dest">Destination</label>
+              <input id="jf-dest" type="text" value="~/code/bareguard-out">
+            </div>
+            <div class="field">
+              <label for="jf-success">Success</label>
+              <input class="expand-field" id="jf-success" type="text" value="npx tsc --noEmit exits 0, no test regressions">
+            </div>
+            <div class="field">
+              <label for="jf-guardrails">Guardrails</label>
+              <input id="jf-guardrails" type="text" value="no edits outside src/, no new deps">
+            </div>
+            <div class="field">
+              <label for="jf-judge">Judge examples <span class="hint" style="display:inline">(rubric only)</span></label>
+              <input class="expand-field" id="jf-judge" type="text" value="n/a — check type is deterministic" disabled>
+            </div>
+
+            <div class="cap-row" data-testid="cap-row">
+              <div class="cap-field">
+                <label for="jf-cap-money">$ cap</label>
+                <input id="jf-cap-money" type="text" value="2.00">
+              </div>
+              <div class="cap-field">
+                <label for="jf-cap-time">Time cap</label>
+                <input id="jf-cap-time" type="text" value="30 min">
+              </div>
+              <div class="cap-field">
+                <label for="jf-price">Token price</label>
+                <input id="jf-price" type="text" placeholder="est.">
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-thread">
+            <div class="msg bot"><div class="who">bareloop</div>What do you want done? Give me the goal, and where the work lives.</div>
+            <div class="msg user"><div class="who">you</div>Fix the failing type errors in src/checks.js and get tsc clean.</div>
+            <div class="msg bot"><div class="who">bareloop</div>Got it. Where's the source, and where should the result land?</div>
+            <div class="msg user"><div class="who">you</div>Source: ~/code/bareguard (copy). Destination: ~/code/bareguard-out</div>
+          </div>
+
+          <div class="chat-input-row">
+            <label for="chat-msg" style="display:none">Message</label>
+            <input id="chat-msg" type="text" placeholder="Ask for a change, or reply to the plan…">
+          </div>
+
+          <div class="actions-row">
+            <button class="btn" data-testid="chat-send">Send</button>
+            <button class="btn primary" id="sign-run-btn" data-testid="btn-sign-run">Sign &amp; run</button>
+            <button class="btn" id="revise-btn" data-testid="btn-revise">Revise (1 left)</button>
+          </div>
+          <div class="hint">Only your click signs. The chat can't.</div>
+        </section>
+
+        <!-- WORKFLOWS TAB -->
+        <section id="panel-workflows" class="tabpanel" role="tabpanel" aria-labelledby="tab-workflows" hidden>
+          <div class="wf-toolbar">
+            <button class="btn small" id="wf-new" data-testid="wf-new">+ New</button>
+            <button class="btn small" id="wf-import" data-testid="wf-import">Import</button>
+          </div>
+
+          <div id="wf-list">
+            <div class="wf-row selected" data-wf="fix-types" data-testid="wf-row-fix-types" tabindex="0" role="button" aria-pressed="true">
+              <span class="dot amber pulse"></span>
+              <span class="wf-name">fix-types</span>
+              <span class="row-break"></span>
+              <span class="wf-meta">deterministic</span>
+              <span class="wf-meta">$0.41 / $2.00</span>
+              <span class="wf-meta">6m 12s</span>
+              <span class="wf-meta">2026-09-22</span>
+              <span class="wf-row-actions">
+                <button class="btn small" data-testid="wf-edit-fix-types">Edit</button>
+                <button class="btn small" data-testid="wf-export-fix-types">Export</button>
+              </span>
+            </div>
+
+            <div class="wf-row" data-wf="doc-comments" data-testid="wf-row-doc-comments" tabindex="0" role="button" aria-pressed="false">
+              <span class="dot green"></span>
+              <span class="wf-name">doc-comments</span>
+              <span class="row-break"></span>
+              <span class="wf-meta">rubric</span>
+              <span class="wf-meta">$0.31 / $1.00</span>
+              <span class="wf-meta">2m 15s</span>
+              <span class="wf-meta">2026-09-18</span>
+              <span class="wf-row-actions">
+                <button class="btn small" data-testid="wf-edit-doc-comments">Edit</button>
+                <button class="btn small" data-testid="wf-export-doc-comments">Export</button>
+              </span>
+            </div>
+
+            <div class="wf-row" data-wf="release-notes" data-testid="wf-row-release-notes" tabindex="0" role="button" aria-pressed="false">
+              <span class="dot green"></span>
+              <span class="wf-name">release-notes</span>
+              <span class="row-break"></span>
+              <span class="wf-meta">deterministic</span>
+              <span class="wf-meta">$0.66 / $1.50</span>
+              <span class="wf-meta">4m 02s</span>
+              <span class="wf-meta">2026-09-20</span>
+              <span class="wf-row-actions">
+                <button class="btn small" data-testid="wf-edit-release-notes">Edit</button>
+                <button class="btn small" data-testid="wf-export-release-notes">Export</button>
+              </span>
+            </div>
+
+            <div class="wf-row" data-wf="lint-sweep" data-testid="wf-row-lint-sweep" tabindex="0" role="button" aria-pressed="false">
+              <span class="dot grey"></span>
+              <span class="wf-name">lint-sweep</span>
+              <span class="row-break"></span>
+              <span class="wf-meta">deterministic</span>
+              <span class="wf-meta">$0.12 / $1.00</span>
+              <span class="wf-meta">0m 51s</span>
+              <span class="wf-meta">2026-09-17</span>
+              <span class="wf-row-actions">
+                <button class="btn small" data-testid="wf-edit-lint-sweep">Edit</button>
+                <button class="btn small" data-testid="wf-export-lint-sweep">Export</button>
+              </span>
+            </div>
+
+            <div class="wf-row" data-wf="weekly-digest" data-testid="wf-row-weekly-digest" tabindex="0" role="button" aria-pressed="false">
+              <span class="dot grey"></span>
+              <span class="wf-name">weekly-digest</span>
+              <span class="row-break"></span>
+              <span class="wf-meta">rubric</span>
+              <span class="wf-meta">not run yet</span>
+              <span class="wf-row-actions">
+                <button class="btn small" data-testid="wf-edit-weekly-digest">Edit</button>
+                <button class="btn small" data-testid="wf-export-weekly-digest">Export</button>
+              </span>
+            </div>
+
+            <!-- 7 real steps — proves the step map's snake wrap on screen (no fixture before
+                 this one ever had more than 3 steps). -->
+            <div class="wf-row" data-wf="migrate-configs" data-testid="wf-row-migrate-configs" tabindex="0" role="button" aria-pressed="false">
+              <span class="dot green"></span>
+              <span class="wf-name">migrate-configs</span>
+              <span class="row-break"></span>
+              <span class="wf-meta">deterministic</span>
+              <span class="wf-meta">$2.47 / $3.00</span>
+              <span class="wf-meta">26m 40s</span>
+              <span class="wf-meta">2026-09-21</span>
+              <span class="wf-row-actions">
+                <button class="btn small" data-testid="wf-edit-migrate-configs">Edit</button>
+                <button class="btn small" data-testid="wf-export-migrate-configs">Export</button>
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <!-- HISTORY TAB -->
+        <section id="panel-history" class="tabpanel" role="tabpanel" aria-labelledby="tab-history" hidden>
+          <div id="history-list" data-testid="history-list">
+            <div class="hist-row" data-testid="hist-row-migrate-configs" tabindex="0" role="button" aria-pressed="false">
+              <span class="dot green"></span>
+              <span class="wf-name">migrate-configs</span>
+              <span class="row-break"></span>
+              <span class="wf-meta">deterministic</span>
+              <span class="wf-meta">$2.47</span>
+              <span class="wf-meta">26m 40s</span>
+              <span class="wf-meta">2026-09-21</span>
+              <span class="wf-row-actions">
+                <button class="btn small">Replay $0</button>
+              </span>
+            </div>
+
+            <div class="hist-row" data-testid="hist-row-release-notes" tabindex="0" role="button" aria-pressed="false">
+              <span class="dot green"></span>
+              <span class="wf-name">release-notes</span>
+              <span class="row-break"></span>
+              <span class="wf-meta">deterministic</span>
+              <span class="wf-meta">$0.66</span>
+              <span class="wf-meta">4m 02s</span>
+              <span class="wf-meta">2026-09-20</span>
+              <span class="wf-row-actions">
+                <button class="btn small">Replay $0</button>
+              </span>
+            </div>
+
+            <div class="hist-row" data-testid="hist-row-fix-types-prior" tabindex="0" role="button" aria-pressed="false">
+              <span class="dot red"></span>
+              <span class="wf-name">fix-types</span>
+              <span class="row-break"></span>
+              <span class="wf-meta">deterministic</span>
+              <span class="wf-meta">$1.84</span>
+              <span class="wf-meta">21m 10s</span>
+              <span class="wf-meta">2026-09-19</span>
+              <span class="wf-row-actions">
+                <button class="btn small">Replay $0</button>
+              </span>
+            </div>
+
+            <div class="hist-row" data-testid="hist-row-doc-comments-prior" tabindex="0" role="button" aria-pressed="false">
+              <span class="dot green"></span>
+              <span class="wf-name">doc-comments</span>
+              <span class="row-break"></span>
+              <span class="wf-meta">rubric</span>
+              <span class="wf-meta">$0.31</span>
+              <span class="wf-meta">2m 15s</span>
+              <span class="wf-meta">2026-09-18</span>
+              <span class="wf-row-actions">
+                <button class="btn small">Replay $0</button>
+              </span>
+            </div>
+
+            <div class="hist-row" data-testid="hist-row-lint-sweep-prior" tabindex="0" role="button" aria-pressed="false">
+              <span class="dot grey"></span>
+              <span class="wf-name">lint-sweep</span>
+              <span class="row-break"></span>
+              <span class="wf-meta">deterministic</span>
+              <span class="wf-meta">$0.12</span>
+              <span class="wf-meta">0m 51s</span>
+              <span class="wf-meta">2026-09-17</span>
+              <span class="wf-row-actions">
+                <button class="btn small">Replay $0</button>
+              </span>
+            </div>
+
+            <div class="hist-row" data-testid="hist-row-onboarding-md" tabindex="0" role="button" aria-pressed="false">
+              <span class="dot green"></span>
+              <span class="wf-name">onboarding-md</span>
+              <span class="row-break"></span>
+              <span class="wf-meta">deterministic</span>
+              <span class="wf-meta">$0.44</span>
+              <span class="wf-meta">3m 05s</span>
+              <span class="wf-meta">2026-09-16</span>
+              <span class="wf-row-actions">
+                <button class="btn small">Replay $0</button>
+              </span>
+            </div>
+
+            <div class="hist-row" data-testid="hist-row-changelog-draft" tabindex="0" role="button" aria-pressed="false">
+              <span class="dot green"></span>
+              <span class="wf-name">changelog-draft <span class="imported-tag">imported · view only</span></span>
+              <span class="row-break"></span>
+              <span class="wf-meta">deterministic</span>
+              <span class="wf-meta">$0.00</span>
+              <span class="wf-meta">—</span>
+              <span class="wf-meta">2026-09-14</span>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </nav>
+
+    <!-- RIGHT PANE -->
+    <section class="right-pane" aria-label="Active workflow">
+      <div class="rp-header">
+        <div class="rp-header-title">
+          <span class="dot amber pulse" id="active-wf-dot"></span>
+          <h2 id="active-wf-name">fix-types</h2>
+          <span class="badge" id="active-wf-verdict">deterministic</span>
+          <span class="badge" id="active-wf-date">not run yet</span>
+        </div>
+      </div>
+
+      <div class="rp-tabrow" role="tablist" aria-label="Workflow views">
+        <button role="tab" id="tab-run" aria-controls="panel-run" aria-selected="true" data-testid="right-tab-run">Run</button>
+        <button role="tab" id="tab-audit" aria-controls="panel-audit" aria-selected="false" data-testid="right-tab-audit">Audit / logs</button>
+        <button role="tab" id="tab-details" aria-controls="panel-details" aria-selected="false" data-testid="right-tab-details">Job</button>
+      </div>
+
+      <div class="pane-body">
+
+        <!-- RUN TAB -->
+        <section id="panel-run" class="tabpanel active" role="tabpanel" aria-labelledby="tab-run">
+
+        <!-- fix-types' own view: live-ticking template, kept exactly as it was before item 3's
+             work (this is the ONLY thing shown when fix-types' live/running attempt is selected,
+             or its one red history entry — same markup, driven into the red state by JS). Every
+             other selection hides this whole block and uses #run-generic-view / #run-empty-view
+             instead, so no fix-types-specific text can leak into another workflow's Run tab. -->
+        <div id="run-fixtypes-view">
+
+          <div class="counters" id="run-counters" data-testid="live-counters">
+            Turn <b id="ctr-turn">14</b> ·
+            <span id="ctr-elapsed">6m 12s</span> elapsed ·
+            $<span id="ctr-spend">0.41</span> of $2.00 ·
+            Time left <span id="ctr-timeleft">23m</span>
+          </div>
+
+          <div class="summary-box" id="summary-running" data-testid="run-summary-running">
+            <div class="summary-headline"><span class="dot amber pulse"></span><b>deterministic</b> · $<span class="num" id="sumrun-spend">0.41</span> of $2.00 · <span class="num" id="sumrun-elapsed">6m 12s</span> · turn <span class="num" id="sumrun-turn">14</span></div>
+            <div class="summary-row"><span class="sum-label">check:</span><span class="sum-val">tsc errors <span class="num">21</span> → <span class="num">12</span> so far</span></div>
+            <div class="summary-row"><span class="sum-label">changed:</span><span class="sum-val">src/checks.js (<span class="num">+18</span> <span class="num">−4</span>) so far</span></div>
+            <div class="summary-row"><span class="sum-label">output:</span><span class="sum-val">delivered only if the run ends <span class="dot green"></span></span></div>
+            <div class="summary-row"><span class="sum-label">steps:</span><span class="sum-val"><span class="num">1</span> of <span class="num">3</span> done · step 2 running · 1 retry</span></div>
+            <div class="summary-row"><span class="sum-label">why:</span><span class="sum-val">— (the check speaks when the run ends)</span></div>
+          </div>
+
+          <div class="summary-box" id="summary-green" data-testid="run-summary-green" hidden>
+            <div class="summary-headline"><span class="dot green"></span><b>deterministic</b> · <span class="num">$1.84</span> · <span class="num">21m 10s</span> · <span class="num">38</span> turns</div>
+            <div class="summary-row"><span class="sum-label">check:</span><span class="sum-val">tsc errors <span class="num">21</span> → <span class="num">0</span></span></div>
+            <div class="summary-row"><span class="sum-label">changed:</span><span class="sum-val">src/checks.js (<span class="num">+42</span> <span class="num">−17</span>)</span></div>
+            <div class="summary-row"><span class="sum-label">output:</span><span class="sum-val">~/code/bareguard-out/fix-types-2026-09-22</span></div>
+            <div class="summary-row"><span class="sum-label">steps:</span><span class="sum-val"><span class="num">3</span> of <span class="num">3</span> done · 1 retry at step 2</span></div>
+            <div class="summary-row"><span class="sum-label">why:</span><span class="sum-val">"tsc exits 0, no test regressions"</span></div>
+          </div>
+
+          <div class="summary-box" id="summary-red" data-testid="run-summary-red" hidden>
+            <div class="summary-headline"><span class="dot red"></span><b>deterministic</b> · <span class="num">$1.84</span> · <span class="num">21m 10s</span> · <span class="num">61</span> turns</div>
+            <div class="summary-row"><span class="sum-label">check:</span><span class="sum-val">tsc errors <span class="num">21</span> → <span class="num">12</span></span></div>
+            <div class="summary-row"><span class="sum-label">changed:</span><span class="sum-val">src/checks.js (<span class="num">+18</span> <span class="num">−4</span>)</span></div>
+            <div class="summary-row"><span class="sum-label">output:</span><span class="sum-val">nothing delivered — only a run that ends <span class="dot green"></span> delivers</span></div>
+            <div class="summary-row"><span class="sum-label">steps:</span><span class="sum-val"><span class="num">1</span> of <span class="num">3</span> done · stopped at step 2</span></div>
+            <div class="summary-row"><span class="sum-label">why:</span><span class="sum-val">"12 errors left" (the check's own words)</span></div>
+          </div>
+
+          <!-- step map: built by renderStepMap() (shared with every other workflow/history
+               selection — see stepmap.js's buildStepMapSVG()), never a second hand-authored map. -->
+          <div class="map-box" data-testid="step-map" id="fixtypes-map-box">
+            <div id="fixtypes-map-mount"></div>
+          </div>
+
+          <div id="step-list">
+            <div class="step-card" data-testid="step-card-1">
+              <div class="step-head">
+                <h4>1 · Read the errors</h4>
+                <span class="badge green">done</span>
+              </div>
+              <div class="step-meta">Run tsc, collect the error list · 3 turns · 0m 48s · $0.06</div>
+            </div>
+
+            <div class="step-card running" id="step-card-2" data-testid="step-card-2">
+              <div class="step-head">
+                <h4>2 · Fix the types</h4>
+                <span class="badge amber" id="step2-badge">running</span>
+              </div>
+              <div class="step-meta">Edit src/checks.js to satisfy tsc · 9 turns · 4m 40s · $0.30</div>
+              <div class="events">
+                <div>› read src/checks.js</div>
+                <div>› edited src/checks.js lines 40–62</div>
+                <div>› check: 12 errors left (was 21)</div>
+              </div>
+              <div class="earlier-attempt">Earlier attempt: try 1 ended <span class="dot red"></span> at step 2 — "still 21 errors"</div>
+            </div>
+
+            <div class="step-card" id="step-card-3" data-testid="step-card-3">
+              <div class="step-head">
+                <h4>3 · Run the check</h4>
+                <span class="badge grey" id="step3-badge">waiting</span>
+              </div>
+              <div class="step-meta">Re-run tsc, confirm 0 errors · 0 turns · — · $0.00</div>
+            </div>
+          </div>
+
+          <div class="actions-row" data-testid="action-bar">
+            <div>
+              <button class="btn" id="btn-accept" data-testid="btn-accept" disabled>Accept</button>
+              <button class="btn" id="btn-rerun" data-testid="btn-rerun" disabled>Rerun</button>
+              <div class="hint" id="accept-hint">available when the run ends</div>
+            </div>
+            <div>
+              <button class="btn" id="btn-pause" data-testid="btn-pause">Pause</button>
+            </div>
+            <div>
+              <button class="btn" id="btn-replay" data-testid="btn-replay">Replay $0</button>
+              <div class="hint">plays back the recording, no model calls</div>
+            </div>
+          </div>
+
+          <button class="toggle-link" id="simulate-toggle" data-testid="simulate-toggle">simulate: run passed</button>
+          <button class="toggle-link" id="simulate-toggle-red" data-testid="simulate-toggle-red">simulate: run failed</button>
+
+        </div>
+
+        <!-- every other workflow/run: built by renderGeneric() from wfData/histData, never from
+             the fix-types fixture above. -->
+        <div id="run-generic-view" hidden data-testid="run-generic-view">
+
+          <div class="counters" id="gen-counters" data-testid="gen-counters"></div>
+
+          <div class="summary-box" id="gen-summary" data-testid="gen-summary">
+            <div class="summary-headline" id="gen-summary-headline"></div>
+            <div class="summary-row"><span class="sum-label">check:</span><span class="sum-val" id="gen-sum-check"></span></div>
+            <div class="summary-row"><span class="sum-label">changed:</span><span class="sum-val" id="gen-sum-changed"></span></div>
+            <div class="summary-row"><span class="sum-label">output:</span><span class="sum-val" id="gen-sum-output"></span></div>
+            <div class="summary-row"><span class="sum-label">steps:</span><span class="sum-val" id="gen-sum-steps"></span></div>
+            <div class="summary-row"><span class="sum-label">why:</span><span class="sum-val" id="gen-sum-why"></span></div>
+          </div>
+
+          <!-- step map: same renderStepMap() as the fix-types view above — one data-driven
+               renderer for every selection, no second hand-authored map here. -->
+          <div class="map-box" data-testid="gen-map" id="gen-map">
+            <div id="gen-map-mount"></div>
+          </div>
+
+          <div id="gen-step-list" data-testid="gen-step-list"></div>
+
+          <div class="actions-row" id="gen-actions" data-testid="gen-action-bar"></div>
+
+        </div>
+
+        <!-- workflow has never run: no summary numbers at all -->
+        <div id="run-empty-view" hidden data-testid="run-empty-view">
+          <div class="hint" style="font-size:13px;padding:24px 0;">not run yet</div>
+        </div>
+
+        </section>
+
+        <!-- AUDIT / LOGS TAB -->
+        <section id="panel-audit" class="tabpanel" role="tabpanel" aria-labelledby="tab-audit" hidden>
+
+          <div id="audit-empty" class="hint" data-testid="audit-empty" style="font-size:13px;padding:24px 0;" hidden>no logs — not run yet</div>
+
+          <div id="audit-content" data-testid="audit-content">
+
+          <div class="audit-toolbar" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+            <div class="chips" role="group" aria-label="Filter audit rows" style="margin-bottom:0;">
+              <button class="chip" aria-pressed="true" data-filter="all" data-testid="chip-all">All</button>
+              <button class="chip" aria-pressed="false" data-filter="write" data-testid="chip-writes">Writes</button>
+              <button class="chip" aria-pressed="false" data-filter="blocked" data-testid="chip-blocked">Blocked</button>
+            </div>
+
+            <button class="btn small" id="btn-download-log" data-testid="btn-download-log">Download log</button>
+          </div>
+
+          <table data-testid="audit-table">
+            <thead>
+              <tr><th>Time</th><th>Action</th><th>Path</th><th>Decision</th><th>Step</th></tr>
+            </thead>
+            <tbody id="audit-tbody">
+            </tbody>
+          </table>
+
+          <details class="raw-log" data-testid="raw-spine-log">
+            <summary>Raw spine events</summary>
+            <pre id="audit-rawlog"></pre>
+          </details>
+
+          </div>
+
+        </section>
+
+        <!-- JOB TAB — read-only view opened from a Workflows row's "Open" button:
+             the signed job card with no editable fields and no Sign/Revise actions,
+             plus that workflow's past runs. -->
+        <section id="panel-details" class="tabpanel" role="tabpanel" aria-labelledby="tab-details" hidden data-testid="panel-details">
+
+          <div class="job-card compact" data-testid="job-card-readonly">
+            <h4 id="details-title">Job card — signed</h4>
+
+            <div class="field">
+              <label>Check type</label>
+              <div class="ro-value" id="details-verdict">deterministic</div>
+            </div>
+            <div class="field">
+              <label>Model</label>
+              <div class="ro-value" id="details-model">deepseek-flash</div>
+            </div>
+            <div class="field">
+              <label>Goal</label>
+              <div class="ro-value" id="details-goal">—</div>
+            </div>
+            <div class="field">
+              <label>Source</label>
+              <div class="ro-value" id="details-source">—</div>
+            </div>
+            <div class="field">
+              <label>Destination</label>
+              <div class="ro-value" id="details-dest">—</div>
+            </div>
+            <div class="field">
+              <label>Success</label>
+              <div class="ro-value" id="details-success">—</div>
+            </div>
+            <div class="field">
+              <label>Guardrails</label>
+              <div class="ro-value" id="details-guardrails">—</div>
+            </div>
+            <div class="cap-row">
+              <div class="cap-field">
+                <label>$ cap</label>
+                <div class="ro-value" id="details-cap-money">—</div>
+              </div>
+              <div class="cap-field">
+                <label>Time cap</label>
+                <div class="ro-value" id="details-cap-time">—</div>
+              </div>
+            </div>
+          </div>
+
+          <h4 style="margin:14px 0 8px;">Past runs</h4>
+          <div id="details-runs" data-testid="details-runs"></div>
+
+        </section>
+
+      </div>
+    </section>
+
+  </div>
+
+  <!-- SETTINGS VIEW -->
+  <section class="settings-view" id="settings-view" aria-label="Settings" hidden>
+    <div class="settings-header">
+      <button class="btn small" id="settings-back" data-testid="settings-back">← Back</button>
+      <h2>Settings</h2>
+    </div>
+
+    <div class="tabrow" role="tablist" aria-label="Settings views">
+      <button role="tab" id="tab-providers" aria-controls="panel-providers" aria-selected="true" data-testid="settings-tab-providers">Providers</button>
+      <button role="tab" id="tab-money" aria-controls="panel-money" aria-selected="false" data-testid="settings-tab-money">Money &amp; limits</button>
+    </div>
+
+    <div class="pane-body">
+
+      <!-- PROVIDERS TAB -->
+      <section id="panel-providers" class="tabpanel active" role="tabpanel" aria-labelledby="tab-providers">
+
+        <div class="keyfile-strip" data-testid="keyfile-box">
+          <div class="keyfile-strip-main">
+            <span>Add a line <code>NAME=key</code> to <code>~/.config/bareloop/.env</code>, then Reload keys — the name appears in the dropdown. Only names are listed; keys never reach this page.</span>
+            <span class="hint" data-testid="keyfile-warning">⚠ file is readable by other users — run: chmod 600 ~/.config/bareloop/.env</span>
+          </div>
+          <div class="keyfile-strip-actions">
+            <button class="btn small" id="btn-copy-keyfile-path" data-testid="btn-copy-keyfile-path">Copy path</button>
+            <button class="btn small" id="btn-reload-keys" data-testid="btn-reload-keys">Reload keys</button>
+          </div>
+        </div>
+
+        <div class="wf-toolbar">
+          <button class="btn small" id="btn-add-provider" data-testid="btn-add-provider">+ Add provider</button>
+        </div>
+
+        <div class="table-wrap" data-testid="provider-table-wrap">
+          <table data-testid="provider-table">
+            <thead>
+              <tr>
+                <th>Name</th><th>API shape</th><th>Base URL</th><th>Key variable</th>
+                <th>Test</th><th>Tokens used</th><th>Balance</th><th>Price</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-testid="provider-row-deepseek">
+                <td><input class="cell-input" id="pv-ds-name" type="text" value="DeepSeek"></td>
+                <td>
+                  <select class="cell-input" id="pv-ds-shape">
+                    <option selected>OpenAI-compatible</option>
+                    <option>Anthropic</option>
+                    <option>Gemini</option>
+                    <option>Ollama (llama)</option>
+                  </select>
+                </td>
+                <td><input class="cell-input" id="pv-ds-url" type="text" value="https://api.deepseek.com"></td>
+                <td>
+                  <select class="cell-input" id="pv-ds-env">
+                    <option selected>DEEPSEEK_API_KEY</option>
+                    <option>ANTHROPIC_API_KEY</option>
+                    <option>GEMINI_API_KEY (empty)</option>
+                    <option>none needed</option>
+                  </select>
+                  <div class="hint">found in file ✓</div>
+                </td>
+                <td>
+                  <button class="btn small" id="test-connection-deepseek" data-testid="test-connection-deepseek">Test</button>
+                  <div class="hint" id="test-result-deepseek">OK · 412 ms</div>
+                </td>
+                <td>18.4M</td>
+                <td>$7.42 · 2 min ago</td>
+                <td>est.</td>
+                <td class="row-actions">
+                  <button class="btn small" data-testid="edit-provider-deepseek">Edit</button>
+                  <button class="btn small" data-testid="remove-provider-deepseek">Remove</button>
+                </td>
+              </tr>
+
+              <tr data-testid="provider-row-anthropic">
+                <td><input class="cell-input" id="pv-an-name" type="text" value="Anthropic"></td>
+                <td>
+                  <select class="cell-input" id="pv-an-shape">
+                    <option>OpenAI-compatible</option>
+                    <option selected>Anthropic</option>
+                    <option>Gemini</option>
+                    <option>Ollama (llama)</option>
+                  </select>
+                </td>
+                <td><input class="cell-input" id="pv-an-url" type="text" value="https://api.anthropic.com"></td>
+                <td>
+                  <select class="cell-input" id="pv-an-env">
+                    <option>DEEPSEEK_API_KEY</option>
+                    <option selected>ANTHROPIC_API_KEY</option>
+                    <option>GEMINI_API_KEY (empty)</option>
+                    <option>none needed</option>
+                  </select>
+                  <div class="hint">not set ✗</div>
+                </td>
+                <td>
+                  <button class="btn small" id="test-connection-anthropic" data-testid="test-connection-anthropic">Test</button>
+                  <div class="hint" id="test-result-anthropic">not tested</div>
+                </td>
+                <td>2.1M</td>
+                <td>
+                  <span class="cell-inline">
+                    <input class="cell-input cell-input-narrow" id="pv-an-balance" type="text" placeholder="e.g. 25.00">
+                    <button class="btn small" id="save-anthropic-balance" data-testid="save-anthropic-balance">Save</button>
+                  </span>
+                </td>
+                <td>est.</td>
+                <td class="row-actions">
+                  <button class="btn small" data-testid="edit-provider-anthropic">Edit</button>
+                  <button class="btn small" data-testid="remove-provider-anthropic">Remove</button>
+                </td>
+              </tr>
+
+              <tr data-testid="provider-row-local-llama">
+                <td><input class="cell-input" id="pv-ll-name" type="text" value="Local llama"></td>
+                <td>
+                  <select class="cell-input" id="pv-ll-shape">
+                    <option>OpenAI-compatible</option>
+                    <option>Anthropic</option>
+                    <option>Gemini</option>
+                    <option selected>Ollama (llama)</option>
+                  </select>
+                </td>
+                <td><input class="cell-input" id="pv-ll-url" type="text" value="http://127.0.0.1:11434"></td>
+                <td>
+                  <select class="cell-input" id="pv-ll-env">
+                    <option>DEEPSEEK_API_KEY</option>
+                    <option>ANTHROPIC_API_KEY</option>
+                    <option>GEMINI_API_KEY (empty)</option>
+                    <option selected>none needed</option>
+                  </select>
+                </td>
+                <td>
+                  <button class="btn small" id="test-connection-local-llama" data-testid="test-connection-local-llama">Test</button>
+                  <div class="hint" id="test-result-local-llama">OK · 9 ms</div>
+                </td>
+                <td>640K</td>
+                <td>local — no bill</td>
+                <td>no price set</td>
+                <td class="row-actions">
+                  <button class="btn small" data-testid="edit-provider-local-llama">Edit</button>
+                  <button class="btn small" data-testid="remove-provider-local-llama">Remove</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="hint" style="margin-top:6px;">Only variable names are shown here. The key itself never reaches this page.</div>
+      </section>
+
+      <!-- MONEY & LIMITS TAB -->
+      <section id="panel-money" class="tabpanel" role="tabpanel" aria-labelledby="tab-money" hidden>
+        <div class="money-strip" data-testid="money-strip">
+          <div class="money-item">
+            <label>Total spent to date</label>
+            <div class="money-value">$212.40</div>
+          </div>
+          <div class="money-item">
+            <label>This month spent</label>
+            <div class="money-value">$14.80</div>
+          </div>
+          <div class="money-item">
+            <label for="ml-money">Monthly money limit ($)</label>
+            <input id="ml-money" type="text" value="50.00">
+          </div>
+          <div class="money-item">
+            <label for="ml-time">Monthly time limit (hours)</label>
+            <input id="ml-time" type="text" value="20">
+          </div>
+          <div class="money-item money-item-save">
+            <button class="btn" id="btn-save-limits" data-testid="btn-save-limits">Save</button>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:6px;">Limits are yours. The agent can never change them.</div>
+
+        <h4 style="margin-top:20px;font-size:13px;">Per-provider breakdown</h4>
+        <table data-testid="provider-breakdown-table">
+          <thead>
+            <tr><th>Provider</th><th>This month $</th><th>To date $</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>DeepSeek</td><td>$9.10</td><td>$132.20</td></tr>
+            <tr><td>Anthropic</td><td>$5.70</td><td>$80.20</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  function wireTabs(tabButtons, panelPrefix){
+    tabButtons.forEach(function(btn){
+      btn.addEventListener("click", function(){
+        tabButtons.forEach(function(b){
+          b.setAttribute("aria-selected", "false");
+          var p = document.getElementById(b.getAttribute("aria-controls"));
+          if(p){ p.hidden = true; p.classList.remove("active"); }
+        });
+        btn.setAttribute("aria-selected", "true");
+        var panel = document.getElementById(btn.getAttribute("aria-controls"));
+        if(panel){ panel.hidden = false; panel.classList.add("active"); }
+      });
+    });
+  }
+
+  // left tabs
+  wireTabs([
+    document.getElementById("tab-chat"),
+    document.getElementById("tab-workflows"),
+    document.getElementById("tab-history")
+  ]);
+
+  // right tabs
+  wireTabs([
+    document.getElementById("tab-run"),
+    document.getElementById("tab-audit"),
+    document.getElementById("tab-details")
+  ]);
+
+  // settings tabs
+  wireTabs([
+    document.getElementById("tab-providers"),
+    document.getElementById("tab-money")
+  ]);
+
+  // "+ New" jumps to Chat tab
+  document.getElementById("wf-new").addEventListener("click", function(){
+    document.getElementById("tab-chat").click();
+  });
+
+  // ===================================================================================
+  // ITEM 3: clicking a row in EITHER Workflows or History makes the WHOLE right pane
+  // (header, Run, Audit, Job) about that one thing — never a mix of two items.
+  //
+  // fix-types keeps its original hand-built live-ticking template verbatim (#run-fixtypes-view,
+  // wired by applyRunState below) — that template is used for exactly two selections: the
+  // fix-types workflow (its live/running attempt) and the "fix-types-prior" history row (its
+  // one finished/red attempt, 2026-09-19). Every other selection renders through the generic,
+  // data-driven template (#run-generic-view) or the empty-state template (#run-empty-view), so
+  // no fix-types-specific text can leak into another workflow's Run tab.
+  // ===================================================================================
+
+  var wfRows = document.querySelectorAll(".wf-row");
+  var histRows = document.querySelectorAll(".hist-row");
+  var activeName = document.getElementById("active-wf-name");
+  var activeVerdict = document.getElementById("active-wf-verdict");
+  var activeDate = document.getElementById("active-wf-date");
+  var activeDot = document.getElementById("active-wf-dot");
+
+  // internal names stay "green"/"soft-green"; only the visible label changes
+  function verdictLabel(internal){
+    return internal === "soft-green" ? "rubric" : "deterministic";
+  }
+
+  // this mockup's "today" — a workflow whose latest attempt is LIVE shows this as its own
+  // date (row and header both), never a prior finished attempt's date.
+  var TODAY = "2026-09-22";
+
+  // ---- Workflows tab: the CURRENT signed job card + its own run history (linked to histData
+  // by histId, since a run's full detail lives in one place — histData — never duplicated). ----
+  var wfData = {
+    "fix-types": {verdict:"green", status:"running", statusClass:"amber",
+      goal:"Fix failing type errors in src/checks.js; tsc must exit 0",
+      source:"~/code/bareguard (copy)", dest:"~/code/bareguard-out",
+      success:"npx tsc --noEmit exits 0, no test regressions",
+      guardrails:"no edits outside src/, no new deps", money:"2.00", time:"30 min", model:"deepseek-flash",
+      runs:[
+        {histId:"fix-types-prior", ok:false, date:"2026-09-19", spend:"1.84", time:"21m 10s"}
+      ]},
+    "doc-comments": {verdict:"soft-green", status:"done", statusClass:"green",
+      goal:"Add missing doc comments to exported functions in src/",
+      source:"~/code/bareguard (copy)", dest:"~/code/bareguard-out",
+      success:"every exported function has a doc comment",
+      guardrails:"no logic changes, comments only", money:"1.00", time:"15 min", model:"deepseek-flash",
+      runs:[
+        {histId:"doc-comments-prior", ok:true, date:"2026-09-18", spend:"0.31", time:"2m 15s"}
+      ]},
+    "release-notes": {verdict:"green", status:"done", statusClass:"green",
+      goal:"Draft release notes from the merged PRs since the last tag",
+      source:"~/code/bareguard (copy)", dest:"~/code/bareguard-out",
+      success:"RELEASE_NOTES.md written, one bullet per PR",
+      guardrails:"no source edits, docs only", money:"1.50", time:"20 min", model:"claude-sonnet-5",
+      runs:[
+        {histId:"release-notes", ok:true, date:"2026-09-20", spend:"0.66", time:"4m 02s"}
+      ]},
+    "lint-sweep": {verdict:"green", status:"paused", statusClass:"grey",
+      goal:"Run the linter and fix auto-fixable violations",
+      source:"~/code/bareguard (copy)", dest:"~/code/bareguard-out",
+      success:"lint exits 0",
+      guardrails:"no manual rule disables", money:"1.00", time:"10 min", model:"deepseek-flash",
+      runs:[
+        {histId:"lint-sweep-prior", ok:true, date:"2026-09-17", spend:"0.12", time:"0m 51s"}
+      ]},
+    // never run, no History entry either — kept as the concrete "never run yet" proof
+    "weekly-digest": {verdict:"soft-green", status:"not-run", statusClass:"grey",
+      goal:"Summarize this week's merged PRs and opened issues into a digest",
+      source:"~/code/bareguard (copy)", dest:"~/code/bareguard-out",
+      success:"digest.md written, covers PRs and issues opened this week",
+      guardrails:"docs only, no source edits", money:"0.75", time:"10 min", model:"deepseek-flash",
+      runs:[]},
+    // 7 real steps — the only fixture past 3, proving the step map's snake wrap on screen.
+    "migrate-configs": {verdict:"green", status:"done", statusClass:"green",
+      goal:"Migrate config/*.json to config/*.yaml and point the loader at the new files",
+      source:"~/code/bareguard (copy)", dest:"~/code/bareguard-out",
+      success:"config loader tests exit 0, every config/*.json has a config/*.yaml equivalent",
+      guardrails:"no edits outside config/, src/configLoader.js, docs/CONFIG.md", money:"3.00", time:"45 min", model:"deepseek-flash",
+      runs:[
+        {histId:"migrate-configs", ok:true, date:"2026-09-21", spend:"2.47", time:"26m 40s"}
+      ]}
+  };
+
+  // fix-types' original static audit fixture (unchanged content), now populated via JS instead
+  // of hardcoded table rows, so the SAME renderer serves the live run and every other selection.
+  var auditFixTypesRows = [
+    {time:"10:41:02", action:"read", path:"src/checks.js", step:1},
+    {time:"10:41:04", action:"read", path:"tsconfig.json", step:1},
+    {time:"10:41:40", action:"write", path:"src/checks.js", step:2, write:true},
+    {time:"10:41:52", action:"edit", path:"src/checks.js", step:2, write:true},
+    {time:"10:42:10", action:"check", path:"tsc --noEmit", step:2},
+    {time:"10:42:15", action:"write", path:".git/config", step:2, write:true, blocked:true},
+    {time:"10:42:30", action:"read", path:"src/types.d.ts", step:2},
+    {time:"10:43:05", action:"edit", path:"src/checks.js", step:2, write:true},
+    {time:"10:43:20", action:"read", path:"package.json", step:2},
+    {time:"10:43:41", action:"check", path:"tsc --noEmit", step:2}
+  ];
+  var auditFixTypesRawLog =
+'{"t":"2026-09-21T10:41:02Z","type":"read","run_id":"mu9x02aa","path":"src/checks.js","step":1}\n' +
+'{"t":"2026-09-21T10:41:04Z","type":"read","run_id":"mu9x02aa","path":"tsconfig.json","step":1}\n' +
+'{"t":"2026-09-21T10:41:40Z","type":"write","run_id":"mu9x02aa","path":"src/checks.js","step":2,"allowed":true}\n' +
+'{"t":"2026-09-21T10:41:52Z","type":"edit","run_id":"mu9x02aa","path":"src/checks.js","step":2,"allowed":true}\n' +
+'{"t":"2026-09-21T10:42:10Z","type":"check","run_id":"mu9x02aa","cmd":"tsc --noEmit","step":2,"result":"12 errors"}\n' +
+'{"t":"2026-09-21T10:42:15Z","type":"write","run_id":"mu9x02aa","path":".git/config","step":2,"allowed":false}\n' +
+'{"t":"2026-09-21T10:43:05Z","type":"edit","run_id":"mu9x02aa","path":"src/checks.js","step":2,"allowed":true}\n' +
+'{"t":"2026-09-21T10:43:41Z","type":"check","run_id":"mu9x02aa","cmd":"tsc --noEmit","step":2,"result":"5 errors"}';
+
+  // ---- History tab: one self-contained snapshot per run (its own job-card fields as of that
+  // run, plus its own Run/Audit detail) — a history record never changes when a job is re-signed. ----
+  var histData = {
+    "fix-types-prior": {
+      wfName:"fix-types", verdict:"green", dotClass:"dot red", date:"2026-09-19",
+      spend:"1.84", cap:"2.00", elapsed:"21m 10s", turns:61, ok:false,
+      job: wfData["fix-types"] // same job card fields; only the run outcome differs
+      // Run/Audit for this one reuse the fix-types live template (applyRunState("red")) +
+      // auditFixTypesRows/auditFixTypesRawLog — see selectHistory().
+    },
+    "migrate-configs": {
+      wfName:"migrate-configs", verdict:"green", dotClass:"dot green", date:"2026-09-21",
+      spend:"2.47", cap:"3.00", elapsed:"26m 40s", turns:54, ok:true,
+      job: wfData["migrate-configs"],
+      run:{
+        checkLine:"config loader tests 1 failing → 0 failing, 14 files converted",
+        changedLine:"config/*.json → config/*.yaml (14 files), src/configLoader.js (+22 −8), docs/CONFIG.md (+18 −2)",
+        outputLine:"~/code/bareguard-out/migrate-configs-2026-09-21",
+        stepsLine:"7 of 7 done",
+        whyLine:"\"config loader tests exit 0, every config/*.json has a config/*.yaml equivalent\"",
+        steps:[
+          {title:"Scan config files", meta:"list config/*.json across the repo · 4 turns · 0m 25s · $0.05", badge:"done", badgeClass:"green"},
+          {title:"Parse JSON configs", meta:"validate JSON, collect key/value shape · 6 turns · 0m 40s · $0.09", badge:"done", badgeClass:"green"},
+          {title:"Convert to YAML", meta:"write config/*.yaml equivalents · 10 turns · 4m 50s · $0.42", badge:"done", badgeClass:"green",
+            events:["read config/app.json","wrote config/app.yaml","wrote config/db.yaml"]},
+          {title:"Update references in source", meta:"point src/configLoader.js at the .yaml files · 12 turns · 6m 20s · $0.55", badge:"done", badgeClass:"green",
+            events:["edited src/configLoader.js"]},
+          {title:"Run config loader tests", meta:"node --test test/configLoader.test.js · 14 turns · 9m 45s · $0.78", badge:"done", badgeClass:"green", retries:1,
+            events:["1 test failing: missing db.port key","edited src/configLoader.js","node --test test/configLoader.test.js — 0 failing"]},
+          {title:"Update documentation", meta:"docs/CONFIG.md reflects the YAML format · 5 turns · 3m 10s · $0.32", badge:"done", badgeClass:"green"},
+          {title:"Final validation run", meta:"yamllint config/, full test suite · 3 turns · 1m 30s · $0.26", badge:"done", badgeClass:"green"}
+        ],
+        audit:[
+          {time:"13:05:00", action:"read", path:"config/app.json", step:1},
+          {time:"13:05:04", action:"read", path:"config/db.json", step:1},
+          {time:"13:05:40", action:"read", path:"config/app.json", step:2},
+          {time:"13:07:10", action:"write", path:"config/app.yaml", step:3, write:true},
+          {time:"13:07:25", action:"write", path:"config/db.yaml", step:3, write:true},
+          {time:"13:10:05", action:"edit", path:"src/configLoader.js", step:4, write:true},
+          {time:"13:16:30", action:"check", path:"node --test test/configLoader.test.js", step:5},
+          {time:"13:18:10", action:"edit", path:"src/configLoader.js", step:5, write:true},
+          {time:"13:19:50", action:"check", path:"node --test test/configLoader.test.js", step:5},
+          {time:"13:23:15", action:"write", path:"docs/CONFIG.md", step:6, write:true},
+          {time:"13:24:50", action:"check", path:"yamllint config/", step:7}
+        ],
+        rawLog:
+'{"t":"2026-09-21T13:05:00Z","type":"read","run_id":"mu9m07ff","path":"config/app.json","step":1}\n' +
+'{"t":"2026-09-21T13:07:10Z","type":"write","run_id":"mu9m07ff","path":"config/app.yaml","step":3,"allowed":true}\n' +
+'{"t":"2026-09-21T13:16:30Z","type":"check","run_id":"mu9m07ff","cmd":"node --test test/configLoader.test.js","step":5,"result":"1 failing"}\n' +
+'{"t":"2026-09-21T13:19:50Z","type":"check","run_id":"mu9m07ff","cmd":"node --test test/configLoader.test.js","step":5,"result":"0 failing"}\n' +
+'{"t":"2026-09-21T13:24:50Z","type":"check","run_id":"mu9m07ff","cmd":"yamllint config/","step":7,"result":"0 issues"}'
+      }
+    },
+    "release-notes": {
+      wfName:"release-notes", verdict:"green", dotClass:"dot green", date:"2026-09-20",
+      spend:"0.66", cap:"1.50", elapsed:"4m 02s", turns:22, ok:true,
+      job:{goal:"Draft release notes from the merged PRs since the last tag",
+        source:"~/code/bareguard (copy)", dest:"~/code/bareguard-out",
+        success:"RELEASE_NOTES.md written, one bullet per PR",
+        guardrails:"no source edits, docs only", money:"1.50", time:"20 min", model:"claude-sonnet-5"},
+      run:{
+        checkLine:"PRs found 9 → 9 documented",
+        changedLine:"RELEASE_NOTES.md (+40 −0)",
+        outputLine:"~/code/bareguard-out/release-notes-2026-09-20",
+        stepsLine:"3 of 3 done",
+        whyLine:"\"RELEASE_NOTES.md written, one bullet per PR\"",
+        steps:[
+          {title:"Collect merged PRs", meta:"git log since last tag, list PR numbers · 6 turns · 1m 10s · $0.14", badge:"done", badgeClass:"green"},
+          {title:"Draft the notes", meta:"one bullet per PR, grouped by type · 12 turns · 2m 05s · $0.38", badge:"done", badgeClass:"green",
+            events:["read git log --since last tag","drafted 9 bullets"]},
+          {title:"Write RELEASE_NOTES.md", meta:"write file, final pass · 4 turns · 0m 47s · $0.14", badge:"done", badgeClass:"green"}
+        ],
+        audit:[
+          {time:"09:10:02", action:"read", path:".git/refs/tags", step:1},
+          {time:"09:10:05", action:"read", path:"CHANGELOG.md", step:1},
+          {time:"09:11:40", action:"write", path:"RELEASE_NOTES.md", step:3, write:true},
+          {time:"09:12:20", action:"check", path:"markdownlint RELEASE_NOTES.md", step:3}
+        ],
+        rawLog:
+'{"t":"2026-09-20T09:10:02Z","type":"read","run_id":"mu9r01nn","path":".git/refs/tags","step":1}\n' +
+'{"t":"2026-09-20T09:11:40Z","type":"write","run_id":"mu9r01nn","path":"RELEASE_NOTES.md","step":3,"allowed":true}\n' +
+'{"t":"2026-09-20T09:12:20Z","type":"check","run_id":"mu9r01nn","cmd":"markdownlint RELEASE_NOTES.md","step":3,"result":"0 issues"}'
+      }
+    },
+    "doc-comments-prior": {
+      wfName:"doc-comments", verdict:"soft-green", dotClass:"dot green", date:"2026-09-18",
+      spend:"0.31", cap:"1.00", elapsed:"2m 15s", turns:9, ok:true,
+      job:{goal:"Add missing doc comments to exported functions in src/",
+        source:"~/code/bareguard (copy)", dest:"~/code/bareguard-out",
+        success:"every exported function has a doc comment",
+        guardrails:"no logic changes, comments only", money:"1.00", time:"15 min", model:"deepseek-flash"},
+      run:{
+        checkLine:"judge: \"all 6 exported functions documented\" (rubric)",
+        changedLine:"src/index.js, src/checks.js (+14 −0)",
+        outputLine:"~/code/bareguard-out/doc-comments-2026-09-18",
+        stepsLine:"3 of 3 done",
+        whyLine:"judge: \"every exported function has a doc comment\" — satisfied",
+        steps:[
+          {title:"Scan exported functions", meta:"list exports across src/ · 3 turns · 0m 20s · $0.03", badge:"done", badgeClass:"green"},
+          {title:"Draft doc comments", meta:"write comments for 6 exports · 5 turns · 1m 30s · $0.22", badge:"done", badgeClass:"green",
+            events:["read src/index.js","added 6 doc comments"]},
+          {title:"Verify coverage", meta:"rubric judge checks all 6 are covered · 1 turn · 0m 25s · $0.06", badge:"done", badgeClass:"green"}
+        ],
+        audit:[
+          {time:"14:02:01", action:"read", path:"src/index.js", step:1},
+          {time:"14:02:40", action:"edit", path:"src/index.js", step:2, write:true},
+          {time:"14:03:10", action:"edit", path:"src/checks.js", step:2, write:true},
+          {time:"14:03:55", action:"judge", path:"doc-comment coverage", step:3}
+        ],
+        rawLog:
+'{"t":"2026-09-18T14:02:01Z","type":"read","run_id":"mu9d04pp","path":"src/index.js","step":1}\n' +
+'{"t":"2026-09-18T14:02:40Z","type":"edit","run_id":"mu9d04pp","path":"src/index.js","step":2,"allowed":true}\n' +
+'{"t":"2026-09-18T14:03:55Z","type":"judge","run_id":"mu9d04pp","target":"doc-comment coverage","step":3,"result":"pass"}'
+      }
+    },
+    "lint-sweep-prior": {
+      wfName:"lint-sweep", verdict:"green", dotClass:"dot grey", date:"2026-09-17",
+      spend:"0.12", cap:"1.00", elapsed:"0m 51s", turns:5, ok:true,
+      job:{goal:"Run the linter and fix auto-fixable violations",
+        source:"~/code/bareguard (copy)", dest:"~/code/bareguard-out",
+        success:"lint exits 0",
+        guardrails:"no manual rule disables", money:"1.00", time:"10 min", model:"deepseek-flash"},
+      run:{
+        checkLine:"eslint violations 14 → 0",
+        changedLine:"src/*.js (+6 −6, autofix only)",
+        outputLine:"~/code/bareguard-out/lint-sweep-2026-09-17",
+        stepsLine:"3 of 3 done",
+        whyLine:"\"lint exits 0\"",
+        steps:[
+          {title:"Run eslint", meta:"collect violation list · 1 turn · 0m 08s · $0.01", badge:"done", badgeClass:"green"},
+          {title:"Apply autofixes", meta:"eslint --fix · 2 turns · 0m 30s · $0.08",
+            badge:"done", badgeClass:"green", events:["eslint --fix","6 files changed"]},
+          {title:"Re-run eslint to confirm 0", meta:"final check · 2 turns · 0m 13s · $0.03", badge:"done", badgeClass:"green"}
+        ],
+        audit:[
+          {time:"08:02:00", action:"read", path:".eslintrc.json", step:1},
+          {time:"08:02:12", action:"write", path:"src/*.js", step:2, write:true},
+          {time:"08:02:45", action:"check", path:"eslint .", step:3}
+        ],
+        rawLog:
+'{"t":"2026-09-17T08:02:00Z","type":"read","run_id":"mu9l03ee","path":".eslintrc.json","step":1}\n' +
+'{"t":"2026-09-17T08:02:12Z","type":"write","run_id":"mu9l03ee","path":"src/*.js","step":2,"allowed":true}\n' +
+'{"t":"2026-09-17T08:02:45Z","type":"check","run_id":"mu9l03ee","cmd":"eslint .","step":3,"result":"0 violations"}'
+      }
+    },
+    "onboarding-md": {
+      wfName:"onboarding-md", verdict:"green", dotClass:"dot green", date:"2026-09-16",
+      spend:"0.44", cap:"1.00", elapsed:"3m 05s", turns:16, ok:true,
+      job:{goal:"Write an onboarding guide for new contributors",
+        source:"~/code/bareguard (copy)", dest:"~/code/bareguard-out",
+        success:"docs/ONBOARDING.md written, covers setup and first PR",
+        guardrails:"docs only, no source edits", money:"1.00", time:"15 min", model:"deepseek-flash"},
+      run:{
+        checkLine:"guide sections 0 → 5",
+        changedLine:"docs/ONBOARDING.md (+120 −0)",
+        outputLine:"~/code/bareguard-out/onboarding-md-2026-09-16",
+        stepsLine:"3 of 3 done",
+        whyLine:"\"ONBOARDING.md written, covers setup and first PR\"",
+        steps:[
+          {title:"Draft outline", meta:"5 sections planned · 3 turns · 0m 30s · $0.05", badge:"done", badgeClass:"green"},
+          {title:"Write ONBOARDING.md", meta:"fill each section · 10 turns · 2m 05s · $0.32",
+            badge:"done", badgeClass:"green", events:["read package.json for setup steps","wrote 5 sections"]},
+          {title:"Proofread", meta:"final pass · 3 turns · 0m 30s · $0.07", badge:"done", badgeClass:"green"}
+        ],
+        audit:[
+          {time:"11:00:05", action:"read", path:"package.json", step:1},
+          {time:"11:00:20", action:"read", path:"README.md", step:1},
+          {time:"11:01:40", action:"write", path:"docs/ONBOARDING.md", step:2, write:true},
+          {time:"11:03:00", action:"check", path:"markdownlint docs/ONBOARDING.md", step:3}
+        ],
+        rawLog:
+'{"t":"2026-09-16T11:00:05Z","type":"read","run_id":"mu9o02qq","path":"package.json","step":1}\n' +
+'{"t":"2026-09-16T11:01:40Z","type":"write","run_id":"mu9o02qq","path":"docs/ONBOARDING.md","step":2,"allowed":true}\n' +
+'{"t":"2026-09-16T11:03:00Z","type":"check","run_id":"mu9o02qq","cmd":"markdownlint docs/ONBOARDING.md","step":3,"result":"0 issues"}'
+      }
+    },
+    "changelog-draft": {
+      wfName:"changelog-draft", verdict:"green", dotClass:"dot green", date:"2026-09-14",
+      spend:"0.00", cap:"0.00", elapsed:"—", turns:"—", ok:true, imported:true,
+      job:{goal:"Draft CHANGELOG entries from commit messages since the last tag",
+        source:"~/code/bareguard (copy)", dest:"~/code/bareguard-out",
+        success:"CHANGELOG.md draft section added",
+        guardrails:"docs only, no source edits", money:"—", time:"—", model:"—"},
+      run:{
+        checkLine:"not recorded — imported from another bareloop instance",
+        changedLine:"not recorded",
+        outputLine:"imported record — view only",
+        stepsLine:"n/a — imported",
+        whyLine:"imported, no local check history",
+        steps:[],
+        audit:[]
+      }
+    }
+  };
+
+  // ---- shared render pieces ----
+  // ---- shared step map renderer ----
+  // ONE data-driven map for every selection (fix-types live, fix-types-prior red, and every
+  // other workflow/history run) — draws the same box/arrow/retry-curve/legend SVG the original
+  // hand-authored fix-types map used, from each run's own {title, state, retries} step list.
+  // state is one of the literal words a step card already shows: "done", "running", "stopped",
+  // "waiting", "not run" (unrecognized values fall back to the grey/waiting look).
+  function stepMapColors(state){
+    if(state === "done") return {stroke:"var(--green)", textFill:"#2e7d32"};
+    if(state === "running") return {stroke:"var(--amber)", textFill:"#b8860b"};
+    if(state === "stopped") return {stroke:"var(--red)", textFill:"var(--red)"};
+    return {stroke:"var(--border-strong)", textFill:"var(--text-faint)"}; // waiting / not run / other
+  }
+
+  function escapeXml(s){
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  var stepMapUidCounter = 0;
+  var MAP_MARGIN = 10, MAP_GAP = 28;
+  var CHAR_W = 7.2;        // Courier Prime monospace glyph advance at font-size 12 (page-wide font)
+  var TITLE_HPAD = 16;     // horizontal padding inside a box around its title (8px each side)
+  var MIN_BOX_W = 100;
+  var BOX_H = 60, BOX_H_2LINE = 78; // taller box when a title needs a wrapped second line
+  var ROW_GAP = 70;        // vertical room below a box for its state line + retry curve + drop
+
+  function stepTitleText(idx, title){ return (idx + 1) + ' ' + title; }
+
+  // ONE box width for the whole map, sized to fit the WIDEST title with no squeezing, rather
+  // than a per-box width — chosen so the snake's connectors stay simple straight lines and
+  // every box reads at a consistent size (hamr, 2026-09-23: "don't squeeze boxes to fit, let
+  // them fit to width and overflow to next line").
+  function naturalBoxWidth(steps){
+    var maxChars = 0;
+    steps.forEach(function(s, idx){
+      maxChars = Math.max(maxChars, stepTitleText(idx, s.title).length);
+    });
+    return Math.max(MIN_BOX_W, Math.ceil(maxChars * CHAR_W) + TITLE_HPAD);
+  }
+
+  // Picks how many boxes fit per row using each box's natural (title-driven) width as the
+  // MINIMUM — same row count as before — then STRETCHES boxW so perRow boxes plus their gaps
+  // exactly fill usableW, edge to edge. Simplest rule that always fills the width: grow every
+  // box in the row equally rather than growing the gaps, so uniformity (one box width across
+  // the whole map) and the fixed MAP_GAP rhythm both hold. No availW (unmeasured, e.g. a still-
+  // hidden tab) draws everything on a single row at natural width, unstretched (legacy
+  // fallback — nothing to fill yet). Text is never squeezed: stretching only ever widens a box
+  // beyond what its title needs.
+  function computeMapLayout(n, availW, naturalW){
+    if(!availW) return {perRow:n, boxW:naturalW};
+    var usableW = availW - MAP_MARGIN * 2;
+    for(var perRow = n; perRow >= 2; perRow--){
+      var totalW = perRow * naturalW + (perRow - 1) * MAP_GAP;
+      if(totalW <= usableW){
+        var stretched = (usableW - (perRow - 1) * MAP_GAP) / perRow;
+        return {perRow:perRow, boxW:Math.max(naturalW, stretched)};
+      }
+    }
+    return {perRow:1, boxW:Math.max(MIN_BOX_W, usableW)};
+  }
+
+  // Splits text into at most 2 lines that fit maxWidth (word-boundary first, hard split only
+  // if a single word alone is wider than maxWidth) — used only when a box's width had to be
+  // clamped below its natural (unsqueezed) width to fit the available space.
+  function wrapTitleLines(text, maxWidth){
+    var maxChars = Math.max(1, Math.floor((maxWidth - TITLE_HPAD) / CHAR_W));
+    if(text.length <= maxChars) return [text];
+    var words = text.split(' ');
+    var line1 = '', i = 0;
+    for(; i < words.length; i++){
+      var cand = line1 ? line1 + ' ' + words[i] : words[i];
+      if(line1 && cand.length > maxChars) break;
+      line1 = cand;
+    }
+    if(!line1) return [text.slice(0, maxChars), text.slice(maxChars)];
+    var line2 = words.slice(i).join(' ');
+    return line2 ? [line1, line2] : [line1];
+  }
+
+  // steps: [{title, state, retries}], at least 1 entry. Wraps into further rows as a SNAKE
+  // (boustrophedon): row 0 runs left→right, row 1 runs right→left (arrows pointing left, step
+  // numbers still ascending), row 2 left→right again, and so on — one continuous path the eye
+  // can follow without guessing. availWidth (optional): the map-box's content width right now,
+  // used to pick how many boxes fit per row (see computeMapLayout); omit for the legacy
+  // single-row-at-natural-width fallback (still-hidden tab).
+  function buildStepMapSVG(steps, availWidth){
+    var n = steps.length;
+    var naturalW = naturalBoxWidth(steps);
+    var layout = computeMapLayout(n, availWidth, naturalW);
+    var perRow = layout.perRow, boxW = layout.boxW, gap = MAP_GAP;
+    var rows = Math.ceil(n / perRow);
+    var margin = MAP_MARGIN;
+
+    // titles are wrapped once up front so every box in the map can share ONE box/row height
+    // (rule: boxes in a row stay the same height — kept uniform across the whole map here,
+    // simpler than per-row heights and still true to that rule since a taller box never sits
+    // next to a shorter one).
+    var titleLines = steps.map(function(s, idx){
+      return wrapTitleLines(stepTitleText(idx, s.title), boxW);
+    });
+    var maxLines = titleLines.reduce(function(m, l){ return Math.max(m, l.length); }, 1);
+    var boxH = maxLines > 1 ? BOX_H_2LINE : BOX_H;
+    var rowH = boxH + ROW_GAP;
+    var totalW = margin * 2 + perRow * boxW + (perRow - 1) * gap;
+    var totalH = rows * rowH;
+    var uid = "sm" + (stepMapUidCounter++);
+
+    var body =
+      '<defs>' +
+        '<marker id="' + uid + '-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">' +
+          '<path d="M0,0 L6,3 L0,6 z" fill="var(--text-dim)"></path></marker>' +
+        '<marker id="' + uid + '-arrow-grey" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">' +
+          '<path d="M0,0 L6,3 L0,6 z" fill="var(--text-faint)"></path></marker>' +
+      '</defs>';
+
+    var ariaParts = [];
+
+    steps.forEach(function(s, idx){
+      var row = Math.floor(idx / perRow);
+      var col = idx % perRow;             // chronological position within the row
+      var rtl = (row % 2) === 1;          // odd rows are the snake's return leg, right→left
+      var slotCol = rtl ? (perRow - 1 - col) : col;
+      var x = margin + slotCol * (boxW + gap);
+      var y = 30 + row * rowH;
+      var colors = stepMapColors(s.state);
+      var num = idx + 1;
+
+      var lines = titleLines[idx];
+      var stateY = y + boxH - 18;
+      body += '<rect x="' + x + '" y="' + y + '" width="' + boxW + '" height="' + boxH +
+        '" rx="0" fill="var(--panel2)" stroke="' + colors.stroke + '" stroke-width="2"></rect>';
+      if(lines.length === 1){
+        body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 25) +
+          '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[0]) + '</text>';
+      } else {
+        body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 17) +
+          '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[0]) + '</text>';
+        body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 29) +
+          '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[1]) + '</text>';
+      }
+      body += '<text x="' + (x + boxW / 2) + '" y="' + stateY +
+        '" text-anchor="middle" font-size="10" fill="' + colors.textFill + '">' + escapeXml(s.state) + '</text>';
+
+      if(s.state === "running"){
+        body += '<circle cx="' + (x + 20) + '" cy="' + (y + 12) + '" r="4" fill="#b8860b">' +
+          '<animate attributeName="opacity" values="1;0.3;1" dur="1.2s" repeatCount="indefinite"></animate></circle>';
+      }
+
+      // retry curve: a dashed self-loop under the box (same proportions as the original
+      // hand-authored curve, scaled to this box's own width), labelled with the try count.
+      if(s.retries && s.retries > 0){
+        var bottom = y + boxH;
+        var sx = x + boxW * 0.50, sy = bottom + 5;
+        var c1x = x + boxW * 0.278, c1y = bottom + 30;
+        var c2x = x + boxW * 0.167, c2y = bottom + 30;
+        var ex = x + boxW * 0.028, ey = bottom + 2;
+        body += '<path d="M ' + sx + ' ' + sy + ' C ' + c1x + ' ' + c1y + ', ' + c2x + ' ' + c2y + ', ' + ex + ' ' + ey +
+          '" fill="none" stroke="var(--text-faint)" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#' + uid + '-arrow-grey)"></path>';
+        body += '<text x="' + (x + boxW * 0.267) + '" y="' + (bottom + 32) +
+          '" text-anchor="middle" font-size="10" fill="var(--text-faint)">try ' + (s.retries + 1) + '</text>';
+      }
+
+      ariaParts.push(num + ' ' + s.title + ' ' + s.state + (s.retries ? ' with retry' : ''));
+
+      if(idx < n - 1){
+        var nextRow = Math.floor((idx + 1) / perRow);
+        if(nextRow === row){
+          // same row: arrow continues in this row's own direction (right on an L→R row,
+          // left on an R→L one — orient="auto" on the marker follows the line either way)
+          var midY = y + boxH / 2;
+          if(!rtl){
+            var nx = x + boxW + gap;
+            body += '<line x1="' + (x + boxW) + '" y1="' + midY + '" x2="' + (nx - 2) + '" y2="' + midY +
+              '" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#' + uid + '-arrow)"></line>';
+          } else {
+            var px = x - gap - boxW; // next box sits one slot to the left
+            body += '<line x1="' + x + '" y1="' + midY + '" x2="' + (px + boxW + 2) + '" y2="' + midY +
+              '" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#' + uid + '-arrow)"></line>';
+          }
+        } else {
+          // snake turn: this row's exit box and the next row's entry box always land in the
+          // same slot column (0 or perRow-1 — full rows exit/enter at their shared edge, and
+          // only the last row can be partial, which anchors from that same edge), so the
+          // connector is one continuous straight drop, never a sideways jog.
+          var cx = x + boxW / 2;
+          body += '<line x1="' + cx + '" y1="' + (y + boxH) + '" x2="' + cx + '" y2="' + (y + rowH - 2) +
+            '" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#' + uid + '-arrow)"></line>';
+        }
+      }
+    });
+
+    var ariaLabel = "Step map: " + ariaParts.join(", ");
+    return '<svg width="' + totalW + '" height="' + totalH + '" viewBox="0 0 ' + totalW + ' ' + totalH +
+      '" role="img" aria-label="' + escapeXml(ariaLabel) + '">' + body + '</svg>';
+  }
+
+  function stepMapLegendHTML(){
+    return '<div class="map-legend">' +
+      '<span><span class="dot green"></span>done</span>' +
+      '<span><span class="dot amber pulse"></span>running</span>' +
+      '<span><span class="dot red"></span>stopped</span>' +
+      '<span><span class="dot grey"></span>waiting</span>' +
+      '<span>⤾ dashed = retry</span>' +
+      '</div>';
+  }
+
+  // width the map has to work with right now, inside the wrapper's own 10px padding (see
+  // .map-box CSS) — null when the wrapper isn't laid out yet (e.g. its tab is still hidden),
+  // in which case buildStepMapSVG falls back to the legacy ≤5-per-row sizing.
+  function mapAvailWidth(wrapper){
+    if(!wrapper) return null;
+    var w = wrapper.getBoundingClientRect().width;
+    if(!w) return null;
+    return Math.max(0, w - 20);
+  }
+
+  var stepMapLastSteps = {}; // mountId -> steps last rendered there, for a resize replay
+  var stepMapLastWidth = {}; // mountId -> width used for that render, to skip redundant redraws
+
+  // mountId: id of the empty div living inside a .map-box wrapper. Hides the whole wrapper
+  // when a run has no steps yet (never run, or an imported record with no step history).
+  function renderStepMap(mountId, steps){
+    var mount = document.getElementById(mountId);
+    if(!mount) return;
+    var wrapper = mount.parentElement;
+    if(!steps || !steps.length){
+      stepMapLastSteps[mountId] = null;
+      mount.innerHTML = "";
+      if(wrapper) wrapper.hidden = true;
+      return;
+    }
+    if(wrapper) wrapper.hidden = false;
+    stepMapLastSteps[mountId] = steps;
+    var w = mapAvailWidth(wrapper);
+    stepMapLastWidth[mountId] = w;
+    mount.innerHTML = buildStepMapSVG(steps, w) + stepMapLegendHTML();
+  }
+
+  // Re-lays out an already-rendered map when its box's width actually changes — a real window
+  // resize, or its tab going from hidden (width 0, un-measurable) to visible. Skips redundant
+  // redraws when only the box's HEIGHT changed (e.g. from the redraw itself adding a row).
+  function reflowStepMap(wrapperEl, mountId){
+    if(!wrapperEl) return;
+    var w = mapAvailWidth(wrapperEl);
+    if(w === null) return;
+    if(stepMapLastWidth[mountId] === w) return;
+    var steps = stepMapLastSteps[mountId];
+    if(!steps) return;
+    stepMapLastWidth[mountId] = w;
+    var mount = document.getElementById(mountId);
+    if(mount) mount.innerHTML = buildStepMapSVG(steps, w) + stepMapLegendHTML();
+  }
+
+  // both step-map boxes stay live to width changes: a real resize (narrowing the window, e.g.
+  // to prove the 420px case), and a tab switch (Job/Audit -> Run) landing on a box that was
+  // hidden — and hence unmeasurable — when its render was first requested.
+  (function(){
+    var pairs = [["fixtypes-map-box", "fixtypes-map-mount"], ["gen-map", "gen-map-mount"]];
+    if(typeof ResizeObserver === "undefined"){
+      var resizeTimer;
+      window.addEventListener("resize", function(){
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function(){
+          pairs.forEach(function(p){ reflowStepMap(document.getElementById(p[0]), p[1]); });
+        }, 150);
+      });
+      return;
+    }
+    var ro = new ResizeObserver(function(entries){
+      entries.forEach(function(entry){
+        var pair = pairs.filter(function(p){ return p[0] === entry.target.id; })[0];
+        if(pair) reflowStepMap(entry.target, pair[1]);
+      });
+    });
+    pairs.forEach(function(p){
+      var el = document.getElementById(p[0]);
+      if(el) ro.observe(el);
+    });
+  })();
+
+  var runFixtypesView = document.getElementById("run-fixtypes-view");
+  var runGenericView = document.getElementById("run-generic-view");
+  var runEmptyView = document.getElementById("run-empty-view");
+  var auditEmptyEl = document.getElementById("audit-empty");
+  var auditContentEl = document.getElementById("audit-content");
+  var auditTbody = document.getElementById("audit-tbody");
+  var auditRawlogEl = document.getElementById("audit-rawlog");
+
+  var chips = document.querySelectorAll(".chip");
+  var auditRows = [];
+
+  function resetAuditFilter(){
+    chips.forEach(function(c){ c.setAttribute("aria-pressed", c.getAttribute("data-filter") === "all" ? "true" : "false"); });
+    auditRows.forEach(function(row){ row.style.display = ""; });
+  }
+
+  function renderAuditRows(rows, rawLogText){
+    auditContentEl.hidden = false;
+    auditEmptyEl.hidden = true;
+    auditTbody.innerHTML = "";
+    rows.forEach(function(r){
+      var tr = document.createElement("tr");
+      tr.setAttribute("data-action", r.action);
+      var classes = [];
+      if(r.write) classes.push("row-write");
+      if(r.blocked) classes.push("row-blocked");
+      if(classes.length) tr.className = classes.join(" ");
+      tr.innerHTML =
+        "<td>" + r.time + "</td><td>" + r.action + "</td><td>" + r.path + "</td>" +
+        "<td><span class=\"badge " + (r.blocked ? "red" : "green") + "\">" + (r.blocked ? "blocked" : "allowed") + "</span></td>" +
+        "<td>" + r.step + "</td>";
+      auditTbody.appendChild(tr);
+    });
+    auditRawlogEl.textContent = rawLogText || "";
+    auditRows = document.querySelectorAll("#audit-tbody tr");
+    resetAuditFilter();
+  }
+
+  function renderAuditEmpty(msg){
+    auditContentEl.hidden = true;
+    auditEmptyEl.hidden = false;
+    auditEmptyEl.textContent = msg;
+  }
+
+  chips.forEach(function(chip){
+    chip.addEventListener("click", function(){
+      chips.forEach(function(c){ c.setAttribute("aria-pressed","false"); });
+      chip.setAttribute("aria-pressed","true");
+      var f = chip.getAttribute("data-filter");
+      auditRows.forEach(function(row){
+        if(f === "all"){ row.style.display = ""; }
+        else if(f === "write"){ row.style.display = row.classList.contains("row-write") ? "" : "none"; }
+        else if(f === "blocked"){ row.style.display = row.classList.contains("row-blocked") ? "" : "none"; }
+      });
+    });
+  });
+
+  document.getElementById("btn-download-log").addEventListener("click", function(){
+    alert("Download log — wireframe stub, no file produced.");
+  });
+
+  // Job tab: signed job card (read-only) + past runs list. Used for both a Workflows
+  // selection (job = its own current signed card, runs = its own run history) and a History
+  // selection (job = that run's own snapshot, runs = just that one run, marked "viewing").
+  function renderDetails(title, job, runsList, viewingHistId){
+    document.getElementById("details-title").textContent = title;
+    document.getElementById("details-verdict").textContent = verdictLabel(job.verdict);
+    document.getElementById("details-model").textContent = job.model;
+    document.getElementById("details-goal").textContent = job.goal;
+    document.getElementById("details-source").textContent = job.source;
+    document.getElementById("details-dest").textContent = job.dest;
+    document.getElementById("details-success").textContent = job.success;
+    document.getElementById("details-guardrails").textContent = job.guardrails;
+    document.getElementById("details-cap-money").textContent = job.money === "—" ? "—" : "$" + job.money;
+    document.getElementById("details-cap-time").textContent = job.time;
+
+    var runsEl = document.getElementById("details-runs");
+    runsEl.innerHTML = "";
+    if(!runsList || runsList.length === 0){
+      var empty = document.createElement("div");
+      empty.className = "hint";
+      empty.textContent = "no past runs yet";
+      runsEl.appendChild(empty);
+      return;
+    }
+    runsList.forEach(function(r){
+      var rowEl = document.createElement("div");
+      rowEl.className = "wf-past-run";
+      var glyphClass = r.ok === true ? "green" : (r.ok === false ? "red" : "amber");
+      var glyph = r.ok === true ? "✓" : (r.ok === false ? "✗" : "▶");
+      var viewing = r.histId && r.histId === viewingHistId;
+      if(viewing){ rowEl.style.border = "2px solid var(--accent)"; rowEl.style.borderRadius = "4px"; }
+      rowEl.innerHTML =
+        '<span class="badge ' + glyphClass + '">' + glyph + '</span>' +
+        '<span class="wf-meta">' + r.date + '</span>' +
+        '<span class="wf-meta">$' + r.spend + '</span>' +
+        '<span class="wf-meta">' + r.time + '</span>' +
+        (viewing ? '<span class="wf-meta" style="color:var(--accent);font-weight:700;">viewing</span>' : '');
+      if(r.histId){
+        rowEl.style.cursor = "pointer";
+        rowEl.setAttribute("tabindex", "0");
+        rowEl.setAttribute("role", "button");
+        rowEl.addEventListener("click", function(){
+          selectHistory(r.histId);
+          document.getElementById("tab-run").click();
+        });
+        rowEl.addEventListener("keydown", function(e){
+          if(e.key === "Enter" || e.key === " "){ e.preventDefault(); rowEl.click(); }
+        });
+      }
+      runsEl.appendChild(rowEl);
+    });
+  }
+
+  // generic (non-fix-types) Run tab renderer — built from one histData-shaped entry
+  // ({verdict, spend, cap, elapsed, turns, ok, imported, run:{...}})
+  function renderGenericRun(entry){
+    runFixtypesView.hidden = true;
+    runEmptyView.hidden = true;
+    runGenericView.hidden = false;
+
+    document.getElementById("gen-counters").textContent =
+      "$" + entry.spend + " of $" + entry.cap + " · " + entry.elapsed + " · " + entry.turns + " turns";
+
+    var dotCls = entry.ok === true ? "green" : (entry.ok === false ? "red" : "amber");
+    var borderVar = entry.ok === true ? "var(--green)" : (entry.ok === false ? "var(--red)" : "var(--amber)");
+    var box = document.getElementById("gen-summary");
+    box.style.borderColor = borderVar;
+    document.getElementById("gen-summary-headline").innerHTML =
+      '<span class="dot ' + dotCls + '"></span><b>' + verdictLabel(entry.verdict) + '</b> · ' +
+      '<span class="num">$' + entry.spend + '</span> · <span class="num">' + entry.elapsed + '</span> · ' +
+      '<span class="num">' + entry.turns + '</span> turns';
+    document.getElementById("gen-sum-check").textContent = entry.run.checkLine;
+    document.getElementById("gen-sum-changed").textContent = entry.run.changedLine;
+    document.getElementById("gen-sum-output").textContent = entry.run.outputLine;
+    document.getElementById("gen-sum-steps").textContent = entry.run.stepsLine;
+    document.getElementById("gen-sum-why").textContent = entry.run.whyLine;
+
+    var listEl = document.getElementById("gen-step-list");
+    var steps = entry.run.steps || [];
+    renderStepMap("gen-map-mount", steps.map(function(s){
+      return {title:s.title, state:s.badge, retries:s.retries || 0};
+    }));
+    listEl.innerHTML = "";
+    steps.forEach(function(s, i){
+      var card = document.createElement("div");
+      card.className = "step-card";
+      var evHtml = "";
+      if(s.events && s.events.length){
+        evHtml = '<div class="events">' + s.events.map(function(e){ return '<div>› ' + e + '</div>'; }).join("") + '</div>';
+      }
+      card.innerHTML =
+        '<div class="step-head"><h4>' + (i + 1) + ' · ' + s.title + '</h4><span class="badge ' + s.badgeClass + '">' + s.badge + '</span></div>' +
+        '<div class="step-meta">' + s.meta + '</div>' + evHtml;
+      listEl.appendChild(card);
+    });
+
+    var actionsEl = document.getElementById("gen-actions");
+    if(entry.imported){
+      actionsEl.innerHTML = '<div class="hint">imported record — view only, no actions</div>';
+    } else {
+      actionsEl.innerHTML =
+        '<button class="btn" id="gen-btn-rerun">Rerun</button>' +
+        '<button class="btn" id="gen-btn-replay">Replay $0</button>';
+      document.getElementById("gen-btn-rerun").addEventListener("click", function(){
+        alert("Rerun — wireframe stub.");
+      });
+      document.getElementById("gen-btn-replay").addEventListener("click", function(){
+        alert("Replay $0 — wireframe stub, plays back the recording only.");
+      });
+    }
+
+    if(entry.run.audit && entry.run.audit.length){
+      renderAuditRows(entry.run.audit, entry.run.rawLog);
+    } else {
+      renderAuditEmpty(entry.imported ? "no logs — imported, view only" : "no logs recorded");
+    }
+  }
+
+  function renderEmptyRun(){
+    runFixtypesView.hidden = true;
+    runGenericView.hidden = true;
+    runEmptyView.hidden = false;
+    renderAuditEmpty("no logs — not run yet");
+  }
+
+  function setHeader(name, dotClassStr, badgeText, dateText){
+    activeName.textContent = name;
+    activeDot.className = dotClassStr;
+    activeVerdict.textContent = badgeText;
+    activeDate.textContent = dateText;
+  }
+
+  function clearRowSelection(){
+    wfRows.forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
+    histRows.forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
+  }
+
+  function selectWorkflow(key){
+    var d = wfData[key];
+    if(!d) return;
+    clearRowSelection();
+    var row = document.querySelector('.wf-row[data-wf="' + key + '"]');
+    if(row){ row.classList.add("selected"); row.setAttribute("aria-pressed","true"); }
+
+    setHeader(key, "dot " + d.statusClass + (d.statusClass === "amber" ? " pulse" : ""), verdictLabel(d.verdict),
+      d.status === "running" ? TODAY : (d.runs.length ? d.runs[0].date : "not run yet"));
+
+    if(key === "fix-types"){
+      runGenericView.hidden = true;
+      runEmptyView.hidden = true;
+      runFixtypesView.hidden = false;
+      applyRunState("running");
+      renderAuditRows(auditFixTypesRows, auditFixTypesRawLog);
+    } else if(d.runs.length === 0){
+      renderEmptyRun();
+    } else {
+      renderGenericRun(histData[d.runs[0].histId]);
+    }
+
+    renderDetails("Job card — signed " + key, d,
+      d.runs.map(function(r){ return {histId:r.histId, ok:r.ok, date:r.date, spend:r.spend, time:r.time}; }),
+      null);
+  }
+
+  function selectHistory(id){
+    var h = histData[id];
+    if(!h) return;
+    clearRowSelection();
+    var row = document.querySelector('[data-testid="hist-row-' + id + '"]');
+    if(row){ row.classList.add("selected"); row.setAttribute("aria-pressed","true"); }
+
+    setHeader(h.wfName, h.dotClass, verdictLabel(h.verdict), h.date);
+
+    if(id === "fix-types-prior"){
+      runGenericView.hidden = true;
+      runEmptyView.hidden = true;
+      runFixtypesView.hidden = false;
+      applyRunState("red");
+      renderAuditRows(auditFixTypesRows, auditFixTypesRawLog);
+    } else {
+      renderGenericRun(h);
+    }
+
+    renderDetails("Job card — signed " + h.wfName, h.job,
+      [{histId:id, ok:h.ok, date:h.date, spend:h.spend, time:h.elapsed}],
+      id);
+  }
+
+  wfRows.forEach(function(row){
+    row.addEventListener("click", function(){
+      selectWorkflow(row.getAttribute("data-wf"));
+      document.getElementById("tab-run").click();
+    });
+    row.addEventListener("keydown", function(e){
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); }
+    });
+  });
+
+  // History rows — clicking anywhere in the row (including the Replay $0 button, since its
+  // click bubbles up here) does the same full render as a Workflows row click.
+  histRows.forEach(function(row){
+    row.addEventListener("click", function(){
+      var id = row.getAttribute("data-testid").replace("hist-row-", "");
+      selectHistory(id);
+      document.getElementById("tab-run").click();
+    });
+    row.addEventListener("keydown", function(e){
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); }
+    });
+  });
+
+  // Edit workflow -> Chat tab, prefilled, signed-edit banner
+  document.querySelectorAll("[data-testid^='wf-edit-']").forEach(function(btn){
+    btn.addEventListener("click", function(e){
+      e.stopPropagation();
+      var row = btn.closest(".wf-row");
+      var key = row.getAttribute("data-wf");
+      var d = wfData[key];
+      if(!d) return;
+
+      document.getElementById("jf-name").value = key;
+      document.getElementById("jf-goal").value = d.goal;
+      document.getElementById("jf-source").value = d.source;
+      document.getElementById("jf-dest").value = d.dest;
+      document.getElementById("jf-success").value = d.success;
+      document.getElementById("jf-guardrails").value = d.guardrails;
+      document.getElementById("jf-cap-money").value = d.money;
+      document.getElementById("jf-cap-time").value = d.time;
+      document.getElementById("jf-model").value = d.model;
+      var nameHint = document.getElementById("jf-name-hint");
+      if(nameHint) nameHint.style.display = "none";
+
+      document.getElementById("job-card-title").textContent = "Job card — editing " + key;
+      document.getElementById("edit-banner").hidden = false;
+      document.getElementById("sign-run-btn").textContent = "Re-sign & run";
+
+      document.getElementById("tab-chat").click();
+    });
+  });
+
+  // live-ish counters (fake) — only ticks while fix-types' own live view is the one showing
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var turn = 14, elapsedSec = 6*60+12, spend = 0.41;
+  var turnEl = document.getElementById("ctr-turn");
+  var elapsedEl = document.getElementById("ctr-elapsed");
+  var spendEl = document.getElementById("ctr-spend");
+  // the always-visible running summary's headline mirrors the same live numbers
+  var sumRunTurnEl = document.getElementById("sumrun-turn");
+  var sumRunElapsedEl = document.getElementById("sumrun-elapsed");
+  var sumRunSpendEl = document.getElementById("sumrun-spend");
+  var running = true;
+
+  function fmt(sec){
+    var m = Math.floor(sec/60), s = sec%60;
+    return m + "m " + (s<10?"0":"") + s + "s";
+  }
+
+  if(!reduceMotion){
+    setInterval(function(){
+      if(!running) return;
+      elapsedSec += 1;
+      elapsedEl.textContent = fmt(elapsedSec);
+      sumRunElapsedEl.textContent = fmt(elapsedSec);
+      if(elapsedSec % 5 === 0){
+        turn += 1;
+        turnEl.textContent = turn;
+        sumRunTurnEl.textContent = turn;
+        spend = Math.min(2.00, spend + 0.01);
+        spendEl.textContent = spend.toFixed(2);
+        sumRunSpendEl.textContent = spend.toFixed(2);
+      }
+    }, 1000);
+  }
+
+  // sign/revise buttons
+  document.getElementById("sign-run-btn").addEventListener("click", function(){
+    alert("Sign & run — wireframe stub. This click is the only thing that signs.");
+  });
+  document.getElementById("revise-btn").addEventListener("click", function(){
+    alert("Revise — wireframe stub. 1 round left.");
+  });
+
+  // action bar buttons (Pause/Replay stubs) — fix-types view only
+  document.getElementById("btn-pause").addEventListener("click", function(){
+    running = false;
+    alert("Paused — wireframe stub.");
+  });
+  document.getElementById("btn-replay").addEventListener("click", function(){
+    alert("Replay $0 — wireframe stub, plays back the recording only.");
+  });
+
+  // simulate run-ended toggles (running / green / red) — drives fix-types' after-run summary
+  // (internal state names stay "green"/"red"; nothing derived from them is shown as that word)
+  var runState = "running";
+  var simGreenBtn = document.getElementById("simulate-toggle");
+  var simRedBtn = document.getElementById("simulate-toggle-red");
+  var summaryRunningEl = document.getElementById("summary-running");
+  var summaryGreenEl = document.getElementById("summary-green");
+  var summaryRedEl = document.getElementById("summary-red");
+  var countersEl = document.getElementById("run-counters");
+  var countersRunningHTML = countersEl.innerHTML;
+
+  // fix-types' own 3-step narrative, in the shared {title,state,retries} shape — the only
+  // place fix-types' step text/retry count is spelled out; applyRunState() below just picks
+  // which of these three lists renderStepMap() draws.
+  var FIXTYPES_STEPS = {
+    running: [
+      {title:"Read the errors", state:"done"},
+      {title:"Fix the types", state:"running", retries:1},
+      {title:"Run the check", state:"waiting"}
+    ],
+    green: [
+      {title:"Read the errors", state:"done"},
+      {title:"Fix the types", state:"done", retries:1},
+      {title:"Run the check", state:"done"}
+    ],
+    red: [
+      {title:"Read the errors", state:"done"},
+      {title:"Fix the types", state:"stopped", retries:1},
+      {title:"Run the check", state:"not run"}
+    ]
+  };
+  var stepCard2 = document.getElementById("step-card-2");
+  var step2Badge = document.getElementById("step2-badge");
+  var stepCard3 = document.getElementById("step-card-3");
+  var step3Badge = document.getElementById("step3-badge");
+
+  function applyRunState(state){
+    runState = state;
+    var acceptBtn = document.getElementById("btn-accept");
+    var rerunBtn = document.getElementById("btn-rerun");
+    var hint = document.getElementById("accept-hint");
+    var pauseBtn = document.getElementById("btn-pause");
+    var dot = document.getElementById("active-wf-dot");
+
+    summaryRunningEl.hidden = (state !== "running");
+    summaryGreenEl.hidden = (state !== "green");
+    summaryRedEl.hidden = (state !== "red");
+
+    if(state === "green"){
+      running = false;
+      acceptBtn.disabled = false;
+      rerunBtn.disabled = false;
+      hint.textContent = "run ended — done";
+      dot.className = "dot green";
+      pauseBtn.disabled = true;
+      simGreenBtn.textContent = "simulate: back to running";
+      simRedBtn.textContent = "simulate: run failed";
+
+      renderStepMap("fixtypes-map-mount", FIXTYPES_STEPS.green);
+      stepCard2.classList.remove("running");
+      step2Badge.textContent = "done";
+      step2Badge.className = "badge green";
+      step3Badge.textContent = "done";
+      step3Badge.className = "badge green";
+      countersEl.innerHTML = 'Turn <b>38</b> · <span>21m 10s</span> · $<span>1.84</span> of $2.00';
+    } else if(state === "red"){
+      running = false;
+      acceptBtn.disabled = true;
+      rerunBtn.disabled = false;
+      hint.textContent = "run ended — failed (check still failing)";
+      dot.className = "dot red";
+      pauseBtn.disabled = true;
+      simGreenBtn.textContent = "simulate: run passed";
+      simRedBtn.textContent = "simulate: back to running";
+
+      renderStepMap("fixtypes-map-mount", FIXTYPES_STEPS.red);
+      stepCard2.classList.remove("running");
+      step2Badge.textContent = "stopped";
+      step2Badge.className = "badge red";
+      step3Badge.textContent = "not run";
+      step3Badge.className = "badge grey";
+      countersEl.innerHTML = 'Turn <b>61</b> · <span>21m 10s</span> · $<span>1.84</span> of $2.00';
+    } else {
+      running = true;
+      acceptBtn.disabled = true;
+      rerunBtn.disabled = true;
+      hint.textContent = "available when the run ends";
+      dot.className = "dot amber pulse";
+      pauseBtn.disabled = false;
+      simGreenBtn.textContent = "simulate: run passed";
+      simRedBtn.textContent = "simulate: run failed";
+
+      renderStepMap("fixtypes-map-mount", FIXTYPES_STEPS.running);
+      stepCard2.classList.add("running");
+      step2Badge.textContent = "running";
+      step2Badge.className = "badge amber";
+      step3Badge.textContent = "waiting";
+      step3Badge.className = "badge grey";
+      countersEl.innerHTML = countersRunningHTML;
+      // innerHTML replace tore out and rebuilt the ticking spans — re-acquire them
+      // so the setInterval loop keeps writing to the nodes actually on screen
+      turnEl = document.getElementById("ctr-turn");
+      elapsedEl = document.getElementById("ctr-elapsed");
+      spendEl = document.getElementById("ctr-spend");
+    }
+  }
+
+  simGreenBtn.addEventListener("click", function(){
+    applyRunState(runState === "green" ? "running" : "green");
+  });
+  simRedBtn.addEventListener("click", function(){
+    applyRunState(runState === "red" ? "running" : "red");
+  });
+
+  document.getElementById("btn-accept").addEventListener("click", function(){
+    alert("Accept — wireframe stub.");
+  });
+  document.getElementById("btn-rerun").addEventListener("click", function(){
+    alert("Rerun — wireframe stub.");
+  });
+
+  document.getElementById("wf-import").addEventListener("click", function(){
+    alert("Import — wireframe stub.");
+  });
+
+  // default selection on load: fix-types' live run (matches the static markup's initial state)
+  selectWorkflow("fix-types");
+
+  // verification convenience: ?state=green|red|hist-red drives the Run tab into that state on load
+  // (design-lab only, not part of the product surface)
+  (function(){
+    var m = /[?&]state=(green|red|hist-red)/.exec(location.search);
+    if(!m) return;
+    if(m[1] === "hist-red"){
+      document.getElementById("tab-history").click();
+      selectHistory("fix-types-prior");
+      document.getElementById("tab-run").click();
+    } else {
+      applyRunState(m[1]);
+    }
+  })();
+
+  // Settings view open/close
+  var mainView = document.getElementById("main-view");
+  var settingsView = document.getElementById("settings-view");
+  document.getElementById("btn-settings").addEventListener("click", function(){
+    mainView.hidden = true;
+    settingsView.hidden = false;
+  });
+  document.getElementById("settings-back").addEventListener("click", function(){
+    settingsView.hidden = true;
+    mainView.hidden = false;
+  });
+  // verification convenience: ?settings=1 in the URL opens Settings on load (wireframe only)
+  if(location.search.indexOf("settings=1") !== -1){
+    mainView.hidden = true;
+    settingsView.hidden = false;
+    if(location.search.indexOf("tab=money") !== -1){
+      document.getElementById("tab-money").click();
+    }
+  }
+  // verification convenience: ?leftTab=workflows|history opens that left-pane tab on load,
+  // and &select=<row's data-wf value, or the tail of a hist-row's data-testid after "hist-row-">
+  // clicks that row to exercise the real selection handler (wireframe only)
+  (function(){
+    var m = /[?&]leftTab=(workflows|history)/.exec(location.search);
+    if(!m) return;
+    document.getElementById("tab-" + m[1]).click();
+    var sel = /[?&]select=([a-z0-9-]+)/.exec(location.search);
+    if(!sel) return;
+    var target = m[1] === "workflows"
+      ? document.querySelector('.wf-row[data-wf="' + sel[1] + '"]')
+      : document.querySelector('[data-testid="hist-row-' + sel[1] + '"]');
+    if(target) target.click();
+  })();
+
+  // Settings stub buttons
+  var newProviderCount = 0;
+  document.getElementById("btn-add-provider").addEventListener("click", function(){
+    newProviderCount += 1;
+    var tbody = document.querySelector("[data-testid='provider-table'] tbody");
+    var tr = document.createElement("tr");
+    tr.setAttribute("data-testid", "provider-row-new-" + newProviderCount);
+    tr.innerHTML =
+      '<td><input class="cell-input" type="text" placeholder="Provider name"></td>' +
+      '<td><select class="cell-input"><option>OpenAI-compatible</option><option>Anthropic</option><option>Gemini</option><option>Ollama (llama)</option></select></td>' +
+      '<td><input class="cell-input" type="text" placeholder="https://…"></td>' +
+      '<td><select class="cell-input"><option>DEEPSEEK_API_KEY</option><option>ANTHROPIC_API_KEY</option><option>GEMINI_API_KEY (empty)</option><option>none needed</option></select><div class="hint">not set ✗</div></td>' +
+      '<td><button class="btn small">Test</button><div class="hint">not tested</div></td>' +
+      '<td>0</td>' +
+      '<td>—</td>' +
+      '<td><input class="cell-input cell-input-narrow" type="text" placeholder="est."></td>' +
+      '<td class="row-actions"><button class="btn small">Edit</button><button class="btn small">Remove</button></td>';
+    tbody.appendChild(tr);
+  });
+
+  // delegated stubs for Edit/Remove/Test on provider rows (incl. dynamically added ones)
+  document.querySelector("[data-testid='provider-table']").addEventListener("click", function(e){
+    var btn = e.target.closest("button");
+    if(!btn) return;
+    var txt = btn.textContent.trim();
+    if(txt === "Edit"){ alert("Edit provider — wireframe stub."); }
+    else if(txt === "Remove"){ btn.closest("tr").remove(); }
+    else if(txt === "Test" && !btn.id){ btn.nextElementSibling.textContent = "OK · 380 ms"; }
+  });
+  document.getElementById("test-connection-deepseek").addEventListener("click", function(){
+    document.getElementById("test-result-deepseek").textContent = "OK · 412 ms · model list reachable";
+  });
+  document.getElementById("test-connection-anthropic").addEventListener("click", function(){
+    document.getElementById("test-result-anthropic").textContent = "Failed · ANTHROPIC_API_KEY not set in environment";
+  });
+  document.getElementById("save-anthropic-balance").addEventListener("click", function(){
+    alert("Balance saved — wireframe stub.");
+  });
+  document.getElementById("btn-save-limits").addEventListener("click", function(){
+    alert("Limits saved — wireframe stub.");
+  });
+  document.getElementById("test-connection-local-llama").addEventListener("click", function(){
+    document.getElementById("test-result-local-llama").textContent = "OK · 9 ms · model list reachable";
+  });
+  document.getElementById("btn-copy-keyfile-path").addEventListener("click", function(){
+    alert("Copied ~/.config/bareloop/.env — wireframe stub.");
+  });
+  document.getElementById("btn-reload-keys").addEventListener("click", function(){
+    alert("Reload keys — wireframe stub.");
+  });
+
+  // theme toggle (additive; does not alter any locked behavior above)
+  (function(){
+    var root = document.documentElement;
+    var btn = document.getElementById("theme-toggle");
+    var stored = null;
+    try{ stored = localStorage.getItem("bareloop-variant-f-theme"); }catch(e){}
+    if(stored === "light" || stored === "dark"){ root.setAttribute("data-theme", stored); }
+    function current(){
+      var attr = root.getAttribute("data-theme");
+      if(attr) return attr;
+      return (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
+    }
+    function paint(){ btn.textContent = current() === "dark" ? "☾" : "☀"; }
+    paint();
+    btn.addEventListener("click", function(){
+      var next = current() === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      try{ localStorage.setItem("bareloop-variant-f-theme", next); }catch(e){}
+      paint();
+    });
+  })();
+
+})();
+</script>
+
+<script src="overlay-vanilla.js"></script>
+<script>LiveCanvas.init({target:'BareloopPanel-F', batchEndpoint:'http://localhost:8788/feedback-jsonl'});</script>
+</body>
+</html>
