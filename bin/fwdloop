@@ -16,7 +16,7 @@
 
 import { parseArgs } from 'node:util';
 import {
-  existsSync, mkdirSync, readFileSync, readdirSync,
+  existsSync, readFileSync, readdirSync,
 } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -36,26 +36,6 @@ import { answerAsk } from '../src/ask.js';
 // drives. `PROVIDER_SLOTS.deepseek.envVar` is `DEEPSEEK_API_KEY`; this CLI
 // never reads a key any other way and never prints it.
 const MODEL_SLOT = 'deepseek';
-
-/**
- * docs/logs/FINDINGS.md F46, option 2: a step whose declaration grants a
- * verb `resolvePrimitives` could not wire up (catalogue-present but no M2
- * implementation, e.g. litectx's `compress`) must REFUSE the whole run at
- * preflight, naming the step and the verb, before any model call or ledger
- * spend — never the warning-and-continue this used to be (`primitiveReds`
- * printed to stderr while the run went ahead, job #2's compose step among
- * them). One writer: both `run` and `resume` call this same check, right
- * after `resolvePrimitives` builds `tools`, before `runFlow`/`resumeRun`.
- */
-function refuseUnwiredVerbs(verb, declaration, primitives) {
-  for (const step of declaration.steps) {
-    for (const grantedVerb of step.primitives ?? []) {
-      if (!Object.hasOwn(primitives, grantedVerb)) {
-        fail(`${verb}: step "${step.emits}" (line ${step.fromLine}) grants verb "${grantedVerb}", which has no wired implementation — refusing before any model call or spend`);
-      }
-    }
-  }
-}
 
 function fail(message) {
   process.stderr.write(`fwdloop: ${message}\n`);
@@ -235,16 +215,15 @@ async function cmdRun(rest) {
   // Predict the frozen input paths `runFlow`'s own `freezeInputs` will use
   // (deterministic: `<runDir>/inputs/<id><ext>`) so the primitives map can
   // be built once, before `runFlow` itself freezes anything. Pure path
-  // arithmetic — `resolvePrimitives` only needs the STRINGS, not the
-  // directory to already exist — so the actual `mkdirSync` is deferred until
-  // AFTER `refuseUnwiredVerbs`, below: an F46 refusal must leave no run dir
-  // behind, not even an empty `inputs/`.
+  // arithmetic — `resolvePrimitives` only needs the STRINGS, never the
+  // directory to actually exist yet — so nothing under `runDir` is created
+  // here. `runFlow` itself now carries the F46 unwired-verb preflight
+  // refusal (moved to `src/runner.js` so any caller — this CLI, M4's web
+  // panel — gets it for free); it also owns the ONLY `mkdirSync`/
+  // `freezeInputs` for this run dir, so a refusal leaves nothing behind.
   const predictedInputs = sources.map((s) => ({ id: s.id, frozen: join(runDir, 'inputs', `${s.id}${extname(s.path)}`) }));
   const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
   const { tools: primitives } = resolvePrimitives(catalogue, allVerbs, { runDir, inputs: predictedInputs });
-  refuseUnwiredVerbs('run', declaration, primitives);
-
-  mkdirSync(join(runDir, 'inputs'), { recursive: true });
 
   const result = await runFlow({
     root,
@@ -469,10 +448,11 @@ async function cmdResume(rest) {
   const inputsManifestPath = join(runDir, 'inputs.json');
   const inputsManifest = existsSync(inputsManifestPath) ? JSON.parse(readFileSync(inputsManifestPath, 'utf8')) : [];
   const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
+  // F46's unwired-verb preflight refusal now lives in `resumeRun` itself
+  // (`src/runner.js`) — this CLI no longer keeps a second copy of the check.
   const { tools: primitives } = resolvePrimitives(catalogue, allVerbs, {
     runDir, inputs: inputsManifest.map((m) => ({ id: m.id, frozen: m.frozen })),
   });
-  refuseUnwiredVerbs('resume', declaration, primitives);
 
   const result = await resumeRun({
     root,

@@ -198,6 +198,14 @@ function addressCellsPrimitiveTool(inputsByRole) {
   };
 }
 
+/** The verbs this piece actually implements (the switch below, as data) —
+ *  one writer for "is this verb wired": `resolvePrimitives`'s own reds use
+ *  it, and `src/runner.js`'s preflight (F46: a step granted a
+ *  catalogue-present-but-unwired verb, e.g. litectx's `compress`, must
+ *  refuse before any model call or spend) imports this SAME set rather than
+ *  keeping a second copy of the list. */
+export const WIRED_VERBS = new Set(['read', 'grep', 'write', 'readDocx', 'addressCells']);
+
 /**
  * Resolve the granted tools for one step's model call. Never throws —
  * a verb absent from the catalogue, or present but unimplemented here, is
@@ -221,6 +229,11 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
     const entry = primitiveFor(catalogue, verb);
     if (!entry) {
       reds.push(`primitives: verb "${verb}" is not in the catalogue`);
+      // eslint-disable-next-line no-continue
+      continue;
+    }
+    if (!WIRED_VERBS.has(verb)) {
+      reds.push(`primitives: verb "${verb}" is in the catalogue but has no M2 implementation yet`);
       // eslint-disable-next-line no-continue
       continue;
     }

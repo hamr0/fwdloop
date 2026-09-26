@@ -534,6 +534,63 @@ test('negative (iv): a corrupted declaration.json is refused by name, at $0', as
 });
 
 // ---------------------------------------------------------------------------
+// F46 (docs/logs/FINDINGS.md): a step whose declaration grants a verb the
+// catalogue lists but `resolvePrimitives` has no case for (e.g. litectx's
+// `compress`) must refuse `runFlow` itself at preflight — not just a
+// `bin/fwdloop` warning — naming the step and the verb, at $0, before any
+// model call, run dir, or spend. Coordinator ask: this must live in
+// src/runner.js so any caller (M4's web panel included) gets it without
+// going through the CLI.
+// ---------------------------------------------------------------------------
+test('F46: a step granting an unwired verb (e.g. "compress") refuses runFlow at preflight, naming the step and verb, at $0, no run dir', async () => {
+  const root = tmpRoot('f46-unwired-verb');
+  const declaration = fixtureJson('job2.m1.declaration.json');
+  const draftStep = declaration.steps.find((s) => s.emits === 'resume-summary');
+  assert.ok(draftStep, 'expected job2.m1.declaration.json to carry a "resume-summary" step');
+  draftStep.primitives = ['compress'];
+  const written = writeFlow({
+    root,
+    name: 'job2-unwired',
+    proseText: fixture('job2-with-sources.signed.txt'),
+    declaration,
+    signedBy: SIGNED_BY,
+    signedAt: SIGNED_AT,
+    catalogue: CATALOGUE,
+  });
+  assert.equal(written.ok, true, written.ok ? '' : written.reds.join('\n'));
+
+  const result = await runFlow({
+    root,
+    name: 'job2-unwired',
+    runId: 'run-1',
+    sources: [],
+    catalogue: CATALOGUE,
+    modelStep: async () => { throw new Error('modelStep must never be called'); },
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'preflight-red');
+  assert.match(result.red, /resume-summary/, 'the refusal must name the step');
+  assert.match(result.red, /"compress"/, 'the refusal must name the verb');
+  assert.match(result.red, /no wired implementation/);
+  assert.equal(result.spentUsd, 0);
+
+  // Same book shape as any other preflight refusal (negative (iv), above):
+  // one history row, $0, spendComplete true — and NO run dir at all, since
+  // this check runs before `checkFreshRunDir`/`mkdirSync(runDir)`.
+  const historyPath = path.join(root, 'job2-unwired', 'history.jsonl');
+  const rows = readFileSync(historyPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].outcome, 'preflight-red');
+  assert.equal(rows[0].spentUsd, 0);
+  assert.equal(rows[0].spendComplete, true);
+  assert.equal(existsSync(path.join(root, 'job2-unwired', 'runs', 'run-1')), false, 'no run dir may exist — refused before any run dir was created');
+});
+
+// ---------------------------------------------------------------------------
 // Negative (v): a transport fault twice on one attempt parks the run
 // provider-red with spendComplete:false, and the ledger shows the floor,
 // never 0 when spend has actually happened.

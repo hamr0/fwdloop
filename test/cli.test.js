@@ -69,25 +69,6 @@ function writeSources(srcDir) {
   return { resume, jd };
 }
 
-/** `test/fixtures/job2.m1.declaration.json`'s draft step grants `compress` —
- *  catalogue-present but never wired by `resolvePrimitives` (F46). Since the
- *  F46 fix (this branch) makes the runner refuse at preflight when a step
- *  grants an unwired verb, that fixture's draft step would now refuse every
- *  CLI scenario below, none of which are testing `compress` itself — they
- *  exercise run/park/ask/resume/rerun plumbing. So this local copy swaps it
- *  for `read` (already wired) rather than editing the shared fixture file,
- *  which other test files (park-resume, rerun, runner, ...) also load and
- *  which is left untouched. F46's own preflight-refusal behaviour is tested
- *  separately (see the "unwired verb" tests below), with `compress` intact.
- */
-function wiredJob2Declaration() {
-  const declaration = fixtureJson('job2.m1.declaration.json');
-  const draftStep = declaration.steps.find((s) => s.emits === 'resume-summary');
-  assert.ok(draftStep, 'expected job2.m1.declaration.json to carry a "resume-summary" step');
-  draftStep.primitives = ['read'];
-  return declaration;
-}
-
 function writeJob2Flow(root, { name = 'job2', askMark = 'ask:' } = {}) {
   const base = fixture('job2-with-sources.signed.txt');
   assert.ok(base.includes('4. ask: check it with me,'), 'fixture line 4 must still read "ask: check it with me,"');
@@ -96,7 +77,7 @@ function writeJob2Flow(root, { name = 'job2', askMark = 'ask:' } = {}) {
     root,
     name,
     proseText,
-    declaration: wiredJob2Declaration(),
+    declaration: fixtureJson('job2.m1.declaration.json'),
     signedBy: 'hamr',
     signedAt: '2026-09-25T12:00:00Z',
     catalogue: CATALOGUE,
@@ -411,8 +392,18 @@ test('cli: run refuses at preflight when a step grants an unwired verb (litectx\
   assert.match(result.stderr, /resume-summary/, 'the refusal must name the step');
   assert.match(result.stderr, /"compress"/, 'the refusal must name the verb');
   assert.match(result.stderr, /no wired implementation/);
-  assert.equal(existsSync(path.join(root, 'job2-unwired', 'runs', 'run-1')), false, 'no run dir may exist — refused before any run started');
-  assert.equal(existsSync(path.join(root, 'job2-unwired', 'history.jsonl')), false, 'no book row — refused at $0 before runFlow was ever called');
+  assert.equal(existsSync(path.join(root, 'job2-unwired', 'runs', 'run-1')), false, 'no run dir may exist — refused before any run dir was created');
+  // The refusal now lives in `runFlow` itself (F46, moved from bin/fwdloop so
+  // any caller gets it — see src/runner.js's `findUnwiredVerbStep`), which
+  // records it the same way every other preflight refusal is recorded: one
+  // history row, $0, `spendComplete: true` — never a silent CLI-only exit.
+  const historyPath = path.join(root, 'job2-unwired', 'history.jsonl');
+  assert.equal(existsSync(historyPath), true, 'a preflight refusal is still one history row, same as any other');
+  const rows = readFileSync(historyPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].outcome, 'preflight-red');
+  assert.equal(rows[0].spentUsd, 0);
+  assert.equal(rows[0].spendComplete, true);
 });
 
 test('cli: run with only wired verbs still runs (control case for the F46 preflight refusal)', async () => {
