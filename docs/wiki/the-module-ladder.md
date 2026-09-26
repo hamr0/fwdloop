@@ -662,10 +662,16 @@ has a bareloop UI to borrow, so M4 is mostly adjusting, not designing.
 `src/panel/index.html` (one file, all CSS and JS inline, vanilla, no build step, no npm UI deps; only
 Google Fonts) and `src/panel/server.js` (`node:http` only, binds `127.0.0.1`). Visual contract:
 `design/panel-mockup.html`. Rulings: `docs/product/PANEL-BUILD.md` §5–§7 and
-`design/panel-feedback.jsonl`. **Pin: `4879437`** (bareloop `feat/panel-p1`, the latest per hamr's
-"start with the latest"; `loop` reports typecheck clean and 2961/2961 tests at that tree, and hamr
-checked it live). It is a local commit, not yet on bareloop's origin, so we copy from the local tree.
-It carries the audit Step column fix, run-window scoping and search by job, run id or model. What bareloop has wired: Workflows and History lists, the Run tab (step map,
+`design/panel-feedback.jsonl`. **Pin: `b2876d0`** (bareloop `feat/panel-p1`, pinged by `loop` 2026-09-26, replacing `4879437`;
+`loop` reports typecheck clean and 3003/3003 tests, and hamr hand-checked it live). It is local-only
+(origin has up to `ed89557`), so we copy from `../bareloop`. `loop` may ping a newer hash after its own
+debrief; we pin the last one pinged before M4 starts. What changed since `4879437` (hamr's goal: no
+duplication, no clutter; Run is the summary, Audit is the investigation): Workflows and History are
+one **Runs** tab with a toggle; the Run tab is a map plus one two-line card per ordered **part**
+(computed once server-side), with no expanding; Audit is grouped part → attempts → rounds, with a flat
+toggle and All/Writes/Blocked filters. `loop`'s added lessons: one ordered list must drive the map,
+the cards and Audit, or they drift; label parts from each round's own recorded phase, never from
+timestamps; show hidden cost (a fix loop was over half the spend and invisible). What bareloop has wired: Workflows and History lists, the Run tab (step map,
 step cards → attempts → rounds), Audit/logs, Job. Not wired there: Chat (authoring), Settings, and
 any action buttons (their P1 is read-only).
 
