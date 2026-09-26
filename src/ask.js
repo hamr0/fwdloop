@@ -109,6 +109,75 @@ export function makeFileAskStep({
 }
 
 // ---------------------------------------------------------------------------
+// F47 fix (docs/logs/FINDINGS.md F47, M4a ladder item 1): the ONE shared
+// reader for ask.json's `evidence` field, across every real shape on disk —
+// M3 (`evidence.artifact.text` + `evidence.unjudged[].artifact.text`), M2
+// (`evidence.text`/`evidence.lines`, no unjudged concept), and none (parked
+// before F45 finding 2 landed the evidence-carry fix, so no `evidence` key
+// at all). `bin/fwdloop`'s `artifactText()`/`cmdShow` and `poc/m4/panel-
+// data.mjs` both read ask.json evidence ad hoc today; this is the one
+// place, per "one writer/one reader" (AGENT_RULES.md), that normalises it.
+// Never returns "undefined"/""/0 standing in for missing data — an
+// unparseable shape is a named `why`, never a crash, never silently empty.
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {any} ask the parsed ask.json object (or its `evidence` field's
+ *   container — pass the whole ask so a missing `evidence` key is itself a
+ *   handled case, not the caller's problem).
+ * @returns {{ draft: {step?: string, text: string} | null, unjudged: Array<{step: string, text: string}>, why?: string }}
+ */
+export function readAskEvidence(ask) {
+  const evidence = ask && typeof ask === 'object' ? ask.evidence : undefined;
+
+  if (evidence === undefined || evidence === null) {
+    return {
+      draft: null,
+      unjudged: [],
+      why: 'this ask was parked before evidence was recorded (pre-F45 finding 2)',
+    };
+  }
+
+  if (typeof evidence !== 'object') {
+    return {
+      draft: null,
+      unjudged: [],
+      why: `ask.json "evidence" is neither an object nor absent — unrecognised shape: ${typeof evidence}`,
+    };
+  }
+
+  // M3 shape: evidence.artifact.text (+ evidence.unjudged[]).
+  if (evidence.artifact && typeof evidence.artifact === 'object' && typeof evidence.artifact.text === 'string') {
+    const rawUnjudged = Array.isArray(evidence.unjudged) ? evidence.unjudged : [];
+    const unjudged = [];
+    for (const item of rawUnjudged) {
+      const step = item && (item.step ?? item.emits);
+      const text = item && item.artifact && typeof item.artifact.text === 'string' ? item.artifact.text : undefined;
+      if (typeof step === 'string' && typeof text === 'string') {
+        unjudged.push({ step, text });
+      }
+      // An unjudged entry with neither a nameable step nor readable text is
+      // dropped rather than shown as a blank row — the draft itself is
+      // never lost by a malformed sibling entry.
+    }
+    return { draft: { text: evidence.artifact.text }, unjudged };
+  }
+
+  // M2 shape: evidence.text (+ evidence.lines) — no unjudged concept.
+  if (typeof evidence.text === 'string') {
+    return { draft: { text: evidence.text }, unjudged: [] };
+  }
+
+  // Present but neither recognised shape — never fall through to
+  // `undefined`/`JSON.stringify(undefined)` ("undefined" the string).
+  return {
+    draft: null,
+    unjudged: [],
+    why: `ask.json "evidence" has neither ".artifact.text" (M3) nor ".text" (M2) — unrecognised shape: keys ${JSON.stringify(Object.keys(evidence))}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // M3 piece 1 (docs/wiki/the-module-ladder.md, "M3 — scope, exit, negative —
 // SIGNED", scope item 3, the function only — the CLI is piece 2): a separate
 // process's half of the park protocol. Writes `answer.json` exactly once,

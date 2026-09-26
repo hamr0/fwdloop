@@ -14,4 +14,4 @@ export {
   runFlow, resumeRun, makeParkingAskStep, STRIKE_LIMIT, MAX_ATTEMPTS,
 } from './runner.js';
 export { closeByClass } from './closers.js';
-export { makeFileAskStep, answerAsk } from './ask.js';
+export { makeFileAskStep, answerAsk, readAskEvidence } from './ask.js';

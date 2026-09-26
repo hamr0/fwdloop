@@ -31,7 +31,7 @@ import {
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { readFlow, loadCatalogue } from '../../src/index.js';
+import { readFlow, loadCatalogue, readAskEvidence } from '../../src/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..');
@@ -415,41 +415,40 @@ def('Inbox', 'time left / expiresAt', 'bin/fwdloop:360 (expiresAt) + bin/fwdloop
   return filled(ctx.askJson.expiresAt, 'ask.json (expiresAt)');
 });
 
-def('Inbox', 'evidence: draft under review', 'bin/fwdloop:333-368 (artifactText(evidence.artifact))', (ctx) => {
+// F47 fix: both fields below now go through the ONE shared reader,
+// `readAskEvidence` (src/ask.js, re-exported from src/index.js), instead of
+// reaching into ask.json's evidence shapes ad hoc — the same reader
+// bin/fwdloop's cmdShow now uses. It normalises all three real shapes (M3,
+// M2, none) and never returns "undefined"/""/0 for missing data; an
+// unrecognised shape comes back as a named `why`, which this POC still
+// reports as a real GAP (a books/reader gap, not an invented value).
+
+def('Inbox', 'evidence: draft under review', 'src/ask.js readAskEvidence() + bin/fwdloop:354-360 (show)', (ctx) => {
   if (!ctx.askJson) return emptyWithWhy('no ask.json');
-  const ev = ctx.askJson.evidence;
-  if (!ev) return emptyWithWhy('ask.json has no "evidence" key at all — a legacy park written before F45 finding 2 landed the evidence-carry fix (fit-check §2 confirms runner.js now always recomputes evidence at park time; this ask predates that)');
-  if (ev.artifact && typeof ev.artifact.text === 'string') {
-    return filled(ev.artifact.text.slice(0, 80) + (ev.artifact.text.length > 80 ? '…' : ''), 'ask.json (evidence.artifact.text)');
+  const { draft, why } = readAskEvidence(ctx.askJson);
+  if (draft) {
+    return filled(draft.text.slice(0, 80) + (draft.text.length > 80 ? '…' : ''), 'ask.json (evidence, via readAskEvidence)');
   }
-  if (typeof ev.text === 'string') {
-    // GAP, not FILLED: bin/fwdloop's own artifactText() reads evidence.artifact,
-    // not evidence directly. On THIS real shape (M2-era ask.json — see
-    // run-1/run-2), artifactText(undefined) falls through to
-    // JSON.stringify(undefined, null, 2), which returns the JS value
-    // `undefined`, template-literal-coerced to the STRING "undefined" —
-    // bin/fwdloop would print the literal word "undefined" here today. That
-    // is an invented value, not a real gap in the books (the text IS on
-    // disk, at evidence.text) — screen/CLI bug, not a books gap. Flagged
-    // here, not fixed (out of scope for this POC: "do not change src/").
-    return gap('evidence has "text"/"lines" directly (M2-era shape), not "evidence.artifact.text" — bin/fwdloop\'s artifactText(evidence.artifact) would print the literal string "undefined" for this real ask.json; the data exists at evidence.text but the CLI/panel reader does not look there');
-  }
-  return gap(`evidence present but has neither .artifact.text nor .text — shape: ${JSON.stringify(Object.keys(ev))}`);
+  // readAskEvidence names two distinct reasons for draft === null: the
+  // pre-F45 "no evidence key at all" legacy park (a real, expected shape —
+  // EMPTY-WITH-WHY), and an evidence key present but in a shape the reader
+  // does not recognise (a real gap — GAP).
+  if (why && why.startsWith('this ask was parked before evidence was recorded')) return emptyWithWhy(why);
+  return gap(why ?? 'readAskEvidence returned no draft and no why — reader contract violated');
 });
 
-def('Inbox', 'evidence: each unjudged artifact, labelled by step', 'bin/fwdloop:369-372 (for item of evidence.unjudged ?? [])', (ctx) => {
+def('Inbox', 'evidence: each unjudged artifact, labelled by step', 'src/ask.js readAskEvidence() + bin/fwdloop:361-364 (show)', (ctx) => {
   if (!ctx.askJson) return emptyWithWhy('no ask.json');
-  const ev = ctx.askJson.evidence;
-  if (!ev) return emptyWithWhy('ask.json has no "evidence" key (pre-F45-fix legacy park)');
-  const unjudged = ev.unjudged;
-  if (Array.isArray(unjudged) && unjudged.length > 0) {
-    const bad = unjudged.find((u) => !u || typeof u.artifact?.text !== 'string');
-    if (bad) return gap(`an unjudged entry is missing artifact.text: ${JSON.stringify(bad).slice(0, 120)}`);
-    return filled(unjudged.map((u) => ({ step: u.step ?? u.emits, preview: u.artifact.text.slice(0, 60) })), 'ask.json (evidence.unjudged[])');
+  const { draft, unjudged, why } = readAskEvidence(ctx.askJson);
+  if (!draft) {
+    return why && why.startsWith('this ask was parked before evidence was recorded')
+      ? emptyWithWhy(why)
+      : gap(why ?? 'readAskEvidence returned no draft and no why — reader contract violated');
   }
-  if (Array.isArray(unjudged) && unjudged.length === 0) return emptyWithWhy('evidence.unjudged is an empty array — every prior step was already judged when this ask was written');
-  if ('lines' in ev) return emptyWithWhy('M2-era evidence has no "unjudged" concept at all (only .text/.lines for the one draft) — nothing to show here for this run');
-  return gap(`evidence present but "unjudged" is neither an array nor absent-with-a-known-reason: ${JSON.stringify(typeof unjudged)}`);
+  if (unjudged.length > 0) {
+    return filled(unjudged.map((u) => ({ step: u.step, preview: u.text.slice(0, 60) })), 'ask.json (evidence, via readAskEvidence)');
+  }
+  return emptyWithWhy('no unjudged artifacts for this ask (M2-era evidence has no "unjudged" concept at all, or every prior step was already judged when this ask was written)');
 });
 
 // ---------------------------------------------------------------------------

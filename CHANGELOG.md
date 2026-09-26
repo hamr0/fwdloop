@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- F47 (docs/logs/FINDINGS.md): `fwdloop show` (and `bin/fwdloop`'s `artifactText()`) read
+  ask.json's evidence only in the M3 shape (`evidence.artifact.text`/`evidence.unjudged`) and
+  printed the literal string `"undefined"` for a real M2-era ask.json (`evidence.text`/
+  `evidence.lines` directly), or for an ask.json with no `evidence` key at all. One shared reader,
+  `readAskEvidence()` (`src/ask.js`, re-exported from `src/index.js`), now normalises all three
+  real shapes — M3, M2, and none (parked pre-F45) — into `{ draft, unjudged, why? }`, never
+  inventing `"undefined"`/`""`/`0` for missing data; an unrecognised shape is a named `why`,
+  never a crash. `fwdloop show` and `poc/m4/panel-data.mjs`'s Inbox evidence fields both use it.
 - Path escape: `bin/fwdloop`'s `--run-id` (and `resume`'s runId positional) could name a path
   outside the flow's `runs/` directory (e.g. `--run-id ../../../../tmp/pwned`). Both now go
   through one shared `resolveRunDir` (`src/flow.js`): a strict allow-list on the runId's

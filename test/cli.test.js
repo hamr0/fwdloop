@@ -287,6 +287,42 @@ test('cli: show prints the parked ask\'s question, expiry, and the artifact text
 });
 
 // ---------------------------------------------------------------------------
+// F47 fix (docs/logs/FINDINGS.md F47): a real M2-era ask.json carries its
+// evidence directly at `evidence.text`/`evidence.lines`, never
+// `evidence.artifact.text`. Before the fix, `artifactText(evidence.artifact)`
+// fell through to `JSON.stringify(undefined, null, 2)` — the JS value
+// `undefined`, template-coerced to the literal STRING "undefined" — for
+// every real M2-shape ask.json on disk. `show` now goes through the shared
+// `readAskEvidence()` reader (src/ask.js), which recognises the M2 shape.
+// Built directly (not via a live run) so this test isolates the evidence-
+// shape bug from the unrelated, pre-existing M2-legacy-askId concern
+// (`inbox` already handles that separately) — this ask.json carries a real
+// askId/expiresAt so `show` can locate it at all.
+// ---------------------------------------------------------------------------
+
+test('cli: show on an M2-shape ask.json (evidence.text/lines) prints the real draft text, never the literal string "undefined" (F47)', () => {
+  const root = tmpRoot('show-m2');
+  const runDir = path.join(root, 'job2', 'runs', 'run-m2');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(path.join(runDir, 'ask.json'), JSON.stringify({
+    askId: 'ask-m2-shape',
+    question: 'check it with me,',
+    askedAt: '2026-09-24T13:23:36.913Z',
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    evidence: {
+      text: 'summary of work history blurb — drawn from the resume alone.',
+      lines: ['summary of work history blurb — drawn from the resume alone.'],
+    },
+  }));
+
+  const showResult = runCli(['show', 'ask-m2-shape', '--root', root], fakeModelEnv());
+  assert.equal(showResult.status, 0, showResult.stderr || showResult.stdout);
+  assert.match(showResult.stdout, /question: check it with me,/);
+  assert.match(showResult.stdout, /summary of work history blurb/, 'the M2-shape draft text must be printed');
+  assert.doesNotMatch(showResult.stdout, /undefined/, 'must never print the literal string "undefined" for a real M2-shape ask.json (F47)');
+});
+
+// ---------------------------------------------------------------------------
 // Path-escape fix: `--run-id` (and `resume`'s runId positional) go through
 // `resolveRunDir` before any run dir is touched. `../../../../tmp/pwned`
 // must never escape the flow's own `runs/` directory.

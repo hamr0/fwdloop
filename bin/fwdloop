@@ -29,7 +29,7 @@ import { makeLiveModelStep } from '../src/model-step.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
 import { checkKeyPreflight } from '../src/provider.js';
-import { answerAsk } from '../src/ask.js';
+import { answerAsk, readAskEvidence } from '../src/ask.js';
 
 // The baseline model (project rule, CLAUDE.md/AGENT_RULES: "deepseek-flash
 // ... Never Claude for fwdloop's own runs") — the ONE provider slot this CLI
@@ -329,11 +329,6 @@ function cmdInbox(rest) {
 // is how a human actually sees what they'd be accepting. Never writes.
 // ---------------------------------------------------------------------------
 
-function artifactText(artifact) {
-  if (artifact && typeof artifact === 'object' && typeof artifact.text === 'string') return artifact.text;
-  return JSON.stringify(artifact, null, 2);
-}
-
 function cmdShow(rest) {
   const { values, positionals } = parseArgs({
     args: rest,
@@ -359,16 +354,16 @@ function cmdShow(rest) {
   process.stdout.write(`question: ${ask.question}\n`);
   process.stdout.write(`expiresAt: ${ask.expiresAt}\n`);
 
-  const evidence = ask.evidence ?? null;
-  if (!evidence) {
-    process.stdout.write('\n(no evidence recorded on this ask — legacy park, before F45 finding 2 was fixed)\n');
+  const { draft, unjudged, why } = readAskEvidence(ask);
+  if (!draft) {
+    process.stdout.write(`\n(no evidence recorded on this ask — ${why})\n`);
     return;
   }
   process.stdout.write('\n--- artifact under review ---\n');
-  process.stdout.write(`${artifactText(evidence.artifact)}\n`);
-  for (const item of evidence.unjudged ?? []) {
-    process.stdout.write(`\n--- unjudged: ${item.step ?? item.emits ?? '(step)'} ---\n`);
-    process.stdout.write(`${artifactText(item.artifact)}\n`);
+  process.stdout.write(`${draft.text}\n`);
+  for (const item of unjudged) {
+    process.stdout.write(`\n--- unjudged: ${item.step} ---\n`);
+    process.stdout.write(`${item.text}\n`);
   }
 }
 
