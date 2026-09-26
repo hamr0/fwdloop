@@ -240,6 +240,28 @@ test('cli: inbox names an unparseable ask.json as unreadable, never crashes', as
 });
 
 // ---------------------------------------------------------------------------
+// Debrief fix: a present-but-unparseable ask.json "expiresAt" (Date.parse ->
+// NaN) must never show as [open] with a "NaNs left" countdown — `inbox`
+// shows it [unreadable], naming the run.
+// ---------------------------------------------------------------------------
+
+test('cli: inbox shows an ask.json with a garbage (unparseable) expiresAt as [unreadable], never [open], never a NaN countdown', async () => {
+  const root = tmpRoot('inbox-bad-expiry');
+  writeJob2Flow(root);
+  const badRunDir = path.join(root, 'job2', 'runs', 'bad-expiry-run-1');
+  mkdirSync(badRunDir, { recursive: true });
+  writeFileSync(path.join(badRunDir, 'ask.json'), JSON.stringify({
+    askId: 'ask-1', question: 'check it with me,', evidence: { text: 'a draft' }, askedAt: '2026-09-24T13:23:36.913Z', expiresAt: 'not-a-real-date',
+  }, null, 2));
+
+  const result = runCli(['inbox', '--root', root], fakeModelEnv());
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /run=bad-expiry-run-1 \[unreadable\]/);
+  assert.doesNotMatch(result.stdout, /\[open\]/);
+  assert.doesNotMatch(result.stdout, /NaN/);
+});
+
+// ---------------------------------------------------------------------------
 // F45 finding 2: `fwdloop show <askId>` is how a human sees what they'd be
 // accepting — the evidence carried on a parked ask.json.
 // ---------------------------------------------------------------------------

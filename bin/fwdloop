@@ -260,7 +260,7 @@ function cmdInbox(rest) {
       } catch (err) {
         // A malformed/unparseable ask.json must never crash inbox — show it
         // naming the run as unreadable and move on to the next one.
-        rows.push({ flow, runId, status: 'unreadable', detail: err.message });
+        rows.push({ flow, runId, status: 'unreadable', detail: `ask.json could not be parsed — ${err.message}` });
         // eslint-disable-next-line no-continue
         continue;
       }
@@ -278,6 +278,18 @@ function cmdInbox(rest) {
       // (cancelling happens only at answer/resume, which re-verify anyway).
       const consumedPath = join(runDir, `answer.${ask.askId}.consumed.json`);
       if (existsSync(consumedPath)) continue; // this specific ask is already answered
+      // A present-but-unparseable expiresAt (Date.parse -> NaN) must never
+      // read as "not expired" — `Date.now() > NaN` is false, so the naive
+      // compare below would show this as [open] with a "NaNs left"
+      // countdown. Shown as [unreadable] naming the run instead, same as a
+      // malformed ask.json — never [open], never a NaN countdown.
+      if (Number.isNaN(Date.parse(ask.expiresAt))) {
+        rows.push({
+          flow, runId, status: 'unreadable', detail: `ask.json expiresAt "${ask.expiresAt}" is not a parseable date`,
+        });
+        // eslint-disable-next-line no-continue
+        continue;
+      }
       const expired = Date.now() > Date.parse(ask.expiresAt);
       const timeLeftMs = Date.parse(ask.expiresAt) - Date.now();
       rows.push({
@@ -292,7 +304,7 @@ function cmdInbox(rest) {
   }
   for (const row of rows) {
     if (row.status === 'unreadable') {
-      process.stdout.write(`flow=${row.flow} run=${row.runId} [unreadable] ask.json could not be parsed — ${row.detail}\n`);
+      process.stdout.write(`flow=${row.flow} run=${row.runId} [unreadable] ${row.detail}\n`);
       continue;
     }
     if (row.status === 'legacy') {

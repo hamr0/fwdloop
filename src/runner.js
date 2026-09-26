@@ -1054,14 +1054,14 @@ async function foldFromStep({
         });
       }
       const target = `${sendSlot.target.kind}:${sendSlot.target.path}`;
-      const askIdsInReads = (step.reads ?? []).filter((id) => askStepEmits.has(id));
-      if (askIdsInReads.length !== 1) {
-        return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
-          outcome: 'red', red: `send: step "${step.goal}" must read exactly one signed ask's artifact, found [${askIdsInReads.join(', ')}]`,
-        });
-      }
-      const [askArtifactId] = askIdsInReads;
+      // The send's content is identified by IDENTITY (the artifact emitted
+      // by the ONE earlier signed ask step this send reads) — never by
+      // position in `reads`. `readFlow`/`validateDeclaration` already
+      // refuse, at signing time, any declaration whose send step doesn't
+      // read the emits of exactly one earlier signed ask (M3 item 8); every
+      // path into this fold goes through `readFlow` first, so `askIdsInReads`
+      // is always exactly 1 here.
+      const [askArtifactId] = (step.reads ?? []).filter((id) => askStepEmits.has(id));
       if (!acceptedAskEmitsThisRun.has(askArtifactId)) {
         return haltRun({
           flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
@@ -1198,6 +1198,39 @@ async function foldFromStep({
 }
 
 /**
+ * Debrief fix: sums a run's own `audit.jsonl` — the books are the source of
+ * truth for money already spent, so `state.spent` (a value carried in a
+ * separately-writable state.json) is cross-checked against it before a
+ * resume trusts it under the cap. Every row's `usd` here is expected to be
+ * a finite number (the audit rows a park can precede — attempts, the pause
+ * itself — never carry `usd: null`; only a `cap-halt` row does, and a
+ * cap-halt ends the run without parking, so it can never appear in a
+ * resumable run's audit.jsonl). A row this function cannot price refuses
+ * rather than guessing (never `?? 0`, never skipped).
+ * @param {string} runDir
+ * @returns {{ ok: true, total: number } | { ok: false, red: string }}
+ */
+function sumAuditUsd(runDir) {
+  const auditPath = join(runDir, 'audit.jsonl');
+  if (!existsSync(auditPath)) return { ok: true, total: 0 };
+  const lines = readFileSync(auditPath, 'utf8').split('\n').filter((line) => line.trim().length > 0);
+  let total = 0;
+  for (const line of lines) {
+    let row;
+    try {
+      row = JSON.parse(line);
+    } catch (err) {
+      return { ok: false, red: `audit.jsonl line is not valid JSON — ${err.message}` };
+    }
+    if (typeof row.usd !== 'number' || !Number.isFinite(row.usd)) {
+      return { ok: false, red: `audit.jsonl carries a row whose "usd" is not a finite number (got ${JSON.stringify(row.usd)}) — refusing to sum past an unpriced round` };
+    }
+    total += row.usd;
+  }
+  return { ok: true, total };
+}
+
+/**
  * M3 scope items 4-6: re-enter a parked run's SAME fold from a separate
  * process. Takes an exclusive `resume.lock` (refuses by name if already
  * held; a lock left behind by a killed resumer is a red naming it, never
@@ -1314,12 +1347,50 @@ export async function resumeRun({
           + 'unknown cost is never rendered as 0; refusing further spend',
       };
     }
+    // Debrief fix: a negative spend is an impossible cost, never a number
+    // the cap can trust — refused the same way as a non-finite one.
+    if (state.spent < 0) {
+      return {
+        outcome: 'refused',
+        red: `resume: run "${runId}" state.json field "spent" is negative (${state.spent}) — `
+          + 'an impossible cost is never trusted by the cap; refusing further spend',
+      };
+    }
+    // Debrief fix: the run's own audit.jsonl is the books' source of truth
+    // for money already spent — if state.spent claims LESS than what the
+    // audit already recorded, state.spent is wrong (or tampered) and must
+    // never be trusted to gate further spend under the cap.
+    const auditSum = sumAuditUsd(runDir);
+    if (!auditSum.ok) {
+      return { outcome: 'refused', red: `resume: run "${runId}" ${auditSum.red}` };
+    }
+    if (state.spent < auditSum.total) {
+      return {
+        outcome: 'refused',
+        red: `resume: run "${runId}" state.json field "spent" ($${state.spent}) is less than its own audit.jsonl sum ($${auditSum.total}) — `
+          + "the books are the source of truth for money already spent; refusing rather than trusting state.json's lower figure",
+      };
+    }
     const spent = { value: state.spent };
     // Orchestrator review fix (4): a floor persisted across the pause
     // (`state.spendComplete`) is restored here, never quietly reset to
     // `true` — an absent/non-boolean value defaults to `false` (unknown
     // never renders as "complete"), never `true`.
     const spendComplete = { value: state.spendComplete === true };
+
+    // A present-but-unparseable `state.expiresAt` (Date.parse -> NaN) must
+    // never read as "not expired" — `NaN > x`/`x > NaN` are both false, so
+    // the real expiry compare below would silently treat garbage as open
+    // forever. Refused here, naming the run, BEFORE the answer is consumed
+    // (same "checked before consuming" rule as the spent check above — a
+    // refusal here must be replayable).
+    if (Number.isNaN(Date.parse(state.expiresAt))) {
+      return {
+        outcome: 'refused',
+        red: `resume: run "${runId}" state.json field "expiresAt" ("${state.expiresAt}") is not a parseable date — `
+          + 'refusing rather than treating it as not-expired',
+      };
+    }
 
     const answerPath = join(runDir, 'answer.json');
     if (!existsSync(answerPath)) {

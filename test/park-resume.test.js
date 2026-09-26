@@ -420,6 +420,103 @@ test('orchestrator fix 1: a non-finite state.json "spent" refuses the resume, na
   assert.match(resumed.red, /run "run-1" state\.json field "spent" is not a finite number/);
 });
 
+// A present-but-unparseable state.json "expiresAt" (Date.parse -> NaN) must
+// never be treated as "not expired" — refused by name, before the answer
+// is consumed (answer.json must survive the refusal untouched).
+test('debrief fix: a garbage (unparseable) state.json "expiresAt" refuses the resume, naming the run, before consuming the answer', async () => {
+  const root = tmpRoot('bad-expiry');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('bad-expiry-src');
+  const { fn: modelStep } = makeJob2ModelStep();
+  const parked = await runFlow({
+    ...baseRunArgs({ root, modelStep, askStep: makeParkingAskStep() }),
+    sources: writeSources(srcDir),
+  });
+  assert.equal(parked.outcome, 'paused', parked.red);
+  const ans = answerAsk({ runDir: parked.runDir, askId: parked.askId, decision: 'accept' });
+  assert.equal(ans.ok, true);
+
+  const statePath = path.join(parked.runDir, 'state.json');
+  const state = JSON.parse(readFileSync(statePath, 'utf8'));
+  state.expiresAt = 'not-a-real-date';
+  writeFileSync(statePath, JSON.stringify(state, null, 2));
+
+  const resumed = await resumeRun(baseRunArgs({ root, modelStep }));
+  assert.equal(resumed.outcome, 'refused');
+  assert.match(resumed.red, /run "run-1" state\.json field "expiresAt" \("not-a-real-date"\) is not a parseable date/);
+  assert.equal(existsSync(path.join(parked.runDir, 'answer.json')), true, 'the refusal must happen BEFORE the answer is consumed');
+});
+
+// ---------------------------------------------------------------------------
+// Debrief fix: a negative or implausible state.json "spent" is never
+// trusted by the cap — refused by name, exactly like a non-finite one.
+// ---------------------------------------------------------------------------
+
+test('debrief fix: a negative state.json "spent" refuses the resume, naming the run and the field', async () => {
+  const root = tmpRoot('negative-spent');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('negative-spent-src');
+  const { fn: modelStep } = makeJob2ModelStep();
+  const parked = await runFlow({
+    ...baseRunArgs({ root, modelStep, askStep: makeParkingAskStep() }),
+    sources: writeSources(srcDir),
+  });
+  assert.equal(parked.outcome, 'paused', parked.red);
+  const ans = answerAsk({ runDir: parked.runDir, askId: parked.askId, decision: 'accept' });
+  assert.equal(ans.ok, true);
+
+  const statePath = path.join(parked.runDir, 'state.json');
+  const state = JSON.parse(readFileSync(statePath, 'utf8'));
+  state.spent = -0.5;
+  writeFileSync(statePath, JSON.stringify(state, null, 2));
+
+  const resumed = await resumeRun(baseRunArgs({ root, modelStep }));
+  assert.equal(resumed.outcome, 'refused');
+  assert.match(resumed.red, /run "run-1" state\.json field "spent" is negative \(-0\.5\)/);
+});
+
+test('debrief fix: a state.json "spent" lower than the run\'s own audit.jsonl sum refuses the resume, naming both figures', async () => {
+  const root = tmpRoot('under-spent');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('under-spent-src');
+  const { fn: modelStep } = makeJob2ModelStep();
+  const parked = await runFlow({
+    ...baseRunArgs({ root, modelStep, askStep: makeParkingAskStep() }),
+    sources: writeSources(srcDir),
+  });
+  assert.equal(parked.outcome, 'paused', parked.red);
+  assert.ok(parked.spentUsd > 0, 'the pre-ask rounds must have already cost something real');
+  const ans = answerAsk({ runDir: parked.runDir, askId: parked.askId, decision: 'accept' });
+  assert.equal(ans.ok, true);
+
+  const statePath = path.join(parked.runDir, 'state.json');
+  const state = JSON.parse(readFileSync(statePath, 'utf8'));
+  // Books (audit.jsonl) already recorded parked.spentUsd; claim less.
+  state.spent = parked.spentUsd / 2;
+  writeFileSync(statePath, JSON.stringify(state, null, 2));
+
+  const resumed = await resumeRun(baseRunArgs({ root, modelStep }));
+  assert.equal(resumed.outcome, 'refused');
+  assert.match(resumed.red, /run "run-1" state\.json field "spent" \(\$[\d.]+\) is less than its own audit\.jsonl sum \(\$[\d.]+\)/);
+});
+
+test('debrief fix: an honest state.json "spent" (matching the audit sum) still resumes normally', async () => {
+  const root = tmpRoot('honest-spent');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('honest-spent-src');
+  const { fn: modelStep } = makeJob2ModelStep();
+  const parked = await runFlow({
+    ...baseRunArgs({ root, modelStep, askStep: makeParkingAskStep() }),
+    sources: writeSources(srcDir),
+  });
+  assert.equal(parked.outcome, 'paused', parked.red);
+  const ans = answerAsk({ runDir: parked.runDir, askId: parked.askId, decision: 'accept' });
+  assert.equal(ans.ok, true);
+
+  const resumed = await resumeRun(baseRunArgs({ root, modelStep }));
+  assert.equal(resumed.outcome, 'complete', resumed.red);
+});
+
 // (2) The ask-expired history row must carry the run's REAL total spend,
 // never a hard-coded 0 — "a pause spends nothing" means the pause itself
 // adds nothing, not that the run's already-spent total resets.

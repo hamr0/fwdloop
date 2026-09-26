@@ -151,6 +151,13 @@ export function answerAsk({
   }
 
   const nowIso = now();
+  // A present-but-unparseable expiresAt (Date.parse -> NaN) must never read
+  // as "not expired" — `NaN > x`/`x > NaN` are both false, so the comparison
+  // below would silently treat garbage as "still open forever". Refuse by
+  // name instead, naming the askId and the bad value.
+  if (Number.isNaN(Date.parse(ask.expiresAt))) {
+    return { ok: false, red: `answerAsk: askId "${askId}" has an unparseable expiresAt "${ask.expiresAt}" for run ${runDir} — refusing rather than treating it as not-expired` };
+  }
   if (Date.parse(nowIso) > Date.parse(ask.expiresAt)) {
     return { ok: false, red: `answerAsk: askId "${askId}" expired at ${ask.expiresAt} for run ${runDir}` };
   }

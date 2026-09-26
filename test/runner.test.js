@@ -305,11 +305,14 @@ test('M2 fix (a): send content is the signed ask\'s artifact by identity, never 
 // ("declaration.js can't see line 50, so it validates green and only the
 // runner's identity guard catches it live") is stale by design; the fix
 // working is exactly what makes it stale. Rewritten below to assert the
-// refusal directly. The runner's own identity guard (`src/runner.js`,
-// "must read exactly one signed ask's artifact") is left in place
-// unchanged — defense in depth for a declaration that reaches the runner
-// some other way (e.g. hand-built, bypassing `writeFlow`/`validateDeclaration`
-// entirely, as `runFlow` itself does not re-validate).
+// refusal directly. Orchestrator debrief fix: the runner's own runtime
+// count guard ("must read exactly one signed ask's artifact") was proven
+// UNREACHABLE and deleted — both `runFlow` and `resumeRun` call `readFlow`
+// (which always runs `validateDeclaration`) before this fold ever starts,
+// on every path into the runner, so `askIdsInReads` can never be anything
+// but exactly 1 here. The identity PICK itself (`step.reads` filtered by
+// `askStepEmits`, never `reads[0]`) stays — this test still proves it picks
+// the one ACCEPTED ask's artifact by identity, not by position.
 // ---------------------------------------------------------------------------
 
 const DIVERGENT_PROSE = [

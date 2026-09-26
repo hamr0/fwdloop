@@ -10,7 +10,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { makeFileAskStep } from '../src/ask.js';
+import { makeFileAskStep, answerAsk } from '../src/ask.js';
 
 function tmpRunDir() {
   return mkdtempSync(path.join(tmpdir(), 'fwdloop-ask-'));
@@ -114,4 +114,22 @@ test('a rerun/reject decision with no reason is returned as-is — refusing an e
   const result = await promise;
   assert.equal(result.decision, 'rerun');
   assert.equal(result.reason, undefined);
+});
+
+// ---------------------------------------------------------------------------
+// A present-but-unparseable ask.json "expiresAt" (Date.parse -> NaN) must
+// never read as "not expired" — `NaN > x` and `x > NaN` are both false, so
+// the naive comparison would silently treat garbage as open forever.
+// answerAsk must refuse, naming the askId and the bad value.
+// ---------------------------------------------------------------------------
+test('answerAsk refuses a garbage (unparseable) expiresAt, naming the askId and the bad value, never treating it as not-expired', () => {
+  const runDir = tmpRunDir();
+  writeFileSync(path.join(runDir, 'ask.json'), JSON.stringify({
+    askId: 'ask-1', question: 'q', evidence: null, askedAt: '2026-09-24T12:00:00.000Z', expiresAt: 'not-a-real-date',
+  }));
+
+  const result = answerAsk({ runDir, askId: 'ask-1', decision: 'accept' });
+  assert.equal(result.ok, false);
+  assert.match(result.red, /askId "ask-1" has an unparseable expiresAt "not-a-real-date"/);
+  assert.equal(existsSync(path.join(runDir, 'answer.json')), false, 'a refused answerAsk must never write answer.json');
 });
