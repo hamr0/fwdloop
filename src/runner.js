@@ -275,7 +275,10 @@ function hashFile(path) {
  * reaches here every granted verb is already catalogue-present, so
  * `WIRED_VERBS` alone is enough to tell "wired" from "not yet".
  *
- * @param {{steps: Array<{emits: string, fromLine: number, primitives?: string[]}>}} declaration
+ * @param {Record<string, any>} declaration - `readFlow`'s own loosely-typed
+ *   `ReadFlowOk.declaration` shape (src/types.js) — same idiom as every
+ *   other reader of it in this file (e.g. `declaration.steps` below); only
+ *   `steps[].{emits,fromLine,primitives}` are actually read here.
  * @returns {{step: {emits: string, fromLine: number}, verb: string}|null}
  */
 function findUnwiredVerbStep(declaration) {
