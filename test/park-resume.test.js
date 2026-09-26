@@ -517,6 +517,81 @@ test('debrief fix: an honest state.json "spent" (matching the audit sum) still r
   assert.equal(resumed.outcome, 'complete', resumed.red);
 });
 
+// Debrief round 2: a HONEST resume must not be refused merely because
+// `state.spent` (accumulated via repeated `spent.value +=`) and
+// `sumAuditUsd`'s re-summed total land on a different float by a single ULP
+// from summation-order alone — reproduced through the REAL runFlow -> park
+// -> answerAsk accept -> resumeRun path with a fake modelStep that throws a
+// transport fault (retried once by runStepRalph) on the first two pre-ask
+// steps, using the exact floor/retry costs from the debrief repro so the
+// float drift is the real IEEE 754 non-associativity, not a contrived value.
+test('debrief round 2: an honest resume is never refused over a single-ULP float drift between state.spent and the audit sum', async () => {
+  const root = tmpRoot('ulp-drift');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('ulp-drift-src');
+
+  const callCounts = { 'resume-text': 0, 'jd-text': 0, 'resume-summary': 0 };
+  const modelStep = async (ctx) => {
+    if (ctx.goal.includes('resume .docx')) {
+      callCounts['resume-text'] += 1;
+      if (callCounts['resume-text'] === 1) {
+        // First call: a transport fault with a known partial floor.
+        return { ok: false, transport: true, costUsd: 0.001134, red: 'ECONNRESET on first attempt' };
+      }
+      // Retry: succeeds.
+      return { ok: true, costUsd: 0.00075, artifact: { text: 'resume text', done: true } };
+    }
+    if (ctx.goal.includes('job description markdown')) {
+      callCounts['jd-text'] += 1;
+      if (callCounts['jd-text'] === 1) {
+        return { ok: false, transport: true, costUsd: 0.003383, red: 'ECONNRESET on first attempt' };
+      }
+      return { ok: true, costUsd: 0.000607, artifact: { text: 'jd text', done: true } };
+    }
+    if (ctx.goal.includes('Draft the summary resume')) {
+      callCounts['resume-summary'] += 1;
+      const text = '## summary of work history blurb\nworked places.\n'
+        + '## professional skills\nskills.\n'
+        + '## soft skills\nsoft skills.';
+      return { ok: true, costUsd: 0.001, artifact: { text, done: true } };
+    }
+    throw new Error(`unexpected job2 goal: ${ctx.goal}`);
+  };
+
+  const parked = await runFlow({
+    ...baseRunArgs({ root, modelStep, askStep: makeParkingAskStep() }),
+    sources: writeSources(srcDir),
+  });
+  assert.equal(parked.outcome, 'paused', parked.red);
+
+  // Prove the drift is real (this is the debrief repro's own numbers, not a
+  // contrived one) before trusting the resume assertion below.
+  const statePath = path.join(parked.runDir, 'state.json');
+  const state = JSON.parse(readFileSync(statePath, 'utf8'));
+  const auditLines = readFileSync(path.join(parked.runDir, 'audit.jsonl'), 'utf8')
+    .trim().split('\n').map((l) => JSON.parse(l));
+  const auditTotal = auditLines.reduce((sum, row) => sum + row.usd, 0);
+  assert.equal(state.spent, 0.006874, 'state.spent must match the debrief repro\'s own accumulated total');
+  assert.ok(auditTotal > state.spent, 'the audit sum must land strictly above state.spent by float drift alone');
+  assert.ok(auditTotal - state.spent < 1e-9, 'the drift must be sub-ULP noise, never a real discrepancy');
+
+  const ans = answerAsk({ runDir: parked.runDir, askId: parked.askId, decision: 'accept' });
+  assert.equal(ans.ok, true, ans.ok ? '' : ans.red);
+
+  const resumed = await resumeRun(baseRunArgs({ root, modelStep }));
+  // FAIL-FIRST: with the fix reverted to the strict `state.spent <
+  // auditSum.total`, this assertion goes red as:
+  //   AssertionError [ERR_ASSERTION]: resume: run "run-1" state.json field
+  //   "spent" ($0.006874) is less than its own audit.jsonl sum
+  //   ($0.006874000000000001) — the books are the source of truth for money
+  //   already spent; refusing rather than trusting state.json's lower figure
+  //   Expected values to be strictly equal:
+  //   + actual - expected
+  //   + 'refused'
+  //   - 'complete'
+  assert.equal(resumed.outcome, 'complete', resumed.red);
+});
+
 // (2) The ask-expired history row must carry the run's REAL total spend,
 // never a hard-coded 0 — "a pause spends nothing" means the pause itself
 // adds nothing, not that the run's already-spent total resets.

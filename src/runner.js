@@ -60,6 +60,16 @@ export const STRIKE_LIMIT = 2;
  *  fallback, never the governor" — it never raises the strike bound, it only
  *  bounds the case the strike governor doesn't catch). */
 export const MAX_ATTEMPTS = 4;
+/** Debrief round 2: `state.spent` (accumulated by repeated `spent.value +=`
+ *  during the run) and `sumAuditUsd`'s re-summed total are two independent
+ *  float summations of the same rows in a different order — IEEE 754
+ *  addition is not associative, so they can differ by a single ULP (e.g.
+ *  0.006874 vs 0.006874000000000001) with no real discrepancy. The books
+ *  (audit.jsonl) stay the source of truth; this tolerance only absorbs
+ *  summation-order noise, not a real gap. A billionth of a dollar is ~6
+ *  orders of magnitude below the cheapest real round (audit rows here run
+ *  $0.0006+), so nothing a real tamper produces can hide inside it. */
+export const SPEND_TOLERANCE_USD = 1e-9;
 
 // ---------------------------------------------------------------------------
 // Money — piece 2 wires live provider rates; this piece takes a per-attempt
@@ -1364,7 +1374,7 @@ export async function resumeRun({
     if (!auditSum.ok) {
       return { outcome: 'refused', red: `resume: run "${runId}" ${auditSum.red}` };
     }
-    if (state.spent < auditSum.total) {
+    if (auditSum.total - state.spent > SPEND_TOLERANCE_USD) {
       return {
         outcome: 'refused',
         red: `resume: run "${runId}" state.json field "spent" ($${state.spent}) is less than its own audit.jsonl sum ($${auditSum.total}) — `
