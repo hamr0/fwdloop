@@ -709,8 +709,11 @@ drafter in `src/` (it lives only in `poc/m0/drafter.mjs`), so "describe a job" h
 7. **fwdloop words, bareloop's rulings.** Results are glyphs only: `[✓]` passed, `[✗]` failed,
    `[▶]` running, `[·]` waiting on you (parked, `ask.json` present, no `answer.json` and no consumed
    answer for its askId), `[·]` answered, not resumed yet (parked, `answer.json` present; said in words,
-   not the same line as an unanswered ask), `[?]` died (no history row, no `state.json` park, and no
-   process running it; never `[✗]`). A park never writes a history row, and `answerAsk` leaves
+   not the same line as an unanswered ask), `[?]` died (no history row and no `state.json` park; never
+   `[✗]`). **Open for M4's POC** (debrief 2026-09-26): the books cannot tell "running right now" from
+   "died" today. `resume.lock` is an empty file with no pid and nothing checks liveness, so a crashed
+   resumer and a live one look the same. Either the runner writes a pid (and the panel checks it), or
+   the panel shows "running or died: unknown" and never guesses. A park never writes a history row, and `answerAsk` leaves
    `ask.json` in place until resume consumes the answer (debrief 2026-09-26), so "no history row" alone
    never means died. Close classes are shown as `cited` (green), `shape` (softgreen) and `human check`
    (hitl), never the words green, red or softgreen. "took 6m08s" for a finished run, "Xs elapsed"
