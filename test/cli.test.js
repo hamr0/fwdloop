@@ -12,7 +12,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  existsSync, mkdtempSync, readFileSync, writeFileSync,
+  existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -202,4 +202,64 @@ test('cli: an unset DEEPSEEK_API_KEY refuses "run" at $0, before any run dir or 
   assert.match(result.stderr, /DEEPSEEK_API_KEY is not set/);
   assert.equal(existsSync(path.join(root, 'job2', 'runs', 'run-no-key')), false, 'no run dir must be created on a key refusal');
   assert.equal(existsSync(path.join(root, 'job2', 'history.jsonl')), false, 'no history row must be written on a key refusal');
+});
+
+// ---------------------------------------------------------------------------
+// F45 finding 1: an M2-era ask.json (no askId/expiresAt) must never show as
+// "open" — inbox has no way to answer it, so it's reported "legacy", not a
+// fabricated NaN countdown. A malformed ask.json must not crash inbox either.
+// ---------------------------------------------------------------------------
+
+test('cli: inbox shows a legacy (M2-era) ask.json as "legacy", never "open"/NaN', async () => {
+  const root = tmpRoot('inbox-legacy');
+  writeJob2Flow(root);
+  // An M2-era ask.json: question/evidence/askedAt/attempt, no askId/expiresAt.
+  const legacyRunDir = path.join(root, 'job2', 'runs', 'legacy-run-1');
+  mkdirSync(legacyRunDir, { recursive: true });
+  writeFileSync(path.join(legacyRunDir, 'ask.json'), JSON.stringify({
+    question: 'check it with me,', evidence: { text: 'a draft' }, askedAt: '2026-09-24T13:23:36.913Z', attempt: 1,
+  }, null, 2));
+
+  const result = runCli(['inbox', '--root', root], fakeModelEnv());
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /run=legacy-run-1 \[legacy \(not answerable\)\]/);
+  assert.doesNotMatch(result.stdout, /\[open\]/);
+  assert.doesNotMatch(result.stdout, /NaN/);
+});
+
+test('cli: inbox names an unparseable ask.json as unreadable, never crashes', async () => {
+  const root = tmpRoot('inbox-unreadable');
+  writeJob2Flow(root);
+  const badRunDir = path.join(root, 'job2', 'runs', 'bad-run-1');
+  mkdirSync(badRunDir, { recursive: true });
+  writeFileSync(path.join(badRunDir, 'ask.json'), '{ not valid json');
+
+  const result = runCli(['inbox', '--root', root], fakeModelEnv());
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /run=bad-run-1 \[unreadable\]/);
+});
+
+// ---------------------------------------------------------------------------
+// F45 finding 2: `fwdloop show <askId>` is how a human sees what they'd be
+// accepting — the evidence carried on a parked ask.json.
+// ---------------------------------------------------------------------------
+
+test('cli: show prints the parked ask\'s question, expiry, and the artifact text under review', async () => {
+  const root = tmpRoot('show');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('show-src');
+  const { resume, jd } = writeSources(srcDir);
+
+  const runResult = runCli([
+    'run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-1',
+  ], fakeModelEnv());
+  assert.equal(runResult.status, 0, runResult.stderr || runResult.stdout);
+  const askId = extractAskId(runResult.stdout);
+
+  const showResult = runCli(['show', askId, '--root', root], fakeModelEnv());
+  assert.equal(showResult.status, 0, showResult.stderr || showResult.stdout);
+  assert.match(showResult.stdout, /question: check it with me,/);
+  assert.match(showResult.stdout, /expiresAt: \S+/);
+  assert.match(showResult.stdout, /summary of work history blurb/, 'the artifact under review must be printed');
+  assert.match(showResult.stdout, /resume text/, 'an unjudged pre-ask artifact must be printed, labelled by step');
 });

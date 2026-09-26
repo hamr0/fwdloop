@@ -623,6 +623,23 @@ POC $0; live exit about $0.05 a run. POC starts on branch `chore/fix-ledger` (ha
 runs; the three broken resumers go red where they should (rerun-from-start 5/20, no-input-check 15/20,
 no-lock 14–17/20). Build starts on the same branch.
 
+**M3 EXIT SIGNED — hamr, 2026-09-26** ("sign m3 exit, commit"). Evidence below; F45's three bugs fixed first.
+
+| exit / negative | evidence |
+|---|---|
+| POC bar 20/20 | RULED MET above (F44) |
+| job #2 live: park, reject from another terminal, resume, re-park, accept, send | F45: run `m3-live-1`, three processes, sent text equals the accepted artifact, one history row, both books sum to $0.0307 |
+| signed `ask 2s:` expires at its own TTL | `test/park-resume.test.js` TTL tests (F43 fixed) |
+| (i) answer after `expiresAt` cancels `ask-expired`, nothing sent | `test/park-resume.test.js` "negative (i)", carries the run's real spend |
+| (ii) `rerun` starts a fresh run with its own counter and cap | `test/rerun.test.js` "negative (ii)" |
+| (iii) input changed while parked is refused by name at $0 | `test/park-resume.test.js` "negative (iii)", POC loops 6–10 |
+| (iv) second answer refused, first stands | `test/park-resume.test.js` "negative (iv)", `wx` write |
+| (v) two resumers: exactly one proceeds | `test/park-resume.test.js` "negative (v)", POC loops 1–5 |
+| item 8, one ask count | `test/declaration.test.js`, the F42 test rewritten to the signing-time refusal |
+| CLI (`run`, `inbox`, `answer`, `resume`, `show`) | `test/cli.test.js`; unset key refused at $0 before any book |
+
+Spend: $0.03 of the $2.00 cap. Suite 1216/1216.
+
 ## M4 — dry-run, accept, versions
 
 Placed here because the UI's "edit and add turns" is meaningless without versioning. Dry-run

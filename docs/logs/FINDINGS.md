@@ -2129,3 +2129,42 @@ instead of re-reading the signed ask slot (F43's gap again). `rerun` (scope item
 exercised: it is a separate assumption, and it gets its own test in the build.
 
 **Cost.** $0. M3 $0.00 of $2.00.
+
+## F45 — M3 live exit: job #2 parked, answered from hamr's terminal, resumed twice, sent (2026-09-25)
+
+**What ran.** `bin/fwdloop` at `6599760` on `deepseek-flash`, flow `flows/job2-live-1`, run `m3-live-1`.
+Three separate processes, and each one exited on its own:
+1. `fwdloop run` read both inputs by role. The compose step went green on attempt 3, and the run
+   parked at the signed ask (default 30m TTL). No fwdloop process was left running.
+2. hamr, from their own terminal: `fwdloop answer <id> reject "cut the soft skills section to five lines"`.
+   `fwdloop resume` redid the compose step (green on its 3rd redo attempt, after two heading reds) and
+   re-parked under a new askId with a fresh 30m expiry.
+3. hamr: `fwdloop answer <id> accept`. `fwdloop resume` sent to
+   `poc/m0/out/m3-live-1-resume-summary-output.json`. Outcome `complete`.
+
+**Checked.** The sent text equals the accepted artifact byte for byte. `spend.jsonl` (8 rows) and
+`audit.jsonl` (13 rows) both sum to $0.0307. `history.jsonl` has exactly one row for the run. The
+pre-ask read steps ran once. Both answers were consumed once, by askId.
+
+**Not proven.** Whether the reject reason was honoured. The redrafted soft skills section is one
+~170-word paragraph, not five lines, and switched to third person. This is a hitl step, so the human
+judges it; there is no mechanical check, as ruled.
+
+**Found on the way (not fixed yet):**
+1. `fwdloop inbox` lists M2-era runs (`run-1`, `run-2`, whose `ask.json` has no `askId`/`expiresAt`)
+   as `[open] NaNs left`. It should never show an ask it cannot answer as open.
+2. A parked `ask.json` holds only `askId, question, askedAt, expiresAt`. The draft under review and
+   the unjudged evidence live in `state.json`/artifacts. A human answering from `inbox` cannot see
+   what they are accepting unless they know where to look. M2's in-process `ask.json` carried
+   `evidence`.
+3. The history row's `wallMs` is 19: it times only the last process, not the run.
+
+**Cost.** $0.0307. M3 total $0.03 of $2.00.
+
+**Fixed, same day, all three** (each test red before its fix). (1) `inbox` shows an M2-era ask as
+`legacy (not answerable)` and a malformed one as `unreadable`, naming the run, never `open`.
+(2) A parked `ask.json` carries `evidence` (`{ artifact, unjudged }`, the redrafted artifact on every
+re-park), and `fwdloop show <askId>` prints it read-only. (3) History `wallMs` runs from the run's
+first start (`state.startedAt`), so a pause counts as elapsed time. A run parked before this fix has
+no `startedAt` and falls back to the resuming process's start; that is a wall-time floor, not a money
+figure. Suite 1216/1216.

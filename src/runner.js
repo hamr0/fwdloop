@@ -635,13 +635,23 @@ async function runStepRalph({
  *   run): a human's rerun reason, carried as the FIRST ordinary step's
  *   starting gap. Never used by a plain `runFlow` call outside `resumeRun`'s
  *   own rerun path.
+ * @param {() => number} [opts.nowMs] - F45 finding 3: returns the current
+ *   epoch ms; defaults to the wall clock. Mirrors `clock` (ISO) so a test
+ *   can advance wall time across a park/resume boundary without a real wait.
  */
 export async function runFlow({
   root, name, runId, sources, catalogue, modelStep, askStep, sendStep, primitives, clock, businessDate, ceilingUsd, initialGap,
+  // F45 finding 3's test needs to advance wall time across a park/resume
+  // boundary without a real wait, exactly like `clock` already does for ISO
+  // timestamps — `nowMs` is the same idea for epoch-ms wall-clock reads.
+  // Minimal and additive: every existing caller (no `nowMs`) gets the real
+  // `Date.now`, unchanged.
+  nowMs,
 }) {
   const now = typeof clock === 'function' ? clock : () => new Date().toISOString();
+  const getNowMs = typeof nowMs === 'function' ? nowMs : Date.now;
   const flowDir = join(root, name);
-  const startedAt = Date.now();
+  const startedAt = getNowMs();
 
   const read = readFlow({ root, name, catalogue });
   if (!read.ok) {
@@ -670,7 +680,7 @@ export async function runFlow({
   const fresh = checkFreshRunDir(runDir);
   if (!fresh.ok) {
     return haltRun({
-      flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, outcome: 'preflight-red', red: fresh.red, spent: { value: 0 },
+      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: fresh.red, spent: { value: 0 },
     });
   }
   mkdirSync(runDir, { recursive: true });
@@ -678,7 +688,7 @@ export async function runFlow({
   const frozen = freezeInputs(runDir, sources ?? []);
   if (!frozen.ok) {
     return haltRun({
-      flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: signature.flow, outcome: 'preflight-red', red: frozen.red, spent: { value: 0 },
+      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: frozen.red, spent: { value: 0 },
     });
   }
 
@@ -754,6 +764,14 @@ export async function runFlow({
     sendStep,
     now,
     startedAt,
+    nowMs: getNowMs,
+    // F45 finding 3: `runStartedAt` is the run's TRUE wall-clock start — for
+    // a fresh `runFlow` call it's this same `startedAt` (there is no earlier
+    // process). It is what park persists into state.json and every resume
+    // restores, so a run's final `wallMs` times the whole run, not just the
+    // last process (a pause counts as elapsed wall time — see the comment
+    // at its use in `foldFromStep`).
+    runStartedAt: startedAt,
     spent,
     spendComplete,
     artifacts,
@@ -834,6 +852,10 @@ async function runAskSlot({
   primitives, businessDate, modelStep, askStep, spent, spendComplete, recordAudit,
   evidenceUnjudged, unjudgedCount, redone: initialRedone,
   runDir, flowDir, runId, flowRoot, flowName, signatureHash, inputsManifest, attemptsLog, artifacts, now, startedAt,
+  // F45 finding 3: the run's TRUE wall-clock start, persisted into
+  // state.json on every park/re-park so a later resume can restore it
+  // instead of substituting its own process's start.
+  runStartedAt,
 }) {
   let redone = initialRedone;
   let currentPrior = priorArtifact;
@@ -851,8 +873,15 @@ async function runAskSlot({
       const askId = randomUUID();
       const askedAt = now();
       const expiresAt = new Date(Date.parse(askedAt) + askSlot.ttlMs).toISOString();
+      // F45 finding 2: a parked ask.json must carry the SAME evidence a
+      // human sees in-process (`makeFileAskStep`'s `{ artifact, unjudged }`)
+      // — the draft under review and the unjudged evidence, never just the
+      // question. `evidence` above is already recomputed at the top of every
+      // loop iteration (including a re-park after a reject, where
+      // `currentPrior` is the just-redrafted artifact), so this write always
+      // carries the CURRENT evidence, not a stale first-park copy.
       writeFileSync(join(runDir, 'ask.json'), JSON.stringify({
-        askId, question: askSlot?.question ?? step.goal, askedAt, expiresAt,
+        askId, question: askSlot?.question ?? step.goal, askedAt, expiresAt, evidence,
       }, null, 2));
       // M3 scope item 2: the minimum the fold needs to resume identically —
       // WHERE (stepIndex), WHAT was frozen/signed (signatureHash,
@@ -881,6 +910,10 @@ async function runAskSlot({
         redone,
         evidenceUnjudged,
         unjudgedCount,
+        // F45 finding 3: persisted every park/re-park (unchanged value, just
+        // carried forward) so `resumeRun` restores the run's true start
+        // instead of timing only the process that happens to resume it.
+        startedAt: runStartedAt,
       };
       writeFileSync(join(runDir, 'state.json'), JSON.stringify(state, null, 2));
       recordAudit(makeAuditRow({
@@ -982,7 +1015,15 @@ async function runAskSlot({
 async function foldFromStep({
   i0, steps, askLines, sendLines, askStepEmits, runDir, flowDir, runId, flowRoot, flowName, signatureHash,
   inputsManifest, capUsd, redoCap, effectiveCeilingUsd, primitives, businessDate, modelStep, askStep, sendStep,
-  now, startedAt, spent, spendComplete, artifacts, acceptedThisRun, acceptedAskEmitsThisRun, unjudgedSinceLastAsk,
+  // F45 finding 3: `startedAt` times only THIS process (used for the pre-fold
+  // halts in `runFlow` and as this call's own fallback below); `runStartedAt`
+  // is the run's true wall-clock start, persisted at park and restored on
+  // every resume — every halt/complete a fold reaches must time itself
+  // against `runStartedAt`, never the current process's own start, or a
+  // resumed run's wallMs collapses to "how long did this resume take" (F45's
+  // observed 19ms). Defaults to `startedAt` for a fresh run, where they are
+  // the same instant.
+  now, startedAt, runStartedAt = startedAt, nowMs = Date.now, spent, spendComplete, artifacts, acceptedThisRun, acceptedAskEmitsThisRun, unjudgedSinceLastAsk,
   recordAudit, attemptsLog,
   // M3 scope item 7: a fresh rerun's own reason, carried as step `i0`'s
   // starting gap (never any later step's). `/** @type */` here (rather than
@@ -1002,28 +1043,28 @@ async function foldFromStep({
     if (sendLines.has(step.fromLine)) {
       if (!runAcceptedThisRun) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
           outcome: 'red', red: `send: step "${step.goal}" reached with no accept this run`,
         });
       }
       const sendSlot = sendLines.get(step.fromLine);
       if (!sendSlot) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: 'red', red: `send: no arbiter slot bound to line ${step.fromLine}`,
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: 'red', red: `send: no arbiter slot bound to line ${step.fromLine}`,
         });
       }
       const target = `${sendSlot.target.kind}:${sendSlot.target.path}`;
       const askIdsInReads = (step.reads ?? []).filter((id) => askStepEmits.has(id));
       if (askIdsInReads.length !== 1) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
           outcome: 'red', red: `send: step "${step.goal}" must read exactly one signed ask's artifact, found [${askIdsInReads.join(', ')}]`,
         });
       }
       const [askArtifactId] = askIdsInReads;
       if (!acceptedAskEmitsThisRun.has(askArtifactId)) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
           outcome: 'red', red: `send: step "${step.goal}" reads ask artifact "${askArtifactId}" that was not accepted this run`,
         });
       }
@@ -1037,7 +1078,7 @@ async function foldFromStep({
       recordAudit(sendRow);
       if (!sendResult.ok) {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: 'red', red: `send: ${sendResult.red}`,
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: 'red', red: `send: ${sendResult.red}`,
         });
       }
       writeArtifact(runDir, step.emits, content);
@@ -1094,12 +1135,13 @@ async function foldFromStep({
         artifacts,
         now,
         startedAt,
+        runStartedAt,
       });
 
       if (askResult.type === 'paused') return askResult.result;
       if (askResult.type === 'halted') {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt, now, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
         });
       }
 
@@ -1123,7 +1165,7 @@ async function foldFromStep({
     });
     if (!stepResult.ok) {
       return haltRun({
-        flowDir, runDir, runId, capUsd, startedAt, now, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: stepResult.outcome, red: stepResult.red,
+        flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: stepResult.outcome, red: stepResult.red,
       });
     }
     writeArtifact(runDir, step.emits, stepResult.artifact);
@@ -1137,7 +1179,12 @@ async function foldFromStep({
     }
   }
 
-  const wallMs = Date.now() - startedAt;
+  // F45 finding 3: the run's history row times the whole run, from its
+  // FIRST process's start (`runStartedAt`, never this process's own
+  // `startedAt`) to right now. A pause counts as elapsed wall time — the
+  // run really was sitting there waiting on a human, so it belongs in
+  // "how long did this run take", not carved out of it.
+  const wallMs = nowMs() - runStartedAt;
   appendHistory(flowDir, {
     runId, at: now(), outcome: 'complete', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd, wallMs, signatureHash,
   });
@@ -1170,14 +1217,19 @@ async function foldFromStep({
  * @param {() => string} [opts.clock]
  * @param {string} opts.businessDate
  * @param {number} [opts.ceilingUsd]
+ * @param {() => number} [opts.nowMs] - F45 finding 3; see `runFlow`'s own.
  */
 export async function resumeRun({
   root, name, runId, catalogue, modelStep, sendStep, primitives, clock, businessDate, ceilingUsd,
+  // F45 finding 3 (see `runFlow`'s own `nowMs`): additive, defaults to the
+  // real `Date.now` for every existing caller.
+  nowMs,
 }) {
   const now = typeof clock === 'function' ? clock : () => new Date().toISOString();
+  const getNowMs = typeof nowMs === 'function' ? nowMs : Date.now;
   const flowDir = join(root, name);
   const runDir = join(flowDir, 'runs', runId);
-  const startedAt = Date.now();
+  const startedAt = getNowMs();
   const lockPath = join(runDir, 'resume.lock');
 
   let lockFd;
@@ -1201,6 +1253,14 @@ export async function resumeRun({
     } catch (err) {
       return { outcome: 'refused', red: `resume: state.json for run "${runId}" is not valid JSON — ${err.message}` };
     }
+
+    // F45 finding 3: the run's TRUE wall-clock start, restored from the
+    // parked state rather than this process's own `startedAt` — otherwise
+    // every resume's history/audit `wallMs` times just that resume (F45's
+    // observed 19ms), not the run. Falls back to this process's own start
+    // for a run parked BEFORE this fix (no `state.startedAt` on disk) —
+    // not a money field, so a best-known fallback rather than a refusal.
+    const runStartedAt = typeof state.startedAt === 'number' ? state.startedAt : startedAt;
 
     // Orchestrator review fix (6): the CALLER's `root`/`name` are the source
     // of truth — never `state.flow.root`/`state.flow.name` silently. A
@@ -1294,7 +1354,7 @@ export async function resumeRun({
         step: null, attempt: null, class: null, verdict: 'ask-expired', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
       });
       appendHistory(flowDir, {
-        runId, at: now(), outcome: 'ask-expired', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: Date.now() - startedAt, signatureHash: state.signatureHash,
+        runId, at: now(), outcome: 'ask-expired', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
       });
       return { outcome: 'ask-expired', runDir, spentUsd: spent.value };
     }
@@ -1316,7 +1376,7 @@ export async function resumeRun({
         priorArtifactsForLog[steps[i].emits] = readArtifact(runDir, steps[i].emits);
       }
       appendHistory(flowDir, {
-        runId, at: now(), outcome: 'rerun', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: Date.now() - startedAt, signatureHash: state.signatureHash,
+        runId, at: now(), outcome: 'rerun', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
       });
       recordLateAnswerIfAny(runDir);
       writeLog(runDir, { runId, outcome: 'rerun', attempts: [], artifacts: priorArtifactsForLog });
@@ -1441,12 +1501,13 @@ export async function resumeRun({
       artifacts,
       now,
       startedAt,
+      runStartedAt,
     });
 
     if (askResult.type === 'paused') return askResult.result;
     if (askResult.type === 'halted') {
       return haltRun({
-        flowDir, runDir, runId, capUsd, startedAt, now, signatureHash: state.signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
+        flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs: getNowMs, signatureHash: state.signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
       });
     }
 
@@ -1482,6 +1543,8 @@ export async function resumeRun({
       sendStep,
       now,
       startedAt,
+      runStartedAt,
+      nowMs: getNowMs,
       spent,
       spendComplete,
       artifacts,
@@ -1515,6 +1578,7 @@ function writeLog(runDir, payload) {
  * @param {number|null} opts.capUsd
  * @param {number} opts.startedAt
  * @param {() => string} opts.now
+ * @param {() => number} [opts.nowMs] - F45 finding 3; defaults to `Date.now`.
  * @param {string} opts.outcome
  * @param {string} [opts.red]
  * @param {{ value: number }} opts.spent
@@ -1532,10 +1596,13 @@ function writeLog(runDir, payload) {
  *   false. Defaults to `true` (every pre-existing call site is unaffected).
  */
 function haltRun({
-  flowDir, runDir, runId, capUsd, startedAt, now, outcome, red, spent, attempts = [], artifacts = {}, signatureHash = null,
+  flowDir, runDir, runId, capUsd, startedAt, now, nowMs = Date.now, outcome, red, spent, attempts = [], artifacts = {}, signatureHash = null,
   priorSpendComplete = true,
 }) {
-  const wallMs = Date.now() - startedAt;
+  // F45 finding 3: `startedAt` here is always the RUN's start (every caller
+  // now passes `runStartedAt` under this key — see call sites), so `wallMs`
+  // times the whole run, pauses included, never just the halting process.
+  const wallMs = nowMs() - startedAt;
   const spendComplete = priorSpendComplete
     && outcome !== 'provider-red' && outcome !== 'pricing-red' && outcome !== 'cap-halt';
   mkdirSync(flowDir, { recursive: true });

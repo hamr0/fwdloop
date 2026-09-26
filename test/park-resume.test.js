@@ -98,7 +98,7 @@ function makeJob2ModelStep() {
 const NOOP_SEND = async (target, filename, content) => ({ ok: true, bytes: JSON.stringify(content ?? {}).length });
 
 function baseRunArgs({
-  root, name = 'job2', runId = 'run-1', modelStep, askStep, clock,
+  root, name = 'job2', runId = 'run-1', modelStep, askStep, clock, nowMs,
 }) {
   return {
     root,
@@ -111,6 +111,7 @@ function baseRunArgs({
     businessDate: BUSINESS_DATE,
     ...(askStep ? { askStep } : {}),
     ...(clock ? { clock } : {}),
+    ...(nowMs ? { nowMs } : {}),
   };
 }
 
@@ -582,4 +583,89 @@ test('orchestrator fix 6: resumeRun refuses when the parked state\'s recorded fl
   const resumed = await resumeRun(baseRunArgs({ root, modelStep }));
   assert.equal(resumed.outcome, 'refused');
   assert.match(resumed.red, /was parked against flow .*some-other-flow.*not the requested .*job2/);
+});
+
+// ---------------------------------------------------------------------------
+// F45 finding 2: a parked ask.json must carry the same evidence a human sees
+// in-process — the draft under review, and it must be the REDRAFTED one
+// after a reject, not the stale first draft.
+// ---------------------------------------------------------------------------
+
+test('F45 fix 2: ask.json.evidence.artifact equals the prior step\'s artifact on disk, and the redrafted one after reject+re-park', async () => {
+  const root = tmpRoot('evidence-in-ask');
+  writeJob2Flow(root, { askMark: 'ask 2s:' });
+  const srcDir = tmpRoot('evidence-in-ask-src');
+  const { fn: modelStep } = makeJob2ModelStep();
+
+  const parked = await runFlow({
+    ...baseRunArgs({ root, modelStep, askStep: makeParkingAskStep() }),
+    sources: writeSources(srcDir),
+  });
+  assert.equal(parked.outcome, 'paused', parked.red);
+
+  const priorArtifact = JSON.parse(readFileSync(path.join(parked.runDir, 'artifacts', 'resume-summary.json'), 'utf8'));
+  const askJson1 = JSON.parse(readFileSync(path.join(parked.runDir, 'ask.json'), 'utf8'));
+  assert.deepEqual(askJson1.evidence.artifact, priorArtifact, 'the first park must carry the resume-summary artifact as evidence');
+  assert.equal(askJson1.evidence.unjudged.length, 2, 'job #2\'s two pre-ask hitl reads (resume-text, jd-text) carry through as unjudged evidence');
+
+  const rej = answerAsk({
+    runDir: parked.runDir, askId: parked.askId, decision: 'reject', reason: 'tighten the skills section',
+  });
+  assert.equal(rej.ok, true, rej.ok ? '' : rej.red);
+
+  const afterReject = await resumeRun(baseRunArgs({ root, modelStep }));
+  assert.equal(afterReject.outcome, 'paused', afterReject.red);
+
+  const redraftedArtifact = JSON.parse(readFileSync(path.join(parked.runDir, 'artifacts', 'resume-summary.json'), 'utf8'));
+  const askJson2 = JSON.parse(readFileSync(path.join(parked.runDir, 'ask.json'), 'utf8'));
+  assert.notEqual(askJson2.askId, askJson1.askId, 'the re-park must mint a new askId');
+  assert.deepEqual(
+    askJson2.evidence.artifact,
+    redraftedArtifact,
+    'the re-park after reject must carry the REDRAFTED artifact, never the stale pre-reject one',
+  );
+});
+
+// ---------------------------------------------------------------------------
+// F45 finding 3: the run's history row wallMs times the WHOLE run — from its
+// first process's start, through the pause, to completion — never just the
+// last process. Driven by the additive `nowMs` epoch-ms clock (mirrors the
+// existing ISO `clock` hook), so no real wait is needed.
+// ---------------------------------------------------------------------------
+
+test('F45 fix 3: history wallMs times the whole run (through the pause), not just the resuming process', async () => {
+  const root = tmpRoot('wallms');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('wallms-src');
+  const { fn: modelStep } = makeJob2ModelStep();
+
+  const T0 = 1_000_000; // arbitrary epoch ms — the run's true start
+  const PAUSE_MS = 5 * 60 * 1000; // 5 simulated minutes parked
+  const T1 = T0 + PAUSE_MS; // when resume runs
+
+  const parked = await runFlow({
+    ...baseRunArgs({
+      root, modelStep, askStep: makeParkingAskStep(), nowMs: () => T0,
+    }),
+    sources: writeSources(srcDir),
+  });
+  assert.equal(parked.outcome, 'paused', parked.red);
+
+  const ans = answerAsk({ runDir: parked.runDir, askId: parked.askId, decision: 'accept' });
+  assert.equal(ans.ok, true, ans.ok ? '' : ans.red);
+
+  const resumed = await resumeRun(baseRunArgs({ root, modelStep, nowMs: () => T1 }));
+  assert.equal(resumed.outcome, 'complete', resumed.red);
+
+  const history = readFileSync(path.join(root, 'job2', 'history.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const row = history[history.length - 1];
+  assert.equal(row.outcome, 'complete');
+  // The pause itself (5 simulated minutes) counts as elapsed wall time — a
+  // parked run really was sitting there waiting on a human, so wallMs must
+  // be AT LEAST the pause duration, never just however long the resuming
+  // process's own work took.
+  assert.ok(
+    row.wallMs >= PAUSE_MS,
+    `wallMs (${row.wallMs}) must be at least the ${PAUSE_MS}ms pause — it must time the whole run, not just the last process`,
+  );
 });

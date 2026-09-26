@@ -257,7 +257,19 @@ function cmdInbox(rest) {
       let ask;
       try {
         ask = JSON.parse(readFileSync(askPath, 'utf8'));
-      } catch {
+      } catch (err) {
+        // A malformed/unparseable ask.json must never crash inbox — show it
+        // naming the run as unreadable and move on to the next one.
+        rows.push({ flow, runId, status: 'unreadable', detail: err.message });
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+      // An M2-era ask.json carries no `askId`/`expiresAt` (this CLI's
+      // answer/resume verbs can't act on it — they key everything off
+      // `askId`). Shown as "legacy (not answerable)", never "open": an ask
+      // this CLI cannot answer must never be reported as one it can.
+      if (typeof ask.askId !== 'string' || typeof ask.expiresAt !== 'string') {
+        rows.push({ flow, runId, status: 'legacy', question: ask.question });
         // eslint-disable-next-line no-continue
         continue;
       }
@@ -279,8 +291,66 @@ function cmdInbox(rest) {
     return;
   }
   for (const row of rows) {
+    if (row.status === 'unreadable') {
+      process.stdout.write(`flow=${row.flow} run=${row.runId} [unreadable] ask.json could not be parsed — ${row.detail}\n`);
+      continue;
+    }
+    if (row.status === 'legacy') {
+      process.stdout.write(`flow=${row.flow} run=${row.runId} [legacy (not answerable)] — ${row.question}\n`);
+      continue;
+    }
     const timeLeft = row.status === 'expired' ? 'expired' : `${Math.max(0, Math.round(row.timeLeftMs / 1000))}s left`;
     process.stdout.write(`${row.askId}  flow=${row.flow} run=${row.runId} [${row.status}] ${timeLeft} — ${row.question}\n`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// show — read-only: prints a parked ask's question, expiry, and evidence
+// (the artifact under review, then each unjudged artifact labelled by
+// step). F45 finding 2's other half: `inbox` says an ask is open, `show`
+// is how a human actually sees what they'd be accepting. Never writes.
+// ---------------------------------------------------------------------------
+
+function artifactText(artifact) {
+  if (artifact && typeof artifact === 'object' && typeof artifact.text === 'string') return artifact.text;
+  return JSON.stringify(artifact, null, 2);
+}
+
+function cmdShow(rest) {
+  const { values, positionals } = parseArgs({
+    args: rest,
+    options: { root: { type: 'string' } },
+    allowPositionals: true,
+  });
+  const [askId] = positionals;
+  if (!askId) fail('show: an askId is required — fwdloop show <askId> --root <dir>');
+
+  const root = resolve(values.root ?? '.');
+  if (!existsSync(root)) fail(`show: root "${root}" does not exist`);
+  const runDir = findRunDirByAskId(root, askId);
+  if (!runDir) fail(`show: no open ask found for askId "${askId}" under ${root}`);
+
+  let ask;
+  try {
+    ask = JSON.parse(readFileSync(join(runDir, 'ask.json'), 'utf8'));
+  } catch (err) {
+    fail(`show: ask.json for askId "${askId}" is not valid JSON — ${err.message}`);
+    return;
+  }
+
+  process.stdout.write(`question: ${ask.question}\n`);
+  process.stdout.write(`expiresAt: ${ask.expiresAt}\n`);
+
+  const evidence = ask.evidence ?? null;
+  if (!evidence) {
+    process.stdout.write('\n(no evidence recorded on this ask — legacy park, before F45 finding 2 was fixed)\n');
+    return;
+  }
+  process.stdout.write('\n--- artifact under review ---\n');
+  process.stdout.write(`${artifactText(evidence.artifact)}\n`);
+  for (const item of evidence.unjudged ?? []) {
+    process.stdout.write(`\n--- unjudged: ${item.step ?? item.emits ?? '(step)'} ---\n`);
+    process.stdout.write(`${artifactText(item.artifact)}\n`);
   }
 }
 
@@ -381,13 +451,14 @@ async function cmdResume(rest) {
 
 async function main() {
   const [verb, ...rest] = process.argv.slice(2);
-  if (!verb) fail('usage: fwdloop run|inbox|answer|resume ...');
+  if (!verb) fail('usage: fwdloop run|inbox|show|answer|resume ...');
 
   if (verb === 'run') return cmdRun(rest);
   if (verb === 'inbox') return cmdInbox(rest);
+  if (verb === 'show') return cmdShow(rest);
   if (verb === 'answer') return cmdAnswer(rest);
   if (verb === 'resume') return cmdResume(rest);
-  fail(`unknown verb "${verb}" — expected run | inbox | answer | resume`);
+  fail(`unknown verb "${verb}" — expected run | inbox | show | answer | resume`);
   return undefined;
 }
 
