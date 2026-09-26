@@ -2205,3 +2205,13 @@ stop. M0b's lesson applies: verify by what is granted, not by what is declared (
 
 **Not filed in `docs/product/UPSTREAM-ASKS.md`**, because that queue is only for primitives
 missing or broken upstream.
+
+**2026-09-26 — option 2 done, on branch `fix/runid-unwired-verbs` (commit 83f3084).** `bin/fwdloop`'s `run`/
+`resume` now refuse at preflight (naming the step and the verb, $0, before any model call or
+book row) when a declaration grants a verb `resolvePrimitives` couldn't wire — the warning-and-
+continue at the CLI's `for (const red of primitiveReds) process.stderr.write(...)` call sites is
+gone; see `refuseUnwiredVerbs` in `bin/fwdloop`. `flows/job2-live-1/declaration.json` and
+`flows/job2-plant-notdone/declaration.json` (real signed flows, step 3 grants `compress`) are
+untouched — a NEW run against either of them will now refuse at preflight naming `compress`;
+their existing recorded history is unaffected. Wiring the litectx verbs themselves (option 1
+above) is still open.
