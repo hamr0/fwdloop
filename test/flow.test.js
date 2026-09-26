@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import {
-  checkFlowName, writeFlow, readFlow, FLOW_FILES,
+  checkFlowName, checkRunId, resolveRunDir, writeFlow, readFlow, FLOW_FILES,
 } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 
@@ -62,6 +62,69 @@ const JOBS = [
     declaration: JSON.parse(fixture('job2.m1.declaration.json')),
   },
 ];
+
+// ---------------------------------------------------------------------------
+// checkRunId / resolveRunDir — branch review's path-escape fix
+// (`--run-id ../../../../tmp/pwned`, docs/logs/FINDINGS.md, the runId limit
+// stated in the 0.6.0 CHANGELOG entry). `resolveRunDir` is the ONE function
+// bin/fwdloop, runFlow and resumeRun all go through to turn a runId into a
+// path.
+// ---------------------------------------------------------------------------
+
+describe('checkRunId / resolveRunDir', () => {
+  test('accepts a runId shaped like the default generator (run-<base36>-<uuid slice>)', () => {
+    assert.equal(checkRunId('run-m3x9k2-a1b2c3d4').ok, true);
+  });
+
+  test('accepts a rerun id (the "<runId>-rerun-1" form resumeRun generates internally)', () => {
+    assert.equal(checkRunId('run-m3x9k2-a1b2c3d4-rerun-1').ok, true);
+  });
+
+  test('accepts an uppercase/dotted id', () => {
+    assert.equal(checkRunId('Run.1_v2').ok, true);
+  });
+
+  const badRunIds = [
+    ['../x', 'parent-directory traversal'],
+    ['a/b', 'forward slash'],
+    ['a\\b', 'backslash'],
+    ['..', 'bare ".."'],
+    ['', 'empty string'],
+    ['/abs/path', 'absolute path'],
+    ['a'.repeat(129), '129-character id'],
+  ];
+
+  for (const [runId, why] of badRunIds) {
+    test(`checkRunId rejects ${JSON.stringify(runId)} (${why})`, () => {
+      const result = checkRunId(runId);
+      assert.equal(result.ok, false);
+      assert.equal(typeof result.red, 'string');
+      assert.ok(result.red.length > 0);
+    });
+
+    test(`resolveRunDir refuses ${JSON.stringify(runId)} (${why}) without ever naming a path outside runs/`, () => {
+      const flowDir = path.join(tmpRoot(), 'some-flow');
+      const result = resolveRunDir(flowDir, runId);
+      assert.equal(result.ok, false);
+      assert.equal(typeof result.red, 'string');
+    });
+  }
+
+  test('resolveRunDir builds a path a valid runId, and confirms it resolves inside runs/', () => {
+    const flowDir = path.join(tmpRoot(), 'some-flow');
+    const result = resolveRunDir(flowDir, 'run-1');
+    assert.equal(result.ok, true);
+    assert.equal(result.runDir, path.resolve(flowDir, 'runs', 'run-1'));
+    assert.ok(result.runDir.startsWith(path.resolve(flowDir, 'runs') + path.sep));
+  });
+
+  test('resolveRunDir builds a path for a valid rerun id too', () => {
+    const flowDir = path.join(tmpRoot(), 'some-flow');
+    const result = resolveRunDir(flowDir, 'run-1-rerun-1');
+    assert.equal(result.ok, true);
+    assert.equal(result.runDir, path.resolve(flowDir, 'runs', 'run-1-rerun-1'));
+  });
+});
 
 // ---------------------------------------------------------------------------
 // checkFlowName

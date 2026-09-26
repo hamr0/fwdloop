@@ -285,3 +285,68 @@ test('cli: show prints the parked ask\'s question, expiry, and the artifact text
   assert.match(showResult.stdout, /summary of work history blurb/, 'the artifact under review must be printed');
   assert.match(showResult.stdout, /resume text/, 'an unjudged pre-ask artifact must be printed, labelled by step');
 });
+
+// ---------------------------------------------------------------------------
+// Path-escape fix: `--run-id` (and `resume`'s runId positional) go through
+// `resolveRunDir` before any run dir is touched. `../../../../tmp/pwned`
+// must never escape the flow's own `runs/` directory.
+// ---------------------------------------------------------------------------
+
+test('cli: run refuses a path-escaping --run-id, at $0, before writing anything under the escape target', async () => {
+  const root = tmpRoot('run-id-escape');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('run-id-escape-src');
+  const { resume, jd } = writeSources(srcDir);
+  const escapeTarget = path.join(tmpdir(), 'fwdloop-pwned-marker');
+
+  const result = runCli([
+    'run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', '../../../../tmp/pwned',
+  ], fakeModelEnv());
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /runId/);
+  assert.equal(existsSync(escapeTarget), false, 'the escaping runId must never have created anything outside runs/');
+  assert.equal(existsSync(path.join(root, 'job2', 'runs', 'pwned')), false);
+});
+
+const runIdEscapes = ['../x', 'a/b', '..', '', '/abs/path'];
+
+for (const badRunId of runIdEscapes) {
+  test(`cli: run refuses --run-id ${JSON.stringify(badRunId)}`, async () => {
+    const root = tmpRoot('run-id-bad');
+    writeJob2Flow(root);
+    const srcDir = tmpRoot('run-id-bad-src');
+    const { resume, jd } = writeSources(srcDir);
+
+    const args = ['run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`];
+    if (badRunId !== '') args.push('--run-id', badRunId);
+    else args.push('--run-id', '');
+
+    const result = runCli(args, fakeModelEnv());
+    assert.notEqual(result.status, 0, `expected --run-id ${JSON.stringify(badRunId)} to be refused`);
+  });
+}
+
+test('cli: run accepts a valid --run-id and parks normally (control case)', async () => {
+  const root = tmpRoot('run-id-good');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('run-id-good-src');
+  const { resume, jd } = writeSources(srcDir);
+
+  const result = runCli([
+    'run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'a-Valid.run_1',
+  ], fakeModelEnv());
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /parked: askId=\S+/);
+  assert.equal(existsSync(path.join(root, 'job2', 'runs', 'a-Valid.run_1')), true);
+});
+
+test('cli: resume refuses a path-escaping runId positional', async () => {
+  const root = tmpRoot('resume-id-escape');
+  writeJob2Flow(root);
+
+  const result = runCli(['resume', '../../../../tmp/pwned', '--flow', 'job2', '--root', root], fakeModelEnv());
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /runId/);
+});

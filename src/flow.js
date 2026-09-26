@@ -78,6 +78,80 @@ export function checkFlowName(name) {
   return { ok: true };
 }
 
+/**
+ * Check a runId against the allowed shape: 1..128 characters, letters
+ * (upper or lower), digits, `.`, `_`, `-`, starting with a letter or digit.
+ * Walked character by character — never a regex — same reasoning as
+ * `checkFlowName`: a runId that would escape the flow's runs directory
+ * (`..`, a `/` or `\` segment, a NUL byte, an absolute path) is refused by
+ * the same loop that refuses a bad character, not a separate ad-hoc check.
+ *
+ * One writer: every caller that turns an externally-supplied runId into a
+ * path (`bin/fwdloop`'s `run`/`resume`, `runFlow`, `resumeRun`) goes through
+ * this function (via `resolveRunDir`, below) — a runId is never trusted
+ * enough to be joined onto a path any other way. Fixes the path escape a
+ * branch review found: `--run-id ../../../../tmp/pwned`.
+ *
+ * @param {unknown} runId
+ * @returns {{ok:true}|{ok:false,red:string}}
+ */
+export function checkRunId(runId) {
+  if (typeof runId !== 'string') {
+    return { ok: false, red: 'run: runId must be a string' };
+  }
+  if (runId.length === 0) {
+    return { ok: false, red: 'run: runId must not be empty' };
+  }
+  if (runId.length > 128) {
+    return { ok: false, red: `run: runId is ${runId.length} characters, must be 1..128` };
+  }
+  for (let i = 0; i < runId.length; i += 1) {
+    const ch = runId[i];
+    const isDigit = ch >= '0' && ch <= '9';
+    const isUpper = ch >= 'A' && ch <= 'Z';
+    const isLower = ch >= 'a' && ch <= 'z';
+    const isDotDashUnderscore = ch === '.' || ch === '-' || ch === '_';
+    if (i === 0) {
+      if (!isDigit && !isUpper && !isLower) {
+        return { ok: false, red: `run: runId "${runId}" must start with a letter or digit, got "${ch}"` };
+      }
+      continue;
+    }
+    if (!isDigit && !isUpper && !isLower && !isDotDashUnderscore) {
+      return { ok: false, red: `run: runId "${runId}" character ${i} ("${ch}") is not one of A-Z, a-z, 0-9, ".", "-", "_"` };
+    }
+  }
+  if (runId.includes('..')) {
+    return { ok: false, red: `run: runId "${runId}" must not contain ".."` };
+  }
+  return { ok: true };
+}
+
+/**
+ * Turn a checked runId into its run directory under `flowDir/runs/`, then
+ * confirm the built path actually resolves INSIDE that runs directory —
+ * belt and braces alongside `checkRunId`'s character allow-list (mirrors
+ * `src/runner.js`'s own `checkSendDestination` shape: lexical containment,
+ * checked after the path is built, never trusted from the allow-list
+ * alone).
+ *
+ * @param {string} flowDir
+ * @param {unknown} runId
+ * @returns {{ok:true, runDir:string}|{ok:false, red:string}}
+ */
+export function resolveRunDir(flowDir, runId) {
+  const check = checkRunId(runId);
+  if (!check.ok) return check;
+  const runsDir = path.join(flowDir, RUNS_DIR);
+  const runDir = path.join(runsDir, /** @type {string} */ (runId));
+  const resolvedRunsDir = path.resolve(runsDir);
+  const resolvedRunDir = path.resolve(runDir);
+  if (resolvedRunDir !== resolvedRunsDir && !resolvedRunDir.startsWith(resolvedRunsDir + path.sep)) {
+    return { ok: false, red: `run: runId "${runId}" resolves outside the runs directory — refused` };
+  }
+  return { ok: true, runDir: resolvedRunDir };
+}
+
 function readTextFile(filePath, label, reds) {
   let stat;
   try {

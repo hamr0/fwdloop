@@ -22,7 +22,7 @@ import { extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 
-import { readFlow, checkFlowName } from '../src/flow.js';
+import { readFlow, checkFlowName, resolveRunDir } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
 import { makeLiveModelStep } from '../src/model-step.js';
@@ -196,7 +196,9 @@ async function cmdRun(rest) {
   }
 
   const runId = values['run-id'] ?? `run-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
-  const runDir = join(root, flowName, 'runs', runId);
+  const runIdCheck = resolveRunDir(join(root, flowName), runId);
+  if (!runIdCheck.ok) fail(runIdCheck.red);
+  const { runDir } = runIdCheck;
   if (existsSync(runDir)) fail(`run: run dir "${runDir}" already exists — use a new --run-id`);
 
   // The key preflight (item A: "refuses at $0 BEFORE any book write") runs
@@ -422,7 +424,9 @@ async function cmdResume(rest) {
   if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
   const { declaration } = read;
 
-  const runDir = join(root, flowName, 'runs', runId);
+  const runIdCheck = resolveRunDir(join(root, flowName), runId);
+  if (!runIdCheck.ok) fail(runIdCheck.red);
+  const { runDir } = runIdCheck;
   if (!existsSync(runDir)) fail(`resume: no run dir for runId "${runId}" under flow "${flowName}"`);
 
   const spendPath = join(runDir, 'spend.jsonl');

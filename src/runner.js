@@ -45,7 +45,7 @@ import {
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { readFlow } from './flow.js';
+import { readFlow, resolveRunDir } from './flow.js';
 import { closeByClass } from './closers.js';
 import { appendAudit, appendHistory } from './books.js';
 
@@ -663,6 +663,19 @@ export async function runFlow({
   const flowDir = join(root, name);
   const startedAt = getNowMs();
 
+  // Defense in depth alongside `bin/fwdloop`'s own `resolveRunDir` check on
+  // `--run-id`: a caller-supplied runId that would escape `flowDir/runs/`
+  // (`..`, a `/`/`\` segment, ...) is refused by name, at $0, before any
+  // directory for this run is even looked at, let alone created.
+  const runIdCheck = resolveRunDir(flowDir, runId);
+  if (!runIdCheck.ok) {
+    mkdirSync(flowDir, { recursive: true });
+    appendHistory(flowDir, {
+      runId, at: now(), outcome: 'refused', spentUsd: 0, spendComplete: true, capUsd: null, wallMs: Date.now() - startedAt, signatureHash: null,
+    });
+    return { outcome: 'refused', red: runIdCheck.red };
+  }
+
   const read = readFlow({ root, name, catalogue });
   if (!read.ok) {
     // Negative iv: a flow whose files don't hash to the signature (or is
@@ -685,7 +698,7 @@ export async function runFlow({
   const askLines = new Map((arbiter.asks ?? []).map((a) => [a.line, a]));
   const sendLines = new Map((arbiter.sends ?? []).map((s) => [s.line, s]));
 
-  const runDir = join(flowDir, 'runs', runId);
+  const runDir = runIdCheck.runDir;
 
   const fresh = checkFreshRunDir(runDir);
   if (!fresh.ok) {
@@ -1271,8 +1284,16 @@ export async function resumeRun({
   const now = typeof clock === 'function' ? clock : () => new Date().toISOString();
   const getNowMs = typeof nowMs === 'function' ? nowMs : Date.now;
   const flowDir = join(root, name);
-  const runDir = join(flowDir, 'runs', runId);
   const startedAt = getNowMs();
+
+  // Defense in depth alongside `bin/fwdloop`'s own `resolveRunDir` check on
+  // the resume verb's runId positional — refused by name, at $0, before the
+  // resume lock file (or anything else) is even looked at.
+  const runIdCheck = resolveRunDir(flowDir, runId);
+  if (!runIdCheck.ok) {
+    return { outcome: 'refused', red: runIdCheck.red };
+  }
+  const runDir = runIdCheck.runDir;
   const lockPath = join(runDir, 'resume.lock');
 
   let lockFd;
