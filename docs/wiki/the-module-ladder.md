@@ -1,6 +1,6 @@
 ---
 type: reference
-title: "The module ladder — M0 through M9"
+title: "The module ladder — M0 through M10"
 status: draft
 sources: [docs/archive/PRD.md]
 ---
@@ -207,7 +207,7 @@ it runs nothing (M2) and asks nothing (M3).
    whose files do not hash to the signature, naming the file. In M1 the check exists and is
    tested; nothing runs yet.
 5. **Catalogue as data.** The primitive catalogue is a data file the validator reads, not code the
-   drafter can reach. Skills gate the visible subset (M6 does persona; M1 only makes the
+   drafter can reach. Skills gate the visible subset (M7 does persona; M1 only makes the
    catalogue a file).
 6. **Patterns are literal or typed, never user regex.** No field in the signed text is
    interpreted as a regular expression; a guardrail is matched by its line number, a shape by its
@@ -230,7 +230,7 @@ it runs nothing (M2) and asks nothing (M3).
    draft time); the compose prompt states its own outputs (F-era prompt gap) — a drafter-prompt
    change, tested at $0 like the fence.
 
-**Not in M1:** running a declaration (M2), the inbox (M3), dry-run and versions (M4), any UI,
+**Not in M1:** running a declaration (M2), the inbox (M3), dry-run and versions (M5), any UI,
 learning across runs.
 
 **POC first — the riskiest assumption:** that slots kill the wobble. Twenty drafts of job #1's
@@ -418,7 +418,7 @@ below; scope, exit, negative and the cap were signed together on 2026-09-24.
     (bareloop F23).
 
 **Not in M2:** the trigger and its retry ladder, `cap.monthlyUsd`, the cross-process inbox and
-TTL (M3), dry-run/accept/versions (M4), any UI, learning across runs, an LLM judge.
+TTL (M3), dry-run/accept/versions (M5), any UI, learning across runs, an LLM judge.
 
 **POC first — the riskiest assumption** (hamr 2026-09-24, "1A"): **that a step which sees only
 the gap can heal.** Take job #2's compose step (softgreen: `maxWords 600`, three named
@@ -585,7 +585,7 @@ negative and the cap were signed together.
 
 **Not in M3:** resuming a run killed mid-step (that run is a casualty; start a fresh run), a
 daemon or timer that expires asks unattended, triggers, `pause` as an answer (an open ask already
-is a pause), dry-run/versions (M4), any UI (M5).
+is a pause), dry-run/versions (M5), any UI (M4).
 
 **POC first, the riskiest assumption:** **a run can die at the ask and come back exactly as it
 was.** $0, fake model steps that count their calls, job #2's fixture flow. Twenty loops, each:
@@ -651,10 +651,12 @@ has a bareloop UI to borrow, so M4 is mostly adjusting, not designing.
 - **M4 wires only what is built** (M0–M3: describe/sign, run, watch, the inbox with `show` /
   accept / reject / rerun, the audit and history books). A screen whose feature is not built yet
   stays unwired until its module lands. Nothing is faked to look live.
-- **"Edit an existing workflow and add turns" is not in M4.** It lands with versions (now M5),
-  because an edit must re-sign through accept/versioning. Every module after M4 ships its screen.
-- The M4/M5 texts below are unchanged until M4's scope is drafted and signed; read their numbers
-  as swapped.
+- **"Edit an existing workflow and add turns" is not in M4.** It lands with authoring (now M6),
+  re-signing through versions (now M5). Every module after M4 ships its screen.
+- **RULING C, by hamr 2026-09-26 ("1, renumber"):** the ladder below is renumbered to match — old
+  "M4 — dry-run, accept, versions" is now M5, old "M5 — localhost UI, the crux" is trimmed to
+  authoring only and is now M6, and every module after it shifts by one (old M6→M7, M7→M8, M8→M9,
+  M9→M10). The renumber is done in the sections below, not deferred.
 
 ### M4 (the UI) — scope, exit, negative — DRAFT, NOT SIGNED (2026-09-26)
 
@@ -662,23 +664,52 @@ has a bareloop UI to borrow, so M4 is mostly adjusting, not designing.
 `src/panel/index.html` (one file, all CSS and JS inline, vanilla, no build step, no npm UI deps; only
 Google Fonts) and `src/panel/server.js` (`node:http` only, binds `127.0.0.1`). Visual contract:
 `design/panel-mockup.html`. Rulings: `docs/product/PANEL-BUILD.md` §5–§7 and
-`design/panel-feedback.jsonl`. **Pin: `b2876d0`** (bareloop `feat/panel-p1`, pinged by `loop` 2026-09-26, replacing `4879437`;
-`loop` reports typecheck clean and 3003/3003 tests, and hamr hand-checked it live). It is local-only
-(origin has up to `ed89557`), so we copy from `../bareloop`. `loop` may ping a newer hash after its own
-debrief; we pin the last one pinged before M4 starts. What changed since `4879437` (hamr's goal: no
+`design/panel-feedback.jsonl`. **Pin: `a30bbef`** (bareloop `feat/panel-p1`, pushed to origin
+2026-09-26 per `loop`, gate 3012/3012; the fit-check below ran against the intervening `43543cc`).
+It is on GitHub now, so we copy from `../bareloop` at the pin. `loop` may ping a newer hash after its
+own debrief; we pin the last one pinged before M4 starts. What changed since `4879437` (hamr's goal: no
 duplication, no clutter; Run is the summary, Audit is the investigation): Workflows and History are
 one **Runs** tab with a toggle; the Run tab is a map plus one two-line card per ordered **part**
 (computed once server-side), with no expanding; Audit is grouped part → attempts → rounds, with a flat
 toggle and All/Writes/Blocked filters. `loop`'s added lessons: one ordered list must drive the map,
-the cards and Audit, or they drift; label parts from each round's own recorded phase, never from
-timestamps; show hidden cost (a fix loop was over half the spend and invisible). What bareloop has wired: Workflows and History lists, the Run tab (step map,
-step cards → attempts → rounds), Audit/logs, Job. Not wired there: Chat (authoring), Settings, and
-any action buttons (their P1 is read-only).
+the cards and Audit, or they drift; show hidden cost (a fix loop was over half the spend and
+invisible). bareloop's own lesson was to label each **round's** recorded phase, never a timestamp —
+fwdloop has no round unit in its books (`audit.jsonl` is one row per step **attempt**, not per
+round), so the lesson lands one level coarser here: one ordered list of step attempts drives the
+map, the cards and Audit; label each by its step and attempt, never by timestamp. What bareloop has
+wired: Workflows and History lists, the Run tab (step map, step cards → attempts → rounds),
+Audit/logs, Job. Not wired there: Chat (authoring), Settings, and any action buttons (their P1 is
+read-only).
+
+**Design source rule** (hamr 2026-09-26): bareloop started read-only first; fwdloop does the same.
+Where the latest bareloop panel at the pin and the original mockup (`design/panel-mockup.html`,
+bareloop, same file at the pin) conflict, the latest panel wins — it is the more-tested artifact.
+Where the panel has nothing to say because it is read-only (no inputs, no action buttons), the
+mockup is the design source, mainly for inputs: the inbox's accept / reject-with-reason /
+rerun-with-reason controls follow the mockup's Run-tab action bar (`data-testid="action-bar"`,
+`#btn-accept`, `#btn-rerun` — the mockup also has `#btn-pause` and `#btn-replay`, not ours to use)
+rather than being invented from scratch.
+
+**Fit check (2026-09-26, $0).** A field-by-field read of bareloop's panel against fwdloop's own
+books (`docs/logs/FINDINGS.md`-style, kept as a scratch note, not filed as a finding since nothing
+here is a bareloop bug): roughly 80% of `index.html`'s CSS and page shell is reusable as-is
+(layout, tabs, mobile breakpoints, fonts); the JS that renders Workflows/Run/Audit is entangled with
+bareloop's round/part/scoutPlan data shapes and needs rewriting against fwdloop's flatter one
+(declaration steps joined to `audit.jsonl` rows). bareloop's `server.js` is GET/HEAD only by
+construction (405s everything else) — the inbox's `POST` answer path, with its Origin/Host/token
+checks, is new code, not a port. Died/floor logic (`[?]`, "at least $X") has no bareloop analog and
+is new. `resume.lock` has no pid and no liveness check today (already an open POC question, M4a
+scope item 4 below) — confirmed by reading `runner.js`.
 
 **What fwdloop has built that a screen can show** (M0–M3, in `src/` and `bin/`): signed flows
 (`readFlow`), both books (`audit.jsonl`, `history.jsonl`), `log.json`, artifacts, the parked ask with
 its evidence (`ask.json`, `state.json`), `answerAsk`, `resumeRun`, `runFlow`. **Not built:** the
 drafter in `src/` (it lives only in `poc/m0/drafter.mjs`), so "describe a job" has no engine yet.
+
+**Split, like M0a/M0b** (hamr 2026-09-26): M4a is the read-only panel; M4b is the inbox's answer
+doors, and does not start until M4a's exit is signed.
+
+#### M4a — read-only panel
 
 **Scope.**
 
@@ -686,37 +717,30 @@ drafter in `src/` (it lives only in `poc/m0/drafter.mjs`), so "describe a job" h
    pinned commit, each with a `borrowed-from: bareloop <path>@<commit>` header. bareloop internals the
    server imports (runlist, replay, ledger, job, authorflow) are rewired to fwdloop's own books, never
    imported. The live-canvas overlay is not copied. `fwdloop panel [--port 4700] [--root <dir>]`
-   serves on `127.0.0.1` only. No new dependency.
+   serves on `127.0.0.1` only. No new dependency. **No POST route exists at all in M4a** — the server
+   is GET/HEAD only, exactly like bareloop's own (405 on anything else).
 2. **Wire what is built** (read-only screens):
    - **Workflows**: every flow under `--root`, with its last run's glyph, cost and time.
    - **History**: every run row from `history.jsonl`.
    - **Run tab**: the step map from `declaration.steps`, and step cards → attempts from `audit.jsonl`
      (verdict, gap, cost, model, strike) plus what the model wrote from `log.json`.
-   - **Audit/logs**: the raw audit rows, scoped to the one run.
+   - **Audit/logs**: the raw audit rows, scoped to the one run, one row per step attempt
+     (`audit.jsonl` has no round-level or tool-call-level rows). bareloop's All/Writes/Blocked
+     filters and per-round detail have no fwdloop book to fill them from — they stay unwired, not
+     faked; logging per-round or per-call rows is a possible later books amendment, not M4.
    - **Job**: the signed prose, the arbiter block (cap, asks with TTL, redo cap, sends, sources),
      and the signature (who, when, hash).
-3. **The inbox is the one live action.** Open asks across all flows: question, time left, and the
-   evidence (the draft under review first, then each unjudged artifact labelled by step), the same
-   thing `fwdloop show` prints. Three doors: accept, reject "<reason>", rerun "<reason>". The server
-   calls `answerAsk` and nothing else, so every refusal (blank reason, expired, already answered) is
-   the library's, shown by name. The panel is a client of the arbiter, never a second arbiter
-   (bareloop §5).
-4. **Only a human click answers.** The server refuses an answer that did not come from the page: it
-   checks `Origin` and `Host` against its own address, requires a per-process token that is only
-   embedded in the served page, and accepts only `POST`. A scripted `curl` without the page's token
-   is a red naming the reason. Keys never reach the page.
-5. **Resume after an answer** (hamr 2026-09-26, "1b": the panel resumes the run itself). (a) The panel shows "answered — run `fwdloop resume <runId>`",
-   and the human resumes from a terminal, as today. (b) The panel resumes the run itself after the
-   answer, using a key from the server's own environment, and shows it running live. (b) is the
-   "no terminal" product; (a) keeps paid calls out of the panel for now.
-6. **Unbuilt screens stay honest.** Chat/describe says "authoring isn't built yet (the drafter is a
-   POC)". Settings and version or edit controls stay unwired until their module. Nothing shows fake
-   data.
-7. **fwdloop words, bareloop's rulings.** Results are glyphs only: `[✓]` passed, `[✗]` failed,
+   - **Inbox, read-only**: open asks across all flows — question, time left, and the evidence (the
+     draft under review first, then each unjudged artifact labelled by step), the same thing
+     `fwdloop show` prints. No answer controls yet; those are M4b.
+3. **Unbuilt screens stay honest.** Chat/describe says "authoring isn't built yet (the drafter is a
+   POC)". Settings, version/edit controls, and the inbox's answer doors stay unwired until their
+   module. Nothing shows fake data.
+4. **fwdloop words, bareloop's rulings.** Results are glyphs only: `[✓]` passed, `[✗]` failed,
    `[▶]` running, `[·]` waiting on you (parked, `ask.json` present, no `answer.json` and no consumed
    answer for its askId), `[·]` answered, not resumed yet (parked, `answer.json` present; said in words,
    not the same line as an unanswered ask), `[?]` died (no history row and no `state.json` park; never
-   `[✗]`). **Open for M4's POC** (debrief 2026-09-26): the books cannot tell "running right now" from
+   `[✗]`). **Open for M4a's POC** (debrief 2026-09-26): the books cannot tell "running right now" from
    "died" today. `resume.lock` is an empty file with no pid and nothing checks liveness, so a crashed
    resumer and a live one look the same. Either the runner writes a pid (and the panel checks it), or
    the panel shows "running or died: unknown" and never guesses. A park never writes a history row, and `answerAsk` leaves
@@ -725,17 +749,8 @@ drafter in `src/` (it lives only in `poc/m0/drafter.mjs`), so "describe a job" h
    (hitl), never the words green, red or softgreen. "took 6m08s" for a finished run, "Xs elapsed"
    only while live. Every empty state says why. No list is truncated silently. Cost is never
    rendered as `$0` when unknown, and a floor says "at least".
-8. **Mobile is mandatory.** Works at 390 px with no horizontal scroll; checked with a real screenshot,
+5. **Mobile is mandatory.** Works at 390 px with no horizontal scroll; checked with a real screenshot,
    not "verified" in prose.
-
-**Not in M4:** the drafter and describe/sign (a later module brings the drafter into `src/`), editing
-a flow or adding turns (M5, versions), dry-run and accept-a-version (M5), starting a new run from the
-panel (PICK 2), Settings, LAN or phone access (localhost only).
-
-**PICK 2: a Run button. DEFERRED by hamr 2026-09-26:** check the borrowed UI first and see what fits
-or is missing, then adjust the design. The scope is not final until then. Starting a run needs its input files and a paid key. bareloop's lesson is
-to ask "when would you use this?" before building a button. The recommendation is to leave it out of
-M4: runs start from the CLI or a trigger, and the panel is where a human watches and answers.
 
 **POC first, the riskiest assumption:** **that fwdloop's books hold everything the borrowed screens
 need.** No screen is built. A $0 script builds the panel's data for every real run already on disk
@@ -745,34 +760,75 @@ filled from a book, or has a stated why-empty. Zero fields filled with a made-up
 "unknown".** Each gap found is either a books change (its own small signed amendment) or a screen that
 stays unwired.
 
-**Exit.**
+**M4a exit.**
 
 - The POC bar is met.
-- Someone who has not used the CLI opens `fwdloop panel`. They find job #2's parked ask, read the
-  draft and both inputs, reject with a reason, see it re-park (after the resume, per PICK 1), accept,
-  and see the run's glyph turn `[✓]` and the sent artifact in the Run tab. hamr does this on a
-  live run.
+- Someone who has not used the CLI opens `fwdloop panel`. They find job #2's parked ask and read
+  the draft and both inputs (read-only — no answer yet).
 - They open a red run (the F41 plant, `not-done`) and can say which step stopped it and why, from one
   screen.
 - A phone-width screenshot of every wired screen at 390 px shows no horizontal scroll.
 
-**Negative scenarios**, each of which must be able to fail:
+**M4a negative scenarios**, each of which must be able to fail:
 
-- (i) a scripted `POST` to the answer endpoint without the page's token, or from another `Origin`, is
-  refused, and no `answer.json` is written;
-- (ii) an answer the library refuses (expired, blank reason, second answer) shows that refusal by name
-  in the page, never a success;
 - (iii) a run with no history row and no park shows `[?]`, never `[✗]` and never `[✓]`; a run parked
   and answered but not resumed shows "answered, not resumed yet", never `[?]` and never waiting on you;
 - (iv) a run whose spend is a floor (`spendComplete: false`) shows "at least $X", never a bare total;
 - (v) no screen renders a key, a secret, or a path outside `--root`.
 
-**Kills the module:** the books cannot fill the core screens (Run tab, inbox) without the panel
-inventing values; then the fix is in the books first, and M4 waits.
+**Kills M4a:** the books cannot fill the core screens (Run tab, inbox) without the panel inventing
+values; then the fix is in the books first, and M4a (and M4b behind it) waits.
 
-**Proposed M4 spend cap: $1.00** (POC $0; the live exit is about $0.05 a run). Not signed.
+**Proposed M4a spend cap: $0** — read-only, no paid calls. Not signed.
 
-## M4 — dry-run, accept, versions
+#### M4b — inputs (does not start until M4a's exit is signed)
+
+**Scope.**
+
+1. **The inbox's answer doors, designed from the mockup.** Per the design-source rule above: the
+   mockup's Run-tab action bar (`#btn-accept`, `#btn-rerun`) is the source for shape and placement,
+   since bareloop's own panel has no action buttons to borrow. Three doors: accept, reject
+   "<reason>", rerun "<reason>" — reject has no mockup analog and is fwdloop's own. The server calls
+   `answerAsk` and nothing else, so every refusal (blank reason, expired, already answered) is the
+   library's, shown by name. The panel is a client of the arbiter, never a second arbiter
+   (bareloop §5).
+2. **Only a human click answers.** The server refuses an answer that did not come from the page: it
+   checks `Origin` and `Host` against its own address, requires a per-process token that is only
+   embedded in the served page, and accepts only `POST`. A scripted `curl` without the page's token
+   is a red naming the reason. Keys never reach the page.
+3. **Resume after an answer — ruled (b)** (hamr 2026-09-26, "1b"): the panel resumes the run itself
+   after the answer, using a key from the server's own environment, and shows it running live. This
+   is the "no terminal" product; showing "answered — run `fwdloop resume <runId>`" and leaving the
+   resume to a human terminal, as today, is not built.
+
+**M4b exit.** Someone who has not used the CLI opens `fwdloop panel`, finds job #2's parked ask,
+reads the draft and both inputs, rejects with a reason, sees it re-park (after the resume, per
+ruling 1b), accepts, and sees the run's glyph turn `[✓]` and the sent artifact in the Run tab. hamr
+does this on a live run.
+
+**M4b negative scenarios**, each of which must be able to fail:
+
+- (i) a scripted `POST` to the answer endpoint without the page's token, or from another `Origin`, is
+  refused, and no `answer.json` is written;
+- (ii) an answer the library refuses (expired, blank reason, second answer) shows that refusal by name
+  in the page, never a success.
+
+**Kills M4b:** the answer/resume path cannot be made to refuse (i) or (ii) without a books or arbiter
+change; then the fix is upstream of the panel, and M4b waits.
+
+**Proposed M4b spend cap: $1.00** (the live exit is about $0.05 a run). Not signed.
+
+**Not in M4 (a or b):** the drafter and describe/sign (a later module brings the drafter into
+`src/`), editing a flow or adding turns (M6), dry-run and accept-a-version (M5), starting a new run
+from the panel, Settings, LAN or phone access (localhost only).
+
+**Ruling: no Run button in M4** (hamr 2026-09-26, "2"). bareloop's panel has no run-start affordance
+at all — its Chat tab is a static "not built yet" string, no form, no POST route anywhere. Its own
+lesson is to ask "when would you use this?" before building a button. fwdloop starts read-only too:
+runs start from the CLI or a trigger, and the panel is where a human watches and answers. A Run
+button is not deferred pending more design — it is out of scope for M4.
+
+## M5 — dry-run, accept, versions
 
 Placed here because the UI's "edit and add turns" is meaningless without versioning. Dry-run
 redirects egress to a file and changes nothing else — reads stay real. Accept signs a version hash,
@@ -784,22 +840,22 @@ any edit flips it and demands re-accept, and rollback restores a previous accept
 - **Negative:** a flow edited on disk without re-accept is a red naming the changed field, never a
   silent run of the new version (docs/archive/PRD.md:594-595).
 
-## M5 — localhost UI, the crux
+## M6 — describe, sign, and edit a flow (authoring)
 
-Ruled the crux of the product, where humans author, run, describe and observe — so it moves here
-from last, and every module after it ships its screen (docs/archive/PRD.md:597-600).
+Authoring only now — watching a run, the inbox and its three doors, and the audit view moved to M4
+(RULING A, 2026-09-26). What's left here: describe a job in prose plus guardrails and see the
+drafted steps; sign it; and **edit an existing workflow and add turns to it**, which re-signs
+through M5 (docs/archive/PRD.md:597-605).
 
-Scope: describe a job in prose plus guardrails and see the drafted steps; run it; watch it; the
-inbox and its three doors; `audit <run>` as a readable table with the citation trail; and **edit an
-existing workflow and add turns to it**, which re-signs through M4. Responsive and phone-tested per
-AGENT_RULES — this is not a POC (docs/archive/PRD.md:601-605).
+- **Exit:** a person who has never used the CLI can describe job #1 and sign it, then edit it to add
+  a turn and see it re-sign through M5 — without opening a terminal. Running it, watching it,
+  answering its ask, and reading why a red was red are M4's exit (see above), not repeated here
+  (docs/archive/PRD.md:606-607).
+- **Negative:** tracing a wrong number to its source cell is M4's negative (see above). This
+  module's own negative is an edit that skips re-accept, which M5 catches
+  (docs/archive/PRD.md:608-609).
 
-- **Exit:** a person who has never used the CLI can describe job #1, sign it, run it, answer its ask,
-  and read why a red was red — without opening a terminal (docs/archive/PRD.md:606-607).
-- **Negative:** a wrong number is traceable to its source cell in one screen; if it is not, the audit
-  is a log and not a product feature, and that is a spec change (docs/archive/PRD.md:608-609).
-
-## M6 — skills and persona
+## M7 — skills and persona
 
 Skill directories gate the drafter's visible primitive subset, and a signed persona line affects
 `compose` wording only. Menu-is-inventory: a checkbox with no skill directory is a validation red
@@ -809,7 +865,7 @@ Skill directories gate the drafter's visible primitive subset, and a signed pers
   (docs/archive/PRD.md:615-615).
 - **Negative:** persona changes wording and never a cited figure (docs/archive/PRD.md:616-616).
 
-## M7 — case library and maintenance mode
+## M8 — case library and maintenance mode
 
 A `cases/<id>/` directory per flow; every human-resolved red becomes a case, re-run on every edit
 and every model or provider change, with the incident loop detect → diagnose → contain → extend
@@ -818,7 +874,7 @@ and every model or provider change, with the incident loop detect → diagnose �
 - **Exit:** a model swap that breaks a case is refused at accept, naming the case
   (docs/archive/PRD.md:621-621).
 
-## M8 — triggers and flow handover
+## M9 — triggers and flow handover
 
 `manual`, `cron`, `file-drop`, then `inbox-poll`. Flow-to-flow handover rides `file-drop`, and the
 monthly wall is enforced **by the trigger**, before a run starts.
@@ -826,7 +882,7 @@ monthly wall is enforced **by the trigger**, before a run starts.
 - **Exit:** a trigger refuses to fire when the month cannot fund a whole run, recording
   `monthly-exhausted` rather than starting and halting mid-way.
 
-## M9 — real IO
+## M10 — real IO
 
 Mail in and out, chat, browse — each behind the signed allow-list and a prior `ask` accept in the
 same run. Scope is stated when its turn comes.
