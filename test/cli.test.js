@@ -69,6 +69,25 @@ function writeSources(srcDir) {
   return { resume, jd };
 }
 
+/** `test/fixtures/job2.m1.declaration.json`'s draft step grants `compress` —
+ *  catalogue-present but never wired by `resolvePrimitives` (F46). Since the
+ *  F46 fix (this branch) makes the runner refuse at preflight when a step
+ *  grants an unwired verb, that fixture's draft step would now refuse every
+ *  CLI scenario below, none of which are testing `compress` itself — they
+ *  exercise run/park/ask/resume/rerun plumbing. So this local copy swaps it
+ *  for `read` (already wired) rather than editing the shared fixture file,
+ *  which other test files (park-resume, rerun, runner, ...) also load and
+ *  which is left untouched. F46's own preflight-refusal behaviour is tested
+ *  separately (see the "unwired verb" tests below), with `compress` intact.
+ */
+function wiredJob2Declaration() {
+  const declaration = fixtureJson('job2.m1.declaration.json');
+  const draftStep = declaration.steps.find((s) => s.emits === 'resume-summary');
+  assert.ok(draftStep, 'expected job2.m1.declaration.json to carry a "resume-summary" step');
+  draftStep.primitives = ['read'];
+  return declaration;
+}
+
 function writeJob2Flow(root, { name = 'job2', askMark = 'ask:' } = {}) {
   const base = fixture('job2-with-sources.signed.txt');
   assert.ok(base.includes('4. ask: check it with me,'), 'fixture line 4 must still read "ask: check it with me,"');
@@ -77,7 +96,7 @@ function writeJob2Flow(root, { name = 'job2', askMark = 'ask:' } = {}) {
     root,
     name,
     proseText,
-    declaration: fixtureJson('job2.m1.declaration.json'),
+    declaration: wiredJob2Declaration(),
     signedBy: 'hamr',
     signedAt: '2026-09-25T12:00:00Z',
     catalogue: CATALOGUE,
@@ -349,4 +368,63 @@ test('cli: resume refuses a path-escaping runId positional', async () => {
   const result = runCli(['resume', '../../../../tmp/pwned', '--flow', 'job2', '--root', root], fakeModelEnv());
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /runId/);
+});
+
+// ---------------------------------------------------------------------------
+// F46 (docs/logs/FINDINGS.md): a step whose declaration grants a verb the
+// runner has no wired implementation for must refuse the run at preflight,
+// naming the step and the verb, before any model call or spend — never a
+// warning the run continues past.
+// ---------------------------------------------------------------------------
+
+test('cli: run refuses at preflight when a step grants an unwired verb (litectx\'s "compress"), naming the step and the verb, at $0', async () => {
+  const root = tmpRoot('unwired-verb');
+  // job #2's real signed shape (F46): the draft step grants "compress",
+  // catalogue-present but never wired by resolvePrimitives. Signed directly
+  // via writeFlow (not the shared fixture file) so the signature actually
+  // matches — editing declaration.json after signing would just trip the
+  // (unrelated) signature-mismatch check instead of this one.
+  const base = fixture('job2-with-sources.signed.txt');
+  const declaration = fixtureJson('job2.m1.declaration.json');
+  const draftStep = declaration.steps.find((s) => s.emits === 'resume-summary');
+  assert.ok(draftStep, 'expected a "resume-summary" step');
+  draftStep.primitives = ['compress'];
+  const written = writeFlow({
+    root,
+    name: 'job2-unwired',
+    proseText: base,
+    declaration,
+    signedBy: 'hamr',
+    signedAt: '2026-09-25T12:00:00Z',
+    catalogue: CATALOGUE,
+  });
+  assert.equal(written.ok, true, written.ok ? '' : written.reds.join('\n'));
+
+  const srcDir = tmpRoot('unwired-verb-src');
+  const { resume, jd } = writeSources(srcDir);
+
+  const result = runCli([
+    'run', 'job2-unwired', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-1',
+  ], fakeModelEnv());
+
+  assert.notEqual(result.status, 0, result.stdout);
+  assert.match(result.stderr, /resume-summary/, 'the refusal must name the step');
+  assert.match(result.stderr, /"compress"/, 'the refusal must name the verb');
+  assert.match(result.stderr, /no wired implementation/);
+  assert.equal(existsSync(path.join(root, 'job2-unwired', 'runs', 'run-1')), false, 'no run dir may exist — refused before any run started');
+  assert.equal(existsSync(path.join(root, 'job2-unwired', 'history.jsonl')), false, 'no book row — refused at $0 before runFlow was ever called');
+});
+
+test('cli: run with only wired verbs still runs (control case for the F46 preflight refusal)', async () => {
+  const root = tmpRoot('wired-verbs');
+  writeJob2Flow(root, { name: 'job2-wired' });
+  const srcDir = tmpRoot('wired-verbs-src');
+  const { resume, jd } = writeSources(srcDir);
+
+  const result = runCli([
+    'run', 'job2-wired', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-1',
+  ], fakeModelEnv());
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /parked: askId=\S+/);
 });
