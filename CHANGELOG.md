@@ -52,8 +52,9 @@ CLI, rerun as a fresh run.
 ### Known limits
 - Resume is manual after an answer is written — nothing watches for the
   answer and resumes the run automatically.
-- A `resume`/`answer` `runId` is taken as given and not validated against
-  the flow it names before it acts.
+- A `runId` (`run --run-id`, `resume <runId>`) is not validated: a `..` in
+  it can place the run's files outside the flows tree. Only the operator
+  types it today; it is on the fix list before the UI takes run ids.
 
 ## [0.5.0] - 2026-09-25
 
