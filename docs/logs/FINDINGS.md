@@ -2177,3 +2177,31 @@ artifact on disk, and the blurb went from about 190 to 157 words. `show` again, 
 sent. The sent text equals the accepted artifact. Both books sum to $0.0184. The one history row has
 `wallMs` 970,615 (16.2 min, the run's first start to the send, pauses included), matching the
 clock. M3 total $0.05 of $2.00.
+
+## F46 — The litectx verbs are in the catalogue but not wired into the runner; not an upstream gap (2026-09-26)
+
+**Asked:** hamr, 2026-09-26: file the litectx catalogue gap (open since the 2026-09-24 stash) as an
+upstream ask. **Checked first, and it is not upstream.** `litectx` 0.32.0 (fwdloop's installed
+dependency) already exports what the catalogue names: `VERBS_BY_PRIMITIVE` is
+`{ Write: [remember, forget, write-gate], Select: [recall, impact], Compress: [assemble, compress,
+summaryWindow], Isolate: [stash, peek, evict, scope] }`, and `compress`, `assemble`, `LiteCtx` and
+`summaryWindow` are exported functions. The gap is fwdloop's own: `src/primitives.js`
+(`resolvePrimitives`) only builds `read`, `grep`, `write`, `readDocx` and `addressCells`. Any other
+catalogue verb falls to `default:`, which pushes `primitives: verb "<v>" is in the catalogue but has
+no M2 implementation yet`.
+
+**What that red does today.** The live runs print it as a warning (`run: primitives: verb
+"compress" ...`) and the run continues. Job #2's compose step is declared with `compress` and runs
+without it. A signed declaration grants a primitive the step never receives, and the run does not
+stop. M0b's lesson applies: verify by what is granted, not by what is declared (F24).
+
+**Two ways to close it (hamr's call, not done here):**
+1. Wire the litectx verbs a declaration can grant into `resolvePrimitives`, as fwdloop adapters
+   over litectx's exports. This is agent plumbing over an existing primitive, so it is a fwdloop
+   build item, not an upstream ask. An ask is filed only if the wiring shows litectx itself
+   missing or broken.
+2. Until then, make a declared-but-unwired verb a red that refuses the run at preflight ($0),
+   naming the step and the verb, instead of a warning.
+
+**Not filed in `docs/product/UPSTREAM-ASKS.md`**, because that queue is only for primitives
+missing or broken upstream.
