@@ -658,7 +658,7 @@ has a bareloop UI to borrow, so M4 is mostly adjusting, not designing.
   authoring only and is now M6, and every module after it shifts by one (old M6→M7, M7→M8, M8→M9,
   M9→M10). The renumber is done in the sections below, not deferred.
 
-### M4 (the UI) — scope, exit, negative — DRAFT, NOT SIGNED (2026-09-26)
+### M4 (the UI) — scope, exit, negative — M4a SIGNED by hamr 2026-09-26 ("signed M4a"), M4b DRAFT, NOT SIGNED
 
 **Where it comes from** (answered by the `loop` session, 2026-09-26). bareloop's panel:
 `src/panel/index.html` (one file, all CSS and JS inline, vanilla, no build step, no npm UI deps; only
@@ -709,7 +709,7 @@ drafter in `src/` (it lives only in `poc/m0/drafter.mjs`), so "describe a job" h
 **Split, like M0a/M0b** (hamr 2026-09-26): M4a is the read-only panel; M4b is the inbox's answer
 doors, and does not start until M4a's exit is signed.
 
-#### M4a — read-only panel
+#### M4a — read-only panel — SIGNED by hamr 2026-09-26 ("signed M4a"), spend cap $0 signed
 
 **Scope.**
 
@@ -779,7 +779,7 @@ stays unwired.
 **Kills M4a:** the books cannot fill the core screens (Run tab, inbox) without the panel inventing
 values; then the fix is in the books first, and M4a (and M4b behind it) waits.
 
-**Proposed M4a spend cap: $0** — read-only, no paid calls. Not signed.
+**M4a spend cap: $0 — SIGNED by hamr 2026-09-26** ("signed M4a") — read-only, no paid calls.
 
 #### M4b — inputs (does not start until M4a's exit is signed)
 
