@@ -640,6 +640,129 @@ no-lock 14–17/20). Build starts on the same branch.
 
 Spend: $0.03 of the $2.00 cap. Suite 1216/1216.
 
+### RULING on the ladder order — by hamr, 2026-09-26 ("A")
+
+**The UI moves up to M4; dry-run, accept and versions move to M5.** Why: in bareloop the UI came late,
+and a lot of UX (what to show, what to hide) was never thought about until a person used it. fwdloop
+has a bareloop UI to borrow, so M4 is mostly adjusting, not designing.
+
+- **Start from bareloop's latest UI** (the one `loop` actively serves on port 4700) as the skeleton,
+  borrowed by copy with a pinned `borrowed-from` commit. It carries every change so far.
+- **M4 wires only what is built** (M0–M3: describe/sign, run, watch, the inbox with `show` /
+  accept / reject / rerun, the audit and history books). A screen whose feature is not built yet
+  stays unwired until its module lands. Nothing is faked to look live.
+- **"Edit an existing workflow and add turns" is not in M4.** It lands with versions (now M5),
+  because an edit must re-sign through accept/versioning. Every module after M4 ships its screen.
+- The M4/M5 texts below are unchanged until M4's scope is drafted and signed; read their numbers
+  as swapped.
+
+### M4 (the UI) — scope, exit, negative — DRAFT, NOT SIGNED (2026-09-26)
+
+**Where it comes from** (answered by the `loop` session, 2026-09-26). bareloop's panel:
+`src/panel/index.html` (one file, all CSS and JS inline, vanilla, no build step, no npm UI deps; only
+Google Fonts) and `src/panel/server.js` (`node:http` only, binds `127.0.0.1`). Visual contract:
+`design/panel-mockup.html`. Rulings: `docs/product/PANEL-BUILD.md` §5–§7 and
+`design/panel-feedback.jsonl`. **Pin: `4879437`** (bareloop `feat/panel-p1`, the latest per hamr's
+"start with the latest"; `loop` reports typecheck clean and 2961/2961 tests at that tree, and hamr
+checked it live). It is a local commit, not yet on bareloop's origin, so we copy from the local tree.
+It carries the audit Step column fix, run-window scoping and search by job, run id or model. What bareloop has wired: Workflows and History lists, the Run tab (step map,
+step cards → attempts → rounds), Audit/logs, Job. Not wired there: Chat (authoring), Settings, and
+any action buttons (their P1 is read-only).
+
+**What fwdloop has built that a screen can show** (M0–M3, in `src/` and `bin/`): signed flows
+(`readFlow`), both books (`audit.jsonl`, `history.jsonl`), `log.json`, artifacts, the parked ask with
+its evidence (`ask.json`, `state.json`), `answerAsk`, `resumeRun`, `runFlow`. **Not built:** the
+drafter in `src/` (it lives only in `poc/m0/drafter.mjs`), so "describe a job" has no engine yet.
+
+**Scope.**
+
+1. **Borrow by copy.** `src/panel/index.html` and `src/panel/server.js` copied from bareloop at the
+   pinned commit, each with a `borrowed-from: bareloop <path>@<commit>` header. bareloop internals the
+   server imports (runlist, replay, ledger, job, authorflow) are rewired to fwdloop's own books, never
+   imported. The live-canvas overlay is not copied. `fwdloop panel [--port 4700] [--root <dir>]`
+   serves on `127.0.0.1` only. No new dependency.
+2. **Wire what is built** (read-only screens):
+   - **Workflows**: every flow under `--root`, with its last run's glyph, cost and time.
+   - **History**: every run row from `history.jsonl`.
+   - **Run tab**: the step map from `declaration.steps`, and step cards → attempts from `audit.jsonl`
+     (verdict, gap, cost, model, strike) plus what the model wrote from `log.json`.
+   - **Audit/logs**: the raw audit rows, scoped to the one run.
+   - **Job**: the signed prose, the arbiter block (cap, asks with TTL, redo cap, sends, sources),
+     and the signature (who, when, hash).
+3. **The inbox is the one live action.** Open asks across all flows: question, time left, and the
+   evidence (the draft under review first, then each unjudged artifact labelled by step), the same
+   thing `fwdloop show` prints. Three doors: accept, reject "<reason>", rerun "<reason>". The server
+   calls `answerAsk` and nothing else, so every refusal (blank reason, expired, already answered) is
+   the library's, shown by name. The panel is a client of the arbiter, never a second arbiter
+   (bareloop §5).
+4. **Only a human click answers.** The server refuses an answer that did not come from the page: it
+   checks `Origin` and `Host` against its own address, requires a per-process token that is only
+   embedded in the served page, and accepts only `POST`. A scripted `curl` without the page's token
+   is a red naming the reason. Keys never reach the page.
+5. **Resume after an answer** (hamr 2026-09-26, "1b": the panel resumes the run itself). (a) The panel shows "answered — run `fwdloop resume <runId>`",
+   and the human resumes from a terminal, as today. (b) The panel resumes the run itself after the
+   answer, using a key from the server's own environment, and shows it running live. (b) is the
+   "no terminal" product; (a) keeps paid calls out of the panel for now.
+6. **Unbuilt screens stay honest.** Chat/describe says "authoring isn't built yet (the drafter is a
+   POC)". Settings and version or edit controls stay unwired until their module. Nothing shows fake
+   data.
+7. **fwdloop words, bareloop's rulings.** Results are glyphs only: `[✓]` passed, `[✗]` failed,
+   `[▶]` running, `[·]` waiting on you (parked, `ask.json` present, no `answer.json` and no consumed
+   answer for its askId), `[·]` answered, not resumed yet (parked, `answer.json` present; said in words,
+   not the same line as an unanswered ask), `[?]` died (no history row, no `state.json` park, and no
+   process running it; never `[✗]`). A park never writes a history row, and `answerAsk` leaves
+   `ask.json` in place until resume consumes the answer (debrief 2026-09-26), so "no history row" alone
+   never means died. Close classes are shown as `cited` (green), `shape` (softgreen) and `human check`
+   (hitl), never the words green, red or softgreen. "took 6m08s" for a finished run, "Xs elapsed"
+   only while live. Every empty state says why. No list is truncated silently. Cost is never
+   rendered as `$0` when unknown, and a floor says "at least".
+8. **Mobile is mandatory.** Works at 390 px with no horizontal scroll; checked with a real screenshot,
+   not "verified" in prose.
+
+**Not in M4:** the drafter and describe/sign (a later module brings the drafter into `src/`), editing
+a flow or adding turns (M5, versions), dry-run and accept-a-version (M5), starting a new run from the
+panel (PICK 2), Settings, LAN or phone access (localhost only).
+
+**PICK 2: a Run button. DEFERRED by hamr 2026-09-26:** check the borrowed UI first and see what fits
+or is missing, then adjust the design. The scope is not final until then. Starting a run needs its input files and a paid key. bareloop's lesson is
+to ask "when would you use this?" before building a button. The recommendation is to leave it out of
+M4: runs start from the CLI or a trigger, and the panel is where a human watches and answers.
+
+**POC first, the riskiest assumption:** **that fwdloop's books hold everything the borrowed screens
+need.** No screen is built. A $0 script builds the panel's data for every real run already on disk
+(`flows/job2-live-1`: `run-1`, `run-2`, `m3-live-1`, `m3-live-2`; `flows/job2-plant-notdone`) and
+lists every field on the skeleton's screens that it cannot fill from the books. **Bar: every field is
+filled from a book, or has a stated why-empty. Zero fields filled with a made-up value, 0 or
+"unknown".** Each gap found is either a books change (its own small signed amendment) or a screen that
+stays unwired.
+
+**Exit.**
+
+- The POC bar is met.
+- Someone who has not used the CLI opens `fwdloop panel`. They find job #2's parked ask, read the
+  draft and both inputs, reject with a reason, see it re-park (after the resume, per PICK 1), accept,
+  and see the run's glyph turn `[✓]` and the sent artifact in the Run tab. hamr does this on a
+  live run.
+- They open a red run (the F41 plant, `not-done`) and can say which step stopped it and why, from one
+  screen.
+- A phone-width screenshot of every wired screen at 390 px shows no horizontal scroll.
+
+**Negative scenarios**, each of which must be able to fail:
+
+- (i) a scripted `POST` to the answer endpoint without the page's token, or from another `Origin`, is
+  refused, and no `answer.json` is written;
+- (ii) an answer the library refuses (expired, blank reason, second answer) shows that refusal by name
+  in the page, never a success;
+- (iii) a run with no history row and no park shows `[?]`, never `[✗]` and never `[✓]`; a run parked
+  and answered but not resumed shows "answered, not resumed yet", never `[?]` and never waiting on you;
+- (iv) a run whose spend is a floor (`spendComplete: false`) shows "at least $X", never a bare total;
+- (v) no screen renders a key, a secret, or a path outside `--root`.
+
+**Kills the module:** the books cannot fill the core screens (Run tab, inbox) without the panel
+inventing values; then the fix is in the books first, and M4 waits.
+
+**Proposed M4 spend cap: $1.00** (POC $0; the live exit is about $0.05 a run). Not signed.
+
 ## M4 — dry-run, accept, versions
 
 Placed here because the UI's "edit and add turns" is meaningless without versioning. Dry-run
