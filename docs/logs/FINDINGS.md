@@ -2215,3 +2215,69 @@ gone; see `refuseUnwiredVerbs` in `bin/fwdloop`. `flows/job2-live-1/declaration.
 untouched — a NEW run against either of them will now refuse at preflight naming `compress`;
 their existing recorded history is unaffected. Wiring the litectx verbs themselves (option 1
 above) is still open.
+
+## F47 — M4a POC: fwdloop's books fill the panel, one real GAP found (2026-09-26)
+
+**What ran.** `poc/m4/panel-data.mjs`, $0, no network, no key. Built every M4a screen's data for
+every real run on disk (`flows/job2-live-1/runs/{run-1,run-2,m3-live-1,m3-live-2}`,
+`flows/job2-plant-notdone/runs/run-1`) via `readFlow`/`loadCatalogue` (`src/index.js`) where a
+reader exists, and raw reads of `audit.jsonl`, `history.jsonl`, `spend.jsonl`, `log.json`,
+`ask.json`, `answer*.consumed.json`, `state.json` where none does (`src/books.js` is append-only —
+no `src/` module reads any of these back). Field list is bareloop's borrowed panel
+(`src/panel/server.js`/`index.html` @ a30bbef, cited file:line in the script) narrowed to M4a's own
+scope (ladder item 2).
+
+**Result: 125 fields checked across 5 runs — 113 FILLED, 11 EMPTY-WITH-WHY, 1 GAP.** 7 bareloop
+concepts DROPPED per ruling A (per-round parts, tool-call Audit rows, judge), plus 4 more bareloop-
+only concepts with no fwdloop analog (scoutPlan/fixLoop/replans/timelineKind, memoryCache, branch,
+the resolved-spec provenance chain) — none of these are in M4a's own wired scope, so none are
+counted as GAP.
+
+**The one GAP: `Inbox :: evidence: draft under review` on `job2-live-1/run-1`.** Not a books gap —
+`run-1`'s `ask.json` genuinely has the draft on disk, at `evidence.text`/`evidence.lines` (the
+M2-era ask shape, before M3 added `askId`/`unjudged`). The gap is in the READER: `bin/fwdloop`'s
+`artifactText()` (`bin/fwdloop:332-335`) reads `evidence.artifact.text`, which does not exist on
+this real shape — `artifactText(undefined)` falls through to `JSON.stringify(undefined, null, 2)`,
+which returns the JS value `undefined`, template-literal-coerced to the literal string
+`"undefined"`. `fwdloop show` would print the word "undefined" in place of a real, present draft
+today. **Fix class: screen/CLI adaptation, not a books change** — `artifactText`/the panel's future
+evidence reader needs to fall back to `evidence.text` when `evidence.artifact` is absent, never a
+`declaration.json`/`ask.json` shape change. Not fixed here (out of scope: "do not change src/").
+
+**Two EMPTY-WITH-WHY worth flagging, not filed as their own findings:**
+- `m3-live-1`'s `ask.json` has no `evidence` key at all (a legacy park written before F45 finding 2
+  landed the evidence-carry fix) — `m3-live-2`'s `ask.json`, parked after the fix, does carry
+  `evidence.artifact`/`evidence.unjudged`. Confirms F45's fix landed; no new gap.
+- Every sample run's ask is already answered (a `answer.*.consumed.json` exists), so the Inbox
+  screen's "open ask" fields are legitimately empty for all 5 sample runs — none is currently open.
+  The POC still exercised every field-shape by reading the (consumed) `ask.json` in place.
+
+**Glyphs, real data:** `run-1` `[✓]`, `run-2` `[✓]`, `m3-live-1` `[✓]`, `m3-live-2` `[✓]` (all
+`history.jsonl.outcome:"complete"`), `job2-plant-notdone/run-1` `[✗]` (`outcome:"not-done"`). No
+sample run hit `[·]` (waiting/answered-not-resumed) or `[?]` (died) live — those paths are only
+exercised by the negative self-test below and by code reading, not a real run on disk today.
+
+**Negative self-test (the bar can fail).** `node poc/m4/panel-data.mjs --plant` copies
+`flows/job2-live-1` into a scratch dir, deletes the `usd` field from one real `audit.jsonl` row
+(step `resume-text`, attempt 1), and reruns the same field-builder against it. Red line:
+
+```
+Run tab :: attempts per step (verdict/gap/cost/model/strike) => GAP: audit.jsonl row for step
+"resume-text" attempt 1 has a usd field that is neither a number nor null (undefined) —
+books.js's own checkCostField should have refused this at write time
+```
+
+A second, narrower plant calls the script's own `forbidInvented('field', 0)` guard directly and
+confirms it throws rather than silently passing a fake `0` through — the guard that would catch an
+invented value is itself exercised, not just declared. `--plant` exits 0 (it is a self-test that
+*passed* by correctly reporting red); the real run (`node poc/m4/panel-data.mjs`, no args) exits 1
+because of the one real GAP above.
+
+**POC bar: NOT MET as literally stated** ("zero GAPs") — one real GAP stands, and per the ladder's
+own rule ("Kills M4a: the books cannot fill the core screens... without the panel inventing
+values") this GAP is a reader bug, not a books gap or a screen that must stay unwired, so M4a is
+not killed by it: M4b's Inbox screen (or M4a's own Inbox render, if it lands earlier) must read
+`evidence.text` as a fallback for `evidence.artifact.text`, which is a small, scoped fix inside the
+UI work M4a/M4b already have to write — not a signed amendment to the books.
+
+**Cost.** $0. M4a $0.00 of $0.00 cap (no paid calls in the POC).
