@@ -1,0 +1,497 @@
+// M4a piece 2 (docs/wiki/the-module-ladder.md, "M4a — read-only panel —
+// SIGNED", scope item 2): the panel's data layer. Every function here is a
+// pure reader — it takes `--root` plus a flow/run identity, reads fwdloop's
+// own books through the readers `src/` already owns (`readFlow`, `readAudit`,
+// `readHistory`, `readAsk`, `readRunState`, `readLog`, `readSpendRows`,
+// `readAskEvidence`, `loadCatalogue`), and returns plain JSON-able data. No
+// function here ever writes anything, and none reaches into `process.env`
+// for a key/secret.
+//
+// Field derivations (the glyph rules, the cost-floor display) are ported
+// from the M4a POC (poc/m4/panel-data.mjs, proven at F47 to hit the POC bar:
+// 114 FILLED, 11 EMPTY-WITH-WHY, 0 GAP across every real run on disk) —
+// never re-derived ad hoc, and the POC itself is never shipped (project
+// rule: "never ship the POC" — this is the clean rebuild in `src/`).
+//
+// PATH SAFETY: every flow name is checked with `checkFlowName` and every
+// runId is resolved with `resolveRunDir` (both `src/flow.js`) before this
+// module touches a filesystem path for it — `src/panel/server.js` checks the
+// same things at the route level, but this module refuses on its own too
+// (negative scenario v: nothing outside `--root` is ever read).
+
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+import {
+  readFlow, listFlowNames, listRunIds, resolveRunDir, checkFlowName,
+} from '../flow.js';
+import { readAudit, readHistory } from '../books.js';
+import { readAsk, readRunState, readLog } from '../runner.js';
+import { readSpendRows } from '../provider.js';
+import { readAskEvidence } from '../ask.js';
+
+/** `{ ok:false, red }` result shape every exported function here can return
+ *  instead of throwing — the server maps this to a 4xx, never a crash.
+ *  @param {string} red
+ *  @returns {{ok:false, red:string}} */
+function refuse(red) {
+  return { ok: false, red };
+}
+
+/**
+ * Resolve `<root>/<flowName>` safely — `checkFlowName` first (never a raw
+ * string joined into a path). Returns the flow directory, or a refusal.
+ * @param {string} root
+ * @param {string} flowName
+ * @returns {{ok:true, flowDir:string}|{ok:false, red:string}}
+ */
+function resolveFlowDir(root, flowName) {
+  const check = checkFlowName(flowName);
+  if (!check.ok) return refuse(check.red);
+  return { ok: true, flowDir: join(root, flowName) };
+}
+
+/**
+ * Resolve `<root>/<flowName>/runs/<runId>` safely — `resolveFlowDir` then
+ * `resolveRunDir` (character allow-list plus a lexical-containment re-check,
+ * same posture `src/flow.js` already applies everywhere else a runId
+ * reaches a path). Neither check trusts the URL beyond what it verifies.
+ * @param {string} root
+ * @param {string} flowName
+ * @param {string} runId
+ * @returns {{ok:true, flowDir:string, runDir:string}|{ok:false, red:string}}
+ */
+function resolveRunPath(root, flowName, runId) {
+  const flow = resolveFlowDir(root, flowName);
+  if (!flow.ok) return flow;
+  const run = resolveRunDir(flow.flowDir, runId);
+  if (!run.ok) return run;
+  return { ok: true, flowDir: flow.flowDir, runDir: run.runDir };
+}
+
+/**
+ * A consumed-answer marker exists for this run — `answerAsk`'s own write
+ * (`src/ask.js`) renames to `answer.<askId>.consumed.json` on accept, and
+ * `resumeRun` (`src/runner.js`) does the same when it consumes an in-place
+ * `answer.json`. A directory-naming-convention check, not a "book" with its
+ * own single-row shape, so it lives here rather than growing a one-off
+ * reader in either writer's module.
+ * @param {string} runDir
+ * @returns {boolean}
+ */
+function hasConsumedAnswer(runDir) {
+  if (!existsSync(runDir)) return false;
+  let names;
+  try { names = readdirSync(runDir); } catch { return false; }
+  return names.some((n) => /^answer\..*\.consumed\.json$/.test(n));
+}
+
+/**
+ * The glyph + human-words label for one run — ported verbatim (in spirit,
+ * from real derivation, not a shortcut) from `poc/m4/panel-data.mjs`'s
+ * `computeGlyph`, the derivation the M4a POC proved against every real run
+ * on disk. Ladder wording (M4a scope item 4):
+ *  - `[✓]` passed — a history row with `outcome:'complete'`.
+ *  - `[✗]` failed — a history row with any other outcome (never `[?]`).
+ *  - `[·]` waiting on you — parked (`ask.json` present), no consumed answer.
+ *  - `[·]` answered, not resumed yet — parked, a consumed answer exists, but
+ *    no history row yet (resume hasn't finished) — always in words, never
+ *    the same line as "waiting on you", never `[?]`.
+ *  - `[?]` died / unknown — no history row, no open ask, no consumed answer:
+ *    `resume.lock` carries no pid and nothing checks liveness (M4a's own
+ *    open POC question), so a crashed resumer and a live one look the same
+ *    on disk. Never guessed into `[✗]` or `[✓]`.
+ * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean}} ctx
+ * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[?]', label: string}}
+ */
+export function computeGlyph({
+  historyRow, askJson, consumedAnswerExists, hasStateJson,
+}) {
+  if (historyRow) {
+    if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
+    return { glyph: '[✗]', label: `failed (${historyRow.outcome ?? 'unknown outcome'})` };
+  }
+  // No history row. A park never writes one, and a consumed answer file
+  // stays on disk until resume writes its own history row — "no history
+  // row" alone never means died.
+  if (askJson && !consumedAnswerExists) {
+    return { glyph: '[·]', label: 'waiting on you (parked, unanswered)' };
+  }
+  if (askJson && consumedAnswerExists) {
+    return { glyph: '[·]', label: 'answered, not resumed yet' };
+  }
+  if (hasStateJson && !askJson) {
+    return { glyph: '[?]', label: 'running or died: unknown (parked state with no open ask and no history row)' };
+  }
+  return { glyph: '[?]', label: 'running or died: unknown (resume.lock has no pid, no liveness check)' };
+}
+
+/**
+ * "$X.XXXX" or, when the book itself says the number is a floor
+ * (`spendComplete:false`), "at least $X.XXXX" — never a bare total presented
+ * as complete when it isn't (negative scenario iv), and never `$0` standing
+ * in for a missing/unknown number (project rule).
+ * @param {number|null|undefined} spentUsd
+ * @param {boolean|undefined} spendComplete
+ * @returns {{ok:true, display:string}|{ok:false, why:string}}
+ */
+export function costDisplay(spentUsd, spendComplete) {
+  if (typeof spentUsd !== 'number') {
+    return { ok: false, why: 'spentUsd is not a number' };
+  }
+  if (spendComplete === false) {
+    return { ok: true, display: `at least $${spentUsd.toFixed(4)}` };
+  }
+  return { ok: true, display: `$${spentUsd.toFixed(4)}` };
+}
+
+/**
+ * A floor summed from whatever priced rows a run's own `spend.jsonl`
+ * already recorded — used ONLY when there is no history row yet (died or
+ * still parked) to show "at least $X" rather than nothing/zero. `null`
+ * (never `$0`) when zero rows are priced yet.
+ * @param {any[]} spendRows
+ * @returns {string|null}
+ */
+function spendFloorDisplay(spendRows) {
+  const priced = spendRows.filter((r) => typeof r.costUsd === 'number' && Number.isFinite(r.costUsd));
+  if (priced.length === 0) return null;
+  const sum = priced.reduce((acc, r) => acc + r.costUsd, 0);
+  return `at least $${sum.toFixed(4)}`;
+}
+
+/**
+ * Read every book fwdloop can hold for one run, once. The shared context
+ * every deriver below (and the POC before it) builds its fields from.
+ * @param {string} root
+ * @param {string} flowDir
+ * @param {string} runDir
+ * @param {string} flowName
+ * @param {string} runId
+ * @param {any} catalogue
+ * @returns {any}
+ */
+function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue) {
+  const flowRead = readFlow({ root, name: flowName, catalogue });
+  const historyRows = readHistory(flowDir);
+  const historyRow = historyRows.find((r) => r && r.runId === runId) ?? null;
+  const auditRows = readAudit(runDir);
+  const spendRows = readSpendRows(join(runDir, 'spend.jsonl'));
+  const logJson = readLog(runDir);
+  const askJson = readAsk(runDir);
+  const stateJson = readRunState(runDir);
+  const consumedAnswerExists = hasConsumedAnswer(runDir);
+
+  return {
+    flowName,
+    runId,
+    flowDir,
+    runDir,
+    flowRead,
+    historyRow,
+    auditRows,
+    spendRows,
+    logJson,
+    askJson,
+    stateJson,
+    consumedAnswerExists,
+    hasStateJson: stateJson !== null,
+  };
+}
+
+/**
+ * `GET /api/runs` — every flow under `root`, every run under each flow
+ * (M4a scope item 2). A flow with zero runs still gets one row (`runId:
+ * null`, an explicit `why`) — no flow is silently missing from the list.
+ * Newest-first by history `at` where known; a row with no history row (died
+ * or still parked) sorts after every row that has one, in flow/run order
+ * (a real ordering, never `Date.now()` guessed in for a missing `at`).
+ * @param {{root: string, catalogue: any}} opts
+ * @returns {any[]}
+ */
+export function listRuns({ root, catalogue }) {
+  const rows = [];
+  for (const flowName of listFlowNames(root)) {
+    const flowDir = join(root, flowName);
+    const runIds = listRunIds(flowDir);
+    if (runIds.length === 0) {
+      rows.push({
+        flow: flowName, runId: null, glyph: null, label: null, spend: null, at: null,
+        why: 'this flow has no runs yet',
+      });
+      continue;
+    }
+    for (const runId of runIds) {
+      const run = resolveRunPath(root, flowName, runId);
+      if (!run.ok) {
+        rows.push({
+          flow: flowName, runId, glyph: null, label: null, spend: null, at: null, why: run.red,
+        });
+        continue;
+      }
+      const ctx = loadRunContext(root, run.flowDir, run.runDir, flowName, runId, catalogue);
+      const { glyph, label } = computeGlyph(ctx);
+      let spend;
+      if (ctx.historyRow) {
+        const cd = costDisplay(ctx.historyRow.spentUsd, ctx.historyRow.spendComplete);
+        spend = cd.ok ? cd.display : null;
+      } else {
+        spend = spendFloorDisplay(ctx.spendRows);
+      }
+      rows.push({
+        flow: flowName,
+        runId,
+        glyph,
+        label,
+        spend,
+        spendWhy: (!ctx.historyRow && spend === null) ? 'no history row yet and no priced spend.jsonl rows — nothing to floor' : null,
+        at: ctx.historyRow ? ctx.historyRow.at : null,
+        atWhy: ctx.historyRow ? null : 'no history row yet (parked or died before one was written)',
+      });
+    }
+  }
+  // Newest first by `at` where present; rows with no `at` keep flow/run
+  // order (already alphabetical from listFlowNames/listRunIds) at the end.
+  return rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => {
+      const am = typeof a.row.at === 'string' ? Date.parse(a.row.at) : NaN;
+      const bm = typeof b.row.at === 'string' ? Date.parse(b.row.at) : NaN;
+      const aKnown = Number.isFinite(am);
+      const bKnown = Number.isFinite(bm);
+      if (aKnown && bKnown) return bm - am;
+      if (aKnown !== bKnown) return aKnown ? -1 : 1;
+      return a.index - b.index;
+    })
+    .map(({ row }) => row);
+}
+
+/**
+ * `GET /api/runs/:flow/:runId` — the Run tab (M4a scope item 2): the step
+ * map from `declaration.steps`, step cards -> attempts from `audit.jsonl`
+ * (verdict, gap, cost, model, strike), and what the model wrote from
+ * `log.json`. `null` when the flow/runId doesn't resolve to a real run
+ * directory at all (caller renders 404); a `red` field names why a
+ * sub-derivation couldn't fill (never invented).
+ * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
+ * @returns {any|null}
+ */
+export function getRunDetail({
+  root, flow, runId, catalogue,
+}) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok) return null;
+  if (!existsSync(run.runDir)) return null;
+
+  const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue);
+  const { glyph, label } = computeGlyph(ctx);
+
+  let steps = null;
+  let stepsWhy = null;
+  if (!ctx.flowRead.ok) {
+    stepsWhy = `readFlow refused: ${ctx.flowRead.reds.join('; ')}`;
+  } else {
+    const declSteps = ctx.flowRead.declaration.steps;
+    if (!Array.isArray(declSteps) || declSteps.length === 0) {
+      stepsWhy = 'declaration.json has no steps array';
+    } else {
+      const byStep = {};
+      for (const row of ctx.auditRows) {
+        (byStep[row.step] ??= []).push({
+          attempt: row.attempt,
+          verdict: row.verdict,
+          gap: row.gap,
+          cost: row.usd,
+          spendComplete: row.spendComplete,
+          model: row.model,
+          modelMatch: row.modelMatch,
+          strike: row.strike,
+        });
+      }
+      steps = declSteps.map((s) => ({
+        emits: s.emits,
+        goal: s.goal,
+        primitives: s.primitives ?? null,
+        closeClass: s.close?.class ?? null,
+        attempts: byStep[s.emits] ?? [],
+        attemptsWhy: byStep[s.emits] ? null : 'no audit.jsonl rows yet for this step',
+      }));
+    }
+  }
+
+  let modelWrote = null;
+  let modelWroteWhy = null;
+  if (!ctx.logJson) {
+    modelWroteWhy = ctx.historyRow
+      ? `run "${runId}" completed (history row present) but log.json is missing`
+      : 'log.json has not been written yet (parked before any close, or still running)';
+  } else {
+    modelWrote = { artifacts: ctx.logJson.artifacts ?? null, attempts: ctx.logJson.attempts ?? null };
+  }
+
+  let stopReason = null;
+  let stopReasonWhy = null;
+  if (ctx.logJson && typeof ctx.logJson.red === 'string' && ctx.logJson.red.length > 0) {
+    stopReason = ctx.logJson.red;
+  } else {
+    const redRow = ctx.auditRows.find((r) => r.verdict === 'not-done' || r.verdict === 'red');
+    if (redRow) {
+      stopReason = redRow.gap;
+    } else if (ctx.historyRow && ctx.historyRow.outcome === 'complete') {
+      stopReasonWhy = 'run completed clean — there is no stop reason to show';
+    } else {
+      stopReasonWhy = 'run has not stopped on a red/not-done step (still parked, waiting, or clean so far)';
+    }
+  }
+
+  let spend;
+  if (ctx.historyRow) {
+    const cd = costDisplay(ctx.historyRow.spentUsd, ctx.historyRow.spendComplete);
+    spend = cd.ok ? cd.display : null;
+  } else {
+    spend = spendFloorDisplay(ctx.spendRows);
+  }
+
+  return {
+    flow,
+    runId,
+    glyph,
+    label,
+    outcome: ctx.historyRow ? ctx.historyRow.outcome : null,
+    outcomeWhy: ctx.historyRow ? null : 'no history row (parked or died before completion)',
+    capUsd: ctx.historyRow ? ctx.historyRow.capUsd : (ctx.flowRead.ok ? ctx.flowRead.arbiter.capUsd : null),
+    spend,
+    steps,
+    stepsWhy,
+    modelWrote,
+    modelWroteWhy,
+    stopReason,
+    stopReasonWhy,
+    at: ctx.historyRow ? ctx.historyRow.at : null,
+  };
+}
+
+/**
+ * `GET /api/runs/:flow/:runId/audit` — the Audit/logs tab (M4a scope item
+ * 2): the raw `audit.jsonl` rows, scoped strictly to this run (each run's
+ * own `audit.jsonl` file already carries only its own rows — there is no
+ * shared-sidecar contamination risk here the way bareloop's gate-audit
+ * sidecar had). `null` when the flow/runId doesn't resolve (404).
+ * @param {{root: string, flow: string, runId: string}} opts
+ * @returns {{flow:string, runId:string, rows:any[], empty:boolean, why:string|null}|null}
+ */
+export function getRunAudit({ root, flow, runId }) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok) return null;
+  if (!existsSync(run.runDir)) return null;
+  const rows = readAudit(run.runDir);
+  return {
+    flow,
+    runId,
+    rows,
+    empty: rows.length === 0,
+    why: rows.length === 0 ? 'audit.jsonl is empty or missing — no attempt has been made yet' : null,
+  };
+}
+
+/**
+ * `GET /api/runs/:flow/:runId/job` — the Job tab (M4a scope item 2): the
+ * signed prose, the arbiter block (cap, asks with TTL, redo cap, sends,
+ * sources), and the signature (who, when, hash). Derived purely from the
+ * flow's own signed files (`readFlow`) — fwdloop always has exactly one
+ * signed `declaration.json` + `signature.json` per flow, so there is no
+ * multi-source provenance chain to resolve (unlike bareloop's `getRunJob` —
+ * DROPPED per the fit-check). `runId` is only used to confirm the run
+ * exists at all; `null` when it doesn't (404).
+ * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
+ * @returns {any|null}
+ */
+export function getRunJob({
+  root, flow, runId, catalogue,
+}) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok) return null;
+  if (!existsSync(run.runDir)) return null;
+
+  const flowRead = readFlow({ root, name: flow, catalogue });
+  if (!flowRead.ok) {
+    return {
+      flow, runId, resolved: false, why: `readFlow refused: ${flowRead.reds.join('; ')}`,
+    };
+  }
+  const sig = flowRead.signature;
+  return {
+    flow,
+    runId,
+    resolved: true,
+    lines: flowRead.lines,
+    arbiter: {
+      capUsd: flowRead.arbiter.capUsd,
+      asks: flowRead.arbiter.asks ?? [],
+      redoCap: flowRead.arbiter.redoCap,
+      sends: flowRead.arbiter.sends ?? [],
+      sources: flowRead.arbiter.sources ?? [],
+    },
+    signature: (sig && typeof sig.signedBy === 'string' && typeof sig.signedAt === 'string' && typeof sig.flow === 'string')
+      ? { signedBy: sig.signedBy, signedAt: sig.signedAt, hash: sig.flow }
+      : null,
+    signatureWhy: (sig && typeof sig.signedBy === 'string' && typeof sig.signedAt === 'string' && typeof sig.flow === 'string')
+      ? null
+      : 'signature.json is missing signedBy/signedAt/flow (hash)',
+  };
+}
+
+/**
+ * `GET /api/inbox` — open asks across every flow (M4a scope item 2): the
+ * question, time left, and the evidence (the draft under review first, then
+ * each unjudged artifact labelled by step) — the same thing `fwdloop show`
+ * prints, read-only, no answer controls (those are M4b). An ask already
+ * answered (a consumed-answer marker exists) is never listed as open. A
+ * legacy (pre-M3) ask with no `askId`/`expiresAt` is shown as `legacy`, not
+ * `open` — this panel can't tell a human "time left" for it and M4b's
+ * answer doors couldn't act on it either.
+ * @param {{root: string}} opts
+ * @returns {any[]}
+ */
+export function listInbox({ root }) {
+  const rows = [];
+  for (const flowName of listFlowNames(root)) {
+    const flowDir = join(root, flowName);
+    for (const runId of listRunIds(flowDir)) {
+      const run = resolveRunPath(root, flowName, runId);
+      if (!run.ok) continue;
+      const askJson = readAsk(run.runDir);
+      if (!askJson) continue;
+      if (hasConsumedAnswer(run.runDir)) continue; // already answered — not open
+
+      if (typeof askJson.askId !== 'string' || typeof askJson.expiresAt !== 'string') {
+        rows.push({
+          flow: flowName, runId, status: 'legacy', question: askJson.question ?? null,
+          why: 'M2-era ask.json (no askId/expiresAt) — not answerable, shown for visibility only',
+        });
+        continue;
+      }
+
+      const expiresMs = Date.parse(askJson.expiresAt);
+      const expired = Number.isNaN(expiresMs) ? null : Date.now() > expiresMs;
+      const { draft, unjudged, why } = readAskEvidence(askJson);
+
+      rows.push({
+        flow: flowName,
+        runId,
+        askId: askJson.askId,
+        status: expired === null ? 'unreadable' : (expired ? 'expired' : 'open'),
+        statusWhy: expired === null ? `expiresAt "${askJson.expiresAt}" is not a parseable date` : null,
+        question: askJson.question ?? null,
+        expiresAt: askJson.expiresAt,
+        timeLeftMs: expired === false ? expiresMs - Date.now() : null,
+        evidence: {
+          draft: draft ? draft.text : null,
+          draftWhy: draft ? null : why,
+          unjudged: draft ? unjudged : [],
+        },
+      });
+    }
+  }
+  return rows;
+}
