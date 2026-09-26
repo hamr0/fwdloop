@@ -30,6 +30,7 @@ import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
 import { checkKeyPreflight } from '../src/provider.js';
 import { answerAsk, readAskEvidence } from '../src/ask.js';
+import { panelMain } from '../src/panel/server.js';
 
 // The baseline model (project rule, CLAUDE.md/AGENT_RULES: "deepseek-flash
 // ... Never Claude for fwdloop's own runs") — the ONE provider slot this CLI
@@ -464,17 +465,47 @@ async function cmdResume(rest) {
 }
 
 // ---------------------------------------------------------------------------
+// panel — M4a piece 2 (docs/wiki/the-module-ladder.md, "M4a — read-only
+// panel — SIGNED"): `fwdloop panel [--port 4800] [--root <dir>]`. Read-only,
+// GET/HEAD only, bound to 127.0.0.1 only (src/panel/server.js). Never picks
+// a different port on collision — a taken port is a loud, non-zero-exit
+// failure.
+// ---------------------------------------------------------------------------
+
+async function cmdPanel(rest) {
+  const { values } = parseArgs({
+    args: rest,
+    options: {
+      port: { type: 'string' },
+      root: { type: 'string' },
+    },
+  });
+  const root = resolve(values.root ?? '.');
+  if (!existsSync(root)) fail(`panel: root "${root}" does not exist`);
+
+  const argv = ['--root', root];
+  if (values.port) argv.push('--port', values.port);
+
+  const code = await panelMain(argv, {
+    out: (s) => process.stdout.write(`${s}\n`),
+    err: (s) => process.stderr.write(`fwdloop: ${s}\n`),
+  });
+  process.exitCode = code;
+}
+
+// ---------------------------------------------------------------------------
 
 async function main() {
   const [verb, ...rest] = process.argv.slice(2);
-  if (!verb) fail('usage: fwdloop run|inbox|show|answer|resume ...');
+  if (!verb) fail('usage: fwdloop run|inbox|show|answer|resume|panel ...');
 
   if (verb === 'run') return cmdRun(rest);
   if (verb === 'inbox') return cmdInbox(rest);
   if (verb === 'show') return cmdShow(rest);
   if (verb === 'answer') return cmdAnswer(rest);
   if (verb === 'resume') return cmdResume(rest);
-  fail(`unknown verb "${verb}" — expected run | inbox | show | answer | resume`);
+  if (verb === 'panel') return cmdPanel(rest);
+  fail(`unknown verb "${verb}" — expected run | inbox | show | answer | resume | panel`);
   return undefined;
 }
 
