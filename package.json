@@ -1,6 +1,6 @@
 {
   "name": "fwdloop",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Describe a job as steps and guardrails; an agent builds the workflow, pauses for humans where you said, checks every step happened, and reruns it under budgets it cannot touch.",
   "type": "module",
   "main": "./src/index.js",
