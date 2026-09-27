@@ -21,7 +21,9 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { createPanelServer, DEFAULT_PORT } from '../src/panel/server.js';
 import {
   computeGlyph, costDisplay, listRuns, getRunDetail, getRunAudit, getRunJob, listInbox,
+  deriveRunModel, deriveAuditAction, summarizeSpendRows,
 } from '../src/panel/data.js';
+import { readSpendRows, appendSpendRow } from '../src/provider.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -96,6 +98,20 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
   });
   appendHistory(FLOW_DIR, {
     runId: 'run-done', at: '2026-09-24T13:52:07.007Z', outcome: 'complete', spentUsd: 0.004, spendComplete: true, capUsd: 0.25, wallMs: 720, signatureHash: 'deadbeef',
+  });
+  // hamr's review #1: run-level spend.jsonl totals for the Summary tab —
+  // two real rounds, so tokensIn/tokensOut/cacheReadTokens all sum > 0.
+  appendSpendRow(path.join(runDir, 'spend.jsonl'), {
+    model: 'deepseek-flash', modelReturned: 'deepseek-flash', rounds: 1, costUsd: 0.001, wallMs: 400,
+    tokens: {
+      inputTokens: 100, outputTokens: 50, cacheReadTokens: 10, cacheCreationTokens: 0,
+    },
+  });
+  appendSpendRow(path.join(runDir, 'spend.jsonl'), {
+    model: 'deepseek-flash', modelReturned: 'deepseek-flash', rounds: 1, costUsd: 0.002, wallMs: 500,
+    tokens: {
+      inputTokens: 200, outputTokens: 80, cacheReadTokens: 5, cacheCreationTokens: 0,
+    },
   });
 }
 
@@ -272,6 +288,76 @@ describe('costDisplay', () => {
   test('a non-number spentUsd is refused, never coerced to $0', () => {
     const r = costDisplay(undefined, true);
     assert.equal(r.ok, false);
+  });
+});
+
+describe('deriveRunModel (hamr review #1/#7: model on the Summary/Job tabs)', () => {
+  test('the LAST audit row naming a model wins, not the first', () => {
+    const m = deriveRunModel([
+      { model: 'deepseek-flash' },
+      { model: null },
+      { model: 'deepseek-flash' },
+    ]);
+    assert.equal(m, 'deepseek-flash');
+  });
+
+  test('no row ever names a model: null, never a guessed default', () => {
+    assert.equal(deriveRunModel([{ model: null }, { model: null }]), null);
+    assert.equal(deriveRunModel([]), null);
+  });
+});
+
+describe('deriveAuditAction (hamr review #6: the Audit tab Action column)', () => {
+  test('a row with a model is "model call (<model>)"', () => {
+    assert.equal(deriveAuditAction({ verdict: 'green', model: 'deepseek-flash', class: 'softgreen' }), 'model call (deepseek-flash)');
+  });
+
+  test('a paused row is "paused for you", even if it somehow also carried a model', () => {
+    assert.equal(deriveAuditAction({ verdict: 'paused', model: null, class: 'hitl' }), 'paused for you');
+    assert.equal(deriveAuditAction({ verdict: 'paused', model: 'deepseek-flash', class: 'hitl' }), 'paused for you');
+  });
+
+  test('a hitl-classed row with no model is "human"', () => {
+    assert.equal(deriveAuditAction({ verdict: 'hitl', model: null, class: 'hitl' }), 'human');
+    assert.equal(deriveAuditAction({ verdict: 'red', model: null, class: 'hitl' }), 'human');
+  });
+
+  test('a mechanical row with no model and no hitl class falls back to its own verdict word, never "unknown action"', () => {
+    assert.equal(deriveAuditAction({ verdict: 'not-done', model: null, class: 'softgreen' }), 'not-done');
+    assert.notEqual(deriveAuditAction({ verdict: 'not-done', model: null, class: 'softgreen' }), 'unknown action');
+  });
+
+  test('proof this can fail: reverting to a fixed "unknown action" string for every row breaks the model-call assertion above', () => {
+    // This test documents the red line the real fix removes — see the report
+    // for the actual revert-and-restore proof (this file doesn't re-run git).
+    assert.notEqual(deriveAuditAction({ verdict: 'green', model: 'deepseek-flash', class: 'softgreen' }), 'unknown action');
+  });
+});
+
+describe('summarizeSpendRows (hamr review #1: run-level spend.jsonl totals)', () => {
+  test('zero rows: empty with a why, never a fabricated zero total', () => {
+    const s = summarizeSpendRows([]);
+    assert.equal(s.empty, true);
+    assert.match(s.why, /no rows/);
+  });
+
+  test('rounds/tokens sum across every row when every row carries them', () => {
+    const rows = [
+      { rounds: 1, tokens: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 10 } },
+      { rounds: 2, tokens: { inputTokens: 200, outputTokens: 80, cacheReadTokens: 5 } },
+    ];
+    const s = summarizeSpendRows(rows);
+    assert.equal(s.empty, false);
+    assert.equal(s.rounds, 3);
+    assert.equal(s.tokensIn, 300);
+    assert.equal(s.tokensOut, 130);
+    assert.equal(s.cacheReadTokens, 15);
+  });
+
+  test('a field no row ever populated is null with its own why, never folded into 0', () => {
+    const s = summarizeSpendRows([{ rounds: 1, tokens: {} }]);
+    assert.equal(s.tokensIn, null);
+    assert.match(s.tokensInWhy, /no spend.jsonl row/);
   });
 });
 
@@ -452,6 +538,28 @@ describe('getRunDetail', () => {
     assert.equal(step.attempts[2].afterReject, 'shorter work history blurb');
   });
 
+  test('hamr review #1: model + spend.jsonl totals are filled from run-done\'s own rows', () => {
+    const detail = getRunDetail({
+      root: ROOT, flow: FLOW, runId: 'run-done', catalogue: CATALOGUE,
+    });
+    assert.equal(detail.model, 'deepseek-flash');
+    assert.equal(detail.modelWhy, null);
+    assert.equal(detail.spendSummary.empty, false);
+    assert.equal(detail.spendSummary.rounds, 2);
+    assert.equal(detail.spendSummary.tokensIn, 300);
+    assert.equal(detail.spendSummary.tokensOut, 130);
+    assert.equal(detail.spendSummary.cacheReadTokens, 15);
+  });
+
+  test('hamr review #1: a run with no spend.jsonl rows and no model call reports why, never a made-up value', () => {
+    const detail = getRunDetail({
+      root: ROOT, flow: FLOW, runId: 'run-died', catalogue: CATALOGUE,
+    });
+    assert.equal(detail.model, null);
+    assert.match(detail.modelWhy, /no audit.jsonl row/);
+    assert.equal(detail.spendSummary.empty, true);
+  });
+
   test('an unknown run returns null (caller renders 404)', () => {
     assert.equal(getRunDetail({
       root: ROOT, flow: FLOW, runId: 'no-such-run', catalogue: CATALOGUE,
@@ -490,6 +598,23 @@ describe('getRunAudit', () => {
   test('negative (v): a path-escape runId returns null', () => {
     assert.equal(getRunAudit({ root: ROOT, flow: FLOW, runId: '..' }), null);
   });
+
+  test('hamr review #6: every row carries a server-derived action, never "unknown action"', () => {
+    const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-done' });
+    const summaryRow = result.rows.find((r) => r.step === 'resume-summary');
+    assert.equal(summaryRow.action, 'model call (deepseek-flash)');
+    const approvedRow = result.rows.find((r) => r.step === 'resume-summary-approved');
+    assert.equal(approvedRow.action, 'human');
+    for (const r of result.rows) assert.notEqual(r.action, 'unknown action');
+  });
+
+  test('hamr review #1: no tool-call-count field on any row — no fwdloop book has one', () => {
+    const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-done' });
+    for (const r of result.rows) {
+      assert.equal(Object.prototype.hasOwnProperty.call(r, 'toolCalls'), false);
+      assert.equal(Object.prototype.hasOwnProperty.call(r, 'toolCallCount'), false);
+    }
+  });
 });
 
 describe('getRunJob', () => {
@@ -508,6 +633,22 @@ describe('getRunJob', () => {
     assert.equal(job.signature.signedBy, SIGNED_BY);
     assert.equal(job.signature.signedAt, SIGNED_AT);
     assert.ok(job.signature.hash && job.signature.hash.length > 0);
+  });
+
+  test('hamr review #7: the Job tab carries the model, read from this run\'s own audit.jsonl rows', () => {
+    const job = getRunJob({
+      root: ROOT, flow: FLOW, runId: 'run-done', catalogue: CATALOGUE,
+    });
+    assert.equal(job.model, 'deepseek-flash');
+    assert.equal(job.modelWhy, null);
+  });
+
+  test('hamr review #7: a run with no model call names why, never a made-up model', () => {
+    const job = getRunJob({
+      root: ROOT, flow: FLOW, runId: 'run-died', catalogue: CATALOGUE,
+    });
+    assert.equal(job.model, null);
+    assert.match(job.modelWhy, /no audit.jsonl row/);
   });
 
   test('every run under one flow reads the SAME signed job (one signature.json per flow)', () => {

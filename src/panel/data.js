@@ -161,6 +161,105 @@ function spendFloorDisplay(spendRows) {
 }
 
 /**
+ * The model this run's own book rows actually name — hamr's review #1/#7:
+ * no `declaration.json`/`signature.json` field records a model at all (the
+ * flow's steps carry primitives and a close class, never a model choice),
+ * so `audit.jsonl`'s own per-attempt `model` field (`src/books.js`'s
+ * `appendAudit` row shape) is the ONLY book that can answer "what model did
+ * this run use" — never invented, never defaulted to a catalogue/provider
+ * default the run may not have actually hit. Reads book order BACKWARDS and
+ * returns the LAST row that names a model (the most recent attempt's own
+ * choice), so a run that changed model slot mid-run (would show as a
+ * `modelMatch:"substituted"` row) still reports what actually ran last,
+ * never a stale first-attempt value. `null` (never a guess) when no row in
+ * this run ever named one (e.g. every step is `hitl`, no model step ran).
+ * No provider/API-kind field exists in ANY book (`src/provider.js`'s
+ * `PROVIDER_SLOTS` maps a slot name to a model, but nothing writes which
+ * slot served a given run back to `audit.jsonl`/`spend.jsonl`) — provider is
+ * never shown alongside it (hamr's own instruction: "if the provider isn't
+ * in any book, show model only").
+ * @param {any[]} auditRows
+ * @returns {string|null}
+ */
+export function deriveRunModel(auditRows) {
+  for (let i = auditRows.length - 1; i >= 0; i -= 1) {
+    const m = auditRows[i]?.model;
+    if (typeof m === 'string' && m.length > 0) return m;
+  }
+  return null;
+}
+
+/**
+ * The Audit tab's "Action" column (hamr's review #6): derived STRICTLY from
+ * a row's own fields, never guessed and never "unknown action" — every
+ * shape `src/runner.js`/`src/books.js` can actually write resolves to a
+ * named action:
+ *  - a `paused` verdict is the run handing off to a human ask right now —
+ *    "paused for you", regardless of close class (a pause carries no model).
+ *  - a row with a non-empty `model` field is a real model call — "model
+ *    call (<model>)" (the exact model the row itself named, never a
+ *    catalogue default).
+ *  - a `hitl`-classed row with NO model (an ask step's own resolution —
+ *    accept/reject/hitl/refused/an expiry) is a human's own action —
+ *    "human".
+ *  - anything else with no model and no hitl class (a mechanical
+ *    green/not-done/red close with no model call recorded, or a crash-like
+ *    stop) falls back to the row's own verdict word — never invented, and
+ *    never the disallowed "unknown action" string.
+ * @param {any} row one `audit.jsonl` row
+ * @returns {string}
+ */
+export function deriveAuditAction(row) {
+  if (row?.verdict === 'paused') return 'paused for you';
+  if (typeof row?.model === 'string' && row.model.length > 0) return `model call (${row.model})`;
+  if (row?.class === 'hitl') return 'human';
+  if (typeof row?.verdict === 'string' && row.verdict.length > 0) return row.verdict;
+  return 'no action recorded';
+}
+
+/**
+ * Run-level totals from `spend.jsonl` (hamr's review #1): rounds, input/
+ * output/cache-read tokens — shown ONLY as a run-wide sum, never attributed
+ * to a step (a spend row carries no `step` field at all — `src/model-step.js`
+ * appends it before any step identity is threaded through, so per-step
+ * attribution would be invented, not read). Honest about partial data: a
+ * field this run's rows never populated (e.g. no row ever carried
+ * `tokens.cacheReadTokens`) is `null` with its own `*Why`, never folded into
+ * a 0. `null` `rows`/`empty:true` (with a why) when spend.jsonl has no rows
+ * at all yet.
+ * @param {any[]} spendRows
+ * @returns {{empty:true, why:string}|{empty:false, rounds:number, tokensIn:number|null, tokensInWhy:string|null, tokensOut:number|null, tokensOutWhy:string|null, cacheReadTokens:number|null, cacheReadTokensWhy:string|null}}
+ */
+export function summarizeSpendRows(spendRows) {
+  if (!Array.isArray(spendRows) || spendRows.length === 0) {
+    return { empty: true, why: 'spend.jsonl has no rows yet (no model round has been priced)' };
+  }
+  const rounds = spendRows.reduce((acc, r) => acc + (typeof r.rounds === 'number' ? r.rounds : 0), 0);
+  const sumTokenField = (field) => {
+    let any = false;
+    let total = 0;
+    for (const r of spendRows) {
+      const v = r?.tokens?.[field];
+      if (typeof v === 'number' && Number.isFinite(v)) { any = true; total += v; }
+    }
+    return any ? total : null;
+  };
+  const tokensIn = sumTokenField('inputTokens');
+  const tokensOut = sumTokenField('outputTokens');
+  const cacheReadTokens = sumTokenField('cacheReadTokens');
+  return {
+    empty: false,
+    rounds,
+    tokensIn,
+    tokensInWhy: tokensIn === null ? 'no spend.jsonl row recorded input tokens' : null,
+    tokensOut,
+    tokensOutWhy: tokensOut === null ? 'no spend.jsonl row recorded output tokens' : null,
+    cacheReadTokens,
+    cacheReadTokensWhy: cacheReadTokens === null ? 'no spend.jsonl row recorded cache-read tokens' : null,
+  };
+}
+
+/**
  * Read every book fwdloop can hold for one run, once. The shared context
  * every deriver below (and the POC before it) builds its fields from.
  * @param {string} root
@@ -406,6 +505,14 @@ export function getRunDetail({
     spend = spendFloorDisplay(ctx.spendRows);
   }
 
+  // hamr's review #1 (Summary tab): model + spend.jsonl totals — read here
+  // ONCE, off the same auditRows/spendRows this function already loaded, so
+  // the Run tab's summary box and the step cards can never disagree about
+  // what model ran or what spend.jsonl actually holds.
+  const model = deriveRunModel(ctx.auditRows);
+  const modelWhy = model === null ? 'no audit.jsonl row in this run has ever named a model (no model step has run yet)' : null;
+  const spendSummary = summarizeSpendRows(ctx.spendRows);
+
   return {
     flow,
     runId,
@@ -415,6 +522,9 @@ export function getRunDetail({
     outcomeWhy: ctx.historyRow ? null : 'no history row (parked or died before completion)',
     capUsd: ctx.historyRow ? ctx.historyRow.capUsd : (ctx.flowRead.ok ? ctx.flowRead.arbiter.capUsd : null),
     spend,
+    model,
+    modelWhy,
+    spendSummary,
     wallMs,
     wallMsWhy,
     steps,
@@ -440,7 +550,11 @@ export function getRunAudit({ root, flow, runId }) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
-  const rows = readAudit(run.runDir);
+  const rawRows = readAudit(run.runDir);
+  // hamr's review #6: the Audit tab's "Action" column is derived server-side
+  // (never guessed client-side from partial data) — `action` is added to
+  // each row here, off that SAME row's own fields, book order preserved.
+  const rows = rawRows.map((row) => ({ ...row, action: deriveAuditAction(row) }));
   return {
     flow,
     runId,
@@ -476,10 +590,24 @@ export function getRunJob({
     };
   }
   const sig = flowRead.signature;
+  // hamr's review #7: the Job tab is missing the model name entirely — the
+  // signed declaration/signature never record one (checked: no module in
+  // `src/` writes a `model` field into either), so this reads the SAME
+  // per-attempt `audit.jsonl` field the Run tab's summary uses
+  // (`deriveRunModel`) and says so plainly when it does, rather than
+  // pretending the signed prose named it.
+  const auditRows = readAudit(run.runDir);
+  const model = deriveRunModel(auditRows);
   return {
     flow,
     runId,
     resolved: true,
+    model,
+    // `model` is read from this run's own audit.jsonl rows, never the signed
+    // prose/declaration (neither records one) — the page says so in words
+    // ("model used: X (from this run's rows)") rather than implying it came
+    // from the signed job itself.
+    modelWhy: model === null ? 'no audit.jsonl row for this run has ever named a model' : null,
     lines: flowRead.lines,
     arbiter: {
       capUsd: flowRead.arbiter.capUsd,
