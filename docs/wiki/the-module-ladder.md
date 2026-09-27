@@ -658,7 +658,7 @@ has a bareloop UI to borrow, so M4 is mostly adjusting, not designing.
   authoring only and is now M6, and every module after it shifts by one (old M6→M7, M7→M8, M8→M9,
   M9→M10). The renumber is done in the sections below, not deferred.
 
-### M4 (the UI) — scope, exit, negative — M4a SIGNED by hamr 2026-09-26 ("signed M4a"), M4b DRAFT, NOT SIGNED
+### M4 (the UI) — scope, exit, negative — M4a SIGNED by hamr 2026-09-26 ("signed M4a"), M4a EXIT SIGNED 2026-09-27, M4b DRAFT, NOT SIGNED
 
 **Where it comes from** (answered by the `loop` session, 2026-09-26). bareloop's panel:
 `src/panel/index.html` (one file, all CSS and JS inline, vanilla, no build step, no npm UI deps; only
@@ -876,7 +876,24 @@ rounds, not just within one; both (a) and (b) proven able to fail by reverting `
 alone), `test/books.test.js` (write-time checks and `auditRowTools`'s pre/post-M4a-3 read, each
 proven able to fail by reverting the relevant check alone). `test/panel.test.js` (owned by a
 concurrent M4 panel piece) still builds audit-row fixtures without `tools` and needs those fixtures
-updated in a follow-up — not touched here.
+updated in a follow-up — not touched here. **Landed 2026-09-27:** the fixture update
+(`70656cf`) and the panel wiring itself — step card `tools: … · allowed: …` (red `not allowed:
+<names>` for `ungranted`) and the Audit Action-cell tally (`9064e7c`). **Ruling by hamr,
+2026-09-27:** `not allowed:` shows tool names only, no count — the books record names, not
+attempt counts — "keep name only".
+
+**M4a EXIT SIGNED — hamr, 2026-09-27** ("sign mfa exit", = M4a).
+
+| exit / negative | evidence |
+|---|---|
+| POC bar met (114 FILLED / 11 EMPTY-WITH-WHY / 0 GAP) | `docs/logs/FINDINGS.md` F47, fix `4e145ab`; POC script `poc/m4/panel-data.mjs` |
+| panel shows job #2's parked ask, draft + both inputs, read-only | F47 (`readAskEvidence`, `src/ask.js`); no test-name citation found beyond F47 — no recorded evidence found for a dedicated panel test |
+| a red run (F41 plant, not-done) shows which step stopped it and why | `test/panel.test.js` "review #2: a not-done row is blocked, the run's only red" (`run-failed` fixture, `log.json` `red` field) |
+| 390px screenshot, every wired screen, no horizontal scroll | `.claude/stash/2026-09-27-fwd-m4a-built-exit-pending.md`: "headless chromium at 1280 and 390px" browser walk, verdict "better, pass for all"; no screenshot file found on disk — no recorded evidence found beyond the stash note |
+| (iii) no history/no park is `[?]`, never `[✗]`/`[✓]` | `test/panel.test.js` "negative (iii): no history row, no park at all is [?], never [✗] and never [✓]" |
+| (iii) answered, not resumed reads distinctly, never `[?]`/"waiting on you" | `test/panel.test.js` "negative (iii): answered but not yet resumed is worded distinctly, never [?] and never \"waiting on you\"" |
+| (iv) `spendComplete:false` shows "at least $X", never a bare total | `test/panel.test.js` "negative (iv): spendComplete:false shows \"at least $X\", never a bare total" |
+| (v) no screen renders a key, secret, or path outside `--root` | `test/panel.test.js` "negative (v): a path-escape flow segment never reads outside root", "negative (v): a path-escape runId segment never reads outside root", "negative (v): a secret-looking env var never appears in any response" |
 
 #### M4b — inputs (does not start until M4a's exit is signed)
 
