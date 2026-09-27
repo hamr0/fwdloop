@@ -389,24 +389,64 @@ export function writeArtifact(runDir, id, artifact, { overwrite = false } = {}) 
   writeFileSync(target, JSON.stringify(artifact, null, 2));
 }
 
-/** Reads one artifact back off disk; `undefined` when it was never written
- *  (mirrors the in-memory map's own "absent" shape for a not-yet-produced
- *  read).
- *
- * F48 round 3 follow-up (debrief): goes through `readFileInside`
- * (`src/flow.js`) rather than a raw `readFileSync` — a symlinked artifact
- * file (or a symlinked `artifacts/` ancestor) reads as `undefined`, the same
- * shape as "never written", never as some outside file's forged content fed
- * back into a later step or a resume's "was this step already done" check.
+/**
+ * F48 round 4 (redesign, docs/logs/FINDINGS.md): the ONE tri-state reader
+ * every artifact-reading call site routes through. Round 3's `readArtifact`
+ * collapsed THREE outcomes into one `undefined` — "never written" and
+ * "read refused" (symlink escape / outside the run dir / unparseable JSON)
+ * were indistinguishable to every caller. That single value with two
+ * meanings is exactly what let a swapped/deleted accepted artifact reach
+ * the send slot as `undefined`, get `?? null`-ed by `src/send.js`, and ship
+ * a 4-byte `null` to the signed destination as a recorded "green" send —
+ * the refusal `readFileInside` already computes was thrown away one layer
+ * up. Every caller below now sees the real shape and decides, explicitly,
+ * whether "missing" is fine (a genuinely not-yet-written read) or whether
+ * ANY refusal — missing or red — must halt the run.
+ * @returns {{ok:true, value:any} | {ok:false, missing:true} | {ok:false, missing:false, red:string}}
  */
-export function readArtifact(runDir, id) {
+export function readArtifactResult(runDir, id) {
   const result = readFileInside(runDir, `artifacts/${id}.json`);
-  if (!result.ok) return undefined;
-  return JSON.parse(result.text);
+  if (!result.ok) return result;
+  let value;
+  try {
+    value = JSON.parse(result.text);
+  } catch (err) {
+    return { ok: false, missing: false, red: `artifact "${id}" is not valid JSON — ${err.message}` };
+  }
+  return { ok: true, value };
 }
 
-function readArtifactsMap(runDir, ids) {
-  return Object.fromEntries((ids ?? []).map((id) => [id, readArtifact(runDir, id)]));
+/** Back-compat convenience collapse of `readArtifactResult`: `undefined` for
+ *  BOTH "never written" and "read refused" — the exact collapse the F48
+ *  round 4 redesign says a caller must never reach for on its own. Safe to
+ *  use ONLY where an explicit tri-state check has already refused any `red`
+ *  for this same id earlier in the same call (documented at each remaining
+ *  call site) — never add a NEW call site with this function instead of
+ *  `readArtifactResult`.
+ */
+export function readArtifact(runDir, id) {
+  const result = readArtifactResult(runDir, id);
+  return result.ok ? result.value : undefined;
+}
+
+/** `readArtifactResult` for a whole `reads` array. A genuinely-missing read
+ *  (never written) still renders as `undefined` in the map, unchanged from
+ *  before — but a REFUSED read (red) is never silently folded in as
+ *  `undefined` alongside it; the caller gets `{ok:false, red}` instead and
+ *  must halt rather than feed tampered/unreadable content (or a `undefined`
+ *  indistinguishable from "not written yet") into a step.
+ *  @returns {{ok:true, map:Record<string,any>} | {ok:false, red:string}}
+ */
+function readArtifactsMapChecked(runDir, ids) {
+  const map = {};
+  for (const id of ids ?? []) {
+    const result = readArtifactResult(runDir, id);
+    if (!result.ok && !result.missing) {
+      return { ok: false, red: `artifact "${id}" — ${result.red}` };
+    }
+    map[id] = result.ok ? result.value : undefined;
+  }
+  return { ok: true, map };
 }
 
 // ---------------------------------------------------------------------------
@@ -1109,10 +1149,18 @@ async function runAskSlot({
           red: `redo cap ${redoCap} reached at step "${step.goal}" after ${redone} rejections`,
         };
       }
-      const priorReads = readArtifactsMap(runDir, priorStep.reads);
+      // F48 round 4: every id in `priorStep.reads` names a STILL EARLIER step
+      // that already ran and wrote its artifact — a `red` here (symlink
+      // swap / unparseable JSON) is tampering, never "not written yet", and
+      // must halt the redo rather than silently feed forged/garbage content
+      // into the model step that is about to re-run.
+      const priorReadsResult = readArtifactsMapChecked(runDir, priorStep.reads);
+      if (!priorReadsResult.ok) {
+        return { type: 'halted', outcome: 'red', red: `redo: step "${priorStep.goal}" ${priorReadsResult.red}` };
+      }
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
-        step: priorStep, primitivesMap: primitives, readsMap: priorReads, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone, now,
+        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone, now,
       });
       if (!redoResult.ok) {
         return { type: 'halted', outcome: redoResult.outcome, red: redoResult.red };
@@ -1199,7 +1247,26 @@ async function foldFromStep({
           outcome: 'red', red: `send: step "${step.goal}" reads ask artifact "${askArtifactId}" that was not accepted this run`,
         });
       }
-      const content = readArtifact(runDir, askArtifactId);
+      // F48 round 4 (redesign): ONLY an `ok:true` read ships — a missing OR
+      // refused (symlink swap / outside the run dir / unparseable JSON)
+      // accepted artifact halts the run BY NAME, before `sendStep` is ever
+      // called, so nothing reaches the signed destination. This is the exact
+      // gap the round 3 fix left open: `readArtifact` returning `undefined`
+      // for both shapes let a swapped/deleted artifact reach `sendStep` as
+      // `undefined`, get `?? null`-ed by src/send.js, and ship as a
+      // recorded-green `null` — a silent "success" for content that was
+      // never verified.
+      const contentResult = readArtifactResult(runDir, askArtifactId);
+      if (!contentResult.ok) {
+        return haltRun({
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+          outcome: 'red',
+          red: contentResult.missing
+            ? `send: accepted artifact "${askArtifactId}" is missing for step "${step.goal}" — refusing to send`
+            : `send: accepted artifact "${askArtifactId}" for step "${step.goal}" — ${contentResult.red}`,
+        });
+      }
+      const content = contentResult.value;
       const filename = `${runId}-${step.emits}.json`;
       // eslint-disable-next-line no-await-in-loop
       const sendResult = await sendStep(target, filename, content);
@@ -1224,7 +1291,21 @@ async function foldFromStep({
       const askSlot = askLines.get(step.fromLine);
       const priorId = (step.reads ?? [])[0];
       const priorStepIndex = steps.findIndex((s) => s.emits === priorId);
-      const priorArtifact = readArtifact(runDir, priorId);
+      // F48 round 4: `priorId` names a STILL EARLIER step in this same fold
+      // pass, already run and already written to disk — a `red` here is
+      // tampering (or an outside symlink), never "not written yet", and
+      // must halt before the human is ever shown evidence built from it.
+      const priorArtifactResult = readArtifactResult(runDir, priorId);
+      if (!priorArtifactResult.ok) {
+        return haltRun({
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+          outcome: 'red',
+          red: priorArtifactResult.missing
+            ? `ask: prior artifact "${priorId}" is missing for step "${step.goal}" — refusing`
+            : `ask: prior artifact "${priorId}" for step "${step.goal}" — ${priorArtifactResult.red}`,
+        });
+      }
+      const priorArtifact = priorArtifactResult.value;
 
       // M2 amendment 1 item 2: every hitl artifact carried since the
       // previous ask goes to THIS ask as evidence, alongside the ask step's
@@ -1285,7 +1366,17 @@ async function foldFromStep({
     }
 
     // --- an ordinary step: green / softgreen / a non-ask hitl pass-through. ---
-    const readsMap = readArtifactsMap(runDir, step.reads);
+    // F48 round 4: every id in `step.reads` names an earlier step in THIS
+    // same fold pass, already run and already written — a `red` read here
+    // halts rather than silently feeding tampered/unreadable content in.
+    const readsMapResult = readArtifactsMapChecked(runDir, step.reads);
+    if (!readsMapResult.ok) {
+      return haltRun({
+        flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+        outcome: 'red', red: `step "${step.goal}" ${readsMapResult.red}`,
+      });
+    }
+    const readsMap = readsMapResult.map;
     // M3 scope item 7: a fresh rerun's own first step (and only that one —
     // `i === i0` is this fold's own starting point, never any later step)
     // starts with the human's rerun reason as its gap, exactly like a
@@ -1499,10 +1590,26 @@ export async function resumeRun({
       }
     }
 
+    // F48 round 4 (redesign): the "was this step already done" gate — the
+    // one place a resume decides whether an earlier step's artifact is
+    // trustworthy BEFORE the answer is consumed or anything downstream reads
+    // it again (site 6/7/8 below all read the SAME ids, for i < stepIndex,
+    // and rely on this gate having already refused any red for them). A
+    // `red` (symlink swap / unparseable JSON) is refused BY NAME, exactly
+    // like `missing` — never silently treated as "not done yet" and redone,
+    // which could spend money or re-ask a human for a step that already
+    // completed.
     const { steps } = declaration;
     for (let i = 0; i < state.stepIndex; i += 1) {
-      if (readArtifact(runDir, steps[i].emits) === undefined) {
-        return { outcome: 'refused', red: `resume: artifact "${steps[i].emits}" missing for run "${runId}" — cannot resume` };
+      const artifactResult = readArtifactResult(runDir, steps[i].emits);
+      if (!artifactResult.ok) {
+        return {
+          outcome: 'refused',
+          red: artifactResult.missing
+            ? `resume: artifact "${steps[i].emits}" missing for run "${runId}" — cannot resume`
+            : `resume: artifact "${steps[i].emits}" for run "${runId}" — ${artifactResult.red} — `
+              + 'refusing rather than treating a refused read as "not done" and re-running it',
+        };
       }
     }
 
@@ -1621,6 +1728,11 @@ export async function resumeRun({
         return { outcome: 'refused', red: `resume: rerun answer for run "${runId}" carries a blank reason` };
       }
 
+      // Safe to collapse missing/red to `readArtifact`'s `undefined` here:
+      // the "was this step already done" gate above already refused the
+      // whole resume (before the answer was even consumed) if any
+      // `steps[i].emits` for i < state.stepIndex was red — this loop only
+      // ever runs once every one of those same ids has already read `ok`.
       const priorArtifactsForLog = {};
       for (let i = 0; i < state.stepIndex; i += 1) {
         priorArtifactsForLog[steps[i].emits] = readArtifact(runDir, steps[i].emits);
@@ -1678,7 +1790,10 @@ export async function resumeRun({
     }
 
     // Reconstruct the fold's accumulators from disk + state.json — never
-    // re-running a step that already went green (M3 scope item 4).
+    // re-running a step that already went green (M3 scope item 4). Every
+    // `readArtifact` call below reads an id already proven `ok` by the "was
+    // this step already done" gate above (i < state.stepIndex, same ids) —
+    // safe to collapse missing/red to `undefined` here for that reason only.
     const artifacts = {};
     for (let i = 0; i < state.stepIndex; i += 1) {
       artifacts[steps[i].emits] = readArtifact(runDir, steps[i].emits);
@@ -1716,6 +1831,9 @@ export async function resumeRun({
     const askSlot = askLines.get(step.fromLine);
     const priorId = (step.reads ?? [])[0];
     const priorStepIndex = steps.findIndex((s) => s.emits === priorId);
+    // `priorId` names a step strictly earlier than the parked ask
+    // (state.stepIndex), so i < state.stepIndex — already proven `ok` by the
+    // "was this step already done" gate above; safe to collapse here.
     const priorArtifact = readArtifact(runDir, priorId);
 
     const oneShotAskStep = makeOneShotThenParkAskStep({ decision: answer.decision, reason: answer.reason });
