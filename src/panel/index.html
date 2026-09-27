@@ -268,7 +268,13 @@
 
   /* hamr review #5/#6: Audit tab grouped-by-step sections. */
   .audit-group{position:relative;border:1px solid var(--border-strong);padding:14px 10px 10px;background:var(--panel2);margin-top:10px;margin-bottom:10px;}
-  .audit-group h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;}
+  /* hamr's 2026-09-27 final tweak #3: the global `h2,h4{text-transform:
+     uppercase}` rule (above) would otherwise shout every collapsible audit
+     header ("[done] · resume-text · 7.9s · $0.0026 · try 1 [checkmark]") —
+     these headers render the book's own text as-is, lower case, so this
+     overrides it back to none for this ONE h4 class. Checked: no other CSS
+     rule in this file re-uppercases `.audit-group h4` after this. */
+  .audit-group h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;text-transform:none;}
   .audit-group h4::before{content:"┤ ";color:var(--text-faint);}
   .audit-group h4::after{content:" ├";color:var(--text-faint);}
   /* review #4: a momentary highlight on the group a map/step-card click just
@@ -492,10 +498,10 @@
           <div id="job-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
           <div class="job-card" id="job-card" hidden data-testid="job-card-readonly">
             <h4 id="details-title">Job card — signed</h4>
-            <div class="field"><label>Job (prose)</label><div id="details-prose"></div></div>
-            <div class="field"><label>Ask</label><div id="details-asks"></div></div>
             <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
             <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap">—</div></div>
+            <div class="field"><label>Job (prose)</label><div id="details-prose"></div></div>
+            <div class="field"><label>Ask</label><div id="details-asks"></div></div>
             <div class="field"><label>Source</label><div id="details-sources"></div></div>
             <div class="field"><label>Destination</label><div id="details-sends"></div></div>
             <div class="field"><label>Guardrails</label><div id="details-guardrails"></div></div>
@@ -1785,10 +1791,17 @@
     document.getElementById("details-model").textContent = job.model
       ? ("model used: " + job.model + " (from this run's rows)")
       : (job.modelWhy || "no model call recorded yet");
-    // review #5: "$ cap" — ONE field, cap and redo cap together.
+    // hamr's 2026-09-27 final tweak #1: "$ cap" — bareloop-style "$ cap /
+    // Time cap" row: money (signed capUsd + redo cap) THEN time. Checked
+    // against src/declaration.js and src/types.js's own Arbiter typedef:
+    // fwdloop's signed arbiter carries `capUsd`/`redoCap` (and per-ask
+    // `ttlMs`, which is an ask's own wait, not a run-wide time cap) — there
+    // is no signed run-wide time-cap field anywhere in the grammar, so this
+    // NEVER invents one; it says so in words instead.
     document.getElementById("details-cap").textContent =
       (typeof job.capUsd === "number" ? ("$" + job.capUsd.toFixed(2)) : "unknown")
-      + " · redo cap " + (typeof job.redoCap === "number" ? job.redoCap : "unknown");
+      + " · redo cap " + (typeof job.redoCap === "number" ? job.redoCap : "unknown")
+      + " · time cap: no time cap signed";
     // review #5: "Source" — role -> basename only (never the full signed path).
     renderRowsField("details-sources", job.sources, "no signed sources", function(s){
       return s.role + " → " + s.basename;
@@ -1807,8 +1820,12 @@
       return s.step + " · " + s.text;
     });
     var sig = job.signature;
+    // hamr's 2026-09-27 final tweak #2: `sig.signedAt` is the raw signed ISO
+    // stamp (e.g. "2026-09-24T13:22:40.950Z") — rendered readable/local via
+    // the SAME `readableDateTime` every other date on this page already
+    // uses, never shown as the raw ISO string.
     document.getElementById("details-signature").textContent = sig
-      ? (sig.signedBy + " at " + sig.signedAt + " (hash " + sig.hash.slice(0, 12) + "…)")
+      ? (sig.signedBy + " at " + (readableDateTime(sig.signedAt) || sig.signedAt) + " (hash " + sig.hash.slice(0, 12) + "…)")
       : (job.signatureWhy || "unsigned");
   }
 

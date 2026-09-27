@@ -1989,12 +1989,16 @@ describe('index.html — page source', () => {
     assert.match(source, /details-model/);
   });
 
-  // hamr's 2026-09-27 exit-check review #5: the field ORDER hamr signed —
-  // "Job (prose) · Ask · Model · $ cap (· redo cap) · Source · Destination ·
+  // hamr's 2026-09-27 FINAL tweak #1: the field order changed again —
+  // "Model · $ cap row · Job (prose) · Ask · Source · Destination ·
   // Guardrails · Success · Signed" — checked directly off the markup's own
-  // field ids, in page order.
-  test('review #5: the Job tab\'s field order is Job (prose), Ask, Model, $ cap, Source, Destination, Guardrails, Success, Signed', () => {
-    const ids = ['details-prose', 'details-asks', 'details-model', 'details-cap', 'details-sources', 'details-sends', 'details-guardrails', 'details-success', 'details-signature'];
+  // field ids, in page order. This test can fail: reverting the HTML edit
+  // that moved details-model/details-cap ahead of details-prose/details-asks
+  // puts details-prose back first, and the positions[i] > positions[i-1]
+  // check on the FIRST pair (details-model vs details-cap is unaffected, but
+  // details-cap vs details-prose) goes red.
+  test('final tweak #1: the Job tab\'s field order is Model, $ cap, Job (prose), Ask, Source, Destination, Guardrails, Success, Signed', () => {
+    const ids = ['details-model', 'details-cap', 'details-prose', 'details-asks', 'details-sources', 'details-sends', 'details-guardrails', 'details-success', 'details-signature'];
     const positions = ids.map((id) => {
       const idx = source.indexOf(`id="${id}"`);
       assert.ok(idx > 0, `expected to find id="${id}" in the page`);
@@ -2011,6 +2015,47 @@ describe('index.html — page source', () => {
     const body = source.slice(fnStart, fnEnd);
     assert.match(body, /redo cap/);
     assert.doesNotMatch(source, /id="details-redo-cap"/); // the OLD, separate field id is gone
+  });
+
+  // hamr's 2026-09-27 final tweak #1: fwdloop's signed arbiter (src/types.js
+  // Arbiter typedef, src/declaration.js) carries capUsd/redoCap and each
+  // ask's own ttlMs, but NO run-wide time-cap field at all — so the $ cap
+  // row must always say plainly that no time cap is signed, never invent
+  // one from an ask's ttlMs or any other value.
+  test('final tweak #1: the $ cap row states "no time cap signed" (fwdloop\'s arbiter has no signed time-cap field)', () => {
+    const fnStart = source.indexOf('function renderJob');
+    const fnEnd = source.indexOf('\n  }', fnStart);
+    const body = source.slice(fnStart, fnEnd);
+    assert.match(body, /no time cap signed/);
+  });
+
+  // hamr's 2026-09-27 final tweak #2: the signed timestamp is a raw ISO
+  // string in the books (e.g. "2026-09-24T13:22:40.950Z") — the Signed row
+  // must render it through the SAME readableDateTime formatter every other
+  // date field on this page already uses, never the raw ISO string.
+  test('final tweak #2: the Signed row renders sig.signedAt through readableDateTime, not the raw ISO string', () => {
+    const fnStart = source.indexOf('function renderJob');
+    const fnEnd = source.indexOf('\n  }', fnStart);
+    const body = source.slice(fnStart, fnEnd);
+    assert.match(body, /readableDateTime\(sig\.signedAt\)/);
+  });
+
+  // hamr's 2026-09-27 final tweak #3: audit/ask block headers ("[done] ·
+  // resume-text · 7.9s · $0.0026 · try 1 ✓") are book text rendered as-is,
+  // lower case — the global `h2,h4{text-transform:uppercase}` rule must be
+  // overridden back to none for these collapsible block headers, and no
+  // later rule may re-uppercase them.
+  test('final tweak #3: .audit-group h4 headers are NOT uppercased (overrides the global h2,h4 rule)', () => {
+    const rule = source.match(/\.audit-group h4\s*\{[^}]*\}/);
+    assert.ok(rule, 'expected a .audit-group h4 CSS rule');
+    assert.match(rule[0], /text-transform:\s*none/);
+    // no OTHER rule targeting .audit-group h4 (or a broader selector that
+    // still matches it) reintroduces text-transform:uppercase afterward.
+    const styleBlock = source.slice(source.indexOf('<style>'), source.indexOf('</style>'));
+    const uppercaseRules = styleBlock.match(/[^{}]+\{[^}]*text-transform:\s*uppercase[^}]*\}/g) || [];
+    uppercaseRules.forEach((r) => {
+      assert.doesNotMatch(r, /\.audit-group h4/, `no rule may re-uppercase .audit-group h4: ${r}`);
+    });
   });
 
   // browser re-walk (2026-09-27), bugs #1-#4.
