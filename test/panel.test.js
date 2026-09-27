@@ -971,6 +971,116 @@ describe('getRunDetail', () => {
       root: ROOT, flow: '../outside', runId: 'run-done', catalogue: CATALOGUE,
     }), null);
   });
+
+  // -------------------------------------------------------------------
+  // hamr's 2026-09-27 step-card review: each declared step now carries the
+  // SAME per-step group pieces (timeMs/cost/costWhy/tokensTotal/tryMarks/
+  // groupState) the Audit tab's own header reads, plus its declared
+  // `primitives` (for the card's "granted" line) and a `stoppedReason`
+  // (set on exactly the one step that stopped the run, else `null`).
+  // -------------------------------------------------------------------
+  describe('step-card fields (hamr\'s 2026-09-27 step-card review)', () => {
+    test('one source for card + audit header numbers: a step\'s group fields on getRunDetail equal the SAME step\'s group on getRunAudit', () => {
+      const detail = getRunDetail({
+        root: ROOT, flow: FLOW, runId: 'run-done', catalogue: CATALOGUE,
+      });
+      const audit = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-done' });
+      const auditGroupByStep = {};
+      for (const g of audit.groups) auditGroupByStep[g.step] = g;
+      for (const s of detail.steps) {
+        const g = auditGroupByStep[s.emits];
+        assert.ok(g, `expected an Audit group for attempted step "${s.emits}"`);
+        assert.equal(s.timeMs, g.timeMs);
+        assert.equal(s.cost, g.cost);
+        assert.equal(s.costWhy, g.costWhy);
+        assert.equal(s.tokensTotal, g.tokensTotal);
+        assert.deepEqual(s.tryMarks, g.tryMarks);
+        assert.equal(s.groupState, g.state);
+      }
+    });
+
+    test('resume-summary\'s own numbers on run-done: $0.0020, 445 tokens (300+130+15), one green try', () => {
+      const detail = getRunDetail({
+        root: ROOT, flow: FLOW, runId: 'run-done', catalogue: CATALOGUE,
+      });
+      const step = detail.steps.find((s) => s.emits === 'resume-summary');
+      assert.equal(step.timeMs, 500);
+      assert.equal(step.cost, '$0.0020');
+      assert.equal(step.tokensTotal, 445);
+      assert.deepEqual(step.tryMarks, ['✓']);
+      assert.equal(step.groupState, 'done');
+    });
+
+    test('PROOF (can fail): a step\'s group timeMs/tryMarks really sum/pair across EVERY attempt, not just the last one', () => {
+      const detail = getRunDetail({
+        root: ROOT, flow: FLOW, runId: 'run-model-tries', catalogue: CATALOGUE,
+      });
+      const step = detail.steps.find((s) => s.emits === 'resume-summary');
+      assert.equal(step.timeMs, 400); // 100ms * 4 attempts, summed
+      assert.deepEqual(step.tryMarks, ['✗', '✗', '✗', '✓']);
+    });
+
+    test('a step with no audit rows at all (never attempted) carries null/empty group fields, never a guessed 0', () => {
+      const detail = getRunDetail({
+        root: ROOT, flow: FLOW, runId: 'run-failed', catalogue: CATALOGUE,
+      });
+      // run-failed's own fixture only ever attempts "jd-text" — every other
+      // declared step never ran at all.
+      const untouched = detail.steps.find((s) => s.emits === 'resume-text');
+      assert.equal(untouched.attempts.length, 0);
+      assert.equal(untouched.timeMs, null);
+      assert.equal(untouched.cost, null);
+      assert.equal(untouched.tokensTotal, null);
+      assert.deepEqual(untouched.tryMarks, []);
+      assert.equal(untouched.groupState, null);
+    });
+
+    test('each step carries its own declared primitives (the card\'s "granted" line); an ask step that grants nothing carries an empty array', () => {
+      const detail = getRunDetail({
+        root: ROOT, flow: FLOW, runId: 'run-done', catalogue: CATALOGUE,
+      });
+      assert.deepEqual(detail.steps.find((s) => s.emits === 'jd-text').primitives, ['read']);
+      assert.deepEqual(detail.steps.find((s) => s.emits === 'resume-summary-approved').primitives, []);
+    });
+
+    test('stoppedReason: only the step that stopped the run carries it, and it is the SAME full text as detail.stopReason', () => {
+      const detail = getRunDetail({
+        root: ROOT, flow: FLOW, runId: 'run-failed', catalogue: CATALOGUE,
+      });
+      const stopped = detail.steps.find((s) => s.emits === 'jd-text');
+      assert.equal(stopped.stoppedReason, detail.stopReason);
+      assert.match(stopped.stoppedReason, /JD could not be read/);
+      for (const s of detail.steps) {
+        if (s.emits !== 'jd-text') assert.equal(s.stoppedReason, null, `expected "${s.emits}" to carry no stop reason`);
+      }
+    });
+
+    test('PROOF (can fail): the redRow-fallback stop path attaches stoppedReason to the LATEST failing step, never an earlier superseded one', () => {
+      // Reuses the "run-multi-fail" fixture built above (jd-text's EARLIER,
+      // superseded gap, then resume-summary's LATEST gap — no log.json).
+      const detail = getRunDetail({
+        root: ROOT, flow: FLOW, runId: 'run-multi-fail', catalogue: CATALOGUE,
+      });
+      const summaryStep = detail.steps.find((s) => s.emits === 'resume-summary');
+      const jdStep = detail.steps.find((s) => s.emits === 'jd-text');
+      assert.match(summaryStep.stoppedReason, /the LATEST gap/);
+      assert.equal(jdStep.stoppedReason, null);
+    });
+
+    test('a run that completed clean never sets stoppedReason on any step', () => {
+      const detail = getRunDetail({
+        root: ROOT, flow: FLOW, runId: 'run-done', catalogue: CATALOGUE,
+      });
+      for (const s of detail.steps) assert.equal(s.stoppedReason, null);
+    });
+
+    test('a run that is still waiting (parked, open ask) never sets stoppedReason on any step either — it has not stopped', () => {
+      const detail = getRunDetail({
+        root: ROOT, flow: FLOW, runId: 'run-waiting-after-earlier-gap', catalogue: CATALOGUE,
+      });
+      for (const s of detail.steps) assert.equal(s.stoppedReason, null, `expected "${s.emits}" to carry no stop reason while waiting`);
+    });
+  });
 });
 
 describe('getRunAudit', () => {
@@ -1864,9 +1974,17 @@ describe('index.html — page source', () => {
     assert.doesNotMatch(source, /dot grey"><\/span>not started/);
   });
 
-  test('fix #6: a step\'s attempt-numbering boundary after a human reject is labelled, never silently renumbered, and never guessed when it can\'t be named', () => {
-    assert.match(source, /after reject: /);
-    assert.match(source, /a\.afterReject/);
+  // fix #6 originally required the "after reject: " boundary label to be
+  // RENDERED on the Run tab's step cards; hamr's 2026-09-27 step-card
+  // redesign removed the Run tab's per-attempt rows entirely (summarized
+  // cards only — per-attempt detail, including any reject boundary, stays
+  // in the Audit tab's own per-row Gap column). `s.attempts[].afterReject`
+  // itself is still computed server-side and proven directly against
+  // `getRunDetail` in this file's own `describe('getRunDetail', ...)` block
+  // (fix #6/#6 re-walk tests) — never renumbered, never guessed — this
+  // page-source test only needs to confirm no vague/wrong fallback label
+  // ever crept back in.
+  test('fix #6: a step\'s attempt-numbering boundary after a human reject is never silently renumbered or guessed with a vague fallback label', () => {
     // no generic/vague fallback label — a missing hint beats a wrong one
     // (the re-walk found the OLD generic fallback mislabelling the ask
     // step's own normal paused-then-resolved pair as a "reject boundary").
@@ -2341,5 +2459,74 @@ describe('index.html — page source', () => {
     const withoutRule = source.replace(/@media \(max-width: 480px\)\{[\s\S]*?\n  \}\n<\/style>/, '</style>');
     assert.notEqual(withoutRule, source);
     assert.doesNotMatch(withoutRule, /\[data-testid="audit-table"\] td::before/);
+  });
+
+  // ---------------------------------------------------------------------
+  // hamr's 2026-09-27 step-card redesign: the Run tab's step cards no
+  // longer read like the Audit log (every attempt, full gap text) — a
+  // 4-line-max summary per step instead. These checks are all static
+  // (source-level), matching the rest of this describe block's own posture
+  // (no jsdom/browser in this stack); the DATA the cards render is proven
+  // separately, against `getRunDetail`, in this file's own
+  // `describe('getRunDetail', ...)` block below.
+  // ---------------------------------------------------------------------
+
+  test('step-card styling ruling: the header line is upper case + bold; every other card line is explicitly normal case/weight', () => {
+    assert.match(source, /\.step-card \.step-head\{[^}]*text-transform:uppercase[^}]*font-weight:700/);
+    assert.match(source, /\.step-card \.step-line\{[^}]*text-transform:none[^}]*font-weight:400/);
+  });
+
+  test('PROOF (styling ruling can fail): removing the step-head uppercase/bold rule leaves no CSS rule at all forcing the header\'s case/weight', () => {
+    const withoutRule = source.replace(/\.step-card \.step-head\{[^}]*\}\n/, '');
+    assert.notEqual(withoutRule, source);
+    assert.doesNotMatch(withoutRule, /\.step-card \.step-head\{[^}]*text-transform:uppercase/);
+  });
+
+  test('step cards are built from ONE header helper + a shared plain-line helper, never a second ad hoc line builder', () => {
+    assert.match(source, /function buildStepCardHeadEl\(box, idx\)/);
+    assert.match(source, /function textLineEl\(extraClass, text, testId\)/);
+    assert.match(source, /function buildStepActionsLineEl\(box, idx\)/);
+    // the header's state chip reuses the SAME color function the Audit tab's
+    // own group headers use — never a second color scheme for the Run tab.
+    const headFnStart = source.indexOf('function buildStepCardHeadEl(box, idx){');
+    const headFnEnd = source.indexOf('\n  }', headFnStart);
+    const headFnBody = source.slice(headFnStart, headFnEnd);
+    assert.match(headFnBody, /auditStateClass\(box\.state\)/);
+  });
+
+  test('the actions line never renders a calls/tools count — fwdloop has no per-step call/tool book to fill it from', () => {
+    const fnStart = source.indexOf('function buildStepActionsLineEl(box, idx){');
+    const fnEnd = source.indexOf('\n  }', fnStart);
+    const body = source.slice(fnStart, fnEnd);
+    assert.doesNotMatch(body, /calls|tools/i);
+    // tokens are the one OPTIONAL extra, and only ever added when the
+    // server sent a real total — never a bare "0 tokens".
+    assert.match(body, /typeof box\.tokensTotal === "number"/);
+  });
+
+  test('the "granted" line names only the declared primitives (never a used-count) and is omitted when a step grants nothing', () => {
+    assert.match(source, /"granted: " \+ box\.primitives\.join\(", "\)/);
+    assert.match(source, /if\(box\.primitives\.length\) card\.appendChild\(textLineEl\("hint", "granted: /);
+    assert.doesNotMatch(source, /"used: /);
+  });
+
+  test('the "stopped" line is gated on box.stoppedReason (server-derived, one step only) and shows the FULL reason, never a truncated slice', () => {
+    assert.match(source, /if\(box\.stoppedReason\) card\.appendChild\(textLineEl\("hint", "stopped: " \+ box\.stoppedReason/);
+    // no truncation of the reason anywhere near the card builder (no
+    // .slice(/.substring(/character-count cap on the stop text).
+    const fnStart = source.indexOf('stepBoxes.forEach(function(box, idx){');
+    const fnEnd = source.indexOf('\n    });', fnStart);
+    const body = source.slice(fnStart, fnEnd);
+    assert.doesNotMatch(body, /\.slice\(|\.substring\(|\.substr\(/);
+  });
+
+  test('per-attempt rows/gap texts no longer render on the Run tab\'s step cards (they stay in the Audit tab)', () => {
+    assert.doesNotMatch(source, /"step-attempt-" \+/);
+    // the OLD `.attempt-row` CSS rule/className is gone (a plain word-match
+    // would also flag this test's own explanatory comment mentioning the
+    // class by name, so this checks the LIVE forms only: the CSS selector
+    // and the `className = "attempt-row"` assignment).
+    assert.doesNotMatch(source, /\.attempt-row\{/);
+    assert.doesNotMatch(source, /className = "attempt-row"/);
   });
 });

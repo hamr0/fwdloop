@@ -238,13 +238,24 @@
 
   .step-card{position:relative;border:1px solid var(--border);padding:10px;margin-bottom:8px;background:var(--panel2);}
   .step-card.running{border:1px double var(--amber);}
-  .step-card .step-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+  /* hamr's 2026-09-27 styling ruling: the card's HEADER line (number, step
+     name, state chip, close-class chip) is upper case and bold; the state/
+     close chips keep their own color from `.badge`'s existing classes —
+     text-transform never touches color. */
+  .step-card .step-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;text-transform:uppercase;font-weight:700;}
   .step-card h4{margin:0;font-size:13px;}
+  /* Every OTHER line on the card (goal, actions, granted, stopped reason) —
+     lower case exactly as the data reads, normal weight; never inherits the
+     header's uppercase/bold (same ruling, the non-header half of it). */
+  .step-card .step-line{text-transform:none;font-weight:400;}
   .step-meta{font-size:12px;color:var(--text-dim);margin-top:4px;}
-  /* one card per step ATTEMPT (ruling A) — the attempts list under each
-     step-map card on the Run tab. */
+  /* `.attempts-list` stays — no longer used by the Run tab's own step cards
+     (hamr's 2026-09-27 review: per-attempt rows dropped, summarized cards
+     only; that detail stays in the Audit tab), but the Job tab's
+     unjudged-artifacts list still uses it for its own, unrelated rows.
+     `.attempt-row` (the Run tab's own OLD per-attempt row, now nowhere on
+     the page) is dropped — dead weight, not carried forward. */
   .attempts-list{margin-top:8px;border-top:1px dotted var(--border-strong);padding-top:8px;}
-  .attempt-row{margin-bottom:6px;}
 
   .chips{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
   .chip{padding:5px 10px;min-height:32px;border:1px solid var(--border-strong);background:var(--panel2);font-size:12px;color:var(--text-dim);}
@@ -787,8 +798,8 @@
   }
   // hamr review (browser re-walk #1): the per-attempt list ("attempt 1
   // failed · attempt 2 passed · …") is a map node's single biggest source of
-  // width — it lives on the step card below already (attempts-list, near
-  // line 1357) and must NOT also sit on the node. A node's title is just
+  // width — that level of detail belongs in the Audit tab, never on the
+  // node. A node's title is just
   // step number + name + try N + state, kept short so naturalBoxWidth stays
   // small and the map stays compact instead of stretching to the pane width.
   function stepTitleText(idx, s){
@@ -812,7 +823,18 @@
   }
   function buildStepBoxes(steps){
     return (steps || []).map(function(s){
-      return { emits: s.emits, goal: s.goal, closeClass: s.closeClass, attempts: s.attempts || [], tryCount: s.tryCount || 0, state: stepBoxState(s) };
+      return {
+        emits: s.emits, goal: s.goal, closeClass: s.closeClass, primitives: s.primitives || [],
+        attempts: s.attempts || [], tryCount: s.tryCount || 0,
+        // hamr's 2026-09-27 step-card review: the SAME server-computed
+        // group pieces the Audit tab's own header reads (src/panel/data.js's
+        // deriveAuditGroups, off the SAME enriched rows) — never re-derived
+        // here. `null`/`[]` for a step with no group at all (never
+        // attempted yet), matching data.js's own honesty rules exactly.
+        timeMs: s.timeMs, cost: s.cost, costWhy: s.costWhy, tokensTotal: s.tokensTotal, tryMarks: s.tryMarks || [],
+        stoppedReason: s.stoppedReason || null,
+        state: stepBoxState(s),
+      };
     });
   }
   function naturalBoxWidth(steps){
@@ -1488,59 +1510,26 @@
     var listEl = document.getElementById("step-list");
     listEl.innerHTML = "";
     stepBoxes.forEach(function(box, idx){
-      var badgeClass = box.state === "done" ? "green" : (box.state === "stopped" ? "red" : (box.state === "waiting" ? "amber" : "grey"));
       var card = document.createElement("div");
       card.className = "step-card" + (box.state === "waiting" ? " running" : "");
       card.setAttribute("data-testid", "step-card-" + idx);
-      var tryBadgeText = tryCountText(box.tryCount, box.attempts);
-      var tryBadge = tryBadgeText ? ('<span class="badge amber">' + escapeXml(tryBadgeText) + '</span>') : '';
-      card.innerHTML =
-        '<div class="step-head"><h4>' + (idx + 1) + ' &middot; ' + escapeXml(box.emits) + '</h4>' +
-          '<span class="badge ' + badgeClass + '">' + escapeXml(stateWord(box.state)) + '</span>' +
-          '<span class="badge cyan">' + escapeXml(closeClassLabel(box.closeClass)) + '</span>' +
-          tryBadge +
-        '</div>' +
-        (box.goal ? '<div class="step-meta">' + escapeXml(box.goal) + '</div>' : '');
-      var attemptsWrap = document.createElement("div");
-      attemptsWrap.className = "attempts-list";
-      if(!box.attempts.length){
-        attemptsWrap.innerHTML = '<div class="hint">not attempted yet</div>';
-      } else {
-        // Attempt numbers can repeat in book order: a human reject re-runs
-        // the step, and its redo attempts are numbered from the redo/reject
-        // count, not the previous run's own attempt counter (src/runner.js's
-        // redo path). Never renumber or hide a row (keep book order) —
-        // src/panel/data.js already worked out, server-side, whether this
-        // restart is a real one (never on the ask step itself, whose own
-        // paused-then-resolved pair legitimately shares one attempt number)
-        // and named the interleaved human reject when it found one
-        // (`a.afterReject`, fix #6). No `a.afterReject` means either there
-        // is no restart here, or one exists but couldn't be named — either
-        // way, no label: a missing hint beats a wrong one.
-        box.attempts.forEach(function(a, i){
-          if(a.afterReject){
-            var boundary = document.createElement("div");
-            boundary.className = "hint";
-            boundary.textContent = "after reject: " + a.afterReject;
-            attemptsWrap.appendChild(boundary);
-          }
-          var row = document.createElement("div");
-          row.className = "attempt-row";
-          row.setAttribute("data-testid", "step-attempt-" + idx + "-" + a.attempt);
-          var glyph = verdictGlyph(a.verdict, box.closeClass);
-          var isRejectRow = box.closeClass === "hitl" && a.verdict === "red";
-          var bits = [
-            "attempt " + a.attempt + (glyph ? " " + glyph : ""),
-            escapeXml(verdictWord(a.verdict, box.closeClass, a.gap)),
-            money(a.cost, a.spendComplete),
-            a.model ? escapeXml(a.model) : "no model call",
-          ];
-          if(a.strike) bits.push("strike");
-          row.innerHTML = bits.join(" &middot; ") + ((a.gap && !isRejectRow) ? '<div class="hint">' + escapeXml(a.gap) + '</div>' : '');
-          attemptsWrap.appendChild(row);
-        });
-      }
-      card.appendChild(attemptsWrap);
+      card.appendChild(buildStepCardHeadEl(box, idx));
+      if(box.goal) card.appendChild(textLineEl("step-meta", box.goal, "step-card-goal-" + idx));
+      // hamr's 2026-09-27 review: the actions line is server data, not a
+      // guess — a step with no group at all (never attempted, `box.attempts`
+      // empty) gets NO actions line rather than a fake "try 0"/"cost
+      // unknown" row.
+      if(box.attempts.length) card.appendChild(buildStepActionsLineEl(box, idx));
+      else card.appendChild(textLineEl("hint", "not attempted yet", "step-card-actions-" + idx));
+      // fwdloop's books hold no per-step tool-USE count (no call/tool
+      // ledger per step exists) — this line names only what the signed
+      // declaration GRANTED the step, never a used-count, and is omitted
+      // entirely for a step granted nothing (e.g. an ask/hitl step).
+      if(box.primitives.length) card.appendChild(textLineEl("hint", "granted: " + box.primitives.join(", "), "step-card-granted-" + idx));
+      // The full stop reason shows on ONLY the one step that stopped the
+      // run (server-derived, src/panel/data.js's stoppedStepEmits) — every
+      // passed step's own `stoppedReason` is `null`, never a guess.
+      if(box.stoppedReason) card.appendChild(textLineEl("hint", "stopped: " + box.stoppedReason, "step-card-stopped-" + idx));
       // hamr review #4: a step card's own click ALSO jumps to its Audit
       // group — the same `openAuditGroup` the map node's click uses, so a
       // click on either surface can never land on a different row.
@@ -1550,6 +1539,61 @@
       card.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); card.click(); } });
       listEl.appendChild(card);
     });
+  }
+  // A plain lower-case, non-bold data line (hamr's 2026-09-27 styling
+  // ruling: only the header is upper case/bold) — every non-header line on
+  // a step card is built through this ONE helper so none of them can drift
+  // from that rule.
+  function textLineEl(extraClass, text, testId){
+    var div = document.createElement("div");
+    div.className = "step-line" + (extraClass ? " " + extraClass : "");
+    if(testId) div.setAttribute("data-testid", testId);
+    div.textContent = text;
+    return div;
+  }
+  // The card's HEADER line: "N · step-name  [state]  [close class]" — upper
+  // case/bold from CSS (`.step-card .step-head`), the state/close chips
+  // keeping their own `.badge` color. `auditStateClass` is the SAME
+  // function the Audit tab's group headers use to color their own state
+  // word — never a second color scheme for the Run tab's cards.
+  function buildStepCardHeadEl(box, idx){
+    var head = document.createElement("div");
+    head.className = "step-head";
+    var h4 = document.createElement("h4");
+    h4.textContent = (idx + 1) + " · " + box.emits;
+    head.appendChild(h4);
+    var stateBadge = document.createElement("span");
+    stateBadge.className = "badge " + auditStateClass(box.state);
+    stateBadge.setAttribute("data-testid", "step-card-state-" + idx);
+    stateBadge.textContent = stateWord(box.state);
+    head.appendChild(stateBadge);
+    var closeBadge = document.createElement("span");
+    closeBadge.className = "badge cyan";
+    closeBadge.textContent = closeClassLabel(box.closeClass);
+    head.appendChild(closeBadge);
+    return head;
+  }
+  // The actions line: "<time> · <cost> · [N tokens ·] try N <marks>" — every
+  // piece read straight off the SAME server-computed group
+  // (src/panel/data.js's deriveAuditGroups) the Audit tab's own header uses;
+  // never a calls/tools count (no such book exists — omitted, never a fake
+  // 0). Marks are built as real, colored `<span class="mark STATE">`
+  // elements (`auditMarkClass`), the SAME way `buildAuditGroupHeaderEl`
+  // already builds its own try marks.
+  function buildStepActionsLineEl(box, idx){
+    var div = document.createElement("div");
+    div.className = "step-line";
+    div.setAttribute("data-testid", "step-card-actions-" + idx);
+    var bits = [duration(box.timeMs), (box.cost || box.costWhy || "cost unknown")];
+    if(typeof box.tokensTotal === "number") bits.push(box.tokensTotal + " tokens");
+    div.appendChild(document.createTextNode(bits.join(" · ") + " · try " + (box.tryCount || 0) + " "));
+    (box.tryMarks || []).forEach(function(mark){
+      var markSpan = document.createElement("span");
+      markSpan.className = "mark " + auditMarkClass(mark);
+      markSpan.textContent = mark;
+      div.appendChild(markSpan);
+    });
+    return div;
   }
 
   // ---- Audit tab: this run's own audit.jsonl rows only, one per step

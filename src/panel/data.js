@@ -615,6 +615,26 @@ export function listRuns({ root, catalogue }) {
 }
 
 /**
+ * hamr's 2026-09-27 step-card review: the ONE place raw `audit.jsonl` rows
+ * get their server-derived fields (`action`/`tokensDisplay`/`atWhy`/
+ * `blocked`) added — called by BOTH `getRunAudit` (the Audit tab) and
+ * `getRunDetail` (the Run tab's step cards), off the SAME raw rows, so
+ * `deriveAuditGroups` run on this output always produces identical numbers
+ * for both tabs. Never mutates `rawRows`.
+ * @param {any[]} rawRows `readAudit`'s own rows for one run
+ * @returns {any[]}
+ */
+function enrichAuditRows(rawRows) {
+  return rawRows.map((row) => ({
+    ...row,
+    action: deriveAuditAction(row),
+    tokensDisplay: deriveAuditTokensDisplay(row),
+    atWhy: deriveAuditAtWhy(row),
+    blocked: isBlockedVerdict(row.verdict),
+  }));
+}
+
+/**
  * "try N" (map node / step-card badge) counts different things for
  * different close classes, and must never just be `attempts.length` (browser
  * re-walk bug #2): an ask (`hitl`-classed) step's audit rows are
@@ -659,6 +679,16 @@ export function getRunDetail({
 
   const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue);
   const { glyph, label } = computeGlyph(ctx);
+
+  // hamr's 2026-09-27 step-card review: the Run tab's step cards reuse the
+  // EXACT SAME per-step group numbers (timeMs/cost/tokensTotal/tryMarks/
+  // state) the Audit tab's own group headers show — computed here off the
+  // SAME enriched rows `getRunAudit` builds (via the shared
+  // `enrichAuditRows`/`deriveAuditGroups` pair), never a second, separately
+  // summed copy. A step with no audit rows at all (never attempted) has no
+  // entry here — its card falls back to "not started", same as before.
+  const auditGroupsByStep = {};
+  for (const g of deriveAuditGroups(enrichAuditRows(ctx.auditRows))) auditGroupsByStep[g.step] = g;
 
   let steps = null;
   let stepsWhy = null;
@@ -712,15 +742,32 @@ export function getRunDetail({
           if (rejectRow) list[i].afterReject = rejectRow.gap;
         }
       }
-      steps = declSteps.map((s) => ({
-        emits: s.emits,
-        goal: s.goal,
-        primitives: s.primitives ?? null,
-        closeClass: s.close?.class ?? null,
-        attempts: byStep[s.emits] ?? [],
-        attemptsWhy: byStep[s.emits] ? null : 'no audit.jsonl rows yet for this step',
-        tryCount: computeTryCount(s.close?.class ?? null, byStep[s.emits] ?? []),
-      }));
+      steps = declSteps.map((s) => {
+        const group = auditGroupsByStep[s.emits] ?? null;
+        return {
+          emits: s.emits,
+          goal: s.goal,
+          primitives: s.primitives ?? null,
+          closeClass: s.close?.class ?? null,
+          attempts: byStep[s.emits] ?? [],
+          attemptsWhy: byStep[s.emits] ? null : 'no audit.jsonl rows yet for this step',
+          tryCount: computeTryCount(s.close?.class ?? null, byStep[s.emits] ?? []),
+          // The step card's own actions line (hamr's 2026-09-27 review):
+          // `group` is `null` only for a step with no audit rows at all
+          // (never attempted) — every field below stays `null`/empty rather
+          // than a guessed 0, matching `deriveAuditGroups`'s own honesty
+          // rules exactly (it's the SAME group object).
+          groupState: group ? group.state : null,
+          timeMs: group ? group.timeMs : null,
+          cost: group ? group.cost : null,
+          costWhy: group ? group.costWhy : null,
+          tokensTotal: group ? group.tokensTotal : null,
+          tryMarks: group ? group.tryMarks : [],
+          // Filled below, ONLY on the one step that actually stopped this
+          // run (never guessed onto every step) — see stoppedStepEmits.
+          stoppedReason: null,
+        };
+      });
     }
   }
 
@@ -775,6 +822,28 @@ export function getRunDetail({
     } else {
       stopReasonWhy = 'run has not stopped on a red/not-done step (still parked, waiting, or clean so far)';
     }
+  }
+
+  // hamr's 2026-09-27 step-card review: which declared step is the one that
+  // actually stopped the run, so exactly ONE card (never every card, never a
+  // passed one) can show `stopReason`'s full text. This is safe to derive
+  // even for the `logJson.red` branch above (not just the `redRow` fallback
+  // branch): every halt path in src/runner.js's own step loop calls
+  // `recordAudit` for its own step in the SAME return that produces the red
+  // text which becomes either `logJson.red` or `redRow.gap` — so whenever
+  // `stopReason` is non-null, the LAST blocked-verdict row in book order
+  // names the real step, never a text-matched guess. Left `null` (no card
+  // gets a reason) for a clean or still-waiting run, matching stopReason's
+  // own `null` in both those cases.
+  let stoppedStepEmits = null;
+  if (stopReason !== null) {
+    for (const r of ctx.auditRows) {
+      if (isBlockedVerdict(r.verdict)) stoppedStepEmits = r.step;
+    }
+  }
+  if (steps && stoppedStepEmits !== null) {
+    const stoppedStep = steps.find((s) => s.emits === stoppedStepEmits);
+    if (stoppedStep) stoppedStep.stoppedReason = stopReason;
   }
 
   // "took Xs" for a finished run (M4a piece 3 fix #5) — straight off the
@@ -855,17 +924,7 @@ export function getRunAudit({ root, flow, runId }) {
   // hamr's 2026-09-27 review items (c)/(d): the Cost cell's token phrase
   // (`tokensDisplay`) and the new Time column's old-row "why" (`atWhy`) are
   // likewise derived here, off this same row, never client-side.
-  const rows = rawRows.map((row) => ({
-    ...row,
-    action: deriveAuditAction(row),
-    tokensDisplay: deriveAuditTokensDisplay(row),
-    atWhy: deriveAuditAtWhy(row),
-    // hamr's 2026-09-27 exit-check review #2: the Blocked filter's own
-    // server-side derivation, carried on every row so both the Grouped and
-    // Flat views (and their shared filter) read the SAME boolean, never a
-    // second guess client-side.
-    blocked: isBlockedVerdict(row.verdict),
-  }));
+  const rows = enrichAuditRows(rawRows);
   return {
     flow,
     runId,
