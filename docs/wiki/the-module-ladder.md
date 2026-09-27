@@ -666,7 +666,10 @@ Google Fonts) and `src/panel/server.js` (`node:http` only, binds `127.0.0.1`). V
 `design/panel-mockup.html`. Rulings: `docs/product/PANEL-BUILD.md` §5–§7 and
 `design/panel-feedback.jsonl`. **Pin: `a30bbef`** (bareloop `feat/panel-p1`, pushed to origin
 2026-09-26 per `loop`, gate 3012/3012; the fit-check below ran against the intervening `43543cc`).
-It is on GitHub now, so we copy from `../bareloop` at the pin. `loop` may ping a newer hash after its
+It is on GitHub now, so we copy from `../bareloop` at the pin. **2026-09-27:** the step map's dashed
+retry loop (fwdloop commit `880784d`) was borrowed from bareloop commit `16825a7`, AFTER the `a30bbef`
+pin above — bareloop has since released `v0.30.0` with a live run view, which is a candidate for M4b,
+not this M4a pin. `loop` may ping a newer hash after its
 own debrief; we pin the last one pinged before M4 starts. What changed since `4879437` (hamr's goal: no
 duplication, no clutter; Run is the summary, Audit is the investigation): Workflows and History are
 one **Runs** tab with a toggle; the Run tab is a map plus one two-line card per ordered **part**
