@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { test, describe, after } from 'node:test';
 import http from 'node:http';
 import {
-  mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, readdirSync, existsSync,
+  mkdtempSync, mkdirSync, writeFileSync, appendFileSync, rmSync, readFileSync, readdirSync, existsSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +21,7 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { createPanelServer, DEFAULT_PORT } from '../src/panel/server.js';
 import {
   computeGlyph, costDisplay, listRuns, getRunDetail, getRunAudit, getRunJob, listStops, getRunAsks,
-  deriveRunModel, deriveAuditAction, summarizeSpendRows,
+  deriveRunModel, deriveAuditAction, summarizeSpendRows, deriveAuditTokensDisplay, deriveAuditAtWhy,
 } from '../src/panel/data.js';
 import { readSpendRows, appendSpendRow } from '../src/provider.js';
 import { writeAskArchive } from '../src/ask.js';
@@ -79,19 +79,19 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
   const runDir = makeRunDir(FLOW_DIR, 'run-done');
   for (const row of [
     {
-      step: 'resume-text', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+      step: 'resume-text', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T13:52:04.000Z', tokens: { inputTokens: 120, outputTokens: 30, cacheReadTokens: 0 },
     },
     {
-      step: 'jd-text', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+      step: 'jd-text', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T13:52:05.000Z', tokens: { inputTokens: 110, outputTokens: 25, cacheReadTokens: 0 },
     },
     {
-      step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 500, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+      step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 500, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T13:52:06.000Z', tokens: { inputTokens: 300, outputTokens: 130, cacheReadTokens: 15 },
     },
     {
-      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0, spendComplete: true, wallMs: 10, model: null, modelMatch: null, strike: false,
+      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0, spendComplete: true, wallMs: 10, model: null, modelMatch: null, strike: false, at: '2026-09-24T13:52:06.500Z', tokens: null,
     },
     {
-      step: 'resume-summary-output', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0, spendComplete: true, wallMs: 10, model: null, modelMatch: null, strike: false,
+      step: 'resume-summary-output', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0, spendComplete: true, wallMs: 10, model: null, modelMatch: null, strike: false, at: '2026-09-24T13:52:07.000Z', tokens: null,
     },
   ]) appendAudit(runDir, row);
   writeJson(runDir, 'log.json', {
@@ -121,7 +121,7 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
 {
   const runDir = makeRunDir(FLOW_DIR, 'run-failed');
   appendAudit(runDir, {
-    step: 'jd-text', attempt: 1, class: 'hitl', verdict: 'not-done', gap: 'the JD could not be read — scrubbed test gap text', usd: 0.05, spendComplete: true, wallMs: 3000, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+    step: 'jd-text', attempt: 1, class: 'hitl', verdict: 'not-done', gap: 'the JD could not be read — scrubbed test gap text', usd: 0.05, spendComplete: true, wallMs: 3000, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T15:24:13.283Z', tokens: { inputTokens: 400, outputTokens: 0, cacheReadTokens: 0 },
   });
   writeJson(runDir, 'log.json', { runId: 'run-failed', outcome: 'not-done', red: 'jd-text: the JD could not be read — scrubbed test gap text', artifacts: {} });
   appendHistory(FLOW_DIR, {
@@ -137,10 +137,10 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
 {
   const runDir = makeRunDir(FLOW_DIR, 'run-done-after-reject');
   appendAudit(runDir, {
-    step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'missing a required section, scrubbed test gap', usd: 0.001, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+    step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'missing a required section, scrubbed test gap', usd: 0.001, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-26T05:56:29.500Z', tokens: { inputTokens: 150, outputTokens: 60, cacheReadTokens: 0 },
   });
   appendAudit(runDir, {
-    step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 400, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+    step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 400, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-26T05:56:30.000Z', tokens: { inputTokens: 300, outputTokens: 130, cacheReadTokens: 15 },
   });
   writeJson(runDir, 'log.json', { runId: 'run-done-after-reject', outcome: 'complete', artifacts: {} });
   appendHistory(FLOW_DIR, {
@@ -153,7 +153,7 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
 {
   const runDir = makeRunDir(FLOW_DIR, 'run-partial');
   appendAudit(runDir, {
-    step: 'resume-text', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: null, spendComplete: false, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+    step: 'resume-text', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: null, spendComplete: false, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T23:59:59.000Z', tokens: { inputTokens: 90, outputTokens: 20, cacheReadTokens: 0 },
   });
   appendHistory(FLOW_DIR, {
     runId: 'run-partial', at: '2026-09-25T00:00:00.000Z', outcome: 'not-done', spentUsd: 0.033, spendComplete: false, capUsd: 0.25, wallMs: 900, signatureHash: null,
@@ -192,6 +192,19 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
 //     [?] "running or died: unknown", never [✗], never [✓]. ----------------
 {
   makeRunDir(FLOW_DIR, 'run-died');
+}
+
+// --- run-pre-m4a2-audit: a real pre-Amendment-M4a-2 audit row, written
+//     RAW to audit.jsonl (bypassing appendAudit, which would refuse it) —
+//     old rows like this genuinely exist on disk from before M4a-2 landed,
+//     and the panel's "not recorded (before M4a-2)" display must be proven
+//     against an actual old-shape row, never a fixture built through the
+//     new, stricter writer. -------------------------------------------------
+{
+  const runDir = makeRunDir(FLOW_DIR, 'run-pre-m4a2-audit');
+  appendFileSync(path.join(runDir, 'audit.jsonl'), `${JSON.stringify({
+    step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'green', gap: null, usd: 0.0026, spendComplete: true, wallMs: 8200, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+  })}\n`);
 }
 
 // --- run-legacy: an M2-era ask.json (no askId/expiresAt) — shown as
@@ -417,6 +430,47 @@ describe('deriveAuditAction (hamr review #6: the Audit tab Action column)', () =
   });
 });
 
+describe('deriveAuditTokensDisplay (hamr review 2026-09-27 item c: the Cost cell token phrase)', () => {
+  test('a real (post-M4a-2) model-call row sums input+output+cacheRead into one total', () => {
+    const d = deriveAuditTokensDisplay({
+      model: 'deepseek-flash', at: '2026-09-27T00:00:00.000Z', tokens: { inputTokens: 2000, outputTokens: 400, cacheReadTokens: 48 },
+    });
+    assert.deepEqual(d, { kind: 'total', total: 2448 });
+  });
+
+  test('a pre-M4a-2 row (no "tokens" key at all) is "not-recorded", never a made-up 0', () => {
+    const d = deriveAuditTokensDisplay({ model: 'deepseek-flash', usd: 0.0026, wallMs: 8200 });
+    assert.deepEqual(d, { kind: 'not-recorded' });
+  });
+
+  test('a post-M4a-2 row with no model call (tokens:null, model:null) omits the phrase entirely — "no-model", never "not-recorded"', () => {
+    const d = deriveAuditTokensDisplay({
+      model: null, at: '2026-09-27T00:00:00.000Z', tokens: null,
+    });
+    assert.deepEqual(d, { kind: 'no-model' });
+  });
+
+  test('PROOF (this can fail): reverting to `result.tokens === null ? {kind:"not-recorded"} : ...` (dropping the why check) would mislabel the no-model case above as "not-recorded"', () => {
+    const d = deriveAuditTokensDisplay({ model: null, at: '2026-09-27T00:00:00.000Z', tokens: null });
+    assert.notEqual(d.kind, 'not-recorded');
+  });
+});
+
+describe('deriveAuditAtWhy (hamr review 2026-09-27 item d: the Time column)', () => {
+  test('a post-M4a-2 row carrying a real "at" has no why at all', () => {
+    assert.equal(deriveAuditAtWhy({ at: '2026-09-27T00:00:00.000Z' }), null);
+  });
+
+  test('a pre-M4a-2 row (no "at" key at all) carries the fixed "not recorded" why', () => {
+    assert.match(deriveAuditAtWhy({ model: 'deepseek-flash', usd: 0.0026 }), /not recorded \(before M4a-2\)/);
+  });
+
+  test('PROOF (this can fail): reverting to `row.at ?? null` (no hasOwnProperty check) would return null instead of the why string above', () => {
+    const why = deriveAuditAtWhy({ model: 'deepseek-flash', usd: 0.0026 });
+    assert.notEqual(why, null);
+  });
+});
+
 describe('summarizeSpendRows (hamr review #1: run-level spend.jsonl totals)', () => {
   test('zero rows: empty with a why, never a fabricated zero total', () => {
     const s = summarizeSpendRows([]);
@@ -549,10 +603,10 @@ describe('getRunDetail', () => {
   test('a genuinely stopped run\'s fallback stop reason names the step, from the LAST matching audit row', () => {
     const runDir = makeRunDir(FLOW_DIR, 'run-multi-fail');
     appendAudit(runDir, {
-      step: 'jd-text', attempt: 1, class: 'hitl', verdict: 'not-done', gap: 'an EARLIER, superseded-by-later-failure gap', usd: 0.01, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+      step: 'jd-text', attempt: 1, class: 'hitl', verdict: 'not-done', gap: 'an EARLIER, superseded-by-later-failure gap', usd: 0.01, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T10:00:00.000Z', tokens: { inputTokens: 50, outputTokens: 10, cacheReadTokens: 0 },
     });
     appendAudit(runDir, {
-      step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'the LATEST gap, and the one that should show', usd: 0.01, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+      step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'the LATEST gap, and the one that should show', usd: 0.01, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T10:00:01.000Z', tokens: { inputTokens: 50, outputTokens: 10, cacheReadTokens: 0 },
     });
     // no log.json at all — a died-with-partial-audit shape; no history row either.
     const detail = getRunDetail({
@@ -586,16 +640,16 @@ describe('getRunDetail', () => {
     const runDir = makeRunDir(FLOW_DIR, 'run-ask-pause-reject-shape');
     for (const row of [
       {
-        step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+        step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:00.000Z', tokens: null,
       },
       {
-        step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'red', gap: 'shorter work history blurb', usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+        step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'red', gap: 'shorter work history blurb', usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:01.000Z', tokens: null,
       },
       {
-        step: 'resume-summary-approved', attempt: 2, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+        step: 'resume-summary-approved', attempt: 2, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:02.000Z', tokens: null,
       },
       {
-        step: 'resume-summary-approved', attempt: 2, class: 'hitl', verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+        step: 'resume-summary-approved', attempt: 2, class: 'hitl', verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:03.000Z', tokens: null,
       },
     ]) appendAudit(runDir, row);
     const detail = getRunDetail({
@@ -614,7 +668,7 @@ describe('getRunDetail', () => {
     const runDir = makeRunDir(FLOW_DIR, 'run-model-tries');
     for (let i = 1; i <= 4; i += 1) {
       appendAudit(runDir, {
-        step: 'resume-summary', attempt: i, class: 'softgreen', verdict: i < 4 ? 'not-done' : 'green', gap: i < 4 ? 'missing a section' : null, usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+        step: 'resume-summary', attempt: i, class: 'softgreen', verdict: i < 4 ? 'not-done' : 'green', gap: i < 4 ? 'missing a section' : null, usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: `2026-09-27T01:00:0${i}.000Z`, tokens: { inputTokens: 100, outputTokens: 40, cacheReadTokens: 0 },
       });
     }
     const detail = getRunDetail({
@@ -628,21 +682,21 @@ describe('getRunDetail', () => {
   test('M4a piece 3 fix #6: a NON-ask step\'s genuine attempt-number restart after an interleaved human reject IS labelled', () => {
     const runDir = makeRunDir(FLOW_DIR, 'run-real-reject-restart');
     appendAudit(runDir, {
-      step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'missing a section, scrubbed', usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+      step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'missing a section, scrubbed', usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T02:00:00.000Z', tokens: { inputTokens: 100, outputTokens: 40, cacheReadTokens: 0 },
     });
     appendAudit(runDir, {
-      step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+      step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T02:00:01.000Z', tokens: { inputTokens: 200, outputTokens: 80, cacheReadTokens: 0 },
     });
     // the ask step parks, then the human rejects — interleaved between the
     // two "attempt 2" rows on resume-summary.
     appendAudit(runDir, {
-      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T02:00:02.000Z', tokens: null,
     });
     appendAudit(runDir, {
-      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'red', gap: 'shorter work history blurb', usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'red', gap: 'shorter work history blurb', usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T02:00:03.000Z', tokens: null,
     });
     appendAudit(runDir, {
-      step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+      step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T02:00:04.000Z', tokens: { inputTokens: 200, outputTokens: 80, cacheReadTokens: 0 },
     });
     const detail = getRunDetail({
       root: ROOT, flow: FLOW, runId: 'run-real-reject-restart', catalogue: CATALOGUE,
@@ -742,6 +796,36 @@ describe('getRunAudit', () => {
       assert.equal(Object.prototype.hasOwnProperty.call(r, 'toolCalls'), false);
       assert.equal(Object.prototype.hasOwnProperty.call(r, 'toolCallCount'), false);
     }
+  });
+
+  test('hamr review 2026-09-27 item c/d: a real post-M4a-2 model row carries a summed token total and no "at" why', () => {
+    const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-done' });
+    const summaryRow = result.rows.find((r) => r.step === 'resume-summary');
+    assert.deepEqual(summaryRow.tokensDisplay, { kind: 'total', total: 445 }); // 300 + 130 + 15
+    assert.equal(summaryRow.atWhy, null);
+    assert.equal(summaryRow.at, '2026-09-24T13:52:06.000Z');
+  });
+
+  test('hamr review 2026-09-27 item c/d: a no-model (hitl) row omits the tokens phrase entirely and still carries its own "at"', () => {
+    const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-done' });
+    const approvedRow = result.rows.find((r) => r.step === 'resume-summary-approved');
+    assert.deepEqual(approvedRow.tokensDisplay, { kind: 'no-model' });
+    assert.equal(approvedRow.atWhy, null);
+  });
+
+  test('hamr review 2026-09-27 item c/d: a real pre-M4a-2 row on disk (written raw, bypassing appendAudit) reads "not-recorded" tokens and an "at" why, never a crash', () => {
+    const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-pre-m4a2-audit' });
+    assert.equal(result.rows.length, 1);
+    const row = result.rows[0];
+    assert.deepEqual(row.tokensDisplay, { kind: 'not-recorded' });
+    assert.match(row.atWhy, /not recorded \(before M4a-2\)/);
+    assert.equal(row.at, undefined);
+    assert.equal(row.action, 'model call (deepseek-flash)');
+  });
+
+  test('PROOF (item d can fail): reverting deriveAuditAtWhy to always return null would make the pre-M4a-2 row above report no why at all', () => {
+    const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-pre-m4a2-audit' });
+    assert.notEqual(result.rows[0].atWhy, null);
   });
 });
 

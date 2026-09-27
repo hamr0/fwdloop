@@ -25,7 +25,9 @@ import { join } from 'node:path';
 import {
   readFlow, listFlowNames, listRunIds, resolveRunDir, checkFlowName,
 } from '../flow.js';
-import { readAudit, readHistory } from '../books.js';
+import {
+  readAudit, readHistory, auditRowTokens, auditRowAt,
+} from '../books.js';
 import { readAsk, readRunState, readLog } from '../runner.js';
 import { readSpendRows } from '../provider.js';
 import { readAskEvidence, listArchivedAsks } from '../ask.js';
@@ -215,6 +217,51 @@ export function deriveAuditAction(row) {
   if (row?.class === 'hitl') return 'human';
   if (typeof row?.verdict === 'string' && row.verdict.length > 0) return row.verdict;
   return 'no action recorded';
+}
+
+/**
+ * The Audit tab's Cost cell token phrase (hamr's 2026-09-27 review item c):
+ * a per-ROW token total, read through `auditRowTokens` (`src/books.js`) so
+ * this module never re-derives "was this row written before M4a-2" itself.
+ * Three honest outcomes, never folded into one another:
+ *  - `{kind:'total', total}` — a real (post-M4a-2) model-call row: `total`
+ *    sums ALL three fields the row's own `tokens` object carries
+ *    (`inputTokens + outputTokens + cacheReadTokens`) — every token this
+ *    row's call actually touched, cache-read included (labelled plainly as
+ *    "N tokens", never split out here; a cache-read token is still a token
+ *    the call processed, so folding it into the total is the honest sum,
+ *    not a hidden discount).
+ *  - `{kind:'not-recorded'}` — a row written before Amendment M4a-2 (no
+ *    `tokens` key at all) — shown as "tokens not recorded", never a 0 or a
+ *    blank.
+ *  - `{kind:'no-model'}` — a post-M4a-2 row that genuinely carries no model
+ *    call (`tokens:null`, `model:null` — an ask/hitl row) — the tokens
+ *    phrase is omitted entirely rather than shown as "0 tokens" or "not
+ *    recorded" (there was never anything to record).
+ * @param {any} row one `audit.jsonl` row
+ * @returns {{kind:'total', total:number}|{kind:'not-recorded'}|{kind:'no-model'}}
+ */
+export function deriveAuditTokensDisplay(row) {
+  const result = auditRowTokens(row);
+  if (result.tokens === null) {
+    return result.why ? { kind: 'not-recorded' } : { kind: 'no-model' };
+  }
+  const { inputTokens, outputTokens, cacheReadTokens } = result.tokens;
+  return { kind: 'total', total: inputTokens + outputTokens + cacheReadTokens };
+}
+
+/**
+ * The Audit tab's new Time column (hamr's 2026-09-27 review item d): this
+ * row's own `why` when `at` predates Amendment M4a-2, else `null` (the row
+ * DOES carry a real `at` — the client formats it with `readableDateTime`,
+ * the same local-time formatter every other timestamp on this page already
+ * uses; formatting to the viewer's own locale belongs in the browser, not
+ * here). Read through `auditRowAt` (`src/books.js`) — never re-derived.
+ * @param {any} row one `audit.jsonl` row
+ * @returns {string|null}
+ */
+export function deriveAuditAtWhy(row) {
+  return auditRowAt(row).why ?? null;
 }
 
 /**
@@ -600,7 +647,15 @@ export function getRunAudit({ root, flow, runId }) {
   // hamr's review #6: the Audit tab's "Action" column is derived server-side
   // (never guessed client-side from partial data) — `action` is added to
   // each row here, off that SAME row's own fields, book order preserved.
-  const rows = rawRows.map((row) => ({ ...row, action: deriveAuditAction(row) }));
+  // hamr's 2026-09-27 review items (c)/(d): the Cost cell's token phrase
+  // (`tokensDisplay`) and the new Time column's old-row "why" (`atWhy`) are
+  // likewise derived here, off this same row, never client-side.
+  const rows = rawRows.map((row) => ({
+    ...row,
+    action: deriveAuditAction(row),
+    tokensDisplay: deriveAuditTokensDisplay(row),
+    atWhy: deriveAuditAtWhy(row),
+  }));
   return {
     flow,
     runId,

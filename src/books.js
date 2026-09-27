@@ -156,6 +156,23 @@ export function auditRowTokens(row) {
 }
 
 /**
+ * Amendment M4a-2's own reader helper for `at`, the same honest-read shape
+ * as `auditRowTokens`: a row written before M4a-2 (any row appended before
+ * this amendment, or a raw/legacy line on disk) never had an `at` key at
+ * all, and reads as "not recorded", never as `undefined` silently rendered
+ * blank. A row that does carry the key reads back exactly what was written.
+ *
+ * @param {Record<string, any>} row
+ * @returns {{at: string|null, why?: string}}
+ */
+export function auditRowAt(row) {
+  if (!row || !Object.prototype.hasOwnProperty.call(row, 'at')) {
+    return { at: null, why: 'not recorded (before M4a-2)' };
+  }
+  return { at: row.at };
+}
+
+/**
  * Read back every row `appendAudit` has written for one run, in file order
  * (append order — never re-sorted). `[]` when the file doesn't exist yet
  * (a run that hasn't made an attempt), never a thrown error.
