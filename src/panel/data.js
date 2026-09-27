@@ -95,7 +95,17 @@ function hasConsumedAnswer(runDir) {
  * on disk. Ladder wording (M4a scope item 4):
  *  - `[✓]` passed — a history row with `outcome:'complete'`.
  *  - `[✗]` failed — a history row with any other outcome (never `[?]`).
- *  - `[·]` waiting on you — parked (`ask.json` present), no consumed answer.
+ *  - `[·]` waiting on you — parked (`ask.json` present), no consumed answer,
+ *    NOT past its own `expiresAt`.
+ *  - `[!]` ask expired, not resumed yet — parked, no consumed answer, but
+ *    its own `expiresAt` is already past (hamr's 2026-09-27 browser-walk bug
+ *    #3: the runs list/header glyph disagreed with the Inbox, which already
+ *    reports `expired` correctly off the exact same `askJson.expiresAt` —
+ *    `[!]` is not in the ladder's signed M4a vocabulary; picked here as an
+ *    honest fourth state, distinct from every signed glyph, pending a
+ *    ruling — see the report). Never `[·]` waiting (nobody can still answer
+ *    it in time), never `[✗]` (the run itself never failed a check), never
+ *    `[?]` (the books DO know what happened here).
  *  - `[·]` answered, not resumed yet — parked, a consumed answer exists, but
  *    no history row yet (resume hasn't finished) — always in words, never
  *    the same line as "waiting on you", never `[?]`.
@@ -104,7 +114,7 @@ function hasConsumedAnswer(runDir) {
  *    open POC question), so a crashed resumer and a live one look the same
  *    on disk. Never guessed into `[✗]` or `[✓]`.
  * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean}} ctx
- * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[?]', label: string}}
+ * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[?]', label: string}}
  */
 export function computeGlyph({
   historyRow, askJson, consumedAnswerExists, hasStateJson,
@@ -117,6 +127,10 @@ export function computeGlyph({
   // stays on disk until resume writes its own history row — "no history
   // row" alone never means died.
   if (askJson && !consumedAnswerExists) {
+    const expiresMs = typeof askJson.expiresAt === 'string' ? Date.parse(askJson.expiresAt) : NaN;
+    if (Number.isFinite(expiresMs) && Date.now() > expiresMs) {
+      return { glyph: '[!]', label: 'ask expired, not resumed yet' };
+    }
     return { glyph: '[·]', label: 'waiting on you (parked, unanswered)' };
   }
   if (askJson && consumedAnswerExists) {

@@ -658,6 +658,12 @@
     if(g === "[✗]") return "red";
     if(g === "[▶]") return "amber";
     if(g === "[?]") return "magenta";
+    // hamr's 2026-09-27 browser-walk bug #3: an expired, unresumed ask is
+    // its own state — never grey ("waiting"/"answered", still actionable)
+    // and never red/magenta (the run itself didn't fail, and the books DO
+    // know what happened) — amber, same "needs attention" color family as
+    // "running", but a different glyph.
+    if(g === "[!]") return "amber";
     return "grey"; // "[·]" — waiting on a human, or answered-not-resumed
   }
 

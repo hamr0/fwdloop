@@ -287,6 +287,22 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
   });
 }
 
+// --- run-parked-expired: hamr's 2026-09-27 browser-walk bug #3 — a parked,
+//     unanswered ask whose own expiresAt is already past, never resumed, no
+//     history row. The runs list/header glyph must agree with the Inbox
+//     (which already reports this correctly as "expired") instead of
+//     showing [·] "waiting on you" for something nobody can still answer. -
+{
+  const runDir = makeRunDir(FLOW_DIR, 'run-parked-expired');
+  writeJson(runDir, 'ask.json', {
+    askId: 'ask-expired-1',
+    question: 'This one timed out, scrubbed test question',
+    askedAt: '2020-01-01T00:00:00.000Z',
+    expiresAt: '2020-01-01T01:00:00.000Z', // long past — real, not a future-dated test flake
+    evidence: { text: 'a fake drafted summary, scrubbed' },
+  });
+}
+
 // --- run-archived-2asks: M4a-1 shape — an `asks/` archive with TWO asks,
 //     reject then accept, each paired with its own consumed-answer file by
 //     askId. Proves `getRunAsks`/`listStops` list both, correctly paired and
@@ -436,6 +452,40 @@ describe('computeGlyph', () => {
     assert.match(g.label, /answered, not resumed yet/);
     assert.doesNotMatch(g.label, /waiting on you/);
     assert.notEqual(g.glyph, '[?]');
+  });
+
+  test('hamr 2026-09-27 browser-walk bug #3: a parked, unanswered ask whose own expiresAt is already past is [!] "ask expired, not resumed yet" — never [·] waiting, never [✗], never [?]', () => {
+    const g = computeGlyph({
+      historyRow: null, askJson: { askId: 'a', expiresAt: '2020-01-01T00:00:00.000Z' }, consumedAnswerExists: false, hasStateJson: true,
+    });
+    assert.equal(g.glyph, '[!]');
+    assert.match(g.label, /ask expired, not resumed yet/);
+    assert.notEqual(g.glyph, '[·]');
+    assert.notEqual(g.glyph, '[✗]');
+    assert.notEqual(g.glyph, '[?]');
+  });
+
+  test('a parked, unanswered ask whose expiresAt is still in the future stays [·] "waiting on you" — the expiry check is a real comparison, not a guess', () => {
+    const g = computeGlyph({
+      historyRow: null, askJson: { askId: 'a', expiresAt: '2099-01-01T00:00:00.000Z' }, consumedAnswerExists: false, hasStateJson: true,
+    });
+    assert.equal(g.glyph, '[·]');
+    assert.match(g.label, /waiting on you/);
+  });
+
+  test('an ANSWERED (not-yet-resumed) ask past its own expiresAt still reads "answered, not resumed yet", never [!] — expiry only matters while nobody has answered yet', () => {
+    const g = computeGlyph({
+      historyRow: null, askJson: { askId: 'a', expiresAt: '2020-01-01T00:00:00.000Z' }, consumedAnswerExists: true, hasStateJson: true,
+    });
+    assert.equal(g.glyph, '[·]');
+    assert.match(g.label, /answered, not resumed yet/);
+  });
+
+  test('PROOF (bug #3 can fail): reverting to the pre-fix computeGlyph (no expiresAt check at all) would show the expired-ask case above as [·] waiting on you', () => {
+    const g = computeGlyph({
+      historyRow: null, askJson: { askId: 'a', expiresAt: '2020-01-01T00:00:00.000Z' }, consumedAnswerExists: false, hasStateJson: true,
+    });
+    assert.notEqual(g.glyph, '[·]');
   });
 });
 
@@ -624,6 +674,14 @@ describe('listRuns', () => {
     assert.match(waiting.label, /waiting on you/);
     assert.match(answered.label, /answered, not resumed yet/);
     assert.notEqual(waiting.label, answered.label);
+  });
+
+  test('hamr 2026-09-27 browser-walk bug #3: run-parked-expired is [!] "ask expired, not resumed yet" in the runs list, never [·] waiting', () => {
+    const row = rows.find((r) => r.flow === FLOW && r.runId === 'run-parked-expired');
+    assert.ok(row);
+    assert.equal(row.glyph, '[!]');
+    assert.match(row.label, /ask expired, not resumed yet/);
+    assert.notEqual(row.glyph, '[·]');
   });
 
   test('browser re-walk bug #4: a parked run with an open ask carries the ask\'s own askedAt, never the generic "no history row" why', () => {
@@ -995,6 +1053,13 @@ describe('listStops (M4a-1: every stop across every flow)', () => {
     assert.match(row.evidence.draft, /fake drafted summary/);
     assert.equal(typeof row.timeLeftMs, 'number');
     assert.ok(row.timeLeftMs > 0);
+  });
+
+  test('hamr 2026-09-27 browser-walk bug #3: run-parked-expired\'s stop is "expired" and open:false — the Inbox already agrees with the fixed runs-list glyph, never counted', () => {
+    const row = rows.find((r) => r.flow === FLOW && r.runId === 'run-parked-expired');
+    assert.ok(row);
+    assert.equal(row.status, 'expired');
+    assert.equal(row.open, false);
   });
 
   test('an already-answered legacy ask is listed as PAST (accepted), never open, and its draft is not invented', () => {
@@ -1578,6 +1643,13 @@ describe('index.html — page source', () => {
     assert.doesNotMatch(source, /detail\.at \? readableDateTime\(detail\.at\) : \(detail\.outcomeWhy/);
     assert.match(source, /detail\.askedAt \? "asked " \+ readableDateTime\(detail\.askedAt\)/);
     assert.match(source, /r\.askedAt \? "asked " \+ readableDateTime\(r\.askedAt\)/);
+  });
+
+  test('hamr 2026-09-27 browser-walk bug #3: glyphClass maps the new [!] "ask expired" glyph to a real color, never the grey/red/magenta bucket', () => {
+    var fnStart = source.indexOf('function glyphClass');
+    var fnEnd = source.indexOf('\n  }', fnStart);
+    var body = source.slice(fnStart, fnEnd);
+    assert.match(body, /g === "\[!\]"/);
   });
 
   test('re-walk #3: a grouped audit header\'s cost only says "at least" when some row in the group is spendComplete:false, never the inverse', () => {
