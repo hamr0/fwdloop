@@ -743,7 +743,9 @@ doors, and does not start until M4a's exit is signed.
    `[▶]` running, `[·]` waiting on you (parked, `ask.json` present, no `answer.json` and no consumed
    answer for its askId), `[·]` answered, not resumed yet (parked, `answer.json` present; said in words,
    not the same line as an unanswered ask), `[?]` died (no history row and no `state.json` park; never
-   `[✗]`). **Open for M4a's POC** (debrief 2026-09-26): the books cannot tell "running right now" from
+   `[✗]`), `[!]` ask expired, not resumed yet (parked, ask past its `expiresAt`, unanswered; never
+   counted as waiting on you). Ruling, hamr 2026-09-27: "the '!' is fine for expired asks."
+   **Open for M4a's POC** (debrief 2026-09-26): the books cannot tell "running right now" from
    "died" today. `resume.lock` is an empty file with no pid and nothing checks liveness, so a crashed
    resumer and a live one look the same. Either the runner writes a pid (and the panel checks it), or
    the panel shows "running or died: unknown" and never guesses. A park never writes a history row, and `answerAsk` leaves
