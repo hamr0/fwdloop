@@ -788,6 +788,32 @@ function isOpenStatus(status) {
 }
 
 /**
+ * `open` + `timeLeftMs` for one ask row — the ONE place both are computed,
+ * shared by `listStops` (the Inbox) and `getRunAsks` (the Ask tab), so a
+ * given ask can never read "open, no time-left" in one surface and
+ * something else in the other (hamr's 2026-09-27 browser-walk bug #4: the
+ * Ask tab's own asks never carried these fields at all — only `listStops`
+ * computed them — so an open ask's Ask-tab header/body fell back to the raw
+ * `status` word "unanswered" and no time-left, while the Inbox row for the
+ * SAME ask correctly showed a dot and "time left: …").
+ *  - `open`: this ask's own status reads as open (`isOpenStatus`) AND the
+ *    run hasn't already ended (`!hasHistoryRow` — the same rule
+ *    `legacyRunAsks` itself already applies when building the row, repeated
+ *    here as the same belt-and-braces `listStops` already had).
+ *  - `timeLeftMs`: only meaningful while `open` — the real ms remaining
+ *    until `expiresAt`, floored at 0, `null` when not open or `expiresAt`
+ *    can't be parsed (never a guessed number).
+ * @param {any} ask one row from `runAsksInOrder`
+ * @param {boolean} hasHistoryRow
+ * @returns {{open: boolean, timeLeftMs: number|null}}
+ */
+function deriveAskOpenFields(ask, hasHistoryRow) {
+  const open = isOpenStatus(ask.status) && !hasHistoryRow;
+  const expiresMs = open && typeof ask.expiresAt === 'string' ? Date.parse(ask.expiresAt) : NaN;
+  return { open, timeLeftMs: open && Number.isFinite(expiresMs) ? Math.max(0, expiresMs - Date.now()) : null };
+}
+
+/**
  * `readAskEvidence`'s own return shape (`src/ask.js`) carries the draft as
  * `{ text: string } | null` (never a bare string) so a caller can tell "no
  * draft" apart from "a draft with an empty string" — this panel's UI wants
@@ -988,7 +1014,14 @@ export function getRunAsks({ root, flow, runId }) {
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
   const hasHistoryRow = readHistory(run.flowDir).some((r) => r && r.runId === runId);
-  return { flow, runId, asks: runAsksInOrder(run.runDir, hasHistoryRow) };
+  // hamr's 2026-09-27 browser-walk bug #4: the Ask tab's own asks must carry
+  // the SAME `open`/`timeLeftMs` fields listStops already computes for the
+  // Inbox — otherwise an open ask's Ask-tab header/body falls back to the
+  // raw status word "unanswered" and no time-left, disagreeing with the
+  // Inbox row for that exact same ask.
+  const asks = runAsksInOrder(run.runDir, hasHistoryRow)
+    .map((ask) => ({ ...ask, ...deriveAskOpenFields(ask, hasHistoryRow) }));
+  return { flow, runId, asks };
 }
 
 /**
@@ -1019,14 +1052,11 @@ export function listStops({ root }) {
       if (!run.ok) continue;
       const hasHistoryRow = historyRunIds.has(runId);
       for (const ask of runAsksInOrder(run.runDir, hasHistoryRow)) {
-        const open = isOpenStatus(ask.status) && !hasHistoryRow;
-        const expiresMs = open && typeof ask.expiresAt === 'string' ? Date.parse(ask.expiresAt) : NaN;
         rows.push({
           flow: flowName,
           runId,
           ...ask,
-          open,
-          timeLeftMs: open && Number.isFinite(expiresMs) ? Math.max(0, expiresMs - Date.now()) : null,
+          ...deriveAskOpenFields(ask, hasHistoryRow),
         });
       }
     }

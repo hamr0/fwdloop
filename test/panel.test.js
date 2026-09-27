@@ -1224,6 +1224,28 @@ describe('getRunAsks (M4a-1: the Ask tab)', () => {
     assert.equal(ask.expiresAt, '2099-01-01T00:00:00.000Z');
   });
 
+  test('hamr 2026-09-27 browser-walk bug #4: an open ask from getRunAsks ALSO carries open:true and a real timeLeftMs, same as the Inbox\'s own listStops row for it', () => {
+    const result = getRunAsks({ root: ROOT, flow: FLOW, runId: 'run-waiting' });
+    const ask = result.asks.find((a) => a.status === 'unanswered');
+    assert.ok(ask);
+    assert.equal(ask.open, true);
+    assert.equal(typeof ask.timeLeftMs, 'number');
+    assert.ok(ask.timeLeftMs > 0);
+  });
+
+  test('a PAST ask from getRunAsks carries open:false and timeLeftMs:null — never a stale time-left', () => {
+    const result = getRunAsks({ root: ROOT, flow: FLOW, runId: 'run-answered' });
+    const ask = result.asks[0];
+    assert.equal(ask.open, false);
+    assert.equal(ask.timeLeftMs, null);
+  });
+
+  test('PROOF (bug #4 can fail): reverting getRunAsks to return runAsksInOrder\'s raw rows (no open/timeLeftMs) would make the open-ask assertion above fail', () => {
+    const result = getRunAsks({ root: ROOT, flow: FLOW, runId: 'run-waiting' });
+    const ask = result.asks.find((a) => a.status === 'unanswered');
+    assert.notEqual(typeof ask.timeLeftMs, 'undefined');
+  });
+
   test('an unknown run returns null (caller renders 404)', () => {
     assert.equal(getRunAsks({ root: ROOT, flow: FLOW, runId: 'no-such-run' }), null);
   });
