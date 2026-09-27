@@ -347,11 +347,17 @@ export function deriveStepTryMarks(closeClass, rows) {
       return rows.map((r) => markForVerdict(r.verdict, closeClass));
     }
     return pausedIdxs.map((idx, i) => {
+      // The resolving row is the LAST row before the next `paused` boundary
+      // (or the end of the run), never the first non-paused row after this
+      // one: a blank-reason `refused` re-ask (`src/runner.js`'s redo loop
+      // never writes a new `paused` row for it — it just re-asks in place)
+      // can sit BETWEEN a `paused` row and its real resolution, and taking
+      // the first non-paused row would wrongly read that in-progress re-ask
+      // as the try's own outcome.
       const nextPausedIdx = pausedIdxs[i + 1] ?? rows.length;
-      for (let j = idx + 1; j < nextPausedIdx; j += 1) {
-        if (rows[j].verdict !== 'paused') return markForVerdict(rows[j].verdict, closeClass);
-      }
-      return '·'; // still paused, no resolution row yet in this run's book
+      const lastIdx = nextPausedIdx - 1;
+      if (lastIdx === idx) return '·'; // still paused, no resolution row yet in this run's book
+      return markForVerdict(rows[lastIdx].verdict, closeClass);
     });
   }
   return rows.map((r) => markForVerdict(r.verdict, closeClass));

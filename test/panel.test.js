@@ -22,6 +22,7 @@ import { createPanelServer, DEFAULT_PORT } from '../src/panel/server.js';
 import {
   computeGlyph, costDisplay, listRuns, getRunDetail, getRunAudit, getRunJob, listStops, getRunAsks,
   deriveRunModel, deriveAuditAction, summarizeSpendRows, deriveAuditTokensDisplay, deriveAuditAtWhy,
+  isBlockedVerdict, deriveStepTryMarks, deriveStepGroupState, deriveAuditGroups, deriveAskStepInfo,
 } from '../src/panel/data.js';
 import { readSpendRows, appendSpendRow } from '../src/provider.js';
 import { writeAskArchive } from '../src/ask.js';
@@ -397,6 +398,56 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
   });
   appendHistory(FLOW_DIR, {
     runId: 'run-archived-open-but-ended', at: '2026-09-26T00:05:00.000Z', outcome: 'complete', spentUsd: 0.001, spendComplete: true, capUsd: 0.25, wallMs: 300, signatureHash: 'deadbeef',
+  });
+}
+
+// --- run-ask-steps: hamr's 2026-09-27 exit-check review #3 — TWO archived
+//     asks whose own "paused" audit row names a REAL declared step
+//     (job2-fixture's own `resume-text` at fromLine 1, `resume-summary-
+//     approved` at fromLine 4), in the SAME chronological order as the asks
+//     themselves. Proves `getRunAsks`'s index/total ("N of M") and
+//     stepName/stepLine (`deriveAskStepInfo`'s positional pairing).
+{
+  const runDir = makeRunDir(FLOW_DIR, 'run-ask-steps');
+  appendAudit(runDir, {
+    step: 'resume-text', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T10:00:00.000Z', tokens: null, unjudgedCount: 0,
+  });
+  writeAskArchive({
+    runDir,
+    askId: 'ask-steps-1',
+    question: 'Is the resume text right? (scrubbed)',
+    askedAt: '2026-09-27T10:00:00.000Z',
+    expiresAt: '2026-09-27T11:00:00.000Z',
+    evidence: { artifact: { text: 'resume text draft, scrubbed' }, unjudged: [] },
+  });
+  writeJson(runDir, 'answer.ask-steps-1.consumed.json', {
+    askId: 'ask-steps-1', decision: 'accept', answeredAt: '2026-09-27T10:05:00.000Z',
+  });
+  appendAudit(runDir, {
+    step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T10:10:00.000Z', tokens: null, unjudgedCount: 0,
+  });
+  writeAskArchive({
+    runDir,
+    askId: 'ask-steps-2',
+    question: 'Is the summary right? (scrubbed)',
+    askedAt: '2026-09-27T10:10:00.000Z',
+    expiresAt: '2099-01-01T00:00:00.000Z',
+    evidence: { artifact: { text: 'summary draft, scrubbed' }, unjudged: [] },
+  });
+}
+
+// --- run-ask-steps-mismatch: an archive with ONE ask but ZERO "paused"
+//     audit rows — the positional-pairing counts disagree, so step/line
+//     must come back null with a stated why, never a guess. -------------
+{
+  const runDir = makeRunDir(FLOW_DIR, 'run-ask-steps-mismatch');
+  writeAskArchive({
+    runDir,
+    askId: 'ask-mismatch-1',
+    question: 'no matching paused row exists for this one (scrubbed)',
+    askedAt: '2026-09-27T11:00:00.000Z',
+    expiresAt: '2099-01-01T00:00:00.000Z',
+    evidence: { artifact: { text: 'draft, scrubbed' }, unjudged: [] },
   });
 }
 
@@ -994,6 +1045,146 @@ describe('getRunAudit', () => {
     const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-pre-m4a2-audit' });
     assert.notEqual(result.rows[0].atWhy, null);
   });
+
+  // hamr's 2026-09-27 exit-check review #2: every row also carries a
+  // server-derived `blocked` boolean, off the SAME verdict the Action
+  // column already reads — never a second guess.
+  test('review #2: every row carries blocked, off isBlockedVerdict(row.verdict)', () => {
+    const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-done' });
+    for (const r of result.rows) assert.equal(r.blocked, isBlockedVerdict(r.verdict));
+    // run-done is entirely green/hitl passes — nothing in it is blocked.
+    assert.ok(result.rows.every((r) => r.blocked === false));
+  });
+
+  test('review #2: a not-done row is blocked, the run\'s only red', () => {
+    const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-failed' });
+    assert.equal(result.rows[0].verdict, 'not-done');
+    assert.equal(result.rows[0].blocked, true);
+  });
+
+  test('PROOF (review #2 can fail): reverting getRunAudit to omit the blocked field would make the assertion above undefined, never true', () => {
+    const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-failed' });
+    assert.notEqual(typeof result.rows[0].blocked, 'undefined');
+  });
+
+  // hamr's 2026-09-27 exit-check review #1: the Audit tab's grouped-by-step
+  // header pieces, computed off these SAME enriched rows.
+  test('review #1: one group per step, first-seen order, each with state/timeMs/cost/tryMarks — never calls/tools (no such book)', () => {
+    const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-done' });
+    assert.equal(result.groups.length, 5);
+    assert.deepEqual(result.groups.map((g) => g.step), ['resume-text', 'jd-text', 'resume-summary', 'resume-summary-approved', 'resume-summary-output']);
+    for (const g of result.groups) {
+      assert.equal(Object.prototype.hasOwnProperty.call(g, 'calls'), false);
+      assert.equal(Object.prototype.hasOwnProperty.call(g, 'tools'), false);
+      assert.equal(g.state, 'done'); // every step in run-done passed on its only attempt
+      assert.equal(g.tryCount, 1);
+      assert.deepEqual(g.tryMarks, ['✓']);
+    }
+    const summaryGroup = result.groups.find((g) => g.step === 'resume-summary');
+    assert.equal(summaryGroup.timeMs, 500); // this step's own single row's wallMs
+    assert.equal(summaryGroup.cost, '$0.0020');
+    assert.equal(summaryGroup.tokensTotal, 445); // 300 + 130 + 15, this step's only row
+    // resume-summary-approved/-output are no-model (hitl, tokens:null) rows
+    // — the token phrase is omitted entirely, never "0 tokens".
+    const approvedGroup = result.groups.find((g) => g.step === 'resume-summary-approved');
+    assert.equal(approvedGroup.tokensTotal, null);
+  });
+
+  test('review #1: a step with 2 attempts (a not-done then a passing redo) has 2 tries, marks ["✗","✓"], state "done", timeMs/cost SUMMED across both rows', () => {
+    const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-done-after-reject' });
+    const g = result.groups.find((grp) => grp.step === 'resume-summary');
+    assert.equal(g.tryCount, 2);
+    assert.deepEqual(g.tryMarks, ['✗', '✓']);
+    assert.equal(g.state, 'done');
+    assert.equal(g.timeMs, 200 + 400);
+    assert.equal(g.cost, '$0.0030'); // 0.001 + 0.002, both spendComplete
+    assert.equal(g.tokensTotal, 655); // (150+60+0) + (300+130+15)
+  });
+
+  test('review #1: a floor row (spendComplete:false) in a group makes the WHOLE group cost "at least $X", never a bare total', () => {
+    const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-partial' });
+    const g = result.groups[0];
+    // run-partial's own row has usd:null, so nothing priced at all — cost
+    // stays null with a why, never a made-up "at least $0".
+    assert.equal(g.cost, null);
+    assert.match(g.costWhy, /no row in this step has a known cost/);
+  });
+
+  test('a group with a pre-M4a-2 row (tokens missing, not null) withholds the WHOLE group\'s token total, never a partial sum shown as complete', () => {
+    const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-pre-m4a2-audit' });
+    assert.equal(result.groups[0].tokensTotal, null);
+  });
+
+  test('PROOF (review #1 can fail): deriveAuditGroups sums wallMs/usd across EVERY row in the step, not just the last one', () => {
+    const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-done-after-reject' });
+    const g = result.groups[0];
+    assert.notEqual(g.timeMs, 400); // the last row's own wallMs alone — the bug this proves against
+    assert.equal(g.timeMs, 600);
+  });
+});
+
+describe('isBlockedVerdict (hamr\'s 2026-09-27 exit-check review #2)', () => {
+  test('blocked: not-done, red, refused, ask-timeout, ask-expired, cap-halt, provider-red, pricing-red, close-casualty', () => {
+    for (const v of ['not-done', 'red', 'refused', 'ask-timeout', 'ask-expired', 'cap-halt', 'provider-red', 'pricing-red', 'close-casualty']) {
+      assert.equal(isBlockedVerdict(v), true, `expected "${v}" to be blocked`);
+    }
+  });
+
+  test('NOT blocked: green, hitl (passed), paused (still open), stale-answer-ignored (a book hygiene note)', () => {
+    for (const v of ['green', 'hitl', 'paused', 'stale-answer-ignored']) {
+      assert.equal(isBlockedVerdict(v), false, `expected "${v}" to NOT be blocked`);
+    }
+  });
+
+  test('a non-string/unknown verdict is never blocked (never a throw)', () => {
+    assert.equal(isBlockedVerdict(null), false);
+    assert.equal(isBlockedVerdict(undefined), false);
+    assert.equal(isBlockedVerdict('some-future-verdict-this-suite-does-not-know-about'), false);
+  });
+});
+
+describe('deriveStepTryMarks / deriveStepGroupState (hamr\'s 2026-09-27 exit-check review #1)', () => {
+  test('a non-hitl step: one mark per row, straight off each row\'s own verdict', () => {
+    const rows = [{ verdict: 'not-done' }, { verdict: 'green' }];
+    assert.deepEqual(deriveStepTryMarks('softgreen', rows), ['✗', '✓']);
+    assert.equal(deriveStepGroupState(rows), 'done'); // last row passed
+  });
+
+  test('a hitl ask step: one paused+accept pair is ONE try, marked ✓', () => {
+    const rows = [{ verdict: 'paused' }, { verdict: 'green' }];
+    assert.deepEqual(deriveStepTryMarks('hitl', rows), ['✓']);
+    assert.equal(deriveStepGroupState(rows), 'done');
+  });
+
+  test('a hitl ask step: paused, reject, paused, accept is TWO tries (✗, ✓), never four', () => {
+    const rows = [{ verdict: 'paused' }, { verdict: 'red' }, { verdict: 'paused' }, { verdict: 'green' }];
+    assert.deepEqual(deriveStepTryMarks('hitl', rows), ['✗', '✓']);
+    assert.equal(deriveStepGroupState(rows), 'done');
+  });
+
+  test('a hitl ask step still open (paused, no resolution yet) marks its try "·", state "waiting"', () => {
+    const rows = [{ verdict: 'paused' }];
+    assert.deepEqual(deriveStepTryMarks('hitl', rows), ['·']);
+    assert.equal(deriveStepGroupState(rows), 'waiting');
+  });
+
+  test('a blank-reason "refused" re-ask between a paused row and its real resolution belongs to the SAME try, not its own', () => {
+    const rows = [{ verdict: 'paused' }, { verdict: 'refused' }, { verdict: 'refused' }, { verdict: 'green' }];
+    assert.deepEqual(deriveStepTryMarks('hitl', rows), ['✓']);
+  });
+
+  test('a step with no rows at all has zero try marks', () => {
+    assert.deepEqual(deriveStepTryMarks('hitl', []), []);
+    assert.deepEqual(deriveStepTryMarks('softgreen', []), []);
+  });
+
+  test('PROOF (can fail): pairing by the FIRST non-paused row instead of the LAST would misread a mid-try "refused" as the resolution', () => {
+    // the exact shape the fix above guards: if this returned '·' (refused's
+    // own mark) instead of '✓' (the real, later resolution), the try would
+    // wrongly show as still-open on a step that actually passed.
+    const rows = [{ verdict: 'paused' }, { verdict: 'refused' }, { verdict: 'green' }];
+    assert.deepEqual(deriveStepTryMarks('hitl', rows), ['✓']);
+  });
 });
 
 describe('getRunJob', () => {
@@ -1244,6 +1435,58 @@ describe('getRunAsks (M4a-1: the Ask tab)', () => {
     const result = getRunAsks({ root: ROOT, flow: FLOW, runId: 'run-waiting' });
     const ask = result.asks.find((a) => a.status === 'unanswered');
     assert.notEqual(typeof ask.timeLeftMs, 'undefined');
+  });
+
+  // hamr's 2026-09-27 exit-check review #3: "Ask i of n" + which declared
+  // step (and its signed prose line) each ask belongs to.
+  test('review #3: each ask carries its own 1-based index/total ("N of M")', () => {
+    const result = getRunAsks({ root: ROOT, flow: FLOW, runId: 'run-ask-steps' });
+    assert.equal(result.asks.length, 2);
+    assert.deepEqual(result.asks.map((a) => [a.index, a.total]), [[1, 2], [2, 2]]);
+  });
+
+  test('review #3: stepName/stepLine are read off the matching declared step, by the SAME positional pairing as afterReject — never invented', () => {
+    const result = getRunAsks({
+      root: ROOT, flow: FLOW, runId: 'run-ask-steps', catalogue: CATALOGUE,
+    });
+    const [first, second] = result.asks;
+    assert.equal(first.stepName, 'resume-text');
+    assert.equal(first.stepLine, 1);
+    assert.equal(first.stepWhy, null);
+    assert.equal(second.stepName, 'resume-summary-approved');
+    assert.equal(second.stepLine, 4);
+    assert.equal(second.stepWhy, null);
+  });
+
+  test('review #3: with no catalogue (the flow can\'t be read), stepName still comes back honestly off the paused row, stepLine null with a why — never a crash', () => {
+    const result = getRunAsks({ root: ROOT, flow: FLOW, runId: 'run-ask-steps' });
+    assert.equal(result.asks[0].stepName, 'resume-text');
+    assert.equal(result.asks[0].stepLine, null);
+    assert.match(result.asks[0].stepWhy, /no declared step/);
+  });
+
+  test('review #3: ask/paused-row count mismatch refuses to guess a step — null + a stated why, for every ask', () => {
+    const result = getRunAsks({
+      root: ROOT, flow: FLOW, runId: 'run-ask-steps-mismatch', catalogue: CATALOGUE,
+    });
+    assert.equal(result.asks.length, 1);
+    assert.equal(result.asks[0].stepName, null);
+    assert.equal(result.asks[0].stepLine, null);
+    assert.match(result.asks[0].stepWhy, /does not match/);
+  });
+
+  test('PROOF (review #3 can fail): deriveAskStepInfo pairs by POSITION, not by re-reading the CURRENT ask.json — reverting to "always use the first paused row" would misname the second ask', () => {
+    const auditRows = [
+      { step: 'resume-text', verdict: 'paused' },
+      { step: 'resume-summary-approved', verdict: 'paused' },
+    ];
+    const asks = [{ askedAt: '2026-09-27T10:00:00.000Z' }, { askedAt: '2026-09-27T10:10:00.000Z' }];
+    const info = deriveAskStepInfo(asks, auditRows, [
+      { emits: 'resume-text', fromLine: 1 }, { emits: 'resume-summary-approved', fromLine: 4 },
+    ]);
+    assert.equal(info[0].step, 'resume-text');
+    assert.equal(info[1].step, 'resume-summary-approved');
+    assert.notEqual(info[0].step, info[1].step, 'a broken "always first row" pairing would make both asks report the SAME step');
   });
 
   test('an unknown run returns null (caller renders 404)', () => {
@@ -1503,7 +1746,10 @@ describe('index.html — page source', () => {
     // string built into innerHTML — the stop row's question, the Ask tab's
     // question label, the draft box, and each unjudged artifact box.
     assert.match(source, /textDiv\("step-meta", "question: " \+ row\.question\)/);
-    assert.match(source, /textDiv\("wf-name", qText\)/);
+    // hamr's 2026-09-27 exit-check review #3: the Ask tab's question is now
+    // its own bold heading element (`qHeading`), still set via
+    // `.textContent` only, never interpolated into innerHTML.
+    assert.match(source, /qHeading\.textContent = qText/);
     assert.match(source, /draftEl\.textContent = evidence\.draft/);
     assert.match(source, /art\.textContent = /);
   });
@@ -1613,13 +1859,19 @@ describe('index.html — page source', () => {
     assert.match(rowFnBody, /escapeXml\(auditTimeCellText\(r\)\)/, 'buildAuditRowEl must call auditTimeCellText(r) for its Time cell');
   });
 
-  test('hamr 2026-09-27 item (b): an Audit step group\'s header is a role="button" div, default expanded, foldable on click', () => {
+  test('hamr 2026-09-27 exit-check review #1: an Audit step group\'s header is a role="button" div, COLLAPSED by default, foldable on click', () => {
     assert.match(source, /function renderAuditGroups/);
     var start = source.indexOf('function renderAuditGroups');
     var end = source.indexOf('\n  }', source.indexOf('function toggleAuditGroup', start));
     var body = source.slice(start, end);
     assert.match(body, /header\.setAttribute\("role", "button"\)/);
-    assert.match(body, /header\.setAttribute\("aria-expanded", "true"\)/);
+    // review #1: "Groups COLLAPSED by default" — the OLD default-expanded
+    // behavior ("true" + a visible table) is replaced with "false" + a
+    // hidden table; a map/step-card click (openAuditGroup) is the only
+    // thing that force-expands one.
+    assert.match(body, /header\.setAttribute\("aria-expanded", "false"\)/);
+    assert.match(body, /table\.hidden = true/);
+    assert.doesNotMatch(body, /header\.setAttribute\("aria-expanded", "true"\)/);
     assert.match(body, /function toggleAuditGroup/);
     assert.match(body, /header\.addEventListener\("click", toggleAuditGroup\)/);
   });
@@ -1674,14 +1926,15 @@ describe('index.html — page source', () => {
     assert.match(body, /g === "\[!\]"/);
   });
 
-  test('re-walk #3: a grouped audit header\'s cost only says "at least" when some row in the group is spendComplete:false, never the inverse', () => {
-    // the exact bug: `money(sum, partial)` where `partial` is "some row
-    // incomplete" (true => at-least) but money's own 2nd arg means "this
-    // row's own spendComplete" (false => at-least) — an all-complete group
-    // (partial === false) then satisfied money's `=== false` check and
-    // printed "at least" on every group, regardless of the real rows.
-    assert.match(source, /money\(sum, !partial\)/);
-    assert.doesNotMatch(source, /money\(sum, partial\)/);
+  test('re-walk #3 / hamr 2026-09-27 exit-check review #1: a grouped audit header\'s cost floor is derived server-side (data.js\'s deriveAuditGroups), never re-summed client-side', () => {
+    // the ORIGINAL bug lived in client-side `money(sum, partial)` vs
+    // `money(sum, !partial)` — the whole derivation (sum, partial,
+    // costDisplay's own spendComplete check) now lives server-side in
+    // src/panel/data.js's deriveAuditGroups, proven directly by
+    // test/panel.test.js's own deriveAuditGroups unit tests; the page only
+    // ever renders `g.cost`, never recomputes a sum or a spendComplete flag.
+    assert.doesNotMatch(source, /money\(sum,/);
+    assert.match(source, /g\.cost \|\| "cost unknown"/);
   });
 
   // ---------------------------------------------------------------------
@@ -1737,5 +1990,124 @@ describe('index.html — page source', () => {
     assert.match(source, /"unanswered"/);
     // the OLD (pre-M4a-1) vocabulary this replaces must not survive as live UI text.
     assert.doesNotMatch(stripComments(source), /"legacy"|"unreadable"/);
+  });
+
+  // hamr's 2026-09-27 exit-check review #1: Audit groups render server-
+  // computed header pieces, never their own re-derivation.
+  test('review #1: the Audit group header is built ONLY from server fields (state/step/timeMs/cost/tokensTotal/tryCount/tryMarks) — no client-side sum/pairing survives', () => {
+    const fnStart = source.indexOf('function auditGroupHeaderText');
+    const fnEnd = source.indexOf('\n  }', fnStart);
+    const body = source.slice(fnStart, fnEnd);
+    assert.match(body, /g\.state/);
+    assert.match(body, /g\.step/);
+    assert.match(body, /duration\(g\.timeMs\)/);
+    assert.match(body, /g\.cost/);
+    assert.match(body, /g\.tryCount/);
+    assert.match(body, /g\.tryMarks\.join/);
+    assert.match(body, /g\.tokensTotal/);
+    // never "calls"/"tools" — no such book (review #1's own instruction).
+    assert.doesNotMatch(body, /calls|tools/);
+  });
+
+  test('review #1: Audit groups are COLLAPSED by default in the page markup too (no aria-expanded="true" default anywhere in the Audit section)', () => {
+    const auditSectionStart = source.indexOf('id="panel-audit"');
+    const auditSectionEnd = source.indexOf('</section>', auditSectionStart);
+    assert.doesNotMatch(source.slice(auditSectionStart, auditSectionEnd), /aria-expanded="true"/);
+  });
+
+  test('PROOF (review #1 markup can fail): the OLD default-expanded HTML shape ("aria-expanded=\\"true\\"" on the audit group header) is gone from renderAuditGroups', () => {
+    const fnStart = source.indexOf('function renderAuditGroups');
+    const fnEnd = source.indexOf('\n  }', source.indexOf('function toggleAuditGroup', fnStart));
+    assert.doesNotMatch(source.slice(fnStart, fnEnd), /"aria-expanded", "true"\)/);
+  });
+
+  // hamr's 2026-09-27 exit-check review #2: the Audit tab's All/Human/
+  // Blocked filter bar.
+  test('review #2: All/Human/Blocked chips exist, Human/Blocked read the server-derived action/blocked fields, never a second guess', () => {
+    assert.match(source, /data-audit-filter="all"/);
+    assert.match(source, /data-audit-filter="human"/);
+    assert.match(source, /data-audit-filter="blocked"/);
+    const fnStart = source.indexOf('function auditRowMatchesFilter');
+    const fnEnd = source.indexOf('\n  }', fnStart);
+    const body = source.slice(fnStart, fnEnd);
+    assert.match(body, /r\.action === "human"/);
+    assert.match(body, /r\.blocked === true/);
+  });
+
+  test('review #2: the filter applies in both Grouped and Flat views, and a group with no matching rows is hidden', () => {
+    const groupsFn = source.slice(source.indexOf('function renderAuditGroups'), source.indexOf('function renderAuditFlat'));
+    assert.match(groupsFn, /\.filter\(auditRowMatchesFilter\)/);
+    assert.match(groupsFn, /if\(rows\.length === 0\) return/);
+    const flatFnStart = source.indexOf('function renderAuditFlat');
+    const flatFnEnd = source.indexOf('\n  }', flatFnStart);
+    assert.match(source.slice(flatFnStart, flatFnEnd), /\.filter\(auditRowMatchesFilter\)/);
+  });
+
+  test('review #2: an empty filtered result says why, never a silent blank screen', () => {
+    assert.match(source, /audit-filter-empty/);
+    assert.match(source, /"no " \+ auditFilterMode \+ " rows in this run's audit trail"/);
+  });
+
+  test('PROOF (review #2 can fail): reverting auditRowMatchesFilter to always return true would make Blocked show every row, including passes', () => {
+    const fnStart = source.indexOf('function auditRowMatchesFilter');
+    const fnEnd = source.indexOf('\n  }', fnStart);
+    const body = source.slice(fnStart, fnEnd);
+    // the real function must branch on mode — a reverted "return true" stub
+    // would have neither of these comparisons at all.
+    assert.match(body, /auditFilterMode === "blocked"/);
+    assert.match(body, /auditFilterMode === "human"/);
+  });
+
+  // hamr's 2026-09-27 exit-check review #3: Ask tab "Ask i of n" + bold
+  // headers + Inbox-opened highlight.
+  test('review #3: the Ask tab header names "Ask i of n", the step (+ line), when it was asked, and its status', () => {
+    const fnStart = source.indexOf('function askHeaderMetaText');
+    const fnEnd = source.indexOf('\n  }', fnStart);
+    const body = source.slice(fnStart, fnEnd);
+    assert.match(body, /"Ask " \+ ask\.index \+ " of " \+ ask\.total/);
+    assert.match(body, /ask\.stepName/);
+    assert.match(body, /" \(line " \+ ask\.stepLine \+ "\)"/);
+    assert.match(body, /ask\.askedAt/);
+  });
+
+  test('review #3: the draft/unjudged-input box headers use the bold .evidence-heading class, never the faint .hint style', () => {
+    assert.match(source, /textDiv\("evidence-heading", "draft under review"\)/);
+    assert.match(source, /textDiv\("evidence-heading", "unjudged/);
+    assert.match(source, /\.evidence-heading\{[^}]*font-weight:700/);
+  });
+
+  test('review #3: an ask opened from the Inbox (focusAskId) gets a visible highlight class', () => {
+    const fnStart = source.indexOf('function renderAsk(result');
+    const fnEnd = source.lastIndexOf('}');
+    const body = source.slice(fnStart, fnEnd);
+    assert.match(body, /focusAskId && ask\.askId === focusAskId/);
+    assert.match(body, /row\.classList\.add\("audit-group-highlight"\)/);
+  });
+
+  test('PROOF (review #3 can fail): the highlight is gated on the REAL focusAskId match — a bare "if(focusAskId)" would highlight every ask whenever ANY one was clicked from the Inbox', () => {
+    const fnStart = source.indexOf('asks.forEach(function(ask){', source.indexOf('function renderAsk(result'));
+    const fnEnd = source.indexOf('list.appendChild(row)', fnStart);
+    const body = source.slice(fnStart, fnEnd);
+    assert.match(body, /ask\.askId === focusAskId/);
+  });
+
+  // hamr's 2026-09-27 exit-check review #4: no horizontal scroll at 390px.
+  test('review #4: a max-width:480px rule stacks both audit tables into label:value mini-cards, keyed off the SAME data-label attribute buildAuditRowEl sets', () => {
+    assert.match(source, /@media \(max-width: 480px\)\{/);
+    const mqStart = source.indexOf('@media (max-width: 480px){');
+    const mqEnd = source.indexOf('\n  }', source.lastIndexOf('}', source.indexOf('\n  }\n</style>')));
+    const mq = source.slice(mqStart, source.indexOf('</style>'));
+    assert.match(mq, /\[data-testid="audit-table"\] td::before, \.audit-group table td::before/);
+    assert.match(mq, /content:attr\(data-label\)/);
+    assert.match(mq, /display:block/);
+    // the row-builder must set the SAME attribute the CSS reads.
+    assert.match(source, /data-label=\\"Time\\"/);
+    assert.match(source, /data-label=\\"Attempt\\"/);
+  });
+
+  test('PROOF (review #4 can fail): removing the max-width:480px stacking rule would leave the wide multi-column table as the only layout at phone width', () => {
+    const withoutRule = source.replace(/@media \(max-width: 480px\)\{[\s\S]*?\n  \}\n<\/style>/, '</style>');
+    assert.notEqual(withoutRule, source);
+    assert.doesNotMatch(withoutRule, /\[data-testid="audit-table"\] td::before/);
   });
 });

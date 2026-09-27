@@ -283,6 +283,18 @@
   .job-card h4::after{content:" ├";color:var(--text-faint);}
   .field{margin-bottom:10px;}
   label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;text-transform:uppercase;letter-spacing:0.04em;}
+  /* hamr's 2026-09-27 exit-check review #3: Ask tab box headers — same
+     bold/uppercase weight `label` already gives the Job tab's own fields,
+     applied to "draft under review" and each unjudged input's own label
+     ("resume-text"/"jd-text" etc.), never the faint `.hint` style. */
+  .evidence-heading{font-size:11px;font-weight:700;color:var(--text-dim);margin:8px 0 3px;text-transform:uppercase;letter-spacing:0.04em;}
+  .evidence-heading:first-child{margin-top:0;}
+  /* review #3: the ask's own question, a real heading under the "Ask i of
+     n · step · asked · status" meta line — reuses the box-drawing h4 look
+     the Audit/Job group headers already use, but inline (no absolute
+     ┤ ├ pips — those are reserved for a whole-box title, not an in-flow
+     line) so it reads as a clear, bold heading without a second border. */
+  .ask-question-heading{margin:6px 0 0;font-size:13px;font-weight:700;color:var(--text);}
   .ro-value{padding:6px 8px;min-height:32px;box-sizing:border-box;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
   .ro-value.scroll{max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;}
   .field-row{display:flex;flex-wrap:wrap;gap:10px;}
@@ -301,6 +313,36 @@
     .chip.fchip{min-height:40px;min-width:40px;}
     .rp-header{margin:8px 8px 0;}
     .rp-tabrow{margin:0 8px;}
+  }
+
+  /* hamr's 2026-09-27 exit-check review #4: at 390px the Audit page scrolls
+     sideways and the Time column overflows the table's own border — a wide
+     multi-column table (Attempt/Action/Gap/Cost/Verdict/Close/Time) simply
+     cannot fit a 390px viewport no matter how each cell wraps. Both audit
+     tables (the flat one and every per-step grouped one) switch to a
+     stacked "mini-card" layout instead: the header row hides, each `<tr>`
+     becomes its own bordered block, and each `<td>` becomes a `label:
+     value` line, the label read from the SAME `data-label` attribute
+     `buildAuditRowEl` already sets on every cell (never a second, separate
+     label list to keep in sync). No horizontal scroll is possible once
+     every cell is a full-width block. */
+  @media (max-width: 480px){
+    [data-testid="audit-table"], .audit-group table{width:100%;}
+    [data-testid="audit-table"] thead, .audit-group table thead{
+      position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;
+    }
+    [data-testid="audit-table"] tbody, .audit-group table tbody{display:block;}
+    [data-testid="audit-table"] tr, .audit-group table tr{
+      display:block;border:1px solid var(--border-strong);margin-bottom:8px;padding:4px 0;
+    }
+    [data-testid="audit-table"] td, .audit-group table td{
+      display:block;border:none;border-bottom:1px dotted var(--border);padding:4px 8px;
+      white-space:normal;overflow-wrap:break-word;word-break:break-word;max-width:100%;box-sizing:border-box;
+    }
+    [data-testid="audit-table"] td:last-child, .audit-group table td:last-child{border-bottom:none;}
+    [data-testid="audit-table"] td::before, .audit-group table td::before{
+      content:attr(data-label) ": ";font-weight:700;color:var(--text-dim);
+    }
   }
 </style>
 </head>
@@ -407,10 +449,24 @@
                Verdict, Close. -->
           <div id="audit-empty" class="hint" data-testid="audit-empty" style="font-size:13px;padding:24px 0;">select a run first</div>
           <div id="audit-content" data-testid="audit-content" hidden>
-            <div class="chips" role="group" aria-label="Audit view" style="margin-bottom:8px;">
-              <button class="chip" type="button" aria-pressed="true" data-view="grouped" data-testid="audit-view-grouped">Grouped</button>
-              <button class="chip" type="button" aria-pressed="false" data-view="flat" data-testid="audit-view-flat">Flat</button>
+            <!-- hamr's 2026-09-27 exit-check review #2: All/Human/Blocked on
+                 the left, the existing Grouped/Flat toggle on the right —
+                 both filters apply to both views. Human = a row whose
+                 server-derived `action` is "human" (src/panel/data.js's
+                 deriveAuditAction); Blocked = `row.blocked`
+                 (isBlockedVerdict) — neither is re-derived here. -->
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+              <div class="chips" role="group" aria-label="Audit filter" style="margin-bottom:0;">
+                <button class="chip" type="button" aria-pressed="true" data-audit-filter="all" data-testid="audit-filter-all">All</button>
+                <button class="chip" type="button" aria-pressed="false" data-audit-filter="human" data-testid="audit-filter-human">Human</button>
+                <button class="chip" type="button" aria-pressed="false" data-audit-filter="blocked" data-testid="audit-filter-blocked">Blocked</button>
+              </div>
+              <div class="chips" role="group" aria-label="Audit view" style="margin-bottom:0;">
+                <button class="chip" type="button" aria-pressed="true" data-view="grouped" data-testid="audit-view-grouped">Grouped</button>
+                <button class="chip" type="button" aria-pressed="false" data-view="flat" data-testid="audit-view-flat">Flat</button>
+              </div>
             </div>
+            <div id="audit-filter-empty" class="hint" data-testid="audit-filter-empty" hidden style="padding:12px 0;"></div>
             <div id="audit-groups" data-testid="audit-groups"></div>
             <div class="audit-table-scroll" id="audit-flat-wrap" hidden>
               <table data-testid="audit-table">
@@ -1490,6 +1546,10 @@
   function openAuditGroup(step){
     document.getElementById("tab-audit").click();
     setAuditView("grouped");
+    // A jump from the map/step-card must always land on a REAL group, even
+    // when a human had the Blocked/Human filter active and this step's
+    // rows don't match it — reset to All rather than jumping to nothing.
+    setAuditFilter("all");
     var row = document.getElementById("audit-group-" + step);
     if(!row) return;
     // hamr's 2026-09-27 review item (b): a jump from the Run tab must land
@@ -1508,7 +1568,10 @@
   // ONE row-cell builder for both views — `includeStep` controls only
   // whether the Step cell is rendered (Grouped drops it; the group's own
   // header already names the step). Column order: Attempt, [Step], Action,
-  // Gap, Cost, Verdict, Close.
+  // Gap, Cost, Verdict, Close, Time. `data-label` on every `<td>` is what
+  // the mobile (max-width:480px) stacked-card CSS reads via `attr()` —
+  // review item #4: the Time cell (and every other cell) must stay inside
+  // its own card at 390px, never truncated or pushed off the page edge.
   function buildAuditRowEl(r, includeStep){
     var tr = document.createElement("tr");
     var glyph = verdictGlyph(r.verdict, r.class);
@@ -1517,70 +1580,90 @@
     var badgeClass = glyph === "✓" ? "green" : (glyph === "✗" ? "red" : "amber");
     var action = typeof r.action === "string" && r.action.length > 0 ? r.action : r.verdict; // server always sets `action` (deriveAuditAction); this fallback is belt-and-braces only
     var cells =
-      "<td>" + escapeXml(String(r.attempt)) + "</td>" +
-      (includeStep ? "<td>" + escapeXml(r.step) + "</td>" : "") +
-      "<td>" + escapeXml(action) + "</td>" +
-      "<td>" + escapeXml(isRejectRow ? "" : (r.gap || "")) + "</td>" +
-      "<td>" + escapeXml(auditCostCellText(r)) + "</td>" +
-      "<td><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
-      "<td>" + escapeXml(closeClassLabel(r.class)) + "</td>" +
-      "<td>" + escapeXml(auditTimeCellText(r)) + "</td>";
+      "<td data-label=\"Attempt\">" + escapeXml(String(r.attempt)) + "</td>" +
+      (includeStep ? "<td data-label=\"Step\">" + escapeXml(r.step) + "</td>" : "") +
+      "<td data-label=\"Action\">" + escapeXml(action) + "</td>" +
+      "<td data-label=\"Gap\">" + escapeXml(isRejectRow ? "" : (r.gap || "")) + "</td>" +
+      "<td data-label=\"Cost\">" + escapeXml(auditCostCellText(r)) + "</td>" +
+      "<td data-label=\"Verdict\"><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
+      "<td data-label=\"Close\">" + escapeXml(closeClassLabel(r.class)) + "</td>" +
+      "<td data-label=\"Time\">" + escapeXml(auditTimeCellText(r)) + "</td>";
     tr.innerHTML = cells;
     return tr;
   }
-  // Grouped view: one section per step, book order preserved (first-seen
-  // order of `r.step` across this run's own rows — never re-sorted), a
-  // header naming the step, its close class, its attempt count, and its
-  // known cost (a bare $ sum of the rows that priced; unknown when none did
-  // — never a made-up total).
+  // ---- hamr's 2026-09-27 exit-check review #2: the Audit tab's All/Human/
+  // Blocked filter — ONE predicate, applied identically to the Grouped and
+  // Flat views (never two separate filter implementations). "Human" reads
+  // `row.action === "human"` (src/panel/data.js's deriveAuditAction);
+  // "Blocked" reads `row.blocked` (src/panel/data.js's isBlockedVerdict) —
+  // both server-derived, never re-guessed here. ----
+  var auditFilterMode = "all";
+  var lastAuditResult = null;
+  function auditRowMatchesFilter(r){
+    if(auditFilterMode === "human") return r.action === "human";
+    if(auditFilterMode === "blocked") return r.blocked === true;
+    return true;
+  }
+  function setAuditFilter(mode){
+    auditFilterMode = mode;
+    document.querySelectorAll('.chip[data-audit-filter]').forEach(function(chip){
+      chip.setAttribute("aria-pressed", chip.getAttribute("data-audit-filter") === mode ? "true" : "false");
+    });
+    if(lastAuditResult) paintAudit(lastAuditResult);
+  }
+  document.querySelectorAll('.chip[data-audit-filter]').forEach(function(chip){
+    chip.addEventListener("click", function(){ setAuditFilter(chip.getAttribute("data-audit-filter")); });
+  });
+  // review item #1: one line per group — `[state] · step · time · cost ·
+  // try N <marks>` — built ONLY from fields `src/panel/data.js`'s
+  // `deriveAuditGroups` already computed (timeMs -> `duration`, a purely
+  // presentational formatter; nothing here re-derives state/cost/tries).
+  // Tokens are appended ONLY when the server sent a real total (omitted,
+  // never "0 tokens", for a pre-M4a-2 row or a no-model-call step).
+  function auditGroupHeaderText(g){
+    var bits = [
+      "[" + g.state + "]", g.step, duration(g.timeMs), (g.cost || "cost unknown"),
+      "try " + g.tryCount + " " + g.tryMarks.join(""),
+    ];
+    if(typeof g.tokensTotal === "number") bits.splice(4, 0, g.tokensTotal + " tokens");
+    return bits.join(" · ");
+  }
+  // Grouped view: one section per step, server order preserved (first-seen
+  // order of `r.step` across this run's own rows — never re-sorted).
+  // review item #1: COLLAPSED by default — a map/step-card click
+  // (`openAuditGroup`) is the only thing that force-expands one.
   function renderAuditGroups(result){
     var container = document.getElementById("audit-groups");
     container.innerHTML = "";
     if(!result || result.empty) return;
-    var order = [];
-    var byStep = {};
-    result.rows.forEach(function(r){
-      if(!Object.prototype.hasOwnProperty.call(byStep, r.step)){ byStep[r.step] = []; order.push(r.step); }
-      byStep[r.step].push(r);
-    });
-    order.forEach(function(step){
-      var rows = byStep[step];
-      var closeClass = rows[0].class;
-      var known = rows.some(function(r){ return typeof r.usd === "number"; });
-      // `partial` means "some row in this group is spendComplete:false"
-      // (true => show "at least"). `money`'s OWN second argument means the
-      // opposite thing — "this row's own spendComplete flag" (false =>
-      // show "at least") — so it must be handed `!partial`, never `partial`
-      // itself (browser re-walk bug #3: passing `partial` straight through
-      // made an all-complete group, where `partial === false`, satisfy
-      // money's `spendComplete === false` check and print "at least" on
-      // every group, no matter what the rows actually said).
-      var partial = rows.some(function(r){ return r.spendComplete === false; });
-      var sum = rows.reduce(function(acc, r){ return typeof r.usd === "number" ? acc + r.usd : acc; }, 0);
+    var anyVisible = false;
+    (result.groups || []).forEach(function(g){
+      var rows = (g.rows || []).filter(auditRowMatchesFilter);
+      if(rows.length === 0) return; // a group with no matching rows is hidden, never an empty shell
+      anyVisible = true;
       var wrap = document.createElement("div");
       wrap.className = "audit-group";
-      wrap.id = "audit-group-" + step;
-      wrap.setAttribute("data-testid", "audit-group-" + step);
-      // hamr's 2026-09-27 review item (b): the group header folds/unfolds
-      // its own table on click — a `role="button"` div (same pattern as the
-      // Ask tab's own collapsible rows, `renderAskRow`), never a real
-      // `<button>` nested inside an `<h4>`. Default expanded (`aria-expanded`
-      // starts "true", the table starts visible) — collapsing is something a
-      // human does, never the initial state.
+      wrap.id = "audit-group-" + g.step;
+      wrap.setAttribute("data-testid", "audit-group-" + g.step);
+      // hamr's 2026-09-27 review item (b), carried forward: the group
+      // header folds/unfolds its own table on click — a `role="button"`
+      // div (never a real `<button>` nested inside an `<h4>`). Review #1:
+      // COLLAPSED by default now (`aria-expanded` starts "false", the
+      // table starts `hidden`) — expanding is something a human (or a
+      // map/step-card jump) does, never the initial state.
       var header = document.createElement("h4");
       header.setAttribute("role", "button");
       header.setAttribute("tabindex", "0");
-      header.setAttribute("aria-expanded", "true");
+      header.setAttribute("aria-expanded", "false");
       header.style.cursor = "pointer";
-      header.textContent = step + " — " + closeClassLabel(closeClass) + " — "
-        + rows.length + " attempt" + (rows.length === 1 ? "" : "s") + " — "
-        + (known ? money(sum, !partial) : "cost unknown");
+      header.textContent = auditGroupHeaderText(g);
       wrap.appendChild(header);
       var table = document.createElement("table");
+      table.hidden = true;
       table.innerHTML = "<thead><tr><th>Attempt</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th><th>Time</th></tr></thead><tbody></tbody>";
       var tbody = table.querySelector("tbody");
       rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, false)); });
-      table.setAttribute("data-testid", "audit-table-grouped-" + step);
+      table.setAttribute("data-testid", "audit-table-grouped-" + g.step);
       wrap.appendChild(table);
       function toggleAuditGroup(){
         var next = table.hidden;
@@ -1593,26 +1676,49 @@
       });
       container.appendChild(wrap);
     });
+    return anyVisible;
   }
   function renderAuditFlat(result){
     var tbody = document.getElementById("audit-tbody");
     tbody.innerHTML = "";
-    if(!result || result.empty) return;
-    result.rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, true)); });
+    if(!result || result.empty) return false;
+    var rows = result.rows.filter(auditRowMatchesFilter);
+    rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, true)); });
+    return rows.length > 0;
   }
+  var auditViewMode = "grouped";
   function setAuditView(view){
+    auditViewMode = view;
     document.getElementById("audit-groups").hidden = view !== "grouped";
     document.getElementById("audit-flat-wrap").hidden = view !== "flat";
     document.querySelectorAll('.chip[data-view]').forEach(function(chip){
       chip.setAttribute("aria-pressed", chip.getAttribute("data-view") === view ? "true" : "false");
     });
+    if(lastAuditResult) paintAudit(lastAuditResult);
   }
   document.querySelectorAll('.chip[data-view]').forEach(function(chip){
     chip.addEventListener("click", function(){ setAuditView(chip.getAttribute("data-view")); });
   });
+  // Paints both views off the SAME already-fetched result (never a second
+  // fetch) — called on load and again whenever the filter/view changes.
+  // review item #2: "a group with no matching rows is hidden; empty result
+  // says why" — checked against whichever view is actually on screen.
+  function paintAudit(result){
+    var anyGrouped = renderAuditGroups(result);
+    var anyFlat = renderAuditFlat(result);
+    var filterEmpty = document.getElementById("audit-filter-empty");
+    var nothingMatched = auditViewMode === "flat" ? !anyFlat : !anyGrouped;
+    if(nothingMatched && auditFilterMode !== "all"){
+      filterEmpty.hidden = false;
+      filterEmpty.textContent = "no " + auditFilterMode + " rows in this run's audit trail";
+    } else {
+      filterEmpty.hidden = true;
+    }
+  }
   function renderAudit(result){
     var empty = document.getElementById("audit-empty");
     var content = document.getElementById("audit-content");
+    lastAuditResult = result;
     if(!result || result.empty){
       empty.hidden = false;
       empty.textContent = (result && result.why) || "no audit rows for this run";
@@ -1621,8 +1727,6 @@
     }
     empty.hidden = true;
     content.hidden = false;
-    renderAuditGroups(result);
-    renderAuditFlat(result);
     // a fresh run's own view keeps whatever mode (Grouped/Flat) the chips
     // are already showing, defaulting to Grouped on first load.
     var flatPressed = document.querySelector('.chip[data-view="flat"]');
@@ -1833,7 +1937,11 @@
       var draftEl = document.createElement("div");
       draftEl.className = "ro-value scroll";
       draftEl.textContent = evidence.draft;
-      ev.appendChild(textDiv("hint", "draft under review:"));
+      // hamr's 2026-09-27 exit-check review #3: "the box headers should be
+      // bolder" — a real heading class (same weight/size/uppercase posture
+      // as the Job tab's own field `<label>`s), never the plain `.hint`
+      // style a footnote/why-text uses.
+      ev.appendChild(textDiv("evidence-heading", "draft under review"));
       ev.appendChild(draftEl);
     } else {
       ev.appendChild(textDiv("hint", evidence.why || "no draft on file"));
@@ -1848,7 +1956,7 @@
     // is missing.
     (evidence.unjudged || []).forEach(function(u){
       var label = typeof u.emits === "string" && u.emits.length > 0 ? u.emits : u.step;
-      ev.appendChild(textDiv("hint", "unjudged — step: " + label));
+      ev.appendChild(textDiv("evidence-heading", "unjudged — step: " + label));
       if(typeof u.emits === "string" && u.emits.length > 0 && u.step !== u.emits){
         ev.appendChild(textDiv("step-meta", u.step));
       }
@@ -1867,25 +1975,48 @@
     ev.appendChild(answerSlot);
     return ev;
   }
+  // hamr's 2026-09-27 exit-check review #3: "when opened from an Inbox
+  // click it's not clear which ask is shown" — one line naming exactly
+  // which ask this is (`Ask i of n`, from src/panel/data.js's own
+  // index/total), which declared step it belongs to (`stepName`, at its
+  // signed prose `stepLine` — src/panel/data.js's `deriveAskStepInfo`,
+  // never re-derived here), when it was asked, and its status. `stepWhy` is
+  // shown verbatim (never a guessed step name) when the books can't name
+  // one — the honest word "before" a real value never invents.
+  function askHeaderMetaText(ask){
+    var bits = ["Ask " + ask.index + " of " + ask.total];
+    var stepBit = typeof ask.stepName === "string" && ask.stepName.length > 0
+      ? ask.stepName + (typeof ask.stepLine === "number" ? " (line " + ask.stepLine + ")" : "")
+      : (ask.stepWhy || "step not determinable");
+    bits.push(stepBit);
+    bits.push(typeof ask.askedAt === "string" ? "asked " + (readableDateTime(ask.askedAt) || ask.askedAt) : "asked: unknown");
+    bits.push(ask.open ? "waiting on you" : ask.status);
+    return bits.join(" · ");
+  }
   function renderAskRow(ask, expanded){
     var wrap = document.createElement("div");
     wrap.className = "audit-group";
     wrap.setAttribute("data-testid", "ask-row-" + (ask.askId || "no-id"));
     var head = document.createElement("div");
-    head.className = "wf-line1";
     head.setAttribute("role", "button");
     head.setAttribute("tabindex", "0");
     head.setAttribute("aria-expanded", expanded ? "true" : "false");
     head.style.cursor = "pointer";
+    var metaLine = document.createElement("div");
+    metaLine.className = "wf-line1";
     var badge = document.createElement("span");
     badge.className = "badge " + (ask.open ? "amber" : (ask.status === "accepted" ? "green" : (ask.status === "rejected" ? "red" : "grey")));
     badge.textContent = ask.open ? "·" : ask.status;
-    head.appendChild(badge);
+    metaLine.appendChild(badge);
+    metaLine.appendChild(textDiv("wf-meta", askHeaderMetaText(ask)));
+    head.appendChild(metaLine);
+    // The question itself — a real, bold heading (review #3: "the question
+    // as a clear heading"), never folded into the same small meta line.
     var qText = typeof ask.question === "string" ? ask.question : (ask.questionWhy || "question not recorded");
-    head.appendChild(textDiv("wf-name", qText));
-    if(typeof ask.askedAt === "string"){
-      head.appendChild(textDiv("hint", "asked " + (readableDateTime(ask.askedAt) || ask.askedAt)));
-    }
+    var qHeading = document.createElement("h4");
+    qHeading.className = "ask-question-heading";
+    qHeading.textContent = qText;
+    head.appendChild(qHeading);
     wrap.appendChild(head);
     var body = document.createElement("div");
     body.hidden = !expanded;
@@ -1930,6 +2061,17 @@
     asks.forEach(function(ask){
       var expanded = defaultOpenId != null && ask.askId === defaultOpenId;
       var row = renderAskRow(ask, expanded);
+      // hamr's 2026-09-27 exit-check review #3: "the ask opened from the
+      // Inbox gets a visible highlight" — a REAL Inbox click (`focusAskId`
+      // set) on THIS ask, never a run's own default open-ask expansion
+      // (which is chosen here, not clicked from the Inbox). Reuses the
+      // Audit tab's own highlight rule (`.audit-group.audit-group-
+      // highlight`, this row already carries the `audit-group` class) —
+      // persistent here, not momentary, since the human navigated here
+      // specifically to see this one.
+      if(focusAskId && ask.askId === focusAskId){
+        row.classList.add("audit-group-highlight");
+      }
       list.appendChild(row);
       if(expanded){
         // Scroll the focused ask into view (M4a-1 design: clicking a stop
