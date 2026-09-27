@@ -20,7 +20,7 @@
 // (negative scenario v: nothing outside `--root` is ever read).
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 
 import {
   readFlow, listFlowNames, listRunIds, resolveRunDir, checkFlowName,
@@ -891,6 +891,70 @@ export function getRunAudit({ root, flow, runId }) {
  * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
  * @returns {any|null}
  */
+/**
+ * hamr's 2026-09-27 exit-check review #5: one plain-words sentence for a
+ * declared step's own close rule — the Job tab's "Success" field. Derived
+ * STRICTLY from `step.close` (and, for the "your accept" wording, whether
+ * this step is the one line `arbiter.asks[]` itself binds to) — never a
+ * fabricated cite/shape value:
+ *  - `hitl`: "human check", or "human check (your accept)" when this step's
+ *    own `fromLine` is a signed ask line (the ask step itself — the one a
+ *    human pauses a run on, distinct from an ordinary hitl pass-through
+ *    step with no ask binding).
+ *  - `softgreen`: "shape: N headings (a / b / c)" when `close.shape.sections`
+ *    is signed, "max W words" appended when `close.shape.maxWords` is
+ *    signed, "blocks of L lines" / "must carry: a, b" for the invoice-block
+ *    shape keys (`linesPerInvoice`/`mustCarry`) — every signed shape key
+ *    shown, nothing invented; "shape (no shape rules signed)" when a
+ *    softgreen step signs no `close.shape` at all (declaration.js allows
+ *    this — an empty/absent shape is not itself a red).
+ *  - `green`: "cited" — `CLOSE_ALLOWED` (`src/declaration.js`) never lets a
+ *    step declare WHAT it cites ahead of time (that's the drafted
+ *    artifact's own per-run field data, not signed prose), so there is
+ *    never anything honest to append here.
+ *  - anything else: the raw class name, named as unknown, never silently
+ *    dropped or guessed into one of the three above; no class at all names
+ *    that plainly too.
+ * @param {{close?: {class?: string, shape?: any}, fromLine?: number|null}} step one `declaration.steps` entry
+ * @param {Array<{line:number}>} arbiterAsks `arbiter.asks`, for the "your accept" check
+ * @returns {string}
+ */
+export function deriveStepSuccessText(step, arbiterAsks) {
+  const cls = step?.close?.class ?? null;
+  if (cls === null) return 'no close class recorded';
+  if (cls === 'hitl') {
+    const isAskStep = Array.isArray(arbiterAsks) && arbiterAsks.some((a) => a.line === step.fromLine);
+    return isAskStep ? 'human check (your accept)' : 'human check';
+  }
+  if (cls === 'green') return 'cited';
+  if (cls === 'softgreen') {
+    const shape = step?.close?.shape;
+    if (!shape || typeof shape !== 'object') return 'shape (no shape rules signed)';
+    const parts = [];
+    if (Array.isArray(shape.sections) && shape.sections.length > 0) {
+      parts.push(`${shape.sections.length} heading${shape.sections.length === 1 ? '' : 's'} (${shape.sections.join(' / ')})`);
+    }
+    if (typeof shape.maxWords === 'number') parts.push(`max ${shape.maxWords} words`);
+    if (typeof shape.linesPerInvoice === 'number') parts.push(`blocks of ${shape.linesPerInvoice} lines`);
+    if (Array.isArray(shape.mustCarry) && shape.mustCarry.length > 0) parts.push(`must carry: ${shape.mustCarry.join(', ')}`);
+    return parts.length > 0 ? `shape: ${parts.join(', ')}` : 'shape (no shape rules signed)';
+  }
+  return `unknown close class "${cls}"`;
+}
+
+/**
+ * `GET /api/runs/:flow/:runId/job` — the Job tab (hamr's 2026-09-27
+ * exit-check review #5: bareloop-style one-field-per-piece layout,
+ * replacing the old split asks/sends/sources/signed-lines blocks). Every
+ * field is read straight off `readFlow`'s own signed declaration.json/
+ * signature.json/prose lines — nothing invented; a piece the books can't
+ * name carries its own why, never a blank or a guess. Field order (server
+ * order matches the page's own render order): prose, asks, model, cap
+ * (+redo cap), sources, sends, guardrails, success (one row per step, off
+ * `deriveStepSuccessText`), signature.
+ * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
+ * @returns {any|null}
+ */
 export function getRunJob({
   root, flow, runId, catalogue,
 }) {
@@ -913,6 +977,11 @@ export function getRunJob({
   // pretending the signed prose named it.
   const auditRows = readAudit(run.runDir);
   const model = deriveRunModel(auditRows);
+  const a = flowRead.arbiter ?? {};
+  const asks = a.asks ?? [];
+  const sends = a.sends ?? [];
+  const sources = a.sources ?? [];
+  const declSteps = Array.isArray(flowRead.declaration?.steps) ? flowRead.declaration.steps : [];
   return {
     flow,
     runId,
@@ -923,14 +992,31 @@ export function getRunJob({
     // ("model used: X (from this run's rows)") rather than implying it came
     // from the signed job itself.
     modelWhy: model === null ? 'no audit.jsonl row for this run has ever named a model' : null,
-    lines: flowRead.lines,
-    arbiter: {
-      capUsd: flowRead.arbiter.capUsd,
-      asks: flowRead.arbiter.asks ?? [],
-      redoCap: flowRead.arbiter.redoCap,
-      sends: flowRead.arbiter.sends ?? [],
-      sources: flowRead.arbiter.sources ?? [],
-    },
+    // review #5: "Job (prose)" — the signed lines WITHOUT their guardrail
+    // mixed in (guardrails get their own field below).
+    prose: flowRead.lines.map((l) => ({ line: l.n, text: l.text })),
+    // review #5: "Ask" — one row per signed ask line; `waitMs` is the raw
+    // signed ttlMs, formatted client-side by the SAME `duration()` every
+    // other elapsed-time field on this page already uses.
+    asks: asks.map((ak) => ({ line: ak.line, question: ak.question, waitMs: ak.ttlMs })),
+    capUsd: typeof a.capUsd === 'number' ? a.capUsd : null,
+    redoCap: typeof a.redoCap === 'number' ? a.redoCap : null,
+    // review #5: "Source" — role -> basename only (never the full signed
+    // path, even though sources are themselves signed input — hamr's own
+    // "to be safe" instruction).
+    sources: sources.map((s) => ({
+      role: s.role, kind: s.kind, path: s.path, basename: basename(s.path),
+    })),
+    // review #5: "Destination" — one row per send.
+    sends: sends.map((s) => ({ line: s.line, kind: s.target?.kind ?? null, target: s.target?.path ?? null })),
+    // review #5: "Guardrails" — ONE field, one row per NUMBERED-LINE
+    // guardrail (never the separate "Arbiter guardrails" block, already
+    // covered by cap/asks/sends/sources above); empty guardrails skipped.
+    guardrails: flowRead.lines
+      .filter((l) => typeof l.guardrail === 'string' && l.guardrail.length > 0)
+      .map((l) => ({ line: l.n, guardrail: l.guardrail })),
+    // review #5: "Success" — one row per declared step, in declaration order.
+    success: declSteps.map((s) => ({ step: s.emits, text: deriveStepSuccessText(s, asks) })),
     signature: (sig && typeof sig.signedBy === 'string' && typeof sig.signedAt === 'string' && typeof sig.flow === 'string')
       ? { signedBy: sig.signedBy, signedAt: sig.signedAt, hash: sig.flow }
       : null,

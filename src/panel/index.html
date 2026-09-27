@@ -480,25 +480,27 @@
         <section id="panel-details" class="tabpanel" role="tabpanel" aria-labelledby="tab-details" hidden data-testid="panel-details">
           <!-- The signed prose, the arbiter block, and the signature — the
                ONE signed declaration.json + signature.json per flow
-               (M4a scope item 2). -->
+               (M4a scope item 2). hamr's 2026-09-27 exit-check review #5:
+               a bareloop-style one-field-per-piece layout, one row per
+               piece within a field — replaces the old split asks/sends/
+               sources/signed-lines blocks. Field order (signed): Job
+               (prose) · Ask · Model · $ cap (+ redo cap) · Source ·
+               Destination · Guardrails · Success · Signed. At 390px every
+               field's own `label` already sits above its value (the
+               existing global `label{display:block}` rule — no separate
+               narrow-width override needed). -->
           <div id="job-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
           <div class="job-card" id="job-card" hidden data-testid="job-card-readonly">
             <h4 id="details-title">Job card — signed</h4>
-            <!-- hamr review #7: the model name was missing entirely, and the
-                 cap row must be first in the arbiter block, right after it —
-                 Model, then $ cap, then the rest of the arbiter block
-                 (redo cap, asks, sends, sources), signed lines and the
-                 signature below. -->
+            <div class="field"><label>Job (prose)</label><div id="details-prose"></div></div>
+            <div class="field"><label>Ask</label><div id="details-asks"></div></div>
             <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
-            <div class="field-row">
-              <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap-money">—</div></div>
-              <div class="field"><label>Redo cap</label><div class="ro-value" id="details-redo-cap">—</div></div>
-            </div>
-            <div class="field"><label>Asks</label><div class="ro-value scroll" id="details-asks">—</div></div>
-            <div class="field"><label>Sends</label><div class="ro-value scroll" id="details-sends">—</div></div>
-            <div class="field"><label>Sources</label><div class="ro-value scroll" id="details-sources">—</div></div>
-            <div class="field"><label>Signed lines</label><div id="details-lines"></div></div>
-            <div class="field"><label>Signature</label><div class="ro-value" id="details-signature">—</div></div>
+            <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap">—</div></div>
+            <div class="field"><label>Source</label><div id="details-sources"></div></div>
+            <div class="field"><label>Destination</label><div id="details-sends"></div></div>
+            <div class="field"><label>Guardrails</label><div id="details-guardrails"></div></div>
+            <div class="field"><label>Success</label><div id="details-success"></div></div>
+            <div class="field"><label>Signed</label><div class="ro-value" id="details-signature">—</div></div>
           </div>
         </section>
 
@@ -1742,6 +1744,23 @@
     if(typeof ms !== "number") return "unknown";
     return duration(ms);
   }
+  // hamr's 2026-09-27 exit-check review #5: ONE row-per-piece renderer,
+  // shared by every multi-row Job field (prose/asks/sources/sends/
+  // guardrails/success) — a real `.ro-value` per item (never a single
+  // " · "-joined line, which used to hide a book text value if it happened
+  // to contain " · " itself), an explicit "none signed" hint for an empty
+  // list, book text always via `.textContent`.
+  function renderRowsField(elId, items, emptyText, rowTextFn){
+    var el = document.getElementById(elId);
+    el.innerHTML = "";
+    if(!items || !items.length){
+      el.appendChild(textDiv("hint", emptyText));
+      return;
+    }
+    items.forEach(function(item){
+      el.appendChild(textDiv("ro-value", rowTextFn(item)));
+    });
+  }
   function renderJob(job){
     var empty = document.getElementById("job-empty");
     var card = document.getElementById("job-card");
@@ -1750,6 +1769,15 @@
     empty.hidden = true;
     card.hidden = false;
     document.getElementById("details-title").textContent = "Job — " + job.flow + " (signed)";
+    // review #5: "Job (prose)" — the signed lines, numbered, WITHOUT their
+    // guardrail mixed in (guardrails get their own field below).
+    renderRowsField("details-prose", job.prose, "no signed prose lines", function(l){
+      return l.line + ". " + l.text;
+    });
+    // review #5: "Ask" — one row per signed ask line.
+    renderRowsField("details-asks", job.asks, "no signed asks", function(ak){
+      return "line " + ak.line + " · \"" + ak.question + "\" · waits " + ttlLabel(ak.waitMs);
+    });
     // hamr review #7: no declaration/signature book records a model on the
     // flow itself (checked against `src/panel/data.js`'s own
     // `deriveRunModel` — only `audit.jsonl`'s per-attempt rows do) — say so
@@ -1757,27 +1785,27 @@
     document.getElementById("details-model").textContent = job.model
       ? ("model used: " + job.model + " (from this run's rows)")
       : (job.modelWhy || "no model call recorded yet");
-    var linesEl = document.getElementById("details-lines");
-    linesEl.innerHTML = "";
-    (job.lines || []).forEach(function(l){
-      var div = document.createElement("div");
-      div.className = "field";
-      var guardHtml = l.guardrail ? ('<div class="hint">guardrail: ' + escapeXml(l.guardrail) + '</div>') : '';
-      div.innerHTML = '<div class="ro-value">' + l.n + '. ' + escapeXml(l.text) + '</div>' + guardHtml;
-      linesEl.appendChild(div);
+    // review #5: "$ cap" — ONE field, cap and redo cap together.
+    document.getElementById("details-cap").textContent =
+      (typeof job.capUsd === "number" ? ("$" + job.capUsd.toFixed(2)) : "unknown")
+      + " · redo cap " + (typeof job.redoCap === "number" ? job.redoCap : "unknown");
+    // review #5: "Source" — role -> basename only (never the full signed path).
+    renderRowsField("details-sources", job.sources, "no signed sources", function(s){
+      return s.role + " → " + s.basename;
     });
-    var a = job.arbiter || {};
-    document.getElementById("details-cap-money").textContent = typeof a.capUsd === "number" ? ("$" + a.capUsd.toFixed(2)) : "unknown";
-    document.getElementById("details-redo-cap").textContent = typeof a.redoCap === "number" ? String(a.redoCap) : "unknown";
-    document.getElementById("details-asks").textContent = (a.asks && a.asks.length)
-      ? a.asks.map(function(ak){ return "line " + ak.line + " (" + ttlLabel(ak.ttlMs) + " wait): " + ak.question; }).join(" · ")
-      : "none";
-    document.getElementById("details-sends").textContent = (a.sends && a.sends.length)
-      ? a.sends.map(function(s){ return "line " + s.line + " -> " + s.target.kind + ":" + s.target.path; }).join(" · ")
-      : "none";
-    document.getElementById("details-sources").textContent = (a.sources && a.sources.length)
-      ? a.sources.map(function(s){ return s.role + " = " + s.kind + ":" + s.path; }).join(" · ")
-      : "none";
+    // review #5: "Destination" — one row per signed send.
+    renderRowsField("details-sends", job.sends, "no signed sends", function(s){
+      return "line " + s.line + " · " + (s.kind || "unknown") + " → " + (s.target || "unknown");
+    });
+    // review #5: "Guardrails" — ONE field, one row per numbered-line guardrail.
+    renderRowsField("details-guardrails", job.guardrails, "no numbered-line guardrails signed", function(g){
+      return "line " + g.line + " · " + g.guardrail;
+    });
+    // review #5: "Success" — one row per declared step, off data.js's own
+    // deriveStepSuccessText (never re-derived client-side).
+    renderRowsField("details-success", job.success, "no declared steps", function(s){
+      return s.step + " · " + s.text;
+    });
     var sig = job.signature;
     document.getElementById("details-signature").textContent = sig
       ? (sig.signedBy + " at " + sig.signedAt + " (hash " + sig.hash.slice(0, 12) + "…)")
