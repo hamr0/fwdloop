@@ -328,17 +328,26 @@
       <div class="tabrow" role="tablist" aria-label="Left panel views">
         <button role="tab" id="tab-chat" aria-controls="panel-chat" aria-selected="true" data-testid="left-tab-chat">Chat</button>
         <button role="tab" id="tab-runs" aria-controls="panel-runs" aria-selected="false" data-testid="left-tab-runs">Runs</button>
+        <button role="tab" id="tab-inbox" aria-controls="panel-inbox" aria-selected="false" data-testid="left-tab-inbox">Inbox</button>
       </div>
 
       <div class="pane-body">
 
         <section id="panel-chat" class="tabpanel active" role="tabpanel" aria-labelledby="tab-chat">
           <div class="chat-thread">
-            Authoring a new job from this page comes later (PANEL-BUILD.md P3). This build
-            (P1) is read-only: it shows runs already started from the command line
-            (<code>bareloop run</code> / <code>bareloop run-u</code>). Use the Runs tab to
-            look at one.
+            Authoring a flow from this page isn't built yet — the drafter is a POC. This
+            panel is read-only: it shows flows and runs already started from the
+            <code>fwdloop</code> CLI. Use the Runs tab to open one, or the Inbox tab for
+            anything waiting on you.
           </div>
+        </section>
+
+        <section id="panel-inbox" class="tabpanel" role="tabpanel" aria-labelledby="tab-inbox" hidden>
+          <!-- Open asks across every flow, read-only (M4a scope item 2) —
+               question, time left, and the evidence (the draft under review
+               first, then each unjudged artifact labelled by step). No
+               answer controls — those are M4b. -->
+          <div id="inbox-list" data-testid="inbox-list"></div>
         </section>
 
         <section id="panel-runs" class="tabpanel" role="tabpanel" aria-labelledby="tab-runs" hidden>
@@ -448,7 +457,7 @@
       });
     });
   }
-  wireTabs([document.getElementById("tab-chat"), document.getElementById("tab-runs")]);
+  wireTabs([document.getElementById("tab-chat"), document.getElementById("tab-runs"), document.getElementById("tab-inbox")]);
   wireTabs([document.getElementById("tab-run"), document.getElementById("tab-audit"), document.getElementById("tab-details")]);
 
   // ---- fetch helpers — GET only, this panel is read-only by construction
@@ -1322,6 +1331,79 @@
   }).catch(function(e){
     document.getElementById("wf-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
     document.getElementById("history-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
+  });
+
+  // ---- Inbox tab: open asks across every flow, read-only (M4a scope item
+  // 2) — question, time left, and the evidence (the draft under review
+  // first, then each unjudged artifact labelled by step), off GET
+  // /api/inbox (src/panel/data.js's listInbox). No answer controls — those
+  // are M4b. Book text (question/draft/artifact text/gap) is set via
+  // `.textContent`, never interpolated into an `innerHTML` string.
+  function textDiv(cls, text){
+    var d = document.createElement("div");
+    if(cls) d.className = cls;
+    d.textContent = text;
+    return d;
+  }
+  function statusLine(row){
+    if(row.status === "legacy") return "legacy — " + (row.why || "not answerable");
+    if(row.status === "unreadable") return "unreadable — " + (row.statusWhy || "unknown");
+    if(row.status === "expired") return "expired at " + row.expiresAt;
+    return "time left: " + duration(row.timeLeftMs);
+  }
+  function renderInboxRow(row){
+    var wrap = document.createElement("div");
+    wrap.className = "hist-row";
+    wrap.setAttribute("data-testid", "inbox-row-" + row.flow + "-" + row.runId);
+    var head = document.createElement("div");
+    head.className = "wf-line1";
+    var badgeClass = row.status === "open" ? "amber" : (row.status === "expired" ? "red" : "grey");
+    head.innerHTML = '<span class="badge ' + badgeClass + '">' + escapeXml(row.status) + '</span>';
+    var flowName = textDiv(null, row.flow + " (" + row.runId + ")");
+    flowName.className = "wf-name";
+    head.appendChild(flowName);
+    wrap.appendChild(head);
+    wrap.appendChild(textDiv("wf-meta", statusLine(row)));
+    if(typeof row.question === "string"){
+      var q = document.createElement("div");
+      q.className = "step-meta";
+      q.textContent = "question: " + row.question;
+      wrap.appendChild(q);
+    }
+    if(row.evidence){
+      var ev = document.createElement("div");
+      ev.className = "attempts-list";
+      if(row.evidence.draft){
+        var draftEl = document.createElement("div");
+        draftEl.className = "ro-value scroll";
+        draftEl.textContent = row.evidence.draft;
+        ev.appendChild(textDiv("hint", "draft under review:"));
+        ev.appendChild(draftEl);
+      } else {
+        ev.appendChild(textDiv("hint", row.evidence.draftWhy || "no draft on file"));
+      }
+      (row.evidence.unjudged || []).forEach(function(u){
+        var art = document.createElement("div");
+        art.className = "ro-value scroll";
+        art.textContent = (u.artifact && typeof u.artifact.text === "string") ? u.artifact.text : JSON.stringify(u.artifact);
+        ev.appendChild(textDiv("hint", "unjudged — step: " + u.step));
+        ev.appendChild(art);
+      });
+      wrap.appendChild(ev);
+    }
+    return wrap;
+  }
+  function renderInbox(rows){
+    var el = document.getElementById("inbox-list");
+    el.innerHTML = "";
+    if(!rows || !rows.length){
+      el.innerHTML = '<div class="hint">nothing waiting on you — no open asks under this root</div>';
+      return;
+    }
+    rows.forEach(function(row){ el.appendChild(renderInboxRow(row)); });
+  }
+  getJSON("/api/inbox").then(function(result){ renderInbox(result.rows || []); }).catch(function(e){
+    document.getElementById("inbox-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
   });
 
   // theme toggle
