@@ -48,6 +48,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exist) and refuses either one if it resolves outside the flow directory; a not-yet-created run
   dir is unaffected. The panel's own flow-name segment (`resolveFlowDir`, `src/panel/data.js`) got
   the same real-path check, closing a symlinked-flow-directory variant of the same hole.
+- F48 round 3 (docs/logs/FINDINGS.md): the same class one level deeper — a real (non-symlinked) run
+  dir whose own book FILE (`audit.jsonl`, `ask.json`, `state.json`, `log.json`, `spend.jsonl`, an
+  `asks/<id>.json` archive entry, a consumed-answer marker) is a symlink pointing outside `--root`
+  was still followed by every reader. New `resolveInside`/`readFileInside`/`readdirInside`
+  (`src/flow.js`) is the one mechanism every reader in `src/books.js`, `src/runner.js`,
+  `src/provider.js`, `src/ask.js`, and `src/panel/data.js` now routes through. This round also
+  corrects round 2's wrong "not actually exploitable" claim about `bin/fwdloop`'s CLI: a live
+  plant showed `fwdloop inbox`/`show` printing a symlinked `ask.json`'s outside content as a real
+  ask (status 0, no refusal) — `findRunDirByAskId`/`cmdInbox`/`cmdShow`/`cmdResume` built their own
+  paths with a private `join()` + raw `readdirSync`/`readFileSync`, bypassing
+  `checkFlowName`/`checkRunId`/`resolveRunDir` entirely; they now walk flows/runs via
+  `listFlowNames`/`listRunIds`/`resolveRunDir` and read book files via `readFileInside`, same as the
+  panel. Several writers (`appendAudit`/`appendHistory`/`appendSpendRow`, `log.json`/`state.json`/
+  a fresh park's `ask.json`, `inputs.json`, an `overwrite:true` artifact write) are reported, not
+  fixed, in `docs/logs/FINDINGS.md`'s F48 round-3 entry — `answer.json`/`asks/<id>.json` are already
+  safe (`{ flag: 'wx' }`).
 - F47 (docs/logs/FINDINGS.md): `fwdloop show` (and `bin/fwdloop`'s `artifactText()`) read
   ask.json's evidence only in the M3 shape (`evidence.artifact.text`/`evidence.unjudged`) and
   printed the literal string `"undefined"` for a real M2-era ask.json (`evidence.text`/

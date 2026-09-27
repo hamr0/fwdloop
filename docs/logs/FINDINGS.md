@@ -2347,3 +2347,89 @@ the status is not 200. Every new test proven red first: reverting only `src/flow
 planted secret in the body (HTTP) — restored, green.
 
 **Numbers.** 1527/1527 tests, typecheck clean.
+
+### Round 3 (2026-09-27, later the same day) — the same class one level deeper: book FILES, and the CLI bypass really was exploitable
+
+**What a debrief caught, live.** Round 2 (above) closed the symlinked-run-DIRECTORY class
+(`resolveRunDir`/`resolveFlowDir` realpath-check `runs/<runId>` and `<root>/<flowName>`) and, in its
+"caller that bypasses `resolveRunDir`" note, judged `bin/fwdloop`'s private path-building "not
+actually exploitable by *this* class" because a symlinked run/flow DIRECTORY can't be listed by
+`listDirNames`'s `isDirectory()` filter. **That claim was wrong** — it only checked the directory
+level. A real run dir (a genuine, non-symlinked directory, so it lists fine) whose own BOOK FILE
+(`audit.jsonl`, `ask.json`, etc.) is a symlink pointing outside `--root` was still followed by every
+reader, at the file level, one directory deeper than round 2 checked. Live proof: `node
+bin/fwdloop inbox --root <root>` printed a symlinked `ask.json`'s outside content as a real, open,
+answerable ask (status 0, no refusal) — a genuine exploit of the CLI bypass round 2 had cleared.
+The panel's `GET /api/runs/<flow>/<runId>/audit` had the identical shape: HTTP 200 with the
+symlink target's bytes.
+
+**Fix — one mechanism, every reader routed through it.** `resolveInside`/`readFileInside`/
+`readdirInside` (`src/flow.js`, next to `resolveRunDir`): the target is `lstatSync`'d (refused if
+itself a symlink) and then `realpathSync`'d and required inside `realpathSync(baseDir)` — the
+second check alone also catches a symlinked ANCESTOR directory partway down the relative path
+(e.g. `asks/` replaced by a symlink to an outside directory), the same shape `runs/` itself needed
+one level up. A missing path reads as `missing: true` (never a red), so every existing caller keeps
+its "not written yet" behaviour unchanged. Wired into every book reader that grep found across
+`src/` and `bin/`:
+
+- `src/books.js`: `readAudit`/`readHistory` (`audit.jsonl`, `history.jsonl`) — converted.
+- `src/runner.js`: `readLog`/`readRunState`/`readAsk` (`log.json`/`state.json`/`ask.json`),
+  `sumAuditUsd` (the resume-time cap re-check's own `audit.jsonl` read — was a parallel raw reader,
+  now goes through the same guard rather than `readFileSync` directly), and `resumeRun`'s
+  `answer.json` read — converted.
+- `src/provider.js`: `readSpendTotal`/`readSpendRows` (`spend.jsonl`) — converted (no call site
+  changes: both take a full path already, so the fix uses `dirname(path)` as the containment
+  boundary and `basename(path)` as the checked name).
+- `src/ask.js`: `makeFileAskStep`'s `answer.json` poll (the most severe of this batch — a symlinked
+  answer file was read straight into `parsed.decision`, so an attacker who can place a symlink named
+  `answer.json` in a run dir could inject a fake `accept`/`reject`/`rerun` DECISION, not just leak
+  bytes), `answerAsk`'s `ask.json` read, and `listArchivedAsks` (the `asks/` directory itself, each
+  archived `asks/<id>.json` entry, and each `answer.<id>.consumed.json` marker) — converted.
+- `src/panel/data.js`: `hasConsumedAnswer` and `legacyRunAsks` (raw `readdirSync`/`readFileSync`
+  over a run dir's consumed-answer markers) — converted to `readdirInside`/`readFileInside`.
+- `bin/fwdloop`: **the actual fix for round 2's wrong claim.** `findRunDirByAskId`/`cmdInbox`/
+  `cmdShow`/`cmdResume` built their own paths with a private `join()` + raw
+  `readdirSync`/`readFileSync`/`existsSync`, bypassing `checkFlowName`/`checkRunId`/`resolveRunDir`
+  entirely. Now walk flows/runs via `listFlowNames`/`listRunIds`/`resolveRunDir` (`src/flow.js`,
+  the same checked builders the panel already used) and read `ask.json`/`inputs.json` via
+  `readFileInside` — never a private path again.
+
+**Writers checked, reported, not fixed (surgical scope — this round is readers only).** Grepped
+every `writeFileSync`/`appendFileSync` that lands under a run dir:
+
+- `src/books.js` `appendLine` (`audit.jsonl`, `history.jsonl`) and `src/provider.js`
+  `appendSpendRow` (`spend.jsonl`): plain `appendFileSync` — a pre-planted symlink at either path
+  would have every future row appended to the OUTSIDE target instead. Repro: `symlinkSync(outside,
+  join(runDir, 'audit.jsonl'))` before the run's first `appendAudit` call; the row lands in
+  `outside`, not in the run dir.
+- `src/runner.js` `writeLog` (`log.json`), the `state.json` write (~line 1042), and the fresh-park
+  `ask.json` write (~line 990): plain `writeFileSync`, no `wx`/no symlink check — same hazard, and
+  the ask.json case is the sharper one: a symlinked `ask.json` between two parks of the SAME run
+  would have the second park's real question/evidence written straight to an outside file instead
+  of the run dir.
+- `src/runner.js` `freezeInputs`'s `inputs.json` write (~line 324): same plain-write hazard.
+- `src/runner.js` `writeArtifact` (~line 380): guarded by an `existsSync` pre-check UNLESS the
+  caller passes `overwrite:true` (the ask-redo path's deliberate replacement) — for that one caller,
+  a pre-planted symlinked artifact file would be written through.
+- **Already safe, verified, no action needed:** `src/ask.js`'s `answerAsk` (`answer.json`) and
+  `writeAskArchive` (`asks/<id>.json`) both use `{ flag: 'wx' }` — POSIX `O_CREAT|O_EXCL` refuses
+  `EEXIST` on a path that is a symlink (whether dangling or not) rather than following it, so these
+  two writers were already closed by the race-condition fix that added `wx` for an unrelated reason.
+
+None of the above are touched in this round — `find flows -type l` returns nothing under real data
+today, so no writer fix is urgent; they're recorded here for hamr's ruling on whether a round 4
+closes the writer side the same way.
+
+**Tests.** `test/f48-file-symlink.test.js` (new): table-driven across every book file above
+(`audit.jsonl`, `history.jsonl`, `log.json`, `state.json`, `ask.json`, `spend.jsonl`, the `asks/`
+directory, an entry inside it, a consumed-answer marker), each planted as a symlink to an outside
+file carrying a unique secret marker — asserts the library reader never returns it, the panel's
+`GET .../audit` route never returns it over a real HTTP socket, and `fwdloop inbox`/`show` never
+print it. Proved red first: reverting only `src/`/`bin/fwdloop` (tests present) turned 11 of 12
+cases red, including `fwdloop show` exiting 0 and printing the outside file's parsed content as a
+real ask — restored, green. Live-checked a third way too, against a real (non-ephemeral) panel
+port and a real `--root` under `/tmp`: before the fix, `GET /api/runs/job2/run-1/audit` returned
+the planted secret at HTTP 200; after, `{"rows":[],"empty":true,"why":"audit.jsonl is empty or
+missing — no attempt has been made yet"}`.
+
+**Numbers.** 1539/1539 tests (12 new), typecheck clean, tracked-files-only copy green.
