@@ -296,7 +296,8 @@ export function getRunDetail({
       stepsWhy = 'declaration.json has no steps array';
     } else {
       const byStep = {};
-      for (const row of ctx.auditRows) {
+      const byStepAuditIdx = {}; // step -> this row's index in ctx.auditRows, parallel to byStep[step]
+      ctx.auditRows.forEach((row, auditIdx) => {
         (byStep[row.step] ??= []).push({
           attempt: row.attempt,
           verdict: row.verdict,
@@ -306,7 +307,36 @@ export function getRunDetail({
           model: row.model,
           modelMatch: row.modelMatch,
           strike: row.strike,
+          afterReject: null,
         });
+        (byStepAuditIdx[row.step] ??= []).push(auditIdx);
+      });
+      // A step's own attempt numbers can repeat/restart in book order after
+      // a human reject (src/runner.js's redo path numbers a redo from the
+      // reject count, not the previous attempt counter — M4a piece 3 fix
+      // #6). Never renumber or hide a row; instead name the boundary, but
+      // ONLY on a non-ask step: an ask (`hitl`-classed) step's OWN rows
+      // legitimately repeat the same attempt number for a paused row
+      // followed by its own resolution (paused N, then red/green N) — that
+      // pairing is the normal shape, never a restart, and must never be
+      // mislabelled (coordinator's re-walk: labelling both rows of an ask
+      // step's pause+reject pair was the exact bug this guards against). A
+      // restart whose interleaved reject can't be found gets NO label at
+      // all — a missing hint beats a wrong one.
+      for (const s of declSteps) {
+        if (s.close?.class === 'hitl') continue;
+        const list = byStep[s.emits];
+        const idxs = byStepAuditIdx[s.emits];
+        if (!list) continue;
+        for (let i = 1; i < list.length; i += 1) {
+          if (list[i].attempt > list[i - 1].attempt) continue;
+          let rejectRow = null;
+          for (let j = idxs[i - 1] + 1; j < idxs[i]; j += 1) {
+            const r = ctx.auditRows[j];
+            if (r.class === 'hitl' && r.verdict === 'red') rejectRow = r;
+          }
+          if (rejectRow) list[i].afterReject = rejectRow.gap;
+        }
       }
       steps = declSteps.map((s) => ({
         emits: s.emits,

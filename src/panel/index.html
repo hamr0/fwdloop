@@ -1246,18 +1246,18 @@
         // the step, and its redo attempts are numbered from the redo/reject
         // count, not the previous run's own attempt counter (src/runner.js's
         // redo path). Never renumber or hide a row (keep book order) —
-        // instead call out the boundary where the numbering restarts, naming
-        // the reject that caused it when the interleaved audit rows (the
-        // human's own reject, on the ask step, `class:'hitl'`/`verdict:'red'`)
-        // say why (fix #6).
-        var stepRowIdx = [];
-        (auditRowsForRun || []).forEach(function(r, i){ if(r.step === box.emits) stepRowIdx.push(i); });
+        // src/panel/data.js already worked out, server-side, whether this
+        // restart is a real one (never on the ask step itself, whose own
+        // paused-then-resolved pair legitimately shares one attempt number)
+        // and named the interleaved human reject when it found one
+        // (`a.afterReject`, fix #6). No `a.afterReject` means either there
+        // is no restart here, or one exists but couldn't be named — either
+        // way, no label: a missing hint beats a wrong one.
         box.attempts.forEach(function(a, i){
-          if(i > 0 && a.attempt <= box.attempts[i - 1].attempt){
-            var reject = findRejectBetween(auditRowsForRun, stepRowIdx[i - 1], stepRowIdx[i]);
+          if(a.afterReject){
             var boundary = document.createElement("div");
             boundary.className = "hint";
-            boundary.textContent = reject ? ("after reject: " + reject.gap) : "after a reject — a new attempt count starts here";
+            boundary.textContent = "after reject: " + a.afterReject;
             attemptsWrap.appendChild(boundary);
           }
           var row = document.createElement("div");
@@ -1279,17 +1279,6 @@
       card.appendChild(attemptsWrap);
       listEl.appendChild(card);
     });
-  }
-  // The nearest (last, chronologically) human-reject row strictly between
-  // two of a step's own audit rows (by index in the full run-scoped audit
-  // list) — used only to label an attempt-numbering boundary (fix #6).
-  function findRejectBetween(auditRows, fromIdxExclusive, toIdxExclusive){
-    var found = null;
-    for(var i = fromIdxExclusive + 1; i < toIdxExclusive; i++){
-      var r = auditRows && auditRows[i];
-      if(r && r.class === "hitl" && r.verdict === "red") found = r;
-    }
-    return found;
   }
 
   // ---- Audit tab: this run's own audit.jsonl rows only, one per step
@@ -1378,12 +1367,6 @@
   // ---- selection + loading ----
   var currentFlow = null;
   var currentRunId = null;
-  // The full run-scoped audit.jsonl rows for whatever run is on screen —
-  // renderRun needs this (not just its own detail.steps[].attempts) to spot
-  // an attempt-numbering boundary caused by an interleaved human reject on a
-  // DIFFERENT step (fix #6, findRejectBetween above). Set only from
-  // selectRun, read only by renderRun — one writer.
-  var auditRowsForRun = [];
   function selectRun(flow, runId, rowEl, siblingSelector){
     clearSelection();
     document.querySelectorAll(siblingSelector).forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
@@ -1391,22 +1374,18 @@
     currentFlow = flow;
     currentRunId = runId;
     var base = "/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId);
-    // detail + audit load together (never independently): the step cards
-    // need this run's full audit-row order to label a reject boundary
-    // correctly, so the Run tab waits on both rather than racing them.
-    Promise.allSettled([getJSON(base), getJSON(base + "/audit")]).then(function(results){
-      var detailResult = results[0];
-      var auditResult = results[1];
-      auditRowsForRun = (auditResult.status === "fulfilled" && auditResult.value && auditResult.value.rows) || [];
-      if(detailResult.status === "fulfilled"){
-        renderRun(detailResult.value);
-      } else {
-        document.getElementById("run-empty").hidden = false;
-        document.getElementById("run-empty").textContent = "failed to load run: " + detailResult.reason.message;
-        document.getElementById("run-content").hidden = true;
-      }
-      renderAudit(auditResult.status === "fulfilled" ? auditResult.value : null);
+    // detail, audit, and job each load independently — the Run tab's step
+    // cards get everything they need (including a step's own attempt-
+    // numbering boundary, `afterReject`) straight off `detail.steps` now;
+    // src/panel/data.js works out the boundary server-side, off the run's
+    // full audit-row order, so the client no longer needs a second,
+    // separately-fetched copy of the audit rows to cross-reference (fix #6).
+    getJSON(base).then(renderRun).catch(function(e){
+      document.getElementById("run-empty").hidden = false;
+      document.getElementById("run-empty").textContent = "failed to load run: " + e.message;
+      document.getElementById("run-content").hidden = true;
     });
+    getJSON(base + "/audit").then(renderAudit).catch(function(){ renderAudit(null); });
     getJSON(base + "/job").then(renderJob).catch(function(){ renderJob(null); });
   }
 

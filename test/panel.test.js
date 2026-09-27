@@ -394,6 +394,64 @@ describe('getRunDetail', () => {
     assert.match(died.wallMsWhy, /no history row/);
   });
 
+  test('M4a piece 3 fix #6 re-walk: an ask (hitl) step\'s own paused-then-resolved pair never gets a reject-boundary label', () => {
+    // The EXACT shape the coordinator's re-walk found (job2-live-1/m3-live-2,
+    // step "resume-summary-approved"): (1 paused), (1 red = the reject),
+    // (2 paused), (2 green = accepted). Nothing here is a "restart" — it's
+    // one attempt (park + its own resolution), twice. Labelling either row
+    // was the exact bug: the fix must never fire on a hitl-classed step.
+    const runDir = makeRunDir(FLOW_DIR, 'run-ask-pause-reject-shape');
+    for (const row of [
+      {
+        step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+      },
+      {
+        step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'red', gap: 'shorter work history blurb', usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+      },
+      {
+        step: 'resume-summary-approved', attempt: 2, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+      },
+      {
+        step: 'resume-summary-approved', attempt: 2, class: 'hitl', verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+      },
+    ]) appendAudit(runDir, row);
+    const detail = getRunDetail({
+      root: ROOT, flow: FLOW, runId: 'run-ask-pause-reject-shape', catalogue: CATALOGUE,
+    });
+    const step = detail.steps.find((s) => s.emits === 'resume-summary-approved');
+    assert.equal(step.attempts.length, 4);
+    for (const a of step.attempts) assert.equal(a.afterReject, null, `attempt ${a.attempt}/${a.verdict} must not carry a boundary label`);
+  });
+
+  test('M4a piece 3 fix #6: a NON-ask step\'s genuine attempt-number restart after an interleaved human reject IS labelled', () => {
+    const runDir = makeRunDir(FLOW_DIR, 'run-real-reject-restart');
+    appendAudit(runDir, {
+      step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'missing a section, scrubbed', usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+    });
+    appendAudit(runDir, {
+      step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+    });
+    // the ask step parks, then the human rejects — interleaved between the
+    // two "attempt 2" rows on resume-summary.
+    appendAudit(runDir, {
+      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+    });
+    appendAudit(runDir, {
+      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'red', gap: 'shorter work history blurb', usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+    });
+    appendAudit(runDir, {
+      step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+    });
+    const detail = getRunDetail({
+      root: ROOT, flow: FLOW, runId: 'run-real-reject-restart', catalogue: CATALOGUE,
+    });
+    const step = detail.steps.find((s) => s.emits === 'resume-summary');
+    assert.equal(step.attempts.length, 3);
+    assert.equal(step.attempts[0].afterReject, null);
+    assert.equal(step.attempts[1].afterReject, null);
+    assert.equal(step.attempts[2].afterReject, 'shorter work history blurb');
+  });
+
   test('an unknown run returns null (caller renders 404)', () => {
     assert.equal(getRunDetail({
       root: ROOT, flow: FLOW, runId: 'no-such-run', catalogue: CATALOGUE,
@@ -751,9 +809,13 @@ describe('index.html — page source', () => {
     assert.doesNotMatch(source, /dot grey"><\/span>not started/);
   });
 
-  test('fix #6: a step\'s attempt-numbering boundary after a human reject is labelled, never silently renumbered', () => {
+  test('fix #6: a step\'s attempt-numbering boundary after a human reject is labelled, never silently renumbered, and never guessed when it can\'t be named', () => {
     assert.match(source, /after reject: /);
-    assert.match(source, /findRejectBetween/);
+    assert.match(source, /a\.afterReject/);
+    // no generic/vague fallback label — a missing hint beats a wrong one
+    // (the re-walk found the OLD generic fallback mislabelling the ask
+    // step's own normal paused-then-resolved pair as a "reject boundary").
+    assert.doesNotMatch(source, /a new attempt count starts here/);
   });
 
   test('fix #5: header date is human-readable (toLocaleString), never a raw ISO string alone; "took Xs" comes from wallMs', () => {
