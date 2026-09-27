@@ -148,6 +148,11 @@
      DIFFERENT fact from a real [✗] close/arbiter "no", so it gets its own
      glyph and its own color (magenta), never red or amber. */
   .dot.magenta::before{content:"[?]";color:var(--magenta);}
+  /* expired, unresumed ask (hamr's ruling, 2026-09-27): same "needs
+     attention" amber as running, but a DIFFERENT glyph — never the running
+     arrow [▶], which this reserves for "running" alone. Its own class so
+     the two states never share a ::before rule. */
+  .dot.expired::before{content:"[!]";color:var(--amber);}
 
   .badge{display:inline-block;font-size:11px;padding:1px 4px;color:var(--text-dim);background:none;font-weight:700;}
   .badge::before{content:"[";color:var(--text-faint);}
@@ -756,8 +761,9 @@
     // its own state — never grey ("waiting"/"answered", still actionable)
     // and never red/magenta (the run itself didn't fail, and the books DO
     // know what happened) — amber, same "needs attention" color family as
-    // "running", but a different glyph.
-    if(g === "[!]") return "amber";
+    // "running", but a different glyph, so it gets its own dot class
+    // (never "amber", which draws the reserved running arrow [▶]).
+    if(g === "[!]") return "expired";
     return "grey"; // "[·]" — waiting on a human, or answered-not-resumed
   }
 

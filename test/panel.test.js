@@ -2709,4 +2709,48 @@ describe('index.html — page source', () => {
     assert.doesNotMatch(source, /\.attempt-row\{/);
     assert.doesNotMatch(source, /className = "attempt-row"/);
   });
+
+  // hamr's 2026-09-27 browser-walk bug: an expired, unresumed ask
+  // (src/panel/data.js computeGlyph returns glyph '[!]') rendered as the
+  // running arrow [▶] instead, because glyphClass mapped BOTH "[!]" and
+  // "[▶]" onto the same "amber" CSS class, and .dot.amber::before draws
+  // only one glyph. This is a real mapping check, not a regex for the new
+  // class name alone: it parses glyphClass's own branches out of the
+  // source, then follows each glyph to its class's OWN .dot.<class>::before
+  // rule and asserts that rule's content is the exact glyph glyphClass
+  // returned that class for. A regression that put "[!]" (or any other
+  // glyph) back onto a class whose CSS draws a different glyph fails here.
+  test('glyphClass maps every real glyph to a CSS dot class whose own ::before content is that exact glyph (never two glyphs sharing one dot class)', () => {
+    const fnStart = source.indexOf('function glyphClass(g){');
+    assert.ok(fnStart >= 0, 'expected to find function glyphClass(g){');
+    const fnEnd = source.indexOf('\n  }', fnStart);
+    const fnBody = source.slice(fnStart, fnEnd);
+
+    const glyphs = ['[✓]', '[✗]', '[▶]', '[?]', '[!]', '[·]'];
+    assert.deepEqual(glyphs, ['[✓]', '[✗]', '[▶]', '[?]', '[!]', '[·]']);
+
+    function classFor(glyph) {
+      const escaped = glyph.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const explicit = fnBody.match(new RegExp('if\\(g === "' + escaped + '"\\) return "(\\w+)";'));
+      if (explicit) return explicit[1];
+      // no explicit branch for this glyph — it must fall through to the
+      // function's own final, unconditional return (today's fallback for
+      // "[·]", the default/grey "waiting on a human" state).
+      const fallback = fnBody.match(/return "(\w+)"; \/\/ "\[·\]"/);
+      assert.ok(fallback, 'expected glyphClass\'s fallback return to be commented with its glyph, e.g. return "grey"; // "[·]" ...');
+      return fallback[1];
+    }
+
+    for (const glyph of glyphs) {
+      const cls = classFor(glyph);
+      assert.ok(cls, `expected glyphClass to resolve a class for glyph ${glyph}`);
+      const ruleMatch = source.match(new RegExp('\\.dot\\.' + cls + '::before\\{content:"(\\[.\\])"'));
+      assert.ok(ruleMatch, `expected a .dot.${cls}::before{content:"..."} CSS rule (glyphClass maps ${glyph} to class "${cls}")`);
+      assert.equal(
+        ruleMatch[1],
+        glyph,
+        `glyphClass("${glyph}") returns class "${cls}", but .dot.${cls}::before draws "${ruleMatch[1]}" instead of "${glyph}"`,
+      );
+    }
+  });
 });
