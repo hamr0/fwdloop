@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Amendment M4a-1 (docs/wiki/the-module-ladder.md, "M4a"): every park now writes a permanent,
+  write-once archive of its ask into the run dir, `asks/<askId>.json` (question, askedAt,
+  expiresAt, evidence), alongside the existing (mutable) `ask.json`. Nothing deletes an archived
+  ask — not resume, not answer consumption, not rerun. `writeAskArchive`/`listArchivedAsks`
+  (`src/ask.js`, re-exported from `src/index.js`); `listArchivedAsks` pairs each archived ask with
+  its consumed answer by `askId`, never by position, and reports "draft not kept (before M4a-1)"
+  for a run with no `asks/` dir. Not yet wired into the panel.
+
 ### Fixed
 - F47 (docs/logs/FINDINGS.md): `fwdloop show` (and `bin/fwdloop`'s `artifactText()`) read
   ask.json's evidence only in the M3 shape (`evidence.artifact.text`/`evidence.unjudged`) and

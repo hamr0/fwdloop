@@ -17,7 +17,7 @@
 // not a second Checkpoint instance layered on top of the same file protocol.
 
 import {
-  existsSync, mkdirSync, readFileSync, renameSync, writeFileSync,
+  existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -273,4 +273,145 @@ export function answerAsk({
     return { ok: false, red: `answerAsk: could not write ${answerPath} — ${err.message}` };
   }
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// M4a Amendment M4a-1 — SIGNED by hamr 2026-09-27 ("sign m4a1")
+// (docs/wiki/the-module-ladder.md, "M4a" section): every park writes a
+// PERMANENT copy of that ask into `asks/<askId>.json` alongside the
+// (mutable, single-slot) `ask.json`. `ask.json` keeps its current role
+// unchanged — this is a second, append-only record, one file per askId,
+// never overwritten, never deleted (not by resume, not by answer
+// consumption, not by rerun — a rerun always gets a fresh run dir, so it
+// never revisits an old askId). Write-once is a MECHANISM (exclusive
+// create, `{ flag: 'wx' }'), not a check-then-write race: a second write
+// for the same askId is refused, by name, and the first file on disk is
+// left byte-identical.
+// ---------------------------------------------------------------------------
+
+/**
+ * Writes `asks/<askId>.json` in `runDir`, creating the `asks/` directory if
+ * needed. Called by `src/runner.js` right after it writes `ask.json` for a
+ * fresh park (same `askId`/`question`/`askedAt`/`expiresAt`/`evidence` — the
+ * archive is a permanent copy of the SAME content, not a second source of
+ * truth). Exclusive-create: a second call for an already-archived `askId`
+ * is refused (a red naming the file) rather than silently overwriting it —
+ * proven by the write itself failing (`EEXIST`), not by a separate
+ * existence check that a concurrent writer could race past.
+ *
+ * Crash-order note: this is called AFTER `ask.json` is written, so a crash
+ * between the two writes leaves `ask.json` present and `asks/<askId>.json`
+ * missing — the run is still correctly parked and resumable (ask.json/
+ * state.json govern resume, unchanged), just without its archive entry for
+ * that one askId. `listArchivedAsks` below tolerates this (it only reports
+ * what is actually on disk); it is never treated as "before M4a-1" (that
+ * `why` is reserved for a run with NO `asks/` directory at all).
+ *
+ * @param {{ runDir: string, askId: string, question: string, askedAt: string, expiresAt: string, evidence: unknown }} opts
+ * @returns {{ ok: true } | { ok: false, red: string }}
+ */
+export function writeAskArchive({
+  runDir, askId, question, askedAt, expiresAt, evidence,
+}) {
+  if (typeof runDir !== 'string' || runDir.length === 0) {
+    return { ok: false, red: 'writeAskArchive: "runDir" must be a non-empty string' };
+  }
+  if (typeof askId !== 'string' || askId.length === 0) {
+    return { ok: false, red: 'writeAskArchive: "askId" must be a non-empty string' };
+  }
+  const asksDir = join(runDir, 'asks');
+  mkdirSync(asksDir, { recursive: true });
+  const archivePath = join(asksDir, `${askId}.json`);
+  const payload = {
+    askId, question, askedAt, expiresAt, evidence,
+  };
+  try {
+    writeFileSync(archivePath, JSON.stringify(payload, null, 2), { flag: 'wx' });
+  } catch (err) {
+    if (err.code === 'EEXIST') {
+      return { ok: false, red: `writeAskArchive: "${archivePath}" already exists — refusing to overwrite an archived ask` };
+    }
+    return { ok: false, red: `writeAskArchive: could not write ${archivePath} — ${err.message}` };
+  }
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// M4a Amendment M4a-1 reader: pairs each archived ask (`asks/<askId>.json`)
+// with its consumed answer (`answer.<askId>.consumed.json`), by askId only —
+// never by position/order, so the reader is correct even if archives and
+// consumed-answer files land out of step with each other. A run with no
+// `asks/` directory at all predates M4a-1: its asks are not lost, they were
+// simply never kept — reported with a named `why`, never an invented entry.
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {string} runDir
+ * @returns {{ archived: true, asks: Array<{ askId: string, question?: string, askedAt?: string, expiresAt?: string,
+ *   evidence: ReturnType<typeof readAskEvidence>,
+ *   answer: { status: string, reason?: string, answeredAt?: string, why?: string } }> } | { archived: false, why: string }}
+ */
+export function listArchivedAsks(runDir) {
+  const asksDir = join(runDir, 'asks');
+  if (!existsSync(asksDir)) {
+    return { archived: false, why: 'draft not kept (before M4a-1)' };
+  }
+
+  let entries;
+  try {
+    entries = readdirSync(asksDir);
+  } catch (err) {
+    return { archived: false, why: `listArchivedAsks: could not read ${asksDir} — ${err.message}` };
+  }
+
+  const asks = [];
+  for (const entry of entries.sort()) {
+    if (!entry.endsWith('.json')) continue; // eslint-disable-line no-continue
+    const askId = entry.slice(0, -'.json'.length);
+    const archivePath = join(asksDir, entry);
+    let ask;
+    try {
+      ask = JSON.parse(readFileSync(archivePath, 'utf8'));
+    } catch (err) {
+      asks.push({
+        askId, question: undefined, askedAt: undefined, expiresAt: undefined,
+        evidence: { draft: null, unjudged: [], why: `${archivePath} is not valid JSON — ${err.message}` },
+        answer: { status: 'open' },
+      });
+      continue; // eslint-disable-line no-continue
+    }
+
+    const consumedPath = join(runDir, `answer.${askId}.consumed.json`);
+    let answer = { status: 'open' };
+    if (existsSync(consumedPath)) {
+      let parsed;
+      try {
+        parsed = JSON.parse(readFileSync(consumedPath, 'utf8'));
+        const decisionToStatus = { accept: 'accepted', reject: 'rejected', rerun: 'reran' };
+        answer = {
+          status: decisionToStatus[parsed.decision] ?? `unrecognised: ${parsed.decision}`,
+          answeredAt: parsed.answeredAt,
+        };
+        if (typeof parsed.reason === 'string') answer.reason = parsed.reason;
+      } catch (err) {
+        answer = { status: 'open', why: `${consumedPath} is not valid JSON — ${err.message}` };
+      }
+    } else if (typeof ask.expiresAt === 'string' && !Number.isNaN(Date.parse(ask.expiresAt))
+      && Date.now() > Date.parse(ask.expiresAt)) {
+      answer = { status: 'expired' };
+    } else {
+      answer = { status: 'unanswered' };
+    }
+
+    asks.push({
+      askId,
+      question: ask.question,
+      askedAt: ask.askedAt,
+      expiresAt: ask.expiresAt,
+      evidence: readAskEvidence(ask),
+      answer,
+    });
+  }
+
+  return { archived: true, asks };
 }

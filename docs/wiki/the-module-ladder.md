@@ -784,6 +784,25 @@ values; then the fix is in the books first, and M4a (and M4b behind it) waits.
 
 **M4a spend cap: $0 — SIGNED by hamr 2026-09-26** ("signed M4a") — read-only, no paid calls.
 
+**Amendment M4a-1 — SIGNED by hamr 2026-09-27** ("sign m4a1"). Every time a run parks at an ask, the
+runner also writes a permanent copy of that ask into the run dir: `asks/<askId>.json` — question,
+askedAt, expiresAt, evidence (the draft under review + the unjudged inputs), same content as
+`ask.json` at that moment. Write-once: a second write for the same `askId` is refused (a red naming
+the file), and nothing deletes it — not resume, not answer consumption, not rerun (a rerun is a fresh
+run dir anyway; checked). `ask.json` keeps its current role unchanged. Runs from before M4a-1 have no
+`asks/` dir; readers show "draft not kept (before M4a-1)", never an invented one. Negative scenarios,
+each able to fail: (a) a second write to the same `asks/<askId>.json` is refused and the first file is
+byte-identical afterwards; (b) resume + answer consumption leave every `asks/*.json` in place; (c) a
+reader pairs each archived ask with its answer by `askId` (consumed answer files
+`answer.<askId>.consumed.json`), never by position/order. Cost $0 (tests only, no paid call).
+
+Built: `writeAskArchive`/`listArchivedAsks` in `src/ask.js`, called from the one place `ask.json` is
+written on park (`runAskSlot` in `src/runner.js`, right after `ask.json`, before `state.json`) — a
+crash between the two writes leaves `ask.json` present with no archive entry for that one `askId`; the
+run is still correctly parked/resumable, and `listArchivedAsks` only ever reports what is actually on
+disk, never invents an entry. `listArchivedAsks` is exported from `src/index.js` but not wired into
+the panel — that is the next M4a/M4b piece's job. Tests: `test/ask-archive.test.js`.
+
 #### M4b — inputs (does not start until M4a's exit is signed)
 
 **Scope.**

@@ -46,6 +46,7 @@ import {
 import { fileURLToPath } from 'node:url';
 
 import { readFlow, resolveRunDir } from './flow.js';
+import { writeAskArchive } from './ask.js';
 import { WIRED_VERBS } from './primitives.js';
 import { closeByClass } from './closers.js';
 import { appendAudit, appendHistory } from './books.js';
@@ -952,6 +953,23 @@ async function runAskSlot({
       writeFileSync(join(runDir, 'ask.json'), JSON.stringify({
         askId, question: askSlot?.question ?? step.goal, askedAt, expiresAt, evidence,
       }, null, 2));
+      // Amendment M4a-1 — SIGNED by hamr 2026-09-27 ("sign m4a1"): a
+      // PERMANENT copy of this same park, `asks/<askId>.json`, written right
+      // after `ask.json` (never before) — `ask.json`/`state.json` below are
+      // what governs resume, unchanged; the archive is a second, append-only
+      // record of the SAME content. Crash between the two writes leaves
+      // `ask.json` present and no archive entry for this one askId — the run
+      // is still correctly parked and resumable; `listArchivedAsks` only
+      // ever reports what's actually on disk, never invents an entry. A
+      // fresh `askId` per park means a red here (an already-archived askId)
+      // is a genuine invariant violation, not a race to recover from — it
+      // halts the run rather than silently dropping the archive duty.
+      const archived = writeAskArchive({
+        runDir, askId, question: askSlot?.question ?? step.goal, askedAt, expiresAt, evidence,
+      });
+      if (!archived.ok) {
+        throw new Error(archived.red);
+      }
       // M3 scope item 2: the minimum the fold needs to resume identically —
       // WHERE (stepIndex), WHAT was frozen/signed (signatureHash,
       // inputsManifest, to be re-verified before anything runs), WHAT this

@@ -14,6 +14,8 @@ export {
   runFlow, resumeRun, makeParkingAskStep, STRIKE_LIMIT, MAX_ATTEMPTS, readAsk, readRunState, readLog,
 } from './runner.js';
 export { closeByClass } from './closers.js';
-export { makeFileAskStep, answerAsk, readAskEvidence } from './ask.js';
+export {
+  makeFileAskStep, answerAsk, readAskEvidence, writeAskArchive, listArchivedAsks,
+} from './ask.js';
 export { appendAudit, appendHistory, readAudit, readHistory } from './books.js';
 export { readSpendRows } from './provider.js';
