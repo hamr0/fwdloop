@@ -20,12 +20,12 @@
 // (negative scenario v: nothing outside `--root` is ever read).
 
 import {
-  existsSync, readdirSync, readFileSync, realpathSync,
+  existsSync, realpathSync,
 } from 'node:fs';
 import { join, basename, sep } from 'node:path';
 
 import {
-  readFlow, listFlowNames, listRunIds, resolveRunDir, checkFlowName,
+  readFlow, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
 } from '../flow.js';
 import {
   readAudit, readHistory, auditRowTokens, auditRowAt, auditRowTools,
@@ -110,8 +110,11 @@ function resolveRunPath(root, flowName, runId) {
  */
 function hasConsumedAnswer(runDir) {
   if (!existsSync(runDir)) return false;
-  let names;
-  try { names = readdirSync(runDir); } catch { return false; }
+  // F48 round 3: `readdirInside` (`src/flow.js`) skips a symlinked entry
+  // rather than reporting its name — a run dir cannot be made to show a
+  // consumed answer that isn't really there by planting a symlink named to
+  // match the pattern.
+  const names = readdirInside(runDir, '.');
   return names.some((n) => /^answer\..*\.consumed\.json$/.test(n));
 }
 
@@ -1316,8 +1319,10 @@ const CONSUMED_ANSWER_RE = /^answer\.(.+)\.consumed\.json$/;
  */
 function legacyRunAsks(runDir, hasHistoryRow) {
   const rows = [];
-  let names = [];
-  try { names = readdirSync(runDir); } catch { names = []; }
+  // F48 round 3: `readdirInside` (`src/flow.js`) — a symlinked entry is
+  // skipped, never followed, so a legacy consumed-answer row can never be
+  // synthesised off a planted symlink's outside content.
+  const names = readdirInside(runDir, '.');
 
   const askJson = readAsk(runDir);
   const currentAskId = askJson && typeof askJson.askId === 'string' ? askJson.askId : null;
@@ -1329,9 +1334,13 @@ function legacyRunAsks(runDir, hasHistoryRow) {
     const match = CONSUMED_ANSWER_RE.exec(file);
     if (!match) continue; // eslint-disable-line no-continue -- filtered by the same regex above; never actually null
     const askId = match[1];
+    const fileRead = readFileInside(runDir, file);
+    if (!fileRead.ok) {
+      continue; // eslint-disable-line no-continue -- missing/symlink-refused, same as a torn write: skipped, never invented
+    }
     let parsed;
     try {
-      parsed = JSON.parse(readFileSync(join(runDir, file), 'utf8'));
+      parsed = JSON.parse(fileRead.text);
     } catch {
       continue; // eslint-disable-line no-continue -- a torn write is skipped, never invented
     }
