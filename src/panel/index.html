@@ -842,6 +842,12 @@
         // here. `null`/`[]` for a step with no group at all (never
         // attempted yet), matching data.js's own honesty rules exactly.
         timeMs: s.timeMs, cost: s.cost, costWhy: s.costWhy, tokensTotal: s.tokensTotal, tryMarks: s.tryMarks || [],
+        // Amendment M4a-3: the step's own tool tally + the signed grant it
+        // ran under — `toolsTotal`/`toolsWhy` off the SAME server-computed
+        // group `tokensTotal` already reads (src/panel/data.js's
+        // `summarizeStepTools`), never re-derived; `ungranted` is a real,
+        // book-derived list, never guessed from `primitives` by exclusion.
+        toolsTotal: s.toolsTotal || null, toolsWhy: s.toolsWhy || null, ungranted: s.ungranted || [],
         stoppedReason: s.stoppedReason || null,
         state: stepBoxState(s),
       };
@@ -1555,11 +1561,13 @@
       // unknown" row.
       if(box.attempts.length) card.appendChild(buildStepActionsLineEl(box, idx));
       else card.appendChild(textLineEl("hint", "not attempted yet", "step-card-actions-" + idx));
-      // fwdloop's books hold no per-step tool-USE count (no call/tool
-      // ledger per step exists) — this line names only what the signed
-      // declaration GRANTED the step, never a used-count, and is omitted
-      // entirely for a step granted nothing (e.g. an ask/hitl step).
-      if(box.primitives.length) card.appendChild(textLineEl("hint", "granted: " + box.primitives.join(", "), "step-card-granted-" + idx));
+      // Amendment M4a-3 (hamr's request): "tools: read 3 · write 1" (this
+      // step's own tool tally, `summarizeStepTools`) plus "allowed: read,
+      // write" (the signed grant, unchanged from the old "granted:" line) —
+      // omitted entirely only when there is NOTHING to say either way (no
+      // tool tally, no why, and nothing granted).
+      var toolsLineEl = buildStepToolsLineEl(box, idx);
+      if(toolsLineEl) card.appendChild(toolsLineEl);
       // The full stop reason shows on ONLY the one step that stopped the
       // run (server-derived, src/panel/data.js's stoppedStepEmits) — every
       // passed step's own `stoppedReason` is `null`, never a guess.
@@ -1609,11 +1617,10 @@
   }
   // The actions line: "<time> · <cost> · [N tokens ·] try N <marks>" — every
   // piece read straight off the SAME server-computed group
-  // (src/panel/data.js's deriveAuditGroups) the Audit tab's own header uses;
-  // never a calls/tools count (no such book exists — omitted, never a fake
-  // 0). Marks are built as real, colored `<span class="mark STATE">`
-  // elements (`auditMarkClass`), the SAME way `buildAuditGroupHeaderEl`
-  // already builds its own try marks.
+  // (src/panel/data.js's deriveAuditGroups) the Audit tab's own header uses.
+  // Marks are built as real, colored `<span class="mark STATE">` elements
+  // (`auditMarkClass`), the SAME way `buildAuditGroupHeaderEl` already
+  // builds its own try marks.
   function buildStepActionsLineEl(box, idx){
     var div = document.createElement("div");
     div.className = "step-line";
@@ -1627,6 +1634,42 @@
       markSpan.textContent = mark;
       div.appendChild(markSpan);
     });
+    return div;
+  }
+  // Amendment M4a-3 (hamr's request): "tools: read 3 · write 1 · allowed:
+  // read, write" — `box.toolsTotal` (`src/panel/data.js`'s
+  // `summarizeStepTools`, sorted count desc/name asc) for the "tools:"
+  // half, `box.primitives` (the signed grant, unchanged shape) for the
+  // "allowed:" half. `box.toolsWhy` ("not recorded (before M4a-3)") stands
+  // in for "tools:" on a pre-M4a-3 step; no model call in the step at all
+  // (`toolsTotal` and `toolsWhy` both null) drops the "tools:" half
+  // entirely, leaving just "allowed: …". Returns `null` (no line at all)
+  // only when there is truly nothing to say on either half. A name in
+  // `box.ungranted` (a real book-derived list — never guessed from
+  // `primitives` by exclusion) appends a red-colored "· not allowed: …",
+  // using the page's own `--red` token, the same one `.mark.red`/
+  // `.badge.red` already use elsewhere on this page.
+  function buildStepToolsLineEl(box, idx){
+    var toolsBit = null;
+    if(box.toolsWhy) toolsBit = "tools: " + box.toolsWhy;
+    else if(box.toolsTotal){
+      var pairs = Object.keys(box.toolsTotal).map(function(name){ return name + " " + box.toolsTotal[name]; });
+      if(pairs.length) toolsBit = "tools: " + pairs.join(" · ");
+    }
+    var allowedBit = box.primitives.length ? "allowed: " + box.primitives.join(", ") : null;
+    if(!toolsBit && !allowedBit && !box.ungranted.length) return null;
+    var div = document.createElement("div");
+    div.className = "step-line";
+    div.setAttribute("data-testid", "step-card-tools-" + idx);
+    var bits = [toolsBit, allowedBit].filter(function(b){ return !!b; });
+    div.appendChild(document.createTextNode(bits.join(" · ")));
+    if(box.ungranted.length){
+      var ungrantedSpan = document.createElement("span");
+      ungrantedSpan.style.color = "var(--red)";
+      ungrantedSpan.setAttribute("data-testid", "step-card-ungranted-" + idx);
+      ungrantedSpan.textContent = (bits.length ? " · " : "") + "not allowed: " + box.ungranted.join(", ");
+      div.appendChild(ungrantedSpan);
+    }
     return div;
   }
 
@@ -1684,10 +1727,15 @@
     var isRejectRow = r.class === "hitl" && r.verdict === "red";
     var badgeClass = glyph === "✓" ? "green" : (glyph === "✗" ? "red" : "amber");
     var action = typeof r.action === "string" && r.action.length > 0 ? r.action : r.verdict; // server always sets `action` (deriveAuditAction); this fallback is belt-and-braces only
+    // Amendment M4a-3: append this row's own tool tally to the Action cell,
+    // ONLY for a model-call row whose `tools` was actually recorded
+    // (`r.toolsPhrase`, src/panel/data.js's `deriveAuditToolsPhrase`) — a
+    // pre-M4a-3 row or a non-model row appends nothing at all.
+    var actionText = action + (typeof r.toolsPhrase === "string" ? " · " + r.toolsPhrase : "");
     var cells =
       "<td data-label=\"Attempt\">" + escapeXml(String(r.attempt)) + "</td>" +
       (includeStep ? "<td data-label=\"Step\">" + escapeXml(r.step) + "</td>" : "") +
-      "<td data-label=\"Action\">" + escapeXml(action) + "</td>" +
+      "<td data-label=\"Action\">" + escapeXml(actionText) + "</td>" +
       "<td data-label=\"Gap\">" + escapeXml(isRejectRow ? "" : (r.gap || "")) + "</td>" +
       "<td data-label=\"Cost\">" + escapeXml(auditCostCellText(r)) + "</td>" +
       "<td data-label=\"Verdict\"><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +

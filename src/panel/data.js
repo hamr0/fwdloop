@@ -26,7 +26,7 @@ import {
   readFlow, listFlowNames, listRunIds, resolveRunDir, checkFlowName,
 } from '../flow.js';
 import {
-  readAudit, readHistory, auditRowTokens, auditRowAt,
+  readAudit, readHistory, auditRowTokens, auditRowAt, auditRowTools,
 } from '../books.js';
 import { readAsk, readRunState, readLog } from '../runner.js';
 import { readSpendRows } from '../provider.js';
@@ -267,6 +267,71 @@ export function deriveAuditTokensDisplay(row) {
 }
 
 /**
+ * hamr's request (Amendment M4a-3): the Audit tab's Action cell gets a
+ * one-line tool tally appended for a MODEL-call row whose own `tools` was
+ * actually recorded (Amendment M4a-3) — `", read 3, write 1"` — read
+ * straight through `auditRowTools` (`src/books.js`), never re-derived. Three
+ * honest outcomes, matching `deriveAuditTokensDisplay`'s own shape exactly:
+ * `null` for a non-model row (nothing to append — a human/no-model-call row
+ * never claims a tool tally), `null` for a pre-M4a-3 model row (`why` set —
+ * appending nothing beats guessing a tally that was never recorded), and a
+ * real phrase, sorted by count desc then name, for a model row that DOES
+ * carry `tools` (including `{}` — zero tool calls that round — which still
+ * returns `null`: there is nothing to list, so nothing is appended).
+ * @param {any} row one `audit.jsonl` row
+ * @returns {string|null}
+ */
+export function deriveAuditToolsPhrase(row) {
+  if (!(typeof row?.model === 'string' && row.model.length > 0)) return null;
+  const { tools, why } = auditRowTools(row);
+  if (why || !tools) return null;
+  const entries = Object.entries(tools).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  if (entries.length === 0) return null;
+  return entries.map(([name, count]) => `${name} ${count}`).join(', ');
+}
+
+/**
+ * Amendment M4a-3's own step-level tool tally, the same honesty rules
+ * `deriveAuditGroups` already applies to `tokensTotal`: sums `auditRowTools`
+ * over every row in one step's own group. `toolsTotal` is `null` (never a
+ * guessed `{}`) when the step made no model call at all (nothing to sum) OR
+ * when ANY model-call row in the step predates Amendment M4a-3 (`why` set on
+ * that row) — a partial sum is never shown as if it were the whole step's
+ * total, mirroring the tokens rule exactly. `ungranted` unions every row's
+ * own `ungranted` list (deduped, insertion order) regardless of whether the
+ * total itself could be summed — an ungranted call is never hidden just
+ * because an earlier row in the same step predates M4a-3.
+ * @param {any[]} rows one step's own audit rows (book order)
+ * @returns {{toolsTotal: Record<string, number>|null, toolsWhy: string|null, ungranted: string[]}}
+ */
+function summarizeStepTools(rows) {
+  let sawModelRow = false;
+  let anyNotRecorded = false;
+  const totals = {};
+  const ungrantedSeen = [];
+  const ungrantedSet = new Set();
+  for (const r of rows) {
+    const hasModel = typeof r.model === 'string' && r.model.length > 0;
+    const { tools, ungranted, why } = auditRowTools(r);
+    for (const u of ungranted) {
+      if (!ungrantedSet.has(u)) { ungrantedSet.add(u); ungrantedSeen.push(u); }
+    }
+    if (!hasModel) continue;
+    sawModelRow = true;
+    if (why) { anyNotRecorded = true; continue; }
+    if (tools) {
+      for (const [name, count] of Object.entries(tools)) totals[name] = (totals[name] ?? 0) + count;
+    }
+  }
+  if (!sawModelRow) return { toolsTotal: null, toolsWhy: null, ungranted: ungrantedSeen };
+  if (anyNotRecorded) {
+    return { toolsTotal: null, toolsWhy: 'not recorded (before M4a-3)', ungranted: ungrantedSeen };
+  }
+  const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return { toolsTotal: Object.fromEntries(sorted), toolsWhy: null, ungranted: ungrantedSeen };
+}
+
+/**
  * The Audit tab's new Time column (hamr's 2026-09-27 review item d): this
  * row's own `why` when `at` predates Amendment M4a-2, else `null` (the row
  * DOES carry a real `at` — the client formats it with `readableDateTime`,
@@ -397,7 +462,10 @@ export function deriveStepGroupState(rows) {
  * (post-M4a-2) tokens or genuinely made no model call — one row missing
  * tokens (a pre-M4a-2 row) means the WHOLE step's total is withheld, never a
  * partial sum shown as complete; `null` also when the step made no model
- * call at all, nothing to sum), `tryCount`/`tryMarks` (`deriveStepTryMarks`),
+ * call at all, nothing to sum), `toolsTotal`/`toolsWhy`/`ungranted`
+ * (Amendment M4a-3, `summarizeStepTools` — the same "no partial sum" honesty
+ * rule as `tokensTotal`, plus the deduped union of every row's own
+ * `ungranted` calls), `tryCount`/`tryMarks` (`deriveStepTryMarks`),
  * `rows` (this step's own enriched audit rows, for the group's own table —
  * never a second, separately-filtered copy on the client).
  * @param {any[]} enrichedRows `getRunAudit`'s own rows, already carrying
@@ -441,6 +509,7 @@ export function deriveAuditGroups(enrichedRows) {
     const tokensTotalValue = (anyNotRecorded || !anyTotal) ? null : tokensTotal;
 
     const tryMarks = deriveStepTryMarks(closeClass, rows);
+    const { toolsTotal, toolsWhy, ungranted } = summarizeStepTools(rows);
     return {
       step,
       state: deriveStepGroupState(rows),
@@ -449,6 +518,9 @@ export function deriveAuditGroups(enrichedRows) {
       cost,
       costWhy,
       tokensTotal: tokensTotalValue,
+      toolsTotal,
+      toolsWhy,
+      ungranted,
       tryCount: tryMarks.length,
       tryMarks,
       rows,
@@ -629,6 +701,7 @@ function enrichAuditRows(rawRows) {
     ...row,
     action: deriveAuditAction(row),
     tokensDisplay: deriveAuditTokensDisplay(row),
+    toolsPhrase: deriveAuditToolsPhrase(row),
     atWhy: deriveAuditAtWhy(row),
     blocked: isBlockedVerdict(row.verdict),
   }));
@@ -762,6 +835,9 @@ export function getRunDetail({
           cost: group ? group.cost : null,
           costWhy: group ? group.costWhy : null,
           tokensTotal: group ? group.tokensTotal : null,
+          toolsTotal: group ? group.toolsTotal : null,
+          toolsWhy: group ? group.toolsWhy : null,
+          ungranted: group ? group.ungranted : [],
           tryMarks: group ? group.tryMarks : [],
           // Filled below, ONLY on the one step that actually stopped this
           // run (never guessed onto every step) — see stoppedStepEmits.

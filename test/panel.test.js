@@ -23,7 +23,7 @@ import {
   computeGlyph, costDisplay, listRuns, getRunDetail, getRunAudit, getRunJob, listStops, getRunAsks,
   deriveRunModel, deriveAuditAction, summarizeSpendRows, deriveAuditTokensDisplay, deriveAuditAtWhy,
   isBlockedVerdict, deriveStepTryMarks, deriveStepGroupState, deriveAuditGroups, deriveAskStepInfo,
-  deriveStepSuccessText,
+  deriveStepSuccessText, deriveAuditToolsPhrase,
 } from '../src/panel/data.js';
 import { readSpendRows, appendSpendRow } from '../src/provider.js';
 import { writeAskArchive } from '../src/ask.js';
@@ -639,6 +639,30 @@ describe('deriveAuditTokensDisplay (hamr review 2026-09-27 item c: the Cost cell
   });
 });
 
+describe('deriveAuditToolsPhrase (Amendment M4a-3: the Audit tab\'s Action cell tool tally)', () => {
+  test('a model-call row with a recorded tools tally reads "name count" pairs, sorted by count desc then name', () => {
+    const p = deriveAuditToolsPhrase({ model: 'deepseek-flash', tools: { read: 3, write: 1, grep: 3 } });
+    assert.equal(p, 'grep 3, read 3, write 1');
+  });
+
+  test('a model-call row with tools:{} (zero tool calls, still recorded) appends nothing — never "· "', () => {
+    assert.equal(deriveAuditToolsPhrase({ model: 'deepseek-flash', tools: {} }), null);
+  });
+
+  test('a pre-M4a-3 model row (no "tools" key at all) appends nothing, never an invented tally', () => {
+    assert.equal(deriveAuditToolsPhrase({ model: 'deepseek-flash', usd: 0.001 }), null);
+  });
+
+  test('a non-model row (model:null) appends nothing, whatever its own tools field says', () => {
+    assert.equal(deriveAuditToolsPhrase({ model: null, tools: null }), null);
+  });
+
+  test('PROOF (this can fail): a naive object-key-order read would print "read 3, write 1, grep 3" instead of the sorted "grep 3, read 3, write 1"', () => {
+    const p = deriveAuditToolsPhrase({ model: 'deepseek-flash', tools: { read: 3, write: 1, grep: 3 } });
+    assert.notEqual(p, 'read 3, write 1, grep 3');
+  });
+});
+
 describe('deriveAuditAtWhy (hamr review 2026-09-27 item d: the Time column)', () => {
   test('a post-M4a-2 row carrying a real "at" has no why at all', () => {
     assert.equal(deriveAuditAtWhy({ at: '2026-09-27T00:00:00.000Z' }), null);
@@ -1180,13 +1204,12 @@ describe('getRunAudit', () => {
 
   // hamr's 2026-09-27 exit-check review #1: the Audit tab's grouped-by-step
   // header pieces, computed off these SAME enriched rows.
-  test('review #1: one group per step, first-seen order, each with state/timeMs/cost/tryMarks — never calls/tools (no such book)', () => {
+  test('review #1: one group per step, first-seen order, each with state/timeMs/cost/tryMarks/toolsTotal (Amendment M4a-3) — never a "calls" field (no such book)', () => {
     const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-done' });
     assert.equal(result.groups.length, 5);
     assert.deepEqual(result.groups.map((g) => g.step), ['resume-text', 'jd-text', 'resume-summary', 'resume-summary-approved', 'resume-summary-output']);
     for (const g of result.groups) {
       assert.equal(Object.prototype.hasOwnProperty.call(g, 'calls'), false);
-      assert.equal(Object.prototype.hasOwnProperty.call(g, 'tools'), false);
       assert.equal(g.state, 'done'); // every step in run-done passed on its only attempt
       assert.equal(g.tryCount, 1);
       assert.deepEqual(g.tryMarks, ['✓']);
@@ -1195,10 +1218,96 @@ describe('getRunAudit', () => {
     assert.equal(summaryGroup.timeMs, 500); // this step's own single row's wallMs
     assert.equal(summaryGroup.cost, '$0.0020');
     assert.equal(summaryGroup.tokensTotal, 445); // 300 + 130 + 15, this step's only row
-    // resume-summary-approved/-output are no-model (hitl, tokens:null) rows
-    // — the token phrase is omitted entirely, never "0 tokens".
+    // this fixture's model rows all carry tools:{} (zero tool calls that
+    // round, recorded honestly, never "not recorded").
+    assert.deepEqual(summaryGroup.toolsTotal, {});
+    assert.equal(summaryGroup.toolsWhy, null);
+    assert.deepEqual(summaryGroup.ungranted, []);
+    // resume-summary-approved/-output are no-model (hitl, tokens:null/
+    // tools:null) rows — the token phrase AND the tools total are both
+    // omitted entirely (null), never "0 tokens"/an invented {}.
     const approvedGroup = result.groups.find((g) => g.step === 'resume-summary-approved');
     assert.equal(approvedGroup.tokensTotal, null);
+    assert.equal(approvedGroup.toolsTotal, null);
+    assert.equal(approvedGroup.toolsWhy, null);
+  });
+
+  describe('Amendment M4a-3: deriveAuditGroups\' toolsTotal/toolsWhy/ungranted', () => {
+    test('toolsTotal sums auditRowTools across every row in the step, sorted by count desc then name — never a last-row-wins total', () => {
+      const rows = [
+        { step: 's1', model: 'x', tools: { read: 2, write: 1 } },
+        { step: 's1', model: 'x', tools: { read: 1, grep: 3 } },
+      ];
+      const [g] = deriveAuditGroups(rows);
+      assert.deepEqual(g.toolsTotal, { grep: 3, read: 3, write: 1 });
+      assert.equal(g.toolsWhy, null);
+    });
+
+    test('PROOF (the sum can fail): a naive last-row-wins tools total would read {read:1, grep:3}, not the true summed {grep:3, read:3, write:1}', () => {
+      const rows = [
+        { step: 's1', model: 'x', tools: { read: 2, write: 1 } },
+        { step: 's1', model: 'x', tools: { read: 1, grep: 3 } },
+      ];
+      const [g] = deriveAuditGroups(rows);
+      assert.notDeepEqual(g.toolsTotal, { read: 1, grep: 3 });
+    });
+
+    test('a model row that predates M4a-3 (no "tools" key at all) withholds the WHOLE step total, never a partial sum shown as complete', () => {
+      const rows = [
+        { step: 's1', model: 'x', tools: { read: 2 } },
+        { step: 's1', model: 'x' }, // pre-M4a-3 shape: no "tools" key at all
+      ];
+      const [g] = deriveAuditGroups(rows);
+      assert.equal(g.toolsTotal, null);
+      assert.match(g.toolsWhy, /not recorded \(before M4a-3\)/);
+    });
+
+    test('PROOF (the pre-M4a-3 why can fail): a naive summer would show {read:2} instead of honestly withholding the total', () => {
+      const rows = [
+        { step: 's1', model: 'x', tools: { read: 2 } },
+        { step: 's1', model: 'x' },
+      ];
+      const [g] = deriveAuditGroups(rows);
+      assert.notDeepEqual(g.toolsTotal, { read: 2 });
+    });
+
+    test('no model call at all in the step: toolsTotal and toolsWhy both null — nothing to sum, never a guessed {}', () => {
+      const rows = [{ step: 's1', model: null, tools: null }];
+      const [g] = deriveAuditGroups(rows);
+      assert.equal(g.toolsTotal, null);
+      assert.equal(g.toolsWhy, null);
+    });
+
+    test('ungranted is the union of every row\'s own ungranted list (deduped, insertion order), and is NEVER folded into toolsTotal\'s counts', () => {
+      const rows = [
+        { step: 's1', model: 'x', tools: { read: 2 }, ungranted: ['grep'] },
+        { step: 's1', model: 'x', tools: { read: 1 }, ungranted: ['grep', 'write'] },
+      ];
+      const [g] = deriveAuditGroups(rows);
+      assert.deepEqual(g.toolsTotal, { read: 3 });
+      assert.deepEqual(g.ungranted, ['grep', 'write']);
+      assert.equal(Object.prototype.hasOwnProperty.call(g.toolsTotal, 'grep'), false);
+      assert.equal(Object.prototype.hasOwnProperty.call(g.toolsTotal, 'write'), false);
+    });
+
+    test('PROOF (the ungranted separation can fail): a naive merge would fold ungranted "grep" into toolsTotal as if it had been a granted call', () => {
+      const rows = [
+        { step: 's1', model: 'x', tools: { read: 2 }, ungranted: ['grep'] },
+      ];
+      const [g] = deriveAuditGroups(rows);
+      assert.notDeepEqual(g.toolsTotal, { read: 2, grep: 1 });
+    });
+
+    test('ungranted still surfaces even when an earlier row in the SAME step predates M4a-3 — a hole in one row never hides a real ungranted flag in another', () => {
+      const rows = [
+        { step: 's1', model: 'x' }, // pre-M4a-3: no tools/ungranted key
+        { step: 's1', model: 'x', tools: { read: 1 }, ungranted: ['grep'] },
+      ];
+      const [g] = deriveAuditGroups(rows);
+      assert.equal(g.toolsTotal, null);
+      assert.match(g.toolsWhy, /not recorded/);
+      assert.deepEqual(g.ungranted, ['grep']);
+    });
   });
 
   test('review #1: a step with 2 attempts (a not-done then a passing redo) has 2 tries, marks ["✗","✓"], state "done", timeMs/cost SUMMED across both rows', () => {
@@ -2555,10 +2664,30 @@ describe('index.html — page source', () => {
     assert.match(body, /typeof box\.tokensTotal === "number"/);
   });
 
-  test('the "granted" line names only the declared primitives (never a used-count) and is omitted when a step grants nothing', () => {
-    assert.match(source, /"granted: " \+ box\.primitives\.join\(", "\)/);
-    assert.match(source, /if\(box\.primitives\.length\) card\.appendChild\(textLineEl\("hint", "granted: /);
-    assert.doesNotMatch(source, /"used: /);
+  test('Amendment M4a-3: the tools/allowed line reads box.toolsTotal/box.toolsWhy for "tools:" and box.primitives (the signed grant) for "allowed:", and is wired into the card', () => {
+    const fnStart = source.indexOf('function buildStepToolsLineEl(box, idx){');
+    const fnEnd = source.indexOf('\n  }', fnStart);
+    const body = source.slice(fnStart, fnEnd);
+    assert.match(body, /box\.toolsWhy/);
+    assert.match(body, /box\.toolsTotal/);
+    assert.match(body, /box\.primitives\.join\(", "\)/);
+    assert.match(body, /box\.ungranted/);
+    assert.match(source, /var toolsLineEl = buildStepToolsLineEl\(box, idx\);/);
+    assert.match(source, /if\(toolsLineEl\) card\.appendChild\(toolsLineEl\);/);
+  });
+
+  test('Amendment M4a-3: the tools/allowed line\'s exact wording — "tools: " prefix (or its toolsWhy fallback), "allowed: " prefix, and a red "not allowed: " for ungranted calls', () => {
+    const fnStart = source.indexOf('function buildStepToolsLineEl(box, idx){');
+    const fnEnd = source.indexOf('\n  }', fnStart);
+    const body = source.slice(fnStart, fnEnd);
+    assert.match(body, /"tools: " \+ box\.toolsWhy/);
+    assert.match(body, /"tools: " \+ pairs\.join\(" · "\)/);
+    assert.match(body, /"allowed: " \+ box\.primitives\.join\(", "\)/);
+    assert.match(body, /"not allowed: " \+ box\.ungranted\.join\(", "\)/);
+    // the ungranted half uses the page's own red token, not a hardcoded hex
+    // or a second color scheme — the SAME `--red` `.mark.red`/`.badge.red`
+    // already read elsewhere on this page.
+    assert.match(body, /var\(--red\)/);
   });
 
   test('the "stopped" line is gated on box.stoppedReason (server-derived, one step only) and shows the FULL reason, never a truncated slice', () => {
