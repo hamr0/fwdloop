@@ -277,6 +277,25 @@
   .audit-group h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;text-transform:none;}
   .audit-group h4::before{content:"┤ ";color:var(--text-faint);}
   .audit-group h4::after{content:" ├";color:var(--text-faint);}
+  /* hamr's 2026-09-27 review: the Audit-group's own state header ("[done] ·
+     step · ...", built by buildAuditGroupHeaderEl) is NOT bold — a plain h4
+     is bold by default, so its own class (`.audit-status-header`, NOT the
+     shared `.audit-group h4`, which the Ask tab's `.ask-question-heading`
+     h4 also matches and must stay bold per review #3) overrides it back to
+     normal. Specificity: two classes + type (0,2,1) beats both
+     `.audit-group h4` (0,1,1) and `.ask-question-heading` (0,1,0) alone, so
+     this never un-bolds the ask question heading. */
+  .audit-group h4.audit-status-header{font-weight:400;}
+  /* hamr's 2026-09-27 review: the group header's own state word (g.state,
+     rendered as a <span class="badge STATE">) and its per-try marks
+     (<span class="mark STATE">) reuse the SAME color vocabulary the runs
+     list already uses (glyphClass/.badge) — one color vocabulary, not a
+     second one invented for the Audit tab. `.badge` already draws the
+     "[" "]" brackets and the color; `.mark` is the bare-text equivalent for
+     a try mark, which never carries brackets. */
+  .mark.green{color:var(--green);}
+  .mark.red{color:var(--red);}
+  .mark.grey{color:var(--grey-dot);}
   /* review #4: a momentary highlight on the group a map/step-card click just
      jumped to — never a permanent style change. */
   .audit-group.audit-group-highlight{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);}
@@ -1636,6 +1655,49 @@
     if(typeof g.tokensTotal === "number") bits.splice(4, 0, g.tokensTotal + " tokens");
     return bits.join(" · ");
   }
+  // hamr's 2026-09-27 review: the header's status word gets the SAME color
+  // vocabulary the runs list already uses (glyphClass's green/red/amber/
+  // grey) — never a second color scheme invented for the Audit tab. A
+  // group's `g.state` is server-derived (`deriveStepGroupState`) to exactly
+  // one of 'done'/'waiting'/'stopped' — 'grey' below is an unreached
+  // fallback, never a real state this function is asked to color.
+  function auditStateClass(state){
+    if(state === "done") return "green";
+    if(state === "waiting") return "amber";
+    if(state === "stopped") return "red";
+    return "grey";
+  }
+  function auditMarkClass(mark){
+    if(mark === "✓") return "green";
+    if(mark === "✗") return "red";
+    return "grey"; // "·" — still open, no resolution row yet
+  }
+  // Builds the SAME header line `auditGroupHeaderText` renders as plain
+  // text (used as this header's aria-label, for a screen reader), but as
+  // real DOM: the status word is its own `<span class="badge STATE">`
+  // (reusing the existing `.badge` bracket/color CSS, never a second
+  // "[state]" string built here) and each try mark is its own colored
+  // `<span class="mark STATE">` — built directly off `g.state`/`g.tryMarks`,
+  // never by parsing `auditGroupHeaderText`'s own string back apart.
+  function buildAuditGroupHeaderEl(g){
+    var h4 = document.createElement("h4");
+    h4.className = "audit-status-header";
+    var stateSpan = document.createElement("span");
+    stateSpan.className = "badge " + auditStateClass(g.state);
+    stateSpan.setAttribute("data-testid", "audit-group-state");
+    stateSpan.textContent = g.state;
+    h4.appendChild(stateSpan);
+    h4.appendChild(document.createTextNode(" · " + g.step + " · " + duration(g.timeMs) + " · " + (g.cost || "cost unknown")));
+    if(typeof g.tokensTotal === "number") h4.appendChild(document.createTextNode(" · " + g.tokensTotal + " tokens"));
+    h4.appendChild(document.createTextNode(" · try " + g.tryCount + " "));
+    g.tryMarks.forEach(function(mark){
+      var markSpan = document.createElement("span");
+      markSpan.className = "mark " + auditMarkClass(mark);
+      markSpan.textContent = mark;
+      h4.appendChild(markSpan);
+    });
+    return h4;
+  }
   // Grouped view: one section per step, server order preserved (first-seen
   // order of `r.step` across this run's own rows — never re-sorted).
   // review item #1: COLLAPSED by default — a map/step-card click
@@ -1659,12 +1721,12 @@
       // COLLAPSED by default now (`aria-expanded` starts "false", the
       // table starts `hidden`) — expanding is something a human (or a
       // map/step-card jump) does, never the initial state.
-      var header = document.createElement("h4");
+      var header = buildAuditGroupHeaderEl(g);
       header.setAttribute("role", "button");
       header.setAttribute("tabindex", "0");
       header.setAttribute("aria-expanded", "false");
+      header.setAttribute("aria-label", auditGroupHeaderText(g));
       header.style.cursor = "pointer";
-      header.textContent = auditGroupHeaderText(g);
       wrap.appendChild(header);
       var table = document.createElement("table");
       table.hidden = true;

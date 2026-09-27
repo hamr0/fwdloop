@@ -2058,6 +2058,86 @@ describe('index.html — page source', () => {
     });
   });
 
+  // hamr's 2026-09-27 review (Audit group header colors): the collapsible
+  // group header ("[done] · resume-text · ...") is (1) NOT bold and (2) its
+  // status word is its own colored span, built off `g.state` directly
+  // (server field), never parsed back out of the rendered header string —
+  // reusing the SAME color vocabulary (`.badge`/glyphClass) the runs list
+  // already uses, so it's one color vocabulary, not a second one.
+  test('review: the Audit group header line itself is not bold', () => {
+    // `.audit-group h4` (the shared rule, also matched by the Ask tab's own
+    // `.ask-question-heading` h4, which review #3 requires stay bold) must
+    // never declare font-weight itself — only a MORE specific selector
+    // scoped to the status header may un-bold it, or it would un-bold the
+    // ask question heading too (specificity: `.audit-group h4` outranks a
+    // single class like `.ask-question-heading`).
+    const sharedRule = source.match(/\.audit-group h4\s*\{[^}]*\}/);
+    assert.ok(sharedRule, 'expected a .audit-group h4 CSS rule');
+    assert.doesNotMatch(sharedRule[0], /font-weight/, '.audit-group h4 itself must not set font-weight (it would also affect .ask-question-heading)');
+    // the status header's own, more specific rule sets it to normal weight.
+    const headerRule = source.match(/\.audit-group h4\.audit-status-header\s*\{[^}]*\}/);
+    assert.ok(headerRule, 'expected a .audit-group h4.audit-status-header CSS rule');
+    assert.match(headerRule[0], /font-weight:\s*(400|normal)\b/);
+    // the ask question heading keeps its own bold weight (review #3) — a
+    // regression guard: without a scoped selector, un-bolding the audit
+    // status header would also un-bold this one.
+    const askHeadingRule = source.match(/\.ask-question-heading\s*\{[^}]*\}/);
+    assert.ok(askHeadingRule, 'expected a .ask-question-heading CSS rule');
+    assert.match(askHeadingRule[0], /font-weight:\s*(700|bold)\b/);
+  });
+
+  test('PROOF (bold check can fail): a font-weight:700 rule on the bare .audit-group h4 selector would be caught by the assertion above', () => {
+    const styleBlock = source.slice(source.indexOf('<style>'), source.indexOf('</style>'));
+    const wouldFailIfPresent = /\.audit-group h4\s*\{[^}]*font-weight:\s*700[^}]*\}/;
+    assert.doesNotMatch(styleBlock, wouldFailIfPresent, 'sanity: this shape is not currently present, proving the check above is not vacuous');
+  });
+
+  test('review: the group header status word is its own span carrying a status color class, built directly off g.state (never parsed from the header string)', () => {
+    const fnStart = source.indexOf('function buildAuditGroupHeaderEl');
+    const fnEnd = source.indexOf('\n  }', fnStart);
+    const body = source.slice(fnStart, fnEnd);
+    assert.match(body, /stateSpan\.className = "badge " \+ auditStateClass\(g\.state\)/);
+    assert.match(body, /stateSpan\.textContent = g\.state/);
+    // never re-derived by slicing/parsing a rendered "[state]" string apart.
+    assert.doesNotMatch(body, /\.split\(|\.match\(|\.indexOf\("\["|\.slice\(1/);
+  });
+
+  test('review: auditStateClass maps each of the three real group states to a DISTINCT status color, reusing the runs-list vocabulary (green/amber/red)', () => {
+    const fnStart = source.indexOf('function auditStateClass');
+    const fnEnd = source.indexOf('\n  }', fnStart);
+    const body = source.slice(fnStart, fnEnd);
+    assert.match(body, /state === "done"/);
+    assert.match(body, /state === "waiting"/);
+    assert.match(body, /state === "stopped"/);
+    // include the function's own closing brace (fnEnd stops just BEFORE it,
+    // matching the other body-regex checks in this file) so this parses as
+    // a complete function declaration.
+    const fullFn = source.slice(fnStart, fnEnd + '\n  }'.length);
+    const evalAuditStateClass = new Function(fullFn + '\nreturn auditStateClass;')();
+    const seen = ['done', 'waiting', 'stopped'].map(evalAuditStateClass);
+    assert.deepEqual(seen, ['green', 'amber', 'red']);
+    assert.equal(new Set(seen).size, 3, 'the three real states must not collapse onto the same color');
+  });
+
+  test('PROOF (state-color check can fail): mapping every state to "grey" would fail the distinctness assertion above', () => {
+    function auditStateClassAllGrey(){ return 'grey'; }
+    const seen = ['done', 'waiting', 'stopped'].map(auditStateClassAllGrey);
+    assert.equal(new Set(seen).size, 1, 'sanity: an all-grey stub collapses to one color, which is exactly what the real check must reject');
+  });
+
+  test('review: per-try marks (✓/✗/·) are colored spans too, off the same vocabulary (green/red/grey), never left as bare uncolored text', () => {
+    const fnStart = source.indexOf('function buildAuditGroupHeaderEl');
+    const fnEnd = source.indexOf('\n  }', fnStart);
+    const body = source.slice(fnStart, fnEnd);
+    assert.match(body, /g\.tryMarks\.forEach/);
+    assert.match(body, /markSpan\.className = "mark " \+ auditMarkClass\(mark\)/);
+    const markFnStart = source.indexOf('function auditMarkClass');
+    const markFnEnd = source.indexOf('\n  }', markFnStart);
+    const markBody = source.slice(markFnStart, markFnEnd);
+    assert.match(markBody, /mark === "✓"/);
+    assert.match(markBody, /mark === "✗"/);
+  });
+
   // browser re-walk (2026-09-27), bugs #1-#4.
   test('re-walk #1: a map node\'s title never carries the per-attempt list (that lives on the step card below) — only number/name/try N', () => {
     assert.doesNotMatch(source, /function attemptsInlineText/);
