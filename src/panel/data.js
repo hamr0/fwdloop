@@ -337,6 +337,15 @@ export function listRuns({ root, catalogue }) {
       } else {
         spend = spendFloorDisplay(ctx.spendRows);
       }
+      // browser re-walk bug #4: a parked run's ask.json holds a real,
+      // book-held timestamp (`askedAt`) — a run with an open ask is never
+      // "unknown", even with no history row yet. `atWhy`'s generic "no
+      // history row" text is reserved for the case that's ACTUALLY true of
+      // it: no history row AND no ask either (e.g. died before ever
+      // parking) — never rendered when the books do hold a date.
+      const askedAt = (!ctx.historyRow && ctx.askJson && typeof ctx.askJson.askedAt === 'string')
+        ? ctx.askJson.askedAt
+        : null;
       rows.push({
         flow: flowName,
         runId,
@@ -345,7 +354,8 @@ export function listRuns({ root, catalogue }) {
         spend,
         spendWhy: (!ctx.historyRow && spend === null) ? 'no history row yet and no priced spend.jsonl rows — nothing to floor' : null,
         at: ctx.historyRow ? ctx.historyRow.at : null,
-        atWhy: ctx.historyRow ? null : 'no history row yet (parked or died before one was written)',
+        askedAt,
+        atWhy: (ctx.historyRow || askedAt) ? null : 'no history row yet (parked or died before one was written)',
       });
     }
   }
@@ -363,6 +373,32 @@ export function listRuns({ root, catalogue }) {
       return a.index - b.index;
     })
     .map(({ row }) => row);
+}
+
+/**
+ * "try N" (map node / step-card badge) counts different things for
+ * different close classes, and must never just be `attempts.length` (browser
+ * re-walk bug #2): an ask (`hitl`-classed) step's audit rows are
+ * paused/answer PAIRS — a `paused` row starts one ask shown to the human,
+ * and its very next resolution row (the reject or the accept) is that SAME
+ * try, never a second one. So a paused, reject, paused, accept shape (4
+ * rows) is 2 tries, not 4. A model-classed step has no pause/answer
+ * pairing at all — each row IS one model attempt, so try N stays
+ * `list.length` there, unchanged from before this fix.
+ * @param {string|null} closeClass
+ * @param {Array<{verdict:string}>} list
+ * @returns {number}
+ */
+function computeTryCount(closeClass, list) {
+  if (!list || !list.length) return 0;
+  if (closeClass === 'hitl') {
+    const pausedCount = list.filter((a) => a.verdict === 'paused').length;
+    // No paused row at all is not a shape this step ever produces in
+    // practice, but falls back to the row count rather than 0 — a missing
+    // pause is never grounds to hide that a try happened.
+    return pausedCount > 0 ? pausedCount : list.length;
+  }
+  return list.length;
 }
 
 /**
@@ -444,6 +480,7 @@ export function getRunDetail({
         closeClass: s.close?.class ?? null,
         attempts: byStep[s.emits] ?? [],
         attemptsWhy: byStep[s.emits] ? null : 'no audit.jsonl rows yet for this step',
+        tryCount: computeTryCount(s.close?.class ?? null, byStep[s.emits] ?? []),
       }));
     }
   }
@@ -534,6 +571,15 @@ export function getRunDetail({
     stopReason,
     stopReasonWhy,
     at: ctx.historyRow ? ctx.historyRow.at : null,
+    // browser re-walk bug #4: same "the books hold a date, so never say
+    // unknown" rule as listRuns above — a parked run's own ask.json
+    // `askedAt` is a real timestamp, shown ahead of the generic `atWhy`.
+    askedAt: (!ctx.historyRow && ctx.askJson && typeof ctx.askJson.askedAt === 'string')
+      ? ctx.askJson.askedAt
+      : null,
+    atWhy: (ctx.historyRow || (ctx.askJson && typeof ctx.askJson.askedAt === 'string'))
+      ? null
+      : 'no history row yet (parked or died before completion)',
   };
 }
 

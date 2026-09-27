@@ -629,32 +629,35 @@
   var MIN_BOX_W = 100;
   var BOX_H = 60, BOX_H_2LINE = 78;
   var ROW_GAP = 70;
-  // Each step box shows its attempts INLINE, e.g. "attempt 1 failed · attempt
-  // 2 passed" (ruling A: one card per step ATTEMPT, never a per-round
-  // breakdown) — words, not the raw verdict string (fix #2).
-  function attemptsInlineText(attempts, closeClass){
-    if(!attempts || !attempts.length) return "";
-    return attempts.map(function(a){ return "attempt " + a.attempt + " " + verdictWord(a.verdict, closeClass, null); }).join(" · ");
-  }
   // hamr review #2: "map cards missing try 2 if multiple attempts/iteration"
   // — a plain "try N" count whenever a step has been attempted more than
   // once, plus a mark when the LATEST attempt followed a human reject (the
   // same `afterReject` boundary src/panel/data.js already worked out —
   // never re-derived here). One attempt (the common case) shows no "try"
   // text at all, matching bareloop's own "only say it when it's true" shape.
-  function tryCountText(attempts){
-    if(!attempts || attempts.length <= 1) return "";
-    var last = attempts[attempts.length - 1];
-    var txt = "try " + attempts.length;
+  // `tryCount` is server-derived (src/panel/data.js's computeTryCount) —
+  // for an ask (hitl) step it counts asks shown to the human (a pause row
+  // + its answer row are the SAME try), for a model step it counts model
+  // attempts. Never re-derived here from `attempts.length` (browser
+  // re-walk bug #2: that over-counted an ask step's pause/answer pairs).
+  function tryCountText(tryCount, attempts){
+    if(!tryCount || tryCount <= 1) return "";
+    var last = attempts && attempts.length ? attempts[attempts.length - 1] : null;
+    var txt = "try " + tryCount;
     if(last && last.afterReject) txt += " (re-attempt after reject)";
     return txt;
   }
+  // hamr review (browser re-walk #1): the per-attempt list ("attempt 1
+  // failed · attempt 2 passed · …") is a map node's single biggest source of
+  // width — it lives on the step card below already (attempts-list, near
+  // line 1357) and must NOT also sit on the node. A node's title is just
+  // step number + name + try N + state, kept short so naturalBoxWidth stays
+  // small and the map stays compact instead of stretching to the pane width.
   function stepTitleText(idx, s){
     var base = (idx + 1) + ' ' + s.emits;
-    var tryText = tryCountText(s.attempts);
+    var tryText = tryCountText(s.tryCount, s.attempts);
     if(tryText) base += ' — ' + tryText;
-    var at = attemptsInlineText(s.attempts, s.closeClass);
-    return at ? base + ' — ' + at : base;
+    return base;
   }
   // The declared step's own run-state, for the map box and the summary's
   // "which step stopped and why" (M4a exit: "say which step stopped it and
@@ -671,7 +674,7 @@
   }
   function buildStepBoxes(steps){
     return (steps || []).map(function(s){
-      return { emits: s.emits, goal: s.goal, closeClass: s.closeClass, attempts: s.attempts || [], state: stepBoxState(s) };
+      return { emits: s.emits, goal: s.goal, closeClass: s.closeClass, attempts: s.attempts || [], tryCount: s.tryCount || 0, state: stepBoxState(s) };
     });
   }
   function naturalBoxWidth(steps){
@@ -884,7 +887,7 @@
       '<span class="wf-meta-line">' +
       '<span class="wf-meta">' + escapeXml(r.label || "unknown") + '</span>' +
       '<span class="wf-meta">' + escapeXml(r.spend || r.spendWhy || "unknown") + '</span>' +
-      '<span class="wf-meta">' + escapeXml(r.at ? r.at.slice(0,10) : (r.atWhy || "unknown")) + '</span>' +
+      '<span class="wf-meta">' + escapeXml(r.at ? r.at.slice(0,10) : (r.askedAt ? "asked " + readableDateTime(r.askedAt) : (r.atWhy || "unknown"))) + '</span>' +
       '</span>';
     row.addEventListener("click", function(){ selectRun(r.flow, r.runId, row, ".hist-row"); document.getElementById("tab-run").click(); scrollRunIntoViewMobile(); });
     row.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); } });
@@ -1299,7 +1302,12 @@
     name.textContent = detail.flow + " (" + detail.runId + ")";
     dot.className = "dot " + glyphClass(detail.glyph);
     verdict.textContent = detail.label || "unknown";
-    date.textContent = detail.at ? readableDateTime(detail.at) : (detail.outcomeWhy || "unknown");
+    // browser re-walk bug #4: this is the DATE field — it must use its own
+    // why (`detail.atWhy`), never `detail.outcomeWhy` (a different book
+    // fact borrowed by mistake). A parked run's ask.json `askedAt` is a
+    // real timestamp the books hold, shown ahead of any generic why text.
+    date.textContent = detail.at ? readableDateTime(detail.at)
+      : (detail.askedAt ? "asked " + readableDateTime(detail.askedAt) : (detail.atWhy || "unknown"));
 
     document.getElementById("run-empty").hidden = true;
     document.getElementById("run-content").hidden = false;
@@ -1346,7 +1354,8 @@
       var card = document.createElement("div");
       card.className = "step-card" + (box.state === "waiting" ? " running" : "");
       card.setAttribute("data-testid", "step-card-" + idx);
-      var tryBadge = tryCountText(box.attempts) ? ('<span class="badge amber">' + escapeXml(tryCountText(box.attempts)) + '</span>') : '';
+      var tryBadgeText = tryCountText(box.tryCount, box.attempts);
+      var tryBadge = tryBadgeText ? ('<span class="badge amber">' + escapeXml(tryBadgeText) + '</span>') : '';
       card.innerHTML =
         '<div class="step-head"><h4>' + (idx + 1) + ' &middot; ' + escapeXml(box.emits) + '</h4>' +
           '<span class="badge ' + badgeClass + '">' + escapeXml(stateWord(box.state)) + '</span>' +
@@ -1473,6 +1482,14 @@
       var rows = byStep[step];
       var closeClass = rows[0].class;
       var known = rows.some(function(r){ return typeof r.usd === "number"; });
+      // `partial` means "some row in this group is spendComplete:false"
+      // (true => show "at least"). `money`'s OWN second argument means the
+      // opposite thing — "this row's own spendComplete flag" (false =>
+      // show "at least") — so it must be handed `!partial`, never `partial`
+      // itself (browser re-walk bug #3: passing `partial` straight through
+      // made an all-complete group, where `partial === false`, satisfy
+      // money's `spendComplete === false` check and print "at least" on
+      // every group, no matter what the rows actually said).
       var partial = rows.some(function(r){ return r.spendComplete === false; });
       var sum = rows.reduce(function(acc, r){ return typeof r.usd === "number" ? acc + r.usd : acc; }, 0);
       var wrap = document.createElement("div");
@@ -1482,7 +1499,7 @@
       var header = document.createElement("h4");
       header.textContent = step + " — " + closeClassLabel(closeClass) + " — "
         + rows.length + " attempt" + (rows.length === 1 ? "" : "s") + " — "
-        + (known ? money(sum, partial) : "cost unknown");
+        + (known ? money(sum, !partial) : "cost unknown");
       wrap.appendChild(header);
       var table = document.createElement("table");
       table.innerHTML = "<thead><tr><th>Attempt</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th></tr></thead><tbody></tbody>";

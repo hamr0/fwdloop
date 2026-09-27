@@ -414,6 +414,20 @@ describe('listRuns', () => {
     assert.match(answered.label, /answered, not resumed yet/);
     assert.notEqual(waiting.label, answered.label);
   });
+
+  test('browser re-walk bug #4: a parked run with an open ask carries the ask\'s own askedAt, never the generic "no history row" why', () => {
+    const waiting = rows.find((r) => r.flow === FLOW && r.runId === 'run-waiting');
+    assert.equal(waiting.at, null);
+    assert.equal(waiting.askedAt, '2026-09-25T00:00:00.000Z');
+    assert.equal(waiting.atWhy, null);
+  });
+
+  test('browser re-walk bug #4: a run with no history row and no ask either keeps the generic why, and no askedAt', () => {
+    const died = rows.find((r) => r.flow === FLOW && r.runId === 'run-died');
+    assert.equal(died.at, null);
+    assert.equal(died.askedAt, null);
+    assert.match(died.atWhy, /no history row/);
+  });
 });
 
 describe('getRunDetail', () => {
@@ -514,6 +528,25 @@ describe('getRunDetail', () => {
     const step = detail.steps.find((s) => s.emits === 'resume-summary-approved');
     assert.equal(step.attempts.length, 4);
     for (const a of step.attempts) assert.equal(a.afterReject, null, `attempt ${a.attempt}/${a.verdict} must not carry a boundary label`);
+    // browser re-walk bug #2: this exact paused/reject/paused/accept shape
+    // (4 audit rows) is 2 asks shown to the human, never 4 — a pause row
+    // and its very next resolution row are the SAME try.
+    assert.equal(step.tryCount, 2);
+  });
+
+  test('browser re-walk bug #2: a model step\'s tryCount is its attempt count (4 drafts), unlike an ask step', () => {
+    const runDir = makeRunDir(FLOW_DIR, 'run-model-tries');
+    for (let i = 1; i <= 4; i += 1) {
+      appendAudit(runDir, {
+        step: 'resume-summary', attempt: i, class: 'softgreen', verdict: i < 4 ? 'not-done' : 'green', gap: i < 4 ? 'missing a section' : null, usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+      });
+    }
+    const detail = getRunDetail({
+      root: ROOT, flow: FLOW, runId: 'run-model-tries', catalogue: CATALOGUE,
+    });
+    const step = detail.steps.find((s) => s.emits === 'resume-summary');
+    assert.equal(step.attempts.length, 4);
+    assert.equal(step.tryCount, 4);
   });
 
   test('M4a piece 3 fix #6: a NON-ask step\'s genuine attempt-number restart after an interleaved human reject IS labelled', () => {
@@ -565,6 +598,18 @@ describe('getRunDetail', () => {
     assert.equal(detail.model, null);
     assert.match(detail.modelWhy, /no audit.jsonl row/);
     assert.equal(detail.spendSummary.empty, true);
+  });
+
+  test('browser re-walk bug #4: getRunDetail also carries askedAt for a parked run with an open ask, distinct from outcomeWhy', () => {
+    const detail = getRunDetail({
+      root: ROOT, flow: FLOW, runId: 'run-waiting', catalogue: CATALOGUE,
+    });
+    assert.equal(detail.at, null);
+    assert.equal(detail.askedAt, '2026-09-25T00:00:00.000Z');
+    assert.equal(detail.atWhy, null);
+    // outcomeWhy is a SEPARATE book fact (this run truly has no outcome
+    // yet) — it must stay, but never leak into the date field's own why.
+    assert.match(detail.outcomeWhy, /no history row/);
   });
 
   test('an unknown run returns null (caller renders 404)', () => {
@@ -1035,5 +1080,28 @@ describe('index.html — page source', () => {
     var redoIdx = source.indexOf('id="details-redo-cap"');
     var asksIdx = source.indexOf('id="details-asks"');
     assert.ok(capIdx > 0 && redoIdx > capIdx && asksIdx > redoIdx, 'cap must render before redo cap/asks in the arbiter block');
+  });
+
+  // browser re-walk (2026-09-27), bugs #1-#4.
+  test('re-walk #1: a map node\'s title never carries the per-attempt list (that lives on the step card below) — only number/name/try N', () => {
+    assert.doesNotMatch(source, /function attemptsInlineText/);
+    var stepTitleFn = source.slice(source.indexOf('function stepTitleText'), source.indexOf('function stepTitleText') + 400);
+    assert.doesNotMatch(stepTitleFn, /attemptsInlineText/);
+  });
+
+  test('re-walk #4: the run header\'s date never borrows outcomeWhy, and shows a parked run\'s own askedAt when the books hold one', () => {
+    assert.doesNotMatch(source, /detail\.at \? readableDateTime\(detail\.at\) : \(detail\.outcomeWhy/);
+    assert.match(source, /detail\.askedAt \? "asked " \+ readableDateTime\(detail\.askedAt\)/);
+    assert.match(source, /r\.askedAt \? "asked " \+ readableDateTime\(r\.askedAt\)/);
+  });
+
+  test('re-walk #3: a grouped audit header\'s cost only says "at least" when some row in the group is spendComplete:false, never the inverse', () => {
+    // the exact bug: `money(sum, partial)` where `partial` is "some row
+    // incomplete" (true => at-least) but money's own 2nd arg means "this
+    // row's own spendComplete" (false => at-least) — an all-complete group
+    // (partial === false) then satisfied money's `=== false` check and
+    // printed "at least" on every group, regardless of the real rows.
+    assert.match(source, /money\(sum, !partial\)/);
+    assert.doesNotMatch(source, /money\(sum, partial\)/);
   });
 });
