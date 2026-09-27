@@ -391,11 +391,18 @@ export function writeArtifact(runDir, id, artifact, { overwrite = false } = {}) 
 
 /** Reads one artifact back off disk; `undefined` when it was never written
  *  (mirrors the in-memory map's own "absent" shape for a not-yet-produced
- *  read). */
+ *  read).
+ *
+ * F48 round 3 follow-up (debrief): goes through `readFileInside`
+ * (`src/flow.js`) rather than a raw `readFileSync` — a symlinked artifact
+ * file (or a symlinked `artifacts/` ancestor) reads as `undefined`, the same
+ * shape as "never written", never as some outside file's forged content fed
+ * back into a later step or a resume's "was this step already done" check.
+ */
 export function readArtifact(runDir, id) {
-  const target = artifactPath(runDir, id);
-  if (!existsSync(target)) return undefined;
-  return JSON.parse(readFileSync(target, 'utf8'));
+  const result = readFileInside(runDir, `artifacts/${id}.json`);
+  if (!result.ok) return undefined;
+  return JSON.parse(result.text);
 }
 
 function readArtifactsMap(runDir, ids) {
@@ -1432,12 +1439,21 @@ export async function resumeRun({
 
   try {
     const statePath = join(runDir, 'state.json');
-    if (!existsSync(statePath)) {
-      return { outcome: 'refused', red: `resume: no parked state for run "${runId}" (${statePath})` };
+    // F48 round 3 follow-up: goes through `readFileInside` (`src/flow.js`)
+    // rather than a raw `readFileSync` — a symlinked state.json (or a
+    // symlinked run dir ancestor) is refused by name here, never read
+    // through to an outside file's content (the same class `answer.json`
+    // and `audit.jsonl` above already close).
+    const stateResult = readFileInside(runDir, 'state.json');
+    if (!stateResult.ok) {
+      if (stateResult.missing) {
+        return { outcome: 'refused', red: `resume: no parked state for run "${runId}" (${statePath})` };
+      }
+      return { outcome: 'refused', red: `resume: state.json for run "${runId}" — ${stateResult.red}` };
     }
     let state;
     try {
-      state = JSON.parse(readFileSync(statePath, 'utf8'));
+      state = JSON.parse(stateResult.text);
     } catch (err) {
       return { outcome: 'refused', red: `resume: state.json for run "${runId}" is not valid JSON — ${err.message}` };
     }
