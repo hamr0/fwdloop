@@ -821,6 +821,16 @@
     if(last.verdict === "paused" || last.verdict === "refused") return "waiting";
     return verdictPassed(last.verdict) ? "done" : "stopped";
   }
+  // hamr's 2026-09-27 review: a step with a server-computed `tryCount > 1`
+  // (M2/M3's runner already counts retries/redraft attempts honestly — never
+  // recounted here from `attempts.length`, which double-counts an ask step's
+  // pause+answer pair) draws a dashed loop-back edge under its map box,
+  // matching bareloop's own retry-loop shape (bareloop commit 16825a7,
+  // `boxRetryTry`) — ONE shared rule, reused by both the SVG loop path and
+  // (if ever needed) any other "does this box retry" check.
+  function boxRetryTry(box){
+    return box.tryCount > 1 ? box.tryCount : 0;
+  }
   function buildStepBoxes(steps){
     return (steps || []).map(function(s){
       return {
@@ -891,6 +901,8 @@
       '<defs>' +
         '<marker id="' + uid + '-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">' +
           '<path d="M0,0 L6,3 L0,6 z" fill="var(--text-dim)"></path></marker>' +
+        '<marker id="' + uid + '-arrow-grey" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">' +
+          '<path d="M0,0 L6,3 L0,6 z" fill="var(--text-faint)"></path></marker>' +
       '</defs>';
     steps.forEach(function(s, idx){
       var row = Math.floor(idx / perRow);
@@ -901,6 +913,8 @@
       var y = 30 + row * rowH;
       var colors = stepMapColors(s.state);
       var lines = titleLines[idx];
+      var nextRowIdx = idx < n - 1 ? Math.floor((idx + 1) / perRow) : null;
+      var hasDrop = nextRowIdx !== null && nextRowIdx !== row;
       var stateY = y + boxH - 18;
       // hamr review #4: each node is a clickable group ("map-step", tagged
       // with the step's own `emits` id) — the click listener that turns this
@@ -922,9 +936,28 @@
       body += '<text x="' + (x + boxW / 2) + '" y="' + stateY +
         '" text-anchor="middle" font-size="10" fill="' + colors.textFill + '">' + escapeXml(stateWord(s.state)) + '</text>';
       body += '</g>';
+      // hamr's 2026-09-27 retry-loop review: a step whose server-computed
+      // tryCount is >1 gets a dashed grey self-loop under its box, labelled
+      // "try N" — ported from bareloop commit 16825a7's own curve (same
+      // control-point proportions, scaled to THIS box's own width). When the
+      // same box also carries the row-to-row snake drop below (which leaves
+      // from dead-center, x=cx), the loop's start is shifted off-center by a
+      // fixed pixel offset so the two paths never begin at the same point.
+      var retryTry = boxRetryTry(s);
+      if(retryTry){
+        var retryShift = hasDrop ? 14 : 0;
+        var bottom = y + boxH;
+        var sx = x + boxW * 0.50 - retryShift, sy = bottom + 5;
+        var c1x = x + boxW * 0.278 - retryShift, c1y = bottom + 30;
+        var c2x = x + boxW * 0.167 - retryShift, c2y = bottom + 30;
+        var ex = x + boxW * 0.028 - retryShift, ey = bottom + 2;
+        body += '<path d="M ' + sx + ' ' + sy + ' C ' + c1x + ' ' + c1y + ', ' + c2x + ' ' + c2y + ', ' + ex + ' ' + ey +
+          '" fill="none" stroke="var(--text-faint)" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#' + uid + '-arrow-grey)"></path>';
+        body += '<text x="' + (x + boxW * 0.267 - retryShift) + '" y="' + (bottom + 32) +
+          '" text-anchor="middle" font-size="10" fill="var(--text-faint)">try ' + retryTry + '</text>';
+      }
       if(idx < n - 1){
-        var nextRow = Math.floor((idx + 1) / perRow);
-        if(nextRow === row){
+        if(nextRowIdx === row){
           var midY = y + boxH / 2;
           if(!rtl){
             var nx = x + boxW + gap;
@@ -956,6 +989,7 @@
       '<span><span class="dot red"></span>stopped</span>' +
       '<span><span class="dot"></span>waiting on you</span>' +
       '<span>not started</span>' +
+      '<span>⤾ dashed = retry</span>' +
       '</div>';
   }
   var lastSteps = null;

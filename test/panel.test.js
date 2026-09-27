@@ -2287,6 +2287,57 @@ describe('index.html — page source', () => {
     assert.match(source, /g\.cost \|\| "cost unknown"/);
   });
 
+  // hamr's 2026-09-27 retry-loop review: a step map box with a server-derived
+  // tryCount > 1 draws a dashed loop-back edge (bareloop commit 16825a7's own
+  // shape). Extracts the real functions out of the page (never re-implements
+  // them here) and calls them, so this proves actual rendering behavior, not
+  // just a source-text grep.
+  function loadStepMapGeometry() {
+    const start = source.indexOf('function escapeXml');
+    const end = source.indexOf('function mapAvailWidth');
+    const body = source.slice(start, end);
+    // eslint-disable-next-line no-new-func
+    const factory = new Function(`${body}
+      return { buildStepBoxes, buildStepMapSVG, boxRetryTry, tryCountText, stepTitleText };
+    `);
+    return factory();
+  }
+
+  test('boxRetryTry: a box with tryCount > 1 reports its own tryCount; tryCount 1 or 0 reports 0 (server-derived, never recounted from attempts)', () => {
+    const { boxRetryTry } = loadStepMapGeometry();
+    assert.equal(boxRetryTry({ tryCount: 4 }), 4);
+    assert.equal(boxRetryTry({ tryCount: 1 }), 0);
+    assert.equal(boxRetryTry({ tryCount: 0 }), 0);
+  });
+
+  test('buildStepMapSVG: a step with server tryCount 3 renders a dashed retry loop path labelled "try 3"', () => {
+    const { buildStepBoxes, buildStepMapSVG } = loadStepMapGeometry();
+    const steps = buildStepBoxes([
+      { emits: 'flaky-step', goal: 'g', closeClass: 'green', attempts: [{ verdict: 'red' }, { verdict: 'red' }, { verdict: 'green' }], tryCount: 3 },
+    ]);
+    const svg = buildStepMapSVG(steps, 900);
+    assert.match(svg, /stroke-dasharray="3,3"/, 'expected a dashed retry path when tryCount > 1');
+    assert.match(svg, />try 3</, 'expected the retry label to carry the server tryCount');
+  });
+
+  test('buildStepMapSVG: a step with tryCount 1 (or missing) renders NO dashed retry path — proof the check above can fail', () => {
+    const { buildStepBoxes, buildStepMapSVG } = loadStepMapGeometry();
+    const steps = buildStepBoxes([
+      { emits: 'clean-step', goal: 'g', closeClass: 'green', attempts: [{ verdict: 'green' }], tryCount: 1 },
+      { emits: 'never-run', goal: 'g', closeClass: 'green', attempts: [], tryCount: 0 },
+    ]);
+    const svg = buildStepMapSVG(steps, 900);
+    assert.doesNotMatch(svg, /stroke-dasharray="3,3"/, 'no box here has tryCount > 1, so no retry loop should render');
+    assert.doesNotMatch(svg, />try /, 'no "try N" label should render either');
+  });
+
+  test('stepMapLegendHTML: names the retry loop so the dashed line is not left unexplained on the page', () => {
+    const fnStart = source.indexOf('function stepMapLegendHTML');
+    const fnEnd = source.indexOf('\n  }', fnStart);
+    const body = source.slice(fnStart, fnEnd);
+    assert.match(body, /dashed = retry/);
+  });
+
   // ---------------------------------------------------------------------
   // M4a-1: the Ask tab (right pane, after Job) + the Inbox-as-stops-list
   // (left pane). Static source checks — the orchestrator does the real
