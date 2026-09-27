@@ -327,7 +327,7 @@
       <div class="tabrow" role="tablist" aria-label="Left panel views">
         <button role="tab" id="tab-chat" aria-controls="panel-chat" aria-selected="true" data-testid="left-tab-chat">Chat</button>
         <button role="tab" id="tab-runs" aria-controls="panel-runs" aria-selected="false" data-testid="left-tab-runs">Runs</button>
-        <button role="tab" id="tab-inbox" aria-controls="panel-inbox" aria-selected="false" data-testid="left-tab-inbox">Inbox</button>
+        <button role="tab" id="tab-inbox" aria-controls="panel-inbox" aria-selected="false" data-testid="left-tab-inbox">Inbox<span id="inbox-count-label"></span></button>
       </div>
 
       <div class="pane-body">
@@ -342,9 +342,13 @@
         </section>
 
         <section id="panel-inbox" class="tabpanel" role="tabpanel" aria-labelledby="tab-inbox" hidden>
-          <!-- Open asks across every flow, read-only (M4a scope item 2) —
-               question, time left, and the evidence (the draft under review
-               first, then each unjudged artifact labelled by step). No
+          <!-- M4a-1: a list of STOPS, like History — open ones first with
+               [.] and time left, then past ones newest first with a short
+               status word ([accepted]/[rejected: reason]/[reran: reason]/
+               [expired]/[unanswered]). No evidence is rendered here any
+               more (M4a-1 review): clicking a stop selects its run, switches
+               the right pane to the Ask tab, and expands that ONE ask there
+               — the wide right pane is where the evidence lives now. No
                answer controls — those are M4b. -->
           <div id="inbox-list" data-testid="inbox-list"></div>
         </section>
@@ -377,6 +381,7 @@
         <button role="tab" id="tab-run" aria-controls="panel-run" aria-selected="true" data-testid="right-tab-run">Run</button>
         <button role="tab" id="tab-audit" aria-controls="panel-audit" aria-selected="false" data-testid="right-tab-audit">Audit / logs</button>
         <button role="tab" id="tab-details" aria-controls="panel-details" aria-selected="false" data-testid="right-tab-details">Job</button>
+        <button role="tab" id="tab-ask" aria-controls="panel-ask" aria-selected="false" data-testid="right-tab-ask">Ask</button>
       </div>
 
       <div class="pane-body">
@@ -443,6 +448,27 @@
           </div>
         </section>
 
+        <section id="panel-ask" class="tabpanel" role="tabpanel" aria-labelledby="tab-ask" hidden data-testid="panel-ask">
+          <!-- M4a-1: every ask of the selected run, COLLAPSED by default
+               (header: question, asked time, status). Clicking a stop in
+               the left Inbox tab selects that run, switches here, and
+               expands exactly that one ask — when a run with an open ask is
+               selected directly, the open one expands by default. Expanded:
+               question, time left (open) or decision+reason+answered time
+               (past), the draft under review (scrollable), then each
+               unjudged input labelled by step (goal as subtitle). A
+               pre-M4a-1 ask shows "draft not kept (before M4a-1)" in place
+               of the draft. Read-only: no answer controls here (M4b) — a
+               clearly marked EMPTY slot stands in their place. Nothing in
+               this panel is a real <button>/<input> — even the
+               collapse/expand toggle is a div with role="button"
+               tabindex="0" (the SAME pattern the step-map's own SVG nodes
+               already use elsewhere on this page), so "no controls yet"
+               holds by construction. -->
+          <div id="ask-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
+          <div id="ask-list" data-testid="ask-list" hidden></div>
+        </section>
+
       </div>
     </section>
 
@@ -473,7 +499,7 @@
     });
   }
   wireTabs([document.getElementById("tab-chat"), document.getElementById("tab-runs"), document.getElementById("tab-inbox")]);
-  wireTabs([document.getElementById("tab-run"), document.getElementById("tab-audit"), document.getElementById("tab-details")]);
+  wireTabs([document.getElementById("tab-run"), document.getElementById("tab-audit"), document.getElementById("tab-details"), document.getElementById("tab-ask")]);
 
   // ---- fetch helpers — GET only, this panel is read-only by construction
   // (src/panel/server.js is GET/HEAD-only too; nothing on this page ever
@@ -1286,7 +1312,7 @@
   }
 
   function clearSelection(selector){
-    document.querySelectorAll(".wf-row, .hist-row").forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
+    document.querySelectorAll(".wf-row, .hist-row, .inbox-row").forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
   }
 
   // ---- Run tab: header + summary + step map + one card per step ATTEMPT
@@ -1599,15 +1625,19 @@
   // ---- selection + loading ----
   var currentFlow = null;
   var currentRunId = null;
-  function selectRun(flow, runId, rowEl, siblingSelector){
+  // `focusAskId` (M4a-1): when a click on an Inbox stop calls `selectRun`,
+  // it names the ONE ask that stop is about — `renderAsk` expands exactly
+  // that ask and scrolls it into view, rather than whatever this run's
+  // default (its open ask, if any) would otherwise expand.
+  function selectRun(flow, runId, rowEl, siblingSelector, focusAskId){
     clearSelection();
     document.querySelectorAll(siblingSelector).forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
     if(rowEl){ rowEl.classList.add("selected"); rowEl.setAttribute("aria-pressed","true"); }
     currentFlow = flow;
     currentRunId = runId;
     var base = "/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId);
-    // detail, audit, and job each load independently — the Run tab's step
-    // cards get everything they need (including a step's own attempt-
+    // detail, audit, job, and asks each load independently — the Run tab's
+    // step cards get everything they need (including a step's own attempt-
     // numbering boundary, `afterReject`) straight off `detail.steps` now;
     // src/panel/data.js works out the boundary server-side, off the run's
     // full audit-row order, so the client no longer needs a second,
@@ -1619,6 +1649,9 @@
     });
     getJSON(base + "/audit").then(renderAudit).catch(function(){ renderAudit(null); });
     getJSON(base + "/job").then(renderJob).catch(function(){ renderJob(null); });
+    getJSON(base + "/asks").then(function(result){ renderAsk(result, focusAskId || null); }).catch(function(e){
+      renderAsk(null, null, e.message);
+    });
   }
 
   getJSON("/api/runs").then(function(result){
@@ -1640,93 +1673,216 @@
     document.getElementById("history-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
   });
 
-  // ---- Inbox tab: open asks across every flow, read-only (M4a scope item
-  // 2) — question, time left, and the evidence (the draft under review
-  // first, then each unjudged artifact labelled by step), off GET
-  // /api/inbox (src/panel/data.js's listInbox). No answer controls — those
-  // are M4b. Book text (question/draft/artifact text/gap) is set via
-  // `.textContent`, never interpolated into an `innerHTML` string.
+  // ---- shared text-node helper — book text (question/draft/artifact
+  // text/reason/gap) is ALWAYS set via `.textContent`, never interpolated
+  // into an `innerHTML` string, on the Inbox list and the Ask tab alike. ----
   function textDiv(cls, text){
     var d = document.createElement("div");
     if(cls) d.className = cls;
     d.textContent = text;
     return d;
   }
-  function statusLine(row){
-    if(row.status === "legacy") return "legacy — " + (row.why || "not answerable");
-    if(row.status === "unreadable") return "unreadable — " + (row.statusWhy || "unknown");
-    if(row.status === "expired") return "expired at " + row.expiresAt;
-    return "time left: " + duration(row.timeLeftMs);
+
+  // ---- Inbox tab (M4a-1): a list of STOPS across every flow, like
+  // History — open ones first with time left, past ones newest-answered-
+  // first with a short status word, off GET /api/inbox
+  // (src/panel/data.js's listStops). Status vocabulary is exactly the
+  // words the books' own decision field maps to (never a second, made-up
+  // vocabulary): "accepted" / "rejected" / "reran" / "expired" /
+  // "unanswered" (this IS the open case) / the rare "open" fallback (an
+  // archived ask.json itself failed to parse). No evidence renders here any
+  // more — clicking a stop selects its run and opens the wide right pane's
+  // Ask tab, focused on that one ask. No answer controls — those are M4b. --
+  function stopStatusLine(row){
+    if(row.open) return "time left: " + duration(row.timeLeftMs);
+    var bits = [row.status];
+    if(row.reason) bits.push("reason: " + row.reason);
+    if(row.answeredAt) bits.push("answered " + (readableDateTime(row.answeredAt) || row.answeredAt));
+    if(row.why) bits.push(row.why);
+    return bits.join(" · ");
   }
-  function renderInboxRow(row){
+  function renderStopRow(row){
     var wrap = document.createElement("div");
-    wrap.className = "hist-row";
-    wrap.setAttribute("data-testid", "inbox-row-" + row.flow + "-" + row.runId);
+    wrap.className = "hist-row inbox-row";
+    wrap.setAttribute("role", "button");
+    wrap.setAttribute("tabindex", "0");
+    wrap.setAttribute("aria-pressed", "false");
+    wrap.setAttribute("data-testid", "inbox-row-" + row.flow + "-" + row.runId + (row.askId ? "-" + row.askId : ""));
     var head = document.createElement("div");
     head.className = "wf-line1";
-    var badgeClass = row.status === "open" ? "amber" : (row.status === "expired" ? "red" : "grey");
-    head.innerHTML = '<span class="badge ' + badgeClass + '">' + escapeXml(row.status) + '</span>';
+    var badge = document.createElement("span");
+    badge.className = "badge " + (row.open ? "amber" : (row.status === "accepted" ? "green" : (row.status === "rejected" ? "red" : "grey")));
+    badge.textContent = row.open ? "·" : row.status;
+    head.appendChild(badge);
     var flowName = textDiv(null, row.flow + " (" + row.runId + ")");
     flowName.className = "wf-name";
     head.appendChild(flowName);
     wrap.appendChild(head);
-    wrap.appendChild(textDiv("wf-meta", statusLine(row)));
+    wrap.appendChild(textDiv("wf-meta", stopStatusLine(row)));
     if(typeof row.question === "string"){
-      var q = document.createElement("div");
-      q.className = "step-meta";
-      q.textContent = "question: " + row.question;
-      wrap.appendChild(q);
+      wrap.appendChild(textDiv("step-meta", "question: " + row.question));
+    } else if(row.questionWhy){
+      wrap.appendChild(textDiv("hint", row.questionWhy));
     }
-    if(row.evidence){
-      var ev = document.createElement("div");
-      ev.className = "attempts-list";
-      if(row.evidence.draft){
-        var draftEl = document.createElement("div");
-        draftEl.className = "ro-value scroll";
-        draftEl.textContent = row.evidence.draft;
-        ev.appendChild(textDiv("hint", "draft under review:"));
-        ev.appendChild(draftEl);
-      } else {
-        ev.appendChild(textDiv("hint", row.evidence.draftWhy || "no draft on file"));
-      }
-      // hamr review #8/#9 (2026-09-27): `readAskEvidence` (src/ask.js) puts
-      // an unjudged artifact's text straight on `u.text` (never nested under
-      // `u.artifact`, which this element never had — the OLD line read the
-      // wrong field and silently rendered an empty box). The label reads
-      // `u.emits` (the step's real id, e.g. "resume-text") when the ask.json
-      // entry actually named one; `u.step` (which — despite the name —
-      // carries the step's GOAL prose, not an id) is shown as a smaller
-      // subtitle underneath, never as the primary label, and never assumed
-      // present when `u.emits` is missing (an M2/no-`emits` shape falls back
-      // to `u.step` alone as the label, honestly, rather than inventing an
-      // id it was never given).
-      (row.evidence.unjudged || []).forEach(function(u){
-        var label = typeof u.emits === "string" && u.emits.length > 0 ? u.emits : u.step;
-        ev.appendChild(textDiv("hint", "unjudged — step: " + label));
-        if(typeof u.emits === "string" && u.emits.length > 0 && u.step !== u.emits){
-          ev.appendChild(textDiv("step-meta", u.step));
-        }
-        var art = document.createElement("div");
-        art.className = "ro-value scroll";
-        art.textContent = typeof u.text === "string" ? u.text : "no artifact text on file";
-        ev.appendChild(art);
-      });
-      wrap.appendChild(ev);
+    function activate(){
+      selectRun(row.flow, row.runId, wrap, ".inbox-row", row.askId);
+      document.getElementById("tab-ask").click();
     }
+    wrap.addEventListener("click", activate);
+    wrap.addEventListener("keydown", function(e){
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); activate(); }
+    });
     return wrap;
   }
   function renderInbox(rows){
     var el = document.getElementById("inbox-list");
     el.innerHTML = "";
+    var openCount = 0;
+    (rows || []).forEach(function(r){ if(r.open) openCount += 1; });
+    document.getElementById("inbox-count-label").textContent = openCount > 0 ? (" (" + openCount + ")") : "";
     if(!rows || !rows.length){
-      el.innerHTML = '<div class="hint">nothing waiting on you — no open asks under this root</div>';
+      el.innerHTML = '<div class="hint">nothing waiting on you — no stops recorded under this root</div>';
       return;
     }
-    rows.forEach(function(row){ el.appendChild(renderInboxRow(row)); });
+    rows.forEach(function(row){ el.appendChild(renderStopRow(row)); });
   }
   getJSON("/api/inbox").then(function(result){ renderInbox(result.rows || []); }).catch(function(e){
     document.getElementById("inbox-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
   });
+
+  // ---- Ask tab (M4a-1): every ask of the SELECTED run, collapsed by
+  // default, off GET /api/runs/:flow/:runId/asks (src/panel/data.js's
+  // getRunAsks). Clicking a stop in the left Inbox calls `selectRun` with
+  // that ask's id, which reaches here as `focusAskId` and expands exactly
+  // that one. With no `focusAskId` (a run selected any other way), this
+  // run's own open ask (if it has one) expands by default. No answer
+  // controls anywhere in this panel (M4b) — a clearly marked EMPTY slot
+  // stands in their place; the collapse/expand toggle is a div with
+  // role="button" (never a real <button>), same posture as the step-map's
+  // own SVG nodes elsewhere on this page. ----
+  function askStatusBlock(ask){
+    if(ask.open) return textDiv("wf-meta", "time left: " + duration(ask.timeLeftMs));
+    var bits = [ask.status];
+    if(ask.reason) bits.push("reason: " + ask.reason);
+    if(ask.answeredAt) bits.push("answered " + (readableDateTime(ask.answeredAt) || ask.answeredAt));
+    return textDiv("wf-meta", bits.join(" · "));
+  }
+  function renderAskEvidenceBlock(ask){
+    var ev = document.createElement("div");
+    ev.className = "attempts-list";
+    var evidence = ask.evidence || {};
+    if(evidence.draft){
+      var draftEl = document.createElement("div");
+      draftEl.className = "ro-value scroll";
+      draftEl.textContent = evidence.draft;
+      ev.appendChild(textDiv("hint", "draft under review:"));
+      ev.appendChild(draftEl);
+    } else {
+      ev.appendChild(textDiv("hint", evidence.why || "no draft on file"));
+    }
+    // hamr review #8/#9 (2026-09-27, carried over from the old Inbox
+    // renderer): `readAskEvidence` (src/ask.js) puts an unjudged artifact's
+    // text straight on `u.text` (never nested under `u.artifact`). The
+    // label reads `u.emits` (the step's real id) when the entry actually
+    // named one; `u.step` (which — despite the name — carries the step's
+    // GOAL prose, not an id) is shown as a smaller subtitle underneath,
+    // never as the primary label, and never assumed present when `u.emits`
+    // is missing.
+    (evidence.unjudged || []).forEach(function(u){
+      var label = typeof u.emits === "string" && u.emits.length > 0 ? u.emits : u.step;
+      ev.appendChild(textDiv("hint", "unjudged — step: " + label));
+      if(typeof u.emits === "string" && u.emits.length > 0 && u.step !== u.emits){
+        ev.appendChild(textDiv("step-meta", u.step));
+      }
+      var art = document.createElement("div");
+      art.className = "ro-value scroll";
+      art.textContent = typeof u.text === "string" ? u.text : "no artifact text on file";
+      ev.appendChild(art);
+    });
+    // M4b's answer doors (accept/reject/rerun) land here — this panel is
+    // read-only by construction (M4a-1 scope), so the slot is empty and
+    // clearly marked rather than silently absent.
+    var answerSlot = document.createElement("div");
+    answerSlot.className = "hint";
+    answerSlot.setAttribute("data-testid", "ask-answer-slot");
+    answerSlot.textContent = "answer controls are not built yet (M4b)";
+    ev.appendChild(answerSlot);
+    return ev;
+  }
+  function renderAskRow(ask, expanded){
+    var wrap = document.createElement("div");
+    wrap.className = "audit-group";
+    wrap.setAttribute("data-testid", "ask-row-" + (ask.askId || "no-id"));
+    var head = document.createElement("div");
+    head.className = "wf-line1";
+    head.setAttribute("role", "button");
+    head.setAttribute("tabindex", "0");
+    head.setAttribute("aria-expanded", expanded ? "true" : "false");
+    head.style.cursor = "pointer";
+    var badge = document.createElement("span");
+    badge.className = "badge " + (ask.open ? "amber" : (ask.status === "accepted" ? "green" : (ask.status === "rejected" ? "red" : "grey")));
+    badge.textContent = ask.open ? "·" : ask.status;
+    head.appendChild(badge);
+    var qText = typeof ask.question === "string" ? ask.question : (ask.questionWhy || "question not recorded");
+    head.appendChild(textDiv("wf-name", qText));
+    if(typeof ask.askedAt === "string"){
+      head.appendChild(textDiv("hint", "asked " + (readableDateTime(ask.askedAt) || ask.askedAt)));
+    }
+    wrap.appendChild(head);
+    var body = document.createElement("div");
+    body.hidden = !expanded;
+    body.appendChild(askStatusBlock(ask));
+    body.appendChild(renderAskEvidenceBlock(ask));
+    wrap.appendChild(body);
+    function toggle(){
+      var next = body.hidden;
+      body.hidden = !next;
+      head.setAttribute("aria-expanded", next ? "true" : "false");
+    }
+    head.addEventListener("click", toggle);
+    head.addEventListener("keydown", function(e){
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); toggle(); }
+    });
+    return wrap;
+  }
+  function renderAsk(result, focusAskId, loadError){
+    var empty = document.getElementById("ask-empty");
+    var list = document.getElementById("ask-list");
+    if(loadError){ empty.hidden = false; empty.textContent = "failed to load asks: " + loadError; list.hidden = true; list.innerHTML = ""; return; }
+    if(!result){ empty.hidden = false; empty.textContent = "select a run first"; list.hidden = true; list.innerHTML = ""; return; }
+    var asks = result.asks || [];
+    if(!asks.length){
+      empty.hidden = false;
+      empty.textContent = "this run has never parked on a human — no asks recorded";
+      list.hidden = true;
+      list.innerHTML = "";
+      return;
+    }
+    empty.hidden = true;
+    list.hidden = false;
+    list.innerHTML = "";
+    // Default expansion: the ask named by a click from the Inbox
+    // (`focusAskId`) wins; otherwise this run's own open ask (if it has
+    // one) expands; otherwise every ask stays collapsed.
+    var defaultOpenId = focusAskId;
+    if(!defaultOpenId){
+      var openAsk = asks.find(function(a){ return a.open; });
+      if(openAsk) defaultOpenId = openAsk.askId;
+    }
+    asks.forEach(function(ask){
+      var expanded = defaultOpenId != null && ask.askId === defaultOpenId;
+      var row = renderAskRow(ask, expanded);
+      list.appendChild(row);
+      if(expanded){
+        // Scroll the focused ask into view (M4a-1 design: clicking a stop
+        // on the left "focuses" it on the right) — never on a run's own
+        // default open-ask expansion (only a real Inbox click scrolls).
+        if(focusAskId){
+          setTimeout(function(){ row.scrollIntoView({ block: "center", behavior: "smooth" }); }, 0);
+        }
+      }
+    });
+  }
 
   // theme toggle
   (function(){

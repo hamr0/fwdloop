@@ -1172,10 +1172,15 @@ describe('index.html — page source', () => {
   test('book text (question/draft/unjudged-artifact) is set via textContent, never interpolated into innerHTML', () => {
     const innerHtmlLines = source.split('\n').filter((l) => l.includes('.innerHTML'));
     for (const line of innerHtmlLines) {
-      assert.doesNotMatch(line, /row\.question|evidence\.draft|u\.artifact|\.artifact\.text/, `book text reached innerHTML: ${line.trim()}`);
+      assert.doesNotMatch(line, /row\.question|evidence\.draft|u\.artifact|\.artifact\.text|ask\.question/, `book text reached innerHTML: ${line.trim()}`);
     }
-    assert.match(source, /q\.textContent = "question: " \+ row\.question/);
-    assert.match(source, /draftEl\.textContent = row\.evidence\.draft/);
+    // M4a-1: both the Inbox stop rows and the Ask tab route book text
+    // through `textDiv` (a plain `d.textContent = text` helper), never a
+    // string built into innerHTML — the stop row's question, the Ask tab's
+    // question label, the draft box, and each unjudged artifact box.
+    assert.match(source, /textDiv\("step-meta", "question: " \+ row\.question\)/);
+    assert.match(source, /textDiv\("wf-name", qText\)/);
+    assert.match(source, /draftEl\.textContent = evidence\.draft/);
     assert.match(source, /art\.textContent = /);
   });
 
@@ -1299,5 +1304,60 @@ describe('index.html — page source', () => {
     // printed "at least" on every group, regardless of the real rows.
     assert.match(source, /money\(sum, !partial\)/);
     assert.doesNotMatch(source, /money\(sum, partial\)/);
+  });
+
+  // ---------------------------------------------------------------------
+  // M4a-1: the Ask tab (right pane, after Job) + the Inbox-as-stops-list
+  // (left pane). Static source checks — the orchestrator does the real
+  // browser/visual check.
+  // ---------------------------------------------------------------------
+  test('M4a-1: an "Ask" tab exists in the right pane, positioned after "Job"', () => {
+    assert.match(source, /id="tab-ask"[^>]*>Ask<\/button>/);
+    const jobIdx = source.indexOf('id="tab-details"');
+    const askIdx = source.indexOf('id="tab-ask"');
+    assert.ok(jobIdx > 0 && askIdx > jobIdx, 'the Ask tab button must come after the Job ("tab-details") tab button');
+    const jobPanelIdx = source.indexOf('id="panel-details"');
+    const askPanelIdx = source.indexOf('id="panel-ask"');
+    assert.ok(jobPanelIdx > 0 && askPanelIdx > jobPanelIdx, 'the Ask panel section must come after the Job panel section');
+  });
+
+  test('M4a-1: no <button> or <input> element anywhere inside the Ask panel (no answer controls — M4b)', () => {
+    const start = source.indexOf('<section id="panel-ask"');
+    assert.ok(start > 0, 'panel-ask section not found');
+    // No <section> nests inside another in this page — the first </section>
+    // after the opening tag is this section's own close.
+    const end = source.indexOf('</section>', start);
+    assert.ok(end > start, 'could not find the closing </section> for panel-ask');
+    const panelAskHtml = stripComments(source.slice(start, end));
+    assert.doesNotMatch(panelAskHtml, /<button/i, 'a <button> was found inside the Ask panel — M4a-1 is read-only, no answer controls until M4b');
+    assert.doesNotMatch(panelAskHtml, /<input/i, 'an <input> was found inside the Ask panel — M4a-1 is read-only, no answer controls until M4b');
+    // The empty slot for M4b's future controls is built by script (the Ask
+    // panel's static markup carries no fixed answer area at all — it's
+    // rendered per-ask) — check the whole page source for it, named.
+    assert.match(source, /data-testid", "ask-answer-slot"/);
+  });
+
+  test('M4a-1: the Ask tab\'s collapse/expand toggle is a div with role="button", never a real <button> element', () => {
+    assert.match(source, /head\.setAttribute\("role", "button"\)/);
+  });
+
+  test('M4a-1: clicking an Inbox stop selects its run, switches to the Ask tab, and passes the ask\'s id to focus', () => {
+    assert.match(source, /selectRun\(row\.flow, row\.runId, wrap, "\.inbox-row", row\.askId\)/);
+    assert.match(source, /document\.getElementById\("tab-ask"\)\.click\(\)/);
+  });
+
+  test('M4a-1: the Inbox tab label shows the open-stop count', () => {
+    assert.match(source, /inbox-count-label/);
+    assert.match(source, /openCount > 0 \? \(" \(" \+ openCount \+ "\)"\) : ""/);
+  });
+
+  test('M4a-1: status vocabulary used in the Inbox/Ask UI is exactly the books\' own words — never a second, made-up vocabulary', () => {
+    assert.match(source, /"accepted"/);
+    assert.match(source, /"rejected"/);
+    assert.match(source, /"reran"/);
+    assert.match(source, /"expired"/);
+    assert.match(source, /"unanswered"/);
+    // the OLD (pre-M4a-1) vocabulary this replaces must not survive as live UI text.
+    assert.doesNotMatch(stripComments(source), /"legacy"|"unreadable"/);
   });
 });
