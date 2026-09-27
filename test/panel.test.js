@@ -968,4 +968,51 @@ describe('index.html — page source', () => {
   test('fix #7: the runs-list meta line does not truncate at phone width', () => {
     assert.match(source, /\.wf-meta-line\{white-space:normal;overflow:visible;text-overflow:clip;\}/);
   });
+
+  // hamr's 2026-09-27 review items #1-#7.
+  test('review #1: the Summary box shows model, close class(es), and spend.jsonl totals, never a made-up tool-call count', () => {
+    assert.match(source, /data-testid="summary-model"/);
+    assert.match(source, /data-testid="summary-close"/);
+    assert.match(source, /data-testid="summary-spend"/);
+    assert.match(source, /closeClassSummaryText/);
+    assert.match(source, /spendSummaryText/);
+    assert.match(source, /cache-read/);
+    // no fwdloop book records tool-call counts — never rendered as 0 or
+    // "unknown" as LIVE UI text (comments discussing bareloop's dropped
+    // per-round tool-call rows are fine, same posture as the bareloop-word
+    // check above).
+    assert.doesNotMatch(stripComments(source), /tool.?calls?/i);
+  });
+
+  test('review #2: a map/step title shows a "try N" count when a step has more than one attempt', () => {
+    assert.match(source, /try /);
+  });
+
+  test('review #3: map boxes are compact (never stretched to fill the full available width) and centered', () => {
+    assert.match(source, /\.map-box\{[^}]*text-align:center/);
+  });
+
+  test('review #4: clicking a map node or a step card switches to the Audit tab and scrolls to that step\'s group', () => {
+    assert.match(source, /openAuditGroup/);
+    assert.match(source, /tab-audit["']\)\.click\(\)/);
+  });
+
+  test('review #5/#6: the Audit tab has a Grouped/Flat toggle and the column order Attempt \\| Step \\| Action \\| Gap \\| Cost \\| Verdict \\| Close', () => {
+    assert.match(source, /audit-view-grouped/);
+    assert.match(source, /audit-view-flat/);
+    assert.match(source, /<th>Attempt<\/th><th>Step<\/th><th>Action<\/th><th>Gap<\/th><th>Cost<\/th><th>Verdict<\/th><th>Close<\/th>/);
+  });
+
+  test('review #6: Action is derived server-side (row.action), never a client-side "unknown action" guess', () => {
+    assert.match(source, /r\.action/);
+    assert.doesNotMatch(stripComments(source), /"unknown action"/);
+  });
+
+  test('review #7: the Job tab shows the model name, and the cap row is first in the arbiter block', () => {
+    assert.match(source, /details-model/);
+    var capIdx = source.indexOf('id="details-cap-money"');
+    var redoIdx = source.indexOf('id="details-redo-cap"');
+    var asksIdx = source.indexOf('id="details-asks"');
+    assert.ok(capIdx > 0 && redoIdx > capIdx && asksIdx > redoIdx, 'cap must render before redo cap/asks in the arbiter block');
+  });
 });

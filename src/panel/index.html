@@ -223,9 +223,13 @@
   .sum-val{color:var(--text);}
   .summary-box .num{color:var(--accent);font-weight:700;}
 
-  .map-box{border:1px solid var(--border-strong);padding:10px;overflow-x:auto;margin-top:16px;margin-bottom:14px;background:var(--panel2);}
+  /* hamr review #3: "map cards taking page full width, should be smaller" —
+     the SVG's own natural width is centered in the box rather than the box
+     stretching each node to fill the pane (computeMapLayout below is also
+     capped to stop a node from stretching past a modest ceiling). */
+  .map-box{border:1px solid var(--border-strong);padding:10px;overflow-x:auto;margin-top:16px;margin-bottom:14px;background:var(--panel2);text-align:center;}
   .map-box::before{content:"┤ MAP ├";display:block;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;margin:-2px 0 8px 0;}
-  .map-box svg{display:block;max-width:100%;height:auto;}
+  .map-box svg{display:block;max-width:100%;height:auto;margin:0 auto;}
   .map-legend{display:flex;gap:14px;font-size:11px;color:var(--text-dim);margin-top:6px;flex-wrap:wrap;}
 
   .step-card{position:relative;border:1px solid var(--border);padding:10px;margin-bottom:8px;background:var(--panel2);}
@@ -257,6 +261,17 @@
   .chip.fchip{padding:3px 7px;min-height:28px;min-width:28px;font-size:12px;text-align:center;}
   .chip.fchip::before,.chip.fchip::after{content:"";}
   .row-blocked{background:var(--red-bg);}
+
+  /* hamr review #5/#6: Audit tab grouped-by-step sections. */
+  .audit-group{position:relative;border:1px solid var(--border-strong);padding:14px 10px 10px;background:var(--panel2);margin-top:10px;margin-bottom:10px;}
+  .audit-group h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;}
+  .audit-group h4::before{content:"┤ ";color:var(--text-faint);}
+  .audit-group h4::after{content:" ├";color:var(--text-faint);}
+  /* review #4: a momentary highlight on the group a map/step-card click just
+     jumped to — never a permanent style change. */
+  .audit-group.audit-group-highlight{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);}
+  .map-step{cursor:pointer;}
+  .step-card{cursor:pointer;}
 
   .job-card{position:relative;border:1px solid var(--border-strong);padding:14px 10px 10px;background:var(--panel2);margin-top:10px;margin-bottom:10px;}
   .job-card h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;}
@@ -379,14 +394,24 @@
         <section id="panel-audit" class="tabpanel" role="tabpanel" aria-labelledby="tab-audit" hidden>
           <!-- This run's own audit.jsonl rows only, one row per step ATTEMPT
                (M4a scope item 2). bareloop's All/Writes/Blocked filters and
-               grouped/rounds views are dropped: there is no per-round or
-               per-tool-call book in fwdloop to fill them from (ladder
-               ruling A) — unwired, never faked. -->
+               per-round/tool-call rows are dropped: there is no such book in
+               fwdloop to fill them from (ladder ruling A) — unwired, never
+               faked. hamr review #5/#6 (2026-09-27): grouped-by-step is the
+               default view (one section per step, a header naming the step,
+               close class, attempt count and cost), with a Grouped/Flat
+               toggle; column order everywhere is Attempt, Step (dropped in
+               Grouped — the header already names it), Action, Gap, Cost,
+               Verdict, Close. -->
           <div id="audit-empty" class="hint" data-testid="audit-empty" style="font-size:13px;padding:24px 0;">select a run first</div>
           <div id="audit-content" data-testid="audit-content" hidden>
-            <div class="audit-table-scroll">
+            <div class="chips" role="group" aria-label="Audit view" style="margin-bottom:8px;">
+              <button class="chip" type="button" aria-pressed="true" data-view="grouped" data-testid="audit-view-grouped">Grouped</button>
+              <button class="chip" type="button" aria-pressed="false" data-view="flat" data-testid="audit-view-flat">Flat</button>
+            </div>
+            <div id="audit-groups" data-testid="audit-groups"></div>
+            <div class="audit-table-scroll" id="audit-flat-wrap" hidden>
               <table data-testid="audit-table">
-                <thead><tr><th>Step</th><th>Attempt</th><th>Close</th><th>Verdict</th><th>Cost</th><th>Model</th><th>Gap</th></tr></thead>
+                <thead><tr><th>Attempt</th><th>Step</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th></tr></thead>
                 <tbody id="audit-tbody"></tbody>
               </table>
             </div>
@@ -400,7 +425,12 @@
           <div id="job-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
           <div class="job-card" id="job-card" hidden data-testid="job-card-readonly">
             <h4 id="details-title">Job card — signed</h4>
-            <div class="field"><label>Signed lines</label><div id="details-lines"></div></div>
+            <!-- hamr review #7: the model name was missing entirely, and the
+                 cap row must be first in the arbiter block, right after it —
+                 Model, then $ cap, then the rest of the arbiter block
+                 (redo cap, asks, sends, sources), signed lines and the
+                 signature below. -->
+            <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
             <div class="field-row">
               <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap-money">—</div></div>
               <div class="field"><label>Redo cap</label><div class="ro-value" id="details-redo-cap">—</div></div>
@@ -408,6 +438,7 @@
             <div class="field"><label>Asks</label><div class="ro-value scroll" id="details-asks">—</div></div>
             <div class="field"><label>Sends</label><div class="ro-value scroll" id="details-sends">—</div></div>
             <div class="field"><label>Sources</label><div class="ro-value scroll" id="details-sources">—</div></div>
+            <div class="field"><label>Signed lines</label><div id="details-lines"></div></div>
             <div class="field"><label>Signature</label><div class="ro-value" id="details-signature">—</div></div>
           </div>
         </section>
@@ -506,6 +537,35 @@
     if(cls === "hitl") return "human check";
     return "unknown";
   }
+  // hamr review #1 (Summary tab): "close class(es), per step or summarized"
+  // — one count per close class actually present on this run's OWN declared
+  // steps (declaration.steps, joined server-side into detail.steps), fwdloop
+  // words only, never the raw green/softgreen/hitl strings.
+  function closeClassSummaryText(steps){
+    if(!steps || !steps.length) return null;
+    var counts = {};
+    var order = [];
+    steps.forEach(function(s){
+      var label = closeClassLabel(s.closeClass);
+      if(!Object.prototype.hasOwnProperty.call(counts, label)){ counts[label] = 0; order.push(label); }
+      counts[label] += 1;
+    });
+    return order.map(function(label){ return counts[label] + " " + label; }).join(", ");
+  }
+  // hamr review #1 (Summary tab): "from spend.jsonl what exists (rounds
+  // total, tokens in/out, cache-read tokens) — ONLY if each spend row can be
+  // tied to its run honestly" — run-level totals only (src/panel/data.js's
+  // summarizeSpendRows already does the honest per-field null-with-why), no
+  // per-step attribution invented here. Tool-call counts are never shown —
+  // no fwdloop book holds them (hamr's own instruction: omit, don't fake 0).
+  function spendSummaryText(spendSummary){
+    if(!spendSummary || spendSummary.empty) return (spendSummary && spendSummary.why) || "no spend.jsonl rows yet";
+    var bits = [spendSummary.rounds + " round" + (spendSummary.rounds === 1 ? "" : "s")];
+    bits.push("tokens in " + (typeof spendSummary.tokensIn === "number" ? spendSummary.tokensIn : "unknown"));
+    bits.push("tokens out " + (typeof spendSummary.tokensOut === "number" ? spendSummary.tokensOut : "unknown"));
+    bits.push("cache-read " + (typeof spendSummary.cacheReadTokens === "number" ? spendSummary.cacheReadTokens : "unknown"));
+    return bits.join(" &middot; ");
+  }
   // An attempt's real verdict vocabulary is wider than green/hitl/not-done
   // (src/runner.js also writes `paused`, `refused`, `ask-timeout`,
   // `ask-expired`, `red`, `crash`-like stops) — and the scope forbids
@@ -576,8 +636,23 @@
     if(!attempts || !attempts.length) return "";
     return attempts.map(function(a){ return "attempt " + a.attempt + " " + verdictWord(a.verdict, closeClass, null); }).join(" · ");
   }
+  // hamr review #2: "map cards missing try 2 if multiple attempts/iteration"
+  // — a plain "try N" count whenever a step has been attempted more than
+  // once, plus a mark when the LATEST attempt followed a human reject (the
+  // same `afterReject` boundary src/panel/data.js already worked out —
+  // never re-derived here). One attempt (the common case) shows no "try"
+  // text at all, matching bareloop's own "only say it when it's true" shape.
+  function tryCountText(attempts){
+    if(!attempts || attempts.length <= 1) return "";
+    var last = attempts[attempts.length - 1];
+    var txt = "try " + attempts.length;
+    if(last && last.afterReject) txt += " (re-attempt after reject)";
+    return txt;
+  }
   function stepTitleText(idx, s){
     var base = (idx + 1) + ' ' + s.emits;
+    var tryText = tryCountText(s.attempts);
+    if(tryText) base += ' — ' + tryText;
     var at = attemptsInlineText(s.attempts, s.closeClass);
     return at ? base + ' — ' + at : base;
   }
@@ -604,17 +679,22 @@
     steps.forEach(function(s, idx){ maxChars = Math.max(maxChars, stepTitleText(idx, s).length); });
     return Math.max(MIN_BOX_W, Math.ceil(maxChars * CHAR_W) + TITLE_HPAD);
   }
+  // hamr review #3: nodes stay compact — a box never stretches past a modest
+  // ceiling over its own natural (text-fit) width, even when the available
+  // pane is much wider (the bug: every node used to grow to fill the row).
+  var MAX_BOX_STRETCH = 1.25;
   function computeMapLayout(n, availW, naturalW){
     if(!availW) return {perRow:n, boxW:naturalW};
     var usableW = availW - MAP_MARGIN * 2;
+    var ceiling = naturalW * MAX_BOX_STRETCH;
     for(var perRow = n; perRow >= 2; perRow--){
       var totalW = perRow * naturalW + (perRow - 1) * MAP_GAP;
       if(totalW <= usableW){
         var stretched = (usableW - (perRow - 1) * MAP_GAP) / perRow;
-        return {perRow:perRow, boxW:Math.max(naturalW, stretched)};
+        return {perRow:perRow, boxW:Math.max(naturalW, Math.min(stretched, ceiling))};
       }
     }
-    return {perRow:1, boxW:Math.max(MIN_BOX_W, usableW)};
+    return {perRow:1, boxW:Math.max(MIN_BOX_W, Math.min(usableW, ceiling))};
   }
   function wrapTitleLines(text, maxWidth){
     var maxChars = Math.max(1, Math.floor((maxWidth - TITLE_HPAD) / CHAR_W));
@@ -659,6 +739,12 @@
       var colors = stepMapColors(s.state);
       var lines = titleLines[idx];
       var stateY = y + boxH - 18;
+      // hamr review #4: each node is a clickable group ("map-step", tagged
+      // with the step's own `emits` id) — the click listener that turns this
+      // into a jump to the Audit tab's matching group is wired AFTER
+      // insertion (renderStepMap, below), never inline here (this function
+      // only ever builds a markup string).
+      body += '<g class="map-step" data-emits="' + escapeXml(s.emits) + '" tabindex="0" role="button" aria-label="open ' + escapeXml(s.emits) + ' in Audit">';
       body += '<rect x="' + x + '" y="' + y + '" width="' + boxW + '" height="' + boxH +
         '" rx="0" fill="var(--panel2)" stroke="' + colors.stroke + '" stroke-width="2"></rect>';
       if(lines.length === 1){
@@ -672,6 +758,7 @@
       }
       body += '<text x="' + (x + boxW / 2) + '" y="' + stateY +
         '" text-anchor="middle" font-size="10" fill="' + colors.textFill + '">' + escapeXml(stateWord(s.state)) + '</text>';
+      body += '</g>';
       if(idx < n - 1){
         var nextRow = Math.floor((idx + 1) / perRow);
         if(nextRow === row){
@@ -716,6 +803,19 @@
     if(!w) return null;
     return Math.max(0, w - 20);
   }
+  // hamr review #4: "clicking on cards below codegraph maps should take you
+  // to audit trail" — a map node's click (or Enter/Space, since the node
+  // carries role=button/tabindex) jumps to the Audit tab, switches it to the
+  // Grouped view, and scrolls/highlights that exact step's group.
+  // `openAuditGroup` itself is defined further down (near the Audit-tab
+  // renderer, its natural home) — function declarations in this IIFE are
+  // hoisted, so the forward reference here is safe.
+  function wireMapClicks(mount){
+    mount.querySelectorAll(".map-step").forEach(function(g){
+      g.addEventListener("click", function(){ openAuditGroup(g.getAttribute("data-emits")); });
+      g.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); g.click(); } });
+    });
+  }
   function renderStepMap(steps){
     var mount = document.getElementById("map-mount");
     var wrapper = document.getElementById("map-box");
@@ -729,6 +829,7 @@
     var w = mapAvailWidth(wrapper);
     lastWidth = w;
     mount.innerHTML = buildStepMapSVG(steps, w) + stepMapLegendHTML();
+    wireMapClicks(mount);
   }
   function reflowMap(){
     var wrapper = document.getElementById("map-box");
@@ -736,7 +837,9 @@
     var w = mapAvailWidth(wrapper);
     if(w === null || w === lastWidth) return;
     lastWidth = w;
-    document.getElementById("map-mount").innerHTML = buildStepMapSVG(lastSteps, w) + stepMapLegendHTML();
+    var mount = document.getElementById("map-mount");
+    mount.innerHTML = buildStepMapSVG(lastSteps, w) + stepMapLegendHTML();
+    wireMapClicks(mount);
   }
   if(typeof ResizeObserver !== "undefined"){
     var ro = new ResizeObserver(function(){ reflowMap(); });
@@ -1217,10 +1320,22 @@
     var stepsText = stepBoxes.length === 0
       ? (detail.stepsWhy || "no steps recorded")
       : ('<span class="num">' + stepsDone + '</span> of <span class="num">' + stepBoxes.length + '</span> done');
+    // hamr review #1: "model + provider, steps N of N, why, close class(es),
+    // and spend.jsonl totals" — model+provider shows model only (no book
+    // records a provider on any run, checked against audit.jsonl/
+    // spend.jsonl/declaration.json/signature.json — src/panel/data.js's own
+    // deriveRunModel doc comment). closeClassSummaryText/spendSummaryText
+    // read straight off detail.steps/detail.spendSummary, never re-derived
+    // from a second, separately-fetched copy of the audit rows.
+    var modelText = detail.model || (detail.modelWhy || "no model call recorded yet");
+    var closeText = closeClassSummaryText(detail.steps) || (detail.stepsWhy || "no steps recorded");
     box.innerHTML =
       '<div class="summary-headline"><span class="dot ' + glyphClass(detail.glyph) + '"></span><b>' + escapeXml(detail.label || "unknown") + '</b> &middot; <span class="num">' + escapeXml(spendText) + '</span></div>' +
+      '<div class="summary-row" data-testid="summary-model"><span class="sum-label">model:</span><span class="sum-val">' + escapeXml(modelText) + '</span></div>' +
       '<div class="summary-row"><span class="sum-label">steps:</span><span class="sum-val">' + stepsText + '</span></div>' +
-      '<div class="summary-row" data-testid="summary-why"><span class="sum-label">why:</span><span class="sum-val">' + escapeXml(detail.stopReason || detail.stopReasonWhy || "not recorded") + '</span></div>';
+      '<div class="summary-row" data-testid="summary-why"><span class="sum-label">why:</span><span class="sum-val">' + escapeXml(detail.stopReason || detail.stopReasonWhy || "not recorded") + '</span></div>' +
+      '<div class="summary-row" data-testid="summary-close"><span class="sum-label">close:</span><span class="sum-val">' + escapeXml(closeText) + '</span></div>' +
+      '<div class="summary-row" data-testid="summary-spend"><span class="sum-label">spend:</span><span class="sum-val">' + spendSummaryText(detail.spendSummary) + '</span></div>';
 
     renderStepMap(stepBoxes);
 
@@ -1231,10 +1346,12 @@
       var card = document.createElement("div");
       card.className = "step-card" + (box.state === "waiting" ? " running" : "");
       card.setAttribute("data-testid", "step-card-" + idx);
+      var tryBadge = tryCountText(box.attempts) ? ('<span class="badge amber">' + escapeXml(tryCountText(box.attempts)) + '</span>') : '';
       card.innerHTML =
         '<div class="step-head"><h4>' + (idx + 1) + ' &middot; ' + escapeXml(box.emits) + '</h4>' +
           '<span class="badge ' + badgeClass + '">' + escapeXml(stateWord(box.state)) + '</span>' +
           '<span class="badge cyan">' + escapeXml(closeClassLabel(box.closeClass)) + '</span>' +
+          tryBadge +
         '</div>' +
         (box.goal ? '<div class="step-meta">' + escapeXml(box.goal) + '</div>' : '');
       var attemptsWrap = document.createElement("div");
@@ -1277,6 +1394,13 @@
         });
       }
       card.appendChild(attemptsWrap);
+      // hamr review #4: a step card's own click ALSO jumps to its Audit
+      // group — the same `openAuditGroup` the map node's click uses, so a
+      // click on either surface can never land on a different row.
+      card.setAttribute("tabindex", "0");
+      card.setAttribute("role", "button");
+      card.addEventListener("click", function(){ openAuditGroup(box.emits); });
+      card.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); card.click(); } });
       listEl.appendChild(card);
     });
   }
@@ -1285,7 +1409,106 @@
   // ATTEMPT (M4a scope item 2: "one row per step attempt", no round/tool-
   // call granularity — bareloop's All/Writes/Blocked filters and its
   // per-round table have no fwdloop book to fill them from; they are not
-  // rebuilt here, per the ladder's own ruling). ----
+  // rebuilt here, per the ladder's own ruling). hamr review #5/#6
+  // (2026-09-27): Grouped (default, one section per step with a header) and
+  // Flat (the old one-row-per-attempt table) views, toggled by two chips;
+  // BOTH share the SAME row-cell builder (`buildAuditRowEl`) so the two
+  // views can never disagree on what a row says. Column order everywhere:
+  // Attempt, Step (dropped in Grouped — the header already names it),
+  // Action, Gap, Cost, Verdict, Close. `Action` is `row.action`, set
+  // server-side by src/panel/data.js's `deriveAuditAction` — never
+  // re-derived or guessed here, and never "unknown action". ----
+  // hamr review #4: jump from a map node or step card straight to this run's
+  // OWN audit group for that step — switches to the Audit tab, forces
+  // Grouped view (the group only exists there), scrolls it into view, and
+  // gives it a momentary highlight so the jump is visible even when the
+  // group was already on screen.
+  function openAuditGroup(step){
+    document.getElementById("tab-audit").click();
+    setAuditView("grouped");
+    var row = document.getElementById("audit-group-" + step);
+    if(!row) return;
+    if(typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "center" });
+    row.classList.add("audit-group-highlight");
+    setTimeout(function(){ row.classList.remove("audit-group-highlight"); }, 1600);
+  }
+  // ONE row-cell builder for both views — `includeStep` controls only
+  // whether the Step cell is rendered (Grouped drops it; the group's own
+  // header already names the step). Column order: Attempt, [Step], Action,
+  // Gap, Cost, Verdict, Close.
+  function buildAuditRowEl(r, includeStep){
+    var tr = document.createElement("tr");
+    var glyph = verdictGlyph(r.verdict, r.class);
+    var word = verdictWord(r.verdict, r.class, r.gap);
+    var isRejectRow = r.class === "hitl" && r.verdict === "red";
+    var badgeClass = glyph === "✓" ? "green" : (glyph === "✗" ? "red" : "amber");
+    var action = typeof r.action === "string" && r.action.length > 0 ? r.action : r.verdict; // server always sets `action` (deriveAuditAction); this fallback is belt-and-braces only
+    var cells =
+      "<td>" + escapeXml(String(r.attempt)) + "</td>" +
+      (includeStep ? "<td>" + escapeXml(r.step) + "</td>" : "") +
+      "<td>" + escapeXml(action) + "</td>" +
+      "<td>" + escapeXml(isRejectRow ? "" : (r.gap || "")) + "</td>" +
+      "<td>" + escapeXml(money(r.usd, r.spendComplete)) + "</td>" +
+      "<td><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
+      "<td>" + escapeXml(closeClassLabel(r.class)) + "</td>";
+    tr.innerHTML = cells;
+    return tr;
+  }
+  // Grouped view: one section per step, book order preserved (first-seen
+  // order of `r.step` across this run's own rows — never re-sorted), a
+  // header naming the step, its close class, its attempt count, and its
+  // known cost (a bare $ sum of the rows that priced; unknown when none did
+  // — never a made-up total).
+  function renderAuditGroups(result){
+    var container = document.getElementById("audit-groups");
+    container.innerHTML = "";
+    if(!result || result.empty) return;
+    var order = [];
+    var byStep = {};
+    result.rows.forEach(function(r){
+      if(!Object.prototype.hasOwnProperty.call(byStep, r.step)){ byStep[r.step] = []; order.push(r.step); }
+      byStep[r.step].push(r);
+    });
+    order.forEach(function(step){
+      var rows = byStep[step];
+      var closeClass = rows[0].class;
+      var known = rows.some(function(r){ return typeof r.usd === "number"; });
+      var partial = rows.some(function(r){ return r.spendComplete === false; });
+      var sum = rows.reduce(function(acc, r){ return typeof r.usd === "number" ? acc + r.usd : acc; }, 0);
+      var wrap = document.createElement("div");
+      wrap.className = "audit-group";
+      wrap.id = "audit-group-" + step;
+      wrap.setAttribute("data-testid", "audit-group-" + step);
+      var header = document.createElement("h4");
+      header.textContent = step + " — " + closeClassLabel(closeClass) + " — "
+        + rows.length + " attempt" + (rows.length === 1 ? "" : "s") + " — "
+        + (known ? money(sum, partial) : "cost unknown");
+      wrap.appendChild(header);
+      var table = document.createElement("table");
+      table.innerHTML = "<thead><tr><th>Attempt</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th></tr></thead><tbody></tbody>";
+      var tbody = table.querySelector("tbody");
+      rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, false)); });
+      table.setAttribute("data-testid", "audit-table-grouped-" + step);
+      wrap.appendChild(table);
+      container.appendChild(wrap);
+    });
+  }
+  function renderAuditFlat(result){
+    var tbody = document.getElementById("audit-tbody");
+    tbody.innerHTML = "";
+    if(!result || result.empty) return;
+    result.rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, true)); });
+  }
+  function setAuditView(view){
+    document.getElementById("audit-groups").hidden = view !== "grouped";
+    document.getElementById("audit-flat-wrap").hidden = view !== "flat";
+    document.querySelectorAll('.chip[data-view]').forEach(function(chip){
+      chip.setAttribute("aria-pressed", chip.getAttribute("data-view") === view ? "true" : "false");
+    });
+  }
+  document.querySelectorAll('.chip[data-view]').forEach(function(chip){
+    chip.addEventListener("click", function(){ setAuditView(chip.getAttribute("data-view")); });
+  });
   function renderAudit(result){
     var empty = document.getElementById("audit-empty");
     var content = document.getElementById("audit-content");
@@ -1297,27 +1520,12 @@
     }
     empty.hidden = true;
     content.hidden = false;
-    var tbody = document.getElementById("audit-tbody");
-    tbody.innerHTML = "";
-    result.rows.forEach(function(r){
-      var tr = document.createElement("tr");
-      var glyph = verdictGlyph(r.verdict, r.class);
-      var word = verdictWord(r.verdict, r.class, r.gap);
-      var isRejectRow = r.class === "hitl" && r.verdict === "red";
-      // never the raw words green/red/softgreen (fix #2), and never a fail
-      // badge for a pause/refusal/reject/expiry — those are not failures
-      // (fix #3).
-      var badgeClass = glyph === "✓" ? "green" : (glyph === "✗" ? "red" : "amber");
-      tr.innerHTML =
-        "<td>" + escapeXml(r.step) + "</td>" +
-        "<td>" + escapeXml(String(r.attempt)) + "</td>" +
-        "<td>" + escapeXml(closeClassLabel(r.class)) + "</td>" +
-        "<td><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
-        "<td>" + escapeXml(money(r.usd, r.spendComplete)) + "</td>" +
-        "<td>" + (r.model ? escapeXml(r.model) : "no model call") + "</td>" +
-        "<td>" + escapeXml(isRejectRow ? "" : (r.gap || "")) + "</td>";
-      tbody.appendChild(tr);
-    });
+    renderAuditGroups(result);
+    renderAuditFlat(result);
+    // a fresh run's own view keeps whatever mode (Grouped/Flat) the chips
+    // are already showing, defaulting to Grouped on first load.
+    var flatPressed = document.querySelector('.chip[data-view="flat"]');
+    setAuditView(flatPressed && flatPressed.getAttribute("aria-pressed") === "true" ? "flat" : "grouped");
   }
 
   // ---- Job tab: the signed prose, the arbiter block (cap, asks with TTL,
@@ -1337,6 +1545,13 @@
     empty.hidden = true;
     card.hidden = false;
     document.getElementById("details-title").textContent = "Job — " + job.flow + " (signed)";
+    // hamr review #7: no declaration/signature book records a model on the
+    // flow itself (checked against `src/panel/data.js`'s own
+    // `deriveRunModel` — only `audit.jsonl`'s per-attempt rows do) — say so
+    // plainly rather than implying the signed prose named it.
+    document.getElementById("details-model").textContent = job.model
+      ? ("model used: " + job.model + " (from this run's rows)")
+      : (job.modelWhy || "no model call recorded yet");
     var linesEl = document.getElementById("details-lines");
     linesEl.innerHTML = "";
     (job.lines || []).forEach(function(l){
