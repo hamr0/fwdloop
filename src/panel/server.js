@@ -163,7 +163,9 @@ export function handleRequest(req, res, opts) {
       return;
     }
     if (sub === 'asks') {
-      const result = getRunAsks({ root: opts.root, flow, runId });
+      const result = getRunAsks({
+        root: opts.root, flow, runId, catalogue,
+      });
       if (!result) { sendText(res, 404, 'no such run'); return; }
       send(200, result);
       return;

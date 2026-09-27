@@ -281,6 +281,176 @@ export function deriveAuditAtWhy(row) {
 }
 
 /**
+ * hamr's 2026-09-27 exit-check review #2: the Audit tab's Blocked filter —
+ * ONE server-side function naming exactly which verdicts count as "did not
+ * pass", derived strictly from a row's own `verdict` string (never a second,
+ * client-side guess). Blocked: `not-done`, `red` (a mechanical close miss OR
+ * a human's own reject on a hitl step — both are "this attempt did not
+ * pass"), `refused` (a blank reject/rerun reason), `ask-timeout` and
+ * `ask-expired` (the human never answered in time), `cap-halt`,
+ * `provider-red`, `pricing-red`, `close-casualty` (every other halt shape
+ * `src/runner.js` records). NOT blocked: `green`/`hitl` (passed), `paused`
+ * (still open — waiting, not yet failed), `stale-answer-ignored` (a book
+ * hygiene note about a late answer, not an attempt outcome).
+ * @param {string|null|undefined} verdict
+ * @returns {boolean}
+ */
+const BLOCKED_VERDICTS = new Set([
+  'not-done', 'red', 'refused', 'ask-timeout', 'ask-expired', 'cap-halt', 'provider-red', 'pricing-red', 'close-casualty',
+]);
+export function isBlockedVerdict(verdict) {
+  return typeof verdict === 'string' && BLOCKED_VERDICTS.has(verdict);
+}
+
+/**
+ * hamr's 2026-09-27 exit-check review #1: one mark per TRY (never per raw
+ * audit row — a `hitl`-classed ask step's `paused` row and its own
+ * resolution row are the SAME try, the same pairing `computeTryCount`
+ * already applies) for the Audit tab's grouped-by-step header. `✓` passed
+ * (`green`/`hitl`), `✗` failed/rejected/blocked (everything
+ * `isBlockedVerdict` names, plus any other non-passing verdict), `·` still
+ * open (`paused`/`refused`/`ask-timeout`/`ask-expired` — waiting, not yet
+ * resolved either way). A `refused` (blank-reason) row is its own re-ask,
+ * not a resolution, so it reads as `·` like `paused` — the try it belongs to
+ * is still open.
+ * @param {string|null|undefined} verdict
+ * @param {string|null|undefined} closeClass
+ * @returns {'✓'|'✗'|'·'}
+ */
+function markForVerdict(verdict, closeClass) {
+  if (closeClass === 'hitl' && verdict === 'red') return '✗'; // the human's own reject
+  if (verdict === 'green' || verdict === 'hitl') return '✓';
+  if (verdict === 'paused' || verdict === 'refused' || verdict === 'ask-timeout' || verdict === 'ask-expired') return '·';
+  return '✗';
+}
+
+/**
+ * One mark per try, in try order — mirrors `computeTryCount`'s own pairing
+ * exactly (a `hitl` step's `paused` row plus its next resolving row is ONE
+ * try; every other step's own row is ONE try each) so a group header's
+ * `tryMarks.length` always equals its own `tryCount`. A `paused` row with no
+ * resolution yet in this run's own book order keeps its `·` mark (still
+ * open, not resolved).
+ * @param {string|null} closeClass
+ * @param {Array<{verdict:string}>} rows one step's own audit rows, book order
+ * @returns {Array<'✓'|'✗'|'·'>}
+ */
+export function deriveStepTryMarks(closeClass, rows) {
+  if (!rows || !rows.length) return [];
+  if (closeClass === 'hitl') {
+    const pausedIdxs = [];
+    rows.forEach((r, i) => { if (r.verdict === 'paused') pausedIdxs.push(i); });
+    if (pausedIdxs.length === 0) {
+      // No paused row at all is not a shape this step produces in practice
+      // (guarded the same way `computeTryCount` already is) — one mark per
+      // row rather than hiding that a try happened.
+      return rows.map((r) => markForVerdict(r.verdict, closeClass));
+    }
+    return pausedIdxs.map((idx, i) => {
+      const nextPausedIdx = pausedIdxs[i + 1] ?? rows.length;
+      for (let j = idx + 1; j < nextPausedIdx; j += 1) {
+        if (rows[j].verdict !== 'paused') return markForVerdict(rows[j].verdict, closeClass);
+      }
+      return '·'; // still paused, no resolution row yet in this run's book
+    });
+  }
+  return rows.map((r) => markForVerdict(r.verdict, closeClass));
+}
+
+/**
+ * A step group's own state word for the Audit tab's collapsed header —
+ * the SAME rule `src/panel/index.html`'s client-side `stepBoxState` already
+ * applies to the Run tab's map/cards (ported here so the Audit header can
+ * be computed server-side too, off the SAME last-row-wins logic): `waiting`
+ * (the run is currently parked on this step — its last attempt's verdict is
+ * `paused`/`refused`), `done` (the last attempt passed — `green`/`hitl`),
+ * `stopped` (the last attempt failed for any other reason). A group only
+ * ever exists for a step with at least one row, so `pending` never appears
+ * here (unlike the Run tab's map, which also covers never-attempted steps).
+ * @param {Array<{verdict:string}>} rows one step's own audit rows, book order
+ * @returns {'done'|'waiting'|'stopped'}
+ */
+export function deriveStepGroupState(rows) {
+  const last = rows[rows.length - 1];
+  if (last.verdict === 'paused' || last.verdict === 'refused') return 'waiting';
+  return (last.verdict === 'green' || last.verdict === 'hitl') ? 'done' : 'stopped';
+}
+
+/**
+ * hamr's 2026-09-27 exit-check review #1: the Audit tab's grouped-by-step
+ * header pieces, computed HERE (server-side) so `src/panel/index.html` only
+ * ever renders them, never re-derives them. One entry per step, first-seen
+ * order preserved (never re-sorted): `step` (the emits id, the header IS the
+ * step's own name — no separate Step column in Grouped view), `state`
+ * (`deriveStepGroupState`), `closeClass`, `timeMs` (this step's own attempts'
+ * `wallMs` summed — "total time from wallMs", never a guess), `cost`/
+ * `costWhy` (a bare `$X` sum when every priced row is complete, `"at least
+ * $X"` when any priced row in this step is a floor, `null`+why when no row
+ * in this step has ever priced), `tokensTotal` (the sum of every row's own
+ * token total, ONLY when every row in the step either carries real
+ * (post-M4a-2) tokens or genuinely made no model call — one row missing
+ * tokens (a pre-M4a-2 row) means the WHOLE step's total is withheld, never a
+ * partial sum shown as complete; `null` also when the step made no model
+ * call at all, nothing to sum), `tryCount`/`tryMarks` (`deriveStepTryMarks`),
+ * `rows` (this step's own enriched audit rows, for the group's own table —
+ * never a second, separately-filtered copy on the client).
+ * @param {any[]} enrichedRows `getRunAudit`'s own rows, already carrying
+ *   `action`/`tokensDisplay`/`atWhy`/`blocked` (this function never
+ *   re-derives any of those, only groups and sums them)
+ * @returns {any[]}
+ */
+export function deriveAuditGroups(enrichedRows) {
+  const order = [];
+  const byStep = {};
+  for (const r of enrichedRows) {
+    if (!Object.prototype.hasOwnProperty.call(byStep, r.step)) { byStep[r.step] = []; order.push(r.step); }
+    byStep[r.step].push(r);
+  }
+  return order.map((step) => {
+    const rows = byStep[step];
+    const closeClass = rows[0].class ?? null;
+    const timeMs = rows.reduce((acc, r) => acc + (typeof r.wallMs === 'number' ? r.wallMs : 0), 0);
+
+    const priced = rows.filter((r) => typeof r.usd === 'number' && Number.isFinite(r.usd));
+    let cost = null;
+    let costWhy = null;
+    if (priced.length === 0) {
+      costWhy = 'no row in this step has a known cost yet';
+    } else {
+      const sum = priced.reduce((acc, r) => acc + r.usd, 0);
+      const partial = priced.some((r) => r.spendComplete === false);
+      const cd = costDisplay(sum, partial ? false : true);
+      cost = cd.ok ? cd.display : null;
+      if (!cd.ok) costWhy = cd.why;
+    }
+
+    let anyNotRecorded = false;
+    let anyTotal = false;
+    let tokensTotal = 0;
+    for (const r of rows) {
+      const td = r.tokensDisplay;
+      if (td && td.kind === 'not-recorded') anyNotRecorded = true;
+      else if (td && td.kind === 'total') { anyTotal = true; tokensTotal += td.total; }
+    }
+    const tokensTotalValue = (anyNotRecorded || !anyTotal) ? null : tokensTotal;
+
+    const tryMarks = deriveStepTryMarks(closeClass, rows);
+    return {
+      step,
+      state: deriveStepGroupState(rows),
+      closeClass,
+      timeMs,
+      cost,
+      costWhy,
+      tokensTotal: tokensTotalValue,
+      tryCount: tryMarks.length,
+      tryMarks,
+      rows,
+    };
+  });
+}
+
+/**
  * Run-level totals from `spend.jsonl` (hamr's review #1): rounds, input/
  * output/cache-read tokens — shown ONLY as a run-wide sum, never attributed
  * to a step (a spend row carries no `step` field at all — `src/model-step.js`
@@ -666,7 +836,7 @@ export function getRunDetail({
  * shared-sidecar contamination risk here the way bareloop's gate-audit
  * sidecar had). `null` when the flow/runId doesn't resolve (404).
  * @param {{root: string, flow: string, runId: string}} opts
- * @returns {{flow:string, runId:string, rows:any[], empty:boolean, why:string|null}|null}
+ * @returns {{flow:string, runId:string, rows:any[], groups:any[], empty:boolean, why:string|null}|null}
  */
 export function getRunAudit({ root, flow, runId }) {
   const run = resolveRunPath(root, flow, runId);
@@ -684,11 +854,20 @@ export function getRunAudit({ root, flow, runId }) {
     action: deriveAuditAction(row),
     tokensDisplay: deriveAuditTokensDisplay(row),
     atWhy: deriveAuditAtWhy(row),
+    // hamr's 2026-09-27 exit-check review #2: the Blocked filter's own
+    // server-side derivation, carried on every row so both the Grouped and
+    // Flat views (and their shared filter) read the SAME boolean, never a
+    // second guess client-side.
+    blocked: isBlockedVerdict(row.verdict),
   }));
   return {
     flow,
     runId,
     rows,
+    // hamr's 2026-09-27 exit-check review #1: the Audit tab's grouped-by-
+    // step header pieces, computed here off these SAME enriched rows —
+    // never a second, client-side re-grouping.
+    groups: deriveAuditGroups(rows),
     empty: rows.length === 0,
     why: rows.length === 0 ? 'audit.jsonl is empty or missing — no attempt has been made yet' : null,
   };
@@ -1002,14 +1181,64 @@ function runAsksInOrder(runDir, hasHistoryRow) {
 }
 
 /**
+ * hamr's 2026-09-27 exit-check review #3: which declared step (and its
+ * signed prose line) each ask in `orderedAsks` belongs to — no book field
+ * names this directly (`ask.json`/the archive carry only question/evidence,
+ * never a step id), so this is derived by POSITION, the same honest
+ * correlation technique this module already uses for `afterReject`
+ * (`getRunDetail`, above): `src/runner.js`'s `runAskSlot` writes exactly one
+ * `verdict:'paused'` audit row per park, in the SAME real-time order the
+ * asks themselves were parked in, and that row's own `step` field (set by
+ * `makeAuditRow` from the step object's `emits`) names the real step. Paired
+ * 1:1, in order, with `orderedAsks` (already sorted oldest-askedAt-first) —
+ * NEVER when the counts disagree (a crash between the ask.json/archive write
+ * and the audit-row write, or a pre-M4a-1 run with no paused rows at all
+ * left to correlate): every entry gets `step:null, line:null` with a stated
+ * why, rather than a guessed pairing. `line` is read off the matching
+ * `declaration.steps` entry's own `fromLine` (`src/declaration.js`) — never
+ * invented when no step matches the paused row's name.
+ * @param {any[]} orderedAsks `runAsksInOrder`'s own return, oldest-first
+ * @param {any[]} auditRows this run's own `audit.jsonl` rows, book order
+ * @param {any[]|null} declSteps `readFlow(...).declaration.steps`, or null
+ *   when the flow itself didn't resolve
+ * @returns {Array<{step:string|null, line:number|null, why:string|null}>}
+ */
+export function deriveAskStepInfo(orderedAsks, auditRows, declSteps) {
+  const pausedRows = auditRows.filter((r) => r.verdict === 'paused');
+  if (pausedRows.length !== orderedAsks.length) {
+    const why = `ask count (${orderedAsks.length}) does not match this run's own "paused" audit rows (${pausedRows.length}) — step/line not determinable without guessing`;
+    return orderedAsks.map(() => ({ step: null, line: null, why }));
+  }
+  return orderedAsks.map((ask, i) => {
+    const stepEmits = typeof pausedRows[i].step === 'string' ? pausedRows[i].step : null;
+    if (stepEmits === null) {
+      return { step: null, line: null, why: 'this ask\'s paused audit row names no step' };
+    }
+    const declStep = Array.isArray(declSteps) ? declSteps.find((s) => s.emits === stepEmits) : undefined;
+    if (!declStep || typeof declStep.fromLine !== 'number') {
+      return { step: stepEmits, line: null, why: 'no declared step with a numbered line matches this ask\'s own step' };
+    }
+    return { step: stepEmits, line: declStep.fromLine, why: null };
+  });
+}
+
+/**
  * `GET /api/runs/:flow/:runId/asks` — the Ask tab (M4a-1 scope item 1):
  * every ask this run's books can name, in order, each carrying full
  * evidence (`readAskEvidence`'s draft + unjudged, or the pre-M4a-1 `why`).
  * `null` when the flow/runId doesn't resolve (caller renders 404).
- * @param {{root: string, flow: string, runId: string}} opts
+ *
+ * hamr's 2026-09-27 exit-check review #3: each ask also carries `index`/
+ * `total` (its own 1-based position among this run's own asks, e.g. "2 of
+ * 3" — a plain array position, not derived from any book) and `stepName`/
+ * `stepLine`/`stepWhy` (`deriveAskStepInfo`) so the Ask tab's header can
+ * name which ask is open without the client re-deriving any of it.
+ * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
  * @returns {{flow:string, runId:string, asks:any[]}|null}
  */
-export function getRunAsks({ root, flow, runId }) {
+export function getRunAsks({
+  root, flow, runId, catalogue,
+}) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
@@ -1019,8 +1248,22 @@ export function getRunAsks({ root, flow, runId }) {
   // Inbox — otherwise an open ask's Ask-tab header/body falls back to the
   // raw status word "unanswered" and no time-left, disagreeing with the
   // Inbox row for that exact same ask.
-  const asks = runAsksInOrder(run.runDir, hasHistoryRow)
-    .map((ask) => ({ ...ask, ...deriveAskOpenFields(ask, hasHistoryRow) }));
+  const ordered = runAsksInOrder(run.runDir, hasHistoryRow);
+  const auditRows = readAudit(run.runDir);
+  const flowRead = readFlow({
+    root, name: flow, catalogue,
+  });
+  const declSteps = flowRead.ok ? flowRead.declaration.steps : null;
+  const stepInfo = deriveAskStepInfo(ordered, auditRows, declSteps);
+  const asks = ordered.map((ask, i) => ({
+    ...ask,
+    ...deriveAskOpenFields(ask, hasHistoryRow),
+    index: i + 1,
+    total: ordered.length,
+    stepName: stepInfo[i].step,
+    stepLine: stepInfo[i].line,
+    stepWhy: stepInfo[i].why,
+  }));
   return { flow, runId, asks };
 }
 
