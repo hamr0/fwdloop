@@ -17,5 +17,7 @@ export { closeByClass } from './closers.js';
 export {
   makeFileAskStep, answerAsk, readAskEvidence, writeAskArchive, listArchivedAsks,
 } from './ask.js';
-export { appendAudit, appendHistory, readAudit, readHistory } from './books.js';
+export {
+  appendAudit, appendHistory, readAudit, readHistory, auditRowTokens,
+} from './books.js';
 export { readSpendRows } from './provider.js';

@@ -803,6 +803,33 @@ run is still correctly parked/resumable, and `listArchivedAsks` only ever report
 disk, never invents an entry. `listArchivedAsks` is exported from `src/index.js` but not wired into
 the panel — that is the next M4a/M4b piece's job. Tests: `test/ask-archive.test.js`.
 
+**Amendment M4a-2 — SIGNED by hamr 2026-09-27 ("sign mfa2", = M4a-2).** Each new audit.jsonl row also
+records `at` (ISO time the attempt finished) and `tokens` (`{ inputTokens, outputTokens,
+cacheReadTokens }` summed over that attempt's model calls; `null` with no model call). Rows written
+before M4a-2 read as "not recorded (before M4a-2)", never an invented number. Negative scenarios,
+each must be able to fail: (a) a model-call audit row written without tokens is refused at write
+time (a red naming the row), like the existing cost-field check; (b) the sum of a run's audit-row
+tokens equals the sum of its spend.jsonl tokens; (c) every new row carries a valid `at`. Cost $0
+(tests only).
+
+Built: `src/model-step.js`'s `liveModelStep` now sums `tokens` alongside `costUsd` at the SAME
+place, across every round of an attempt (`addMeter`, replacing `addCost`) — carried on every
+returned result (`ok:true` and every red/halt shape), never re-derived later by position from
+spend.jsonl. `src/runner.js`'s `makeAuditRow` (and `runStepRalph`'s new `now` parameter, threaded
+from `runFlow`'s own injected clock down through every call site) stamps `at: now()` and threads
+`tokens: result.tokens ?? null` on every attempt row; every non-model-call row (cap-halt, paused,
+ask-timeout, refused, accept, redo-rejected, the send row, `ask.js`'s stale-answer-ignored,
+`recordLateAnswerIfAny`, resume's ask-expired) carries `tokens: null`. `src/books.js`'s
+`appendAudit` gained `checkAtField`/`checkTokensField` (mirroring `checkCostField`'s discipline) and
+a reader helper, `auditRowTokens(row)`, exported from `src/index.js`; `readAudit` itself is
+unchanged (one reader per book — the panel reads it later). A row whose cost is unknown
+(`spendComplete:false`) may still carry known, possibly-partial tokens (the same "known partial
+survives as itself" rule `sumKnownUsd` already applies to cost) — never invented, never coerced to
+zero. Tests: `test/books.test.js` (checks (a)/(c), `auditRowTokens`'s pre/post-M4a-2 read, both
+proven able to fail by reverting the check alone), `test/runner.live-shape.test.js` (check (b), an
+end-to-end run's audit-row token sum against its spend.jsonl sum, also proven able to fail by
+reverting the threading alone).
+
 #### M4b — inputs (does not start until M4a's exit is signed)
 
 **Scope.**

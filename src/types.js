@@ -263,6 +263,10 @@
 
 /**
  * One row appended to `runs/<run-id>/audit.jsonl` (M2 scope item 9).
+ * `at`/`tokens` were added by Amendment M4a-2 (docs/wiki/the-module-
+ * ladder.md, "M4a" section) — every row `appendAudit` writes from here on
+ * carries both; a row written before M4a-2 simply lacks the keys (read back
+ * as-is, never backfilled) — see `auditRowTokens` in `src/books.js`.
  * @typedef {object} AuditRow
  * @property {string|null} step
  * @property {number} attempt
@@ -275,6 +279,10 @@
  * @property {string|null} model
  * @property {boolean|null} modelMatch
  * @property {boolean} strike
+ * @property {string} at - ISO time this attempt finished.
+ * @property {{inputTokens:number, outputTokens:number, cacheReadTokens:number} | null} tokens -
+ *   summed over this attempt's model calls; `null` only when `model` is
+ *   `null` (no model call this row).
  */
 
 /**

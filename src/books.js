@@ -71,17 +71,88 @@ function checkCostField(row, field, label) {
 }
 
 /**
+ * Refuse (throw) a row whose `at` is not a valid ISO timestamp string
+ * (Amendment M4a-2, docs/wiki/the-module-ladder.md "M4a" section: "every
+ * new row carries a valid `at`"). Never coerced/defaulted here — the caller
+ * (the runner's own injected clock) must supply it, so a test's fixed clock
+ * governs `at` exactly like it governs every other timestamp this module
+ * writes.
+ */
+function checkAtField(row, label) {
+  const value = row.at;
+  if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
+    throw new Error(`${label}: "at" must be a valid ISO timestamp string, got ${JSON.stringify(value)}`);
+  }
+}
+
+/**
+ * Refuse (throw) a row whose `tokens` is `undefined` (never silently
+ * omitted — say `null` on purpose), or whose `tokens` is `null` while
+ * `model` is not `null` (Amendment M4a-2: "a model-call audit row written
+ * without tokens is refused at write time"), or whose non-null `tokens` is
+ * not an object of three non-negative integers
+ * (`inputTokens`/`outputTokens`/`cacheReadTokens`). A row with no model
+ * call (`model: null`) may carry `tokens: null` — that is the one honest
+ * "nothing to sum" case, never a zeroed object standing in for a call that
+ * never happened.
+ */
+function checkTokensField(row, label) {
+  const value = row.tokens;
+  if (value === undefined) {
+    throw new Error(`${label}: "tokens" must not be undefined — pass null (no model call) or a {inputTokens,outputTokens,cacheReadTokens} object`);
+  }
+  if (value === null) {
+    if (row.model !== null && row.model !== undefined) {
+      throw new Error(`${label}: "tokens" is null but "model" is "${row.model}" — a model-call row must carry its tokens`);
+    }
+    return;
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label}: "tokens" must be null or an object, got ${JSON.stringify(value)}`);
+  }
+  for (const key of ['inputTokens', 'outputTokens', 'cacheReadTokens']) {
+    const v = value[key];
+    if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) {
+      throw new Error(`${label}: "tokens.${key}" must be a non-negative integer, got ${JSON.stringify(v)}`);
+    }
+  }
+}
+
+/**
  * One row per attempt (also used for one row per ask and one row per send —
  * M2 scope item 9). `row` shape: `{ step, attempt, class, verdict, gap, usd,
- * spendComplete, wallMs, model, modelMatch, strike }`. Append-only, one
- * writer.
+ * spendComplete, wallMs, model, modelMatch, strike, at, tokens }` (`at`/
+ * `tokens` added by Amendment M4a-2 — every row appended from here on must
+ * carry both; a pre-M4a-2 row already on disk simply lacks them, read back
+ * as-is by `readAudit`). Append-only, one writer.
  *
  * @param {string} runDir
  * @param {Record<string, any>} row
  */
 export function appendAudit(runDir, row) {
   checkCostField(row, 'usd', 'appendAudit');
+  checkAtField(row, 'appendAudit');
+  checkTokensField(row, 'appendAudit');
   appendLine(join(runDir, 'audit.jsonl'), row);
+}
+
+/**
+ * Amendment M4a-2's own reader helper: the honest reading of one audit
+ * row's `tokens`, whether or not it was written before M4a-2 landed. A row
+ * that never had a `tokens` key at all (any row appended before this
+ * amendment) reads as "not recorded", never as `null` standing in for a
+ * genuine zero-token model call and never an invented number. A row that
+ * does carry the key (including a post-M4a-2 `tokens: null` no-model-call
+ * row) reads back exactly what was written.
+ *
+ * @param {Record<string, any>} row
+ * @returns {{tokens: {inputTokens:number, outputTokens:number, cacheReadTokens:number} | null, why?: string}}
+ */
+export function auditRowTokens(row) {
+  if (!row || !Object.prototype.hasOwnProperty.call(row, 'tokens')) {
+    return { tokens: null, why: 'not recorded (before M4a-2)' };
+  }
+  return { tokens: row.tokens };
 }
 
 /**

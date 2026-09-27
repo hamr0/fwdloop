@@ -133,10 +133,30 @@ export function buildEmitArtifactSchema(stepClass) {
   return HITL_SCHEMA;
 }
 
-function addCost(cumulative, metered) {
+// M4a-2 (docs/wiki/the-module-ladder.md, "M4a" section, "Amendment M4a-2 —
+// SIGNED by hamr 2026-09-27"): the attempt's `tokens` for the audit row are
+// summed here, at the SAME place `costUsd` already sums across rounds —
+// never re-derived later by position from spend.jsonl (`src/books.js`'s own
+// audit row is a different book with a different granularity: one row per
+// ATTEMPT, not per round). Only the three fields the audit row's contract
+// names (`inputTokens`, `outputTokens`, `cacheReadTokens`) are carried
+// forward; `sumMeterings`' own `cacheCreationTokens` stays in spend.jsonl
+// only. A round with no metering at all (`metered.tokens === null`, e.g. a
+// synchronous throw before any `onLlmResult` fired) contributes zero, never
+// turns the running total null — once ANY round in this attempt actually
+// ran, the attempt's tokens are a known (possibly partial) count, not
+// "unknown".
+function addMeter(cumulative, metered) {
   const rounds = cumulative.rounds + metered.rounds;
-  if (cumulative.costUsd === null || metered.costUsd === null) return { costUsd: null, rounds };
-  return { costUsd: cumulative.costUsd + metered.costUsd, rounds };
+  const costUsd = (cumulative.costUsd === null || metered.costUsd === null)
+    ? null
+    : cumulative.costUsd + metered.costUsd;
+  const tokens = {
+    inputTokens: cumulative.tokens.inputTokens + (metered.tokens?.inputTokens ?? 0),
+    outputTokens: cumulative.tokens.outputTokens + (metered.tokens?.outputTokens ?? 0),
+    cacheReadTokens: cumulative.tokens.cacheReadTokens + (metered.tokens?.cacheReadTokens ?? 0),
+  };
+  return { costUsd, rounds, tokens };
 }
 
 /**
@@ -167,8 +187,12 @@ export function makeLiveModelStep({
         if (!slot) throw new Error('makeLiveModelStep: "slot" is required when no provider is injected');
         ({ provider, rates, modelId } = makeProvider(slot, { model, ...LIVE_PROVIDER_OPTIONS }));
       } catch (err) {
+        // No provider was ever built, so no round could possibly have run —
+        // `tokens: null` here is the one honest "no model call at all" case
+        // (never a zeroed object standing in for a call that never
+        // happened).
         return {
-          ok: false, red: `key: ${err.message}`, costUsd: null, model: model ?? null,
+          ok: false, red: `key: ${err.message}`, costUsd: null, model: model ?? null, tokens: null,
         };
       }
     }
@@ -189,7 +213,9 @@ export function makeLiveModelStep({
 
     const primitiveTools = Object.values(grantedTools ?? {}).filter(Boolean);
 
-    let cumulative = { costUsd: 0, rounds: 0 };
+    let cumulative = {
+      costUsd: 0, rounds: 0, tokens: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+    };
     let noToolCallStreak = 0;
 
     for (let round = 1; round <= 2; round += 1) {
@@ -212,7 +238,7 @@ export function makeLiveModelStep({
       } catch (err) {
         const wallMs = Date.now() - startedAt;
         const partial = sumMeterings(roundMeterings);
-        cumulative = addCost(cumulative, partial);
+        cumulative = addMeter(cumulative, partial);
         appendSpendRow(spendPath, {
           model: modelId,
           modelReturned: partial.model,
@@ -227,6 +253,7 @@ export function makeLiveModelStep({
             ok: false,
             transport: true,
             costUsd: cumulative.costUsd,
+            tokens: cumulative.tokens,
             spendComplete: false,
             red: `provider-red: ${err.message}`,
             model: modelId,
@@ -238,6 +265,7 @@ export function makeLiveModelStep({
             ok: false,
             red: `wall-halt: ${err.message}`,
             costUsd: cumulative.costUsd,
+            tokens: cumulative.tokens,
             model: modelId,
             modelMatch: classifyModelId(modelId, partial.model),
           };
@@ -249,6 +277,7 @@ export function makeLiveModelStep({
           ok: false,
           red: `provider-red: ${err.message}`,
           costUsd: cumulative.costUsd,
+          tokens: cumulative.tokens,
           model: modelId,
           modelMatch: classifyModelId(modelId, partial.model),
         };
@@ -256,7 +285,7 @@ export function makeLiveModelStep({
 
       const wallMs = Date.now() - startedAt;
       const metered = sumMeterings(roundMeterings);
-      cumulative = addCost(cumulative, metered);
+      cumulative = addMeter(cumulative, metered);
       appendSpendRow(spendPath, {
         model: modelId,
         modelReturned: metered.model,
@@ -276,6 +305,7 @@ export function makeLiveModelStep({
           ok: false,
           red: `truncated: ${metered.tokens?.outputTokens ?? '?'} tokens, no tool call`,
           costUsd: cumulative.costUsd,
+          tokens: cumulative.tokens,
           model: modelId,
           modelMatch,
         };
@@ -290,6 +320,7 @@ export function makeLiveModelStep({
               ok: false,
               red: `the tool call's arguments were not valid JSON twice in a row (${malformed.error}); raw: ${malformed.rawArguments}`,
               costUsd: cumulative.costUsd,
+              tokens: cumulative.tokens,
               model: modelId,
               modelMatch,
             };
@@ -298,6 +329,7 @@ export function makeLiveModelStep({
             ok: false,
             red: `a FINISHED round (stopReason=${result.stopReason}) returned text instead of the tool twice in a row. Text: ${JSON.stringify(result.text)}`,
             costUsd: cumulative.costUsd,
+            tokens: cumulative.tokens,
             model: modelId,
             modelMatch,
           };
@@ -308,17 +340,17 @@ export function makeLiveModelStep({
 
       if (cumulative.costUsd === null) {
         return {
-          ok: false, red: 'pricing-red: an unpriced round leaves this attempt\'s cost unknown', costUsd: null, model: modelId, modelMatch,
+          ok: false, red: 'pricing-red: an unpriced round leaves this attempt\'s cost unknown', costUsd: null, model: modelId, modelMatch, tokens: cumulative.tokens,
         };
       }
 
       return {
-        ok: true, artifact: capturedArtifact, costUsd: cumulative.costUsd, model: modelId, modelMatch,
+        ok: true, artifact: capturedArtifact, costUsd: cumulative.costUsd, model: modelId, modelMatch, tokens: cumulative.tokens,
       };
     }
 
     return {
-      ok: false, red: 'exhausted rounds without a clean result', costUsd: cumulative.costUsd, model: modelId,
+      ok: false, red: 'exhausted rounds without a clean result', costUsd: cumulative.costUsd, model: modelId, tokens: cumulative.tokens,
     };
   };
 }

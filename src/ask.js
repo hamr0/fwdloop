@@ -88,7 +88,7 @@ export function makeFileAskStep({
             while (existsSync(staleName)) { staleCount += 1; staleName = join(runDir, `answer.stale.${staleCount}.json`); }
             renameSync(answerPath, staleName);
             appendAudit(runDir, {
-              step: 'ask', attempt, class: null, verdict: 'stale-answer-ignored', gap: `answeredAt ${answeredAt} predates this ask's askedAt ${askedAt}`, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+              step: 'ask', attempt, class: null, verdict: 'stale-answer-ignored', gap: `answeredAt ${answeredAt} predates this ask's askedAt ${askedAt}`, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: clock(), tokens: null,
             });
             // Keep polling — a stale file quarantined does not mean THIS
             // ask has been answered.

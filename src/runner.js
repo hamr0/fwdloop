@@ -407,7 +407,7 @@ function readArtifactsMap(runDir, ids) {
 // nothing.
 // ---------------------------------------------------------------------------
 
-function recordLateAnswerIfAny(runDir) {
+function recordLateAnswerIfAny(runDir, now = () => new Date().toISOString()) {
   const file = join(runDir, 'answer.json');
   if (!existsSync(file)) return;
   appendAudit(runDir, {
@@ -422,6 +422,8 @@ function recordLateAnswerIfAny(runDir) {
     model: null,
     modelMatch: null,
     strike: false,
+    at: now(),
+    tokens: null,
     kind: 'answer-after-run',
     file,
   });
@@ -446,8 +448,18 @@ function sumKnownUsd(...values) {
   return known.reduce((a, b) => a + b, 0);
 }
 
+// Amendment M4a-2 — SIGNED by hamr 2026-09-27 ("sign mfa2", = M4a-2):
+// `at` (this attempt's own finish time, off the run's injected clock — never
+// the bare wall clock, exactly like every other timestamp this module
+// writes) and `tokens` (threaded straight from `modelStep`'s own result,
+// which sums it at the SAME place it sums `costUsd` across a step's rounds
+// — never re-derived here or anywhere else by position from spend.jsonl).
+// `tokens` defaults to `null`: every call site with no model call (cap-halt,
+// paused, ask-timeout, refused, accept, redo-rejected) leaves it at that
+// default; every call site with a `modelStep` result passes its own
+// `result.tokens` through unchanged.
 function makeAuditRow({
-  step, attempt, verdict, gap, usd, spendComplete, wallMs, model = null, modelMatch = null, strike,
+  step, attempt, verdict, gap, usd, spendComplete, wallMs, model = null, modelMatch = null, strike, at, tokens = null,
 }) {
   return {
     step: step?.emits ?? step?.goal ?? null,
@@ -461,6 +473,8 @@ function makeAuditRow({
     model: model ?? null,
     modelMatch: modelMatch ?? null,
     strike: !!strike,
+    at,
+    tokens,
   };
 }
 
@@ -483,10 +497,18 @@ function makeAuditRow({
  * @param {(row: any, modelOutput?: any) => void} opts.recordAudit
  * @param {string|null} [opts.initialGap]
  * @param {number} [opts.attemptOffset]
+ * @param {() => string} [opts.now] - M4a-2: stamps each audit row's `at`;
+ *   defaults to the real wall clock.
  * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string}>}
  */
 async function runStepRalph({
   step, primitivesMap, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd, recordAudit, initialGap = null, attemptOffset = 0,
+  // M4a-2: the run's own injected clock (never the bare wall clock) —
+  // stamps every audit row's `at` with this attempt's finish time. Defaults
+  // to the real wall clock so a caller that doesn't inject one (there are
+  // none left in production; a defensive default only) still writes a valid
+  // ISO string.
+  now = () => new Date().toISOString(),
 }) {
   /** @type {string|null} */
   let gap = initialGap ?? null;
@@ -502,7 +524,7 @@ async function runStepRalph({
     let attemptFloorUsd = null;
     if (spent.value + ceilingUsd > capUsd) {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'cap-halt', gap, usd: null, spendComplete: false, wallMs: 0, strike: false,
+        step, attempt, verdict: 'cap-halt', gap, usd: null, spendComplete: false, wallMs: 0, strike: false, at: now(),
       }));
       return {
         ok: false,
@@ -552,7 +574,7 @@ async function runStepRalph({
       // null second cost never zeroes out a known first floor.
       const usd = sumKnownUsd(attemptFloorUsd, result.costUsd);
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'provider-red', gap, usd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: 'provider-red', gap, usd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null,
       }), result.red ?? 'transport fault twice');
       return { ok: false, outcome: 'provider-red', red: `provider-red: step "${step.goal}" attempt ${attempt}: ${result.red ?? 'transport fault twice'}` };
     }
@@ -569,7 +591,7 @@ async function runStepRalph({
       if (strike) strikes += 1;
       const usd = sumKnownUsd(attemptFloorUsd, result?.costUsd);
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'red', gap: red, usd, spendComplete: usd !== null, wallMs, model: result?.model, modelMatch: result?.modelMatch, strike,
+        step, attempt, verdict: 'red', gap: red, usd, spendComplete: usd !== null, wallMs, model: result?.model, modelMatch: result?.modelMatch, strike, at: now(), tokens: result?.tokens ?? null,
       }), red);
       if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: step "${step.goal}" — ${red}` };
@@ -580,7 +602,7 @@ async function runStepRalph({
 
     if (result.costUsd === null || result.costUsd === undefined) {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'pricing-red', gap, usd: attemptFloorUsd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: 'pricing-red', gap, usd: attemptFloorUsd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null,
       }), result.artifact ?? null);
       return { ok: false, outcome: 'pricing-red', red: `pricing-red: step "${step.goal}" attempt ${attempt} returned no cost (never "?? 0")` };
     }
@@ -595,7 +617,7 @@ async function runStepRalph({
     const doneCheck = checkDoneBlocker(step, result.artifact);
     if (doneCheck.verdict === 'not-done') {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'not-done', gap: doneCheck.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: 'not-done', gap: doneCheck.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null,
       }), result.artifact ?? null);
       return { ok: false, outcome: 'not-done', red: doneCheck.red };
     }
@@ -608,7 +630,7 @@ async function runStepRalph({
       // failure) — matches poc/m2/gapback.mjs's own rule exactly.
       strikes += 1;
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'red', gap: happened.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: true,
+        step, attempt, verdict: 'red', gap: happened.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: true, at: now(), tokens: result.tokens ?? null,
       }), result.artifact ?? null);
       if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: ${happened.red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: ${happened.red}` };
@@ -621,7 +643,7 @@ async function runStepRalph({
 
     if (closed.verdict === 'green' || closed.verdict === 'hitl') {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: closed.verdict, gap: null, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: closed.verdict, gap: null, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null,
       }), result.artifact);
       return {
         ok: true, artifact, attempts: attempt, hitl: closed.verdict === 'hitl',
@@ -632,7 +654,7 @@ async function runStepRalph({
       // A closer that renders no judgment ('unparseable'/'crash') is a
       // CASUALTY, never a red and never a strike (bareloop F17).
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'close-casualty', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: 'close-casualty', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null,
       }), result.artifact);
       return { ok: false, outcome: 'close-casualty', red: `close-casualty: step "${step.goal}" — ${closed.red} (${closed.verdict})` };
     }
@@ -642,7 +664,7 @@ async function runStepRalph({
     seenGaps.add(normalised);
     if (strike) strikes += 1;
     recordAudit(makeAuditRow({
-      step, attempt, verdict: 'red', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike,
+      step, attempt, verdict: 'red', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike, at: now(), tokens: result.tokens ?? null,
     }), result.artifact);
 
     if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${closed.red}` };
@@ -1004,7 +1026,7 @@ async function runAskSlot({
       };
       writeFileSync(join(runDir, 'state.json'), JSON.stringify(state, null, 2));
       recordAudit(makeAuditRow({
-        step, attempt: redone + 1, verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
+        step, attempt: redone + 1, verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       }), undefined, unjudgedCount);
       // Orchestrator review fix (3): M2 item 9 says history is ONE row per
       // run; M3's signed scope item 2 only asks for an AUDIT row "paused"
@@ -1025,7 +1047,7 @@ async function runAskSlot({
       // A pause spends nothing (M2 scope item 6) — a halt, never a red
       // with a fabricated cost, and never re-asked (the run is over).
       recordAudit(makeAuditRow({
-        step, attempt: redone + 1, verdict: 'ask-timeout', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
+        step, attempt: redone + 1, verdict: 'ask-timeout', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       }), undefined, unjudgedCount);
       return {
         type: 'halted',
@@ -1039,7 +1061,7 @@ async function runAskSlot({
 
     if (isRedo && reason.length === 0) {
       recordAudit(makeAuditRow({
-        step, attempt: redone + 1, verdict: 'refused', gap: 'a rejection/rerun needs a reason', usd: 0, spendComplete: true, wallMs: 0, strike: false,
+        step, attempt: redone + 1, verdict: 'refused', gap: 'a rejection/rerun needs a reason', usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       }), undefined, unjudgedCount);
       // Refused, re-asked for the SAME attempt — never re-runs the step.
       // eslint-disable-next-line no-continue
@@ -1048,7 +1070,7 @@ async function runAskSlot({
 
     if (answer.decision === 'accept') {
       recordAudit(makeAuditRow({
-        step, attempt: redone + 1, verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
+        step, attempt: redone + 1, verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       }), undefined, unjudgedCount);
       return { type: 'accepted', artifact: currentPrior };
     }
@@ -1056,7 +1078,7 @@ async function runAskSlot({
     if (isRedo) {
       redone += 1;
       recordAudit(makeAuditRow({
-        step, attempt: redone, verdict: 'red', gap: reason, usd: 0, spendComplete: true, wallMs: 0, strike: false,
+        step, attempt: redone, verdict: 'red', gap: reason, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       }), undefined, unjudgedCount);
       if (redone > redoCap) {
         return {
@@ -1068,7 +1090,7 @@ async function runAskSlot({
       const priorReads = readArtifactsMap(runDir, priorStep.reads);
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
-        step: priorStep, primitivesMap: primitives, readsMap: priorReads, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone,
+        step: priorStep, primitivesMap: primitives, readsMap: priorReads, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone, now,
       });
       if (!redoResult.ok) {
         return { type: 'halted', outcome: redoResult.outcome, red: redoResult.red };
@@ -1160,7 +1182,7 @@ async function foldFromStep({
       // eslint-disable-next-line no-await-in-loop
       const sendResult = await sendStep(target, filename, content);
       const sendRow = makeAuditRow({
-        step, attempt: 1, verdict: sendResult.ok ? 'green' : 'red', gap: sendResult.ok ? null : sendResult.red, usd: 0, spendComplete: true, wallMs: 0, strike: false,
+        step, attempt: 1, verdict: sendResult.ok ? 'green' : 'red', gap: sendResult.ok ? null : sendResult.red, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       });
       recordAudit(sendRow);
       if (!sendResult.ok) {
@@ -1248,7 +1270,7 @@ async function foldFromStep({
     // redo's `initialGap` above.
     // eslint-disable-next-line no-await-in-loop
     const stepResult = await runStepRalph({
-      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null,
+      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null, now,
     });
     if (!stepResult.ok) {
       return haltRun({
@@ -1275,7 +1297,7 @@ async function foldFromStep({
   appendHistory(flowDir, {
     runId, at: now(), outcome: 'complete', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd, wallMs, signatureHash,
   });
-  recordLateAnswerIfAny(runDir);
+  recordLateAnswerIfAny(runDir, now);
   writeLog(runDir, {
     runId, outcome: 'complete', attempts: attemptsLog, artifacts,
   });
@@ -1536,7 +1558,7 @@ export async function resumeRun({
       // review fix 2: "a pause spends nothing" means the pause adds
       // nothing, not that the run's total resets).
       appendAudit(runDir, {
-        step: null, attempt: null, class: null, verdict: 'ask-expired', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+        step: null, attempt: null, class: null, verdict: 'ask-expired', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: now(), tokens: null,
       });
       appendHistory(flowDir, {
         runId, at: now(), outcome: 'ask-expired', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
@@ -1563,7 +1585,7 @@ export async function resumeRun({
       appendHistory(flowDir, {
         runId, at: now(), outcome: 'rerun', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
       });
-      recordLateAnswerIfAny(runDir);
+      recordLateAnswerIfAny(runDir, now);
       writeLog(runDir, { runId, outcome: 'rerun', attempts: [], artifacts: priorArtifactsForLog });
 
       // Deterministic derived id (M3 scope item 7) — refused by name, never
@@ -1836,7 +1858,7 @@ function haltRun({
     runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash,
   });
   if (existsSync(runDir)) {
-    recordLateAnswerIfAny(runDir);
+    recordLateAnswerIfAny(runDir, now);
     writeLog(runDir, {
       runId, outcome, red, attempts, artifacts,
     });

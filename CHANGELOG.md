@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Amendment M4a-2 (docs/wiki/the-module-ladder.md, "M4a"): every new `audit.jsonl` row now
+  carries `at` (ISO time the attempt finished) and `tokens` (`{inputTokens, outputTokens,
+  cacheReadTokens}` summed over that attempt's model calls, threaded from the same per-round
+  metering `src/model-step.js` already sums into `costUsd` — never re-derived from spend.jsonl by
+  position; `null` when the row has no model call). `src/books.js`'s `appendAudit` refuses at write
+  time a row with an invalid/missing `at`, an omitted `tokens`, or a model-call row with no
+  `tokens`. Rows written before M4a-2 simply lack the keys; `auditRowTokens(row)` (`src/books.js`,
+  re-exported from `src/index.js`) reads them back as "not recorded (before M4a-2)" rather than
+  inventing a number.
 - Amendment M4a-1 (docs/wiki/the-module-ladder.md, "M4a"): every park now writes a permanent,
   write-once archive of its ask into the run dir, `asks/<askId>.json` (question, askedAt,
   expiresAt, evidence), alongside the existing (mutable) `ask.json`. Nothing deletes an archived

@@ -4,19 +4,21 @@ import { mkdtempSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { appendAudit, appendHistory } from '../src/books.js';
+import { appendAudit, appendHistory, auditRowTokens } from '../src/books.js';
 
 function tmpDir() {
   return mkdtempSync(join(tmpdir(), 'fwdloop-books-'));
 }
 
+const AT = '2026-09-27T00:00:00.000Z';
+
 test('appendAudit: writes one JSON line, append-only', () => {
   const dir = tmpDir();
   appendAudit(dir, {
-    step: 's1', attempt: 1, class: 'green', verdict: 'green', gap: null, usd: 0.01, spendComplete: true, wallMs: 5, model: 'x', modelMatch: true, strike: false,
+    step: 's1', attempt: 1, class: 'green', verdict: 'green', gap: null, usd: 0.01, spendComplete: true, wallMs: 5, model: 'x', modelMatch: true, strike: false, at: AT, tokens: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0 },
   });
   appendAudit(dir, {
-    step: 's1', attempt: 2, class: 'green', verdict: 'red', gap: 'oops', usd: 0.01, spendComplete: true, wallMs: 5, model: 'x', modelMatch: true, strike: false,
+    step: 's1', attempt: 2, class: 'green', verdict: 'red', gap: 'oops', usd: 0.01, spendComplete: true, wallMs: 5, model: 'x', modelMatch: true, strike: false, at: AT, tokens: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0 },
   });
   const lines = readFileSync(join(dir, 'audit.jsonl'), 'utf8').trim().split('\n');
   assert.equal(lines.length, 2);
@@ -27,7 +29,7 @@ test('appendAudit: writes one JSON line, append-only', () => {
 test('appendAudit: refuses a row whose usd is undefined — never "?? 0"', () => {
   const dir = tmpDir();
   assert.throws(() => appendAudit(dir, {
-    step: 's1', attempt: 1, class: 'green', verdict: 'green', gap: null, spendComplete: true, wallMs: 5,
+    step: 's1', attempt: 1, class: 'green', verdict: 'green', gap: null, spendComplete: true, wallMs: 5, model: null, tokens: null, at: AT,
   }), /never "\?\? 0"/);
   assert.equal(existsSync(join(dir, 'audit.jsonl')), false);
 });
@@ -35,17 +37,92 @@ test('appendAudit: refuses a row whose usd is undefined — never "?? 0"', () =>
 test('appendAudit: a null usd is refused unless spendComplete is false', () => {
   const dir = tmpDir();
   assert.throws(() => appendAudit(dir, {
-    step: 's1', attempt: 1, class: 'green', verdict: 'pricing-red', gap: null, usd: null, spendComplete: true, wallMs: 5,
+    step: 's1', attempt: 1, class: 'green', verdict: 'pricing-red', gap: null, usd: null, spendComplete: true, wallMs: 5, model: null, tokens: null, at: AT,
   }), /only allowed with spendComplete:false/);
 });
 
 test('appendAudit: a null usd is allowed with spendComplete:false', () => {
   const dir = tmpDir();
   appendAudit(dir, {
-    step: 's1', attempt: 1, class: 'green', verdict: 'pricing-red', gap: null, usd: null, spendComplete: false, wallMs: 5,
+    step: 's1', attempt: 1, class: 'green', verdict: 'pricing-red', gap: null, usd: null, spendComplete: false, wallMs: 5, model: null, tokens: null, at: AT,
   });
   const row = JSON.parse(readFileSync(join(dir, 'audit.jsonl'), 'utf8').trim());
   assert.equal(row.usd, null);
+});
+
+// ---------------------------------------------------------------------------
+// Amendment M4a-2 — SIGNED by hamr 2026-09-27 ("sign mfa2", = M4a-2).
+// ---------------------------------------------------------------------------
+
+test('M4a-2 (a): a model-call row written without tokens is refused, naming the row', () => {
+  const dir = tmpDir();
+  assert.throws(() => appendAudit(dir, {
+    step: 's1', attempt: 1, class: 'green', verdict: 'green', gap: null, usd: 0.01, spendComplete: true, wallMs: 5, model: 'x', modelMatch: true, strike: false, at: AT, tokens: null,
+  }), /appendAudit.*tokens.*model/);
+  assert.equal(existsSync(join(dir, 'audit.jsonl')), false);
+});
+
+test('M4a-2: tokens must be an object of three non-negative integers when not null', () => {
+  const dir = tmpDir();
+  assert.throws(() => appendAudit(dir, {
+    step: 's1', attempt: 1, class: 'green', verdict: 'green', gap: null, usd: 0.01, spendComplete: true, wallMs: 5, model: 'x', modelMatch: true, strike: false, at: AT, tokens: { inputTokens: -1, outputTokens: 0, cacheReadTokens: 0 },
+  }), /non-negative integer/);
+  assert.throws(() => appendAudit(dir, {
+    step: 's1', attempt: 1, class: 'green', verdict: 'green', gap: null, usd: 0.01, spendComplete: true, wallMs: 5, model: 'x', modelMatch: true, strike: false, at: AT, tokens: 'nope',
+  }), /must be null or an object/);
+});
+
+test('M4a-2: tokens is refused when omitted entirely (undefined) — never silently absent', () => {
+  const dir = tmpDir();
+  assert.throws(() => appendAudit(dir, {
+    step: 's1', attempt: 1, class: 'green', verdict: 'green', gap: null, usd: 0.01, spendComplete: true, wallMs: 5, model: null, strike: false, at: AT,
+  }), /"tokens" must not be undefined/);
+});
+
+test('M4a-2: a no-model-call row carries tokens:null, cleanly', () => {
+  const dir = tmpDir();
+  appendAudit(dir, {
+    step: null, attempt: null, class: null, verdict: 'ask-expired', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: AT, tokens: null,
+  });
+  const row = JSON.parse(readFileSync(join(dir, 'audit.jsonl'), 'utf8').trim());
+  assert.equal(row.tokens, null);
+});
+
+test('M4a-2 (c): a row with an invalid or missing "at" is refused', () => {
+  const dir = tmpDir();
+  assert.throws(() => appendAudit(dir, {
+    step: 's1', attempt: 1, class: 'green', verdict: 'green', gap: null, usd: 0.01, spendComplete: true, wallMs: 5, model: null, tokens: null, at: 'not-a-date',
+  }), /"at" must be a valid ISO timestamp/);
+  assert.throws(() => appendAudit(dir, {
+    step: 's1', attempt: 1, class: 'green', verdict: 'green', gap: null, usd: 0.01, spendComplete: true, wallMs: 5, model: null, tokens: null,
+  }), /"at" must be a valid ISO timestamp/);
+  assert.equal(existsSync(join(dir, 'audit.jsonl')), false);
+});
+
+test('M4a-2 (c) proven able to fail: a valid "at" is accepted', () => {
+  const dir = tmpDir();
+  appendAudit(dir, {
+    step: 's1', attempt: 1, class: 'green', verdict: 'green', gap: null, usd: 0.01, spendComplete: true, wallMs: 5, model: null, tokens: null, at: AT,
+  });
+  const row = JSON.parse(readFileSync(join(dir, 'audit.jsonl'), 'utf8').trim());
+  assert.equal(row.at, AT);
+});
+
+test('auditRowTokens: a pre-M4a-2 row (no "tokens" key at all) reads as "not recorded", never invented', () => {
+  const preM4a2Row = {
+    step: 's1', attempt: 1, class: 'green', verdict: 'green', gap: null, usd: 0.01, spendComplete: true, wallMs: 5, model: 'x', modelMatch: true, strike: false,
+  };
+  const result = auditRowTokens(preM4a2Row);
+  assert.equal(result.tokens, null);
+  assert.match(result.why, /before M4a-2/);
+});
+
+test('auditRowTokens: a post-M4a-2 row reads back exactly what was written, including a genuine tokens:null', () => {
+  assert.deepEqual(
+    auditRowTokens({ model: 'x', tokens: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0 } }),
+    { tokens: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0 } },
+  );
+  assert.deepEqual(auditRowTokens({ model: null, tokens: null }), { tokens: null });
 });
 
 test('appendHistory: writes one row keyed by spentUsd, same discipline', () => {
