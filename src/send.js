@@ -47,7 +47,7 @@ export async function sendViaPrimitive(target, filename, content) {
   if (content === undefined) {
     return { ok: false, red: 'send: no content to send (artifact missing or its read was refused) — refused' };
   }
-  if (content === null || typeof content !== 'object') {
+  if (content === null || typeof content !== 'object' || Array.isArray(content)) {
     return { ok: false, red: `send: content is not an artifact object (got ${JSON.stringify(content)}) — refused` };
   }
 
