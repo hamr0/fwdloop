@@ -1672,11 +1672,26 @@
       } else {
         ev.appendChild(textDiv("hint", row.evidence.draftWhy || "no draft on file"));
       }
+      // hamr review #8/#9 (2026-09-27): `readAskEvidence` (src/ask.js) puts
+      // an unjudged artifact's text straight on `u.text` (never nested under
+      // `u.artifact`, which this element never had — the OLD line read the
+      // wrong field and silently rendered an empty box). The label reads
+      // `u.emits` (the step's real id, e.g. "resume-text") when the ask.json
+      // entry actually named one; `u.step` (which — despite the name —
+      // carries the step's GOAL prose, not an id) is shown as a smaller
+      // subtitle underneath, never as the primary label, and never assumed
+      // present when `u.emits` is missing (an M2/no-`emits` shape falls back
+      // to `u.step` alone as the label, honestly, rather than inventing an
+      // id it was never given).
       (row.evidence.unjudged || []).forEach(function(u){
+        var label = typeof u.emits === "string" && u.emits.length > 0 ? u.emits : u.step;
+        ev.appendChild(textDiv("hint", "unjudged — step: " + label));
+        if(typeof u.emits === "string" && u.emits.length > 0 && u.step !== u.emits){
+          ev.appendChild(textDiv("step-meta", u.step));
+        }
         var art = document.createElement("div");
         art.className = "ro-value scroll";
-        art.textContent = (u.artifact && typeof u.artifact.text === "string") ? u.artifact.text : JSON.stringify(u.artifact);
-        ev.appendChild(textDiv("hint", "unjudged — step: " + u.step));
+        art.textContent = typeof u.text === "string" ? u.text : "no artifact text on file";
         ev.appendChild(art);
       });
       wrap.appendChild(ev);

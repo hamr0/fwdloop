@@ -170,6 +170,26 @@ test('readAskEvidence: M3 shape (evidence.artifact.text + evidence.unjudged[]) �
     assert.equal(typeof item.step, 'string');
     assert.equal(typeof item.text, 'string');
   }
+  // hamr review #9 (2026-09-27): the fixture's own unjudged entries name a
+  // real `emits` id (e.g. "resume-text") distinct from `step` (which — the
+  // fixture's own field name notwithstanding — carries the step's GOAL
+  // prose, not an id). The earlier version of this reader silently dropped
+  // `emits`, which is exactly why the panel's Inbox mislabelled by goal.
+  assert.deepEqual(unjudged.map((u) => u.emits), ['resume-text', 'jd-text']);
+  assert.ok(unjudged.every((u) => u.step !== u.emits), 'sanity: this fixture\'s "step" text is the goal prose, never equal to its emits id');
+});
+
+test('readAskEvidence: an unjudged entry with no "emits" field omits it honestly, never guesses one', () => {
+  const ask = {
+    evidence: {
+      artifact: { text: 'the draft' },
+      unjudged: [{ step: 'a pre-M4 fixture with no emits id at all', artifact: { text: 'fine' } }],
+    },
+  };
+  const { unjudged } = readAskEvidence(ask);
+  assert.equal(unjudged.length, 1);
+  assert.equal('emits' in unjudged[0], false, 'no emits key at all — never a guessed/blank value standing in for it');
+  assert.equal(unjudged[0].step, 'a pre-M4 fixture with no emits id at all');
 });
 
 test('readAskEvidence: M2 shape (evidence.text/evidence.lines, no "unjudged" concept) — real ask.json — the F47 GAP case', () => {

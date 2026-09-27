@@ -125,7 +125,7 @@ export function makeFileAskStep({
  * @param {any} ask the parsed ask.json object (or its `evidence` field's
  *   container — pass the whole ask so a missing `evidence` key is itself a
  *   handled case, not the caller's problem).
- * @returns {{ draft: {step?: string, text: string} | null, unjudged: Array<{step: string, text: string}>, why?: string }}
+ * @returns {{ draft: {step?: string, text: string} | null, unjudged: Array<{step: string, emits?: string, text: string}>, why?: string }}
  */
 export function readAskEvidence(ask) {
   const evidence = ask && typeof ask === 'object' ? ask.evidence : undefined;
@@ -151,10 +151,21 @@ export function readAskEvidence(ask) {
     const rawUnjudged = Array.isArray(evidence.unjudged) ? evidence.unjudged : [];
     const unjudged = [];
     for (const item of rawUnjudged) {
+      // `step` (an ask.json unjudged entry's own field name) actually
+      // carries the step's GOAL text, not its id — `emits` (when present) is
+      // the real step id (e.g. "resume-text"), dropped by the ONLY earlier
+      // version of this reader (hamr's review #9, 2026-09-27: the panel's
+      // Inbox was labelling by goal text because this function never
+      // returned `emits` at all). Both are kept honestly: `step` falls back
+      // to `emits` only when the entry names no goal text of its own,
+      // `emits` is included ONLY when the entry actually names one — a
+      // caller must never assume `emits` is present (an M2/no-`emits`
+      // fixture omits it, never a guessed value).
       const step = item && (item.step ?? item.emits);
+      const emits = item && typeof item.emits === 'string' ? item.emits : undefined;
       const text = item && item.artifact && typeof item.artifact.text === 'string' ? item.artifact.text : undefined;
       if (typeof step === 'string' && typeof text === 'string') {
-        unjudged.push({ step, text });
+        unjudged.push(emits ? { step, emits, text } : { step, text });
       }
       // An unjudged entry with neither a nameable step nor readable text is
       // dropped rather than shown as a blank row — the draft itself is

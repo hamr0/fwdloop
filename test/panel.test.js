@@ -201,7 +201,10 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
 }
 
 // --- run-unjudged: an open ask carrying M3-shape evidence with an unjudged
-//     artifact, to prove the Inbox surfaces it labelled by step. -----------
+//     artifact, to prove the Inbox surfaces it labelled by step. hamr review
+//     #9 (2026-09-27): the fixture's "step" field is the GOAL prose (matching
+//     real ask.json shapes — see test/ask.test.js's m3-shape fixture), and
+//     "emits" is the real step id; the Inbox must label by emits, not goal. -
 {
   const runDir = makeRunDir(FLOW_DIR, 'run-unjudged');
   writeJson(runDir, 'ask.json', {
@@ -211,7 +214,11 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
     expiresAt: '2099-01-01T00:00:00.000Z',
     evidence: {
       artifact: { text: 'the draft under review, scrubbed' },
-      unjudged: [{ step: 'jd-text', artifact: { text: 'an unjudged artifact, scrubbed' } }],
+      unjudged: [{
+        step: 'Read the job description markdown file and expose its full text as an artifact, scrubbed goal text',
+        emits: 'jd-text',
+        artifact: { text: 'an unjudged artifact, scrubbed, long enough to prove the scroll box actually renders it end to end' },
+      }],
     },
   });
 }
@@ -684,10 +691,14 @@ describe('listInbox', () => {
     assert.notEqual(row.status, 'open');
   });
 
-  test('an M3-shape ask surfaces its unjudged artifact, labelled by step', () => {
+  test('an M3-shape ask surfaces its unjudged artifact, with both its goal ("step") and its real id ("emits")', () => {
     const row = rows.find((r) => r.flow === FLOW && r.runId === 'run-unjudged');
     assert.equal(row.evidence.unjudged.length, 1);
-    assert.equal(row.evidence.unjudged[0].step, 'jd-text');
+    const u = row.evidence.unjudged[0];
+    assert.equal(u.emits, 'jd-text');
+    assert.match(u.step, /scrubbed goal text/);
+    assert.notEqual(u.step, u.emits);
+    assert.match(u.text, /an unjudged artifact, scrubbed/);
   });
 
   test('a run with no ask.json at all is never listed', () => {
@@ -1006,6 +1017,16 @@ describe('index.html — page source', () => {
   test('review #6: Action is derived server-side (row.action), never a client-side "unknown action" guess', () => {
     assert.match(source, /r\.action/);
     assert.doesNotMatch(stripComments(source), /"unknown action"/);
+  });
+
+  test('review #8: the unjudged artifact renderer reads u.text, never a nonexistent u.artifact.text', () => {
+    assert.match(source, /u\.text/);
+    assert.doesNotMatch(stripComments(source), /u\.artifact/);
+  });
+
+  test('review #9: the unjudged label prefers u.emits (the real step id), falling back to u.step only when emits is absent', () => {
+    assert.match(source, /u\.emits/);
+    assert.match(source, /typeof u\.emits === "string" && u\.emits\.length > 0 \? u\.emits : u\.step/);
   });
 
   test('review #7: the Job tab shows the model name, and the cap row is first in the arbiter block', () => {
