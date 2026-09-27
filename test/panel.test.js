@@ -20,10 +20,11 @@ import { writeFlow, appendAudit, appendHistory } from '../src/index.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { createPanelServer, DEFAULT_PORT } from '../src/panel/server.js';
 import {
-  computeGlyph, costDisplay, listRuns, getRunDetail, getRunAudit, getRunJob, listInbox,
+  computeGlyph, costDisplay, listRuns, getRunDetail, getRunAudit, getRunJob, listStops, getRunAsks,
   deriveRunModel, deriveAuditAction, summarizeSpendRows,
 } from '../src/panel/data.js';
 import { readSpendRows, appendSpendRow } from '../src/provider.js';
+import { writeAskArchive } from '../src/ask.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -220,6 +221,81 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
         artifact: { text: 'an unjudged artifact, scrubbed, long enough to prove the scroll box actually renders it end to end' },
       }],
     },
+  });
+}
+
+// --- run-archived-2asks: M4a-1 shape — an `asks/` archive with TWO asks,
+//     reject then accept, each paired with its own consumed-answer file by
+//     askId. Proves `getRunAsks`/`listStops` list both, correctly paired and
+//     correctly statused, off the real archive reader (`listArchivedAsks`).
+{
+  const runDir = makeRunDir(FLOW_DIR, 'run-archived-2asks');
+  writeAskArchive({
+    runDir,
+    askId: 'ask-2a-first',
+    question: 'Does the first draft look right? (scrubbed)',
+    askedAt: '2026-09-20T00:00:00.000Z',
+    expiresAt: '2026-09-20T01:00:00.000Z',
+    evidence: { artifact: { text: 'first draft under review, scrubbed' }, unjudged: [] },
+  });
+  writeJson(runDir, 'answer.ask-2a-first.consumed.json', {
+    askId: 'ask-2a-first', decision: 'reject', reason: 'missing a section, scrubbed test reason', answeredAt: '2026-09-20T00:10:00.000Z',
+  });
+  writeAskArchive({
+    runDir,
+    askId: 'ask-2a-second',
+    question: 'Does the redraft look right? (scrubbed)',
+    askedAt: '2026-09-20T00:20:00.000Z',
+    expiresAt: '2026-09-20T01:20:00.000Z',
+    evidence: { artifact: { text: 'second draft under review, scrubbed' }, unjudged: [] },
+  });
+  writeJson(runDir, 'answer.ask-2a-second.consumed.json', {
+    askId: 'ask-2a-second', decision: 'accept', answeredAt: '2026-09-20T00:30:00.000Z',
+  });
+}
+
+// --- run-archive-order: askId sorts alphabetically OPPOSITE its real
+//     chronological (askedAt) order — proves the panel re-sorts by askedAt
+//     rather than trusting `listArchivedAsks`'s own filename-sorted order
+//     (a UUID askId carries no chronological meaning at all). ---------------
+{
+  const runDir = makeRunDir(FLOW_DIR, 'run-archive-order');
+  writeAskArchive({
+    runDir,
+    askId: 'a-asked-second',
+    question: 'asked second, scrubbed',
+    askedAt: '2026-09-21T01:00:00.000Z',
+    expiresAt: '2026-09-21T02:00:00.000Z',
+    evidence: { artifact: { text: 'draft, scrubbed' }, unjudged: [] },
+  });
+  writeJson(runDir, 'answer.a-asked-second.consumed.json', {
+    askId: 'a-asked-second', decision: 'accept', answeredAt: '2026-09-21T01:10:00.000Z',
+  });
+  writeAskArchive({
+    runDir,
+    askId: 'z-asked-first',
+    question: 'asked first, scrubbed',
+    askedAt: '2026-09-21T00:00:00.000Z',
+    expiresAt: '2026-09-21T01:00:00.000Z',
+    evidence: { artifact: { text: 'draft, scrubbed' }, unjudged: [] },
+  });
+  writeJson(runDir, 'answer.z-asked-first.consumed.json', {
+    askId: 'z-asked-first', decision: 'accept', answeredAt: '2026-09-21T00:10:00.000Z',
+  });
+}
+
+// --- run-archived-open: an `asks/` archive with ONE ask, still open (no
+//     consumed answer, far-future expiry) — proves the archived path (not
+//     just the legacy path) also reports "unanswered"/time-left correctly.
+{
+  const runDir = makeRunDir(FLOW_DIR, 'run-archived-open');
+  writeAskArchive({
+    runDir,
+    askId: 'ask-archived-open-1',
+    question: 'Still waiting on this one (scrubbed)',
+    askedAt: '2026-09-25T00:00:00.000Z',
+    expiresAt: '2099-01-01T00:00:00.000Z',
+    evidence: { artifact: { text: 'draft still under review, scrubbed' }, unjudged: [] },
   });
 }
 
@@ -714,30 +790,44 @@ describe('getRunJob', () => {
   });
 });
 
-describe('listInbox', () => {
-  const rows = listInbox({ root: ROOT });
+describe('listStops (M4a-1: every stop across every flow)', () => {
+  const rows = listStops({ root: ROOT });
 
-  test('an open ask (M2-shape evidence) shows question + draft', () => {
+  test('an open ask (legacy/M2-shape run) shows status "unanswered", open:true, and a real time-left', () => {
     const row = rows.find((r) => r.flow === FLOW && r.runId === 'run-waiting');
-    assert.equal(row.status, 'open');
+    assert.ok(row);
+    assert.equal(row.status, 'unanswered');
+    assert.equal(row.open, true);
     assert.match(row.question, /Does this look right/);
     assert.match(row.evidence.draft, /fake drafted summary/);
+    assert.equal(typeof row.timeLeftMs, 'number');
+    assert.ok(row.timeLeftMs > 0);
   });
 
-  test('an already-answered ask is never listed as open', () => {
+  test('an already-answered legacy ask is listed as PAST (accepted), never open, and its draft is not invented', () => {
     const row = rows.find((r) => r.flow === FLOW && r.runId === 'run-answered');
-    assert.equal(row, undefined);
+    assert.ok(row);
+    assert.equal(row.status, 'accepted');
+    assert.equal(row.open, false);
+    assert.equal(row.timeLeftMs, null);
+    assert.equal(row.evidence.draft, null);
+    assert.match(row.evidence.why, /draft not kept \(before M4a-1\)/);
+    // negative: the question is not invented from the still-on-disk
+    // ask.json either — the brief's consumed-answer shape names only
+    // askId/decision/reason/answeredAt.
+    assert.equal(row.question, null);
   });
 
-  test('a legacy (pre-M3) ask shows status "legacy", never "open"', () => {
+  test('a pre-M3 legacy ask (no askId/expiresAt) is shown as "unanswered" with its own why, never crashing the listing', () => {
     const row = rows.find((r) => r.flow === FLOW && r.runId === 'run-legacy');
     assert.ok(row);
-    assert.equal(row.status, 'legacy');
-    assert.notEqual(row.status, 'open');
+    assert.equal(row.status, 'unanswered');
+    assert.match(row.why, /pre-M3/);
   });
 
   test('an M3-shape ask surfaces its unjudged artifact, with both its goal ("step") and its real id ("emits")', () => {
     const row = rows.find((r) => r.flow === FLOW && r.runId === 'run-unjudged');
+    assert.ok(row);
     assert.equal(row.evidence.unjudged.length, 1);
     const u = row.evidence.unjudged[0];
     assert.equal(u.emits, 'jd-text');
@@ -749,6 +839,95 @@ describe('listInbox', () => {
   test('a run with no ask.json at all is never listed', () => {
     const row = rows.find((r) => r.flow === FLOW && r.runId === 'run-done');
     assert.equal(row, undefined);
+  });
+
+  test('M4a-1: an archived run with 2 asks (reject then accept) lists both, paired by askId, correctly statused', () => {
+    const own = rows.filter((r) => r.flow === FLOW && r.runId === 'run-archived-2asks');
+    assert.equal(own.length, 2);
+    const first = own.find((r) => r.askId === 'ask-2a-first');
+    const second = own.find((r) => r.askId === 'ask-2a-second');
+    assert.ok(first && second);
+    assert.equal(first.status, 'rejected');
+    assert.match(first.reason, /missing a section/);
+    assert.equal(first.evidence.draft, 'first draft under review, scrubbed');
+    assert.equal(second.status, 'accepted');
+    assert.equal(second.evidence.draft, 'second draft under review, scrubbed');
+    assert.ok(first.archived && second.archived);
+  });
+
+  test('M4a-1 PROOF (pairing can fail): pairing by index instead of askId would swap first/second\'s statuses', () => {
+    // Pins the EXACT value each askId must carry (not just "differs from
+    // the other") — see the report for the revert-and-restore proof: a
+    // positional pairing (e.g. `normalizeArchivedRow(a, idx, arr)` reading
+    // `arr[arr.length - 1 - idx]`) makes this assertion fail red.
+    const own = rows.filter((r) => r.flow === FLOW && r.runId === 'run-archived-2asks');
+    const byAskId = {};
+    own.forEach((r) => { byAskId[r.askId] = r.status; });
+    assert.equal(byAskId['ask-2a-first'], 'rejected');
+    assert.equal(byAskId['ask-2a-second'], 'accepted');
+  });
+
+  test('M4a-1: an archived run\'s own open ask (no consumed answer yet) is "unanswered"/open with time-left, same as the legacy path', () => {
+    const row = rows.find((r) => r.flow === FLOW && r.runId === 'run-archived-open');
+    assert.ok(row);
+    assert.equal(row.status, 'unanswered');
+    assert.equal(row.open, true);
+    assert.equal(typeof row.timeLeftMs, 'number');
+    assert.equal(row.evidence.draft, 'draft still under review, scrubbed');
+  });
+
+  test('open stops sort before every past stop', () => {
+    const openIdx = [];
+    const pastIdx = [];
+    rows.forEach((r, i) => { (r.open ? openIdx : pastIdx).push(i); });
+    if (openIdx.length && pastIdx.length) {
+      assert.ok(Math.max(...openIdx) < Math.min(...pastIdx), 'every open row must sort before every past row');
+    }
+  });
+});
+
+describe('getRunAsks (M4a-1: the Ask tab)', () => {
+  test('lists every ask of a run, in askedAt order, re-sorted off the archive\'s own filename order', () => {
+    const result = getRunAsks({ root: ROOT, flow: FLOW, runId: 'run-archive-order' });
+    assert.ok(result);
+    assert.equal(result.asks.length, 2);
+    // "z-asked-first" sorts AFTER "a-asked-second" alphabetically, but was
+    // asked earlier — the real order must be chronological, not filename.
+    assert.equal(result.asks[0].askId, 'z-asked-first');
+    assert.equal(result.asks[1].askId, 'a-asked-second');
+  });
+
+  test('PROOF (order can fail): sorting by askId (filename order) instead of askedAt would reverse this pair', () => {
+    const result = getRunAsks({ root: ROOT, flow: FLOW, runId: 'run-archive-order' });
+    const filenameOrder = ['a-asked-second', 'z-asked-first']; // listArchivedAsks's own entries.sort() order
+    const actualOrder = result.asks.map((a) => a.askId);
+    assert.notDeepEqual(actualOrder, filenameOrder);
+  });
+
+  test('a pre-M4a-1 run\'s past ask carries the "why" string, and invents no draft/question', () => {
+    const result = getRunAsks({ root: ROOT, flow: FLOW, runId: 'run-answered' });
+    assert.ok(result);
+    assert.equal(result.asks.length, 1);
+    const ask = result.asks[0];
+    assert.equal(ask.archived, false);
+    assert.equal(ask.evidence.draft, null);
+    assert.match(ask.evidence.why, /draft not kept \(before M4a-1\)/);
+    assert.equal(ask.question, null);
+  });
+
+  test('an open ask carries a real, non-null expiresAt for the client to compute time-left from', () => {
+    const result = getRunAsks({ root: ROOT, flow: FLOW, runId: 'run-waiting' });
+    const ask = result.asks.find((a) => a.status === 'unanswered');
+    assert.ok(ask);
+    assert.equal(ask.expiresAt, '2099-01-01T00:00:00.000Z');
+  });
+
+  test('an unknown run returns null (caller renders 404)', () => {
+    assert.equal(getRunAsks({ root: ROOT, flow: FLOW, runId: 'no-such-run' }), null);
+  });
+
+  test('negative (v): a path-escape runId resolves to null, nothing read', () => {
+    assert.equal(getRunAsks({ root: ROOT, flow: FLOW, runId: '../../../../etc' }), null);
   });
 });
 
@@ -818,11 +997,27 @@ describe('panel HTTP shell', () => {
     assert.equal(parsed.signature.signedBy, SIGNED_BY);
   });
 
-  test('GET /api/inbox returns open asks read-only', async () => {
+  test('GET /api/inbox returns every stop (open and past) read-only', async () => {
     const r = await get(handle.port, '/api/inbox');
     assert.equal(r.status, 200);
     const parsed = JSON.parse(r.body);
-    assert.ok(parsed.rows.some((row) => row.runId === 'run-waiting' && row.status === 'open'));
+    assert.ok(parsed.rows.some((row) => row.runId === 'run-waiting' && row.status === 'unanswered' && row.open === true));
+    assert.ok(parsed.rows.some((row) => row.runId === 'run-answered' && row.status === 'accepted' && row.open === false));
+  });
+
+  test('GET /api/runs/:flow/:runId/asks returns this run\'s asks in order', async () => {
+    const r = await get(handle.port, `/api/runs/${FLOW}/run-archived-2asks/asks`);
+    assert.equal(r.status, 200);
+    const parsed = JSON.parse(r.body);
+    assert.equal(parsed.asks.length, 2);
+    assert.equal(parsed.asks[0].askId, 'ask-2a-first');
+    assert.equal(parsed.asks[0].status, 'rejected');
+    assert.equal(parsed.asks[1].status, 'accepted');
+  });
+
+  test('GET /api/runs/:flow/:runId/asks 404s for an unknown run', async () => {
+    const r = await get(handle.port, `/api/runs/${FLOW}/does-not-exist/asks`);
+    assert.equal(r.status, 404);
   });
 
   test('an unknown run 404s', async () => {
@@ -851,6 +1046,7 @@ describe('panel HTTP shell', () => {
         get(handle.port, `/api/runs/${FLOW}/run-done`),
         get(handle.port, `/api/runs/${FLOW}/run-done/audit`),
         get(handle.port, `/api/runs/${FLOW}/run-done/job`),
+        get(handle.port, `/api/runs/${FLOW}/run-archived-2asks/asks`),
         get(handle.port, '/api/inbox'),
       ]);
       for (const r of responses) {

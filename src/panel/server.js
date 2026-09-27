@@ -40,7 +40,7 @@ import { fileURLToPath } from 'node:url';
 
 import { loadCatalogue } from '../catalogue.js';
 import {
-  listRuns, getRunDetail, getRunAudit, getRunJob, listInbox,
+  listRuns, getRunDetail, getRunAudit, getRunJob, listStops, getRunAsks,
 } from './data.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -130,12 +130,12 @@ export function handleRequest(req, res, opts) {
   }
 
   if (pathname === '/api/inbox') {
-    send(200, { rows: listInbox({ root: opts.root }) });
+    send(200, { rows: listStops({ root: opts.root }) });
     return;
   }
 
-  // /api/runs/:flow/:runId(/audit|/job)?
-  const runMatch = /^\/api\/runs\/([^/]+)\/([^/]+)(\/(audit|job))?$/.exec(pathname);
+  // /api/runs/:flow/:runId(/audit|/job|/asks)?
+  const runMatch = /^\/api\/runs\/([^/]+)\/([^/]+)(\/(audit|job|asks))?$/.exec(pathname);
   if (runMatch) {
     let flow;
     let runId;
@@ -158,6 +158,12 @@ export function handleRequest(req, res, opts) {
       const result = getRunJob({
         root: opts.root, flow, runId, catalogue,
       });
+      if (!result) { sendText(res, 404, 'no such run'); return; }
+      send(200, result);
+      return;
+    }
+    if (sub === 'asks') {
+      const result = getRunAsks({ root: opts.root, flow, runId });
       if (!result) { sendText(res, 404, 'no such run'); return; }
       send(200, result);
       return;

@@ -19,7 +19,7 @@
 // same things at the route level, but this module refuses on its own too
 // (negative scenario v: nothing outside `--root` is ever read).
 
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -28,7 +28,7 @@ import {
 import { readAudit, readHistory } from '../books.js';
 import { readAsk, readRunState, readLog } from '../runner.js';
 import { readSpendRows } from '../provider.js';
-import { readAskEvidence } from '../ask.js';
+import { readAskEvidence, listArchivedAsks } from '../ask.js';
 
 /** `{ ok:false, red }` result shape every exported function here can return
  *  instead of throwing — the server maps this to a 4xx, never a crash.
@@ -671,57 +671,272 @@ export function getRunJob({
   };
 }
 
+// ---------------------------------------------------------------------------
+// M4a Amendment M4a-1 — the panel's Inbox/Ask surface (docs/wiki/the-module-
+// ladder.md, "M4a" section, signed 2026-09-27). Every stop (parked ask) this
+// panel can name is read through ONE reader per run —
+// `listArchivedAsks(runDir)` (`src/ask.js`) for a run that has an `asks/`
+// archive, or `legacyRunAsks` (below, THIS module's own reader) for a run
+// that predates M4a-1 (no `asks/` directory at all) — never a third,
+// ad-hoc reconstruction. Status vocabulary, used everywhere in the panel
+// (Inbox list, Ask tab, both API responses), is exactly the words
+// `listArchivedAsks` itself already returns from the books' own decision
+// field: `accepted` / `rejected` / `reran` / `expired` / `unanswered` (a
+// parked, not-yet-expired ask with no consumed answer — this IS "open" in
+// the UI) / `open` (the rare case `listArchivedAsks` falls back to when an
+// archived ask.json itself fails to parse — no question/evidence can be
+// read for it either). Nothing here invents a question, a draft, or a
+// decision that no book actually recorded.
+// ---------------------------------------------------------------------------
+
 /**
- * `GET /api/inbox` — open asks across every flow (M4a scope item 2): the
- * question, time left, and the evidence (the draft under review first, then
- * each unjudged artifact labelled by step) — the same thing `fwdloop show`
- * prints, read-only, no answer controls (those are M4b). An ask already
- * answered (a consumed-answer marker exists) is never listed as open. A
- * legacy (pre-M3) ask with no `askId`/`expiresAt` is shown as `legacy`, not
- * `open` — this panel can't tell a human "time left" for it and M4b's
- * answer doors couldn't act on it either.
+ * An ask row is "open" (still waiting on a human, right now) exactly when
+ * its book-derived status is `unanswered` (parked, not yet answered, not
+ * expired — `listArchivedAsks` already applies the expiry check at read
+ * time) or the rare unparseable-archive fallback `open`. Every other status
+ * (`accepted`/`rejected`/`reran`/`expired`, or an `unrecognised: X` decision
+ * value) is a PAST stop.
+ * @param {string} status
+ * @returns {boolean}
+ */
+function isOpenStatus(status) {
+  return status === 'unanswered' || status === 'open';
+}
+
+/**
+ * `readAskEvidence`'s own return shape (`src/ask.js`) carries the draft as
+ * `{ text: string } | null` (never a bare string) so a caller can tell "no
+ * draft" apart from "a draft with an empty string" — this panel's UI wants
+ * a flat, renderable string instead. The ONE place that unwraps `.text`, so
+ * every row this module produces (archived or legacy) carries the same
+ * flat `{ draft: string|null, unjudged, why }` shape.
+ * @param {ReturnType<typeof readAskEvidence>} evidence
+ * @returns {{draft: string|null, unjudged: any[], why?: string}}
+ */
+function flattenEvidence(evidence) {
+  return {
+    draft: evidence.draft ? evidence.draft.text : null,
+    unjudged: evidence.unjudged,
+    why: evidence.why,
+  };
+}
+
+/**
+ * Flattens one `listArchivedAsks` entry (its nested `answer` object) into
+ * this module's own flat row shape, shared by both the archived and
+ * pre-M4a-1 legacy paths so callers (the Inbox list, the Ask tab, both
+ * routes) never have to branch on which reader produced a row.
+ * @param {any} a one entry of `listArchivedAsks(runDir).asks`
+ * @returns {any}
+ */
+function normalizeArchivedRow(a) {
+  return {
+    askId: a.askId,
+    question: a.question ?? null,
+    askedAt: a.askedAt ?? null,
+    expiresAt: a.expiresAt ?? null,
+    status: a.answer.status,
+    reason: a.answer.reason ?? null,
+    answeredAt: a.answer.answeredAt ?? null,
+    archived: true,
+    evidence: flattenEvidence(a.evidence),
+  };
+}
+
+/** `^answer\.<askId>\.consumed\.json$` — deliberately excludes
+ *  `answer.stale.<n>.json` (no capture group would match "stale" as a real
+ *  askId; the stale-quarantine writer in `src/ask.js` uses that different
+ *  name specifically so this convention-based scan never mistakes a
+ *  quarantined stale answer for a real consumed one). */
+const CONSUMED_ANSWER_RE = /^answer\.(.+)\.consumed\.json$/;
+
+/**
+ * The pre-M4a-1 fallback reader (M4a-1 scope item 1): for a run with no
+ * `asks/` archive directory at all, reconstructs what the books STILL hold —
+ * the current (single-slot, mutable) `ask.json`, if any, plus every
+ * `answer.<askId>.consumed.json` marker still on disk. A past askId's own
+ * question/draft can never be recovered (the single ask.json slot was
+ * overwritten by the next park) — those fields come back `null` with the
+ * fixed `why` the brief specifies, never guessed from the CURRENT ask.json
+ * (which may name a completely different, later question).
+ * @param {string} runDir
+ * @returns {any[]}
+ */
+function legacyRunAsks(runDir) {
+  const rows = [];
+  let names = [];
+  try { names = readdirSync(runDir); } catch { names = []; }
+
+  const askJson = readAsk(runDir);
+  const currentAskId = askJson && typeof askJson.askId === 'string' ? askJson.askId : null;
+
+  const consumedFiles = names.filter((n) => CONSUMED_ANSWER_RE.test(n)).sort();
+  const decisionToStatus = { accept: 'accepted', reject: 'rejected', rerun: 'reran' };
+
+  for (const file of consumedFiles) {
+    const match = CONSUMED_ANSWER_RE.exec(file);
+    if (!match) continue; // eslint-disable-line no-continue -- filtered by the same regex above; never actually null
+    const askId = match[1];
+    let parsed;
+    try {
+      parsed = JSON.parse(readFileSync(join(runDir, file), 'utf8'));
+    } catch {
+      continue; // eslint-disable-line no-continue -- a torn write is skipped, never invented
+    }
+    // A consumed legacy row never recovers question/askedAt/expiresAt from
+    // the CURRENT ask.json, even when its askId happens to still match it —
+    // the single mutable slot is not a reliable append log for a past ask
+    // (a later park would silently overwrite it), so this deliberately
+    // shows only what a consumed-answer marker itself can prove: askId,
+    // decision, reason, answeredAt (brief, M4a-1 scope item 1).
+    rows.push({
+      askId,
+      question: null,
+      questionWhy: 'question not kept (before M4a-1)',
+      askedAt: null,
+      expiresAt: null,
+      status: decisionToStatus[parsed.decision] ?? `unrecognised: ${parsed.decision}`,
+      reason: typeof parsed.reason === 'string' ? parsed.reason : null,
+      answeredAt: typeof parsed.answeredAt === 'string' ? parsed.answeredAt : null,
+      archived: false,
+      evidence: { draft: null, unjudged: [], why: 'draft not kept (before M4a-1)' },
+    });
+  }
+
+  // The currently open ask, when its own askId has no consumed marker yet.
+  if (askJson) {
+    const hasConsumed = currentAskId !== null
+      && consumedFiles.includes(`answer.${currentAskId}.consumed.json`);
+    if (!hasConsumed) {
+      if (currentAskId === null) {
+        // A genuine pre-M3 ask.json: no askId/expiresAt at all — cannot be
+        // paired with a future answer or timed, shown for visibility only.
+        rows.push({
+          askId: null,
+          question: askJson.question ?? null,
+          askedAt: askJson.askedAt ?? null,
+          expiresAt: null,
+          status: 'unanswered',
+          reason: null,
+          answeredAt: null,
+          archived: false,
+          evidence: flattenEvidence(readAskEvidence(askJson)),
+          why: 'pre-M3 ask.json (no askId/expiresAt) — not answerable, shown for visibility only',
+        });
+      } else {
+        const expiresMs = typeof askJson.expiresAt === 'string' ? Date.parse(askJson.expiresAt) : NaN;
+        const expired = !Number.isNaN(expiresMs) && Date.now() > expiresMs;
+        rows.push({
+          askId: currentAskId,
+          question: askJson.question ?? null,
+          askedAt: askJson.askedAt ?? null,
+          expiresAt: askJson.expiresAt ?? null,
+          status: expired ? 'expired' : 'unanswered',
+          reason: null,
+          answeredAt: null,
+          archived: false,
+          evidence: flattenEvidence(readAskEvidence(askJson)),
+        });
+      }
+    }
+  }
+
+  return rows;
+}
+
+/**
+ * Every ask (open or past) this run's own books can name, oldest first —
+ * archived (`asks/<askId>.json`, M4a-1) when the run has that directory,
+ * else the pre-M4a-1 fallback (`legacyRunAsks`). `listArchivedAsks` orders
+ * its own entries by askId (a UUID, not chronological) — re-sorted here by
+ * `askedAt` so the Ask tab reads as a real timeline; a row with no readable
+ * `askedAt` (a legacy past entry — the field was never recoverable) sorts
+ * after every row that has one, in the order `listArchivedAsks`/
+ * `legacyRunAsks` themselves returned it.
+ * @param {string} runDir
+ * @returns {any[]}
+ */
+function runAsksInOrder(runDir) {
+  const archivedResult = listArchivedAsks(runDir);
+  const rows = archivedResult.archived
+    ? archivedResult.asks.map(normalizeArchivedRow)
+    : legacyRunAsks(runDir);
+  return rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => {
+      const am = typeof a.row.askedAt === 'string' ? Date.parse(a.row.askedAt) : NaN;
+      const bm = typeof b.row.askedAt === 'string' ? Date.parse(b.row.askedAt) : NaN;
+      const aKnown = Number.isFinite(am);
+      const bKnown = Number.isFinite(bm);
+      if (aKnown && bKnown) return am - bm;
+      if (aKnown !== bKnown) return aKnown ? -1 : 1;
+      return a.index - b.index;
+    })
+    .map(({ row }) => row);
+}
+
+/**
+ * `GET /api/runs/:flow/:runId/asks` — the Ask tab (M4a-1 scope item 1):
+ * every ask this run's books can name, in order, each carrying full
+ * evidence (`readAskEvidence`'s draft + unjudged, or the pre-M4a-1 `why`).
+ * `null` when the flow/runId doesn't resolve (caller renders 404).
+ * @param {{root: string, flow: string, runId: string}} opts
+ * @returns {{flow:string, runId:string, asks:any[]}|null}
+ */
+export function getRunAsks({ root, flow, runId }) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok) return null;
+  if (!existsSync(run.runDir)) return null;
+  return { flow, runId, asks: runAsksInOrder(run.runDir) };
+}
+
+/**
+ * `GET /api/inbox` — every stop (parked ask, open or past) across every
+ * flow under `root` (M4a-1 scope item 1), read-only, no answer controls
+ * (those are M4b). Sorted open-first (soonest-expiring first — the most
+ * urgent), then every past stop newest-answered-first; a row with neither a
+ * known time-left nor a known answeredAt sorts last within its group rather
+ * than being guessed into either end.
  * @param {{root: string}} opts
  * @returns {any[]}
  */
-export function listInbox({ root }) {
+export function listStops({ root }) {
   const rows = [];
   for (const flowName of listFlowNames(root)) {
     const flowDir = join(root, flowName);
     for (const runId of listRunIds(flowDir)) {
       const run = resolveRunPath(root, flowName, runId);
       if (!run.ok) continue;
-      const askJson = readAsk(run.runDir);
-      if (!askJson) continue;
-      if (hasConsumedAnswer(run.runDir)) continue; // already answered — not open
-
-      if (typeof askJson.askId !== 'string' || typeof askJson.expiresAt !== 'string') {
+      for (const ask of runAsksInOrder(run.runDir)) {
+        const open = isOpenStatus(ask.status);
+        const expiresMs = open && typeof ask.expiresAt === 'string' ? Date.parse(ask.expiresAt) : NaN;
         rows.push({
-          flow: flowName, runId, status: 'legacy', question: askJson.question ?? null,
-          why: 'M2-era ask.json (no askId/expiresAt) — not answerable, shown for visibility only',
+          flow: flowName,
+          runId,
+          ...ask,
+          open,
+          timeLeftMs: open && Number.isFinite(expiresMs) ? Math.max(0, expiresMs - Date.now()) : null,
         });
-        continue;
       }
-
-      const expiresMs = Date.parse(askJson.expiresAt);
-      const expired = Number.isNaN(expiresMs) ? null : Date.now() > expiresMs;
-      const { draft, unjudged, why } = readAskEvidence(askJson);
-
-      rows.push({
-        flow: flowName,
-        runId,
-        askId: askJson.askId,
-        status: expired === null ? 'unreadable' : (expired ? 'expired' : 'open'),
-        statusWhy: expired === null ? `expiresAt "${askJson.expiresAt}" is not a parseable date` : null,
-        question: askJson.question ?? null,
-        expiresAt: askJson.expiresAt,
-        timeLeftMs: expired === false ? expiresMs - Date.now() : null,
-        evidence: {
-          draft: draft ? draft.text : null,
-          draftWhy: draft ? null : why,
-          unjudged: draft ? unjudged : [],
-        },
-      });
     }
   }
-  return rows;
+  return rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => {
+      if (a.row.open !== b.row.open) return a.row.open ? -1 : 1;
+      if (a.row.open && b.row.open) {
+        const at = typeof a.row.timeLeftMs === 'number' ? a.row.timeLeftMs : Infinity;
+        const bt = typeof b.row.timeLeftMs === 'number' ? b.row.timeLeftMs : Infinity;
+        if (at !== bt) return at - bt;
+        return a.index - b.index;
+      }
+      const am = typeof a.row.answeredAt === 'string' ? Date.parse(a.row.answeredAt) : NaN;
+      const bm = typeof b.row.answeredAt === 'string' ? Date.parse(b.row.answeredAt) : NaN;
+      const aKnown = Number.isFinite(am);
+      const bKnown = Number.isFinite(bm);
+      if (aKnown && bKnown) return bm - am;
+      if (aKnown !== bKnown) return aKnown ? -1 : 1;
+      return a.index - b.index;
+    })
+    .map(({ row }) => row);
 }
