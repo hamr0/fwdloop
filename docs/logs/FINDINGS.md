@@ -2433,3 +2433,56 @@ the planted secret at HTTP 200; after, `{"rows":[],"empty":true,"why":"audit.jso
 missing — no attempt has been made yet"}`.
 
 **Numbers.** 1539/1539 tests (12 new), typecheck clean, tracked-files-only copy green.
+
+### Round 3 follow-up (2026-09-27, later still) — one reader round 3 itself missed, plus a mechanical guard so this stops being a promise
+
+**What the debrief caught.** Round 3's own table above lists `readLog`/`readRunState`/`readAsk` as
+converted, and `readRunState` (the display-sibling reader panel/CLI use) genuinely was. But
+`resumeRun` (`src/runner.js`) never calls `readRunState` — it parses `state.json` itself, inline,
+and that inline parse was still a raw `JSON.parse(readFileSync(statePath, 'utf8'))`, missed while
+converting every other reader in the same file. A parked run whose `state.json` is swapped for a
+symlink to a forged outside file (spend equal to the run's own `audit.jsonl` sum, so the cap
+cross-check alone would not catch it; `expiresAt` far in the future, so the ttl check alone would
+not catch it either) resumed straight through to `outcome: 'complete'` instead of being refused —
+proven live with a test that first fails red (`resumed.outcome === 'complete'`) with the fix
+reverted.
+
+**Fix.** `resumeRun`'s `state.json` load now goes through `readFileInside` (`src/flow.js`), the
+same gateway every other book read in this file already uses — `missing` still gets the existing
+"no parked state" refusal (unchanged behaviour), a red (symlink or escaping ancestor) gets a new
+`resume: state.json for run "<id>" — <red>` refusal, and only a genuinely-read file reaches the
+existing "not valid JSON" / field checks below it.
+
+**Same audit, one more bypass found and converted.** Re-grepping every raw call site (not just the
+ones round 3 named) turned up `readArtifact` (`runs/<runId>/artifacts/<id>.json`) — the SAME class:
+a symlinked artifact file (or a symlinked `artifacts/` ancestor) was read straight through, and
+`readArtifact` feeds a step's `reads` inputs AND resume's "was this step already done" check. Both
+are exploitable the same way `state.json` was. Converted to `readFileInside`, collapsing any red to
+`undefined` (the existing "never written" shape) — every call site downstream already refuses or
+re-does the step on `undefined`, so this fails closed the same way `readRunState`/`readAsk` already
+do.
+
+**Guard test, not just another fix.** A promise ("every book reader goes through the safe read")
+living only in code comments is how this reader got missed in the first place. Added
+`test/f48-guard-raw-reads.test.js`: scans every `src/**/*.js` file and `bin/fwdloop` for a raw
+`readFileSync`/`readdirSync`/`createReadStream`/`openSync` call and fails unless that exact call
+site's trimmed line text is on a narrow, per-line allow-list (14 entries — the safe-read
+implementation itself, `listFlowNames`/`listRunIds`'s top-level name-only enumeration, `readFlow`'s
+own inline-symlink-checked `prose.txt`/`declaration.json`/`signature.json` reader, business-input
+readers (`docx.js`, the input-freeze hasher), the frozen-input re-hash and re-read (already
+sha256-pinned at freeze time — same documented exemption `src/primitives.js` already had), two
+`answer.json` reads immediately preceded by their own `resolveInside` check in the same
+function/loop, `resume.lock`'s exclusive-create, and three self/package files:
+`catalogue.json`/the panel's `index.html`/nothing else). A stale, no-longer-matching allow-list
+entry also fails, so the list can't silently drift wider than what's real. Proven to catch a
+regression twice: reverting only the `resumeRun` fix fails naming `src/runner.js:1447` (the exact
+raw line); adding a throwaway raw `readFileSync(join(runDir, 'audit.jsonl'))` inside `sumAuditUsd`
+fails naming that new line — both restored/removed, green.
+
+**Tests.** `test/park-resume.test.js`: one new test parks a run, accepts, swaps `state.json` for a
+symlink to a forged-but-plausible outside copy (real signature/inputsManifest/askId, only
+`expiresAt` pushed to 2099), and asserts `resumeRun` refuses naming the symlink, never completes.
+Proved red first (reverting only the fix: `outcome` came back `'complete'`, not `'refused'`) —
+restored, green. `test/f48-guard-raw-reads.test.js` (new, see above).
+
+**Numbers.** 1541/1541 tests (2 new), typecheck clean, tracked-files-only copy green.

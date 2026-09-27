@@ -64,6 +64,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a fresh park's `ask.json`, `inputs.json`, an `overwrite:true` artifact write) are reported, not
   fixed, in `docs/logs/FINDINGS.md`'s F48 round-3 entry — `answer.json`/`asks/<id>.json` are already
   safe (`{ flag: 'wx' }`).
+- F48 round 3 follow-up (docs/logs/FINDINGS.md): round 3 itself missed one reader —
+  `resumeRun`'s own inline `state.json` parse (as opposed to `readRunState`, its already-converted
+  display sibling) was still a raw `readFileSync`. A parked run whose `state.json` was swapped for
+  a symlink to a forged outside file (spend matching the run's own `audit.jsonl` sum, `expiresAt`
+  far in the future) resumed straight to completion instead of being refused. Now goes through
+  `readFileInside` like every other reader in `src/runner.js`. The same audit found `readArtifact`
+  (`runs/<runId>/artifacts/<id>.json`) was the same class of bypass — converted too. Added
+  `test/f48-guard-raw-reads.test.js`, a mechanical scan that fails on any raw
+  `readFileSync`/`readdirSync`/`createReadStream`/`openSync` call in `src/**/*.js`/`bin/fwdloop`
+  outside a narrow, per-call-site allow-list, so a future missed reader fails a test instead of
+  waiting for another debrief.
 - F47 (docs/logs/FINDINGS.md): `fwdloop show` (and `bin/fwdloop`'s `artifactText()`) read
   ask.json's evidence only in the M3 shape (`evidence.artifact.text`/`evidence.unjudged`) and
   printed the literal string `"undefined"` for a real M2-era ask.json (`evidence.text`/
