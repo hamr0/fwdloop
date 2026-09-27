@@ -179,9 +179,13 @@
      full text is still reachable via the span's own title attribute. */
   .wf-line1{display:flex;align-items:center;column-gap:6px;min-width:0;}
   .wf-name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
-  /* line 2: the meta bits, also kept on ONE line with an ellipsis rather
-     than wrapping onto a 3rd/4th line. */
-  .wf-meta-line{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  /* line 2: the meta bits. hamr's 2026-09-27 browser-walk bug #2: the old
+     one-line ellipsis silently truncated real content ("waiting on you
+     (parked, unanswered) · at least $0…") at DESKTOP width too, not just
+     phone width — the project rule ("no list is truncated silently")
+     applies everywhere, so this wraps onto more lines instead of clipping,
+     the same behavior fix #7 already gave phone width alone. */
+  .wf-meta-line{white-space:normal;overflow:visible;text-overflow:clip;min-width:0;}
   .wf-meta{font-size:12px;color:var(--text-dim);}
   .wf-meta + .wf-meta::before{content:" · ";color:var(--text-faint);}
   .wf-row.selected,.hist-row.selected{border:2px solid var(--accent);border-radius:4px;}
@@ -297,12 +301,6 @@
     .chip.fchip{min-height:40px;min-width:40px;}
     .rp-header{margin:8px 8px 0;}
     .rp-tabrow{margin:0 8px;}
-    /* fix #7 (coordinator's 390px browser walk): the meta line's one-line
-       ellipsis (desktop's own design, kept above) silently truncated real
-       content at phone width — e.g. a run-count chip cut to "1 …". No list
-       is truncated silently (project rule): narrow screens wrap the meta
-       bits onto more than one line instead of clipping any of them. */
-    .wf-meta-line{white-space:normal;overflow:visible;text-overflow:clip;}
   }
 </style>
 </head>

@@ -553,10 +553,23 @@ export function getRunDetail({
   // from reporting a stale, superseded failure as its own "why" (found live
   // against `flows/`, M4a piece 3 fix #1 — a real run, not a synthetic
   // fixture, is what caught this).
+  //
+  // hamr's 2026-09-27 browser-walk bug #1: the SAME staleness bug also hit a
+  // run that's genuinely still PARKED (waiting on you) — an earlier step's
+  // superseded gap (e.g. a first draft that missed the shape, redone and
+  // accepted before the run went on to park on its own ask) was surfacing
+  // as "why" even though the run hasn't stopped at all, it's just waiting.
+  // Checked SECOND (right after the completed-clean case, before ever
+  // looking at `auditRows` for a redRow): a run with an open, unanswered ask
+  // (`askJson` present, no consumed answer — the same test `computeGlyph`
+  // uses for "waiting on you") reports the ask's own question as its whole
+  // "why", never an unrelated earlier attempt's gap.
   let stopReason = null;
   let stopReasonWhy = null;
   if (ctx.historyRow && ctx.historyRow.outcome === 'complete') {
     stopReasonWhy = 'run completed clean — there is no stop reason to show';
+  } else if (!ctx.historyRow && ctx.askJson && !ctx.consumedAnswerExists) {
+    stopReasonWhy = `waiting on you: ${typeof ctx.askJson.question === 'string' && ctx.askJson.question.length > 0 ? ctx.askJson.question : 'no question recorded'}`;
   } else if (ctx.logJson && typeof ctx.logJson.red === 'string' && ctx.logJson.red.length > 0) {
     stopReason = ctx.logJson.red;
   } else {

@@ -173,6 +173,27 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
   });
 }
 
+// --- run-waiting-after-earlier-gap: hamr's 2026-09-27 browser-walk bug #1 —
+//     the EXACT shape found live: a step failed once, redid, and passed
+//     BEFORE the run went on to park on its own ask. The Summary "why" must
+//     show the open ask's own question, never that superseded earlier gap. -
+{
+  const runDir = makeRunDir(FLOW_DIR, 'run-waiting-after-earlier-gap');
+  appendAudit(runDir, {
+    step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'no line is exactly the heading, scrubbed test gap', usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T03:00:00.000Z', tokens: { inputTokens: 80, outputTokens: 20, cacheReadTokens: 0 },
+  });
+  appendAudit(runDir, {
+    step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T03:00:01.000Z', tokens: { inputTokens: 150, outputTokens: 60, cacheReadTokens: 0 },
+  });
+  writeJson(runDir, 'ask.json', {
+    askId: 'ask-waiting-2',
+    question: 'Does this later draft look right? (scrubbed test question)',
+    askedAt: '2026-09-27T03:00:02.000Z',
+    expiresAt: '2099-01-01T00:00:00.000Z',
+    evidence: { text: 'a fake drafted summary under review, scrubbed for the test suite' },
+  });
+}
+
 // --- run-answered: parked, then answered (a consumed-answer marker exists)
 //     but no history row yet — resume hasn't finished. [·] "answered, not
 //     resumed yet", distinct from "waiting on you", never [?]. -------------
@@ -658,6 +679,24 @@ describe('getRunDetail', () => {
     assert.equal(detail.stopReason, null);
     assert.match(detail.stopReasonWhy, /completed clean/);
     assert.doesNotMatch(detail.stopReasonWhy || '', /missing a required section/);
+  });
+
+  test('hamr 2026-09-27 browser-walk bug #1: a WAITING run (parked, open ask) never surfaces a superseded gap from an earlier passed attempt — "why" is the open ask\'s own question', () => {
+    const detail = getRunDetail({
+      root: ROOT, flow: FLOW, runId: 'run-waiting-after-earlier-gap', catalogue: CATALOGUE,
+    });
+    assert.equal(detail.outcome, null);
+    assert.equal(detail.stopReason, null);
+    assert.match(detail.stopReasonWhy, /^waiting on you: /);
+    assert.match(detail.stopReasonWhy, /Does this later draft look right/);
+    assert.doesNotMatch(detail.stopReasonWhy, /no line is exactly the heading/);
+  });
+
+  test('PROOF (bug #1 can fail): the plain run-waiting fixture (no earlier gap at all) still shows the same "waiting on you: <question>" shape', () => {
+    const detail = getRunDetail({
+      root: ROOT, flow: FLOW, runId: 'run-waiting', catalogue: CATALOGUE,
+    });
+    assert.match(detail.stopReasonWhy, /^waiting on you: Does this look right/);
   });
 
   test('a genuinely stopped run\'s fallback stop reason names the step, from the LAST matching audit row', () => {
@@ -1420,8 +1459,13 @@ describe('index.html — page source', () => {
     assert.match(source, /detail\.wallMs/);
   });
 
-  test('fix #7: the runs-list meta line does not truncate at phone width', () => {
-    assert.match(source, /\.wf-meta-line\{white-space:normal;overflow:visible;text-overflow:clip;\}/);
+  test('fix #7 / hamr 2026-09-27 browser-walk bug #2: the runs-list meta line never truncates with an ellipsis, at phone width OR desktop width', () => {
+    // bug #2: the old rule only wrapped inside the phone-width media query —
+    // desktop kept a one-line ellipsis that silently cut real content (e.g.
+    // "waiting on you (parked, unanswered) · at least $0…"). The wrap is now
+    // the BASE rule (no media query gate), and no ellipsis rule survives.
+    assert.match(source, /\.wf-meta-line\{white-space:normal;overflow:visible;text-overflow:clip;min-width:0;\}/);
+    assert.doesNotMatch(source, /\.wf-meta-line\{overflow:hidden;text-overflow:ellipsis;white-space:nowrap/);
   });
 
   // hamr's 2026-09-27 review items #1-#7.
