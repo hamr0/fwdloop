@@ -733,4 +733,36 @@ describe('index.html — page source', () => {
     assert.match(source, /nothing waiting on you/);
     assert.match(source, /not attempted yet/);
   });
+
+  // M4a piece 3 follow-up (coordinator's browser walk against real flows/):
+  // fixes #2/#3/#4 are all checkable statically — the exact banned/required
+  // strings a real browser walk found wrong or right.
+  test('fix #2/#3: no "verdict green"/"verdict red"/"verdict paused" — a plain word replaces the raw verdict everywhere', () => {
+    assert.doesNotMatch(source, /"verdict "/);
+    assert.match(source, /paused for you/);
+    assert.match(source, /rejected by you/);
+  });
+
+  test('fix #4: the map legend pairs each word with the scope-correct glyph — [·] waiting on you, no dot at all for "not started"', () => {
+    assert.match(source, /<span class="dot"><\/span>waiting on you/);
+    assert.match(source, /<span>not started<\/span>/);
+    // never the OLD (wrong) pairing this fix replaced.
+    assert.doesNotMatch(source, /dot amber"><\/span>waiting on you/);
+    assert.doesNotMatch(source, /dot grey"><\/span>not started/);
+  });
+
+  test('fix #6: a step\'s attempt-numbering boundary after a human reject is labelled, never silently renumbered', () => {
+    assert.match(source, /after reject: /);
+    assert.match(source, /findRejectBetween/);
+  });
+
+  test('fix #5: header date is human-readable (toLocaleString), never a raw ISO string alone; "took Xs" comes from wallMs', () => {
+    assert.match(source, /readableDateTime/);
+    assert.match(source, /toLocaleString/);
+    assert.match(source, /detail\.wallMs/);
+  });
+
+  test('fix #7: the runs-list meta line does not truncate at phone width', () => {
+    assert.match(source, /\.wf-meta-line\{white-space:normal;overflow:visible;text-overflow:clip;\}/);
+  });
 });

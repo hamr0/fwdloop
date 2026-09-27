@@ -282,6 +282,12 @@
     .chip.fchip{min-height:40px;min-width:40px;}
     .rp-header{margin:8px 8px 0;}
     .rp-tabrow{margin:0 8px;}
+    /* fix #7 (coordinator's 390px browser walk): the meta line's one-line
+       ellipsis (desktop's own design, kept above) silently truncated real
+       content at phone width — e.g. a run-count chip cut to "1 …". No list
+       is truncated silently (project rule): narrow screens wrap the meta
+       bits onto more than one line instead of clipping any of them. */
+    .wf-meta-line{white-space:normal;overflow:visible;text-overflow:clip;}
   }
 </style>
 </head>
@@ -470,6 +476,26 @@
     if(rem === 60){ m += 1; rem = 0; }
     return m + "m" + String(rem).padStart(2, "0") + "s";
   }
+  // A readable local date/time instead of a raw ISO timestamp (fix #5) — an
+  // unparseable value still shows the raw string (never blank/nothing), so
+  // a books bug is visible rather than silently swallowed.
+  function readableDateTime(iso){
+    if(typeof iso !== "string") return null;
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? iso : d.toLocaleString();
+  }
+  // A step box's internal state word ("pending"/"waiting") is never shown
+  // as-is (fix #4): "pending" (not attempted yet) reads "not started" —
+  // plain text, no dot/glyph at all, so it can never be mistaken for one of
+  // the reserved glyphs; "waiting" (this step is where the run is currently
+  // parked on a human) reads "waiting on you", matching the SAME words the
+  // run-row `[·]` glyph already uses (src/panel/data.js's computeGlyph) —
+  // never the bracket glyph `[▶]`, which the scope reserves for "running".
+  function stateWord(state){
+    if(state === "pending") return "not started";
+    if(state === "waiting") return "waiting on you";
+    return state; // "done" / "stopped"
+  }
   // fwdloop's close-class vocabulary (M4a scope item 4): `green` -> "cited"
   // (a mechanical, exact-match close), `softgreen` -> "shape" (a shape/
   // section check), `hitl` -> "human check" (no mechanical verdict — the
@@ -480,11 +506,41 @@
     if(cls === "hitl") return "human check";
     return "unknown";
   }
-  // An attempt's verdict -> pass/fail glyph. `green`/`hitl` both mean the
-  // step went through (a hitl close has no mechanical verdict to fail on);
-  // anything else (`not-done`/`crash`/`unparseable`/`red`) is a stop.
+  // An attempt's real verdict vocabulary is wider than green/hitl/not-done
+  // (src/runner.js also writes `paused`, `refused`, `ask-timeout`,
+  // `ask-expired`, `red`, `crash`-like stops) — and the scope forbids
+  // rendering the raw words green/red/softgreen anywhere (coordinator's
+  // browser-walk fix #2). `verdictWord`/`verdictGlyph` are the ONE place
+  // that turns a verdict (plus the step's own close class, for telling a
+  // human's reject apart from a mechanical red) into plain words and a
+  // pass/fail glyph — used by the step cards, the map's inline attempt
+  // text, and the flat Audit table alike, so they can never say something
+  // different for the same row.
+  //  - `paused`/`refused`/an ask timeout/expiry are NOT failures (fix #3) —
+  //    no ✗, a plain word instead.
+  //  - a `red` verdict on a `hitl`-classed step is the human's own reject
+  //    (src/runner.js's redo path), not a mechanical stop — "rejected by
+  //    you: <reason>", never "verdict red" / a fail glyph (fix #3).
+  function verdictWord(verdict, closeClass, gap){
+    if(closeClass === "hitl" && verdict === "red") return "rejected by you" + (gap ? ": " + gap : "");
+    if(verdict === "paused") return "paused for you";
+    if(verdict === "refused") return "refused — no reason given";
+    if(verdict === "ask-timeout" || verdict === "ask-expired") return "expired waiting for you";
+    if(verdict === "green") return "passed";
+    if(verdict === "hitl") return "human check";
+    if(verdict === "not-done") return "not done";
+    if(typeof verdict !== "string") return "unknown";
+    return "failed"; // red (non-hitl), crash-like, cap-halt, pricing/provider-red, unparseable, ...
+  }
   function verdictPassed(verdict){ return verdict === "green" || verdict === "hitl"; }
-  function attemptGlyph(verdict){ return verdictPassed(verdict) ? "✓" : "✗"; }
+  // `null` — no glyph at all — for a verdict that is neither a pass nor a
+  // fail (paused/refused/expired/a human reject); a bare attempt glyph
+  // would misread a pause as a failure (fix #3).
+  function verdictGlyph(verdict, closeClass){
+    if(closeClass === "hitl" && verdict === "red") return null;
+    if(verdict === "paused" || verdict === "refused" || verdict === "ask-timeout" || verdict === "ask-expired") return null;
+    return verdictPassed(verdict) ? "✓" : "✗";
+  }
   // The run-row glyph strings src/panel/data.js's computeGlyph emits are
   // already bracketed ("[✓]", "[✗]", "[·]", "[?]") — this only ever picks a
   // CSS color class off them, never re-derives the glyph itself.
@@ -504,7 +560,7 @@
     if(state === "done") return {stroke:"var(--green)", textFill:"#2e7d32"};
     if(state === "stopped") return {stroke:"var(--red)", textFill:"var(--red)"};
     if(state === "waiting") return {stroke:"var(--amber)", textFill:"#b8860b"};
-    return {stroke:"var(--border-strong)", textFill:"var(--text-faint)"}; // pending — not attempted yet
+    return {stroke:"var(--border-strong)", textFill:"var(--text-faint)"}; // not started yet
   }
   var stepMapUidCounter = 0;
   var MAP_MARGIN = 10, MAP_GAP = 28;
@@ -513,25 +569,29 @@
   var MIN_BOX_W = 100;
   var BOX_H = 60, BOX_H_2LINE = 78;
   var ROW_GAP = 70;
-  // Each step box shows its attempts INLINE, e.g. "attempt 1 ✗ · attempt 2 ✓"
-  // (ruling A: one card per step ATTEMPT, never a per-round breakdown).
-  function attemptsInlineText(attempts){
+  // Each step box shows its attempts INLINE, e.g. "attempt 1 failed · attempt
+  // 2 passed" (ruling A: one card per step ATTEMPT, never a per-round
+  // breakdown) — words, not the raw verdict string (fix #2).
+  function attemptsInlineText(attempts, closeClass){
     if(!attempts || !attempts.length) return "";
-    return attempts.map(function(a){ return "attempt " + a.attempt + " " + attemptGlyph(a.verdict); }).join(" · ");
+    return attempts.map(function(a){ return "attempt " + a.attempt + " " + verdictWord(a.verdict, closeClass, null); }).join(" · ");
   }
   function stepTitleText(idx, s){
     var base = (idx + 1) + ' ' + s.emits;
-    var at = attemptsInlineText(s.attempts);
+    var at = attemptsInlineText(s.attempts, s.closeClass);
     return at ? base + ' — ' + at : base;
   }
   // The declared step's own run-state, for the map box and the summary's
   // "which step stopped and why" (M4a exit: "say which step stopped it and
   // why, from one screen"): `pending` (no attempt yet), `done` (last
-  // attempt passed), `stopped` (last attempt failed — this is the run's own
-  // stop point when it never reached a later step).
+  // attempt passed), `waiting` (the run is currently parked ON this step —
+  // its last attempt's verdict is `paused`/`refused`, i.e. it went to a
+  // human ask and hasn't been answered/resolved yet), `stopped` (a real
+  // stop — the last attempt failed for any other reason).
   function stepBoxState(s){
     if(!s.attempts || !s.attempts.length) return "pending";
     var last = s.attempts[s.attempts.length - 1];
+    if(last.verdict === "paused" || last.verdict === "refused") return "waiting";
     return verdictPassed(last.verdict) ? "done" : "stopped";
   }
   function buildStepBoxes(steps){
@@ -611,7 +671,7 @@
           '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[1]) + '</text>';
       }
       body += '<text x="' + (x + boxW / 2) + '" y="' + stateY +
-        '" text-anchor="middle" font-size="10" fill="' + colors.textFill + '">' + escapeXml(s.state) + '</text>';
+        '" text-anchor="middle" font-size="10" fill="' + colors.textFill + '">' + escapeXml(stateWord(s.state)) + '</text>';
       if(idx < n - 1){
         var nextRow = Math.floor((idx + 1) / perRow);
         if(nextRow === row){
@@ -634,12 +694,18 @@
     });
     return '<svg width="' + totalW + '" height="' + totalH + '" viewBox="0 0 ' + totalW + ' ' + totalH + '" role="img" aria-label="step map">' + body + '</svg>';
   }
+  // Legend glyphs match the scope's own vocabulary (fix #4): `[✓]` done,
+  // `[✗]` stopped, `[·]` waiting on you (the default/grey dot — never the
+  // amber `[▶]`, which the scope reserves for "running", a state this panel
+  // cannot tell apart from "died" at all today — M4a's own open POC
+  // question). "not started" gets no dot/glyph at all, so it can never be
+  // confused with a reserved one.
   function stepMapLegendHTML(){
     return '<div class="map-legend">' +
       '<span><span class="dot green"></span>done</span>' +
-      '<span><span class="dot amber"></span>waiting on you</span>' +
       '<span><span class="dot red"></span>stopped</span>' +
-      '<span><span class="dot grey"></span>not started</span>' +
+      '<span><span class="dot"></span>waiting on you</span>' +
+      '<span>not started</span>' +
       '</div>';
   }
   var lastSteps = null;
@@ -1130,19 +1196,19 @@
     name.textContent = detail.flow + " (" + detail.runId + ")";
     dot.className = "dot " + glyphClass(detail.glyph);
     verdict.textContent = detail.label || "unknown";
-    date.textContent = detail.at ? detail.at : (detail.outcomeWhy || "unknown");
+    date.textContent = detail.at ? readableDateTime(detail.at) : (detail.outcomeWhy || "unknown");
 
     document.getElementById("run-empty").hidden = true;
     document.getElementById("run-content").hidden = false;
 
-    // "took Xs" for a run that has stopped (a history row exists); "Xs
-    // elapsed" is reserved for a live run — data.js's computeGlyph cannot
-    // tell "running" from "died" today (M4a's own open POC question), so a
-    // run with no history row reads as a floor, never guessed into "live".
+    // "took Xs" for a finished run, straight off the history row's own
+    // wallMs (never derived/guessed) — a died/parked run or one whose
+    // history row predates the field both say why instead (fix #5).
     var capText = typeof detail.capUsd === "number" ? ("$" + detail.capUsd.toFixed(2)) : "unknown";
     var spendText = detail.spend || "unknown — no spend recorded yet";
+    var wallText = typeof detail.wallMs === "number" ? ("took " + duration(detail.wallMs)) : (detail.wallMsWhy || "wall time unknown");
     document.getElementById("run-counters").innerHTML =
-      escapeXml(spendText) + " of " + escapeXml(capText) + " cap";
+      escapeXml(spendText) + " of " + escapeXml(capText) + " cap &middot; " + escapeXml(wallText);
 
     var box = document.getElementById("run-summary");
     box.className = "summary-box " + (detail.glyph === "[✗]" ? "red" : (detail.glyph === "[·]" ? "amber" : (detail.glyph === "[?]" ? "magenta" : "")));
@@ -1167,7 +1233,7 @@
       card.setAttribute("data-testid", "step-card-" + idx);
       card.innerHTML =
         '<div class="step-head"><h4>' + (idx + 1) + ' &middot; ' + escapeXml(box.emits) + '</h4>' +
-          '<span class="badge ' + badgeClass + '">' + escapeXml(box.state) + '</span>' +
+          '<span class="badge ' + badgeClass + '">' + escapeXml(stateWord(box.state)) + '</span>' +
           '<span class="badge cyan">' + escapeXml(closeClassLabel(box.closeClass)) + '</span>' +
         '</div>' +
         (box.goal ? '<div class="step-meta">' + escapeXml(box.goal) + '</div>' : '');
@@ -1176,24 +1242,54 @@
       if(!box.attempts.length){
         attemptsWrap.innerHTML = '<div class="hint">not attempted yet</div>';
       } else {
-        box.attempts.forEach(function(a){
+        // Attempt numbers can repeat in book order: a human reject re-runs
+        // the step, and its redo attempts are numbered from the redo/reject
+        // count, not the previous run's own attempt counter (src/runner.js's
+        // redo path). Never renumber or hide a row (keep book order) —
+        // instead call out the boundary where the numbering restarts, naming
+        // the reject that caused it when the interleaved audit rows (the
+        // human's own reject, on the ask step, `class:'hitl'`/`verdict:'red'`)
+        // say why (fix #6).
+        var stepRowIdx = [];
+        (auditRowsForRun || []).forEach(function(r, i){ if(r.step === box.emits) stepRowIdx.push(i); });
+        box.attempts.forEach(function(a, i){
+          if(i > 0 && a.attempt <= box.attempts[i - 1].attempt){
+            var reject = findRejectBetween(auditRowsForRun, stepRowIdx[i - 1], stepRowIdx[i]);
+            var boundary = document.createElement("div");
+            boundary.className = "hint";
+            boundary.textContent = reject ? ("after reject: " + reject.gap) : "after a reject — a new attempt count starts here";
+            attemptsWrap.appendChild(boundary);
+          }
           var row = document.createElement("div");
           row.className = "attempt-row";
           row.setAttribute("data-testid", "step-attempt-" + idx + "-" + a.attempt);
+          var glyph = verdictGlyph(a.verdict, box.closeClass);
+          var isRejectRow = box.closeClass === "hitl" && a.verdict === "red";
           var bits = [
-            "attempt " + a.attempt + " " + attemptGlyph(a.verdict),
-            "verdict " + escapeXml(a.verdict || "unknown"),
+            "attempt " + a.attempt + (glyph ? " " + glyph : ""),
+            escapeXml(verdictWord(a.verdict, box.closeClass, a.gap)),
             money(a.cost, a.spendComplete),
             a.model ? escapeXml(a.model) : "no model call",
           ];
           if(a.strike) bits.push("strike");
-          row.innerHTML = bits.join(" &middot; ") + (a.gap ? '<div class="hint">' + escapeXml(a.gap) + '</div>' : '');
+          row.innerHTML = bits.join(" &middot; ") + ((a.gap && !isRejectRow) ? '<div class="hint">' + escapeXml(a.gap) + '</div>' : '');
           attemptsWrap.appendChild(row);
         });
       }
       card.appendChild(attemptsWrap);
       listEl.appendChild(card);
     });
+  }
+  // The nearest (last, chronologically) human-reject row strictly between
+  // two of a step's own audit rows (by index in the full run-scoped audit
+  // list) — used only to label an attempt-numbering boundary (fix #6).
+  function findRejectBetween(auditRows, fromIdxExclusive, toIdxExclusive){
+    var found = null;
+    for(var i = fromIdxExclusive + 1; i < toIdxExclusive; i++){
+      var r = auditRows && auditRows[i];
+      if(r && r.class === "hitl" && r.verdict === "red") found = r;
+    }
+    return found;
   }
 
   // ---- Audit tab: this run's own audit.jsonl rows only, one per step
@@ -1216,15 +1312,21 @@
     tbody.innerHTML = "";
     result.rows.forEach(function(r){
       var tr = document.createElement("tr");
-      if(r.verdict !== "green" && r.verdict !== "hitl") tr.className = "row-blocked";
+      var glyph = verdictGlyph(r.verdict, r.class);
+      var word = verdictWord(r.verdict, r.class, r.gap);
+      var isRejectRow = r.class === "hitl" && r.verdict === "red";
+      // never the raw words green/red/softgreen (fix #2), and never a fail
+      // badge for a pause/refusal/reject/expiry — those are not failures
+      // (fix #3).
+      var badgeClass = glyph === "✓" ? "green" : (glyph === "✗" ? "red" : "amber");
       tr.innerHTML =
         "<td>" + escapeXml(r.step) + "</td>" +
         "<td>" + escapeXml(String(r.attempt)) + "</td>" +
         "<td>" + escapeXml(closeClassLabel(r.class)) + "</td>" +
-        "<td><span class=\"badge " + (r.verdict === "green" || r.verdict === "hitl" ? "green" : "red") + "\">" + escapeXml(r.verdict || "unknown") + "</span></td>" +
+        "<td><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
         "<td>" + escapeXml(money(r.usd, r.spendComplete)) + "</td>" +
-        "<td>" + escapeXml(r.model || "&mdash;") + "</td>" +
-        "<td>" + escapeXml(r.gap || "") + "</td>";
+        "<td>" + (r.model ? escapeXml(r.model) : "no model call") + "</td>" +
+        "<td>" + escapeXml(isRejectRow ? "" : (r.gap || "")) + "</td>";
       tbody.appendChild(tr);
     });
   }
@@ -1276,6 +1378,12 @@
   // ---- selection + loading ----
   var currentFlow = null;
   var currentRunId = null;
+  // The full run-scoped audit.jsonl rows for whatever run is on screen —
+  // renderRun needs this (not just its own detail.steps[].attempts) to spot
+  // an attempt-numbering boundary caused by an interleaved human reject on a
+  // DIFFERENT step (fix #6, findRejectBetween above). Set only from
+  // selectRun, read only by renderRun — one writer.
+  var auditRowsForRun = [];
   function selectRun(flow, runId, rowEl, siblingSelector){
     clearSelection();
     document.querySelectorAll(siblingSelector).forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
@@ -1283,12 +1391,22 @@
     currentFlow = flow;
     currentRunId = runId;
     var base = "/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId);
-    getJSON(base).then(renderRun).catch(function(e){
-      document.getElementById("run-empty").hidden = false;
-      document.getElementById("run-empty").textContent = "failed to load run: " + e.message;
-      document.getElementById("run-content").hidden = true;
+    // detail + audit load together (never independently): the step cards
+    // need this run's full audit-row order to label a reject boundary
+    // correctly, so the Run tab waits on both rather than racing them.
+    Promise.allSettled([getJSON(base), getJSON(base + "/audit")]).then(function(results){
+      var detailResult = results[0];
+      var auditResult = results[1];
+      auditRowsForRun = (auditResult.status === "fulfilled" && auditResult.value && auditResult.value.rows) || [];
+      if(detailResult.status === "fulfilled"){
+        renderRun(detailResult.value);
+      } else {
+        document.getElementById("run-empty").hidden = false;
+        document.getElementById("run-empty").textContent = "failed to load run: " + detailResult.reason.message;
+        document.getElementById("run-content").hidden = true;
+      }
+      renderAudit(auditResult.status === "fulfilled" ? auditResult.value : null);
     });
-    getJSON(base + "/audit").then(renderAudit).catch(function(){ renderAudit(null); });
     getJSON(base + "/job").then(renderJob).catch(function(){ renderJob(null); });
   }
 
