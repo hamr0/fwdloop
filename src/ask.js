@@ -17,12 +17,13 @@
 // not a second Checkpoint instance layered on top of the same file protocol.
 
 import {
-  existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync,
+  existsSync, mkdirSync, readFileSync, renameSync, writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 import { appendAudit } from './books.js';
+import { readFileInside, resolveInside, readdirInside } from './flow.js';
 
 function sleep(ms) {
   return new Promise((resolve) => { setTimeout(resolve, ms); });
@@ -73,7 +74,13 @@ export function makeFileAskStep({
     let staleCount = 0;
 
     for (;;) {
-      if (existsSync(answerPath)) {
+      // F48 round 3: `answer.json` is checked with `resolveInside`
+      // (`src/flow.js`) before it is ever read — a symlinked answer file (or
+      // a symlinked run-dir ancestor) is treated exactly like "no answer
+      // yet" (kept polling), never read through to an outside file's
+      // content standing in for the human's real decision.
+      const answerResolved = resolveInside(runDir, 'answer.json');
+      if (answerResolved.ok) {
         let raw = null;
         try { raw = readFileSync(answerPath, 'utf8'); } catch { raw = null; }
         let parsed = null;
@@ -216,13 +223,19 @@ export function answerAsk({
     return { ok: false, red: `answerAsk: unrecognised decision "${decision}"` };
   }
 
-  const askPath = join(runDir, 'ask.json');
-  if (!existsSync(askPath)) {
-    return { ok: false, red: `answerAsk: no open ask for run ${runDir}` };
+  // F48 round 3: routed through `readFileInside` — a symlinked `ask.json`
+  // (or a symlinked run-dir ancestor) reads as "no open ask", never as some
+  // outside file's content.
+  const askRead = readFileInside(runDir, 'ask.json');
+  if (!askRead.ok) {
+    if (askRead.missing) {
+      return { ok: false, red: `answerAsk: no open ask for run ${runDir}` };
+    }
+    return { ok: false, red: `answerAsk: ask.json for run ${runDir} — ${askRead.red}` };
   }
   let ask;
   try {
-    ask = JSON.parse(readFileSync(askPath, 'utf8'));
+    ask = JSON.parse(askRead.text);
   } catch (err) {
     return { ok: false, red: `answerAsk: ask.json for run ${runDir} is not valid JSON — ${err.message}` };
   }
@@ -352,26 +365,45 @@ export function writeAskArchive({
  *   answer: { status: string, reason?: string, answeredAt?: string, why?: string } }> } | { archived: false, why: string }}
  */
 export function listArchivedAsks(runDir) {
-  const asksDir = join(runDir, 'asks');
-  if (!existsSync(asksDir)) {
-    return { archived: false, why: 'draft not kept (before M4a-1)' };
+  // F48 round 3: the `asks/` directory itself — and every entry inside it —
+  // is checked with `resolveInside`/`readFileInside` (`src/flow.js`), so a
+  // symlinked `asks/` (the exact shape F48's live plant used one level up,
+  // for `runs/`) is refused here rather than followed to list an outside
+  // directory, and any individual entry that is itself a symlink is skipped
+  // before this loop ever sees its name.
+  const asksDirResolved = resolveInside(runDir, 'asks');
+  if (!asksDirResolved.ok) {
+    if (asksDirResolved.missing) {
+      return { archived: false, why: 'draft not kept (before M4a-1)' };
+    }
+    return { archived: false, why: `listArchivedAsks: ${asksDirResolved.red}` };
   }
 
-  let entries;
-  try {
-    entries = readdirSync(asksDir);
-  } catch (err) {
-    return { archived: false, why: `listArchivedAsks: could not read ${asksDir} — ${err.message}` };
-  }
+  const entries = readdirInside(runDir, 'asks');
 
   const asks = [];
   for (const entry of entries.sort()) {
     if (!entry.endsWith('.json')) continue; // eslint-disable-line no-continue
     const askId = entry.slice(0, -'.json'.length);
-    const archivePath = join(asksDir, entry);
+    const archivePath = join(runDir, 'asks', entry);
+    const archiveRead = readFileInside(runDir, join('asks', entry));
     let ask;
+    if (!archiveRead.ok) {
+      asks.push({
+        askId, question: undefined, askedAt: undefined, expiresAt: undefined,
+        evidence: {
+          draft: null,
+          unjudged: [],
+          why: archiveRead.missing
+            ? `${archivePath} is missing`
+            : `${archivePath} — ${archiveRead.red}`,
+        },
+        answer: { status: 'open' },
+      });
+      continue; // eslint-disable-line no-continue
+    }
     try {
-      ask = JSON.parse(readFileSync(archivePath, 'utf8'));
+      ask = JSON.parse(archiveRead.text);
     } catch (err) {
       asks.push({
         askId, question: undefined, askedAt: undefined, expiresAt: undefined,
@@ -381,12 +413,13 @@ export function listArchivedAsks(runDir) {
       continue; // eslint-disable-line no-continue
     }
 
-    const consumedPath = join(runDir, `answer.${askId}.consumed.json`);
+    const consumedRelPath = `answer.${askId}.consumed.json`;
+    const consumedRead = readFileInside(runDir, consumedRelPath);
     let answer = { status: 'open' };
-    if (existsSync(consumedPath)) {
+    if (consumedRead.ok) {
       let parsed;
       try {
-        parsed = JSON.parse(readFileSync(consumedPath, 'utf8'));
+        parsed = JSON.parse(consumedRead.text);
         const decisionToStatus = { accept: 'accepted', reject: 'rejected', rerun: 'reran' };
         answer = {
           status: decisionToStatus[parsed.decision] ?? `unrecognised: ${parsed.decision}`,
@@ -394,7 +427,7 @@ export function listArchivedAsks(runDir) {
         };
         if (typeof parsed.reason === 'string') answer.reason = parsed.reason;
       } catch (err) {
-        answer = { status: 'open', why: `${consumedPath} is not valid JSON — ${err.message}` };
+        answer = { status: 'open', why: `${join(runDir, consumedRelPath)} is not valid JSON — ${err.message}` };
       }
     } else if (typeof ask.expiresAt === 'string' && !Number.isNaN(Date.parse(ask.expiresAt))
       && Date.now() > Date.parse(ask.expiresAt)) {

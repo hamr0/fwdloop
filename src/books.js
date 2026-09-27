@@ -18,8 +18,10 @@
 // history); both throw (never silently coerce) on a violation, so a bad
 // caller fails loudly at the one place that would otherwise hide it.
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+
+import { readFileInside } from './flow.js';
 
 function appendLine(filePath, row) {
   mkdirSync(dirname(filePath), { recursive: true });
@@ -33,13 +35,20 @@ function appendLine(filePath, row) {
  * one line is skipped, never crashes the whole read) — the panel and any
  * other reader need an honest best-effort array, not a hard failure over one
  * bad byte someone else wrote.
- * @param {string} filePath
+ *
+ * F48 round 3: goes through `readFileInside` (`src/flow.js`) — a book file
+ * that is itself a symlink, or that sits behind a symlinked ancestor
+ * directory, resolving outside `baseDir` reads as `[]`, same as a missing
+ * file, never as the outside target's content.
+ * @param {string} baseDir - the run dir (audit.jsonl) or flow dir (history.jsonl)
+ * @param {string} relPath - the book's own file name, relative to baseDir
  * @returns {any[]}
  */
-function readLines(filePath) {
-  if (!existsSync(filePath)) return [];
+function readLines(baseDir, relPath) {
+  const result = readFileInside(baseDir, relPath);
+  if (!result.ok) return [];
   const rows = [];
-  for (const line of readFileSync(filePath, 'utf8').split('\n')) {
+  for (const line of result.text.split('\n')) {
     const trimmed = line.trim();
     if (trimmed.length === 0) continue;
     try { rows.push(JSON.parse(trimmed)); } catch { /* malformed line: skip, never crash the read */ }
@@ -247,7 +256,7 @@ export function auditRowAt(row) {
  * @returns {any[]}
  */
 export function readAudit(runDir) {
-  return readLines(join(runDir, 'audit.jsonl'));
+  return readLines(runDir, 'audit.jsonl');
 }
 
 /**
@@ -270,5 +279,5 @@ export function appendHistory(flowDir, row) {
  * @returns {any[]}
  */
 export function readHistory(flowDir) {
-  return readLines(join(flowDir, 'history.jsonl'));
+  return readLines(flowDir, 'history.jsonl');
 }

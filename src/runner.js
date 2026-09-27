@@ -45,7 +45,9 @@ import {
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { readFlow, resolveRunDir } from './flow.js';
+import {
+  readFlow, resolveRunDir, readFileInside, resolveInside,
+} from './flow.js';
 import { writeAskArchive } from './ask.js';
 import { WIRED_VERBS } from './primitives.js';
 import { closeByClass } from './closers.js';
@@ -1333,9 +1335,13 @@ async function foldFromStep({
  * @returns {{ ok: true, total: number } | { ok: false, red: string }}
  */
 function sumAuditUsd(runDir) {
-  const auditPath = join(runDir, 'audit.jsonl');
-  if (!existsSync(auditPath)) return { ok: true, total: 0 };
-  const lines = readFileSync(auditPath, 'utf8').split('\n').filter((line) => line.trim().length > 0);
+  // F48 round 3: goes through `readFileInside` (`src/flow.js`) rather than a
+  // raw `readFileSync` — a symlinked `audit.jsonl` (or a symlinked ancestor
+  // directory) reads as "missing" (total 0), never as some outside file's
+  // content summed into a cap check.
+  const result = readFileInside(runDir, 'audit.jsonl');
+  if (!result.ok) return { ok: true, total: 0 };
+  const lines = result.text.split('\n').filter((line) => line.trim().length > 0);
   let total = 0;
   for (const line of lines) {
     let row;
@@ -1542,8 +1548,16 @@ export async function resumeRun({
     }
 
     const answerPath = join(runDir, 'answer.json');
-    if (!existsSync(answerPath)) {
-      return { outcome: 'refused', red: `resume: no answer yet for run "${runId}"` };
+    // F48 round 3: `answer.json` goes through `resolveInside` too — a
+    // symlinked answer file (or a symlinked run dir ancestor) is refused by
+    // name here, the same as "no answer yet", never read through to an
+    // outside file's content.
+    const answerResolved = resolveInside(runDir, 'answer.json');
+    if (!answerResolved.ok) {
+      if (answerResolved.missing) {
+        return { outcome: 'refused', red: `resume: no answer yet for run "${runId}"` };
+      }
+      return { outcome: 'refused', red: `resume: answer.json for run "${runId}" — ${answerResolved.red}` };
     }
     let answer;
     try {
@@ -1800,9 +1814,9 @@ function writeLog(runDir, payload) {
  * @returns {any|null}
  */
 export function readLog(runDir) {
-  const p = join(runDir, 'log.json');
-  if (!existsSync(p)) return null;
-  try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return null; }
+  const result = readFileInside(runDir, 'log.json');
+  if (!result.ok) return null;
+  try { return JSON.parse(result.text); } catch { return null; }
 }
 
 /**
@@ -1812,9 +1826,9 @@ export function readLog(runDir) {
  * @returns {any|null}
  */
 export function readRunState(runDir) {
-  const p = join(runDir, 'state.json');
-  if (!existsSync(p)) return null;
-  try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return null; }
+  const result = readFileInside(runDir, 'state.json');
+  if (!result.ok) return null;
+  try { return JSON.parse(result.text); } catch { return null; }
 }
 
 /**
@@ -1826,9 +1840,9 @@ export function readRunState(runDir) {
  * @returns {any|null}
  */
 export function readAsk(runDir) {
-  const p = join(runDir, 'ask.json');
-  if (!existsSync(p)) return null;
-  try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return null; }
+  const result = readFileInside(runDir, 'ask.json');
+  if (!result.ok) return null;
+  try { return JSON.parse(result.text); } catch { return null; }
 }
 
 /**

@@ -17,9 +17,10 @@
 // against src/'s ESM style; src never imports from poc/.
 
 import {
-  appendFileSync, existsSync, mkdirSync, readFileSync,
+  appendFileSync, mkdirSync,
 } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, basename } from 'node:path';
+import { readFileInside } from './flow.js';
 import { OpenAI } from 'bare-agent/providers';
 
 /**
@@ -215,9 +216,17 @@ export function appendSpendRow(path, row) {
   appendFileSync(path, `${JSON.stringify({ ...row, modelMatch })}\n`);
 }
 
+// F48 round 3: both readers below take a full path (`<runDir>/spend.jsonl`,
+// as every call site already builds it) but go through `readFileInside`
+// (`src/flow.js`) using `dirname(path)` as the containment boundary and
+// `basename(path)` as the checked relative name — no call site changes, and
+// a symlinked `spend.jsonl` (or a symlinked run-dir ancestor) reads as
+// "missing", never as some outside file's content folded into a cap check
+// or shown on the panel.
 function readSpendTotal(path) {
-  if (!existsSync(path)) return 0;
-  const lines = readFileSync(path, 'utf8').split('\n').filter((l) => l.trim());
+  const result = readFileInside(dirname(path), basename(path));
+  if (!result.ok) return 0;
+  const lines = result.text.split('\n').filter((l) => l.trim());
   let total = 0;
   for (const line of lines) {
     const row = JSON.parse(line);
@@ -237,9 +246,10 @@ function readSpendTotal(path) {
  * @returns {any[]}
  */
 export function readSpendRows(path) {
-  if (!existsSync(path)) return [];
+  const result = readFileInside(dirname(path), basename(path));
+  if (!result.ok) return [];
   const rows = [];
-  for (const line of readFileSync(path, 'utf8').split('\n')) {
+  for (const line of result.text.split('\n')) {
     const trimmed = line.trim();
     if (trimmed.length === 0) continue;
     try { rows.push(JSON.parse(trimmed)); } catch { /* malformed line: skip, never crash the read */ }
