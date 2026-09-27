@@ -416,7 +416,7 @@
             <div id="audit-groups" data-testid="audit-groups"></div>
             <div class="audit-table-scroll" id="audit-flat-wrap" hidden>
               <table data-testid="audit-table">
-                <thead><tr><th>Attempt</th><th>Step</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th></tr></thead>
+                <thead><tr><th>Attempt</th><th>Step</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th><th>Time</th></tr></thead>
                 <tbody id="audit-tbody"></tbody>
               </table>
             </div>
@@ -524,6 +524,31 @@
     if(typeof n !== "number") return "unknown";
     var text = "$" + n.toFixed(4);
     return spendComplete === false ? "at least " + text : text;
+  }
+  // hamr's 2026-09-27 review item (c): the Audit tab's Cost cell reads
+  // "$0.0086 &middot; 2448 tokens &middot; 1.6s" — cost (money), a token
+  // total (server-derived, `r.tokensDisplay` from src/panel/data.js's
+  // deriveAuditTokensDisplay — never re-summed here), then wall time (this
+  // row's own `wallMs`, never invented). A pre-M4a-2 row shows "tokens not
+  // recorded" in that middle slot instead of a number; a row with no model
+  // call at all (an ask/hitl row) drops the tokens slot entirely — never a
+  // fake "0 tokens".
+  function auditCostCellText(r){
+    var bits = [money(r.usd, r.spendComplete)];
+    var td = r.tokensDisplay;
+    if(td && td.kind === "total") bits.push(td.total + " tokens");
+    else if(td && td.kind === "not-recorded") bits.push("tokens not recorded");
+    // td.kind === "no-model": no tokens slot at all.
+    bits.push(duration(r.wallMs));
+    return bits.join(" · ");
+  }
+  // hamr's 2026-09-27 review item (d): the new Time column — this row's own
+  // `at`, read locally (`readableDateTime`, same formatter every other
+  // timestamp on this page already uses); a pre-M4a-2 row (server-derived
+  // `r.atWhy`) shows its own why instead of guessing a date.
+  function auditTimeCellText(r){
+    if(typeof r.atWhy === "string" && r.atWhy.length > 0) return r.atWhy;
+    return readableDateTime(r.at) || "unknown";
   }
   function duration(ms){
     if(typeof ms !== "number" || ms < 0) return "unknown";
@@ -1463,6 +1488,15 @@
     setAuditView("grouped");
     var row = document.getElementById("audit-group-" + step);
     if(!row) return;
+    // hamr's 2026-09-27 review item (b): a jump from the Run tab must land
+    // on an OPEN group even if a human had folded it — never scroll to a
+    // collapsed section with nothing visible in it.
+    var table = row.querySelector("table");
+    var header = row.querySelector("h4");
+    if(table && table.hidden){
+      table.hidden = false;
+      if(header) header.setAttribute("aria-expanded", "true");
+    }
     if(typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "center" });
     row.classList.add("audit-group-highlight");
     setTimeout(function(){ row.classList.remove("audit-group-highlight"); }, 1600);
@@ -1483,9 +1517,10 @@
       (includeStep ? "<td>" + escapeXml(r.step) + "</td>" : "") +
       "<td>" + escapeXml(action) + "</td>" +
       "<td>" + escapeXml(isRejectRow ? "" : (r.gap || "")) + "</td>" +
-      "<td>" + escapeXml(money(r.usd, r.spendComplete)) + "</td>" +
+      "<td>" + escapeXml(auditCostCellText(r)) + "</td>" +
       "<td><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
-      "<td>" + escapeXml(closeClassLabel(r.class)) + "</td>";
+      "<td>" + escapeXml(closeClassLabel(r.class)) + "</td>" +
+      "<td>" + escapeXml(auditTimeCellText(r)) + "</td>";
     tr.innerHTML = cells;
     return tr;
   }
@@ -1522,17 +1557,36 @@
       wrap.className = "audit-group";
       wrap.id = "audit-group-" + step;
       wrap.setAttribute("data-testid", "audit-group-" + step);
+      // hamr's 2026-09-27 review item (b): the group header folds/unfolds
+      // its own table on click — a `role="button"` div (same pattern as the
+      // Ask tab's own collapsible rows, `renderAskRow`), never a real
+      // `<button>` nested inside an `<h4>`. Default expanded (`aria-expanded`
+      // starts "true", the table starts visible) — collapsing is something a
+      // human does, never the initial state.
       var header = document.createElement("h4");
+      header.setAttribute("role", "button");
+      header.setAttribute("tabindex", "0");
+      header.setAttribute("aria-expanded", "true");
+      header.style.cursor = "pointer";
       header.textContent = step + " — " + closeClassLabel(closeClass) + " — "
         + rows.length + " attempt" + (rows.length === 1 ? "" : "s") + " — "
         + (known ? money(sum, !partial) : "cost unknown");
       wrap.appendChild(header);
       var table = document.createElement("table");
-      table.innerHTML = "<thead><tr><th>Attempt</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th></tr></thead><tbody></tbody>";
+      table.innerHTML = "<thead><tr><th>Attempt</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th><th>Time</th></tr></thead><tbody></tbody>";
       var tbody = table.querySelector("tbody");
       rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, false)); });
       table.setAttribute("data-testid", "audit-table-grouped-" + step);
       wrap.appendChild(table);
+      function toggleAuditGroup(){
+        var next = table.hidden;
+        table.hidden = !next;
+        header.setAttribute("aria-expanded", next ? "true" : "false");
+      }
+      header.addEventListener("click", toggleAuditGroup);
+      header.addEventListener("keydown", function(e){
+        if(e.key === "Enter" || e.key === " "){ e.preventDefault(); toggleAuditGroup(); }
+      });
       container.appendChild(wrap);
     });
   }

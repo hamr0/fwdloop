@@ -1338,10 +1338,52 @@ describe('index.html — page source', () => {
     assert.match(source, /tab-audit["']\)\.click\(\)/);
   });
 
-  test('review #5/#6: the Audit tab has a Grouped/Flat toggle and the column order Attempt \\| Step \\| Action \\| Gap \\| Cost \\| Verdict \\| Close', () => {
+  test('review #5/#6, hamr 2026-09-27 item (d): the Audit tab has a Grouped/Flat toggle and the column order Attempt \\| Step \\| Action \\| Gap \\| Cost \\| Verdict \\| Close \\| Time (Step dropped in Grouped)', () => {
     assert.match(source, /audit-view-grouped/);
     assert.match(source, /audit-view-flat/);
-    assert.match(source, /<th>Attempt<\/th><th>Step<\/th><th>Action<\/th><th>Gap<\/th><th>Cost<\/th><th>Verdict<\/th><th>Close<\/th>/);
+    assert.match(source, /<th>Attempt<\/th><th>Step<\/th><th>Action<\/th><th>Gap<\/th><th>Cost<\/th><th>Verdict<\/th><th>Close<\/th><th>Time<\/th>/);
+    assert.match(source, /<th>Attempt<\/th><th>Action<\/th><th>Gap<\/th><th>Cost<\/th><th>Verdict<\/th><th>Close<\/th><th>Time<\/th>/);
+  });
+
+  test('hamr 2026-09-27 item (c): the Audit tab Cost cell combines money, a token phrase, and wall time', () => {
+    assert.match(source, /function auditCostCellText/);
+    assert.match(source, /"tokens not recorded"/);
+    assert.match(source, /td\.total \+ " tokens"/);
+    // the row builder must actually CALL the helper, not just define it —
+    // scoped to buildAuditRowEl's own body so a call removed from there
+    // (even with the helper still defined/unused above it) is caught.
+    var rowFnStart = source.indexOf('function buildAuditRowEl');
+    var rowFnEnd = source.indexOf('\n  }', rowFnStart);
+    var rowFnBody = source.slice(rowFnStart, rowFnEnd);
+    assert.match(rowFnBody, /escapeXml\(auditCostCellText\(r\)\)/, 'buildAuditRowEl must call auditCostCellText(r) for its Cost cell');
+  });
+
+  test('hamr 2026-09-27 item (d): the Time cell shows the row\'s own "at" via readableDateTime, or its server-derived pre-M4a-2 why', () => {
+    assert.match(source, /function auditTimeCellText/);
+    assert.match(source, /r\.atWhy/);
+    assert.match(source, /readableDateTime\(r\.at\)/);
+    var rowFnStart = source.indexOf('function buildAuditRowEl');
+    var rowFnEnd = source.indexOf('\n  }', rowFnStart);
+    var rowFnBody = source.slice(rowFnStart, rowFnEnd);
+    assert.match(rowFnBody, /escapeXml\(auditTimeCellText\(r\)\)/, 'buildAuditRowEl must call auditTimeCellText(r) for its Time cell');
+  });
+
+  test('hamr 2026-09-27 item (b): an Audit step group\'s header is a role="button" div, default expanded, foldable on click', () => {
+    assert.match(source, /function renderAuditGroups/);
+    var start = source.indexOf('function renderAuditGroups');
+    var end = source.indexOf('\n  }', source.indexOf('function toggleAuditGroup', start));
+    var body = source.slice(start, end);
+    assert.match(body, /header\.setAttribute\("role", "button"\)/);
+    assert.match(body, /header\.setAttribute\("aria-expanded", "true"\)/);
+    assert.match(body, /function toggleAuditGroup/);
+    assert.match(body, /header\.addEventListener\("click", toggleAuditGroup\)/);
+  });
+
+  test('hamr 2026-09-27 item (b): a jump to an Audit group (openAuditGroup) force-expands it before scrolling, never lands on a collapsed section', () => {
+    var start = source.indexOf('function openAuditGroup');
+    var end = source.indexOf('\n  }', start);
+    var body = source.slice(start, end);
+    assert.match(body, /table\.hidden = false/);
   });
 
   test('review #6: Action is derived server-side (row.action), never a client-side "unknown action" guess', () => {
