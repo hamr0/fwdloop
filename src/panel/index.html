@@ -384,57 +384,38 @@
         </section>
 
         <section id="panel-audit" class="tabpanel" role="tabpanel" aria-labelledby="tab-audit" hidden>
-          <div id="audit-select-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
-          <div id="audit-body" hidden>
-            <div class="audit-toolbar" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
-              <div class="chips" role="group" aria-label="Filter audit rows" style="margin-bottom:0;">
-                <button class="chip" aria-pressed="true" data-filter="all" data-testid="chip-all">All</button>
-                <button class="chip" aria-pressed="false" data-filter="write" data-testid="chip-writes">Writes</button>
-                <button class="chip" aria-pressed="false" data-filter="blocked" data-testid="chip-blocked">Blocked</button>
-              </div>
-              <div class="chips" role="group" aria-label="Audit view" style="margin-bottom:0;">
-                <button class="chip" aria-pressed="true" data-view="grouped" data-testid="audit-view-grouped">Grouped</button>
-                <button class="chip" aria-pressed="false" data-view="flat" data-testid="audit-view-flat">Flat</button>
-              </div>
-            </div>
-            <div id="audit-groups" data-testid="audit-groups"></div>
-            <div id="audit-flat-wrap" hidden>
-              <div id="audit-empty" class="hint" data-testid="audit-empty" style="font-size:13px;padding:24px 0;">select a run first</div>
-              <div id="audit-content" data-testid="audit-content" hidden>
-                <div class="audit-table-scroll">
-                  <table data-testid="audit-table">
-                    <thead><tr><th>Round</th><th>Step</th><th>Action</th><th>Path</th><th>Decision</th><th>Time</th></tr></thead>
-                    <tbody id="audit-tbody"></tbody>
-                  </table>
-                </div>
-                <details class="raw-log" data-testid="raw-spine-log">
-                  <summary>Raw gate-audit log</summary>
-                  <pre id="audit-rawlog"></pre>
-                </details>
-              </div>
+          <!-- This run's own audit.jsonl rows only, one row per step ATTEMPT
+               (M4a scope item 2). bareloop's All/Writes/Blocked filters and
+               grouped/rounds views are dropped: there is no per-round or
+               per-tool-call book in fwdloop to fill them from (ladder
+               ruling A) — unwired, never faked. -->
+          <div id="audit-empty" class="hint" data-testid="audit-empty" style="font-size:13px;padding:24px 0;">select a run first</div>
+          <div id="audit-content" data-testid="audit-content" hidden>
+            <div class="audit-table-scroll">
+              <table data-testid="audit-table">
+                <thead><tr><th>Step</th><th>Attempt</th><th>Close</th><th>Verdict</th><th>Cost</th><th>Model</th><th>Gap</th></tr></thead>
+                <tbody id="audit-tbody"></tbody>
+              </table>
             </div>
           </div>
         </section>
 
         <section id="panel-details" class="tabpanel" role="tabpanel" aria-labelledby="tab-details" hidden data-testid="panel-details">
+          <!-- The signed prose, the arbiter block, and the signature — the
+               ONE signed declaration.json + signature.json per flow
+               (M4a scope item 2). -->
           <div id="job-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
           <div class="job-card" id="job-card" hidden data-testid="job-card-readonly">
             <h4 id="details-title">Job card — signed</h4>
-            <div class="field"><label>Check type</label><div class="ro-value" id="details-verdict">—</div></div>
-            <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
-            <div class="field"><label>Job name</label><div class="ro-value" id="details-jobname">—</div></div>
-            <div class="field" id="details-description-field"><label>Description</label><div class="ro-value" id="details-description">—</div></div>
-            <div class="field"><label>Goal</label><div class="ro-value scroll" id="details-goal">—</div></div>
-            <div class="field"><label>Success</label><div class="ro-value" id="details-success">—</div></div>
-            <div class="field"><label>Guardrails</label><div class="ro-value" id="details-guardrails">—</div></div>
-            <div class="field"><label>Source</label><div class="ro-value" id="details-source">—</div></div>
-            <div class="field"><label>Destination</label><div class="ro-value" id="details-dest">—</div></div>
-            <div class="field"><label>Tools</label><div class="ro-value" id="details-tools">—</div></div>
+            <div class="field"><label>Signed lines</label><div id="details-lines"></div></div>
             <div class="field-row">
               <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap-money">—</div></div>
-              <div class="field"><label>Time cap</label><div class="ro-value" id="details-cap-time">—</div></div>
+              <div class="field"><label>Redo cap</label><div class="ro-value" id="details-redo-cap">—</div></div>
             </div>
-            <div class="hint" id="job-note"></div>
+            <div class="field"><label>Asks</label><div class="ro-value scroll" id="details-asks">—</div></div>
+            <div class="field"><label>Sends</label><div class="ro-value scroll" id="details-sends">—</div></div>
+            <div class="field"><label>Sources</label><div class="ro-value scroll" id="details-sources">—</div></div>
+            <div class="field"><label>Signature</label><div class="ro-value" id="details-signature">—</div></div>
           </div>
         </section>
 
@@ -1149,512 +1130,96 @@
     document.querySelectorAll(".wf-row, .hist-row").forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
   }
 
-  // ---- Run tab ----
-  function money(n){ return (n === null || n === undefined) ? "unknown" : "$" + Number(n).toFixed(4); }
-  function duration(ms){
-    if(ms === null || ms === undefined) return "unknown";
-    if(ms < 0) return "unknown";
-    var s = ms / 1000;
-    if(s < 60) return s.toFixed(1) + "s";
-    var m = Math.floor(s / 60), rem = Math.round(s - m * 60);
-    if(rem === 60){ m += 1; rem = 0; }
-    return m + "m" + String(rem).padStart(2, "0") + "s";
-  }
-
-  // ---- Audit row cell builders — ONE shared renderer for a gate-audit row,
-  // used by both the Flat table (renderAudit) and the Grouped view's
-  // per-attempt rounds table (renderRoundsTable) so the two views can never
-  // drift on how a model-call row vs a tool-call row reads (item 1,
-  // 2026-09-26). Each `r` here is a real gate-audit row shape (either a
-  // Flat-view row off `/audit`, or a round's own `toolCalls[]` entry off
-  // `/rounds` — both carry the same fields: `kind`, `action`, `path`,
-  // `pathShort`, `decision`, `time`/`ts`, plus a model-call row's own
-  // `costUsd`/`tokens`/`durationMs`).
-  function auditIsModelCall(r){ return r.kind === "model-call"; }
-  function auditIsBlocked(r){ return !auditIsModelCall(r) && (r.decision === "block" || r.decision === "deny" || r.decision === false); }
-  function auditRoundCellHtml(r){ return (typeof r.round === "number") ? String(r.round) : "&mdash;"; }
-  function auditActionCellHtml(r){ return auditIsModelCall(r) ? "model call" : escapeXml(r.action || "unknown"); }
-  // item 2 (2026-09-26): shows the SHORT (tree-root-relative) path with the
-  // full absolute path in a `title` tooltip — never losing the full path,
-  // never showing a short path that isn't real (server sends both fields;
-  // `pathShort` falls back to `path` when no tree root was resolvable).
-  function auditPathCellHtml(r){
-    if(auditIsModelCall(r)) return "&mdash;";
-    var full = r.path || "unknown";
-    var shown = r.pathShort || r.path || "unknown";
-    return '<span title="' + escapeXml(full) + '">' + escapeXml(shown) + '</span>';
-  }
-  function auditDecisionCellHtml(r){
-    if(auditIsModelCall(r)){
-      var bits = [];
-      bits.push(typeof r.costUsd === "number" ? money(r.costUsd) : "unknown");
-      bits.push((typeof r.tokens === "number" ? r.tokens : "unknown") + " tokens");
-      bits.push(duration(r.durationMs));
-      return escapeXml(bits.join(" · "));
-    }
-    return "<span class=\"badge " + (auditIsBlocked(r) ? "red" : "green") + "\">" + (r.decision || "unknown") + "</span>";
-  }
-  function auditRowClassName(r){
-    var isModelCall = auditIsModelCall(r);
-    var isWrite = !isModelCall && (r.action === "write" || r.action === "edit");
-    var cls = isWrite ? "row-write" : "";
-    if(auditIsBlocked(r)) cls = (cls ? cls + " " : "") + "row-blocked";
-    return cls;
-  }
-
-  // item 7: tools/cache summary rows — built ONLY from replay's own already-
-  // computed `behaviour`/`memoryCache` fields (never recomputed a second way).
-  // mirrors src/behaviour.js's own displayLabel() verbatim (strip shell_/ctx_
-  // prefixes) so the panel's tool names read the SAME as `bareloop replay`'s.
-  function toolDisplayLabel(key){ return String(key).replace(/^shell_/, "").replace(/^ctx_/, ""); }
-  // item 3 (2026-09-25): EVERY tool used, with counts — no top-5 truncation
-  // (was `entries.slice(0, 5)` + "…"; the build spec calls for the full list).
-  // item 3 (2026-09-26): Run summary "model:" line — `detail.model` +
-  // `detail.provider` off job-start's own real fields (src/run.js:360/368),
-  // never guessed. `provider` is shown alongside the model only when the
-  // spine actually recorded one (e.g. "deepseek-flash (openai-api)"); a
-  // spine predating either field reads "not recorded", never a default
-  // model name.
-  function modelLine(detail){
-    if(!detail.model) return "not recorded";
-    return detail.provider ? (detail.model + " (" + detail.provider + ")") : detail.model;
-  }
-  function toolsLine(behaviour){
-    if(!behaviour) return "unknown (no log saved)";
-    if(behaviour.totalCalls === 0) return "0 calls";
-    var entries = Object.keys(behaviour.byTool).map(function(k){ return [toolDisplayLabel(k), behaviour.byTool[k]]; });
-    entries.sort(function(a,b){ return b[1] - a[1]; });
-    var all = entries.map(function(e){ return e[0] + " " + e[1]; });
-    return behaviour.totalCalls + " calls — " + all.join(" · ");
-  }
-  // item 3 (2026-09-26 revision, hamr's word): "offered" — the FULL granted-
-  // tools list from the run's own resolved spec (`job.toolsList`), shown
-  // whenever a granted list exists at all — never subtracted against what
-  // was actually used (that used/never-used split was the ORIGINAL item 3
-  // shape; hamr asked it removed in favor of just showing everything the
-  // run was offered). `null` when the spec carries no granted-tools list at
-  // all (never shown).
-  function offeredLine(toolsList){
-    if(!toolsList || !toolsList.length) return null;
-    return toolsList.join(" · ");
-  }
-  // build item B: a part card's own 2nd line — every tool used, with counts,
-  // sorted by count descending (no "N calls —" prefix, that's line 1's job).
-  // `null` byTool (no gate-audit sidecar) reads the same "unknown (no log
-  // saved)" toolsLine already uses; an empty-but-known object reads "no tools".
-  function toolBreakdownLine(byTool){
-    if(!byTool) return "unknown (no log saved)";
-    var entries = Object.keys(byTool).map(function(k){ return [toolDisplayLabel(k), byTool[k]]; });
-    if(!entries.length) return "no tools";
-    entries.sort(function(a,b){ return b[1] - a[1]; });
-    return entries.map(function(e){ return e[0] + " " + e[1]; }).join(" · ");
-  }
-  function cacheLine(memoryCache){
-    if(!memoryCache) return "not recorded";
-    var kb = (memoryCache.bytesWithheld / 1024).toFixed(1);
-    return memoryCache.pointered + " re-reads answered from memory · " + kb + " KB not re-sent";
-  }
-
-  // item 3: the Run summary and Job tab load via two independent fetches
-  // (see selectRun below) that can resolve in either order; the Job fetch is
-  // the only one this row needs now (offeredLine no longer looks at run
-  // behaviour at all), but paintOfferedRow() stays idempotent-safe to call
-  // from either render function.
-  var lastJobToolsList = null;
-  function paintOfferedRow(){
-    var row = document.getElementById("summary-offered-row");
-    var val = document.getElementById("summary-offered-val");
-    if(!row || !val) return;
-    var line = offeredLine(lastJobToolsList);
-    if(line){ val.textContent = line; row.hidden = false; }
-    else { row.hidden = true; val.textContent = ""; }
-  }
-
+  // ---- Run tab: header + summary + step map + one card per step ATTEMPT
+  // (ruling A, 2026-09-26: "no per-round parts") — built off getRunDetail's
+  // `steps[]` (declaration.steps joined with audit.jsonl attempts), never a
+  // second client-side re-derivation of the step list. ----
   function renderRun(detail){
     var name = document.getElementById("active-wf-name");
     var dot = document.getElementById("active-wf-dot");
     var verdict = document.getElementById("active-wf-verdict");
     var date = document.getElementById("active-wf-date");
 
-    if(detail.fileMissing){
-      name.textContent = detail.job + " (" + detail.runid + ")";
-      dot.className = "dot grey";
-      verdict.textContent = "unknown";
-      date.textContent = "file missing";
-      document.getElementById("run-empty").hidden = false;
-      document.getElementById("run-empty").textContent = "spine file no longer on disk";
-      document.getElementById("run-content").hidden = true;
-      document.getElementById("audit-select-empty").hidden = false;
-      document.getElementById("audit-body").hidden = true;
-      return;
-    }
-
-    document.getElementById("audit-select-empty").hidden = true;
-    document.getElementById("audit-body").hidden = false;
-
-    name.textContent = detail.job + " (" + detail.runid + ")";
+    name.textContent = detail.flow + " (" + detail.runId + ")";
     dot.className = "dot " + glyphClass(detail.glyph);
-    verdict.textContent = detail.checkType;
-    if(detail.checkTypeTitle){ verdict.title = detail.checkTypeTitle; } else { verdict.removeAttribute("title"); }
-    date.textContent = detail.date || "unknown";
+    verdict.textContent = detail.label || "unknown";
+    date.textContent = detail.at ? detail.at : (detail.outcomeWhy || "unknown");
 
     document.getElementById("run-empty").hidden = true;
     document.getElementById("run-content").hidden = false;
 
-    // died: the two REAL figures the panel has (spentUsd/wallMs, both null —
-    // no job-end means no final totals were ever recorded) are replaced with
-    // the priced-rounds/first-to-last-record FLOORS the server derived —
-    // never "unknown" when a priced round actually exists.
-    var spendText = detail.died ? (detail.spendFloorUsd === null ? "unknown" : "at least " + money(detail.spendFloorUsd)) : money(detail.spentUsd);
-    var wallText = detail.died ? (detail.wallFloorMs === null ? "unknown" : "at least " + duration(detail.wallFloorMs)) : duration(detail.wallMs);
-    // item 6 (2026-09-25): "took" for a finished (job-end reached) OR died
-    // run — both are OVER, so the wall figure is a completed duration, never
-    // an in-progress one. "elapsed" is reserved for the one state that IS
-    // still in progress: a live [▶] run (glyph "▶" and not died).
-    var isLive = detail.glyph === "▶" && !detail.died;
-    var wallPhrase = isLive ? (wallText + " elapsed") : ("took " + wallText);
-
+    // "took Xs" for a run that has stopped (a history row exists); "Xs
+    // elapsed" is reserved for a live run — data.js's computeGlyph cannot
+    // tell "running" from "died" today (M4a's own open POC question), so a
+    // run with no history row reads as a floor, never guessed into "live".
+    var capText = typeof detail.capUsd === "number" ? ("$" + detail.capUsd.toFixed(2)) : "unknown";
+    var spendText = detail.spend || "unknown — no spend recorded yet";
     document.getElementById("run-counters").innerHTML =
-      spendText + " of $" + (detail.budgetUsd === null ? "unknown" : Number(detail.budgetUsd).toFixed(2)) +
-      " &middot; " + wallPhrase;
+      escapeXml(spendText) + " of " + escapeXml(capText) + " cap";
 
     var box = document.getElementById("run-summary");
-    box.className = "summary-box " + (detail.died ? "magenta" : (detail.glyph === "✗" ? "red" : (detail.glyph === "▶" ? "amber" : "")));
-    // F196: a synthetic placeholder box (e.g. "died during planning") is a
-    // LABEL, not a real step — excluded from this count so a run that died
-    // before any step started reads "0 of 0 done" / "none started", never
-    // "0 of 1 done".
-    var rSteps = realSteps(detail.steps);
-    var stepsDone = rSteps.filter(function(s){ return s.state === "done"; }).length;
-    var stepsText = rSteps.length === 0 ? "none started" : ('<span class="num">' + stepsDone + '</span> of <span class="num">' + rSteps.length + '</span> done');
+    box.className = "summary-box " + (detail.glyph === "[✗]" ? "red" : (detail.glyph === "[·]" ? "amber" : (detail.glyph === "[?]" ? "magenta" : "")));
+    var stepBoxes = buildStepBoxes(detail.steps);
+    var stepsDone = stepBoxes.filter(function(s){ return s.state === "done"; }).length;
+    var stepsText = stepBoxes.length === 0
+      ? (detail.stepsWhy || "no steps recorded")
+      : ('<span class="num">' + stepsDone + '</span> of <span class="num">' + stepBoxes.length + '</span> done');
     box.innerHTML =
-      '<div class="summary-headline"><span class="dot ' + glyphClass(detail.glyph) + '"></span><b>' + escapeXml(detail.checkType) + '</b> &middot; ' +
-        '<span class="num">' + spendText + '</span> &middot; <span class="num">' + wallText + '</span></div>' +
-      '<div class="summary-row" data-testid="summary-model"><span class="sum-label">model:</span><span class="sum-val">' + escapeXml(modelLine(detail)) + '</span></div>' +
-      (detail.judgeModel ? '<div class="summary-row" data-testid="summary-judge"><span class="sum-label">judge:</span><span class="sum-val">' + escapeXml(detail.judgeModel) + '</span></div>' : '') +
-      '<div class="summary-row"><span class="sum-label">steps:</span><span class="sum-val">' + stepsText +
-        (detail.replans ? ' &middot; ' + detail.replans + ' replan' + (detail.replans === 1 ? '' : 's') : '') + '</span></div>' +
-      '<div class="summary-row"><span class="sum-label">why:</span><span class="sum-val">' + escapeXml(detail.stopReason || (detail.glyph === "✓" ? "run ended clean" : "not recorded")) + '</span></div>' +
-      '<div class="summary-row"><span class="sum-label">close:</span><span class="sum-val">' + escapeXml(detail.close && detail.close.verdict ? detail.close.verdict : "none — the run ended before any close ran") + '</span></div>' +
-      '<div class="summary-row" data-testid="summary-tools"><span class="sum-label">tools:</span><span class="sum-val">' + escapeXml(toolsLine(detail.behaviour)) + '</span></div>' +
-      '<div class="summary-row" data-testid="summary-offered" id="summary-offered-row" hidden><span class="sum-label">offered:</span><span class="sum-val" id="summary-offered-val"></span></div>' +
-      '<div class="summary-row" data-testid="summary-cache"><span class="sum-label">cache:</span><span class="sum-val">' + escapeXml(cacheLine(detail.memoryCache)) + '</span></div>';
+      '<div class="summary-headline"><span class="dot ' + glyphClass(detail.glyph) + '"></span><b>' + escapeXml(detail.label || "unknown") + '</b> &middot; <span class="num">' + escapeXml(spendText) + '</span></div>' +
+      '<div class="summary-row"><span class="sum-label">steps:</span><span class="sum-val">' + stepsText + '</span></div>' +
+      '<div class="summary-row" data-testid="summary-why"><span class="sum-label">why:</span><span class="sum-val">' + escapeXml(detail.stopReason || detail.stopReasonWhy || "not recorded") + '</span></div>';
 
-    paintOfferedRow();
-
-    // build item B (2026-09-26 rewrite): the map AND the card list are both
-    // built from ONE list — `detail.parts` (src/replay.js's own ordered part
-    // list) via `buildOrderedBoxes` — so they can never drift apart (F198's
-    // own bug class). Cards are SUMMARY ONLY here, never expandable — every
-    // attempt/rounds detail now lives exclusively on the Audit tab; a card
-    // (or its map box) click switches to Audit with that same part expanded
-    // and scrolled into view (build item B's click-through).
-    var isLiveRun = detail.glyph === "▶" && !detail.died;
-    var orderedBoxes = buildOrderedBoxes(detail.parts, isLiveRun);
-    renderStepMap(orderedBoxes);
-
-    var cardStepNumbers = stepNumberIndices(orderedBoxes);
+    renderStepMap(stepBoxes);
 
     var listEl = document.getElementById("step-list");
     listEl.innerHTML = "";
-    orderedBoxes.forEach(function(box, idx){
-      var part = box.part;
-      var badgeClass = box.state === "done" ? "green" : (box.state === "stopped" ? "red" : (box.state === "running" ? "amber" : (box.state === "died" ? "magenta" : "grey")));
-      var titleText = box.kind === "step" ? ((cardStepNumbers[idx] + 1) + ' &middot; ' + escapeXml(box.title)) : escapeXml(box.title);
-      var resultGlyph = partResultGlyph(part, box);
-      var line1Bits = [
-        (typeof part.rounds === "number" ? part.rounds : 0) + " call" + (part.rounds === 1 ? "" : "s"),
-        typeof part.toolCalls === "number" ? (part.toolCalls + " tool" + (part.toolCalls === 1 ? "" : "s")) : "unknown tools",
-        duration(part.wallMs),
-        part.unpricedRounds > 0 ? "unknown (" + part.unpricedRounds + " unpriced round" + (part.unpricedRounds === 1 ? "" : "s") + ")" : money(part.spentUsd),
-      ];
-      if(resultGlyph !== null) line1Bits.push(resultGlyph);
+    stepBoxes.forEach(function(box, idx){
+      var badgeClass = box.state === "done" ? "green" : (box.state === "stopped" ? "red" : (box.state === "waiting" ? "amber" : "grey"));
       var card = document.createElement("div");
-      card.className = "step-card part-card" + (box.state === "running" ? " running" : "");
-      card.setAttribute("data-testid", "part-card-" + idx);
-      card.setAttribute("tabindex", "0");
-      card.setAttribute("role", "button");
+      card.className = "step-card" + (box.state === "waiting" ? " running" : "");
+      card.setAttribute("data-testid", "step-card-" + idx);
       card.innerHTML =
-        '<div class="step-head"><h4>' + titleText + '</h4>' +
+        '<div class="step-head"><h4>' + (idx + 1) + ' &middot; ' + escapeXml(box.emits) + '</h4>' +
           '<span class="badge ' + badgeClass + '">' + escapeXml(box.state) + '</span>' +
-          (box.blocked > 0 ? '<span class="badge red" data-testid="part-blocked-badge">' + box.blocked + ' blocked</span>' : '') +
+          '<span class="badge cyan">' + escapeXml(closeClassLabel(box.closeClass)) + '</span>' +
         '</div>' +
-        '<div class="step-meta" title="a part is one piece of the run (scout, plan, a step, replan, fix, judge); a call is one model round">' + line1Bits.join(" &middot; ") + '</div>' +
-        '<div class="step-meta">' + escapeXml(toolBreakdownLine(box.part.byTool)) + '</div>';
-      listEl.appendChild(card);
-      var jumpToAudit = function(){
-        document.getElementById("tab-audit").click();
-        openAuditPart(idx);
-      };
-      card.addEventListener("click", jumpToAudit);
-      card.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); jumpToAudit(); } });
-    });
-
-    // build item C: the Audit tab's grouped-by-part view is built here too —
-    // off the SAME `detail.parts`/`buildOrderedBoxes` this function just used
-    // for the map+cards, never a second independently-fetched data source
-    // (the flat one-row-per-call table still comes from its own `/audit`
-    // fetch, wired separately in selectRun below).
-    renderAuditGroups(detail);
-  }
-
-  // build item C: Audit tab attempt row -> its rounds (server-built,
-  // lazy-fetched on expand via /api/runs/:runid/rounds?part=<i>&attempt=<n>).
-  function buildAttemptsList(container, partIndex, attempts){
-    container.innerHTML = "";
-    attempts.forEach(function(a){
-      var row = document.createElement("div");
-      row.className = "attempt-row";
-      row.setAttribute("data-testid", "audit-attempt-" + partIndex + "-" + a.n);
-      row.innerHTML =
-        '<button class="btn small attempt-toggle" type="button" aria-expanded="false">' +
-          'attempt ' + a.n + ' ' + attemptGlyph(a.outcome) +
-        '</button>' +
-        '<div class="rounds-list" hidden></div>';
-      container.appendChild(row);
-      var btn = row.querySelector(".attempt-toggle");
-      var roundsEl = row.querySelector(".rounds-list");
-      var built = false;
-      btn.addEventListener("click", function(){
-        var expanded = btn.getAttribute("aria-expanded") === "true";
-        btn.setAttribute("aria-expanded", expanded ? "false" : "true");
-        roundsEl.hidden = expanded;
-        if(!expanded && !built){
-          built = true;
-          loadRounds(roundsEl, partIndex, a, 0);
-        }
-      });
-    });
-  }
-
-  function roundsUrl(partIndex, attempt, offset){
-    var params = "part=" + encodeURIComponent(partIndex) + "&attempt=" + encodeURIComponent(attempt.n) + "&offset=" + offset;
-    return "/api/runs/" + encodeURIComponent(currentRunid) + "/rounds?" + params;
-  }
-
-  // item 1 (2026-09-26): the Grouped view's rounds render as a real TABLE,
-  // same column set as Flat minus Step (implied by the group): Round ·
-  // Action · Path · Decision · Time — reusing the SAME auditXCellHtml
-  // builders Flat's renderAudit uses, never a second hand-rolled format.
-  // A round's own model call IS a model-call row (`kind:'model-call'`) —
-  // the "round N · $cost · tokens · duration" header hamr approved renders
-  // as this table's own header ROW (`.round-header-row`, visually distinct),
-  // its tool calls following as normal rows (a denied one reads
-  // `.row-blocked`, same red as Flat).
-  function renderRoundHeaderRow(r){
-    var pseudo = {
-      kind: "model-call", round: r.n, time: r.ts,
-      costUsd: r.costUsd, tokens: r.tokens, durationMs: r.durationMs,
-    };
-    return '<tr class="round-header-row">' +
-      '<td>' + auditRoundCellHtml(pseudo) + '</td>' +
-      '<td>' + auditActionCellHtml(pseudo) + '</td>' +
-      '<td>' + auditPathCellHtml(pseudo) + '</td>' +
-      '<td>' + auditDecisionCellHtml(pseudo) + '</td>' +
-      '<td>' + escapeXml(pseudo.time || "unknown") + '</td>' +
-    '</tr>';
-  }
-  function renderRoundToolRow(tc){
-    var rowCls = auditRowClassName(tc);
-    return '<tr' + (rowCls ? ' class="' + rowCls + '"' : '') + '>' +
-      '<td>' + auditRoundCellHtml(tc) + '</td>' +
-      '<td>' + auditActionCellHtml(tc) + '</td>' +
-      '<td>' + auditPathCellHtml(tc) + '</td>' +
-      '<td>' + auditDecisionCellHtml(tc) + '</td>' +
-      '<td>' + escapeXml(tc.time || "unknown") + '</td>' +
-    '</tr>';
-  }
-  function renderRoundRows(r, toolLogSaved){
-    var rows = renderRoundHeaderRow(r);
-    if(toolLogSaved){
-      rows += (r.toolCalls && r.toolCalls.length)
-        ? r.toolCalls.map(renderRoundToolRow).join("")
-        : '<tr><td colspan="5" class="hint">no tool calls</td></tr>';
-    } else {
-      rows += '<tr><td colspan="5" class="hint">tool calls: no log saved</td></tr>';
-    }
-    return rows;
-  }
-
-  function renderRoundsPage(roundsEl, partIndex, attempt, data, appendMode){
-    var rowsHtml = data.rounds.map(function(r){ return renderRoundRows(r, data.toolLogSaved); }).join("");
-    var checkLine = data.check
-      ? '<div class="attempt-check">check: <span class="badge ' + (data.check.outcome === "green" ? "green" : "red") + '">' + escapeXml(data.check.outcome || "unknown") + '</span>' +
-        (data.check.detail ? ' — ' + escapeXml(data.check.detail) : '') + '</div>'
-      : '';
-    var shownTo = data.offset + data.rounds.length;
-    var hasMore = shownTo < data.totalRounds;
-    var pageInfo = '<div class="hint">showing ' + (data.offset + 1) + '–' + shownTo + ' of ' + data.totalRounds + '</div>';
-    var loadMoreHtml = hasMore ? '<button class="btn small rounds-load-more" type="button">load more</button>' : '';
-    if(appendMode){
-      var existingMore = roundsEl.querySelector(".rounds-load-more");
-      if(existingMore) existingMore.remove();
-      var existingInfo = roundsEl.querySelector(".rounds-page-info");
-      if(existingInfo) existingInfo.remove();
-      var tbody = roundsEl.querySelector(".rounds-table tbody");
-      tbody.insertAdjacentHTML("beforeend", rowsHtml);
-    } else {
-      roundsEl.innerHTML =
-        '<div class="audit-table-scroll"><table class="rounds-table" data-testid="rounds-table">' +
-        '<thead><tr><th>Round</th><th>Action</th><th>Path</th><th>Decision</th><th>Time</th></tr></thead>' +
-        '<tbody>' + rowsHtml + '</tbody></table></div>';
-    }
-    roundsEl.insertAdjacentHTML("beforeend", '<div class="rounds-page-info">' + pageInfo + checkLine + '</div>');
-    if(hasMore){
-      var loadMoreWrap = roundsEl.querySelector(".rounds-page-info");
-      loadMoreWrap.insertAdjacentHTML("beforeend", loadMoreHtml);
-      loadMoreWrap.querySelector(".rounds-load-more").addEventListener("click", function(){
-        loadRounds(roundsEl, partIndex, attempt, shownTo, true);
-      });
-    }
-  }
-
-  function loadRounds(roundsEl, partIndex, attempt, offset, appendMode){
-    if(!appendMode) roundsEl.innerHTML = '<div class="hint">loading…</div>';
-    getJSON(roundsUrl(partIndex, attempt, offset)).then(function(data){
-      renderRoundsPage(roundsEl, partIndex, attempt, data, !!appendMode);
-    }).catch(function(e){
-      roundsEl.innerHTML = '<div class="hint">failed to load rounds: ' + escapeXml(e.message) + '</div>';
-    });
-  }
-
-  // ---- Audit tab: GROUPED view (build item C, default) ----
-  // One collapsed row per part (build item B/C's ONE shared list,
-  // `detail.parts`), same one-line stats + blocked badge a Run-tab card
-  // shows — expand -> attempts (parts with >1, e.g. a multi-attempt step or
-  // the fix loop) or straight to a rounds table (every other part kind,
-  // which carries exactly one synthetic whole-part attempt).
-  function partHasWrites(part){
-    var bt = part.byTool;
-    if(!bt) return false;
-    return !!(bt.edit || bt.write);
-  }
-  function partLine1Text(part){
-    return [
-      (typeof part.rounds === "number" ? part.rounds : 0) + " call" + (part.rounds === 1 ? "" : "s"),
-      typeof part.toolCalls === "number" ? (part.toolCalls + " tool" + (part.toolCalls === 1 ? "" : "s")) : "unknown tools",
-      duration(part.wallMs),
-      part.unpricedRounds > 0 ? "unknown (" + part.unpricedRounds + " unpriced round" + (part.unpricedRounds === 1 ? "" : "s") + ")" : money(part.spentUsd),
-    ].join(" &middot; ");
-  }
-  var currentAuditFilter = "all";
-  function auditPartMatchesFilter(rowWrap, filter){
-    if(filter === "all") return true;
-    if(filter === "write") return rowWrap.getAttribute("data-writes") === "1";
-    if(filter === "blocked") return rowWrap.getAttribute("data-blocked") === "1";
-    return true;
-  }
-  function applyAuditFilter(filter){
-    currentAuditFilter = filter;
-    document.querySelectorAll(".audit-part").forEach(function(rowWrap){
-      var matches = auditPartMatchesFilter(rowWrap, filter);
-      rowWrap.style.display = matches ? "" : "none";
-      if(matches && filter !== "all"){
-        var btn = rowWrap.querySelector(".audit-part-toggle");
-        if(btn && btn.getAttribute("aria-expanded") !== "true") btn.click();
+        (box.goal ? '<div class="step-meta">' + escapeXml(box.goal) + '</div>' : '');
+      var attemptsWrap = document.createElement("div");
+      attemptsWrap.className = "attempts-list";
+      if(!box.attempts.length){
+        attemptsWrap.innerHTML = '<div class="hint">not attempted yet</div>';
+      } else {
+        box.attempts.forEach(function(a){
+          var row = document.createElement("div");
+          row.className = "attempt-row";
+          row.setAttribute("data-testid", "step-attempt-" + idx + "-" + a.attempt);
+          var bits = [
+            "attempt " + a.attempt + " " + attemptGlyph(a.verdict),
+            "verdict " + escapeXml(a.verdict || "unknown"),
+            money(a.cost, a.spendComplete),
+            a.model ? escapeXml(a.model) : "no model call",
+          ];
+          if(a.strike) bits.push("strike");
+          row.innerHTML = bits.join(" &middot; ") + (a.gap ? '<div class="hint">' + escapeXml(a.gap) + '</div>' : '');
+          attemptsWrap.appendChild(row);
+        });
       }
+      card.appendChild(attemptsWrap);
+      listEl.appendChild(card);
     });
   }
-  function renderAuditGroups(detail){
-    var container = document.getElementById("audit-groups");
-    container.innerHTML = "";
-    var parts = Array.isArray(detail.parts) ? detail.parts : [];
-    var isLiveRun = detail.glyph === "▶" && !detail.died;
-    var boxes = buildOrderedBoxes(parts, isLiveRun);
-    var numberMap = stepNumberIndices(boxes);
-    boxes.forEach(function(box, idx){
-      var part = box.part;
-      var titleText = box.kind === "step" ? ((numberMap[idx] + 1) + ' &middot; ' + escapeXml(box.title)) : escapeXml(box.title);
-      var badgeClass = box.state === "done" ? "green" : (box.state === "stopped" ? "red" : (box.state === "running" ? "amber" : (box.state === "died" ? "magenta" : "grey")));
-      var rowWrap = document.createElement("div");
-      rowWrap.className = "audit-part";
-      rowWrap.setAttribute("data-testid", "audit-part-" + idx);
-      if(box.blocked > 0) rowWrap.setAttribute("data-blocked", "1");
-      if(partHasWrites(part)) rowWrap.setAttribute("data-writes", "1");
-      var headBtn = document.createElement("button");
-      headBtn.type = "button";
-      headBtn.className = "btn audit-part-toggle";
-      var startExpanded = box.state === "running";
-      headBtn.setAttribute("aria-expanded", startExpanded ? "true" : "false");
-      headBtn.setAttribute("data-testid", "audit-part-toggle-" + idx);
-      var groupResultGlyph = partResultGlyph(part, box);
-      headBtn.innerHTML =
-        '<span class="badge ' + badgeClass + '">' + escapeXml(box.state) + '</span> ' + titleText + ' &middot; ' + partLine1Text(part) +
-        (groupResultGlyph !== null ? ' &middot; ' + groupResultGlyph : '') +
-        (box.blocked > 0 ? ' <span class="badge red" data-testid="audit-part-blocked-' + idx + '">' + box.blocked + ' blocked</span>' : '');
-      var body = document.createElement("div");
-      body.className = "audit-part-body";
-      body.hidden = !startExpanded;
-      body.setAttribute("data-testid", "audit-part-body-" + idx);
-      var attempts = Array.isArray(part.attempts) ? part.attempts : [];
-      var built = false;
-      var buildBody = function(){
-        built = true;
-        var toolsHeader = document.createElement("div");
-        toolsHeader.className = "hint";
-        toolsHeader.textContent = toolBreakdownLine(part.byTool);
-        body.appendChild(toolsHeader);
-        if(attempts.length > 1){
-          // parts WITH an attempt sub-loop (a multi-attempt step, or the fix
-          // loop) expand to attempt rows first — each attempt expands to its
-          // own rounds table on its own click, same as the Run tab used to.
-          var attemptsWrap = document.createElement("div");
-          attemptsWrap.className = "attempts-list";
-          body.appendChild(attemptsWrap);
-          buildAttemptsList(attemptsWrap, idx, attempts);
-        } else {
-          // parts with NO sub-loop (scout, plan, replan, judge, run, or a
-          // single-attempt step) expand STRAIGHT to their rounds table.
-          var roundsEl = document.createElement("div");
-          roundsEl.className = "rounds-list";
-          body.appendChild(roundsEl);
-          loadRounds(roundsEl, idx, attempts[0] || { n: 1 }, 0);
-        }
-      };
-      headBtn.addEventListener("click", function(){
-        var expanded = headBtn.getAttribute("aria-expanded") === "true";
-        headBtn.setAttribute("aria-expanded", expanded ? "false" : "true");
-        body.hidden = expanded;
-        if(!expanded && !built) buildBody();
-      });
-      rowWrap.appendChild(headBtn);
-      rowWrap.appendChild(body);
-      container.appendChild(rowWrap);
-      if(startExpanded && !built) buildBody(); // a live run's currently-running part opens by default
-    });
-    applyAuditFilter(currentAuditFilter);
-  }
-  // build item B: a Run-tab card (or map box) click switches to the Audit
-  // tab, that same part's row expanded and scrolled into view — sharing
-  // partIndex so the two tabs can never disagree about which row a click maps to.
-  function openAuditPart(idx){
-    setAuditView("grouped");
-    var row = document.querySelector('[data-testid="audit-part-' + idx + '"]');
-    if(!row) return;
-    var btn = row.querySelector(".audit-part-toggle");
-    if(btn && btn.getAttribute("aria-expanded") !== "true") btn.click();
-    if(typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "center" });
-  }
-  function setAuditView(view){
-    document.getElementById("audit-groups").hidden = view !== "grouped";
-    document.getElementById("audit-flat-wrap").hidden = view !== "flat";
-    document.querySelectorAll(".chip[data-view]").forEach(function(c){ c.setAttribute("aria-pressed", c.getAttribute("data-view") === view ? "true" : "false"); });
-  }
-  document.querySelectorAll(".chip[data-view]").forEach(function(chip){
-    chip.addEventListener("click", function(){ setAuditView(chip.getAttribute("data-view")); });
-  });
 
-  // ---- Audit tab: FLAT view (the old one-row-per-call time-ordered table) ----
-  var auditRowEls = [];
+  // ---- Audit tab: this run's own audit.jsonl rows only, one per step
+  // ATTEMPT (M4a scope item 2: "one row per step attempt", no round/tool-
+  // call granularity — bareloop's All/Writes/Blocked filters and its
+  // per-round table have no fwdloop book to fill them from; they are not
+  // rebuilt here, per the ladder's own ruling). ----
   function renderAudit(result){
     var empty = document.getElementById("audit-empty");
     var content = document.getElementById("audit-content");
     if(!result || result.empty){
       empty.hidden = false;
-      var reason = result ? result.reason : "no-sidecar";
-      empty.textContent = reason === "sidecar-empty"
-        ? "log saved, no tool calls recorded"
-        : "no log was saved for this run (older version)";
+      empty.textContent = (result && result.why) || "no audit rows for this run";
       content.hidden = true;
       return;
     }
@@ -1664,118 +1229,93 @@
     tbody.innerHTML = "";
     result.rows.forEach(function(r){
       var tr = document.createElement("tr");
-      var rowCls = auditRowClassName(r);
-      if(rowCls) tr.className = rowCls;
-      var roundCell = auditRoundCellHtml(r);
-      var decisionCell = auditDecisionCellHtml(r);
-      // build item C rewrite (2026-09-26): the Step cell is derived from this
-      // row's own ROUND's seq matched against `summary.parts`' own attempt
-      // windows (never phase-string guessing, never ts-guessing) —
-      // `r.partLabel` is a real part label (scout/plan/a step id/replan/fix/
-      // judge/run); `r.reason` names WHY it's null when it is: "no-round"
-      // (before the very first model call) vs "unassigned" (a round exists
-      // but its seq matched no part window).
-      var stepCell = r.partLabel === null
-        ? "<td title=\"" + (r.reason === "unassigned" ? "this round's part wasn't recorded" : "before the first model call") + "\">&mdash;</td>"
-        : "<td>" + escapeXml(r.partLabel) + (typeof r.attemptN === "number" ? " &middot; a" + r.attemptN : "") + "</td>";
-      // item 2 (2026-09-26): the Path cell shows the SHORT (tree-root-relative)
-      // path with the full absolute path in a title tooltip — a model-call row
-      // never carries a path at all (the real record: `phase:'record'`/
-      // `action.type:'llm'` has no `action.path`), so "&mdash;" says so
-      // plainly (see {@link auditPathCellHtml}).
-      var pathCell = auditPathCellHtml(r);
+      if(r.verdict !== "green" && r.verdict !== "hitl") tr.className = "row-blocked";
       tr.innerHTML =
-        "<td>" + roundCell + "</td>" +
-        stepCell +
-        "<td>" + auditActionCellHtml(r) + "</td>" +
-        "<td>" + pathCell + "</td>" +
-        "<td>" + decisionCell + "</td>" +
-        "<td>" + escapeXml(r.time || "unknown") + "</td>";
+        "<td>" + escapeXml(r.step) + "</td>" +
+        "<td>" + escapeXml(String(r.attempt)) + "</td>" +
+        "<td>" + escapeXml(closeClassLabel(r.class)) + "</td>" +
+        "<td><span class=\"badge " + (r.verdict === "green" || r.verdict === "hitl" ? "green" : "red") + "\">" + escapeXml(r.verdict || "unknown") + "</span></td>" +
+        "<td>" + escapeXml(money(r.usd, r.spendComplete)) + "</td>" +
+        "<td>" + escapeXml(r.model || "&mdash;") + "</td>" +
+        "<td>" + escapeXml(r.gap || "") + "</td>";
       tbody.appendChild(tr);
     });
-    document.getElementById("audit-rawlog").textContent = result.raw || "";
-    auditRowEls = Array.prototype.slice.call(tbody.querySelectorAll("tr"));
-    // Scoped to [data-filter] — the audit tab's OWN chips (chip-all/writes/
-    // blocked). A bare ".chip" here also matched the History filter bar's
-    // chips (same class, different data- attributes), binding a second
-    // listener on them and forcing their aria-pressed back to "true" on
-    // every click regardless of the actual toggle state (hamr's live-panel
-    // feedback, 2026-09-25: "selection is buggy", "clear doesnt work").
-    document.querySelectorAll(".chip[data-filter]").forEach(function(c){ c.setAttribute("aria-pressed", c.getAttribute("data-filter") === "all" ? "true" : "false"); });
-    auditRowEls.forEach(function(row){ row.style.display = ""; });
   }
-  document.querySelectorAll(".chip[data-filter]").forEach(function(chip){
-    chip.addEventListener("click", function(){
-      document.querySelectorAll(".chip[data-filter]").forEach(function(c){ c.setAttribute("aria-pressed","false"); });
-      chip.setAttribute("aria-pressed","true");
-      var f = chip.getAttribute("data-filter");
-      auditRowEls.forEach(function(row){
-        if(f === "all"){ row.style.display = ""; }
-        else if(f === "write"){ row.style.display = row.classList.contains("row-write") ? "" : "none"; }
-        else if(f === "blocked"){ row.style.display = row.classList.contains("row-blocked") ? "" : "none"; }
-      });
-      // same All/Writes/Blocked chip group also drives the grouped view
-      // (build item C): auto-open only the parts that match, hide the rest.
-      applyAuditFilter(f);
-    });
-  });
 
-  // ---- Job tab ----
+  // ---- Job tab: the signed prose, the arbiter block (cap, asks with TTL,
+  // redo cap, sends, sources), and the signature — read straight off
+  // getRunJob (src/panel/data.js), which reads fwdloop's own signed
+  // declaration.json + signature.json (one per flow, unlike bareloop's
+  // multi-source provenance chain — DROPPED per the M4a fit-check). ----
+  function ttlLabel(ms){
+    if(typeof ms !== "number") return "unknown";
+    return duration(ms);
+  }
   function renderJob(job){
     var empty = document.getElementById("job-empty");
     var card = document.getElementById("job-card");
-    if(!job){ empty.hidden = false; card.hidden = true; return; }
+    if(!job){ empty.hidden = false; empty.textContent = "select a run first"; card.hidden = true; return; }
+    if(!job.resolved){ empty.hidden = false; empty.textContent = job.why || "job could not be resolved"; card.hidden = true; return; }
     empty.hidden = true;
     card.hidden = false;
-    document.getElementById("details-title").textContent = "Job — " + job.job + (job.resolved ? " (signed)" : "");
-    document.getElementById("details-verdict").textContent = job.checkType;
-    var verdictEl = document.getElementById("details-verdict");
-    if(job.checkTypeTitle){ verdictEl.title = job.checkTypeTitle; } else { verdictEl.removeAttribute("title"); }
-    document.getElementById("details-model").textContent = job.model;
-    document.getElementById("details-jobname").textContent = job.job;
-    var descField = document.getElementById("details-description-field");
-    if(job.description){ descField.hidden = false; document.getElementById("details-description").textContent = job.description; }
-    else { descField.hidden = true; }
-    document.getElementById("details-goal").textContent = job.goal;
-    document.getElementById("details-success").textContent = job.success;
-    document.getElementById("details-guardrails").textContent = job.guardrails;
-    document.getElementById("details-source").textContent = job.source;
-    document.getElementById("details-dest").textContent = job.destination;
-    document.getElementById("details-tools").textContent = job.tools;
-    document.getElementById("details-cap-money").textContent = job.budgetUsd === null ? "unknown" : ("$" + Number(job.budgetUsd).toFixed(2));
-    document.getElementById("details-cap-time").textContent = job.maxWallMs === null ? "unknown" : duration(job.maxWallMs);
-    document.getElementById("job-note").textContent = job.note || "";
-    lastJobToolsList = Array.isArray(job.toolsList) ? job.toolsList : null;
-    paintOfferedRow();
+    document.getElementById("details-title").textContent = "Job — " + job.flow + " (signed)";
+    var linesEl = document.getElementById("details-lines");
+    linesEl.innerHTML = "";
+    (job.lines || []).forEach(function(l){
+      var div = document.createElement("div");
+      div.className = "field";
+      var guardHtml = l.guardrail ? ('<div class="hint">guardrail: ' + escapeXml(l.guardrail) + '</div>') : '';
+      div.innerHTML = '<div class="ro-value">' + l.n + '. ' + escapeXml(l.text) + '</div>' + guardHtml;
+      linesEl.appendChild(div);
+    });
+    var a = job.arbiter || {};
+    document.getElementById("details-cap-money").textContent = typeof a.capUsd === "number" ? ("$" + a.capUsd.toFixed(2)) : "unknown";
+    document.getElementById("details-redo-cap").textContent = typeof a.redoCap === "number" ? String(a.redoCap) : "unknown";
+    document.getElementById("details-asks").textContent = (a.asks && a.asks.length)
+      ? a.asks.map(function(ak){ return "line " + ak.line + " (" + ttlLabel(ak.ttlMs) + " wait): " + ak.question; }).join(" · ")
+      : "none";
+    document.getElementById("details-sends").textContent = (a.sends && a.sends.length)
+      ? a.sends.map(function(s){ return "line " + s.line + " -> " + s.target.kind + ":" + s.target.path; }).join(" · ")
+      : "none";
+    document.getElementById("details-sources").textContent = (a.sources && a.sources.length)
+      ? a.sources.map(function(s){ return s.role + " = " + s.kind + ":" + s.path; }).join(" · ")
+      : "none";
+    var sig = job.signature;
+    document.getElementById("details-signature").textContent = sig
+      ? (sig.signedBy + " at " + sig.signedAt + " (hash " + sig.hash.slice(0, 12) + "…)")
+      : (job.signatureWhy || "unsigned");
   }
 
   // ---- selection + loading ----
-  var currentRunid = null;
-  function selectRun(runid, rowEl, siblingSelector){
+  var currentFlow = null;
+  var currentRunId = null;
+  function selectRun(flow, runId, rowEl, siblingSelector){
     clearSelection();
     document.querySelectorAll(siblingSelector).forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
     if(rowEl){ rowEl.classList.add("selected"); rowEl.setAttribute("aria-pressed","true"); }
-    currentRunid = runid;
-    lastJobToolsList = null;
-    getJSON("/api/runs/" + encodeURIComponent(runid)).then(renderRun).catch(function(e){
+    currentFlow = flow;
+    currentRunId = runId;
+    var base = "/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId);
+    getJSON(base).then(renderRun).catch(function(e){
       document.getElementById("run-empty").hidden = false;
       document.getElementById("run-empty").textContent = "failed to load run: " + e.message;
       document.getElementById("run-content").hidden = true;
     });
-    getJSON("/api/runs/" + encodeURIComponent(runid) + "/audit").then(renderAudit).catch(function(){ renderAudit(null); });
-    getJSON("/api/runs/" + encodeURIComponent(runid) + "/job").then(renderJob).catch(function(){ renderJob(null); });
+    getJSON(base + "/audit").then(renderAudit).catch(function(){ renderAudit(null); });
+    getJSON(base + "/job").then(renderJob).catch(function(){ renderJob(null); });
   }
 
   getJSON("/api/runs").then(function(result){
-    var runs = result.runs || [];
+    var runs = result.rows || [];
     runsFilterBar.setItems(runs);
-    if(runs.length && !runs[0].fileMissing){
+    var first = runs.find(function(r){ return r.runId !== null; });
+    if(first){
       document.getElementById("tab-runs").click();
       // newest run overall, opened directly — the Workflows view starts
-      // collapsed, but its job row still renders "selected" (build item,
-      // 2026-09-26: a job row shows selected state like a child row) since
-      // `runsFilterBar.refresh()` re-renders AFTER `currentRunid` is set.
-      selectRun(runs[0].runid, null, ".hist-row");
+      // collapsed, but its flow row still renders "selected" since
+      // `runsFilterBar.refresh()` re-renders AFTER currentFlow/currentRunId
+      // are set.
+      selectRun(first.flow, first.runId, null, ".hist-row");
       document.getElementById("tab-run").click();
       runsFilterBar.refresh();
     }
