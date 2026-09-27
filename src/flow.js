@@ -20,8 +20,8 @@
 // caught and returned as a red naming the file or path involved.
 
 import {
-  accessSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync,
-  rmSync, writeFileSync,
+  accessSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync,
+  renameSync, rmSync, writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
 
@@ -135,6 +135,19 @@ export function checkRunId(runId) {
  * checked after the path is built, never trusted from the allow-list
  * alone).
  *
+ * Lexical containment (`path.resolve` plus a prefix compare) only catches a
+ * bad runId string — it does not catch a runId that *passes* the allow-list
+ * but names a symlink pointing outside `flowDir/runs/` (F36 fixed `runs/`
+ * itself being a symlink; this is the same class one level down, for an
+ * entry inside it). So once the lexical check passes, anything that
+ * actually EXISTS on disk is re-checked with `realpathSync`: `runs/` itself
+ * must realpath inside `flowDir` (mirrors F36's `readFlow` check), and — if
+ * the run dir exists — it must realpath inside the real `runs/` dir. A
+ * not-yet-existing run dir (a new run being created) has nothing to
+ * realpath yet, so only the lexical result is returned for it; the check
+ * holds at use time (here, on every call), not only at some earlier
+ * preflight.
+ *
  * @param {string} flowDir
  * @param {unknown} runId
  * @returns {{ok:true, runDir:string}|{ok:false, red:string}}
@@ -149,6 +162,33 @@ export function resolveRunDir(flowDir, runId) {
   if (resolvedRunDir !== resolvedRunsDir && !resolvedRunDir.startsWith(resolvedRunsDir + path.sep)) {
     return { ok: false, red: `run: runId "${runId}" resolves outside the runs directory — refused` };
   }
+
+  if (existsSync(runsDir)) {
+    let realRunsDir;
+    let realFlowDir;
+    try {
+      realRunsDir = realpathSync(runsDir);
+      realFlowDir = realpathSync(flowDir);
+    } catch (err) {
+      return { ok: false, red: `run: could not resolve "${runsDir}" — ${err.message}` };
+    }
+    if (realRunsDir !== realFlowDir && !realRunsDir.startsWith(realFlowDir + path.sep)) {
+      return { ok: false, red: `run: "${RUNS_DIR}" is a symlink that resolves outside the flow directory (${realRunsDir}) — refused` };
+    }
+
+    if (existsSync(runDir)) {
+      let realRunDir;
+      try {
+        realRunDir = realpathSync(runDir);
+      } catch (err) {
+        return { ok: false, red: `run: could not resolve "${runDir}" — ${err.message}` };
+      }
+      if (realRunDir !== realRunsDir && !realRunDir.startsWith(realRunsDir + path.sep)) {
+        return { ok: false, red: `run: runId "${runId}" is a symlink that resolves outside the runs directory (${realRunDir}) — refused` };
+      }
+    }
+  }
+
   return { ok: true, runDir: resolvedRunDir };
 }
 

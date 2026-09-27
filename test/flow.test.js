@@ -124,6 +124,62 @@ describe('checkRunId / resolveRunDir', () => {
     assert.equal(result.ok, true);
     assert.equal(result.runDir, path.resolve(flowDir, 'runs', 'run-1-rerun-1'));
   });
+
+  // -------------------------------------------------------------------------
+  // resolveRunDir — symlink escape one level inside runs/ (debrief 2026-09-27:
+  // a runId that passes checkRunId's allow-list, e.g. "evilrun", named a
+  // symlink under <flowDir>/runs/ pointing OUTSIDE --root; the panel's
+  // GET /api/runs/<flow>/evilrun/audit followed it and served the target's
+  // audit.jsonl. Lexical containment (path.resolve + prefix compare) never
+  // catches this — only realpathSync does.
+  // -------------------------------------------------------------------------
+
+  test('a real run directory (no symlink) still resolves fine', () => {
+    const flowDir = path.join(tmpRoot(), 'some-flow');
+    const runsDir = path.join(flowDir, 'runs');
+    const runDir = path.join(runsDir, 'run-1');
+    mkdirSync(runDir, { recursive: true });
+    const result = resolveRunDir(flowDir, 'run-1');
+    assert.equal(result.ok, true, result.ok ? '' : result.red);
+    assert.equal(result.runDir, path.resolve(runDir));
+  });
+
+  test('a run directory that does not exist yet (a new run being created) still resolves fine', () => {
+    const flowDir = path.join(tmpRoot(), 'some-flow');
+    mkdirSync(path.join(flowDir, 'runs'), { recursive: true });
+    const result = resolveRunDir(flowDir, 'brand-new-run');
+    assert.equal(result.ok, true, result.ok ? '' : result.red);
+    assert.equal(result.runDir, path.resolve(flowDir, 'runs', 'brand-new-run'));
+  });
+
+  test('a runId naming a symlink under runs/ pointing outside the flow directory is refused, not followed', () => {
+    const root = tmpRoot();
+    const flowDir = path.join(root, 'some-flow');
+    const runsDir = path.join(flowDir, 'runs');
+    mkdirSync(runsDir, { recursive: true });
+    const outside = mkdtempSync(path.join(tmpdir(), 'fwdloop-outside-'));
+    writeFileSync(path.join(outside, 'audit.jsonl'), '{"secret":true}\n');
+    const evilRunDir = path.join(runsDir, 'evilrun');
+    symlinkSync(outside, evilRunDir);
+
+    const result = resolveRunDir(flowDir, 'evilrun');
+    assert.equal(result.ok, false, 'a runId naming a symlink escaping the flow directory must be refused');
+    assert.ok(result.red.includes('evilrun'), result.red);
+    assert.ok(/symlink|outside/.test(result.red), result.red);
+  });
+
+  test('runs/ itself replaced with a symlink pointing outside the flow directory is refused', () => {
+    const root = tmpRoot();
+    const flowDir = path.join(root, 'some-flow');
+    mkdirSync(flowDir, { recursive: true });
+    const outside = mkdtempSync(path.join(tmpdir(), 'fwdloop-outside-runs-'));
+    mkdirSync(path.join(outside, 'run-1'));
+    symlinkSync(outside, path.join(flowDir, 'runs'));
+
+    const result = resolveRunDir(flowDir, 'run-1');
+    assert.equal(result.ok, false, 'a runs/ symlink escaping the flow directory must be refused');
+    assert.ok(/symlink|outside/.test(result.red), result.red);
+  });
 });
 
 // ---------------------------------------------------------------------------

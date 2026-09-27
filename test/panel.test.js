@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { test, describe, after } from 'node:test';
 import http from 'node:http';
 import {
-  mkdtempSync, mkdirSync, writeFileSync, appendFileSync, rmSync, readFileSync, readdirSync, existsSync,
+  mkdtempSync, mkdirSync, writeFileSync, appendFileSync, rmSync, readFileSync, readdirSync, existsSync, symlinkSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -1908,6 +1908,21 @@ describe('panel HTTP shell', () => {
     const r = await get(handle.port, `/api/runs/${FLOW}/..%2f..%2f..%2fetc%2fpasswd`);
     assert.ok(r.status === 400 || r.status === 404);
     assert.doesNotMatch(r.body, /root:x:/);
+  });
+
+  test('negative (v): a symlinked run dir under runs/ pointing outside root is refused, not followed (debrief 2026-09-27)', async () => {
+    const outside = mkdtempSync(path.join(tmpdir(), 'fwdloop-panel-outside-'));
+    writeFileSync(path.join(outside, 'audit.jsonl'), '{"leaked":"yes"}\n');
+    try {
+      symlinkSync(outside, path.join(FLOW_DIR, 'runs', 'evilrun'));
+      const r = await get(handle.port, `/api/runs/${FLOW}/evilrun/audit`);
+      assert.notEqual(r.status, 200, `expected the symlinked run to be refused, got 200: ${r.body}`);
+      assert.ok(r.status === 400 || r.status === 404, `expected 400/404, got ${r.status}`);
+      assert.doesNotMatch(r.body, /leaked/);
+    } finally {
+      rmSync(path.join(FLOW_DIR, 'runs', 'evilrun'), { force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
   });
 
   test('negative (v): a secret-looking env var never appears in any response', async () => {

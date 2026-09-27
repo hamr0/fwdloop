@@ -19,8 +19,10 @@
 // same things at the route level, but this module refuses on its own too
 // (negative scenario v: nothing outside `--root` is ever read).
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join, basename } from 'node:path';
+import {
+  existsSync, readdirSync, readFileSync, realpathSync,
+} from 'node:fs';
+import { join, basename, sep } from 'node:path';
 
 import {
   readFlow, listFlowNames, listRunIds, resolveRunDir, checkFlowName,
@@ -42,7 +44,18 @@ function refuse(red) {
 
 /**
  * Resolve `<root>/<flowName>` safely — `checkFlowName` first (never a raw
- * string joined into a path). Returns the flow directory, or a refusal.
+ * string joined into a path). `checkFlowName` rules out a flowName that
+ * escapes `root` lexically (no `/`, `\`, `..`), but a flow directory named
+ * by URL is not required to have come from `listFlowNames` first — a
+ * request can name a flow directly. So if `<root>/<flowName>` actually
+ * exists, it is re-checked with `realpathSync`: it must resolve inside the
+ * real `root`, same class of hole `resolveRunDir` closes for a run dir one
+ * level down (a symlinked flow directory would never show up in a
+ * `listFlowNames` listing, since a symlink dirent never reports
+ * `isDirectory()`, but a direct request naming it by its allow-list-legal
+ * name must still be refused). A not-yet-existing flow directory has
+ * nothing to realpath, so only the lexical result applies to it.
+ * Returns the flow directory, or a refusal.
  * @param {string} root
  * @param {string} flowName
  * @returns {{ok:true, flowDir:string}|{ok:false, red:string}}
@@ -50,7 +63,21 @@ function refuse(red) {
 function resolveFlowDir(root, flowName) {
   const check = checkFlowName(flowName);
   if (!check.ok) return refuse(check.red);
-  return { ok: true, flowDir: join(root, flowName) };
+  const flowDir = join(root, flowName);
+  if (existsSync(flowDir)) {
+    let realFlowDir;
+    let realRoot;
+    try {
+      realFlowDir = realpathSync(flowDir);
+      realRoot = realpathSync(root);
+    } catch (err) {
+      return refuse(`flow: could not resolve "${flowDir}" — ${err.message}`);
+    }
+    if (realFlowDir !== realRoot && !realFlowDir.startsWith(realRoot + sep)) {
+      return refuse(`flow: "${flowName}" is a symlink that resolves outside root (${realFlowDir}) — refused`);
+    }
+  }
+  return { ok: true, flowDir };
 }
 
 /**
