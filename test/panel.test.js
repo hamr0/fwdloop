@@ -81,19 +81,19 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
   const runDir = makeRunDir(FLOW_DIR, 'run-done');
   for (const row of [
     {
-      step: 'resume-text', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T13:52:04.000Z', tokens: { inputTokens: 120, outputTokens: 30, cacheReadTokens: 0 },
+      step: 'resume-text', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T13:52:04.000Z', tokens: { inputTokens: 120, outputTokens: 30, cacheReadTokens: 0 }, tools: {},
     },
     {
-      step: 'jd-text', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T13:52:05.000Z', tokens: { inputTokens: 110, outputTokens: 25, cacheReadTokens: 0 },
+      step: 'jd-text', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T13:52:05.000Z', tokens: { inputTokens: 110, outputTokens: 25, cacheReadTokens: 0 }, tools: {},
     },
     {
-      step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 500, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T13:52:06.000Z', tokens: { inputTokens: 300, outputTokens: 130, cacheReadTokens: 15 },
+      step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 500, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T13:52:06.000Z', tokens: { inputTokens: 300, outputTokens: 130, cacheReadTokens: 15 }, tools: {},
     },
     {
-      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0, spendComplete: true, wallMs: 10, model: null, modelMatch: null, strike: false, at: '2026-09-24T13:52:06.500Z', tokens: null, unjudgedCount: 0,
+      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0, spendComplete: true, wallMs: 10, model: null, modelMatch: null, strike: false, at: '2026-09-24T13:52:06.500Z', tokens: null, tools: null, unjudgedCount: 0,
     },
     {
-      step: 'resume-summary-output', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0, spendComplete: true, wallMs: 10, model: null, modelMatch: null, strike: false, at: '2026-09-24T13:52:07.000Z', tokens: null,
+      step: 'resume-summary-output', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0, spendComplete: true, wallMs: 10, model: null, modelMatch: null, strike: false, at: '2026-09-24T13:52:07.000Z', tokens: null, tools: null,
     },
   ]) appendAudit(runDir, row);
   writeJson(runDir, 'log.json', {
@@ -123,7 +123,7 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
 {
   const runDir = makeRunDir(FLOW_DIR, 'run-failed');
   appendAudit(runDir, {
-    step: 'jd-text', attempt: 1, class: 'hitl', verdict: 'not-done', gap: 'the JD could not be read — scrubbed test gap text', usd: 0.05, spendComplete: true, wallMs: 3000, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T15:24:13.283Z', tokens: { inputTokens: 400, outputTokens: 0, cacheReadTokens: 0 },
+    step: 'jd-text', attempt: 1, class: 'hitl', verdict: 'not-done', gap: 'the JD could not be read — scrubbed test gap text', usd: 0.05, spendComplete: true, wallMs: 3000, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T15:24:13.283Z', tokens: { inputTokens: 400, outputTokens: 0, cacheReadTokens: 0 }, tools: {},
   });
   writeJson(runDir, 'log.json', { runId: 'run-failed', outcome: 'not-done', red: 'jd-text: the JD could not be read — scrubbed test gap text', artifacts: {} });
   appendHistory(FLOW_DIR, {
@@ -139,10 +139,10 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
 {
   const runDir = makeRunDir(FLOW_DIR, 'run-done-after-reject');
   appendAudit(runDir, {
-    step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'missing a required section, scrubbed test gap', usd: 0.001, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-26T05:56:29.500Z', tokens: { inputTokens: 150, outputTokens: 60, cacheReadTokens: 0 },
+    step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'missing a required section, scrubbed test gap', usd: 0.001, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-26T05:56:29.500Z', tokens: { inputTokens: 150, outputTokens: 60, cacheReadTokens: 0 }, tools: {},
   });
   appendAudit(runDir, {
-    step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 400, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-26T05:56:30.000Z', tokens: { inputTokens: 300, outputTokens: 130, cacheReadTokens: 15 },
+    step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 400, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-26T05:56:30.000Z', tokens: { inputTokens: 300, outputTokens: 130, cacheReadTokens: 15 }, tools: {},
   });
   writeJson(runDir, 'log.json', { runId: 'run-done-after-reject', outcome: 'complete', artifacts: {} });
   appendHistory(FLOW_DIR, {
@@ -155,7 +155,7 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
 {
   const runDir = makeRunDir(FLOW_DIR, 'run-partial');
   appendAudit(runDir, {
-    step: 'resume-text', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: null, spendComplete: false, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T23:59:59.000Z', tokens: { inputTokens: 90, outputTokens: 20, cacheReadTokens: 0 },
+    step: 'resume-text', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: null, spendComplete: false, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T23:59:59.000Z', tokens: { inputTokens: 90, outputTokens: 20, cacheReadTokens: 0 }, tools: {},
   });
   appendHistory(FLOW_DIR, {
     runId: 'run-partial', at: '2026-09-25T00:00:00.000Z', outcome: 'not-done', spentUsd: 0.033, spendComplete: false, capUsd: 0.25, wallMs: 900, signatureHash: null,
@@ -182,10 +182,10 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
 {
   const runDir = makeRunDir(FLOW_DIR, 'run-waiting-after-earlier-gap');
   appendAudit(runDir, {
-    step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'no line is exactly the heading, scrubbed test gap', usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T03:00:00.000Z', tokens: { inputTokens: 80, outputTokens: 20, cacheReadTokens: 0 },
+    step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'no line is exactly the heading, scrubbed test gap', usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T03:00:00.000Z', tokens: { inputTokens: 80, outputTokens: 20, cacheReadTokens: 0 }, tools: {},
   });
   appendAudit(runDir, {
-    step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T03:00:01.000Z', tokens: { inputTokens: 150, outputTokens: 60, cacheReadTokens: 0 },
+    step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T03:00:01.000Z', tokens: { inputTokens: 150, outputTokens: 60, cacheReadTokens: 0 }, tools: {},
   });
   writeJson(runDir, 'ask.json', {
     askId: 'ask-waiting-2',
@@ -411,7 +411,7 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
 {
   const runDir = makeRunDir(FLOW_DIR, 'run-ask-steps');
   appendAudit(runDir, {
-    step: 'resume-text', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T10:00:00.000Z', tokens: null, unjudgedCount: 0,
+    step: 'resume-text', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T10:00:00.000Z', tokens: null, tools: null, unjudgedCount: 0,
   });
   writeAskArchive({
     runDir,
@@ -425,7 +425,7 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
     askId: 'ask-steps-1', decision: 'accept', answeredAt: '2026-09-27T10:05:00.000Z',
   });
   appendAudit(runDir, {
-    step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T10:10:00.000Z', tokens: null, unjudgedCount: 0,
+    step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T10:10:00.000Z', tokens: null, tools: null, unjudgedCount: 0,
   });
   writeAskArchive({
     runDir,
@@ -812,10 +812,10 @@ describe('getRunDetail', () => {
   test('a genuinely stopped run\'s fallback stop reason names the step, from the LAST matching audit row', () => {
     const runDir = makeRunDir(FLOW_DIR, 'run-multi-fail');
     appendAudit(runDir, {
-      step: 'jd-text', attempt: 1, class: 'hitl', verdict: 'not-done', gap: 'an EARLIER, superseded-by-later-failure gap', usd: 0.01, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T10:00:00.000Z', tokens: { inputTokens: 50, outputTokens: 10, cacheReadTokens: 0 },
+      step: 'jd-text', attempt: 1, class: 'hitl', verdict: 'not-done', gap: 'an EARLIER, superseded-by-later-failure gap', usd: 0.01, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T10:00:00.000Z', tokens: { inputTokens: 50, outputTokens: 10, cacheReadTokens: 0 }, tools: {},
     });
     appendAudit(runDir, {
-      step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'the LATEST gap, and the one that should show', usd: 0.01, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T10:00:01.000Z', tokens: { inputTokens: 50, outputTokens: 10, cacheReadTokens: 0 },
+      step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'the LATEST gap, and the one that should show', usd: 0.01, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T10:00:01.000Z', tokens: { inputTokens: 50, outputTokens: 10, cacheReadTokens: 0 }, tools: {},
     });
     // no log.json at all — a died-with-partial-audit shape; no history row either.
     const detail = getRunDetail({
@@ -849,16 +849,16 @@ describe('getRunDetail', () => {
     const runDir = makeRunDir(FLOW_DIR, 'run-ask-pause-reject-shape');
     for (const row of [
       {
-        step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:00.000Z', tokens: null, unjudgedCount: 0,
+        step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:00.000Z', tokens: null, tools: null, unjudgedCount: 0,
       },
       {
-        step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'red', gap: 'shorter work history blurb', usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:01.000Z', tokens: null, unjudgedCount: 0,
+        step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'red', gap: 'shorter work history blurb', usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:01.000Z', tokens: null, tools: null, unjudgedCount: 0,
       },
       {
-        step: 'resume-summary-approved', attempt: 2, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:02.000Z', tokens: null, unjudgedCount: 0,
+        step: 'resume-summary-approved', attempt: 2, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:02.000Z', tokens: null, tools: null, unjudgedCount: 0,
       },
       {
-        step: 'resume-summary-approved', attempt: 2, class: 'hitl', verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:03.000Z', tokens: null, unjudgedCount: 0,
+        step: 'resume-summary-approved', attempt: 2, class: 'hitl', verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:03.000Z', tokens: null, tools: null, unjudgedCount: 0,
       },
     ]) appendAudit(runDir, row);
     const detail = getRunDetail({
@@ -877,7 +877,7 @@ describe('getRunDetail', () => {
     const runDir = makeRunDir(FLOW_DIR, 'run-model-tries');
     for (let i = 1; i <= 4; i += 1) {
       appendAudit(runDir, {
-        step: 'resume-summary', attempt: i, class: 'softgreen', verdict: i < 4 ? 'not-done' : 'green', gap: i < 4 ? 'missing a section' : null, usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: `2026-09-27T01:00:0${i}.000Z`, tokens: { inputTokens: 100, outputTokens: 40, cacheReadTokens: 0 },
+        step: 'resume-summary', attempt: i, class: 'softgreen', verdict: i < 4 ? 'not-done' : 'green', gap: i < 4 ? 'missing a section' : null, usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: `2026-09-27T01:00:0${i}.000Z`, tokens: { inputTokens: 100, outputTokens: 40, cacheReadTokens: 0 }, tools: {},
       });
     }
     const detail = getRunDetail({
@@ -891,21 +891,21 @@ describe('getRunDetail', () => {
   test('M4a piece 3 fix #6: a NON-ask step\'s genuine attempt-number restart after an interleaved human reject IS labelled', () => {
     const runDir = makeRunDir(FLOW_DIR, 'run-real-reject-restart');
     appendAudit(runDir, {
-      step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'missing a section, scrubbed', usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T02:00:00.000Z', tokens: { inputTokens: 100, outputTokens: 40, cacheReadTokens: 0 },
+      step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'missing a section, scrubbed', usd: 0.001, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T02:00:00.000Z', tokens: { inputTokens: 100, outputTokens: 40, cacheReadTokens: 0 }, tools: {},
     });
     appendAudit(runDir, {
-      step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T02:00:01.000Z', tokens: { inputTokens: 200, outputTokens: 80, cacheReadTokens: 0 },
+      step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T02:00:01.000Z', tokens: { inputTokens: 200, outputTokens: 80, cacheReadTokens: 0 }, tools: {},
     });
     // the ask step parks, then the human rejects — interleaved between the
     // two "attempt 2" rows on resume-summary.
     appendAudit(runDir, {
-      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T02:00:02.000Z', tokens: null, unjudgedCount: 0,
+      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T02:00:02.000Z', tokens: null, tools: null, unjudgedCount: 0,
     });
     appendAudit(runDir, {
-      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'red', gap: 'shorter work history blurb', usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T02:00:03.000Z', tokens: null, unjudgedCount: 0,
+      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'red', gap: 'shorter work history blurb', usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T02:00:03.000Z', tokens: null, tools: null, unjudgedCount: 0,
     });
     appendAudit(runDir, {
-      step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T02:00:04.000Z', tokens: { inputTokens: 200, outputTokens: 80, cacheReadTokens: 0 },
+      step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T02:00:04.000Z', tokens: { inputTokens: 200, outputTokens: 80, cacheReadTokens: 0 }, tools: {},
     });
     const detail = getRunDetail({
       root: ROOT, flow: FLOW, runId: 'run-real-reject-restart', catalogue: CATALOGUE,
