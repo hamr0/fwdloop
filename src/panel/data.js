@@ -329,20 +329,44 @@ export function getRunDetail({
     modelWrote = { artifacts: ctx.logJson.artifacts ?? null, attempts: ctx.logJson.attempts ?? null };
   }
 
+  // A run that completed clean never shows a stop reason, full stop — an
+  // earlier attempt on some step can carry a superseded not-done/red row
+  // (a human rejected a draft, or a first pass missed the shape, and a
+  // later attempt on the SAME step went on to pass) even though the run as
+  // a whole finished clean. Checking `historyRow.outcome === 'complete'`
+  // FIRST, before ever looking at `auditRows`, is what keeps a passed run
+  // from reporting a stale, superseded failure as its own "why" (found live
+  // against `flows/`, M4a piece 3 fix #1 — a real run, not a synthetic
+  // fixture, is what caught this).
   let stopReason = null;
   let stopReasonWhy = null;
-  if (ctx.logJson && typeof ctx.logJson.red === 'string' && ctx.logJson.red.length > 0) {
+  if (ctx.historyRow && ctx.historyRow.outcome === 'complete') {
+    stopReasonWhy = 'run completed clean — there is no stop reason to show';
+  } else if (ctx.logJson && typeof ctx.logJson.red === 'string' && ctx.logJson.red.length > 0) {
     stopReason = ctx.logJson.red;
   } else {
-    const redRow = ctx.auditRows.find((r) => r.verdict === 'not-done' || r.verdict === 'red');
+    // The LAST matching row, not the first — a step can fail, then redo and
+    // fail again differently (or fail on a later step entirely); the most
+    // recent stop is the one that actually describes where the run sits now.
+    let redRow = null;
+    for (const r of ctx.auditRows) {
+      if (r.verdict === 'not-done' || r.verdict === 'red') redRow = r;
+    }
     if (redRow) {
-      stopReason = redRow.gap;
-    } else if (ctx.historyRow && ctx.historyRow.outcome === 'complete') {
-      stopReasonWhy = 'run completed clean — there is no stop reason to show';
+      stopReason = `${redRow.step}: ${redRow.gap}`;
     } else {
       stopReasonWhy = 'run has not stopped on a red/not-done step (still parked, waiting, or clean so far)';
     }
   }
+
+  // "took Xs" for a finished run (M4a piece 3 fix #5) — straight off the
+  // history row's own `wallMs` (never derived/guessed); a died/parked run
+  // (no history row) or a history row predating this field both say why
+  // rather than showing nothing.
+  const wallMs = ctx.historyRow && typeof ctx.historyRow.wallMs === 'number' ? ctx.historyRow.wallMs : null;
+  const wallMsWhy = wallMs !== null
+    ? null
+    : (ctx.historyRow ? 'history row has no wallMs recorded' : 'no history row yet (parked or died before completion)');
 
   let spend;
   if (ctx.historyRow) {
@@ -361,6 +385,8 @@ export function getRunDetail({
     outcomeWhy: ctx.historyRow ? null : 'no history row (parked or died before completion)',
     capUsd: ctx.historyRow ? ctx.historyRow.capUsd : (ctx.flowRead.ok ? ctx.flowRead.arbiter.capUsd : null),
     spend,
+    wallMs,
+    wallMsWhy,
     steps,
     stepsWhy,
     modelWrote,

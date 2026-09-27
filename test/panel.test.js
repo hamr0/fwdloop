@@ -112,6 +112,25 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
   });
 }
 
+// --- run-done-after-reject: a real M4a piece 3 fix #1 shape, caught live
+//     against `flows/` (not a synthetic edge case) — a step's early attempt
+//     carries a superseded not-done, a LATER attempt on the SAME step
+//     passes, and the run as a whole completes clean. The summary's "why"
+//     must never surface that superseded gap for a passed run. ------------
+{
+  const runDir = makeRunDir(FLOW_DIR, 'run-done-after-reject');
+  appendAudit(runDir, {
+    step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'missing a required section, scrubbed test gap', usd: 0.001, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+  });
+  appendAudit(runDir, {
+    step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 400, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+  });
+  writeJson(runDir, 'log.json', { runId: 'run-done-after-reject', outcome: 'complete', artifacts: {} });
+  appendHistory(FLOW_DIR, {
+    runId: 'run-done-after-reject', at: '2026-09-26T05:56:30.292Z', outcome: 'complete', spentUsd: 0.003, spendComplete: true, capUsd: 0.25, wallMs: 368000, signatureHash: 'deadbeef',
+  });
+}
+
 // --- run-partial: a completed history row whose own spend is a floor
 //     (spendComplete:false) — negative (iv). ------------------------------
 {
@@ -332,6 +351,47 @@ describe('getRunDetail', () => {
     });
     assert.equal(detail.glyph, '[✗]');
     assert.match(detail.stopReason, /JD could not be read/);
+  });
+
+  test('M4a piece 3 fix #1: a PASSED run never surfaces a superseded not-done from an earlier attempt as its stop reason', () => {
+    const detail = getRunDetail({
+      root: ROOT, flow: FLOW, runId: 'run-done-after-reject', catalogue: CATALOGUE,
+    });
+    assert.equal(detail.outcome, 'complete');
+    assert.equal(detail.stopReason, null);
+    assert.match(detail.stopReasonWhy, /completed clean/);
+    assert.doesNotMatch(detail.stopReasonWhy || '', /missing a required section/);
+  });
+
+  test('a genuinely stopped run\'s fallback stop reason names the step, from the LAST matching audit row', () => {
+    const runDir = makeRunDir(FLOW_DIR, 'run-multi-fail');
+    appendAudit(runDir, {
+      step: 'jd-text', attempt: 1, class: 'hitl', verdict: 'not-done', gap: 'an EARLIER, superseded-by-later-failure gap', usd: 0.01, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+    });
+    appendAudit(runDir, {
+      step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'not-done', gap: 'the LATEST gap, and the one that should show', usd: 0.01, spendComplete: true, wallMs: 100, model: 'deepseek-flash', modelMatch: 'match', strike: false,
+    });
+    // no log.json at all — a died-with-partial-audit shape; no history row either.
+    const detail = getRunDetail({
+      root: ROOT, flow: FLOW, runId: 'run-multi-fail', catalogue: CATALOGUE,
+    });
+    assert.match(detail.stopReason, /resume-summary/);
+    assert.match(detail.stopReason, /the LATEST gap/);
+    assert.doesNotMatch(detail.stopReason, /EARLIER/);
+  });
+
+  test('M4a piece 3 fix #5: wallMs comes straight from the history row, never invented', () => {
+    const done = getRunDetail({
+      root: ROOT, flow: FLOW, runId: 'run-done', catalogue: CATALOGUE,
+    });
+    assert.equal(done.wallMs, 720);
+    assert.equal(done.wallMsWhy, null);
+
+    const died = getRunDetail({
+      root: ROOT, flow: FLOW, runId: 'run-died', catalogue: CATALOGUE,
+    });
+    assert.equal(died.wallMs, null);
+    assert.match(died.wallMsWhy, /no history row/);
   });
 
   test('an unknown run returns null (caller renders 404)', () => {
