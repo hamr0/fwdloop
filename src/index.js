@@ -18,6 +18,6 @@ export {
   makeFileAskStep, answerAsk, readAskEvidence, writeAskArchive, listArchivedAsks,
 } from './ask.js';
 export {
-  appendAudit, appendHistory, readAudit, readHistory, auditRowTokens,
+  appendAudit, appendHistory, readAudit, readHistory, auditRowTokens, auditRowTools,
 } from './books.js';
 export { readSpendRows } from './provider.js';

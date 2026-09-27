@@ -424,6 +424,7 @@ function recordLateAnswerIfAny(runDir, now = () => new Date().toISOString()) {
     strike: false,
     at: now(),
     tokens: null,
+    tools: null,
     kind: 'answer-after-run',
     file,
   });
@@ -458,10 +459,19 @@ function sumKnownUsd(...values) {
 // paused, ask-timeout, refused, accept, redo-rejected) leaves it at that
 // default; every call site with a `modelStep` result passes its own
 // `result.tokens` through unchanged.
+// M4a-3 (docs/wiki/the-module-ladder.md, "M4a" section, "Amendment M4a-3 —
+// SIGNED by hamr 2026-09-27"): `tools` (a {toolName: count} tally, threaded
+// straight from `modelStep`'s own result — never re-derived here) and
+// `ungranted` (an array of tool names the model called that this step never
+// granted; omitted entirely when empty, per `src/books.js`'s own contract).
+// Both default the same way `tokens` does: every call site with no model
+// call leaves `tools` at its `null` default; every call site with a
+// `modelStep` result passes `result.tools`/`result.ungranted` through
+// unchanged.
 function makeAuditRow({
-  step, attempt, verdict, gap, usd, spendComplete, wallMs, model = null, modelMatch = null, strike, at, tokens = null,
+  step, attempt, verdict, gap, usd, spendComplete, wallMs, model = null, modelMatch = null, strike, at, tokens = null, tools = null, ungranted = /** @type {string[]|undefined} */ (undefined),
 }) {
-  return {
+  const row = {
     step: step?.emits ?? step?.goal ?? null,
     attempt,
     class: step?.close?.class ?? null,
@@ -475,7 +485,10 @@ function makeAuditRow({
     strike: !!strike,
     at,
     tokens,
+    tools,
   };
+  if (ungranted !== undefined && ungranted.length > 0) row.ungranted = ungranted;
+  return row;
 }
 
 /**
@@ -574,7 +587,7 @@ async function runStepRalph({
       // null second cost never zeroes out a known first floor.
       const usd = sumKnownUsd(attemptFloorUsd, result.costUsd);
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'provider-red', gap, usd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null,
+        step, attempt, verdict: 'provider-red', gap, usd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted,
       }), result.red ?? 'transport fault twice');
       return { ok: false, outcome: 'provider-red', red: `provider-red: step "${step.goal}" attempt ${attempt}: ${result.red ?? 'transport fault twice'}` };
     }
@@ -591,7 +604,7 @@ async function runStepRalph({
       if (strike) strikes += 1;
       const usd = sumKnownUsd(attemptFloorUsd, result?.costUsd);
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'red', gap: red, usd, spendComplete: usd !== null, wallMs, model: result?.model, modelMatch: result?.modelMatch, strike, at: now(), tokens: result?.tokens ?? null,
+        step, attempt, verdict: 'red', gap: red, usd, spendComplete: usd !== null, wallMs, model: result?.model, modelMatch: result?.modelMatch, strike, at: now(), tokens: result?.tokens ?? null, tools: result?.tools ?? null, ungranted: result?.ungranted,
       }), red);
       if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: step "${step.goal}" — ${red}` };
@@ -602,7 +615,7 @@ async function runStepRalph({
 
     if (result.costUsd === null || result.costUsd === undefined) {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'pricing-red', gap, usd: attemptFloorUsd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null,
+        step, attempt, verdict: 'pricing-red', gap, usd: attemptFloorUsd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted,
       }), result.artifact ?? null);
       return { ok: false, outcome: 'pricing-red', red: `pricing-red: step "${step.goal}" attempt ${attempt} returned no cost (never "?? 0")` };
     }
@@ -617,7 +630,7 @@ async function runStepRalph({
     const doneCheck = checkDoneBlocker(step, result.artifact);
     if (doneCheck.verdict === 'not-done') {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'not-done', gap: doneCheck.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null,
+        step, attempt, verdict: 'not-done', gap: doneCheck.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted,
       }), result.artifact ?? null);
       return { ok: false, outcome: 'not-done', red: doneCheck.red };
     }
@@ -630,7 +643,7 @@ async function runStepRalph({
       // failure) — matches poc/m2/gapback.mjs's own rule exactly.
       strikes += 1;
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'red', gap: happened.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: true, at: now(), tokens: result.tokens ?? null,
+        step, attempt, verdict: 'red', gap: happened.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: true, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted,
       }), result.artifact ?? null);
       if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: ${happened.red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: ${happened.red}` };
@@ -643,7 +656,7 @@ async function runStepRalph({
 
     if (closed.verdict === 'green' || closed.verdict === 'hitl') {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: closed.verdict, gap: null, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null,
+        step, attempt, verdict: closed.verdict, gap: null, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted,
       }), result.artifact);
       return {
         ok: true, artifact, attempts: attempt, hitl: closed.verdict === 'hitl',
@@ -654,7 +667,7 @@ async function runStepRalph({
       // A closer that renders no judgment ('unparseable'/'crash') is a
       // CASUALTY, never a red and never a strike (bareloop F17).
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'close-casualty', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null,
+        step, attempt, verdict: 'close-casualty', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted,
       }), result.artifact);
       return { ok: false, outcome: 'close-casualty', red: `close-casualty: step "${step.goal}" — ${closed.red} (${closed.verdict})` };
     }
@@ -664,7 +677,7 @@ async function runStepRalph({
     seenGaps.add(normalised);
     if (strike) strikes += 1;
     recordAudit(makeAuditRow({
-      step, attempt, verdict: 'red', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike, at: now(), tokens: result.tokens ?? null,
+      step, attempt, verdict: 'red', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted,
     }), result.artifact);
 
     if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${closed.red}` };
@@ -1558,7 +1571,7 @@ export async function resumeRun({
       // review fix 2: "a pause spends nothing" means the pause adds
       // nothing, not that the run's total resets).
       appendAudit(runDir, {
-        step: null, attempt: null, class: null, verdict: 'ask-expired', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: now(), tokens: null,
+        step: null, attempt: null, class: null, verdict: 'ask-expired', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: now(), tokens: null, tools: null,
       });
       appendHistory(flowDir, {
         runId, at: now(), outcome: 'ask-expired', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,

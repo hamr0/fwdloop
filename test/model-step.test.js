@@ -345,3 +345,169 @@ test('grantedTools are passed through to the Loop as callable tools', async () =
   assert.ok(seenToolNames.includes('read'));
   assert.ok(seenToolNames.includes('emit_artifact'));
 });
+
+// ---------------------------------------------------------------------------
+// M4a-3 (docs/wiki/the-module-ladder.md, "M4a" section, "Amendment M4a-3 —
+// SIGNED by hamr 2026-09-27"): `tools`/`ungranted` come straight from
+// bare-agent's own `result.metrics.byTool` — never inferred, never a
+// separately-maintained hook that could drift from what the Loop actually
+// dispatched.
+// ---------------------------------------------------------------------------
+
+function fakeReadWriteTool(name) {
+  return {
+    name, description: name, parameters: { type: 'object', properties: {} }, execute: async () => 'ok',
+  };
+}
+
+// Negative scenario (a): a tool call made during an attempt that is missing
+// from the row's counts is caught. This fake model spans TWO of
+// `liveModelStep`'s own OUTER rounds (round 1 calls read+write then returns
+// a bare final-text with no tool call, triggering the module's own
+// retry-once; round 2 calls read again, then emits) — each outer round
+// produces its own separate `result.metrics.byTool` and its own separate
+// `addToolCounts` call, so this is the one shape that actually exercises
+// SUMMING across rounds (a naive implementation that overwrites instead of
+// accumulates would report `read: 1`, not `read: 2`).
+test('M4a-3 (a): tools tallies every GRANTED tool call across the whole attempt, per name, exactly — never dropped, never merged', async () => {
+  const spendPath = tmpSpendPath();
+  let n = 0;
+  const provider = {
+    generate: async () => {
+      n += 1;
+      if (n === 1) {
+        // outer round 1, iteration 1: two tool calls in one internal turn
+        return {
+          text: null,
+          toolCalls: [
+            { id: 't0a', name: 'read', arguments: { path: 'a' } },
+            { id: 't0b', name: 'write', arguments: { path: 'b' } },
+          ],
+          usage: { inputTokens: 10, outputTokens: 5 },
+          stopReason: 'tool_calls',
+          model: 'deepseek-flash',
+        };
+      }
+      if (n === 2) {
+        // outer round 1, iteration 2: a bare final text, no tool call at all
+        // -> liveModelStep's own "no captured artifact" retry fires once.
+        return {
+          text: 'thinking out loud, no tool this turn',
+          toolCalls: [],
+          usage: { inputTokens: 5, outputTokens: 5 },
+          stopReason: 'stop',
+          model: 'deepseek-flash',
+        };
+      }
+      if (n === 3) {
+        // outer round 2, iteration 1: read again — must SUM with round 1's
+        // read, not overwrite it.
+        return {
+          text: null,
+          toolCalls: [{ id: 't1', name: 'read', arguments: { path: 'c' } }],
+          usage: { inputTokens: 10, outputTokens: 5 },
+          stopReason: 'tool_calls',
+          model: 'deepseek-flash',
+        };
+      }
+      // outer round 2, iteration 2: emit_artifact — success.
+      return {
+        text: null,
+        toolCalls: [{ id: 't2', name: 'emit_artifact', arguments: { text: 'ok' } }],
+        usage: { inputTokens: 5, outputTokens: 5 },
+        stopReason: 'tool_calls',
+        model: 'deepseek-flash',
+      };
+    },
+  };
+  const modelStep = makeLiveModelStep({
+    spendPath, provider, rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash',
+  });
+  const result = await modelStep(CTX, { read: fakeReadWriteTool('read'), write: fakeReadWriteTool('write') }, { class: 'hitl' });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.tools, { read: 2, write: 1 }, 'emit_artifact itself is never tallied into tools');
+  assert.equal(result.ungranted, undefined, 'nothing ungranted was ever called, so the key is absent');
+});
+
+// Negative scenario (b): a called tool the step was NOT granted is flagged
+// in `ungranted`, never silently merged into `tools` as if it had been
+// allowed and had really run. `grep` is never in `grantedTools` here, so it
+// is never even in the `tools` array Loop.run() is offered — bare-agent's
+// own "Unknown tool" path fires (loop.js: `toolMap.get` misses), the model
+// is told the tool doesn't exist, and only THEN does it call the granted
+// `read` and finally `emit_artifact`.
+test('M4a-3 (b): an ungranted tool call is flagged in "ungranted", never counted in "tools"', async () => {
+  const spendPath = tmpSpendPath();
+  let n = 0;
+  const provider = {
+    generate: async () => {
+      n += 1;
+      if (n === 1) {
+        return {
+          text: null,
+          toolCalls: [{ id: 't0', name: 'grep', arguments: { pattern: 'x' } }],
+          usage: { inputTokens: 10, outputTokens: 5 },
+          stopReason: 'tool_calls',
+          model: 'deepseek-flash',
+        };
+      }
+      if (n === 2) {
+        return {
+          text: null,
+          toolCalls: [{ id: 't1', name: 'read', arguments: { path: 'a' } }],
+          usage: { inputTokens: 10, outputTokens: 5 },
+          stopReason: 'tool_calls',
+          model: 'deepseek-flash',
+        };
+      }
+      return {
+        text: null,
+        toolCalls: [{ id: 't2', name: 'emit_artifact', arguments: { text: 'ok' } }],
+        usage: { inputTokens: 5, outputTokens: 5 },
+        stopReason: 'tool_calls',
+        model: 'deepseek-flash',
+      };
+    },
+  };
+  const modelStep = makeLiveModelStep({
+    spendPath, provider, rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash',
+  });
+  const result = await modelStep(CTX, { read: fakeReadWriteTool('read') }, { class: 'hitl' });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.ungranted, ['grep']);
+  assert.deepEqual(result.tools, { read: 1 }, '"grep" must never land in tools as if it had been allowed and had really run');
+});
+
+// Negative scenario (c) half — a NO-model-call red (the key preflight
+// failure, before any provider was ever built) carries `tools: null`, the
+// same "nothing to sum" shape `tokens: null` already carries — never `{}`
+// standing in for "no model call" and never invented.
+test('M4a-3: a no-model-call red (key preflight) carries tools:null, exactly like tokens:null', async () => {
+  const spendPath = tmpSpendPath();
+  const saved = process.env.DEEPSEEK_API_KEY;
+  delete process.env.DEEPSEEK_API_KEY;
+  try {
+    const modelStep = makeLiveModelStep({ slot: 'deepseek', model: 'deepseek-flash', spendPath });
+    const result = await modelStep(CTX, {}, { class: 'hitl' });
+    assert.equal(result.ok, false);
+    assert.equal(result.tools, null);
+    assert.equal(result.ungranted, undefined);
+  } finally {
+    if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved;
+  }
+});
+
+// A model call that never invokes any granted tool (only emit_artifact)
+// still carries a known, empty tally — `{}`, never `null` (a "no model call"
+// row is the only case that gets `null`).
+test('M4a-3: a model call that invokes no granted tool at all carries tools:{}, never null', async () => {
+  const spendPath = tmpSpendPath();
+  const modelStep = makeLiveModelStep({
+    spendPath, provider: fakeTwoRoundProvider(), rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash',
+  });
+  const result = await modelStep(CTX, {}, { class: 'hitl' });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.tools, {});
+  assert.equal(result.ungranted, undefined);
+});
+

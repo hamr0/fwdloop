@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Amendment M4a-3 (docs/wiki/the-module-ladder.md, "M4a"): every new `audit.jsonl` row also
+  carries `tools`, a `{toolName: count}` tally of every GRANTED tool the model actually invoked
+  that attempt, summed across every round — taken straight from bare-agent's own per-round
+  `result.metrics.byTool` (never a separately-maintained hook, so an unknown-tool name the model
+  hallucinated is counted the same honest way bare-agent already counts it); `{}` when the model
+  called no tool, `null` only when the row has no model call at all. A tool name the step never
+  granted is flagged in `ungranted` (an array, omitted when empty) — bare-agent refuses it before
+  `execute` ever runs, and this amendment records that refusal rather than folding it into `tools`
+  as if it had been allowed. `src/books.js`'s `appendAudit` refuses at write time an omitted
+  `tools`, a model-call row with `tools: null`, a malformed `tools`/`ungranted` shape. Rows written
+  before M4a-3 simply lack the keys; `auditRowTools(row)` (`src/books.js`, re-exported from
+  `src/index.js`) reads them back as "not recorded (before M4a-3)" rather than inventing a tally.
+  Not yet wired into the panel.
 - Amendment M4a-2 (docs/wiki/the-module-ladder.md, "M4a"): every new `audit.jsonl` row now
   carries `at` (ISO time the attempt finished) and `tokens` (`{inputTokens, outputTokens,
   cacheReadTokens}` summed over that attempt's model calls, threaded from the same per-round

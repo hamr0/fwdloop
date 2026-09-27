@@ -832,6 +832,49 @@ proven able to fail by reverting the check alone), `test/runner.live-shape.test.
 end-to-end run's audit-row token sum against its spend.jsonl sum, also proven able to fail by
 reverting the threading alone).
 
+**Amendment M4a-3 — SIGNED by hamr 2026-09-27 ("sign m4a3").** Each new audit.jsonl row also records
+`tools`: the tools that attempt's model calls actually invoked, with a count per tool (e.g. { read:
+3, write: 1 }); `{}` when the model called no tool; `null` for a row with no model call. Counts come
+straight from the model's own tool calls as the loop executes them — never inferred. Rows before
+M4a-3 read "not recorded (before M4a-3)". The panel's step card shows `tools: read 3 · write 1` with
+the signed grant beside it as `allowed: …` (panel wiring is a separate follow-up). Negative
+scenarios, each must be able to fail: (a) a tool call made during an attempt that is missing from
+the row's counts is caught (the test drives a fake model that calls tools and asserts exact counts);
+(b) a called tool that the step was NOT granted is flagged in the row (e.g. `ungranted: ["grep"]`) —
+never silently merged into the counts as if allowed; (c) an old row never shows an invented count.
+Cost $0 (tests only).
+
+Built: `src/model-step.js`'s `liveModelStep` sums `tools` the same place it already sums
+`tokens`/`costUsd`, across every round of an attempt — but the counts themselves come from
+bare-agent's OWN per-round `result.metrics.byTool`, not a separately-maintained hook (an
+`onToolCall` callback only fires for a call bare-agent's `toolMap` actually recognised, so it would
+silently miss a genuinely ungranted/hallucinated name; `byTool` counts every attempted call
+regardless of outcome, matching bare-agent's own "a denied or unknown call is still an invocation
+the operator wants to see"). A new `addToolCounts` splits each round's `byTool` against the step's
+own granted verb set (`grantedTools`'s keys) into the running `tools` tally and a de-duplicated,
+sorted `ungranted` list; `emit_artifact` itself (the step's mandatory output call, not a granted
+primitive) is excluded from both — flagged here for hamr's ruling if that reads differently, since
+the amendment text doesn't say so explicitly. `addMeter` was fixed alongside this (a real bug this
+amendment's own tests caught live): it used to return a bare `{costUsd, rounds, tokens}`, silently
+dropping `tools`/`ungranted` the moment any round after the first ran — now it carries both through
+unchanged. `src/runner.js`'s `makeAuditRow` threads `tools: result.tools ?? null` and
+`ungranted: result.ungranted` (included only when non-empty) on every attempt row, alongside
+`tokens`; every non-model-call row keeps `tools: null` by default. `src/books.js`'s `appendAudit`
+gained `checkToolsField`/`checkUngrantedField` (mirroring `checkTokensField`'s discipline: `tools`
+must not be `undefined`, may be `null` only when `model` is `null`, else a plain object of
+non-negative integers; `ungranted`, when present, must be an array of strings) and a reader helper,
+`auditRowTools(row)`, exported from `src/index.js`. Today, an ungranted tool call is refused by
+bare-agent before `tool.execute` ever runs — `[Loop] Unknown tool: <name>` is fed back to the model
+as the tool result, never real data, and the model never learns anything but that the name doesn't
+exist; this amendment records that refusal honestly rather than folding it into `tools`. Tests:
+`test/model-step.test.js` (checks (a)/(b)/no-model-call and no-tool-call shapes — (a)'s fake model
+spans two of `liveModelStep`'s own outer rounds so the assertion actually exercises summing across
+rounds, not just within one; both (a) and (b) proven able to fail by reverting `addToolCounts`
+alone), `test/books.test.js` (write-time checks and `auditRowTools`'s pre/post-M4a-3 read, each
+proven able to fail by reverting the relevant check alone). `test/panel.test.js` (owned by a
+concurrent M4 panel piece) still builds audit-row fixtures without `tools` and needs those fixtures
+updated in a follow-up — not touched here.
+
 #### M4b — inputs (does not start until M4a's exit is signed)
 
 **Scope.**

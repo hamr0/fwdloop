@@ -119,6 +119,53 @@ function checkTokensField(row, label) {
 }
 
 /**
+ * Refuse (throw) a row whose `tools` is `undefined` (never silently omitted
+ * — say `null` on purpose), or whose `tools` is `null` while `model` is not
+ * `null` (Amendment M4a-3, docs/wiki/the-module-ladder.md "M4a" section: a
+ * model-call row must carry its tool tally — mirrors `checkTokensField`'s
+ * discipline exactly), or whose non-null `tools` is not a plain object of
+ * non-negative integer counts. A row with no model call (`model: null`) may
+ * carry `tools: null` — the one honest "no model call, so no tool call
+ * either" case; a model-call row that made zero tool calls carries `tools:
+ * {}`, never `null`.
+ */
+function checkToolsField(row, label) {
+  const value = row.tools;
+  if (value === undefined) {
+    throw new Error(`${label}: "tools" must not be undefined — pass null (no model call) or a {toolName: count} object`);
+  }
+  if (value === null) {
+    if (row.model !== null && row.model !== undefined) {
+      throw new Error(`${label}: "tools" is null but "model" is "${row.model}" — a model-call row must carry its tool tally`);
+    }
+    return;
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label}: "tools" must be null or an object, got ${JSON.stringify(value)}`);
+  }
+  for (const [name, count] of Object.entries(value)) {
+    if (typeof count !== 'number' || !Number.isInteger(count) || count < 0) {
+      throw new Error(`${label}: "tools.${name}" must be a non-negative integer, got ${JSON.stringify(count)}`);
+    }
+  }
+}
+
+/**
+ * Refuse (throw) a row whose `ungranted` key is present but is not an array
+ * of strings (Amendment M4a-3: "ungranted absent or an array of strings").
+ * `ungranted` itself is optional — a row with nothing ungranted simply omits
+ * the key, never carries an empty array as noise (the caller's own choice;
+ * this check only refuses a WRONG shape, never requires the key).
+ */
+function checkUngrantedField(row, label) {
+  if (!Object.prototype.hasOwnProperty.call(row, 'ungranted')) return;
+  const value = row.ungranted;
+  if (!Array.isArray(value) || !value.every((v) => typeof v === 'string')) {
+    throw new Error(`${label}: "ungranted" must be an array of strings when present, got ${JSON.stringify(value)}`);
+  }
+}
+
+/**
  * One row per attempt (also used for one row per ask and one row per send —
  * M2 scope item 9). `row` shape: `{ step, attempt, class, verdict, gap, usd,
  * spendComplete, wallMs, model, modelMatch, strike, at, tokens }` (`at`/
@@ -133,6 +180,8 @@ export function appendAudit(runDir, row) {
   checkCostField(row, 'usd', 'appendAudit');
   checkAtField(row, 'appendAudit');
   checkTokensField(row, 'appendAudit');
+  checkToolsField(row, 'appendAudit');
+  checkUngrantedField(row, 'appendAudit');
   appendLine(join(runDir, 'audit.jsonl'), row);
 }
 
@@ -153,6 +202,24 @@ export function auditRowTokens(row) {
     return { tokens: null, why: 'not recorded (before M4a-2)' };
   }
   return { tokens: row.tokens };
+}
+
+/**
+ * Amendment M4a-3's own reader helper, the same honest-read shape as
+ * `auditRowTokens`/`auditRowAt`: a row written before M4a-3 never had a
+ * `tools` key at all, and reads as "not recorded", never as an invented
+ * empty tally. A row that does carry the key reads back exactly what was
+ * written — `tools` (object or `null`) and `ungranted` (defaulted to `[]`
+ * when the writer left it out, never `undefined`).
+ *
+ * @param {Record<string, any>} row
+ * @returns {{tools: Record<string, number> | null, ungranted: string[], why?: string}}
+ */
+export function auditRowTools(row) {
+  if (!row || !Object.prototype.hasOwnProperty.call(row, 'tools')) {
+    return { tools: null, ungranted: [], why: 'not recorded (before M4a-3)' };
+  }
+  return { tools: row.tools, ungranted: row.ungranted ?? [] };
 }
 
 /**
