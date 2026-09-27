@@ -713,239 +713,199 @@
   }
 
   // ---- Runs tab: ONE run-row builder shared by History (flat) and the
-  // Workflows view's per-job expansion (item 2, 2026-09-26 merge) — the two
-  // never drift on how a run row reads.
+  // Workflows view's per-flow expansion — the two never drift on how a run
+  // row reads. Rekeyed from bareloop's job/runid to fwdloop's flow/runId
+  // (GET /api/runs row shape: src/panel/data.js's listRuns).
   function buildRunRowEl(r){
     var row = document.createElement("div");
-    // build item (2026-09-26 fix): compute selected state here, off the
-    // module's own `currentRunid`, so a row freshly built by a RE-RENDER
-    // (switching Runs view mode, or a Workflows parent auto-expanding onto
-    // an older run picked from History) shows selected without needing a
-    // click on this exact element — `selectRun`'s imperative class toggle
-    // (used when a click passes its own `rowEl`) stays layered on top of
-    // this, never replaced by it.
-    var selected = r.runid === currentRunid;
+    // Selected state is computed here, off the module's own `currentRunId`,
+    // so a row freshly built by a RE-RENDER (switching Runs view mode, or a
+    // Workflows parent auto-expanding onto an older run picked from
+    // History) shows selected without needing a click on this exact
+    // element — `selectRun`'s imperative class toggle (used when a click
+    // passes its own `rowEl`) stays layered on top of this, never replaced.
+    var selected = r.flow === currentFlow && r.runId === currentRunId;
     row.className = "hist-row" + (selected ? " selected" : "");
-    row.setAttribute("data-testid", "hist-row-" + r.runid);
+    row.setAttribute("data-testid", "hist-row-" + r.flow + "-" + (r.runId || "none"));
     row.setAttribute("tabindex", "0");
     row.setAttribute("role", "button");
     row.setAttribute("aria-pressed", selected ? "true" : "false");
-    var histFullName = r.job + ' (' + r.runid + ')';
-    if(r.fileMissing){
+    var fullName = r.flow + (r.runId ? ' (' + r.runId + ')' : '');
+    if(r.runId === null){
+      // this flow has no runs yet — empty state names why, never a made-up row.
       row.innerHTML =
         '<span class="wf-line1"><span class="dot grey"></span>' +
-        '<span class="wf-name" title="' + escapeXml(histFullName) + '">' + escapeXml(histFullName) + '</span></span>' +
-        '<span class="wf-meta-line">' +
-        '<span class="wf-meta">file missing</span>' +
-        '<span class="wf-meta">' + escapeXml((r.at || "").slice(0,10) || "unknown") + '</span>' +
-        '</span>';
-    } else {
-      row.innerHTML =
-        '<span class="wf-line1"><span class="dot ' + glyphClass(r.glyph) + '"></span>' +
-        '<span class="wf-name" title="' + escapeXml(histFullName) + '">' + escapeXml(histFullName) + '</span></span>' +
-        '<span class="wf-meta-line">' +
-        '<span class="wf-meta">' + escapeXml(r.checkType) + '</span>' +
-        '<span class="wf-meta">' + escapeXml(r.spend) + '</span>' +
-        '<span class="wf-meta">' + escapeXml(r.wall) + '</span>' +
-        '<span class="wf-meta">' + escapeXml(r.date || "unknown") + '</span>' +
-        '</span>';
+        '<span class="wf-name" title="' + escapeXml(fullName) + '">' + escapeXml(fullName) + '</span></span>' +
+        '<span class="wf-meta-line"><span class="wf-meta">' + escapeXml(r.why || "no runs yet") + '</span></span>';
+      row.removeAttribute("tabindex");
+      row.removeAttribute("role");
+      return row;
     }
-    row.addEventListener("click", function(){ selectRun(r.runid, row, ".hist-row"); document.getElementById("tab-run").click(); scrollRunIntoViewMobile(); });
+    row.innerHTML =
+      '<span class="wf-line1"><span class="dot ' + glyphClass(r.glyph) + '"></span>' +
+      '<span class="wf-name" title="' + escapeXml(fullName) + '">' + escapeXml(fullName) + '</span></span>' +
+      '<span class="wf-meta-line">' +
+      '<span class="wf-meta">' + escapeXml(r.label || "unknown") + '</span>' +
+      '<span class="wf-meta">' + escapeXml(r.spend || r.spendWhy || "unknown") + '</span>' +
+      '<span class="wf-meta">' + escapeXml(r.at ? r.at.slice(0,10) : (r.atWhy || "unknown")) + '</span>' +
+      '</span>';
+    row.addEventListener("click", function(){ selectRun(r.flow, r.runId, row, ".hist-row"); document.getElementById("tab-run").click(); scrollRunIntoViewMobile(); });
     row.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); } });
     return row;
   }
 
-  // ---- History view ----
+  // ---- History view: every row exactly as /api/runs returned it. ----
   function renderHistory(runs){
     var el = document.getElementById("history-list");
     el.innerHTML = "";
-    var listed = (runs || []).filter(function(r){ return !r.fileMissing; });
-    if(!listed.length){
-      el.innerHTML = '<div class="hint">no runs listed yet</div>';
+    if(!(runs || []).length){
+      el.innerHTML = '<div class="hint">no runs listed yet — no flow under this root has been run</div>';
       return;
     }
-    (runs || []).forEach(function(r){ el.appendChild(buildRunRowEl(r)); });
+    runs.forEach(function(r){ el.appendChild(buildRunRowEl(r)); });
   }
 
-  // ---- Workflows view (item 2, 2026-09-26 merge): groups the ONE /api/runs
-  // payload by job name client-side — the sole owner of that grouping now
-  // (the old /api/workflows endpoint is gone; see src/panel/server.js). Runs
-  // arrive newest-first (server contract, see listRuns), so the FIRST run
-  // seen for a job is its latest — no re-sort needed, and job order (first-
-  // job-seen order) is already newest-first by construction.
-  function groupRunsByJob(runs){
-    var byJob = {};
+  // ---- Workflows view: groups the ONE /api/runs payload by flow name
+  // client-side. Runs arrive newest-first within a flow (server contract,
+  // listRuns), so the first run seen for a flow is its latest.
+  function groupRunsByFlow(runs){
+    var byFlow = {};
     var order = [];
     (runs || []).forEach(function(r){
-      if(!byJob[r.job]){ byJob[r.job] = []; order.push(r.job); }
-      byJob[r.job].push(r);
+      if(!byFlow[r.flow]){ byFlow[r.flow] = []; order.push(r.flow); }
+      byFlow[r.flow].push(r);
     });
-    return order.map(function(job){
-      var jobRuns = byJob[job];
-      var last = jobRuns[0];
+    return order.map(function(flow){
+      var flowRuns = byFlow[flow];
+      var last = flowRuns[0];
       return {
-        job: job,
-        runs: jobRuns,
-        runCount: jobRuns.length,
-        lastRunid: last.runid,
+        flow: flow,
+        runs: flowRuns,
+        runCount: last.runId === null ? 0 : flowRuns.length,
+        lastRunId: last.runId,
         lastAt: last.at,
-        lastGlyph: last.glyph || "▶",
-        lastCheckType: last.checkType || "unknown",
-        lastModel: last.model || null,
-        lastSpend: last.spend || "unknown",
-        lastWall: last.wall || "unknown",
-        lastDate: last.date,
+        lastGlyph: last.glyph,
+        lastLabel: last.label,
+        lastSpend: last.spend,
+        lastRow: last,
       };
     });
   }
 
-  // Matches a job if ANY of its runs match the filters (not only the
-  // latest) — a one-line adapter over filterRuns (never a reimplementation
-  // of the AND/OR/time/search semantics), same posture as the old
-  // filterWorkflows but now correct against the job's FULL run list.
-  function filterWorkflows(jobs, filters, nowMs){
-    return (jobs || []).filter(function(g){
+  // Matches a flow if ANY of its runs match the filters (not only the
+  // latest) — a one-line adapter over filterRuns, never a reimplementation
+  // of the AND/OR/time/search semantics.
+  function filterWorkflows(flows, filters, nowMs){
+    return (flows || []).filter(function(g){
       return filterRuns(g.runs, filters, nowMs).length > 0;
     });
   }
 
   function filtersActive(filters){
     return !!(filters && (
-      (filters.checkTypes && filters.checkTypes.length) ||
       (filters.results && filters.results.length) ||
       (filters.time && filters.time !== "all") ||
       (filters.search && String(filters.search).trim())
     ));
   }
 
-  // Pure rule (item 2 build spec): when filters/search are active, a job
-  // whose LATEST run doesn't match but an older one does auto-expands so the
-  // matching run is visible without an extra click; inactive filters never
-  // force an expand.
-  function autoExpandJob(group, matchingRuns, active){
+  // Pure rule: when filters/search are active, a flow whose LATEST run
+  // doesn't match but an older one does auto-expands so the matching run is
+  // visible without an extra click; inactive filters never force an expand.
+  function autoExpandFlow(group, matchingRuns, active){
     if(!active || !matchingRuns.length) return false;
-    var latestId = group.runs.length ? group.runs[0].runid : null;
-    var latestIncluded = matchingRuns.some(function(r){ return r.runid === latestId; });
+    var latestId = group.runs.length ? group.runs[0].runId : null;
+    var latestIncluded = matchingRuns.some(function(r){ return r.runId === latestId; });
     return !latestIncluded;
   }
 
-  // build item (2026-09-26 fix, F: parent-row/older-run mismatch): ONE owner
-  // for "which run does this parent row stand for" — both its own selected
-  // state and what its click opens read this, never two separate rules that
-  // could drift. Unfiltered (or when the latest still matches), a job's
-  // parent always stands for its latest run, same as before this fix. With
-  // a filter/search that matches an OLDER run but excludes the latest, the
-  // parent stands for the newest MATCHING run instead — so its click opens
-  // the run the search actually found, and (once picked) the parent's own
-  // selected state follows that same run rather than silently reverting to
-  // the latest.
+  // ONE owner for "which run does this parent row stand for" — both its own
+  // selected state and what its click opens read this, never two separate
+  // rules that could drift. Unfiltered (or when the latest still matches),
+  // a flow's parent always stands for its latest run. With a filter/search
+  // that matches an OLDER run but excludes the latest, the parent stands
+  // for the newest MATCHING run instead.
   function representedRun(group, candidateRuns, active){
     if(active && candidateRuns.length){
-      var latestIncluded = candidateRuns.some(function(r){ return r.runid === group.lastRunid; });
-      if(!latestIncluded) return candidateRuns[0].runid;
+      var latestIncluded = candidateRuns.some(function(r){ return r.runId === group.lastRunId; });
+      if(!latestIncluded) return candidateRuns[0].runId;
     }
-    return group.lastRunid;
+    return group.lastRunId;
   }
 
-  // Is `currentRunid` one of this job's OLDER runs (i.e. a run that
-  // belongs to this job but isn't its latest)? Selecting a run from History
-  // and switching to Workflows lands here: the job must auto-expand and its
-  // matching child row must carry the selected marker even though no
-  // filter/search is active and no click happened inside Workflows itself.
+  // Is `currentRunId` one of this flow's OLDER runs (i.e. a run that
+  // belongs to this flow but isn't its latest)? Selecting a run from
+  // History and switching to Workflows lands here: the flow must
+  // auto-expand and its matching child row must carry the selected marker
+  // even though no filter/search is active.
   function activeOlderRun(group){
-    if(!currentRunid || currentRunid === group.lastRunid) return null;
-    var found = group.runs.some(function(r){ return r.runid === currentRunid; });
-    return found ? currentRunid : null;
+    if(currentFlow !== group.flow || !currentRunId || currentRunId === group.lastRunId) return null;
+    var found = group.runs.some(function(r){ return r.runId === currentRunId; });
+    return found ? currentRunId : null;
   }
 
-  // manual expand/collapse memory, keyed by job name — survives a re-render
-  // triggered by a filter/search change within the same page load, reset on
-  // full page reload (per-viewer convenience only, never persisted). A
-  // manual collapse click still wins over auto-expand-for-selection on the
-  // next render (simplest rule: one flag, no "but selection forces it back
-  // open" special case) — collapsing a job you're not looking at any more
-  // is a normal, expected action.
+  // manual expand/collapse memory, keyed by flow name — survives a
+  // re-render triggered by a filter/search change within the same page
+  // load, reset on full page reload (per-viewer convenience only, never
+  // persisted). A manual collapse click still wins over auto-expand-for-
+  // selection on the next render.
   var wfExpanded = {};
 
-  function renderWorkflows(jobs){
+  function renderWorkflows(flows){
     var el = document.getElementById("wf-list");
     el.innerHTML = "";
-    if(!jobs.length){
-      el.innerHTML = '<div class="hint">no runs listed yet — run `bareloop run-u` or `bareloop run`, or `bareloop runs backfill <dir>`</div>';
+    if(!flows.length){
+      el.innerHTML = '<div class="hint">no runs listed yet — no flow under this root has been run</div>';
       return;
     }
     var active = filtersActive(currentRunsFilters());
-    jobs.forEach(function(g){
-      // build item (2026-09-26 fix): the parent row IS the job's latest run
-      // (clicking it opens that run), so the inline child list must be the
-      // job's OTHER runs only — never repeat the latest as its own first
-      // child. Expand affordance (caret, aria-expanded, toggle) is gated on
-      // there being a child to actually show: with filters/search active,
-      // that's the FILTERED other-runs list, so a job whose only match is
-      // its own latest run gets no caret and never expands — clicking it
-      // still opens the run, same as any job row. With no filters active
-      // this is unchanged (childRuns = all other runs, same as runCount>1).
+    flows.forEach(function(g){
+      if(g.lastRunId === null){ el.appendChild(buildRunRowEl(g.lastRow)); return; } // "this flow has no runs yet"
+      // the parent row IS the flow's latest run (clicking it opens that
+      // run), so the inline child list must be the flow's OTHER runs only.
+      // Expand affordance (caret, aria-expanded, toggle) is gated on there
+      // being a child to actually show.
       var candidateRuns = active ? filterRuns(g.runs, currentRunsFilters(), Date.now()) : g.runs;
-      var childRuns = candidateRuns.filter(function(r){ return r.runid !== g.lastRunid; });
+      var childRuns = candidateRuns.filter(function(r){ return r.runId !== g.lastRunId; });
       var hasOtherRuns = childRuns.length > 0;
-      // build item (2026-09-26 fix): auto-expand for a filter/search match
-      // on an older run (existing rule) OR because the run picked elsewhere
-      // (e.g. History) IS one of this job's older runs — either way the
-      // matching child must be visible without an extra click.
       var olderSelected = activeOlderRun(g);
-      var autoExpand = hasOtherRuns && (autoExpandJob(g, candidateRuns, active) || !!olderSelected);
-      var expanded = hasOtherRuns && (Object.prototype.hasOwnProperty.call(wfExpanded, g.job) ? wfExpanded[g.job] : autoExpand);
-      var targetRunid = representedRun(g, candidateRuns, active);
+      var autoExpand = hasOtherRuns && (autoExpandFlow(g, candidateRuns, active) || !!olderSelected);
+      var expanded = hasOtherRuns && (Object.prototype.hasOwnProperty.call(wfExpanded, g.flow) ? wfExpanded[g.flow] : autoExpand);
+      var targetRunId = representedRun(g, candidateRuns, active);
 
       var wrap = document.createElement("div");
       wrap.className = "wf-job";
 
       var row = document.createElement("div");
-      // build item (2026-09-26): a job (parent) row also opens its latest
-      // run in the Run tab, same as a child row — so it carries the same
-      // "selected" visual state a child row gets from selectRun (the class
-      // is computed HERE, at render time, rather than left on the clicked
-      // element, since this function tears down and rebuilds every wf-row
-      // on every click — see below). `targetRunid` (see `representedRun`
-      // above) is normally the latest run, so this is unchanged in the
-      // common case; a filter/search that matched an older run instead
-      // makes the parent follow THAT run once it's the selected one.
-      var isSelected = currentRunid === targetRunid;
+      // a flow (parent) row also opens its latest run in the Run tab, same
+      // as a child row — computed HERE, at render time (this function tears
+      // down and rebuilds every row on every click).
+      var isSelected = currentFlow === g.flow && currentRunId === targetRunId;
       row.className = "wf-row" + (isSelected ? " selected" : "");
-      row.setAttribute("data-wf", g.job);
-      row.setAttribute("data-testid", "wf-row-" + g.job);
+      row.setAttribute("data-wf", g.flow);
+      row.setAttribute("data-testid", "wf-row-" + g.flow);
       row.setAttribute("tabindex", "0");
       row.setAttribute("role", "button");
       row.setAttribute("aria-expanded", expanded ? "true" : "false");
       row.setAttribute("aria-pressed", isSelected ? "true" : "false");
-      var wfFullName = g.job + ' (' + g.lastRunid + ')';
+      var wfFullName = g.flow + ' (' + g.lastRunId + ')';
       row.innerHTML =
         '<span class="wf-line1"><span class="wf-caret">' + (hasOtherRuns ? (expanded ? "▼" : "▶") : "") + '</span><span class="dot ' + glyphClass(g.lastGlyph) + '"></span>' +
         '<span class="wf-name" title="' + escapeXml(wfFullName) + '">' + escapeXml(wfFullName) + '</span></span>' +
         '<span class="wf-meta-line">' +
-        '<span class="wf-meta">' + escapeXml(g.lastCheckType) + '</span>' +
-        '<span class="wf-meta">' + escapeXml(g.lastSpend) + '</span>' +
-        '<span class="wf-meta">' + escapeXml(g.lastWall) + '</span>' +
-        '<span class="wf-meta">' + escapeXml(g.lastDate || "unknown") + '</span>' +
+        '<span class="wf-meta">' + escapeXml(g.lastLabel || "unknown") + '</span>' +
+        '<span class="wf-meta">' + escapeXml(g.lastSpend || "unknown") + '</span>' +
+        '<span class="wf-meta">' + escapeXml(g.lastAt ? g.lastAt.slice(0,10) : "unknown") + '</span>' +
         '<span class="wf-meta">' + g.runCount + ' run' + (g.runCount === 1 ? '' : 's') + '</span>' +
         '</span>';
       row.addEventListener("click", function(){
-        // a single-run job has nothing to expand — the click still opens
+        // a single-run flow has nothing to expand — the click still opens
         // the run, it just never toggles `wfExpanded` for it.
-        if(hasOtherRuns) wfExpanded[g.job] = !expanded;
-        // build item (2026-09-26): clicking the parent also opens its
-        // latest run (as it did before the Workflows/History merge) — pass
-        // rowEl null since renderWorkflows(jobs) below rebuilds every row
-        // right after, so a class set directly on this element would be
-        // discarded; the fresh render marks selection off `currentRunid`
-        // instead (see `isSelected` above). build item (2026-09-26 fix):
-        // opens `targetRunid`, not always `g.lastRunid` — with a filter/
-        // search active that excludes the latest but matches an older run,
-        // that's the run the search actually found (see `representedRun`).
-        selectRun(targetRunid, null, ".hist-row");
+        if(hasOtherRuns) wfExpanded[g.flow] = !expanded;
+        selectRun(g.flow, targetRunId, null, ".hist-row");
         document.getElementById("tab-run").click();
         scrollRunIntoViewMobile();
-        renderWorkflows(jobs);
+        renderWorkflows(flows);
       });
       row.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); } });
       wrap.appendChild(row);
@@ -960,27 +920,24 @@
     });
   }
 
-  // ---- Filter bar (item 5 + hamr's 2026-09-25 live-panel feedback) ----
-  // ONE component, ONE state shape ({checkTypes, results, time}), used by
-  // BOTH the History tab (filters individual runs) and the Workflows tab
-  // (filters by each workflow's OWN latest-run fields). Compact: check type
-  // is a single letter (tooltip carries the word), result is a bare glyph
-  // (no brackets — the generic ".chip" style still wraps other chips in
-  // "[ ]"; ".fchip" turns that off), time is a short label, then "clear".
-  // No "unknown" check-type chip — runs/workflows with unknown type still
-  // show whenever no type chip is selected (checkTypes stays empty).
+  // ---- Filter bar — ONE component, ONE state shape ({results, time,
+  // search}), used by BOTH the History tab (filters individual runs) and
+  // the Workflows tab (filters by each flow's OWN latest-run fields).
+  // bareloop's checkType (deterministic/rubric) chips are dropped — fwdloop
+  // has no such concept; the result chips use fwdloop's own glyph
+  // vocabulary ([✓]/[✗]/[·]/[?] — `[▶]` never appears from listRuns today,
+  // see docs/wiki/the-module-ladder.md's M4a open POC question, so no chip
+  // for a state the books can't produce).
   function filterBarHTML(scope){
     return (
       '<div class="filterbar" data-scope="' + scope + '" data-testid="' + scope + '-filters">' +
-        '<input type="text" class="search-input" placeholder="search job, run id or model…" ' +
+        '<input type="text" class="search-input" placeholder="search flow or run id…" ' +
           'id="' + scope + '-filter-search" data-testid="' + scope + '-filter-search" autocomplete="off">' +
         '<div class="chips" role="group" aria-label="Filter">' +
-          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="checkType" data-filter-value="deterministic" title="deterministic" data-testid="chip-' + scope + '-ct-deterministic">D</button>' +
-          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="checkType" data-filter-value="rubric" title="rubric" data-testid="chip-' + scope + '-ct-rubric">R</button>' +
-          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="&#10003;" title="pass" data-testid="chip-' + scope + '-res-pass">&#10003;</button>' +
-          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="&#10007;" title="fail" data-testid="chip-' + scope + '-res-fail">&#10007;</button>' +
-          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="?" title="died" data-testid="chip-' + scope + '-res-died">?</button>' +
-          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="&#9654;" title="running" data-testid="chip-' + scope + '-res-running">&#9654;</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✓]" title="passed" data-testid="chip-' + scope + '-res-pass">✓</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✗]" title="failed" data-testid="chip-' + scope + '-res-fail">✗</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[·]" title="waiting on a human" data-testid="chip-' + scope + '-res-waiting">&middot;</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[?]" title="running or died: unknown" data-testid="chip-' + scope + '-res-unknown">?</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="7d" title="last 7 days" data-testid="chip-' + scope + '-time-7d">7d</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="30d" title="last 30 days" data-testid="chip-' + scope + '-time-30d">30d</button>' +
           '<button class="chip fchip" type="button" aria-pressed="true" data-filter-group="time" data-filter-value="all" title="all time" data-testid="chip-' + scope + '-time-all">all</button>' +
@@ -991,36 +948,29 @@
     );
   }
 
-  // Pure function: chips toggle on/off independently and combine AND across
-  // the three groups (checkType/result/time), OR within a group (an empty
-  // group array means "no filter" for that group — everything passes it).
-  // `time` is single-select, default "all". `nowMs` is injectable for tests.
-  // Field names (checkType/glyph/at) match a History run row's own shape.
-  // item 1 (2026-09-25): case-insensitive substring match on job name AND
-  // runid, combined AND with the chip groups (an empty/whitespace-only query
-  // means "no search filter" — everything passes it, same posture as an
-  // empty chip group). item C (2026-09-26): also matches the run's model
-  // name (e.g. "deepseek", "sonnet") — `model` is `null`/absent on an older
-  // archived run, same posture as a missing job/runid.
-  function matchesSearch(job, runid, model, query){
+  // Pure function: chips combine AND across the two groups (result/time),
+  // OR within a group (an empty group array means "no filter" for that
+  // group). `time` is single-select, default "all". `nowMs` is injectable
+  // for tests. Field names (flow/runId/glyph/at) match a run row's own
+  // shape (src/panel/data.js's listRuns). Search is case-insensitive
+  // substring match on flow name AND runId.
+  function matchesSearch(flow, runId, query){
     if(!query) return true;
     var q = String(query).trim().toLowerCase();
     if(!q) return true;
-    var j = String(job || "").toLowerCase();
-    var r = String(runid || "").toLowerCase();
-    var m = String(model || "").toLowerCase();
-    return j.indexOf(q) !== -1 || r.indexOf(q) !== -1 || m.indexOf(q) !== -1;
+    var f = String(flow || "").toLowerCase();
+    var r = String(runId || "").toLowerCase();
+    return f.indexOf(q) !== -1 || r.indexOf(q) !== -1;
   }
   function filterRuns(runs, filters, nowMs){
     nowMs = (typeof nowMs === "number") ? nowMs : Date.now();
-    var ct = (filters && filters.checkTypes) || [];
     var rs = (filters && filters.results) || [];
     var time = (filters && filters.time) || "all";
     var q = (filters && filters.search) || "";
     return (runs || []).filter(function(r){
-      if(ct.length && ct.indexOf(r.checkType) === -1) return false;
+      if(r.runId === null) return true; // the "this flow has no runs yet" row always shows
       if(rs.length && rs.indexOf(r.glyph) === -1) return false;
-      if(!matchesSearch(r.job, r.runid, r.model, q)) return false;
+      if(!matchesSearch(r.flow, r.runId, q)) return false;
       if(time !== "all"){
         var days = time === "7d" ? 7 : 30;
         var t = typeof r.at === "string" ? Date.parse(r.at) : NaN;
@@ -1040,7 +990,7 @@
   function createFilterBar(opts){
     var scope = opts.scope;
     var storageKey = opts.storageKey;
-    var state = { checkTypes: [], results: [], time: "all", search: "" };
+    var state = { results: [], time: "all", search: "" };
     var allItems = [];
 
     function load(){
@@ -1050,7 +1000,6 @@
           var parsed = JSON.parse(raw);
           if(parsed && typeof parsed === "object"){
             state = {
-              checkTypes: Array.isArray(parsed.checkTypes) ? parsed.checkTypes : [],
               results: Array.isArray(parsed.results) ? parsed.results : [],
               time: typeof parsed.time === "string" ? parsed.time : "all",
               search: typeof parsed.search === "string" ? parsed.search : "",
@@ -1066,10 +1015,7 @@
       document.querySelectorAll('.filterbar[data-scope="' + scope + '"] .chip[data-filter-group]').forEach(function(chip){
         var group = chip.getAttribute("data-filter-group");
         var value = chip.getAttribute("data-filter-value");
-        var active;
-        if(group === "time"){ active = state.time === value; }
-        else if(group === "checkType"){ active = state.checkTypes.indexOf(value) !== -1; }
-        else { active = state.results.indexOf(value) !== -1; }
+        var active = group === "time" ? state.time === value : state.results.indexOf(value) !== -1;
         chip.setAttribute("aria-pressed", active ? "true" : "false");
       });
       var searchEl = document.getElementById(scope + "-filter-search");
@@ -1087,12 +1033,9 @@
         var value = chip.getAttribute("data-filter-value");
         if(group === "time"){
           state.time = value; // single-select within time
-        } else if(group === "checkType"){
-          var idx = state.checkTypes.indexOf(value);
-          if(idx === -1) state.checkTypes.push(value); else state.checkTypes.splice(idx, 1);
-        } else if(group === "result"){
-          var idx2 = state.results.indexOf(value);
-          if(idx2 === -1) state.results.push(value); else state.results.splice(idx2, 1);
+        } else {
+          var idx = state.results.indexOf(value);
+          if(idx === -1) state.results.push(value); else state.results.splice(idx, 1);
         }
         paint();
         save();
@@ -1102,7 +1045,7 @@
     var clearBtn = document.getElementById(scope + "-filter-clear");
     if(clearBtn){
       clearBtn.addEventListener("click", function(){
-        state = { checkTypes: [], results: [], time: "all", search: "" };
+        state = { results: [], time: "all", search: "" };
         paint();
         save();
         apply();
@@ -1126,9 +1069,8 @@
     };
   }
 
-  // item 2 (2026-09-26 merge): Workflows/History view-mode memory — same
-  // per-viewer-convenience posture as every other localStorage read/write on
-  // this page (try/catch, never assumed available).
+  // Workflows/History view-mode memory — same per-viewer-convenience
+  // posture as every other localStorage read/write on this page.
   var RUNS_VIEW_KEY = "fwdloop-panel-runs-view";
   function loadRunsViewMode(){
     try{
@@ -1141,15 +1083,15 @@
     try{ localStorage.setItem(RUNS_VIEW_KEY, v); }catch(e){ /* best-effort only */ }
   }
 
-  // item 2 (2026-09-26 merge): ONE shared filter bar drives whichever view
-  // (Workflows/History) is currently on — one scope, one localStorage key,
-  // so switching views never loses the search/chip state.
+  // ONE shared filter bar drives whichever view (Workflows/History) is
+  // currently on — one scope, one localStorage key, so switching views
+  // never loses the search/chip state.
   document.getElementById("runs-filterbar-anchor").innerHTML = filterBarHTML("runs");
 
   var runsViewMode = loadRunsViewMode();
   function runsFilterFn(items, filters, nowMs){
     if(runsViewMode === "history") return filterRuns(items, filters, nowMs);
-    return filterWorkflows(groupRunsByJob(items), filters, nowMs);
+    return filterWorkflows(groupRunsByFlow(items), filters, nowMs);
   }
   function runsApplyFn(filtered){
     if(runsViewMode === "history") renderHistory(filtered);
@@ -1162,7 +1104,7 @@
     applyFn: runsApplyFn,
   });
   function currentRunsFilters(){
-    return runsFilterBar ? runsFilterBar.getState() : { checkTypes: [], results: [], time: "all", search: "" };
+    return runsFilterBar ? runsFilterBar.getState() : { results: [], time: "all", search: "" };
   }
   function paintRunsViewToggle(){
     document.querySelectorAll('.chip[data-runs-view]').forEach(function(c){
