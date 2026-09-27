@@ -88,7 +88,7 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
       step: 'resume-summary', attempt: 1, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 500, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-24T13:52:06.000Z', tokens: { inputTokens: 300, outputTokens: 130, cacheReadTokens: 15 },
     },
     {
-      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0, spendComplete: true, wallMs: 10, model: null, modelMatch: null, strike: false, at: '2026-09-24T13:52:06.500Z', tokens: null,
+      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0, spendComplete: true, wallMs: 10, model: null, modelMatch: null, strike: false, at: '2026-09-24T13:52:06.500Z', tokens: null, unjudgedCount: 0,
     },
     {
       step: 'resume-summary-output', attempt: 1, class: 'hitl', verdict: 'hitl', gap: null, usd: 0, spendComplete: true, wallMs: 10, model: null, modelMatch: null, strike: false, at: '2026-09-24T13:52:07.000Z', tokens: null,
@@ -403,30 +403,39 @@ describe('deriveRunModel (hamr review #1/#7: model on the Summary/Job tabs)', ()
   });
 });
 
-describe('deriveAuditAction (hamr review #6: the Audit tab Action column)', () => {
-  test('a row with a model is "model call (<model>)"', () => {
-    assert.equal(deriveAuditAction({ verdict: 'green', model: 'deepseek-flash', class: 'softgreen' }), 'model call (deepseek-flash)');
+describe('deriveAuditAction (hamr review #6, tightened by hamr\'s 2026-09-27 live check: exactly "model call" / "human" / "no model call")', () => {
+  test('a row with a model is "model call" — no model name in this column', () => {
+    assert.equal(deriveAuditAction({ verdict: 'green', model: 'deepseek-flash', class: 'softgreen' }), 'model call');
   });
 
-  test('a paused row is "paused for you", even if it somehow also carried a model', () => {
-    assert.equal(deriveAuditAction({ verdict: 'paused', model: null, class: 'hitl' }), 'paused for you');
-    assert.equal(deriveAuditAction({ verdict: 'paused', model: 'deepseek-flash', class: 'hitl' }), 'paused for you');
+  test('an ask-slot row (carries unjudgedCount) is "human" — paused, and every one of the human\'s own accept/reject/rerun/refused answers', () => {
+    assert.equal(deriveAuditAction({
+      verdict: 'paused', model: null, class: 'hitl', unjudgedCount: 0,
+    }), 'human');
+    assert.equal(deriveAuditAction({
+      verdict: 'green', model: null, class: 'hitl', unjudgedCount: 2,
+    }), 'human');
+    assert.equal(deriveAuditAction({
+      verdict: 'red', model: null, class: 'hitl', unjudgedCount: 0,
+    }), 'human');
+    assert.equal(deriveAuditAction({
+      verdict: 'refused', model: null, class: 'hitl', unjudgedCount: 0,
+    }), 'human');
   });
 
-  test('a hitl-classed row with no model is "human"', () => {
-    assert.equal(deriveAuditAction({ verdict: 'hitl', model: null, class: 'hitl' }), 'human');
-    assert.equal(deriveAuditAction({ verdict: 'red', model: null, class: 'hitl' }), 'human');
+  test('THE BUG THIS FIXES: a non-ask hitl step (e.g. a write step — hitl class, no model, NOT bound to the signed ask line) is "no model call", never "human" — class alone can\'t tell them apart, only unjudgedCount can', () => {
+    assert.equal(deriveAuditAction({ verdict: 'hitl', model: null, class: 'hitl' }), 'no model call');
+    assert.equal(deriveAuditAction({ verdict: 'green', model: null, class: 'hitl' }), 'no model call');
   });
 
-  test('a mechanical row with no model and no hitl class falls back to its own verdict word, never "unknown action"', () => {
-    assert.equal(deriveAuditAction({ verdict: 'not-done', model: null, class: 'softgreen' }), 'not-done');
-    assert.notEqual(deriveAuditAction({ verdict: 'not-done', model: null, class: 'softgreen' }), 'unknown action');
+  test('a mechanical row with no model, no unjudgedCount, and no hitl class is also "no model call" — never invented, never "unknown action"', () => {
+    assert.equal(deriveAuditAction({ verdict: 'not-done', model: null, class: 'softgreen' }), 'no model call');
+    assert.equal(deriveAuditAction({ verdict: 'cap-halt', model: null, class: null }), 'no model call');
   });
 
-  test('proof this can fail: reverting to a fixed "unknown action" string for every row breaks the model-call assertion above', () => {
-    // This test documents the red line the real fix removes — see the report
-    // for the actual revert-and-restore proof (this file doesn't re-run git).
-    assert.notEqual(deriveAuditAction({ verdict: 'green', model: 'deepseek-flash', class: 'softgreen' }), 'unknown action');
+  test('PROOF (this can fail): keying off row.class === "hitl" instead of unjudgedCount (the old, buggy rule) would mislabel the write-step row above as "human"', () => {
+    const writeStepRow = { verdict: 'hitl', model: null, class: 'hitl' };
+    assert.notEqual(deriveAuditAction(writeStepRow), 'human');
   });
 });
 
@@ -640,16 +649,16 @@ describe('getRunDetail', () => {
     const runDir = makeRunDir(FLOW_DIR, 'run-ask-pause-reject-shape');
     for (const row of [
       {
-        step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:00.000Z', tokens: null,
+        step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:00.000Z', tokens: null, unjudgedCount: 0,
       },
       {
-        step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'red', gap: 'shorter work history blurb', usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:01.000Z', tokens: null,
+        step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'red', gap: 'shorter work history blurb', usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:01.000Z', tokens: null, unjudgedCount: 0,
       },
       {
-        step: 'resume-summary-approved', attempt: 2, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:02.000Z', tokens: null,
+        step: 'resume-summary-approved', attempt: 2, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:02.000Z', tokens: null, unjudgedCount: 0,
       },
       {
-        step: 'resume-summary-approved', attempt: 2, class: 'hitl', verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:03.000Z', tokens: null,
+        step: 'resume-summary-approved', attempt: 2, class: 'hitl', verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T00:00:03.000Z', tokens: null, unjudgedCount: 0,
       },
     ]) appendAudit(runDir, row);
     const detail = getRunDetail({
@@ -690,10 +699,10 @@ describe('getRunDetail', () => {
     // the ask step parks, then the human rejects — interleaved between the
     // two "attempt 2" rows on resume-summary.
     appendAudit(runDir, {
-      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T02:00:02.000Z', tokens: null,
+      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T02:00:02.000Z', tokens: null, unjudgedCount: 0,
     });
     appendAudit(runDir, {
-      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'red', gap: 'shorter work history blurb', usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T02:00:03.000Z', tokens: null,
+      step: 'resume-summary-approved', attempt: 1, class: 'hitl', verdict: 'red', gap: 'shorter work history blurb', usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-27T02:00:03.000Z', tokens: null, unjudgedCount: 0,
     });
     appendAudit(runDir, {
       step: 'resume-summary', attempt: 2, class: 'softgreen', verdict: 'green', gap: null, usd: 0.002, spendComplete: true, wallMs: 200, model: 'deepseek-flash', modelMatch: 'match', strike: false, at: '2026-09-27T02:00:04.000Z', tokens: { inputTokens: 200, outputTokens: 80, cacheReadTokens: 0 },
@@ -781,13 +790,23 @@ describe('getRunAudit', () => {
     assert.equal(getRunAudit({ root: ROOT, flow: FLOW, runId: '..' }), null);
   });
 
-  test('hamr review #6: every row carries a server-derived action, never "unknown action"', () => {
+  test('hamr review #6, tightened by hamr\'s 2026-09-27 live check: every row carries a server-derived action ("model call"/"human"/"no model call"), never a model name and never "unknown action"', () => {
     const result = getRunAudit({ root: ROOT, flow: FLOW, runId: 'run-done' });
     const summaryRow = result.rows.find((r) => r.step === 'resume-summary');
-    assert.equal(summaryRow.action, 'model call (deepseek-flash)');
+    assert.equal(summaryRow.action, 'model call');
+    // resume-summary-approved is the signed ask slot (fromLine 4) — its own
+    // row carries unjudgedCount, so it's "human".
     const approvedRow = result.rows.find((r) => r.step === 'resume-summary-approved');
     assert.equal(approvedRow.action, 'human');
-    for (const r of result.rows) assert.notEqual(r.action, 'unknown action');
+    // THE BUG hamr caught live: resume-summary-output is a plain WRITE step
+    // (hitl class, no model, NOT bound to the ask line) — it must be "no
+    // model call", never "human" (class alone can't tell them apart).
+    const outputRow = result.rows.find((r) => r.step === 'resume-summary-output');
+    assert.equal(outputRow.action, 'no model call');
+    for (const r of result.rows) {
+      assert.notEqual(r.action, 'unknown action');
+      assert.doesNotMatch(r.action, /\(/); // never a model name embedded in this column
+    }
   });
 
   test('hamr review #1: no tool-call-count field on any row — no fwdloop book has one', () => {
@@ -820,7 +839,7 @@ describe('getRunAudit', () => {
     assert.deepEqual(row.tokensDisplay, { kind: 'not-recorded' });
     assert.match(row.atWhy, /not recorded \(before M4a-2\)/);
     assert.equal(row.at, undefined);
-    assert.equal(row.action, 'model call (deepseek-flash)');
+    assert.equal(row.action, 'model call');
   });
 
   test('PROOF (item d can fail): reverting deriveAuditAtWhy to always return null would make the pre-M4a-2 row above report no why at all', () => {

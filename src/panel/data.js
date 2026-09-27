@@ -192,31 +192,33 @@ export function deriveRunModel(auditRows) {
 }
 
 /**
- * The Audit tab's "Action" column (hamr's review #6): derived STRICTLY from
- * a row's own fields, never guessed and never "unknown action" — every
- * shape `src/runner.js`/`src/books.js` can actually write resolves to a
- * named action:
- *  - a `paused` verdict is the run handing off to a human ask right now —
- *    "paused for you", regardless of close class (a pause carries no model).
- *  - a row with a non-empty `model` field is a real model call — "model
- *    call (<model>)" (the exact model the row itself named, never a
- *    catalogue default).
- *  - a `hitl`-classed row with NO model (an ask step's own resolution —
- *    accept/reject/hitl/refused/an expiry) is a human's own action —
- *    "human".
- *  - anything else with no model and no hitl class (a mechanical
- *    green/not-done/red close with no model call recorded, or a crash-like
- *    stop) falls back to the row's own verdict word — never invented, and
- *    never the disallowed "unknown action" string.
+ * The Audit tab's "Action" column (hamr's review #6, tightened by hamr's
+ * 2026-09-27 live check): exactly three words, derived STRICTLY from a
+ * row's own fields — never the step name/id, never a model name, never
+ * "unknown action":
+ *  - "model call" — a row with a non-empty `model` field (the model itself
+ *    still shows in the Cost/Verdict area elsewhere; this column names only
+ *    the KIND of action).
+ *  - "human" — an ask-slot row: `src/runner.js`'s `runAskSlot` is the ONLY
+ *    place that ever passes a third argument (`unjudgedCount`) into
+ *    `recordAudit`, so `Object.prototype.hasOwnProperty.call(row,
+ *    'unjudgedCount')` is true for exactly that step's own rows (paused,
+ *    and the human's own accept/reject/rerun/refused answers) and false for
+ *    every other row shape in the book — a real, always-present marker
+ *    (`unjudgedCount` is a number, 0 included, never omitted on an ask row),
+ *    never the step's close class (a NON-ask hitl step, e.g. a plain write
+ *    step, is ALSO `class:'hitl'` — that was the exact bug this replaces:
+ *    class alone can't tell "the ask" apart from "any other hitl step").
+ *  - "no model call" — everything else: a mechanical green/not-done/red
+ *    close, a cap-halt, a send confirmation, a non-ask hitl pass-through
+ *    (e.g. a write step) — no model ran and no human answered THIS row.
  * @param {any} row one `audit.jsonl` row
- * @returns {string}
+ * @returns {'model call'|'human'|'no model call'}
  */
 export function deriveAuditAction(row) {
-  if (row?.verdict === 'paused') return 'paused for you';
-  if (typeof row?.model === 'string' && row.model.length > 0) return `model call (${row.model})`;
-  if (row?.class === 'hitl') return 'human';
-  if (typeof row?.verdict === 'string' && row.verdict.length > 0) return row.verdict;
-  return 'no action recorded';
+  if (row && Object.prototype.hasOwnProperty.call(row, 'unjudgedCount')) return 'human';
+  if (typeof row?.model === 'string' && row.model.length > 0) return 'model call';
+  return 'no model call';
 }
 
 /**
