@@ -2294,3 +2294,56 @@ not killed by it: M4b's Inbox screen (or M4a's own Inbox render, if it lands ear
 UI work M4a/M4b already have to write — not a signed amendment to the books.
 
 **Cost.** $0. M4a $0.00 of $0.00 cap (no paid calls in the POC).
+
+## F48 — F36 fixed `runs/` itself as a symlink; a symlinked entry INSIDE `runs/` still escaped `--root` (2026-09-27)
+
+**What the debrief caught.** F36 (2026-09-23) made `readFlow` refuse `runs/` itself being a
+symlink. It never checked an entry *inside* `runs/` — a runId that passes `checkRunId`'s character
+allow-list (e.g. `evilrun`) but names a symlink pointing outside `--root`. `resolveRunDir`
+(`src/flow.js`) only ever did a lexical `path.resolve` + prefix compare, which passes a symlink
+clean through: `GET /api/runs/<flow>/evilrun/audit` on the panel returned the SYMLINK TARGET's
+`audit.jsonl` at HTTP 200 — a live plant against a real panel confirmed the leak (see the fix
+commit's message for the exact before/after bodies). This breaks signed M4a negative (v): "no
+screen renders content read from a path outside `--root`."
+
+**Fix — `resolveRunDir` (`src/flow.js`), the one function every caller (panel `src/panel/data.js`,
+`src/runner.js`, `bin/fwdloop`) goes through to turn a runId into a path.** After the existing
+lexical check, if `runs/` exists it is `realpathSync`'d and required inside `realpathSync(flowDir)`
+(same class F36 already fixed for `readFlow`, now also enforced here); if the run dir itself exists,
+it is `realpathSync`'d and required inside the real `runs/`. A run dir that does not exist yet (a
+new run being created) has nothing to realpath, so only the lexical result applies to it — the fix
+never blocks a normal new run. Same posture the project rule states: lexical `path.resolve` misses
+a symlink escape, so a path check must hold at use time (every call), not only preflight.
+
+**Same hole, one level up — the panel's flow segment.** `resolveFlowDir` (`src/panel/data.js`)
+built `<root>/<flowName>` from `checkFlowName` alone, with no realpath check at all. A directly
+requested flow name (not necessarily one that came from `listFlowNames` first) that happened to be
+a symlink under `--root` would have been followed the same way. Fixed with the same shape: if
+`<root>/<flowName>` exists, `realpathSync` it and require it inside `realpathSync(root)`.
+
+**Listings checked, found already safe.** `listFlowNames`/`listRunIds` (`src/flow.js`) filter
+directory entries on `Dirent.isDirectory()` alone. Verified directly (Linux, `readdirSync`
+`withFileTypes`): a symlink entry — even one pointing at a real directory — reports `isDirectory():
+false` / `isSymbolicLink(): true` from the raw `getdents` dirent type, never `true` for
+`isDirectory()`. So a symlinked flow or run directory never appears in either listing; this class
+was closed as a side effect of the existing filter, not a new fix.
+
+**Caller that bypasses `resolveRunDir` — reported, not fixed (out of this fix's scope).**
+`bin/fwdloop`'s `cmdInbox` and `findRunDirByAskId` use their own `listDirNames` (raw
+`readdirSync(...).filter(isDirectory)`, no `checkFlowName`/`checkRunId`) and build
+`join(runsDir, runId)` directly — never through `resolveRunDir`. `listDirNames`'s own
+`isDirectory()` filter gives the same symlink protection as `listFlowNames`/`listRunIds` above (a
+symlinked run/flow dir won't be listed), so today's `inbox`/`answer`/`show` verbs are not actually
+exploitable by *this* class — but they are a real bypass of the one-function-every-caller-goes-
+through rule the docstring on `resolveRunDir` states, and would stop getting any future hardening
+added there for free. Left as a follow-up, not touched here (surgical scope).
+
+**Tests.** `test/flow.test.js`: a real run dir and a not-yet-created run dir both still resolve; a
+runId naming a symlink under `runs/` escaping the flow directory is refused; `runs/` itself replaced
+with a symlink escaping the flow directory is refused. `test/panel.test.js`: the same symlinked-run
+scenario over the real HTTP route, asserting the leaked body (`"leaked":"yes"`) never appears and
+the status is not 200. Every new test proven red first: reverting only `src/flow.js` and
+`src/panel/data.js` (tests present) produced `true !== false` (unit) and a literal 200 with the
+planted secret in the body (HTTP) — restored, green.
+
+**Numbers.** 1527/1527 tests, typecheck clean.

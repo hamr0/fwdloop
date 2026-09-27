@@ -20,7 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tools`, a model-call row with `tools: null`, a malformed `tools`/`ungranted` shape. Rows written
   before M4a-3 simply lack the keys; `auditRowTools(row)` (`src/books.js`, re-exported from
   `src/index.js`) reads them back as "not recorded (before M4a-3)" rather than inventing a tally.
-  Not yet wired into the panel.
+  Now wired into the panel: `src/panel/data.js` uses `auditRowTools` for the Audit tab's tool
+  tallies (commit 9064e7c).
 - Amendment M4a-2 (docs/wiki/the-module-ladder.md, "M4a"): every new `audit.jsonl` row now
   carries `at` (ISO time the attempt finished) and `tokens` (`{inputTokens, outputTokens,
   cacheReadTokens}` summed over that attempt's model calls, threaded from the same per-round
@@ -36,9 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ask — not resume, not answer consumption, not rerun. `writeAskArchive`/`listArchivedAsks`
   (`src/ask.js`, re-exported from `src/index.js`); `listArchivedAsks` pairs each archived ask with
   its consumed answer by `askId`, never by position, and reports "draft not kept (before M4a-1)"
-  for a run with no `asks/` dir. Not yet wired into the panel.
+  for a run with no `asks/` dir. Now wired into the panel: `src/panel/data.js` uses
+  `listArchivedAsks` for the Ask tab (commit 9064e7c).
 
 ### Fixed
+- F48 (docs/logs/FINDINGS.md): F36 refused `runs/` itself being a symlink, but a runId-named
+  symlink INSIDE `runs/` pointing outside `--root` was still followed — the panel's
+  `GET /api/runs/<flow>/<runId>/audit` route returned the symlink target's `audit.jsonl` at HTTP
+  200. `resolveRunDir` (`src/flow.js`) now `realpathSync`s `runs/` and the run dir (when they
+  exist) and refuses either one if it resolves outside the flow directory; a not-yet-created run
+  dir is unaffected. The panel's own flow-name segment (`resolveFlowDir`, `src/panel/data.js`) got
+  the same real-path check, closing a symlinked-flow-directory variant of the same hole.
 - F47 (docs/logs/FINDINGS.md): `fwdloop show` (and `bin/fwdloop`'s `artifactText()`) read
   ask.json's evidence only in the M3 shape (`evidence.artifact.text`/`evidence.unjudged`) and
   printed the literal string `"undefined"` for a real M2-era ask.json (`evidence.text`/
