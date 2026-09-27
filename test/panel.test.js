@@ -214,6 +214,35 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
   writeJson(runDir, 'ask.json', { question: 'a pre-M3 legacy ask, scrubbed', askedAt: '2026-09-01T00:00:00.000Z' });
 }
 
+// --- run-ended-legacy-ask: hamr's 2026-09-27 live check, the EXACT shape
+//     job2-live-1's run-1/run-2 hit — an M2-era run that ENDED clean (a real
+//     history row) but still has its stale, single-slot `ask.json` sitting
+//     on disk (no askId — the last thing that ask.json ever held), the SAME
+//     ask already answered under a timestamp-named consumed marker
+//     (`answer.<stamp>.consumed.json`), PLUS a never-applied `answer.json`
+//     (a reject that arrived too late to matter — run-1's own shape) and a
+//     quarantined `answer.stale.1.json` (run-2's own shape). None of the
+//     three leftover files may ever be read back as "this run still has an
+//     open, unanswered stop" — the run is over, and the one real decision
+//     is already the consumed-marker row. -----------------------------------
+{
+  const runDir = makeRunDir(FLOW_DIR, 'run-ended-legacy-ask');
+  writeJson(runDir, 'ask.json', { question: 'an M2-era ask, scrubbed, already resolved before the run ended', askedAt: '2026-09-10T00:00:00.000Z' });
+  writeJson(runDir, 'answer.2026-09-10T00-10-00-000Z.consumed.json', {
+    decision: 'accept', answeredAt: '2026-09-10T00:10:00.000Z',
+  });
+  // A reject that never got applied (run-1's own shape) — still named
+  // `answer.json` (never renamed to `.consumed.json`), so the run finished
+  // without ever consuming it.
+  writeJson(runDir, 'answer.json', { decision: 'reject', reason: 'arrived too late, scrubbed', answeredAt: '2026-09-10T00:09:00.000Z' });
+  // A quarantined stale answer (run-2's own shape, src/ask.js's own
+  // `answer.stale.<n>.json` naming).
+  writeJson(runDir, 'answer.stale.1.json', { decision: 'accept', answeredAt: '2026-09-09T23:00:00.000Z' });
+  appendHistory(FLOW_DIR, {
+    runId: 'run-ended-legacy-ask', at: '2026-09-10T00:11:00.000Z', outcome: 'complete', spentUsd: 0.001, spendComplete: true, capUsd: 0.25, wallMs: 500, signatureHash: 'deadbeef',
+  });
+}
+
 // --- run-unjudged: an open ask carrying M3-shape evidence with an unjudged
 //     artifact, to prove the Inbox surfaces it labelled by step. hamr review
 //     #9 (2026-09-27): the fixture's "step" field is the GOAL prose (matching
@@ -309,6 +338,28 @@ const FLOW_DIR = writeTestFlow(ROOT, FLOW);
     askedAt: '2026-09-25T00:00:00.000Z',
     expiresAt: '2099-01-01T00:00:00.000Z',
     evidence: { artifact: { text: 'draft still under review, scrubbed' }, unjudged: [] },
+  });
+}
+
+// --- run-archived-open-but-ended: the genuine-anomaly shape listStops's own
+//     `!hasHistoryRow` backstop exists for — an ARCHIVED ask left "open"
+//     (no consumed answer) on a run whose history.jsonl nonetheless carries
+//     a row (belt-and-braces: `legacyRunAsks`'s own guard only covers the
+//     pre-M4a-1 fallback path, not the archived one) — hamr's 2026-09-27
+//     live check's own rule is general ("a run with a history row never has
+//     an open/unanswered stop"), so this must never count as open either. --
+{
+  const runDir = makeRunDir(FLOW_DIR, 'run-archived-open-but-ended');
+  writeAskArchive({
+    runDir,
+    askId: 'ask-archived-anomaly-1',
+    question: 'an archived ask left open on a run that somehow still ended, scrubbed',
+    askedAt: '2026-09-26T00:00:00.000Z',
+    expiresAt: '2099-01-01T00:00:00.000Z',
+    evidence: { artifact: { text: 'draft, scrubbed' }, unjudged: [] },
+  });
+  appendHistory(FLOW_DIR, {
+    runId: 'run-archived-open-but-ended', at: '2026-09-26T00:05:00.000Z', outcome: 'complete', spentUsd: 0.001, spendComplete: true, capUsd: 0.25, wallMs: 300, signatureHash: 'deadbeef',
   });
 }
 
@@ -987,6 +1038,43 @@ describe('listStops (M4a-1: every stop across every flow)', () => {
       assert.ok(Math.max(...openIdx) < Math.min(...pastIdx), 'every open row must sort before every past row');
     }
   });
+
+  test('hamr 2026-09-27 live check: a legacy (no-askId) ask.json in an ENDED run (a real history row) is never listed as its own open/unanswered stop', () => {
+    const ownRows = rows.filter((r) => r.flow === FLOW && r.runId === 'run-ended-legacy-ask');
+    // exactly the one real decision (the timestamp-named consumed marker) —
+    // never a second row rebuilt from the stale ask.json.
+    assert.equal(ownRows.length, 1);
+    assert.equal(ownRows[0].status, 'accepted');
+    assert.equal(ownRows[0].open, false);
+    assert.equal(ownRows.some((r) => r.status === 'unanswered'), false);
+    assert.equal(ownRows.some((r) => r.askId === null), false);
+  });
+
+  test('hamr 2026-09-27 live check: neither the never-applied answer.json nor the quarantined answer.stale.1.json is ever shown as a decision', () => {
+    const ownRows = rows.filter((r) => r.flow === FLOW && r.runId === 'run-ended-legacy-ask');
+    // the never-applied reject (answeredAt 00:09) and the stale accept
+    // (answeredAt 23:00 the day before) must never surface as this run's
+    // own decision — only the one real consumed marker (accept, 00:10).
+    for (const r of ownRows) {
+      assert.notEqual(r.reason, 'arrived too late, scrubbed');
+      assert.notEqual(r.answeredAt, '2026-09-09T23:00:00.000Z');
+    }
+  });
+
+  test('hamr 2026-09-27 live check (belt-and-braces): an ARCHIVED ask left "open" on a run whose history.jsonl carries a row anyway is never counted open (the general rule, not just the legacy-path guard)', () => {
+    const row = rows.find((r) => r.flow === FLOW && r.runId === 'run-archived-open-but-ended');
+    assert.ok(row);
+    assert.equal(row.open, false);
+  });
+
+  test('PROOF (this can fail): listStops without the hasHistoryRow guard would count run-ended-legacy-ask\'s stale ask.json as a second, open/unanswered stop, inflating the Inbox count', () => {
+    // Documents the exact red the guard removes: legacyRunAsks(runDir) with
+    // no hasHistoryRow argument (the pre-fix signature) rebuilds the
+    // pre-M3-shape branch unconditionally — see the report for the real
+    // revert-and-restore proof (this file doesn't re-run git).
+    const ownRows = rows.filter((r) => r.flow === FLOW && r.runId === 'run-ended-legacy-ask');
+    assert.notEqual(ownRows.length, 2);
+  });
 });
 
 describe('getRunAsks (M4a-1: the Ask tab)', () => {
@@ -1016,6 +1104,13 @@ describe('getRunAsks (M4a-1: the Ask tab)', () => {
     assert.equal(ask.evidence.draft, null);
     assert.match(ask.evidence.why, /draft not kept \(before M4a-1\)/);
     assert.equal(ask.question, null);
+  });
+
+  test('hamr 2026-09-27 live check: the Ask tab of an ENDED run with a stale legacy ask.json shows only its real past decision, never a fake open one', () => {
+    const result = getRunAsks({ root: ROOT, flow: FLOW, runId: 'run-ended-legacy-ask' });
+    assert.ok(result);
+    assert.equal(result.asks.length, 1);
+    assert.equal(result.asks[0].status, 'accepted');
   });
 
   test('an open ask carries a real, non-null expiresAt for the client to compute time-left from', () => {

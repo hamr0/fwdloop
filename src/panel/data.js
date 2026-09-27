@@ -816,10 +816,19 @@ const CONSUMED_ANSWER_RE = /^answer\.(.+)\.consumed\.json$/;
  * overwritten by the next park) — those fields come back `null` with the
  * fixed `why` the brief specifies, never guessed from the CURRENT ask.json
  * (which may name a completely different, later question).
+ * hamr's 2026-09-27 live check: a run that has a history row has ENDED —
+ * the single mutable `ask.json` slot left on disk is a stale leftover from
+ * whatever it last held, and the answer to it (if any) is already
+ * represented by its own `answer.<id>.consumed.json` marker, read above.
+ * Never rebuilt as a second, "still open" row for an ended run — that
+ * double-counts one real ask as two stops and inflates the Inbox's open
+ * count with something no human can actually act on any more.
  * @param {string} runDir
+ * @param {boolean} hasHistoryRow whether this run's flow-level history.jsonl
+ *   already carries a row for it (the run ended, one way or another)
  * @returns {any[]}
  */
-function legacyRunAsks(runDir) {
+function legacyRunAsks(runDir, hasHistoryRow) {
   const rows = [];
   let names = [];
   try { names = readdirSync(runDir); } catch { names = []; }
@@ -860,8 +869,11 @@ function legacyRunAsks(runDir) {
     });
   }
 
-  // The currently open ask, when its own askId has no consumed marker yet.
-  if (askJson) {
+  // The currently open ask, when its own askId has no consumed marker yet —
+  // and only when the run hasn't already ended. A history row means the run
+  // is over; the leftover `ask.json` slot is never rebuilt into a second
+  // "still open" stop at that point, no matter what its own askId says.
+  if (askJson && !hasHistoryRow) {
     const hasConsumed = currentAskId !== null
       && consumedFiles.includes(`answer.${currentAskId}.consumed.json`);
     if (!hasConsumed) {
@@ -911,13 +923,17 @@ function legacyRunAsks(runDir) {
  * after every row that has one, in the order `listArchivedAsks`/
  * `legacyRunAsks` themselves returned it.
  * @param {string} runDir
+ * @param {boolean} hasHistoryRow whether this run's flow-level history.jsonl
+ *   already carries a row for it — threaded into `legacyRunAsks` so an ended
+ *   run's stale `ask.json` slot is never rebuilt into a fake "still open" row
+ *   (hamr's 2026-09-27 live check).
  * @returns {any[]}
  */
-function runAsksInOrder(runDir) {
+function runAsksInOrder(runDir, hasHistoryRow) {
   const archivedResult = listArchivedAsks(runDir);
   const rows = archivedResult.archived
     ? archivedResult.asks.map(normalizeArchivedRow)
-    : legacyRunAsks(runDir);
+    : legacyRunAsks(runDir, hasHistoryRow);
   return rows
     .map((row, index) => ({ row, index }))
     .sort((a, b) => {
@@ -944,7 +960,8 @@ export function getRunAsks({ root, flow, runId }) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
-  return { flow, runId, asks: runAsksInOrder(run.runDir) };
+  const hasHistoryRow = readHistory(run.flowDir).some((r) => r && r.runId === runId);
+  return { flow, runId, asks: runAsksInOrder(run.runDir, hasHistoryRow) };
 }
 
 /**
@@ -954,6 +971,14 @@ export function getRunAsks({ root, flow, runId }) {
  * urgent), then every past stop newest-answered-first; a row with neither a
  * known time-left nor a known answeredAt sorts last within its group rather
  * than being guessed into either end.
+ *
+ * hamr's 2026-09-27 live check: a run that has ended (its flow's own
+ * history.jsonl carries a row for it) never contributes an open/unanswered
+ * stop, no matter what its own ask.json/archive says — `legacyRunAsks`
+ * already refuses to rebuild a stale slot into one, but `open` is ALSO
+ * force-`false` here as a second, independent check (belt-and-braces on the
+ * one thing the brief calls out by name: "the Inbox tab's open count counts
+ * only truly open asks — parked run, no history row, unexpired, unanswered").
  * @param {{root: string}} opts
  * @returns {any[]}
  */
@@ -961,11 +986,13 @@ export function listStops({ root }) {
   const rows = [];
   for (const flowName of listFlowNames(root)) {
     const flowDir = join(root, flowName);
+    const historyRunIds = new Set(readHistory(flowDir).filter((r) => r && typeof r.runId === 'string').map((r) => r.runId));
     for (const runId of listRunIds(flowDir)) {
       const run = resolveRunPath(root, flowName, runId);
       if (!run.ok) continue;
-      for (const ask of runAsksInOrder(run.runDir)) {
-        const open = isOpenStatus(ask.status);
+      const hasHistoryRow = historyRunIds.has(runId);
+      for (const ask of runAsksInOrder(run.runDir, hasHistoryRow)) {
+        const open = isOpenStatus(ask.status) && !hasHistoryRow;
         const expiresMs = open && typeof ask.expiresAt === 'string' ? Date.parse(ask.expiresAt) : NaN;
         rows.push({
           flow: flowName,
