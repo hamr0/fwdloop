@@ -1,10 +1,19 @@
 <!DOCTYPE html>
-<!-- borrowed-from: bareloop src/panel/index.html@a30bbef -->
+<!-- borrowed-from: bareloop src/panel/index.html@a30bbef — ADAPTED for fwdloop.
+     M4a piece 3+ (docs/wiki/the-module-ladder.md, "M4a — read-only panel —
+     SIGNED"): the Tokyo Night box-drawing visual design (CSS tokens, tab
+     layout, glyph/badge styling, responsive 390px breakpoint) is kept from
+     the borrowed page; every data-bearing script (fetches, run rendering,
+     step map, audit, job, run grouping) is rewired for fwdloop's own book
+     shapes (src/panel/data.js) — fwdloop has one flow shape (linear,
+     human-authored, signed steps) and one book granularity (one audit row
+     per step ATTEMPT), not bareloop's rounds/parts/scout/plan/judge/fix-loop
+     model, so that whole layer is replaced rather than adapted. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>bareloop panel</title>
+<title>fwdloop panel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
@@ -36,7 +45,7 @@
   th{color:var(--text-dim);font-weight:700;background:var(--panel2);text-transform:uppercase;letter-spacing:0.04em;font-size:11px;border-bottom:1px solid var(--border-strong);}
   /* item: Audit tab header stays visible while the row list scrolls. On
      desktop >=900px .pane-body itself is height-bound and scrolls (see the
-     @media(min-width:900px) block above); on mobile #BareloopPanel/.main
+     @media(min-width:900px) block above); on mobile #FwdloopPanel/.main
      are unbound and the PAGE scrolls instead, so .pane-body never actually
      develops its own scroll offset there and a sticky th anchored to it
      would scroll away with the page. Giving the table its own bounded,
@@ -84,10 +93,10 @@
 
   h2,h4{text-transform:uppercase;letter-spacing:0.06em;font-weight:700;}
 
-  #BareloopPanel{display:flex;flex-direction:column;min-height:100vh;}
+  #FwdloopPanel{display:flex;flex-direction:column;min-height:100vh;}
   /* item 4 (2026-09-25): on desktop the left list scrolls inside its own
      pane and the right pane stays in view — the PAGE itself never scrolls
-     the list away. Bounding #BareloopPanel/.main to the viewport height
+     the list away. Bounding #FwdloopPanel/.main to the viewport height
      (desktop only — phone keeps its natural stacked-page scroll, see the
      max-width:899px block below) is what lets each .pane-body's own
      `overflow:auto` actually take effect instead of the whole document
@@ -95,7 +104,7 @@
      off screen together. */
   @media (min-width: 900px){
     html, body{height:100%;}
-    #BareloopPanel{height:100vh;min-height:0;overflow:hidden;}
+    #FwdloopPanel{height:100vh;min-height:0;overflow:hidden;}
     .main{overflow:hidden;}
   }
   .topbar{
@@ -300,12 +309,12 @@
 </head>
 <body>
 
-<div id="BareloopPanel">
+<div id="FwdloopPanel">
 
   <header class="topbar">
     <div>
-      <span class="brand">bareloop</span>
-      <span class="tagline">automate a job, verified</span>
+      <span class="brand">fwdloop</span>
+      <span class="tagline">automate a job — it has humans in it</span>
     </div>
     <div class="topbar-right">
       <span class="hint" id="host-line"></span>
@@ -440,7 +449,7 @@
 (function(){
   "use strict";
 
-  var PORT = "__BARELOOP_PANEL_PORT__";
+  var PORT = "__FWDLOOP_PANEL_PORT__";
   document.getElementById("host-line").textContent = "127.0.0.1:" + PORT;
 
   function wireTabs(tabButtons){
@@ -461,27 +470,73 @@
   wireTabs([document.getElementById("tab-chat"), document.getElementById("tab-runs")]);
   wireTabs([document.getElementById("tab-run"), document.getElementById("tab-audit"), document.getElementById("tab-details")]);
 
-  // ---- fetch helpers ----
+  // ---- fetch helpers — GET only, this panel is read-only by construction
+  // (src/panel/server.js is GET/HEAD-only too; nothing on this page ever
+  // sends a non-GET request or a request body). ----
   function getJSON(path){
-    return fetch(path, { headers: { accept: "application/json" } }).then(function(r){
+    return fetch(path, { method: "GET", headers: { accept: "application/json" } }).then(function(r){
       if(!r.ok) throw new Error(path + ": HTTP " + r.status);
       return r.json();
     });
   }
 
-  // ---- step map renderer (verbatim algorithm from design/panel-mockup.html's
-  // buildStepMapSVG — ONE renderer, no second hand-authored map anywhere on this page) ----
-  function stepMapColors(state){
-    if(state === "done") return {stroke:"var(--green)", textFill:"#2e7d32"};
-    if(state === "running") return {stroke:"var(--amber)", textFill:"#b8860b"};
-    if(state === "stopped") return {stroke:"var(--red)", textFill:"var(--red)"};
-    // died (hamr's ruling B, 2026-09-25): distinct from stopped/red — no
-    // verdict was ever reached, so this box never shares the red look.
-    if(state === "died") return {stroke:"var(--magenta)", textFill:"var(--magenta)"};
-    return {stroke:"var(--border-strong)", textFill:"var(--text-faint)"};
-  }
   function escapeXml(s){
     return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  // ---- money/close-class/glyph helpers — the SAME display rules as
+  // src/panel/data.js's costDisplay (never $0 for an unknown spend, "at
+  // least $X" for a floor) — reimplemented here (a pure, <15-line vanilla
+  // formatter) because this is browser script, which cannot import a
+  // node:fs-using ESM module. ----
+  function money(n, spendComplete){
+    if(typeof n !== "number") return "unknown";
+    var text = "$" + n.toFixed(4);
+    return spendComplete === false ? "at least " + text : text;
+  }
+  function duration(ms){
+    if(typeof ms !== "number" || ms < 0) return "unknown";
+    var s = ms / 1000;
+    if(s < 60) return s.toFixed(1) + "s";
+    var m = Math.floor(s / 60), rem = Math.round(s - m * 60);
+    if(rem === 60){ m += 1; rem = 0; }
+    return m + "m" + String(rem).padStart(2, "0") + "s";
+  }
+  // fwdloop's close-class vocabulary (M4a scope item 4): `green` -> "cited"
+  // (a mechanical, exact-match close), `softgreen` -> "shape" (a shape/
+  // section check), `hitl` -> "human check" (no mechanical verdict — the
+  // step hands off to a human ask). Never the raw words green/softgreen.
+  function closeClassLabel(cls){
+    if(cls === "green") return "cited";
+    if(cls === "softgreen") return "shape";
+    if(cls === "hitl") return "human check";
+    return "unknown";
+  }
+  // An attempt's verdict -> pass/fail glyph. `green`/`hitl` both mean the
+  // step went through (a hitl close has no mechanical verdict to fail on);
+  // anything else (`not-done`/`crash`/`unparseable`/`red`) is a stop.
+  function verdictPassed(verdict){ return verdict === "green" || verdict === "hitl"; }
+  function attemptGlyph(verdict){ return verdictPassed(verdict) ? "✓" : "✗"; }
+  // The run-row glyph strings src/panel/data.js's computeGlyph emits are
+  // already bracketed ("[✓]", "[✗]", "[·]", "[?]") — this only ever picks a
+  // CSS color class off them, never re-derives the glyph itself.
+  function glyphClass(g){
+    if(g === "[✓]") return "green";
+    if(g === "[✗]") return "red";
+    if(g === "[▶]") return "amber";
+    if(g === "[?]") return "magenta";
+    return "grey"; // "[·]" — waiting on a human, or answered-not-resumed
+  }
+
+  // ---- step map renderer (box-drawing geometry kept from the borrowed
+  // page's buildStepMapSVG; the DATA it draws is fwdloop's own: one box per
+  // `declaration.steps` entry, no scout/plan/judge/fix-loop/rounds — ruling
+  // A, "no per-round parts"). ----
+  function stepMapColors(state){
+    if(state === "done") return {stroke:"var(--green)", textFill:"#2e7d32"};
+    if(state === "stopped") return {stroke:"var(--red)", textFill:"var(--red)"};
+    if(state === "waiting") return {stroke:"var(--amber)", textFill:"#b8860b"};
+    return {stroke:"var(--border-strong)", textFill:"var(--text-faint)"}; // pending — not attempted yet
   }
   var stepMapUidCounter = 0;
   var MAP_MARGIN = 10, MAP_GAP = 28;
@@ -490,96 +545,35 @@
   var MIN_BOX_W = 100;
   var BOX_H = 60, BOX_H_2LINE = 78;
   var ROW_GAP = 70;
-  // s.noNumber (F196): a synthetic placeholder box (e.g. "died during
-  // planning") is a LABEL, never a real step — it renders without the
-  // leading "<n> " step number a real step gets.
-  // item 4 (2026-09-25): each step box shows its attempts INLINE, e.g.
-  // "attempt 1 [✗] · attempt 2 [✓]" — appended to the box's own title text
-  // (the existing wrapTitleLines 2-line wrap handles overflow the same way
-  // it already does for a long step id; no third renderer, no new box shape).
-  function attemptGlyph(outcome){ return outcome === "green" ? "✓" : (outcome === null || outcome === undefined ? "?" : "✗"); }
+  // Each step box shows its attempts INLINE, e.g. "attempt 1 ✗ · attempt 2 ✓"
+  // (ruling A: one card per step ATTEMPT, never a per-round breakdown).
   function attemptsInlineText(attempts){
     if(!attempts || !attempts.length) return "";
-    return attempts.map(function(a){ return "attempt " + a.n + " " + attemptGlyph(a.outcome); }).join(" · ");
+    return attempts.map(function(a){ return "attempt " + a.attempt + " " + attemptGlyph(a.verdict); }).join(" · ");
   }
   function stepTitleText(idx, s){
-    var base = s.noNumber ? s.title : (idx + 1) + ' ' + s.title;
+    var base = (idx + 1) + ' ' + s.emits;
     var at = attemptsInlineText(s.attempts);
     return at ? base + ' — ' + at : base;
   }
-  // item 5 (F197): a box's step NUMBER must count only over boxes without
-  // `noNumber` (a real plan step), skipping any noNumber box (scout+plan,
-  // fix loop, a synthetic "died during planning" placeholder) wherever it
-  // sits in the list — never the box's raw array position. Returns, per
-  // box, the `idx` value stepTitleText expects (its own +1 makes the
-  // display number), so a noNumber box's entry is unused/irrelevant.
-  function stepNumberIndices(steps){
-    var n = 0;
-    return steps.map(function(s){
-      if(s.noNumber) return -1;
-      n++;
-      return n - 1;
-    });
+  // The declared step's own run-state, for the map box and the summary's
+  // "which step stopped and why" (M4a exit: "say which step stopped it and
+  // why, from one screen"): `pending` (no attempt yet), `done` (last
+  // attempt passed), `stopped` (last attempt failed — this is the run's own
+  // stop point when it never reached a later step).
+  function stepBoxState(s){
+    if(!s.attempts || !s.attempts.length) return "pending";
+    var last = s.attempts[s.attempts.length - 1];
+    return verdictPassed(last.verdict) ? "done" : "stopped";
   }
-  // build item B (2026-09-26 rewrite): the map+card list are now built from
-  // `detail.parts` — src/replay.js's own ONE ordered part list (scout, plan,
-  // each step occurrence, replan, fix, judge, or a single "run" box for an
-  // old-shape spine) — never a second client-side re-derivation off
-  // scoutPlan/steps/fixLoop separately (F198's own bug class: two ordering
-  // passes that could drift apart). `partIndex` on every box lets a click
-  // jump straight to that SAME part's Audit-tab row (build item B's
-  // click-through), with no re-lookup needed.
-  function partBoxState(part, isLastLivePart){
-    if(part.outcome === "green" || part.outcome === "satisfied" || part.outcome === "already-green") return "done";
-    if(typeof part.outcome === "string") return "stopped";
-    if(isLastLivePart) return "running";
-    return "done"; // scout/plan/replan/judge: no per-part verdict, but the part itself already happened
-  }
-  // scout/plan/replan/judge parts carry no per-part verdict at all — their
-  // ONE attempt is always the wholePartAttempt synthetic placeholder
-  // (outcome:null, src/replay.js), never a real green/red. Showing that as
-  // an inline "attempt 1 ?" on the map/card would read as an unresolved
-  // result when nothing was ever judged there; `step`/`fix` (real attempts)
-  // and `run` (its own real, non-null outcome) are the only kinds worth an
-  // inline attempt/result glyph.
-  function partHasNoVerdict(part){ return part.kind === "scout" || part.kind === "plan" || part.kind === "replan" || part.kind === "judge"; }
-  // ONE shared result-glyph rule for both the Run tab's cards and the Audit
-  // tab's grouped-row headers — `null` (never a fabricated "?") for a
-  // no-verdict part kind; a multi-attempt part (a step with retries, or the
-  // fix loop) joins every attempt's own glyph ("✗✗✗✓"); everything else
-  // (a single-attempt step, or the whole "run" box on an old-shape spine)
-  // reads the part's own outcome.
-  function partResultGlyph(part, box){
-    if(partHasNoVerdict(part)) return null;
-    if(box.attempts.length > 1) return box.attempts.map(function(a){ return attemptGlyph(a.outcome); }).join("");
-    var outcome = (part.outcome !== null && part.outcome !== undefined) ? part.outcome : (box.attempts[0] ? box.attempts[0].outcome : null);
-    return attemptGlyph(outcome);
-  }
-  function buildOrderedBoxes(parts, isLive){
-    var list = Array.isArray(parts) ? parts : [];
-    return list.map(function(part, idx){
-      var isLastLivePart = !!isLive && idx === list.length - 1;
-      var occSuffix = part.kind === "step" && part.occurrence > 1 ? " (try " + part.occurrence + ")" : "";
-      return {
-        kind: part.kind,
-        partIndex: idx,
-        title: part.label + occSuffix,
-        state: partBoxState(part, isLastLivePart),
-        noNumber: part.kind !== "step",
-        // display-only attempts (map inline text + card/audit result glyph
-        // fallback) — [] for a no-verdict part kind even though `part.attempts`
-        // itself still carries its one real synthetic window (needed by the
-        // Audit tab's expand-to-rounds, read off `box.part.attempts` directly).
-        attempts: partHasNoVerdict(part) ? [] : (Array.isArray(part.attempts) ? part.attempts : []),
-        blocked: typeof part.blocked === "number" ? part.blocked : 0,
-        part: part,
-      };
+  function buildStepBoxes(steps){
+    return (steps || []).map(function(s){
+      return { emits: s.emits, goal: s.goal, closeClass: s.closeClass, attempts: s.attempts || [], state: stepBoxState(s) };
     });
   }
   function naturalBoxWidth(steps){
-    var numIdx = stepNumberIndices(steps);
     var maxChars = 0;
-    steps.forEach(function(s, idx){ maxChars = Math.max(maxChars, stepTitleText(numIdx[idx], s).length); });
+    steps.forEach(function(s, idx){ maxChars = Math.max(maxChars, stepTitleText(idx, s).length); });
     return Math.max(MIN_BOX_W, Math.ceil(maxChars * CHAR_W) + TITLE_HPAD);
   }
   function computeMapLayout(n, availW, naturalW){
@@ -615,8 +609,7 @@
     var perRow = layout.perRow, boxW = layout.boxW, gap = MAP_GAP;
     var rows = Math.ceil(n / perRow);
     var margin = MAP_MARGIN;
-    var numIdx = stepNumberIndices(steps);
-    var titleLines = steps.map(function(s, idx){ return wrapTitleLines(stepTitleText(numIdx[idx], s), boxW); });
+    var titleLines = steps.map(function(s, idx){ return wrapTitleLines(stepTitleText(idx, s), boxW); });
     var maxLines = titleLines.reduce(function(m, l){ return Math.max(m, l.length); }, 1);
     var boxH = maxLines > 1 ? BOX_H_2LINE : BOX_H;
     var rowH = boxH + ROW_GAP;
@@ -638,13 +631,8 @@
       var colors = stepMapColors(s.state);
       var lines = titleLines[idx];
       var stateY = y + boxH - 18;
-      var partIdxAttr = typeof s.partIndex === "number" ? (' data-part-index="' + s.partIndex + '" style="cursor:pointer;"') : '';
       body += '<rect x="' + x + '" y="' + y + '" width="' + boxW + '" height="' + boxH +
-        '" rx="0" fill="var(--panel2)" stroke="' + colors.stroke + '" stroke-width="2"' + partIdxAttr + '></rect>';
-      if(s.blocked > 0){
-        body += '<text x="' + (x + boxW - 6) + '" y="' + (y + 12) +
-          '" text-anchor="end" font-size="10" fill="var(--red)">' + s.blocked + ' blocked</text>';
-      }
+        '" rx="0" fill="var(--panel2)" stroke="' + colors.stroke + '" stroke-width="2"></rect>';
       if(lines.length === 1){
         body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 25) +
           '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[0]) + '</text>';
@@ -681,10 +669,9 @@
   function stepMapLegendHTML(){
     return '<div class="map-legend">' +
       '<span><span class="dot green"></span>done</span>' +
-      '<span><span class="dot amber"></span>running</span>' +
+      '<span><span class="dot amber"></span>waiting on you</span>' +
       '<span><span class="dot red"></span>stopped</span>' +
-      '<span><span class="dot grey"></span>waiting</span>' +
-      '<span><span class="dot magenta"></span>died</span>' +
+      '<span><span class="dot grey"></span>not started</span>' +
       '</div>';
   }
   var lastSteps = null;
@@ -708,18 +695,6 @@
     var w = mapAvailWidth(wrapper);
     lastWidth = w;
     mount.innerHTML = buildStepMapSVG(steps, w) + stepMapLegendHTML();
-    // build item B: a map box click jumps to the Audit tab, that same part
-    // expanded and scrolled into view — same click-through as the card list,
-    // sharing partIndex so the two can never disagree about which row a box
-    // maps to. Delegated once per render (mount.innerHTML above already
-    // wiped any previous listeners' targets along with the old markup).
-    mount.querySelectorAll("rect[data-part-index]").forEach(function(rect){
-      rect.addEventListener("click", function(){
-        var idx = Number(rect.getAttribute("data-part-index"));
-        document.getElementById("tab-audit").click();
-        openAuditPart(idx);
-      });
-    });
   }
   function reflowMap(){
     var wrapper = document.getElementById("map-box");
@@ -735,22 +710,6 @@
     if(mb) ro.observe(mb);
   } else {
     window.addEventListener("resize", reflowMap);
-  }
-
-  // F196: a `synthetic` step (e.g. the "died during planning" placeholder
-  // box) is a LABEL, never a real step — excluded from the summary's "N of
-  // M done" count and from the numbered step-card list below the map (the
-  // map itself still keeps the one box, rendered via renderStepMap directly
-  // off detail.steps, unfiltered).
-  function realSteps(steps){ return steps.filter(function(s){ return !s.synthetic; }); }
-
-  // ---- glyph/badge helpers (only [✓]/[✗]/[▶]/[·]/[?] — never the words green/red/soft-green/died) ----
-  function glyphClass(g){
-    if(g === "✓") return "green";
-    if(g === "✗") return "red";
-    if(g === "▶") return "amber";
-    if(g === "?") return "magenta";
-    return "grey";
   }
 
   // ---- Runs tab: ONE run-row builder shared by History (flat) and the
@@ -1170,7 +1129,7 @@
   // item 2 (2026-09-26 merge): Workflows/History view-mode memory — same
   // per-viewer-convenience posture as every other localStorage read/write on
   // this page (try/catch, never assumed available).
-  var RUNS_VIEW_KEY = "bareloop-panel-runs-view";
+  var RUNS_VIEW_KEY = "fwdloop-panel-runs-view";
   function loadRunsViewMode(){
     try{
       var v = localStorage.getItem(RUNS_VIEW_KEY);
@@ -1198,7 +1157,7 @@
   }
   var runsFilterBar = createFilterBar({
     scope: "runs",
-    storageKey: "bareloop-panel-runs-filters",
+    storageKey: "fwdloop-panel-runs-filters",
     filterFn: runsFilterFn,
     applyFn: runsApplyFn,
   });
@@ -1888,7 +1847,7 @@
     var root = document.documentElement;
     var btn = document.getElementById("theme-toggle");
     var stored = null;
-    try{ stored = localStorage.getItem("bareloop-panel-theme"); }catch(e){}
+    try{ stored = localStorage.getItem("fwdloop-panel-theme"); }catch(e){}
     if(stored === "light" || stored === "dark"){ root.setAttribute("data-theme", stored); }
     function current(){
       var attr = root.getAttribute("data-theme");
@@ -1900,7 +1859,7 @@
     btn.addEventListener("click", function(){
       var next = current() === "dark" ? "light" : "dark";
       root.setAttribute("data-theme", next);
-      try{ localStorage.setItem("bareloop-panel-theme", next); }catch(e){}
+      try{ localStorage.setItem("fwdloop-panel-theme", next); }catch(e){}
       paint();
     });
   })();

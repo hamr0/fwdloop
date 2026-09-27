@@ -106,7 +106,7 @@ export function handleRequest(req, res, opts) {
       sendText(res, 500, 'panel page missing on disk');
       return;
     }
-    html = html.replace(/__BARELOOP_PANEL_PORT__/g, String(opts.port));
+    html = html.replace(/__FWDLOOP_PANEL_PORT__/g, String(opts.port));
     if (method === 'HEAD') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': Buffer.byteLength(html) });
       res.end();
