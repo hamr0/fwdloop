@@ -233,29 +233,10 @@
   .step-card .step-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
   .step-card h4{margin:0;font-size:13px;}
   .step-meta{font-size:12px;color:var(--text-dim);margin-top:4px;}
-  /* build item C: Audit tab attempt/rounds detail (reused by audit-part-toggle expansion) */
+  /* one card per step ATTEMPT (ruling A) — the attempts list under each
+     step-map card on the Run tab. */
   .attempts-list{margin-top:8px;border-top:1px dotted var(--border-strong);padding-top:8px;}
   .attempt-row{margin-bottom:6px;}
-  .attempt-toggle{margin-bottom:4px;}
-  .rounds-list{margin:6px 0 6px 12px;padding-left:8px;border-left:2px solid var(--border-strong);}
-  /* item 1 (2026-09-26): a round's own model call renders as this table's
-     header ROW (visually distinct from its tool-call rows below it). */
-  tr.round-header-row td{background:var(--panel2);font-weight:700;}
-  /* the rounds table shares the Flat table's sticky-header/scroll-wrapper
-     rule (`.audit-table-scroll`) by being wrapped in the same class — this
-     extra selector (vs. the Flat table's own `[data-testid="audit-table"]`
-     one) covers every table inside that wrapper, Flat's included. */
-  .audit-table-scroll table th{position:sticky;top:0;z-index:1;}
-  .attempt-check{margin-top:4px;font-size:12px;}
-  .rounds-page-info{margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-
-  /* build item C: Audit tab grouped-by-part rows */
-  .audit-part{border:1px solid var(--border);margin-bottom:6px;background:var(--panel2);}
-  .audit-part-toggle{width:100%;text-align:left;display:block;white-space:normal;min-height:44px;padding:8px 10px;}
-  .audit-part-toggle::before,.audit-part-toggle::after{content:"";}
-  .audit-part-body{padding:8px 10px 10px;border-top:1px dotted var(--border-strong);}
-  .part-card{cursor:pointer;}
-  .part-card:hover{border-color:var(--border-strong);}
 
   .chips{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
   .chip{padding:5px 10px;min-height:32px;border:1px solid var(--border-strong);background:var(--panel2);font-size:12px;color:var(--text-dim);}
@@ -276,9 +257,6 @@
   .chip.fchip{padding:3px 7px;min-height:28px;min-width:28px;font-size:12px;text-align:center;}
   .chip.fchip::before,.chip.fchip::after{content:"";}
   .row-blocked{background:var(--red-bg);}
-  .raw-log{margin-top:12px;}
-  .raw-log summary{cursor:pointer;font-size:13px;padding:6px 0;}
-  .raw-log pre{background:#0b0b0f;color:#e8e8f0;padding:10px;border:1px solid var(--border-strong);font-size:11px;overflow-x:auto;white-space:pre-wrap;word-break:break-word;}
 
   .job-card{position:relative;border:1px solid var(--border-strong);padding:14px 10px 10px;background:var(--panel2);margin-top:10px;margin-bottom:10px;}
   .job-card h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;}

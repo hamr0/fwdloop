@@ -587,3 +587,90 @@ describe('a taken port fails loudly, never silently retries', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// index.html — the page itself (M4a piece 3, docs/wiki/the-module-ladder.md,
+// "M4a — read-only panel — SIGNED", step 7 cleanup): source-level checks a
+// real browser walk would otherwise have to make (no jsdom/browser in this
+// stack — the orchestrator does the actual visual/browser check, never this
+// agent). These are static text checks against the shipped file, not a DOM
+// render.
+// ---------------------------------------------------------------------------
+describe('index.html — page source', () => {
+  const PAGE_PATH = path.join(HERE, '..', 'src', 'panel', 'index.html');
+  const source = readFileSync(PAGE_PATH, 'utf8');
+
+  // Strip every comment form the page actually uses (HTML `<!-- -->`, JS
+  // `//` line comments, JS `/* */` block comments) before scanning for
+  // banned words — the borrowed-from/ADAPTED header (an HTML comment) and
+  // this file's own explanatory comments (same posture as server.js's own
+  // header, which also says "bareloop" outside its first line) are allowed
+  // to name bareloop; live markup/script/UI text is not.
+  function stripComments(text) {
+    return text
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+  }
+
+  test('is served at "/" as real HTML', async () => {
+    const handle = await createPanelServer({ port: 0, root: ROOT });
+    try {
+      const r = await get(handle.port, '/');
+      assert.equal(r.status, 200);
+      assert.match(r.headers['content-type'], /text\/html/);
+      assert.match(r.body, /<title>fwdloop panel<\/title>/);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  test('no non-GET fetch anywhere on the page — read-only by construction', () => {
+    const fetchCalls = source.match(/fetch\([^)]*\)/g) || [];
+    assert.ok(fetchCalls.length > 0, 'expected at least one fetch( call to check');
+    for (const call of fetchCalls) {
+      assert.doesNotMatch(call, /method:\s*["'](POST|PUT|PATCH|DELETE)["']/i, `non-GET fetch found: ${call}`);
+    }
+    // no bare XHR/other request path either.
+    assert.doesNotMatch(source, /\.open\(\s*["'](POST|PUT|PATCH|DELETE)["']/i);
+  });
+
+  test('no bareloop sample strings or bareloop-only words outside comments/header', () => {
+    const stripped = stripComments(source);
+    const banned = [/bareloop/i, /\bscout\b/i, /fix loop/i, /\bjudge\b/i, /\breplay\b/i, /\bspine\b/i, /\bsidecar\b/i];
+    for (const re of banned) {
+      assert.doesNotMatch(stripped, re, `banned word ${re} found outside a comment`);
+    }
+  });
+
+  test('fwdloop glyph/close-class vocabulary is present; bareloop verdict words are not live UI text', () => {
+    assert.match(source, /cited/);
+    assert.match(source, /shape/);
+    assert.match(source, /human check/);
+    // never the raw close-class words as USER-FACING text (they still exist
+    // as the class values themselves, e.g. `cls === "softgreen"`, which is
+    // fine — internal data, not rendered prose).
+    assert.doesNotMatch(source, />\s*softgreen\s*</);
+  });
+
+  test('cost display never renders a bare "$0" for an unknown spend, and honors "at least" for a floor', () => {
+    assert.match(source, /"at least "/);
+    assert.doesNotMatch(source, /"\$0"/);
+  });
+
+  test('book text (question/draft/unjudged-artifact) is set via textContent, never interpolated into innerHTML', () => {
+    const innerHtmlLines = source.split('\n').filter((l) => l.includes('.innerHTML'));
+    for (const line of innerHtmlLines) {
+      assert.doesNotMatch(line, /row\.question|evidence\.draft|u\.artifact|\.artifact\.text/, `book text reached innerHTML: ${line.trim()}`);
+    }
+    assert.match(source, /q\.textContent = "question: " \+ row\.question/);
+    assert.match(source, /draftEl\.textContent = row\.evidence\.draft/);
+    assert.match(source, /art\.textContent = /);
+  });
+
+  test('every empty state names why (no bare "unknown" with no explanation path)', () => {
+    assert.match(source, /no runs listed yet/);
+    assert.match(source, /nothing waiting on you/);
+    assert.match(source, /not attempted yet/);
+  });
+});
