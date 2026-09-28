@@ -77,20 +77,36 @@ function relPath(full) {
 }
 
 /**
- * Strips `//` and `/* *\/` comments and the CONTENTS of string/template
- * literals (keeping the quotes as empty, so line/character structure is
- * otherwise unchanged) from a JS source text. A raw-char scanner, not a
- * tokenizer — good enough for this repo's plain ESM style, and it is what
- * keeps a comment that merely MENTIONS a name (e.g. "not a raw
- * `readFileSync`") from being counted as a use of that binding.
+ * Strips `//` and `/* *\/` comments from a JS source text (line/character
+ * structure otherwise unchanged, so a `\n` is preserved for every stripped
+ * line). String/template literal CONTENTS are left untouched by this one —
+ * a bracket-access property name (`ns['readFileSync']`) lives inside a
+ * string literal on purpose, so bracket-access scanning needs the string
+ * kept intact. Use `stripCommentsAndStrings` below when string contents
+ * should be dropped too (identifier-usage counting, where a string or
+ * comment merely MENTIONING a name must never count as a use of it).
  */
-function stripCommentsAndStrings(src) {
+function stripComments(src) {
   let out = '';
   let i = 0;
   const n = src.length;
+  let inString = null;
   while (i < n) {
     const c = src[i];
     const c2 = src[i + 1];
+    if (inString) {
+      out += c;
+      if (c === '\\') { out += src[i + 1] ?? ''; i += 2; continue; }
+      if (c === inString) inString = null;
+      i += 1;
+      continue;
+    }
+    if (c === '\'' || c === '"' || c === '`') {
+      inString = c;
+      out += c;
+      i += 1;
+      continue;
+    }
     if (c === '/' && c2 === '/') {
       while (i < n && src[i] !== '\n') i += 1;
       continue;
@@ -104,6 +120,25 @@ function stripCommentsAndStrings(src) {
       i += 2;
       continue;
     }
+    out += c;
+    i += 1;
+  }
+  return out;
+}
+
+/**
+ * Strips comments (via `stripComments`) AND the CONTENTS of string/template
+ * literals (keeping the quotes, now adjacent and empty) from a JS source
+ * text. Used for identifier-usage counting, where a string or comment that
+ * merely MENTIONS a name must never count as a use of the binding.
+ */
+function stripCommentsAndStrings(srcIn) {
+  const src = stripComments(srcIn);
+  let out = '';
+  let i = 0;
+  const n = src.length;
+  while (i < n) {
+    const c = src[i];
     if (c === '\'' || c === '"' || c === '`') {
       const quote = c;
       i += 1;
@@ -143,9 +178,13 @@ function scanFsUsage(text) {
 
   // Remove every static import statement (fs or not) from the body used for
   // counting, so an import line's own mention of a name is never counted as
-  // a "use" of it.
-  let body = text.replace(STATIC_IMPORT_RE, '');
-  body = stripCommentsAndStrings(body);
+  // a "use" of it. `bodyForIdents` (comments AND strings stripped) is for
+  // plain-identifier counting (named imports, namespace dot-access);
+  // `bodyForBrackets` (comments stripped, strings kept) is for bracket
+  // access, whose property name deliberately lives inside a string.
+  const withoutImports = text.replace(STATIC_IMPORT_RE, '');
+  const bodyForIdents = stripCommentsAndStrings(withoutImports);
+  const bodyForBrackets = stripComments(withoutImports);
 
   let m;
   STATIC_IMPORT_RE.lastIndex = 0;
@@ -157,16 +196,16 @@ function scanFsUsage(text) {
       const dotRe = new RegExp(`\\b${nsName}\\.(\\w+)\\b`, 'g');
       const bracketRe = new RegExp(`\\b${nsName}\\[\\s*(['"])(\\w+)\\1\\s*\\]`, 'g');
       let dm;
-      while ((dm = dotRe.exec(body))) bump(dm[1]);
+      while ((dm = dotRe.exec(bodyForIdents))) bump(dm[1]);
       let bm;
-      while ((bm = bracketRe.exec(body))) bump(bm[2]);
+      while ((bm = bracketRe.exec(bodyForBrackets))) bump(bm[2]);
     } else if (defaultName) {
       const dotRe = new RegExp(`\\b${defaultName}\\.(\\w+)\\b`, 'g');
       const bracketRe = new RegExp(`\\b${defaultName}\\[\\s*(['"])(\\w+)\\1\\s*\\]`, 'g');
       let dm;
-      while ((dm = dotRe.exec(body))) bump(dm[1]);
+      while ((dm = dotRe.exec(bodyForIdents))) bump(dm[1]);
       let bm;
-      while ((bm = bracketRe.exec(body))) bump(bm[2]);
+      while ((bm = bracketRe.exec(bodyForBrackets))) bump(bm[2]);
     } else if (namedList) {
       for (const rawSpec of namedList.split(',')) {
         const spec = rawSpec.trim();
@@ -175,7 +214,7 @@ function scanFsUsage(text) {
         const realName = asMatch ? asMatch[1] : spec;
         const localName = asMatch ? asMatch[2] : spec;
         const useRe = new RegExp(`\\b${localName}\\b`, 'g');
-        const count = (body.match(useRe) || []).length;
+        const count = (bodyForIdents.match(useRe) || []).length;
         bump(realName, count);
       }
     }
