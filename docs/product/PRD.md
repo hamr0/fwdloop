@@ -109,6 +109,17 @@ decides a close (docs/archive/PRD.md:411-413). Name collision worth keeping stra
 never run in 167 archived runs, and we have no judge to calibrate, so borrowing it would be
 unproven machinery ahead of need (docs/archive/PRD.md:419-425).
 
+**Parked, not scheduled: Jev as a triage gate** (hamr, 2026-09-28, idea passed on from the
+bareloop session). bare-agent ≥0.44's `JevProvider.classify()` is a calibrated single-shot
+classifier (yes/no probability, pick-one-key + confidence, or score; schema-checked output;
+honest-null cost when unpriced; `calibrateJev` go/no-go harness). Candidate use: routing *before*
+a signed ask ("which queue?", "does this need the human?"), never replacing a human accept or
+deciding a close — as a close-decider it collides with **No LLM judge** above. Any confidence
+threshold is an arbiter number hamr signs, never the agent's. Prerequisites before it can be
+scoped: fwdloop is on bare-agent ^0.42 (needs ≥0.44), and the use needs its own module with a
+signed scope/exit/negative. Source: `../bareagent/src/provider-jev.js`,
+`provider-jev-calibration.js`, bare-agent README "Fast gut check — Jev".
+
 **No CLI as a product surface.** `npm install`, one command, a localhost server starts and **the
 browser is the product**; the server owns the scheduler. A CLI exists for M0–M4 but is
 undocumented and carries no stability promise (docs/archive/PRD.md:427-431).
