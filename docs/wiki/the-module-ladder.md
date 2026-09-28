@@ -935,6 +935,26 @@ change; then the fix is upstream of the panel, and M4b waits.
 **Pending amendment candidate (NOT SIGNED):** accept records a hash of the accepted artifact;
 send verifies it before shipping (F48 finding C, hamr 2026-09-28).
 
+**Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
+(fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
+Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
+follow-on amendment would let a run name its OWN read/write folders instead of always defaulting to
+that shape. Before it starts, hamr picks:
+
+1. **How the folders are given at run start.** Proposed: `fwdloop run --read <dir> --write <dir>`,
+   repeatable (so a run can grant several read dirs, several write dirs).
+2. **The folders are fixed for the run, recorded in the audit at start.** A resume may only SHRINK
+   them (tighten further), never grow past what the original run recorded.
+3. **Always blocked, no matter what a run asks for.** The run's own records (`state.json`,
+   `audit.jsonl`, `spend.jsonl`, `answer*.json`, `ask.json`) and `inputs/` — an asked-for folder that
+   overlaps any of these refuses the whole run, by name, never a silent narrowing.
+4. **Default when nothing is set:** exactly today's shape — read = the run dir (+ frozen inputs),
+   write = `<runDir>/out`. This amendment only ADDS a way to ask for something else; it never changes
+   what a run gets when it asks for nothing.
+5. **Writing to a folder is local, not "send".** A step writing into a granted folder is not an
+   egress — `send` still needs its own signed destination and a human accept in the same run,
+   unchanged by this amendment.
+
 **Not in M4 (a or b):** the drafter and describe/sign (a later module brings the drafter into
 `src/`), editing a flow or adding turns (M6), dry-run and accept-a-version (M5), starting a new run
 from the panel, Settings, LAN or phone access (localhost only).

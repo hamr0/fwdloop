@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Deps: `bare-agent` bumped to `^0.47.0`, `bareguard` bumped to `^0.19.0` — pulls in
+  `createShellTools({ noFollowSymlinks: true })`/`resolveToolPath` (bare-agent) and bareguard's
+  fs `Gate` (deny-by-default read/write scopes, symlink-safe resolved-path checking on by
+  default), both wired into `src/primitives.js` — see the "Fixed" entry below.
 - Amendment M4a-3 (docs/wiki/the-module-ladder.md, "M4a"): every new `audit.jsonl` row also
   carries `tools`, a `{toolName: count}` tally of every GRANTED tool the model actually invoked
   that attempt, summed across every round — taken straight from bare-agent's own per-round
@@ -41,6 +45,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `listArchivedAsks` for the Ask tab (commit 9064e7c).
 
 ### Fixed
+- Fix-once switch-over (fix-ledger "step `write` may overwrite frozen inputs"): `src/primitives.js`
+  now routes `read`/`grep`/`write` through a bareguard `Gate` (readScope: the run dir + every
+  frozen input's own directory; writeScope: ONLY `<runDir>/out` — the run dir root, `state.json`,
+  `audit.jsonl`, `spend.jsonl`, `answer*.json`, `ask.json`, and `inputs/` are readable but no
+  longer writable) plus `createShellTools({ noFollowSymlinks: true })`, which refuses (`ELOOP`) a
+  symlinked FINAL path component (file, dir, or dangling link) at open time, closing the "open
+  what the check approved" gap the old lexical-only check left. The old `isPathAllowed`/
+  `sandboxError` pair (lexical containment only, no resolved-path/symlink check, and one writable
+  root covering the whole run dir) is removed. `<runDir>/out` is created lazily on the first
+  actual write, never at tool-resolve time, so `bin/fwdloop`'s own predicted-run-dir call before
+  `runFlow` creates anything stays a no-op on disk for a run that goes on to refuse.
+- BA-27 (bare-agent >=0.47.0): a malformed tool-call's arguments are now reported via
+  `result.malformedToolCall: { name, error }` on a normal `generate()` return instead of a thrown
+  `SyntaxError` — `src/provider.js`'s `MalformedToolCallTolerantOpenAI` read the old throw-based
+  shape and silently stopped catching the case under 0.47 (the F28/2026-09-15 red degenerated into
+  the wrong "returned text instead of the tool" message). Now reads `result.malformedToolCall` as
+  delivered; `rawArguments` is no longer recovered from a private response field (bare-agent never
+  echoes it back) — `src/model-step.js`'s red omits "; raw: ..." when it's absent.
 - F48 (docs/logs/FINDINGS.md): F36 refused `runs/` itself being a symlink, but a runId-named
   symlink INSIDE `runs/` pointing outside `--root` was still followed — the panel's
   `GET /api/runs/<flow>/<runId>/audit` route returned the symlink target's `audit.jsonl` at HTTP

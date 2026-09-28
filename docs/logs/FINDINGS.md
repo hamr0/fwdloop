@@ -2568,3 +2568,48 @@ evasion — split into a comments-only strip (bracket access, where the property
 lives inside a string) and a comments-and-strings strip (identifier counting).
 
 **Numbers.** 1549/1549 tests, typecheck clean, tracked-files-only copy green.
+
+### Round 5 — the fix-once switch-over: bareguard Gate + bare-agent noFollowSymlinks replace the lexical sandbox (2026-09-28)
+
+**What this closes.** The fix-ledger item "step `write` may overwrite frozen inputs" — `src/
+primitives.js`'s own lexical `isPathAllowed`/`sandboxError` pair (round 4's own subject file, an
+earlier-generation guard) never re-checked the RESOLVED path after a symlink, and treated the
+whole run dir as one writable root, so a step granted `write` could overwrite a frozen input or a
+book file (`state.json`, `audit.jsonl`, `spend.jsonl`) sitting anywhere under the run dir. Replaced
+with bareguard 0.19's fs `Gate` (readScope: run dir + every frozen input's own directory;
+writeScope: ONLY `<runDir>/out`) plus bare-agent 0.47's `createShellTools({ noFollowSymlinks: true
+})`, commits 490e5db/7caead8/3d613c7 on branch `m4`.
+
+**Now covered:**
+- A symlink whose FINAL path component is a file, directory, or dangling link — refused at OPEN
+  time (`ELOOP`, bare-agent's own `noFollowSymlinks`), not just at the earlier gate-check time.
+- A parent-directory symlink escape — a scope root or an intermediate ancestor that is itself a
+  symlink pointing outside the allowed folder — refused by bareguard's own resolved-path check
+  (`fs.readScope.symlinkEscape`/`fs.writeScope.symlinkEscape`), which realpaths the nearest
+  existing ancestor fresh on every call, no caching.
+- A dangling symlink anywhere on the walk (`fs.readScope.danglingSymlink`/`.writeScope.
+  danglingSymlink`) — refused, never followed, never silently treated as "doesn't exist yet."
+- The run dir root (state/audit/spend/answer/ask books, `inputs/`) is readable but no longer
+  writable — write only reaches `<runDir>/out`.
+
+**Not covered (deferred to hamr's ruling, same posture as round 3's own three gaps above):**
+- **The check-then-open window.** bareguard's `gate.check()` and bare-agent's actual `open()` are
+  two separate syscalls in sequence — a symlink planted in the exact gap between them (a true
+  TOCTOU race) is not closed by either library; `noFollowSymlinks` closes "the tool opens something
+  the check never saw," not "something changed between check and open."
+- **Hardlinks.** Neither library's symlink handling says anything about a hardlink — two directory
+  entries pointing at the same inode. A frozen input hardlinked from outside the sandbox would
+  still read/write through, lexically inside scope, with no symlink anywhere on the path.
+- **`shell_run`'s `cwd`.** Documented directly in bare-agent's own source (`tools/shell.js`): `cwd`
+  only gets `~` expansion, never `noFollowSymlinks` or `resolveToolPath`'s full canonicalization —
+  moot for this switch-over specifically, since `shell_run`/`shell_exec` are not among the verbs
+  `resolvePrimitives` grants any step today (`WIRED_VERBS` is `read`/`grep`/`write`/`readDocx`/
+  `addressCells` only), but worth naming if a future module wires a bash-shaped primitive.
+
+**Validated, not patched around** (hamr's rule for this switch-over): every claimed bareguard/
+bare-agent behaviour was checked directly against the installed packages — Gate's deny-by-default,
+`fs.invalidPath` for a relative or `~` agent path, `.symlinkEscape`/`.danglingSymlink`, the absence
+of any `fs.resolveSymlinks` opt-out key, and `noFollowSymlinks`'s `ELOOP` on a symlinked file/dir/
+dangling-link final component all matched exactly — see `test/switchover-fs-gate.test.js`'s
+"VALIDATION" tests, which call the Gate and the shell tools directly, not through fwdloop's own
+wrapper. Nothing differed, so nothing was worked around.
