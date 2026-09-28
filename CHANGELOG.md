@@ -75,6 +75,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `readFileSync`/`readdirSync`/`createReadStream`/`openSync` call in `src/**/*.js`/`bin/fwdloop`
   outside a narrow, per-call-site allow-list, so a future missed reader fails a test instead of
   waiting for another debrief.
+- F48 round 4 (docs/logs/FINDINGS.md): round 3's fix collapsed `readArtifact`'s result to one
+  value (`undefined`) for BOTH "never written" and "read refused" — a swapped/deleted accepted
+  artifact at the send slot looked identical to "nothing to send yet". Added `readArtifactResult`/
+  `readArtifactsMapChecked` (tri-state: `ok` / `missing` / `red`); every call site that can see
+  fresh content now halts the run by name on a `red` instead of silently feeding tampered content
+  forward. `readArtifact` survives only as a documented collapsing wrapper for the four call sites
+  the resume "done?" gate already proved `ok`. `src/send.js` now refuses `undefined`/`null`/
+  non-object/array content by name, writing nothing, instead of serialising `content ?? null`.
+  Replaced `test/f48-guard-raw-reads.test.js` (evadable via an aliased import, a namespace
+  dot/bracket access, `fs/promises`'s `readFile`, or a pasted copy of an allowed line — a debrief
+  proved all four) with `test/f48-guard-fs-imports.test.js`: an import-level scan that pins the
+  EXACT per-name use count of every `fs` binding reached per allow-listed file (aliases and
+  namespace/default access fold under the real name), catches `require('fs')` via a
+  `createRequire`-aliased local name, and pins `readArtifact(`'s 4 remaining call sites in
+  `src/runner.js`. Finding C (no hash of the ACCEPTED ARTIFACT'S CONTENT — send trusts whatever is
+  on disk at send time) is reported, not fixed; hamr sent it to M4b as a signed-amendment
+  candidate, not yet signed.
 - F47 (docs/logs/FINDINGS.md): `fwdloop show` (and `bin/fwdloop`'s `artifactText()`) read
   ask.json's evidence only in the M3 shape (`evidence.artifact.text`/`evidence.unjudged`) and
   printed the literal string `"undefined"` for a real M2-era ask.json (`evidence.text`/

@@ -932,6 +932,9 @@ change; then the fix is upstream of the panel, and M4b waits.
 
 **Proposed M4b spend cap: $1.00** (the live exit is about $0.05 a run). Not signed.
 
+**Pending amendment candidate (NOT SIGNED):** accept records a hash of the accepted artifact;
+send verifies it before shipping (F48 finding C, hamr 2026-09-28).
+
 **Not in M4 (a or b):** the drafter and describe/sign (a later module brings the drafter into
 `src/`), editing a flow or adding turns (M6), dry-run and accept-a-version (M5), starting a new run
 from the panel, Settings, LAN or phone access (localhost only).

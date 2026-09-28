@@ -2486,3 +2486,85 @@ Proved red first (reverting only the fix: `outcome` came back `'complete'`, not 
 restored, green. `test/f48-guard-raw-reads.test.js` (new, see above).
 
 **Numbers.** 1541/1541 tests (2 new), typecheck clean, tracked-files-only copy green.
+
+### Round 4 — the redesign: one value meant two things, plus the guard itself was evadable (2026-09-28)
+
+**Root cause.** Round 3's fix converted `readArtifact` to route through `readFileInside`, but
+collapsed its result to a single value: `undefined` for BOTH "never written" (fine, ordinary) and
+"read refused" (a symlink escape, an outside ancestor, or unparseable JSON — never fine). The send
+slot's `readArtifact(runDir, askArtifactId) === undefined` for a swapped or deleted accepted
+artifact was therefore indistinguishable from "nothing to send yet" — one value doing the work of
+two, and the more dangerous case silently took the safer one's path.
+
+**Fix — tri-state reads.** `src/flow.js`'s `readFileInside` already returns a clean tri-state
+(`{ok:true,text}` / `{ok:false,missing:true}` / `{ok:false,missing:false,red}`). Added
+`readArtifactResult` (the tri-state artifact reader) and `readArtifactsMapChecked` (its whole-
+`reads`-array counterpart), and updated every call site that can see fresh content — redo, the
+send-slot read, ask-slot evidence, ordinary-step reads — to halt the run BY NAME on a `red` instead
+of silently feeding forged/garbage content forward. The resume-time "was this step already done"
+gate now also names a red distinctly from missing. `readArtifact` survives only as a thin
+collapsing wrapper, documented as safe ONLY at the four remaining call sites that already read ids
+the resume gate proved `ok` earlier in the same call (`i < state.stepIndex`) — never a new call
+site.
+
+**Send refusal, and the gap its own tests found.** `src/send.js`'s `sendViaPrimitive` used to
+serialise `content ?? null` — any caller (or future bug) handing it `undefined` would write a
+4-byte `null` file and report `ok:true`. Now refuses `undefined`, `null`, and any non-object
+content by name, writing nothing. Writing `test/send.test.js` caught a real gap in that same fix:
+`typeof content !== 'object'` alone does not catch arrays (`typeof [] === 'object'` is true in JS),
+so an array would still have been serialised and written; `src/send.js` now also refuses
+`Array.isArray(content)`.
+
+**Tests.** `test/f48-round4-send-redesign.test.js`: a custom job2-shaped flow with an extra
+ordinary step wedged between the signed ask and the signed send gives a real hook — a fake
+`modelStep` that runs strictly after the ask's accepted artifact is written and strictly before
+the send step reads it — to tamper with the accepted artifact (deleted / symlinked outside /
+invalid JSON) exactly "after accept, before send". All three halt red naming the artifact,
+`sendStep` is never called, `audit.jsonl` gets no send row. A fourth test proves the resume-time
+gate refuses a symlinked EARLIER artifact by name, no new model call, no new audit row. Every one
+of these four verified red against the pre-redesign code (runner.js/send.js at 1a58409) before
+restoring the fix. `test/send.test.js`: unit tests for `sendViaPrimitive`'s own defense in depth.
+
+**Finding C — no accepted-content hash (reported, not built).** The accept step records that an
+ask was accepted, but no hash of the ACCEPTED ARTIFACT'S CONTENT — `send` ships whatever is on disk
+at send time, trusting that nothing rewrote it between accept and send (the redesign above only
+catches deletion/symlinking/invalid-JSON, not a same-shape substitution). hamr's ruling
+(2026-09-28): this is real but goes to M4b as a signed amendment ("accept records a hash of the
+accepted artifact; send checks it before shipping"), not built now — see
+`docs/wiki/the-module-ladder.md`'s M4b section.
+
+**Guard replaced — the line-text guard itself was evadable.** `test/f48-guard-raw-reads.test.js`
+(round 3 follow-up, above) matched a literal `readFileSync`/`readdirSync`/`createReadStream`/
+`openSync` regex against each offending LINE's trimmed text. A debrief proved four ways past it
+while still reading `fs` raw: an aliased named import (`readFileSync as rf` — the regex names the
+binding literally), a namespace import used as `ns.readFileSync(...)` or `ns['readFileSync'](...)`
+(the regex never sees the literal name at the call site), `readFile` from `node:fs/promises` (a
+name the old regex never listed), and a byte-identical copy of an ALREADY-allowed line pasted onto
+a new line in the same file (matched by snippet text, not by how many times the underlying binding
+is actually used). Replaced with `test/f48-guard-fs-imports.test.js` (`f48-guard-raw-reads.test.js`
+deleted): import-level, not call-line-level. For every file under `src/**/*.js` and `bin/fwdloop`
+it finds every way `fs` is reached — static import (named, aliased, default, `* as ns`), dynamic
+`import('...fs...')`, and `require('...fs...')` (including via a `createRequire`-derived local
+alias, not just the literal identifier `require`) — and pins the EXACT per-name use count for
+every allow-listed file (aliases and namespace/default dot-or-bracket access fold under the real
+fs export name). A count that moves either direction — a brand new call site, or a stale entry —
+fails, so a pasted copy of an allowed line now fails too. Also pins the 4 `readArtifact(` (the
+collapsing wrapper above) call sites in `src/runner.js`; a new caller must use
+`readArtifactResult` instead. Classified every file that touches `fs` today: `src/flow.js` is the
+safe-read implementation itself; `src/runner.js`/`src/ask.js` mix writes/checks with a few
+documented gated/business reads; `src/books.js`/`src/provider.js` write only; `src/send.js` reads
+back its own just-written bytes; `src/docx.js`/`src/primitives.js` read a caller-supplied business
+source (documented F48 exemption); `src/catalogue.js`/`src/panel/server.js` read their own
+bundled package file; `src/panel/data.js` and `bin/fwdloop` do checks only, routing real content
+reads through the imported book helpers. Proved red on nine cases while building it (each a
+throwaway edit, reverted, tree clean after): an aliased import, `ns.readFileSync`, `ns['readFileSync']`,
+`node:fs/promises`'s `readFile`, `import('node:fs')`, `require('fs')` via a `createRequire`-aliased
+local name (which the guard's own first draft missed — the alias evaded literal `require(` too,
+fixed before the proof), a pasted copy of an already-allowed line, a brand new `src/panel/` file
+importing `fs`, and a new `readArtifact(` call site in `src/runner.js`. Also found and fixed one
+scanner bug of its own along the way: the comment/string stripper dropped a bracket-access
+property name's surrounding quotes entirely (`ns['x']` became `ns[]`), silently passing that
+evasion — split into a comments-only strip (bracket access, where the property name deliberately
+lives inside a string) and a comments-and-strings strip (identifier counting).
+
+**Numbers.** 1549/1549 tests, typecheck clean, tracked-files-only copy green.
