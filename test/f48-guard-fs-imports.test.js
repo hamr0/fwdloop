@@ -232,6 +232,21 @@ function scanFsUsage(text) {
     if (isFsSpecifier(m[2])) requireCount += 1;
   }
 
+  // `createRequire(...)` hands back a require FUNCTION under whatever local
+  // name the caller assigns it — `require(` literally is only one spelling.
+  // Find every `const <local> = createRequire(...)` binding, then count
+  // calls of THAT local name against an fs specifier too.
+  const createRequireBindingRe = /\b(?:const|let|var)\s+(\w+)\s*=\s*createRequire\s*\(/g;
+  let cr;
+  while ((cr = createRequireBindingRe.exec(bodyForIdents))) {
+    const localRequireName = cr[1];
+    const aliasCallRe = new RegExp(`\\b${localRequireName}\\s*\\(\\s*(['"\`])([^'"\`]*)\\1\\s*\\)`, 'g');
+    let am;
+    while ((am = aliasCallRe.exec(bodyForBrackets))) {
+      if (isFsSpecifier(am[2])) requireCount += 1;
+    }
+  }
+
   return { names, dynamicImportCount, requireCount };
 }
 
