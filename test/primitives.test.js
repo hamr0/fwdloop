@@ -79,12 +79,25 @@ test('write: a path outside the run dir reds, never writes', async () => {
   await assert.rejects(() => tools.write.execute({ path: outsidePath, content: 'x' }), /outside the sandbox/);
 });
 
-test('write: a path inside the run dir succeeds', async () => {
+test('write: a path inside <runDir>/out succeeds', async () => {
+  const runDir = tmpRunDir();
+  const { tools } = resolvePrimitives(CATALOGUE, ['write'], { runDir });
+  const target = path.join(runDir, 'out', 'out.txt');
+  await tools.write.execute({ path: target, content: 'written' });
+  assert.equal(readFileSync(target, 'utf8'), 'written');
+});
+
+// CHANGED behaviour (fix-once switch-over, fix-ledger "step write may
+// overwrite frozen inputs"): a write to the run dir ROOT used to succeed
+// (the old lexical `isPathAllowed` treated the whole run dir as one
+// writable root). bareguard's Gate scopes write to `<runDir>/out` only —
+// the run dir root (where state.json/audit.jsonl/spend.jsonl/inputs/ live)
+// is readable but no longer writable.
+test('write: a path in the run dir ROOT (not out/) now reds — the run dir is read-only for write', async () => {
   const runDir = tmpRunDir();
   const { tools } = resolvePrimitives(CATALOGUE, ['write'], { runDir });
   const target = path.join(runDir, 'out.txt');
-  await tools.write.execute({ path: target, content: 'written' });
-  assert.equal(readFileSync(target, 'utf8'), 'written');
+  await assert.rejects(() => tools.write.execute({ path: target, content: 'x' }), /outside the sandbox/);
 });
 
 test('readDocx: reads a small real .docx fixture by role, never a raw path', async () => {

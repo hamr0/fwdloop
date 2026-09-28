@@ -300,8 +300,8 @@ const ALLOWLIST = {
     names: { readFileSync: 1 },
   },
   'src/primitives.js': {
-    reason: 'documented frozen-input reader exemption (F48): reads a frozen input file already sha256-pinned at freeze time, not a relative book-file name under runDir',
-    names: { readFileSync: 1 },
+    reason: 'documented frozen-input reader exemption (F48): reads a frozen input file already sha256-pinned at freeze time, not a relative book-file name under runDir. mkdirSync creates `<runDir>/out` (the write primitive\'s own bareguard-scoped root) ONLY when a step is actually granted `write` — never a raw read/write of run/flow-dir book content.',
+    names: { readFileSync: 1, mkdirSync: 1 },
   },
   'src/catalogue.js': {
     reason: 'the package\'s own bundled catalogue.json next to the source file — a self/package file, not user- or run-dir content',
