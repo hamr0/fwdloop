@@ -398,9 +398,13 @@ export function makeLiveModelStep({
         if (noToolCallStreak >= 2) {
           const malformed = provider?.lastMalformedToolCall ?? null;
           if (malformed) {
+            // bare-agent >=0.47 (BA-27) delivers only `{ name, error }` — no
+            // `rawArguments` (it never echoes the model's raw string back).
+            // Append "; raw: ..." only when a caller's marker carries one.
+            const rawSuffix = malformed.rawArguments !== undefined ? `; raw: ${malformed.rawArguments}` : '';
             return {
               ok: false,
-              red: `the tool call's arguments were not valid JSON twice in a row (${malformed.error}); raw: ${malformed.rawArguments}`,
+              red: `the tool call's arguments were not valid JSON twice in a row (${malformed.error})${rawSuffix}`,
               costUsd: cumulative.costUsd,
               tokens: cumulative.tokens,
               ...toolFields(cumulative),

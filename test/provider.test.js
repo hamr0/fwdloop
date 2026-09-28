@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
 
 import {
   PROVIDER_SLOTS, RATES_BY_SUFFIX, lookupRate, resolveModelRate, ceilingCostUsd,
@@ -161,4 +162,46 @@ test('makeProvider: with a key present, builds a provider for the requested mode
 test('PROVIDER_SLOTS: deepseek carries legacyMaxTokens (F11 — it ignores max_completion_tokens)', () => {
   assert.equal(PROVIDER_SLOTS.deepseek.legacyMaxTokens, true);
   assert.equal(PROVIDER_SLOTS.synthetic.legacyMaxTokens, false);
+});
+
+// BA-27 (bare-agent >=0.47.0) validation: the REAL wrapper from makeProvider,
+// pointed at a local server whose tool-call `arguments` is malformed JSON.
+// Revert-proof: reverting src/provider.js's fix (restore the pre-fix
+// generate() that never reads `result.malformedToolCall`) makes
+// `lastMalformedToolCall` stay `null` here — seen live, see report.
+test('makeProvider("deepseek")\'s real wrapper: a malformed tool-call sets lastMalformedToolCall from bare-agent\'s own {name,error} (no rawArguments — never recovered from a private field)', async () => {
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      choices: [{
+        message: {
+          content: null,
+          tool_calls: [{ id: 'call_1', function: { name: 'emit_x', arguments: '{"a":1}}' } }],
+        },
+        finish_reason: 'tool_calls',
+      }],
+      model: 'deepseek-flash',
+      usage: { prompt_tokens: 100, completion_tokens: 20, prompt_tokens_details: { cached_tokens: 0 } },
+    }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const saved = process.env.DEEPSEEK_API_KEY;
+  process.env.DEEPSEEK_API_KEY = 'sk-fake-test-key';
+  try {
+    const built = makeProvider('deepseek', { model: 'deepseek-flash' });
+    built.provider.baseUrl = `http://127.0.0.1:${port}`;
+    const result = await built.provider.generate(
+      [{ role: 'user', content: 'hi' }],
+      [{ name: 'emit_x', description: 'd', parameters: { type: 'object', properties: {} } }],
+    );
+    assert.deepEqual(result.toolCalls, []);
+    assert.equal(built.provider.lastMalformedToolCall.name, 'emit_x');
+    assert.match(built.provider.lastMalformedToolCall.error, /JSON/);
+    assert.equal(built.provider.lastMalformedToolCall.rawArguments, undefined);
+    assert.equal(result.usage.inputTokens, 100);
+  } finally {
+    if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved; else delete process.env.DEEPSEEK_API_KEY;
+    await new Promise((resolve) => server.close(resolve));
+  }
 });

@@ -316,7 +316,12 @@ test('F28: a malformed tool-call arguments string resolves generate() instead of
     );
     assert.deepEqual(result.toolCalls, []);
     assert.ok(result.malformedToolCall, 'expected malformedToolCall to be set on the returned result');
-    assert.equal(result.malformedToolCall.rawArguments, '{"a":1}}');
+    // bare-agent >=0.47.0 (BA-27) delivers only `{ name, error }` — it never
+    // echoes the raw arguments string back (was asserted as `rawArguments`
+    // under 0.42's own SyntaxError-catch wrapper; changed here rather than
+    // recovering it from a private response field, per hamr's "validate,
+    // never patch around" ruling).
+    assert.equal(result.malformedToolCall.rawArguments, undefined);
     assert.equal(result.malformedToolCall.name, 'emit_x');
     assert.match(result.malformedToolCall.error, /JSON/);
     assert.equal(result.usage.inputTokens, 100);

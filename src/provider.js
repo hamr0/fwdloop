@@ -24,47 +24,28 @@ import { readFileInside } from './flow.js';
 import { OpenAI } from 'bare-agent/providers';
 
 /**
- * F28 (2026-09-15): DeepSeek sometimes emits a tool-call whose
- * `function.arguments` is not valid JSON. bare-agent's own `generate()`
- * parses it unconditionally and throws a bare `SyntaxError` AFTER the HTTP
- * round already succeeded (`data.usage` is known) — the right class for
- * this is "no usable tool call" (metered, retried once, then red), never a
- * transport fault. This wrapper stashes the last HTTP response and, on a
- * `SyntaxError` whose response DID carry a tool call, returns a normal
- * `generate()`-shaped result with `toolCalls: []` and a `malformedToolCall`
- * extra field instead of throwing. Any other error rethrows unchanged.
+ * F28 (2026-09-15) / BA-27 (bare-agent >=0.47.0): DeepSeek sometimes emits a
+ * tool-call whose `function.arguments` is not valid JSON. Before 0.47,
+ * bare-agent's own `generate()` threw a bare `SyntaxError` AFTER the HTTP
+ * round already succeeded — losing the billed round and hanging metering.
+ * As of 0.47, `OpenAI.generate()` (bare-agent/src/provider-openai.js, via
+ * `provider-toolcalls.js`'s `parseToolCalls`) no longer throws: it resolves
+ * normally with `toolCalls: []` and a `malformedToolCall: { name, error }`
+ * field already on the result (no `rawArguments` — bare-agent never repairs
+ * or echoes the raw string back). `Loop.run()` does not forward unknown
+ * `generate()` fields into its own return, so this wrapper ALSO stashes the
+ * marker on the instance (`this.lastMalformedToolCall`, reset at the top of
+ * every `generate()` call) — the one channel `runModelStepOnPrimitives`
+ * (same provider reference) can read after `loop.run()` returns. We require
+ * bare-agent >=0.47 (package.json `^0.47.0`) and never patch around its
+ * private response internals — no `rawArguments` recovery here.
  */
 class MalformedToolCallTolerantOpenAI extends OpenAI {
-  async _request(path, body, timeoutMs, deadlineMs) {
-    const data = await super._request(path, body, timeoutMs, deadlineMs);
-    this._lastData = data;
-    return data;
-  }
-
   async generate(messages, tools = [], options = {}) {
     this.lastMalformedToolCall = null;
-    try {
-      return await super.generate(messages, tools, options);
-    } catch (err) {
-      if (!(err instanceof SyntaxError)) throw err;
-      const msg = this._lastData?.choices?.[0]?.message;
-      const toolCalls = msg?.tool_calls;
-      if (!Array.isArray(toolCalls) || toolCalls.length === 0) throw err;
-      const tc = toolCalls[0];
-      const rawArguments = typeof tc?.function?.arguments === 'string'
-        ? tc.function.arguments.slice(0, 500)
-        : '';
-      const malformedToolCall = { name: tc?.function?.name ?? null, rawArguments, error: err.message };
-      this.lastMalformedToolCall = malformedToolCall;
-      return {
-        text: msg.content || '',
-        toolCalls: [],
-        model: this._lastData.model || this.model,
-        stopReason: 'tool_use',
-        usage: this._normalizeUsage(this._lastData.usage),
-        malformedToolCall,
-      };
-    }
+    const result = await super.generate(messages, tools, options);
+    if (result.malformedToolCall) this.lastMalformedToolCall = result.malformedToolCall;
+    return result;
   }
 }
 

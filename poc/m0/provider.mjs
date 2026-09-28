@@ -43,54 +43,29 @@ import { RATES_BY_SUFFIX, lookupRate } from './spend.mjs';
  *    `malformedToolCall` field carrying what broke. Any other error
  *    (network, HTTP 4xx/5xx, a SyntaxError with no tool call in the
  *    response) rethrows unchanged.
- *  - `usage` is normalized via the INHERITED `_normalizeUsage` (never
- *    reimplemented) so the cache-token accounting (BA-24) stays exactly the
- *    library's own math.
- *  - `stopReason: 'tool_use'` — OpenAI's `finish_reason: 'tool_calls'` maps
- *    to the neutral `'tool_use'` unconditionally in bare-agent's own
- *    `provider-stop-reason.js` OPENAI table (no `ctx.hasToolCalls` branch
- *    for OpenAI; that promotion path is Gemini/Ollama-only), so this is the
- *    honest, standing raw-value report, not an invention.
- *  - `Loop` (`node_modules/bare-agent/src/loop.js` ~line 823) doesn't
- *    special-case unknown fields on the `generate()` return, and its final
- *    `loop.run()` return object is a fixed field set — `malformedToolCall`
- *    does NOT survive into `loop.run()`'s result. So it is ALSO stashed on
- *    the instance (`this.lastMalformedToolCall`, reset at the top of every
- *    `generate()` call) — the one channel `runModelStepOnPrimitives` (same
- *    provider reference) can read after `loop.run()` returns, to tell a
- *    genuinely-malformed round apart from a model that just returned text.
+ *  - As of bare-agent >=0.47.0 (BA-27), the base `OpenAI.generate()` no
+ *    longer throws a `SyntaxError` for this case: `provider-toolcalls.js`'s
+ *    `parseToolCalls` catches the bad `JSON.parse` itself and the call
+ *    resolves normally with `toolCalls: []` plus a `malformedToolCall:
+ *    { name, error }` field already on the result — usage/model still flow.
+ *    bare-agent never echoes the raw arguments string back, so there is no
+ *    `rawArguments` to recover; recovering it from a private response field
+ *    would be patching around their delivery, which we don't do.
+ *  - `Loop` (`node_modules/bare-agent/src/loop.js`) doesn't forward unknown
+ *    fields on the `generate()` return into its own final `loop.run()`
+ *    result, so `malformedToolCall` does NOT survive into `loop.run()`'s
+ *    result. So it is ALSO stashed on the instance
+ *    (`this.lastMalformedToolCall`, reset at the top of every `generate()`
+ *    call) — the one channel `runModelStepOnPrimitives` (same provider
+ *    reference) can read after `loop.run()` returns, to tell a genuinely-
+ *    malformed round apart from a model that just returned text.
  */
 export class MalformedToolCallTolerantOpenAI extends OpenAI {
-  async _request(path, body, timeoutMs, deadlineMs) {
-    const data = await super._request(path, body, timeoutMs, deadlineMs);
-    this._lastData = data;
-    return data;
-  }
-
   async generate(messages, tools = [], options = {}) {
     this.lastMalformedToolCall = null;
-    try {
-      return await super.generate(messages, tools, options);
-    } catch (err) {
-      if (!(err instanceof SyntaxError)) throw err;
-      const msg = this._lastData?.choices?.[0]?.message;
-      const toolCalls = msg?.tool_calls;
-      if (!Array.isArray(toolCalls) || toolCalls.length === 0) throw err;
-      const tc = toolCalls[0];
-      const rawArguments = typeof tc?.function?.arguments === 'string'
-        ? tc.function.arguments.slice(0, 500)
-        : '';
-      const malformedToolCall = { name: tc?.function?.name ?? null, rawArguments, error: err.message };
-      this.lastMalformedToolCall = malformedToolCall;
-      return {
-        text: msg.content || '',
-        toolCalls: [],
-        model: this._lastData.model || this.model,
-        stopReason: 'tool_use',
-        usage: this._normalizeUsage(this._lastData.usage),
-        malformedToolCall,
-      };
-    }
+    const result = await super.generate(messages, tools, options);
+    if (result.malformedToolCall) this.lastMalformedToolCall = result.malformedToolCall;
+    return result;
   }
 }
 
