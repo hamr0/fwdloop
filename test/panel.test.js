@@ -2178,14 +2178,72 @@ describe('index.html — page source', () => {
     assert.match(rowFnBody, /escapeXml\(auditCostCellText\(r\)\)/, 'buildAuditRowEl must call auditCostCellText(r) for its Cost cell');
   });
 
-  test('hamr 2026-09-27 item (d): the Time cell shows the row\'s own "at" via readableDateTime, or its server-derived pre-M4a-2 why', () => {
+  test('hamr 2026-09-27 item (d): auditTimeCellText still computes the row\'s own "at" via readableDateTime, or its server-derived pre-M4a-2 why', () => {
+    // auditTimeCellText itself is kept (its atWhy/readableDateTime fallback
+    // logic is unchanged); it is auditTimeCellHtml, added 2026-09-28, that
+    // the row builder actually calls for the Time cell now (next test).
     assert.match(source, /function auditTimeCellText/);
     assert.match(source, /r\.atWhy/);
     assert.match(source, /readableDateTime\(r\.at\)/);
+  });
+
+  // ---------------------------------------------------------------------------
+  // fix (2026-09-28, borrowed-from: bareloop src/panel/index.html@2711b1b):
+  // hamr's UI review found the Audit tab's Time cell (full local date+time,
+  // e.g. "9/27/2026, 8:20:58 AM") overflowing its mobile stacked-card cell
+  // sideways at 390px. auditTimeCellHtml now shows LOCAL time-only
+  // (toLocaleTimeString) with the full local readableDateTime string kept
+  // in the cell's title for hover — fwdloop reads every other timestamp on
+  // this page in local time, so (unlike bareloop's raw-UTC ISO slice) this
+  // helper stays local rather than switching to a raw UTC slice.
+  // ---------------------------------------------------------------------------
+
+  test('fix: auditTimeCellHtml renders a valid "at" as local time-only, with the full local timestamp in a title tooltip', () => {
+    const start = source.indexOf('function auditTimeCellHtml(');
+    const end = source.indexOf('\n  }', start);
+    assert.ok(start !== -1, 'expected auditTimeCellHtml in src/panel/index.html');
+    const helperSrc = source.slice(start, end + 4);
+    // exercise the real helper with the page's own escapeXml/readableDateTime
+    const escStart = source.indexOf('function escapeXml(');
+    const escEnd = source.indexOf('\n  }', escStart);
+    const escSrc = source.slice(escStart, escEnd + 4);
+    const rdtStart = source.indexOf('function readableDateTime(');
+    const rdtEnd = source.indexOf('\n  }', rdtStart);
+    const rdtSrc = source.slice(rdtStart, rdtEnd + 4);
+    const fn = new Function('Date', escSrc + rdtSrc + helperSrc + 'return auditTimeCellHtml;')(Date);
+    const iso = '2026-09-27T08:20:58.924Z';
+    const d = new Date(iso);
+    const expectedShort = d.toLocaleTimeString();
+    const expectedFull = d.toLocaleString();
+    const html = fn({ at: iso });
+    assert.match(html, /^<span title="/);
+    assert.ok(html.indexOf(expectedFull) !== -1, `expected full local timestamp "${expectedFull}" in title, got: ${html}`);
+    assert.ok(html.indexOf('>' + expectedShort + '<') !== -1, `expected local time-only "${expectedShort}", got: ${html}`);
+  });
+
+  test('fix: auditTimeCellHtml keeps atWhy/unknown plain text (no <span title>) for a missing/unparseable "at"', () => {
+    const start = source.indexOf('function auditTimeCellHtml(');
+    const end = source.indexOf('\n  }', start);
+    const helperSrc = source.slice(start, end + 4);
+    const escStart = source.indexOf('function escapeXml(');
+    const escEnd = source.indexOf('\n  }', escStart);
+    const escSrc = source.slice(escStart, escEnd + 4);
+    const rdtStart = source.indexOf('function readableDateTime(');
+    const rdtEnd = source.indexOf('\n  }', rdtStart);
+    const rdtSrc = source.slice(rdtStart, rdtEnd + 4);
+    const fn = new Function('Date', escSrc + rdtSrc + helperSrc + 'return auditTimeCellHtml;')(Date);
+    assert.strictEqual(fn({ atWhy: 'not recorded (before M4a-2)' }), 'not recorded (before M4a-2)');
+    assert.strictEqual(fn({}), 'unknown');
+    assert.doesNotMatch(fn({ atWhy: 'not recorded (before M4a-2)' }), /<span/);
+    assert.doesNotMatch(fn({}), /<span/);
+  });
+
+  test('fix: buildAuditRowEl\'s Time cell uses auditTimeCellHtml, not a raw readableDateTime(r.at) or the old escapeXml(auditTimeCellText(r))', () => {
     var rowFnStart = source.indexOf('function buildAuditRowEl');
     var rowFnEnd = source.indexOf('\n  }', rowFnStart);
     var rowFnBody = source.slice(rowFnStart, rowFnEnd);
-    assert.match(rowFnBody, /escapeXml\(auditTimeCellText\(r\)\)/, 'buildAuditRowEl must call auditTimeCellText(r) for its Time cell');
+    assert.match(rowFnBody, /auditTimeCellHtml\(r\)/, 'buildAuditRowEl must call auditTimeCellHtml(r) for its Time cell');
+    assert.doesNotMatch(rowFnBody, /escapeXml\(auditTimeCellText\(r\)\)/);
   });
 
   test('hamr 2026-09-27 exit-check review #1: an Audit step group\'s header is a role="button" div, COLLAPSED by default, foldable on click', () => {
