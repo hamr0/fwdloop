@@ -1063,6 +1063,15 @@ the new forced schema, with no converter. 20 paid drafts on deepseek-flash; bar 
 - hamr accepted with no reject; the resume file sent is byte-identical to the accepted artifact (checked).
 - Costs: run $0.01497 (4 priced rows, 0 nulls, modelMatch match); M6a ledger total $0.13630 against the $0.30 cap. Note: "200ish" landed at 145-180 because it is prose-only and only the human judges it (F50 remaining note).
 
+### M6a amendment 2 — only a person at a keyboard can sign — SIGNED by hamr 2026-09-29 ("sign m6a amendment 2")
+
+- **Why:** /branch-review found `fwdloop sign` can't tell a human from a script: anything with a shell (an agent included) can run draft, then `sign --approve <printed hash>`. The hash stops tampering, not a non-human approver.
+- **Scope:** `fwdloop sign` works only in an interactive terminal (stdin AND stdout are TTYs). It shows the flow name and asks the human to type the flow name back. `--approve <hash>` stays. No TTY -> refused, no flow written.
+- **Negatives:** piped stdin -> refused, no flow; the wrong typed name -> refused, no flow; a real TTY + the right name + the right hash -> signs.
+- **Exit:** hamr signs a draft in his own terminal and it works; the orchestrator's attempt from its non-interactive shell is refused.
+- **Cap:** $0.
+- **Honest limit:** this raises the bar and isn't proof; a determined script can fake a TTY (e.g. `expect`, `script`). Real proof of a person (a password, a hardware key) is later.
+
 **Not in M6a:** the UI (M6b), editing and versions (M5), an LLM scout, litectx verbs, a settings
 screen.
 
