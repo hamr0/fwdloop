@@ -1035,6 +1035,8 @@ job #2 (it replaces M4b's pre-step rebuild).
 the new forced schema, with no converter. 20 paid drafts on deepseek-flash; bar >= 18/20 valid
 (after at most the allowed retries and revisions). **Cap $1.00 for all of M6a — SIGNED 2026-09-29.**
 
+**POC bar MET — ruled by hamr 2026-09-29:** m6a-poc-2, 20/20 valid on deepseek-flash (thinking disabled, bare-agent 0.49.0, F49), $0.017; M6a ledger $0.049 of $1.00.
+
 **Not in M6a:** the UI (M6b), editing and versions (M5), an LLM scout, litectx verbs, a settings
 screen.
 
