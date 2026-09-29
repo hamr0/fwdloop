@@ -299,7 +299,7 @@ step and the text still signs (the same drift a UI with separate step and guardr
 and F34 showed a stop signed on a line that also carries work leaves the drafter no honest binding.
 
 1. A numbered line that starts with `ask:` is a stop: `5. ask: check it with me,`. With a wait time:
-   `5. ask 30m: check it with me,` (`<int>` then `s`, `m` or `h`; default 30m, as today).
+   `5. ask 30m: check it with me,` (`<int>` then `s`, `m` or `h`; default 30m, as today). Since M6a amendment 1, `draft`/`sign` refuse a bare `ask:`: the wait must be signed (`ask 30m:`); the 30m default applies only to flows signed before it).
 2. The words after the mark are required and are the human's own; they are what the ask shows.
 3. A marked line may carry its own `guardrail:` under it, free wording, strict 1-for-1 as any line.
 4. A marked line is only the stop: exactly one step binds to it, human-checked, granting no
@@ -1053,7 +1053,7 @@ the new forced schema, with no converter. 20 paid drafts on deepseek-flash; bar 
   3. An ask's wait (TTL) has no code default: it must be signed by hamr in the prose, or draft/sign refuses by name.
 - **Exit (live):** redraft and rerun job #2 with hamr's prose (plus hamr's own TTL line). The first attempt reaches the ask with sections of about 200 words each and no reject; hamr accepts; it sends.
 - **Negatives:** a hand-edited goal that doesn't match its line is refused at sign; the step's prompt contains the line exactly; the step's context never contains the guardrail/shape/cap; no TTL signed is refused.
-- **Cap:** $0.30, from M6a's remaining budget.
+- **Cap:** $0.30, from M6a's remaining budget (a sub-cap within M6a's $1.00, not extra).
 - **Not in scope (goes to M6b):** readout/UI wording (see M6).
 
 **Exit evidence (live, 2026-09-29) — EXIT SIGNED by hamr 2026-09-29 ("sign m6a exit"):**
