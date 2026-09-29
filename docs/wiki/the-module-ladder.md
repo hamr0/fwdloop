@@ -895,7 +895,14 @@ attempt counts — "keep name only".
 | (iv) `spendComplete:false` shows "at least $X", never a bare total | `test/panel.test.js` "negative (iv): spendComplete:false shows \"at least $X\", never a bare total" |
 | (v) no screen renders a key, secret, or path outside `--root` | `test/panel.test.js` "negative (v): a path-escape flow segment never reads outside root", "negative (v): a path-escape runId segment never reads outside root", "negative (v): a secret-looking env var never appears in any response" |
 
-#### M4b — inputs (does not start until M4a's exit is signed)
+#### M4b — inputs (DRAFT, NOT SIGNED; does not start until M4a's exit is signed)
+
+**Pre-step (before M4b starts).** (a) The catalogue `compress` description is fixed (it is a code
+shrinker, not a text shortener; the drafter had read the old text and granted it to job #2's
+prose-summary step). (b) Job #2 is re-drafted and re-signed as a new flow without `compress`,
+because both signed job #2 flows grant `compress` and are refused at preflight since the
+2026-09-26 unwired-verb refusal (F46). A small paid draft plus hamr's signature. hamr's ruling
+2026-09-29, "A1".
 
 **Scope.**
 
@@ -909,31 +916,38 @@ attempt counts — "keep name only".
 2. **Only a human click answers.** The server refuses an answer that did not come from the page: it
    checks `Origin` and `Host` against its own address, requires a per-process token that is only
    embedded in the served page, and accepts only `POST`. A scripted `curl` without the page's token
-   is a red naming the reason. Keys never reach the page.
-3. **Resume after an answer — ruled (b)** (hamr 2026-09-26, "1b"): the panel resumes the run itself
-   after the answer, using a key from the server's own environment, and shows it running live. This
-   is the "no terminal" product; showing "answered — run `fwdloop resume <runId>`" and leaving the
-   resume to a human terminal, as today, is not built.
+   is a red naming the reason. Keys never reach the page. The `Origin`/`Host` check applies to
+   EVERY route, `GET` included: the `/branch-review` of M4 reproduced a DNS-rebinding read (a `GET`
+   with `Host: evil.example.com` returned 200). hamr's ruling 2026-09-29, "B1".
+3. **Resume after an answer — ruled (b)** (hamr 2026-09-26, "1b"), now specified (hamr 2026-09-29):
+   the panel starts the resume as a separate detached background process, not inside the HTTP
+   request, using the key from the panel server's own environment. The page shows the run live
+   from the books. Closing the tab does not stop it. This is the "no terminal" product; showing
+   "answered — run `fwdloop resume <runId>`" and leaving the resume to a human terminal, as today,
+   is not built.
+4. **Accept records a hash; send verifies it** (moved in from the pending amendment; hamr "B1"
+   2026-09-29; F48 finding C). Accept records a sha256 of the accepted artifact. Send re-hashes the
+   artifact at send time and refuses by name on a mismatch, shipping nothing.
 
-**M4b exit.** Someone who has not used the CLI opens `fwdloop panel`, finds job #2's parked ask,
-reads the draft and both inputs, rejects with a reason, sees it re-park (after the resume, per
-ruling 1b), accepts, and sees the run's glyph turn `[✓]` and the sent artifact in the Run tab. hamr
-does this on a live run.
+**M4b exit.** Someone who has not used the CLI opens `fwdloop panel`, finds job #2's parked ask
+(via the new re-signed flow), reads the draft and both inputs, rejects with a reason, sees it
+re-park (after the resume, per ruling 1b), accepts, and sees the run's glyph turn `[✓]` and the
+sent artifact in the Run tab. hamr does this on a live run, panel only.
 
 **M4b negative scenarios**, each of which must be able to fail:
 
 - (i) a scripted `POST` to the answer endpoint without the page's token, or from another `Origin`, is
   refused, and no `answer.json` is written;
 - (ii) an answer the library refuses (expired, blank reason, second answer) shows that refusal by name
-  in the page, never a success.
+  in the page, never a success;
+- (iii) the accepted artifact changed on disk between accept and send: send refuses by name and
+  nothing is shipped;
+- (iv) a `GET` with a foreign `Host` is refused.
 
 **Kills M4b:** the answer/resume path cannot be made to refuse (i) or (ii) without a books or arbiter
 change; then the fix is upstream of the panel, and M4b waits.
 
 **Proposed M4b spend cap: $1.00** (the live exit is about $0.05 a run). Not signed.
-
-**Pending amendment candidate (NOT SIGNED):** accept records a hash of the accepted artifact;
-send verifies it before shipping (F48 finding C, hamr 2026-09-28).
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
