@@ -84,7 +84,7 @@ export async function draft({
   budgetUsd = 0.10, skills = DRAFT_SKILLS,
 }) {
   const fail = (reds, extra = {}) => ({
-    ok: false, declaration: null, reds, rounds: 0, costUsd: 0, structureRetries: 0, revisions: 0, stop: 'pre-flight', log: [], ...extra,
+    ok: false, declaration: null, reds, rounds: 0, costUsd: 0, modelReturned: null, structureRetries: 0, revisions: 0, stop: 'pre-flight', log: [], ...extra,
   });
 
   // ---- $0 gates, before any provider is built -------------------------------
@@ -178,7 +178,7 @@ export async function draft({
       log.push(entry);
       const m = sumMeterings(meterings);
       return {
-        ok: true, declaration, reds: [], rounds: m.rounds, costUsd: m.costUsd, structureRetries, revisions, stop: null, log,
+        ok: true, declaration, reds: [], rounds: m.rounds, costUsd: m.costUsd, modelReturned: m.model, structureRetries, revisions, stop: null, log,
       };
     }
     lastReds = [...verdict.reds];
@@ -192,6 +192,6 @@ export async function draft({
 
   const m = sumMeterings(meterings);
   return {
-    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, costUsd: m.costUsd, structureRetries, revisions, stop, log,
+    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, costUsd: m.costUsd, modelReturned: m.model, structureRetries, revisions, stop, log,
   };
 }
