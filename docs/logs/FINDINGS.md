@@ -2646,3 +2646,28 @@ wrapper. Nothing differed, so nothing was worked around.
   path once, at command start (`resolveRoot` in `bin/fwdloop`, used by run, resume, inbox, show,
   answer, panel); nothing else is followed, and everything inside the root stays under
   bareguard's refusal, including a root swapped to a symlink mid-run. Fixed in 0f0bf4e.
+
+## F49 — deepseek-flash 400s on any forced tool_choice (thinking mode); bare-agent cannot send `thinking` (2026-09-29)
+
+**What happened.** M6a paid batch `m6a-poc-1` (20 drafts, forced tool call) failed 0/20 at round 0:
+HTTP 400 "Thinking mode does not support this tool_choice". DeepSeek refused before generating
+anything; request_ids are in `poc/m6a/out/m6a-poc-1.drafts/draft-N.json` and `requestId` on each ledger row.
+
+**Cause, probed.** DeepSeek-V4.1-Flash (`deepseek-flash`) runs in thinking mode by default and 400s on
+any forced `tool_choice`. Named → 400 (req a2f6f09f-a75a-4b6c-92d3-b372dbe8a10b); `"required"` → 400
+(req 0fa25873-a831-4385-b273-8412c86b708d); named + body `thinking:{type:"disabled"}` → 200 with the
+correct tool call.
+
+**Upstream gap (bare-agent).** `OpenAIProvider.generate()` builds the body from model/messages/
+temperature/maxTokens/tools/tool_choice only; it cannot send `thinking`. Confirmed by bareloop: it never
+forces tool_choice so it never hit this (closest is bareloop BA-7(b), Anthropic-only). Ask sent
+2026-09-29 to the bare-agent session: an opt-in narrow `thinking` option → `body.thinking` in both the
+OpenAI-compatible and Anthropic providers, negative control = byte-identical default body. hamr ruled
+1A: M6a waits for it; the signed forced-tool spec stands.
+
+**Books.** Batch `m6a-poc-1`: 0/20, $0 real spend. The null-cost rows were booked at ceiling ($0.576),
+then re-booked at $0 by hamr's ruling (2A); the 3 raw curl probes are one row, $0.00012. Tag
+`m6a-poc-1` is consumed; the next paid run uses a new tag.
+
+**Lesson.** A $0 probe of the exact paid request shape (forced tool_choice) before the batch would have
+caught this; the fake provider can't.
