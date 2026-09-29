@@ -658,7 +658,7 @@ has a bareloop UI to borrow, so M4 is mostly adjusting, not designing.
   authoring only and is now M6, and every module after it shifts by one (old M6→M7, M7→M8, M8→M9,
   M9→M10). The renumber is done in the sections below, not deferred.
 
-### M4 (the UI) — scope, exit, negative — M4a SIGNED by hamr 2026-09-26 ("signed M4a"), M4a EXIT SIGNED 2026-09-27, M4b DRAFT, NOT SIGNED
+### M4 (the UI) — scope, exit, negative — M4a SIGNED by hamr 2026-09-26 ("signed M4a"), M4a EXIT SIGNED 2026-09-27, M4b SIGNED by hamr 2026-09-29 ("sign m4b")
 
 **Where it comes from** (answered by the `loop` session, 2026-09-26). bareloop's panel:
 `src/panel/index.html` (one file, all CSS and JS inline, vanilla, no build step, no npm UI deps; only
@@ -895,7 +895,7 @@ attempt counts — "keep name only".
 | (iv) `spendComplete:false` shows "at least $X", never a bare total | `test/panel.test.js` "negative (iv): spendComplete:false shows \"at least $X\", never a bare total" |
 | (v) no screen renders a key, secret, or path outside `--root` | `test/panel.test.js` "negative (v): a path-escape flow segment never reads outside root", "negative (v): a path-escape runId segment never reads outside root", "negative (v): a secret-looking env var never appears in any response" |
 
-#### M4b — inputs (DRAFT, NOT SIGNED; does not start until M4a's exit is signed)
+#### M4b — inputs (SIGNED by hamr 2026-09-29, "sign m4b")
 
 **Pre-step (before M4b starts).** (a) The catalogue `compress` description is fixed (it is a code
 shrinker, not a text shortener; the drafter had read the old text and granted it to job #2's
@@ -947,7 +947,7 @@ sent artifact in the Run tab. hamr does this on a live run, panel only.
 **Kills M4b:** the answer/resume path cannot be made to refuse (i) or (ii) without a books or arbiter
 change; then the fix is upstream of the panel, and M4b waits.
 
-**Proposed M4b spend cap: $1.00** (the live exit is about $0.05 a run). Not signed.
+**M4b spend cap: $1.00** (the live exit is about $0.05 a run) — SIGNED 2026-09-29.
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
