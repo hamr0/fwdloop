@@ -70,7 +70,7 @@ export const CATALOGUE = Object.freeze([
   // compress — read-only condensation (litectx). `compress` is a plain
   // module export (a function), not a LiteCtx method.
   {
-    verb: 'compress', component: 'compress', package: 'litectx', symbol: 'compress', class: 'read', skill: 'core', desc: 'Shorten a piece of text to fit a small prompt (full, signature-only, or dropped).',
+    verb: 'compress', component: 'compress', package: 'litectx', symbol: 'compress', class: 'read', skill: 'core', desc: 'Shrink source code: keep each function header and its doc comment, drop the body (or reduce it to a name). Code only — prose and markdown come back unchanged.',
   },
   {
     verb: 'peek', component: 'compress', package: 'litectx', symbol: 'LiteCtx', method: 'peek', class: 'read', skill: 'core', desc: "Preview a parked item's start and end without loading all of it.",
