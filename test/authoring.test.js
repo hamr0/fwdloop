@@ -459,5 +459,12 @@ test('ttl: sign refuses a draft whose prose ask has no signed wait, even with ev
 test('ttl: a signed "ask 30m:" is accepted and the readout shows the wait the human typed', async () => {
   const { r, dir } = await makeDraft();
   assert.equal(r.ok, true, JSON.stringify(r.reds));
-  assert.match(readFileSync(path.join(dir, 'readout.txt'), 'utf8'), /ttl 30 min/);
+  assert.match(readFileSync(path.join(dir, 'readout.txt'), 'utf8'), /\(ttl 30m\)/);
+});
+
+test('ttl: a signed "ask 20s:" reads back as 20s, never rounded to 0 min', async () => {
+  const fx = job2Fixture();
+  const { r, dir } = await makeDraft({ prose: fx.prose.replace('4. ask 30m:', '4. ask 20s:') });
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  assert.match(readFileSync(path.join(dir, 'readout.txt'), 'utf8'), /\(ttl 20s\)/);
 });

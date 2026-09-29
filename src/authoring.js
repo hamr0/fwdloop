@@ -71,6 +71,15 @@ export function sweepForSecrets(dir, secrets) {
   return leaks;
 }
 
+/** Exact signed TTL with its unit, never rounded: 2h / 30m / 20s / 1500ms (the largest unit that divides it exactly). */
+export function fmtTtl(ms) {
+  if (!Number.isFinite(ms)) return String(ms);
+  if (ms % 3600000 === 0 && ms > 0) return `${ms / 3600000}h`;
+  if (ms % 60000 === 0 && ms > 0) return `${ms / 60000}m`;
+  if (ms % 1000 === 0) return `${ms / 1000}s`;
+  return `${ms}ms`;
+}
+
 const usd = (n) => (n == null ? 'UNKNOWN (unpriced round)' : `$${n.toFixed(4)}`);
 
 /** Plain-text readout of what the human is about to sign. Pure. */
@@ -91,7 +100,7 @@ export function buildReadout({ declaration, arbiter, lines, name, modelId, costU
       + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${st.close?.class}`);
   });
   out.push('', 'ASKS (human stops)');
-  for (const a of arbiter.asks) out.push(`  line ${a.line}: "${a.question}" (ttl ${Math.round(a.ttlMs / 60000)} min)`);
+  for (const a of arbiter.asks) out.push(`  line ${a.line}: "${a.question}" (ttl ${fmtTtl(a.ttlMs)})`);
   if (arbiter.asks.length === 0) out.push('  none');
   out.push('', 'SEND TARGET (nothing leaves before an accepted ask)');
   for (const s of arbiter.sends) out.push(`  line ${s.line} -> ${s.target.kind}:${s.target.path}`);
