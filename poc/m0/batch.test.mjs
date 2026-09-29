@@ -7,8 +7,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import {
-  writeFileSync, mkdirSync, mkdtempSync, existsSync, readFileSync, readdirSync,
+  writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync,
 } from 'node:fs';
+import { mkdtempSync } from '../../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';

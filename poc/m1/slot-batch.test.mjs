@@ -6,8 +6,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  mkdtempSync, readFileSync, readdirSync, writeFileSync, existsSync,
+  readFileSync, readdirSync, writeFileSync, existsSync,
 } from 'node:fs';
+import { mkdtempSync } from '../../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
