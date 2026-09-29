@@ -2675,3 +2675,18 @@ then re-booked at $0 by hamr's ruling (2A); the 3 raw curl probes are one row, $
 caught this; the fake provider can't.
 
 Resolved upstream: bare-agent 0.49.0 (2026-09-29); fwdloop pins it and the M6a drafter passes thinking {type:'disabled'}; pre-release validation 3/3 valid drafts, 0 400s.
+
+## F50 — the drafter drops prose detail that is not a guardrail; the human ask caught it (2026-09-29)
+
+**Found in the M6a live exit** (job2-m6a, run `run-mumu5yxa-6ff4e021`, deepseek-flash). Prose line 3
+carried "200ish each"; the drafter's step-3 purpose text lost it (the readout says only "…the three
+declared sections under the word budget"). The model step then wrote about 170 words total and noted no
+budget value was in its reads. The signed guardrail (3 sections, under 600 words) was met, so the
+machine check was correct and green; only hamr's ask caught the lost intent ("too short: each section
+should be ~200 words"). Reject → redraft attempt 2 gave about 200/190/200, shape check passed.
+
+**Not fixed.** Cost of leaving it: any per-section size the human states in prose only is at the
+drafter's discretion; the ask is the backstop, not a check.
+
+**Lesson.** Anything the human needs checked mechanically must be a guardrail; prose-only detail
+survives only if the drafter keeps it — the ask is the backstop.
