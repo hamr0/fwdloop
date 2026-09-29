@@ -902,7 +902,9 @@ shrinker, not a text shortener; the drafter had read the old text and granted it
 prose-summary step). (b) Job #2 is re-drafted and re-signed as a new flow without `compress`,
 because both signed job #2 flows grant `compress` and are refused at preflight since the
 2026-09-26 unwired-verb refusal (F46). A small paid draft plus hamr's signature. hamr's ruling
-2026-09-29, "A1".
+2026-09-29, "A1". **Superseded by M6a's exit
+(2026-09-29):** the new job #2 flow comes from `fwdloop draft` + `fwdloop sign`, not a hand-rebuild;
+M4b waits for it. Part (a) stands.
 
 **Scope.**
 
@@ -978,6 +980,63 @@ at all — its Chat tab is a static "not built yet" string, no form, no POST rou
 lesson is to ask "when would you use this?" before building a button. fwdloop starts read-only too:
 runs start from the CLI or a trigger, and the panel is where a human watches and answers. A Run
 button is not deferred pending more design — it is out of scope for M4.
+
+### M6a — authoring backend, pulled forward — SIGNED by hamr 2026-09-29 ("sign m6a, A")
+
+**Why (hamr, 2026-09-29).** Build the front (describe, draft, sign) before the M4b UI, the way
+bareloop did: machinery first, then the UI wires to commands that already work. M4b stays signed and
+waits until M6a's exit is signed. M6 splits: **M6a = the backend (this section), M6b = the authoring
+UI, later.**
+
+**Plainly: describe/sign was never built.** The ladder's M4 line ("M4 wires only what is built
+(M0-M3: describe/sign, run, ...)") claimed it was. It was not. The drafter lives only in `poc/`, and
+flows are written by `poc/m2/mkflow.mjs`, which stamps `signedBy` itself. Nothing in `src/` drafts a
+flow or records a human signature. M6a builds that.
+
+**Borrowed shape from bareloop (`edf4aa6`).** One catalogue drives the drafter's schema and prompt.
+The drafter answers through a forced tool call. $0 gates run before any paid step. Sign is a
+separate human step, bound to a hash of what the human saw. Keys never go in files or pages. A scrub
+sweep checks every written file for key values.
+
+**Scope.**
+
+1. **One catalogue.** `src/catalogue.json` feeds the drafter. The drafter's menu is the WIRED verbs
+   only (`src/primitives.js` `WIRED_VERBS`). The `poc/m0/catalogue.mjs` copy is retired from the
+   product path.
+2. **The drafter moves into `src/`.** It emits the `src` declaration shape directly (no converter)
+   through a forced tool call whose schema is derived from the catalogue and `src/declaration.js`,
+   and is checked by `validateDeclaration`. At most 2 structure retries and 2 revisions on validator
+   reds. Every round is metered (`onLlmResult`), under a hard cap; unknown cost is never 0.
+3. **Input facts are read mechanically at $0** (for example docx/md headings for `inputFacts`). No
+   model scout.
+4. **`fwdloop draft`** writes a draft dir (prose, declaration, readout, spec hash) and prints
+   `DRAFTED — NOT SIGNED. To sign: fwdloop sign <dir> --approve <hash>`.
+5. **`fwdloop sign <dir> --approve <hash>`** is the human step. $0 re-checks: hash match, every
+   granted verb wired, sources exist, send target valid. Then `writeFlow`. Code never signs on its
+   own; `mkflow`'s self-stamp is retired from the product path.
+
+**Keys (hamr ruling "A", 2026-09-29).** Keys stay in `pass`, loaded in the launching shell, until API
+settings land with the UI. Recorded for later, with the UI and bareloop-shaped: a Settings screen
+for API keys and limits. bareloop's shape is a 0600 keys file with names-only exposure to the page,
+a config file for limits, settings routes, and no route that writes a key value back. **Not in M6a.**
+
+**Exit.** hamr drafts job #2 live on deepseek-flash with `fwdloop draft`, reads the readout, signs
+with `fwdloop sign --approve`, and `fwdloop run` on the new flow reaches its ask. That flow is M4b's
+job #2 (it replaces M4b's pre-step rebuild).
+
+**Negatives, each able to fail.**
+- Sign with no hash or the wrong hash: refused, no flow written.
+- A draft or hand-edited declaration granting an unwired verb: refused at sign, $0.
+- Prose edited after the draft: hash mismatch, refused.
+- The draft dir never contains a key value (scrub sweep).
+- Budget exceeded: stops, priced, booked.
+
+**POC first (riskiest assumption).** The drafter emits a VALID `src` declaration for job #2 through
+the new forced schema, with no converter. 20 paid drafts on deepseek-flash; bar >= 18/20 valid
+(after at most the allowed retries and revisions). **Cap $1.00 for all of M6a — SIGNED 2026-09-29.**
+
+**Not in M6a:** the UI (M6b), editing and versions (M5), an LLM scout, litectx verbs, a settings
+screen.
 
 ## M5 — dry-run, accept, versions
 
