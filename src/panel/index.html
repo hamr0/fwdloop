@@ -1,0 +1,2377 @@
+<!DOCTYPE html>
+<!-- borrowed-from: bareloop src/panel/index.html@a30bbef — ADAPTED for fwdloop.
+     M4a piece 3+ (docs/wiki/the-module-ladder.md, "M4a — read-only panel —
+     SIGNED"): the Tokyo Night box-drawing visual design (CSS tokens, tab
+     layout, glyph/badge styling, responsive 390px breakpoint) is kept from
+     the borrowed page; every data-bearing script (fetches, run rendering,
+     step map, audit, job, run grouping) is rewired for fwdloop's own book
+     shapes (src/panel/data.js) — fwdloop has one flow shape (linear,
+     human-authored, signed steps) and one book granularity (one audit row
+     per step ATTEMPT), not bareloop's rounds/parts/scout/plan/judge/fix-loop
+     model, so that whole layer is replaced rather than adapted. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fwdloop panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  /* Reused verbatim from design/panel-mockup.html (the visual contract, PANEL-BUILD.md §6) —
+     Tokyo Night box-drawing TUI look, same tokens, same responsive breakpoint. Fake-data rows
+     and the Settings/Chat-authoring styling are kept (Settings/Chat are out of P1's scope but
+     the CSS is harmless dead weight rather than a second stylesheet to maintain). */
+  :root{
+    --bg:#1a1b26; --panel:#1f2335; --panel2:#24283b; --border:#292e42; --border-strong:#3b4261;
+    --text:#c0caf5; --text-dim:#a9b1d6; --text-faint:#565f89;
+    --green:#9ece6a; --green-bg:#1c2b23;
+    --red:#f7768e; --red-bg:#2b1822;
+    --amber:#e0af68; --amber-bg:#2b2416;
+    --grey-dot:#878eac; --grey-bg:#20242f;
+    --cyan:#7dcfff; --cyan-bg:#182634;
+    --magenta:#bb9af7;
+    --accent:#7aa2f7;
+    --btn-bg:#1f2335; --btn-text:#c0caf5;
+    --primary-bg:#7aa2f7; --primary-text:#1a1b26; --primary-border:#7aa2f7;
+    font: 14px/1.5 "Courier Prime", "Courier New", Courier, ui-monospace, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);}
+  body{overflow-x:hidden;}
+  button{font:inherit;cursor:pointer;}
+  table{border-collapse:collapse;width:100%;}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px dotted var(--border-strong);font-size:12px;}
+  th{color:var(--text-dim);font-weight:700;background:var(--panel2);text-transform:uppercase;letter-spacing:0.04em;font-size:11px;border-bottom:1px solid var(--border-strong);}
+  /* item: Audit tab header stays visible while the row list scrolls. On
+     desktop >=900px .pane-body itself is height-bound and scrolls (see the
+     @media(min-width:900px) block above); on mobile #FwdloopPanel/.main
+     are unbound and the PAGE scrolls instead, so .pane-body never actually
+     develops its own scroll offset there and a sticky th anchored to it
+     would scroll away with the page. Giving the table its own bounded,
+     always-scrolling wrapper makes the header genuinely sticky on both
+     breakpoints, and also owns the horizontal scroll for the Path column
+     on narrow (390px) screens instead of leaving it to .pane-body. */
+  .audit-table-scroll{overflow:auto;max-height:min(60vh,520px);}
+  /* z-index keeps rows from showing through the solid th background as
+     they scroll under it. */
+  [data-testid="audit-table"] th{position:sticky;top:0;z-index:1;}
+  td{border-right:1px dotted var(--border);}
+  td:last-child{border-right:none;}
+  a{color:var(--accent);text-decoration:underline;}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#e1e2e7; --panel:#d0d5e3; --panel2:#e9e9ed; --border:#c4c8da; --border-strong:#a8b0cc;
+      --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5;
+      --green:#567238; --green-bg:#dfe7d4;
+      --red:#c92353; --red-bg:#fbe0e8;
+      --amber:#82643a; --amber-bg:#f0e6d3;
+      --grey-dot:#626887; --grey-bg:#e2e2e8;
+      --cyan:#007197; --cyan-bg:#d6ecf1;
+      --magenta:#9854f1;
+      --accent:#2668c2;
+      --btn-bg:#e9e9ed; --btn-text:#3760bf;
+      --primary-bg:#2668c2; --primary-text:#e1e2e7; --primary-border:#2668c2;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#e1e2e7; --panel:#d0d5e3; --panel2:#e9e9ed; --border:#c4c8da; --border-strong:#a8b0cc;
+    --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5;
+    --green:#567238; --green-bg:#dfe7d4;
+    --red:#c92353; --red-bg:#fbe0e8;
+    --amber:#82643a; --amber-bg:#f0e6d3;
+    --grey-dot:#626887; --grey-bg:#e2e2e8;
+    --cyan:#007197; --cyan-bg:#d6ecf1;
+    --magenta:#9854f1;
+    --accent:#2668c2;
+    --btn-bg:#e9e9ed; --btn-text:#3760bf;
+    --primary-bg:#2668c2; --primary-text:#e1e2e7; --primary-border:#2668c2;
+  }
+  .theme-toggle{padding:4px 9px;min-height:32px;border:1px solid var(--border-strong);background:var(--btn-bg);color:var(--text);}
+
+  h2,h4{text-transform:uppercase;letter-spacing:0.06em;font-weight:700;}
+
+  #FwdloopPanel{display:flex;flex-direction:column;min-height:100vh;}
+  /* item 4 (2026-09-25): on desktop the left list scrolls inside its own
+     pane and the right pane stays in view — the PAGE itself never scrolls
+     the list away. Bounding #FwdloopPanel/.main to the viewport height
+     (desktop only — phone keeps its natural stacked-page scroll, see the
+     max-width:899px block below) is what lets each .pane-body's own
+     `overflow:auto` actually take effect instead of the whole document
+     growing taller than 100vh and dragging everything, list included, up
+     off screen together. */
+  @media (min-width: 900px){
+    html, body{height:100%;}
+    #FwdloopPanel{height:100vh;min-height:0;overflow:hidden;}
+    .main{overflow:hidden;}
+  }
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 16px;border-bottom:2px solid var(--border-strong);
+    background:var(--panel);flex-wrap:wrap;gap:8px;
+  }
+  .topbar > div:first-child{display:flex;align-items:baseline;gap:0;white-space:nowrap;overflow:hidden;}
+  .topbar .brand{font-weight:700;font-size:17px;letter-spacing:0.06em;flex:none;}
+  .topbar .brand::before{content:"■ ";}
+  .topbar .tagline{font-size:12px;color:var(--text-dim);margin-left:8px;overflow:hidden;text-overflow:ellipsis;}
+  .topbar .tagline::before{content:"· ";color:var(--text-faint);}
+  @media (max-width: 600px){ .topbar .tagline{display:none;} }
+  .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+
+  [hidden]{display:none !important;}
+  .main{display:flex;flex:1;min-height:0;}
+  .left-pane{width:420px;flex:none;border-right:1px solid var(--border-strong);display:flex;flex-direction:column;background:var(--panel);}
+  .right-pane{flex:1;min-width:0;display:flex;flex-direction:column;}
+
+  .tabrow{display:flex;border-bottom:1px solid var(--border-strong);background:var(--panel2);counter-reset:tabnum;}
+  .tabrow button{
+    flex:1;padding:10px 6px;min-height:44px;background:transparent;border:none;
+    border-right:1px dotted var(--border-strong);font-size:13px;color:var(--text-dim);
+    counter-increment:tabnum;
+  }
+  .tabrow button::before{content:"[" counter(tabnum) "] ";color:var(--text-faint);font-weight:700;}
+  .tabrow button:last-child{border-right:none;}
+
+  .pane-body{padding:12px;overflow:auto;flex:1;min-height:0;}
+  .tabpanel{display:none;}
+  .tabpanel.active{display:block;}
+
+  .dot{display:inline-flex;align-items:center;justify-content:center;margin-right:6px;vertical-align:middle;font-weight:700;font-size:12px;}
+  .dot::before{content:"[·]";color:var(--grey-dot);}
+  .dot.green::before{content:"[✓]";color:var(--green);}
+  .dot.red::before{content:"[✗]";color:var(--red);}
+  .dot.amber::before{content:"[▶]";color:var(--amber);}
+  .dot.grey::before{content:"[·]";color:var(--grey-dot);}
+  /* died (hamr's ruling B, 2026-09-25): no ending was ever recorded — a
+     DIFFERENT fact from a real [✗] close/arbiter "no", so it gets its own
+     glyph and its own color (magenta), never red or amber. */
+  .dot.magenta::before{content:"[?]";color:var(--magenta);}
+  /* expired, unresumed ask (hamr's ruling, 2026-09-27): same "needs
+     attention" amber as running, but a DIFFERENT glyph — never the running
+     arrow [▶], which this reserves for "running" alone. Its own class so
+     the two states never share a ::before rule. */
+  .dot.expired::before{content:"[!]";color:var(--amber);}
+
+  .badge{display:inline-block;font-size:11px;padding:1px 4px;color:var(--text-dim);background:none;font-weight:700;}
+  .badge::before{content:"[";color:var(--text-faint);}
+  .badge::after{content:"]";color:var(--text-faint);}
+  .badge.green{color:var(--green);}
+  .badge.red{color:var(--red);}
+  .badge.amber{color:var(--amber);}
+  .badge.grey{color:var(--grey-dot);}
+  .badge.magenta{color:var(--magenta);}
+  .badge.cyan{color:var(--cyan);}
+
+  .hint{font-size:11px;color:var(--text-faint);margin-top:4px;}
+  .btn{padding:8px 14px;min-height:44px;border:1px solid var(--border-strong);background:var(--panel2);color:var(--text);white-space:nowrap;flex:none;position:relative;}
+  .btn::before{content:"[ ";color:var(--text-faint);}
+  .btn::after{content:" ]";color:var(--text-faint);}
+  .btn:disabled{color:var(--text-faint);border-color:var(--border);cursor:not-allowed;}
+  .btn:disabled::before,.btn:disabled::after{color:var(--text-faint);opacity:0.4;}
+  .btn.small{padding:0 9px;height:32px;min-height:0;font-size:12px;}
+
+  .wf-row,.hist-row{
+    display:flex;flex-direction:column;row-gap:4px;min-width:0;
+    padding:8px 8px 8px 18px;position:relative;border:1px solid var(--border);margin-bottom:6px;background:var(--panel2);cursor:pointer;
+  }
+  .wf-row::before{content:" ";position:absolute;left:6px;top:8px;color:var(--accent);font-weight:700;}
+  .wf-row:hover,.hist-row:hover{border-color:var(--border-strong);}
+  .wf-row.selected::before{content:">";}
+  /* line 1: glyph + name, kept on ONE line — truncated with an ellipsis
+     (never wrapped) when the job/runid text is longer than the row; the
+     full text is still reachable via the span's own title attribute. */
+  .wf-line1{display:flex;align-items:center;column-gap:6px;min-width:0;}
+  .wf-name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  /* line 2: the meta bits. hamr's 2026-09-27 browser-walk bug #2: the old
+     one-line ellipsis silently truncated real content ("waiting on you
+     (parked, unanswered) · at least $0…") at DESKTOP width too, not just
+     phone width — the project rule ("no list is truncated silently")
+     applies everywhere, so this wraps onto more lines instead of clipping,
+     the same behavior fix #7 already gave phone width alone. */
+  .wf-meta-line{white-space:normal;overflow:visible;text-overflow:clip;min-width:0;}
+  .wf-meta{font-size:12px;color:var(--text-dim);}
+  .wf-meta + .wf-meta::before{content:" · ";color:var(--text-faint);}
+  .wf-row.selected,.hist-row.selected{border:2px solid var(--accent);border-radius:4px;}
+  /* item 2 (2026-09-26 merge): a Workflows-view job row expands inline to
+     list ALL its runs (build spec's own design) — the caret glyph on the
+     job row, and the indent wrapper the expanded runs render into. */
+  .wf-job{margin-bottom:6px;}
+  .wf-job .wf-row{margin-bottom:0;}
+  .wf-caret{display:inline-block;width:11px;flex:none;color:var(--text-faint);font-size:10px;}
+  .wf-runs{margin:4px 0 8px 16px;padding-left:8px;border-left:2px solid var(--border);}
+  .wf-runs .hist-row{margin-bottom:4px;}
+
+  .rp-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:2px solid var(--border-strong);background:var(--panel);flex-wrap:wrap;gap:8px;}
+  .rp-header h2{margin:0;font-size:15px;}
+  .rp-header h2::before{content:"┤ ";color:var(--text-faint);}
+  .rp-header h2::after{content:" ├";color:var(--text-faint);}
+  .rp-header-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  /* item 4: phone-only jump-back link — hidden on desktop (the two panes
+     are already both on screen there, nothing to jump back to). */
+  .back-to-list-link{display:none;font-size:12px;color:var(--accent);text-decoration:underline;background:none;border:none;padding:0;cursor:pointer;}
+  @media (max-width: 899px){ .back-to-list-link{display:inline-block;} }
+  .rp-tabrow{display:flex;border-bottom:1px solid var(--border-strong);background:var(--panel2);counter-reset:rtabnum;}
+  .rp-tabrow button{padding:10px 14px;min-height:44px;background:transparent;border:none;border-right:1px dotted var(--border-strong);font-size:13px;color:var(--text-dim);counter-increment:rtabnum;}
+  .rp-tabrow button::before{content:"[" counter(rtabnum) "] ";color:var(--text-faint);font-weight:700;}
+  .tabrow button[aria-selected="true"],.rp-tabrow button[aria-selected="true"]{background:var(--panel);color:var(--accent);font-weight:700;box-shadow:inset 0 -2px 0 var(--accent);}
+  .tabrow button[aria-selected="true"]::before,.rp-tabrow button[aria-selected="true"]::before{color:var(--accent);}
+
+  .counters{display:block;padding:9px 12px;border:none;border-bottom:2px solid var(--border-strong);background:var(--panel2);color:var(--text-dim);margin:-12px -12px 14px;font-size:12px;font-weight:700;white-space:normal;overflow-wrap:break-word;}
+  .counters b,.counters span{color:var(--accent);}
+
+  .summary-box{position:relative;border:1px solid var(--border-strong);padding:16px 12px 12px;margin-top:16px;background:var(--panel2);font-size:12px;}
+  .summary-box.red{border-color:var(--red);}
+  .summary-box.amber{border-color:var(--amber);}
+  .summary-box.magenta{border-color:var(--magenta);}
+  .summary-box::before{content:"┤ SUMMARY ├";position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;}
+  .summary-headline{font-weight:700;margin-bottom:8px;font-size:13px;}
+  .summary-row{display:flex;gap:0;padding:2px 0;}
+  .sum-label{flex:none;width:66px;color:var(--text-faint);}
+  .sum-val{color:var(--text);}
+  .summary-box .num{color:var(--accent);font-weight:700;}
+
+  /* hamr review #3: "map cards taking page full width, should be smaller" —
+     the SVG's own natural width is centered in the box rather than the box
+     stretching each node to fill the pane (computeMapLayout below is also
+     capped to stop a node from stretching past a modest ceiling). */
+  .map-box{border:1px solid var(--border-strong);padding:10px;overflow-x:auto;margin-top:16px;margin-bottom:14px;background:var(--panel2);text-align:center;}
+  .map-box::before{content:"┤ MAP ├";display:block;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;margin:-2px 0 8px 0;}
+  .map-box svg{display:block;max-width:100%;height:auto;margin:0 auto;}
+  .map-legend{display:flex;gap:14px;font-size:11px;color:var(--text-dim);margin-top:6px;flex-wrap:wrap;}
+
+  .step-card{position:relative;border:1px solid var(--border);padding:10px;margin-bottom:8px;background:var(--panel2);}
+  .step-card.running{border:1px double var(--amber);}
+  /* hamr's 2026-09-27 styling ruling: the card's HEADER line (number, step
+     name, state chip, close-class chip) is upper case and bold; the state/
+     close chips keep their own color from `.badge`'s existing classes —
+     text-transform never touches color. */
+  .step-card .step-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;text-transform:uppercase;font-weight:700;}
+  .step-card h4{margin:0;font-size:13px;}
+  /* Every OTHER line on the card (goal, actions, granted, stopped reason) —
+     lower case exactly as the data reads, normal weight; never inherits the
+     header's uppercase/bold (same ruling, the non-header half of it). */
+  .step-card .step-line{text-transform:none;font-weight:400;}
+  .step-meta{font-size:12px;color:var(--text-dim);margin-top:4px;}
+  /* `.attempts-list` stays — no longer used by the Run tab's own step cards
+     (hamr's 2026-09-27 review: per-attempt rows dropped, summarized cards
+     only; that detail stays in the Audit tab), but the Job tab's
+     unjudged-artifacts list still uses it for its own, unrelated rows.
+     `.attempt-row` (the Run tab's own OLD per-attempt row, now nowhere on
+     the page) is dropped — dead weight, not carried forward. */
+  .attempts-list{margin-top:8px;border-top:1px dotted var(--border-strong);padding-top:8px;}
+
+  .chips{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
+  .chip{padding:5px 10px;min-height:32px;border:1px solid var(--border-strong);background:var(--panel2);font-size:12px;color:var(--text-dim);}
+  .chip::before{content:"[ ";color:var(--text-faint);}
+  .chip::after{content:" ]";color:var(--text-faint);}
+  .chip[aria-pressed="true"]{background:var(--panel);color:var(--accent);border-color:var(--accent);font-weight:700;}
+  /* Compact filter-bar chips (History + Workflows, shared component): single
+     letters/bare glyphs, no "[ ]" brackets — hamr's 2026-09-25 feedback on
+     the live panel ("icons are taking too much space", "one letter without
+     brackets"). */
+  .filterbar{margin-bottom:8px;}
+  .search-input{
+    display:block;width:100%;box-sizing:border-box;padding:6px 8px;min-height:32px;margin-bottom:6px;
+    border:1px solid var(--border-strong);background:var(--bg);color:var(--text);font:inherit;
+  }
+  .search-input::placeholder{color:var(--text-faint);}
+  .filterbar .chips{gap:4px;margin-bottom:4px;}
+  .chip.fchip{padding:3px 7px;min-height:28px;min-width:28px;font-size:12px;text-align:center;}
+  .chip.fchip::before,.chip.fchip::after{content:"";}
+  .row-blocked{background:var(--red-bg);}
+
+  /* hamr review #5/#6: Audit tab grouped-by-step sections. */
+  .audit-group{position:relative;border:1px solid var(--border-strong);padding:14px 10px 10px;background:var(--panel2);margin-top:10px;margin-bottom:10px;}
+  /* hamr's 2026-09-27 final tweak #3: the global `h2,h4{text-transform:
+     uppercase}` rule (above) would otherwise shout every collapsible audit
+     header ("[done] · resume-text · 7.9s · $0.0026 · try 1 [checkmark]") —
+     these headers render the book's own text as-is, lower case, so this
+     overrides it back to none for this ONE h4 class. Checked: no other CSS
+     rule in this file re-uppercases `.audit-group h4` after this. */
+  .audit-group h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;text-transform:none;}
+  .audit-group h4::before{content:"┤ ";color:var(--text-faint);}
+  .audit-group h4::after{content:" ├";color:var(--text-faint);}
+  /* hamr's 2026-09-27 review: the Audit-group's own state header ("[done] ·
+     step · ...", built by buildAuditGroupHeaderEl) is NOT bold — a plain h4
+     is bold by default, so its own class (`.audit-status-header`, NOT the
+     shared `.audit-group h4`, which the Ask tab's `.ask-question-heading`
+     h4 also matches and must stay bold per review #3) overrides it back to
+     normal. Specificity: two classes + type (0,2,1) beats both
+     `.audit-group h4` (0,1,1) and `.ask-question-heading` (0,1,0) alone, so
+     this never un-bolds the ask question heading. */
+  .audit-group h4.audit-status-header{font-weight:400;}
+  /* hamr's 2026-09-27 review: the group header's own state word (g.state,
+     rendered as a <span class="badge STATE">) and its per-try marks
+     (<span class="mark STATE">) reuse the SAME color vocabulary the runs
+     list already uses (glyphClass/.badge) — one color vocabulary, not a
+     second one invented for the Audit tab. `.badge` already draws the
+     "[" "]" brackets and the color; `.mark` is the bare-text equivalent for
+     a try mark, which never carries brackets. */
+  .mark.green{color:var(--green);}
+  .mark.red{color:var(--red);}
+  .mark.grey{color:var(--grey-dot);}
+  /* review #4: a momentary highlight on the group a map/step-card click just
+     jumped to — never a permanent style change. */
+  .audit-group.audit-group-highlight{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);}
+  .map-step{cursor:pointer;}
+  .step-card{cursor:pointer;}
+
+  .job-card{position:relative;border:1px solid var(--border-strong);padding:14px 10px 10px;background:var(--panel2);margin-top:10px;margin-bottom:10px;}
+  .job-card h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;}
+  .job-card h4::before{content:"┤ ";color:var(--text-faint);}
+  .job-card h4::after{content:" ├";color:var(--text-faint);}
+  .field{margin-bottom:10px;}
+  label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;text-transform:uppercase;letter-spacing:0.04em;}
+  /* hamr's 2026-09-27 exit-check review #3: Ask tab box headers — same
+     bold/uppercase weight `label` already gives the Job tab's own fields,
+     applied to "draft under review" and each unjudged input's own label
+     ("resume-text"/"jd-text" etc.), never the faint `.hint` style. */
+  .evidence-heading{font-size:11px;font-weight:700;color:var(--text-dim);margin:8px 0 3px;text-transform:uppercase;letter-spacing:0.04em;}
+  .evidence-heading:first-child{margin-top:0;}
+  /* review #3: the ask's own question, a real heading under the "Ask i of
+     n · step · asked · status" meta line — reuses the box-drawing h4 look
+     the Audit/Job group headers already use, but inline (no absolute
+     ┤ ├ pips — those are reserved for a whole-box title, not an in-flow
+     line) so it reads as a clear, bold heading without a second border. */
+  .ask-question-heading{margin:6px 0 0;font-size:13px;font-weight:700;color:var(--text);}
+  .ro-value{padding:6px 8px;min-height:32px;box-sizing:border-box;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
+  .ro-value.scroll{max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;}
+  .field-row{display:flex;flex-wrap:wrap;gap:10px;}
+  .field-row .field{flex:1 1 140px;margin-bottom:10px;}
+
+  .chat-thread{padding:20px 8px;color:var(--text-faint);font-size:13px;}
+
+  @media (max-width: 899px){
+    .main{flex-direction:column;}
+    .left-pane{width:100%;border-right:none;border-bottom:1px solid var(--border-strong);}
+    .right-pane{width:100%;}
+    .topbar{flex-direction:column;align-items:flex-start;}
+    .topbar-right{width:100%;justify-content:space-between;}
+    .btn.small{height:44px;min-height:44px;padding:0 12px;}
+    .chip{min-height:44px;}
+    .chip.fchip{min-height:40px;min-width:40px;}
+    .rp-header{margin:8px 8px 0;}
+    .rp-tabrow{margin:0 8px;}
+  }
+
+  /* hamr's 2026-09-27 exit-check review #4: at 390px the Audit page scrolls
+     sideways and the Time column overflows the table's own border — a wide
+     multi-column table (Attempt/Action/Gap/Cost/Verdict/Close/Time) simply
+     cannot fit a 390px viewport no matter how each cell wraps. Both audit
+     tables (the flat one and every per-step grouped one) switch to a
+     stacked "mini-card" layout instead: the header row hides, each `<tr>`
+     becomes its own bordered block, and each `<td>` becomes a `label:
+     value` line, the label read from the SAME `data-label` attribute
+     `buildAuditRowEl` already sets on every cell (never a second, separate
+     label list to keep in sync). No horizontal scroll is possible once
+     every cell is a full-width block. */
+  @media (max-width: 480px){
+    [data-testid="audit-table"], .audit-group table{width:100%;}
+    [data-testid="audit-table"] thead, .audit-group table thead{
+      position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;
+    }
+    [data-testid="audit-table"] tbody, .audit-group table tbody{display:block;}
+    [data-testid="audit-table"] tr, .audit-group table tr{
+      display:block;border:1px solid var(--border-strong);margin-bottom:8px;padding:4px 0;
+    }
+    [data-testid="audit-table"] td, .audit-group table td{
+      display:block;border:none;border-bottom:1px dotted var(--border);padding:4px 8px;
+      /* fix (2026-09-28): a pre-M4a-2 row's Time cell shows the longer
+         `atWhy` text ("not recorded (before M4a-2)") instead of a
+         timestamp — overflow-wrap:anywhere (on top of the existing
+         break-word/word-break) makes sure that text wraps inside the
+         cell's own border at 390px instead of spilling past it. */
+      white-space:normal;overflow-wrap:anywhere;word-break:break-word;max-width:100%;box-sizing:border-box;
+    }
+    [data-testid="audit-table"] td:last-child, .audit-group table td:last-child{border-bottom:none;}
+    [data-testid="audit-table"] td::before, .audit-group table td::before{
+      content:attr(data-label) ": ";font-weight:700;color:var(--text-dim);
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="FwdloopPanel">
+
+  <header class="topbar">
+    <div>
+      <span class="brand">fwdloop</span>
+      <span class="tagline">automate a job — it has humans in it</span>
+    </div>
+    <div class="topbar-right">
+      <span class="hint" id="host-line"></span>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle light/dark theme">&#9789;</button>
+    </div>
+  </header>
+
+  <div class="main" id="main-view">
+
+    <nav class="left-pane" aria-label="Job navigation" id="left-pane-anchor">
+      <div class="tabrow" role="tablist" aria-label="Left panel views">
+        <button role="tab" id="tab-chat" aria-controls="panel-chat" aria-selected="true" data-testid="left-tab-chat">Chat</button>
+        <button role="tab" id="tab-runs" aria-controls="panel-runs" aria-selected="false" data-testid="left-tab-runs">Runs</button>
+        <button role="tab" id="tab-inbox" aria-controls="panel-inbox" aria-selected="false" data-testid="left-tab-inbox">Inbox<span id="inbox-count-label"></span></button>
+      </div>
+
+      <div class="pane-body">
+
+        <section id="panel-chat" class="tabpanel active" role="tabpanel" aria-labelledby="tab-chat">
+          <div class="chat-thread">
+            Authoring a flow from this page isn't built yet — the drafter is a POC. This
+            panel is read-only: it shows flows and runs already started from the
+            <code>fwdloop</code> CLI. Use the Runs tab to open one, or the Inbox tab for
+            anything waiting on you.
+          </div>
+        </section>
+
+        <section id="panel-inbox" class="tabpanel" role="tabpanel" aria-labelledby="tab-inbox" hidden>
+          <!-- M4a-1: a list of STOPS, like History — open ones first with
+               [.] and time left, then past ones newest first with a short
+               status word ([accepted]/[rejected: reason]/[reran: reason]/
+               [expired]/[unanswered]). No evidence is rendered here any
+               more (M4a-1 review): clicking a stop selects its run, switches
+               the right pane to the Ask tab, and expands that ONE ask there
+               — the wide right pane is where the evidence lives now. No
+               answer controls — those are M4b. -->
+          <div id="inbox-list" data-testid="inbox-list"></div>
+        </section>
+
+        <section id="panel-runs" class="tabpanel" role="tabpanel" aria-labelledby="tab-runs" hidden>
+          <div class="chips" role="group" aria-label="Runs view" style="margin-bottom:8px;">
+            <button class="chip" type="button" aria-pressed="true" data-runs-view="workflows" data-testid="runs-view-workflows">Workflows</button>
+            <button class="chip" type="button" aria-pressed="false" data-runs-view="history" data-testid="runs-view-history">History</button>
+          </div>
+          <div id="runs-filterbar-anchor"></div>
+          <div id="wf-list" data-testid="wf-list"></div>
+          <div id="history-list" data-testid="history-list" hidden></div>
+        </section>
+
+      </div>
+    </nav>
+
+    <section class="right-pane" aria-label="Active workflow" id="right-pane-anchor">
+      <div class="rp-header">
+        <button type="button" class="back-to-list-link" id="back-to-list" data-testid="back-to-list">&#8593; list</button>
+        <div class="rp-header-title">
+          <span class="dot grey" id="active-wf-dot"></span>
+          <h2 id="active-wf-name">(none selected)</h2>
+          <span class="badge" id="active-wf-verdict">—</span>
+          <span class="badge" id="active-wf-date">—</span>
+        </div>
+      </div>
+
+      <div class="rp-tabrow" role="tablist" aria-label="Workflow views">
+        <button role="tab" id="tab-run" aria-controls="panel-run" aria-selected="true" data-testid="right-tab-run">Run</button>
+        <button role="tab" id="tab-audit" aria-controls="panel-audit" aria-selected="false" data-testid="right-tab-audit">Audit / logs</button>
+        <button role="tab" id="tab-details" aria-controls="panel-details" aria-selected="false" data-testid="right-tab-details">Job</button>
+        <button role="tab" id="tab-ask" aria-controls="panel-ask" aria-selected="false" data-testid="right-tab-ask">Ask</button>
+      </div>
+
+      <div class="pane-body">
+
+        <section id="panel-run" class="tabpanel active" role="tabpanel" aria-labelledby="tab-run">
+          <div id="run-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run from Workflows or History</div>
+          <div id="run-content" hidden>
+            <div class="counters" id="run-counters" data-testid="live-counters"></div>
+            <div class="summary-box" id="run-summary" data-testid="run-summary"></div>
+            <div class="map-box" data-testid="step-map" id="map-box"><div id="map-mount"></div></div>
+            <div id="step-list"></div>
+          </div>
+        </section>
+
+        <section id="panel-audit" class="tabpanel" role="tabpanel" aria-labelledby="tab-audit" hidden>
+          <!-- This run's own audit.jsonl rows only, one row per step ATTEMPT
+               (M4a scope item 2). bareloop's All/Writes/Blocked filters and
+               per-round/tool-call rows are dropped: there is no such book in
+               fwdloop to fill them from (ladder ruling A) — unwired, never
+               faked. hamr review #5/#6 (2026-09-27): grouped-by-step is the
+               default view (one section per step, a header naming the step,
+               close class, attempt count and cost), with a Grouped/Flat
+               toggle; column order everywhere is Attempt, Step (dropped in
+               Grouped — the header already names it), Action, Gap, Cost,
+               Verdict, Close. -->
+          <div id="audit-empty" class="hint" data-testid="audit-empty" style="font-size:13px;padding:24px 0;">select a run first</div>
+          <div id="audit-content" data-testid="audit-content" hidden>
+            <!-- hamr's 2026-09-27 exit-check review #2: All/Human/Blocked on
+                 the left, the existing Grouped/Flat toggle on the right —
+                 both filters apply to both views. Human = a row whose
+                 server-derived `action` is "human" (src/panel/data.js's
+                 deriveAuditAction); Blocked = `row.blocked`
+                 (isBlockedVerdict) — neither is re-derived here. -->
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+              <div class="chips" role="group" aria-label="Audit filter" style="margin-bottom:0;">
+                <button class="chip" type="button" aria-pressed="true" data-audit-filter="all" data-testid="audit-filter-all">All</button>
+                <button class="chip" type="button" aria-pressed="false" data-audit-filter="human" data-testid="audit-filter-human">Human</button>
+                <button class="chip" type="button" aria-pressed="false" data-audit-filter="blocked" data-testid="audit-filter-blocked">Blocked</button>
+              </div>
+              <div class="chips" role="group" aria-label="Audit view" style="margin-bottom:0;">
+                <button class="chip" type="button" aria-pressed="true" data-view="grouped" data-testid="audit-view-grouped">Grouped</button>
+                <button class="chip" type="button" aria-pressed="false" data-view="flat" data-testid="audit-view-flat">Flat</button>
+              </div>
+            </div>
+            <div id="audit-filter-empty" class="hint" data-testid="audit-filter-empty" hidden style="padding:12px 0;"></div>
+            <div id="audit-groups" data-testid="audit-groups"></div>
+            <div class="audit-table-scroll" id="audit-flat-wrap" hidden>
+              <table data-testid="audit-table">
+                <thead><tr><th>Attempt</th><th>Step</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th><th>Time</th></tr></thead>
+                <tbody id="audit-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="panel-details" class="tabpanel" role="tabpanel" aria-labelledby="tab-details" hidden data-testid="panel-details">
+          <!-- The signed prose, the arbiter block, and the signature — the
+               ONE signed declaration.json + signature.json per flow
+               (M4a scope item 2). hamr's 2026-09-27 exit-check review #5:
+               a bareloop-style one-field-per-piece layout, one row per
+               piece within a field — replaces the old split asks/sends/
+               sources/signed-lines blocks. Field order (signed): Job
+               (prose) · Ask · Model · $ cap (+ redo cap) · Source ·
+               Destination · Guardrails · Success · Signed. At 390px every
+               field's own `label` already sits above its value (the
+               existing global `label{display:block}` rule — no separate
+               narrow-width override needed). -->
+          <div id="job-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
+          <div class="job-card" id="job-card" hidden data-testid="job-card-readonly">
+            <h4 id="details-title">Job card — signed</h4>
+            <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
+            <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap">—</div></div>
+            <div class="field"><label>Job (prose)</label><div id="details-prose"></div></div>
+            <div class="field"><label>Ask</label><div id="details-asks"></div></div>
+            <div class="field"><label>Source</label><div id="details-sources"></div></div>
+            <div class="field"><label>Destination</label><div id="details-sends"></div></div>
+            <div class="field"><label>Guardrails</label><div id="details-guardrails"></div></div>
+            <div class="field"><label>Success</label><div id="details-success"></div></div>
+            <div class="field"><label>Signed</label><div class="ro-value" id="details-signature">—</div></div>
+          </div>
+        </section>
+
+        <section id="panel-ask" class="tabpanel" role="tabpanel" aria-labelledby="tab-ask" hidden data-testid="panel-ask">
+          <!-- M4a-1: every ask of the selected run, COLLAPSED by default
+               (header: question, asked time, status). Clicking a stop in
+               the left Inbox tab selects that run, switches here, and
+               expands exactly that one ask — when a run with an open ask is
+               selected directly, the open one expands by default. Expanded:
+               question, time left (open) or decision+reason+answered time
+               (past), the draft under review (scrollable), then each
+               unjudged input labelled by step (goal as subtitle). A
+               pre-M4a-1 ask shows "draft not kept (before M4a-1)" in place
+               of the draft. Read-only: no answer controls here (M4b) — a
+               clearly marked EMPTY slot stands in their place. Nothing in
+               this panel is a real <button>/<input> — even the
+               collapse/expand toggle is a div with role="button"
+               tabindex="0" (the SAME pattern the step-map's own SVG nodes
+               already use elsewhere on this page), so "no controls yet"
+               holds by construction. -->
+          <div id="ask-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
+          <div id="ask-list" data-testid="ask-list" hidden></div>
+        </section>
+
+      </div>
+    </section>
+
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var PORT = "__FWDLOOP_PANEL_PORT__";
+  document.getElementById("host-line").textContent = "127.0.0.1:" + PORT;
+
+  function wireTabs(tabButtons){
+    tabButtons.forEach(function(btn){
+      btn.addEventListener("click", function(){
+        tabButtons.forEach(function(b){
+          b.setAttribute("aria-selected", "false");
+          var p = document.getElementById(b.getAttribute("aria-controls"));
+          if(p){ p.hidden = true; p.classList.remove("active"); }
+        });
+        btn.setAttribute("aria-selected", "true");
+        var panel = document.getElementById(btn.getAttribute("aria-controls"));
+        if(panel){ panel.hidden = false; panel.classList.add("active"); }
+        if(btn.id === "tab-run"){ reflowMap(); }
+      });
+    });
+  }
+  wireTabs([document.getElementById("tab-chat"), document.getElementById("tab-runs"), document.getElementById("tab-inbox")]);
+  wireTabs([document.getElementById("tab-run"), document.getElementById("tab-audit"), document.getElementById("tab-details"), document.getElementById("tab-ask")]);
+
+  // ---- fetch helpers — GET only, this panel is read-only by construction
+  // (src/panel/server.js is GET/HEAD-only too; nothing on this page ever
+  // sends a non-GET request or a request body). ----
+  function getJSON(path){
+    return fetch(path, { method: "GET", headers: { accept: "application/json" } }).then(function(r){
+      if(!r.ok) throw new Error(path + ": HTTP " + r.status);
+      return r.json();
+    });
+  }
+
+  function escapeXml(s){
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  // ---- money/close-class/glyph helpers — the SAME display rules as
+  // src/panel/data.js's costDisplay (never $0 for an unknown spend, "at
+  // least $X" for a floor) — reimplemented here (a pure, <15-line vanilla
+  // formatter) because this is browser script, which cannot import a
+  // node:fs-using ESM module. ----
+  function money(n, spendComplete){
+    if(typeof n !== "number") return "unknown";
+    var text = "$" + n.toFixed(4);
+    return spendComplete === false ? "at least " + text : text;
+  }
+  // hamr's 2026-09-27 review item (c): the Audit tab's Cost cell reads
+  // "$0.0086 &middot; 2448 tokens &middot; 1.6s" — cost (money), a token
+  // total (server-derived, `r.tokensDisplay` from src/panel/data.js's
+  // deriveAuditTokensDisplay — never re-summed here), then wall time (this
+  // row's own `wallMs`, never invented). A pre-M4a-2 row shows "tokens not
+  // recorded" in that middle slot instead of a number; a row with no model
+  // call at all (an ask/hitl row) drops the tokens slot entirely — never a
+  // fake "0 tokens".
+  function auditCostCellText(r){
+    var bits = [money(r.usd, r.spendComplete)];
+    var td = r.tokensDisplay;
+    if(td && td.kind === "total") bits.push(td.total + " tokens");
+    else if(td && td.kind === "not-recorded") bits.push("tokens not recorded");
+    // td.kind === "no-model": no tokens slot at all.
+    bits.push(duration(r.wallMs));
+    return bits.join(" · ");
+  }
+  // hamr's 2026-09-27 review item (d): the new Time column — this row's own
+  // `at`, read locally (`readableDateTime`, same formatter every other
+  // timestamp on this page already uses); a pre-M4a-2 row (server-derived
+  // `r.atWhy`) shows its own why instead of guessing a date.
+  function auditTimeCellText(r){
+    if(typeof r.atWhy === "string" && r.atWhy.length > 0) return r.atWhy;
+    return readableDateTime(r.at) || "unknown";
+  }
+  // fix (2026-09-28, borrowed-from: bareloop src/panel/index.html@2711b1b):
+  // hamr's UI review found the Time cell's full date+time string overflowed
+  // the Audit tab's mobile stacked-card cell sideways at 390px. bareloop's
+  // fix slices the raw ISO string's UTC HH:MM:SS as-is, with the full ISO
+  // kept in `title`; fwdloop differs on purpose because every OTHER
+  // timestamp on this page already reads in LOCAL time (`readableDateTime`,
+  // `toLocaleString()`) — so here the short text is local time-only
+  // (`toLocaleTimeString()`), not a raw UTC slice, and the full string kept
+  // in `title` is the same local `readableDateTime` string used everywhere
+  // else, not the raw ISO. A pre-M4a-2 row's `atWhy` (or a genuinely
+  // unparseable/missing `at`) is unaffected: that text renders plain, never
+  // wrapped in a <span title>, so `auditTimeCellText`'s own fallback text
+  // stays exactly what it was.
+  function auditTimeCellHtml(r){
+    if(typeof r.atWhy === "string" && r.atWhy.length > 0) return escapeXml(r.atWhy);
+    var full = readableDateTime(r.at);
+    var d = new Date(r.at);
+    if(!full || isNaN(d.getTime())) return escapeXml(full || "unknown");
+    var short = d.toLocaleTimeString();
+    return '<span title="' + escapeXml(full) + '">' + escapeXml(short) + '</span>';
+  }
+  function duration(ms){
+    if(typeof ms !== "number" || ms < 0) return "unknown";
+    var s = ms / 1000;
+    if(s < 60) return s.toFixed(1) + "s";
+    var m = Math.floor(s / 60), rem = Math.round(s - m * 60);
+    if(rem === 60){ m += 1; rem = 0; }
+    return m + "m" + String(rem).padStart(2, "0") + "s";
+  }
+  // A readable local date/time instead of a raw ISO timestamp (fix #5) — an
+  // unparseable value still shows the raw string (never blank/nothing), so
+  // a books bug is visible rather than silently swallowed.
+  function readableDateTime(iso){
+    if(typeof iso !== "string") return null;
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? iso : d.toLocaleString();
+  }
+  // A step box's internal state word ("pending"/"waiting") is never shown
+  // as-is (fix #4): "pending" (not attempted yet) reads "not started" —
+  // plain text, no dot/glyph at all, so it can never be mistaken for one of
+  // the reserved glyphs; "waiting" (this step is where the run is currently
+  // parked on a human) reads "waiting on you", matching the SAME words the
+  // run-row `[·]` glyph already uses (src/panel/data.js's computeGlyph) —
+  // never the bracket glyph `[▶]`, which the scope reserves for "running".
+  function stateWord(state){
+    if(state === "pending") return "not started";
+    if(state === "waiting") return "waiting on you";
+    return state; // "done" / "stopped"
+  }
+  // fwdloop's close-class vocabulary (M4a scope item 4): `green` -> "cited"
+  // (a mechanical, exact-match close), `softgreen` -> "shape" (a shape/
+  // section check), `hitl` -> "human check" (no mechanical verdict — the
+  // step hands off to a human ask). Never the raw words green/softgreen.
+  function closeClassLabel(cls){
+    if(cls === "green") return "cited";
+    if(cls === "softgreen") return "shape";
+    if(cls === "hitl") return "human check";
+    return "unknown";
+  }
+  // hamr review #1 (Summary tab): "close class(es), per step or summarized"
+  // — one count per close class actually present on this run's OWN declared
+  // steps (declaration.steps, joined server-side into detail.steps), fwdloop
+  // words only, never the raw green/softgreen/hitl strings.
+  function closeClassSummaryText(steps){
+    if(!steps || !steps.length) return null;
+    var counts = {};
+    var order = [];
+    steps.forEach(function(s){
+      var label = closeClassLabel(s.closeClass);
+      if(!Object.prototype.hasOwnProperty.call(counts, label)){ counts[label] = 0; order.push(label); }
+      counts[label] += 1;
+    });
+    return order.map(function(label){ return counts[label] + " " + label; }).join(", ");
+  }
+  // hamr review #1 (Summary tab): "from spend.jsonl what exists (rounds
+  // total, tokens in/out, cache-read tokens) — ONLY if each spend row can be
+  // tied to its run honestly" — run-level totals only (src/panel/data.js's
+  // summarizeSpendRows already does the honest per-field null-with-why), no
+  // per-step attribution invented here. Tool-call counts are never shown —
+  // no fwdloop book holds them (hamr's own instruction: omit, don't fake 0).
+  function spendSummaryText(spendSummary){
+    if(!spendSummary || spendSummary.empty) return (spendSummary && spendSummary.why) || "no spend.jsonl rows yet";
+    var bits = [spendSummary.rounds + " round" + (spendSummary.rounds === 1 ? "" : "s")];
+    bits.push("tokens in " + (typeof spendSummary.tokensIn === "number" ? spendSummary.tokensIn : "unknown"));
+    bits.push("tokens out " + (typeof spendSummary.tokensOut === "number" ? spendSummary.tokensOut : "unknown"));
+    bits.push("cache-read " + (typeof spendSummary.cacheReadTokens === "number" ? spendSummary.cacheReadTokens : "unknown"));
+    return bits.join(" &middot; ");
+  }
+  // An attempt's real verdict vocabulary is wider than green/hitl/not-done
+  // (src/runner.js also writes `paused`, `refused`, `ask-timeout`,
+  // `ask-expired`, `red`, `crash`-like stops) — and the scope forbids
+  // rendering the raw words green/red/softgreen anywhere (coordinator's
+  // browser-walk fix #2). `verdictWord`/`verdictGlyph` are the ONE place
+  // that turns a verdict (plus the step's own close class, for telling a
+  // human's reject apart from a mechanical red) into plain words and a
+  // pass/fail glyph — used by the step cards, the map's inline attempt
+  // text, and the flat Audit table alike, so they can never say something
+  // different for the same row.
+  //  - `paused`/`refused`/an ask timeout/expiry are NOT failures (fix #3) —
+  //    no ✗, a plain word instead.
+  //  - a `red` verdict on a `hitl`-classed step is the human's own reject
+  //    (src/runner.js's redo path), not a mechanical stop — "rejected by
+  //    you: <reason>", never "verdict red" / a fail glyph (fix #3).
+  function verdictWord(verdict, closeClass, gap){
+    if(closeClass === "hitl" && verdict === "red") return "rejected by you" + (gap ? ": " + gap : "");
+    if(verdict === "paused") return "paused for you";
+    if(verdict === "refused") return "refused — no reason given";
+    if(verdict === "ask-timeout" || verdict === "ask-expired") return "expired waiting for you";
+    if(verdict === "green") return "passed";
+    if(verdict === "hitl") return "human check";
+    if(verdict === "not-done") return "not done";
+    if(typeof verdict !== "string") return "unknown";
+    return "failed"; // red (non-hitl), crash-like, cap-halt, pricing/provider-red, unparseable, ...
+  }
+  function verdictPassed(verdict){ return verdict === "green" || verdict === "hitl"; }
+  // `null` — no glyph at all — for a verdict that is neither a pass nor a
+  // fail (paused/refused/expired/a human reject); a bare attempt glyph
+  // would misread a pause as a failure (fix #3).
+  function verdictGlyph(verdict, closeClass){
+    if(closeClass === "hitl" && verdict === "red") return null;
+    if(verdict === "paused" || verdict === "refused" || verdict === "ask-timeout" || verdict === "ask-expired") return null;
+    return verdictPassed(verdict) ? "✓" : "✗";
+  }
+  // The run-row glyph strings src/panel/data.js's computeGlyph emits are
+  // already bracketed ("[✓]", "[✗]", "[·]", "[?]") — this only ever picks a
+  // CSS color class off them, never re-derives the glyph itself.
+  function glyphClass(g){
+    if(g === "[✓]") return "green";
+    if(g === "[✗]") return "red";
+    if(g === "[▶]") return "amber";
+    if(g === "[?]") return "magenta";
+    // hamr's 2026-09-27 browser-walk bug #3: an expired, unresumed ask is
+    // its own state — never grey ("waiting"/"answered", still actionable)
+    // and never red/magenta (the run itself didn't fail, and the books DO
+    // know what happened) — amber, same "needs attention" color family as
+    // "running", but a different glyph, so it gets its own dot class
+    // (never "amber", which draws the reserved running arrow [▶]).
+    if(g === "[!]") return "expired";
+    return "grey"; // "[·]" — waiting on a human, or answered-not-resumed
+  }
+
+  // ---- step map renderer (box-drawing geometry kept from the borrowed
+  // page's buildStepMapSVG; the DATA it draws is fwdloop's own: one box per
+  // `declaration.steps` entry, no scout/plan/judge/fix-loop/rounds — ruling
+  // A, "no per-round parts"). ----
+  function stepMapColors(state){
+    if(state === "done") return {stroke:"var(--green)", textFill:"#2e7d32"};
+    if(state === "stopped") return {stroke:"var(--red)", textFill:"var(--red)"};
+    if(state === "waiting") return {stroke:"var(--amber)", textFill:"#b8860b"};
+    return {stroke:"var(--border-strong)", textFill:"var(--text-faint)"}; // not started yet
+  }
+  var stepMapUidCounter = 0;
+  var MAP_MARGIN = 10, MAP_GAP = 28;
+  var CHAR_W = 7.2;
+  var TITLE_HPAD = 16;
+  var MIN_BOX_W = 100;
+  var BOX_H = 60, BOX_H_2LINE = 78;
+  var ROW_GAP = 70;
+  // hamr review #2: "map cards missing try 2 if multiple attempts/iteration"
+  // — a plain "try N" count whenever a step has been attempted more than
+  // once, plus a mark when the LATEST attempt followed a human reject (the
+  // same `afterReject` boundary src/panel/data.js already worked out —
+  // never re-derived here). One attempt (the common case) shows no "try"
+  // text at all, matching bareloop's own "only say it when it's true" shape.
+  // `tryCount` is server-derived (src/panel/data.js's computeTryCount) —
+  // for an ask (hitl) step it counts asks shown to the human (a pause row
+  // + its answer row are the SAME try), for a model step it counts model
+  // attempts. Never re-derived here from `attempts.length` (browser
+  // re-walk bug #2: that over-counted an ask step's pause/answer pairs).
+  function tryCountText(tryCount, attempts){
+    if(!tryCount || tryCount <= 1) return "";
+    var last = attempts && attempts.length ? attempts[attempts.length - 1] : null;
+    var txt = "try " + tryCount;
+    if(last && last.afterReject) txt += " (re-attempt after reject)";
+    return txt;
+  }
+  // hamr review (browser re-walk #1): the per-attempt list ("attempt 1
+  // failed · attempt 2 passed · …") is a map node's single biggest source of
+  // width — that level of detail belongs in the Audit tab, never on the
+  // node. A node's title is just
+  // step number + name + try N + state, kept short so naturalBoxWidth stays
+  // small and the map stays compact instead of stretching to the pane width.
+  function stepTitleText(idx, s){
+    var base = (idx + 1) + ' ' + s.emits;
+    var tryText = tryCountText(s.tryCount, s.attempts);
+    if(tryText) base += ' — ' + tryText;
+    return base;
+  }
+  // The declared step's own run-state, for the map box and the summary's
+  // "which step stopped and why" (M4a exit: "say which step stopped it and
+  // why, from one screen"): `pending` (no attempt yet), `done` (last
+  // attempt passed), `waiting` (the run is currently parked ON this step —
+  // its last attempt's verdict is `paused`/`refused`, i.e. it went to a
+  // human ask and hasn't been answered/resolved yet), `stopped` (a real
+  // stop — the last attempt failed for any other reason).
+  function stepBoxState(s){
+    if(!s.attempts || !s.attempts.length) return "pending";
+    var last = s.attempts[s.attempts.length - 1];
+    if(last.verdict === "paused" || last.verdict === "refused") return "waiting";
+    return verdictPassed(last.verdict) ? "done" : "stopped";
+  }
+  // hamr's 2026-09-27 review: a step with a server-computed `tryCount > 1`
+  // (M2/M3's runner already counts retries/redraft attempts honestly — never
+  // recounted here from `attempts.length`, which double-counts an ask step's
+  // pause+answer pair) draws a dashed loop-back edge under its map box,
+  // matching bareloop's own retry-loop shape (bareloop commit 16825a7,
+  // `boxRetryTry`) — ONE shared rule, reused by both the SVG loop path and
+  // (if ever needed) any other "does this box retry" check.
+  function boxRetryTry(box){
+    return box.tryCount > 1 ? box.tryCount : 0;
+  }
+  function buildStepBoxes(steps){
+    return (steps || []).map(function(s){
+      return {
+        emits: s.emits, goal: s.goal, closeClass: s.closeClass, primitives: s.primitives || [],
+        attempts: s.attempts || [], tryCount: s.tryCount || 0,
+        // hamr's 2026-09-27 step-card review: the SAME server-computed
+        // group pieces the Audit tab's own header reads (src/panel/data.js's
+        // deriveAuditGroups, off the SAME enriched rows) — never re-derived
+        // here. `null`/`[]` for a step with no group at all (never
+        // attempted yet), matching data.js's own honesty rules exactly.
+        timeMs: s.timeMs, cost: s.cost, costWhy: s.costWhy, tokensTotal: s.tokensTotal, tryMarks: s.tryMarks || [],
+        // Amendment M4a-3: the step's own tool tally + the signed grant it
+        // ran under — `toolsTotal`/`toolsWhy` off the SAME server-computed
+        // group `tokensTotal` already reads (src/panel/data.js's
+        // `summarizeStepTools`), never re-derived; `ungranted` is a real,
+        // book-derived list, never guessed from `primitives` by exclusion.
+        toolsTotal: s.toolsTotal || null, toolsWhy: s.toolsWhy || null, ungranted: s.ungranted || [],
+        stoppedReason: s.stoppedReason || null,
+        state: stepBoxState(s),
+      };
+    });
+  }
+  function naturalBoxWidth(steps){
+    var maxChars = 0;
+    steps.forEach(function(s, idx){ maxChars = Math.max(maxChars, stepTitleText(idx, s).length); });
+    return Math.max(MIN_BOX_W, Math.ceil(maxChars * CHAR_W) + TITLE_HPAD);
+  }
+  // hamr review #3: nodes stay compact — a box never stretches past a modest
+  // ceiling over its own natural (text-fit) width, even when the available
+  // pane is much wider (the bug: every node used to grow to fill the row).
+  var MAX_BOX_STRETCH = 1.25;
+  function computeMapLayout(n, availW, naturalW){
+    if(!availW) return {perRow:n, boxW:naturalW};
+    var usableW = availW - MAP_MARGIN * 2;
+    var ceiling = naturalW * MAX_BOX_STRETCH;
+    for(var perRow = n; perRow >= 2; perRow--){
+      var totalW = perRow * naturalW + (perRow - 1) * MAP_GAP;
+      if(totalW <= usableW){
+        var stretched = (usableW - (perRow - 1) * MAP_GAP) / perRow;
+        return {perRow:perRow, boxW:Math.max(naturalW, Math.min(stretched, ceiling))};
+      }
+    }
+    return {perRow:1, boxW:Math.max(MIN_BOX_W, Math.min(usableW, ceiling))};
+  }
+  function wrapTitleLines(text, maxWidth){
+    var maxChars = Math.max(1, Math.floor((maxWidth - TITLE_HPAD) / CHAR_W));
+    if(text.length <= maxChars) return [text];
+    var words = text.split(' ');
+    var line1 = '', i = 0;
+    for(; i < words.length; i++){
+      var cand = line1 ? line1 + ' ' + words[i] : words[i];
+      if(line1 && cand.length > maxChars) break;
+      line1 = cand;
+    }
+    if(!line1) return [text.slice(0, maxChars), text.slice(maxChars)];
+    var line2 = words.slice(i).join(' ');
+    return line2 ? [line1, line2] : [line1];
+  }
+  function buildStepMapSVG(steps, availWidth){
+    var n = steps.length;
+    var naturalW = naturalBoxWidth(steps);
+    var layout = computeMapLayout(n, availWidth, naturalW);
+    var perRow = layout.perRow, boxW = layout.boxW, gap = MAP_GAP;
+    var rows = Math.ceil(n / perRow);
+    var margin = MAP_MARGIN;
+    var titleLines = steps.map(function(s, idx){ return wrapTitleLines(stepTitleText(idx, s), boxW); });
+    var maxLines = titleLines.reduce(function(m, l){ return Math.max(m, l.length); }, 1);
+    var boxH = maxLines > 1 ? BOX_H_2LINE : BOX_H;
+    var rowH = boxH + ROW_GAP;
+    var totalW = margin * 2 + perRow * boxW + (perRow - 1) * gap;
+    var totalH = rows * rowH;
+    var uid = "sm" + (stepMapUidCounter++);
+    var body =
+      '<defs>' +
+        '<marker id="' + uid + '-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">' +
+          '<path d="M0,0 L6,3 L0,6 z" fill="var(--text-dim)"></path></marker>' +
+        '<marker id="' + uid + '-arrow-grey" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">' +
+          '<path d="M0,0 L6,3 L0,6 z" fill="var(--text-faint)"></path></marker>' +
+      '</defs>';
+    steps.forEach(function(s, idx){
+      var row = Math.floor(idx / perRow);
+      var col = idx % perRow;
+      var rtl = (row % 2) === 1;
+      var slotCol = rtl ? (perRow - 1 - col) : col;
+      var x = margin + slotCol * (boxW + gap);
+      var y = 30 + row * rowH;
+      var colors = stepMapColors(s.state);
+      var lines = titleLines[idx];
+      var nextRowIdx = idx < n - 1 ? Math.floor((idx + 1) / perRow) : null;
+      var hasDrop = nextRowIdx !== null && nextRowIdx !== row;
+      var stateY = y + boxH - 18;
+      // hamr review #4: each node is a clickable group ("map-step", tagged
+      // with the step's own `emits` id) — the click listener that turns this
+      // into a jump to the Audit tab's matching group is wired AFTER
+      // insertion (renderStepMap, below), never inline here (this function
+      // only ever builds a markup string).
+      body += '<g class="map-step" data-emits="' + escapeXml(s.emits) + '" tabindex="0" role="button" aria-label="open ' + escapeXml(s.emits) + ' in Audit">';
+      body += '<rect x="' + x + '" y="' + y + '" width="' + boxW + '" height="' + boxH +
+        '" rx="0" fill="var(--panel2)" stroke="' + colors.stroke + '" stroke-width="2"></rect>';
+      if(lines.length === 1){
+        body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 25) +
+          '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[0]) + '</text>';
+      } else {
+        body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 17) +
+          '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[0]) + '</text>';
+        body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 29) +
+          '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[1]) + '</text>';
+      }
+      body += '<text x="' + (x + boxW / 2) + '" y="' + stateY +
+        '" text-anchor="middle" font-size="10" fill="' + colors.textFill + '">' + escapeXml(stateWord(s.state)) + '</text>';
+      body += '</g>';
+      // hamr's 2026-09-27 retry-loop review: a step whose server-computed
+      // tryCount is >1 gets a dashed grey self-loop under its box, labelled
+      // "try N" — ported from bareloop commit 16825a7's own curve (same
+      // control-point proportions, scaled to THIS box's own width). When the
+      // same box also carries the row-to-row snake drop below (which leaves
+      // from dead-center, x=cx), the loop's start is shifted off-center by a
+      // fixed pixel offset so the two paths never begin at the same point.
+      var retryTry = boxRetryTry(s);
+      if(retryTry){
+        var retryShift = hasDrop ? 14 : 0;
+        var bottom = y + boxH;
+        var sx = x + boxW * 0.50 - retryShift, sy = bottom + 5;
+        var c1x = x + boxW * 0.278 - retryShift, c1y = bottom + 30;
+        var c2x = x + boxW * 0.167 - retryShift, c2y = bottom + 30;
+        var ex = x + boxW * 0.028 - retryShift, ey = bottom + 2;
+        body += '<path d="M ' + sx + ' ' + sy + ' C ' + c1x + ' ' + c1y + ', ' + c2x + ' ' + c2y + ', ' + ex + ' ' + ey +
+          '" fill="none" stroke="var(--text-faint)" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#' + uid + '-arrow-grey)"></path>';
+        body += '<text x="' + (x + boxW * 0.267 - retryShift) + '" y="' + (bottom + 32) +
+          '" text-anchor="middle" font-size="10" fill="var(--text-faint)">try ' + retryTry + '</text>';
+      }
+      if(idx < n - 1){
+        if(nextRowIdx === row){
+          var midY = y + boxH / 2;
+          if(!rtl){
+            var nx = x + boxW + gap;
+            body += '<line x1="' + (x + boxW) + '" y1="' + midY + '" x2="' + (nx - 2) + '" y2="' + midY +
+              '" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#' + uid + '-arrow)"></line>';
+          } else {
+            var px = x - gap - boxW;
+            body += '<line x1="' + x + '" y1="' + midY + '" x2="' + (px + boxW + 2) + '" y2="' + midY +
+              '" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#' + uid + '-arrow)"></line>';
+          }
+        } else {
+          var cx = x + boxW / 2;
+          body += '<line x1="' + cx + '" y1="' + (y + boxH) + '" x2="' + cx + '" y2="' + (y + rowH - 2) +
+            '" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#' + uid + '-arrow)"></line>';
+        }
+      }
+    });
+    return '<svg width="' + totalW + '" height="' + totalH + '" viewBox="0 0 ' + totalW + ' ' + totalH + '" role="img" aria-label="step map">' + body + '</svg>';
+  }
+  // Legend glyphs match the scope's own vocabulary (fix #4): `[✓]` done,
+  // `[✗]` stopped, `[·]` waiting on you (the default/grey dot — never the
+  // amber `[▶]`, which the scope reserves for "running", a state this panel
+  // cannot tell apart from "died" at all today — M4a's own open POC
+  // question). "not started" gets no dot/glyph at all, so it can never be
+  // confused with a reserved one.
+  function stepMapLegendHTML(){
+    return '<div class="map-legend">' +
+      '<span><span class="dot green"></span>done</span>' +
+      '<span><span class="dot red"></span>stopped</span>' +
+      '<span><span class="dot"></span>waiting on you</span>' +
+      '<span>not started</span>' +
+      '<span>⤾ dashed = retry</span>' +
+      '</div>';
+  }
+  var lastSteps = null;
+  var lastWidth = null;
+  function mapAvailWidth(wrapper){
+    if(!wrapper) return null;
+    var w = wrapper.getBoundingClientRect().width;
+    if(!w) return null;
+    return Math.max(0, w - 20);
+  }
+  // hamr review #4: "clicking on cards below codegraph maps should take you
+  // to audit trail" — a map node's click (or Enter/Space, since the node
+  // carries role=button/tabindex) jumps to the Audit tab, switches it to the
+  // Grouped view, and scrolls/highlights that exact step's group.
+  // `openAuditGroup` itself is defined further down (near the Audit-tab
+  // renderer, its natural home) — function declarations in this IIFE are
+  // hoisted, so the forward reference here is safe.
+  function wireMapClicks(mount){
+    mount.querySelectorAll(".map-step").forEach(function(g){
+      g.addEventListener("click", function(){ openAuditGroup(g.getAttribute("data-emits")); });
+      g.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); g.click(); } });
+    });
+  }
+  function renderStepMap(steps){
+    var mount = document.getElementById("map-mount");
+    var wrapper = document.getElementById("map-box");
+    lastSteps = steps;
+    if(!steps || !steps.length){
+      mount.innerHTML = "";
+      wrapper.hidden = true;
+      return;
+    }
+    wrapper.hidden = false;
+    var w = mapAvailWidth(wrapper);
+    lastWidth = w;
+    mount.innerHTML = buildStepMapSVG(steps, w) + stepMapLegendHTML();
+    wireMapClicks(mount);
+  }
+  function reflowMap(){
+    var wrapper = document.getElementById("map-box");
+    if(!wrapper || wrapper.hidden || !lastSteps) return;
+    var w = mapAvailWidth(wrapper);
+    if(w === null || w === lastWidth) return;
+    lastWidth = w;
+    var mount = document.getElementById("map-mount");
+    mount.innerHTML = buildStepMapSVG(lastSteps, w) + stepMapLegendHTML();
+    wireMapClicks(mount);
+  }
+  if(typeof ResizeObserver !== "undefined"){
+    var ro = new ResizeObserver(function(){ reflowMap(); });
+    var mb = document.getElementById("map-box");
+    if(mb) ro.observe(mb);
+  } else {
+    window.addEventListener("resize", reflowMap);
+  }
+
+  // ---- Runs tab: ONE run-row builder shared by History (flat) and the
+  // Workflows view's per-flow expansion — the two never drift on how a run
+  // row reads. Rekeyed from bareloop's job/runid to fwdloop's flow/runId
+  // (GET /api/runs row shape: src/panel/data.js's listRuns).
+  function buildRunRowEl(r){
+    var row = document.createElement("div");
+    // Selected state is computed here, off the module's own `currentRunId`,
+    // so a row freshly built by a RE-RENDER (switching Runs view mode, or a
+    // Workflows parent auto-expanding onto an older run picked from
+    // History) shows selected without needing a click on this exact
+    // element — `selectRun`'s imperative class toggle (used when a click
+    // passes its own `rowEl`) stays layered on top of this, never replaced.
+    var selected = r.flow === currentFlow && r.runId === currentRunId;
+    row.className = "hist-row" + (selected ? " selected" : "");
+    row.setAttribute("data-testid", "hist-row-" + r.flow + "-" + (r.runId || "none"));
+    row.setAttribute("tabindex", "0");
+    row.setAttribute("role", "button");
+    row.setAttribute("aria-pressed", selected ? "true" : "false");
+    var fullName = r.flow + (r.runId ? ' (' + r.runId + ')' : '');
+    if(r.runId === null){
+      // this flow has no runs yet — empty state names why, never a made-up row.
+      row.innerHTML =
+        '<span class="wf-line1"><span class="dot grey"></span>' +
+        '<span class="wf-name" title="' + escapeXml(fullName) + '">' + escapeXml(fullName) + '</span></span>' +
+        '<span class="wf-meta-line"><span class="wf-meta">' + escapeXml(r.why || "no runs yet") + '</span></span>';
+      row.removeAttribute("tabindex");
+      row.removeAttribute("role");
+      return row;
+    }
+    row.innerHTML =
+      '<span class="wf-line1"><span class="dot ' + glyphClass(r.glyph) + '"></span>' +
+      '<span class="wf-name" title="' + escapeXml(fullName) + '">' + escapeXml(fullName) + '</span></span>' +
+      '<span class="wf-meta-line">' +
+      '<span class="wf-meta">' + escapeXml(r.label || "unknown") + '</span>' +
+      '<span class="wf-meta">' + escapeXml(r.spend || r.spendWhy || "unknown") + '</span>' +
+      '<span class="wf-meta">' + escapeXml(r.at ? r.at.slice(0,10) : (r.askedAt ? "asked " + readableDateTime(r.askedAt) : (r.atWhy || "unknown"))) + '</span>' +
+      '</span>';
+    row.addEventListener("click", function(){ selectRun(r.flow, r.runId, row, ".hist-row"); document.getElementById("tab-run").click(); scrollRunIntoViewMobile(); });
+    row.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); } });
+    return row;
+  }
+
+  // ---- History view: every row exactly as /api/runs returned it. ----
+  function renderHistory(runs){
+    var el = document.getElementById("history-list");
+    el.innerHTML = "";
+    if(!(runs || []).length){
+      el.innerHTML = '<div class="hint">no runs listed yet — no flow under this root has been run</div>';
+      return;
+    }
+    runs.forEach(function(r){ el.appendChild(buildRunRowEl(r)); });
+  }
+
+  // ---- Workflows view: groups the ONE /api/runs payload by flow name
+  // client-side. Runs arrive newest-first within a flow (server contract,
+  // listRuns), so the first run seen for a flow is its latest.
+  function groupRunsByFlow(runs){
+    var byFlow = {};
+    var order = [];
+    (runs || []).forEach(function(r){
+      if(!byFlow[r.flow]){ byFlow[r.flow] = []; order.push(r.flow); }
+      byFlow[r.flow].push(r);
+    });
+    return order.map(function(flow){
+      var flowRuns = byFlow[flow];
+      var last = flowRuns[0];
+      return {
+        flow: flow,
+        runs: flowRuns,
+        runCount: last.runId === null ? 0 : flowRuns.length,
+        lastRunId: last.runId,
+        lastAt: last.at,
+        lastGlyph: last.glyph,
+        lastLabel: last.label,
+        lastSpend: last.spend,
+        lastRow: last,
+      };
+    });
+  }
+
+  // Matches a flow if ANY of its runs match the filters (not only the
+  // latest) — a one-line adapter over filterRuns, never a reimplementation
+  // of the AND/OR/time/search semantics.
+  function filterWorkflows(flows, filters, nowMs){
+    return (flows || []).filter(function(g){
+      return filterRuns(g.runs, filters, nowMs).length > 0;
+    });
+  }
+
+  function filtersActive(filters){
+    return !!(filters && (
+      (filters.results && filters.results.length) ||
+      (filters.time && filters.time !== "all") ||
+      (filters.search && String(filters.search).trim())
+    ));
+  }
+
+  // Pure rule: when filters/search are active, a flow whose LATEST run
+  // doesn't match but an older one does auto-expands so the matching run is
+  // visible without an extra click; inactive filters never force an expand.
+  function autoExpandFlow(group, matchingRuns, active){
+    if(!active || !matchingRuns.length) return false;
+    var latestId = group.runs.length ? group.runs[0].runId : null;
+    var latestIncluded = matchingRuns.some(function(r){ return r.runId === latestId; });
+    return !latestIncluded;
+  }
+
+  // ONE owner for "which run does this parent row stand for" — both its own
+  // selected state and what its click opens read this, never two separate
+  // rules that could drift. Unfiltered (or when the latest still matches),
+  // a flow's parent always stands for its latest run. With a filter/search
+  // that matches an OLDER run but excludes the latest, the parent stands
+  // for the newest MATCHING run instead.
+  function representedRun(group, candidateRuns, active){
+    if(active && candidateRuns.length){
+      var latestIncluded = candidateRuns.some(function(r){ return r.runId === group.lastRunId; });
+      if(!latestIncluded) return candidateRuns[0].runId;
+    }
+    return group.lastRunId;
+  }
+
+  // Is `currentRunId` one of this flow's OLDER runs (i.e. a run that
+  // belongs to this flow but isn't its latest)? Selecting a run from
+  // History and switching to Workflows lands here: the flow must
+  // auto-expand and its matching child row must carry the selected marker
+  // even though no filter/search is active.
+  function activeOlderRun(group){
+    if(currentFlow !== group.flow || !currentRunId || currentRunId === group.lastRunId) return null;
+    var found = group.runs.some(function(r){ return r.runId === currentRunId; });
+    return found ? currentRunId : null;
+  }
+
+  // manual expand/collapse memory, keyed by flow name — survives a
+  // re-render triggered by a filter/search change within the same page
+  // load, reset on full page reload (per-viewer convenience only, never
+  // persisted). A manual collapse click still wins over auto-expand-for-
+  // selection on the next render.
+  var wfExpanded = {};
+
+  function renderWorkflows(flows){
+    var el = document.getElementById("wf-list");
+    el.innerHTML = "";
+    if(!flows.length){
+      el.innerHTML = '<div class="hint">no runs listed yet — no flow under this root has been run</div>';
+      return;
+    }
+    var active = filtersActive(currentRunsFilters());
+    flows.forEach(function(g){
+      if(g.lastRunId === null){ el.appendChild(buildRunRowEl(g.lastRow)); return; } // "this flow has no runs yet"
+      // the parent row IS the flow's latest run (clicking it opens that
+      // run), so the inline child list must be the flow's OTHER runs only.
+      // Expand affordance (caret, aria-expanded, toggle) is gated on there
+      // being a child to actually show.
+      var candidateRuns = active ? filterRuns(g.runs, currentRunsFilters(), Date.now()) : g.runs;
+      var childRuns = candidateRuns.filter(function(r){ return r.runId !== g.lastRunId; });
+      var hasOtherRuns = childRuns.length > 0;
+      var olderSelected = activeOlderRun(g);
+      var autoExpand = hasOtherRuns && (autoExpandFlow(g, candidateRuns, active) || !!olderSelected);
+      var expanded = hasOtherRuns && (Object.prototype.hasOwnProperty.call(wfExpanded, g.flow) ? wfExpanded[g.flow] : autoExpand);
+      var targetRunId = representedRun(g, candidateRuns, active);
+
+      var wrap = document.createElement("div");
+      wrap.className = "wf-job";
+
+      var row = document.createElement("div");
+      // a flow (parent) row also opens its latest run in the Run tab, same
+      // as a child row — computed HERE, at render time (this function tears
+      // down and rebuilds every row on every click).
+      var isSelected = currentFlow === g.flow && currentRunId === targetRunId;
+      row.className = "wf-row" + (isSelected ? " selected" : "");
+      row.setAttribute("data-wf", g.flow);
+      row.setAttribute("data-testid", "wf-row-" + g.flow);
+      row.setAttribute("tabindex", "0");
+      row.setAttribute("role", "button");
+      row.setAttribute("aria-expanded", expanded ? "true" : "false");
+      row.setAttribute("aria-pressed", isSelected ? "true" : "false");
+      var wfFullName = g.flow + ' (' + g.lastRunId + ')';
+      row.innerHTML =
+        '<span class="wf-line1"><span class="wf-caret">' + (hasOtherRuns ? (expanded ? "▼" : "▶") : "") + '</span><span class="dot ' + glyphClass(g.lastGlyph) + '"></span>' +
+        '<span class="wf-name" title="' + escapeXml(wfFullName) + '">' + escapeXml(wfFullName) + '</span></span>' +
+        '<span class="wf-meta-line">' +
+        '<span class="wf-meta">' + escapeXml(g.lastLabel || "unknown") + '</span>' +
+        '<span class="wf-meta">' + escapeXml(g.lastSpend || "unknown") + '</span>' +
+        '<span class="wf-meta">' + escapeXml(g.lastAt ? g.lastAt.slice(0,10) : "unknown") + '</span>' +
+        '<span class="wf-meta">' + g.runCount + ' run' + (g.runCount === 1 ? '' : 's') + '</span>' +
+        '</span>';
+      row.addEventListener("click", function(){
+        // a single-run flow has nothing to expand — the click still opens
+        // the run, it just never toggles `wfExpanded` for it.
+        if(hasOtherRuns) wfExpanded[g.flow] = !expanded;
+        selectRun(g.flow, targetRunId, null, ".hist-row");
+        document.getElementById("tab-run").click();
+        scrollRunIntoViewMobile();
+        renderWorkflows(flows);
+      });
+      row.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); } });
+      wrap.appendChild(row);
+
+      if(expanded){
+        var runsWrap = document.createElement("div");
+        runsWrap.className = "wf-runs";
+        childRuns.forEach(function(r){ runsWrap.appendChild(buildRunRowEl(r)); });
+        wrap.appendChild(runsWrap);
+      }
+      el.appendChild(wrap);
+    });
+  }
+
+  // ---- Filter bar — ONE component, ONE state shape ({results, time,
+  // search}), used by BOTH the History tab (filters individual runs) and
+  // the Workflows tab (filters by each flow's OWN latest-run fields).
+  // bareloop's checkType (deterministic/rubric) chips are dropped — fwdloop
+  // has no such concept; the result chips use fwdloop's own glyph
+  // vocabulary ([✓]/[✗]/[·]/[?] — `[▶]` never appears from listRuns today,
+  // see docs/wiki/the-module-ladder.md's M4a open POC question, so no chip
+  // for a state the books can't produce).
+  function filterBarHTML(scope){
+    return (
+      '<div class="filterbar" data-scope="' + scope + '" data-testid="' + scope + '-filters">' +
+        '<input type="text" class="search-input" placeholder="search flow or run id…" ' +
+          'id="' + scope + '-filter-search" data-testid="' + scope + '-filter-search" autocomplete="off">' +
+        '<div class="chips" role="group" aria-label="Filter">' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✓]" title="passed" data-testid="chip-' + scope + '-res-pass">✓</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✗]" title="failed" data-testid="chip-' + scope + '-res-fail">✗</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[·]" title="waiting on a human" data-testid="chip-' + scope + '-res-waiting">&middot;</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[?]" title="running or died: unknown" data-testid="chip-' + scope + '-res-unknown">?</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="7d" title="last 7 days" data-testid="chip-' + scope + '-time-7d">7d</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="30d" title="last 30 days" data-testid="chip-' + scope + '-time-30d">30d</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="true" data-filter-group="time" data-filter-value="all" title="all time" data-testid="chip-' + scope + '-time-all">all</button>' +
+          '<button class="chip fchip" type="button" id="' + scope + '-filter-clear" data-testid="' + scope + '-filter-clear">clear</button>' +
+        '</div>' +
+        '<div class="hint" id="' + scope + '-filter-count" data-testid="' + scope + '-filter-count"></div>' +
+      '</div>'
+    );
+  }
+
+  // Pure function: chips combine AND across the two groups (result/time),
+  // OR within a group (an empty group array means "no filter" for that
+  // group). `time` is single-select, default "all". `nowMs` is injectable
+  // for tests. Field names (flow/runId/glyph/at) match a run row's own
+  // shape (src/panel/data.js's listRuns). Search is case-insensitive
+  // substring match on flow name AND runId.
+  function matchesSearch(flow, runId, query){
+    if(!query) return true;
+    var q = String(query).trim().toLowerCase();
+    if(!q) return true;
+    var f = String(flow || "").toLowerCase();
+    var r = String(runId || "").toLowerCase();
+    return f.indexOf(q) !== -1 || r.indexOf(q) !== -1;
+  }
+  function filterRuns(runs, filters, nowMs){
+    nowMs = (typeof nowMs === "number") ? nowMs : Date.now();
+    var rs = (filters && filters.results) || [];
+    var time = (filters && filters.time) || "all";
+    var q = (filters && filters.search) || "";
+    return (runs || []).filter(function(r){
+      if(r.runId === null) return true; // the "this flow has no runs yet" row always shows
+      if(rs.length && rs.indexOf(r.glyph) === -1) return false;
+      if(!matchesSearch(r.flow, r.runId, q)) return false;
+      if(time !== "all"){
+        var days = time === "7d" ? 7 : 30;
+        var t = typeof r.at === "string" ? Date.parse(r.at) : NaN;
+        if(!isFinite(t)) return false;
+        if(nowMs - t > days * 24 * 60 * 60 * 1000) return false;
+      }
+      return true;
+    });
+  }
+
+  /**
+   * One filter-bar instance: its own localStorage key, its own DOM scope
+   * (`.filterbar[data-scope="..."]`), its own item list — but the same
+   * wiring as every other instance.
+   * @param {{scope:string, storageKey:string, filterFn:Function, applyFn:Function}} opts
+   */
+  function createFilterBar(opts){
+    var scope = opts.scope;
+    var storageKey = opts.storageKey;
+    var state = { results: [], time: "all", search: "" };
+    var allItems = [];
+
+    function load(){
+      try{
+        var raw = localStorage.getItem(storageKey);
+        if(raw){
+          var parsed = JSON.parse(raw);
+          if(parsed && typeof parsed === "object"){
+            state = {
+              results: Array.isArray(parsed.results) ? parsed.results : [],
+              time: typeof parsed.time === "string" ? parsed.time : "all",
+              search: typeof parsed.search === "string" ? parsed.search : "",
+            };
+          }
+        }
+      }catch(e){ /* per-viewer convenience only; a blocked/private store just means no memory */ }
+    }
+    function save(){
+      try{ localStorage.setItem(storageKey, JSON.stringify(state)); }catch(e){ /* best-effort only */ }
+    }
+    function paint(){
+      document.querySelectorAll('.filterbar[data-scope="' + scope + '"] .chip[data-filter-group]').forEach(function(chip){
+        var group = chip.getAttribute("data-filter-group");
+        var value = chip.getAttribute("data-filter-value");
+        var active = group === "time" ? state.time === value : state.results.indexOf(value) !== -1;
+        chip.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+      var searchEl = document.getElementById(scope + "-filter-search");
+      if(searchEl && searchEl.value !== state.search) searchEl.value = state.search;
+    }
+    function apply(){
+      var filtered = opts.filterFn(allItems, state, Date.now());
+      opts.applyFn(filtered);
+      var countEl = document.getElementById(scope + "-filter-count");
+      if(countEl) countEl.textContent = "showing " + filtered.length + " of " + allItems.length + " runs";
+    }
+    document.querySelectorAll('.filterbar[data-scope="' + scope + '"] .chip[data-filter-group]').forEach(function(chip){
+      chip.addEventListener("click", function(){
+        var group = chip.getAttribute("data-filter-group");
+        var value = chip.getAttribute("data-filter-value");
+        if(group === "time"){
+          state.time = value; // single-select within time
+        } else {
+          var idx = state.results.indexOf(value);
+          if(idx === -1) state.results.push(value); else state.results.splice(idx, 1);
+        }
+        paint();
+        save();
+        apply();
+      });
+    });
+    var clearBtn = document.getElementById(scope + "-filter-clear");
+    if(clearBtn){
+      clearBtn.addEventListener("click", function(){
+        state = { results: [], time: "all", search: "" };
+        paint();
+        save();
+        apply();
+      });
+    }
+    var searchInput = document.getElementById(scope + "-filter-search");
+    if(searchInput){
+      searchInput.addEventListener("input", function(){
+        state.search = searchInput.value;
+        save();
+        apply();
+      });
+    }
+    load();
+    paint();
+
+    return {
+      setItems: function(items){ allItems = items || []; apply(); },
+      getState: function(){ return state; },
+      refresh: function(){ apply(); },
+    };
+  }
+
+  // Workflows/History view-mode memory — same per-viewer-convenience
+  // posture as every other localStorage read/write on this page.
+  var RUNS_VIEW_KEY = "fwdloop-panel-runs-view";
+  function loadRunsViewMode(){
+    try{
+      var v = localStorage.getItem(RUNS_VIEW_KEY);
+      if(v === "workflows" || v === "history") return v;
+    }catch(e){ /* per-viewer convenience only */ }
+    return "workflows";
+  }
+  function saveRunsViewMode(v){
+    try{ localStorage.setItem(RUNS_VIEW_KEY, v); }catch(e){ /* best-effort only */ }
+  }
+
+  // ONE shared filter bar drives whichever view (Workflows/History) is
+  // currently on — one scope, one localStorage key, so switching views
+  // never loses the search/chip state.
+  document.getElementById("runs-filterbar-anchor").innerHTML = filterBarHTML("runs");
+
+  var runsViewMode = loadRunsViewMode();
+  function runsFilterFn(items, filters, nowMs){
+    if(runsViewMode === "history") return filterRuns(items, filters, nowMs);
+    return filterWorkflows(groupRunsByFlow(items), filters, nowMs);
+  }
+  function runsApplyFn(filtered){
+    if(runsViewMode === "history") renderHistory(filtered);
+    else renderWorkflows(filtered);
+  }
+  var runsFilterBar = createFilterBar({
+    scope: "runs",
+    storageKey: "fwdloop-panel-runs-filters",
+    filterFn: runsFilterFn,
+    applyFn: runsApplyFn,
+  });
+  function currentRunsFilters(){
+    return runsFilterBar ? runsFilterBar.getState() : { results: [], time: "all", search: "" };
+  }
+  function paintRunsViewToggle(){
+    document.querySelectorAll('.chip[data-runs-view]').forEach(function(c){
+      c.setAttribute("aria-pressed", c.getAttribute("data-runs-view") === runsViewMode ? "true" : "false");
+    });
+    document.getElementById("wf-list").hidden = runsViewMode !== "workflows";
+    document.getElementById("history-list").hidden = runsViewMode !== "history";
+  }
+  document.querySelectorAll('.chip[data-runs-view]').forEach(function(chip){
+    chip.addEventListener("click", function(){
+      var next = chip.getAttribute("data-runs-view");
+      if(next === runsViewMode) return;
+      runsViewMode = next;
+      saveRunsViewMode(runsViewMode);
+      paintRunsViewToggle();
+      runsFilterBar.refresh();
+    });
+  });
+  paintRunsViewToggle();
+
+  // item 4: phone-only "scroll the run view into view" on row select, and
+  // the matching "↑ list" jump back. Desktop never runs either — both panes
+  // are already on screen there (the <900px breakpoint here matches the
+  // CSS media query above, both named off the same 900px number).
+  function isMobileLayout(){
+    return typeof window.matchMedia === "function" && window.matchMedia("(max-width: 899px)").matches;
+  }
+  function scrollRunIntoViewMobile(){
+    if(!isMobileLayout()) return;
+    var target = document.getElementById("right-pane-anchor");
+    if(target && target.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  var backToListBtn = document.getElementById("back-to-list");
+  if(backToListBtn){
+    backToListBtn.addEventListener("click", function(){
+      var target = document.getElementById("left-pane-anchor");
+      if(target && target.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function clearSelection(selector){
+    document.querySelectorAll(".wf-row, .hist-row, .inbox-row").forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
+  }
+
+  // ---- Run tab: header + summary + step map + one card per step ATTEMPT
+  // (ruling A, 2026-09-26: "no per-round parts") — built off getRunDetail's
+  // `steps[]` (declaration.steps joined with audit.jsonl attempts), never a
+  // second client-side re-derivation of the step list. ----
+  function renderRun(detail){
+    var name = document.getElementById("active-wf-name");
+    var dot = document.getElementById("active-wf-dot");
+    var verdict = document.getElementById("active-wf-verdict");
+    var date = document.getElementById("active-wf-date");
+
+    name.textContent = detail.flow + " (" + detail.runId + ")";
+    dot.className = "dot " + glyphClass(detail.glyph);
+    verdict.textContent = detail.label || "unknown";
+    // browser re-walk bug #4: this is the DATE field — it must use its own
+    // why (`detail.atWhy`), never `detail.outcomeWhy` (a different book
+    // fact borrowed by mistake). A parked run's ask.json `askedAt` is a
+    // real timestamp the books hold, shown ahead of any generic why text.
+    date.textContent = detail.at ? readableDateTime(detail.at)
+      : (detail.askedAt ? "asked " + readableDateTime(detail.askedAt) : (detail.atWhy || "unknown"));
+
+    document.getElementById("run-empty").hidden = true;
+    document.getElementById("run-content").hidden = false;
+
+    // "took Xs" for a finished run, straight off the history row's own
+    // wallMs (never derived/guessed) — a died/parked run or one whose
+    // history row predates the field both say why instead (fix #5).
+    var capText = typeof detail.capUsd === "number" ? ("$" + detail.capUsd.toFixed(2)) : "unknown";
+    var spendText = detail.spend || "unknown — no spend recorded yet";
+    var wallText = typeof detail.wallMs === "number" ? ("took " + duration(detail.wallMs)) : (detail.wallMsWhy || "wall time unknown");
+    document.getElementById("run-counters").innerHTML =
+      escapeXml(spendText) + " of " + escapeXml(capText) + " cap &middot; " + escapeXml(wallText);
+
+    var box = document.getElementById("run-summary");
+    box.className = "summary-box " + (detail.glyph === "[✗]" ? "red" : (detail.glyph === "[·]" ? "amber" : (detail.glyph === "[?]" ? "magenta" : "")));
+    var stepBoxes = buildStepBoxes(detail.steps);
+    var stepsDone = stepBoxes.filter(function(s){ return s.state === "done"; }).length;
+    var stepsText = stepBoxes.length === 0
+      ? (detail.stepsWhy || "no steps recorded")
+      : ('<span class="num">' + stepsDone + '</span> of <span class="num">' + stepBoxes.length + '</span> done');
+    // hamr review #1: "model + provider, steps N of N, why, close class(es),
+    // and spend.jsonl totals" — model+provider shows model only (no book
+    // records a provider on any run, checked against audit.jsonl/
+    // spend.jsonl/declaration.json/signature.json — src/panel/data.js's own
+    // deriveRunModel doc comment). closeClassSummaryText/spendSummaryText
+    // read straight off detail.steps/detail.spendSummary, never re-derived
+    // from a second, separately-fetched copy of the audit rows.
+    var modelText = detail.model || (detail.modelWhy || "no model call recorded yet");
+    var closeText = closeClassSummaryText(detail.steps) || (detail.stepsWhy || "no steps recorded");
+    box.innerHTML =
+      '<div class="summary-headline"><span class="dot ' + glyphClass(detail.glyph) + '"></span><b>' + escapeXml(detail.label || "unknown") + '</b> &middot; <span class="num">' + escapeXml(spendText) + '</span></div>' +
+      '<div class="summary-row" data-testid="summary-model"><span class="sum-label">model:</span><span class="sum-val">' + escapeXml(modelText) + '</span></div>' +
+      '<div class="summary-row"><span class="sum-label">steps:</span><span class="sum-val">' + stepsText + '</span></div>' +
+      '<div class="summary-row" data-testid="summary-why"><span class="sum-label">why:</span><span class="sum-val">' + escapeXml(detail.stopReason || detail.stopReasonWhy || "not recorded") + '</span></div>' +
+      '<div class="summary-row" data-testid="summary-close"><span class="sum-label">close:</span><span class="sum-val">' + escapeXml(closeText) + '</span></div>' +
+      '<div class="summary-row" data-testid="summary-spend"><span class="sum-label">spend:</span><span class="sum-val">' + spendSummaryText(detail.spendSummary) + '</span></div>';
+
+    renderStepMap(stepBoxes);
+
+    var listEl = document.getElementById("step-list");
+    listEl.innerHTML = "";
+    stepBoxes.forEach(function(box, idx){
+      var card = document.createElement("div");
+      card.className = "step-card" + (box.state === "waiting" ? " running" : "");
+      card.setAttribute("data-testid", "step-card-" + idx);
+      card.appendChild(buildStepCardHeadEl(box, idx));
+      if(box.goal) card.appendChild(textLineEl("step-meta", box.goal, "step-card-goal-" + idx));
+      // hamr's 2026-09-27 review: the actions line is server data, not a
+      // guess — a step with no group at all (never attempted, `box.attempts`
+      // empty) gets NO actions line rather than a fake "try 0"/"cost
+      // unknown" row.
+      if(box.attempts.length) card.appendChild(buildStepActionsLineEl(box, idx));
+      else card.appendChild(textLineEl("hint", "not attempted yet", "step-card-actions-" + idx));
+      // Amendment M4a-3 (hamr's request): "tools: read 3 · write 1" (this
+      // step's own tool tally, `summarizeStepTools`) plus "allowed: read,
+      // write" (the signed grant, unchanged from the old "granted:" line) —
+      // omitted entirely only when there is NOTHING to say either way (no
+      // tool tally, no why, and nothing granted).
+      var toolsLineEl = buildStepToolsLineEl(box, idx);
+      if(toolsLineEl) card.appendChild(toolsLineEl);
+      // The full stop reason shows on ONLY the one step that stopped the
+      // run (server-derived, src/panel/data.js's stoppedStepEmits) — every
+      // passed step's own `stoppedReason` is `null`, never a guess.
+      if(box.stoppedReason) card.appendChild(textLineEl("hint", "stopped: " + box.stoppedReason, "step-card-stopped-" + idx));
+      // hamr review #4: a step card's own click ALSO jumps to its Audit
+      // group — the same `openAuditGroup` the map node's click uses, so a
+      // click on either surface can never land on a different row.
+      card.setAttribute("tabindex", "0");
+      card.setAttribute("role", "button");
+      card.addEventListener("click", function(){ openAuditGroup(box.emits); });
+      card.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); card.click(); } });
+      listEl.appendChild(card);
+    });
+  }
+  // A plain lower-case, non-bold data line (hamr's 2026-09-27 styling
+  // ruling: only the header is upper case/bold) — every non-header line on
+  // a step card is built through this ONE helper so none of them can drift
+  // from that rule.
+  function textLineEl(extraClass, text, testId){
+    var div = document.createElement("div");
+    div.className = "step-line" + (extraClass ? " " + extraClass : "");
+    if(testId) div.setAttribute("data-testid", testId);
+    div.textContent = text;
+    return div;
+  }
+  // The card's HEADER line: "N · step-name  [state]  [close class]" — upper
+  // case/bold from CSS (`.step-card .step-head`), the state/close chips
+  // keeping their own `.badge` color. `auditStateClass` is the SAME
+  // function the Audit tab's group headers use to color their own state
+  // word — never a second color scheme for the Run tab's cards.
+  function buildStepCardHeadEl(box, idx){
+    var head = document.createElement("div");
+    head.className = "step-head";
+    var h4 = document.createElement("h4");
+    h4.textContent = (idx + 1) + " · " + box.emits;
+    head.appendChild(h4);
+    var stateBadge = document.createElement("span");
+    stateBadge.className = "badge " + auditStateClass(box.state);
+    stateBadge.setAttribute("data-testid", "step-card-state-" + idx);
+    stateBadge.textContent = stateWord(box.state);
+    head.appendChild(stateBadge);
+    var closeBadge = document.createElement("span");
+    closeBadge.className = "badge cyan";
+    closeBadge.textContent = closeClassLabel(box.closeClass);
+    head.appendChild(closeBadge);
+    return head;
+  }
+  // The actions line: "<time> · <cost> · [N tokens ·] try N <marks>" — every
+  // piece read straight off the SAME server-computed group
+  // (src/panel/data.js's deriveAuditGroups) the Audit tab's own header uses.
+  // Marks are built as real, colored `<span class="mark STATE">` elements
+  // (`auditMarkClass`), the SAME way `buildAuditGroupHeaderEl` already
+  // builds its own try marks.
+  function buildStepActionsLineEl(box, idx){
+    var div = document.createElement("div");
+    div.className = "step-line";
+    div.setAttribute("data-testid", "step-card-actions-" + idx);
+    var bits = [duration(box.timeMs), (box.cost || box.costWhy || "cost unknown")];
+    if(typeof box.tokensTotal === "number") bits.push(box.tokensTotal + " tokens");
+    div.appendChild(document.createTextNode(bits.join(" · ") + " · try " + (box.tryCount || 0) + " "));
+    (box.tryMarks || []).forEach(function(mark){
+      var markSpan = document.createElement("span");
+      markSpan.className = "mark " + auditMarkClass(mark);
+      markSpan.textContent = mark;
+      div.appendChild(markSpan);
+    });
+    return div;
+  }
+  // Amendment M4a-3 (hamr's request): "tools: read 3 · write 1 · allowed:
+  // read, write" — `box.toolsTotal` (`src/panel/data.js`'s
+  // `summarizeStepTools`, sorted count desc/name asc) for the "tools:"
+  // half, `box.primitives` (the signed grant, unchanged shape) for the
+  // "allowed:" half. `box.toolsWhy` ("not recorded (before M4a-3)") stands
+  // in for "tools:" on a pre-M4a-3 step; no model call in the step at all
+  // (`toolsTotal` and `toolsWhy` both null) drops the "tools:" half
+  // entirely, leaving just "allowed: …". Returns `null` (no line at all)
+  // only when there is truly nothing to say on either half. A name in
+  // `box.ungranted` (a real book-derived list — never guessed from
+  // `primitives` by exclusion) appends a red-colored "· not allowed: …",
+  // using the page's own `--red` token, the same one `.mark.red`/
+  // `.badge.red` already use elsewhere on this page.
+  function buildStepToolsLineEl(box, idx){
+    var toolsBit = null;
+    if(box.toolsWhy) toolsBit = "tools: " + box.toolsWhy;
+    else if(box.toolsTotal){
+      var pairs = Object.keys(box.toolsTotal).map(function(name){ return name + " " + box.toolsTotal[name]; });
+      if(pairs.length) toolsBit = "tools: " + pairs.join(" · ");
+    }
+    var allowedBit = box.primitives.length ? "allowed: " + box.primitives.join(", ") : null;
+    if(!toolsBit && !allowedBit && !box.ungranted.length) return null;
+    var div = document.createElement("div");
+    div.className = "step-line";
+    div.setAttribute("data-testid", "step-card-tools-" + idx);
+    var bits = [toolsBit, allowedBit].filter(function(b){ return !!b; });
+    div.appendChild(document.createTextNode(bits.join(" · ")));
+    if(box.ungranted.length){
+      var ungrantedSpan = document.createElement("span");
+      ungrantedSpan.style.color = "var(--red)";
+      ungrantedSpan.setAttribute("data-testid", "step-card-ungranted-" + idx);
+      ungrantedSpan.textContent = (bits.length ? " · " : "") + "not allowed: " + box.ungranted.join(", ");
+      div.appendChild(ungrantedSpan);
+    }
+    return div;
+  }
+
+  // ---- Audit tab: this run's own audit.jsonl rows only, one per step
+  // ATTEMPT (M4a scope item 2: "one row per step attempt", no round/tool-
+  // call granularity — bareloop's All/Writes/Blocked filters and its
+  // per-round table have no fwdloop book to fill them from; they are not
+  // rebuilt here, per the ladder's own ruling). hamr review #5/#6
+  // (2026-09-27): Grouped (default, one section per step with a header) and
+  // Flat (the old one-row-per-attempt table) views, toggled by two chips;
+  // BOTH share the SAME row-cell builder (`buildAuditRowEl`) so the two
+  // views can never disagree on what a row says. Column order everywhere:
+  // Attempt, Step (dropped in Grouped — the header already names it),
+  // Action, Gap, Cost, Verdict, Close. `Action` is `row.action`, set
+  // server-side by src/panel/data.js's `deriveAuditAction` — never
+  // re-derived or guessed here, and never "unknown action". ----
+  // hamr review #4: jump from a map node or step card straight to this run's
+  // OWN audit group for that step — switches to the Audit tab, forces
+  // Grouped view (the group only exists there), scrolls it into view, and
+  // gives it a momentary highlight so the jump is visible even when the
+  // group was already on screen.
+  function openAuditGroup(step){
+    document.getElementById("tab-audit").click();
+    setAuditView("grouped");
+    // A jump from the map/step-card must always land on a REAL group, even
+    // when a human had the Blocked/Human filter active and this step's
+    // rows don't match it — reset to All rather than jumping to nothing.
+    setAuditFilter("all");
+    var row = document.getElementById("audit-group-" + step);
+    if(!row) return;
+    // hamr's 2026-09-27 review item (b): a jump from the Run tab must land
+    // on an OPEN group even if a human had folded it — never scroll to a
+    // collapsed section with nothing visible in it.
+    var table = row.querySelector("table");
+    var header = row.querySelector("h4");
+    if(table && table.hidden){
+      table.hidden = false;
+      if(header) header.setAttribute("aria-expanded", "true");
+    }
+    if(typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "center" });
+    row.classList.add("audit-group-highlight");
+    setTimeout(function(){ row.classList.remove("audit-group-highlight"); }, 1600);
+  }
+  // ONE row-cell builder for both views — `includeStep` controls only
+  // whether the Step cell is rendered (Grouped drops it; the group's own
+  // header already names the step). Column order: Attempt, [Step], Action,
+  // Gap, Cost, Verdict, Close, Time. `data-label` on every `<td>` is what
+  // the mobile (max-width:480px) stacked-card CSS reads via `attr()` —
+  // review item #4: the Time cell (and every other cell) must stay inside
+  // its own card at 390px, never truncated or pushed off the page edge.
+  function buildAuditRowEl(r, includeStep){
+    var tr = document.createElement("tr");
+    var glyph = verdictGlyph(r.verdict, r.class);
+    var word = verdictWord(r.verdict, r.class, r.gap);
+    var isRejectRow = r.class === "hitl" && r.verdict === "red";
+    var badgeClass = glyph === "✓" ? "green" : (glyph === "✗" ? "red" : "amber");
+    var action = typeof r.action === "string" && r.action.length > 0 ? r.action : r.verdict; // server always sets `action` (deriveAuditAction); this fallback is belt-and-braces only
+    // Amendment M4a-3: append this row's own tool tally to the Action cell,
+    // ONLY for a model-call row whose `tools` was actually recorded
+    // (`r.toolsPhrase`, src/panel/data.js's `deriveAuditToolsPhrase`) — a
+    // pre-M4a-3 row or a non-model row appends nothing at all.
+    var actionText = action + (typeof r.toolsPhrase === "string" ? " · " + r.toolsPhrase : "");
+    var cells =
+      "<td data-label=\"Attempt\">" + escapeXml(String(r.attempt)) + "</td>" +
+      (includeStep ? "<td data-label=\"Step\">" + escapeXml(r.step) + "</td>" : "") +
+      "<td data-label=\"Action\">" + escapeXml(actionText) + "</td>" +
+      "<td data-label=\"Gap\">" + escapeXml(isRejectRow ? "" : (r.gap || "")) + "</td>" +
+      "<td data-label=\"Cost\">" + escapeXml(auditCostCellText(r)) + "</td>" +
+      "<td data-label=\"Verdict\"><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
+      "<td data-label=\"Close\">" + escapeXml(closeClassLabel(r.class)) + "</td>" +
+      "<td data-label=\"Time\">" + auditTimeCellHtml(r) + "</td>";
+    tr.innerHTML = cells;
+    return tr;
+  }
+  // ---- hamr's 2026-09-27 exit-check review #2: the Audit tab's All/Human/
+  // Blocked filter — ONE predicate, applied identically to the Grouped and
+  // Flat views (never two separate filter implementations). "Human" reads
+  // `row.action === "human"` (src/panel/data.js's deriveAuditAction);
+  // "Blocked" reads `row.blocked` (src/panel/data.js's isBlockedVerdict) —
+  // both server-derived, never re-guessed here. ----
+  var auditFilterMode = "all";
+  var lastAuditResult = null;
+  function auditRowMatchesFilter(r){
+    if(auditFilterMode === "human") return r.action === "human";
+    if(auditFilterMode === "blocked") return r.blocked === true;
+    return true;
+  }
+  function setAuditFilter(mode){
+    auditFilterMode = mode;
+    document.querySelectorAll('.chip[data-audit-filter]').forEach(function(chip){
+      chip.setAttribute("aria-pressed", chip.getAttribute("data-audit-filter") === mode ? "true" : "false");
+    });
+    if(lastAuditResult) paintAudit(lastAuditResult);
+  }
+  document.querySelectorAll('.chip[data-audit-filter]').forEach(function(chip){
+    chip.addEventListener("click", function(){ setAuditFilter(chip.getAttribute("data-audit-filter")); });
+  });
+  // review item #1: one line per group — `[state] · step · time · cost ·
+  // try N <marks>` — built ONLY from fields `src/panel/data.js`'s
+  // `deriveAuditGroups` already computed (timeMs -> `duration`, a purely
+  // presentational formatter; nothing here re-derives state/cost/tries).
+  // Tokens are appended ONLY when the server sent a real total (omitted,
+  // never "0 tokens", for a pre-M4a-2 row or a no-model-call step).
+  function auditGroupHeaderText(g){
+    var bits = [
+      "[" + g.state + "]", g.step, duration(g.timeMs), (g.cost || "cost unknown"),
+      "try " + g.tryCount + " " + g.tryMarks.join(""),
+    ];
+    if(typeof g.tokensTotal === "number") bits.splice(4, 0, g.tokensTotal + " tokens");
+    return bits.join(" · ");
+  }
+  // hamr's 2026-09-27 review: the header's status word gets the SAME color
+  // vocabulary the runs list already uses (glyphClass's green/red/amber/
+  // grey) — never a second color scheme invented for the Audit tab. A
+  // group's `g.state` is server-derived (`deriveStepGroupState`) to exactly
+  // one of 'done'/'waiting'/'stopped' — 'grey' below is an unreached
+  // fallback, never a real state this function is asked to color.
+  function auditStateClass(state){
+    if(state === "done") return "green";
+    if(state === "waiting") return "amber";
+    if(state === "stopped") return "red";
+    return "grey";
+  }
+  function auditMarkClass(mark){
+    if(mark === "✓") return "green";
+    if(mark === "✗") return "red";
+    return "grey"; // "·" — still open, no resolution row yet
+  }
+  // Builds the SAME header line `auditGroupHeaderText` renders as plain
+  // text (used as this header's aria-label, for a screen reader), but as
+  // real DOM: the status word is its own `<span class="badge STATE">`
+  // (reusing the existing `.badge` bracket/color CSS, never a second
+  // "[state]" string built here) and each try mark is its own colored
+  // `<span class="mark STATE">` — built directly off `g.state`/`g.tryMarks`,
+  // never by parsing `auditGroupHeaderText`'s own string back apart.
+  function buildAuditGroupHeaderEl(g){
+    var h4 = document.createElement("h4");
+    h4.className = "audit-status-header";
+    var stateSpan = document.createElement("span");
+    stateSpan.className = "badge " + auditStateClass(g.state);
+    stateSpan.setAttribute("data-testid", "audit-group-state");
+    stateSpan.textContent = g.state;
+    h4.appendChild(stateSpan);
+    h4.appendChild(document.createTextNode(" · " + g.step + " · " + duration(g.timeMs) + " · " + (g.cost || "cost unknown")));
+    if(typeof g.tokensTotal === "number") h4.appendChild(document.createTextNode(" · " + g.tokensTotal + " tokens"));
+    h4.appendChild(document.createTextNode(" · try " + g.tryCount + " "));
+    g.tryMarks.forEach(function(mark){
+      var markSpan = document.createElement("span");
+      markSpan.className = "mark " + auditMarkClass(mark);
+      markSpan.textContent = mark;
+      h4.appendChild(markSpan);
+    });
+    return h4;
+  }
+  // Grouped view: one section per step, server order preserved (first-seen
+  // order of `r.step` across this run's own rows — never re-sorted).
+  // review item #1: COLLAPSED by default — a map/step-card click
+  // (`openAuditGroup`) is the only thing that force-expands one.
+  function renderAuditGroups(result){
+    var container = document.getElementById("audit-groups");
+    container.innerHTML = "";
+    if(!result || result.empty) return;
+    var anyVisible = false;
+    (result.groups || []).forEach(function(g){
+      var rows = (g.rows || []).filter(auditRowMatchesFilter);
+      if(rows.length === 0) return; // a group with no matching rows is hidden, never an empty shell
+      anyVisible = true;
+      var wrap = document.createElement("div");
+      wrap.className = "audit-group";
+      wrap.id = "audit-group-" + g.step;
+      wrap.setAttribute("data-testid", "audit-group-" + g.step);
+      // hamr's 2026-09-27 review item (b), carried forward: the group
+      // header folds/unfolds its own table on click — a `role="button"`
+      // div (never a real `<button>` nested inside an `<h4>`). Review #1:
+      // COLLAPSED by default now (`aria-expanded` starts "false", the
+      // table starts `hidden`) — expanding is something a human (or a
+      // map/step-card jump) does, never the initial state.
+      var header = buildAuditGroupHeaderEl(g);
+      header.setAttribute("role", "button");
+      header.setAttribute("tabindex", "0");
+      header.setAttribute("aria-expanded", "false");
+      header.setAttribute("aria-label", auditGroupHeaderText(g));
+      header.style.cursor = "pointer";
+      wrap.appendChild(header);
+      var table = document.createElement("table");
+      table.hidden = true;
+      table.innerHTML = "<thead><tr><th>Attempt</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th><th>Time</th></tr></thead><tbody></tbody>";
+      var tbody = table.querySelector("tbody");
+      rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, false)); });
+      table.setAttribute("data-testid", "audit-table-grouped-" + g.step);
+      wrap.appendChild(table);
+      function toggleAuditGroup(){
+        var next = table.hidden;
+        table.hidden = !next;
+        header.setAttribute("aria-expanded", next ? "true" : "false");
+      }
+      header.addEventListener("click", toggleAuditGroup);
+      header.addEventListener("keydown", function(e){
+        if(e.key === "Enter" || e.key === " "){ e.preventDefault(); toggleAuditGroup(); }
+      });
+      container.appendChild(wrap);
+    });
+    return anyVisible;
+  }
+  function renderAuditFlat(result){
+    var tbody = document.getElementById("audit-tbody");
+    tbody.innerHTML = "";
+    if(!result || result.empty) return false;
+    var rows = result.rows.filter(auditRowMatchesFilter);
+    rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, true)); });
+    return rows.length > 0;
+  }
+  var auditViewMode = "grouped";
+  function setAuditView(view){
+    auditViewMode = view;
+    document.getElementById("audit-groups").hidden = view !== "grouped";
+    document.getElementById("audit-flat-wrap").hidden = view !== "flat";
+    document.querySelectorAll('.chip[data-view]').forEach(function(chip){
+      chip.setAttribute("aria-pressed", chip.getAttribute("data-view") === view ? "true" : "false");
+    });
+    if(lastAuditResult) paintAudit(lastAuditResult);
+  }
+  document.querySelectorAll('.chip[data-view]').forEach(function(chip){
+    chip.addEventListener("click", function(){ setAuditView(chip.getAttribute("data-view")); });
+  });
+  // Paints both views off the SAME already-fetched result (never a second
+  // fetch) — called on load and again whenever the filter/view changes.
+  // review item #2: "a group with no matching rows is hidden; empty result
+  // says why" — checked against whichever view is actually on screen.
+  function paintAudit(result){
+    var anyGrouped = renderAuditGroups(result);
+    var anyFlat = renderAuditFlat(result);
+    var filterEmpty = document.getElementById("audit-filter-empty");
+    var nothingMatched = auditViewMode === "flat" ? !anyFlat : !anyGrouped;
+    if(nothingMatched && auditFilterMode !== "all"){
+      filterEmpty.hidden = false;
+      filterEmpty.textContent = "no " + auditFilterMode + " rows in this run's audit trail";
+    } else {
+      filterEmpty.hidden = true;
+    }
+  }
+  function renderAudit(result){
+    var empty = document.getElementById("audit-empty");
+    var content = document.getElementById("audit-content");
+    lastAuditResult = result;
+    if(!result || result.empty){
+      empty.hidden = false;
+      empty.textContent = (result && result.why) || "no audit rows for this run";
+      content.hidden = true;
+      return;
+    }
+    empty.hidden = true;
+    content.hidden = false;
+    // a fresh run's own view keeps whatever mode (Grouped/Flat) the chips
+    // are already showing, defaulting to Grouped on first load.
+    var flatPressed = document.querySelector('.chip[data-view="flat"]');
+    setAuditView(flatPressed && flatPressed.getAttribute("aria-pressed") === "true" ? "flat" : "grouped");
+  }
+
+  // ---- Job tab: the signed prose, the arbiter block (cap, asks with TTL,
+  // redo cap, sends, sources), and the signature — read straight off
+  // getRunJob (src/panel/data.js), which reads fwdloop's own signed
+  // declaration.json + signature.json (one per flow, unlike bareloop's
+  // multi-source provenance chain — DROPPED per the M4a fit-check). ----
+  function ttlLabel(ms){
+    if(typeof ms !== "number") return "unknown";
+    return duration(ms);
+  }
+  // hamr's 2026-09-27 exit-check review #5: ONE row-per-piece renderer,
+  // shared by every multi-row Job field (prose/asks/sources/sends/
+  // guardrails/success) — a real `.ro-value` per item (never a single
+  // " · "-joined line, which used to hide a book text value if it happened
+  // to contain " · " itself), an explicit "none signed" hint for an empty
+  // list, book text always via `.textContent`.
+  function renderRowsField(elId, items, emptyText, rowTextFn){
+    var el = document.getElementById(elId);
+    el.innerHTML = "";
+    if(!items || !items.length){
+      el.appendChild(textDiv("hint", emptyText));
+      return;
+    }
+    items.forEach(function(item){
+      el.appendChild(textDiv("ro-value", rowTextFn(item)));
+    });
+  }
+  function renderJob(job){
+    var empty = document.getElementById("job-empty");
+    var card = document.getElementById("job-card");
+    if(!job){ empty.hidden = false; empty.textContent = "select a run first"; card.hidden = true; return; }
+    if(!job.resolved){ empty.hidden = false; empty.textContent = job.why || "job could not be resolved"; card.hidden = true; return; }
+    empty.hidden = true;
+    card.hidden = false;
+    document.getElementById("details-title").textContent = "Job — " + job.flow + " (signed)";
+    // review #5: "Job (prose)" — the signed lines, numbered, WITHOUT their
+    // guardrail mixed in (guardrails get their own field below).
+    renderRowsField("details-prose", job.prose, "no signed prose lines", function(l){
+      return l.line + ". " + l.text;
+    });
+    // review #5: "Ask" — one row per signed ask line.
+    renderRowsField("details-asks", job.asks, "no signed asks", function(ak){
+      return "line " + ak.line + " · \"" + ak.question + "\" · waits " + ttlLabel(ak.waitMs);
+    });
+    // hamr review #7: no declaration/signature book records a model on the
+    // flow itself (checked against `src/panel/data.js`'s own
+    // `deriveRunModel` — only `audit.jsonl`'s per-attempt rows do) — say so
+    // plainly rather than implying the signed prose named it.
+    document.getElementById("details-model").textContent = job.model
+      ? ("model used: " + job.model + " (from this run's rows)")
+      : (job.modelWhy || "no model call recorded yet");
+    // hamr's 2026-09-27 final tweak #1: "$ cap" — bareloop-style "$ cap /
+    // Time cap" row: money (signed capUsd + redo cap) THEN time. Checked
+    // against src/declaration.js and src/types.js's own Arbiter typedef:
+    // fwdloop's signed arbiter carries `capUsd`/`redoCap` (and per-ask
+    // `ttlMs`, which is an ask's own wait, not a run-wide time cap) — there
+    // is no signed run-wide time-cap field anywhere in the grammar, so this
+    // NEVER invents one; it says so in words instead.
+    document.getElementById("details-cap").textContent =
+      (typeof job.capUsd === "number" ? ("$" + job.capUsd.toFixed(2)) : "unknown")
+      + " · redo cap " + (typeof job.redoCap === "number" ? job.redoCap : "unknown")
+      + " · time cap: no time cap signed";
+    // review #5: "Source" — role -> basename only (never the full signed path).
+    renderRowsField("details-sources", job.sources, "no signed sources", function(s){
+      return s.role + " → " + s.basename;
+    });
+    // review #5: "Destination" — one row per signed send.
+    renderRowsField("details-sends", job.sends, "no signed sends", function(s){
+      return "line " + s.line + " · " + (s.kind || "unknown") + " → " + (s.target || "unknown");
+    });
+    // review #5: "Guardrails" — ONE field, one row per numbered-line guardrail.
+    renderRowsField("details-guardrails", job.guardrails, "no numbered-line guardrails signed", function(g){
+      return "line " + g.line + " · " + g.guardrail;
+    });
+    // review #5: "Success" — one row per declared step, off data.js's own
+    // deriveStepSuccessText (never re-derived client-side).
+    renderRowsField("details-success", job.success, "no declared steps", function(s){
+      return s.step + " · " + s.text;
+    });
+    var sig = job.signature;
+    // hamr's 2026-09-27 final tweak #2: `sig.signedAt` is the raw signed ISO
+    // stamp (e.g. "2026-09-24T13:22:40.950Z") — rendered readable/local via
+    // the SAME `readableDateTime` every other date on this page already
+    // uses, never shown as the raw ISO string.
+    document.getElementById("details-signature").textContent = sig
+      ? (sig.signedBy + " at " + (readableDateTime(sig.signedAt) || sig.signedAt) + " (hash " + sig.hash.slice(0, 12) + "…)")
+      : (job.signatureWhy || "unsigned");
+  }
+
+  // ---- selection + loading ----
+  var currentFlow = null;
+  var currentRunId = null;
+  // `focusAskId` (M4a-1): when a click on an Inbox stop calls `selectRun`,
+  // it names the ONE ask that stop is about — `renderAsk` expands exactly
+  // that ask and scrolls it into view, rather than whatever this run's
+  // default (its open ask, if any) would otherwise expand.
+  function selectRun(flow, runId, rowEl, siblingSelector, focusAskId){
+    clearSelection();
+    document.querySelectorAll(siblingSelector).forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
+    if(rowEl){ rowEl.classList.add("selected"); rowEl.setAttribute("aria-pressed","true"); }
+    currentFlow = flow;
+    currentRunId = runId;
+    var base = "/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId);
+    // detail, audit, job, and asks each load independently — the Run tab's
+    // step cards get everything they need (including a step's own attempt-
+    // numbering boundary, `afterReject`) straight off `detail.steps` now;
+    // src/panel/data.js works out the boundary server-side, off the run's
+    // full audit-row order, so the client no longer needs a second,
+    // separately-fetched copy of the audit rows to cross-reference (fix #6).
+    getJSON(base).then(renderRun).catch(function(e){
+      document.getElementById("run-empty").hidden = false;
+      document.getElementById("run-empty").textContent = "failed to load run: " + e.message;
+      document.getElementById("run-content").hidden = true;
+    });
+    getJSON(base + "/audit").then(renderAudit).catch(function(){ renderAudit(null); });
+    getJSON(base + "/job").then(renderJob).catch(function(){ renderJob(null); });
+    getJSON(base + "/asks").then(function(result){ renderAsk(result, focusAskId || null); }).catch(function(e){
+      renderAsk(null, null, e.message);
+    });
+  }
+
+  getJSON("/api/runs").then(function(result){
+    var runs = result.rows || [];
+    runsFilterBar.setItems(runs);
+    var first = runs.find(function(r){ return r.runId !== null; });
+    if(first){
+      document.getElementById("tab-runs").click();
+      // newest run overall, opened directly — the Workflows view starts
+      // collapsed, but its flow row still renders "selected" since
+      // `runsFilterBar.refresh()` re-renders AFTER currentFlow/currentRunId
+      // are set.
+      selectRun(first.flow, first.runId, null, ".hist-row");
+      document.getElementById("tab-run").click();
+      runsFilterBar.refresh();
+    }
+  }).catch(function(e){
+    document.getElementById("wf-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
+    document.getElementById("history-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
+  });
+
+  // ---- shared text-node helper — book text (question/draft/artifact
+  // text/reason/gap) is ALWAYS set via `.textContent`, never interpolated
+  // into an `innerHTML` string, on the Inbox list and the Ask tab alike. ----
+  function textDiv(cls, text){
+    var d = document.createElement("div");
+    if(cls) d.className = cls;
+    d.textContent = text;
+    return d;
+  }
+
+  // ---- Inbox tab (M4a-1): a list of STOPS across every flow, like
+  // History — open ones first with time left, past ones newest-answered-
+  // first with a short status word, off GET /api/inbox
+  // (src/panel/data.js's listStops). Status vocabulary is exactly the
+  // words the books' own decision field maps to (never a second, made-up
+  // vocabulary): "accepted" / "rejected" / "reran" / "expired" /
+  // "unanswered" (this IS the open case) / the rare "open" fallback (an
+  // archived ask.json itself failed to parse). No evidence renders here any
+  // more — clicking a stop selects its run and opens the wide right pane's
+  // Ask tab, focused on that one ask. No answer controls — those are M4b. --
+  function stopStatusLine(row){
+    if(row.open) return "time left: " + duration(row.timeLeftMs);
+    var bits = [row.status];
+    if(row.reason) bits.push("reason: " + row.reason);
+    if(row.answeredAt) bits.push("answered " + (readableDateTime(row.answeredAt) || row.answeredAt));
+    if(row.why) bits.push(row.why);
+    return bits.join(" · ");
+  }
+  function renderStopRow(row){
+    var wrap = document.createElement("div");
+    wrap.className = "hist-row inbox-row";
+    wrap.setAttribute("role", "button");
+    wrap.setAttribute("tabindex", "0");
+    wrap.setAttribute("aria-pressed", "false");
+    wrap.setAttribute("data-testid", "inbox-row-" + row.flow + "-" + row.runId + (row.askId ? "-" + row.askId : ""));
+    var head = document.createElement("div");
+    head.className = "wf-line1";
+    var badge = document.createElement("span");
+    badge.className = "badge " + (row.open ? "amber" : (row.status === "accepted" ? "green" : (row.status === "rejected" ? "red" : "grey")));
+    badge.textContent = row.open ? "·" : row.status;
+    head.appendChild(badge);
+    var flowName = textDiv(null, row.flow + " (" + row.runId + ")");
+    flowName.className = "wf-name";
+    head.appendChild(flowName);
+    wrap.appendChild(head);
+    wrap.appendChild(textDiv("wf-meta", stopStatusLine(row)));
+    if(typeof row.question === "string"){
+      wrap.appendChild(textDiv("step-meta", "question: " + row.question));
+    } else if(row.questionWhy){
+      wrap.appendChild(textDiv("hint", row.questionWhy));
+    }
+    function activate(){
+      selectRun(row.flow, row.runId, wrap, ".inbox-row", row.askId);
+      document.getElementById("tab-ask").click();
+    }
+    wrap.addEventListener("click", activate);
+    wrap.addEventListener("keydown", function(e){
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); activate(); }
+    });
+    return wrap;
+  }
+  function renderInbox(rows){
+    var el = document.getElementById("inbox-list");
+    el.innerHTML = "";
+    var openCount = 0;
+    (rows || []).forEach(function(r){ if(r.open) openCount += 1; });
+    document.getElementById("inbox-count-label").textContent = openCount > 0 ? (" (" + openCount + ")") : "";
+    if(!rows || !rows.length){
+      el.innerHTML = '<div class="hint">nothing waiting on you — no stops recorded under this root</div>';
+      return;
+    }
+    rows.forEach(function(row){ el.appendChild(renderStopRow(row)); });
+  }
+  getJSON("/api/inbox").then(function(result){ renderInbox(result.rows || []); }).catch(function(e){
+    document.getElementById("inbox-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
+  });
+
+  // ---- Ask tab (M4a-1): every ask of the SELECTED run, collapsed by
+  // default, off GET /api/runs/:flow/:runId/asks (src/panel/data.js's
+  // getRunAsks). Clicking a stop in the left Inbox calls `selectRun` with
+  // that ask's id, which reaches here as `focusAskId` and expands exactly
+  // that one. With no `focusAskId` (a run selected any other way), this
+  // run's own open ask (if it has one) expands by default. No answer
+  // controls anywhere in this panel (M4b) — a clearly marked EMPTY slot
+  // stands in their place; the collapse/expand toggle is a div with
+  // role="button" (never a real <button>), same posture as the step-map's
+  // own SVG nodes elsewhere on this page. ----
+  function askStatusBlock(ask){
+    if(ask.open) return textDiv("wf-meta", "time left: " + duration(ask.timeLeftMs));
+    var bits = [ask.status];
+    if(ask.reason) bits.push("reason: " + ask.reason);
+    if(ask.answeredAt) bits.push("answered " + (readableDateTime(ask.answeredAt) || ask.answeredAt));
+    return textDiv("wf-meta", bits.join(" · "));
+  }
+  function renderAskEvidenceBlock(ask){
+    var ev = document.createElement("div");
+    ev.className = "attempts-list";
+    var evidence = ask.evidence || {};
+    if(evidence.draft){
+      var draftEl = document.createElement("div");
+      draftEl.className = "ro-value scroll";
+      draftEl.textContent = evidence.draft;
+      // hamr's 2026-09-27 exit-check review #3: "the box headers should be
+      // bolder" — a real heading class (same weight/size/uppercase posture
+      // as the Job tab's own field `<label>`s), never the plain `.hint`
+      // style a footnote/why-text uses.
+      ev.appendChild(textDiv("evidence-heading", "draft under review"));
+      ev.appendChild(draftEl);
+    } else {
+      ev.appendChild(textDiv("hint", evidence.why || "no draft on file"));
+    }
+    // hamr review #8/#9 (2026-09-27, carried over from the old Inbox
+    // renderer): `readAskEvidence` (src/ask.js) puts an unjudged artifact's
+    // text straight on `u.text` (never nested under `u.artifact`). The
+    // label reads `u.emits` (the step's real id) when the entry actually
+    // named one; `u.step` (which — despite the name — carries the step's
+    // GOAL prose, not an id) is shown as a smaller subtitle underneath,
+    // never as the primary label, and never assumed present when `u.emits`
+    // is missing.
+    (evidence.unjudged || []).forEach(function(u){
+      var label = typeof u.emits === "string" && u.emits.length > 0 ? u.emits : u.step;
+      ev.appendChild(textDiv("evidence-heading", "unjudged — step: " + label));
+      if(typeof u.emits === "string" && u.emits.length > 0 && u.step !== u.emits){
+        ev.appendChild(textDiv("step-meta", u.step));
+      }
+      var art = document.createElement("div");
+      art.className = "ro-value scroll";
+      art.textContent = typeof u.text === "string" ? u.text : "no artifact text on file";
+      ev.appendChild(art);
+    });
+    // M4b's answer doors (accept/reject/rerun) land here — this panel is
+    // read-only by construction (M4a-1 scope), so the slot is empty and
+    // clearly marked rather than silently absent.
+    var answerSlot = document.createElement("div");
+    answerSlot.className = "hint";
+    answerSlot.setAttribute("data-testid", "ask-answer-slot");
+    answerSlot.textContent = "answer controls are not built yet (M4b)";
+    ev.appendChild(answerSlot);
+    return ev;
+  }
+  // hamr's 2026-09-27 exit-check review #3: "when opened from an Inbox
+  // click it's not clear which ask is shown" — one line naming exactly
+  // which ask this is (`Ask i of n`, from src/panel/data.js's own
+  // index/total), which declared step it belongs to (`stepName`, at its
+  // signed prose `stepLine` — src/panel/data.js's `deriveAskStepInfo`,
+  // never re-derived here), when it was asked, and its status. `stepWhy` is
+  // shown verbatim (never a guessed step name) when the books can't name
+  // one — the honest word "before" a real value never invents.
+  function askHeaderMetaText(ask){
+    var bits = ["Ask " + ask.index + " of " + ask.total];
+    var stepBit = typeof ask.stepName === "string" && ask.stepName.length > 0
+      ? ask.stepName + (typeof ask.stepLine === "number" ? " (line " + ask.stepLine + ")" : "")
+      : (ask.stepWhy || "step not determinable");
+    bits.push(stepBit);
+    bits.push(typeof ask.askedAt === "string" ? "asked " + (readableDateTime(ask.askedAt) || ask.askedAt) : "asked: unknown");
+    bits.push(ask.open ? "waiting on you" : ask.status);
+    return bits.join(" · ");
+  }
+  function renderAskRow(ask, expanded){
+    var wrap = document.createElement("div");
+    wrap.className = "audit-group";
+    wrap.setAttribute("data-testid", "ask-row-" + (ask.askId || "no-id"));
+    var head = document.createElement("div");
+    head.setAttribute("role", "button");
+    head.setAttribute("tabindex", "0");
+    head.setAttribute("aria-expanded", expanded ? "true" : "false");
+    head.style.cursor = "pointer";
+    var metaLine = document.createElement("div");
+    metaLine.className = "wf-line1";
+    var badge = document.createElement("span");
+    badge.className = "badge " + (ask.open ? "amber" : (ask.status === "accepted" ? "green" : (ask.status === "rejected" ? "red" : "grey")));
+    badge.textContent = ask.open ? "·" : ask.status;
+    metaLine.appendChild(badge);
+    metaLine.appendChild(textDiv("wf-meta", askHeaderMetaText(ask)));
+    head.appendChild(metaLine);
+    // The question itself — a real, bold heading (review #3: "the question
+    // as a clear heading"), never folded into the same small meta line.
+    var qText = typeof ask.question === "string" ? ask.question : (ask.questionWhy || "question not recorded");
+    var qHeading = document.createElement("h4");
+    qHeading.className = "ask-question-heading";
+    qHeading.textContent = qText;
+    head.appendChild(qHeading);
+    wrap.appendChild(head);
+    var body = document.createElement("div");
+    body.hidden = !expanded;
+    body.appendChild(askStatusBlock(ask));
+    body.appendChild(renderAskEvidenceBlock(ask));
+    wrap.appendChild(body);
+    function toggle(){
+      var next = body.hidden;
+      body.hidden = !next;
+      head.setAttribute("aria-expanded", next ? "true" : "false");
+    }
+    head.addEventListener("click", toggle);
+    head.addEventListener("keydown", function(e){
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); toggle(); }
+    });
+    return wrap;
+  }
+  function renderAsk(result, focusAskId, loadError){
+    var empty = document.getElementById("ask-empty");
+    var list = document.getElementById("ask-list");
+    if(loadError){ empty.hidden = false; empty.textContent = "failed to load asks: " + loadError; list.hidden = true; list.innerHTML = ""; return; }
+    if(!result){ empty.hidden = false; empty.textContent = "select a run first"; list.hidden = true; list.innerHTML = ""; return; }
+    var asks = result.asks || [];
+    if(!asks.length){
+      empty.hidden = false;
+      empty.textContent = "this run has never parked on a human — no asks recorded";
+      list.hidden = true;
+      list.innerHTML = "";
+      return;
+    }
+    empty.hidden = true;
+    list.hidden = false;
+    list.innerHTML = "";
+    // Default expansion: the ask named by a click from the Inbox
+    // (`focusAskId`) wins; otherwise this run's own open ask (if it has
+    // one) expands; otherwise every ask stays collapsed.
+    var defaultOpenId = focusAskId;
+    if(!defaultOpenId){
+      var openAsk = asks.find(function(a){ return a.open; });
+      if(openAsk) defaultOpenId = openAsk.askId;
+    }
+    asks.forEach(function(ask){
+      var expanded = defaultOpenId != null && ask.askId === defaultOpenId;
+      var row = renderAskRow(ask, expanded);
+      // hamr's 2026-09-27 exit-check review #3: "the ask opened from the
+      // Inbox gets a visible highlight" — a REAL Inbox click (`focusAskId`
+      // set) on THIS ask, never a run's own default open-ask expansion
+      // (which is chosen here, not clicked from the Inbox). Reuses the
+      // Audit tab's own highlight rule (`.audit-group.audit-group-
+      // highlight`, this row already carries the `audit-group` class) —
+      // persistent here, not momentary, since the human navigated here
+      // specifically to see this one.
+      if(focusAskId && ask.askId === focusAskId){
+        row.classList.add("audit-group-highlight");
+      }
+      list.appendChild(row);
+      if(expanded){
+        // Scroll the focused ask into view (M4a-1 design: clicking a stop
+        // on the left "focuses" it on the right) — never on a run's own
+        // default open-ask expansion (only a real Inbox click scrolls).
+        if(focusAskId){
+          setTimeout(function(){ row.scrollIntoView({ block: "center", behavior: "smooth" }); }, 0);
+        }
+      }
+    });
+  }
+
+  // theme toggle
+  (function(){
+    var root = document.documentElement;
+    var btn = document.getElementById("theme-toggle");
+    var stored = null;
+    try{ stored = localStorage.getItem("fwdloop-panel-theme"); }catch(e){}
+    if(stored === "light" || stored === "dark"){ root.setAttribute("data-theme", stored); }
+    function current(){
+      var attr = root.getAttribute("data-theme");
+      if(attr) return attr;
+      return (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
+    }
+    function paint(){ btn.textContent = current() === "dark" ? "☾" : "☀"; }
+    paint();
+    btn.addEventListener("click", function(){
+      var next = current() === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      try{ localStorage.setItem("fwdloop-panel-theme", next); }catch(e){}
+      paint();
+    });
+  })();
+
+})();
+</script>
+</body>
+</html>

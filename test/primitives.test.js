@@ -4,12 +4,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync,
+  mkdirSync, writeFileSync, readFileSync, readdirSync, symlinkSync, renameSync, existsSync,
 } from 'node:fs';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { resolvePrimitives, rolePrimitiveFor } from '../src/primitives.js';
+import { resolvePrimitives, rolePrimitiveFor, GateRefusal } from '../src/primitives.js';
 import { loadCatalogue } from '../src/catalogue.js';
 
 const loaded = loadCatalogue();
@@ -79,12 +80,25 @@ test('write: a path outside the run dir reds, never writes', async () => {
   await assert.rejects(() => tools.write.execute({ path: outsidePath, content: 'x' }), /outside the sandbox/);
 });
 
-test('write: a path inside the run dir succeeds', async () => {
+test('write: a path inside <runDir>/out succeeds', async () => {
+  const runDir = tmpRunDir();
+  const { tools } = resolvePrimitives(CATALOGUE, ['write'], { runDir });
+  const target = path.join(runDir, 'out', 'out.txt');
+  await tools.write.execute({ path: target, content: 'written' });
+  assert.equal(readFileSync(target, 'utf8'), 'written');
+});
+
+// CHANGED behaviour (fix-once switch-over, fix-ledger "step write may
+// overwrite frozen inputs"): a write to the run dir ROOT used to succeed
+// (the old lexical `isPathAllowed` treated the whole run dir as one
+// writable root). bareguard's Gate scopes write to `<runDir>/out` only —
+// the run dir root (where state.json/audit.jsonl/spend.jsonl/inputs/ live)
+// is readable but no longer writable.
+test('write: a path in the run dir ROOT (not out/) now reds — the run dir is read-only for write', async () => {
   const runDir = tmpRunDir();
   const { tools } = resolvePrimitives(CATALOGUE, ['write'], { runDir });
   const target = path.join(runDir, 'out.txt');
-  await tools.write.execute({ path: target, content: 'written' });
-  assert.equal(readFileSync(target, 'utf8'), 'written');
+  await assert.rejects(() => tools.write.execute({ path: target, content: 'x' }), /outside the sandbox/);
 });
 
 test('readDocx: reads a small real .docx fixture by role, never a raw path', async () => {
@@ -169,6 +183,24 @@ test('read: an unknown role reds naming the role and the available ones', async 
     runDir, inputs: [{ id: 'jd', frozen: jdPath }],
   });
   await assert.rejects(() => tools.read.execute({ role: 'nope' }), /no frozen input for role "nope" \(available: jd\)/);
+});
+
+test('read/grep: Object.prototype names as role get the named refusal, not a TypeError', async () => {
+  const runDir = tmpRunDir();
+  const inputsDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-role-'));
+  const jdPath = path.join(inputsDir, 'jd.md');
+  writeFileSync(jdPath, 'text');
+  const { tools } = resolvePrimitives(CATALOGUE, ['read', 'grep'], {
+    runDir, inputs: [{ id: 'jd', frozen: jdPath }],
+  });
+  for (const role of ['__proto__', 'constructor', 'toString']) {
+    for (const verb of ['read', 'grep']) {
+      await assert.rejects(() => tools[verb].execute({ role, pattern: 'x' }), (e) => {
+        assert.match(e.message, new RegExp(`${verb}: no frozen input for role "${role}"`));
+        return true;
+      });
+    }
+  }
 });
 
 test('read: a path outside the sandbox still reds even when roles are available', async () => {
@@ -323,4 +355,71 @@ test('grep: by role searches the frozen file\'s text', async () => {
   });
   const result = await tools.grep.execute({ pattern: 'remote', role: 'jd' });
   assert.match(JSON.stringify(result), /remote/);
+});
+
+// ---------------------------------------------------------------------------
+// bareguard 0.19.2: a symlinked scope root is refused at construct (we turn
+// the throw into a red + NO tools) and re-checked on every check() (a root or
+// ancestor swapped to a symlink after start denies with `.symlinkRoot`).
+// ---------------------------------------------------------------------------
+
+const SYMLINK_VERBS = ['read', 'grep', 'write', 'readDocx', 'addressCells'];
+
+test('symlinked <runDir>/out: resolvePrimitives builds NO tool, reds naming bareguard\'s message, outside file untouched', () => {
+  const runDir = tmpRunDir();
+  const outside = tmpRunDir();
+  writeFileSync(path.join(outside, 'x.txt'), 'original');
+  symlinkSync(outside, path.join(runDir, 'out'));
+  const { tools, reds } = resolvePrimitives(CATALOGUE, SYMLINK_VERBS, { runDir });
+  assert.deepEqual(Object.keys(tools), [], 'fail closed: not even readDocx/addressCells');
+  assert.equal(reds.length, 1);
+  assert.match(reds[0], /^primitives: bareguard refused the step's file scope — /);
+  assert.match(reds[0], /is or contains a symlink/);
+  assert.equal(readFileSync(path.join(outside, 'x.txt'), 'utf8'), 'original');
+});
+
+test('runDir reached through a symlinked ancestor: same refusal', () => {
+  const real = tmpRunDir();
+  const holder = tmpRunDir();
+  const link = path.join(holder, 'link');
+  symlinkSync(real, link);
+  const runDir = path.join(link, 'run');
+  const { tools, reds } = resolvePrimitives(CATALOGUE, SYMLINK_VERBS, { runDir });
+  assert.deepEqual(Object.keys(tools), []);
+  assert.match(reds.join('\n'), /is or contains a symlink/);
+});
+
+test('out swapped to a symlink AFTER resolvePrimitives: write refused with fs.writeScope.symlinkRoot, nothing lands outside', async () => {
+  const runDir = tmpRunDir();
+  const outside = tmpRunDir();
+  const { tools, reds } = resolvePrimitives(CATALOGUE, ['write'], { runDir });
+  assert.deepEqual(reds, []);
+  symlinkSync(outside, path.join(runDir, 'out'));
+  await assert.rejects(
+    () => tools.write.execute({ path: 'out/x.txt', content: 'pwned' }),
+    (err) => err instanceof GateRefusal && err.rule === 'fs.writeScope.symlinkRoot',
+  );
+  assert.equal(existsSync(path.join(outside, 'x.txt')), false);
+});
+
+test('runDir ancestor swapped for a symlink after resolvePrimitives: read and write refused with .symlinkRoot', async () => {
+  const holder = tmpRunDir();
+  const runDir = path.join(holder, 'run');
+  mkdirSync(runDir);
+  writeFileSync(path.join(runDir, 'a.txt'), 'secret');
+  const other = tmpRunDir();
+  mkdirSync(path.join(other, 'out'));
+  writeFileSync(path.join(other, 'a.txt'), 'other');
+  const { tools } = resolvePrimitives(CATALOGUE, ['read', 'write'], { runDir });
+  renameSync(runDir, path.join(holder, 'run-moved'));
+  symlinkSync(other, runDir);
+  await assert.rejects(
+    () => tools.read.execute({ path: 'a.txt' }),
+    (err) => err instanceof GateRefusal && err.rule === 'fs.readScope.symlinkRoot',
+  );
+  await assert.rejects(
+    () => tools.write.execute({ path: 'out/x.txt', content: 'pwned' }),
+    (err) => err instanceof GateRefusal && err.rule === 'fs.writeScope.symlinkRoot',
+  );
+  assert.equal(existsSync(path.join(other, 'out', 'x.txt')), false);
 });

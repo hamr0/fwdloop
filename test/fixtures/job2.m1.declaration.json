@@ -28,7 +28,7 @@
     },
     {
       "goal": "Draft the summary resume comparing the resume against the JD, in three sections (work-history blurb, professional skills, soft skills), each ~200 words and the whole under 600 words.",
-      "primitives": ["compress"],
+      "primitives": ["read"],
       "reads": ["resume-text", "jd-text"],
       "emits": "resume-summary",
       "fromLine": 3,

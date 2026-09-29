@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  writeFileSync, mkdtempSync, readFileSync, mkdirSync, existsSync, symlinkSync, rmSync,
+  writeFileSync, readFileSync, mkdirSync, existsSync, symlinkSync, rmSync,
 } from 'node:fs';
+import { mkdtempSync } from '../../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';

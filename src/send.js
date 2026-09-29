@@ -32,8 +32,27 @@ export async function sendViaPrimitive(target, filename, content) {
   const destination = checkSendDestination(target);
   if (!destination.ok) return { ok: false, red: destination.red };
 
+  // F48 round 4 (redesign) defense in depth: `src/runner.js`'s send slot
+  // now halts BEFORE calling this function on a missing/refused read, so
+  // `content` should never arrive `undefined` here — but this function must
+  // never again paper over that with `?? null` the way it used to (that is
+  // exactly what turned a swapped/deleted accepted artifact into a
+  // recorded-green 4-byte `null` shipped to the signed destination). A
+  // legitimate on-disk artifact is always a non-null object: every step's
+  // model output is validated to carry a boolean `done` before it is ever
+  // written (src/runner.js's checkDoneBlocker), and `done`/`blocker` are
+  // stripped afterward (stripDoneBlocker) — the stripped artifact that
+  // actually reaches disk (and this function) is always the remaining
+  // object, never `null` and never a bare non-object value.
+  if (content === undefined) {
+    return { ok: false, red: 'send: no content to send (artifact missing or its read was refused) — refused' };
+  }
+  if (content === null || typeof content !== 'object' || Array.isArray(content)) {
+    return { ok: false, red: `send: content is not an artifact object (got ${JSON.stringify(content)}) — refused` };
+  }
+
   const path = join(destination.dir, filename);
-  const serialised = JSON.stringify(content ?? null, null, 2);
+  const serialised = JSON.stringify(content, null, 2);
   await WRITE_TOOL.execute({ path, content: serialised });
 
   const bytes = readFileSync(path);

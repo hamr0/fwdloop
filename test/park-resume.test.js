@@ -8,8 +8,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  readFileSync, writeFileSync, mkdtempSync, existsSync,
+  readFileSync, writeFileSync, existsSync, symlinkSync, rmSync,
 } from 'node:fs';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -515,6 +516,47 @@ test('debrief fix: an honest state.json "spent" (matching the audit sum) still r
 
   const resumed = await resumeRun(baseRunArgs({ root, modelStep }));
   assert.equal(resumed.outcome, 'complete', resumed.red);
+});
+
+// F48 round 3 follow-up (debrief): `resumeRun` parsed `state.json` with a raw
+// `readFileSync` — every OTHER book file in a run dir already goes through
+// `readFileInside`'s symlink-escape guard, but this one reader did not. A
+// parked run whose state.json is swapped for a symlink to a forged outside
+// file — spend equal to the run's own audit sum, `expiresAt` far in the
+// future, otherwise a faithful copy of the real parked state — must still be
+// refused by name, never resumed to completion as if the symlink were never
+// there.
+test('F48 round 3 follow-up: a state.json symlinked to a forged outside file is refused, never resumed to completion', async () => {
+  const root = tmpRoot('state-symlink');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('state-symlink-src');
+  const { fn: modelStep } = makeJob2ModelStep();
+  const parked = await runFlow({
+    ...baseRunArgs({ root, modelStep, askStep: makeParkingAskStep() }),
+    sources: writeSources(srcDir),
+  });
+  assert.equal(parked.outcome, 'paused', parked.red);
+  const ans = answerAsk({ runDir: parked.runDir, askId: parked.askId, decision: 'accept' });
+  assert.equal(ans.ok, true);
+
+  const statePath = path.join(parked.runDir, 'state.json');
+  const realState = JSON.parse(readFileSync(statePath, 'utf8'));
+  // A forged copy living OUTSIDE the run dir entirely — spend matching the
+  // real audit sum (so the cap check alone would not catch it) and an
+  // expiresAt far in the future (so the ttl check alone would not catch it
+  // either). If the symlink guard were missing, this forged content is
+  // otherwise faithful enough to resume straight through to completion.
+  const outsideDir = tmpRoot('state-symlink-outside');
+  const forgedPath = path.join(outsideDir, 'forged-state.json');
+  writeFileSync(forgedPath, JSON.stringify({ ...realState, expiresAt: '2099-01-01T00:00:00Z' }, null, 2));
+  rmSync(statePath);
+  symlinkSync(forgedPath, statePath);
+
+  const resumed = await resumeRun(baseRunArgs({ root, modelStep }));
+  assert.equal(resumed.outcome, 'refused');
+  assert.match(resumed.red, /state\.json for run "run-1" — "state\.json" is a symlink, refused/);
+  assert.notEqual(resumed.outcome, 'complete');
+  rmSync(outsideDir, { recursive: true, force: true });
 });
 
 // Debrief round 2: a HONEST resume must not be refused merely because

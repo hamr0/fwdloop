@@ -9,8 +9,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  readFileSync, writeFileSync, mkdtempSync, existsSync,
+  readFileSync, writeFileSync, existsSync,
 } from 'node:fs';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';

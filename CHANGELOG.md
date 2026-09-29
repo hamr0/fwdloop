@@ -5,6 +5,162 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-09-29
+
+M4a: a read-only panel over the run books, the F48 symlink-escape class closed, and the
+bareguard/bare-agent switch-over.
+
+### Added
+- M4a `fwdloop panel [--port 4800] [--root <dir>]` (`src/panel/`, borrowed from bareloop's panel
+  and rewired to fwdloop's own books): a read-only local web panel with Runs (Workflows/History),
+  Run (step map with try-N badges and a dashed retry loop, step cards), Audit (collapsible
+  per-step groups, Blocked/Human filter, time/tokens/cost/tool-tally cells), Job (signed
+  declaration), Ask (open ask plus archived asks, i-of-n) and Inbox (stops list) tabs. It works at
+  390px width. It never writes; an expired unresumed ask draws `[!]`, and unknown data reads as
+  "not recorded", never as a number. Built on one reader per book (`src/panel/data.js`).
+- CLI: `--root` is resolved to its real path once at command start (one helper for run, resume,
+  inbox, show, answer, panel; a missing root fails by name). Everything inside the root stays
+  under bareguard's symlink refusal.
+- Deps: `bareguard` bumped to `^0.19.2` — a symlinked `fs.readScope`/`fs.writeScope` root (or any
+  symlinked ancestor) is refused at Gate construction and denied `.symlinkRoot` on every later
+  check, closing the `<runDir>/out`-symlink write escape. `resolvePrimitives` turns the construct
+  throw into a red with no tools for the step, and `runFlow`/`resumeRun` (new `primitiveReds`
+  option, wired by `bin/fwdloop`) refuse the run by name at $0.
+- Audit: every model-attempt `audit.jsonl` row (and its `log.json` attempt entry) carries
+  `refused`, an array of `{ verb, path, rule }` for each bareguard fs-gate refusal that attempt
+  (`[]` when none, never omitted). Rows with no model call carry `refused: []` too.
+- Deps: `bareguard` bumped to `^0.19.1` (patch: a file action with no path is denied `fs.invalidPath`; `bash.allow` matches whole words; blank allow entries rejected — none affect fwdloop, which sends absolute paths and grants no bash).
+- Deps: `bare-agent` bumped to `^0.48.0`; `makeProvider` sets `exposeMalformedArgs: true`, so the
+  "arguments were not valid JSON twice" red carries the model's raw broken arguments again
+  (`; raw: ...`, capped at 500 chars upstream, ` (truncated)` appended when clipped). Provider
+  error bodies are still not exposed.
+- Deps: `bare-agent` bumped to `^0.47.0`, `bareguard` bumped to `^0.19.0` — pulls in
+  `createShellTools({ noFollowSymlinks: true })`/`resolveToolPath` (bare-agent) and bareguard's
+  fs `Gate` (deny-by-default read/write scopes, symlink-safe resolved-path checking on by
+  default), both wired into `src/primitives.js` — see the "Fixed" entry below.
+- Amendment M4a-3 (docs/wiki/the-module-ladder.md, "M4a"): every new `audit.jsonl` row also
+  carries `tools`, a `{toolName: count}` tally of every GRANTED tool the model actually invoked
+  that attempt, summed across every round — taken straight from bare-agent's own per-round
+  `result.metrics.byTool` (never a separately-maintained hook, so an unknown-tool name the model
+  hallucinated is counted the same honest way bare-agent already counts it); `{}` when the model
+  called no tool, `null` only when the row has no model call at all. A tool name the step never
+  granted is flagged in `ungranted` (an array, omitted when empty) — bare-agent refuses it before
+  `execute` ever runs, and this amendment records that refusal rather than folding it into `tools`
+  as if it had been allowed. `src/books.js`'s `appendAudit` refuses at write time an omitted
+  `tools`, a model-call row with `tools: null`, a malformed `tools`/`ungranted` shape. Rows written
+  before M4a-3 simply lack the keys; `auditRowTools(row)` (`src/books.js`, re-exported from
+  `src/index.js`) reads them back as "not recorded (before M4a-3)" rather than inventing a tally.
+  Now wired into the panel: `src/panel/data.js` uses `auditRowTools` for the Audit tab's tool
+  tallies (commit 9064e7c).
+- Amendment M4a-2 (docs/wiki/the-module-ladder.md, "M4a"): every new `audit.jsonl` row now
+  carries `at` (ISO time the attempt finished) and `tokens` (`{inputTokens, outputTokens,
+  cacheReadTokens}` summed over that attempt's model calls, threaded from the same per-round
+  metering `src/model-step.js` already sums into `costUsd` — never re-derived from spend.jsonl by
+  position; `null` when the row has no model call). `src/books.js`'s `appendAudit` refuses at write
+  time a row with an invalid/missing `at`, an omitted `tokens`, or a model-call row with no
+  `tokens`. Rows written before M4a-2 simply lack the keys; `auditRowTokens(row)` (`src/books.js`,
+  re-exported from `src/index.js`) reads them back as "not recorded (before M4a-2)" rather than
+  inventing a number.
+- Amendment M4a-1 (docs/wiki/the-module-ladder.md, "M4a"): every park now writes a permanent,
+  write-once archive of its ask into the run dir, `asks/<askId>.json` (question, askedAt,
+  expiresAt, evidence), alongside the existing (mutable) `ask.json`. Nothing deletes an archived
+  ask — not resume, not answer consumption, not rerun. `writeAskArchive`/`listArchivedAsks`
+  (`src/ask.js`, re-exported from `src/index.js`); `listArchivedAsks` pairs each archived ask with
+  its consumed answer by `askId`, never by position, and reports "draft not kept (before M4a-1)"
+  for a run with no `asks/` dir. Now wired into the panel: `src/panel/data.js` uses
+  `listArchivedAsks` for the Ask tab (commit 9064e7c).
+
+### Fixed
+- `read`/`grep` `role` lookup is own-key only: `__proto__`/`constructor`/`toString` now get the named `no frozen input for role` refusal instead of a raw TypeError. Stale `allowedRoots` comment reworded.
+- Fix-once switch-over (fix-ledger "step `write` may overwrite frozen inputs"): `src/primitives.js`
+  now routes `read`/`grep`/`write` through a bareguard `Gate` (readScope: the run dir + every
+  frozen input's own directory; writeScope: ONLY `<runDir>/out` — the run dir root, `state.json`,
+  `audit.jsonl`, `spend.jsonl`, `answer*.json`, `ask.json`, and `inputs/` are readable but no
+  longer writable) plus `createShellTools({ noFollowSymlinks: true })`, which refuses (`ELOOP`) a
+  symlinked FINAL path component (file, dir, or dangling link) at open time, closing the "open
+  what the check approved" gap the old lexical-only check left. The old `isPathAllowed`/
+  `sandboxError` pair (lexical containment only, no resolved-path/symlink check, and one writable
+  root covering the whole run dir) is removed. `<runDir>/out` is created lazily on the first
+  actual write, never at tool-resolve time, so `bin/fwdloop`'s own predicted-run-dir call before
+  `runFlow` creates anything stays a no-op on disk for a run that goes on to refuse.
+- BA-27 (bare-agent >=0.47.0): a malformed tool-call's arguments are now reported via
+  `result.malformedToolCall: { name, error }` on a normal `generate()` return instead of a thrown
+  `SyntaxError` — `src/provider.js`'s `MalformedToolCallTolerantOpenAI` read the old throw-based
+  shape and silently stopped catching the case under 0.47 (the F28/2026-09-15 red degenerated into
+  the wrong "returned text instead of the tool" message). Now reads `result.malformedToolCall` as
+  delivered; `rawArguments` is no longer recovered from a private response field (bare-agent never
+  echoes it back) — `src/model-step.js`'s red omits "; raw: ..." when it's absent.
+- F48 (docs/logs/FINDINGS.md): F36 refused `runs/` itself being a symlink, but a runId-named
+  symlink INSIDE `runs/` pointing outside `--root` was still followed — the panel's
+  `GET /api/runs/<flow>/<runId>/audit` route returned the symlink target's `audit.jsonl` at HTTP
+  200. `resolveRunDir` (`src/flow.js`) now `realpathSync`s `runs/` and the run dir (when they
+  exist) and refuses either one if it resolves outside the flow directory; a not-yet-created run
+  dir is unaffected. The panel's own flow-name segment (`resolveFlowDir`, `src/panel/data.js`) got
+  the same real-path check, closing a symlinked-flow-directory variant of the same hole.
+- F48 round 3 (docs/logs/FINDINGS.md): the same class one level deeper — a real (non-symlinked) run
+  dir whose own book FILE (`audit.jsonl`, `ask.json`, `state.json`, `log.json`, `spend.jsonl`, an
+  `asks/<id>.json` archive entry, a consumed-answer marker) is a symlink pointing outside `--root`
+  was still followed by every reader. New `resolveInside`/`readFileInside`/`readdirInside`
+  (`src/flow.js`) is the one mechanism every reader in `src/books.js`, `src/runner.js`,
+  `src/provider.js`, `src/ask.js`, and `src/panel/data.js` now routes through. This round also
+  corrects round 2's wrong "not actually exploitable" claim about `bin/fwdloop`'s CLI: a live
+  plant showed `fwdloop inbox`/`show` printing a symlinked `ask.json`'s outside content as a real
+  ask (status 0, no refusal) — `findRunDirByAskId`/`cmdInbox`/`cmdShow`/`cmdResume` built their own
+  paths with a private `join()` + raw `readdirSync`/`readFileSync`, bypassing
+  `checkFlowName`/`checkRunId`/`resolveRunDir` entirely; they now walk flows/runs via
+  `listFlowNames`/`listRunIds`/`resolveRunDir` and read book files via `readFileInside`, same as the
+  panel. Several writers (`appendAudit`/`appendHistory`/`appendSpendRow`, `log.json`/`state.json`/
+  a fresh park's `ask.json`, `inputs.json`, an `overwrite:true` artifact write) are reported, not
+  fixed, in `docs/logs/FINDINGS.md`'s F48 round-3 entry — `answer.json`/`asks/<id>.json` are already
+  safe (`{ flag: 'wx' }`).
+- F48 round 3 follow-up (docs/logs/FINDINGS.md): round 3 itself missed one reader —
+  `resumeRun`'s own inline `state.json` parse (as opposed to `readRunState`, its already-converted
+  display sibling) was still a raw `readFileSync`. A parked run whose `state.json` was swapped for
+  a symlink to a forged outside file (spend matching the run's own `audit.jsonl` sum, `expiresAt`
+  far in the future) resumed straight to completion instead of being refused. Now goes through
+  `readFileInside` like every other reader in `src/runner.js`. The same audit found `readArtifact`
+  (`runs/<runId>/artifacts/<id>.json`) was the same class of bypass — converted too. Added
+  `test/f48-guard-raw-reads.test.js`, a mechanical scan that fails on any raw
+  `readFileSync`/`readdirSync`/`createReadStream`/`openSync` call in `src/**/*.js`/`bin/fwdloop`
+  outside a narrow, per-call-site allow-list, so a future missed reader fails a test instead of
+  waiting for another debrief.
+- F48 round 4 (docs/logs/FINDINGS.md): round 3's fix collapsed `readArtifact`'s result to one
+  value (`undefined`) for BOTH "never written" and "read refused" — a swapped/deleted accepted
+  artifact at the send slot looked identical to "nothing to send yet". Added `readArtifactResult`/
+  `readArtifactsMapChecked` (tri-state: `ok` / `missing` / `red`); every call site that can see
+  fresh content now halts the run by name on a `red` instead of silently feeding tampered content
+  forward. `readArtifact` survives only as a documented collapsing wrapper for the four call sites
+  the resume "done?" gate already proved `ok`. `src/send.js` now refuses `undefined`/`null`/
+  non-object/array content by name, writing nothing, instead of serialising `content ?? null`.
+  Replaced `test/f48-guard-raw-reads.test.js` (evadable via an aliased import, a namespace
+  dot/bracket access, `fs/promises`'s `readFile`, or a pasted copy of an allowed line — a debrief
+  proved all four) with `test/f48-guard-fs-imports.test.js`: an import-level scan that pins the
+  EXACT per-name use count of every `fs` binding reached per allow-listed file (aliases and
+  namespace/default access fold under the real name), catches `require('fs')` via a
+  `createRequire`-aliased local name, and pins `readArtifact(`'s 4 remaining call sites in
+  `src/runner.js`. Finding C (no hash of the ACCEPTED ARTIFACT'S CONTENT — send trusts whatever is
+  on disk at send time) is reported, not fixed; hamr sent it to M4b as a signed-amendment
+  candidate, not yet signed.
+- F47 (docs/logs/FINDINGS.md): `fwdloop show` (and `bin/fwdloop`'s `artifactText()`) read
+  ask.json's evidence only in the M3 shape (`evidence.artifact.text`/`evidence.unjudged`) and
+  printed the literal string `"undefined"` for a real M2-era ask.json (`evidence.text`/
+  `evidence.lines` directly), or for an ask.json with no `evidence` key at all. One shared reader,
+  `readAskEvidence()` (`src/ask.js`, re-exported from `src/index.js`), now normalises all three
+  real shapes — M3, M2, and none (parked pre-F45) — into `{ draft, unjudged, why? }`, never
+  inventing `"undefined"`/`""`/`0` for missing data; an unrecognised shape is a named `why`,
+  never a crash. `fwdloop show` and `poc/m4/panel-data.mjs`'s Inbox evidence fields both use it.
+- Path escape: `bin/fwdloop`'s `--run-id` (and `resume`'s runId positional) could name a path
+  outside the flow's `runs/` directory (e.g. `--run-id ../../../../tmp/pwned`). Both now go
+  through one shared `resolveRunDir` (`src/flow.js`): a strict allow-list on the runId's
+  characters, then a check that the built path actually resolves inside `runs/`. `runFlow`/
+  `resumeRun` (`src/runner.js`) carry the same check as defense in depth. A run id generated by
+  the CLI, or a rerun id (`<runId>-rerun-1`), is unaffected.
+- F46 (docs/logs/FINDINGS.md): a step whose declaration grants a verb `resolvePrimitives` has no
+  wired implementation for (e.g. litectx's `compress`) used to print a warning to stderr and let
+  the run continue and spend against it. `bin/fwdloop`'s `run`/`resume` now refuse at preflight,
+  naming the step and the verb, before any model call or ledger spend. Wiring the litectx verbs
+  themselves is still open.
+
 ## [0.6.0] - 2026-09-26
 
 M3: a run parks at a signed ask and resumes in another process, a `fwdloop`

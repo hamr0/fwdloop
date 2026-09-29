@@ -45,7 +45,11 @@ import {
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { readFlow } from './flow.js';
+import {
+  readFlow, resolveRunDir, readFileInside, resolveInside,
+} from './flow.js';
+import { writeAskArchive } from './ask.js';
+import { WIRED_VERBS } from './primitives.js';
 import { closeByClass } from './closers.js';
 import { appendAudit, appendHistory } from './books.js';
 
@@ -261,6 +265,34 @@ function hashFile(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
 }
 
+/**
+ * F46 (docs/logs/FINDINGS.md): a step whose declaration grants a verb the
+ * catalogue lists but `resolvePrimitives` has no case for (e.g. litectx's
+ * `compress`) must refuse the whole run at preflight, naming the step and
+ * the verb — never a warning the run continues (and spends) past. Lives
+ * here, not in `bin/fwdloop`, so any caller of `runFlow`/`resumeRun`
+ * (the CLI, M4's web panel) gets the same refusal for free — one writer,
+ * `src/primitives.js`'s own `WIRED_VERBS`, never a second copy of the list.
+ * A verb absent from the catalogue entirely is caught earlier, at
+ * declaration-validation time (`readFlow`) — by the time a declaration
+ * reaches here every granted verb is already catalogue-present, so
+ * `WIRED_VERBS` alone is enough to tell "wired" from "not yet".
+ *
+ * @param {Record<string, any>} declaration - `readFlow`'s own loosely-typed
+ *   `ReadFlowOk.declaration` shape (src/types.js) — same idiom as every
+ *   other reader of it in this file (e.g. `declaration.steps` below); only
+ *   `steps[].{emits,fromLine,primitives}` are actually read here.
+ * @returns {{step: {emits: string, fromLine: number}, verb: string}|null}
+ */
+function findUnwiredVerbStep(declaration) {
+  for (const step of declaration.steps) {
+    for (const verb of step.primitives ?? []) {
+      if (!WIRED_VERBS.has(verb)) return { step, verb };
+    }
+  }
+  return null;
+}
+
 /** A run dir that already holds `ask.json`/`answer.json` from an earlier run
  *  is a stale-answer hazard — refuse, never silently proceed or delete. */
 export function checkFreshRunDir(runDir) {
@@ -357,17 +389,64 @@ export function writeArtifact(runDir, id, artifact, { overwrite = false } = {}) 
   writeFileSync(target, JSON.stringify(artifact, null, 2));
 }
 
-/** Reads one artifact back off disk; `undefined` when it was never written
- *  (mirrors the in-memory map's own "absent" shape for a not-yet-produced
- *  read). */
-export function readArtifact(runDir, id) {
-  const target = artifactPath(runDir, id);
-  if (!existsSync(target)) return undefined;
-  return JSON.parse(readFileSync(target, 'utf8'));
+/**
+ * F48 round 4 (redesign, docs/logs/FINDINGS.md): the ONE tri-state reader
+ * every artifact-reading call site routes through. Round 3's `readArtifact`
+ * collapsed THREE outcomes into one `undefined` — "never written" and
+ * "read refused" (symlink escape / outside the run dir / unparseable JSON)
+ * were indistinguishable to every caller. That single value with two
+ * meanings is exactly what let a swapped/deleted accepted artifact reach
+ * the send slot as `undefined`, get `?? null`-ed by `src/send.js`, and ship
+ * a 4-byte `null` to the signed destination as a recorded "green" send —
+ * the refusal `readFileInside` already computes was thrown away one layer
+ * up. Every caller below now sees the real shape and decides, explicitly,
+ * whether "missing" is fine (a genuinely not-yet-written read) or whether
+ * ANY refusal — missing or red — must halt the run.
+ * @returns {{ok:true, value:any} | {ok:false, missing:true} | {ok:false, missing:false, red:string}}
+ */
+export function readArtifactResult(runDir, id) {
+  const result = readFileInside(runDir, `artifacts/${id}.json`);
+  if (!result.ok) return result;
+  let value;
+  try {
+    value = JSON.parse(result.text);
+  } catch (err) {
+    return { ok: false, missing: false, red: `artifact "${id}" is not valid JSON — ${err.message}` };
+  }
+  return { ok: true, value };
 }
 
-function readArtifactsMap(runDir, ids) {
-  return Object.fromEntries((ids ?? []).map((id) => [id, readArtifact(runDir, id)]));
+/** Back-compat convenience collapse of `readArtifactResult`: `undefined` for
+ *  BOTH "never written" and "read refused" — the exact collapse the F48
+ *  round 4 redesign says a caller must never reach for on its own. Safe to
+ *  use ONLY where an explicit tri-state check has already refused any `red`
+ *  for this same id earlier in the same call (documented at each remaining
+ *  call site) — never add a NEW call site with this function instead of
+ *  `readArtifactResult`.
+ */
+export function readArtifact(runDir, id) {
+  const result = readArtifactResult(runDir, id);
+  return result.ok ? result.value : undefined;
+}
+
+/** `readArtifactResult` for a whole `reads` array. A genuinely-missing read
+ *  (never written) still renders as `undefined` in the map, unchanged from
+ *  before — but a REFUSED read (red) is never silently folded in as
+ *  `undefined` alongside it; the caller gets `{ok:false, red}` instead and
+ *  must halt rather than feed tampered/unreadable content (or a `undefined`
+ *  indistinguishable from "not written yet") into a step.
+ *  @returns {{ok:true, map:Record<string,any>} | {ok:false, red:string}}
+ */
+function readArtifactsMapChecked(runDir, ids) {
+  const map = {};
+  for (const id of ids ?? []) {
+    const result = readArtifactResult(runDir, id);
+    if (!result.ok && !result.missing) {
+      return { ok: false, red: `artifact "${id}" — ${result.red}` };
+    }
+    map[id] = result.ok ? result.value : undefined;
+  }
+  return { ok: true, map };
 }
 
 // ---------------------------------------------------------------------------
@@ -377,7 +456,7 @@ function readArtifactsMap(runDir, ids) {
 // nothing.
 // ---------------------------------------------------------------------------
 
-function recordLateAnswerIfAny(runDir) {
+function recordLateAnswerIfAny(runDir, now = () => new Date().toISOString()) {
   const file = join(runDir, 'answer.json');
   if (!existsSync(file)) return;
   appendAudit(runDir, {
@@ -392,6 +471,9 @@ function recordLateAnswerIfAny(runDir) {
     model: null,
     modelMatch: null,
     strike: false,
+    at: now(),
+    tokens: null,
+    tools: null,
     kind: 'answer-after-run',
     file,
   });
@@ -416,10 +498,29 @@ function sumKnownUsd(...values) {
   return known.reduce((a, b) => a + b, 0);
 }
 
+// Amendment M4a-2 — SIGNED by hamr 2026-09-27 ("sign mfa2", = M4a-2):
+// `at` (this attempt's own finish time, off the run's injected clock — never
+// the bare wall clock, exactly like every other timestamp this module
+// writes) and `tokens` (threaded straight from `modelStep`'s own result,
+// which sums it at the SAME place it sums `costUsd` across a step's rounds
+// — never re-derived here or anywhere else by position from spend.jsonl).
+// `tokens` defaults to `null`: every call site with no model call (cap-halt,
+// paused, ask-timeout, refused, accept, redo-rejected) leaves it at that
+// default; every call site with a `modelStep` result passes its own
+// `result.tokens` through unchanged.
+// M4a-3 (docs/wiki/the-module-ladder.md, "M4a" section, "Amendment M4a-3 —
+// SIGNED by hamr 2026-09-27"): `tools` (a {toolName: count} tally, threaded
+// straight from `modelStep`'s own result — never re-derived here) and
+// `ungranted` (an array of tool names the model called that this step never
+// granted; omitted entirely when empty, per `src/books.js`'s own contract).
+// Both default the same way `tokens` does: every call site with no model
+// call leaves `tools` at its `null` default; every call site with a
+// `modelStep` result passes `result.tools`/`result.ungranted` through
+// unchanged.
 function makeAuditRow({
-  step, attempt, verdict, gap, usd, spendComplete, wallMs, model = null, modelMatch = null, strike,
+  step, attempt, verdict, gap, usd, spendComplete, wallMs, model = null, modelMatch = null, strike, at, tokens = null, tools = null, ungranted = /** @type {string[]|undefined} */ (undefined), refused = /** @type {Array<{verb:string,path:string,rule:string}>} */ ([]),
 }) {
-  return {
+  const row = {
     step: step?.emits ?? step?.goal ?? null,
     attempt,
     class: step?.close?.class ?? null,
@@ -431,7 +532,13 @@ function makeAuditRow({
     model: model ?? null,
     modelMatch: modelMatch ?? null,
     strike: !!strike,
+    at,
+    tokens,
+    tools,
+    refused,
   };
+  if (ungranted !== undefined && ungranted.length > 0) row.ungranted = ungranted;
+  return row;
 }
 
 /**
@@ -453,10 +560,18 @@ function makeAuditRow({
  * @param {(row: any, modelOutput?: any) => void} opts.recordAudit
  * @param {string|null} [opts.initialGap]
  * @param {number} [opts.attemptOffset]
+ * @param {() => string} [opts.now] - M4a-2: stamps each audit row's `at`;
+ *   defaults to the real wall clock.
  * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string}>}
  */
 async function runStepRalph({
   step, primitivesMap, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd, recordAudit, initialGap = null, attemptOffset = 0,
+  // M4a-2: the run's own injected clock (never the bare wall clock) —
+  // stamps every audit row's `at` with this attempt's finish time. Defaults
+  // to the real wall clock so a caller that doesn't inject one (there are
+  // none left in production; a defensive default only) still writes a valid
+  // ISO string.
+  now = () => new Date().toISOString(),
 }) {
   /** @type {string|null} */
   let gap = initialGap ?? null;
@@ -472,7 +587,7 @@ async function runStepRalph({
     let attemptFloorUsd = null;
     if (spent.value + ceilingUsd > capUsd) {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'cap-halt', gap, usd: null, spendComplete: false, wallMs: 0, strike: false,
+        step, attempt, verdict: 'cap-halt', gap, usd: null, spendComplete: false, wallMs: 0, strike: false, at: now(),
       }));
       return {
         ok: false,
@@ -522,7 +637,7 @@ async function runStepRalph({
       // null second cost never zeroes out a known first floor.
       const usd = sumKnownUsd(attemptFloorUsd, result.costUsd);
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'provider-red', gap, usd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: 'provider-red', gap, usd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
       }), result.red ?? 'transport fault twice');
       return { ok: false, outcome: 'provider-red', red: `provider-red: step "${step.goal}" attempt ${attempt}: ${result.red ?? 'transport fault twice'}` };
     }
@@ -539,7 +654,7 @@ async function runStepRalph({
       if (strike) strikes += 1;
       const usd = sumKnownUsd(attemptFloorUsd, result?.costUsd);
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'red', gap: red, usd, spendComplete: usd !== null, wallMs, model: result?.model, modelMatch: result?.modelMatch, strike,
+        step, attempt, verdict: 'red', gap: red, usd, spendComplete: usd !== null, wallMs, model: result?.model, modelMatch: result?.modelMatch, strike, at: now(), tokens: result?.tokens ?? null, tools: result?.tools ?? null, ungranted: result?.ungranted, refused: result?.refused,
       }), red);
       if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: step "${step.goal}" — ${red}` };
@@ -550,7 +665,7 @@ async function runStepRalph({
 
     if (result.costUsd === null || result.costUsd === undefined) {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'pricing-red', gap, usd: attemptFloorUsd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: 'pricing-red', gap, usd: attemptFloorUsd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
       }), result.artifact ?? null);
       return { ok: false, outcome: 'pricing-red', red: `pricing-red: step "${step.goal}" attempt ${attempt} returned no cost (never "?? 0")` };
     }
@@ -565,7 +680,7 @@ async function runStepRalph({
     const doneCheck = checkDoneBlocker(step, result.artifact);
     if (doneCheck.verdict === 'not-done') {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'not-done', gap: doneCheck.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: 'not-done', gap: doneCheck.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
       }), result.artifact ?? null);
       return { ok: false, outcome: 'not-done', red: doneCheck.red };
     }
@@ -578,7 +693,7 @@ async function runStepRalph({
       // failure) — matches poc/m2/gapback.mjs's own rule exactly.
       strikes += 1;
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'red', gap: happened.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: true,
+        step, attempt, verdict: 'red', gap: happened.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: true, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
       }), result.artifact ?? null);
       if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: ${happened.red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: ${happened.red}` };
@@ -591,7 +706,7 @@ async function runStepRalph({
 
     if (closed.verdict === 'green' || closed.verdict === 'hitl') {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: closed.verdict, gap: null, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: closed.verdict, gap: null, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
       }), result.artifact);
       return {
         ok: true, artifact, attempts: attempt, hitl: closed.verdict === 'hitl',
@@ -602,7 +717,7 @@ async function runStepRalph({
       // A closer that renders no judgment ('unparseable'/'crash') is a
       // CASUALTY, never a red and never a strike (bareloop F17).
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'close-casualty', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false,
+        step, attempt, verdict: 'close-casualty', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
       }), result.artifact);
       return { ok: false, outcome: 'close-casualty', red: `close-casualty: step "${step.goal}" — ${closed.red} (${closed.verdict})` };
     }
@@ -612,7 +727,7 @@ async function runStepRalph({
     seenGaps.add(normalised);
     if (strike) strikes += 1;
     recordAudit(makeAuditRow({
-      step, attempt, verdict: 'red', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike,
+      step, attempt, verdict: 'red', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
     }), result.artifact);
 
     if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${closed.red}` };
@@ -638,6 +753,7 @@ async function runStepRalph({
  * @param {(opts:{question:string, evidence:unknown, runDir:string}) => Promise<{decision:'accept'|'reject'|'rerun'|'timeout'|'park', reason?:string}>} opts.askStep
  * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
  * @param {Record<string, any>} [opts.primitives] - injected primitive implementations, keyed by catalogue verb.
+ * @param {string[]} [opts.primitiveReds] - `resolvePrimitives`'s own `reds` (e.g. bareguard refusing a symlinked file scope); any entry refuses the run at $0 like an unwired verb, before the run dir exists.
  * @param {() => string} [opts.clock] - returns the current ISO timestamp; defaults to the wall clock.
  * @param {string} opts.businessDate - the run's explicit "as of today", never the wall clock.
  * @param {number} [opts.ceilingUsd] - per-attempt ceiling override; defaults to `resolveCeilingUsd(null)`.
@@ -650,7 +766,7 @@ async function runStepRalph({
  *   can advance wall time across a park/resume boundary without a real wait.
  */
 export async function runFlow({
-  root, name, runId, sources, catalogue, modelStep, askStep, sendStep, primitives, clock, businessDate, ceilingUsd, initialGap,
+  root, name, runId, sources, catalogue, modelStep, askStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd, initialGap,
   // F45 finding 3's test needs to advance wall time across a park/resume
   // boundary without a real wait, exactly like `clock` already does for ISO
   // timestamps — `nowMs` is the same idea for epoch-ms wall-clock reads.
@@ -662,6 +778,19 @@ export async function runFlow({
   const getNowMs = typeof nowMs === 'function' ? nowMs : Date.now;
   const flowDir = join(root, name);
   const startedAt = getNowMs();
+
+  // Defense in depth alongside `bin/fwdloop`'s own `resolveRunDir` check on
+  // `--run-id`: a caller-supplied runId that would escape `flowDir/runs/`
+  // (`..`, a `/`/`\` segment, ...) is refused by name, at $0, before any
+  // directory for this run is even looked at, let alone created.
+  const runIdCheck = resolveRunDir(flowDir, runId);
+  if (!runIdCheck.ok) {
+    mkdirSync(flowDir, { recursive: true });
+    appendHistory(flowDir, {
+      runId, at: now(), outcome: 'refused', spentUsd: 0, spendComplete: true, capUsd: null, wallMs: Date.now() - startedAt, signatureHash: null,
+    });
+    return { outcome: 'refused', red: runIdCheck.red };
+  }
 
   const read = readFlow({ root, name, catalogue });
   if (!read.ok) {
@@ -685,7 +814,30 @@ export async function runFlow({
   const askLines = new Map((arbiter.asks ?? []).map((a) => [a.line, a]));
   const sendLines = new Map((arbiter.sends ?? []).map((s) => [s.line, s]));
 
-  const runDir = join(flowDir, 'runs', runId);
+  const runDir = runIdCheck.runDir;
+
+  const unwiredVerb = findUnwiredVerbStep(declaration);
+  if (unwiredVerb) {
+    return haltRun({
+      flowDir,
+      runDir,
+      runId,
+      capUsd,
+      startedAt,
+      now,
+      nowMs: getNowMs,
+      signatureHash: signature.flow,
+      outcome: 'preflight-red',
+      red: `preflight: step "${unwiredVerb.step.emits}" (line ${unwiredVerb.step.fromLine}) grants verb "${unwiredVerb.verb}", which has no wired implementation`,
+      spent: { value: 0 },
+    });
+  }
+
+  if (primitiveReds?.length) {
+    return haltRun({
+      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: primitiveReds[0], spent: { value: 0 },
+    });
+  }
 
   const fresh = checkFreshRunDir(runDir);
   if (!fresh.ok) {
@@ -727,7 +879,7 @@ export async function runFlow({
     if (row.spendComplete === false) spendComplete.value = false;
     if (modelOutput !== undefined) {
       attemptsLog.push({
-        step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, modelOutput,
+        step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, ...(row.refused ? { refused: row.refused } : {}), modelOutput,
       });
     }
   };
@@ -893,6 +1045,23 @@ async function runAskSlot({
       writeFileSync(join(runDir, 'ask.json'), JSON.stringify({
         askId, question: askSlot?.question ?? step.goal, askedAt, expiresAt, evidence,
       }, null, 2));
+      // Amendment M4a-1 — SIGNED by hamr 2026-09-27 ("sign m4a1"): a
+      // PERMANENT copy of this same park, `asks/<askId>.json`, written right
+      // after `ask.json` (never before) — `ask.json`/`state.json` below are
+      // what governs resume, unchanged; the archive is a second, append-only
+      // record of the SAME content. Crash between the two writes leaves
+      // `ask.json` present and no archive entry for this one askId — the run
+      // is still correctly parked and resumable; `listArchivedAsks` only
+      // ever reports what's actually on disk, never invents an entry. A
+      // fresh `askId` per park means a red here (an already-archived askId)
+      // is a genuine invariant violation, not a race to recover from — it
+      // halts the run rather than silently dropping the archive duty.
+      const archived = writeAskArchive({
+        runDir, askId, question: askSlot?.question ?? step.goal, askedAt, expiresAt, evidence,
+      });
+      if (!archived.ok) {
+        throw new Error(archived.red);
+      }
       // M3 scope item 2: the minimum the fold needs to resume identically —
       // WHERE (stepIndex), WHAT was frozen/signed (signatureHash,
       // inputsManifest, to be re-verified before anything runs), WHAT this
@@ -927,7 +1096,7 @@ async function runAskSlot({
       };
       writeFileSync(join(runDir, 'state.json'), JSON.stringify(state, null, 2));
       recordAudit(makeAuditRow({
-        step, attempt: redone + 1, verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
+        step, attempt: redone + 1, verdict: 'paused', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       }), undefined, unjudgedCount);
       // Orchestrator review fix (3): M2 item 9 says history is ONE row per
       // run; M3's signed scope item 2 only asks for an AUDIT row "paused"
@@ -948,7 +1117,7 @@ async function runAskSlot({
       // A pause spends nothing (M2 scope item 6) — a halt, never a red
       // with a fabricated cost, and never re-asked (the run is over).
       recordAudit(makeAuditRow({
-        step, attempt: redone + 1, verdict: 'ask-timeout', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
+        step, attempt: redone + 1, verdict: 'ask-timeout', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       }), undefined, unjudgedCount);
       return {
         type: 'halted',
@@ -962,7 +1131,7 @@ async function runAskSlot({
 
     if (isRedo && reason.length === 0) {
       recordAudit(makeAuditRow({
-        step, attempt: redone + 1, verdict: 'refused', gap: 'a rejection/rerun needs a reason', usd: 0, spendComplete: true, wallMs: 0, strike: false,
+        step, attempt: redone + 1, verdict: 'refused', gap: 'a rejection/rerun needs a reason', usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       }), undefined, unjudgedCount);
       // Refused, re-asked for the SAME attempt — never re-runs the step.
       // eslint-disable-next-line no-continue
@@ -971,7 +1140,7 @@ async function runAskSlot({
 
     if (answer.decision === 'accept') {
       recordAudit(makeAuditRow({
-        step, attempt: redone + 1, verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false,
+        step, attempt: redone + 1, verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       }), undefined, unjudgedCount);
       return { type: 'accepted', artifact: currentPrior };
     }
@@ -979,7 +1148,7 @@ async function runAskSlot({
     if (isRedo) {
       redone += 1;
       recordAudit(makeAuditRow({
-        step, attempt: redone, verdict: 'red', gap: reason, usd: 0, spendComplete: true, wallMs: 0, strike: false,
+        step, attempt: redone, verdict: 'red', gap: reason, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       }), undefined, unjudgedCount);
       if (redone > redoCap) {
         return {
@@ -988,10 +1157,18 @@ async function runAskSlot({
           red: `redo cap ${redoCap} reached at step "${step.goal}" after ${redone} rejections`,
         };
       }
-      const priorReads = readArtifactsMap(runDir, priorStep.reads);
+      // F48 round 4: every id in `priorStep.reads` names a STILL EARLIER step
+      // that already ran and wrote its artifact — a `red` here (symlink
+      // swap / unparseable JSON) is tampering, never "not written yet", and
+      // must halt the redo rather than silently feed forged/garbage content
+      // into the model step that is about to re-run.
+      const priorReadsResult = readArtifactsMapChecked(runDir, priorStep.reads);
+      if (!priorReadsResult.ok) {
+        return { type: 'halted', outcome: 'red', red: `redo: step "${priorStep.goal}" ${priorReadsResult.red}` };
+      }
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
-        step: priorStep, primitivesMap: primitives, readsMap: priorReads, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone,
+        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone, now,
       });
       if (!redoResult.ok) {
         return { type: 'halted', outcome: redoResult.outcome, red: redoResult.red };
@@ -1078,12 +1255,31 @@ async function foldFromStep({
           outcome: 'red', red: `send: step "${step.goal}" reads ask artifact "${askArtifactId}" that was not accepted this run`,
         });
       }
-      const content = readArtifact(runDir, askArtifactId);
+      // F48 round 4 (redesign): ONLY an `ok:true` read ships — a missing OR
+      // refused (symlink swap / outside the run dir / unparseable JSON)
+      // accepted artifact halts the run BY NAME, before `sendStep` is ever
+      // called, so nothing reaches the signed destination. This is the exact
+      // gap the round 3 fix left open: `readArtifact` returning `undefined`
+      // for both shapes let a swapped/deleted artifact reach `sendStep` as
+      // `undefined`, get `?? null`-ed by src/send.js, and ship as a
+      // recorded-green `null` — a silent "success" for content that was
+      // never verified.
+      const contentResult = readArtifactResult(runDir, askArtifactId);
+      if (!contentResult.ok) {
+        return haltRun({
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+          outcome: 'red',
+          red: contentResult.missing
+            ? `send: accepted artifact "${askArtifactId}" is missing for step "${step.goal}" — refusing to send`
+            : `send: accepted artifact "${askArtifactId}" for step "${step.goal}" — ${contentResult.red}`,
+        });
+      }
+      const content = contentResult.value;
       const filename = `${runId}-${step.emits}.json`;
       // eslint-disable-next-line no-await-in-loop
       const sendResult = await sendStep(target, filename, content);
       const sendRow = makeAuditRow({
-        step, attempt: 1, verdict: sendResult.ok ? 'green' : 'red', gap: sendResult.ok ? null : sendResult.red, usd: 0, spendComplete: true, wallMs: 0, strike: false,
+        step, attempt: 1, verdict: sendResult.ok ? 'green' : 'red', gap: sendResult.ok ? null : sendResult.red, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       });
       recordAudit(sendRow);
       if (!sendResult.ok) {
@@ -1103,7 +1299,21 @@ async function foldFromStep({
       const askSlot = askLines.get(step.fromLine);
       const priorId = (step.reads ?? [])[0];
       const priorStepIndex = steps.findIndex((s) => s.emits === priorId);
-      const priorArtifact = readArtifact(runDir, priorId);
+      // F48 round 4: `priorId` names a STILL EARLIER step in this same fold
+      // pass, already run and already written to disk — a `red` here is
+      // tampering (or an outside symlink), never "not written yet", and
+      // must halt before the human is ever shown evidence built from it.
+      const priorArtifactResult = readArtifactResult(runDir, priorId);
+      if (!priorArtifactResult.ok) {
+        return haltRun({
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+          outcome: 'red',
+          red: priorArtifactResult.missing
+            ? `ask: prior artifact "${priorId}" is missing for step "${step.goal}" — refusing`
+            : `ask: prior artifact "${priorId}" for step "${step.goal}" — ${priorArtifactResult.red}`,
+        });
+      }
+      const priorArtifact = priorArtifactResult.value;
 
       // M2 amendment 1 item 2: every hitl artifact carried since the
       // previous ask goes to THIS ask as evidence, alongside the ask step's
@@ -1164,14 +1374,24 @@ async function foldFromStep({
     }
 
     // --- an ordinary step: green / softgreen / a non-ask hitl pass-through. ---
-    const readsMap = readArtifactsMap(runDir, step.reads);
+    // F48 round 4: every id in `step.reads` names an earlier step in THIS
+    // same fold pass, already run and already written — a `red` read here
+    // halts rather than silently feeding tampered/unreadable content in.
+    const readsMapResult = readArtifactsMapChecked(runDir, step.reads);
+    if (!readsMapResult.ok) {
+      return haltRun({
+        flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+        outcome: 'red', red: `step "${step.goal}" ${readsMapResult.red}`,
+      });
+    }
+    const readsMap = readsMapResult.map;
     // M3 scope item 7: a fresh rerun's own first step (and only that one —
     // `i === i0` is this fold's own starting point, never any later step)
     // starts with the human's rerun reason as its gap, exactly like a
     // redo's `initialGap` above.
     // eslint-disable-next-line no-await-in-loop
     const stepResult = await runStepRalph({
-      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null,
+      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null, now,
     });
     if (!stepResult.ok) {
       return haltRun({
@@ -1198,7 +1418,7 @@ async function foldFromStep({
   appendHistory(flowDir, {
     runId, at: now(), outcome: 'complete', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd, wallMs, signatureHash,
   });
-  recordLateAnswerIfAny(runDir);
+  recordLateAnswerIfAny(runDir, now);
   writeLog(runDir, {
     runId, outcome: 'complete', attempts: attemptsLog, artifacts,
   });
@@ -1221,9 +1441,13 @@ async function foldFromStep({
  * @returns {{ ok: true, total: number } | { ok: false, red: string }}
  */
 function sumAuditUsd(runDir) {
-  const auditPath = join(runDir, 'audit.jsonl');
-  if (!existsSync(auditPath)) return { ok: true, total: 0 };
-  const lines = readFileSync(auditPath, 'utf8').split('\n').filter((line) => line.trim().length > 0);
+  // F48 round 3: goes through `readFileInside` (`src/flow.js`) rather than a
+  // raw `readFileSync` — a symlinked `audit.jsonl` (or a symlinked ancestor
+  // directory) reads as "missing" (total 0), never as some outside file's
+  // content summed into a cap check.
+  const result = readFileInside(runDir, 'audit.jsonl');
+  if (!result.ok) return { ok: true, total: 0 };
+  const lines = result.text.split('\n').filter((line) => line.trim().length > 0);
   let total = 0;
   for (const line of lines) {
     let row;
@@ -1257,13 +1481,14 @@ function sumAuditUsd(runDir) {
  * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<any>} opts.modelStep
  * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
  * @param {Record<string, any>} [opts.primitives]
+ * @param {string[]} [opts.primitiveReds] - see `runFlow`'s own.
  * @param {() => string} [opts.clock]
  * @param {string} opts.businessDate
  * @param {number} [opts.ceilingUsd]
  * @param {() => number} [opts.nowMs] - F45 finding 3; see `runFlow`'s own.
  */
 export async function resumeRun({
-  root, name, runId, catalogue, modelStep, sendStep, primitives, clock, businessDate, ceilingUsd,
+  root, name, runId, catalogue, modelStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd,
   // F45 finding 3 (see `runFlow`'s own `nowMs`): additive, defaults to the
   // real `Date.now` for every existing caller.
   nowMs,
@@ -1271,8 +1496,37 @@ export async function resumeRun({
   const now = typeof clock === 'function' ? clock : () => new Date().toISOString();
   const getNowMs = typeof nowMs === 'function' ? nowMs : Date.now;
   const flowDir = join(root, name);
-  const runDir = join(flowDir, 'runs', runId);
   const startedAt = getNowMs();
+
+  // Defense in depth alongside `bin/fwdloop`'s own `resolveRunDir` check on
+  // the resume verb's runId positional — refused by name, at $0, before the
+  // resume lock file (or anything else) is even looked at.
+  const runIdCheck = resolveRunDir(flowDir, runId);
+  if (!runIdCheck.ok) {
+    return { outcome: 'refused', red: runIdCheck.red };
+  }
+  const runDir = runIdCheck.runDir;
+
+  // F46: same refusal `runFlow` carries, moved here so a resume can't spend
+  // against a step whose granted verb has no wired implementation either —
+  // checked before the resume lock (or anything else under `runDir`) is
+  // touched. A separate, lightweight `readFlow` from the definitive one
+  // below (inside the lock): if this pre-read itself fails, that failure is
+  // reported properly by the definitive read further down, under the lock,
+  // exactly as before this check existed.
+  const preflightRead = readFlow({ root, name, catalogue });
+  if (preflightRead.ok) {
+    const unwiredVerb = findUnwiredVerbStep(preflightRead.declaration);
+    if (unwiredVerb) {
+      return {
+        outcome: 'refused',
+        red: `preflight: step "${unwiredVerb.step.emits}" (line ${unwiredVerb.step.fromLine}) grants verb "${unwiredVerb.verb}", which has no wired implementation`,
+      };
+    }
+  }
+
+  if (primitiveReds?.length) return { outcome: 'refused', red: primitiveReds[0] };
+
   const lockPath = join(runDir, 'resume.lock');
 
   let lockFd;
@@ -1287,12 +1541,21 @@ export async function resumeRun({
 
   try {
     const statePath = join(runDir, 'state.json');
-    if (!existsSync(statePath)) {
-      return { outcome: 'refused', red: `resume: no parked state for run "${runId}" (${statePath})` };
+    // F48 round 3 follow-up: goes through `readFileInside` (`src/flow.js`)
+    // rather than a raw `readFileSync` — a symlinked state.json (or a
+    // symlinked run dir ancestor) is refused by name here, never read
+    // through to an outside file's content (the same class `answer.json`
+    // and `audit.jsonl` above already close).
+    const stateResult = readFileInside(runDir, 'state.json');
+    if (!stateResult.ok) {
+      if (stateResult.missing) {
+        return { outcome: 'refused', red: `resume: no parked state for run "${runId}" (${statePath})` };
+      }
+      return { outcome: 'refused', red: `resume: state.json for run "${runId}" — ${stateResult.red}` };
     }
     let state;
     try {
-      state = JSON.parse(readFileSync(statePath, 'utf8'));
+      state = JSON.parse(stateResult.text);
     } catch (err) {
       return { outcome: 'refused', red: `resume: state.json for run "${runId}" is not valid JSON — ${err.message}` };
     }
@@ -1338,10 +1601,26 @@ export async function resumeRun({
       }
     }
 
+    // F48 round 4 (redesign): the "was this step already done" gate — the
+    // one place a resume decides whether an earlier step's artifact is
+    // trustworthy BEFORE the answer is consumed or anything downstream reads
+    // it again (site 6/7/8 below all read the SAME ids, for i < stepIndex,
+    // and rely on this gate having already refused any red for them). A
+    // `red` (symlink swap / unparseable JSON) is refused BY NAME, exactly
+    // like `missing` — never silently treated as "not done yet" and redone,
+    // which could spend money or re-ask a human for a step that already
+    // completed.
     const { steps } = declaration;
     for (let i = 0; i < state.stepIndex; i += 1) {
-      if (readArtifact(runDir, steps[i].emits) === undefined) {
-        return { outcome: 'refused', red: `resume: artifact "${steps[i].emits}" missing for run "${runId}" — cannot resume` };
+      const artifactResult = readArtifactResult(runDir, steps[i].emits);
+      if (!artifactResult.ok) {
+        return {
+          outcome: 'refused',
+          red: artifactResult.missing
+            ? `resume: artifact "${steps[i].emits}" missing for run "${runId}" — cannot resume`
+            : `resume: artifact "${steps[i].emits}" for run "${runId}" — ${artifactResult.red} — `
+              + 'refusing rather than treating a refused read as "not done" and re-running it',
+        };
       }
     }
 
@@ -1403,8 +1682,16 @@ export async function resumeRun({
     }
 
     const answerPath = join(runDir, 'answer.json');
-    if (!existsSync(answerPath)) {
-      return { outcome: 'refused', red: `resume: no answer yet for run "${runId}"` };
+    // F48 round 3: `answer.json` goes through `resolveInside` too — a
+    // symlinked answer file (or a symlinked run dir ancestor) is refused by
+    // name here, the same as "no answer yet", never read through to an
+    // outside file's content.
+    const answerResolved = resolveInside(runDir, 'answer.json');
+    if (!answerResolved.ok) {
+      if (answerResolved.missing) {
+        return { outcome: 'refused', red: `resume: no answer yet for run "${runId}"` };
+      }
+      return { outcome: 'refused', red: `resume: answer.json for run "${runId}" — ${answerResolved.red}` };
     }
     let answer;
     try {
@@ -1432,7 +1719,7 @@ export async function resumeRun({
       // review fix 2: "a pause spends nothing" means the pause adds
       // nothing, not that the run's total resets).
       appendAudit(runDir, {
-        step: null, attempt: null, class: null, verdict: 'ask-expired', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+        step: null, attempt: null, class: null, verdict: 'ask-expired', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: now(), tokens: null, tools: null,
       });
       appendHistory(flowDir, {
         runId, at: now(), outcome: 'ask-expired', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
@@ -1452,6 +1739,11 @@ export async function resumeRun({
         return { outcome: 'refused', red: `resume: rerun answer for run "${runId}" carries a blank reason` };
       }
 
+      // Safe to collapse missing/red to `readArtifact`'s `undefined` here:
+      // the "was this step already done" gate above already refused the
+      // whole resume (before the answer was even consumed) if any
+      // `steps[i].emits` for i < state.stepIndex was red — this loop only
+      // ever runs once every one of those same ids has already read `ok`.
       const priorArtifactsForLog = {};
       for (let i = 0; i < state.stepIndex; i += 1) {
         priorArtifactsForLog[steps[i].emits] = readArtifact(runDir, steps[i].emits);
@@ -1459,7 +1751,7 @@ export async function resumeRun({
       appendHistory(flowDir, {
         runId, at: now(), outcome: 'rerun', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
       });
-      recordLateAnswerIfAny(runDir);
+      recordLateAnswerIfAny(runDir, now);
       writeLog(runDir, { runId, outcome: 'rerun', attempts: [], artifacts: priorArtifactsForLog });
 
       // Deterministic derived id (M3 scope item 7) — refused by name, never
@@ -1509,7 +1801,10 @@ export async function resumeRun({
     }
 
     // Reconstruct the fold's accumulators from disk + state.json — never
-    // re-running a step that already went green (M3 scope item 4).
+    // re-running a step that already went green (M3 scope item 4). Every
+    // `readArtifact` call below reads an id already proven `ok` by the "was
+    // this step already done" gate above (i < state.stepIndex, same ids) —
+    // safe to collapse missing/red to `undefined` here for that reason only.
     const artifacts = {};
     for (let i = 0; i < state.stepIndex; i += 1) {
       artifacts[steps[i].emits] = readArtifact(runDir, steps[i].emits);
@@ -1534,7 +1829,7 @@ export async function resumeRun({
       if (row.spendComplete === false) spendComplete.value = false;
       if (modelOutput !== undefined) {
         attemptsLog.push({
-          step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, modelOutput,
+          step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, ...(row.refused ? { refused: row.refused } : {}), modelOutput,
         });
       }
     };
@@ -1547,6 +1842,9 @@ export async function resumeRun({
     const askSlot = askLines.get(step.fromLine);
     const priorId = (step.reads ?? [])[0];
     const priorStepIndex = steps.findIndex((s) => s.emits === priorId);
+    // `priorId` names a step strictly earlier than the parked ask
+    // (state.stepIndex), so i < state.stepIndex — already proven `ok` by the
+    // "was this step already done" gate above; safe to collapse here.
     const priorArtifact = readArtifact(runDir, priorId);
 
     const oneShotAskStep = makeOneShotThenParkAskStep({ decision: answer.decision, reason: answer.reason });
@@ -1652,6 +1950,47 @@ function writeLog(runDir, payload) {
 }
 
 /**
+ * `writeLog`'s own sibling reader (M4a piece 2, docs/wiki/the-module-
+ * ladder.md M4a scope item 2: "one reader per book") — `null` when the run
+ * hasn't reached an exit path yet (still running, or parked before any
+ * halt/complete), or the file is present but not valid JSON (a torn write),
+ * never a thrown error.
+ * @param {string} runDir
+ * @returns {any|null}
+ */
+export function readLog(runDir) {
+  const result = readFileInside(runDir, 'log.json');
+  if (!result.ok) return null;
+  try { return JSON.parse(result.text); } catch { return null; }
+}
+
+/**
+ * `state.json`'s own sibling reader (same rule as {@link readLog}) — `null`
+ * when the run has never parked, or the file is present but not valid JSON.
+ * @param {string} runDir
+ * @returns {any|null}
+ */
+export function readRunState(runDir) {
+  const result = readFileInside(runDir, 'state.json');
+  if (!result.ok) return null;
+  try { return JSON.parse(result.text); } catch { return null; }
+}
+
+/**
+ * `ask.json`'s own sibling reader (same rule as {@link readLog}) — the
+ * parking ask protocol's own writer lives in {@link runAskSlot} above.
+ * `null` when there is no open ask for this run, or the file is present but
+ * not valid JSON.
+ * @param {string} runDir
+ * @returns {any|null}
+ */
+export function readAsk(runDir) {
+  const result = readFileInside(runDir, 'ask.json');
+  if (!result.ok) return null;
+  try { return JSON.parse(result.text); } catch { return null; }
+}
+
+/**
  * @param {object} opts
  * @param {string} opts.flowDir
  * @param {string} opts.runDir
@@ -1691,7 +2030,7 @@ function haltRun({
     runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash,
   });
   if (existsSync(runDir)) {
-    recordLateAnswerIfAny(runDir);
+    recordLateAnswerIfAny(runDir, now);
     writeLog(runDir, {
       runId, outcome, red, attempts, artifacts,
     });

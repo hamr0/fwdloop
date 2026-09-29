@@ -23,15 +23,24 @@
 // signed-scope gap for hamr's ruling (job #2's step 3 declares `compress`,
 // which this piece cannot yet honour).
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { createShellTools } from 'bare-agent/tools';
+import { createShellTools, resolveToolPath } from 'bare-agent/tools';
+import { Gate } from 'bareguard';
 
 import { primitiveFor } from './catalogue.js';
 import { readDocxText } from './docx.js';
 import { parseCsv } from './csv.js';
 
-const { tools: SHELL_TOOLS } = createShellTools();
+// bare-agent >=0.47.0: `noFollowSymlinks: true` makes shell_read/write/edit/
+// grep throw `err.code === 'ELOOP'` when the path's FINAL component is a
+// symlink (file, dir, or dangling) — verified directly against the
+// installed package (a symlinked file/dir/dangling-link all throw ELOOP; a
+// real file still reads). This closes the "open what the check approved"
+// gap the lexical-only `isPathAllowed` this module used to run could not:
+// a symlink planted inside the run dir after the gate check but before the
+// real open used to be followed silently.
+const { tools: SHELL_TOOLS } = createShellTools({ noFollowSymlinks: true });
 
 function shellTool(name) {
   const found = SHELL_TOOLS.find((t) => t.name === name);
@@ -39,20 +48,44 @@ function shellTool(name) {
   return found;
 }
 
-/** True when `candidate` resolves inside one of `allowedRoots` (or IS one of
- *  them) — lexical containment only, matching `src/runner.js`'s own
- *  `checkSendDestination` shape (a symlink escape is out of this check's
- *  scope; the run dir is created fresh by `runFlow`, never attacker-placed). */
-function isPathAllowed(candidate, allowedRoots) {
-  const resolved = path.resolve(candidate);
-  return allowedRoots.some((root) => {
-    const r = path.resolve(root);
-    return resolved === r || resolved.startsWith(r + path.sep);
-  });
+/**
+ * Resolve a model-given path string against `runDir` and pass it through the
+ * step's bareguard `Gate`. A `~`-prefixed or already-absolute path is handed
+ * to `resolveToolPath` as-is (it expands `~`/normalizes); anything else is
+ * joined onto `runDir` first, THEN resolved — so a relative path always
+ * lands inside the run dir before the gate ever sees it, matching
+ * bareguard's own "agent paths must be absolute" rule (`fs.invalidPath`
+ * otherwise). The SAME resolved string that was checked is what the caller
+ * must hand to the real tool's `execute` — never re-derive a second string
+ * after the decision (F48's own re-check rule: check and open the same
+ * value). Throws naming the verb, the path, and bareguard's own rule name
+ * on a deny; returns the resolved path on allow.
+ */
+/** Typed carrier for a bareguard fs-gate deny: `model-step` catches it by
+ *  `instanceof` and records `{verb, path, rule}` on the attempt's audit row —
+ *  never parsed back out of the message string. */
+export class GateRefusal extends Error {
+  constructor(verb, resolved, rule) {
+    super(`${verb}: "${resolved}" is outside the sandbox — refused (bareguard rule: ${rule})`);
+    this.name = 'GateRefusal';
+    this.verb = verb;
+    this.path = resolved;
+    this.rule = rule;
+  }
 }
 
-function sandboxError(verb, candidatePath) {
-  return new Error(`${verb}: "${candidatePath}" is outside the sandbox (the run dir and its frozen inputs) — refused`);
+async function resolveAndGate(gate, verb, tool, runDir, rawPath) {
+  if (typeof rawPath !== 'string' || rawPath.length === 0) {
+    throw new Error(`${verb}: path must be a non-empty string`);
+  }
+  const joined = (rawPath.startsWith('~') || path.isAbsolute(rawPath)) ? rawPath : path.join(runDir, rawPath);
+  const resolved = resolveToolPath(joined);
+  const type = verb === 'write' ? 'write' : 'read';
+  const decision = await gate.check({ type, tool, path: resolved });
+  if (decision.outcome !== 'allow') {
+    throw new GateRefusal(verb, resolved, decision.rule);
+  }
+  return resolved;
 }
 
 /** Which primitive owns a frozen input's text, by extension of its frozen path —
@@ -71,7 +104,7 @@ export function rolePrimitiveFor(frozenPath) {
  *  the run's frozen inputs — the same `inputsByRole` map `readDocx`/
  *  `addressCells` use. `role` resolves to the frozen path and THEN goes
  *  through the same sandbox check as any path (the frozen path is always
- *  inside `allowedRoots`, so this can never widen what a path-only call
+ *  inside the gate's `readScope`, so this can never widen what a path-only call
  *  could already reach) — never a shortcut around the sandbox, just a name
  *  for a path the model was never handed directly. `role` wins when both
  *  `path` and `role` are given. */
@@ -95,15 +128,21 @@ function roleParameters(real, roles) {
 }
 
 /** Resolves `args.role`/`args.path` down to the one path to actually use,
- *  honouring "role wins if both given" and the sandbox check. Throws (never
- *  silently falls through) when neither is usable. `roles` is the TEXT-only
- *  role list (for the "no frozen input" message); the role lookup itself
- *  goes through the full `inputsByRole` map so a non-text role (e.g. a
- *  .docx) is refused BY NAME naming the primitive that owns it, even if the
- *  model passes a role the schema's enum never offered it (F41 item 3). */
-function resolveRoleOrPath(verb, args, inputsByRole, roles, allowedRoots) {
+ *  honouring "role wins if both given", then runs it through the SAME
+ *  `resolveAndGate` every path-only call goes through (F41's own role
+ *  contract: a role is a name for a path the model was never handed
+ *  directly, never a shortcut around the sandbox check — a frozen input's
+ *  directory is always in the gate's `readScope`, so this can never widen
+ *  what a path-only call could already reach). Throws (never silently falls
+ *  through) when neither is usable. `roles` is the TEXT-only role list (for
+ *  the "no frozen input" message); the role lookup itself goes through the
+ *  full `inputsByRole` map so a non-text role (e.g. a .docx) is refused BY
+ *  NAME naming the primitive that owns it, even if the model passes a role
+ *  the schema's enum never offered it (F41 item 3). */
+async function resolveRoleOrPath(gate, verb, tool, runDir, args, inputsByRole, roles) {
   if (args && Object.prototype.hasOwnProperty.call(args, 'role') && args.role !== undefined) {
-    const frozen = inputsByRole[args.role];
+    // Own-key lookup: "__proto__"/"constructor" must not resolve to Object.prototype members.
+    const frozen = Object.hasOwn(inputsByRole, args.role) ? inputsByRole[args.role] : undefined;
     if (!frozen) throw new Error(`${verb}: no frozen input for role "${args.role}" (available: ${roles.join(', ')})`);
     const owner = rolePrimitiveFor(frozen);
     if (owner === 'readDocx') throw new Error(`${verb}: role "${args.role}" is a .docx — use readDocx`);
@@ -112,13 +151,12 @@ function resolveRoleOrPath(verb, args, inputsByRole, roles, allowedRoots) {
       const ext = path.extname(frozen) || '(no extension)';
       throw new Error(`${verb}: role "${args.role}" is a ${ext} — no text primitive serves it`);
     }
-    return frozen;
+    return resolveAndGate(gate, verb, tool, runDir, frozen);
   }
-  if (!isPathAllowed(args?.path, allowedRoots)) throw sandboxError(verb, args?.path);
-  return args.path;
+  return resolveAndGate(gate, verb, tool, runDir, args?.path);
 }
 
-function sandboxedReadTool(allowedRoots, inputsByRole) {
+function sandboxedReadTool(gate, runDir, inputsByRole) {
   const real = shellTool('shell_read');
   const textRoles = Object.keys(inputsByRole).filter((r) => rolePrimitiveFor(inputsByRole[r]) === 'read');
   return {
@@ -126,13 +164,13 @@ function sandboxedReadTool(allowedRoots, inputsByRole) {
     description: roleDescription(real, textRoles),
     parameters: roleParameters(real, textRoles),
     execute: async (args) => {
-      const path = resolveRoleOrPath('read', args, inputsByRole, textRoles, allowedRoots);
-      return real.execute({ ...args, path });
+      const resolvedPath = await resolveRoleOrPath(gate, 'read', 'read', runDir, args, inputsByRole, textRoles);
+      return real.execute({ ...args, path: resolvedPath });
     },
   };
 }
 
-function sandboxedGrepTool(allowedRoots, inputsByRole) {
+function sandboxedGrepTool(gate, runDir, inputsByRole) {
   const real = shellTool('shell_grep');
   const textRoles = Object.keys(inputsByRole).filter((r) => rolePrimitiveFor(inputsByRole[r]) === 'read');
   return {
@@ -140,21 +178,38 @@ function sandboxedGrepTool(allowedRoots, inputsByRole) {
     description: roleDescription(real, textRoles),
     parameters: roleParameters(real, textRoles),
     execute: async (args) => {
-      const path = resolveRoleOrPath('grep', args, inputsByRole, textRoles, allowedRoots);
-      return real.execute({ ...args, path });
+      const resolvedPath = await resolveRoleOrPath(gate, 'grep', 'grep', runDir, args, inputsByRole, textRoles);
+      return real.execute({ ...args, path: resolvedPath });
     },
   };
 }
 
-function sandboxedWriteTool(allowedRoots) {
+function sandboxedWriteTool(gate, runDir, outDir) {
   const real = shellTool('shell_write');
   return {
     name: 'write',
-    description: real.description,
+    description: `${real.description} Sandboxed: only reaches <runDir>/out — the run dir root, its `
+      + 'frozen inputs, state.json, audit.jsonl, spend.jsonl and any other run record are never '
+      + 'writable, even though some are readable.',
     parameters: real.parameters,
     execute: async (args) => {
-      if (!isPathAllowed(args?.path, allowedRoots)) throw sandboxError('write', args?.path);
-      return real.execute(args);
+      const resolvedPath = await resolveAndGate(gate, 'write', 'write', runDir, args?.path);
+      // Created lazily, on the FIRST actual write (never at tool-resolve
+      // time) — `bin/fwdloop` calls `resolvePrimitives` to build a step's
+      // tools BEFORE `runFlow` creates the run dir at all (a predicted-path
+      // call, deliberately touching nothing on disk yet, per its own
+      // comment: "runFlow... owns the ONLY mkdirSync/freezeInputs for this
+      // run dir, so a refusal leaves nothing behind"). Creating `out/` any
+      // earlier than this would leave a run dir behind even when `runFlow`
+      // itself goes on to refuse the run (e.g. F46's unwired-verb
+      // preflight) — silently breaking that contract. `resolveAndGate`
+      // above already ran the gate check against a not-yet-existing root
+      // (bareguard resolves a missing root by walking up to its nearest
+      // existing ancestor — see fs.js — so the check needs no directory to
+      // exist first); `shell_write` itself also creates parent directories
+      // as needed, so this is belt-and-suspenders, not load-bearing.
+      mkdirSync(outDir, { recursive: true });
+      return real.execute({ ...args, path: resolvedPath });
     },
   };
 }
@@ -198,6 +253,14 @@ function addressCellsPrimitiveTool(inputsByRole) {
   };
 }
 
+/** The verbs this piece actually implements (the switch below, as data) —
+ *  one writer for "is this verb wired": `resolvePrimitives`'s own reds use
+ *  it, and `src/runner.js`'s preflight (F46: a step granted a
+ *  catalogue-present-but-unwired verb, e.g. litectx's `compress`, must
+ *  refuse before any model call or spend) imports this SAME set rather than
+ *  keeping a second copy of the list. */
+export const WIRED_VERBS = new Set(['read', 'grep', 'write', 'readDocx', 'addressCells']);
+
 /**
  * Resolve the granted tools for one step's model call. Never throws —
  * a verb absent from the catalogue, or present but unimplemented here, is
@@ -211,8 +274,28 @@ function addressCellsPrimitiveTool(inputsByRole) {
  */
 export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
   const { runDir, inputs = [] } = ctx;
-  const allowedRoots = [runDir, ...inputs.map((entry) => path.dirname(entry.frozen))];
   const inputsByRole = Object.fromEntries(inputs.map((entry) => [entry.id, entry.frozen]));
+  const outDir = path.join(runDir, 'out');
+
+  // One bareguard Gate per step: read reaches the run dir and every frozen
+  // input's own directory (deduped — several inputs can share a dir); write
+  // reaches ONLY `<runDir>/out`, never the run dir root (state.json,
+  // audit.jsonl, spend.jsonl, answer*.json, ask.json, inputs/ all live at
+  // the run dir root — readable, never writable). No tools/rwx/budget block:
+  // this gate exists to answer fs questions only, nothing else a step here
+  // can do goes through it.
+  const readScope = [...new Set([runDir, ...inputs.map((entry) => path.dirname(entry.frozen))])];
+  // bareguard >=0.19.2 THROWS at construct when any scope entry is or sits
+  // under a symlink (the scope roots are bareguard's to police, not ours).
+  // Fail closed: no tool at all for this step — not even readDocx/
+  // addressCells, which read the run dir's frozen inputs outside the gate —
+  // and a red naming bareguard's own message, so the caller refuses the run.
+  let gate;
+  try {
+    gate = new Gate({ fs: { readScope, writeScope: [outDir] } });
+  } catch (err) {
+    return { tools: {}, reds: [`primitives: bareguard refused the step's file scope — ${err.message}`] };
+  }
 
   const tools = {};
   const reds = [];
@@ -224,15 +307,27 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
       // eslint-disable-next-line no-continue
       continue;
     }
+    if (!WIRED_VERBS.has(verb)) {
+      reds.push(`primitives: verb "${verb}" is in the catalogue but has no M2 implementation yet`);
+      // eslint-disable-next-line no-continue
+      continue;
+    }
     switch (verb) {
       case 'read':
-        tools.read = sandboxedReadTool(allowedRoots, inputsByRole);
+        tools.read = sandboxedReadTool(gate, runDir, inputsByRole);
         break;
       case 'grep':
-        tools.grep = sandboxedGrepTool(allowedRoots, inputsByRole);
+        tools.grep = sandboxedGrepTool(gate, runDir, inputsByRole);
         break;
       case 'write':
-        tools.write = sandboxedWriteTool(allowedRoots);
+        // `out/` itself is created lazily, inside the tool's own `execute`
+        // on the first actual write — never here. `resolvePrimitives` can
+        // be called against a PREDICTED runDir before it exists at all
+        // (`bin/fwdloop`'s own "run" command does exactly this, deliberately
+        // touching nothing on disk before `runFlow` itself creates the run
+        // dir) — creating `out/` eagerly here would leave a run dir behind
+        // even for a run `runFlow` goes on to refuse.
+        tools.write = sandboxedWriteTool(gate, runDir, outDir);
         break;
       case 'readDocx':
         tools.readDocx = readDocxPrimitiveTool(inputsByRole);

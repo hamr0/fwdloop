@@ -12,8 +12,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync,
+  existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, symlinkSync, readdirSync,
 } from 'node:fs';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -143,6 +144,101 @@ test('cli: inbox lists the open ask, answer accept succeeds, resume completes th
 
   const history = readFileSync(path.join(root, 'job2', 'history.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   assert.equal(history[history.length - 1].outcome, 'complete');
+});
+
+test('cli: resume of a parked run whose out/ became a symlink refuses by name at $0 (bareguard 0.19.2), no new book row', async () => {
+  const root = tmpRoot('resume-symlink-out');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('resume-symlink-out-src');
+  const { resume, jd } = writeSources(srcDir);
+  const runResult = runCli([
+    'run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-1',
+  ], fakeModelEnv());
+  assert.equal(runResult.status, 0, runResult.stderr || runResult.stdout);
+  const askId = extractAskId(runResult.stdout);
+  assert.equal(runCli(['answer', askId, 'accept', '--root', root], fakeModelEnv()).status, 0);
+
+  const runDir = path.join(root, 'job2', 'runs', 'run-1');
+  const outside = tmpRoot('resume-symlink-out-outside');
+  rmSync(path.join(runDir, 'out'), { recursive: true, force: true });
+  symlinkSync(outside, path.join(runDir, 'out'));
+  const bookPaths = ['audit.jsonl', 'spend.jsonl'].map((f) => path.join(runDir, f));
+  const historyPath = path.join(root, 'job2', 'history.jsonl');
+  const snap = () => [...bookPaths, historyPath].map((f) => (existsSync(f) ? readFileSync(f, 'utf8') : null));
+  const before = snap();
+
+  const result = runCli(['resume', 'run-1', '--flow', 'job2', '--root', root], fakeModelEnv());
+  assert.notEqual(result.status, 0, result.stdout);
+  assert.match(result.stderr, /bareguard refused the step's file scope/);
+  assert.match(result.stderr, /is or contains a symlink/);
+  assert.deepEqual(snap(), before, 'no audit/spend/history row may be written by the refused resume');
+  assert.equal(existsSync(path.join(runDir, 'resume.lock')), false, 'refused before the resume lock');
+  assert.deepEqual(readdirSync(outside), []);
+});
+
+// ---------------------------------------------------------------------------
+// hamr ruling 2026-09-29: the typed --root is followed to its real path once,
+// at command start. A symlinked --root must not trip bareguard's symlink
+// refusal (which still guards everything inside the root).
+// ---------------------------------------------------------------------------
+
+function symlinkedRoot(prefix, realRoot) {
+  const linkDir = tmpRoot(prefix);
+  const link = path.join(linkDir, 'root-link');
+  symlinkSync(realRoot, link);
+  return link;
+}
+
+test('cli: run, inbox, show, answer, resume via a symlinked --root behave as via the real root', async () => {
+  const real = tmpRoot('symroot');
+  writeJob2Flow(real);
+  const link = symlinkedRoot('symroot-link', real);
+  const srcDir = tmpRoot('symroot-src');
+  const { resume, jd } = writeSources(srcDir);
+
+  const runResult = runCli([
+    'run', 'job2', '--root', link, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-1',
+  ], fakeModelEnv());
+  assert.equal(runResult.status, 0, runResult.stderr || runResult.stdout);
+  assert.doesNotMatch(runResult.stderr, /is or contains a symlink/);
+  assert.ok(existsSync(path.join(real, 'job2', 'runs', 'run-1', 'ask.json')), 'run dir lands under the REAL path');
+  const askId = extractAskId(runResult.stdout);
+
+  const viaLink = runCli(['inbox', '--root', link], fakeModelEnv());
+  const viaReal = runCli(['inbox', '--root', real], fakeModelEnv());
+  assert.equal(viaLink.status, 0, viaLink.stderr);
+  const noClock = (t) => t.replace(/\d+s left/, 'Ns left');
+  assert.equal(noClock(viaLink.stdout), noClock(viaReal.stdout));
+  assert.match(viaLink.stdout, new RegExp(`${askId}\\s+flow=job2 run=run-1 \\[open\\]`));
+
+  const showLink = runCli(['show', askId, '--root', link], fakeModelEnv());
+  assert.equal(showLink.status, 0, showLink.stderr);
+  assert.equal(showLink.stdout, runCli(['show', askId, '--root', real], fakeModelEnv()).stdout);
+
+  assert.equal(runCli(['answer', askId, 'accept', '--root', link], fakeModelEnv()).status, 0);
+  const resumeResult = runCli(['resume', 'run-1', '--flow', 'job2', '--root', link], fakeModelEnv());
+  assert.equal(resumeResult.status, 0, resumeResult.stderr || resumeResult.stdout);
+  assert.doesNotMatch(resumeResult.stderr, /is or contains a symlink/);
+  assert.match(resumeResult.stdout, /complete: spentUsd=\d/);
+});
+
+test('cli: a --root that does not exist fails by name, non-zero, and creates nothing', async () => {
+  const parent = tmpRoot('noroot');
+  const missing = path.join(parent, 'nope');
+  const srcDir = tmpRoot('noroot-src');
+  const { resume, jd } = writeSources(srcDir);
+  for (const args of [
+    ['run', 'job2', '--root', missing, '--source', `resume=${resume}`, '--source', `jd=${jd}`],
+    ['resume', 'run-1', '--flow', 'job2', '--root', missing],
+    ['inbox', '--root', missing],
+    ['show', 'x', '--root', missing],
+    ['answer', 'x', 'accept', '--root', missing],
+  ]) {
+    const r = runCli(args, fakeModelEnv());
+    assert.notEqual(r.status, 0, args[0]);
+    assert.match(r.stderr, new RegExp(`--root "${missing}" does not exist`), args[0]);
+  }
+  assert.deepEqual(readdirSync(parent), []);
 });
 
 // ---------------------------------------------------------------------------
@@ -284,4 +380,174 @@ test('cli: show prints the parked ask\'s question, expiry, and the artifact text
   assert.match(showResult.stdout, /expiresAt: \S+/);
   assert.match(showResult.stdout, /summary of work history blurb/, 'the artifact under review must be printed');
   assert.match(showResult.stdout, /resume text/, 'an unjudged pre-ask artifact must be printed, labelled by step');
+});
+
+// ---------------------------------------------------------------------------
+// F47 fix (docs/logs/FINDINGS.md F47): a real M2-era ask.json carries its
+// evidence directly at `evidence.text`/`evidence.lines`, never
+// `evidence.artifact.text`. Before the fix, `artifactText(evidence.artifact)`
+// fell through to `JSON.stringify(undefined, null, 2)` — the JS value
+// `undefined`, template-coerced to the literal STRING "undefined" — for
+// every real M2-shape ask.json on disk. `show` now goes through the shared
+// `readAskEvidence()` reader (src/ask.js), which recognises the M2 shape.
+// Built directly (not via a live run) so this test isolates the evidence-
+// shape bug from the unrelated, pre-existing M2-legacy-askId concern
+// (`inbox` already handles that separately) — this ask.json carries a real
+// askId/expiresAt so `show` can locate it at all.
+// ---------------------------------------------------------------------------
+
+test('cli: show on an M2-shape ask.json (evidence.text/lines) prints the real draft text, never the literal string "undefined" (F47)', () => {
+  const root = tmpRoot('show-m2');
+  const runDir = path.join(root, 'job2', 'runs', 'run-m2');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(path.join(runDir, 'ask.json'), JSON.stringify({
+    askId: 'ask-m2-shape',
+    question: 'check it with me,',
+    askedAt: '2026-09-24T13:23:36.913Z',
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    evidence: {
+      text: 'summary of work history blurb — drawn from the resume alone.',
+      lines: ['summary of work history blurb — drawn from the resume alone.'],
+    },
+  }));
+
+  const showResult = runCli(['show', 'ask-m2-shape', '--root', root], fakeModelEnv());
+  assert.equal(showResult.status, 0, showResult.stderr || showResult.stdout);
+  assert.match(showResult.stdout, /question: check it with me,/);
+  assert.match(showResult.stdout, /summary of work history blurb/, 'the M2-shape draft text must be printed');
+  assert.doesNotMatch(showResult.stdout, /undefined/, 'must never print the literal string "undefined" for a real M2-shape ask.json (F47)');
+});
+
+// ---------------------------------------------------------------------------
+// Path-escape fix: `--run-id` (and `resume`'s runId positional) go through
+// `resolveRunDir` before any run dir is touched. `../../../../tmp/pwned`
+// must never escape the flow's own `runs/` directory.
+// ---------------------------------------------------------------------------
+
+test('cli: run refuses a path-escaping --run-id, at $0, before writing anything under the escape target', async () => {
+  const root = tmpRoot('run-id-escape');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('run-id-escape-src');
+  const { resume, jd } = writeSources(srcDir);
+  const escapeTarget = path.join(tmpdir(), 'fwdloop-pwned-marker');
+
+  const result = runCli([
+    'run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', '../../../../tmp/pwned',
+  ], fakeModelEnv());
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /runId/);
+  assert.equal(existsSync(escapeTarget), false, 'the escaping runId must never have created anything outside runs/');
+  assert.equal(existsSync(path.join(root, 'job2', 'runs', 'pwned')), false);
+});
+
+const runIdEscapes = ['../x', 'a/b', '..', '', '/abs/path'];
+
+for (const badRunId of runIdEscapes) {
+  test(`cli: run refuses --run-id ${JSON.stringify(badRunId)}`, async () => {
+    const root = tmpRoot('run-id-bad');
+    writeJob2Flow(root);
+    const srcDir = tmpRoot('run-id-bad-src');
+    const { resume, jd } = writeSources(srcDir);
+
+    const args = ['run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`];
+    if (badRunId !== '') args.push('--run-id', badRunId);
+    else args.push('--run-id', '');
+
+    const result = runCli(args, fakeModelEnv());
+    assert.notEqual(result.status, 0, `expected --run-id ${JSON.stringify(badRunId)} to be refused`);
+  });
+}
+
+test('cli: run accepts a valid --run-id and parks normally (control case)', async () => {
+  const root = tmpRoot('run-id-good');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('run-id-good-src');
+  const { resume, jd } = writeSources(srcDir);
+
+  const result = runCli([
+    'run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'a-Valid.run_1',
+  ], fakeModelEnv());
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /parked: askId=\S+/);
+  assert.equal(existsSync(path.join(root, 'job2', 'runs', 'a-Valid.run_1')), true);
+});
+
+test('cli: resume refuses a path-escaping runId positional', async () => {
+  const root = tmpRoot('resume-id-escape');
+  writeJob2Flow(root);
+
+  const result = runCli(['resume', '../../../../tmp/pwned', '--flow', 'job2', '--root', root], fakeModelEnv());
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /runId/);
+});
+
+// ---------------------------------------------------------------------------
+// F46 (docs/logs/FINDINGS.md): a step whose declaration grants a verb the
+// runner has no wired implementation for must refuse the run at preflight,
+// naming the step and the verb, before any model call or spend — never a
+// warning the run continues past.
+// ---------------------------------------------------------------------------
+
+test('cli: run refuses at preflight when a step grants an unwired verb (litectx\'s "compress"), naming the step and the verb, at $0', async () => {
+  const root = tmpRoot('unwired-verb');
+  // job #2's real signed shape (F46): the draft step grants "compress",
+  // catalogue-present but never wired by resolvePrimitives. Signed directly
+  // via writeFlow (not the shared fixture file) so the signature actually
+  // matches — editing declaration.json after signing would just trip the
+  // (unrelated) signature-mismatch check instead of this one.
+  const base = fixture('job2-with-sources.signed.txt');
+  const declaration = fixtureJson('job2.m1.declaration.json');
+  const draftStep = declaration.steps.find((s) => s.emits === 'resume-summary');
+  assert.ok(draftStep, 'expected a "resume-summary" step');
+  draftStep.primitives = ['compress'];
+  const written = writeFlow({
+    root,
+    name: 'job2-unwired',
+    proseText: base,
+    declaration,
+    signedBy: 'hamr',
+    signedAt: '2026-09-25T12:00:00Z',
+    catalogue: CATALOGUE,
+  });
+  assert.equal(written.ok, true, written.ok ? '' : written.reds.join('\n'));
+
+  const srcDir = tmpRoot('unwired-verb-src');
+  const { resume, jd } = writeSources(srcDir);
+
+  const result = runCli([
+    'run', 'job2-unwired', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-1',
+  ], fakeModelEnv());
+
+  assert.notEqual(result.status, 0, result.stdout);
+  assert.match(result.stderr, /resume-summary/, 'the refusal must name the step');
+  assert.match(result.stderr, /"compress"/, 'the refusal must name the verb');
+  assert.match(result.stderr, /no wired implementation/);
+  assert.equal(existsSync(path.join(root, 'job2-unwired', 'runs', 'run-1')), false, 'no run dir may exist — refused before any run dir was created');
+  // The refusal now lives in `runFlow` itself (F46, moved from bin/fwdloop so
+  // any caller gets it — see src/runner.js's `findUnwiredVerbStep`), which
+  // records it the same way every other preflight refusal is recorded: one
+  // history row, $0, `spendComplete: true` — never a silent CLI-only exit.
+  const historyPath = path.join(root, 'job2-unwired', 'history.jsonl');
+  assert.equal(existsSync(historyPath), true, 'a preflight refusal is still one history row, same as any other');
+  const rows = readFileSync(historyPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].outcome, 'preflight-red');
+  assert.equal(rows[0].spentUsd, 0);
+  assert.equal(rows[0].spendComplete, true);
+});
+
+test('cli: run with only wired verbs still runs (control case for the F46 preflight refusal)', async () => {
+  const root = tmpRoot('wired-verbs');
+  writeJob2Flow(root, { name: 'job2-wired' });
+  const srcDir = tmpRoot('wired-verbs-src');
+  const { resume, jd } = writeSources(srcDir);
+
+  const result = runCli([
+    'run', 'job2-wired', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-1',
+  ], fakeModelEnv());
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /parked: askId=\S+/);
 });

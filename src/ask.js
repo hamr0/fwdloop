@@ -23,6 +23,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 import { appendAudit } from './books.js';
+import { readFileInside, resolveInside, readdirInside } from './flow.js';
 
 function sleep(ms) {
   return new Promise((resolve) => { setTimeout(resolve, ms); });
@@ -73,7 +74,13 @@ export function makeFileAskStep({
     let staleCount = 0;
 
     for (;;) {
-      if (existsSync(answerPath)) {
+      // F48 round 3: `answer.json` is checked with `resolveInside`
+      // (`src/flow.js`) before it is ever read — a symlinked answer file (or
+      // a symlinked run-dir ancestor) is treated exactly like "no answer
+      // yet" (kept polling), never read through to an outside file's
+      // content standing in for the human's real decision.
+      const answerResolved = resolveInside(runDir, 'answer.json');
+      if (answerResolved.ok) {
         let raw = null;
         try { raw = readFileSync(answerPath, 'utf8'); } catch { raw = null; }
         let parsed = null;
@@ -88,7 +95,7 @@ export function makeFileAskStep({
             while (existsSync(staleName)) { staleCount += 1; staleName = join(runDir, `answer.stale.${staleCount}.json`); }
             renameSync(answerPath, staleName);
             appendAudit(runDir, {
-              step: 'ask', attempt, class: null, verdict: 'stale-answer-ignored', gap: `answeredAt ${answeredAt} predates this ask's askedAt ${askedAt}`, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false,
+              step: 'ask', attempt, class: null, verdict: 'stale-answer-ignored', gap: `answeredAt ${answeredAt} predates this ask's askedAt ${askedAt}`, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: clock(), tokens: null, tools: null,
             });
             // Keep polling — a stale file quarantined does not mean THIS
             // ask has been answered.
@@ -105,6 +112,86 @@ export function makeFileAskStep({
       // eslint-disable-next-line no-await-in-loop
       await sleep(pollMs);
     }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// F47 fix (docs/logs/FINDINGS.md F47, M4a ladder item 1): the ONE shared
+// reader for ask.json's `evidence` field, across every real shape on disk —
+// M3 (`evidence.artifact.text` + `evidence.unjudged[].artifact.text`), M2
+// (`evidence.text`/`evidence.lines`, no unjudged concept), and none (parked
+// before F45 finding 2 landed the evidence-carry fix, so no `evidence` key
+// at all). `bin/fwdloop`'s `artifactText()`/`cmdShow` and `poc/m4/panel-
+// data.mjs` both read ask.json evidence ad hoc today; this is the one
+// place, per "one writer/one reader" (AGENT_RULES.md), that normalises it.
+// Never returns "undefined"/""/0 standing in for missing data — an
+// unparseable shape is a named `why`, never a crash, never silently empty.
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {any} ask the parsed ask.json object (or its `evidence` field's
+ *   container — pass the whole ask so a missing `evidence` key is itself a
+ *   handled case, not the caller's problem).
+ * @returns {{ draft: {step?: string, text: string} | null, unjudged: Array<{step: string, emits?: string, text: string}>, why?: string }}
+ */
+export function readAskEvidence(ask) {
+  const evidence = ask && typeof ask === 'object' ? ask.evidence : undefined;
+
+  if (evidence === undefined || evidence === null) {
+    return {
+      draft: null,
+      unjudged: [],
+      why: 'this ask was parked before evidence was recorded (pre-F45 finding 2)',
+    };
+  }
+
+  if (typeof evidence !== 'object') {
+    return {
+      draft: null,
+      unjudged: [],
+      why: `ask.json "evidence" is neither an object nor absent — unrecognised shape: ${typeof evidence}`,
+    };
+  }
+
+  // M3 shape: evidence.artifact.text (+ evidence.unjudged[]).
+  if (evidence.artifact && typeof evidence.artifact === 'object' && typeof evidence.artifact.text === 'string') {
+    const rawUnjudged = Array.isArray(evidence.unjudged) ? evidence.unjudged : [];
+    const unjudged = [];
+    for (const item of rawUnjudged) {
+      // `step` (an ask.json unjudged entry's own field name) actually
+      // carries the step's GOAL text, not its id — `emits` (when present) is
+      // the real step id (e.g. "resume-text"), dropped by the ONLY earlier
+      // version of this reader (hamr's review #9, 2026-09-27: the panel's
+      // Inbox was labelling by goal text because this function never
+      // returned `emits` at all). Both are kept honestly: `step` falls back
+      // to `emits` only when the entry names no goal text of its own,
+      // `emits` is included ONLY when the entry actually names one — a
+      // caller must never assume `emits` is present (an M2/no-`emits`
+      // fixture omits it, never a guessed value).
+      const step = item && (item.step ?? item.emits);
+      const emits = item && typeof item.emits === 'string' ? item.emits : undefined;
+      const text = item && item.artifact && typeof item.artifact.text === 'string' ? item.artifact.text : undefined;
+      if (typeof step === 'string' && typeof text === 'string') {
+        unjudged.push(emits ? { step, emits, text } : { step, text });
+      }
+      // An unjudged entry with neither a nameable step nor readable text is
+      // dropped rather than shown as a blank row — the draft itself is
+      // never lost by a malformed sibling entry.
+    }
+    return { draft: { text: evidence.artifact.text }, unjudged };
+  }
+
+  // M2 shape: evidence.text (+ evidence.lines) — no unjudged concept.
+  if (typeof evidence.text === 'string') {
+    return { draft: { text: evidence.text }, unjudged: [] };
+  }
+
+  // Present but neither recognised shape — never fall through to
+  // `undefined`/`JSON.stringify(undefined)` ("undefined" the string).
+  return {
+    draft: null,
+    unjudged: [],
+    why: `ask.json "evidence" has neither ".artifact.text" (M3) nor ".text" (M2) — unrecognised shape: keys ${JSON.stringify(Object.keys(evidence))}`,
   };
 }
 
@@ -136,13 +223,19 @@ export function answerAsk({
     return { ok: false, red: `answerAsk: unrecognised decision "${decision}"` };
   }
 
-  const askPath = join(runDir, 'ask.json');
-  if (!existsSync(askPath)) {
-    return { ok: false, red: `answerAsk: no open ask for run ${runDir}` };
+  // F48 round 3: routed through `readFileInside` — a symlinked `ask.json`
+  // (or a symlinked run-dir ancestor) reads as "no open ask", never as some
+  // outside file's content.
+  const askRead = readFileInside(runDir, 'ask.json');
+  if (!askRead.ok) {
+    if (askRead.missing) {
+      return { ok: false, red: `answerAsk: no open ask for run ${runDir}` };
+    }
+    return { ok: false, red: `answerAsk: ask.json for run ${runDir} — ${askRead.red}` };
   }
   let ask;
   try {
-    ask = JSON.parse(readFileSync(askPath, 'utf8'));
+    ask = JSON.parse(askRead.text);
   } catch (err) {
     return { ok: false, red: `answerAsk: ask.json for run ${runDir} is not valid JSON — ${err.message}` };
   }
@@ -193,4 +286,165 @@ export function answerAsk({
     return { ok: false, red: `answerAsk: could not write ${answerPath} — ${err.message}` };
   }
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// M4a Amendment M4a-1 — SIGNED by hamr 2026-09-27 ("sign m4a1")
+// (docs/wiki/the-module-ladder.md, "M4a" section): every park writes a
+// PERMANENT copy of that ask into `asks/<askId>.json` alongside the
+// (mutable, single-slot) `ask.json`. `ask.json` keeps its current role
+// unchanged — this is a second, append-only record, one file per askId,
+// never overwritten, never deleted (not by resume, not by answer
+// consumption, not by rerun — a rerun always gets a fresh run dir, so it
+// never revisits an old askId). Write-once is a MECHANISM (exclusive
+// create, `{ flag: 'wx' }'), not a check-then-write race: a second write
+// for the same askId is refused, by name, and the first file on disk is
+// left byte-identical.
+// ---------------------------------------------------------------------------
+
+/**
+ * Writes `asks/<askId>.json` in `runDir`, creating the `asks/` directory if
+ * needed. Called by `src/runner.js` right after it writes `ask.json` for a
+ * fresh park (same `askId`/`question`/`askedAt`/`expiresAt`/`evidence` — the
+ * archive is a permanent copy of the SAME content, not a second source of
+ * truth). Exclusive-create: a second call for an already-archived `askId`
+ * is refused (a red naming the file) rather than silently overwriting it —
+ * proven by the write itself failing (`EEXIST`), not by a separate
+ * existence check that a concurrent writer could race past.
+ *
+ * Crash-order note: this is called AFTER `ask.json` is written, so a crash
+ * between the two writes leaves `ask.json` present and `asks/<askId>.json`
+ * missing — the run is still correctly parked and resumable (ask.json/
+ * state.json govern resume, unchanged), just without its archive entry for
+ * that one askId. `listArchivedAsks` below tolerates this (it only reports
+ * what is actually on disk); it is never treated as "before M4a-1" (that
+ * `why` is reserved for a run with NO `asks/` directory at all).
+ *
+ * @param {{ runDir: string, askId: string, question: string, askedAt: string, expiresAt: string, evidence: unknown }} opts
+ * @returns {{ ok: true } | { ok: false, red: string }}
+ */
+export function writeAskArchive({
+  runDir, askId, question, askedAt, expiresAt, evidence,
+}) {
+  if (typeof runDir !== 'string' || runDir.length === 0) {
+    return { ok: false, red: 'writeAskArchive: "runDir" must be a non-empty string' };
+  }
+  if (typeof askId !== 'string' || askId.length === 0) {
+    return { ok: false, red: 'writeAskArchive: "askId" must be a non-empty string' };
+  }
+  const asksDir = join(runDir, 'asks');
+  mkdirSync(asksDir, { recursive: true });
+  const archivePath = join(asksDir, `${askId}.json`);
+  const payload = {
+    askId, question, askedAt, expiresAt, evidence,
+  };
+  try {
+    writeFileSync(archivePath, JSON.stringify(payload, null, 2), { flag: 'wx' });
+  } catch (err) {
+    if (err.code === 'EEXIST') {
+      return { ok: false, red: `writeAskArchive: "${archivePath}" already exists — refusing to overwrite an archived ask` };
+    }
+    return { ok: false, red: `writeAskArchive: could not write ${archivePath} — ${err.message}` };
+  }
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// M4a Amendment M4a-1 reader: pairs each archived ask (`asks/<askId>.json`)
+// with its consumed answer (`answer.<askId>.consumed.json`), by askId only —
+// never by position/order, so the reader is correct even if archives and
+// consumed-answer files land out of step with each other. A run with no
+// `asks/` directory at all predates M4a-1: its asks are not lost, they were
+// simply never kept — reported with a named `why`, never an invented entry.
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {string} runDir
+ * @returns {{ archived: true, asks: Array<{ askId: string, question?: string, askedAt?: string, expiresAt?: string,
+ *   evidence: ReturnType<typeof readAskEvidence>,
+ *   answer: { status: string, reason?: string, answeredAt?: string, why?: string } }> } | { archived: false, why: string }}
+ */
+export function listArchivedAsks(runDir) {
+  // F48 round 3: the `asks/` directory itself — and every entry inside it —
+  // is checked with `resolveInside`/`readFileInside` (`src/flow.js`), so a
+  // symlinked `asks/` (the exact shape F48's live plant used one level up,
+  // for `runs/`) is refused here rather than followed to list an outside
+  // directory, and any individual entry that is itself a symlink is skipped
+  // before this loop ever sees its name.
+  const asksDirResolved = resolveInside(runDir, 'asks');
+  if (!asksDirResolved.ok) {
+    if (asksDirResolved.missing) {
+      return { archived: false, why: 'draft not kept (before M4a-1)' };
+    }
+    return { archived: false, why: `listArchivedAsks: ${asksDirResolved.red}` };
+  }
+
+  const entries = readdirInside(runDir, 'asks');
+
+  const asks = [];
+  for (const entry of entries.sort()) {
+    if (!entry.endsWith('.json')) continue; // eslint-disable-line no-continue
+    const askId = entry.slice(0, -'.json'.length);
+    const archivePath = join(runDir, 'asks', entry);
+    const archiveRead = readFileInside(runDir, join('asks', entry));
+    let ask;
+    if (!archiveRead.ok) {
+      asks.push({
+        askId, question: undefined, askedAt: undefined, expiresAt: undefined,
+        evidence: {
+          draft: null,
+          unjudged: [],
+          why: archiveRead.missing
+            ? `${archivePath} is missing`
+            : `${archivePath} — ${archiveRead.red}`,
+        },
+        answer: { status: 'open' },
+      });
+      continue; // eslint-disable-line no-continue
+    }
+    try {
+      ask = JSON.parse(archiveRead.text);
+    } catch (err) {
+      asks.push({
+        askId, question: undefined, askedAt: undefined, expiresAt: undefined,
+        evidence: { draft: null, unjudged: [], why: `${archivePath} is not valid JSON — ${err.message}` },
+        answer: { status: 'open' },
+      });
+      continue; // eslint-disable-line no-continue
+    }
+
+    const consumedRelPath = `answer.${askId}.consumed.json`;
+    const consumedRead = readFileInside(runDir, consumedRelPath);
+    let answer = { status: 'open' };
+    if (consumedRead.ok) {
+      let parsed;
+      try {
+        parsed = JSON.parse(consumedRead.text);
+        const decisionToStatus = { accept: 'accepted', reject: 'rejected', rerun: 'reran' };
+        answer = {
+          status: decisionToStatus[parsed.decision] ?? `unrecognised: ${parsed.decision}`,
+          answeredAt: parsed.answeredAt,
+        };
+        if (typeof parsed.reason === 'string') answer.reason = parsed.reason;
+      } catch (err) {
+        answer = { status: 'open', why: `${join(runDir, consumedRelPath)} is not valid JSON — ${err.message}` };
+      }
+    } else if (typeof ask.expiresAt === 'string' && !Number.isNaN(Date.parse(ask.expiresAt))
+      && Date.now() > Date.parse(ask.expiresAt)) {
+      answer = { status: 'expired' };
+    } else {
+      answer = { status: 'unanswered' };
+    }
+
+    asks.push({
+      askId,
+      question: ask.question,
+      askedAt: ask.askedAt,
+      expiresAt: ask.expiresAt,
+      evidence: readAskEvidence(ask),
+      answer,
+    });
+  }
+
+  return { archived: true, asks };
 }

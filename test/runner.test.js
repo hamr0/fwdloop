@@ -8,8 +8,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  readFileSync, writeFileSync, mkdtempSync, existsSync,
+  readFileSync, writeFileSync, existsSync,
 } from 'node:fs';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -531,6 +532,86 @@ test('negative (iv): a corrupted declaration.json is refused by name, at $0', as
   // that far — so this row must keep `signatureHash: null`, unlike a halt
   // reached after a successful `readFlow` (see the done:false test below).
   assert.equal(rows[0].signatureHash, null);
+});
+
+// ---------------------------------------------------------------------------
+// F46 (docs/logs/FINDINGS.md): a step whose declaration grants a verb the
+// catalogue lists but `resolvePrimitives` has no case for (e.g. litectx's
+// `compress`) must refuse `runFlow` itself at preflight — not just a
+// `bin/fwdloop` warning — naming the step and the verb, at $0, before any
+// model call, run dir, or spend. Coordinator ask: this must live in
+// src/runner.js so any caller (M4's web panel included) gets it without
+// going through the CLI.
+// ---------------------------------------------------------------------------
+test('F46: a step granting an unwired verb (e.g. "compress") refuses runFlow at preflight, naming the step and verb, at $0, no run dir', async () => {
+  const root = tmpRoot('f46-unwired-verb');
+  const declaration = fixtureJson('job2.m1.declaration.json');
+  const draftStep = declaration.steps.find((s) => s.emits === 'resume-summary');
+  assert.ok(draftStep, 'expected job2.m1.declaration.json to carry a "resume-summary" step');
+  draftStep.primitives = ['compress'];
+  const written = writeFlow({
+    root,
+    name: 'job2-unwired',
+    proseText: fixture('job2-with-sources.signed.txt'),
+    declaration,
+    signedBy: SIGNED_BY,
+    signedAt: SIGNED_AT,
+    catalogue: CATALOGUE,
+  });
+  assert.equal(written.ok, true, written.ok ? '' : written.reds.join('\n'));
+
+  const result = await runFlow({
+    root,
+    name: 'job2-unwired',
+    runId: 'run-1',
+    sources: [],
+    catalogue: CATALOGUE,
+    modelStep: async () => { throw new Error('modelStep must never be called'); },
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    businessDate: BUSINESS_DATE,
+  });
+
+  assert.equal(result.outcome, 'preflight-red');
+  assert.match(result.red, /resume-summary/, 'the refusal must name the step');
+  assert.match(result.red, /"compress"/, 'the refusal must name the verb');
+  assert.match(result.red, /no wired implementation/);
+  assert.equal(result.spentUsd, 0);
+
+  // Same book shape as any other preflight refusal (negative (iv), above):
+  // one history row, $0, spendComplete true — and NO run dir at all, since
+  // this check runs before `checkFreshRunDir`/`mkdirSync(runDir)`.
+  const historyPath = path.join(root, 'job2-unwired', 'history.jsonl');
+  const rows = readFileSync(historyPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].outcome, 'preflight-red');
+  assert.equal(rows[0].spentUsd, 0);
+  assert.equal(rows[0].spendComplete, true);
+  assert.equal(existsSync(path.join(root, 'job2-unwired', 'runs', 'run-1')), false, 'no run dir may exist — refused before any run dir was created');
+});
+
+test('primitiveReds (e.g. bareguard refusing a symlinked scope) refuse runFlow at $0 with the red verbatim, no model call, no run dir', async () => {
+  const root = tmpRoot('primitive-reds');
+  writeJob2Flow(root, 'job2-pr');
+  const red = "primitives: bareguard refused the step's file scope — fs.writeScope[0] is or contains a symlink";
+  const result = await runFlow({
+    root,
+    name: 'job2-pr',
+    runId: 'run-1',
+    sources: [],
+    catalogue: CATALOGUE,
+    modelStep: async () => { throw new Error('modelStep must never be called'); },
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    primitiveReds: [red],
+    businessDate: BUSINESS_DATE,
+  });
+  assert.equal(result.outcome, 'preflight-red');
+  assert.equal(result.red, red);
+  assert.equal(result.spentUsd, 0);
+  assert.equal(existsSync(path.join(root, 'job2-pr', 'runs', 'run-1')), false);
 });
 
 // ---------------------------------------------------------------------------
@@ -1505,4 +1586,27 @@ test('a late answer.json (written after the run\'s own ask already decided) is r
   // The run itself completed on the fake's OWN accept — the late reject on
   // disk changed nothing about the outcome.
   assert.ok(result.artifacts.sent_reply);
+});
+
+test('audit + log.json: a modelStep result\'s refused list lands on the attempt\'s audit row and log attempt; absent means []', async () => {
+  const root = tmpRoot('refused-book');
+  writeJob1Flow(root);
+  const aging = writeTempCsv(tmpRoot('refused-book-sources'));
+  const refusal = { verb: 'write', path: '/x/inputs/aging.csv', rule: 'fs.writeScope' };
+  const base = makeJob1ModelStep();
+  let first = true;
+  const modelStep = async (ctx, ...rest) => {
+    const r = await base(ctx, ...rest);
+    if (first) { first = false; return { ...r, refused: [refusal] }; }
+    return r;
+  };
+  await runFlow({
+    root, name: 'job1', runId: 'run-1', sources: [{ id: 'aging', path: aging }], catalogue: CATALOGUE, modelStep, askStep: ACCEPT_ASK, sendStep: NOOP_SEND, primitives: {}, businessDate: BUSINESS_DATE,
+  });
+  const runDir = path.join(root, 'job1', 'runs', 'run-1');
+  const rows = readFileSync(path.join(runDir, 'audit.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((r) => r.step !== null && r.attempt !== null && r.tools !== undefined && r.class !== null);
+  assert.deepEqual(rows[0].refused, [refusal]);
+  assert.ok(rows.slice(1).every((r) => Array.isArray(r.refused) && r.refused.length === 0), 'every other model row carries []');
+  const logJson = JSON.parse(readFileSync(path.join(runDir, 'log.json'), 'utf8'));
+  assert.deepEqual(logJson.attempts[0].refused, [refusal]);
 });

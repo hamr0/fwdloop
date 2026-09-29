@@ -25,6 +25,7 @@
 // executor context (M2 scope item 3) carries neither.
 
 import { Loop } from 'bare-agent';
+import { GateRefusal } from './primitives.js';
 
 import {
   makeProvider, sumMeterings, appendSpendRow, classifyModelId,
@@ -133,10 +134,92 @@ export function buildEmitArtifactSchema(stepClass) {
   return HITL_SCHEMA;
 }
 
-function addCost(cumulative, metered) {
+// M4a-2 (docs/wiki/the-module-ladder.md, "M4a" section, "Amendment M4a-2 —
+// SIGNED by hamr 2026-09-27"): the attempt's `tokens` for the audit row are
+// summed here, at the SAME place `costUsd` already sums across rounds —
+// never re-derived later by position from spend.jsonl (`src/books.js`'s own
+// audit row is a different book with a different granularity: one row per
+// ATTEMPT, not per round). Only the three fields the audit row's contract
+// names (`inputTokens`, `outputTokens`, `cacheReadTokens`) are carried
+// forward; `sumMeterings`' own `cacheCreationTokens` stays in spend.jsonl
+// only. A round with no metering at all (`metered.tokens === null`, e.g. a
+// synchronous throw before any `onLlmResult` fired) contributes zero, never
+// turns the running total null — once ANY round in this attempt actually
+// ran, the attempt's tokens are a known (possibly partial) count, not
+// "unknown".
+function addMeter(cumulative, metered) {
   const rounds = cumulative.rounds + metered.rounds;
-  if (cumulative.costUsd === null || metered.costUsd === null) return { costUsd: null, rounds };
-  return { costUsd: cumulative.costUsd + metered.costUsd, rounds };
+  const costUsd = (cumulative.costUsd === null || metered.costUsd === null)
+    ? null
+    : cumulative.costUsd + metered.costUsd;
+  const tokens = {
+    inputTokens: cumulative.tokens.inputTokens + (metered.tokens?.inputTokens ?? 0),
+    outputTokens: cumulative.tokens.outputTokens + (metered.tokens?.outputTokens ?? 0),
+    cacheReadTokens: cumulative.tokens.cacheReadTokens + (metered.tokens?.cacheReadTokens ?? 0),
+  };
+  // M4a-3: this function only ever touches cost/rounds/tokens — `tools`/
+  // `ungranted` (added by `addToolCounts`, a separate accumulator with a
+  // separate source of truth, bare-agent's `metrics.byTool`) must survive a
+  // round that never got that far, e.g. a round whose provider call threw
+  // before `loop.run` returned anything to count tool calls FROM. Dropping
+  // them here (returning a bare {costUsd,rounds,tokens}) would silently
+  // erase every earlier round's real tool tally the moment a later round
+  // faulted — caught live: `toolFields` threw on `cumulative.ungranted`
+  // being undefined the very first time a transport fault hit round 1.
+  return {
+    costUsd, rounds, tokens, tools: cumulative.tools, ungranted: cumulative.ungranted, refused: cumulative.refused,
+  };
+}
+
+// M4a-3 (docs/wiki/the-module-ladder.md, "M4a" section, "Amendment M4a-3 —
+// SIGNED by hamr 2026-09-27"): the attempt's `tools` tally, taken from
+// bare-agent's OWN per-round `result.metrics.byTool` — the same counter
+// bare-agent bumps for every tool call the model makes regardless of outcome
+// (BA's own comment: "a denied or unknown call is still an invocation the
+// operator wants to see"). Never re-derived from an `onToolCall` hook: that
+// hook only fires for a call that matched a tool bare-agent actually offered
+// the model (`toolMap.get(tc.name)` succeeded), so a genuinely UNGRANTED
+// name — one the model hallucinated that was never in this attempt's `tools`
+// array at all — never reaches it; `metrics.byTool` is the one place both
+// shapes are counted. `emit_artifact` is the step's own mandatory output
+// call, not a granted primitive, and is deliberately never tallied into
+// `tools` or `ungranted` (flagged for hamr's ruling if this reads
+// differently — the amendment's own example, `{ read: 3, write: 1 }`, never
+// mentions it either).
+//
+// Today, an ungranted name is refused by bare-agent BEFORE `tool.execute`
+// ever runs (loop.js: `toolMap.get` misses -> `[Loop] Unknown tool: <name>`
+// is fed back to the model as the tool result, `continue`s the round) — the
+// model never gets real data back, it only learns the name doesn't exist.
+// This module records that honestly: the name lands in `ungranted`, never
+// silently folded into `tools` as if it had been allowed and had really run.
+function addToolCounts(cumulative, byTool, grantedNames) {
+  const tools = { ...cumulative.tools };
+  const ungranted = new Set(cumulative.ungranted);
+  for (const [name, count] of Object.entries(byTool ?? {})) {
+    if (name === 'emit_artifact') continue;
+    if (grantedNames.has(name)) {
+      tools[name] = (tools[name] ?? 0) + count;
+    } else {
+      ungranted.add(name);
+    }
+  }
+  return { tools, ungranted: [...ungranted].sort() };
+}
+
+// M4a-3: the `tools`/`ungranted` fields every returned result shape carries,
+// built from the running `cumulative` the same way `tokens`/`costUsd` are —
+// `ungranted` is left OFF the result entirely once empty (the audit row
+// contract allows "absent or an array of strings"; an empty array on every
+// clean row would just be noise).
+function toolFields(cumulative) {
+  return {
+    tools: cumulative.tools,
+    // Gate refusals this attempt — always present (empty array when none) so
+    // absence can never be confused with "none".
+    refused: cumulative.refused,
+    ...(cumulative.ungranted.length > 0 ? { ungranted: cumulative.ungranted } : {}),
+  };
 }
 
 /**
@@ -167,8 +250,12 @@ export function makeLiveModelStep({
         if (!slot) throw new Error('makeLiveModelStep: "slot" is required when no provider is injected');
         ({ provider, rates, modelId } = makeProvider(slot, { model, ...LIVE_PROVIDER_OPTIONS }));
       } catch (err) {
+        // No provider was ever built, so no round could possibly have run —
+        // `tokens: null` (and `tools: null`, M4a-3) here is the one honest
+        // "no model call at all" case (never a zeroed object standing in for
+        // a call that never happened).
         return {
-          ok: false, red: `key: ${err.message}`, costUsd: null, model: model ?? null,
+          ok: false, red: `key: ${err.message}`, costUsd: null, model: model ?? null, tokens: null, tools: null,
         };
       }
     }
@@ -187,9 +274,37 @@ export function makeLiveModelStep({
       { role: 'user', content: userContent },
     ];
 
-    const primitiveTools = Object.values(grantedTools ?? {}).filter(Boolean);
+    // Per-attempt collector for bareguard gate refusals: each primitive is
+    // wrapped so a typed GateRefusal is recorded, then rethrown unchanged so
+    // the model still sees the refusal as its tool result.
+    const refused = /** @type {Array<{verb:string, path:string, rule:string}>} */ ([]);
+    const primitiveTools = Object.values(grantedTools ?? {}).filter(Boolean).map((tool) => ({
+      ...tool,
+      execute: async (...a) => {
+        try { return await tool.execute(...a); } catch (err) {
+          if (err instanceof GateRefusal) refused.push({ verb: err.verb, path: err.path, rule: err.rule });
+          throw err;
+        }
+      },
+    }));
+    // M4a-3: "granted" is the step's own declared verb set — the keys of
+    // `grantedTools` — not just the ones that resolved to a real primitive.
+    // An unresolved granted verb never becomes a callable tool below (it's
+    // filtered out of `primitiveTools` above), so the model could only ever
+    // reach it by hallucinating the name, which still counts as `ungranted`
+    // being wrong: it WAS granted, just broken. Treating it as granted here
+    // (never `ungranted`) is the honest read of what the human actually
+    // authorized this step to use.
+    const grantedNames = new Set(Object.keys(grantedTools ?? {}));
 
-    let cumulative = { costUsd: 0, rounds: 0 };
+    let cumulative = {
+      costUsd: 0,
+      rounds: 0,
+      tokens: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+      tools: /** @type {Record<string, number>} */ ({}),
+      ungranted: /** @type {string[]} */ ([]),
+      refused,
+    };
     let noToolCallStreak = 0;
 
     for (let round = 1; round <= 2; round += 1) {
@@ -212,7 +327,7 @@ export function makeLiveModelStep({
       } catch (err) {
         const wallMs = Date.now() - startedAt;
         const partial = sumMeterings(roundMeterings);
-        cumulative = addCost(cumulative, partial);
+        cumulative = addMeter(cumulative, partial);
         appendSpendRow(spendPath, {
           model: modelId,
           modelReturned: partial.model,
@@ -222,11 +337,18 @@ export function makeLiveModelStep({
           wallMs,
           error: err.message,
         });
+        // The provider threw before `loop.run` ever returned a result, so no
+        // tool call could possibly have happened THIS round (M4a-3) —
+        // `cumulative.tools`/`ungranted` here are exactly whatever an
+        // earlier round in this same attempt already accumulated, never
+        // re-derived or invented for the round that just threw.
         if (isTransportFailure(err)) {
           return {
             ok: false,
             transport: true,
             costUsd: cumulative.costUsd,
+            tokens: cumulative.tokens,
+            ...toolFields(cumulative),
             spendComplete: false,
             red: `provider-red: ${err.message}`,
             model: modelId,
@@ -238,6 +360,8 @@ export function makeLiveModelStep({
             ok: false,
             red: `wall-halt: ${err.message}`,
             costUsd: cumulative.costUsd,
+            tokens: cumulative.tokens,
+            ...toolFields(cumulative),
             model: modelId,
             modelMatch: classifyModelId(modelId, partial.model),
           };
@@ -249,6 +373,8 @@ export function makeLiveModelStep({
           ok: false,
           red: `provider-red: ${err.message}`,
           costUsd: cumulative.costUsd,
+          tokens: cumulative.tokens,
+          ...toolFields(cumulative),
           model: modelId,
           modelMatch: classifyModelId(modelId, partial.model),
         };
@@ -256,7 +382,8 @@ export function makeLiveModelStep({
 
       const wallMs = Date.now() - startedAt;
       const metered = sumMeterings(roundMeterings);
-      cumulative = addCost(cumulative, metered);
+      cumulative = addMeter(cumulative, metered);
+      cumulative = { ...cumulative, ...addToolCounts(cumulative, result.metrics?.byTool, grantedNames) };
       appendSpendRow(spendPath, {
         model: modelId,
         modelReturned: metered.model,
@@ -276,6 +403,8 @@ export function makeLiveModelStep({
           ok: false,
           red: `truncated: ${metered.tokens?.outputTokens ?? '?'} tokens, no tool call`,
           costUsd: cumulative.costUsd,
+          tokens: cumulative.tokens,
+          ...toolFields(cumulative),
           model: modelId,
           modelMatch,
         };
@@ -286,10 +415,18 @@ export function makeLiveModelStep({
         if (noToolCallStreak >= 2) {
           const malformed = provider?.lastMalformedToolCall ?? null;
           if (malformed) {
+            // bare-agent >=0.48 delivers `rawArguments` only when the provider
+            // was built with `exposeMalformedArgs: true`; upstream caps it and
+            // sets `rawTruncated` when clipped. Absent -> no "; raw:" suffix.
+            const rawSuffix = malformed.rawArguments !== undefined
+              ? `; raw: ${malformed.rawArguments}${malformed.rawTruncated === true ? ' (truncated)' : ''}`
+              : '';
             return {
               ok: false,
-              red: `the tool call's arguments were not valid JSON twice in a row (${malformed.error}); raw: ${malformed.rawArguments}`,
+              red: `the tool call's arguments were not valid JSON twice in a row (${malformed.error})${rawSuffix}`,
               costUsd: cumulative.costUsd,
+              tokens: cumulative.tokens,
+              ...toolFields(cumulative),
               model: modelId,
               modelMatch,
             };
@@ -298,6 +435,8 @@ export function makeLiveModelStep({
             ok: false,
             red: `a FINISHED round (stopReason=${result.stopReason}) returned text instead of the tool twice in a row. Text: ${JSON.stringify(result.text)}`,
             costUsd: cumulative.costUsd,
+            tokens: cumulative.tokens,
+            ...toolFields(cumulative),
             model: modelId,
             modelMatch,
           };
@@ -308,17 +447,17 @@ export function makeLiveModelStep({
 
       if (cumulative.costUsd === null) {
         return {
-          ok: false, red: 'pricing-red: an unpriced round leaves this attempt\'s cost unknown', costUsd: null, model: modelId, modelMatch,
+          ok: false, red: 'pricing-red: an unpriced round leaves this attempt\'s cost unknown', costUsd: null, model: modelId, modelMatch, tokens: cumulative.tokens, ...toolFields(cumulative),
         };
       }
 
       return {
-        ok: true, artifact: capturedArtifact, costUsd: cumulative.costUsd, model: modelId, modelMatch,
+        ok: true, artifact: capturedArtifact, costUsd: cumulative.costUsd, model: modelId, modelMatch, tokens: cumulative.tokens, ...toolFields(cumulative),
       };
     }
 
     return {
-      ok: false, red: 'exhausted rounds without a clean result', costUsd: cumulative.costUsd, model: modelId,
+      ok: false, red: 'exhausted rounds without a clean result', costUsd: cumulative.costUsd, model: modelId, tokens: cumulative.tokens, ...toolFields(cumulative),
     };
   };
 }

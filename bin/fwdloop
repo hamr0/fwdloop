@@ -15,21 +15,24 @@
 // from poc/, and poc/ is not part of the published package.
 
 import { parseArgs } from 'node:util';
-import {
-  existsSync, mkdirSync, readFileSync, readdirSync,
-} from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 
-import { readFlow, checkFlowName } from '../src/flow.js';
+import {
+  readFlow, checkFlowName, resolveRunDir, listFlowNames, listRunIds, readFileInside,
+} from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
-import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
+import {
+  runFlow, resumeRun, makeParkingAskStep, readAsk,
+} from '../src/runner.js';
 import { makeLiveModelStep } from '../src/model-step.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
 import { checkKeyPreflight } from '../src/provider.js';
-import { answerAsk } from '../src/ask.js';
+import { answerAsk, readAskEvidence } from '../src/ask.js';
+import { panelMain } from '../src/panel/server.js';
 
 // The baseline model (project rule, CLAUDE.md/AGENT_RULES: "deepseek-flash
 // ... Never Claude for fwdloop's own runs") — the ONE provider slot this CLI
@@ -40,6 +43,21 @@ const MODEL_SLOT = 'deepseek';
 function fail(message) {
   process.stderr.write(`fwdloop: ${message}\n`);
   process.exit(1);
+}
+
+/**
+ * The ONE place a human-typed `--root` becomes a path (hamr ruling
+ * 2026-09-29): resolved to its real path once, at command start. Nothing
+ * inside the root is ever followed; that stays under bareguard's symlink
+ * refusal.
+ */
+function resolveRoot(cmd, given) {
+  try {
+    return realpathSync(resolve(given));
+  } catch (err) {
+    if (err.code === 'ENOENT') fail(`${cmd}: --root "${given}" does not exist`);
+    fail(`${cmd}: --root "${given}" cannot be resolved: ${err.code ?? err.message}`);
+  }
 }
 
 function today() {
@@ -88,25 +106,23 @@ function parseSourceFlags(list) {
   return out;
 }
 
-function listDirNames(dir) {
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
-}
-
+// F48 round 3 (docs/logs/FINDINGS.md): this CLI must never build a run path
+// by hand — every flow/runId it walks goes through `listFlowNames`/
+// `listRunIds`/`resolveRunDir` (`src/flow.js`, the same checked builders
+// `src/panel/data.js` already uses), and every `ask.json` it reads goes
+// through `readAsk` (`src/runner.js`, itself routed through
+// `readFileInside`) — never a private `join()` + raw `readFileSync`. Closes
+// the CLI-side half of F48: a symlinked flow/run/ask.json (or a hand-placed
+// directory whose name would fail `checkFlowName`/`checkRunId`) is skipped
+// here exactly as it already is by the panel, instead of being followed.
 function findRunDirByAskId(root, askId) {
-  for (const flow of listDirNames(root)) {
-    const runsDir = join(root, flow, 'runs');
-    for (const runId of listDirNames(runsDir)) {
-      const askPath = join(runsDir, runId, 'ask.json');
-      if (!existsSync(askPath)) continue;
-      let ask;
-      try {
-        ask = JSON.parse(readFileSync(askPath, 'utf8'));
-      } catch {
-        // eslint-disable-next-line no-continue
-        continue;
-      }
-      if (ask.askId === askId) return join(runsDir, runId);
+  for (const flow of listFlowNames(root)) {
+    const flowDir = join(root, flow);
+    for (const runId of listRunIds(flowDir)) {
+      const resolved = resolveRunDir(flowDir, runId);
+      if (!resolved.ok) continue; // eslint-disable-line no-continue
+      const ask = readAsk(resolved.runDir);
+      if (ask && ask.askId === askId) return resolved.runDir;
     }
   }
   return null;
@@ -160,7 +176,7 @@ async function cmdRun(rest) {
   if (!flowName) fail('run: a flow name is required — fwdloop run <flow> --root <dir> --source <role>=<path> ...');
   if (!values.root) fail('run: --root <dir> is required');
 
-  const root = resolve(values.root);
+  const root = resolveRoot('run', values.root);
   const nameCheck = checkFlowName(flowName);
   if (!nameCheck.ok) fail(nameCheck.red);
 
@@ -196,7 +212,9 @@ async function cmdRun(rest) {
   }
 
   const runId = values['run-id'] ?? `run-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
-  const runDir = join(root, flowName, 'runs', runId);
+  const runIdCheck = resolveRunDir(join(root, flowName), runId);
+  if (!runIdCheck.ok) fail(runIdCheck.red);
+  const { runDir } = runIdCheck;
   if (existsSync(runDir)) fail(`run: run dir "${runDir}" already exists — use a new --run-id`);
 
   // The key preflight (item A: "refuses at $0 BEFORE any book write") runs
@@ -212,12 +230,16 @@ async function cmdRun(rest) {
 
   // Predict the frozen input paths `runFlow`'s own `freezeInputs` will use
   // (deterministic: `<runDir>/inputs/<id><ext>`) so the primitives map can
-  // be built once, before `runFlow` itself freezes anything.
-  mkdirSync(join(runDir, 'inputs'), { recursive: true });
+  // be built once, before `runFlow` itself freezes anything. Pure path
+  // arithmetic — `resolvePrimitives` only needs the STRINGS, never the
+  // directory to actually exist yet — so nothing under `runDir` is created
+  // here. `runFlow` itself now carries the F46 unwired-verb preflight
+  // refusal (moved to `src/runner.js` so any caller — this CLI, M4's web
+  // panel — gets it for free); it also owns the ONLY `mkdirSync`/
+  // `freezeInputs` for this run dir, so a refusal leaves nothing behind.
   const predictedInputs = sources.map((s) => ({ id: s.id, frozen: join(runDir, 'inputs', `${s.id}${extname(s.path)}`) }));
   const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
   const { tools: primitives, reds: primitiveReds } = resolvePrimitives(catalogue, allVerbs, { runDir, inputs: predictedInputs });
-  for (const red of primitiveReds) process.stderr.write(`run: ${red}\n`);
 
   const result = await runFlow({
     root,
@@ -229,6 +251,7 @@ async function cmdRun(rest) {
     askStep: makeParkingAskStep(),
     sendStep: sendViaPrimitive,
     primitives,
+    primitiveReds,
     businessDate: today(),
   });
 
@@ -244,19 +267,25 @@ function cmdInbox(rest) {
     args: rest,
     options: { root: { type: 'string' } },
   });
-  const root = resolve(values.root ?? '.');
-  if (!existsSync(root)) fail(`inbox: root "${root}" does not exist`);
+  const root = resolveRoot('inbox', values.root ?? '.');
 
   const rows = [];
-  for (const flow of listDirNames(root)) {
-    const runsDir = join(root, flow, 'runs');
-    for (const runId of listDirNames(runsDir)) {
-      const runDir = join(runsDir, runId);
-      const askPath = join(runDir, 'ask.json');
-      if (!existsSync(askPath)) continue;
+  // F48 round 3: flow/run identity is walked via `listFlowNames`/
+  // `listRunIds`/`resolveRunDir` (never a private `join()`), and `ask.json`
+  // is read via `readFileInside` (both `src/flow.js`) — a symlinked
+  // ask.json, or a symlinked run/flow dir, is treated as "missing" here,
+  // never followed.
+  for (const flow of listFlowNames(root)) {
+    const flowDir = join(root, flow);
+    for (const runId of listRunIds(flowDir)) {
+      const resolved = resolveRunDir(flowDir, runId);
+      if (!resolved.ok) continue; // eslint-disable-line no-continue
+      const runDir = resolved.runDir;
+      const askRead = readFileInside(runDir, 'ask.json');
+      if (!askRead.ok) continue; // eslint-disable-line no-continue -- missing (or refused) ask.json: nothing to show
       let ask;
       try {
-        ask = JSON.parse(readFileSync(askPath, 'utf8'));
+        ask = JSON.parse(askRead.text);
       } catch (err) {
         // A malformed/unparseable ask.json must never crash inbox — show it
         // naming the run as unreadable and move on to the next one.
@@ -276,8 +305,10 @@ function cmdInbox(rest) {
       // Signed item 6: expiry is checked whenever anyone touches the run —
       // for `inbox` that means SHOWING an expired ask, never cancelling it
       // (cancelling happens only at answer/resume, which re-verify anyway).
-      const consumedPath = join(runDir, `answer.${ask.askId}.consumed.json`);
-      if (existsSync(consumedPath)) continue; // this specific ask is already answered
+      // Consumed-marker check also goes through `readFileInside` — a
+      // symlinked consumed marker is treated as "not consumed" (still shown
+      // as open/expired), never as proof the ask was answered.
+      if (readFileInside(runDir, `answer.${ask.askId}.consumed.json`).ok) continue; // eslint-disable-line no-continue -- this specific ask is already answered
       // A present-but-unparseable expiresAt (Date.parse -> NaN) must never
       // read as "not expired" — `Date.now() > NaN` is false, so the naive
       // compare below would show this as [open] with a "NaNs left"
@@ -323,11 +354,6 @@ function cmdInbox(rest) {
 // is how a human actually sees what they'd be accepting. Never writes.
 // ---------------------------------------------------------------------------
 
-function artifactText(artifact) {
-  if (artifact && typeof artifact === 'object' && typeof artifact.text === 'string') return artifact.text;
-  return JSON.stringify(artifact, null, 2);
-}
-
 function cmdShow(rest) {
   const { values, positionals } = parseArgs({
     args: rest,
@@ -337,14 +363,22 @@ function cmdShow(rest) {
   const [askId] = positionals;
   if (!askId) fail('show: an askId is required — fwdloop show <askId> --root <dir>');
 
-  const root = resolve(values.root ?? '.');
-  if (!existsSync(root)) fail(`show: root "${root}" does not exist`);
+  const root = resolveRoot('show', values.root ?? '.');
   const runDir = findRunDirByAskId(root, askId);
   if (!runDir) fail(`show: no open ask found for askId "${askId}" under ${root}`);
 
+  // F48 round 3: routed through `readFileInside` (`src/flow.js`) — a
+  // symlinked ask.json is refused by name here, never read through.
+  const askRead = readFileInside(runDir, 'ask.json');
+  if (!askRead.ok) {
+    fail(askRead.missing
+      ? `show: no ask.json for askId "${askId}"`
+      : `show: ask.json for askId "${askId}" — ${askRead.red}`);
+    return;
+  }
   let ask;
   try {
-    ask = JSON.parse(readFileSync(join(runDir, 'ask.json'), 'utf8'));
+    ask = JSON.parse(askRead.text);
   } catch (err) {
     fail(`show: ask.json for askId "${askId}" is not valid JSON — ${err.message}`);
     return;
@@ -353,16 +387,16 @@ function cmdShow(rest) {
   process.stdout.write(`question: ${ask.question}\n`);
   process.stdout.write(`expiresAt: ${ask.expiresAt}\n`);
 
-  const evidence = ask.evidence ?? null;
-  if (!evidence) {
-    process.stdout.write('\n(no evidence recorded on this ask — legacy park, before F45 finding 2 was fixed)\n');
+  const { draft, unjudged, why } = readAskEvidence(ask);
+  if (!draft) {
+    process.stdout.write(`\n(no evidence recorded on this ask — ${why})\n`);
     return;
   }
   process.stdout.write('\n--- artifact under review ---\n');
-  process.stdout.write(`${artifactText(evidence.artifact)}\n`);
-  for (const item of evidence.unjudged ?? []) {
-    process.stdout.write(`\n--- unjudged: ${item.step ?? item.emits ?? '(step)'} ---\n`);
-    process.stdout.write(`${artifactText(item.artifact)}\n`);
+  process.stdout.write(`${draft.text}\n`);
+  for (const item of unjudged) {
+    process.stdout.write(`\n--- unjudged: ${item.step} ---\n`);
+    process.stdout.write(`${item.text}\n`);
   }
 }
 
@@ -380,8 +414,7 @@ function cmdAnswer(rest) {
   if (!askId) fail('answer: an askId is required — fwdloop answer <askId> accept|reject "<reason>"|rerun "<reason>"');
   if (!decision) fail(`answer: a decision (accept|reject|rerun) is required for askId "${askId}"`);
 
-  const root = resolve(values.root ?? '.');
-  if (!existsSync(root)) fail(`answer: root "${root}" does not exist`);
+  const root = resolveRoot('answer', values.root ?? '.');
   const runDir = findRunDirByAskId(root, askId);
   if (!runDir) fail(`answer: no open ask found for askId "${askId}" under ${root}`);
 
@@ -411,7 +444,7 @@ async function cmdResume(rest) {
   if (!values.flow) fail('resume: --flow <name> is required');
   if (!values.root) fail('resume: --root <dir> is required');
 
-  const root = resolve(values.root);
+  const root = resolveRoot('resume', values.root);
   const flowName = values.flow;
 
   const loaded = loadCatalogue();
@@ -422,7 +455,9 @@ async function cmdResume(rest) {
   if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
   const { declaration } = read;
 
-  const runDir = join(root, flowName, 'runs', runId);
+  const runIdCheck = resolveRunDir(join(root, flowName), runId);
+  if (!runIdCheck.ok) fail(runIdCheck.red);
+  const { runDir } = runIdCheck;
   if (!existsSync(runDir)) fail(`resume: no run dir for runId "${runId}" under flow "${flowName}"`);
 
   const spendPath = join(runDir, 'spend.jsonl');
@@ -437,13 +472,27 @@ async function cmdResume(rest) {
   // Resume never re-freezes inputs — the run's own `inputs.json` (written at
   // park by `freezeInputs`) is the one source of the already-frozen paths a
   // sandboxed primitive may read.
-  const inputsManifestPath = join(runDir, 'inputs.json');
-  const inputsManifest = existsSync(inputsManifestPath) ? JSON.parse(readFileSync(inputsManifestPath, 'utf8')) : [];
+  // F48 round 3: routed through `readFileInside` (`src/flow.js`) — a
+  // symlinked `inputs.json` is treated as "no manifest" (empty array) rather
+  // than followed, which would otherwise let an outside file's content name
+  // arbitrary "frozen" paths for the sandboxed read/grep/readDocx/
+  // addressCells tools built just below.
+  const inputsManifestRead = readFileInside(runDir, 'inputs.json');
+  let inputsManifest = [];
+  if (inputsManifestRead.ok) {
+    try {
+      inputsManifest = JSON.parse(inputsManifestRead.text);
+    } catch (err) {
+      fail(`resume: inputs.json for run "${runId}" is not valid JSON — ${err.message}`);
+      return;
+    }
+  }
   const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
+  // F46's unwired-verb preflight refusal now lives in `resumeRun` itself
+  // (`src/runner.js`) — this CLI no longer keeps a second copy of the check.
   const { tools: primitives, reds: primitiveReds } = resolvePrimitives(catalogue, allVerbs, {
     runDir, inputs: inputsManifest.map((m) => ({ id: m.id, frozen: m.frozen })),
   });
-  for (const red of primitiveReds) process.stderr.write(`resume: ${red}\n`);
 
   const result = await resumeRun({
     root,
@@ -453,6 +502,7 @@ async function cmdResume(rest) {
     modelStep,
     sendStep: sendViaPrimitive,
     primitives,
+    primitiveReds,
     businessDate: today(),
   });
 
@@ -460,17 +510,46 @@ async function cmdResume(rest) {
 }
 
 // ---------------------------------------------------------------------------
+// panel — M4a piece 2 (docs/wiki/the-module-ladder.md, "M4a — read-only
+// panel — SIGNED"): `fwdloop panel [--port 4800] [--root <dir>]`. Read-only,
+// GET/HEAD only, bound to 127.0.0.1 only (src/panel/server.js). Never picks
+// a different port on collision — a taken port is a loud, non-zero-exit
+// failure.
+// ---------------------------------------------------------------------------
+
+async function cmdPanel(rest) {
+  const { values } = parseArgs({
+    args: rest,
+    options: {
+      port: { type: 'string' },
+      root: { type: 'string' },
+    },
+  });
+  const root = resolveRoot('panel', values.root ?? '.');
+
+  const argv = ['--root', root];
+  if (values.port) argv.push('--port', values.port);
+
+  const code = await panelMain(argv, {
+    out: (s) => process.stdout.write(`${s}\n`),
+    err: (s) => process.stderr.write(`fwdloop: ${s}\n`),
+  });
+  process.exitCode = code;
+}
+
+// ---------------------------------------------------------------------------
 
 async function main() {
   const [verb, ...rest] = process.argv.slice(2);
-  if (!verb) fail('usage: fwdloop run|inbox|show|answer|resume ...');
+  if (!verb) fail('usage: fwdloop run|inbox|show|answer|resume|panel ...');
 
   if (verb === 'run') return cmdRun(rest);
   if (verb === 'inbox') return cmdInbox(rest);
   if (verb === 'show') return cmdShow(rest);
   if (verb === 'answer') return cmdAnswer(rest);
   if (verb === 'resume') return cmdResume(rest);
-  fail(`unknown verb "${verb}" — expected run | inbox | show | answer | resume`);
+  if (verb === 'panel') return cmdPanel(rest);
+  fail(`unknown verb "${verb}" — expected run | inbox | show | answer | resume | panel`);
   return undefined;
 }
 

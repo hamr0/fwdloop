@@ -17,53 +17,36 @@
 // against src/'s ESM style; src never imports from poc/.
 
 import {
-  appendFileSync, existsSync, mkdirSync, readFileSync,
+  appendFileSync, mkdirSync,
 } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, basename } from 'node:path';
+import { readFileInside } from './flow.js';
 import { OpenAI } from 'bare-agent/providers';
 
 /**
- * F28 (2026-09-15): DeepSeek sometimes emits a tool-call whose
- * `function.arguments` is not valid JSON. bare-agent's own `generate()`
- * parses it unconditionally and throws a bare `SyntaxError` AFTER the HTTP
- * round already succeeded (`data.usage` is known) — the right class for
- * this is "no usable tool call" (metered, retried once, then red), never a
- * transport fault. This wrapper stashes the last HTTP response and, on a
- * `SyntaxError` whose response DID carry a tool call, returns a normal
- * `generate()`-shaped result with `toolCalls: []` and a `malformedToolCall`
- * extra field instead of throwing. Any other error rethrows unchanged.
+ * F28 (2026-09-15) / BA-27 (bare-agent >=0.47.0): DeepSeek sometimes emits a
+ * tool-call whose `function.arguments` is not valid JSON. Before 0.47,
+ * bare-agent's own `generate()` threw a bare `SyntaxError` AFTER the HTTP
+ * round already succeeded — losing the billed round and hanging metering.
+ * As of 0.47, `OpenAI.generate()` (bare-agent/src/provider-openai.js, via
+ * `provider-toolcalls.js`'s `parseToolCalls`) no longer throws: it resolves
+ * normally with `toolCalls: []` and a `malformedToolCall: { name, error }`
+ * field already on the result. As of 0.48 the constructor option
+ * `exposeMalformedArgs: true` (set in `makeProvider`) adds `rawArguments`
+ * (capped upstream at 500 chars, `rawTruncated: true` when clipped). `Loop.run()` does not forward unknown
+ * `generate()` fields into its own return, so this wrapper ALSO stashes the
+ * marker on the instance (`this.lastMalformedToolCall`, reset at the top of
+ * every `generate()` call) — the one channel `runModelStepOnPrimitives`
+ * (same provider reference) can read after `loop.run()` returns. We require
+ * bare-agent >=0.47 (package.json `^0.47.0`) and never patch around its
+ * private response internals.
  */
 class MalformedToolCallTolerantOpenAI extends OpenAI {
-  async _request(path, body, timeoutMs, deadlineMs) {
-    const data = await super._request(path, body, timeoutMs, deadlineMs);
-    this._lastData = data;
-    return data;
-  }
-
   async generate(messages, tools = [], options = {}) {
     this.lastMalformedToolCall = null;
-    try {
-      return await super.generate(messages, tools, options);
-    } catch (err) {
-      if (!(err instanceof SyntaxError)) throw err;
-      const msg = this._lastData?.choices?.[0]?.message;
-      const toolCalls = msg?.tool_calls;
-      if (!Array.isArray(toolCalls) || toolCalls.length === 0) throw err;
-      const tc = toolCalls[0];
-      const rawArguments = typeof tc?.function?.arguments === 'string'
-        ? tc.function.arguments.slice(0, 500)
-        : '';
-      const malformedToolCall = { name: tc?.function?.name ?? null, rawArguments, error: err.message };
-      this.lastMalformedToolCall = malformedToolCall;
-      return {
-        text: msg.content || '',
-        toolCalls: [],
-        model: this._lastData.model || this.model,
-        stopReason: 'tool_use',
-        usage: this._normalizeUsage(this._lastData.usage),
-        malformedToolCall,
-      };
-    }
+    const result = await super.generate(messages, tools, options);
+    if (result.malformedToolCall) this.lastMalformedToolCall = result.malformedToolCall;
+    return result;
   }
 }
 
@@ -215,15 +198,45 @@ export function appendSpendRow(path, row) {
   appendFileSync(path, `${JSON.stringify({ ...row, modelMatch })}\n`);
 }
 
+// F48 round 3: both readers below take a full path (`<runDir>/spend.jsonl`,
+// as every call site already builds it) but go through `readFileInside`
+// (`src/flow.js`) using `dirname(path)` as the containment boundary and
+// `basename(path)` as the checked relative name — no call site changes, and
+// a symlinked `spend.jsonl` (or a symlinked run-dir ancestor) reads as
+// "missing", never as some outside file's content folded into a cap check
+// or shown on the panel.
 function readSpendTotal(path) {
-  if (!existsSync(path)) return 0;
-  const lines = readFileSync(path, 'utf8').split('\n').filter((l) => l.trim());
+  const result = readFileInside(dirname(path), basename(path));
+  if (!result.ok) return 0;
+  const lines = result.text.split('\n').filter((l) => l.trim());
   let total = 0;
   for (const line of lines) {
     const row = JSON.parse(line);
     total += row.costUsd === null || row.costUsd === undefined ? ceilingCostUsd(row.model) : row.costUsd;
   }
   return total;
+}
+
+/**
+ * `appendSpendRow`'s own sibling reader (M4a piece 2, docs/wiki/the-module-
+ * ladder.md M4a scope item 2: "one reader per book") — every row as written,
+ * raw, in file order. `[]` when the file doesn't exist yet, and a malformed
+ * line is skipped rather than thrown on (an honest best-effort read, same
+ * posture as `src/books.js`'s readers — a caller that needs to know the row
+ * count decides how to treat a gap, this function never crashes over it).
+ * @param {string} path
+ * @returns {any[]}
+ */
+export function readSpendRows(path) {
+  const result = readFileInside(dirname(path), basename(path));
+  if (!result.ok) return [];
+  const rows = [];
+  for (const line of result.text.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    try { rows.push(JSON.parse(trimmed)); } catch { /* malformed line: skip, never crash the read */ }
+  }
+  return rows;
 }
 
 /** Throws once total spend (every null row repriced at its ceiling) is at
@@ -296,6 +309,9 @@ export function makeProvider(slotName, options = {}) {
     model: modelId,
     baseUrl: slot.baseUrl,
     legacyMaxTokens: slot.legacyMaxTokens === true,
+    // bare-agent >=0.48: opt in to the raw broken tool-call arguments on
+    // `malformedToolCall` (capped upstream at 500 chars). Not exposeErrorBody.
+    exposeMalformedArgs: true,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
     ...(deadlineMs !== undefined ? { deadlineMs } : {}),
   });

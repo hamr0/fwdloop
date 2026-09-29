@@ -263,6 +263,11 @@
 
 /**
  * One row appended to `runs/<run-id>/audit.jsonl` (M2 scope item 9).
+ * `at`/`tokens` were added by Amendment M4a-2 and `tools`/`ungranted` by
+ * Amendment M4a-3 (docs/wiki/the-module-ladder.md, "M4a" section) — every
+ * row `appendAudit` writes from here on carries `at`/`tokens`/`tools`; a row
+ * written before its amendment simply lacks the newer keys (read back as-is,
+ * never backfilled) — see `auditRowTokens`/`auditRowTools` in `src/books.js`.
  * @typedef {object} AuditRow
  * @property {string|null} step
  * @property {number} attempt
@@ -275,6 +280,19 @@
  * @property {string|null} model
  * @property {boolean|null} modelMatch
  * @property {boolean} strike
+ * @property {string} at - ISO time this attempt finished.
+ * @property {{inputTokens:number, outputTokens:number, cacheReadTokens:number} | null} tokens -
+ *   summed over this attempt's model calls; `null` only when `model` is
+ *   `null` (no model call this row).
+ * @property {Record<string, number> | null} tools - a {toolName: count}
+ *   tally of every GRANTED tool the model actually invoked this attempt,
+ *   summed across every round; `{}` when the model called no tool; `null`
+ *   only when `model` is `null` (no model call this row).
+ * @property {string[]} [ungranted] - tool names the model called that this
+ *   step never granted; absent when empty, never an invented empty array.
+ * @property {Array<{verb:string, path:string, rule:string}>} [refused] - bareguard
+ *   fs-gate refusals during this attempt; `[]` (never omitted) on every row
+ *   written by a model attempt, absent on rows with no model call.
  */
 
 /**

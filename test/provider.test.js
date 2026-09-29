@@ -4,9 +4,12 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
+import { OpenAI } from 'bare-agent/providers';
 
 import {
   PROVIDER_SLOTS, RATES_BY_SUFFIX, lookupRate, resolveModelRate, ceilingCostUsd,
@@ -161,4 +164,70 @@ test('makeProvider: with a key present, builds a provider for the requested mode
 test('PROVIDER_SLOTS: deepseek carries legacyMaxTokens (F11 — it ignores max_completion_tokens)', () => {
   assert.equal(PROVIDER_SLOTS.deepseek.legacyMaxTokens, true);
   assert.equal(PROVIDER_SLOTS.synthetic.legacyMaxTokens, false);
+});
+
+// BA-27 / 0.48 validation: the REAL wrapper from makeProvider, pointed at a
+// local server whose tool-call `arguments` is malformed JSON. Revert-proof:
+// removing `exposeMalformedArgs: true` from makeProvider makes rawArguments
+// undefined here.
+async function withMalformedServer(args, fn) {
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      choices: [{
+        message: {
+          content: null,
+          tool_calls: [{ id: 'call_1', function: { name: 'emit_x', arguments: args } }],
+        },
+        finish_reason: 'tool_calls',
+      }],
+      model: 'deepseek-flash',
+      usage: { prompt_tokens: 100, completion_tokens: 20, prompt_tokens_details: { cached_tokens: 0 } },
+    }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const saved = process.env.DEEPSEEK_API_KEY;
+  process.env.DEEPSEEK_API_KEY = 'sk-fake-test-key';
+  try {
+    await fn(port);
+  } finally {
+    if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved; else delete process.env.DEEPSEEK_API_KEY;
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+const EMIT_X = [{ name: 'emit_x', description: 'd', parameters: { type: 'object', properties: {} } }];
+
+test('makeProvider("deepseek")\'s real wrapper: malformed args come back verbatim in lastMalformedToolCall.rawArguments, usage metered', async () => {
+  await withMalformedServer('{"a":1}}', async (port) => {
+    const built = makeProvider('deepseek', { model: 'deepseek-flash' });
+    built.provider.baseUrl = `http://127.0.0.1:${port}`;
+    const result = await built.provider.generate([{ role: 'user', content: 'hi' }], EMIT_X);
+    assert.deepEqual(result.toolCalls, []);
+    assert.equal(built.provider.lastMalformedToolCall.name, 'emit_x');
+    assert.match(built.provider.lastMalformedToolCall.error, /JSON/);
+    assert.equal(built.provider.lastMalformedToolCall.rawArguments, '{"a":1}}');
+    assert.ok(!built.provider.lastMalformedToolCall.rawTruncated);
+    assert.equal(result.usage.inputTokens, 100);
+  });
+});
+
+test('makeProvider("deepseek")\'s real wrapper: 800-char malformed args are capped upstream at 500 with rawTruncated:true', async () => {
+  await withMalformedServer(`{"a":"${'x'.repeat(790)}"}}`, async (port) => {
+    const built = makeProvider('deepseek', { model: 'deepseek-flash' });
+    built.provider.baseUrl = `http://127.0.0.1:${port}`;
+    await built.provider.generate([{ role: 'user', content: 'hi' }], EMIT_X);
+    assert.equal(built.provider.lastMalformedToolCall.rawArguments.length, 500);
+    assert.equal(built.provider.lastMalformedToolCall.rawTruncated, true);
+  });
+});
+
+test('upstream default: bare-agent OpenAI built WITHOUT exposeMalformedArgs returns malformedToolCall with no rawArguments', async () => {
+  await withMalformedServer('{"a":1}}', async (port) => {
+    const provider = new OpenAI({ apiKey: 'sk-fake-test-key', model: 'deepseek-flash', baseUrl: `http://127.0.0.1:${port}` });
+    const result = await provider.generate([{ role: 'user', content: 'hi' }], EMIT_X);
+    assert.ok(result.malformedToolCall);
+    assert.equal(result.malformedToolCall.name, 'emit_x');
+    assert.equal(result.malformedToolCall.rawArguments, undefined);
+  });
 });

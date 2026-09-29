@@ -12,8 +12,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  existsSync, mkdtempSync, readFileSync, writeFileSync,
+  existsSync, readFileSync, writeFileSync,
 } from 'node:fs';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -169,6 +170,36 @@ test('job #2 live-shape: a planted softgreen red heals on attempt 2, the file as
   assert.ok(spendRows.length >= 4, `expected at least one spend row per model round, got ${spendRows.length}`);
   assert.ok(spendRows.every((r) => typeof r.modelMatch === 'string'));
   assert.ok(spendRows.every((r) => r.modelMatch === 'match'));
+
+  // Amendment M4a-2 (b), SIGNED by hamr 2026-09-27 ("sign mfa2"): the sum of
+  // the run's audit-row tokens equals the sum of its spend.jsonl tokens —
+  // proof the audit row's `tokens` are threaded from the SAME metering
+  // (`src/model-step.js`'s own per-round sums) spend.jsonl is built from,
+  // never re-derived afterward by position. Every audit row with a model
+  // call must also carry tokens; every audit row with no model call
+  // (paused/green/red on the ask, the send row) must carry `tokens: null`
+  // and is excluded from both sums.
+  assert.ok(auditRows.some((r) => r.model === null), 'sanity: this run has at least one non-model-call row (the ask)');
+  for (const row of auditRows) {
+    if (row.model === null) {
+      assert.equal(row.tokens, null, `non-model row (verdict ${row.verdict}) must carry tokens:null`);
+    } else {
+      assert.ok(row.tokens && typeof row.tokens.inputTokens === 'number', `model-call row (verdict ${row.verdict}) must carry real tokens`);
+    }
+  }
+  const sumThreeFields = (rows, pick) => rows.reduce((acc, r) => {
+    const t = pick(r);
+    if (!t) return acc;
+    return {
+      inputTokens: acc.inputTokens + (t.inputTokens ?? 0),
+      outputTokens: acc.outputTokens + (t.outputTokens ?? 0),
+      cacheReadTokens: acc.cacheReadTokens + (t.cacheReadTokens ?? 0),
+    };
+  }, { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 });
+  const auditTotal = sumThreeFields(auditRows, (r) => r.tokens);
+  const spendTotal = sumThreeFields(spendRows, (r) => r.tokens);
+  assert.deepEqual(auditTotal, spendTotal);
+  assert.ok(auditTotal.inputTokens > 0, 'sanity: the sum must be a real positive number, not two empty zeros matching by accident');
 });
 
 function mktempInputs() {
