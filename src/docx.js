@@ -143,3 +143,33 @@ export function readDocxText(path) {
   const { text, paragraphs } = extractText(xml);
   return { ok: true, text, paragraphs };
 }
+
+// Heading paragraphs: <w:pStyle w:val="Heading1"/> .. HeadingN, or Title. The
+// style ID is matched, not styles.xml's display name — Word writes the ID
+// "Heading1" for the built-in "heading 1"; a custom-named heading style is
+// not seen (declared loss). Text is the paragraph's runs, whitespace-trimmed;
+// an empty heading paragraph is dropped.
+const HEADING_STYLE_RE = /<w:pStyle\s+w:val="(?:Heading\d+|Title)"\s*\/?>/i;
+
+function extractHeadings(xml) {
+  const paragraphs = xml.match(/<w:p[ >][\s\S]*?<\/w:p>/g) || [];
+  return paragraphs
+    .filter((p) => HEADING_STYLE_RE.test(p))
+    .map((p) => paragraphText(p).replace(/\s+/g, ' ').trim())
+    .filter((t) => t !== '');
+}
+
+/** @param {string} path @returns {{ok:true,headings:string[]}|{ok:false,red:string}} */
+export function readDocxHeadings(path) {
+  let buf;
+  try {
+    buf = readFileSync(path);
+  } catch (e) {
+    return { ok: false, red: `cannot read file: ${e.message}` };
+  }
+  const entry = findEntry(buf);
+  if (entry.red) return { ok: false, red: entry.red };
+  const read = readEntryBytes(buf, entry);
+  if (read.red || !read.data) return { ok: false, red: read.red ?? 'no data decoded' };
+  return { ok: true, headings: extractHeadings(read.data.toString('utf8')) };
+}
