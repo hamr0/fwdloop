@@ -1,9 +1,10 @@
 // M6a — $0 tests for src/drafter.js against a fake provider. No key, no network.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import http from 'node:http';
 import { draft, MAX_STRUCTURE_RETRIES, MAX_REVISIONS, DRAFT_PROVIDER_OPTIONS } from '../src/drafter.js';
 import { buildDeclarationSchema } from '../src/drafter.js';
-import { ceilingCostUsd } from '../src/provider.js';
+import { ceilingCostUsd, makeProvider } from '../src/provider.js';
 import { wiredMenu } from '../src/primitives.js';
 import {
   RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply, textReply, truncatedReply, malformedReply,
@@ -134,6 +135,45 @@ test('$0 gates: bad prose and an unreadable source refuse before any provider ca
 test('drafter live-provider options disable thinking (F49) and keep the live timeouts', () => {
   assert.deepEqual(DRAFT_PROVIDER_OPTIONS.thinking, { type: 'disabled' });
   assert.equal(DRAFT_PROVIDER_OPTIONS.timeoutMs, 300_000);
+});
+
+// F49, end to end: draft()'s own live-provider path must put thinking:{type:'disabled'} on the wire.
+// Seam: draft({ makeProviderFn }) wraps the real makeProvider and repoints its baseUrl at a local server.
+test('draft() live path sends body.thinking = {type:"disabled"} on the request (local server, no network)', async () => {
+  let body;
+  const server = http.createServer((req, res) => {
+    let raw = '';
+    req.on('data', (c) => { raw += c; });
+    req.on('end', () => {
+      body = JSON.parse(raw);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        choices: [{ finish_reason: 'tool_calls', message: { content: '', tool_calls: [
+          { id: 't1', type: 'function', function: { name: 'emit_declaration', arguments: JSON.stringify(validArgs()) } }] } }],
+        model: 'deepseek-flash',
+        usage: { prompt_tokens: 1000, completion_tokens: 200, prompt_tokens_details: { cached_tokens: 0 } },
+      }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const saved = process.env.DEEPSEEK_API_KEY;
+  process.env.DEEPSEEK_API_KEY = 'sk-fake-test-key';
+  try {
+    const fx = job2Fixture();
+    const r = await draft({
+      proseText: fx.prose,
+      makeProviderFn: (slot, opts) => {
+        const built = makeProvider(slot, opts);
+        built.provider.baseUrl = `http://127.0.0.1:${server.address().port}`;
+        return built;
+      },
+    });
+    assert.equal(r.ok, true, JSON.stringify(r.reds));
+    assert.deepEqual(body.thinking, { type: 'disabled' });
+  } finally {
+    if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved; else delete process.env.DEEPSEEK_API_KEY;
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 
 test('the schema lets a step carry `picks` (source role -> heading names); a valid picks passes, an invented one reds', async () => {

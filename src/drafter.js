@@ -174,13 +174,14 @@ export const DRAFT_PROVIDER_OPTIONS = Object.freeze({ ...LIVE_PROVIDER_OPTIONS, 
  * Draft one declaration. `provider`/`rates`/`modelId` may be injected (tests,
  * the batch); otherwise a live provider is built from `slot` (throws on a bad
  * key — the batch preflights first). `budgetUsd` is this draft's hard cap.
+ * `makeProviderFn` is a test seam: the live-provider factory (default `makeProvider`).
  *
  * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number,
  *   costUsd:number|null, modelReturned:string|null, modelId?:string, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[]}>}
  */
 export async function draft({
   proseText, slot = 'deepseek', model, provider: injected, rates: injectedRates, modelId: injectedModelId,
-  budgetUsd = 0.10, skills = DRAFT_SKILLS,
+  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider,
 }) {
   const fail = (reds, extra = {}) => ({
     ok: false, declaration: null, reds, rounds: 0, costUsd: 0, modelReturned: null, structureRetries: 0, revisions: 0, stop: 'pre-flight', log: [], ...extra,
@@ -199,7 +200,7 @@ export async function draft({
   let { provider, rates, modelId } = { provider: injected, rates: injectedRates, modelId: injectedModelId };
   if (provider == null) {
     try {
-      ({ provider, rates, modelId } = makeProvider(slot, { model, ...DRAFT_PROVIDER_OPTIONS }));
+      ({ provider, rates, modelId } = makeProviderFn(slot, { model, ...DRAFT_PROVIDER_OPTIONS }));
     } catch (err) {
       return fail([`key: ${err.message}`]);
     }
