@@ -117,11 +117,11 @@ a signed ask ("which queue?", "does this need the human?"), never replacing a hu
 deciding a close — as a close-decider it collides with **No LLM judge** above. Any confidence
 threshold is an arbiter number hamr signs, never the agent's. Prerequisites before it can be
 scoped: the use needs its own module with a signed scope/exit/negative (the bare-agent ≥0.44
-prerequisite is met — fwdloop is on ^0.48.0 since the fs-gate switch-over). Source: `../bareagent/src/provider-jev.js`,
+prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 0.49 for the M6a drafter's `thinking` option)). Source: `../bareagent/src/provider-jev.js`,
 `provider-jev-calibration.js`, bare-agent README "Fast gut check — Jev".
 
 **No CLI as a product surface.** `npm install`, one command, a localhost server starts and **the
-browser is the product**; the server owns the scheduler. A CLI exists for M0–M4 but is
+browser is the product**; the server owns the scheduler. A CLI exists for M0–M4 and M6a (`fwdloop draft`, `fwdloop sign`) but is
 undocumented and carries no stability promise (docs/archive/PRD.md:427-431).
 
 ## Guiding principles — borrowed from bareloop, reminders not features
