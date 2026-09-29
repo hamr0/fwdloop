@@ -1043,6 +1043,18 @@ the new forced schema, with no converter. 20 paid drafts on deepseek-flash; bar 
 - Run cost $0.0701 (6 priced rows, 0 nulls, modelMatch "match"); M6a ledger $0.1199 of $1.00.
 - Finding F50 (NOT fixed): the drafter dropped prose-only detail ("200ish each"); the ask caught it.
 
+### M6a amendment 1 — goal is the signed line, verbatim; no default ask wait — SIGNED by hamr 2026-09-29 ("sign m6a amendment 1")
+
+- **Why:** F50. The drafter paraphrased goals and dropped "200ish each". Before M6a, the goal was the line verbatim (F38). The ask showed a 30-minute wait hamr never set.
+- **Scope:**
+  1. The machine fills each step's `goal` with its signed job line (by `fromLine`), verbatim. The drafter no longer authors `goal` (removed from the forced schema). `sign` refuses any declaration whose step goal is not exactly its signed line.
+  2. The model step still never sees its guardrail, close/shape or cap (the M2 rule stands); guardrails are NOT passed to the step.
+  3. An ask's wait (TTL) has no code default: it must be signed by hamr in the prose, or draft/sign refuses by name.
+- **Exit (live):** redraft and rerun job #2 with hamr's prose (plus hamr's own TTL line). The first attempt reaches the ask with sections of about 200 words each and no reject; hamr accepts; it sends.
+- **Negatives:** a hand-edited goal that doesn't match its line is refused at sign; the step's prompt contains the line exactly; the step's context never contains the guardrail/shape/cap; no TTL signed is refused.
+- **Cap:** $0.30, from M6a's remaining budget.
+- **Not in scope (goes to M6b):** readout/UI wording (see M6).
+
 **Not in M6a:** the UI (M6b), editing and versions (M5), an LLM scout, litectx verbs, a settings
 screen.
 
@@ -1072,6 +1084,7 @@ through M5 (docs/archive/PRD.md:597-605).
 - **Negative:** tracing a wrong number to its source cell is M4's negative (see above). This
   module's own negative is an edit that skips re-accept, which M5 catches
   (docs/archive/PRD.md:608-609).
+- **Wording (from M6a amendment 1, M6b scope):** the readout/UI says "how each step is checked" where it now says "Success", and "shown to you at the next ask" where it says "human check" on non-ask lines.
 
 ## M7 — skills and persona
 
