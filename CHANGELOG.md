@@ -5,6 +5,42 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-09-29
+
+M6a: the authoring backend. `fwdloop draft` turns signed prose into a declaration draft and
+`fwdloop sign` records the human signature; amendment 1 makes each step's goal its signed line
+verbatim and requires every ask's wait to be signed.
+
+### Added
+- `fwdloop draft` / `fwdloop sign` (CLI + `src/authoring.js`): `draft` writes a draft dir (the
+  declaration, a readout of the steps, asks and exact signed waits, and a `spec.hash` that covers
+  the prose, the sources and the target root+name). Paid spend is booked before anything else, so a
+  write failure keeps the cost. The draft dir is claimed before the paid round. A draft is scrubbed
+  for key values; a leak leaves a marker and no `spec.hash`, and `sign` re-sweeps and refuses a leak
+  marker. A budget below one round's ceiling is refused at $0 before any provider call.
+- `src/drafter.js`: the drafter. One forced `emit_declaration` tool call whose schema is built from
+  the wired menu only (an unwired verb is never offered and reds by name if granted anyway). The
+  structure retry keeps the validator's reds, and the log's `kind` reflects the real round.
+- Input facts: the harness reads each source's headings (markdown and docx) into `inputFacts`, so
+  the drafter can pin `picks` to real heading names.
+- `validateDeclaration` takes `wired` (an unwired verb reds by name) and `verbatimGoals` (a step
+  goal that is not exactly its signed line reds) options; `wiredMenu` lives in one place.
+- `makeProvider` takes a `thinking` option, sent verbatim as `body.thinking`; the drafter passes
+  `{ type: 'disabled' }` (F49). Deps: `bare-agent` bumped to `^0.49.0`.
+- Amendment 1: each step's `goal` is its signed line, verbatim, set by the machine at draft
+  and refused at sign if edited; an ask needs a signed wait (`ask 30m:`), never a code default.
+
+### Changed (breaking for authoring)
+- Prose with a bare `ask:` (no signed wait) is now refused by `draft`/`sign`; write `ask 30m:`.
+  Flows signed before 0.8.0 still run unchanged, with the 30m default.
+- The drafter no longer authors `goal` (removed from its forced schema).
+
+### Fixed
+- F50: the drafter paraphrased goals and dropped prose detail ("200ish each"); goals are now the
+  signed line verbatim. Prose-only sizes are still judged only by the human at the ask.
+- The catalogue's `compress` is described as a code shrinker, not a text shortener (the drafter
+  picked it for prose).
+
 ## [0.7.0] - 2026-09-29
 
 M4a: a read-only panel over the run books, the F48 symlink-escape class closed, and the
