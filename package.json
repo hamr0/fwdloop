@@ -50,7 +50,7 @@
   ],
   "dependencies": {
     "bare-agent": "^0.48.0",
-    "bareguard": "^0.19.1",
+    "bareguard": "^0.19.2",
     "litectx": "^0.32.0"
   },
   "devDependencies": {
