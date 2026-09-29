@@ -528,3 +528,43 @@ test('M4a-3: a model call that invokes no granted tool at all carries tools:{}, 
   assert.equal(result.ungranted, undefined);
 });
 
+
+// ---------------------------------------------------------------------------
+// Gate refusals are recorded on the attempt's result (typed GateRefusal, never
+// parsed from the message): the fake model writes outside <runDir>/out, then
+// emits. `refused` is always an array — `[]` when nothing was refused.
+// ---------------------------------------------------------------------------
+
+test('refused: a bareguard write refusal lands in result.refused with verb, resolved path and rule; a clean attempt has []', async () => {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const { resolvePrimitives } = await import('../src/primitives.js');
+  const runDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-refused-'));
+  mkdirSync(path.join(runDir, 'inputs'));
+  writeFileSync(path.join(runDir, 'inputs', 'x.md'), 'frozen');
+  const catalogue = [{ verb: 'write' }, { verb: 'read' }].map((e) => ({ ...e, description: e.verb }));
+  const { tools } = resolvePrimitives(catalogue, ['write'], { runDir, inputs: [] });
+
+  const scripted = (calls) => {
+    let n = 0;
+    return {
+      generate: async () => {
+        n += 1;
+        const toolCalls = n === 1 && calls
+          ? [{ id: 'w', name: 'write', arguments: { path: 'inputs/x.md', content: 'pwn' } }]
+          : [{ id: 'e', name: 'emit_artifact', arguments: { text: 'ok' } }];
+        return { text: null, toolCalls, usage: { inputTokens: 1, outputTokens: 1 }, stopReason: 'tool_calls', model: 'deepseek-flash' };
+      },
+    };
+  };
+  const make = (provider) => makeLiveModelStep({
+    spendPath: tmpSpendPath(), provider, rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash',
+  });
+
+  const bad = await make(scripted(true))(CTX, { write: tools.write }, { class: 'hitl' });
+  assert.equal(bad.ok, true);
+  assert.deepEqual(bad.refused, [{ verb: 'write', path: path.join(runDir, 'inputs', 'x.md'), rule: 'fs.writeScope' }]);
+  assert.equal(readFileSync(path.join(runDir, 'inputs', 'x.md'), 'utf8'), 'frozen');
+
+  const clean = await make(scripted(false))(CTX, { write: tools.write }, { class: 'hitl' });
+  assert.deepEqual(clean.refused, []);
+});

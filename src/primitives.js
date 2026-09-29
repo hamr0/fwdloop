@@ -61,6 +61,19 @@ function shellTool(name) {
  * value). Throws naming the verb, the path, and bareguard's own rule name
  * on a deny; returns the resolved path on allow.
  */
+/** Typed carrier for a bareguard fs-gate deny: `model-step` catches it by
+ *  `instanceof` and records `{verb, path, rule}` on the attempt's audit row —
+ *  never parsed back out of the message string. */
+export class GateRefusal extends Error {
+  constructor(verb, resolved, rule) {
+    super(`${verb}: "${resolved}" is outside the sandbox — refused (bareguard rule: ${rule})`);
+    this.name = 'GateRefusal';
+    this.verb = verb;
+    this.path = resolved;
+    this.rule = rule;
+  }
+}
+
 async function resolveAndGate(gate, verb, tool, runDir, rawPath) {
   if (typeof rawPath !== 'string' || rawPath.length === 0) {
     throw new Error(`${verb}: path must be a non-empty string`);
@@ -70,7 +83,7 @@ async function resolveAndGate(gate, verb, tool, runDir, rawPath) {
   const type = verb === 'write' ? 'write' : 'read';
   const decision = await gate.check({ type, tool, path: resolved });
   if (decision.outcome !== 'allow') {
-    throw new Error(`${verb}: "${resolved}" is outside the sandbox — refused (bareguard rule: ${decision.rule})`);
+    throw new GateRefusal(verb, resolved, decision.rule);
   }
   return resolved;
 }

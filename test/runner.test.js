@@ -1563,3 +1563,26 @@ test('a late answer.json (written after the run\'s own ask already decided) is r
   // disk changed nothing about the outcome.
   assert.ok(result.artifacts.sent_reply);
 });
+
+test('audit + log.json: a modelStep result\'s refused list lands on the attempt\'s audit row and log attempt; absent means []', async () => {
+  const root = tmpRoot('refused-book');
+  writeJob1Flow(root);
+  const aging = writeTempCsv(tmpRoot('refused-book-sources'));
+  const refusal = { verb: 'write', path: '/x/inputs/aging.csv', rule: 'fs.writeScope' };
+  const base = makeJob1ModelStep();
+  let first = true;
+  const modelStep = async (ctx, ...rest) => {
+    const r = await base(ctx, ...rest);
+    if (first) { first = false; return { ...r, refused: [refusal] }; }
+    return r;
+  };
+  await runFlow({
+    root, name: 'job1', runId: 'run-1', sources: [{ id: 'aging', path: aging }], catalogue: CATALOGUE, modelStep, askStep: ACCEPT_ASK, sendStep: NOOP_SEND, primitives: {}, businessDate: BUSINESS_DATE,
+  });
+  const runDir = path.join(root, 'job1', 'runs', 'run-1');
+  const rows = readFileSync(path.join(runDir, 'audit.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((r) => r.step !== null && r.attempt !== null && r.tools !== undefined && r.class !== null);
+  assert.deepEqual(rows[0].refused, [refusal]);
+  assert.ok(rows.slice(1).every((r) => Array.isArray(r.refused) && r.refused.length === 0), 'every other model row carries []');
+  const logJson = JSON.parse(readFileSync(path.join(runDir, 'log.json'), 'utf8'));
+  assert.deepEqual(logJson.attempts[0].refused, [refusal]);
+});

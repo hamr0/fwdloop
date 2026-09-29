@@ -25,6 +25,7 @@
 // executor context (M2 scope item 3) carries neither.
 
 import { Loop } from 'bare-agent';
+import { GateRefusal } from './primitives.js';
 
 import {
   makeProvider, sumMeterings, appendSpendRow, classifyModelId,
@@ -166,7 +167,7 @@ function addMeter(cumulative, metered) {
   // faulted — caught live: `toolFields` threw on `cumulative.ungranted`
   // being undefined the very first time a transport fault hit round 1.
   return {
-    costUsd, rounds, tokens, tools: cumulative.tools, ungranted: cumulative.ungranted,
+    costUsd, rounds, tokens, tools: cumulative.tools, ungranted: cumulative.ungranted, refused: cumulative.refused,
   };
 }
 
@@ -214,6 +215,9 @@ function addToolCounts(cumulative, byTool, grantedNames) {
 function toolFields(cumulative) {
   return {
     tools: cumulative.tools,
+    // Gate refusals this attempt — always present (empty array when none) so
+    // absence can never be confused with "none".
+    refused: cumulative.refused,
     ...(cumulative.ungranted.length > 0 ? { ungranted: cumulative.ungranted } : {}),
   };
 }
@@ -270,7 +274,19 @@ export function makeLiveModelStep({
       { role: 'user', content: userContent },
     ];
 
-    const primitiveTools = Object.values(grantedTools ?? {}).filter(Boolean);
+    // Per-attempt collector for bareguard gate refusals: each primitive is
+    // wrapped so a typed GateRefusal is recorded, then rethrown unchanged so
+    // the model still sees the refusal as its tool result.
+    const refused = /** @type {Array<{verb:string, path:string, rule:string}>} */ ([]);
+    const primitiveTools = Object.values(grantedTools ?? {}).filter(Boolean).map((tool) => ({
+      ...tool,
+      execute: async (...a) => {
+        try { return await tool.execute(...a); } catch (err) {
+          if (err instanceof GateRefusal) refused.push({ verb: err.verb, path: err.path, rule: err.rule });
+          throw err;
+        }
+      },
+    }));
     // M4a-3: "granted" is the step's own declared verb set — the keys of
     // `grantedTools` — not just the ones that resolved to a real primitive.
     // An unresolved granted verb never becomes a callable tool below (it's
@@ -287,6 +303,7 @@ export function makeLiveModelStep({
       tokens: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
       tools: /** @type {Record<string, number>} */ ({}),
       ungranted: /** @type {string[]} */ ([]),
+      refused,
     };
     let noToolCallStreak = 0;
 

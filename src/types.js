@@ -290,6 +290,9 @@
  *   only when `model` is `null` (no model call this row).
  * @property {string[]} [ungranted] - tool names the model called that this
  *   step never granted; absent when empty, never an invented empty array.
+ * @property {Array<{verb:string, path:string, rule:string}>} [refused] - bareguard
+ *   fs-gate refusals during this attempt; `[]` (never omitted) on every row
+ *   written by a model attempt, absent on rows with no model call.
  */
 
 /**
