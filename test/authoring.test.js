@@ -2,7 +2,9 @@
 // Fake provider only: no key, no network, no paid round.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { existsSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import {
+  existsSync, readFileSync, writeFileSync, readdirSync, rmSync,
+} from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
@@ -207,4 +209,159 @@ test('cli draft: an unset key refuses at $0 (no dir) with the live path, and the
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /key: DEEPSEEK_API_KEY is not set/);
   assert.ok(!existsSync(s.dir));
+});
+
+// ---------------------------------------------------------------------------
+// sign — the human step, $0. Every refusal writes NO flow.
+// ---------------------------------------------------------------------------
+import { readFlow } from '../src/flow.js';
+import { loadCatalogue } from '../src/catalogue.js';
+import { runFlow } from '../src/runner.js';
+
+const CAT = loadCatalogue().primitives;
+const flowDirOf = (root) => path.join(root, 'job2');
+const noFlow = (root) => assert.ok(!existsSync(flowDirOf(root)), 'no flow dir was written');
+
+/** Re-hash after a hand edit and rewrite spec.hash (a person who controls the hash — the deepest refusal is then the validator). */
+function rehash(dir) {
+  const rd = (f) => readFileSync(path.join(dir, f), 'utf8');
+  const h = specHash({
+    proseText: rd('prose.txt'), declarationText: rd('declaration.json'), inputFactsText: rd('input-facts.json'), readoutText: rd('readout.txt'),
+  }).hash;
+  writeFileSync(path.join(dir, SPEC_HASH_FILE), `${h}\n`);
+  return h;
+}
+
+test('sign: the right hash writes the flow, signed by the human named at sign; readFlow verifies it', async () => {
+  const { r, root, dir } = await makeDraft();
+  const s = signDraft({ dir, approve: r.hash, signedBy: 'alice' });
+  assert.equal(s.ok, true, JSON.stringify(s.reds));
+  assert.equal(s.signature.signedBy, 'alice');
+  const read = readFlow({ root, name: 'job2', catalogue: CAT });
+  assert.equal(read.ok, true, JSON.stringify(read.reds));
+  assert.equal(read.signature.signedBy, 'alice');
+  assert.equal(readFileSync(path.join(flowDirOf(root), 'prose.txt'), 'utf8'), readFileSync(path.join(dir, 'prose.txt'), 'utf8'));
+});
+
+test('sign: no hash and a wrong hash are refused, no flow', async () => {
+  const { r, root, dir } = await makeDraft();
+  for (const approve of [undefined, '', 'deadbeef', `${r.hash.slice(0, -1)}${r.hash.endsWith('0') ? '1' : '0'}`]) {
+    const s = signDraft({ dir, approve, signedBy: 'alice' });
+    assert.equal(s.ok, false);
+    assert.match(s.reds[0], /--approve/);
+    noFlow(root);
+  }
+});
+
+test('sign: prose edited after the draft -> hash mismatch, refused, no flow', async () => {
+  const { r, root, dir } = await makeDraft();
+  const pf = path.join(dir, 'prose.txt');
+  writeFileSync(pf, readFileSync(pf, 'utf8').replace('cap $0.25', 'cap $9.99'));
+  const s = signDraft({ dir, approve: r.hash, signedBy: 'alice' });
+  assert.equal(s.ok, false);
+  assert.match(s.reds[0], /does not match the draft as it is now/);
+  noFlow(root);
+});
+
+test('sign: a hash freshly computed over edited files is refused unless the draft itself wrote spec.hash', async () => {
+  const { r, root, dir } = await makeDraft();
+  const pf = path.join(dir, 'prose.txt');
+  writeFileSync(pf, readFileSync(pf, 'utf8').replace('cap $0.25', 'cap $9.99'));
+  const rd = (f) => readFileSync(path.join(dir, f), 'utf8');
+  const fresh = specHash({
+    proseText: rd('prose.txt'), declarationText: rd('declaration.json'), inputFactsText: rd('input-facts.json'), readoutText: rd('readout.txt'),
+  }).hash;
+  assert.notEqual(fresh, r.hash);
+  const s = signDraft({ dir, approve: fresh, signedBy: 'alice' });
+  assert.equal(s.ok, false);
+  assert.match(s.reds[0], /spec\.hash was not written by the draft/);
+  noFlow(root);
+});
+
+test('sign: a hand-edited declaration granting an unwired verb is refused, no flow — even with a matching hash', async () => {
+  const { r, root, dir } = await makeDraft();
+  const df = path.join(dir, 'declaration.json');
+  const d = readJson(df);
+  d.steps[2].primitives = ['stash'];
+  writeFileSync(df, `${JSON.stringify(d, null, 2)}\n`);
+  // (1) edit alone: the hash catches it
+  assert.match(signDraft({ dir, approve: r.hash, signedBy: 'alice' }).reds[0], /does not match/);
+  // (2) someone who re-hashes: the validator (wired set) still refuses, by name
+  const s = signDraft({ dir, approve: rehash(dir), signedBy: 'alice' });
+  assert.equal(s.ok, false);
+  assert.match(s.reds.join(' '), /"stash" is in the catalogue but not wired/);
+  noFlow(root);
+});
+
+test('sign: a missing input source and an invalid send target are refused, no flow', async () => {
+  let d = await makeDraft();
+  rmSync(d.fx.jd);
+  let s = signDraft({ dir: d.dir, approve: d.r.hash, signedBy: 'alice' });
+  assert.equal(s.ok, false);
+  assert.match(s.reds.join(' '), /input source "jd" is missing/);
+  noFlow(d.root);
+
+  const fx = job2Fixture();
+  d = await makeDraft({ prose: fx.prose.replace('file:poc/m0/out', 'file:poc/m0/no-such-dir-xyz') });
+  assert.equal(d.r.ok, true, JSON.stringify(d.r.reds));
+  s = signDraft({ dir: d.dir, approve: d.r.hash, signedBy: 'alice' });
+  assert.equal(s.ok, false);
+  assert.match(s.reds.join(' '), /destination: send target/);
+  noFlow(d.root);
+});
+
+test('sign: a red draft dir (no spec.hash / no declaration.json) can never be signed', async () => {
+  const bad = validArgs();
+  bad.steps[2].primitives = ['stash'];
+  const { r, root, dir } = await makeDraft({ replies: [toolReply(bad)] });
+  assert.equal(r.ok, false);
+  const s = signDraft({ dir, approve: 'a'.repeat(64), signedBy: 'alice' });
+  assert.equal(s.ok, false);
+  assert.match(s.reds[0], /not a green draft/);
+  noFlow(root);
+});
+
+test('sign: an existing flow is never overwritten', async () => {
+  const { r, dir } = await makeDraft();
+  assert.equal(signDraft({ dir, approve: r.hash, signedBy: 'alice' }).ok, true);
+  const again = signDraft({ dir, approve: r.hash, signedBy: 'bob' });
+  assert.equal(again.ok, false);
+  assert.match(again.reds[0], /already exists/);
+});
+
+test('cli sign: wrong hash exits non-zero with no flow; right hash signs as --signed-by', () => {
+  const s = cliSetup();
+  cli(['draft', s.proseFile, '--out', s.dir, '--root', s.root, '--name', 'job2'], fakeEnv());
+  const hash = readFileSync(path.join(s.dir, SPEC_HASH_FILE), 'utf8').trim();
+  let r = cli(['sign', s.dir, '--approve', 'f'.repeat(64)]);
+  assert.notEqual(r.status, 0);
+  assert.ok(!existsSync(flowDirOf(s.root)));
+  r = cli(['sign', s.dir]);
+  assert.notEqual(r.status, 0);
+  r = cli(['sign', s.dir, '--approve', hash, '--signed-by', 'carol']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(readJson(path.join(flowDirOf(s.root), 'signature.json')).signedBy, 'carol');
+});
+
+test('e2e: draft (fake provider) -> sign -> readFlow ok -> runner preflight accepts and reaches the first step', async () => {
+  const { r, root, dir, fx } = await makeDraft();
+  assert.equal(signDraft({ dir, approve: r.hash, signedBy: 'alice' }).ok, true);
+  const read = readFlow({ root, name: 'job2', catalogue: CAT });
+  assert.equal(read.ok, true);
+  const goals = [];
+  const modelStep = async (ctx) => { goals.push(ctx.goal); return { ok: true, costUsd: 0.001, artifact: { text: 'x', done: true } }; };
+  const res = await runFlow({
+    root,
+    name: 'job2',
+    runId: 'run-1',
+    sources: [{ id: 'resume', path: fx.resume }, { id: 'jd', path: fx.jd }],
+    catalogue: CAT,
+    modelStep,
+    askStep: async () => ({ decision: 'reject', reason: 'stop here' }),
+    sendStep: async () => ({ ok: true, bytes: 1 }),
+    primitives: {},
+    businessDate: '2026-09-29',
+  });
+  assert.ok(!['refused', 'preflight-red'].includes(res.outcome), `${res.outcome} ${res.red}`);
+  assert.ok(goals.length >= 1, 'the first fake step ran');
 });
