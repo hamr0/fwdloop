@@ -127,8 +127,9 @@ function extractText(xml) {
   return { text: paragraphs.map(paragraphText).join('\n'), paragraphs: paragraphs.length };
 }
 
-/** @param {string} path @returns {{ok:true,text:string,paragraphs:number}|{ok:false,red:string}} */
-export function readDocxText(path) {
+/** One reader for word/document.xml: the file, the zip entry, the bounded inflate.
+ *  @param {string} path @returns {{ok:true,xml:string}|{ok:false,red:string}} */
+function loadDocumentXml(path) {
   let buf;
   try {
     buf = readFileSync(path);
@@ -139,8 +140,14 @@ export function readDocxText(path) {
   if (entry.red) return { ok: false, red: entry.red };
   const read = readEntryBytes(buf, entry);
   if (read.red || !read.data) return { ok: false, red: read.red ?? 'no data decoded' };
-  const xml = read.data.toString('utf8');
-  const { text, paragraphs } = extractText(xml);
+  return { ok: true, xml: read.data.toString('utf8') };
+}
+
+/** @param {string} path @returns {{ok:true,text:string,paragraphs:number}|{ok:false,red:string}} */
+export function readDocxText(path) {
+  const doc = loadDocumentXml(path);
+  if (!doc.ok) return doc;
+  const { text, paragraphs } = extractText(doc.xml);
   return { ok: true, text, paragraphs };
 }
 
@@ -161,15 +168,7 @@ function extractHeadings(xml) {
 
 /** @param {string} path @returns {{ok:true,headings:string[]}|{ok:false,red:string}} */
 export function readDocxHeadings(path) {
-  let buf;
-  try {
-    buf = readFileSync(path);
-  } catch (e) {
-    return { ok: false, red: `cannot read file: ${e.message}` };
-  }
-  const entry = findEntry(buf);
-  if (entry.red) return { ok: false, red: entry.red };
-  const read = readEntryBytes(buf, entry);
-  if (read.red || !read.data) return { ok: false, red: read.red ?? 'no data decoded' };
-  return { ok: true, headings: extractHeadings(read.data.toString('utf8')) };
+  const doc = loadDocumentXml(path);
+  if (!doc.ok) return doc;
+  return { ok: true, headings: extractHeadings(doc.xml) };
 }

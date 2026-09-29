@@ -18,6 +18,7 @@ import { readDocxText, readDocxHeadings } from './docx.js';
  * @returns {{ok:boolean, inputFacts:Record<string,string[]>, info:string[], reds:string[]}}
  */
 export function readInputFacts(sources) {
+  /** @type {Record<string,string[]>} */
   const inputFacts = {};
   const info = [];
   const reds = [];

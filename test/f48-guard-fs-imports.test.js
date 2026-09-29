@@ -299,6 +299,10 @@ const ALLOWLIST = {
     reason: 'reads a caller-supplied BUSINESS document path (e.g. resume.docx), not a run/flow-dir book file — documented F48 exemption',
     names: { readFileSync: 1 },
   },
+  'src/input-facts.js': {
+    reason: 'M6a: reads a caller-signed BUSINESS source file (markdown headings) at draft time, $0 — not a run/flow-dir book file; documented F48 exemption like src/docx.js',
+    names: { readFileSync: 1 },
+  },
   'src/primitives.js': {
     reason: 'documented frozen-input reader exemption (F48): reads a frozen input file already sha256-pinned at freeze time, not a relative book-file name under runDir. mkdirSync creates `<runDir>/out` (the write primitive\'s own bareguard-scoped root) ONLY when a step is actually granted `write` — never a raw read/write of run/flow-dir book content.',
     names: { readFileSync: 1, mkdirSync: 1 },
