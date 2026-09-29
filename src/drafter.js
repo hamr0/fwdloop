@@ -16,7 +16,7 @@
 // prices an unpriced round at the ceiling.
 
 import { Loop, HaltError } from 'bare-agent';
-import { parseSignedText } from './signed-text.js';
+import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, SHAPE_KEYS } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
@@ -190,6 +190,8 @@ export async function draft({
   const parsed = parseSignedText(proseText);
   if (!parsed.ok) return fail(parsed.reds.map((r) => `signed-text: ${r}`));
   const { lines, arbiter } = parsed;
+  const ttlReds = unsignedAskTtls(arbiter);
+  if (ttlReds.length) return fail(ttlReds);
   const menu = wiredMenu(skills);
   const facts = readInputFacts(arbiter.sources);
   if (!facts.ok) return fail(facts.reds);

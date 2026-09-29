@@ -431,3 +431,33 @@ test('goal: the running step gets the signed line exactly, and its whole context
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// M6a amendment 1: an ask's wait is signed by the human, never a code default.
+// ---------------------------------------------------------------------------
+test('ttl: a draft whose ask has no signed wait is refused at $0 by name — no provider call, no dir', async () => {
+  const fx = job2Fixture();
+  const { r, dir, provider } = await makeDraft({ prose: fx.prose.replace('4. ask 30m:', '4. ask:') });
+  assert.equal(r.ok, false);
+  assert.equal(r.wrote, false);
+  assert.equal(provider.calls.length, 0);
+  assert.equal(existsSync(dir), false);
+  assert.match(r.reds.join(' '), /the ask on line 4 has no signed wait/);
+});
+
+test('ttl: sign refuses a draft whose prose ask has no signed wait, even with everything re-hashed; no flow', async () => {
+  const { r, root, dir } = await makeDraft();
+  const pf = path.join(dir, 'prose.txt');
+  writeFileSync(pf, readFileSync(pf, 'utf8').replace('4. ask 30m:', '4. ask:'));
+  const s = signDraft({ dir, approve: rehash(dir), signedBy: 'alice' });
+  assert.notEqual(r.hash, undefined);
+  assert.equal(s.ok, false);
+  assert.match(s.reds.join(' '), /the ask on line 4 has no signed wait/);
+  noFlow(root);
+});
+
+test('ttl: a signed "ask 30m:" is accepted and the readout shows the wait the human typed', async () => {
+  const { r, dir } = await makeDraft();
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  assert.match(readFileSync(path.join(dir, 'readout.txt'), 'utf8'), /ttl 30 min/);
+});

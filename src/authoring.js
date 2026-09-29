@@ -17,7 +17,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { draft } from './drafter.js';
-import { parseSignedText } from './signed-text.js';
+import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
@@ -228,6 +228,8 @@ export function signDraft({ dir, approve, signedBy, signedAt = new Date().toISOS
   }
   const signed = parseSignedText(parts['prose.txt']);
   if (!signed.ok) return { ok: false, reds: signed.reds };
+  const ttlReds = unsignedAskTtls(signed.arbiter);
+  if (ttlReds.length) return { ok: false, reds: ttlReds };
   const cat = loadCatalogue();
   if (!cat.ok) return refuse(`sign: catalogue: ${cat.reds.join('; ')}`);
   const verdict = validateDeclaration(declaration, {

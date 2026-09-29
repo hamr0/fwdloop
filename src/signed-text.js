@@ -38,7 +38,7 @@ const CAP_RE = /^cap \$([^\s]+) per run$/i;
 // M1 amendment 3 (docs/wiki/the-module-ladder.md, "M1 amendment 3 — the ask
 // is a mark on its own line — SIGNED by hamr 2026-09-21"): the ask is no
 // longer a bottom-block arbiter line — it is a mark at the START of a
-// numbered job line's own text: `ask:` (default 30m wait) or
+// numbered job line's own text: `ask:` (30m wait — a legacy default, see `unsignedAskTtls`) or
 // `ask <int><s|m|h>:` (explicit wait), the words after the mark being the
 // human's own question. OLD_ASK_ARBITER_RE below only detects the RETIRED
 // bottom-block form (`guardrail: ask at line N`) so it can be refused by
@@ -92,7 +92,7 @@ function parseAskMark(text) {
     if (question.length === 0) {
       return { attempted: true, ok: false, error: 'has no words after the mark' };
     }
-    return { attempted: true, ok: true, ttlMs: DEFAULT_ASK_TTL_MS, question };
+    return { attempted: true, ok: true, ttlMs: DEFAULT_ASK_TTL_MS, ttlSigned: false, question };
   }
   const timed = ASK_MARK_TIMED_RE.exec(text);
   if (timed) {
@@ -105,9 +105,23 @@ function parseAskMark(text) {
     if (question.length === 0) {
       return { attempted: true, ok: false, error: 'has no words after the mark' };
     }
-    return { attempted: true, ok: true, ttlMs: value * UNIT_MS[unit], question };
+    return { attempted: true, ok: true, ttlMs: value * UNIT_MS[unit], ttlSigned: true, question };
   }
   return { attempted: true, ok: false, error: 'is not "ask:" or "ask <int><s|m|h>:"' };
+}
+
+/**
+ * M6a amendment 1: a NEW flow (draft, sign) may not carry an ask whose wait the human never typed. The
+ * parser still fills the legacy 30m default for `ask:` so flows signed before the amendment keep running;
+ * this names each ask that relies on it. Returns [] when every ask carries `ask <int><s|m|h>:`.
+ *
+ * @param {{ asks?: Array<{ line: number, ttlSigned?: boolean }> }} arbiter
+ * @returns {string[]}
+ */
+export function unsignedAskTtls(arbiter) {
+  return (arbiter?.asks ?? [])
+    .filter((a) => a.ttlSigned !== true)
+    .map((a) => `signed-text: the ask on line ${a.line} has no signed wait — write it as "ask <int><s|m|h>:" (e.g. "ask 30m:"); the wait is never a code default`);
 }
 
 /**
@@ -168,7 +182,7 @@ export function parseSignedText(rawText) {
           reds.push(`signed-text: line ${fileLine} field "asks" ${mark.error}: "${rawLineText}"`);
         } else {
           lineText = mark.question;
-          asks.push({ line: n, ttlMs: mark.ttlMs, question: mark.question });
+          asks.push({ line: n, ttlMs: mark.ttlMs, ttlSigned: mark.ttlSigned, question: mark.question });
         }
       }
       current = { n, text: lineText, guardrail: '' };

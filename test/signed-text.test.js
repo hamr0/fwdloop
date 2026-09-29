@@ -28,7 +28,7 @@ describe('real fixtures parse green', () => {
     assert.equal(result.ok, true);
     assert.deepEqual(result.arbiter, {
       capUsd: 0.25,
-      asks: [{ line: 5, ttlMs: 30 * 60000, question: 'check it with me,' }],
+      asks: [{ line: 5, ttlMs: 30 * 60000, ttlSigned: false, question: 'check it with me,' }],
       redoCap: 3,
       sends: [{ line: 6, target: { kind: 'file', path: 'poc/m0/out' } }],
       skills: ['core'],
@@ -48,7 +48,7 @@ describe('real fixtures parse green', () => {
     assert.equal(result.ok, true);
     assert.deepEqual(result.arbiter, {
       capUsd: 0.25,
-      asks: [{ line: 4, ttlMs: 30 * 60000, question: 'check it with me,' }],
+      asks: [{ line: 4, ttlMs: 30 * 60000, ttlSigned: false, question: 'check it with me,' }],
       redoCap: 3,
       sends: [{ line: 5, target: { kind: 'file', path: 'poc/m0/out' } }],
       skills: ['core'],
@@ -66,7 +66,7 @@ describe('real fixtures parse green', () => {
     assert.equal(result.ok, true);
     assert.deepEqual(result.arbiter, {
       capUsd: 0.25,
-      asks: [{ line: 4, ttlMs: 30 * 60000, question: 'check it with me,' }],
+      asks: [{ line: 4, ttlMs: 30 * 60000, ttlSigned: false, question: 'check it with me,' }],
       redoCap: 3,
       sends: [{ line: 5, target: { kind: 'file', path: 'poc/m0/out' } }],
       skills: ['core'],
@@ -126,7 +126,7 @@ const BASE_ARBITER = {
 
 const BASE_EXPECTED_ARBITER = {
   capUsd: 0.25,
-  asks: [{ line: 3, ttlMs: 45 * 60000, question: 'Step three, this is the ask point.' }],
+  asks: [{ line: 3, ttlMs: 45 * 60000, ttlSigned: true, question: 'Step three, this is the ask point.' }],
   redoCap: 2,
   sends: [{ line: 4, target: { kind: 'file', path: 'out/result.txt' } }],
   skills: ['core', 'custom'],
@@ -396,7 +396,7 @@ describe('the ask mark (M1 amendment 3)', () => {
       const result = parseSignedText(text);
       assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
       assert.deepEqual(result.arbiter.asks, [
-        { line: 3, ttlMs: 30 * 60000, question: 'check it with me,' },
+        { line: 3, ttlMs: 30 * 60000, ttlSigned: false, question: 'check it with me,' },
       ]);
       assert.equal(result.lines.find((l) => l.n === 3).text, 'check it with me,');
     });
@@ -406,7 +406,7 @@ describe('the ask mark (M1 amendment 3)', () => {
       const result = parseSignedText(text);
       assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
       assert.deepEqual(result.arbiter.asks, [
-        { line: 3, ttlMs: 45 * 1000, question: 'check it with me,' },
+        { line: 3, ttlMs: 45 * 1000, ttlSigned: true, question: 'check it with me,' },
       ]);
     });
 
@@ -415,7 +415,7 @@ describe('the ask mark (M1 amendment 3)', () => {
       const result = parseSignedText(text);
       assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
       assert.deepEqual(result.arbiter.asks, [
-        { line: 3, ttlMs: 45 * 60000, question: 'check it with me,' },
+        { line: 3, ttlMs: 45 * 60000, ttlSigned: true, question: 'check it with me,' },
       ]);
     });
 
@@ -424,7 +424,7 @@ describe('the ask mark (M1 amendment 3)', () => {
       const result = parseSignedText(text);
       assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
       assert.deepEqual(result.arbiter.asks, [
-        { line: 3, ttlMs: 2 * 3600000, question: 'check it with me,' },
+        { line: 3, ttlMs: 2 * 3600000, ttlSigned: true, question: 'check it with me,' },
       ]);
     });
   });
@@ -498,7 +498,7 @@ describe('the ask mark (M1 amendment 3)', () => {
     const result = parseSignedText(text);
     assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
     assert.deepEqual(result.arbiter.asks, [
-      { line: 3, ttlMs: 15 * 60000, question: 'check it with me,' },
+      { line: 3, ttlMs: 15 * 60000, ttlSigned: true, question: 'check it with me,' },
     ]);
     assert.equal(result.lines.find((l) => l.n === 3).guardrail, 'nothing goes out before I accept');
   });
@@ -532,8 +532,8 @@ describe('the ask mark (M1 amendment 3)', () => {
     const result = parseSignedText(text);
     assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
     assert.deepEqual(result.arbiter.asks, [
-      { line: 1, ttlMs: 30 * 60000, question: 'first question,' },
-      { line: 3, ttlMs: 10 * 60000, question: 'second question,' },
+      { line: 1, ttlMs: 30 * 60000, ttlSigned: false, question: 'first question,' },
+      { line: 3, ttlMs: 10 * 60000, ttlSigned: true, question: 'second question,' },
     ]);
   });
 });
