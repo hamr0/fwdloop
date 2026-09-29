@@ -33,6 +33,7 @@ import { resolvePrimitives } from '../src/primitives.js';
 import { checkKeyPreflight } from '../src/provider.js';
 import { answerAsk, readAskEvidence } from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
+import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
 import { draftToDir, signDraft, SIGN_LINE, costText } from '../src/authoring.js';
 import { userInfo } from 'node:os';
 
@@ -588,7 +589,7 @@ async function cmdDraft(rest) {
   process.stdout.write(`${SIGN_LINE(resolve(values.out), result.hash)}\n`);
 }
 
-function cmdSign(rest) {
+async function cmdSign(rest) {
   const { values, positionals } = parseArgs({
     args: rest,
     options: { approve: { type: 'string' }, 'signed-by': { type: 'string' } },
@@ -596,6 +597,15 @@ function cmdSign(rest) {
   });
   const dir = positionals[0];
   if (!dir) fail('sign: a draft dir is required — fwdloop sign <dir> --approve <hash>');
+  // Amendment 2: a person at a keyboard. TTY check first (cheapest), then the typed flow name; only then
+  // signDraft's own $0 checks (hash, wired, goals, TTL, sources, send, leak). signDraft writes only on success.
+  if (!isInteractive()) fail(`sign refused — ${NEEDS_TTY}`);
+  let flowName;
+  const tj = readFileInside(resolve(dir), 'target.json');
+  try { flowName = tj.ok ? JSON.parse(tj.text).name : undefined; } catch { flowName = undefined; }
+  if (typeof flowName !== 'string' || flowName === '') fail('sign refused — the draft has no readable target.json name');
+  const typed = await confirmTypedName({ name: flowName });
+  if (!typed.ok) fail(`sign refused — ${typed.red}`);
   const result = signDraft({
     dir: resolve(dir), approve: values.approve, signedBy: values['signed-by'] ?? userInfo().username,
   });

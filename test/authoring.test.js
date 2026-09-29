@@ -332,18 +332,67 @@ test('sign: an existing flow is never overwritten', async () => {
   assert.match(again.reds[0], /already exists/);
 });
 
-test('cli sign: wrong hash exits non-zero with no flow; right hash signs as --signed-by', () => {
+// A real pseudo-TTY via python3's stdlib pty (no `script`/`expect` on this box; skipped, not faked, if absent).
+const PTY_PY = `
+import os, pty, sys, time
+args, typed = sys.argv[1:-1], sys.argv[-1]
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp(args[0], args)
+time.sleep(0.5)
+os.write(fd, (typed + "\\n").encode())
+out = b""
+while True:
+    try:
+        b = os.read(fd, 4096)
+    except OSError:
+        break
+    if not b:
+        break
+    out += b
+_, st = os.waitpid(pid, 0)
+sys.stdout.write(out.decode(errors="replace"))
+sys.exit(os.waitstatus_to_exitcode(st))
+`;
+const HAS_PTY = spawnSync('python3', ['-c', 'import pty']).status === 0;
+const ptyCli = (args, typed) => spawnSync('python3', ['-c', PTY_PY, process.execPath, BIN, ...args, typed], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '' } });
+
+function draftedForSign() {
   const s = cliSetup();
   cli(['draft', s.proseFile, '--out', s.dir, '--root', s.root, '--name', 'job2'], fakeEnv());
-  const hash = readFileSync(path.join(s.dir, SPEC_HASH_FILE), 'utf8').trim();
-  let r = cli(['sign', s.dir, '--approve', 'f'.repeat(64)]);
+  return { s, hash: readFileSync(path.join(s.dir, SPEC_HASH_FILE), 'utf8').trim() };
+}
+
+test('cli sign: piped stdin (no TTY) is refused by name, no flow, even with the right hash', () => {
+  const { s, hash } = draftedForSign();
+  const r = spawnSync(process.execPath, [BIN, 'sign', s.dir, '--approve', hash], { encoding: 'utf8', input: 'job2\n', env: { PATH: process.env.PATH ?? '' } });
   assert.notEqual(r.status, 0);
-  assert.ok(!existsSync(flowDirOf(s.root)));
-  r = cli(['sign', s.dir]);
+  assert.match(r.stderr, /sign needs an interactive terminal — run it yourself/);
+  assert.ok(!existsSync(flowDirOf(s.root)), 'no flow written');
+});
+
+test('cli sign (real pty): wrong typed name is refused, no flow', { skip: !HAS_PTY }, () => {
+  const { s, hash } = draftedForSign();
+  const r = ptyCli(['sign', s.dir, '--approve', hash], 'nope');
   assert.notEqual(r.status, 0);
-  r = cli(['sign', s.dir, '--approve', hash, '--signed-by', 'carol']);
-  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /typed name does not match/);
+  assert.ok(!existsSync(flowDirOf(s.root)), 'no flow written');
+});
+
+test('cli sign (real pty): right name + right hash signs; right name + wrong hash still refused', { skip: !HAS_PTY }, () => {
+  const { s, hash } = draftedForSign();
+  let r = ptyCli(['sign', s.dir, '--approve', 'f'.repeat(64)], 'job2');
+  assert.notEqual(r.status, 0);
+  assert.ok(!existsSync(flowDirOf(s.root)), 'existing $0 checks still run under a TTY');
+  r = ptyCli(['sign', s.dir, '--approve', hash, '--signed-by', 'carol'], 'job2');
+  assert.equal(r.status, 0, r.stdout);
   assert.equal(readJson(path.join(flowDirOf(s.root), 'signature.json')).signedBy, 'carol');
+});
+
+test('cli sign: missing --approve / dir still exit non-zero', () => {
+  const { s } = draftedForSign();
+  assert.notEqual(cli(['sign', s.dir]).status, 0);
+  assert.notEqual(cli(['sign']).status, 0);
 });
 
 test('e2e: draft (fake provider) -> sign -> readFlow ok -> runner preflight accepts and reaches the first step', async () => {
@@ -629,4 +678,23 @@ test('draft: a thrown call after a priced round returns spendComplete:false (dra
   assert.equal(g.r.spendComplete, true);
   assert.equal(readSpendRows(path.join(g.dir, 'spend.jsonl'))[0].spendComplete, true);
   assert.match(readFileSync(path.join(g.dir, 'readout.txt'), 'utf8'), /cost \$0\./);
+});
+
+import { PassThrough } from 'node:stream';
+import { confirmTypedName, isInteractive } from '../src/sign-confirm.js';
+
+test('confirmTypedName: exact trimmed match ok; mismatch, empty and EOF refuse', async () => {
+  const ask = async (text) => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const p = confirmTypedName({ name: 'job2', input, output });
+    if (text === null) input.end(); else input.write(`${text}\n`);
+    return p;
+  };
+  assert.equal((await ask('  job2  ')).ok, true);
+  assert.equal((await ask('Job2')).ok, false);
+  assert.equal((await ask('')).ok, false);
+  assert.match((await ask(null)).red, /does not match/);
+  assert.equal(isInteractive({ isTTY: true }, { isTTY: false }), false);
+  assert.equal(isInteractive({ isTTY: true }, { isTTY: true }), true);
 });

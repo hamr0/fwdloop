@@ -29,6 +29,9 @@ verbatim and requires every ask's wait to be signed.
   `{ type: 'disabled' }` (F49). Deps: `bare-agent` bumped to `^0.49.0`.
 - Amendment 1: each step's `goal` is its signed line, verbatim, set by the machine at draft
   and refused at sign if edited; an ask needs a signed wait (`ask 30m:`), never a code default.
+- Amendment 2: `fwdloop sign` needs an interactive terminal (stdin and stdout TTYs) and a typed flow
+  name; piped or scripted input is refused and no flow is written. It raises the bar, it is not
+  proof of a person (a script can fake a TTY). `signDraft` stays a library for tests.
 
 ### Changed (breaking for authoring)
 - Prose with a bare `ask:` (no signed wait) is now refused by `draft`/`sign`; write `ask 30m:`.
