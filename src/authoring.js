@@ -14,7 +14,9 @@
 // spend.jsonl (a record of how the draft was made, not of what is signed).
 
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync, mkdirSync, readFileSync, rmdirSync, writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 
 import { draft } from './drafter.js';
@@ -157,15 +159,30 @@ export async function draftToDir({
   }
   const secrets = secretVar && env[secretVar] ? [env[secretVar]] : [];
   if (secrets.some((s) => s.length >= 8 && prose.text.includes(s))) return refuse(['prose: contains an API key value — refused']);
-  if (existsSync(dir)) return refuse([`draft: "${dir}" already exists — never overwritten, use a new dir`]);
+  // Claim the dir BEFORE the paid round (exclusive mkdir: a race or an existing path refuses at $0).
+  const exists = () => refuse([`draft: "${dir}" already exists — never overwritten, use a new dir`]);
+  if (existsSync(dir)) return exists();
+  try {
+    mkdirSync(path.dirname(path.resolve(dir)), { recursive: true });
+    mkdirSync(dir);
+  } catch (e) {
+    return e.code === 'EEXIST' ? exists() : refuse([`draft: cannot create "${dir}": ${e.code ?? e.message}`]);
+  }
 
   const result = await draft({
     proseText: prose.text, slot, model, budgetUsd, provider, rates, modelId,
   });
-  if (result.stop === 'pre-flight') return refuse(result.reds);
+  if (result.stop === 'pre-flight') {
+    try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }
+    return refuse(result.reds);
+  }
 
+  // After a paid round: never a silent throw. The cost is returned so the caller prints it; the dir is claimed and stays.
+  const paidFail = (red) => ({
+    ok: false, wrote: true, dir, reds: [red], costUsd: result.costUsd, stop: 'write', rounds: result.rounds, leaks: 0,
+  });
   const parsed = parseSignedText(prose.text); // the drafter already proved it parses
-  if (!parsed.ok) return refuse(parsed.reds);
+  if (!parsed.ok) return paidFail(`parse: ${parsed.reds.join('; ')}`);
   const dj = (o) => `${JSON.stringify(o, null, 2)}\n`;
   const files = {};
   files['prose.txt'] = prose.text; // verbatim
@@ -189,32 +206,36 @@ export async function draftToDir({
     const h = specHash({
       proseText: prose.text, declarationText, inputFactsText, readoutText, targetText,
     });
-    if (!h.ok) return { ok: false, wrote: false, reds: [h.red], costUsd: result.costUsd };
+    if (!h.ok) return paidFail(`hash: ${h.red}`);
     hash = h.hash; // spec.hash is written only after a clean sweep, below
   } else if (result.declaration) {
     files['declaration.rejected.json'] = scrub(dj(result.declaration), secrets);
   }
 
-  mkdirSync(path.dirname(path.resolve(dir)), { recursive: true });
-  mkdirSync(dir);
-  for (const [f, text] of Object.entries(files)) writeFileSync(path.join(dir, f), text);
-  appendSpendRow(path.join(dir, 'spend.jsonl'), {
-    kind: 'draft',
-    model: result.modelId ?? modelId ?? null,
-    modelReturned: result.modelReturned,
-    tokens: result.tokens ?? null,
-    costUsd: result.costUsd, // null when any round was unpriced — never 0
-    rounds: result.rounds,
-    stop: result.stop,
-    budgetUsd,
-  });
-  const leaks = sweepForSecrets(dir, secrets);
-  if (leaks > 0) {
-    const red = `scrub: ${leaks} file(s) in the draft dir contain a key value`;
-    writeFileSync(path.join(dir, LEAK_MARKER_FILE), `${red}\n`); // no spec.hash; sign also refuses on this marker
-    return { ok: false, wrote: true, reds: [red], costUsd: result.costUsd, leaks };
+  // The spend is booked FIRST, so a later write failure cannot leave a paid round unbooked.
+  let leaks;
+  try {
+    appendSpendRow(path.join(dir, 'spend.jsonl'), {
+      kind: 'draft',
+      model: result.modelId ?? modelId ?? null,
+      modelReturned: result.modelReturned,
+      tokens: result.tokens ?? null,
+      costUsd: result.costUsd, // null when any round was unpriced — never 0
+      rounds: result.rounds,
+      stop: result.stop,
+      budgetUsd,
+    });
+    for (const [f, text] of Object.entries(files)) writeFileSync(path.join(dir, f), text);
+    leaks = sweepForSecrets(dir, secrets);
+    if (leaks > 0) {
+      const red = `scrub: ${leaks} file(s) in the draft dir contain a key value`;
+      writeFileSync(path.join(dir, LEAK_MARKER_FILE), `${red}\n`); // no spec.hash; sign also refuses on this marker
+      return { ok: false, wrote: true, reds: [red], costUsd: result.costUsd, leaks };
+    }
+    if (hash) writeFileSync(path.join(dir, SPEC_HASH_FILE), `${hash}\n`);
+  } catch (e) {
+    return paidFail(`write failed after the paid round (${e.code ?? e.message}); the draft dir is incomplete and never signable`);
   }
-  if (hash) writeFileSync(path.join(dir, SPEC_HASH_FILE), `${hash}\n`);
   return {
     ok: result.ok, wrote: true, dir, hash, reds: result.reds, costUsd: result.costUsd, stop: result.stop, rounds: result.rounds, leaks: 0,
   };

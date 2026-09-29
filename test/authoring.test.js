@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  existsSync, readFileSync, writeFileSync, readdirSync, rmSync,
+  existsSync, readFileSync, writeFileSync, readdirSync, rmSync, mkdirSync, chmodSync,
 } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
@@ -518,4 +518,76 @@ test('sign re-sweeps: a key planted in the draft dir after draft is refused when
   assert.equal(s.ok, false);
   assert.match(s.reds.join(' '), /contains a key value/);
   noFlow(root);
+});
+
+/** A provider that runs `hook()` inside its (paid) round, then answers with a valid declaration. */
+function hookedProvider(hook) {
+  const inner = fakeProvider([toolReply(validArgs())]);
+  return {
+    ...inner,
+    get lastMalformedToolCall() { return inner.lastMalformedToolCall; },
+    async generate(...a) { hook(); return inner.generate(...a); },
+  };
+}
+
+function draftSetup(tag) {
+  const fx = job2Fixture();
+  const work = tmp(tag);
+  const proseFile = path.join(work, 'prose.txt');
+  writeFileSync(proseFile, fx.prose);
+  return { work, proseFile, dir: path.join(work, 'draft'), root: path.join(work, 'flows') };
+}
+
+test('draft: an existing dir (a directory too) is refused at $0 — no provider call, contents untouched', async () => {
+  const s = draftSetup('claim');
+  mkdirSync(s.dir);
+  writeFileSync(path.join(s.dir, 'keep.txt'), 'mine');
+  const p = fakeProvider([toolReply(validArgs())]);
+  const r = await draftToDir({ ...s, name: 'job2', provider: p, rates: RATES, modelId: MODEL, env: {} });
+  assert.equal(r.wrote, false);
+  assert.equal(r.costUsd, 0);
+  assert.match(r.reds[0], /already exists/);
+  assert.equal(p.calls.length, 0);
+  assert.equal(readFileSync(path.join(s.dir, 'keep.txt'), 'utf8'), 'mine');
+});
+
+test('draft: the dir is claimed BEFORE the paid round — a racing second draft to the same dir refuses at $0', async () => {
+  const s = draftSetup('race');
+  const p2 = fakeProvider([toolReply(validArgs())]);
+  let racer;
+  const p1 = hookedProvider(() => {
+    assert.ok(existsSync(s.dir), 'dir already claimed while the paid round runs');
+    racer = draftToDir({ ...s, name: 'job2', provider: p2, rates: RATES, modelId: MODEL, env: {} });
+  });
+  const r1 = await draftToDir({ ...s, name: 'job2', provider: p1, rates: RATES, modelId: MODEL, env: {} });
+  const r2 = await racer;
+  assert.equal(r1.ok, true, JSON.stringify(r1.reds));
+  assert.equal(r2.wrote, false);
+  assert.match(r2.reds[0], /already exists/);
+  assert.equal(p2.calls.length, 0);
+});
+
+test('draft: a $0 pre-flight refusal after the claim leaves no dir behind', async () => {
+  const s = draftSetup('pre');
+  const r = await draftToDir({
+    ...s, name: 'job2', provider: fakeProvider([toolReply(validArgs())]), rates: RATES, modelId: MODEL, env: {}, budgetUsd: 0.005,
+  });
+  assert.equal(r.wrote, false);
+  assert.match(r.reds[0], /minimum budget/);
+  assert.ok(!existsSync(s.dir), 'claimed dir removed on a $0 refusal');
+});
+
+test('draft: a write failure after the paid round still returns the cost, non-ok, with a clear red', async () => {
+  const s = draftSetup('wfail');
+  const p = hookedProvider(() => chmodSync(s.dir, 0o500)); // read-only dir: every write fails
+  let r;
+  try {
+    r = await draftToDir({ ...s, name: 'job2', provider: p, rates: RATES, modelId: MODEL, env: {} });
+  } finally {
+    chmodSync(s.dir, 0o700);
+  }
+  assert.equal(r.ok, false);
+  assert.ok(r.costUsd > 0, 'the paid cost is reported');
+  assert.match(r.reds[0], /write failed after the paid round/);
+  assert.ok(!existsSync(path.join(s.dir, SPEC_HASH_FILE)));
 });
