@@ -144,9 +144,26 @@ test('a malformed tool-call twice in a row reds naming it distinctly, metered bo
   assert.equal(result.ok, false);
   assert.match(result.red, /arguments were not valid JSON twice in a row/);
   assert.match(result.red, /bad json at 8/);
+  assert.match(result.red, /; raw: \{"a":1\}\}$/);
   const rows = readSpendRows(spendPath);
   assert.equal(rows.length, 2, 'one spend row per round');
   assert.ok(rows.every((r) => typeof r.costUsd === 'number'));
+});
+
+test('a truncated rawArguments marker adds \" (truncated)\" to the red', async () => {
+  const provider = fakeAlwaysMalformedProvider();
+  const orig = provider.generate;
+  provider.generate = async function generate() {
+    const r = await orig.call(this);
+    this.lastMalformedToolCall = { ...this.lastMalformedToolCall, rawTruncated: true };
+    return r;
+  };
+  const modelStep = makeLiveModelStep({
+    spendPath: tmpSpendPath(), provider, rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash',
+  });
+  const result = await modelStep(CTX, {}, { class: 'hitl' });
+  assert.match(result.red, /not valid JSON twice/);
+  assert.match(result.red, /; raw: \{"a":1\}\} \(truncated\)$/);
 });
 
 test('PROOF the above can fail: a malformed round followed by a clean one is ok:true', async () => {

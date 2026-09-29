@@ -31,14 +31,15 @@ import { OpenAI } from 'bare-agent/providers';
  * As of 0.47, `OpenAI.generate()` (bare-agent/src/provider-openai.js, via
  * `provider-toolcalls.js`'s `parseToolCalls`) no longer throws: it resolves
  * normally with `toolCalls: []` and a `malformedToolCall: { name, error }`
- * field already on the result (no `rawArguments` — bare-agent never repairs
- * or echoes the raw string back). `Loop.run()` does not forward unknown
+ * field already on the result. As of 0.48 the constructor option
+ * `exposeMalformedArgs: true` (set in `makeProvider`) adds `rawArguments`
+ * (capped upstream at 500 chars, `rawTruncated: true` when clipped). `Loop.run()` does not forward unknown
  * `generate()` fields into its own return, so this wrapper ALSO stashes the
  * marker on the instance (`this.lastMalformedToolCall`, reset at the top of
  * every `generate()` call) — the one channel `runModelStepOnPrimitives`
  * (same provider reference) can read after `loop.run()` returns. We require
  * bare-agent >=0.47 (package.json `^0.47.0`) and never patch around its
- * private response internals — no `rawArguments` recovery here.
+ * private response internals.
  */
 class MalformedToolCallTolerantOpenAI extends OpenAI {
   async generate(messages, tools = [], options = {}) {
@@ -308,6 +309,9 @@ export function makeProvider(slotName, options = {}) {
     model: modelId,
     baseUrl: slot.baseUrl,
     legacyMaxTokens: slot.legacyMaxTokens === true,
+    // bare-agent >=0.48: opt in to the raw broken tool-call arguments on
+    // `malformedToolCall` (capped upstream at 500 chars). Not exposeErrorBody.
+    exposeMalformedArgs: true,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
     ...(deadlineMs !== undefined ? { deadlineMs } : {}),
   });
