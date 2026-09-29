@@ -591,3 +591,42 @@ test('draft: a write failure after the paid round still returns the cost, non-ok
   assert.match(r.reds[0], /write failed after the paid round/);
   assert.ok(!existsSync(path.join(s.dir, SPEC_HASH_FILE)));
 });
+
+// ---------------------------------------------------------------------------
+// A failed provider call leaves the draft's cost incomplete (runner convention: spendComplete:false, priced floor).
+// ---------------------------------------------------------------------------
+test('draft: validator-red then a thrown provider call books spendComplete:false and never prints a plain total', async () => {
+  const s = cliSetup();
+  const r = cli(['draft', s.proseFile, '--out', s.dir, '--root', s.root, '--name', 'job2'], fakeEnv({ FWDLOOP_TEST_DRAFT_MODE: 'timeout' }));
+  assert.notEqual(r.status, 0);
+  const rows = readSpendRows(path.join(s.dir, 'spend.jsonl'));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].spendComplete, false);
+  assert.equal(rows[0].stop, 'provider-red');
+  assert.equal(rows[0].rounds, 1, 'rounds = metered rounds');
+  assert.equal(rows[0].calls, 2, 'calls = provider calls made');
+  assert.ok(rows[0].costUsd > 0, 'the priced floor is kept');
+  const lg = readJson(path.join(s.dir, 'log.json'));
+  assert.equal(lg.spendComplete, false);
+  assert.match(r.stdout, /cost: at least \$0\.\d{4} \(incomplete/);
+  assert.ok(!/cost: \$/.test(r.stdout), r.stdout);
+});
+
+test('draft: a thrown call after a priced round returns spendComplete:false (drafter level); a green draft is complete', async () => {
+  const bad = validArgs();
+  bad.steps[2].primitives = ['stash'];
+  const p = fakeProvider([toolReply(bad)]);
+  const gen = p.generate.bind(p);
+  p.generate = async (...a) => { if (p.calls.length >= 1) throw Object.assign(new Error('x'), { code: 'ETIMEDOUT' }); return gen(...a); };
+  const fx = job2Fixture();
+  const { draft } = await import('../src/drafter.js');
+  const r = await draft({ proseText: fx.prose, provider: p, rates: RATES, modelId: MODEL });
+  assert.equal(r.stop, 'provider-red');
+  assert.equal(r.spendComplete, false);
+  assert.equal(r.calls, 2);
+  assert.equal(r.rounds, 1);
+  const g = await makeDraft();
+  assert.equal(g.r.spendComplete, true);
+  assert.equal(readSpendRows(path.join(g.dir, 'spend.jsonl'))[0].spendComplete, true);
+  assert.match(readFileSync(path.join(g.dir, 'readout.txt'), 'utf8'), /cost \$0\./);
+});

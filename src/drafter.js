@@ -176,7 +176,7 @@ export const DRAFT_PROVIDER_OPTIONS = Object.freeze({ ...LIVE_PROVIDER_OPTIONS, 
  * key — the batch preflights first). `budgetUsd` is this draft's hard cap.
  * `makeProviderFn` is a test seam: the live-provider factory (default `makeProvider`).
  *
- * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number,
+ * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number, calls:number, spendComplete:boolean,
  *   costUsd:number|null, modelReturned:string|null, modelId?:string, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[]}>}
  */
 export async function draft({
@@ -184,7 +184,7 @@ export async function draft({
   budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider,
 }) {
   const fail = (reds, extra = {}) => ({
-    ok: false, declaration: null, reds, rounds: 0, costUsd: 0, modelReturned: null, structureRetries: 0, revisions: 0, stop: 'pre-flight', log: [], ...extra,
+    ok: false, declaration: null, reds, rounds: 0, calls: 0, spendComplete: true, costUsd: 0, modelReturned: null, structureRetries: 0, revisions: 0, stop: 'pre-flight', log: [], ...extra,
   });
 
   // ---- $0 gates, before any provider is built -------------------------------
@@ -228,6 +228,8 @@ export async function draft({
   let nextKind = 'first'; // what the round about to run actually is
   let validatorReds = []; // the last validator refusal; a structure retry after a revision must not drop it
   let stop = null;
+  let calls = 0; // provider calls made (a call that threw before metering is in `calls`, not in `rounds`)
+  let unmetered = 0; // calls that failed with no metering: their cost is unknown
 
   for (;;) {
     // Budget: spend so far (an unpriced round counts at its ceiling) + one more
@@ -248,6 +250,7 @@ export async function draft({
     });
     let result;
     let threw = null;
+    calls += 1;
     try {
       result = await loop.run(
         [{ role: 'system', content: system }, { role: 'user', content: userText }],
@@ -256,6 +259,7 @@ export async function draft({
       );
     } catch (err) {
       threw = err;
+      if (roundEvents.length === 0) unmetered += 1;
     }
     const entry = { round: log.length + 1, kind: nextKind };
 
@@ -297,7 +301,7 @@ export async function draft({
       log.push(entry);
       const m = sumMeterings(meterings);
       return {
-        ok: true, declaration, reds: [], rounds: m.rounds, costUsd: m.costUsd, modelReturned: m.model, modelId, tokens: m.tokens, structureRetries, revisions, stop: null, log,
+        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, tokens: m.tokens, structureRetries, revisions, stop: null, log,
       };
     }
     lastReds = [...verdict.reds];
@@ -312,7 +316,9 @@ export async function draft({
   }
 
   const m = sumMeterings(meterings);
+  // Runner convention: `costUsd` is the priced floor (null when nothing priced), and `spendComplete:false` marks a
+  // call that failed unmetered or a round left unpriced — the number is then "at least", never the whole.
   return {
-    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, costUsd: m.costUsd, modelReturned: m.model, modelId, tokens: m.tokens, structureRetries, revisions, stop, log,
+    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, tokens: m.tokens, structureRetries, revisions, stop, log,
   };
 }

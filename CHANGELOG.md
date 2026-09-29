@@ -36,6 +36,7 @@ verbatim and requires every ask's wait to be signed.
 - The drafter no longer authors `goal` (removed from its forced schema).
 
 ### Fixed
+- A drafter provider call that failed with no metering (e.g. a timeout after a priced round) was booked and printed as a complete cost. The draft result, the booked spend row, the readout and the CLI's `cost:` now carry `spendComplete:false` ("at least $X", the runner's convention) and `calls` counts every provider call.
 - F50: the drafter paraphrased goals and dropped prose detail ("200ish each"); goals are now the
   signed line verbatim. Prose-only sizes are still judged only by the human at the ask.
 - The catalogue's `compress` is described as a code shrinker, not a text shortener (the drafter

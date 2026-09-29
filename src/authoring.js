@@ -89,13 +89,18 @@ export function fmtTtl(ms) {
   return `${ms}ms`;
 }
 
-const usd = (n) => (n == null ? 'UNKNOWN (unpriced round)' : `$${n.toFixed(4)}`);
+/** One cost renderer: an incomplete total is "at least", never a bare number. */
+export const costText = (n, spendComplete = true) => {
+  if (n == null) return 'UNKNOWN (unpriced round)';
+  return spendComplete === false ? `at least $${n.toFixed(4)} (incomplete: a provider call is unpriced)` : `$${n.toFixed(4)}`;
+};
+const usd = costText;
 
 /** Plain-text readout of what the human is about to sign. Pure. */
-export function buildReadout({ declaration, arbiter, lines, name, modelId, costUsd, rounds }) {
+export function buildReadout({ declaration, arbiter, lines, name, modelId, costUsd, rounds, spendComplete }) {
   const out = [];
   out.push(`DRAFT READOUT — NOT SIGNED — flow "${name}"`, '');
-  out.push(`Drafted by: ${modelId ?? '?'} in ${rounds} round(s), cost ${usd(costUsd)}`);
+  out.push(`Drafted by: ${modelId ?? '?'} in ${rounds} round(s), cost ${usd(costUsd, spendComplete)}`);
   out.push(`Cap per run (signed by you in the prose): $${arbiter.capUsd}`, '');
   out.push('INPUTS');
   for (const s of arbiter.sources) {
@@ -179,7 +184,7 @@ export async function draftToDir({
 
   // After a paid round: never a silent throw. The cost is returned so the caller prints it; the dir is claimed and stays.
   const paidFail = (red) => ({
-    ok: false, wrote: true, dir, reds: [red], costUsd: result.costUsd, stop: 'write', rounds: result.rounds, leaks: 0,
+    ok: false, wrote: true, dir, reds: [red], costUsd: result.costUsd, spendComplete: result.spendComplete, stop: 'write', rounds: result.rounds, calls: result.calls, leaks: 0,
   });
   const parsed = parseSignedText(prose.text); // the drafter already proved it parses
   if (!parsed.ok) return paidFail(`parse: ${parsed.reds.join('; ')}`);
@@ -189,7 +194,7 @@ export async function draftToDir({
   const targetText = dj({ root, name });
   files['target.json'] = targetText;
   files['log.json'] = scrub(dj({
-    ok: result.ok, stop: result.stop, reds: result.reds, rounds: result.rounds, costUsd: result.costUsd,
+    ok: result.ok, stop: result.stop, reds: result.reds, rounds: result.rounds, calls: result.calls, costUsd: result.costUsd, spendComplete: result.spendComplete,
     modelId: result.modelId, modelReturned: result.modelReturned, structureRetries: result.structureRetries,
     revisions: result.revisions, log: result.log,
   }), secrets);
@@ -198,7 +203,7 @@ export async function draftToDir({
     const declarationText = scrub(dj(result.declaration), secrets);
     const inputFactsText = scrub(dj(result.declaration.inputFacts), secrets);
     const readoutText = scrub(buildReadout({
-      declaration: result.declaration, arbiter: parsed.arbiter, lines: parsed.lines, name, modelId: result.modelId, costUsd: result.costUsd, rounds: result.rounds,
+      declaration: result.declaration, arbiter: parsed.arbiter, lines: parsed.lines, name, modelId: result.modelId, costUsd: result.costUsd, rounds: result.rounds, spendComplete: result.spendComplete,
     }), secrets);
     files['declaration.json'] = declarationText;
     files['input-facts.json'] = inputFactsText;
@@ -222,6 +227,8 @@ export async function draftToDir({
       tokens: result.tokens ?? null,
       costUsd: result.costUsd, // null when any round was unpriced — never 0
       rounds: result.rounds,
+      calls: result.calls,
+      spendComplete: result.spendComplete,
       stop: result.stop,
       budgetUsd,
     });
@@ -230,14 +237,14 @@ export async function draftToDir({
     if (leaks > 0) {
       const red = `scrub: ${leaks} file(s) in the draft dir contain a key value`;
       writeFileSync(path.join(dir, LEAK_MARKER_FILE), `${red}\n`); // no spec.hash; sign also refuses on this marker
-      return { ok: false, wrote: true, reds: [red], costUsd: result.costUsd, leaks };
+      return { ok: false, wrote: true, reds: [red], costUsd: result.costUsd, spendComplete: result.spendComplete, leaks };
     }
     if (hash) writeFileSync(path.join(dir, SPEC_HASH_FILE), `${hash}\n`);
   } catch (e) {
     return paidFail(`write failed after the paid round (${e.code ?? e.message}); the draft dir is incomplete and never signable`);
   }
   return {
-    ok: result.ok, wrote: true, dir, hash, reds: result.reds, costUsd: result.costUsd, stop: result.stop, rounds: result.rounds, leaks: 0,
+    ok: result.ok, wrote: true, dir, hash, reds: result.reds, costUsd: result.costUsd, spendComplete: result.spendComplete, stop: result.stop, rounds: result.rounds, calls: result.calls, leaks: 0,
   };
 }
 

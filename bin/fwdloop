@@ -33,7 +33,7 @@ import { resolvePrimitives } from '../src/primitives.js';
 import { checkKeyPreflight } from '../src/provider.js';
 import { answerAsk, readAskEvidence } from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
-import { draftToDir, signDraft, SIGN_LINE } from '../src/authoring.js';
+import { draftToDir, signDraft, SIGN_LINE, costText } from '../src/authoring.js';
 import { userInfo } from 'node:os';
 
 // The baseline model (project rule, CLAUDE.md/AGENT_RULES: "deepseek-flash
@@ -573,7 +573,7 @@ async function cmdDraft(rest) {
     budgetUsd: values.budget === undefined ? undefined : Number(values.budget),
     ...injected,
   });
-  const cost = result.costUsd === null ? 'UNKNOWN' : `$${Number(result.costUsd).toFixed(4)}`;
+  const cost = result.costUsd === null ? 'UNKNOWN' : costText(Number(result.costUsd), result.spendComplete);
   if (!result.wrote) {
     process.stderr.write(`fwdloop: draft refused at $0 — ${result.reds.join('; ')}\n`);
     process.exitCode = 1;
