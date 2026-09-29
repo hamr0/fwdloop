@@ -2615,3 +2615,17 @@ dangling-link final component all matched exactly — see `test/switchover-fs-ga
 wrapper. Nothing differed, so nothing was worked around.
 
 **BA-27 follow-up (bare-agent 0.48.0).** `rawArguments` on the malformed-tool-call red is restored via upstream's opt-in constructor option `exposeMalformedArgs: true` (set in `makeProvider`; capped at 500 chars upstream, `rawTruncated: true` when clipped; `exposeErrorBody` stays off). No private-field read. Default-off validated directly against bare-agent's `OpenAI` (`test/provider.test.js`).
+
+#### Debrief 2026-09-29 (F48 round 5 follow-up)
+
+- Symlinked writeScope root escape: when `<runDir>/out` is itself a symlink, a write through it
+  lands outside the tree. Found and reproduced here, reported to bareguard; their reproduction
+  confirmed it, fix pending upstream. fwdloop is deliberately not patching it (no workaround, no
+  lstat check) — it waits on the bareguard fix.
+- Gate refusals were only visible in the model's tool result. Now every bareguard refusal during
+  an attempt is recorded on that attempt's audit row as `refused: [{verb, path, rule}]` (`[]`
+  when none) and on its `log.json` attempt entry, carried by a typed `GateRefusal`, never parsed
+  from the message.
+- `read`/`grep` `role` lookup now uses an own-key check, so `__proto__`/`constructor`/`toString`
+  get the named `no frozen input for role` refusal instead of a raw TypeError.
+- Stale `allowedRoots` comment in `src/primitives.js` reworded to the gate's `readScope`.

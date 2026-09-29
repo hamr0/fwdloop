@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Audit: every model-attempt `audit.jsonl` row (and its `log.json` attempt entry) carries
+  `refused`, an array of `{ verb, path, rule }` for each bareguard fs-gate refusal that attempt
+  (`[]` when none, never omitted). Rows with no model call omit it.
 - Deps: `bareguard` bumped to `^0.19.1` (patch: a file action with no path is denied `fs.invalidPath`; `bash.allow` matches whole words; blank allow entries rejected — none affect fwdloop, which sends absolute paths and grants no bash).
 - Deps: `bare-agent` bumped to `^0.48.0`; `makeProvider` sets `exposeMalformedArgs: true`, so the
   "arguments were not valid JSON twice" red carries the model's raw broken arguments again
@@ -50,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `listArchivedAsks` for the Ask tab (commit 9064e7c).
 
 ### Fixed
+- `read`/`grep` `role` lookup is own-key only: `__proto__`/`constructor`/`toString` now get the named `no frozen input for role` refusal instead of a raw TypeError. Stale `allowedRoots` comment reworded.
 - Fix-once switch-over (fix-ledger "step `write` may overwrite frozen inputs"): `src/primitives.js`
   now routes `read`/`grep`/`write` through a bareguard `Gate` (readScope: the run dir + every
   frozen input's own directory; writeScope: ONLY `<runDir>/out` — the run dir root, `state.json`,
