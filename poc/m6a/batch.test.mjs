@@ -7,7 +7,7 @@ import {
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync } from '../../scripts/tmp-track.mjs';
-import { runBatch, scrub, ledgerTotalUsd } from './batch.mjs';
+import { runBatch, scrub, ledgerTotalUsd, assertRoomForDraft } from './batch.mjs';
 import {
   RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply,
 } from './fixture.mjs';
@@ -67,6 +67,18 @@ test('(e2) an unpriced ledger row counts at its ceiling, never 0', () => {
   const p = path.join(dir, 'spend.jsonl');
   writeFileSync(p, `${JSON.stringify({ runId: 'x', model: MODEL, costUsd: null })}\n`);
   assert.ok(ledgerTotalUsd(p) > 0.02, 'deepseek-flash ceiling is ~$0.0288');
+});
+
+test('(e2b) an incomplete draft row counts its floor plus the unmetered ceiling, and the cap check refuses on it', () => {
+  const dir = outDir();
+  const p = path.join(dir, 'spend.jsonl');
+  // round 1 priced $0.90, round 2 timed out unmetered: costUsd is only the floor
+  writeFileSync(p, `${JSON.stringify({ kind: 'draft', model: MODEL, costUsd: 0.9, rounds: 1, calls: 2, spendComplete: false })}\n`);
+  assert.ok(ledgerTotalUsd(p) >= 0.9 + 0.028, 'floor + one deepseek-flash ceiling');
+  assert.throws(() => assertRoomForDraft(p, 1.0, 0.08), /cap: ledger/);
+  // a complete row with the same floor would have been allowed
+  writeFileSync(p, `${JSON.stringify({ kind: 'draft', model: MODEL, costUsd: 0.9, rounds: 2, calls: 2, spendComplete: true })}\n`);
+  assert.doesNotThrow(() => assertRoomForDraft(p, 1.0, 0.08));
 });
 
 test('(e3) the cap trips MID-batch: later drafts do not start, the reason is recorded', async () => {

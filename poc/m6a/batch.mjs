@@ -46,9 +46,24 @@ export function secretsFromEnv(value) {
   return t === value ? [t] : [t, value];
 }
 
-/** Ledger total, an unpriced (null) row repriced at its model's ceiling — the same rule as src/provider.js. */
+/**
+ * One row's cost, never under-counted. A row with `spendComplete === false` (src/authoring.js: some call died
+ * unmetered) counts its priced floor PLUS one round ceiling per unmetered call — `calls - rounds` when both are
+ * numbers, at least 1. A null cost is an unpriced row at its ceiling, as in src/provider.js. Rows without the
+ * field behave as before.
+ */
+export function rowCostUsd(r) {
+  const ceiling = ceilingCostUsd(r.model ?? DEFAULT_MODEL);
+  if (r.spendComplete === false) {
+    const unmetered = Number.isInteger(r.calls) && Number.isInteger(r.rounds) ? Math.max(1, r.calls - r.rounds) : 1;
+    return (r.costUsd ?? 0) + unmetered * ceiling;
+  }
+  return r.costUsd ?? ceiling;
+}
+
+/** Ledger total: unpriced rows at ceiling, incomplete rows at floor + unmetered ceilings (see rowCostUsd). */
 export function ledgerTotalUsd(spendPath) {
-  return readSpendRows(spendPath).reduce((sum, r) => sum + (r.costUsd ?? ceilingCostUsd(r.model ?? DEFAULT_MODEL)), 0);
+  return readSpendRows(spendPath).reduce((sum, r) => sum + rowCostUsd(r), 0);
 }
 
 /** Refuse (throw) when the ledger plus this draft's hard budget could cross the cap. */
