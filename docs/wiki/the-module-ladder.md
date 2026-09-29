@@ -1055,6 +1055,13 @@ the new forced schema, with no converter. 20 paid drafts on deepseek-flash; bar 
 - **Cap:** $0.30, from M6a's remaining budget.
 - **Not in scope (goes to M6b):** readout/UI wording (see M6).
 
+**Exit evidence (live, 2026-09-29) — NOT SIGNED:** waiting for hamr's signature.
+
+- Draft (`poc/m6a/out/exit-2/draft`): green, 2 rounds (one validator revision), $0.0015; every step goal is the signed line verbatim (line 3 kept "200ish each"); the ask shows hamr's signed wait, "ask 30m:".
+- Run `exit2-run-1` (flow `flows/job2-m6a-2`): summary step attempt 1 a machine red (headings not exact lines, gap-back), attempt 2 green; parked at the ask with sections of about 180/152/145 words (477 total), against 100/45/25 before the fix (exit-1).
+- hamr accepted with no reject; the resume file sent is byte-identical to the accepted artifact (checked).
+- Costs: run $0.01497 (4 priced rows, 0 nulls, modelMatch match); M6a ledger total $0.13630 against the $0.30 cap. Note: "200ish" landed at 145-180 because it is prose-only and only the human judges it (F50 remaining note).
+
 **Not in M6a:** the UI (M6b), editing and versions (M5), an LLM scout, litectx verbs, a settings
 screen.
 
