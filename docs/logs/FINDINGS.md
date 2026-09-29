@@ -2640,3 +2640,9 @@ wrapper. Nothing differed, so nothing was worked around.
   `runFlow`/`resumeRun` take it as `primitiveReds` and refuse at $0 the way an unwired verb is
   refused (no model call; `run`: one history row, no run dir; `resume`: refused before the lock,
   no book row). Remaining gaps unchanged: the check-then-open window, and hardlinks.
+- Debrief 2026-09-29, round 2: with bareguard 0.19.2's construct throw, a symlinked `--root`
+  (or one under a symlinked ancestor, e.g. macOS `/tmp`) refused every `run` and `resume` by
+  name, though it worked before. hamr ruled: the root the human types is followed to its real
+  path once, at command start (`resolveRoot` in `bin/fwdloop`, used by run, resume, inbox, show,
+  answer, panel); nothing else is followed, and everything inside the root stays under
+  bareguard's refusal, including a root swapped to a symlink mid-run. Fixed in 0f0bf4e.

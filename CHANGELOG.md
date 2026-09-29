@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- CLI: `--root` is resolved to its real path once at command start (one helper for run, resume,
+  inbox, show, answer, panel; a missing root fails by name). Everything inside the root stays
+  under bareguard's symlink refusal.
 - Deps: `bareguard` bumped to `^0.19.2` — a symlinked `fs.readScope`/`fs.writeScope` root (or any
   symlinked ancestor) is refused at Gate construction and denied `.symlinkRoot` on every later
   check, closing the `<runDir>/out`-symlink write escape. `resolvePrimitives` turns the construct
