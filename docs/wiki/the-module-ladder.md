@@ -1037,6 +1037,12 @@ the new forced schema, with no converter. 20 paid drafts on deepseek-flash; bar 
 
 **POC bar MET — ruled by hamr 2026-09-29:** m6a-poc-2, 20/20 valid on deepseek-flash (thinking disabled, bare-agent 0.49.0, F49), $0.017; M6a ledger $0.049 of $1.00.
 
+**Exit evidence (live, 2026-09-29) — NOT SIGNED:** waiting for hamr's signature.
+- Draft: `fwdloop draft`, 1 round, $0.0010, green, spec hash 19998ddf…; `sign --approve` wrote flows/job2-m6a.
+- Run parked at the line-4 ask ($0.0287); hamr rejected ("too short"), resume redrafted (attempt 2, shape passed), hamr accepted, send wrote the artifact byte-identical to the accepted summary.
+- Run cost $0.0701 (6 priced rows, 0 nulls, modelMatch "match"); M6a ledger $0.1199 of $1.00.
+- Finding F50 (NOT fixed): the drafter dropped prose-only detail ("200ish each"); the ask caught it.
+
 **Not in M6a:** the UI (M6b), editing and versions (M5), an LLM scout, litectx verbs, a settings
 screen.
 
