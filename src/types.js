@@ -15,6 +15,7 @@
  * @property {number} line - the numbered line this ask binds to (the line
  *   carries the `ask:`/`ask <int><s|m|h>:` mark itself, M1 amendment 3).
  * @property {number} ttlMs - the ask's time-to-live in milliseconds.
+ * @property {boolean} [ttlSigned] - true when the human typed the wait (`ask <int><s|m|h>:`); false on the legacy `ask:` 30m default, which draft and sign refuse (M6a amendment 1).
  * @property {string} question - the words after the mark, trimmed — the
  *   human's own question. Nothing reads this yet outside signed-text.js.
  */

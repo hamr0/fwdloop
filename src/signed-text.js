@@ -80,7 +80,7 @@ const DEFAULT_ROUND_BUDGET_MS = 120000;
  * @param {string} text
  * @returns {{ attempted: false }
  *   | { attempted: true, ok: false, error: string }
- *   | { attempted: true, ok: true, ttlMs: number, question: string }}
+ *   | { attempted: true, ok: true, ttlMs: number, ttlSigned: boolean, question: string }}
  */
 function parseAskMark(text) {
   if (!ASK_MARK_ATTEMPT_RE.test(text)) {
