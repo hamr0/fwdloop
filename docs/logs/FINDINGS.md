@@ -2685,8 +2685,14 @@ budget value was in its reads. The signed guardrail (3 sections, under 600 words
 machine check was correct and green; only hamr's ask caught the lost intent ("too short: each section
 should be ~200 words"). Reject → redraft attempt 2 gave about 200/190/200, shape check passed.
 
-**Not fixed.** Cost of leaving it: any per-section size the human states in prose only is at the
-drafter's discretion; the ask is the backstop, not a check.
+**Fixed by M6a amendment 1** (commits 13b90a5, 51a5332): every step goal is now the signed line
+verbatim (machine-set, refused at sign), and an ask's wait must be signed. Live exit-2: draft green
+(2 rounds, $0.0015); run exit2-run-1 attempt 1 a machine red (headings not exact lines, gap-back),
+attempt 2 green with sections of about 180/152/145 words (477 total); hamr accepted, no reject; run
+cost $0.01497.
+
+**Remaining.** Prose-only size targets are still not machine-checked ("200ish" came out 145-180; only
+the human judges it). Write it as a guardrail (e.g. "each section 150-250 words") to have it enforced.
 
 **Lesson.** Anything the human needs checked mechanically must be a guardrail; prose-only detail
 survives only if the drafter keeps it — the ask is the backstop.
