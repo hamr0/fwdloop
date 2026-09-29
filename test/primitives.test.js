@@ -423,3 +423,12 @@ test('runDir ancestor swapped for a symlink after resolvePrimitives: read and wr
   );
   assert.equal(existsSync(path.join(other, 'out', 'x.txt')), false);
 });
+
+test('M6a: wiredMenu returns only WIRED_VERBS entries, none unwired, and honours skills', async () => {
+  const { wiredMenu, WIRED_VERBS } = await import('../src/primitives.js');
+  const menu = wiredMenu(['core']);
+  assert.ok(menu.length > 0);
+  assert.ok(menu.every((e) => WIRED_VERBS.has(e.verb)), 'every entry is wired');
+  assert.ok(!menu.some((e) => e.verb === 'compress'), 'compress (unwired) is absent');
+  assert.deepEqual(wiredMenu(['nosuchskill']), []);
+});

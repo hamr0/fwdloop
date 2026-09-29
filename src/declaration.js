@@ -249,11 +249,13 @@ function deriveFromLine(fromLine, lines, guardrailClasses) {
  * exception.
  *
  * @param {unknown} declaration
- * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown }} [context]
+ * `wired` (optional Set of verbs): when given, a granted verb outside it is a red
+ * by name, even if the catalogue lists it. Omitted = no wired check (existing callers).
+ * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string> }} [context]
  * @returns {ValidateDeclarationResult}
  */
 export function validateDeclaration(declaration, context = {}) {
-  const { arbiter, lines, catalogue } = context;
+  const { arbiter, lines, catalogue, wired } = context;
   const reds = [];
 
   if (!isPlainObject(declaration)) {
@@ -423,6 +425,10 @@ export function validateDeclaration(declaration, context = {}) {
         const entry = typeof verb === 'string' ? catalogueByVerb.get(verb) : undefined;
         if (!entry) {
           reds.push(`declaration: ${label}.primitives names "${verb}", which is not in the catalogue`);
+          continue;
+        }
+        if (wired && !wired.has(verb)) {
+          reds.push(`declaration: ${label}.primitives "${verb}" is in the catalogue but not wired (no implementation yet)`);
           continue;
         }
         if (!skills.includes(entry.skill)) {
