@@ -5,9 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.0] - 2026-09-29
+
+M4a: a read-only panel over the run books, the F48 symlink-escape class closed, and the
+bareguard/bare-agent switch-over.
 
 ### Added
+- M4a `fwdloop panel [--port 4800] [--root <dir>]` (`src/panel/`, borrowed from bareloop's panel
+  and rewired to fwdloop's own books): a read-only local web panel with Runs (Workflows/History),
+  Run (step map with try-N badges and a dashed retry loop, step cards), Audit (collapsible
+  per-step groups, Blocked/Human filter, time/tokens/cost/tool-tally cells), Job (signed
+  declaration), Ask (open ask plus archived asks, i-of-n) and Inbox (stops list) tabs. It works at
+  390px width. It never writes; an expired unresumed ask draws `[!]`, and unknown data reads as
+  "not recorded", never as a number. Built on one reader per book (`src/panel/data.js`).
 - CLI: `--root` is resolved to its real path once at command start (one helper for run, resume,
   inbox, show, answer, panel; a missing root fails by name). Everything inside the root stays
   under bareguard's symlink refusal.
@@ -18,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   option, wired by `bin/fwdloop`) refuse the run by name at $0.
 - Audit: every model-attempt `audit.jsonl` row (and its `log.json` attempt entry) carries
   `refused`, an array of `{ verb, path, rule }` for each bareguard fs-gate refusal that attempt
-  (`[]` when none, never omitted). Rows with no model call omit it.
+  (`[]` when none, never omitted). Rows with no model call carry `refused: []` too.
 - Deps: `bareguard` bumped to `^0.19.1` (patch: a file action with no path is denied `fs.invalidPath`; `bash.allow` matches whole words; blank allow entries rejected — none affect fwdloop, which sends absolute paths and grants no bash).
 - Deps: `bare-agent` bumped to `^0.48.0`; `makeProvider` sets `exposeMalformedArgs: true`, so the
   "arguments were not valid JSON twice" red carries the model's raw broken arguments again
