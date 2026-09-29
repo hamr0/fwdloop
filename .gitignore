@@ -35,3 +35,7 @@ poc/m1/out/*
 # M2 POC run output (poc/m2/gapback.mjs's per-run jsonl/json + declarations)
 poc/m2/out/*
 !poc/m2/out/spend.jsonl
+
+# M6a POC run output (poc/m6a/batch.mjs per-draft jsonl + declarations)
+poc/m6a/out/*
+!poc/m6a/out/spend.jsonl
