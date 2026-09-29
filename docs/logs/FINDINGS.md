@@ -2613,3 +2613,5 @@ of any `fs.resolveSymlinks` opt-out key, and `noFollowSymlinks`'s `ELOOP` on a s
 dangling-link final component all matched exactly — see `test/switchover-fs-gate.test.js`'s
 "VALIDATION" tests, which call the Gate and the shell tools directly, not through fwdloop's own
 wrapper. Nothing differed, so nothing was worked around.
+
+**BA-27 follow-up (bare-agent 0.48.0).** `rawArguments` on the malformed-tool-call red is restored via upstream's opt-in constructor option `exposeMalformedArgs: true` (set in `makeProvider`; capped at 500 chars upstream, `rawTruncated: true` when clipped; `exposeErrorBody` stays off). No private-field read. Default-off validated directly against bare-agent's `OpenAI` (`test/provider.test.js`).

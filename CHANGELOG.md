@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Deps: `bare-agent` bumped to `^0.48.0`; `makeProvider` sets `exposeMalformedArgs: true`, so the
+  "arguments were not valid JSON twice" red carries the model's raw broken arguments again
+  (`; raw: ...`, capped at 500 chars upstream, ` (truncated)` appended when clipped). Provider
+  error bodies are still not exposed.
 - Deps: `bare-agent` bumped to `^0.47.0`, `bareguard` bumped to `^0.19.0` — pulls in
   `createShellTools({ noFollowSymlinks: true })`/`resolveToolPath` (bare-agent) and bareguard's
   fs `Gate` (deny-by-default read/write scopes, symlink-safe resolved-path checking on by
