@@ -1072,6 +1072,13 @@ the new forced schema, with no converter. 20 paid drafts on deepseek-flash; bar 
 - **Cap:** $0.
 - **Honest limit:** this raises the bar and isn't proof; a determined script can fake a TTY (e.g. `expect`, `script`). Real proof of a person (a password, a hardware key) is later.
 
+**Exit evidence (live, 2026-09-29) — NOT SIGNED:**
+
+- Draft: hamr drafted flow `job2-m6a-3` live on deepseek-flash, green, $0.00055 (spec hash 779e9c0a…), ledger row `m6a-exit-3-draft`.
+- Refused: the orchestrator's non-interactive shell ran `sign` twice (stdin from /dev/null, and the right name piped with the right hash); both refused with "sign needs an interactive terminal", exit 1, no flow written.
+- Signed by a person: hamr ran `sign` in his own terminal, typed `job2-m6a-3` at the confirm prompt, and it printed "signed: …/flows/job2-m6a-3 (by hamr)".
+- M6a ledger total now $0.13684 (cap $1.00). Waiting for hamr's signature on this exit.
+
 **Not in M6a:** the UI (M6b), editing and versions (M5), an LLM scout, litectx verbs, a settings
 screen.
 
