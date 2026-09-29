@@ -43,3 +43,5 @@
 {"runId":"m6a-m6a-poc-2-18","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00199572,"rounds":3,"wallMs":6140,"modelMatch":"match"}
 {"runId":"m6a-m6a-poc-2-19","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00071658,"rounds":1,"wallMs":2483,"modelMatch":"match"}
 {"runId":"m6a-m6a-poc-2-20","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00125046,"rounds":2,"wallMs":3556,"modelMatch":"match"}
+{"runId":"m6a-exit-1-draft","kind":"draft","model":"deepseek-flash","modelReturned":"deepseek-flash","tokens":{"inputTokens":1419,"outputTokens":448,"cacheReadTokens":384,"cacheCreationTokens":0},"costUsd":0.0009748199999999999,"rounds":1,"stop":null,"budgetUsd":0.1,"modelMatch":"match","note":"M6a exit live draft"}
+{"runId":"m6a-exit-1-run-mumu5yxa-6ff4e021","step":"run-job2-m6a","model":"deepseek-flash","costUsd":0.07013309999999999,"rounds":30,"note":"M6a exit live run, attempts 1+2 (reject→redraft→accept→send); summed from the run's own spend.jsonl"}
