@@ -177,6 +177,71 @@ test('cli: resume of a parked run whose out/ became a symlink refuses by name at
 });
 
 // ---------------------------------------------------------------------------
+// hamr ruling 2026-09-29: the typed --root is followed to its real path once,
+// at command start. A symlinked --root must not trip bareguard's symlink
+// refusal (which still guards everything inside the root).
+// ---------------------------------------------------------------------------
+
+function symlinkedRoot(prefix, realRoot) {
+  const linkDir = tmpRoot(prefix);
+  const link = path.join(linkDir, 'root-link');
+  symlinkSync(realRoot, link);
+  return link;
+}
+
+test('cli: run, inbox, show, answer, resume via a symlinked --root behave as via the real root', async () => {
+  const real = tmpRoot('symroot');
+  writeJob2Flow(real);
+  const link = symlinkedRoot('symroot-link', real);
+  const srcDir = tmpRoot('symroot-src');
+  const { resume, jd } = writeSources(srcDir);
+
+  const runResult = runCli([
+    'run', 'job2', '--root', link, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-1',
+  ], fakeModelEnv());
+  assert.equal(runResult.status, 0, runResult.stderr || runResult.stdout);
+  assert.doesNotMatch(runResult.stderr, /is or contains a symlink/);
+  assert.ok(existsSync(path.join(real, 'job2', 'runs', 'run-1', 'ask.json')), 'run dir lands under the REAL path');
+  const askId = extractAskId(runResult.stdout);
+
+  const viaLink = runCli(['inbox', '--root', link], fakeModelEnv());
+  const viaReal = runCli(['inbox', '--root', real], fakeModelEnv());
+  assert.equal(viaLink.status, 0, viaLink.stderr);
+  const noClock = (t) => t.replace(/\d+s left/, 'Ns left');
+  assert.equal(noClock(viaLink.stdout), noClock(viaReal.stdout));
+  assert.match(viaLink.stdout, new RegExp(`${askId}\\s+flow=job2 run=run-1 \\[open\\]`));
+
+  const showLink = runCli(['show', askId, '--root', link], fakeModelEnv());
+  assert.equal(showLink.status, 0, showLink.stderr);
+  assert.equal(showLink.stdout, runCli(['show', askId, '--root', real], fakeModelEnv()).stdout);
+
+  assert.equal(runCli(['answer', askId, 'accept', '--root', link], fakeModelEnv()).status, 0);
+  const resumeResult = runCli(['resume', 'run-1', '--flow', 'job2', '--root', link], fakeModelEnv());
+  assert.equal(resumeResult.status, 0, resumeResult.stderr || resumeResult.stdout);
+  assert.doesNotMatch(resumeResult.stderr, /is or contains a symlink/);
+  assert.match(resumeResult.stdout, /complete: spentUsd=\d/);
+});
+
+test('cli: a --root that does not exist fails by name, non-zero, and creates nothing', async () => {
+  const parent = tmpRoot('noroot');
+  const missing = path.join(parent, 'nope');
+  const srcDir = tmpRoot('noroot-src');
+  const { resume, jd } = writeSources(srcDir);
+  for (const args of [
+    ['run', 'job2', '--root', missing, '--source', `resume=${resume}`, '--source', `jd=${jd}`],
+    ['resume', 'run-1', '--flow', 'job2', '--root', missing],
+    ['inbox', '--root', missing],
+    ['show', 'x', '--root', missing],
+    ['answer', 'x', 'accept', '--root', missing],
+  ]) {
+    const r = runCli(args, fakeModelEnv());
+    assert.notEqual(r.status, 0, args[0]);
+    assert.match(r.stderr, new RegExp(`--root "${missing}" does not exist`), args[0]);
+  }
+  assert.deepEqual(readdirSync(parent), []);
+});
+
+// ---------------------------------------------------------------------------
 // inbox shows an expired ask as expired, never as open.
 // ---------------------------------------------------------------------------
 

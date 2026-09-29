@@ -15,7 +15,7 @@
 // from poc/, and poc/ is not part of the published package.
 
 import { parseArgs } from 'node:util';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -43,6 +43,21 @@ const MODEL_SLOT = 'deepseek';
 function fail(message) {
   process.stderr.write(`fwdloop: ${message}\n`);
   process.exit(1);
+}
+
+/**
+ * The ONE place a human-typed `--root` becomes a path (hamr ruling
+ * 2026-09-29): resolved to its real path once, at command start. Nothing
+ * inside the root is ever followed; that stays under bareguard's symlink
+ * refusal.
+ */
+function resolveRoot(cmd, given) {
+  try {
+    return realpathSync(resolve(given));
+  } catch (err) {
+    if (err.code === 'ENOENT') fail(`${cmd}: --root "${given}" does not exist`);
+    fail(`${cmd}: --root "${given}" cannot be resolved: ${err.code ?? err.message}`);
+  }
 }
 
 function today() {
@@ -161,7 +176,7 @@ async function cmdRun(rest) {
   if (!flowName) fail('run: a flow name is required — fwdloop run <flow> --root <dir> --source <role>=<path> ...');
   if (!values.root) fail('run: --root <dir> is required');
 
-  const root = resolve(values.root);
+  const root = resolveRoot('run', values.root);
   const nameCheck = checkFlowName(flowName);
   if (!nameCheck.ok) fail(nameCheck.red);
 
@@ -252,8 +267,7 @@ function cmdInbox(rest) {
     args: rest,
     options: { root: { type: 'string' } },
   });
-  const root = resolve(values.root ?? '.');
-  if (!existsSync(root)) fail(`inbox: root "${root}" does not exist`);
+  const root = resolveRoot('inbox', values.root ?? '.');
 
   const rows = [];
   // F48 round 3: flow/run identity is walked via `listFlowNames`/
@@ -349,8 +363,7 @@ function cmdShow(rest) {
   const [askId] = positionals;
   if (!askId) fail('show: an askId is required — fwdloop show <askId> --root <dir>');
 
-  const root = resolve(values.root ?? '.');
-  if (!existsSync(root)) fail(`show: root "${root}" does not exist`);
+  const root = resolveRoot('show', values.root ?? '.');
   const runDir = findRunDirByAskId(root, askId);
   if (!runDir) fail(`show: no open ask found for askId "${askId}" under ${root}`);
 
@@ -401,8 +414,7 @@ function cmdAnswer(rest) {
   if (!askId) fail('answer: an askId is required — fwdloop answer <askId> accept|reject "<reason>"|rerun "<reason>"');
   if (!decision) fail(`answer: a decision (accept|reject|rerun) is required for askId "${askId}"`);
 
-  const root = resolve(values.root ?? '.');
-  if (!existsSync(root)) fail(`answer: root "${root}" does not exist`);
+  const root = resolveRoot('answer', values.root ?? '.');
   const runDir = findRunDirByAskId(root, askId);
   if (!runDir) fail(`answer: no open ask found for askId "${askId}" under ${root}`);
 
@@ -432,7 +444,7 @@ async function cmdResume(rest) {
   if (!values.flow) fail('resume: --flow <name> is required');
   if (!values.root) fail('resume: --root <dir> is required');
 
-  const root = resolve(values.root);
+  const root = resolveRoot('resume', values.root);
   const flowName = values.flow;
 
   const loaded = loadCatalogue();
@@ -513,8 +525,7 @@ async function cmdPanel(rest) {
       root: { type: 'string' },
     },
   });
-  const root = resolve(values.root ?? '.');
-  if (!existsSync(root)) fail(`panel: root "${root}" does not exist`);
+  const root = resolveRoot('panel', values.root ?? '.');
 
   const argv = ['--root', root];
   if (values.port) argv.push('--port', values.port);

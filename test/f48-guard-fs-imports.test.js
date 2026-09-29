@@ -316,8 +316,8 @@ const ALLOWLIST = {
     names: { existsSync: 6, realpathSync: 2 },
   },
   'bin/fwdloop': {
-    reason: 'CLI existence checks only (source/run-dir/root presence before delegating to runner.js) — no content reads',
-    names: { existsSync: 7 },
+    reason: 'CLI existence checks (source/run-dir presence) plus the one realpathSync in resolveRoot (hamr ruling 2026-09-29: the typed --root is followed once at start) — no content reads',
+    names: { existsSync: 3, realpathSync: 1 },
   },
 };
 
