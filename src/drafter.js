@@ -167,7 +167,7 @@ export const DRAFT_PROVIDER_OPTIONS = Object.freeze({ ...LIVE_PROVIDER_OPTIONS, 
  * key — the batch preflights first). `budgetUsd` is this draft's hard cap.
  *
  * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number,
- *   costUsd:number|null, modelReturned:string|null, structureRetries:number, revisions:number, stop:string|null, log:object[]}>}
+ *   costUsd:number|null, modelReturned:string|null, modelId?:string, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[]}>}
  */
 export async function draft({
   proseText, slot = 'deepseek', model, provider: injected, rates: injectedRates, modelId: injectedModelId,
@@ -273,7 +273,7 @@ export async function draft({
       log.push(entry);
       const m = sumMeterings(meterings);
       return {
-        ok: true, declaration, reds: [], rounds: m.rounds, costUsd: m.costUsd, modelReturned: m.model, structureRetries, revisions, stop: null, log,
+        ok: true, declaration, reds: [], rounds: m.rounds, costUsd: m.costUsd, modelReturned: m.model, modelId, tokens: m.tokens, structureRetries, revisions, stop: null, log,
       };
     }
     lastReds = [...verdict.reds];
@@ -287,6 +287,6 @@ export async function draft({
 
   const m = sumMeterings(meterings);
   return {
-    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, costUsd: m.costUsd, modelReturned: m.model, structureRetries, revisions, stop, log,
+    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, costUsd: m.costUsd, modelReturned: m.model, modelId, tokens: m.tokens, structureRetries, revisions, stop, log,
   };
 }
