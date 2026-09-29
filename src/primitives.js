@@ -91,7 +91,7 @@ export function rolePrimitiveFor(frozenPath) {
  *  the run's frozen inputs — the same `inputsByRole` map `readDocx`/
  *  `addressCells` use. `role` resolves to the frozen path and THEN goes
  *  through the same sandbox check as any path (the frozen path is always
- *  inside `allowedRoots`, so this can never widen what a path-only call
+ *  inside the gate's `readScope`, so this can never widen what a path-only call
  *  could already reach) — never a shortcut around the sandbox, just a name
  *  for a path the model was never handed directly. `role` wins when both
  *  `path` and `role` are given. */
@@ -128,7 +128,8 @@ function roleParameters(real, roles) {
  *  the schema's enum never offered it (F41 item 3). */
 async function resolveRoleOrPath(gate, verb, tool, runDir, args, inputsByRole, roles) {
   if (args && Object.prototype.hasOwnProperty.call(args, 'role') && args.role !== undefined) {
-    const frozen = inputsByRole[args.role];
+    // Own-key lookup: "__proto__"/"constructor" must not resolve to Object.prototype members.
+    const frozen = Object.hasOwn(inputsByRole, args.role) ? inputsByRole[args.role] : undefined;
     if (!frozen) throw new Error(`${verb}: no frozen input for role "${args.role}" (available: ${roles.join(', ')})`);
     const owner = rolePrimitiveFor(frozen);
     if (owner === 'readDocx') throw new Error(`${verb}: role "${args.role}" is a .docx — use readDocx`);

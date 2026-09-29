@@ -184,6 +184,24 @@ test('read: an unknown role reds naming the role and the available ones', async 
   await assert.rejects(() => tools.read.execute({ role: 'nope' }), /no frozen input for role "nope" \(available: jd\)/);
 });
 
+test('read/grep: Object.prototype names as role get the named refusal, not a TypeError', async () => {
+  const runDir = tmpRunDir();
+  const inputsDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-role-'));
+  const jdPath = path.join(inputsDir, 'jd.md');
+  writeFileSync(jdPath, 'text');
+  const { tools } = resolvePrimitives(CATALOGUE, ['read', 'grep'], {
+    runDir, inputs: [{ id: 'jd', frozen: jdPath }],
+  });
+  for (const role of ['__proto__', 'constructor', 'toString']) {
+    for (const verb of ['read', 'grep']) {
+      await assert.rejects(() => tools[verb].execute({ role, pattern: 'x' }), (e) => {
+        assert.match(e.message, new RegExp(`${verb}: no frozen input for role "${role}"`));
+        return true;
+      });
+    }
+  }
+});
+
 test('read: a path outside the sandbox still reds even when roles are available', async () => {
   const runDir = tmpRunDir();
   const inputsDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-role-'));
