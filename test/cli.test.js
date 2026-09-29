@@ -12,7 +12,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  existsSync, mkdirSync, readFileSync, writeFileSync,
+  existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, symlinkSync, readdirSync,
 } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
@@ -144,6 +144,36 @@ test('cli: inbox lists the open ask, answer accept succeeds, resume completes th
 
   const history = readFileSync(path.join(root, 'job2', 'history.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   assert.equal(history[history.length - 1].outcome, 'complete');
+});
+
+test('cli: resume of a parked run whose out/ became a symlink refuses by name at $0 (bareguard 0.19.2), no new book row', async () => {
+  const root = tmpRoot('resume-symlink-out');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('resume-symlink-out-src');
+  const { resume, jd } = writeSources(srcDir);
+  const runResult = runCli([
+    'run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-1',
+  ], fakeModelEnv());
+  assert.equal(runResult.status, 0, runResult.stderr || runResult.stdout);
+  const askId = extractAskId(runResult.stdout);
+  assert.equal(runCli(['answer', askId, 'accept', '--root', root], fakeModelEnv()).status, 0);
+
+  const runDir = path.join(root, 'job2', 'runs', 'run-1');
+  const outside = tmpRoot('resume-symlink-out-outside');
+  rmSync(path.join(runDir, 'out'), { recursive: true, force: true });
+  symlinkSync(outside, path.join(runDir, 'out'));
+  const bookPaths = ['audit.jsonl', 'spend.jsonl'].map((f) => path.join(runDir, f));
+  const historyPath = path.join(root, 'job2', 'history.jsonl');
+  const snap = () => [...bookPaths, historyPath].map((f) => (existsSync(f) ? readFileSync(f, 'utf8') : null));
+  const before = snap();
+
+  const result = runCli(['resume', 'run-1', '--flow', 'job2', '--root', root], fakeModelEnv());
+  assert.notEqual(result.status, 0, result.stdout);
+  assert.match(result.stderr, /bareguard refused the step's file scope/);
+  assert.match(result.stderr, /is or contains a symlink/);
+  assert.deepEqual(snap(), before, 'no audit/spend/history row may be written by the refused resume');
+  assert.equal(existsSync(path.join(runDir, 'resume.lock')), false, 'refused before the resume lock');
+  assert.deepEqual(readdirSync(outside), []);
 });
 
 // ---------------------------------------------------------------------------

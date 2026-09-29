@@ -285,7 +285,17 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
   // this gate exists to answer fs questions only, nothing else a step here
   // can do goes through it.
   const readScope = [...new Set([runDir, ...inputs.map((entry) => path.dirname(entry.frozen))])];
-  const gate = new Gate({ fs: { readScope, writeScope: [outDir] } });
+  // bareguard >=0.19.2 THROWS at construct when any scope entry is or sits
+  // under a symlink (the scope roots are bareguard's to police, not ours).
+  // Fail closed: no tool at all for this step — not even readDocx/
+  // addressCells, which read the run dir's frozen inputs outside the gate —
+  // and a red naming bareguard's own message, so the caller refuses the run.
+  let gate;
+  try {
+    gate = new Gate({ fs: { readScope, writeScope: [outDir] } });
+  } catch (err) {
+    return { tools: {}, reds: [`primitives: bareguard refused the step's file scope — ${err.message}`] };
+  }
 
   const tools = {};
   const reds = [];

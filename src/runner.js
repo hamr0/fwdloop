@@ -753,6 +753,7 @@ async function runStepRalph({
  * @param {(opts:{question:string, evidence:unknown, runDir:string}) => Promise<{decision:'accept'|'reject'|'rerun'|'timeout'|'park', reason?:string}>} opts.askStep
  * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
  * @param {Record<string, any>} [opts.primitives] - injected primitive implementations, keyed by catalogue verb.
+ * @param {string[]} [opts.primitiveReds] - `resolvePrimitives`'s own `reds` (e.g. bareguard refusing a symlinked file scope); any entry refuses the run at $0 like an unwired verb, before the run dir exists.
  * @param {() => string} [opts.clock] - returns the current ISO timestamp; defaults to the wall clock.
  * @param {string} opts.businessDate - the run's explicit "as of today", never the wall clock.
  * @param {number} [opts.ceilingUsd] - per-attempt ceiling override; defaults to `resolveCeilingUsd(null)`.
@@ -765,7 +766,7 @@ async function runStepRalph({
  *   can advance wall time across a park/resume boundary without a real wait.
  */
 export async function runFlow({
-  root, name, runId, sources, catalogue, modelStep, askStep, sendStep, primitives, clock, businessDate, ceilingUsd, initialGap,
+  root, name, runId, sources, catalogue, modelStep, askStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd, initialGap,
   // F45 finding 3's test needs to advance wall time across a park/resume
   // boundary without a real wait, exactly like `clock` already does for ISO
   // timestamps — `nowMs` is the same idea for epoch-ms wall-clock reads.
@@ -829,6 +830,12 @@ export async function runFlow({
       outcome: 'preflight-red',
       red: `preflight: step "${unwiredVerb.step.emits}" (line ${unwiredVerb.step.fromLine}) grants verb "${unwiredVerb.verb}", which has no wired implementation`,
       spent: { value: 0 },
+    });
+  }
+
+  if (primitiveReds?.length) {
+    return haltRun({
+      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: primitiveReds[0], spent: { value: 0 },
     });
   }
 
@@ -1474,13 +1481,14 @@ function sumAuditUsd(runDir) {
  * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<any>} opts.modelStep
  * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
  * @param {Record<string, any>} [opts.primitives]
+ * @param {string[]} [opts.primitiveReds] - see `runFlow`'s own.
  * @param {() => string} [opts.clock]
  * @param {string} opts.businessDate
  * @param {number} [opts.ceilingUsd]
  * @param {() => number} [opts.nowMs] - F45 finding 3; see `runFlow`'s own.
  */
 export async function resumeRun({
-  root, name, runId, catalogue, modelStep, sendStep, primitives, clock, businessDate, ceilingUsd,
+  root, name, runId, catalogue, modelStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd,
   // F45 finding 3 (see `runFlow`'s own `nowMs`): additive, defaults to the
   // real `Date.now` for every existing caller.
   nowMs,
@@ -1516,6 +1524,8 @@ export async function resumeRun({
       };
     }
   }
+
+  if (primitiveReds?.length) return { outcome: 'refused', red: primitiveReds[0] };
 
   const lockPath = join(runDir, 'resume.lock');
 

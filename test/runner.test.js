@@ -591,6 +591,29 @@ test('F46: a step granting an unwired verb (e.g. "compress") refuses runFlow at 
   assert.equal(existsSync(path.join(root, 'job2-unwired', 'runs', 'run-1')), false, 'no run dir may exist — refused before any run dir was created');
 });
 
+test('primitiveReds (e.g. bareguard refusing a symlinked scope) refuse runFlow at $0 with the red verbatim, no model call, no run dir', async () => {
+  const root = tmpRoot('primitive-reds');
+  writeJob2Flow(root, 'job2-pr');
+  const red = "primitives: bareguard refused the step's file scope — fs.writeScope[0] is or contains a symlink";
+  const result = await runFlow({
+    root,
+    name: 'job2-pr',
+    runId: 'run-1',
+    sources: [],
+    catalogue: CATALOGUE,
+    modelStep: async () => { throw new Error('modelStep must never be called'); },
+    askStep: ACCEPT_ASK,
+    sendStep: NOOP_SEND,
+    primitives: {},
+    primitiveReds: [red],
+    businessDate: BUSINESS_DATE,
+  });
+  assert.equal(result.outcome, 'preflight-red');
+  assert.equal(result.red, red);
+  assert.equal(result.spentUsd, 0);
+  assert.equal(existsSync(path.join(root, 'job2-pr', 'runs', 'run-1')), false);
+});
+
 // ---------------------------------------------------------------------------
 // Negative (v): a transport fault twice on one attempt parks the run
 // provider-red with spendComplete:false, and the ledger shows the floor,

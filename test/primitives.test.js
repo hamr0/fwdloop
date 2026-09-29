@@ -4,13 +4,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  mkdirSync, writeFileSync, readFileSync, readdirSync,
+  mkdirSync, writeFileSync, readFileSync, readdirSync, symlinkSync, renameSync, existsSync,
 } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { resolvePrimitives, rolePrimitiveFor } from '../src/primitives.js';
+import { resolvePrimitives, rolePrimitiveFor, GateRefusal } from '../src/primitives.js';
 import { loadCatalogue } from '../src/catalogue.js';
 
 const loaded = loadCatalogue();
@@ -355,4 +355,71 @@ test('grep: by role searches the frozen file\'s text', async () => {
   });
   const result = await tools.grep.execute({ pattern: 'remote', role: 'jd' });
   assert.match(JSON.stringify(result), /remote/);
+});
+
+// ---------------------------------------------------------------------------
+// bareguard 0.19.2: a symlinked scope root is refused at construct (we turn
+// the throw into a red + NO tools) and re-checked on every check() (a root or
+// ancestor swapped to a symlink after start denies with `.symlinkRoot`).
+// ---------------------------------------------------------------------------
+
+const SYMLINK_VERBS = ['read', 'grep', 'write', 'readDocx', 'addressCells'];
+
+test('symlinked <runDir>/out: resolvePrimitives builds NO tool, reds naming bareguard\'s message, outside file untouched', () => {
+  const runDir = tmpRunDir();
+  const outside = tmpRunDir();
+  writeFileSync(path.join(outside, 'x.txt'), 'original');
+  symlinkSync(outside, path.join(runDir, 'out'));
+  const { tools, reds } = resolvePrimitives(CATALOGUE, SYMLINK_VERBS, { runDir });
+  assert.deepEqual(Object.keys(tools), [], 'fail closed: not even readDocx/addressCells');
+  assert.equal(reds.length, 1);
+  assert.match(reds[0], /^primitives: bareguard refused the step's file scope — /);
+  assert.match(reds[0], /is or contains a symlink/);
+  assert.equal(readFileSync(path.join(outside, 'x.txt'), 'utf8'), 'original');
+});
+
+test('runDir reached through a symlinked ancestor: same refusal', () => {
+  const real = tmpRunDir();
+  const holder = tmpRunDir();
+  const link = path.join(holder, 'link');
+  symlinkSync(real, link);
+  const runDir = path.join(link, 'run');
+  const { tools, reds } = resolvePrimitives(CATALOGUE, SYMLINK_VERBS, { runDir });
+  assert.deepEqual(Object.keys(tools), []);
+  assert.match(reds.join('\n'), /is or contains a symlink/);
+});
+
+test('out swapped to a symlink AFTER resolvePrimitives: write refused with fs.writeScope.symlinkRoot, nothing lands outside', async () => {
+  const runDir = tmpRunDir();
+  const outside = tmpRunDir();
+  const { tools, reds } = resolvePrimitives(CATALOGUE, ['write'], { runDir });
+  assert.deepEqual(reds, []);
+  symlinkSync(outside, path.join(runDir, 'out'));
+  await assert.rejects(
+    () => tools.write.execute({ path: 'out/x.txt', content: 'pwned' }),
+    (err) => err instanceof GateRefusal && err.rule === 'fs.writeScope.symlinkRoot',
+  );
+  assert.equal(existsSync(path.join(outside, 'x.txt')), false);
+});
+
+test('runDir ancestor swapped for a symlink after resolvePrimitives: read and write refused with .symlinkRoot', async () => {
+  const holder = tmpRunDir();
+  const runDir = path.join(holder, 'run');
+  mkdirSync(runDir);
+  writeFileSync(path.join(runDir, 'a.txt'), 'secret');
+  const other = tmpRunDir();
+  mkdirSync(path.join(other, 'out'));
+  writeFileSync(path.join(other, 'a.txt'), 'other');
+  const { tools } = resolvePrimitives(CATALOGUE, ['read', 'write'], { runDir });
+  renameSync(runDir, path.join(holder, 'run-moved'));
+  symlinkSync(other, runDir);
+  await assert.rejects(
+    () => tools.read.execute({ path: 'a.txt' }),
+    (err) => err instanceof GateRefusal && err.rule === 'fs.readScope.symlinkRoot',
+  );
+  await assert.rejects(
+    () => tools.write.execute({ path: 'out/x.txt', content: 'pwned' }),
+    (err) => err instanceof GateRefusal && err.rule === 'fs.writeScope.symlinkRoot',
+  );
+  assert.equal(existsSync(path.join(other, 'out', 'x.txt')), false);
 });

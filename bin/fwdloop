@@ -224,7 +224,7 @@ async function cmdRun(rest) {
   // `freezeInputs` for this run dir, so a refusal leaves nothing behind.
   const predictedInputs = sources.map((s) => ({ id: s.id, frozen: join(runDir, 'inputs', `${s.id}${extname(s.path)}`) }));
   const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
-  const { tools: primitives } = resolvePrimitives(catalogue, allVerbs, { runDir, inputs: predictedInputs });
+  const { tools: primitives, reds: primitiveReds } = resolvePrimitives(catalogue, allVerbs, { runDir, inputs: predictedInputs });
 
   const result = await runFlow({
     root,
@@ -236,6 +236,7 @@ async function cmdRun(rest) {
     askStep: makeParkingAskStep(),
     sendStep: sendViaPrimitive,
     primitives,
+    primitiveReds,
     businessDate: today(),
   });
 
@@ -477,7 +478,7 @@ async function cmdResume(rest) {
   const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
   // F46's unwired-verb preflight refusal now lives in `resumeRun` itself
   // (`src/runner.js`) — this CLI no longer keeps a second copy of the check.
-  const { tools: primitives } = resolvePrimitives(catalogue, allVerbs, {
+  const { tools: primitives, reds: primitiveReds } = resolvePrimitives(catalogue, allVerbs, {
     runDir, inputs: inputsManifest.map((m) => ({ id: m.id, frozen: m.frozen })),
   });
 
@@ -489,6 +490,7 @@ async function cmdResume(rest) {
     modelStep,
     sendStep: sendViaPrimitive,
     primitives,
+    primitiveReds,
     businessDate: today(),
   });
 
