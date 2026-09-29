@@ -287,11 +287,12 @@ export function checkKeyPreflight(slotName, env = process.env) {
  * values this project uses.
  *
  * @param {string} slotName
- * @param {{ model?: string, timeoutMs?: number, deadlineMs?: number }} [options]
+ * @param {{ model?: string, timeoutMs?: number, deadlineMs?: number, thinking?: object|null }} [options]
+ *   `thinking` (bare-agent >=0.49) is sent verbatim as body.thinking; unset/null leaves the body unchanged.
  * @returns {{ provider: any, rates: {in:number, out:number}, modelId: string, suffix: string, slot: string }}
  */
 export function makeProvider(slotName, options = {}) {
-  const { model, timeoutMs, deadlineMs } = options;
+  const { model, timeoutMs, deadlineMs, thinking } = options;
   const slot = PROVIDER_SLOTS[slotName];
   if (!slot) {
     throw new Error(`unknown provider slot "${slotName}" — known slots: ${Object.keys(PROVIDER_SLOTS).join(', ')}`);
@@ -314,6 +315,7 @@ export function makeProvider(slotName, options = {}) {
     exposeMalformedArgs: true,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
     ...(deadlineMs !== undefined ? { deadlineMs } : {}),
+    ...(thinking != null ? { thinking } : {}),
   });
 
   return {

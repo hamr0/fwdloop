@@ -1,7 +1,7 @@
 // M6a POC — $0 tests for draft.mjs against a fake provider. No key, no network.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { draft, MAX_STRUCTURE_RETRIES, MAX_REVISIONS } from './draft.mjs';
+import { draft, MAX_STRUCTURE_RETRIES, MAX_REVISIONS, DRAFT_PROVIDER_OPTIONS } from './draft.mjs';
 import { buildDeclarationSchema, wiredMenu } from './schema.mjs';
 import {
   RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply, textReply, truncatedReply, malformedReply,
@@ -126,4 +126,10 @@ test('$0 gates: bad prose and an unreadable source refuse before any provider ca
   assert.match(gone.reds[0], /input "jd": cannot read file/);
   assert.equal(p.calls.length, 0);
   assert.equal(bad.costUsd, 0);
+});
+
+// F49: the drafter's live makeProvider options must disable DeepSeek thinking.
+test('drafter live-provider options disable thinking (F49) and keep the live timeouts', () => {
+  assert.deepEqual(DRAFT_PROVIDER_OPTIONS.thinking, { type: 'disabled' });
+  assert.equal(DRAFT_PROVIDER_OPTIONS.timeoutMs, 300_000);
 });

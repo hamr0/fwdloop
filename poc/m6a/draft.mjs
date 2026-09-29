@@ -71,6 +71,9 @@ function reviseMessage(reds) {
 
 function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 
+// F49: deepseek-flash 400s on a forced tool_choice in thinking mode; the drafter forces its tool, so disable thinking.
+export const DRAFT_PROVIDER_OPTIONS = Object.freeze({ ...LIVE_PROVIDER_OPTIONS, thinking: Object.freeze({ type: 'disabled' }) });
+
 /**
  * Draft one declaration. `provider`/`rates`/`modelId` may be injected (tests,
  * the batch); otherwise a live provider is built from `slot` (throws on a bad
@@ -98,7 +101,7 @@ export async function draft({
   let { provider, rates, modelId } = { provider: injected, rates: injectedRates, modelId: injectedModelId };
   if (provider == null) {
     try {
-      ({ provider, rates, modelId } = makeProvider(slot, { model, ...LIVE_PROVIDER_OPTIONS }));
+      ({ provider, rates, modelId } = makeProvider(slot, { model, ...DRAFT_PROVIDER_OPTIONS }));
     } catch (err) {
       return fail([`key: ${err.message}`]);
     }

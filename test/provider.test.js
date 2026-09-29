@@ -231,3 +231,43 @@ test('upstream default: bare-agent OpenAI built WITHOUT exposeMalformedArgs retu
     assert.equal(result.malformedToolCall.rawArguments, undefined);
   });
 });
+
+// F49 / bare-agent 0.49: `thinking` reaches body.thinking only when passed.
+async function sentBody(options) {
+  let body;
+  const server = http.createServer((req, res) => {
+    let raw = '';
+    req.on('data', (c) => { raw += c; });
+    req.on('end', () => {
+      body = JSON.parse(raw);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
+        model: 'deepseek-flash',
+        usage: { prompt_tokens: 1, completion_tokens: 1, prompt_tokens_details: { cached_tokens: 0 } },
+      }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const saved = process.env.DEEPSEEK_API_KEY;
+  process.env.DEEPSEEK_API_KEY = 'sk-fake-test-key';
+  try {
+    const built = makeProvider('deepseek', { model: 'deepseek-flash', ...options });
+    built.provider.baseUrl = `http://127.0.0.1:${server.address().port}`;
+    await built.provider.generate([{ role: 'user', content: 'hi' }], []);
+  } finally {
+    if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved; else delete process.env.DEEPSEEK_API_KEY;
+    await new Promise((resolve) => server.close(resolve));
+  }
+  return body;
+}
+
+test('makeProvider("deepseek") with no thinking option: the sent body has no thinking key', async () => {
+  const body = await sentBody({});
+  assert.equal('thinking' in body, false);
+});
+
+test('makeProvider("deepseek", {thinking}) sends body.thinking verbatim', async () => {
+  const body = await sentBody({ thinking: { type: 'disabled' } });
+  assert.deepEqual(body.thinking, { type: 'disabled' });
+});
