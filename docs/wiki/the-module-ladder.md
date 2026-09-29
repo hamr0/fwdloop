@@ -905,6 +905,7 @@ because both signed job #2 flows grant `compress` and are refused at preflight s
 2026-09-29, "A1". **Superseded by M6a's exit
 (2026-09-29):** the new job #2 flow comes from `fwdloop draft` + `fwdloop sign`, not a hand-rebuild;
 M4b waits for it. Part (a) stands.
+M6a exit signed 2026-09-29 — M4b is unblocked.
 
 **Scope.**
 
@@ -981,7 +982,7 @@ lesson is to ask "when would you use this?" before building a button. fwdloop st
 runs start from the CLI or a trigger, and the panel is where a human watches and answers. A Run
 button is not deferred pending more design — it is out of scope for M4.
 
-### M6a — authoring backend, pulled forward — SIGNED by hamr 2026-09-29 ("sign m6a, A")
+### M6a — authoring backend, pulled forward — SIGNED by hamr 2026-09-29 ("sign m6a, A"), EXIT SIGNED 2026-09-29
 
 **Why (hamr, 2026-09-29).** Build the front (describe, draft, sign) before the M4b UI, the way
 bareloop did: machinery first, then the UI wires to commands that already work. M4b stays signed and
@@ -1037,7 +1038,7 @@ the new forced schema, with no converter. 20 paid drafts on deepseek-flash; bar 
 
 **POC bar MET — ruled by hamr 2026-09-29:** m6a-poc-2, 20/20 valid on deepseek-flash (thinking disabled, bare-agent 0.49.0, F49), $0.017; M6a ledger $0.049 of $1.00.
 
-**Exit evidence (live, 2026-09-29) — NOT SIGNED:** waiting for hamr's signature.
+**Exit evidence (live, 2026-09-29) — EXIT SIGNED by hamr 2026-09-29 ("sign m6a exit"):**
 - Draft: `fwdloop draft`, 1 round, $0.0010, green, spec hash 19998ddf…; `sign --approve` wrote flows/job2-m6a.
 - Run parked at the line-4 ask ($0.0287); hamr rejected ("too short"), resume redrafted (attempt 2, shape passed), hamr accepted, send wrote the artifact byte-identical to the accepted summary.
 - Run cost $0.0701 (6 priced rows, 0 nulls, modelMatch "match"); M6a ledger $0.1199 of $1.00.
@@ -1055,7 +1056,7 @@ the new forced schema, with no converter. 20 paid drafts on deepseek-flash; bar 
 - **Cap:** $0.30, from M6a's remaining budget.
 - **Not in scope (goes to M6b):** readout/UI wording (see M6).
 
-**Exit evidence (live, 2026-09-29) — NOT SIGNED:** waiting for hamr's signature.
+**Exit evidence (live, 2026-09-29) — EXIT SIGNED by hamr 2026-09-29 ("sign m6a exit"):**
 
 - Draft (`poc/m6a/out/exit-2/draft`): green, 2 rounds (one validator revision), $0.0015; every step goal is the signed line verbatim (line 3 kept "200ish each"); the ask shows hamr's signed wait, "ask 30m:".
 - Run `exit2-run-1` (flow `flows/job2-m6a-2`): summary step attempt 1 a machine red (headings not exact lines, gap-back), attempt 2 green; parked at the ask with sections of about 180/152/145 words (477 total), against 100/45/25 before the fix (exit-1).
