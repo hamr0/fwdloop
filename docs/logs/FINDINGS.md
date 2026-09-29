@@ -2660,9 +2660,11 @@ correct tool call.
 
 **Upstream gap (bare-agent).** `OpenAIProvider.generate()` builds the body from model/messages/
 temperature/maxTokens/tools/tool_choice only; it cannot send `thinking`. Confirmed by bareloop: it never
-forces tool_choice so it never hit this (closest is bareloop BA-7(b), Anthropic-only). Ask sent
-2026-09-29 to the bare-agent session: an opt-in narrow `thinking` option → `body.thinking` in both the
-OpenAI-compatible and Anthropic providers, negative control = byte-identical default body. hamr ruled
+forces tool_choice so it never hit this. Bareloop BA-7 (an opt-in `thinking` → `body.thinking` option)
+was DELIVERED in bare-agent 0.27.0 but in provider-anthropic.js only (corrected by bareloop 2026-09-29);
+OpenAIProvider lacks it. Ask sent 2026-09-29 to the bare-agent session, accepted as: extend the existing
+Anthropic `thinking` option to OpenAIProvider (constructor + per-call, verbatim), negative control =
+byte-identical body when unset. On branch feat/openai-thinking-option, not yet released. hamr ruled
 1A: M6a waits for it; the signed forced-tool spec stands.
 
 **Books.** Batch `m6a-poc-1`: 0/20, $0 real spend. The null-cost rows were booked at ceiling ($0.576),
