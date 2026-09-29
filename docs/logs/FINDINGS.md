@@ -2673,3 +2673,5 @@ then re-booked at $0 by hamr's ruling (2A); the 3 raw curl probes are one row, $
 
 **Lesson.** A $0 probe of the exact paid request shape (forced tool_choice) before the batch would have
 caught this; the fake provider can't.
+
+Resolved upstream: bare-agent 0.49.0 (2026-09-29); fwdloop pins it and the M6a drafter passes thinking {type:'disabled'}; pre-release validation 3/3 valid drafts, 0 400s.
