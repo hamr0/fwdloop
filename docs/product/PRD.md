@@ -116,8 +116,8 @@ honest-null cost when unpriced; `calibrateJev` go/no-go harness). Candidate use:
 a signed ask ("which queue?", "does this need the human?"), never replacing a human accept or
 deciding a close — as a close-decider it collides with **No LLM judge** above. Any confidence
 threshold is an arbiter number hamr signs, never the agent's. Prerequisites before it can be
-scoped: fwdloop is on bare-agent ^0.42 (needs ≥0.44), and the use needs its own module with a
-signed scope/exit/negative. Source: `../bareagent/src/provider-jev.js`,
+scoped: the use needs its own module with a signed scope/exit/negative (the bare-agent ≥0.44
+prerequisite is met — fwdloop is on ^0.48.0 since the fs-gate switch-over). Source: `../bareagent/src/provider-jev.js`,
 `provider-jev-calibration.js`, bare-agent README "Fast gut check — Jev".
 
 **No CLI as a product surface.** `npm install`, one command, a localhost server starts and **the
