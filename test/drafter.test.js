@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { draft, MAX_STRUCTURE_RETRIES, MAX_REVISIONS, DRAFT_PROVIDER_OPTIONS } from '../src/drafter.js';
 import { buildDeclarationSchema } from '../src/drafter.js';
+import { ceilingCostUsd } from '../src/provider.js';
 import { wiredMenu } from '../src/primitives.js';
 import {
   RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply, textReply, truncatedReply, malformedReply,
@@ -100,7 +101,7 @@ test('(e1) the per-draft budget stops the next round, priced and returned', asyn
   const bad = validArgs();
   bad.steps[2].primitives = ['stash'];
   const p = fakeProvider([toolReply(bad)]);
-  const r = await run(p, { budgetUsd: 0.02 }); // one round done ($0.0005); another at the ceiling ($0.0288) would cross
+  const r = await run(p, { budgetUsd: ceilingCostUsd(MODEL) + 0.0002 }); // round 1 fits; one done ($0.0005) + another ceiling round would cross
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'budget');
   assert.equal(r.rounds, 1);
@@ -153,8 +154,18 @@ test('(e3) an unpriced round counts at its ceiling toward the budget, never as 0
   const bad = validArgs();
   bad.steps[2].primitives = ['stash'];
   const p = fakeProvider([{ ...toolReply(bad), usage: undefined }]);
-  const r = await run(p, { budgetUsd: 0.04 }); // ceiling round is ~$0.0288: two of them cross $0.04; at 0 the loop would go on
+  const r = await run(p, { budgetUsd: ceilingCostUsd(MODEL) * 1.5 }); // one ceiling round fits, two cross; at 0 the loop would go on
   assert.equal(r.stop, 'budget');
   assert.equal(p.calls.length, 1);
   assert.equal(r.costUsd, null);
+});
+
+test('(e4) a budget below one round\'s ceiling is refused at $0, before any provider call, naming the minimum', async () => {
+  const p = fakeProvider([toolReply(validArgs())]);
+  const r = await run(p, { budgetUsd: 0.005 });
+  assert.equal(r.ok, false);
+  assert.equal(r.stop, 'pre-flight');
+  assert.equal(r.costUsd, 0);
+  assert.equal(p.calls.length, 0);
+  assert.match(r.reds[0], new RegExp(`minimum budget is \\$${ceilingCostUsd(MODEL).toFixed(4)}`));
 });

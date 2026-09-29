@@ -212,6 +212,10 @@ export async function draft({
   if (!cat.ok) return fail([`catalogue: ${cat.reds.join('; ')}`]);
   const validationCatalogue = cat.primitives;
   const roundCeiling = ceilingCostUsd(modelId);
+  // One round at its ceiling must fit the budget, or refuse at $0 before any provider call.
+  if (roundCeiling > budgetUsd) {
+    return fail([`budget: $${budgetUsd} is below one round's worst-case cost — the minimum budget is $${roundCeiling.toFixed(4)}`]);
+  }
 
   const meterings = [];
   const log = [];
@@ -226,7 +230,7 @@ export async function draft({
     // Budget: spend so far (an unpriced round counts at its ceiling) + one more
     // round at its ceiling must fit, or we stop here, booked.
     const spent = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
-    if (spent + roundCeiling > budgetUsd && meterings.length > 0) { stop = 'budget'; break; }
+    if (spent + roundCeiling > budgetUsd) { stop = 'budget'; break; }
 
     let captured;
     const tool = {

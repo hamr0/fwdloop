@@ -12,7 +12,7 @@ import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import {
   draftToDir, signDraft, specHash, sweepForSecrets, scrub, SPEC_HASH_FILE, SIGN_LINE,
 } from '../src/authoring.js';
-import { readSpendRows } from '../src/provider.js';
+import { readSpendRows, ceilingCostUsd } from '../src/provider.js';
 import {
   RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply,
 } from './drafter-fixture.mjs';
@@ -118,14 +118,14 @@ test('draft: $0 refusals write nothing and spend nothing (bad key, missing input
 test('draft: budget exceeded stops, is priced, and is booked', async () => {
   const bad = validArgs();
   bad.steps[2].primitives = ['stash']; // never valid -> keeps asking for another round
-  const { r, dir, provider } = await makeDraft({ replies: [toolReply(bad)], extra: { budgetUsd: 0.0006 } });
+  const { r, dir, provider } = await makeDraft({ replies: [toolReply(bad)], extra: { budgetUsd: ceilingCostUsd(MODEL) + 0.0002 } });
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'budget');
   assert.equal(provider.calls.length, 1, 'stopped before a second round');
   const row = readSpendRows(path.join(dir, 'spend.jsonl'))[0];
   assert.equal(row.stop, 'budget');
   assert.ok(row.costUsd > 0);
-  assert.equal(row.budgetUsd, 0.0006);
+  assert.equal(row.budgetUsd, ceilingCostUsd(MODEL) + 0.0002);
 });
 
 test('draft: an unpriced round is booked null, never 0', async () => {
