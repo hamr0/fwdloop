@@ -231,7 +231,7 @@ export function signDraft({ dir, approve, signedBy, signedAt = new Date().toISOS
   const cat = loadCatalogue();
   if (!cat.ok) return refuse(`sign: catalogue: ${cat.reds.join('; ')}`);
   const verdict = validateDeclaration(declaration, {
-    arbiter: signed.arbiter, lines: signed.lines, catalogue: cat.primitives, wired: WIRED_VERBS,
+    arbiter: signed.arbiter, lines: signed.lines, catalogue: cat.primitives, wired: WIRED_VERBS, verbatimGoals: true,
   });
   if (!verdict.ok) return { ok: false, reds: verdict.reds };
 

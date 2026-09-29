@@ -140,7 +140,9 @@ const KEY = 'sk-test-SECRETSECRET-0123456789';
 
 test('draft: a key value the model echoes is scrubbed; the sweep finds none in the dir', async () => {
   const echo = validArgs();
-  echo.steps[0].goal = `read the resume with ${KEY}`;
+  // the goal is the machine's now (F50); a model-authored free-text field that reaches the file is emits
+  echo.steps[0].emits = echo.steps[0].emits + KEY;
+  for (const st of echo.steps) st.reads = st.reads.map((x) => (x === 'resume-text' ? x + KEY : x));
   const { r, dir } = await makeDraft({ replies: [toolReply(echo)], extra: { env: { DEEPSEEK_API_KEY: KEY } } });
   assert.equal(r.leaks, 0);
   assert.equal(sweepForSecrets(dir, [KEY]), 0);
@@ -364,4 +366,68 @@ test('e2e: draft (fake provider) -> sign -> readFlow ok -> runner preflight acce
   });
   assert.ok(!['refused', 'preflight-red'].includes(res.outcome), `${res.outcome} ${res.red}`);
   assert.ok(goals.length >= 1, 'the first fake step ran');
+});
+
+// ---------------------------------------------------------------------------
+// M6a amendment 1 (F50): the goal is the signed line, verbatim, set by the machine.
+// ---------------------------------------------------------------------------
+const LINE3 = 'write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,';
+
+test('goal: the drafter overwrites a goal the fake model sends — the written declaration carries the signed line, "200ish each" included', async () => {
+  const args = validArgs();
+  for (const st of args.steps) st.goal = 'a paraphrase in the model\'s own words';
+  const { r, dir } = await makeDraft({ replies: [toolReply(args)] });
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  const d = readJson(path.join(dir, 'declaration.json'));
+  const byLine = Object.fromEntries(d.steps.map((s) => [s.fromLine, s.goal]));
+  assert.equal(byLine[3], LINE3);
+  assert.match(byLine[3], /200ish each/);
+  assert.equal(byLine[1], 'Read my resume,');
+  assert.equal(byLine[4], 'check it with me,', 'the ask mark is stripped, the question stays');
+});
+
+test('goal: the forced schema no longer offers `goal` to the model', async () => {
+  const { buildDeclarationSchema } = await import('../src/drafter.js');
+  const { wiredMenu } = await import('../src/primitives.js');
+  const item = buildDeclarationSchema(wiredMenu(['core'])).properties.steps.items;
+  assert.equal(item.properties.goal, undefined);
+  assert.ok(!item.required.includes('goal'));
+});
+
+test('goal: sign refuses a hand-edited goal that is not its signed line, no flow — even with a matching hash', async () => {
+  const { r, root, dir } = await makeDraft();
+  const df = path.join(dir, 'declaration.json');
+  const d = readJson(df);
+  d.steps.find((s) => s.fromLine === 3).goal = 'write me a summary resume';
+  writeFileSync(df, `${JSON.stringify(d, null, 2)}\n`);
+  assert.match(signDraft({ dir, approve: r.hash, signedBy: 'alice' }).reds[0], /does not match/);
+  const s = signDraft({ dir, approve: rehash(dir), signedBy: 'alice' });
+  assert.equal(s.ok, false);
+  assert.match(s.reds.join(' '), /steps\[\d+\]\.goal is not its signed line 3 verbatim/);
+  noFlow(root);
+});
+
+test('goal: the running step gets the signed line exactly, and its whole context never carries the guardrail, shape or cap', async () => {
+  const { r, root, dir, fx } = await makeDraft();
+  assert.equal(signDraft({ dir, approve: r.hash, signedBy: 'alice' }).ok, true);
+  const ctxs = [];
+  const modelStep = async (ctx) => { ctxs.push(JSON.stringify(ctx)); return { ok: true, costUsd: 0.001, artifact: { text: 'x', done: true } }; };
+  await runFlow({
+    root,
+    name: 'job2',
+    runId: 'run-1',
+    sources: [{ id: 'resume', path: fx.resume }, { id: 'jd', path: fx.jd }],
+    catalogue: CAT,
+    modelStep,
+    askStep: async () => ({ decision: 'reject', reason: 'stop here' }),
+    sendStep: async () => ({ ok: true, bytes: 1 }),
+    primitives: {},
+    businessDate: '2026-09-29',
+  });
+  assert.ok(ctxs.some((c) => JSON.parse(c).goal === LINE3), 'a step ran with line 3 verbatim');
+  for (const c of ctxs) {
+    for (const leak of ['3 sections, all under 600 words', 'nothing goes out before I accept', 'softgreen', 'maxWords', '0.25']) {
+      assert.ok(!c.includes(leak), `context leaked "${leak}": ${c}`);
+    }
+  }
 });

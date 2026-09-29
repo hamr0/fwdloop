@@ -54,7 +54,6 @@ export function buildDeclarationSchema(menu) {
         items: {
           type: 'object',
           properties: {
-            goal: { type: 'string', minLength: 1, description: 'one line: what this step is for' },
             primitives: {
               type: 'array',
               items: { type: 'string', enum: menu.map((e) => e.verb) },
@@ -83,7 +82,7 @@ export function buildDeclarationSchema(menu) {
               additionalProperties: false,
             },
           },
-          required: ['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close'],
+          required: ['primitives', 'reads', 'emits', 'fromLine', 'close'],
           additionalProperties: false,
         },
       },
@@ -133,7 +132,7 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
     ...menu.map((e) => `- ${e.verb}: ${e.desc} (class: ${e.class})`),
     '',
     'Rules:',
-    '- Steps share one artifact space. Each step: goal, primitives (verbs it needs, [] if none), reads (artifact ids emitted by an EARLIER step only), emits (ONE new unique artifact id), fromLine (the ONE job line it serves), close.',
+    '- Steps share one artifact space. Each step: primitives (verbs it needs, [] if none), reads (artifact ids emitted by an EARLIER step only), emits (ONE new unique artifact id), fromLine (the ONE job line it serves), close. The machine fills each step\'s goal with that signed line, verbatim — you never write a goal.',
     '- Every numbered job line must be served by a step (fromLine = that line) or listed in "refused" with a reason.',
     '- guardrailClasses: for each job line that HAS a guardrail, classify its wording once: "green" (every figure must cite its source cell), "softgreen" (the human declared a SHAPE the output must take), "hitl" (an ask/accept/review gate, or anything you are not sure of). When unsure, "hitl".',
     '- close.class MUST equal the class of the guardrail on that step\'s fromLine (guardrailClasses[fromLine]); a line with no guardrail is "hitl". A step cannot claim a class its own line does not earn.',
@@ -149,6 +148,16 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
     'The numbered job lines:',
     jobLinesText(lines, arbiter.asks),
   ].join('\n');
+}
+
+/**
+ * A step's goal = its signed line's text, exactly as parseSignedText's `lines` gives it: the words after
+ * "N. " (trailing comma kept; on an ask line the mark is stripped, leaving the question). Continuation
+ * lines do not exist in the grammar. A step naming no signed line gets a fixed placeholder, never model prose.
+ */
+export function goalForLine(fromLine, lines) {
+  const line = Number.isInteger(fromLine) ? lines.find((l) => l.n === fromLine) : undefined;
+  return line ? line.text : '(no signed line)';
 }
 
 function reviseMessage(reds) {
@@ -264,8 +273,12 @@ export async function draft({
     }
 
     const declaration = { .../** @type {object} */ (captured), inputFacts: facts.inputFacts };
+    // M6a amendment 1 (F50): the goal is the signed line, set by the machine; whatever the model sent is overwritten.
+    if (Array.isArray(declaration.steps)) {
+      declaration.steps = declaration.steps.map((st) => (isPlainObject(st) ? { ...st, goal: goalForLine(st.fromLine, lines) } : st));
+    }
     const verdict = validateDeclaration(declaration, {
-      arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS,
+      arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true,
     });
     lastDecl = declaration;
     if (verdict.ok) {

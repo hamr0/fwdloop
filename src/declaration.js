@@ -251,11 +251,13 @@ function deriveFromLine(fromLine, lines, guardrailClasses) {
  * @param {unknown} declaration
  * `wired` (optional Set of verbs): when given, a granted verb outside it is a red
  * by name, even if the catalogue lists it. Omitted = no wired check (existing callers).
- * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string> }} [context]
+ * `verbatimGoals` (optional boolean; M6a amendment 1): when true, a step naming a signed line must carry that line's
+ * text as its goal, exactly. Off by default so already-signed flows keep running; draft and sign turn it on.
+ * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string>, verbatimGoals?: boolean }} [context]
  * @returns {ValidateDeclarationResult}
  */
 export function validateDeclaration(declaration, context = {}) {
-  const { arbiter, lines, catalogue, wired } = context;
+  const { arbiter, lines, catalogue, wired, verbatimGoals } = context;
   const reds = [];
 
   if (!isPlainObject(declaration)) {
@@ -414,6 +416,12 @@ export function validateDeclaration(declaration, context = {}) {
     // goal
     if (typeof step.goal !== 'string' || step.goal.length === 0) {
       reds.push(`declaration: ${label}.goal must be a non-empty string`);
+    }
+    if (verbatimGoals === true && typeof step.goal === 'string' && Number.isInteger(step.fromLine)) {
+      const own = safeLines.find((l) => l.n === step.fromLine);
+      if (own && step.goal !== own.text) {
+        reds.push(`declaration: ${label}.goal is not its signed line ${own.n} verbatim (expected ${JSON.stringify(own.text)}, got ${JSON.stringify(step.goal)}) — the goal is the human's line, never reworded`);
+      }
     }
 
     // primitives
