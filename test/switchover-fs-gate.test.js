@@ -15,8 +15,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, symlinkSync,
+  mkdirSync, writeFileSync, readFileSync, existsSync, symlinkSync,
 } from 'node:fs';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 

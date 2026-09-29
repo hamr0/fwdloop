@@ -12,8 +12,9 @@
 import assert from 'node:assert/strict';
 import { test, describe, before, after } from 'node:test';
 import {
-  readFileSync, writeFileSync, mkdtempSync, mkdirSync, symlinkSync, rmSync, readdirSync, statSync, chmodSync,
+  readFileSync, writeFileSync, mkdirSync, symlinkSync, rmSync, readdirSync, statSync, chmodSync,
 } from 'node:fs';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
