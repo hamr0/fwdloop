@@ -304,9 +304,9 @@ const ALLOWLIST = {
     names: { readFileSync: 1 },
   },
   'src/authoring.js': {
-    reason: 'M6a: `fwdloop draft`/`sign` — creates the NEW draft dir and writes its files (writes only), reads the caller-named prose file (a business input, not a book), and existsSync checks on the dir/input sources. Every read of a draft dir\'s own files goes through readFileInside/readdirInside (src/flow.js).',
+    reason: 'M6a: `fwdloop draft`/`sign` — creates the NEW draft dir and writes its files (writes only; rmdirSync removes only the just-claimed EMPTY dir on a $0 pre-flight refusal), reads the caller-named prose file (a business input, not a book), and existsSync checks on the dir/input sources. Every read of a draft dir\'s own files goes through readFileInside/readdirInside (src/flow.js).',
     names: {
-      existsSync: 2, mkdirSync: 2, readFileSync: 1, writeFileSync: 1,
+      existsSync: 2, mkdirSync: 2, readFileSync: 1, rmdirSync: 1, writeFileSync: 3,
     },
   },
   'src/primitives.js': {
