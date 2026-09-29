@@ -355,6 +355,12 @@ sys.stdout.write(out.decode(errors="replace"))
 sys.exit(os.waitstatus_to_exitcode(st))
 `;
 const HAS_PTY = spawnSync('python3', ['-c', 'import pty']).status === 0;
+// In CI a missing pty must fail loudly, never skip green; locally it skips with a visible reason.
+const IN_CI = (process.env.CI ?? '') !== '';
+const PTY_SKIP = HAS_PTY || IN_CI ? false : 'python3 with the pty module not found (set CI=1 to make this a failure)';
+test('cli sign (real pty): python3 pty is available when CI is set', { skip: !IN_CI }, () => {
+  assert.ok(HAS_PTY, 'CI is set but `python3 -c "import pty"` failed: the real-pty sign tests cannot run — install python3 in CI');
+});
 const ptyCli = (args, typed) => spawnSync('python3', ['-c', PTY_PY, process.execPath, BIN, ...args, typed], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '' } });
 
 function draftedForSign() {
@@ -371,7 +377,7 @@ test('cli sign: piped stdin (no TTY) is refused by name, no flow, even with the 
   assert.ok(!existsSync(flowDirOf(s.root)), 'no flow written');
 });
 
-test('cli sign (real pty): wrong typed name is refused, no flow', { skip: !HAS_PTY }, () => {
+test('cli sign (real pty): wrong typed name is refused, no flow', { skip: PTY_SKIP }, () => {
   const { s, hash } = draftedForSign();
   const r = ptyCli(['sign', s.dir, '--approve', hash], 'nope');
   assert.notEqual(r.status, 0);
@@ -379,7 +385,7 @@ test('cli sign (real pty): wrong typed name is refused, no flow', { skip: !HAS_P
   assert.ok(!existsSync(flowDirOf(s.root)), 'no flow written');
 });
 
-test('cli sign (real pty): right name + right hash signs; right name + wrong hash still refused', { skip: !HAS_PTY }, () => {
+test('cli sign (real pty): right name + right hash signs; right name + wrong hash still refused', { skip: PTY_SKIP }, () => {
   const { s, hash } = draftedForSign();
   let r = ptyCli(['sign', s.dir, '--approve', 'f'.repeat(64)], 'job2');
   assert.notEqual(r.status, 0);
