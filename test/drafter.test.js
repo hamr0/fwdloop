@@ -169,3 +169,25 @@ test('(e4) a budget below one round\'s ceiling is refused at $0, before any prov
   assert.equal(p.calls.length, 0);
   assert.match(r.reds[0], new RegExp(`minimum budget is \\$${ceilingCostUsd(MODEL).toFixed(4)}`));
 });
+
+test('(f1) a structure retry after a validator revision keeps the validator reds and is logged as structure-retry', async () => {
+  const bad = validArgs();
+  bad.steps[2].primitives = ['stash'];
+  const p = fakeProvider([toolReply(bad), textReply(), toolReply(validArgs())]);
+  const r = await run(p);
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  assert.deepEqual(r.log.map((e) => e.kind), ['first', 'revision', 'structure-retry']);
+  const retryUser = p.calls[2].messages.find((m) => m.role === 'user').content;
+  assert.match(retryUser, /not a usable tool call/);
+  assert.match(retryUser, /"stash"/, 'the validator red is still in the retry prompt');
+});
+
+test('(f2) a structure retry with no prior validator reds carries none, and a revision after a structure retry is logged revision', async () => {
+  const bad = validArgs();
+  bad.steps[2].primitives = ['stash'];
+  const p = fakeProvider([textReply(), toolReply(bad), toolReply(validArgs())]);
+  const r = await run(p);
+  assert.deepEqual(r.log.map((e) => e.kind), ['first', 'structure-retry', 'revision']);
+  const retryUser = p.calls[1].messages.find((m) => m.role === 'user').content;
+  assert.ok(!/refused by the validator/.test(retryUser));
+});

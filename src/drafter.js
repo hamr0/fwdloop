@@ -224,6 +224,8 @@ export async function draft({
   let lastReds = [];
   let lastDecl = null;
   let userText = `Call ${TOOL} now.`;
+  let nextKind = 'first'; // what the round about to run actually is
+  let validatorReds = []; // the last validator refusal; a structure retry after a revision must not drop it
   let stop = null;
 
   for (;;) {
@@ -254,7 +256,7 @@ export async function draft({
     } catch (err) {
       threw = err;
     }
-    const entry = { round: log.length + 1, kind: revisions + structureRetries === 0 ? 'first' : (lastDecl ? 'revision' : 'structure-retry') };
+    const entry = { round: log.length + 1, kind: nextKind };
 
     if (threw) {
       entry.outcome = `provider-red: ${threw.message}`;
@@ -274,7 +276,9 @@ export async function draft({
       lastReds = [why];
       if (structureRetries >= MAX_STRUCTURE_RETRIES) { stop = 'structure'; break; }
       structureRetries += 1;
+      nextKind = 'structure-retry';
       userText = `Your last reply was not a usable tool call (${why}). Call ${TOOL} now with a complete, valid JSON declaration.`;
+      if (validatorReds.length) userText += `\n\nThe last declaration you emitted was still refused by the validator; keep fixing these too:\n${validatorReds.map((r) => `- ${r}`).join('\n')}`;
       continue;
     }
 
@@ -301,6 +305,8 @@ export async function draft({
     log.push(entry);
     if (revisions >= MAX_REVISIONS) { stop = 'validator'; break; }
     revisions += 1;
+    validatorReds = lastReds;
+    nextKind = 'revision';
     userText = reviseMessage(lastReds);
   }
 
