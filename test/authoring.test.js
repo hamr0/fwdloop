@@ -60,6 +60,7 @@ test('draft: green draft writes prose(verbatim)/declaration/facts/readout/log/sp
     declarationText: readFileSync(path.join(dir, 'declaration.json'), 'utf8'),
     inputFactsText: readFileSync(path.join(dir, 'input-facts.json'), 'utf8'),
     readoutText: ro,
+    targetText: readFileSync(path.join(dir, 'target.json'), 'utf8'),
   });
   assert.equal(h.hash, r.hash);
   assert.equal(readFileSync(path.join(dir, SPEC_HASH_FILE), 'utf8').trim(), r.hash);
@@ -228,7 +229,7 @@ const noFlow = (root) => assert.ok(!existsSync(flowDirOf(root)), 'no flow dir wa
 function rehash(dir) {
   const rd = (f) => readFileSync(path.join(dir, f), 'utf8');
   const h = specHash({
-    proseText: rd('prose.txt'), declarationText: rd('declaration.json'), inputFactsText: rd('input-facts.json'), readoutText: rd('readout.txt'),
+    proseText: rd('prose.txt'), declarationText: rd('declaration.json'), inputFactsText: rd('input-facts.json'), readoutText: rd('readout.txt'), targetText: rd('target.json'),
   }).hash;
   writeFileSync(path.join(dir, SPEC_HASH_FILE), `${h}\n`);
   return h;
@@ -271,7 +272,7 @@ test('sign: a hash freshly computed over edited files is refused unless the draf
   writeFileSync(pf, readFileSync(pf, 'utf8').replace('cap $0.25', 'cap $9.99'));
   const rd = (f) => readFileSync(path.join(dir, f), 'utf8');
   const fresh = specHash({
-    proseText: rd('prose.txt'), declarationText: rd('declaration.json'), inputFactsText: rd('input-facts.json'), readoutText: rd('readout.txt'),
+    proseText: rd('prose.txt'), declarationText: rd('declaration.json'), inputFactsText: rd('input-facts.json'), readoutText: rd('readout.txt'), targetText: rd('target.json'),
   }).hash;
   assert.notEqual(fresh, r.hash);
   const s = signDraft({ dir, approve: fresh, signedBy: 'alice' });
@@ -467,4 +468,15 @@ test('ttl: a signed "ask 20s:" reads back as 20s, never rounded to 0 min', async
   const { r, dir } = await makeDraft({ prose: fx.prose.replace('4. ask 30m:', '4. ask 20s:') });
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.match(readFileSync(path.join(dir, 'readout.txt'), 'utf8'), /\(ttl 20s\)/);
+});
+
+test('sign: editing target.json after draft changes the hash — refused, no flow', async () => {
+  const { r, root, dir } = await makeDraft();
+  const t = path.join(dir, 'target.json');
+  writeFileSync(t, JSON.stringify({ root, name: 'other' }));
+  const s = signDraft({ dir, approve: r.hash, signedBy: 'alice' });
+  assert.equal(s.ok, false);
+  assert.match(s.reds.join(' '), /does not match the draft as it is now/);
+  noFlow(root);
+  assert.ok(!existsSync(path.join(root, 'other')), 'nothing landed under the edited name');
 });

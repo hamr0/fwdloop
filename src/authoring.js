@@ -9,8 +9,9 @@
 // The spec hash (`specHash`, the ONE function; draft prints it, sign recomputes it) covers
 // exactly what the human reads and signs: prose + declaration + input facts + readout, each
 // canonicalised (signature.js canonicalBytes: CRLF -> LF for text, sorted-key JSON).
-// It does NOT cover log.json / spend.jsonl (a record of how the draft was made, not of what
-// is signed) or target.json (where the flow lands, chosen by the human at draft time).
+// target.json (root + name: where the flow lands) is covered too, so editing it after draft
+// cannot sign under a different name/dir than the readout showed. It does NOT cover log.json /
+// spend.jsonl (a record of how the draft was made, not of what is signed).
 
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -35,10 +36,12 @@ const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
 /**
  * The one spec hash. sha256 over the four canonical parts, JSON-array framed so no part can
  * bleed into the next. Never throws.
- * @param {{proseText:string, declarationText:string, inputFactsText:string, readoutText:string}} p
+ * @param {{proseText:string, declarationText:string, inputFactsText:string, readoutText:string, targetText:string}} p
  * @returns {{ok:true, hash:string}|{ok:false, red:string}}
  */
-export function specHash({ proseText, declarationText, inputFactsText, readoutText }) {
+export function specHash({
+  proseText, declarationText, inputFactsText, readoutText, targetText,
+}) {
   const prose = canonicalBytes('prose.txt', proseText);
   if (!prose.ok) return { ok: false, red: prose.red };
   const decl = canonicalBytes('declaration.json', declarationText);
@@ -48,7 +51,9 @@ export function specHash({ proseText, declarationText, inputFactsText, readoutTe
   if (!facts.ok) return { ok: false, red: 'input-facts.json: is not valid JSON' };
   const readout = canonicalBytes('prose.txt', readoutText);
   if (!readout.ok) return { ok: false, red: readout.red };
-  const framed = JSON.stringify([sha(prose.bytes), sha(decl.bytes), sha(facts.bytes), sha(readout.bytes)]);
+  const target = canonicalBytes('declaration.json', targetText);
+  if (!target.ok) return { ok: false, red: 'target.json: is not valid JSON' };
+  const framed = JSON.stringify([sha(prose.bytes), sha(decl.bytes), sha(facts.bytes), sha(readout.bytes), sha(target.bytes)]);
   return { ok: true, hash: sha(Buffer.from(framed, 'utf8')) };
 }
 
@@ -162,7 +167,8 @@ export async function draftToDir({
   const dj = (o) => `${JSON.stringify(o, null, 2)}\n`;
   const files = {};
   files['prose.txt'] = prose.text; // verbatim
-  files['target.json'] = dj({ root, name });
+  const targetText = dj({ root, name });
+  files['target.json'] = targetText;
   files['log.json'] = scrub(dj({
     ok: result.ok, stop: result.stop, reds: result.reds, rounds: result.rounds, costUsd: result.costUsd,
     modelId: result.modelId, modelReturned: result.modelReturned, structureRetries: result.structureRetries,
@@ -178,7 +184,9 @@ export async function draftToDir({
     files['declaration.json'] = declarationText;
     files['input-facts.json'] = inputFactsText;
     files['readout.txt'] = readoutText;
-    const h = specHash({ proseText: prose.text, declarationText, inputFactsText, readoutText });
+    const h = specHash({
+      proseText: prose.text, declarationText, inputFactsText, readoutText, targetText,
+    });
     if (!h.ok) return { ok: false, wrote: false, reds: [h.red], costUsd: result.costUsd };
     hash = h.hash;
     files[SPEC_HASH_FILE] = `${hash}\n`;
@@ -221,7 +229,7 @@ export function signDraft({ dir, approve, signedBy, signedAt = new Date().toISOS
     parts[f] = r.text;
   }
   const h = specHash({
-    proseText: parts['prose.txt'], declarationText: parts['declaration.json'], inputFactsText: parts['input-facts.json'], readoutText: parts['readout.txt'],
+    proseText: parts['prose.txt'], declarationText: parts['declaration.json'], inputFactsText: parts['input-facts.json'], readoutText: parts['readout.txt'], targetText: parts['target.json'],
   });
   if (!h.ok) return refuse(`sign: ${h.red}`);
   if (approve !== h.hash) return refuse('sign: --approve does not match the draft as it is now (edited since it was drafted, or the wrong hash) — nothing signed');
