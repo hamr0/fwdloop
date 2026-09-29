@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 
 import {
-  draftToDir, signDraft, specHash, sweepForSecrets, scrub, SPEC_HASH_FILE, SIGN_LINE,
+  draftToDir, signDraft, specHash, LEAK_MARKER_FILE, sweepForSecrets, scrub, SPEC_HASH_FILE, SIGN_LINE,
 } from '../src/authoring.js';
 import { readSpendRows, ceilingCostUsd } from '../src/provider.js';
 import {
@@ -479,4 +479,43 @@ test('sign: editing target.json after draft changes the hash — refused, no flo
   assert.match(s.reds.join(' '), /does not match the draft as it is now/);
   noFlow(root);
   assert.ok(!existsSync(path.join(root, 'other')), 'nothing landed under the edited name');
+});
+
+test('sweep leak: draft returns red, leaves NO spec.hash, writes the marker; sign refuses it, even with the hash', async () => {
+  const fx = job2Fixture();
+  const work = tmp('leak');
+  const proseFile = path.join(work, 'prose.txt');
+  writeFileSync(proseFile, fx.prose);
+  const dir = path.join(work, 'draft');
+  // target.json is not scrubbed; a key in the flows root path reaches disk and only the sweep sees it.
+  const root = path.join(work, `flows-${KEY}`);
+  const r = await draftToDir({
+    proseFile, dir, root, name: 'job2', provider: fakeProvider([toolReply(validArgs())]), rates: RATES, modelId: MODEL, env: { DEEPSEEK_API_KEY: KEY },
+  });
+  assert.equal(r.ok, false);
+  assert.ok(r.leaks > 0);
+  assert.ok(!existsSync(path.join(dir, SPEC_HASH_FILE)), 'no spec.hash after a leak');
+  assert.ok(existsSync(path.join(dir, LEAK_MARKER_FILE)));
+  const h = specHash({
+    proseText: readFileSync(path.join(dir, 'prose.txt'), 'utf8'),
+    declarationText: readFileSync(path.join(dir, 'declaration.json'), 'utf8'),
+    inputFactsText: readFileSync(path.join(dir, 'input-facts.json'), 'utf8'),
+    readoutText: readFileSync(path.join(dir, 'readout.txt'), 'utf8'),
+    targetText: readFileSync(path.join(dir, 'target.json'), 'utf8'),
+  }).hash;
+  writeFileSync(path.join(dir, SPEC_HASH_FILE), `${h}\n`); // a person forging spec.hash
+  const s = signDraft({ dir, approve: h, signedBy: 'alice', env: {} });
+  assert.equal(s.ok, false);
+  assert.match(s.reds.join(' '), /key-leak marker/);
+  assert.ok(!existsSync(path.join(root, 'job2')));
+});
+
+test('sign re-sweeps: a key planted in the draft dir after draft is refused when the key is in sign\'s env', async () => {
+  const { r, root, dir } = await makeDraft();
+  const log = path.join(dir, 'log.json'); // outside the spec hash, so the hash still matches
+  writeFileSync(log, `${readFileSync(log, 'utf8')}\n${KEY}\n`);
+  const s = signDraft({ dir, approve: r.hash, signedBy: 'alice', env: { DEEPSEEK_API_KEY: KEY } });
+  assert.equal(s.ok, false);
+  assert.match(s.reds.join(' '), /contains a key value/);
+  noFlow(root);
 });

@@ -29,6 +29,8 @@ import { PROVIDER_SLOTS, checkKeyPreflight, appendSpendRow } from './provider.js
 
 export const DRAFT_BUDGET_USD = 0.10;
 export const SPEC_HASH_FILE = 'spec.hash';
+/** Written when the end sweep finds a key in the draft dir; sign refuses a dir that has it. */
+export const LEAK_MARKER_FILE = 'scrub-leak.red';
 export const SIGN_LINE = (dir, hash) => `DRAFTED — NOT SIGNED. To sign: fwdloop sign ${dir} --approve ${hash}`;
 
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -188,8 +190,7 @@ export async function draftToDir({
       proseText: prose.text, declarationText, inputFactsText, readoutText, targetText,
     });
     if (!h.ok) return { ok: false, wrote: false, reds: [h.red], costUsd: result.costUsd };
-    hash = h.hash;
-    files[SPEC_HASH_FILE] = `${hash}\n`;
+    hash = h.hash; // spec.hash is written only after a clean sweep, below
   } else if (result.declaration) {
     files['declaration.rejected.json'] = scrub(dj(result.declaration), secrets);
   }
@@ -208,7 +209,12 @@ export async function draftToDir({
     budgetUsd,
   });
   const leaks = sweepForSecrets(dir, secrets);
-  if (leaks > 0) return { ok: false, wrote: true, reds: [`scrub: ${leaks} file(s) in the draft dir contain a key value`], costUsd: result.costUsd, leaks };
+  if (leaks > 0) {
+    const red = `scrub: ${leaks} file(s) in the draft dir contain a key value`;
+    writeFileSync(path.join(dir, LEAK_MARKER_FILE), `${red}\n`); // no spec.hash; sign also refuses on this marker
+    return { ok: false, wrote: true, reds: [red], costUsd: result.costUsd, leaks };
+  }
+  if (hash) writeFileSync(path.join(dir, SPEC_HASH_FILE), `${hash}\n`);
   return {
     ok: result.ok, wrote: true, dir, hash, reds: result.reds, costUsd: result.costUsd, stop: result.stop, rounds: result.rounds, leaks: 0,
   };
@@ -218,8 +224,15 @@ export async function draftToDir({
  * The human step, $0. Every refusal returns reds and writes NO flow.
  * `signedBy` must come from the human's own invocation (the CLI's --signed-by/username).
  */
-export function signDraft({ dir, approve, signedBy, signedAt = new Date().toISOString() }) {
+export function signDraft({
+  dir, approve, signedBy, signedAt = new Date().toISOString(), env = process.env,
+}) {
   const refuse = (...reds) => ({ ok: false, reds });
+  if (readFileInside(dir, LEAK_MARKER_FILE).ok) return refuse(`sign: "${dir}" carries a key-leak marker (${LEAK_MARKER_FILE}) — never signed`);
+  // Sign is $0 and takes no key, so it can only sweep for keys present in ITS env (any provider slot's).
+  // With none set the sweep is skipped: the marker above and the missing spec.hash are then the guard.
+  const keys = Object.values(PROVIDER_SLOTS).map((p) => env[p.envVar]).filter(Boolean);
+  if (sweepForSecrets(dir, keys) > 0) return refuse(`sign: "${dir}" contains a key value — nothing signed`);
   if (typeof approve !== 'string' || approve === '') return refuse('sign: --approve <hash> is required');
   const read = (f) => readFileInside(dir, f);
   const parts = {};
