@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Deps: `bareguard` bumped to `^0.19.2` — a symlinked `fs.readScope`/`fs.writeScope` root (or any
+  symlinked ancestor) is refused at Gate construction and denied `.symlinkRoot` on every later
+  check, closing the `<runDir>/out`-symlink write escape. `resolvePrimitives` turns the construct
+  throw into a red with no tools for the step, and `runFlow`/`resumeRun` (new `primitiveReds`
+  option, wired by `bin/fwdloop`) refuse the run by name at $0.
 - Audit: every model-attempt `audit.jsonl` row (and its `log.json` attempt entry) carries
   `refused`, an array of `{ verb, path, rule }` for each bareguard fs-gate refusal that attempt
   (`[]` when none, never omitted). Rows with no model call omit it.

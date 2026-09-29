@@ -2629,3 +2629,14 @@ wrapper. Nothing differed, so nothing was worked around.
 - `read`/`grep` `role` lookup now uses an own-key check, so `__proto__`/`constructor`/`toString`
   get the named `no frozen input for role` refusal instead of a raw TypeError.
 - Stale `allowedRoots` comment in `src/primitives.js` reworded to the gate's `readScope`.
+- Symlinked writeScope root — FIXED upstream in bareguard 0.19.2 (the Gate constructor throws on
+  any fs.readScope/fs.writeScope entry that is or sits under a symlink, dangling included; every
+  `check()` re-walks each root's components and denies `fs.<scope>.symlinkRoot` if a root or
+  ancestor was swapped to a symlink after start). Validated against the installed package, not
+  from its changelog: pinning back to 0.19.1 turns the five new tests red. fwdloop adds no
+  check of its own — `resolvePrimitives` catches the construct throw, builds NO tool for the step
+  (readDocx/addressCells too: they read frozen inputs outside the gate, so fail closed), and
+  returns a red `primitives: bareguard refused the step's file scope — <bareguard's message>`;
+  `runFlow`/`resumeRun` take it as `primitiveReds` and refuse at $0 the way an unwired verb is
+  refused (no model call; `run`: one history row, no run dir; `resume`: refused before the lock,
+  no book row). Remaining gaps unchanged: the check-then-open window, and hardlinks.
