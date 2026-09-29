@@ -23,3 +23,23 @@
 {"runId":"m6a-m6a-validate-1-2","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.0012636599999999998,"rounds":2,"wallMs":4042,"modelMatch":"match","note":"pre-release bare-agent 6cf1d13 validation, worktree"}
 {"runId":"m6a-m6a-validate-1-3","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.0006637799999999999,"rounds":1,"wallMs":2264,"modelMatch":"match","note":"pre-release bare-agent 6cf1d13 validation, worktree"}
 {"runId":"m6a-probe-thinking-2","step":"probe-bareagent-poc","model":"deepseek-flash","costUsd":null,"rounds":5,"costBasis":"bare-agent poc/openai-thinking-deepseek.mjs run twice (arms A,B then A,B,C); A and C refused 400/422 pre-generation, B x2 generated but usage not captured -> unpriced, ceiling applies"}
+{"runId":"m6a-m6a-poc-2-1","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00064098,"rounds":1,"wallMs":2085,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-2","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.0006385799999999999,"rounds":1,"wallMs":2226,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-3","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00062298,"rounds":1,"wallMs":2181,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-4","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00062298,"rounds":1,"wallMs":1802,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-5","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.0006325799999999999,"rounds":1,"wallMs":2053,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-6","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00062778,"rounds":1,"wallMs":1993,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-7","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.0006217799999999999,"rounds":1,"wallMs":1697,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-8","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.0006205799999999999,"rounds":1,"wallMs":2174,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-9","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00202872,"rounds":3,"wallMs":6410,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-10","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00061338,"rounds":1,"wallMs":1853,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-11","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.0006037799999999999,"rounds":1,"wallMs":2071,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-12","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00066858,"rounds":1,"wallMs":2000,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-13","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00062898,"rounds":1,"wallMs":2441,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-14","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00065898,"rounds":1,"wallMs":1955,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-15","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.0006505799999999999,"rounds":1,"wallMs":1957,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-16","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00069138,"rounds":1,"wallMs":2237,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-17","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.0013212599999999999,"rounds":2,"wallMs":4007,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-18","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00199572,"rounds":3,"wallMs":6140,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-19","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00071658,"rounds":1,"wallMs":2483,"modelMatch":"match"}
+{"runId":"m6a-m6a-poc-2-20","step":"draft-m6a","model":"deepseek-flash","modelReturned":"deepseek-flash","costUsd":0.00125046,"rounds":2,"wallMs":3556,"modelMatch":"match"}
