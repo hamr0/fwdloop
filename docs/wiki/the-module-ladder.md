@@ -1060,7 +1060,7 @@ hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from th
 - The lock file gains its holder's process number. No other book changes.
 - Why: hamr's M4c review walk 2026-09-30 — the walk fixture's run-stuck (answer saved, resume.lock held) showed `[·]` "waiting on you" though nothing waited on him; and a resumer killed hard leaves an empty `resume.lock` (src/runner.js ~1548, removed only in its finally ~1968), so "Try the resume again" is refused forever until the file is deleted by hand.
 
-**M4c amendment 2 (revised) — a stuck run, and how to unstick it — NOT YET SIGNED**
+**M4c amendment 2 (revised) — a stuck run, and how to unstick it — SIGNED by hamr 2026-09-30 ("sign m4c amendment 2 revised")**
 - Replaces M4c amendment 2 above. The POC (poc/m4c/stuck-probe.mjs, e493228) proved a resume that took the answer and then died cannot be carried on: clearing the lock leaves "no answer yet", and the taken answer's askId refuses a second answer.
 - (a) A run is **stuck** when your answer is saved and not yet taken, but no process is carrying the run on. It shows `[II]` "stuck — answer saved, click try the resume again", **pulsing**. Under reduced motion the sign stays and only the pulse stops.
 - (b) A stuck run counts in `Inbox (N)` and sits in the Inbox's "waiting on you" section, below the asks that have a timer. In Runs and History it sits with the waiting runs.
