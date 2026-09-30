@@ -171,6 +171,17 @@
   .btn:disabled{color:var(--text-faint);border-color:var(--border);cursor:not-allowed;}
   .btn:disabled::before,.btn:disabled::after{color:var(--text-faint);opacity:0.4;}
   .btn.small{padding:0 9px;height:32px;min-height:0;font-size:12px;}
+  /* M4b piece 4: the answer doors. Shape/placement from bareloop's mockup Run-tab
+     action bar (a row of `.btn`s with a hint line under it), reject is ours. */
+  .answer-doors{margin-top:12px;padding-top:8px;border-top:1px solid var(--border);}
+  .answer-doors label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:3px;}
+  .answer-doors textarea{display:block;width:100%;max-width:100%;box-sizing:border-box;min-height:64px;padding:6px 8px;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border-strong);resize:vertical;}
+  .answer-doors .actions-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+  .answer-doors .btn{min-width:44px;}
+  .answer-msg{margin-top:8px;padding:6px 8px;border:1px solid var(--border-strong);font-size:13px;color:var(--text);white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;}
+  .answer-msg.refused{border-color:var(--red);}
+  .answer-msg.refused::before{content:"[✗] refused: ";color:var(--red);font-weight:700;}
+  .answer-msg.info::before{content:"[·] ";color:var(--amber);font-weight:700;}
 
   .wf-row,.hist-row{
     display:flex;flex-direction:column;row-gap:4px;min-width:0;
