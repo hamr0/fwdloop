@@ -1,14 +1,17 @@
 # poc/m4b — answer door POC (THROWAWAY, $0)
 
+> The test file `answer-door.test.mjs` was deleted on 2026-09-30 by hamr's ruling ("delete it"): it cost ~34 s of the
+> suite, and its behaviours are now covered by `test/panel-answer.test.js` and `test/panel-resume.test.js`. The measured
+> results stay recorded below and in F51. The last commit that has the test is ee57930.
+
 Riskiest assumption (M4b "Kills M4b"): a panel HTTP answer path can (a) refuse everything that is not a
 real click from the served page, (b) hand the answer to `answerAsk` and nothing else, (c) start the resume
 as a detached process that outlives the request, once per answer, with no books/arbiter change.
 
 Files: `answer-door.mjs` (server; wraps `src/panel/server.js` `handleRequest` for GETs, adds `POST /api/answer`),
-`answer-door.test.mjs` (8 tests), `serve.mjs` (door as its own process, for the detached proof).
-No `src/`, `bin/`, `test/` file touched. Run: `node --test poc/m4b/answer-door.test.mjs`
-(Node 22 does not accept a directory argument to `--test`.) `npm test` DOES pick it up (yes; 1688/1688 green,
-exit 0, suite ~38 s, this file ~30 s of that).
+`answer-door.test.mjs` (8 tests, since deleted, see the note above), `serve.mjs` (door as its own process, for the detached proof).
+No `src/`, `bin/`, `test/` file touched. Run the test from ee57930: `git show ee57930:poc/m4b/answer-door.test.mjs`
+(Node 22 does not accept a directory argument to `--test`.) `npm test` no longer picks up this POC.
 
 ## Verdict
 Not killed. (a), (b), (c) all held with no change to books or arbiter. Findings below are real, none is a books/arbiter change.
