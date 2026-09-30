@@ -541,6 +541,7 @@ export function listArchivedAsks(runDir) {
       expiresAt: ask.expiresAt,
       evidence: readAskEvidence(ask),
       answer,
+      ...(typeof ask.emits === 'string' ? { emits: ask.emits } : {}),
     });
   }
 

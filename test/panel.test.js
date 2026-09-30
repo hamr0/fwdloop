@@ -2681,18 +2681,19 @@ describe('index.html — page source', () => {
 
   // hamr's 2026-09-27 exit-check review #3: Ask tab "Ask i of n" + bold
   // headers + Inbox-opened highlight.
-  test('review #3: the Ask tab header names "Ask i of n", the step (+ line), when it was asked, and its status', () => {
-    const fnStart = source.indexOf('function askHeaderMetaText');
+  test('review #3 (M4c): the Ask block header names the step (+ line), "draft N", when it was asked, and its status — never "Ask i of n"', () => {
+    const fnStart = source.indexOf('function blockMetaText');
     const fnEnd = source.indexOf('\n  }', fnStart);
     const body = source.slice(fnStart, fnEnd);
-    assert.match(body, /"Ask " \+ ask\.index \+ " of " \+ ask\.total/);
-    assert.match(body, /ask\.stepName/);
-    assert.match(body, /" \(line " \+ ask\.stepLine \+ "\)"/);
+    assert.doesNotMatch(body, /" of "/);
+    assert.match(body, /"draft " \+ block\.draftNo/);
+    assert.match(body, /block\.stepName/);
+    assert.match(body, /" \(line " \+ block\.stepLine \+ "\)"/);
     assert.match(body, /ask\.askedAt/);
   });
 
   test('review #3: the draft/unjudged-input box headers use the bold .evidence-heading class, never the faint .hint style', () => {
-    assert.match(source, /textDiv\("evidence-heading", "draft under review"\)/);
+    assert.match(source, /textDiv\("evidence-heading", "draft " \+ ctx\.draftNo\)/);
     assert.match(source, /textDiv\("evidence-heading", "unjudged/);
     assert.match(source, /\.evidence-heading\{[^}]*font-weight:700/);
   });
@@ -2701,15 +2702,15 @@ describe('index.html — page source', () => {
     const fnStart = source.indexOf('function renderAsk(result');
     const fnEnd = source.lastIndexOf('}');
     const body = source.slice(fnStart, fnEnd);
-    assert.match(body, /focusAskId && ask\.askId === focusAskId/);
+    assert.match(body, /focusAskId && block\.askIds\.indexOf\(focusAskId\) !== -1/);
     assert.match(body, /row\.classList\.add\("audit-group-highlight"\)/);
   });
 
   test('PROOF (review #3 can fail): the highlight is gated on the REAL focusAskId match — a bare "if(focusAskId)" would highlight every ask whenever ANY one was clicked from the Inbox', () => {
-    const fnStart = source.indexOf('asks.forEach(function(ask){', source.indexOf('function renderAsk(result'));
+    const fnStart = source.indexOf('blocks.forEach(function(block){', source.indexOf('function renderAsk(result'));
     const fnEnd = source.indexOf('list.appendChild(row)', fnStart);
     const body = source.slice(fnStart, fnEnd);
-    assert.match(body, /ask\.askId === focusAskId/);
+    assert.match(body, /block\.askIds\.indexOf\(focusAskId\) !== -1/);
   });
 
   // hamr's 2026-09-27 exit-check review #4: no horizontal scroll at 390px.

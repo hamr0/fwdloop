@@ -1417,6 +1417,7 @@ function normalizeArchivedRow(a) {
     reason: a.answer.reason ?? null,
     answeredAt: a.answer.answeredAt ?? null,
     archived: true,
+    emits: typeof a.emits === 'string' ? a.emits : null,
     evidence: flattenEvidence(a.evidence),
   };
 }
@@ -1617,6 +1618,54 @@ export function deriveAskStepInfo(orderedAsks, auditRows, declSteps) {
 }
 
 /**
+ * M4c item 5 — the Ask tab's ONE grouping function: one block per signed ask
+ * line. Key = the archive's recorded `emits`, else the step the ask's own "paused" audit row names (`stepName`,
+ * `deriveAskStepInfo`); when the books cannot name a step (count mismatch, a
+ * pre-M4a-1 run) the key falls back to the question text, then to one shared
+ * "unknown" key — never a guessed pairing. Draft numbers are the ask's 1-based
+ * position within its own block (how many times this line has parked).
+ * `current` is the newest draft; `answers` is one row per draft that has a
+ * recorded decision (the newest draft only when it is not itself open),
+ * decision word via `DECISION_STATUS` (old `reject` files already read `redo`).
+ * @param {any[]} asks rows as built by `getRunAsks` (oldest first)
+ * @returns {any[]}
+ */
+export function groupAskBlocks(asks) {
+  const decisionWord = (status) => Object.keys(DECISION_STATUS).find((k) => DECISION_STATUS[k] === status) ?? status;
+  const byKey = new Map();
+  for (const ask of asks) {
+    let key = 'unknown';
+    if (typeof ask.emits === 'string') key = `step:${ask.emits}`;
+    else if (typeof ask.stepName === 'string') key = `step:${ask.stepName}`;
+    else if (typeof ask.question === 'string') key = `q:${ask.question}`;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(ask);
+  }
+  return [...byKey.entries()].map(([key, drafts]) => {
+    const current = drafts[drafts.length - 1];
+    const answers = [];
+    drafts.forEach((d, i) => {
+      if (d === current && d.open) return;
+      if (d.status === 'unanswered' || d.status === 'open') return;
+      answers.push({
+        draft: i + 1, askId: d.askId, decision: decisionWord(d.status), reason: d.reason ?? null, answeredAt: d.answeredAt ?? null,
+      });
+    });
+    return {
+      key,
+      stepName: current.emits ?? current.stepName ?? null,
+      stepLine: current.stepLine ?? null,
+      question: current.question ?? null,
+      questionWhy: current.questionWhy ?? null,
+      draftNo: drafts.length,
+      askIds: drafts.map((d) => d.askId),
+      current,
+      answers,
+    };
+  });
+}
+
+/**
  * `GET /api/runs/:flow/:runId/asks` — the Ask tab (M4a-1 scope item 1):
  * every ask this run's books can name, in order, each carrying full
  * evidence (`readAskEvidence`'s draft + unjudged, or the pre-M4a-1 `why`).
@@ -1663,7 +1712,7 @@ export function getRunAsks({
     stepWhy: stepInfo[i].why,
   }));
   return {
-    flow, runId, asks, resume,
+    flow, runId, asks, resume, blocks: groupAskBlocks(asks),
   };
 }
 

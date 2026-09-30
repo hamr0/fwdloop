@@ -195,6 +195,8 @@
   .answer-doors textarea{display:block;width:100%;max-width:100%;box-sizing:border-box;min-height:64px;padding:6px 8px;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border-strong);resize:vertical;}
   .answer-doors .actions-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
   .answer-doors .btn{min-width:44px;}
+  .working-line{margin-top:4px;font-size:13px;color:var(--text);overflow-wrap:anywhere;}
+  .answer-line{font-size:13px;color:var(--text-dim);margin:2px 0;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;}
   .answer-msg{margin-top:8px;padding:6px 8px;border:1px solid var(--border-strong);font-size:13px;color:var(--text);white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;}
   .answer-msg.refused{border-color:var(--red);}
   .answer-msg.refused::before{content:"refused: ";color:var(--red);font-weight:700;}
@@ -359,8 +361,8 @@
      ("resume-text"/"jd-text" etc.), never the faint `.hint` style. */
   .evidence-heading{font-size:11px;font-weight:700;color:var(--text-dim);margin:8px 0 3px;text-transform:uppercase;letter-spacing:0.04em;}
   .evidence-heading:first-child{margin-top:0;}
-  /* review #3: the ask's own question, a real heading under the "Ask i of
-     n · step · asked · status" meta line — reuses the box-drawing h4 look
+  /* review #3: the ask's own question, a real heading under the "step ·
+     draft N · asked · status" meta line — reuses the box-drawing h4 look
      the Audit/Job group headers already use, but inline (no absolute
      ┤ ├ pips — those are reserved for a whole-box title, not an in-flow
      line) so it reads as a clear, bold heading without a second border. */
@@ -2156,6 +2158,19 @@
     var st = asks && asks.resume ? asks.resume.label : null;
     return { done: false, cls: "info", text: (st || "answer applied") + " — run: " + ((detail && detail.label) || "state unknown") };
   }
+  // A watch outcome never overwrites a refusal the human has not yet clicked past (M4c item 7).
+  function sayLive(flow, runId, o){
+    if(answerMsg && answerMsg.cls === "refused") return;
+    if(o.text) say(flow, runId, o.cls, o.text);
+    else if(o.done){ answerMsg = null; paintAnswerMsg(); }
+  }
+  // The books showed the next state (or the watch gave up): the "working…" block ends and the Ask tab
+  // is drawn from what the books say now. Uses the SAME renderAsk guard as every refresh.
+  function endPending(flow, runId, asks){
+    if(!pendingAnswer) return;
+    pendingAnswer = null;
+    if(currentFlow === flow && currentRunId === runId && asks) renderAsk(asks, null);
+  }
   function startLive(flow, runId, askId){
     stopLive();
     live = { flow: flow, runId: runId, askId: askId, until: Date.now() + LIVE_MAX_MS, timer: null };
@@ -2165,10 +2180,11 @@
       reloadRun(flow, runId).then(function(res){
         if(live !== mine) return;
         var o = liveOutcome(askId, res[0], res[1]);
-        if(o.text) say(flow, runId, o.cls, o.text); else if(o.done){ answerMsg = null; paintAnswerMsg(); }
-        if(o.done){ stopLive(); return; }
+        sayLive(flow, runId, o);
+        if(o.done){ endPending(flow, runId, res[1]); stopLive(); return; }
         if(Date.now() > mine.until){
           say(flow, runId, "info", "no outcome after " + Math.round(LIVE_MAX_MS / 60000) + " minutes of watching — reload the page to check the run's books");
+          endPending(flow, runId, res[1]);
           stopLive();
           return;
         }
@@ -2313,7 +2329,18 @@
   // never decides that a reason is "good enough". ----
   // Pure: which controls does this ask get? `resume` is the run's own
   // `resume` field (src/panel/data.js deriveResumeState), never guessed here.
-  function answerControls(ask, resume){
+  // `pending` (M4c item 6) = the answer this page just sent and got a 202 for,
+  // for THIS ask: until the books show the next state there are no doors, only
+  // what is happening. Null when nothing was sent (or the send was refused).
+  function pendingText(p){
+    if(p.decision === "redo") return "working on your redo… draft " + (p.draftNo + 1) + " is coming";
+    if(p.decision === "accept") return "shipping draft " + p.draftNo + "…";
+    return "ending this run, starting a fresh one…";
+  }
+  function answerControls(ask, resume, pending){
+    if(pending && ask && pending.askId === ask.askId){
+      return { kind: "working", text: pendingText(pending), why: "no answer doors: the answer was sent" };
+    }
     if(!ask || !ask.open){
       return { kind: "none", why: "no answer doors: this ask is " + ((ask && ask.status) || "closed") + " — there is nothing left to answer" };
     }
@@ -2332,6 +2359,19 @@
   // action. Set by `say`, never by a guess that the answer worked.
   var answerMsg = null;       // { flow, runId, cls: "refused"|"info", text }
   var reasonDrafts = {};      // askId -> what the human has typed so far
+  var pendingAnswer = null;   // { flow, runId, askId, decision, draftNo } — set on a 202, cleared by the live watch
+  // M4c item 7: should a periodic refresh skip re-drawing the Ask tab? Only while the
+  // human is mid-answer (text typed, or the box focused) on an ask that is STILL
+  // waiting in the new books — a dead ask's box never pins the page. A refusal needs no
+  // hold: it lives in `answerMsg` and is repainted after every render, until the next click.
+  function holdAskRender(box, result){
+    if(!box || !(box.value !== "" || box.focused)) return false;
+    return ((result && result.asks) || []).some(function(a){ return a.waiting && a.askId === box.askId; });
+  }
+  function readReasonBox(){
+    var ta = document.querySelector("#ask-list textarea[data-testid='answer-reason']");
+    return ta ? { askId: ta.getAttribute("data-askid"), value: ta.value, focused: document.activeElement === ta } : null;
+  }
   function say(flow, runId, cls, text){ answerMsg = { flow: flow, runId: runId, cls: cls, text: text }; paintAnswerMsg(); }
   function paintAnswerMsg(){
     document.querySelectorAll("[data-answer-msg]").forEach(function(el){
@@ -2361,7 +2401,8 @@
     postJSON("/api/answer", payload).then(function(r){
       if(r.status === 202 && r.body && r.body.ok){
         delete reasonDrafts[ask.askId];
-        say(ctx.flow, ctx.runId, "info", "answer sent (" + decision + ") — waiting for the run's books to show what happened");
+        pendingAnswer = { flow: ctx.flow, runId: ctx.runId, askId: ask.askId, decision: decision, draftNo: ctx.draftNo };
+        answerMsg = null; paintAnswerMsg();
         startLive(ctx.flow, ctx.runId, ask.askId);
       } else {
         say(ctx.flow, ctx.runId, "refused", refusalText(r));
@@ -2398,7 +2439,7 @@
     return b;
   }
   function renderAnswerBlock(ask, ctx){
-    var model = answerControls(ask, ctx.resume);
+    var model = answerControls(ask, ctx.resume, pendingAnswer);
     var root = document.createElement("div");
     root.className = "answer-doors";
     root.setAttribute("data-testid", "answer-doors");
@@ -2411,6 +2452,7 @@
       ta.id = idSafe;
       ta.rows = 3;
       ta.setAttribute("data-testid", "answer-reason");
+      ta.setAttribute("data-askid", ask.askId);
       ta.value = reasonDrafts[ask.askId] || "";
       ta.addEventListener("input", function(){ reasonDrafts[ask.askId] = ta.value; });
       root.appendChild(lab);
@@ -2423,6 +2465,15 @@
       bar.appendChild(makeButton("Rerun", "btn-rerun", function(){ sendAnswer(root, ask, ctx, "rerun"); }));
       root.appendChild(bar);
       root.appendChild(textDiv("hint", "accept ships this draft; redo: redo the last step with your reason; rerun: end this run and start a fresh one from the top"));
+    } else if(model.kind === "working"){
+      var wk = document.createElement("div");
+      wk.className = "working-line";
+      wk.setAttribute("data-testid", "answer-working");
+      var wsign = document.createElement("span");
+      wsign.className = "dot amber pulse";
+      wk.appendChild(wsign);
+      wk.appendChild(document.createTextNode(model.text));
+      root.appendChild(wk);
     } else if(model.kind === "starting"){
       root.appendChild(textDiv("hint", model.label + " — " + model.why));
     } else if(model.kind === "stuck"){
@@ -2459,7 +2510,7 @@
       // bolder" — a real heading class (same weight/size/uppercase posture
       // as the Job tab's own field `<label>`s), never the plain `.hint`
       // style a footnote/why-text uses.
-      ev.appendChild(textDiv("evidence-heading", "draft under review"));
+      ev.appendChild(textDiv("evidence-heading", "draft " + ctx.draftNo));
       ev.appendChild(draftEl);
     } else {
       ev.appendChild(textDiv("hint", evidence.why || "no draft on file"));
@@ -2483,32 +2534,49 @@
       art.textContent = typeof u.text === "string" ? u.text : "no artifact text on file";
       ev.appendChild(art);
     });
-    // M4b piece 4: the answer doors (or the reason there are none) live here.
-    ev.appendChild(renderAnswerBlock(ask, ctx));
     return ev;
+  }
+  // M4c item 5: "your answers so far" — one line per answered draft, every field from
+  // the server's block (data.js groupAskBlocks); the page only lays it out.
+  function answerLineText(a){
+    return "draft " + a.draft + " → " + a.decision + (a.reason ? ' "' + a.reason + '"' : "")
+      + (a.answeredAt ? " " + (readableDateTime(a.answeredAt) || a.answeredAt) : "");
+  }
+  function renderAnswersSoFar(block){
+    var box = document.createElement("div");
+    box.setAttribute("data-testid", "answers-so-far");
+    if(!block.answers.length) return box;
+    box.appendChild(textDiv("evidence-heading", "your answers so far"));
+    block.answers.forEach(function(a){ box.appendChild(textDiv("answer-line", answerLineText(a))); });
+    return box;
   }
   // hamr's 2026-09-27 exit-check review #3: "when opened from an Inbox
   // click it's not clear which ask is shown" — one line naming exactly
-  // which ask this is (`Ask i of n`, from src/panel/data.js's own
-  // index/total), which declared step it belongs to (`stepName`, at its
+  // which ask line this block is (M4c: one block per signed ask line, its
+  // draft number from src/panel/data.js's groupAskBlocks), which declared step it belongs to (`stepName`, at its
   // signed prose `stepLine` — src/panel/data.js's `deriveAskStepInfo`,
   // never re-derived here), when it was asked, and its status. `stepWhy` is
   // shown verbatim (never a guessed step name) when the books can't name
   // one — the honest word "before" a real value never invents.
-  function askHeaderMetaText(ask){
-    var bits = ["Ask " + ask.index + " of " + ask.total];
-    var stepBit = typeof ask.stepName === "string" && ask.stepName.length > 0
-      ? ask.stepName + (typeof ask.stepLine === "number" ? " (line " + ask.stepLine + ")" : "")
+  function blockMetaText(block){
+    var ask = block.current;
+    var bits = [];
+    var stepBit = typeof block.stepName === "string" && block.stepName.length > 0
+      ? block.stepName + (typeof block.stepLine === "number" ? " (line " + block.stepLine + ")" : "")
       : (ask.stepWhy || "step not determinable");
     bits.push(stepBit);
+    bits.push("draft " + block.draftNo);
     bits.push(typeof ask.askedAt === "string" ? "asked " + (readableDateTime(ask.askedAt) || ask.askedAt) : "asked: unknown");
     bits.push(ask.waiting ? "waiting on you" : (ask.open && ask.resume ? ask.resume.label : ask.status));
     return bits.join(" · ");
   }
-  function renderAskRow(ask, expanded, ctx){
+  // One block per signed ask line (M4c item 5), drawn from the server's `blocks`.
+  function renderAskRow(block, expanded, ctx){
+    var ask = block.current;
+    ctx = { flow: ctx.flow, runId: ctx.runId, resume: ctx.resume, draftNo: block.draftNo };
     var wrap = document.createElement("div");
     wrap.className = "audit-group";
-    wrap.setAttribute("data-testid", "ask-row-" + (ask.askId || "no-id"));
+    wrap.setAttribute("data-testid", "ask-block-" + (block.stepName || "no-step"));
     var head = document.createElement("div");
     head.setAttribute("role", "button");
     head.setAttribute("tabindex", "0");
@@ -2520,11 +2588,11 @@
     badge.className = "badge " + (ask.open ? "amber" : (ask.status === "accepted" ? "green" : (ask.status === "redo" ? "red" : "grey")));
     badge.textContent = ask.open ? "·" : ask.status;
     metaLine.appendChild(badge);
-    metaLine.appendChild(textDiv("wf-meta", askHeaderMetaText(ask)));
+    metaLine.appendChild(textDiv("wf-meta", blockMetaText(block)));
     head.appendChild(metaLine);
     // The question itself — a real, bold heading (review #3: "the question
     // as a clear heading"), never folded into the same small meta line.
-    var qText = typeof ask.question === "string" ? ask.question : (ask.questionWhy || "question not recorded");
+    var qText = typeof block.question === "string" ? block.question : (block.questionWhy || "question not recorded");
     var qHeading = document.createElement("h4");
     qHeading.className = "ask-question-heading";
     qHeading.textContent = qText;
@@ -2534,6 +2602,9 @@
     body.hidden = !expanded;
     body.appendChild(askStatusBlock(ask));
     body.appendChild(renderAskEvidenceBlock(ask, ctx));
+    body.appendChild(renderAnswersSoFar(block));
+    // M4b piece 4: the answer doors (or the reason there are none) — for the CURRENT draft.
+    body.appendChild(renderAnswerBlock(ask, ctx));
     wrap.appendChild(body);
     function toggle(){
       var next = body.hidden;
@@ -2551,28 +2622,26 @@
     var list = document.getElementById("ask-list");
     if(loadError){ empty.hidden = false; empty.textContent = "failed to load asks: " + loadError; list.hidden = true; list.innerHTML = ""; return; }
     if(!result){ empty.hidden = false; empty.textContent = "select a run first"; list.hidden = true; list.innerHTML = ""; return; }
-    var asks = result.asks || [];
-    if(!asks.length){
+    var blocks = result.blocks || [];
+    if(!blocks.length){
       empty.hidden = false;
       empty.textContent = "this run has never parked on a human — no asks recorded";
       list.hidden = true;
       list.innerHTML = "";
       return;
     }
+    // M4c item 7: never redraw over a reason being typed (every periodic refresh comes through here).
+    if(!focusAskId && holdAskRender(readReasonBox(), result)) return;
     empty.hidden = true;
     list.hidden = false;
     list.innerHTML = "";
-    // Default expansion: the ask named by a click from the Inbox
-    // (`focusAskId`) wins; otherwise this run's own open ask (if it has
-    // one) expands; otherwise every ask stays collapsed.
-    var defaultOpenId = focusAskId;
-    if(!defaultOpenId){
-      var openAsk = asks.find(function(a){ return a.open; });
-      if(openAsk) defaultOpenId = openAsk.askId;
-    }
-    asks.forEach(function(ask){
-      var expanded = defaultOpenId != null && ask.askId === defaultOpenId;
-      var row = renderAskRow(ask, expanded, { flow: result.flow, runId: result.runId, resume: result.resume || null });
+    // Default expansion: the block holding the ask a click from the Inbox
+    // (`focusAskId`) named wins; otherwise a block with an open ask expands;
+    // a run with a single ask line expands it; otherwise blocks stay collapsed.
+    blocks.forEach(function(block){
+      var ask = block.current;
+      var expanded = focusAskId ? block.askIds.indexOf(focusAskId) !== -1 : (ask.open || blocks.length === 1);
+      var row = renderAskRow(block, expanded, { flow: result.flow, runId: result.runId, resume: result.resume || null });
       // hamr's 2026-09-27 exit-check review #3: "the ask opened from the
       // Inbox gets a visible highlight" — a REAL Inbox click (`focusAskId`
       // set) on THIS ask, never a run's own default open-ask expansion
@@ -2581,7 +2650,7 @@
       // highlight`, this row already carries the `audit-group` class) —
       // persistent here, not momentary, since the human navigated here
       // specifically to see this one.
-      if(focusAskId && ask.askId === focusAskId){
+      if(focusAskId && block.askIds.indexOf(focusAskId) !== -1){
         row.classList.add("audit-group-highlight");
       }
       list.appendChild(row);
