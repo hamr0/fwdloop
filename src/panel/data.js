@@ -842,7 +842,7 @@ function computeTryCount(closeClass, list) {
  * `log.json`. `null` when the flow/runId doesn't resolve to a real run
  * directory at all (caller renders 404); a `red` field names why a
  * sub-derivation couldn't fill (never invented).
- * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
+ * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any}} opts
  * @returns {any|null}
  */
 export function getRunDetail({
