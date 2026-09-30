@@ -18,6 +18,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
@@ -324,6 +325,40 @@ test('(viii) lock held past the retry window: API says "answer saved, resume not
   assert.equal(consumedMarkers(run.runDir).length, 1, 'that same answer applied exactly once');
   assert.equal(readdirSync(path.join(run.runDir, 'asks')).length, 2);
   assert.equal((await runData(port, run)).resume.state, 'took-over');
+});
+
+test('M4b p3 (iii) panel path: accept through POST /api/answer records the hash; the artifact tampered before the resume -> the real send refuses by name, nothing shipped', async () => {
+  const runId = 'p3-panel-tamper';
+  const sendDir = path.join(REPO, 'poc', 'm0', 'out');
+  const shipped = () => (existsSync(sendDir) ? readdirSync(sendDir).filter((f) => f.startsWith(`${runId}-`)) : []);
+  const clean = () => { for (const f of shipped()) unlinkSync(path.join(sendDir, f)); };
+  clean();
+  try {
+    const run = parkRun(runId);
+    const priorFile = path.join(run.runDir, 'artifacts', 'resume-summary.json');
+    const { port } = await start(run, { windowMs: 600, maxTries: 2 });
+    const token = await pageToken(port);
+    writeFileSync(lockPath(run), ''); // hold the lock so the answer is SAVED, not yet applied
+    const r = await answer(port, token, run, 'accept');
+    assert.equal(r.status, 202, r.text);
+    const saved = JSON.parse(readFileSync(path.join(run.runDir, 'answer.json'), 'utf8'));
+    assert.equal(saved.artifactSha256, createHash('sha256').update(readFileSync(priorFile)).digest('hex'), 'the panel path records the hash (answerAsk is the only writer)');
+    await pollData(port, run, (d) => d.resume && d.resume.state === 'not-started');
+
+    const before = readFileSync(priorFile, 'utf8');
+    const edited = before.replace(/"text": "(.)/, (m, c) => `"text": "${c === 'X' ? 'Y' : 'X'}`);
+    assert.notEqual(edited, before);
+    writeFileSync(priorFile, edited);
+    unlinkSync(lockPath(run));
+    assert.equal((await resumePost(port, token, run)).status, 202);
+    await waitFor(() => history(run.root).length === 1);
+    const row = history(run.root)[0];
+    assert.equal(row.outcome, 'red');
+    assert.ok(typeof row.signatureHash === 'string' && row.signatureHash.length > 0);
+    assert.deepEqual(shipped(), [], 'nothing reaches the destination');
+    const audit = readFileSync(path.join(run.runDir, 'audit.jsonl'), 'utf8');
+    assert.match(audit, /changed after it was accepted/);
+  } finally { clean(); }
 });
 
 test('a panel that restarted has no attempt record: a stuck answer still says so, with an honest reason, never blank', async () => {
