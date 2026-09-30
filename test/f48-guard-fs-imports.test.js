@@ -287,6 +287,10 @@ const ALLOWLIST = {
     reason: 'append-only book writer (audit.jsonl/history.jsonl) — writes only, no reads',
     names: { appendFileSync: 1, mkdirSync: 1 },
   },
+  'src/liveness.js': {
+    reason: 'M4c: /proc reads only (cmdline, stat field 22, a /proc existence probe) plus lstatSync mtime of the run\'s own book files for the 10-minute fallback (presence/mtime only, content never read, symlinks not followed) — pids.jsonl itself is read via books.js readPidRows (readFileInside)',
+    names: { lstatSync: 1, readFileSync: 3 },
+  },
   'src/provider.js': {
     reason: 'append-only spend-log writer — writes only, no reads',
     names: { appendFileSync: 1, mkdirSync: 1 },

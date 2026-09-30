@@ -54,6 +54,7 @@ import {
 import { WIRED_VERBS } from './primitives.js';
 import { closeByClass } from './closers.js';
 import { appendAudit, appendHistory } from './books.js';
+import { recordPid } from './liveness.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..');
@@ -856,6 +857,8 @@ export async function runFlow({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: frozen.red, spent: { value: 0 },
     });
   }
+  // M4c: every guard above has passed — this process records itself (pid row) before its first step.
+  recordPid(runDir, 'run', now());
 
   const artifacts = {};
   const auditRows = [];
@@ -1727,6 +1730,8 @@ export async function resumeRun({
     // itself a one-winner gate, on top of the lock above.
     const consumedPath = join(runDir, `answer.${answer.askId}.consumed.json`);
     renameSync(answerPath, consumedPath);
+    // M4c: the answer is ours and every guard has passed — record this resume process before its first step.
+    recordPid(runDir, 'resume', now());
 
     // The run's own injected clock governs expiry, exactly like every other
     // "now" in this module (never the bare wall clock) — the same fixed
