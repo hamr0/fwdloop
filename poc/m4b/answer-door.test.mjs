@@ -273,7 +273,9 @@ test('MEASURE in-flight: answer while resume.lock is held (simulated) and the na
   const token = await pageToken(door);
   writeFileSync(path.join(run.runDir, 'resume.lock'), '');
   const r = await rq(door.port, { method: 'POST', url: '/api/answer', headers: good(door, token), body: answerBody(run, 'reject', 'x') });
-  await sleep(1500);
+  // event, not a 1.5 s guess: wait until the child's refusal is in its log (CPU load can delay the child start)
+  const logText = () => { try { return readFileSync(door.spawned[0].logPath, 'utf8'); } catch { return ''; } };
+  await waitFor(() => /locked by another resumer/.test(logText()), 30000, 20);
   const log = readFileSync(door.spawned[0].logPath, 'utf8');
   const a = {
     status: r.status, answerStillOnDisk: existsSync(path.join(run.runDir, 'answer.json')),
