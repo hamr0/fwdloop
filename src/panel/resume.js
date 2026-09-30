@@ -99,7 +99,7 @@ export function createResumer(opts) {
     child.unref();
     closeSync(fd);
     const sliceOfLog = () => {
-      try { return readFileSync(logPath, 'utf8').slice(offset).trim(); } catch { return ''; }
+      try { return readFileSync(logPath).subarray(offset).toString('utf8').trim(); } catch { return ''; } // offset is in BYTES
     };
     return new Promise((resolve) => {
       let done = false;
@@ -136,7 +136,7 @@ export function createResumer(opts) {
       rec.tries = n;
       // eslint-disable-next-line no-await-in-loop
       const r = await tryOnce({
-        flow: rec.flow, runId: rec.runId, runDir, askId: rec.askId, logPath, deadline: t0 + windowMs,
+        flow: rec.flow, runId: rec.runId, runDir, askId: rec.askId, logPath, deadline: Date.now() + windowMs,
       });
       if (rec.superseded) return;
       if (r.kind === 'took-over' || consumed()) { finish(rec, 'took-over', null); return; }

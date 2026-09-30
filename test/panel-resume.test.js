@@ -154,6 +154,16 @@ const settled = (run, prevAskId = run.askId) => waitFor(() => {
   const moved = (a && a.askId !== prevAskId) || history(run.root).length > 0;
   return existsSync(path.join(run.runDir, `answer.${prevAskId}.consumed.json`)) && moved && !existsSync(lockPath(run));
 });
+/** Poll the run's HTTP data until `pred` holds (async-safe, unlike `waitFor`). */
+async function pollData(port, run, pred, ms = 10000) {
+  const t0 = Date.now();
+  for (;;) {
+    const d = await runData(port, run);
+    if (pred(d)) return d;
+    if (Date.now() - t0 > ms) throw new Error(`run data never satisfied ${pred}; last: ${JSON.stringify(d.resume)}`);
+    await sleep(30); // eslint-disable-line no-await-in-loop
+  }
+}
 const reparked = async (run, prevAskId = run.askId) => {
   await settled(run, prevAskId);
   return askOf(run.runDir);
@@ -238,4 +248,159 @@ test('exactly one: 10 concurrent valid identical POSTs — one accepted, nine re
   await sleep(300); // a second resume, if one existed, would have parked again by now
   assert.equal(readdirSync(path.join(run.runDir, 'asks')).length, 2, 'the original ask + exactly one re-park');
   assert.equal(consumedMarkers(run.runDir).length, 1);
+});
+
+test('(vii) lock held when the answer arrives, released inside the retry window: the run resumes, one resume applied, answer consumed once, more than one try', async () => {
+  const run = parkRun();
+  const { port } = await start(run, { windowMs: 2000, maxTries: 5 });
+  const token = await pageToken(port);
+  writeFileSync(lockPath(run), ''); // a resumer is "in flight"
+  const r = await answer(port, token, run, 'reject', 'redo while locked');
+  assert.equal(r.status, 202, r.text);
+  await sleep(700); // tries at 0 and ~400 ms are refused by the lock
+  assert.equal(existsSync(path.join(run.runDir, 'answer.json')), true, 'still unconsumed while locked');
+  assert.equal(consumedMarkers(run.runDir).length, 0);
+  unlinkSync(lockPath(run)); // released inside the window
+
+  const a2 = await reparked(run);
+  assert.notEqual(a2.askId, run.askId);
+  assert.equal(consumedMarkers(run.runDir).length, 1, 'answer consumed once');
+  assert.equal(readdirSync(path.join(run.runDir, 'asks')).length, 2, 'one resume applied: original + one re-park');
+  const data = await runData(port, run);
+  assert.equal(data.resume.state, 'took-over');
+  assert.ok(data.resume.tries > 1, `the attempt record must show more than one try, got ${data.resume.tries}`);
+});
+
+test('(viii) lock held past the retry window: API says "answer saved, resume not started" + the refusal verbatim, never success; POST /api/resume later applies that answer exactly once', async () => {
+  const run = parkRun();
+  const { port } = await start(run, { windowMs: 1000, maxTries: 5 });
+  const token = await pageToken(port);
+  writeFileSync(lockPath(run), '');
+  const r = await answer(port, token, run, 'reject', 'redo, but locked');
+  assert.equal(r.status, 202, r.text);
+  assert.equal(r.json().resume, 'started');
+
+  const stuck = await pollData(port, run, (d) => d.resume && d.resume.state === 'not-started');
+  assert.equal(stuck.resume.label, 'answer saved, resume not started');
+  assert.match(stuck.label, /^answer saved, resume not started$/, 'the glyph label says it too, never "answered"');
+  assert.equal(stuck.resume.tries, 5, 'all five tries were used');
+  assert.match(stuck.resume.reason, /^fwdloop: refused — resume: run "run-1" is locked by another resumer \(/, 'the resume\'s own refusal, verbatim');
+  assert.ok(stuck.resume.reason.includes(lockPath(run)));
+  assert.notEqual(stuck.glyph, '[✓]');
+  assert.match(stuck.stopReasonWhy, /answer saved, resume not started/);
+  const list = (await rq(port, { url: '/api/runs' })).json().rows.find((x) => x.runId === run.runId);
+  assert.equal(list.label, 'answer saved, resume not started');
+  // the answer is still on disk, unconsumed, and nothing re-parked
+  assert.equal(existsSync(path.join(run.runDir, 'answer.json')), true);
+  assert.equal(consumedMarkers(run.runDir).length, 0);
+  assert.equal(askOf(run.runDir).askId, run.askId);
+
+  // release the lock; "try the resume again" starts a resume and applies the SAME answer
+  unlinkSync(lockPath(run));
+  const again = await resumePost(port, token, run);
+  assert.equal(again.status, 202, again.text);
+  assert.equal(again.json().askId, run.askId);
+  const a2 = await reparked(run);
+  assert.notEqual(a2.askId, run.askId);
+  assert.equal(consumedMarkers(run.runDir).length, 1, 'that same answer applied exactly once');
+  assert.equal(readdirSync(path.join(run.runDir, 'asks')).length, 2);
+  assert.equal((await runData(port, run)).resume.state, 'took-over');
+});
+
+test('a panel that restarted has no attempt record: a stuck answer still says so, with an honest reason, never blank', async () => {
+  const run = parkRun();
+  const first = await start(run, { windowMs: 1000, maxTries: 5 });
+  const token1 = await pageToken(first.port);
+  writeFileSync(lockPath(run), '');
+  assert.equal((await answer(first.port, token1, run, 'reject', 'x')).status, 202);
+  await sleep(1500);
+  await first.close();
+  const second = await start(run); // a new panel process' worth of state: empty
+  const d = await runData(second.port, run);
+  assert.equal(d.resume.state, 'not-started');
+  assert.equal(d.label, 'answer saved, resume not started');
+  assert.match(d.resume.reason, /reason unknown: the panel restarted/);
+  unlinkSync(lockPath(run));
+  const token2 = await pageToken(second.port);
+  assert.equal((await resumePost(second.port, token2, run)).status, 202);
+  assert.notEqual((await reparked(run)).askId, run.askId);
+});
+
+test('a non-lock refusal is not retried: one spawn, the refusal shown verbatim', async () => {
+  const run = parkRun();
+  const countFile = path.join(tmp('pr-count'), 'spawns.txt');
+  const { port } = await start(run, {
+    windowMs: 1000, maxTries: 5, bin: REFUSE_BIN, env: { ...serverEnv(), SPAWN_COUNT_FILE: countFile },
+  });
+  const token = await pageToken(port);
+  const lines = () => (existsSync(countFile) ? readFileSync(countFile, 'utf8').split('\n').filter(Boolean) : []);
+  assert.equal((await answer(port, token, run, 'reject', 'redo')).status, 202);
+  let d = await pollData(port, run, (x) => x.resume && x.resume.state === 'not-started');
+  await sleep(600); // with a 200 ms slot a retry would have happened by now
+  assert.equal(lines().length, 1, `spawned ${lines().length} times; a non-lock refusal must not be retried`);
+  d = await runData(port, run);
+  assert.equal(d.resume.tries, 1);
+  assert.equal(d.resume.reason, 'fwdloop: refused — resume: signature mismatch for run "run-1" — the flow changed while parked');
+  assert.equal(existsSync(path.join(run.runDir, 'answer.json')), true);
+});
+
+test('POST /api/resume: refused by name with no saved answer, and with no token / foreign Origin / foreign Host; it cannot answer', async () => {
+  const run = parkRun();
+  const countFile = path.join(tmp('pr-count'), 'spawns.txt');
+  const { port } = await start(run, { bin: REFUSE_BIN, env: { ...serverEnv(), SPAWN_COUNT_FILE: countFile } });
+  const token = await pageToken(port);
+  const body = { flow: run.flow, runId: run.runId };
+
+  const none = await resumePost(port, token, run);
+  assert.equal(none.status, 409);
+  assert.equal(none.json().refused, 'no-saved-answer');
+  // it takes no decision: a decision in the body does not answer anything
+  const sneaky = await rq(port, {
+    method: 'POST', url: '/api/resume', headers: good(port, token), body: { ...body, askId: run.askId, decision: 'accept' },
+  });
+  assert.equal(sneaky.json().refused, 'no-saved-answer');
+  assert.deepEqual(readdirSync(run.runDir).filter((f) => f.startsWith('answer.')), [], '/api/resume must never write an answer');
+
+  const noTok = await resumePost(port, token, run, { origin: `http://127.0.0.1:${port}`, 'content-type': 'application/json' });
+  assert.equal(noTok.status, 403);
+  assert.equal(noTok.json().refused, 'token-missing-or-wrong');
+  const badOrigin = await resumePost(port, token, run, { ...good(port, token), origin: 'http://evil.example.com' });
+  assert.equal(badOrigin.json().refused, 'origin-not-own');
+  const badHost = await resumePost(port, token, run, { ...good(port, token), host: 'evil.example.com' });
+  assert.equal(badHost.status, 403);
+  assert.equal(badHost.json().refused, 'host-not-own-address');
+  const badFlow = await rq(port, {
+    method: 'POST', url: '/api/resume', headers: good(port, token), body: { flow: '../x', runId: run.runId },
+  });
+  assert.equal(badFlow.json().refused, 'bad-flow');
+  assert.equal(existsSync(countFile), false, 'none of these may start a resume process');
+});
+
+test('key hygiene: the sentinel key is in 0 HTTP responses, 0 book files and 0 resume logs', async () => {
+  const run = parkRun();
+  const { port, logDir } = await start(run, { windowMs: 1000, maxTries: 5 });
+  const token = await pageToken(port);
+  SEEN.length = 0;
+  writeFileSync(lockPath(run), '');
+  await answer(port, token, run, 'reject', 'hygiene');
+  await sleep(1400); // stuck: its log now holds a lock refusal
+  for (const url of ['/', '/api/runs', '/api/inbox', `/api/runs/${run.flow}/${run.runId}`, `/api/runs/${run.flow}/${run.runId}/audit`, `/api/runs/${run.flow}/${run.runId}/asks`]) {
+    await rq(port, { url }); // eslint-disable-line no-await-in-loop
+  }
+  await resumePost(port, 'f'.repeat(64), run); // a refusal body too
+  unlinkSync(lockPath(run));
+  await resumePost(port, token, run);
+  const a2 = await reparked(run);
+  await answer(port, token, { ...run, askId: a2.askId }, 'accept');
+  await waitFor(() => history(run.root).length === 1);
+  await rq(port, { url: `/api/runs/${run.flow}/${run.runId}` });
+
+  assert.ok(SEEN.length >= 9);
+  for (const s of SEEN) assert.equal(s.includes(SENTINEL), false, `sentinel in an HTTP response: ${s.slice(0, 80)}`);
+  const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+  const logs = walk(logDir);
+  assert.ok(logs.length >= 1, 'a resume log must exist for this check to mean anything');
+  assert.ok(logs.some((f) => readFileSync(f, 'utf8').includes('locked by another resumer')), 'the log holds the real refusal');
+  for (const f of [...walk(run.root), ...logs]) assert.equal(readFileSync(f).includes(SENTINEL), false, `sentinel in ${f}`);
+  console.log(`# MEASURE hygiene: ${SEEN.length} responses, ${walk(run.root).length} book files, ${logs.length} log file(s) scanned, 0 sentinel hits`);
 });
