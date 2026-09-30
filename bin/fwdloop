@@ -31,7 +31,7 @@ import { makeLiveModelStep } from '../src/model-step.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
 import { checkKeyPreflight } from '../src/provider.js';
-import { answerAsk, readAskEvidence } from '../src/ask.js';
+import { answerAsk, readAskEvidence, normalizeDecision } from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
 import { draftToDir, signDraft, SIGN_LINE, costText } from '../src/authoring.js';
@@ -139,7 +139,7 @@ function findRunDirByAskId(root, askId) {
 function reportRunResult(result, { rootArg }) {
   if (result.outcome === 'paused') {
     process.stdout.write(`parked: askId=${result.askId} expiresAt=${result.expiresAt} spentUsd=${result.spentUsd}\n`);
-    process.stdout.write(`fwdloop answer ${result.askId} accept|reject "<reason>"|rerun "<reason>" --root ${rootArg}\n`);
+    process.stdout.write(`fwdloop answer ${result.askId} accept|redo "<reason>"|rerun "<reason>" --root ${rootArg}\n`);
     return;
   }
   if (result.outcome === 'complete') {
@@ -414,8 +414,8 @@ function cmdAnswer(rest) {
     allowPositionals: true,
   });
   const [askId, decision, reason] = positionals;
-  if (!askId) fail('answer: an askId is required — fwdloop answer <askId> accept|reject "<reason>"|rerun "<reason>"');
-  if (!decision) fail(`answer: a decision (accept|reject|rerun) is required for askId "${askId}"`);
+  if (!askId) fail('answer: an askId is required — fwdloop answer <askId> accept|redo "<reason>"|rerun "<reason>"');
+  if (!decision) fail(`answer: a decision (accept|redo|rerun) is required for askId "${askId}"`);
 
   const root = resolveRoot('answer', values.root ?? '.');
   const runDir = findRunDirByAskId(root, askId);
@@ -426,7 +426,7 @@ function cmdAnswer(rest) {
   });
   if (!result.ok) fail(result.red);
 
-  process.stdout.write(`answered: askId=${askId} decision=${decision}\n`);
+  process.stdout.write(`answered: askId=${askId} decision=${normalizeDecision(decision)}\n`);
 }
 
 // ---------------------------------------------------------------------------

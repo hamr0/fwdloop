@@ -172,7 +172,7 @@
   .btn:disabled::before,.btn:disabled::after{color:var(--text-faint);opacity:0.4;}
   .btn.small{padding:0 9px;height:32px;min-height:0;font-size:12px;}
   /* M4b piece 4: the answer doors. Shape/placement from bareloop's mockup Run-tab
-     action bar (a row of `.btn`s with a hint line under it), reject is ours. */
+     action bar (a row of `.btn`s with a hint line under it), redo is ours. */
   .answer-doors{margin-top:12px;padding-top:8px;border-top:1px solid var(--border);}
   .answer-doors label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:3px;}
   .answer-doors textarea{display:block;width:100%;max-width:100%;box-sizing:border-box;min-height:64px;padding:6px 8px;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border-strong);resize:vertical;}
@@ -435,7 +435,7 @@
             Authoring a flow from this page isn't built yet — the drafter is a POC. This
             panel shows flows and runs already started from the
             <code>fwdloop</code> CLI, and lets you answer an ask that is waiting on you
-            (accept, reject or rerun, with a reason). It cannot start a run. Use the Runs
+            (accept, redo or rerun, with a reason). It cannot start a run. Use the Runs
             tab to open one, or the Inbox tab for anything waiting on you.
           </div>
         </section>
@@ -443,7 +443,7 @@
         <section id="panel-inbox" class="tabpanel" role="tabpanel" aria-labelledby="tab-inbox" hidden>
           <!-- M4a-1: a list of STOPS, like History — open ones first with
                [.] and time left, then past ones newest first with a short
-               status word ([accepted]/[rejected: reason]/[reran: reason]/
+               status word ([accepted]/[redo: reason]/[reran: reason]/
                [expired]/[unanswered]). No evidence is rendered here any
                more (M4a-1 review): clicking a stop selects its run, switches
                the right pane to the Ask tab, and expands that ONE ask there
@@ -574,7 +574,7 @@
                unjudged input labelled by step (goal as subtitle). A
                pre-M4a-1 ask shows "draft not kept (before M4a-1)" in place
                of the draft. M4b: an OPEN ask also carries the answer doors
-               (a labelled reason textarea + Accept / Reject / Rerun
+               (a labelled reason textarea + Accept / Redo / Rerun
                buttons), or a stated reason there are none; a saved answer
                whose resume did not start carries ONE "Try the resume
                again" button. The collapse/expand toggle stays a div with
@@ -769,17 +769,17 @@
   // rendering the raw words green/red/softgreen anywhere (coordinator's
   // browser-walk fix #2). `verdictWord`/`verdictGlyph` are the ONE place
   // that turns a verdict (plus the step's own close class, for telling a
-  // human's reject apart from a mechanical red) into plain words and a
+  // human's redo apart from a mechanical red) into plain words and a
   // pass/fail glyph — used by the step cards, the map's inline attempt
   // text, and the flat Audit table alike, so they can never say something
   // different for the same row.
   //  - `paused`/`refused`/an ask timeout/expiry are NOT failures (fix #3) —
   //    no ✗, a plain word instead.
-  //  - a `red` verdict on a `hitl`-classed step is the human's own reject
-  //    (src/runner.js's redo path), not a mechanical stop — "rejected by
+  //  - a `red` verdict on a `hitl`-classed step is the human's own redo
+  //    (src/runner.js's redo path), not a mechanical stop — "redo by
   //    you: <reason>", never "verdict red" / a fail glyph (fix #3).
   function verdictWord(verdict, closeClass, gap){
-    if(closeClass === "hitl" && verdict === "red") return "rejected by you" + (gap ? ": " + gap : "");
+    if(closeClass === "hitl" && verdict === "red") return "redo by you" + (gap ? ": " + gap : "");
     if(verdict === "paused") return "paused for you";
     if(verdict === "refused") return "refused — no reason given";
     if(verdict === "ask-timeout" || verdict === "ask-expired") return "expired waiting for you";
@@ -791,7 +791,7 @@
   }
   function verdictPassed(verdict){ return verdict === "green" || verdict === "hitl"; }
   // `null` — no glyph at all — for a verdict that is neither a pass nor a
-  // fail (paused/refused/expired/a human reject); a bare attempt glyph
+  // fail (paused/refused/expired/a human redo); a bare attempt glyph
   // would misread a pause as a failure (fix #3).
   function verdictGlyph(verdict, closeClass){
     if(closeClass === "hitl" && verdict === "red") return null;
@@ -835,7 +835,7 @@
   var ROW_GAP = 70;
   // hamr review #2: "map cards missing try 2 if multiple attempts/iteration"
   // — a plain "try N" count whenever a step has been attempted more than
-  // once, plus a mark when the LATEST attempt followed a human reject (the
+  // once, plus a mark when the LATEST attempt followed a human redo (the
   // same `afterReject` boundary src/panel/data.js already worked out —
   // never re-derived here). One attempt (the common case) shows no "try"
   // text at all, matching bareloop's own "only say it when it's true" shape.
@@ -848,7 +848,7 @@
     if(!tryCount || tryCount <= 1) return "";
     var last = attempts && attempts.length ? attempts[attempts.length - 1] : null;
     var txt = "try " + tryCount;
-    if(last && last.afterReject) txt += " (re-attempt after reject)";
+    if(last && last.afterReject) txt += " (re-attempt after redo)";
     return txt;
   }
   // hamr review (browser re-walk #1): the per-attempt list ("attempt 1
@@ -2192,7 +2192,7 @@
   // first with a short status word, off GET /api/inbox
   // (src/panel/data.js's listStops). Status vocabulary is exactly the
   // words the books' own decision field maps to (never a second, made-up
-  // vocabulary): "accepted" / "rejected" / "reran" / "expired" /
+  // vocabulary): "accepted" / "redo" / "reran" / "expired" /
   // "unanswered" (this IS the open case) / the rare "open" fallback (an
   // archived ask.json itself failed to parse). No evidence renders here any
   // more — clicking a stop selects its run and opens the wide right pane's
@@ -2216,7 +2216,7 @@
     var head = document.createElement("div");
     head.className = "wf-line1";
     var badge = document.createElement("span");
-    badge.className = "badge " + (row.open ? "amber" : (row.status === "accepted" ? "green" : (row.status === "rejected" ? "red" : "grey")));
+    badge.className = "badge " + (row.open ? "amber" : (row.status === "accepted" ? "green" : (row.status === "redo" ? "red" : "grey")));
     badge.textContent = row.open ? "·" : row.status;
     head.appendChild(badge);
     var flowName = textDiv(null, row.flow + " (" + row.runId + ")");
@@ -2370,7 +2370,7 @@
       var idSafe = "reason-" + String(ask.askId).replace(/[^A-Za-z0-9_-]/g, "_");
       var lab = document.createElement("label");
       lab.setAttribute("for", idSafe);
-      lab.textContent = "reason (needed for reject and rerun)";
+      lab.textContent = "reason (needed for redo and rerun)";
       var ta = document.createElement("textarea");
       ta.id = idSafe;
       ta.rows = 3;
@@ -2383,10 +2383,10 @@
       bar.className = "actions-row";
       bar.setAttribute("data-testid", "action-bar");
       bar.appendChild(makeButton("Accept", "btn-accept", function(){ sendAnswer(root, ask, ctx, "accept"); }));
-      bar.appendChild(makeButton("Reject", "btn-reject", function(){ sendAnswer(root, ask, ctx, "reject"); }));
+      bar.appendChild(makeButton("Redo", "btn-redo", function(){ sendAnswer(root, ask, ctx, "redo"); }));
       bar.appendChild(makeButton("Rerun", "btn-rerun", function(){ sendAnswer(root, ask, ctx, "rerun"); }));
       root.appendChild(bar);
-      root.appendChild(textDiv("hint", "accept ships this draft; reject sends the step back with your reason; rerun ends this run and starts a fresh one with your reason"));
+      root.appendChild(textDiv("hint", "accept ships this draft; redo: redo the last step with your reason; rerun: end this run and start a fresh one from the top"));
     } else if(model.kind === "starting"){
       root.appendChild(textDiv("hint", model.label + " — " + model.why));
     } else if(model.kind === "stuck"){
@@ -2481,7 +2481,7 @@
     var metaLine = document.createElement("div");
     metaLine.className = "wf-line1";
     var badge = document.createElement("span");
-    badge.className = "badge " + (ask.open ? "amber" : (ask.status === "accepted" ? "green" : (ask.status === "rejected" ? "red" : "grey")));
+    badge.className = "badge " + (ask.open ? "amber" : (ask.status === "accepted" ? "green" : (ask.status === "redo" ? "red" : "grey")));
     badge.textContent = ask.open ? "·" : ask.status;
     metaLine.appendChild(badge);
     metaLine.appendChild(textDiv("wf-meta", askHeaderMetaText(ask)));

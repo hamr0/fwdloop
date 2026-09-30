@@ -989,6 +989,10 @@ export function getRunDetail({
   let stopReasonWhy = null;
   if (ctx.historyRow && ctx.historyRow.outcome === 'complete') {
     stopReasonWhy = 'run completed clean — there is no stop reason to show';
+  } else if (ctx.historyRow && ctx.historyRow.outcome === 'rerun') {
+    // M4b amendment 3: the human ended this run on purpose; an earlier redo's
+    // audit row is not "why it stopped".
+    stopReasonWhy = 'stopped by you (rerun), a fresh run was started — there is no failure to show';
   } else if (ctx.resume && (ctx.resume.state === 'starting' || ctx.resume.state === 'not-started')) {
     // M4b amendment 1: the human already answered — never "waiting on you".
     stopReasonWhy = ctx.resume.reason ? `${ctx.resume.label}: ${ctx.resume.reason}` : ctx.resume.label;

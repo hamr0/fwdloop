@@ -52,7 +52,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadCatalogue } from '../catalogue.js';
-import { answerAsk } from '../ask.js';
+import { answerAsk, normalizeDecision } from '../ask.js';
 import { checkFlowName, resolveRunDir } from '../flow.js';
 import {
   listRuns, getRunDetail, getRunAudit, getRunJob, listStops, getRunAsks, readSavedAnswer,
@@ -132,7 +132,7 @@ function answerRoute(res, body, root, resumer) {
     flow, runId, runDir: rd.runDir, askId,
   });
   sendJson(res, 202, {
-    ok: true, answered: true, askId, decision, resume: 'started', tries: attempt.tries, maxTries: attempt.maxTries,
+    ok: true, answered: true, askId, decision: normalizeDecision(decision), resume: 'started', tries: attempt.tries, maxTries: attempt.maxTries,
     note: 'answer saved; the resume was started in the background — its state is in the run\'s data (`resume`), not in this reply',
   });
 }
