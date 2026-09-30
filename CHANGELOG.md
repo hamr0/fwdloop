@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-09-30
+
+Patch: every audit row carries `refused: []`, and the repo gets CI on pull requests.
+
+### Changed
+- CI: a new `.github/workflows/ci.yml` runs the lockfile check, typecheck and tests on every PR and
+  push to `main`. Repo tooling only, not shipped in the package.
+- Internal, no behavior change: test hygiene (`CI=false`/`0` is not CI, no permanent skip, a
+  missing-arg sign test names its refusal, input-facts heading levels h1-h6 pinned), two stale
+  comments corrected, the dead panel helper `auditTimeCellText` deleted, and the `AuditRow.refused`
+  type doc now says `[]` on every row.
+
+### Fixed
+- The `stale-answer-ignored`, `ask-expired` and `answer-after-run` audit rows now carry
+  `refused: []` like every other row; the 0.8.0 notes already promised this for every row.
+
 ## [0.8.0] - 2026-09-30
 
 M6a: the authoring backend. `fwdloop draft` turns signed prose into a declaration draft and

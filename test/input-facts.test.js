@@ -75,6 +75,14 @@ test('readInputFacts: md headings and docx headings by role; info mentions the r
   assert.ok(r.info.some((l) => l.includes('jd') && l.includes('"read"')));
 });
 
+test('readInputFacts: md headings at every depth h1-h6 are picked, not only h1-h2', () => {
+  const md = path.join(tmp(), 'deep.md');
+  writeFileSync(md, '# One\n## Two\n### Three\n#### Four\n##### Five\n###### Six\n####### seven is not a heading\n');
+  const r = readInputFacts([{ kind: 'file', role: 'jd', path: md }]);
+  assert.equal(r.ok, true, r.reds.join('\n'));
+  assert.deepEqual(r.inputFacts, { jd: ['One', 'Two', 'Three', 'Four', 'Five', 'Six'] });
+});
+
 test('readInputFacts: missing, empty and corrupt sources are named reds; non-file sources skipped', () => {
   const dir = tmp();
   const empty = path.join(dir, 'e.md');

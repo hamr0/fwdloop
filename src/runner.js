@@ -474,6 +474,7 @@ function recordLateAnswerIfAny(runDir, now = () => new Date().toISOString()) {
     at: now(),
     tokens: null,
     tools: null,
+    refused: [],
     kind: 'answer-after-run',
     file,
   });
@@ -1719,7 +1720,7 @@ export async function resumeRun({
       // review fix 2: "a pause spends nothing" means the pause adds
       // nothing, not that the run's total resets).
       appendAudit(runDir, {
-        step: null, attempt: null, class: null, verdict: 'ask-expired', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: now(), tokens: null, tools: null,
+        step: null, attempt: null, class: null, verdict: 'ask-expired', gap: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: now(), tokens: null, tools: null, refused: [],
       });
       appendHistory(flowDir, {
         runId, at: now(), outcome: 'ask-expired', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,

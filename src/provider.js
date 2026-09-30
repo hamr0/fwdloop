@@ -38,7 +38,7 @@ import { OpenAI } from 'bare-agent/providers';
  * marker on the instance (`this.lastMalformedToolCall`, reset at the top of
  * every `generate()` call) — the one channel `runModelStepOnPrimitives`
  * (same provider reference) can read after `loop.run()` returns. We require
- * bare-agent >=0.47 (package.json `^0.47.0`) and never patch around its
+ * bare-agent >=0.48 (package.json `^0.49.0`) and never patch around its
  * private response internals.
  */
 class MalformedToolCallTolerantOpenAI extends OpenAI {

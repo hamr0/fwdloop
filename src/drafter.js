@@ -316,8 +316,8 @@ export async function draft({
   }
 
   const m = sumMeterings(meterings);
-  // Runner convention: `costUsd` is the priced floor (null when nothing priced), and `spendComplete:false` marks a
-  // call that failed unmetered or a round left unpriced — the number is then "at least", never the whole.
+  // Runner convention: `costUsd` is the priced sum (null when ANY round is unpriced, so the CLI prints UNKNOWN,
+  // never a bare number), and `spendComplete:false` marks a call that failed unmetered or a round left unpriced.
   return {
     ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, tokens: m.tokens, structureRetries, revisions, stop, log,
   };

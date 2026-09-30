@@ -2179,15 +2179,6 @@ describe('index.html — page source', () => {
     assert.match(rowFnBody, /escapeXml\(auditCostCellText\(r\)\)/, 'buildAuditRowEl must call auditCostCellText(r) for its Cost cell');
   });
 
-  test('hamr 2026-09-27 item (d): auditTimeCellText still computes the row\'s own "at" via readableDateTime, or its server-derived pre-M4a-2 why', () => {
-    // auditTimeCellText itself is kept (its atWhy/readableDateTime fallback
-    // logic is unchanged); it is auditTimeCellHtml, added 2026-09-28, that
-    // the row builder actually calls for the Time cell now (next test).
-    assert.match(source, /function auditTimeCellText/);
-    assert.match(source, /r\.atWhy/);
-    assert.match(source, /readableDateTime\(r\.at\)/);
-  });
-
   // ---------------------------------------------------------------------------
   // fix (2026-09-28, borrowed-from: bareloop src/panel/index.html@2711b1b):
   // hamr's UI review found the Audit tab's Time cell (full local date+time,
@@ -2239,12 +2230,11 @@ describe('index.html — page source', () => {
     assert.doesNotMatch(fn({}), /<span/);
   });
 
-  test('fix: buildAuditRowEl\'s Time cell uses auditTimeCellHtml, not a raw readableDateTime(r.at) or the old escapeXml(auditTimeCellText(r))', () => {
+  test('fix: buildAuditRowEl\'s Time cell uses auditTimeCellHtml, not a raw readableDateTime(r.at)', () => {
     var rowFnStart = source.indexOf('function buildAuditRowEl');
     var rowFnEnd = source.indexOf('\n  }', rowFnStart);
     var rowFnBody = source.slice(rowFnStart, rowFnEnd);
     assert.match(rowFnBody, /auditTimeCellHtml\(r\)/, 'buildAuditRowEl must call auditTimeCellHtml(r) for its Time cell');
-    assert.doesNotMatch(rowFnBody, /escapeXml\(auditTimeCellText\(r\)\)/);
   });
 
   test('hamr 2026-09-27 exit-check review #1: an Audit step group\'s header is a role="button" div, COLLAPSED by default, foldable on click', () => {
