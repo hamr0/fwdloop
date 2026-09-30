@@ -751,9 +751,8 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
  * `GET /api/runs` — every flow under `root`, every run under each flow
  * (M4a scope item 2). A flow with zero runs still gets one row (`runId:
  * null`, an explicit `why`) — no flow is silently missing from the list.
- * Newest-first by history `at` where known; a row with no history row (died
- * or still parked) sorts after every row that has one, in flow/run order
- * (a real ordering, never `Date.now()` guessed in for a missing `at`).
+ * Ordered by `orderRuns` (waiting on you, running, then newest `at` first; a row
+ * with no `at` is never given a guessed one).
  * @param {{root: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any}} opts
  *   `resumeAttempt`: the panel's in-memory resume-attempt lookup (M4b piece 2); absent = none.
  * @returns {any[]}
@@ -780,6 +779,12 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
       }
       const ctx = loadRunContext(root, run.flowDir, run.runDir, flowName, runId, catalogue, resumeAttempt?.(flowName, runId) ?? null);
       const { glyph, label } = computeGlyph(ctx);
+      // M4c amendment 1 (c): the ask waiting on the human, by the same rule
+      // listStops uses (deriveAskOpenFields) — the least time left if several.
+      const waitingAsk = runAsksInOrder(run.runDir, !!ctx.historyRow)
+        .map((ask) => ({ ask, ...deriveAskOpenFields(ask, !!ctx.historyRow, ctx.resume) }))
+        .filter((r) => r.waiting)
+        .reduce((best, r) => (best === null || (r.timeLeftMs ?? Infinity) < (best.timeLeftMs ?? Infinity) ? r : best), /** @type {any} */ (null));
       let spend;
       if (ctx.historyRow) {
         const cd = costDisplay(ctx.historyRow.spentUsd, ctx.historyRow.spendComplete);
@@ -805,22 +810,47 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
         resume: ctx.resume,
         spend,
         spendWhy: (!ctx.historyRow && spend === null) ? 'no history row yet and no priced spend.jsonl rows — nothing to floor' : null,
+        waiting: waitingAsk !== null,
+        waitingAskId: waitingAsk ? waitingAsk.ask.askId : null,
+        timeLeftMs: waitingAsk ? waitingAsk.timeLeftMs : null,
         at: ctx.historyRow ? ctx.historyRow.at : null,
         askedAt,
         atWhy: (ctx.historyRow || askedAt) ? null : 'no history row yet (parked or died before one was written)',
       });
     }
   }
-  // Newest first by `at` where present; rows with no `at` keep flow/run
-  // order (already alphabetical from listFlowNames/listRunIds) at the end.
+  return orderRuns(rows);
+}
+
+/**
+ * The ONE ordering of Runs — History and Workflows both render the list in the
+ * order given (M4c amendment 1 (c)); a flow's top row is therefore the first
+ * run of that flow here, so a waiting run is the parent with no second rule:
+ *  1 waiting on you — least time left first;
+ *  2 running (`[▶]`, the glyph's own liveness rule);
+ *  3 everything else — finish time `at`, newest first.
+ * A row with no known time keeps input order at the end of its section.
+ * @param {any[]} rows
+ * @returns {any[]}
+ */
+export function orderRuns(rows) {
+  const sectionOf = (r) => (r.waiting ? 1 : r.glyph === '[▶]' ? 2 : 3);
   return rows
     .map((row, index) => ({ row, index }))
     .sort((a, b) => {
+      const sa = sectionOf(a.row);
+      const sb = sectionOf(b.row);
+      if (sa !== sb) return sa - sb;
+      if (sa === 1) {
+        const at = typeof a.row.timeLeftMs === 'number' ? a.row.timeLeftMs : Infinity;
+        const bt = typeof b.row.timeLeftMs === 'number' ? b.row.timeLeftMs : Infinity;
+        return at !== bt ? at - bt : a.index - b.index;
+      }
       const am = typeof a.row.at === 'string' ? Date.parse(a.row.at) : NaN;
       const bm = typeof b.row.at === 'string' ? Date.parse(b.row.at) : NaN;
       const aKnown = Number.isFinite(am);
       const bKnown = Number.isFinite(bm);
-      if (aKnown && bKnown) return bm - am;
+      if (aKnown && bKnown && am !== bm) return bm - am;
       if (aKnown !== bKnown) return aKnown ? -1 : 1;
       return a.index - b.index;
     })

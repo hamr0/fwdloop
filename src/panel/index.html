@@ -1166,9 +1166,25 @@
       '<span class="wf-meta">' + escapeXml(r.spend || r.spendWhy || "unknown") + '</span>' +
       '<span class="wf-meta">' + escapeXml(r.at ? r.at.slice(0,10) : (r.askedAt ? "asked " + readableDateTime(r.askedAt) : (r.atWhy || "unknown"))) + '</span>' +
       '</span>';
-    row.addEventListener("click", function(){ selectRun(r.flow, r.runId, row, ".hist-row"); document.getElementById("tab-run").click(); scrollRunIntoViewMobile(); });
+    row.addEventListener("click", function(){ openRunFromRuns(r, row); });
     row.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); } });
     return row;
+  }
+
+  // M4c amendment 1 (a): the ONE place a click on a run in Runs decides where it lands.
+  // Right side: that run, on the Run tab. A run with an ask waiting on the human also
+  // moves the left side to the Inbox with that ask's row selected; any other run leaves
+  // the left side on Runs.
+  function openRunFromRuns(r, rowEl){
+    if(r.waiting){
+      var inboxRow = document.querySelector('[data-testid="inbox-row-' + r.flow + '-' + r.runId + '-' + r.waitingAskId + '"]');
+      selectRun(r.flow, r.runId, inboxRow, ".inbox-row", r.waitingAskId);
+      document.getElementById("tab-inbox").click();
+    } else {
+      selectRun(r.flow, r.runId, rowEl, ".hist-row");
+    }
+    document.getElementById("tab-run").click();
+    scrollRunIntoViewMobile();
   }
 
   // ---- History view: every row exactly as /api/runs returned it. ----
@@ -1319,9 +1335,7 @@
         // a single-run flow has nothing to expand — the click still opens
         // the run, it just never toggles `wfExpanded` for it.
         if(hasOtherRuns) wfExpanded[g.flow] = !expanded;
-        selectRun(g.flow, targetRunId, null, ".hist-row");
-        document.getElementById("tab-run").click();
-        scrollRunIntoViewMobile();
+        openRunFromRuns(g.runs.filter(function(x){ return x.runId === targetRunId; })[0] || g.lastRow, null);
         renderWorkflows(flows);
       });
       row.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); } });
