@@ -2025,14 +2025,55 @@ describe('index.html — page source', () => {
     }
   });
 
-  test('no non-GET fetch anywhere on the page — read-only by construction', () => {
-    const fetchCalls = source.match(/fetch\([^)]*\)/g) || [];
-    assert.ok(fetchCalls.length > 0, 'expected at least one fetch( call to check');
-    for (const call of fetchCalls) {
-      assert.doesNotMatch(call, /method:\s*["'](POST|PUT|PATCH|DELETE)["']/i, `non-GET fetch found: ${call}`);
-    }
-    // no bare XHR/other request path either.
-    assert.doesNotMatch(source, /\.open\(\s*["'](POST|PUT|PATCH|DELETE)["']/i);
+  test('M4b: the only non-GET fetches on the page are POST /api/answer and POST /api/resume, both through postJSON, token only in the header', () => {
+    const code = stripComments(source);
+    // Every fetch( call: its first argument and its options.
+    const calls = [...code.matchAll(/fetch\(([^,]+),\s*\{([\s\S]*?)\}\)\.then/g)];
+    assert.ok(calls.length >= 2, 'expected the getJSON and postJSON fetch calls');
+    const nonGet = calls.filter((c) => !/method:\s*"GET"/.test(c[2]));
+    assert.equal(nonGet.length, 1, `exactly one non-GET fetch call expected (postJSON), got ${nonGet.length}`);
+    assert.match(nonGet[0][2], /method:\s*"POST"/);
+    assert.doesNotMatch(code, /method:\s*["'](PUT|PATCH|DELETE)["']/i);
+    assert.doesNotMatch(code, /\.open\(\s*["'](POST|PUT|PATCH|DELETE)["']/i);
+    assert.doesNotMatch(code, /XMLHttpRequest|sendBeacon/);
+    // postJSON is called with exactly two paths.
+    const postPaths = [...code.matchAll(/postJSON\(\s*"([^"]+)"/g)].map((m) => m[1]).sort();
+    assert.deepEqual(postPaths, ['/api/answer', '/api/resume']);
+  });
+
+  test('M4b: the token appears only as the x-fwdloop-token request header — never the DOM, a URL, storage, or a log', () => {
+    const code = stripComments(source);
+    const uses = [...code.matchAll(/\bTOKEN\b/g)];
+    // the declaration + the one header use.
+    assert.equal(uses.length, 2, `TOKEN may appear only in its declaration and the header, found ${uses.length}`);
+    assert.match(code, /"x-fwdloop-token":\s*TOKEN/);
+    assert.doesNotMatch(code, /localStorage\.setItem\([^)]*TOKEN/);
+    assert.doesNotMatch(code, /(textContent|innerHTML|setAttribute\([^)]*)[^;\n]*\bTOKEN\b/);
+    assert.doesNotMatch(code, /console\.[a-z]+\([^)]*TOKEN/);
+    assert.doesNotMatch(code, /[?&]token=|location\.(search|hash)/i);
+    // the only localStorage key this page writes is the theme.
+    const keys = [...code.matchAll(/localStorage\.setItem\(\s*("[^"]+")/g)].map((m) => m[1]);
+    assert.deepEqual(keys, ['"fwdloop-panel-theme"']);
+  });
+
+  test('M4b: no alert( / confirm( / prompt( anywhere on the page', () => {
+    assert.doesNotMatch(stripComments(source), /\b(alert|confirm|prompt)\s*\(/);
+  });
+
+  test('M4b: the POST body is built from the rendered ask\'s askId (closure), not re-read from the page at click time', () => {
+    const code = stripComments(source);
+    assert.match(code, /askId: ask\.askId, decision: decision, reason: ta \? ta\.value : ""/);
+    assert.match(code, /flow: ctx\.flow, runId: ctx\.runId, askId: ask\.askId/);
+    // no decision path reads the askId from a DOM attribute or a global at click time.
+    const fnStart = code.indexOf('function sendAnswer(');
+    const fnEnd = code.indexOf('function sendResumeAgain(');
+    const body = code.slice(fnStart, fnEnd);
+    assert.doesNotMatch(body, /getAttribute|currentFlow|currentRunId|querySelector\([^)]*ask/);
+    // the page sends the typed reason verbatim (no trim / blank check): the library judges it.
+    assert.doesNotMatch(body, /\.trim\(\)/);
+    // a stale ask / any refusal is shown and the page refreshes to the current ask.
+    assert.match(body, /refusalText\(r\)/);
+    assert.match(body, /reloadRun\(ctx\.flow, ctx\.runId\)/);
   });
 
   test('no bareloop sample strings or bareloop-only words outside comments/header', () => {
@@ -2526,20 +2567,26 @@ describe('index.html — page source', () => {
     assert.ok(jobPanelIdx > 0 && askPanelIdx > jobPanelIdx, 'the Ask panel section must come after the Job panel section');
   });
 
-  test('M4a-1: no <button> or <input> element anywhere inside the Ask panel (no answer controls — M4b)', () => {
+  test('M4b: the Ask panel\'s static markup has no button/input (doors are built per ask by script); buttons exist only for the three doors + try-again', () => {
     const start = source.indexOf('<section id="panel-ask"');
     assert.ok(start > 0, 'panel-ask section not found');
-    // No <section> nests inside another in this page — the first </section>
-    // after the opening tag is this section's own close.
     const end = source.indexOf('</section>', start);
     assert.ok(end > start, 'could not find the closing </section> for panel-ask');
     const panelAskHtml = stripComments(source.slice(start, end));
-    assert.doesNotMatch(panelAskHtml, /<button/i, 'a <button> was found inside the Ask panel — M4a-1 is read-only, no answer controls until M4b');
-    assert.doesNotMatch(panelAskHtml, /<input/i, 'an <input> was found inside the Ask panel — M4a-1 is read-only, no answer controls until M4b');
-    // The empty slot for M4b's future controls is built by script (the Ask
-    // panel's static markup carries no fixed answer area at all — it's
-    // rendered per-ask) — check the whole page source for it, named.
-    assert.match(source, /data-testid", "ask-answer-slot"/);
+    assert.doesNotMatch(panelAskHtml, /<button|<input|<textarea/i);
+    // Script-built buttons inside renderAnswerBlock: exactly these four test ids.
+    const fnStart = source.indexOf('function renderAnswerBlock(');
+    const fnEnd = source.indexOf('function renderAskEvidenceBlock(');
+    assert.ok(fnStart > 0 && fnEnd > fnStart);
+    const block = stripComments(source.slice(fnStart, fnEnd));
+    const buttons = [...block.matchAll(/makeButton\("([^"]+)",\s*"([^"]+)"/g)].map((m) => m[2]);
+    assert.deepEqual(buttons, ['btn-accept', 'btn-reject', 'btn-rerun', 'btn-resume-again']);
+    // the reason box is a real, labelled textarea.
+    assert.match(block, /createElement\("textarea"\)/);
+    assert.match(block, /lab\.setAttribute\("for", idSafe\)/);
+    // the answer-slot placeholder is gone and nothing on the page says "read-only panel" any more.
+    assert.doesNotMatch(source, /ask-answer-slot|answer controls are not built yet/);
+    assert.doesNotMatch(stripComments(source), /panel is read-only/);
   });
 
   test('M4a-1: the Ask tab\'s collapse/expand toggle is a div with role="button", never a real <button> element', () => {
