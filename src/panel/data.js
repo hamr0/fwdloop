@@ -1576,11 +1576,14 @@ export function deriveAskStepInfo(orderedAsks, auditRows, declSteps) {
  * 3" — a plain array position, not derived from any book) and `stepName`/
  * `stepLine`/`stepWhy` (`deriveAskStepInfo`) so the Ask tab's header can
  * name which ask is open without the client re-deriving any of it.
- * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
- * @returns {{flow:string, runId:string, asks:any[]}|null}
+ * M4b piece 4: also carries `resume` (the SAME `deriveResumeState` the run
+ * detail carries, `null` for a finished run or nothing to say) so the Ask tab
+ * can tell "open, answerable" from "answer saved" without a second fetch.
+ * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any}} opts
+ * @returns {{flow:string, runId:string, asks:any[], resume: any}|null}
  */
 export function getRunAsks({
-  root, flow, runId, catalogue,
+  root, flow, runId, catalogue, resumeAttempt,
 }) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
@@ -1607,7 +1610,10 @@ export function getRunAsks({
     stepLine: stepInfo[i].line,
     stepWhy: stepInfo[i].why,
   }));
-  return { flow, runId, asks };
+  const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null });
+  return {
+    flow, runId, asks, resume,
+  };
 }
 
 /**

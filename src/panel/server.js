@@ -308,7 +308,7 @@ export function handleRequest(req, res, opts) {
     }
     if (sub === 'asks') {
       const result = getRunAsks({
-        root: opts.root, flow, runId, catalogue,
+        root: opts.root, flow, runId, catalogue, resumeAttempt,
       });
       if (!result) { sendText(res, 404, 'no such run'); return; }
       send(200, result);
