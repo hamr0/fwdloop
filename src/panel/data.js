@@ -1680,7 +1680,7 @@ export function groupAskBlocks(asks) {
  * detail carries, `null` for a finished run or nothing to say) so the Ask tab
  * can tell "open, answerable" from "answer saved" without a second fetch.
  * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any}} opts
- * @returns {{flow:string, runId:string, asks:any[], resume: any}|null}
+ * @returns {{flow:string, runId:string, asks:any[], resume: any, blocks: any[]}|null}
  */
 export function getRunAsks({
   root, flow, runId, catalogue, resumeAttempt,
