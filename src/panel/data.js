@@ -32,7 +32,7 @@ import {
 } from '../books.js';
 import { readAsk, readRunState, readLog } from '../runner.js';
 import { readSpendRows } from '../provider.js';
-import { readAskEvidence, listArchivedAsks } from '../ask.js';
+import { readAskEvidence, listArchivedAsks, normalizeDecision } from '../ask.js';
 
 /** `{ ok:false, red }` result shape every exported function here can return
  *  instead of throwing — the server maps this to a 4xx, never a crash.
@@ -105,7 +105,7 @@ function resolveRunPath(root, flowName, runId) {
  * `answer.json`. A directory-naming-convention check, not a "book" with its
  * own single-row shape, so it lives here rather than growing a one-off
  * reader in either writer's module. Per the signed rule (ladder M4a scope
- * item 4) it is per the OPEN ask's askId: after reject -> re-park the old
+ * item 4) it is per the OPEN ask's askId: after redo -> re-park the old
  * ask's marker stays on disk and must not answer the new ask. An ask with no
  * askId (pre-M3) can be paired with no marker: false.
  * @param {string} runDir
@@ -136,7 +136,7 @@ export function readSavedAnswer(runDir) {
   try {
     const a = JSON.parse(r.text);
     if (a && typeof a.askId === 'string' && a.askId.length > 0) {
-      return { askId: a.askId, decision: typeof a.decision === 'string' ? a.decision : null };
+      return { askId: a.askId, decision: typeof a.decision === 'string' ? /** @type {string} */ (normalizeDecision(a.decision)) : null };
     }
   } catch { /* unparseable: not a usable answer */ }
   return null;
@@ -218,6 +218,8 @@ export function computeGlyph({
 }) {
   if (historyRow) {
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
+    // M4b amendment 3: a run the human ended on purpose with rerun is not a failure.
+    if (historyRow.outcome === 'rerun') return { glyph: '[✗]', label: 'stopped by you (rerun), a fresh run was started' };
     return { glyph: '[✗]', label: `failed (${historyRow.outcome ?? 'unknown outcome'})` };
   }
   if (askJson && resume && (resume.state === 'starting' || resume.state === 'not-started')) {
@@ -317,7 +319,7 @@ export function deriveRunModel(auditRows) {
  *    place that ever passes a third argument (`unjudgedCount`) into
  *    `recordAudit`, so `Object.prototype.hasOwnProperty.call(row,
  *    'unjudgedCount')` is true for exactly that step's own rows (paused,
- *    and the human's own accept/reject/rerun/refused answers) and false for
+ *    and the human's own accept/redo/rerun/refused answers) and false for
  *    every other row shape in the book — a real, always-present marker
  *    (`unjudgedCount` is a number, 0 included, never omitted on an ask row),
  *    never the step's close class (a NON-ask hitl step, e.g. a plain write
@@ -450,8 +452,8 @@ export function deriveAuditAtWhy(row) {
  * ONE server-side function naming exactly which verdicts count as "did not
  * pass", derived strictly from a row's own `verdict` string (never a second,
  * client-side guess). Blocked: `not-done`, `red` (a mechanical close miss OR
- * a human's own reject on a hitl step — both are "this attempt did not
- * pass"), `refused` (a blank reject/rerun reason), `ask-timeout` and
+ * a human's own redo on a hitl step — both are "this attempt did not
+ * pass"), `refused` (a blank redo/rerun reason), `ask-timeout` and
  * `ask-expired` (the human never answered in time), `cap-halt`,
  * `provider-red`, `pricing-red`, `close-casualty` (every other halt shape
  * `src/runner.js` records). NOT blocked: `green`/`hitl` (passed), `paused`
@@ -472,7 +474,7 @@ export function isBlockedVerdict(verdict) {
  * audit row — a `hitl`-classed ask step's `paused` row and its own
  * resolution row are the SAME try, the same pairing `computeTryCount`
  * already applies) for the Audit tab's grouped-by-step header. `✓` passed
- * (`green`/`hitl`), `✗` failed/rejected/blocked (everything
+ * (`green`/`hitl`), `✗` failed/redone/blocked (everything
  * `isBlockedVerdict` names, plus any other non-passing verdict), `·` still
  * open (`paused`/`refused`/`ask-timeout`/`ask-expired` — waiting, not yet
  * resolved either way). A `refused` (blank-reason) row is its own re-ask,
@@ -483,7 +485,7 @@ export function isBlockedVerdict(verdict) {
  * @returns {'✓'|'✗'|'·'}
  */
 function markForVerdict(verdict, closeClass) {
-  if (closeClass === 'hitl' && verdict === 'red') return '✗'; // the human's own reject
+  if (closeClass === 'hitl' && verdict === 'red') return '✗'; // the human's own redo
   if (verdict === 'green' || verdict === 'hitl') return '✓';
   if (verdict === 'paused' || verdict === 'refused' || verdict === 'ask-timeout' || verdict === 'ask-expired') return '·';
   return '✗';
@@ -1281,7 +1283,7 @@ export function getRunJob({
 // ad-hoc reconstruction. Status vocabulary, used everywhere in the panel
 // (Inbox list, Ask tab, both API responses), is exactly the words
 // `listArchivedAsks` itself already returns from the books' own decision
-// field: `accepted` / `rejected` / `reran` / `expired` / `unanswered` (a
+// field: `accepted` / `redo` / `reran` / `expired` / `unanswered` (a
 // parked, not-yet-expired ask with no consumed answer — this IS "open" in
 // the UI) / `open` (the rare case `listArchivedAsks` falls back to when an
 // archived ask.json itself fails to parse — no question/evidence can be
@@ -1294,7 +1296,7 @@ export function getRunJob({
  * its book-derived status is `unanswered` (parked, not yet answered, not
  * expired — `listArchivedAsks` already applies the expiry check at read
  * time) or the rare unparseable-archive fallback `open`. Every other status
- * (`accepted`/`rejected`/`reran`/`expired`, or an `unrecognised: X` decision
+ * (`accepted`/`redo`/`reran`/`expired`, or an `unrecognised: X` decision
  * value) is a PAST stop.
  * @param {string} status
  * @returns {boolean}
@@ -1420,7 +1422,7 @@ function legacyRunAsks(runDir, hasHistoryRow) {
   const currentAskId = askJson && typeof askJson.askId === 'string' ? askJson.askId : null;
 
   const consumedFiles = names.filter((n) => CONSUMED_ANSWER_RE.test(n)).sort();
-  const decisionToStatus = { accept: 'accepted', reject: 'rejected', rerun: 'reran' };
+  const decisionToStatus = { accept: 'accepted', redo: 'redo', rerun: 'reran' };
 
   for (const file of consumedFiles) {
     const match = CONSUMED_ANSWER_RE.exec(file);
@@ -1448,7 +1450,7 @@ function legacyRunAsks(runDir, hasHistoryRow) {
       questionWhy: 'question not kept (before M4a-1)',
       askedAt: null,
       expiresAt: null,
-      status: decisionToStatus[parsed.decision] ?? `unrecognised: ${parsed.decision}`,
+      status: decisionToStatus[/** @type {string} */ (normalizeDecision(parsed.decision))] ?? `unrecognised: ${parsed.decision}`,
       reason: typeof parsed.reason === 'string' ? parsed.reason : null,
       answeredAt: typeof parsed.answeredAt === 'string' ? parsed.answeredAt : null,
       archived: false,
