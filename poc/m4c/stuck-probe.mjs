@@ -4,10 +4,11 @@
 // Case 2: killed mid-step AFTER rename-to-consume (real: hang model step, real kill -9).
 // Prints exactly what is on disk after each kill, then runs `fwdloop resume` again (lock removed by hand,
 // to isolate "does resumeRun have anything to act on").
-//   usage: node poc/m4c/stuck-probe.mjs <scratch-dir>
-import { mkdirSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync } from 'node:fs';
+//   usage: node poc/m4c/stuck-probe.mjs [scratch-dir]   (default: a fresh mkdtemp under os.tmpdir(), removed at the end)
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { writeFlow } from '../../src/flow.js';
 import { loadCatalogue } from '../../src/catalogue.js';
@@ -17,7 +18,8 @@ const BIN = path.join(REPO, 'bin', 'fwdloop');
 const FAKE = path.join(REPO, 'test', 'fixtures', 'cli-fake-model-step.mjs');
 const HANG = path.join(REPO, 'test', 'fixtures', 'm4c-hang-model-step.mjs');
 const fx = (n) => readFileSync(path.join(REPO, 'test', 'fixtures', n), 'utf8');
-const scratch = path.resolve(process.argv[2] ?? 'stuck-scratch');
+const ownScratch = process.argv[2] === undefined;
+const scratch = ownScratch ? mkdtempSync(path.join(os.tmpdir(), 'stuck-probe-')) : path.resolve(process.argv[2]);
 const root = path.join(scratch, 'root');
 rmSync(scratch, { recursive: true, force: true });
 mkdirSync(root, { recursive: true });
@@ -64,3 +66,4 @@ console.log('\n--- second resume attempt, lock removed by hand (what (d) would a
 r = cli(['resume', 'r1', '--flow', 'job2', '--root', root]);
 console.log(r.status, (r.stderr || r.stdout).trim());
 dump('second attempt');
+if (ownScratch) rmSync(scratch, { recursive: true, force: true });
