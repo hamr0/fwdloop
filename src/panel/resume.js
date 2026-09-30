@@ -36,7 +36,7 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
-  closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, statSync,
+  closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -104,7 +104,7 @@ export function createResumer(opts) {
     const sliceOfLog = () => {
       try { return readFileSync(logPath).subarray(offset).toString('utf8').trim(); } catch { return ''; } // offset is in BYTES
     };
-    return new Promise((resolve) => {
+    const settled = new Promise((resolve) => {
       let done = false;
       const end = (v) => {
         if (done) return;
@@ -119,6 +119,12 @@ export function createResumer(opts) {
         else if (Date.now() > deadline) end({ kind: 'slow', pid: child.pid, text: sliceOfLog() });
       }, POLL_MS);
     });
+    // A clean exit leaves nothing to explain, so its log goes (best effort); any other exit or a
+    // spawn failure keeps it. Registered after the listener above so that one reads the log first.
+    child.once('exit', (code) => {
+      if (code === 0) { try { unlinkSync(logPath); } catch { /* best effort */ } }
+    });
+    return settled;
   }
 
   /** @param {any} rec @param {'took-over'|'stuck'} state @param {string|null} refusal */

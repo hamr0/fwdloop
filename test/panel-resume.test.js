@@ -400,6 +400,24 @@ test('M4b p3 (iii) panel path: accept through POST /api/answer records the hash;
   } finally { clean(); }
 });
 
+test('resume log: kept with its refusal text while the resume is locked out, deleted once a resume exits 0', async () => {
+  const run = parkRun();
+  const { port, logDir } = await start(run, { windowMs: 30000, maxTries: 5, slotMs: 100 });
+  const token = await pageToken(port);
+  const logs = () => readdirSync(logDir).filter((f) => f.endsWith('.log')).map((f) => path.join(logDir, f));
+  writeFileSync(lockPath(run), '');
+  await answer(port, token, run, 'redo', 'redo, but locked');
+  await pollData(port, run, (d) => d.resume && d.resume.state === 'not-started', 30000);
+  assert.equal(logs().length, 1, 'a refused resume keeps its log');
+  assert.match(readFileSync(logs()[0], 'utf8'), /locked by another resumer/);
+
+  unlinkSync(lockPath(run));
+  await resumePost(port, token, run);
+  await reparked(run);
+  await waitFor(() => logs().length === 0);
+  assert.deepEqual(logs(), [], 'a resume that exited 0 leaves no log');
+});
+
 test('a panel that restarted has no attempt record: a stuck answer still says so, with an honest reason, never blank', async () => {
   const run = parkRun();
   const first = await start(run, { windowMs: 30000, maxTries: 5, slotMs: 100 });
@@ -477,6 +495,9 @@ test('key hygiene: the sentinel key is in 0 HTTP responses, 0 book files and 0 r
   writeFileSync(lockPath(run), '');
   await answer(port, token, run, 'redo', 'hygiene');
   await pollData(port, run, (d) => d.resume && d.resume.state === 'not-started', 30000); // stuck: its log now holds a lock refusal
+  const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+  const logs = walk(logDir); // a clean resume deletes its log, so this is the one moment the log can be scanned
+  const logTexts = logs.map((f) => readFileSync(f, 'utf8'));
   for (const url of ['/', '/api/runs', '/api/inbox', `/api/runs/${run.flow}/${run.runId}`, `/api/runs/${run.flow}/${run.runId}/audit`, `/api/runs/${run.flow}/${run.runId}/asks`]) {
     await rq(port, { url }); // eslint-disable-line no-await-in-loop
   }
@@ -490,10 +511,9 @@ test('key hygiene: the sentinel key is in 0 HTTP responses, 0 book files and 0 r
 
   assert.ok(SEEN.length >= 9);
   for (const s of SEEN) assert.equal(s.includes(SENTINEL), false, `sentinel in an HTTP response: ${s.slice(0, 80)}`);
-  const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
-  const logs = walk(logDir);
   assert.ok(logs.length >= 1, 'a resume log must exist for this check to mean anything');
-  assert.ok(logs.some((f) => readFileSync(f, 'utf8').includes('locked by another resumer')), 'the log holds the real refusal');
-  for (const f of [...walk(run.root), ...logs]) assert.equal(readFileSync(f).includes(SENTINEL), false, `sentinel in ${f}`);
+  assert.ok(logTexts.some((t) => t.includes('locked by another resumer')), 'the log holds the real refusal');
+  for (const t of logTexts) assert.equal(t.includes(SENTINEL), false, 'sentinel in a resume log');
+  for (const f of walk(run.root)) assert.equal(readFileSync(f).includes(SENTINEL), false, `sentinel in ${f}`);
   console.log(`# MEASURE hygiene: ${SEEN.length} responses, ${walk(run.root).length} book files, ${logs.length} log file(s) scanned, 0 sentinel hits`);
 });
