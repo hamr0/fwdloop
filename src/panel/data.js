@@ -185,6 +185,19 @@ export function deriveResumeState({ savedAnswer, attempt }) {
   return null;
 }
 
+export const WAITING_LABEL = 'waiting on you (parked, unanswered)';
+
+/**
+ * M4c item 1: does this sign pulse? Only `[▶]` running and `[·]` WAITING ON YOU
+ * do. The other `[·]` states (answered not resumed, answer saved) are not
+ * waiting on the human, so they stay still. The one place that decides.
+ * @param {{glyph: string, label: string}} g a `computeGlyph` result
+ * @returns {boolean}
+ */
+export function glyphPulses(g) {
+  return g.glyph === '[▶]' || (g.glyph === '[·]' && g.label === WAITING_LABEL);
+}
+
 /**
  * The glyph + human-words label for one run — ported verbatim (in spirit,
  * from real derivation, not a shortcut) from `poc/m4/panel-data.mjs`'s
@@ -240,7 +253,7 @@ export function computeGlyph({
     if (Number.isFinite(expiresMs) && Date.now() > expiresMs) {
       return { glyph: '[!]', label: 'ask expired, not resumed yet' };
     }
-    return { glyph: '[·]', label: 'waiting on you (parked, unanswered)' };
+    return { glyph: '[·]', label: WAITING_LABEL };
   }
   if (askJson && consumedAnswerExists) {
     // M4c: the answer was consumed — a resume process took it. Alive = working on it.
@@ -788,6 +801,7 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
         runId,
         glyph,
         label,
+        pulse: glyphPulses({ glyph, label }),
         resume: ctx.resume,
         spend,
         spendWhy: (!ctx.historyRow && spend === null) ? 'no history row yet and no priced spend.jsonl rows — nothing to floor' : null,
@@ -1086,6 +1100,7 @@ export function getRunDetail({
     runId,
     glyph,
     label,
+    pulse: glyphPulses({ glyph, label }),
     resume: ctx.resume,
     outcome: ctx.historyRow ? ctx.historyRow.outcome : null,
     outcomeWhy: ctx.historyRow ? null : 'no history row (parked or died before completion)',

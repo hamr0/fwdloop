@@ -153,13 +153,14 @@
      arrow [▶], which this reserves for "running" alone. Its own class so
      the two states never share a ::before rule. */
   .dot.expired::before{content:"[!]";color:var(--amber);}
-  /* M4c: only the two "alive" signs pulse — [▶] running (.amber) and [·]
-     waiting on you (.grey). A gentle opacity wave on the existing colors;
+  /* M4c: only the two "alive" signs pulse — [▶] running and [·] waiting on
+     you — keyed to `.pulse`, which the server decides (glyphPulses), never to
+     a colour class (.grey is also the placeholder dot). A gentle opacity wave on the existing colors;
      reduced-motion keeps the sign and drops only the animation. */
   @keyframes signPulse{0%,100%{opacity:1;}50%{opacity:.35;}}
-  .dot.amber::before,.dot.grey::before{animation:signPulse 1.6s ease-in-out infinite;}
+  .dot.pulse::before{animation:signPulse 1.6s ease-in-out infinite;}
   @media (prefers-reduced-motion: reduce){
-    .dot.amber::before,.dot.grey::before{animation:none;}
+    .dot.pulse::before{animation:none;}
   }
 
   .badge{display:inline-block;font-size:11px;padding:1px 4px;color:var(--text-dim);background:none;font-weight:700;}
@@ -809,6 +810,9 @@
   // The run-row glyph strings src/panel/data.js's computeGlyph emits are
   // already bracketed ("[✓]", "[✗]", "[·]", "[▶]", "[?]") — this only ever picks a
   // CSS color class off them, never re-derives the glyph itself.
+  // the dot's class list: colour from the glyph, `pulse` only when the server
+  // says this sign is [▶] running or [·] waiting on you (data.js glyphPulses).
+  function dotClass(g, pulse){ return "dot " + glyphClass(g) + (pulse ? " pulse" : ""); }
   function glyphClass(g){
     if(g === "[✓]") return "green";
     if(g === "[✗]") return "red";
@@ -1145,7 +1149,7 @@
       return row;
     }
     row.innerHTML =
-      '<span class="wf-line1"><span class="dot ' + glyphClass(r.glyph) + '"></span>' +
+      '<span class="wf-line1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span>' +
       '<span class="wf-name" title="' + escapeXml(fullName) + '">' + escapeXml(fullName) + '</span></span>' +
       '<span class="wf-meta-line">' +
       '<span class="wf-meta">' + escapeXml(r.label || "unknown") + '</span>' +
@@ -1293,7 +1297,7 @@
       row.setAttribute("aria-pressed", isSelected ? "true" : "false");
       var wfFullName = g.flow + ' (' + g.lastRunId + ')';
       row.innerHTML =
-        '<span class="wf-line1"><span class="wf-caret">' + (hasOtherRuns ? (expanded ? "▼" : "▶") : "") + '</span><span class="dot ' + glyphClass(g.lastGlyph) + '"></span>' +
+        '<span class="wf-line1"><span class="wf-caret">' + (hasOtherRuns ? (expanded ? "▼" : "▶") : "") + '</span><span class="' + dotClass(g.lastGlyph, g.lastRow.pulse) + '"></span>' +
         '<span class="wf-name" title="' + escapeXml(wfFullName) + '">' + escapeXml(wfFullName) + '</span></span>' +
         '<span class="wf-meta-line">' +
         '<span class="wf-meta">' + escapeXml(g.lastLabel || "unknown") + '</span>' +
@@ -1563,7 +1567,7 @@
     var date = document.getElementById("active-wf-date");
 
     name.textContent = detail.flow + " (" + detail.runId + ")";
-    dot.className = "dot " + glyphClass(detail.glyph);
+    dot.className = dotClass(detail.glyph, detail.pulse);
     verdict.textContent = detail.label || "unknown";
     // browser re-walk bug #4: this is the DATE field — it must use its own
     // why (`detail.atWhy`), never `detail.outcomeWhy` (a different book
@@ -1601,7 +1605,7 @@
     var modelText = detail.model || (detail.modelWhy || "no model call recorded yet");
     var closeText = closeClassSummaryText(detail.steps) || (detail.stepsWhy || "no steps recorded");
     box.innerHTML =
-      '<div class="summary-headline"><span class="dot ' + glyphClass(detail.glyph) + '"></span><b>' + escapeXml(detail.label || "unknown") + '</b> &middot; <span class="num">' + escapeXml(spendText) + '</span></div>' +
+      '<div class="summary-headline"><span class="' + dotClass(detail.glyph, detail.pulse) + '"></span><b>' + escapeXml(detail.label || "unknown") + '</b> &middot; <span class="num">' + escapeXml(spendText) + '</span></div>' +
       '<div class="summary-row" data-testid="summary-model"><span class="sum-label">model:</span><span class="sum-val">' + escapeXml(modelText) + '</span></div>' +
       '<div class="summary-row"><span class="sum-label">steps:</span><span class="sum-val">' + stepsText + '</span></div>' +
       '<div class="summary-row" data-testid="summary-why"><span class="sum-label">why:</span><span class="sum-val">' + escapeXml(detail.stopReason || detail.stopReasonWhy || "not recorded") + '</span></div>' +
