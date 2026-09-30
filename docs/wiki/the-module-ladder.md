@@ -952,11 +952,11 @@ change; then the fix is upstream of the panel, and M4b waits.
 
 **M4b spend cap: $1.00** (the live exit is about $0.05 a run) — SIGNED 2026-09-29.
 
-#### M4b amendment 1 — an answer always resumes; every answer names its ask — DRAFT, NOT SIGNED (rulings "1A, 2A" by hamr 2026-09-30; awaiting "sign m4b amendment 1")
+#### M4b amendment 1 — an answer always resumes; every answer names its ask — SIGNED by hamr 2026-09-30 ("sign m4b amendment 1"; rulings "1A, 2A")
 
 - **Why:** F51. The POC showed (1) an answer accepted while `resume.lock` is still held is saved, the resume exits "locked by another resumer", and nothing retries, so the page would say "answered" forever; (2) an answer with no `askId` lands on whatever ask is open, so a tab left open across a re-park answers an ask its human never read.
 - **Scope:**
-  1. **Answer means resume.** After the library accepts an answer, the panel starts the resume and then checks it took over (the answer was consumed, read from the books, never from the child's output). If the resume was refused because the run is locked and the answer is still unconsumed, the panel starts it again: **up to 5 tries within 10 seconds (PROPOSED numbers, hamr's to sign)**. Exactly one resume ever applies the answer (the rename-to-consume mutex, F44, is unchanged).
+  1. **Answer means resume.** After the library accepts an answer, the panel starts the resume and then checks it took over (the answer was consumed, read from the books, never from the child's output). If the resume was refused because the run is locked and the answer is still unconsumed, the panel starts it again: **up to 5 tries within 10 seconds (signed with this amendment)**. Exactly one resume ever applies the answer (the rename-to-consume mutex, F44, is unchanged).
   2. **A stuck answer is said by name.** If the answer is still unconsumed after the last try, the page and the API say "answer saved, resume not started" with the resume's own refusal, verbatim. Never "answered" alone, never a success. The answer stays on disk and is applied exactly once by whichever resume next succeeds. The page offers "try the resume again" in this state only; it starts a resume and nothing else (it cannot answer).
   3. **Every answer names its ask.** The answer request must carry the `askId` the page was showing. No `askId` is refused by name, nothing written. An `askId` that is not the open ask (the run re-parked, or it was already answered) gets the library's refusal, by name, and the open ask is untouched.
 - **Negatives** (each must be able to fail):
