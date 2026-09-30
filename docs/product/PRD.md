@@ -121,7 +121,7 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 `provider-jev-calibration.js`, bare-agent README "Fast gut check — Jev".
 
 **No CLI as a product surface.** `npm install`, one command, a localhost server starts and **the
-browser is the product**; the server owns the scheduler. A CLI exists for M0–M4 and M6a (`fwdloop draft`, `fwdloop sign`) but is
+browser is the product**; the server owns the scheduler. A CLI exists for M0–M4 and M6a (`fwdloop draft`, `fwdloop sign` — sign needs an interactive terminal and a typed flow name, M6a amendment 2) but is
 undocumented and carries no stability promise (docs/archive/PRD.md:427-431).
 
 ## Guiding principles — borrowed from bareloop, reminders not features
