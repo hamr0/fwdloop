@@ -1044,6 +1044,13 @@ hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from th
 - **Cap:** $1.00 (hamr 2026-09-30).
 - **Not in scope:** Settings (M4d); a Run button (M4e); new answer words; any change to an existing book's shape; the drafter.
 
+**M4c amendment 1 — where a click takes you, and run order — NOT YET SIGNED**
+- (a) From **Runs**, clicking a run opens it on the right on the **Run** tab. If that run has an ask waiting on you, the left side also switches to the **Inbox** with that ask selected. If not, the left side stays on Runs.
+- (b) From the **Inbox**, clicking any card opens the **Ask** tab on the right. That includes a waiting card and an old answered or expired one.
+- (c) Runs and History list the runs waiting on you first, the one with the least time left on top. Everything else follows by finish time, newest first. A running run sits just below the waiting ones. A job's top row is its waiting run, if it has one.
+- No book changes.
+- Why: hamr's M4c review walk 2026-09-30 — clicking a `[·]` run in Runs landed on the Audit tab, and Runs/History put finished runs above the run waiting on him (a parked run has no end row, so the finish-time sort dropped it to the bottom).
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
