@@ -33,8 +33,8 @@ import { readFileInside, resolveInside, readdirInside } from './flow.js';
  * unchanged, so each caller's existing "unrecognised decision" refusal still
  * quotes what it was given. Every decision from outside, and every one read
  * from disk, goes through here; nothing else may compare against the old word.
- * @param {unknown} decision
- * @returns {unknown}
+ * @param {string} decision
+ * @returns {string}
  */
 export function normalizeDecision(decision) {
   return decision === 'reject' ? 'redo' : decision;

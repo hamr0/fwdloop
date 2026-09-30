@@ -136,7 +136,7 @@ export function readSavedAnswer(runDir) {
   try {
     const a = JSON.parse(r.text);
     if (a && typeof a.askId === 'string' && a.askId.length > 0) {
-      return { askId: a.askId, decision: typeof a.decision === 'string' ? /** @type {string} */ (normalizeDecision(a.decision)) : null };
+      return { askId: a.askId, decision: typeof a.decision === 'string' ? normalizeDecision(a.decision) : null };
     }
   } catch { /* unparseable: not a usable answer */ }
   return null;
@@ -1454,7 +1454,7 @@ function legacyRunAsks(runDir, hasHistoryRow) {
       questionWhy: 'question not kept (before M4a-1)',
       askedAt: null,
       expiresAt: null,
-      status: decisionToStatus[/** @type {string} */ (normalizeDecision(parsed.decision))] ?? `unrecognised: ${parsed.decision}`,
+      status: decisionToStatus[normalizeDecision(parsed.decision)] ?? `unrecognised: ${parsed.decision}`,
       reason: typeof parsed.reason === 'string' ? parsed.reason : null,
       answeredAt: typeof parsed.answeredAt === 'string' ? parsed.answeredAt : null,
       archived: false,
