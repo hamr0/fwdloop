@@ -1051,7 +1051,7 @@ hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from th
 - No book changes.
 - Why: hamr's M4c review walk 2026-09-30 — clicking a `[·]` run in Runs landed on the Audit tab, and Runs/History put finished runs above the run waiting on him (a parked run has no end row, so the finish-time sort dropped it to the bottom).
 
-**M4c amendment 2 — a stuck run, and how to unstick it — NOT YET SIGNED**
+**M4c amendment 2 — a stuck run, and how to unstick it — SIGNED by hamr 2026-09-30 ("sign m4c amendment 2")**
 - (a) A run is **stuck** when your answer is saved but no process is carrying the run on. It shows `[II]` "stuck — answer saved, click try the resume again", **pulsing** (it is not a final state). Under reduced motion the sign stays and only the pulse stops.
 - (b) A stuck run counts in `Inbox (N)` and sits in the Inbox's "waiting on you" section, below the asks that have a timer. In Runs and History it sits with the waiting runs.
 - (c) Clicking a stuck card in the Inbox opens the Ask tab, where the "Try the resume again" button is.
