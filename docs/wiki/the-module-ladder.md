@@ -985,21 +985,26 @@ change; then the fix is upstream of the panel, and M4b waits.
 - **Not in scope:** a pid or liveness check in `resume.lock`; replacing rename-to-consume with an appended event. Both are recorded in F52 for a later ruling.
 - **Kill check:** one added field in the saved ask. The arbiter, `audit.jsonl`, `history.jsonl` and `spend.jsonl` are unchanged.
 
-#### M4b amendment 3 — the doors say Accept, Redo, Rerun; a run ended by rerun is not "failed" — DRAFT, NOT SIGNED (ruling "accept, redo, rerun" by hamr 2026-09-30; awaiting "sign m4b amendment 3")
+#### M4b amendment 3 — the word is "redo" everywhere; a run ended by rerun is not "failed" — DRAFT, NOT SIGNED (rulings "accept, redo, rerun" and "terminal says redo too" by hamr 2026-09-30; awaiting "sign m4b amendment 3")
 
-- **Why:** the browser walk of M4b showed a run the human ended on purpose with rerun as `[✗] failed (rerun)`. "Reject" and "Rerun" also read alike, and "reject" hides what it does (it redoes the step before the ask, M3 scope item 7).
+- **Why:** the browser walk of M4b showed a run the human ended on purpose with rerun as `[✗] failed (rerun)`. "Reject" and "rerun" also read alike, and "reject" hides what it does (it redoes the step before the ask, M3 scope item 7). hamr ruled the three answers are **accept, redo, rerun**, and that the terminal and the page use the same words.
 - **Scope:**
-  1. **Page words only.** The three doors read **Accept**, **Redo**, **Rerun**. Redo sends the library's `reject`; Rerun sends `rerun`. The CLI verbs, the library's decision values and what the books record are unchanged.
-  2. **The page says what each door does**, next to the doors: Redo is "redo the last step with your reason"; Rerun is "end this run and start a fresh one from the top". Library refusals are shown word for word and say "reject", so the hint also says that Redo is the library's "reject".
-  3. **An ask the human sent back** reads "redo" with its reason in the ask list and the inbox, where it read "rejected".
-  4. **A run ended by rerun** shows `[✗]` with the label "stopped by you (rerun), a fresh run was started". It never says "failed". A real red still says "failed".
+  1. **One word everywhere.** The answer that was `reject` is `redo`: in the panel's doors (Accept, Redo, Rerun), in the CLI (`fwdloop answer <runId> redo "<reason>"`), in the library's decision value and its refusal messages, and in what new answers write to disk. What it does is unchanged: it redoes the step before the ask under `redo cap` (M3 scope item 7, read with this word).
+  2. **The old word is still understood.** `reject` given to the CLI or the library means `redo` and is recorded as `redo`. A file already on disk that says `reject` (an old run's answer, archive, audit or history row) is read as `redo`. Nothing already written is rewritten. One function does this translation; everything else calls it.
+  3. **The page says what each door does**, next to the doors: Redo is "redo the last step with your reason"; Rerun is "end this run and start a fresh one from the top".
+  4. **An ask the human sent back** reads "redo" with its reason in the ask list and the inbox, where it read "rejected".
+  5. **A run ended by rerun** shows `[✗]` with the label "stopped by you (rerun), a fresh run was started". It never says "failed". A real red still says "failed".
 - **Negatives** (each must be able to fail):
-  - (xii) clicking Redo sends decision `reject` and the consumed answer on disk says `reject`;
-  - (xiii) a run whose outcome is `rerun` never renders the word "failed";
-  - (xiv) a run that ended red still renders "failed".
-- **Exit:** no separate exit. M4b's exit stands, read with these words: hamr "rejects with a reason" by clicking Redo.
+  - (xii) `redo` with a reason, from the CLI and from the panel, redoes the step before the ask, and the consumed answer on disk says `redo`;
+  - (xiii) `reject` given to the CLI does the same thing and the consumed answer on disk says `redo`;
+  - (xiv) a run whose files on disk say `reject` (written before this amendment) resumes and shows as `redo`, and none of its files is rewritten;
+  - (xv) a blank reason on `redo` is refused by name, and the refusal says "redo";
+  - (xvi) a run whose outcome is `rerun` never renders the word "failed";
+  - (xvii) a run that ended red still renders "failed".
+- **Exit:** no separate exit. M4b's exit stands, read with these words: hamr clicks Redo with a reason, sees it re-park, then accepts.
 - **Cap:** $0.
-- **Not in scope:** renaming the CLI verbs, the library's decision values or anything in the books. That is a later ruling.
+- **Not in scope:** renaming `rerun` or `accept`; renaming `redo cap`; rewriting old files.
+- **Kill check:** the arbiter is unchanged. The books keep their shape; one recorded value changes its spelling for new rows, and the old spelling is still read.
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
