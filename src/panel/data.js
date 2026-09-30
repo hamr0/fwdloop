@@ -32,6 +32,7 @@ import {
 } from '../books.js';
 import { readAsk, readRunState, readLog } from '../runner.js';
 import { readSpendRows } from '../provider.js';
+import { runLiveness, booksFresh } from '../liveness.js';
 import {
   readAskEvidence, listArchivedAsks, normalizeDecision, DECISION_STATUS,
 } from '../ask.js';
@@ -205,18 +206,22 @@ export function deriveResumeState({ savedAnswer, attempt }) {
  *  - `[·]` answered, not resumed yet — parked, a consumed answer exists, but
  *    no history row yet (resume hasn't finished) — always in words, never
  *    the same line as "waiting on you", never `[?]`.
- *  - `[?]` died / unknown — no history row, no open ask, no consumed answer:
- *    `resume.lock` carries no pid and nothing checks liveness (M4a's own
- *    open POC question), so a crashed resumer and a live one look the same
- *    on disk. Never guessed into `[✗]` or `[✓]`.
+ *  - `[?]` died / unknown — no history row, no open ask, and either the
+ *    pid row's process is gone (M4c), or there is no pid row / no /proc and
+ *    the books are older than 10 minutes. Never guessed into `[✗]` or `[✓]`.
  *  - `[·]` answer saved, resume not started / starting (M4b amendment 1) —
  *    `answer.json` still on disk (`resume` = `deriveResumeState`): never
  *    "waiting on you" (the human already answered) and never a success.
- * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any}} ctx
- * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[?]', label: string}}
+ *  - `[▶]` running (M4c) — no end row, no open unanswered ask, and either the
+ *    newest pid row's process is alive and is fwdloop (`liveness`, src/liveness.js)
+ *    or (`liveness` unknown) the run's books changed in the last 10 minutes
+ *    (`booksFresh`). A gone process is `[?]`. Absent `liveness`/`booksFresh`
+ *    (a direct caller) reads as unknown / not fresh.
+ * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean}} ctx
+ * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]', label: string}}
  */
 export function computeGlyph({
-  historyRow, askJson, consumedAnswerExists, hasStateJson, resume,
+  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh,
 }) {
   if (historyRow) {
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
@@ -238,12 +243,21 @@ export function computeGlyph({
     return { glyph: '[·]', label: 'waiting on you (parked, unanswered)' };
   }
   if (askJson && consumedAnswerExists) {
+    // M4c: the answer was consumed — a resume process took it. Alive = working on it.
+    if (liveness === 'running') return { glyph: '[▶]', label: 'working on your answer' };
+    if (liveness === 'gone') return { glyph: '[?]', label: 'the process working on your answer is gone' };
     return { glyph: '[·]', label: 'answered, not resumed yet' };
   }
+  // M4c: no end row, no open ask — is a process still working? Pid row first
+  // (`liveness`, src/liveness.js); with no row or no /proc (`unknown`), the
+  // 10-minute books rule. Never `[▶]` off a parked ask (branches above).
+  if (liveness === 'running') return { glyph: '[▶]', label: 'running' };
+  if (liveness === 'gone') return { glyph: '[?]', label: 'the process working on this run is gone (no end row was written)' };
+  if (booksFresh) return { glyph: '[▶]', label: 'running (no pid record; its books changed in the last 10 minutes)' };
   if (hasStateJson && !askJson) {
     return { glyph: '[?]', label: 'running or died: unknown (parked state with no open ask and no history row)' };
   }
-  return { glyph: '[?]', label: 'running or died: unknown (resume.lock has no pid, no liveness check)' };
+  return { glyph: '[?]', label: 'running or died: unknown (no pid record, books older than 10 minutes)' };
 }
 
 /**
@@ -714,6 +728,9 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     consumedAnswerExists,
     hasStateJson: stateJson !== null,
     resume,
+    // M4c: only read for a run with no end row (an end row always wins).
+    liveness: historyRow ? 'unknown' : runLiveness(runDir),
+    booksFresh: historyRow ? false : booksFresh(runDir),
   };
 }
 
