@@ -203,6 +203,11 @@ test('happy path: reject replies before the resume finishes, run re-parks at a N
   const a2 = await reparked(run);
   assert.notEqual(a2.askId, run.askId);
   assert.ok(existsSync(path.join(run.runDir, `answer.${run.askId}.consumed.json`)));
+  // M4b amendment 3 (xii, panel half): the consumed answer says redo, and the step before the ask was redone with the reason
+  assert.equal(JSON.parse(readFileSync(path.join(run.runDir, `answer.${run.askId}.consumed.json`), 'utf8')).decision, 'redo');
+  const auditRows = readFileSync(path.join(run.runDir, 'audit.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.ok(auditRows.some((r) => r.class === 'hitl' && r.verdict === 'red' && r.gap === 'tighten the skills section'));
+  assert.ok(auditRows.filter((r) => r.step === 'resume-summary' && r.class !== 'hitl' && r.verdict === 'green').length >= 2, 'the step before the ask ran again');
 
   const r2 = await answer(port, token, { ...run, askId: a2.askId }, 'accept');
   assert.equal(r2.status, 202, r2.text);

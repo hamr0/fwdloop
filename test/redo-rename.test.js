@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  readFileSync, writeFileSync, existsSync, readdirSync,
+  readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync,
 } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
@@ -136,4 +136,144 @@ test('(xv) a blank reason on redo is refused by name; the refusal says redo, nev
 test('normalizeDecision: reject -> redo; accept/redo/rerun pass; anything else is returned unchanged', () => {
   assert.equal(normalizeDecision('reject'), 'redo');
   for (const d of ['accept', 'redo', 'rerun', 'banana', undefined]) assert.equal(normalizeDecision(d), d);
+});
+
+// (xiv) a run whose files say `reject` (what an older version wrote)
+const NOOP_SEND = async (target, filename, content) => ({ ok: true, bytes: JSON.stringify(content ?? {}).length });
+
+function makeJob2ModelStep() {
+  const calls = { summary: 0 };
+  const fn = async (ctx) => {
+    if (ctx.goal.includes('resume .docx')) return { ok: true, costUsd: 0.001, artifact: { text: 'resume text', done: true } };
+    if (ctx.goal.includes('job description markdown')) return { ok: true, costUsd: 0.001, artifact: { text: 'jd text', done: true } };
+    if (ctx.goal.includes('Draft the summary resume')) {
+      calls.summary += 1;
+      const text = '## summary of work history blurb\nworked places.\n## professional skills\nskills.\n## soft skills\nsoft skills.';
+      return { ok: true, costUsd: 0.001, artifact: { text, done: true } };
+    }
+    throw new Error(`unexpected goal: ${ctx.goal}`);
+  };
+  return { fn, calls };
+}
+
+const runArgs = (root, modelStep, extra = {}) => ({
+  root, name: 'job2', runId: 'run-1', catalogue: CATALOGUE, modelStep, sendStep: NOOP_SEND, primitives: {}, businessDate: '2026-06-01', ...extra,
+});
+
+test('(xiv) files that say `reject` (an older version\'s) resume as redo, the panel shows redo, and no pre-existing file is rewritten', async () => {
+  const root = tmpRoot('xiv');
+  writeJob2Flow(root);
+  const { resume, jd } = writeSources(tmpRoot('xiv-src'));
+  const { fn: modelStep, calls } = makeJob2ModelStep();
+  const parked = await runFlow({
+    ...runArgs(root, modelStep, { askStep: makeParkingAskStep() }),
+    sources: [{ id: 'resume', path: resume }, { id: 'jd', path: jd }],
+  });
+  assert.equal(parked.outcome, 'paused', parked.red);
+  const { runDir, askId } = parked;
+
+  // As an older version would have left it: the answer file with the OLD word.
+  writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({
+    askId, decision: 'reject', reason: 'tighten the skills section', answeredAt: new Date().toISOString(),
+  }, null, 2));
+  const answerHash = sha(path.join(runDir, 'answer.json'));
+  const archive = path.join(runDir, 'asks', `${askId}.json`);
+  const archiveHash = sha(archive);
+  const auditBefore = readFileSync(path.join(runDir, 'audit.jsonl'), 'utf8');
+  const artifactsBefore = readdirSync(path.join(runDir, 'artifacts')).map((f) => [f, sha(path.join(runDir, 'artifacts', f))]);
+
+  assert.ok(artifactsBefore.length > 0, 'sanity: there are artifacts to compare');
+  const res = await resumeRun(runArgs(root, modelStep));
+  assert.equal(res.outcome, 'paused', res.red);
+  assert.notEqual(res.askId, askId, 'the old word still redoes the step and re-parks under a new ask');
+  assert.equal(calls.summary, 2, 'the step before the ask ran once more');
+
+  const consumed = path.join(runDir, `answer.${askId}.consumed.json`);
+  assert.equal(sha(consumed), answerHash, 'the old answer is renamed, byte-identical — never rewritten');
+  assert.equal(readJson(consumed).decision, 'reject', 'the file on disk still says the old word');
+  assert.equal(sha(archive), archiveHash, 'the archived ask is untouched');
+  assert.ok(readFileSync(path.join(runDir, 'audit.jsonl'), 'utf8').startsWith(auditBefore), 'audit rows already written are untouched (append only)');
+  for (const [f, h] of artifactsBefore) {
+    if (f.startsWith('resume-summary')) continue; // a redo deliberately replaces the redone step's own artifact
+    assert.equal(sha(path.join(runDir, 'artifacts', f)), h, `${f} untouched`);
+  }
+
+  // The panel reads the old word as redo, everywhere it names the answer.
+  const asks = getRunAsks({ root, flow: 'job2', runId: 'run-1', catalogue: CATALOGUE });
+  assert.equal(asks.asks.find((a) => a.askId === askId).status, 'redo');
+  const stop = listStops({ root }).find((r) => r.askId === askId);
+  assert.equal(stop.status, 'redo');
+  assert.equal(stop.reason, 'tighten the skills section');
+  assert.equal(readJson(consumed).decision, 'reject', 'reading it did not rewrite it');
+});
+
+// (xvi) / (xvii) how a run the human ended with rerun, and a real red, render.
+function historyRow(runId, outcome) {
+  return {
+    runId, at: '2026-09-30T05:56:30.292Z', outcome, spentUsd: 0.003, spendComplete: true, capUsd: 0.25, wallMs: 1000, signatureHash: 'deadbeef',
+  };
+}
+
+function endedRuns() {
+  const root = tmpRoot('ended');
+  const { dir: flowDir } = writeJob2Flow(root, 'endflow');
+  for (const [runId, outcome] of [['run-rerun', 'rerun'], ['run-red', 'red']]) {
+    const runDir = path.join(flowDir, 'runs', runId);
+    mkdirSync(runDir, { recursive: true });
+    // a real redo happened earlier in the run: its audit row is not "why it stopped"
+    appendAudit(runDir, {
+      step: 'resume-summary', attempt: 1, class: 'hitl', verdict: 'red', gap: 'tighten it', usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: '2026-09-30T05:56:29.000Z', tokens: null, tools: null, refused: [],
+    });
+    writeFileSync(path.join(runDir, 'log.json'), JSON.stringify({ runId, outcome, artifacts: {}, ...(outcome === 'red' ? { red: 'step "x" went red' } : {}) }));
+    appendHistory(flowDir, historyRow(runId, outcome));
+  }
+  return root;
+}
+
+// The page's own words for a run, from the real page function.
+function pageLiveOutcome() {
+  const html = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
+  const start = html.indexOf('function liveOutcome(');
+  const end = html.indexOf('function startLive(');
+  assert.ok(start > 0 && end > start, 'liveOutcome must be found in the page');
+  return new Function(`${html.slice(start, end)}; return liveOutcome;`)(); // eslint-disable-line no-new-func
+}
+
+test('(xvi) a run ended by rerun is [✗] "stopped by you (rerun)..." and never renders the word "failed"', () => {
+  const root = endedRuns();
+  const g = computeGlyph({ historyRow: historyRow('r', 'rerun'), askJson: null, consumedAnswerExists: true, hasStateJson: true });
+  assert.deepEqual(g, { glyph: '[✗]', label: 'stopped by you (rerun), a fresh run was started' });
+
+  const detail = getRunDetail({ root, flow: 'endflow', runId: 'run-rerun', catalogue: CATALOGUE });
+  assert.equal(detail.glyph, '[✗]');
+  assert.equal(detail.label, 'stopped by you (rerun), a fresh run was started');
+  assert.doesNotMatch(JSON.stringify(detail), /failed/i, 'run header, summary and stop reason never say failed');
+  const row = listRuns({ root, catalogue: CATALOGUE }).find((r) => r.runId === 'run-rerun');
+  assert.equal(row.glyph, '[✗]');
+  assert.doesNotMatch(JSON.stringify(row), /failed/i, 'the run list row never says failed');
+
+  const live = pageLiveOutcome()('ask-1', detail, { asks: [] });
+  assert.doesNotMatch(live.text, /failed/i, 'the live message never says failed');
+  assert.match(live.text, /rerun/);
+});
+
+test('(xvii) a run that ended red still renders "failed"', () => {
+  const root = endedRuns();
+  const detail = getRunDetail({ root, flow: 'endflow', runId: 'run-red', catalogue: CATALOGUE });
+  assert.equal(detail.glyph, '[✗]');
+  assert.equal(detail.label, 'failed (red)');
+  const row = listRuns({ root, catalogue: CATALOGUE }).find((r) => r.runId === 'run-red');
+  assert.match(row.label, /failed \(red\)/);
+  const live = pageLiveOutcome()('ask-1', detail, { asks: [] });
+  assert.match(live.text, /failed \(red\)/);
+});
+
+test('the page: doors are Accept, Redo, Rerun; the hint says what each does; the POST sends redo; no "reject" word is shown', () => {
+  const html = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
+  assert.match(html, /makeButton\("Redo", "btn-redo", function\(\)\{ sendAnswer\(root, ask, ctx, "redo"\); \}\)/);
+  assert.doesNotMatch(html, /btn-reject|makeButton\("Reject"/);
+  assert.match(html, /redo: redo the last step with your reason/);
+  assert.match(html, /rerun: end this run and start a fresh one from the top/);
+  assert.match(html, /reason \(needed for redo and rerun\)/);
+  assert.doesNotMatch(html, /library's reject/);
 });
