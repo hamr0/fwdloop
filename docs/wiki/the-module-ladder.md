@@ -1020,6 +1020,31 @@ hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from th
 - **"Via the new re-signed flow".** The walk completed on `job2-m6a-2`, not `job2-m6a-3`. The two flows' signed prose is byte-identical. The orchestrator put this question to hamr before signing (sign if it counts); hamr signed.
 - **hamr's notes from the walk:** "i got confused on workflows as it didnt have pulsing play (working) but i found it, same at inbox, ask 1 of 2, 2 of 2 was not clear, that was confusing. inbox should highlight or flow on the right should be different" and "so every redo it reasked again and they were all same ask?". These are recorded as F53 and are not part of the signed M4b scope. F53 stays open as later work; it did not hold the exit.
 
+#### M4c — the answers read clearly — DRAFTED 2026-09-30, NOT SIGNED
+
+- **Why:** hamr's M4b live walk (F53). While a run worked there was no sign it was working; "Ask 1 of 2 / 2 of 2" was not clear; the inbox did not put the ask that needs you first; after a redo the new ask looked like the same ask again. hamr agreed a mockup on 2026-09-30 ("mockup agreed"); this scope is that mockup in words. Ladder order agreed the same day: M4c (this), then M4d (Settings: providers, keys, money, ported from bareloop), then M4e (run a job from the panel). Keys are typed by hand into a file, never on the page (hamr 2026-09-30, "keys handtyped").
+- **Scope:**
+  1. **Signs, the same everywhere** (Runs list, Inbox, run header): `[▶]` running, pulsing; `[·]` waiting on you, pulsing; `[✓]` passed; `[✗]` failed, or stopped by you (rerun); `[!]` ask expired; `[?]` died or unknown. Under the browser's reduced-motion setting the sign stays and only the pulse stops.
+  2. **How "running" is known — PROPOSED, hamr to confirm at signing** (hamr asked to check with bareloop; `loop` answered 2026-09-30, "both, pid first"): each process that works on a run (the first run and every resume) appends one row `{pid, startedAt}` to a new append-only file in the run dir, written by that process itself before its first step. The panel shows `[▶]` while the newest row's pid is alive and its command line is `fwdloop` (`/proc` check). The moment it is gone, `[?]`. A run with no such row (started before M4c) or where `/proc` cannot be read falls back to bareloop's rule: no end row and the run's books changed in the last 10 minutes is `[▶]`, older is `[?]`. An end row in `history.jsonl` always wins over both. The rule lives in one function, so M4d's money hold can reuse it and the two never disagree (bareloop's own open inconsistency). No existing book changes shape; one new file is added.
+  3. **`Inbox (N)` is always in the top tab.** N counts asks that are open and not expired, across all flows and runs. N drops as soon as an answer is saved.
+  4. **Inbox order:** asks waiting on you first and highlighted, the one with the least time left on top (hamr 2026-09-30, "runs out first"). Then runs working on an answer you just gave (`[▶]` "working on your redo…"). Then answered and expired asks, dimmed, newest first.
+  5. **The Ask tab shows one block per ask line**, titled with the signed question. Under it: the current draft, labelled "draft N" (N = how many times this ask line has parked in this run), in full; then "your answers so far", one line per earlier draft: `draft k → <decision> "<reason>" <time>`. The words "Ask 1 of 2" go. A flow's second ask line is its own block with its own title.
+  6. **After a click the doors hide** and the block says what is happening, with `[▶]` pulsing, until the books show the next state: redo "working on your redo… draft N+1 is coming"; accept "shipping draft N…"; rerun "ending this run, starting a fresh one…".
+  7. **The live refresh never redraws over what you are doing:** a reason being typed, or a refusal just shown, stays until your next click (bareloop F199: a 2 s re-render wiped a typed answer).
+- **Negatives** (each must be able to fail):
+  - (i) a run parked at an ask never shows `[▶]`;
+  - (ii) a run whose process is killed shows `[?]` on the next refresh, never `[▶]`; a pre-M4c run with no pid row shows `[?]` once its books are older than 10 minutes;
+  - (iii) a recycled pid that is not `fwdloop` does not read as running;
+  - (iv) `Inbox (N)`: one open ask gives 1; 0 once the answer is saved; an expired ask is not counted;
+  - (v) with two runs waiting, the one with less time left is on top;
+  - (vi) after three redos the Ask tab shows "draft 4" and three answer lines, and never "Ask 1 of";
+  - (vii) a reason typed in the box survives three refresh ticks; a refusal shown stays until the next click;
+  - (viii) a run from before M4c still renders, and none of its files is rewritten.
+- **Exit:** hamr, live on deepseek-flash, panel only: sees `[▶]` pulse while the run works; sees `Inbox (1)` and `[·]` pulse when it parks; clicks Redo with a reason and sees "working on your redo…", then "draft 2" with his answer listed under it; clicks Accept and sees `Inbox (0)` and `[✓]`. The orchestrator walks the same at desktop and 390 px first, at $0.
+- **Cap:** $1.00 (hamr 2026-09-30).
+- **Not in scope:** Settings (M4d); a Run button (M4e); new answer words; any change to an existing book's shape; the drafter.
+- **Open for hamr before signing:** item 2 (the pid rule) is proposed, not agreed.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
