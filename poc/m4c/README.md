@@ -73,3 +73,12 @@ bareloop's verbatim `rest.some(...)` shape goes red on exactly case 6e:
 - Empty cmdline = dead (zombie). ENOENT = dead. EPERM alone = exists, then decided by cmdline.
 - The spawned process records its own `process.pid` before its first step; symlink path, shebang and `process.execPath` shapes all read as fwdloop.
 - Not proven here: pid-row writing itself, and recycled pid that happens to be another fwdloop (e.g. a different run's process): that reads alive; the row is per run so the panel would show `[▶]` for a dead run whose pid got reused by a different fwdloop process. Rare; record as known gap for the build's negative list.
+
+## Amendment 2 POC — can a kill -9'd resumer be resumed again? ($0) — RESULT: NO for a consumed answer
+`node poc/m4c/stuck-probe.mjs <scratch>` (real `fwdloop resume` with the hang model step, real `kill -9` after rename-to-consume).
+After the kill, on disk: `answer.<askId>.consumed.json` (no `answer.json`), an EMPTY `resume.lock` (0 bytes), state.json unchanged
+(still parked: stepIndex 3, same askId), pids.jsonl = run row + resume row (resume pid dead), audit tail = the redo's hitl `red` row (gap = the reason).
+Second `fwdloop resume`: with the lock -> "locked by another resumer"; with the lock removed by hand -> "resume: no answer yet for run" (resumeRun reads only
+`answer.json`; the consumed file is never read back). So clearing the lock alone (d) does NOT unstick case 2; it needs a re-consume of a consumed answer,
+a new answer-file shape, or a state.json change. Kill condition of the brief fired: recovery of case 2 is NOT built.
+Case 1 (killed between lock and rename) keeps `answer.json`, so clearing the lock is enough there (not probed live; follows from the code: resumeRun reads answer.json after the lock).
