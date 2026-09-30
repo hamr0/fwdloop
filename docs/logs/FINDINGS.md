@@ -2806,3 +2806,29 @@ SIGNED). "delete it": the POC test `poc/m4b/answer-door.test.mjs` is deleted; it
 **Deflake from the same round.** Timing-based panel tests failed 3/3 under synthetic load. Fixed with event
 waits and an injectable `slotMs` (commits 562aa1b, ee57930). 3/3 green under the same load. Production
 constants are unchanged (5 tries, 10 s).
+
+## F53 — M4b live walk: the panel does not show that it is working, and repeated asks look identical (2026-09-30)
+
+**Evidence.** hamr's live walk of the panel (run `m4b-exit-2` on flow `job2-m6a-2`, deepseek-flash, branch
+`m4b` at 8998823). 3 redos, 4 asks archived, all with the same question text "check it with me," because the
+question is the signed line; only the draft under it changes. Then Accept, outcome `complete`. Details are
+in the M4b exit evidence block in `docs/wiki/the-module-ladder.md`.
+
+**What hamr hit** (his words: "i got confused on workflows as it didnt have pulsing play (working) but i found
+it, same at inbox, ask 1 of 2, 2 of 2 was not clear, that was confusing. inbox should highlight or flow on the
+right should be different" and "so every redo it reasked again and they were all same ask?"):
+
+1. No "working" indicator (hamr: "pulsing play") in the workflow list or the inbox while a resume is running
+   after an answer.
+2. The label "Ask 1 of 2 / 2 of 2" was not clear.
+3. The inbox does not highlight the one ask that needs an answer, and the run pane on the right does not look
+   different for it.
+4. After a redo the new ask looks the same as the answered ones, so it reads as "the same ask again".
+
+**The second thing the walk found.** Run `m4b-exit-1` on flow `job2-m6a-3` went red before its ask: step
+`summary_resume` was red on all 4 attempts on the shape check, outcome `attempt-fallback`, $0.0311. Its
+signed prose is byte-identical to `job2-m6a-2`, yet the drafted shape checks differ: `job2-m6a-3` checks four
+section headings (it adds "how it matches the JD"), `job2-m6a-2` checks three. The drafter's output varied
+for the same signed text. Observation only.
+
+**Status.** Open. No fix built. Whether these are an M4b amendment or later work is hamr's ruling.
