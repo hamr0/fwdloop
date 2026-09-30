@@ -1044,7 +1044,7 @@ hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from th
 - **Cap:** $1.00 (hamr 2026-09-30).
 - **Not in scope:** Settings (M4d); a Run button (M4e); new answer words; any change to an existing book's shape; the drafter.
 
-**M4c amendment 1 — where a click takes you, and run order — NOT YET SIGNED**
+**M4c amendment 1 — where a click takes you, and run order — SIGNED by hamr 2026-09-30 ("sign m4c amendment 1")**
 - (a) From **Runs**, clicking a run opens it on the right on the **Run** tab. If that run has an ask waiting on you, the left side also switches to the **Inbox** with that ask selected. If not, the left side stays on Runs.
 - (b) From the **Inbox**, clicking any card opens the **Ask** tab on the right. That includes a waiting card and an old answered or expired one.
 - (c) Runs and History list the runs waiting on you first, the one with the least time left on top. Everything else follows by finish time, newest first. A running run sits just below the waiting ones. A job's top row is its waiting run, if it has one.
