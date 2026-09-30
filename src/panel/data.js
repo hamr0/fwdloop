@@ -32,7 +32,9 @@ import {
 } from '../books.js';
 import { readAsk, readRunState, readLog } from '../runner.js';
 import { readSpendRows } from '../provider.js';
-import { readAskEvidence, listArchivedAsks } from '../ask.js';
+import {
+  readAskEvidence, listArchivedAsks, normalizeDecision, DECISION_STATUS,
+} from '../ask.js';
 
 /** `{ ok:false, red }` result shape every exported function here can return
  *  instead of throwing — the server maps this to a 4xx, never a crash.
@@ -99,23 +101,87 @@ function resolveRunPath(root, flowName, runId) {
 }
 
 /**
- * A consumed-answer marker exists for this run — `answerAsk`'s own write
+ * A consumed-answer marker exists for THIS ask (`askId`) — `answerAsk`'s own write
  * (`src/ask.js`) renames to `answer.<askId>.consumed.json` on accept, and
  * `resumeRun` (`src/runner.js`) does the same when it consumes an in-place
  * `answer.json`. A directory-naming-convention check, not a "book" with its
  * own single-row shape, so it lives here rather than growing a one-off
- * reader in either writer's module.
+ * reader in either writer's module. Per the signed rule (ladder M4a scope
+ * item 4) it is per the OPEN ask's askId: after redo -> re-park the old
+ * ask's marker stays on disk and must not answer the new ask. An ask with no
+ * askId (pre-M3) can be paired with no marker: false.
  * @param {string} runDir
+ * @param {string|null} askId the open ask's own askId
  * @returns {boolean}
  */
-function hasConsumedAnswer(runDir) {
-  if (!existsSync(runDir)) return false;
+function hasConsumedAnswer(runDir, askId) {
+  if (!existsSync(runDir) || typeof askId !== 'string' || askId.length === 0) return false;
   // F48 round 3: `readdirInside` (`src/flow.js`) skips a symlinked entry
   // rather than reporting its name — a run dir cannot be made to show a
   // consumed answer that isn't really there by planting a symlink named to
   // match the pattern.
   const names = readdirInside(runDir, '.');
-  return names.some((n) => /^answer\..*\.consumed\.json$/.test(n));
+  return names.includes(`answer.${askId}.consumed.json`);
+}
+
+/**
+ * M4b piece 2: a SAVED, not-yet-consumed answer — `answer.json` (what
+ * `answerAsk` writes; the resume consumes it by renaming it away, F44). Read
+ * through `readFileInside` (a symlinked file is "none"). `null` when there is
+ * none or it is unreadable/unparseable or names no askId.
+ * @param {string} runDir
+ * @returns {{askId: string, decision: string|null}|null}
+ */
+export function readSavedAnswer(runDir) {
+  const r = readFileInside(runDir, 'answer.json');
+  if (!r.ok) return null;
+  try {
+    const a = JSON.parse(r.text);
+    if (a && typeof a.askId === 'string' && a.askId.length > 0) {
+      return { askId: a.askId, decision: typeof a.decision === 'string' ? normalizeDecision(a.decision) : null };
+    }
+  } catch { /* unparseable: not a usable answer */ }
+  return null;
+}
+
+/** What the `resume` field says when the panel has no attempt record for a run
+ *  (it restarted since the answer was saved) — said so, never blank. */
+export const RESUME_REASON_UNKNOWN = 'reason unknown: the panel restarted, so it has no record of the resume attempt';
+
+/**
+ * M4b amendment 1 scope 2: the ONE derivation of "answer saved, resume not
+ * started". From the books: an answer saved (`answer.json` present) and so
+ * unconsumed. From the panel's in-memory attempt record (`attempt`, may be
+ * null): whether a resume is still being started, and the resume's own refusal.
+ * `null` when there is nothing to say (no saved answer and no attempt).
+ * @param {{savedAnswer: {askId:string, decision:string|null}|null, attempt: any}} ctx
+ * @returns {{state: 'starting'|'not-started'|'took-over', askId: string|null, tries: number|null, maxTries: number|null, reason: string|null, label: string}|null}
+ */
+export function deriveResumeState({ savedAnswer, attempt }) {
+  const tries = attempt ? attempt.tries : null;
+  const maxTries = attempt ? attempt.maxTries : null;
+  if (savedAnswer) {
+    if (attempt && attempt.state === 'in-flight' && attempt.askId === savedAnswer.askId) {
+      return {
+        state: 'starting', askId: savedAnswer.askId, tries, maxTries, reason: null, label: 'answer saved, resume starting',
+      };
+    }
+    const mine = attempt && attempt.askId === savedAnswer.askId;
+    return {
+      state: 'not-started',
+      askId: savedAnswer.askId,
+      tries: mine ? tries : null,
+      maxTries: mine ? maxTries : null,
+      reason: mine && typeof attempt.refusal === 'string' && attempt.refusal.length > 0 ? attempt.refusal : RESUME_REASON_UNKNOWN,
+      label: 'answer saved, resume not started',
+    };
+  }
+  if (attempt) {
+    return {
+      state: 'took-over', askId: attempt.askId, tries, maxTries, reason: null, label: 'resume took over the answer',
+    };
+  }
+  return null;
 }
 
 /**
@@ -143,15 +209,23 @@ function hasConsumedAnswer(runDir) {
  *    `resume.lock` carries no pid and nothing checks liveness (M4a's own
  *    open POC question), so a crashed resumer and a live one look the same
  *    on disk. Never guessed into `[✗]` or `[✓]`.
- * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean}} ctx
+ *  - `[·]` answer saved, resume not started / starting (M4b amendment 1) —
+ *    `answer.json` still on disk (`resume` = `deriveResumeState`): never
+ *    "waiting on you" (the human already answered) and never a success.
+ * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any}} ctx
  * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[?]', label: string}}
  */
 export function computeGlyph({
-  historyRow, askJson, consumedAnswerExists, hasStateJson,
+  historyRow, askJson, consumedAnswerExists, hasStateJson, resume,
 }) {
   if (historyRow) {
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
+    // M4b amendment 3: a run the human ended on purpose with rerun is not a failure.
+    if (historyRow.outcome === 'rerun') return { glyph: '[✗]', label: 'stopped by you (rerun), a fresh run was started' };
     return { glyph: '[✗]', label: `failed (${historyRow.outcome ?? 'unknown outcome'})` };
+  }
+  if (askJson && resume && (resume.state === 'starting' || resume.state === 'not-started')) {
+    return { glyph: '[·]', label: resume.label };
   }
   // No history row. A park never writes one, and a consumed answer file
   // stays on disk until resume writes its own history row — "no history
@@ -247,7 +321,7 @@ export function deriveRunModel(auditRows) {
  *    place that ever passes a third argument (`unjudgedCount`) into
  *    `recordAudit`, so `Object.prototype.hasOwnProperty.call(row,
  *    'unjudgedCount')` is true for exactly that step's own rows (paused,
- *    and the human's own accept/reject/rerun/refused answers) and false for
+ *    and the human's own accept/redo/rerun/refused answers) and false for
  *    every other row shape in the book — a real, always-present marker
  *    (`unjudgedCount` is a number, 0 included, never omitted on an ask row),
  *    never the step's close class (a NON-ask hitl step, e.g. a plain write
@@ -380,8 +454,8 @@ export function deriveAuditAtWhy(row) {
  * ONE server-side function naming exactly which verdicts count as "did not
  * pass", derived strictly from a row's own `verdict` string (never a second,
  * client-side guess). Blocked: `not-done`, `red` (a mechanical close miss OR
- * a human's own reject on a hitl step — both are "this attempt did not
- * pass"), `refused` (a blank reject/rerun reason), `ask-timeout` and
+ * a human's own redo on a hitl step — both are "this attempt did not
+ * pass"), `refused` (a blank redo/rerun reason), `ask-timeout` and
  * `ask-expired` (the human never answered in time), `cap-halt`,
  * `provider-red`, `pricing-red`, `close-casualty` (every other halt shape
  * `src/runner.js` records). NOT blocked: `green`/`hitl` (passed), `paused`
@@ -402,7 +476,7 @@ export function isBlockedVerdict(verdict) {
  * audit row — a `hitl`-classed ask step's `paused` row and its own
  * resolution row are the SAME try, the same pairing `computeTryCount`
  * already applies) for the Audit tab's grouped-by-step header. `✓` passed
- * (`green`/`hitl`), `✗` failed/rejected/blocked (everything
+ * (`green`/`hitl`), `✗` failed/redone/blocked (everything
  * `isBlockedVerdict` names, plus any other non-passing verdict), `·` still
  * open (`paused`/`refused`/`ask-timeout`/`ask-expired` — waiting, not yet
  * resolved either way). A `refused` (blank-reason) row is its own re-ask,
@@ -413,7 +487,7 @@ export function isBlockedVerdict(verdict) {
  * @returns {'✓'|'✗'|'·'}
  */
 function markForVerdict(verdict, closeClass) {
-  if (closeClass === 'hitl' && verdict === 'red') return '✗'; // the human's own reject
+  if (closeClass === 'hitl' && verdict === 'red') return '✗'; // the human's own redo
   if (verdict === 'green' || verdict === 'hitl') return '✓';
   if (verdict === 'paused' || verdict === 'refused' || verdict === 'ask-timeout' || verdict === 'ask-expired') return '·';
   return '✗';
@@ -609,9 +683,10 @@ export function summarizeSpendRows(spendRows) {
  * @param {string} flowName
  * @param {string} runId
  * @param {any} catalogue
+ * @param {any} [attempt] the panel's in-memory resume-attempt record for this run, or null
  * @returns {any}
  */
-function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue) {
+function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attempt = null) {
   const flowRead = readFlow({ root, name: flowName, catalogue });
   const historyRows = readHistory(flowDir);
   const historyRow = historyRows.find((r) => r && r.runId === runId) ?? null;
@@ -620,7 +695,9 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue) {
   const logJson = readLog(runDir);
   const askJson = readAsk(runDir);
   const stateJson = readRunState(runDir);
-  const consumedAnswerExists = hasConsumedAnswer(runDir);
+  const consumedAnswerExists = hasConsumedAnswer(runDir, askJson && typeof askJson.askId === 'string' ? askJson.askId : null);
+  // A finished run has no resume to report (its history row says how it ended).
+  const resume = historyRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(runDir), attempt });
 
   return {
     flowName,
@@ -636,6 +713,7 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue) {
     stateJson,
     consumedAnswerExists,
     hasStateJson: stateJson !== null,
+    resume,
   };
 }
 
@@ -646,10 +724,11 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue) {
  * Newest-first by history `at` where known; a row with no history row (died
  * or still parked) sorts after every row that has one, in flow/run order
  * (a real ordering, never `Date.now()` guessed in for a missing `at`).
- * @param {{root: string, catalogue: any}} opts
+ * @param {{root: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any}} opts
+ *   `resumeAttempt`: the panel's in-memory resume-attempt lookup (M4b piece 2); absent = none.
  * @returns {any[]}
  */
-export function listRuns({ root, catalogue }) {
+export function listRuns({ root, catalogue, resumeAttempt }) {
   const rows = [];
   for (const flowName of listFlowNames(root)) {
     const flowDir = join(root, flowName);
@@ -669,7 +748,7 @@ export function listRuns({ root, catalogue }) {
         });
         continue;
       }
-      const ctx = loadRunContext(root, run.flowDir, run.runDir, flowName, runId, catalogue);
+      const ctx = loadRunContext(root, run.flowDir, run.runDir, flowName, runId, catalogue, resumeAttempt?.(flowName, runId) ?? null);
       const { glyph, label } = computeGlyph(ctx);
       let spend;
       if (ctx.historyRow) {
@@ -692,6 +771,7 @@ export function listRuns({ root, catalogue }) {
         runId,
         glyph,
         label,
+        resume: ctx.resume,
         spend,
         spendWhy: (!ctx.historyRow && spend === null) ? 'no history row yet and no priced spend.jsonl rows — nothing to floor' : null,
         at: ctx.historyRow ? ctx.historyRow.at : null,
@@ -770,17 +850,17 @@ function computeTryCount(closeClass, list) {
  * `log.json`. `null` when the flow/runId doesn't resolve to a real run
  * directory at all (caller renders 404); a `red` field names why a
  * sub-derivation couldn't fill (never invented).
- * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
+ * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any}} opts
  * @returns {any|null}
  */
 export function getRunDetail({
-  root, flow, runId, catalogue,
+  root, flow, runId, catalogue, resumeAttempt,
 }) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
 
-  const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue);
+  const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, resumeAttempt?.(flow, runId) ?? null);
   const { glyph, label } = computeGlyph(ctx);
 
   // hamr's 2026-09-27 step-card review: the Run tab's step cards reuse the
@@ -911,6 +991,13 @@ export function getRunDetail({
   let stopReasonWhy = null;
   if (ctx.historyRow && ctx.historyRow.outcome === 'complete') {
     stopReasonWhy = 'run completed clean — there is no stop reason to show';
+  } else if (ctx.historyRow && ctx.historyRow.outcome === 'rerun') {
+    // M4b amendment 3: the human ended this run on purpose; an earlier redo's
+    // audit row is not "why it stopped".
+    stopReasonWhy = 'stopped by you (rerun), a fresh run was started — there is no failure to show';
+  } else if (ctx.resume && (ctx.resume.state === 'starting' || ctx.resume.state === 'not-started')) {
+    // M4b amendment 1: the human already answered — never "waiting on you".
+    stopReasonWhy = ctx.resume.reason ? `${ctx.resume.label}: ${ctx.resume.reason}` : ctx.resume.label;
   } else if (!ctx.historyRow && ctx.askJson && !ctx.consumedAnswerExists) {
     stopReasonWhy = `waiting on you: ${typeof ctx.askJson.question === 'string' && ctx.askJson.question.length > 0 ? ctx.askJson.question : 'no question recorded'}`;
   } else if (ctx.logJson && typeof ctx.logJson.red === 'string' && ctx.logJson.red.length > 0) {
@@ -982,6 +1069,7 @@ export function getRunDetail({
     runId,
     glyph,
     label,
+    resume: ctx.resume,
     outcome: ctx.historyRow ? ctx.historyRow.outcome : null,
     outcomeWhy: ctx.historyRow ? null : 'no history row (parked or died before completion)',
     capUsd: ctx.historyRow ? ctx.historyRow.capUsd : (ctx.flowRead.ok ? ctx.flowRead.arbiter.capUsd : null),
@@ -1201,7 +1289,7 @@ export function getRunJob({
 // ad-hoc reconstruction. Status vocabulary, used everywhere in the panel
 // (Inbox list, Ask tab, both API responses), is exactly the words
 // `listArchivedAsks` itself already returns from the books' own decision
-// field: `accepted` / `rejected` / `reran` / `expired` / `unanswered` (a
+// field: `accepted` / `redo` / `reran` / `expired` / `unanswered` (a
 // parked, not-yet-expired ask with no consumed answer — this IS "open" in
 // the UI) / `open` (the rare case `listArchivedAsks` falls back to when an
 // archived ask.json itself fails to parse — no question/evidence can be
@@ -1214,7 +1302,7 @@ export function getRunJob({
  * its book-derived status is `unanswered` (parked, not yet answered, not
  * expired — `listArchivedAsks` already applies the expiry check at read
  * time) or the rare unparseable-archive fallback `open`. Every other status
- * (`accepted`/`rejected`/`reran`/`expired`, or an `unrecognised: X` decision
+ * (`accepted`/`redo`/`reran`/`expired`, or an `unrecognised: X` decision
  * value) is a PAST stop.
  * @param {string} status
  * @returns {boolean}
@@ -1241,12 +1329,24 @@ function isOpenStatus(status) {
  *    can't be parsed (never a guessed number).
  * @param {any} ask one row from `runAsksInOrder`
  * @param {boolean} hasHistoryRow
- * @returns {{open: boolean, timeLeftMs: number|null}}
+ * @param {any} [resume] the run's `deriveResumeState` result, or null
+ * @returns {{open: boolean, waiting: boolean, resume: any, timeLeftMs: number|null}}
  */
-function deriveAskOpenFields(ask, hasHistoryRow) {
+function deriveAskOpenFields(ask, hasHistoryRow, resume = null) {
   const open = isOpenStatus(ask.status) && !hasHistoryRow;
-  const expiresMs = open && typeof ask.expiresAt === 'string' ? Date.parse(ask.expiresAt) : NaN;
-  return { open, timeLeftMs: open && Number.isFinite(expiresMs) ? Math.max(0, expiresMs - Date.now()) : null };
+  // M4b fix: the ONE decision "is this ask waiting on the human". An open ask
+  // whose answer is already saved (`resume` = `deriveResumeState` for THIS
+  // ask, the run's own label) is open but not waiting: the human answered.
+  const answered = open && resume != null && resume.askId === ask.askId
+    && (resume.state === 'starting' || resume.state === 'not-started');
+  const waiting = open && !answered;
+  const expiresMs = waiting && typeof ask.expiresAt === 'string' ? Date.parse(ask.expiresAt) : NaN;
+  return {
+    open,
+    waiting,
+    resume: answered ? resume : null,
+    timeLeftMs: waiting && Number.isFinite(expiresMs) ? Math.max(0, expiresMs - Date.now()) : null,
+  };
 }
 
 /**
@@ -1328,7 +1428,6 @@ function legacyRunAsks(runDir, hasHistoryRow) {
   const currentAskId = askJson && typeof askJson.askId === 'string' ? askJson.askId : null;
 
   const consumedFiles = names.filter((n) => CONSUMED_ANSWER_RE.test(n)).sort();
-  const decisionToStatus = { accept: 'accepted', reject: 'rejected', rerun: 'reran' };
 
   for (const file of consumedFiles) {
     const match = CONSUMED_ANSWER_RE.exec(file);
@@ -1356,7 +1455,7 @@ function legacyRunAsks(runDir, hasHistoryRow) {
       questionWhy: 'question not kept (before M4a-1)',
       askedAt: null,
       expiresAt: null,
-      status: decisionToStatus[parsed.decision] ?? `unrecognised: ${parsed.decision}`,
+      status: DECISION_STATUS[normalizeDecision(parsed.decision)] ?? `unrecognised: ${parsed.decision}`,
       reason: typeof parsed.reason === 'string' ? parsed.reason : null,
       answeredAt: typeof parsed.answeredAt === 'string' ? parsed.answeredAt : null,
       archived: false,
@@ -1496,11 +1595,14 @@ export function deriveAskStepInfo(orderedAsks, auditRows, declSteps) {
  * 3" — a plain array position, not derived from any book) and `stepName`/
  * `stepLine`/`stepWhy` (`deriveAskStepInfo`) so the Ask tab's header can
  * name which ask is open without the client re-deriving any of it.
- * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
- * @returns {{flow:string, runId:string, asks:any[]}|null}
+ * M4b piece 4: also carries `resume` (the SAME `deriveResumeState` the run
+ * detail carries, `null` for a finished run or nothing to say) so the Ask tab
+ * can tell "open, answerable" from "answer saved" without a second fetch.
+ * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any}} opts
+ * @returns {{flow:string, runId:string, asks:any[], resume: any}|null}
  */
 export function getRunAsks({
-  root, flow, runId, catalogue,
+  root, flow, runId, catalogue, resumeAttempt,
 }) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
@@ -1518,16 +1620,19 @@ export function getRunAsks({
   });
   const declSteps = flowRead.ok ? flowRead.declaration.steps : null;
   const stepInfo = deriveAskStepInfo(ordered, auditRows, declSteps);
+  const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null });
   const asks = ordered.map((ask, i) => ({
     ...ask,
-    ...deriveAskOpenFields(ask, hasHistoryRow),
+    ...deriveAskOpenFields(ask, hasHistoryRow, resume),
     index: i + 1,
     total: ordered.length,
     stepName: stepInfo[i].step,
     stepLine: stepInfo[i].line,
     stepWhy: stepInfo[i].why,
   }));
-  return { flow, runId, asks };
+  return {
+    flow, runId, asks, resume,
+  };
 }
 
 /**
@@ -1545,10 +1650,10 @@ export function getRunAsks({
  * force-`false` here as a second, independent check (belt-and-braces on the
  * one thing the brief calls out by name: "the Inbox tab's open count counts
  * only truly open asks — parked run, no history row, unexpired, unanswered").
- * @param {{root: string}} opts
+ * @param {{root: string, resumeAttempt?: (flow: string, runId: string) => any}} opts
  * @returns {any[]}
  */
-export function listStops({ root }) {
+export function listStops({ root, resumeAttempt }) {
   const rows = [];
   for (const flowName of listFlowNames(root)) {
     const flowDir = join(root, flowName);
@@ -1557,12 +1662,13 @@ export function listStops({ root }) {
       const run = resolveRunPath(root, flowName, runId);
       if (!run.ok) continue;
       const hasHistoryRow = historyRunIds.has(runId);
+      const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flowName, runId) ?? null });
       for (const ask of runAsksInOrder(run.runDir, hasHistoryRow)) {
         rows.push({
           flow: flowName,
           runId,
           ...ask,
-          ...deriveAskOpenFields(ask, hasHistoryRow),
+          ...deriveAskOpenFields(ask, hasHistoryRow, resume),
         });
       }
     }
@@ -1570,8 +1676,8 @@ export function listStops({ root }) {
   return rows
     .map((row, index) => ({ row, index }))
     .sort((a, b) => {
-      if (a.row.open !== b.row.open) return a.row.open ? -1 : 1;
-      if (a.row.open && b.row.open) {
+      if (a.row.waiting !== b.row.waiting) return a.row.waiting ? -1 : 1;
+      if (a.row.waiting && b.row.waiting) {
         const at = typeof a.row.timeLeftMs === 'number' ? a.row.timeLeftMs : Infinity;
         const bt = typeof b.row.timeLeftMs === 'number' ? b.row.timeLeftMs : Infinity;
         if (at !== bt) return at - bt;

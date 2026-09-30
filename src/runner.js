@@ -12,7 +12,7 @@
 // poc/m2/gapback.mjs@29caa83 (`buildExecutor`'s "no field but goal/
 // primitives/reads/gap" shape, `normaliseGap`, the strike-governed ralph
 // loop) and fwdloop poc/m0/askWithRedo@29caa83 (the ask-with-redo: consume-once,
-// a reason-less rerun refused and re-asked, a rejection redoes the step that
+// a reason-less rerun refused and re-asked, a redo redoes the step that
 // emitted the artifact under review). Rewritten against M1's real
 // `readFlow`/`arbiter` shape (the POCs above ran on hand-rolled declarations
 // and a single hard-coded ask/send slot) — src/ never imports from poc/.
@@ -48,7 +48,9 @@ import { fileURLToPath } from 'node:url';
 import {
   readFlow, resolveRunDir, readFileInside, resolveInside,
 } from './flow.js';
-import { writeAskArchive } from './ask.js';
+import {
+  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision,
+} from './ask.js';
 import { WIRED_VERBS } from './primitives.js';
 import { closeByClass } from './closers.js';
 import { appendAudit, appendHistory } from './books.js';
@@ -386,7 +388,7 @@ export function writeArtifact(runDir, id, artifact, { overwrite = false } = {}) 
   if (existsSync(target) && !overwrite) {
     throw new Error(`writeArtifact: artifact "${id}" already exists in this run (${target}) — refused`);
   }
-  writeFileSync(target, JSON.stringify(artifact, null, 2));
+  writeFileSync(target, serializeArtifact(artifact));
 }
 
 /**
@@ -751,8 +753,8 @@ async function runStepRalph({
  * @param {Array<{id:string, path:string}>} opts.sources - the real files to freeze for this run.
  * @param {unknown} opts.catalogue - passed straight through to `readFlow`.
  * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<{ok:boolean, artifact?:unknown, costUsd:number|null, red?:string, transport?:boolean, model?:string, modelMatch?:boolean}>} opts.modelStep
- * @param {(opts:{question:string, evidence:unknown, runDir:string}) => Promise<{decision:'accept'|'reject'|'rerun'|'timeout'|'park', reason?:string}>} opts.askStep
- * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
+ * @param {(opts:{question:string, evidence:unknown, runDir:string}) => Promise<{decision:'accept'|'redo'|'rerun'|'timeout'|'park', reason?:string, artifactSha256?:string}>} opts.askStep
+ * @param {(target:string, filename:string, content:unknown, acceptedSha256?:string|null) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
  * @param {Record<string, any>} [opts.primitives] - injected primitive implementations, keyed by catalogue verb.
  * @param {string[]} [opts.primitiveReds] - `resolvePrimitives`'s own `reds` (e.g. bareguard refusing a symlinked file scope); any entry refuses the run at $0 like an unwired verb, before the run dir exists.
  * @param {() => string} [opts.clock] - returns the current ISO timestamp; defaults to the wall clock.
@@ -902,7 +904,9 @@ export async function runFlow({
   const askStepEmits = new Set(steps.filter((s) => askLines.has(s.fromLine)).map((s) => s.emits));
   // Tracks which specific ask emits were accepted THIS run (acceptedThisRun
   // above stays run-wide, for the "reached with no accept this run" gate).
-  const acceptedAskEmitsThisRun = new Set();
+  // M4b piece 3: Map emits -> the sha256 the human's accept recorded for that
+  // ask's artifact (`null` = none recorded in THIS process; send refuses).
+  const acceptedAskEmitsThisRun = new Map();
 
   const result = await foldFromStep({
     i0: 0,
@@ -980,16 +984,16 @@ export function makeParkingAskStep() {
 
 /** `resumeRun`'s own askStep: yields the human's already-consumed decision
  *  exactly once (for the ask it was built for), then — if that decision was
- *  a reject and the ask loops back around to ask again — parks under a NEW
+ *  a redo and the ask loops back around to ask again — parks under a NEW
  *  askId, exactly like a fresh ask would. This is what turns "redo, then
  *  ask again" into "redo, then re-park" for a resumed run, with no second
  *  code path. */
-function makeOneShotThenParkAskStep({ decision, reason }) {
+function makeOneShotThenParkAskStep({ decision, reason, artifactSha256 }) {
   let used = false;
   return async function resumeAskStep() {
     if (!used) {
       used = true;
-      return { decision, reason };
+      return { decision, reason, artifactSha256 };
     }
     return { decision: 'park' };
   };
@@ -1026,9 +1030,11 @@ async function runAskSlot({
   for (;;) {
     const evidence = { artifact: currentPrior, unjudged: evidenceUnjudged };
     // eslint-disable-next-line no-await-in-loop
-    const answer = await askStep({
+    const rawAnswer = await askStep({
       question: askSlot?.question ?? step.goal, evidence, runDir, ttlMs: askSlot?.ttlMs, stepIndex,
     });
+    // M4b amendment 3: a decision from any askStep is translated once, here.
+    const answer = { ...rawAnswer, decision: normalizeDecision(rawAnswer.decision) };
 
     if (answer.decision === 'park') {
       // M3 scope item 1 (fixes F43): the wait is ALWAYS the signed ttlMs —
@@ -1040,7 +1046,7 @@ async function runAskSlot({
       // human sees in-process (`makeFileAskStep`'s `{ artifact, unjudged }`)
       // — the draft under review and the unjudged evidence, never just the
       // question. `evidence` above is already recomputed at the top of every
-      // loop iteration (including a re-park after a reject, where
+      // loop iteration (including a re-park after a redo, where
       // `currentPrior` is the just-redrafted artifact), so this write always
       // carries the CURRENT evidence, not a stale first-park copy.
       writeFileSync(join(runDir, 'ask.json'), JSON.stringify({
@@ -1058,7 +1064,7 @@ async function runAskSlot({
       // is a genuine invariant violation, not a race to recover from — it
       // halts the run rather than silently dropping the archive duty.
       const archived = writeAskArchive({
-        runDir, askId, question: askSlot?.question ?? step.goal, askedAt, expiresAt, evidence,
+        runDir, askId, question: askSlot?.question ?? step.goal, askedAt, expiresAt, evidence, emits: step.emits,
       });
       if (!archived.ok) {
         throw new Error(archived.red);
@@ -1127,12 +1133,12 @@ async function runAskSlot({
       };
     }
 
-    const isRedo = answer.decision === 'reject' || answer.decision === 'rerun';
+    const isRedo = answer.decision === 'redo' || answer.decision === 'rerun';
     const reason = typeof answer.reason === 'string' ? answer.reason.trim() : '';
 
     if (isRedo && reason.length === 0) {
       recordAudit(makeAuditRow({
-        step, attempt: redone + 1, verdict: 'refused', gap: 'a rejection/rerun needs a reason', usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
+        step, attempt: redone + 1, verdict: 'refused', gap: 'a redo/rerun needs a reason', usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       }), undefined, unjudgedCount);
       // Refused, re-asked for the SAME attempt — never re-runs the step.
       // eslint-disable-next-line no-continue
@@ -1143,7 +1149,11 @@ async function runAskSlot({
       recordAudit(makeAuditRow({
         step, attempt: redone + 1, verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       }), undefined, unjudgedCount);
-      return { type: 'accepted', artifact: currentPrior };
+      return {
+        type: 'accepted',
+        artifact: currentPrior,
+        acceptedSha256: typeof answer.artifactSha256 === 'string' ? answer.artifactSha256 : null,
+      };
     }
 
     if (isRedo) {
@@ -1155,7 +1165,7 @@ async function runAskSlot({
         return {
           type: 'halted',
           outcome: 'redo-halt',
-          red: `redo cap ${redoCap} reached at step "${step.goal}" after ${redone} rejections`,
+          red: `redo cap ${redoCap} reached at step "${step.goal}" after ${redone} redos`,
         };
       }
       // F48 round 4: every id in `priorStep.reads` names a STILL EARLIER step
@@ -1278,7 +1288,7 @@ async function foldFromStep({
       const content = contentResult.value;
       const filename = `${runId}-${step.emits}.json`;
       // eslint-disable-next-line no-await-in-loop
-      const sendResult = await sendStep(target, filename, content);
+      const sendResult = await sendStep(target, filename, content, acceptedAskEmitsThisRun.get(askArtifactId));
       const sendRow = makeAuditRow({
         step, attempt: 1, verdict: sendResult.ok ? 'green' : 'red', gap: sendResult.ok ? null : sendResult.red, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       });
@@ -1369,7 +1379,7 @@ async function foldFromStep({
       writeArtifact(runDir, step.emits, askResult.artifact);
       artifacts[step.emits] = askResult.artifact;
       runAcceptedThisRun = true;
-      acceptedAskEmitsThisRun.add(step.emits);
+      acceptedAskEmitsThisRun.set(step.emits, askResult.acceptedSha256 ?? null);
       // eslint-disable-next-line no-continue
       continue;
     }
@@ -1700,9 +1710,18 @@ export async function resumeRun({
     } catch (err) {
       return { outcome: 'refused', red: `resume: answer.json for run "${runId}" is not valid JSON — ${err.message}` };
     }
+    // M4b amendment 3: a consumed/saved answer that says `reject` (an older
+    // version's file) is read as `redo`; the file on disk is never rewritten.
+    answer = { ...answer, decision: normalizeDecision(answer.decision) };
     if (answer.askId !== state.askId) {
       return { outcome: 'refused', red: `resume: answer askId "${answer.askId}" does not match open askId "${state.askId}" for run "${runId}"` };
     }
+
+    // M4b amendment 2: hashes recorded by earlier-process accepts, read back
+    // from the archive + consumed markers. Refused BEFORE the consume below so
+    // the answer stays replayable.
+    const recordedHashes = readAcceptedHashesByEmits(runDir);
+    if (!recordedHashes.ok) return { outcome: 'refused', red: recordedHashes.red };
 
     // Consume-once, BEFORE acting on the decision (F44) — the rename is
     // itself a one-winner gate, on top of the lock above.
@@ -1797,7 +1816,7 @@ export async function resumeRun({
       };
     }
 
-    if (answer.decision !== 'accept' && answer.decision !== 'reject') {
+    if (answer.decision !== 'accept' && answer.decision !== 'redo') {
       return { outcome: 'refused', red: `resume: unrecognised decision "${answer.decision}" for run "${runId}"` };
     }
 
@@ -1813,11 +1832,13 @@ export async function resumeRun({
     const askLines = new Map((arbiter.asks ?? []).map((a) => [a.line, a]));
     const sendLines = new Map((arbiter.sends ?? []).map((s) => [s.line, s]));
     const askStepEmits = new Set(steps.filter((s) => askLines.has(s.fromLine)).map((s) => s.emits));
-    const acceptedAskEmitsThisRun = new Set();
+    // M4b piece 3: Map emits -> the sha256 the human's accept recorded for that
+  // ask's artifact (`null` = none recorded in THIS process; send refuses).
+  const acceptedAskEmitsThisRun = new Map();
     for (const emits of askStepEmits) {
       const idx = steps.findIndex((s) => s.emits === emits);
       if (idx !== -1 && idx < state.stepIndex && readArtifact(runDir, emits) !== undefined) {
-        acceptedAskEmitsThisRun.add(emits);
+        acceptedAskEmitsThisRun.set(emits, recordedHashes.byEmits.get(emits) ?? null);
       }
     }
 
@@ -1848,7 +1869,7 @@ export async function resumeRun({
     // "was this step already done" gate above; safe to collapse here.
     const priorArtifact = readArtifact(runDir, priorId);
 
-    const oneShotAskStep = makeOneShotThenParkAskStep({ decision: answer.decision, reason: answer.reason });
+    const oneShotAskStep = makeOneShotThenParkAskStep({ decision: answer.decision, reason: answer.reason, artifactSha256: answer.artifactSha256 });
 
     const askResult = await runAskSlot({
       step,
@@ -1896,7 +1917,7 @@ export async function resumeRun({
     // send/step path completes exactly as `runFlow` would have, in-process).
     writeArtifact(runDir, step.emits, askResult.artifact);
     artifacts[step.emits] = askResult.artifact;
-    acceptedAskEmitsThisRun.add(step.emits);
+    acceptedAskEmitsThisRun.set(step.emits, askResult.acceptedSha256 ?? null);
 
     const result = await foldFromStep({
       i0: state.stepIndex + 1,

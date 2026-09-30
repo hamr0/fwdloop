@@ -658,7 +658,7 @@ has a bareloop UI to borrow, so M4 is mostly adjusting, not designing.
   authoring only and is now M6, and every module after it shifts by one (old M6→M7, M7→M8, M8→M9,
   M9→M10). The renumber is done in the sections below, not deferred.
 
-### M4 (the UI) — scope, exit, negative — M4a SIGNED by hamr 2026-09-26 ("signed M4a"), M4a EXIT SIGNED 2026-09-27, M4b SIGNED by hamr 2026-09-29 ("sign m4b")
+### M4 (the UI) — scope, exit, negative — M4a SIGNED by hamr 2026-09-26 ("signed M4a"), M4a EXIT SIGNED 2026-09-27, M4b SIGNED by hamr 2026-09-29 ("sign m4b"), M4b EXIT SIGNED 2026-09-30 ("sign m4b exit")
 
 **Where it comes from** (answered by the `loop` session, 2026-09-26). bareloop's panel:
 `src/panel/index.html` (one file, all CSS and JS inline, vanilla, no build step, no npm UI deps; only
@@ -951,6 +951,74 @@ sent artifact in the Run tab. hamr does this on a live run, panel only.
 change; then the fix is upstream of the panel, and M4b waits.
 
 **M4b spend cap: $1.00** (the live exit is about $0.05 a run) — SIGNED 2026-09-29.
+
+#### M4b amendment 1 — an answer always resumes; every answer names its ask — SIGNED by hamr 2026-09-30 ("sign m4b amendment 1"; rulings "1A, 2A")
+
+- **Why:** F51. The POC showed (1) an answer accepted while `resume.lock` is still held is saved, the resume exits "locked by another resumer", and nothing retries, so the page would say "answered" forever; (2) an answer with no `askId` lands on whatever ask is open, so a tab left open across a re-park answers an ask its human never read.
+- **Scope:**
+  1. **Answer means resume.** After the library accepts an answer, the panel starts the resume and then checks it took over (the answer was consumed, read from the books, never from the child's output). If the resume was refused because the run is locked and the answer is still unconsumed, the panel starts it again: **up to 5 tries within 10 seconds (signed with this amendment)**. Exactly one resume ever applies the answer (the rename-to-consume mutex, F44, is unchanged).
+  2. **A stuck answer is said by name.** If the answer is still unconsumed after the last try, the page and the API say "answer saved, resume not started" with the resume's own refusal, verbatim. Never "answered" alone, never a success. The answer stays on disk and is applied exactly once by whichever resume next succeeds. The page offers "try the resume again" in this state only; it starts a resume and nothing else (it cannot answer).
+  3. **Every answer names its ask.** The answer request must carry the `askId` the page was showing. No `askId` is refused by name, nothing written. An `askId` that is not the open ask (the run re-parked, or it was already answered) gets the library's refusal, by name, and the open ask is untouched.
+- **Negatives** (each must be able to fail):
+  - (v) an answer with no `askId` is refused and no answer file is written;
+  - (vi) after a re-park, an answer carrying the previous ask's `askId` is refused by name and the new ask is still unanswered;
+  - (vii) an answer sent while `resume.lock` is held, with the lock released inside the retry window, resumes the run: one resume, the answer consumed once;
+  - (viii) with the lock held past the retry window, the page and API show "answer saved, resume not started" and the reason, never success, and a later resume applies that answer exactly once.
+- **Exit:** no separate exit. M4b's exit stands, and negatives (v)-(viii) join (i)-(iv).
+- **Cap:** $0 extra; inside M4b's $1.00.
+- **Honest limit:** a resume that crashed leaves `resume.lock` behind forever (no pid, no liveness; the open question from M4a). This amendment shows that state by name; it does not take over a dead lock, because a wrong takeover could run a paid step twice. Clearing it stays a terminal job until a later ruling.
+- **Kill check:** none of this changes the books or the arbiter; the change is in `src/panel` and how the panel starts `resume`.
+
+#### M4b amendment 2 — a saved ask records which step output it is about — SIGNED by hamr 2026-09-30 ("sign m4b amendment 2"; ruling "1A")
+
+- **Why:** F52. With two asks, an artifact accepted at ask 1 is refused at send after a later resume, because nothing on disk says which step output an ask was about, so its recorded hash cannot be found again. Bareloop was consulted: such a fact belongs in a write-once record keyed by id, never in a file that is overwritten.
+- **Scope:**
+  1. When an ask parks, its archived record `asks/<askId>.json` also records `emits`, the step output the ask is about. It is written once with the rest of that record by the one function that writes the archive, and never rewritten.
+  2. A resume finds the hash for an ask accepted in an earlier process by joining that archive's `emits` to the consumed answer by `askId`. Only an answer that says accept and carries a recorded hash counts. The hash is never recomputed from the file as it is now.
+  3. A run parked before this field existed has no `emits`, so no hash is found and send refuses by name. Nothing ships unchecked.
+- **Negatives** (each must be able to fail):
+  - (ix) two asks, each answer resumed in its own process, send ships ask 1's artifact: the run completes and the shipped bytes hash to the value recorded at ask 1's accept;
+  - (x) the same flow with one byte changed after ask 1's accept: send refuses with "the artifact changed after it was accepted" and nothing ships;
+  - (xi) an archived ask with no `emits`: send refuses by name and nothing ships.
+- **Exit:** no separate exit. M4b's exit stands, and (ix)-(xi) join the other negatives.
+- **Cap:** $0 extra; inside M4b's $1.00.
+- **Not in scope:** a pid or liveness check in `resume.lock`; replacing rename-to-consume with an appended event. Both are recorded in F52 for a later ruling.
+- **Kill check:** one added field in the saved ask. The arbiter, `audit.jsonl`, `history.jsonl` and `spend.jsonl` are unchanged.
+
+#### M4b amendment 3 — the word is "redo" everywhere; a run ended by rerun is not "failed" — SIGNED by hamr 2026-09-30 ("sign m4b amendment 3"; rulings "accept, redo, rerun" and "terminal says redo too")
+
+- **Why:** the browser walk of M4b showed a run the human ended on purpose with rerun as `[✗] failed (rerun)`. "Reject" and "rerun" also read alike, and "reject" hides what it does (it redoes the step before the ask, M3 scope item 7). hamr ruled the three answers are **accept, redo, rerun**, and that the terminal and the page use the same words.
+- **Scope:**
+  1. **One word everywhere.** The answer that was `reject` is `redo`: in the panel's doors (Accept, Redo, Rerun), in the CLI (`fwdloop answer <runId> redo "<reason>"`), in the library's decision value and its refusal messages, and in what new answers write to disk. What it does is unchanged: it redoes the step before the ask under `redo cap` (M3 scope item 7, read with this word).
+  2. **The old word is still understood.** `reject` given to the CLI or the library means `redo` and is recorded as `redo`. A file already on disk that says `reject` (an old run's answer, archive, audit or history row) is read as `redo`. Nothing already written is rewritten. One function does this translation; everything else calls it.
+  3. **The page says what each door does**, next to the doors: Redo is "redo the last step with your reason"; Rerun is "end this run and start a fresh one from the top".
+  4. **An ask the human sent back** reads "redo" with its reason in the ask list and the inbox, where it read "rejected".
+  5. **A run ended by rerun** shows `[✗]` with the label "stopped by you (rerun), a fresh run was started". It never says "failed". A real red still says "failed".
+- **Negatives** (each must be able to fail):
+  - (xii) `redo` with a reason, from the CLI and from the panel, redoes the step before the ask, and the consumed answer on disk says `redo`;
+  - (xiii) `reject` given to the CLI does the same thing and the consumed answer on disk says `redo`;
+  - (xiv) a run whose files on disk say `reject` (written before this amendment) resumes and shows as `redo`, and none of its files is rewritten;
+  - (xv) a blank reason on `redo` is refused by name, and the refusal says "redo";
+  - (xvi) a run whose outcome is `rerun` never renders the word "failed";
+  - (xvii) a run that ended red still renders "failed".
+- **Exit:** no separate exit. M4b's exit stands, read with these words: hamr clicks Redo with a reason, sees it re-park, then accepts.
+- **Cap:** $0.
+- **Not in scope:** renaming `rerun` or `accept`; renaming `redo cap`; rewriting old files.
+- **Kill check:** the arbiter is unchanged. The books keep their shape; one recorded value changes its spelling for new rows, and the old spelling is still read.
+
+#### M4b exit — SIGNED by hamr 2026-09-30 ("sign m4b exit"); evidence from hamr's live walk
+
+hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from the books on disk.
+
+- **Who and how:** hamr, panel only (`fwdloop panel --root flows --port 4811`, started in hamr's own terminal with the key). Real provider deepseek-flash. Branch `m4b` at HEAD 8998823, which `/branch-review` gave verdict ready.
+- **First try, run `m4b-exit-1` on flow `job2-m6a-3`: never reached the ask.** Step `summary_resume` was red on all 4 attempts on the shape check (exact headings missing). Outcome `attempt-fallback`, spent $0.0311 (`spentUsd` 0.031085, cap $0.25). No ask, so no doors. Cause: the two flows have byte-identical signed prose (`cmp` of `prose.txt`), but the drafted declaration of `job2-m6a-3` checks four section headings (it adds "how it matches the JD") where `job2-m6a-2` checks three. A correct red: the model missed, the check caught it.
+- **Second try, run `m4b-exit-2` on flow `job2-m6a-2`: reached the ask.** hamr clicked Redo with a reason three times (reasons "redo again", "ok", "redo"). Each one redid step `summary_resume` and re-parked under a new askId. 4 asks are archived, all with `emits` = `accepted_summary_resume`. hamr then clicked Accept on the fourth ask (reason "yes"). The consumed answer records `decision: accept` and an `artifactSha256` (e8ba06a2…). Outcome `complete`. The sent artifact landed at `poc/m0/out/m4b-exit-2-final_summary_resume.json`. All four consumed answers use the new word: `redo`, `redo`, `redo`, `accept`.
+- **Run cost:** `spentUsd` 0.076502 ($0.0765), cap $0.25, `spendComplete` true, wall 406 s. The audit rows' usd sum is 0.07650228, equal to `spentUsd`.
+- **One observation from the audit.** The `summary_resume` verdicts in order were: red, green, red, green, red, green, red, green. The first draft and each redraft after a redo were red on the same heading gap, and the next attempt was green.
+- **Spend:** $0.0311 + $0.0765 = $0.1076 for both runs, against the signed M4b cap of $1.00. Earlier M4b work was $0.
+- **What the exit text asked vs what happened.** The signed exit says the person "rejects with a reason, sees it re-park ... accepts, and sees the run's glyph turn `[✓]` and the sent artifact in the Run tab", read with amendment 3's word "redo". The books show the redo, the re-park and the accept and complete. hamr reported: accepted, and on the glyph: "yes, i see passed". He did not separately state that he saw the sent artifact in the Run tab; the books show it landed at the signed destination.
+- **"Via the new re-signed flow".** The walk completed on `job2-m6a-2`, not `job2-m6a-3`. The two flows' signed prose is byte-identical. The orchestrator put this question to hamr before signing (sign if it counts); hamr signed.
+- **hamr's notes from the walk:** "i got confused on workflows as it didnt have pulsing play (working) but i found it, same at inbox, ask 1 of 2, 2 of 2 was not clear, that was confusing. inbox should highlight or flow on the right should be different" and "so every redo it reasked again and they were all same ask?". These are recorded as F53 and are not part of the signed M4b scope. F53 stays open as later work; it did not hold the exit.
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs

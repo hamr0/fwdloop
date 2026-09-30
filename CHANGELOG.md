@@ -5,6 +5,42 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-09-30
+
+M4b: the panel answers asks. The read-only panel gets three answer doors (Accept, Redo, Rerun) and
+resumes the run after an answer; the answer word `reject` is now `redo` everywhere.
+
+### Added
+- Panel answer doors: Accept, Redo and Rerun on an open ask, through a gated `POST /api/answer`.
+  Every route checks the Host header, the write routes need the per-process token (sent in a header
+  only), and `askId` is required, so a stale or replayed answer is refused by name. Refusals show
+  inline next to the door.
+- The panel resumes the run after an answer in a detached process, retrying the run lock (5 tries
+  over about 10 s). If the resume cannot start it says so by name, "answer saved, resume not
+  started", and offers "Try the resume again" (`POST /api/resume`). The page reloads from the
+  books after an answer, and the live watch stops on the typed run outcome rather than label text.
+- Accept records the sha256 of the accepted draft; `send` re-hashes the artifact and refuses on a
+  mismatch or a missing hash. An archived ask now records `emits`, and a resume in a later process
+  reads the earlier accept's hash by `askId`.
+- A run ended by a rerun reads "stopped by you (rerun), a fresh run was started", never "failed".
+
+### Changed
+- The answer word `reject` is now `redo` in the CLI (`fwdloop answer <askId> redo "<reason>"`), the
+  library and the panel. Old `reject` input and old answer files are still read as redo and never
+  rewritten.
+- The `[✗]` filter chip in the panel says "stopped", not "failed".
+- An ask that is answered but not yet resumed no longer reads "waiting on you" in the Inbox or the
+  Ask tab; it carries the run's resume state in words, with no countdown. A re-parked ask reads
+  waiting on you again.
+- The panel's read-only strings are reworded now that it can answer.
+- A resume log is deleted after a clean resume (exit 0, best effort) and kept otherwise.
+- Internal, no behavior change: one decision-to-status table, exported from `ask.js`.
+
+### Known limits
+- Accepts recorded without a hash (before 0.9.0) and runs parked before the `emits` field existed
+  are refused by `send` by name; nothing ships unchecked.
+- The panel does not yet show that it is working, and repeated asks look identical (F53, open).
+
 ## [0.8.1] - 2026-09-30
 
 Patch: every audit row carries `refused: []`, and the repo gets CI on pull requests.

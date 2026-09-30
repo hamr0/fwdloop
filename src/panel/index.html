@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- borrowed-from: bareloop src/panel/index.html@a30bbef — ADAPTED for fwdloop.
      M4a piece 3+ (docs/wiki/the-module-ladder.md, "M4a — read-only panel —
-     SIGNED"): the Tokyo Night box-drawing visual design (CSS tokens, tab
+     SIGNED"; M4b adds the answer doors): the Tokyo Night box-drawing visual design (CSS tokens, tab
      layout, glyph/badge styling, responsive 390px breakpoint) is kept from
      the borrowed page; every data-bearing script (fetches, run rendering,
      step map, audit, job, run grouping) is rewired for fwdloop's own book
@@ -171,6 +171,18 @@
   .btn:disabled{color:var(--text-faint);border-color:var(--border);cursor:not-allowed;}
   .btn:disabled::before,.btn:disabled::after{color:var(--text-faint);opacity:0.4;}
   .btn.small{padding:0 9px;height:32px;min-height:0;font-size:12px;}
+  /* M4b piece 4: the answer doors. Shape/placement from bareloop's mockup Run-tab
+     action bar (a row of `.btn`s with a hint line under it), redo is ours. */
+  .answer-doors{margin-top:12px;padding-top:8px;border-top:1px solid var(--border);}
+  .answer-doors label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:3px;}
+  .answer-doors textarea{display:block;width:100%;max-width:100%;box-sizing:border-box;min-height:64px;padding:6px 8px;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border-strong);resize:vertical;}
+  .answer-doors .actions-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+  .answer-doors .btn{min-width:44px;}
+  .answer-msg{margin-top:8px;padding:6px 8px;border:1px solid var(--border-strong);font-size:13px;color:var(--text);white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;}
+  .answer-msg.refused{border-color:var(--red);}
+  .answer-msg.refused::before{content:"refused: ";color:var(--red);font-weight:700;}
+  .answer-msg.stuck{border-color:var(--amber);}
+  .answer-msg.info::before{content:"[·] ";color:var(--amber);font-weight:700;}
 
   .wf-row,.hist-row{
     display:flex;flex-direction:column;row-gap:4px;min-width:0;
@@ -421,21 +433,22 @@
         <section id="panel-chat" class="tabpanel active" role="tabpanel" aria-labelledby="tab-chat">
           <div class="chat-thread">
             Authoring a flow from this page isn't built yet — the drafter is a POC. This
-            panel is read-only: it shows flows and runs already started from the
-            <code>fwdloop</code> CLI. Use the Runs tab to open one, or the Inbox tab for
-            anything waiting on you.
+            panel shows flows and runs already started from the
+            <code>fwdloop</code> CLI, and lets you answer an ask that is waiting on you
+            (accept, redo or rerun, with a reason). It cannot start a run. Use the Runs
+            tab to open one, or the Inbox tab for anything waiting on you.
           </div>
         </section>
 
         <section id="panel-inbox" class="tabpanel" role="tabpanel" aria-labelledby="tab-inbox" hidden>
           <!-- M4a-1: a list of STOPS, like History — open ones first with
                [.] and time left, then past ones newest first with a short
-               status word ([accepted]/[rejected: reason]/[reran: reason]/
+               status word ([accepted]/[redo: reason]/[reran: reason]/
                [expired]/[unanswered]). No evidence is rendered here any
                more (M4a-1 review): clicking a stop selects its run, switches
                the right pane to the Ask tab, and expands that ONE ask there
-               — the wide right pane is where the evidence lives now. No
-               answer controls — those are M4b. -->
+               — the wide right pane is where the evidence lives now. The
+               answer doors are in the Ask tab, not here (M4b). -->
           <div id="inbox-list" data-testid="inbox-list"></div>
         </section>
 
@@ -560,13 +573,12 @@
                (past), the draft under review (scrollable), then each
                unjudged input labelled by step (goal as subtitle). A
                pre-M4a-1 ask shows "draft not kept (before M4a-1)" in place
-               of the draft. Read-only: no answer controls here (M4b) — a
-               clearly marked EMPTY slot stands in their place. Nothing in
-               this panel is a real <button>/<input> — even the
-               collapse/expand toggle is a div with role="button"
-               tabindex="0" (the SAME pattern the step-map's own SVG nodes
-               already use elsewhere on this page), so "no controls yet"
-               holds by construction. -->
+               of the draft. M4b: an OPEN ask also carries the answer doors
+               (a labelled reason textarea + Accept / Redo / Rerun
+               buttons), or a stated reason there are none; a saved answer
+               whose resume did not start carries ONE "Try the resume
+               again" button. The collapse/expand toggle stays a div with
+               role="button" tabindex="0". -->
           <div id="ask-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
           <div id="ask-list" data-testid="ask-list" hidden></div>
         </section>
@@ -583,6 +595,9 @@
   "use strict";
 
   var PORT = "__FWDLOOP_PANEL_PORT__";
+  // M4b piece 1: per-process answer token, replaced at serve time; sent only as
+  // the x-fwdloop-token header of the two POSTs (postJSON below).
+  var TOKEN = "__FWDLOOP_PANEL_TOKEN__";
   document.getElementById("host-line").textContent = "127.0.0.1:" + PORT;
 
   function wireTabs(tabButtons){
@@ -603,13 +618,30 @@
   wireTabs([document.getElementById("tab-chat"), document.getElementById("tab-runs"), document.getElementById("tab-inbox")]);
   wireTabs([document.getElementById("tab-run"), document.getElementById("tab-audit"), document.getElementById("tab-details"), document.getElementById("tab-ask")]);
 
-  // ---- fetch helpers — GET only, this panel is read-only by construction
-  // (src/panel/server.js is GET/HEAD-only too; nothing on this page ever
-  // sends a non-GET request or a request body). ----
+  // ---- fetch helpers. Reads are GET. The ONLY non-GET requests on this page are
+  // the two POSTs below (M4b): /api/answer (a human clicking a door) and
+  // /api/resume ("try the resume again"). The token goes in the request header
+  // and nowhere else — never the DOM, a URL, storage or a log. Same-origin. ----
   function getJSON(path){
     return fetch(path, { method: "GET", headers: { accept: "application/json" } }).then(function(r){
       if(!r.ok) throw new Error(path + ": HTTP " + r.status);
       return r.json();
+    });
+  }
+  // Resolves { status, body } for ANY HTTP status (a refusal is data to show by
+  // name, never an exception); rejects only on a network failure.
+  function postJSON(path, payload){
+    return fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json", "x-fwdloop-token": TOKEN },
+      body: JSON.stringify(payload),
+      credentials: "same-origin"
+    }).then(function(r){
+      return r.text().then(function(t){
+        var body = null;
+        try{ body = JSON.parse(t); }catch(e){}
+        return { status: r.status, body: body, text: t };
+      });
     });
   }
 
@@ -737,17 +769,17 @@
   // rendering the raw words green/red/softgreen anywhere (coordinator's
   // browser-walk fix #2). `verdictWord`/`verdictGlyph` are the ONE place
   // that turns a verdict (plus the step's own close class, for telling a
-  // human's reject apart from a mechanical red) into plain words and a
+  // human's redo apart from a mechanical red) into plain words and a
   // pass/fail glyph — used by the step cards, the map's inline attempt
   // text, and the flat Audit table alike, so they can never say something
   // different for the same row.
   //  - `paused`/`refused`/an ask timeout/expiry are NOT failures (fix #3) —
   //    no ✗, a plain word instead.
-  //  - a `red` verdict on a `hitl`-classed step is the human's own reject
-  //    (src/runner.js's redo path), not a mechanical stop — "rejected by
+  //  - a `red` verdict on a `hitl`-classed step is the human's own redo
+  //    (src/runner.js's redo path), not a mechanical stop — "redo by
   //    you: <reason>", never "verdict red" / a fail glyph (fix #3).
   function verdictWord(verdict, closeClass, gap){
-    if(closeClass === "hitl" && verdict === "red") return "rejected by you" + (gap ? ": " + gap : "");
+    if(closeClass === "hitl" && verdict === "red") return "redo by you" + (gap ? ": " + gap : "");
     if(verdict === "paused") return "paused for you";
     if(verdict === "refused") return "refused — no reason given";
     if(verdict === "ask-timeout" || verdict === "ask-expired") return "expired waiting for you";
@@ -759,7 +791,7 @@
   }
   function verdictPassed(verdict){ return verdict === "green" || verdict === "hitl"; }
   // `null` — no glyph at all — for a verdict that is neither a pass nor a
-  // fail (paused/refused/expired/a human reject); a bare attempt glyph
+  // fail (paused/refused/expired/a human redo); a bare attempt glyph
   // would misread a pause as a failure (fix #3).
   function verdictGlyph(verdict, closeClass){
     if(closeClass === "hitl" && verdict === "red") return null;
@@ -803,7 +835,7 @@
   var ROW_GAP = 70;
   // hamr review #2: "map cards missing try 2 if multiple attempts/iteration"
   // — a plain "try N" count whenever a step has been attempted more than
-  // once, plus a mark when the LATEST attempt followed a human reject (the
+  // once, plus a mark when the LATEST attempt followed a human redo (the
   // same `afterReject` boundary src/panel/data.js already worked out —
   // never re-derived here). One attempt (the common case) shows no "try"
   // text at all, matching bareloop's own "only say it when it's true" shape.
@@ -816,7 +848,7 @@
     if(!tryCount || tryCount <= 1) return "";
     var last = attempts && attempts.length ? attempts[attempts.length - 1] : null;
     var txt = "try " + tryCount;
-    if(last && last.afterReject) txt += " (re-attempt after reject)";
+    if(last && last.afterReject) txt += " (re-attempt after redo)";
     return txt;
   }
   // hamr review (browser re-walk #1): the per-attempt list ("attempt 1
@@ -1298,7 +1330,7 @@
           'id="' + scope + '-filter-search" data-testid="' + scope + '-filter-search" autocomplete="off">' +
         '<div class="chips" role="group" aria-label="Filter">' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✓]" title="passed" data-testid="chip-' + scope + '-res-pass">✓</button>' +
-          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✗]" title="failed" data-testid="chip-' + scope + '-res-fail">✗</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✗]" title="stopped" data-testid="chip-' + scope + '-res-fail">✗</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[·]" title="waiting on a human" data-testid="chip-' + scope + '-res-waiting">&middot;</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[?]" title="running or died: unknown" data-testid="chip-' + scope + '-res-unknown">?</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="7d" title="last 7 days" data-testid="chip-' + scope + '-time-7d">7d</button>' +
@@ -2072,6 +2104,60 @@
     });
   }
 
+  // ---- M4b piece 4: re-read the run from the BOOKS. There was no refresh loop
+  // before (the page loaded once), so: `reloadRun` re-reads one run's detail,
+  // asks, audit, job + the inbox and runs lists, applied only if that run is
+  // still the selected one; `startLive` calls it every LIVE_POLL_MS for up to
+  // LIVE_MAX_MS after an answer (or a resume retry) and stops at the first
+  // outcome the books show. Success is only ever said from what this reads. ----
+  var LIVE_POLL_MS = 2000;
+  var LIVE_MAX_MS = 5 * 60 * 1000;
+  var live = null;   // { flow, runId, askId, until, timer }
+  function reloadRun(flow, runId){
+    var base = "/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId);
+    var still = function(){ return currentFlow === flow && currentRunId === runId; };
+    var detailP = getJSON(base).then(function(d){ if(still()) renderRun(d); return d; }).catch(function(){ return null; });
+    var asksP = getJSON(base + "/asks").then(function(a){ if(still()) renderAsk(a, null); return a; }).catch(function(e){ if(still()) renderAsk(null, null, e.message); return null; });
+    getJSON(base + "/audit").then(function(a){ if(still()) renderAudit(a); }).catch(function(){});
+    getJSON("/api/inbox").then(function(r){ renderInbox(r.rows || []); }).catch(function(){});
+    getJSON("/api/runs").then(function(r){ runsFilterBar.setItems(r.rows || []); runsFilterBar.refresh(); }).catch(function(){});
+    return Promise.all([detailP, asksP]);
+  }
+  function stopLive(){ if(live){ clearTimeout(live.timer); live = null; } }
+  // What the books say now, in words (pure; `null` = keep waiting).
+  function liveOutcome(askId, detail, asks){
+    if(asks && asks.resume && asks.resume.state === "not-started") return { done: true, cls: null, text: null };
+    var list = (asks && asks.asks) || [];
+    var fresh = list.find(function(a){ return a.waiting && a.askId !== askId; });
+    if(fresh) return { done: true, cls: "info", text: "the run is parked at a new ask — the doors above are for it" };
+    if(detail && detail.glyph === "[✓]") return { done: true, cls: "info", text: "run finished [✓] — the sent artifact is in the Run tab" };
+    if(detail && detail.outcome === "rerun") return { done: true, cls: "info", text: "rerun: this run ended and a fresh run was started — find it in Runs" };
+    if(detail && detail.glyph === "[✗]") return { done: true, cls: "info", text: "run ended [✗] " + (detail.label || "") };
+    var st = asks && asks.resume ? asks.resume.label : null;
+    return { done: false, cls: "info", text: (st || "answer applied") + " — run: " + ((detail && detail.label) || "state unknown") };
+  }
+  function startLive(flow, runId, askId){
+    stopLive();
+    live = { flow: flow, runId: runId, askId: askId, until: Date.now() + LIVE_MAX_MS, timer: null };
+    var mine = live;
+    function tick(){
+      if(live !== mine) return;
+      reloadRun(flow, runId).then(function(res){
+        if(live !== mine) return;
+        var o = liveOutcome(askId, res[0], res[1]);
+        if(o.text) say(flow, runId, o.cls, o.text); else if(o.done){ answerMsg = null; paintAnswerMsg(); }
+        if(o.done){ stopLive(); return; }
+        if(Date.now() > mine.until){
+          say(flow, runId, "info", "no outcome after " + Math.round(LIVE_MAX_MS / 60000) + " minutes of watching — reload the page to check the run's books");
+          stopLive();
+          return;
+        }
+        mine.timer = setTimeout(tick, LIVE_POLL_MS);
+      });
+    }
+    mine.timer = setTimeout(tick, 600);
+  }
+
   getJSON("/api/runs").then(function(result){
     var runs = result.rows || [];
     runsFilterBar.setItems(runs);
@@ -2106,13 +2192,14 @@
   // first with a short status word, off GET /api/inbox
   // (src/panel/data.js's listStops). Status vocabulary is exactly the
   // words the books' own decision field maps to (never a second, made-up
-  // vocabulary): "accepted" / "rejected" / "reran" / "expired" /
+  // vocabulary): "accepted" / "redo" / "reran" / "expired" /
   // "unanswered" (this IS the open case) / the rare "open" fallback (an
   // archived ask.json itself failed to parse). No evidence renders here any
   // more — clicking a stop selects its run and opens the wide right pane's
-  // Ask tab, focused on that one ask. No answer controls — those are M4b. --
+  // Ask tab, focused on that one ask. The answer doors live in the Ask tab. --
   function stopStatusLine(row){
-    if(row.open) return "time left: " + duration(row.timeLeftMs);
+    if(row.waiting) return "time left: " + duration(row.timeLeftMs);
+    if(row.open && row.resume) return row.resume.label;
     var bits = [row.status];
     if(row.reason) bits.push("reason: " + row.reason);
     if(row.answeredAt) bits.push("answered " + (readableDateTime(row.answeredAt) || row.answeredAt));
@@ -2129,7 +2216,7 @@
     var head = document.createElement("div");
     head.className = "wf-line1";
     var badge = document.createElement("span");
-    badge.className = "badge " + (row.open ? "amber" : (row.status === "accepted" ? "green" : (row.status === "rejected" ? "red" : "grey")));
+    badge.className = "badge " + (row.open ? "amber" : (row.status === "accepted" ? "green" : (row.status === "redo" ? "red" : "grey")));
     badge.textContent = row.open ? "·" : row.status;
     head.appendChild(badge);
     var flowName = textDiv(null, row.flow + " (" + row.runId + ")");
@@ -2156,7 +2243,7 @@
     var el = document.getElementById("inbox-list");
     el.innerHTML = "";
     var openCount = 0;
-    (rows || []).forEach(function(r){ if(r.open) openCount += 1; });
+    (rows || []).forEach(function(r){ if(r.waiting) openCount += 1; });
     document.getElementById("inbox-count-label").textContent = openCount > 0 ? (" (" + openCount + ")") : "";
     if(!rows || !rows.length){
       el.innerHTML = '<div class="hint">nothing waiting on you — no stops recorded under this root</div>';
@@ -2173,19 +2260,158 @@
   // getRunAsks). Clicking a stop in the left Inbox calls `selectRun` with
   // that ask's id, which reaches here as `focusAskId` and expands exactly
   // that one. With no `focusAskId` (a run selected any other way), this
-  // run's own open ask (if it has one) expands by default. No answer
-  // controls anywhere in this panel (M4b) — a clearly marked EMPTY slot
-  // stands in their place; the collapse/expand toggle is a div with
+  // run's own open ask (if it has one) expands by default. M4b: an open ask
+  // carries the answer doors (renderAnswerBlock); the collapse/expand toggle is a div with
   // role="button" (never a real <button>), same posture as the step-map's
   // own SVG nodes elsewhere on this page. ----
   function askStatusBlock(ask){
-    if(ask.open) return textDiv("wf-meta", "time left: " + duration(ask.timeLeftMs));
+    if(ask.waiting) return textDiv("wf-meta", "time left: " + duration(ask.timeLeftMs));
+    if(ask.open && ask.resume) return textDiv("wf-meta", ask.resume.label);
     var bits = [ask.status];
     if(ask.reason) bits.push("reason: " + ask.reason);
     if(ask.answeredAt) bits.push("answered " + (readableDateTime(ask.answeredAt) || ask.answeredAt));
     return textDiv("wf-meta", bits.join(" · "));
   }
-  function renderAskEvidenceBlock(ask){
+  // ---- M4b piece 4: answer doors. The panel is a CLIENT of the arbiter: it sends
+  // what the human typed and shows the server's/library's refusal by name; it
+  // never decides that a reason is "good enough". ----
+  // Pure: which controls does this ask get? `resume` is the run's own
+  // `resume` field (src/panel/data.js deriveResumeState), never guessed here.
+  function answerControls(ask, resume){
+    if(!ask || !ask.open){
+      return { kind: "none", why: "no answer doors: this ask is " + ((ask && ask.status) || "closed") + " — there is nothing left to answer" };
+    }
+    if(resume && resume.askId === ask.askId){
+      if(resume.state === "starting"){
+        return { kind: "starting", label: resume.label, why: "no answer doors: this ask already has a saved answer" };
+      }
+      if(resume.state === "not-started"){
+        return { kind: "stuck", label: resume.label, reason: resume.reason || "no reason recorded", why: "no answer doors: this ask already has a saved answer" };
+      }
+      return { kind: "none", why: "no answer doors: " + resume.label };
+    }
+    return { kind: "doors" };
+  }
+  // One message per run, shown in the answer block of that run until the next
+  // action. Set by `say`, never by a guess that the answer worked.
+  var answerMsg = null;       // { flow, runId, cls: "refused"|"info", text }
+  var reasonDrafts = {};      // askId -> what the human has typed so far
+  function say(flow, runId, cls, text){ answerMsg = { flow: flow, runId: runId, cls: cls, text: text }; paintAnswerMsg(); }
+  function paintAnswerMsg(){
+    document.querySelectorAll("[data-answer-msg]").forEach(function(el){
+      var m = answerMsg;
+      var mine = m && el.getAttribute("data-flow") === m.flow && el.getAttribute("data-run") === m.runId;
+      el.hidden = !mine;
+      el.className = "answer-msg" + (mine ? " " + m.cls : "");
+      el.textContent = mine ? m.text : "";
+    });
+  }
+  function refusalText(r){
+    var b = r.body;
+    var name = b && typeof b.red === "string" ? b.red : (r.text || "no detail");
+    return "HTTP " + r.status + " — " + name;
+  }
+  // While a POST is out the buttons are disabled (stops a double click) — nothing else is ever disabled.
+  function setBusy(root, busy){
+    root.querySelectorAll("button").forEach(function(b){ b.disabled = busy; });
+  }
+  // Every POST names the ask THIS block was rendered for (closure, never
+  // re-read at click time), plus flow/runId captured the same way.
+  function sendAnswer(root, ask, ctx, decision){
+    var ta = root.querySelector("textarea");
+    var payload = { flow: ctx.flow, runId: ctx.runId, askId: ask.askId, decision: decision, reason: ta ? ta.value : "" };
+    say(ctx.flow, ctx.runId, "info", "sending " + decision + "…");
+    setBusy(root, true);
+    postJSON("/api/answer", payload).then(function(r){
+      if(r.status === 202 && r.body && r.body.ok){
+        delete reasonDrafts[ask.askId];
+        say(ctx.flow, ctx.runId, "info", "answer sent (" + decision + ") — waiting for the run's books to show what happened");
+        startLive(ctx.flow, ctx.runId, ask.askId);
+      } else {
+        say(ctx.flow, ctx.runId, "refused", refusalText(r));
+      }
+      return reloadRun(ctx.flow, ctx.runId);
+    }).catch(function(e){
+      say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown in the ask header above");
+      return reloadRun(ctx.flow, ctx.runId);
+    }).then(function(){ if(root.isConnected) setBusy(root, false); });
+  }
+  function sendResumeAgain(root, ctx, askId){
+    say(ctx.flow, ctx.runId, "info", "asking for the resume again…");
+    setBusy(root, true);
+    postJSON("/api/resume", { flow: ctx.flow, runId: ctx.runId }).then(function(r){
+      if(r.status === 202 && r.body && r.body.ok){
+        say(ctx.flow, ctx.runId, "info", "resume requested — waiting for the run's books to show whether it took over");
+        startLive(ctx.flow, ctx.runId, askId);
+      } else {
+        say(ctx.flow, ctx.runId, "refused", refusalText(r));
+      }
+      return reloadRun(ctx.flow, ctx.runId);
+    }).catch(function(e){
+      say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown in the ask header above");
+      return reloadRun(ctx.flow, ctx.runId);
+    }).then(function(){ if(root.isConnected) setBusy(root, false); });
+  }
+  function makeButton(label, testid, onClick){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn";
+    b.textContent = label;
+    b.setAttribute("data-testid", testid);
+    b.addEventListener("click", onClick);
+    return b;
+  }
+  function renderAnswerBlock(ask, ctx){
+    var model = answerControls(ask, ctx.resume);
+    var root = document.createElement("div");
+    root.className = "answer-doors";
+    root.setAttribute("data-testid", "answer-doors");
+    if(model.kind === "doors"){
+      var idSafe = "reason-" + String(ask.askId).replace(/[^A-Za-z0-9_-]/g, "_");
+      var lab = document.createElement("label");
+      lab.setAttribute("for", idSafe);
+      lab.textContent = "reason (needed for redo and rerun)";
+      var ta = document.createElement("textarea");
+      ta.id = idSafe;
+      ta.rows = 3;
+      ta.setAttribute("data-testid", "answer-reason");
+      ta.value = reasonDrafts[ask.askId] || "";
+      ta.addEventListener("input", function(){ reasonDrafts[ask.askId] = ta.value; });
+      root.appendChild(lab);
+      root.appendChild(ta);
+      var bar = document.createElement("div");
+      bar.className = "actions-row";
+      bar.setAttribute("data-testid", "action-bar");
+      bar.appendChild(makeButton("Accept", "btn-accept", function(){ sendAnswer(root, ask, ctx, "accept"); }));
+      bar.appendChild(makeButton("Redo", "btn-redo", function(){ sendAnswer(root, ask, ctx, "redo"); }));
+      bar.appendChild(makeButton("Rerun", "btn-rerun", function(){ sendAnswer(root, ask, ctx, "rerun"); }));
+      root.appendChild(bar);
+      root.appendChild(textDiv("hint", "accept ships this draft; redo: redo the last step with your reason; rerun: end this run and start a fresh one from the top"));
+    } else if(model.kind === "starting"){
+      root.appendChild(textDiv("hint", model.label + " — " + model.why));
+    } else if(model.kind === "stuck"){
+      root.appendChild(textDiv("answer-msg stuck", model.label + ": " + model.reason));
+      root.appendChild(textDiv("hint", model.why + ". Trying again starts a resume only; it cannot answer."));
+      var bar2 = document.createElement("div");
+      bar2.className = "actions-row";
+      bar2.appendChild(makeButton("Try the resume again", "btn-resume-again", function(){ sendResumeAgain(root, ctx, ask.askId); }));
+      root.appendChild(bar2);
+    } else {
+      root.appendChild(textDiv("hint", model.why));
+    }
+    var msg = document.createElement("div");
+    msg.setAttribute("data-answer-msg", "1");
+    msg.setAttribute("data-flow", ctx.flow);
+    msg.setAttribute("data-run", ctx.runId);
+    msg.setAttribute("role", "status");
+    msg.setAttribute("aria-live", "polite");
+    msg.setAttribute("data-testid", "answer-msg");
+    msg.hidden = true;
+    root.appendChild(msg);
+    setTimeout(paintAnswerMsg, 0);
+    return root;
+  }
+  function renderAskEvidenceBlock(ask, ctx){
     var ev = document.createElement("div");
     ev.className = "attempts-list";
     var evidence = ask.evidence || {};
@@ -2221,14 +2447,8 @@
       art.textContent = typeof u.text === "string" ? u.text : "no artifact text on file";
       ev.appendChild(art);
     });
-    // M4b's answer doors (accept/reject/rerun) land here — this panel is
-    // read-only by construction (M4a-1 scope), so the slot is empty and
-    // clearly marked rather than silently absent.
-    var answerSlot = document.createElement("div");
-    answerSlot.className = "hint";
-    answerSlot.setAttribute("data-testid", "ask-answer-slot");
-    answerSlot.textContent = "answer controls are not built yet (M4b)";
-    ev.appendChild(answerSlot);
+    // M4b piece 4: the answer doors (or the reason there are none) live here.
+    ev.appendChild(renderAnswerBlock(ask, ctx));
     return ev;
   }
   // hamr's 2026-09-27 exit-check review #3: "when opened from an Inbox
@@ -2246,10 +2466,10 @@
       : (ask.stepWhy || "step not determinable");
     bits.push(stepBit);
     bits.push(typeof ask.askedAt === "string" ? "asked " + (readableDateTime(ask.askedAt) || ask.askedAt) : "asked: unknown");
-    bits.push(ask.open ? "waiting on you" : ask.status);
+    bits.push(ask.waiting ? "waiting on you" : (ask.open && ask.resume ? ask.resume.label : ask.status));
     return bits.join(" · ");
   }
-  function renderAskRow(ask, expanded){
+  function renderAskRow(ask, expanded, ctx){
     var wrap = document.createElement("div");
     wrap.className = "audit-group";
     wrap.setAttribute("data-testid", "ask-row-" + (ask.askId || "no-id"));
@@ -2261,7 +2481,7 @@
     var metaLine = document.createElement("div");
     metaLine.className = "wf-line1";
     var badge = document.createElement("span");
-    badge.className = "badge " + (ask.open ? "amber" : (ask.status === "accepted" ? "green" : (ask.status === "rejected" ? "red" : "grey")));
+    badge.className = "badge " + (ask.open ? "amber" : (ask.status === "accepted" ? "green" : (ask.status === "redo" ? "red" : "grey")));
     badge.textContent = ask.open ? "·" : ask.status;
     metaLine.appendChild(badge);
     metaLine.appendChild(textDiv("wf-meta", askHeaderMetaText(ask)));
@@ -2277,7 +2497,7 @@
     var body = document.createElement("div");
     body.hidden = !expanded;
     body.appendChild(askStatusBlock(ask));
-    body.appendChild(renderAskEvidenceBlock(ask));
+    body.appendChild(renderAskEvidenceBlock(ask, ctx));
     wrap.appendChild(body);
     function toggle(){
       var next = body.hidden;
@@ -2316,7 +2536,7 @@
     }
     asks.forEach(function(ask){
       var expanded = defaultOpenId != null && ask.askId === defaultOpenId;
-      var row = renderAskRow(ask, expanded);
+      var row = renderAskRow(ask, expanded, { flow: result.flow, runId: result.runId, resume: result.resume || null });
       // hamr's 2026-09-27 exit-check review #3: "the ask opened from the
       // Inbox gets a visible highlight" — a REAL Inbox click (`focusAskId`
       // set) on THIS ask, never a run's own default open-ask expansion

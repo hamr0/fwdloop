@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { createShellTools } from 'bare-agent/tools';
 
 import { checkSendDestination } from './runner.js';
+import { serializeArtifact, sha256Hex } from './ask.js';
 
 const { tools: SHELL_TOOLS } = createShellTools();
 const FOUND_WRITE_TOOL = SHELL_TOOLS.find((t) => t.name === 'shell_write');
@@ -26,9 +27,12 @@ const WRITE_TOOL = FOUND_WRITE_TOOL;
  * @param {string} target - a signed arbiter target, e.g. `file:poc/m0/out`.
  * @param {string} filename
  * @param {unknown} content - JSON-serialised before writing.
+ * @param {string|null} [acceptedSha256] - the sha256 the human's accept recorded
+ *   (`answerAsk`, M4b piece 3). Required: none recorded (an answer written by an
+ *   older version, or no accept in this process) refuses by name.
  * @returns {Promise<{ok:true, path:string, bytes:number} | {ok:false, red:string}>}
  */
-export async function sendViaPrimitive(target, filename, content) {
+export async function sendViaPrimitive(target, filename, content, acceptedSha256) {
   const destination = checkSendDestination(target);
   if (!destination.ok) return { ok: false, red: destination.red };
 
@@ -51,8 +55,21 @@ export async function sendViaPrimitive(target, filename, content) {
     return { ok: false, red: `send: content is not an artifact object (got ${JSON.stringify(content)}) — refused` };
   }
 
+  // M4b scope item 4 (F48 finding C): at use time, AFTER the destination
+  // re-checks above, hash the exact string about to be written and compare it
+  // to the hash the human's accept recorded. No hash recorded, or a mismatch
+  // (the accepted artifact changed after accept) refuses by name, before
+  // anything is written to the destination.
+  const serialised = serializeArtifact(content);
+  if (typeof acceptedSha256 !== 'string' || acceptedSha256.length === 0) {
+    return { ok: false, red: 'send: no accepted-artifact hash was recorded for this accept — refused (nothing shipped)' };
+  }
+  const actualSha256 = sha256Hex(serialised);
+  if (actualSha256 !== acceptedSha256) {
+    return { ok: false, red: `send: the artifact changed after it was accepted (accepted sha256 ${acceptedSha256}, about to send ${actualSha256}) — refused (nothing shipped)` };
+  }
+
   const path = join(destination.dir, filename);
-  const serialised = JSON.stringify(content, null, 2);
   await WRITE_TOOL.execute({ path, content: serialised });
 
   const bytes = readFileSync(path);

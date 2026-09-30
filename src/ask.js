@@ -1,7 +1,7 @@
 // M2 piece 2 (docs/wiki/the-module-ladder.md, "M2 — scope, exit, negative —
 // SIGNED", scope item 6): the file-checkpoint ask, in-process. Writes
 // `ask.json` (question + evidence + askedAt + attempt) into the run dir and
-// polls for `answer.json` (`{ decision: accept|reject|rerun, reason?,
+// polls for `answer.json` (`{ decision: accept|redo|rerun, reason?,
 // answeredAt }`). Consumed exactly once (renamed away on read); a stale
 // answer — `answeredAt` older than THIS ask's `askedAt` — is quarantined
 // (renamed to `answer.stale.<n>.json`, audited `stale-answer-ignored`) and
@@ -20,10 +20,29 @@ import {
   existsSync, mkdirSync, readFileSync, renameSync, writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { appendAudit } from './books.js';
 import { readFileInside, resolveInside, readdirInside } from './flow.js';
+
+/**
+ * M4b amendment 3 (SIGNED by hamr 2026-09-30): the ONE translation of a
+ * decision. The answer that was spelled `reject` is `redo`; `reject` is still
+ * understood (from the CLI, the library, or a file an older version wrote) and
+ * means `redo`. `accept`, `redo` and `rerun` pass. Anything else comes back
+ * unchanged, so each caller's existing "unrecognised decision" refusal still
+ * quotes what it was given. Every decision from outside, and every one read
+ * from disk, goes through here; nothing else may compare against the old word.
+ * @param {string} decision
+ * @returns {string}
+ */
+export function normalizeDecision(decision) {
+  return decision === 'reject' ? 'redo' : decision;
+}
+
+/** The one decision -> status table, used by `listArchivedAsks` here and by the panel's legacy-ask rows.
+ *  Look it up with `normalizeDecision(decision)`. */
+export const DECISION_STATUS = { accept: 'accepted', redo: 'redo', rerun: 'reran' };
 
 function sleep(ms) {
   return new Promise((resolve) => { setTimeout(resolve, ms); });
@@ -101,7 +120,7 @@ export function makeFileAskStep({
             // ask has been answered.
           } else {
             renameSync(answerPath, join(runDir, `answer.${safeStamp(askedAt)}.consumed.json`));
-            return { decision: parsed.decision, reason: parsed.reason };
+            return { decision: normalizeDecision(parsed.decision), reason: parsed.reason, artifactSha256: parsed.artifactSha256 };
           }
         }
       }
@@ -199,18 +218,40 @@ export function readAskEvidence(ask) {
 // M3 piece 1 (docs/wiki/the-module-ladder.md, "M3 — scope, exit, negative —
 // SIGNED", scope item 3, the function only — the CLI is piece 2): a separate
 // process's half of the park protocol. Writes `answer.json` exactly once,
-// refusing (never throwing) a blank reason on reject/rerun, an unknown
+// refusing (never throwing) a blank reason on redo/rerun, an unknown
 // askId, an expired askId, or a second answer to an already-answered ask —
 // each by name, so an answer for ask A can never be consumed by ask B.
 // ---------------------------------------------------------------------------
 
 /**
- * @param {{ runDir: string, askId: string, decision: 'accept'|'reject'|'rerun', reason?: string, clock?: () => string }} opts
+ * M4b piece 3: the ONE serialisation of an artifact's bytes — what
+ * `writeArtifact` (`src/runner.js`) puts on disk and what `sendViaPrimitive`
+ * (`src/send.js`) ships. The accept hash and the send-time re-hash are both
+ * over exactly this string, so they can only differ if the content does.
+ * @param {unknown} artifact
+ * @returns {string}
+ */
+export function serializeArtifact(artifact) {
+  return JSON.stringify(artifact, null, 2);
+}
+
+/**
+ * sha256 (hex) of the bytes `serializeArtifact` yields.
+ * @param {string} serialised
+ * @returns {string}
+ */
+export function sha256Hex(serialised) {
+  return createHash('sha256').update(Buffer.from(serialised, 'utf8')).digest('hex');
+}
+
+/**
+ * @param {{ runDir: string, askId: string, decision: 'accept'|'redo'|'reject'|'rerun', reason?: string, clock?: () => string }} opts
  * @returns {{ ok: true } | { ok: false, red: string }}
  */
 export function answerAsk({
-  runDir, askId, decision, reason, clock,
+  runDir, askId, decision: givenDecision, reason, clock,
 }) {
+  const decision = normalizeDecision(givenDecision);
   const now = typeof clock === 'function' ? clock : () => new Date().toISOString();
 
   if (typeof runDir !== 'string' || runDir.length === 0) {
@@ -219,8 +260,8 @@ export function answerAsk({
   if (typeof askId !== 'string' || askId.length === 0) {
     return { ok: false, red: 'answerAsk: "askId" must be a non-empty string' };
   }
-  if (decision !== 'accept' && decision !== 'reject' && decision !== 'rerun') {
-    return { ok: false, red: `answerAsk: unrecognised decision "${decision}"` };
+  if (decision !== 'accept' && decision !== 'redo' && decision !== 'rerun') {
+    return { ok: false, red: `answerAsk: unrecognised decision "${givenDecision}"` };
   }
 
   // F48 round 3: routed through `readFileInside` — a symlinked `ask.json`
@@ -264,12 +305,25 @@ export function answerAsk({
   }
 
   const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
-  if ((decision === 'reject' || decision === 'rerun') && trimmedReason.length === 0) {
+  if ((decision === 'redo' || decision === 'rerun') && trimmedReason.length === 0) {
     return { ok: false, red: `answerAsk: askId "${askId}" needs a non-blank reason to ${decision}` };
   }
 
   const payload = { askId, decision, answeredAt: nowIso };
   if (trimmedReason.length > 0) payload.reason = trimmedReason;
+  // M4b scope item 4 (F48 finding C): an accept records the sha256 of the
+  // artifact the human was shown — `ask.json`'s `evidence.artifact`, the one
+  // draft this ask is about — so `send` can prove the bytes it ships are the
+  // bytes that were accepted. An accept whose artifact cannot be read from
+  // the ask is refused by name and nothing is written. redo/rerun record
+  // none (nothing is shipped on them).
+  if (decision === 'accept') {
+    const artifact = ask.evidence && typeof ask.evidence === 'object' ? ask.evidence.artifact : undefined;
+    if (artifact === null || typeof artifact !== 'object' || Array.isArray(artifact)) {
+      return { ok: false, red: `answerAsk: askId "${askId}" cannot be accepted — ask.json carries no readable artifact (evidence.artifact) to hash for run ${runDir}` };
+    }
+    payload.artifactSha256 = sha256Hex(serializeArtifact(artifact));
+  }
   // Orchestrator review fix (5): a plain `existsSync` check followed by a
   // separate `writeFileSync` is a check-then-act race — two concurrent
   // answers can both pass the check before either writes, and the second
@@ -320,11 +374,17 @@ export function answerAsk({
  * what is actually on disk); it is never treated as "before M4a-1" (that
  * `why` is reserved for a run with NO `asks/` directory at all).
  *
- * @param {{ runDir: string, askId: string, question: string, askedAt: string, expiresAt: string, evidence: unknown }} opts
+ * M4b amendment 2 (SIGNED by hamr 2026-09-30, F52): the record also carries
+ * `emits`, the step output this ask is about, so a later process can join
+ * the ask to its consumed answer's recorded hash (`readAcceptedHashesByEmits`).
+ * Written once with the rest of the record; an existing archive is never
+ * rewritten to add it (the `wx` create refuses).
+ *
+ * @param {{ runDir: string, askId: string, question: string, askedAt: string, expiresAt: string, evidence: unknown, emits?: string }} opts
  * @returns {{ ok: true } | { ok: false, red: string }}
  */
 export function writeAskArchive({
-  runDir, askId, question, askedAt, expiresAt, evidence,
+  runDir, askId, question, askedAt, expiresAt, evidence, emits,
 }) {
   if (typeof runDir !== 'string' || runDir.length === 0) {
     return { ok: false, red: 'writeAskArchive: "runDir" must be a non-empty string' };
@@ -338,6 +398,7 @@ export function writeAskArchive({
   const payload = {
     askId, question, askedAt, expiresAt, evidence,
   };
+  if (typeof emits === 'string' && emits.length > 0) payload.emits = emits;
   try {
     writeFileSync(archivePath, JSON.stringify(payload, null, 2), { flag: 'wx' });
   } catch (err) {
@@ -347,6 +408,44 @@ export function writeAskArchive({
     return { ok: false, red: `writeAskArchive: could not write ${archivePath} — ${err.message}` };
   }
   return { ok: true };
+}
+
+/**
+ * M4b amendment 2: for each archived ask that carries `emits`, joins it BY
+ * askId to its consumed answer and returns the recorded `artifactSha256` of
+ * an ACCEPT. Only `decision: accept` with a string hash counts; never
+ * recomputed from any file. No `emits` (old run), no marker, bad JSON, a
+ * redo/rerun, or a symlinked/unreadable entry contributes nothing, so the
+ * emits stays unrecorded and send refuses by name. Two accepts for one
+ * `emits` should be impossible; if seen, the result is a red, never a guess.
+ *
+ * @param {string} runDir
+ * @returns {{ ok: true, byEmits: Map<string, string> } | { ok: false, red: string }}
+ */
+export function readAcceptedHashesByEmits(runDir) {
+  const byEmits = new Map();
+  if (!resolveInside(runDir, 'asks').ok) return { ok: true, byEmits };
+  const accepted = new Map(); // emits -> [askId]
+  for (const entry of readdirInside(runDir, 'asks').sort()) {
+    if (!entry.endsWith('.json')) continue; // eslint-disable-line no-continue
+    const askId = entry.slice(0, -'.json'.length);
+    const archiveRead = readFileInside(runDir, join('asks', entry));
+    if (!archiveRead.ok) continue; // eslint-disable-line no-continue
+    let emits;
+    try { emits = JSON.parse(archiveRead.text)?.emits; } catch { continue; } // eslint-disable-line no-continue
+    if (typeof emits !== 'string' || emits.length === 0) continue; // eslint-disable-line no-continue
+    const markerRead = readFileInside(runDir, `answer.${askId}.consumed.json`);
+    if (!markerRead.ok) continue; // eslint-disable-line no-continue
+    let marker;
+    try { marker = JSON.parse(markerRead.text); } catch { continue; } // eslint-disable-line no-continue
+    if (marker?.decision !== 'accept' || typeof marker.artifactSha256 !== 'string' || marker.artifactSha256.length === 0) continue; // eslint-disable-line no-continue
+    if (accepted.has(emits)) {
+      return { ok: false, red: `resume: more than one accepted ask (${accepted.get(emits)}, ${askId}) for step output "${emits}" — refusing to guess which hash applies` };
+    }
+    accepted.set(emits, askId);
+    byEmits.set(emits, marker.artifactSha256);
+  }
+  return { ok: true, byEmits };
 }
 
 // ---------------------------------------------------------------------------
@@ -420,9 +519,8 @@ export function listArchivedAsks(runDir) {
       let parsed;
       try {
         parsed = JSON.parse(consumedRead.text);
-        const decisionToStatus = { accept: 'accepted', reject: 'rejected', rerun: 'reran' };
         answer = {
-          status: decisionToStatus[parsed.decision] ?? `unrecognised: ${parsed.decision}`,
+          status: DECISION_STATUS[normalizeDecision(parsed.decision)] ?? `unrecognised: ${parsed.decision}`,
           answeredAt: parsed.answeredAt,
         };
         if (typeof parsed.reason === 'string') answer.reason = parsed.reason;
