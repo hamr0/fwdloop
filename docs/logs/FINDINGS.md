@@ -2696,3 +2696,73 @@ the human judges it). Write it as a guardrail (e.g. "each section 150-250 words"
 
 **Lesson.** Anything the human needs checked mechanically must be a guardrail; prose-only detail
 survives only if the drafter keeps it — the ask is the backstop.
+
+## F51 — M4b POC: the gated answer door works with no books/arbiter change; an answer can strand behind `resume.lock`; a stale tab can answer the wrong ask (2026-09-30)
+
+**What the POC is.** `poc/m4b/answer-door.mjs` (a server that wraps the panel's `handleRequest` for GETs and
+adds a gated `POST /api/answer` that calls `answerAsk`), `serve.mjs` (the door as its own process, for the
+detached proof) and `answer-door.test.mjs` (8 tests). $0, fake model step. Commits 32ca853, 8e29c4d, 0377dfd,
+0d6f049. No `src/`, `bin/` or `test/` file touched. Verdict: M4b's kill condition did not fire.
+
+**What held** (3 consecutive full runs, all 8 pass):
+
+- Negative (i): no token, wrong token, foreign Origin, no Origin, foreign Host on a POST → 403 by name, no
+  `answer*.json`, no spawn; PUT → 405.
+- Negative (ii): blank reason, unknown askId, bad decision, second answer, expired ask → the library's red
+  verbatim, 409, no resume.
+- Negative (iv): foreign-Host GET on `/`, `/api/runs`, `/api/inbox` and run detail → 403; wrong port → 403;
+  good Host and `localhost:<port>` still 200.
+- POST response 2-4 ms, sent before the resume is done. Reject → new ask parked 258-374 ms after the POST;
+  accept → run complete 537-747 ms.
+- Detached: the server's process group was SIGKILLed 8-12 ms after the 202; the resume still re-parked
+  274-412 ms after the POST.
+- 10 concurrent identical POSTs → exactly one 202, nine "already answered", one spawn, one consumed marker.
+- Key hygiene: a sentinel key in the server and child env; 14 responses and 22 files scanned, 0 hits.
+
+**Guard-removed red lines** (scratch copy of the door, deleted after):
+
+- drop token check → `(i)`: `202 !== 403`
+- drop Origin check → `(i)`: `202 !== 403`
+- drop Host check → `(i)`: `202 !== 403` and `(iv)`: `GET / with Host evil.example.com`
+- drop "library refusal stops here" → `(ii)` and `exactly one` (`accepted: 202 x10, 10 !== 1`)
+- await the resume instead of detaching → `happy`: "resume must not have re-parked yet when the response lands"
+- `detached: false` → `detached`: "resume must outlive the killed server"
+- leak the env key into the page → `key hygiene`: "sentinel in an HTTP response"
+
+A test stops at its first failing assert, so each (i) mutant proves only the guard its first sub-case hits.
+
+**Findings.**
+
+1. **`resume.lock` has no liveness.** The door cannot tell a started resume from a refused one. With a lock
+   present, `answerAsk` accepts (`answer.json` written), the door says 202 "resume started", the child
+   exits at once with `resume: run "run-1" is locked by another resumer`, `answer.json` stays, and nothing
+   ever retries. The page would say "answered" forever. The window is real: in 15 natural trials the new
+   `ask.json` was first seen while `resume.lock` was still present in 11/15. No answer stranded in 0/15,
+   only because a node child takes ~100+ ms to start. That is luck, not a guarantee. The fix is in the
+   door/runner, not the books or arbiter; the "lock has no pid" M4a question is now a concrete hazard.
+2. **A stale page answers the new ask.** A POST without `askId` answers whatever ask is open, so a tab left
+   open across a re-park answers the NEW ask. The door accepts an optional `askId` and `answerAsk` then
+   refuses a wrong one by name. It was not in the signed scope text.
+3. **The 10-way test is weaker than it looks.** It runs in one process, where the handler is synchronous,
+   so "exactly one" holds even without the library's exclusive `wx` write. Cross-process safety rests only
+   on `answerAsk`'s `wx` write (untouched), which the POC does not test.
+4. **No books/arbiter change; a `src/panel` change.** The POC spliced the token into the page by capturing
+   `handleRequest`'s HTML. The product needs a token placeholder in `src/panel/index.html` and a POST route
+   in `server.js` (today any non-GET is 405 before any route).
+5. **Child failures are invisible to the HTTP caller.** Lock, signature and missing-input refusals land only
+   in the child's log. The page must read the books to show them (scope item 3).
+6. **Env.** The resume child gets the server's env verbatim, by design. The live key reaches the child. The
+   POC proves only that the door does not echo it.
+
+**Not covered.** Accept-hash / send-verify (scope item 4, negative iii); the page UI and buttons; a real
+browser (CSRF was modelled with raw headers only); a live paid run; two door processes.
+
+**Rulings: hamr 2026-09-30, "1A, 2A".**
+
+- 1A: the panel verifies the resume took over, retries while the answer is unconsumed, and shows the stuck
+  state by name if it still fails.
+- 2A: every answer must name its askId.
+
+Drafted as M4b amendment 1 (NOT SIGNED).
+
+**Note.** `npm test` picks up the POC test (~30 s of a ~38 s suite). The POC is throwaway and must not ship.

@@ -952,6 +952,23 @@ change; then the fix is upstream of the panel, and M4b waits.
 
 **M4b spend cap: $1.00** (the live exit is about $0.05 a run) — SIGNED 2026-09-29.
 
+#### M4b amendment 1 — an answer always resumes; every answer names its ask — DRAFT, NOT SIGNED (rulings "1A, 2A" by hamr 2026-09-30; awaiting "sign m4b amendment 1")
+
+- **Why:** F51. The POC showed (1) an answer accepted while `resume.lock` is still held is saved, the resume exits "locked by another resumer", and nothing retries, so the page would say "answered" forever; (2) an answer with no `askId` lands on whatever ask is open, so a tab left open across a re-park answers an ask its human never read.
+- **Scope:**
+  1. **Answer means resume.** After the library accepts an answer, the panel starts the resume and then checks it took over (the answer was consumed, read from the books, never from the child's output). If the resume was refused because the run is locked and the answer is still unconsumed, the panel starts it again: **up to 5 tries within 10 seconds (PROPOSED numbers, hamr's to sign)**. Exactly one resume ever applies the answer (the rename-to-consume mutex, F44, is unchanged).
+  2. **A stuck answer is said by name.** If the answer is still unconsumed after the last try, the page and the API say "answer saved, resume not started" with the resume's own refusal, verbatim. Never "answered" alone, never a success. The answer stays on disk and is applied exactly once by whichever resume next succeeds. The page offers "try the resume again" in this state only; it starts a resume and nothing else (it cannot answer).
+  3. **Every answer names its ask.** The answer request must carry the `askId` the page was showing. No `askId` is refused by name, nothing written. An `askId` that is not the open ask (the run re-parked, or it was already answered) gets the library's refusal, by name, and the open ask is untouched.
+- **Negatives** (each must be able to fail):
+  - (v) an answer with no `askId` is refused and no answer file is written;
+  - (vi) after a re-park, an answer carrying the previous ask's `askId` is refused by name and the new ask is still unanswered;
+  - (vii) an answer sent while `resume.lock` is held, with the lock released inside the retry window, resumes the run: one resume, the answer consumed once;
+  - (viii) with the lock held past the retry window, the page and API show "answer saved, resume not started" and the reason, never success, and a later resume applies that answer exactly once.
+- **Exit:** no separate exit. M4b's exit stands, and negatives (v)-(viii) join (i)-(iv).
+- **Cap:** $0 extra; inside M4b's $1.00.
+- **Honest limit:** a resume that crashed leaves `resume.lock` behind forever (no pid, no liveness; the open question from M4a). This amendment shows that state by name; it does not take over a dead lock, because a wrong takeover could run a paid step twice. Clearing it stays a terminal job until a later ruling.
+- **Kill check:** none of this changes the books or the arbiter; the change is in `src/panel` and how the panel starts `resume`.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
