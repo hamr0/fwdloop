@@ -19,7 +19,7 @@ import path from 'node:path';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
-import { answerAsk } from '../src/ask.js';
+import { answerAsk, writeAskArchive } from '../src/ask.js';
 import { sendViaPrimitive } from '../src/send.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -124,5 +124,125 @@ test('M4b p3 follow-up: ask 1\'s artifact edited by one byte after its accept is
     assert.equal(res.outcome, 'red');
     assert.match(res.red, /the artifact changed after it was accepted/);
     assert.deepEqual(shippedFiles(runId), [], 'nothing may reach the destination');
+  } finally { cleanShipped(runId); }
+});
+
+// M4b amendment 2 (SIGNED 2026-09-30): the archive records `emits`; resume joins it to the consumed answer by askId.
+const ASK1_EMITS = 'resume-summary-approved';
+const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
+const archiveOf = (runDir, askId) => path.join(runDir, 'asks', `${askId}.json`);
+const markerOf = (runDir, askId) => path.join(runDir, `answer.${askId}.consumed.json`);
+
+/** Park at ask 1, REJECT it, re-park (new askId), accept the re-park, resume to ask 2, accept it.
+ *  The LAST resume (the send) is left to the caller. */
+async function rejectRepark(runId) {
+  const root = tmpRoot(runId);
+  const w = writeFlow({
+    root, name: 'job2', proseText: TWO_ASK_PROSE, declaration, signedBy: 'hamr', signedAt: '2026-09-25T12:00:00Z', catalogue: CATALOGUE,
+  });
+  assert.equal(w.ok, true, w.ok ? '' : w.reds.join('\n'));
+  const srcDir = tmpRoot(`${runId}-src`);
+  writeFileSync(path.join(srcDir, 'resume.docx'), 'Resume text goes here.');
+  writeFileSync(path.join(srcDir, 'jd.md'), 'JD text goes here.');
+  const parked1 = await runFlow({
+    ...baseArgs(root, runId),
+    askStep: makeParkingAskStep(),
+    sources: [{ id: 'resume', path: path.join(srcDir, 'resume.docx') }, { id: 'jd', path: path.join(srcDir, 'jd.md') }],
+  });
+  assert.equal(parked1.outcome, 'paused', parked1.red);
+  const { runDir } = parked1;
+  assert.equal(answerAsk({ runDir, askId: parked1.askId, decision: 'reject', reason: 'redo it' }).ok, true);
+  const reparked = await resumeRun(baseArgs(root, runId));
+  assert.equal(reparked.outcome, 'paused', reparked.red);
+  assert.notEqual(reparked.askId, parked1.askId);
+  assert.equal(answerAsk({ runDir, askId: reparked.askId, decision: 'accept' }).ok, true);
+  const acceptedHash = readJson(path.join(runDir, 'answer.json')).artifactSha256;
+  const parked2 = await resumeRun(baseArgs(root, runId));
+  assert.equal(parked2.outcome, 'paused', parked2.red);
+  assert.equal(answerAsk({ runDir, askId: parked2.askId, decision: 'accept' }).ok, true);
+  return {
+    root, runDir, rejectedAskId: parked1.askId, acceptedAskId: reparked.askId, acceptedHash,
+  };
+}
+
+test('M4b am2 (xi): an archived ask with no emits (old run) — send refuses by name, nothing ships', async () => {
+  const runId = 'twoask-no-emits';
+  cleanShipped(runId);
+  try {
+    const a = await twoAskUntilLastResume(runId);
+    const asks = readdirSync(path.join(a.runDir, 'asks'));
+    let stripped = 0;
+    for (const f of asks) {
+      const p = path.join(a.runDir, 'asks', f);
+      const j = readJson(p);
+      if (j.emits === ASK1_EMITS) { delete j.emits; writeFileSync(p, JSON.stringify(j, null, 2)); stripped += 1; }
+    }
+    assert.equal(stripped, 1, 'ask 1 archive must have carried emits');
+    const res = await resumeRun(baseArgs(a.root, runId));
+    assert.equal(res.outcome, 'red');
+    assert.match(res.red, /no accepted-artifact hash was recorded/);
+    assert.deepEqual(shippedFiles(runId), []);
+  } finally { cleanShipped(runId); }
+});
+
+test('M4b am2: reject -> re-park -> accept at ask 1, then ask 2, send in a later process ships; hash is the ACCEPTED ask\'s; archives carry emits, never rewritten', async () => {
+  const runId = 'twoask-reject-repark';
+  cleanShipped(runId);
+  try {
+    const a = await rejectRepark(runId);
+    const rejectedArchive = archiveOf(a.runDir, a.rejectedAskId);
+    const acceptedArchive = archiveOf(a.runDir, a.acceptedAskId);
+    assert.equal(readJson(rejectedArchive).emits, ASK1_EMITS, 'first park archive');
+    assert.equal(readJson(acceptedArchive).emits, ASK1_EMITS, 're-park archive');
+    const before = readFileSync(rejectedArchive, 'utf8');
+    const done = await resumeRun(baseArgs(a.root, runId));
+    assert.equal(done.outcome, 'complete', done.red);
+    assert.equal(readFileSync(rejectedArchive, 'utf8'), before, 'existing archive not rewritten');
+    const files = shippedFiles(runId);
+    assert.equal(files.length, 1, `shipped: ${files}`);
+    assert.equal(sha256OfBytes(readFileSync(path.join(SEND_DIR, files[0]))), a.acceptedHash);
+    assert.equal(readJson(markerOf(a.runDir, a.acceptedAskId)).artifactSha256, a.acceptedHash);
+  } finally { cleanShipped(runId); }
+});
+
+test('M4b am2: writeAskArchive on an existing askId is refused and the file is left byte-identical', () => {
+  const runDir = tmpRoot('am2-wx');
+  const args = {
+    runDir, askId: 'a1', question: 'q', askedAt: 't', expiresAt: 't2', evidence: {}, emits: 'x',
+  };
+  assert.equal(writeAskArchive(args).ok, true);
+  const p = path.join(runDir, 'asks', 'a1.json');
+  const before = readFileSync(p, 'utf8');
+  assert.equal(writeAskArchive({ ...args, emits: 'y' }).ok, false);
+  assert.equal(readFileSync(p, 'utf8'), before);
+});
+
+test('M4b am2: a REJECTED ask\'s marker never supplies the hash, even if it carries one', async () => {
+  const runId = 'twoask-reject-marker';
+  cleanShipped(runId);
+  try {
+    const a = await rejectRepark(runId);
+    const m = markerOf(a.runDir, a.rejectedAskId);
+    writeFileSync(m, JSON.stringify({ ...readJson(m), artifactSha256: 'f'.repeat(64) }));
+    const done = await resumeRun(baseArgs(a.root, runId));
+    assert.equal(done.outcome, 'complete', done.red);
+    const files = shippedFiles(runId);
+    assert.equal(files.length, 1);
+    assert.equal(sha256OfBytes(readFileSync(path.join(SEND_DIR, files[0]))), a.acceptedHash);
+  } finally { cleanShipped(runId); }
+});
+
+test('M4b am2: two accepted asks for one emits — resume refuses by name (never guesses), answer stays unconsumed, nothing ships', async () => {
+  const runId = 'twoask-double-accept';
+  cleanShipped(runId);
+  try {
+    const a = await rejectRepark(runId);
+    const m = markerOf(a.runDir, a.rejectedAskId);
+    writeFileSync(m, JSON.stringify({ ...readJson(m), decision: 'accept', artifactSha256: 'f'.repeat(64) }));
+    const res = await resumeRun(baseArgs(a.root, runId));
+    assert.equal(res.outcome, 'refused');
+    assert.match(res.red, /more than one accepted ask/);
+    assert.equal(existsSync(path.join(a.runDir, 'answer.json')), true, 'answer not consumed');
+    assert.deepEqual(shippedFiles(runId), []);
   } finally { cleanShipped(runId); }
 });
