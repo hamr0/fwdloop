@@ -276,4 +276,9 @@ test('the page: doors are Accept, Redo, Rerun; the hint says what each does; the
   assert.match(html, /rerun: end this run and start a fresh one from the top/);
   assert.match(html, /reason \(needed for redo and rerun\)/);
   assert.doesNotMatch(html, /library's reject/);
+  // a rerun-ended run also carries [✗]; the filter chip never calls it "failed".
+  const chip = html.match(/data-filter-value="\[✗\]" title="([^"]*)"/);
+  assert.ok(chip, 'the [✗] filter chip must be found in the page');
+  assert.notEqual(chip[1], 'failed');
+  assert.equal(chip[1], 'stopped');
 });
