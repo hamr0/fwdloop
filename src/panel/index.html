@@ -180,7 +180,8 @@
   .answer-doors .btn{min-width:44px;}
   .answer-msg{margin-top:8px;padding:6px 8px;border:1px solid var(--border-strong);font-size:13px;color:var(--text);white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;}
   .answer-msg.refused{border-color:var(--red);}
-  .answer-msg.refused::before{content:"[✗] refused: ";color:var(--red);font-weight:700;}
+  .answer-msg.refused::before{content:"refused: ";color:var(--red);font-weight:700;}
+  .answer-msg.stuck{border-color:var(--amber);}
   .answer-msg.info::before{content:"[·] ";color:var(--amber);font-weight:700;}
 
   .wf-row,.hist-row{
@@ -2103,6 +2104,59 @@
     });
   }
 
+  // ---- M4b piece 4: re-read the run from the BOOKS. There was no refresh loop
+  // before (the page loaded once), so: `reloadRun` re-reads one run's detail,
+  // asks, audit, job + the inbox and runs lists, applied only if that run is
+  // still the selected one; `startLive` calls it every LIVE_POLL_MS for up to
+  // LIVE_MAX_MS after an answer (or a resume retry) and stops at the first
+  // outcome the books show. Success is only ever said from what this reads. ----
+  var LIVE_POLL_MS = 2000;
+  var LIVE_MAX_MS = 5 * 60 * 1000;
+  var live = null;   // { flow, runId, askId, until, timer }
+  function reloadRun(flow, runId){
+    var base = "/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId);
+    var still = function(){ return currentFlow === flow && currentRunId === runId; };
+    var detailP = getJSON(base).then(function(d){ if(still()) renderRun(d); return d; }).catch(function(){ return null; });
+    var asksP = getJSON(base + "/asks").then(function(a){ if(still()) renderAsk(a, null); return a; }).catch(function(e){ if(still()) renderAsk(null, null, e.message); return null; });
+    getJSON(base + "/audit").then(function(a){ if(still()) renderAudit(a); }).catch(function(){});
+    getJSON("/api/inbox").then(function(r){ renderInbox(r.rows || []); }).catch(function(){});
+    getJSON("/api/runs").then(function(r){ runsFilterBar.setItems(r.rows || []); runsFilterBar.refresh(); }).catch(function(){});
+    return Promise.all([detailP, asksP]);
+  }
+  function stopLive(){ if(live){ clearTimeout(live.timer); live = null; } }
+  // What the books say now, in words (pure; `null` = keep waiting).
+  function liveOutcome(askId, detail, asks){
+    if(asks && asks.resume && asks.resume.state === "not-started") return { done: true, cls: null, text: null };
+    var list = (asks && asks.asks) || [];
+    var fresh = list.find(function(a){ return a.open && a.askId !== askId; });
+    if(fresh) return { done: true, cls: "info", text: "the run is parked at a new ask — the doors below are for it" };
+    if(detail && detail.glyph === "[✓]") return { done: true, cls: "info", text: "run finished [✓] — the sent artifact is in the Run tab" };
+    if(detail && detail.glyph === "[✗]") return { done: true, cls: "info", text: "run ended [✗] " + (detail.label || "") };
+    var st = asks && asks.resume ? asks.resume.label : null;
+    return { done: false, cls: "info", text: (st || "answer applied") + " — run: " + ((detail && detail.label) || "state unknown") };
+  }
+  function startLive(flow, runId, askId){
+    stopLive();
+    live = { flow: flow, runId: runId, askId: askId, until: Date.now() + LIVE_MAX_MS, timer: null };
+    var mine = live;
+    function tick(){
+      if(live !== mine) return;
+      reloadRun(flow, runId).then(function(res){
+        if(live !== mine) return;
+        var o = liveOutcome(askId, res[0], res[1]);
+        if(o.text) say(flow, runId, o.cls, o.text); else if(o.done){ answerMsg = null; paintAnswerMsg(); }
+        if(o.done){ stopLive(); return; }
+        if(Date.now() > mine.until){
+          say(flow, runId, "info", "no outcome after " + Math.round(LIVE_MAX_MS / 60000) + " minutes of watching — reload the page to check the run's books");
+          stopLive();
+          return;
+        }
+        mine.timer = setTimeout(tick, LIVE_POLL_MS);
+      });
+    }
+    mine.timer = setTimeout(tick, 600);
+  }
+
   getJSON("/api/runs").then(function(result){
     var runs = result.rows || [];
     runsFilterBar.setItems(runs);
@@ -2335,7 +2389,7 @@
     } else if(model.kind === "starting"){
       root.appendChild(textDiv("hint", model.label + " — " + model.why));
     } else if(model.kind === "stuck"){
-      root.appendChild(textDiv("answer-msg refused", model.label + ": " + model.reason));
+      root.appendChild(textDiv("answer-msg stuck", model.label + ": " + model.reason));
       root.appendChild(textDiv("hint", model.why + ". Trying again starts a resume only; it cannot answer."));
       var bar2 = document.createElement("div");
       bar2.className = "actions-row";
