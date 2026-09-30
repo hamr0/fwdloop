@@ -356,11 +356,14 @@ sys.exit(os.waitstatus_to_exitcode(st))
 `;
 const HAS_PTY = spawnSync('python3', ['-c', 'import pty']).status === 0;
 // In CI a missing pty must fail loudly, never skip green; locally it skips with a visible reason.
-const IN_CI = (process.env.CI ?? '') !== '';
+const IN_CI = !['', '0', 'false'].includes((process.env.CI ?? '').trim().toLowerCase());
 const PTY_SKIP = HAS_PTY || IN_CI ? false : 'python3 with the pty module not found (set CI=1 to make this a failure)';
-test('cli sign (real pty): python3 pty is available when CI is set', { skip: !IN_CI }, () => {
-  assert.ok(HAS_PTY, 'CI is set but `python3 -c "import pty"` failed: the real-pty sign tests cannot run — install python3 in CI');
-});
+// Registered only in CI, so a normal local run does not carry a permanent "1 skipped" that could hide a real skip.
+if (IN_CI) {
+  test('cli sign (real pty): python3 pty is available when CI is set', () => {
+    assert.ok(HAS_PTY, 'CI is set but `python3 -c "import pty"` failed: the real-pty sign tests cannot run — install python3 in CI');
+  });
+}
 const ptyCli = (args, typed) => spawnSync('python3', ['-c', PTY_PY, process.execPath, BIN, ...args, typed], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '' } });
 
 function draftedForSign() {
@@ -395,10 +398,18 @@ test('cli sign (real pty): right name + right hash signs; right name + wrong has
   assert.equal(readJson(path.join(flowDirOf(s.root), 'signature.json')).signedBy, 'carol');
 });
 
-test('cli sign: missing --approve / dir still exit non-zero', () => {
+test('cli sign: a missing draft dir is refused by name (checked before the TTY gate)', () => {
+  const r = cli(['sign']);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /a draft dir is required/);
+});
+
+test('cli sign (real pty): a missing --approve is refused by name, no flow', { skip: PTY_SKIP }, () => {
   const { s } = draftedForSign();
-  assert.notEqual(cli(['sign', s.dir]).status, 0);
-  assert.notEqual(cli(['sign']).status, 0);
+  const r = ptyCli(['sign', s.dir], 'job2');
+  assert.notEqual(r.status, 0);
+  assert.match(r.stdout, /--approve <hash> is required/);
+  assert.ok(!existsSync(flowDirOf(s.root)), 'no flow written');
 });
 
 test('e2e: draft (fake provider) -> sign -> readFlow ok -> runner preflight accepts and reaches the first step', async () => {
