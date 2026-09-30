@@ -20,7 +20,9 @@ import { spawnSync } from 'node:child_process';
 import { writeFlow, appendAudit, appendHistory } from '../src/index.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
-import { answerAsk, normalizeDecision } from '../src/ask.js';
+import {
+  answerAsk, normalizeDecision, listArchivedAsks, DECISION_STATUS,
+} from '../src/ask.js';
 import {
   computeGlyph, getRunDetail, listRuns, listStops, getRunAsks,
 } from '../src/panel/data.js';
@@ -281,4 +283,27 @@ test('the page: doors are Accept, Redo, Rerun; the hint says what each does; the
   assert.ok(chip, 'the [✗] filter chip must be found in the page');
   assert.notEqual(chip[1], 'failed');
   assert.equal(chip[1], 'stopped');
+});
+
+// One decision -> status table: the archived-ask reader (src/ask.js) and the panel's legacy-ask rows (src/panel/data.js) both use it.
+test('decision to status: both readers give accepted / redo / reran for accept / redo / rerun, and reject reads as redo', () => {
+  assert.deepEqual(DECISION_STATUS, { accept: 'accepted', redo: 'redo', rerun: 'reran' });
+  const root = tmpRoot('dstatus');
+  const { dir: flowDir } = writeJob2Flow(root, 'dsflow');
+  const want = { accept: 'accepted', redo: 'redo', rerun: 'reran', reject: 'redo' };
+  for (const [decision, status] of Object.entries(want)) {
+    const answerJson = JSON.stringify({ askId: 'a1', decision, reason: 'r', answeredAt: '2026-09-30T05:56:30.000Z' });
+    // archived shape: asks/<id>.json + consumed marker (src/ask.js)
+    const archivedDir = path.join(flowDir, 'runs', `arch-${decision}`);
+    mkdirSync(path.join(archivedDir, 'asks'), { recursive: true });
+    writeFileSync(path.join(archivedDir, 'asks', 'a1.json'), JSON.stringify({ askId: 'a1', question: 'q', askedAt: '2026-09-30T05:00:00.000Z', expiresAt: '2099-01-01T00:00:00.000Z' }));
+    writeFileSync(path.join(archivedDir, 'answer.a1.consumed.json'), answerJson);
+    assert.equal(listArchivedAsks(archivedDir).asks[0].answer.status, status, `archived reader, ${decision}`);
+    // legacy shape: no asks/ dir, only the consumed marker (src/panel/data.js)
+    const legacyDir = path.join(flowDir, 'runs', `leg-${decision}`);
+    mkdirSync(legacyDir, { recursive: true });
+    writeFileSync(path.join(legacyDir, 'answer.a1.consumed.json'), answerJson);
+    const asks = getRunAsks({ root, flow: 'dsflow', runId: `leg-${decision}`, catalogue: CATALOGUE });
+    assert.equal(asks.asks.find((a) => a.askId === 'a1').status, status, `panel legacy reader, ${decision}`);
+  }
 });

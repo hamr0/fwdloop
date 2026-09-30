@@ -32,7 +32,9 @@ import {
 } from '../books.js';
 import { readAsk, readRunState, readLog } from '../runner.js';
 import { readSpendRows } from '../provider.js';
-import { readAskEvidence, listArchivedAsks, normalizeDecision } from '../ask.js';
+import {
+  readAskEvidence, listArchivedAsks, normalizeDecision, DECISION_STATUS,
+} from '../ask.js';
 
 /** `{ ok:false, red }` result shape every exported function here can return
  *  instead of throwing — the server maps this to a 4xx, never a crash.
@@ -1426,7 +1428,6 @@ function legacyRunAsks(runDir, hasHistoryRow) {
   const currentAskId = askJson && typeof askJson.askId === 'string' ? askJson.askId : null;
 
   const consumedFiles = names.filter((n) => CONSUMED_ANSWER_RE.test(n)).sort();
-  const decisionToStatus = { accept: 'accepted', redo: 'redo', rerun: 'reran' };
 
   for (const file of consumedFiles) {
     const match = CONSUMED_ANSWER_RE.exec(file);
@@ -1454,7 +1455,7 @@ function legacyRunAsks(runDir, hasHistoryRow) {
       questionWhy: 'question not kept (before M4a-1)',
       askedAt: null,
       expiresAt: null,
-      status: decisionToStatus[normalizeDecision(parsed.decision)] ?? `unrecognised: ${parsed.decision}`,
+      status: DECISION_STATUS[normalizeDecision(parsed.decision)] ?? `unrecognised: ${parsed.decision}`,
       reason: typeof parsed.reason === 'string' ? parsed.reason : null,
       answeredAt: typeof parsed.answeredAt === 'string' ? parsed.answeredAt : null,
       archived: false,

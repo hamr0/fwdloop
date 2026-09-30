@@ -40,6 +40,10 @@ export function normalizeDecision(decision) {
   return decision === 'reject' ? 'redo' : decision;
 }
 
+/** The one decision -> status table, used by `listArchivedAsks` here and by the panel's legacy-ask rows.
+ *  Look it up with `normalizeDecision(decision)`. */
+export const DECISION_STATUS = { accept: 'accepted', redo: 'redo', rerun: 'reran' };
+
 function sleep(ms) {
   return new Promise((resolve) => { setTimeout(resolve, ms); });
 }
@@ -515,9 +519,8 @@ export function listArchivedAsks(runDir) {
       let parsed;
       try {
         parsed = JSON.parse(consumedRead.text);
-        const decisionToStatus = { accept: 'accepted', redo: 'redo', rerun: 'reran' };
         answer = {
-          status: decisionToStatus[normalizeDecision(parsed.decision)] ?? `unrecognised: ${parsed.decision}`,
+          status: DECISION_STATUS[normalizeDecision(parsed.decision)] ?? `unrecognised: ${parsed.decision}`,
           answeredAt: parsed.answeredAt,
         };
         if (typeof parsed.reason === 'string') answer.reason = parsed.reason;
