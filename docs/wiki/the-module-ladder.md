@@ -1051,6 +1051,15 @@ hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from th
 - No book changes.
 - Why: hamr's M4c review walk 2026-09-30 — clicking a `[·]` run in Runs landed on the Audit tab, and Runs/History put finished runs above the run waiting on him (a parked run has no end row, so the finish-time sort dropped it to the bottom).
 
+**M4c amendment 2 — a stuck run, and how to unstick it — NOT YET SIGNED**
+- (a) A run is **stuck** when your answer is saved but no process is carrying the run on. It shows `[II]` "stuck — answer saved, click try the resume again", **pulsing** (it is not a final state). Under reduced motion the sign stays and only the pulse stops.
+- (b) A stuck run counts in `Inbox (N)` and sits in the Inbox's "waiting on you" section, below the asks that have a timer. In Runs and History it sits with the waiting runs.
+- (c) Clicking a stuck card in the Inbox opens the Ask tab, where the "Try the resume again" button is.
+- (d) The resume lock records the process that holds it. "Try the resume again" clears a lock only when that process is gone (the same liveness rule as `[▶]`). If it is alive, it refuses by name. Two resumes never run at once.
+- (e) Once the resume starts, it shows `[▶]` "working on your answer".
+- The lock file gains its holder's process number. No other book changes.
+- Why: hamr's M4c review walk 2026-09-30 — the walk fixture's run-stuck (answer saved, resume.lock held) showed `[·]` "waiting on you" though nothing waited on him; and a resumer killed hard leaves an empty `resume.lock` (src/runner.js ~1548, removed only in its finally ~1968), so "Try the resume again" is refused forever until the file is deleted by hand.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
