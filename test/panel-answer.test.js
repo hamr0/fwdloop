@@ -23,6 +23,8 @@ import { createPanelServer } from '../src/panel/server.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (n) => readFileSync(path.join(HERE, 'fixtures', n), 'utf8');
 const CATALOGUE = loadCatalogue().primitives;
+/** A stand-in for bin/fwdloop that exits at once: these tests check the answer door, not the resume (test/panel-resume.test.js). */
+const NOOP_RESUME_BIN = path.join(HERE, 'fixtures', 'panel-resume-noop.mjs');
 const tmp = (p) => mkdtempSync(path.join(tmpdir(), `fwdloop-${p}-`));
 
 const modelStep = async (ctx) => {
@@ -77,7 +79,7 @@ async function parkRun({ parkTime } = {}) {
 const HANDLES = [];
 after(() => Promise.all(HANDLES.map((h) => h.close())));
 async function start(root) {
-  const h = await createPanelServer({ port: 0, root });
+  const h = await createPanelServer({ port: 0, root, resume: { bin: NOOP_RESUME_BIN, logDir: tmp('pa-logs') } });
   HANDLES.push(h);
   return h;
 }
@@ -237,13 +239,13 @@ test('(ii) the library\'s refusals come back by name, non-2xx, never as success:
   noAnswerOnDisk(run.runDir);
 
   const first = await post(port, good(port, token), b({ decision: 'accept' }));
-  assert.equal(first.status, 200);
+  assert.equal(first.status, 202);
   assert.equal(first.json().ok, true);
-  assert.equal(first.json().resume, 'not-started', 'this build says plainly the resume is not started');
+  assert.equal(first.json().resume, 'started', 'the reply says the resume was started, never that it is done');
   assert.ok(existsSync(path.join(run.runDir, 'answer.json')));
   // a second answer: the library refuses while answer.json is still there or once consumed
   const second = await post(port, good(port, token), b({ decision: 'reject', reason: 'changed my mind' }));
-  assert.notEqual(second.status, 200);
+  assert.notEqual(second.status, 202);
   assert.equal(second.json().refused, 'library');
   assert.match(second.json().red, /already answered|answer/);
 
@@ -287,8 +289,8 @@ test('(vi) after a re-park, the previous ask\'s askId is refused by name and the
   const rej = await post(port, good(port, token), {
     ...common, askId: run.askId, decision: 'reject', reason: 'tighten it',
   });
-  assert.equal(rej.status, 200, rej.text);
-  // the resume is not started by the panel in this build — re-park via the runner, $0
+  assert.equal(rej.status, 202, rej.text);
+  // the panel's resume here is the injected no-op (see NOOP_RESUME_BIN) — re-park via the runner, $0
   const re = await resumeRun({
     root: run.root,
     name: run.flow,

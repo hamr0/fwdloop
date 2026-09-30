@@ -325,6 +325,12 @@ const ALLOWLIST = {
     reason: 'read-only checks (existsSync/realpathSync symlink guards) — actual book content is read via the imported readFlow/readAudit/readHistory/readAsk/etc. helpers, never fs directly',
     names: { existsSync: 6, realpathSync: 2 },
   },
+  'src/panel/resume.js': {
+    reason: 'M4b piece 2: the panel\'s resume launcher — creates/opens its OWN private log dir and log file (outside the flows root and every run dir), reads back that log to quote the resume\'s refusal, and existsSync-checks the `answer.<askId>.consumed.json` marker (presence only, never its content) to see that the resume took over. No run/flow-dir book is read or written.',
+    names: {
+      closeSync: 1, existsSync: 2, lstatSync: 1, mkdirSync: 1, openSync: 1, readFileSync: 1, statSync: 1,
+    },
+  },
   'bin/fwdloop': {
     reason: 'CLI existence checks (source/run-dir presence) plus the one realpathSync in resolveRoot (hamr ruling 2026-09-29: the typed --root is followed once at start) — no content reads',
     names: { existsSync: 3, realpathSync: 1 },

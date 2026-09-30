@@ -23,18 +23,21 @@
 // `readSpendRows`, `readAskEvidence`, `loadCatalogue`) — this file is only
 // the HTTP shell + route dispatch, never a second copy of any derivation.
 //
-// M4b piece 1 (docs/wiki/the-module-ladder.md, "M4b — inputs" scope 1-2,
-// "M4b amendment 1" scope 3): every read route is still GET/HEAD and derives
-// nothing new. The ONE write route is `POST /api/answer`, a thin client of the
-// library's `answerAsk` (the panel is never a second arbiter): it is refused
-// by name unless the request is a real click from the served page — own
-// `Host` and `Origin`, the per-process token (embedded only in the served
-// page), a small JSON body — and every answer must name its `askId`.
-// `Host` is checked on EVERY route, GET included (DNS-rebinding read).
-// This piece does NOT start the resume (piece 2) and says so in its reply.
-// No endpoint runs a job, spends money, signs, or reads a key/.env. Nothing
-// here imports `src/provider.js`'s key-reading path or touches `process.env`
-// for a secret.
+// M4b pieces 1-2 (docs/wiki/the-module-ladder.md, "M4b — inputs" scope 1-3,
+// "M4b amendment 1" scope 1-3): every read route is still GET/HEAD and derives
+// nothing new. The writes are `POST /api/answer`, a thin client of the
+// library's `answerAsk` (the panel is never a second arbiter), and
+// `POST /api/resume`, which only re-starts a resume for a run that already has
+// a saved, unconsumed answer. Both are refused by name unless the request is
+// a real click from the served page — own `Host` and `Origin`, the per-process
+// token (embedded only in the served page), a small JSON body. An answer must
+// name its `askId`. `Host` is checked on EVERY route, GET included
+// (DNS-rebinding read). After an accepted answer the panel starts the resume
+// as a separate detached process and checks from the books that it took over
+// (`src/panel/resume.js`); the reply never waits for it.
+// No endpoint runs a job itself, spends money itself, signs, or reads a
+// key/.env: the resume child inherits the server's own env, and this file
+// never looks inside it.
 //
 // PATH SAFETY: a URL may name a flow ONLY (checked with `checkFlowName`) and
 // a runId ONLY (resolved with `resolveRunDir`, both `src/flow.js`) — a URL
@@ -52,8 +55,9 @@ import { loadCatalogue } from '../catalogue.js';
 import { answerAsk } from '../ask.js';
 import { checkFlowName, resolveRunDir } from '../flow.js';
 import {
-  listRuns, getRunDetail, getRunAudit, getRunJob, listStops, getRunAsks,
+  listRuns, getRunDetail, getRunAudit, getRunJob, listStops, getRunAsks, readSavedAnswer,
 } from './data.js';
+import { createResumer } from './resume.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -99,10 +103,12 @@ function tokenMatches(a, b) {
 /**
  * `POST /api/answer` — runs after the gates. Wraps `answerAsk` with exactly
  * the arguments `bin/fwdloop`'s `cmdAnswer` passes ({ runDir, askId, decision,
- * reason }); every library refusal is returned verbatim, non-2xx.
- * @param {any} res @param {any} body @param {string} root
+ * reason }); every library refusal is returned verbatim, non-2xx. On accept it
+ * starts the detached resume (M4b piece 2) and replies at once that the
+ * resume STARTED — never "done"; how it went is read from the run's data.
+ * @param {any} res @param {any} body @param {string} root @param {ReturnType<typeof createResumer>} resumer
  */
-function answerRoute(res, body, root) {
+function answerRoute(res, body, root, resumer) {
   const b = body !== null && typeof body === 'object' ? body : {};
   const {
     flow, runId, askId, decision, reason,
@@ -122,9 +128,43 @@ function answerRoute(res, body, root) {
     sendJson(res, 409, { ok: false, refused: 'library', red: result.red });
     return;
   }
-  sendJson(res, 200, {
-    ok: true, answered: true, askId, decision, resume: 'not-started',
-    note: 'answer saved; this build does not start the resume yet (M4b piece 2) — run `fwdloop resume` to apply it',
+  const attempt = resumer.start({
+    flow, runId, runDir: rd.runDir, askId,
+  });
+  sendJson(res, 202, {
+    ok: true, answered: true, askId, decision, resume: 'started', tries: attempt.tries, maxTries: attempt.maxTries,
+    note: 'answer saved; the resume was started in the background — its state is in the run\'s data (`resume`), not in this reply',
+  });
+}
+
+/**
+ * `POST /api/resume` — runs after the same gates as the answer. Starts a
+ * resume ONLY for a run that has a saved, unconsumed answer; it takes no
+ * decision or reason and can answer nothing. Same start path as the answer.
+ * @param {any} res @param {any} body @param {string} root @param {ReturnType<typeof createResumer>} resumer
+ */
+function resumeRoute(res, body, root, resumer) {
+  const b = body !== null && typeof body === 'object' ? body : {};
+  const { flow, runId } = b;
+  const fc = checkFlowName(flow);
+  if (!fc.ok) { refuse(res, 400, 'bad-flow', fc.red); return; }
+  const rd = resolveRunDir(join(root, flow), runId);
+  if (!rd.ok) { refuse(res, 400, 'bad-runId', rd.red); return; }
+  const saved = readSavedAnswer(rd.runDir);
+  if (!saved) {
+    refuse(res, 409, 'no-saved-answer', 'this run has no saved, unconsumed answer — a resume would have nothing to apply');
+    return;
+  }
+  const current = resumer.get(flow, runId);
+  if (current && current.state === 'in-flight') {
+    refuse(res, 409, 'resume-in-flight', `a resume for this run is already being started (try ${current.tries} of ${current.maxTries})`);
+    return;
+  }
+  const attempt = resumer.start({
+    flow, runId, runDir: rd.runDir, askId: saved.askId,
+  });
+  sendJson(res, 202, {
+    ok: true, resume: 'started', askId: saved.askId, tries: attempt.tries, maxTries: attempt.maxTries,
   });
 }
 
@@ -134,7 +174,7 @@ function answerRoute(res, body, root) {
  * real listening socket where that is simpler.
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
- * @param {{ root: string, port: number, token: string }} opts
+ * @param {{ root: string, port: number, token: string, resumer: ReturnType<typeof createResumer> }} opts
  */
 export function handleRequest(req, res, opts) {
   const method = req.method ?? 'GET';
@@ -147,7 +187,8 @@ export function handleRequest(req, res, opts) {
     return;
   }
 
-  if (method === 'POST' && req.url === '/api/answer') {
+  if (method === 'POST' && (req.url === '/api/answer' || req.url === '/api/resume')) {
+    const isResume = req.url === '/api/resume';
     const origin = req.headers.origin;
     if (origin !== `http://127.0.0.1:${opts.port}` && origin !== `http://localhost:${opts.port}`) {
       refuse(res, 403, 'origin-not-own', String(origin));
@@ -165,7 +206,8 @@ export function handleRequest(req, res, opts) {
         if (size > MAX_BODY_BYTES) { refuse(res, 413, 'body-too-large'); return; }
         let body;
         try { body = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { refuse(res, 400, 'body-not-json'); return; }
-        answerRoute(res, body, opts.root);
+        if (isResume) resumeRoute(res, body, opts.root, opts.resumer);
+        else answerRoute(res, body, opts.root, opts.resumer);
       } catch (e) {
         refuse(res, 500, 'internal', /** @type {Error} */ (e).message);
       }
@@ -174,7 +216,7 @@ export function handleRequest(req, res, opts) {
   }
 
   if (method !== 'GET' && method !== 'HEAD') {
-    sendText(res, 405, 'method not allowed — GET/HEAD for reads; the only write is POST /api/answer');
+    sendText(res, 405, 'method not allowed — GET/HEAD for reads; the only writes are POST /api/answer and POST /api/resume');
     return;
   }
 
@@ -224,9 +266,10 @@ export function handleRequest(req, res, opts) {
     return;
   }
   const catalogue = loaded.primitives;
+  const resumeAttempt = (f, r) => opts.resumer.get(f, r);
 
   if (pathname === '/api/runs') {
-    send(200, { rows: listRuns({ root: opts.root, catalogue }) });
+    send(200, { rows: listRuns({ root: opts.root, catalogue, resumeAttempt }) });
     return;
   }
 
@@ -272,7 +315,7 @@ export function handleRequest(req, res, opts) {
       return;
     }
     const result = getRunDetail({
-      root: opts.root, flow, runId, catalogue,
+      root: opts.root, flow, runId, catalogue, resumeAttempt,
     });
     if (!result) { sendText(res, 404, 'no such run'); return; }
     send(200, result);
@@ -288,7 +331,8 @@ export function handleRequest(req, res, opts) {
  * header). Resolves once actually listening; rejects on a bind error
  * (including `EADDRINUSE`) with a `.port` field on the error for the
  * caller's message.
- * @param {{ port?: number, root: string }} opts
+ * @param {{ port?: number, root: string, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number } }} opts
+ *   `resume` is for tests only (a fake env/bin, a short retry window); the CLI passes none.
  * @returns {Promise<{ server: import('node:http').Server, port: number, close: () => Promise<void> }>}
  */
 export function createPanelServer(opts) {
@@ -297,6 +341,8 @@ export function createPanelServer(opts) {
   }
   const requestedPort = opts.port ?? DEFAULT_PORT;
   const { root } = opts;
+  // One resumer per server: the one owner of every run's resume-attempt record.
+  const resumer = createResumer({ root, ...opts.resume });
   // One token per server process, made once, held only here and in the served
   // page — never logged, never in any /api response.
   const token = randomBytes(32).toString('hex');
@@ -309,7 +355,9 @@ export function createPanelServer(opts) {
     let boundPort = requestedPort;
     const server = createServer((req, res) => {
       try {
-        handleRequest(req, res, { root, port: boundPort, token });
+        handleRequest(req, res, {
+          root, port: boundPort, token, resumer,
+        });
       } catch (e) {
         sendText(res, 500, `internal error: ${/** @type {Error} */ (e).message}`);
       }
