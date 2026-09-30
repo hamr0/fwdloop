@@ -1006,6 +1006,20 @@ change; then the fix is upstream of the panel, and M4b waits.
 - **Not in scope:** renaming `rerun` or `accept`; renaming `redo cap`; rewriting old files.
 - **Kill check:** the arbiter is unchanged. The books keep their shape; one recorded value changes its spelling for new rows, and the old spelling is still read.
 
+#### M4b exit evidence — live walk by hamr 2026-09-30 — NOT SIGNED
+
+hamr has not signed the M4b exit. This is the evidence only. Numbers are from the books on disk.
+
+- **Who and how:** hamr, panel only (`fwdloop panel --root flows --port 4811`, started in hamr's own terminal with the key). Real provider deepseek-flash. Branch `m4b` at HEAD 8998823, which `/branch-review` gave verdict ready.
+- **First try, run `m4b-exit-1` on flow `job2-m6a-3`: never reached the ask.** Step `summary_resume` was red on all 4 attempts on the shape check (exact headings missing). Outcome `attempt-fallback`, spent $0.0311 (`spentUsd` 0.031085, cap $0.25). No ask, so no doors. Cause: the two flows have byte-identical signed prose (`cmp` of `prose.txt`), but the drafted declaration of `job2-m6a-3` checks four section headings (it adds "how it matches the JD") where `job2-m6a-2` checks three. A correct red: the model missed, the check caught it.
+- **Second try, run `m4b-exit-2` on flow `job2-m6a-2`: reached the ask.** hamr clicked Redo with a reason three times (reasons "redo again", "ok", "redo"). Each one redid step `summary_resume` and re-parked under a new askId. 4 asks are archived, all with `emits` = `accepted_summary_resume`. hamr then clicked Accept on the fourth ask (reason "yes"). The consumed answer records `decision: accept` and an `artifactSha256` (e8ba06a2…). Outcome `complete`. The sent artifact landed at `poc/m0/out/m4b-exit-2-final_summary_resume.json`. All four consumed answers use the new word: `redo`, `redo`, `redo`, `accept`.
+- **Run cost:** `spentUsd` 0.076502 ($0.0765), cap $0.25, `spendComplete` true, wall 406 s. The audit rows' usd sum is 0.07650228, equal to `spentUsd`.
+- **One observation from the audit.** The `summary_resume` verdicts in order were: red, green, red, green, red, green, red, green. The first draft and each redraft after a redo were red on the same heading gap, and the next attempt was green.
+- **Spend:** $0.0311 + $0.0765 = $0.1076 for both runs, against the signed M4b cap of $1.00. Earlier M4b work was $0.
+- **What the exit text asked vs what happened.** The signed exit says the person "rejects with a reason, sees it re-park ... accepts, and sees the run's glyph turn `[✓]` and the sent artifact in the Run tab", read with amendment 3's word "redo". The books show the redo, the re-park and the accept and complete. What hamr saw on screen is hamr's to state at signing. hamr reported: accepted.
+- **"Via the new re-signed flow".** The walk completed on `job2-m6a-2`, not `job2-m6a-3`. Whether that satisfies "the new re-signed flow" is hamr's ruling at signing.
+- **hamr's notes from the walk:** "i got confused on workflows as it didnt have pulsing play (working) but i found it, same at inbox, ask 1 of 2, 2 of 2 was not clear, that was confusing. inbox should highlight or flow on the right should be different" and "so every redo it reasked again and they were all same ask?". These are recorded as F53 and are not part of the signed M4b scope.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
