@@ -23,9 +23,10 @@
 // own rename-to-consume is atomic (F44). This module only decides whether to
 // launch another process; it never consumes, deletes or writes a book.
 //
-// ONE WRITER for the per-run "resume attempt" record: only `createResumer`'s
-// `start` (create) and its loop (`finish`) assign its fields; everything else
-// reads a copy through `get`.
+// The per-run "resume attempt" record is written only inside `createResumer`;
+// everything else reads a copy through `get`. `start` creates it and sets
+// `superseded = true` on the run's previous record; the loop sets `logPath`
+// and `tries`; `finish` sets `state`, `refusal` and `endedAt`.
 //
 // Log location: `<os tmpdir>/fwdloop-panel-logs-<uid>/`, mode 0700, files 0600
 // — OUTSIDE the flows root and every run dir, so no step's sandboxed read/grep
