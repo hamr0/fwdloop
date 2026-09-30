@@ -48,7 +48,7 @@ import { fileURLToPath } from 'node:url';
 import {
   readFlow, resolveRunDir, readFileInside, resolveInside,
 } from './flow.js';
-import { writeAskArchive } from './ask.js';
+import { writeAskArchive, serializeArtifact } from './ask.js';
 import { WIRED_VERBS } from './primitives.js';
 import { closeByClass } from './closers.js';
 import { appendAudit, appendHistory } from './books.js';
@@ -386,7 +386,7 @@ export function writeArtifact(runDir, id, artifact, { overwrite = false } = {}) 
   if (existsSync(target) && !overwrite) {
     throw new Error(`writeArtifact: artifact "${id}" already exists in this run (${target}) — refused`);
   }
-  writeFileSync(target, JSON.stringify(artifact, null, 2));
+  writeFileSync(target, serializeArtifact(artifact));
 }
 
 /**
@@ -751,8 +751,8 @@ async function runStepRalph({
  * @param {Array<{id:string, path:string}>} opts.sources - the real files to freeze for this run.
  * @param {unknown} opts.catalogue - passed straight through to `readFlow`.
  * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<{ok:boolean, artifact?:unknown, costUsd:number|null, red?:string, transport?:boolean, model?:string, modelMatch?:boolean}>} opts.modelStep
- * @param {(opts:{question:string, evidence:unknown, runDir:string}) => Promise<{decision:'accept'|'reject'|'rerun'|'timeout'|'park', reason?:string}>} opts.askStep
- * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
+ * @param {(opts:{question:string, evidence:unknown, runDir:string}) => Promise<{decision:'accept'|'reject'|'rerun'|'timeout'|'park', reason?:string, artifactSha256?:string}>} opts.askStep
+ * @param {(target:string, filename:string, content:unknown, acceptedSha256?:string|null) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
  * @param {Record<string, any>} [opts.primitives] - injected primitive implementations, keyed by catalogue verb.
  * @param {string[]} [opts.primitiveReds] - `resolvePrimitives`'s own `reds` (e.g. bareguard refusing a symlinked file scope); any entry refuses the run at $0 like an unwired verb, before the run dir exists.
  * @param {() => string} [opts.clock] - returns the current ISO timestamp; defaults to the wall clock.
@@ -902,7 +902,9 @@ export async function runFlow({
   const askStepEmits = new Set(steps.filter((s) => askLines.has(s.fromLine)).map((s) => s.emits));
   // Tracks which specific ask emits were accepted THIS run (acceptedThisRun
   // above stays run-wide, for the "reached with no accept this run" gate).
-  const acceptedAskEmitsThisRun = new Set();
+  // M4b piece 3: Map emits -> the sha256 the human's accept recorded for that
+  // ask's artifact (`null` = none recorded in THIS process; send refuses).
+  const acceptedAskEmitsThisRun = new Map();
 
   const result = await foldFromStep({
     i0: 0,
@@ -984,12 +986,12 @@ export function makeParkingAskStep() {
  *  askId, exactly like a fresh ask would. This is what turns "redo, then
  *  ask again" into "redo, then re-park" for a resumed run, with no second
  *  code path. */
-function makeOneShotThenParkAskStep({ decision, reason }) {
+function makeOneShotThenParkAskStep({ decision, reason, artifactSha256 }) {
   let used = false;
   return async function resumeAskStep() {
     if (!used) {
       used = true;
-      return { decision, reason };
+      return { decision, reason, artifactSha256 };
     }
     return { decision: 'park' };
   };
@@ -1143,7 +1145,11 @@ async function runAskSlot({
       recordAudit(makeAuditRow({
         step, attempt: redone + 1, verdict: 'green', gap: null, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       }), undefined, unjudgedCount);
-      return { type: 'accepted', artifact: currentPrior };
+      return {
+        type: 'accepted',
+        artifact: currentPrior,
+        acceptedSha256: typeof answer.artifactSha256 === 'string' ? answer.artifactSha256 : null,
+      };
     }
 
     if (isRedo) {
@@ -1278,7 +1284,7 @@ async function foldFromStep({
       const content = contentResult.value;
       const filename = `${runId}-${step.emits}.json`;
       // eslint-disable-next-line no-await-in-loop
-      const sendResult = await sendStep(target, filename, content);
+      const sendResult = await sendStep(target, filename, content, acceptedAskEmitsThisRun.get(askArtifactId));
       const sendRow = makeAuditRow({
         step, attempt: 1, verdict: sendResult.ok ? 'green' : 'red', gap: sendResult.ok ? null : sendResult.red, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       });
@@ -1369,7 +1375,7 @@ async function foldFromStep({
       writeArtifact(runDir, step.emits, askResult.artifact);
       artifacts[step.emits] = askResult.artifact;
       runAcceptedThisRun = true;
-      acceptedAskEmitsThisRun.add(step.emits);
+      acceptedAskEmitsThisRun.set(step.emits, askResult.acceptedSha256 ?? null);
       // eslint-disable-next-line no-continue
       continue;
     }
@@ -1813,11 +1819,13 @@ export async function resumeRun({
     const askLines = new Map((arbiter.asks ?? []).map((a) => [a.line, a]));
     const sendLines = new Map((arbiter.sends ?? []).map((s) => [s.line, s]));
     const askStepEmits = new Set(steps.filter((s) => askLines.has(s.fromLine)).map((s) => s.emits));
-    const acceptedAskEmitsThisRun = new Set();
+    // M4b piece 3: Map emits -> the sha256 the human's accept recorded for that
+  // ask's artifact (`null` = none recorded in THIS process; send refuses).
+  const acceptedAskEmitsThisRun = new Map();
     for (const emits of askStepEmits) {
       const idx = steps.findIndex((s) => s.emits === emits);
       if (idx !== -1 && idx < state.stepIndex && readArtifact(runDir, emits) !== undefined) {
-        acceptedAskEmitsThisRun.add(emits);
+        acceptedAskEmitsThisRun.set(emits, null);
       }
     }
 
@@ -1848,7 +1856,7 @@ export async function resumeRun({
     // "was this step already done" gate above; safe to collapse here.
     const priorArtifact = readArtifact(runDir, priorId);
 
-    const oneShotAskStep = makeOneShotThenParkAskStep({ decision: answer.decision, reason: answer.reason });
+    const oneShotAskStep = makeOneShotThenParkAskStep({ decision: answer.decision, reason: answer.reason, artifactSha256: answer.artifactSha256 });
 
     const askResult = await runAskSlot({
       step,
@@ -1896,7 +1904,7 @@ export async function resumeRun({
     // send/step path completes exactly as `runFlow` would have, in-process).
     writeArtifact(runDir, step.emits, askResult.artifact);
     artifacts[step.emits] = askResult.artifact;
-    acceptedAskEmitsThisRun.add(step.emits);
+    acceptedAskEmitsThisRun.set(step.emits, askResult.acceptedSha256 ?? null);
 
     const result = await foldFromStep({
       i0: state.stepIndex + 1,

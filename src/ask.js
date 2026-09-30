@@ -20,7 +20,7 @@ import {
   existsSync, mkdirSync, readFileSync, renameSync, writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { appendAudit } from './books.js';
 import { readFileInside, resolveInside, readdirInside } from './flow.js';
@@ -101,7 +101,7 @@ export function makeFileAskStep({
             // ask has been answered.
           } else {
             renameSync(answerPath, join(runDir, `answer.${safeStamp(askedAt)}.consumed.json`));
-            return { decision: parsed.decision, reason: parsed.reason };
+            return { decision: parsed.decision, reason: parsed.reason, artifactSha256: parsed.artifactSha256 };
           }
         }
       }
@@ -205,6 +205,27 @@ export function readAskEvidence(ask) {
 // ---------------------------------------------------------------------------
 
 /**
+ * M4b piece 3: the ONE serialisation of an artifact's bytes — what
+ * `writeArtifact` (`src/runner.js`) puts on disk and what `sendViaPrimitive`
+ * (`src/send.js`) ships. The accept hash and the send-time re-hash are both
+ * over exactly this string, so they can only differ if the content does.
+ * @param {unknown} artifact
+ * @returns {string}
+ */
+export function serializeArtifact(artifact) {
+  return JSON.stringify(artifact, null, 2);
+}
+
+/**
+ * sha256 (hex) of the bytes `serializeArtifact` yields.
+ * @param {string} serialised
+ * @returns {string}
+ */
+export function sha256Hex(serialised) {
+  return createHash('sha256').update(Buffer.from(serialised, 'utf8')).digest('hex');
+}
+
+/**
  * @param {{ runDir: string, askId: string, decision: 'accept'|'reject'|'rerun', reason?: string, clock?: () => string }} opts
  * @returns {{ ok: true } | { ok: false, red: string }}
  */
@@ -270,6 +291,19 @@ export function answerAsk({
 
   const payload = { askId, decision, answeredAt: nowIso };
   if (trimmedReason.length > 0) payload.reason = trimmedReason;
+  // M4b scope item 4 (F48 finding C): an accept records the sha256 of the
+  // artifact the human was shown — `ask.json`'s `evidence.artifact`, the one
+  // draft this ask is about — so `send` can prove the bytes it ships are the
+  // bytes that were accepted. An accept whose artifact cannot be read from
+  // the ask is refused by name and nothing is written. reject/rerun record
+  // none (nothing is shipped on them).
+  if (decision === 'accept') {
+    const artifact = ask.evidence && typeof ask.evidence === 'object' ? ask.evidence.artifact : undefined;
+    if (artifact === null || typeof artifact !== 'object' || Array.isArray(artifact)) {
+      return { ok: false, red: `answerAsk: askId "${askId}" cannot be accepted — ask.json carries no readable artifact (evidence.artifact) to hash for run ${runDir}` };
+    }
+    payload.artifactSha256 = sha256Hex(serializeArtifact(artifact));
+  }
   // Orchestrator review fix (5): a plain `existsSync` check followed by a
   // separate `writeFileSync` is a check-then-act race — two concurrent
   // answers can both pass the check before either writes, and the second
