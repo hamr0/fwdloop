@@ -1,7 +1,7 @@
 // M2 piece 2 (docs/wiki/the-module-ladder.md, "M2 — scope, exit, negative —
 // SIGNED", scope item 6): the file-checkpoint ask, in-process. Writes
 // `ask.json` (question + evidence + askedAt + attempt) into the run dir and
-// polls for `answer.json` (`{ decision: accept|reject|rerun, reason?,
+// polls for `answer.json` (`{ decision: accept|redo|rerun, reason?,
 // answeredAt }`). Consumed exactly once (renamed away on read); a stale
 // answer — `answeredAt` older than THIS ask's `askedAt` — is quarantined
 // (renamed to `answer.stale.<n>.json`, audited `stale-answer-ignored`) and
@@ -24,6 +24,21 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import { appendAudit } from './books.js';
 import { readFileInside, resolveInside, readdirInside } from './flow.js';
+
+/**
+ * M4b amendment 3 (SIGNED by hamr 2026-09-30): the ONE translation of a
+ * decision. The answer that was spelled `reject` is `redo`; `reject` is still
+ * understood (from the CLI, the library, or a file an older version wrote) and
+ * means `redo`. `accept`, `redo` and `rerun` pass. Anything else comes back
+ * unchanged, so each caller's existing "unrecognised decision" refusal still
+ * quotes what it was given. Every decision from outside, and every one read
+ * from disk, goes through here; nothing else may compare against the old word.
+ * @param {unknown} decision
+ * @returns {unknown}
+ */
+export function normalizeDecision(decision) {
+  return decision === 'reject' ? 'redo' : decision;
+}
 
 function sleep(ms) {
   return new Promise((resolve) => { setTimeout(resolve, ms); });
@@ -101,7 +116,7 @@ export function makeFileAskStep({
             // ask has been answered.
           } else {
             renameSync(answerPath, join(runDir, `answer.${safeStamp(askedAt)}.consumed.json`));
-            return { decision: parsed.decision, reason: parsed.reason, artifactSha256: parsed.artifactSha256 };
+            return { decision: normalizeDecision(parsed.decision), reason: parsed.reason, artifactSha256: parsed.artifactSha256 };
           }
         }
       }
@@ -199,7 +214,7 @@ export function readAskEvidence(ask) {
 // M3 piece 1 (docs/wiki/the-module-ladder.md, "M3 — scope, exit, negative —
 // SIGNED", scope item 3, the function only — the CLI is piece 2): a separate
 // process's half of the park protocol. Writes `answer.json` exactly once,
-// refusing (never throwing) a blank reason on reject/rerun, an unknown
+// refusing (never throwing) a blank reason on redo/rerun, an unknown
 // askId, an expired askId, or a second answer to an already-answered ask —
 // each by name, so an answer for ask A can never be consumed by ask B.
 // ---------------------------------------------------------------------------
@@ -226,12 +241,13 @@ export function sha256Hex(serialised) {
 }
 
 /**
- * @param {{ runDir: string, askId: string, decision: 'accept'|'reject'|'rerun', reason?: string, clock?: () => string }} opts
+ * @param {{ runDir: string, askId: string, decision: 'accept'|'redo'|'reject'|'rerun', reason?: string, clock?: () => string }} opts
  * @returns {{ ok: true } | { ok: false, red: string }}
  */
 export function answerAsk({
-  runDir, askId, decision, reason, clock,
+  runDir, askId, decision: givenDecision, reason, clock,
 }) {
+  const decision = normalizeDecision(givenDecision);
   const now = typeof clock === 'function' ? clock : () => new Date().toISOString();
 
   if (typeof runDir !== 'string' || runDir.length === 0) {
@@ -240,8 +256,8 @@ export function answerAsk({
   if (typeof askId !== 'string' || askId.length === 0) {
     return { ok: false, red: 'answerAsk: "askId" must be a non-empty string' };
   }
-  if (decision !== 'accept' && decision !== 'reject' && decision !== 'rerun') {
-    return { ok: false, red: `answerAsk: unrecognised decision "${decision}"` };
+  if (decision !== 'accept' && decision !== 'redo' && decision !== 'rerun') {
+    return { ok: false, red: `answerAsk: unrecognised decision "${givenDecision}"` };
   }
 
   // F48 round 3: routed through `readFileInside` — a symlinked `ask.json`
@@ -285,7 +301,7 @@ export function answerAsk({
   }
 
   const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
-  if ((decision === 'reject' || decision === 'rerun') && trimmedReason.length === 0) {
+  if ((decision === 'redo' || decision === 'rerun') && trimmedReason.length === 0) {
     return { ok: false, red: `answerAsk: askId "${askId}" needs a non-blank reason to ${decision}` };
   }
 
@@ -295,7 +311,7 @@ export function answerAsk({
   // artifact the human was shown — `ask.json`'s `evidence.artifact`, the one
   // draft this ask is about — so `send` can prove the bytes it ships are the
   // bytes that were accepted. An accept whose artifact cannot be read from
-  // the ask is refused by name and nothing is written. reject/rerun record
+  // the ask is refused by name and nothing is written. redo/rerun record
   // none (nothing is shipped on them).
   if (decision === 'accept') {
     const artifact = ask.evidence && typeof ask.evidence === 'object' ? ask.evidence.artifact : undefined;
@@ -395,7 +411,7 @@ export function writeAskArchive({
  * askId to its consumed answer and returns the recorded `artifactSha256` of
  * an ACCEPT. Only `decision: accept` with a string hash counts; never
  * recomputed from any file. No `emits` (old run), no marker, bad JSON, a
- * reject/rerun, or a symlinked/unreadable entry contributes nothing, so the
+ * redo/rerun, or a symlinked/unreadable entry contributes nothing, so the
  * emits stays unrecorded and send refuses by name. Two accepts for one
  * `emits` should be impossible; if seen, the result is a red, never a guess.
  *
@@ -499,9 +515,9 @@ export function listArchivedAsks(runDir) {
       let parsed;
       try {
         parsed = JSON.parse(consumedRead.text);
-        const decisionToStatus = { accept: 'accepted', reject: 'rejected', rerun: 'reran' };
+        const decisionToStatus = { accept: 'accepted', redo: 'redo', rerun: 'reran' };
         answer = {
-          status: decisionToStatus[parsed.decision] ?? `unrecognised: ${parsed.decision}`,
+          status: decisionToStatus[normalizeDecision(parsed.decision)] ?? `unrecognised: ${parsed.decision}`,
           answeredAt: parsed.answeredAt,
         };
         if (typeof parsed.reason === 'string') answer.reason = parsed.reason;
