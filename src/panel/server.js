@@ -331,7 +331,7 @@ export function handleRequest(req, res, opts) {
  * header). Resolves once actually listening; rejects on a bind error
  * (including `EADDRINUSE`) with a `.port` field on the error for the
  * caller's message.
- * @param {{ port?: number, root: string, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number } }} opts
+ * @param {{ port?: number, root: string, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number } }} opts
  *   `resume` is for tests only (a fake env/bin, a short retry window); the CLI passes none.
  * @returns {Promise<{ server: import('node:http').Server, port: number, close: () => Promise<void> }>}
  */

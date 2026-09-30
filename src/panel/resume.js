@@ -74,13 +74,16 @@ function ensureLogDir(dir) {
 
 /**
  * @param {{ root: string, env?: Record<string, string|undefined>, bin?: string, logDir?: string,
- *   maxTries?: number, windowMs?: number }} opts
- *   `env`/`bin`/`logDir`/`maxTries`/`windowMs` are injectable so tests neither sleep 10 s
- *   nor need a live key; production passes none of them.
+ *   maxTries?: number, windowMs?: number, slotMs?: number }} opts
+ *   `env`/`bin`/`logDir`/`maxTries`/`windowMs`/`slotMs` are injectable so tests neither sleep 10 s
+ *   nor need a live key; production passes none of them. `slotMs` (default `windowMs / maxTries`,
+ *   i.e. 2000 ms) is only the spacing between tries: a test sets it small and `windowMs` (the
+ *   per-try "did it take over" deadline) large, so CPU load cannot turn a slow child start into a
+ *   false "stuck".
  */
 export function createResumer(opts) {
   const {
-    root, env = process.env, bin = BIN, maxTries = RESUME_MAX_TRIES, windowMs = RESUME_WINDOW_MS,
+    root, env = process.env, bin = BIN, maxTries = RESUME_MAX_TRIES, windowMs = RESUME_WINDOW_MS, slotMs = windowMs / maxTries,
   } = opts;
   const rootTag = createHash('sha256').update(root).digest('hex').slice(0, 8);
   /** @type {Map<string, any>} */
@@ -127,7 +130,6 @@ export function createResumer(opts) {
 
   async function loop(rec, runDir) {
     const t0 = Date.now();
-    const slot = windowMs / maxTries;
     const logPath = join(ensureLogDir(opts.logDir), `resume-${rootTag}-${rec.flow}-${rec.runId}.log`);
     rec.logPath = logPath;
     const consumed = () => existsSync(join(runDir, `answer.${rec.askId}.consumed.json`));
@@ -151,7 +153,7 @@ export function createResumer(opts) {
       }
       // Locked: the next try starts at its slot, so the last one still lands inside the window.
       // eslint-disable-next-line no-await-in-loop
-      await sleep(Math.max(0, t0 + n * slot - Date.now()));
+      await sleep(Math.max(0, t0 + n * slotMs - Date.now()));
     }
   }
 
