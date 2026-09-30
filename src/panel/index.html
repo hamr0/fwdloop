@@ -644,14 +644,6 @@
     bits.push(duration(r.wallMs));
     return bits.join(" · ");
   }
-  // hamr's 2026-09-27 review item (d): the new Time column — this row's own
-  // `at`, read locally (`readableDateTime`, same formatter every other
-  // timestamp on this page already uses); a pre-M4a-2 row (server-derived
-  // `r.atWhy`) shows its own why instead of guessing a date.
-  function auditTimeCellText(r){
-    if(typeof r.atWhy === "string" && r.atWhy.length > 0) return r.atWhy;
-    return readableDateTime(r.at) || "unknown";
-  }
   // fix (2026-09-28, borrowed-from: bareloop src/panel/index.html@2711b1b):
   // hamr's UI review found the Time cell's full date+time string overflowed
   // the Audit tab's mobile stacked-card cell sideways at 390px. bareloop's
@@ -663,8 +655,7 @@
   // in `title` is the same local `readableDateTime` string used everywhere
   // else, not the raw ISO. A pre-M4a-2 row's `atWhy` (or a genuinely
   // unparseable/missing `at`) is unaffected: that text renders plain, never
-  // wrapped in a <span title>, so `auditTimeCellText`'s own fallback text
-  // stays exactly what it was.
+  // wrapped in a <span title>.
   function auditTimeCellHtml(r){
     if(typeof r.atWhy === "string" && r.atWhy.length > 0) return escapeXml(r.atWhy);
     var full = readableDateTime(r.at);
