@@ -48,7 +48,7 @@ import { fileURLToPath } from 'node:url';
 import {
   readFlow, resolveRunDir, readFileInside, resolveInside,
 } from './flow.js';
-import { writeAskArchive, serializeArtifact } from './ask.js';
+import { writeAskArchive, readAcceptedHashesByEmits, serializeArtifact } from './ask.js';
 import { WIRED_VERBS } from './primitives.js';
 import { closeByClass } from './closers.js';
 import { appendAudit, appendHistory } from './books.js';
@@ -1060,7 +1060,7 @@ async function runAskSlot({
       // is a genuine invariant violation, not a race to recover from — it
       // halts the run rather than silently dropping the archive duty.
       const archived = writeAskArchive({
-        runDir, askId, question: askSlot?.question ?? step.goal, askedAt, expiresAt, evidence,
+        runDir, askId, question: askSlot?.question ?? step.goal, askedAt, expiresAt, evidence, emits: step.emits,
       });
       if (!archived.ok) {
         throw new Error(archived.red);
@@ -1710,6 +1710,12 @@ export async function resumeRun({
       return { outcome: 'refused', red: `resume: answer askId "${answer.askId}" does not match open askId "${state.askId}" for run "${runId}"` };
     }
 
+    // M4b amendment 2: hashes recorded by earlier-process accepts, read back
+    // from the archive + consumed markers. Refused BEFORE the consume below so
+    // the answer stays replayable.
+    const recordedHashes = readAcceptedHashesByEmits(runDir);
+    if (!recordedHashes.ok) return { outcome: 'refused', red: recordedHashes.red };
+
     // Consume-once, BEFORE acting on the decision (F44) — the rename is
     // itself a one-winner gate, on top of the lock above.
     const consumedPath = join(runDir, `answer.${answer.askId}.consumed.json`);
@@ -1825,7 +1831,7 @@ export async function resumeRun({
     for (const emits of askStepEmits) {
       const idx = steps.findIndex((s) => s.emits === emits);
       if (idx !== -1 && idx < state.stepIndex && readArtifact(runDir, emits) !== undefined) {
-        acceptedAskEmitsThisRun.set(emits, null);
+        acceptedAskEmitsThisRun.set(emits, recordedHashes.byEmits.get(emits) ?? null);
       }
     }
 

@@ -62,11 +62,6 @@ const modelStep = async (ctx) => {
   throw new Error(`unexpected goal: ${ctx.goal}`);
 };
 
-// RED on purpose until the runner can map an earlier-accepted ask to its
-// emits (see the report: no on-disk askId -> step link exists). `todo` keeps the
-// suite green meanwhile; remove it when the fix lands.
-const TODO = { todo: 'earlier-process accept hash: awaiting hamr ruling on the askId->step link' };
-
 const tmpRoot = (p) => mkdtempSync(path.join(tmpdir(), `fwdloop-${p}-`));
 function baseArgs(root, runId) {
   return {
@@ -103,7 +98,7 @@ async function twoAskUntilLastResume(runId) {
   };
 }
 
-test('M4b p3 follow-up: ask 1 accepted in an earlier process still ships after later resumes — bytes match the hash recorded at ask 1', TODO, async () => {
+test('M4b p3 follow-up: ask 1 accepted in an earlier process still ships after later resumes — bytes match the hash recorded at ask 1', async () => {
   const runId = 'twoask-earlier-accept';
   cleanShipped(runId);
   try {
@@ -117,7 +112,7 @@ test('M4b p3 follow-up: ask 1 accepted in an earlier process still ships after l
   } finally { cleanShipped(runId); }
 });
 
-test('M4b p3 follow-up: ask 1\'s artifact edited by one byte after its accept is still refused at send (earlier-process accept)', TODO, async () => {
+test('M4b p3 follow-up: ask 1\'s artifact edited by one byte after its accept is still refused at send (earlier-process accept)', async () => {
   const runId = 'twoask-earlier-tamper';
   cleanShipped(runId);
   try {

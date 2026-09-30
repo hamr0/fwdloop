@@ -354,11 +354,17 @@ export function answerAsk({
  * what is actually on disk); it is never treated as "before M4a-1" (that
  * `why` is reserved for a run with NO `asks/` directory at all).
  *
- * @param {{ runDir: string, askId: string, question: string, askedAt: string, expiresAt: string, evidence: unknown }} opts
+ * M4b amendment 2 (SIGNED by hamr 2026-09-30, F52): the record also carries
+ * `emits`, the step output this ask is about, so a later process can join
+ * the ask to its consumed answer's recorded hash (`readAcceptedHashesByEmits`).
+ * Written once with the rest of the record; an existing archive is never
+ * rewritten to add it (the `wx` create refuses).
+ *
+ * @param {{ runDir: string, askId: string, question: string, askedAt: string, expiresAt: string, evidence: unknown, emits?: string }} opts
  * @returns {{ ok: true } | { ok: false, red: string }}
  */
 export function writeAskArchive({
-  runDir, askId, question, askedAt, expiresAt, evidence,
+  runDir, askId, question, askedAt, expiresAt, evidence, emits,
 }) {
   if (typeof runDir !== 'string' || runDir.length === 0) {
     return { ok: false, red: 'writeAskArchive: "runDir" must be a non-empty string' };
@@ -372,6 +378,7 @@ export function writeAskArchive({
   const payload = {
     askId, question, askedAt, expiresAt, evidence,
   };
+  if (typeof emits === 'string' && emits.length > 0) payload.emits = emits;
   try {
     writeFileSync(archivePath, JSON.stringify(payload, null, 2), { flag: 'wx' });
   } catch (err) {
@@ -381,6 +388,44 @@ export function writeAskArchive({
     return { ok: false, red: `writeAskArchive: could not write ${archivePath} — ${err.message}` };
   }
   return { ok: true };
+}
+
+/**
+ * M4b amendment 2: for each archived ask that carries `emits`, joins it BY
+ * askId to its consumed answer and returns the recorded `artifactSha256` of
+ * an ACCEPT. Only `decision: accept` with a string hash counts; never
+ * recomputed from any file. No `emits` (old run), no marker, bad JSON, a
+ * reject/rerun, or a symlinked/unreadable entry contributes nothing, so the
+ * emits stays unrecorded and send refuses by name. Two accepts for one
+ * `emits` should be impossible; if seen, the result is a red, never a guess.
+ *
+ * @param {string} runDir
+ * @returns {{ ok: true, byEmits: Map<string, string> } | { ok: false, red: string }}
+ */
+export function readAcceptedHashesByEmits(runDir) {
+  const byEmits = new Map();
+  if (!resolveInside(runDir, 'asks').ok) return { ok: true, byEmits };
+  const accepted = new Map(); // emits -> [askId]
+  for (const entry of readdirInside(runDir, 'asks').sort()) {
+    if (!entry.endsWith('.json')) continue; // eslint-disable-line no-continue
+    const askId = entry.slice(0, -'.json'.length);
+    const archiveRead = readFileInside(runDir, join('asks', entry));
+    if (!archiveRead.ok) continue; // eslint-disable-line no-continue
+    let emits;
+    try { emits = JSON.parse(archiveRead.text)?.emits; } catch { continue; } // eslint-disable-line no-continue
+    if (typeof emits !== 'string' || emits.length === 0) continue; // eslint-disable-line no-continue
+    const markerRead = readFileInside(runDir, `answer.${askId}.consumed.json`);
+    if (!markerRead.ok) continue; // eslint-disable-line no-continue
+    let marker;
+    try { marker = JSON.parse(markerRead.text); } catch { continue; } // eslint-disable-line no-continue
+    if (marker?.decision !== 'accept' || typeof marker.artifactSha256 !== 'string' || marker.artifactSha256.length === 0) continue; // eslint-disable-line no-continue
+    if (accepted.has(emits)) {
+      return { ok: false, red: `resume: more than one accepted ask (${accepted.get(emits)}, ${askId}) for step output "${emits}" — refusing to guess which hash applies` };
+    }
+    accepted.set(emits, askId);
+    byEmits.set(emits, marker.artifactSha256);
+  }
+  return { ok: true, byEmits };
 }
 
 // ---------------------------------------------------------------------------
