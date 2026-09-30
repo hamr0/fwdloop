@@ -299,7 +299,7 @@ step and the text still signs (the same drift a UI with separate step and guardr
 and F34 showed a stop signed on a line that also carries work leaves the drafter no honest binding.
 
 1. A numbered line that starts with `ask:` is a stop: `5. ask: check it with me,`. With a wait time:
-   `5. ask 30m: check it with me,` (`<int>` then `s`, `m` or `h`; default 30m, as today).
+   `5. ask 30m: check it with me,` (`<int>` then `s`, `m` or `h`; default 30m, as today). Since M6a amendment 1, `draft`/`sign` refuse a bare `ask:`: the wait must be signed (`ask 30m:`); the 30m default applies only to flows signed before it).
 2. The words after the mark are required and are the human's own; they are what the ask shows.
 3. A marked line may carry its own `guardrail:` under it, free wording, strict 1-for-1 as any line.
 4. A marked line is only the stop: exactly one step binds to it, human-checked, granting no
@@ -658,7 +658,7 @@ has a bareloop UI to borrow, so M4 is mostly adjusting, not designing.
   authoring only and is now M6, and every module after it shifts by one (old M6→M7, M7→M8, M8→M9,
   M9→M10). The renumber is done in the sections below, not deferred.
 
-### M4 (the UI) — scope, exit, negative — M4a SIGNED by hamr 2026-09-26 ("signed M4a"), M4a EXIT SIGNED 2026-09-27, M4b DRAFT, NOT SIGNED
+### M4 (the UI) — scope, exit, negative — M4a SIGNED by hamr 2026-09-26 ("signed M4a"), M4a EXIT SIGNED 2026-09-27, M4b SIGNED by hamr 2026-09-29 ("sign m4b")
 
 **Where it comes from** (answered by the `loop` session, 2026-09-26). bareloop's panel:
 `src/panel/index.html` (one file, all CSS and JS inline, vanilla, no build step, no npm UI deps; only
@@ -895,7 +895,17 @@ attempt counts — "keep name only".
 | (iv) `spendComplete:false` shows "at least $X", never a bare total | `test/panel.test.js` "negative (iv): spendComplete:false shows \"at least $X\", never a bare total" |
 | (v) no screen renders a key, secret, or path outside `--root` | `test/panel.test.js` "negative (v): a path-escape flow segment never reads outside root", "negative (v): a path-escape runId segment never reads outside root", "negative (v): a secret-looking env var never appears in any response" |
 
-#### M4b — inputs (does not start until M4a's exit is signed)
+#### M4b — inputs (SIGNED by hamr 2026-09-29, "sign m4b")
+
+**Pre-step (before M4b starts).** (a) The catalogue `compress` description is fixed (it is a code
+shrinker, not a text shortener; the drafter had read the old text and granted it to job #2's
+prose-summary step). (b) Job #2 is re-drafted and re-signed as a new flow without `compress`,
+because both signed job #2 flows grant `compress` and are refused at preflight since the
+2026-09-26 unwired-verb refusal (F46). A small paid draft plus hamr's signature. hamr's ruling
+2026-09-29, "A1". **Superseded by M6a's exit
+(2026-09-29):** the new job #2 flow comes from `fwdloop draft` + `fwdloop sign`, not a hand-rebuild;
+M4b waits for it. Part (a) stands.
+M6a exit signed 2026-09-29 — M4b is unblocked.
 
 **Scope.**
 
@@ -909,31 +919,38 @@ attempt counts — "keep name only".
 2. **Only a human click answers.** The server refuses an answer that did not come from the page: it
    checks `Origin` and `Host` against its own address, requires a per-process token that is only
    embedded in the served page, and accepts only `POST`. A scripted `curl` without the page's token
-   is a red naming the reason. Keys never reach the page.
-3. **Resume after an answer — ruled (b)** (hamr 2026-09-26, "1b"): the panel resumes the run itself
-   after the answer, using a key from the server's own environment, and shows it running live. This
-   is the "no terminal" product; showing "answered — run `fwdloop resume <runId>`" and leaving the
-   resume to a human terminal, as today, is not built.
+   is a red naming the reason. Keys never reach the page. The `Origin`/`Host` check applies to
+   EVERY route, `GET` included: the `/branch-review` of M4 reproduced a DNS-rebinding read (a `GET`
+   with `Host: evil.example.com` returned 200). hamr's ruling 2026-09-29, "B1".
+3. **Resume after an answer — ruled (b)** (hamr 2026-09-26, "1b"), now specified (hamr 2026-09-29):
+   the panel starts the resume as a separate detached background process, not inside the HTTP
+   request, using the key from the panel server's own environment. The page shows the run live
+   from the books. Closing the tab does not stop it. This is the "no terminal" product; showing
+   "answered — run `fwdloop resume <runId>`" and leaving the resume to a human terminal, as today,
+   is not built.
+4. **Accept records a hash; send verifies it** (moved in from the pending amendment; hamr "B1"
+   2026-09-29; F48 finding C). Accept records a sha256 of the accepted artifact. Send re-hashes the
+   artifact at send time and refuses by name on a mismatch, shipping nothing.
 
-**M4b exit.** Someone who has not used the CLI opens `fwdloop panel`, finds job #2's parked ask,
-reads the draft and both inputs, rejects with a reason, sees it re-park (after the resume, per
-ruling 1b), accepts, and sees the run's glyph turn `[✓]` and the sent artifact in the Run tab. hamr
-does this on a live run.
+**M4b exit.** Someone who has not used the CLI opens `fwdloop panel`, finds job #2's parked ask
+(via the new re-signed flow), reads the draft and both inputs, rejects with a reason, sees it
+re-park (after the resume, per ruling 1b), accepts, and sees the run's glyph turn `[✓]` and the
+sent artifact in the Run tab. hamr does this on a live run, panel only.
 
 **M4b negative scenarios**, each of which must be able to fail:
 
 - (i) a scripted `POST` to the answer endpoint without the page's token, or from another `Origin`, is
   refused, and no `answer.json` is written;
 - (ii) an answer the library refuses (expired, blank reason, second answer) shows that refusal by name
-  in the page, never a success.
+  in the page, never a success;
+- (iii) the accepted artifact changed on disk between accept and send: send refuses by name and
+  nothing is shipped;
+- (iv) a `GET` with a foreign `Host` is refused.
 
 **Kills M4b:** the answer/resume path cannot be made to refuse (i) or (ii) without a books or arbiter
 change; then the fix is upstream of the panel, and M4b waits.
 
-**Proposed M4b spend cap: $1.00** (the live exit is about $0.05 a run). Not signed.
-
-**Pending amendment candidate (NOT SIGNED):** accept records a hash of the accepted artifact;
-send verifies it before shipping (F48 finding C, hamr 2026-09-28).
+**M4b spend cap: $1.00** (the live exit is about $0.05 a run) — SIGNED 2026-09-29.
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
@@ -965,6 +982,106 @@ lesson is to ask "when would you use this?" before building a button. fwdloop st
 runs start from the CLI or a trigger, and the panel is where a human watches and answers. A Run
 button is not deferred pending more design — it is out of scope for M4.
 
+### M6a — authoring backend, pulled forward — SIGNED by hamr 2026-09-29 ("sign m6a, A"), EXIT SIGNED 2026-09-29
+
+**Why (hamr, 2026-09-29).** Build the front (describe, draft, sign) before the M4b UI, the way
+bareloop did: machinery first, then the UI wires to commands that already work. M4b stays signed and
+waits until M6a's exit is signed. M6 splits: **M6a = the backend (this section), M6b = the authoring
+UI, later.**
+
+**Plainly: describe/sign was never built.** The ladder's M4 line ("M4 wires only what is built
+(M0-M3: describe/sign, run, ...)") claimed it was. It was not. The drafter lives only in `poc/`, and
+flows are written by `poc/m2/mkflow.mjs`, which stamps `signedBy` itself. Nothing in `src/` drafts a
+flow or records a human signature. M6a builds that.
+
+**Borrowed shape from bareloop (`edf4aa6`).** One catalogue drives the drafter's schema and prompt.
+The drafter answers through a forced tool call. $0 gates run before any paid step. Sign is a
+separate human step, bound to a hash of what the human saw. Keys never go in files or pages. A scrub
+sweep checks every written file for key values.
+
+**Scope.**
+
+1. **One catalogue.** `src/catalogue.json` feeds the drafter. The drafter's menu is the WIRED verbs
+   only (`src/primitives.js` `WIRED_VERBS`). The `poc/m0/catalogue.mjs` copy is retired from the
+   product path.
+2. **The drafter moves into `src/`.** It emits the `src` declaration shape directly (no converter)
+   through a forced tool call whose schema is derived from the catalogue and `src/declaration.js`,
+   and is checked by `validateDeclaration`. At most 2 structure retries and 2 revisions on validator
+   reds. Every round is metered (`onLlmResult`), under a hard cap; unknown cost is never 0.
+3. **Input facts are read mechanically at $0** (for example docx/md headings for `inputFacts`). No
+   model scout.
+4. **`fwdloop draft`** writes a draft dir (prose, declaration, readout, spec hash) and prints
+   `DRAFTED — NOT SIGNED. To sign: fwdloop sign <dir> --approve <hash>`.
+5. **`fwdloop sign <dir> --approve <hash>`** is the human step. $0 re-checks: hash match, every
+   granted verb wired, sources exist, send target valid. Then `writeFlow`. Code never signs on its
+   own; `mkflow`'s self-stamp is retired from the product path.
+
+**Keys (hamr ruling "A", 2026-09-29).** Keys stay in `pass`, loaded in the launching shell, until API
+settings land with the UI. Recorded for later, with the UI and bareloop-shaped: a Settings screen
+for API keys and limits. bareloop's shape is a 0600 keys file with names-only exposure to the page,
+a config file for limits, settings routes, and no route that writes a key value back. **Not in M6a.**
+
+**Exit.** hamr drafts job #2 live on deepseek-flash with `fwdloop draft`, reads the readout, signs
+with `fwdloop sign --approve`, and `fwdloop run` on the new flow reaches its ask. That flow is M4b's
+job #2 (it replaces M4b's pre-step rebuild).
+
+**Negatives, each able to fail.**
+- Sign with no hash or the wrong hash: refused, no flow written.
+- A draft or hand-edited declaration granting an unwired verb: refused at sign, $0.
+- Prose edited after the draft: hash mismatch, refused.
+- The draft dir never contains a key value (scrub sweep).
+- Budget exceeded: stops, priced, booked.
+
+**POC first (riskiest assumption).** The drafter emits a VALID `src` declaration for job #2 through
+the new forced schema, with no converter. 20 paid drafts on deepseek-flash; bar >= 18/20 valid
+(after at most the allowed retries and revisions). **Cap $1.00 for all of M6a — SIGNED 2026-09-29.**
+
+**POC bar MET — ruled by hamr 2026-09-29:** m6a-poc-2, 20/20 valid on deepseek-flash (thinking disabled, bare-agent 0.49.0, F49), $0.017; M6a ledger $0.049 of $1.00.
+
+**Exit evidence (live, 2026-09-29) — EXIT SIGNED by hamr 2026-09-29 ("sign m6a exit"):**
+- Draft: `fwdloop draft`, 1 round, $0.0010, green, spec hash 19998ddf…; `sign --approve` wrote flows/job2-m6a.
+- Run parked at the line-4 ask ($0.0287); hamr rejected ("too short"), resume redrafted (attempt 2, shape passed), hamr accepted, send wrote the artifact byte-identical to the accepted summary.
+- Run cost $0.0701 (6 priced rows, 0 nulls, modelMatch "match"); M6a ledger $0.1199 of $1.00.
+- Finding F50 (NOT fixed): the drafter dropped prose-only detail ("200ish each"); the ask caught it.
+
+### M6a amendment 1 — goal is the signed line, verbatim; no default ask wait — SIGNED by hamr 2026-09-29 ("sign m6a amendment 1")
+
+- **Why:** F50. The drafter paraphrased goals and dropped "200ish each". Before M6a, the goal was the line verbatim (F38). The ask showed a 30-minute wait hamr never set.
+- **Scope:**
+  1. The machine fills each step's `goal` with its signed job line (by `fromLine`), verbatim. The drafter no longer authors `goal` (removed from the forced schema). `sign` refuses any declaration whose step goal is not exactly its signed line.
+  2. The model step still never sees its guardrail, close/shape or cap (the M2 rule stands); guardrails are NOT passed to the step.
+  3. An ask's wait (TTL) has no code default: it must be signed by hamr in the prose, or draft/sign refuses by name.
+- **Exit (live):** redraft and rerun job #2 with hamr's prose (plus hamr's own TTL line). The first attempt reaches the ask with sections of about 200 words each and no reject; hamr accepts; it sends.
+- **Negatives:** a hand-edited goal that doesn't match its line is refused at sign; the step's prompt contains the line exactly; the step's context never contains the guardrail/shape/cap; no TTL signed is refused.
+- **Cap:** $0.30, from M6a's remaining budget (a sub-cap within M6a's $1.00, not extra).
+- **Not in scope (goes to M6b):** readout/UI wording (see M6).
+
+**Exit evidence (live, 2026-09-29) — EXIT SIGNED by hamr 2026-09-29 ("sign m6a exit"):**
+
+- Draft (`poc/m6a/out/exit-2/draft`): green, 2 rounds (one validator revision), $0.0015; every step goal is the signed line verbatim (line 3 kept "200ish each"); the ask shows hamr's signed wait, "ask 30m:".
+- Run `exit2-run-1` (flow `flows/job2-m6a-2`): summary step attempt 1 a machine red (headings not exact lines, gap-back), attempt 2 green; parked at the ask with sections of about 180/152/145 words (477 total), against 100/45/25 before the fix (exit-1).
+- hamr accepted with no reject; the resume file sent is byte-identical to the accepted artifact (checked).
+- Costs: run $0.01497 (4 priced rows, 0 nulls, modelMatch match); M6a ledger total $0.13630 against the $0.30 cap. Note: "200ish" landed at 145-180 because it is prose-only and only the human judges it (F50 remaining note).
+
+### M6a amendment 2 — only a person at a keyboard can sign — SIGNED by hamr 2026-09-29 ("sign m6a amendment 2")
+
+- **Why:** /branch-review found `fwdloop sign` can't tell a human from a script: anything with a shell (an agent included) can run draft, then `sign --approve <printed hash>`. The hash stops tampering, not a non-human approver.
+- **Scope:** `fwdloop sign` works only in an interactive terminal (stdin AND stdout are TTYs). It shows the flow name and asks the human to type the flow name back. `--approve <hash>` stays. No TTY -> refused, no flow written.
+- **Negatives:** piped stdin -> refused, no flow; the wrong typed name -> refused, no flow; a real TTY + the right name + the right hash -> signs.
+- **Exit:** hamr signs a draft in his own terminal and it works; the orchestrator's attempt from its non-interactive shell is refused.
+- **Cap:** $0.
+- **Honest limit:** this raises the bar and isn't proof; a determined script can fake a TTY (e.g. `expect`, `script`). Real proof of a person (a password, a hardware key) is later.
+
+**Exit evidence (live, 2026-09-29) — EXIT SIGNED by hamr 2026-09-29 ("sign m6a amendment 2 exit"):**
+
+- Draft: hamr drafted flow `job2-m6a-3` live on deepseek-flash, green, $0.00055 (spec hash 779e9c0a…), ledger row `m6a-exit-3-draft`.
+- Refused: the orchestrator's non-interactive shell ran `sign` twice (stdin from /dev/null, and the right name piped with the right hash); both refused with "sign needs an interactive terminal", exit 1, no flow written.
+- Signed by a person: hamr ran `sign` in his own terminal, typed `job2-m6a-3` at the confirm prompt, and it printed "signed: …/flows/job2-m6a-3 (by hamr)".
+- M6a ledger total now $0.13684 (cap $1.00).
+
+**Not in M6a:** the UI (M6b), editing and versions (M5), an LLM scout, litectx verbs, a settings
+screen.
+
 ## M5 — dry-run, accept, versions
 
 Placed here because the UI's "edit and add turns" is meaningless without versioning. Dry-run
@@ -991,6 +1108,7 @@ through M5 (docs/archive/PRD.md:597-605).
 - **Negative:** tracing a wrong number to its source cell is M4's negative (see above). This
   module's own negative is an edit that skips re-accept, which M5 catches
   (docs/archive/PRD.md:608-609).
+- **Wording (from M6a amendment 1, M6b scope):** the readout/UI says "how each step is checked" where it now says "Success", and "shown to you at the next ask" where it says "human check" on non-ask lines.
 
 ## M7 — skills and persona
 

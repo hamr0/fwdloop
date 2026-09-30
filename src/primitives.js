@@ -28,7 +28,7 @@ import path from 'node:path';
 import { createShellTools, resolveToolPath } from 'bare-agent/tools';
 import { Gate } from 'bareguard';
 
-import { primitiveFor } from './catalogue.js';
+import { primitiveFor, loadCatalogue } from './catalogue.js';
 import { readDocxText } from './docx.js';
 import { parseCsv } from './csv.js';
 
@@ -260,6 +260,15 @@ function addressCellsPrimitiveTool(inputsByRole) {
  *  refuse before any model call or spend) imports this SAME set rather than
  *  keeping a second copy of the list. */
 export const WIRED_VERBS = new Set(['read', 'grep', 'write', 'readDocx', 'addressCells']);
+
+/** The wired menu, one place: the catalogue entries whose verb is in
+ *  WIRED_VERBS (and, when `skills` is given, in a signed skill). Absence,
+ *  not refusal. Throws only if catalogue.json itself is unreadable. */
+export function wiredMenu(skills) {
+  const cat = loadCatalogue();
+  if (!cat.ok) throw new Error(`catalogue unreadable: ${cat.reds.join('; ')}`);
+  return cat.primitives.filter((e) => WIRED_VERBS.has(e.verb) && (!skills || skills.includes(e.skill)));
+}
 
 /**
  * Resolve the granted tools for one step's model call. Never throws —

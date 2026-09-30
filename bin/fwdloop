@@ -33,6 +33,9 @@ import { resolvePrimitives } from '../src/primitives.js';
 import { checkKeyPreflight } from '../src/provider.js';
 import { answerAsk, readAskEvidence } from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
+import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
+import { draftToDir, signDraft, SIGN_LINE, costText } from '../src/authoring.js';
+import { userInfo } from 'node:os';
 
 // The baseline model (project rule, CLAUDE.md/AGENT_RULES: "deepseek-flash
 // ... Never Claude for fwdloop's own runs") — the ONE provider slot this CLI
@@ -538,18 +541,93 @@ async function cmdPanel(rest) {
 }
 
 // ---------------------------------------------------------------------------
+// draft / sign — M6a (docs/wiki/the-module-ladder.md, "M6a — authoring
+// backend", scope items 4-5). `draft` is the one paid step and never writes a
+// flow; `sign` is the human step ($0) and the only path that writes one.
+// Test-only escape hatch for draft, same two-gate shape as resolveModelStep:
+// NODE_ENV=test AND FWDLOOP_TEST_DRAFT_PROVIDER (a module whose default export
+// returns { provider, rates, modelId }).
+// ---------------------------------------------------------------------------
+
+async function cmdDraft(rest) {
+  const { values, positionals } = parseArgs({
+    args: rest,
+    options: {
+      out: { type: 'string' }, root: { type: 'string' }, name: { type: 'string' }, budget: { type: 'string' },
+    },
+    allowPositionals: true,
+  });
+  const proseFile = positionals[0];
+  if (!proseFile) fail('draft: a prose file is required — fwdloop draft <prose.txt> --out <draftDir> --root <flowsDir> --name <flow> [--budget <usd>]');
+  for (const req of ['out', 'root', 'name']) if (!values[req]) fail(`draft: --${req} is required`);
+
+  let injected = {};
+  if (process.env.NODE_ENV === 'test' && process.env.FWDLOOP_TEST_DRAFT_PROVIDER) {
+    const mod = await import(pathToFileURL(resolve(process.env.FWDLOOP_TEST_DRAFT_PROVIDER)).href);
+    injected = await mod.default();
+  }
+  const result = await draftToDir({
+    proseFile: resolve(proseFile),
+    dir: resolve(values.out),
+    root: resolve(values.root),
+    name: values.name,
+    budgetUsd: values.budget === undefined ? undefined : Number(values.budget),
+    ...injected,
+  });
+  const cost = result.costUsd === null ? 'UNKNOWN' : costText(Number(result.costUsd), result.spendComplete);
+  if (!result.wrote) {
+    process.stderr.write(`fwdloop: draft refused at $0 — ${result.reds.join('; ')}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  process.stdout.write(`draft dir: ${resolve(values.out)}  cost: ${cost}\n`);
+  if (!result.ok) {
+    process.stderr.write(`fwdloop: draft RED (${result.stop ?? 'scrub'}) — ${result.reds.join('; ')}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  process.stdout.write(`${SIGN_LINE(resolve(values.out), result.hash)}\n`);
+}
+
+async function cmdSign(rest) {
+  const { values, positionals } = parseArgs({
+    args: rest,
+    options: { approve: { type: 'string' }, 'signed-by': { type: 'string' } },
+    allowPositionals: true,
+  });
+  const dir = positionals[0];
+  if (!dir) fail('sign: a draft dir is required — fwdloop sign <dir> --approve <hash>');
+  // Amendment 2: a person at a keyboard. TTY check first (cheapest), then the typed flow name; only then
+  // signDraft's own $0 checks (hash, wired, goals, TTL, sources, send, leak). signDraft writes only on success.
+  if (!isInteractive()) fail(`sign refused — ${NEEDS_TTY}`);
+  let flowName;
+  const tj = readFileInside(resolve(dir), 'target.json');
+  try { flowName = tj.ok ? JSON.parse(tj.text).name : undefined; } catch { flowName = undefined; }
+  if (typeof flowName !== 'string' || flowName === '') fail('sign refused — the draft has no readable target.json name');
+  const typed = await confirmTypedName({ name: flowName });
+  if (!typed.ok) fail(`sign refused — ${typed.red}`);
+  const result = signDraft({
+    dir: resolve(dir), approve: values.approve, signedBy: values['signed-by'] ?? userInfo().username,
+  });
+  if (!result.ok) fail(`sign refused — ${result.reds.join('; ')}`);
+  process.stdout.write(`signed: ${result.flowDir} (by ${result.signature.signedBy})\n`);
+}
+
+// ---------------------------------------------------------------------------
 
 async function main() {
   const [verb, ...rest] = process.argv.slice(2);
-  if (!verb) fail('usage: fwdloop run|inbox|show|answer|resume|panel ...');
+  if (!verb) fail('usage: fwdloop draft|sign|run|inbox|show|answer|resume|panel ...');
 
+  if (verb === 'draft') return cmdDraft(rest);
+  if (verb === 'sign') return cmdSign(rest);
   if (verb === 'run') return cmdRun(rest);
   if (verb === 'inbox') return cmdInbox(rest);
   if (verb === 'show') return cmdShow(rest);
   if (verb === 'answer') return cmdAnswer(rest);
   if (verb === 'resume') return cmdResume(rest);
   if (verb === 'panel') return cmdPanel(rest);
-  fail(`unknown verb "${verb}" — expected run | inbox | show | answer | resume | panel`);
+  fail(`unknown verb "${verb}" — expected draft | sign | run | inbox | show | answer | resume | panel`);
   return undefined;
 }
 

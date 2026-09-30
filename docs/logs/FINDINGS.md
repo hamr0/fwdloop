@@ -2646,3 +2646,53 @@ wrapper. Nothing differed, so nothing was worked around.
   path once, at command start (`resolveRoot` in `bin/fwdloop`, used by run, resume, inbox, show,
   answer, panel); nothing else is followed, and everything inside the root stays under
   bareguard's refusal, including a root swapped to a symlink mid-run. Fixed in 0f0bf4e.
+
+## F49 — deepseek-flash 400s on any forced tool_choice (thinking mode); bare-agent cannot send `thinking` (2026-09-29)
+
+**What happened.** M6a paid batch `m6a-poc-1` (20 drafts, forced tool call) failed 0/20 at round 0:
+HTTP 400 "Thinking mode does not support this tool_choice". DeepSeek refused before generating
+anything; request_ids are in `poc/m6a/out/m6a-poc-1.drafts/draft-N.json` and `requestId` on each ledger row.
+
+**Cause, probed.** DeepSeek-V4.1-Flash (`deepseek-flash`) runs in thinking mode by default and 400s on
+any forced `tool_choice`. Named → 400 (req a2f6f09f-a75a-4b6c-92d3-b372dbe8a10b); `"required"` → 400
+(req 0fa25873-a831-4385-b273-8412c86b708d); named + body `thinking:{type:"disabled"}` → 200 with the
+correct tool call.
+
+**Upstream gap (bare-agent).** `OpenAIProvider.generate()` builds the body from model/messages/
+temperature/maxTokens/tools/tool_choice only; it cannot send `thinking`. Confirmed by bareloop: it never
+forces tool_choice so it never hit this. Bareloop BA-7 (an opt-in `thinking` → `body.thinking` option)
+was DELIVERED in bare-agent 0.27.0 but in provider-anthropic.js only (corrected by bareloop 2026-09-29);
+OpenAIProvider lacks it. Ask sent 2026-09-29 to the bare-agent session, accepted as: extend the existing
+Anthropic `thinking` option to OpenAIProvider (constructor + per-call, verbatim), negative control =
+byte-identical body when unset. On branch feat/openai-thinking-option, not yet released. hamr ruled
+1A: M6a waits for it; the signed forced-tool spec stands.
+
+**Books.** Batch `m6a-poc-1`: 0/20, $0 real spend. The null-cost rows were booked at ceiling ($0.576),
+then re-booked at $0 by hamr's ruling (2A); the 3 raw curl probes are one row, $0.00012. Tag
+`m6a-poc-1` is consumed; the next paid run uses a new tag.
+
+**Lesson.** A $0 probe of the exact paid request shape (forced tool_choice) before the batch would have
+caught this; the fake provider can't.
+
+Resolved upstream: bare-agent 0.49.0 (2026-09-29); fwdloop pins it and the M6a drafter passes thinking {type:'disabled'}; pre-release validation 3/3 valid drafts, 0 400s.
+
+## F50 — the drafter drops prose detail that is not a guardrail; the human ask caught it (2026-09-29)
+
+**Found in the M6a live exit** (job2-m6a, run `run-mumu5yxa-6ff4e021`, deepseek-flash). Prose line 3
+carried "200ish each"; the drafter's step-3 purpose text lost it (the readout says only "…the three
+declared sections under the word budget"). The model step then wrote about 170 words total and noted no
+budget value was in its reads. The signed guardrail (3 sections, under 600 words) was met, so the
+machine check was correct and green; only hamr's ask caught the lost intent ("too short: each section
+should be ~200 words"). Reject → redraft attempt 2 gave about 200/190/200, shape check passed.
+
+**Fixed by M6a amendment 1** (commits 13b90a5, 51a5332): every step goal is now the signed line
+verbatim (machine-set, refused at sign), and an ask's wait must be signed. Live exit-2: draft green
+(2 rounds, $0.0015); run exit2-run-1 attempt 1 a machine red (headings not exact lines, gap-back),
+attempt 2 green with sections of about 180/152/145 words (477 total); hamr accepted, no reject; run
+cost $0.01497.
+
+**Remaining.** Prose-only size targets are still not machine-checked ("200ish" came out 145-180; only
+the human judges it). Write it as a guardrail (e.g. "each section 150-250 words") to have it enforced.
+
+**Lesson.** Anything the human needs checked mechanically must be a guardrail; prose-only detail
+survives only if the drafter keeps it — the ask is the backstop.

@@ -9,7 +9,7 @@ never invented):
 - recall: Search saved notes by meaning; returns the best matches, not their full text. (select, class: read) — litectx#LiteCtx
 - get: Fetch the full text of one saved note or parked item by its id. (select, class: read) — litectx#LiteCtx
 - recent: List the most recently saved notes, newest first. (select, class: read) — litectx#LiteCtx
-- compress: Shorten a piece of text to fit a small prompt (full, signature-only, or dropped). (compress, class: read) — litectx#compress
+- compress: Shrink source code: keep each function header and its doc comment, drop the body (or reduce it to a name). Code only — prose and markdown come back unchanged. (compress, class: read) — litectx#compress
 - peek: Preview a parked item's start and end without loading all of it. (compress, class: read) — litectx#LiteCtx
 - stash: Park a large piece of text outside the prompt under an id, to fetch back later. (isolate, class: store) — litectx#LiteCtx
 - checkpoint: Pause the run and wait for a human's answer. (io, class: write) — bare-agent#Checkpoint

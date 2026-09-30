@@ -959,3 +959,27 @@ describe('checkShapes', () => {
     );
   });
 });
+
+describe('M6a: the optional `wired` set', () => {
+  const WIRED = new Set(['read', 'write', 'addressCells', 'readDocx']);
+  const runWired = (d) => validateDeclaration(d, { arbiter: SIGNED.arbiter, lines: SIGNED.lines, catalogue: CATALOGUE, wired: WIRED });
+
+  test('a wired-only declaration is still green', () => {
+    const r = runWired(baseDeclaration());
+    assert.equal(r.ok, true, r.ok ? '' : r.reds.join('\n'));
+  });
+
+  test('a catalogue-listed but unwired verb (compress) reds by name', () => {
+    const d = baseDeclaration();
+    d.steps[0].primitives = ['compress'];
+    const r = runWired(d);
+    assert.equal(r.ok, false);
+    assert.ok(r.reds.some((x) => x.includes('"compress"') && x.includes('not wired')), r.reds.join('\n'));
+  });
+
+  test('without `wired`, the same declaration is not refused (existing callers unchanged)', () => {
+    const d = baseDeclaration();
+    d.steps[0].primitives = ['compress'];
+    assert.equal(run(d).ok, true);
+  });
+});
