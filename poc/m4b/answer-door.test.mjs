@@ -6,7 +6,7 @@
 //   DOOR=./_scratch-<name>.mjs node --test poc/m4b/
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import {
   existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, readdirSync,
 } from 'node:fs';
@@ -107,10 +107,19 @@ const noAnswerOnDisk = (runDir) => {
   assert.equal(existsSync(path.join(runDir, 'answer.json')), false, 'answer.json must not exist');
   assert.deepEqual(readdirSync(runDir).filter((f) => f.startsWith('answer.')), []);
 };
+const DOORS = [];
+after(() => Promise.all(DOORS.map((d) => d.close()))); // a failed assert must not leave a listener holding the runner open
 async function start(run, extra = {}) {
-  return createAnswerDoor({ root: run.root, logDir: tmp('logs'), env: childEnv(), ...extra });
+  const d = await createAnswerDoor({ root: run.root, logDir: tmp('logs'), env: childEnv(), ...extra });
+  DOORS.push(d);
+  return d;
 }
-const settled = async (run, door, n = door.spawned.length) => waitFor(() => !existsSync(path.join(run.runDir, 'resume.lock')) && door.spawned.length >= n);
+/** The resume for `prevAskId`'s answer is finished: a new ask parked (or the run completed) AND the lock is gone. */
+const settled = async (run, door, prevAskId = run.askId) => waitFor(() => {
+  const a = askOf(run.runDir);
+  const moved = (a && a.askId !== prevAskId) || history(run.root).length > 0;
+  return moved && !existsSync(path.join(run.runDir, 'resume.lock'));
+});
 
 // ---------------------------------------------------------------------------
 test('(i) POST without token / foreign Origin / foreign Host is refused by name and writes no answer', async () => {
