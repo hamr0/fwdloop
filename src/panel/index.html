@@ -2216,7 +2216,147 @@
     if(ask.answeredAt) bits.push("answered " + (readableDateTime(ask.answeredAt) || ask.answeredAt));
     return textDiv("wf-meta", bits.join(" · "));
   }
-  function renderAskEvidenceBlock(ask){
+  // ---- M4b piece 4: answer doors. The panel is a CLIENT of the arbiter: it sends
+  // what the human typed and shows the server's/library's refusal by name; it
+  // never decides that a reason is "good enough". ----
+  // Pure: which controls does this ask get? `resume` is the run's own
+  // `resume` field (src/panel/data.js deriveResumeState), never guessed here.
+  function answerControls(ask, resume){
+    if(!ask || !ask.open){
+      return { kind: "none", why: "no answer doors: this ask is " + ((ask && ask.status) || "closed") + " — there is nothing left to answer" };
+    }
+    if(resume && resume.askId === ask.askId){
+      if(resume.state === "starting"){
+        return { kind: "starting", label: resume.label, why: "no answer doors: this ask already has a saved answer" };
+      }
+      if(resume.state === "not-started"){
+        return { kind: "stuck", label: resume.label, reason: resume.reason || "no reason recorded", why: "no answer doors: this ask already has a saved answer" };
+      }
+      return { kind: "none", why: "no answer doors: " + resume.label };
+    }
+    return { kind: "doors" };
+  }
+  // One message per run, shown in the answer block of that run until the next
+  // action. Set by `say`, never by a guess that the answer worked.
+  var answerMsg = null;       // { flow, runId, cls: "refused"|"info", text }
+  var reasonDrafts = {};      // askId -> what the human has typed so far
+  var inFlight = false;       // a POST is out: the buttons are disabled meanwhile
+  function say(flow, runId, cls, text){ answerMsg = { flow: flow, runId: runId, cls: cls, text: text }; paintAnswerMsg(); }
+  function paintAnswerMsg(){
+    document.querySelectorAll("[data-answer-msg]").forEach(function(el){
+      var m = answerMsg;
+      var mine = m && el.getAttribute("data-flow") === m.flow && el.getAttribute("data-run") === m.runId;
+      el.hidden = !mine;
+      el.className = "answer-msg" + (mine ? " " + m.cls : "");
+      el.textContent = mine ? m.text : "";
+    });
+  }
+  function refusalText(r){
+    var b = r.body;
+    var name = b && typeof b.red === "string" ? b.red : (r.text || "no detail");
+    return "HTTP " + r.status + " — " + name;
+  }
+  function setBusy(root, busy){
+    inFlight = busy;
+    root.querySelectorAll("button").forEach(function(b){ b.disabled = busy; });
+  }
+  // Every POST names the ask THIS block was rendered for (closure, never
+  // re-read at click time), plus flow/runId captured the same way.
+  function sendAnswer(root, ask, ctx, decision){
+    var ta = root.querySelector("textarea");
+    var payload = { flow: ctx.flow, runId: ctx.runId, askId: ask.askId, decision: decision, reason: ta ? ta.value : "" };
+    say(ctx.flow, ctx.runId, "info", "sending " + decision + "…");
+    setBusy(root, true);
+    postJSON("/api/answer", payload).then(function(r){
+      if(r.status === 202 && r.body && r.body.ok){
+        delete reasonDrafts[ask.askId];
+        say(ctx.flow, ctx.runId, "info", "answer sent (" + decision + ") — waiting for the run's books to show what happened");
+        startLive(ctx.flow, ctx.runId, ask.askId);
+      } else {
+        say(ctx.flow, ctx.runId, "refused", refusalText(r));
+      }
+      return reloadRun(ctx.flow, ctx.runId);
+    }).catch(function(e){
+      say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown below");
+      return reloadRun(ctx.flow, ctx.runId);
+    }).then(function(){ if(root.isConnected) setBusy(root, false); else inFlight = false; });
+  }
+  function sendResumeAgain(root, ctx, askId){
+    say(ctx.flow, ctx.runId, "info", "asking for the resume again…");
+    setBusy(root, true);
+    postJSON("/api/resume", { flow: ctx.flow, runId: ctx.runId }).then(function(r){
+      if(r.status === 202 && r.body && r.body.ok){
+        say(ctx.flow, ctx.runId, "info", "resume requested — waiting for the run's books to show whether it took over");
+        startLive(ctx.flow, ctx.runId, askId);
+      } else {
+        say(ctx.flow, ctx.runId, "refused", refusalText(r));
+      }
+      return reloadRun(ctx.flow, ctx.runId);
+    }).catch(function(e){
+      say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown below");
+      return reloadRun(ctx.flow, ctx.runId);
+    }).then(function(){ if(root.isConnected) setBusy(root, false); else inFlight = false; });
+  }
+  function makeButton(label, testid, onClick){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn";
+    b.textContent = label;
+    b.setAttribute("data-testid", testid);
+    b.addEventListener("click", onClick);
+    return b;
+  }
+  function renderAnswerBlock(ask, ctx){
+    var model = answerControls(ask, ctx.resume);
+    var root = document.createElement("div");
+    root.className = "answer-doors";
+    root.setAttribute("data-testid", "answer-doors");
+    if(model.kind === "doors"){
+      var idSafe = "reason-" + String(ask.askId).replace(/[^A-Za-z0-9_-]/g, "_");
+      var lab = document.createElement("label");
+      lab.setAttribute("for", idSafe);
+      lab.textContent = "reason (needed for reject and rerun)";
+      var ta = document.createElement("textarea");
+      ta.id = idSafe;
+      ta.rows = 3;
+      ta.setAttribute("data-testid", "answer-reason");
+      ta.value = reasonDrafts[ask.askId] || "";
+      ta.addEventListener("input", function(){ reasonDrafts[ask.askId] = ta.value; });
+      root.appendChild(lab);
+      root.appendChild(ta);
+      var bar = document.createElement("div");
+      bar.className = "actions-row";
+      bar.setAttribute("data-testid", "action-bar");
+      bar.appendChild(makeButton("Accept", "btn-accept", function(){ sendAnswer(root, ask, ctx, "accept"); }));
+      bar.appendChild(makeButton("Reject", "btn-reject", function(){ sendAnswer(root, ask, ctx, "reject"); }));
+      bar.appendChild(makeButton("Rerun", "btn-rerun", function(){ sendAnswer(root, ask, ctx, "rerun"); }));
+      root.appendChild(bar);
+      root.appendChild(textDiv("hint", "accept ships this draft; reject sends the step back with your reason; rerun ends this run and starts a fresh one with your reason"));
+    } else if(model.kind === "starting"){
+      root.appendChild(textDiv("hint", model.label + " — " + model.why));
+    } else if(model.kind === "stuck"){
+      root.appendChild(textDiv("answer-msg refused", model.label + ": " + model.reason));
+      root.appendChild(textDiv("hint", model.why + ". Trying again starts a resume only; it cannot answer."));
+      var bar2 = document.createElement("div");
+      bar2.className = "actions-row";
+      bar2.appendChild(makeButton("Try the resume again", "btn-resume-again", function(){ sendResumeAgain(root, ctx, ask.askId); }));
+      root.appendChild(bar2);
+    } else {
+      root.appendChild(textDiv("hint", model.why));
+    }
+    var msg = document.createElement("div");
+    msg.setAttribute("data-answer-msg", "1");
+    msg.setAttribute("data-flow", ctx.flow);
+    msg.setAttribute("data-run", ctx.runId);
+    msg.setAttribute("role", "status");
+    msg.setAttribute("aria-live", "polite");
+    msg.setAttribute("data-testid", "answer-msg");
+    msg.hidden = true;
+    root.appendChild(msg);
+    setTimeout(paintAnswerMsg, 0);
+    return root;
+  }
+  function renderAskEvidenceBlock(ask, ctx){
     var ev = document.createElement("div");
     ev.className = "attempts-list";
     var evidence = ask.evidence || {};
@@ -2252,14 +2392,8 @@
       art.textContent = typeof u.text === "string" ? u.text : "no artifact text on file";
       ev.appendChild(art);
     });
-    // M4b's answer doors (accept/reject/rerun) land here — this panel is
-    // read-only by construction (M4a-1 scope), so the slot is empty and
-    // clearly marked rather than silently absent.
-    var answerSlot = document.createElement("div");
-    answerSlot.className = "hint";
-    answerSlot.setAttribute("data-testid", "ask-answer-slot");
-    answerSlot.textContent = "answer controls are not built yet (M4b)";
-    ev.appendChild(answerSlot);
+    // M4b piece 4: the answer doors (or the reason there are none) live here.
+    ev.appendChild(renderAnswerBlock(ask, ctx));
     return ev;
   }
   // hamr's 2026-09-27 exit-check review #3: "when opened from an Inbox
@@ -2280,7 +2414,7 @@
     bits.push(ask.open ? "waiting on you" : ask.status);
     return bits.join(" · ");
   }
-  function renderAskRow(ask, expanded){
+  function renderAskRow(ask, expanded, ctx){
     var wrap = document.createElement("div");
     wrap.className = "audit-group";
     wrap.setAttribute("data-testid", "ask-row-" + (ask.askId || "no-id"));
@@ -2308,7 +2442,7 @@
     var body = document.createElement("div");
     body.hidden = !expanded;
     body.appendChild(askStatusBlock(ask));
-    body.appendChild(renderAskEvidenceBlock(ask));
+    body.appendChild(renderAskEvidenceBlock(ask, ctx));
     wrap.appendChild(body);
     function toggle(){
       var next = body.hidden;
@@ -2347,7 +2481,7 @@
     }
     asks.forEach(function(ask){
       var expanded = defaultOpenId != null && ask.askId === defaultOpenId;
-      var row = renderAskRow(ask, expanded);
+      var row = renderAskRow(ask, expanded, { flow: result.flow, runId: result.runId, resume: result.resume || null });
       // hamr's 2026-09-27 exit-check review #3: "the ask opened from the
       // Inbox gets a visible highlight" — a REAL Inbox click (`focusAskId`
       // set) on THIS ask, never a run's own default open-ask expansion
