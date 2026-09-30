@@ -1,3 +1,4 @@
+// Lives outside test/ on purpose: `node --test` runs every file under test/ as a test.
 // The panel server as its OWN process (a test spawns it detached so it can kill
 // the whole process group and check the resume outlives it). Prints one JSON
 // line {port, pid}. Root and log dir come from env; the resume child inherits

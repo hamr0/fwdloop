@@ -52,7 +52,7 @@ function servePage(req, res, opts, token) {
     writeHead(c, h) { code = c; headers = h ?? {}; },
     end(b) { if (b) chunks.push(Buffer.from(b)); },
   };
-  handleRequest(req, cap, opts);
+  handleRequest(req, cap, { ...opts, resumer: { get: () => null } }); // src/panel/server.js now needs a resumer (M4b piece 2); the POC door has none
   let body = Buffer.concat(chunks).toString('utf8');
   if (code === 200 && /text\/html/.test(headers['content-type'] ?? '')) {
     body = body.replace('</head>', `<meta name="fwdloop-token" content="${token}"></head>`);

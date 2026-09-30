@@ -24,7 +24,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (n) => readFileSync(path.join(HERE, 'fixtures', n), 'utf8');
 const CATALOGUE = loadCatalogue().primitives;
 /** A stand-in for bin/fwdloop that exits at once: these tests check the answer door, not the resume (test/panel-resume.test.js). */
-const NOOP_RESUME_BIN = path.join(HERE, 'fixtures', 'panel-resume-noop.mjs');
+const NOOP_RESUME_BIN = path.join(HERE, '..', 'scripts', 'panel-fixtures', 'panel-resume-noop.mjs');
 const tmp = (p) => mkdtempSync(path.join(tmpdir(), `fwdloop-${p}-`));
 
 const modelStep = async (ctx) => {
