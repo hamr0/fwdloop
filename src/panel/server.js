@@ -274,7 +274,7 @@ export function handleRequest(req, res, opts) {
   }
 
   if (pathname === '/api/inbox') {
-    send(200, { rows: listStops({ root: opts.root }) });
+    send(200, { rows: listStops({ root: opts.root, resumeAttempt }) });
     return;
   }
 

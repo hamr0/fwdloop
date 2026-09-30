@@ -80,9 +80,12 @@ test('live: outcomes are read from the books — stuck stops quietly, a new open
   // stuck: stop, say nothing (the stuck block shows the reason)
   assert.deepEqual(liveOutcome('a1', { glyph: '[·]' }, asks([openAsk], { state: 'not-started' })), { done: true, cls: null, text: null });
   // re-parked: a DIFFERENT open ask
-  const reparked = liveOutcome('a1', { glyph: '[·]', label: 'waiting on you' }, asks([{ askId: 'a1', open: false }, { askId: 'a2', open: true }], null));
+  const reparked = liveOutcome('a1', { glyph: '[·]', label: 'waiting on you' }, asks([{ askId: 'a1', open: false }, { askId: 'a2', open: true, waiting: true }], null));
   assert.equal(reparked.done, true);
   assert.match(reparked.text, /new ask/);
+  // the message renders BELOW the doors, so it must not say they are below
+  assert.match(reparked.text, /doors above are for it/);
+  assert.doesNotMatch(reparked.text, /below/);
   // the SAME ask still open is not "re-parked"
   assert.equal(liveOutcome('a1', { glyph: '[·]', label: 'l' }, asks([openAsk], { state: 'starting', label: 'answer saved, resume starting' })).done, false);
   assert.match(liveOutcome('a1', { glyph: '[✓]' }, asks([], null)).text, /finished \[✓\]/);
@@ -91,4 +94,16 @@ test('live: outcomes are read from the books — stuck stops quietly, a new open
   const waiting = liveOutcome('a1', { glyph: '[?]', label: 'running or died: unknown' }, asks([{ askId: 'a1', open: false }], { state: 'took-over', label: 'resume took over the answer' }));
   assert.equal(waiting.done, false);
   assert.match(waiting.text, /resume took over the answer/);
+});
+
+test('inbox row: a saved-unconsumed answer says its resume label in words, never a "time left" countdown', () => {
+  const stopStatusLine = new Function('duration', 'readableDateTime', `${fnSrc('stopStatusLine')}\nreturn stopStatusLine;`)(
+    (ms) => `${ms}ms`, (x) => x,
+  );
+  const waiting = { open: true, waiting: true, timeLeftMs: 1500, status: 'unanswered', resume: null };
+  assert.equal(stopStatusLine(waiting), 'time left: 1500ms');
+  const saved = {
+    open: true, waiting: false, timeLeftMs: null, status: 'unanswered', resume: { label: 'answer saved, resume not started' },
+  };
+  assert.equal(stopStatusLine(saved), 'answer saved, resume not started');
 });

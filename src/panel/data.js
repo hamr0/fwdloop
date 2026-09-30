@@ -1321,12 +1321,24 @@ function isOpenStatus(status) {
  *    can't be parsed (never a guessed number).
  * @param {any} ask one row from `runAsksInOrder`
  * @param {boolean} hasHistoryRow
- * @returns {{open: boolean, timeLeftMs: number|null}}
+ * @param {any} [resume] the run's `deriveResumeState` result, or null
+ * @returns {{open: boolean, waiting: boolean, resume: any, timeLeftMs: number|null}}
  */
-function deriveAskOpenFields(ask, hasHistoryRow) {
+function deriveAskOpenFields(ask, hasHistoryRow, resume = null) {
   const open = isOpenStatus(ask.status) && !hasHistoryRow;
-  const expiresMs = open && typeof ask.expiresAt === 'string' ? Date.parse(ask.expiresAt) : NaN;
-  return { open, timeLeftMs: open && Number.isFinite(expiresMs) ? Math.max(0, expiresMs - Date.now()) : null };
+  // M4b fix: the ONE decision "is this ask waiting on the human". An open ask
+  // whose answer is already saved (`resume` = `deriveResumeState` for THIS
+  // ask, the run's own label) is open but not waiting: the human answered.
+  const answered = open && resume != null && resume.askId === ask.askId
+    && (resume.state === 'starting' || resume.state === 'not-started');
+  const waiting = open && !answered;
+  const expiresMs = waiting && typeof ask.expiresAt === 'string' ? Date.parse(ask.expiresAt) : NaN;
+  return {
+    open,
+    waiting,
+    resume: answered ? resume : null,
+    timeLeftMs: waiting && Number.isFinite(expiresMs) ? Math.max(0, expiresMs - Date.now()) : null,
+  };
 }
 
 /**
@@ -1601,16 +1613,16 @@ export function getRunAsks({
   });
   const declSteps = flowRead.ok ? flowRead.declaration.steps : null;
   const stepInfo = deriveAskStepInfo(ordered, auditRows, declSteps);
+  const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null });
   const asks = ordered.map((ask, i) => ({
     ...ask,
-    ...deriveAskOpenFields(ask, hasHistoryRow),
+    ...deriveAskOpenFields(ask, hasHistoryRow, resume),
     index: i + 1,
     total: ordered.length,
     stepName: stepInfo[i].step,
     stepLine: stepInfo[i].line,
     stepWhy: stepInfo[i].why,
   }));
-  const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null });
   return {
     flow, runId, asks, resume,
   };
@@ -1631,10 +1643,10 @@ export function getRunAsks({
  * force-`false` here as a second, independent check (belt-and-braces on the
  * one thing the brief calls out by name: "the Inbox tab's open count counts
  * only truly open asks — parked run, no history row, unexpired, unanswered").
- * @param {{root: string}} opts
+ * @param {{root: string, resumeAttempt?: (flow: string, runId: string) => any}} opts
  * @returns {any[]}
  */
-export function listStops({ root }) {
+export function listStops({ root, resumeAttempt }) {
   const rows = [];
   for (const flowName of listFlowNames(root)) {
     const flowDir = join(root, flowName);
@@ -1643,12 +1655,13 @@ export function listStops({ root }) {
       const run = resolveRunPath(root, flowName, runId);
       if (!run.ok) continue;
       const hasHistoryRow = historyRunIds.has(runId);
+      const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flowName, runId) ?? null });
       for (const ask of runAsksInOrder(run.runDir, hasHistoryRow)) {
         rows.push({
           flow: flowName,
           runId,
           ...ask,
-          ...deriveAskOpenFields(ask, hasHistoryRow),
+          ...deriveAskOpenFields(ask, hasHistoryRow, resume),
         });
       }
     }
@@ -1656,8 +1669,8 @@ export function listStops({ root }) {
   return rows
     .map((row, index) => ({ row, index }))
     .sort((a, b) => {
-      if (a.row.open !== b.row.open) return a.row.open ? -1 : 1;
-      if (a.row.open && b.row.open) {
+      if (a.row.waiting !== b.row.waiting) return a.row.waiting ? -1 : 1;
+      if (a.row.waiting && b.row.waiting) {
         const at = typeof a.row.timeLeftMs === 'number' ? a.row.timeLeftMs : Infinity;
         const bt = typeof b.row.timeLeftMs === 'number' ? b.row.timeLeftMs : Infinity;
         if (at !== bt) return at - bt;

@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
 import {
-  existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync,
+  existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync,
 } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
@@ -23,6 +23,7 @@ import { createHash } from 'node:crypto';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { createPanelServer } from '../src/panel/server.js';
+import { listStops } from '../src/panel/data.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(HERE, '..');
@@ -230,6 +231,36 @@ test('re-parked ask (reject -> new ask): glyph says waiting on you and the inbox
   const open = rows.filter((r) => r.open);
   assert.equal(open.length, 1, JSON.stringify(rows));
   assert.equal(open[0].askId, a2.askId);
+});
+
+test('inbox: open ask counts as waiting; saved-unconsumed answer does NOT and is labelled in words; consumed closes it', () => {
+  const run = parkRun();
+  const mine = () => listStops({ root: run.root }).filter((r) => r.runId === run.runId);
+  const before = mine();
+  assert.equal(before.length, 1);
+  assert.equal(before[0].open, true);
+  assert.equal(before[0].waiting, true, 'unanswered ask waits on the human');
+  assert.equal(before[0].resume, null);
+  assert.equal(typeof before[0].timeLeftMs, 'number');
+
+  // the human answered (answer.json saved) but nothing consumed it yet
+  writeFileSync(path.join(run.runDir, 'answer.json'), JSON.stringify({ askId: run.askId, decision: 'accept' }));
+  const saved = mine();
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].waiting, false, 'an answered ask is not waiting on the human');
+  assert.equal(saved[0].timeLeftMs, null, 'no countdown for an answer that was already given');
+  assert.equal(saved[0].resume.label, 'answer saved, resume not started');
+  const withAttempt = listStops({
+    root: run.root, resumeAttempt: () => ({ state: 'in-flight', askId: run.askId, tries: 1, maxTries: 3 }),
+  }).filter((r) => r.runId === run.runId);
+  assert.equal(withAttempt[0].resume.label, 'answer saved, resume starting');
+  assert.equal(withAttempt[0].waiting, false);
+
+  // consumed: the answer file is renamed away
+  renameSync(path.join(run.runDir, 'answer.json'), path.join(run.runDir, `answer.${run.askId}.consumed.json`));
+  const after = mine();
+  assert.ok(after.every((r) => r.waiting === false), JSON.stringify(after));
+  assert.ok(after.every((r) => r.resume === null));
 });
 
 test('detached: the panel server process is SIGKILLed right after the reply; the resume still completes', async () => {

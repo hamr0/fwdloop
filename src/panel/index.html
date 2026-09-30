@@ -2128,8 +2128,8 @@
   function liveOutcome(askId, detail, asks){
     if(asks && asks.resume && asks.resume.state === "not-started") return { done: true, cls: null, text: null };
     var list = (asks && asks.asks) || [];
-    var fresh = list.find(function(a){ return a.open && a.askId !== askId; });
-    if(fresh) return { done: true, cls: "info", text: "the run is parked at a new ask — the doors below are for it" };
+    var fresh = list.find(function(a){ return a.waiting && a.askId !== askId; });
+    if(fresh) return { done: true, cls: "info", text: "the run is parked at a new ask — the doors above are for it" };
     if(detail && detail.glyph === "[✓]") return { done: true, cls: "info", text: "run finished [✓] — the sent artifact is in the Run tab" };
     if(detail && /\(rerun\)/.test(detail.label || "")) return { done: true, cls: "info", text: "rerun: this run ended and a fresh run was started — find it in Runs" };
     if(detail && detail.glyph === "[✗]") return { done: true, cls: "info", text: "run ended [✗] " + (detail.label || "") };
@@ -2198,7 +2198,8 @@
   // more — clicking a stop selects its run and opens the wide right pane's
   // Ask tab, focused on that one ask. The answer doors live in the Ask tab. --
   function stopStatusLine(row){
-    if(row.open) return "time left: " + duration(row.timeLeftMs);
+    if(row.waiting) return "time left: " + duration(row.timeLeftMs);
+    if(row.open && row.resume) return row.resume.label;
     var bits = [row.status];
     if(row.reason) bits.push("reason: " + row.reason);
     if(row.answeredAt) bits.push("answered " + (readableDateTime(row.answeredAt) || row.answeredAt));
@@ -2242,7 +2243,7 @@
     var el = document.getElementById("inbox-list");
     el.innerHTML = "";
     var openCount = 0;
-    (rows || []).forEach(function(r){ if(r.open) openCount += 1; });
+    (rows || []).forEach(function(r){ if(r.waiting) openCount += 1; });
     document.getElementById("inbox-count-label").textContent = openCount > 0 ? (" (" + openCount + ")") : "";
     if(!rows || !rows.length){
       el.innerHTML = '<div class="hint">nothing waiting on you — no stops recorded under this root</div>';
@@ -2264,7 +2265,8 @@
   // role="button" (never a real <button>), same posture as the step-map's
   // own SVG nodes elsewhere on this page. ----
   function askStatusBlock(ask){
-    if(ask.open) return textDiv("wf-meta", "time left: " + duration(ask.timeLeftMs));
+    if(ask.waiting) return textDiv("wf-meta", "time left: " + duration(ask.timeLeftMs));
+    if(ask.open && ask.resume) return textDiv("wf-meta", ask.resume.label);
     var bits = [ask.status];
     if(ask.reason) bits.push("reason: " + ask.reason);
     if(ask.answeredAt) bits.push("answered " + (readableDateTime(ask.answeredAt) || ask.answeredAt));
@@ -2330,7 +2332,7 @@
       }
       return reloadRun(ctx.flow, ctx.runId);
     }).catch(function(e){
-      say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown below");
+      say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown in the ask header above");
       return reloadRun(ctx.flow, ctx.runId);
     }).then(function(){ if(root.isConnected) setBusy(root, false); });
   }
@@ -2346,7 +2348,7 @@
       }
       return reloadRun(ctx.flow, ctx.runId);
     }).catch(function(e){
-      say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown below");
+      say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown in the ask header above");
       return reloadRun(ctx.flow, ctx.runId);
     }).then(function(){ if(root.isConnected) setBusy(root, false); });
   }
@@ -2464,7 +2466,7 @@
       : (ask.stepWhy || "step not determinable");
     bits.push(stepBit);
     bits.push(typeof ask.askedAt === "string" ? "asked " + (readableDateTime(ask.askedAt) || ask.askedAt) : "asked: unknown");
-    bits.push(ask.open ? "waiting on you" : ask.status);
+    bits.push(ask.waiting ? "waiting on you" : (ask.open && ask.resume ? ask.resume.label : ask.status));
     return bits.join(" · ");
   }
   function renderAskRow(ask, expanded, ctx){
