@@ -985,7 +985,7 @@ change; then the fix is upstream of the panel, and M4b waits.
 - **Not in scope:** a pid or liveness check in `resume.lock`; replacing rename-to-consume with an appended event. Both are recorded in F52 for a later ruling.
 - **Kill check:** one added field in the saved ask. The arbiter, `audit.jsonl`, `history.jsonl` and `spend.jsonl` are unchanged.
 
-#### M4b amendment 3 — the word is "redo" everywhere; a run ended by rerun is not "failed" — DRAFT, NOT SIGNED (rulings "accept, redo, rerun" and "terminal says redo too" by hamr 2026-09-30; awaiting "sign m4b amendment 3")
+#### M4b amendment 3 — the word is "redo" everywhere; a run ended by rerun is not "failed" — SIGNED by hamr 2026-09-30 ("sign m4b amendment 3"; rulings "accept, redo, rerun" and "terminal says redo too")
 
 - **Why:** the browser walk of M4b showed a run the human ended on purpose with rerun as `[✗] failed (rerun)`. "Reject" and "rerun" also read alike, and "reject" hides what it does (it redoes the step before the ask, M3 scope item 7). hamr ruled the three answers are **accept, redo, rerun**, and that the terminal and the page use the same words.
 - **Scope:**
