@@ -513,9 +513,11 @@ async function cmdResume(rest) {
 }
 
 // ---------------------------------------------------------------------------
-// panel — M4a piece 2 (docs/wiki/the-module-ladder.md, "M4a — read-only
-// panel — SIGNED"): `fwdloop panel [--port 4800] [--root <dir>]`. Read-only,
-// GET/HEAD only, bound to 127.0.0.1 only (src/panel/server.js). Never picks
+// panel — M4a piece 2 + M4b (docs/wiki/the-module-ladder.md, "M4a — read-only
+// panel" and "M4b — inputs"): `fwdloop panel [--port 4800] [--root <dir>]`.
+// Reads are GET/HEAD; the only writes are POST /api/answer and POST
+// /api/resume (src/panel/server.js), each gated by Origin/Host + a per-process
+// token. Bound to 127.0.0.1 only. Never picks
 // a different port on collision — a taken port is a loud, non-zero-exit
 // failure.
 // ---------------------------------------------------------------------------

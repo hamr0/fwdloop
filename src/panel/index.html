@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- borrowed-from: bareloop src/panel/index.html@a30bbef — ADAPTED for fwdloop.
      M4a piece 3+ (docs/wiki/the-module-ladder.md, "M4a — read-only panel —
-     SIGNED"): the Tokyo Night box-drawing visual design (CSS tokens, tab
+     SIGNED"; M4b adds the answer doors): the Tokyo Night box-drawing visual design (CSS tokens, tab
      layout, glyph/badge styling, responsive 390px breakpoint) is kept from
      the borrowed page; every data-bearing script (fetches, run rendering,
      step map, audit, job, run grouping) is rewired for fwdloop's own book
@@ -433,9 +433,10 @@
         <section id="panel-chat" class="tabpanel active" role="tabpanel" aria-labelledby="tab-chat">
           <div class="chat-thread">
             Authoring a flow from this page isn't built yet — the drafter is a POC. This
-            panel is read-only: it shows flows and runs already started from the
-            <code>fwdloop</code> CLI. Use the Runs tab to open one, or the Inbox tab for
-            anything waiting on you.
+            panel shows flows and runs already started from the
+            <code>fwdloop</code> CLI, and lets you answer an ask that is waiting on you
+            (accept, reject or rerun, with a reason). It cannot start a run. Use the Runs
+            tab to open one, or the Inbox tab for anything waiting on you.
           </div>
         </section>
 
@@ -446,8 +447,8 @@
                [expired]/[unanswered]). No evidence is rendered here any
                more (M4a-1 review): clicking a stop selects its run, switches
                the right pane to the Ask tab, and expands that ONE ask there
-               — the wide right pane is where the evidence lives now. No
-               answer controls — those are M4b. -->
+               — the wide right pane is where the evidence lives now. The
+               answer doors are in the Ask tab, not here (M4b). -->
           <div id="inbox-list" data-testid="inbox-list"></div>
         </section>
 
@@ -572,13 +573,12 @@
                (past), the draft under review (scrollable), then each
                unjudged input labelled by step (goal as subtitle). A
                pre-M4a-1 ask shows "draft not kept (before M4a-1)" in place
-               of the draft. Read-only: no answer controls here (M4b) — a
-               clearly marked EMPTY slot stands in their place. Nothing in
-               this panel is a real <button>/<input> — even the
-               collapse/expand toggle is a div with role="button"
-               tabindex="0" (the SAME pattern the step-map's own SVG nodes
-               already use elsewhere on this page), so "no controls yet"
-               holds by construction. -->
+               of the draft. M4b: an OPEN ask also carries the answer doors
+               (a labelled reason textarea + Accept / Reject / Rerun
+               buttons), or a stated reason there are none; a saved answer
+               whose resume did not start carries ONE "Try the resume
+               again" button. The collapse/expand toggle stays a div with
+               role="button" tabindex="0". -->
           <div id="ask-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
           <div id="ask-list" data-testid="ask-list" hidden></div>
         </section>
@@ -2131,6 +2131,7 @@
     var fresh = list.find(function(a){ return a.open && a.askId !== askId; });
     if(fresh) return { done: true, cls: "info", text: "the run is parked at a new ask — the doors below are for it" };
     if(detail && detail.glyph === "[✓]") return { done: true, cls: "info", text: "run finished [✓] — the sent artifact is in the Run tab" };
+    if(detail && /\(rerun\)/.test(detail.label || "")) return { done: true, cls: "info", text: "rerun: this run ended and a fresh run was started — find it in Runs" };
     if(detail && detail.glyph === "[✗]") return { done: true, cls: "info", text: "run ended [✗] " + (detail.label || "") };
     var st = asks && asks.resume ? asks.resume.label : null;
     return { done: false, cls: "info", text: (st || "answer applied") + " — run: " + ((detail && detail.label) || "state unknown") };
@@ -2195,7 +2196,7 @@
   // "unanswered" (this IS the open case) / the rare "open" fallback (an
   // archived ask.json itself failed to parse). No evidence renders here any
   // more — clicking a stop selects its run and opens the wide right pane's
-  // Ask tab, focused on that one ask. No answer controls — those are M4b. --
+  // Ask tab, focused on that one ask. The answer doors live in the Ask tab. --
   function stopStatusLine(row){
     if(row.open) return "time left: " + duration(row.timeLeftMs);
     var bits = [row.status];
@@ -2258,9 +2259,8 @@
   // getRunAsks). Clicking a stop in the left Inbox calls `selectRun` with
   // that ask's id, which reaches here as `focusAskId` and expands exactly
   // that one. With no `focusAskId` (a run selected any other way), this
-  // run's own open ask (if it has one) expands by default. No answer
-  // controls anywhere in this panel (M4b) — a clearly marked EMPTY slot
-  // stands in their place; the collapse/expand toggle is a div with
+  // run's own open ask (if it has one) expands by default. M4b: an open ask
+  // carries the answer doors (renderAnswerBlock); the collapse/expand toggle is a div with
   // role="button" (never a real <button>), same posture as the step-map's
   // own SVG nodes elsewhere on this page. ----
   function askStatusBlock(ask){
@@ -2294,7 +2294,6 @@
   // action. Set by `say`, never by a guess that the answer worked.
   var answerMsg = null;       // { flow, runId, cls: "refused"|"info", text }
   var reasonDrafts = {};      // askId -> what the human has typed so far
-  var inFlight = false;       // a POST is out: the buttons are disabled meanwhile
   function say(flow, runId, cls, text){ answerMsg = { flow: flow, runId: runId, cls: cls, text: text }; paintAnswerMsg(); }
   function paintAnswerMsg(){
     document.querySelectorAll("[data-answer-msg]").forEach(function(el){
@@ -2310,8 +2309,8 @@
     var name = b && typeof b.red === "string" ? b.red : (r.text || "no detail");
     return "HTTP " + r.status + " — " + name;
   }
+  // While a POST is out the buttons are disabled (stops a double click) — nothing else is ever disabled.
   function setBusy(root, busy){
-    inFlight = busy;
     root.querySelectorAll("button").forEach(function(b){ b.disabled = busy; });
   }
   // Every POST names the ask THIS block was rendered for (closure, never
@@ -2333,7 +2332,7 @@
     }).catch(function(e){
       say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown below");
       return reloadRun(ctx.flow, ctx.runId);
-    }).then(function(){ if(root.isConnected) setBusy(root, false); else inFlight = false; });
+    }).then(function(){ if(root.isConnected) setBusy(root, false); });
   }
   function sendResumeAgain(root, ctx, askId){
     say(ctx.flow, ctx.runId, "info", "asking for the resume again…");
@@ -2349,7 +2348,7 @@
     }).catch(function(e){
       say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown below");
       return reloadRun(ctx.flow, ctx.runId);
-    }).then(function(){ if(root.isConnected) setBusy(root, false); else inFlight = false; });
+    }).then(function(){ if(root.isConnected) setBusy(root, false); });
   }
   function makeButton(label, testid, onClick){
     var b = document.createElement("button");
