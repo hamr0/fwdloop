@@ -163,6 +163,14 @@
     .dot.pulse::before{animation:none;}
   }
 
+  /* M4c inbox: section 1 (waiting on you) carries the page's amber accent
+     treatment; section 3 (answered/expired) is dimmed. Tokens only. */
+  .inbox-h{font-size:12px;color:var(--text-dim);font-weight:700;margin:12px 0 6px;}
+  .inbox-h:first-child{margin-top:0;}
+  .inbox-row.s1{border-left:4px solid var(--amber);background:var(--amber-bg);}
+  .inbox-row.s3{opacity:.6;}
+  .inbox-row .wf-line1{min-width:0;}
+
   .badge{display:inline-block;font-size:11px;padding:1px 4px;color:var(--text-dim);background:none;font-weight:700;}
   .badge::before{content:"[";color:var(--text-faint);}
   .badge::after{content:"]";color:var(--text-faint);}
@@ -434,7 +442,7 @@
       <div class="tabrow" role="tablist" aria-label="Left panel views">
         <button role="tab" id="tab-chat" aria-controls="panel-chat" aria-selected="true" data-testid="left-tab-chat">Chat</button>
         <button role="tab" id="tab-runs" aria-controls="panel-runs" aria-selected="false" data-testid="left-tab-runs">Runs</button>
-        <button role="tab" id="tab-inbox" aria-controls="panel-inbox" aria-selected="false" data-testid="left-tab-inbox">Inbox<span id="inbox-count-label"></span></button>
+        <button role="tab" id="tab-inbox" aria-controls="panel-inbox" aria-selected="false" data-testid="left-tab-inbox">Inbox<span id="inbox-count-label"> (0)</span></button>
       </div>
 
       <div class="pane-body">
@@ -2131,7 +2139,7 @@
     var detailP = getJSON(base).then(function(d){ if(still()) renderRun(d); return d; }).catch(function(){ return null; });
     var asksP = getJSON(base + "/asks").then(function(a){ if(still()) renderAsk(a, null); return a; }).catch(function(e){ if(still()) renderAsk(null, null, e.message); return null; });
     getJSON(base + "/audit").then(function(a){ if(still()) renderAudit(a); }).catch(function(){});
-    getJSON("/api/inbox").then(function(r){ renderInbox(r.rows || []); }).catch(function(){});
+    getJSON("/api/inbox").then(function(r){ renderInbox(r.rows || [], r.openCount); }).catch(function(){});
     getJSON("/api/runs").then(function(r){ runsFilterBar.setItems(r.rows || []); runsFilterBar.refresh(); }).catch(function(){});
     return Promise.all([detailP, asksP]);
   }
@@ -2211,6 +2219,7 @@
   // Ask tab, focused on that one ask. The answer doors live in the Ask tab. --
   function stopStatusLine(row){
     if(row.waiting) return "time left: " + duration(row.timeLeftMs);
+    if(row.working) return "working on your " + row.working + "…";
     if(row.open && row.resume) return row.resume.label;
     var bits = [row.status];
     if(row.reason) bits.push("reason: " + row.reason);
@@ -2220,17 +2229,25 @@
   }
   function renderStopRow(row){
     var wrap = document.createElement("div");
-    wrap.className = "hist-row inbox-row";
+    wrap.className = "hist-row inbox-row s" + row.section;
     wrap.setAttribute("role", "button");
     wrap.setAttribute("tabindex", "0");
     wrap.setAttribute("aria-pressed", "false");
     wrap.setAttribute("data-testid", "inbox-row-" + row.flow + "-" + row.runId + (row.askId ? "-" + row.askId : ""));
     var head = document.createElement("div");
     head.className = "wf-line1";
-    var badge = document.createElement("span");
-    badge.className = "badge " + (row.open ? "amber" : (row.status === "accepted" ? "green" : (row.status === "redo" ? "red" : "grey")));
-    badge.textContent = row.open ? "·" : row.status;
-    head.appendChild(badge);
+    // section 1: [·] waiting on you (pulses); section 2 working: [▶] (pulses);
+    // answer saved, resume not started: [·] still; section 3: the status word.
+    if(row.section === 1 || row.working || row.resume){
+      var sign = document.createElement("span");
+      sign.className = "dot " + (row.working ? "amber pulse" : (row.waiting ? "grey pulse" : "grey"));
+      head.appendChild(sign);
+    } else {
+      var badge = document.createElement("span");
+      badge.className = "badge " + (row.status === "accepted" ? "green" : (row.status === "redo" ? "red" : "grey"));
+      badge.textContent = row.status;
+      head.appendChild(badge);
+    }
     var flowName = textDiv(null, row.flow + " (" + row.runId + ")");
     flowName.className = "wf-name";
     head.appendChild(flowName);
@@ -2251,19 +2268,26 @@
     });
     return wrap;
   }
-  function renderInbox(rows){
+  var INBOX_HEADS = { 1: "waiting on you", 2: "working on your answer", 3: "answered and expired" };
+  // N comes from the server (data.js inboxOpenCount); the page only shows it.
+  function renderInbox(rows, openCount){
     var el = document.getElementById("inbox-list");
     el.innerHTML = "";
-    var openCount = 0;
-    (rows || []).forEach(function(r){ if(r.waiting) openCount += 1; });
-    document.getElementById("inbox-count-label").textContent = openCount > 0 ? (" (" + openCount + ")") : "";
+    document.getElementById("inbox-count-label").textContent = " (" + (typeof openCount === "number" ? openCount : 0) + ")";
     if(!rows || !rows.length){
       el.innerHTML = '<div class="hint">nothing waiting on you — no stops recorded under this root</div>';
       return;
     }
-    rows.forEach(function(row){ el.appendChild(renderStopRow(row)); });
+    var lastSection = 0;
+    rows.forEach(function(row){
+      if(row.section !== lastSection){
+        lastSection = row.section;
+        el.appendChild(textDiv("inbox-h", INBOX_HEADS[row.section] || ""));
+      }
+      el.appendChild(renderStopRow(row));
+    });
   }
-  getJSON("/api/inbox").then(function(result){ renderInbox(result.rows || []); }).catch(function(e){
+  getJSON("/api/inbox").then(function(result){ renderInbox(result.rows || [], result.openCount); }).catch(function(e){
     document.getElementById("inbox-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
   });
 

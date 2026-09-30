@@ -2598,9 +2598,9 @@ describe('index.html — page source', () => {
     assert.match(source, /document\.getElementById\("tab-ask"\)\.click\(\)/);
   });
 
-  test('M4a-1: the Inbox tab label shows the open-stop count', () => {
+  test('M4a-1 / M4c item 3: the Inbox tab label always shows the server\'s open-stop count, (0) included', () => {
     assert.match(source, /inbox-count-label/);
-    assert.match(source, /openCount > 0 \? \(" \(" \+ openCount \+ "\)"\) : ""/);
+    assert.match(source, /" \(" \+ \(typeof openCount === "number" \? openCount : 0\) \+ "\)"/);
   });
 
   test('M4a-1: status vocabulary used in the Inbox/Ask UI is exactly the books\' own words — never a second, made-up vocabulary', () => {

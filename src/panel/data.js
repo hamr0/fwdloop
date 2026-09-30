@@ -1695,33 +1695,82 @@ export function listStops({ root, resumeAttempt }) {
       if (!run.ok) continue;
       const hasHistoryRow = historyRunIds.has(runId);
       const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flowName, runId) ?? null });
-      for (const ask of runAsksInOrder(run.runDir, hasHistoryRow)) {
-        rows.push({
-          flow: flowName,
-          runId,
-          ...ask,
-          ...deriveAskOpenFields(ask, hasHistoryRow, resume),
-        });
+      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow).map((ask) => ({
+        flow: flowName,
+        runId,
+        ...ask,
+        ...deriveAskOpenFields(ask, hasHistoryRow, resume),
+      }));
+      // M4c item 4: a run with no end row, no ask waiting on the human and no
+      // saved-but-unresumed answer, whose newest pid row is alive, is "working
+      // on your <decision>" — marked on that run's newest answered ask (the
+      // one the live process took). `runLiveness` is the ONE liveness rule.
+      const nothingWaiting = !runAsks.some((r) => r.waiting || r.resume);
+      if (!hasHistoryRow && nothingWaiting && runLiveness(run.runDir) === 'running') {
+        const answered = runAsks.filter((r) => WORKING_WORD[r.status]);
+        const newest = answered.reduce((best, r) => (best === null || sortMs(r.answeredAt) >= sortMs(best.answeredAt) ? r : best), null);
+        if (newest) newest.working = WORKING_WORD[newest.status];
       }
+      for (const r of runAsks) rows.push(r);
     }
   }
+  return orderStops(rows);
+}
+
+/** ask status -> the answer's own word, for "working on your <word>…". */
+const WORKING_WORD = { accepted: 'accept', redo: 'redo', reran: 'rerun' };
+
+/** ms for sorting; NaN when the stamp is absent/unparseable. */
+function sortMs(iso) {
+  return typeof iso === 'string' ? Date.parse(iso) : NaN;
+}
+
+/**
+ * The ONE ordering of the Inbox (M4c item 4, hamr 2026-09-30); the page renders
+ * in the order given and stamps each row's `section`:
+ *  1 waiting on you — least time left first ("runs out first");
+ *  2 working on an answer you gave (`working`), or answer saved and resume not
+ *    started (`resume`) — newest answer first;
+ *  3 answered and expired asks — newest first (answeredAt, else expiresAt).
+ * A row with no known time sorts last within its section, ties by input order.
+ * @param {any[]} rows
+ * @returns {any[]}
+ */
+export function orderStops(rows) {
+  const sectionOf = (r) => (r.waiting ? 1 : (r.working || r.resume) ? 2 : 3);
+  const key = (r) => {
+    const t = sectionOf(r) === 3 ? (sortMs(r.answeredAt) || sortMs(r.expiresAt)) : sortMs(r.answeredAt);
+    return Number.isFinite(t) ? t : NaN;
+  };
   return rows
-    .map((row, index) => ({ row, index }))
+    .map((row, index) => ({ row: { ...row, section: sectionOf(row) }, index }))
     .sort((a, b) => {
-      if (a.row.waiting !== b.row.waiting) return a.row.waiting ? -1 : 1;
-      if (a.row.waiting && b.row.waiting) {
+      const sa = a.row.section;
+      const sb = b.row.section;
+      if (sa !== sb) return sa - sb;
+      if (sa === 1) {
         const at = typeof a.row.timeLeftMs === 'number' ? a.row.timeLeftMs : Infinity;
         const bt = typeof b.row.timeLeftMs === 'number' ? b.row.timeLeftMs : Infinity;
-        if (at !== bt) return at - bt;
-        return a.index - b.index;
+        return at !== bt ? at - bt : a.index - b.index;
       }
-      const am = typeof a.row.answeredAt === 'string' ? Date.parse(a.row.answeredAt) : NaN;
-      const bm = typeof b.row.answeredAt === 'string' ? Date.parse(b.row.answeredAt) : NaN;
-      const aKnown = Number.isFinite(am);
-      const bKnown = Number.isFinite(bm);
-      if (aKnown && bKnown) return bm - am;
+      const ak = key(a.row);
+      const bk = key(b.row);
+      const aKnown = Number.isFinite(ak);
+      const bKnown = Number.isFinite(bk);
+      if (aKnown && bKnown && ak !== bk) return bk - ak;
       if (aKnown !== bKnown) return aKnown ? -1 : 1;
       return a.index - b.index;
     })
     .map(({ row }) => row);
+}
+
+/**
+ * N for `Inbox (N)` (M4c item 3): asks open and not expired, across every flow
+ * and run. An answered-but-not-resumed ask is not `waiting`, so not counted;
+ * an expired ask is not `open`. The page only shows this number.
+ * @param {any[]} rows `listStops` rows
+ * @returns {number}
+ */
+export function inboxOpenCount(rows) {
+  return rows.filter((r) => r.waiting).length;
 }
