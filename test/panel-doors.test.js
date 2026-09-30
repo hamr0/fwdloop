@@ -90,7 +90,7 @@ test('live: outcomes are read from the books — stuck stops quietly, a new open
   assert.equal(liveOutcome('a1', { glyph: '[·]', label: 'l' }, asks([openAsk], { state: 'starting', label: 'answer saved, resume starting' })).done, false);
   assert.match(liveOutcome('a1', { glyph: '[✓]' }, asks([], null)).text, /finished \[✓\]/);
   assert.match(liveOutcome('a1', { glyph: '[✗]', label: 'failed (red)' }, asks([], null)).text, /ended \[✗\] failed \(red\)/);
-  assert.match(liveOutcome('a1', { glyph: '[✗]', label: 'failed (rerun)' }, asks([], null)).text, /fresh run was started/);
+  assert.match(liveOutcome('a1', { glyph: '[✗]', label: 'stopped by you', outcome: 'rerun' }, asks([], null)).text, /fresh run was started/);
   const waiting = liveOutcome('a1', { glyph: '[?]', label: 'running or died: unknown' }, asks([{ askId: 'a1', open: false }], { state: 'took-over', label: 'resume took over the answer' }));
   assert.equal(waiting.done, false);
   assert.match(waiting.text, /resume took over the answer/);
@@ -106,4 +106,19 @@ test('inbox row: a saved-unconsumed answer says its resume label in words, never
     open: true, waiting: false, timeLeftMs: null, status: 'unanswered', resume: { label: 'answer saved, resume not started' },
   };
   assert.equal(stopStatusLine(saved), 'answer saved, resume not started');
+});
+
+test('liveOutcome: the watch-stop for a rerun-ended run reads the typed outcome, never the label text', () => {
+  const asks = (list, resume) => ({ asks: list, resume });
+  const rerun = liveOutcome('a1', { glyph: '[✗]', label: 'anything at all', outcome: 'rerun' }, asks([], null));
+  assert.equal(rerun.done, true);
+  assert.match(rerun.text, /fresh run was started/);
+  // a label that says "(rerun)" but whose typed outcome is not rerun is not a rerun
+  assert.doesNotMatch(liveOutcome('a1', { glyph: '[✗]', label: 'failed (rerun)', outcome: 'red' }, asks([], null)).text, /fresh run was started/);
+  const parked = liveOutcome('a1', { glyph: '[·]', label: 'waiting', outcome: null }, asks([openAsk], null));
+  assert.equal(parked.done, false);
+  const passed = liveOutcome('a1', { glyph: '[✓]', label: 'passed', outcome: 'complete' }, asks([], null));
+  assert.doesNotMatch(passed.text, /fresh run was started/);
+  const red = liveOutcome('a1', { glyph: '[✗]', label: 'failed (red)', outcome: 'red' }, asks([], null));
+  assert.doesNotMatch(red.text, /fresh run was started/);
 });

@@ -2131,7 +2131,7 @@
     var fresh = list.find(function(a){ return a.waiting && a.askId !== askId; });
     if(fresh) return { done: true, cls: "info", text: "the run is parked at a new ask — the doors above are for it" };
     if(detail && detail.glyph === "[✓]") return { done: true, cls: "info", text: "run finished [✓] — the sent artifact is in the Run tab" };
-    if(detail && /\(rerun\)/.test(detail.label || "")) return { done: true, cls: "info", text: "rerun: this run ended and a fresh run was started — find it in Runs" };
+    if(detail && detail.outcome === "rerun") return { done: true, cls: "info", text: "rerun: this run ended and a fresh run was started — find it in Runs" };
     if(detail && detail.glyph === "[✗]") return { done: true, cls: "info", text: "run ended [✗] " + (detail.label || "") };
     var st = asks && asks.resume ? asks.resume.label : null;
     return { done: false, cls: "info", text: (st || "answer applied") + " — run: " + ((detail && detail.label) || "state unknown") };
