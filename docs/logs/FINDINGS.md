@@ -2766,3 +2766,43 @@ browser (CSRF was modelled with raw headers only); a live paid run; two door pro
 Drafted as M4b amendment 1 (NOT SIGNED).
 
 **Note.** `npm test` picks up the POC test (~30 s of a ~38 s suite). The POC is throwaway and must not ship.
+
+## F52 — an accept's hash is lost across processes in a two-ask flow; `state.json` is overwritten each park; bareloop consulted (2026-09-30)
+
+**What.** M4b piece 3 (commits 3841f4f, 2429768, 760bf5c) records `artifactSha256` on accept, and send
+refuses a missing or mismatched hash. In a flow with two asks, this breaks: ask 1 is accepted, the run
+resumes and parks at ask 2, ask 2 is answered, and a NEW resume process runs send, which ships ask 1's
+artifact. `resumeRun` rebuilds earlier accepted asks with no hash, so send refuses a legitimately accepted
+artifact: "no accepted-artifact hash was recorded". Proven by `test/two-ask-resume.test.js` (commit 1f84626;
+both tests red on that HEAD, parked as `todo` in 568f76f).
+
+**Why it cannot be rebuilt today.** The hash IS on disk: `answer.<askId>.consumed.json` has askId, decision,
+answeredAt, artifactSha256. But nothing maps an askId to its step or its emits. `asks/<askId>.json` has
+askId, question, askedAt, expiresAt, evidence. `state.json` holds only the latest askId and stepIndex and is
+overwritten on each park. Audit rows have the step but no askId.
+
+**Bareloop consulted** (live `loop` session, reading feat/one-runner @ 208ed30; hamr asked whether `run.json`
+could hold this). Bareloop's `run.json` is write-once per leg by one writer (`prepareTree`,
+src/bundlerun.js:178-194), with fields runid, worktree, seed, repo, at, resumedFrom. It is read only by
+`--resume`. It does NOT hold the cap. The per-run cap is the signed spec's `budgetUsd`, and a resume
+re-derives prior spend by replaying the append-only spine. The monthly cap lives as append-only rows in the
+run list (`runs.jsonl`). Their standing lesson (their F103, F130, F198, F200): a fact one process writes and
+a later one must find goes in a write-once or append-only record keyed by id, never in a single mutable
+"latest" JSON. Two writers lose updates, and a partial or stale file reads as valid. For this problem they
+named two fine shapes: `emits` in the write-once archived ask, or `askId` on the audit row. The first is the
+smaller change.
+
+**Two further notes from the same consult. Recorded, NOT acted on.**
+(a) An empty lock file has no owner and no liveness. Bareloop records the runner's pid and checks that it is
+alive AND is one of its own node entry files (a pid-reuse guard). It errs toward "alive" and has no
+heartbeat or timer. This is relevant to fwdloop's `resume.lock` honest limit (M4b amendment 1).
+(b) Rename-to-consume is a mutation: a reader racing the rename can see neither name. Bareloop prefers
+appending a "consumed" event. fwdloop's rename (F44) is unchanged.
+
+**Rulings: hamr 2026-09-30.** "1A": the link lives in the saved ask (drafted as M4b amendment 2, NOT
+SIGNED). "delete it": the POC test `poc/m4b/answer-door.test.mjs` is deleted; its behaviours are covered by
+`test/panel-answer.test.js` and `test/panel-resume.test.js`.
+
+**Deflake from the same round.** Timing-based panel tests failed 3/3 under synthetic load. Fixed with event
+waits and an injectable `slotMs` (commits 562aa1b, ee57930). 3/3 green under the same load. Production
+constants are unchanged (5 tries, 10 s).

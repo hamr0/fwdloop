@@ -969,6 +969,22 @@ change; then the fix is upstream of the panel, and M4b waits.
 - **Honest limit:** a resume that crashed leaves `resume.lock` behind forever (no pid, no liveness; the open question from M4a). This amendment shows that state by name; it does not take over a dead lock, because a wrong takeover could run a paid step twice. Clearing it stays a terminal job until a later ruling.
 - **Kill check:** none of this changes the books or the arbiter; the change is in `src/panel` and how the panel starts `resume`.
 
+#### M4b amendment 2 — a saved ask records which step output it is about — DRAFT, NOT SIGNED (ruling "1A" by hamr 2026-09-30; awaiting "sign m4b amendment 2")
+
+- **Why:** F52. With two asks, an artifact accepted at ask 1 is refused at send after a later resume, because nothing on disk says which step output an ask was about, so its recorded hash cannot be found again. Bareloop was consulted: such a fact belongs in a write-once record keyed by id, never in a file that is overwritten.
+- **Scope:**
+  1. When an ask parks, its archived record `asks/<askId>.json` also records `emits`, the step output the ask is about. It is written once with the rest of that record by the one function that writes the archive, and never rewritten.
+  2. A resume finds the hash for an ask accepted in an earlier process by joining that archive's `emits` to the consumed answer by `askId`. Only an answer that says accept and carries a recorded hash counts. The hash is never recomputed from the file as it is now.
+  3. A run parked before this field existed has no `emits`, so no hash is found and send refuses by name. Nothing ships unchecked.
+- **Negatives** (each must be able to fail):
+  - (ix) two asks, each answer resumed in its own process, send ships ask 1's artifact: the run completes and the shipped bytes hash to the value recorded at ask 1's accept;
+  - (x) the same flow with one byte changed after ask 1's accept: send refuses with "the artifact changed after it was accepted" and nothing ships;
+  - (xi) an archived ask with no `emits`: send refuses by name and nothing ships.
+- **Exit:** no separate exit. M4b's exit stands, and (ix)-(xi) join the other negatives.
+- **Cap:** $0 extra; inside M4b's $1.00.
+- **Not in scope:** a pid or liveness check in `resume.lock`; replacing rename-to-consume with an appended event. Both are recorded in F52 for a later ruling.
+- **Kill check:** one added field in the saved ask. The arbiter, `audit.jsonl`, `history.jsonl` and `spend.jsonl` are unchanged.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
