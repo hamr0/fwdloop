@@ -133,7 +133,7 @@ test('(i) POST with no token / wrong token / foreign Origin / no Origin / foreig
   const { port } = await start(run.root);
   const token = await pageToken(port);
   const body = {
-    flow: run.flow, runId: run.runId, askId: run.askId, decision: 'reject', reason: 'too long',
+    flow: run.flow, runId: run.runId, askId: run.askId, decision: 'redo', reason: 'too long',
   };
 
   const noTok = await post(port, { origin: `http://127.0.0.1:${port}`, 'content-type': 'application/json' }, body);
@@ -231,10 +231,10 @@ test('(ii) the library\'s refusals come back by name, non-2xx, never as success:
     flow: run.flow, runId: run.runId, askId: run.askId, ...extra,
   });
 
-  const blank = await post(port, good(port, token), b({ decision: 'reject', reason: '   ' }));
+  const blank = await post(port, good(port, token), b({ decision: 'redo', reason: '   ' }));
   assert.equal(blank.status, 409);
   assert.equal(blank.json().refused, 'library');
-  assert.match(blank.json().red, /needs a non-blank reason to reject/);
+  assert.match(blank.json().red, /needs a non-blank reason to redo/);
   assert.notEqual(blank.json().ok, true);
   noAnswerOnDisk(run.runDir);
 
@@ -244,7 +244,7 @@ test('(ii) the library\'s refusals come back by name, non-2xx, never as success:
   assert.equal(first.json().resume, 'started', 'the reply says the resume was started, never that it is done');
   assert.ok(existsSync(path.join(run.runDir, 'answer.json')));
   // a second answer: the library refuses while answer.json is still there or once consumed
-  const second = await post(port, good(port, token), b({ decision: 'reject', reason: 'changed my mind' }));
+  const second = await post(port, good(port, token), b({ decision: 'redo', reason: 'changed my mind' }));
   assert.notEqual(second.status, 202);
   assert.equal(second.json().refused, 'library');
   assert.match(second.json().red, /already answered|answer/);
@@ -287,7 +287,7 @@ test('(vi) after a re-park, the previous ask\'s askId is refused by name and the
   const common = { flow: run.flow, runId: run.runId };
 
   const rej = await post(port, good(port, token), {
-    ...common, askId: run.askId, decision: 'reject', reason: 'tighten it',
+    ...common, askId: run.askId, decision: 'redo', reason: 'tighten it',
   });
   assert.equal(rej.status, 202, rej.text);
   // the panel's resume here is the injected no-op (see NOOP_RESUME_BIN) — re-park via the runner, $0

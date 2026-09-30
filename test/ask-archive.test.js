@@ -166,7 +166,7 @@ test('M4a-1 (b): park -> reject -> resume re-parks under a NEW askId -> accept -
   const archive1Before = readFileSync(archive1, 'utf8');
 
   const rej = answerAsk({
-    runDir: parked.runDir, askId: askId1, decision: 'reject', reason: 'tighten the skills section',
+    runDir: parked.runDir, askId: askId1, decision: 'redo', reason: 'tighten the skills section',
   });
   assert.equal(rej.ok, true, rej.ok ? '' : rej.red);
 
@@ -211,7 +211,7 @@ test('M4a-1 (c): listArchivedAsks pairs each archived ask with its answer by ask
   });
   const askId1 = parked.askId;
   answerAsk({
-    runDir: parked.runDir, askId: askId1, decision: 'reject', reason: 'tighten the skills section',
+    runDir: parked.runDir, askId: askId1, decision: 'redo', reason: 'tighten the skills section',
   });
   const afterReject = await resumeRun(baseRunArgs({ root, modelStep }));
   const askId2 = afterReject.askId;
@@ -224,7 +224,7 @@ test('M4a-1 (c): listArchivedAsks pairs each archived ask with its answer by ask
   // Deliberately look up by id, not by the array's position — proves the
   // pairing is by askId, never by order the files happened to be read in.
   const byId = Object.fromEntries(result.asks.map((a) => [a.askId, a]));
-  assert.equal(byId[askId1].answer.status, 'rejected');
+  assert.equal(byId[askId1].answer.status, 'redo');
   assert.equal(byId[askId1].answer.reason, 'tighten the skills section');
   assert.equal(byId[askId2].answer.status, 'accepted');
   assert.equal(result.asks.length, 2);
@@ -240,7 +240,7 @@ test('M4a-1 (c): listArchivedAsks pairs each archived ask with its answer by ask
   const result2 = listArchivedAsks(parked.runDir);
   const byId2 = Object.fromEntries(result2.asks.map((a) => [a.askId, a]));
   assert.equal(byId2['ask-orphan'].answer.status, 'unanswered');
-  assert.equal(byId2[askId1].answer.status, 'rejected', 'the orphan must not steal askId1\'s answer');
+  assert.equal(byId2[askId1].answer.status, 'redo', 'the orphan must not steal askId1\'s answer');
   assert.equal(byId2[askId2].answer.status, 'accepted', 'the orphan must not steal askId2\'s answer');
 });
 

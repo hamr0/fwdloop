@@ -151,7 +151,7 @@ async function rejectRepark(runId) {
   });
   assert.equal(parked1.outcome, 'paused', parked1.red);
   const { runDir } = parked1;
-  assert.equal(answerAsk({ runDir, askId: parked1.askId, decision: 'reject', reason: 'redo it' }).ok, true);
+  assert.equal(answerAsk({ runDir, askId: parked1.askId, decision: 'redo', reason: 'redo it' }).ok, true);
   const reparked = await resumeRun(baseArgs(root, runId));
   assert.equal(reparked.outcome, 'paused', reparked.red);
   assert.notEqual(reparked.askId, parked1.askId);

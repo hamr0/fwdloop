@@ -63,7 +63,7 @@ test('doors: try-again is offered ONLY for not-started (never for doors/starting
     answerControls(openAsk, null),
     answerControls(openAsk, { askId: 'a1', state: 'starting', label: 'x' }),
     answerControls(openAsk, { askId: 'a1', state: 'took-over', label: 'x' }),
-    answerControls({ askId: 'a1', open: false, status: 'rejected' }, null),
+    answerControls({ askId: 'a1', open: false, status: 'redo' }, null),
   ].map((r) => r.kind);
   assert.ok(!kinds.includes('stuck'), `stuck must be only for not-started, got ${kinds}`);
 });

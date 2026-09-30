@@ -192,7 +192,7 @@ test('happy path: reject replies before the resume finishes, run re-parks at a N
   const token = await pageToken(port);
 
   const t0 = Date.now();
-  const r1 = await answer(port, token, run, 'reject', 'tighten the skills section');
+  const r1 = await answer(port, token, run, 'redo', 'tighten the skills section');
   const respMs = Date.now() - t0;
   assert.equal(r1.status, 202, r1.text);
   assert.equal(r1.json().resume, 'started', 'the reply says started, never done');
@@ -218,7 +218,7 @@ test('re-parked ask (reject -> new ask): glyph says waiting on you and the inbox
   const run = parkRun();
   const { port } = await start(run);
   const token = await pageToken(port);
-  assert.equal((await answer(port, token, run, 'reject', 'redo it')).status, 202);
+  assert.equal((await answer(port, token, run, 'redo', 'redo it')).status, 202);
   const a2 = await reparked(run);
   assert.notEqual(a2.askId, run.askId);
   assert.ok(existsSync(path.join(run.runDir, `answer.${run.askId}.consumed.json`)), 'the OLD ask keeps its consumed marker');
@@ -275,7 +275,7 @@ test('detached: the panel server process is SIGKILLed right after the reply; the
   SERVER_PROCS.push(srv.pid);
   const { port } = JSON.parse(await new Promise((res) => { srv.stdout.once('data', (d) => res(String(d))); }));
   const token = await pageToken(port);
-  const r = await answer(port, token, run, 'reject', 'redo it');
+  const r = await answer(port, token, run, 'redo', 'redo it');
   assert.equal(r.status, 202, r.text);
   process.kill(-srv.pid, 'SIGKILL'); // the whole panel process group, now
   await waitFor(() => { try { process.kill(srv.pid, 0); return false; } catch { return true; } }, 3000);
@@ -288,7 +288,7 @@ test('exactly one: 10 concurrent valid identical POSTs — one accepted, nine re
   const run = parkRun();
   const { port } = await start(run);
   const token = await pageToken(port);
-  const rs = await Promise.all(Array.from({ length: 10 }, () => answer(port, token, run, 'reject', 'same answer')));
+  const rs = await Promise.all(Array.from({ length: 10 }, () => answer(port, token, run, 'redo', 'same answer')));
   const ok = rs.filter((r) => r.status === 202);
   assert.equal(ok.length, 1, `accepted: ${rs.map((r) => r.status)}`);
   for (const r of rs.filter((x) => x.status !== 202)) {
@@ -309,7 +309,7 @@ test('(vii) lock held when the answer arrives, released inside the retry window:
   const { port } = await start(run, { windowMs: 30000, maxTries: 5, slotMs: 400 });
   const token = await pageToken(port);
   writeFileSync(lockPath(run), ''); // a resumer is "in flight"
-  const r = await answer(port, token, run, 'reject', 'redo while locked');
+  const r = await answer(port, token, run, 'redo', 'redo while locked');
   assert.equal(r.status, 202, r.text);
   await pollData(port, run, (d) => d.resume && d.resume.tries >= 2, 30000);
   assert.equal(existsSync(path.join(run.runDir, 'answer.json')), true, 'still unconsumed while locked');
@@ -330,7 +330,7 @@ test('(viii) lock held past the retry window: API says "answer saved, resume not
   const { port } = await start(run, { windowMs: 30000, maxTries: 5, slotMs: 100 });
   const token = await pageToken(port);
   writeFileSync(lockPath(run), '');
-  const r = await answer(port, token, run, 'reject', 'redo, but locked');
+  const r = await answer(port, token, run, 'redo', 'redo, but locked');
   assert.equal(r.status, 202, r.text);
   assert.equal(r.json().resume, 'started');
 
@@ -400,7 +400,7 @@ test('a panel that restarted has no attempt record: a stuck answer still says so
   const first = await start(run, { windowMs: 30000, maxTries: 5, slotMs: 100 });
   const token1 = await pageToken(first.port);
   writeFileSync(lockPath(run), '');
-  assert.equal((await answer(first.port, token1, run, 'reject', 'x')).status, 202);
+  assert.equal((await answer(first.port, token1, run, 'redo', 'x')).status, 202);
   await pollData(first.port, run, (d) => d.resume && d.resume.state === 'not-started', 30000); // stuck: all tries refused by the lock
   await first.close();
   const second = await start(run); // a new panel process' worth of state: empty
@@ -422,7 +422,7 @@ test('a non-lock refusal is not retried: one spawn, the refusal shown verbatim',
   });
   const token = await pageToken(port);
   const lines = () => (existsSync(countFile) ? readFileSync(countFile, 'utf8').split('\n').filter(Boolean) : []);
-  assert.equal((await answer(port, token, run, 'reject', 'redo')).status, 202);
+  assert.equal((await answer(port, token, run, 'redo', 'redo')).status, 202);
   let d = await pollData(port, run, (x) => x.resume && x.resume.state === 'not-started', 30000);
   await sleep(600); // with a 200 ms slot a retry would have happened by now (a negative check: load can only make it pass, never fail)
   assert.equal(lines().length, 1, `spawned ${lines().length} times; a non-lock refusal must not be retried`);
@@ -470,7 +470,7 @@ test('key hygiene: the sentinel key is in 0 HTTP responses, 0 book files and 0 r
   const token = await pageToken(port);
   SEEN.length = 0;
   writeFileSync(lockPath(run), '');
-  await answer(port, token, run, 'reject', 'hygiene');
+  await answer(port, token, run, 'redo', 'hygiene');
   await pollData(port, run, (d) => d.resume && d.resume.state === 'not-started', 30000); // stuck: its log now holds a lock refusal
   for (const url of ['/', '/api/runs', '/api/inbox', `/api/runs/${run.flow}/${run.runId}`, `/api/runs/${run.flow}/${run.runId}/audit`, `/api/runs/${run.flow}/${run.runId}/asks`]) {
     await rq(port, { url }); // eslint-disable-line no-await-in-loop

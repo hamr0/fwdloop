@@ -1603,7 +1603,7 @@ describe('listStops (M4a-1: every stop across every flow)', () => {
     const first = own.find((r) => r.askId === 'ask-2a-first');
     const second = own.find((r) => r.askId === 'ask-2a-second');
     assert.ok(first && second);
-    assert.equal(first.status, 'rejected');
+    assert.equal(first.status, 'redo');
     assert.match(first.reason, /missing a section/);
     assert.equal(first.evidence.draft, 'first draft under review, scrubbed');
     assert.equal(second.status, 'accepted');
@@ -1619,7 +1619,7 @@ describe('listStops (M4a-1: every stop across every flow)', () => {
     const own = rows.filter((r) => r.flow === FLOW && r.runId === 'run-archived-2asks');
     const byAskId = {};
     own.forEach((r) => { byAskId[r.askId] = r.status; });
-    assert.equal(byAskId['ask-2a-first'], 'rejected');
+    assert.equal(byAskId['ask-2a-first'], 'redo');
     assert.equal(byAskId['ask-2a-second'], 'accepted');
   });
 
@@ -1885,7 +1885,7 @@ describe('panel HTTP shell', () => {
     const parsed = JSON.parse(r.body);
     assert.equal(parsed.asks.length, 2);
     assert.equal(parsed.asks[0].askId, 'ask-2a-first');
-    assert.equal(parsed.asks[0].status, 'rejected');
+    assert.equal(parsed.asks[0].status, 'redo');
     assert.equal(parsed.asks[1].status, 'accepted');
   });
 
@@ -2129,7 +2129,7 @@ describe('index.html — page source', () => {
   test('fix #2/#3: no "verdict green"/"verdict red"/"verdict paused" — a plain word replaces the raw verdict everywhere', () => {
     assert.doesNotMatch(source, /"verdict "/);
     assert.match(source, /paused for you/);
-    assert.match(source, /rejected by you/);
+    assert.match(source, /redo by you/);
   });
 
   test('fix #4: the map legend pairs each word with the scope-correct glyph — [·] waiting on you, no dot at all for "not started"', () => {
@@ -2580,7 +2580,7 @@ describe('index.html — page source', () => {
     assert.ok(fnStart > 0 && fnEnd > fnStart);
     const block = stripComments(source.slice(fnStart, fnEnd));
     const buttons = [...block.matchAll(/makeButton\("([^"]+)",\s*"([^"]+)"/g)].map((m) => m[2]);
-    assert.deepEqual(buttons, ['btn-accept', 'btn-reject', 'btn-rerun', 'btn-resume-again']);
+    assert.deepEqual(buttons, ['btn-accept', 'btn-redo', 'btn-rerun', 'btn-resume-again']);
     // the reason box is a real, labelled textarea.
     assert.match(block, /createElement\("textarea"\)/);
     assert.match(block, /lab\.setAttribute\("for", idSafe\)/);
@@ -2605,7 +2605,7 @@ describe('index.html — page source', () => {
 
   test('M4a-1: status vocabulary used in the Inbox/Ask UI is exactly the books\' own words — never a second, made-up vocabulary', () => {
     assert.match(source, /"accepted"/);
-    assert.match(source, /"rejected"/);
+    assert.match(source, /"redo"/);
     assert.match(source, /"reran"/);
     assert.match(source, /"expired"/);
     assert.match(source, /"unanswered"/);

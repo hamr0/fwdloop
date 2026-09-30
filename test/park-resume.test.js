@@ -208,7 +208,7 @@ test('park -> reject -> resume redoes the prior step once and re-parks with a NE
   const askId1 = parked.askId;
 
   const rej = answerAsk({
-    runDir: parked.runDir, askId: askId1, decision: 'reject', reason: 'tighten the skills section',
+    runDir: parked.runDir, askId: askId1, decision: 'redo', reason: 'tighten the skills section',
   });
   assert.equal(rej.ok, true, rej.ok ? '' : rej.red);
 
@@ -327,7 +327,7 @@ test('negative (iv): a second answerAsk to an already-answered ask is refused; t
   assert.equal(first.ok, true, first.ok ? '' : first.red);
 
   const second = answerAsk({
-    runDir: parked.runDir, askId: parked.askId, decision: 'reject', reason: 'changed my mind',
+    runDir: parked.runDir, askId: parked.askId, decision: 'redo', reason: 'changed my mind',
   });
   assert.equal(second.ok, false);
   assert.match(second.red, /already answered/);
@@ -691,7 +691,7 @@ test('orchestrator fix 3: park -> reject -> re-park -> accept -> complete leaves
   assert.equal(parked.outcome, 'paused', parked.red);
 
   const rej = answerAsk({
-    runDir: parked.runDir, askId: parked.askId, decision: 'reject', reason: 'one more pass',
+    runDir: parked.runDir, askId: parked.askId, decision: 'redo', reason: 'one more pass',
   });
   assert.equal(rej.ok, true, rej.ok ? '' : rej.red);
   const afterReject = await resumeRun(baseRunArgs({ root, modelStep }));
@@ -830,7 +830,7 @@ test('F45 fix 2: ask.json.evidence.artifact equals the prior step\'s artifact on
   assert.equal(askJson1.evidence.unjudged.length, 2, 'job #2\'s two pre-ask hitl reads (resume-text, jd-text) carry through as unjudged evidence');
 
   const rej = answerAsk({
-    runDir: parked.runDir, askId: parked.askId, decision: 'reject', reason: 'tighten the skills section',
+    runDir: parked.runDir, askId: parked.askId, decision: 'redo', reason: 'tighten the skills section',
   });
   assert.equal(rej.ok, true, rej.ok ? '' : rej.red);
 
@@ -928,7 +928,7 @@ test('M4b p3: accept records the sha256 of the accepted artifact bytes; reject a
   // independently computed: the bytes of the artifact file the human was asked about
   assert.equal(readAnswer(a.runDir).artifactSha256, sha256OfBytes(readFileSync(a.priorFile)));
 
-  for (const decision of ['reject', 'rerun']) {
+  for (const decision of ['redo', 'rerun']) {
     const b = await parkJob2(`p3-${decision}`, `p3-rec-${decision}`);
     const r = answerAsk({
       runDir: b.runDir, askId: b.parked.askId, decision, reason: 'because',

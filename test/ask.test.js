@@ -97,7 +97,7 @@ test('PROOF the stale check can fail: a genuinely fresh answer (answeredAt after
   while (!existsSync(askPath) && Date.now() < deadline) { await new Promise((r) => setTimeout(r, 10)); }
   writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'reject', reason: 'too long', answeredAt: '2026-09-24T12:00:01.000Z' }));
   const result = await promise;
-  assert.equal(result.decision, 'reject');
+  assert.equal(result.decision, 'redo', 'an old file that says reject is read as redo (M4b amendment 3)');
   assert.equal(result.reason, 'too long');
   assert.equal(existsSync(path.join(runDir, 'answer.stale.1.json')), false);
 });

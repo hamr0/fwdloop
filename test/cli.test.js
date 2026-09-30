@@ -109,7 +109,7 @@ test('cli: run parks and exits 0, printing the askId and the exact answer comman
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /parked: askId=\S+ expiresAt=\S+ spentUsd=\d/);
-  assert.match(result.stdout, /fwdloop answer \S+ accept\|reject "<reason>"\|rerun "<reason>" --root/);
+  assert.match(result.stdout, /fwdloop answer \S+ accept\|redo "<reason>"\|rerun "<reason>" --root/);
   assert.ok(existsSync(path.join(root, 'job2', 'runs', 'run-1', 'ask.json')));
 });
 
