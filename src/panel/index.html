@@ -595,7 +595,7 @@
 
   var PORT = "__FWDLOOP_PANEL_PORT__";
   // M4b piece 1: per-process answer token, replaced at serve time; sent only as
-  // the x-fwdloop-token header of POST /api/answer (no button uses it yet).
+  // the x-fwdloop-token header of the two POSTs (postJSON below).
   var TOKEN = "__FWDLOOP_PANEL_TOKEN__";
   document.getElementById("host-line").textContent = "127.0.0.1:" + PORT;
 
@@ -617,13 +617,30 @@
   wireTabs([document.getElementById("tab-chat"), document.getElementById("tab-runs"), document.getElementById("tab-inbox")]);
   wireTabs([document.getElementById("tab-run"), document.getElementById("tab-audit"), document.getElementById("tab-details"), document.getElementById("tab-ask")]);
 
-  // ---- fetch helpers — GET only, this panel is read-only by construction
-  // (src/panel/server.js is GET/HEAD-only too; nothing on this page ever
-  // sends a non-GET request or a request body). ----
+  // ---- fetch helpers. Reads are GET. The ONLY non-GET requests on this page are
+  // the two POSTs below (M4b): /api/answer (a human clicking a door) and
+  // /api/resume ("try the resume again"). The token goes in the request header
+  // and nowhere else — never the DOM, a URL, storage or a log. Same-origin. ----
   function getJSON(path){
     return fetch(path, { method: "GET", headers: { accept: "application/json" } }).then(function(r){
       if(!r.ok) throw new Error(path + ": HTTP " + r.status);
       return r.json();
+    });
+  }
+  // Resolves { status, body } for ANY HTTP status (a refusal is data to show by
+  // name, never an exception); rejects only on a network failure.
+  function postJSON(path, payload){
+    return fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json", "x-fwdloop-token": TOKEN },
+      body: JSON.stringify(payload),
+      credentials: "same-origin"
+    }).then(function(r){
+      return r.text().then(function(t){
+        var body = null;
+        try{ body = JSON.parse(t); }catch(e){}
+        return { status: r.status, body: body, text: t };
+      });
     });
   }
 
