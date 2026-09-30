@@ -54,7 +54,7 @@ import {
 import { WIRED_VERBS } from './primitives.js';
 import { closeByClass } from './closers.js';
 import { appendAudit, appendHistory } from './books.js';
-import { recordPid } from './liveness.js';
+import { readResumeLock, recordPid, writeLockHolder } from './liveness.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..');
@@ -1479,10 +1479,58 @@ function sumAuditUsd(runDir) {
 }
 
 /**
+ * M4c amendment 2 (d): create `resume.lock` with `wx` and write the holder into it.
+ * An existing lock is read: holder alive (or cannot be told) -> refuse by name
+ * ("locked by another resumer", the panel's one retried refusal); no readable
+ * holder -> refuse by name with the lock path; holder gone -> unlink and retake
+ * with `wx` once (a racing second taker loses cleanly on EEXIST).
+ * @returns {Promise<{ok:true, lockFd:number}|{ok:false, red:string}>}
+ */
+async function takeResumeLock(runDir, runId, lockPath) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const lockFd = openSync(lockPath, 'wx');
+      try { writeLockHolder(lockFd); } catch (err) {
+        try { closeSync(lockFd); } catch { /* ignore */ }
+        try { unlinkSync(lockPath); } catch { /* ignore */ }
+        return { ok: false, red: `resume: could not record the lock holder in ${lockPath} — ${err.message}` };
+      }
+      return { ok: true, lockFd };
+    } catch (err) {
+      if (err.code !== 'EEXIST') return { ok: false, red: `resume: could not create lock ${lockPath} — ${err.message}` };
+    }
+    let lock = readResumeLock(runDir);
+    if (lock.state === 'empty') {
+      // A taker between its `wx` create and its holder write looks empty for an instant.
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((r) => { setTimeout(r, 150); });
+      lock = readResumeLock(runDir);
+    }
+    if (lock.state === 'live' || lock.state === 'unknown') {
+      return { ok: false, red: `resume: run "${runId}" is locked by another resumer (pid ${lock.pid}, ${lockPath})` };
+    }
+    if (lock.state === 'empty') {
+      return { ok: false, red: `resume: run "${runId}" has a resume lock with no recorded holder (${lockPath}) — it predates the holder record, so it cannot be told apart from a live resume; remove that file by hand if no resume is running` };
+    }
+    if (lock.state === 'dead') {
+      // Re-read right before the unlink: a racing taker may have cleared this lock and retaken it
+      // already, and must not lose its fresh lock. The window left is one syscall wide, and the
+      // answer's rename-to-consume (F44) still lets only one resume act on the answer.
+      const again = readResumeLock(runDir);
+      if (again.state === 'dead' && again.pid === lock.pid) {
+        try { unlinkSync(lockPath); } catch { /* another taker already cleared it: retry wx */ }
+      }
+    }
+  }
+  return { ok: false, red: `resume: run "${runId}" is locked by another resumer (${lockPath})` };
+}
+
+/**
  * M3 scope items 4-6: re-enter a parked run's SAME fold from a separate
- * process. Takes an exclusive `resume.lock` (refuses by name if already
- * held; a lock left behind by a killed resumer is a red naming it, never
- * stolen), re-reads the flow, refuses by name at $0 on any signature/input/
+ * process. Takes an exclusive `resume.lock` that records its holder's
+ * `{pid, procStart}` (M4c amendment 2: refuses by name if the holder is alive
+ * or the lock has no readable holder; a lock whose holder is gone is cleared
+ * and retaken, losing cleanly on a race), re-reads the flow, refuses by name at $0 on any signature/input/
  * missing-artifact mismatch, consumes `answer.json` by atomic rename BEFORE
  * acting (F44), then either cancels an expired ask ($0, nothing sent) or
  * resolves it and folds on to `complete`/the next pause/a halt.
@@ -1543,15 +1591,9 @@ export async function resumeRun({
 
   const lockPath = join(runDir, 'resume.lock');
 
-  let lockFd;
-  try {
-    lockFd = openSync(lockPath, 'wx');
-  } catch (err) {
-    if (err.code === 'EEXIST') {
-      return { outcome: 'refused', red: `resume: run "${runId}" is locked by another resumer (${lockPath})` };
-    }
-    return { outcome: 'refused', red: `resume: could not create lock ${lockPath} — ${err.message}` };
-  }
+  const took = await takeResumeLock(runDir, runId, lockPath);
+  if (!took.ok) return { outcome: 'refused', red: took.red };
+  const { lockFd } = took;
 
   try {
     const statePath = join(runDir, 'state.json');

@@ -375,7 +375,7 @@ test('negative (v): two concurrent resumeRun calls — exactly one proceeds, the
 // stolen.
 // ---------------------------------------------------------------------------
 
-test('a stale resume.lock left behind by a killed resumer is a red naming it, never stolen', async () => {
+test('an empty resume.lock (a pre-amendment killed resumer) is a red naming it and its path, never stolen', async () => {
   const root = tmpRoot('stale-lock');
   writeJob2Flow(root);
   const srcDir = tmpRoot('stale-lock-src');
@@ -394,8 +394,9 @@ test('a stale resume.lock left behind by a killed resumer is a red naming it, ne
 
   const resumed = await resumeRun(baseRunArgs({ root, modelStep }));
   assert.equal(resumed.outcome, 'refused');
-  assert.match(resumed.red, /locked by another resumer/);
-  assert.ok(existsSync(lockPath), 'a stale lock must never be deleted/stolen by a refused resumer');
+  assert.match(resumed.red, /resume lock with no recorded holder/);
+  assert.ok(resumed.red.includes(lockPath), 'names the lock path');
+  assert.ok(existsSync(lockPath), 'an empty lock must never be deleted/stolen by a refused resumer');
 });
 
 // ---------------------------------------------------------------------------

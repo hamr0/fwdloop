@@ -108,7 +108,7 @@ function hashTree(dir) {
   return out;
 }
 
-test('negative (iv): N is 1 for one open ask, 0 once the answer is saved (before resume), expired not counted, zero still reads 0', async () => {
+test('negative (iv): N is 1 for one open ask, still 1 once the answer is saved with nothing carrying it on (stuck, amendment 2), expired not counted, zero still reads 0', async () => {
   const root = tmp('count');
   makeFlow(root);
   assert.equal(inboxOpenCount(listStops({ root })), 0, 'no runs: zero, and the label is always present (page test below)');
@@ -116,7 +116,7 @@ test('negative (iv): N is 1 for one open ask, 0 once the answer is saved (before
   assert.equal(inboxOpenCount(listStops({ root })), 1);
   answer(root, askId, 'redo', 'why not');
   assert.ok(existsSync(path.join(runDirOf(root, 'r1'), 'answer.json')), 'saved, resume not started');
-  assert.equal(inboxOpenCount(listStops({ root })), 0, 'the answered ask is not counted');
+  assert.equal(inboxOpenCount(listStops({ root })), 1, 'saved answer, no live process: stuck, counted (M4c amendment 2 (b))');
 
   const root2 = tmp('count-exp');
   makeFlow(root2);
@@ -189,11 +189,12 @@ test('a live resume after a redo is section 2 "working on your redo" with a puls
   assert.ok(done.every((r) => r.section === 3 && !r.working), 'a finished run is only ever section 3');
 });
 
-test('pulse: only [▶] and waiting [·]; placeholder dots and answered-not-resumed do not', async () => {
+test('pulse: only [▶], [II] stuck and waiting [·]; placeholder dots, answered-not-resumed and resume-starting do not', async () => {
   assert.equal(glyphPulses({ glyph: '[▶]', label: 'running' }), true);
   assert.equal(glyphPulses({ glyph: '[·]', label: 'waiting on you (parked, unanswered)' }), true);
   assert.equal(glyphPulses({ glyph: '[·]', label: 'answered, not resumed yet' }), false);
-  assert.equal(glyphPulses({ glyph: '[·]', label: 'answer saved, resume not started' }), false);
+  assert.equal(glyphPulses({ glyph: '[·]', label: 'answer saved, resume starting' }), false);
+  assert.equal(glyphPulses({ glyph: '[II]', label: 'stuck — answer saved, click try the resume again' }), true);
   for (const g of ['[✓]', '[✗]', '[!]', '[?]']) assert.equal(glyphPulses({ glyph: g, label: 'x' }), false);
 
   const root = tmp('pulse');
@@ -204,8 +205,8 @@ test('pulse: only [▶] and waiting [·]; placeholder dots and answered-not-resu
   assert.equal(row.pulse, true, 'waiting on you pulses');
   answer(root, askId, 'redo', 'again');
   row = listRuns({ root, catalogue: CATALOGUE }).find((r) => r.runId === 'r1');
-  assert.equal(row.glyph, '[·]');
-  assert.equal(row.pulse, false, 'answer saved, resume not started: the human already answered');
+  assert.equal(row.glyph, '[II]');
+  assert.equal(row.pulse, true, 'answer saved, nobody carrying it on: stuck pulses (amendment 2 (a))');
 
   // the page: pulse is a class the server decides, never a colour class
   assert.doesNotMatch(PAGE, /\.dot\.(grey|amber)::before\{animation/);

@@ -24,6 +24,7 @@ import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { createPanelServer } from '../src/panel/server.js';
 import { listStops } from '../src/panel/data.js';
+import { spawnHolder } from './fixtures/lock-holder.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(HERE, '..');
@@ -91,6 +92,15 @@ const history = (root) => {
 };
 const consumedMarkers = (runDir) => readdirSync(runDir).filter((f) => /^answer\..*\.consumed\.json$/.test(f));
 const lockPath = (run) => path.join(run.runDir, 'resume.lock');
+/** A live resumer "in flight": a real fwdloop-named process that holds resume.lock (M4c amendment 2 (d)). */
+const HOLDERS = [];
+async function holdLock(run) {
+  const h = await spawnHolder(tmp('holder'));
+  HOLDERS.push(h);
+  writeFileSync(lockPath(run), h.lockText);
+  return h;
+}
+after(async () => { for (const h of HOLDERS) { try { await h.kill(); } catch { /* gone */ } } });
 
 /** Start a panel server in this process; `resume` overrides only what a test must (window, bin). */
 async function start(run, resume = {}) {
@@ -313,13 +323,13 @@ test('(vii) lock held when the answer arrives, released inside the retry window:
   // record shows try 2 (try 1 was refused by the lock), and held until then.
   const { port } = await start(run, { windowMs: 30000, maxTries: 5, slotMs: 400 });
   const token = await pageToken(port);
-  writeFileSync(lockPath(run), ''); // a resumer is "in flight"
+  const holder = await holdLock(run); // a resumer is "in flight"
   const r = await answer(port, token, run, 'redo', 'redo while locked');
   assert.equal(r.status, 202, r.text);
   await pollData(port, run, (d) => d.resume && d.resume.tries >= 2, 30000);
   assert.equal(existsSync(path.join(run.runDir, 'answer.json')), true, 'still unconsumed while locked');
   assert.equal(consumedMarkers(run.runDir).length, 0);
-  unlinkSync(lockPath(run)); // released inside the window
+  await holder.kill(); // the holder dies inside the window: the next try clears its lock and resumes
 
   const a2 = await reparked(run);
   assert.notEqual(a2.askId, run.askId);
@@ -334,28 +344,29 @@ test('(viii) lock held past the retry window: API says "answer saved, resume not
   const run = parkRun();
   const { port } = await start(run, { windowMs: 30000, maxTries: 5, slotMs: 100 });
   const token = await pageToken(port);
-  writeFileSync(lockPath(run), '');
+  const holder = await holdLock(run);
   const r = await answer(port, token, run, 'redo', 'redo, but locked');
   assert.equal(r.status, 202, r.text);
   assert.equal(r.json().resume, 'started');
 
   const stuck = await pollData(port, run, (d) => d.resume && d.resume.state === 'not-started', 30000);
   assert.equal(stuck.resume.label, 'answer saved, resume not started');
-  assert.match(stuck.label, /^answer saved, resume not started$/, 'the glyph label says it too, never "answered"');
+  assert.match(stuck.label, /^working on your answer$/, 'a live holder is carrying it on (amendment 2 (e)): [▶], never stuck, never "answered"');
+  assert.equal(stuck.glyph, '[▶]');
   assert.equal(stuck.resume.tries, 5, 'all five tries were used');
-  assert.match(stuck.resume.reason, /^fwdloop: refused — resume: run "run-1" is locked by another resumer \(/, 'the resume\'s own refusal, verbatim');
+  assert.match(stuck.resume.reason, /^fwdloop: refused — resume: run "run-1" is locked by another resumer \(pid \d+, /, 'the resume\'s own refusal, verbatim, naming the live holder');
   assert.ok(stuck.resume.reason.includes(lockPath(run)));
   assert.notEqual(stuck.glyph, '[✓]');
   assert.match(stuck.stopReasonWhy, /answer saved, resume not started/);
   const list = (await rq(port, { url: '/api/runs' })).json().rows.find((x) => x.runId === run.runId);
-  assert.equal(list.label, 'answer saved, resume not started');
+  assert.equal(list.label, 'working on your answer');
   // the answer is still on disk, unconsumed, and nothing re-parked
   assert.equal(existsSync(path.join(run.runDir, 'answer.json')), true);
   assert.equal(consumedMarkers(run.runDir).length, 0);
   assert.equal(askOf(run.runDir).askId, run.askId);
 
   // release the lock; "try the resume again" starts a resume and applies the SAME answer
-  unlinkSync(lockPath(run));
+  await holder.kill(); // a dead holder's lock is cleared by the resume itself
   const again = await resumePost(port, token, run);
   assert.equal(again.status, 202, again.text);
   assert.equal(again.json().askId, run.askId);
@@ -377,7 +388,7 @@ test('M4b p3 (iii) panel path: accept through POST /api/answer records the hash;
     const priorFile = path.join(run.runDir, 'artifacts', 'resume-summary.json');
     const { port } = await start(run, { windowMs: 30000, maxTries: 2, slotMs: 100 });
     const token = await pageToken(port);
-    writeFileSync(lockPath(run), ''); // hold the lock so the answer is SAVED, not yet applied
+    const holder = await holdLock(run); // hold the lock so the answer is SAVED, not yet applied
     const r = await answer(port, token, run, 'accept');
     assert.equal(r.status, 202, r.text);
     const saved = JSON.parse(readFileSync(path.join(run.runDir, 'answer.json'), 'utf8'));
@@ -388,7 +399,7 @@ test('M4b p3 (iii) panel path: accept through POST /api/answer records the hash;
     const edited = before.replace(/"text": "(.)/, (m, c) => `"text": "${c === 'X' ? 'Y' : 'X'}`);
     assert.notEqual(edited, before);
     writeFileSync(priorFile, edited);
-    unlinkSync(lockPath(run));
+    await holder.kill();
     assert.equal((await resumePost(port, token, run)).status, 202);
     await waitFor(() => history(run.root).length === 1);
     const row = history(run.root)[0];
@@ -405,13 +416,13 @@ test('resume log: kept with its refusal text while the resume is locked out, del
   const { port, logDir } = await start(run, { windowMs: 30000, maxTries: 5, slotMs: 100 });
   const token = await pageToken(port);
   const logs = () => readdirSync(logDir).filter((f) => f.endsWith('.log')).map((f) => path.join(logDir, f));
-  writeFileSync(lockPath(run), '');
+  const holder = await holdLock(run);
   await answer(port, token, run, 'redo', 'redo, but locked');
   await pollData(port, run, (d) => d.resume && d.resume.state === 'not-started', 30000);
   assert.equal(logs().length, 1, 'a refused resume keeps its log');
   assert.match(readFileSync(logs()[0], 'utf8'), /locked by another resumer/);
 
-  unlinkSync(lockPath(run));
+  await holder.kill();
   await resumePost(port, token, run);
   await reparked(run);
   await waitFor(() => logs().length === 0);
@@ -422,16 +433,17 @@ test('a panel that restarted has no attempt record: a stuck answer still says so
   const run = parkRun();
   const first = await start(run, { windowMs: 30000, maxTries: 5, slotMs: 100 });
   const token1 = await pageToken(first.port);
-  writeFileSync(lockPath(run), '');
+  const holder = await holdLock(run);
   assert.equal((await answer(first.port, token1, run, 'redo', 'x')).status, 202);
   await pollData(first.port, run, (d) => d.resume && d.resume.state === 'not-started', 30000); // stuck: all tries refused by the lock
   await first.close();
+  await holder.kill(); // the holder is gone now: nobody carries the answer on
   const second = await start(run); // a new panel process' worth of state: empty
   const d = await runData(second.port, run);
   assert.equal(d.resume.state, 'not-started');
-  assert.equal(d.label, 'answer saved, resume not started');
+  assert.equal(d.label, 'stuck — answer saved, click try the resume again');
+  assert.equal(d.glyph, '[II]');
   assert.match(d.resume.reason, /reason unknown: the panel restarted/);
-  unlinkSync(lockPath(run));
   const token2 = await pageToken(second.port);
   assert.equal((await resumePost(second.port, token2, run)).status, 202);
   assert.notEqual((await reparked(run)).askId, run.askId);
@@ -492,7 +504,7 @@ test('key hygiene: the sentinel key is in 0 HTTP responses, 0 book files and 0 r
   const { port, logDir } = await start(run, { windowMs: 30000, maxTries: 5, slotMs: 100 });
   const token = await pageToken(port);
   SEEN.length = 0;
-  writeFileSync(lockPath(run), '');
+  const holder = await holdLock(run);
   await answer(port, token, run, 'redo', 'hygiene');
   await pollData(port, run, (d) => d.resume && d.resume.state === 'not-started', 30000); // stuck: its log now holds a lock refusal
   const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
@@ -502,7 +514,7 @@ test('key hygiene: the sentinel key is in 0 HTTP responses, 0 book files and 0 r
     await rq(port, { url }); // eslint-disable-line no-await-in-loop
   }
   await resumePost(port, 'f'.repeat(64), run); // a refusal body too
-  unlinkSync(lockPath(run));
+  await holder.kill();
   await resumePost(port, token, run);
   const a2 = await reparked(run);
   await answer(port, token, { ...run, askId: a2.askId }, 'accept');

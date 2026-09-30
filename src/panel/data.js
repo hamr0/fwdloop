@@ -32,7 +32,7 @@ import {
 } from '../books.js';
 import { readAsk, readRunState, readLog } from '../runner.js';
 import { readSpendRows } from '../provider.js';
-import { runLiveness, booksFresh } from '../liveness.js';
+import { runLiveness, booksFresh, readResumeLock } from '../liveness.js';
 import {
   readAskEvidence, listArchivedAsks, normalizeDecision, DECISION_STATUS,
 } from '../ask.js';
@@ -186,16 +186,33 @@ export function deriveResumeState({ savedAnswer, attempt }) {
 }
 
 export const WAITING_LABEL = 'waiting on you (parked, unanswered)';
+export const STUCK_LABEL = 'stuck — answer saved, click try the resume again';
+export const CRASHED_LABEL = 'crashed after taking your answer — start a fresh run';
+
+/**
+ * M4c amendment 2 (a): the ONE rule for "stuck". The answer is saved and not yet
+ * taken (`resume.state === 'not-started'`: `answer.json` is on disk; the panel's
+ * transient 'starting' is not stuck) and nothing is carrying the run on: the
+ * newest pid row's process is not alive AND the resume lock is not held by a
+ * live process (`readResumeLock`, src/liveness.js). computeGlyph, the Inbox
+ * (`listStops`) and Runs (`listRuns`) all read this, never a second copy.
+ * @param {{resume?: any, liveness?: 'running'|'gone'|'unknown', lock?: string}} ctx
+ * @returns {boolean}
+ */
+export function isStuck({ resume, liveness, lock }) {
+  return !!resume && resume.state === 'not-started' && liveness !== 'running' && lock !== 'live';
+}
 
 /**
  * M4c item 1: does this sign pulse? Only `[▶]` running and `[·]` WAITING ON YOU
- * do. The other `[·]` states (answered not resumed, answer saved) are not
- * waiting on the human, so they stay still. The one place that decides.
+ * do, and `[II]` stuck (M4c amendment 2: it is not a final state). The other
+ * `[·]` states (answered not resumed, resume starting) are not waiting on the
+ * human, so they stay still. The one place that decides.
  * @param {{glyph: string, label: string}} g a `computeGlyph` result
  * @returns {boolean}
  */
 export function glyphPulses(g) {
-  return g.glyph === '[▶]' || (g.glyph === '[·]' && g.label === WAITING_LABEL);
+  return g.glyph === '[▶]' || g.glyph === '[II]' || (g.glyph === '[·]' && g.label === WAITING_LABEL);
 }
 
 /**
@@ -230,11 +247,16 @@ export function glyphPulses(g) {
  *    or (`liveness` unknown) the run's books changed in the last 10 minutes
  *    (`booksFresh`). A gone process is `[?]`. Absent `liveness`/`booksFresh`
  *    (a direct caller) reads as unknown / not fresh.
- * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean}} ctx
- * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]', label: string}}
+ *  - `[II]` stuck (M4c amendment 2, `isStuck`) — the answer is saved, not taken,
+ *    and no live process (pid row or resume lock holder) carries the run on.
+ *    A saved answer with a live process is `[▶]` working on your answer.
+ *  - `[?]` crashed after taking your answer (amendment 2 (f)) — the answer was
+ *    consumed, the process is gone, no end row: cannot be carried on.
+ * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string}} ctx
+ * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]'|'[II]', label: string}}
  */
 export function computeGlyph({
-  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh,
+  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock,
 }) {
   if (historyRow) {
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
@@ -242,8 +264,12 @@ export function computeGlyph({
     if (historyRow.outcome === 'rerun') return { glyph: '[✗]', label: 'stopped by you (rerun), a fresh run was started' };
     return { glyph: '[✗]', label: `failed (${historyRow.outcome ?? 'unknown outcome'})` };
   }
-  if (askJson && resume && (resume.state === 'starting' || resume.state === 'not-started')) {
+  if (askJson && resume && resume.state === 'starting') {
     return { glyph: '[·]', label: resume.label };
+  }
+  if (askJson && resume && resume.state === 'not-started') {
+    if (isStuck({ resume, liveness, lock })) return { glyph: '[II]', label: STUCK_LABEL };
+    return { glyph: '[▶]', label: 'working on your answer' };
   }
   // No history row. A park never writes one, and a consumed answer file
   // stays on disk until resume writes its own history row — "no history
@@ -258,7 +284,7 @@ export function computeGlyph({
   if (askJson && consumedAnswerExists) {
     // M4c: the answer was consumed — a resume process took it. Alive = working on it.
     if (liveness === 'running') return { glyph: '[▶]', label: 'working on your answer' };
-    if (liveness === 'gone') return { glyph: '[?]', label: 'the process working on your answer is gone' };
+    if (liveness === 'gone') return { glyph: '[?]', label: CRASHED_LABEL };
     return { glyph: '[·]', label: 'answered, not resumed yet' };
   }
   // M4c: no end row, no open ask — is a process still working? Pid row first
@@ -743,6 +769,7 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     resume,
     // M4c: only read for a run with no end row (an end row always wins).
     liveness: historyRow ? 'unknown' : runLiveness(runDir),
+    lock: historyRow ? 'none' : readResumeLock(runDir).state,
     booksFresh: historyRow ? false : booksFresh(runDir),
   };
 }
@@ -807,6 +834,7 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
         glyph,
         label,
         pulse: glyphPulses({ glyph, label }),
+        stuck: glyph === '[II]',
         resume: ctx.resume,
         spend,
         spendWhy: (!ctx.historyRow && spend === null) ? 'no history row yet and no priced spend.jsonl rows — nothing to floor' : null,
@@ -826,7 +854,8 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
  * The ONE ordering of Runs — History and Workflows both render the list in the
  * order given (M4c amendment 1 (c)); a flow's top row is therefore the first
  * run of that flow here, so a waiting run is the parent with no second rule:
- *  1 waiting on you — least time left first;
+ *  1 waiting on you — least time left first; a stuck run (`[II]`, amendment 2)
+ *    after the ones with a timer;
  *  2 running (`[▶]`, the glyph's own liveness rule);
  *  3 everything else — finish time `at`, newest first.
  * A row with no known time keeps input order at the end of its section.
@@ -834,7 +863,7 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
  * @returns {any[]}
  */
 export function orderRuns(rows) {
-  const sectionOf = (r) => (r.waiting ? 1 : r.glyph === '[▶]' ? 2 : 3);
+  const sectionOf = (r) => ((r.waiting || r.stuck) ? 1 : r.glyph === '[▶]' ? 2 : 3);
   return rows
     .map((row, index) => ({ row, index }))
     .sort((a, b) => {
@@ -842,6 +871,7 @@ export function orderRuns(rows) {
       const sb = sectionOf(b.row);
       if (sa !== sb) return sa - sb;
       if (sa === 1) {
+        if (!!a.row.stuck !== !!b.row.stuck) return a.row.stuck ? 1 : -1;
         const at = typeof a.row.timeLeftMs === 'number' ? a.row.timeLeftMs : Infinity;
         const bt = typeof b.row.timeLeftMs === 'number' ? b.row.timeLeftMs : Infinity;
         return at !== bt ? at - bt : a.index - b.index;
@@ -1774,11 +1804,16 @@ export function listStops({ root, resumeAttempt }) {
       if (!run.ok) continue;
       const hasHistoryRow = historyRunIds.has(runId);
       const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flowName, runId) ?? null });
+      // M4c amendment 2: stuck by the ONE rule (`isStuck`), marked on the ask whose answer is saved.
+      const stuckAskId = !hasHistoryRow && isStuck({ resume, liveness: runLiveness(run.runDir), lock: readResumeLock(run.runDir).state })
+        ? (resume?.askId ?? null) : null;
       const runAsks = runAsksInOrder(run.runDir, hasHistoryRow).map((ask) => ({
         flow: flowName,
         runId,
         ...ask,
         ...deriveAskOpenFields(ask, hasHistoryRow, resume),
+        stuck: stuckAskId !== null && ask.askId === stuckAskId,
+        stuckLabel: stuckAskId !== null && ask.askId === stuckAskId ? STUCK_LABEL : null,
       }));
       // M4c item 4: a run with no end row, no ask waiting on the human and no
       // saved-but-unresumed answer, whose newest pid row is alive, is "working
@@ -1807,7 +1842,8 @@ function sortMs(iso) {
 /**
  * The ONE ordering of the Inbox (M4c item 4, hamr 2026-09-30); the page renders
  * in the order given and stamps each row's `section`:
- *  1 waiting on you — least time left first ("runs out first");
+ *  1 waiting on you — least time left first ("runs out first"); a stuck run
+ *    (amendment 2: answer saved, nobody carrying it on) after the timed asks;
  *  2 working on an answer you gave (`working`), or answer saved and resume not
  *    started (`resume`) — newest answer first;
  *  3 answered and expired asks — newest first (answeredAt, else expiresAt).
@@ -1816,7 +1852,7 @@ function sortMs(iso) {
  * @returns {any[]}
  */
 export function orderStops(rows) {
-  const sectionOf = (r) => (r.waiting ? 1 : (r.working || r.resume) ? 2 : 3);
+  const sectionOf = (r) => ((r.waiting || r.stuck) ? 1 : (r.working || r.resume) ? 2 : 3);
   const key = (r) => {
     const t = sectionOf(r) === 3 ? (sortMs(r.answeredAt) || sortMs(r.expiresAt)) : sortMs(r.answeredAt);
     return Number.isFinite(t) ? t : NaN;
@@ -1828,6 +1864,7 @@ export function orderStops(rows) {
       const sb = b.row.section;
       if (sa !== sb) return sa - sb;
       if (sa === 1) {
+        if (!!a.row.stuck !== !!b.row.stuck) return a.row.stuck ? 1 : -1;
         const at = typeof a.row.timeLeftMs === 'number' ? a.row.timeLeftMs : Infinity;
         const bt = typeof b.row.timeLeftMs === 'number' ? b.row.timeLeftMs : Infinity;
         return at !== bt ? at - bt : a.index - b.index;
@@ -1845,11 +1882,13 @@ export function orderStops(rows) {
 
 /**
  * N for `Inbox (N)` (M4c item 3): asks open and not expired, across every flow
- * and run. An answered-but-not-resumed ask is not `waiting`, so not counted;
+ * and run, plus stuck runs (amendment 2: the human must act). An answered ask
+ * whose resume is carried on is not `waiting`, so not counted; a crashed one
+ * (answer taken, process gone) is not stuck and not counted;
  * an expired ask is not `open`. The page only shows this number.
  * @param {any[]} rows `listStops` rows
  * @returns {number}
  */
 export function inboxOpenCount(rows) {
-  return rows.filter((r) => r.waiting).length;
+  return rows.filter((r) => r.waiting || r.stuck).length;
 }

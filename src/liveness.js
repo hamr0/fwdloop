@@ -8,7 +8,7 @@
 // segment is `fwdloop` would otherwise read as a fwdloop process). And it adds
 // `procStart` (field 22 of /proc/<pid>/stat) to close a recycled pid that is
 // itself a DIFFERENT fwdloop process. Proof: poc/m4c/README.md.
-import { lstatSync, readFileSync } from 'node:fs';
+import { lstatSync, readFileSync, writeSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
 import { appendPidRow, readPidRows } from './books.js';
@@ -95,6 +95,42 @@ export function runLiveness(runDir) {
   if (!row || !Number.isInteger(row.pid)) return 'unknown';
   const alive = isFwdloopAlive(row.pid, typeof row.procStart === 'string' ? row.procStart : null);
   return alive === true ? 'running' : alive === false ? 'gone' : 'unknown';
+}
+
+/**
+ * M4c amendment 2 (d): the resume lock records who holds it. The one writer:
+ * `resumeRun` calls this on the fd it just created with `wx`.
+ * @param {number} fd
+ */
+export function writeLockHolder(fd) {
+  writeSync(fd, JSON.stringify({ pid: process.pid, procStart: procStartOf('self') }));
+}
+
+/**
+ * The one reader of `resume.lock`. Through `lstat` (a symlinked lock is read as
+ * `empty`, never followed).
+ *   none    - no lock file
+ *   live    - the holder is a live fwdloop process (same rule as `[▶]`)
+ *   dead    - the holder is gone (or a different process on a recycled pid)
+ *   unknown - liveness cannot be told (no /proc): never treated as dead
+ *   empty   - a lock with no readable holder (pre-amendment resumer, torn write)
+ * @param {string} runDir
+ * @returns {{state: 'none'|'live'|'dead'|'unknown'|'empty', pid: number|null, path: string}}
+ */
+export function readResumeLock(runDir) {
+  const path = join(runDir, 'resume.lock');
+  let st;
+  try { st = lstatSync(path); } catch { return { state: 'none', pid: null, path }; }
+  if (!st.isFile()) return { state: 'empty', pid: null, path };
+  let h;
+  try { h = JSON.parse(readFileSync(path, 'utf8')); } catch { return { state: 'empty', pid: null, path }; }
+  if (!h || !Number.isInteger(h.pid) || h.pid <= 0) return { state: 'empty', pid: null, path };
+  const procStart = typeof h.procStart === 'string' ? h.procStart : null;
+  // This very process holds it (two resumeRun calls in one process): alive by definition,
+  // whatever its command line says.
+  if (h.pid === process.pid && procStart === procStartOf('self')) return { state: 'live', pid: h.pid, path };
+  const alive = isFwdloopAlive(h.pid, procStart);
+  return { state: alive === true ? 'live' : alive === false ? 'dead' : 'unknown', pid: h.pid, path };
 }
 
 /** The run's books, for the 10-minute fallback: state, audit, model log, spend ledger, and the pid file itself. */

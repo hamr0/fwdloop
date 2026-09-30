@@ -153,6 +153,9 @@
      arrow [▶], which this reserves for "running" alone. Its own class so
      the two states never share a ::before rule. */
   .dot.expired::before{content:"[!]";color:var(--amber);}
+  /* M4c amendment 2: stuck — answer saved, nobody carrying the run on. Its own glyph,
+     amber like the other "needs you" signs; it pulses (server-decided, glyphPulses). */
+  .dot.stuck::before{content:"[II]";color:var(--amber);}
   /* M4c: only the two "alive" signs pulse — [▶] running and [·] waiting on
      you — keyed to `.pulse`, which the server decides (glyphPulses), never to
      a colour class (.grey is also the placeholder dot). A gentle opacity wave on the existing colors;
@@ -835,6 +838,7 @@
     // "running", but a different glyph, so it gets its own dot class
     // (never "amber", which draws the reserved running arrow [▶]).
     if(g === "[!]") return "expired";
+    if(g === "[II]") return "stuck";
     return "grey"; // "[·]" — waiting on a human, or answered-not-resumed
   }
 
@@ -1613,7 +1617,7 @@
       escapeXml(spendText) + " of " + escapeXml(capText) + " cap &middot; " + escapeXml(wallText);
 
     var box = document.getElementById("run-summary");
-    box.className = "summary-box " + (detail.glyph === "[✗]" ? "red" : ((detail.glyph === "[·]" || detail.glyph === "[▶]") ? "amber" : (detail.glyph === "[?]" ? "magenta" : "")));
+    box.className = "summary-box " + (detail.glyph === "[✗]" ? "red" : ((detail.glyph === "[·]" || detail.glyph === "[▶]" || detail.glyph === "[II]") ? "amber" : (detail.glyph === "[?]" ? "magenta" : "")));
     var stepBoxes = buildStepBoxes(detail.steps);
     var stepsDone = stepBoxes.filter(function(s){ return s.state === "done"; }).length;
     var stepsText = stepBoxes.length === 0
@@ -2249,6 +2253,7 @@
   // Ask tab, focused on that one ask. The answer doors live in the Ask tab. --
   function stopStatusLine(row){
     if(row.waiting) return "time left: " + duration(row.timeLeftMs);
+    if(row.stuck) return row.stuckLabel;
     if(row.working) return "working on your " + row.working + "…";
     if(row.open && row.resume) return row.resume.label;
     var bits = [row.status];
@@ -2267,10 +2272,11 @@
     var head = document.createElement("div");
     head.className = "wf-line1";
     // section 1: [·] waiting on you (pulses); section 2 working: [▶] (pulses);
-    // answer saved, resume not started: [·] still; section 3: the status word.
+    // a stuck run (answer saved, nobody carrying it on): [II] pulses, in section 1;
+    // resume starting: [·] still; section 3: the status word.
     if(row.section === 1 || row.working || row.resume){
       var sign = document.createElement("span");
-      sign.className = "dot " + (row.working ? "amber pulse" : (row.waiting ? "grey pulse" : "grey"));
+      sign.className = "dot " + (row.working ? "amber pulse" : (row.stuck ? "stuck pulse" : (row.waiting ? "grey pulse" : "grey")));
       head.appendChild(sign);
     } else {
       var badge = document.createElement("span");
