@@ -212,6 +212,25 @@ test('happy path: reject replies before the resume finishes, run re-parks at a N
   console.log(`# MEASURE happy: reply=${respMs}ms, reject->re-park+accept->complete=${Date.now() - t0}ms`);
 });
 
+test('re-parked ask (reject -> new ask): glyph says waiting on you and the inbox shows the NEW ask open, despite the old ask\'s consumed marker', async () => {
+  const run = parkRun();
+  const { port } = await start(run);
+  const token = await pageToken(port);
+  assert.equal((await answer(port, token, run, 'reject', 'redo it')).status, 202);
+  const a2 = await reparked(run);
+  assert.notEqual(a2.askId, run.askId);
+  assert.ok(existsSync(path.join(run.runDir, `answer.${run.askId}.consumed.json`)), 'the OLD ask keeps its consumed marker');
+  const data = await runData(port, run);
+  assert.equal(data.glyph, '[·]');
+  assert.match(data.label, /waiting on you/, `label was: ${data.label}`);
+  assert.match(data.stopReasonWhy ?? '', /^waiting on you:/, `stop reason was: ${data.stopReasonWhy}`);
+  const inbox = (await rq(port, { url: '/api/inbox' })).json();
+  const rows = inbox.rows.filter((r) => r.runId === run.runId);
+  const open = rows.filter((r) => r.open);
+  assert.equal(open.length, 1, JSON.stringify(rows));
+  assert.equal(open[0].askId, a2.askId);
+});
+
 test('detached: the panel server process is SIGKILLed right after the reply; the resume still completes', async () => {
   const run = parkRun();
   const logDir = tmp('pr-srvlogs');

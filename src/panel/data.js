@@ -99,23 +99,27 @@ function resolveRunPath(root, flowName, runId) {
 }
 
 /**
- * A consumed-answer marker exists for this run — `answerAsk`'s own write
+ * A consumed-answer marker exists for THIS ask (`askId`) — `answerAsk`'s own write
  * (`src/ask.js`) renames to `answer.<askId>.consumed.json` on accept, and
  * `resumeRun` (`src/runner.js`) does the same when it consumes an in-place
  * `answer.json`. A directory-naming-convention check, not a "book" with its
  * own single-row shape, so it lives here rather than growing a one-off
- * reader in either writer's module.
+ * reader in either writer's module. Per the signed rule (ladder M4a scope
+ * item 4) it is per the OPEN ask's askId: after reject -> re-park the old
+ * ask's marker stays on disk and must not answer the new ask. An ask with no
+ * askId (pre-M3) can be paired with no marker: false.
  * @param {string} runDir
+ * @param {string|null} askId the open ask's own askId
  * @returns {boolean}
  */
-function hasConsumedAnswer(runDir) {
-  if (!existsSync(runDir)) return false;
+function hasConsumedAnswer(runDir, askId) {
+  if (!existsSync(runDir) || typeof askId !== 'string' || askId.length === 0) return false;
   // F48 round 3: `readdirInside` (`src/flow.js`) skips a symlinked entry
   // rather than reporting its name — a run dir cannot be made to show a
   // consumed answer that isn't really there by planting a symlink named to
   // match the pattern.
   const names = readdirInside(runDir, '.');
-  return names.some((n) => /^answer\..*\.consumed\.json$/.test(n));
+  return names.includes(`answer.${askId}.consumed.json`);
 }
 
 /**
@@ -687,7 +691,7 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
   const logJson = readLog(runDir);
   const askJson = readAsk(runDir);
   const stateJson = readRunState(runDir);
-  const consumedAnswerExists = hasConsumedAnswer(runDir);
+  const consumedAnswerExists = hasConsumedAnswer(runDir, askJson && typeof askJson.askId === 'string' ? askJson.askId : null);
   // A finished run has no resume to report (its history row says how it ended).
   const resume = historyRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(runDir), attempt });
 
