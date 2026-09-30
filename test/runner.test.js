@@ -1582,6 +1582,7 @@ test('a late answer.json (written after the run\'s own ask already decided) is r
   const lateRow = rows.find((r) => r.kind === 'answer-after-run');
   assert.ok(lateRow, 'must record one audit row for the unconsumed late answer');
   assert.equal(lateRow.file, path.join(runDir, 'answer.json'));
+  assert.ok(Array.isArray(lateRow.refused) && lateRow.refused.length === 0, 'answer-after-run row carries refused: []');
 
   // The run itself completed on the fake's OWN accept — the late reject on
   // disk changed nothing about the outcome.

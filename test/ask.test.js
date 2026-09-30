@@ -78,7 +78,9 @@ test('a stale answer (answeredAt before this ask\'s askedAt) is quarantined and 
   assert.equal(settled, false, 'the ask must still be waiting — a stale answer never resolves it');
 
   const auditRows = readFileSync(path.join(runDir, 'audit.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-  assert.ok(auditRows.some((r) => r.verdict === 'stale-answer-ignored'));
+  const staleRow = auditRows.find((r) => r.verdict === 'stale-answer-ignored');
+  assert.ok(staleRow);
+  assert.ok(Array.isArray(staleRow.refused) && staleRow.refused.length === 0, 'stale-answer row carries refused: []');
 
   // Now the REAL (fresh) answer arrives and the ask resolves.
   writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', answeredAt: '2026-09-24T12:00:10.000Z' }));

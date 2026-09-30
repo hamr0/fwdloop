@@ -271,6 +271,11 @@ test('negative (i): resuming after expiresAt cancels the run — ask-expired, ad
 
   const history = readFileSync(path.join(root, 'job2', 'history.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   assert.ok(history.some((r) => r.outcome === 'ask-expired' && r.spentUsd === parked.spentUsd));
+
+  const audit = readFileSync(path.join(parked.runDir, 'audit.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const expiredAudit = audit.find((r) => r.verdict === 'ask-expired');
+  assert.ok(expiredAudit, 'an ask-expired audit row must exist');
+  assert.ok(Array.isArray(expiredAudit.refused) && expiredAudit.refused.length === 0, 'ask-expired row carries refused: []');
 });
 
 // ---------------------------------------------------------------------------
