@@ -583,6 +583,9 @@
   "use strict";
 
   var PORT = "__FWDLOOP_PANEL_PORT__";
+  // M4b piece 1: per-process answer token, replaced at serve time; sent only as
+  // the x-fwdloop-token header of POST /api/answer (no button uses it yet).
+  var TOKEN = "__FWDLOOP_PANEL_TOKEN__";
   document.getElementById("host-line").textContent = "127.0.0.1:" + PORT;
 
   function wireTabs(tabButtons){

@@ -23,9 +23,18 @@
 // `readSpendRows`, `readAskEvidence`, `loadCatalogue`) — this file is only
 // the HTTP shell + route dispatch, never a second copy of any derivation.
 //
-// READ-ONLY, BY CONSTRUCTION: GET/HEAD only; no endpoint runs a job, spends
-// money, signs, or reads a key/.env. Nothing here imports `src/provider.js`'s
-// key-reading path or touches `process.env` for a secret.
+// M4b piece 1 (docs/wiki/the-module-ladder.md, "M4b — inputs" scope 1-2,
+// "M4b amendment 1" scope 3): every read route is still GET/HEAD and derives
+// nothing new. The ONE write route is `POST /api/answer`, a thin client of the
+// library's `answerAsk` (the panel is never a second arbiter): it is refused
+// by name unless the request is a real click from the served page — own
+// `Host` and `Origin`, the per-process token (embedded only in the served
+// page), a small JSON body — and every answer must name its `askId`.
+// `Host` is checked on EVERY route, GET included (DNS-rebinding read).
+// This piece does NOT start the resume (piece 2) and says so in its reply.
+// No endpoint runs a job, spends money, signs, or reads a key/.env. Nothing
+// here imports `src/provider.js`'s key-reading path or touches `process.env`
+// for a secret.
 //
 // PATH SAFETY: a URL may name a flow ONLY (checked with `checkFlowName`) and
 // a runId ONLY (resolved with `resolveRunDir`, both `src/flow.js`) — a URL
@@ -34,16 +43,24 @@
 // directory's own `index.html`, never a URL-derived filename.
 
 import { createServer } from 'node:http';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadCatalogue } from '../catalogue.js';
+import { answerAsk } from '../ask.js';
+import { checkFlowName, resolveRunDir } from '../flow.js';
 import {
   listRuns, getRunDetail, getRunAudit, getRunJob, listStops, getRunAsks,
 } from './data.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+
+/** Cap on the answer body — a decision and a short reason, nothing more. */
+const MAX_BODY_BYTES = 8 * 1024;
+/** Header the page sends its token in. */
+const TOKEN_HEADER = 'x-fwdloop-token';
 
 /** Default bind port. Ruling, hamr 2026-09-27: fwdloop's panel default port
  *  is 4800 — bareloop owns 4700, and the two panels must be able to run
@@ -63,18 +80,101 @@ function sendText(res, code, text) {
   res.end(text);
 }
 
+/** A refusal, by name. `refused` is the stable machine name, `red` the words.
+ *  @param {any} res @param {number} code @param {string} name @param {string} [detail] */
+function refuse(res, code, name, detail) {
+  sendJson(res, code, { ok: false, refused: name, red: detail ? `${name}: ${detail}` : name });
+}
+
+/** Constant-time compare: both sides hashed to equal length first, so neither
+ *  the content nor the length of the real token leaks through timing.
+ *  @param {unknown} a @param {string} b */
+function tokenMatches(a, b) {
+  if (typeof a !== 'string') return false;
+  const x = createHash('sha256').update(a).digest();
+  const y = createHash('sha256').update(b).digest();
+  return timingSafeEqual(x, y);
+}
+
 /**
- * Handle one request against the read-only API + the page. Exported
+ * `POST /api/answer` — runs after the gates. Wraps `answerAsk` with exactly
+ * the arguments `bin/fwdloop`'s `cmdAnswer` passes ({ runDir, askId, decision,
+ * reason }); every library refusal is returned verbatim, non-2xx.
+ * @param {any} res @param {any} body @param {string} root
+ */
+function answerRoute(res, body, root) {
+  const b = body !== null && typeof body === 'object' ? body : {};
+  const {
+    flow, runId, askId, decision, reason,
+  } = b;
+  if (typeof askId !== 'string' || askId.length === 0) {
+    refuse(res, 400, 'askid-required', 'an answer must name the askId the page was showing');
+    return;
+  }
+  const fc = checkFlowName(flow);
+  if (!fc.ok) { refuse(res, 400, 'bad-flow', fc.red); return; }
+  const rd = resolveRunDir(join(root, flow), runId);
+  if (!rd.ok) { refuse(res, 400, 'bad-runId', rd.red); return; }
+  const result = answerAsk({
+    runDir: rd.runDir, askId, decision, reason,
+  });
+  if (!result.ok) {
+    sendJson(res, 409, { ok: false, refused: 'library', red: result.red });
+    return;
+  }
+  sendJson(res, 200, {
+    ok: true, answered: true, askId, decision, resume: 'not-started',
+    note: 'answer saved; this build does not start the resume yet (M4b piece 2) — run `fwdloop resume` to apply it',
+  });
+}
+
+/**
+ * Handle one request against the API + the page. Exported
  * separately from {@link createPanelServer} so tests can drive it without a
  * real listening socket where that is simpler.
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
- * @param {{ root: string, port: number }} opts
+ * @param {{ root: string, port: number, token: string }} opts
  */
 export function handleRequest(req, res, opts) {
   const method = req.method ?? 'GET';
+
+  // Gate 1 — EVERY route, every method: `Host` must be this server's own
+  // address. A foreign Host (DNS rebinding) is refused by name, never 200.
+  const host = req.headers.host;
+  if (host !== `127.0.0.1:${opts.port}` && host !== `localhost:${opts.port}`) {
+    refuse(res, 403, 'host-not-own-address', String(host));
+    return;
+  }
+
+  if (method === 'POST' && req.url === '/api/answer') {
+    const origin = req.headers.origin;
+    if (origin !== `http://127.0.0.1:${opts.port}` && origin !== `http://localhost:${opts.port}`) {
+      refuse(res, 403, 'origin-not-own', String(origin));
+      return;
+    }
+    if (!tokenMatches(req.headers[TOKEN_HEADER], opts.token)) {
+      refuse(res, 403, 'token-missing-or-wrong');
+      return;
+    }
+    let size = 0;
+    const parts = [];
+    req.on('data', (c) => { size += c.length; if (size <= MAX_BODY_BYTES) parts.push(c); });
+    req.on('end', () => {
+      try {
+        if (size > MAX_BODY_BYTES) { refuse(res, 413, 'body-too-large'); return; }
+        let body;
+        try { body = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { refuse(res, 400, 'body-not-json'); return; }
+        answerRoute(res, body, opts.root);
+      } catch (e) {
+        refuse(res, 500, 'internal', /** @type {Error} */ (e).message);
+      }
+    });
+    return;
+  }
+
   if (method !== 'GET' && method !== 'HEAD') {
-    sendText(res, 405, 'method not allowed — this panel is read-only (GET/HEAD only)');
+    sendText(res, 405, 'method not allowed — GET/HEAD for reads; the only write is POST /api/answer');
     return;
   }
 
@@ -107,6 +207,7 @@ export function handleRequest(req, res, opts) {
       return;
     }
     html = html.replace(/__FWDLOOP_PANEL_PORT__/g, String(opts.port));
+    html = html.replace(/__FWDLOOP_PANEL_TOKEN__/g, opts.token);
     if (method === 'HEAD') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': Buffer.byteLength(html) });
       res.end();
@@ -196,6 +297,9 @@ export function createPanelServer(opts) {
   }
   const requestedPort = opts.port ?? DEFAULT_PORT;
   const { root } = opts;
+  // One token per server process, made once, held only here and in the served
+  // page — never logged, never in any /api response.
+  const token = randomBytes(32).toString('hex');
   return new Promise((resolve, reject) => {
     // Bound port is resolved from the live socket (`server.address().port`)
     // once listening starts, not the requested value — this is what makes
@@ -205,7 +309,7 @@ export function createPanelServer(opts) {
     let boundPort = requestedPort;
     const server = createServer((req, res) => {
       try {
-        handleRequest(req, res, { root, port: boundPort });
+        handleRequest(req, res, { root, port: boundPort, token });
       } catch (e) {
         sendText(res, 500, `internal error: ${/** @type {Error} */ (e).message}`);
       }
@@ -251,7 +355,7 @@ export async function panelMain(argv, ctx) {
   }
   try {
     const { port: boundPort } = await createPanelServer({ port, root });
-    ctx.out(`fwdloop panel — read-only, http://127.0.0.1:${boundPort} (root: ${root}) (Ctrl-C to stop)`);
+    ctx.out(`fwdloop panel — http://127.0.0.1:${boundPort} (root: ${root}) (Ctrl-C to stop)`);
     // never resolves on its own — the process stays up until killed, same
     // shape any other long-running dev server takes.
     await new Promise(() => {});
