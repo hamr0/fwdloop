@@ -8,8 +8,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  readFileSync, writeFileSync, existsSync, symlinkSync, rmSync,
+  readFileSync, writeFileSync, existsSync, symlinkSync, rmSync, readdirSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +20,7 @@ import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
 import { answerAsk } from '../src/ask.js';
+import { sendViaPrimitive } from '../src/send.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -887,4 +889,123 @@ test('F45 fix 3: history wallMs times the whole run (through the pause), not jus
     row.wallMs >= PAUSE_MS,
     `wallMs (${row.wallMs}) must be at least the ${PAUSE_MS}ms pause — it must time the whole run, not just the last process`,
   );
+});
+
+// ---------------------------------------------------------------------------
+// M4b piece 3 (ladder "M4b — inputs" scope item 4, negative (iii)): accept
+// records the sha256 of the accepted artifact; the REAL send (`sendViaPrimitive`,
+// destination `poc/m0/out`, git-ignored) re-hashes the bytes it ships and
+// refuses by name on a mismatch, shipping nothing. $0 — fake modelStep.
+// ---------------------------------------------------------------------------
+
+const SEND_DIR = path.join(HERE, '..', 'poc', 'm0', 'out');
+const sha256OfBytes = (buf) => createHash('sha256').update(buf).digest('hex');
+const shippedFiles = (runId) => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR).filter((f) => f.startsWith(`${runId}-`)) : []);
+const cleanShipped = (runId) => { for (const f of shippedFiles(runId)) rmSync(path.join(SEND_DIR, f), { force: true }); };
+const realSendArgs = (args) => ({ ...baseRunArgs(args), sendStep: sendViaPrimitive });
+
+async function parkJob2(prefix, runId) {
+  const root = tmpRoot(prefix);
+  writeJob2Flow(root);
+  const { fn: modelStep } = makeJob2ModelStep();
+  const parked = await runFlow({
+    ...baseRunArgs({ root, modelStep, askStep: makeParkingAskStep(), runId }),
+    sources: writeSources(tmpRoot(`${prefix}-src`)),
+  });
+  assert.equal(parked.outcome, 'paused', parked.red);
+  return {
+    root, modelStep, parked, runId, runDir: parked.runDir, priorFile: path.join(parked.runDir, 'artifacts', 'resume-summary.json'),
+  };
+}
+const readAnswer = (runDir) => JSON.parse(readFileSync(path.join(runDir, 'answer.json'), 'utf8'));
+const historyFor = (root, runId) => readFileSync(path.join(root, 'job2', 'history.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((r) => r.runId === runId);
+const auditOf = (runDir) => readFileSync(path.join(runDir, 'audit.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+
+test('M4b p3: accept records the sha256 of the accepted artifact bytes; reject and rerun record none', async () => {
+  const a = await parkJob2('p3-acc', 'p3-rec-accept');
+  const ans = answerAsk({ runDir: a.runDir, askId: a.parked.askId, decision: 'accept' });
+  assert.equal(ans.ok, true, ans.ok ? '' : ans.red);
+  // independently computed: the bytes of the artifact file the human was asked about
+  assert.equal(readAnswer(a.runDir).artifactSha256, sha256OfBytes(readFileSync(a.priorFile)));
+
+  for (const decision of ['reject', 'rerun']) {
+    const b = await parkJob2(`p3-${decision}`, `p3-rec-${decision}`);
+    const r = answerAsk({
+      runDir: b.runDir, askId: b.parked.askId, decision, reason: 'because',
+    });
+    assert.equal(r.ok, true, r.ok ? '' : r.red);
+    assert.equal('artifactSha256' in readAnswer(b.runDir), false, `${decision} must record no hash`);
+  }
+});
+
+test('M4b p3: accept with no readable artifact in the ask is refused by name and writes no answer file', async () => {
+  const a = await parkJob2('p3-unread', 'p3-unreadable');
+  const askPath = path.join(a.runDir, 'ask.json');
+  const ask = JSON.parse(readFileSync(askPath, 'utf8'));
+  delete ask.evidence.artifact;
+  writeFileSync(askPath, JSON.stringify(ask, null, 2));
+  const ans = answerAsk({ runDir: a.runDir, askId: a.parked.askId, decision: 'accept' });
+  assert.equal(ans.ok, false);
+  assert.match(ans.red, /cannot be accepted — ask\.json carries no readable artifact/);
+  assert.equal(existsSync(path.join(a.runDir, 'answer.json')), false);
+});
+
+test('M4b p3 unchanged: an untouched accepted artifact ships, and the shipped bytes hash to the recorded value', async () => {
+  const runId = 'p3-unchanged';
+  cleanShipped(runId);
+  try {
+    const a = await parkJob2('p3-ok', runId);
+    assert.equal(answerAsk({ runDir: a.runDir, askId: a.parked.askId, decision: 'accept' }).ok, true);
+    const recorded = readAnswer(a.runDir).artifactSha256;
+    const done = await resumeRun(realSendArgs({ root: a.root, modelStep: a.modelStep, runId }));
+    assert.equal(done.outcome, 'complete', done.red);
+    const files = shippedFiles(runId);
+    assert.equal(files.length, 1, `shipped: ${files}`);
+    assert.equal(sha256OfBytes(readFileSync(path.join(SEND_DIR, files[0]))), recorded);
+  } finally { cleanShipped(runId); }
+});
+
+test('negative (iii): the accepted artifact changed on disk between accept and send — send refuses by name, nothing shipped, books balance', async () => {
+  const runId = 'p3-tamper';
+  cleanShipped(runId);
+  try {
+    const a = await parkJob2('p3-tamper', runId);
+    assert.equal(answerAsk({ runDir: a.runDir, askId: a.parked.askId, decision: 'accept' }).ok, true);
+    // one byte, still valid JSON: "worked places" -> "worked placeS"
+    const before = readFileSync(a.priorFile, 'utf8');
+    assert.ok(before.includes('worked places'));
+    writeFileSync(a.priorFile, before.replace('worked places', 'worked placeS'));
+
+    const res = await resumeRun(realSendArgs({ root: a.root, modelStep: a.modelStep, runId }));
+    assert.equal(res.outcome, 'red');
+    assert.match(res.red, /send: send: the artifact changed after it was accepted/);
+    assert.deepEqual(shippedFiles(runId), [], 'nothing may reach the destination');
+
+    const [row] = historyFor(a.root, runId);
+    assert.equal(row.outcome, 'red');
+    assert.ok(typeof row.signatureHash === 'string' && row.signatureHash.length > 0, 'a refusal never records a null signature hash');
+    const audit = auditOf(a.runDir);
+    assert.ok(audit.some((r) => r.verdict === 'red' && /changed after it was accepted/.test(r.gap ?? '')), 'the audit names the refusal');
+    const auditSum = audit.reduce((t, r) => t + (r.usd ?? 0), 0);
+    assert.ok(Math.abs(auditSum - row.spentUsd) < 1e-9, `books must balance: audit ${auditSum} vs history ${row.spentUsd}`);
+  } finally { cleanShipped(runId); }
+});
+
+test('M4b p3 legacy: an accept answer.json with NO recorded hash (older version) is refused at send by name, nothing shipped', async () => {
+  const runId = 'p3-legacy';
+  cleanShipped(runId);
+  try {
+    const a = await parkJob2('p3-legacy', runId);
+    assert.equal(answerAsk({ runDir: a.runDir, askId: a.parked.askId, decision: 'accept' }).ok, true);
+    const ansPath = path.join(a.runDir, 'answer.json');
+    const rec = readAnswer(a.runDir);
+    delete rec.artifactSha256;
+    writeFileSync(ansPath, JSON.stringify(rec, null, 2));
+
+    const res = await resumeRun(realSendArgs({ root: a.root, modelStep: a.modelStep, runId }));
+    assert.equal(res.outcome, 'red');
+    assert.match(res.red, /no accepted-artifact hash was recorded/);
+    assert.deepEqual(shippedFiles(runId), []);
+    assert.equal(historyFor(a.root, runId)[0].outcome, 'red');
+  } finally { cleanShipped(runId); }
 });
