@@ -969,7 +969,7 @@ change; then the fix is upstream of the panel, and M4b waits.
 - **Honest limit:** a resume that crashed leaves `resume.lock` behind forever (no pid, no liveness; the open question from M4a). This amendment shows that state by name; it does not take over a dead lock, because a wrong takeover could run a paid step twice. Clearing it stays a terminal job until a later ruling.
 - **Kill check:** none of this changes the books or the arbiter; the change is in `src/panel` and how the panel starts `resume`.
 
-#### M4b amendment 2 — a saved ask records which step output it is about — DRAFT, NOT SIGNED (ruling "1A" by hamr 2026-09-30; awaiting "sign m4b amendment 2")
+#### M4b amendment 2 — a saved ask records which step output it is about — SIGNED by hamr 2026-09-30 ("sign m4b amendment 2"; ruling "1A")
 
 - **Why:** F52. With two asks, an artifact accepted at ask 1 is refused at send after a later resume, because nothing on disk says which step output an ask was about, so its recorded hash cannot be found again. Bareloop was consulted: such a fact belongs in a write-once record keyed by id, never in a file that is overwritten.
 - **Scope:**
