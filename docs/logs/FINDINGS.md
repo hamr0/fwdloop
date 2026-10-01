@@ -2831,4 +2831,4 @@ signed prose is byte-identical to `job2-m6a-2`, yet the drafted shape checks dif
 section headings (it adds "how it matches the JD"), `job2-m6a-2` checks three. The drafter's output varied
 for the same signed text. Observation only.
 
-**Status.** Open. No fix built. Whether these are an M4b amendment or later work is hamr's ruling.
+**Status.** The four panel-clarity points are scoped and built as M4c (signed 2026-09-30, branch `m4c`, amendments 1-3; scope in `docs/wiki/the-module-ladder.md`); M4c's live exit is not yet signed, so this stays open until it is. The drafter-variation observation (second point) is not scoped and still open.
