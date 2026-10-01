@@ -1078,6 +1078,21 @@ hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from th
 - (e) When "Try the resume again" was refused because of a lock it cannot clear (no recorded holder), the stuck label says so: `[II]` "stuck — remove the old resume lock by hand, then try again", with the file path shown in the box.
 - No book changes.
 - Why: hamr's M4c review walk 2026-10-01 — after the walk fixture's 30-minute asks ran out, the stuck runs still showed `[II]` in the Inbox (and counted in Inbox (N)) while the Ask tab said "expired" with no buttons; resumeRun (src/runner.js ~1782) checks expiry against the clock at resume time, so an answer saved in time is cancelled if the restart comes late. answerAsk (src/ask.js ~296) already refuses a late answer, so a saved answer was on time. And after an empty-lock refusal the label kept saying "click try the resume again", which can never work until the lock is removed by hand.
+
+#### M4c exit evidence — NOT YET SIGNED; from hamr's live walk 2026-10-01
+
+hamr has not signed the M4c exit. Numbers are from the books on disk under `flows/job2-m6a-2/` (times UTC).
+
+- **Who and how:** hamr, panel only, real provider deepseek-flash, flow `job2-m6a-2`. Three runs. Branch `m4c`.
+- **Run `m4c-exit-1` — walked on the panel before the refresh fix.** Run leg pid 09:26:28, first ask parked 09:27:37. hamr found: (1) no page-wide refresh, so the lists and Inbox stayed `[▶]` / "Inbox (0)" after the run parked; (2) while a run worked, the job card said "time unknown" and the header said "no history row yet (parked or died…)"; (3) after Redo (answered 09:31:27, reason "redo babe") the panel-spawned resume had no `DEEPSEEK_API_KEY` (the panel had been started without it), so it was refused at $0 and the run sat `[II]` — amendment 2 working as signed. hamr restarted the panel with the key and clicked "Try the resume again"; the resume pid row is 09:47:28, which proves amendment 2 live. Draft 2 parked 09:48:05, accept (reason "looks good", 09:48:20) with an `artifactSha256` (c617ea67…), a second resume pid row at 09:48:20, outcome `complete`, `spentUsd` 0.030518 (cap $0.25), wall 1311656 ms. The audit usd sum (12 rows) is 0.03051846, equal to `spentUsd`. Fixes made from this walk: d35d545, 1f1c41f, 2daeb49 (one page-wide refresh loop; running-run wording; job card time).
+- **Run `m4c-exit-2` — killed by hamr mid-step.** Run leg pid 09:51:30; no history row, no ask. The panel shows it `[?]` gone. Its 3 audit rows sum to $0.012897 of spend with no history row.
+- **Run `m4c-exit-3` — on the fixed panel.** Run leg pid 09:55:25, draft 1 parked 09:56:38, redo (reason "redo babe") 09:58:06, resume pid 09:58:07, draft 2 parked 09:59:04, accept (reason "good") 10:03:56 with an `artifactSha256` (c732088f…), resume pid 10:03:57, outcome `complete`, `spentUsd` 0.035863 (cap $0.25), wall 511150 ms. The audit usd sum (11 rows) is 0.03586338, equal to `spentUsd`. hamr: "pass".
+- **Spend:** $0.030518 + $0.012897 + $0.035863 = $0.079279 across the three runs (sum of audit usd), against the signed M4c cap of $1.00.
+- **Branch reviews:** `/self-review` at 5decfe8: 0 fix now, 7 later. `/branch-review` at 5decfe8: ready, no blockers, fail-first 10/10; docs sweep a429bc0. `npm test` at 2daeb49: 1799 pass.
+- **Open, not in M4c as signed:** the signs key (proposed M4c amendment 4, not signed); the "parked or died" wording on a parked run's header; the panel needs the provider key in its own environment until M4d.
+
+Exit: NOT YET SIGNED
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
