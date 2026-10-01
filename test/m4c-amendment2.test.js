@@ -272,6 +272,28 @@ test('(c) the Ask tab says the same as the run list: a stuck run\'s resume label
   assert.equal(asks().resume.label, 'answer saved, resume not started', 'a live holder: not stuck, label untouched');
 });
 
+test('(c) the Ask header for a stuck run: server marks exactly the saved-answer ask stuck; the page draws [II] pulsing there and says the stuck text once in the header', async () => {
+  const root = tmp('c3');
+  makeFlow(root);
+  const askId = await stuckRun(root, 'r1');
+  const asks = () => getRunAsks({ root, flow: 'job2', runId: 'r1', catalogue: CATALOGUE });
+  const a = asks().blocks[0].current;
+  assert.equal(a.askId, askId);
+  assert.equal(a.stuck, true, 'the one stuck rule (isStuck), decided on the server');
+  const h = await spawnHolder(tmp('holder3'));
+  holders.push(h);
+  writeFileSync(lockOf(root, 'r1'), h.lockText);
+  assert.equal(asks().blocks[0].current.stuck, false, 'a live holder: not stuck, no [II]');
+  // page: the header sign is the same dot class as the Inbox card; the status line under the header is not drawn for a saved answer
+  const head = PAGE.slice(PAGE.indexOf('function renderAskRow'), PAGE.indexOf('function renderAsk(result'));
+  assert.match(head, /if\(ask\.stuck\)\{[^}]*badge\.className = "dot stuck pulse";/);
+  const at = PAGE.indexOf('function askStatusBlock');
+  const status = PAGE.slice(at, PAGE.indexOf('// ---- M4b piece 4', at));
+  assert.match(status, /if\(ask\.open && ask\.resume\) return null;/);
+  assert.doesNotMatch(status, /resume\.label/, 'the resume label is said by the header meta line only');
+  assert.match(head, /if\(statusBlock\) body\.appendChild\(statusBlock\)/);
+});
+
 // ---------------------------------------------------------------------------
 // (d) the lock records its holder; try-again clears only a dead holder's lock
 // ---------------------------------------------------------------------------

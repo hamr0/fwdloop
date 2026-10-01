@@ -1763,12 +1763,15 @@ export function getRunAsks({
   const stepInfo = deriveAskStepInfo(ordered, auditRows, declSteps);
   let resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null });
   // M4c amendment 2: the Ask tab says what the run list says — stuck, by the one rule (`isStuck`).
+  let runStuck = false;
   if (resume && isStuck({ resume, liveness: runLiveness(run.runDir), lock: readResumeLock(run.runDir).state })) {
     resume = { ...resume, label: STUCK_LABEL };
+    runStuck = true;
   }
   const asks = ordered.map((ask, i) => ({
     ...ask,
     ...deriveAskOpenFields(ask, hasHistoryRow, resume),
+    stuck: runStuck && resume?.askId === ask.askId,
     index: i + 1,
     total: ordered.length,
     stepName: stepInfo[i].step,

@@ -2338,7 +2338,8 @@
   // own SVG nodes elsewhere on this page. ----
   function askStatusBlock(ask){
     if(ask.waiting) return textDiv("wf-meta", "time left: " + duration(ask.timeLeftMs));
-    if(ask.open && ask.resume) return textDiv("wf-meta", ask.resume.label);
+    // an open ask with a saved answer: the header meta line already says the resume label (stuck or starting) — once.
+    if(ask.open && ask.resume) return null;
     var bits = [ask.status];
     if(ask.reason) bits.push("reason: " + ask.reason);
     if(ask.answeredAt) bits.push("answered " + (readableDateTime(ask.answeredAt) || ask.answeredAt));
@@ -2605,8 +2606,13 @@
     var metaLine = document.createElement("div");
     metaLine.className = "wf-line1";
     var badge = document.createElement("span");
-    badge.className = "badge " + (ask.open ? "amber" : (ask.status === "accepted" ? "green" : (ask.status === "redo" ? "red" : "grey")));
-    badge.textContent = ask.open ? "·" : ask.status;
+    if(ask.stuck){
+      // the same sign as the Inbox card and run header: [II], pulsing (server-decided `stuck`, data.js getRunAsks)
+      badge.className = "dot stuck pulse";
+    } else {
+      badge.className = "badge " + (ask.open ? "amber" : (ask.status === "accepted" ? "green" : (ask.status === "redo" ? "red" : "grey")));
+      badge.textContent = ask.open ? "·" : ask.status;
+    }
     metaLine.appendChild(badge);
     metaLine.appendChild(textDiv("wf-meta", blockMetaText(block)));
     head.appendChild(metaLine);
@@ -2620,7 +2626,8 @@
     wrap.appendChild(head);
     var body = document.createElement("div");
     body.hidden = !expanded;
-    body.appendChild(askStatusBlock(ask));
+    var statusBlock = askStatusBlock(ask);
+    if(statusBlock) body.appendChild(statusBlock);
     body.appendChild(renderAskEvidenceBlock(ask, ctx));
     body.appendChild(renderAnswersSoFar(block));
     // M4b piece 4: the answer doors (or the reason there are none) — for the CURRENT draft.
