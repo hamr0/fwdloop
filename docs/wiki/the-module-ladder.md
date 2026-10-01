@@ -1070,7 +1070,7 @@ hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from th
 - (f) If a resume took your answer and then died, the run cannot be carried on. It shows `[?]` "crashed after taking your answer — start a fresh run", not pulsing, and does not count in `Inbox (N)`. Replaying the taken answer is out of scope.
 - The lock file gains its holder's process number. No other book changes.
 
-**M4c amendment 3 — on time is on time — NOT YET SIGNED**
+**M4c amendment 3 — on time is on time — SIGNED by hamr 2026-10-01 ("sign m4c amendment 3")**
 - (a) A resume checks **when your answer was saved** against the ask's deadline, not the clock at the moment it restarts. An answer saved in time is carried on whenever "Try the resume again" is clicked.
 - (b) An answer saved after the deadline (for example a hand-written file) is still refused and cancels the run, as M3 says today. An answer with a missing or unreadable saved time is refused by name, never treated as on time.
 - (c) A stuck run with an on-time answer stays `[II]` pulsing in the Inbox, and its Ask tab shows "Try the resume again", even after the deadline. The Inbox and the Ask tab always say the same thing.
