@@ -238,7 +238,11 @@ test('park -> reject -> resume redoes the prior step once and re-parks with a NE
 
 // ---------------------------------------------------------------------------
 // Negative (i): an answer arriving after expiresAt cancels the run.
+// M4c amendment 3: "after expiresAt" is when the answer was SAVED (`answeredAt`), so these
+// hand-written answers carry a saved time hours past the 30m deadline (they used to carry
+// PARK_TIME and rely on the restart clock).
 // ---------------------------------------------------------------------------
+const LATE_ANSWER_AT = '2000-01-01T05:00:00.000Z';
 
 test('negative (i): resuming after expiresAt cancels the run — ask-expired, adds nothing further, nothing sent', async () => {
   const root = tmpRoot('expired');
@@ -258,7 +262,7 @@ test('negative (i): resuming after expiresAt cancels the run — ask-expired, ad
   // Write the answer directly — this test is about resumeRun's OWN cancel,
   // not answerAsk's (which would also refuse an expired askId).
   writeFileSync(path.join(parked.runDir, 'answer.json'), JSON.stringify({
-    askId: parked.askId, decision: 'accept', answeredAt: PARK_TIME,
+    askId: parked.askId, decision: 'accept', answeredAt: LATE_ANSWER_AT,
   }, null, 2));
 
   const resumed = await resumeRun(baseRunArgs({ root, modelStep }));
@@ -662,7 +666,7 @@ test('orchestrator fix 2: an ask-expired history row carries the run\'s real spe
   assert.ok(parked.spentUsd > 0, 'the three pre-ask model rounds must have real, nonzero cost to make this test meaningful');
 
   writeFileSync(path.join(parked.runDir, 'answer.json'), JSON.stringify({
-    askId: parked.askId, decision: 'accept', answeredAt: PARK_TIME,
+    askId: parked.askId, decision: 'accept', answeredAt: LATE_ANSWER_AT,
   }, null, 2));
 
   const resumed = await resumeRun(baseRunArgs({ root, modelStep }));

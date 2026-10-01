@@ -49,12 +49,14 @@ import {
   readFlow, resolveRunDir, readFileInside, resolveInside,
 } from './flow.js';
 import {
-  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision,
+  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming,
 } from './ask.js';
 import { WIRED_VERBS } from './primitives.js';
 import { closeByClass } from './closers.js';
 import { appendAudit, appendHistory } from './books.js';
-import { readResumeLock, recordPid, writeLockHolder } from './liveness.js';
+import {
+  readResumeLock, recordPid, writeLockHolder, LOCK_NO_HOLDER,
+} from './liveness.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..');
@@ -1510,7 +1512,7 @@ async function takeResumeLock(runDir, runId, lockPath) {
       return { ok: false, red: `resume: run "${runId}" is locked by another resumer (pid ${lock.pid}, ${lockPath})` };
     }
     if (lock.state === 'empty') {
-      return { ok: false, red: `resume: run "${runId}" has a resume lock with no recorded holder (${lockPath}) — it predates the holder record, so it cannot be told apart from a live resume; remove that file by hand if no resume is running` };
+      return { ok: false, red: `resume: run "${runId}" has a resume lock ${LOCK_NO_HOLDER} (${lockPath}) — it predates the holder record, so it cannot be told apart from a live resume; remove that file by hand if no resume is running` };
     }
     if (lock.state === 'dead') {
       // Re-read right before the unlink: a racing taker may have cleared this lock and retaken it
@@ -1762,6 +1764,13 @@ export async function resumeRun({
       return { outcome: 'refused', red: `resume: answer askId "${answer.askId}" does not match open askId "${state.askId}" for run "${runId}"` };
     }
 
+    // M4c amendment 3: an answer's saved time, never the restart's clock, says whether it was on time. A missing or
+    // unreadable one is refused by name here, before the consume, so the answer stays replayable.
+    const timing = answerTiming(answer.answeredAt, state.expiresAt);
+    if (timing === 'unreadable') {
+      return { outcome: 'refused', red: `resume: answer.json for run "${runId}" has a missing or unreadable answeredAt ("${answer.answeredAt}") — refusing rather than treating it as on time` };
+    }
+
     // M4b amendment 2: hashes recorded by earlier-process accepts, read back
     // from the archive + consumed markers. Refused BEFORE the consume below so
     // the answer stays replayable.
@@ -1775,11 +1784,9 @@ export async function resumeRun({
     // M4c: the answer is ours and every guard has passed — record this resume process before its first step.
     recordPid(runDir, 'resume', now());
 
-    // The run's own injected clock governs expiry, exactly like every other
-    // "now" in this module (never the bare wall clock) — the same fixed
-    // clock a test controls for `runFlow` also controls what "expired" means
-    // for `resumeRun`, with no real wait required to prove it.
-    if (Date.parse(now()) > Date.parse(state.expiresAt)) {
+    // M4c amendment 3: expiry is when the answer was SAVED against the deadline (`timing`, above),
+    // not this process's clock at restart.
+    if (timing === 'late') {
       // Negative (i): an answer arriving after expiry cancels the run —
       // adds NOTHING further, but the run's own already-spent total is
       // real money and must be reported, never coerced to 0 (orchestrator

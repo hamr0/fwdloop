@@ -26,6 +26,24 @@ import { appendAudit } from './books.js';
 import { readFileInside, resolveInside, readdirInside } from './flow.js';
 
 /**
+ * M4c amendment 3: the ONE rule for "was this answer saved in time" — the
+ * answer's own saved time (`answeredAt`, written by `answerAsk`) against the
+ * ask's deadline, never the clock at the moment a resume restarts.
+ *   on-time    - answeredAt parses and is not after expiresAt
+ *   late       - answeredAt parses and is after expiresAt
+ *   unreadable - answeredAt or expiresAt missing/unparseable: never on time
+ * @param {unknown} answeredAt
+ * @param {unknown} expiresAt
+ * @returns {'on-time'|'late'|'unreadable'}
+ */
+export function answerTiming(answeredAt, expiresAt) {
+  const a = typeof answeredAt === 'string' ? Date.parse(answeredAt) : NaN;
+  const e = typeof expiresAt === 'string' ? Date.parse(expiresAt) : NaN;
+  if (Number.isNaN(a) || Number.isNaN(e)) return 'unreadable';
+  return a > e ? 'late' : 'on-time';
+}
+
+/**
  * M4b amendment 3 (SIGNED by hamr 2026-09-30): the ONE translation of a
  * decision. The answer that was spelled `reject` is `redo`; `reject` is still
  * understood (from the CLI, the library, or a file an older version wrote) and

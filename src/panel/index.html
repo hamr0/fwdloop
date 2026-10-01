@@ -2370,7 +2370,7 @@
         return { kind: "starting", label: resume.label, why: "no answer doors: this ask already has a saved answer" };
       }
       if(resume.state === "not-started"){
-        return { kind: "stuck", label: resume.label, reason: resume.reason || "no reason recorded", why: "no answer doors: this ask already has a saved answer" };
+        return { kind: "stuck", label: resume.label, lockPath: resume.lockPath || null, reason: resume.reason || "no reason recorded", why: "no answer doors: this ask already has a saved answer" };
       }
       return { kind: "none", why: "no answer doors: " + resume.label };
     }
@@ -2499,6 +2499,7 @@
       root.appendChild(textDiv("hint", model.label + " — " + model.why));
     } else if(model.kind === "stuck"){
       root.appendChild(textDiv("answer-msg stuck", model.label + ": " + model.reason));
+      if(model.lockPath) root.appendChild(textDiv("hint", "lock file: " + model.lockPath));
       root.appendChild(textDiv("hint", model.why + ". Trying again starts a resume only; it cannot answer."));
       var bar2 = document.createElement("div");
       bar2.className = "actions-row";

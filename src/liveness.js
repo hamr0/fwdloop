@@ -106,6 +106,9 @@ export function writeLockHolder(fd) {
   writeSync(fd, JSON.stringify({ pid: process.pid, procStart: procStartOf('self') }));
 }
 
+/** The words the runner's refusal uses for a lock it cannot clear; the panel reads the same constant (M4c amendment 3 (e)). */
+export const LOCK_NO_HOLDER = 'with no recorded holder';
+
 /**
  * The one reader of `resume.lock`. Through `lstat` (a symlinked lock is read as
  * `empty`, never followed).
