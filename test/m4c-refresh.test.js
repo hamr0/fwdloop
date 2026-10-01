@@ -134,6 +134,20 @@ test('ONE loop: startLive owns no timer of its own, and the page starts the tick
   assert.match(page, /\n  schedulePoll\(LIVE_POLL_MS\);\n/, 'the page arms the first tick at load');
 });
 
+test('the Workflows card and every run row say the same words, from the run\'s own fields: a running run reads "started ...", never "unknown"', () => {
+  const words = new Function('readableDateTime', `${['runSpendText', 'runAtText'].map(fnSrc).join('\n')}; return { spend: runSpendText, at: runAtText };`)((iso) => `T(${iso})`);
+  const running = { glyph: '[▶]', spend: null, spendWhy: 'running — no priced spend yet', at: null, askedAt: null, startedAt: '2026-10-01T09:00:00Z', atWhy: null };
+  assert.equal(words.at(running), 'started T(2026-10-01T09:00:00Z)');
+  assert.equal(words.spend(running), 'running — no priced spend yet');
+  assert.equal(words.at({ at: '2026-09-30T12:00:00Z' }), '2026-09-30');
+  assert.equal(words.at({ askedAt: '2026-10-01T09:00:00Z' }), 'asked T(2026-10-01T09:00:00Z)');
+  // both cards go through them (the Workflows card used to read only `at`, so a running or parked flow said "unknown")
+  const wf = page.slice(page.indexOf('var wfFullName'), page.indexOf('row.addEventListener("click"', page.indexOf('var wfFullName')));
+  assert.match(wf, /runAtText\(g\.lastRow\)/);
+  assert.match(wf, /runSpendText\(g\.lastRow\)/);
+  assert.match(fnSrc('buildRunRowEl'), /runAtText\(r\)/);
+});
+
 // ---- a running run's words -----------------------------------------------------------------------
 test('a run mid-step reads [▶] with a start time; no "unknown", no "parked or died" anywhere in its card or header', async () => {
   const root = mkdtempSync(path.join(tmpdir(), 'fwdloop-m4c-refresh-'));

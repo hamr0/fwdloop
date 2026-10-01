@@ -1167,8 +1167,8 @@
       '<span class="wf-name" title="' + escapeXml(fullName) + '">' + escapeXml(fullName) + '</span></span>' +
       '<span class="wf-meta-line">' +
       '<span class="wf-meta">' + escapeXml(r.label || "unknown") + '</span>' +
-      '<span class="wf-meta">' + escapeXml(r.spend || r.spendWhy || "unknown") + '</span>' +
-      '<span class="wf-meta">' + escapeXml(r.at ? r.at.slice(0,10) : (r.askedAt ? "asked " + readableDateTime(r.askedAt) : (r.startedAt ? "started " + readableDateTime(r.startedAt) : (r.atWhy || "unknown")))) + '</span>' +
+      '<span class="wf-meta">' + escapeXml(runSpendText(r)) + '</span>' +
+      '<span class="wf-meta">' + escapeXml(runAtText(r)) + '</span>' +
       '</span>';
     row.addEventListener("click", function(){ openRunFromRuns(r, row); });
     row.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); } });
@@ -1205,6 +1205,14 @@
   // ---- Workflows view: groups the ONE /api/runs payload by flow name
   // client-side. Runs arrive newest-first within a flow (server contract,
   // listRuns), so the first run seen for a flow is its latest.
+  // The words for a run row's spend and time cells — the Workflows card (a flow's latest run) and
+  // every History/expanded row say the same thing, from the same server fields.
+  function runSpendText(r){
+    return r.spend || r.spendWhy || "unknown";
+  }
+  function runAtText(r){
+    return r.at ? r.at.slice(0,10) : (r.askedAt ? "asked " + readableDateTime(r.askedAt) : (r.startedAt ? "started " + readableDateTime(r.startedAt) : (r.atWhy || "unknown")));
+  }
   function groupRunsByFlow(runs){
     var byFlow = {};
     var order = [];
@@ -1220,10 +1228,8 @@
         runs: flowRuns,
         runCount: last.runId === null ? 0 : flowRuns.length,
         lastRunId: last.runId,
-        lastAt: last.at,
         lastGlyph: last.glyph,
         lastLabel: last.label,
-        lastSpend: last.spend,
         lastRow: last,
       };
     });
@@ -1331,8 +1337,8 @@
         '<span class="wf-name" title="' + escapeXml(wfFullName) + '">' + escapeXml(wfFullName) + '</span></span>' +
         '<span class="wf-meta-line">' +
         '<span class="wf-meta">' + escapeXml(g.lastLabel || "unknown") + '</span>' +
-        '<span class="wf-meta">' + escapeXml(g.lastSpend || "unknown") + '</span>' +
-        '<span class="wf-meta">' + escapeXml(g.lastAt ? g.lastAt.slice(0,10) : "unknown") + '</span>' +
+        '<span class="wf-meta">' + escapeXml(runSpendText(g.lastRow)) + '</span>' +
+        '<span class="wf-meta">' + escapeXml(runAtText(g.lastRow)) + '</span>' +
         '<span class="wf-meta">' + g.runCount + ' run' + (g.runCount === 1 ? '' : 's') + '</span>' +
         '</span>';
       row.addEventListener("click", function(){
@@ -1611,7 +1617,7 @@
     // wallMs (never derived/guessed) — a died/parked run or one whose
     // history row predates the field both say why instead (fix #5).
     var capText = typeof detail.capUsd === "number" ? ("$" + detail.capUsd.toFixed(2)) : "unknown";
-    var spendText = detail.spend || "unknown — no spend recorded yet";
+    var spendText = detail.spend || (detail.glyph === "[▶]" ? "no priced spend yet" : "unknown — no spend recorded yet");
     var wallText = typeof detail.wallMs === "number" ? ("took " + duration(detail.wallMs)) : (detail.wallMsWhy || "wall time unknown");
     document.getElementById("run-counters").innerHTML =
       escapeXml(spendText) + " of " + escapeXml(capText) + " cap &middot; " + escapeXml(wallText);
