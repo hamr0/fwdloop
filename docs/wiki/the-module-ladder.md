@@ -1069,6 +1069,15 @@ hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from th
 - (e) Once the resume starts, it shows `[▶]` "working on your answer".
 - (f) If a resume took your answer and then died, the run cannot be carried on. It shows `[?]` "crashed after taking your answer — start a fresh run", not pulsing, and does not count in `Inbox (N)`. Replaying the taken answer is out of scope.
 - The lock file gains its holder's process number. No other book changes.
+
+**M4c amendment 3 — on time is on time — NOT YET SIGNED**
+- (a) A resume checks **when your answer was saved** against the ask's deadline, not the clock at the moment it restarts. An answer saved in time is carried on whenever "Try the resume again" is clicked.
+- (b) An answer saved after the deadline (for example a hand-written file) is still refused and cancels the run, as M3 says today. An answer with a missing or unreadable saved time is refused by name, never treated as on time.
+- (c) A stuck run with an on-time answer stays `[II]` pulsing in the Inbox, and its Ask tab shows "Try the resume again", even after the deadline. The Inbox and the Ask tab always say the same thing.
+- (d) An ask that ran out with no answer is `[!]` expired, as today.
+- (e) When "Try the resume again" was refused because of a lock it cannot clear (no recorded holder), the stuck label says so: `[II]` "stuck — remove the old resume lock by hand, then try again", with the file path shown in the box.
+- No book changes.
+- Why: hamr's M4c review walk 2026-10-01 — after the walk fixture's 30-minute asks ran out, the stuck runs still showed `[II]` in the Inbox (and counted in Inbox (N)) while the Ask tab said "expired" with no buttons; resumeRun (src/runner.js ~1782) checks expiry against the clock at resume time, so an answer saved in time is cancelled if the restart comes late. answerAsk (src/ask.js ~296) already refuses a late answer, so a saved answer was on time. And after an empty-lock refusal the label kept saying "click try the resume again", which can never work until the lock is removed by hand.
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
