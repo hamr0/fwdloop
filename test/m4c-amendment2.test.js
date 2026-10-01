@@ -17,7 +17,7 @@ import path from 'node:path';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import {
-  listStops, listRuns, inboxOpenCount, glyphPulses, computeGlyph, isStuck, STUCK_LABEL, CRASHED_LABEL,
+  listStops, listRuns, getRunAsks, inboxOpenCount, glyphPulses, computeGlyph, isStuck, STUCK_LABEL, CRASHED_LABEL,
 } from '../src/panel/data.js';
 import { readResumeLock } from '../src/liveness.js';
 import { spawnHolder } from './fixtures/lock-holder.mjs';
@@ -256,6 +256,20 @@ test('(c) a stuck Inbox card has the [II] sign and opens the Ask tab, whose stuc
   assert.match(PAGE, /if\(g === "\[II\]"\) return "stuck";/);
   // reduced motion keeps the sign, drops only the pulse (the one existing rule covers [II])
   assert.match(PAGE, /prefers-reduced-motion: reduce\)\{\s*\.dot\.pulse::before\{animation:none/);
+});
+
+test('(c) the Ask tab says the same as the run list: a stuck run\'s resume label is the stuck label; a live holder\'s is not', async () => {
+  const root = tmp('c2');
+  makeFlow(root);
+  await stuckRun(root, 'r1');
+  const asks = () => getRunAsks({ root, flow: 'job2', runId: 'r1', catalogue: CATALOGUE });
+  assert.equal(asks().resume.label, STUCK_LABEL);
+  assert.equal(asks().resume.state, 'not-started', 'the state itself is unchanged: the page keys the button on it');
+  assert.equal(asks().asks[0].resume.label, STUCK_LABEL, 'the ask header line too');
+  const h = await spawnHolder(tmp('holder'));
+  holders.push(h);
+  writeFileSync(lockOf(root, 'r1'), h.lockText);
+  assert.equal(asks().resume.label, 'answer saved, resume not started', 'a live holder: not stuck, label untouched');
 });
 
 // ---------------------------------------------------------------------------

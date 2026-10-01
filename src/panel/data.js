@@ -1761,7 +1761,11 @@ export function getRunAsks({
   });
   const declSteps = flowRead.ok ? flowRead.declaration.steps : null;
   const stepInfo = deriveAskStepInfo(ordered, auditRows, declSteps);
-  const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null });
+  let resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null });
+  // M4c amendment 2: the Ask tab says what the run list says — stuck, by the one rule (`isStuck`).
+  if (resume && isStuck({ resume, liveness: runLiveness(run.runDir), lock: readResumeLock(run.runDir).state })) {
+    resume = { ...resume, label: STUCK_LABEL };
+  }
   const asks = ordered.map((ask, i) => ({
     ...ask,
     ...deriveAskOpenFields(ask, hasHistoryRow, resume),
