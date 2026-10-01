@@ -1079,7 +1079,7 @@ hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from th
 - No book changes.
 - Why: hamr's M4c review walk 2026-10-01 — after the walk fixture's 30-minute asks ran out, the stuck runs still showed `[II]` in the Inbox (and counted in Inbox (N)) while the Ask tab said "expired" with no buttons; resumeRun (src/runner.js ~1782) checks expiry against the clock at resume time, so an answer saved in time is cancelled if the restart comes late. answerAsk (src/ask.js ~296) already refuses a late answer, so a saved answer was on time. And after an empty-lock refusal the label kept saying "click try the resume again", which can never work until the lock is removed by hand.
 
-#### M4c exit evidence — NOT YET SIGNED; from hamr's live walk 2026-10-01
+#### M4c exit evidence — SIGNED by hamr 2026-10-01; from hamr's live walk 2026-10-01
 
 hamr has not signed the M4c exit. Numbers are from the books on disk under `flows/job2-m6a-2/` (times UTC).
 
@@ -1091,7 +1091,7 @@ hamr has not signed the M4c exit. Numbers are from the books on disk under `flow
 - **Branch reviews:** `/self-review` at 5decfe8: 0 fix now, 7 later. `/branch-review` at 5decfe8: ready, no blockers, fail-first 10/10; docs sweep a429bc0. `npm test` at 2daeb49: 1799 pass.
 - **Open, not in M4c as signed:** the signs key (proposed M4c amendment 4, not signed); the "parked or died" wording on a parked run's header; the panel needs the provider key in its own environment until M4d.
 
-Exit: NOT YET SIGNED
+Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
