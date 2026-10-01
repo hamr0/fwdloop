@@ -28,7 +28,7 @@ import {
   readFlow, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
 } from '../flow.js';
 import {
-  readAudit, readHistory, auditRowTokens, auditRowAt, auditRowTools,
+  readAudit, readHistory, readPidRows, auditRowTokens, auditRowAt, auditRowTools,
 } from '../books.js';
 import { readAsk, readRunState, readLog } from '../runner.js';
 import { readSpendRows } from '../provider.js';
@@ -796,8 +796,24 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     liveness: historyRow ? 'unknown' : runLiveness(runDir),
     lock: historyRow ? 'none' : readResumeLock(runDir).state,
     booksFresh: historyRow ? false : booksFresh(runDir),
+    // M4c exit walk: when the process that is working on the run started (its newest pid row's
+    // own `startedAt`), so a `[▶]` run has a real time and never "parked or died". Not a book change.
+    startedAt: historyRow ? null : lastPidStartedAt(runDir),
   };
 }
+
+/** @param {string} runDir @returns {string|null} */
+function lastPidStartedAt(runDir) {
+  const rows = readPidRows(runDir);
+  const at = rows[rows.length - 1]?.startedAt;
+  return typeof at === 'string' && !Number.isNaN(Date.parse(at)) ? at : null;
+}
+
+/** The ONE running rule for wording is the glyph's own (`computeGlyph` -> `[▶]`, which already
+ *  folds in `runLiveness`): a run with no end row whose glyph is `[▶]` is running. */
+const RUNNING_WHY = 'still running — not finished yet';
+/** @param {any} ctx @param {string} glyph */
+const isRunningNow = (ctx, glyph) => !ctx.historyRow && glyph === '[▶]';
 
 /**
  * `GET /api/runs` — every flow under `root`, every run under each flow
@@ -862,13 +878,19 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
         stuck: glyph === '[II]',
         resume: ctx.resume,
         spend,
-        spendWhy: (!ctx.historyRow && spend === null) ? 'no history row yet and no priced spend.jsonl rows — nothing to floor' : null,
+        spendWhy: (!ctx.historyRow && spend === null)
+          ? (isRunningNow(ctx, glyph) ? 'running — no priced spend yet' : 'no history row yet and no priced spend.jsonl rows — nothing to floor')
+          : null,
         waiting: waitingAsk !== null,
         waitingAskId: waitingAsk ? waitingAsk.ask.askId : null,
         timeLeftMs: waitingAsk ? waitingAsk.timeLeftMs : null,
         at: ctx.historyRow ? ctx.historyRow.at : null,
         askedAt,
-        atWhy: (ctx.historyRow || askedAt) ? null : 'no history row yet (parked or died before one was written)',
+        startedAt: isRunningNow(ctx, glyph) ? ctx.startedAt : null,
+        atWhy: (ctx.historyRow || askedAt) ? null
+          : isRunningNow(ctx, glyph)
+            ? (ctx.startedAt ? null : 'running — start time not recorded (no pid record)')
+            : 'no history row yet (parked or died before one was written)',
       });
     }
   }
@@ -1162,7 +1184,8 @@ export function getRunDetail({
   const wallMs = ctx.historyRow && typeof ctx.historyRow.wallMs === 'number' ? ctx.historyRow.wallMs : null;
   const wallMsWhy = wallMs !== null
     ? null
-    : (ctx.historyRow ? 'history row has no wallMs recorded' : 'no history row yet (parked or died before completion)');
+    : (ctx.historyRow ? 'history row has no wallMs recorded'
+      : isRunningNow(ctx, glyph) ? RUNNING_WHY : 'no history row yet (parked or died before completion)');
 
   let spend;
   if (ctx.historyRow) {
@@ -1188,7 +1211,7 @@ export function getRunDetail({
     pulse: glyphPulses({ glyph, label }),
     resume: ctx.resume,
     outcome: ctx.historyRow ? ctx.historyRow.outcome : null,
-    outcomeWhy: ctx.historyRow ? null : 'no history row (parked or died before completion)',
+    outcomeWhy: ctx.historyRow ? null : (isRunningNow(ctx, glyph) ? RUNNING_WHY : 'no history row (parked or died before completion)'),
     capUsd: ctx.historyRow ? ctx.historyRow.capUsd : (ctx.flowRead.ok ? ctx.flowRead.arbiter.capUsd : null),
     spend,
     model,
@@ -1209,9 +1232,12 @@ export function getRunDetail({
     askedAt: (!ctx.historyRow && ctx.askJson && typeof ctx.askJson.askedAt === 'string')
       ? ctx.askJson.askedAt
       : null,
+    startedAt: isRunningNow(ctx, glyph) ? ctx.startedAt : null,
     atWhy: (ctx.historyRow || (ctx.askJson && typeof ctx.askJson.askedAt === 'string'))
       ? null
-      : 'no history row yet (parked or died before completion)',
+      : isRunningNow(ctx, glyph)
+        ? (ctx.startedAt ? null : 'running — start time not recorded (no pid record)')
+        : 'no history row yet (parked or died before completion)',
   };
 }
 
