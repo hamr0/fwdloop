@@ -2835,7 +2835,7 @@ for the same signed text. Observation only.
 
 ## F54 — M4c: the one 2 s page loop re-drew every list every tick, so a clicked or Tab-focused Inbox row lost its highlight and focus, and lists lost their scroll (2026-10-02)
 
-Found in hamr's walk (per the test header in `test/m4c-refresh-rates.test.js`). After `1f1c41f` (one page-wide refresh loop) every 2 s tick
+Found by /branch-review (code read, 2026-10-02); hamr pointed to bareloop's fix, and the builder's browser walk at 1280 and 390 confirmed the fix (selection, focus and scroll held 13 s; list fetches at 9.2 s and 19.2 s). After `1f1c41f` (one page-wide refresh loop) every 2 s tick
 rebuilt the Inbox and Runs lists from scratch: `renderInbox` did `innerHTML = ""` and `renderStopRow` never
 re-applied `selected` / `aria-pressed`, so a selected row was un-lit and keyboard focus dropped within 2 s.
 This is the same shape as bareloop F195 (a list polled every 2 s on every tick), which bareloop fixed by
