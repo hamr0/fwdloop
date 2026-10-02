@@ -1081,7 +1081,7 @@ hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from th
 
 #### M4c exit evidence — SIGNED by hamr 2026-10-01; from hamr's live walk 2026-10-01
 
-hamr has not signed the M4c exit. Numbers are from the books on disk under `flows/job2-m6a-2/` (times UTC).
+Numbers are from the books on disk under `flows/job2-m6a-2/` (times UTC).
 
 - **Who and how:** hamr, panel only, real provider deepseek-flash, flow `job2-m6a-2`. Three runs. Branch `m4c`.
 - **Run `m4c-exit-1` — walked on the panel before the refresh fix.** Run leg pid 09:26:28, first ask parked 09:27:37. hamr found: (1) no page-wide refresh, so the lists and Inbox stayed `[▶]` / "Inbox (0)" after the run parked; (2) while a run worked, the job card said "time unknown" and the header said "no history row yet (parked or died…)"; (3) after Redo (answered 09:31:27, reason "redo babe") the panel-spawned resume had no `DEEPSEEK_API_KEY` (the panel had been started without it), so it was refused at $0 and the run sat `[II]` — amendment 2 working as signed. hamr restarted the panel with the key and clicked "Try the resume again"; the resume pid row is 09:47:28, which proves amendment 2 live. Draft 2 parked 09:48:05, accept (reason "looks good", 09:48:20) with an `artifactSha256` (c617ea67…), a second resume pid row at 09:48:20, outcome `complete`, `spentUsd` 0.030518 (cap $0.25), wall 1311656 ms. The audit usd sum (12 rows) is 0.03051846, equal to `spentUsd`. Fixes made from this walk: d35d545, 1f1c41f, 2daeb49 (one page-wide refresh loop; running-run wording; job card time).
