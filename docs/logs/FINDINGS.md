@@ -2763,7 +2763,7 @@ browser (CSRF was modelled with raw headers only); a live paid run; two door pro
   state by name if it still fails.
 - 2A: every answer must name its askId.
 
-Drafted as M4b amendment 1 (NOT SIGNED).
+Drafted as M4b amendment 1 (signed by hamr 2026-09-30; see `docs/wiki/the-module-ladder.md`).
 
 **Note.** `npm test` picks up the POC test (~30 s of a ~38 s suite). The POC is throwaway and must not ship.
 
@@ -2831,4 +2831,4 @@ signed prose is byte-identical to `job2-m6a-2`, yet the drafted shape checks dif
 section headings (it adds "how it matches the JD"), `job2-m6a-2` checks three. The drafter's output varied
 for the same signed text. Observation only.
 
-**Status.** The four panel-clarity points are scoped and built as M4c (signed 2026-09-30, branch `m4c`, amendments 1-3; scope in `docs/wiki/the-module-ladder.md`); M4c's live exit is not yet signed, so this stays open until it is. The drafter-variation observation (second point) is not scoped and still open.
+**Status.** The four panel-clarity points are scoped and built as M4c (signed 2026-09-30, branch `m4c`, amendments 1-3; scope in `docs/wiki/the-module-ladder.md`); M4c's live exit was signed by hamr 2026-10-01; what the exit left open is listed under "M4c exit evidence" in the same file. The drafter-variation observation (second point) is not scoped and still open.
