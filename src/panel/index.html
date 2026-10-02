@@ -1181,7 +1181,8 @@
   // the left side on Runs.
   function openRunFromRuns(r, rowEl){
     if(r.waiting){
-      var inboxRow = document.querySelector('[data-testid="inbox-row-' + r.flow + '-' + r.runId + '-' + r.waitingAskId + '"]');
+      var inboxId = "inbox-row-" + r.flow + "-" + r.runId + "-" + r.waitingAskId;
+      var inboxRow = Array.prototype.find.call(document.querySelectorAll(".inbox-row"), function(el){ return el.getAttribute("data-testid") === inboxId; }) || null;
       selectRun(r.flow, r.runId, inboxRow, ".inbox-row", r.waitingAskId);
       document.getElementById("tab-inbox").click();
     } else {

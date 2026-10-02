@@ -138,6 +138,8 @@ function pageHarness() {
   const document = {
     getElementById: (id) => els[id] ?? null,
     querySelector: (sel) => inboxRows[/data-testid="([^"]+)"/.exec(sel)?.[1]] ?? null,
+    // the real page's rows carry their own data-testid; the fake stamps it from the key it was filed under
+    querySelectorAll: () => Object.entries(inboxRows).map(([id, el]) => { el.setAttribute('data-testid', id); return el; }),
   };
   const calls = { selectRun: [] };
   const body = `
