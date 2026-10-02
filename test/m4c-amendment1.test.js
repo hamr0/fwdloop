@@ -137,7 +137,12 @@ function pageHarness() {
   const inboxRows = {};
   const document = {
     getElementById: (id) => els[id] ?? null,
-    querySelector: (sel) => inboxRows[/data-testid="([^"]+)"/.exec(sel)?.[1]] ?? null,
+    // like a real DOM: a selector that is not one well-formed [data-testid="..."] throws instead of quietly missing
+    querySelector: (sel) => {
+      const m = /^\[data-testid="([^"]*)"\]$/.exec(sel);
+      if (!m) throw new SyntaxError(`'${sel}' is not a valid selector`);
+      return inboxRows[m[1]] ?? null;
+    },
     // the real page's rows carry their own data-testid; the fake stamps it from the key it was filed under
     querySelectorAll: () => Object.entries(inboxRows).map(([id, el]) => { el.setAttribute('data-testid', id); return el; }),
   };
@@ -173,6 +178,15 @@ test('(a) clicking a waiting run: right = Run (from Audit), left = Inbox with th
   assert.equal(h.calls.selectRun.length, 1);
   assert.equal(h.calls.selectRun[0].rowEl, inboxRow, 'the inbox row is the selected one');
   assert.equal(h.calls.selectRun[0].askId, 'ask9');
+});
+
+test('(a) a hand-edited askId with a quote and bracket still finds its inbox row and does not throw', () => {
+  const h = pageHarness();
+  const inboxRow = new El('row');
+  h.inboxRows['inbox-row-job2-r1-a"]b'] = inboxRow;
+  h.openRunFromRuns({ flow: 'job2', runId: 'r1', waiting: true, waitingAskId: 'a"]b' }, new El('runs-row'));
+  assert.equal(h.calls.selectRun[0].rowEl, inboxRow);
+  assert.equal(h.calls.selectRun[0].askId, 'a"]b');
 });
 
 test('(a) clicking a finished run: right = Run (from Audit), left stays on Runs', () => {
