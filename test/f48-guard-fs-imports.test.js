@@ -269,11 +269,11 @@ const ALLOWLIST = {
     },
   },
   'src/runner.js': {
-    reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create+cleanup) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above)',
+    reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create + stale-lock clear + cleanup, M4c amendment 2) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above)',
     names: {
-      accessSync: 1, closeSync: 1, constants: 1, copyFileSync: 1, existsSync: 7,
+      accessSync: 1, closeSync: 2, constants: 1, copyFileSync: 1, existsSync: 7,
       mkdirSync: 6, openSync: 1, readFileSync: 3, realpathSync: 2, renameSync: 1,
-      statSync: 1, unlinkSync: 1, writeFileSync: 5,
+      statSync: 1, unlinkSync: 3, writeFileSync: 5,
     },
     readArtifactCallSites: 4,
   },
@@ -286,6 +286,10 @@ const ALLOWLIST = {
   'src/books.js': {
     reason: 'append-only book writer (audit.jsonl/history.jsonl) — writes only, no reads',
     names: { appendFileSync: 1, mkdirSync: 1 },
+  },
+  'src/liveness.js': {
+    reason: 'M4c: /proc reads only (cmdline, stat field 22, a /proc existence probe) plus lstatSync mtime of the run\'s own book files for the 10-minute fallback (presence/mtime only, content never read, symlinks not followed) — pids.jsonl itself is read via books.js readPidRows (readFileInside); M4c amendment 2: resume.lock — lstat (a symlinked lock reads as empty, never followed), one read of its holder JSON, and writeSync of that holder into the fd resumeRun just created with wx',
+    names: { lstatSync: 2, readFileSync: 4, writeSync: 1 },
   },
   'src/provider.js': {
     reason: 'append-only spend-log writer — writes only, no reads',

@@ -4,11 +4,13 @@
 //   usage: node scripts/panel-fixtures/walk-root.mjs [<root-dir>] [<port>]
 // Builds job2 with three runs:
 //   run-open   parked at an open ask      -> the three doors
-//   run-stuck  answer saved, resume.lock held -> "answer saved, resume not started" + try-again
+//   run-stuck  answer saved, resume.lock left by a DEAD holder -> [II] stuck, pulsing; try-again clears it
+//   run-stuck-empty  answer saved, EMPTY resume.lock (pre-amendment) -> [II] stuck; try-again refuses by name
 //   run-done   accepted and completed      -> [✓] and the sent artifact in the Run tab
 // and prints the exact command to start the panel on it.
 import { mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { procStartOf } from '../../src/liveness.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeFlow } from '../../src/flow.js';
@@ -58,15 +60,22 @@ const doneAsk = park('run-done');
 cli(['answer', doneAsk, 'accept', '--root', root]);
 cli(['resume', 'run-done', '--flow', 'job2', '--root', root]);
 // (b) answer saved, resume blocked by a held lock
+// M4c amendment 2 (d): a lock names its holder. A holder that is gone: a real process that has exited.
+const deadHolder = spawnSync(process.execPath, ['-e', '']);
 const stuckAsk = park('run-stuck');
 cli(['answer', stuckAsk, 'accept', '--root', root]);
-writeFileSync(path.join(root, 'job2', 'runs', 'run-stuck', 'resume.lock'), '');
+writeFileSync(path.join(root, 'job2', 'runs', 'run-stuck', 'resume.lock'), JSON.stringify({ pid: deadHolder.pid, procStart: procStartOf('self') }));
+// and a pre-amendment lock with no holder at all (what a kill -9'd resumer used to leave)
+const emptyAsk = park('run-stuck-empty');
+cli(['answer', emptyAsk, 'accept', '--root', root]);
+writeFileSync(path.join(root, 'job2', 'runs', 'run-stuck-empty', 'resume.lock'), '');
 // (a) parked at an open ask
 park('run-open');
 
 process.stdout.write(`root: ${root}
   run-open   open ask, three doors
-  run-stuck  answer saved, resume.lock held (rm ${path.join(root, 'job2', 'runs', 'run-stuck', 'resume.lock')} to let "try the resume again" succeed)
+  run-stuck  answer saved, resume.lock names a dead holder ("try the resume again" clears it and resumes)
+  run-stuck-empty  answer saved, empty resume.lock ("try the resume again" refuses by name; rm ${path.join(root, 'job2', 'runs', 'run-stuck-empty', 'resume.lock')} by hand)
   run-done   completed [✓]
 start the panel (answers resume with the fake model step, $0):
   NODE_ENV=test FWDLOOP_TEST_MODEL_STEP=${FAKE} node ${path.join(REPO, 'bin', 'fwdloop')} panel --root ${root} --port ${port}

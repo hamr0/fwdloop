@@ -658,7 +658,7 @@ has a bareloop UI to borrow, so M4 is mostly adjusting, not designing.
   authoring only and is now M6, and every module after it shifts by one (old M6→M7, M7→M8, M8→M9,
   M9→M10). The renumber is done in the sections below, not deferred.
 
-### M4 (the UI) — scope, exit, negative — M4a SIGNED by hamr 2026-09-26 ("signed M4a"), M4a EXIT SIGNED 2026-09-27, M4b SIGNED by hamr 2026-09-29 ("sign m4b"), M4b EXIT SIGNED 2026-09-30 ("sign m4b exit")
+### M4 (the UI) — scope, exit, negative — M4a SIGNED by hamr 2026-09-26 ("signed M4a"), M4a EXIT SIGNED 2026-09-27, M4b SIGNED by hamr 2026-09-29 ("sign m4b"), M4b EXIT SIGNED 2026-09-30 ("sign m4b exit"), M4c SIGNED 2026-09-30 ("sign m4c")
 
 **Where it comes from** (answered by the `loop` session, 2026-09-26). bareloop's panel:
 `src/panel/index.html` (one file, all CSS and JS inline, vanilla, no build step, no npm UI deps; only
@@ -1019,6 +1019,80 @@ hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from th
 - **What the exit text asked vs what happened.** The signed exit says the person "rejects with a reason, sees it re-park ... accepts, and sees the run's glyph turn `[✓]` and the sent artifact in the Run tab", read with amendment 3's word "redo". The books show the redo, the re-park and the accept and complete. hamr reported: accepted, and on the glyph: "yes, i see passed". He did not separately state that he saw the sent artifact in the Run tab; the books show it landed at the signed destination.
 - **"Via the new re-signed flow".** The walk completed on `job2-m6a-2`, not `job2-m6a-3`. The two flows' signed prose is byte-identical. The orchestrator put this question to hamr before signing (sign if it counts); hamr signed.
 - **hamr's notes from the walk:** "i got confused on workflows as it didnt have pulsing play (working) but i found it, same at inbox, ask 1 of 2, 2 of 2 was not clear, that was confusing. inbox should highlight or flow on the right should be different" and "so every redo it reasked again and they were all same ask?". These are recorded as F53 and are not part of the signed M4b scope. F53 stays open as later work; it did not hold the exit.
+
+#### M4c — the answers read clearly — SIGNED by hamr 2026-09-30 ("sign m4c")
+
+- **Why:** hamr's M4b live walk (F53). While a run worked there was no sign it was working; "Ask 1 of 2 / 2 of 2" was not clear; the inbox did not put the ask that needs you first; after a redo the new ask looked like the same ask again. hamr agreed a mockup on 2026-09-30 ("mockup agreed"); this scope is that mockup in words. Ladder order agreed the same day: M4c (this), then M4d (Settings: providers, keys, money, ported from bareloop), then M4e (run a job from the panel). Keys are typed by hand into a file, never on the page (hamr 2026-09-30, "keys handtyped").
+- **Scope:**
+  1. **Signs, the same everywhere** (Runs list, Inbox, run header): `[▶]` running, pulsing; `[·]` waiting on you, pulsing; `[✓]` passed; `[✗]` failed, or stopped by you (rerun); `[!]` ask expired; `[?]` died or unknown. Under the browser's reduced-motion setting the sign stays and only the pulse stops.
+  2. **How "running" is known — agreed by hamr at signing** (hamr asked to check with bareloop; `loop` answered 2026-09-30, "both, pid first"): each process that works on a run (the first run and every resume) appends one row `{pid, startedAt}` to a new append-only file in the run dir, written by that process itself before its first step. The panel shows `[▶]` while the newest row's pid is alive and its command line is `fwdloop` (`/proc` check). The moment it is gone, `[?]`. A run with no such row (started before M4c) or where `/proc` cannot be read falls back to bareloop's rule: no end row and the run's books changed in the last 10 minutes is `[▶]`, older is `[?]`. An end row in `history.jsonl` always wins over both. The rule lives in one function, so M4d's money hold can reuse it and the two never disagree (bareloop's own open inconsistency). No existing book changes shape; one new file is added.
+  3. **`Inbox (N)` is always in the top tab.** N counts asks that are open and not expired, across all flows and runs. N drops as soon as an answer is saved.
+  4. **Inbox order:** asks waiting on you first and highlighted, the one with the least time left on top (hamr 2026-09-30, "runs out first"). Then runs working on an answer you just gave (`[▶]` "working on your redo…"). Then answered and expired asks, dimmed, newest first.
+  5. **The Ask tab shows one block per ask line**, titled with the signed question. Under it: the current draft, labelled "draft N" (N = how many times this ask line has parked in this run), in full; then "your answers so far", one line per earlier draft: `draft k → <decision> "<reason>" <time>`. The words "Ask 1 of 2" go. A flow's second ask line is its own block with its own title.
+  6. **After a click the doors hide** and the block says what is happening, with `[▶]` pulsing, until the books show the next state: redo "working on your redo… draft N+1 is coming"; accept "shipping draft N…"; rerun "ending this run, starting a fresh one…".
+  7. **The live refresh never redraws over what you are doing:** a reason being typed, or a refusal just shown, stays until your next click (bareloop F199: a 2 s re-render wiped a typed answer).
+- **Negatives** (each must be able to fail):
+  - (i) a run parked at an ask never shows `[▶]`;
+  - (ii) a run whose process is killed shows `[?]` on the next refresh, never `[▶]`; a pre-M4c run with no pid row shows `[?]` once its books are older than 10 minutes;
+  - (iii) a recycled pid that is not `fwdloop` does not read as running;
+  - (iv) `Inbox (N)`: one open ask gives 1; 0 once the answer is saved; an expired ask is not counted;
+  - (v) with two runs waiting, the one with less time left is on top;
+  - (vi) after three redos the Ask tab shows "draft 4" and three answer lines, and never "Ask 1 of";
+  - (vii) a reason typed in the box survives three refresh ticks; a refusal shown stays until the next click;
+  - (viii) a run from before M4c still renders, and none of its files is rewritten.
+- **Exit:** hamr, live on deepseek-flash, panel only: sees `[▶]` pulse while the run works; sees `Inbox (1)` and `[·]` pulse when it parks; clicks Redo with a reason and sees "working on your redo…", then "draft 2" with his answer listed under it; clicks Accept and sees `Inbox (0)` and `[✓]`. The orchestrator walks the same at desktop and 390 px first, at $0.
+- **Cap:** $1.00 (hamr 2026-09-30).
+- **Not in scope:** Settings (M4d); a Run button (M4e); new answer words; any change to an existing book's shape; the drafter.
+
+**M4c amendment 1 — where a click takes you, and run order — SIGNED by hamr 2026-09-30 ("sign m4c amendment 1")**
+- (a) From **Runs**, clicking a run opens it on the right on the **Run** tab. If that run has an ask waiting on you, the left side also switches to the **Inbox** with that ask selected. If not, the left side stays on Runs.
+- (b) From the **Inbox**, clicking any card opens the **Ask** tab on the right. That includes a waiting card and an old answered or expired one.
+- (c) Runs and History list the runs waiting on you first, the one with the least time left on top. Everything else follows by finish time, newest first. A running run sits just below the waiting ones. A job's top row is its waiting run, if it has one.
+- No book changes.
+- Why: hamr's M4c review walk 2026-09-30 — clicking a `[·]` run in Runs landed on the Audit tab, and Runs/History put finished runs above the run waiting on him (a parked run has no end row, so the finish-time sort dropped it to the bottom).
+
+**M4c amendment 2 — a stuck run, and how to unstick it — SIGNED by hamr 2026-09-30 ("sign m4c amendment 2")**
+- (a) A run is **stuck** when your answer is saved but no process is carrying the run on. It shows `[II]` "stuck — answer saved, click try the resume again", **pulsing** (it is not a final state). Under reduced motion the sign stays and only the pulse stops.
+- (b) A stuck run counts in `Inbox (N)` and sits in the Inbox's "waiting on you" section, below the asks that have a timer. In Runs and History it sits with the waiting runs.
+- (c) Clicking a stuck card in the Inbox opens the Ask tab, where the "Try the resume again" button is.
+- (d) The resume lock records the process that holds it. "Try the resume again" clears a lock only when that process is gone (the same liveness rule as `[▶]`). If it is alive, it refuses by name. Two resumes never run at once.
+- (e) Once the resume starts, it shows `[▶]` "working on your answer".
+- The lock file gains its holder's process number. No other book changes.
+- Why: hamr's M4c review walk 2026-09-30 — the walk fixture's run-stuck (answer saved, resume.lock held) showed `[·]` "waiting on you" though nothing waited on him; and a resumer killed hard leaves an empty `resume.lock` (src/runner.js ~1548, removed only in its finally ~1968), so "Try the resume again" is refused forever until the file is deleted by hand.
+
+**M4c amendment 2 (revised) — a stuck run, and how to unstick it — SIGNED by hamr 2026-09-30 ("sign m4c amendment 2 revised")**
+- Replaces M4c amendment 2 above. The POC (poc/m4c/stuck-probe.mjs, e493228) proved a resume that took the answer and then died cannot be carried on: clearing the lock leaves "no answer yet", and the taken answer's askId refuses a second answer.
+- (a) A run is **stuck** when your answer is saved and not yet taken, but no process is carrying the run on. It shows `[II]` "stuck — answer saved, click try the resume again", **pulsing**. Under reduced motion the sign stays and only the pulse stops.
+- (b) A stuck run counts in `Inbox (N)` and sits in the Inbox's "waiting on you" section, below the asks that have a timer. In Runs and History it sits with the waiting runs.
+- (c) Clicking a stuck card in the Inbox opens the Ask tab, where the "Try the resume again" button is.
+- (d) The resume lock records the process that holds it. "Try the resume again" clears a lock only when that process is gone (the same liveness rule as `[▶]`). If it is alive, it refuses by name. Two resumes never run at once.
+- (e) Once the resume starts, it shows `[▶]` "working on your answer".
+- (f) If a resume took your answer and then died, the run cannot be carried on. It shows `[?]` "crashed after taking your answer — start a fresh run", not pulsing, and does not count in `Inbox (N)`. Replaying the taken answer is out of scope.
+- The lock file gains its holder's process number. No other book changes.
+
+**M4c amendment 3 — on time is on time — SIGNED by hamr 2026-10-01 ("sign m4c amendment 3")**
+- (a) A resume checks **when your answer was saved** against the ask's deadline, not the clock at the moment it restarts. An answer saved in time is carried on whenever "Try the resume again" is clicked.
+- (b) An answer saved after the deadline (for example a hand-written file) is still refused and cancels the run, as M3 says today. An answer with a missing or unreadable saved time is refused by name, never treated as on time.
+- (c) A stuck run with an on-time answer stays `[II]` pulsing in the Inbox, and its Ask tab shows "Try the resume again", even after the deadline. The Inbox and the Ask tab always say the same thing.
+- (d) An ask that ran out with no answer is `[!]` expired, as today.
+- (e) When "Try the resume again" was refused because of a lock it cannot clear (no recorded holder), the stuck label says so: `[II]` "stuck — remove the old resume lock by hand, then try again", with the file path shown in the box.
+- No book changes.
+- Why: hamr's M4c review walk 2026-10-01 — after the walk fixture's 30-minute asks ran out, the stuck runs still showed `[II]` in the Inbox (and counted in Inbox (N)) while the Ask tab said "expired" with no buttons; resumeRun (src/runner.js ~1782) checks expiry against the clock at resume time, so an answer saved in time is cancelled if the restart comes late. answerAsk (src/ask.js ~296) already refuses a late answer, so a saved answer was on time. And after an empty-lock refusal the label kept saying "click try the resume again", which can never work until the lock is removed by hand.
+
+#### M4c exit evidence — SIGNED by hamr 2026-10-01; from hamr's live walk 2026-10-01
+
+Numbers are from the books on disk under `flows/job2-m6a-2/` (times UTC).
+
+- **Who and how:** hamr, panel only, real provider deepseek-flash, flow `job2-m6a-2`. Three runs. Branch `m4c`.
+- **Run `m4c-exit-1` — walked on the panel before the refresh fix.** Run leg pid 09:26:28, first ask parked 09:27:37. hamr found: (1) no page-wide refresh, so the lists and Inbox stayed `[▶]` / "Inbox (0)" after the run parked; (2) while a run worked, the job card said "time unknown" and the header said "no history row yet (parked or died…)"; (3) after Redo (answered 09:31:27, reason "redo babe") the panel-spawned resume had no `DEEPSEEK_API_KEY` (the panel had been started without it), so it was refused at $0 and the run sat `[II]` — amendment 2 working as signed. hamr restarted the panel with the key and clicked "Try the resume again"; the resume pid row is 09:47:28, which proves amendment 2 live. Draft 2 parked 09:48:05, accept (reason "looks good", 09:48:20) with an `artifactSha256` (c617ea67…), a second resume pid row at 09:48:20, outcome `complete`, `spentUsd` 0.030518 (cap $0.25), wall 1311656 ms. The audit usd sum (12 rows) is 0.03051846, equal to `spentUsd`. Fixes made from this walk: d35d545, 1f1c41f, 2daeb49 (one page-wide refresh loop; running-run wording; job card time).
+- **Run `m4c-exit-2` — killed by hamr mid-step.** Run leg pid 09:51:30; no history row, no ask. The panel shows it `[?]` gone. Its 3 audit rows sum to $0.012897 of spend with no history row.
+- **Run `m4c-exit-3` — on the fixed panel.** Run leg pid 09:55:25, draft 1 parked 09:56:38, redo (reason "redo babe") 09:58:06, resume pid 09:58:07, draft 2 parked 09:59:04, accept (reason "good") 10:03:56 with an `artifactSha256` (c732088f…), resume pid 10:03:57, outcome `complete`, `spentUsd` 0.035863 (cap $0.25), wall 511150 ms. The audit usd sum (11 rows) is 0.03586338, equal to `spentUsd`. hamr: "pass".
+- **Spend:** $0.030518 + $0.012897 + $0.035863 = $0.079279 across the three runs (sum of audit usd), against the signed M4c cap of $1.00.
+- **Branch reviews:** `/self-review` at 5decfe8: 0 fix now, 7 later. `/branch-review` at 5decfe8: ready, no blockers, fail-first 10/10; docs sweep a429bc0. `npm test` at 2daeb49: 1799 pass.
+- **Refresh rates (F54):** /branch-review found (code read) that the one 2 s loop re-drew the Inbox and Runs lists every tick, so a selected row lost its highlight and focus and the lists lost their scroll. The page now polls the open run's own panes every 2 s only while that run is live, the Inbox and Runs lists at most every 10 s, skips any render whose payload is unchanged, and keeps selection, focus and scroll across a rebuild. This does not change the signed scope: scope item 7 and negative (vii) (a typed reason survives three refresh ticks) still hold and are covered by `test/m4c-refresh.test.js`.
+- **Open, not in M4c as signed:** the signs key (proposed M4c amendment 4, not signed); the "parked or died" wording on a parked run's header; the panel needs the provider key in its own environment until M4d.
+
+Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs

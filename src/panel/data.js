@@ -28,12 +28,15 @@ import {
   readFlow, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
 } from '../flow.js';
 import {
-  readAudit, readHistory, auditRowTokens, auditRowAt, auditRowTools,
+  readAudit, readHistory, readPidRows, auditRowTokens, auditRowAt, auditRowTools,
 } from '../books.js';
 import { readAsk, readRunState, readLog } from '../runner.js';
 import { readSpendRows } from '../provider.js';
 import {
-  readAskEvidence, listArchivedAsks, normalizeDecision, DECISION_STATUS,
+  runLiveness, booksFresh, readResumeLock, LOCK_NO_HOLDER,
+} from '../liveness.js';
+import {
+  readAskEvidence, listArchivedAsks, normalizeDecision, DECISION_STATUS, answerTiming,
 } from '../ask.js';
 
 /** `{ ok:false, red }` result shape every exported function here can return
@@ -130,7 +133,7 @@ function hasConsumedAnswer(runDir, askId) {
  * through `readFileInside` (a symlinked file is "none"). `null` when there is
  * none or it is unreadable/unparseable or names no askId.
  * @param {string} runDir
- * @returns {{askId: string, decision: string|null}|null}
+ * @returns {{askId: string, decision: string|null, answeredAt: string|null}|null}
  */
 export function readSavedAnswer(runDir) {
   const r = readFileInside(runDir, 'answer.json');
@@ -138,7 +141,11 @@ export function readSavedAnswer(runDir) {
   try {
     const a = JSON.parse(r.text);
     if (a && typeof a.askId === 'string' && a.askId.length > 0) {
-      return { askId: a.askId, decision: typeof a.decision === 'string' ? normalizeDecision(a.decision) : null };
+      return {
+        askId: a.askId,
+        decision: typeof a.decision === 'string' ? normalizeDecision(a.decision) : null,
+        answeredAt: typeof a.answeredAt === 'string' ? a.answeredAt : null,
+      };
     }
   } catch { /* unparseable: not a usable answer */ }
   return null;
@@ -154,10 +161,15 @@ export const RESUME_REASON_UNKNOWN = 'reason unknown: the panel restarted, so it
  * unconsumed. From the panel's in-memory attempt record (`attempt`, may be
  * null): whether a resume is still being started, and the resume's own refusal.
  * `null` when there is nothing to say (no saved answer and no attempt).
- * @param {{savedAnswer: {askId:string, decision:string|null}|null, attempt: any}} ctx
+ * M4c amendment 3: `ask` (the run's open `ask.json`, may be null). A saved answer for that ask that was
+ * NOT saved in time (`answerTiming`) once the deadline has passed is not a resumable answer: it reads as
+ * none, so the run is `[!]` expired, the same as an ask nobody answered.
+ * @param {{savedAnswer: {askId:string, decision:string|null, answeredAt?:string|null}|null, attempt: any, ask?: any}} ctx
  * @returns {{state: 'starting'|'not-started'|'took-over', askId: string|null, tries: number|null, maxTries: number|null, reason: string|null, label: string}|null}
  */
-export function deriveResumeState({ savedAnswer, attempt }) {
+export function deriveResumeState({ savedAnswer: saved, attempt, ask = null }) {
+  const pastDeadline = ask && saved && ask.askId === saved.askId && Date.parse(ask.expiresAt) < Date.now();
+  const savedAnswer = pastDeadline && answerTiming(saved.answeredAt, ask.expiresAt) !== 'on-time' ? null : saved;
   const tries = attempt ? attempt.tries : null;
   const maxTries = attempt ? attempt.maxTries : null;
   if (savedAnswer) {
@@ -184,6 +196,50 @@ export function deriveResumeState({ savedAnswer, attempt }) {
   return null;
 }
 
+export const WAITING_LABEL = 'waiting on you (parked, unanswered)';
+export const STUCK_LABEL = 'stuck — answer saved, click try the resume again';
+export const STUCK_LOCK_LABEL = 'stuck — remove the old resume lock by hand, then try again';
+export const CRASHED_LABEL = 'crashed after taking your answer — start a fresh run';
+
+/**
+ * M4c amendment 2 (a): the ONE rule for "stuck". The answer is saved and not yet
+ * taken (`resume.state === 'not-started'`: `answer.json` is on disk; the panel's
+ * transient 'starting' is not stuck) and nothing is carrying the run on: the
+ * newest pid row's process is not alive AND the resume lock is not held by a
+ * live process (`readResumeLock`, src/liveness.js). computeGlyph, the Inbox
+ * (`listStops`) and Runs (`listRuns`) all read this, never a second copy.
+ * @param {{resume?: any, liveness?: 'running'|'gone'|'unknown', lock?: string}} ctx
+ * @returns {boolean}
+ */
+export function isStuck({ resume, liveness, lock }) {
+  return !!resume && resume.state === 'not-started' && liveness !== 'running' && lock !== 'live';
+}
+
+/**
+ * M4c amendment 3 (e): the ONE choice of the stuck label. After a "Try the resume again" the runner
+ * refused for a lock with no recorded holder (`LOCK_NO_HOLDER`, src/liveness.js) and that lock is
+ * still there unreadable (`lock === 'empty'`), trying again can never work: the label says to remove
+ * the file by hand. Every other stuck run keeps `STUCK_LABEL`.
+ * @param {{resume?: any, lock?: string}} ctx
+ * @returns {string}
+ */
+export function stuckLabelFor({ resume, lock }) {
+  return lock === 'empty' && typeof resume?.reason === 'string' && resume.reason.includes(LOCK_NO_HOLDER)
+    ? STUCK_LOCK_LABEL : STUCK_LABEL;
+}
+
+/**
+ * M4c item 1: does this sign pulse? Only `[▶]` running and `[·]` WAITING ON YOU
+ * do, and `[II]` stuck (M4c amendment 2: it is not a final state). The other
+ * `[·]` states (answered not resumed, resume starting) are not waiting on the
+ * human, so they stay still. The one place that decides.
+ * @param {{glyph: string, label: string}} g a `computeGlyph` result
+ * @returns {boolean}
+ */
+export function glyphPulses(g) {
+  return g.glyph === '[▶]' || g.glyph === '[II]' || (g.glyph === '[·]' && g.label === WAITING_LABEL);
+}
+
 /**
  * The glyph + human-words label for one run — ported verbatim (in spirit,
  * from real derivation, not a shortcut) from `poc/m4/panel-data.mjs`'s
@@ -205,18 +261,27 @@ export function deriveResumeState({ savedAnswer, attempt }) {
  *  - `[·]` answered, not resumed yet — parked, a consumed answer exists, but
  *    no history row yet (resume hasn't finished) — always in words, never
  *    the same line as "waiting on you", never `[?]`.
- *  - `[?]` died / unknown — no history row, no open ask, no consumed answer:
- *    `resume.lock` carries no pid and nothing checks liveness (M4a's own
- *    open POC question), so a crashed resumer and a live one look the same
- *    on disk. Never guessed into `[✗]` or `[✓]`.
+ *  - `[?]` died / unknown — no history row, no open ask, and either the
+ *    pid row's process is gone (M4c), or there is no pid row / no /proc and
+ *    the books are older than 10 minutes. Never guessed into `[✗]` or `[✓]`.
  *  - `[·]` answer saved, resume not started / starting (M4b amendment 1) —
  *    `answer.json` still on disk (`resume` = `deriveResumeState`): never
  *    "waiting on you" (the human already answered) and never a success.
- * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any}} ctx
- * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[?]', label: string}}
+ *  - `[▶]` running (M4c) — no end row, no open unanswered ask, and either the
+ *    newest pid row's process is alive and is fwdloop (`liveness`, src/liveness.js)
+ *    or (`liveness` unknown) the run's books changed in the last 10 minutes
+ *    (`booksFresh`). A gone process is `[?]`. Absent `liveness`/`booksFresh`
+ *    (a direct caller) reads as unknown / not fresh.
+ *  - `[II]` stuck (M4c amendment 2, `isStuck`) — the answer is saved, not taken,
+ *    and no live process (pid row or resume lock holder) carries the run on.
+ *    A saved answer with a live process is `[▶]` working on your answer.
+ *  - `[?]` crashed after taking your answer (amendment 2 (f)) — the answer was
+ *    consumed, the process is gone, no end row: cannot be carried on.
+ * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string}} ctx
+ * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]'|'[II]', label: string}}
  */
 export function computeGlyph({
-  historyRow, askJson, consumedAnswerExists, hasStateJson, resume,
+  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock,
 }) {
   if (historyRow) {
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
@@ -224,8 +289,12 @@ export function computeGlyph({
     if (historyRow.outcome === 'rerun') return { glyph: '[✗]', label: 'stopped by you (rerun), a fresh run was started' };
     return { glyph: '[✗]', label: `failed (${historyRow.outcome ?? 'unknown outcome'})` };
   }
-  if (askJson && resume && (resume.state === 'starting' || resume.state === 'not-started')) {
+  if (askJson && resume && resume.state === 'starting') {
     return { glyph: '[·]', label: resume.label };
+  }
+  if (askJson && resume && resume.state === 'not-started') {
+    if (isStuck({ resume, liveness, lock })) return { glyph: '[II]', label: stuckLabelFor({ resume, lock }) };
+    return { glyph: '[▶]', label: 'working on your answer' };
   }
   // No history row. A park never writes one, and a consumed answer file
   // stays on disk until resume writes its own history row — "no history
@@ -235,15 +304,24 @@ export function computeGlyph({
     if (Number.isFinite(expiresMs) && Date.now() > expiresMs) {
       return { glyph: '[!]', label: 'ask expired, not resumed yet' };
     }
-    return { glyph: '[·]', label: 'waiting on you (parked, unanswered)' };
+    return { glyph: '[·]', label: WAITING_LABEL };
   }
   if (askJson && consumedAnswerExists) {
+    // M4c: the answer was consumed — a resume process took it. Alive = working on it.
+    if (liveness === 'running') return { glyph: '[▶]', label: 'working on your answer' };
+    if (liveness === 'gone') return { glyph: '[?]', label: CRASHED_LABEL };
     return { glyph: '[·]', label: 'answered, not resumed yet' };
   }
+  // M4c: no end row, no open ask — is a process still working? Pid row first
+  // (`liveness`, src/liveness.js); with no row or no /proc (`unknown`), the
+  // 10-minute books rule. Never `[▶]` off a parked ask (branches above).
+  if (liveness === 'running') return { glyph: '[▶]', label: 'running' };
+  if (liveness === 'gone') return { glyph: '[?]', label: 'the process working on this run is gone (no end row was written)' };
+  if (booksFresh) return { glyph: '[▶]', label: 'running (no pid record; its books changed in the last 10 minutes)' };
   if (hasStateJson && !askJson) {
     return { glyph: '[?]', label: 'running or died: unknown (parked state with no open ask and no history row)' };
   }
-  return { glyph: '[?]', label: 'running or died: unknown (resume.lock has no pid, no liveness check)' };
+  return { glyph: '[?]', label: 'running or died: unknown (no pid record, books older than 10 minutes)' };
 }
 
 /**
@@ -697,7 +775,7 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
   const stateJson = readRunState(runDir);
   const consumedAnswerExists = hasConsumedAnswer(runDir, askJson && typeof askJson.askId === 'string' ? askJson.askId : null);
   // A finished run has no resume to report (its history row says how it ended).
-  const resume = historyRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(runDir), attempt });
+  const resume = historyRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(runDir), attempt, ask: askJson });
 
   return {
     flowName,
@@ -714,16 +792,35 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     consumedAnswerExists,
     hasStateJson: stateJson !== null,
     resume,
+    // M4c: only read for a run with no end row (an end row always wins).
+    liveness: historyRow ? 'unknown' : runLiveness(runDir),
+    lock: historyRow ? 'none' : readResumeLock(runDir).state,
+    booksFresh: historyRow ? false : booksFresh(runDir),
+    // M4c exit walk: when the process that is working on the run started (its newest pid row's
+    // own `startedAt`), so a `[▶]` run has a real time and never "parked or died". Not a book change.
+    startedAt: historyRow ? null : lastPidStartedAt(runDir),
   };
 }
+
+/** @param {string} runDir @returns {string|null} */
+function lastPidStartedAt(runDir) {
+  const rows = readPidRows(runDir);
+  const at = rows[rows.length - 1]?.startedAt;
+  return typeof at === 'string' && !Number.isNaN(Date.parse(at)) ? at : null;
+}
+
+/** The ONE running rule for wording is the glyph's own (`computeGlyph` -> `[▶]`, which already
+ *  folds in `runLiveness`): a run with no end row whose glyph is `[▶]` is running. */
+const RUNNING_WHY = 'still running — not finished yet';
+/** @param {any} ctx @param {string} glyph */
+const isRunningNow = (ctx, glyph) => !ctx.historyRow && glyph === '[▶]';
 
 /**
  * `GET /api/runs` — every flow under `root`, every run under each flow
  * (M4a scope item 2). A flow with zero runs still gets one row (`runId:
  * null`, an explicit `why`) — no flow is silently missing from the list.
- * Newest-first by history `at` where known; a row with no history row (died
- * or still parked) sorts after every row that has one, in flow/run order
- * (a real ordering, never `Date.now()` guessed in for a missing `at`).
+ * Ordered by `orderRuns` (waiting on you, running, then newest `at` first; a row
+ * with no `at` is never given a guessed one).
  * @param {{root: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any}} opts
  *   `resumeAttempt`: the panel's in-memory resume-attempt lookup (M4b piece 2); absent = none.
  * @returns {any[]}
@@ -750,6 +847,12 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
       }
       const ctx = loadRunContext(root, run.flowDir, run.runDir, flowName, runId, catalogue, resumeAttempt?.(flowName, runId) ?? null);
       const { glyph, label } = computeGlyph(ctx);
+      // M4c amendment 1 (c): the ask waiting on the human, by the same rule
+      // listStops uses (deriveAskOpenFields) — the least time left if several.
+      const waitingAsk = runAsksInOrder(run.runDir, !!ctx.historyRow)
+        .map((ask) => ({ ask, ...deriveAskOpenFields(ask, !!ctx.historyRow, ctx.resume) }))
+        .filter((r) => r.waiting)
+        .reduce((best, r) => (best === null || (r.timeLeftMs ?? Infinity) < (best.timeLeftMs ?? Infinity) ? r : best), /** @type {any} */ (null));
       let spend;
       if (ctx.historyRow) {
         const cd = costDisplay(ctx.historyRow.spentUsd, ctx.historyRow.spendComplete);
@@ -771,25 +874,60 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
         runId,
         glyph,
         label,
+        pulse: glyphPulses({ glyph, label }),
+        stuck: glyph === '[II]',
         resume: ctx.resume,
         spend,
-        spendWhy: (!ctx.historyRow && spend === null) ? 'no history row yet and no priced spend.jsonl rows — nothing to floor' : null,
+        spendWhy: (!ctx.historyRow && spend === null)
+          ? (isRunningNow(ctx, glyph) ? 'running — no priced spend yet' : 'no history row yet and no priced spend.jsonl rows — nothing to floor')
+          : null,
+        waiting: waitingAsk !== null,
+        waitingAskId: waitingAsk ? waitingAsk.ask.askId : null,
+        timeLeftMs: waitingAsk ? waitingAsk.timeLeftMs : null,
         at: ctx.historyRow ? ctx.historyRow.at : null,
         askedAt,
-        atWhy: (ctx.historyRow || askedAt) ? null : 'no history row yet (parked or died before one was written)',
+        startedAt: isRunningNow(ctx, glyph) ? ctx.startedAt : null,
+        atWhy: (ctx.historyRow || askedAt) ? null
+          : isRunningNow(ctx, glyph)
+            ? (ctx.startedAt ? null : 'running — start time not recorded (no pid record)')
+            : 'no history row yet (parked or died before one was written)',
       });
     }
   }
-  // Newest first by `at` where present; rows with no `at` keep flow/run
-  // order (already alphabetical from listFlowNames/listRunIds) at the end.
+  return orderRuns(rows);
+}
+
+/**
+ * The ONE ordering of Runs — History and Workflows both render the list in the
+ * order given (M4c amendment 1 (c)); a flow's top row is therefore the first
+ * run of that flow here, so a waiting run is the parent with no second rule:
+ *  1 waiting on you — least time left first; a stuck run (`[II]`, amendment 2)
+ *    after the ones with a timer;
+ *  2 running (`[▶]`, the glyph's own liveness rule);
+ *  3 everything else — finish time `at`, newest first.
+ * A row with no known time keeps input order at the end of its section.
+ * @param {any[]} rows
+ * @returns {any[]}
+ */
+export function orderRuns(rows) {
+  const sectionOf = (r) => ((r.waiting || r.stuck) ? 1 : r.glyph === '[▶]' ? 2 : 3);
   return rows
     .map((row, index) => ({ row, index }))
     .sort((a, b) => {
+      const sa = sectionOf(a.row);
+      const sb = sectionOf(b.row);
+      if (sa !== sb) return sa - sb;
+      if (sa === 1) {
+        if (!!a.row.stuck !== !!b.row.stuck) return a.row.stuck ? 1 : -1;
+        const at = typeof a.row.timeLeftMs === 'number' ? a.row.timeLeftMs : Infinity;
+        const bt = typeof b.row.timeLeftMs === 'number' ? b.row.timeLeftMs : Infinity;
+        return at !== bt ? at - bt : a.index - b.index;
+      }
       const am = typeof a.row.at === 'string' ? Date.parse(a.row.at) : NaN;
       const bm = typeof b.row.at === 'string' ? Date.parse(b.row.at) : NaN;
       const aKnown = Number.isFinite(am);
       const bKnown = Number.isFinite(bm);
-      if (aKnown && bKnown) return bm - am;
+      if (aKnown && bKnown && am !== bm) return bm - am;
       if (aKnown !== bKnown) return aKnown ? -1 : 1;
       return a.index - b.index;
     })
@@ -1046,7 +1184,8 @@ export function getRunDetail({
   const wallMs = ctx.historyRow && typeof ctx.historyRow.wallMs === 'number' ? ctx.historyRow.wallMs : null;
   const wallMsWhy = wallMs !== null
     ? null
-    : (ctx.historyRow ? 'history row has no wallMs recorded' : 'no history row yet (parked or died before completion)');
+    : (ctx.historyRow ? 'history row has no wallMs recorded'
+      : isRunningNow(ctx, glyph) ? RUNNING_WHY : 'no history row yet (parked or died before completion)');
 
   let spend;
   if (ctx.historyRow) {
@@ -1069,9 +1208,10 @@ export function getRunDetail({
     runId,
     glyph,
     label,
+    pulse: glyphPulses({ glyph, label }),
     resume: ctx.resume,
     outcome: ctx.historyRow ? ctx.historyRow.outcome : null,
-    outcomeWhy: ctx.historyRow ? null : 'no history row (parked or died before completion)',
+    outcomeWhy: ctx.historyRow ? null : (isRunningNow(ctx, glyph) ? RUNNING_WHY : 'no history row (parked or died before completion)'),
     capUsd: ctx.historyRow ? ctx.historyRow.capUsd : (ctx.flowRead.ok ? ctx.flowRead.arbiter.capUsd : null),
     spend,
     model,
@@ -1092,9 +1232,12 @@ export function getRunDetail({
     askedAt: (!ctx.historyRow && ctx.askJson && typeof ctx.askJson.askedAt === 'string')
       ? ctx.askJson.askedAt
       : null,
+    startedAt: isRunningNow(ctx, glyph) ? ctx.startedAt : null,
     atWhy: (ctx.historyRow || (ctx.askJson && typeof ctx.askJson.askedAt === 'string'))
       ? null
-      : 'no history row yet (parked or died before completion)',
+      : isRunningNow(ctx, glyph)
+        ? (ctx.startedAt ? null : 'running — start time not recorded (no pid record)')
+        : 'no history row yet (parked or died before completion)',
   };
 }
 
@@ -1333,7 +1476,11 @@ function isOpenStatus(status) {
  * @returns {{open: boolean, waiting: boolean, resume: any, timeLeftMs: number|null}}
  */
 function deriveAskOpenFields(ask, hasHistoryRow, resume = null) {
-  const open = isOpenStatus(ask.status) && !hasHistoryRow;
+  // M4c amendment 3: an ask past its deadline reads `expired`, but one whose answer was saved in time
+  // (`resume` is null for a late/unreadable one, `deriveResumeState`) is still open: it can be carried on.
+  const answerSaved = resume != null && resume.askId === ask.askId
+    && (resume.state === 'starting' || resume.state === 'not-started');
+  const open = (isOpenStatus(ask.status) || (ask.status === 'expired' && answerSaved)) && !hasHistoryRow;
   // M4b fix: the ONE decision "is this ask waiting on the human". An open ask
   // whose answer is already saved (`resume` = `deriveResumeState` for THIS
   // ask, the run's own label) is open but not waiting: the human answered.
@@ -1385,6 +1532,7 @@ function normalizeArchivedRow(a) {
     reason: a.answer.reason ?? null,
     answeredAt: a.answer.answeredAt ?? null,
     archived: true,
+    emits: typeof a.emits === 'string' ? a.emits : null,
     evidence: flattenEvidence(a.evidence),
   };
 }
@@ -1585,6 +1733,54 @@ export function deriveAskStepInfo(orderedAsks, auditRows, declSteps) {
 }
 
 /**
+ * M4c item 5 — the Ask tab's ONE grouping function: one block per signed ask
+ * line. Key = the archive's recorded `emits`, else the step the ask's own "paused" audit row names (`stepName`,
+ * `deriveAskStepInfo`); when the books cannot name a step (count mismatch, a
+ * pre-M4a-1 run) the key falls back to the question text, then to one shared
+ * "unknown" key — never a guessed pairing. Draft numbers are the ask's 1-based
+ * position within its own block (how many times this line has parked).
+ * `current` is the newest draft; `answers` is one row per draft that has a
+ * recorded decision (the newest draft only when it is not itself open),
+ * decision word via `DECISION_STATUS` (old `reject` files already read `redo`).
+ * @param {any[]} asks rows as built by `getRunAsks` (oldest first)
+ * @returns {any[]}
+ */
+export function groupAskBlocks(asks) {
+  const decisionWord = (status) => Object.keys(DECISION_STATUS).find((k) => DECISION_STATUS[k] === status) ?? status;
+  const byKey = new Map();
+  for (const ask of asks) {
+    let key = 'unknown';
+    if (typeof ask.emits === 'string') key = `step:${ask.emits}`;
+    else if (typeof ask.stepName === 'string') key = `step:${ask.stepName}`;
+    else if (typeof ask.question === 'string') key = `q:${ask.question}`;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(ask);
+  }
+  return [...byKey.entries()].map(([key, drafts]) => {
+    const current = drafts[drafts.length - 1];
+    const answers = [];
+    drafts.forEach((d, i) => {
+      if (d === current && d.open) return;
+      if (d.status === 'unanswered' || d.status === 'open') return;
+      answers.push({
+        draft: i + 1, askId: d.askId, decision: decisionWord(d.status), reason: d.reason ?? null, answeredAt: d.answeredAt ?? null,
+      });
+    });
+    return {
+      key,
+      stepName: current.emits ?? current.stepName ?? null,
+      stepLine: current.stepLine ?? null,
+      question: current.question ?? null,
+      questionWhy: current.questionWhy ?? null,
+      draftNo: drafts.length,
+      askIds: drafts.map((d) => d.askId),
+      current,
+      answers,
+    };
+  });
+}
+
+/**
  * `GET /api/runs/:flow/:runId/asks` — the Ask tab (M4a-1 scope item 1):
  * every ask this run's books can name, in order, each carrying full
  * evidence (`readAskEvidence`'s draft + unjudged, or the pre-M4a-1 `why`).
@@ -1599,7 +1795,7 @@ export function deriveAskStepInfo(orderedAsks, auditRows, declSteps) {
  * detail carries, `null` for a finished run or nothing to say) so the Ask tab
  * can tell "open, answerable" from "answer saved" without a second fetch.
  * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any}} opts
- * @returns {{flow:string, runId:string, asks:any[], resume: any}|null}
+ * @returns {{flow:string, runId:string, asks:any[], resume: any, blocks: any[]}|null}
  */
 export function getRunAsks({
   root, flow, runId, catalogue, resumeAttempt,
@@ -1620,10 +1816,19 @@ export function getRunAsks({
   });
   const declSteps = flowRead.ok ? flowRead.declaration.steps : null;
   const stepInfo = deriveAskStepInfo(ordered, auditRows, declSteps);
-  const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null });
+  let resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null, ask: readAsk(run.runDir) });
+  // M4c amendment 2: the Ask tab says what the run list says — stuck, by the one rule (`isStuck`).
+  let runStuck = false;
+  const lockRead = readResumeLock(run.runDir);
+  if (resume && isStuck({ resume, liveness: runLiveness(run.runDir), lock: lockRead.state })) {
+    const label = stuckLabelFor({ resume, lock: lockRead.state });
+    resume = { ...resume, label, ...(label === STUCK_LOCK_LABEL ? { lockPath: lockRead.path } : {}) };
+    runStuck = true;
+  }
   const asks = ordered.map((ask, i) => ({
     ...ask,
     ...deriveAskOpenFields(ask, hasHistoryRow, resume),
+    stuck: runStuck && resume?.askId === ask.askId,
     index: i + 1,
     total: ordered.length,
     stepName: stepInfo[i].step,
@@ -1631,7 +1836,7 @@ export function getRunAsks({
     stepWhy: stepInfo[i].why,
   }));
   return {
-    flow, runId, asks, resume,
+    flow, runId, asks, resume, blocks: groupAskBlocks(asks),
   };
 }
 
@@ -1662,34 +1867,94 @@ export function listStops({ root, resumeAttempt }) {
       const run = resolveRunPath(root, flowName, runId);
       if (!run.ok) continue;
       const hasHistoryRow = historyRunIds.has(runId);
-      const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flowName, runId) ?? null });
-      for (const ask of runAsksInOrder(run.runDir, hasHistoryRow)) {
-        rows.push({
-          flow: flowName,
-          runId,
-          ...ask,
-          ...deriveAskOpenFields(ask, hasHistoryRow, resume),
-        });
+      const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flowName, runId) ?? null, ask: readAsk(run.runDir) });
+      // M4c amendment 2: stuck by the ONE rule (`isStuck`), marked on the ask whose answer is saved.
+      const lockState = readResumeLock(run.runDir).state;
+      const stuckAskId = !hasHistoryRow && isStuck({ resume, liveness: runLiveness(run.runDir), lock: lockState })
+        ? (resume?.askId ?? null) : null;
+      const stuckLabel = stuckLabelFor({ resume, lock: lockState });
+      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow).map((ask) => ({
+        flow: flowName,
+        runId,
+        ...ask,
+        ...deriveAskOpenFields(ask, hasHistoryRow, resume),
+        stuck: stuckAskId !== null && ask.askId === stuckAskId,
+        stuckLabel: stuckAskId !== null && ask.askId === stuckAskId ? stuckLabel : null,
+      }));
+      // M4c item 4: a run with no end row, no ask waiting on the human and no
+      // saved-but-unresumed answer, whose newest pid row is alive, is "working
+      // on your <decision>" — marked on that run's newest answered ask (the
+      // one the live process took). `runLiveness` is the ONE liveness rule.
+      const nothingWaiting = !runAsks.some((r) => r.waiting || r.resume);
+      if (!hasHistoryRow && nothingWaiting && runLiveness(run.runDir) === 'running') {
+        const answered = runAsks.filter((r) => WORKING_WORD[r.status]);
+        const newest = answered.reduce((best, r) => (best === null || sortMs(r.answeredAt) >= sortMs(best.answeredAt) ? r : best), null);
+        if (newest) newest.working = WORKING_WORD[newest.status];
       }
+      for (const r of runAsks) rows.push(r);
     }
   }
+  return orderStops(rows);
+}
+
+/** ask status -> the answer's own word, for "working on your <word>…". */
+const WORKING_WORD = { accepted: 'accept', redo: 'redo', reran: 'rerun' };
+
+/** ms for sorting; NaN when the stamp is absent/unparseable. */
+function sortMs(iso) {
+  return typeof iso === 'string' ? Date.parse(iso) : NaN;
+}
+
+/**
+ * The ONE ordering of the Inbox (M4c item 4, hamr 2026-09-30); the page renders
+ * in the order given and stamps each row's `section`:
+ *  1 waiting on you — least time left first ("runs out first"); a stuck run
+ *    (amendment 2: answer saved, nobody carrying it on) after the timed asks;
+ *  2 working on an answer you gave (`working`), or answer saved and resume not
+ *    started (`resume`) — newest answer first;
+ *  3 answered and expired asks — newest first (answeredAt, else expiresAt).
+ * A row with no known time sorts last within its section, ties by input order.
+ * @param {any[]} rows
+ * @returns {any[]}
+ */
+export function orderStops(rows) {
+  const sectionOf = (r) => ((r.waiting || r.stuck) ? 1 : (r.working || r.resume) ? 2 : 3);
+  const key = (r) => {
+    const t = sectionOf(r) === 3 ? (sortMs(r.answeredAt) || sortMs(r.expiresAt)) : sortMs(r.answeredAt);
+    return Number.isFinite(t) ? t : NaN;
+  };
   return rows
-    .map((row, index) => ({ row, index }))
+    .map((row, index) => ({ row: { ...row, section: sectionOf(row) }, index }))
     .sort((a, b) => {
-      if (a.row.waiting !== b.row.waiting) return a.row.waiting ? -1 : 1;
-      if (a.row.waiting && b.row.waiting) {
+      const sa = a.row.section;
+      const sb = b.row.section;
+      if (sa !== sb) return sa - sb;
+      if (sa === 1) {
+        if (!!a.row.stuck !== !!b.row.stuck) return a.row.stuck ? 1 : -1;
         const at = typeof a.row.timeLeftMs === 'number' ? a.row.timeLeftMs : Infinity;
         const bt = typeof b.row.timeLeftMs === 'number' ? b.row.timeLeftMs : Infinity;
-        if (at !== bt) return at - bt;
-        return a.index - b.index;
+        return at !== bt ? at - bt : a.index - b.index;
       }
-      const am = typeof a.row.answeredAt === 'string' ? Date.parse(a.row.answeredAt) : NaN;
-      const bm = typeof b.row.answeredAt === 'string' ? Date.parse(b.row.answeredAt) : NaN;
-      const aKnown = Number.isFinite(am);
-      const bKnown = Number.isFinite(bm);
-      if (aKnown && bKnown) return bm - am;
+      const ak = key(a.row);
+      const bk = key(b.row);
+      const aKnown = Number.isFinite(ak);
+      const bKnown = Number.isFinite(bk);
+      if (aKnown && bKnown && ak !== bk) return bk - ak;
       if (aKnown !== bKnown) return aKnown ? -1 : 1;
       return a.index - b.index;
     })
     .map(({ row }) => row);
+}
+
+/**
+ * N for `Inbox (N)` (M4c item 3): asks open and not expired, across every flow
+ * and run, plus stuck runs (amendment 2: the human must act). An answered ask
+ * whose resume is carried on is not `waiting`, so not counted; a crashed one
+ * (answer taken, process gone) is not stuck and not counted;
+ * an expired ask is not `open`. The page only shows this number.
+ * @param {any[]} rows `listStops` rows
+ * @returns {number}
+ */
+export function inboxOpenCount(rows) {
+  return rows.filter((r) => r.waiting || r.stuck).length;
 }

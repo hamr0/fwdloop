@@ -55,7 +55,7 @@ import { loadCatalogue } from '../catalogue.js';
 import { answerAsk, normalizeDecision } from '../ask.js';
 import { checkFlowName, resolveRunDir } from '../flow.js';
 import {
-  listRuns, getRunDetail, getRunAudit, getRunJob, listStops, getRunAsks, readSavedAnswer,
+  listRuns, getRunDetail, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer,
 } from './data.js';
 import { createResumer } from './resume.js';
 
@@ -274,7 +274,8 @@ export function handleRequest(req, res, opts) {
   }
 
   if (pathname === '/api/inbox') {
-    send(200, { rows: listStops({ root: opts.root, resumeAttempt }) });
+    const rows = listStops({ root: opts.root, resumeAttempt });
+    send(200, { rows, openCount: inboxOpenCount(rows) });
     return;
   }
 

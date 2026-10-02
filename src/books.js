@@ -29,6 +29,26 @@ function appendLine(filePath, row) {
 }
 
 /**
+ * M4c piece 1: the ONE writer of a run dir's `pids.jsonl` — append-only, never
+ * rewritten, not a book the arbiter reads. One row per process that works on
+ * the run (`src/liveness.js` `recordPid` builds the row).
+ * @param {string} runDir
+ * @param {{pid: number, startedAt: string, procStart: string|null, leg: 'run'|'resume'}} row
+ */
+export function appendPidRow(runDir, row) {
+  appendLine(join(runDir, 'pids.jsonl'), row);
+}
+
+/**
+ * The one reader of `pids.jsonl` (same tolerant `readLines` every book uses).
+ * @param {string} runDir
+ * @returns {any[]}
+ */
+export function readPidRows(runDir) {
+  return readLines(runDir, 'pids.jsonl');
+}
+
+/**
  * Raw read-back of one JSONL book, one writer's own sibling reader (M4a
  * piece 2, docs/wiki/the-module-ladder.md M4a scope item 2: "one reader per
  * book"). Never throws on a missing file (`[]`) or a malformed line (that

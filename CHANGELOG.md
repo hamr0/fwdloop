@@ -5,6 +5,54 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-10-02
+
+M4c: the panel's answers read clearly. A run says whether it is running, waiting on you or stuck;
+the Inbox is always there; the page keeps itself fresh without redrawing over what you are typing.
+
+### Added
+- A running sign, `[▶]`, for a live run, from per-run pid rows (`pids.jsonl`) and one liveness
+  rule, with a 10-minute fallback and a matching filter chip. Only a live run and a run waiting on
+  you pulse; answered-not-resumed and answer-saved runs stay still.
+- Inbox (N) is always shown, with the open count computed server-side (`/api/inbox` `openCount`).
+  One ordering serves it: waiting (least time left first), working/answer-saved, then answered and
+  expired newest first. A run you have answered but that is not yet resumed shows as a working
+  row. Runs use one ordering too (waiting, running, finished); a click on a run opens Run, and on a
+  waiting run opens its Inbox ask.
+- Ask tab: one block per ask line, labelled "draft N", with the answers so far. Blocks group by the
+  archived ask's recorded `emits`, else the paused audit row's step, else the question text. A
+  click shows a working state, and a block you opened or closed by hand stays that way.
+- One stuck rule: a run whose resume was taken but never finished reads `[II]` and pulses, and one
+  that crashed after taking the ask reads `[?]`. `resume.lock` now records its holder so a dead
+  holder is told from a live one.
+- Amendment 3, "on time is on time": a resume checks `answeredAt` against the ask's deadline, so an
+  answer given in time is not refused for a slow resume; a stuck run stays `[II]` after the
+  deadline; an empty lock reads as stuck.
+
+### Changed
+- A running run says when it started and that it is "still running", never "parked or died". The
+  time comes from the newest pid row's `startedAt`; died and parked wording is unchanged.
+- The Workflows job card reads time and spend through the same words as run rows. Before, it read
+  only the last row's time, so a running or parked flow's card said "unknown". The header spend of
+  a `[▶]` run says "no priced spend yet".
+- The page now refreshes itself: the runs list, Inbox (N) and the open run's header update without
+  a reload (before, only the post-answer watch polled). The open run refreshes every 2 s while it
+  is live; the Inbox and Runs lists refresh at most every 10 s, and at once when a run goes
+  live-to-done, on tab return and after any action of yours. A payload that has not changed is not
+  redrawn, and selection, focus and scroll survive a rebuild.
+- The Ask tab shows the one stuck label, and the resume label is said once, in the header.
+
+### Fixed
+- Typing a reason is never redrawn over by a refresh. A redraw that was held back is retried: the
+  asks signature is stamped only after the ask really draws (F54, found by `/branch-review`).
+- An askId hand-edited to contain `"` or `]` no longer makes opening a run from the Runs list
+  throw; the Inbox row is looked up by `data-testid` equality, not by a selector built from ids.
+- Placeholder dots (the empty header dot, the "no runs" row) no longer pulse; the pulse follows a
+  `.pulse` class the server decides.
+
+### Known limits
+- F53's drafter variation (repeated asks looking identical at draft time) stays open.
+
 ## [0.9.0] - 2026-09-30
 
 M4b: the panel answers asks. The read-only panel gets three answer doors (Accept, Redo, Rerun) and
