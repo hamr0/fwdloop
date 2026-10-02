@@ -2832,3 +2832,31 @@ section headings (it adds "how it matches the JD"), `job2-m6a-2` checks three. T
 for the same signed text. Observation only.
 
 **Status.** The four panel-clarity points are scoped and built as M4c (signed 2026-09-30, branch `m4c`, amendments 1-3; scope in `docs/wiki/the-module-ladder.md`); M4c's live exit was signed by hamr 2026-10-01; what the exit left open is listed under "M4c exit evidence" in the same file. The drafter-variation observation (second point) is not scoped and still open.
+
+## F54 — M4c: the one 2 s page loop re-drew every list every tick, so a clicked or Tab-focused Inbox row lost its highlight and focus, and lists lost their scroll (2026-10-02)
+
+Found in hamr's walk (per the test header in `test/m4c-refresh-rates.test.js`). After `1f1c41f` (one page-wide refresh loop) every 2 s tick
+rebuilt the Inbox and Runs lists from scratch: `renderInbox` did `innerHTML = ""` and `renderStopRow` never
+re-applied `selected` / `aria-pressed`, so a selected row was un-lit and keyboard focus dropped within 2 s.
+This is the same shape as bareloop F195 (a list polled every 2 s on every tick), which bareloop fixed by
+throttling the lists inside the one timer; borrowed by copy from `bareloop src/panel/index.html@0a45f40`
+(`sig`, `withScrollPreserved`, the list throttle).
+
+What the page does now (`src/panel/index.html`): one timer (`schedulePoll` / `pollTimer`). The open run's
+detail, asks and audit are read every 2 s only while that run is live (glyph not `[✓]` / `[✗]`); the Inbox and
+Runs lists at most every `LISTS_POLL_MS` = 10 s. An open run going live -> done forces one list refresh so
+its list glyph does not wait out the 10 s. A tab coming back (`visibilitychange`) forces one catch-up tick;
+a hidden tab does no reads. Each render skips when its payload is byte-equal to the last drawn one (Inbox,
+Runs, detail, asks including the pending-answer block, audit); `selectRun` resets the ones a new selection
+voids. The Inbox selected row is derived at build time from `currentFlow` / `currentRunId` / `currentAskId`;
+`withFocusPreserved` (ours, not borrowed) puts focus back by `data-testid` equality.
+
+A fix inside the fix: the first cut stamped the asks signature before `renderAsk` ran, and `renderAsk` draws
+nothing while a reason is being typed, so a held redraw was never retried once the payload stopped changing.
+`19c386a` makes `renderAsk` return `false` only when held and stamp the signature only on a real draw. Not
+measured here: how often the lists really change on a busy install, and a run that finishes while the tab is
+open is not re-read after its glyph is `[✓]` / `[✗]` (fix-ledger).
+
+Proof: `test/m4c-refresh-rates.test.js` (a)-(f) and `test/m4c-refresh.test.js` run the page's own functions
+over a fake server, clock and DOM; against the `61e2536` page (before `19c386a`) tests (e) and (f) fail on an
+assertion, against the `bdbe783` page (before the rate fix) all six fail.
