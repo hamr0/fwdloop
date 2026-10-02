@@ -79,7 +79,7 @@ function loopHarness(world) {
     seen.fetched.push(p);
     if (p === '/api/runs') return { rows: world.runs };
     if (p === '/api/inbox') return { rows: world.inbox, openCount: 0 };
-    if (p.endsWith('/asks')) return { asks: [], blocks: [] };
+    if (p.endsWith('/asks')) return world.asks || { asks: [], blocks: [] };
     if (p.endsWith('/audit')) return { rows: [] };
     return world.detail;
   };
@@ -89,15 +89,15 @@ function loopHarness(world) {
     var lastListsAt = 0, openRunLive = true, wasHidden = false, pendingAnswer = null;
     var lastSig = { inbox: null, runs: null, detail: null, asks: null, audit: null };
     var runsFilterBar = { setItems: function(){}, refresh: function(){} };
-    function renderInbox(){ seen.inbox++; } function renderRun(){} function renderAudit(){} function renderAsk(){}
+    function renderInbox(){ seen.inbox++; } function renderRun(){} function renderAudit(){} function renderAsk(r){ return seen.renderAsk ? seen.renderAsk(r) : undefined; }
     function watchStep(){}
-    ${['sig', 'withScrollPreserved', 'paintRun', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick'].map(fnSrc).join('\n')}
-    return { schedulePoll: schedulePoll };
+    ${['holdAskRender', 'sig', 'withScrollPreserved', 'paintRun', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick'].map(fnSrc).join('\n')}
+    return { schedulePoll: schedulePoll, hold: holdAskRender };
   `)(getJSON, doc, (fn) => { timers.push(fn); return timers.length; }, () => {}, seen, { now: () => clock.now });
   const tick = async () => { clock.now += 2000; const fn = timers.pop(); assert.ok(fn, 'a tick was scheduled'); fn(); await sleep(20); };
   scope.schedulePoll(2000);
   const count = (p) => seen.fetched.filter((x) => x === p).length;
-  return { seen, tick, count };
+  return { seen, tick, count, hold: scope.hold };
 }
 
 test('(a) lists are fetched at most once per 10 s across 2 s ticks while the open run is read every tick', async () => {
@@ -157,4 +157,40 @@ test('(d) the open run going live -> done forces one immediate list refresh, ahe
   await h.tick(); await h.tick();                  // t=8, 10: a finished run is no longer polled
   assert.equal(h.count('/api/runs/job2/r1'), detailReads, 'a done run is not re-read every 2 s');
   assert.equal(h.count('/api/inbox'), 2, 'and no second forced refresh');
+});
+
+test('(e) a redraw held over a typed reason is retried on the next tick even though the payload no longer changes', async () => {
+  const ask = (n) => ({ asks: [{ askId: 'a1', waiting: true }], blocks: [{ stepName: 'ask', n }] });
+  const world = { runs: [], inbox: [], detail: { glyph: '[▶]' }, asks: ask(1) };
+  const h = loopHarness(world);
+  const box = { askId: 'a1', value: 'half a reas', focused: false };   // the human is typing on ask A
+  const drawn = [];
+  // the page's own guard (real holdAskRender) in front of a drawing stand-in, same contract as renderAsk
+  h.seen.renderAsk = (r) => { if (h.hold(box, r)) return false; drawn.push(r.blocks[0].n); return true; };
+  await h.tick();                       // first read: held, nothing drawn
+  assert.deepEqual(drawn, []);
+  world.asks = ask(2);                  // another ask answered via the CLI: the payload changes
+  await h.tick();                       // changed payload, still held
+  assert.deepEqual(drawn, []);
+  box.value = '';                       // the human clears / blurs the box
+  await h.tick();                       // SAME payload as the last tick: must still redraw
+  assert.deepEqual(drawn, [2], 'the held redraw is retried and the Ask tab shows the new blocks');
+  await h.tick();
+  assert.deepEqual(drawn, [2], 'once drawn, an unchanged payload is skipped again');
+});
+
+test('(f) the real renderAsk returns false when held and true after drawing the empty states', () => {
+  const els = { 'ask-empty': {}, 'ask-list': {} };
+  const doc = { getElementById: (id) => els[id], querySelector: () => ta, activeElement: null };
+  const ta = { getAttribute: () => 'a1', value: 'typing', };
+  const run = new Function('document', 'askDrawnFor', `
+    function holdAskRender(box, result){ ${/function holdAskRender\(box, result\)\{([\s\S]*?)\n  \}/.exec(page)[1]} }
+    ${fnSrc('readReasonBox')}
+    ${fnSrc('renderAsk')}
+    return renderAsk;
+  `)(doc, null);
+  const held = { asks: [{ askId: 'a1', waiting: true }], blocks: [{ stepName: 's' }], flow: 'f', runId: 'r' };
+  assert.equal(run(held, null), false, 'held over a typed reason: nothing drawn');
+  assert.equal(run({ blocks: [], asks: [] }, null), true, 'empty state is a real draw');
+  assert.equal(run(null, null), true);
 });

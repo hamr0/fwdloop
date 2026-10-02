@@ -2236,7 +2236,9 @@
       if(still()){
         // the Ask tab is drawn from the books AND the page's own pending answer ("working…" block)
         var next = sig({ asks: a, pending: pendingAnswer });
-        if(next === null || next !== lastSig.asks){ lastSig.asks = next; renderAsk(a, null); }
+        // the signature is stamped only when renderAsk REALLY drew (it returns false when held over a typed
+        // reason): a held redraw leaves the stamp unset, so the next tick retries it against the same payload
+        if(next === null || next !== lastSig.asks){ lastSig.asks = renderAsk(a, null) ? next : null; }
       }
       return a;
     }).catch(function(e){ if(still()){ lastSig.asks = null; renderAsk(null, null, e.message); } return null; });
@@ -2770,18 +2772,19 @@
   function renderAsk(result, focusAskId, loadError){
     var empty = document.getElementById("ask-empty");
     var list = document.getElementById("ask-list");
-    if(loadError){ empty.hidden = false; empty.textContent = "failed to load asks: " + loadError; list.hidden = true; list.innerHTML = ""; return; }
-    if(!result){ empty.hidden = false; empty.textContent = "select a run first"; list.hidden = true; list.innerHTML = ""; return; }
+    if(loadError){ empty.hidden = false; empty.textContent = "failed to load asks: " + loadError; list.hidden = true; list.innerHTML = ""; return true; }
+    if(!result){ empty.hidden = false; empty.textContent = "select a run first"; list.hidden = true; list.innerHTML = ""; return true; }
     var blocks = result.blocks || [];
     if(!blocks.length){
       empty.hidden = false;
       empty.textContent = "this run has never parked on a human — no asks recorded";
       list.hidden = true;
       list.innerHTML = "";
-      return;
+      return true;
     }
     // M4c item 7: never redraw over a reason being typed (every periodic refresh comes through here).
-    if(!focusAskId && holdAskRender(readReasonBox(), result)) return;
+    // Returns false when held (nothing drawn), true after every real draw — the one signal `reloadRun` stamps on.
+    if(!focusAskId && holdAskRender(readReasonBox(), result)) return false;
     empty.hidden = true;
     list.hidden = false;
     // The refresh redraws this tab every tick: a block the human opened or closed by hand keeps that
@@ -2824,6 +2827,7 @@
         }
       }
     });
+    return true;
   }
 
   // theme toggle
