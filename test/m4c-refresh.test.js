@@ -59,9 +59,12 @@ function harness(world, { selected = true, typed = null } = {}) {
     if (p.endsWith('/audit')) return { rows: [] };
     return world.detail;
   };
-  const scope = new Function('getJSON', 'document', 'setTimeout', 'clearTimeout', 'seen', 'selected', `
+  const clock = { now: 1e9 };
+  const scope = new Function('getJSON', 'document', 'setTimeout', 'clearTimeout', 'seen', 'selected', 'Date', `
     var currentFlow = selected ? "job2" : null, currentRunId = selected ? "r1" : null;
-    var LIVE_POLL_MS = 2000, LIVE_MAX_MS = 300000, live = null, pollTimer = null, askDrawnFor = null;
+    var LIVE_POLL_MS = 2000, LISTS_POLL_MS = 10000, LIVE_MAX_MS = 300000, live = null, pollTimer = null, askDrawnFor = null;
+    var lastListsAt = 0, openRunLive = true, wasHidden = false, pendingAnswer = null, currentAskId = null;
+    var lastSig = { inbox: null, runs: null, detail: null, asks: null, audit: null };
     var runsFilterBar = { setItems: function(r){ seen.runs = r; }, refresh: function(){} };
     function renderInbox(rows, n){ seen.inboxCount = n; }
     function renderRun(d){ seen.detail = d; }
@@ -69,12 +72,12 @@ function harness(world, { selected = true, typed = null } = {}) {
     function renderAskRow(){ seen.asksDrawn++; return { classList: { add: function(){} } }; }
     function say(){} function sayLive(){} function endPending(){} function stopLive(){ live = null; }
     function liveOutcome(){ return { done: false }; }
-    ${['reloadLists', 'reloadRun', 'schedulePoll', 'pageTick', 'watchStep', 'holdAskRender', 'readReasonBox', 'renderAsk'].map(fnSrc).join('\n')}
+    ${['sig', 'withScrollPreserved', 'paintRun', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick', 'watchStep', 'holdAskRender', 'readReasonBox', 'renderAsk'].map(fnSrc).join('\n')}
     return { pageTick: pageTick, schedulePoll: schedulePoll, get pollTimer(){ return pollTimer; } };
-  `)(getJSON, doc, (fn) => { timers.push(fn); return timers.length; }, () => {}, seen, selected);
+  `)(getJSON, doc, (fn) => { timers.push(fn); return timers.length; }, () => {}, seen, selected, { now: () => clock.now });
   /** Fire the pending tick, as the browser would after LIVE_POLL_MS, and let its fetches land. */
-  const tick = async () => { const fn = timers.pop(); assert.ok(fn, 'a tick was scheduled'); fn(); await sleep(20); };
-  return { scope, seen, timers, tick };
+  const tick = async (advanceMs = 2000) => { clock.now += advanceMs; const fn = timers.pop(); assert.ok(fn, 'a tick was scheduled'); fn(); await sleep(20); };
+  return { scope, seen, timers, tick, clock };
 }
 
 const runRow = (glyph) => ({ flow: 'job2', runId: 'r1', glyph });
@@ -93,7 +96,7 @@ test('the page ticks on its own: a run that parks after load flips [▶] -> [·]
   world.runs = [runRow('[·]')];
   world.inbox = [{ askId: 'a1' }];
   world.detail = { glyph: '[·]' };
-  await tick();
+  await tick(10000); // lists refresh at most every LISTS_POLL_MS (10 s); the run itself every 2 s
   assert.equal(seen.inboxCount, 1, 'Inbox count updated without a click');
   assert.equal(seen.runs[0].glyph, '[·]', 'Runs list updated without a click');
   assert.equal(seen.detail.glyph, '[·]', 'the selected run header updated without a click');
@@ -107,7 +110,7 @@ test('with no run selected the lists still refresh (a first run appearing on its
   await tick();
   world.runs = [runRow('[▶]')];
   world.inbox = [{ askId: 'a1' }];
-  await tick();
+  await tick(10000);
   assert.equal(seen.runs.length, 1);
   assert.equal(seen.inboxCount, 1);
   assert.ok(!seen.fetched.some((p) => p.startsWith('/api/runs/')), 'nothing selected, no per-run fetch');

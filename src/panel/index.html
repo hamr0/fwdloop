@@ -450,7 +450,7 @@
         <button role="tab" id="tab-inbox" aria-controls="panel-inbox" aria-selected="false" data-testid="left-tab-inbox">Inbox<span id="inbox-count-label"> (0)</span></button>
       </div>
 
-      <div class="pane-body">
+      <div class="pane-body" id="left-pane-body">
 
         <section id="panel-chat" class="tabpanel active" role="tabpanel" aria-labelledby="tab-chat">
           <div class="chat-thread">
@@ -505,7 +505,7 @@
         <button role="tab" id="tab-ask" aria-controls="panel-ask" aria-selected="false" data-testid="right-tab-ask">Ask</button>
       </div>
 
-      <div class="pane-body">
+      <div class="pane-body" id="right-pane-body">
 
         <section id="panel-run" class="tabpanel active" role="tabpanel" aria-labelledby="tab-run">
           <div id="run-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run from Workflows or History</div>
@@ -2122,6 +2122,39 @@
   // ---- selection + loading ----
   var currentFlow = null;
   var currentRunId = null;
+  // The ask the last click named (null = none): an Inbox row is "selected" only when its own
+  // flow, run AND ask match, so two stops of one run never both light up.
+  var currentAskId = null;
+  // borrowed-from: bareloop src/panel/index.html@0a45f40 (sig / withScrollPreserved), adjusted to fwdloop's shape
+  // One last-payload signature per render. Equal payload = the DOM is not touched. `selectRun` resets
+  // the ones a different selection invalidates.
+  var lastSig = { inbox: null, runs: null, detail: null, asks: null, audit: null };
+  function sig(obj){
+    try { return JSON.stringify(obj); } catch(e){ return null; }
+  }
+  // Saves/restores scrollTop of the given element ids around a re-render.
+  function withScrollPreserved(ids, fn){
+    var saved = ids.map(function(id){
+      var el = document.getElementById(id);
+      return el ? el.scrollTop : null;
+    });
+    fn();
+    ids.forEach(function(id, i){
+      if(saved[i] === null) return;
+      var el = document.getElementById(id);
+      if(el) el.scrollTop = saved[i];
+    });
+  }
+  // If keyboard focus sits on a row inside `listEl`, put it back on the rebuilt row with the same
+  // data-testid. Lookup is by attribute equality (never a selector built from ids).
+  function withFocusPreserved(listEl, fn){
+    var a = document.activeElement;
+    var id = (a && a !== listEl && listEl.contains && listEl.contains(a) && a.getAttribute) ? a.getAttribute("data-testid") : null;
+    fn();
+    if(!id) return;
+    var again = Array.prototype.find.call(listEl.querySelectorAll("[data-testid]"), function(el){ return el.getAttribute("data-testid") === id; });
+    if(again && again.focus) again.focus();
+  }
   // `focusAskId` (M4a-1): when a click on an Inbox stop calls `selectRun`,
   // it names the ONE ask that stop is about — `renderAsk` expands exactly
   // that ask and scrolls it into view, rather than whatever this run's
@@ -2132,6 +2165,10 @@
     if(rowEl){ rowEl.classList.add("selected"); rowEl.setAttribute("aria-pressed","true"); }
     currentFlow = flow;
     currentRunId = runId;
+    currentAskId = focusAskId || null;
+    openRunLive = true;   // unknown until this run's own detail says it is finished
+    // a different selection: every payload-equality skip for the selection's own panes is void
+    lastSig.runs = lastSig.detail = lastSig.asks = lastSig.audit = null;
     var base = "/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId);
     // detail, audit, job, and asks each load independently — the Run tab's
     // step cards get everything they need (including a step's own attempt-
@@ -2139,7 +2176,7 @@
     // src/panel/data.js works out the boundary server-side, off the run's
     // full audit-row order, so the client no longer needs a second,
     // separately-fetched copy of the audit rows to cross-reference (fix #6).
-    getJSON(base).then(renderRun).catch(function(e){
+    getJSON(base).then(paintRun).catch(function(e){
       document.getElementById("run-empty").hidden = false;
       document.getElementById("run-empty").textContent = "failed to load run: " + e.message;
       document.getElementById("run-content").hidden = true;
@@ -2161,37 +2198,83 @@
   // books it just read (`liveOutcome`), up to LIVE_MAX_MS. `reloadRun` is also called straight
   // after an answer POST. Success is only ever said from what this reads. ----
   var LIVE_POLL_MS = 2000;
+  // borrowed-from: bareloop src/panel/index.html@0a45f40 (RUNS_LIST_POLL_MS throttle inside the one tick), adjusted:
+  // the open run's own panes keep the 2 s tick (only while that run is live); the Inbox and Runs lists
+  // refresh at most every LISTS_POLL_MS. ONE timer: the throttle lives in `pageTick`, never a second timer.
+  var LISTS_POLL_MS = 10000;
   var LIVE_MAX_MS = 5 * 60 * 1000;
   var live = null;   // { flow, runId, askId, until } — the answer being watched, if any
   var pollTimer = null;
+  var lastListsAt = 0;       // when the lists were last asked for (any caller)
+  var openRunLive = true;    // is the open run still changing? (true until its detail says otherwise)
+  var wasHidden = false;
+  // One writer of `openRunLive`: every paint of the open run's detail goes through here.
+  function paintRun(d){
+    openRunLive = !(d && (d.glyph === "[\u2713]" || d.glyph === "[\u2717]"));
+    var next = sig(d);
+    if(next !== null && next === lastSig.detail) return;
+    lastSig.detail = next;
+    withScrollPreserved(["right-pane-body"], function(){ renderRun(d); });
+  }
+  // Immediate (every user action that re-reads calls this); the tick uses `listsDue` to throttle.
   function reloadLists(){
+    lastListsAt = Date.now();
     getJSON("/api/inbox").then(function(r){ renderInbox(r.rows || [], r.openCount); }).catch(function(){});
-    getJSON("/api/runs").then(function(r){ runsFilterBar.setItems(r.rows || []); runsFilterBar.refresh(); }).catch(function(){});
+    getJSON("/api/runs").then(function(r){
+      var rows = r.rows || [];
+      var next = sig(rows);
+      if(next !== null && next === lastSig.runs) return;
+      lastSig.runs = next;
+      withScrollPreserved(["left-pane-body"], function(){ runsFilterBar.setItems(rows); runsFilterBar.refresh(); });
+    }).catch(function(){});
   }
   function reloadRun(flow, runId, skipLists){
     var base = "/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId);
     var still = function(){ return currentFlow === flow && currentRunId === runId; };
-    var detailP = getJSON(base).then(function(d){ if(still()) renderRun(d); return d; }).catch(function(){ return null; });
-    var asksP = getJSON(base + "/asks").then(function(a){ if(still()) renderAsk(a, null); return a; }).catch(function(e){ if(still()) renderAsk(null, null, e.message); return null; });
-    getJSON(base + "/audit").then(function(a){ if(still()) renderAudit(a); }).catch(function(){});
+    var detailP = getJSON(base).then(function(d){ if(still()) paintRun(d); return d; }).catch(function(){ return null; });
+    var asksP = getJSON(base + "/asks").then(function(a){
+      if(still()){
+        // the Ask tab is drawn from the books AND the page's own pending answer ("working…" block)
+        var next = sig({ asks: a, pending: pendingAnswer });
+        if(next === null || next !== lastSig.asks){ lastSig.asks = next; renderAsk(a, null); }
+      }
+      return a;
+    }).catch(function(e){ if(still()){ lastSig.asks = null; renderAsk(null, null, e.message); } return null; });
+    getJSON(base + "/audit").then(function(a){
+      if(!still()) return;
+      var next = sig(a);
+      if(next !== null && next === lastSig.audit) return;
+      lastSig.audit = next;
+      renderAudit(a);
+    }).catch(function(){});
     if(!skipLists) reloadLists();
     return Promise.all([detailP, asksP]);
   }
   function schedulePoll(ms){ clearTimeout(pollTimer); pollTimer = setTimeout(pageTick, ms); }
   function pageTick(){
     pollTimer = null;
-    if(document.hidden){ schedulePoll(LIVE_POLL_MS); return; }
+    if(document.hidden){ wasHidden = true; schedulePoll(LIVE_POLL_MS); return; }
+    var catchUp = wasHidden;   // first tick after the tab came back: force both
+    wasHidden = false;
     var watch = live;
     var sel = currentFlow !== null && currentRunId !== null;
     var watchIsSelected = watch && sel && watch.flow === currentFlow && watch.runId === currentRunId;
+    var listsDue = catchUp || (Date.now() - lastListsAt) >= LISTS_POLL_MS;
+    var wasLive = openRunLive;
     var selP;
-    if(sel) selP = reloadRun(currentFlow, currentRunId);
-    else { reloadLists(); selP = Promise.resolve([null, null]); }
+    // the open run's own panes: every tick, but only while it is live (or being watched), or on catch-up
+    if(sel && (openRunLive || watchIsSelected || catchUp)) selP = reloadRun(currentFlow, currentRunId, true);
+    else selP = Promise.resolve([null, null]);
+    if(listsDue) reloadLists();
     // the watched run, when it is not the one on screen: read it for its outcome only (no paint — `still()` is false)
     var watchP = (watch && !watchIsSelected) ? reloadRun(watch.flow, watch.runId, true) : selP;
     watchP.then(function(res){
       if(watch && live === watch) watchStep(watch, res);
-    }).catch(function(){}).then(function(){ if(!pollTimer) schedulePoll(LIVE_POLL_MS); });
+    }).catch(function(){}).then(function(){
+      // the open run just stopped being live: its list glyph must not wait up to LISTS_POLL_MS
+      if(sel && wasLive && !openRunLive && !listsDue) reloadLists();
+      if(!pollTimer) schedulePoll(LIVE_POLL_MS);
+    });
   }
   function stopLive(){ live = null; }
   // What the books say now, in words (pure; `null` = keep waiting).
@@ -2234,6 +2317,10 @@
     }
   }
   schedulePoll(LIVE_POLL_MS);
+  // Back on the tab: one catch-up tick now (forcing both rates) instead of waiting out the 2 s beat.
+  document.addEventListener("visibilitychange", function(){
+    if(!document.hidden){ wasHidden = true; schedulePoll(0); }
+  });
 
   getJSON("/api/runs").then(function(result){
     var runs = result.rows || [];
@@ -2290,7 +2377,10 @@
     wrap.className = "hist-row inbox-row s" + row.section;
     wrap.setAttribute("role", "button");
     wrap.setAttribute("tabindex", "0");
-    wrap.setAttribute("aria-pressed", "false");
+    // Selected is derived here, off the page's own selection (flow + run + ask), so a rebuild keeps it.
+    var selected = row.flow === currentFlow && row.runId === currentRunId && (row.askId || null) === currentAskId;
+    if(selected) wrap.className += " selected";
+    wrap.setAttribute("aria-pressed", selected ? "true" : "false");
     wrap.setAttribute("data-testid", "inbox-row-" + row.flow + "-" + row.runId + (row.askId ? "-" + row.askId : ""));
     var head = document.createElement("div");
     head.className = "wf-line1";
@@ -2331,6 +2421,12 @@
   // N comes from the server (data.js inboxOpenCount); the page only shows it.
   function renderInbox(rows, openCount){
     var el = document.getElementById("inbox-list");
+    var next = sig({ rows: rows, openCount: openCount });
+    if(next !== null && next === lastSig.inbox) return; // unchanged payload — never rebuild the DOM for nothing
+    lastSig.inbox = next;
+    withScrollPreserved(["left-pane-body"], function(){ withFocusPreserved(el, function(){ buildInbox(el, rows, openCount); }); });
+  }
+  function buildInbox(el, rows, openCount){
     el.innerHTML = "";
     document.getElementById("inbox-count-label").textContent = " (" + (typeof openCount === "number" ? openCount : 0) + ")";
     if(!rows || !rows.length){
@@ -2347,6 +2443,7 @@
     });
   }
   getJSON("/api/inbox").then(function(result){ renderInbox(result.rows || [], result.openCount); }).catch(function(e){
+    lastSig.inbox = null;
     document.getElementById("inbox-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
   });
 
