@@ -611,3 +611,21 @@ test('item 1 (i): while a run is resuming, a second Resume and a second Answer g
     writeFileSync(releaseFile, '');
   }
 });
+
+// --- M4c-fix amendment 1 (e)(3): the child's output quoted in a resume's `reason` is scrubbed of the key ---------
+test('amendment 1 (e)(3): a refusing child that quotes the provider key — the key never reaches an HTTP response, and the reason carries the scrub marker', async () => {
+  const run = parkRun();
+  const { port, logDir } = await start(run, {
+    windowMs: 30000, maxTries: 1, bin: path.join(REPO, 'scripts', 'panel-fixtures', 'panel-resume-echo-key-fail.mjs'),
+  });
+  const token = await pageToken(port);
+  assert.equal((await answer(port, token, run, 'redo', 'scrub')).status, 202);
+  const d = await pollData(port, run, (x) => x.resume && x.resume.state === 'not-started' && /provider said no/.test(x.resume.reason || ''));
+  assert.match(d.resume.reason, /provider said no — request key=\[redacted-key\] was rejected/);
+  const asks = (await rq(port, { url: `/api/runs/${run.flow}/${run.runId}/asks` })).json();
+  assert.match(asks.resume.reason, /\[redacted-key\]/);
+  for (const s of SEEN) assert.equal(s.includes(SENTINEL), false, `sentinel in an HTTP response: ${s.slice(0, 80)}`);
+  const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]));
+  for (const f of walk(run.root)) assert.equal(readFileSync(f).includes(SENTINEL), false, `sentinel in ${f}`);
+  assert.ok(logDir);
+});

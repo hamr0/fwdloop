@@ -42,6 +42,8 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { scrub } from '../authoring.js';
+import { PROVIDER_SLOTS } from '../provider.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = join(HERE, '..', '..', 'bin', 'fwdloop');
@@ -116,8 +118,11 @@ export function createResumer(opts) {
     };
     child.once('exit', release);
     child.once('error', release);
+    // The child's output is quoted in a refusal (`reason`) that reaches HTTP responses and the books: the
+    // provider key(s) of this panel's env are scrubbed here, the one place that reads the log slice (amendment 1 (e)(3)).
+    const keys = Object.values(PROVIDER_SLOTS).map((p) => env[p.envVar]).filter(Boolean);
     const sliceOfLog = () => {
-      try { return readFileSync(logPath).subarray(offset).toString('utf8').trim(); } catch { return ''; } // offset is in BYTES
+      try { return scrub(readFileSync(logPath).subarray(offset).toString('utf8').trim(), keys); } catch { return ''; } // offset is in BYTES
     };
     const settled = new Promise((resolve) => {
       let done = false;
