@@ -11,6 +11,7 @@ import {
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { appendAudit } from '../src/books.js';
 
 import {
   makeLiveModelStep, isTransportFailure, buildEmitArtifactSchema, LIVE_PROVIDER_OPTIONS,
@@ -308,6 +309,24 @@ test('key preflight: a live call with no key set returns a red, never throws (ru
     const result = await modelStep(CTX, {}, { class: 'hitl' });
     assert.equal(result.ok, false);
     assert.match(result.red, /key: .*DEEPSEEK_API_KEY is not set/);
+  } finally {
+    if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved;
+  }
+});
+
+// M4c-fix item 13: a key red must make an audit row appendAudit accepts, even when the caller names a model.
+test('item 13: a key red with a model named records a valid audit row (no model call, so no model and no tokens)', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'fwdloop-modelstep-i13-'));
+  const saved = process.env.DEEPSEEK_API_KEY;
+  delete process.env.DEEPSEEK_API_KEY;
+  try {
+    const modelStep = makeLiveModelStep({ slot: 'deepseek', model: 'deepseek-flash', spendPath: path.join(dir, 'spend.jsonl') });
+    const result = await modelStep(CTX, {}, { class: 'hitl' });
+    assert.equal(result.ok, false);
+    // the row the runner builds from a step result (src/runner.js, the red branch)
+    assert.doesNotThrow(() => appendAudit(dir, {
+      step: 's', attempt: 1, class: null, verdict: 'red', gap: result.red, usd: 0, spendComplete: true, wallMs: 0, model: result.model, modelMatch: result.modelMatch ?? null, strike: false, at: new Date().toISOString(), tokens: result.tokens ?? null, tools: result.tools ?? null, refused: [],
+    }));
   } finally {
     if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved;
   }
