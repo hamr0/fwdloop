@@ -317,9 +317,9 @@ const ALLOWLIST = {
     readArtifactCallSites: 4,
   },
   'src/ask.js': {
-    reason: 'ask/answer file lifecycle (mkdir/write/rename for asked/answered/consumed/stale, existsSync checks) plus one documented gated read: the answer.json read is resolveInside-guarded immediately above in the same loop iteration',
+    reason: 'ask/answer file lifecycle (mkdir/write/rename for asked/answered/consumed/stale, existsSync checks) plus one documented gated read: the answer.json read is resolveInside-guarded immediately above in the same loop iteration; M4c-fix amendment 1: moving a broken/late answer.json aside as a write-once record (hard link to a free name, then remove the old name — resolveInside-guarded)',
     names: {
-      existsSync: 2, mkdirSync: 2, readFileSync: 1, renameSync: 2, writeFileSync: 3,
+      existsSync: 2, linkSync: 1, mkdirSync: 2, readFileSync: 1, renameSync: 2, unlinkSync: 1, writeFileSync: 3,
     },
   },
   'src/books.js': {

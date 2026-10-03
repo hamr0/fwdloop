@@ -165,9 +165,9 @@ export const RESUME_REASON_UNKNOWN = 'reason unknown: the panel restarted, so it
  * `null` when there is nothing to say (no saved answer and no attempt).
  * M4c amendment 3: `ask` (the run's open `ask.json`, may be null). M4c-fix 17: a saved answer for that ask
  * whose own time is after the deadline reads `late` (the resume records the expiry and ends the run); one
- * with no readable time reads `not-started` with `answerTime: 'missing'` (M4c-fix 16, `stuckState`).
+ * with no readable time reads `broken` (amendment 1 (a)).
  * @param {{savedAnswer: {askId:string, decision:string|null, answeredAt?:string|null}|null, attempt: any, ask?: any}} ctx
- * @returns {{state: 'starting'|'not-started'|'late'|'took-over', answerTime?: 'saved'|'missing', askId: string|null, tries: number|null, maxTries: number|null, reason: string|null, label: string}|null}
+ * @returns {{state: 'starting'|'not-started'|'late'|'broken'|'took-over', askId: string|null, tries: number|null, maxTries: number|null, reason: string|null, label: string}|null}
  */
 export function deriveResumeState({ savedAnswer: saved, attempt, ask = null }) {
   // M4c-fix 17: a saved answer whose own time is after the deadline is not dropped — it reads `late`, so the
@@ -177,6 +177,13 @@ export function deriveResumeState({ savedAnswer: saved, attempt, ask = null }) {
   const tries = attempt ? attempt.tries : null;
   const maxTries = attempt ? attempt.maxTries : null;
   if (saved) {
+    // M4c-fix amendment 1 (a): a saved answer with no readable time is broken — the resume would refuse it every
+    // time. It is not stuck, not "answer saved": the doors come back with a note, and answering again sets it aside.
+    if (Number.isNaN(Date.parse(saved.answeredAt ?? ''))) {
+      return {
+        state: 'broken', askId: saved.askId, tries: null, maxTries: null, reason: BROKEN_ANSWER_WHY, label: BROKEN_LABEL,
+      };
+    }
     if (attempt && attempt.state === 'in-flight' && attempt.askId === saved.askId) {
       return {
         state: 'starting', askId: saved.askId, tries, maxTries, reason: null, label: 'answer saved, resume starting',
@@ -196,8 +203,6 @@ export function deriveResumeState({ savedAnswer: saved, attempt, ask = null }) {
       tries: mine ? tries : null,
       maxTries: mine ? maxTries : null,
       reason,
-      // M4c-fix 16: typed from the saved answer itself (so a panel restart keeps it): has it a readable time?
-      answerTime: Number.isNaN(Date.parse(saved.answeredAt ?? '')) ? 'missing' : 'saved',
       label: 'answer saved, resume not started',
     };
   }
@@ -212,17 +217,16 @@ export function deriveResumeState({ savedAnswer: saved, attempt, ask = null }) {
 export const WAITING_LABEL = 'waiting on you (parked, unanswered)';
 export const STUCK_LABEL = 'stuck — answer saved, click try the resume again';
 export const STUCK_LOCK_LABEL = 'stuck — remove the old resume lock by hand, then try again';
-export const STUCK_NO_TIME_LABEL = 'stuck — answer has no saved time — answer again';
+export const BROKEN_LABEL = 'your saved answer is broken';
+export const BROKEN_ANSWER_WHY = 'it has no readable saved time, so no resume can take it; answer again — the broken one is kept aside as a record';
 export const LATE_LABEL = 'answer saved after the deadline — resume to record that the ask expired';
 export const CRASHED_LABEL = 'crashed after taking your answer — start a fresh run';
 
 /** The typed reasons a stuck run can have. `retry`: nothing is wrong that the books name, so trying again is the
- *  action. `lock-no-holder`: the resume lock has no recorded holder, so trying again can never work. `no-answer-time`:
- *  the saved answer has no readable time, so the resume refuses it every time. */
+ *  action. `lock-no-holder`: the resume lock has no recorded holder, so trying again can never work. */
 export const STUCK_REASONS = {
   retry: { label: STUCK_LABEL, why: null },
   'lock-no-holder': { label: STUCK_LOCK_LABEL, why: 'the resume lock has no recorded holder (a lock from before holders were recorded, or a torn write)' },
-  'no-answer-time': { label: STUCK_NO_TIME_LABEL, why: 'the saved answer carries no readable time, so no resume will take it' },
 };
 
 /**
@@ -234,7 +238,7 @@ export const STUCK_REASONS = {
  * answer themselves — never from a refusal string, so it is the same after a panel restart. Everything that shows
  * "stuck" (computeGlyph, the Inbox, Runs, the Ask tab) reads this.
  * @param {{resume?: any, liveness?: 'running'|'gone'|'unknown', lock?: string}} ctx
- * @returns {{stuck: false, reason: null, label: null, why: null}|{stuck: true, reason: 'retry'|'lock-no-holder'|'no-answer-time', label: string, why: string|null}}
+ * @returns {{stuck: false, reason: null, label: null, why: null}|{stuck: true, reason: 'retry'|'lock-no-holder', label: string, why: string|null}}
  */
 export function stuckState({ resume, liveness, lock }) {
   if (!resume || resume.state !== 'not-started' || liveness === 'running' || lock === 'live' || lock === 'unknown') {
@@ -243,7 +247,7 @@ export function stuckState({ resume, liveness, lock }) {
     };
   }
   // The runner takes the lock before it reads the answer, so a lock problem is what it would refuse on first.
-  const reason = lock === 'empty' ? 'lock-no-holder' : resume.answerTime === 'missing' ? 'no-answer-time' : 'retry';
+  const reason = lock === 'empty' ? 'lock-no-holder' : 'retry';
   return { stuck: true, reason, ...STUCK_REASONS[reason] };
 }
 

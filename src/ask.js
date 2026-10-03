@@ -17,7 +17,7 @@
 // not a second Checkpoint instance layered on top of the same file protocol.
 
 import {
-  existsSync, mkdirSync, readFileSync, renameSync, writeFileSync,
+  existsSync, linkSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
@@ -278,8 +278,48 @@ export function sha256Hex(serialised) {
 }
 
 /**
+ * M4c-fix amendment 1 (a): why a saved `answer.json` is not a usable answer for the open ask `openAskId`, or `null`
+ * when it is usable. The resume refuses each of these by name before it consumes the file, so without a way aside
+ * the file would block every new answer (`answerAsk`'s exclusive create).
+ * @param {string} text the file's text @param {string} openAskId
+ * @returns {string|null}
+ */
+export function brokenAnswerWhy(text, openAskId) {
+  let a;
+  try { a = JSON.parse(text); } catch { return 'it is not valid JSON'; }
+  if (a === null || typeof a !== 'object' || Array.isArray(a)) return 'it is not a JSON object';
+  if (a.askId !== openAskId) return `it names another ask ("${a.askId}")`;
+  if (Number.isNaN(Date.parse(typeof a.answeredAt === 'string' ? a.answeredAt : ''))) return 'it carries no readable saved time';
+  return null;
+}
+
+/**
+ * Move `answer.json` aside as a record: `answer.<askId>.<kind>.<n>.json`, `n` the first free number. Write-once:
+ * the new name is created with a hard link (`EEXIST` = taken, try the next), then the old name is removed — never
+ * a rename, which would overwrite; never a delete of the content. A symlinked `answer.json` is refused, not followed.
+ * @param {string} runDir @param {string} askId @param {'broken'|'late'} kind
+ * @returns {{ ok: true, name: string } | { ok: false, red: string }}
+ */
+export function setAsideAnswer(runDir, askId, kind) {
+  const resolved = resolveInside(runDir, 'answer.json');
+  if (!resolved.ok) return { ok: false, red: `answer.json cannot be set aside — ${resolved.red ?? 'missing'}` };
+  for (let n = 1; n < 1000; n += 1) {
+    const name = `answer.${askId}.${kind}.${n}.json`;
+    try {
+      linkSync(resolved.full, join(runDir, name));
+    } catch (err) {
+      if (err.code === 'EEXIST') continue; // eslint-disable-line no-continue
+      return { ok: false, red: `answer.json could not be set aside — ${err.message}` };
+    }
+    try { unlinkSync(resolved.full); } catch { /* already moved by another process: the record exists either way */ }
+    return { ok: true, name };
+  }
+  return { ok: false, red: 'answer.json could not be set aside — no free record name' };
+}
+
+/**
  * @param {{ runDir: string, askId: string, decision: 'accept'|'redo'|'reject'|'rerun', reason?: string, clock?: () => string }} opts
- * @returns {{ ok: true } | { ok: false, red: string }}
+ * @returns {{ ok: true, setAside: string|null } | { ok: false, red: string }}
  */
 export function answerAsk({
   runDir, askId, decision: givenDecision, reason, clock,
@@ -364,6 +404,18 @@ export function answerAsk({
   // the exclusive gate (fails EEXIST if the file already exists), so there
   // is no window between "is it answered" and "answer it" for a second
   // caller to land in.
+  // M4c-fix amendment 1 (a): a saved answer that is broken (not JSON, not an object, names another ask, no readable
+  // time) would block this write for good — it is moved aside as a record first (never deleted). Only a broken one.
+  let setAside = null;
+  const savedRead = readFileInside(runDir, 'answer.json');
+  if (savedRead.ok) {
+    const why = brokenAnswerWhy(savedRead.text, askId);
+    if (why !== null) {
+      const moved = setAsideAnswer(runDir, askId, 'broken');
+      if (!moved.ok) return { ok: false, red: `answerAsk: askId "${askId}" — a broken saved answer (${why}) is in the way — ${moved.red}` };
+      setAside = moved.name;
+    }
+  }
   try {
     writeFileSync(answerPath, JSON.stringify(payload, null, 2), { flag: 'wx' });
   } catch (err) {
@@ -372,7 +424,7 @@ export function answerAsk({
     }
     return { ok: false, red: `answerAsk: could not write ${answerPath} — ${err.message}` };
   }
-  return { ok: true };
+  return { ok: true, setAside };
 }
 
 // ---------------------------------------------------------------------------

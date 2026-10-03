@@ -267,7 +267,7 @@ test('inbox: open ask counts as waiting; saved-unconsumed answer does NOT and is
   assert.equal(typeof before[0].timeLeftMs, 'number');
 
   // the human answered (answer.json saved) but nothing consumed it yet
-  writeFileSync(path.join(run.runDir, 'answer.json'), JSON.stringify({ askId: run.askId, decision: 'accept' }));
+  writeFileSync(path.join(run.runDir, 'answer.json'), JSON.stringify({ askId: run.askId, decision: 'accept', answeredAt: new Date().toISOString() }));
   const saved = mine();
   assert.equal(saved.length, 1);
   assert.equal(saved[0].waiting, false, 'an answered ask is not waiting on the human');
@@ -657,4 +657,19 @@ test('amendment 1 (e)(1): the run has re-parked on a new ask while the previous 
   } finally {
     writeFileSync(releaseFile, '');
   }
+});
+
+// --- M4c-fix amendment 1 (a): over HTTP, a broken saved answer is moved aside and the new answer is saved ---------
+test('amendment 1 (a): POST /api/answer over a planted broken answer.json is 202, names the record it kept, and the broken bytes survive in it', async () => {
+  const run = parkRun();
+  const { port } = await start(run, { windowMs: 30000, maxTries: 1, bin: SLEEP_BIN, env: { ...serverEnv(), SPAWN_COUNT_FILE: path.join(tmp('a-broken'), 'spawns'), RELEASE_FILE: path.join(tmp('a-broken-r'), 'release') } });
+  const token = await pageToken(port);
+  writeFileSync(path.join(run.runDir, 'answer.json'), JSON.stringify({ askId: run.askId, decision: 'redo' })); // no answeredAt
+  const d = await runData(port, run);
+  assert.equal(d.resume?.state, 'broken');
+  const r = await answer(port, token, run, 'redo', 'again');
+  assert.equal(r.status, 202, r.text);
+  assert.equal(r.json().setAside, `answer.${run.askId}.broken.1.json`);
+  assert.equal(readFileSync(path.join(run.runDir, r.json().setAside), 'utf8'), JSON.stringify({ askId: run.askId, decision: 'redo' }));
+  assert.ok(Date.parse(JSON.parse(readFileSync(path.join(run.runDir, 'answer.json'), 'utf8')).answeredAt) > 0);
 });

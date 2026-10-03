@@ -14,9 +14,9 @@ import { spawnSync } from 'node:child_process';
 
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
-import { listArchivedAsks } from '../src/ask.js';
+import { listArchivedAsks, answerAsk } from '../src/ask.js';
 import {
-  getRunAsks, listRuns, listStops, stuckState, STUCK_LABEL, STUCK_LOCK_LABEL, STUCK_NO_TIME_LABEL, LATE_LABEL,
+  getRunAsks, listRuns, listStops, stuckState, STUCK_LABEL, STUCK_LOCK_LABEL, BROKEN_LABEL, LATE_LABEL,
 } from '../src/panel/data.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -179,20 +179,60 @@ test('item 15: an empty resume lock reads "remove the lock by hand" in every sur
   assert.doesNotMatch(readFileSync(path.join(HERE, '..', 'src', 'panel', 'data.js'), 'utf8'), /\.includes\(LOCK_NO_HOLDER\)/);
 });
 
-test('item 16: an answer with no saved time says so ("answer has no saved time — answer again"), not "try the resume again", in every surface', () => {
-  const { root, runDir } = stuckJob2('i16');
+/** The page's own `answerControls`, evaluated (the page is one HTML file, so tests lift the function). */
+function pageAnswerControls() {
+  const start = page.indexOf('function answerControls(');
+  const src = page.slice(start, page.indexOf('\n  }', start) + 4);
+  return new Function('pendingText', `${src}; return answerControls;`)(() => '');
+}
+
+test('amendment 1 (a): a saved answer with no readable time gives the doors back with a note; answering again keeps the broken one aside as a write-once record', () => {
+  const { root, runDir, askId } = stuckJob2('a1');
   answerFile(runDir, (a) => { delete a.answeredAt; });
-  assert.match(STUCK_NO_TIME_LABEL, /answer has no saved time — answer again/);
-  assert.equal(rowOf(root).glyph, '[II]');
-  assert.equal(rowOf(root).label, STUCK_NO_TIME_LABEL);
-  assert.equal(stopOf(root).stuckLabel, STUCK_NO_TIME_LABEL);
-  assert.equal(tabOf(root).resume.label, STUCK_NO_TIME_LABEL);
-  // an unparseable time reads the same
-  answerFile(runDir, (a) => { a.answeredAt = 'not a date'; });
-  assert.equal(rowOf(root).label, STUCK_NO_TIME_LABEL);
-  // and the CLI really does refuse it every time (the label is true)
-  const r = cliRaw(['resume', 'run-1', '--flow', 'job2', '--root', root]);
-  assert.match(r.stderr, /missing or unreadable answeredAt/);
+  const tab = tabOf(root);
+  assert.equal(tab.resume.state, 'broken');
+  assert.equal(tab.resume.label, BROKEN_LABEL);
+  assert.equal(rowOf(root).glyph, '[·]', 'waiting on you again, not stuck [II]');
+  assert.equal(stopOf(root).stuck, false);
+  const ask = tab.asks.find((x) => x.askId === askId);
+  assert.equal(ask.waiting, true);
+  const controls = pageAnswerControls()(ask, tab.resume, null);
+  assert.equal(controls.kind, 'doors');
+  assert.match(controls.note, /broken/);
+  // the old dead-end label is gone from every surface
+  assert.doesNotMatch(readFileSync(path.join(HERE, '..', 'src', 'panel', 'data.js'), 'utf8'), /STUCK_NO_TIME_LABEL|has no saved time — answer again/);
+  // answering again: the broken file is kept aside, byte for byte, and the new answer is saved
+  const brokenBytes = readFileSync(path.join(runDir, 'answer.json'), 'utf8');
+  const r = answerAsk({ runDir, askId, decision: 'redo', reason: 'again' });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.setAside, `answer.${askId}.broken.1.json`);
+  assert.equal(readFileSync(path.join(runDir, r.setAside), 'utf8'), brokenBytes);
+  assert.ok(Number.isFinite(Date.parse(JSON.parse(readFileSync(path.join(runDir, 'answer.json'), 'utf8')).answeredAt)));
+  // a second broken answer never overwrites the first record
+  writeFileSync(path.join(runDir, 'answer.json'), 'not json at all');
+  const r2 = answerAsk({ runDir, askId, decision: 'redo', reason: 'again 2' });
+  assert.equal(r2.ok, true, JSON.stringify(r2));
+  assert.equal(r2.setAside, `answer.${askId}.broken.2.json`);
+  assert.equal(readFileSync(path.join(runDir, `answer.${askId}.broken.1.json`), 'utf8'), brokenBytes);
+  // a GOOD saved answer is never moved aside: a second answer is refused, the file stays
+  const good = readFileSync(path.join(runDir, 'answer.json'), 'utf8');
+  const r3 = answerAsk({ runDir, askId, decision: 'accept' });
+  assert.equal(r3.ok, false);
+  assert.match(r3.red, /already answered/);
+  assert.equal(readFileSync(path.join(runDir, 'answer.json'), 'utf8'), good);
+  assert.equal(existsSync(path.join(runDir, `answer.${askId}.broken.3.json`)), false);
+});
+
+test('amendment 1 (a): within the watch, a saved answer found broken ends the "working" state with the reason, and the doors come back', () => {
+  const start = page.indexOf('function liveOutcome(');
+  const src = page.slice(start, page.indexOf('\n  }', start) + 4);
+  const liveOutcome = new Function(`${src}; return liveOutcome;`)();
+  const o = liveOutcome('a1', { glyph: '[·]' }, { asks: [], resume: { state: 'broken', label: 'your saved answer is broken', reason: 'no readable saved time' } });
+  assert.equal(o.done, true);
+  assert.equal(o.cls, 'refused');
+  assert.match(o.text, /broken: no readable saved time/);
+  // not broken: the watch keeps waiting (the control)
+  assert.equal(liveOutcome('a1', { glyph: '[·]' }, { asks: [], resume: { state: 'took-over', label: 'x' } }).done, false);
 });
 
 test('item 17: an answer saved after the deadline is offered the resume (which records the expiry and ends the run), not left with no action', () => {

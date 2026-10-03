@@ -2286,6 +2286,8 @@
   function stopLive(){ live = null; }
   // What the books say now, in words (pure; `null` = keep waiting).
   function liveOutcome(askId, detail, asks){
+    // amendment 1 (a): within the watch the saved answer turned out to have no readable time — say why; the doors come back
+    if(asks && asks.resume && asks.resume.state === "broken") return { done: true, cls: "refused", text: asks.resume.label + ": " + (asks.resume.reason || "") };
     if(asks && asks.resume && asks.resume.state === "not-started") return { done: true, cls: null, text: null };
     var list = (asks && asks.asks) || [];
     var fresh = list.find(function(a){ return a.waiting && a.askId !== askId; });
@@ -2497,6 +2499,10 @@
       return { kind: "none", why: "no answer doors: this ask is " + ((ask && ask.status) || "closed") + " — there is nothing left to answer" };
     }
     if(resume && resume.askId === ask.askId){
+      // amendment 1 (a): a saved answer with no readable time gives the doors back, with a note saying why
+      if(resume.state === "broken"){
+        return { kind: "doors", note: resume.label + ": " + (resume.reason || "") };
+      }
       if(resume.state === "starting"){
         return { kind: "starting", label: resume.label, why: "no answer doors: this ask already has a saved answer" };
       }
@@ -2555,6 +2561,8 @@
         delete reasonDrafts[ask.askId];
         pendingAnswer = { flow: ctx.flow, runId: ctx.runId, askId: ask.askId, decision: decision, draftNo: ctx.draftNo };
         answerMsg = null; paintAnswerMsg();
+        // a broken earlier answer was moved aside to make room: say so, once
+        if(r.body.setAside) say(ctx.flow, ctx.runId, "info", "your earlier saved answer was broken — it is kept aside as " + r.body.setAside + "; this answer is saved");
         startLive(ctx.flow, ctx.runId, ask.askId);
       } else {
         say(ctx.flow, ctx.runId, "refused", refusalText(r));
@@ -2596,6 +2604,11 @@
     root.className = "answer-doors";
     root.setAttribute("data-testid", "answer-doors");
     if(model.kind === "doors"){
+      if(model.note){
+        var note = textDiv("answer-msg refused", model.note);
+        note.setAttribute("data-testid", "answer-note");
+        root.appendChild(note);
+      }
       var idSafe = "reason-" + String(ask.askId).replace(/[^A-Za-z0-9_-]/g, "_");
       var lab = document.createElement("label");
       lab.setAttribute("for", idSafe);

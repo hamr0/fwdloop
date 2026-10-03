@@ -211,7 +211,7 @@ function answerRoute(res, body, root, resumer) {
     flow, runId, runDir, askId,
   });
   sendJson(res, 202, {
-    ok: true, answered: true, askId, decision: normalizeDecision(decision), resume: 'started', tries: attempt.tries, maxTries: attempt.maxTries,
+    ok: true, answered: true, askId, decision: normalizeDecision(decision), setAside: result.setAside, resume: 'started', tries: attempt.tries, maxTries: attempt.maxTries,
     note: 'answer saved; the resume was started in the background — its state is in the run\'s data (`resume`), not in this reply',
   });
 }
