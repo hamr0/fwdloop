@@ -551,3 +551,23 @@ test('cli: run with only wired verbs still runs (control case for the F46 prefli
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /parked: askId=\S+/);
 });
+
+// M4c-fix item 8, negative (ix): model text holding an ESC sequence reaches the terminal with no ESC byte.
+test('cli: show prints no ESC / control byte from model text, and keeps new lines and tabs (M4c-fix 8, ix)', () => {
+  const root = tmpRoot('show-esc');
+  const runDir = path.join(root, 'job2', 'runs', 'run-esc');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(path.join(runDir, 'ask.json'), JSON.stringify({
+    askId: 'ask-esc',
+    question: 'ok?\u001b[2J',
+    askedAt: '2026-09-24T13:23:36.913Z',
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    evidence: { text: 'line1\n\tindented \u001b[2Jcleared \u001b]0;title\u0007 bell\u0007 del\u007f c1\u009b31m end' },
+  }));
+  const res = runCli(['show', 'ask-esc', '--root', root], fakeModelEnv());
+  assert.equal(res.status, 0, res.stderr);
+  // eslint-disable-next-line no-control-regex
+  assert.doesNotMatch(res.stdout, /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/, 'no control byte may reach the terminal');
+  assert.match(res.stdout, /line1\n\tindented /, 'new lines and tabs are kept');
+  assert.match(res.stdout, /cleared/);
+});

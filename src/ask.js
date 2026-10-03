@@ -58,6 +58,14 @@ export function normalizeDecision(decision) {
   return decision === 'reject' ? 'redo' : decision;
 }
 
+/** Terminal control codes out of text a model wrote, before it reaches a terminal: C0 (incl. ESC, which starts
+ *  every CSI/OSC sequence), DEL and C1 (incl. the one-byte CSI, U+009B). Keeps \n and \t. A stripped ESC leaves the
+ *  sequence's printable tail ("[2J") visible, which is inert. */
+export function stripControl(text) {
+  // eslint-disable-next-line no-control-regex
+  return String(text).replace(/[\x00-\x08\x0B-\x1F\x7F-\x9F]/g, '');
+}
+
 /** The one decision -> status table, used by `listArchivedAsks` here and by the panel's legacy-ask rows.
  *  Look it up with `normalizeDecision(decision)`. */
 export const DECISION_STATUS = { accept: 'accepted', redo: 'redo', rerun: 'reran' };

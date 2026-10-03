@@ -31,7 +31,9 @@ import { makeLiveModelStep } from '../src/model-step.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
 import { checkKeyPreflight } from '../src/provider.js';
-import { answerAsk, readAskEvidence, normalizeDecision } from '../src/ask.js';
+import {
+  answerAsk, readAskEvidence, normalizeDecision, stripControl,
+} from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
 import { draftToDir, signDraft, SIGN_LINE, costText } from '../src/authoring.js';
@@ -387,7 +389,7 @@ function cmdShow(rest) {
     return;
   }
 
-  process.stdout.write(`question: ${ask.question}\n`);
+  process.stdout.write(`question: ${stripControl(ask.question)}\n`);
   process.stdout.write(`expiresAt: ${ask.expiresAt}\n`);
 
   const { draft, unjudged, why } = readAskEvidence(ask);
@@ -396,10 +398,10 @@ function cmdShow(rest) {
     return;
   }
   process.stdout.write('\n--- artifact under review ---\n');
-  process.stdout.write(`${draft.text}\n`);
+  process.stdout.write(`${stripControl(draft.text)}\n`);
   for (const item of unjudged) {
-    process.stdout.write(`\n--- unjudged: ${item.step} ---\n`);
-    process.stdout.write(`${item.text}\n`);
+    process.stdout.write(`\n--- unjudged: ${stripControl(item.step)} ---\n`);
+    process.stdout.write(`${stripControl(item.text)}\n`);
   }
 }
 
