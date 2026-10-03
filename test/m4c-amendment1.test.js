@@ -144,7 +144,8 @@ function pageHarness() {
       return inboxRows[m[1]] ?? null;
     },
     // the real page's rows carry their own data-testid; the fake stamps it from the key it was filed under
-    querySelectorAll: () => Object.entries(inboxRows).map(([id, el]) => { el.setAttribute('data-testid', id); return el; }),
+    // honours its selector like a real DOM: the Inbox rows answer ONLY to ".inbox-row" (a typo in the page's selector gets [])
+    querySelectorAll: (sel) => (sel === '.inbox-row' ? Object.entries(inboxRows).map(([id, el]) => { el.setAttribute('data-testid', id); return el; }) : []),
   };
   const calls = { selectRun: [] };
   const body = `
