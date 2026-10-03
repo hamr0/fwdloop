@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  readFileSync, writeFileSync, readdirSync, existsSync, renameSync,
+  readFileSync, writeFileSync, existsSync, renameSync, unlinkSync, rmSync,
 } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
@@ -109,4 +109,35 @@ test('item 14: a run parked through a symlinked --root (state.json holds the lin
   const r2 = cliRaw(['resume', 'run-1', '--flow', 'job2', '--root', path.dirname(path.dirname(path.dirname(runDir2)))]);
   assert.notEqual(r2.status, 0);
   assert.match(r2.stderr, /was parked against flow/);
+});
+
+// ---- item 15 (lock part): two resumers never delete each other's lock ---------------------------
+test('item 15: a resume that finishes never deletes a resume.lock that is no longer its own', async () => {
+  const { root, runDir, askId } = parkedJob2('i15lock');
+  cli(['answer', askId, 'redo', 'again', '--root', root]);
+  const lockPath = path.join(runDir, 'resume.lock');
+  const other = JSON.stringify({ pid: 2 ** 22 - 3, procStart: '123456789' }); // another resumer's holder record
+  const modelStep = async (ctx) => {
+    // while this resume runs, its lock is replaced by another resumer's (A's lock cleared and retaken by B)
+    unlinkSync(lockPath);
+    writeFileSync(lockPath, other);
+    assert.match(ctx.goal, /Draft the summary resume/);
+    return { ok: true, costUsd: 0.001, artifact: { text: '## summary of work history blurb\nx\n## professional skills\ny\n## soft skills\nz', done: true } };
+  };
+  const { resumeRun } = await import('../src/runner.js');
+  const r = await resumeRun({
+    root, name: 'job2', runId: 'run-1', catalogue: CATALOGUE, modelStep, sendStep: async () => ({ ok: true, bytes: 1 }), primitives: {}, businessDate: '2026-06-01',
+  });
+  assert.equal(r.outcome, 'paused', JSON.stringify(r));
+  assert.equal(existsSync(lockPath), true, 'the other resumer\'s lock is still there');
+  assert.equal(readFileSync(lockPath, 'utf8'), other);
+  // and a resume that still owns its lock does release it
+  rmSync(lockPath);
+  const id2 = JSON.parse(readFileSync(path.join(runDir, 'ask.json'), 'utf8')).askId;
+  cli(['answer', id2, 'redo', 'again', '--root', root]);
+  const r2 = await resumeRun({
+    root, name: 'job2', runId: 'run-1', catalogue: CATALOGUE, modelStep: async () => ({ ok: true, costUsd: 0.001, artifact: { text: '## summary of work history blurb\nx\n## professional skills\ny\n## soft skills\nz', done: true } }), sendStep: async () => ({ ok: true, bytes: 1 }), primitives: {}, businessDate: '2026-06-01',
+  });
+  assert.equal(r2.outcome, 'paused', JSON.stringify(r2));
+  assert.equal(existsSync(lockPath), false, 'an owned lock is released');
 });

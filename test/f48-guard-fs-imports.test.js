@@ -272,8 +272,8 @@ const ALLOWLIST = {
     reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create + stale-lock clear + cleanup, M4c amendment 2) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above)',
     names: {
       accessSync: 1, closeSync: 2, constants: 1, copyFileSync: 1, existsSync: 7,
-      mkdirSync: 6, openSync: 1, readFileSync: 3, realpathSync: 2, renameSync: 1,
-      statSync: 1, unlinkSync: 3, writeFileSync: 5,
+      mkdirSync: 6, openSync: 1, readFileSync: 3, realpathSync: 3, renameSync: 1,
+      statSync: 1, unlinkSync: 2, writeFileSync: 5,
     },
     readArtifactCallSites: 4,
   },
@@ -310,7 +310,7 @@ const ALLOWLIST = {
   'src/authoring.js': {
     reason: 'M6a: `fwdloop draft`/`sign` — creates the NEW draft dir and writes its files (writes only; rmdirSync removes only the just-claimed EMPTY dir on a $0 pre-flight refusal), reads the caller-named prose file (a business input, not a book), and existsSync checks on the dir/input sources. Every read of a draft dir\'s own files goes through readFileInside/readdirInside (src/flow.js).',
     names: {
-      existsSync: 2, mkdirSync: 2, readFileSync: 1, rmdirSync: 1, writeFileSync: 3,
+      existsSync: 2, mkdirSync: 2, readFileSync: 1, realpathSync: 1, rmdirSync: 1, writeFileSync: 3,
     },
   },
   'src/primitives.js': {

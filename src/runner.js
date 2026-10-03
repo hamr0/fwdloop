@@ -55,7 +55,7 @@ import { WIRED_VERBS } from './primitives.js';
 import { closeByClass } from './closers.js';
 import { appendAudit, appendHistory } from './books.js';
 import {
-  readResumeLock, recordPid, writeLockHolder, LOCK_NO_HOLDER,
+  readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
 } from './liveness.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1491,6 +1491,15 @@ function sumAuditUsd(runDir) {
   return { ok: true, total };
 }
 
+/** Unlink `resume.lock` only when its recorded holder is still THIS process (`readResumeLock`'s holder pid + start
+ *  time against our own). A lock a later taker made in its place is never touched. */
+function releaseResumeLock(runDir, lockPath) {
+  const lock = readResumeLock(runDir);
+  if (lock.pid === process.pid && lock.procStart === procStartOf('self')) {
+    try { unlinkSync(lockPath); } catch { /* already gone */ }
+  }
+}
+
 /**
  * M4c amendment 2 (d): create `resume.lock` with `wx` and write the holder into it.
  * An existing lock is read: holder alive (or cannot be told) -> refuse by name
@@ -1504,8 +1513,8 @@ async function takeResumeLock(runDir, runId, lockPath) {
     try {
       const lockFd = openSync(lockPath, 'wx');
       try { writeLockHolder(lockFd); } catch (err) {
+        releaseResumeLock(runDir, lockPath);
         try { closeSync(lockFd); } catch { /* ignore */ }
-        try { unlinkSync(lockPath); } catch { /* ignore */ }
         return { ok: false, red: `resume: could not record the lock holder in ${lockPath} — ${err.message}` };
       }
       return { ok: true, lockFd };
@@ -1527,10 +1536,11 @@ async function takeResumeLock(runDir, runId, lockPath) {
     }
     if (lock.state === 'dead') {
       // Re-read right before the unlink: a racing taker may have cleared this lock and retaken it
-      // already, and must not lose its fresh lock. The window left is one syscall wide, and the
-      // answer's rename-to-consume (F44) still lets only one resume act on the answer.
+      // already, and must not lose its fresh lock. Same holder (pid and start time) as judged dead.
+      // The window left is one syscall wide, and the answer's rename-to-consume (F44) still lets only
+      // one resume act on the answer.
       const again = readResumeLock(runDir);
-      if (again.state === 'dead' && again.pid === lock.pid) {
+      if (again.state === 'dead' && again.pid === lock.pid && again.procStart === lock.procStart) {
         try { unlinkSync(lockPath); } catch { /* another taker already cleared it: retry wx */ }
       }
     }
@@ -2037,8 +2047,8 @@ export async function resumeRun({
     if (result.outcome === 'complete') return { ...result, auditRows };
     return result;
   } finally {
+    releaseResumeLock(runDir, lockPath);
     try { closeSync(lockFd); } catch { /* already closed */ }
-    try { unlinkSync(lockPath); } catch { /* already gone */ }
   }
 }
 

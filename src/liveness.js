@@ -118,22 +118,22 @@ export const LOCK_NO_HOLDER = 'with no recorded holder';
  *   unknown - liveness cannot be told (no /proc): never treated as dead
  *   empty   - a lock with no readable holder (pre-amendment resumer, torn write)
  * @param {string} runDir
- * @returns {{state: 'none'|'live'|'dead'|'unknown'|'empty', pid: number|null, path: string}}
+ * @returns {{state: 'none'|'live'|'dead'|'unknown'|'empty', pid: number|null, procStart: string|null, path: string}}
  */
 export function readResumeLock(runDir) {
   const path = join(runDir, 'resume.lock');
   let st;
-  try { st = lstatSync(path); } catch { return { state: 'none', pid: null, path }; }
-  if (!st.isFile()) return { state: 'empty', pid: null, path };
+  try { st = lstatSync(path); } catch { return { state: 'none', pid: null, procStart: null, path }; }
+  if (!st.isFile()) return { state: 'empty', pid: null, procStart: null, path };
   let h;
-  try { h = JSON.parse(readFileSync(path, 'utf8')); } catch { return { state: 'empty', pid: null, path }; }
-  if (!h || !Number.isInteger(h.pid) || h.pid <= 0) return { state: 'empty', pid: null, path };
+  try { h = JSON.parse(readFileSync(path, 'utf8')); } catch { return { state: 'empty', pid: null, procStart: null, path }; }
+  if (!h || !Number.isInteger(h.pid) || h.pid <= 0) return { state: 'empty', pid: null, procStart: null, path };
   const procStart = typeof h.procStart === 'string' ? h.procStart : null;
   // This very process holds it (two resumeRun calls in one process): alive by definition,
   // whatever its command line says.
-  if (h.pid === process.pid && procStart === procStartOf('self')) return { state: 'live', pid: h.pid, path };
+  if (h.pid === process.pid && procStart === procStartOf('self')) return { state: 'live', pid: h.pid, procStart, path };
   const alive = isFwdloopAlive(h.pid, procStart);
-  return { state: alive === true ? 'live' : alive === false ? 'dead' : 'unknown', pid: h.pid, path };
+  return { state: alive === true ? 'live' : alive === false ? 'dead' : 'unknown', pid: h.pid, procStart, path };
 }
 
 /** The run's books, for the 10-minute fallback: state, audit, model log, spend ledger, and the pid file itself. */
