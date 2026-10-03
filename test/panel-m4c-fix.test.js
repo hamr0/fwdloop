@@ -4,13 +4,13 @@ import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
 import http from 'node:http';
 import {
-  existsSync, readFileSync, statSync, symlinkSync,
+  existsSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
-import { createPanelServer, writeTokenFile } from '../src/panel/server.js';
+import { createPanelServer, handleRequest, writeTokenFile } from '../src/panel/server.js';
 import { remember, cookieHeader, cookieName } from '../scripts/panel-fixtures/panel-auth.mjs';
 
 const tmp = (p) => mkdtempSync(path.join(tmpdir(), `fwdloop-m4cfix-${p}-`));
@@ -128,5 +128,87 @@ test('item 3 (iii): every response — page, JSON, 404, 403, 405, 302, HEAD — 
     assert.equal(r.headers['x-frame-options'], 'DENY', label);
     assert.equal(r.headers['content-security-policy'], "frame-ancestors 'none'", label);
     assert.equal(r.headers['cache-control'], 'no-store', label);
+  }
+});
+
+// --- items 4 + 5: flow must sit inside --root; no absolute path in any error body ----------------
+/** root/ok is a real flow with a run; root/evil is a symlink to a flow OUTSIDE root, which also has a run. */
+function symlinkedFlowRoot() {
+  const root = tmp('root');
+  const outside = tmp('outside');
+  mkdirSync(path.join(outside, 'runs', 'run-1'), { recursive: true });
+  writeFileSync(path.join(outside, 'runs', 'run-1', 'answer.json'), JSON.stringify({ askId: 'a1', decision: 'accept' }));
+  mkdirSync(path.join(root, 'ok', 'runs', 'run-1'), { recursive: true });
+  symlinkSync(outside, path.join(root, 'evil'));
+  return { root, outside, outsideRun: path.join(outside, 'runs', 'run-1') };
+}
+
+test('item 4 (iv): a flow symlinked outside --root is refused BY NAME for every read and for answer and resume; nothing is written there', async () => {
+  const { root, outside, outsideRun } = symlinkedFlowRoot();
+  const h = await start(root);
+  const own = { origin: `http://127.0.0.1:${h.port}`, 'content-type': 'application/json' };
+  const before = readdirSync(outsideRun);
+  for (const sub of ['', '/audit', '/job', '/asks']) {
+    const r = await rq(h.port, { url: `/api/runs/evil/run-1${sub}` });
+    assert.equal(r.status, 403, `GET ${sub}`);
+    assert.equal(r.json().refused, 'flow-outside-root', `GET ${sub}`);
+  }
+  for (const [url, body] of [
+    ['/api/answer', { flow: 'evil', runId: 'run-1', askId: 'a1', decision: 'accept' }],
+    ['/api/resume', { flow: 'evil', runId: 'run-1' }],
+  ]) {
+    const r = await rq(h.port, { method: 'POST', url, headers: own, body });
+    assert.equal(r.status, 403, url);
+    assert.equal(r.json().refused, 'flow-outside-root', url);
+    assert.ok(!r.text.includes(outside), 'the far end of the symlink is not named');
+  }
+  assert.deepEqual(readdirSync(outsideRun), before, 'nothing was written outside root');
+  // control: a real flow inside root is not over-refused (it just has no such run data)
+  const ok = await rq(h.port, { url: '/api/runs/ok/run-1' });
+  assert.notEqual(ok.json()?.refused, 'flow-outside-root');
+});
+
+test('item 5 (v): no error body holds an absolute path — library, bad-runId, symlink and 500 refusals name paths relative to --root', async () => {
+  const { root, outside } = symlinkedFlowRoot();
+  const flowB = path.join(root, 'linkedruns');
+  mkdirSync(flowB);
+  symlinkSync(outside, path.join(flowB, 'runs'));
+  const h = await start(root);
+  const own = { origin: `http://127.0.0.1:${h.port}`, 'content-type': 'application/json' };
+  const bodies = [];
+  // library refusal: an answer to a run with no open ask names the run dir
+  const lib = await rq(h.port, { method: 'POST', url: '/api/answer', headers: own, body: { flow: 'ok', runId: 'run-1', askId: 'a1', decision: 'accept' } });
+  assert.equal(lib.status, 409);
+  assert.match(lib.json().red, /ok\/runs\/run-1/, 'the path is shown relative to --root');
+  bodies.push(lib.text);
+  // runs/ symlinked outside the flow
+  const sym = await rq(h.port, { method: 'POST', url: '/api/resume', headers: own, body: { flow: 'linkedruns', runId: 'run-1' } });
+  assert.equal(sym.status, 400);
+  bodies.push(sym.text);
+  // flow refusals
+  bodies.push((await rq(h.port, { url: '/api/runs/evil/run-1' })).text);
+  bodies.push((await rq(h.port, { method: 'POST', url: '/api/resume', headers: own, body: { flow: 'evil', runId: 'run-1' } })).text);
+  for (const b of bodies) {
+    assert.ok(!b.includes(root) && !b.includes(outside) && !b.includes(tmpdir()), `absolute path in body: ${b}`);
+    assert.doesNotMatch(b, /(^|[^\w:/.])\/(home|tmp|var|usr)\//, `absolute path in body: ${b}`);
+  }
+  // a 500: the route throws an Error whose message holds an absolute path — the body says "internal error" only
+  const secretPath = `${outside}/secret-spot`;
+  const fakeResumer = { start() { throw new Error(`boom at ${secretPath}`); }, get() { return null; } };
+  const srv = http.createServer((req, res) => handleRequest(req, res, {
+    root, port: /** @type {any} */ (srv.address()).port, token: 't'.repeat(64), resumer: fakeResumer,
+  }));
+  await new Promise((r) => { srv.listen(0, '127.0.0.1', r); });
+  const port = /** @type {any} */ (srv.address()).port;
+  try {
+    writeFileSync(path.join(root, 'ok', 'runs', 'run-1', 'answer.json'), JSON.stringify({ askId: 'a1', decision: 'accept' }));
+    const r500 = await rq(port, {
+      method: 'POST', url: '/api/resume', headers: { origin: `http://127.0.0.1:${port}`, cookie: `${cookieName(port)}=${'t'.repeat(64)}` }, body: { flow: 'ok', runId: 'run-1' },
+    });
+    assert.equal(r500.status, 500);
+    assert.equal(r500.json().red, 'internal error');
+    assert.ok(!r500.text.includes(secretPath) && !r500.text.includes('boom'), r500.text);
+  } finally {
+    await new Promise((r) => { srv.close(r); });
   }
 });

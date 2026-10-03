@@ -322,9 +322,9 @@ const ALLOWLIST = {
     names: { readFileSync: 1 },
   },
   'src/panel/server.js': {
-    reason: 'the panel\'s own bundled index.html next to the source file — a self/package file, not run/flow-dir content; plus M4c-fix item 2: `writeTokenFile` makes the panel\'s own token dir (0700, lstat-checked) and file (0600) under $XDG_RUNTIME_DIR or ~/.cache — outside the flows root and every run dir',
+    reason: 'the panel\'s own bundled index.html next to the source file — a self/package file, not run/flow-dir content; plus M4c-fix item 5: `cleanPaths` realpaths --root to show paths relative to it in error bodies; plus M4c-fix item 2: `writeTokenFile` makes the panel\'s own token dir (0700, lstat-checked) and file (0600) under $XDG_RUNTIME_DIR or ~/.cache — outside the flows root and every run dir',
     names: {
-      chmodSync: 1, closeSync: 1, lstatSync: 1, mkdirSync: 1, openSync: 1, readFileSync: 1, unlinkSync: 1, writeSync: 1,
+      chmodSync: 1, closeSync: 1, lstatSync: 1, mkdirSync: 1, openSync: 1, readFileSync: 1, realpathSync: 1, unlinkSync: 1, writeSync: 1,
     },
   },
   'src/panel/data.js': {

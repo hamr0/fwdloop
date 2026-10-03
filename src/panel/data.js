@@ -41,10 +41,12 @@ import {
 
 /** `{ ok:false, red }` result shape every exported function here can return
  *  instead of throwing — the server maps this to a 4xx, never a crash.
+ *  `why` is an optional machine reason the server can branch on (never matched from `red`).
  *  @param {string} red
- *  @returns {{ok:false, red:string}} */
-function refuse(red) {
-  return { ok: false, red };
+ *  @param {'outside-root'} [why]
+ *  @returns {{ok:false, red:string, why?:'outside-root'}} */
+function refuse(red, why) {
+  return why ? { ok: false, red, why } : { ok: false, red };
 }
 
 /**
@@ -63,9 +65,9 @@ function refuse(red) {
  * Returns the flow directory, or a refusal.
  * @param {string} root
  * @param {string} flowName
- * @returns {{ok:true, flowDir:string}|{ok:false, red:string}}
+ * @returns {{ok:true, flowDir:string}|{ok:false, red:string, why?:'outside-root'}}
  */
-function resolveFlowDir(root, flowName) {
+export function resolveFlowDir(root, flowName) {
   const check = checkFlowName(flowName);
   if (!check.ok) return refuse(check.red);
   const flowDir = join(root, flowName);
@@ -75,11 +77,11 @@ function resolveFlowDir(root, flowName) {
     try {
       realFlowDir = realpathSync(flowDir);
       realRoot = realpathSync(root);
-    } catch (err) {
-      return refuse(`flow: could not resolve "${flowDir}" — ${err.message}`);
+    } catch {
+      return refuse(`flow: could not resolve "${flowName}"`);
     }
     if (realFlowDir !== realRoot && !realFlowDir.startsWith(realRoot + sep)) {
-      return refuse(`flow: "${flowName}" is a symlink that resolves outside root (${realFlowDir}) — refused`);
+      return refuse(`flow: "${flowName}" is a symlink that resolves outside root — refused`, 'outside-root');
     }
   }
   return { ok: true, flowDir };

@@ -48,17 +48,17 @@
 import { createServer } from 'node:http';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
-  chmodSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, unlinkSync, writeSync,
+  chmodSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, unlinkSync, writeSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import path, { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadCatalogue } from '../catalogue.js';
 import { answerAsk, normalizeDecision } from '../ask.js';
-import { checkFlowName, resolveRunDir } from '../flow.js';
+import { resolveRunDir } from '../flow.js';
 import {
-  listRuns, getRunDetail, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer,
+  listRuns, getRunDetail, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, resolveFlowDir,
 } from './data.js';
 import { createResumer } from './resume.js';
 
@@ -85,6 +85,24 @@ function sendJson(res, code, body) {
 function sendText(res, code, text) {
   res.writeHead(code, { 'content-type': 'text/plain; charset=utf-8', 'content-length': Buffer.byteLength(text) });
   res.end(text);
+}
+
+/**
+ * M4c-fix item 5: no absolute path in any error body. A path under `--root` is shown relative to
+ * it; any other absolute path (a symlink's far end, a system dir) is shown as `<outside root>`.
+ * Throws away: the machine's directory layout above `--root`.
+ * @param {string} text @param {string} root
+ */
+function cleanPaths(text, root) {
+  const bases = [path.resolve(root)];
+  try { bases.push(realpathSync(root)); } catch { /* root gone: the lexical base still applies */ }
+  return String(text).replace(/(?<![\w:/.])\/[^\s\x22\x27\x60()<>,;]+/g, (m) => {
+    for (const b of bases) {
+      if (m === b) return '.';
+      if (m.startsWith(`${b}/`)) return m.slice(b.length + 1);
+    }
+    return '<outside root>';
+  });
 }
 
 /** A refusal, by name. `refused` is the stable machine name, `red` the words.
@@ -127,6 +145,25 @@ export function writeTokenFile({
 }
 
 /**
+ * The ONE place a write route turns `{flow, runId}` into a run dir: the flow must really sit inside
+ * `--root` (`resolveFlowDir`, realpath at use time — a symlinked flow outside root is refused by
+ * name), then the runId resolves inside that flow's runs/. On a refusal it has already replied.
+ * @param {any} res @param {string} root @param {unknown} flow @param {unknown} runId
+ * @returns {string|null} the run dir, or null (already replied)
+ */
+function resolveRun(res, root, flow, runId) {
+  const fd = resolveFlowDir(root, /** @type {string} */ (flow));
+  if (!fd.ok) {
+    if (fd.why === 'outside-root') refuse(res, 403, 'flow-outside-root', cleanPaths(fd.red, root));
+    else refuse(res, 400, 'bad-flow', cleanPaths(fd.red, root));
+    return null;
+  }
+  const rd = resolveRunDir(fd.flowDir, runId);
+  if (!rd.ok) { refuse(res, 400, 'bad-runId', cleanPaths(rd.red, root)); return null; }
+  return rd.runDir;
+}
+
+/**
  * `POST /api/answer` — runs after the gates. Wraps `answerAsk` with exactly
  * the arguments `bin/fwdloop`'s `cmdAnswer` passes ({ runDir, askId, decision,
  * reason }); every library refusal is returned verbatim, non-2xx. On accept it
@@ -143,19 +180,17 @@ function answerRoute(res, body, root, resumer) {
     refuse(res, 400, 'askid-required', 'an answer must name the askId the page was showing');
     return;
   }
-  const fc = checkFlowName(flow);
-  if (!fc.ok) { refuse(res, 400, 'bad-flow', fc.red); return; }
-  const rd = resolveRunDir(join(root, flow), runId);
-  if (!rd.ok) { refuse(res, 400, 'bad-runId', rd.red); return; }
+  const runDir = resolveRun(res, root, flow, runId);
+  if (runDir === null) return;
   const result = answerAsk({
-    runDir: rd.runDir, askId, decision, reason,
+    runDir, askId, decision, reason,
   });
   if (!result.ok) {
-    sendJson(res, 409, { ok: false, refused: 'library', red: result.red });
+    sendJson(res, 409, { ok: false, refused: 'library', red: cleanPaths(result.red, root) });
     return;
   }
   const attempt = resumer.start({
-    flow, runId, runDir: rd.runDir, askId,
+    flow, runId, runDir, askId,
   });
   sendJson(res, 202, {
     ok: true, answered: true, askId, decision: normalizeDecision(decision), resume: 'started', tries: attempt.tries, maxTries: attempt.maxTries,
@@ -172,11 +207,9 @@ function answerRoute(res, body, root, resumer) {
 function resumeRoute(res, body, root, resumer) {
   const b = body !== null && typeof body === 'object' ? body : {};
   const { flow, runId } = b;
-  const fc = checkFlowName(flow);
-  if (!fc.ok) { refuse(res, 400, 'bad-flow', fc.red); return; }
-  const rd = resolveRunDir(join(root, flow), runId);
-  if (!rd.ok) { refuse(res, 400, 'bad-runId', rd.red); return; }
-  const saved = readSavedAnswer(rd.runDir);
+  const runDir = resolveRun(res, root, flow, runId);
+  if (runDir === null) return;
+  const saved = readSavedAnswer(runDir);
   if (!saved) {
     refuse(res, 409, 'no-saved-answer', 'this run has no saved, unconsumed answer — a resume would have nothing to apply');
     return;
@@ -187,7 +220,7 @@ function resumeRoute(res, body, root, resumer) {
     return;
   }
   const attempt = resumer.start({
-    flow, runId, runDir: rd.runDir, askId: saved.askId,
+    flow, runId, runDir, askId: saved.askId,
   });
   sendJson(res, 202, {
     ok: true, resume: 'started', askId: saved.askId, tries: attempt.tries, maxTries: attempt.maxTries,
@@ -256,7 +289,7 @@ export function handleRequest(req, res, opts) {
         if (isResume) resumeRoute(res, body, opts.root, opts.resumer);
         else answerRoute(res, body, opts.root, opts.resumer);
       } catch (e) {
-        refuse(res, 500, 'internal', /** @type {Error} */ (e).message);
+        sendJson(res, 500, { ok: false, refused: 'internal', red: 'internal error' });
       }
     });
     return;
@@ -308,7 +341,7 @@ export function handleRequest(req, res, opts) {
 
   const loaded = loadCatalogue();
   if (!loaded.ok) {
-    sendText(res, 500, `catalogue failed to load: ${loaded.reds.join('; ')}`);
+    sendText(res, 500, `catalogue failed to load: ${cleanPaths(loaded.reds.join('; '), opts.root)}`);
     return;
   }
   const catalogue = loaded.primitives;
@@ -338,6 +371,11 @@ export function handleRequest(req, res, opts) {
       return;
     }
     const sub = runMatch[4] ?? null;
+
+    // A flow symlinked outside --root is refused BY NAME for every read (the data layer alone would
+    // only say "no such run"). Anything else about the flow still falls through to the 404.
+    const fd = resolveFlowDir(opts.root, flow);
+    if (!fd.ok && fd.why === 'outside-root') { refuse(res, 403, 'flow-outside-root', cleanPaths(fd.red, opts.root)); return; }
 
     if (sub === 'audit') {
       const result = getRunAudit({ root: opts.root, flow, runId });
@@ -406,7 +444,7 @@ export function createPanelServer(opts) {
           root, port: boundPort, token, resumer,
         });
       } catch (e) {
-        sendText(res, 500, `internal error: ${/** @type {Error} */ (e).message}`);
+        sendText(res, 500, 'internal error');
       }
     });
     server.once('error', (e) => {
