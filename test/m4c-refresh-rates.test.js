@@ -1,4 +1,4 @@
-// M4c refresh rates (hamr's walk: the one 2 s page loop re-drew every list every tick, so a clicked or
+// M4c refresh rates (/branch-review (code read, 2026-10-02): the one 2 s page loop re-drew every list every tick, so a clicked or
 // Tab-focused Inbox row lost its highlight and focus within 2 s, and lists lost their scroll). $0: the
 // page's own functions cut out by name, run over a fake server, a fake clock and a tiny fake DOM.
 // Claims: (a) lists at most every 10 s while the open run keeps the 2 s beat; (b) an unchanged payload
@@ -81,6 +81,7 @@ function loopHarness(world) {
     if (p === '/api/inbox') return { rows: world.inbox, openCount: 0 };
     if (p.endsWith('/asks')) return world.asks || { asks: [], blocks: [] };
     if (p.endsWith('/audit')) return { rows: [] };
+    if (world.detailFails) throw new Error('books unreadable');
     return world.detail;
   };
   const scope = new Function('getJSON', 'document', 'setTimeout', 'clearTimeout', 'seen', 'Date', `
@@ -92,12 +93,12 @@ function loopHarness(world) {
     function renderInbox(){ seen.inbox++; } function renderRun(){} function renderAudit(){} function renderAsk(r){ return seen.renderAsk ? seen.renderAsk(r) : undefined; }
     function watchStep(){}
     ${['holdAskRender', 'sig', 'withScrollPreserved', 'paintRun', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick'].map(fnSrc).join('\n')}
-    return { schedulePoll: schedulePoll, hold: holdAskRender };
+    return { schedulePoll: schedulePoll, hold: holdAskRender, state: { get openRunLive(){ return openRunLive; } } };
   `)(getJSON, doc, (fn) => { timers.push(fn); return timers.length; }, () => {}, seen, { now: () => clock.now });
   const tick = async () => { clock.now += 2000; const fn = timers.pop(); assert.ok(fn, 'a tick was scheduled'); fn(); await sleep(20); };
   scope.schedulePoll(2000);
   const count = (p) => seen.fetched.filter((x) => x === p).length;
-  return { seen, tick, count, hold: scope.hold };
+  return { seen, tick, count, hold: scope.hold, state: scope.state };
 }
 
 test('(a) lists are fetched at most once per 10 s across 2 s ticks while the open run is read every tick', async () => {
@@ -193,4 +194,64 @@ test('(f) the real renderAsk returns false when held and true after drawing the 
   assert.equal(run(held, null), false, 'held over a typed reason: nothing drawn');
   assert.equal(run({ blocks: [], asks: [] }, null), true, 'empty state is a real draw');
   assert.equal(run(null, null), true);
+});
+
+test('(g) a finished run is re-read at the list rate (10 s), not never and not every 2 s', async () => {
+  const world = { runs: [], inbox: [], detail: { glyph: '[✓]', v: 1 } };
+  const h = loopHarness(world);
+  await h.tick();                                  // t=2: first read, lists due, run is finished
+  assert.equal(h.count('/api/runs/job2/r1'), 1);
+  assert.equal(h.state.openRunLive, false);
+  for (let i = 0; i < 4; i++) await h.tick();     // t=4..10: lists not due again until t=12
+  assert.equal(h.count('/api/runs/job2/r1'), 1, 'no 2 s re-read of a finished run');
+  await h.tick();                                  // t=12: lists due again
+  assert.equal(h.count('/api/runs/job2/r1'), 2, 'the finished run is re-read at the list rate');
+  assert.equal(h.count('/api/runs/job2/r1/asks'), 2);
+  assert.equal(h.count('/api/runs/job2/r1/audit'), 2);
+});
+
+test('(h) a run whose books cannot be read drops to the list rate, not 2 s forever', async () => {
+  const world = { runs: [], inbox: [], detail: null, detailFails: true };
+  const h = loopHarness(world);
+  await h.tick();                                  // t=2: detail fetch fails
+  assert.equal(h.state.openRunLive, false, 'an unreadable run is not treated as live');
+  for (let i = 0; i < 4; i++) await h.tick();     // t=4..10
+  assert.equal(h.count('/api/runs/job2/r1'), 1, 'not re-read every 2 s');
+  await h.tick();                                  // t=12
+  assert.equal(h.count('/api/runs/job2/r1'), 2, 'retried at the list rate');
+  world.detailFails = false; world.detail = { glyph: '[▶]' };
+  for (let i = 0; i < 5; i++) await h.tick();     // t=14..22: the next list-rate read finds it live and puts it back on the 2 s beat
+  assert.equal(h.state.openRunLive, true);
+  assert.ok(h.count('/api/runs/job2/r1') >= 3, 'back to the 2 s beat once readable');
+});
+
+test('(i) selectRun: a late detail reply for a run you left never paints over the one you opened', async () => {
+  const replies = {};
+  const getJSON = (p) => new Promise((res, rej) => { replies[p] = { res, rej }; });
+  const painted = [];
+  const els = {};
+  const doc = { querySelectorAll: () => [], getElementById: (id) => (els[id] ??= { hidden: false, textContent: '' }) };
+  const scope = new Function('getJSON', 'document', 'painted', `
+    var currentFlow = null, currentRunId = null, currentAskId = null, openRunLive = true;
+    var lastSig = { inbox: null, runs: null, detail: null, asks: null, audit: null };
+    function clearSelection(){} function renderAudit(){} function renderJob(){} function renderAsk(){}
+    function paintRun(d){ painted.push(d.runId); openRunLive = !(d && d.glyph === "[\u2713]"); }
+    ${fnSrc('selectRun')}
+    return { selectRun: selectRun, st: { get live(){ return openRunLive; }, get run(){ return currentRunId; } } };
+  `)(getJSON, doc, painted);
+  scope.selectRun('f', 'A', null, '.x');
+  scope.selectRun('f', 'B', null, '.x');
+  replies['/api/runs/f/B'].res({ runId: 'B', glyph: '[▶]' });
+  await sleep(5);
+  replies['/api/runs/f/A'].res({ runId: 'A', glyph: '[✓]' });   // A answers late, and is finished
+  await sleep(5);
+  assert.deepEqual(painted, ['B'], 'the late reply for A paints nothing');
+  assert.equal(scope.st.live, true, "A's finished glyph never reached openRunLive");
+  // and a late FAILURE for the run you left does not say "failed to load" or flip the flag either
+  scope.selectRun('f', 'C', null, '.x');
+  scope.selectRun('f', 'D', null, '.x');
+  replies['/api/runs/f/C'].rej(new Error('nope'));
+  await sleep(5);
+  assert.equal(scope.st.live, true);
+  assert.equal(els['run-empty']?.textContent ?? '', '', 'no failure text for a run that is no longer open');
 });

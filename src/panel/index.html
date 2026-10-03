@@ -2175,7 +2175,11 @@
     // src/panel/data.js works out the boundary server-side, off the run's
     // full audit-row order, so the client no longer needs a second,
     // separately-fetched copy of the audit rows to cross-reference (fix #6).
-    getJSON(base).then(paintRun).catch(function(e){
+    // same guard as reloadRun: a late reply for a run the user already left paints nothing and writes no polling flag
+    var still = function(){ return currentFlow === flow && currentRunId === runId; };
+    getJSON(base).then(function(d){ if(still()) paintRun(d); }).catch(function(e){
+      if(!still()) return;
+      openRunLive = false;   // unreadable books: the list rate, not 2 s forever
       document.getElementById("run-empty").hidden = false;
       document.getElementById("run-empty").textContent = "failed to load run: " + e.message;
       document.getElementById("run-content").hidden = true;
@@ -2230,7 +2234,7 @@
   function reloadRun(flow, runId, skipLists){
     var base = "/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId);
     var still = function(){ return currentFlow === flow && currentRunId === runId; };
-    var detailP = getJSON(base).then(function(d){ if(still()) paintRun(d); return d; }).catch(function(){ return null; });
+    var detailP = getJSON(base).then(function(d){ if(still()) paintRun(d); return d; }).catch(function(){ if(still()) openRunLive = false; return null; });   // unreadable books: the list rate, not 2 s forever
     var asksP = getJSON(base + "/asks").then(function(a){
       if(still()){
         // the Ask tab is drawn from the books AND the page's own pending answer ("working…" block)
@@ -2263,8 +2267,9 @@
     var listsDue = catchUp || (Date.now() - lastListsAt) >= LISTS_POLL_MS;
     var wasLive = openRunLive;
     var selP;
-    // the open run's own panes: every tick, but only while it is live (or being watched), or on catch-up
-    if(sel && (openRunLive || watchIsSelected || catchUp)) selP = reloadRun(currentFlow, currentRunId, true);
+    // the open run's own panes: every tick while it is live (or being watched); a finished run (or one whose
+    // books can't be read) at the list rate, so a late change shows without a re-click; or on catch-up
+    if(sel && (openRunLive || watchIsSelected || catchUp || listsDue)) selP = reloadRun(currentFlow, currentRunId, true);
     else selP = Promise.resolve([null, null]);
     if(listsDue) reloadLists();
     // the watched run, when it is not the one on screen: read it for its outcome only (no paint — `still()` is false)
