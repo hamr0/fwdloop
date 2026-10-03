@@ -245,3 +245,31 @@ test('item 6: a body over the limit gets 413 while the client is still sending â
     r.destroy();
   }
 });
+
+// --- item 7: two resumes of one run never share a log file ----------------------------------------
+test('item 7: a second resume of the same run has its own log â€” its clean exit does not delete the first one\'s reason', async () => {
+  const { createResumer } = await import('../src/panel/resume.js');
+  const dir = tmp('logs');
+  const logDir = path.join(dir, 'logs');
+  const countFile = path.join(dir, 'spawns');
+  const releaseFile = path.join(dir, 'release');
+  const runDir = path.join(dir, 'run');
+  mkdirSync(runDir);
+  const bin = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'scripts', 'panel-fixtures', 'panel-resume-sleep.mjs');
+  const resumer = createResumer({
+    root: dir, bin, logDir, windowMs: 30000, maxTries: 1, env: { PATH: process.env.PATH, SPAWN_COUNT_FILE: countFile, RELEASE_FILE: releaseFile },
+  });
+  const logs = () => readdirSync(logDir).filter((f) => f.endsWith('.log'));
+  const waitUntil = async (fn) => { for (let i = 0; i < 300; i += 1) { if (fn()) return; await new Promise((r) => { setTimeout(r, 20); }); } throw new Error(`timed out: ${fn}`); };
+  try {
+    resumer.start({ flow: 'f', runId: 'run-1', runDir, askId: 'a1' }); // the first resume: alive, its reason in its log
+    await waitUntil(() => existsSync(countFile) && logs().length === 1 && readFileSync(path.join(logDir, logs()[0]), 'utf8').includes('first-reason'));
+    resumer.start({ flow: 'f', runId: 'run-1', runDir, askId: 'a1' }); // the second: exits 0 at once, deleting ITS log
+    await waitUntil(() => readFileSync(countFile, 'utf8').trim().split('\n').length === 2);
+    await new Promise((r) => { setTimeout(r, 400); }); // let the second's exit and its log removal happen
+    assert.equal(logs().length, 1, `the first resume's log must survive the second's clean exit; logs: ${logs()}`);
+    assert.match(readFileSync(path.join(logDir, logs()[0]), 'utf8'), /first-reason/);
+  } finally {
+    writeFileSync(releaseFile, '');
+  }
+});

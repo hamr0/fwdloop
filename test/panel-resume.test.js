@@ -155,6 +155,15 @@ const answer = (port, token, run, decision, reason, extra = {}) => rq(port, {
     flow: run.flow, runId: run.runId, askId: run.askId, decision, ...(reason ? { reason } : {}), ...extra,
   },
 });
+/** Answer, waiting out "already-resuming": the previous resume child has re-parked but not yet exited (M4c-fix item 1). */
+const answerIdle = async (port, token, run, decision, reason, extra = {}) => {
+  for (let i = 0; i < 200; i += 1) {
+    const r = await answer(port, token, run, decision, reason, extra);
+    if (r.json()?.refused !== 'already-resuming') return r;
+    await sleep(25);
+  }
+  throw new Error('still already-resuming after 5 s');
+};
 const resumePost = (port, token, run, headers = good(port, token)) => rq(port, {
   method: 'POST', url: '/api/resume', headers, body: { flow: run.flow, runId: run.runId },
 });
@@ -218,7 +227,7 @@ test('happy path: reject replies before the resume finishes, run re-parks at a N
   assert.ok(auditRows.some((r) => r.class === 'hitl' && r.verdict === 'red' && r.gap === 'tighten the skills section'));
   assert.ok(auditRows.filter((r) => r.step === 'resume-summary' && r.class !== 'hitl' && r.verdict === 'green').length >= 2, 'the step before the ask ran again');
 
-  const r2 = await answer(port, token, { ...run, askId: a2.askId }, 'accept');
+  const r2 = await answerIdle(port, token, { ...run, askId: a2.askId }, 'accept');
   assert.equal(r2.status, 202, r2.text);
   await waitFor(() => history(run.root).length === 1);
   assert.equal(history(run.root)[0].outcome, 'complete');
@@ -298,7 +307,7 @@ test('detached: the panel server process is SIGKILLed right after the reply; the
   assert.equal(consumedMarkers(run.runDir).length, 1);
 });
 
-test('exactly one: 10 concurrent valid identical POSTs — one accepted, nine refused by the library, one resume applied', async () => {
+test('exactly one: 10 concurrent valid identical POSTs — one accepted, nine refused (already-resuming or by the library), one resume applied', async () => {
   const run = parkRun();
   const { port } = await start(run);
   const token = await pageToken(port);
@@ -306,8 +315,10 @@ test('exactly one: 10 concurrent valid identical POSTs — one accepted, nine re
   const ok = rs.filter((r) => r.status === 202);
   assert.equal(ok.length, 1, `accepted: ${rs.map((r) => r.status)}`);
   for (const r of rs.filter((x) => x.status !== 202)) {
-    assert.equal(r.json().refused, 'library');
-    assert.match(r.json().red, /already answered/);
+    // while the one accepted resume is alive: refused "already-resuming" (M4c-fix item 1); once it has exited: the library's "already answered"
+    assert.equal(r.status, 409);
+    assert.ok(['already-resuming', 'library'].includes(r.json().refused), r.text);
+    if (r.json().refused === 'library') assert.match(r.json().red, /already answered/);
   }
   await settled(run);
   await sleep(300); // a second resume, if one existed, would have parked again by now
@@ -516,7 +527,7 @@ test('key hygiene: the sentinel key is in 0 HTTP responses, 0 book files and 0 r
   await holder.kill();
   await resumePost(port, token, run);
   const a2 = await reparked(run);
-  await answer(port, token, { ...run, askId: a2.askId }, 'accept');
+  await answerIdle(port, token, { ...run, askId: a2.askId }, 'accept');
   await waitFor(() => history(run.root).length === 1);
   await rq(port, { url: `/api/runs/${run.flow}/${run.runId}` });
 
@@ -527,4 +538,48 @@ test('key hygiene: the sentinel key is in 0 HTTP responses, 0 book files and 0 r
   for (const t of logTexts) assert.equal(t.includes(SENTINEL), false, 'sentinel in a resume log');
   for (const f of walk(run.root)) assert.equal(readFileSync(f).includes(SENTINEL), false, `sentinel in ${f}`);
   console.log(`# MEASURE hygiene: ${SEEN.length} responses, ${walk(run.root).length} book files, ${logs.length} log file(s) scanned, 0 sentinel hits`);
+});
+
+// --- M4c-fix item 1: one resume at a time per run ---------------------------------------------------
+const SLEEP_BIN = path.join(REPO, 'scripts', 'panel-fixtures', 'panel-resume-sleep.mjs');
+const spawnCount = (f) => (existsSync(f) ? readFileSync(f, 'utf8').trim().split('\n').filter(Boolean).length : 0);
+
+test('item 1 (i): while a run is resuming, a second Resume and a second Answer get 409 already-resuming and no second process starts; once the child exits, a Resume starts again', async () => {
+  const run = parkRun();
+  const dir = tmp('one-at-a-time');
+  const countFile = path.join(dir, 'spawns');
+  const releaseFile = path.join(dir, 'release');
+  // a short per-try window: the attempt turns "stuck" (not in-flight) while the child is STILL alive —
+  // the case a state-only check misses
+  const { port } = await start(run, {
+    windowMs: 300, maxTries: 1, bin: SLEEP_BIN, env: { ...serverEnv(), SPAWN_COUNT_FILE: countFile, RELEASE_FILE: releaseFile },
+  });
+  const token = await pageToken(port);
+  try {
+    assert.equal((await answer(port, token, run, 'redo', 'tighten it')).status, 202);
+    await waitFor(() => spawnCount(countFile) === 1);
+    const r1 = await resumePost(port, token, run); // in flight
+    assert.equal(r1.status, 409, r1.text);
+    assert.equal(r1.json().refused, 'already-resuming');
+    await pollData(port, run, (d) => d.resume && d.resume.state === 'not-started', 10000); // window passed, child alive
+    const r2 = await resumePost(port, token, run);
+    assert.equal(r2.status, 409, r2.text);
+    assert.equal(r2.json().refused, 'already-resuming');
+    assert.match(r2.json().red, /already resuming/);
+    const a2 = await answer(port, token, run, 'accept');
+    assert.equal(a2.status, 409, a2.text);
+    assert.equal(a2.json().refused, 'already-resuming');
+    await sleep(300);
+    assert.equal(spawnCount(countFile), 1, 'no second resume process was started');
+    assert.equal(existsSync(path.join(run.runDir, 'answer.json')), true, 'the saved answer is untouched by the refused clicks');
+    assert.equal(JSON.parse(readFileSync(path.join(run.runDir, 'answer.json'), 'utf8')).decision, 'redo');
+
+    writeFileSync(releaseFile, ''); // the child exits -> the run is free again
+    let again = await resumePost(port, token, run);
+    for (let i = 0; i < 200 && again.json().refused === 'already-resuming'; i += 1) { await sleep(25); again = await resumePost(port, token, run); }
+    assert.equal(again.status, 202, again.text);
+    await waitFor(() => spawnCount(countFile) === 2);
+  } finally {
+    writeFileSync(releaseFile, '');
+  }
 });

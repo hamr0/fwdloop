@@ -144,6 +144,11 @@ export function writeTokenFile({
   return file;
 }
 
+/** @param {any} res */
+function refuseBusy(res) {
+  refuse(res, 409, 'already-resuming', 'already resuming — this run has a resume in progress; wait for it to end');
+}
+
 /**
  * The ONE place a write route turns `{flow, runId}` into a run dir: the flow must really sit inside
  * `--root` (`resolveFlowDir`, realpath at use time — a symlinked flow outside root is refused by
@@ -182,6 +187,9 @@ function answerRoute(res, body, root, resumer) {
   }
   const runDir = resolveRun(res, root, flow, runId);
   if (runDir === null) return;
+  // One resume at a time per run (M4c-fix item 1): refused BEFORE the answer is written, so a refused
+  // click leaves the books as they were.
+  if (resumer.busy(flow, runId)) { refuseBusy(res); return; }
   const result = answerAsk({
     runDir, askId, decision, reason,
   });
@@ -214,11 +222,7 @@ function resumeRoute(res, body, root, resumer) {
     refuse(res, 409, 'no-saved-answer', 'this run has no saved, unconsumed answer — a resume would have nothing to apply');
     return;
   }
-  const current = resumer.get(flow, runId);
-  if (current && current.state === 'in-flight') {
-    refuse(res, 409, 'resume-in-flight', `a resume for this run is already being started (try ${current.tries} of ${current.maxTries})`);
-    return;
-  }
+  if (resumer.busy(flow, runId)) { refuseBusy(res); return; }
   const attempt = resumer.start({
     flow, runId, runDir, askId: saved.askId,
   });

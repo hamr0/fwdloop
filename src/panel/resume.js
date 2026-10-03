@@ -35,7 +35,7 @@
 // could reach the log only through a provider error body that echoes it.
 
 import { spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync,
 } from 'node:fs';
@@ -89,6 +89,9 @@ export function createResumer(opts) {
   const rootTag = createHash('sha256').update(root).digest('hex').slice(0, 8);
   /** @type {Map<string, any>} */
   const attempts = new Map();
+  /** Run key -> how many resume CHILD processes of this panel are alive for it. The one writer is
+   *  `tryOnce` (+1 at spawn, -1 once, at the child's exit/error); `busy` only reads it. */
+  const live = new Map();
   const keyOf = (flow, runId) => `${flow}/${runId}`;
 
   /** One resume process. Resolves as soon as the books show the answer consumed,
@@ -102,6 +105,17 @@ export function createResumer(opts) {
     });
     child.unref();
     closeSync(fd);
+    const runKey = keyOf(flow, runId);
+    live.set(runKey, (live.get(runKey) ?? 0) + 1);
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      const n = (live.get(runKey) ?? 1) - 1;
+      if (n <= 0) live.delete(runKey); else live.set(runKey, n);
+    };
+    child.once('exit', release);
+    child.once('error', release);
     const sliceOfLog = () => {
       try { return readFileSync(logPath).subarray(offset).toString('utf8').trim(); } catch { return ''; } // offset is in BYTES
     };
@@ -137,7 +151,9 @@ export function createResumer(opts) {
 
   async function loop(rec, runDir) {
     const t0 = Date.now();
-    const logPath = join(ensureLogDir(opts.logDir), `resume-${rootTag}-${rec.flow}-${rec.runId}.log`);
+    // One log file per attempt record (never per run): a second resume of the same run must not
+    // append to, nor have its log deleted by, the first one's clean exit (M4c-fix item 7).
+    const logPath = join(ensureLogDir(opts.logDir), `resume-${rootTag}-${rec.flow}-${rec.runId}-${randomBytes(4).toString('hex')}.log`);
     rec.logPath = logPath;
     const consumed = () => existsSync(join(runDir, `answer.${rec.askId}.consumed.json`));
     for (let n = 1; n <= maxTries; n += 1) {
@@ -176,12 +192,22 @@ export function createResumer(opts) {
       const key = keyOf(flow, runId);
       const old = attempts.get(key);
       if (old) old.superseded = true;
+      // The previous attempt's reason is stale once a newer one starts (routes never start one while a
+      // child is alive): drop its log so refusal logs do not pile up, one per attempt (item 7).
+      if (old && old.state !== 'in-flight' && old.logPath) { try { unlinkSync(old.logPath); } catch { /* already gone */ } }
       const rec = {
         flow, runId, askId, state: 'in-flight', tries: 0, maxTries, windowMs, refusal: null, startedAt: Date.now(), endedAt: null, logPath: null, superseded: false,
       };
       attempts.set(key, rec);
       loop(rec, runDir).catch((e) => finish(rec, 'stuck', `the panel could not start the resume: ${e.message}`));
       return { ...rec };
+    },
+    /** True while this run is already resuming: a resume child of this panel is alive for it, or its
+     *  latest attempt is still starting (between tries). Routes refuse a second resume while true.
+     *  @param {string} flow @param {string} runId */
+    busy(flow, runId) {
+      const k = keyOf(flow, runId);
+      return (live.get(k) ?? 0) > 0 || attempts.get(k)?.state === 'in-flight';
     },
     /** A copy of the run's attempt record, or null (none yet, or the panel restarted).
      *  @param {string} flow @param {string} runId */

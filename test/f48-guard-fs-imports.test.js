@@ -332,9 +332,9 @@ const ALLOWLIST = {
     names: { existsSync: 6, realpathSync: 2 },
   },
   'src/panel/resume.js': {
-    reason: 'M4b piece 2: the panel\'s resume launcher — creates/opens its OWN private log dir and log file (outside the flows root and every run dir), reads back that log to quote the resume\'s refusal, deletes that log when the resume exits 0, and existsSync-checks the `answer.<askId>.consumed.json` marker (presence only, never its content) to see that the resume took over. No run/flow-dir book is read or written.',
+    reason: 'M4b piece 2: the panel\'s resume launcher — creates/opens its OWN private log dir and log file (outside the flows root and every run dir), reads back that log to quote the resume\'s refusal, deletes that log when the resume exits 0 (and a stale attempt's log when a newer attempt starts), and existsSync-checks the `answer.<askId>.consumed.json` marker (presence only, never its content) to see that the resume took over. No run/flow-dir book is read or written.',
     names: {
-      closeSync: 1, existsSync: 2, lstatSync: 1, mkdirSync: 1, openSync: 1, readFileSync: 1, statSync: 1, unlinkSync: 1,
+      closeSync: 1, existsSync: 2, lstatSync: 1, mkdirSync: 1, openSync: 1, readFileSync: 1, statSync: 1, unlinkSync: 2,
     },
   },
   'bin/fwdloop': {

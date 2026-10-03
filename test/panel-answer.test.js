@@ -123,6 +123,15 @@ const good = (port, token) => ({ origin: `http://127.0.0.1:${port}`, ...cookieHe
 const post = (port, headers, body) => rq(port, {
   method: 'POST', url: '/api/answer', headers, body,
 });
+/** Post, waiting out "already-resuming" (the previous answer's resume child has not exited yet; M4c-fix item 1). */
+const postIdle = async (port, headers, body) => {
+  for (let i = 0; i < 200; i += 1) {
+    const r = await post(port, headers, body);
+    if (r.json()?.refused !== 'already-resuming') return r;
+    await new Promise((res) => { setTimeout(res, 25); });
+  }
+  throw new Error('still already-resuming after 5 s');
+};
 const noAnswerOnDisk = (runDir) => assert.deepEqual(readdirSync(runDir).filter((f) => f.startsWith('answer.')), [], 'no answer*.json may exist');
 const askOf = (runDir) => JSON.parse(readFileSync(path.join(runDir, 'ask.json'), 'utf8'));
 
@@ -243,7 +252,7 @@ test('(ii) the library\'s refusals come back by name, non-2xx, never as success:
   assert.equal(first.json().resume, 'started', 'the reply says the resume was started, never that it is done');
   assert.ok(existsSync(path.join(run.runDir, 'answer.json')));
   // a second answer: the library refuses while answer.json is still there or once consumed
-  const second = await post(port, good(port, token), b({ decision: 'redo', reason: 'changed my mind' }));
+  const second = await postIdle(port, good(port, token), b({ decision: 'redo', reason: 'changed my mind' }));
   assert.notEqual(second.status, 202);
   assert.equal(second.json().refused, 'library');
   assert.match(second.json().red, /already answered|answer/);
@@ -304,7 +313,7 @@ test('(vi) after a re-park, the previous ask\'s askId is refused by name and the
   assert.notEqual(re.askId, run.askId);
   assert.equal(askOf(run.runDir).askId, re.askId);
 
-  const stale = await post(port, good(port, token), { ...common, askId: run.askId, decision: 'accept' });
+  const stale = await postIdle(port, good(port, token), { ...common, askId: run.askId, decision: 'accept' });
   assert.equal(stale.status, 409);
   assert.equal(stale.json().refused, 'library');
   assert.match(stale.json().red, new RegExp(`askId "${run.askId}" (is unknown|already answered)`));
