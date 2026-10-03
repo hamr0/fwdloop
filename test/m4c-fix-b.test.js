@@ -85,3 +85,28 @@ test('item 12: a consumed answer whose decision is "constructor" / "toString" re
   const legacy = rows.find((a) => a.askId === askId);
   assert.equal(legacy.status, 'unrecognised: constructor');
 });
+
+// ---- item 14 ------------------------------------------------------------------------------------
+test('item 14: a run parked through a symlinked --root (state.json holds the link path) resumes by the real root; a different root is still refused', async () => {
+  const { root, runDir, askId } = parkedJob2('i14');
+  const { symlinkSync } = await import('node:fs');
+  const link = path.join(tmp('i14-link'), 'root-link');
+  symlinkSync(root, link);
+  const statePath = path.join(runDir, 'state.json');
+  const state = JSON.parse(readFileSync(statePath, 'utf8'));
+  assert.equal(state.flow.root, root);
+  writeFileSync(statePath, JSON.stringify({ ...state, flow: { ...state.flow, root: link } }));
+  cli(['answer', askId, 'accept', '--root', root]);
+  const r = cliRaw(['resume', 'run-1', '--flow', 'job2', '--root', root]);
+  assert.equal(r.status, 0, r.stderr || r.stdout);
+  assert.match(r.stdout, /complete: spentUsd=/);
+  // a genuinely different root is still refused by name
+  const other = tmp('i14-other');
+  const { runDir: runDir2, askId: askId2 } = parkedJob2('i14b');
+  cli(['answer', askId2, 'accept', '--root', path.dirname(path.dirname(path.dirname(runDir2)))]);
+  const st2 = JSON.parse(readFileSync(path.join(runDir2, 'state.json'), 'utf8'));
+  writeFileSync(path.join(runDir2, 'state.json'), JSON.stringify({ ...st2, flow: { ...st2.flow, root: other } }));
+  const r2 = cliRaw(['resume', 'run-1', '--flow', 'job2', '--root', path.dirname(path.dirname(path.dirname(runDir2)))]);
+  assert.notEqual(r2.status, 0);
+  assert.match(r2.stderr, /was parked against flow/);
+});

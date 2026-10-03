@@ -1538,6 +1538,15 @@ async function takeResumeLock(runDir, runId, lockPath) {
   return { ok: false, red: `resume: run "${runId}" is locked by another resumer (${lockPath})` };
 }
 
+/** Two roots are the same flow location when their real paths agree: a run parked through a symlinked `--root`
+ *  recorded the typed link path, and a resume (or a CLI that realpaths its root) names the real one. A path that
+ *  cannot be resolved is compared as typed. */
+function sameRoot(recorded, requested) {
+  if (typeof recorded !== 'string' || typeof requested !== 'string') return false;
+  const real = (p) => { try { return realpathSync(p); } catch { return p; } };
+  return recorded === requested || real(recorded) === real(requested);
+}
+
 /**
  * M3 scope items 4-6: re-enter a parked run's SAME fold from a separate
  * process. Takes an exclusive `resume.lock` that records its holder's
@@ -1642,7 +1651,7 @@ export async function resumeRun({
     // parked run whose recorded flow location disagrees with what THIS call
     // was asked to resume is refused by name, never re-read from wherever
     // the state file happens to point.
-    if (state.flow?.root !== root || state.flow?.name !== name) {
+    if (!sameRoot(state.flow?.root, root) || state.flow?.name !== name) {
       return {
         outcome: 'refused',
         red: `resume: run "${runId}" was parked against flow "${state.flow?.root}/${state.flow?.name}", `
