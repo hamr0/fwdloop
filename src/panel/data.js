@@ -119,7 +119,7 @@ function resolveRunPath(root, flowName, runId) {
  * @param {string|null} askId the open ask's own askId
  * @returns {boolean}
  */
-function hasConsumedAnswer(runDir, askId) {
+export function hasConsumedAnswer(runDir, askId) {
   if (!existsSync(runDir) || typeof askId !== 'string' || askId.length === 0) return false;
   // F48 round 3: `readdirInside` (`src/flow.js`) skips a symlinked entry
   // rather than reporting its name — a run dir cannot be made to show a

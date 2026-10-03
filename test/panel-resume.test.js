@@ -629,3 +629,32 @@ test('amendment 1 (e)(3): a refusing child that quotes the provider key — the 
   for (const f of walk(run.root)) assert.equal(readFileSync(f).includes(SENTINEL), false, `sentinel in ${f}`);
   assert.ok(logDir);
 });
+
+// --- M4c-fix amendment 1 (e)(1): an answer is not refused "already resuming" while the previous child only closes ---
+test('amendment 1 (e)(1): the run has re-parked on a new ask while the previous resume child is still closing — the answer for the new ask is accepted, not 409; a real concurrent answer is still 409', async () => {
+  const run = parkRun();
+  const dir = tmp('closing');
+  const countFile = path.join(dir, 'spawns');
+  const releaseFile = path.join(dir, 'release');
+  const { port } = await start(run, {
+    windowMs: 300, maxTries: 1, bin: SLEEP_BIN, env: { ...serverEnv(), SPAWN_COUNT_FILE: countFile, RELEASE_FILE: releaseFile },
+  });
+  const token = await pageToken(port);
+  try {
+    assert.equal((await answer(port, token, run, 'redo', 'first')).status, 202);
+    await waitFor(() => spawnCount(countFile) === 1);   // the previous resume child: alive
+    // the books as the child leaves them just before it closes: the answer consumed, a new ask parked
+    const ask = askOf(run.runDir);
+    renameSync(path.join(run.runDir, 'answer.json'), path.join(run.runDir, `answer.${run.askId}.consumed.json`));
+    writeFileSync(path.join(run.runDir, 'ask.json'), JSON.stringify({ ...ask, askId: 'ask-second', expiresAt: new Date(Date.now() + 600000).toISOString() }));
+    const next = { ...run, askId: 'ask-second' };
+    const a2 = await answer(port, token, next, 'redo', 'second');
+    assert.equal(a2.status, 202, a2.text);   // the child of the first resume is still alive (RELEASE_FILE not written)
+    assert.equal(JSON.parse(readFileSync(path.join(run.runDir, 'answer.json'), 'utf8')).askId, 'ask-second');
+    // a real concurrent answer: the same ask again while its answer is saved -> still refused
+    const a3 = await answer(port, token, next, 'redo', 'third');
+    assert.equal(a3.status, 409, a3.text);
+  } finally {
+    writeFileSync(releaseFile, '');
+  }
+});

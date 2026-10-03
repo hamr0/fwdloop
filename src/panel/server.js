@@ -57,8 +57,9 @@ import { fileURLToPath } from 'node:url';
 import { loadCatalogue } from '../catalogue.js';
 import { answerAsk, normalizeDecision } from '../ask.js';
 import { resolveRunDir } from '../flow.js';
+import { readAsk } from '../runner.js';
 import {
-  listRuns, getRunDetail, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, resolveFlowDir,
+  listRuns, getRunDetail, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
 import { createResumer } from './resume.js';
 
@@ -168,6 +169,13 @@ function resolveRun(res, root, flow, runId) {
   return rd.runDir;
 }
 
+/** Is the run already parked on `askId` and waiting on the human: it is the open `ask.json`, no answer is saved
+ *  for it and none was consumed? Then a resume child still alive for the run is only closing.
+ *  @param {string} runDir @param {string} askId */
+function parkedOnYou(runDir, askId) {
+  return readAsk(runDir)?.askId === askId && readSavedAnswer(runDir) === null && !hasConsumedAnswer(runDir, askId);
+}
+
 /**
  * `POST /api/answer` — runs after the gates. Wraps `answerAsk` with exactly
  * the arguments `bin/fwdloop`'s `cmdAnswer` passes ({ runDir, askId, decision,
@@ -189,7 +197,9 @@ function answerRoute(res, body, root, resumer) {
   if (runDir === null) return;
   // One resume at a time per run (M4c-fix item 1): refused BEFORE the answer is written, so a refused
   // click leaves the books as they were.
-  if (resumer.busy(flow, runId)) { refuseBusy(res); return; }
+  // Only a real concurrent resume is blocked. A previous resume child that is merely closing — the run has already
+  // parked on THIS ask, nothing answered or consumed for it — does not block the human's answer (amendment 1 (e)(1)).
+  if (resumer.busy(flow, runId) && !parkedOnYou(runDir, askId)) { refuseBusy(res); return; }
   const result = answerAsk({
     runDir, askId, decision, reason,
   });
