@@ -2483,6 +2483,10 @@
     if(pending && ask && pending.askId === ask.askId){
       return { kind: "working", text: pendingText(pending), why: "no answer doors: the answer was sent" };
     }
+    // M4c-fix 17: an answer saved after the deadline cannot be carried on, but the resume that records the expiry is offered.
+    if(resume && resume.state === "late" && ask && resume.askId === ask.askId){
+      return { kind: "late", label: resume.label, reason: resume.reason || null, why: "no answer doors: the answer was saved after the deadline" };
+    }
     if(!ask || !ask.open){
       return { kind: "none", why: "no answer doors: this ask is " + ((ask && ask.status) || "closed") + " — there is nothing left to answer" };
     }
@@ -2618,13 +2622,18 @@
       root.appendChild(wk);
     } else if(model.kind === "starting"){
       root.appendChild(textDiv("hint", model.label + " — " + model.why));
-    } else if(model.kind === "stuck"){
-      root.appendChild(textDiv("answer-msg stuck", model.label + ": " + model.reason));
+    } else if(model.kind === "stuck" || model.kind === "late"){
+      // stuck: an answer is saved and no resume took it. late (M4c-fix 17): it was saved after the deadline, so the resume
+      // that is offered records the expiry and ends the run. Same POST, same button; only the words differ.
+      var isLate = model.kind === "late";
+      root.appendChild(textDiv("answer-msg stuck", model.label + (model.reason ? ": " + model.reason : "")));
       if(model.lockPath) root.appendChild(textDiv("hint", "lock file: " + model.lockPath));
-      root.appendChild(textDiv("hint", model.why + ". Trying again starts a resume only; it cannot answer."));
+      root.appendChild(textDiv("hint", model.why + (isLate
+        ? ". Resuming records that the ask expired and ends this run; it cannot apply the answer."
+        : ". Trying again starts a resume only; it cannot answer.")));
       var bar2 = document.createElement("div");
       bar2.className = "actions-row";
-      bar2.appendChild(makeButton("Try the resume again", "btn-resume-again", function(){ sendResumeAgain(root, ctx, ask.askId); }));
+      bar2.appendChild(makeButton(isLate ? "Resume — record the expiry" : "Try the resume again", "btn-resume-again", function(){ sendResumeAgain(root, ctx, ask.askId); }));
       root.appendChild(bar2);
     } else {
       root.appendChild(textDiv("hint", model.why));

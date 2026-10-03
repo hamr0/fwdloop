@@ -2577,7 +2577,7 @@ describe('index.html — page source', () => {
     const fnEnd = source.indexOf('function renderAskEvidenceBlock(');
     assert.ok(fnStart > 0 && fnEnd > fnStart);
     const block = stripComments(source.slice(fnStart, fnEnd));
-    const buttons = [...block.matchAll(/makeButton\("([^"]+)",\s*"([^"]+)"/g)].map((m) => m[2]);
+    const buttons = [...block.matchAll(/makeButton\((?:isLate \? "[^"]+" : )?"([^"]+)",\s*"([^"]+)"/g)].map((m) => m[2]);
     assert.deepEqual(buttons, ['btn-accept', 'btn-redo', 'btn-rerun', 'btn-resume-again']);
     // the reason box is a real, labelled textarea.
     assert.match(block, /createElement\("textarea"\)/);

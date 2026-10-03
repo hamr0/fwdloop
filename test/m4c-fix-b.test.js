@@ -15,7 +15,9 @@ import { spawnSync } from 'node:child_process';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { listArchivedAsks } from '../src/ask.js';
-import { getRunAsks } from '../src/panel/data.js';
+import {
+  getRunAsks, listRuns, listStops, stuckState, STUCK_LABEL, STUCK_LOCK_LABEL, STUCK_NO_TIME_LABEL, LATE_LABEL,
+} from '../src/panel/data.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
@@ -140,4 +142,82 @@ test('item 15: a resume that finishes never deletes a resume.lock that is no lon
   });
   assert.equal(r2.outcome, 'paused', JSON.stringify(r2));
   assert.equal(existsSync(lockPath), false, 'an owned lock is released');
+});
+
+// ---- item 15 (stuck state), 16, 17 --------------------------------------------------------------
+const page = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
+const rowOf = (root) => listRuns({ root, catalogue: CATALOGUE }).find((r) => r.runId === 'run-1');
+const stopOf = (root) => listStops({ root }).find((r) => r.runId === 'run-1');
+const tabOf = (root) => getRunAsks({ root, flow: 'job2', runId: 'run-1', catalogue: CATALOGUE });
+/** A parked run whose answer is saved and nothing is carrying it on. */
+function stuckJob2(tag) {
+  const p = parkedJob2(tag);
+  cli(['answer', p.askId, 'redo', 'again', '--root', p.root]);
+  return p;
+}
+function answerFile(runDir, edit) {
+  const f = path.join(runDir, 'answer.json');
+  const a = JSON.parse(readFileSync(f, 'utf8'));
+  edit(a);
+  writeFileSync(f, JSON.stringify(a));
+}
+
+test('item 15: an empty resume lock reads "remove the lock by hand" in every surface with NO refusal on record (a panel restart costs no click); a lock holder that cannot be told is never stuck', () => {
+  const { root, runDir } = stuckJob2('i15state');
+  assert.equal(rowOf(root).label, STUCK_LABEL, 'no lock: the ordinary label');
+  writeFileSync(path.join(runDir, 'resume.lock'), '');
+  assert.equal(rowOf(root).glyph, '[II]');
+  assert.equal(rowOf(root).label, STUCK_LOCK_LABEL);
+  assert.equal(stopOf(root).stuckLabel, STUCK_LOCK_LABEL);
+  assert.equal(tabOf(root).resume.label, STUCK_LOCK_LABEL);
+  assert.equal(tabOf(root).resume.lockPath, path.join(runDir, 'resume.lock'));
+  assert.deepEqual(stuckState({ resume: { state: 'not-started' }, liveness: 'gone', lock: 'empty' }).reason, 'lock-no-holder');
+  // an unknown holder is never stuck (liveness cannot be told: it may be running)
+  assert.equal(stuckState({ resume: { state: 'not-started' }, liveness: 'gone', lock: 'unknown' }).stuck, false);
+  assert.equal(stuckState({ resume: { state: 'not-started' }, liveness: 'gone', lock: 'none' }).reason, 'retry');
+  // the label is not matched off a refusal string any more
+  assert.doesNotMatch(readFileSync(path.join(HERE, '..', 'src', 'panel', 'data.js'), 'utf8'), /\.includes\(LOCK_NO_HOLDER\)/);
+});
+
+test('item 16: an answer with no saved time says so ("answer has no saved time — answer again"), not "try the resume again", in every surface', () => {
+  const { root, runDir } = stuckJob2('i16');
+  answerFile(runDir, (a) => { delete a.answeredAt; });
+  assert.match(STUCK_NO_TIME_LABEL, /answer has no saved time — answer again/);
+  assert.equal(rowOf(root).glyph, '[II]');
+  assert.equal(rowOf(root).label, STUCK_NO_TIME_LABEL);
+  assert.equal(stopOf(root).stuckLabel, STUCK_NO_TIME_LABEL);
+  assert.equal(tabOf(root).resume.label, STUCK_NO_TIME_LABEL);
+  // an unparseable time reads the same
+  answerFile(runDir, (a) => { a.answeredAt = 'not a date'; });
+  assert.equal(rowOf(root).label, STUCK_NO_TIME_LABEL);
+  // and the CLI really does refuse it every time (the label is true)
+  const r = cliRaw(['resume', 'run-1', '--flow', 'job2', '--root', root]);
+  assert.match(r.stderr, /missing or unreadable answeredAt/);
+});
+
+test('item 17: an answer saved after the deadline is offered the resume (which records the expiry and ends the run), not left with no action', () => {
+  const { root, runDir, askId } = stuckJob2('i17');
+  for (const f of [path.join(runDir, 'ask.json'), path.join(runDir, 'asks', `${askId}.json`), path.join(runDir, 'state.json')]) {
+    const j = JSON.parse(readFileSync(f, 'utf8'));
+    j.expiresAt = '2020-01-02T00:00:00.000Z';
+    writeFileSync(f, JSON.stringify(j));
+  }
+  answerFile(runDir, (a) => { a.answeredAt = '2020-01-03T00:00:00.000Z'; });
+  const tab = tabOf(root);
+  assert.equal(tab.resume.state, 'late');
+  assert.equal(tab.resume.label, LATE_LABEL);
+  assert.equal(rowOf(root).glyph, '[!]', 'the run still reads [!] expired');
+  assert.equal(stopOf(root).stuck, false);
+  // the page turns that into a resume button, not "none"
+  const start = page.indexOf('function answerControls(');
+  const src = page.slice(start, page.indexOf('\n  }', start) + 4);
+  const answerControls = new Function('pendingText', `${src}; return answerControls;`)(() => '');
+  const ask = tab.asks.find((a) => a.askId === askId);
+  assert.equal(answerControls(ask, tab.resume, null).kind, 'late');
+  assert.match(page, /isLate \? "Resume — record the expiry"/);
+  // what the button does: the resume records the expiry and ends the run
+  const r = cliRaw(['resume', 'run-1', '--flow', 'job2', '--root', root]);
+  assert.match(r.stderr, /ask-expired — run cancelled/);
+  const hist = readFileSync(path.join(root, 'job2', 'history.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.ok(hist.some((h) => h.runId === 'run-1' && h.outcome === 'ask-expired'));
 });
