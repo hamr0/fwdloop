@@ -47,7 +47,10 @@
 
 import { createServer } from 'node:http';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import {
+  chmodSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, unlinkSync, writeSync,
+} from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -63,8 +66,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 /** Cap on the answer body — a decision and a short reason, nothing more. */
 const MAX_BODY_BYTES = 8 * 1024;
-/** Header the page sends its token in. */
-const TOKEN_HEADER = 'x-fwdloop-token';
+/** Cookie the panel link sets; `<name>_<port>` so two panels on one host never clobber each other. */
+const cookieName = (port) => `fwdloop_panel_${port}`;
 
 /** Default bind port. Ruling, hamr 2026-09-27: fwdloop's panel default port
  *  is 4800 — bareloop owns 4700, and the two panels must be able to run
@@ -98,6 +101,29 @@ function tokenMatches(a, b) {
   const x = createHash('sha256').update(a).digest();
   const y = createHash('sha256').update(b).digest();
   return timingSafeEqual(x, y);
+}
+
+/**
+ * M4c-fix item 2: the token's one on-disk home — `<dir>/panel-<port>.token`, dir 0700, file 0600,
+ * `dir` = `$XDG_RUNTIME_DIR/fwdloop`, else `~/.cache/fwdloop`. Refuses a dir that is a symlink or
+ * not ours. The file is replaced (unlink, then exclusive create at 0600), never rewritten in place,
+ * so it never exists with a looser mode. Returns the file's path.
+ * @param {{ port: number, token: string, dir?: string, env?: Record<string, string|undefined> }} a
+ */
+export function writeTokenFile({
+  port, token, dir, env = process.env,
+}) {
+  const d = dir ?? (env.XDG_RUNTIME_DIR ? join(env.XDG_RUNTIME_DIR, 'fwdloop') : join(homedir(), '.cache', 'fwdloop'));
+  const uid = typeof process.getuid === 'function' ? process.getuid() : null;
+  mkdirSync(d, { recursive: true, mode: 0o700 });
+  const st = lstatSync(d);
+  if (!st.isDirectory() || (uid !== null && st.uid !== uid)) throw new Error('token dir is not a directory owned by this user');
+  chmodSync(d, 0o700);
+  const file = join(d, `panel-${port}.token`);
+  try { unlinkSync(file); } catch { /* none yet */ }
+  const fd = openSync(file, 'wx', 0o600);
+  try { writeSync(fd, `${token}\n`); } finally { closeSync(fd); }
+  return file;
 }
 
 /**
@@ -187,15 +213,30 @@ export function handleRequest(req, res, opts) {
     return;
   }
 
+  // Gate 2 — EVERY route, every method (the page included): the panel's own cookie, set by opening
+  // the printed `/?t=<token>` link. Without it: 403 by name, and nothing in the body is a token.
+  const cookies = Object.fromEntries(String(req.headers.cookie ?? '').split(';').map((c) => {
+    const i = c.indexOf('=');
+    return i < 0 ? ['', ''] : [c.slice(0, i).trim(), c.slice(i + 1).trim()];
+  }));
+  if (!tokenMatches(cookies[cookieName(opts.port)], opts.token)) {
+    const link = method === 'GET' || method === 'HEAD' ? new URL(String(req.url), 'http://127.0.0.1') : null;
+    if (link && link.pathname === '/' && tokenMatches(link.searchParams.get('t'), opts.token)) {
+      res.writeHead(302, {
+        'set-cookie': `${cookieName(opts.port)}=${opts.token}; HttpOnly; SameSite=Strict; Path=/`, location: '/', 'content-length': 0,
+      });
+      res.end();
+      return;
+    }
+    refuse(res, 403, 'cookie-missing-or-wrong', 'open the link `fwdloop panel` printed');
+    return;
+  }
+
   if (method === 'POST' && (req.url === '/api/answer' || req.url === '/api/resume')) {
     const isResume = req.url === '/api/resume';
     const origin = req.headers.origin;
     if (origin !== `http://127.0.0.1:${opts.port}` && origin !== `http://localhost:${opts.port}`) {
       refuse(res, 403, 'origin-not-own', String(origin));
-      return;
-    }
-    if (!tokenMatches(req.headers[TOKEN_HEADER], opts.token)) {
-      refuse(res, 403, 'token-missing-or-wrong');
       return;
     }
     let size = 0;
@@ -249,7 +290,6 @@ export function handleRequest(req, res, opts) {
       return;
     }
     html = html.replace(/__FWDLOOP_PANEL_PORT__/g, String(opts.port));
-    html = html.replace(/__FWDLOOP_PANEL_TOKEN__/g, opts.token);
     if (method === 'HEAD') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': Buffer.byteLength(html) });
       res.end();
@@ -334,7 +374,7 @@ export function handleRequest(req, res, opts) {
  * caller's message.
  * @param {{ port?: number, root: string, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number } }} opts
  *   `resume` is for tests only (a fake env/bin, a short retry window); the CLI passes none.
- * @returns {Promise<{ server: import('node:http').Server, port: number, close: () => Promise<void> }>}
+ * @returns {Promise<{ server: import('node:http').Server, port: number, token: string, close: () => Promise<void> }>}
  */
 export function createPanelServer(opts) {
   if (typeof opts?.root !== 'string' || opts.root.length === 0) {
@@ -374,6 +414,7 @@ export function createPanelServer(opts) {
       resolve({
         server,
         port: boundPort,
+        token,
         close: () => new Promise((res2) => { server.close(() => res2(undefined)); }),
       });
     });
@@ -403,8 +444,10 @@ export async function panelMain(argv, ctx) {
     }
   }
   try {
-    const { port: boundPort } = await createPanelServer({ port, root });
-    ctx.out(`fwdloop panel — http://127.0.0.1:${boundPort} (root: ${root}) (Ctrl-C to stop)`);
+    const { port: boundPort, token } = await createPanelServer({ port, root });
+    writeTokenFile({ port: boundPort, token });
+    ctx.out(`fwdloop panel — (root: ${root}) (Ctrl-C to stop)`);
+    ctx.out(`open this link (it sets the panel's cookie): http://127.0.0.1:${boundPort}/?t=${token}`);
     // never resolves on its own — the process stays up until killed, same
     // shape any other long-running dev server takes.
     await new Promise(() => {});

@@ -30,6 +30,7 @@ import { spawnSync } from 'node:child_process';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { createPanelServer } from '../src/panel/server.js';
+import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
 import { getRunAudit } from '../src/panel/data.js';
 import {
   readAudit, readHistory, readLog, readRunState, readAsk, readSpendRows, listArchivedAsks, writeAskArchive,
@@ -222,7 +223,7 @@ describe('F48 round 3: a symlinked book FILE is refused/treated as missing, neve
 
 function get(port, urlPath) {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, path: urlPath, method: 'GET' }, (res) => {
+    const req = http.request({ host: '127.0.0.1', port, path: urlPath, method: 'GET', headers: cookieHeader(port) }, (res) => {
       let body = '';
       res.on('data', (c) => { body += c; });
       res.on('end', () => resolve({ status: res.statusCode, body }));
@@ -247,7 +248,7 @@ describe('F48 round 3: panel HTTP route over a symlinked audit.jsonl', () => {
       assert.deepEqual(direct.rows, []);
       assert.ok(!JSON.stringify(direct).includes(SECRET_MARKER));
 
-      const handle = await createPanelServer({ port: 0, root });
+      const handle = remember(await createPanelServer({ port: 0, root }));
       try {
         const r = await get(handle.port, '/api/runs/job2/run-1/audit');
         assert.equal(r.status, 200);

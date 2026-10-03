@@ -23,6 +23,7 @@ import { createHash } from 'node:crypto';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { createPanelServer } from '../src/panel/server.js';
+import { TOKENS, remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
 import { listStops } from '../src/panel/data.js';
 import { spawnHolder } from './fixtures/lock-holder.mjs';
 
@@ -106,9 +107,9 @@ after(async () => { for (const h of HOLDERS) { try { await h.kill(); } catch { /
 async function start(run, resume = {}) {
   const logDir = tmp('pr-logs');
   LOGDIRS.push(logDir);
-  const h = await createPanelServer({
+  const h = remember(await createPanelServer({
     port: 0, root: run.root, resume: { env: serverEnv(), logDir, ...resume },
-  });
+  }));
   HANDLES.push(h);
   return { ...h, logDir };
 }
@@ -120,7 +121,7 @@ function rq(port, {
 } = {}) {
   return new Promise((resolve, reject) => {
     const data = body === undefined ? undefined : (typeof body === 'string' ? body : JSON.stringify(body));
-    const h = { host: `127.0.0.1:${port}`, ...headers };
+    const h = { host: `127.0.0.1:${port}`, ...cookieHeader(port), ...headers };
     if (data !== undefined) h['content-length'] = Buffer.byteLength(data);
     const r = http.request({
       host: '127.0.0.1', port, method, path: url, headers: h, agent: false,
@@ -141,13 +142,11 @@ function rq(port, {
   });
 }
 async function pageToken(port) {
-  const page = await rq(port, { url: '/' });
-  assert.equal(page.status, 200);
-  const m = /var TOKEN = "([0-9a-f]{64})";/.exec(page.text);
-  assert.ok(m, 'served page must carry the token in `var TOKEN`');
-  return m[1];
+  const t = TOKENS.get(port);
+  assert.ok(t, 'start() must remember the panel');
+  return t;
 }
-const good = (port, token) => ({ origin: `http://127.0.0.1:${port}`, 'x-fwdloop-token': token, 'content-type': 'application/json' });
+const good = (port, token) => ({ origin: `http://127.0.0.1:${port}`, ...cookieHeader(port, token), 'content-type': 'application/json' });
 const answer = (port, token, run, decision, reason, extra = {}) => rq(port, {
   method: 'POST',
   url: '/api/answer',
@@ -288,8 +287,8 @@ test('detached: the panel server process is SIGKILLed right after the reply; the
     env: { ...serverEnv(), PANEL_ROOT: run.root, PANEL_LOGDIR: logDir },
   });
   SERVER_PROCS.push(srv.pid);
-  const { port } = JSON.parse(await new Promise((res) => { srv.stdout.once('data', (d) => res(String(d))); }));
-  const token = await pageToken(port);
+  const { port, token } = JSON.parse(await new Promise((res) => { srv.stdout.once('data', (d) => res(String(d))); }));
+  TOKENS.set(port, token);
   const r = await answer(port, token, run, 'redo', 'redo it');
   assert.equal(r.status, 202, r.text);
   process.kill(-srv.pid, 'SIGKILL'); // the whole panel process group, now
@@ -484,9 +483,9 @@ test('POST /api/resume: refused by name with no saved answer, and with no token 
   assert.equal(sneaky.json().refused, 'no-saved-answer');
   assert.deepEqual(readdirSync(run.runDir).filter((f) => f.startsWith('answer.')), [], '/api/resume must never write an answer');
 
-  const noTok = await resumePost(port, token, run, { origin: `http://127.0.0.1:${port}`, 'content-type': 'application/json' });
+  const noTok = await resumePost(port, token, run, { origin: `http://127.0.0.1:${port}`, cookie: '', 'content-type': 'application/json' });
   assert.equal(noTok.status, 403);
-  assert.equal(noTok.json().refused, 'token-missing-or-wrong');
+  assert.equal(noTok.json().refused, 'cookie-missing-or-wrong');
   const badOrigin = await resumePost(port, token, run, { ...good(port, token), origin: 'http://evil.example.com' });
   assert.equal(badOrigin.json().refused, 'origin-not-own');
   const badHost = await resumePost(port, token, run, { ...good(port, token), host: 'evil.example.com' });

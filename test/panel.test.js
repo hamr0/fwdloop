@@ -20,6 +20,7 @@ import path from 'node:path';
 import { writeFlow, appendAudit, appendHistory } from '../src/index.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { createPanelServer, DEFAULT_PORT } from '../src/panel/server.js';
+import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
 import {
   computeGlyph, costDisplay, listRuns, getRunDetail, getRunAudit, getRunJob, listStops, getRunAsks,
   deriveRunModel, deriveAuditAction, summarizeSpendRows, deriveAuditTokensDisplay, deriveAuditAtWhy,
@@ -1812,7 +1813,7 @@ describe('getRunAsks (M4a-1: the Ask tab)', () => {
 function get(port, urlPath, method = 'GET') {
   return new Promise((resolve, reject) => {
     const req = http.request({
-      host: '127.0.0.1', port, path: urlPath, method,
+      host: '127.0.0.1', port, path: urlPath, method, headers: cookieHeader(port),
     }, (res) => {
       let body = '';
       res.on('data', (c) => { body += c; });
@@ -1827,7 +1828,7 @@ describe('panel HTTP shell', () => {
   let handle;
 
   test('starts on an OS-assigned port bound to 127.0.0.1', async () => {
-    handle = await createPanelServer({ port: 0, root: ROOT });
+    handle = remember(await createPanelServer({ port: 0, root: ROOT }));
     assert.ok(handle.port > 0);
     assert.notEqual(handle.port, DEFAULT_PORT); // OS-assigned, not the default
   });
@@ -2014,7 +2015,7 @@ describe('index.html — page source', () => {
   }
 
   test('is served at "/" as real HTML', async () => {
-    const handle = await createPanelServer({ port: 0, root: ROOT });
+    const handle = remember(await createPanelServer({ port: 0, root: ROOT }));
     try {
       const r = await get(handle.port, '/');
       assert.equal(r.status, 200);
@@ -2025,7 +2026,7 @@ describe('index.html — page source', () => {
     }
   });
 
-  test('M4b: the only non-GET fetches on the page are POST /api/answer and POST /api/resume, both through postJSON, token only in the header', () => {
+  test('M4b: the only non-GET fetches on the page are POST /api/answer and POST /api/resume, both through postJSON', () => {
     const code = stripComments(source);
     // Every fetch( call: its first argument and its options.
     const calls = [...code.matchAll(/fetch\(([^,]+),\s*\{([\s\S]*?)\}\)\.then/g)];
@@ -2041,16 +2042,13 @@ describe('index.html — page source', () => {
     assert.deepEqual(postPaths, ['/api/answer', '/api/resume']);
   });
 
-  test('M4b: the token appears only as the x-fwdloop-token request header — never the DOM, a URL, storage, or a log', () => {
+  test('M4c-fix item 2: the page carries no token — no TOKEN variable, no token header, never a URL, storage, or a log', () => {
     const code = stripComments(source);
-    const uses = [...code.matchAll(/\bTOKEN\b/g)];
-    // the declaration + the one header use.
-    assert.equal(uses.length, 2, `TOKEN may appear only in its declaration and the header, found ${uses.length}`);
-    assert.match(code, /"x-fwdloop-token":\s*TOKEN/);
-    assert.doesNotMatch(code, /localStorage\.setItem\([^)]*TOKEN/);
-    assert.doesNotMatch(code, /(textContent|innerHTML|setAttribute\([^)]*)[^;\n]*\bTOKEN\b/);
-    assert.doesNotMatch(code, /console\.[a-z]+\([^)]*TOKEN/);
-    assert.doesNotMatch(code, /[?&]token=|location\.(search|hash)/i);
+    assert.doesNotMatch(code, /\bTOKEN\b/, 'the page must not hold a token at all (the HttpOnly cookie authenticates)');
+    assert.doesNotMatch(code, /__FWDLOOP_PANEL_TOKEN__/);
+    assert.doesNotMatch(code, /x-fwdloop-token/i);
+    assert.doesNotMatch(code, /document\.cookie/);
+    assert.doesNotMatch(code, /[?&]t=/);
     // the only localStorage key this page writes is the theme.
     const keys = [...code.matchAll(/localStorage\.setItem\(\s*("[^"]+")/g)].map((m) => m[1]);
     assert.deepEqual(keys, ['"fwdloop-panel-theme"']);

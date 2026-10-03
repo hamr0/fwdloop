@@ -6,5 +6,5 @@
 import { createPanelServer } from '../../src/panel/server.js';
 
 const h = await createPanelServer({ port: 0, root: process.env.PANEL_ROOT, resume: { logDir: process.env.PANEL_LOGDIR } });
-process.stdout.write(`${JSON.stringify({ port: h.port, pid: process.pid })}\n`);
+process.stdout.write(`${JSON.stringify({ port: h.port, pid: process.pid, token: h.token })}\n`);
 setInterval(() => {}, 1 << 30);

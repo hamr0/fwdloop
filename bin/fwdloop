@@ -516,8 +516,10 @@ async function cmdResume(rest) {
 // panel — M4a piece 2 + M4b (docs/wiki/the-module-ladder.md, "M4a — read-only
 // panel" and "M4b — inputs"): `fwdloop panel [--port 4800] [--root <dir>]`.
 // Reads are GET/HEAD; the only writes are POST /api/answer and POST
-// /api/resume (src/panel/server.js), each gated by Origin/Host + a per-process
-// token. Bound to 127.0.0.1 only. Never picks
+// /api/resume (src/panel/server.js), each gated by Origin/Host + the panel's
+// cookie. `fwdloop panel` writes its token to a 0600 file ($XDG_RUNTIME_DIR/fwdloop/
+// panel-<port>.token, else ~/.cache/fwdloop/) and prints `http://127.0.0.1:<port>/?t=<token>` —
+// open that link (it sets the cookie); every request needs it. Bound to 127.0.0.1 only. Never picks
 // a different port on collision — a taken port is a loud, non-zero-exit
 // failure.
 // ---------------------------------------------------------------------------

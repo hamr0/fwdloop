@@ -19,6 +19,7 @@ import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
 import { createPanelServer } from '../src/panel/server.js';
+import { TOKENS, remember, cookieHeader, cookieName } from '../scripts/panel-fixtures/panel-auth.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (n) => readFileSync(path.join(HERE, 'fixtures', n), 'utf8');
@@ -79,7 +80,7 @@ async function parkRun({ parkTime } = {}) {
 const HANDLES = [];
 after(() => Promise.all(HANDLES.map((h) => h.close())));
 async function start(root) {
-  const h = await createPanelServer({ port: 0, root, resume: { bin: NOOP_RESUME_BIN, logDir: tmp('pa-logs') } });
+  const h = remember(await createPanelServer({ port: 0, root, resume: { bin: NOOP_RESUME_BIN, logDir: tmp('pa-logs') } }));
   HANDLES.push(h);
   return h;
 }
@@ -91,7 +92,7 @@ function rq(port, {
 } = {}) {
   return new Promise((resolve, reject) => {
     const data = body === undefined ? undefined : (typeof body === 'string' ? body : JSON.stringify(body));
-    const h = { host: `127.0.0.1:${port}`, ...headers };
+    const h = { host: `127.0.0.1:${port}`, ...cookieHeader(port), ...headers };
     if (data !== undefined) h['content-length'] = Buffer.byteLength(data);
     const r = http.request({
       host: '127.0.0.1', port, method, path: url, headers: h, agent: false,
@@ -112,15 +113,13 @@ function rq(port, {
   });
 }
 
-/** What the page does: read the token out of the served HTML. */
+/** The token a real browser holds after opening the printed link (the page itself carries none). */
 async function pageToken(port) {
-  const page = await rq(port, { url: '/' });
-  assert.equal(page.status, 200);
-  const m = /var TOKEN = "([0-9a-f]{64})";/.exec(page.text);
-  assert.ok(m, 'served page must carry the token in `var TOKEN`');
-  return m[1];
+  const t = TOKENS.get(port);
+  assert.ok(t, 'start() must remember the panel');
+  return t;
 }
-const good = (port, token) => ({ origin: `http://127.0.0.1:${port}`, 'x-fwdloop-token': token, 'content-type': 'application/json' });
+const good = (port, token) => ({ origin: `http://127.0.0.1:${port}`, ...cookieHeader(port, token), 'content-type': 'application/json' });
 const post = (port, headers, body) => rq(port, {
   method: 'POST', url: '/api/answer', headers, body,
 });
@@ -128,7 +127,7 @@ const noAnswerOnDisk = (runDir) => assert.deepEqual(readdirSync(runDir).filter((
 const askOf = (runDir) => JSON.parse(readFileSync(path.join(runDir, 'ask.json'), 'utf8'));
 
 // ---------------------------------------------------------------------------
-test('(i) POST with no token / wrong token / foreign Origin / no Origin / foreign Host is refused by name, writes no answer', async () => {
+test('(i) POST with no cookie / wrong cookie / foreign Origin / no Origin / foreign Host is refused by name, writes no answer', async () => {
   const run = await parkRun();
   const { port } = await start(run.root);
   const token = await pageToken(port);
@@ -136,16 +135,16 @@ test('(i) POST with no token / wrong token / foreign Origin / no Origin / foreig
     flow: run.flow, runId: run.runId, askId: run.askId, decision: 'redo', reason: 'too long',
   };
 
-  const noTok = await post(port, { origin: `http://127.0.0.1:${port}`, 'content-type': 'application/json' }, body);
+  const noTok = await post(port, { origin: `http://127.0.0.1:${port}`, cookie: '', 'content-type': 'application/json' }, body);
   assert.equal(noTok.status, 403);
-  assert.equal(noTok.json().refused, 'token-missing-or-wrong');
+  assert.equal(noTok.json().refused, 'cookie-missing-or-wrong');
   const wrongTok = await post(port, good(port, 'f'.repeat(64)), body);
   assert.equal(wrongTok.status, 403);
-  assert.equal(wrongTok.json().refused, 'token-missing-or-wrong');
+  assert.equal(wrongTok.json().refused, 'cookie-missing-or-wrong');
   const badOrigin = await post(port, { ...good(port, token), origin: 'http://evil.example.com' }, body);
   assert.equal(badOrigin.status, 403);
   assert.equal(badOrigin.json().refused, 'origin-not-own');
-  const noOrigin = await post(port, { 'x-fwdloop-token': token }, body);
+  const noOrigin = await post(port, { ...cookieHeader(port, token) }, body);
   assert.equal(noOrigin.status, 403);
   assert.equal(noOrigin.json().refused, 'origin-not-own');
   const badHost = await post(port, { ...good(port, token), host: 'evil.example.com' }, body);
@@ -318,13 +317,14 @@ test('(vi) after a re-park, the previous ask\'s askId is refused by name and the
 });
 
 // ---------------------------------------------------------------------------
-test('token hygiene: the token is in the served page exactly once and in no /api response, header or error body', async () => {
+test('token hygiene: the token is in NO response — not the page, not any /api response, header or error body (the cookie is the only carrier)', async () => {
   const run = await parkRun();
   const { port } = await start(run.root);
   const token = await pageToken(port);
   const page = await rq(port, { url: '/' });
-  assert.equal(page.text.split(token).length - 1, 1, 'token appears exactly once in the page');
-  assert.doesNotMatch(page.text, /__FWDLOOP_PANEL_TOKEN__/, 'placeholder fully replaced');
+  assert.equal(page.status, 200);
+  assert.ok(!page.text.includes(token), 'the served page carries no token');
+  assert.doesNotMatch(page.text, /__FWDLOOP_PANEL_TOKEN__/);
 
   const good2 = good(port, token);
   const body = { flow: run.flow, runId: run.runId };
@@ -334,13 +334,13 @@ test('token hygiene: the token is in the served page exactly once and in no /api
   await rq(port, { url: `/api/runs/${run.flow}/${run.runId}/asks` });
   await rq(port, { url: '/nope' });
   await rq(port, { url: '/', headers: { host: 'evil.example.com' } });
-  await post(port, { ...good2, 'x-fwdloop-token': 'wrong' }, body);
+  await post(port, { ...good2, cookie: `${cookieName(port)}=wrong` }, body);
   await post(port, good2, '{bad');
   await post(port, good2, body); // askid-required
   await post(port, good2, { ...body, askId: 'nope', decision: 'accept' }); // library refusal
   await rq(port, { method: 'PUT', url: '/api/answer', headers: good2, body });
 
-  const leaks = SEEN.filter((s) => s.url !== '/' && (s.headers.includes(token) || s.text.includes(token)));
-  assert.deepEqual(leaks, [], 'token leaked outside the served page');
+  const leaks = SEEN.filter((s) => s.headers.includes(token) || s.text.includes(token));
+  assert.deepEqual(leaks, [], 'token leaked into a response');
   assert.ok(SEEN.length > 10);
 });
