@@ -221,3 +221,12 @@ test('item 17: an answer saved after the deadline is offered the resume (which r
   const hist = readFileSync(path.join(root, 'job2', 'history.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   assert.ok(hist.some((h) => h.runId === 'run-1' && h.outcome === 'ask-expired'));
 });
+
+test('item 12 follow-up: a consumed-answer marker holding `null` is skipped by the panel, never a crash', () => {
+  const { root, runDir, askId } = parkedJob2('i12null');
+  cli(['answer', askId, 'redo', 'why', '--root', root]);
+  cli(['resume', 'run-1', '--flow', 'job2', '--root', root]);
+  renameSync(path.join(runDir, 'asks'), path.join(runDir, 'asks-gone'));
+  writeFileSync(path.join(runDir, `answer.${askId}.consumed.json`), 'null');
+  assert.doesNotThrow(() => getRunAsks({ root, flow: 'job2', runId: 'run-1', catalogue: CATALOGUE }));
+});

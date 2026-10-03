@@ -1637,6 +1637,7 @@ function legacyRunAsks(runDir, hasHistoryRow) {
     } catch {
       continue; // eslint-disable-line no-continue -- a torn write is skipped, never invented
     }
+    if (parsed === null || typeof parsed !== 'object') continue; // eslint-disable-line no-continue -- valid JSON that is no answer (`null`, a number) is skipped like a torn write
     // A consumed legacy row never recovers question/askedAt/expiresAt from
     // the CURRENT ask.json, even when its askId happens to still match it —
     // the single mutable slot is not a reliable append log for a past ask
