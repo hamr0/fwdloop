@@ -631,8 +631,19 @@ async function runStepRalph({
       // never retried (M2 scope item 8) — both are the caller's own
       // `modelStep`'s job to distinguish; this loop only ever retries the
       // `transport: true` shape, exactly once.
+      const first = result;
       // eslint-disable-next-line no-await-in-loop
       result = await modelStep(executorContext, grantedTools, stepMeta);
+      // The first call's gate refusals and tool tally belong to this attempt's
+      // audit row too (the retry's collector starts empty). Only refused /
+      // tools / ungranted are merged — cost is never touched here.
+      if (result && typeof result === 'object') {
+        const refused = [...(first.refused ?? []), ...(result.refused ?? [])];
+        const tools = first.tools || result.tools ? { ...(first.tools ?? {}) } : null;
+        if (tools) for (const [k, v] of Object.entries(result.tools ?? {})) tools[k] = (tools[k] ?? 0) + v;
+        const ungranted = [...new Set([...(first.ungranted ?? []), ...(result.ungranted ?? [])])].sort();
+        result = { ...result, refused, tools, ...(ungranted.length > 0 ? { ungranted } : {}) };
+      }
     }
     const wallMs = Date.now() - startedAt;
 
