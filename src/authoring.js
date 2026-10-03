@@ -188,6 +188,8 @@ export async function draftToDir({
   }
   const secrets = secretVar && env[secretVar] ? [env[secretVar]] : [];
   if (secrets.some((s) => s.length >= 8 && prose.text.includes(s))) return refuse(['prose: contains an API key value — refused']);
+  // Red messages can echo what a provider's error body echoed (a key): scrubbed like every file, before anything prints them.
+  const cleanReds = (reds) => (reds ?? []).map((r) => scrub(String(r), secrets));
   // Claim the dir BEFORE the paid round (exclusive mkdir: a race or an existing path refuses at $0).
   const exists = () => refuse([`draft: "${dir}" already exists — never overwritten, use a new dir`]);
   if (existsSync(dir)) return exists();
@@ -203,7 +205,7 @@ export async function draftToDir({
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }
-    return refuse(result.reds);
+    return refuse(cleanReds(result.reds));
   }
 
   // After a paid round: never a silent throw. The cost is returned so the caller prints it; the dir is claimed and stays.
@@ -268,7 +270,7 @@ export async function draftToDir({
     return paidFail(`write failed after the paid round (${e.code ?? e.message}); the draft dir is incomplete and never signable`);
   }
   return {
-    ok: result.ok, wrote: true, dir, hash, reds: result.reds, costUsd: result.costUsd, spendComplete: result.spendComplete, stop: result.stop, rounds: result.rounds, calls: result.calls, leaks: 0,
+    ok: result.ok, wrote: true, dir, hash, reds: cleanReds(result.reds), costUsd: result.costUsd, spendComplete: result.spendComplete, stop: result.stop, rounds: result.rounds, calls: result.calls, leaks: 0,
   };
 }
 

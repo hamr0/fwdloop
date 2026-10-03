@@ -742,3 +742,19 @@ test('item 10: draft --out inside the flows root (also through a symlink) is ref
   assert.equal(ok.ok, true, JSON.stringify(ok.reds));
   assert.match(readFileSync(path.join(work, 'flows-sibling', 'readout.txt'), 'utf8'), new RegExp(`Flows root: ${root}`));
 });
+
+// M4c-fix item 11: a provider error that echoes the key reaches the red message the CLI prints.
+test('item 11: a drafter red whose provider error echoes the key is scrubbed before it is returned', async () => {
+  const fx = job2Fixture();
+  const work = tmp('i11');
+  const proseFile = path.join(work, 'prose.txt');
+  writeFileSync(proseFile, fx.prose);
+  const provider = { lastMalformedToolCall: null, async generate() { throw new Error(`401 invalid Authorization: Bearer ${KEY}`); } };
+  const r = await draftToDir({
+    proseFile, dir: path.join(work, 'd'), root: path.join(work, 'flows'), name: 'job2', provider, rates: RATES, modelId: MODEL, env: { DEEPSEEK_API_KEY: KEY },
+  });
+  assert.equal(r.ok, false);
+  assert.match(r.reds.join(' '), /provider-red/);
+  assert.ok(!r.reds.join(' ').includes(KEY), 'the key never leaves in a red');
+  assert.match(r.reds.join(' '), /\[redacted-key\]/);
+});
