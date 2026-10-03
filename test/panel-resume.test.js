@@ -540,6 +540,34 @@ test('key hygiene: the sentinel key is in 0 HTTP responses, 0 book files and 0 r
   console.log(`# MEASURE hygiene: ${SEEN.length} responses, ${walk(run.root).length} book files, ${logs.length} log file(s) scanned, 0 sentinel hits`);
 });
 
+// M4c-fix item 22c: the test above scans only the log of a resume stuck on the lock — a CLEAN resume's log is
+// deleted on exit 0, so a child that echoed the key on a successful run slipped past it. Here the child echoes
+// the key to stdout and stderr and exits 0: the log is scanned while it still exists (the scan CAN see the key,
+// so the check can fail), then the panel must delete it, and no book file may carry the key afterwards.
+test('key hygiene (clean resume): a child that echoes the key and exits 0 leaves no log or book file holding it', async () => {
+  const run = parkRun();
+  const dir = tmp('echo-key');
+  const echoed = path.join(dir, 'echoed');
+  const release = path.join(dir, 'release');
+  const { port, logDir } = await start(run, {
+    windowMs: 30000, maxTries: 1, bin: path.join(REPO, 'scripts', 'panel-fixtures', 'panel-resume-echo-key.mjs'),
+    env: { ...serverEnv(), ECHOED_FILE: echoed, RELEASE_FILE: release },
+  });
+  const token = await pageToken(port);
+  const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+  try {
+    assert.equal((await answer(port, token, run, 'redo', 'echo')).status, 202);
+    await waitFor(() => existsSync(echoed));
+    const live = walk(logDir).map((f) => readFileSync(f, 'utf8'));
+    assert.ok(live.some((t) => t.includes(SENTINEL)), 'control: while the clean resume runs, its log DOES hold the echoed key (the scan can see it)');
+  } finally {
+    writeFileSync(release, '');
+  }
+  await waitFor(() => walk(logDir).length === 0, 15000);   // exit 0: the panel deletes the log
+  for (const f of walk(run.root)) assert.equal(readFileSync(f).includes(SENTINEL), false, `sentinel in ${f}`);
+  assert.deepEqual(walk(logDir), [], 'the clean resume left no log behind');
+});
+
 // --- M4c-fix item 1: one resume at a time per run ---------------------------------------------------
 const SLEEP_BIN = path.join(REPO, 'scripts', 'panel-fixtures', 'panel-resume-sleep.mjs');
 const spawnCount = (f) => (existsSync(f) ? readFileSync(f, 'utf8').trim().split('\n').filter(Boolean).length : 0);
