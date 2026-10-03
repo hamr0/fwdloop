@@ -1094,6 +1094,60 @@ Numbers are from the books on disk under `flows/job2-m6a-2/` (times UTC).
 
 Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 
+#### M4c-fix — clean the fix list before M4d — DRAFT, NOT SIGNED
+
+- **Why:** hamr 2026-10-03: "we have to clean all before we move to m4d". The fix list (`.claude/remember/fix-ledger.md`) holds the reviews' unfixed findings from M2–M4c. hamr's 2026-10-02 triage grouped them into three plans; the rest are folded in here so M4d starts clean.
+- **Rulings hamr gave at drafting (2026-10-03):**
+  1. No presses-per-minute limit; instead one resume at a time per run (hamr "A").
+  2. The panel token moves to a file only hamr's user can read (hamr "Token file 0600").
+  3. CI becomes a required check on `main` (hamr "Yes, require it").
+  4. Two hand-edit cases are accepted as known limits and dropped (hamr "Accept, drop both"): the 1e-9 USD spend tolerance in `src/runner.js` (economically inert), and a hand-written `answer.json` `answeredAt` that dodges the deadline (amendment 3's signed trade-off; needs write access to the run dir).
+- **Scope** — four groups:
+  - **A. Panel safety** (`src/panel/server.js`, `src/panel/resume.js`):
+    1. One resume at a time per run: a Resume (or an Answer that starts one) while that run is already resuming is refused 409 "already resuming", and no second process starts.
+    2. Token file: `fwdloop panel` writes its token to a file only your user can read (mode 0600; proposed `$XDG_RUNTIME_DIR/fwdloop/panel-<port>.token`, else `~/.cache/fwdloop/`), and prints a link `http://127.0.0.1:<port>/?t=<token>`. Opening that link sets a cookie (HttpOnly, SameSite=Strict) and goes to `/`. Every request, the page itself included, needs that cookie; without it, 403 and the page carries no token. How you open the panel changes: open the printed link.
+    3. Every response says it must not be framed or cached: `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'`, `Cache-Control: no-store`.
+    4. A flow folder must really sit inside `--root` (checked with realpath), for reads and answers alike; a flow symlinked outside root is refused by name.
+    5. Errors never show an absolute path: a 500 says "internal error" and refusals name paths relative to `--root`.
+    6. A request body over the size limit is cut off at once, not read to its end.
+    7. Two resumes of one run never share one log file, so one finishing can't delete the other's reason.
+  - **B. Small crash and leak fixes:**
+    8. `fwdloop show` strips terminal control codes (keeps new lines and tabs) from model text before printing.
+    9. An `answer.json` that is not an object (e.g. `null`) is refused by name, never a crash.
+    10. `fwdloop draft --out` must be outside the flows root's flow list (an unsigned draft never shows as a flow); the readout names the flows root.
+    11. A drafter's red message is scrubbed of the key before it is printed.
+    12. Answer words are looked up only as real entries ("constructor" or "toString" read as unrecognised), in `src/ask.js` and `src/panel/data.js`.
+    13. A model-step key red records a valid audit row even when a model is named.
+    14. A run parked through a symlinked `--root` resumes (both sides compared by realpath).
+    15. Stuck runs: one function decides stuck state and its label from a typed reason, not by matching a refusal string; an unknown lock holder is never called stuck; a panel restart does not cost a wasted click; two resumers never delete each other's lock (unlink only a lock that is still yours).
+    16. An answer with no saved time: the stuck label says so ("answer has no saved time — answer again"), not "try the resume again" forever.
+    17. An answer saved after the deadline: the panel offers the resume, which records the expiry and ends the run `[!]`, instead of leaving it with no action until someone uses the CLI.
+  - **C. Money honesty:**
+    18. A spend row marked incomplete counts at the ceiling price toward a run's cap, never only its known floor ("unknown cost is never 0").
+    19. A transport retry keeps the first call's refusals and tool tally in the attempt's audit row.
+  - **D. Panel refresh, tests and CI:**
+    20. A finished run is re-read at the list rate (10 s), so a late change shows without a re-click; a run whose books can't be read drops to the list rate, not 2 s forever; a late reply for a run you already left never paints over the one you opened.
+    21. At 320 px a long run title wraps inside the Run header.
+    22. Test gaps closed: the fake page honours its selector; the fs-import guard also catches destructured fs, `process.binding('fs')` and `process.getBuiltinModule('fs')`; the key-hygiene test scans a clean resume's log before it is deleted; a test header that credits hamr's walk for F54 is corrected.
+    23. CI: `CI / test` is a required check on `main`, and a second push to `main` no longer cancels the first push's run.
+    24. The docs index is regenerated by the docs tool.
+- **Negatives** (each must be able to fail):
+  - (i) a second Resume while one is running gets 409 and no second process starts;
+  - (ii) `curl` of `/` without the cookie gets 403 and no token; the token file is mode 0600;
+  - (iii) a page from another origin cannot frame the panel (headers present on every response);
+  - (iv) a flow symlinked outside `--root` is refused for read and answer;
+  - (v) no error body contains an absolute path;
+  - (vi) `answer.json` = `null` gives a named refusal;
+  - (vii) an incomplete spend row never counts below the ceiling price;
+  - (viii) a transport retry's audit row keeps the first call's refusal;
+  - (ix) `fwdloop show` of text holding an ESC sequence prints no ESC byte;
+  - (x) a PR to `main` with a red `CI / test` cannot be merged without admin override (checked with `gh api` on the branch protection);
+  - (xi) a run from before M4c-fix still renders and none of its files is rewritten.
+- **Exit:** every fix has a test that went red with the fix taken out; the fix list holds none of the in-scope items (dropped by /refactor revalidation, not by hand); a real browser walk at 1280 and 390 opens the panel by the printed link, shows a run, answers an ask, and a second Resume is refused; hamr opens the panel by the printed link and signs.
+- **Cap:** $0 — no paid model runs needed (fakes and the existing books).
+- **Not in scope:** Settings (M4d); a Run button (M4e); per-run read/write folders; new answer words; any change to an existing book's shape beyond the token file; the two accepted hand-edit limits.
+- **Known limits written down:** the 1e-9 USD spend tolerance; a hand-written in-time `answeredAt`; the panel trusts your own user's programs (anything running as you can read the token file).
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
