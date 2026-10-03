@@ -2184,10 +2184,11 @@
       document.getElementById("run-empty").textContent = "failed to load run: " + e.message;
       document.getElementById("run-content").hidden = true;
     });
-    getJSON(base + "/audit").then(renderAudit).catch(function(){ renderAudit(null); });
-    getJSON(base + "/job").then(renderJob).catch(function(){ renderJob(null); });
-    getJSON(base + "/asks").then(function(result){ renderAsk(result, focusAskId || null); }).catch(function(e){
-      renderAsk(null, null, e.message);
+    // the same late-reply guard on audit, job and asks: a reply for a run the user already left paints nothing
+    getJSON(base + "/audit").then(function(a){ if(still()) renderAudit(a); }).catch(function(){ if(still()) renderAudit(null); });
+    getJSON(base + "/job").then(function(j){ if(still()) renderJob(j); }).catch(function(){ if(still()) renderJob(null); });
+    getJSON(base + "/asks").then(function(result){ if(still()) renderAsk(result, focusAskId || null); }).catch(function(e){
+      if(still()) renderAsk(null, null, e.message);
     });
   }
 

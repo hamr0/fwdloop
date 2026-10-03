@@ -255,3 +255,35 @@ test('(i) selectRun: a late detail reply for a run you left never paints over th
   assert.equal(scope.st.live, true);
   assert.equal(els['run-empty']?.textContent ?? '', '', 'no failure text for a run that is no longer open');
 });
+
+test('amendment 1 (e)(4) selectRun: a late audit, job and asks reply for a run you left paints nothing', async () => {
+  const replies = {};
+  const getJSON = (p) => new Promise((res, rej) => { replies[p] = { res, rej }; });
+  const drawn = [];
+  const els = {};
+  const doc = { querySelectorAll: () => [], getElementById: (id) => (els[id] ??= { hidden: false, textContent: '' }) };
+  const scope = new Function('getJSON', 'document', 'drawn', `
+    var currentFlow = null, currentRunId = null, currentAskId = null, openRunLive = true;
+    var lastSig = { inbox: null, runs: null, detail: null, asks: null, audit: null };
+    function clearSelection(){} function paintRun(){}
+    function renderAudit(a){ drawn.push('audit:' + (a && a.id)); }
+    function renderJob(j){ drawn.push('job:' + (j && j.id)); }
+    function renderAsk(a, f, err){ drawn.push('asks:' + (a ? a.id : err)); }
+    ${fnSrc('selectRun')}
+    return { selectRun: selectRun };
+  `)(getJSON, doc, drawn);
+  scope.selectRun('f', 'A', null, '.x');
+  scope.selectRun('f', 'B', null, '.x');
+  for (const k of ['audit', 'job', 'asks']) replies[`/api/runs/f/B/${k}`].res({ id: `B-${k}` });
+  await sleep(5);
+  for (const k of ['audit', 'job', 'asks']) replies[`/api/runs/f/A/${k}`].res({ id: `A-${k}` }); // A answers late
+  await sleep(5);
+  assert.deepEqual(drawn.sort(), ['asks:B-asks', 'audit:B-audit', 'job:B-job'], 'only the open run (B) is drawn');
+  // a late FAILURE for the run you left draws nothing either (not even the "no data" view)
+  scope.selectRun('f', 'C', null, '.x');
+  scope.selectRun('f', 'D', null, '.x');
+  drawn.length = 0;
+  for (const k of ['audit', 'job', 'asks']) replies[`/api/runs/f/C/${k}`].rej(new Error('late nope'));
+  await sleep(5);
+  assert.deepEqual(drawn, [], 'a failed reply for a left run draws nothing');
+});
