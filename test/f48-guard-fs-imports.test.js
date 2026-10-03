@@ -163,6 +163,13 @@ function isFsSpecifier(spec) {
 const STATIC_IMPORT_RE = /import\s*(?:\*\s*as\s*(\w+)|\{([^}]*)\}|(\w+))\s*from\s*(['"])([^'"]+)\4\s*;?/gs;
 const DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*(['"`])([^'"`]*)\1\s*\)/g;
 const REQUIRE_CALL_RE = /\brequire\s*\(\s*(['"`])([^'"`]*)\1\s*\)/g;
+// M4c-fix item 22b: ways to reach fs with no import/require token at all.
+//   process.binding('fs'), process.getBuiltinModule('fs') (dot or ['bracket']), and any `._load('fs')`
+//   (module.constructor._load, Module._load) — each counted under `hiddenFsCount`, never allow-listed.
+const HIDDEN_FS_RES = [
+  /\bprocess\s*(?:\.\s*|\[\s*['"`])(?:binding|getBuiltinModule)(?:['"`]\s*\])?\s*\(\s*(['"`])([^'"`]*)\1\s*\)/g,
+  /(?:\.\s*|\[\s*['"`])_load(?:['"`]\s*\])?\s*\(\s*(['"`])([^'"`]*)\1/g,
+];
 
 /**
  * Scans one file's raw source (BEFORE comment/string stripping, since the
@@ -186,6 +193,27 @@ function scanFsUsage(text) {
   const bodyForIdents = stripCommentsAndStrings(withoutImports);
   const bodyForBrackets = stripComments(withoutImports);
 
+  // `const { readFileSync: r, statSync } = fs` — a destructure of the fs namespace/default binding `fsName`.
+  // Each destructured name counts under its REAL fs name, once per use of its local name elsewhere in
+  // the file (the destructuring statement itself is cut out first, so it is never counted as a use).
+  const countDestructured = (fsName) => {
+    const re = new RegExp(`\\b(?:const|let|var)\\s*\\{([^}]*)\\}\\s*=\\s*${fsName}\\s*(?=[;\\n,)]|$)`, 'g');
+    const stmts = [...bodyForIdents.matchAll(re)];
+    if (!stmts.length) return;
+    let rest = bodyForIdents;
+    for (const st of stmts) rest = rest.replace(st[0], '');
+    for (const st of stmts) {
+      for (const raw of st[1].split(',')) {
+        const part = raw.trim().replace(/\s*=.*$/s, '');   // drop a default value
+        if (!part) continue;
+        const colon = part.match(/^(\w+)\s*:\s*(\w+)$/);
+        const real = colon ? colon[1] : part;
+        const local = colon ? colon[2] : part;
+        bump(real, (rest.match(new RegExp(`\\b${local}\\b`, 'g')) || []).length);
+      }
+    }
+  };
+
   let m;
   STATIC_IMPORT_RE.lastIndex = 0;
   while ((m = STATIC_IMPORT_RE.exec(text))) {
@@ -199,6 +227,7 @@ function scanFsUsage(text) {
       while ((dm = dotRe.exec(bodyForIdents))) bump(dm[1]);
       let bm;
       while ((bm = bracketRe.exec(bodyForBrackets))) bump(bm[2]);
+      countDestructured(nsName);
     } else if (defaultName) {
       const dotRe = new RegExp(`\\b${defaultName}\\.(\\w+)\\b`, 'g');
       const bracketRe = new RegExp(`\\b${defaultName}\\[\\s*(['"])(\\w+)\\1\\s*\\]`, 'g');
@@ -206,6 +235,7 @@ function scanFsUsage(text) {
       while ((dm = dotRe.exec(bodyForIdents))) bump(dm[1]);
       let bm;
       while ((bm = bracketRe.exec(bodyForBrackets))) bump(bm[2]);
+      countDestructured(defaultName);
     } else if (namedList) {
       for (const rawSpec of namedList.split(',')) {
         const spec = rawSpec.trim();
@@ -247,7 +277,16 @@ function scanFsUsage(text) {
     }
   }
 
-  return { names, dynamicImportCount, requireCount };
+  let hiddenFsCount = 0;
+  const bodyNoComments = stripComments(text);
+  for (const re of HIDDEN_FS_RES) {
+    re.lastIndex = 0;
+    while ((m = re.exec(bodyNoComments))) {
+      if (isFsSpecifier(m[2])) hiddenFsCount += 1;
+    }
+  }
+
+  return { names, dynamicImportCount, requireCount, hiddenFsCount };
 }
 
 /**
@@ -363,8 +402,8 @@ test('F48 guard: every way src/ and bin/fwdloop reach fs is on the narrow, count
   for (const full of listSourceFiles()) {
     const file = relPath(full);
     const text = readFileSync(full, 'utf8');
-    const { names, dynamicImportCount, requireCount } = scanFsUsage(text);
-    const touchesFs = names.size > 0 || dynamicImportCount > 0 || requireCount > 0;
+    const { names, dynamicImportCount, requireCount, hiddenFsCount } = scanFsUsage(text);
+    const touchesFs = names.size > 0 || dynamicImportCount > 0 || requireCount > 0 || hiddenFsCount > 0;
     if (!touchesFs) continue;
 
     const allowed = ALLOWLIST[file];
@@ -376,6 +415,9 @@ test('F48 guard: every way src/ and bin/fwdloop reach fs is on the narrow, count
 
     if (dynamicImportCount > 0) {
       problems.push(`${file}: dynamic import('...fs...') found (${dynamicImportCount}×) — not allow-listed for any file`);
+    }
+    if (hiddenFsCount > 0) {
+      problems.push(`${file}: process.binding/getBuiltinModule/_load of fs found (${hiddenFsCount}×) — not allow-listed for any file`);
     }
     if (requireCount > 0) {
       problems.push(`${file}: require('...fs...') found (${requireCount}×) — not allow-listed for any file`);
@@ -419,4 +461,33 @@ test('F48 guard: every way src/ and bin/fwdloop reach fs is on the narrow, count
     [],
     `fs-import guard violation(s):\n${problems.join('\n')}`,
   );
+});
+
+// M4c-fix item 22b: each new detection is proven on a planted source string (never by editing src/).
+// A control with no fs at all must stay clean, so the scanner cannot "detect" everything.
+const flagged = (u) => u.names.size > 0 || u.dynamicImportCount > 0 || u.requireCount > 0 || u.hiddenFsCount > 0;
+
+test('F48 guard: planted evasions are each detected; a clean file is not', () => {
+  const clean = scanFsUsage("import path from 'node:path';\nconst { join: j } = path;\nj('a');\n");
+  assert.equal(flagged(clean), false, 'control: destructuring path is not fs');
+
+  const destructured = scanFsUsage("import fs from 'node:fs';\nconst { readFileSync: r, statSync } = fs;\nr(p); statSync(p);\n");
+  assert.deepEqual([...destructured.names], [['readFileSync', 1], ['statSync', 1]], 'destructured fs, aliased and plain');
+
+  const unusedDestructure = scanFsUsage("import * as nodefs from 'node:fs';\nconst { rmSync } = nodefs;\n");
+  assert.ok(unusedDestructure.names.has('rmSync'), 'a destructure with no later use is still flagged');
+
+  for (const [label, line] of [
+    ["process.binding('fs')", "const b = process.binding('fs');"],
+    ["process.getBuiltinModule('fs')", "const f = process.getBuiltinModule('fs');"],
+    ["process.getBuiltinModule('node:fs/promises')", "const f = process.getBuiltinModule('node:fs/promises');"],
+    ["process['getBuiltinModule']('fs')", "const f = process['getBuiltinModule']('fs');"],
+    ["module.constructor._load('fs')", "const f = module.constructor._load('fs');"],
+  ]) {
+    const u = scanFsUsage(`${line}\n`);
+    assert.equal(u.hiddenFsCount, 1, `${label} is detected`);
+    assert.equal(flagged(u), true);
+  }
+  assert.equal(scanFsUsage("const p = process.getBuiltinModule('path');\n").hiddenFsCount, 0, 'control: a non-fs builtin is not flagged');
+  assert.equal(scanFsUsage("// process.binding('fs') in a comment\n").hiddenFsCount, 0, 'control: a comment is not code');
 });
