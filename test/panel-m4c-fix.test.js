@@ -274,6 +274,28 @@ test('item 7: a second resume of the same run has its own log — its clean exit
   }
 });
 
+// --- amendment 1 (e)(2): a new resume start deletes the previous, finished resume's log ------------
+test('amendment 1 (e)(2): starting a new resume deletes the old finished resume\'s log; the new one keeps its own', async () => {
+  const { createResumer } = await import('../src/panel/resume.js');
+  const dir = tmp('oldlog');
+  const logDir = path.join(dir, 'logs');
+  const runDir = path.join(dir, 'run');
+  mkdirSync(runDir);
+  const bin = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'scripts', 'panel-fixtures', 'panel-resume-echo-key-fail.mjs');
+  const resumer = createResumer({ root: dir, bin, logDir, windowMs: 30000, maxTries: 1, env: { PATH: process.env.PATH } });
+  const waitUntil = async (fn) => { for (let i = 0; i < 300; i += 1) { if (fn()) return; await new Promise((r) => { setTimeout(r, 20); }); } throw new Error(`timed out: ${fn}`); };
+  resumer.start({ flow: 'f', runId: 'run-1', runDir, askId: 'a1' });   // refuses (exit 1): its log is kept, finished
+  await waitUntil(() => resumer.get('f', 'run-1').state === 'stuck');
+  const first = resumer.get('f', 'run-1').logPath;
+  assert.ok(existsSync(first), 'a refusing resume keeps its log');
+  resumer.start({ flow: 'f', runId: 'run-1', runDir, askId: 'a1' });   // a new resume: the old finished one's log goes
+  await waitUntil(() => resumer.get('f', 'run-1').state === 'stuck');
+  const second = resumer.get('f', 'run-1').logPath;
+  assert.notEqual(second, first);
+  assert.equal(existsSync(first), false, 'the old finished resume\'s log is deleted when a new one starts');
+  assert.equal(existsSync(second), true, 'the new resume keeps its own log');
+});
+
 // --- negative (xi): a run from before M4c-fix renders and none of its files is rewritten ----------
 test('negative (xi): a pre-M4c-fix run is served as before and the panel rewrites none of its files (bytes and mtimes unchanged)', async () => {
   const { root } = symlinkedFlowRoot();
