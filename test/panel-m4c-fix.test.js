@@ -273,3 +273,19 @@ test('item 7: a second resume of the same run has its own log — its clean exit
     writeFileSync(releaseFile, '');
   }
 });
+
+// --- negative (xi): a run from before M4c-fix renders and none of its files is rewritten ----------
+test('negative (xi): a pre-M4c-fix run is served as before and the panel rewrites none of its files (bytes and mtimes unchanged)', async () => {
+  const { root } = symlinkedFlowRoot();
+  const runDir = path.join(root, 'ok', 'runs', 'run-1');
+  writeFileSync(path.join(runDir, 'audit.jsonl'), '');
+  writeFileSync(path.join(runDir, 'ask.json'), JSON.stringify({ askId: 'a1' }));
+  const snap = () => readdirSync(runDir).sort().map((f) => `${f}:${statSync(path.join(runDir, f)).mtimeMs}:${readFileSync(path.join(runDir, f), 'utf8')}`);
+  const before = snap();
+  const h = await start(root);
+  for (const sub of ['', '/audit', '/job', '/asks']) await rq(h.port, { url: `/api/runs/ok/run-1${sub}` });
+  await rq(h.port, { url: '/api/runs' });
+  await rq(h.port, { url: '/api/inbox' });
+  assert.equal((await rq(h.port, { url: '/api/runs/ok/run-1' })).status, 200, 'the old run still renders');
+  assert.deepEqual(snap(), before);
+});
