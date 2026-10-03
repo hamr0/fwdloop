@@ -212,7 +212,15 @@ function readSpendTotal(path) {
   let total = 0;
   for (const line of lines) {
     const row = JSON.parse(line);
-    total += row.costUsd === null || row.costUsd === undefined ? ceilingCostUsd(row.model) : row.costUsd;
+    // An incomplete row (a call died unmetered) counts its priced floor PLUS one
+    // ceiling per unmetered call — never only the floor (unknown cost is never
+    // 0). Same shape as poc/m6a/batch.mjs rowCostUsd.
+    if (row.spendComplete === false) {
+      const unmetered = Number.isInteger(row.calls) && Number.isInteger(row.rounds) ? Math.max(1, row.calls - row.rounds) : 1;
+      total += (row.costUsd ?? 0) + unmetered * ceilingCostUsd(row.model);
+    } else {
+      total += row.costUsd === null || row.costUsd === undefined ? ceilingCostUsd(row.model) : row.costUsd;
+    }
   }
   return total;
 }

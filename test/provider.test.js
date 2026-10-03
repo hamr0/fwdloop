@@ -271,3 +271,13 @@ test('makeProvider("deepseek", {thinking}) sends body.thinking verbatim', async 
   const body = await sentBody({ thinking: { type: 'disabled' } });
   assert.deepEqual(body.thinking, { type: 'disabled' });
 });
+
+// M4c-fix item 18 / negative (vii): an incomplete spend row never counts below the ceiling price.
+test('negative (vii): readSpendTotal counts a spendComplete:false row at floor + ceiling, never only its floor', () => {
+  const spendPath = tmpFile('spend.jsonl');
+  appendSpendRow(spendPath, { model: 'deepseek-flash', modelReturned: 'deepseek-flash', costUsd: 0.000001, spendComplete: false, calls: 2, rounds: 1 });
+  // floor alone (1e-6) is far under this cap; floor + one unmetered ceiling is not
+  assert.throws(() => assertUnderGlobalCap(spendPath, ceilingCostUsd('deepseek-flash') / 2), /global spend cap reached/);
+  const total = assertUnderGlobalCap(spendPath, 100);
+  assert.ok(total >= ceilingCostUsd('deepseek-flash'), `total ${total} must be at least one ceiling`);
+});
