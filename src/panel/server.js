@@ -280,10 +280,22 @@ export function handleRequest(req, res, opts) {
     }
     let size = 0;
     const parts = [];
-    req.on('data', (c) => { size += c.length; if (size <= MAX_BODY_BYTES) parts.push(c); });
+    let tooBig = false;
+    req.on('data', (c) => {
+      if (tooBig) return;
+      size += c.length;
+      if (size <= MAX_BODY_BYTES) { parts.push(c); return; }
+      // M4c-fix item 6: over the limit — stop at once. Drop what was collected, refuse (413, then the
+      // connection closes), and cut the request off; the rest of the body is never read.
+      tooBig = true;
+      parts.length = 0;
+      res.setHeader('Connection', 'close');
+      refuse(res, 413, 'body-too-large');
+      res.once('finish', () => req.destroy());
+    });
     req.on('end', () => {
       try {
-        if (size > MAX_BODY_BYTES) { refuse(res, 413, 'body-too-large'); return; }
+        if (tooBig) return;
         let body;
         try { body = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { refuse(res, 400, 'body-not-json'); return; }
         if (isResume) resumeRoute(res, body, opts.root, opts.resumer);

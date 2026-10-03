@@ -212,3 +212,36 @@ test('item 5 (v): no error body holds an absolute path — library, bad-runId, s
     await new Promise((r) => { srv.close(r); });
   }
 });
+
+// --- item 6: an over-limit body is cut off at once ------------------------------------------------
+test('item 6: a body over the limit gets 413 while the client is still sending — it is not read to its end — and the connection is cut', async () => {
+  const h = await start();
+  const r = http.request({
+    host: '127.0.0.1', port: h.port, method: 'POST', path: '/api/answer', agent: false,
+    headers: { host: `127.0.0.1:${h.port}`, origin: `http://127.0.0.1:${h.port}`, ...cookieHeader(h.port), 'content-type': 'application/json', 'transfer-encoding': 'chunked' },
+  });
+  r.on('error', () => {}); // the cut connection may surface as a reset on our side
+  try {
+    const got = await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('no 413 within 3 s: the server is still waiting for the body to end')), 3000);
+      r.on('response', (res) => {
+        const ch = [];
+        res.on('data', (c) => ch.push(c));
+        res.on('end', () => { clearTimeout(t); resolve({ status: res.statusCode, text: Buffer.concat(ch).toString('utf8'), conn: res.headers.connection }); });
+        res.on('error', () => {});
+      });
+      r.write(Buffer.alloc(20 * 1024, 120)); // past the 8 KiB limit — and the request is never ended
+    });
+    assert.equal(got.status, 413);
+    assert.equal(JSON.parse(got.text).refused, 'body-too-large');
+    assert.equal(got.conn, 'close');
+    // and the server cut the socket: it closes on our side without us ending the request
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('socket still open 3 s after the 413')), 3000);
+      if (r.socket?.destroyed) { clearTimeout(t); resolve(); return; }
+      r.socket?.once('close', () => { clearTimeout(t); resolve(); });
+    });
+  } finally {
+    r.destroy();
+  }
+});
