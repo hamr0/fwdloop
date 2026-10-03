@@ -104,3 +104,29 @@ test('item 2 (ii): writeTokenFile — dir 0700, file 0600, replaced (even a loos
   assert.throws(() => writeTokenFile({ port: 4803, token: 'd'.repeat(64), dir: link }), /not a directory owned by this user/);
   assert.equal(existsSync(path.join(real, 'panel-4803.token')), false);
 });
+
+// --- item 3: anti-frame / no-store headers on EVERY response ---------------
+test('item 3 (iii): every response — page, JSON, 404, 403, 405, 302, HEAD — carries X-Frame-Options, frame-ancestors and no-store', async () => {
+  const h = await start();
+  const own = { origin: `http://127.0.0.1:${h.port}` };
+  const cases = [
+    { url: '/' },
+    { method: 'HEAD', url: '/' },
+    { url: '/api/runs' },
+    { url: '/api/inbox' },
+    { url: '/api/runs/nope/nope' },
+    { url: '/nope' },
+    { method: 'PUT', url: '/api/answer', headers: own },
+    { method: 'POST', url: '/api/answer', headers: own, body: '{bad' },
+    { url: '/', headers: { cookie: '' } },
+    { url: `/?t=${h.token}`, headers: { cookie: '' } },
+    { url: '/', headers: { host: 'evil.example.com' } },
+  ];
+  for (const c of cases) {
+    const r = await rq(h.port, c);
+    const label = `${c.method ?? 'GET'} ${c.url} -> ${r.status}`;
+    assert.equal(r.headers['x-frame-options'], 'DENY', label);
+    assert.equal(r.headers['content-security-policy'], "frame-ancestors 'none'", label);
+    assert.equal(r.headers['cache-control'], 'no-store', label);
+  }
+});

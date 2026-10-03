@@ -205,6 +205,12 @@ function resumeRoute(res, body, root, resumer) {
 export function handleRequest(req, res, opts) {
   const method = req.method ?? 'GET';
 
+  // M4c-fix item 3: EVERY response — refusals, redirects, errors, the page — says it must not be
+  // framed or cached. Set first, before any branch can write; `writeHead` merges these in.
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+  res.setHeader('Cache-Control', 'no-store');
+
   // Gate 1 — EVERY route, every method: `Host` must be this server's own
   // address. A foreign Host (DNS rebinding) is refused by name, never 200.
   const host = req.headers.host;
