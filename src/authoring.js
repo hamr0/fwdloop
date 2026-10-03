@@ -15,7 +15,7 @@
 
 import { createHash } from 'node:crypto';
 import {
-  existsSync, mkdirSync, readFileSync, rmdirSync, writeFileSync,
+  existsSync, mkdirSync, readFileSync, realpathSync, rmdirSync, writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
 
@@ -97,10 +97,13 @@ export const costText = (n, spendComplete = true) => {
 const usd = costText;
 
 /** Plain-text readout of what the human is about to sign. Pure. */
-export function buildReadout({ declaration, arbiter, lines, name, modelId, costUsd, rounds, spendComplete }) {
+export function buildReadout({
+  declaration, arbiter, lines, name, modelId, costUsd, rounds, spendComplete, root,
+}) {
   const out = [];
   out.push(`DRAFT READOUT — NOT SIGNED — flow "${name}"`, '');
   out.push(`Drafted by: ${modelId ?? '?'} in ${rounds} round(s), cost ${usd(costUsd, spendComplete)}`);
+  if (typeof root === 'string') out.push(`Flows root: ${root}  (the flow is written to <flows root>/${name} when you sign)`);
   out.push(`Cap per run (signed by you in the prose): $${arbiter.capUsd}`, '');
   out.push('INPUTS');
   for (const s of arbiter.sources) {
@@ -128,6 +131,20 @@ export function buildReadout({ declaration, arbiter, lines, name, modelId, costU
   return `${out.join('\n')}\n`;
 }
 
+/** realpath of a path that may not exist yet: the real path of its nearest existing ancestor plus the rest. */
+function realpathOfNew(p) {
+  const rest = [];
+  let cur = path.resolve(p);
+  for (;;) {
+    try { return path.join(realpathSync(cur), ...rest.reverse()); } catch (e) {
+      const up = path.dirname(cur);
+      if (up === cur || e.code === 'EACCES') return path.resolve(p);
+      rest.push(path.basename(cur));
+      cur = up;
+    }
+  }
+}
+
 /** Read the prose file. Refuses (a red, never a throw) on unreadable or blank. */
 export function readProseFile(file) {
   let text;
@@ -153,6 +170,13 @@ export async function draftToDir({
   if (!nameCheck.ok) return refuse([nameCheck.red]);
   if (typeof root !== 'string' || root === '') return refuse(['draft: --root <flows dir> is required']);
   if (!(budgetUsd > 0)) return refuse(['draft: budget must be a positive number']);
+  // An unsigned draft folder inside the flows root would list as a flow in the panel and Inbox (checked by realpath, at use time).
+  const realRoot = realpathOfNew(root);
+  const realDir = realpathOfNew(dir);
+  const rel = path.relative(realRoot, realDir);
+  if (rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel))) {
+    return refuse([`draft: "${dir}" is inside the flows root "${root}" — an unsigned draft would show as a flow; use a --out outside the flows root`]);
+  }
   const read = readProseFile(proseFile);
   if (!read.ok) return refuse([String(read.red)]);
   const prose = { text: String(read.text) };
@@ -203,7 +227,7 @@ export async function draftToDir({
     const declarationText = scrub(dj(result.declaration), secrets);
     const inputFactsText = scrub(dj(result.declaration.inputFacts), secrets);
     const readoutText = scrub(buildReadout({
-      declaration: result.declaration, arbiter: parsed.arbiter, lines: parsed.lines, name, modelId: result.modelId, costUsd: result.costUsd, rounds: result.rounds, spendComplete: result.spendComplete,
+      declaration: result.declaration, arbiter: parsed.arbiter, lines: parsed.lines, name, modelId: result.modelId, costUsd: result.costUsd, rounds: result.rounds, spendComplete: result.spendComplete, root,
     }), secrets);
     files['declaration.json'] = declarationText;
     files['input-facts.json'] = inputFactsText;
