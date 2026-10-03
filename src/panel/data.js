@@ -36,7 +36,7 @@ import {
   runLiveness, booksFresh, readResumeLock, LOCK_NO_HOLDER,
 } from '../liveness.js';
 import {
-  readAskEvidence, listArchivedAsks, normalizeDecision, DECISION_STATUS, answerTiming,
+  readAskEvidence, listArchivedAsks, normalizeDecision, DECISION_STATUS, decisionStatus, answerTiming,
 } from '../ask.js';
 
 /** `{ ok:false, red }` result shape every exported function here can return
@@ -1605,7 +1605,7 @@ function legacyRunAsks(runDir, hasHistoryRow) {
       questionWhy: 'question not kept (before M4a-1)',
       askedAt: null,
       expiresAt: null,
-      status: DECISION_STATUS[normalizeDecision(parsed.decision)] ?? `unrecognised: ${parsed.decision}`,
+      status: decisionStatus(parsed.decision) ?? `unrecognised: ${parsed.decision}`,
       reason: typeof parsed.reason === 'string' ? parsed.reason : null,
       answeredAt: typeof parsed.answeredAt === 'string' ? parsed.answeredAt : null,
       archived: false,

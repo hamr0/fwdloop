@@ -1768,6 +1768,10 @@ export async function resumeRun({
     } catch (err) {
       return { outcome: 'refused', red: `resume: answer.json for run "${runId}" is not valid JSON — ${err.message}` };
     }
+    // Valid JSON that is not an object (`null`, a number, a string, an array) has no askId to read: refused by name.
+    if (answer === null || typeof answer !== 'object' || Array.isArray(answer)) {
+      return { outcome: 'refused', red: `resume: answer.json for run "${runId}" is not a JSON object (it holds ${answer === null ? 'null' : Array.isArray(answer) ? 'an array' : `a ${typeof answer}`})` };
+    }
     // M4b amendment 3: a consumed/saved answer that says `reject` (an older
     // version's file) is read as `redo`; the file on disk is never rewritten.
     answer = { ...answer, decision: normalizeDecision(answer.decision) };

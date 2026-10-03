@@ -70,6 +70,13 @@ export function stripControl(text) {
  *  Look it up with `normalizeDecision(decision)`. */
 export const DECISION_STATUS = { accept: 'accepted', redo: 'redo', rerun: 'reran' };
 
+/** The status for a decision word read from disk, or undefined for anything that is not one of the table's OWN
+ *  entries ("constructor", "toString" and the rest of Object.prototype read as unrecognised). */
+export function decisionStatus(decision) {
+  const word = normalizeDecision(decision);
+  return typeof word === 'string' && Object.hasOwn(DECISION_STATUS, word) ? DECISION_STATUS[word] : undefined;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => { setTimeout(resolve, ms); });
 }
@@ -546,7 +553,7 @@ export function listArchivedAsks(runDir) {
       try {
         parsed = JSON.parse(consumedRead.text);
         answer = {
-          status: DECISION_STATUS[normalizeDecision(parsed.decision)] ?? `unrecognised: ${parsed.decision}`,
+          status: decisionStatus(parsed.decision) ?? `unrecognised: ${parsed.decision}`,
           answeredAt: parsed.answeredAt,
         };
         if (typeof parsed.reason === 'string') answer.reason = parsed.reason;
