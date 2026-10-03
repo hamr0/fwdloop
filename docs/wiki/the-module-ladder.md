@@ -1094,7 +1094,7 @@ Numbers are from the books on disk under `flows/job2-m6a-2/` (times UTC).
 
 Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 
-#### M4c-fix — clean the fix list before M4d — DRAFT, NOT SIGNED
+#### M4c-fix — clean the fix list before M4d — SIGNED by hamr 2026-10-03 ("sign m4c fix")
 
 - **Why:** hamr 2026-10-03: "we have to clean all before we move to m4d". The fix list (`.claude/remember/fix-ledger.md`) holds the reviews' unfixed findings from M2–M4c. hamr's 2026-10-02 triage grouped them into three plans; the rest are folded in here so M4d starts clean.
 - **Rulings hamr gave at drafting (2026-10-03):**
@@ -1114,7 +1114,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **B. Small crash and leak fixes:**
     8. `fwdloop show` strips terminal control codes (keeps new lines and tabs) from model text before printing.
     9. An `answer.json` that is not an object (e.g. `null`) is refused by name, never a crash.
-    10. `fwdloop draft --out` must be outside the flows root's flow list (an unsigned draft never shows as a flow); the readout names the flows root.
+    10. An unsigned draft folder never shows up as a flow in the panel or Inbox (`fwdloop draft --out` inside the flows root is refused by name); the readout names the flows root.
     11. A drafter's red message is scrubbed of the key before it is printed.
     12. Answer words are looked up only as real entries ("constructor" or "toString" read as unrecognised), in `src/ask.js` and `src/panel/data.js`.
     13. A model-step key red records a valid audit row even when a model is named.
