@@ -32,7 +32,7 @@ import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
 import { checkKeyPreflight } from '../src/provider.js';
 import {
-  answerAsk, readAskEvidence, normalizeDecision, stripControl,
+  answerAsk, readAskEvidence, normalizeDecision, stripControl, withReopen,
 } from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
@@ -290,7 +290,7 @@ function cmdInbox(rest) {
       if (!askRead.ok) continue; // eslint-disable-line no-continue -- missing (or refused) ask.json: nothing to show
       let ask;
       try {
-        ask = JSON.parse(askRead.text);
+        ask = withReopen(runDir, JSON.parse(askRead.text)); // the effective deadline (a reopened ask's new one)
       } catch (err) {
         // A malformed/unparseable ask.json must never crash inbox — show it
         // naming the run as unreadable and move on to the next one.
@@ -383,7 +383,7 @@ function cmdShow(rest) {
   }
   let ask;
   try {
-    ask = JSON.parse(askRead.text);
+    ask = withReopen(runDir, JSON.parse(askRead.text)); // the effective deadline (a reopened ask's new one)
   } catch (err) {
     fail(`show: ask.json for askId "${askId}" is not valid JSON — ${err.message}`);
     return;

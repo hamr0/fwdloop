@@ -2026,7 +2026,7 @@ describe('index.html — page source', () => {
     }
   });
 
-  test('M4b: the only non-GET fetches on the page are POST /api/answer and POST /api/resume, both through postJSON', () => {
+  test('M4b: the only non-GET fetches on the page are POST /api/answer, POST /api/reopen and POST /api/resume, all through postJSON', () => {
     const code = stripComments(source);
     // Every fetch( call: its first argument and its options.
     const calls = [...code.matchAll(/fetch\(([^,]+),\s*\{([\s\S]*?)\}\)\.then/g)];
@@ -2039,7 +2039,7 @@ describe('index.html — page source', () => {
     assert.doesNotMatch(code, /XMLHttpRequest|sendBeacon/);
     // postJSON is called with exactly two paths.
     const postPaths = [...code.matchAll(/postJSON\(\s*"([^"]+)"/g)].map((m) => m[1]).sort();
-    assert.deepEqual(postPaths, ['/api/answer', '/api/resume']);
+    assert.deepEqual(postPaths, ['/api/answer', '/api/reopen', '/api/resume']);
   });
 
   test('M4c-fix item 2: the page carries no token — no TOKEN variable, no token header, never a URL, storage, or a log', () => {
@@ -2577,8 +2577,8 @@ describe('index.html — page source', () => {
     const fnEnd = source.indexOf('function renderAskEvidenceBlock(');
     assert.ok(fnStart > 0 && fnEnd > fnStart);
     const block = stripComments(source.slice(fnStart, fnEnd));
-    const buttons = [...block.matchAll(/makeButton\((?:isLate \? "[^"]+" : )?"([^"]+)",\s*"([^"]+)"/g)].map((m) => m[2]);
-    assert.deepEqual(buttons, ['btn-accept', 'btn-redo', 'btn-rerun', 'btn-resume-again']);
+    const buttons = [...block.matchAll(/makeButton\(.*?,\s*"(btn-[a-z-]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(buttons, ['btn-accept', 'btn-redo', 'btn-rerun', 'btn-reopen', 'btn-resume-again']);
     // the reason box is a real, labelled textarea.
     assert.match(block, /createElement\("textarea"\)/);
     assert.match(block, /lab\.setAttribute\("for", idSafe\)/);

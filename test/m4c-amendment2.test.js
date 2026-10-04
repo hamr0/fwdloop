@@ -251,7 +251,7 @@ test('(c) a stuck Inbox card has the [II] sign and opens the Ask tab, whose stuc
   assert.match(PAGE, /if\(row\.stuck\) return row\.stuckLabel;/);
   assert.match(PAGE, /selectRun\(row\.flow, row\.runId, wrap, "\.inbox-row", row\.askId\);\s*document\.getElementById\("tab-ask"\)\.click\(\);/);
   assert.match(PAGE, /resume\.state === "not-started"\)\{\s*return \{ kind: "stuck"/);
-  assert.match(PAGE, /makeButton\(isLate \? "Resume — record the expiry" : "Try the resume again", "btn-resume-again"/);
+  assert.match(PAGE, /makeButton\("Try the resume again", "btn-resume-again"/);
   assert.match(PAGE, /\.dot\.stuck::before\{content:"\[II\]"/);
   assert.match(PAGE, /if\(g === "\[II\]"\) return "stuck";/);
   // reduced motion keeps the sign, drops only the pulse (the one existing rule covers [II])

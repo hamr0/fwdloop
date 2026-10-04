@@ -16,7 +16,7 @@ import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { listArchivedAsks, answerAsk } from '../src/ask.js';
 import {
-  getRunAsks, listRuns, listStops, stuckState, STUCK_LABEL, STUCK_LOCK_LABEL, BROKEN_LABEL, LATE_LABEL,
+  getRunAsks, listRuns, listStops, stuckState, STUCK_LABEL, STUCK_LOCK_LABEL, BROKEN_LABEL,
 } from '../src/panel/data.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -235,31 +235,26 @@ test('amendment 1 (a): within the watch, a saved answer found broken ends the "w
   assert.equal(liveOutcome('a1', { glyph: '[·]' }, { asks: [], resume: { state: 'took-over', label: 'x' } }).done, false);
 });
 
-test('item 17: an answer saved after the deadline is offered the resume (which records the expiry and ends the run), not left with no action', () => {
+test('item 17 (replaced by amendment 1 (b)): a late saved answer reads as none and offers the reopen, never the resume that records the expiry', () => {
   const { root, runDir, askId } = stuckJob2('i17');
   for (const f of [path.join(runDir, 'ask.json'), path.join(runDir, 'asks', `${askId}.json`), path.join(runDir, 'state.json')]) {
     const j = JSON.parse(readFileSync(f, 'utf8'));
     j.expiresAt = '2020-01-02T00:00:00.000Z';
+    if ('askedAt' in j) j.askedAt = '2020-01-01T23:30:00.000Z'; // a 30 min signed wait
     writeFileSync(f, JSON.stringify(j));
   }
   answerFile(runDir, (a) => { a.answeredAt = '2020-01-03T00:00:00.000Z'; });
   const tab = tabOf(root);
-  assert.equal(tab.resume.state, 'late');
-  assert.equal(tab.resume.label, LATE_LABEL);
+  assert.equal(tab.resume, null, 'a late saved answer is not a resumable answer');
   assert.equal(rowOf(root).glyph, '[!]', 'the run still reads [!] expired');
   assert.equal(stopOf(root).stuck, false);
-  // the page turns that into a resume button, not "none"
+  const ask = tab.asks.find((a) => a.askId === askId);
+  assert.equal(ask.reopen && ask.reopen.waitMs, 1_800_000, 'the expired ask offers the reopen with the signed wait');
   const start = page.indexOf('function answerControls(');
   const src = page.slice(start, page.indexOf('\n  }', start) + 4);
   const answerControls = new Function('pendingText', `${src}; return answerControls;`)(() => '');
-  const ask = tab.asks.find((a) => a.askId === askId);
-  assert.equal(answerControls(ask, tab.resume, null).kind, 'late');
-  assert.match(page, /isLate \? "Resume — record the expiry"/);
-  // what the button does: the resume records the expiry and ends the run
-  const r = cliRaw(['resume', 'run-1', '--flow', 'job2', '--root', root]);
-  assert.match(r.stderr, /ask-expired — run cancelled/);
-  const hist = readFileSync(path.join(root, 'job2', 'history.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-  assert.ok(hist.some((h) => h.runId === 'run-1' && h.outcome === 'ask-expired'));
+  assert.equal(answerControls(ask, tab.resume, null).kind, 'expired');
+  assert.doesNotMatch(page, /Resume — record the expiry/);
 });
 
 test('item 12 follow-up: a consumed-answer marker holding `null` is skipped by the panel, never a crash', () => {

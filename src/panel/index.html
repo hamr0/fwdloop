@@ -725,6 +725,14 @@
     if(rem === 60){ m += 1; rem = 0; }
     return m + "m" + String(rem).padStart(2, "0") + "s";
   }
+  // A signed wait in words: "30 min", "2 h"; anything not a whole minute falls back to `duration`.
+  function waitText(ms){
+    if(typeof ms !== "number" || !(ms > 0)) return "unknown";
+    var m = ms / 60000;
+    if(m >= 60 && m % 60 === 0) return (m / 60) + " h";
+    if(m >= 1 && Number.isInteger(m)) return m + " min";
+    return duration(ms);
+  }
   // A readable local date/time instead of a raw ISO timestamp (fix #5) — an
   // unparseable value still shows the raw string (never blank/nothing), so
   // a books bug is visible rather than silently swallowed.
@@ -2491,9 +2499,9 @@
     if(pending && ask && pending.askId === ask.askId){
       return { kind: "working", text: pendingText(pending), why: "no answer doors: the answer was sent" };
     }
-    // M4c-fix 17: an answer saved after the deadline cannot be carried on, but the resume that records the expiry is offered.
-    if(resume && resume.state === "late" && ask && resume.askId === ask.askId){
-      return { kind: "late", label: resume.label, reason: resume.reason || null, why: "no answer doors: the answer was saved after the deadline" };
+    // amendment 1 (b): an expired ask offers one human action, the reopen (never an answer word)
+    if(ask && !ask.open && ask.reopen){
+      return { kind: "expired", waitMs: ask.reopen.waitMs, why: "no answer doors: this ask expired — reopen it to answer" };
     }
     if(!ask || !ask.open){
       return { kind: "none", why: "no answer doors: this ask is " + ((ask && ask.status) || "closed") + " — there is nothing left to answer" };
@@ -2589,6 +2597,22 @@
       return reloadRun(ctx.flow, ctx.runId);
     }).then(function(){ if(root.isConnected) setBusy(root, false); });
   }
+  function sendReopen(root, ctx, askId){
+    say(ctx.flow, ctx.runId, "info", "reopening…");
+    setBusy(root, true);
+    postJSON("/api/reopen", { flow: ctx.flow, runId: ctx.runId, askId: askId }).then(function(r){
+      if(r.status === 200 && r.body && r.body.ok){
+        say(ctx.flow, ctx.runId, "info", "reopened — a fresh window until " + (readableDateTime(r.body.expiresAt) || r.body.expiresAt)
+          + (r.body.setAside ? "; the late answer is kept aside as " + r.body.setAside : ""));
+      } else {
+        say(ctx.flow, ctx.runId, "refused", refusalText(r));
+      }
+      return reloadRun(ctx.flow, ctx.runId);
+    }).catch(function(e){
+      say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown in the ask header above");
+      return reloadRun(ctx.flow, ctx.runId);
+    }).then(function(){ if(root.isConnected) setBusy(root, false); });
+  }
   function makeButton(label, testid, onClick){
     var b = document.createElement("button");
     b.type = "button";
@@ -2641,18 +2665,22 @@
       root.appendChild(wk);
     } else if(model.kind === "starting"){
       root.appendChild(textDiv("hint", model.label + " — " + model.why));
-    } else if(model.kind === "stuck" || model.kind === "late"){
-      // stuck: an answer is saved and no resume took it. late (M4c-fix 17): it was saved after the deadline, so the resume
-      // that is offered records the expiry and ends the run. Same POST, same button; only the words differ.
-      var isLate = model.kind === "late";
+    } else if(model.kind === "expired"){
+      // [!] expired: the time ran out. One button, the human's: a fresh window of the same signed length on the same draft.
+      root.appendChild(textDiv("answer-msg stuck", "[!] expired — the time to answer ran out"));
+      var bar3 = document.createElement("div");
+      bar3.className = "actions-row";
+      bar3.appendChild(makeButton("Reopen for another " + waitText(model.waitMs), "btn-reopen", function(){ sendReopen(root, ctx, ask.askId); }));
+      root.appendChild(bar3);
+      root.appendChild(textDiv("hint", "reopening starts a new window of the same length on this same draft; the signed wait does not change"));
+    } else if(model.kind === "stuck"){
+      // stuck: an answer is saved and no resume took it.
       root.appendChild(textDiv("answer-msg stuck", model.label + (model.reason ? ": " + model.reason : "")));
       if(model.lockPath) root.appendChild(textDiv("hint", "lock file: " + model.lockPath));
-      root.appendChild(textDiv("hint", model.why + (isLate
-        ? ". Resuming records that the ask expired and ends this run; it cannot apply the answer."
-        : ". Trying again starts a resume only; it cannot answer.")));
+      root.appendChild(textDiv("hint", model.why + ". Trying again starts a resume only; it cannot answer."));
       var bar2 = document.createElement("div");
       bar2.className = "actions-row";
-      bar2.appendChild(makeButton(isLate ? "Resume — record the expiry" : "Try the resume again", "btn-resume-again", function(){ sendResumeAgain(root, ctx, ask.askId); }));
+      bar2.appendChild(makeButton("Try the resume again", "btn-resume-again", function(){ sendResumeAgain(root, ctx, ask.askId); }));
       root.appendChild(bar2);
     } else {
       root.appendChild(textDiv("hint", model.why));

@@ -49,7 +49,7 @@ import {
   readFlow, resolveRunDir, readFileInside, resolveInside,
 } from './flow.js';
 import {
-  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming,
+  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen,
 } from './ask.js';
 import { WIRED_VERBS } from './primitives.js';
 import { closeByClass } from './closers.js';
@@ -1800,7 +1800,7 @@ export async function resumeRun({
 
     // M4c amendment 3: an answer's saved time, never the restart's clock, says whether it was on time. A missing or
     // unreadable one is refused by name here, before the consume, so the answer stays replayable.
-    const timing = answerTiming(answer.answeredAt, state.expiresAt);
+    const timing = answerTiming(answer.answeredAt, effectiveExpiresAt(runDir, state.askId, state.expiresAt));
     if (timing === 'unreadable') {
       return { outcome: 'refused', red: `resume: answer.json for run "${runId}" has a missing or unreadable answeredAt ("${answer.answeredAt}") — refusing rather than treating it as on time` };
     }
@@ -2097,7 +2097,8 @@ export function readRunState(runDir) {
 export function readAsk(runDir) {
   const result = readFileInside(runDir, 'ask.json');
   if (!result.ok) return null;
-  try { return JSON.parse(result.text); } catch { return null; }
+  // The deadline every reader sees is the effective one (`withReopen`: a reopened ask's new deadline).
+  try { return withReopen(runDir, JSON.parse(result.text)); } catch { return null; }
 }
 
 /**

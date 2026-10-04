@@ -163,17 +163,16 @@ export const RESUME_REASON_UNKNOWN = 'reason unknown: the panel restarted, so it
  * unconsumed. From the panel's in-memory attempt record (`attempt`, may be
  * null): whether a resume is still being started, and the resume's own refusal.
  * `null` when there is nothing to say (no saved answer and no attempt).
- * M4c amendment 3: `ask` (the run's open `ask.json`, may be null). M4c-fix 17: a saved answer for that ask
- * whose own time is after the deadline reads `late` (the resume records the expiry and ends the run); one
- * with no readable time reads `broken` (amendment 1 (a)).
+ * M4c amendment 3: `ask` (the run's open `ask.json`, may be null; its `expiresAt` is the effective deadline). A saved
+ * answer for that ask that was NOT saved in time, once the deadline has passed, is not a resumable answer: it reads
+ * as none, so the ask is expired and offers the reopen (M4c-fix amendment 1 (b)). One with no readable time, before
+ * the deadline, reads `broken` (amendment 1 (a)).
  * @param {{savedAnswer: {askId:string, decision:string|null, answeredAt?:string|null}|null, attempt: any, ask?: any}} ctx
- * @returns {{state: 'starting'|'not-started'|'late'|'broken'|'took-over', askId: string|null, tries: number|null, maxTries: number|null, reason: string|null, label: string}|null}
+ * @returns {{state: 'starting'|'not-started'|'broken'|'took-over', askId: string|null, tries: number|null, maxTries: number|null, reason: string|null, label: string}|null}
  */
 export function deriveResumeState({ savedAnswer: saved, attempt, ask = null }) {
-  // M4c-fix 17: a saved answer whose own time is after the deadline is not dropped — it reads `late`, so the
-  // panel offers the resume, which records the expiry and ends the run (src/runner.js, `timing === 'late'`).
-  const late = !!(ask && saved && ask.askId === saved.askId && Date.parse(ask.expiresAt) < Date.now()
-    && answerTiming(saved.answeredAt, ask.expiresAt) === 'late');
+  const pastDeadline = !!(ask && saved && ask.askId === saved.askId && Date.parse(ask.expiresAt) < Date.now());
+  if (saved && pastDeadline && answerTiming(saved.answeredAt, ask.expiresAt) !== 'on-time') return null;
   const tries = attempt ? attempt.tries : null;
   const maxTries = attempt ? attempt.maxTries : null;
   if (saved) {
@@ -190,19 +189,12 @@ export function deriveResumeState({ savedAnswer: saved, attempt, ask = null }) {
       };
     }
     const mine = attempt && attempt.askId === saved.askId;
-    const refusal = mine && typeof attempt.refusal === 'string' && attempt.refusal.length > 0 ? attempt.refusal : null;
-    const reason = refusal ?? RESUME_REASON_UNKNOWN;
-    if (late) {
-      return {
-        state: 'late', askId: saved.askId, tries: mine ? tries : null, maxTries: mine ? maxTries : null, reason: refusal, label: LATE_LABEL,
-      };
-    }
     return {
       state: 'not-started',
       askId: saved.askId,
       tries: mine ? tries : null,
       maxTries: mine ? maxTries : null,
-      reason,
+      reason: mine && typeof attempt.refusal === 'string' && attempt.refusal.length > 0 ? attempt.refusal : RESUME_REASON_UNKNOWN,
       label: 'answer saved, resume not started',
     };
   }
@@ -219,7 +211,6 @@ export const STUCK_LABEL = 'stuck — answer saved, click try the resume again';
 export const STUCK_LOCK_LABEL = 'stuck — remove the old resume lock by hand, then try again';
 export const BROKEN_LABEL = 'your saved answer is broken';
 export const BROKEN_ANSWER_WHY = 'it has no readable saved time, so no resume can take it; answer again — the broken one is kept aside as a record';
-export const LATE_LABEL = 'answer saved after the deadline — resume to record that the ask expired';
 export const CRASHED_LABEL = 'crashed after taking your answer — start a fresh run';
 
 /** The typed reasons a stuck run can have. `retry`: nothing is wrong that the books name, so trying again is the
@@ -335,6 +326,8 @@ export function computeGlyph({
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
     // M4b amendment 3: a run the human ended on purpose with rerun is not a failure.
     if (historyRow.outcome === 'rerun') return { glyph: '[✗]', label: 'stopped by you (rerun), a fresh run was started' };
+    // M4c-fix amendment 1 (c): a run ended because its ask expired is `[!]` expired, never failed (it spent nothing more).
+    if (historyRow.outcome === 'ask-expired') return { glyph: '[!]', label: 'ask expired — nobody answered in time' };
     return { glyph: '[✗]', label: `failed (${historyRow.outcome ?? 'unknown outcome'})` };
   }
   if (askJson && resume && resume.state === 'starting') {
@@ -351,7 +344,7 @@ export function computeGlyph({
   if (askJson && !consumedAnswerExists) {
     const expiresMs = typeof askJson.expiresAt === 'string' ? Date.parse(askJson.expiresAt) : NaN;
     if (Number.isFinite(expiresMs) && Date.now() > expiresMs) {
-      return { glyph: '[!]', label: resume?.state === 'late' ? resume.label : 'ask expired, not resumed yet' };
+      return { glyph: '[!]', label: 'ask expired, not resumed yet' };
     }
     return { glyph: '[·]', label: WAITING_LABEL };
   }
@@ -1547,6 +1540,21 @@ function deriveAskOpenFields(ask, hasHistoryRow, resume = null) {
 }
 
 /**
+ * M4c-fix amendment 1 (b): does this ask offer the human's "Reopen"? Only the run's current open ask (`ask.json`),
+ * only once its deadline has passed with no usable answer waiting (`resume` is null for it: a late or unreadable saved
+ * answer reads as none, an in-time one is resumed, not reopened), only while the run has not ended. `waitMs` is the
+ * signed wait it repeats. The Run's end row is the caller's `openAskJson === null`.
+ * @param {any} ask one row from `runAsksInOrder` @param {any} openAskJson `readAsk` of the run, or null (ended)
+ * @param {any} resume the run's `deriveResumeState`
+ * @returns {{waitMs: number}|null}
+ */
+function reopenOffer(ask, openAskJson, resume) {
+  if (!openAskJson || openAskJson.askId !== ask.askId || ask.status !== 'expired') return null;
+  if (resume && resume.askId === ask.askId && (resume.state === 'starting' || resume.state === 'not-started')) return null;
+  return Number.isFinite(openAskJson.waitMs) ? { waitMs: openAskJson.waitMs } : null;
+}
+
+/**
  * `readAskEvidence`'s own return shape (`src/ask.js`) carries the draft as
  * `{ text: string } | null` (never a bare string) so a caller can tell "no
  * draft" apart from "a draft with an empty string" — this panel's UI wants
@@ -1882,9 +1890,11 @@ export function getRunAsks({
       runStuckNow = true;
     }
   }
+  const openAskJson = hasHistoryRow ? null : readAsk(run.runDir);
   const asks = ordered.map((ask, i) => ({
     ...ask,
     ...deriveAskOpenFields(ask, hasHistoryRow, resume),
+    reopen: reopenOffer(ask, openAskJson, resume),
     stuck: runStuckNow && resume?.askId === ask.askId,
     index: i + 1,
     total: ordered.length,

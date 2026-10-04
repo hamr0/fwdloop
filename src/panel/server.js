@@ -28,7 +28,8 @@
 // nothing new. The writes are `POST /api/answer`, a thin client of the
 // library's `answerAsk` (the panel is never a second arbiter), and
 // `POST /api/resume`, which only re-starts a resume for a run that already has
-// a saved, unconsumed answer. Both are refused by name unless the request is
+// a saved, unconsumed answer. M4c-fix amendment 1 adds `POST /api/reopen`, the human's one button on an expired ask
+// (`reopenAsk`, `src/ask.js`). All three are refused by name unless the request is
 // a real click from the served page — own `Host` and `Origin`, the per-process
 // token (embedded only in the served page), a small JSON body. An answer must
 // name its `askId`. `Host` is checked on EVERY route, GET included
@@ -55,7 +56,8 @@ import path, { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadCatalogue } from '../catalogue.js';
-import { answerAsk, normalizeDecision } from '../ask.js';
+import { answerAsk, reopenAsk, normalizeDecision } from '../ask.js';
+import { readHistory } from '../books.js';
 import { resolveRunDir } from '../flow.js';
 import { readAsk } from '../runner.js';
 import {
@@ -217,6 +219,37 @@ function answerRoute(res, body, root, resumer) {
 }
 
 /**
+ * `POST /api/reopen` — runs after the same gates as the answer (cookie, own Host, own Origin). The human's
+ * "Reopen for another <wait>" on an expired ask (M4c-fix amendment 1 (b)): `reopenAsk` writes the reopen record
+ * (a fresh window of the same signed length, on the same ask) and moves a late answer aside. Nothing else reopens:
+ * no runner or agent path calls it. Refused 409 while a resume of the run is alive, and for a run that has ended.
+ * @param {any} res @param {any} body @param {string} root @param {ReturnType<typeof createResumer>} resumer
+ */
+function reopenRoute(res, body, root, resumer) {
+  const b = body !== null && typeof body === 'object' ? body : {};
+  const { flow, runId, askId } = b;
+  if (typeof askId !== 'string' || askId.length === 0) {
+    refuse(res, 400, 'askid-required', 'a reopen must name the askId the page was showing');
+    return;
+  }
+  const runDir = resolveRun(res, root, flow, runId);
+  if (runDir === null) return;
+  if (resumer.busy(flow, runId)) { refuseBusy(res); return; }
+  if (readHistory(dirname(dirname(runDir))).some((r) => r && r.runId === runId)) {
+    refuse(res, 409, 'run-ended', 'this run has ended — there is nothing to reopen');
+    return;
+  }
+  const result = reopenAsk({ runDir, askId, by: 'human via panel' });
+  if (!result.ok) {
+    sendJson(res, 409, { ok: false, refused: 'library', red: cleanPaths(result.red, root) });
+    return;
+  }
+  sendJson(res, 200, {
+    ok: true, reopened: true, askId, expiresAt: result.expiresAt, n: result.n, setAside: result.setAside,
+  });
+}
+
+/**
  * `POST /api/resume` — runs after the same gates as the answer. Starts a
  * resume ONLY for a run that has a saved, unconsumed answer; it takes no
  * decision or reason and can answer nothing. Same start path as the answer.
@@ -285,8 +318,9 @@ export function handleRequest(req, res, opts) {
     return;
   }
 
-  if (method === 'POST' && (req.url === '/api/answer' || req.url === '/api/resume')) {
+  if (method === 'POST' && (req.url === '/api/answer' || req.url === '/api/resume' || req.url === '/api/reopen')) {
     const isResume = req.url === '/api/resume';
+    const isReopen = req.url === '/api/reopen';
     const origin = req.headers.origin;
     if (origin !== `http://127.0.0.1:${opts.port}` && origin !== `http://localhost:${opts.port}`) {
       refuse(res, 403, 'origin-not-own', String(origin));
@@ -313,6 +347,7 @@ export function handleRequest(req, res, opts) {
         let body;
         try { body = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { refuse(res, 400, 'body-not-json'); return; }
         if (isResume) resumeRoute(res, body, opts.root, opts.resumer);
+        else if (isReopen) reopenRoute(res, body, opts.root, opts.resumer);
         else answerRoute(res, body, opts.root, opts.resumer);
       } catch (e) {
         sendJson(res, 500, { ok: false, refused: 'internal', red: 'internal error' });
@@ -322,7 +357,7 @@ export function handleRequest(req, res, opts) {
   }
 
   if (method !== 'GET' && method !== 'HEAD') {
-    sendText(res, 405, 'method not allowed — GET/HEAD for reads; the only writes are POST /api/answer and POST /api/resume');
+    sendText(res, 405, 'method not allowed — GET/HEAD for reads; the only writes are POST /api/answer, POST /api/resume and POST /api/reopen');
     return;
   }
 
