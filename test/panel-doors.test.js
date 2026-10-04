@@ -36,15 +36,15 @@ test('doors: an open ask with no saved answer gets the three doors', () => {
 test('doors: a saved answer for this ask (resume starting) shows NO doors and says why', () => {
   const r = answerControls(openAsk, { askId: 'a1', state: 'starting', label: 'answer saved, resume starting' });
   assert.equal(r.kind, 'starting');
-  assert.match(r.why, /already has a saved answer/);
+  assert.equal(r.text, 'Your answer is saved; the run is starting up.');
 });
 
-test('doors: resume not-started shows the stuck state with the reason verbatim (try-again only, no doors)', () => {
+test('doors: resume not-started shows the stuck state (one button, no doors, no raw reason)', () => {
   const reason = 'resume: run "run-1" is locked by another resumer';
   const r = answerControls(openAsk, { askId: 'a1', state: 'not-started', label: 'answer saved, resume not started', reason });
   assert.equal(r.kind, 'stuck');
-  assert.equal(r.reason, reason);
-  assert.equal(r.label, 'answer saved, resume not started');
+  assert.equal(r.lockPath, null);
+  assert.equal('reason' in r, false, 'no raw refusal text is carried to the page');
 });
 
 test('doors: no ask / a closed ask -> no controls, with the reason stated', () => {
@@ -53,9 +53,9 @@ test('doors: no ask / a closed ask -> no controls, with the reason stated', () =
   assert.match(none.why, /nothing left to answer/);
   const closed = answerControls({ askId: 'a1', open: false, status: 'accepted' }, null);
   assert.equal(closed.kind, 'none');
-  assert.match(closed.why, /this ask is accepted/);
+  assert.match(closed.why, /This ask is accepted\./);
   const expired = answerControls({ askId: 'a1', open: false, status: 'expired' }, null);
-  assert.match(expired.why, /this ask is expired/);
+  assert.match(expired.why, /This ask is expired\./);
 });
 
 test('doors: try-again is offered ONLY for not-started (never for doors/starting/none)', () => {

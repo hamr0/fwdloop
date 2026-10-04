@@ -207,10 +207,10 @@ export function deriveResumeState({ savedAnswer: saved, attempt, ask = null }) {
 }
 
 export const WAITING_LABEL = 'waiting on you (parked, unanswered)';
-export const STUCK_LABEL = 'stuck — answer saved, click try the resume again';
-export const STUCK_LOCK_LABEL = 'stuck — remove the old resume lock by hand, then try again';
-export const BROKEN_LABEL = 'your saved answer is broken';
-export const BROKEN_ANSWER_WHY = 'it has no readable saved time, so no resume can take it; answer again — the broken one is kept aside as a record';
+export const STUCK_LABEL = 'stuck — your answer is saved; the run stopped before using it';
+export const STUCK_LOCK_LABEL = 'stuck — an old resume lock is in the way';
+export const BROKEN_LABEL = 'Your saved answer could not be read.';
+export const BROKEN_ANSWER_WHY = 'Please answer again; the broken one is kept aside.';
 export const CRASHED_LABEL = 'crashed after taking your answer — start a fresh run';
 
 /** The typed reasons a stuck run can have. `retry`: nothing is wrong that the books name, so trying again is the
@@ -1548,10 +1548,11 @@ function deriveAskOpenFields(ask, hasHistoryRow, resume = null) {
  * @param {any} resume the run's `deriveResumeState`
  * @returns {{waitMs: number}|null}
  */
-function reopenOffer(ask, openAskJson, resume) {
+function reopenOffer(ask, openAskJson, resume, lateAnswerSaved = false) {
   if (!openAskJson || openAskJson.askId !== ask.askId || ask.status !== 'expired') return null;
   if (resume && resume.askId === ask.askId && (resume.state === 'starting' || resume.state === 'not-started')) return null;
-  return Number.isFinite(openAskJson.waitMs) ? { waitMs: openAskJson.waitMs } : null;
+  // `late`: an answer was saved but came after the deadline (the page says so, instead of "nobody answered")
+  return Number.isFinite(openAskJson.waitMs) ? { waitMs: openAskJson.waitMs, late: lateAnswerSaved } : null;
 }
 
 /**
@@ -1905,7 +1906,7 @@ export function getRunAsks({
   const asks = ordered.map((ask, i) => ({
     ...ask,
     ...deriveAskOpenFields(ask, hasHistoryRow, resume),
-    reopen: reopenOffer(ask, openAskJson, resume),
+    reopen: reopenOffer(ask, openAskJson, resume, readSavedAnswer(run.runDir)?.askId === ask.askId),
     stuck: runStuckNow && resume?.askId === ask.askId,
     index: i + 1,
     total: ordered.length,

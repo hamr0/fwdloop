@@ -4,8 +4,8 @@
 //   usage: node scripts/panel-fixtures/walk-root.mjs [<root-dir>] [<port>]
 // Builds job2 with these runs (the last three are M4c-fix amendment 1: expired asks):
 //   run-open   parked at an open ask      -> the three doors
-//   run-stuck  answer saved, resume.lock left by a DEAD holder -> [II] stuck, pulsing; try-again clears it
-//   run-stuck-empty  answer saved, EMPTY resume.lock (pre-amendment) -> [II] stuck; try-again refuses by name
+//   run-stuck  answer saved, resume.lock left by a DEAD holder -> [II] stuck, pulsing; Continue the run clears it
+//   run-stuck-empty  answer saved, EMPTY resume.lock (pre-amendment) -> [II] stuck; Continue the run refuses by name
 //   run-done   accepted and completed      -> [✓] and the sent artifact in the Run tab
 // and prints the exact command to start the panel on it.
 import { mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
@@ -105,8 +105,8 @@ expire('run-expired', park('run-expired'));
 
 process.stdout.write(`root: ${root}
   run-open   open ask, three doors
-  run-stuck  answer saved, resume.lock names a dead holder ("try the resume again" clears it and resumes)
-  run-stuck-empty  answer saved, empty resume.lock ("try the resume again" refuses by name; rm ${path.join(root, 'job2', 'runs', 'run-stuck-empty', 'resume.lock')} by hand)
+  run-stuck  answer saved, resume.lock names a dead holder ("Continue the run" clears it and resumes)
+  run-stuck-empty  answer saved, empty resume.lock ("Continue the run" refuses by name; rm ${path.join(root, 'job2', 'runs', 'run-stuck-empty', 'resume.lock')} by hand)
   run-done   completed [✓]
   run-expired  parked, deadline passed, no answer: [!] expired, only "Reopen for another 30 min"
   run-expired-late  an answer saved after the deadline: the same Reopen offer

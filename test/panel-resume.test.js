@@ -451,7 +451,7 @@ test('a panel that restarted has no attempt record: a stuck answer still says so
   const second = await start(run); // a new panel process' worth of state: empty
   const d = await runData(second.port, run);
   assert.equal(d.resume.state, 'not-started');
-  assert.equal(d.label, 'stuck — answer saved, click try the resume again');
+  assert.equal(d.label, 'stuck — your answer is saved; the run stopped before using it');
   assert.equal(d.glyph, '[II]');
   assert.match(d.resume.reason, /reason unknown: the panel restarted/);
   const token2 = await pageToken(second.port);

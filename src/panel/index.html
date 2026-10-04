@@ -2528,27 +2528,27 @@
   }
   function answerControls(ask, resume, pending){
     if(pending && ask && pending.askId === ask.askId){
-      return { kind: "working", text: pendingText(pending), why: "no answer doors: the answer was sent" };
+      return { kind: "working", text: pendingText(pending) };
     }
     // amendment 1 (b): an expired ask offers one human action, the reopen (never an answer word)
     if(ask && !ask.open && ask.reopen){
-      return { kind: "expired", waitMs: ask.reopen.waitMs, why: "no answer doors: this ask expired — reopen it to answer" };
+      return { kind: "expired", waitMs: ask.reopen.waitMs, late: !!ask.reopen.late, why: "no answer doors: this ask expired — reopen it to answer" };
     }
     if(!ask || !ask.open){
-      return { kind: "none", why: "no answer doors: this ask is " + ((ask && ask.status) || "closed") + " — there is nothing left to answer" };
+      return { kind: "none", why: "This ask is " + ((ask && ask.status) || "closed") + ". There is nothing left to answer." };
     }
     if(resume && resume.askId === ask.askId){
       // amendment 1 (a): a saved answer with no readable time gives the doors back, with a note saying why
       if(resume.state === "broken"){
-        return { kind: "doors", note: resume.label + ": " + (resume.reason || "") };
+        return { kind: "doors", note: resume.label + (resume.reason ? " " + resume.reason : "") };
       }
       if(resume.state === "starting"){
-        return { kind: "starting", label: resume.label, why: "no answer doors: this ask already has a saved answer" };
+        return { kind: "starting", text: "Your answer is saved; the run is starting up." };
       }
       if(resume.state === "not-started"){
-        return { kind: "stuck", label: resume.label, lockPath: resume.lockPath || null, reason: resume.reason || "no reason recorded", why: "no answer doors: this ask already has a saved answer" };
+        return { kind: "stuck", lockPath: resume.lockPath || null };
       }
-      return { kind: "none", why: "no answer doors: " + resume.label };
+      return { kind: "none", why: resume.label + "." };
     }
     return { kind: "doors" };
   }
@@ -2601,7 +2601,7 @@
         pendingAnswer = { flow: ctx.flow, runId: ctx.runId, askId: ask.askId, decision: decision, draftNo: ctx.draftNo };
         answerMsg = null; paintAnswerMsg();
         // a broken earlier answer was moved aside to make room: say so, once
-        if(r.body.setAside) say(ctx.flow, ctx.runId, "info", "your earlier saved answer was broken — it is kept aside as " + r.body.setAside + "; this answer is saved");
+        if(r.body.setAside) say(ctx.flow, ctx.runId, "info", "your earlier saved answer was broken; it is kept aside. This answer is saved.");
         startLive(ctx.flow, ctx.runId, ask.askId);
       } else {
         say(ctx.flow, ctx.runId, "refused", refusalText(r));
@@ -2613,11 +2613,11 @@
     }).then(function(){ if(root.isConnected) setBusy(root, false); });
   }
   function sendResumeAgain(root, ctx, askId){
-    say(ctx.flow, ctx.runId, "info", "asking for the resume again…");
+    say(ctx.flow, ctx.runId, "info", "continuing the run…");
     setBusy(root, true);
     postJSON("/api/resume", { flow: ctx.flow, runId: ctx.runId }).then(function(r){
       if(r.status === 202 && r.body && r.body.ok){
-        say(ctx.flow, ctx.runId, "info", "resume requested — waiting for the run's books to show whether it took over");
+        say(ctx.flow, ctx.runId, "info", "asked the run to continue — waiting to see that it picked up your answer");
         startLive(ctx.flow, ctx.runId, askId);
       } else {
         say(ctx.flow, ctx.runId, "refused", refusalText(r));
@@ -2633,8 +2633,8 @@
     setBusy(root, true);
     postJSON("/api/reopen", { flow: ctx.flow, runId: ctx.runId, askId: askId }).then(function(r){
       if(r.status === 200 && r.body && r.body.ok){
-        say(ctx.flow, ctx.runId, "info", "reopened — a fresh window until " + (readableDateTime(r.body.expiresAt) || r.body.expiresAt)
-          + (r.body.setAside ? "; the late answer is kept aside as " + r.body.setAside : ""));
+        say(ctx.flow, ctx.runId, "info", "reopened until " + (readableDateTime(r.body.expiresAt) || r.body.expiresAt)
+          + (r.body.setAside ? "; your late answer is kept aside" : ""));
       } else {
         say(ctx.flow, ctx.runId, "refused", refusalText(r));
       }
@@ -2695,24 +2695,23 @@
       wk.appendChild(document.createTextNode(model.text));
       root.appendChild(wk);
     } else if(model.kind === "starting"){
-      root.appendChild(textDiv("hint", model.label + " — " + model.why));
+      root.appendChild(textDiv("hint", model.text));
     } else if(model.kind === "expired"){
       // [!] expired: the time ran out. One button, the human's: a fresh window of the same signed length on the same draft.
-      root.appendChild(textDiv("answer-msg stuck", "[!] expired — the time to answer ran out"));
       var bar3 = document.createElement("div");
       bar3.className = "actions-row";
       bar3.appendChild(makeButton("Reopen for another " + waitText(model.waitMs), "btn-reopen", function(){ sendReopen(root, ctx, ask.askId); }));
       root.appendChild(bar3);
-      root.appendChild(textDiv("hint", "reopening starts a new window of the same length on this same draft; the signed wait does not change"));
+      root.appendChild(textDiv("hint", model.late ? "Your answer came after the deadline." : "Nobody answered in time."));
     } else if(model.kind === "stuck"){
-      // stuck: an answer is saved and no resume took it.
-      root.appendChild(textDiv("answer-msg stuck", model.label + (model.reason ? ": " + model.reason : "")));
-      if(model.lockPath) root.appendChild(textDiv("hint", "lock file: " + model.lockPath));
-      root.appendChild(textDiv("hint", model.why + ". Trying again starts a resume only; it cannot answer."));
+      // stuck: an answer is saved and no resume took it. One button, one line under it saying why.
       var bar2 = document.createElement("div");
       bar2.className = "actions-row";
-      bar2.appendChild(makeButton("Try the resume again", "btn-resume-again", function(){ sendResumeAgain(root, ctx, ask.askId); }));
+      bar2.appendChild(makeButton("Continue the run", "btn-resume-again", function(){ sendResumeAgain(root, ctx, ask.askId); }));
       root.appendChild(bar2);
+      root.appendChild(textDiv("hint", model.lockPath
+        ? "An old resume lock is in the way. Remove this file by hand, then continue: " + model.lockPath
+        : "Your answer is saved; the run stopped before using it."));
     } else {
       root.appendChild(textDiv("hint", model.why));
     }
