@@ -1,7 +1,7 @@
 // M4c-fix exit walk: the walk root hamr clicks through carries the three amendment-1 expired runs, built at $0.
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
-import { rmSync } from 'node:fs';
+import { rmSync, readFileSync } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -35,4 +35,20 @@ test('walk-root: run-expired, run-expired-late read [!] expired with the Reopen 
   }
   const ended = getRunAsks({ root, flow: 'job2', runId: 'run-ended-expired', catalogue: CAT }).asks[0];
   assert.equal(ended.reopen, null, 'an ended run cannot be reopened');
+});
+
+// hamr's phone Audit walk (sheet line 11): the practice root must carry a row WITH a gap, a refused list, a tool tally and a
+// very long step name, so a tap on a phone-width row has something to show. The row is written by the real runner (a real
+// shape closer failing a real draft), not by hand.
+test('walk-root: run-gap has a real audit row with a gap text, a refused list, tools and a very long step name', () => {
+  const rows = readFileSync(path.join(root, 'long-name-gap', 'runs', 'run-gap', 'audit.jsonl'), 'utf8')
+    .trim().split('\n').map((l) => JSON.parse(l));
+  const red = rows.find((r) => r.verdict === 'red');
+  assert.ok(red, 'a red attempt row');
+  assert.ok(red.step.length > 80, `a long step name (${red.step.length} chars)`);
+  assert.match(red.gap, /professional skills/, "the shape closer's own gap text");
+  assert.equal(red.refused.length, 1, 'a refused list entry');
+  assert.deepEqual(red.tools, { read: 2, grep: 1 });
+  assert.equal(rows.find((r) => r.step === red.step && r.attempt === 2)?.verdict, 'green', 'the retry healed it');
+  assert.equal(listRuns({ root, catalogue: CAT }).find((x) => x.runId === 'run-gap')?.glyph, '[✓]');
 });
