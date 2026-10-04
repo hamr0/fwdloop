@@ -18,11 +18,21 @@ test('phone audit rows are single flex lines, not stacked label:value cards', ()
   assert.doesNotMatch(mobile, /td[^{]*\{[^}]*display:block;border:none;border-bottom:1px dotted/, 'the old full-width stacked cell is gone');
 });
 
-test('the long gap is hidden on a phone until the row is tapped', () => {
-  assert.match(mobile, /td\[data-label="Gap"\][^{]*\{[^}]*display:block/, 'shown only under tr.open');
-  assert.match(mobile, /tr\.open td\[data-label="Gap"\]/);
-  assert.match(html, /tr\.className = "audit-has-gap"/);
-  assert.match(html, /classList\.toggle\("open"\)/);
+test('everything the line cuts short is hidden on a phone until the row is tapped, then shows in full on wrapped lines', () => {
+  // hamr's phone walk: tapping a row showed no extra text (only a row WITH a gap opened, and only the gap showed)
+  assert.match(mobile, /\[data-testid="audit-table"\] td\.am\.am-detail, \.audit-group table td\.am\.am-detail\{display:none;\}/, 'hidden until opened, in BOTH tables (an unscoped td.am.am-detail loses to `.audit-group table td.am{display:block}` and leaves every grouped row 135 px tall)');
+  assert.match(mobile, /tr\.open td\.am-detail[^{]*\{[^}]*display:block[^}]*flex:0 0 100%[^}]*white-space:normal/, 'shown under tr.open, wrapped, full width');
+  assert.match(html, /tr\.className = "audit-tap"/, 'EVERY row is tappable, not only one with a gap');
+  assert.doesNotMatch(html, /audit-has-gap/);
+  assert.match(html, /tr\.classList\.toggle\("open"\)/);
+});
+
+test('the opened block carries step, result, gap, refused, tools, close, cost and time in full', () => {
+  const fn = html.slice(html.indexOf('function auditDetailHtml'), html.indexOf('function buildAuditRowEl'));
+  for (const label of ['["step", r.step]', '["result", word]', '["action", actionText]', '["gap", r.gap]', '"refused"', 'r.refused', '"close"', '"cost"', '"time"']) {
+    assert.ok(fn.includes(label), label);
+  }
+  assert.match(html, /"<td class=\\"am am-detail\\">" \+ auditDetailHtml\(/, 'built into every row');
 });
 
 test('every audit row carries the short phone cells (glyph, cost, HH:MM) that desktop hides', () => {

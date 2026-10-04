@@ -2719,7 +2719,7 @@ describe('index.html — page source', () => {
     const mqEnd = source.indexOf('\n  }', source.lastIndexOf('}', source.indexOf('\n  }\n</style>')));
     const mq = source.slice(mqStart, source.indexOf('</style>'));
     assert.match(mq, /\[data-testid="audit-table"\] tr, \.audit-group table tr\{/);
-    assert.match(mq, /td\[data-label="Gap"\]/);
+    assert.match(mq, /tr\.open td\.am-detail/);
     // the row-builder must set the SAME attribute the CSS reads.
     assert.match(source, /data-label=\\"Time\\"/);
     assert.match(source, /data-label=\\"Attempt\\"/);
@@ -2728,7 +2728,7 @@ describe('index.html — page source', () => {
   test('PROOF (review #4 can fail): removing the max-width:640px stacking rule would leave the wide multi-column table as the only layout at phone width', () => {
     const withoutRule = source.replace(/@media \(max-width: 640px\)\{[\s\S]*?\n  \}\n<\/style>/, '</style>');
     assert.notEqual(withoutRule, source);
-    assert.doesNotMatch(withoutRule, /td\[data-label="Gap"\]/);
+    assert.doesNotMatch(withoutRule, /tr\.open td\.am-detail/);
   });
 
   // ---------------------------------------------------------------------
