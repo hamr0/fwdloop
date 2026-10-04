@@ -1094,7 +1094,7 @@ Numbers are from the books on disk under `flows/job2-m6a-2/` (times UTC).
 
 Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 
-#### M4c-fix — clean the fix list before M4d — SIGNED by hamr 2026-10-03 ("sign m4c fix")
+#### M4c-fix — clean the fix list before M4d — SIGNED by hamr 2026-10-03 ("sign m4c fix"), EXIT SIGNED 2026-10-04 ("sign m4c-fix amendment 2 and exit version 0.11"); releases as v0.11.0
 
 - **Why:** hamr 2026-10-03: "we have to clean all before we move to m4d". The fix list (`.claude/remember/fix-ledger.md`) holds the reviews' unfixed findings from M2–M4c. hamr's 2026-10-02 triage grouped them into three plans; the rest are folded in here so M4d starts clean.
 - **Rulings hamr gave at drafting (2026-10-03):**
@@ -1157,7 +1157,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 - No change to an existing book's shape beyond new records: the moved-aside answer and the reopen row are new write-once files or rows, keyed by id; nothing existing is rewritten.
 - Why: hamr 2026-10-03, while the build of items 16-17 showed both as signed could not work ("answer again" with no way to answer; "record the expiry" ends a job that may not have gone stale). hamr: "if 2-3 seconds and it's broken, feedback tooltip and reallow/undim button"; "it expired (why? safety?) same button changes unlock to answer, click once ... i start a new 30 mins".
 
-**M4c-fix amendment 2 — plain words on the panel — DRAFT, NOT SIGNED**
+**M4c-fix amendment 2 — plain words on the panel — SIGNED by hamr 2026-10-04 ("sign m4c-fix amendment 2 and exit version 0.11")**
 - (a) **Every stuck or expired state shows one clear button and one short line saying why.** Replaces the wording signed in M4c amendment 2 and amendment 3 (e):
   - stuck button "Try the resume again" → "Continue the run";
   - stuck label "stuck — answer saved, click try the resume again" → "stuck — your answer is saved; the run stopped before using it", with the line "Your answer is saved; the run stopped before using it.";
@@ -1177,6 +1177,12 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 - (l) **An Audit step's title line is short:** `[sign] step name · cost · try N ✗✓`; a name too long for one line is cut with … and shown whole when the step opens. Time and tokens live in each try's detail, not the title. On a phone (≤640 px) the dots and the word "try" drop (`[sign] step name $cost N ✗✓`) so a name up to about 24 characters shows whole at 390 px. The step map cuts a long name the same way; the whole name shows on its step card.
 - No book changes beyond the audit row in (h).
 - Why: hamr's M4c-fix exit walk 2026-10-04 — "try resume again? weird message"; a raw "HTTP 409 — answerAsk: askId … needs a non-blank reason to redo"; a run ended by expiry read "accepted"; Runs → Inbox jump inconsistent for `[II]`; mobile Audit rows still not one line between 481 and 640 px; hamr 2026-10-04: "no legend needed ... choose a word for the non obvious ones ... one keyword in bold followed by -"; lock: "A" (a button, not by hand); layout: hamr 2026-10-04 picked "A" (match bareloop); Audit grouped boxes drew empty on desktop and phone (exit walk 2026-10-04); hamr 2026-10-04: Reopen sat on the Ask tab while the click landed on Run — "take me to inbox and open right pane on ASK"; two taps for a one-try step on a phone; hamr 2026-10-04: the Inbox row of a still-open expired ask said only "expired"; hamr 2026-10-04: header should read "job2 (run-stuck) | stuck — … asked …"; an Audit title "is not a header" with time, cost, tokens and tries in it.
+
+**Exit evidence (2026-10-04) — EXIT SIGNED by hamr 2026-10-04 ("sign m4c-fix amendment 2 and exit version 0.11"):**
+- hamr walked the practice root (`scripts/panel-fixtures/walk-root.mjs`) by the printed link at desktop and 390 px, three sheets, all pass: Runs/Inbox/header sign words; Continue the run and Remove the old lock to [✓] passed with the audit row; Reopen on an expired ask; empty redo reason stopped on the page; Grouped and Flat Audit with the gap one tap away; run header and short Audit titles.
+- Every amendment 2 piece has a test that went red with the fix taken out alone; suite 1902 pass / 0 fail, typecheck clean, at 8821b90.
+- Open at signing: negative (x) — `CI / test` is not yet a required check on `main` (`gh api .../branches/main/protection` shows no `required_status_checks`, 2026-10-04); the session's gate refuses the change, hamr runs it in his terminal. Checked again before the release PR.
+- Version: hamr ruled v0.11.0 (not v0.10.1).
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
