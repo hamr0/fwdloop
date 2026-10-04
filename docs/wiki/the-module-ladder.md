@@ -1181,7 +1181,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 **Exit evidence (2026-10-04) — EXIT SIGNED by hamr 2026-10-04 ("sign m4c-fix amendment 2 and exit version 0.11"):**
 - hamr walked the practice root (`scripts/panel-fixtures/walk-root.mjs`) by the printed link at desktop and 390 px, three sheets, all pass: Runs/Inbox/header sign words; Continue the run and Remove the old lock to [✓] passed with the audit row; Reopen on an expired ask; empty redo reason stopped on the page; Grouped and Flat Audit with the gap one tap away; run header and short Audit titles.
 - Every amendment 2 piece has a test that went red with the fix taken out alone; suite 1902 pass / 0 fail, typecheck clean, at 8821b90.
-- Open at signing: negative (x) — `CI / test` is not yet a required check on `main` (`gh api .../branches/main/protection` shows no `required_status_checks`, 2026-10-04); the session's gate refuses the change, hamr runs it in his terminal. Checked again before the release PR.
+- Negative (x) closed 2026-10-04 after signing: hamr ran `gh api -X PUT repos/hamr0/fwdloop/branches/main/protection` in his terminal (the session's gate refuses it); the response shows `required_status_checks.contexts: ["test"]` with every other protection field unchanged (1 review, stale reviews dismissed, linear history, conversation resolution, no force push or deletion, admins not enforced).
 - Version: hamr ruled v0.11.0 (not v0.10.1).
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
