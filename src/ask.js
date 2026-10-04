@@ -402,6 +402,15 @@ export function reopenAsk({
     timing = a !== null && typeof a === 'object' && a.askId === askId ? answerTiming(a.answeredAt, ask.expiresAt) : 'unreadable';
     if (timing === 'on-time') return { ok: false, red: `reopenAsk: askId "${askId}" has an answer saved in time — resume it, it is not expired` };
   }
+  // Amendment 3 (b): the stale answer is moved aside FIRST. If that fails nothing is written (no record, no audit
+  // row, the clock stays), so a stale answer can never count as fresh under a new deadline. If the record write then
+  // fails, the answer stays set aside: it was late or broken anyway, and the ask is simply still expired.
+  let setAside = null;
+  if (saved.ok) {
+    const moved = setAsideAnswer(runDir, askId, timing === 'late' ? 'late' : 'broken');
+    if (!moved.ok) return { ok: false, red: 'Could not clear the late answer; nothing was reopened.' };
+    setAside = moved.name;
+  }
   // The record: write-once, keyed by askId and its number. The exclusive create is the one gate.
   let n = 1;
   for (const name of readdirInside(runDir, '.')) {
@@ -425,11 +434,6 @@ export function reopenAsk({
     gap: `reopened by ${by} at ${nowIso} (ask ${askId}); deadline ${ask.expiresAt} -> ${expiresAt}`,
     usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: nowIso, tokens: null, tools: null, refused: [],
   });
-  let setAside = null;
-  if (saved.ok) {
-    const moved = setAsideAnswer(runDir, askId, timing === 'late' ? 'late' : 'broken');
-    if (moved.ok) setAside = moved.name;
-  }
   return {
     ok: true, expiresAt, n, setAside,
   };
