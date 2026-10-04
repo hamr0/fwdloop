@@ -1543,10 +1543,10 @@ function deriveAskOpenFields(ask, hasHistoryRow, resume = null) {
  * M4c-fix amendment 1 (b): does this ask offer the human's "Reopen"? Only the run's current open ask (`ask.json`),
  * only once its deadline has passed with no usable answer waiting (`resume` is null for it: a late or unreadable saved
  * answer reads as none, an in-time one is resumed, not reopened), only while the run has not ended. `waitMs` is the
- * signed wait it repeats. The Run's end row is the caller's `openAskJson === null`.
+ * signed wait it repeats; `late` says an answer was saved but came after the deadline. The Run's end row is the caller's `openAskJson === null`.
  * @param {any} ask one row from `runAsksInOrder` @param {any} openAskJson `readAsk` of the run, or null (ended)
  * @param {any} resume the run's `deriveResumeState`
- * @returns {{waitMs: number}|null}
+ * @returns {{waitMs: number, late: boolean}|null}
  */
 function reopenOffer(ask, openAskJson, resume, lateAnswerSaved = false) {
   if (!openAskJson || openAskJson.askId !== ask.askId || ask.status !== 'expired') return null;
