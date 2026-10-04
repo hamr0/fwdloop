@@ -173,7 +173,7 @@ function pageHarness(world = {}) {
 
 const flush = () => new Promise((r) => { setTimeout(r, 0); });
 
-test('(a) clicking a waiting run: right = Run (from Audit), left = Inbox with that ask\'s row selected', async () => {
+test('(a) clicking a waiting run: right = Run at once then Ask (M4c-fix amendment 2 (i)), left = Inbox with that ask\'s row selected', async () => {
   const h = pageHarness({ asks: { r1: { asks: [{ askId: 'ask9', waiting: true, stuck: false }] } } });
   h.els['tab-runs'].click(); // left on Runs, right still on Audit from before
   h.els['tab-audit'].click();
@@ -182,7 +182,7 @@ test('(a) clicking a waiting run: right = Run (from Audit), left = Inbox with th
   h.openRunFromRuns({ flow: 'job2', runId: 'r1', waiting: true, waitingAskId: 'ask9' }, new El('runs-row'));
   assert.deepEqual(h.right(), ['tab-run'], 'the right side opens at once');
   await flush();
-  assert.deepEqual(h.right(), ['tab-run']);
+  assert.deepEqual(h.right(), ['tab-ask']);
   assert.deepEqual(h.left(), ['tab-inbox']);
   const last = h.calls.selectRun.at(-1);
   assert.equal(last.rowEl, inboxRow, 'the inbox row is the selected one');

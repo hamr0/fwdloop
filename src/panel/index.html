@@ -1228,10 +1228,12 @@
   // stuck, which counts as waiting: M4c amendment 2 (b)) is decided from THAT RUN's own asks, fetched on
   // the click — never from the cached list row, which can be up to LISTS_POLL_MS old (a run that has just
   // parked, been reopened or answered would read wrong). If it does, the left side moves to the Inbox with
-  // that ask's row selected (the Inbox is refreshed first); any other run leaves the left side on Runs.
+  // that ask's row selected (the Inbox is refreshed first) and the right side moves to the Ask tab, where its
+  // buttons are (M4c-fix amendment 2 (i)). "Needs you" = waiting, stuck, or expired with the Reopen offer (the
+  // same `!open && reopen` test answerControls uses); any other run leaves the left side on Runs, right on Run.
   function askNeedingYou(result){
     var found = null;
-    ((result && result.asks) || []).forEach(function(a){ if(a.waiting || a.stuck) found = a; });
+    ((result && result.asks) || []).forEach(function(a){ if(a.waiting || a.stuck || (!a.open && a.reopen)) found = a; });
     return found;
   }
   function openRunFromRuns(r, rowEl){
@@ -1248,7 +1250,7 @@
       var inboxRow = Array.prototype.find.call(document.querySelectorAll(".inbox-row"), function(el){ return el.getAttribute("data-testid") === inboxId; }) || null;
       selectRun(r.flow, r.runId, inboxRow, ".inbox-row", ask.askId);
       document.getElementById("tab-inbox").click();
-      document.getElementById("tab-run").click();
+      document.getElementById("tab-ask").click();
     }).catch(function(){ /* unreadable books: the run stays open on the Run tab, the left side stays on Runs */ });
   }
 
