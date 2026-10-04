@@ -1157,6 +1157,21 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 - No change to an existing book's shape beyond new records: the moved-aside answer and the reopen row are new write-once files or rows, keyed by id; nothing existing is rewritten.
 - Why: hamr 2026-10-03, while the build of items 16-17 showed both as signed could not work ("answer again" with no way to answer; "record the expiry" ends a job that may not have gone stale). hamr: "if 2-3 seconds and it's broken, feedback tooltip and reallow/undim button"; "it expired (why? safety?) same button changes unlock to answer, click once ... i start a new 30 mins".
 
+**M4c-fix amendment 2 — plain words on the panel — DRAFT, NOT SIGNED**
+- (a) **Every stuck or expired state shows one clear button and one short line saying why.** Replaces the wording signed in M4c amendment 2 and amendment 3 (e):
+  - stuck button "Try the resume again" → "Continue the run";
+  - stuck label "stuck — answer saved, click try the resume again" → "stuck — your answer is saved; the run stopped before using it", with the line "Your answer is saved; the run stopped before using it.";
+  - lock label "stuck — remove the old resume lock by hand, then try again" → "stuck — an old resume lock is in the way", with the line "An old resume lock is in the way. Remove this file by hand, then continue: <path>";
+  - expired ask keeps amendment 1's button "Reopen for another <wait>", with the line "Nobody answered in time." or "Your answer came after the deadline.";
+  - a run ended by expiry reads "expired" everywhere (Inbox, Ask tab), never "accepted".
+- (b) **Every message the panel shows you is a plain sentence:** never an HTTP code, a refusal code, an ask id, a file path (except the lock file you must remove), or a library function name.
+- (c) **A redo or rerun with an empty reason is stopped on the page** with "Please write a reason for the redo." (or "rerun") before anything is sent. The server still judges every answer; the page check only saves a round trip, so the panel stays a client of the arbiter, never a second arbiter (M4b).
+- (d) **Every Ask block names its flow and run first** ("job2 (run-id) · …").
+- (e) **Clicking a waiting `[·]` or stuck `[II]` run in Runs always opens the Inbox on its ask,** judged from that run's fresh state at the click, never from a list up to 10 s old.
+- (f) **On a phone or any window up to 640 px wide, each Audit entry is one line** (sign, step, result, cost, time); the long text opens on a tap.
+- No book changes.
+- Why: hamr's M4c-fix exit walk 2026-10-04 — "try resume again? weird message"; a raw "HTTP 409 — answerAsk: askId … needs a non-blank reason to redo"; a run ended by expiry read "accepted"; Runs → Inbox jump inconsistent for `[II]`; mobile Audit rows still not one line between 481 and 640 px.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
