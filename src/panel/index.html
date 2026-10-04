@@ -243,10 +243,19 @@
   .wf-runs .hist-row{margin-bottom:4px;}
 
   .rp-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:2px solid var(--border-strong);background:var(--panel);flex-wrap:wrap;gap:8px;}
-  .rp-header h2{margin:0;font-size:15px;min-width:0;overflow-wrap:anywhere;}
-  .rp-header h2::before{content:"┤ ";color:var(--text-faint);}
-  .rp-header h2::after{content:" ├";color:var(--text-faint);}
+  .rp-header h2{margin:0;font-size:15px;min-width:0;overflow-wrap:anywhere;text-transform:none;letter-spacing:normal;}
+  /* M4c-fix amendment 2 (k): the header reads like its Runs row — sign + name │ word — why · time; no frame, no capitals. */
+  .hdr-name-line{display:inline-flex;align-items:center;gap:8px;min-width:0;max-width:100%;}
+  .hdr-sep{color:var(--text-faint);}
+  .hdr-time{font-size:11px;color:var(--text-dim);min-width:0;overflow-wrap:anywhere;}
+  .hdr-time:not(:empty)::before{content:"· ";}
   .rp-header-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;max-width:100%;}
+  @media (max-width: 640px){
+    /* (k) a phone: the same three parts on three lines — sign + name / word — why / time */
+    .rp-header-title{flex-direction:column;align-items:flex-start;gap:2px;}
+    .rp-header-title .hdr-sep{display:none;}
+    .hdr-time:not(:empty)::before{content:none;}
+  }
   /* item 4: phone-only jump-back link — hidden on desktop (the two panes
      are already both on screen there, nothing to jump back to). */
   .back-to-list-link{display:none;font-size:12px;color:var(--accent);text-decoration:underline;background:none;border:none;padding:0;cursor:pointer;}
@@ -529,10 +538,10 @@
       <div class="rp-header">
         <button type="button" class="back-to-list-link" id="back-to-list" data-testid="back-to-list">&#8593; list</button>
         <div class="rp-header-title">
-          <span class="dot grey" id="active-wf-dot"></span>
+          <span class="hdr-name-line"><span class="dot grey" id="active-wf-dot"></span><h2 id="active-wf-name">(none selected)</h2></span>
+          <span class="hdr-sep" aria-hidden="true">&#9474;</span>
           <span class="hdr-verdict" id="active-wf-verdict">—</span>
-          <h2 id="active-wf-name">(none selected)</h2>
-          <span class="badge" id="active-wf-date">—</span>
+          <span class="hdr-time" id="active-wf-date">—</span>
         </div>
       </div>
 

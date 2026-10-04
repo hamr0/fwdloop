@@ -78,10 +78,10 @@ test('(g) a step\'s own word comes from the same table: [✓] passed, [✗] fail
   assert.doesNotMatch(PAGE, /map-legend|stepMapLegendHTML/);
 });
 
-test('(g) layout: a Runs row is sign + name, then **word** — why, then the meta line; the header is sign, word — why, then the name', () => {
+test('(g) layout: a Runs row is sign + name, then **word** — why, then the meta line; the header follows (k): sign + name, then word — why', () => {
   const row = /wf-line1[\s\S]{0,400}?wf-sign-line" data-testid="run-sign-word">' \+ signHtml\(r\.word[\s\S]{0,120}?wf-meta-line[\s\S]{0,120}?runSpendText\(r\)/.exec(PAGE);
   assert.ok(row, 'Runs row order');
   assert.match(PAGE, /wf-sign-line" data-testid="run-sign-word">' \+ signHtml\(g\.lastRow\.word/, 'grouped Runs row');
   const hdr = PAGE.indexOf('id="active-wf-verdict"');
-  assert.ok(hdr > 0 && hdr < PAGE.indexOf('id="active-wf-name"'), 'verdict before the name');
+  assert.ok(hdr > 0 && hdr > PAGE.indexOf('id="active-wf-name"'), 'name (with its sign) before the verdict, as (k)');
 });
