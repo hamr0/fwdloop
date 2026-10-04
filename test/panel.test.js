@@ -2285,8 +2285,10 @@ describe('index.html — page source', () => {
     // behavior ("true" + a visible table) is replaced with "false" + a
     // hidden table; a map/step-card click (openAuditGroup) is the only
     // thing that force-expands one.
-    assert.match(body, /header\.setAttribute\("aria-expanded", "false"\)/);
-    assert.match(body, /table\.hidden = true/);
+    // M4c-fix amendment 2 (f): closed unless the step has a failed try or a human opened it (see
+    // test/m4c-fix-audit-grouped.test.js) — so the state is computed, never a literal "true".
+    assert.match(body, /header\.setAttribute\("aria-expanded", isOpen \? "true" : "false"\)/);
+    assert.match(body, /table\.hidden = !isOpen/);
     assert.doesNotMatch(body, /header\.setAttribute\("aria-expanded", "true"\)/);
     assert.match(body, /function toggleAuditGroup/);
     assert.match(body, /header\.addEventListener\("click", toggleAuditGroup\)/);
