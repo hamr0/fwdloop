@@ -189,6 +189,18 @@ test('(h) a second click while the resume is alive is refused in plain words and
   for (let i = 0; i < 400 && !history(run.root).some((x) => x.runId === run.runId); i += 1) await sleep(50); // eslint-disable-line no-await-in-loop
 });
 
+test('a reopen while a resume of that run is alive is refused 409 already-resuming (reopenRoute\'s own busy check)', async () => {
+  const run = savedAnswerRun('reopen-busy');
+  writeFileSync(run.lock, '');
+  const s = await serve(run);
+  const first = await s.post();
+  assert.equal(first.status, 202, JSON.stringify(first.json()));
+  const reopen = await rq(s.port, { method: 'POST', url: '/api/reopen', headers: s.own, body: { flow: run.flow, runId: run.runId, askId: run.askId } });
+  assert.equal(reopen.status, 409);
+  assert.equal(reopen.json().refused, 'already-resuming', JSON.stringify(reopen.json()));
+  for (let i = 0; i < 400 && !history(run.root).some((x) => x.runId === run.runId); i += 1) await sleep(50); // eslint-disable-line no-await-in-loop
+});
+
 test('(h) only the panel route can remove a lock — no runner, agent, CLI or resume path references the remover', () => {
   const found = [];
   const walk = (dir) => {
