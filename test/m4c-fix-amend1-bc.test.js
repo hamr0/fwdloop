@@ -55,8 +55,9 @@ function expiredRun(tag) {
   assert.equal(r.status, 0, r.stderr);
   const runDir = path.join(root, 'job2', 'runs', 'run-1');
   const askId = JSON.parse(readFileSync(path.join(runDir, 'ask.json'), 'utf8')).askId;
-  const askedAt = new Date(Date.now() - 2 * 3600_000).toISOString();
-  const expiresAt = new Date(Date.now() - 2 * 3600_000 + WAIT).toISOString();
+  const t0 = Date.now() - 2 * 3600_000;
+  const askedAt = new Date(t0).toISOString();
+  const expiresAt = new Date(t0 + WAIT).toISOString();
   for (const f of [path.join(runDir, 'ask.json'), path.join(runDir, 'asks', `${askId}.json`), path.join(runDir, 'state.json')]) {
     const j = JSON.parse(readFileSync(f, 'utf8'));
     j.expiresAt = expiresAt;

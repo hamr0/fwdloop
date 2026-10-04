@@ -105,8 +105,9 @@ if (!wg.ok) throw new Error(`writeFlow (long-name-gap) refused: ${JSON.stringify
 const WAIT = 1_800_000;
 const expire = (runId, askId) => {
   const runDir = path.join(root, 'job2', 'runs', runId);
-  const askedAt = new Date(Date.now() - 2 * 3600_000).toISOString();
-  const expiresAt = new Date(Date.now() - 2 * 3600_000 + WAIT).toISOString();
+  const t0 = Date.now() - 2 * 3600_000;
+  const askedAt = new Date(t0).toISOString();
+  const expiresAt = new Date(t0 + WAIT).toISOString();
   for (const f of [path.join(runDir, 'ask.json'), path.join(runDir, 'asks', `${askId}.json`), path.join(runDir, 'state.json')]) {
     const j = JSON.parse(readFileSync(f, 'utf8'));
     j.expiresAt = expiresAt;

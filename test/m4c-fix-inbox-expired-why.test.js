@@ -55,8 +55,9 @@ function parked(tag, runIds) {
 }
 function expire(world, runId) {
   const runDir = world.runDir(runId);
-  const askedAt = new Date(Date.now() - 2 * 3600_000).toISOString();
-  const expiresAt = new Date(Date.now() - 2 * 3600_000 + WAIT).toISOString();
+  const t0 = Date.now() - 2 * 3600_000;
+  const askedAt = new Date(t0).toISOString();
+  const expiresAt = new Date(t0 + WAIT).toISOString();
   for (const f of [path.join(runDir, 'ask.json'), path.join(runDir, 'asks', `${world.askIds[runId]}.json`), path.join(runDir, 'state.json')]) {
     const j = JSON.parse(readFileSync(f, 'utf8'));
     j.expiresAt = expiresAt;
