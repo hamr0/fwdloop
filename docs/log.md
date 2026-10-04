@@ -36,3 +36,7 @@
 ## [2026-09-22] reorg | discover+apply-reorg+lint over 13 doc(s), due reported
 ## [2026-09-27] index-flat | 19 row(s) (9 product, 8 logs, 2 archive)
 ## [2026-09-29] index-flat | 19 row(s) (9 product, 8 logs, 2 archive)
+## [2026-10-04] reorg | discover only — 1 of 16 row(s) await the classification interview
+## [2026-10-04] index-flat | 19 row(s) (9 product, 8 logs, 2 archive)
+## [2026-10-04] apply-reorg | moved 0, skipped 0, 0 oversized split candidate(s), 0 link(s) rewritten, 0 sync failure(s), 0 empty dir(s) removed, CLAUDE.md updated: true
+## [2026-10-04] reorg | discover+apply-reorg+lint over 14 doc(s), due reported
