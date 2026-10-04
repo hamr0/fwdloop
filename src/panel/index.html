@@ -53,6 +53,7 @@
      breakpoints, and also owns the horizontal scroll for the Path column
      on narrow (390px) screens instead of leaving it to .pane-body. */
   .audit-table-scroll{overflow:auto;max-height:min(60vh,520px);}
+  [data-testid="audit-table"] td.am, .audit-group table td.am{display:none;}
   /* z-index keeps rows from showing through the solid th background as
      they scroll under it. */
   [data-testid="audit-table"] th{position:sticky;top:0;z-index:1;}
@@ -401,6 +402,11 @@
      `buildAuditRowEl` already sets on every cell (never a second, separate
      label list to keep in sync). No horizontal scroll is possible once
      every cell is a full-width block. */
+  /* hamr's exit walk: ONE ROW PER LINE on a phone. Each audit entry is a single flex line — glyph, #attempt,
+     step (flat view only), verdict word, short cost, HH:MM — built from the `.am-*` cells `buildAuditRowEl`
+     adds (hidden on desktop, where the table is unchanged). The long Gap text hides behind a tap: the row
+     toggles `.open` and the gap shows as a full-width line under it. Every other cell hides. Nothing is wider
+     than the viewport: the step cell shrinks and ellipsizes, the rest are nowrap and short. */
   @media (max-width: 480px){
     [data-testid="audit-table"], .audit-group table{width:100%;}
     [data-testid="audit-table"] thead, .audit-group table thead{
@@ -408,20 +414,29 @@
     }
     [data-testid="audit-table"] tbody, .audit-group table tbody{display:block;}
     [data-testid="audit-table"] tr, .audit-group table tr{
-      display:block;border:1px solid var(--border-strong);margin-bottom:8px;padding:4px 0;
+      display:flex;flex-wrap:wrap;align-items:center;column-gap:8px;border-bottom:1px solid var(--border);padding:4px 6px;box-sizing:border-box;max-width:100%;
     }
     [data-testid="audit-table"] td, .audit-group table td{
-      display:block;border:none;border-bottom:1px dotted var(--border);padding:4px 8px;
-      /* fix (2026-09-28): a pre-M4a-2 row's Time cell shows the longer
-         `atWhy` text ("not recorded (before M4a-2)") instead of a
-         timestamp — overflow-wrap:anywhere (on top of the existing
-         break-word/word-break) makes sure that text wraps inside the
-         cell's own border at 390px instead of spilling past it. */
-      white-space:normal;overflow-wrap:anywhere;word-break:break-word;max-width:100%;box-sizing:border-box;
+      display:none;border:none;padding:0;min-width:0;box-sizing:border-box;white-space:nowrap;
     }
-    [data-testid="audit-table"] td:last-child, .audit-group table td:last-child{border-bottom:none;}
-    [data-testid="audit-table"] td::before, .audit-group table td::before{
-      content:attr(data-label) ": ";font-weight:700;color:var(--text-dim);
+    [data-testid="audit-table"] td.am, .audit-group table td.am,
+    [data-testid="audit-table"] td[data-label="Attempt"], .audit-group table td[data-label="Attempt"],
+    [data-testid="audit-table"] td[data-label="Step"], .audit-group table td[data-label="Step"],
+    [data-testid="audit-table"] td[data-label="Verdict"], .audit-group table td[data-label="Verdict"]{display:block;}
+    [data-testid="audit-table"] td[data-label="Attempt"]::before, .audit-group table td[data-label="Attempt"]::before{content:"#";}
+    [data-testid="audit-table"] td.am-glyph, .audit-group table td.am-glyph{order:1;}
+    [data-testid="audit-table"] td[data-label="Attempt"], .audit-group table td[data-label="Attempt"]{order:2;color:var(--text-dim);}
+    [data-testid="audit-table"] td[data-label="Step"], .audit-group table td[data-label="Step"]{order:3;flex:1 1 0;overflow:hidden;text-overflow:ellipsis;}
+    [data-testid="audit-table"] td[data-label="Verdict"], .audit-group table td[data-label="Verdict"]{order:4;max-width:9em;overflow:hidden;text-overflow:ellipsis;}
+    [data-testid="audit-table"] td.am-cost, .audit-group table td.am-cost{order:5;}
+    [data-testid="audit-table"] td.am-time, .audit-group table td.am-time{order:6;color:var(--text-dim);}
+    /* no step cell (grouped view): the verdict takes the slack so cost and time sit at the right */
+    .audit-group table td[data-label="Verdict"]{flex:1 1 0;}
+    tr.audit-has-gap{cursor:pointer;}
+    tr.audit-has-gap td.am-glyph::after{content:"\25B8";margin-left:2px;color:var(--text-faint);}
+    tr.audit-has-gap.open td.am-glyph::after{content:"\25BE";}
+    [data-testid="audit-table"] tr.open td[data-label="Gap"], .audit-group table tr.open td[data-label="Gap"]{
+      display:block;order:7;flex:0 0 100%;white-space:normal;overflow-wrap:anywhere;padding:4px 0 2px;color:var(--text-dim);
     }
   }
 </style>
@@ -716,6 +731,12 @@
     if(!full || isNaN(d.getTime())) return escapeXml(full || "unknown");
     var short = d.toLocaleTimeString();
     return '<span title="' + escapeXml(full) + '">' + escapeXml(short) + '</span>';
+  }
+  // phone one-liner: local HH:MM only; a row with no recorded time reads a dash (never a made-up time).
+  function auditShortTime(r){
+    var d = new Date(r.at);
+    if(typeof r.at !== "string" || isNaN(d.getTime())) return "—";
+    return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
   }
   function duration(ms){
     if(typeof ms !== "number" || ms < 0) return "unknown";
@@ -1850,8 +1871,16 @@
       "<td data-label=\"Cost\">" + escapeXml(auditCostCellText(r)) + "</td>" +
       "<td data-label=\"Verdict\"><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
       "<td data-label=\"Close\">" + escapeXml(closeClassLabel(r.class)) + "</td>" +
-      "<td data-label=\"Time\">" + auditTimeCellHtml(r) + "</td>";
+      "<td data-label=\"Time\">" + auditTimeCellHtml(r) + "</td>" +
+      // phone-only one-line cells (CSS shows these and hides the rest below 480px; hidden on desktop)
+      "<td class=\"am am-glyph\" aria-hidden=\"true\">" + escapeXml(glyph || "·") + "</td>" +
+      "<td class=\"am am-cost\">" + escapeXml(money(r.usd, r.spendComplete)) + "</td>" +
+      "<td class=\"am am-time\">" + escapeXml(auditShortTime(r)) + "</td>";
     tr.innerHTML = cells;
+    if(!isRejectRow && r.gap){
+      tr.className = "audit-has-gap";
+      tr.addEventListener("click", function(){ tr.classList.toggle("open"); });
+    }
     return tr;
   }
   // ---- hamr's 2026-09-27 exit-check review #2: the Audit tab's All/Human/

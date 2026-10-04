@@ -2712,14 +2712,13 @@ describe('index.html — page source', () => {
   });
 
   // hamr's 2026-09-27 exit-check review #4: no horizontal scroll at 390px.
-  test('review #4: a max-width:480px rule stacks both audit tables into label:value mini-cards, keyed off the SAME data-label attribute buildAuditRowEl sets', () => {
+  test('review #4 (superseded by hamr\'s exit walk: one row per line, see audit-one-line.test.js): a max-width:480px rule restyles both audit tables, keyed off the SAME data-label attribute buildAuditRowEl sets', () => {
     assert.match(source, /@media \(max-width: 480px\)\{/);
     const mqStart = source.indexOf('@media (max-width: 480px){');
     const mqEnd = source.indexOf('\n  }', source.lastIndexOf('}', source.indexOf('\n  }\n</style>')));
     const mq = source.slice(mqStart, source.indexOf('</style>'));
-    assert.match(mq, /\[data-testid="audit-table"\] td::before, \.audit-group table td::before/);
-    assert.match(mq, /content:attr\(data-label\)/);
-    assert.match(mq, /display:block/);
+    assert.match(mq, /\[data-testid="audit-table"\] tr, \.audit-group table tr\{/);
+    assert.match(mq, /td\[data-label="Gap"\]/);
     // the row-builder must set the SAME attribute the CSS reads.
     assert.match(source, /data-label=\\"Time\\"/);
     assert.match(source, /data-label=\\"Attempt\\"/);
@@ -2728,7 +2727,7 @@ describe('index.html — page source', () => {
   test('PROOF (review #4 can fail): removing the max-width:480px stacking rule would leave the wide multi-column table as the only layout at phone width', () => {
     const withoutRule = source.replace(/@media \(max-width: 480px\)\{[\s\S]*?\n  \}\n<\/style>/, '</style>');
     assert.notEqual(withoutRule, source);
-    assert.doesNotMatch(withoutRule, /\[data-testid="audit-table"\] td::before/);
+    assert.doesNotMatch(withoutRule, /td\[data-label="Gap"\]/);
   });
 
   // ---------------------------------------------------------------------
