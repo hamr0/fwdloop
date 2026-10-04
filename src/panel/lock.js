@@ -26,6 +26,9 @@ export function removeOldLock({ root, runDir, nowIso = new Date().toISOString() 
     inside = (real + sep).startsWith(realRoot + sep) && real === realpathSync(join(lock.path, '..'));
   } catch { inside = false; }
   if (!inside) return { ok: false, refused: 'lock-outside-run', red: 'the resume lock is not inside this run — not removed' };
+  // Amendment 3 (d): look once more right before the unlink. This shrinks the window, it cannot close it: a resume
+  // can still take the lock between this read and the unlink — the written known limit of (d).
+  if (readResumeLock(runDir).state !== 'empty') return { ok: false, refused: 'lock-has-holder', red: 'the resume lock has a recorded holder — not removed' };
   try { unlinkSync(lock.path); } catch (err) {
     if (err.code === 'ENOENT') return { ok: false, refused: 'no-lock', red: 'there is no resume lock to remove' };
     throw err;

@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 
 import { reopenAsk } from '../src/ask.js';
 import { signParts } from '../src/panel/data.js';
@@ -82,4 +83,46 @@ test('amend3 (c): the new labels read as a sign word plus the plain line, nothin
     { word: 'waiting', line: 'your answer is saved; the run is picking it up' });
   assert.deepEqual(signParts('[II]', 'stuck — your answer is saved; the run stopped before using it'),
     { word: 'stuck', line: 'your answer is saved; the run stopped before using it' });
+});
+
+// (d) a holder that appears after the first read but before the unlink is not removed. No seam in src: a child
+// process patches node:fs's realpathSync (called between the first read and the unlink) to drop a holder's lock in.
+test('amend3 (d): removeOldLock leaves a lock that gained a holder after its first read', () => {
+  const base = mkdtempSync(path.join(tmpdir(), 'fwdloop-a3d-'));
+  try {
+    const runDir = path.join(base, 'flow', 'runs', 'r1');
+    mkdirSync(runDir, { recursive: true });
+    const lockPath = path.join(runDir, 'resume.lock');
+    writeFileSync(lockPath, ''); // no recorded holder: "empty"
+    const lockUrl = pathToFileURL(path.join(HERE, '..', 'src', 'panel', 'lock.js')).href;
+    const script = `
+      import fs from 'node:fs';
+      import { syncBuiltinESMExports } from 'node:module';
+      const real = fs.realpathSync;
+      let injected = false; let calls = 0;
+      fs.realpathSync = (...a) => {
+        const r = real(...a);
+        calls += 1;
+        if (!injected && calls === 3) { // the third call: after the first read, before the unlink
+          injected = true;
+          fs.writeFileSync(${JSON.stringify(lockPath)}, JSON.stringify({ pid: 999999999, procStart: 'x' }));
+        }
+        return r;
+      };
+      syncBuiltinESMExports();
+      const { removeOldLock } = await import(${JSON.stringify(lockUrl)});
+      const out = removeOldLock({ root: ${JSON.stringify(base)}, runDir: ${JSON.stringify(runDir)} });
+      console.log(JSON.stringify({ out, injected, left: fs.existsSync(${JSON.stringify(lockPath)}) }));
+    `;
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', timeout: 15_000 });
+    assert.equal(r.status, 0, r.stderr);
+    const res = JSON.parse(r.stdout);
+    assert.equal(res.injected, true, 'the holder was dropped in between the read and the unlink');
+    assert.equal(res.out.ok, false);
+    assert.equal(res.out.refused, 'lock-has-holder');
+    assert.equal(res.left, true, 'the lock was not unlinked');
+    assert.equal(existsSync(path.join(runDir, 'audit.jsonl')), false, 'no lock-removed audit row');
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
 });
