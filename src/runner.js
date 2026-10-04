@@ -1513,7 +1513,9 @@ async function takeResumeLock(runDir, runId, lockPath) {
     try {
       const lockFd = openSync(lockPath, 'wx');
       try { writeLockHolder(lockFd); } catch (err) {
-        releaseResumeLock(runDir, lockPath);
+        // This call's own `wx` just created the file and no holder is in it yet, so it is ours to remove
+        // (`releaseResumeLock` would skip it: it unlinks only a lock whose holder names this process).
+        try { unlinkSync(lockPath); } catch { /* already gone */ }
         try { closeSync(lockFd); } catch { /* ignore */ }
         return { ok: false, red: `resume: could not record the lock holder in ${lockPath} — ${err.message}` };
       }
