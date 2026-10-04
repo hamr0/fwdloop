@@ -67,3 +67,21 @@ test('(g) the server stamps the same word on the Runs list, the run header and t
   assert.match(stuck.stuckLine, /^your answer is saved|^an old resume lock is in the way/);
   for (const s of stops.filter((x) => x.waiting)) assert.equal(s.word, 'waiting');
 });
+
+test('(g) a step\'s own word comes from the same table: [✓] passed, [✗] failed, [·] waiting; not started wears none; the map legend is gone', () => {
+  const body = PAGE.slice(PAGE.indexOf('var signWords = {};'), PAGE.indexOf('// fwdloop\'s close-class vocabulary'));
+  const stateWord = new Function(`${body} signWords = ${JSON.stringify(SIGN_WORDS)}; return stateWord;`)();
+  assert.equal(stateWord('done'), '[✓] passed');
+  assert.equal(stateWord('stopped'), '[✗] failed');
+  assert.equal(stateWord('waiting'), '[·] waiting');
+  assert.equal(stateWord('pending'), 'not started');
+  assert.doesNotMatch(PAGE, /map-legend|stepMapLegendHTML/);
+});
+
+test('(g) layout: a Runs row is sign + name, then **word** — why, then the meta line; the header is sign, word — why, then the name', () => {
+  const row = /wf-line1[\s\S]{0,400}?wf-sign-line" data-testid="run-sign-word">' \+ signHtml\(r\.word[\s\S]{0,120}?wf-meta-line[\s\S]{0,120}?runSpendText\(r\)/.exec(PAGE);
+  assert.ok(row, 'Runs row order');
+  assert.match(PAGE, /wf-sign-line" data-testid="run-sign-word">' \+ signHtml\(g\.lastRow\.word/, 'grouped Runs row');
+  const hdr = PAGE.indexOf('id="active-wf-verdict"');
+  assert.ok(hdr > 0 && hdr < PAGE.indexOf('id="active-wf-name"'), 'verdict before the name');
+});

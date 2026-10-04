@@ -2131,12 +2131,9 @@ describe('index.html — page source', () => {
     assert.match(source, /redo by you/);
   });
 
-  test('fix #4: the map legend pairs each word with the scope-correct glyph — [·] waiting on you, no dot at all for "not started"', () => {
-    assert.match(source, /<span class="dot"><\/span>waiting on you/);
-    assert.match(source, /<span>not started<\/span>/);
-    // never the OLD (wrong) pairing this fix replaced.
-    assert.doesNotMatch(source, /dot amber"><\/span>waiting on you/);
-    assert.doesNotMatch(source, /dot grey"><\/span>not started/);
+  test('fix #4 (replaced, amendment 2 (g)): the legend line under the map is gone; each step shows its own sign and word', () => {
+    assert.doesNotMatch(source, /map-legend|stepMapLegendHTML/);
+    assert.match(source, /return g && signWords\[g\] \? g \+ " " \+ signWords\[g\] : state;/);
   });
 
   // fix #6 originally required the "after reject: " boundary label to be
@@ -2542,13 +2539,6 @@ describe('index.html — page source', () => {
     const svg = buildStepMapSVG(steps, 900);
     assert.doesNotMatch(svg, /stroke-dasharray="3,3"/, 'no box here has tryCount > 1, so no retry loop should render');
     assert.doesNotMatch(svg, />try /, 'no "try N" label should render either');
-  });
-
-  test('stepMapLegendHTML: names the retry loop so the dashed line is not left unexplained on the page', () => {
-    const fnStart = source.indexOf('function stepMapLegendHTML');
-    const fnEnd = source.indexOf('\n  }', fnStart);
-    const body = source.slice(fnStart, fnEnd);
-    assert.match(body, /dashed = retry/);
   });
 
   // ---------------------------------------------------------------------

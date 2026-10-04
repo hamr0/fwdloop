@@ -249,7 +249,7 @@ test('(xvi) a run ended by rerun is [✗] "stopped by you (rerun)..." and never 
   const detail = getRunDetail({ root, flow: 'endflow', runId: 'run-rerun', catalogue: CATALOGUE });
   assert.equal(detail.glyph, '[✗]');
   assert.equal(detail.label, 'stopped by you (rerun), a fresh run was started');
-  assert.doesNotMatch(JSON.stringify(detail), /failed/i, 'run header, summary and stop reason never say failed');
+  assert.doesNotMatch(JSON.stringify({ ...detail, signWords: undefined }), /failed/i, 'run header, summary and stop reason never say failed');
   const row = listRuns({ root, catalogue: CATALOGUE }).find((r) => r.runId === 'run-rerun');
   assert.equal(row.glyph, '[✗]');
   assert.doesNotMatch(JSON.stringify(row), /failed/i, 'the run list row never says failed');

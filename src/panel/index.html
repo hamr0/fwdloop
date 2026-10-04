@@ -226,6 +226,10 @@
      applies everywhere, so this wraps onto more lines instead of clipping,
      the same behavior fix #7 already gave phone width alone. */
   .wf-meta-line{white-space:normal;overflow:visible;text-overflow:clip;min-width:0;}
+  /* M4c-fix amendment 2 (g), line 2 of a run row: **word** — plain why. Wraps, never clips. */
+  .wf-sign-line{font-size:12px;color:var(--text-dim);white-space:normal;overflow-wrap:anywhere;min-width:0;}
+  .wf-sign-line .sign-word,.hdr-verdict .sign-word{color:var(--text);}
+  .hdr-verdict{font-size:12px;color:var(--text-dim);min-width:0;overflow-wrap:anywhere;}
   .wf-meta{font-size:12px;color:var(--text-dim);}
   .wf-meta + .wf-meta::before{content:" · ";color:var(--text-faint);}
   .wf-row.selected,.hist-row.selected{border:2px solid var(--accent);border-radius:4px;}
@@ -274,7 +278,6 @@
   .map-box{border:1px solid var(--border-strong);padding:10px;overflow-x:auto;margin-top:16px;margin-bottom:14px;background:var(--panel2);text-align:center;}
   .map-box::before{content:"┤ MAP ├";display:block;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;margin:-2px 0 8px 0;}
   .map-box svg{display:block;max-width:100%;height:auto;margin:0 auto;}
-  .map-legend{display:flex;gap:14px;font-size:11px;color:var(--text-dim);margin-top:6px;flex-wrap:wrap;}
 
   .step-card{position:relative;border:1px solid var(--border);padding:10px;margin-bottom:8px;background:var(--panel2);}
   .step-card.running{border:1px double var(--amber);}
@@ -517,8 +520,8 @@
         <button type="button" class="back-to-list-link" id="back-to-list" data-testid="back-to-list">&#8593; list</button>
         <div class="rp-header-title">
           <span class="dot grey" id="active-wf-dot"></span>
+          <span class="hdr-verdict" id="active-wf-verdict">—</span>
           <h2 id="active-wf-name">(none selected)</h2>
-          <span class="badge" id="active-wf-verdict">—</span>
           <span class="badge" id="active-wf-date">—</span>
         </div>
       </div>
@@ -779,10 +782,14 @@
   // parked on a human) reads "waiting on you", matching the SAME words the
   // run-row `[·]` glyph already uses (src/panel/data.js's computeGlyph) —
   // never the bracket glyph `[▶]`, which the scope reserves for "running".
+  // M4c-fix amendment 2 (g): a step's own sign + word come from the SAME one table the run rows use (the server's
+  // SIGN_WORDS, sent on the run detail as `signWords`); the page keeps no table of its own. Not started: no sign.
+  var signWords = {};
+  var STEP_SIGN = { done: "[\u2713]", stopped: "[\u2717]", waiting: "[\u00b7]" };
   function stateWord(state){
     if(state === "pending") return "not started";
-    if(state === "waiting") return "waiting on you";
-    return state; // "done" / "stopped"
+    var g = STEP_SIGN[state];
+    return g && signWords[g] ? g + " " + signWords[g] : state;
   }
   // fwdloop's close-class vocabulary (M4a scope item 4): `green` -> "cited"
   // (a mechanical, exact-match close), `softgreen` -> "shape" (a shape/
@@ -1109,21 +1116,6 @@
     });
     return '<svg width="' + totalW + '" height="' + totalH + '" viewBox="0 0 ' + totalW + ' ' + totalH + '" role="img" aria-label="step map">' + body + '</svg>';
   }
-  // Legend glyphs match the scope's own vocabulary (fix #4): `[✓]` done,
-  // `[✗]` stopped, `[·]` waiting on you (the default/grey dot — never the
-  // amber `[▶]`, which the scope reserves for "running", a state this panel
-  // cannot tell apart from "died" at all today — M4a's own open POC
-  // question). "not started" gets no dot/glyph at all, so it can never be
-  // confused with a reserved one.
-  function stepMapLegendHTML(){
-    return '<div class="map-legend">' +
-      '<span><span class="dot green"></span>done</span>' +
-      '<span><span class="dot red"></span>stopped</span>' +
-      '<span><span class="dot"></span>waiting on you</span>' +
-      '<span>not started</span>' +
-      '<span>⤾ dashed = retry</span>' +
-      '</div>';
-  }
   var lastSteps = null;
   var lastWidth = null;
   function mapAvailWidth(wrapper){
@@ -1157,7 +1149,7 @@
     wrapper.hidden = false;
     var w = mapAvailWidth(wrapper);
     lastWidth = w;
-    mount.innerHTML = buildStepMapSVG(steps, w) + stepMapLegendHTML();
+    mount.innerHTML = buildStepMapSVG(steps, w);
     wireMapClicks(mount);
   }
   function reflowMap(){
@@ -1167,7 +1159,7 @@
     if(w === null || w === lastWidth) return;
     lastWidth = w;
     var mount = document.getElementById("map-mount");
-    mount.innerHTML = buildStepMapSVG(lastSteps, w) + stepMapLegendHTML();
+    mount.innerHTML = buildStepMapSVG(lastSteps, w);
     wireMapClicks(mount);
   }
   if(typeof ResizeObserver !== "undefined"){
@@ -1210,8 +1202,8 @@
     row.innerHTML =
       '<span class="wf-line1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span>' +
       '<span class="wf-name" title="' + escapeXml(fullName) + '">' + escapeXml(fullName) + '</span></span>' +
+      '<span class="wf-sign-line" data-testid="run-sign-word">' + signHtml(r.word, r.line, r.label) + '</span>' +
       '<span class="wf-meta-line">' +
-      '<span class="wf-meta" data-testid="run-sign-word">' + signHtml(r.word, r.line, r.label) + '</span>' +
       '<span class="wf-meta">' + escapeXml(runSpendText(r)) + '</span>' +
       '<span class="wf-meta">' + escapeXml(runAtText(r)) + '</span>' +
       '</span>';
@@ -1393,8 +1385,8 @@
       row.innerHTML =
         '<span class="wf-line1"><span class="wf-caret">' + (hasOtherRuns ? (expanded ? "▼" : "▶") : "") + '</span><span class="' + dotClass(g.lastGlyph, g.lastRow.pulse) + '"></span>' +
         '<span class="wf-name" title="' + escapeXml(wfFullName) + '">' + escapeXml(wfFullName) + '</span></span>' +
+        '<span class="wf-sign-line" data-testid="run-sign-word">' + signHtml(g.lastRow.word, g.lastRow.line, g.lastLabel) + '</span>' +
         '<span class="wf-meta-line">' +
-        '<span class="wf-meta">' + escapeXml(g.lastLabel || "unknown") + '</span>' +
         '<span class="wf-meta">' + escapeXml(runSpendText(g.lastRow)) + '</span>' +
         '<span class="wf-meta">' + escapeXml(runAtText(g.lastRow)) + '</span>' +
         '<span class="wf-meta">' + g.runCount + ' run' + (g.runCount === 1 ? '' : 's') + '</span>' +
@@ -1658,6 +1650,7 @@
     var verdict = document.getElementById("active-wf-verdict");
     var date = document.getElementById("active-wf-date");
 
+    if(detail.signWords) signWords = detail.signWords;
     name.textContent = detail.flow + " (" + detail.runId + ")";
     dot.className = dotClass(detail.glyph, detail.pulse);
     verdict.innerHTML = signHtml(detail.word, detail.line, detail.label);
@@ -2494,7 +2487,7 @@
     flowName.className = "wf-name";
     head.appendChild(flowName);
     wrap.appendChild(head);
-    var meta = textDiv("wf-meta", "");
+    var meta = textDiv("wf-sign-line", "");
     meta.setAttribute("data-testid", "inbox-sign-word");
     meta.innerHTML = signHtml(row.word, stopStatusLine(row), stopStatusLine(row));
     wrap.appendChild(meta);

@@ -1285,6 +1285,7 @@ export function getRunDetail({
     glyph,
     label,
     ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
+    signWords: SIGN_WORDS,
     pulse: glyphPulses({ glyph, label }),
     resume: ctx.resume,
     outcome: ctx.historyRow ? ctx.historyRow.outcome : null,
