@@ -312,7 +312,7 @@ const ALLOWLIST = {
     names: {
       accessSync: 1, closeSync: 2, constants: 1, copyFileSync: 1, existsSync: 7,
       mkdirSync: 6, openSync: 1, readFileSync: 3, realpathSync: 3, renameSync: 1,
-      statSync: 1, unlinkSync: 2, writeFileSync: 5,
+      statSync: 1, unlinkSync: 3, writeFileSync: 5,
     },
     readArtifactCallSites: 4,
   },
