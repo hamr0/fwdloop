@@ -2510,6 +2510,7 @@
     var bits = [ask.status];
     if(ask.reason) bits.push("reason: " + ask.reason);
     if(ask.answeredAt) bits.push("answered " + (readableDateTime(ask.answeredAt) || ask.answeredAt));
+    if(ask.why) bits.push(ask.why);
     return textDiv("wf-meta", bits.join(" · "));
   }
   // ---- M4b piece 4: answer doors. The panel is a CLIENT of the arbiter: it sends
@@ -2787,9 +2788,10 @@
   // never re-derived here), when it was asked, and its status. `stepWhy` is
   // shown verbatim (never a guessed step name) when the books can't name
   // one — the honest word "before" a real value never invents.
-  function blockMetaText(block){
+  function blockMetaText(block, ctx){
     var ask = block.current;
-    var bits = [];
+    // every ask says which run it belongs to: the buttons below act on THIS run only
+    var bits = [ctx.flow + " (" + ctx.runId + ")"];
     var stepBit = typeof block.stepName === "string" && block.stepName.length > 0
       ? block.stepName + (typeof block.stepLine === "number" ? " (line " + block.stepLine + ")" : "")
       : (ask.stepWhy || "step not determinable");
@@ -2823,7 +2825,7 @@
       badge.textContent = ask.open ? "·" : ask.status;
     }
     metaLine.appendChild(badge);
-    metaLine.appendChild(textDiv("wf-meta", blockMetaText(block)));
+    metaLine.appendChild(textDiv("wf-meta", blockMetaText(block, ctx)));
     head.appendChild(metaLine);
     // The question itself — a real, bold heading (review #3: "the question
     // as a clear heading"), never folded into the same small meta line.

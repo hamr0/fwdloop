@@ -1602,6 +1602,9 @@ function normalizeArchivedRow(a) {
  *  quarantined stale answer for a real consumed one). */
 const CONSUMED_ANSWER_RE = /^answer\.(.+)\.consumed\.json$/;
 
+/** The line under an ask that ended expired though an answer was saved: the answer came too late. */
+const LATE_ANSWER_WHY = 'Your answer came after the deadline.';
+
 /**
  * The pre-M4a-1 fallback reader (M4a-1 scope item 1): for a run with no
  * `asks/` archive directory at all, reconstructs what the books STILL hold —
@@ -1730,12 +1733,12 @@ function legacyRunAsks(runDir, hasHistoryRow) {
  *   (hamr's 2026-09-27 live check).
  * @returns {any[]}
  */
-function runAsksInOrder(runDir, hasHistoryRow) {
+function runAsksInOrder(runDir, hasHistoryRow, endedExpired = false) {
   const archivedResult = listArchivedAsks(runDir);
   const rows = archivedResult.archived
     ? archivedResult.asks.map(normalizeArchivedRow)
     : legacyRunAsks(runDir, hasHistoryRow);
-  return rows
+  const ordered = rows
     .map((row, index) => ({ row, index }))
     .sort((a, b) => {
       const am = typeof a.row.askedAt === 'string' ? Date.parse(a.row.askedAt) : NaN;
@@ -1747,6 +1750,13 @@ function runAsksInOrder(runDir, hasHistoryRow) {
       return a.index - b.index;
     })
     .map(({ row }) => row);
+  // M4c-fix amendment 1 (c): a run ended because its ask expired reads expired, never accepted. The late answer the
+  // terminal resume consumed was refused, so the newest ask carries `expired` (and says why), not the answer's word.
+  const last = ordered[ordered.length - 1];
+  if (endedExpired && last && (last.status === 'accepted' || last.status === 'redo' || last.status === 'reran')) {
+    ordered[ordered.length - 1] = { ...last, status: 'expired', reason: null, why: LATE_ANSWER_WHY };
+  }
+  return ordered;
 }
 
 /**
@@ -1862,13 +1872,14 @@ export function getRunAsks({
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
-  const hasHistoryRow = readHistory(run.flowDir).some((r) => r && r.runId === runId);
+  const histRow = readHistory(run.flowDir).find((r) => r && r.runId === runId);
+  const hasHistoryRow = !!histRow;
   // hamr's 2026-09-27 browser-walk bug #4: the Ask tab's own asks must carry
   // the SAME `open`/`timeLeftMs` fields listStops already computes for the
   // Inbox — otherwise an open ask's Ask-tab header/body falls back to the
   // raw status word "unanswered" and no time-left, disagreeing with the
   // Inbox row for that exact same ask.
-  const ordered = runAsksInOrder(run.runDir, hasHistoryRow);
+  const ordered = runAsksInOrder(run.runDir, hasHistoryRow, histRow?.outcome === 'ask-expired');
   const auditRows = readAudit(run.runDir);
   const flowRead = readFlow({
     root, name: flow, catalogue,
@@ -1929,7 +1940,9 @@ export function listStops({ root, resumeAttempt }) {
   const rows = [];
   for (const flowName of listFlowNames(root)) {
     const flowDir = join(root, flowName);
-    const historyRunIds = new Set(readHistory(flowDir).filter((r) => r && typeof r.runId === 'string').map((r) => r.runId));
+    const historyRows = readHistory(flowDir).filter((r) => r && typeof r.runId === 'string');
+    const historyRunIds = new Set(historyRows.map((r) => r.runId));
+    const expiredEnds = new Set(historyRows.filter((r) => r.outcome === 'ask-expired').map((r) => r.runId));
     for (const runId of listRunIds(flowDir)) {
       const run = resolveRunPath(root, flowName, runId);
       if (!run.ok) continue;
@@ -1938,7 +1951,7 @@ export function listStops({ root, resumeAttempt }) {
       // M4c amendment 2: stuck by the ONE rule (`stuckState`), marked on the ask whose answer is saved.
       const st = runStuck(run.runDir, resume);
       const stuckAskId = !hasHistoryRow && st.stuck ? (resume?.askId ?? null) : null;
-      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow).map((ask) => ({
+      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, expiredEnds.has(runId)).map((ask) => ({
         flow: flowName,
         runId,
         ...ask,
