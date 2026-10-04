@@ -1169,8 +1169,10 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 - (d) **Every Ask block names its flow and run first** ("job2 (run-id) · …").
 - (e) **Clicking a waiting `[·]` or stuck `[II]` run in Runs always opens the Inbox on its ask,** judged from that run's fresh state at the click, never from a list up to 10 s old.
 - (f) **On a phone or any window up to 640 px wide, each Audit entry is one line** (sign, step, result, cost, time); the long text opens on a tap.
-- No book changes.
-- Why: hamr's M4c-fix exit walk 2026-10-04 — "try resume again? weird message"; a raw "HTTP 409 — answerAsk: askId … needs a non-blank reason to redo"; a run ended by expiry read "accepted"; Runs → Inbox jump inconsistent for `[II]`; mobile Audit rows still not one line between 481 and 640 px.
+- (g) **One bold word after every sign**, the same in Runs, Inbox and the run header, then a dash and the plain line: `[▶]` **running**, `[·]` **waiting**, `[II]` **stuck**, `[!]` **expired**, `[?]` **crashed**, `[✓]` **passed**, `[✗]` **failed** (e.g. "`[II]` **stuck** — your answer is saved; the run stopped before using it"). No separate legend.
+- (h) **A button to remove an old resume lock.** When a lock has no recorded holder, the panel shows "Remove the old lock". One click asks once: "Only do this if nothing else is working on this run. Remove it?" On yes the lock file is removed, an audit row records that you removed it and when, and the run continues. Only a human click does this; the machine never removes a lock it cannot judge. Replaces "remove this file by hand".
+- No book changes beyond the audit row in (h).
+- Why: hamr's M4c-fix exit walk 2026-10-04 — "try resume again? weird message"; a raw "HTTP 409 — answerAsk: askId … needs a non-blank reason to redo"; a run ended by expiry read "accepted"; Runs → Inbox jump inconsistent for `[II]`; mobile Audit rows still not one line between 481 and 640 px; hamr 2026-10-04: "no legend needed ... choose a word for the non obvious ones ... one keyword in bold followed by -"; lock: "A" (a button, not by hand)
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
