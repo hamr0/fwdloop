@@ -290,12 +290,13 @@
 
   .step-card{position:relative;border:1px solid var(--border);padding:10px;margin-bottom:8px;background:var(--panel2);}
   .step-card.running{border:1px double var(--amber);}
-  /* hamr's 2026-09-27 styling ruling: the card's HEADER line (number, step
-     name, state chip, close-class chip) is upper case and bold; the state/
-     close chips keep their own color from `.badge`'s existing classes —
-     text-transform never touches color. */
-  .step-card .step-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;text-transform:uppercase;font-weight:700;}
-  .step-card h4{margin:0;font-size:13px;}
+  /* hamr's 2026-09-27 ruling made the card header bold; his 2026-10-04 ruling (amendment 4) put it in its
+     real case — `1 · resume-text   [✓] passed   [human check]`. The global `h2,h4` uppercase is turned off
+     for the card's h4. The chips keep their color from `.badge`. A signed state chip already carries its own
+     `[✓]`, so it draws no second pair of brackets (`.sign-badge`). */
+  .step-card .step-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;text-transform:none;font-weight:700;}
+  .step-card h4{margin:0;font-size:13px;text-transform:none;letter-spacing:normal;}
+  .step-card .sign-badge::before,.step-card .sign-badge::after{content:none;}
   /* Every OTHER line on the card (goal, actions, granted, stopped reason) —
      lower case exactly as the data reads, normal weight; never inherits the
      header's uppercase/bold (same ruling, the non-header half of it). */
@@ -1789,8 +1790,8 @@
     div.textContent = text;
     return div;
   }
-  // The card's HEADER line: "N · step-name  [state]  [close class]" — upper
-  // case/bold from CSS (`.step-card .step-head`), the state/close chips
+  // The card's HEADER line: "N · step-name  [state]  [close class]" — real
+  // case, bold from CSS (`.step-card .step-head`), the state/close chips
   // keeping their own `.badge` color. `auditStateClass` is the SAME
   // function the Audit tab's group headers use to color their own state
   // word — never a second color scheme for the Run tab's cards.
@@ -1801,7 +1802,7 @@
     h4.textContent = (idx + 1) + " · " + box.emits;
     head.appendChild(h4);
     var stateBadge = document.createElement("span");
-    stateBadge.className = "badge " + auditStateClass(box.state);
+    stateBadge.className = "badge " + auditStateClass(box.state) + (STEP_SIGN[box.state] ? " sign-badge" : "");
     stateBadge.setAttribute("data-testid", "step-card-state-" + idx);
     stateBadge.textContent = stateWord(box.state);
     head.appendChild(stateBadge);

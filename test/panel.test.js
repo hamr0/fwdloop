@@ -2734,15 +2734,13 @@ describe('index.html — page source', () => {
   // `describe('getRunDetail', ...)` block below.
   // ---------------------------------------------------------------------
 
-  test('step-card styling ruling: the header line is upper case + bold; every other card line is explicitly normal case/weight', () => {
-    assert.match(source, /\.step-card \.step-head\{[^}]*text-transform:uppercase[^}]*font-weight:700/);
+  test('step-card styling ruling (amendment 4): the header line is real case + bold; every other card line is explicitly normal case/weight', () => {
+    assert.match(source, /\.step-card \.step-head\{[^}]*text-transform:none[^}]*font-weight:700/);
     assert.match(source, /\.step-card \.step-line\{[^}]*text-transform:none[^}]*font-weight:400/);
   });
 
-  test('PROOF (styling ruling can fail): removing the step-head uppercase/bold rule leaves no CSS rule at all forcing the header\'s case/weight', () => {
-    const withoutRule = source.replace(/\.step-card \.step-head\{[^}]*\}\n/, '');
-    assert.notEqual(withoutRule, source);
-    assert.doesNotMatch(withoutRule, /\.step-card \.step-head\{[^}]*text-transform:uppercase/);
+  test('PROOF (styling ruling can fail): the step-head rule never says uppercase', () => {
+    assert.doesNotMatch(source, /\.step-card \.step-head\{[^}]*text-transform:uppercase/);
   });
 
   test('step cards are built from ONE header helper + a shared plain-line helper, never a second ad hoc line builder', () => {
