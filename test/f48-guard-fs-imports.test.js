@@ -376,6 +376,10 @@ const ALLOWLIST = {
       closeSync: 1, existsSync: 2, lstatSync: 1, mkdirSync: 1, openSync: 1, readFileSync: 1, statSync: 1, unlinkSync: 2,
     },
   },
+  'src/panel/lock.js': {
+    reason: 'M4c-fix amendment 2 (h): the human\'s "Remove the old lock" — realpaths the run dir and --root at use time (the lock must sit inside this run, inside root), then unlinks the one `resume.lock` file, and only when `readResumeLock` (the one lock reader) says it has no recorded holder. No book content is read.',
+    names: { realpathSync: 3, unlinkSync: 1 },
+  },
   'bin/fwdloop': {
     reason: 'CLI existence checks (source/run-dir presence) plus the one realpathSync in resolveRoot (hamr ruling 2026-09-29: the typed --root is followed once at start) — no content reads',
     names: { existsSync: 3, realpathSync: 1 },

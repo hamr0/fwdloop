@@ -64,6 +64,7 @@ import {
   listRuns, getRunDetail, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
 import { createResumer } from './resume.js';
+import { removeOldLock } from './lock.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -275,6 +276,34 @@ function reopenRoute(res, body, root, resumer) {
 }
 
 /**
+ * `POST /api/remove-lock` — runs after the same gates as the answer (cookie, own Host, own Origin). The human's
+ * "Remove the old lock" (M4c-fix amendment 2 (h)): only for a run with a saved answer and no resume alive; `removeOldLock`
+ * re-checks at this moment that the lock still has no recorded holder, removes it and writes the one audit row; then the
+ * run continues exactly like "Continue the run" (the same `resumer.start`). Nothing else calls the remover.
+ * @param {any} res @param {any} body @param {string} root @param {ReturnType<typeof createResumer>} resumer
+ */
+function removeLockRoute(res, body, root, resumer) {
+  const b = body !== null && typeof body === 'object' ? body : {};
+  const { flow, runId } = b;
+  const runDir = resolveRun(res, root, flow, runId);
+  if (runDir === null) return;
+  const saved = readSavedAnswer(runDir);
+  if (!saved) {
+    refuse(res, 409, 'no-saved-answer', 'this run has no saved, unconsumed answer — a resume would have nothing to apply');
+    return;
+  }
+  if (resumer.busy(flow, runId)) { refuseBusy(res); return; }
+  const removed = removeOldLock({ root, runDir });
+  if (!removed.ok) { refuse(res, 409, removed.refused, removed.red); return; }
+  const attempt = resumer.start({
+    flow, runId, runDir, askId: saved.askId,
+  });
+  sendJson(res, 202, {
+    ok: true, lockRemoved: true, resume: 'started', askId: saved.askId, tries: attempt.tries, maxTries: attempt.maxTries,
+  });
+}
+
+/**
  * `POST /api/resume` — runs after the same gates as the answer. Starts a
  * resume ONLY for a run that has a saved, unconsumed answer; it takes no
  * decision or reason and can answer nothing. Same start path as the answer.
@@ -354,9 +383,10 @@ export function handleRequest(req, res, opts) {
     return;
   }
 
-  if (method === 'POST' && (req.url === '/api/answer' || req.url === '/api/resume' || req.url === '/api/reopen')) {
+  if (method === 'POST' && (req.url === '/api/answer' || req.url === '/api/resume' || req.url === '/api/reopen' || req.url === '/api/remove-lock')) {
     const isResume = req.url === '/api/resume';
     const isReopen = req.url === '/api/reopen';
+    const isRemoveLock = req.url === '/api/remove-lock';
     const origin = req.headers.origin;
     if (origin !== `http://127.0.0.1:${opts.port}` && origin !== `http://localhost:${opts.port}`) {
       refuse(res, 403, 'origin-not-own', String(origin));
@@ -384,6 +414,7 @@ export function handleRequest(req, res, opts) {
         try { body = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { refuse(res, 400, 'body-not-json'); return; }
         if (isResume) resumeRoute(res, body, opts.root, opts.resumer);
         else if (isReopen) reopenRoute(res, body, opts.root, opts.resumer);
+        else if (isRemoveLock) removeLockRoute(res, body, opts.root, opts.resumer);
         else answerRoute(res, body, opts.root, opts.resumer);
       } catch (e) {
         sendJson(res, 500, { ok: false, refused: 'internal', red: 'internal error' });
@@ -393,7 +424,7 @@ export function handleRequest(req, res, opts) {
   }
 
   if (method !== 'GET' && method !== 'HEAD') {
-    sendText(res, 405, 'method not allowed — GET/HEAD for reads; the only writes are POST /api/answer, POST /api/resume and POST /api/reopen');
+    sendText(res, 405, 'method not allowed — GET/HEAD for reads; the only writes are POST /api/answer, POST /api/resume, POST /api/reopen and POST /api/remove-lock');
     return;
   }
 

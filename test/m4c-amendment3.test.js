@@ -225,7 +225,8 @@ test('(e) after a try-again refused for a lock with no recorded holder, the stuc
   const tab = getRunAsks({ root, flow: 'job2', runId: 'r1', catalogue: CATALOGUE, resumeAttempt });
   assert.equal(tab.resume.label, STUCK_LOCK_LABEL);
   assert.equal(tab.resume.lockPath, lockOf(root, 'r1'));
-  assert.match(PAGE, /Remove this file by hand, then continue: " \+ model\.lockPath/);
+  assert.doesNotMatch(PAGE, /Remove this file by hand/);
+  assert.match(PAGE, /"An old resume lock is in the way\."/);
   // and whatever the last refusal said does not change it: the lock file decides
   const otherAttempt = (flow, runId) => ({ ...resumeAttempt(flow, runId), refusal: 'resume: run "r1" is locked by another resumer (pid 1, x)' });
   assert.equal(listRuns({ root, catalogue: CATALOGUE, resumeAttempt: otherAttempt }).find((x) => x.runId === 'r1').label, STUCK_LOCK_LABEL);

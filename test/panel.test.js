@@ -2026,7 +2026,7 @@ describe('index.html — page source', () => {
     }
   });
 
-  test('M4b: the only non-GET fetches on the page are POST /api/answer, POST /api/reopen and POST /api/resume, all through postJSON', () => {
+  test('M4b: the only non-GET fetches on the page are POST /api/answer, POST /api/reopen, POST /api/remove-lock and POST /api/resume, all through postJSON', () => {
     const code = stripComments(source);
     // Every fetch( call: its first argument and its options.
     const calls = [...code.matchAll(/fetch\(([^,]+),\s*\{([\s\S]*?)\}\)\.then/g)];
@@ -2039,7 +2039,7 @@ describe('index.html — page source', () => {
     assert.doesNotMatch(code, /XMLHttpRequest|sendBeacon/);
     // postJSON is called with exactly two paths.
     const postPaths = [...code.matchAll(/postJSON\(\s*"([^"]+)"/g)].map((m) => m[1]).sort();
-    assert.deepEqual(postPaths, ['/api/answer', '/api/reopen', '/api/resume']);
+    assert.deepEqual(postPaths, ['/api/answer', '/api/remove-lock', '/api/reopen', '/api/resume']);
   });
 
   test('M4c-fix item 2: the page carries no token — no TOKEN variable, no token header, never a URL, storage, or a log', () => {
@@ -2054,8 +2054,9 @@ describe('index.html — page source', () => {
     assert.deepEqual(keys, ['"fwdloop-panel-theme"']);
   });
 
-  test('M4b: no alert( / confirm( / prompt( anywhere on the page', () => {
-    assert.doesNotMatch(stripComments(source), /\b(alert|confirm|prompt)\s*\(/);
+  test('M4b: no alert( / confirm( / prompt( anywhere on the page — except the ONE confirm of "Remove the old lock" (M4c-fix amendment 2 (h))', () => {
+    const code = stripComments(source).replace('window.confirm(REMOVE_LOCK_CONFIRM)', '');
+    assert.doesNotMatch(code, /\b(alert|confirm|prompt)\s*\(/);
   });
 
   test('M4b: the POST body is built from the rendered ask\'s askId (closure), not re-read from the page at click time', () => {
@@ -2569,7 +2570,7 @@ describe('index.html — page source', () => {
     assert.ok(fnStart > 0 && fnEnd > fnStart);
     const block = stripComments(source.slice(fnStart, fnEnd));
     const buttons = [...block.matchAll(/makeButton\(.*?,\s*"(btn-[a-z-]+)"/g)].map((m) => m[1]);
-    assert.deepEqual(buttons, ['btn-accept', 'btn-redo', 'btn-rerun', 'btn-reopen', 'btn-resume-again']);
+    assert.deepEqual(buttons, ['btn-accept', 'btn-redo', 'btn-rerun', 'btn-reopen', 'btn-remove-lock', 'btn-resume-again']);
     // the reason box is a real, labelled textarea.
     assert.match(block, /createElement\("textarea"\)/);
     assert.match(block, /lab\.setAttribute\("for", idSafe\)/);

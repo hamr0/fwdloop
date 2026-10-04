@@ -851,6 +851,7 @@
     if(verdict === "refused") return "refused — no reason given";
     if(verdict === "ask-timeout" || verdict === "ask-expired") return "expired waiting for you";
     if(verdict === "ask-reopened") return "reopened by you";
+    if(verdict === "lock-removed") return "old lock removed by you";
     if(verdict === "green") return "passed";
     if(verdict === "hitl") return "human check";
     if(verdict === "not-done") return "not done";
@@ -863,7 +864,7 @@
   // would misread a pause as a failure (fix #3).
   function verdictGlyph(verdict, closeClass){
     if(closeClass === "hitl" && verdict === "red") return null;
-    if(verdict === "paused" || verdict === "refused" || verdict === "ask-timeout" || verdict === "ask-expired" || verdict === "ask-reopened") return null;
+    if(verdict === "paused" || verdict === "refused" || verdict === "ask-timeout" || verdict === "ask-expired" || verdict === "ask-reopened" || verdict === "lock-removed") return null;
     return verdictPassed(verdict) ? "✓" : "✗";
   }
   // The run-row glyph strings src/panel/data.js's computeGlyph emits are
@@ -2633,6 +2634,9 @@
       "already-resuming": "This run is already carrying on. Wait a moment, then look again.",
       "no-saved-answer": "There is no saved answer to continue from.",
       "run-ended": "This run has already ended.",
+      "lock-has-holder": "Something is working on this run now, so the old lock was left alone. Look again in a moment.",
+      "no-lock": "The old lock is already gone. Continue the run instead.",
+      "lock-outside-run": "That run can't be found.",
       "flow-outside-root": "That run can't be found.",
       "bad-flow": "That run can't be found.",
       "bad-runId": "That run can't be found.",
@@ -2705,6 +2709,26 @@
     postJSON("/api/resume", { flow: ctx.flow, runId: ctx.runId }).then(function(r){
       if(r.status === 202 && r.body && r.body.ok){
         say(ctx.flow, ctx.runId, "info", "asked the run to continue — waiting to see that it picked up your answer");
+        startLive(ctx.flow, ctx.runId, askId);
+      } else {
+        say(ctx.flow, ctx.runId, "refused", refusalText(r));
+      }
+      return reloadRun(ctx.flow, ctx.runId);
+    }).catch(function(e){
+      say(ctx.flow, ctx.runId, "refused", networkText());
+      return reloadRun(ctx.flow, ctx.runId);
+    }).then(function(){ if(root.isConnected) setBusy(root, false); });
+  }
+  // M4c-fix amendment 2 (h): the human's one button for a lock with no recorded holder. One confirm, then a gated POST;
+  // the server re-checks the lock at that moment, removes it, records it in the audit and continues the run. Cancel = nothing.
+  var REMOVE_LOCK_CONFIRM = "Only do this if nothing else is working on this run. Remove it?";
+  function sendRemoveLock(root, ctx, askId){
+    if(!window.confirm(REMOVE_LOCK_CONFIRM)) return;
+    say(ctx.flow, ctx.runId, "info", "removing the old lock…");
+    setBusy(root, true);
+    postJSON("/api/remove-lock", { flow: ctx.flow, runId: ctx.runId }).then(function(r){
+      if(r.status === 202 && r.body && r.body.ok){
+        say(ctx.flow, ctx.runId, "info", "old lock removed; asked the run to continue — waiting to see that it picked up your answer");
         startLive(ctx.flow, ctx.runId, askId);
       } else {
         say(ctx.flow, ctx.runId, "refused", refusalText(r));
@@ -2799,10 +2823,15 @@
       // stuck: an answer is saved and no resume took it. One button, one line under it saying why.
       var bar2 = document.createElement("div");
       bar2.className = "actions-row";
-      bar2.appendChild(makeButton("Continue the run", "btn-resume-again", function(){ sendResumeAgain(root, ctx, ask.askId); }));
+      if(model.lockPath){
+        // the lock has no recorded holder, so "Continue the run" could only be refused: the one button removes it, then continues
+        bar2.appendChild(makeButton("Remove the old lock", "btn-remove-lock", function(){ sendRemoveLock(root, ctx, ask.askId); }));
+      } else {
+        bar2.appendChild(makeButton("Continue the run", "btn-resume-again", function(){ sendResumeAgain(root, ctx, ask.askId); }));
+      }
       root.appendChild(bar2);
       root.appendChild(textDiv("hint", model.lockPath
-        ? "An old resume lock is in the way. Remove this file by hand, then continue: " + model.lockPath
+        ? "An old resume lock is in the way."
         : "Your answer is saved; the run stopped before using it."));
     } else {
       root.appendChild(textDiv("hint", model.why));

@@ -140,14 +140,14 @@ test('issue 2: an expired ask is one button and one short line — nobody answer
   assert.deepEqual(late.lines, ['Your answer came after the deadline.']);
 });
 
-test('issue 2: a stuck run is one button "Continue the run" and one line saying why; a lock with no holder names the file', () => {
+test('issue 2: a stuck run is one button "Continue the run" and one line saying why; a lock with no holder offers Remove the old lock, never a path', () => {
   const open = { askId: 'a', open: true, status: 'unanswered' };
   const stuck = renderBlock(open, { askId: 'a', state: 'not-started', label: 'x', reason: 'reason unknown: the panel restarted, so it has no record of the resume attempt' });
   assert.deepEqual(stuck.buttons, ['Continue the run']);
   assert.deepEqual(stuck.lines, ['Your answer is saved; the run stopped before using it.']);
   const lock = renderBlock(open, { askId: 'a', state: 'not-started', label: 'x', lockPath: '/r/job2/runs/r1/resume.lock' });
-  assert.deepEqual(lock.buttons, ['Continue the run']);
-  assert.deepEqual(lock.lines, ['An old resume lock is in the way. Remove this file by hand, then continue: /r/job2/runs/r1/resume.lock']);
+  assert.deepEqual(lock.buttons, ['Remove the old lock']);
+  assert.deepEqual(lock.lines, ['An old resume lock is in the way.']);
   const all = JSON.stringify([stuck, lock]);
   assert.doesNotMatch(all, /Try the resume again|reason unknown|panel restarted|no answer doors/i);
 });
