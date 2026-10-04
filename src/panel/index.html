@@ -1205,20 +1205,32 @@
   }
 
   // M4c amendment 1 (a): the ONE place a click on a run in Runs decides where it lands.
-  // Right side: that run, on the Run tab. A run with an ask waiting on the human also
-  // moves the left side to the Inbox with that ask's row selected; any other run leaves
-  // the left side on Runs.
+  // Right side: that run, on the Run tab, at once. Whether the run has an ask waiting on the human (or is
+  // stuck, which counts as waiting: M4c amendment 2 (b)) is decided from THAT RUN's own asks, fetched on
+  // the click — never from the cached list row, which can be up to LISTS_POLL_MS old (a run that has just
+  // parked, been reopened or answered would read wrong). If it does, the left side moves to the Inbox with
+  // that ask's row selected (the Inbox is refreshed first); any other run leaves the left side on Runs.
+  function askNeedingYou(result){
+    var found = null;
+    ((result && result.asks) || []).forEach(function(a){ if(a.waiting || a.stuck) found = a; });
+    return found;
+  }
   function openRunFromRuns(r, rowEl){
-    if(r.waiting){
-      var inboxId = "inbox-row-" + r.flow + "-" + r.runId + "-" + r.waitingAskId;
-      var inboxRow = Array.prototype.find.call(document.querySelectorAll(".inbox-row"), function(el){ return el.getAttribute("data-testid") === inboxId; }) || null;
-      selectRun(r.flow, r.runId, inboxRow, ".inbox-row", r.waitingAskId);
-      document.getElementById("tab-inbox").click();
-    } else {
-      selectRun(r.flow, r.runId, rowEl, ".hist-row");
-    }
+    selectRun(r.flow, r.runId, rowEl, ".hist-row");
     document.getElementById("tab-run").click();
     scrollRunIntoViewMobile();
+    getJSON("/api/runs/" + encodeURIComponent(r.flow) + "/" + encodeURIComponent(r.runId) + "/asks").then(function(result){
+      // the user already clicked another run: this answer is for a run they left
+      if(currentFlow !== r.flow || currentRunId !== r.runId) return;
+      var ask = askNeedingYou(result);
+      if(!ask) return;
+      reloadLists();
+      var inboxId = "inbox-row-" + r.flow + "-" + r.runId + "-" + ask.askId;
+      var inboxRow = Array.prototype.find.call(document.querySelectorAll(".inbox-row"), function(el){ return el.getAttribute("data-testid") === inboxId; }) || null;
+      selectRun(r.flow, r.runId, inboxRow, ".inbox-row", ask.askId);
+      document.getElementById("tab-inbox").click();
+      document.getElementById("tab-run").click();
+    }).catch(function(){ /* unreadable books: the run stays open on the Run tab, the left side stays on Runs */ });
   }
 
   // ---- History view: every row exactly as /api/runs returned it. ----

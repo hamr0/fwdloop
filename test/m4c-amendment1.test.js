@@ -127,7 +127,7 @@ class El {
   click() { for (const f of this.listeners) f(); }
 }
 /** Both real tab groups, wired by the page's real wireTabs; starts with Audit on the right, Chat on the left. */
-function pageHarness() {
+function pageHarness(world = {}) {
   const els = {};
   const mk = (id, panel) => { els[id] = new El(id, { 'aria-controls': panel, 'aria-selected': 'false' }); els[panel] = new El(panel); };
   [['tab-chat', 'panel-chat'], ['tab-runs', 'panel-runs'], ['tab-inbox', 'panel-inbox'],
@@ -147,18 +147,22 @@ function pageHarness() {
     // honours its selector like a real DOM: the Inbox rows answer ONLY to ".inbox-row" (a typo in the page's selector gets [])
     querySelectorAll: (sel) => (sel === '.inbox-row' ? Object.entries(inboxRows).map(([id, el]) => { el.setAttribute('data-testid', id); return el; }) : []),
   };
-  const calls = { selectRun: [] };
+  const calls = { selectRun: [], fetched: [], lists: 0 };
   const body = `
     function reflowMap(){}
     function scrollRunIntoViewMobile(){}
-    function selectRun(flow, runId, rowEl, sib, askId){ calls.selectRun.push({ flow: flow, runId: runId, rowEl: rowEl, sib: sib, askId: askId }); }
+    var currentFlow = null, currentRunId = null;
+    function selectRun(flow, runId, rowEl, sib, askId){ currentFlow = flow; currentRunId = runId; calls.selectRun.push({ flow: flow, runId: runId, rowEl: rowEl, sib: sib, askId: askId }); }
+    function reloadLists(){ calls.lists++; }
+    function getJSON(p){ calls.fetched.push(p); var id = decodeURIComponent(p.split("/")[4]); return world.fail ? Promise.reject(new Error('books unreadable')) : Promise.resolve(world.asks[id]); }
     ${fnSrc('wireTabs')}
+    ${fnSrc('askNeedingYou')}
     ${fnSrc('openRunFromRuns')}
     wireTabs([document.getElementById("tab-chat"), document.getElementById("tab-runs"), document.getElementById("tab-inbox")]);
     wireTabs([document.getElementById("tab-run"), document.getElementById("tab-audit"), document.getElementById("tab-details"), document.getElementById("tab-ask")]);
     return { openRunFromRuns: openRunFromRuns };
   `;
-  const api = new Function('document', 'calls', body)(document, calls);
+  const api = new Function('document', 'calls', 'world', body)(document, calls, world);
   const selected = (ids) => ids.filter((i) => els[i].getAttribute('aria-selected') === 'true');
   return {
     ...api, els, inboxRows, calls,
@@ -167,38 +171,87 @@ function pageHarness() {
   };
 }
 
-test('(a) clicking a waiting run: right = Run (from Audit), left = Inbox with that ask\'s row selected', () => {
-  const h = pageHarness();
+const flush = () => new Promise((r) => { setTimeout(r, 0); });
+
+test('(a) clicking a waiting run: right = Run (from Audit), left = Inbox with that ask\'s row selected', async () => {
+  const h = pageHarness({ asks: { r1: { asks: [{ askId: 'ask9', waiting: true, stuck: false }] } } });
   h.els['tab-runs'].click(); // left on Runs, right still on Audit from before
   h.els['tab-audit'].click();
   const inboxRow = new El('row');
   h.inboxRows['inbox-row-job2-r1-ask9'] = inboxRow;
   h.openRunFromRuns({ flow: 'job2', runId: 'r1', waiting: true, waitingAskId: 'ask9' }, new El('runs-row'));
+  assert.deepEqual(h.right(), ['tab-run'], 'the right side opens at once');
+  await flush();
   assert.deepEqual(h.right(), ['tab-run']);
   assert.deepEqual(h.left(), ['tab-inbox']);
-  assert.equal(h.calls.selectRun.length, 1);
-  assert.equal(h.calls.selectRun[0].rowEl, inboxRow, 'the inbox row is the selected one');
-  assert.equal(h.calls.selectRun[0].askId, 'ask9');
+  const last = h.calls.selectRun.at(-1);
+  assert.equal(last.rowEl, inboxRow, 'the inbox row is the selected one');
+  assert.equal(last.askId, 'ask9');
+  assert.equal(h.calls.lists, 1, 'the lists are refreshed before the jump');
 });
 
-test('(a) a hand-edited askId with a quote and bracket still finds its inbox row and does not throw', () => {
-  const h = pageHarness();
+test('(a) a hand-edited askId with a quote and bracket still finds its inbox row and does not throw', async () => {
+  const h = pageHarness({ asks: { r1: { asks: [{ askId: 'a"]b', waiting: true }] } } });
   const inboxRow = new El('row');
   h.inboxRows['inbox-row-job2-r1-a"]b'] = inboxRow;
   h.openRunFromRuns({ flow: 'job2', runId: 'r1', waiting: true, waitingAskId: 'a"]b' }, new El('runs-row'));
-  assert.equal(h.calls.selectRun[0].rowEl, inboxRow);
-  assert.equal(h.calls.selectRun[0].askId, 'a"]b');
+  await flush();
+  assert.equal(h.calls.selectRun.at(-1).rowEl, inboxRow);
+  assert.equal(h.calls.selectRun.at(-1).askId, 'a"]b');
 });
 
-test('(a) clicking a finished run: right = Run (from Audit), left stays on Runs', () => {
-  const h = pageHarness();
+test('(a) clicking a finished run: right = Run (from Audit), left stays on Runs', async () => {
+  const h = pageHarness({ asks: { r2: { asks: [{ askId: 'a1', waiting: false, stuck: false, open: false }] } } });
   h.els['tab-runs'].click();
   h.els['tab-audit'].click();
   const runsRow = new El('runs-row');
   h.openRunFromRuns({ flow: 'job2', runId: 'r2', waiting: false, waitingAskId: null }, runsRow);
+  await flush();
   assert.deepEqual(h.right(), ['tab-run']);
   assert.deepEqual(h.left(), ['tab-runs']);
+  assert.equal(h.calls.selectRun.length, 1);
   assert.equal(h.calls.selectRun[0].rowEl, runsRow);
+});
+
+// walk issue 4: the jump is decided from the run's own fresh asks, never from the cached list row.
+test('issue 4: a STUCK run jumps to the Inbox too (stuck counts as waiting, M4c amendment 2 (b)) — even though its list row says waiting:false', async () => {
+  const h = pageHarness({ asks: { r1: { asks: [{ askId: 'ask9', waiting: false, stuck: true }] } } });
+  h.els['tab-runs'].click();
+  const inboxRow = new El('row');
+  h.inboxRows['inbox-row-job2-r1-ask9'] = inboxRow;
+  h.openRunFromRuns({ flow: 'job2', runId: 'r1', waiting: false, stuck: true, waitingAskId: null }, new El('runs-row'));
+  await flush();
+  assert.deepEqual(h.left(), ['tab-inbox']);
+  assert.equal(h.calls.selectRun.at(-1).askId, 'ask9');
+});
+
+test('issue 4: a STALE list row (says finished/running; the run has just parked) still jumps, and a stale "waiting" row for a run that is no longer waiting does not', async () => {
+  const parked = pageHarness({ asks: { r1: { asks: [{ askId: 'ask2', waiting: true }] } } });
+  parked.els['tab-runs'].click();
+  parked.openRunFromRuns({ flow: 'job2', runId: 'r1', waiting: false, glyph: '[▶]' }, new El('runs-row'));
+  await flush();
+  assert.deepEqual(parked.left(), ['tab-inbox'], 'fresh state wins over the 10 s old list row');
+  const answered = pageHarness({ asks: { r1: { asks: [{ askId: 'ask1', waiting: false, stuck: false, open: false, status: 'accepted' }] } } });
+  answered.els['tab-runs'].click();
+  answered.openRunFromRuns({ flow: 'job2', runId: 'r1', waiting: true, waitingAskId: 'ask1' }, new El('runs-row'));
+  await flush();
+  assert.deepEqual(answered.left(), ['tab-runs'], 'a stale waiting row does not drag the left side to the Inbox');
+});
+
+test('issue 4: a late reply for a run the user already left changes nothing; unreadable books leave the left side alone', async () => {
+  const h = pageHarness({ asks: { r1: { asks: [{ askId: 'ask9', waiting: true }] } } });
+  h.els['tab-runs'].click();
+  h.openRunFromRuns({ flow: 'job2', runId: 'r1', waiting: true }, new El('a'));
+  h.openRunFromRuns({ flow: 'job2', runId: 'r1b', waiting: false }, new El('b')); // the user moved on before r1's reply landed
+  h.calls.fetched.length = 0;
+  await flush();
+  assert.deepEqual(h.left(), ['tab-runs']);
+  const bad = pageHarness({ fail: true });
+  bad.els['tab-runs'].click();
+  bad.openRunFromRuns({ flow: 'job2', runId: 'r1', waiting: true }, new El('c'));
+  await flush();
+  assert.deepEqual(bad.left(), ['tab-runs']);
+  assert.deepEqual(bad.right(), ['tab-run']);
 });
 
 test('(a) all three Runs rows (Workflows parent, child, History) go through that one function', () => {
