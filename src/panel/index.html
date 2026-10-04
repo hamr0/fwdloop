@@ -354,6 +354,9 @@
      header line with a caret and no empty table under it. */
   .audit-group.audit-fold{padding:6px 10px;margin-top:6px;margin-bottom:6px;min-width:0;max-width:100%;box-sizing:border-box;}
   .audit-group.audit-fold h4.audit-status-header{position:static;margin:0;padding:0;background:none;min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:break-word;}
+  .audit-group.audit-fold h4.audit-status-header{display:flex;align-items:baseline;gap:6px;overflow:hidden;}
+  .audit-fold-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .audit-fold-tail{flex:none;white-space:nowrap;}
   .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6  ";color:var(--text-faint);}
   .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC  ";}
   .audit-group.audit-fold h4.audit-status-header::after{content:none;}
@@ -1028,8 +1031,16 @@
     }
     return {perRow:1, boxW:Math.max(MIN_BOX_W, Math.min(usableW, ceiling))};
   }
+  // M4c-fix amendment 2 (l): a line longer than the box is cut with … (the whole name stays in the node's <title>
+  // and on its step card below the map).
+  function mapLabel(line, maxChars){
+    return line.length <= maxChars ? line : line.slice(0, Math.max(1, maxChars - 1)) + "\u2026";
+  }
   function wrapTitleLines(text, maxWidth){
     var maxChars = Math.max(1, Math.floor((maxWidth - TITLE_HPAD) / CHAR_W));
+    return wrapTitleLinesRaw(text, maxChars).map(function(l){ return mapLabel(l, maxChars); });
+  }
+  function wrapTitleLinesRaw(text, maxChars){
     if(text.length <= maxChars) return [text];
     var words = text.split(' ');
     var line1 = '', i = 0;
@@ -1080,7 +1091,7 @@
       // into a jump to the Audit tab's matching group is wired AFTER
       // insertion (renderStepMap, below), never inline here (this function
       // only ever builds a markup string).
-      body += '<g class="map-step" data-emits="' + escapeXml(s.emits) + '" tabindex="0" role="button" aria-label="open ' + escapeXml(s.emits) + ' in Audit">';
+      body += '<g class="map-step" data-emits="' + escapeXml(s.emits) + '" tabindex="0" role="button" aria-label="open ' + escapeXml(s.emits) + ' in Audit"><title>' + escapeXml(stepTitleText(idx, s)) + '</title>';
       body += '<rect x="' + x + '" y="' + y + '" width="' + boxW + '" height="' + boxH +
         '" rx="0" fill="var(--panel2)" stroke="' + colors.stroke + '" stroke-width="2"></rect>';
       if(lines.length === 1){
@@ -2015,15 +2026,24 @@
     stateSpan.setAttribute("data-testid", "audit-group-state");
     stateSpan.textContent = g.state;
     h4.appendChild(stateSpan);
-    h4.appendChild(document.createTextNode(" · " + g.step + " · " + duration(g.timeMs) + " · " + (g.cost || "cost unknown")));
-    if(typeof g.tokensTotal === "number") h4.appendChild(document.createTextNode(" · " + g.tokensTotal + " tokens"));
-    h4.appendChild(document.createTextNode(" · try " + g.tryCount + " "));
+    // M4c-fix amendment 2 (l): the title is `[sign] name · cost · try N ✗✓` — the name alone is cut with … (own flex child),
+    // cost and tries never; time and tokens live in each try's detail. The whole name is in the title attribute and aria-label.
+    var nameSpan = document.createElement("span");
+    nameSpan.className = "audit-fold-name";
+    nameSpan.setAttribute("data-testid", "audit-group-name");
+    nameSpan.title = g.step;
+    nameSpan.textContent = g.step;
+    h4.appendChild(nameSpan);
+    var tail = document.createElement("span");
+    tail.className = "audit-fold-tail";
+    tail.appendChild(document.createTextNode("· " + (g.cost || "cost unknown") + " · try " + g.tryCount + " "));
     g.tryMarks.forEach(function(mark){
       var markSpan = document.createElement("span");
       markSpan.className = "mark " + auditMarkClass(mark);
       markSpan.textContent = mark;
-      h4.appendChild(markSpan);
+      tail.appendChild(markSpan);
     });
+    h4.appendChild(tail);
     return h4;
   }
   // Grouped view: one section per step, server order preserved (first-seen

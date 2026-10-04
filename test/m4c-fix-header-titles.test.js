@@ -32,3 +32,18 @@ test('(k) at 640 px or less the header is three lines: bar and dot hidden, colum
   assert.match(m[1], /\.hdr-sep\{display:none/);
   assert.match(m[1], /::before\{content:none/);
 });
+
+test('(l) the grouped Audit title is [sign] name · cost · try N, the name cut with an ellipsis, time and tokens not in it', () => {
+  assert.match(PAGE, /\.audit-fold-name\{[^}]*overflow:hidden;[^}]*text-overflow:ellipsis;[^}]*white-space:nowrap/, 'name cuts with …');
+  assert.match(rule('.audit-fold-name'), /min-width:0/);
+  const i = PAGE.indexOf('h4.className = "audit-status-header"');
+  const body = PAGE.slice(i, PAGE.indexOf('return h4;', i));
+  assert.match(body, /audit-fold-name/, 'the name is its own child');
+  const code = body.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+  assert.doesNotMatch(code, /tokens|timeMs|duration\(/, 'no time or tokens in the title');
+});
+
+test('(l) the step map cuts a long name with … and keeps the whole name in a <title>', () => {
+  assert.match(PAGE, /function mapLabel\(/);
+  assert.match(PAGE, /<title>' \+ escapeXml\(stepTitleText/);
+});
