@@ -406,15 +406,19 @@
      step (flat view only), verdict word, short cost, HH:MM — built from the `.am-*` cells `buildAuditRowEl`
      adds (hidden on desktop, where the table is unchanged). The long Gap text hides behind a tap: the row
      toggles `.open` and the gap shows as a full-width line under it. Every other cell hides. Nothing is wider
-     than the viewport: the step cell shrinks and ellipsizes, the rest are nowrap and short. */
-  @media (max-width: 480px){
-    [data-testid="audit-table"], .audit-group table{width:100%;}
+     than the viewport: the step cell shrinks and ellipsizes, the rest are nowrap and short. The line never wraps
+     (flex-wrap:nowrap, overflow hidden), so a larger system font or a long verdict word shrinks the step and
+     ellipsizes rather than pushing cost and time onto a second line. It applies up to 640px — the whole
+     phone/narrow-window range, not only 480 (a 500 px window showed the wide table, rows 49-607 px tall). */
+  @media (max-width: 640px){
+    /* display:block: a table would size itself to its nowrap cells' content and run wider than the screen */
+    [data-testid="audit-table"], .audit-group table{display:block;width:100%;max-width:100%;}
     [data-testid="audit-table"] thead, .audit-group table thead{
       position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;
     }
     [data-testid="audit-table"] tbody, .audit-group table tbody{display:block;}
     [data-testid="audit-table"] tr, .audit-group table tr{
-      display:flex;flex-wrap:wrap;align-items:center;column-gap:8px;border-bottom:1px solid var(--border);padding:4px 6px;box-sizing:border-box;max-width:100%;
+      display:flex;flex-wrap:nowrap;align-items:center;column-gap:8px;border-bottom:1px solid var(--border);padding:4px 6px;box-sizing:border-box;max-width:100%;overflow:hidden;
     }
     [data-testid="audit-table"] td, .audit-group table td{
       display:none;border:none;padding:0;min-width:0;box-sizing:border-box;white-space:nowrap;
@@ -424,17 +428,19 @@
     [data-testid="audit-table"] td[data-label="Step"], .audit-group table td[data-label="Step"],
     [data-testid="audit-table"] td[data-label="Verdict"], .audit-group table td[data-label="Verdict"]{display:block;}
     [data-testid="audit-table"] td[data-label="Attempt"]::before, .audit-group table td[data-label="Attempt"]::before{content:"#";}
-    [data-testid="audit-table"] td.am-glyph, .audit-group table td.am-glyph{order:1;}
-    [data-testid="audit-table"] td[data-label="Attempt"], .audit-group table td[data-label="Attempt"]{order:2;color:var(--text-dim);}
+    [data-testid="audit-table"] td.am-glyph, .audit-group table td.am-glyph{order:1;flex:0 0 auto;}
+    [data-testid="audit-table"] td[data-label="Attempt"], .audit-group table td[data-label="Attempt"]{order:2;flex:0 0 auto;color:var(--text-dim);}
     [data-testid="audit-table"] td[data-label="Step"], .audit-group table td[data-label="Step"]{order:3;flex:1 1 0;overflow:hidden;text-overflow:ellipsis;}
-    [data-testid="audit-table"] td[data-label="Verdict"], .audit-group table td[data-label="Verdict"]{order:4;max-width:9em;overflow:hidden;text-overflow:ellipsis;}
-    [data-testid="audit-table"] td.am-cost, .audit-group table td.am-cost{order:5;}
-    [data-testid="audit-table"] td.am-time, .audit-group table td.am-time{order:6;color:var(--text-dim);}
+    [data-testid="audit-table"] td[data-label="Verdict"], .audit-group table td[data-label="Verdict"]{order:4;flex:0 1 auto;max-width:9em;overflow:hidden;text-overflow:ellipsis;}
+    [data-testid="audit-table"] td.am-cost, .audit-group table td.am-cost{order:5;flex:0 0 auto;}
+    [data-testid="audit-table"] td.am-time, .audit-group table td.am-time{order:6;flex:0 0 auto;color:var(--text-dim);}
     /* no step cell (grouped view): the verdict takes the slack so cost and time sit at the right */
     .audit-group table td[data-label="Verdict"]{flex:1 1 0;}
     tr.audit-has-gap{cursor:pointer;}
     tr.audit-has-gap td.am-glyph::after{content:"\25B8";margin-left:2px;color:var(--text-faint);}
     tr.audit-has-gap.open td.am-glyph::after{content:"\25BE";}
+    /* a row opened by a tap is the one place a second line is allowed: the gap */
+    [data-testid="audit-table"] tr.open, .audit-group table tr.open{flex-wrap:wrap;}
     [data-testid="audit-table"] tr.open td[data-label="Gap"], .audit-group table tr.open td[data-label="Gap"]{
       display:block;order:7;flex:0 0 100%;white-space:normal;overflow-wrap:anywhere;padding:4px 0 2px;color:var(--text-dim);
     }
