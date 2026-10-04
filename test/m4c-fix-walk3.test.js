@@ -164,3 +164,78 @@ test('issue 2: the data says whether the expired ask had a late answer saved (la
   assert.equal(d.STUCK_LABEL, 'stuck — your answer is saved; the run stopped before using it');
   assert.equal(d.STUCK_LOCK_LABEL, 'stuck — an old resume lock is in the way');
 });
+
+// ---- issue 3: a blank reason is caught on the page; every refusal reads as a plain sentence -----------------
+function clickScope(post) {
+  const calls = { posts: 0, said: [] };
+  const scope = new Function('post', 'calls', `
+    var answerMsg = null, reasonDrafts = {}, pendingAnswer = null;
+    function paintAnswerMsg(){}
+    function say(f, r, cls, text){ calls.said.push(cls + ":" + text); }
+    function postJSON(){ calls.posts++; return post(); }
+    function startLive(){} function reloadRun(){ return Promise.resolve(); } function setBusy(){}
+    ${['refusalText', 'reasonMissing', 'blankReasonText', 'networkText', 'sendAnswer'].map(fnSrc).join('\n')}
+    return sendAnswer;
+  `)(post, calls);
+  return { send: scope, calls };
+}
+const boxRoot = (value, hint) => ({ querySelector: (sel) => (/reason-hint/.test(sel) ? hint : { value }), isConnected: false });
+const flush = () => new Promise((r) => { setTimeout(r, 0); });
+const ASK = { askId: 'a1' };
+const CTX = { flow: 'job2', runId: 'r1', draftNo: 1, resume: null };
+
+test('issue 3: redo or rerun with an empty reason shows "Please write a reason for the redo." next to the box and sends nothing', async () => {
+  for (const [decision, word] of [['redo', 'redo'], ['rerun', 'rerun']]) {
+    for (const blank of ['', '   \n']) {
+      const { send, calls } = clickScope(async () => ({ status: 202, body: { ok: true }, text: '' }));
+      const hint = { hidden: true, textContent: '' };
+      send(boxRoot(blank, hint), ASK, CTX, decision);
+      await flush();
+      assert.equal(calls.posts, 0, `${decision} with a blank reason must not be sent`);
+      assert.equal(hint.textContent, `Please write a reason for the ${word}.`);
+      assert.equal(hint.hidden, false);
+    }
+  }
+  // controls: accept needs no reason; a reason sends
+  const ok = clickScope(async () => ({ status: 202, body: { ok: true }, text: '' }));
+  ok.send(boxRoot('', { hidden: true, textContent: '' }), ASK, CTX, 'accept');
+  ok.send(boxRoot('shorter', { hidden: true, textContent: '' }), ASK, CTX, 'redo');
+  await flush();
+  assert.equal(ok.calls.posts, 2);
+  // the page renders the hint element next to the box
+  assert.match(page, /reasonHint\.setAttribute\("data-testid", "reason-hint"\)/);
+});
+
+test('issue 3: no refusal the page can show contains an HTTP status, a refusal code, an askId or a path', async () => {
+  const id = '2a73404e-8e11-4e19-a6ce-afce20bcab3a';
+  const run = '/home/x/flows/job2/runs/r1';
+  const library = [
+    `answerAsk: askId "${id}" needs a non-blank reason to redo`, `answerAsk: askId "${id}" expired at 2026-10-04T07:14:07.572Z for run ${run}`,
+    `answerAsk: askId "${id}" already answered for run ${run}`, `answerAsk: askId "${id}" is unknown for run ${run}`, `answerAsk: no open ask for run ${run}`,
+    'answerAsk: unrecognised decision "x"', `answerAsk: askId "${id}" cannot be accepted — ask.json carries no readable artifact (evidence.artifact) to hash for run ${run}`,
+    `answerAsk: could not write ${run}/answer.json — EACCES`, `answerAsk: askId "${id}" — a broken saved answer (x) is in the way — answer.json could not be set aside — y`,
+    `reopenAsk: askId "${id}" has not expired (it runs until 2026-10-04T08:00:00Z)`, `reopenAsk: askId "${id}" has an answer saved in time — resume it, it is not expired`,
+    `reopenAsk: askId "${id}" was already reopened (record 1 exists)`, `reopenAsk: no open ask for run ${run}`, `reopenAsk: askId "${id}" is unknown for run ${run}`,
+    `reopenAsk: askId "${id}" already answered for run ${run}`, `reopenAsk: could not write the reopen record — EACCES`, 'something nobody planned for',
+  ];
+  const named = ['already-resuming', 'no-saved-answer', 'run-ended', 'flow-outside-root', 'bad-flow', 'bad-runId', 'askid-required', 'body-not-json', 'body-too-large',
+    'cookie-missing-or-wrong', 'origin-not-own', 'host-not-own-address', 'internal'];
+  const refusalText = new Function(`${['refusalText', 'blankReasonText'].map(fnSrc).join('\n')} return refusalText;`)();
+  const bodies = [
+    ...library.map((red) => ({ status: 409, body: { ok: false, refused: 'library', red } })),
+    ...named.map((refused) => ({ status: 409, body: { ok: false, refused, red: `${refused}: ${id} at ${run}` } })),
+    { status: 500, body: null, text: 'Internal Server Error' }, { status: 405, body: null, text: 'method not allowed' }, { status: 0, body: undefined },
+  ];
+  for (const r of bodies) {
+    const t = refusalText(r, 'redo');
+    assert.doesNotMatch(t, /HTTP|\b[1-5]\d\d\b|askId|[0-9a-f]{8}-[0-9a-f]{4}|\/home|answerAsk|reopenAsk|[a-z]+-[a-z]+: /, `${JSON.stringify(r.body)} -> ${t}`);
+    assert.match(t, /^[A-Z].*[.]$/, `a sentence: ${t}`);
+  }
+  assert.equal(refusalText({ status: 409, body: { refused: 'library', red: `answerAsk: askId "${id}" needs a non-blank reason to redo` } }, 'redo'), 'Please write a reason for the redo.');
+  // the fetch itself failing (network) is plain too
+  const { send, calls } = clickScope(async () => { throw new Error('fetch failed'); });
+  send(boxRoot('x', { hidden: true, textContent: '' }), ASK, CTX, 'redo');
+  await flush();
+  assert.ok(calls.said.every((l) => !/fetch failed|network failure/.test(l)), calls.said.join('|'));
+  assert.match(calls.said.at(-1), /^refused:Could not reach the panel/);
+});

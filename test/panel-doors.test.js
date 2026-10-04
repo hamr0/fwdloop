@@ -23,7 +23,7 @@ const load = (names, ret) => new Function(`${names.map(fnSrc).join('\n')}\nretur
 
 const answerControls = load(['answerControls'], 'answerControls');
 const liveOutcome = load(['liveOutcome'], 'liveOutcome');
-const refusalText = load(['refusalText'], 'refusalText');
+const refusalText = load(['refusalText', 'blankReasonText'], 'refusalText');
 
 const openAsk = { askId: 'a1', open: true, status: 'unanswered' };
 
@@ -68,11 +68,12 @@ test('doors: try-again is offered ONLY for not-started (never for doors/starting
   assert.ok(!kinds.includes('stuck'), `stuck must be only for not-started, got ${kinds}`);
 });
 
-test('refusals: shown by name with the HTTP status; a library red is verbatim; a plain-text 405 body is shown too', () => {
+test('refusals: every one is a plain sentence — no HTTP status, refusal code, askId or path (M4c-fix walk issue 3)', () => {
   assert.equal(refusalText({ status: 409, body: { ok: false, refused: 'library', red: 'answerAsk: askId "x" is unknown for run /r' }, text: '' }),
-    'HTTP 409 — answerAsk: askId "x" is unknown for run /r');
-  assert.equal(refusalText({ status: 403, body: { red: 'token-missing-or-wrong' }, text: '' }), 'HTTP 403 — token-missing-or-wrong');
-  assert.equal(refusalText({ status: 405, body: null, text: 'method not allowed' }), 'HTTP 405 — method not allowed');
+    'This ask is no longer open.');
+  assert.equal(refusalText({ status: 403, body: { refused: 'cookie-missing-or-wrong', red: 'cookie-missing-or-wrong: open the link' }, text: '' }),
+    'The panel does not recognise this page. Open the link the terminal printed.');
+  assert.equal(refusalText({ status: 405, body: null, text: 'method not allowed' }), 'That did not go through. Reload the page to see where this run stands.');
 });
 
 test('live: outcomes are read from the books — stuck stops quietly, a new open ask / ✓ / ✗ / rerun end the watch, anything else keeps waiting', () => {

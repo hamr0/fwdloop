@@ -2067,10 +2067,11 @@ describe('index.html — page source', () => {
     const fnEnd = code.indexOf('function sendResumeAgain(');
     const body = code.slice(fnStart, fnEnd);
     assert.doesNotMatch(body, /getAttribute|currentFlow|currentRunId|querySelector\([^)]*ask/);
-    // the page sends the typed reason verbatim (no trim / blank check): the library judges it.
+    // the page sends the typed reason verbatim; a blank one is only caught early by `reasonMissing` (the library still judges).
     assert.doesNotMatch(body, /\.trim\(\)/);
+    assert.match(body, /reasonMissing\(decision, payload\.reason\)/);
     // a stale ask / any refusal is shown and the page refreshes to the current ask.
-    assert.match(body, /refusalText\(r\)/);
+    assert.match(body, /refusalText\(r, decision\)/);
     assert.match(body, /reloadRun\(ctx\.flow, ctx\.runId\)/);
   });
 

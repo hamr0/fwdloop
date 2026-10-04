@@ -2579,10 +2579,49 @@
       el.textContent = mine ? m.text : "";
     });
   }
-  function refusalText(r){
-    var b = r.body;
-    var name = b && typeof b.red === "string" ? b.red : (r.text || "no detail");
-    return "HTTP " + r.status + " — " + name;
+  // Every refusal the page shows is a plain sentence — never an HTTP status, a refusal code, an askId or a path.
+  // `r` is { status, body, text } from postJSON; `decision` is the answer word of an answer click (else null).
+  // The server's own refusal name (`refused`) is matched first; a library refusal is matched by what it says.
+  function networkText(){ return "Could not reach the panel, so nothing is confirmed. Check it is still running; the header above shows what the books say."; }
+  // A redo or rerun needs a reason. The page only saves the round trip: the library still judges every answer.
+  function reasonMissing(decision, value){ return (decision === "redo" || decision === "rerun") && String(value).trim() === ""; }
+  function blankReasonText(decision){ return "Please write a reason for the " + (decision === "rerun" ? "rerun" : "redo") + "."; }
+  function refusalText(r, decision){
+    var byName = {
+      "already-resuming": "This run is already carrying on. Wait a moment, then look again.",
+      "no-saved-answer": "There is no saved answer to continue from.",
+      "run-ended": "This run has already ended.",
+      "flow-outside-root": "That run can't be found.",
+      "bad-flow": "That run can't be found.",
+      "bad-runId": "That run can't be found.",
+      "askid-required": "That click was not understood. Reload the page and try again.",
+      "body-not-json": "That click was not understood. Reload the page and try again.",
+      "body-too-large": "That is too long to send. Please shorten your reason.",
+      "cookie-missing-or-wrong": "The panel does not recognise this page. Open the link the terminal printed.",
+      "origin-not-own": "The panel does not recognise this page. Open the link the terminal printed.",
+      "host-not-own-address": "The panel does not recognise this page. Open the link the terminal printed.",
+      "internal": "Something went wrong inside the panel. Nothing was changed."
+    };
+    var byWords = [
+      [/needs a non-blank reason/, null],
+      [/expired at/, "The time to answer ran out. Reopen it to give it more time."],
+      [/already answered/, "This ask was already answered."],
+      [/answer saved in time|has an answer saved/, "Your answer is saved. Continue the run instead."],
+      [/has not expired/, "This ask has not run out of time yet."],
+      [/already reopened/, "This ask was already reopened."],
+      [/unrecognised decision/, "That answer is not recognised."],
+      [/no readable artifact/, "There is no draft to accept."],
+      [/no open ask|is unknown for run/, "This ask is no longer open."],
+      [/could not write|set aside/, "Your answer could not be saved. Nothing was changed."]
+    ];
+    var b = r && r.body;
+    var name = b && typeof b.refused === "string" ? b.refused : "";
+    var red = b && typeof b.red === "string" ? b.red : "";
+    if(Object.prototype.hasOwnProperty.call(byName, name)) return byName[name];
+    for(var i = 0; i < byWords.length; i++){
+      if(byWords[i][0].test(red)) return byWords[i][1] === null ? blankReasonText(decision) : byWords[i][1];
+    }
+    return "That did not go through. Reload the page to see where this run stands.";
   }
   // While a POST is out the buttons are disabled (stops a double click) — nothing else is ever disabled.
   function setBusy(root, busy){
@@ -2593,6 +2632,12 @@
   function sendAnswer(root, ask, ctx, decision){
     var ta = root.querySelector("textarea");
     var payload = { flow: ctx.flow, runId: ctx.runId, askId: ask.askId, decision: decision, reason: ta ? ta.value : "" };
+    var hintEl = root.querySelector("[data-testid='reason-hint']");
+    if(hintEl){ hintEl.hidden = true; hintEl.textContent = ""; }
+    if(reasonMissing(decision, payload.reason)){
+      if(hintEl){ hintEl.textContent = blankReasonText(decision); hintEl.hidden = false; }
+      return;
+    }
     say(ctx.flow, ctx.runId, "info", "sending " + decision + "…");
     setBusy(root, true);
     postJSON("/api/answer", payload).then(function(r){
@@ -2604,11 +2649,11 @@
         if(r.body.setAside) say(ctx.flow, ctx.runId, "info", "your earlier saved answer was broken; it is kept aside. This answer is saved.");
         startLive(ctx.flow, ctx.runId, ask.askId);
       } else {
-        say(ctx.flow, ctx.runId, "refused", refusalText(r));
+        say(ctx.flow, ctx.runId, "refused", refusalText(r, decision));
       }
       return reloadRun(ctx.flow, ctx.runId);
     }).catch(function(e){
-      say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown in the ask header above");
+      say(ctx.flow, ctx.runId, "refused", networkText());
       return reloadRun(ctx.flow, ctx.runId);
     }).then(function(){ if(root.isConnected) setBusy(root, false); });
   }
@@ -2624,7 +2669,7 @@
       }
       return reloadRun(ctx.flow, ctx.runId);
     }).catch(function(e){
-      say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown in the ask header above");
+      say(ctx.flow, ctx.runId, "refused", networkText());
       return reloadRun(ctx.flow, ctx.runId);
     }).then(function(){ if(root.isConnected) setBusy(root, false); });
   }
@@ -2640,7 +2685,7 @@
       }
       return reloadRun(ctx.flow, ctx.runId);
     }).catch(function(e){
-      say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown in the ask header above");
+      say(ctx.flow, ctx.runId, "refused", networkText());
       return reloadRun(ctx.flow, ctx.runId);
     }).then(function(){ if(root.isConnected) setBusy(root, false); });
   }
@@ -2674,9 +2719,14 @@
       ta.setAttribute("data-testid", "answer-reason");
       ta.setAttribute("data-askid", ask.askId);
       ta.value = reasonDrafts[ask.askId] || "";
-      ta.addEventListener("input", function(){ reasonDrafts[ask.askId] = ta.value; });
+      ta.addEventListener("input", function(){ reasonDrafts[ask.askId] = ta.value; reasonHint.hidden = true; });
       root.appendChild(lab);
       root.appendChild(ta);
+      // shown next to the box when a redo or rerun is clicked with no reason (page-side check, before anything is sent)
+      var reasonHint = textDiv("answer-msg refused", "");
+      reasonHint.hidden = true;
+      reasonHint.setAttribute("data-testid", "reason-hint");
+      root.appendChild(reasonHint);
       var bar = document.createElement("div");
       bar.className = "actions-row";
       bar.setAttribute("data-testid", "action-bar");
