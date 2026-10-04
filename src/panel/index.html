@@ -361,6 +361,16 @@
   .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6  ";color:var(--text-faint);}
   .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC  ";}
   .audit-group.audit-fold h4.audit-status-header::after{content:none;}
+  @media (max-width: 640px){
+    /* (l) a phone: the name is the only thing that shrinks — drop the dots and the word "try", tighten the gaps */
+    .audit-group.audit-fold{padding-left:8px;padding-right:8px;}
+    .audit-group.audit-fold h4.audit-status-header{gap:3px;font-size:12px;}
+    .audit-group.audit-fold h4.audit-status-header > .badge{padding-left:0;padding-right:0;font-size:10px;}
+    .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6";}
+    .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC";}
+    .audit-fold-sep,.audit-fold-try{display:none;}
+    .audit-fold-n{margin-left:.4em;}
+  }
   .audit-group.audit-fold table{margin-top:8px;}
   .audit-group.audit-fold table[hidden]{display:none !important;}
   /* hamr's 2026-09-27 review: the group header's own state word (g.state,
@@ -2037,7 +2047,13 @@
     h4.appendChild(nameSpan);
     var tail = document.createElement("span");
     tail.className = "audit-fold-tail";
-    tail.appendChild(document.createTextNode("· " + (g.cost || "cost unknown") + " · try " + g.tryCount + " "));
+    // the dots and the word "try" are their own spans so a phone can drop them (keeping cost, N and the marks)
+    function tailPart(cls, text){ var sp = document.createElement("span"); sp.className = cls; sp.textContent = text; tail.appendChild(sp); }
+    tailPart("audit-fold-sep", "· ");
+    tail.appendChild(document.createTextNode(g.cost || "cost unknown"));
+    tailPart("audit-fold-sep", " · ");
+    tailPart("audit-fold-try", "try ");
+    tailPart("audit-fold-n", g.tryCount + " ");
     g.tryMarks.forEach(function(mark){
       var markSpan = document.createElement("span");
       markSpan.className = "mark " + auditMarkClass(mark);

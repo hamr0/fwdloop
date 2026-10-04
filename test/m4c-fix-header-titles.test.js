@@ -52,3 +52,17 @@ test('(l) the step map cuts a long name with … and keeps the whole name in a <
 test('(l) the sign and caret never shrink, so a narrow title cuts only the name (walk: the sign broke letter by letter at 390 without this)', () => {
   assert.match(PAGE, /audit-status-header > \.badge,[^{]*audit-status-header::before\{flex:none;white-space:pre;\}/);
 });
+
+test('(l) on a phone the Audit title drops the dots and the word "try", keeps cost, N and the marks, so a 24-char step name shows whole at 390 px', () => {
+  const i = PAGE.indexOf('/* (l) a phone');
+  assert.ok(i > 0, 'phone block for the Audit title');
+  const blk = PAGE.slice(i, PAGE.indexOf('\n  }', i));
+  assert.match(blk, /\.audit-fold-sep,\.audit-fold-try\{display:none;\}/);
+  assert.match(blk, /\.audit-fold-n\{margin-left:/, 'N keeps a gap from the cost once the dot is gone');
+  assert.match(blk, /> \.badge\{padding-left:0;padding-right:0;/);
+  const i2 = PAGE.indexOf('h4.className = "audit-status-header"');
+  const body = PAGE.slice(i2, PAGE.indexOf('return h4;', i2));
+  assert.match(body, /"audit-fold-sep", "· "/);
+  assert.match(body, /"audit-fold-try", "try "/);
+  assert.match(body, /"audit-fold-n"/);
+});
