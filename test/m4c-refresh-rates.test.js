@@ -60,7 +60,7 @@ function inboxHarness(state = {}) {
     function duration(ms){ return ms + "ms"; } function readableDateTime(x){ return x; }
     function selectRun(){}
     var INBOX_HEADS = { 1: "waiting on you", 2: "working", 3: "answered" };
-    ${['sig', 'withScrollPreserved', 'withFocusPreserved', 'textDiv', 'stopStatusLine', 'renderStopRow', 'renderInbox', 'buildInbox'].map(fnSrc).join('\n')}
+    ${['sig', 'escapeXml', 'signHtml', 'withScrollPreserved', 'withFocusPreserved', 'textDiv', 'stopStatusLine', 'renderStopRow', 'renderInbox', 'buildInbox'].map(fnSrc).join('\n')}
     return { renderInbox: renderInbox, pick: function(f, r, a){ currentFlow = f; currentRunId = r; currentAskId = a; } };
   `)(doc, state);
   const list = doc.getElementById('inbox-list');

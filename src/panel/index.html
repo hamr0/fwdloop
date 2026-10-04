@@ -864,6 +864,12 @@
   // CSS color class off them, never re-derives the glyph itself.
   // the dot's class list: colour from the glyph, `pulse` only when the server
   // says this sign is [▶] running or [·] waiting on you (data.js glyphPulses).
+  // M4c-fix amendment 2 (g): one bold word after every sign, then " — " and the plain line. The word comes from the
+  // server's one sign->word table (data.js SIGN_WORDS) on `word`; this only draws it, the same in Runs, Inbox and the header.
+  function signHtml(word, line, fallback){
+    if(!word) return escapeXml(fallback || "unknown");
+    return '<b class="sign-word">' + escapeXml(word) + '</b>' + (line ? " &mdash; " + escapeXml(line) : "");
+  }
   function dotClass(g, pulse){ return "dot " + glyphClass(g) + (pulse ? " pulse" : ""); }
   function glyphClass(g){
     if(g === "[✓]") return "green";
@@ -1205,7 +1211,7 @@
       '<span class="wf-line1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span>' +
       '<span class="wf-name" title="' + escapeXml(fullName) + '">' + escapeXml(fullName) + '</span></span>' +
       '<span class="wf-meta-line">' +
-      '<span class="wf-meta">' + escapeXml(r.label || "unknown") + '</span>' +
+      '<span class="wf-meta" data-testid="run-sign-word">' + signHtml(r.word, r.line, r.label) + '</span>' +
       '<span class="wf-meta">' + escapeXml(runSpendText(r)) + '</span>' +
       '<span class="wf-meta">' + escapeXml(runAtText(r)) + '</span>' +
       '</span>';
@@ -1654,7 +1660,7 @@
 
     name.textContent = detail.flow + " (" + detail.runId + ")";
     dot.className = dotClass(detail.glyph, detail.pulse);
-    verdict.textContent = detail.label || "unknown";
+    verdict.innerHTML = signHtml(detail.word, detail.line, detail.label);
     // browser re-walk bug #4: this is the DATE field — it must use its own
     // why (`detail.atWhy`), never `detail.outcomeWhy` (a different book
     // fact borrowed by mistake). A parked run's ask.json `askedAt` is a
@@ -1691,7 +1697,7 @@
     var modelText = detail.model || (detail.modelWhy || "no model call recorded yet");
     var closeText = closeClassSummaryText(detail.steps) || (detail.stepsWhy || "no steps recorded");
     box.innerHTML =
-      '<div class="summary-headline"><span class="' + dotClass(detail.glyph, detail.pulse) + '"></span><b>' + escapeXml(detail.label || "unknown") + '</b> &middot; <span class="num">' + escapeXml(spendText) + '</span></div>' +
+      '<div class="summary-headline"><span class="' + dotClass(detail.glyph, detail.pulse) + '"></span>' + signHtml(detail.word, detail.line, detail.label) + ' &middot; <span class="num">' + escapeXml(spendText) + '</span></div>' +
       '<div class="summary-row" data-testid="summary-model"><span class="sum-label">model:</span><span class="sum-val">' + escapeXml(modelText) + '</span></div>' +
       '<div class="summary-row"><span class="sum-label">steps:</span><span class="sum-val">' + stepsText + '</span></div>' +
       '<div class="summary-row" data-testid="summary-why"><span class="sum-label">why:</span><span class="sum-val">' + escapeXml(detail.stopReason || detail.stopReasonWhy || "not recorded") + '</span></div>' +
@@ -2450,7 +2456,7 @@
   // Ask tab, focused on that one ask. The answer doors live in the Ask tab. --
   function stopStatusLine(row){
     if(row.waiting) return "time left: " + duration(row.timeLeftMs);
-    if(row.stuck) return row.stuckLabel;
+    if(row.stuck) return row.stuckLine || row.stuckLabel;
     if(row.working) return "working on your " + row.working + "…";
     if(row.open && row.resume) return row.resume.label;
     var bits = [row.status];
@@ -2488,7 +2494,10 @@
     flowName.className = "wf-name";
     head.appendChild(flowName);
     wrap.appendChild(head);
-    wrap.appendChild(textDiv("wf-meta", stopStatusLine(row)));
+    var meta = textDiv("wf-meta", "");
+    meta.setAttribute("data-testid", "inbox-sign-word");
+    meta.innerHTML = signHtml(row.word, stopStatusLine(row), stopStatusLine(row));
+    wrap.appendChild(meta);
     if(typeof row.question === "string"){
       wrap.appendChild(textDiv("step-meta", "question: " + row.question));
     } else if(row.questionWhy){

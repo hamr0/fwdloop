@@ -213,6 +213,38 @@ export const BROKEN_LABEL = 'Your saved answer could not be read.';
 export const BROKEN_ANSWER_WHY = 'Please answer again; the broken one is kept aside.';
 export const CRASHED_LABEL = 'crashed after taking your answer — start a fresh run';
 
+/**
+ * M4c-fix amendment 2 (g): the ONE table from a sign to its bold word. Runs, the Inbox and the run header all show
+ * the word this table gives (the server stamps it on every row; the page never invents one).
+ * @type {Record<string, string>}
+ */
+export const SIGN_WORDS = {
+  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed',
+};
+
+/**
+ * The sign's word and the plain line after the dash. The existing plain line is kept as is; only a line that already
+ * opens with the word ("stuck — …") or is the word itself ("passed") loses that repeat, so it is never said twice.
+ * `noWord`: a run the human ended on purpose with rerun wears `[✗]` but is never called "failed" (M4b amendment 3),
+ * so it shows its plain line alone.
+ * @param {string} glyph a `computeGlyph` sign @param {string} label its plain line @param {boolean} [noWord]
+ * @returns {{word: string|null, line: string|null}}
+ */
+export function signParts(glyph, label, noWord = false) {
+  const word = noWord ? null : (SIGN_WORDS[glyph] ?? null);
+  if (word === null) return { word: null, line: label ?? null };
+  if (typeof label !== 'string' || label === word) return { word, line: null };
+  return { word, line: label.startsWith(`${word} — `) ? label.slice(word.length + 3) : label };
+}
+
+/** The sign an Inbox row wears (null for a past answer, which shows its status word instead). */
+function stopGlyph(r) {
+  if (r.working) return '[▶]';
+  if (r.stuck) return '[II]';
+  if (r.waiting || r.resume) return '[·]';
+  return null;
+}
+
 /** The typed reasons a stuck run can have. `retry`: nothing is wrong that the books name, so trying again is the
  *  action. `lock-no-holder`: the resume lock has no recorded holder, so trying again can never work. */
 export const STUCK_REASONS = {
@@ -917,6 +949,7 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
         runId,
         glyph,
         label,
+        ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
         pulse: glyphPulses({ glyph, label }),
         stuck: glyph === '[II]',
         resume: ctx.resume,
@@ -1251,6 +1284,7 @@ export function getRunDetail({
     runId,
     glyph,
     label,
+    ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
     pulse: glyphPulses({ glyph, label }),
     resume: ctx.resume,
     outcome: ctx.historyRow ? ctx.historyRow.outcome : null,
@@ -1959,6 +1993,7 @@ export function listStops({ root, resumeAttempt }) {
         ...deriveAskOpenFields(ask, hasHistoryRow, resume),
         stuck: stuckAskId !== null && ask.askId === stuckAskId,
         stuckLabel: stuckAskId !== null && ask.askId === stuckAskId ? st.label : null,
+        stuckLine: stuckAskId !== null && ask.askId === stuckAskId ? signParts('[II]', st.label).line : null,
       }));
       // M4c item 4: a run with no end row, no ask waiting on the human and no
       // saved-but-unresumed answer, whose newest pid row is alive, is "working
@@ -1973,7 +2008,10 @@ export function listStops({ root, resumeAttempt }) {
       for (const r of runAsks) rows.push(r);
     }
   }
-  return orderStops(rows);
+  return orderStops(rows).map((r) => {
+    const glyph = stopGlyph(r);
+    return glyph === null ? r : { ...r, glyph, word: SIGN_WORDS[glyph] };
+  });
 }
 
 /** ask status -> the answer's own word, for "working on your <word>…". */

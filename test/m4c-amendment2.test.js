@@ -248,7 +248,7 @@ test('(c) a stuck Inbox card has the [II] sign and opens the Ask tab, whose stuc
   assert.equal(s[0].stuck, true);
   // the page: the card's sign, its status line, the click -> Ask tab, and the button for a not-started resume
   assert.match(PAGE, /row\.stuck \? "stuck pulse"/);
-  assert.match(PAGE, /if\(row\.stuck\) return row\.stuckLabel;/);
+  assert.match(PAGE, /if\(row\.stuck\) return row\.stuckLine \|\| row\.stuckLabel;/);
   assert.match(PAGE, /selectRun\(row\.flow, row\.runId, wrap, "\.inbox-row", row\.askId\);\s*document\.getElementById\("tab-ask"\)\.click\(\);/);
   assert.match(PAGE, /resume\.state === "not-started"\)\{\s*return \{ kind: "stuck"/);
   assert.match(PAGE, /makeButton\("Continue the run", "btn-resume-again"/);
