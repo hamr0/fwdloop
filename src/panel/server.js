@@ -314,6 +314,17 @@ export function handleRequest(req, res, opts) {
       res.end();
       return;
     }
+    // A browser opening the bare page sees a plain page that says what to do, not a blank JSON "forbidden"
+    // that reads as "the panel is down". No token, no script. API routes keep the JSON 403.
+    if (link && link.pathname === '/' && /text\/html/.test(String(req.headers.accept ?? ''))) {
+      const html = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>fwdloop panel</title>'
+        + '<p style="font:16px/1.5 system-ui,sans-serif;max-width:40em;margin:2em auto;padding:0 1em">'
+        + 'fwdloop panel: open the link printed in the terminal where you started <code>fwdloop panel</code> (it ends in ?t=…). '
+        + 'Restarted the panel? Open its new link.</p>';
+      res.writeHead(403, { 'content-type': 'text/html; charset=utf-8', 'content-length': Buffer.byteLength(html) });
+      res.end(method === 'HEAD' ? undefined : html);
+      return;
+    }
     refuse(res, 403, 'cookie-missing-or-wrong', 'open the link `fwdloop panel` printed');
     return;
   }

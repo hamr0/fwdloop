@@ -311,3 +311,22 @@ test('negative (xi): a pre-M4c-fix run is served as before and the panel rewrite
   assert.equal((await rq(h.port, { url: '/api/runs/ok/run-1' })).status, 200, 'the old run still renders');
   assert.deepEqual(snap(), before);
 });
+
+test('exit walk: a browser GET / with no cookie gets a plain 403 page saying what to do (no token, no script); API routes keep the JSON 403', async () => {
+  const h = await start();
+  const nock = { cookie: '' };
+  const page = await rq(h.port, { headers: { ...nock, accept: 'text/html,application/xhtml+xml' } });
+  assert.equal(page.status, 403);
+  assert.match(page.headers['content-type'], /text\/html/);
+  assert.match(page.text, /open the link printed in the terminal/);
+  assert.equal(page.text.includes(h.token), false, 'no token in the body');
+  assert.doesNotMatch(page.text, /<script/i);
+  assert.equal(page.headers['x-frame-options'], 'DENY');
+  assert.equal(page.headers['cache-control'], 'no-store');
+  assert.match(page.headers['content-security-policy'], /frame-ancestors 'none'/);
+  const api = await rq(h.port, { url: '/api/runs', headers: { ...nock, accept: 'text/html' } });
+  assert.equal(api.status, 403);
+  assert.equal(api.json().refused, 'cookie-missing-or-wrong');
+  const fetchStyle = await rq(h.port, { headers: { ...nock, accept: '*/*' } });
+  assert.equal(fetchStyle.json().refused, 'cookie-missing-or-wrong');
+});
