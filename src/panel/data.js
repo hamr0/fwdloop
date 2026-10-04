@@ -159,8 +159,8 @@ export const RESUME_REASON_UNKNOWN = 'reason unknown: the panel restarted, so it
 
 /**
  * M4b amendment 1 scope 2: the ONE derivation of "answer saved, resume not
- * started". From the books: an answer saved (`answer.json` present) and so
- * unconsumed. From the panel's in-memory attempt record (`attempt`, may be
+ * started" (now worded "your answer is saved; the run stopped before using it" — M4c-fix amendment 3 (c)).
+ * From the books: an answer saved (`answer.json` present) and so unconsumed. From the panel's in-memory attempt record (`attempt`, may be
  * null): whether a resume is still being started, and the resume's own refusal.
  * `null` when there is nothing to say (no saved answer and no attempt).
  * M4c amendment 3: `ask` (the run's open `ask.json`, may be null; its `expiresAt` is the effective deadline). A saved
@@ -185,7 +185,7 @@ export function deriveResumeState({ savedAnswer: saved, attempt, ask = null }) {
     }
     if (attempt && attempt.state === 'in-flight' && attempt.askId === saved.askId) {
       return {
-        state: 'starting', askId: saved.askId, tries, maxTries, reason: null, label: 'answer saved, resume starting',
+        state: 'starting', askId: saved.askId, tries, maxTries, reason: null, label: 'your answer is saved; the run is picking it up',
       };
     }
     const mine = attempt && attempt.askId === saved.askId;
@@ -195,7 +195,7 @@ export function deriveResumeState({ savedAnswer: saved, attempt, ask = null }) {
       tries: mine ? tries : null,
       maxTries: mine ? maxTries : null,
       reason: mine && typeof attempt.refusal === 'string' && attempt.refusal.length > 0 ? attempt.refusal : RESUME_REASON_UNKNOWN,
-      label: 'answer saved, resume not started',
+      label: 'your answer is saved; the run stopped before using it',
     };
   }
   if (attempt) {
@@ -335,7 +335,7 @@ export function glyphPulses(g) {
  *  - `[?]` died / unknown — no history row, no open ask, and either the
  *    pid row's process is gone (M4c), or there is no pid row / no /proc and
  *    the books are older than 10 minutes. Never guessed into `[✗]` or `[✓]`.
- *  - `[·]` answer saved, resume not started / starting (M4b amendment 1) —
+ *  - `[·]` your answer is saved; the run stopped before using it / starting (M4b amendment 1) —
  *    `answer.json` still on disk (`resume` = `deriveResumeState`): never
  *    "waiting on you" (the human already answered) and never a success.
  *  - `[▶]` running (M4c) — no end row, no open unanswered ask, and either the

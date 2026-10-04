@@ -160,12 +160,12 @@ test('(a) answer saved + a lock held by a LIVE holder: not stuck, [▶] working 
 });
 
 test('(a) the transient "starting" is not stuck (the glyph rule, every liveness)', () => {
-  const resume = { state: 'starting', label: 'answer saved, resume starting' };
+  const resume = { state: 'starting', label: 'your answer is saved; the run is picking it up' };
   for (const liveness of ['gone', 'unknown', 'running']) {
     const g = computeGlyph({
       historyRow: null, askJson: { askId: 'a', expiresAt: null }, consumedAnswerExists: false, hasStateJson: true, resume, liveness, lock: 'none',
     });
-    assert.deepEqual(g, { glyph: '[·]', label: 'answer saved, resume starting' }, liveness);
+    assert.deepEqual(g, { glyph: '[·]', label: 'your answer is saved; the run is picking it up' }, liveness);
     assert.equal(glyphPulses(g), false);
   }
   assert.equal(isStuck({ resume, liveness: 'gone', lock: 'none' }), false);
@@ -269,7 +269,7 @@ test('(c) the Ask tab says the same as the run list: a stuck run\'s resume label
   const h = await spawnHolder(tmp('holder'));
   holders.push(h);
   writeFileSync(lockOf(root, 'r1'), h.lockText);
-  assert.equal(asks().resume.label, 'answer saved, resume not started', 'a live holder: not stuck, label untouched');
+  assert.equal(asks().resume.label, 'your answer is saved; the run stopped before using it', 'a live holder: not stuck, label untouched');
 });
 
 test('(c) the Ask header for a stuck run: server marks exactly the saved-answer ask stuck; the page draws [II] pulsing there and says the stuck text once in the header', async () => {

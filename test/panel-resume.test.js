@@ -272,11 +272,11 @@ test('inbox: open ask counts as waiting; saved-unconsumed answer does NOT and is
   assert.equal(saved.length, 1);
   assert.equal(saved[0].waiting, false, 'an answered ask is not waiting on the human');
   assert.equal(saved[0].timeLeftMs, null, 'no countdown for an answer that was already given');
-  assert.equal(saved[0].resume.label, 'answer saved, resume not started');
+  assert.equal(saved[0].resume.label, 'your answer is saved; the run stopped before using it');
   const withAttempt = listStops({
     root: run.root, resumeAttempt: () => ({ state: 'in-flight', askId: run.askId, tries: 1, maxTries: 3 }),
   }).filter((r) => r.runId === run.runId);
-  assert.equal(withAttempt[0].resume.label, 'answer saved, resume starting');
+  assert.equal(withAttempt[0].resume.label, 'your answer is saved; the run is picking it up');
   assert.equal(withAttempt[0].waiting, false);
 
   // consumed: the answer file is renamed away
@@ -350,7 +350,7 @@ test('(vii) lock held when the answer arrives, released inside the retry window:
   assert.ok(data.resume.tries > 1, `the attempt record must show more than one try, got ${data.resume.tries}`);
 });
 
-test('(viii) lock held past the retry window: API says "answer saved, resume not started" + the refusal verbatim, never success; POST /api/resume later applies that answer exactly once', async () => {
+test('(viii) lock held past the retry window: API says "your answer is saved; the run stopped before using it" + the refusal verbatim, never success; POST /api/resume later applies that answer exactly once', async () => {
   const run = parkRun();
   const { port } = await start(run, { windowMs: 30000, maxTries: 5, slotMs: 100 });
   const token = await pageToken(port);
@@ -360,14 +360,14 @@ test('(viii) lock held past the retry window: API says "answer saved, resume not
   assert.equal(r.json().resume, 'started');
 
   const stuck = await pollData(port, run, (d) => d.resume && d.resume.state === 'not-started', 30000);
-  assert.equal(stuck.resume.label, 'answer saved, resume not started');
+  assert.equal(stuck.resume.label, 'your answer is saved; the run stopped before using it');
   assert.match(stuck.label, /^working on your answer$/, 'a live holder is carrying it on (amendment 2 (e)): [▶], never stuck, never "answered"');
   assert.equal(stuck.glyph, '[▶]');
   assert.equal(stuck.resume.tries, 5, 'all five tries were used');
   assert.match(stuck.resume.reason, /^fwdloop: refused — resume: run "run-1" is locked by another resumer \(pid \d+, /, 'the resume\'s own refusal, verbatim, naming the live holder');
   assert.ok(stuck.resume.reason.includes(lockPath(run)));
   assert.notEqual(stuck.glyph, '[✓]');
-  assert.match(stuck.stopReasonWhy, /answer saved, resume not started/);
+  assert.match(stuck.stopReasonWhy, /your answer is saved; the run stopped before using it/);
   const list = (await rq(port, { url: '/api/runs' })).json().rows.find((x) => x.runId === run.runId);
   assert.equal(list.label, 'working on your answer');
   // the answer is still on disk, unconsumed, and nothing re-parked

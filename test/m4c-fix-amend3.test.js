@@ -12,6 +12,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 import { reopenAsk } from '../src/ask.js';
+import { signParts } from '../src/panel/data.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
@@ -72,4 +73,13 @@ test('amend3 (b): the page shows that refusal as the plain sentence', () => {
   const refusalText = new Function(`${fn} return refusalText;`)();
   const red = 'Could not clear the late answer; nothing was reopened.';
   assert.equal(refusalText({ status: 409, body: { ok: false, refused: 'library', red } }, 'redo'), red);
+});
+
+// (c) the two Inbox words. The labels themselves are asserted by test/panel-resume.test.js (275, 279) and the others
+// updated for this piece; here: the sign-word logic still renders them as one clean "word — line".
+test('amend3 (c): the new labels read as a sign word plus the plain line, nothing repeated', () => {
+  assert.deepEqual(signParts('[·]', 'your answer is saved; the run is picking it up'),
+    { word: 'waiting', line: 'your answer is saved; the run is picking it up' });
+  assert.deepEqual(signParts('[II]', 'stuck — your answer is saved; the run stopped before using it'),
+    { word: 'stuck', line: 'your answer is saved; the run stopped before using it' });
 });

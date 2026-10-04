@@ -34,14 +34,14 @@ test('doors: an open ask with no saved answer gets the three doors', () => {
 });
 
 test('doors: a saved answer for this ask (resume starting) shows NO doors and says why', () => {
-  const r = answerControls(openAsk, { askId: 'a1', state: 'starting', label: 'answer saved, resume starting' });
+  const r = answerControls(openAsk, { askId: 'a1', state: 'starting', label: 'your answer is saved; the run is picking it up' });
   assert.equal(r.kind, 'starting');
   assert.equal(r.text, 'Your answer is saved; the run is starting up.');
 });
 
 test('doors: resume not-started shows the stuck state (one button, no doors, no raw reason)', () => {
   const reason = 'resume: run "run-1" is locked by another resumer';
-  const r = answerControls(openAsk, { askId: 'a1', state: 'not-started', label: 'answer saved, resume not started', reason });
+  const r = answerControls(openAsk, { askId: 'a1', state: 'not-started', label: 'your answer is saved; the run stopped before using it', reason });
   assert.equal(r.kind, 'stuck');
   assert.equal(r.lockPath, null);
   assert.equal('reason' in r, false, 'no raw refusal text is carried to the page');
@@ -88,7 +88,7 @@ test('live: outcomes are read from the books — stuck stops quietly, a new open
   assert.match(reparked.text, /doors above are for it/);
   assert.doesNotMatch(reparked.text, /below/);
   // the SAME ask still open is not "re-parked"
-  assert.equal(liveOutcome('a1', { glyph: '[·]', label: 'l' }, asks([openAsk], { state: 'starting', label: 'answer saved, resume starting' })).done, false);
+  assert.equal(liveOutcome('a1', { glyph: '[·]', label: 'l' }, asks([openAsk], { state: 'starting', label: 'your answer is saved; the run is picking it up' })).done, false);
   assert.match(liveOutcome('a1', { glyph: '[✓]' }, asks([], null)).text, /finished \[✓\]/);
   assert.match(liveOutcome('a1', { glyph: '[✗]', label: 'failed (red)' }, asks([], null)).text, /ended \[✗\] failed \(red\)/);
   assert.match(liveOutcome('a1', { glyph: '[✗]', label: 'stopped by you', outcome: 'rerun' }, asks([], null)).text, /fresh run was started/);
@@ -104,9 +104,9 @@ test('inbox row: a saved-unconsumed answer says its resume label in words, never
   const waiting = { open: true, waiting: true, timeLeftMs: 1500, status: 'unanswered', resume: null };
   assert.equal(stopStatusLine(waiting), 'time left: 1500ms');
   const saved = {
-    open: true, waiting: false, timeLeftMs: null, status: 'unanswered', resume: { label: 'answer saved, resume not started' },
+    open: true, waiting: false, timeLeftMs: null, status: 'unanswered', resume: { label: 'your answer is saved; the run stopped before using it' },
   };
-  assert.equal(stopStatusLine(saved), 'answer saved, resume not started');
+  assert.equal(stopStatusLine(saved), 'your answer is saved; the run stopped before using it');
 });
 
 test('liveOutcome: the watch-stop for a rerun-ended run reads the typed outcome, never the label text', () => {

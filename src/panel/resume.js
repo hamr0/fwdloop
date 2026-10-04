@@ -17,7 +17,7 @@
 //     numbers). Only the lock refusal is retried.
 //  3. Still unconsumed after the last try (or a non-lock refusal): the attempt
 //     record says so, with the child's own refusal text verbatim; `data.js`
-//     turns that into "answer saved, resume not started".
+//     turns that into "your answer is saved; the run stopped before using it".
 //
 // No second mutex: exactly one resume applies the answer because the resume's
 // own rename-to-consume is atomic (F44). This module only decides whether to
