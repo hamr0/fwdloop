@@ -1185,7 +1185,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 - (d) **Lock window — check twice:** right before removing the lock, check one more time that nobody holds it. This makes the gap much smaller but cannot close it fully; the remaining gap is a written known limit.
 - Why: /self-review 2026-10-04 (ledger items @ de0e0c7): `fwdloop inbox` printed a model-written question raw; a failed set-aside after a reopen let a stale late answer count as on time; two Inbox labels still read as internal state; a resume could take the lock between the check and the unlink.
 
-**M4c-fix amendment 4 — step cards in lower case — DRAFT, NOT SIGNED**
+**M4c-fix amendment 4 — step cards in lower case — SIGNED by hamr 2026-10-04 ("sign m4c-fix amendment 4")**
 - (a) **The step cards under the map read in their real case:** `1 · resume-text   [✓] passed   [human check]`, never capitals; the sign badge is one `[sign] word`, the same as the map node, never double brackets.
 - Why: hamr 2026-10-04: "under maps, all headers should be lower case"; the card badge read `[[✓] PASSED]`.
 
