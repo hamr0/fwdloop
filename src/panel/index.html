@@ -812,6 +812,7 @@
     if(verdict === "paused") return "paused for you";
     if(verdict === "refused") return "refused — no reason given";
     if(verdict === "ask-timeout" || verdict === "ask-expired") return "expired waiting for you";
+    if(verdict === "ask-reopened") return "reopened by you";
     if(verdict === "green") return "passed";
     if(verdict === "hitl") return "human check";
     if(verdict === "not-done") return "not done";
@@ -824,7 +825,7 @@
   // would misread a pause as a failure (fix #3).
   function verdictGlyph(verdict, closeClass){
     if(closeClass === "hitl" && verdict === "red") return null;
-    if(verdict === "paused" || verdict === "refused" || verdict === "ask-timeout" || verdict === "ask-expired") return null;
+    if(verdict === "paused" || verdict === "refused" || verdict === "ask-timeout" || verdict === "ask-expired" || verdict === "ask-reopened") return null;
     return verdictPassed(verdict) ? "✓" : "✗";
   }
   // The run-row glyph strings src/panel/data.js's computeGlyph emits are

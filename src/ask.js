@@ -418,6 +418,13 @@ export function reopenAsk({
     if (err.code === 'EEXIST') return { ok: false, red: `reopenAsk: askId "${askId}" was already reopened (record ${n} exists)` };
     return { ok: false, red: `reopenAsk: could not write the reopen record — ${err.message}` };
   }
+  // The run's audit book names the reopen too (amendment 1 (b): "the audit records who reopened it and when"),
+  // through the one audit writer; a pure note (cost 0, no model), shaped like the stale-answer row.
+  appendAudit(runDir, {
+    step: 'ask', attempt: raw.attempt ?? null, class: null, verdict: 'ask-reopened',
+    gap: `reopened by ${by} at ${nowIso} (ask ${askId}); deadline ${ask.expiresAt} -> ${expiresAt}`,
+    usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: nowIso, tokens: null, tools: null, refused: [],
+  });
   let setAside = null;
   if (saved.ok) {
     const moved = setAsideAnswer(runDir, askId, timing === 'late' ? 'late' : 'broken');

@@ -212,6 +212,42 @@ test('amendment 1 (b): POST /api/reopen — gated like the other POSTs, one clic
   assert.equal((await rq(port, { method: 'POST', url: '/api/reopen', headers: own, body })).status, 409);
 });
 
+test('amendment 1 (b): a reopen is recorded in the run\'s audit book (who, when, ask, both deadlines, cost 0), the Audit endpoint returns it, books still sum', async () => {
+  const run = expiredRun('audit');
+  const h = remember(await createPanelServer({ port: 0, root: run.root }));
+  HANDLES.push(h);
+  const { port, token } = h;
+  const own = { origin: `http://127.0.0.1:${port}`, ...cookieHeader(port, token), 'content-type': 'application/json' };
+  const auditPath = path.join(run.runDir, 'audit.jsonl');
+  const readRows = () => readFileSync(auditPath, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  const before = readRows();
+  const sumBefore = before.reduce((a, r) => a + r.usd, 0);
+  const prev = JSON.parse(readFileSync(path.join(run.runDir, 'ask.json'), 'utf8')).expiresAt;
+  const ok = await rq(port, {
+    method: 'POST', url: '/api/reopen', headers: own, body: { flow: run.flow, runId: run.runId, askId: run.askId },
+  });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json()));
+  const after1 = readRows();
+  assert.equal(after1.length, before.length + 1, 'exactly one new audit row');
+  const row = after1[after1.length - 1];
+  assert.equal(row.verdict, 'ask-reopened');
+  assert.equal(row.usd, 0);
+  assert.equal(row.spendComplete, true);
+  assert.equal(row.model, null);
+  assert.match(row.gap, /human via panel/);
+  assert.ok(row.gap.includes(run.askId) && row.gap.includes(prev) && row.gap.includes(ok.json().expiresAt), row.gap);
+  assert.equal(Number.isNaN(Date.parse(row.at)), false);
+  assert.equal(after1.reduce((a, r) => a + r.usd, 0), sumBefore, 'a cost-0 row leaves the book total unchanged');
+  const aud = await rq(port, { url: `/api/runs/${run.flow}/${run.runId}/audit`, headers: own });
+  assert.equal(aud.status, 200);
+  const served = aud.json().rows.filter((r) => r.verdict === 'ask-reopened');
+  assert.equal(served.length, 1);
+  assert.equal(served[0].at, row.at);
+  // a refused second click adds no row
+  await rq(port, { method: 'POST', url: '/api/reopen', headers: own, body: { flow: run.flow, runId: run.runId, askId: run.askId } });
+  assert.equal(readRows().length, before.length + 1);
+});
+
 // ---- (c) ------------------------------------------------------------------------------------------
 test('amendment 1 (c): a run ended by expiry reads [!] expired, never [✗]; a never-reopened run stays [!] and spends nothing', () => {
   assert.equal(computeGlyph({

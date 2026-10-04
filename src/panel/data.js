@@ -609,7 +609,7 @@ export function isBlockedVerdict(verdict) {
 function markForVerdict(verdict, closeClass) {
   if (closeClass === 'hitl' && verdict === 'red') return '✗'; // the human's own redo
   if (verdict === 'green' || verdict === 'hitl') return '✓';
-  if (verdict === 'paused' || verdict === 'refused' || verdict === 'ask-timeout' || verdict === 'ask-expired') return '·';
+  if (verdict === 'paused' || verdict === 'refused' || verdict === 'ask-timeout' || verdict === 'ask-expired' || verdict === 'ask-reopened') return '·';
   return '✗';
 }
 
