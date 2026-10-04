@@ -22,7 +22,8 @@ test('(k) the run header is sign + name, a bar, word — why, then the time; no 
   assert.doesNotMatch(PAGE.slice(PAGE.indexOf('.rp-header h2{'), PAGE.indexOf('.hdr-name-line{')), /┤|├|::before|::after/, 'no frame pseudo-elements on the name');
   assert.match(rule('.rp-header h2'), /min-width:0/);
   assert.match(rule('.rp-header h2'), /text-transform:none/);
-  assert.match(PAGE, /\.hdr-time:not\(:empty\)::before\{content:"· ";\}/, 'time is led by a middle dot on a wide screen');
+  assert.match(PAGE, /\.hdr-verdict:has\(\+ \.hdr-time:not\(:empty\)\)::after\{content:" \\00B7";\}/, 'the middle dot trails the verdict, so a wrapped time never starts a line with it');
+  assert.doesNotMatch(PAGE, /\.hdr-time[^{]*::before/, 'no dot on the time itself (orphan at a wrapped line start)');
 });
 
 test('(k) at 640 px or less the header is three lines: bar and dot hidden, column layout', () => {
@@ -30,7 +31,7 @@ test('(k) at 640 px or less the header is three lines: bar and dot hidden, colum
   assert.ok(m, 'phone block for the header');
   assert.match(m[1], /\.rp-header-title\{flex-direction:column/);
   assert.match(m[1], /\.hdr-sep\{display:none/);
-  assert.match(m[1], /::before\{content:none/);
+  assert.match(m[1], /::after\{content:none/);
 });
 
 test('(l) the grouped Audit title is [sign] name · cost · try N, the name cut with an ellipsis, time and tokens not in it', () => {

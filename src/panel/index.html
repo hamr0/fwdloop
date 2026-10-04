@@ -248,13 +248,13 @@
   .hdr-name-line{display:inline-flex;align-items:center;gap:8px;min-width:0;max-width:100%;}
   .hdr-sep{color:var(--text-faint);}
   .hdr-time{font-size:11px;color:var(--text-dim);min-width:0;overflow-wrap:anywhere;}
-  .hdr-time:not(:empty)::before{content:"· ";}
+  .hdr-verdict:has(+ .hdr-time:not(:empty))::after{content:" \00B7";}
   .rp-header-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;max-width:100%;}
   @media (max-width: 640px){
     /* (k) a phone: the same three parts on three lines — sign + name / word — why / time */
     .rp-header-title{flex-direction:column;align-items:flex-start;gap:2px;}
     .rp-header-title .hdr-sep{display:none;}
-    .hdr-time:not(:empty)::before{content:none;}
+    .hdr-verdict:has(+ .hdr-time:not(:empty))::after{content:none;}
   }
   /* item 4: phone-only jump-back link — hidden on desktop (the two panes
      are already both on screen there, nothing to jump back to). */
