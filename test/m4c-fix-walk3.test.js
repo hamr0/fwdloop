@@ -132,10 +132,10 @@ function renderBlock(ask, resume, extra = '') {
 
 // ---- issue 2: plain words for expired and stuck ----------------------------------------------------------
 test('issue 2: an expired ask is one button and one short line — nobody answered / the answer came late', () => {
-  const none = renderBlock({ askId: 'a', open: false, status: 'expired', reopen: { waitMs: WAIT, late: false } }, null);
+  const none = renderBlock({ askId: 'a', open: false, status: 'expired', reopen: { waitMs: WAIT, late: false, why: 'Nobody answered in time.' } }, null);
   assert.deepEqual(none.buttons, ['Reopen for another 30 min']);
   assert.deepEqual(none.lines, ['Nobody answered in time.']);
-  const late = renderBlock({ askId: 'a', open: false, status: 'expired', reopen: { waitMs: WAIT, late: true } }, null);
+  const late = renderBlock({ askId: 'a', open: false, status: 'expired', reopen: { waitMs: WAIT, late: true, why: 'Your answer came after the deadline.' } }, null);
   assert.deepEqual(late.buttons, ['Reopen for another 30 min']);
   assert.deepEqual(late.lines, ['Your answer came after the deadline.']);
 });
@@ -158,8 +158,8 @@ test('issue 2: the data says whether the expired ask had a late answer saved (la
   expire(w, 'r-none');
   writeFileSync(path.join(w.runDir('r-late'), 'answer.json'), JSON.stringify({ askId: w.askIds['r-late'], decision: 'accept', answeredAt: new Date().toISOString() }));
   const reopenOf = (id) => getRunAsks({ root: w.root, flow: 'job2', runId: id, catalogue: CAT }).asks[0].reopen;
-  assert.deepEqual(reopenOf('r-late'), { waitMs: WAIT, late: true });
-  assert.deepEqual(reopenOf('r-none'), { waitMs: WAIT, late: false });
+  assert.deepEqual(reopenOf('r-late'), { waitMs: WAIT, late: true, why: 'Your answer came after the deadline.' });
+  assert.deepEqual(reopenOf('r-none'), { waitMs: WAIT, late: false, why: 'Nobody answered in time.' });
   const d = await import('../src/panel/data.js');
   assert.equal(d.STUCK_LABEL, 'stuck — your answer is saved; the run stopped before using it');
   assert.equal(d.STUCK_LOCK_LABEL, 'stuck — an old resume lock is in the way');

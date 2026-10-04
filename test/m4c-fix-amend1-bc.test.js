@@ -173,7 +173,7 @@ test('amendment 1 (b): POST /api/reopen — gated like the other POSTs, one clic
   // the panel offers it: expired, the signed wait, no resume button
   const tab = getRunAsks({ root: run.root, flow: run.flow, runId: run.runId, catalogue: CAT });
   const ask = tab.asks.find((a) => a.askId === run.askId);
-  assert.deepEqual(ask.reopen, { waitMs: WAIT, late: false });
+  assert.deepEqual(ask.reopen, { waitMs: WAIT, late: false, why: 'Nobody answered in time.' });
   assert.equal(ask.open, false);
   // gates
   assert.equal((await rq(port, { method: 'POST', url: '/api/reopen', headers: { ...own, cookie: '' }, body })).status, 403);

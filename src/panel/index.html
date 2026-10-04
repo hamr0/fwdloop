@@ -2611,7 +2611,7 @@
     }
     // amendment 1 (b): an expired ask offers one human action, the reopen (never an answer word)
     if(ask && !ask.open && ask.reopen){
-      return { kind: "expired", waitMs: ask.reopen.waitMs, late: !!ask.reopen.late, why: "no answer doors: this ask expired — reopen it to answer" };
+      return { kind: "expired", waitMs: ask.reopen.waitMs, late: !!ask.reopen.late, line: ask.reopen.why, why: "no answer doors: this ask expired — reopen it to answer" };
     }
     if(!ask || !ask.open){
       return { kind: "none", why: "This ask is " + ((ask && ask.status) || "closed") + ". There is nothing left to answer." };
@@ -2854,7 +2854,7 @@
       bar3.className = "actions-row";
       bar3.appendChild(makeButton("Reopen for another " + waitText(model.waitMs), "btn-reopen", function(){ sendReopen(root, ctx, ask.askId); }));
       root.appendChild(bar3);
-      root.appendChild(textDiv("hint", model.late ? "Your answer came after the deadline." : "Nobody answered in time."));
+      root.appendChild(textDiv("hint", model.line));
     } else if(model.kind === "stuck"){
       // stuck: an answer is saved and no resume took it. One button, one line under it saying why.
       var bar2 = document.createElement("div");

@@ -1581,13 +1581,16 @@ function deriveAskOpenFields(ask, hasHistoryRow, resume = null) {
  * signed wait it repeats; `late` says an answer was saved but came after the deadline. The Run's end row is the caller's `openAskJson === null`.
  * @param {any} ask one row from `runAsksInOrder` @param {any} openAskJson `readAsk` of the run, or null (ended)
  * @param {any} resume the run's `deriveResumeState`
- * @returns {{waitMs: number, late: boolean}|null}
+ * @returns {{waitMs: number, late: boolean, why: string}|null}
  */
 function reopenOffer(ask, openAskJson, resume, lateAnswerSaved = false) {
   if (!openAskJson || openAskJson.askId !== ask.askId || ask.status !== 'expired') return null;
   if (resume && resume.askId === ask.askId && (resume.state === 'starting' || resume.state === 'not-started')) return null;
-  // `late`: an answer was saved but came after the deadline (the page says so, instead of "nobody answered")
-  return Number.isFinite(openAskJson.waitMs) ? { waitMs: openAskJson.waitMs, late: lateAnswerSaved } : null;
+  // `late`: an answer was saved but came after the deadline (the page says so, instead of "nobody answered");
+  // `why` is that line, the one the Ask tab and the Inbox row both draw.
+  return Number.isFinite(openAskJson.waitMs)
+    ? { waitMs: openAskJson.waitMs, late: lateAnswerSaved, why: lateAnswerSaved ? LATE_ANSWER_WHY : NO_ANSWER_WHY }
+    : null;
 }
 
 /**
@@ -1640,6 +1643,8 @@ const CONSUMED_ANSWER_RE = /^answer\.(.+)\.consumed\.json$/;
 
 /** The line under an ask that ended expired though an answer was saved: the answer came too late. */
 const LATE_ANSWER_WHY = 'Your answer came after the deadline.';
+/** The line under an expired ask nobody answered. */
+const NO_ANSWER_WHY = 'Nobody answered in time.';
 
 /**
  * The pre-M4a-1 fallback reader (M4a-1 scope item 1): for a run with no
@@ -1987,11 +1992,15 @@ export function listStops({ root, resumeAttempt }) {
       // M4c amendment 2: stuck by the ONE rule (`stuckState`), marked on the ask whose answer is saved.
       const st = runStuck(run.runDir, resume);
       const stuckAskId = !hasHistoryRow && st.stuck ? (resume?.askId ?? null) : null;
+      const openAskJson = hasHistoryRow ? null : readAsk(run.runDir);
+      const savedAskId = readSavedAnswer(run.runDir)?.askId;
       const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, expiredEnds.has(runId)).map((ask) => ({
         flow: flowName,
         runId,
         ...ask,
         ...deriveAskOpenFields(ask, hasHistoryRow, resume),
+        // an expired ask still open to Reopen says why, by the same offer (and line) its Ask tab draws
+        ...(ask.why ? {} : { why: reopenOffer(ask, openAskJson, resume, savedAskId === ask.askId)?.why }),
         stuck: stuckAskId !== null && ask.askId === stuckAskId,
         stuckLabel: stuckAskId !== null && ask.askId === stuckAskId ? st.label : null,
         stuckLine: stuckAskId !== null && ask.askId === stuckAskId ? signParts('[II]', st.label ?? '').line : null,
