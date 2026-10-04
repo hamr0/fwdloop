@@ -3,6 +3,9 @@
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
 import http from 'node:http';
+import net from 'node:net';
+import { spawn } from 'node:child_process';
+import { chmodSync } from 'node:fs';
 import {
   existsSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync,
 } from 'node:fs';
@@ -10,7 +13,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
-import { createPanelServer, handleRequest, writeTokenFile } from '../src/panel/server.js';
+import { createPanelServer, handleRequest, writeTokenFile, loadOrMakeToken } from '../src/panel/server.js';
 import { remember, cookieHeader, cookieName } from '../scripts/panel-fixtures/panel-auth.mjs';
 
 const tmp = (p) => mkdtempSync(path.join(tmpdir(), `fwdloop-m4cfix-${p}-`));
@@ -329,4 +332,56 @@ test('exit walk: a browser GET / with no cookie gets a plain 403 page saying wha
   assert.equal(api.json().refused, 'cookie-missing-or-wrong');
   const fetchStyle = await rq(h.port, { headers: { ...nock, accept: '*/*' } });
   assert.equal(fetchStyle.json().refused, 'cookie-missing-or-wrong');
+});
+
+test('1A: loadOrMakeToken reuses a good token file; a 0644 file, a loose dir, junk or a missing file gets a new token', () => {
+  const dir = tmp('reuse');
+  chmodSync(dir, 0o700);
+  assert.match(loadOrMakeToken({ port: 4821, dir }), /^[0-9a-f]{64}$/);
+  writeTokenFile({ port: 4821, token: 'a'.repeat(64), dir });
+  assert.equal(loadOrMakeToken({ port: 4821, dir }), 'a'.repeat(64), 'reused');
+  const file = path.join(dir, 'panel-4821.token');
+  chmodSync(file, 0o644);
+  assert.notEqual(loadOrMakeToken({ port: 4821, dir }), 'a'.repeat(64), 'a loose file is not trusted');
+  chmodSync(file, 0o600);
+  writeFileSync(file, 'junk\n');
+  chmodSync(file, 0o600);
+  assert.notEqual(loadOrMakeToken({ port: 4821, dir }), 'junk');
+  writeTokenFile({ port: 4821, token: 'a'.repeat(64), dir });
+  chmodSync(dir, 0o755);
+  assert.notEqual(loadOrMakeToken({ port: 4821, dir }), 'a'.repeat(64), 'a loose dir is not trusted');
+  chmodSync(dir, 0o700);
+});
+
+test('1A: fwdloop panel start, stop, start again on the same port: same token, the first start\'s cookie is accepted by the second; a 0644 token file is replaced', async () => {
+  const xdg = tmp('xdg-restart');
+  const root = tmp('restart-root');
+  const port = await new Promise((res) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => res(p)); }); });
+  const BIN = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'bin', 'fwdloop');
+  const startPanel = async () => {
+    const child = spawn(process.execPath, [BIN, 'panel', '--root', root, '--port', String(port)], { env: { PATH: process.env.PATH, XDG_RUNTIME_DIR: xdg } });
+    let out = '';
+    child.stdout.on('data', (d) => { out += d; });
+    for (let i = 0; i < 100 && !/\?t=[0-9a-f]{64}/.test(out); i += 1) await new Promise((r) => { setTimeout(r, 100); }); // eslint-disable-line no-await-in-loop
+    const token = /\?t=([0-9a-f]{64})/.exec(out)?.[1];
+    return { child, token, out };
+  };
+  const stop = (c) => new Promise((r) => { c.once('exit', r); c.kill(); });
+  const a = await startPanel();
+  assert.ok(a.token, a.out);
+  await stop(a.child);
+  const b = await startPanel();
+  try {
+    assert.equal(b.token, a.token, 'same token across a restart');
+    assert.match(b.out, /open this link/, 'the link is still printed');
+    const r = await rq(port, { headers: cookieHeader(port, a.token) });
+    assert.equal(r.status, 200, 'the first start\'s cookie is accepted');
+  } finally { await stop(b.child); }
+  chmodSync(path.join(xdg, 'fwdloop', `panel-${port}.token`), 0o644);
+  const c = await startPanel();
+  try {
+    assert.ok(c.token);
+    assert.notEqual(c.token, a.token, 'a 0644 token file is replaced, not reused');
+    assert.equal(statSync(path.join(xdg, 'fwdloop', `panel-${port}.token`)).mode & 0o777, 0o600);
+  } finally { await stop(c.child); }
 });

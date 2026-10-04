@@ -520,7 +520,7 @@ async function cmdResume(rest) {
 // Reads are GET/HEAD; the only writes are POST /api/answer and POST
 // /api/resume (src/panel/server.js), each gated by Origin/Host + the panel's
 // cookie. `fwdloop panel` writes its token to a 0600 file ($XDG_RUNTIME_DIR/fwdloop/
-// panel-<port>.token, else ~/.cache/fwdloop/) and prints `http://127.0.0.1:<port>/?t=<token>` —
+// panel-<port>.token, else ~/.cache/fwdloop/; reused across restarts while that file is 0600) and prints `http://127.0.0.1:<port>/?t=<token>` —
 // open that link (it sets the cookie); every request needs it. Bound to 127.0.0.1 only. Never picks
 // a different port on collision — a taken port is a loud, non-zero-exit
 // failure.

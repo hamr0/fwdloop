@@ -124,6 +124,31 @@ function tokenMatches(a, b) {
   return timingSafeEqual(x, y);
 }
 
+const tokenDir = (dir, env) => dir ?? (env.XDG_RUNTIME_DIR ? join(env.XDG_RUNTIME_DIR, 'fwdloop') : join(homedir(), '.cache', 'fwdloop'));
+
+/**
+ * hamr's 2026-10-03 ruling "1A": the panel token is REUSED across restarts, so a bookmark of
+ * `http://127.0.0.1:<port>/` keeps working once the link was opened. Reads the token file (same path
+ * `writeTokenFile` writes); a new token only when the file is missing, unreadable, not a regular file,
+ * not mode 0600, not ours, or not 64 hex chars (the caller then rewrites it 0600).
+ * @param {{ port: number, dir?: string, env?: Record<string, string|undefined> }} a
+ * @returns {string}
+ */
+export function loadOrMakeToken({ port, dir, env = process.env }) {
+  try {
+    const d = tokenDir(dir, env);
+    const file = join(d, `panel-${port}.token`);
+    const st = lstatSync(file);
+    const dst = lstatSync(d);
+    const uid = typeof process.getuid === 'function' ? process.getuid() : null;
+    if (dst.isDirectory() && (dst.mode & 0o777) === 0o700 && st.isFile() && (st.mode & 0o777) === 0o600 && (uid === null || st.uid === uid)) {
+      const t = readFileSync(file, 'utf8').trim();
+      if (/^[0-9a-f]{64}$/.test(t)) return t;
+    }
+  } catch { /* missing or unreadable: a new one */ }
+  return randomBytes(32).toString('hex');
+}
+
 /**
  * M4c-fix item 2: the token's one on-disk home — `<dir>/panel-<port>.token`, dir 0700, file 0600,
  * `dir` = `$XDG_RUNTIME_DIR/fwdloop`, else `~/.cache/fwdloop`. Refuses a dir that is a symlink or
@@ -134,7 +159,7 @@ function tokenMatches(a, b) {
 export function writeTokenFile({
   port, token, dir, env = process.env,
 }) {
-  const d = dir ?? (env.XDG_RUNTIME_DIR ? join(env.XDG_RUNTIME_DIR, 'fwdloop') : join(homedir(), '.cache', 'fwdloop'));
+  const d = tokenDir(dir, env);
   const uid = typeof process.getuid === 'function' ? process.getuid() : null;
   mkdirSync(d, { recursive: true, mode: 0o700 });
   const st = lstatSync(d);
@@ -502,7 +527,7 @@ export function createPanelServer(opts) {
   const resumer = createResumer({ root, ...opts.resume });
   // One token per server process, made once, held only here and in the served
   // page — never logged, never in any /api response.
-  const token = randomBytes(32).toString('hex');
+  const token = typeof opts.token === 'string' && /^[0-9a-f]{64}$/.test(opts.token) ? opts.token : randomBytes(32).toString('hex');
   return new Promise((resolve, reject) => {
     // Bound port is resolved from the live socket (`server.address().port`)
     // once listening starts, not the requested value — this is what makes
@@ -560,7 +585,7 @@ export async function panelMain(argv, ctx) {
     }
   }
   try {
-    const { port: boundPort, token } = await createPanelServer({ port, root });
+    const { port: boundPort, token } = await createPanelServer({ port, root, token: loadOrMakeToken({ port }) });
     writeTokenFile({ port: boundPort, token });
     ctx.out(`fwdloop panel — (root: ${root}) (Ctrl-C to stop)`);
     ctx.out(`open this link (it sets the panel's cookie): http://127.0.0.1:${boundPort}/?t=${token}`);
