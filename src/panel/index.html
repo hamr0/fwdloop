@@ -707,9 +707,17 @@
   // (never the DOM, a URL, storage or a log). Same-origin. ----
   function getJSON(path){
     return fetch(path, { method: "GET", headers: { accept: "application/json" } }).then(function(r){
-      if(!r.ok) throw new Error(path + ": HTTP " + r.status);
+      if(!r.ok){ var err = new Error(path + ": HTTP " + r.status); err.status = r.status; throw err; }
       return r.json();
     });
+  }
+  // The ONE place a failed load becomes words (amendment 2 (b)): a plain sentence, never the thrown
+  // message (it carries the path and the HTTP code), never a status number.
+  function loadFailureText(e){
+    var status = e && e.status;
+    if(status === 403) return "The panel does not recognise this page. Open the link the terminal printed.";
+    if(status === 404) return "This run is no longer there.";
+    return "Could not load this; reload the page.";
   }
   // Resolves { status, body } for ANY HTTP status (a refusal is data to show by
   // name, never an exception); rejects only on a network failure.
@@ -2342,14 +2350,14 @@
       if(!still()) return;
       openRunLive = false;   // unreadable books: the list rate, not 2 s forever
       document.getElementById("run-empty").hidden = false;
-      document.getElementById("run-empty").textContent = "failed to load run: " + e.message;
+      document.getElementById("run-empty").textContent = loadFailureText(e);
       document.getElementById("run-content").hidden = true;
     });
     // the same late-reply guard on audit, job and asks: a reply for a run the user already left paints nothing
     getJSON(base + "/audit").then(function(a){ if(still()) renderAudit(a); }).catch(function(){ if(still()) renderAudit(null); });
     getJSON(base + "/job").then(function(j){ if(still()) renderJob(j); }).catch(function(){ if(still()) renderJob(null); });
     getJSON(base + "/asks").then(function(result){ if(still()) renderAsk(result, focusAskId || null); }).catch(function(e){
-      if(still()) renderAsk(null, null, e.message);
+      if(still()) renderAsk(null, null, loadFailureText(e));
     });
   }
 
@@ -2406,7 +2414,7 @@
         if(next === null || next !== lastSig.asks){ lastSig.asks = renderAsk(a, null) ? next : null; }
       }
       return a;
-    }).catch(function(e){ if(still()){ lastSig.asks = null; renderAsk(null, null, e.message); } return null; });
+    }).catch(function(e){ if(still()){ lastSig.asks = null; renderAsk(null, null, loadFailureText(e)); } return null; });
     getJSON(base + "/audit").then(function(a){
       if(!still()) return;
       var next = sig(a);
@@ -2507,8 +2515,8 @@
       runsFilterBar.refresh();
     }
   }).catch(function(e){
-    document.getElementById("wf-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
-    document.getElementById("history-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
+    document.getElementById("wf-list").innerHTML = '<div class="hint">' + escapeXml(loadFailureText(e)) + '</div>';
+    document.getElementById("history-list").innerHTML = '<div class="hint">' + escapeXml(loadFailureText(e)) + '</div>';
   });
 
   // ---- shared text-node helper — book text (question/draft/artifact
@@ -2617,7 +2625,7 @@
   }
   getJSON("/api/inbox").then(function(result){ renderInbox(result.rows || [], result.openCount); }).catch(function(e){
     lastSig.inbox = null;
-    document.getElementById("inbox-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
+    document.getElementById("inbox-list").innerHTML = '<div class="hint">' + escapeXml(loadFailureText(e)) + '</div>';
   });
 
   // ---- Ask tab (M4a-1): every ask of the SELECTED run, collapsed by
@@ -3063,7 +3071,7 @@
   function renderAsk(result, focusAskId, loadError){
     var empty = document.getElementById("ask-empty");
     var list = document.getElementById("ask-list");
-    if(loadError){ empty.hidden = false; empty.textContent = "failed to load asks: " + loadError; list.hidden = true; list.innerHTML = ""; return true; }
+    if(loadError){ empty.hidden = false; empty.textContent = loadError; list.hidden = true; list.innerHTML = ""; return true; }
     if(!result){ empty.hidden = false; empty.textContent = "select a run first"; list.hidden = true; list.innerHTML = ""; return true; }
     var blocks = result.blocks || [];
     if(!blocks.length){
