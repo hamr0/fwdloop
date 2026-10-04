@@ -1994,7 +1994,7 @@ export function listStops({ root, resumeAttempt }) {
         ...deriveAskOpenFields(ask, hasHistoryRow, resume),
         stuck: stuckAskId !== null && ask.askId === stuckAskId,
         stuckLabel: stuckAskId !== null && ask.askId === stuckAskId ? st.label : null,
-        stuckLine: stuckAskId !== null && ask.askId === stuckAskId ? signParts('[II]', st.label).line : null,
+        stuckLine: stuckAskId !== null && ask.askId === stuckAskId ? signParts('[II]', st.label ?? '').line : null,
       }));
       // M4c item 4: a run with no end row, no ask waiting on the human and no
       // saved-but-unresumed answer, whose newest pid row is alive, is "working
