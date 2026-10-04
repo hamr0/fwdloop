@@ -2064,12 +2064,22 @@
       rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, false)); });
       table.setAttribute("data-testid", "audit-table-grouped-" + g.step);
       wrap.appendChild(table);
+      // M4c-fix amendment 2 (j): a step with exactly one try opens that try's detail with the group, closes with it
+      // (the same `.open` tap-detail the row's own tap toggles; only the phone layout shows it).
+      function syncSingleRow(open){
+        if(rows.length !== 1) return;
+        var only = tbody.firstChild;
+        only.classList.toggle("open", open);
+        only.setAttribute("aria-expanded", open ? "true" : "false");
+      }
+      syncSingleRow(isOpen);
       function toggleAuditGroup(){
         var next = table.hidden;
         table.hidden = !next;
         wrap.classList.toggle("closed", !next);
         auditExpanded[g.step] = next;
         header.setAttribute("aria-expanded", next ? "true" : "false");
+        syncSingleRow(next);
       }
       header.addEventListener("click", toggleAuditGroup);
       header.addEventListener("keydown", function(e){

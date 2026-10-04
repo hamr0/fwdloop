@@ -80,3 +80,35 @@ test('(i) a late reply for a run the user already left changes nothing', async (
   await flush();
   assert.deepEqual([h.left(), h.right()], [['tab-runs'], ['tab-run']]);
 });
+
+// ---- (j) ----
+const auditFn = PAGE.slice(PAGE.indexOf('function renderAuditGroups'), PAGE.indexOf('function renderAuditFlat'));
+test('(j) a one-try group opens that try\'s detail with the group and closes it with the group; several tries are left alone', () => {
+  assert.match(auditFn, /function syncSingleRow\(open\)\{\s*if\(rows\.length !== 1\) return;/);
+  assert.match(auditFn, /only\.classList\.toggle\("open", open\)/);
+  assert.match(auditFn, /only\.setAttribute\("aria-expanded", open \? "true" : "false"\)/);
+  // called on a toggle (with the new state) and once at paint (a step that starts open)
+  assert.match(auditFn, /auditExpanded\[g\.step\] = next;[\s\S]*?syncSingleRow\(next\);/);
+  assert.match(auditFn, /syncSingleRow\(isOpen\);/);
+});
+
+test('(j) behaviour: toggling a one-try group flips its row, a two-try group never touches rows', () => {
+  const mkRow = () => { const c = new Set(); return { classList: { toggle: (k, f) => { f ? c.add(k) : c.delete(k); return f; } }, attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, has: (k) => c.has(k) }; };
+  const build = (n, isOpen) => {
+    const tbody = { firstChild: mkRow() };
+    const rows = new Array(n).fill(0);
+    const src = auditFn.slice(auditFn.indexOf('function syncSingleRow'), auditFn.indexOf('syncSingleRow(isOpen);'));
+    const sync = new Function('rows', 'tbody', `${src}\nreturn syncSingleRow;`)(rows, tbody);
+    sync(isOpen);
+    return { sync, row: tbody.firstChild };
+  };
+  const one = build(1, false);
+  assert.equal(one.row.has('open'), false);
+  one.sync(true);
+  assert.equal(one.row.has('open'), true);
+  assert.equal(one.row.attrs['aria-expanded'], 'true');
+  one.sync(false);
+  assert.equal(one.row.has('open'), false);
+  const two = build(2, true);
+  assert.equal(two.row.has('open'), false, 'several tries: unchanged');
+});
