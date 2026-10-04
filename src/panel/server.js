@@ -294,7 +294,7 @@ function removeLockRoute(res, body, root, resumer) {
   }
   if (resumer.busy(flow, runId)) { refuseBusy(res); return; }
   const removed = removeOldLock({ root, runDir });
-  if (!removed.ok) { refuse(res, 409, removed.refused, removed.red); return; }
+  if (!removed.ok) { refuse(res, 409, removed.refused, cleanPaths(removed.red, root)); return; }
   const attempt = resumer.start({
     flow, runId, runDir, askId: saved.askId,
   });
