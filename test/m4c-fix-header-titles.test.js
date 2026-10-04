@@ -47,3 +47,7 @@ test('(l) the step map cuts a long name with … and keeps the whole name in a <
   assert.match(PAGE, /function mapLabel\(/);
   assert.match(PAGE, /<title>' \+ escapeXml\(stepTitleText/);
 });
+
+test('(l) the sign and caret never shrink, so a narrow title cuts only the name (walk: the sign broke letter by letter at 390 without this)', () => {
+  assert.match(PAGE, /audit-status-header > \.badge,[^{]*audit-status-header::before\{flex:none;white-space:pre;\}/);
+});
