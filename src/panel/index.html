@@ -340,6 +340,16 @@
      `.audit-group h4` (0,1,1) and `.ask-question-heading` (0,1,0) alone, so
      this never un-bolds the ask question heading. */
   .audit-group h4.audit-status-header{font-weight:400;}
+  /* M4c-fix amendment 2 (f): a foldable step group. The header sits IN the box (not pinned over its top edge),
+     so a long header wraps inside its own box and never lands on the next group; a closed group is that one
+     header line with a caret and no empty table under it. */
+  .audit-group.audit-fold{padding:6px 10px;margin-top:6px;margin-bottom:6px;min-width:0;max-width:100%;box-sizing:border-box;}
+  .audit-group.audit-fold h4.audit-status-header{position:static;margin:0;padding:0;background:none;min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:break-word;}
+  .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6  ";color:var(--text-faint);}
+  .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC  ";}
+  .audit-group.audit-fold h4.audit-status-header::after{content:none;}
+  .audit-group.audit-fold table{margin-top:8px;}
+  .audit-group.audit-fold table[hidden]{display:none !important;}
   /* hamr's 2026-09-27 review: the group header's own state word (g.state,
      rendered as a <span class="badge STATE">) and its per-try marks
      (<span class="mark STATE">) reuse the SAME color vocabulary the runs
@@ -1860,6 +1870,8 @@
     var header = row.querySelector("h4");
     if(table && table.hidden){
       table.hidden = false;
+      row.classList.remove("closed");
+      auditExpanded[step] = true;
       if(header) header.setAttribute("aria-expanded", "true");
     }
     if(typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "center" });
@@ -2007,7 +2019,11 @@
   // order of `r.step` across this run's own rows — never re-sorted).
   // review item #1: COLLAPSED by default — a map/step-card click
   // (`openAuditGroup`) is the only thing that force-expands one.
+  var auditExpanded = {}; // step -> true/false once a human toggled it; reset when the run changes
+  var auditExpandedRun = null;
   function renderAuditGroups(result){
+    var runKey = currentFlow + "/" + currentRunId;
+    if(auditExpandedRun !== runKey){ auditExpanded = {}; auditExpandedRun = runKey; }
     var container = document.getElementById("audit-groups");
     container.innerHTML = "";
     if(!result || result.empty) return;
@@ -2026,15 +2042,21 @@
       // COLLAPSED by default now (`aria-expanded` starts "false", the
       // table starts `hidden`) — expanding is something a human (or a
       // map/step-card jump) does, never the initial state.
+      // M4c-fix amendment 2 (f): a step with any failed try (a row with a gap) starts OPEN so its gap is
+      // seen without a click; the rest start closed. A manual toggle wins on re-render (auditExpanded).
+      var failed = (g.rows || []).some(function(r){ return !!r.gap; });
+      var isOpen = Object.prototype.hasOwnProperty.call(auditExpanded, g.step) ? auditExpanded[g.step] : failed;
+      wrap.classList.add("audit-fold");
+      if(!isOpen) wrap.classList.add("closed");
       var header = buildAuditGroupHeaderEl(g);
       header.setAttribute("role", "button");
       header.setAttribute("tabindex", "0");
-      header.setAttribute("aria-expanded", "false");
+      header.setAttribute("aria-expanded", isOpen ? "true" : "false");
       header.setAttribute("aria-label", auditGroupHeaderText(g));
       header.style.cursor = "pointer";
       wrap.appendChild(header);
       var table = document.createElement("table");
-      table.hidden = true;
+      table.hidden = !isOpen;
       table.innerHTML = "<thead><tr><th>Attempt</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th><th>Time</th></tr></thead><tbody></tbody>";
       var tbody = table.querySelector("tbody");
       rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, false)); });
@@ -2043,6 +2065,8 @@
       function toggleAuditGroup(){
         var next = table.hidden;
         table.hidden = !next;
+        wrap.classList.toggle("closed", !next);
+        auditExpanded[g.step] = next;
         header.setAttribute("aria-expanded", next ? "true" : "false");
       }
       header.addEventListener("click", toggleAuditGroup);
