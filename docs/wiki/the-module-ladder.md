@@ -1248,6 +1248,41 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - A shell with `NODE_ENV=test` (or a `node --test` child) and no `FWDLOOP_CONFIG_HOME` refuses a real run, resume or draft at $0 with "fwdloop: NODE_ENV=test is set without FWDLOOP_CONFIG_HOME, so the keys file, prices and monthly limit would be skipped. Nothing spent. Unset NODE_ENV, or set FWDLOOP_CONFIG_HOME."
   - Test and Balance never follow a redirect with the key; a 3xx reads "The provider answered with a redirect; the key was not sent on. Check the Base URL."
 
+#### M4e — Run a job from the panel — NOT SIGNED (drafted 2026-10-05)
+
+- **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a run starts only from a terminal (`fwdloop run <flow> --root <dir> --source <role>=<path>`). M4d put the key and the monthly limit in place first, because this button spends money. hamr 2026-10-05: "start m4e". This module **replaces the 2026-09-26 ruling "no Run button in M4"** (that ruling was for M4a/M4b; the 2026-09-30 ladder order added M4e).
+- **Rulings at drafting (hamr 2026-10-05):** "Type a path" — each input is a text box holding a file path, the same as `--source` on the command line, filled in with the last run's paths for that flow. (Not chosen: a drop-folder the page picks from.)
+- **Nothing to borrow:** bareloop's panel has no run-start button or POST route (checked 2026-10-05 at bareloop `ca7195e`). The child-process shape is fwdloop's own panel resume (`src/panel/resume.js`).
+- **Scope:**
+  1. **One door, the CLI.** The panel starts a run by spawning `fwdloop run <flow> --root <root> --source <role>=<path> ...` as its own detached process, the same way it spawns a resume (own process group, `unref()`, the merged keys env, its output to a log file in the run dir). The panel never calls the runner itself. So every check the CLI already makes applies with no copy: flow name, signed flow read, declared source roles, the keys-file mode check (M4d 1A), the empty-key refusal, the monthly hold (M4d 4), the unwired-verb preflight, the input freeze and sha256.
+  2. **Run button.** Each signed flow on the Runs page gets a `[ ▶ Run ]` button. It opens a short form:
+     - the flow name and its **signed per-run cap** (read only);
+     - **left this month** from the Money record, or "no monthly limit set";
+     - **one text box per source role the flow declares**, labelled by the role, filled in with the path the last run of this flow used (blank if none);
+     - a **Run id** box, prefilled with a fresh id, editable;
+     - one button: `[ Start — spends up to $<cap> ]`, and `[ Cancel ]`.
+  3. **$0 checks on the page before the spawn.** The POST door checks, at the moment of the click, with `realpathSync` (never a lexical resolve): each typed path exists and is a regular file the panel's user can read; every declared role has a path and no extra role is sent; the run id passes the CLI's own run-id check and its run dir does not exist yet. A refusal says which box and why in a plain sentence, spends $0, and creates nothing. The page never reads or shows the file's contents.
+  4. **One click, one run.** The form's Start button is disabled from the click until the reply. The door holds a per-flow lock while it spawns, so two clicks (or two tabs) cannot start two runs from one form; a second request with the same run id is refused by name.
+  5. **After the spawn.** The page goes back to Runs and the new run shows with M4c's working sign. If the child exits before it writes its first book row (a CLI refusal: keys, monthly limit, preflight), the run row shows the CLI's own refusal sentence from the child log, and the run is marked "did not start — nothing spent". The panel decides "did it start?" with M4c's one "is it running?" function, never a timer guess.
+  6. **What the page never does.** It never takes a key, never edits a flow, its cap, its sources list or its asks, and never starts a draft. The Run button shows only for a flow whose signature checks out (`readFlow` ok); an unsigned or broken flow shows its red instead of the button.
+- **First POC (riskiest assumption, $0):** a run started by the panel as a detached `fwdloop run` child (a) gets the keys from the keys file with no key in the panel's own shell, (b) keeps running and parks at its first ask after the panel process is killed, and (c) when the monthly limit is too low, refuses at $0 and its refusal sentence reaches the page. Use a stub provider for (b), so it costs nothing. If (b) fails, nothing gets built until hamr has seen what happened.
+- **Negatives** (each must be able to fail):
+  - (i) a path to a folder, a missing file, or a broken symlink is refused by name, $0, nothing created;
+  - (ii) a symlink to a file is checked at its real target, and the frozen copy's sha256 matches that target;
+  - (iii) a missing role or an undeclared role is refused, $0;
+  - (iv) an existing run id, or a run id with `/` or `..`, is refused, $0;
+  - (v) two Start requests sent together for the same flow start exactly one run;
+  - (vi) the Start door without the panel's token, or with a GET, is refused;
+  - (vii) over the monthly limit, the child refuses at $0 and the page shows "Nothing spent. Raise the monthly limit in Settings, or wait for next month.";
+  - (viii) a keys file other users can read refuses the run, and the page shows the chmod sentence;
+  - (ix) no key value appears in the form, any reply, the child log, the audit or a book (canary key, as M4d (i));
+  - (x) an unsigned or tampered flow shows no Run button, and a POST naming it is refused;
+  - (xi) killing the panel mid-run leaves the run going; a restarted panel shows it working, then parked;
+  - (xii) the Run form works at 390 px and 320 px: no box spills, no sideways page scroll.
+- **Exit:** hamr, live on deepseek-flash, from the panel only (no `fwdloop run` typed): clicks Run on a signed flow, sees the paths filled in from the last run, starts it; the run shows working, parks at its ask, he answers it on the page and it completes; its cost shows on the run and in the Money tab. Then he sets the monthly limit below the cap, clicks Run again, and the page shows the refusal with $0 spent. The orchestrator walks the form at 1280, 390 and 320 px first, at $0.
+- **Cap:** $0.25 (one or two short live runs).
+- **Not in scope:** triggers or schedules (a run starts only on a click); uploading a file through the page; a file picker or folder browser; drafting or signing a flow from the page (M6b); editing a flow or its cap; per-run read/write folders; stopping a running run from the page.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
