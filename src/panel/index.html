@@ -3197,6 +3197,204 @@
     return true;
   }
 
+  // ---- M4d piece 4: Settings. Nothing here is re-rendered by the page's refresh tick: the Settings DOM is
+  // painted only when it is opened, a tab is chosen, or a button here is pressed — and a price/limit box the
+  // person has typed in ("dirty") is never overwritten by a repaint. No key value ever reaches this page. ----
+  function fmtUsd(n, atLeast){
+    if(typeof n !== "number" || !isFinite(n)) return "unknown";
+    return (atLeast ? "≥" : "") + "$" + n.toFixed(4);
+  }
+  function fmtMinutes(m, atLeast){
+    if(typeof m !== "number" || !isFinite(m)) return "not recorded";
+    return (atLeast ? "≥" : "") + (m < 10 ? m.toFixed(1) : String(Math.round(m))) + " min";
+  }
+  function fmtTokens(n){
+    return String(typeof n === "number" && isFinite(n) ? n : 0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+  // The server's own plain sentence (`say`) when it sent one; else the same words every other refusal uses.
+  function settingsRefusal(r){
+    var b = r && r.body;
+    if(b && typeof b.say === "string" && b.say) return b.say;
+    return refusalText(r, null);
+  }
+  function setMsg(el, cls, text){
+    el.hidden = !text;
+    el.className = "set-msg" + (cls ? " " + cls : "");
+    el.textContent = text || "";
+  }
+  var settingsView = document.getElementById("settings-view");
+  var mainView = document.getElementById("main-view");
+  document.getElementById("settings-open").addEventListener("click", function(){
+    mainView.hidden = true; settingsView.hidden = false;
+    loadProviders(); loadMoney();
+  });
+  document.getElementById("settings-back").addEventListener("click", function(){
+    settingsView.hidden = true; mainView.hidden = false;
+  });
+  wireTabs([document.getElementById("stab-providers"), document.getElementById("stab-money")]);
+  document.getElementById("stab-money").addEventListener("click", function(){ loadMoney(); });
+  document.getElementById("stab-providers").addEventListener("click", function(){ loadProviders(); });
+
+  function loadProviders(){
+    return getJSON("/api/settings/providers").then(paintProviders, function(e){
+      setMsg(document.getElementById("keys-refusal"), "bad", loadFailureText(e));
+    });
+  }
+  document.getElementById("reload-keys").addEventListener("click", function(){ loadProviders(); });
+
+  function sourceWord(src){
+    if(src === "table") return "default";
+    if(src === "ceiling") return "highest known rate, the model has no listed price";
+    if(src === "default-multiplier") return "default, 0.1 x input";
+    return "set here";
+  }
+  function priceBox(slot, field, label, p){
+    return '<div class="field"><label for="pb-' + slot + '-' + field + '">' + escapeXml(label) + ' ($ per 1M)</label>' +
+      '<input type="text" inputmode="decimal" id="pb-' + slot + '-' + field + '" data-field="' + field + '" data-testid="price-' + field + '"></div>';
+  }
+  function buildProviderCard(row){
+    var slot = escapeXml(row.slot);
+    var el = document.createElement("div");
+    el.className = "set-card";
+    el.setAttribute("data-slot", row.slot);
+    el.setAttribute("data-testid", "prov-card");
+    el.innerHTML =
+      '<h4>' + escapeXml(row.label) + '</h4>' +
+      '<div class="set-line"><span class="set-label">Key</span><span class="set-val"><code>' + escapeXml(row.envVar) + '</code> &middot; <span data-f="status"></span></span></div>' +
+      '<div class="set-line"><span class="set-label">Model</span><span class="set-val" data-f="model"></span></div>' +
+      '<div class="set-line"><span class="set-label">Address</span><span class="set-val" data-f="addr"></span></div>' +
+      '<div class="set-line"><span class="set-label">Test</span><span class="set-val"><button class="btn small" type="button" data-act="test" data-testid="prov-test">Test</button> <span data-f="test" data-testid="prov-test-result"></span></span></div>' +
+      '<div class="set-line"><span class="set-label">Tokens used</span><span class="set-val" data-f="tokens"></span></div>' +
+      '<div class="set-line"><span class="set-label">Balance</span><span class="set-val" data-f="balance"></span></div>' +
+      '<div class="set-prices">' +
+        priceBox(row.slot, "inPerM", "Input") + priceBox(row.slot, "cachedInPerM", "Cached input") + priceBox(row.slot, "outPerM", "Output") +
+      '</div>' +
+      '<div class="set-line"><button class="btn small" type="button" data-act="save" data-testid="price-save">Save</button></div>' +
+      '<div class="set-msg" data-f="msg" data-testid="price-msg" hidden></div>';
+    var bal = el.querySelector("[data-f=balance]");
+    if(row.canBalance){
+      bal.innerHTML = '<button class="btn small" type="button" data-act="balance" data-testid="prov-balance">Check</button> <span data-f="balance-result"></span>';
+    } else {
+      bal.textContent = "not offered by this provider";
+    }
+    el.querySelectorAll("input").forEach(function(inp){
+      inp.addEventListener("input", function(){ inp.setAttribute("data-dirty", "1"); });
+    });
+    el.addEventListener("click", function(ev){
+      var b = ev.target.closest && ev.target.closest("button[data-act]");
+      if(!b) return;
+      var act = b.getAttribute("data-act");
+      if(act === "test") runTest(el, row.slot);
+      else if(act === "balance") runBalance(el, row.slot);
+      else if(act === "save") savePrice(el, row.slot);
+    });
+    return el;
+  }
+  var STATUS_WORD = { "set in file": "set in file", "found in shell": "found in shell", "not set": "not set", "refused": "refused — see above" };
+  function paintProviders(data){
+    var path = data.keysFile && data.keysFile.path ? data.keysFile.path : "~/.config/fwdloop/.env";
+    document.getElementById("keys-path").textContent = path;
+    setMsg(document.getElementById("keys-refusal"), "bad", data.keysFile && data.keysFile.refusal);
+    setMsg(document.getElementById("settings-config-problem"), "bad", data.configProblem);
+    var list = document.getElementById("prov-list");
+    data.rows.forEach(function(row){
+      var el = list.querySelector('[data-slot="' + row.slot + '"]');
+      if(!el){ el = buildProviderCard(row); list.appendChild(el); }
+      el.querySelector("[data-f=status]").textContent = STATUS_WORD[row.keyStatus] || row.keyStatus;
+      el.querySelector("[data-f=model]").textContent = row.model;
+      el.querySelector("[data-f=addr]").textContent = row.baseUrl;
+      el.querySelector("[data-f=tokens]").textContent = fmtTokens(row.tokens);
+      ["inPerM", "cachedInPerM", "outPerM"].forEach(function(f){
+        var inp = el.querySelector('input[data-field="' + f + '"]');
+        var p = row.price[f];
+        inp.placeholder = String(p.value) + " (" + sourceWord(p.source) + ")";
+        // a box the person has typed in is never overwritten by a repaint
+        if(inp.getAttribute("data-dirty") !== "1") inp.value = p.source === "settings" ? String(p.value) : "";
+      });
+    });
+  }
+  function runTest(card, slot){
+    var out = card.querySelector("[data-f=test]");
+    out.textContent = "testing…";
+    postJSON("/api/settings/test", { slot: slot }).then(function(r){
+      var b = r.body;
+      out.textContent = b && b.ok ? "OK · " + b.ms + " ms" : (b && b.why ? b.why : settingsRefusal(r));
+    }, function(){ out.textContent = networkText(); });
+  }
+  function runBalance(card, slot){
+    var out = card.querySelector("[data-f=balance-result]");
+    out.textContent = "checking…";
+    getJSON("/api/settings/balance?slot=" + encodeURIComponent(slot)).then(function(b){
+      if(b.ok) out.textContent = b.balances.map(function(x){ return x.total + " " + x.currency; }).join(" + ");
+      else out.textContent = b.why || "Could not check the balance.";
+    }, function(e){ out.textContent = loadFailureText(e); });
+  }
+  // A box the person typed: empty = back to the default (null); a number is sent as a number; anything else is
+  // sent as the text typed, so the server refuses it by naming the box.
+  function priceValue(text){
+    var t = String(text).trim();
+    if(t === "") return null;
+    var n = Number(t);
+    return isFinite(n) ? n : t;
+  }
+  function savePrice(card, slot){
+    var msg = card.querySelector("[data-f=msg]");
+    var payload = { slot: slot };
+    card.querySelectorAll("input[data-field]").forEach(function(inp){ payload[inp.getAttribute("data-field")] = priceValue(inp.value); });
+    postJSON("/api/settings/price", payload).then(function(r){
+      if(r.body && r.body.ok){
+        card.querySelectorAll("input").forEach(function(inp){ inp.removeAttribute("data-dirty"); });
+        setMsg(msg, "good", "saved — applies from the next model call");
+        loadProviders();
+      } else setMsg(msg, "bad", settingsRefusal(r));
+    }, function(){ setMsg(msg, "bad", networkText()); });
+  }
+
+  function loadMoney(){
+    return getJSON("/api/settings/money").then(paintMoney, function(e){
+      setMsg(document.getElementById("limit-msg"), "bad", loadFailureText(e));
+    });
+  }
+  function paintMoney(d){
+    var m = d.month, t = d.total;
+    document.getElementById("money-figures").innerHTML =
+      '<div class="money-grid">' +
+        '<div class="mg-h"></div><div class="mg-h">This month</div><div class="mg-h">To date</div>' +
+        '<div>Spend</div><div data-testid="money-usd-month">' + escapeXml(fmtUsd(m.usd, m.atLeast)) + '</div><div data-testid="money-usd-total">' + escapeXml(fmtUsd(t.usd, t.atLeast)) + '</div>' +
+        '<div>Tokens</div><div>' + escapeXml(fmtTokens(m.tokens)) + '</div><div>' + escapeXml(fmtTokens(t.tokens)) + '</div>' +
+        '<div>Model minutes</div><div>' + escapeXml(fmtMinutes(m.modelMinutes, m.modelMinutesAtLeast)) + '</div><div>' + escapeXml(fmtMinutes(t.modelMinutes, t.modelMinutesAtLeast)) + '</div>' +
+      '</div>';
+    var notes = [];
+    if(d.preM4dRunsNotCounted) notes.push("Runs from before Settings existed are not counted here.");
+    if(d.undatedRows > 0) notes.push(d.undatedRows + " older spend rows have no date; they count in to date only.");
+    document.getElementById("money-notes").textContent = notes.join(" ");
+    var lim = document.getElementById("limit-input");
+    if(lim.getAttribute("data-dirty") !== "1") lim.value = typeof d.monthlyLimitUsd === "number" ? String(d.monthlyLimitUsd) : "";
+    if(d.configProblem) setMsg(document.getElementById("limit-msg"), "bad", d.configProblem);
+    var names = Object.keys(d.byProvider || {});
+    document.getElementById("money-break").innerHTML = names.map(function(k){
+      var p = d.byProvider[k];
+      return '<div class="set-card" data-testid="break-card"><h4>' + escapeXml(p.label) + '</h4>' +
+        '<div class="set-line"><span class="set-label">$ month / to date</span><span class="set-val">' + escapeXml(fmtUsd(p.month.usd, p.month.atLeast)) + ' / ' + escapeXml(fmtUsd(p.total.usd, p.total.atLeast)) + '</span></div>' +
+        '<div class="set-line"><span class="set-label">Minutes month / to date</span><span class="set-val">' + escapeXml(fmtMinutes(p.month.modelMinutes, p.month.modelMinutesAtLeast)) + ' / ' + escapeXml(fmtMinutes(p.total.modelMinutes, p.total.modelMinutesAtLeast)) + '</span></div>' +
+        '<div class="set-line"><span class="set-label">Tokens</span><span class="set-val">' + escapeXml(fmtTokens(p.total.tokens)) + '</span></div></div>';
+    }).join("");
+  }
+  document.getElementById("limit-input").addEventListener("input", function(){ this.setAttribute("data-dirty", "1"); });
+  function saveLimit(){
+    var inp = document.getElementById("limit-input");
+    var msg = document.getElementById("limit-msg");
+    postJSON("/api/settings/money", { monthlyLimitUsd: priceValue(inp.value) }).then(function(r){
+      if(r.body && r.body.ok){
+        inp.removeAttribute("data-dirty");
+        setMsg(msg, "good", r.body.monthlyLimitUsd === null ? "saved — no monthly limit" : "saved — the limit is now $" + r.body.monthlyLimitUsd);
+        loadMoney();
+      } else setMsg(msg, "bad", settingsRefusal(r));
+    }, function(){ setMsg(msg, "bad", networkText()); });
+  }
+  document.getElementById("limit-save").addEventListener("click", saveLimit);
+  document.getElementById("limit-input").addEventListener("keydown", function(ev){ if(ev.key === "Enter") saveLimit(); });
+
   // theme toggle
   (function(){
     var root = document.documentElement;
