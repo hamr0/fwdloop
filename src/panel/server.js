@@ -351,6 +351,7 @@ function resumeRoute(res, body, root, resumer) {
 function authorPost(res, url, body, author) {
   const send = (r) => sendJson(res, r.status, r.body);
   if (url === '/api/author/draft') { send(author.start(body)); return; }
+  if (url === '/api/author/run') { send(author.run(body)); return; }
   const m = /^\/api\/author\/([^/]+)\/abandon$/.exec(url);
   if (m) { author.abandon(m[1]).then(send, () => sendJson(res, 500, { ok: false, refused: 'internal', red: 'internal error' })); return; }
   refuse(res, 404, 'not-found', url);
@@ -483,7 +484,12 @@ export function handleRequest(req, res, opts) {
 
   if (pathname.startsWith('/api/author/')) {
     const am = /^\/api\/author\/([^/]+)$/.exec(pathname);
-    const r = pathname === '/api/author/live' ? opts.author.live() : am ? opts.author.get(am[1]) : { status: 404, body: { ok: false, refused: 'not-found' } };
+    const sm = /^\/api\/author\/start\/([^/]+)$/.exec(pathname);
+    let r = { status: 404, body: /** @type {any} */ ({ ok: false, refused: 'not-found' }) };
+    if (pathname === '/api/author/live') r = opts.author.live();
+    else if (pathname === '/api/author/flows') r = opts.author.flows();
+    else if (sm) r = opts.author.startGet(sm[1]);
+    else if (am) r = opts.author.get(am[1]);
     if (method === 'HEAD') { res.writeHead(r.status, { 'content-type': 'application/json; charset=utf-8' }); res.end(); return; }
     sendJson(res, r.status, r.body);
     return;
@@ -607,7 +613,9 @@ export function createPanelServer(opts) {
   // M4d: the keys file is re-read before EVERY resume spawn (editing it needs no restart); an env injected by a test is the shell side.
   const resumer = createResumer({ root, loadEnv: () => keysForDoor({ env: opts.resume?.env }), ...opts.resume });
   // M4e piece 2a: the draft door. Same keys door as the resumer: the merged env is re-read before every spawn and every log quote.
-  const author = createAuthor({ root, loadEnv: () => keysForDoor({ env: opts.author?.env }), ...opts.author });
+  const author = createAuthor({
+    root, home: opts.settings?.home, loadEnv: () => keysForDoor({ env: opts.author?.env }), ...opts.author,
+  });
   // Settings reads and writes only under the one config home: an injected one (tests), else the door's — under a test
   // process with no FWDLOOP_CONFIG_HOME, Settings is switched off rather than touch the real ~/.config/fwdloop.
   const door = configDoorHome();

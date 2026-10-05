@@ -31,10 +31,11 @@ import { fileURLToPath } from 'node:url';
 import { PANEL_DRAFTS_DIR, scrub } from '../authoring.js';
 import { readFileInside, readdirInside } from '../flow.js';
 import { isFwdloopAlive } from '../liveness.js';
-import { PROVIDER_SLOTS } from '../provider.js';
 import { cardFields, checkCard } from './authorcard.js';
+import { createFlowsDoor } from './authorflows.js';
+import { createStarter } from './authorstart.js';
 import {
-  childRunning, readJsonFile, spawnDetached, writePidFile,
+  childRunning, providerKeys, readJsonFile, spawnDetached, writePidFile,
 } from './spawn.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -52,21 +53,20 @@ const KILL_WAIT_MS = 3000;
 const KILL_HARD_WAIT_MS = 2000;
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
-/** @param {Record<string, string|undefined>} env the provider key VALUES in it (the same object that is the child's env) */
-function keysOf(env) {
-  /** @type {string[]} */
-  const out = [];
-  for (const p of Object.values(PROVIDER_SLOTS)) { const k = env[p.envVar]; if (typeof k === 'string' && k !== '') out.push(k); }
-  return out;
-}
-
 /**
- * @param {{ root: string, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null }, bin?: string }} opts
+ * @param {{ root: string, home?: string, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null }, bin?: string }} opts
  *   `loadEnv` is the keys-file door (`keysForDoor`): called before EVERY spawn and every reply that quotes a log, so editing
  *   the file needs no restart. Its `env` is BOTH the child's spawn env AND the scrub list (POC (a), M4d wiring rule).
  */
 export function createAuthor(opts) {
-  const { root, loadEnv, bin = BIN } = opts;
+  const {
+    root, loadEnv, home, bin = BIN,
+  } = opts;
+  // the ONE run-start path (sign and run both end in `starter.start`) and the Run-a-signed-flow door built on it
+  const starter = createStarter({ root, bin });
+  const flowsDoor = createFlowsDoor({
+    root, home, loadEnv, starter,
+  });
 
   /** The drafts folder's real path, or null when the flows root does not exist. */
   const draftsDir = () => {
@@ -123,10 +123,16 @@ export function createAuthor(opts) {
   /** The one request-time read of the keys door: the merged env (scrub list + child env) or null on its refusal. */
   const keysNow = () => {
     const loaded = loadEnv();
-    return { loaded, keys: keysOf(loaded.env) };
+    return { loaded, keys: providerKeys(loaded.env) };
   };
 
   return {
+    flows: flowsDoor.flows,
+    run: flowsDoor.run,
+
+    /** `GET /api/author/start/:startId`: the start's phase, read from its files. @param {string} id */
+    startGet(id) { return starter.get(id, keysNow().keys); },
+
     /**
      * `POST /api/author/draft`: card -> $0 checks -> one detached `fwdloop draft` -> 202 { draftId }. Nothing is created
      * on a refusal. Synchronous on purpose (see the file header).

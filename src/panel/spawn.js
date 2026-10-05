@@ -12,6 +12,7 @@ import { join } from 'node:path';
 
 import { readFileInside } from '../flow.js';
 import { isFwdloopAlive, procStartOf } from '../liveness.js';
+import { PROVIDER_SLOTS } from '../provider.js';
 
 /** A pid whose liveness cannot be told (no /proc) counts as running only while its pid.json is this fresh (M4c's 10-minute rule). */
 const UNKNOWN_FRESH_MS = 10 * 60 * 1000;
@@ -61,4 +62,16 @@ export function childRunning(dir) {
   const alive = isFwdloopAlive(pid.pid, typeof pid.procStart === 'string' ? pid.procStart : null);
   if (alive !== null) return alive;
   return typeof pid.startedAt === 'number' && Date.now() - pid.startedAt <= UNKNOWN_FRESH_MS;
+}
+
+/**
+ * The provider key VALUES in the merged env — the scrub list. The env that holds them is the SAME object that is the child's
+ * spawn env (POC (a), M4d wiring rule), so the list can never differ from what the child was given.
+ * @param {Record<string, string|undefined>} env
+ */
+export function providerKeys(env) {
+  /** @type {string[]} */
+  const out = [];
+  for (const p of Object.values(PROVIDER_SLOTS)) { const k = env[p.envVar]; if (typeof k === 'string' && k !== '') out.push(k); }
+  return out;
 }

@@ -36,6 +36,8 @@ import { validateDeclaration } from './declaration.js';
 /** The three files a signed flow directory carries. Every place in this
  *  module that names a flow file uses this — never a literal string. */
 export const FLOW_FILES = Object.freeze(['prose.txt', 'declaration.json', 'signature.json']);
+/** The one folder under the flows root where the panel keeps each run start's own files (M4e piece 2b). A dot-name, so never a flow. */
+export const PANEL_STARTS_DIR = '.starts';
 
 const RUNS_DIR = 'runs';
 

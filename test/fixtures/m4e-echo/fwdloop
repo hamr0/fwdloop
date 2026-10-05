@@ -1,0 +1,4 @@
+// Test-only stand-in for bin/fwdloop (the `bin` seam of the panel author door; named `fwdloop` so the liveness rule reads it as ours):
+// prints the provider key to its log, waits a moment, exits 1 before any run dir exists — a CLI refusal that quotes a key.
+process.stdout.write(`fwdloop: boom, upstream said key=${process.env.DEEPSEEK_API_KEY}\n`);
+setTimeout(() => process.exit(1), 300);

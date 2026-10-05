@@ -46,7 +46,7 @@ import {
 import { fileURLToPath } from 'node:url';
 
 import {
-  readFlow, resolveRunDir, readFileInside, resolveInside, FLOW_FILES,
+  readFlow, resolveRunDir, readFileInside, resolveInside, FLOW_FILES, PANEL_STARTS_DIR,
 } from './flow.js';
 import {
   writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen,
@@ -347,7 +347,7 @@ const isInside = (child, base) => child === base || child.startsWith(base + sep)
  *  pointing outside must not pass). Either way, with `realpathSync` (symlinks
  *  followed), the folder must exist, be a folder, be writable, and must NOT be
  *  the run's own folder (its records and `inputs/`), the panel/CLI flow root, any flow
- *  folder under it (one holding a FLOW_FILES file) or `<root>/.drafts`, or the fwdloop config folder (holds the keys).
+ *  folder under it (one holding a FLOW_FILES file) or `<root>/.drafts` or `<root>/.starts`, or the fwdloop config folder (holds the keys).
  *  Called at sign time and re-called at write time (time-of-check vs
  *  time-of-use, M0's own fix) — the one rule for both.
  *  @param {string} target
@@ -398,6 +398,7 @@ export function checkSendDestination(target, ctx = {}) {
       // a flow folder = holds any of the flow's own files (the same FLOW_FILES `src/flow.js` writes)
       if (FLOW_FILES.some((f) => existsSync(join(childDir, f)))) refused.push([childDir, 'a flow folder']);
       else if (child === '.drafts') refused.push([childDir, 'the panel drafts folder']);
+      else if (child === PANEL_STARTS_DIR) refused.push([childDir, 'the panel starts folder']);
     }
   }
   for (const [base, what] of refused) {
