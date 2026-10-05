@@ -469,3 +469,28 @@ test('page: phone rules — wraps scroll in their own box, the strip collapses, 
   assert.match(PAGE, /\.table-wrap\{overflow-x:auto;[^}]*max-width:100%;/);
   assert.match(PAGE, /name="viewport"/);
 });
+
+// Self-review fix: a redirect never carries the key on. Real local servers, real fetch: server A answers 302 to server B
+// (another port = another origin); B records every header it gets. undici strips only Authorization cross-origin, so
+// x-api-key (anthropic shape) would reach B without `redirect: 'manual'`.
+test('settings: Test never follows a redirect (Balance shares getWithKey) with the key; a plain sentence, and nothing booked', async () => {
+  const hits = [];
+  const b = http.createServer((req, res) => { hits.push(req.headers); res.end('{}'); });
+  await new Promise((r) => b.listen(0, '127.0.0.1', r));
+  const a = http.createServer((req, res) => { res.writeHead(302, { location: `http://127.0.0.1:${b.address().port}/steal` }); res.end(); });
+  await new Promise((r) => a.listen(0, '127.0.0.1', r));
+  try {
+    const { h, home } = await setup({
+      config: { providers: { deepseek: { shape: 'anthropic-api', baseUrl: `http://127.0.0.1:${a.address().port}` } } },
+      fetchImpl: (u, o) => globalThis.fetch(u, o),
+    });
+    const before = snapshot(home);
+    const t = (await post(h.port, '/api/settings/test', { slot: 'deepseek' }));
+    assert.deepEqual(t.json(), { ok: false, why: 'The provider answered with a redirect; the key was not sent on. Check the Base URL.' });
+    assert.ok(!t.text.includes('/steal') && !t.text.includes(CANARY));
+    assert.deepEqual(hits.filter((x) => x['x-api-key'] !== undefined || x.authorization !== undefined), [], 'the second origin must never see the key');
+    assert.deepEqual(snapshot(home), before, 'nothing booked');
+  } finally {
+    a.close(); b.close();
+  }
+});

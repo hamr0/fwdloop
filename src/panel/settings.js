@@ -125,7 +125,8 @@ export function createSettings(cfg) {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
     try {
-      const res = await doFetch(url, { method: 'GET', headers: authHeaders(shape, key), signal: ctl.signal });
+      const res = await doFetch(url, { method: 'GET', headers: authHeaders(shape, key), signal: ctl.signal, redirect: 'manual' });
+      if (res.status >= 300 && res.status < 400) return { why: 'The provider answered with a redirect; the key was not sent on. Check the Base URL.' };
       if (res.status === 401 || res.status === 403) return { why: 'The provider refused the key.' };
       if (!res.ok) return { why: 'The provider answered with an error.' };
       let body = null;
