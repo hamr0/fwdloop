@@ -1248,7 +1248,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - A shell with `NODE_ENV=test` (or a `node --test` child) and no `FWDLOOP_CONFIG_HOME` refuses a real run, resume or draft at $0 with "fwdloop: NODE_ENV=test is set without FWDLOOP_CONFIG_HOME, so the keys file, prices and monthly limit would be skipped. Nothing spent. Unset NODE_ENV, or set FWDLOOP_CONFIG_HOME."
   - Test and Balance never follow a redirect with the key; a 3xx reads "The provider answered with a redirect; the key was not sent on. Check the Base URL."
 
-#### M4e — Chat: describe, draft, sign and run a job from the panel — NOT SIGNED (drafted 2026-10-05)
+#### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
 - **Rulings at drafting (hamr 2026-10-05):**
