@@ -339,45 +339,126 @@ test('Settings reads and writes only under the injected config home; with no hom
   } finally { if (saved !== undefined) process.env.FWDLOOP_CONFIG_HOME = saved; }
 });
 
-// ---- the page: source-level checks -----------------------------------------------------------------------------------
-test('page: the Settings button, the view, the two tabs, the signed sentences; no per-run cap input, no key input', () => {
+// ---- the page: source-level checks (layout borrowed from bareloop 5a5a811: one table, a money strip) -----------------------
+const SETTINGS_VIEW = PAGE.slice(PAGE.indexOf('id="settings-view"'), PAGE.indexOf('id="main-view"'));
+const th = (html) => [...html.matchAll(/<th>([^<]*)<\/th>/g)].map((m) => m[1]);
+
+test('page: the Settings button, header, tabs and signed sentences; no per-run cap, no key input, no Save button, no card markup', () => {
   assert.match(PAGE, /data-testid="settings-open">&#9881; Settings</);
   assert.match(PAGE, /id="settings-back"[^>]*>&larr; Back</);
-  assert.match(PAGE, /&#9508; SETTINGS &#9500;/);
+  // header: Back, then the title right beside it, framed by the CSS pips (not pushed right)
+  assert.match(SETTINGS_VIEW, /<div class="settings-header">\s*<button[^>]*id="settings-back"[^>]*>&larr; Back<\/button>\s*<h2>Settings<\/h2>/);
+  assert.match(PAGE, /\.settings-header\{display:flex;align-items:center;gap:12px;/);
+  assert.doesNotMatch(PAGE, /\.settings-header\{[^}]*justify-content:space-between/);
+  assert.match(PAGE, /\.settings-header h2::before\{content:"┤ ";/);
+  assert.match(PAGE, /\.settings-header h2::after\{content:" ├";/);
   assert.match(PAGE, /id="stab-providers"[^>]*>Providers</);
   assert.match(PAGE, /id="stab-money"[^>]*>Money &amp; limits</);
-  assert.match(PAGE, /Put NAME=key lines in <code id="keys-path">~\/\.config\/fwdloop\/\.env<\/code> by hand &mdash; keys never reach this page\./);
-  assert.match(PAGE, /data-testid="reload-keys">Reload keys</);
-  assert.match(PAGE, /Limits are yours\. The agent can never change them\. A run whose cap is more than what is left this month does not start\./);
+  // the KEYS strip: legend, the sentence, the path as a code chip, Reload keys on the right
+  assert.match(PAGE, /\.keyfile-strip::before\{content:"┤ KEYS ├";/);
+  assert.match(PAGE, /\.keyfile-strip code\{[^}]*color:var\(--amber\)/);
+  assert.match(SETTINGS_VIEW, /Put <code>NAME=key<\/code> lines in <code id="keys-path"[^>]*>~\/\.config\/fwdloop\/\.env<\/code>, then Reload keys[^<]*keys never reach this page\./);
+  assert.match(SETTINGS_VIEW, /<div class="keyfile-strip-actions">\s*<button[^>]*id="reload-keys"[^>]*>Reload keys</);
+  // the hint lines
+  assert.match(SETTINGS_VIEW, /Test asks the provider for its model list &mdash; it costs nothing\. A price left empty uses the default; a typed price applies from the next model call on\./);
+  assert.match(SETTINGS_VIEW, /Limits are yours\. The agent can never change them\. A run whose cap is more than what is left this month does not start\./);
   assert.match(PAGE, /Runs from before Settings existed are not counted here\./);
-  assert.match(PAGE, /older spend rows have no date; they count in to date only\./);
-  assert.match(PAGE, /saved \u2014 applies from the next model call/);
+  assert.match(PAGE, /saved — applies from the next model call/);
   assert.match(PAGE, /not offered by this provider/);
-  // the only inputs in Settings are the three price boxes and the monthly limit
-  const view = PAGE.slice(PAGE.indexOf('id="settings-view"'), PAGE.indexOf('id="main-view"'));
-  assert.deepEqual([...view.matchAll(/<input[^>]*id="([^"]+)"/g)].map((m) => m[1]), ['limit-input']);
-  assert.doesNotMatch(view.replace(/<!--[\s\S]*?-->/g, ''), /\bcap\b(?! is more)|maxUsd|type="password"/i);
-  const js = PAGE.slice(PAGE.indexOf('M4d piece 4: Settings.'), PAGE.indexOf('// theme toggle')).replace(/^\s*\/\/.*$/gm, '');
-  assert.deepEqual([...js.matchAll(/data-field="' \+ field/g)].length, 1);
-  assert.deepEqual([...js.matchAll(/priceBox\(row\.slot, "(\w+)"/g)].map((m) => m[1]), ['inPerM', 'cachedInPerM', 'outPerM']);
-  assert.doesNotMatch(js, /\bcap\b|maxUsd/i);
-  assert.doesNotMatch(js, /\.(innerHTML|value)\s*=[^;]*(\.key\b|apiKey)/);
+  // only the monthly limit is a static input; the price boxes are built per row; no Save button, no cap, no key input
+  assert.deepEqual([...SETTINGS_VIEW.matchAll(/<input[^>]*id="([^"]+)"/g)].map((m) => m[1]), ['ml-money']);
+  assert.doesNotMatch(SETTINGS_VIEW.replace(/<!--[\s\S]*?-->/g, ''), /\bcap\b(?! is more)|maxUsd|type="password"|>Save</i);
+  assert.doesNotMatch(PAGE, /prov-card|break-card|set-card|set-strip|set-prices|money-grid|limit-save|price-save|set-limit/);
 });
 
-test('page: a typed price/limit box survives a repaint (dirty boxes are never overwritten) and the tick does not touch Settings', () => {
+test('page: Providers is ONE table, columns in bareloop order then the three signed price columns; Name/shape/URL are show-only', () => {
+  const tables = [...SETTINGS_VIEW.matchAll(/<table[\s\S]*?<\/table>/g)].map((m) => m[0]);
+  assert.equal(tables.length, 2, 'the provider table and the breakdown table, no cards');
+  assert.deepEqual(th(tables[0]), ['Key', 'Name', 'API shape', 'Base URL', 'Test', 'Tokens used', 'Balance', 'In $/1M', 'Cached in $/1M', 'Out $/1M']);
+  assert.match(tables[0], /<table class="pv-table"/);
+  assert.match(SETTINGS_VIEW, /<div class="table-wrap"[^>]*>\s*<table class="pv-table"/);
+  // the row builder: model, shape and URL cells hold plain text, never an input or select (ruling 2A)
+  const build = PAGE.slice(PAGE.indexOf('function buildProviderRow('), PAGE.indexOf('var STATUS_WORD'));
+  assert.ok(build.includes("'<td data-f=\"model\"></td>'") && build.includes("'<td data-f=\"addr\"></td>'") && build.includes("'<td>' + escapeXml(API_SHAPE) + '</td>'"));
+  assert.doesNotMatch(build, /<select|data-f="model"><input|data-f="addr"><input|API_SHAPE\) \+ '<input/);
+  // exactly one input source in a row: the price loop (3 fields), saved on change, with a hint line under each
+  assert.equal((build.match(/<input/g) || []).length, 1);
+  assert.match(build, /PRICE_FIELDS\.map\(function\(f\)/);
+  assert.match(PAGE, /var PRICE_FIELDS = \["inPerM", "cachedInPerM", "outPerM"\];/);
+  assert.match(PAGE, /pvRows\.addEventListener\("change"/);
+  assert.match(build, /class="hint pv-msg"/);
+  // the Test cell has one fixed width; the wrap scrolls inside its own box
+  assert.match(PAGE, /\.pv-table td\.pv-test-cell\{width:180px;min-width:180px;max-width:180px;\}/);
+  assert.match(PAGE, /\.table-wrap\{overflow-x:auto;/);
+  // Balance stays a click (signed "read on a click"): the render never calls the balance route
+  const paint = PAGE.slice(PAGE.indexOf('function paintProviders('), PAGE.indexOf('pvRows.addEventListener("click"'));
+  assert.doesNotMatch(paint, /\/api\/settings\/balance|runBalance/);
+});
+
+/** paintMoney run against a tiny fake DOM, with the page's own helpers cut out of index.html. */
+function runPaintMoney(d, { activeIsLimit = false } = {}) {
+  const el = () => ({ textContent: '', innerHTML: '', value: 'untouched', className: '', _a: {}, getAttribute(k) { return this._a[k] ?? null; }, setAttribute(k, v) { this._a[k] = v; } });
+  const els = { 'ml-usd': el(), 'ml-tokens': el(), 'ml-extra': el(), 'ml-msg': el(), 'ml-breakdown': el() };
+  const mlLimit = el();
+  const document = { getElementById: (id) => els[id], activeElement: activeIsLimit ? mlLimit : null };
+  const src = ['escapeXml', 'fmtUsd', 'fmtMinutes', 'fmtTokens', 'setNote', 'breakMinutes', 'paintMoney'].map(fnSrc).join('\n');
+  new Function('document', 'mlLimit', `${src}\npaintMoney(${JSON.stringify(d)});`)(document, mlLimit);
+  return { els, mlLimit };
+}
+const bucket = (usd, tokens, minutes = null, atLeast = false) => ({ usd, atLeast, tokens, modelMinutes: minutes, modelMinutesAtLeast: minutes === null || atLeast });
+
+test('page: the Money tab is a strip plus a breakdown TABLE; plurals; "0 min" only for a period with no spend', () => {
+  assert.deepEqual(th(SETTINGS_VIEW.slice(SETTINGS_VIEW.indexOf('provider-breakdown-table'))), ['Provider', '$ month / to date', 'minutes month / to date', 'tokens']);
+  assert.match(SETTINGS_VIEW, /<h4[^>]*>Per-provider breakdown<\/h4>\s*<div class="table-wrap">\s*<table data-testid="provider-breakdown-table">/);
+  assert.match(SETTINGS_VIEW, /<label>\$ month \/ to date<\/label>/);
+  assert.match(SETTINGS_VIEW, /<label>Tokens month \/ to date<\/label>/);
+  assert.match(SETTINGS_VIEW, /<label for="ml-money">Monthly money limit \(\$\)<\/label>\s*<input id="ml-money" type="text"[^>]*placeholder="blank = no limit"/);
+  assert.match(PAGE, /\.money-strip\{display:grid;grid-template-columns:repeat\(3, 1fr\);/);
+  assert.match(PAGE, /@media \(max-width: 899px\)\{\s*\.money-strip\{grid-template-columns:1fr 1fr;\}/);
+  const base = {
+    month: bucket(0.5, 1200, 2), total: bucket(1.5, 4000, 5), monthlyLimitUsd: 3, undatedRows: 0, preM4dRunsNotCounted: true,
+    byProvider: {
+      deepseek: { label: 'deepseek', month: bucket(0.5, 1200, 2), total: bucket(1.5, 4000, 5) },
+      synthetic: { label: 'synthetic', month: bucket(0, 0), total: bucket(0.2, 100) },
+      other: { label: 'other', month: bucket(0.1, 50), total: bucket(0.1, 50) },
+    },
+  };
+  base.byProvider.other.month.usd = 0.1;
+  const one = runPaintMoney({ ...base, undatedRows: 1 }).els;
+  assert.match(one['ml-extra'].textContent, /1 older spend row has no date; they count in to date only\./);
+  assert.doesNotMatch(one['ml-extra'].textContent, /rows have/);
+  assert.match(runPaintMoney({ ...base, undatedRows: 3 }).els['ml-extra'].textContent, /3 older spend rows have no date/);
+  assert.match(one['ml-extra'].textContent, /Runs from before Settings existed are not counted here\./);
+  const rows = one['ml-breakdown'].innerHTML.match(/<tr[\s\S]*?<\/tr>/g);
+  assert.equal(rows.length, 3, 'one table row per provider, no cards');
+  assert.match(rows[0], /<td>deepseek<\/td><td>\$0\.5000 \/ \$1\.5000<\/td><td>2\.0 min \/ 5\.0 min<\/td><td>4,000<\/td>/);
+  assert.match(rows[1], /<td>0 min \/ not recorded<\/td>/, 'no spend this month reads 0 min; spend with no minutes to date reads not recorded');
+  assert.match(rows[2], /not recorded \/ not recorded/, 'spend but no minutes is "not recorded", never 0 min');
+  assert.equal(runPaintMoney(base).els['ml-usd'].textContent, '$0.5000 / $1.5000');
+  assert.equal(runPaintMoney(base).els['ml-tokens'].textContent, '1,200 / 4,000');
+  // an unknown cost reads at-least, never $0; a typed limit box is not overwritten
+  const unk = runPaintMoney({ ...base, month: { ...bucket(0.5, 1200, 2), atLeast: true } }).els;
+  assert.equal(unk['ml-usd'].textContent, '≥$0.5000 / $1.5000');
+  assert.equal(runPaintMoney(base, { activeIsLimit: true }).mlLimit.value, 'untouched');
+  assert.equal(runPaintMoney(base).mlLimit.value, '3');
+});
+
+test('page: a typed price/limit box survives a repaint, the limit saves on change, and the tick does not touch Settings', () => {
   const js = PAGE.slice(PAGE.indexOf('M4d piece 4: Settings.'), PAGE.indexOf('// theme toggle'));
   assert.match(js, /getAttribute\("data-dirty"\) !== "1"\) inp\.value/);
-  assert.match(js, /lim\.getAttribute\("data-dirty"\) !== "1"\) lim\.value/);
-  // pageTick never calls a Settings painter
+  assert.match(js, /mlLimit\.getAttribute\("data-dirty"\) !== "1"\) mlLimit\.value/);
+  assert.match(js, /mlLimit\.addEventListener\("change"/);
+  assert.doesNotMatch(js, /\.cap\b|\bmaxUsd/i);
+  assert.doesNotMatch(js.replace(/^\s*\/\/.*$/gm, ''), /\.(innerHTML|value)\s*=[^;]*(\.key\b|apiKey)/);
+  assert.match(js, /borrowed-from: bareloop src\/panel\/index\.html@5a5a811/);
   const tick = PAGE.slice(PAGE.indexOf('function pageTick'), PAGE.indexOf('function pageTick') + 2500);
   assert.doesNotMatch(tick, /loadProviders|loadMoney|paintProviders|paintMoney/);
 });
 
-test('page: phone rules — at 640px price boxes stack, rows take the full width, inputs are 16px', () => {
-  assert.match(PAGE, /\.set-card input\[type=text\][^{]*\{[^}]*font-size:16px/);
-  const phone = PAGE.slice(PAGE.indexOf('.set-label{flex:1 1 100%;}') - 80, PAGE.indexOf('.set-label{flex:1 1 100%;}') + 300);
-  assert.match(phone, /@media \(max-width: 640px\)/);
-  assert.match(phone, /\.set-prices\{flex-direction:column;\}/);
-  assert.match(phone, /\.set-break\{grid-template-columns:minmax\(0,1fr\);\}/);
+test('page: phone rules — wraps scroll in their own box, the strip collapses, inputs are 16px, nothing is wider than its box', () => {
+  assert.match(PAGE, /\.settings-view input\[type=text\]\{[^}]*font-size:16px/);
+  assert.match(PAGE, /\.keyfile-strip-main\{[^}]*min-width:0;overflow-wrap:anywhere;/);
+  assert.match(PAGE, /\.pv-table \.pv-test-result,[^{]*\{white-space:normal;overflow-wrap:anywhere;\}/);
+  assert.match(PAGE, /\.table-wrap\{overflow-x:auto;[^}]*max-width:100%;/);
   assert.match(PAGE, /name="viewport"/);
 });
