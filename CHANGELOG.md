@@ -5,6 +5,70 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-10-05
+
+M4c-fix: the whole fix list is cleared before M4d. The panel is locked down, every word it shows is
+plain, an expired ask can be reopened by a human, and a pile of crash, leak and money bugs are closed.
+
+### Added
+- Panel safety. The token lives in a 0600 file, is printed as a `?t=` link, then rides in an
+  HttpOnly SameSite=Strict cookie, and is reused across restarts so a bookmark keeps working (a
+  loose or junk token file is replaced). A bare `GET /` without the cookie gets a plain page that
+  says to open the printed link. `X-Frame-Options`, `frame-ancestors` and `no-store` go on every
+  response. A flow must sit inside `--root` by realpath for reads and answers, and no reply carries
+  an absolute path. An over-limit request body is cut off at once with a 413. One resume at a time
+  per run (409 already-resuming), with one log file per resume attempt.
+- Reopen (amendment 1): an expired ask is reopened only by a human click ("Reopen for another
+  <wait>", `POST /api/reopen`), recorded as a write-once reopen record and one audit row. The old
+  resume-to-record-expiry button is gone, and a run ended by expiry reads `[!] expired`, never
+  accepted. A broken saved answer gives the answer buttons back with a note and is moved aside as a
+  write-once record. A late answer is set aside first on reopen, or the reopen is refused plainly.
+- "Remove the old lock" (amendment 2): one confirm, a gated POST that re-checks the lock has no
+  holder right before the unlink, removes it, writes one audit row and continues the run.
+- One bold word after every sign (amendment 2): `[▶] running`, `[·] waiting`, `[II] stuck`,
+  `[!] expired`, `[?] crashed`, `[✓] passed`, `[✗] failed`, the same in Runs, Inbox and the run
+  header, in bareloop's row layout (sign + name, word and why, then meta).
+- The practice root gains run-gap, run-expired, run-expired-late and run-ended-expired rows, made
+  through the real path, so each state can be clicked live.
+
+### Changed
+- Plain words everywhere the panel speaks (amendment 2): no HTTP codes, ids or paths; a failed load
+  reads as a plain sentence; "Try the resume again" is "Continue the run"; a redo or rerun with no
+  reason is caught on the page. The Inbox says "your answer is saved; the run is picking it up" or
+  "the run stopped before using it" (amendment 3).
+- Phone Audit is one line per entry up to 640 px, and every entry opens on a tap to its full step,
+  result, gap, refused list, tools, close, cost and time. Grouped Audit shows a closed group as one
+  header line with a caret; a group with a failed try starts open; a one-try step opens its detail in
+  the same tap. Step titles are short: `[sign] name . cost . try N`.
+- A run that needs you opens both Inbox and Ask; clicking a waiting or stuck run in Runs always
+  jumps to its Inbox ask, decided from the run's fresh asks. An expired ask's Inbox row says why,
+  from the same line its Ask tab draws; every Ask block names its flow and run.
+- The run header reads like its Runs row, three lines on a phone, no frame; step cards under the map
+  read in lower case (amendment 4).
+- CI: the `test` check is now required on `main`, and a second push to `main` no longer cancels the
+  first push's run.
+
+### Fixed
+- Crashes and leaks: `fwdloop show` and `fwdloop inbox` strip terminal control codes from model
+  text and questions; a drafter's red message and a resume's quoted child output are scrubbed of the
+  provider key; `answer.json` that is not an object is refused by name, and decision words read as
+  own entries only; a consumed-answer marker holding null no longer crashes the panel; `draft --out`
+  inside the flows root is refused by name; resume compares the recorded and requested roots by
+  realpath; a resumer unlinks `resume.lock` only while it is still the recorded holder, and a failed
+  lock-holder write removes the empty lock it just created.
+- Money: `readSpendTotal` counts an incomplete spend row at floor plus ceiling, and a transport retry
+  keeps the first call's refusals and tool tally. A model-step key red books a valid audit row when a
+  model is named. An ask's `askedAt` and `expiresAt` come from one clock read.
+- Refresh: finished and unreadable runs re-read at list rate; a late reply to a run's detail, audit,
+  job or asks fetch can no longer overwrite a newer one; a long run title wraps inside the header at
+  320 px.
+- An answer is not refused as already-resuming when the previous resume child is only closing on a
+  run already waiting on you. The Inbox cleans terminal codes out of the question.
+
+### Known limits
+- A narrow lock window remains between the last holder check and the unlink in "Remove the old
+  lock" (amendment 3 d); it is recorded in the module ladder.
+
 ## [0.10.0] - 2026-10-02
 
 M4c: the panel's answers read clearly. A run says whether it is running, waiting on you or stuck;
