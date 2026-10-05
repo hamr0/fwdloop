@@ -1248,40 +1248,59 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - A shell with `NODE_ENV=test` (or a `node --test` child) and no `FWDLOOP_CONFIG_HOME` refuses a real run, resume or draft at $0 with "fwdloop: NODE_ENV=test is set without FWDLOOP_CONFIG_HOME, so the keys file, prices and monthly limit would be skipped. Nothing spent. Unset NODE_ENV, or set FWDLOOP_CONFIG_HOME."
   - Test and Balance never follow a redirect with the key; a 3xx reads "The provider answered with a redirect; the key was not sent on. Check the Base URL."
 
-#### M4e — Run a job from the panel — NOT SIGNED (drafted 2026-10-05)
+#### M4e — Chat: describe, draft, sign and run a job from the panel — NOT SIGNED (drafted 2026-10-05)
 
-- **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a run starts only from a terminal (`fwdloop run <flow> --root <dir> --source <role>=<path>`). M4d put the key and the monthly limit in place first, because this button spends money. hamr 2026-10-05: "start m4e". This module **replaces the 2026-09-26 ruling "no Run button in M4"** (that ruling was for M4a/M4b; the 2026-09-30 ladder order added M4e).
-- **Rulings at drafting (hamr 2026-10-05):** "Type a path" — each input is a text box holding a file path, the same as `--source` on the command line, filled in with the last run's paths for that flow. (Not chosen: a drop-folder the page picks from.)
-- **Nothing to borrow:** bareloop's panel has no run-start button or POST route (checked 2026-10-05 at bareloop `ca7195e`). The child-process shape is fwdloop's own panel resume (`src/panel/resume.js`).
+- **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
+- **Rulings at drafting (hamr 2026-10-05):**
+  - **"1"** — M4e is bareloop's whole Chat card: one button that drafts, signs and runs. This **pulls M6b (the authoring UI) into M4e**; M6b is no longer a separate module.
+  - **Same UI as bareloop, fwdloop captions** — the Chat tab, the job card, the one main button, the progress list and the ask box are copied from bareloop's panel; labels, fields and buttons are changed, added or removed only where fwdloop's shape differs (listed below).
+  - **"Type a path"** — each input is a text box holding a file path, as `--source` on the command line.
+  - This module **replaces the 2026-09-26 ruling "no Run button in M4"** (that ruling was for M4a/M4b; the 2026-09-30 ladder order added M4e).
+  - This module **amends M6a amendment 2** ("sign needs a human TTY and a typed flow name; never sign from a script"): a flow may also be signed **on the page**, by the two-click hash sign (below) **plus the flow name typed into a box**. The CLI `fwdloop sign` keeps its TTY rule unchanged. A script still cannot sign: the page sign needs the panel token, the typed name, and the hash the page was shown.
+- **Ported from bareloop** (branch `feat/panel-import-run`, reviewed at `ca7195e`; `loop` 2026-10-05) by copy with a `borrowed-from` header: `src/panel/index.html` Chat section (`mainButtonFor`, `askBoxOpenFor`, `renderProgress`, `attachSession`/`reattachLive`, `syncCardLock`, `staleTokenCheck`, the card's field styles and `fitBox`), `src/panel/authorroutes.js` (the `/api/author/*` routes, `checkHumanGuard`, the one spawn site), the step-label table from `src/panel/authorsession.js` (`STEP_LABELS`, `advanceSteps`, `latestStep`).
+- **Not ported (bareloop-only, `loop` 2026-10-05):** the unattended run after sign; auto-sign on Reuse; one cap covering drafting + run (fwdloop's per-run cap is signed and covers the run only; drafting is booked on its own, as M4d); signing gates that need a red seed; Stop-at-round-seam / Resume legs; scouting a source repo, copying a repo, the install-needed pause and Check again; the revise-menu ("N changes left"); Model, Check type, Goal, Success, Judge examples and Time cap fields. fwdloop's drafter is one forced call with no questions back, so the ask box is used only for the sign step's typed name.
 - **Scope:**
-  1. **One door, the CLI.** The panel starts a run by spawning `fwdloop run <flow> --root <root> --source <role>=<path> ...` as its own detached process, the same way it spawns a resume (own process group, `unref()`, the merged keys env, its output to a log file in the run dir). The panel never calls the runner itself. So every check the CLI already makes applies with no copy: flow name, signed flow read, declared source roles, the keys-file mode check (M4d 1A), the empty-key refusal, the monthly hold (M4d 4), the unwired-verb preflight, the input freeze and sha256.
-  2. **Run button.** Each signed flow on the Runs page gets a `[ ▶ Run ]` button. It opens a short form:
-     - the flow name and its **signed per-run cap** (read only);
-     - **left this month** from the Money record, or "no monthly limit set";
-     - **one text box per source role the flow declares**, labelled by the role, filled in with the path the last run of this flow used (blank if none);
-     - a **Run id** box, prefilled with a fresh id, editable;
-     - one button: `[ Start — spends up to $<cap> ]`, and `[ Cancel ]`.
-  3. **$0 checks on the page before the spawn.** The POST door checks, at the moment of the click, with `realpathSync` (never a lexical resolve): each typed path exists and is a regular file the panel's user can read; every declared role has a path and no extra role is sent; the run id passes the CLI's own run-id check and its run dir does not exist yet. A refusal says which box and why in a plain sentence, spends $0, and creates nothing. The page never reads or shows the file's contents.
-  4. **One click, one run.** The form's Start button is disabled from the click until the reply. The door holds a per-flow lock while it spawns, so two clicks (or two tabs) cannot start two runs from one form; a second request with the same run id is refused by name.
-  5. **After the spawn.** The page goes back to Runs and the new run shows with M4c's working sign. If the child exits before it writes its first book row (a CLI refusal: keys, monthly limit, preflight), the run row shows the CLI's own refusal sentence from the child log, and the run is marked "did not start — nothing spent". The panel decides "did it start?" with M4c's one "is it running?" function, never a timer guess.
-  6. **What the page never does.** It never takes a key, never edits a flow, its cap, its sources list or its asks, and never starts a draft. The Run button shows only for a flow whose signature checks out (`readFlow` ok); an unsigned or broken flow shows its red instead of the button.
-- **First POC (riskiest assumption, $0):** a run started by the panel as a detached `fwdloop run` child (a) gets the keys from the keys file with no key in the panel's own shell, (b) keeps running and parks at its first ask after the panel process is killed, and (c) when the monthly limit is too low, refuses at $0 and its refusal sentence reaches the page. Use a stub provider for (b), so it costs nothing. If (b) fails, nothing gets built until hamr has seen what happened.
+  1. **Chat tab, one job card, always shown.** A `Chat` tab in the panel header. The card is empty when nothing is live; top-right: **Abandon** while a draft is live and unsigned, else **Clear**. Two modes on a radio row at the top of the card: **New job** and **Run a signed flow**.
+  2. **New job fields (fwdloop captions):**
+     - **Flow name** — the same name check as the CLI.
+     - **The job** — numbered lines, each line's guardrails under it (`guardrail: ...`), asks written as `ask 30m: ...` — the PRD's intake shape, strict 1-for-1.
+     - **Cap** — $ per run (becomes `guardrail: cap $X per run`).
+     - **Send to** — line number and a `file:` folder (becomes `guardrail: send at line N to file:<folder>`), or empty for no send.
+     - **Inputs** — one row per input: role and path (becomes `guardrail: source <role> = file:<path>`).
+     The card writes exactly the prose file `fwdloop draft` reads today; the arbiter guardrails are typed by the human on the card, never by the drafter (hard line unchanged).
+  3. **The one main button (bareloop's `mainButtonFor`, fwdloop states):**
+     - empty or filled card, nothing live → **Draft** → $0 checks on the card first (below), then spawns `fwdloop draft` as a detached child into a draft folder; the card locks.
+     - draft running → button disabled, progress shows one "drafting" line.
+     - draft red → the reds show in plain sentences; the button reads **Fix and draft again** and unlocks the card (the old draft is kept on disk, never reused).
+     - draft green → the plan shows (steps, which line each step serves, its tools, its close, the asks with their TTLs, the send line and the cap) with its hash; button **Sign & run**. A first click shows the box "Type the flow name to sign" and changes the button to **Sign `<hash8>` & run — spends up to $`<cap>`**. A second click with the typed name matching signs and starts the run.
+     - Run a signed flow mode → pick a signed flow (only flows whose `readFlow` passes are listed); inputs filled from the last run of that flow; Run id prefilled; button **Run — spends up to $`<cap>`**.
+  4. **Sign on the page.** The server signs only when the click's hash equals the draft's hash on disk and the typed name equals the draft's `target.json` name; it calls the same `signDraft` as `fwdloop sign` (all its $0 checks: hash, wired verbs, goals, TTL, sources, send, leak sweep). `signedBy` is the panel's OS user. Any mismatch refuses, signs nothing, spends nothing.
+  5. **One door, the CLI.** Drafts and runs start only as detached CLI children (`fwdloop draft ...`, `fwdloop run ...`), array argv, no shell, own process group, `unref()`, the merged keys env, output to a log in the draft or run folder — the same shape as the panel's resume. So the keys-file mode check, the empty-key refusal, the monthly hold, the unwired-verb preflight and the input freeze apply with no copy. Draft and run state live in files, never only in panel memory, so a refresh or a panel restart re-attaches the card (bareloop's `/api/author/live` + `attachSession`).
+  6. **$0 checks before any spawn** (bareloop's lesson: every refusal before any model call). Each input path is checked with `realpathSync` at the click: exists, is a regular file, readable; every declared role has a path and no extra role; the send folder resolves; the flow name and run id pass the CLI's own checks and do not exist yet; the cap is a number above 0. A refusal names the box, says why in a plain sentence, spends $0 and creates nothing. The page never reads or shows an input file's contents.
+  7. **One click, one start.** The card is locked as a whole while anything is live (`syncCardLock`); the main button is disabled from the click until the reply; the server holds a lock per flow name while it spawns, so two clicks or two tabs start one draft or one run.
+  8. **After the run starts.** The card clears (the run lives in Runs, as bareloop). The run shows on Runs with M4c's working sign, parks at its ask, and is answered in the Inbox/Runs as today. If the child exits before its first book row (a CLI refusal), the card's error line shows the CLI's own sentence, persisting, and nothing is marked spent. "Did it start?" uses M4c's one "is it running?" function, never a timer.
+  9. **Money on the card.** The card shows the cap and **left this month** (or "no monthly limit set"), as a courtesy; the server's monthly check is what refuses. Draft spend is booked per call to the draft folder and counted in Money (bareloop's draft-spend lesson), never only in memory.
+  10. **Stale page.** A panel restart changes the token; an old tab shows "The panel restarted. Reload this page." (`staleTokenCheck`), never a raw "wrong token".
+- **First POC (riskiest assumptions, $0, stub provider):** (a) page sign binds to what the human saw: a draft changed on disk after the plan was shown is refused at sign, and a POST with no typed name or the wrong name signs nothing; (b) a draft child and a run child started by the panel survive a panel kill, and a restarted panel re-attaches the card from files and shows the run parked at its ask; (c) a canary key from the keys file never appears in the card, any reply, either child log, the audit or a book. If any fails, nothing is built until hamr has seen it.
 - **Negatives** (each must be able to fail):
-  - (i) a path to a folder, a missing file, or a broken symlink is refused by name, $0, nothing created;
-  - (ii) a symlink to a file is checked at its real target, and the frozen copy's sha256 matches that target;
-  - (iii) a missing role or an undeclared role is refused, $0;
-  - (iv) an existing run id, or a run id with `/` or `..`, is refused, $0;
-  - (v) two Start requests sent together for the same flow start exactly one run;
-  - (vi) the Start door without the panel's token, or with a GET, is refused;
-  - (vii) over the monthly limit, the child refuses at $0 and the page shows "Nothing spent. Raise the monthly limit in Settings, or wait for next month.";
-  - (viii) a keys file other users can read refuses the run, and the page shows the chmod sentence;
-  - (ix) no key value appears in the form, any reply, the child log, the audit or a book (canary key, as M4d (i));
-  - (x) an unsigned or tampered flow shows no Run button, and a POST naming it is refused;
-  - (xi) killing the panel mid-run leaves the run going; a restarted panel shows it working, then parked;
-  - (xii) the Run form works at 390 px and 320 px: no box spills, no sideways page scroll.
-- **Exit:** hamr, live on deepseek-flash, from the panel only (no `fwdloop run` typed): clicks Run on a signed flow, sees the paths filled in from the last run, starts it; the run shows working, parks at its ask, he answers it on the page and it completes; its cost shows on the run and in the Money tab. Then he sets the monthly limit below the cap, clicks Run again, and the page shows the refusal with $0 spent. The orchestrator walks the form at 1280, 390 and 320 px first, at $0.
-- **Cap:** $0.25 (one or two short live runs).
-- **Not in scope:** triggers or schedules (a run starts only on a click); uploading a file through the page; a file picker or folder browser; drafting or signing a flow from the page (M6b); editing a flow or its cap; per-run read/write folders; stopping a running run from the page.
+  - (i) a page sign with a stale hash, a missing typed name, or a wrong typed name signs nothing and writes nothing;
+  - (ii) a sign or start POST without the panel token, or as a GET, is refused;
+  - (iii) an input path to a folder, a missing file or a broken symlink is refused by name, $0, nothing created; a symlink is checked at its real target and the frozen copy's sha256 matches that target;
+  - (iv) a missing or undeclared input role is refused, $0;
+  - (v) an existing flow name or run id, or one with `/` or `..`, is refused, $0;
+  - (vi) two Draft or two Start requests sent together for one flow start exactly one child;
+  - (vii) over the monthly limit, the draft and the run each refuse at $0 and the card shows "Nothing spent. Raise the monthly limit in Settings, or wait for next month.";
+  - (viii) a keys file other users can read refuses both, and the card shows the chmod sentence;
+  - (ix) no key value appears anywhere (canary, as M4d (i));
+  - (x) only flows whose `readFlow` passes appear in Run a signed flow; a POST naming an unsigned or tampered flow is refused;
+  - (xi) killing the panel mid-draft and mid-run leaves both going; a restarted panel re-attaches the card and shows the run working, then parked;
+  - (xii) the drafter never writes the cap, the send target, an ask's TTL or an input path: they come only from the card's typed fields (hard line);
+  - (xiii) the CLI `fwdloop sign` still refuses without a TTY (M6a amendment 2 unchanged for the CLI);
+  - (xiv) a refreshed tab while a draft is live re-attaches; it never shows an empty card with the lock still held;
+  - (xv) the Chat tab works at 1280, 390 and 320 px: textareas wrap, no box spills, no sideways page scroll; editable fields white, locked grey, focus blue (bareloop's rule).
+- **Exit:** hamr, live on deepseek-flash, from the panel only (no `fwdloop` command typed): fills a New job card for a small job with one ask, clicks Draft, reads the plan, types the flow name and signs; the run shows working, parks at its ask, he answers it on the page and it completes; its cost shows on the run and the draft's cost and the run's cost both show in the Money tab. Then, in Run a signed flow, he runs the same flow again with its inputs filled in. Then he sets the monthly limit below the cap and clicks Run: the card shows the refusal and $0 spent. The orchestrator walks the Chat tab at 1280, 390 and 320 px first, at $0, and compares it side by side with bareloop's Chat tab.
+- **Cap:** $0.50 (a few drafts plus two short live runs).
+- **Not in scope:** triggers or schedules (a run starts only on a click); uploading a file through the page; a file or folder picker; editing a signed flow or its cap; per-run read/write folders; stopping a running run from the page; drafter questions back to the human (fwdloop's drafter asks none).
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
