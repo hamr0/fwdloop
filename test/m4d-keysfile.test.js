@@ -17,6 +17,10 @@ import {
 } from '../src/keysfile.js';
 import { makeProvider, checkKeyPreflight } from '../src/provider.js';
 import { createResumer } from '../src/panel/resume.js';
+import { createPanelServer } from '../src/panel/server.js';
+import { writeFlow } from '../src/flow.js';
+import { loadCatalogue } from '../src/catalogue.js';
+import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
 import { draftToDir } from '../src/authoring.js';
 import { RATES, MODEL, job2Fixture } from './drafter-fixture.mjs';
 
@@ -277,4 +281,47 @@ test('CLI under NODE_ENV=test with no FWDLOOP_CONFIG_HOME never reads or creates
   const r = cli(['run', 'job2', '--root', fakeHome, '--run-id', 'run-1'], { NODE_ENV: 'test', FWDLOOP_TEST_MODEL_STEP: FAKE_MODEL_STEP, HOME: fakeHome });
   assert.ok(!r.stderr.includes('keys file'), r.stderr);
   assert.equal(existsSync(path.join(fakeHome, '.config')), false, 'no ~/.config/fwdloop created');
+});
+
+test('panel server wiring: a real POST /api/answer through createPanelServer reads the keys file (group-readable -> stuck with the chmod sentence, no child)', async () => {
+  // a parked job #2 run, built at $0 through the CLI with the fake model step (no keys file involved: no FWDLOOP_CONFIG_HOME in the child)
+  const fx = (n) => readFileSync(path.join(HERE, 'fixtures', n), 'utf8');
+  const root = tmp('srv-root');
+  const src = tmp('srv-src');
+  const w = writeFlow({
+    root, name: 'job2', proseText: fx('job2-with-sources.signed.txt'), declaration: JSON.parse(fx('job2.m1.declaration.json')), signedBy: 'hamr', signedAt: '2026-09-25T12:00:00Z', catalogue: loadCatalogue().primitives,
+  });
+  assert.equal(w.ok, true);
+  writeFileSync(path.join(src, 'resume.docx'), 'Resume text goes here.');
+  writeFileSync(path.join(src, 'jd.md'), 'JD text goes here.');
+  const childEnv = { PATH: process.env.PATH, NODE_ENV: 'test', FWDLOOP_TEST_MODEL_STEP: FAKE_MODEL_STEP, DEEPSEEK_API_KEY: 'sk-test-m4d-wiring-0001' };
+  const parked = spawnSync(process.execPath, [BIN, 'run', 'job2', '--root', root, '--source', `resume=${path.join(src, 'resume.docx')}`, '--source', `jd=${path.join(src, 'jd.md')}`, '--run-id', 'run-1'], { env: childEnv, encoding: 'utf8' });
+  assert.equal(parked.status, 0, parked.stderr);
+  const runDir = path.join(root, 'job2', 'runs', 'run-1');
+  const askId = JSON.parse(readFileSync(path.join(runDir, 'ask.json'), 'utf8')).askId;
+
+  const home = homeWith(`DEEPSEEK_API_KEY=${CANARY}\n`, 0o640);
+  const saved = { NODE_ENV: process.env.NODE_ENV, FWDLOOP_CONFIG_HOME: process.env.FWDLOOP_CONFIG_HOME };
+  process.env.NODE_ENV = 'test';
+  process.env.FWDLOOP_CONFIG_HOME = home;
+  const logDir = tmp('srv-logs');
+  const h = remember(await createPanelServer({ port: 0, root, resume: { env: childEnv, logDir, maxTries: 1 } }));
+  try {
+    const hdr = { host: `127.0.0.1:${h.port}`, origin: `http://127.0.0.1:${h.port}`, ...cookieHeader(h.port), 'content-type': 'application/json' };
+    const post = await fetch(`http://127.0.0.1:${h.port}/api/answer`, { method: 'POST', headers: hdr, body: JSON.stringify({ flow: 'job2', runId: 'run-1', askId, decision: 'redo', reason: 'again' }) });
+    assert.equal(post.status, 202);
+    let data;
+    for (let i = 0; i < 200; i += 1) {
+      data = await (await fetch(`http://127.0.0.1:${h.port}/api/runs/job2/run-1`, { headers: hdr })).json();
+      if (data.resume && !['in-flight', 'starting'].includes(data.resume.state)) break;
+      await sleep(25);
+    }
+    assert.equal(data.resume.state, 'not-started', JSON.stringify(data.resume));
+    assert.ok(String(data.resume.reason).includes(chmodSentence(home)), JSON.stringify(data.resume));
+    assert.ok(!JSON.stringify(data).includes(CANARY));
+    assert.equal(existsSync(path.join(runDir, `answer.${askId}.consumed.json`)), false, 'no child ran: the answer was not consumed');
+  } finally {
+    await h.close();
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
 });
