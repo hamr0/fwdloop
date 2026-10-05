@@ -173,3 +173,17 @@ test('F2 page: after a reload a refused start shows its sentence and a starting 
   assert.match(fnSrc('beginStart'), /refusedStartId = null/, 'a new start supersedes the old refusal');
   assert.match(CHAT, /authorPost\("\/api\/author\/start\/" \+ rid \+ "\/clear"/);
 });
+
+test('F3 audit: every author POST in the page shows a refusal (any non-2xx, any network error) in #chat-action-error', () => {
+  for (const [name, posts] of [['doDraft', 1], ['doRun', 1], ['doSign', 2], ['doAbandon', 1]]) {
+    const src = fnSrc(name);
+    assert.equal([...src.matchAll(/authorPost\(/g)].length, posts, `${name}: POST count`);
+    // every reply is judged by the one outcome function, a refusal goes to failFrom (-> chatActionFailed), a dead network to the catch
+    assert.equal([...src.matchAll(/chatPostOutcome\(r\)/g)].length, posts, `${name}: every reply is judged`);
+    assert.ok([...src.matchAll(/failFrom\(r\)/g)].length >= posts, `${name}: a refusal reaches failFrom`);
+    assert.equal([...src.matchAll(/\.catch\(function\(\)\{[^}]*chatActionFailed\(NETWORK_SAY\)/g)].length, posts, `${name}: a network error reaches the action line`);
+  }
+  // failFrom always ends in chatActionFailed with a sentence (the server's say, else the fixed fallback) — never a silent return
+  assert.match(fnSrc('failFrom'), /chatActionFailed\(text\);/);
+  assert.match(fnSrc('refusalText'), /The request failed\. Nothing was sent\./);
+});
