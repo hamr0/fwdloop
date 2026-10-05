@@ -21,8 +21,8 @@ import {
   openSync, fstatSync, readFileSync, closeSync, writeFileSync, mkdirSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import { PROVIDER_SLOTS } from './provider.js';
+import { configHome } from './config.js';
 
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -38,7 +38,7 @@ const DEFAULT_SHOWN = '~/.config/fwdloop/.env';
  * @returns {string}
  */
 export function keysHome(home) {
-  return home ?? join(homedir(), '.config', 'fwdloop');
+  return configHome(home); // one definition of the config home (src/config.js)
 }
 
 /**
