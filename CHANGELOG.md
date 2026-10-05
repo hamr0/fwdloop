@@ -19,7 +19,7 @@ one place, and a run, resume or draft that would pass the limit is refused befor
   strip, one Providers table (Key, Name, API shape, Base URL, Test, Tokens used, Balance, and three
   price columns) and a Money & limits tab (a money strip and a breakdown table). A key shows only
   as set or not set, never its value.
-- Providers: Test checks a key with one tiny call and Balance asks the provider for its balance,
+- Providers: Test asks the provider for its list of models (no completion, $0) and Balance asks the provider for its balance,
   both at $0 to the run books; Balance works only for a deepseek host. Name, API shape and Base URL
   are text boxes and a dropdown saved on change (amendment 1), and `makeProvider` builds an openai,
   anthropic or gemini provider by that shape. Prices are saved on change and validated.
