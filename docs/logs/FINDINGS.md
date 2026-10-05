@@ -2860,3 +2860,22 @@ open is not re-read after its glyph is `[✓]` / `[✗]` (fix-ledger).
 Proof: `test/m4c-refresh-rates.test.js` (a)-(f) and `test/m4c-refresh.test.js` run the page's own functions
 over a fake server, clock and DOM; against the `61e2536` page (before `19c386a`) tests (e) and (f) fail on an
 assertion, against the `bdbe783` page (before the rate fix) all six fail.
+
+## F55 — M4d: a run started with no monthly limit set was never recorded, so it was invisible to the monthly check and the Money tab (2026-10-05)
+
+Found on hamr's M4d exit walk. `claimHold` (`src/monthly.js`) returned early when no limit was set and appended
+nothing to `runs.jsonl`; `spendSummary` (the Money tab figures and the check's month total) reads only the run
+dirs that `runs.jsonl` names. So a run, resume or draft made while no limit was set was in no figure, and stayed
+out even after a limit was set later. Live proof: `m4d-exit-1` spent $0.0185 with no limit set; afterwards the
+refusal for a $0.10 limit said "Max $0.10 left" where it should have said $0.08.
+
+Fixed: `claimHold` now always appends the hold row. With no limit set it is a $0 hold (nothing is held), no check
+runs, and the existing exit hook in `bin/fwdloop` `takeMonthlyHold` settles it like any other. If the row cannot
+be written the claim refuses by name (ConfigError), so spend is never silently uncounted. One writer stays:
+`claimHold` is the only place that appends hold rows. The doors that start no process of ours (a test process
+with no config home) still write nothing, as before.
+
+Not recoverable: the one run made before the fix (`m4d-exit-1`, $0.0185) is named by no row and stays uncounted.
+
+Proof: `test/m4d-monthly.test.js` (no limit: row written and settled; spend counted and subtracted when a limit is
+set later; unwritable `runs.jsonl` refuses by name). With only the `src/monthly.js` fix reverted all three fail.
