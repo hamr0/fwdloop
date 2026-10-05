@@ -33,6 +33,7 @@
     --magenta:#bb9af7;
     --accent:#7aa2f7;
     --btn-bg:#1f2335; --btn-text:#c0caf5;
+    --field-bg:var(--bg); --field-soft-bg:var(--bg); --field-border:var(--text-dim);
     --primary-bg:#7aa2f7; --primary-text:#1a1b26; --primary-border:#7aa2f7;
     font: 14px/1.5 "Courier Prime", "Courier New", Courier, ui-monospace, monospace;
   }
@@ -74,6 +75,7 @@
       --magenta:#9854f1;
       --accent:#2668c2;
       --btn-bg:#e9e9ed; --btn-text:#3760bf;
+      --field-bg:#ffffff; --field-soft-bg:#f7f7f9;
       --primary-bg:#2668c2; --primary-text:#e1e2e7; --primary-border:#2668c2;
     }
   }
@@ -88,6 +90,7 @@
     --magenta:#9854f1;
     --accent:#2668c2;
     --btn-bg:#e9e9ed; --btn-text:#3760bf;
+    --field-bg:#ffffff; --field-soft-bg:#f7f7f9;
     --primary-bg:#2668c2; --primary-text:#e1e2e7; --primary-border:#2668c2;
   }
   .theme-toggle{padding:4px 9px;min-height:32px;border:1px solid var(--border-strong);background:var(--btn-bg);color:var(--text);}
@@ -413,7 +416,88 @@
   .field-row{display:flex;flex-wrap:wrap;gap:10px;}
   .field-row .field{flex:1 1 140px;margin-bottom:10px;}
 
-  .chat-thread{padding:20px 8px;color:var(--text-faint);font-size:13px;}
+  /* borrowed-from: bareloop src/panel/index.html@ca7195e — the Chat card's CSS (job card, radio row, cap row, the one progress
+     list, the ask box, the one wide button, field colours, .locked, the one focus rule). fwdloop's own tokens win where both define
+     one; the global `input,select` rule is scoped to #panel-chat so no other panel box is restyled. */
+  #panel-chat input,#panel-chat select{font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);}
+  #panel-chat input::placeholder,#panel-chat textarea::placeholder{color:var(--text-faint);}
+  .job-card .card-clear{position:absolute;top:-13px;right:10px;padding:1px 8px;font-size:11px;line-height:1.4;background:var(--panel2);}
+  .job-card .locked{opacity:.55;cursor:not-allowed;}
+  .field input,.field select{width:100%;}
+  .job-card.compact{padding:14px 8px 8px;}
+  .job-card.compact .field{margin-bottom:6px;}
+  .job-card.compact label{margin-bottom:1px;font-size:11px;}
+  .job-card.compact input,
+  .job-card.compact select{padding:5px 7px;}
+  .radio-row{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-bottom:10px;}
+  .radio-row label{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text);margin:0;text-transform:none;}
+  .radio-row input{width:auto;}
+  .cap-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin-bottom:6px;}
+  .cap-field label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:1px;}
+  .cap-field input{width:100%;padding:5px 6px;box-sizing:border-box;}
+  .btn.primary{background:var(--primary-bg);color:var(--primary-text);border-color:var(--primary-border);font-weight:700;}
+  .btn.primary::before,.btn.primary::after{color:var(--primary-text);opacity:0.6;}
+  #panel-chat .btn:disabled{opacity:0.5;cursor:not-allowed;}
+  .btn.primary:disabled{background:var(--btn-bg);color:var(--text-faint);border-color:var(--border);}
+  .btn.primary:disabled::before,.btn.primary:disabled::after{color:var(--text-faint);opacity:0.4;}
+  #chat-action-error:empty{display:none;}
+  #chat-action-error{font-size:12px;color:var(--red);margin:4px 0;overflow-wrap:anywhere;white-space:pre-wrap;}
+  #chat-card-error:empty{display:none;}
+  #chat-card-error{overflow-wrap:anywhere;white-space:pre-wrap;}
+
+  /* the ONE progress list: a step per line — label, then dots while running / check / cross, then its reason */
+  .chat-steps{list-style:none;margin:2px 0 10px;padding:0;font-size:12px;}
+  .chat-steps .step{padding:1px 0;}
+  .chat-steps .step-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 10px;}
+  .chat-steps .step-label{color:var(--text);min-width:11em;}
+  .chat-steps .step-sign{font-weight:700;}
+  .chat-steps .step.run .step-sign{color:var(--amber);}
+  .chat-steps .step.ok .step-sign{color:var(--green);}
+  .chat-steps .step.bad .step-sign{color:var(--red);}
+  .chat-steps .step.wait .step-label{color:var(--amber);}
+  .chat-steps .step-detail{display:block;flex-basis:100%;min-width:0;padding-left:1.2em;color:var(--text-faint);word-break:break-word;white-space:pre-wrap;}
+  .chat-steps .step.bad .step-detail{color:var(--red);}
+  .chat-steps .step.run .step-sign::after{content:"\2026";}
+  @keyframes step-dots{0%{content:"";}25%{content:".";}50%{content:"..";}75%{content:"...";}}
+  @media (prefers-reduced-motion: no-preference){
+    .chat-steps .step.run .step-sign::after{content:"";animation:step-dots 1.2s steps(1,end) infinite;}
+  }
+
+  .chat-thread{display:flex;flex-direction:column;gap:10px;margin-bottom:10px;}
+  .chat-thread:empty{display:none;}
+  .msg{padding:8px 10px;border:1px solid var(--border);max-width:100%;background:var(--panel2);font-size:13px;word-break:break-word;white-space:pre-wrap;}
+  .msg.bot{border-left:3px solid var(--border-strong);}
+  .msg.bot .who::before{content:"$ ";}
+  .msg .who{font-size:11px;color:var(--text-faint);margin-bottom:3px;text-transform:none;font-weight:400;}
+  .chat-input-row{margin-top:10px;border-top:1px dotted var(--border-strong);padding-top:10px;}
+  .chat-input-row input{width:100%;box-sizing:border-box;}
+  /* the ask box and the card's free-text boxes wrap (textarea): grow a few rows (fitBox), then scroll inside */
+  textarea[data-testid="chat-msg"]{width:100%;box-sizing:border-box;font:inherit;color:var(--text);resize:vertical;overflow-y:auto;max-height:200px;}
+  .job-card textarea.jf-wrap{width:100%;box-sizing:border-box;font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);resize:vertical;overflow-y:auto;max-height:200px;}
+  /* the focused/selected Chat-card field gets a blue border (the accent), no outline ring */
+  #panel-chat :is(input,select,textarea):focus{border-color:var(--accent);outline:none;}
+  /* the ask box is dimmed until something asks for a reply (placeholder stays readable) */
+  #chat-msg:disabled{background:var(--bg);opacity:.55;cursor:not-allowed;}
+  #chat-msg{min-height:64px;padding:8px 12px;border:2px solid var(--field-border);background:var(--field-bg);}
+  /* editable Chat-card fields get the standard soft white (a step below the ask box); disabled/readonly keep the base colour */
+  #panel-chat input:not(:disabled):not([readonly]):not(#chat-msg):not([type="radio"]):not([type="checkbox"]),
+  #panel-chat select:not(:disabled),
+  #panel-chat textarea:not(:disabled):not([readonly]):not(#chat-msg){background:var(--field-soft-bg);}
+  /* ONE wide button below the message box; its wording comes from mainButtonFor */
+  .btn.wide{width:100%;margin-top:10px;white-space:normal;}
+  /* fwdloop's own additions (not bareloop): input rows, per-box refusal lines, the read-only Run-mode cap */
+  .jf-inrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;gap:6px;margin-bottom:4px;align-items:start;}
+  .jf-inrow .btn.small{height:32px;padding:0 8px;}
+  .jf-inrow .jf-role-ro{padding:5px 7px;min-height:32px;overflow-wrap:anywhere;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
+  .jf-inrow .jf-err{grid-column:1 / -1;}
+  .jf-err{font-size:11px;color:var(--red);margin-top:2px;overflow-wrap:anywhere;}
+  .jf-err:empty{display:none;}
+  .dest-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:6px;}
+  @media (max-width: 899px){
+    .jf-inrow{grid-template-columns:minmax(0,1fr) auto;}
+    .jf-inrow .jf-path{grid-column:1 / -1;order:3;}
+    .jf-inrow .jf-err{order:4;}
+  }
 
   @media (max-width: 899px){
     .main{flex-direction:column;}
@@ -611,13 +695,101 @@
       <div class="pane-body" id="left-pane-body">
 
         <section id="panel-chat" class="tabpanel active" role="tabpanel" aria-labelledby="tab-chat">
-          <div class="chat-thread">
-            Authoring a flow from this page isn't built yet — the drafter is a POC. This
-            panel shows flows and runs already started from the
-            <code>fwdloop</code> CLI, and lets you answer an ask that is waiting on you
-            (accept, redo or rerun, with a reason). It cannot start a run. Use the Runs
-            tab to open one, or the Inbox tab for anything waiting on you.
+          <!-- borrowed-from: bareloop src/panel/index.html@ca7195e (Chat markup: the one always-there card, top-right Abandon/Clear,
+               the thread, the one progress list, the action-error line the poll never wipes, the ask box, the ONE wide button).
+               fwdloop fields: Flow name, The job, Cap $, Destination, Inputs (New job) or a signed flow's inputs (Run a signed flow). -->
+          <div class="job-card compact" id="job-card" data-testid="job-card">
+            <h4 id="job-card-title">Job card</h4>
+            <button class="btn card-clear" type="button" id="chat-clear-btn" data-testid="chat-clear">Clear</button>
+
+            <div class="radio-row" role="radiogroup" aria-label="What to do" data-testid="jf-mode">
+              <label><input type="radio" name="jf-mode" value="new" checked> New job</label>
+              <label><input type="radio" name="jf-mode" value="run"> Run a signed flow</label>
+            </div>
+
+            <div id="jf-new" data-testid="jf-new">
+              <div class="field">
+                <label for="jf-name">Flow name</label>
+                <input id="jf-name" type="text" placeholder="lowercase letters, digits, - or _" autocomplete="off" spellcheck="false" data-testid="jf-name">
+                <div class="jf-err" id="jf-err-flowName" data-testid="jf-err-flowName"></div>
+              </div>
+              <div class="field">
+                <label for="jf-job">The job</label>
+                <textarea class="jf-wrap" id="jf-job" rows="6" data-testid="jf-job" placeholder="1. First thing to do&#10;guardrail: a rule for line 1&#10;2. Second thing&#10;3. ask 30m: the question you want to be asked, then wait up to 30 minutes"></textarea>
+                <div class="hint">Numbered lines. Put a <code>guardrail: ...</code> line under the line it belongs to. Write a stop for you as <code>ask 30m: ...</code>.</div>
+                <div class="jf-err" id="jf-err-job" data-testid="jf-err-job"></div>
+              </div>
+              <div class="cap-row" data-testid="cap-row">
+                <div class="cap-field">
+                  <label for="jf-cap-money">Cap $</label>
+                  <input id="jf-cap-money" type="text" inputmode="decimal" placeholder="per run" data-testid="jf-cap-money">
+                  <div class="hint" id="jf-cap-note" data-testid="cap-note"></div>
+                  <div class="jf-err" id="jf-err-capUsd" data-testid="jf-err-capUsd"></div>
+                </div>
+              </div>
+              <div class="field">
+                <label for="jf-dest-line">Destination</label>
+                <div class="dest-row">
+                  <input id="jf-dest-line" type="text" inputmode="numeric" placeholder="at line" autocomplete="off" data-testid="jf-dest-line">
+                  <input id="jf-dest-folder" type="text" placeholder="/full/path/to/a/folder" autocomplete="off" spellcheck="false" data-testid="jf-dest-folder">
+                </div>
+                <div class="hint">Where the accepted result is placed. Leave both empty for no send.</div>
+                <div class="jf-err" id="jf-err-destination" data-testid="jf-err-destination"></div>
+              </div>
+              <div class="field">
+                <label>Inputs</label>
+                <div id="jf-inputs" data-testid="jf-inputs"></div>
+                <button class="btn small" type="button" id="jf-add-input" data-testid="jf-add-input">+ add input</button>
+                <div class="hint">One row per file: a name (such as resume) and its full path starting with /. The page never reads the file.</div>
+                <div class="jf-err" id="jf-err-inputs" data-testid="jf-err-inputs"></div>
+              </div>
+            </div>
+
+            <div id="jf-run" data-testid="jf-run" hidden>
+              <div class="field">
+                <label for="jf-run-flow">Signed flow</label>
+                <select id="jf-run-flow" data-testid="jf-run-flow"></select>
+                <div class="hint" id="jf-run-empty" data-testid="jf-run-empty"></div>
+                <div class="jf-err" id="jf-err-flow" data-testid="jf-err-flow"></div>
+              </div>
+              <div class="cap-row">
+                <div class="cap-field">
+                  <label>Cap $ (signed)</label>
+                  <div class="ro-value" id="jf-run-cap" data-testid="jf-run-cap"></div>
+                  <div class="hint" id="jf-run-left" data-testid="jf-run-left"></div>
+                </div>
+              </div>
+              <div class="field">
+                <label>Inputs</label>
+                <div id="jf-run-inputs" data-testid="jf-run-inputs"></div>
+                <div class="jf-err" id="jf-err-run-inputs" data-testid="jf-err-run-inputs"></div>
+              </div>
+              <div class="field">
+                <label for="jf-run-id">Run id</label>
+                <input id="jf-run-id" type="text" autocomplete="off" spellcheck="false" data-testid="jf-run-id">
+                <div class="jf-err" id="jf-err-runId" data-testid="jf-err-runId"></div>
+              </div>
+            </div>
+
+            <div class="hint" id="chat-card-error" data-testid="chat-card-error"></div>
           </div>
+
+          <div class="chat-thread" id="chat-thread" data-testid="chat-thread"></div>
+
+          <!-- ONE progress list: every step is one line that updates in place; a waiting step has no check -->
+          <ol class="chat-steps" id="chat-progress-row" data-testid="chat-steps" aria-live="polite" hidden></ol>
+
+          <!-- a refused draft / run / sign / abandon POST (or a refused start) shows here and STAYS: set only by this tab's own
+               action handlers, never cleared by the poll (the poll owns #chat-card-error instead) -->
+          <div class="hint" id="chat-action-error" data-testid="chat-action-error"></div>
+
+          <div class="chat-input-row">
+            <label for="chat-msg" style="display:none">Type the flow name to sign</label>
+            <textarea id="chat-msg" rows="2" placeholder="Type the flow name to sign" data-testid="chat-msg" autocomplete="off" spellcheck="false"></textarea>
+          </div>
+          <button class="btn primary wide" type="button" id="chat-main-btn" data-testid="chat-main" disabled>Draft</button>
+          <div class="hint" id="chat-main-hint" data-testid="chat-main-hint"></div>
+          <div class="hint">Only your click signs.</div>
         </section>
 
         <section id="panel-inbox" class="tabpanel" role="tabpanel" aria-labelledby="tab-inbox" hidden>
