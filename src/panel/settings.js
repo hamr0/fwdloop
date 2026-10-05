@@ -82,7 +82,7 @@ export function createSettings(cfg) {
         model: eff.model,
         shape: eff.shape,
         baseUrl: eff.baseUrl,
-        savedBaseUrl: c.config.providers?.[slot]?.baseUrl ?? '',
+        savedBaseUrl: /** @type {Record<string, any>} */ (c.config).providers?.[slot]?.baseUrl ?? '',
         defaults: eff.defaults,
         tokens: spend.byProvider[slot]?.total.tokens ?? 0,
         price: {
@@ -113,7 +113,7 @@ export function createSettings(cfg) {
     return { key: value };
   }
 
-  /** The key goes only in a header, in the form each shape expects. @param {string} shape @param {string} key */
+  /** The key goes only in a header, in the form each shape expects. @param {string} shape @param {string} key @returns {Record<string, string>} */
   function authHeaders(shape, key) {
     if (shape === 'anthropic-api') return { 'x-api-key': key, 'anthropic-version': '2023-06-01' };
     if (shape === 'gemini-api') return { 'x-goog-api-key': key };
