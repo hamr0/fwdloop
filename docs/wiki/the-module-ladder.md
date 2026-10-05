@@ -1233,6 +1233,15 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 - **Exit:** hamr, live on deepseek-flash: puts his key in the keys file by hand, starts the panel **without** `pass` loaded; Test shows OK; Balance shows his credit; sets the monthly limit below a run's cap and `fwdloop run` refuses at $0 with the sentence; raises it, the same run goes through, and the Money tab's month total and the DeepSeek breakdown row go up by the run's cost; types a deepseek-flash price, runs again, and that run's spend rows show the new price while the first run's stay as they were. The orchestrator walks Settings at 1280, 390 and 320 px first, at $0.
 - **Cap:** $0.25 (two short live runs plus the cache-price check).
 - **Not in scope:** a Run button (M4e); adding or editing a provider, model or address on the page (ruling 2A); a balance for providers without a free balance call; editing a flow or its cap; per-run read/write folders.
+- **Amendment 1 — DRAFT, NOT SIGNED (hamr 2026-10-05: "name should be text > shape should be drop down > base url should be text"):** on the Providers table, **Name** (the model id) is a text box, **API shape** is a dropdown, **Base URL** is a text box — exactly as bareloop's Settings (bareloop `src/panel/index.html`, `src/panel/settingsroutes.js` `/api/settings/providers/row`, `src/providerrows.js` `SHAPES` @5a5a811). This **replaces ruling 2A for these three fields**; the rows are still fwdloop's fixed provider slots (no adding or removing a provider).
+  - **Where it lives:** saved to `~/.config/fwdloop/config.json` under the provider slot; empty = the code default (shown greyed as the placeholder). Saved on change, one field at a time.
+  - **When it applies:** from the next model call on; it never changes a run already booked.
+  - **One lookup:** every model call (run, resume, model step, drafter, Test, Balance) reads the slot's model, shape and address through ONE function (same rule as prices: page value, else code default).
+  - **Refusals:** the Base URL must be blank (= the code default) or an http(s) address, else the page says so in a plain sentence and nothing is saved. An empty model id or a shape not in the list is refused the same way.
+  - **Money:** a model id the price table does not know is priced at the table's highest rate (unknown cost is never $0).
+  - **Balance** shows only for a slot whose shape is OpenAI-compatible and whose host is `api.deepseek.com` (bareloop's rule); other rows say "not offered by this provider".
+  - **Risk, one line:** the key is sent to whatever Base URL is saved; the page is local and token-gated, same as bareloop.
+  - **Negatives:** (a) a bad Base URL, an empty model id or an unknown shape is refused and nothing is saved; (b) a saved model id is what the next run's spend rows record, and it is priced by the one lookup; (c) a run already booked keeps its recorded model and price; (d) no route writes the keys file and no key value appears (unchanged).
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
