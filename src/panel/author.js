@@ -55,18 +55,18 @@ const KILL_HARD_WAIT_MS = 2000;
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
 /**
- * @param {{ root: string, home?: string, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null }, bin?: string }} opts
+ * @param {{ root: string, home?: string, skipMonthly?: boolean, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null }, bin?: string }} opts
  *   `loadEnv` is the keys-file door (`keysForDoor`): called before EVERY spawn and every reply that quotes a log, so editing
  *   the file needs no restart. Its `env` is BOTH the child's spawn env AND the scrub list (POC (a), M4d wiring rule).
  */
 export function createAuthor(opts) {
   const {
-    root, loadEnv, home, bin = BIN,
+    root, loadEnv, home, skipMonthly = false, bin = BIN,
   } = opts;
   // the ONE run-start path (sign and run both end in `starter.start`) and the Run-a-signed-flow door built on it
   const starter = createStarter({ root, bin });
   const flowsDoor = createFlowsDoor({
-    root, home, loadEnv, starter,
+    root, home, skipMonthly, loadEnv, starter,
   });
 
   /** The drafts folder's real path, or null when the flows root does not exist. */

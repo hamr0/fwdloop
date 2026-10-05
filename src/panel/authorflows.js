@@ -25,13 +25,17 @@ import { providerKeys } from './spawn.js';
 const NO_LIMIT = 'no monthly limit set';
 
 /**
- * @param {{ root: string, home?: string, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null }, starter: ReturnType<typeof import('./authorstart.js').createStarter> }} opts
+ * @param {{ root: string, home?: string, skipMonthly?: boolean, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null }, starter: ReturnType<typeof import('./authorstart.js').createStarter> }} opts
  */
 export function createFlowsDoor(opts) {
-  const { root, home, loadEnv, starter } = opts;
+  const {
+    root, home, skipMonthly = false, loadEnv, starter,
+  } = opts;
 
   /** What is left of the monthly limit, as a courtesy line: the limit minus this month's counted spend (holds are the CLI's business). */
   function leftThisMonth() {
+    // a test process with no config home: the CLI skips its monthly check, so there is no limit to read (and no real home to touch)
+    if (skipMonthly) return { limitUsd: null, leftUsd: null, atLeast: false, say: NO_LIMIT };
     let limit;
     try { limit = readConfig({ home }).monthlyLimitUsd ?? null; } catch (e) {
       return { limitUsd: null, leftUsd: null, atLeast: false, say: e instanceof ConfigError ? 'The Settings file cannot be read.' : 'The monthly limit cannot be read.' };

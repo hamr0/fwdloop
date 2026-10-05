@@ -617,12 +617,13 @@ export function createPanelServer(opts) {
   // M4d: the keys file is re-read before EVERY resume spawn (editing it needs no restart); an env injected by a test is the shell side.
   const resumer = createResumer({ root, loadEnv: () => keysForDoor({ env: opts.resume?.env }), ...opts.resume });
   // M4e piece 2a: the draft door. Same keys door as the resumer: the merged env is re-read before every spawn and every log quote.
+  // The courtesy "left this month" line reads the SAME home the CLI's monthly check does (injected, else the door's).
+  const door = configDoorHome();
   const author = createAuthor({
-    root, home: opts.settings?.home, loadEnv: () => keysForDoor({ env: opts.author?.env }), ...opts.author,
+    root, home: opts.settings?.home ?? door.home, skipMonthly: opts.settings?.home === undefined && door.skip, loadEnv: () => keysForDoor({ env: opts.author?.env }), ...opts.author,
   });
   // Settings reads and writes only under the one config home: an injected one (tests), else the door's — under a test
   // process with no FWDLOOP_CONFIG_HOME, Settings is switched off rather than touch the real ~/.config/fwdloop.
-  const door = configDoorHome();
   const settings = createSettings({
     home: opts.settings?.home ?? door.home, skip: opts.settings?.home === undefined && door.skip, env: opts.settings?.env, fetch: opts.settings?.fetch, now: opts.settings?.now,
   });
