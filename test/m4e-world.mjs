@@ -130,6 +130,9 @@ export async function world({
       const id = (await post('/api/author/draft', card(over))).json().draftId;
       const g = await until(async () => { const j = (await get(`/api/author/${id}`)).json(); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });
       if (g.phase !== 'green') throw new Error(`draft not green: ${JSON.stringify(g)}`);
+      // the child writes spec.hash and THEN settles its money hold on exit: wait for it to be gone so a test that watches runs.jsonl sees a still ledger
+      const pid = JSON.parse(readFileSync(path.join(w.dir(id), 'pid.json'), 'utf8'));
+      await until(() => isFwdloopAlive(pid.pid, pid.procStart) !== true);
       const r = signDraft({ dir: path.join(w.dir(id), 'draft'), approve: g.hash, signedBy: 'test', env: {} });
       if (!r.ok) throw new Error(`sign failed: ${r.reds.join('; ')}`);
       return { id, flow: over.flowName ?? 'job2', flowDir: r.flowDir };

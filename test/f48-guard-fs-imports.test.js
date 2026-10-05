@@ -395,8 +395,8 @@ const ALLOWLIST = {
     },
   },
   'src/panel/spawn.js': {
-    reason: 'M4e piece 2a: the ONE detached spawn the panel uses for its CLI children (resume, draft) — opens (creates 0600, appends) the child\'s own log file and closes the fd after the spawn. The log sits in a panel-owned folder (resume: the private log dir; draft: the draft folder), never a run/flow-dir book. No content is read.',
-    names: { closeSync: 1, openSync: 1 },
+    reason: 'M4e piece 2a/2b: the ONE detached spawn the panel uses for its CLI children (resume, draft, run) — opens (creates 0600, appends) the child\'s own log file and closes the fd after the spawn, and (`writePidFile`, the one writer) writes the child\'s own `pid.json` 0600 in that same panel-owned folder (resume: the private log dir; draft: the draft folder; start: the start folder), never a run/flow-dir book. Every read goes through readFileInside.',
+    names: { closeSync: 1, openSync: 1, writeFileSync: 1 },
   },
   'src/panel/authorcard.js': {
     reason: 'M4e piece 2a: the card\'s $0 checks at the click — realpathSync/statSync/accessSync on each INPUT path the human typed (a business file, never a run/flow-dir book, nothing read), and one lstatSync on `<root>/<flowName>` (presence only; a symlink is not followed) to refuse a flow name that is already taken. Writes nothing.',
@@ -411,6 +411,16 @@ const ALLOWLIST = {
   'src/panel/author.js': {
     reason: 'M4e piece 2a: the panel\'s draft door — creates ITS OWN draft folder `<root>/.drafts/<id>/` (mkdir 0700) and writes the files it owns there (card.json, prose.txt, pid.json, abandoned.json, all 0600); realpathSync of the typed --root at use time. Every READ of a draft folder (its own files and the CLI child\'s output under draft/) goes through readFileInside/readdirInside (src/flow.js), never fs directly.',
     names: { mkdirSync: 2, realpathSync: 3, writeFileSync: 4 },
+  },
+  'src/panel/authorstart.js': {
+    reason: 'M4e piece 2b: the ONE run-start path — creates ITS OWN start folder `<root>/.starts/<id>/` (mkdir 0700) and writes the one file it owns there (start.json 0600; pid.json and child.log go through spawn.js); realpathSync of the typed --root at use time; existsSync of the new run dir (presence only, to refuse an id already used). Every READ of a start folder and of the run dir (pids.jsonl, ask.json) goes through readFileInside/readPidRows/readdirInside, never fs directly.',
+    names: {
+      existsSync: 1, mkdirSync: 2, realpathSync: 4, writeFileSync: 1,
+    },
+  },
+  'src/panel/authorflows.js': {
+    reason: 'M4e piece 2b: the Run-a-signed-flow door — realpathSync of the typed --root at use time, and one lstatSync of each run\'s `inputs.json` for its mtime only (to find the NEWEST run; nothing is read from it this way — the manifest itself is read through readFileInside). Writes nothing.',
+    names: { lstatSync: 1, realpathSync: 2 },
   },
   'src/panel/lock.js': {
     reason: 'M4c-fix amendment 2 (h): the human\'s "Remove the old lock" — realpaths the run dir and --root at use time (the lock must sit inside this run, inside root), then unlinks the one `resume.lock` file, and only when `readResumeLock` (the one lock reader) says it has no recorded holder. No book content is read.',

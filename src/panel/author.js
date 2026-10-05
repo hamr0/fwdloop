@@ -14,10 +14,10 @@
 //   pid.json      { pid, procStart } written right after the spawn; the ONE liveness fact (`isFwdloopAlive`, M4c)
 //   draft/        the CLI's own output (spec.hash, readout.txt, log.json, spend.jsonl, draft-spend.json ...)
 //   abandoned.json  written by Abandon, after the child is gone
-//   signed.json   written by the sign door (piece 2b); only READ here
+//   signed.json   written by `sign` (piece 2b) right after `signDraft` succeeds; the phase reader reads it
 //
 // ONE WRITER PER FIELD: `start` writes card.json, prose.txt, pid.json (and, through the one spawn helper, child.log);
-// `abandon` writes abandoned.json; the CLI child writes everything under draft/. The phase is never stored — it is
+// `abandon` writes abandoned.json; `sign` writes signed.json; the CLI child writes everything under draft/. The phase is never stored — it is
 // READ from those files each time (`readDraft`), so a refresh or a panel restart cannot disagree with the disk.
 //
 // One at a time with no lock table: `start` is fully synchronous (check live -> create the folder -> spawn ->
@@ -25,15 +25,16 @@
 // sees the first's live child and is refused. A dead child never blocks (its pid is read, never assumed).
 import { randomBytes } from 'node:crypto';
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { PANEL_DRAFTS_DIR, scrub } from '../authoring.js';
+import { PANEL_DRAFTS_DIR, scrub, signDraft } from '../authoring.js';
 import { readFileInside, readdirInside } from '../flow.js';
 import { isFwdloopAlive } from '../liveness.js';
-import { cardFields, checkCard } from './authorcard.js';
+import { cardFields, checkCard, checkInputRows } from './authorcard.js';
 import { createFlowsDoor } from './authorflows.js';
-import { createStarter } from './authorstart.js';
+import { createStarter, newRunId } from './authorstart.js';
 import {
   childRunning, providerKeys, readJsonFile, spawnDetached, writePidFile,
 } from './spawn.js';
@@ -126,6 +127,26 @@ export function createAuthor(opts) {
     return { loaded, keys: providerKeys(loaded.env) };
   };
 
+  /**
+   * The one reader both sign calls share: a well-formed id, a readable draft, phase `green` (so not abandoned, signed, red,
+   * drafting or stopped), and the flow name from its own `target.json`.
+   * @param {string} id
+   */
+  function greenDraft(id) {
+    const no = (status, refused, say) => ({ ok: false, reply: { status, body: { ok: false, refused, ...(say ? { say } : {}) } } });
+    if (!ID_RE.test(id)) return no(404, 'no-such-draft');
+    const dd = draftsDir();
+    const dir = dd === null ? null : join(dd, id);
+    const v = dir === null ? null : readDraft(dir, id, keysNow().keys);
+    if (dir === null || v === null || v.card === null) return no(404, 'no-such-draft');
+    if (v.phase !== 'green') return no(409, 'not-green', `This draft is ${v.phase}, not a finished plan, so it cannot be signed.`);
+    const name = readJson(dir, 'draft/target.json')?.name;
+    if (typeof name !== 'string') return no(409, 'no-name', 'The draft has no readable flow name. Nothing was signed.');
+    return {
+      ok: true, v: /** @type {any} */ (v), name, dir,
+    };
+  }
+
   return {
     flows: flowsDoor.flows,
     run: flowsDoor.run,
@@ -171,6 +192,72 @@ export function createAuthor(opts) {
       child.on('error', () => {}); // a later spawn failure leaves no pid-backed child: the draft then reads as stopped
       writePidFile(dir, child);
       return { status: 202, body: { ok: true, draftId: id } };
+    },
+
+    /**
+     * `POST /api/author/:id/sign-prepare` (the first click of "Sign & run"): what the human is about to sign — the readout, the
+     * hash, the flow name to type, the cap. GREEN drafts only. Writes nothing: the page holds the hash it was shown, and `sign`
+     * re-reads everything from disk.
+     * @param {string} id
+     */
+    signPrepare(id) {
+      const seen = greenDraft(id);
+      if (!seen.ok) return seen.reply;
+      return {
+        status: 200,
+        body: {
+          ok: true, draftId: id, hash: seen.v.hash, flowName: seen.name, capUsd: seen.v.card.capUsd, readout: seen.v.readout, runId: newRunId(),
+        },
+      };
+    },
+
+    /**
+     * `POST /api/author/:id/sign` body `{ hash, typedName, runId? }`: sign and start the run — only when the draft is green and
+     * not abandoned/signed, the hash is the one on disk and the typed name is the draft's own `target.json` name EXACTLY (no
+     * trim, no case fold). Then the SAME `signDraft` as `fwdloop sign`, `signed.json`, and the ONE run start. Any mismatch
+     * refuses by name, signs nothing, writes nothing, spends nothing. Fully synchronous (no await between the checks and the
+     * writes), so two sign POSTs together sign once: the second reads the first's `signed.json` and is refused.
+     * @param {string} id @param {any} body
+     */
+    sign(id, body) {
+      const { loaded } = keysNow();
+      if (!loaded.ok) return { status: 409, body: { ok: false, refused: 'keys-file', say: String(loaded.refusal) } };
+      const seen = greenDraft(id);
+      if (!seen.ok) return seen.reply;
+      const { v, name, dir } = seen;
+      const b = body && typeof body === 'object' ? body : {};
+      if (typeof b.hash !== 'string' || b.hash !== v.hash) {
+        return { status: 409, body: { ok: false, refused: 'stale-hash', say: 'The plan on disk is not the one you were shown (its hash differs). Nothing was signed. Reload and read the plan again.' } };
+      }
+      if (typeof b.typedName !== 'string' || b.typedName === '') {
+        return { status: 400, body: { ok: false, refused: 'name-missing', say: 'Type the flow name to sign. Nothing was signed.' } };
+      }
+      if (b.typedName !== name) {
+        return { status: 400, body: { ok: false, refused: 'name-mismatch', say: 'The name you typed is not the flow name (it must match exactly). Nothing was signed.' } };
+      }
+      // everything the run needs is checked BEFORE signing, so a refusal never leaves a signed flow with no run
+      const inputs = v.card.inputs ?? [];
+      const bad = checkInputRows(inputs);
+      if (bad.length > 0) return { status: 400, body: { ok: false, refused: 'inputs', refusals: bad } };
+      const runId = typeof b.runId === 'string' && b.runId !== '' ? b.runId : newRunId();
+      const run = starter.checkRun(name, runId);
+      if (!run.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: run.say } };
+      const signedBy = userInfo().username;
+      const result = signDraft({
+        dir: join(dir, 'draft'), approve: v.hash, signedBy, env: loaded.env,
+      });
+      if (!result.ok) {
+        const keys = providerKeys(loaded.env);
+        return { status: 409, body: { ok: false, refused: 'sign-refused', say: 'The draft did not pass the signing checks. Nothing was signed.', reds: result.reds.map((r) => scrub(String(r), keys)) } };
+      }
+      writeFileSync(join(dir, 'signed.json'), `${JSON.stringify({
+        at: new Date().toISOString(), signedBy, hash: v.hash, flow: name, runId,
+      })}\n`, { mode: 0o600 });
+      const started = starter.start({
+        kind: 'sign', flow: name, runId, sources: inputs.map((r) => ({ role: r.role, path: r.path })),
+      }, loaded.env);
+      if (started.status !== 202) return { status: started.status, body: { ...started.body, signed: true, flow: name, say: `${started.body.say ?? 'The run did not start.'} The flow is signed; start it from "Run a signed flow".` } };
+      return { status: 202, body: { ...started.body, signed: true } };
     },
 
     /** `GET /api/author/live`: the newest draft that is not abandoned or signed — read from files, never memory. */

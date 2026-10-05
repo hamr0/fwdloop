@@ -8,7 +8,7 @@
 //             check is what refuses).
 //   run(body) { flow, inputs: [{role, path}], runId } -> the SAME $0 input checks as the card (`checkInputRows`), the role set
 //             must equal the flow's declared roles exactly, the run id the CLI's own check and no such run yet — then `start`.
-import { realpathSync, statSync } from 'node:fs';
+import { lstatSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scrub } from '../authoring.js';
@@ -53,7 +53,7 @@ export function createFlowsDoor(opts) {
       const r = resolveRunDir(flowDir, id);
       if (!r.ok) continue;
       let t;
-      try { t = statSync(join(r.runDir, 'inputs.json')).mtimeMs; } catch { continue; }
+      try { t = lstatSync(join(r.runDir, 'inputs.json')).mtimeMs; } catch { continue; }
       if (newest === null || t > newest.t || (t === newest.t && id > newest.id)) newest = { t, id, runDir: r.runDir };
     }
     if (newest === null) return { runId: null, sources: out };

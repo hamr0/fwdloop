@@ -344,7 +344,7 @@ function resumeRoute(res, body, root, resumer) {
 }
 
 /**
- * `POST /api/author/draft` and `POST /api/author/<id>/abandon` — run after the same gates as every other POST.
+ * `POST /api/author/{draft,run,<id>/sign-prepare,<id>/sign,<id>/abandon}` — run after the same gates as every other POST.
  * Anything else under `/api/author/` is a 404 by name.
  * @param {any} res @param {string} url @param {any} body @param {ReturnType<typeof createAuthor>} author
  */
@@ -352,6 +352,10 @@ function authorPost(res, url, body, author) {
   const send = (r) => sendJson(res, r.status, r.body);
   if (url === '/api/author/draft') { send(author.start(body)); return; }
   if (url === '/api/author/run') { send(author.run(body)); return; }
+  const sp = /^\/api\/author\/([^/]+)\/sign-prepare$/.exec(url);
+  if (sp) { send(author.signPrepare(sp[1])); return; }
+  const sg = /^\/api\/author\/([^/]+)\/sign$/.exec(url);
+  if (sg) { send(author.sign(sg[1], body)); return; }
   const m = /^\/api\/author\/([^/]+)\/abandon$/.exec(url);
   if (m) { author.abandon(m[1]).then(send, () => sendJson(res, 500, { ok: false, refused: 'internal', red: 'internal error' })); return; }
   refuse(res, 404, 'not-found', url);
