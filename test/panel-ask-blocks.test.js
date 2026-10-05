@@ -22,6 +22,7 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
 import { answerAsk } from '../src/ask.js';
 import { getRunAsks, getRunDetail, groupAskBlocks } from '../src/panel/data.js';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
@@ -45,7 +46,7 @@ function cli(args) {
 function parkedJob2(tag) {
   const root = tmp(tag);
   const w = writeFlow({
-    root, name: 'job2', proseText: fixture('job2-with-sources.signed.txt'), declaration: JSON.parse(fixture('job2.m1.declaration.json')), signedBy: 'hamr', signedAt: '2026-09-25T12:00:00Z', catalogue: CATALOGUE,
+    root, name: 'job2', proseText: sandboxSend(fixture('job2-with-sources.signed.txt')), declaration: JSON.parse(fixture('job2.m1.declaration.json')), signedBy: 'hamr', signedAt: '2026-09-25T12:00:00Z', catalogue: CATALOGUE,
   });
   assert.equal(w.ok, true);
   const src = tmp(`${tag}-src`);
@@ -91,7 +92,7 @@ test('(vi) the grouping key is the archive\'s recorded emits: with the audit row
 
 // ---- two ask lines -> two blocks -----------------------------------------------------------------
 test('a flow with two ask lines shows two blocks, each titled with its own question', async () => {
-  const TWO = fixture('job2-with-sources.signed.txt')
+  const TWO = sandboxSend(fixture('job2-with-sources.signed.txt'))
     .replace('5. and once I accept, write it out.', '5. ask: one more look before it goes,\n6. and once I accept, write it out.')
     .replace('send at line 5', 'send at line 6');
   assert.ok(TWO.includes('5. ask: one more look'));

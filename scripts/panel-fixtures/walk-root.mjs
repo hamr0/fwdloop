@@ -23,9 +23,11 @@ const REPO = path.join(HERE, '..', '..');
 const BIN = path.join(REPO, 'bin', 'fwdloop');
 const FAKE = path.join(REPO, 'test', 'fixtures', 'cli-fake-model-step.mjs');
 const GAP_FAKE = path.join(HERE, 'walk-gap-model-step.mjs');
-const fx = (n) => readFileSync(path.join(REPO, 'test', 'fixtures', n), 'utf8');
-
 const root = path.resolve(process.argv[2] ?? path.join(process.cwd(), 'walk-root'));
+// A send never overwrites (M4e amendment 1), so the fixture's `file:poc/m0/out` is pointed at this
+// walk's own folder (an absolute target), never the shared repo folder.
+const sendDir = path.join(root, '..', `${path.basename(root)}-send`);
+const fx = (n) => readFileSync(path.join(REPO, 'test', 'fixtures', n), 'utf8').replaceAll('file:poc/m0/out', `file:${sendDir}`);
 const port = process.argv[3] ?? '4811';
 const env = { PATH: process.env.PATH, NODE_ENV: 'test', FWDLOOP_TEST_MODEL_STEP: FAKE };
 const cli = (args) => {
@@ -35,7 +37,9 @@ const cli = (args) => {
 };
 
 rmSync(root, { recursive: true, force: true });
+rmSync(sendDir, { recursive: true, force: true });
 mkdirSync(root, { recursive: true });
+mkdirSync(sendDir, { recursive: true });
 const w = writeFlow({
   root,
   name: 'job2',

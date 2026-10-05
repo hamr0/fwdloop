@@ -26,6 +26,7 @@ import { createPanelServer } from '../src/panel/server.js';
 import { TOKENS, remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
 import { listStops } from '../src/panel/data.js';
 import { spawnHolder } from './fixtures/lock-holder.mjs';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(HERE, '..');
@@ -68,7 +69,7 @@ function parkRun(runId = 'run-1') {
   const w = writeFlow({
     root,
     name: 'job2',
-    proseText: fixture('job2-with-sources.signed.txt'),
+    proseText: sandboxSend(fixture('job2-with-sources.signed.txt')),
     declaration: JSON.parse(fixture('job2.m1.declaration.json')),
     signedBy: 'hamr',
     signedAt: '2026-09-25T12:00:00Z',

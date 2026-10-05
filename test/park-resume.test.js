@@ -21,6 +21,7 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
 import { answerAsk } from '../src/ask.js';
 import { sendViaPrimitive } from '../src/send.js';
+import { sandboxSend, SEND_DIR } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -53,7 +54,7 @@ function writeSources(srcDir) {
 // job #2's fixture prose, with the ask mark on line 4 swappable so a test can
 // prove the SIGNED ttl governs (item 1) without a real wait.
 function job2Prose({ askMark = 'ask:' } = {}) {
-  const base = fixture('job2-with-sources.signed.txt');
+  const base = sandboxSend(fixture('job2-with-sources.signed.txt'));
   assert.ok(base.includes('4. ask: check it with me,'), 'fixture line 4 must still read "ask: check it with me,"');
   return base.replace('4. ask: check it with me,', `4. ${askMark} check it with me,`);
 }
@@ -903,7 +904,6 @@ test('F45 fix 3: history wallMs times the whole run (through the pause), not jus
 // refuses by name on a mismatch, shipping nothing. $0 — fake modelStep.
 // ---------------------------------------------------------------------------
 
-const SEND_DIR = path.join(HERE, '..', 'poc', 'm0', 'out');
 const sha256OfBytes = (buf) => createHash('sha256').update(buf).digest('hex');
 const shippedFiles = (runId) => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR).filter((f) => f.startsWith(`${runId}-`)) : []);
 const cleanShipped = (runId) => { for (const f of shippedFiles(runId)) rmSync(path.join(SEND_DIR, f), { force: true }); };

@@ -19,6 +19,7 @@ import { removeOldLock } from '../src/panel/lock.js';
 import { getRunAudit, getRunAsks } from '../src/panel/data.js';
 import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
 import { spawnHolder } from './fixtures/lock-holder.mjs';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(HERE, '..');
@@ -44,7 +45,7 @@ function savedAnswerRun(tag) {
   const root = tmp(tag);
   ROOTS.push(root);
   assert.equal(writeFlow({
-    root, name: 'job2', proseText: fixture('job2-with-sources.signed.txt'), declaration: JSON.parse(fixture('job2.m1.declaration.json')), signedBy: 'hamr', signedAt: '2026-09-25T12:00:00Z', catalogue: CAT,
+    root, name: 'job2', proseText: sandboxSend(fixture('job2-with-sources.signed.txt')), declaration: JSON.parse(fixture('job2.m1.declaration.json')), signedBy: 'hamr', signedAt: '2026-09-25T12:00:00Z', catalogue: CAT,
   }).ok, true);
   const src = tmp(`${tag}-src`);
   ROOTS.push(src);

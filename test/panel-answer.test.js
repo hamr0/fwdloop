@@ -20,6 +20,7 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
 import { createPanelServer } from '../src/panel/server.js';
 import { TOKENS, remember, cookieHeader, cookieName } from '../scripts/panel-fixtures/panel-auth.mjs';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (n) => readFileSync(path.join(HERE, 'fixtures', n), 'utf8');
@@ -48,7 +49,7 @@ async function parkRun({ parkTime } = {}) {
   const w = writeFlow({
     root,
     name: 'job2',
-    proseText: fixture('job2-with-sources.signed.txt'),
+    proseText: sandboxSend(fixture('job2-with-sources.signed.txt')),
     declaration: JSON.parse(fixture('job2.m1.declaration.json')),
     signedBy: 'hamr',
     signedAt: '2026-09-25T12:00:00Z',

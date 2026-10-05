@@ -22,6 +22,7 @@ import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
 import { answerAsk, writeAskArchive, listArchivedAsks } from '../src/ask.js';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -54,7 +55,7 @@ function writeSources(srcDir) {
 }
 
 function job2Prose({ askMark = 'ask:' } = {}) {
-  const base = fixture('job2-with-sources.signed.txt');
+  const base = sandboxSend(fixture('job2-with-sources.signed.txt'));
   assert.ok(base.includes('4. ask: check it with me,'), 'fixture line 4 must still read "ask: check it with me,"');
   return base.replace('4. ask: check it with me,', `4. ${askMark} check it with me,`);
 }

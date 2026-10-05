@@ -23,6 +23,7 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
 import { draftToDir } from '../src/authoring.js';
 import { RATES, MODEL, job2Fixture } from './drafter-fixture.mjs';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(HERE, '..');
@@ -289,7 +290,7 @@ test('panel server wiring: a real POST /api/answer through createPanelServer rea
   const root = tmp('srv-root');
   const src = tmp('srv-src');
   const w = writeFlow({
-    root, name: 'job2', proseText: fx('job2-with-sources.signed.txt'), declaration: JSON.parse(fx('job2.m1.declaration.json')), signedBy: 'hamr', signedAt: '2026-09-25T12:00:00Z', catalogue: loadCatalogue().primitives,
+    root, name: 'job2', proseText: sandboxSend(fx('job2-with-sources.signed.txt')), declaration: JSON.parse(fx('job2.m1.declaration.json')), signedBy: 'hamr', signedAt: '2026-09-25T12:00:00Z', catalogue: loadCatalogue().primitives,
   });
   assert.equal(w.ok, true);
   writeFileSync(path.join(src, 'resume.docx'), 'Resume text goes here.');

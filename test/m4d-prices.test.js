@@ -28,6 +28,7 @@ import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { install } from './fixtures/m4d-fake-openai.mjs';
 import { job2Fixture } from './drafter-fixture.mjs';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(HERE, '..');
@@ -274,7 +275,7 @@ test('(xii) with a config price set: the model step, the drafter and a CLI resum
   const src = tmp('src');
   const fx = (n) => readFileSync(path.join(HERE, 'fixtures', n), 'utf8');
   const w = writeFlow({
-    root, name: 'job2', proseText: fx('job2-with-sources.signed.txt'), declaration: JSON.parse(fx('job2.m1.declaration.json')), signedBy: 'hamr', signedAt: '2026-09-25T12:00:00Z', catalogue: loadCatalogue().primitives,
+    root, name: 'job2', proseText: sandboxSend(fx('job2-with-sources.signed.txt')), declaration: JSON.parse(fx('job2.m1.declaration.json')), signedBy: 'hamr', signedAt: '2026-09-25T12:00:00Z', catalogue: loadCatalogue().primitives,
   });
   assert.equal(w.ok, true);
   writeFileSync(path.join(src, 'resume.docx'), 'Resume text goes here.');
