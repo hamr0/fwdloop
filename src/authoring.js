@@ -201,7 +201,7 @@ export async function draftToDir({
   }
 
   const result = await draft({
-    proseText: prose.text, slot, model, budgetUsd, provider, rates, modelId,
+    proseText: prose.text, slot, model, budgetUsd, provider, rates, modelId, env,
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }
@@ -248,6 +248,8 @@ export async function draftToDir({
   try {
     appendSpendRow(path.join(dir, 'spend.jsonl'), {
       kind: 'draft',
+      provider: slot,
+      price: result.price ?? null,
       model: result.modelId ?? modelId ?? null,
       modelReturned: result.modelReturned,
       tokens: result.tokens ?? null,

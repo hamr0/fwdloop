@@ -21,6 +21,7 @@ import {
 } from 'node:fs';
 import { dirname, basename } from 'node:path';
 import { readFileInside } from './flow.js';
+import { readConfig, configDoorHome } from './config.js';
 import { OpenAI } from 'bare-agent/providers';
 
 /**
@@ -73,9 +74,13 @@ export const PROVIDER_SLOTS = Object.freeze({
 
 /**
  * List-rate ceilings (USD/1K tokens), hand-entered — see
- * poc/m0/spend.mjs@76a3607 for sourcing notes per row. A rate changes by
- * editing a row here, never a second table or a runtime flag (hamr's
- * ruling, 2026-09-21).
+ * poc/m0/spend.mjs@76a3607 for sourcing notes per row. This table is the DEFAULT
+ * price: a price set in Settings (`~/.config/fwdloop/config.json` `prices`, per
+ * provider slot) wins over a row here, per field, through `resolvePrices` below —
+ * the one lookup every model call is booked and cap-checked by (M4d, signed
+ * 2026-10-05; that REPLACES the 2026-09-21 "edit a row here, never a runtime
+ * flag" ruling). `cacheIn` (optional) is the cache-READ price per 1K; a row
+ * without it books cache reads at bare-agent's default 0.1x of `in`.
  */
 export const RATES_BY_SUFFIX = {
   'zai-org/GLM-5.2': { in: 0.0006, out: 0.0022, source: 'published' },
@@ -88,7 +93,10 @@ export const RATES_BY_SUFFIX = {
   'syn:large:text': { in: 0.0006, out: 0.0025, source: 'ceiling' },
   'syn:small:text': { in: 0.0006, out: 0.0025, source: 'ceiling' },
   'deepseek-v4-flash': { in: 0.00044, out: 0.00132, source: 'published' }, // F22: retired name, historical rows only
-  'deepseek-flash': { in: 0.0003, out: 0.0012, source: 'published' }, // DeepSeek-V4.1-Flash, cache-miss peak
+  // DeepSeek-V4.1-Flash, peak. Source: https://api-docs.deepseek.com/quick_start/pricing/ (fetched
+  // 2026-10-05: cache hit $0.006, cache miss $0.30, output $1.20 per 1M). `cacheIn` = the hit price
+  // (hamr ruling "A", 2026-10-05, poc/m4d/RESULTS.md (b): bare-agent's 0.1x default booked hits 5x real).
+  'deepseek-flash': { in: 0.0003, cacheIn: 0.000006, out: 0.0012, source: 'published' },
   'deepseek-v4-pro': { in: 0.00132, out: 0.00396, source: 'published' },
 };
 
@@ -96,6 +104,8 @@ export const RATES_BY_SUFFIX = {
  * Strip an `hf:` routing prefix and look up `suffix` with `Object.hasOwn` —
  * never plain truthiness/`in`, which would let a suffix like `"constructor"`
  * resolve to an inherited `Object.prototype` member.
+ * @param {string|null|undefined} modelId
+ * @param {Record<string, any>} [ratesTable]
  */
 export function lookupRate(modelId, ratesTable = RATES_BY_SUFFIX) {
   if (!modelId) return null;
@@ -120,17 +130,89 @@ export function resolveModelRate(modelId, ratesTable = RATES_BY_SUFFIX) {
 export const CEILING_INPUT_TOKENS = 32000;
 export const CEILING_OUTPUT_TOKENS = 16000;
 
+const perM = (per1K) => Number((per1K * 1000).toPrecision(12));
+
+/**
+ * THE one price lookup (M4d scope item 6): every model call — run, resume, model step, drafter —
+ * is booked and cap-checked from this. Per field: a Settings price (`config.prices[slot]`, USD per
+ * 1M -> per 1K) wins, else the code table's row, else the table's HIGHEST entry for that field
+ * (an unknown model; unknown cost is never 0). A cache-read price is known only from Settings or a
+ * row's `cacheIn`; otherwise it is left out (`cacheReadMult` omitted -> bare-agent's 0.1x of `in`).
+ *
+ * @param {string} modelId
+ * @param {{ slot?: string, config?: Record<string, any>, ratesTable?: Record<string, any> }} [opts]
+ * @returns {{
+ *   rates: { in: number, out: number, cacheReadMult?: number },
+ *   perM: { inPerM: number, cachedInPerM: number, outPerM: number },
+ *   source: { in: 'settings'|'table'|'ceiling', cachedIn: 'settings'|'table'|'default-multiplier', out: 'settings'|'table'|'ceiling' },
+ *   suffix: string|null,
+ * }}
+ */
+export function resolvePrices(modelId, { slot, config = {}, ratesTable = RATES_BY_SUFFIX } = {}) {
+  const resolved = lookupRate(modelId, ratesTable);
+  const row = resolved ? resolved.rates : null;
+  const set = (slot !== undefined && config.prices && Object.hasOwn(config.prices, slot)) ? config.prices[slot] : {};
+  const ceilingOf = (field) => Math.max(...Object.values(ratesTable).map((r) => r[field]));
+  const field = (settingsKey, rowField) => {
+    if (set[settingsKey] !== undefined) return { v: set[settingsKey] / 1000, src: 'settings' };
+    if (row) return { v: row[rowField], src: 'table' };
+    return { v: ceilingOf(rowField), src: 'ceiling' };
+  };
+  const inF = field('inPerM', 'in');
+  const outF = field('outPerM', 'out');
+  let cachedIn = null;
+  let cachedSrc = 'default-multiplier';
+  if (set.cachedInPerM !== undefined) { cachedIn = set.cachedInPerM / 1000; cachedSrc = 'settings'; }
+  else if (row && row.cacheIn !== undefined) { cachedIn = row.cacheIn; cachedSrc = 'table'; }
+  /** @type {{ in: number, out: number, cacheReadMult?: number }} */
+  const rates = { in: inF.v, out: outF.v };
+  if (cachedIn !== null) rates.cacheReadMult = cachedIn / inF.v;
+  return {
+    rates,
+    perM: { inPerM: perM(inF.v), cachedInPerM: perM(cachedIn ?? inF.v * 0.1), outPerM: perM(outF.v) },
+    source: { in: /** @type {any} */ (inF.src), cachedIn: /** @type {any} */ (cachedSrc), out: /** @type {any} */ (outF.src) },
+    suffix: resolved ? resolved.suffix : null,
+  };
+}
+
+/**
+ * The `price` object a spend row records: the per-1M numbers the call was booked at and where each
+ * came from. From a `resolvePrices` result; or from INJECTED rates (tests) with source "injected".
+ * @param {{ perM: any, source: any }|null|undefined} prices
+ * @param {{ in: number, out: number, cacheReadMult?: number }|null|undefined} [injectedRates]
+ */
+export function priceRecord(prices, injectedRates) {
+  if (prices) return { ...prices.perM, source: prices.source };
+  if (!injectedRates) return null;
+  return {
+    inPerM: perM(injectedRates.in),
+    cachedInPerM: perM(injectedRates.in * (injectedRates.cacheReadMult ?? 0.1)),
+    outPerM: perM(injectedRates.out),
+    source: 'injected',
+  };
+}
+
+/**
+ * The config a model call is priced against, read at the door: `{}` when no config applies
+ * (a test process with no `FWDLOOP_CONFIG_HOME`), else the validated `config.json`. A broken
+ * config THROWS (ConfigError) — a run's charge never changes silently.
+ * @param {string} [home] explicit config home (a test); default: the door's home
+ */
+export function readPriceConfig(home) {
+  if (home !== undefined) return readConfig({ home });
+  const door = configDoorHome();
+  return door.skip ? {} : readConfig({ home: door.home });
+}
+
 /**
  * The ceiling cost (USD) of one round of `modelId` — never 0, never null.
  * A known model prices at its own rate; an unknown/missing model prices at
- * the HIGHEST in/out rate anywhere in `ratesTable`.
+ * the HIGHEST in/out rate anywhere in `ratesTable`. `opts.prices` (a
+ * `resolvePrices` result, e.g. from `makeProvider`) makes the cap check use the
+ * SAME price the round is booked at.
  */
-export function ceilingCostUsd(modelId, ratesTable = RATES_BY_SUFFIX) {
-  const resolved = lookupRate(modelId, ratesTable);
-  const rates = resolved ? resolved.rates : {
-    in: Math.max(...Object.values(ratesTable).map((r) => r.in)),
-    out: Math.max(...Object.values(ratesTable).map((r) => r.out)),
-  };
+export function ceilingCostUsd(modelId, ratesTable = RATES_BY_SUFFIX, opts = {}) {
+  const { rates } = opts.prices ?? resolvePrices(modelId, { ratesTable });
   return (CEILING_INPUT_TOKENS / 1000) * rates.in + (CEILING_OUTPUT_TOKENS / 1000) * rates.out;
 }
 
@@ -205,6 +287,16 @@ export function appendSpendRow(path, row) {
 // a symlinked `spend.jsonl` (or a symlinked run-dir ancestor) reads as
 // "missing", never as some outside file's content folded into a cap check
 // or shown on the panel.
+// A row with no booked cost is repriced at ITS OWN booked price's ceiling when it recorded one
+// (M4d: forward only — today's Settings price never re-prices an old row), else at the code table's.
+function rowCeilingUsd(row) {
+  const p = row.price;
+  if (p && typeof p === 'object' && Number.isFinite(p.inPerM) && p.inPerM > 0 && Number.isFinite(p.outPerM) && p.outPerM > 0) {
+    return (CEILING_INPUT_TOKENS / 1e6) * p.inPerM + (CEILING_OUTPUT_TOKENS / 1e6) * p.outPerM;
+  }
+  return ceilingCostUsd(row.model);
+}
+
 function readSpendTotal(path) {
   const result = readFileInside(dirname(path), basename(path));
   if (!result.ok) return 0;
@@ -217,9 +309,9 @@ function readSpendTotal(path) {
     // 0). Same shape as poc/m6a/batch.mjs rowCostUsd.
     if (row.spendComplete === false) {
       const unmetered = Number.isInteger(row.calls) && Number.isInteger(row.rounds) ? Math.max(1, row.calls - row.rounds) : 1;
-      total += (row.costUsd ?? 0) + unmetered * ceilingCostUsd(row.model);
+      total += (row.costUsd ?? 0) + unmetered * rowCeilingUsd(row);
     } else {
-      total += row.costUsd === null || row.costUsd === undefined ? ceilingCostUsd(row.model) : row.costUsd;
+      total += row.costUsd === null || row.costUsd === undefined ? rowCeilingUsd(row) : row.costUsd;
     }
   }
   return total;
@@ -295,14 +387,15 @@ export function checkKeyPreflight(slotName, env = process.env) {
  * values this project uses.
  *
  * @param {string} slotName
- * @param {{ model?: string, timeoutMs?: number, deadlineMs?: number, thinking?: object|null, env?: Record<string,string|undefined> }} [options]
+ * @param {{ model?: string, timeoutMs?: number, deadlineMs?: number, thinking?: object|null, env?: Record<string,string|undefined>, configHome?: string }} [options]
+ *   `configHome` (a test) is where `config.json` prices are read; default: the door's home (`readPriceConfig`).
  *   `env` (M4d: the merged shell+keys-file env; default process.env) is where the key is read.
  *   `thinking` (bare-agent >=0.49) is sent verbatim as body.thinking; unset/null leaves the body unchanged.
- * @returns {{ provider: any, rates: {in:number, out:number}, modelId: string, suffix: string, slot: string }}
+ * @returns {{ provider: any, rates: {in:number, out:number, cacheReadMult?:number}, modelId: string, suffix: string, slot: string, prices: ReturnType<typeof resolvePrices> }}
  */
 export function makeProvider(slotName, options = {}) {
   const {
-    model, timeoutMs, deadlineMs, thinking, env = process.env,
+    model, timeoutMs, deadlineMs, thinking, env = process.env, configHome,
   } = options;
   const slot = PROVIDER_SLOTS[slotName];
   if (!slot) {
@@ -314,7 +407,11 @@ export function makeProvider(slotName, options = {}) {
 
   const apiKey = env[slot.envVar];
   const modelId = model ?? slot.defaultModel;
-  const { suffix, rates } = resolveModelRate(modelId);
+  const { suffix } = resolveModelRate(modelId);
+  // The ONE price lookup (a Settings price wins over the table). A broken config throws by name here;
+  // it never falls back to the table, so a run's charge cannot change silently.
+  const prices = resolvePrices(modelId, { slot: slotName, config: readPriceConfig(configHome) });
+  const { rates } = prices;
 
   const provider = new MalformedToolCallTolerantOpenAI({
     apiKey,
@@ -330,6 +427,6 @@ export function makeProvider(slotName, options = {}) {
   });
 
   return {
-    provider, rates, modelId, suffix, slot: slotName,
+    provider, rates, modelId, suffix, slot: slotName, prices,
   };
 }

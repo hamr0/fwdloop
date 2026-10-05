@@ -21,8 +21,9 @@ import { validateDeclaration, SHAPE_KEYS } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { readInputFacts } from './input-facts.js';
-import { makeProvider, sumMeterings, ceilingCostUsd } from './provider.js';
+import { makeProvider, sumMeterings, ceilingCostUsd, priceRecord } from './provider.js';
 import { LIVE_PROVIDER_OPTIONS } from './model-step.js';
+import { ConfigError } from './config.js';
 
 export const MAX_STRUCTURE_RETRIES = 2;
 export const MAX_REVISIONS = 2;
@@ -177,10 +178,10 @@ export const DRAFT_PROVIDER_OPTIONS = Object.freeze({ ...LIVE_PROVIDER_OPTIONS, 
  * `makeProviderFn` is a test seam: the live-provider factory (default `makeProvider`).
  *
  * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number, calls:number, spendComplete:boolean,
- *   costUsd:number|null, modelReturned:string|null, modelId?:string, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[]}>}
+ *   costUsd:number|null, modelReturned:string|null, modelId?:string, price?:object|null, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[]}>}
  */
 export async function draft({
-  proseText, slot = 'deepseek', model, provider: injected, rates: injectedRates, modelId: injectedModelId,
+  proseText, slot = 'deepseek', model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
   budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider,
 }) {
   const fail = (reds, extra = {}) => ({
@@ -198,11 +199,14 @@ export async function draft({
   if (!facts.ok) return fail(facts.reds);
 
   let { provider, rates, modelId } = { provider: injected, rates: injectedRates, modelId: injectedModelId };
+  let prices = null; // the one price lookup's result (live provider only); the cap check below uses the SAME price
   if (provider == null) {
     try {
-      ({ provider, rates, modelId } = makeProviderFn(slot, { model, ...DRAFT_PROVIDER_OPTIONS }));
+      ({
+        provider, rates, modelId, prices = null,
+      } = makeProviderFn(slot, { model, env, ...DRAFT_PROVIDER_OPTIONS }));
     } catch (err) {
-      return fail([`key: ${err.message}`]);
+      return fail([`${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`]);
     }
   }
 
@@ -212,7 +216,7 @@ export async function draft({
   const cat = loadCatalogue();
   if (!cat.ok) return fail([`catalogue: ${cat.reds.join('; ')}`]);
   const validationCatalogue = cat.primitives;
-  const roundCeiling = ceilingCostUsd(modelId);
+  const roundCeiling = ceilingCostUsd(modelId, undefined, prices ? { prices } : {});
   // One round at its ceiling must fit the budget, or refuse at $0 before any provider call.
   if (roundCeiling > budgetUsd) {
     return fail([`budget: $${budgetUsd} is below one round's worst-case cost — the minimum budget is $${roundCeiling.toFixed(4)}`]);
@@ -301,7 +305,7 @@ export async function draft({
       log.push(entry);
       const m = sumMeterings(meterings);
       return {
-        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, tokens: m.tokens, structureRetries, revisions, stop: null, log,
+        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log,
       };
     }
     lastReds = [...verdict.reds];
@@ -319,6 +323,6 @@ export async function draft({
   // Runner convention: `costUsd` is the priced sum (null when ANY round is unpriced, so the CLI prints UNKNOWN,
   // never a bare number), and `spendComplete:false` marks a call that failed unmetered or a round left unpriced.
   return {
-    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, tokens: m.tokens, structureRetries, revisions, stop, log,
+    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop, log,
   };
 }
