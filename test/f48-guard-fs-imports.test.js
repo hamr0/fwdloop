@@ -398,6 +398,12 @@ const ALLOWLIST = {
     reason: 'M4e piece 2a: the ONE detached spawn the panel uses for its CLI children (resume, draft) — opens (creates 0600, appends) the child\'s own log file and closes the fd after the spawn. The log sits in a panel-owned folder (resume: the private log dir; draft: the draft folder), never a run/flow-dir book. No content is read.',
     names: { closeSync: 1, openSync: 1 },
   },
+  'src/panel/authorcard.js': {
+    reason: 'M4e piece 2a: the card\'s $0 checks at the click — realpathSync/statSync/accessSync on each INPUT path the human typed (a business file, never a run/flow-dir book, nothing read), and one lstatSync on `<root>/<flowName>` (presence only; a symlink is not followed) to refuse a flow name that is already taken. Writes nothing.',
+    names: {
+      accessSync: 1, constants: 1, lstatSync: 1, realpathSync: 1, statSync: 1,
+    },
+  },
   'src/panel/lock.js': {
     reason: 'M4c-fix amendment 2 (h): the human\'s "Remove the old lock" — realpaths the run dir and --root at use time (the lock must sit inside this run, inside root), then unlinks the one `resume.lock` file, and only when `readResumeLock` (the one lock reader) says it has no recorded holder. No book content is read.',
     names: { realpathSync: 3, unlinkSync: 1 },
