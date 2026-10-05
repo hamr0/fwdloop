@@ -506,9 +506,9 @@
   .keyfile-strip-main{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;overflow-wrap:anywhere;}
   .keyfile-strip-actions{display:flex;gap:6px;flex:none;}
   .keyfile-strip code{background:var(--bg);border:1px solid var(--border-strong);padding:1px 5px;font-size:11px;color:var(--amber);overflow-wrap:anywhere;}
-  .settings-view input[type=text]{font:inherit;font-size:16px;color:var(--text);background:var(--bg);border:1px solid var(--border-strong);padding:4px 8px;min-width:0;}
+  .settings-view input,.settings-view select{font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);}
   .pv-table td,.pv-table th{white-space:nowrap;vertical-align:top;}
-  .pv-table input{min-height:32px;width:150px;max-width:100%;box-sizing:border-box;}
+  .pv-table select,.pv-table input{min-height:32px;max-width:190px;box-sizing:border-box;}
   .pv-table .hint{display:block;margin-top:3px;}
   /* the Test cell keeps ONE width whatever the result says ("testing…", "OK · 312 ms", a long failure note) */
   .pv-table td.pv-test-cell{width:180px;min-width:180px;max-width:180px;}

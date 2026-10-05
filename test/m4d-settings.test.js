@@ -459,8 +459,11 @@ test('page: a typed price/limit box survives a repaint, the limit saves on chang
   assert.doesNotMatch(tick, /loadProviders|loadMoney|paintProviders|paintMoney/);
 });
 
-test('page: phone rules — wraps scroll in their own box, the strip collapses, inputs are 16px, nothing is wider than its box', () => {
-  assert.match(PAGE, /\.settings-view input\[type=text\]\{[^}]*font-size:16px/);
+test('page: phone rules — wraps scroll in their own box, the strip collapses, inputs and selects use the bareloop look, nothing is wider than its box', () => {
+  assert.match(PAGE, /\.settings-view input,\.settings-view select\{font:inherit;padding:6px 8px;border:1px solid var\(--border-strong\);border-radius:0;background:var\(--bg\);color:var\(--text\);\}/);
+  assert.doesNotMatch(PAGE, /\.settings-view input\[type=text\]\{[^}]*font-size:16px/);
+  assert.match(PAGE, /\.pv-table select,\.pv-table input\{min-height:32px;max-width:190px;box-sizing:border-box;\}/);
+  assert.match(PAGE, /\.money-item input\{width:100%;height:44px;box-sizing:border-box;\}/);
   assert.match(PAGE, /\.keyfile-strip-main\{[^}]*min-width:0;overflow-wrap:anywhere;/);
   assert.match(PAGE, /\.pv-table \.pv-test-result,[^{]*\{white-space:normal;overflow-wrap:anywhere;\}/);
   assert.match(PAGE, /\.table-wrap\{overflow-x:auto;[^}]*max-width:100%;/);
