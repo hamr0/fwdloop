@@ -22,7 +22,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { PROVIDER_SLOTS } from './provider.js';
-import { configHome } from './config.js';
+import { configHome, configDoorHome } from './config.js';
 
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -160,7 +160,7 @@ export function loadKeysEnv(opts = {}) {
 
 /**
  * The door helper the CLI and the panel call. Loads the file only when the caller is on the
- * REAL environment, or names a home explicitly (a test), or `NODE_ENV=test` with
+ * REAL environment, or names a home explicitly (a test), or a test process (`configDoorHome`) with
  * `FWDLOOP_CONFIG_HOME` set — so a test that injects `env` alone, or runs under NODE_ENV=test
  * without a home, never reads (or creates) the real `~/.config/fwdloop/.env`.
  * @param {{ env?: Record<string,string|undefined>, keysHome?: string }} [deps]
@@ -168,8 +168,9 @@ export function loadKeysEnv(opts = {}) {
  */
 export function keysForDoor(deps = {}) {
   const shell = process.env;
-  const home = deps.keysHome ?? (shell.NODE_ENV === 'test' ? shell.FWDLOOP_CONFIG_HOME || undefined : undefined);
-  const testNoHome = shell.NODE_ENV === 'test' && home === undefined;
+  const door = configDoorHome(); // the one "under test" rule (NODE_ENV=test or node --test) and its home
+  const home = deps.keysHome ?? door.home;
+  const testNoHome = door.skip && home === undefined;
   if ((deps.env !== undefined && home === undefined) || testNoHome) {
     return {
       ok: true, skipped: true, path: shownPath(undefined), exists: false, names: [], shellOnly: [], refusal: null, env: { ...(deps.env ?? shell) },

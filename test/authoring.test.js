@@ -208,7 +208,7 @@ test('cli draft: a red draft writes its dir, prints no sign line, exits non-zero
 
 test('cli draft: an unset key refuses at $0 (no dir) with the live path, and the test hatch needs NODE_ENV=test', () => {
   const s = cliSetup();
-  const r = cli(['draft', s.proseFile, '--out', s.dir, '--root', s.root, '--name', 'job2'], { FWDLOOP_TEST_DRAFT_PROVIDER: FAKE_DRAFT });
+  const r = cli(['draft', s.proseFile, '--out', s.dir, '--root', s.root, '--name', 'job2'], { FWDLOOP_TEST_DRAFT_PROVIDER: FAKE_DRAFT, NODE_TEST_CONTEXT: 'child-v8' });
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /key: DEEPSEEK_API_KEY is not set/);
   assert.ok(!existsSync(s.dir));

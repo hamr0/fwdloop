@@ -12,7 +12,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, symlinkSync, readdirSync,
+  existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, symlinkSync, readdirSync, chmodSync,
 } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
@@ -52,7 +52,8 @@ function fakeModelEnv(extra = {}) {
 /** For the "no key" scenario: deliberately NO NODE_ENV/FWDLOOP_TEST_MODEL_STEP
  *  and no DEEPSEEK_API_KEY — proves the CLI's live path really refuses. */
 function noKeyEnv() {
-  return { PATH: process.env.PATH ?? '' };
+  // NODE_TEST_CONTEXT is what a real `node --test` child inherits: it marks the CLI as under test, so it never reads ~/.config/fwdloop.
+  return { PATH: process.env.PATH ?? '', NODE_TEST_CONTEXT: 'child-v8' };
 }
 
 function runCli(args, env) {
@@ -298,6 +299,29 @@ test('cli: an unset DEEPSEEK_API_KEY refuses "run" at $0, before any run dir or 
   assert.match(result.stderr, /DEEPSEEK_API_KEY is not set/);
   assert.equal(existsSync(path.join(root, 'job2', 'runs', 'run-no-key')), false, 'no run dir must be created on a key refusal');
   assert.equal(existsSync(path.join(root, 'job2', 'history.jsonl')), false, 'no history row must be written on a key refusal');
+});
+
+test('cli: a node --test child (NODE_TEST_CONTEXT, no NODE_ENV, no FWDLOOP_CONFIG_HOME) never reads a keys file under HOME', async () => {
+  const root = tmpRoot('canary-root');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('canary-src');
+  const { resume, jd } = writeSources(srcDir);
+  const home = tmpRoot('canary-home');
+  const canary = 'sk-canary-0123456789abcdef0123456789abcdef';
+  try {
+    mkdirSync(path.join(home, '.config', 'fwdloop'), { recursive: true, mode: 0o700 });
+    chmodSync(path.join(home, '.config', 'fwdloop'), 0o700);
+    writeFileSync(path.join(home, '.config', 'fwdloop', '.env'), `DEEPSEEK_API_KEY=${canary}\n`, { mode: 0o600 });
+    const result = runCli([
+      'run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-canary',
+    ], { ...noKeyEnv(), HOME: home });
+    assert.notEqual(result.status, 0, result.stdout);
+    assert.match(result.stderr, /DEEPSEEK_API_KEY is not set/);
+    assert.ok(!`${result.stdout}${result.stderr}`.includes(canary), 'the canary key must never surface');
+    assert.equal(existsSync(path.join(root, 'job2', 'runs', 'run-canary')), false, 'no run dir at $0');
+  } finally {
+    for (const d of [root, srcDir, home]) rmSync(d, { recursive: true, force: true });
+  }
 });
 
 // ---------------------------------------------------------------------------
