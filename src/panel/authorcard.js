@@ -85,6 +85,34 @@ function fileProblem(p) {
 }
 
 /**
+ * The $0 check of the input rows, shared by the card (draft door) and the Run-a-signed-flow door: a role and a path on every row,
+ * a role shape the signed-text parser accepts and used once, each path a full path to a readable regular file (realpath at the
+ * click). Never reads a file's contents.
+ * @param {{role: string, path: string}[]} rows
+ * @returns {{field: string, say: string}[]} one refusal per bad row, field `inputs.<n>`
+ */
+export function checkInputRows(rows) {
+  /** @type {{field: string, say: string}[]} */
+  const refusals = [];
+  const no = (field, say) => refusals.push({ field, say });
+  const seen = new Set();
+  rows.forEach((row, n) => {
+    const field = `inputs.${n}`;
+    if (row.role === '' && row.path === '') { no(field, 'This input row is empty. Fill it in or remove it.'); return; }
+    if (row.role === '') { no(field, 'This input has a path but no role. Give it a name such as "resume".'); return; }
+    if (!ROLE_RE.test(row.role)) { no(field, `The role "${row.role}" must be lowercase letters, digits, "-" or "_", starting with a letter.`); return; }
+    if (seen.has(row.role)) { no(field, `The role "${row.role}" is used twice. Each input needs its own role.`); return; }
+    seen.add(row.role);
+    if (row.path === '') { no(field, `The input "${row.role}" has a role but no path.`); return; }
+    if (CONTROL_RE.test(row.path)) { no(field, `The path for "${row.role}" has a character that cannot be in a path.`); return; }
+    if (!isAbsolute(row.path)) { no(field, `The path for "${row.role}" must be a full path starting with "/".`); return; }
+    const why = fileProblem(row.path);
+    if (why) no(field, `The path for "${row.role}" ${why}`);
+  });
+  return refusals;
+}
+
+/**
  * Every $0 check on the card, before any spawn (scope 6). Collects all refusals so the page can name every box.
  * @param {ReturnType<typeof cardFields>} card
  * @param {{ root: string, env?: Record<string, string|undefined> }} ctx `env` = the merged keys env: a key value typed into any box is refused
@@ -130,20 +158,7 @@ export function checkCard(card, { root, env = {} }) {
   }
 
   // inputs: a role and a path on every row; no repeated role; each path a readable regular file (realpath)
-  const seen = new Set();
-  card.inputs.forEach((row, n) => {
-    const field = `inputs.${n}`;
-    if (row.role === '' && row.path === '') { no(field, 'This input row is empty. Fill it in or remove it.'); return; }
-    if (row.role === '') { no(field, 'This input has a path but no role. Give it a name such as "resume".'); return; }
-    if (!ROLE_RE.test(row.role)) { no(field, `The role "${row.role}" must be lowercase letters, digits, "-" or "_", starting with a letter.`); return; }
-    if (seen.has(row.role)) { no(field, `The role "${row.role}" is used twice. Each input needs its own role.`); return; }
-    seen.add(row.role);
-    if (row.path === '') { no(field, `The input "${row.role}" has a role but no path.`); return; }
-    if (CONTROL_RE.test(row.path)) { no(field, `The path for "${row.role}" has a character that cannot be in a path.`); return; }
-    if (!isAbsolute(row.path)) { no(field, `The path for "${row.role}" must be a full path starting with "/".`); return; }
-    const why = fileProblem(row.path);
-    if (why) no(field, `The path for "${row.role}" ${why}`);
-  });
+  refusals.push(...checkInputRows(card.inputs));
 
   // a provider key typed into any box never reaches a file
   /** @type {string[]} */

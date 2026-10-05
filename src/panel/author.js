@@ -30,10 +30,12 @@ import { fileURLToPath } from 'node:url';
 
 import { PANEL_DRAFTS_DIR, scrub } from '../authoring.js';
 import { readFileInside, readdirInside } from '../flow.js';
-import { isFwdloopAlive, procStartOf } from '../liveness.js';
+import { isFwdloopAlive } from '../liveness.js';
 import { PROVIDER_SLOTS } from '../provider.js';
 import { cardFields, checkCard } from './authorcard.js';
-import { spawnDetached } from './spawn.js';
+import {
+  childRunning, readJsonFile, spawnDetached, writePidFile,
+} from './spawn.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = join(HERE, '..', '..', 'bin', 'fwdloop');
@@ -43,8 +45,6 @@ const ID_RE = /^d-[0-9a-z]{10}-[0-9a-f]{4}$/;
 const newId = () => `d-${Date.now().toString(36).padStart(10, '0')}-${randomBytes(2).toString('hex')}`;
 /** The phases that end a card's life: Abandon or a sign. Everything else is still on the card (to read, to sign, to retry). */
 const FINISHED = new Set(['abandoned', 'signed']);
-/** A pid whose liveness cannot be told (no /proc) counts as running only while its pid.json is this fresh (M4c's 10-minute rule). */
-const UNKNOWN_FRESH_MS = 10 * 60 * 1000;
 const LOG_TAIL_CHARS = 1500;
 const STOPPED_SAY = 'The draft process ended before it finished (it was stopped from outside). Nothing was signed and nothing was sent. Draft again.';
 const RED_SAY = 'The drafter\'s plan did not pass the checks. Nothing was signed and nothing was sent. Fix the job and draft again; this draft is kept on disk and is never reused.';
@@ -73,19 +73,7 @@ export function createAuthor(opts) {
     try { return join(realpathSync(root), PANEL_DRAFTS_DIR); } catch { return null; }
   };
 
-  /** One JSON file of a draft folder through the one safe gateway; null when missing, unreadable or not an object. */
-  const readJson = (dir, rel) => {
-    const r = readFileInside(dir, rel);
-    if (!r.ok) return null;
-    try { const j = JSON.parse(r.text); return j && typeof j === 'object' && !Array.isArray(j) ? j : null; } catch { return null; }
-  };
-
-  /** Is this draft's child running? true / false / null (cannot tell). No pid.json = nothing known to be running = false. */
-  const childAlive = (dir) => {
-    const pid = readJson(dir, 'pid.json');
-    if (!pid || !Number.isInteger(pid.pid)) return false;
-    return isFwdloopAlive(pid.pid, typeof pid.procStart === 'string' ? pid.procStart : null);
-  };
+  const readJson = readJsonFile;
 
   /**
    * The draft's state, READ from its files. `keys` = the provider key values to scrub from anything quoted.
@@ -115,18 +103,11 @@ export function createAuthor(opts) {
       };
     }
     // no result yet: the child is the only thing that can still produce one
-    const alive = childAlive(dir) ?? freshPid(dir);
-    if (alive === true) return { ...base, phase: 'drafting' };
+    if (childRunning(dir)) return { ...base, phase: 'drafting' };
     const logText = readFileInside(dir, 'child.log');
     const tail = logText.ok ? scrub(logText.text, keys).trim().slice(-LOG_TAIL_CHARS).replace(/^fwdloop: /, '') : '';
     return { ...base, phase: 'stopped', say: tail !== '' ? tail : STOPPED_SAY };
   }
-
-  /** Liveness unknown (no /proc): running only while pid.json is fresh. */
-  const freshPid = (dir) => {
-    const pid = readJson(dir, 'pid.json');
-    return pid !== null && typeof pid.startedAt === 'number' && Date.now() - pid.startedAt <= UNKNOWN_FRESH_MS;
-  };
 
   /** Draft ids, newest first. */
   const listIds = () => {
@@ -182,9 +163,7 @@ export function createAuthor(opts) {
         return { status: 500, body: { ok: false, refused: 'spawn', say: `The draft could not be started (${/** @type {any} */ (e)?.code ?? 'error'}). Nothing was spent.`, draftId: id } };
       }
       child.on('error', () => {}); // a later spawn failure leaves no pid-backed child: the draft then reads as stopped
-      if (Number.isInteger(child.pid)) {
-        writeFileSync(join(dir, 'pid.json'), `${JSON.stringify({ pid: child.pid, procStart: procStartOf(/** @type {number} */ (child.pid)), startedAt: Date.now() })}\n`, { mode: 0o600 });
-      }
+      writePidFile(dir, child);
       return { status: 202, body: { ok: true, draftId: id } };
     },
 
