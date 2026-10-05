@@ -31,6 +31,8 @@ import { PROVIDER_SLOTS, checkKeyPreflight, appendSpendRow } from './provider.js
 
 export const DRAFT_BUDGET_USD = 0.10;
 export const SPEC_HASH_FILE = 'spec.hash';
+/** The one folder under the flows root where the panel keeps its draft folders (M4e). Starts with a dot, so it is never a flow name. */
+export const PANEL_DRAFTS_DIR = '.drafts';
 /** Written when the end sweep finds a key in the draft dir; sign refuses a dir that has it. */
 export const LEAK_MARKER_FILE = 'scrub-leak.red';
 export const SIGN_LINE = (dir, hash) => `DRAFTED — NOT SIGNED. To sign: fwdloop sign ${dir} --approve ${hash}`;
@@ -174,7 +176,10 @@ export async function draftToDir({
   const realRoot = realpathOfNew(root);
   const realDir = realpathOfNew(dir);
   const rel = path.relative(realRoot, realDir);
-  if (rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel))) {
+  // M4e piece 2: the panel's own draft folders live at exactly `<root>/.drafts/<id>/...` (a dot-name is never a flow:
+  // `checkFlowName` refuses it, so `listFlowNames`/`readFlow` never list it). Nothing else under the root is allowed.
+  const panelDrafts = rel.startsWith(`${PANEL_DRAFTS_DIR}${path.sep}`) && !path.isAbsolute(rel);
+  if (!panelDrafts && (rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel)))) {
     return refuse([`draft: "${dir}" is inside the flows root "${root}" — an unsigned draft would show as a flow; use a --out outside the flows root`]);
   }
   const read = readProseFile(proseFile);
