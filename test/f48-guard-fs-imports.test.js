@@ -408,6 +408,10 @@ const ALLOWLIST = {
     reason: 'M4e piece 2a: the draft folder\'s own per-call spend record (`draft-spend.json`) — one atomic write (tmp + rename) of the file the drafter just booked into, in the draft dir `draftToDir` itself created. Every READ goes through readFileInside/readSpendRows.',
     names: { renameSync: 1, writeFileSync: 1 },
   },
+  'src/panel/author.js': {
+    reason: 'M4e piece 2a: the panel\'s draft door — creates ITS OWN draft folder `<root>/.drafts/<id>/` (mkdir 0700) and writes the files it owns there (card.json, prose.txt, pid.json, abandoned.json, all 0600); realpathSync of the typed --root at use time. Every READ of a draft folder (its own files and the CLI child\'s output under draft/) goes through readFileInside/readdirInside (src/flow.js), never fs directly.',
+    names: { mkdirSync: 2, realpathSync: 3, writeFileSync: 4 },
+  },
   'src/panel/lock.js': {
     reason: 'M4c-fix amendment 2 (h): the human\'s "Remove the old lock" — realpaths the run dir and --root at use time (the lock must sit inside this run, inside root), then unlinks the one `resume.lock` file, and only when `readResumeLock` (the one lock reader) says it has no recorded holder. No book content is read.',
     names: { realpathSync: 3, unlinkSync: 1 },

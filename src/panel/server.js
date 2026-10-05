@@ -64,6 +64,7 @@ import {
   listRuns, getRunDetail, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
 import { createResumer } from './resume.js';
+import { createAuthor } from './author.js';
 import { keysForDoor } from '../keysfile.js';
 import { configDoorHome } from '../config.js';
 import { createSettings } from './settings.js';
@@ -73,6 +74,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 /** Cap on the answer body — a decision and a short reason, nothing more. */
 const MAX_BODY_BYTES = 8 * 1024;
+/** Cap on a draft-card body — a few numbered job lines, not a document (M4e). */
+const MAX_AUTHOR_BODY_BYTES = 64 * 1024;
 /** Cookie the panel link sets; `<name>_<port>` so two panels on one host never clobber each other. */
 const cookieName = (port) => `fwdloop_panel_${port}`;
 
@@ -341,12 +344,25 @@ function resumeRoute(res, body, root, resumer) {
 }
 
 /**
+ * `POST /api/author/draft` and `POST /api/author/<id>/abandon` — run after the same gates as every other POST.
+ * Anything else under `/api/author/` is a 404 by name.
+ * @param {any} res @param {string} url @param {any} body @param {ReturnType<typeof createAuthor>} author
+ */
+function authorPost(res, url, body, author) {
+  const send = (r) => sendJson(res, r.status, r.body);
+  if (url === '/api/author/draft') { send(author.start(body)); return; }
+  const m = /^\/api\/author\/([^/]+)\/abandon$/.exec(url);
+  if (m) { author.abandon(m[1]).then(send, () => sendJson(res, 500, { ok: false, refused: 'internal', red: 'internal error' })); return; }
+  refuse(res, 404, 'not-found', url);
+}
+
+/**
  * Handle one request against the API + the page. Exported
  * separately from {@link createPanelServer} so tests can drive it without a
  * real listening socket where that is simpler.
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
- * @param {{ root: string, port: number, token: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings> }} opts
+ * @param {{ root: string, port: number, token: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings>, author: ReturnType<typeof createAuthor> }} opts
  */
 export function handleRequest(req, res, opts) {
   const method = req.method ?? 'GET';
@@ -397,7 +413,9 @@ export function handleRequest(req, res, opts) {
 
   // M4d piece 4: every `/api/settings/...` POST (a known one or not) goes through the same Origin + body-cap gates.
   const isSettingsPost = method === 'POST' && String(req.url).startsWith('/api/settings/');
-  if (method === 'POST' && (isSettingsPost || req.url === '/api/answer' || req.url === '/api/resume' || req.url === '/api/reopen' || req.url === '/api/remove-lock')) {
+  // M4e piece 2a: every `/api/author/...` POST goes through the SAME door (cookie, own Host, own Origin, body cap) — no second guard.
+  const isAuthorPost = method === 'POST' && String(req.url).startsWith('/api/author/');
+  if (method === 'POST' && (isSettingsPost || isAuthorPost || req.url === '/api/answer' || req.url === '/api/resume' || req.url === '/api/reopen' || req.url === '/api/remove-lock')) {
     const isResume = req.url === '/api/resume';
     const isReopen = req.url === '/api/reopen';
     const isRemoveLock = req.url === '/api/remove-lock';
@@ -412,7 +430,7 @@ export function handleRequest(req, res, opts) {
     req.on('data', (c) => {
       if (tooBig) return;
       size += c.length;
-      if (size <= MAX_BODY_BYTES) { parts.push(c); return; }
+      if (size <= (isAuthorPost ? MAX_AUTHOR_BODY_BYTES : MAX_BODY_BYTES)) { parts.push(c); return; }
       // M4c-fix item 6: over the limit — stop at once. Drop what was collected, refuse (413, then the
       // connection closes), and cut the request off; the rest of the body is never read.
       tooBig = true;
@@ -426,6 +444,7 @@ export function handleRequest(req, res, opts) {
         if (tooBig) return;
         let body;
         try { body = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { refuse(res, 400, 'body-not-json'); return; }
+        if (isAuthorPost) { authorPost(res, String(req.url), body, opts.author); return; }
         if (isSettingsPost) { settingsReply(res, opts.settings.handle({ method, pathname: String(req.url), query: new URLSearchParams(), body })); return; }
         if (isResume) resumeRoute(res, body, opts.root, opts.resumer);
         else if (isReopen) reopenRoute(res, body, opts.root, opts.resumer);
@@ -439,7 +458,7 @@ export function handleRequest(req, res, opts) {
   }
 
   if (method !== 'GET' && method !== 'HEAD') {
-    sendText(res, 405, 'method not allowed — GET/HEAD for reads; the only writes are POST /api/answer, POST /api/resume, POST /api/reopen and POST /api/remove-lock');
+    sendText(res, 405, 'method not allowed — GET/HEAD for reads; the only writes are POST /api/answer, POST /api/resume, POST /api/reopen, POST /api/remove-lock, POST /api/settings/... and POST /api/author/...');
     return;
   }
 
@@ -461,6 +480,14 @@ export function handleRequest(req, res, opts) {
     }
     sendJson(res, code, body);
   };
+
+  if (pathname.startsWith('/api/author/')) {
+    const am = /^\/api\/author\/([^/]+)$/.exec(pathname);
+    const r = pathname === '/api/author/live' ? opts.author.live() : am ? opts.author.get(am[1]) : { status: 404, body: { ok: false, refused: 'not-found' } };
+    if (method === 'HEAD') { res.writeHead(r.status, { 'content-type': 'application/json; charset=utf-8' }); res.end(); return; }
+    sendJson(res, r.status, r.body);
+    return;
+  }
 
   if (pathname.startsWith('/api/settings/')) {
     settingsReply(res, opts.settings.handle({
@@ -566,8 +593,8 @@ export function handleRequest(req, res, opts) {
  * header). Resolves once actually listening; rejects on a bind error
  * (including `EADDRINUSE`) with a `.port` field on the error for the
  * caller's message.
- * @param {{ port?: number, root: string, token?: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number } }} opts
- *   `resume` is for tests only (a fake env/bin, a short retry window); the CLI passes none.
+ * @param {{ port?: number, root: string, token?: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number }, author?: { env?: Record<string,string|undefined>, loadEnv?: () => any, bin?: string } }} opts
+ *   `resume` and `author` are for tests only (a fake env/bin, a short retry window); the CLI passes none.
  * @returns {Promise<{ server: import('node:http').Server, port: number, token: string, close: () => Promise<void> }>}
  */
 export function createPanelServer(opts) {
@@ -579,6 +606,8 @@ export function createPanelServer(opts) {
   // One resumer per server: the one owner of every run's resume-attempt record.
   // M4d: the keys file is re-read before EVERY resume spawn (editing it needs no restart); an env injected by a test is the shell side.
   const resumer = createResumer({ root, loadEnv: () => keysForDoor({ env: opts.resume?.env }), ...opts.resume });
+  // M4e piece 2a: the draft door. Same keys door as the resumer: the merged env is re-read before every spawn and every log quote.
+  const author = createAuthor({ root, loadEnv: () => keysForDoor({ env: opts.author?.env }), ...opts.author });
   // Settings reads and writes only under the one config home: an injected one (tests), else the door's — under a test
   // process with no FWDLOOP_CONFIG_HOME, Settings is switched off rather than touch the real ~/.config/fwdloop.
   const door = configDoorHome();
@@ -598,7 +627,7 @@ export function createPanelServer(opts) {
     const server = createServer((req, res) => {
       try {
         handleRequest(req, res, {
-          root, port: boundPort, token, resumer, settings,
+          root, port: boundPort, token, resumer, settings, author,
         });
       } catch (e) {
         sendText(res, 500, 'internal error');
