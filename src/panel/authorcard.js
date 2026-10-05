@@ -146,7 +146,9 @@ export function checkCard(card, { root, env = {} }) {
   });
 
   // a provider key typed into any box never reaches a file
-  const keys = Object.values(PROVIDER_SLOTS).map((p) => env[p.envVar]).filter((k) => typeof k === 'string' && k.length >= 8);
+  /** @type {string[]} */
+  const keys = [];
+  for (const p of Object.values(PROVIDER_SLOTS)) { const k = env[p.envVar]; if (typeof k === 'string' && k.length >= 8) keys.push(k); }
   if (keys.length > 0) {
     const boxes = [['job', card.job], ['flowName', card.flowName], ['destination', dest.folder], ...card.inputs.map((r, n) => [`inputs.${n}`, `${r.role}\n${r.path}`])];
     for (const [field, text] of boxes) if (keys.some((k) => String(text).includes(k))) no(String(field), 'This box contains an API key. Keys go in Settings only. Nothing was saved.');
