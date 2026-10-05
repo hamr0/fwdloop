@@ -313,6 +313,16 @@ test('sign: a missing input source and an invalid send target are refused, no fl
   noFlow(d.root);
 });
 
+test('sign: a send target inside the flow root is refused at sign by name, no flow (M4e amendment 1)', async () => {
+  const flowsRoot = tmp('flows-root');
+  const d = await makeDraft({ prose: job2Fixture().prose.replace('file:poc/m0/out', `file:${flowsRoot}`), extra: { root: flowsRoot } });
+  assert.equal(d.r.ok, true, JSON.stringify(d.r.reds));
+  const s = signDraft({ dir: d.dir, approve: d.r.hash, signedBy: 'alice' });
+  assert.equal(s.ok, false);
+  assert.match(s.reds.join(' '), /is a flow folder/);
+  assert.ok(!existsSync(path.join(flowsRoot, 'job2')), 'no flow dir was written');
+});
+
 test('sign: a red draft dir (no spec.hash / no declaration.json) can never be signed', async () => {
   const bad = validArgs();
   bad.steps[2].primitives = ['stash'];

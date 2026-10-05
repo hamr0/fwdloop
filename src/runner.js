@@ -41,7 +41,7 @@ import {
 } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import {
-  dirname, extname, join, resolve, sep,
+  dirname, extname, isAbsolute, join, resolve, sep,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -52,6 +52,7 @@ import {
   writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen,
 } from './ask.js';
 import { WIRED_VERBS } from './primitives.js';
+import { configHome, configDoorHome } from './config.js';
 import { closeByClass } from './closers.js';
 import { appendAudit, appendHistory } from './books.js';
 import {
@@ -332,39 +333,72 @@ export function freezeInputs(runDir, sources) {
   return { ok: true, manifest };
 }
 
-/** The send target's directory must resolve (lexically AND after
- *  realpath — a symlink inside the repo pointing outside it must not pass)
- *  inside the repo, and be writable. Re-checked at write time, not just at
- *  preflight (time-of-check vs time-of-use, M0's own fix).
+/** realpath of a path that may not exist (falls back to the lexical resolve). */
+function realOrResolved(p) {
+  try { return realpathSync(p); } catch { return resolve(p); }
+}
+
+const isInside = (child, base) => child === base || child.startsWith(base + sep);
+
+/** The send target's folder (M4e amendment 1, "Destination is any folder").
+ *  An absolute `file:/abs/path` is that folder, anywhere on the machine. A
+ *  relative path keeps its M0/M2 meaning: joined onto the install folder and
+ *  fenced inside it (lexically AND after realpath — a symlink inside the repo
+ *  pointing outside must not pass). Either way, with `realpathSync` (symlinks
+ *  followed), the folder must exist, be a folder, be writable, and must NOT be
+ *  the run's own folder (its records and `inputs/`), the panel/CLI flow root or
+ *  any flow folder under it, or the fwdloop config folder (holds the keys).
+ *  Called at sign time and re-called at write time (time-of-check vs
+ *  time-of-use, M0's own fix) — the one rule for both.
  *  @param {string} target
+ *  @param {{root?: string, runDir?: string}} [ctx] `root` = the flow root, `runDir` = this run's folder
  *  @returns {{ok:true, dir:string} | {ok:false, red:string}} */
-export function checkSendDestination(target) {
+export function checkSendDestination(target, ctx = {}) {
   const match = /^file:(.+)$/.exec(target ?? '');
   if (!match) return { ok: false, red: `destination: send target "${target}" is not a "file:<path>" target` };
-  const dir = join(REPO_ROOT, match[1]);
-  const resolvedDir = resolve(dir);
-  const resolvedRoot = resolve(REPO_ROOT);
-  if (resolvedDir !== resolvedRoot && !resolvedDir.startsWith(resolvedRoot + sep)) {
-    return { ok: false, red: `destination: send target "${target}" resolves outside the repo (${dir})` };
-  }
-  try {
-    const realDir = realpathSync(dir);
-    const realRoot = realpathSync(REPO_ROOT);
-    if (realDir !== realRoot && !realDir.startsWith(realRoot + sep)) {
-      return {
-        ok: false,
-        red: `destination: send target "${target}" is a symlink that resolves outside the repo (${realDir})`,
-      };
+  const absolute = isAbsolute(match[1]);
+  const dir = absolute ? match[1] : join(REPO_ROOT, match[1]);
+  if (!absolute) {
+    const resolvedDir = resolve(dir);
+    const resolvedRoot = resolve(REPO_ROOT);
+    if (!isInside(resolvedDir, resolvedRoot)) {
+      return { ok: false, red: `destination: send target "${target}" resolves outside the repo (${dir})` };
     }
+    try {
+      const realDir = realpathSync(dir);
+      const realRoot = realpathSync(REPO_ROOT);
+      if (!isInside(realDir, realRoot)) {
+        return {
+          ok: false,
+          red: `destination: send target "${target}" is a symlink that resolves outside the repo (${realDir})`,
+        };
+      }
+    } catch {
+      // dir doesn't exist — handled by the not-a-folder red below.
+    }
+  }
+  let realDir;
+  try {
+    realDir = realpathSync(dir);
+    if (!statSync(realDir).isDirectory()) throw new Error('not a directory');
   } catch {
-    // dir doesn't exist yet — handled by the accessSync red below.
+    return { ok: false, red: `destination: send target "${target}" is not an existing folder (${dir})` };
+  }
+  const refused = [];
+  if (ctx.runDir) refused.push([realOrResolved(ctx.runDir), "the run's own folder (its records and inputs)"]);
+  if (ctx.root) refused.push([realOrResolved(ctx.root), 'a flow folder (the flow root)']);
+  refused.push([realOrResolved(configHome(configDoorHome().home)), 'the fwdloop config folder']);
+  for (const [base, what] of refused) {
+    if (isInside(realDir, base)) {
+      return { ok: false, red: `destination: send target "${target}" is ${what} (${realDir}) — refused` };
+    }
   }
   try {
     accessSync(dir, fsConstants.W_OK);
   } catch (err) {
     return { ok: false, red: `destination: send target directory "${dir}" is not writable (${err.code})` };
   }
-  return { ok: true, dir };
+  return { ok: true, dir: absolute ? realDir : dir };
 }
 
 // ---------------------------------------------------------------------------
@@ -1304,7 +1338,7 @@ async function foldFromStep({
       const content = contentResult.value;
       const filename = `${runId}-${step.emits}.json`;
       // eslint-disable-next-line no-await-in-loop
-      const sendResult = await sendStep(target, filename, content, acceptedAskEmitsThisRun.get(askArtifactId));
+      const sendResult = await sendStep(target, filename, content, acceptedAskEmitsThisRun.get(askArtifactId), { root: flowRoot, runDir });
       const sendRow = makeAuditRow({
         step, attempt: 1, verdict: sendResult.ok ? 'green' : 'red', gap: sendResult.ok ? null : sendResult.red, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       });

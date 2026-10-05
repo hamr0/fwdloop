@@ -308,11 +308,11 @@ const ALLOWLIST = {
     },
   },
   'src/runner.js': {
-    reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create + stale-lock clear + cleanup, M4c amendment 2) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above)',
+    reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create + stale-lock clear + cleanup, M4c amendment 2) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above); M4e amendment 1: checkSendDestination realpaths/stats the send FOLDER (a business destination, not a book) and the refused folders',
     names: {
       accessSync: 1, closeSync: 2, constants: 1, copyFileSync: 1, existsSync: 7,
-      mkdirSync: 6, openSync: 1, readFileSync: 3, realpathSync: 3, renameSync: 1,
-      statSync: 1, unlinkSync: 3, writeFileSync: 5,
+      mkdirSync: 6, openSync: 1, readFileSync: 3, realpathSync: 5, renameSync: 1,
+      statSync: 2, unlinkSync: 3, writeFileSync: 5,
     },
     readArtifactCallSites: 4,
   },
@@ -353,8 +353,8 @@ const ALLOWLIST = {
     names: { appendFileSync: 1, mkdirSync: 1 },
   },
   'src/send.js': {
-    reason: 'the write itself goes through bare-agent\'s shell_write tool, never a raw fs write (see the borrowed-from note) — this reads back the bytes ACTUALLY on disk after that write, to prove it landed (M2 "happened" re-read), not a run/flow-dir book read',
-    names: { readFileSync: 1 },
+    reason: 'the write itself goes through bare-agent\'s shell_write tool, never a raw fs write (see the borrowed-from note) — this reads back the bytes ACTUALLY on disk after that write, to prove it landed (M2 "happened" re-read), not a run/flow-dir book read; M4e amendment 1: one lstat of the destination file name (presence only, nothing read, symlinks not followed) so a send never overwrites',
+    names: { readFileSync: 1, lstatSync: 1 },
   },
   'src/docx.js': {
     reason: 'reads a caller-supplied BUSINESS document path (e.g. resume.docx), not a run/flow-dir book file — documented F48 exemption',

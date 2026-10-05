@@ -11,7 +11,7 @@
 // in-memory content handed in — so a write that silently truncates to 0
 // bytes reds here, not upstream).
 
-import { readFileSync } from 'node:fs';
+import { lstatSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createShellTools } from 'bare-agent/tools';
 
@@ -30,10 +30,11 @@ const WRITE_TOOL = FOUND_WRITE_TOOL;
  * @param {string|null} [acceptedSha256] - the sha256 the human's accept recorded
  *   (`answerAsk`, M4b piece 3). Required: none recorded (an answer written by an
  *   older version, or no accept in this process) refuses by name.
+ * @param {{root?: string, runDir?: string}} [ctx] the flow root and this run's folder, for the destination refusals
  * @returns {Promise<{ok:true, path:string, bytes:number} | {ok:false, red:string}>}
  */
-export async function sendViaPrimitive(target, filename, content, acceptedSha256) {
-  const destination = checkSendDestination(target);
+export async function sendViaPrimitive(target, filename, content, acceptedSha256, ctx = {}) {
+  const destination = checkSendDestination(target, ctx);
   if (!destination.ok) return { ok: false, red: destination.red };
 
   // F48 round 4 (redesign) defense in depth: `src/runner.js`'s send slot
@@ -70,6 +71,12 @@ export async function sendViaPrimitive(target, filename, content, acceptedSha256
   }
 
   const path = join(destination.dir, filename);
+  // M4e amendment 1: never overwrite. `shell_write` has no exclusive-create mode, so this is an
+  // existence check immediately before the write (lstat: a dangling symlink at the name counts as
+  // present). A file created in the instants between this check and the write is still overwritten.
+  let present = true;
+  try { lstatSync(path); } catch (err) { if (err.code === 'ENOENT') present = false; }
+  if (present) return { ok: false, red: `send: "${path}" already exists — never overwritten (nothing shipped)` };
   await WRITE_TOOL.execute({ path, content: serialised });
 
   const bytes = readFileSync(path);

@@ -328,7 +328,7 @@ export function signDraft({
     if (s.kind === 'file' && !existsSync(s.path)) reds.push(`sign: input source "${s.role}" is missing at ${s.path}`);
   }
   for (const s of signed.arbiter.sends) {
-    const d = checkSendDestination(`${s.target.kind}:${s.target.path}`);
+    const d = checkSendDestination(`${s.target.kind}:${s.target.path}`, { root: target.root });
     if (!d.ok) reds.push(`sign: ${d.red}`);
   }
   if (reds.length) return { ok: false, reds };
