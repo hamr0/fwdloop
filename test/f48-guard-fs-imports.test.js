@@ -391,8 +391,12 @@ const ALLOWLIST = {
   'src/panel/resume.js': {
     reason: 'M4b piece 2: the panel\'s resume launcher — creates/opens its OWN private log dir and log file (outside the flows root and every run dir), reads back that log to quote the resume\'s refusal, deletes that log when the resume exits 0 (and a stale attempt log when a newer attempt starts), and existsSync-checks the `answer.<askId>.consumed.json` marker (presence only, never its content) to see that the resume took over. No run/flow-dir book is read or written.',
     names: {
-      closeSync: 1, existsSync: 2, lstatSync: 1, mkdirSync: 1, openSync: 1, readFileSync: 1, statSync: 1, unlinkSync: 2,
+      existsSync: 2, lstatSync: 1, mkdirSync: 1, readFileSync: 1, statSync: 1, unlinkSync: 2,
     },
+  },
+  'src/panel/spawn.js': {
+    reason: 'M4e piece 2a: the ONE detached spawn the panel uses for its CLI children (resume, draft) — opens (creates 0600, appends) the child\'s own log file and closes the fd after the spawn. The log sits in a panel-owned folder (resume: the private log dir; draft: the draft folder), never a run/flow-dir book. No content is read.',
+    names: { closeSync: 1, openSync: 1 },
   },
   'src/panel/lock.js': {
     reason: 'M4c-fix amendment 2 (h): the human\'s "Remove the old lock" — realpaths the run dir and --root at use time (the lock must sit inside this run, inside root), then unlinks the one `resume.lock` file, and only when `readResumeLock` (the one lock reader) says it has no recorded holder. No book content is read.',

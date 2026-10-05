@@ -34,16 +34,16 @@
 // redact: it prints only its own error messages (never the key), so a key
 // could reach the log only through a provider error body that echoes it.
 
-import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import {
-  closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync,
+  existsSync, lstatSync, mkdirSync, readFileSync, statSync, unlinkSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scrub } from '../authoring.js';
 import { PROVIDER_SLOTS } from '../provider.js';
+import { spawnDetached } from './spawn.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = join(HERE, '..', '..', 'bin', 'fwdloop');
@@ -105,13 +105,11 @@ export function createResumer(opts) {
     const loaded = loadEnv ? loadEnv() : { ok: true, env, refusal: null };
     if (!loaded.ok) return Promise.resolve({ kind: 'exited', code: null, sig: null, text: String(loaded.refusal) });
     const runEnv = loaded.env; // ONE object: the spawn env below AND the scrub list further down (POC (a) wiring rule)
-    const fd = openSync(logPath, 'a', 0o600);
-    const offset = statSync(logPath).size;
-    const child = spawn(process.execPath, [bin, 'resume', runId, '--flow', flow, '--root', root], {
-      detached: true, stdio: ['ignore', fd, fd], env: runEnv,
+    let offset = 0; // the log may not exist yet: the one spawn creates it
+    try { offset = statSync(logPath).size; } catch { /* a new log starts at 0 */ }
+    const child = spawnDetached({
+      bin, argv: ['resume', runId, '--flow', flow, '--root', root], env: runEnv, logPath,
     });
-    child.unref();
-    closeSync(fd);
     const runKey = keyOf(flow, runId);
     live.set(runKey, (live.get(runKey) ?? 0) + 1);
     let released = false;
