@@ -277,7 +277,9 @@ export function appendSpendRow(path, row) {
       + '— the signed hash records the request, not what ran',
     );
   }
-  appendFileSync(path, `${JSON.stringify({ ...row, modelMatch })}\n`);
+  // M4d piece 3: the writer stamps `at` (after the spread: a caller can never set it) so month spend can be read
+  // off each run's own books. Rows written before M4d carry none.
+  appendFileSync(path, `${JSON.stringify({ ...row, at: new Date().toISOString(), modelMatch })}\n`);
 }
 
 // F48 round 3: both readers below take a full path (`<runDir>/spend.jsonl`,
@@ -297,23 +299,28 @@ function rowCeilingUsd(row) {
   return ceilingCostUsd(row.model);
 }
 
+/**
+ * The one rule for what a spend row costs: `usd` and whether it is `complete`. An incomplete row (a call
+ * died unmetered, or a round was left unpriced) counts its priced floor PLUS one ceiling per unmetered call
+ * (unknown cost is never 0). Same shape as poc/m6a/batch.mjs rowCostUsd.
+ * @param {any} row
+ * @returns {{usd: number, complete: boolean}}
+ */
+export function spendRowCost(row) {
+  if (row.spendComplete === false) {
+    const unmetered = Number.isInteger(row.calls) && Number.isInteger(row.rounds) ? Math.max(1, row.calls - row.rounds) : 1;
+    return { usd: (row.costUsd ?? 0) + unmetered * rowCeilingUsd(row), complete: false };
+  }
+  if (row.costUsd === null || row.costUsd === undefined) return { usd: rowCeilingUsd(row), complete: false };
+  return { usd: row.costUsd, complete: true };
+}
+
 function readSpendTotal(path) {
   const result = readFileInside(dirname(path), basename(path));
   if (!result.ok) return 0;
   const lines = result.text.split('\n').filter((l) => l.trim());
   let total = 0;
-  for (const line of lines) {
-    const row = JSON.parse(line);
-    // An incomplete row (a call died unmetered) counts its priced floor PLUS one
-    // ceiling per unmetered call — never only the floor (unknown cost is never
-    // 0). Same shape as poc/m6a/batch.mjs rowCostUsd.
-    if (row.spendComplete === false) {
-      const unmetered = Number.isInteger(row.calls) && Number.isInteger(row.rounds) ? Math.max(1, row.calls - row.rounds) : 1;
-      total += (row.costUsd ?? 0) + unmetered * rowCeilingUsd(row);
-    } else {
-      total += row.costUsd === null || row.costUsd === undefined ? rowCeilingUsd(row) : row.costUsd;
-    }
-  }
+  for (const line of lines) total += spendRowCost(JSON.parse(line)).usd;
   return total;
 }
 

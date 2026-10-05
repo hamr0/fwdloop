@@ -25,12 +25,18 @@ import {
 } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import {
-  runFlow, resumeRun, makeParkingAskStep, readAsk,
+  runFlow, resumeRun, makeParkingAskStep, readAsk, readRunState,
 } from '../src/runner.js';
 import { makeLiveModelStep } from '../src/model-step.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
-import { checkKeyPreflight } from '../src/provider.js';
+import {
+  checkKeyPreflight, PROVIDER_SLOTS, resolvePrices, readPriceConfig, ceilingCostUsd,
+} from '../src/provider.js';
+import { configDoorHome } from '../src/config.js';
+import {
+  claimHold, settleHold, monthlyRefusalText, ConfigError,
+} from '../src/monthly.js';
 import { keysForDoor } from '../src/keysfile.js';
 import {
   answerAsk, readAskEvidence, normalizeDecision, stripControl, withReopen,
@@ -56,6 +62,45 @@ function keyedEnv() {
   const loaded = keysForDoor();
   if (!loaded.ok) fail(String(loaded.refusal));
   return loaded.env;
+}
+
+/**
+ * M4d piece 3: the monthly check, at the ONE seam all three money doors (`run`, `resume`, `draft`) call,
+ * before any spend and before any ledger write. No limit set (or a test process with no config home) =
+ * no hold, no check. A broken config.json or an unwritable record refuses by name, never "no limit". A hold
+ * that does not fit refuses at $0 with the one refusal text. A hold that fits is given back when this
+ * process ends or parks (the `exit` hook runs on every exit path; a SIGKILL leaves it for the next check,
+ * which settles it as "process gone").
+ * @returns {{ addRunDir: (d: string) => void }}
+ */
+function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }) {
+  const door = configDoorHome();
+  const home = door.home;
+  const also = [];
+  if (door.skip) return { addRunDir: () => {} };
+  let claim;
+  try {
+    claim = claimHold({
+      what, flow, runId, runDir, holdUsd, spentAtHold, home,
+    });
+  } catch (err) {
+    if (!(err instanceof ConfigError)) throw err;
+    fail(`${err.message} — refusing to start rather than guess the monthly limit. Nothing spent.`);
+  }
+  if (!claim.ok) fail(monthlyRefusalText(claim.room));
+  if (claim.holdId !== null) {
+    process.on('exit', () => settleHold({
+      holdId: claim.holdId, why: process.exitCode ? 'ended (red)' : 'ended or parked', home, alsoRunDirs: also,
+    }));
+  }
+  return { addRunDir: (d) => also.push(d) };
+}
+
+/** The new runs a `rerun` chain started in this process — their spend belongs to this hold's month too. */
+function rerunDirs(result, flowDir) {
+  const dirs = [];
+  for (let r = result; r && r.outcome === 'rerun'; r = r.newRun) dirs.push(join(flowDir, r.newRunId));
+  return dirs;
 }
 
 function fail(message) {
@@ -247,6 +292,12 @@ async function cmdRun(rest) {
     return;
   }
 
+  // M4d piece 3: the monthly check — the hold is the flow's signed per-run cap. Before the run dir exists
+  // (runFlow makes it), so a refusal leaves only the refused rows in runs.jsonl.
+  const hold = takeMonthlyHold({
+    what: 'run', flow: flowName, runId, runDir, holdUsd: arbiter.capUsd,
+  });
+
   // Predict the frozen input paths `runFlow`'s own `freezeInputs` will use
   // (deterministic: `<runDir>/inputs/<id><ext>`) so the primitives map can
   // be built once, before `runFlow` itself freezes anything. Pure path
@@ -274,6 +325,7 @@ async function cmdRun(rest) {
     businessDate: today(),
   });
 
+  for (const d of rerunDirs(result, join(root, flowName))) hold.addRunDir(d);
   reportRunResult(result, { rootArg: values.root });
 }
 
@@ -473,7 +525,7 @@ async function cmdResume(rest) {
 
   const read = readFlow({ root, name: flowName, catalogue });
   if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
-  const { declaration } = read;
+  const { declaration, arbiter } = read;
 
   const runIdCheck = resolveRunDir(join(root, flowName), runId);
   if (!runIdCheck.ok) fail(runIdCheck.red);
@@ -488,6 +540,13 @@ async function cmdResume(rest) {
     fail(err.message);
     return;
   }
+
+  // M4d piece 3: the monthly check — the hold is the signed cap minus what this run already spent (its own
+  // state.json; no readable figure = the whole cap, never less).
+  const priorSpent = Number.isFinite(readRunState(runDir)?.spent) ? readRunState(runDir).spent : 0;
+  const hold = takeMonthlyHold({
+    what: 'resume', flow: flowName, runId, runDir, holdUsd: Math.max(0, arbiter.capUsd - priorSpent), spentAtHold: priorSpent,
+  });
 
   // Resume never re-freezes inputs — the run's own `inputs.json` (written at
   // park by `freezeInputs`) is the one source of the already-frozen paths a
@@ -526,6 +585,7 @@ async function cmdResume(rest) {
     businessDate: today(),
   });
 
+  for (const d of rerunDirs(result, join(root, flowName))) hold.addRunDir(d);
   reportRunResult(result, { rootArg: values.root });
 }
 
@@ -588,6 +648,20 @@ async function cmdDraft(rest) {
     const mod = await import(pathToFileURL(resolve(process.env.FWDLOOP_TEST_DRAFT_PROVIDER)).href);
     injected = await mod.default();
   }
+  // M4d piece 3: the monthly check — a draft has no signed cap, so it holds one ceiling round, priced by the
+  // ONE price lookup (an injected test provider carries its own rates).
+  let ceiling;
+  try {
+    const modelId = injected.modelId ?? PROVIDER_SLOTS.deepseek.defaultModel;
+    const prices = injected.rates ? { rates: injected.rates } : resolvePrices(modelId, { slot: 'deepseek', config: readPriceConfig() });
+    ceiling = ceilingCostUsd(modelId, undefined, { prices });
+  } catch (err) {
+    if (!(err instanceof ConfigError)) throw err;
+    fail(`${err.message} — refusing to draft rather than guess the price. Nothing spent.`);
+  }
+  takeMonthlyHold({
+    what: 'draft', flow: values.name, runId: null, runDir: resolve(values.out), holdUsd: ceiling,
+  });
   const result = await draftToDir({
     proseFile: resolve(proseFile),
     dir: resolve(values.out),
