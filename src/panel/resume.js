@@ -76,8 +76,10 @@ function ensureLogDir(dir) {
 }
 
 /**
- * @param {{ root: string, env?: Record<string, string|undefined>, bin?: string, logDir?: string,
+ * @param {{ root: string, env?: Record<string, string|undefined>, loadEnv?: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null }, bin?: string, logDir?: string,
  *   maxTries?: number, windowMs?: number, slotMs?: number }} opts
+ *   `loadEnv` (M4d: the keys-file door, called before EVERY spawn so editing the file needs no panel restart) returns the merged env
+ *   that is BOTH the child's spawn env AND its scrub list, or a refusal sentence that becomes the attempt's refusal (nothing spawns).
  *   `env`/`bin`/`logDir`/`maxTries`/`windowMs`/`slotMs` are injectable so tests neither sleep 10 s
  *   nor need a live key; production passes none of them. `slotMs` (default `windowMs / maxTries`,
  *   i.e. 2000 ms) is only the spacing between tries: a test sets it small and `windowMs` (the
@@ -86,7 +88,7 @@ function ensureLogDir(dir) {
  */
 export function createResumer(opts) {
   const {
-    root, env = process.env, bin = BIN, maxTries = RESUME_MAX_TRIES, windowMs = RESUME_WINDOW_MS, slotMs = windowMs / maxTries,
+    root, env = process.env, loadEnv, bin = BIN, maxTries = RESUME_MAX_TRIES, windowMs = RESUME_WINDOW_MS, slotMs = windowMs / maxTries,
   } = opts;
   const rootTag = createHash('sha256').update(root).digest('hex').slice(0, 8);
   /** @type {Map<string, any>} */
@@ -100,10 +102,13 @@ export function createResumer(opts) {
    *  or the child exited, or `deadline` passed — never waits for a long resume. */
   function tryOnce({ flow, runId, runDir, askId, logPath, deadline }) {
     const consumedPath = join(runDir, `answer.${askId}.consumed.json`);
+    const loaded = loadEnv ? loadEnv() : { ok: true, env, refusal: null };
+    if (!loaded.ok) return Promise.resolve({ kind: 'exited', code: null, sig: null, text: String(loaded.refusal) });
+    const runEnv = loaded.env; // ONE object: the spawn env below AND the scrub list further down (POC (a) wiring rule)
     const fd = openSync(logPath, 'a', 0o600);
     const offset = statSync(logPath).size;
     const child = spawn(process.execPath, [bin, 'resume', runId, '--flow', flow, '--root', root], {
-      detached: true, stdio: ['ignore', fd, fd], env,
+      detached: true, stdio: ['ignore', fd, fd], env: runEnv,
     });
     child.unref();
     closeSync(fd);
@@ -120,7 +125,7 @@ export function createResumer(opts) {
     child.once('error', release);
     // The child's output is quoted in a refusal (`reason`) that reaches HTTP responses and the books: the
     // provider key(s) of this panel's env are scrubbed here, the one place that reads the log slice (amendment 1 (e)(3)).
-    const keys = Object.values(PROVIDER_SLOTS).map((p) => env[p.envVar]).filter(Boolean);
+    const keys = Object.values(PROVIDER_SLOTS).map((p) => runEnv[p.envVar]).filter(Boolean);
     const sliceOfLog = () => {
       try { return scrub(readFileSync(logPath).subarray(offset).toString('utf8').trim(), keys); } catch { return ''; } // offset is in BYTES
     };

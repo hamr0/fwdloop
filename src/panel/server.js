@@ -64,6 +64,9 @@ import {
   listRuns, getRunDetail, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
 import { createResumer } from './resume.js';
+import { keysForDoor } from '../keysfile.js';
+import { configDoorHome } from '../config.js';
+import { createSettings } from './settings.js';
 import { removeOldLock } from './lock.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -171,6 +174,15 @@ export function writeTokenFile({
   const fd = openSync(file, 'wx', 0o600);
   try { writeSync(fd, `${token}\n`); } finally { closeSync(fd); }
   return file;
+}
+
+/** Send a Settings handler's `{status, body}`; a throw is a plain 500, never a stack. @param {any} res @param {Promise<{status:number, body:any}>} pending @param {boolean} [headOnly] */
+function settingsReply(res, pending, headOnly = false) {
+  pending.then((r) => {
+    if (!headOnly) { sendJson(res, r.status, r.body); return; }
+    res.writeHead(r.status, { 'content-type': 'application/json; charset=utf-8' });
+    res.end();
+  }, () => sendJson(res, 500, { ok: false, refused: 'internal', say: 'Something went wrong inside the panel. Nothing was changed.' }));
 }
 
 /** @param {any} res */
@@ -334,7 +346,7 @@ function resumeRoute(res, body, root, resumer) {
  * real listening socket where that is simpler.
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
- * @param {{ root: string, port: number, token: string, resumer: ReturnType<typeof createResumer> }} opts
+ * @param {{ root: string, port: number, token: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings> }} opts
  */
 export function handleRequest(req, res, opts) {
   const method = req.method ?? 'GET';
@@ -383,7 +395,9 @@ export function handleRequest(req, res, opts) {
     return;
   }
 
-  if (method === 'POST' && (req.url === '/api/answer' || req.url === '/api/resume' || req.url === '/api/reopen' || req.url === '/api/remove-lock')) {
+  // M4d piece 4: every `/api/settings/...` POST (a known one or not) goes through the same Origin + body-cap gates.
+  const isSettingsPost = method === 'POST' && String(req.url).startsWith('/api/settings/');
+  if (method === 'POST' && (isSettingsPost || req.url === '/api/answer' || req.url === '/api/resume' || req.url === '/api/reopen' || req.url === '/api/remove-lock')) {
     const isResume = req.url === '/api/resume';
     const isReopen = req.url === '/api/reopen';
     const isRemoveLock = req.url === '/api/remove-lock';
@@ -412,6 +426,7 @@ export function handleRequest(req, res, opts) {
         if (tooBig) return;
         let body;
         try { body = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { refuse(res, 400, 'body-not-json'); return; }
+        if (isSettingsPost) { settingsReply(res, opts.settings.handle({ method, pathname: String(req.url), query: new URLSearchParams(), body })); return; }
         if (isResume) resumeRoute(res, body, opts.root, opts.resumer);
         else if (isReopen) reopenRoute(res, body, opts.root, opts.resumer);
         else if (isRemoveLock) removeLockRoute(res, body, opts.root, opts.resumer);
@@ -446,6 +461,13 @@ export function handleRequest(req, res, opts) {
     }
     sendJson(res, code, body);
   };
+
+  if (pathname.startsWith('/api/settings/')) {
+    settingsReply(res, opts.settings.handle({
+      method: 'GET', pathname, query: url.searchParams, body: null,
+    }), method === 'HEAD');
+    return;
+  }
 
   if (pathname === '/' || pathname === '/index.html') {
     const indexPath = join(HERE, 'index.html');
@@ -544,7 +566,7 @@ export function handleRequest(req, res, opts) {
  * header). Resolves once actually listening; rejects on a bind error
  * (including `EADDRINUSE`) with a `.port` field on the error for the
  * caller's message.
- * @param {{ port?: number, root: string, token?: string, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number } }} opts
+ * @param {{ port?: number, root: string, token?: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number } }} opts
  *   `resume` is for tests only (a fake env/bin, a short retry window); the CLI passes none.
  * @returns {Promise<{ server: import('node:http').Server, port: number, token: string, close: () => Promise<void> }>}
  */
@@ -555,7 +577,14 @@ export function createPanelServer(opts) {
   const requestedPort = opts.port ?? DEFAULT_PORT;
   const { root } = opts;
   // One resumer per server: the one owner of every run's resume-attempt record.
-  const resumer = createResumer({ root, ...opts.resume });
+  // M4d: the keys file is re-read before EVERY resume spawn (editing it needs no restart); an env injected by a test is the shell side.
+  const resumer = createResumer({ root, loadEnv: () => keysForDoor({ env: opts.resume?.env }), ...opts.resume });
+  // Settings reads and writes only under the one config home: an injected one (tests), else the door's — under a test
+  // process with no FWDLOOP_CONFIG_HOME, Settings is switched off rather than touch the real ~/.config/fwdloop.
+  const door = configDoorHome();
+  const settings = createSettings({
+    home: opts.settings?.home ?? door.home, skip: opts.settings?.home === undefined && door.skip, env: opts.settings?.env, fetch: opts.settings?.fetch, now: opts.settings?.now,
+  });
   // One token per server process, made once, held only here and in the served
   // page — never logged, never in any /api response.
   const token = typeof opts.token === 'string' && /^[0-9a-f]{64}$/.test(opts.token) ? opts.token : randomBytes(32).toString('hex');
@@ -569,7 +598,7 @@ export function createPanelServer(opts) {
     const server = createServer((req, res) => {
       try {
         handleRequest(req, res, {
-          root, port: boundPort, token, resumer,
+          root, port: boundPort, token, resumer, settings,
         });
       } catch (e) {
         sendText(res, 500, 'internal error');
@@ -618,6 +647,10 @@ export async function panelMain(argv, ctx) {
   try {
     const { port: boundPort, token } = await createPanelServer({ port, root, token: loadOrMakeToken({ port }) });
     writeTokenFile({ port: boundPort, token });
+    // M4d: read the keys file at start (creates it when missing). The panel itself needs no key, so a file other users can
+    // read is only announced here; every resume re-reads it and refuses by itself.
+    const keys = keysForDoor();
+    if (!keys.ok) ctx.err(String(keys.refusal));
     ctx.out(`fwdloop panel — (root: ${root}) (Ctrl-C to stop)`);
     ctx.out(`open this link (it sets the panel's cookie): http://127.0.0.1:${boundPort}/?t=${token}`);
     // never resolves on its own — the process stays up until killed, same

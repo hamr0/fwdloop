@@ -5,6 +5,49 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-10-05
+
+M4d: a Settings page. Provider keys, provider details, prices and a monthly spend limit are set in
+one place, and a run, resume or draft that would pass the limit is refused before it spends.
+
+### Added
+- A keys file, `~/.config/fwdloop/.env`, read for every key call (run, resume, draft, panel). The
+  merged keys are passed down to each call site; the process environment is never changed, and a
+  test child never reads the real keys file. A key set in the shell still wins.
+- One `config.json` reader and writer in the same config home, borrowed from bareloop.
+- A Settings page in the panel, behind the panel's own gates and laid out like bareloop's: a KEYS
+  strip, one Providers table (Key, Name, API shape, Base URL, Test, Tokens used, Balance, and three
+  price columns) and a Money & limits tab (a money strip and a breakdown table). A key shows only
+  as set or not set, never its value.
+- Providers: Test asks the provider for its list of models (no completion, $0) and Balance asks the provider for its balance,
+  both at $0 to the run books; Balance works only for a deepseek host. Name, API shape and Base URL
+  are text boxes and a dropdown saved on change (amendment 1), and `makeProvider` builds an openai,
+  anthropic or gemini provider by that shape. Prices are saved on change and validated.
+- A monthly limit. Every run is recorded in `runs.jsonl` with a hold, and the limit is checked at
+  run, resume and draft; the Money tab shows the month's spend. The monthly limit moves freely up or
+  down; the per-run cap stays signed.
+- Spend rows now record the provider and the price used. `deepseek-flash` has a cache-hit input
+  price in the rate table, measured against a real cached call.
+
+### Changed
+- One price lookup serves every model call. A model with no rate in the table is now priced at the
+  table's highest rate and builds, where it used to throw. Unknown cost is still never shown as 0.
+- Settings tokens read like bareloop's (16.8M, 4.0k), and the undated-rows hint reads in the
+  singular when it is one row.
+- Settings inputs and selects use bareloop's look.
+
+### Fixed
+- A run with no monthly limit set was invisible to the monthly check and the Money tab (F55); every
+  run is now recorded, with a $0 hold when no limit is set, so its spend is counted.
+- Settings Test and Balance never follow a redirect with the key attached; a redirect is shown as a
+  plain sentence.
+- A real provider can no longer be reached with `NODE_ENV=test` skipping the money checks: the CLI
+  refuses at $0.
+- The drafter now gets a key that lives only in the keys file, and a key loaded from the file is
+  scrubbed from a resume child's log.
+- The new `src/monthly.js` is on the F48 safe-read guard's allow-list, so the symlink-escape guard
+  covers it.
+
 ## [0.11.0] - 2026-10-05
 
 M4c-fix: the whole fix list is cleared before M4d. The panel is locked down, every word it shows is

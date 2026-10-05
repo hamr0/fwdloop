@@ -12,13 +12,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, symlinkSync, readdirSync,
+  existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, symlinkSync, readdirSync, chmodSync,
 } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
@@ -52,7 +52,8 @@ function fakeModelEnv(extra = {}) {
 /** For the "no key" scenario: deliberately NO NODE_ENV/FWDLOOP_TEST_MODEL_STEP
  *  and no DEEPSEEK_API_KEY — proves the CLI's live path really refuses. */
 function noKeyEnv() {
-  return { PATH: process.env.PATH ?? '' };
+  // NODE_TEST_CONTEXT is what a real `node --test` child inherits: it marks the CLI as under test, so it never reads ~/.config/fwdloop.
+  return { PATH: process.env.PATH ?? '', NODE_TEST_CONTEXT: 'child-v8' };
 }
 
 function runCli(args, env) {
@@ -298,6 +299,29 @@ test('cli: an unset DEEPSEEK_API_KEY refuses "run" at $0, before any run dir or 
   assert.match(result.stderr, /DEEPSEEK_API_KEY is not set/);
   assert.equal(existsSync(path.join(root, 'job2', 'runs', 'run-no-key')), false, 'no run dir must be created on a key refusal');
   assert.equal(existsSync(path.join(root, 'job2', 'history.jsonl')), false, 'no history row must be written on a key refusal');
+});
+
+test('cli: a node --test child (NODE_TEST_CONTEXT, no NODE_ENV, no FWDLOOP_CONFIG_HOME) never reads a keys file under HOME', async () => {
+  const root = tmpRoot('canary-root');
+  writeJob2Flow(root);
+  const srcDir = tmpRoot('canary-src');
+  const { resume, jd } = writeSources(srcDir);
+  const home = tmpRoot('canary-home');
+  const canary = 'sk-canary-0123456789abcdef0123456789abcdef';
+  try {
+    mkdirSync(path.join(home, '.config', 'fwdloop'), { recursive: true, mode: 0o700 });
+    chmodSync(path.join(home, '.config', 'fwdloop'), 0o700);
+    writeFileSync(path.join(home, '.config', 'fwdloop', '.env'), `DEEPSEEK_API_KEY=${canary}\n`, { mode: 0o600 });
+    const result = runCli([
+      'run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-canary',
+    ], { ...noKeyEnv(), HOME: home });
+    assert.notEqual(result.status, 0, result.stdout);
+    assert.match(result.stderr, /DEEPSEEK_API_KEY is not set/);
+    assert.ok(!`${result.stdout}${result.stderr}`.includes(canary), 'the canary key must never surface');
+    assert.equal(existsSync(path.join(root, 'job2', 'runs', 'run-canary')), false, 'no run dir at $0');
+  } finally {
+    for (const d of [root, srcDir, home]) rmSync(d, { recursive: true, force: true });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -571,3 +595,56 @@ test('cli: show prints no ESC / control byte from model text, and keeps new line
   assert.match(res.stdout, /line1\n\tindented /, 'new lines and tabs are kept');
   assert.match(res.stdout, /cleared/);
 });
+
+// ---------------------------------------------------------------------------
+// Self-review fix: NODE_ENV=test (or NODE_TEST_CONTEXT) with no FWDLOOP_CONFIG_HOME skips the keys file, prices and monthly
+// limit. A REAL provider call must refuse at $0 then, never run silently; only an injected test hook may skip.
+// ---------------------------------------------------------------------------
+
+const NODE_ENV_TEST_REFUSAL = /NODE_ENV=test is set without FWDLOOP_CONFIG_HOME/;
+
+for (const [label, extra] of [['NODE_ENV=test', { NODE_ENV: 'test' }], ['NODE_TEST_CONTEXT', { NODE_TEST_CONTEXT: 'child-v8' }]]) {
+  test(`cli: ${label} with no config home and a real provider refuses "run" at $0 (no run dir, no spend; refused before any provider is built)`, async () => {
+    const root = tmpRoot('nodeenv-run');
+    writeJob2Flow(root);
+    const { resume, jd } = writeSources(tmpRoot('nodeenv-run-src'));
+    try {
+      const result = await new Promise((resolve) => {
+        const c = spawn(process.execPath, [BIN, 'run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-nodeenv'], {
+          env: { PATH: process.env.PATH ?? '', DEEPSEEK_API_KEY: 'fake-key-not-real', ...extra },
+        });
+        let err = '';
+        c.stderr.on('data', (d) => { err += d; });
+        c.on('close', (code) => resolve({ status: code, stderr: err }));
+      });
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, NODE_ENV_TEST_REFUSAL);
+      assert.equal(existsSync(path.join(root, 'job2', 'runs', 'run-nodeenv')), false, 'no run dir');
+      assert.equal(existsSync(path.join(root, 'job2', 'history.jsonl')), false, 'no history row');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test(`cli: ${label} with no config home and a real provider refuses "draft" at $0 (no draft dir; refused before any provider is built)`, async () => {
+    const root = tmpRoot('nodeenv-draft');
+    const out = path.join(tmpRoot('nodeenv-draft-out'), 'd');
+    const prose = path.join(root, 'prose.txt');
+    writeFileSync(prose, 'Do a thing.\n');
+    try {
+      const result = await new Promise((resolve) => {
+        const c = spawn(process.execPath, [BIN, 'draft', prose, '--out', out, '--root', root, '--name', 'nodeenv'], {
+          env: { PATH: process.env.PATH ?? '', DEEPSEEK_API_KEY: 'fake-key-not-real', ...extra },
+        });
+        let err = '';
+        c.stderr.on('data', (d) => { err += d; });
+        c.on('close', (code) => resolve({ status: code, stderr: err }));
+      });
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, NODE_ENV_TEST_REFUSAL);
+      assert.equal(existsSync(out), false, 'no draft dir');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}

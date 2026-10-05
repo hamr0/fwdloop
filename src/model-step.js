@@ -26,9 +26,10 @@
 
 import { Loop } from 'bare-agent';
 import { GateRefusal } from './primitives.js';
+import { ConfigError } from './config.js';
 
 import {
-  makeProvider, sumMeterings, appendSpendRow, classifyModelId,
+  makeProvider, sumMeterings, appendSpendRow, classifyModelId, priceRecord,
 } from './provider.js';
 
 // F27: DeepSeek's `chat/completions` can send HTTP 200 + headers + one byte
@@ -230,10 +231,11 @@ function toolFields(cumulative) {
  * @param {any} [opts.provider] - an injected provider (tests only; production always builds live via `slot`).
  * @param {{in:number,out:number}} [opts.rates]
  * @param {string} [opts.modelId]
+ * @param {Record<string,string|undefined>} [opts.env] - the merged shell+keys-file env the key is read from (default process.env).
  * @returns {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class?:string}) => Promise<any>}
  */
 export function makeLiveModelStep({
-  slot, model, spendPath, provider: injectedProvider, rates: injectedRates, modelId: injectedModelId,
+  slot, model, spendPath, provider: injectedProvider, rates: injectedRates, modelId: injectedModelId, env,
 }) {
   const live = injectedProvider == null;
 
@@ -241,6 +243,7 @@ export function makeLiveModelStep({
     let provider = injectedProvider;
     let rates = injectedRates;
     let modelId = injectedModelId;
+    let prices = null;
     if (live) {
       // makeProvider throws synchronously on a missing/bad key, an unknown
       // slot, or an unrated model — never let that escape as an unhandled
@@ -248,7 +251,9 @@ export function makeLiveModelStep({
       // always a red, never a crash (rule 5).
       try {
         if (!slot) throw new Error('makeLiveModelStep: "slot" is required when no provider is injected');
-        ({ provider, rates, modelId } = makeProvider(slot, { model, ...LIVE_PROVIDER_OPTIONS }));
+        ({
+          provider, rates, modelId, prices,
+        } = makeProvider(slot, { model, env, ...LIVE_PROVIDER_OPTIONS }));
       } catch (err) {
         // No provider was ever built, so no round could possibly have run —
         // `model: null`, `tokens: null` and `tools: null` (M4a-3) here are the one honest
@@ -256,7 +261,7 @@ export function makeLiveModelStep({
         // a call that never happened). A row that names a model must carry its
         // tokens (appendAudit refuses it otherwise), so the model is not named.
         return {
-          ok: false, red: `key: ${err.message}`, costUsd: null, model: null, tokens: null, tools: null,
+          ok: false, red: `${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`, costUsd: null, model: null, tokens: null, tools: null,
         };
       }
     }
@@ -330,6 +335,8 @@ export function makeLiveModelStep({
         const partial = sumMeterings(roundMeterings);
         cumulative = addMeter(cumulative, partial);
         appendSpendRow(spendPath, {
+          provider: slot ?? null,
+          price: priceRecord(prices, rates),
           model: modelId,
           modelReturned: partial.model,
           tokens: partial.tokens,
@@ -386,6 +393,8 @@ export function makeLiveModelStep({
       cumulative = addMeter(cumulative, metered);
       cumulative = { ...cumulative, ...addToolCounts(cumulative, result.metrics?.byTool, grantedNames) };
       appendSpendRow(spendPath, {
+        provider: slot ?? null,
+        price: priceRecord(prices, rates),
         model: modelId,
         modelReturned: metered.model,
         tokens: metered.tokens,

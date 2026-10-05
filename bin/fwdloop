@@ -25,12 +25,19 @@ import {
 } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import {
-  runFlow, resumeRun, makeParkingAskStep, readAsk,
+  runFlow, resumeRun, makeParkingAskStep, readAsk, readRunState,
 } from '../src/runner.js';
 import { makeLiveModelStep } from '../src/model-step.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
-import { checkKeyPreflight } from '../src/provider.js';
+import {
+  checkKeyPreflight, resolveSlot, resolvePrices, readPriceConfig, ceilingCostUsd,
+} from '../src/provider.js';
+import { configDoorHome } from '../src/config.js';
+import {
+  claimHold, settleHold, monthlyRefusalText, ConfigError,
+} from '../src/monthly.js';
+import { keysForDoor } from '../src/keysfile.js';
 import {
   answerAsk, readAskEvidence, normalizeDecision, stripControl, withReopen,
 } from '../src/ask.js';
@@ -44,6 +51,65 @@ import { userInfo } from 'node:os';
 // drives. `PROVIDER_SLOTS.deepseek.envVar` is `DEEPSEEK_API_KEY`; this CLI
 // never reads a key any other way and never prints it.
 const MODEL_SLOT = 'deepseek';
+
+/**
+ * M4d: the ONE place a keyed command gets its env — the shell env with the keys file
+ * (`~/.config/fwdloop/.env`) filling what the shell leaves unset, loaded once at command
+ * start. A file other users can read is refused here (ruling 1A), before any dir or ledger
+ * write, at $0. process.env is never mutated: the merged env is handed down by hand.
+ */
+function keyedEnv() {
+  const loaded = keysForDoor();
+  if (!loaded.ok) fail(String(loaded.refusal));
+  return loaded.env;
+}
+
+/**
+ * M4d piece 3: the monthly check, at the ONE seam all three money doors (`run`, `resume`, `draft`) call,
+ * before any spend and before any ledger write. No limit set = a $0 hold row (so the run's spend is counted once a limit is set), no check;
+ * a test process with no config home = no row at all. A broken config.json or an unwritable record refuses by name, never "no limit". A hold
+ * that does not fit refuses at $0 with the one refusal text. A hold that fits is given back when this
+ * process ends or parks (the `exit` hook runs on every exit path; a SIGKILL leaves it for the next check,
+ * which settles it as "process gone").
+ * @returns {{ addRunDir: (d: string) => void }}
+ */
+function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }) {
+  const door = configDoorHome();
+  const home = door.home;
+  const also = [];
+  if (door.skip) {
+    // A test process with no config home skips the money checks. Only an injected test hook may do that;
+    // a real provider call here would spend with no keys file, prices, limit or record.
+    const hook = what === 'draft' ? 'FWDLOOP_TEST_DRAFT_PROVIDER' : 'FWDLOOP_TEST_MODEL_STEP';
+    if (!(process.env.NODE_ENV === 'test' && process.env[hook])) {
+      fail('NODE_ENV=test is set without FWDLOOP_CONFIG_HOME, so the keys file, prices and monthly limit would be skipped. Nothing spent. Unset NODE_ENV, or set FWDLOOP_CONFIG_HOME.');
+    }
+    return { addRunDir: () => {} };
+  }
+  let claim;
+  try {
+    claim = claimHold({
+      what, flow, runId, runDir, holdUsd, spentAtHold, home,
+    });
+  } catch (err) {
+    if (!(err instanceof ConfigError)) throw err;
+    fail(`${err.message} — refusing to start rather than guess the monthly limit. Nothing spent.`);
+  }
+  if (!claim.ok) fail(monthlyRefusalText(claim.room));
+  if (claim.holdId !== null) {
+    process.on('exit', () => settleHold({
+      holdId: claim.holdId, why: process.exitCode ? 'ended (red)' : 'ended or parked', home, alsoRunDirs: also,
+    }));
+  }
+  return { addRunDir: (d) => also.push(d) };
+}
+
+/** The new runs a `rerun` chain started in this process — their spend belongs to this hold's month too. */
+function rerunDirs(result, flowDir) {
+  const dirs = [];
+  for (let r = result; r && r.outcome === 'rerun'; r = r.newRun) dirs.push(join(flowDir, r.newRunId));
+  return dirs;
+}
 
 function fail(message) {
   process.stderr.write(`fwdloop: ${message}\n`);
@@ -84,7 +150,7 @@ function today() {
  * be hit by a user typing `--something`. This is how the test suite drives
  * every CLI scenario at $0 with zero chance of a real network call.
  */
-async function resolveModelStep(spendPath) {
+async function resolveModelStep(spendPath, env) {
   if (process.env.NODE_ENV === 'test' && process.env.FWDLOOP_TEST_MODEL_STEP) {
     const modulePath = resolve(process.env.FWDLOOP_TEST_MODEL_STEP);
     const mod = await import(pathToFileURL(modulePath).href);
@@ -93,9 +159,9 @@ async function resolveModelStep(spendPath) {
     }
     return mod.default({ spendPath });
   }
-  const keyCheck = checkKeyPreflight(MODEL_SLOT);
+  const keyCheck = checkKeyPreflight(MODEL_SLOT, env);
   if (!keyCheck.ok) throw new Error(keyCheck.message);
-  return makeLiveModelStep({ slot: MODEL_SLOT, spendPath });
+  return makeLiveModelStep({ slot: MODEL_SLOT, spendPath, env });
 }
 
 function parseSourceFlags(list) {
@@ -176,6 +242,7 @@ async function cmdRun(rest) {
     },
     allowPositionals: true,
   });
+  const env = keyedEnv();
 
   const flowName = positionals[0];
   if (!flowName) fail('run: a flow name is required — fwdloop run <flow> --root <dir> --source <role>=<path> ...');
@@ -227,11 +294,17 @@ async function cmdRun(rest) {
   const spendPath = join(runDir, 'spend.jsonl');
   let modelStep;
   try {
-    modelStep = await resolveModelStep(spendPath);
+    modelStep = await resolveModelStep(spendPath, env);
   } catch (err) {
     fail(err.message);
     return;
   }
+
+  // M4d piece 3: the monthly check — the hold is the flow's signed per-run cap. Before the run dir exists
+  // (runFlow makes it), so a refusal leaves only the refused rows in runs.jsonl.
+  const hold = takeMonthlyHold({
+    what: 'run', flow: flowName, runId, runDir, holdUsd: arbiter.capUsd,
+  });
 
   // Predict the frozen input paths `runFlow`'s own `freezeInputs` will use
   // (deterministic: `<runDir>/inputs/<id><ext>`) so the primitives map can
@@ -260,6 +333,7 @@ async function cmdRun(rest) {
     businessDate: today(),
   });
 
+  for (const d of rerunDirs(result, join(root, flowName))) hold.addRunDir(d);
   reportRunResult(result, { rootArg: values.root });
 }
 
@@ -444,6 +518,7 @@ async function cmdResume(rest) {
     },
     allowPositionals: true,
   });
+  const env = keyedEnv();
   const runId = positionals[0];
   if (!runId) fail('resume: a runId is required — fwdloop resume <runId> --flow <name> --root <dir>');
   if (!values.flow) fail('resume: --flow <name> is required');
@@ -458,7 +533,7 @@ async function cmdResume(rest) {
 
   const read = readFlow({ root, name: flowName, catalogue });
   if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
-  const { declaration } = read;
+  const { declaration, arbiter } = read;
 
   const runIdCheck = resolveRunDir(join(root, flowName), runId);
   if (!runIdCheck.ok) fail(runIdCheck.red);
@@ -468,11 +543,18 @@ async function cmdResume(rest) {
   const spendPath = join(runDir, 'spend.jsonl');
   let modelStep;
   try {
-    modelStep = await resolveModelStep(spendPath);
+    modelStep = await resolveModelStep(spendPath, env);
   } catch (err) {
     fail(err.message);
     return;
   }
+
+  // M4d piece 3: the monthly check — the hold is the signed cap minus what this run already spent (its own
+  // state.json; no readable figure = the whole cap, never less).
+  const priorSpent = Number.isFinite(readRunState(runDir)?.spent) ? readRunState(runDir).spent : 0;
+  const hold = takeMonthlyHold({
+    what: 'resume', flow: flowName, runId, runDir, holdUsd: Math.max(0, arbiter.capUsd - priorSpent), spentAtHold: priorSpent,
+  });
 
   // Resume never re-freezes inputs — the run's own `inputs.json` (written at
   // park by `freezeInputs`) is the one source of the already-frozen paths a
@@ -511,6 +593,7 @@ async function cmdResume(rest) {
     businessDate: today(),
   });
 
+  for (const d of rerunDirs(result, join(root, flowName))) hold.addRunDir(d);
   reportRunResult(result, { rootArg: values.root });
 }
 
@@ -563,6 +646,7 @@ async function cmdDraft(rest) {
     },
     allowPositionals: true,
   });
+  const env = keyedEnv();
   const proseFile = positionals[0];
   if (!proseFile) fail('draft: a prose file is required — fwdloop draft <prose.txt> --out <draftDir> --root <flowsDir> --name <flow> [--budget <usd>]');
   for (const req of ['out', 'root', 'name']) if (!values[req]) fail(`draft: --${req} is required`);
@@ -572,12 +656,33 @@ async function cmdDraft(rest) {
     const mod = await import(pathToFileURL(resolve(process.env.FWDLOOP_TEST_DRAFT_PROVIDER)).href);
     injected = await mod.default();
   }
+  // The key preflight comes first (draftToDir repeats it), so an unset key keeps its own message ahead of the NODE_ENV refusal.
+  if (injected.provider == null) {
+    const keyCheck = checkKeyPreflight('deepseek', env);
+    if (!keyCheck.ok) fail(`draft refused at $0 — ${keyCheck.message}`);
+  }
+  // M4d piece 3: the monthly check — a draft has no signed cap, so it holds one ceiling round, priced by the
+  // ONE price lookup (an injected test provider carries its own rates).
+  let ceiling;
+  try {
+    const priceConfig = readPriceConfig();
+    const modelId = injected.modelId ?? resolveSlot('deepseek', { config: priceConfig }).model;
+    const prices = injected.rates ? { rates: injected.rates } : resolvePrices(modelId, { slot: 'deepseek', config: priceConfig });
+    ceiling = ceilingCostUsd(modelId, undefined, { prices });
+  } catch (err) {
+    if (!(err instanceof ConfigError)) throw err;
+    fail(`${err.message} — refusing to draft rather than guess the price. Nothing spent.`);
+  }
+  takeMonthlyHold({
+    what: 'draft', flow: values.name, runId: null, runDir: resolve(values.out), holdUsd: ceiling,
+  });
   const result = await draftToDir({
     proseFile: resolve(proseFile),
     dir: resolve(values.out),
     root: resolve(values.root),
     name: values.name,
     budgetUsd: values.budget === undefined ? undefined : Number(values.budget),
+    env,
     ...injected,
   });
   const cost = result.costUsd === null ? 'UNKNOWN' : costText(Number(result.costUsd), result.spendComplete);
@@ -601,6 +706,7 @@ async function cmdSign(rest) {
     options: { approve: { type: 'string' }, 'signed-by': { type: 'string' } },
     allowPositionals: true,
   });
+  const env = keyedEnv(); // sign takes no key, but its leak sweep must know the file's keys too
   const dir = positionals[0];
   if (!dir) fail('sign: a draft dir is required — fwdloop sign <dir> --approve <hash>');
   // Amendment 2: a person at a keyboard. TTY check first (cheapest), then the typed flow name; only then
@@ -613,7 +719,7 @@ async function cmdSign(rest) {
   const typed = await confirmTypedName({ name: flowName });
   if (!typed.ok) fail(`sign refused — ${typed.red}`);
   const result = signDraft({
-    dir: resolve(dir), approve: values.approve, signedBy: values['signed-by'] ?? userInfo().username,
+    dir: resolve(dir), approve: values.approve, signedBy: values['signed-by'] ?? userInfo().username, env,
   });
   if (!result.ok) fail(`sign refused — ${result.reds.join('; ')}`);
   process.stdout.write(`signed: ${result.flowDir} (by ${result.signature.signedBy})\n`);

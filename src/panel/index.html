@@ -486,6 +486,39 @@
     td.am-detail .am-d{margin:0 0 3px;}
     td.am-detail .am-d b{color:var(--text);font-weight:600;}
   }
+
+  /* M4d piece 4: the Settings view (a sibling of #main-view, opened from the header). Layout borrowed from bareloop:
+     one provider table inside a scrolling .table-wrap, a KEYS strip, a money strip. Inputs are 16px so a phone does not zoom. */
+  /* borrowed-from: bareloop src/panel/index.html@5a5a811 */
+  .settings-view{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;min-width:0;}
+  .settings-view .pane-body{flex:none;overflow:visible;}
+  .settings-header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:2px solid var(--border-strong);background:var(--panel);}
+  .settings-header h2{margin:0;font-size:15px;display:inline;}
+  .settings-header h2::before{content:"┤ ";color:var(--text-faint);}
+  .settings-header h2::after{content:" ├";color:var(--text-faint);}
+  .money-strip{display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;align-items:end;padding:10px;border:1px solid var(--border-strong);background:var(--panel2);}
+  .money-item{min-width:0;}
+  .money-item label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;}
+  .money-value{font-size:16px;font-weight:700;padding:6px 0;overflow-wrap:anywhere;}
+  .money-item input{width:100%;height:44px;box-sizing:border-box;}
+  .keyfile-strip{position:relative;border:1px solid var(--border-strong);padding:12px 12px 8px;background:var(--panel2);margin:14px 0;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .keyfile-strip::before{content:"┤ KEYS ├";position:absolute;top:-9px;left:10px;background:var(--panel2);padding:0 4px;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;}
+  .keyfile-strip-main{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;overflow-wrap:anywhere;}
+  .keyfile-strip-actions{display:flex;gap:6px;flex:none;}
+  .keyfile-strip code{background:var(--bg);border:1px solid var(--border-strong);padding:1px 5px;font-size:11px;color:var(--amber);overflow-wrap:anywhere;}
+  .settings-view input,.settings-view select{font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);}
+  .pv-table td,.pv-table th{white-space:nowrap;vertical-align:top;}
+  .pv-table select,.pv-table input{min-height:32px;max-width:190px;box-sizing:border-box;}
+  .pv-table .hint{display:block;margin-top:3px;}
+  /* the Test cell keeps ONE width whatever the result says ("testing…", "OK · 312 ms", a long failure note) */
+  .pv-table td.pv-test-cell{width:180px;min-width:180px;max-width:180px;}
+  .pv-table .pv-test-result,.pv-table .pv-msg,.pv-table .pv-balance-result{white-space:normal;overflow-wrap:anywhere;}
+  .pv-table td.pv-price-cell{width:170px;min-width:170px;max-width:170px;}
+  .hint.bad{color:var(--red);}
+  .table-wrap{overflow-x:auto;border:1px solid var(--border-strong);background:var(--panel2);max-width:100%;}
+  @media (max-width: 899px){
+    .money-strip{grid-template-columns:1fr 1fr;}
+  }
 </style>
 </head>
 <body>
@@ -499,9 +532,72 @@
     </div>
     <div class="topbar-right">
       <span class="hint" id="host-line"></span>
+      <button class="btn small" id="settings-open" type="button" data-testid="settings-open">&#9881; Settings</button>
       <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle light/dark theme">&#9789;</button>
     </div>
   </header>
+
+  <!-- borrowed-from: bareloop src/panel/index.html@5a5a811 -->
+  <div class="settings-view" id="settings-view" data-testid="settings-view" hidden>
+    <div class="settings-header">
+      <button class="btn small" id="settings-back" type="button" data-testid="settings-back">&larr; Back</button>
+      <h2>Settings</h2>
+    </div>
+    <div class="tabrow" role="tablist" aria-label="Settings views">
+      <button role="tab" id="stab-providers" aria-controls="spanel-providers" aria-selected="true" data-testid="settings-tab-providers">Providers</button>
+      <button role="tab" id="stab-money" aria-controls="spanel-money" aria-selected="false" data-testid="settings-tab-money">Money &amp; limits</button>
+    </div>
+    <div class="pane-body">
+      <section id="spanel-providers" class="tabpanel active" role="tabpanel" aria-labelledby="stab-providers">
+        <div class="keyfile-strip" data-testid="keys-strip">
+          <div class="keyfile-strip-main">
+            <span>Put <code>NAME=key</code> lines in <code id="keys-path" data-testid="keys-path">~/.config/fwdloop/.env</code>, then Reload keys &mdash; each row below says whether its key is set. Only names are listed; keys never reach this page.</span>
+            <span class="hint bad" id="keys-refusal" data-testid="keys-refusal"></span>
+          </div>
+          <div class="keyfile-strip-actions">
+            <button class="btn small" id="reload-keys" type="button" data-testid="reload-keys">Reload keys</button>
+          </div>
+        </div>
+        <div class="table-wrap" data-testid="provider-table-wrap">
+          <table class="pv-table" data-testid="provider-table">
+            <thead>
+              <tr><th>Key</th><th>Name</th><th>API shape</th><th>Base URL</th><th>Test</th><th>Tokens used</th><th>Balance</th><th>In $/1M</th><th>Cached in $/1M</th><th>Out $/1M</th></tr>
+            </thead>
+            <tbody id="pv-rows"></tbody>
+          </table>
+        </div>
+        <div class="hint" id="pv-note" data-testid="pv-note" style="margin-top:6px;">Test asks the provider for its model list &mdash; it costs nothing. A price left empty uses the default; a typed price applies from the next model call on.</div>
+      </section>
+      <section id="spanel-money" class="tabpanel" role="tabpanel" aria-labelledby="stab-money" hidden>
+        <div class="money-strip" data-testid="money-strip">
+          <div class="money-item">
+            <label>$ month / to date</label>
+            <div class="money-value" id="ml-usd" data-testid="ml-usd">&hellip;</div>
+          </div>
+          <div class="money-item">
+            <label>Tokens month / to date</label>
+            <div class="money-value" id="ml-tokens" data-testid="ml-tokens">&hellip;</div>
+          </div>
+          <div class="money-item">
+            <label for="ml-money">Monthly money limit ($)</label>
+            <input id="ml-money" type="text" inputmode="decimal" placeholder="blank = no limit" data-testid="ml-money">
+          </div>
+        </div>
+        <div class="hint" id="ml-note" data-testid="ml-note" style="margin-top:6px;">Limits are yours. The agent can never change them. A run whose cap is more than what is left this month does not start.</div>
+        <div class="hint" id="ml-extra" data-testid="ml-extra"></div>
+        <div class="hint" id="ml-msg" data-testid="ml-msg"></div>
+        <h4 style="margin-top:20px;font-size:13px;">Per-provider breakdown</h4>
+        <div class="table-wrap">
+          <table data-testid="provider-breakdown-table">
+            <thead>
+              <tr><th>Provider</th><th>$ month / to date</th><th>minutes month / to date</th><th>tokens</th></tr>
+            </thead>
+            <tbody id="ml-breakdown"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
 
   <div class="main" id="main-view">
 
@@ -3128,6 +3224,241 @@
     });
     return true;
   }
+
+  // ---- M4d piece 4: Settings. Nothing here is re-rendered by the page's refresh tick: the Settings DOM is
+  // painted only when it is opened, a tab is chosen, or a button here is pressed — and a price/limit box the
+  // person has typed in ("dirty") is never overwritten by a repaint. No key value ever reaches this page. ----
+  function fmtUsd(n, atLeast){
+    if(typeof n !== "number" || !isFinite(n)) return "unknown";
+    return (atLeast ? "≥" : "") + "$" + n.toFixed(4);
+  }
+  function fmtMinutes(m, atLeast){
+    if(typeof m !== "number" || !isFinite(m)) return "not recorded";
+    return (atLeast ? "≥" : "") + (m < 10 ? m.toFixed(1) : String(Math.round(m))) + " min";
+  }
+  // borrowed-from: bareloop src/panel/index.html@5a5a811 (tokensText)
+  function tokensText(n){
+    if(!n) return "0";
+    if(n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+    if(n >= 1e3) return (n / 1e3).toFixed(1) + "k";
+    return String(n);
+  }
+  // The server's own plain sentence (`say`) when it sent one; else the same words every other refusal uses.
+  function settingsRefusal(r){
+    var b = r && r.body;
+    if(b && typeof b.say === "string" && b.say) return b.say;
+    return refusalText(r, null);
+  }
+  // borrowed-from: bareloop src/panel/index.html@5a5a811 (Settings: one provider table, a money strip)
+  // A hint line: plain text, red when it is a refusal. Empty text hides nothing and shows nothing.
+  function setNote(el, bad, text){
+    el.className = "hint" + (bad ? " bad" : "");
+    el.textContent = text || "";
+  }
+  var settingsView = document.getElementById("settings-view");
+  var mainView = document.getElementById("main-view");
+  var pvRows = document.getElementById("pv-rows");
+  var pvNote = document.getElementById("pv-note");
+  var PV_NOTE_DEFAULT = pvNote.textContent;
+  document.getElementById("settings-open").addEventListener("click", function(){
+    mainView.hidden = true; settingsView.hidden = false;
+    loadProviders(); loadMoney();
+  });
+  document.getElementById("settings-back").addEventListener("click", function(){
+    settingsView.hidden = true; mainView.hidden = false;
+  });
+  wireTabs([document.getElementById("stab-providers"), document.getElementById("stab-money")]);
+  document.getElementById("stab-money").addEventListener("click", function(){ loadMoney(); });
+  document.getElementById("stab-providers").addEventListener("click", function(){ loadProviders(); });
+
+  function loadProviders(){
+    return getJSON("/api/settings/providers").then(paintProviders, function(e){
+      setNote(document.getElementById("keys-refusal"), true, loadFailureText(e));
+    });
+  }
+  document.getElementById("reload-keys").addEventListener("click", function(){ loadProviders(); });
+
+  function sourceWord(src){
+    if(src === "table") return "default";
+    if(src === "ceiling") return "highest known rate, the model has no listed price";
+    if(src === "default-multiplier") return "default, 0.1 x input";
+    return "set here";
+  }
+  var PRICE_FIELDS = ["inPerM", "cachedInPerM", "outPerM"];
+  // Name, API shape and Base URL are editable (M4d amendment 1), saved on change one field at a time.
+  var PROV_FIELDS = ["name", "shape", "baseUrl"];
+  function buildProviderRow(row){
+    var tr = document.createElement("tr");
+    tr.setAttribute("data-slot", row.slot);
+    tr.setAttribute("data-testid", "provider-row-" + row.slot);
+    var balance = row.canBalance
+      ? '<button class="btn small" type="button" data-act="balance" data-testid="prov-balance">Check</button><div class="hint pv-balance-result" data-f="balance-result"></div>'
+      : '<span class="hint">not offered by this provider</span>';
+    var prices = PRICE_FIELDS.map(function(f){
+      return '<td class="pv-price-cell"><input type="text" inputmode="decimal" data-field="' + f + '" data-testid="price-' + f + '" aria-label="' + escapeXml(row.label + " " + f) + '">' +
+        '<div class="hint pv-msg" data-f="msg-' + f + '" data-testid="price-msg-' + f + '"></div></td>';
+    }).join("");
+    tr.innerHTML =
+      '<td><code>' + escapeXml(row.envVar) + '</code><div class="hint" data-f="status" data-testid="pv-status-' + escapeXml(row.slot) + '"></div></td>' +
+      '<td class="pv-price-cell"><input type="text" data-prov="name" data-testid="prov-name" aria-label="' + escapeXml(row.label + " name") + '" autocomplete="off" spellcheck="false"><div class="hint pv-msg" data-f="msg-name" data-testid="prov-msg-name"></div></td>' +
+      '<td class="pv-price-cell"><select data-prov="shape" data-testid="prov-shape" aria-label="' + escapeXml(row.label + " API shape") + '"></select><div class="hint pv-msg" data-f="msg-shape" data-testid="prov-msg-shape"></div></td>' +
+      '<td class="pv-price-cell"><input type="text" data-prov="baseUrl" data-testid="prov-baseurl" aria-label="' + escapeXml(row.label + " Base URL") + '" autocomplete="off" spellcheck="false"><div class="hint pv-msg" data-f="msg-baseUrl" data-testid="prov-msg-baseUrl"></div></td>' +
+      '<td class="pv-test-cell"><button class="btn small" type="button" data-act="test" data-testid="prov-test">Test</button><div class="hint pv-test-result" data-f="test" data-testid="prov-test-result"></div></td>' +
+      '<td data-f="tokens" data-testid="pv-tokens-' + escapeXml(row.slot) + '"></td>' +
+      '<td>' + balance + '</td>' + prices;
+    tr.querySelectorAll("input").forEach(function(inp){
+      inp.addEventListener("input", function(){ inp.setAttribute("data-dirty", "1"); });
+    });
+    return tr;
+  }
+  var STATUS_WORD = { "set in file": "set in file", "found in shell": "found in shell", "not set": "not set", "refused": "refused — see above" };
+  function paintProviders(data){
+    var path = data.keysFile && data.keysFile.path ? data.keysFile.path : "~/.config/fwdloop/.env";
+    document.getElementById("keys-path").textContent = path;
+    setNote(document.getElementById("keys-refusal"), true, data.keysFile && data.keysFile.refusal);
+    setNote(pvNote, !!data.configProblem, data.configProblem || PV_NOTE_DEFAULT);
+    data.rows.forEach(function(row){
+      var tr = pvRows.querySelector('[data-slot="' + row.slot + '"]');
+      if(!tr){ tr = buildProviderRow(row); pvRows.appendChild(tr); }
+      tr.querySelector("[data-f=status]").textContent = STATUS_WORD[row.keyStatus] || row.keyStatus;
+      var nameIn = tr.querySelector('[data-prov=name]');
+      var shapeSel = tr.querySelector('[data-prov=shape]');
+      var urlIn = tr.querySelector('[data-prov=baseUrl]');
+      if(shapeSel.options.length !== data.shapes.length){
+        shapeSel.innerHTML = "";
+        data.shapes.forEach(function(sh){
+          var o = document.createElement("option");
+          o.value = sh.id; o.textContent = sh.label; shapeSel.appendChild(o);
+        });
+      }
+      nameIn.placeholder = row.defaults.model;
+      urlIn.placeholder = row.defaults.baseUrl !== "" ? row.defaults.baseUrl : "the vendor's own address";
+      // a box the person is typing in is never overwritten by a repaint
+      if(nameIn.getAttribute("data-dirty") !== "1") nameIn.value = row.model;
+      if(urlIn.getAttribute("data-dirty") !== "1") urlIn.value = row.savedBaseUrl;
+      if(document.activeElement !== shapeSel) shapeSel.value = row.shape;
+      tr.querySelector("[data-f=tokens]").textContent = tokensText(row.tokens);
+      PRICE_FIELDS.forEach(function(f){
+        var inp = tr.querySelector('input[data-field="' + f + '"]');
+        var pr = row.price[f];
+        inp.placeholder = String(pr.value) + " (" + sourceWord(pr.source) + ")";
+        inp.title = inp.placeholder;
+        // a box the person has typed in is never overwritten by a repaint
+        if(inp.getAttribute("data-dirty") !== "1") inp.value = pr.source === "settings" ? String(pr.value) : "";
+      });
+    });
+  }
+  pvRows.addEventListener("click", function(ev){
+    var b = ev.target.closest && ev.target.closest("button[data-act]");
+    if(!b) return;
+    var tr = b.closest("tr");
+    if(b.getAttribute("data-act") === "test") runTest(tr, tr.getAttribute("data-slot"));
+    else if(b.getAttribute("data-act") === "balance") runBalance(tr, tr.getAttribute("data-slot"));
+  });
+  // Saved like bareloop saves a row field: on change (blur or Enter), no Save button.
+  pvRows.addEventListener("change", function(ev){
+    var inp = ev.target;
+    if(!inp.getAttribute) return;
+    if(inp.getAttribute("data-prov")){ saveProvider(inp.closest("tr"), inp); return; }
+    if(!inp.getAttribute("data-field")) return;
+    savePrice(inp.closest("tr"), inp.getAttribute("data-field"));
+  });
+  function runTest(tr, slot){
+    var out = tr.querySelector("[data-f=test]");
+    out.textContent = "testing…";
+    postJSON("/api/settings/test", { slot: slot }).then(function(r){
+      var b = r.body;
+      out.textContent = b && b.ok ? "OK · " + b.ms + " ms" : (b && b.why ? b.why : settingsRefusal(r));
+    }, function(){ out.textContent = networkText(); });
+  }
+  // Balance is read on a click, never on render (signed M4d: "read on a click").
+  function runBalance(tr, slot){
+    var out = tr.querySelector("[data-f=balance-result]");
+    out.textContent = "checking…";
+    getJSON("/api/settings/balance?slot=" + encodeURIComponent(slot)).then(function(b){
+      if(b.ok) out.textContent = b.balances.map(function(x){ return x.total + " " + x.currency; }).join(" + ");
+      else out.textContent = b.why || "Could not check the balance.";
+    }, function(e){ out.textContent = loadFailureText(e); });
+  }
+  // A box the person typed: empty = back to the default (null); a number is sent as a number; anything else is
+  // sent as the text typed, so the server refuses it by naming the box.
+  function priceValue(text){
+    var t = String(text).trim();
+    if(t === "") return null;
+    var n = Number(t);
+    return isFinite(n) ? n : t;
+  }
+  function savePrice(tr, changed){
+    var msg = tr.querySelector("[data-f=msg-" + changed + "]");
+    var payload = { slot: tr.getAttribute("data-slot") };
+    tr.querySelectorAll("input[data-field]").forEach(function(inp){ payload[inp.getAttribute("data-field")] = priceValue(inp.value); });
+    postJSON("/api/settings/price", payload).then(function(r){
+      if(r.body && r.body.ok){
+        tr.querySelectorAll("input[data-field]").forEach(function(inp){ inp.removeAttribute("data-dirty"); });
+        loadProviders();
+        setNote(msg, false, "saved — applies from the next model call");
+      } else setNote(msg, true, settingsRefusal(r));
+    }, function(){ setNote(msg, true, networkText()); });
+  }
+
+  // One field per save: {slot, name|shape|baseUrl}. An empty Base URL means the default; a refusal is the cell's hint line.
+  function saveProvider(tr, inp){
+    var key = inp.getAttribute("data-prov");
+    var msg = tr.querySelector("[data-f=msg-" + key + "]");
+    var payload = { slot: tr.getAttribute("data-slot") };
+    payload[key] = inp.value.trim();
+    postJSON("/api/settings/provider", payload).then(function(r){
+      if(r.body && r.body.ok){
+        inp.removeAttribute("data-dirty");
+        loadProviders();
+        setNote(msg, false, "saved — applies from the next model call");
+      } else setNote(msg, true, settingsRefusal(r));
+    }, function(){ setNote(msg, true, networkText()); });
+  }
+
+  function loadMoney(){
+    return getJSON("/api/settings/money").then(paintMoney, function(e){
+      setNote(document.getElementById("ml-msg"), true, loadFailureText(e));
+    });
+  }
+  var mlLimit = document.getElementById("ml-money");
+  function paintMoney(d){
+    var m = d.month, t = d.total;
+    document.getElementById("ml-usd").textContent = fmtUsd(m.usd, m.atLeast) + " / " + fmtUsd(t.usd, t.atLeast);
+    document.getElementById("ml-tokens").textContent = tokensText(m.tokens) + " / " + tokensText(t.tokens);
+    var notes = [];
+    if(d.preM4dRunsNotCounted) notes.push("Runs from before Settings existed are not counted here.");
+    if(d.undatedRows > 0) notes.push(d.undatedRows + (d.undatedRows === 1 ? " older spend row has no date; it counts in to date only." : " older spend rows have no date; they count in to date only."));
+    document.getElementById("ml-extra").textContent = notes.join(" ");
+    if(document.activeElement !== mlLimit && mlLimit.getAttribute("data-dirty") !== "1") mlLimit.value = typeof d.monthlyLimitUsd === "number" ? String(d.monthlyLimitUsd) : "";
+    if(d.configProblem) setNote(document.getElementById("ml-msg"), true, d.configProblem);
+    var names = Object.keys(d.byProvider || {});
+    document.getElementById("ml-breakdown").innerHTML = names.length ? names.map(function(k){
+      var p = d.byProvider[k];
+      return '<tr data-testid="break-row"><td>' + escapeXml(p.label) + '</td>' +
+        '<td>' + escapeXml(fmtUsd(p.month.usd, p.month.atLeast) + " / " + fmtUsd(p.total.usd, p.total.atLeast)) + '</td>' +
+        '<td>' + escapeXml(breakMinutes(p.month) + " / " + breakMinutes(p.total)) + '</td>' +
+        '<td>' + escapeXml(tokensText(p.total.tokens)) + '</td></tr>';
+    }).join("") : '<tr><td colspan="4" class="hint">no spend yet</td></tr>';
+  }
+  // "not recorded" only when there was spend but no minutes; a period with no spend at all is "0 min".
+  function breakMinutes(b){
+    if(b.modelMinutes === null && b.usd === 0 && !b.atLeast && b.tokens === 0) return "0 min";
+    return fmtMinutes(b.modelMinutes, b.modelMinutesAtLeast);
+  }
+  mlLimit.addEventListener("input", function(){ this.setAttribute("data-dirty", "1"); });
+  // Saved like bareloop saves it: on change (blur or Enter).
+  mlLimit.addEventListener("change", function(){
+    var msg = document.getElementById("ml-msg");
+    postJSON("/api/settings/money", { monthlyLimitUsd: priceValue(mlLimit.value) }).then(function(r){
+      if(r.body && r.body.ok){
+        mlLimit.removeAttribute("data-dirty");
+        loadMoney().then(function(){
+          setNote(msg, false, r.body.monthlyLimitUsd === null ? "saved — no monthly limit" : "saved — the limit is now $" + r.body.monthlyLimitUsd);
+        });
+      } else setNote(msg, true, settingsRefusal(r));
+    }, function(){ setNote(msg, true, networkText()); });
+  });
 
   // theme toggle
   (function(){
