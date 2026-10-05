@@ -61,7 +61,7 @@ test('askBoxOpenFor: open only at the sign step; dimmed and emptied at every oth
   assert.equal(open({ ...base, session: false, phase: 'green', signClicked: true }), false);
   assert.equal(open({ ...base, mode: 'run', session: true, phase: 'green', signClicked: true }), false);
   // the page empties and disables the box whenever it is not open
-  assert.match(fnSrc('renderMain'), /msgInput\.disabled = !open;\s*if\(!open\) msgInput\.value = "";/);
+  assert.match(fnSrc('renderMain'), /msgInput\.disabled = !open;[\s\S]*?if\(!open\) msgInput\.value = "";/);
 });
 
 test('field set: the New job card has exactly the signed boxes; bareloop-only boxes are gone; the card box is captioned Destination', () => {
@@ -78,7 +78,7 @@ test('field set: the New job card has exactly the signed boxes; bareloop-only bo
   assert.match(SECTION, /name="jf-mode" value="new" checked/);
   assert.match(SECTION, /Where the accepted result is placed/);
   assert.match(SECTION, /Only your click signs\./);
-  assert.match(SECTION, /placeholder="Type the flow name to sign"/);
+  assert.doesNotMatch(SECTION, /id="chat-msg"[^>]*placeholder=/, 'the placeholder is set by renderMain only while the box is open');
   assert.match(CHAT, /borrowed-from: bareloop src\/panel\/index\.html@ca7195e/);
   assert.match(PAGE, /--field-bg:#ffffff; --field-soft-bg:#f7f7f9;[\s\S]*--field-bg:#ffffff; --field-soft-bg:#f7f7f9;/, 'field tokens in both light blocks');
   assert.match(PAGE, /--field-bg:var\(--bg\); --field-soft-bg:var\(--bg\); --field-border:var\(--text-dim\);/, 'and the dark default');
@@ -140,4 +140,25 @@ test('the Chat tab keeps the page rules: no token on the page, every POST goes t
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign-prepare"/);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign", \{hash: signInfo\.hash, typedName: msgInput\.value, runId: signInfo\.runId\}/);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/abandon"/);
+});
+
+test('F4 the ask box shows "Type the flow name to sign" only while it is open at the sign step; empty otherwise', () => {
+  // renderMain runs in one scope with the page's own functions and stand-ins for its state and boxes ('STALE' = what the box held before)
+  const run = (state) => new Function(`
+    var mode = ${JSON.stringify(state.mode)}, startOk = true, busy = false, startId = null, signClickedOnce = ${!!state.signClicked}, sessionLive = ${!!state.session}, lastState = ${JSON.stringify(state.lastState ?? null)}, signInfo = null, mainAction = 'none';
+    var msgInput = { disabled: false, value: '', placeholder: 'STALE' };
+    var mainBtn = { textContent: '', disabled: false }, mainHint = { textContent: '' };
+    function selectedFlow(){ return null; } function fitBox(){} function fitCardBoxes(){}
+    ${fnSrc('askBoxOpenFor')}
+    ${fnSrc('mainButtonFor')}
+    ${fnSrc('renderMain')}
+    renderMain();
+    return msgInput;
+  `)();
+  assert.equal(run({ mode: 'new' }).placeholder, '', 'empty card: closed');
+  assert.equal(run({ mode: 'new', session: true, lastState: { phase: 'green' } }).placeholder, '', 'green, sign not clicked yet: closed');
+  assert.equal(run({ mode: 'run' }).placeholder, '', 'run mode: closed');
+  const open = run({ mode: 'new', session: true, signClicked: true, lastState: { phase: 'green' } });
+  assert.equal(open.disabled, false);
+  assert.equal(open.placeholder, 'Type the flow name to sign', 'open at the sign step');
 });

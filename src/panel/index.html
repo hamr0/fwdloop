@@ -785,7 +785,7 @@
 
           <div class="chat-input-row">
             <label for="chat-msg" style="display:none">Type the flow name to sign</label>
-            <textarea id="chat-msg" rows="2" placeholder="Type the flow name to sign" data-testid="chat-msg" autocomplete="off" spellcheck="false"></textarea>
+            <textarea id="chat-msg" rows="2" data-testid="chat-msg" autocomplete="off" spellcheck="false"></textarea>
           </div>
           <button class="btn primary wide" type="button" id="chat-main-btn" data-testid="chat-main" disabled>Draft</button>
           <div class="hint" id="chat-main-hint" data-testid="chat-main-hint"></div>
@@ -3770,6 +3770,7 @@
       // the ask box is open only at the sign step (the flow name to type); otherwise dimmed and emptied
       var open = askBoxOpenFor(st);
       msgInput.disabled = !open;
+      msgInput.placeholder = open ? "Type the flow name to sign" : "";
       if(!open) msgInput.value = "";
       var b = mainButtonFor(st, !msgInput.value.trim());
       mainBtn.textContent = b.text;
