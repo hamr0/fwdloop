@@ -28,6 +28,7 @@ import { canonicalBytes } from './signature.js';
 import { writeFlow, readFileInside, readdirInside, checkFlowName } from './flow.js';
 import { checkSendDestination } from './runner.js';
 import { PROVIDER_SLOTS, checkKeyPreflight, appendSpendRow } from './provider.js';
+import { writeDraftSpend } from './draftspend.js';
 
 export const DRAFT_BUDGET_USD = 0.10;
 export const SPEC_HASH_FILE = 'spec.hash';
@@ -205,8 +206,26 @@ export async function draftToDir({
     return e.code === 'EEXIST' ? exists() : refuse([`draft: cannot create "${dir}": ${e.code ?? e.message}`]);
   }
 
+  // Spend is booked per call into `<dir>/draft-spend.json` (src/draftspend.js), so a draft stopped between rounds
+  // keeps what it paid. The first write is the mark that a call is in flight: if that cannot be written, the call is not made.
+  let startedAt = null;
+  const onBook = ({
+    inFlight, calls, unmetered, metered, modelId: usedModel, price,
+  }) => {
+    const now = new Date().toISOString();
+    startedAt ??= now;
+    try {
+      writeDraftSpend(dir, {
+        kind: 'draft-live', provider: slot, model: usedModel ?? modelId ?? null, price: price ?? null, tokens: metered.tokens, costUsd: metered.costUsd, rounds: metered.rounds,
+        calls, spendComplete: !inFlight && unmetered === 0 && metered.costUsd !== null, inFlight, at: startedAt, startedAt, updatedAt: now,
+      });
+    } catch (e) {
+      if (inFlight) throw new Error(`draft: cannot book the spend before the call (${e.code ?? e.message}) — nothing was spent`);
+      // after a call the cost is already in the file as "one call in flight" (a ceiling): the honest direction, so no throw
+    }
+  };
   const result = await draft({
-    proseText: prose.text, slot, model, budgetUsd, provider, rates, modelId, env,
+    proseText: prose.text, slot, model, budgetUsd, provider, rates, modelId, env, onBook,
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }

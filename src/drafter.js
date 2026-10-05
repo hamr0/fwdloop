@@ -176,13 +176,17 @@ export const DRAFT_PROVIDER_OPTIONS = Object.freeze({ ...LIVE_PROVIDER_OPTIONS, 
  * the batch); otherwise a live provider is built from `slot` (throws on a bad
  * key — the batch preflights first). `budgetUsd` is this draft's hard cap.
  * `makeProviderFn` is a test seam: the live-provider factory (default `makeProvider`).
+ * `onBook` (M4e piece 2a, scope 13): called right BEFORE each provider call (`inFlight: true`, the call counted in
+ * `calls`) and right AFTER it (`inFlight: false`), with what is known so far, so the caller can book spend per call
+ * and a draft killed between rounds still has its paid rounds on disk. It may throw before a call (nothing is
+ * spent then and the draft stops); after a call it is the caller's to keep from throwing.
  *
  * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number, calls:number, spendComplete:boolean,
  *   costUsd:number|null, modelReturned:string|null, modelId?:string, price?:object|null, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[]}>}
  */
 export async function draft({
   proseText, slot = 'deepseek', model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
-  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider,
+  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook,
 }) {
   const fail = (reds, extra = {}) => ({
     ok: false, declaration: null, reds, rounds: 0, calls: 0, spendComplete: true, costUsd: 0, modelReturned: null, structureRetries: 0, revisions: 0, stop: 'pre-flight', log: [], ...extra,
@@ -255,6 +259,10 @@ export async function draft({
     let result;
     let threw = null;
     calls += 1;
+    const book = (inFlight) => onBook?.({
+      inFlight, calls, unmetered, metered: sumMeterings(meterings), modelId, price: priceRecord(prices, rates),
+    });
+    book(true);
     try {
       result = await loop.run(
         [{ role: 'system', content: system }, { role: 'user', content: userText }],
@@ -265,6 +273,7 @@ export async function draft({
       threw = err;
       if (roundEvents.length === 0) unmetered += 1;
     }
+    book(false);
     const entry = { round: log.length + 1, kind: nextKind };
 
     if (threw) {

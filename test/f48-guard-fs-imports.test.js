@@ -404,6 +404,10 @@ const ALLOWLIST = {
       accessSync: 1, constants: 1, lstatSync: 1, realpathSync: 1, statSync: 1,
     },
   },
+  'src/draftspend.js': {
+    reason: 'M4e piece 2a: the draft folder\'s own per-call spend record (`draft-spend.json`) — one atomic write (tmp + rename) of the file the drafter just booked into, in the draft dir `draftToDir` itself created. Every READ goes through readFileInside/readSpendRows.',
+    names: { renameSync: 1, writeFileSync: 1 },
+  },
   'src/panel/lock.js': {
     reason: 'M4c-fix amendment 2 (h): the human\'s "Remove the old lock" — realpaths the run dir and --root at use time (the lock must sit inside this run, inside root), then unlinks the one `resume.lock` file, and only when `readResumeLock` (the one lock reader) says it has no recorded holder. No book content is read.',
     names: { realpathSync: 3, unlinkSync: 1 },

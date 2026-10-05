@@ -26,7 +26,8 @@ import { randomUUID } from 'node:crypto';
 
 import { readConfig, configHome, ConfigError } from './config.js';
 import { isFwdloopAlive, procStartOf } from './liveness.js';
-import { readSpendRows, spendRowCost } from './provider.js';
+import { spendRowCost } from './provider.js';
+import { readDirSpendRows } from './draftspend.js';
 
 export { ConfigError };
 
@@ -81,9 +82,9 @@ function namedDirs(rows) {
   return [...dirs];
 }
 
-/** One dir's total spend (every row, `spendRowCost`). */
+/** One dir's total spend (every row, `spendRowCost`; a draft dir's live record until its final row exists — src/draftspend.js). */
 function dirSpend(dir) {
-  return readSpendRows(join(dir, 'spend.jsonl')).reduce((n, r) => n + spendRowCost(r).usd, 0);
+  return readDirSpendRows(dir).reduce((n, r) => n + spendRowCost(r).usd, 0);
 }
 
 /**
@@ -107,7 +108,7 @@ export function spendSummary(opts = {}) {
     else b.modelMs = (b.modelMs ?? 0) + wall;
   };
   for (const dir of namedDirs(readRuns(opts.home))) {
-    for (const row of readSpendRows(join(dir, 'spend.jsonl'))) {
+    for (const row of readDirSpendRows(dir)) {
       const { usd, complete } = spendRowCost(row);
       const tokens = tokensOf(row.tokens);
       const wall = Number.isFinite(row.wallMs) && row.wallMs >= 0 ? row.wallMs : null;
