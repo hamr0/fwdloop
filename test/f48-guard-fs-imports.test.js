@@ -308,9 +308,9 @@ const ALLOWLIST = {
     },
   },
   'src/runner.js': {
-    reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create + stale-lock clear + cleanup, M4c amendment 2) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above); M4e amendment 1: checkSendDestination realpaths/stats the send FOLDER (a business destination, not a book) and the refused folders',
+    reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create + stale-lock clear + cleanup, M4c amendment 2) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above); M4e amendment 1: checkSendDestination realpaths/stats the send FOLDER (a business destination, not a book) and the refused folders; the flow-folder test (existsSync of a FLOW_FILES file under the root child)',
     names: {
-      accessSync: 1, closeSync: 2, constants: 1, copyFileSync: 1, existsSync: 7,
+      accessSync: 1, closeSync: 2, constants: 1, copyFileSync: 1, existsSync: 8,
       mkdirSync: 6, openSync: 1, readFileSync: 3, realpathSync: 5, renameSync: 1,
       statSync: 2, unlinkSync: 3, writeFileSync: 5,
     },

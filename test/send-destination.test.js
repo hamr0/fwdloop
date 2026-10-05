@@ -33,7 +33,10 @@ before(() => {
   root = join(base, 'flows');
   runDir = join(root, 'flowA', 'runs', 'r1');
   dest = join(base, 'dest');
-  for (const d of [cfg, runDir, join(runDir, 'inputs'), join(root, 'flowB'), dest]) mkdirSync(d, { recursive: true });
+  for (const d of [cfg, runDir, join(runDir, 'inputs'), join(root, 'flowB'), join(root, 'results'), join(root, '.drafts', 'x'), dest]) mkdirSync(d, { recursive: true });
+  // a flow folder = holds any of the flow's files (FLOW_FILES in src/flow.js)
+  writeFileSync(join(root, 'flowB', 'signature.json'), '{}');
+  mkdirSync(join(root, 'flowB', 'sub'));
   process.env.FWDLOOP_CONFIG_HOME = cfg;
   ctx = { root, runDir };
 });
@@ -65,7 +68,7 @@ test('(c) the run folder, its inputs/, a flow folder and the config folder are r
     [runDir, /run's own folder/],
     [join(runDir, 'inputs'), /run's own folder/],
     [join(root, 'flowB'), /flow folder/],
-    [root, /flow folder/],
+    [root, /flow root/],
     [cfg, /config folder/],
   ];
   for (const [folder, why] of refusals) {
@@ -120,4 +123,28 @@ test('(f) a target that is a file, or missing, is refused at sign', () => {
     assert.match(r.red, /not an existing folder/);
   }
   unlinkSync(file);
+});
+
+test('(g) a plain folder under the root (not a flow) is allowed at sign and the send writes there', async () => {
+  const folder = join(root, 'results');
+  const signTime = checkSendDestination(`file:${folder}`, { root });
+  assert.equal(signTime.ok, true, signTime.red);
+  const r = await send(`file:${folder}`);
+  assert.equal(r.ok, true, r.red);
+  assert.equal(readFileSync(join(folder, 'run1-out.json'), 'utf8'), serializeArtifact(ARTIFACT));
+  unlinkSync(join(folder, 'run1-out.json'));
+});
+
+test('(h) inside a flow folder, the flow root itself, and .drafts are refused by name', () => {
+  const cases = [
+    [join(root, 'flowB', 'sub'), /is a flow folder/],
+    [root, /is the flow root/],
+    [join(root, '.drafts', 'x'), /refused/],
+    [join(root, '.drafts'), /refused/],
+  ];
+  for (const [folder, why] of cases) {
+    const d = checkSendDestination(`file:${folder}`, { root });
+    assert.equal(d.ok, false, `${folder} must be refused`);
+    assert.match(d.red, why);
+  }
 });

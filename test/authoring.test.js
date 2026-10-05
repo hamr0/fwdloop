@@ -319,7 +319,7 @@ test('sign: a send target inside the flow root is refused at sign by name, no fl
   assert.equal(d.r.ok, true, JSON.stringify(d.r.reds));
   const s = signDraft({ dir: d.dir, approve: d.r.hash, signedBy: 'alice' });
   assert.equal(s.ok, false);
-  assert.match(s.reds.join(' '), /is a flow folder/);
+  assert.match(s.reds.join(' '), /is the flow root/);
   assert.ok(!existsSync(path.join(flowsRoot, 'job2')), 'no flow dir was written');
 });
 

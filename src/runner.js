@@ -46,7 +46,7 @@ import {
 import { fileURLToPath } from 'node:url';
 
 import {
-  readFlow, resolveRunDir, readFileInside, resolveInside,
+  readFlow, resolveRunDir, readFileInside, resolveInside, FLOW_FILES,
 } from './flow.js';
 import {
   writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen,
@@ -346,8 +346,8 @@ const isInside = (child, base) => child === base || child.startsWith(base + sep)
  *  fenced inside it (lexically AND after realpath — a symlink inside the repo
  *  pointing outside must not pass). Either way, with `realpathSync` (symlinks
  *  followed), the folder must exist, be a folder, be writable, and must NOT be
- *  the run's own folder (its records and `inputs/`), the panel/CLI flow root or
- *  any flow folder under it, or the fwdloop config folder (holds the keys).
+ *  the run's own folder (its records and `inputs/`), the panel/CLI flow root, any flow
+ *  folder under it (one holding a FLOW_FILES file) or `<root>/.drafts`, or the fwdloop config folder (holds the keys).
  *  Called at sign time and re-called at write time (time-of-check vs
  *  time-of-use, M0's own fix) — the one rule for both.
  *  @param {string} target
@@ -386,8 +386,20 @@ export function checkSendDestination(target, ctx = {}) {
   }
   const refused = [];
   if (ctx.runDir) refused.push([realOrResolved(ctx.runDir), "the run's own folder (its records and inputs)"]);
-  if (ctx.root) refused.push([realOrResolved(ctx.root), 'a flow folder (the flow root)']);
   refused.push([realOrResolved(configHome(configDoorHome().home)), 'the fwdloop config folder']);
+  if (ctx.root) {
+    const realRoot = realOrResolved(ctx.root);
+    if (realDir === realRoot) {
+      return { ok: false, red: `destination: send target "${target}" is the flow root (${realDir}) — refused` };
+    }
+    if (isInside(realDir, realRoot)) {
+      const child = realDir.slice(realRoot.length + 1).split(sep)[0];
+      const childDir = join(realRoot, child);
+      // a flow folder = holds any of the flow's own files (the same FLOW_FILES `src/flow.js` writes)
+      if (FLOW_FILES.some((f) => existsSync(join(childDir, f)))) refused.push([childDir, 'a flow folder']);
+      else if (child === '.drafts') refused.push([childDir, 'the panel drafts folder']);
+    }
+  }
   for (const [base, what] of refused) {
     if (isInside(realDir, base)) {
       return { ok: false, red: `destination: send target "${target}" is ${what} (${realDir}) — refused` };
