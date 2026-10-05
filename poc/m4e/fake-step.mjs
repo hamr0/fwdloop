@@ -12,7 +12,8 @@ export default function make() {
     await new Promise((r) => { setTimeout(r, Number(process.env.POC_STEP_SLEEP_MS ?? 0)); });
     // The drafter writes the signed prose line verbatim as each goal, so no goal text can be matched: every step gets the
     // job2 summary text (it satisfies the 3-sections close; the read steps accept any non-empty text).
-    const text = '## summary of work history blurb\nworked places.\n## professional skills\nskills.\n## soft skills\nsoft skills.';
+    const quote = process.env.POC_STEP_MODE === 'quote' ? ` ${process.env.DEEPSEEK_API_KEY}` : ''; // a model that quotes the key into its artifact
+    const text = `## summary of work history blurb\nworked places.${quote}\n## professional skills\nskills.\n## soft skills\nsoft skills.`;
     return { ok: true, costUsd: 0.001, artifact: { text, done: true } };
   };
 }
