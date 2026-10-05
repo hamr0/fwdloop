@@ -23,7 +23,7 @@ const load = (names, ret) => new Function(`${names.map(fnSrc).join('\n')}\nretur
 
 const answerControls = load(['answerControls'], 'answerControls');
 const liveOutcome = load(['liveOutcome'], 'liveOutcome');
-const refusalText = load(['refusalText'], 'refusalText');
+const refusalText = load(['refusalText', 'blankReasonText'], 'refusalText');
 
 const openAsk = { askId: 'a1', open: true, status: 'unanswered' };
 
@@ -34,17 +34,17 @@ test('doors: an open ask with no saved answer gets the three doors', () => {
 });
 
 test('doors: a saved answer for this ask (resume starting) shows NO doors and says why', () => {
-  const r = answerControls(openAsk, { askId: 'a1', state: 'starting', label: 'answer saved, resume starting' });
+  const r = answerControls(openAsk, { askId: 'a1', state: 'starting', label: 'your answer is saved; the run is picking it up' });
   assert.equal(r.kind, 'starting');
-  assert.match(r.why, /already has a saved answer/);
+  assert.equal(r.text, 'Your answer is saved; the run is starting up.');
 });
 
-test('doors: resume not-started shows the stuck state with the reason verbatim (try-again only, no doors)', () => {
+test('doors: resume not-started shows the stuck state (one button, no doors, no raw reason)', () => {
   const reason = 'resume: run "run-1" is locked by another resumer';
-  const r = answerControls(openAsk, { askId: 'a1', state: 'not-started', label: 'answer saved, resume not started', reason });
+  const r = answerControls(openAsk, { askId: 'a1', state: 'not-started', label: 'your answer is saved; the run stopped before using it', reason });
   assert.equal(r.kind, 'stuck');
-  assert.equal(r.reason, reason);
-  assert.equal(r.label, 'answer saved, resume not started');
+  assert.equal(r.lockPath, null);
+  assert.equal('reason' in r, false, 'no raw refusal text is carried to the page');
 });
 
 test('doors: no ask / a closed ask -> no controls, with the reason stated', () => {
@@ -53,9 +53,9 @@ test('doors: no ask / a closed ask -> no controls, with the reason stated', () =
   assert.match(none.why, /nothing left to answer/);
   const closed = answerControls({ askId: 'a1', open: false, status: 'accepted' }, null);
   assert.equal(closed.kind, 'none');
-  assert.match(closed.why, /this ask is accepted/);
+  assert.match(closed.why, /This ask is accepted\./);
   const expired = answerControls({ askId: 'a1', open: false, status: 'expired' }, null);
-  assert.match(expired.why, /this ask is expired/);
+  assert.match(expired.why, /This ask is expired\./);
 });
 
 test('doors: try-again is offered ONLY for not-started (never for doors/starting/none)', () => {
@@ -68,11 +68,12 @@ test('doors: try-again is offered ONLY for not-started (never for doors/starting
   assert.ok(!kinds.includes('stuck'), `stuck must be only for not-started, got ${kinds}`);
 });
 
-test('refusals: shown by name with the HTTP status; a library red is verbatim; a plain-text 405 body is shown too', () => {
+test('refusals: every one is a plain sentence — no HTTP status, refusal code, askId or path (M4c-fix walk issue 3)', () => {
   assert.equal(refusalText({ status: 409, body: { ok: false, refused: 'library', red: 'answerAsk: askId "x" is unknown for run /r' }, text: '' }),
-    'HTTP 409 — answerAsk: askId "x" is unknown for run /r');
-  assert.equal(refusalText({ status: 403, body: { red: 'token-missing-or-wrong' }, text: '' }), 'HTTP 403 — token-missing-or-wrong');
-  assert.equal(refusalText({ status: 405, body: null, text: 'method not allowed' }), 'HTTP 405 — method not allowed');
+    'This ask is no longer open.');
+  assert.equal(refusalText({ status: 403, body: { refused: 'cookie-missing-or-wrong', red: 'cookie-missing-or-wrong: open the link' }, text: '' }),
+    'The panel does not recognise this page. Open the link the terminal printed.');
+  assert.equal(refusalText({ status: 405, body: null, text: 'method not allowed' }), 'That did not go through. Reload the page to see where this run stands.');
 });
 
 test('live: outcomes are read from the books — stuck stops quietly, a new open ask / ✓ / ✗ / rerun end the watch, anything else keeps waiting', () => {
@@ -87,7 +88,7 @@ test('live: outcomes are read from the books — stuck stops quietly, a new open
   assert.match(reparked.text, /doors above are for it/);
   assert.doesNotMatch(reparked.text, /below/);
   // the SAME ask still open is not "re-parked"
-  assert.equal(liveOutcome('a1', { glyph: '[·]', label: 'l' }, asks([openAsk], { state: 'starting', label: 'answer saved, resume starting' })).done, false);
+  assert.equal(liveOutcome('a1', { glyph: '[·]', label: 'l' }, asks([openAsk], { state: 'starting', label: 'your answer is saved; the run is picking it up' })).done, false);
   assert.match(liveOutcome('a1', { glyph: '[✓]' }, asks([], null)).text, /finished \[✓\]/);
   assert.match(liveOutcome('a1', { glyph: '[✗]', label: 'failed (red)' }, asks([], null)).text, /ended \[✗\] failed \(red\)/);
   assert.match(liveOutcome('a1', { glyph: '[✗]', label: 'stopped by you', outcome: 'rerun' }, asks([], null)).text, /fresh run was started/);
@@ -103,9 +104,9 @@ test('inbox row: a saved-unconsumed answer says its resume label in words, never
   const waiting = { open: true, waiting: true, timeLeftMs: 1500, status: 'unanswered', resume: null };
   assert.equal(stopStatusLine(waiting), 'time left: 1500ms');
   const saved = {
-    open: true, waiting: false, timeLeftMs: null, status: 'unanswered', resume: { label: 'answer saved, resume not started' },
+    open: true, waiting: false, timeLeftMs: null, status: 'unanswered', resume: { label: 'your answer is saved; the run stopped before using it' },
   };
-  assert.equal(stopStatusLine(saved), 'answer saved, resume not started');
+  assert.equal(stopStatusLine(saved), 'your answer is saved; the run stopped before using it');
 });
 
 test('liveOutcome: the watch-stop for a rerun-ended run reads the typed outcome, never the label text', () => {

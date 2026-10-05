@@ -251,11 +251,12 @@ export function makeLiveModelStep({
         ({ provider, rates, modelId } = makeProvider(slot, { model, ...LIVE_PROVIDER_OPTIONS }));
       } catch (err) {
         // No provider was ever built, so no round could possibly have run —
-        // `tokens: null` (and `tools: null`, M4a-3) here is the one honest
+        // `model: null`, `tokens: null` and `tools: null` (M4a-3) here are the one honest
         // "no model call at all" case (never a zeroed object standing in for
-        // a call that never happened).
+        // a call that never happened). A row that names a model must carry its
+        // tokens (appendAudit refuses it otherwise), so the model is not named.
         return {
-          ok: false, red: `key: ${err.message}`, costUsd: null, model: model ?? null, tokens: null, tools: null,
+          ok: false, red: `key: ${err.message}`, costUsd: null, model: null, tokens: null, tools: null,
         };
       }
     }

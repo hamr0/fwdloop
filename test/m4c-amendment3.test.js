@@ -213,19 +213,21 @@ test('(e) after a try-again refused for a lock with no recorded holder, the stuc
   const resumeAttempt = (flow, runId) => (runId === 'r1'
     ? { flow, runId, askId: stopsOf(root, 'r1')[0].askId, state: 'stuck', tries: 1, maxTries: 1, refusal }
     : null);
-  // before any refusal is known the label is the ordinary one
-  assert.equal(rowOf(root, 'r1').label, STUCK_LABEL);
+  // M4c-fix 15: the typed reason comes from the lock file itself, so it reads the same before any refusal is
+  // known (e.g. after a panel restart): no wasted click.
+  assert.equal(rowOf(root, 'r1').label, STUCK_LOCK_LABEL);
   const row = listRuns({ root, catalogue: CATALOGUE, resumeAttempt }).find((x) => x.runId === 'r1');
   assert.equal(row.glyph, '[II]');
   assert.equal(row.label, STUCK_LOCK_LABEL);
-  assert.equal(row.label, 'stuck — remove the old resume lock by hand, then try again');
+  assert.equal(row.label, 'stuck — an old resume lock is in the way');
   const stop = listStops({ root, resumeAttempt }).find((x) => x.runId === 'r1');
   assert.equal(stop.stuckLabel, STUCK_LOCK_LABEL);
   const tab = getRunAsks({ root, flow: 'job2', runId: 'r1', catalogue: CATALOGUE, resumeAttempt });
   assert.equal(tab.resume.label, STUCK_LOCK_LABEL);
   assert.equal(tab.resume.lockPath, lockOf(root, 'r1'));
-  assert.match(PAGE, /"lock file: " \+ model\.lockPath/);
-  // a refusal for a LIVE holder keeps the ordinary label (that one clears by itself)
-  const liveAttempt = (flow, runId) => ({ ...resumeAttempt(flow, runId), refusal: 'resume: run "r1" is locked by another resumer (pid 1, x)' });
-  assert.equal(listRuns({ root, catalogue: CATALOGUE, resumeAttempt: liveAttempt }).find((x) => x.runId === 'r1').label, STUCK_LABEL);
+  assert.doesNotMatch(PAGE, /Remove this file by hand/);
+  assert.match(PAGE, /"An old resume lock is in the way\."/);
+  // and whatever the last refusal said does not change it: the lock file decides
+  const otherAttempt = (flow, runId) => ({ ...resumeAttempt(flow, runId), refusal: 'resume: run "r1" is locked by another resumer (pid 1, x)' });
+  assert.equal(listRuns({ root, catalogue: CATALOGUE, resumeAttempt: otherAttempt }).find((x) => x.runId === 'r1').label, STUCK_LOCK_LABEL);
 });

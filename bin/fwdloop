@@ -31,7 +31,9 @@ import { makeLiveModelStep } from '../src/model-step.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
 import { checkKeyPreflight } from '../src/provider.js';
-import { answerAsk, readAskEvidence, normalizeDecision } from '../src/ask.js';
+import {
+  answerAsk, readAskEvidence, normalizeDecision, stripControl, withReopen,
+} from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
 import { draftToDir, signDraft, SIGN_LINE, costText } from '../src/authoring.js';
@@ -288,7 +290,7 @@ function cmdInbox(rest) {
       if (!askRead.ok) continue; // eslint-disable-line no-continue -- missing (or refused) ask.json: nothing to show
       let ask;
       try {
-        ask = JSON.parse(askRead.text);
+        ask = withReopen(runDir, JSON.parse(askRead.text)); // the effective deadline (a reopened ask's new one)
       } catch (err) {
         // A malformed/unparseable ask.json must never crash inbox — show it
         // naming the run as unreadable and move on to the next one.
@@ -342,11 +344,11 @@ function cmdInbox(rest) {
       continue;
     }
     if (row.status === 'legacy') {
-      process.stdout.write(`flow=${row.flow} run=${row.runId} [legacy (not answerable)] — ${row.question}\n`);
+      process.stdout.write(`flow=${row.flow} run=${row.runId} [legacy (not answerable)] — ${stripControl(row.question)}\n`);
       continue;
     }
     const timeLeft = row.status === 'expired' ? 'expired' : `${Math.max(0, Math.round(row.timeLeftMs / 1000))}s left`;
-    process.stdout.write(`${row.askId}  flow=${row.flow} run=${row.runId} [${row.status}] ${timeLeft} — ${row.question}\n`);
+    process.stdout.write(`${row.askId}  flow=${row.flow} run=${row.runId} [${row.status}] ${timeLeft} — ${stripControl(row.question)}\n`);
   }
 }
 
@@ -381,13 +383,13 @@ function cmdShow(rest) {
   }
   let ask;
   try {
-    ask = JSON.parse(askRead.text);
+    ask = withReopen(runDir, JSON.parse(askRead.text)); // the effective deadline (a reopened ask's new one)
   } catch (err) {
     fail(`show: ask.json for askId "${askId}" is not valid JSON — ${err.message}`);
     return;
   }
 
-  process.stdout.write(`question: ${ask.question}\n`);
+  process.stdout.write(`question: ${stripControl(ask.question)}\n`);
   process.stdout.write(`expiresAt: ${ask.expiresAt}\n`);
 
   const { draft, unjudged, why } = readAskEvidence(ask);
@@ -396,10 +398,10 @@ function cmdShow(rest) {
     return;
   }
   process.stdout.write('\n--- artifact under review ---\n');
-  process.stdout.write(`${draft.text}\n`);
+  process.stdout.write(`${stripControl(draft.text)}\n`);
   for (const item of unjudged) {
-    process.stdout.write(`\n--- unjudged: ${item.step} ---\n`);
-    process.stdout.write(`${item.text}\n`);
+    process.stdout.write(`\n--- unjudged: ${stripControl(item.step)} ---\n`);
+    process.stdout.write(`${stripControl(item.text)}\n`);
   }
 }
 
@@ -516,8 +518,10 @@ async function cmdResume(rest) {
 // panel — M4a piece 2 + M4b (docs/wiki/the-module-ladder.md, "M4a — read-only
 // panel" and "M4b — inputs"): `fwdloop panel [--port 4800] [--root <dir>]`.
 // Reads are GET/HEAD; the only writes are POST /api/answer and POST
-// /api/resume (src/panel/server.js), each gated by Origin/Host + a per-process
-// token. Bound to 127.0.0.1 only. Never picks
+// /api/resume (src/panel/server.js), each gated by Origin/Host + the panel's
+// cookie. `fwdloop panel` writes its token to a 0600 file ($XDG_RUNTIME_DIR/fwdloop/
+// panel-<port>.token, else ~/.cache/fwdloop/; reused across restarts while that file is 0600) and prints `http://127.0.0.1:<port>/?t=<token>` —
+// open that link (it sets the cookie); every request needs it. Bound to 127.0.0.1 only. Never picks
 // a different port on collision — a taken port is a loud, non-zero-exit
 // failure.
 // ---------------------------------------------------------------------------

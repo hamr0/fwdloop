@@ -1,0 +1,128 @@
+// M4c-fix amendment 3 (docs/wiki/the-module-ladder.md): four self-review findings.
+
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import {
+  mkdirSync, writeFileSync, rmSync, existsSync, readdirSync, readFileSync,
+} from 'node:fs';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
+import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+
+import { reopenAsk } from '../src/ask.js';
+import { signParts } from '../src/panel/data.js';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
+
+// (a) fwdloop inbox cleans terminal codes out of the question, both row shapes.
+test('amend3 (a): inbox prints no ESC byte from a model-written question (open and legacy rows)', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'fwdloop-a3a-'));
+  try {
+    const evil = 'pick one \x1b[2J\x1b]0;pwned\x07 now';
+    const runDir = (name) => {
+      const d = path.join(root, 'flowa', 'runs', name);
+      mkdirSync(d, { recursive: true });
+      return d;
+    };
+    writeFileSync(path.join(runDir('run-1'), 'ask.json'), JSON.stringify({
+      askId: 'ask-1', question: evil, expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+    }));
+    writeFileSync(path.join(runDir('run-2'), 'ask.json'), JSON.stringify({ question: evil }));
+    const r = spawnSync(process.execPath, [BIN, 'inbox', '--root', root], {
+      env: { PATH: process.env.PATH ?? '' }, encoding: 'utf8', timeout: 15_000,
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /run=run-1 \[open\]/);
+    assert.match(r.stdout, /run=run-2 \[legacy/);
+    assert.ok(!r.stdout.includes('\x1b'), 'no ESC byte reaches the terminal');
+    assert.ok(!r.stdout.includes('\x07'), 'no BEL byte either');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// (b) a failed set-aside refuses the reopen and writes nothing.
+test('amend3 (b): reopen with a late answer that cannot be set aside is refused and writes nothing', () => {
+  const runDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-a3b-'));
+  try {
+    const askId = 'ask-b';
+    const askedAt = '2026-10-04T08:00:00.000Z';
+    const expiresAt = '2026-10-04T08:30:00.000Z';
+    writeFileSync(path.join(runDir, 'ask.json'), JSON.stringify({ askId, askedAt, expiresAt, question: 'q' }));
+    writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ askId, decision: 'accept', answeredAt: '2026-10-04T09:00:00.000Z' }));
+    // every record name setAsideAnswer would use is taken: it cannot move the answer aside
+    for (let n = 1; n < 1000; n += 1) writeFileSync(path.join(runDir, `answer.${askId}.late.${n}.json`), '{}');
+    const before = readdirSync(runDir).sort();
+    const r = reopenAsk({ runDir, askId, by: 'human', clock: () => '2026-10-04T10:00:00.000Z' });
+    assert.deepEqual(r, { ok: false, red: 'Could not clear the late answer; nothing was reopened.' });
+    assert.deepEqual(readdirSync(runDir).sort(), before, 'no reopen record, nothing else written');
+    assert.equal(existsSync(path.join(runDir, 'audit.jsonl')), false, 'no audit row');
+    assert.ok(readFileSync(path.join(runDir, 'answer.json'), 'utf8').includes('accept'), 'the answer was left where it was');
+  } finally {
+    rmSync(runDir, { recursive: true, force: true });
+  }
+});
+
+test('amend3 (b): the page shows that refusal as the plain sentence', () => {
+  const page = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
+  const start = page.indexOf('function refusalText(');
+  const fn = page.slice(start, page.indexOf('\n  }', start) + 4);
+  const refusalText = new Function(`${fn} return refusalText;`)();
+  const red = 'Could not clear the late answer; nothing was reopened.';
+  assert.equal(refusalText({ status: 409, body: { ok: false, refused: 'library', red } }, 'redo'), red);
+});
+
+// (c) the two Inbox words. The labels themselves are asserted by test/panel-resume.test.js (275, 279) and the others
+// updated for this piece; here: the sign-word logic still renders them as one clean "word — line".
+test('amend3 (c): the new labels read as a sign word plus the plain line, nothing repeated', () => {
+  assert.deepEqual(signParts('[·]', 'your answer is saved; the run is picking it up'),
+    { word: 'waiting', line: 'your answer is saved; the run is picking it up' });
+  assert.deepEqual(signParts('[II]', 'stuck — your answer is saved; the run stopped before using it'),
+    { word: 'stuck', line: 'your answer is saved; the run stopped before using it' });
+});
+
+// (d) a holder that appears after the first read but before the unlink is not removed. No seam in src: a child
+// process patches node:fs's realpathSync (called between the first read and the unlink) to drop a holder's lock in.
+test('amend3 (d): removeOldLock leaves a lock that gained a holder after its first read', () => {
+  const base = mkdtempSync(path.join(tmpdir(), 'fwdloop-a3d-'));
+  try {
+    const runDir = path.join(base, 'flow', 'runs', 'r1');
+    mkdirSync(runDir, { recursive: true });
+    const lockPath = path.join(runDir, 'resume.lock');
+    writeFileSync(lockPath, ''); // no recorded holder: "empty"
+    const lockUrl = pathToFileURL(path.join(HERE, '..', 'src', 'panel', 'lock.js')).href;
+    const script = `
+      import fs from 'node:fs';
+      import { syncBuiltinESMExports } from 'node:module';
+      const real = fs.realpathSync;
+      let injected = false; let calls = 0;
+      fs.realpathSync = (...a) => {
+        const r = real(...a);
+        calls += 1;
+        if (!injected && calls === 3) { // the third call: after the first read, before the unlink
+          injected = true;
+          fs.writeFileSync(${JSON.stringify(lockPath)}, JSON.stringify({ pid: 999999999, procStart: 'x' }));
+        }
+        return r;
+      };
+      syncBuiltinESMExports();
+      const { removeOldLock } = await import(${JSON.stringify(lockUrl)});
+      const out = removeOldLock({ root: ${JSON.stringify(base)}, runDir: ${JSON.stringify(runDir)} });
+      console.log(JSON.stringify({ out, injected, left: fs.existsSync(${JSON.stringify(lockPath)}) }));
+    `;
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', timeout: 15_000 });
+    assert.equal(r.status, 0, r.stderr);
+    const res = JSON.parse(r.stdout);
+    assert.equal(res.injected, true, 'the holder was dropped in between the read and the unlink');
+    assert.equal(res.out.ok, false);
+    assert.equal(res.out.refused, 'lock-has-holder');
+    assert.equal(res.left, true, 'the lock was not unlinked');
+    assert.equal(existsSync(path.join(runDir, 'audit.jsonl')), false, 'no lock-removed audit row');
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});

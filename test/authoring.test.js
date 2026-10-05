@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  existsSync, readFileSync, writeFileSync, readdirSync, rmSync, mkdirSync, chmodSync,
+  existsSync, readFileSync, writeFileSync, readdirSync, rmSync, mkdirSync, chmodSync, symlinkSync,
 } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
@@ -714,4 +714,47 @@ test('confirmTypedName: exact trimmed match ok; mismatch, empty and EOF refuse',
   assert.match((await ask(null)).red, /does not match/);
   assert.equal(isInteractive({ isTTY: true }, { isTTY: false }), false);
   assert.equal(isInteractive({ isTTY: true }, { isTTY: true }), true);
+});
+
+// M4c-fix item 10: an unsigned draft folder inside the flows root would list as a flow.
+test('item 10: draft --out inside the flows root (also through a symlink) is refused by name at $0; the readout names the flows root', async () => {
+  const fx = job2Fixture();
+  const work = tmp('i10');
+  const proseFile = path.join(work, 'prose.txt');
+  writeFileSync(proseFile, fx.prose);
+  const root = path.join(work, 'flows');
+  mkdirSync(root);
+  symlinkSync(root, path.join(work, 'flows-link'));
+  const p = fakeProvider([toolReply(validArgs())]);
+  for (const dir of [path.join(root, 'inside'), path.join(work, 'flows-link', 'via-link'), path.join(root, 'a', 'b', 'deep'), root]) {
+    const r = await draftToDir({
+      proseFile, dir, root, name: 'job2', provider: p, rates: RATES, modelId: MODEL, env: {},
+    });
+    assert.equal(r.wrote, false, dir);
+    assert.match(r.reds[0], /is inside the flows root/, dir);
+  }
+  assert.equal(p.calls.length, 0, 'refused at $0, before any provider round');
+  assert.deepEqual(readdirSync(root), [], 'nothing was created under the flows root');
+  // a sibling folder is fine, and its readout names the flows root
+  const ok = await draftToDir({
+    proseFile, dir: path.join(work, 'flows-sibling'), root, name: 'job2', provider: p, rates: RATES, modelId: MODEL, env: {},
+  });
+  assert.equal(ok.ok, true, JSON.stringify(ok.reds));
+  assert.match(readFileSync(path.join(work, 'flows-sibling', 'readout.txt'), 'utf8'), new RegExp(`Flows root: ${root}`));
+});
+
+// M4c-fix item 11: a provider error that echoes the key reaches the red message the CLI prints.
+test('item 11: a drafter red whose provider error echoes the key is scrubbed before it is returned', async () => {
+  const fx = job2Fixture();
+  const work = tmp('i11');
+  const proseFile = path.join(work, 'prose.txt');
+  writeFileSync(proseFile, fx.prose);
+  const provider = { lastMalformedToolCall: null, async generate() { throw new Error(`401 invalid Authorization: Bearer ${KEY}`); } };
+  const r = await draftToDir({
+    proseFile, dir: path.join(work, 'd'), root: path.join(work, 'flows'), name: 'job2', provider, rates: RATES, modelId: MODEL, env: { DEEPSEEK_API_KEY: KEY },
+  });
+  assert.equal(r.ok, false);
+  assert.match(r.reds.join(' '), /provider-red/);
+  assert.ok(!r.reds.join(' ').includes(KEY), 'the key never leaves in a red');
+  assert.match(r.reds.join(' '), /\[redacted-key\]/);
 });

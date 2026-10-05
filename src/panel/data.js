@@ -33,18 +33,20 @@ import {
 import { readAsk, readRunState, readLog } from '../runner.js';
 import { readSpendRows } from '../provider.js';
 import {
-  runLiveness, booksFresh, readResumeLock, LOCK_NO_HOLDER,
+  runLiveness, booksFresh, readResumeLock,
 } from '../liveness.js';
 import {
-  readAskEvidence, listArchivedAsks, normalizeDecision, DECISION_STATUS, answerTiming,
+  readAskEvidence, listArchivedAsks, normalizeDecision, DECISION_STATUS, decisionStatus, answerTiming,
 } from '../ask.js';
 
 /** `{ ok:false, red }` result shape every exported function here can return
  *  instead of throwing — the server maps this to a 4xx, never a crash.
+ *  `why` is an optional machine reason the server can branch on (never matched from `red`).
  *  @param {string} red
- *  @returns {{ok:false, red:string}} */
-function refuse(red) {
-  return { ok: false, red };
+ *  @param {'outside-root'} [why]
+ *  @returns {{ok:false, red:string, why?:'outside-root'}} */
+function refuse(red, why) {
+  return why ? { ok: false, red, why } : { ok: false, red };
 }
 
 /**
@@ -63,9 +65,9 @@ function refuse(red) {
  * Returns the flow directory, or a refusal.
  * @param {string} root
  * @param {string} flowName
- * @returns {{ok:true, flowDir:string}|{ok:false, red:string}}
+ * @returns {{ok:true, flowDir:string}|{ok:false, red:string, why?:'outside-root'}}
  */
-function resolveFlowDir(root, flowName) {
+export function resolveFlowDir(root, flowName) {
   const check = checkFlowName(flowName);
   if (!check.ok) return refuse(check.red);
   const flowDir = join(root, flowName);
@@ -75,11 +77,11 @@ function resolveFlowDir(root, flowName) {
     try {
       realFlowDir = realpathSync(flowDir);
       realRoot = realpathSync(root);
-    } catch (err) {
-      return refuse(`flow: could not resolve "${flowDir}" — ${err.message}`);
+    } catch {
+      return refuse(`flow: could not resolve "${flowName}"`);
     }
     if (realFlowDir !== realRoot && !realFlowDir.startsWith(realRoot + sep)) {
-      return refuse(`flow: "${flowName}" is a symlink that resolves outside root (${realFlowDir}) — refused`);
+      return refuse(`flow: "${flowName}" is a symlink that resolves outside root — refused`, 'outside-root');
     }
   }
   return { ok: true, flowDir };
@@ -117,7 +119,7 @@ function resolveRunPath(root, flowName, runId) {
  * @param {string|null} askId the open ask's own askId
  * @returns {boolean}
  */
-function hasConsumedAnswer(runDir, askId) {
+export function hasConsumedAnswer(runDir, askId) {
   if (!existsSync(runDir) || typeof askId !== 'string' || askId.length === 0) return false;
   // F48 round 3: `readdirInside` (`src/flow.js`) skips a symlinked entry
   // rather than reporting its name — a run dir cannot be made to show a
@@ -157,35 +159,43 @@ export const RESUME_REASON_UNKNOWN = 'reason unknown: the panel restarted, so it
 
 /**
  * M4b amendment 1 scope 2: the ONE derivation of "answer saved, resume not
- * started". From the books: an answer saved (`answer.json` present) and so
- * unconsumed. From the panel's in-memory attempt record (`attempt`, may be
+ * started" (now worded "your answer is saved; the run stopped before using it" — M4c-fix amendment 3 (c)).
+ * From the books: an answer saved (`answer.json` present) and so unconsumed. From the panel's in-memory attempt record (`attempt`, may be
  * null): whether a resume is still being started, and the resume's own refusal.
  * `null` when there is nothing to say (no saved answer and no attempt).
- * M4c amendment 3: `ask` (the run's open `ask.json`, may be null). A saved answer for that ask that was
- * NOT saved in time (`answerTiming`) once the deadline has passed is not a resumable answer: it reads as
- * none, so the run is `[!]` expired, the same as an ask nobody answered.
+ * M4c amendment 3: `ask` (the run's open `ask.json`, may be null; its `expiresAt` is the effective deadline). A saved
+ * answer for that ask that was NOT saved in time, once the deadline has passed, is not a resumable answer: it reads
+ * as none, so the ask is expired and offers the reopen (M4c-fix amendment 1 (b)). One with no readable time, before
+ * the deadline, reads `broken` (amendment 1 (a)).
  * @param {{savedAnswer: {askId:string, decision:string|null, answeredAt?:string|null}|null, attempt: any, ask?: any}} ctx
- * @returns {{state: 'starting'|'not-started'|'took-over', askId: string|null, tries: number|null, maxTries: number|null, reason: string|null, label: string}|null}
+ * @returns {{state: 'starting'|'not-started'|'broken'|'took-over', askId: string|null, tries: number|null, maxTries: number|null, reason: string|null, label: string}|null}
  */
 export function deriveResumeState({ savedAnswer: saved, attempt, ask = null }) {
-  const pastDeadline = ask && saved && ask.askId === saved.askId && Date.parse(ask.expiresAt) < Date.now();
-  const savedAnswer = pastDeadline && answerTiming(saved.answeredAt, ask.expiresAt) !== 'on-time' ? null : saved;
+  const pastDeadline = !!(ask && saved && ask.askId === saved.askId && Date.parse(ask.expiresAt) < Date.now());
+  if (saved && pastDeadline && answerTiming(saved.answeredAt, ask.expiresAt) !== 'on-time') return null;
   const tries = attempt ? attempt.tries : null;
   const maxTries = attempt ? attempt.maxTries : null;
-  if (savedAnswer) {
-    if (attempt && attempt.state === 'in-flight' && attempt.askId === savedAnswer.askId) {
+  if (saved) {
+    // M4c-fix amendment 1 (a): a saved answer with no readable time is broken — the resume would refuse it every
+    // time. It is not stuck, not "answer saved": the doors come back with a note, and answering again sets it aside.
+    if (Number.isNaN(Date.parse(saved.answeredAt ?? ''))) {
       return {
-        state: 'starting', askId: savedAnswer.askId, tries, maxTries, reason: null, label: 'answer saved, resume starting',
+        state: 'broken', askId: saved.askId, tries: null, maxTries: null, reason: BROKEN_ANSWER_WHY, label: BROKEN_LABEL,
       };
     }
-    const mine = attempt && attempt.askId === savedAnswer.askId;
+    if (attempt && attempt.state === 'in-flight' && attempt.askId === saved.askId) {
+      return {
+        state: 'starting', askId: saved.askId, tries, maxTries, reason: null, label: 'your answer is saved; the run is picking it up',
+      };
+    }
+    const mine = attempt && attempt.askId === saved.askId;
     return {
       state: 'not-started',
-      askId: savedAnswer.askId,
+      askId: saved.askId,
       tries: mine ? tries : null,
       maxTries: mine ? maxTries : null,
       reason: mine && typeof attempt.refusal === 'string' && attempt.refusal.length > 0 ? attempt.refusal : RESUME_REASON_UNKNOWN,
-      label: 'answer saved, resume not started',
+      label: 'your answer is saved; the run stopped before using it',
     };
   }
   if (attempt) {
@@ -197,35 +207,96 @@ export function deriveResumeState({ savedAnswer: saved, attempt, ask = null }) {
 }
 
 export const WAITING_LABEL = 'waiting on you (parked, unanswered)';
-export const STUCK_LABEL = 'stuck — answer saved, click try the resume again';
-export const STUCK_LOCK_LABEL = 'stuck — remove the old resume lock by hand, then try again';
+export const STUCK_LABEL = 'stuck — your answer is saved; the run stopped before using it';
+export const STUCK_LOCK_LABEL = 'stuck — an old resume lock is in the way';
+export const BROKEN_LABEL = 'Your saved answer could not be read.';
+export const BROKEN_ANSWER_WHY = 'Please answer again; the broken one is kept aside.';
 export const CRASHED_LABEL = 'crashed after taking your answer — start a fresh run';
 
 /**
- * M4c amendment 2 (a): the ONE rule for "stuck". The answer is saved and not yet
- * taken (`resume.state === 'not-started'`: `answer.json` is on disk; the panel's
- * transient 'starting' is not stuck) and nothing is carrying the run on: the
- * newest pid row's process is not alive AND the resume lock is not held by a
- * live process (`readResumeLock`, src/liveness.js). computeGlyph, the Inbox
- * (`listStops`) and Runs (`listRuns`) all read this, never a second copy.
- * @param {{resume?: any, liveness?: 'running'|'gone'|'unknown', lock?: string}} ctx
- * @returns {boolean}
+ * M4c-fix amendment 2 (g): the ONE table from a sign to its bold word. Runs, the Inbox and the run header all show
+ * the word this table gives (the server stamps it on every row; the page never invents one).
+ * @type {Record<string, string>}
  */
-export function isStuck({ resume, liveness, lock }) {
-  return !!resume && resume.state === 'not-started' && liveness !== 'running' && lock !== 'live';
+export const SIGN_WORDS = {
+  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed',
+};
+
+/**
+ * The sign's word and the plain line after the dash. The existing plain line is kept as is; only a line that already
+ * opens with the word ("stuck — …") or is the word itself ("passed") loses that repeat, so it is never said twice.
+ * `noWord`: a run the human ended on purpose with rerun wears `[✗]` but is never called "failed" (M4b amendment 3),
+ * so it shows its plain line alone.
+ * @param {string} glyph a `computeGlyph` sign @param {string} label its plain line @param {boolean} [noWord]
+ * @returns {{word: string|null, line: string|null}}
+ */
+export function signParts(glyph, label, noWord = false) {
+  const word = noWord ? null : (SIGN_WORDS[glyph] ?? null);
+  if (word === null) return { word: null, line: label ?? null };
+  if (typeof label !== 'string' || label === word) return { word, line: null };
+  return { word, line: label.startsWith(`${word} — `) ? label.slice(word.length + 3) : label };
+}
+
+/** The sign an Inbox row wears (null for a past answer, which shows its status word instead). */
+function stopGlyph(r) {
+  if (r.working) return '[▶]';
+  if (r.stuck) return '[II]';
+  if (r.waiting || r.resume) return '[·]';
+  return null;
+}
+
+/** The typed reasons a stuck run can have. `retry`: nothing is wrong that the books name, so trying again is the
+ *  action. `lock-no-holder`: the resume lock has no recorded holder, so trying again can never work. */
+export const STUCK_REASONS = {
+  retry: { label: STUCK_LABEL, why: null },
+  'lock-no-holder': { label: STUCK_LOCK_LABEL, why: 'the resume lock has no recorded holder (a lock from before holders were recorded, or a torn write)' },
+};
+
+/**
+ * The ONE decision "is this run stuck, why, and what does it say" (M4c amendment 2 (a), amendment 3 (e), M4c-fix 15,
+ * 16). The answer is saved and not yet taken (`resume.state === 'not-started'`: `answer.json` is on disk; the
+ * panel's transient 'starting' and the `late` state are not stuck) and nothing is carrying the run on: the newest
+ * pid row's process is not alive AND the resume lock is not held by a live process, nor by one whose liveness
+ * cannot be told (`unknown`: never called stuck). The reason is typed, derived from the lock file and the saved
+ * answer themselves — never from a refusal string, so it is the same after a panel restart. Everything that shows
+ * "stuck" (computeGlyph, the Inbox, Runs, the Ask tab) reads this.
+ * @param {{resume?: any, liveness?: 'running'|'gone'|'unknown', lock?: string}} ctx
+ * @returns {{stuck: false, reason: null, label: null, why: null}|{stuck: true, reason: 'retry'|'lock-no-holder', label: string, why: string|null}}
+ */
+export function stuckState({ resume, liveness, lock }) {
+  if (!resume || resume.state !== 'not-started' || liveness === 'running' || lock === 'live' || lock === 'unknown') {
+    return {
+      stuck: false, reason: null, label: null, why: null,
+    };
+  }
+  // The runner takes the lock before it reads the answer, so a lock problem is what it would refuse on first.
+  const reason = lock === 'empty' ? 'lock-no-holder' : 'retry';
+  return { stuck: true, reason, ...STUCK_REASONS[reason] };
+}
+
+/** @param {{resume?: any, liveness?: 'running'|'gone'|'unknown', lock?: string}} ctx @returns {boolean} */
+export function isStuck(ctx) {
+  return stuckState(ctx).stuck;
 }
 
 /**
- * M4c amendment 3 (e): the ONE choice of the stuck label. After a "Try the resume again" the runner
- * refused for a lock with no recorded holder (`LOCK_NO_HOLDER`, src/liveness.js) and that lock is
- * still there unreadable (`lock === 'empty'`), trying again can never work: the label says to remove
- * the file by hand. Every other stuck run keeps `STUCK_LABEL`.
- * @param {{resume?: any, lock?: string}} ctx
- * @returns {string}
+ * The ONE filesystem read behind "stuck": the newest pid row's liveness and the resume lock, read together once.
+ * @param {string} runDir
+ * @returns {{liveness: 'running'|'gone'|'unknown', lock: 'none'|'live'|'dead'|'unknown'|'empty', lockPath: string}}
  */
-export function stuckLabelFor({ resume, lock }) {
-  return lock === 'empty' && typeof resume?.reason === 'string' && resume.reason.includes(LOCK_NO_HOLDER)
-    ? STUCK_LOCK_LABEL : STUCK_LABEL;
+function readStuckInputs(runDir) {
+  const lock = readResumeLock(runDir);
+  return { liveness: runLiveness(runDir), lock: lock.state, lockPath: lock.path };
+}
+
+/**
+ * Read a run's stuck state: the inputs once, then `stuckState`. Used by the Ask tab and the Inbox; the run
+ * list's own read is `loadRunContext` (the same `readStuckInputs`).
+ * @param {string} runDir @param {any} resume the run's `deriveResumeState`
+ */
+function runStuck(runDir, resume) {
+  const inputs = readStuckInputs(runDir);
+  return { ...inputs, ...stuckState({ resume, ...inputs }) };
 }
 
 /**
@@ -264,7 +335,7 @@ export function glyphPulses(g) {
  *  - `[?]` died / unknown — no history row, no open ask, and either the
  *    pid row's process is gone (M4c), or there is no pid row / no /proc and
  *    the books are older than 10 minutes. Never guessed into `[✗]` or `[✓]`.
- *  - `[·]` answer saved, resume not started / starting (M4b amendment 1) —
+ *  - `[·]` your answer is saved; the run stopped before using it / starting (M4b amendment 1) —
  *    `answer.json` still on disk (`resume` = `deriveResumeState`): never
  *    "waiting on you" (the human already answered) and never a success.
  *  - `[▶]` running (M4c) — no end row, no open unanswered ask, and either the
@@ -287,13 +358,16 @@ export function computeGlyph({
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
     // M4b amendment 3: a run the human ended on purpose with rerun is not a failure.
     if (historyRow.outcome === 'rerun') return { glyph: '[✗]', label: 'stopped by you (rerun), a fresh run was started' };
+    // M4c-fix amendment 1 (c): a run ended because its ask expired is `[!]` expired, never failed (it spent nothing more).
+    if (historyRow.outcome === 'ask-expired') return { glyph: '[!]', label: 'ask expired — nobody answered in time' };
     return { glyph: '[✗]', label: `failed (${historyRow.outcome ?? 'unknown outcome'})` };
   }
   if (askJson && resume && resume.state === 'starting') {
     return { glyph: '[·]', label: resume.label };
   }
   if (askJson && resume && resume.state === 'not-started') {
-    if (isStuck({ resume, liveness, lock })) return { glyph: '[II]', label: stuckLabelFor({ resume, lock }) };
+    const stuck = stuckState({ resume, liveness, lock });
+    if (stuck.stuck) return { glyph: '[II]', label: stuck.label };
     return { glyph: '[▶]', label: 'working on your answer' };
   }
   // No history row. A park never writes one, and a consumed answer file
@@ -567,7 +641,7 @@ export function isBlockedVerdict(verdict) {
 function markForVerdict(verdict, closeClass) {
   if (closeClass === 'hitl' && verdict === 'red') return '✗'; // the human's own redo
   if (verdict === 'green' || verdict === 'hitl') return '✓';
-  if (verdict === 'paused' || verdict === 'refused' || verdict === 'ask-timeout' || verdict === 'ask-expired') return '·';
+  if (verdict === 'paused' || verdict === 'refused' || verdict === 'ask-timeout' || verdict === 'ask-expired' || verdict === 'ask-reopened' || verdict === 'lock-removed') return '·';
   return '✗';
 }
 
@@ -776,6 +850,7 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
   const consumedAnswerExists = hasConsumedAnswer(runDir, askJson && typeof askJson.askId === 'string' ? askJson.askId : null);
   // A finished run has no resume to report (its history row says how it ended).
   const resume = historyRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(runDir), attempt, ask: askJson });
+  const stuckInputs = historyRow ? { liveness: 'unknown', lock: 'none' } : readStuckInputs(runDir);
 
   return {
     flowName,
@@ -793,8 +868,8 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     hasStateJson: stateJson !== null,
     resume,
     // M4c: only read for a run with no end row (an end row always wins).
-    liveness: historyRow ? 'unknown' : runLiveness(runDir),
-    lock: historyRow ? 'none' : readResumeLock(runDir).state,
+    liveness: stuckInputs.liveness,
+    lock: stuckInputs.lock,
     booksFresh: historyRow ? false : booksFresh(runDir),
     // M4c exit walk: when the process that is working on the run started (its newest pid row's
     // own `startedAt`), so a `[▶]` run has a real time and never "parked or died". Not a book change.
@@ -874,6 +949,7 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
         runId,
         glyph,
         label,
+        ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
         pulse: glyphPulses({ glyph, label }),
         stuck: glyph === '[II]',
         resume: ctx.resume,
@@ -1208,6 +1284,8 @@ export function getRunDetail({
     runId,
     glyph,
     label,
+    ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
+    signWords: SIGN_WORDS,
     pulse: glyphPulses({ glyph, label }),
     resume: ctx.resume,
     outcome: ctx.historyRow ? ctx.historyRow.outcome : null,
@@ -1497,6 +1575,25 @@ function deriveAskOpenFields(ask, hasHistoryRow, resume = null) {
 }
 
 /**
+ * M4c-fix amendment 1 (b): does this ask offer the human's "Reopen"? Only the run's current open ask (`ask.json`),
+ * only once its deadline has passed with no usable answer waiting (`resume` is null for it: a late or unreadable saved
+ * answer reads as none, an in-time one is resumed, not reopened), only while the run has not ended. `waitMs` is the
+ * signed wait it repeats; `late` says an answer was saved but came after the deadline. The Run's end row is the caller's `openAskJson === null`.
+ * @param {any} ask one row from `runAsksInOrder` @param {any} openAskJson `readAsk` of the run, or null (ended)
+ * @param {any} resume the run's `deriveResumeState`
+ * @returns {{waitMs: number, late: boolean, why: string}|null}
+ */
+function reopenOffer(ask, openAskJson, resume, lateAnswerSaved = false) {
+  if (!openAskJson || openAskJson.askId !== ask.askId || ask.status !== 'expired') return null;
+  if (resume && resume.askId === ask.askId && (resume.state === 'starting' || resume.state === 'not-started')) return null;
+  // `late`: an answer was saved but came after the deadline (the page says so, instead of "nobody answered");
+  // `why` is that line, the one the Ask tab and the Inbox row both draw.
+  return Number.isFinite(openAskJson.waitMs)
+    ? { waitMs: openAskJson.waitMs, late: lateAnswerSaved, why: lateAnswerSaved ? LATE_ANSWER_WHY : NO_ANSWER_WHY }
+    : null;
+}
+
+/**
  * `readAskEvidence`'s own return shape (`src/ask.js`) carries the draft as
  * `{ text: string } | null` (never a bare string) so a caller can tell "no
  * draft" apart from "a draft with an empty string" — this panel's UI wants
@@ -1543,6 +1640,11 @@ function normalizeArchivedRow(a) {
  *  name specifically so this convention-based scan never mistakes a
  *  quarantined stale answer for a real consumed one). */
 const CONSUMED_ANSWER_RE = /^answer\.(.+)\.consumed\.json$/;
+
+/** The line under an ask that ended expired though an answer was saved: the answer came too late. */
+const LATE_ANSWER_WHY = 'Your answer came after the deadline.';
+/** The line under an expired ask nobody answered. */
+const NO_ANSWER_WHY = 'Nobody answered in time.';
 
 /**
  * The pre-M4a-1 fallback reader (M4a-1 scope item 1): for a run with no
@@ -1591,6 +1693,7 @@ function legacyRunAsks(runDir, hasHistoryRow) {
     } catch {
       continue; // eslint-disable-line no-continue -- a torn write is skipped, never invented
     }
+    if (parsed === null || typeof parsed !== 'object') continue; // eslint-disable-line no-continue -- valid JSON that is no answer (`null`, a number) is skipped like a torn write
     // A consumed legacy row never recovers question/askedAt/expiresAt from
     // the CURRENT ask.json, even when its askId happens to still match it —
     // the single mutable slot is not a reliable append log for a past ask
@@ -1603,7 +1706,7 @@ function legacyRunAsks(runDir, hasHistoryRow) {
       questionWhy: 'question not kept (before M4a-1)',
       askedAt: null,
       expiresAt: null,
-      status: DECISION_STATUS[normalizeDecision(parsed.decision)] ?? `unrecognised: ${parsed.decision}`,
+      status: decisionStatus(parsed.decision) ?? `unrecognised: ${parsed.decision}`,
       reason: typeof parsed.reason === 'string' ? parsed.reason : null,
       answeredAt: typeof parsed.answeredAt === 'string' ? parsed.answeredAt : null,
       archived: false,
@@ -1671,12 +1774,12 @@ function legacyRunAsks(runDir, hasHistoryRow) {
  *   (hamr's 2026-09-27 live check).
  * @returns {any[]}
  */
-function runAsksInOrder(runDir, hasHistoryRow) {
+function runAsksInOrder(runDir, hasHistoryRow, endedExpired = false) {
   const archivedResult = listArchivedAsks(runDir);
   const rows = archivedResult.archived
     ? archivedResult.asks.map(normalizeArchivedRow)
     : legacyRunAsks(runDir, hasHistoryRow);
-  return rows
+  const ordered = rows
     .map((row, index) => ({ row, index }))
     .sort((a, b) => {
       const am = typeof a.row.askedAt === 'string' ? Date.parse(a.row.askedAt) : NaN;
@@ -1688,6 +1791,13 @@ function runAsksInOrder(runDir, hasHistoryRow) {
       return a.index - b.index;
     })
     .map(({ row }) => row);
+  // M4c-fix amendment 1 (c): a run ended because its ask expired reads expired, never accepted. The late answer the
+  // terminal resume consumed was refused, so the newest ask carries `expired` (and says why), not the answer's word.
+  const last = ordered[ordered.length - 1];
+  if (endedExpired && last && (last.status === 'accepted' || last.status === 'redo' || last.status === 'reran')) {
+    ordered[ordered.length - 1] = { ...last, status: 'expired', reason: null, why: LATE_ANSWER_WHY };
+  }
+  return ordered;
 }
 
 /**
@@ -1803,13 +1913,14 @@ export function getRunAsks({
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
-  const hasHistoryRow = readHistory(run.flowDir).some((r) => r && r.runId === runId);
+  const histRow = readHistory(run.flowDir).find((r) => r && r.runId === runId);
+  const hasHistoryRow = !!histRow;
   // hamr's 2026-09-27 browser-walk bug #4: the Ask tab's own asks must carry
   // the SAME `open`/`timeLeftMs` fields listStops already computes for the
   // Inbox — otherwise an open ask's Ask-tab header/body falls back to the
   // raw status word "unanswered" and no time-left, disagreeing with the
   // Inbox row for that exact same ask.
-  const ordered = runAsksInOrder(run.runDir, hasHistoryRow);
+  const ordered = runAsksInOrder(run.runDir, hasHistoryRow, histRow?.outcome === 'ask-expired');
   const auditRows = readAudit(run.runDir);
   const flowRead = readFlow({
     root, name: flow, catalogue,
@@ -1817,18 +1928,26 @@ export function getRunAsks({
   const declSteps = flowRead.ok ? flowRead.declaration.steps : null;
   const stepInfo = deriveAskStepInfo(ordered, auditRows, declSteps);
   let resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null, ask: readAsk(run.runDir) });
-  // M4c amendment 2: the Ask tab says what the run list says — stuck, by the one rule (`isStuck`).
-  let runStuck = false;
-  const lockRead = readResumeLock(run.runDir);
-  if (resume && isStuck({ resume, liveness: runLiveness(run.runDir), lock: lockRead.state })) {
-    const label = stuckLabelFor({ resume, lock: lockRead.state });
-    resume = { ...resume, label, ...(label === STUCK_LOCK_LABEL ? { lockPath: lockRead.path } : {}) };
-    runStuck = true;
+  // M4c amendment 2: the Ask tab says what the run list says — stuck, by the one rule (`stuckState`).
+  let runStuckNow = false;
+  if (resume) {
+    const st = runStuck(run.runDir, resume);
+    if (st.stuck) {
+      resume = {
+        ...resume,
+        label: st.label,
+        ...(resume.reason === RESUME_REASON_UNKNOWN && st.why ? { reason: st.why } : {}),
+        ...(st.reason === 'lock-no-holder' ? { lockPath: st.lockPath } : {}),
+      };
+      runStuckNow = true;
+    }
   }
+  const openAskJson = hasHistoryRow ? null : readAsk(run.runDir);
   const asks = ordered.map((ask, i) => ({
     ...ask,
     ...deriveAskOpenFields(ask, hasHistoryRow, resume),
-    stuck: runStuck && resume?.askId === ask.askId,
+    reopen: reopenOffer(ask, openAskJson, resume, readSavedAnswer(run.runDir)?.askId === ask.askId),
+    stuck: runStuckNow && resume?.askId === ask.askId,
     index: i + 1,
     total: ordered.length,
     stepName: stepInfo[i].step,
@@ -1862,31 +1981,36 @@ export function listStops({ root, resumeAttempt }) {
   const rows = [];
   for (const flowName of listFlowNames(root)) {
     const flowDir = join(root, flowName);
-    const historyRunIds = new Set(readHistory(flowDir).filter((r) => r && typeof r.runId === 'string').map((r) => r.runId));
+    const historyRows = readHistory(flowDir).filter((r) => r && typeof r.runId === 'string');
+    const historyRunIds = new Set(historyRows.map((r) => r.runId));
+    const expiredEnds = new Set(historyRows.filter((r) => r.outcome === 'ask-expired').map((r) => r.runId));
     for (const runId of listRunIds(flowDir)) {
       const run = resolveRunPath(root, flowName, runId);
       if (!run.ok) continue;
       const hasHistoryRow = historyRunIds.has(runId);
       const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flowName, runId) ?? null, ask: readAsk(run.runDir) });
-      // M4c amendment 2: stuck by the ONE rule (`isStuck`), marked on the ask whose answer is saved.
-      const lockState = readResumeLock(run.runDir).state;
-      const stuckAskId = !hasHistoryRow && isStuck({ resume, liveness: runLiveness(run.runDir), lock: lockState })
-        ? (resume?.askId ?? null) : null;
-      const stuckLabel = stuckLabelFor({ resume, lock: lockState });
-      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow).map((ask) => ({
+      // M4c amendment 2: stuck by the ONE rule (`stuckState`), marked on the ask whose answer is saved.
+      const st = runStuck(run.runDir, resume);
+      const stuckAskId = !hasHistoryRow && st.stuck ? (resume?.askId ?? null) : null;
+      const openAskJson = hasHistoryRow ? null : readAsk(run.runDir);
+      const savedAskId = readSavedAnswer(run.runDir)?.askId;
+      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, expiredEnds.has(runId)).map((ask) => ({
         flow: flowName,
         runId,
         ...ask,
         ...deriveAskOpenFields(ask, hasHistoryRow, resume),
+        // an expired ask still open to Reopen says why, by the same offer (and line) its Ask tab draws
+        ...(ask.why ? {} : { why: reopenOffer(ask, openAskJson, resume, savedAskId === ask.askId)?.why }),
         stuck: stuckAskId !== null && ask.askId === stuckAskId,
-        stuckLabel: stuckAskId !== null && ask.askId === stuckAskId ? stuckLabel : null,
+        stuckLabel: stuckAskId !== null && ask.askId === stuckAskId ? st.label : null,
+        stuckLine: stuckAskId !== null && ask.askId === stuckAskId ? signParts('[II]', st.label ?? '').line : null,
       }));
       // M4c item 4: a run with no end row, no ask waiting on the human and no
       // saved-but-unresumed answer, whose newest pid row is alive, is "working
       // on your <decision>" — marked on that run's newest answered ask (the
       // one the live process took). `runLiveness` is the ONE liveness rule.
       const nothingWaiting = !runAsks.some((r) => r.waiting || r.resume);
-      if (!hasHistoryRow && nothingWaiting && runLiveness(run.runDir) === 'running') {
+      if (!hasHistoryRow && nothingWaiting && st.liveness === 'running') {
         const answered = runAsks.filter((r) => WORKING_WORD[r.status]);
         const newest = answered.reduce((best, r) => (best === null || sortMs(r.answeredAt) >= sortMs(best.answeredAt) ? r : best), null);
         if (newest) newest.working = WORKING_WORD[newest.status];
@@ -1894,7 +2018,10 @@ export function listStops({ root, resumeAttempt }) {
       for (const r of runAsks) rows.push(r);
     }
   }
-  return orderStops(rows);
+  return orderStops(rows).map((r) => {
+    const glyph = stopGlyph(r);
+    return glyph === null ? r : { ...r, glyph, word: SIGN_WORDS[glyph] };
+  });
 }
 
 /** ask status -> the answer's own word, for "working on your <word>…". */

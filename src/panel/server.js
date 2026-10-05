@@ -28,7 +28,8 @@
 // nothing new. The writes are `POST /api/answer`, a thin client of the
 // library's `answerAsk` (the panel is never a second arbiter), and
 // `POST /api/resume`, which only re-starts a resume for a run that already has
-// a saved, unconsumed answer. Both are refused by name unless the request is
+// a saved, unconsumed answer. M4c-fix amendment 1 adds `POST /api/reopen`, the human's one button on an expired ask
+// (`reopenAsk`, `src/ask.js`). All three are refused by name unless the request is
 // a real click from the served page — own `Host` and `Origin`, the per-process
 // token (embedded only in the served page), a small JSON body. An answer must
 // name its `askId`. `Host` is checked on EVERY route, GET included
@@ -47,24 +48,30 @@
 
 import { createServer } from 'node:http';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import {
+  chmodSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, unlinkSync, writeSync,
+} from 'node:fs';
+import { homedir } from 'node:os';
+import path, { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadCatalogue } from '../catalogue.js';
-import { answerAsk, normalizeDecision } from '../ask.js';
-import { checkFlowName, resolveRunDir } from '../flow.js';
+import { answerAsk, reopenAsk, normalizeDecision } from '../ask.js';
+import { readHistory } from '../books.js';
+import { resolveRunDir } from '../flow.js';
+import { readAsk } from '../runner.js';
 import {
-  listRuns, getRunDetail, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer,
+  listRuns, getRunDetail, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
 import { createResumer } from './resume.js';
+import { removeOldLock } from './lock.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 /** Cap on the answer body — a decision and a short reason, nothing more. */
 const MAX_BODY_BYTES = 8 * 1024;
-/** Header the page sends its token in. */
-const TOKEN_HEADER = 'x-fwdloop-token';
+/** Cookie the panel link sets; `<name>_<port>` so two panels on one host never clobber each other. */
+const cookieName = (port) => `fwdloop_panel_${port}`;
 
 /** Default bind port. Ruling, hamr 2026-09-27: fwdloop's panel default port
  *  is 4800 — bareloop owns 4700, and the two panels must be able to run
@@ -84,6 +91,24 @@ function sendText(res, code, text) {
   res.end(text);
 }
 
+/**
+ * M4c-fix item 5: no absolute path in any error body. A path under `--root` is shown relative to
+ * it; any other absolute path (a symlink's far end, a system dir) is shown as `<outside root>`.
+ * Throws away: the machine's directory layout above `--root`.
+ * @param {string} text @param {string} root
+ */
+function cleanPaths(text, root) {
+  const bases = [path.resolve(root)];
+  try { bases.push(realpathSync(root)); } catch { /* root gone: the lexical base still applies */ }
+  return String(text).replace(/(?<![\w:/.])\/[^\s\x22\x27\x60()<>,;]+/g, (m) => {
+    for (const b of bases) {
+      if (m === b) return '.';
+      if (m.startsWith(`${b}/`)) return m.slice(b.length + 1);
+    }
+    return '<outside root>';
+  });
+}
+
 /** A refusal, by name. `refused` is the stable machine name, `red` the words.
  *  @param {any} res @param {number} code @param {string} name @param {string} [detail] */
 function refuse(res, code, name, detail) {
@@ -98,6 +123,85 @@ function tokenMatches(a, b) {
   const x = createHash('sha256').update(a).digest();
   const y = createHash('sha256').update(b).digest();
   return timingSafeEqual(x, y);
+}
+
+const tokenDir = (dir, env) => dir ?? (env.XDG_RUNTIME_DIR ? join(env.XDG_RUNTIME_DIR, 'fwdloop') : join(homedir(), '.cache', 'fwdloop'));
+
+/**
+ * hamr's 2026-10-03 ruling "1A": the panel token is REUSED across restarts, so a bookmark of
+ * `http://127.0.0.1:<port>/` keeps working once the link was opened. Reads the token file (same path
+ * `writeTokenFile` writes); a new token only when the file is missing, unreadable, not a regular file,
+ * not mode 0600, not ours, or not 64 hex chars (the caller then rewrites it 0600).
+ * @param {{ port: number, dir?: string, env?: Record<string, string|undefined> }} a
+ * @returns {string}
+ */
+export function loadOrMakeToken({ port, dir, env = process.env }) {
+  try {
+    const d = tokenDir(dir, env);
+    const file = join(d, `panel-${port}.token`);
+    const st = lstatSync(file);
+    const dst = lstatSync(d);
+    const uid = typeof process.getuid === 'function' ? process.getuid() : null;
+    if (dst.isDirectory() && (dst.mode & 0o777) === 0o700 && st.isFile() && (st.mode & 0o777) === 0o600 && (uid === null || st.uid === uid)) {
+      const t = readFileSync(file, 'utf8').trim();
+      if (/^[0-9a-f]{64}$/.test(t)) return t;
+    }
+  } catch { /* missing or unreadable: a new one */ }
+  return randomBytes(32).toString('hex');
+}
+
+/**
+ * M4c-fix item 2: the token's one on-disk home — `<dir>/panel-<port>.token`, dir 0700, file 0600,
+ * `dir` = `$XDG_RUNTIME_DIR/fwdloop`, else `~/.cache/fwdloop`. Refuses a dir that is a symlink or
+ * not ours. The file is replaced (unlink, then exclusive create at 0600), never rewritten in place,
+ * so it never exists with a looser mode. Returns the file's path.
+ * @param {{ port: number, token: string, dir?: string, env?: Record<string, string|undefined> }} a
+ */
+export function writeTokenFile({
+  port, token, dir, env = process.env,
+}) {
+  const d = tokenDir(dir, env);
+  const uid = typeof process.getuid === 'function' ? process.getuid() : null;
+  mkdirSync(d, { recursive: true, mode: 0o700 });
+  const st = lstatSync(d);
+  if (!st.isDirectory() || (uid !== null && st.uid !== uid)) throw new Error('token dir is not a directory owned by this user');
+  chmodSync(d, 0o700);
+  const file = join(d, `panel-${port}.token`);
+  try { unlinkSync(file); } catch { /* none yet */ }
+  const fd = openSync(file, 'wx', 0o600);
+  try { writeSync(fd, `${token}\n`); } finally { closeSync(fd); }
+  return file;
+}
+
+/** @param {any} res */
+function refuseBusy(res) {
+  refuse(res, 409, 'already-resuming', 'already resuming — this run has a resume in progress; wait for it to end');
+}
+
+/**
+ * The ONE place a write route turns `{flow, runId}` into a run dir: the flow must really sit inside
+ * `--root` (`resolveFlowDir`, realpath at use time — a symlinked flow outside root is refused by
+ * name), then the runId resolves inside that flow's runs/. On a refusal it has already replied.
+ * @param {any} res @param {string} root @param {unknown} flow @param {unknown} runId
+ * @returns {string|null} the run dir, or null (already replied)
+ */
+function resolveRun(res, root, flow, runId) {
+  const fd = resolveFlowDir(root, /** @type {string} */ (flow));
+  if (!fd.ok) {
+    if (fd.why === 'outside-root') refuse(res, 403, 'flow-outside-root', cleanPaths(fd.red, root));
+    else refuse(res, 400, 'bad-flow', cleanPaths(fd.red, root));
+    return null;
+  }
+  const rd = resolveRunDir(fd.flowDir, runId);
+  if (!rd.ok) { refuse(res, 400, 'bad-runId', cleanPaths(rd.red, root)); return null; }
+  return rd.runDir;
+}
+
+/** Is the run already parked on `askId` and waiting on the human: it is the open `ask.json`, no answer is saved
+ *  for it and none was consumed? Then a resume child still alive for the run is only closing.
+ *  @param {string} runDir @param {string} askId */
+function parkedOnYou(runDir, askId) {
+  return readAsk(runDir)?.askId === askId && readSavedAnswer(runDir) === null && !hasConsumedAnswer(runDir, askId);
 }
 
 /**
@@ -117,23 +221,85 @@ function answerRoute(res, body, root, resumer) {
     refuse(res, 400, 'askid-required', 'an answer must name the askId the page was showing');
     return;
   }
-  const fc = checkFlowName(flow);
-  if (!fc.ok) { refuse(res, 400, 'bad-flow', fc.red); return; }
-  const rd = resolveRunDir(join(root, flow), runId);
-  if (!rd.ok) { refuse(res, 400, 'bad-runId', rd.red); return; }
+  const runDir = resolveRun(res, root, flow, runId);
+  if (runDir === null) return;
+  // One resume at a time per run (M4c-fix item 1): refused BEFORE the answer is written, so a refused
+  // click leaves the books as they were.
+  // Only a real concurrent resume is blocked. A previous resume child that is merely closing — the run has already
+  // parked on THIS ask, nothing answered or consumed for it — does not block the human's answer (amendment 1 (e)(1)).
+  if (resumer.busy(flow, runId) && !parkedOnYou(runDir, askId)) { refuseBusy(res); return; }
   const result = answerAsk({
-    runDir: rd.runDir, askId, decision, reason,
+    runDir, askId, decision, reason,
   });
   if (!result.ok) {
-    sendJson(res, 409, { ok: false, refused: 'library', red: result.red });
+    sendJson(res, 409, { ok: false, refused: 'library', red: cleanPaths(result.red, root) });
     return;
   }
   const attempt = resumer.start({
-    flow, runId, runDir: rd.runDir, askId,
+    flow, runId, runDir, askId,
   });
   sendJson(res, 202, {
-    ok: true, answered: true, askId, decision: normalizeDecision(decision), resume: 'started', tries: attempt.tries, maxTries: attempt.maxTries,
+    ok: true, answered: true, askId, decision: normalizeDecision(decision), setAside: result.setAside, resume: 'started', tries: attempt.tries, maxTries: attempt.maxTries,
     note: 'answer saved; the resume was started in the background — its state is in the run\'s data (`resume`), not in this reply',
+  });
+}
+
+/**
+ * `POST /api/reopen` — runs after the same gates as the answer (cookie, own Host, own Origin). The human's
+ * "Reopen for another <wait>" on an expired ask (M4c-fix amendment 1 (b)): `reopenAsk` writes the reopen record
+ * (a fresh window of the same signed length, on the same ask) and moves a late answer aside. Nothing else reopens:
+ * no runner or agent path calls it. Refused 409 while a resume of the run is alive, and for a run that has ended.
+ * @param {any} res @param {any} body @param {string} root @param {ReturnType<typeof createResumer>} resumer
+ */
+function reopenRoute(res, body, root, resumer) {
+  const b = body !== null && typeof body === 'object' ? body : {};
+  const { flow, runId, askId } = b;
+  if (typeof askId !== 'string' || askId.length === 0) {
+    refuse(res, 400, 'askid-required', 'a reopen must name the askId the page was showing');
+    return;
+  }
+  const runDir = resolveRun(res, root, flow, runId);
+  if (runDir === null) return;
+  if (resumer.busy(flow, runId)) { refuseBusy(res); return; }
+  if (readHistory(dirname(dirname(runDir))).some((r) => r && r.runId === runId)) {
+    refuse(res, 409, 'run-ended', 'this run has ended — there is nothing to reopen');
+    return;
+  }
+  const result = reopenAsk({ runDir, askId, by: 'human via panel' });
+  if (!result.ok) {
+    sendJson(res, 409, { ok: false, refused: 'library', red: cleanPaths(result.red, root) });
+    return;
+  }
+  sendJson(res, 200, {
+    ok: true, reopened: true, askId, expiresAt: result.expiresAt, n: result.n, setAside: result.setAside,
+  });
+}
+
+/**
+ * `POST /api/remove-lock` — runs after the same gates as the answer (cookie, own Host, own Origin). The human's
+ * "Remove the old lock" (M4c-fix amendment 2 (h)): only for a run with a saved answer and no resume alive; `removeOldLock`
+ * re-checks at this moment that the lock still has no recorded holder, removes it and writes the one audit row; then the
+ * run continues exactly like "Continue the run" (the same `resumer.start`). Nothing else calls the remover.
+ * @param {any} res @param {any} body @param {string} root @param {ReturnType<typeof createResumer>} resumer
+ */
+function removeLockRoute(res, body, root, resumer) {
+  const b = body !== null && typeof body === 'object' ? body : {};
+  const { flow, runId } = b;
+  const runDir = resolveRun(res, root, flow, runId);
+  if (runDir === null) return;
+  const saved = readSavedAnswer(runDir);
+  if (!saved) {
+    refuse(res, 409, 'no-saved-answer', 'this run has no saved, unconsumed answer — a resume would have nothing to apply');
+    return;
+  }
+  if (resumer.busy(flow, runId)) { refuseBusy(res); return; }
+  const removed = removeOldLock({ root, runDir });
+  if (!removed.ok) { refuse(res, 409, removed.refused, cleanPaths(removed.red, root)); return; }
+  const attempt = resumer.start({
+    flow, runId, runDir, askId: saved.askId,
+  });
+  sendJson(res, 202, {
+    ok: true, lockRemoved: true, resume: 'started', askId: saved.askId, tries: attempt.tries, maxTries: attempt.maxTries,
   });
 }
 
@@ -146,22 +312,16 @@ function answerRoute(res, body, root, resumer) {
 function resumeRoute(res, body, root, resumer) {
   const b = body !== null && typeof body === 'object' ? body : {};
   const { flow, runId } = b;
-  const fc = checkFlowName(flow);
-  if (!fc.ok) { refuse(res, 400, 'bad-flow', fc.red); return; }
-  const rd = resolveRunDir(join(root, flow), runId);
-  if (!rd.ok) { refuse(res, 400, 'bad-runId', rd.red); return; }
-  const saved = readSavedAnswer(rd.runDir);
+  const runDir = resolveRun(res, root, flow, runId);
+  if (runDir === null) return;
+  const saved = readSavedAnswer(runDir);
   if (!saved) {
     refuse(res, 409, 'no-saved-answer', 'this run has no saved, unconsumed answer — a resume would have nothing to apply');
     return;
   }
-  const current = resumer.get(flow, runId);
-  if (current && current.state === 'in-flight') {
-    refuse(res, 409, 'resume-in-flight', `a resume for this run is already being started (try ${current.tries} of ${current.maxTries})`);
-    return;
-  }
+  if (resumer.busy(flow, runId)) { refuseBusy(res); return; }
   const attempt = resumer.start({
-    flow, runId, runDir: rd.runDir, askId: saved.askId,
+    flow, runId, runDir, askId: saved.askId,
   });
   sendJson(res, 202, {
     ok: true, resume: 'started', askId: saved.askId, tries: attempt.tries, maxTries: attempt.maxTries,
@@ -179,6 +339,12 @@ function resumeRoute(res, body, root, resumer) {
 export function handleRequest(req, res, opts) {
   const method = req.method ?? 'GET';
 
+  // M4c-fix item 3: EVERY response — refusals, redirects, errors, the page — says it must not be
+  // framed or cached. Set first, before any branch can write; `writeHead` merges these in.
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+  res.setHeader('Cache-Control', 'no-store');
+
   // Gate 1 — EVERY route, every method: `Host` must be this server's own
   // address. A foreign Host (DNS rebinding) is refused by name, never 200.
   const host = req.headers.host;
@@ -187,36 +353,78 @@ export function handleRequest(req, res, opts) {
     return;
   }
 
-  if (method === 'POST' && (req.url === '/api/answer' || req.url === '/api/resume')) {
+  // Gate 2 — EVERY route, every method (the page included): the panel's own cookie, set by opening
+  // the printed `/?t=<token>` link. Without it: 403 by name, and nothing in the body is a token.
+  const cookies = Object.fromEntries(String(req.headers.cookie ?? '').split(';').map((c) => {
+    const i = c.indexOf('=');
+    return i < 0 ? ['', ''] : [c.slice(0, i).trim(), c.slice(i + 1).trim()];
+  }));
+  if (!tokenMatches(cookies[cookieName(opts.port)], opts.token)) {
+    const link = method === 'GET' || method === 'HEAD' ? new URL(String(req.url), 'http://127.0.0.1') : null;
+    if (link && link.pathname === '/' && tokenMatches(link.searchParams.get('t'), opts.token)) {
+      res.writeHead(302, {
+        'set-cookie': `${cookieName(opts.port)}=${opts.token}; HttpOnly; SameSite=Strict; Path=/`, location: '/', 'content-length': 0,
+      });
+      res.end();
+      return;
+    }
+    // A browser opening the bare page sees a plain page that says what to do, not a blank JSON "forbidden"
+    // that reads as "the panel is down". No token, no script. API routes keep the JSON 403.
+    if (link && link.pathname === '/' && /text\/html/.test(String(req.headers.accept ?? ''))) {
+      const html = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>fwdloop panel</title>'
+        + '<p style="font:16px/1.5 system-ui,sans-serif;max-width:40em;margin:2em auto;padding:0 1em">'
+        + 'fwdloop panel: open the link printed in the terminal where you started <code>fwdloop panel</code> (it ends in ?t=…). '
+        + 'Restarted the panel? Open its new link.</p>';
+      res.writeHead(403, { 'content-type': 'text/html; charset=utf-8', 'content-length': Buffer.byteLength(html) });
+      res.end(method === 'HEAD' ? undefined : html);
+      return;
+    }
+    refuse(res, 403, 'cookie-missing-or-wrong', 'open the link `fwdloop panel` printed');
+    return;
+  }
+
+  if (method === 'POST' && (req.url === '/api/answer' || req.url === '/api/resume' || req.url === '/api/reopen' || req.url === '/api/remove-lock')) {
     const isResume = req.url === '/api/resume';
+    const isReopen = req.url === '/api/reopen';
+    const isRemoveLock = req.url === '/api/remove-lock';
     const origin = req.headers.origin;
     if (origin !== `http://127.0.0.1:${opts.port}` && origin !== `http://localhost:${opts.port}`) {
       refuse(res, 403, 'origin-not-own', String(origin));
       return;
     }
-    if (!tokenMatches(req.headers[TOKEN_HEADER], opts.token)) {
-      refuse(res, 403, 'token-missing-or-wrong');
-      return;
-    }
     let size = 0;
     const parts = [];
-    req.on('data', (c) => { size += c.length; if (size <= MAX_BODY_BYTES) parts.push(c); });
+    let tooBig = false;
+    req.on('data', (c) => {
+      if (tooBig) return;
+      size += c.length;
+      if (size <= MAX_BODY_BYTES) { parts.push(c); return; }
+      // M4c-fix item 6: over the limit — stop at once. Drop what was collected, refuse (413, then the
+      // connection closes), and cut the request off; the rest of the body is never read.
+      tooBig = true;
+      parts.length = 0;
+      res.setHeader('Connection', 'close');
+      refuse(res, 413, 'body-too-large');
+      res.once('finish', () => req.destroy());
+    });
     req.on('end', () => {
       try {
-        if (size > MAX_BODY_BYTES) { refuse(res, 413, 'body-too-large'); return; }
+        if (tooBig) return;
         let body;
         try { body = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { refuse(res, 400, 'body-not-json'); return; }
         if (isResume) resumeRoute(res, body, opts.root, opts.resumer);
+        else if (isReopen) reopenRoute(res, body, opts.root, opts.resumer);
+        else if (isRemoveLock) removeLockRoute(res, body, opts.root, opts.resumer);
         else answerRoute(res, body, opts.root, opts.resumer);
       } catch (e) {
-        refuse(res, 500, 'internal', /** @type {Error} */ (e).message);
+        sendJson(res, 500, { ok: false, refused: 'internal', red: 'internal error' });
       }
     });
     return;
   }
 
   if (method !== 'GET' && method !== 'HEAD') {
-    sendText(res, 405, 'method not allowed — GET/HEAD for reads; the only writes are POST /api/answer and POST /api/resume');
+    sendText(res, 405, 'method not allowed — GET/HEAD for reads; the only writes are POST /api/answer, POST /api/resume, POST /api/reopen and POST /api/remove-lock');
     return;
   }
 
@@ -249,7 +457,6 @@ export function handleRequest(req, res, opts) {
       return;
     }
     html = html.replace(/__FWDLOOP_PANEL_PORT__/g, String(opts.port));
-    html = html.replace(/__FWDLOOP_PANEL_TOKEN__/g, opts.token);
     if (method === 'HEAD') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': Buffer.byteLength(html) });
       res.end();
@@ -262,7 +469,7 @@ export function handleRequest(req, res, opts) {
 
   const loaded = loadCatalogue();
   if (!loaded.ok) {
-    sendText(res, 500, `catalogue failed to load: ${loaded.reds.join('; ')}`);
+    sendText(res, 500, `catalogue failed to load: ${cleanPaths(loaded.reds.join('; '), opts.root)}`);
     return;
   }
   const catalogue = loaded.primitives;
@@ -292,6 +499,11 @@ export function handleRequest(req, res, opts) {
       return;
     }
     const sub = runMatch[4] ?? null;
+
+    // A flow symlinked outside --root is refused BY NAME for every read (the data layer alone would
+    // only say "no such run"). Anything else about the flow still falls through to the 404.
+    const fd = resolveFlowDir(opts.root, flow);
+    if (!fd.ok && fd.why === 'outside-root') { refuse(res, 403, 'flow-outside-root', cleanPaths(fd.red, opts.root)); return; }
 
     if (sub === 'audit') {
       const result = getRunAudit({ root: opts.root, flow, runId });
@@ -332,9 +544,9 @@ export function handleRequest(req, res, opts) {
  * header). Resolves once actually listening; rejects on a bind error
  * (including `EADDRINUSE`) with a `.port` field on the error for the
  * caller's message.
- * @param {{ port?: number, root: string, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number } }} opts
+ * @param {{ port?: number, root: string, token?: string, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number } }} opts
  *   `resume` is for tests only (a fake env/bin, a short retry window); the CLI passes none.
- * @returns {Promise<{ server: import('node:http').Server, port: number, close: () => Promise<void> }>}
+ * @returns {Promise<{ server: import('node:http').Server, port: number, token: string, close: () => Promise<void> }>}
  */
 export function createPanelServer(opts) {
   if (typeof opts?.root !== 'string' || opts.root.length === 0) {
@@ -346,7 +558,7 @@ export function createPanelServer(opts) {
   const resumer = createResumer({ root, ...opts.resume });
   // One token per server process, made once, held only here and in the served
   // page — never logged, never in any /api response.
-  const token = randomBytes(32).toString('hex');
+  const token = typeof opts.token === 'string' && /^[0-9a-f]{64}$/.test(opts.token) ? opts.token : randomBytes(32).toString('hex');
   return new Promise((resolve, reject) => {
     // Bound port is resolved from the live socket (`server.address().port`)
     // once listening starts, not the requested value — this is what makes
@@ -360,7 +572,7 @@ export function createPanelServer(opts) {
           root, port: boundPort, token, resumer,
         });
       } catch (e) {
-        sendText(res, 500, `internal error: ${/** @type {Error} */ (e).message}`);
+        sendText(res, 500, 'internal error');
       }
     });
     server.once('error', (e) => {
@@ -374,6 +586,7 @@ export function createPanelServer(opts) {
       resolve({
         server,
         port: boundPort,
+        token,
         close: () => new Promise((res2) => { server.close(() => res2(undefined)); }),
       });
     });
@@ -403,8 +616,10 @@ export async function panelMain(argv, ctx) {
     }
   }
   try {
-    const { port: boundPort } = await createPanelServer({ port, root });
-    ctx.out(`fwdloop panel — http://127.0.0.1:${boundPort} (root: ${root}) (Ctrl-C to stop)`);
+    const { port: boundPort, token } = await createPanelServer({ port, root, token: loadOrMakeToken({ port }) });
+    writeTokenFile({ port: boundPort, token });
+    ctx.out(`fwdloop panel — (root: ${root}) (Ctrl-C to stop)`);
+    ctx.out(`open this link (it sets the panel's cookie): http://127.0.0.1:${boundPort}/?t=${token}`);
     // never resolves on its own — the process stays up until killed, same
     // shape any other long-running dev server takes.
     await new Promise(() => {});

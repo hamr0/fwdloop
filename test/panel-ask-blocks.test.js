@@ -210,7 +210,7 @@ function clickHarness(post) {
     function startLive(f, r, a){ calls.live.push(a); }
     function reloadRun(){ calls.reload++; return Promise.resolve(); }
     function setBusy(){}
-    ${['pendingText', 'answerControls', 'refusalText', 'sendAnswer', 'sayLive', 'holdAskRender'].map(fnSrc).join('\n')}
+    ${['pendingText', 'answerControls', 'refusalText', 'reasonMissing', 'blankReasonText', 'networkText', 'sendAnswer', 'sayLive', 'holdAskRender'].map(fnSrc).join('\n')}
     return { sendAnswer: sendAnswer, answerControls: answerControls, sayLive: sayLive, holdAskRender: holdAskRender,
       get pending(){ return pendingAnswer; }, get msg(){ return answerMsg; }, say: say };
   `)(post, calls);
@@ -240,7 +240,7 @@ test('item 6: a 409 keeps the doors and shows the refusal; nothing is pending', 
   assert.equal(scope.pending, null);
   assert.equal(scope.answerControls(ask, null, scope.pending).kind, 'doors');
   assert.equal(scope.msg.cls, 'refused');
-  assert.match(scope.msg.text, /HTTP 409 — answerAsk: already answered/);
+  assert.equal(scope.msg.text, 'This ask was already answered.');
   assert.deepEqual(calls.live, []);
 });
 

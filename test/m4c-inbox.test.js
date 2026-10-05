@@ -193,7 +193,7 @@ test('pulse: only [▶], [II] stuck and waiting [·]; placeholder dots, answered
   assert.equal(glyphPulses({ glyph: '[▶]', label: 'running' }), true);
   assert.equal(glyphPulses({ glyph: '[·]', label: 'waiting on you (parked, unanswered)' }), true);
   assert.equal(glyphPulses({ glyph: '[·]', label: 'answered, not resumed yet' }), false);
-  assert.equal(glyphPulses({ glyph: '[·]', label: 'answer saved, resume starting' }), false);
+  assert.equal(glyphPulses({ glyph: '[·]', label: 'your answer is saved; the run is picking it up' }), false);
   assert.equal(glyphPulses({ glyph: '[II]', label: 'stuck — answer saved, click try the resume again' }), true);
   for (const g of ['[✓]', '[✗]', '[!]', '[?]']) assert.equal(glyphPulses({ glyph: g, label: 'x' }), false);
 

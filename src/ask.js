@@ -17,7 +17,7 @@
 // not a second Checkpoint instance layered on top of the same file protocol.
 
 import {
-  existsSync, mkdirSync, readFileSync, renameSync, writeFileSync,
+  existsSync, linkSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
@@ -58,9 +58,24 @@ export function normalizeDecision(decision) {
   return decision === 'reject' ? 'redo' : decision;
 }
 
+/** Terminal control codes out of text a model wrote, before it reaches a terminal: C0 (incl. ESC, which starts
+ *  every CSI/OSC sequence), DEL and C1 (incl. the one-byte CSI, U+009B). Keeps \n and \t. A stripped ESC leaves the
+ *  sequence's printable tail ("[2J") visible, which is inert. */
+export function stripControl(text) {
+  // eslint-disable-next-line no-control-regex
+  return String(text).replace(/[\x00-\x08\x0B-\x1F\x7F-\x9F]/g, '');
+}
+
 /** The one decision -> status table, used by `listArchivedAsks` here and by the panel's legacy-ask rows.
  *  Look it up with `normalizeDecision(decision)`. */
 export const DECISION_STATUS = { accept: 'accepted', redo: 'redo', rerun: 'reran' };
+
+/** The status for a decision word read from disk, or undefined for anything that is not one of the table's OWN
+ *  entries ("constructor", "toString" and the rest of Object.prototype read as unrecognised). */
+export function decisionStatus(decision) {
+  const word = normalizeDecision(decision);
+  return typeof word === 'string' && Object.hasOwn(DECISION_STATUS, word) ? DECISION_STATUS[word] : undefined;
+}
 
 function sleep(ms) {
   return new Promise((resolve) => { setTimeout(resolve, ms); });
@@ -263,8 +278,170 @@ export function sha256Hex(serialised) {
 }
 
 /**
+ * M4c-fix amendment 1 (a): why a saved `answer.json` is not a usable answer for the open ask `openAskId`, or `null`
+ * when it is usable. The resume refuses each of these by name before it consumes the file, so without a way aside
+ * the file would block every new answer (`answerAsk`'s exclusive create).
+ * @param {string} text the file's text @param {string} openAskId
+ * @returns {string|null}
+ */
+export function brokenAnswerWhy(text, openAskId) {
+  let a;
+  try { a = JSON.parse(text); } catch { return 'it is not valid JSON'; }
+  if (a === null || typeof a !== 'object' || Array.isArray(a)) return 'it is not a JSON object';
+  if (a.askId !== openAskId) return `it names another ask ("${a.askId}")`;
+  if (Number.isNaN(Date.parse(typeof a.answeredAt === 'string' ? a.answeredAt : ''))) return 'it carries no readable saved time';
+  return null;
+}
+
+/**
+ * Move `answer.json` aside as a record: `answer.<askId>.<kind>.<n>.json`, `n` the first free number. Write-once:
+ * the new name is created with a hard link (`EEXIST` = taken, try the next), then the old name is removed — never
+ * a rename, which would overwrite; never a delete of the content. A symlinked `answer.json` is refused, not followed.
+ * @param {string} runDir @param {string} askId @param {'broken'|'late'} kind
+ * @returns {{ ok: true, name: string } | { ok: false, red: string }}
+ */
+export function setAsideAnswer(runDir, askId, kind) {
+  const resolved = resolveInside(runDir, 'answer.json');
+  if (!resolved.ok) return { ok: false, red: `answer.json cannot be set aside — ${'red' in resolved ? resolved.red : 'it is missing'}` };
+  for (let n = 1; n < 1000; n += 1) {
+    const name = `answer.${askId}.${kind}.${n}.json`;
+    try {
+      linkSync(resolved.full, join(runDir, name));
+    } catch (err) {
+      if (err.code === 'EEXIST') continue; // eslint-disable-line no-continue
+      return { ok: false, red: `answer.json could not be set aside — ${err.message}` };
+    }
+    try { unlinkSync(resolved.full); } catch { /* already moved by another process: the record exists either way */ }
+    return { ok: true, name };
+  }
+  return { ok: false, red: 'answer.json could not be set aside — no free record name' };
+}
+
+// ---------------------------------------------------------------------------
+// M4c-fix amendment 1 (b): an expired ask can be reopened — by a human only. A reopen never rewrites `ask.json`,
+// `state.json` or the archive (nothing existing is rewritten): it is a new write-once record,
+// `reopen.<askId>.<n>.json` (`wx`, `n` = the next free number), holding who/when/the new deadline. The deadline of
+// an ask is read in ONE place, `effectiveExpiresAt`: the newest reopen record for that askId, else the ask's own
+// `expiresAt`. Every reader of a deadline (answerAsk, the resume, the panel, the CLI) goes through it.
+// ---------------------------------------------------------------------------
+
+const REOPEN_RE = /^reopen\.(.+)\.(\d+)\.json$/;
+
+/**
+ * The deadline an ask is judged against: the newest valid reopen record's `expiresAt`, else `original`.
+ * A record that is unreadable, names another ask, or holds no parseable `expiresAt` is ignored.
+ * @param {string} runDir @param {string} askId @param {string} original the ask's own `expiresAt`
+ * @returns {string}
+ */
+export function effectiveExpiresAt(runDir, askId, original) {
+  let best = null;
+  for (const name of readdirInside(runDir, '.')) {
+    const m = REOPEN_RE.exec(name);
+    if (!m || m[1] !== askId) continue; // eslint-disable-line no-continue
+    const n = Number(m[2]);
+    if (best && best.n >= n) continue; // eslint-disable-line no-continue
+    const r = readFileInside(runDir, name);
+    if (!r.ok) continue; // eslint-disable-line no-continue
+    let rec;
+    try { rec = JSON.parse(r.text); } catch { continue; } // eslint-disable-line no-continue
+    if (rec === null || typeof rec !== 'object' || rec.askId !== askId || typeof rec.expiresAt !== 'string' || Number.isNaN(Date.parse(rec.expiresAt))) continue; // eslint-disable-line no-continue
+    best = { n, expiresAt: rec.expiresAt };
+  }
+  return best ? best.expiresAt : original;
+}
+
+/**
+ * An `ask.json`-shaped object as every reader should see it: `expiresAt` is the effective deadline, and `waitMs`
+ * is the signed wait the ask was parked with (its own `expiresAt` minus `askedAt`, written from the signed ttl),
+ * which a reopen repeats. `waitMs` is `null` when either time cannot be read.
+ * @param {string} runDir @param {any} ask
+ * @returns {any}
+ */
+export function withReopen(runDir, ask) {
+  if (ask === null || typeof ask !== 'object' || typeof ask.askId !== 'string') return ask;
+  const waitMs = Date.parse(ask.expiresAt) - Date.parse(ask.askedAt);
+  return {
+    ...ask,
+    expiresAt: typeof ask.expiresAt === 'string' ? effectiveExpiresAt(runDir, ask.askId, ask.expiresAt) : ask.expiresAt,
+    waitMs: Number.isFinite(waitMs) && waitMs > 0 ? waitMs : null,
+  };
+}
+
+/**
+ * Reopen an expired ask: a fresh window of the same signed length, starting now, on the same ask (the same draft;
+ * nothing about the run changes). Human only — the caller names who (`by`); no runner, agent or resume path calls this.
+ * Refused, by name, when: there is no such open ask, its answer was already taken, it has not expired, or a saved
+ * answer made in time is waiting (that one is resumed, not reopened). A late or broken saved answer is moved aside
+ * as a record (`answer.<askId>.late.<n>.json`, never deleted). Two clicks race on the record's exclusive create:
+ * the loser is refused "already reopened", so a double click opens one window, not two.
+ * @param {{ runDir: string, askId: string, by: string, clock?: () => string }} opts
+ * @returns {{ ok: true, expiresAt: string, n: number, setAside: string|null } | { ok: false, red: string }}
+ */
+export function reopenAsk({
+  runDir, askId, by, clock,
+}) {
+  const nowIso = (typeof clock === 'function' ? clock : () => new Date().toISOString())();
+  if (typeof runDir !== 'string' || runDir.length === 0) return { ok: false, red: 'reopenAsk: "runDir" must be a non-empty string' };
+  if (typeof askId !== 'string' || askId.length === 0) return { ok: false, red: 'reopenAsk: "askId" must be a non-empty string' };
+  if (typeof by !== 'string' || by.length === 0) return { ok: false, red: 'reopenAsk: "by" must name who reopened it' };
+  const askRead = readFileInside(runDir, 'ask.json');
+  if (!askRead.ok) return { ok: false, red: `reopenAsk: no open ask for run ${runDir}` };
+  let raw;
+  try { raw = JSON.parse(askRead.text); } catch (err) { return { ok: false, red: `reopenAsk: ask.json for run ${runDir} is not valid JSON — ${err.message}` }; }
+  if (raw === null || typeof raw !== 'object' || raw.askId !== askId) return { ok: false, red: `reopenAsk: askId "${askId}" is unknown for run ${runDir}` };
+  const ask = withReopen(runDir, raw);
+  if (Number.isNaN(Date.parse(ask.expiresAt))) return { ok: false, red: `reopenAsk: askId "${askId}" has an unparseable expiresAt — refusing` };
+  if (ask.waitMs === null) return { ok: false, red: `reopenAsk: askId "${askId}" carries no readable wait (askedAt/expiresAt) to repeat — refusing` };
+  if (existsSync(join(runDir, `answer.${askId}.consumed.json`))) return { ok: false, red: `reopenAsk: askId "${askId}" already answered for run ${runDir}` };
+  if (Date.parse(nowIso) <= Date.parse(ask.expiresAt)) return { ok: false, red: `reopenAsk: askId "${askId}" has not expired (it runs until ${ask.expiresAt})` };
+  const saved = readFileInside(runDir, 'answer.json');
+  let timing = null;
+  if (saved.ok) {
+    let a = null;
+    try { a = JSON.parse(saved.text); } catch { /* broken: set aside below */ }
+    timing = a !== null && typeof a === 'object' && a.askId === askId ? answerTiming(a.answeredAt, ask.expiresAt) : 'unreadable';
+    if (timing === 'on-time') return { ok: false, red: `reopenAsk: askId "${askId}" has an answer saved in time — resume it, it is not expired` };
+  }
+  // Amendment 3 (b): the stale answer is moved aside FIRST. If that fails nothing is written (no record, no audit
+  // row, the clock stays), so a stale answer can never count as fresh under a new deadline. If the record write then
+  // fails, the answer stays set aside: it was late or broken anyway, and the ask is simply still expired.
+  let setAside = null;
+  if (saved.ok) {
+    const moved = setAsideAnswer(runDir, askId, timing === 'late' ? 'late' : 'broken');
+    if (!moved.ok) return { ok: false, red: 'Could not clear the late answer; nothing was reopened.' };
+    setAside = moved.name;
+  }
+  // The record: write-once, keyed by askId and its number. The exclusive create is the one gate.
+  let n = 1;
+  for (const name of readdirInside(runDir, '.')) {
+    const m = REOPEN_RE.exec(name);
+    if (m && m[1] === askId) n = Math.max(n, Number(m[2]) + 1);
+  }
+  const expiresAt = new Date(Date.parse(nowIso) + ask.waitMs).toISOString();
+  const record = {
+    askId, n, by, at: nowIso, previousExpiresAt: ask.expiresAt, expiresAt, waitMs: ask.waitMs,
+  };
+  try {
+    writeFileSync(join(runDir, `reopen.${askId}.${n}.json`), JSON.stringify(record, null, 2), { flag: 'wx' });
+  } catch (err) {
+    if (err.code === 'EEXIST') return { ok: false, red: `reopenAsk: askId "${askId}" was already reopened (record ${n} exists)` };
+    return { ok: false, red: `reopenAsk: could not write the reopen record — ${err.message}` };
+  }
+  // The run's audit book names the reopen too (amendment 1 (b): "the audit records who reopened it and when"),
+  // through the one audit writer; a pure note (cost 0, no model), shaped like the stale-answer row.
+  appendAudit(runDir, {
+    step: 'ask', attempt: raw.attempt ?? null, class: null, verdict: 'ask-reopened',
+    gap: `reopened by ${by} at ${nowIso} (ask ${askId}); deadline ${ask.expiresAt} -> ${expiresAt}`,
+    usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: nowIso, tokens: null, tools: null, refused: [],
+  });
+  return {
+    ok: true, expiresAt, n, setAside,
+  };
+}
+
+/**
  * @param {{ runDir: string, askId: string, decision: 'accept'|'redo'|'reject'|'rerun', reason?: string, clock?: () => string }} opts
- * @returns {{ ok: true } | { ok: false, red: string }}
+ * @returns {{ ok: true, setAside: string|null } | { ok: false, red: string }}
  */
 export function answerAsk({
   runDir, askId, decision: givenDecision, reason, clock,
@@ -310,8 +487,10 @@ export function answerAsk({
   if (Number.isNaN(Date.parse(ask.expiresAt))) {
     return { ok: false, red: `answerAsk: askId "${askId}" has an unparseable expiresAt "${ask.expiresAt}" for run ${runDir} — refusing rather than treating it as not-expired` };
   }
-  if (Date.parse(nowIso) > Date.parse(ask.expiresAt)) {
-    return { ok: false, red: `answerAsk: askId "${askId}" expired at ${ask.expiresAt} for run ${runDir}` };
+  // The deadline is the reopened one when the ask was reopened (`effectiveExpiresAt`, the one reader).
+  const expiresAt = effectiveExpiresAt(runDir, askId, ask.expiresAt);
+  if (Date.parse(nowIso) > Date.parse(expiresAt)) {
+    return { ok: false, red: `answerAsk: askId "${askId}" expired at ${expiresAt} for run ${runDir}` };
   }
 
   const answerPath = join(runDir, 'answer.json');
@@ -349,6 +528,18 @@ export function answerAsk({
   // the exclusive gate (fails EEXIST if the file already exists), so there
   // is no window between "is it answered" and "answer it" for a second
   // caller to land in.
+  // M4c-fix amendment 1 (a): a saved answer that is broken (not JSON, not an object, names another ask, no readable
+  // time) would block this write for good — it is moved aside as a record first (never deleted). Only a broken one.
+  let setAside = null;
+  const savedRead = readFileInside(runDir, 'answer.json');
+  if (savedRead.ok) {
+    const why = brokenAnswerWhy(savedRead.text, askId);
+    if (why !== null) {
+      const moved = setAsideAnswer(runDir, askId, 'broken');
+      if (!moved.ok) return { ok: false, red: `answerAsk: askId "${askId}" — a broken saved answer (${why}) is in the way — ${moved.red}` };
+      setAside = moved.name;
+    }
+  }
   try {
     writeFileSync(answerPath, JSON.stringify(payload, null, 2), { flag: 'wx' });
   } catch (err) {
@@ -357,7 +548,7 @@ export function answerAsk({
     }
     return { ok: false, red: `answerAsk: could not write ${answerPath} — ${err.message}` };
   }
-  return { ok: true };
+  return { ok: true, setAside };
 }
 
 // ---------------------------------------------------------------------------
@@ -538,7 +729,7 @@ export function listArchivedAsks(runDir) {
       try {
         parsed = JSON.parse(consumedRead.text);
         answer = {
-          status: DECISION_STATUS[normalizeDecision(parsed.decision)] ?? `unrecognised: ${parsed.decision}`,
+          status: decisionStatus(parsed.decision) ?? `unrecognised: ${parsed.decision}`,
           answeredAt: parsed.answeredAt,
         };
         if (typeof parsed.reason === 'string') answer.reason = parsed.reason;
@@ -546,7 +737,7 @@ export function listArchivedAsks(runDir) {
         answer = { status: 'open', why: `${join(runDir, consumedRelPath)} is not valid JSON — ${err.message}` };
       }
     } else if (typeof ask.expiresAt === 'string' && !Number.isNaN(Date.parse(ask.expiresAt))
-      && Date.now() > Date.parse(ask.expiresAt)) {
+      && Date.now() > Date.parse(effectiveExpiresAt(runDir, askId, ask.expiresAt))) {
       answer = { status: 'expired' };
     } else {
       answer = { status: 'unanswered' };
@@ -556,7 +747,8 @@ export function listArchivedAsks(runDir) {
       askId,
       question: ask.question,
       askedAt: ask.askedAt,
-      expiresAt: ask.expiresAt,
+      expiresAt: typeof ask.expiresAt === 'string' ? effectiveExpiresAt(runDir, askId, ask.expiresAt) : ask.expiresAt,
+      waitMs: withReopen(runDir, ask).waitMs ?? null,
       evidence: readAskEvidence(ask),
       answer,
       ...(typeof ask.emits === 'string' ? { emits: ask.emits } : {}),

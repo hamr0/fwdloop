@@ -49,13 +49,13 @@ import {
   readFlow, resolveRunDir, readFileInside, resolveInside,
 } from './flow.js';
 import {
-  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming,
+  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen,
 } from './ask.js';
 import { WIRED_VERBS } from './primitives.js';
 import { closeByClass } from './closers.js';
 import { appendAudit, appendHistory } from './books.js';
 import {
-  readResumeLock, recordPid, writeLockHolder, LOCK_NO_HOLDER,
+  readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
 } from './liveness.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -631,8 +631,19 @@ async function runStepRalph({
       // never retried (M2 scope item 8) — both are the caller's own
       // `modelStep`'s job to distinguish; this loop only ever retries the
       // `transport: true` shape, exactly once.
+      const first = result;
       // eslint-disable-next-line no-await-in-loop
       result = await modelStep(executorContext, grantedTools, stepMeta);
+      // The first call's gate refusals and tool tally belong to this attempt's
+      // audit row too (the retry's collector starts empty). Only refused /
+      // tools / ungranted are merged — cost is never touched here.
+      if (result && typeof result === 'object') {
+        const refused = [...(first.refused ?? []), ...(result.refused ?? [])];
+        const tools = first.tools || result.tools ? { ...(first.tools ?? {}) } : null;
+        if (tools) for (const [k, v] of Object.entries(result.tools ?? {})) tools[k] = (tools[k] ?? 0) + v;
+        const ungranted = [...new Set([...(first.ungranted ?? []), ...(result.ungranted ?? [])])].sort();
+        result = { ...result, refused, tools, ...(ungranted.length > 0 ? { ungranted } : {}) };
+      }
     }
     const wallMs = Date.now() - startedAt;
 
@@ -1480,6 +1491,15 @@ function sumAuditUsd(runDir) {
   return { ok: true, total };
 }
 
+/** Unlink `resume.lock` only when its recorded holder is still THIS process (`readResumeLock`'s holder pid + start
+ *  time against our own). A lock a later taker made in its place is never touched. */
+function releaseResumeLock(runDir, lockPath) {
+  const lock = readResumeLock(runDir);
+  if (lock.pid === process.pid && lock.procStart === procStartOf('self')) {
+    try { unlinkSync(lockPath); } catch { /* already gone */ }
+  }
+}
+
 /**
  * M4c amendment 2 (d): create `resume.lock` with `wx` and write the holder into it.
  * An existing lock is read: holder alive (or cannot be told) -> refuse by name
@@ -1493,8 +1513,10 @@ async function takeResumeLock(runDir, runId, lockPath) {
     try {
       const lockFd = openSync(lockPath, 'wx');
       try { writeLockHolder(lockFd); } catch (err) {
+        // This call's own `wx` just created the file and no holder is in it yet, so it is ours to remove
+        // (`releaseResumeLock` would skip it: it unlinks only a lock whose holder names this process).
+        try { unlinkSync(lockPath); } catch { /* already gone */ }
         try { closeSync(lockFd); } catch { /* ignore */ }
-        try { unlinkSync(lockPath); } catch { /* ignore */ }
         return { ok: false, red: `resume: could not record the lock holder in ${lockPath} — ${err.message}` };
       }
       return { ok: true, lockFd };
@@ -1516,15 +1538,25 @@ async function takeResumeLock(runDir, runId, lockPath) {
     }
     if (lock.state === 'dead') {
       // Re-read right before the unlink: a racing taker may have cleared this lock and retaken it
-      // already, and must not lose its fresh lock. The window left is one syscall wide, and the
-      // answer's rename-to-consume (F44) still lets only one resume act on the answer.
+      // already, and must not lose its fresh lock. Same holder (pid and start time) as judged dead.
+      // The window left is one syscall wide, and the answer's rename-to-consume (F44) still lets only
+      // one resume act on the answer.
       const again = readResumeLock(runDir);
-      if (again.state === 'dead' && again.pid === lock.pid) {
+      if (again.state === 'dead' && again.pid === lock.pid && again.procStart === lock.procStart) {
         try { unlinkSync(lockPath); } catch { /* another taker already cleared it: retry wx */ }
       }
     }
   }
   return { ok: false, red: `resume: run "${runId}" is locked by another resumer (${lockPath})` };
+}
+
+/** Two roots are the same flow location when their real paths agree: a run parked through a symlinked `--root`
+ *  recorded the typed link path, and a resume (or a CLI that realpaths its root) names the real one. A path that
+ *  cannot be resolved is compared as typed. */
+function sameRoot(recorded, requested) {
+  if (typeof recorded !== 'string' || typeof requested !== 'string') return false;
+  const real = (p) => { try { return realpathSync(p); } catch { return p; } };
+  return recorded === requested || real(recorded) === real(requested);
 }
 
 /**
@@ -1631,7 +1663,7 @@ export async function resumeRun({
     // parked run whose recorded flow location disagrees with what THIS call
     // was asked to resume is refused by name, never re-read from wherever
     // the state file happens to point.
-    if (state.flow?.root !== root || state.flow?.name !== name) {
+    if (!sameRoot(state.flow?.root, root) || state.flow?.name !== name) {
       return {
         outcome: 'refused',
         red: `resume: run "${runId}" was parked against flow "${state.flow?.root}/${state.flow?.name}", `
@@ -1757,6 +1789,10 @@ export async function resumeRun({
     } catch (err) {
       return { outcome: 'refused', red: `resume: answer.json for run "${runId}" is not valid JSON — ${err.message}` };
     }
+    // Valid JSON that is not an object (`null`, a number, a string, an array) has no askId to read: refused by name.
+    if (answer === null || typeof answer !== 'object' || Array.isArray(answer)) {
+      return { outcome: 'refused', red: `resume: answer.json for run "${runId}" is not a JSON object (it holds ${answer === null ? 'null' : Array.isArray(answer) ? 'an array' : `a ${typeof answer}`})` };
+    }
     // M4b amendment 3: a consumed/saved answer that says `reject` (an older
     // version's file) is read as `redo`; the file on disk is never rewritten.
     answer = { ...answer, decision: normalizeDecision(answer.decision) };
@@ -1766,7 +1802,7 @@ export async function resumeRun({
 
     // M4c amendment 3: an answer's saved time, never the restart's clock, says whether it was on time. A missing or
     // unreadable one is refused by name here, before the consume, so the answer stays replayable.
-    const timing = answerTiming(answer.answeredAt, state.expiresAt);
+    const timing = answerTiming(answer.answeredAt, effectiveExpiresAt(runDir, state.askId, state.expiresAt));
     if (timing === 'unreadable') {
       return { outcome: 'refused', red: `resume: answer.json for run "${runId}" has a missing or unreadable answeredAt ("${answer.answeredAt}") — refusing rather than treating it as on time` };
     }
@@ -2013,8 +2049,8 @@ export async function resumeRun({
     if (result.outcome === 'complete') return { ...result, auditRows };
     return result;
   } finally {
+    releaseResumeLock(runDir, lockPath);
     try { closeSync(lockFd); } catch { /* already closed */ }
-    try { unlinkSync(lockPath); } catch { /* already gone */ }
   }
 }
 
@@ -2063,7 +2099,8 @@ export function readRunState(runDir) {
 export function readAsk(runDir) {
   const result = readFileInside(runDir, 'ask.json');
   if (!result.ok) return null;
-  try { return JSON.parse(result.text); } catch { return null; }
+  // The deadline every reader sees is the effective one (`withReopen`: a reopened ask's new deadline).
+  try { return withReopen(runDir, JSON.parse(result.text)); } catch { return null; }
 }
 
 /**

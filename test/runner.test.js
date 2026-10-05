@@ -782,6 +782,42 @@ test('F41 fix: two priced transport faults on the same attempt sum both known co
   assert.equal(last.spendComplete, false);
 });
 
+// M4c-fix item 19 / negative (viii): a transport retry keeps the first call's refusal + tally.
+test('negative (viii): a transport retry\'s audit row keeps the first call\'s refusal and tool tally, cost not double-counted', async () => {
+  const root = tmpRoot('retry-keeps-refusal');
+  writeJob1Flow(root);
+  const srcDir = tmpRoot('retry-keeps-refusal-sources');
+  const aging = writeTempCsv(srcDir);
+
+  let calls = 0;
+  const inner = makeJob1ModelStep();
+  const refusal = { verb: 'write', path: 'inputs/x.md', rule: 'writeScope' };
+  const modelStep = async (ctx, tools) => {
+    calls += 1;
+    if (calls === 1 && ctx.goal.includes('addressable cells')) {
+      return { ok: false, transport: true, costUsd: 0.05, red: 'socket hang up', refused: [refusal], tools: { write: 1 } };
+    }
+    const stepResult = await inner(ctx, tools);
+    if (ctx.goal.includes('addressable cells')) return { ...stepResult, costUsd: 0.02, refused: [], tools: { read: 2 } };
+    return stepResult;
+  };
+
+  await runFlow({
+    root, name: 'job1', runId: 'run-1', sources: [{ id: 'aging', path: aging }], catalogue: CATALOGUE,
+    modelStep, askStep: ACCEPT_ASK, sendStep: NOOP_SEND, primitives: {}, businessDate: BUSINESS_DATE,
+  });
+
+  const runDir = path.join(root, 'job1', 'runs', 'run-1');
+  const rows = readFileSync(path.join(runDir, 'audit.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const row = rows.find((r) => r.step === 'aging_cells');
+  assert.deepEqual(row.refused, [refusal], 'the first call\'s refusal must survive the retry');
+  assert.deepEqual(row.tools, { write: 1, read: 2 });
+  assert.equal(row.usd, 0.07, 'cost is the fault floor + the retry, not doubled');
+  const hist = readFileSync(path.join(root, 'job1', 'history.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const auditSum = rows.reduce((a, r) => a + (typeof r.usd === 'number' ? r.usd : 0), 0);
+  assert.ok(Math.abs(auditSum - hist[hist.length - 1].spentUsd) < 1e-9, 'books balance');
+});
+
 // ---------------------------------------------------------------------------
 // Negative (vi): covered by the "construction test" above (real context vs.
 // a leaky double smuggling `close` in).

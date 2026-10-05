@@ -53,6 +53,7 @@
      breakpoints, and also owns the horizontal scroll for the Path column
      on narrow (390px) screens instead of leaving it to .pane-body. */
   .audit-table-scroll{overflow:auto;max-height:min(60vh,520px);}
+  [data-testid="audit-table"] td.am, .audit-group table td.am{display:none;}
   /* z-index keeps rows from showing through the solid th background as
      they scroll under it. */
   [data-testid="audit-table"] th{position:sticky;top:0;z-index:1;}
@@ -225,6 +226,10 @@
      applies everywhere, so this wraps onto more lines instead of clipping,
      the same behavior fix #7 already gave phone width alone. */
   .wf-meta-line{white-space:normal;overflow:visible;text-overflow:clip;min-width:0;}
+  /* M4c-fix amendment 2 (g), line 2 of a run row: **word** — plain why. Wraps, never clips. */
+  .wf-sign-line{font-size:12px;color:var(--text-dim);white-space:normal;overflow-wrap:anywhere;min-width:0;}
+  .wf-sign-line .sign-word,.hdr-verdict .sign-word{color:var(--text);}
+  .hdr-verdict{font-size:12px;color:var(--text-dim);min-width:0;overflow-wrap:anywhere;}
   .wf-meta{font-size:12px;color:var(--text-dim);}
   .wf-meta + .wf-meta::before{content:" · ";color:var(--text-faint);}
   .wf-row.selected,.hist-row.selected{border:2px solid var(--accent);border-radius:4px;}
@@ -238,10 +243,19 @@
   .wf-runs .hist-row{margin-bottom:4px;}
 
   .rp-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:2px solid var(--border-strong);background:var(--panel);flex-wrap:wrap;gap:8px;}
-  .rp-header h2{margin:0;font-size:15px;}
-  .rp-header h2::before{content:"┤ ";color:var(--text-faint);}
-  .rp-header h2::after{content:" ├";color:var(--text-faint);}
-  .rp-header-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .rp-header h2{margin:0;font-size:15px;min-width:0;overflow-wrap:anywhere;text-transform:none;letter-spacing:normal;}
+  /* M4c-fix amendment 2 (k): the header reads like its Runs row — sign + name │ word — why · time; no frame, no capitals. */
+  .hdr-name-line{display:inline-flex;align-items:center;gap:8px;min-width:0;max-width:100%;}
+  .hdr-sep{color:var(--text-faint);}
+  .hdr-time{font-size:11px;color:var(--text-dim);min-width:0;overflow-wrap:anywhere;}
+  .hdr-verdict:has(+ .hdr-time:not(:empty))::after{content:" \00B7";}
+  .rp-header-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;max-width:100%;}
+  @media (max-width: 640px){
+    /* (k) a phone: the same three parts on three lines — sign + name / word — why / time */
+    .rp-header-title{flex-direction:column;align-items:flex-start;gap:2px;}
+    .rp-header-title .hdr-sep{display:none;}
+    .hdr-verdict:has(+ .hdr-time:not(:empty))::after{content:none;}
+  }
   /* item 4: phone-only jump-back link — hidden on desktop (the two panes
      are already both on screen there, nothing to jump back to). */
   .back-to-list-link{display:none;font-size:12px;color:var(--accent);text-decoration:underline;background:none;border:none;padding:0;cursor:pointer;}
@@ -273,16 +287,16 @@
   .map-box{border:1px solid var(--border-strong);padding:10px;overflow-x:auto;margin-top:16px;margin-bottom:14px;background:var(--panel2);text-align:center;}
   .map-box::before{content:"┤ MAP ├";display:block;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;margin:-2px 0 8px 0;}
   .map-box svg{display:block;max-width:100%;height:auto;margin:0 auto;}
-  .map-legend{display:flex;gap:14px;font-size:11px;color:var(--text-dim);margin-top:6px;flex-wrap:wrap;}
 
   .step-card{position:relative;border:1px solid var(--border);padding:10px;margin-bottom:8px;background:var(--panel2);}
   .step-card.running{border:1px double var(--amber);}
-  /* hamr's 2026-09-27 styling ruling: the card's HEADER line (number, step
-     name, state chip, close-class chip) is upper case and bold; the state/
-     close chips keep their own color from `.badge`'s existing classes —
-     text-transform never touches color. */
-  .step-card .step-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;text-transform:uppercase;font-weight:700;}
-  .step-card h4{margin:0;font-size:13px;}
+  /* hamr's 2026-09-27 ruling made the card header bold; his 2026-10-04 ruling (amendment 4) put it in its
+     real case — `1 · resume-text   [✓] passed   [human check]`. The global `h2,h4` uppercase is turned off
+     for the card's h4. The chips keep their color from `.badge`. A signed state chip already carries its own
+     `[✓]`, so it draws no second pair of brackets (`.sign-badge`). */
+  .step-card .step-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;text-transform:none;font-weight:700;}
+  .step-card h4{margin:0;font-size:13px;text-transform:none;letter-spacing:normal;}
+  .step-card .sign-badge::before,.step-card .sign-badge::after{content:none;}
   /* Every OTHER line on the card (goal, actions, granted, stopped reason) —
      lower case exactly as the data reads, normal weight; never inherits the
      header's uppercase/bold (same ruling, the non-header half of it). */
@@ -336,6 +350,30 @@
      `.audit-group h4` (0,1,1) and `.ask-question-heading` (0,1,0) alone, so
      this never un-bolds the ask question heading. */
   .audit-group h4.audit-status-header{font-weight:400;}
+  /* M4c-fix amendment 2 (f): a foldable step group. The header sits IN the box (not pinned over its top edge),
+     so a long header wraps inside its own box and never lands on the next group; a closed group is that one
+     header line with a caret and no empty table under it. */
+  .audit-group.audit-fold{padding:6px 10px;margin-top:6px;margin-bottom:6px;min-width:0;max-width:100%;box-sizing:border-box;}
+  .audit-group.audit-fold h4.audit-status-header{position:static;margin:0;padding:0;background:none;min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:break-word;}
+  .audit-group.audit-fold h4.audit-status-header{display:flex;align-items:baseline;gap:6px;overflow:hidden;}
+  .audit-group.audit-fold h4.audit-status-header > .badge,.audit-group.audit-fold h4.audit-status-header::before{flex:none;white-space:pre;}
+  .audit-fold-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .audit-fold-tail{flex:none;white-space:nowrap;}
+  .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6  ";color:var(--text-faint);}
+  .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC  ";}
+  .audit-group.audit-fold h4.audit-status-header::after{content:none;}
+  @media (max-width: 640px){
+    /* (l) a phone: the name is the only thing that shrinks — drop the dots and the word "try", tighten the gaps */
+    .audit-group.audit-fold{padding-left:8px;padding-right:8px;}
+    .audit-group.audit-fold h4.audit-status-header{gap:3px;font-size:12px;}
+    .audit-group.audit-fold h4.audit-status-header > .badge{padding-left:0;padding-right:0;font-size:10px;}
+    .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6";}
+    .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC";}
+    .audit-fold-sep,.audit-fold-try{display:none;}
+    .audit-fold-n{margin-left:.4em;}
+  }
+  .audit-group.audit-fold table{margin-top:8px;}
+  .audit-group.audit-fold table[hidden]{display:none !important;}
   /* hamr's 2026-09-27 review: the group header's own state word (g.state,
      rendered as a <span class="badge STATE">) and its per-try marks
      (<span class="mark STATE">) reuse the SAME color vocabulary the runs
@@ -401,28 +439,52 @@
      `buildAuditRowEl` already sets on every cell (never a second, separate
      label list to keep in sync). No horizontal scroll is possible once
      every cell is a full-width block. */
-  @media (max-width: 480px){
-    [data-testid="audit-table"], .audit-group table{width:100%;}
+  /* hamr's exit walk: ONE ROW PER LINE on a phone. Each audit entry is a single flex line — glyph, #attempt,
+     step (flat view only), verdict word, short cost, HH:MM — built from the `.am-*` cells `buildAuditRowEl`
+     adds (hidden on desktop, where the table is unchanged). Everything the line cut short hides behind a tap: the
+     row toggles `.open` and its full step, verdict, gap, refused list and tools show as wrapped lines under it. Every other cell hides. Nothing is wider
+     than the viewport: the step cell shrinks and ellipsizes, the rest are nowrap and short. The line never wraps
+     (flex-wrap:nowrap, overflow hidden), so a larger system font or a long verdict word shrinks the step and
+     ellipsizes rather than pushing cost and time onto a second line. It applies up to 640px — the whole
+     phone/narrow-window range, not only 480 (a 500 px window showed the wide table, rows 49-607 px tall). */
+  @media (max-width: 640px){
+    /* display:block: a table would size itself to its nowrap cells' content and run wider than the screen */
+    [data-testid="audit-table"], .audit-group table{display:block;width:100%;max-width:100%;}
     [data-testid="audit-table"] thead, .audit-group table thead{
       position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;
     }
     [data-testid="audit-table"] tbody, .audit-group table tbody{display:block;}
     [data-testid="audit-table"] tr, .audit-group table tr{
-      display:block;border:1px solid var(--border-strong);margin-bottom:8px;padding:4px 0;
+      display:flex;flex-wrap:nowrap;align-items:center;column-gap:8px;border-bottom:1px solid var(--border);padding:4px 6px;box-sizing:border-box;max-width:100%;overflow:hidden;
     }
     [data-testid="audit-table"] td, .audit-group table td{
-      display:block;border:none;border-bottom:1px dotted var(--border);padding:4px 8px;
-      /* fix (2026-09-28): a pre-M4a-2 row's Time cell shows the longer
-         `atWhy` text ("not recorded (before M4a-2)") instead of a
-         timestamp — overflow-wrap:anywhere (on top of the existing
-         break-word/word-break) makes sure that text wraps inside the
-         cell's own border at 390px instead of spilling past it. */
-      white-space:normal;overflow-wrap:anywhere;word-break:break-word;max-width:100%;box-sizing:border-box;
+      display:none;border:none;padding:0;min-width:0;box-sizing:border-box;white-space:nowrap;
     }
-    [data-testid="audit-table"] td:last-child, .audit-group table td:last-child{border-bottom:none;}
-    [data-testid="audit-table"] td::before, .audit-group table td::before{
-      content:attr(data-label) ": ";font-weight:700;color:var(--text-dim);
+    [data-testid="audit-table"] td.am, .audit-group table td.am,
+    [data-testid="audit-table"] td[data-label="Attempt"], .audit-group table td[data-label="Attempt"],
+    [data-testid="audit-table"] td[data-label="Step"], .audit-group table td[data-label="Step"],
+    [data-testid="audit-table"] td[data-label="Verdict"], .audit-group table td[data-label="Verdict"]{display:block;}
+    [data-testid="audit-table"] td[data-label="Attempt"]::before, .audit-group table td[data-label="Attempt"]::before{content:"#";}
+    [data-testid="audit-table"] td.am-glyph, .audit-group table td.am-glyph{order:1;flex:0 0 auto;}
+    [data-testid="audit-table"] td[data-label="Attempt"], .audit-group table td[data-label="Attempt"]{order:2;flex:0 0 auto;color:var(--text-dim);}
+    [data-testid="audit-table"] td[data-label="Step"], .audit-group table td[data-label="Step"]{order:3;flex:1 1 0;overflow:hidden;text-overflow:ellipsis;}
+    [data-testid="audit-table"] td[data-label="Verdict"], .audit-group table td[data-label="Verdict"]{order:4;flex:0 1 auto;max-width:9em;overflow:hidden;text-overflow:ellipsis;}
+    [data-testid="audit-table"] td.am-cost, .audit-group table td.am-cost{order:5;flex:0 0 auto;}
+    [data-testid="audit-table"] td.am-time, .audit-group table td.am-time{order:6;flex:0 0 auto;color:var(--text-dim);}
+    /* no step cell (grouped view): the verdict takes the slack so cost and time sit at the right */
+    .audit-group table td[data-label="Verdict"]{flex:1 1 0;}
+    /* EVERY entry opens on a tap (not only one with a gap): the line above shortens the step and verdict with an
+       ellipsis, so the tap is the one way to read all of it. The open block is wrapped lines under the one line. */
+    tr.audit-tap{cursor:pointer;}
+    tr.audit-tap td.am-glyph::after{content:"\25B8";margin-left:2px;color:var(--text-faint);}
+    tr.audit-tap.open td.am-glyph::after{content:"\25BE";}
+    [data-testid="audit-table"] td.am.am-detail, .audit-group table td.am.am-detail{display:none;}
+    [data-testid="audit-table"] tr.open, .audit-group table tr.open{flex-wrap:wrap;}
+    [data-testid="audit-table"] tr.open td.am-detail, .audit-group table tr.open td.am-detail{
+      display:block;order:7;flex:0 0 100%;min-width:0;white-space:normal;overflow-wrap:anywhere;padding:4px 0 2px;color:var(--text-dim);
     }
+    td.am-detail .am-d{margin:0 0 3px;}
+    td.am-detail .am-d b{color:var(--text);font-weight:600;}
   }
 </style>
 </head>
@@ -491,10 +553,10 @@
       <div class="rp-header">
         <button type="button" class="back-to-list-link" id="back-to-list" data-testid="back-to-list">&#8593; list</button>
         <div class="rp-header-title">
-          <span class="dot grey" id="active-wf-dot"></span>
-          <h2 id="active-wf-name">(none selected)</h2>
-          <span class="badge" id="active-wf-verdict">—</span>
-          <span class="badge" id="active-wf-date">—</span>
+          <span class="hdr-name-line"><span class="dot grey" id="active-wf-dot"></span><h2 id="active-wf-name">(none selected)</h2></span>
+          <span class="hdr-sep" aria-hidden="true">&#9474;</span>
+          <span class="hdr-verdict" id="active-wf-verdict">—</span>
+          <span class="hdr-time" id="active-wf-date">—</span>
         </div>
       </div>
 
@@ -617,9 +679,8 @@
   "use strict";
 
   var PORT = "__FWDLOOP_PANEL_PORT__";
-  // M4b piece 1: per-process answer token, replaced at serve time; sent only as
-  // the x-fwdloop-token header of the two POSTs (postJSON below).
-  var TOKEN = "__FWDLOOP_PANEL_TOKEN__";
+  // M4c-fix item 2: the page carries NO token. The panel link sets an HttpOnly cookie; every
+  // request (reads and the two POSTs) is authenticated by that cookie, sent by the browser itself.
   document.getElementById("host-line").textContent = "127.0.0.1:" + PORT;
 
   function wireTabs(tabButtons){
@@ -642,20 +703,28 @@
 
   // ---- fetch helpers. Reads are GET. The ONLY non-GET requests on this page are
   // the two POSTs below (M4b): /api/answer (a human clicking a door) and
-  // /api/resume ("try the resume again"). The token goes in the request header
-  // and nowhere else — never the DOM, a URL, storage or a log. Same-origin. ----
+  // /api/resume ("try the resume again"). Auth is the HttpOnly cookie
+  // (never the DOM, a URL, storage or a log). Same-origin. ----
   function getJSON(path){
     return fetch(path, { method: "GET", headers: { accept: "application/json" } }).then(function(r){
-      if(!r.ok) throw new Error(path + ": HTTP " + r.status);
+      if(!r.ok){ var err = new Error(path + ": HTTP " + r.status); err.status = r.status; throw err; }
       return r.json();
     });
+  }
+  // The ONE place a failed load becomes words (amendment 2 (b)): a plain sentence, never the thrown
+  // message (it carries the path and the HTTP code), never a status number.
+  function loadFailureText(e){
+    var status = e && e.status;
+    if(status === 403) return "The panel does not recognise this page. Open the link the terminal printed.";
+    if(status === 404) return "This run is no longer there.";
+    return "Could not load this; reload the page.";
   }
   // Resolves { status, body } for ANY HTTP status (a refusal is data to show by
   // name, never an exception); rejects only on a network failure.
   function postJSON(path, payload){
     return fetch(path, {
       method: "POST",
-      headers: { "content-type": "application/json", accept: "application/json", "x-fwdloop-token": TOKEN },
+      headers: { "content-type": "application/json", accept: "application/json" },
       body: JSON.stringify(payload),
       credentials: "same-origin"
     }).then(function(r){
@@ -718,6 +787,12 @@
     var short = d.toLocaleTimeString();
     return '<span title="' + escapeXml(full) + '">' + escapeXml(short) + '</span>';
   }
+  // phone one-liner: local HH:MM only; a row with no recorded time reads a dash (never a made-up time).
+  function auditShortTime(r){
+    var d = new Date(r.at);
+    if(typeof r.at !== "string" || isNaN(d.getTime())) return "—";
+    return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
+  }
   function duration(ms){
     if(typeof ms !== "number" || ms < 0) return "unknown";
     var s = ms / 1000;
@@ -725,6 +800,14 @@
     var m = Math.floor(s / 60), rem = Math.round(s - m * 60);
     if(rem === 60){ m += 1; rem = 0; }
     return m + "m" + String(rem).padStart(2, "0") + "s";
+  }
+  // A signed wait in words: "30 min", "2 h"; anything not a whole minute falls back to `duration`.
+  function waitText(ms){
+    if(typeof ms !== "number" || !(ms > 0)) return "unknown";
+    var m = ms / 60000;
+    if(m >= 60 && m % 60 === 0) return (m / 60) + " h";
+    if(m >= 1 && Number.isInteger(m)) return m + " min";
+    return duration(ms);
   }
   // A readable local date/time instead of a raw ISO timestamp (fix #5) — an
   // unparseable value still shows the raw string (never blank/nothing), so
@@ -741,10 +824,14 @@
   // parked on a human) reads "waiting on you", matching the SAME words the
   // run-row `[·]` glyph already uses (src/panel/data.js's computeGlyph) —
   // never the bracket glyph `[▶]`, which the scope reserves for "running".
+  // M4c-fix amendment 2 (g): a step's own sign + word come from the SAME one table the run rows use (the server's
+  // SIGN_WORDS, sent on the run detail as `signWords`); the page keeps no table of its own. Not started: no sign.
+  var signWords = {};
+  var STEP_SIGN = { done: "[\u2713]", stopped: "[\u2717]", waiting: "[\u00b7]" };
   function stateWord(state){
     if(state === "pending") return "not started";
-    if(state === "waiting") return "waiting on you";
-    return state; // "done" / "stopped"
+    var g = STEP_SIGN[state];
+    return g && signWords[g] ? g + " " + signWords[g] : state;
   }
   // fwdloop's close-class vocabulary (M4a scope item 4): `green` -> "cited"
   // (a mechanical, exact-match close), `softgreen` -> "shape" (a shape/
@@ -805,6 +892,8 @@
     if(verdict === "paused") return "paused for you";
     if(verdict === "refused") return "refused — no reason given";
     if(verdict === "ask-timeout" || verdict === "ask-expired") return "expired waiting for you";
+    if(verdict === "ask-reopened") return "reopened by you";
+    if(verdict === "lock-removed") return "old lock removed by you";
     if(verdict === "green") return "passed";
     if(verdict === "hitl") return "human check";
     if(verdict === "not-done") return "not done";
@@ -817,7 +906,7 @@
   // would misread a pause as a failure (fix #3).
   function verdictGlyph(verdict, closeClass){
     if(closeClass === "hitl" && verdict === "red") return null;
-    if(verdict === "paused" || verdict === "refused" || verdict === "ask-timeout" || verdict === "ask-expired") return null;
+    if(verdict === "paused" || verdict === "refused" || verdict === "ask-timeout" || verdict === "ask-expired" || verdict === "ask-reopened" || verdict === "lock-removed") return null;
     return verdictPassed(verdict) ? "✓" : "✗";
   }
   // The run-row glyph strings src/panel/data.js's computeGlyph emits are
@@ -825,6 +914,12 @@
   // CSS color class off them, never re-derives the glyph itself.
   // the dot's class list: colour from the glyph, `pulse` only when the server
   // says this sign is [▶] running or [·] waiting on you (data.js glyphPulses).
+  // M4c-fix amendment 2 (g): one bold word after every sign, then " — " and the plain line. The word comes from the
+  // server's one sign->word table (data.js SIGN_WORDS) on `word`; this only draws it, the same in Runs, Inbox and the header.
+  function signHtml(word, line, fallback){
+    if(!word) return escapeXml(fallback || "unknown");
+    return '<b class="sign-word">' + escapeXml(word) + '</b>' + (line ? " &mdash; " + escapeXml(line) : "");
+  }
   function dotClass(g, pulse){ return "dot " + glyphClass(g) + (pulse ? " pulse" : ""); }
   function glyphClass(g){
     if(g === "[✓]") return "green";
@@ -956,8 +1051,16 @@
     }
     return {perRow:1, boxW:Math.max(MIN_BOX_W, Math.min(usableW, ceiling))};
   }
+  // M4c-fix amendment 2 (l): a line longer than the box is cut with … (the whole name stays in the node's <title>
+  // and on its step card below the map).
+  function mapLabel(line, maxChars){
+    return line.length <= maxChars ? line : line.slice(0, Math.max(1, maxChars - 1)) + "\u2026";
+  }
   function wrapTitleLines(text, maxWidth){
     var maxChars = Math.max(1, Math.floor((maxWidth - TITLE_HPAD) / CHAR_W));
+    return wrapTitleLinesRaw(text, maxChars).map(function(l){ return mapLabel(l, maxChars); });
+  }
+  function wrapTitleLinesRaw(text, maxChars){
     if(text.length <= maxChars) return [text];
     var words = text.split(' ');
     var line1 = '', i = 0;
@@ -1008,7 +1111,7 @@
       // into a jump to the Audit tab's matching group is wired AFTER
       // insertion (renderStepMap, below), never inline here (this function
       // only ever builds a markup string).
-      body += '<g class="map-step" data-emits="' + escapeXml(s.emits) + '" tabindex="0" role="button" aria-label="open ' + escapeXml(s.emits) + ' in Audit">';
+      body += '<g class="map-step" data-emits="' + escapeXml(s.emits) + '" tabindex="0" role="button" aria-label="open ' + escapeXml(s.emits) + ' in Audit"><title>' + escapeXml(stepTitleText(idx, s)) + '</title>';
       body += '<rect x="' + x + '" y="' + y + '" width="' + boxW + '" height="' + boxH +
         '" rx="0" fill="var(--panel2)" stroke="' + colors.stroke + '" stroke-width="2"></rect>';
       if(lines.length === 1){
@@ -1064,21 +1167,6 @@
     });
     return '<svg width="' + totalW + '" height="' + totalH + '" viewBox="0 0 ' + totalW + ' ' + totalH + '" role="img" aria-label="step map">' + body + '</svg>';
   }
-  // Legend glyphs match the scope's own vocabulary (fix #4): `[✓]` done,
-  // `[✗]` stopped, `[·]` waiting on you (the default/grey dot — never the
-  // amber `[▶]`, which the scope reserves for "running", a state this panel
-  // cannot tell apart from "died" at all today — M4a's own open POC
-  // question). "not started" gets no dot/glyph at all, so it can never be
-  // confused with a reserved one.
-  function stepMapLegendHTML(){
-    return '<div class="map-legend">' +
-      '<span><span class="dot green"></span>done</span>' +
-      '<span><span class="dot red"></span>stopped</span>' +
-      '<span><span class="dot"></span>waiting on you</span>' +
-      '<span>not started</span>' +
-      '<span>⤾ dashed = retry</span>' +
-      '</div>';
-  }
   var lastSteps = null;
   var lastWidth = null;
   function mapAvailWidth(wrapper){
@@ -1112,7 +1200,7 @@
     wrapper.hidden = false;
     var w = mapAvailWidth(wrapper);
     lastWidth = w;
-    mount.innerHTML = buildStepMapSVG(steps, w) + stepMapLegendHTML();
+    mount.innerHTML = buildStepMapSVG(steps, w);
     wireMapClicks(mount);
   }
   function reflowMap(){
@@ -1122,7 +1210,7 @@
     if(w === null || w === lastWidth) return;
     lastWidth = w;
     var mount = document.getElementById("map-mount");
-    mount.innerHTML = buildStepMapSVG(lastSteps, w) + stepMapLegendHTML();
+    mount.innerHTML = buildStepMapSVG(lastSteps, w);
     wireMapClicks(mount);
   }
   if(typeof ResizeObserver !== "undefined"){
@@ -1165,8 +1253,8 @@
     row.innerHTML =
       '<span class="wf-line1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span>' +
       '<span class="wf-name" title="' + escapeXml(fullName) + '">' + escapeXml(fullName) + '</span></span>' +
+      '<span class="wf-sign-line" data-testid="run-sign-word">' + signHtml(r.word, r.line, r.label) + '</span>' +
       '<span class="wf-meta-line">' +
-      '<span class="wf-meta">' + escapeXml(r.label || "unknown") + '</span>' +
       '<span class="wf-meta">' + escapeXml(runSpendText(r)) + '</span>' +
       '<span class="wf-meta">' + escapeXml(runAtText(r)) + '</span>' +
       '</span>';
@@ -1176,20 +1264,34 @@
   }
 
   // M4c amendment 1 (a): the ONE place a click on a run in Runs decides where it lands.
-  // Right side: that run, on the Run tab. A run with an ask waiting on the human also
-  // moves the left side to the Inbox with that ask's row selected; any other run leaves
-  // the left side on Runs.
+  // Right side: that run, on the Run tab, at once. Whether the run has an ask waiting on the human (or is
+  // stuck, which counts as waiting: M4c amendment 2 (b)) is decided from THAT RUN's own asks, fetched on
+  // the click — never from the cached list row, which can be up to LISTS_POLL_MS old (a run that has just
+  // parked, been reopened or answered would read wrong). If it does, the left side moves to the Inbox with
+  // that ask's row selected (the Inbox is refreshed first) and the right side moves to the Ask tab, where its
+  // buttons are (M4c-fix amendment 2 (i)). "Needs you" = waiting, stuck, or expired with the Reopen offer (the
+  // same `!open && reopen` test answerControls uses); any other run leaves the left side on Runs, right on Run.
+  function askNeedingYou(result){
+    var found = null;
+    ((result && result.asks) || []).forEach(function(a){ if(a.waiting || a.stuck || (!a.open && a.reopen)) found = a; });
+    return found;
+  }
   function openRunFromRuns(r, rowEl){
-    if(r.waiting){
-      var inboxId = "inbox-row-" + r.flow + "-" + r.runId + "-" + r.waitingAskId;
-      var inboxRow = Array.prototype.find.call(document.querySelectorAll(".inbox-row"), function(el){ return el.getAttribute("data-testid") === inboxId; }) || null;
-      selectRun(r.flow, r.runId, inboxRow, ".inbox-row", r.waitingAskId);
-      document.getElementById("tab-inbox").click();
-    } else {
-      selectRun(r.flow, r.runId, rowEl, ".hist-row");
-    }
+    selectRun(r.flow, r.runId, rowEl, ".hist-row");
     document.getElementById("tab-run").click();
     scrollRunIntoViewMobile();
+    getJSON("/api/runs/" + encodeURIComponent(r.flow) + "/" + encodeURIComponent(r.runId) + "/asks").then(function(result){
+      // the user already clicked another run: this answer is for a run they left
+      if(currentFlow !== r.flow || currentRunId !== r.runId) return;
+      var ask = askNeedingYou(result);
+      if(!ask) return;
+      reloadLists();
+      var inboxId = "inbox-row-" + r.flow + "-" + r.runId + "-" + ask.askId;
+      var inboxRow = Array.prototype.find.call(document.querySelectorAll(".inbox-row"), function(el){ return el.getAttribute("data-testid") === inboxId; }) || null;
+      selectRun(r.flow, r.runId, inboxRow, ".inbox-row", ask.askId);
+      document.getElementById("tab-inbox").click();
+      document.getElementById("tab-ask").click();
+    }).catch(function(){ /* unreadable books: the run stays open on the Run tab, the left side stays on Runs */ });
   }
 
   // ---- History view: every row exactly as /api/runs returned it. ----
@@ -1336,8 +1438,8 @@
       row.innerHTML =
         '<span class="wf-line1"><span class="wf-caret">' + (hasOtherRuns ? (expanded ? "▼" : "▶") : "") + '</span><span class="' + dotClass(g.lastGlyph, g.lastRow.pulse) + '"></span>' +
         '<span class="wf-name" title="' + escapeXml(wfFullName) + '">' + escapeXml(wfFullName) + '</span></span>' +
+        '<span class="wf-sign-line" data-testid="run-sign-word">' + signHtml(g.lastRow.word, g.lastRow.line, g.lastLabel) + '</span>' +
         '<span class="wf-meta-line">' +
-        '<span class="wf-meta">' + escapeXml(g.lastLabel || "unknown") + '</span>' +
         '<span class="wf-meta">' + escapeXml(runSpendText(g.lastRow)) + '</span>' +
         '<span class="wf-meta">' + escapeXml(runAtText(g.lastRow)) + '</span>' +
         '<span class="wf-meta">' + g.runCount + ' run' + (g.runCount === 1 ? '' : 's') + '</span>' +
@@ -1601,9 +1703,10 @@
     var verdict = document.getElementById("active-wf-verdict");
     var date = document.getElementById("active-wf-date");
 
+    if(detail.signWords) signWords = detail.signWords;
     name.textContent = detail.flow + " (" + detail.runId + ")";
     dot.className = dotClass(detail.glyph, detail.pulse);
-    verdict.textContent = detail.label || "unknown";
+    verdict.innerHTML = signHtml(detail.word, detail.line, detail.label);
     // browser re-walk bug #4: this is the DATE field — it must use its own
     // why (`detail.atWhy`), never `detail.outcomeWhy` (a different book
     // fact borrowed by mistake). A parked run's ask.json `askedAt` is a
@@ -1640,7 +1743,7 @@
     var modelText = detail.model || (detail.modelWhy || "no model call recorded yet");
     var closeText = closeClassSummaryText(detail.steps) || (detail.stepsWhy || "no steps recorded");
     box.innerHTML =
-      '<div class="summary-headline"><span class="' + dotClass(detail.glyph, detail.pulse) + '"></span><b>' + escapeXml(detail.label || "unknown") + '</b> &middot; <span class="num">' + escapeXml(spendText) + '</span></div>' +
+      '<div class="summary-headline"><span class="' + dotClass(detail.glyph, detail.pulse) + '"></span>' + signHtml(detail.word, detail.line, detail.label) + ' &middot; <span class="num">' + escapeXml(spendText) + '</span></div>' +
       '<div class="summary-row" data-testid="summary-model"><span class="sum-label">model:</span><span class="sum-val">' + escapeXml(modelText) + '</span></div>' +
       '<div class="summary-row"><span class="sum-label">steps:</span><span class="sum-val">' + stepsText + '</span></div>' +
       '<div class="summary-row" data-testid="summary-why"><span class="sum-label">why:</span><span class="sum-val">' + escapeXml(detail.stopReason || detail.stopReasonWhy || "not recorded") + '</span></div>' +
@@ -1695,8 +1798,8 @@
     div.textContent = text;
     return div;
   }
-  // The card's HEADER line: "N · step-name  [state]  [close class]" — upper
-  // case/bold from CSS (`.step-card .step-head`), the state/close chips
+  // The card's HEADER line: "N · step-name  [state]  [close class]" — real
+  // case, bold from CSS (`.step-card .step-head`), the state/close chips
   // keeping their own `.badge` color. `auditStateClass` is the SAME
   // function the Audit tab's group headers use to color their own state
   // word — never a second color scheme for the Run tab's cards.
@@ -1707,7 +1810,7 @@
     h4.textContent = (idx + 1) + " · " + box.emits;
     head.appendChild(h4);
     var stateBadge = document.createElement("span");
-    stateBadge.className = "badge " + auditStateClass(box.state);
+    stateBadge.className = "badge " + auditStateClass(box.state) + (STEP_SIGN[box.state] ? " sign-badge" : "");
     stateBadge.setAttribute("data-testid", "step-card-state-" + idx);
     stateBadge.textContent = stateWord(box.state);
     head.appendChild(stateBadge);
@@ -1809,11 +1912,27 @@
     var header = row.querySelector("h4");
     if(table && table.hidden){
       table.hidden = false;
+      row.classList.remove("closed");
+      auditExpanded[step] = true;
       if(header) header.setAttribute("aria-expanded", "true");
     }
     if(typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "center" });
     row.classList.add("audit-group-highlight");
     setTimeout(function(){ row.classList.remove("audit-group-highlight"); }, 1600);
+  }
+  // What a phone tap shows under the one-line entry: everything the line cut short, in full, as wrapped lines.
+  // Only fields the row actually has — a line with nothing to say is left out, never filled with a made-up value.
+  function auditDetailHtml(r, word, actionText, isRejectRow){
+    var lines = [["step", r.step], ["result", word], ["action", actionText]];
+    if(!isRejectRow && r.gap) lines.push(["gap", r.gap]);
+    if(Array.isArray(r.refused) && r.refused.length > 0){
+      lines.push(["refused", r.refused.map(function(x){ return x.verb + " " + x.path + " (" + x.rule + ")"; }).join("; ")]);
+    }
+    if(Array.isArray(r.ungranted) && r.ungranted.length > 0) lines.push(["not granted, called anyway", r.ungranted.join(", ")]);
+    lines.push(["close", closeClassLabel(r.class)], ["cost", auditCostCellText(r)]);
+    var when = readableDateTime(r.at);
+    lines.push(["time", (typeof r.atWhy === "string" && r.atWhy.length > 0) ? r.atWhy : (when || "unknown")]);
+    return lines.map(function(l){ return "<div class=\"am-d\"><b>" + escapeXml(l[0]) + ":</b> " + escapeXml(l[1]) + "</div>"; }).join("");
   }
   // ONE row-cell builder for both views — `includeStep` controls only
   // whether the Step cell is rendered (Grouped drops it; the group's own
@@ -1842,8 +1961,20 @@
       "<td data-label=\"Cost\">" + escapeXml(auditCostCellText(r)) + "</td>" +
       "<td data-label=\"Verdict\"><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
       "<td data-label=\"Close\">" + escapeXml(closeClassLabel(r.class)) + "</td>" +
-      "<td data-label=\"Time\">" + auditTimeCellHtml(r) + "</td>";
+      "<td data-label=\"Time\">" + auditTimeCellHtml(r) + "</td>" +
+      // phone-only one-line cells (CSS shows these and hides the rest below 640px; hidden on desktop)
+      "<td class=\"am am-glyph\" aria-hidden=\"true\">" + escapeXml(glyph || "·") + "</td>" +
+      "<td class=\"am am-cost\">" + escapeXml(money(r.usd, r.spendComplete)) + "</td>" +
+      "<td class=\"am am-time\">" + escapeXml(auditShortTime(r)) + "</td>" +
+      "<td class=\"am am-detail\">" + auditDetailHtml(r, word, actionText, isRejectRow) + "</td>";
     tr.innerHTML = cells;
+    // every entry opens on a tap, by finger or keyboard; only the phone layout shows what opening reveals
+    tr.className = "audit-tap";
+    tr.tabIndex = 0;
+    tr.setAttribute("aria-expanded", "false");
+    var toggle = function(){ tr.setAttribute("aria-expanded", tr.classList.toggle("open") ? "true" : "false"); };
+    tr.addEventListener("click", toggle);
+    tr.addEventListener("keydown", function(ev){ if(ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); toggle(); } });
     return tr;
   }
   // ---- hamr's 2026-09-27 exit-check review #2: the Audit tab's All/Human/
@@ -1915,22 +2046,41 @@
     stateSpan.setAttribute("data-testid", "audit-group-state");
     stateSpan.textContent = g.state;
     h4.appendChild(stateSpan);
-    h4.appendChild(document.createTextNode(" · " + g.step + " · " + duration(g.timeMs) + " · " + (g.cost || "cost unknown")));
-    if(typeof g.tokensTotal === "number") h4.appendChild(document.createTextNode(" · " + g.tokensTotal + " tokens"));
-    h4.appendChild(document.createTextNode(" · try " + g.tryCount + " "));
+    // M4c-fix amendment 2 (l): the title is `[sign] name · cost · try N ✗✓` — the name alone is cut with … (own flex child),
+    // cost and tries never; time and tokens live in each try's detail. The whole name is in the title attribute and aria-label.
+    var nameSpan = document.createElement("span");
+    nameSpan.className = "audit-fold-name";
+    nameSpan.setAttribute("data-testid", "audit-group-name");
+    nameSpan.title = g.step;
+    nameSpan.textContent = g.step;
+    h4.appendChild(nameSpan);
+    var tail = document.createElement("span");
+    tail.className = "audit-fold-tail";
+    // the dots and the word "try" are their own spans so a phone can drop them (keeping cost, N and the marks)
+    function tailPart(cls, text){ var sp = document.createElement("span"); sp.className = cls; sp.textContent = text; tail.appendChild(sp); }
+    tailPart("audit-fold-sep", "· ");
+    tail.appendChild(document.createTextNode(g.cost || "cost unknown"));
+    tailPart("audit-fold-sep", " · ");
+    tailPart("audit-fold-try", "try ");
+    tailPart("audit-fold-n", g.tryCount + " ");
     g.tryMarks.forEach(function(mark){
       var markSpan = document.createElement("span");
       markSpan.className = "mark " + auditMarkClass(mark);
       markSpan.textContent = mark;
-      h4.appendChild(markSpan);
+      tail.appendChild(markSpan);
     });
+    h4.appendChild(tail);
     return h4;
   }
   // Grouped view: one section per step, server order preserved (first-seen
   // order of `r.step` across this run's own rows — never re-sorted).
   // review item #1: COLLAPSED by default — a map/step-card click
   // (`openAuditGroup`) is the only thing that force-expands one.
+  var auditExpanded = {}; // step -> true/false once a human toggled it; reset when the run changes
+  var auditExpandedRun = null;
   function renderAuditGroups(result){
+    var runKey = currentFlow + "/" + currentRunId;
+    if(auditExpandedRun !== runKey){ auditExpanded = {}; auditExpandedRun = runKey; }
     var container = document.getElementById("audit-groups");
     container.innerHTML = "";
     if(!result || result.empty) return;
@@ -1949,24 +2099,42 @@
       // COLLAPSED by default now (`aria-expanded` starts "false", the
       // table starts `hidden`) — expanding is something a human (or a
       // map/step-card jump) does, never the initial state.
+      // M4c-fix amendment 2 (f): a step with any failed try (a row with a gap) starts OPEN so its gap is
+      // seen without a click; the rest start closed. A manual toggle wins on re-render (auditExpanded).
+      var failed = (g.rows || []).some(function(r){ return !!r.gap; });
+      var isOpen = Object.prototype.hasOwnProperty.call(auditExpanded, g.step) ? auditExpanded[g.step] : failed;
+      wrap.classList.add("audit-fold");
+      if(!isOpen) wrap.classList.add("closed");
       var header = buildAuditGroupHeaderEl(g);
       header.setAttribute("role", "button");
       header.setAttribute("tabindex", "0");
-      header.setAttribute("aria-expanded", "false");
+      header.setAttribute("aria-expanded", isOpen ? "true" : "false");
       header.setAttribute("aria-label", auditGroupHeaderText(g));
       header.style.cursor = "pointer";
       wrap.appendChild(header);
       var table = document.createElement("table");
-      table.hidden = true;
+      table.hidden = !isOpen;
       table.innerHTML = "<thead><tr><th>Attempt</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th><th>Time</th></tr></thead><tbody></tbody>";
       var tbody = table.querySelector("tbody");
       rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, false)); });
       table.setAttribute("data-testid", "audit-table-grouped-" + g.step);
       wrap.appendChild(table);
+      // M4c-fix amendment 2 (j): a step with exactly one try opens that try's detail with the group, closes with it
+      // (the same `.open` tap-detail the row's own tap toggles; only the phone layout shows it).
+      function syncSingleRow(open){
+        if(rows.length !== 1) return;
+        var only = tbody.firstChild;
+        only.classList.toggle("open", open);
+        only.setAttribute("aria-expanded", open ? "true" : "false");
+      }
+      syncSingleRow(isOpen);
       function toggleAuditGroup(){
         var next = table.hidden;
         table.hidden = !next;
+        wrap.classList.toggle("closed", !next);
+        auditExpanded[g.step] = next;
         header.setAttribute("aria-expanded", next ? "true" : "false");
+        syncSingleRow(next);
       }
       header.addEventListener("click", toggleAuditGroup);
       header.addEventListener("keydown", function(e){
@@ -2176,15 +2344,20 @@
     // src/panel/data.js works out the boundary server-side, off the run's
     // full audit-row order, so the client no longer needs a second,
     // separately-fetched copy of the audit rows to cross-reference (fix #6).
-    getJSON(base).then(paintRun).catch(function(e){
+    // same guard as reloadRun: a late reply for a run the user already left paints nothing and writes no polling flag
+    var still = function(){ return currentFlow === flow && currentRunId === runId; };
+    getJSON(base).then(function(d){ if(still()) paintRun(d); }).catch(function(e){
+      if(!still()) return;
+      openRunLive = false;   // unreadable books: the list rate, not 2 s forever
       document.getElementById("run-empty").hidden = false;
-      document.getElementById("run-empty").textContent = "failed to load run: " + e.message;
+      document.getElementById("run-empty").textContent = loadFailureText(e);
       document.getElementById("run-content").hidden = true;
     });
-    getJSON(base + "/audit").then(renderAudit).catch(function(){ renderAudit(null); });
-    getJSON(base + "/job").then(renderJob).catch(function(){ renderJob(null); });
-    getJSON(base + "/asks").then(function(result){ renderAsk(result, focusAskId || null); }).catch(function(e){
-      renderAsk(null, null, e.message);
+    // the same late-reply guard on audit, job and asks: a reply for a run the user already left paints nothing
+    getJSON(base + "/audit").then(function(a){ if(still()) renderAudit(a); }).catch(function(){ if(still()) renderAudit(null); });
+    getJSON(base + "/job").then(function(j){ if(still()) renderJob(j); }).catch(function(){ if(still()) renderJob(null); });
+    getJSON(base + "/asks").then(function(result){ if(still()) renderAsk(result, focusAskId || null); }).catch(function(e){
+      if(still()) renderAsk(null, null, loadFailureText(e));
     });
   }
 
@@ -2231,7 +2404,7 @@
   function reloadRun(flow, runId, skipLists){
     var base = "/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId);
     var still = function(){ return currentFlow === flow && currentRunId === runId; };
-    var detailP = getJSON(base).then(function(d){ if(still()) paintRun(d); return d; }).catch(function(){ return null; });
+    var detailP = getJSON(base).then(function(d){ if(still()) paintRun(d); return d; }).catch(function(){ if(still()) openRunLive = false; return null; });   // unreadable books: the list rate, not 2 s forever
     var asksP = getJSON(base + "/asks").then(function(a){
       if(still()){
         // the Ask tab is drawn from the books AND the page's own pending answer ("working…" block)
@@ -2241,7 +2414,7 @@
         if(next === null || next !== lastSig.asks){ lastSig.asks = renderAsk(a, null) ? next : null; }
       }
       return a;
-    }).catch(function(e){ if(still()){ lastSig.asks = null; renderAsk(null, null, e.message); } return null; });
+    }).catch(function(e){ if(still()){ lastSig.asks = null; renderAsk(null, null, loadFailureText(e)); } return null; });
     getJSON(base + "/audit").then(function(a){
       if(!still()) return;
       var next = sig(a);
@@ -2264,8 +2437,9 @@
     var listsDue = catchUp || (Date.now() - lastListsAt) >= LISTS_POLL_MS;
     var wasLive = openRunLive;
     var selP;
-    // the open run's own panes: every tick, but only while it is live (or being watched), or on catch-up
-    if(sel && (openRunLive || watchIsSelected || catchUp)) selP = reloadRun(currentFlow, currentRunId, true);
+    // the open run's own panes: every tick while it is live (or being watched); a finished run (or one whose
+    // books can't be read) at the list rate, so a late change shows without a re-click; or on catch-up
+    if(sel && (openRunLive || watchIsSelected || catchUp || listsDue)) selP = reloadRun(currentFlow, currentRunId, true);
     else selP = Promise.resolve([null, null]);
     if(listsDue) reloadLists();
     // the watched run, when it is not the one on screen: read it for its outcome only (no paint — `still()` is false)
@@ -2281,6 +2455,8 @@
   function stopLive(){ live = null; }
   // What the books say now, in words (pure; `null` = keep waiting).
   function liveOutcome(askId, detail, asks){
+    // amendment 1 (a): within the watch the saved answer turned out to have no readable time — say why; the doors come back
+    if(asks && asks.resume && asks.resume.state === "broken") return { done: true, cls: "refused", text: asks.resume.label + ": " + (asks.resume.reason || "") };
     if(asks && asks.resume && asks.resume.state === "not-started") return { done: true, cls: null, text: null };
     var list = (asks && asks.asks) || [];
     var fresh = list.find(function(a){ return a.waiting && a.askId !== askId; });
@@ -2339,8 +2515,8 @@
       runsFilterBar.refresh();
     }
   }).catch(function(e){
-    document.getElementById("wf-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
-    document.getElementById("history-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
+    document.getElementById("wf-list").innerHTML = '<div class="hint">' + escapeXml(loadFailureText(e)) + '</div>';
+    document.getElementById("history-list").innerHTML = '<div class="hint">' + escapeXml(loadFailureText(e)) + '</div>';
   });
 
   // ---- shared text-node helper — book text (question/draft/artifact
@@ -2365,7 +2541,7 @@
   // Ask tab, focused on that one ask. The answer doors live in the Ask tab. --
   function stopStatusLine(row){
     if(row.waiting) return "time left: " + duration(row.timeLeftMs);
-    if(row.stuck) return row.stuckLabel;
+    if(row.stuck) return row.stuckLine || row.stuckLabel;
     if(row.working) return "working on your " + row.working + "…";
     if(row.open && row.resume) return row.resume.label;
     var bits = [row.status];
@@ -2403,7 +2579,10 @@
     flowName.className = "wf-name";
     head.appendChild(flowName);
     wrap.appendChild(head);
-    wrap.appendChild(textDiv("wf-meta", stopStatusLine(row)));
+    var meta = textDiv("wf-sign-line", "");
+    meta.setAttribute("data-testid", "inbox-sign-word");
+    meta.innerHTML = signHtml(row.word, stopStatusLine(row), stopStatusLine(row));
+    wrap.appendChild(meta);
     if(typeof row.question === "string"){
       wrap.appendChild(textDiv("step-meta", "question: " + row.question));
     } else if(row.questionWhy){
@@ -2446,7 +2625,7 @@
   }
   getJSON("/api/inbox").then(function(result){ renderInbox(result.rows || [], result.openCount); }).catch(function(e){
     lastSig.inbox = null;
-    document.getElementById("inbox-list").innerHTML = '<div class="hint">failed to load: ' + escapeXml(e.message) + '</div>';
+    document.getElementById("inbox-list").innerHTML = '<div class="hint">' + escapeXml(loadFailureText(e)) + '</div>';
   });
 
   // ---- Ask tab (M4a-1): every ask of the SELECTED run, collapsed by
@@ -2465,6 +2644,7 @@
     var bits = [ask.status];
     if(ask.reason) bits.push("reason: " + ask.reason);
     if(ask.answeredAt) bits.push("answered " + (readableDateTime(ask.answeredAt) || ask.answeredAt));
+    if(ask.why) bits.push(ask.why);
     return textDiv("wf-meta", bits.join(" · "));
   }
   // ---- M4b piece 4: answer doors. The panel is a CLIENT of the arbiter: it sends
@@ -2482,19 +2662,27 @@
   }
   function answerControls(ask, resume, pending){
     if(pending && ask && pending.askId === ask.askId){
-      return { kind: "working", text: pendingText(pending), why: "no answer doors: the answer was sent" };
+      return { kind: "working", text: pendingText(pending) };
+    }
+    // amendment 1 (b): an expired ask offers one human action, the reopen (never an answer word)
+    if(ask && !ask.open && ask.reopen){
+      return { kind: "expired", waitMs: ask.reopen.waitMs, late: !!ask.reopen.late, line: ask.reopen.why, why: "no answer doors: this ask expired — reopen it to answer" };
     }
     if(!ask || !ask.open){
-      return { kind: "none", why: "no answer doors: this ask is " + ((ask && ask.status) || "closed") + " — there is nothing left to answer" };
+      return { kind: "none", why: "This ask is " + ((ask && ask.status) || "closed") + ". There is nothing left to answer." };
     }
     if(resume && resume.askId === ask.askId){
+      // amendment 1 (a): a saved answer with no readable time gives the doors back, with a note saying why
+      if(resume.state === "broken"){
+        return { kind: "doors", note: resume.label + (resume.reason ? " " + resume.reason : "") };
+      }
       if(resume.state === "starting"){
-        return { kind: "starting", label: resume.label, why: "no answer doors: this ask already has a saved answer" };
+        return { kind: "starting", text: "Your answer is saved; the run is starting up." };
       }
       if(resume.state === "not-started"){
-        return { kind: "stuck", label: resume.label, lockPath: resume.lockPath || null, reason: resume.reason || "no reason recorded", why: "no answer doors: this ask already has a saved answer" };
+        return { kind: "stuck", lockPath: resume.lockPath || null };
       }
-      return { kind: "none", why: "no answer doors: " + resume.label };
+      return { kind: "none", why: resume.label + "." };
     }
     return { kind: "doors" };
   }
@@ -2525,10 +2713,53 @@
       el.textContent = mine ? m.text : "";
     });
   }
-  function refusalText(r){
-    var b = r.body;
-    var name = b && typeof b.red === "string" ? b.red : (r.text || "no detail");
-    return "HTTP " + r.status + " — " + name;
+  // Every refusal the page shows is a plain sentence — never an HTTP status, a refusal code, an askId or a path.
+  // `r` is { status, body, text } from postJSON; `decision` is the answer word of an answer click (else null).
+  // The server's own refusal name (`refused`) is matched first; a library refusal is matched by what it says.
+  function networkText(){ return "Could not reach the panel, so nothing is confirmed. Check it is still running; the header above shows what the books say."; }
+  // A redo or rerun needs a reason. The page only saves the round trip: the library still judges every answer.
+  function reasonMissing(decision, value){ return (decision === "redo" || decision === "rerun") && String(value).trim() === ""; }
+  function blankReasonText(decision){ return "Please write a reason for the " + (decision === "rerun" ? "rerun" : "redo") + "."; }
+  function refusalText(r, decision){
+    var byName = {
+      "already-resuming": "This run is already carrying on. Wait a moment, then look again.",
+      "no-saved-answer": "There is no saved answer to continue from.",
+      "run-ended": "This run has already ended.",
+      "lock-has-holder": "Something is working on this run now, so the old lock was left alone. Look again in a moment.",
+      "no-lock": "The old lock is already gone. Continue the run instead.",
+      "lock-outside-run": "That run can't be found.",
+      "flow-outside-root": "That run can't be found.",
+      "bad-flow": "That run can't be found.",
+      "bad-runId": "That run can't be found.",
+      "askid-required": "That click was not understood. Reload the page and try again.",
+      "body-not-json": "That click was not understood. Reload the page and try again.",
+      "body-too-large": "That is too long to send. Please shorten your reason.",
+      "cookie-missing-or-wrong": "The panel does not recognise this page. Open the link the terminal printed.",
+      "origin-not-own": "The panel does not recognise this page. Open the link the terminal printed.",
+      "host-not-own-address": "The panel does not recognise this page. Open the link the terminal printed.",
+      "internal": "Something went wrong inside the panel. Nothing was changed."
+    };
+    var byWords = [
+      [/needs a non-blank reason/, null],
+      [/expired at/, "The time to answer ran out. Reopen it to give it more time."],
+      [/already answered/, "This ask was already answered."],
+      [/answer saved in time|has an answer saved/, "Your answer is saved. Continue the run instead."],
+      [/has not expired/, "This ask has not run out of time yet."],
+      [/already reopened/, "This ask was already reopened."],
+      [/unrecognised decision/, "That answer is not recognised."],
+      [/no readable artifact/, "There is no draft to accept."],
+      [/no open ask|is unknown for run/, "This ask is no longer open."],
+      [/nothing was reopened/, "Could not clear the late answer; nothing was reopened."],
+      [/could not write|set aside/, "Your answer could not be saved. Nothing was changed."]
+    ];
+    var b = r && r.body;
+    var name = b && typeof b.refused === "string" ? b.refused : "";
+    var red = b && typeof b.red === "string" ? b.red : "";
+    if(Object.prototype.hasOwnProperty.call(byName, name)) return byName[name];
+    for(var i = 0; i < byWords.length; i++){
+      if(byWords[i][0].test(red)) return byWords[i][1] === null ? blankReasonText(decision) : byWords[i][1];
+    }
+    return "That did not go through. Reload the page to see where this run stands.";
   }
   // While a POST is out the buttons are disabled (stops a double click) — nothing else is ever disabled.
   function setBusy(root, busy){
@@ -2539,6 +2770,12 @@
   function sendAnswer(root, ask, ctx, decision){
     var ta = root.querySelector("textarea");
     var payload = { flow: ctx.flow, runId: ctx.runId, askId: ask.askId, decision: decision, reason: ta ? ta.value : "" };
+    var hintEl = root.querySelector("[data-testid='reason-hint']");
+    if(hintEl){ hintEl.hidden = true; hintEl.textContent = ""; }
+    if(reasonMissing(decision, payload.reason)){
+      if(hintEl){ hintEl.textContent = blankReasonText(decision); hintEl.hidden = false; }
+      return;
+    }
     say(ctx.flow, ctx.runId, "info", "sending " + decision + "…");
     setBusy(root, true);
     postJSON("/api/answer", payload).then(function(r){
@@ -2546,29 +2783,67 @@
         delete reasonDrafts[ask.askId];
         pendingAnswer = { flow: ctx.flow, runId: ctx.runId, askId: ask.askId, decision: decision, draftNo: ctx.draftNo };
         answerMsg = null; paintAnswerMsg();
+        // a broken earlier answer was moved aside to make room: say so, once
+        if(r.body.setAside) say(ctx.flow, ctx.runId, "info", "your earlier saved answer was broken; it is kept aside. This answer is saved.");
         startLive(ctx.flow, ctx.runId, ask.askId);
       } else {
-        say(ctx.flow, ctx.runId, "refused", refusalText(r));
+        say(ctx.flow, ctx.runId, "refused", refusalText(r, decision));
       }
       return reloadRun(ctx.flow, ctx.runId);
     }).catch(function(e){
-      say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown in the ask header above");
+      say(ctx.flow, ctx.runId, "refused", networkText());
       return reloadRun(ctx.flow, ctx.runId);
     }).then(function(){ if(root.isConnected) setBusy(root, false); });
   }
   function sendResumeAgain(root, ctx, askId){
-    say(ctx.flow, ctx.runId, "info", "asking for the resume again…");
+    say(ctx.flow, ctx.runId, "info", "continuing the run…");
     setBusy(root, true);
     postJSON("/api/resume", { flow: ctx.flow, runId: ctx.runId }).then(function(r){
       if(r.status === 202 && r.body && r.body.ok){
-        say(ctx.flow, ctx.runId, "info", "resume requested — waiting for the run's books to show whether it took over");
+        say(ctx.flow, ctx.runId, "info", "asked the run to continue — waiting to see that it picked up your answer");
         startLive(ctx.flow, ctx.runId, askId);
       } else {
         say(ctx.flow, ctx.runId, "refused", refusalText(r));
       }
       return reloadRun(ctx.flow, ctx.runId);
     }).catch(function(e){
-      say(ctx.flow, ctx.runId, "refused", "network failure: " + e.message + " — nothing is confirmed; what the books say is shown in the ask header above");
+      say(ctx.flow, ctx.runId, "refused", networkText());
+      return reloadRun(ctx.flow, ctx.runId);
+    }).then(function(){ if(root.isConnected) setBusy(root, false); });
+  }
+  // M4c-fix amendment 2 (h): the human's one button for a lock with no recorded holder. One confirm, then a gated POST;
+  // the server re-checks the lock at that moment, removes it, records it in the audit and continues the run. Cancel = nothing.
+  var REMOVE_LOCK_CONFIRM = "Only do this if nothing else is working on this run. Remove it?";
+  function sendRemoveLock(root, ctx, askId){
+    if(!window.confirm(REMOVE_LOCK_CONFIRM)) return;
+    say(ctx.flow, ctx.runId, "info", "removing the old lock…");
+    setBusy(root, true);
+    postJSON("/api/remove-lock", { flow: ctx.flow, runId: ctx.runId }).then(function(r){
+      if(r.status === 202 && r.body && r.body.ok){
+        say(ctx.flow, ctx.runId, "info", "old lock removed; asked the run to continue — waiting to see that it picked up your answer");
+        startLive(ctx.flow, ctx.runId, askId);
+      } else {
+        say(ctx.flow, ctx.runId, "refused", refusalText(r));
+      }
+      return reloadRun(ctx.flow, ctx.runId);
+    }).catch(function(e){
+      say(ctx.flow, ctx.runId, "refused", networkText());
+      return reloadRun(ctx.flow, ctx.runId);
+    }).then(function(){ if(root.isConnected) setBusy(root, false); });
+  }
+  function sendReopen(root, ctx, askId){
+    say(ctx.flow, ctx.runId, "info", "reopening…");
+    setBusy(root, true);
+    postJSON("/api/reopen", { flow: ctx.flow, runId: ctx.runId, askId: askId }).then(function(r){
+      if(r.status === 200 && r.body && r.body.ok){
+        say(ctx.flow, ctx.runId, "info", "reopened until " + (readableDateTime(r.body.expiresAt) || r.body.expiresAt)
+          + (r.body.setAside ? "; your late answer is kept aside" : ""));
+      } else {
+        say(ctx.flow, ctx.runId, "refused", refusalText(r));
+      }
+      return reloadRun(ctx.flow, ctx.runId);
+    }).catch(function(e){
+      say(ctx.flow, ctx.runId, "refused", networkText());
       return reloadRun(ctx.flow, ctx.runId);
     }).then(function(){ if(root.isConnected) setBusy(root, false); });
   }
@@ -2587,6 +2862,11 @@
     root.className = "answer-doors";
     root.setAttribute("data-testid", "answer-doors");
     if(model.kind === "doors"){
+      if(model.note){
+        var note = textDiv("answer-msg refused", model.note);
+        note.setAttribute("data-testid", "answer-note");
+        root.appendChild(note);
+      }
       var idSafe = "reason-" + String(ask.askId).replace(/[^A-Za-z0-9_-]/g, "_");
       var lab = document.createElement("label");
       lab.setAttribute("for", idSafe);
@@ -2597,9 +2877,14 @@
       ta.setAttribute("data-testid", "answer-reason");
       ta.setAttribute("data-askid", ask.askId);
       ta.value = reasonDrafts[ask.askId] || "";
-      ta.addEventListener("input", function(){ reasonDrafts[ask.askId] = ta.value; });
+      ta.addEventListener("input", function(){ reasonDrafts[ask.askId] = ta.value; reasonHint.hidden = true; });
       root.appendChild(lab);
       root.appendChild(ta);
+      // shown next to the box when a redo or rerun is clicked with no reason (page-side check, before anything is sent)
+      var reasonHint = textDiv("answer-msg refused", "");
+      reasonHint.hidden = true;
+      reasonHint.setAttribute("data-testid", "reason-hint");
+      root.appendChild(reasonHint);
       var bar = document.createElement("div");
       bar.className = "actions-row";
       bar.setAttribute("data-testid", "action-bar");
@@ -2618,15 +2903,28 @@
       wk.appendChild(document.createTextNode(model.text));
       root.appendChild(wk);
     } else if(model.kind === "starting"){
-      root.appendChild(textDiv("hint", model.label + " — " + model.why));
+      root.appendChild(textDiv("hint", model.text));
+    } else if(model.kind === "expired"){
+      // [!] expired: the time ran out. One button, the human's: a fresh window of the same signed length on the same draft.
+      var bar3 = document.createElement("div");
+      bar3.className = "actions-row";
+      bar3.appendChild(makeButton("Reopen for another " + waitText(model.waitMs), "btn-reopen", function(){ sendReopen(root, ctx, ask.askId); }));
+      root.appendChild(bar3);
+      root.appendChild(textDiv("hint", model.line));
     } else if(model.kind === "stuck"){
-      root.appendChild(textDiv("answer-msg stuck", model.label + ": " + model.reason));
-      if(model.lockPath) root.appendChild(textDiv("hint", "lock file: " + model.lockPath));
-      root.appendChild(textDiv("hint", model.why + ". Trying again starts a resume only; it cannot answer."));
+      // stuck: an answer is saved and no resume took it. One button, one line under it saying why.
       var bar2 = document.createElement("div");
       bar2.className = "actions-row";
-      bar2.appendChild(makeButton("Try the resume again", "btn-resume-again", function(){ sendResumeAgain(root, ctx, ask.askId); }));
+      if(model.lockPath){
+        // the lock has no recorded holder, so "Continue the run" could only be refused: the one button removes it, then continues
+        bar2.appendChild(makeButton("Remove the old lock", "btn-remove-lock", function(){ sendRemoveLock(root, ctx, ask.askId); }));
+      } else {
+        bar2.appendChild(makeButton("Continue the run", "btn-resume-again", function(){ sendResumeAgain(root, ctx, ask.askId); }));
+      }
       root.appendChild(bar2);
+      root.appendChild(textDiv("hint", model.lockPath
+        ? "An old resume lock is in the way."
+        : "Your answer is saved; the run stopped before using it."));
     } else {
       root.appendChild(textDiv("hint", model.why));
     }
@@ -2702,9 +3000,10 @@
   // never re-derived here), when it was asked, and its status. `stepWhy` is
   // shown verbatim (never a guessed step name) when the books can't name
   // one — the honest word "before" a real value never invents.
-  function blockMetaText(block){
+  function blockMetaText(block, ctx){
     var ask = block.current;
-    var bits = [];
+    // every ask says which run it belongs to: the buttons below act on THIS run only
+    var bits = [ctx.flow + " (" + ctx.runId + ")"];
     var stepBit = typeof block.stepName === "string" && block.stepName.length > 0
       ? block.stepName + (typeof block.stepLine === "number" ? " (line " + block.stepLine + ")" : "")
       : (ask.stepWhy || "step not determinable");
@@ -2738,7 +3037,7 @@
       badge.textContent = ask.open ? "·" : ask.status;
     }
     metaLine.appendChild(badge);
-    metaLine.appendChild(textDiv("wf-meta", blockMetaText(block)));
+    metaLine.appendChild(textDiv("wf-meta", blockMetaText(block, ctx)));
     head.appendChild(metaLine);
     // The question itself — a real, bold heading (review #3: "the question
     // as a clear heading"), never folded into the same small meta line.
@@ -2772,7 +3071,7 @@
   function renderAsk(result, focusAskId, loadError){
     var empty = document.getElementById("ask-empty");
     var list = document.getElementById("ask-list");
-    if(loadError){ empty.hidden = false; empty.textContent = "failed to load asks: " + loadError; list.hidden = true; list.innerHTML = ""; return true; }
+    if(loadError){ empty.hidden = false; empty.textContent = loadError; list.hidden = true; list.innerHTML = ""; return true; }
     if(!result){ empty.hidden = false; empty.textContent = "select a run first"; list.hidden = true; list.innerHTML = ""; return true; }
     var blocks = result.blocks || [];
     if(!blocks.length){

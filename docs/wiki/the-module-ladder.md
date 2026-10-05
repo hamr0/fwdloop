@@ -1094,6 +1094,109 @@ Numbers are from the books on disk under `flows/job2-m6a-2/` (times UTC).
 
 Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 
+#### M4c-fix — clean the fix list before M4d — SIGNED by hamr 2026-10-03 ("sign m4c fix"), EXIT SIGNED 2026-10-04 ("sign m4c-fix amendment 2 and exit version 0.11"); releases as v0.11.0
+
+- **Why:** hamr 2026-10-03: "we have to clean all before we move to m4d". The fix list (`.claude/remember/fix-ledger.md`) holds the reviews' unfixed findings from M2–M4c. hamr's 2026-10-02 triage grouped them into three plans; the rest are folded in here so M4d starts clean.
+- **Rulings hamr gave at drafting (2026-10-03):**
+  1. No presses-per-minute limit; instead one resume at a time per run (hamr "A").
+  2. The panel token moves to a file only hamr's user can read (hamr "Token file 0600").
+  3. CI becomes a required check on `main` (hamr "Yes, require it").
+  4. Two hand-edit cases are accepted as known limits and dropped (hamr "Accept, drop both"): the 1e-9 USD spend tolerance in `src/runner.js` (economically inert), and a hand-written `answer.json` `answeredAt` that dodges the deadline (amendment 3's signed trade-off; needs write access to the run dir).
+- **Scope** — four groups:
+  - **A. Panel safety** (`src/panel/server.js`, `src/panel/resume.js`):
+    1. One resume at a time per run: a Resume (or an Answer that starts one) while that run is already resuming is refused 409 "already resuming", and no second process starts.
+    2. Token file: `fwdloop panel` writes its token to a file only your user can read (mode 0600; proposed `$XDG_RUNTIME_DIR/fwdloop/panel-<port>.token`, else `~/.cache/fwdloop/`), and prints a link `http://127.0.0.1:<port>/?t=<token>`. Opening that link sets a cookie (HttpOnly, SameSite=Strict) and goes to `/`. Every request, the page itself included, needs that cookie; without it, 403 and the page carries no token. How you open the panel changes: open the printed link.
+    3. Every response says it must not be framed or cached: `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'`, `Cache-Control: no-store`.
+    4. A flow folder must really sit inside `--root` (checked with realpath), for reads and answers alike; a flow symlinked outside root is refused by name.
+    5. Errors never show an absolute path: a 500 says "internal error" and refusals name paths relative to `--root`.
+    6. A request body over the size limit is cut off at once, not read to its end.
+    7. Two resumes of one run never share one log file, so one finishing can't delete the other's reason.
+  - **B. Small crash and leak fixes:**
+    8. `fwdloop show` strips terminal control codes (keeps new lines and tabs) from model text before printing.
+    9. An `answer.json` that is not an object (e.g. `null`) is refused by name, never a crash.
+    10. An unsigned draft folder never shows up as a flow in the panel or Inbox (`fwdloop draft --out` inside the flows root is refused by name); the readout names the flows root.
+    11. A drafter's red message is scrubbed of the key before it is printed.
+    12. Answer words are looked up only as real entries ("constructor" or "toString" read as unrecognised), in `src/ask.js` and `src/panel/data.js`.
+    13. A model-step key red records a valid audit row even when a model is named.
+    14. A run parked through a symlinked `--root` resumes (both sides compared by realpath).
+    15. Stuck runs: one function decides stuck state and its label from a typed reason, not by matching a refusal string; an unknown lock holder is never called stuck; a panel restart does not cost a wasted click; two resumers never delete each other's lock (unlink only a lock that is still yours).
+    16. An answer with no saved time: the stuck label says so ("answer has no saved time — answer again"), not "try the resume again" forever.
+    17. An answer saved after the deadline: the panel offers the resume, which records the expiry and ends the run `[!]`, instead of leaving it with no action until someone uses the CLI.
+  - **C. Money honesty:**
+    18. A spend row marked incomplete counts at the ceiling price toward a run's cap, never only its known floor ("unknown cost is never 0").
+    19. A transport retry keeps the first call's refusals and tool tally in the attempt's audit row.
+  - **D. Panel refresh, tests and CI:**
+    20. A finished run is re-read at the list rate (10 s), so a late change shows without a re-click; a run whose books can't be read drops to the list rate, not 2 s forever; a late reply for a run you already left never paints over the one you opened.
+    21. At 320 px a long run title wraps inside the Run header.
+    22. Test gaps closed: the fake page honours its selector; the fs-import guard also catches destructured fs, `process.binding('fs')` and `process.getBuiltinModule('fs')`; the key-hygiene test scans a clean resume's log before it is deleted; a test header that credits hamr's walk for F54 is corrected.
+    23. CI: `CI / test` is a required check on `main`, and a second push to `main` no longer cancels the first push's run.
+    24. The docs index is regenerated by the docs tool.
+- **Negatives** (each must be able to fail):
+  - (i) a second Resume while one is running gets 409 and no second process starts;
+  - (ii) `curl` of `/` without the cookie gets 403 and no token; the token file is mode 0600;
+  - (iii) a page from another origin cannot frame the panel (headers present on every response);
+  - (iv) a flow symlinked outside `--root` is refused for read and answer;
+  - (v) no error body contains an absolute path;
+  - (vi) `answer.json` = `null` gives a named refusal;
+  - (vii) an incomplete spend row never counts below the ceiling price;
+  - (viii) a transport retry's audit row keeps the first call's refusal;
+  - (ix) `fwdloop show` of text holding an ESC sequence prints no ESC byte;
+  - (x) a PR to `main` with a red `CI / test` cannot be merged without admin override (checked with `gh api` on the branch protection);
+  - (xi) a run from before M4c-fix still renders and none of its files is rewritten.
+- **Exit:** every fix has a test that went red with the fix taken out; the fix list holds none of the in-scope items (dropped by /refactor revalidation, not by hand); a real browser walk at 1280 and 390 opens the panel by the printed link, shows a run, answers an ask, and a second Resume is refused; hamr opens the panel by the printed link and signs.
+- **Cap:** $0 — no paid model runs needed (fakes and the existing books).
+- **Not in scope:** Settings (M4d); a Run button (M4e); per-run read/write folders; new answer words; any change to an existing book's shape beyond the token file; the two accepted hand-edit limits.
+- **Known limits written down:** the 1e-9 USD spend tolerance; a hand-written in-time `answeredAt`; the panel trusts your own user's programs (anything running as you can read the token file).; "Remove the old lock" (amendment 2 (h)) re-checks the holder twice but a resume can still take the lock between the last check and the unlink, which deletes that resume's fresh lock (amendment 3 (d): "cannot close it fully").
+- **Later ruling, not a signed amendment (hamr "1A", 2026-10-03, built in d1aa5fb after the scope was signed):** the panel token is reused across restarts while its file is still mode 0600 and owned by you (a loose, foreign or junk file gets a new token), so a bookmark of the page keeps working once the printed link was opened; a bare browser `GET /` without the cookie gets a plain 403 page that says to open the link the terminal printed, not blank JSON (API routes keep the JSON 403).
+- **Branch-review fixes, not a signed amendment (2026-10-04, d87656d..c99df79):** (1) a resume whose lock-holder write fails (disk full or file-size limit) removes the empty `resume.lock` that same call just created and refuses by name, so no stuck lock is left behind; a lock another resumer made is never touched. (2) A failed page load is one of three plain sentences, painted from one function in the page: 403 "The panel does not recognise this page. Open the link the terminal printed.", 404 "This run is no longer there.", anything else (including no network) "Could not load this; reload the page." Run, Ask, Workflows, History and Inbox all use it (amendment 2 (b)).
+
+**M4c-fix amendment 1 — a broken answer gives the buttons back; an expired ask can be reopened by you — SIGNED by hamr 2026-10-03 ("sign m4c-fix amendment 1")**
+- (a) **A broken answer gives the buttons back.** You click an answer and the buttons dim. If within a few seconds the answer turns out broken (refused, or saved without a readable time), a short note says why and the buttons come back, so you can answer again. A broken saved answer is moved aside as a record (never deleted) so it does not block the new one. Replaces scope item 16's "answer again" label, which pointed at an answer the panel could not take.
+- (b) **An expired ask can be reopened, by you only.** An ask whose time ran out (no answer, or an answer that came after the deadline) shows `[!]` expired with one button, "Reopen for another <wait>" (the flow's signed wait, e.g. 30 min). One click starts a fresh window of the same length on the same draft, and the answer buttons come back. A late answer is moved aside as a record. The audit records who reopened it and when. The flow's signed wait does not change; only a human click reopens; the machine never does. A reopen is not an answer word. Replaces scope item 17's "Resume — record the expiry" button.
+- (c) A run you never reopen stays `[!]` expired and spends nothing. If a run is ended because its ask expired (e.g. by `fwdloop resume` from the terminal), it reads `[!]` expired, never `[✗]` failed.
+- (d) Later, not now: a flow may say "no reopen" when it is signed (for jobs that go stale, like "reply today"). Until then every flow allows reopen.
+- (e) **Four rulings from the build (hamr "ok to all", 2026-10-03):** an answer is not refused as "already resuming" while the previous resume is only closing and the run already waits on you; when a new resume starts, the old finished resume's log is deleted; the child's output quoted in a resume's reason is scrubbed of the key; the Run tab's asks, audit and job fetches get the same late-reply guard as the detail fetch.
+- No change to an existing book's shape beyond new records: the moved-aside answer and the reopen row are new write-once files or rows, keyed by id; nothing existing is rewritten.
+- Why: hamr 2026-10-03, while the build of items 16-17 showed both as signed could not work ("answer again" with no way to answer; "record the expiry" ends a job that may not have gone stale). hamr: "if 2-3 seconds and it's broken, feedback tooltip and reallow/undim button"; "it expired (why? safety?) same button changes unlock to answer, click once ... i start a new 30 mins".
+
+**M4c-fix amendment 2 — plain words on the panel — SIGNED by hamr 2026-10-04 ("sign m4c-fix amendment 2 and exit version 0.11")**
+- (a) **Every stuck or expired state shows one clear button and one short line saying why.** Replaces the wording signed in M4c amendment 2 and amendment 3 (e):
+  - stuck button "Try the resume again" → "Continue the run";
+  - stuck label "stuck — answer saved, click try the resume again" → "stuck — your answer is saved; the run stopped before using it", with the line "Your answer is saved; the run stopped before using it.";
+  - lock label "stuck — remove the old resume lock by hand, then try again" → "stuck — an old resume lock is in the way", with the line "An old resume lock is in the way." and the (h) button;
+  - expired ask keeps amendment 1's button "Reopen for another <wait>", with the line "Nobody answered in time." or "Your answer came after the deadline."; the Inbox row for that ask shows the same line;
+  - a run ended by expiry reads "expired" everywhere (Inbox, Ask tab), never "accepted".
+- (b) **Every message the panel shows you is a plain sentence:** never an HTTP code, a refusal code, an ask id, a file path, or a library function name.
+- (c) **A redo or rerun with an empty reason is stopped on the page** with "Please write a reason for the redo." (or "rerun") before anything is sent. The server still judges every answer; the page check only saves a round trip, so the panel stays a client of the arbiter, never a second arbiter (M4b).
+- (d) **Every Ask block names its flow and run first** ("job2 (run-id) · …").
+- (e) **Clicking a waiting `[·]` or stuck `[II]` run in Runs always opens the Inbox on its ask,** judged from that run's fresh state at the click, never from a list up to 10 s old.
+- (f) **On a phone or any window up to 640 px wide, each Audit entry is one line** (sign, step, result, cost, time); a tap opens its full step, result, action, gap, refused list, close, cost and time. In the Grouped view (all widths) a closed step is one line with ▶, open shows ▼; a step with any failed try starts open, others start closed; a manual open/close wins until another run is opened; a long step name is cut as (l), never past its own box. On a phone the gap shows after one tap on the failed line, never without it (hamr 2026-10-04: "A").
+- (g) **One bold word after every sign**, from one table, the same in Runs, Inbox, the run header and the step map, then a dash and the plain line: `[▶]` **running**, `[·]` **waiting**, `[II]` **stuck**, `[!]` **expired**, `[?]` **crashed**, `[✓]` **passed**, `[✗]` **failed** (e.g. "`[II]` **stuck** — your answer is saved; the run stopped before using it"). Layout as bareloop: a Runs row is line 1 sign + run name, line 2 **word** — why, line 3 cost · date · runs; an Inbox card is sign + name, then **word** — why; the run header follows (k). No legend: each step card and map node wears its own sign and word; a step not started shows none. Exceptions: a run ended by rerun keeps `[✗]` with no word (M4b amendment 3: never called "failed"); Inbox past rows (accepted, expired, redo) keep their badge, no sign word.
+- (h) **A button to remove an old resume lock.** When a lock has no recorded holder, the panel shows "Remove the old lock". One click asks once: "Only do this if nothing else is working on this run. Remove it?" On yes the lock file is removed, an audit row records that you removed it and when, and the run continues. Only a human click does this; the machine never removes a lock it cannot judge. Replaces "remove this file by hand". The panel shows only this button in that case (not "Continue the run" too). If something starts working on the run between the page drawing and the click, it is refused with a plain sentence and the lock is left alone.
+- (i) **Clicking a run that needs you opens both sides on it:** a waiting `[·]`, stuck `[II]` or expired-with-Reopen `[!]` run moves the left side to the Inbox with its ask selected and the right side to the Ask tab, where its buttons are. Any other run opens on the Run tab. Judged from that run's fresh state at the click, as (e).
+- (j) **A step with one try opens in one tap:** in the Grouped Audit, tapping the header of a step that has a single try opens that try's full detail at once; a step with several tries opens to one line per try, and each opens on its own tap.
+- (k) **The run header reads like its Runs row:** sign + run name first, then **word** — why, then the asked/started time. One line on a wide screen (`[II] job2 (run-stuck) │ **stuck** — your answer is saved; the run stopped before using it · asked 10/4/2026, 6:01 PM`); on a phone the same three parts on three lines. No ┤ ├ frame and no capitals on the name. Replaces the header order in (g).
+- (l) **An Audit step's title line is short:** `[sign] step name · cost · try N ✗✓`; a name too long for one line is cut with … and shown whole when the step opens. Time and tokens live in each try's detail, not the title. On a phone (≤640 px) the dots and the word "try" drop (`[sign] step name $cost N ✗✓`) so a name up to about 24 characters shows whole at 390 px. The step map cuts a long name the same way; the whole name shows on its step card.
+- No book changes beyond the audit row in (h).
+- Why: hamr's M4c-fix exit walk 2026-10-04 — "try resume again? weird message"; a raw "HTTP 409 — answerAsk: askId … needs a non-blank reason to redo"; a run ended by expiry read "accepted"; Runs → Inbox jump inconsistent for `[II]`; mobile Audit rows still not one line between 481 and 640 px; hamr 2026-10-04: "no legend needed ... choose a word for the non obvious ones ... one keyword in bold followed by -"; lock: "A" (a button, not by hand); layout: hamr 2026-10-04 picked "A" (match bareloop); Audit grouped boxes drew empty on desktop and phone (exit walk 2026-10-04); hamr 2026-10-04: Reopen sat on the Ask tab while the click landed on Run — "take me to inbox and open right pane on ASK"; two taps for a one-try step on a phone; hamr 2026-10-04: the Inbox row of a still-open expired ask said only "expired"; hamr 2026-10-04: header should read "job2 (run-stuck) | stuck — … asked …"; an Audit title "is not a header" with time, cost, tokens and tries in it.
+
+**M4c-fix amendment 3 — four self-review findings — SIGNED by hamr 2026-10-04 ("sign m4c-fix amendment 3, check twice")**
+- (a) **Inbox question:** `fwdloop inbox` cleans hidden terminal codes out of the question before printing it, the same way `fwdloop show` already does.
+- (b) **Reopen:** if the late answer can't be moved aside, the Reopen is refused with a plain sentence: "Could not clear the late answer; nothing was reopened." No reopen record is written and the clock is not reset. Moving the answer aside happens first, and the reopen record is written only after that works, so a stale answer can never count as fresh.
+- (c) **Two Inbox words:** "answer saved, resume starting" → "your answer is saved; the run is picking it up"; "answer saved, resume not started" → "your answer is saved; the run stopped before using it" (the same line the stuck sign already uses).
+- (d) **Lock window — check twice:** right before removing the lock, check one more time that nobody holds it. This makes the gap much smaller but cannot close it fully; the remaining gap is a written known limit.
+- Why: /self-review 2026-10-04 (ledger items @ de0e0c7): `fwdloop inbox` printed a model-written question raw; a failed set-aside after a reopen let a stale late answer count as on time; two Inbox labels still read as internal state; a resume could take the lock between the check and the unlink.
+
+**M4c-fix amendment 4 — step cards in lower case — SIGNED by hamr 2026-10-04 ("sign m4c-fix amendment 4")**
+- (a) **The step cards under the map read in their real case:** `1 · resume-text   [✓] passed   [human check]`, never capitals; the sign badge is one `[sign] word`, the same as the map node, never double brackets.
+- Why: hamr 2026-10-04: "under maps, all headers should be lower case"; the card badge read `[[✓] PASSED]`.
+
+**Exit evidence (2026-10-04) — EXIT SIGNED by hamr 2026-10-04 ("sign m4c-fix amendment 2 and exit version 0.11"):**
+- hamr walked the practice root (`scripts/panel-fixtures/walk-root.mjs`) by the printed link at desktop and 390 px, three sheets, all pass: Runs/Inbox/header sign words; Continue the run and Remove the old lock to [✓] passed with the audit row; Reopen on an expired ask; empty redo reason stopped on the page; Grouped and Flat Audit with the gap one tap away; run header and short Audit titles.
+- Every amendment 2 piece has a test that went red with the fix taken out alone; suite 1902 pass / 0 fail, typecheck clean, at 8821b90.
+- Negative (x) closed 2026-10-04 after signing: hamr ran `gh api -X PUT repos/hamr0/fwdloop/branches/main/protection` in his terminal (the session's gate refuses it); the response shows `required_status_checks.contexts: ["test"]` with every other protection field unchanged (1 review, stale reviews dismissed, linear history, conversation resolution, no force push or deletion, admins not enforced).
+- Version: hamr ruled v0.11.0 (not v0.10.1).
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A

@@ -20,6 +20,7 @@ import path from 'node:path';
 import { writeFlow, appendAudit, appendHistory } from '../src/index.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { createPanelServer, DEFAULT_PORT } from '../src/panel/server.js';
+import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
 import {
   computeGlyph, costDisplay, listRuns, getRunDetail, getRunAudit, getRunJob, listStops, getRunAsks,
   deriveRunModel, deriveAuditAction, summarizeSpendRows, deriveAuditTokensDisplay, deriveAuditAtWhy,
@@ -1812,7 +1813,7 @@ describe('getRunAsks (M4a-1: the Ask tab)', () => {
 function get(port, urlPath, method = 'GET') {
   return new Promise((resolve, reject) => {
     const req = http.request({
-      host: '127.0.0.1', port, path: urlPath, method,
+      host: '127.0.0.1', port, path: urlPath, method, headers: cookieHeader(port),
     }, (res) => {
       let body = '';
       res.on('data', (c) => { body += c; });
@@ -1827,7 +1828,7 @@ describe('panel HTTP shell', () => {
   let handle;
 
   test('starts on an OS-assigned port bound to 127.0.0.1', async () => {
-    handle = await createPanelServer({ port: 0, root: ROOT });
+    handle = remember(await createPanelServer({ port: 0, root: ROOT }));
     assert.ok(handle.port > 0);
     assert.notEqual(handle.port, DEFAULT_PORT); // OS-assigned, not the default
   });
@@ -2014,7 +2015,7 @@ describe('index.html — page source', () => {
   }
 
   test('is served at "/" as real HTML', async () => {
-    const handle = await createPanelServer({ port: 0, root: ROOT });
+    const handle = remember(await createPanelServer({ port: 0, root: ROOT }));
     try {
       const r = await get(handle.port, '/');
       assert.equal(r.status, 200);
@@ -2025,7 +2026,7 @@ describe('index.html — page source', () => {
     }
   });
 
-  test('M4b: the only non-GET fetches on the page are POST /api/answer and POST /api/resume, both through postJSON, token only in the header', () => {
+  test('M4b: the only non-GET fetches on the page are POST /api/answer, POST /api/reopen, POST /api/remove-lock and POST /api/resume, all through postJSON', () => {
     const code = stripComments(source);
     // Every fetch( call: its first argument and its options.
     const calls = [...code.matchAll(/fetch\(([^,]+),\s*\{([\s\S]*?)\}\)\.then/g)];
@@ -2038,26 +2039,24 @@ describe('index.html — page source', () => {
     assert.doesNotMatch(code, /XMLHttpRequest|sendBeacon/);
     // postJSON is called with exactly two paths.
     const postPaths = [...code.matchAll(/postJSON\(\s*"([^"]+)"/g)].map((m) => m[1]).sort();
-    assert.deepEqual(postPaths, ['/api/answer', '/api/resume']);
+    assert.deepEqual(postPaths, ['/api/answer', '/api/remove-lock', '/api/reopen', '/api/resume']);
   });
 
-  test('M4b: the token appears only as the x-fwdloop-token request header — never the DOM, a URL, storage, or a log', () => {
+  test('M4c-fix item 2: the page carries no token — no TOKEN variable, no token header, never a URL, storage, or a log', () => {
     const code = stripComments(source);
-    const uses = [...code.matchAll(/\bTOKEN\b/g)];
-    // the declaration + the one header use.
-    assert.equal(uses.length, 2, `TOKEN may appear only in its declaration and the header, found ${uses.length}`);
-    assert.match(code, /"x-fwdloop-token":\s*TOKEN/);
-    assert.doesNotMatch(code, /localStorage\.setItem\([^)]*TOKEN/);
-    assert.doesNotMatch(code, /(textContent|innerHTML|setAttribute\([^)]*)[^;\n]*\bTOKEN\b/);
-    assert.doesNotMatch(code, /console\.[a-z]+\([^)]*TOKEN/);
-    assert.doesNotMatch(code, /[?&]token=|location\.(search|hash)/i);
+    assert.doesNotMatch(code, /\bTOKEN\b/, 'the page must not hold a token at all (the HttpOnly cookie authenticates)');
+    assert.doesNotMatch(code, /__FWDLOOP_PANEL_TOKEN__/);
+    assert.doesNotMatch(code, /x-fwdloop-token/i);
+    assert.doesNotMatch(code, /document\.cookie/);
+    assert.doesNotMatch(code, /[?&]t=/);
     // the only localStorage key this page writes is the theme.
     const keys = [...code.matchAll(/localStorage\.setItem\(\s*("[^"]+")/g)].map((m) => m[1]);
     assert.deepEqual(keys, ['"fwdloop-panel-theme"']);
   });
 
-  test('M4b: no alert( / confirm( / prompt( anywhere on the page', () => {
-    assert.doesNotMatch(stripComments(source), /\b(alert|confirm|prompt)\s*\(/);
+  test('M4b: no alert( / confirm( / prompt( anywhere on the page — except the ONE confirm of "Remove the old lock" (M4c-fix amendment 2 (h))', () => {
+    const code = stripComments(source).replace('window.confirm(REMOVE_LOCK_CONFIRM)', '');
+    assert.doesNotMatch(code, /\b(alert|confirm|prompt)\s*\(/);
   });
 
   test('M4b: the POST body is built from the rendered ask\'s askId (closure), not re-read from the page at click time', () => {
@@ -2069,10 +2068,11 @@ describe('index.html — page source', () => {
     const fnEnd = code.indexOf('function sendResumeAgain(');
     const body = code.slice(fnStart, fnEnd);
     assert.doesNotMatch(body, /getAttribute|currentFlow|currentRunId|querySelector\([^)]*ask/);
-    // the page sends the typed reason verbatim (no trim / blank check): the library judges it.
+    // the page sends the typed reason verbatim; a blank one is only caught early by `reasonMissing` (the library still judges).
     assert.doesNotMatch(body, /\.trim\(\)/);
+    assert.match(body, /reasonMissing\(decision, payload\.reason\)/);
     // a stale ask / any refusal is shown and the page refreshes to the current ask.
-    assert.match(body, /refusalText\(r\)/);
+    assert.match(body, /refusalText\(r, decision\)/);
     assert.match(body, /reloadRun\(ctx\.flow, ctx\.runId\)/);
   });
 
@@ -2132,12 +2132,9 @@ describe('index.html — page source', () => {
     assert.match(source, /redo by you/);
   });
 
-  test('fix #4: the map legend pairs each word with the scope-correct glyph — [·] waiting on you, no dot at all for "not started"', () => {
-    assert.match(source, /<span class="dot"><\/span>waiting on you/);
-    assert.match(source, /<span>not started<\/span>/);
-    // never the OLD (wrong) pairing this fix replaced.
-    assert.doesNotMatch(source, /dot amber"><\/span>waiting on you/);
-    assert.doesNotMatch(source, /dot grey"><\/span>not started/);
+  test('fix #4 (replaced, amendment 2 (g)): the legend line under the map is gone; each step shows its own sign and word', () => {
+    assert.doesNotMatch(source, /map-legend|stepMapLegendHTML/);
+    assert.match(source, /return g && signWords\[g\] \? g \+ " " \+ signWords\[g\] : state;/);
   });
 
   // fix #6 originally required the "after reject: " boundary label to be
@@ -2288,8 +2285,10 @@ describe('index.html — page source', () => {
     // behavior ("true" + a visible table) is replaced with "false" + a
     // hidden table; a map/step-card click (openAuditGroup) is the only
     // thing that force-expands one.
-    assert.match(body, /header\.setAttribute\("aria-expanded", "false"\)/);
-    assert.match(body, /table\.hidden = true/);
+    // M4c-fix amendment 2 (f): closed unless the step has a failed try or a human opened it (see
+    // test/m4c-fix-audit-grouped.test.js) — so the state is computed, never a literal "true".
+    assert.match(body, /header\.setAttribute\("aria-expanded", isOpen \? "true" : "false"\)/);
+    assert.match(body, /table\.hidden = !isOpen/);
     assert.doesNotMatch(body, /header\.setAttribute\("aria-expanded", "true"\)/);
     assert.match(body, /function toggleAuditGroup/);
     assert.match(body, /header\.addEventListener\("click", toggleAuditGroup\)/);
@@ -2545,13 +2544,6 @@ describe('index.html — page source', () => {
     assert.doesNotMatch(svg, />try /, 'no "try N" label should render either');
   });
 
-  test('stepMapLegendHTML: names the retry loop so the dashed line is not left unexplained on the page', () => {
-    const fnStart = source.indexOf('function stepMapLegendHTML');
-    const fnEnd = source.indexOf('\n  }', fnStart);
-    const body = source.slice(fnStart, fnEnd);
-    assert.match(body, /dashed = retry/);
-  });
-
   // ---------------------------------------------------------------------
   // M4a-1: the Ask tab (right pane, after Job) + the Inbox-as-stops-list
   // (left pane). Static source checks — the orchestrator does the real
@@ -2579,8 +2571,8 @@ describe('index.html — page source', () => {
     const fnEnd = source.indexOf('function renderAskEvidenceBlock(');
     assert.ok(fnStart > 0 && fnEnd > fnStart);
     const block = stripComments(source.slice(fnStart, fnEnd));
-    const buttons = [...block.matchAll(/makeButton\("([^"]+)",\s*"([^"]+)"/g)].map((m) => m[2]);
-    assert.deepEqual(buttons, ['btn-accept', 'btn-redo', 'btn-rerun', 'btn-resume-again']);
+    const buttons = [...block.matchAll(/makeButton\(.*?,\s*"(btn-[a-z-]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(buttons, ['btn-accept', 'btn-redo', 'btn-rerun', 'btn-reopen', 'btn-remove-lock', 'btn-resume-again']);
     // the reason box is a real, labelled textarea.
     assert.match(block, /createElement\("textarea"\)/);
     assert.match(block, /lab\.setAttribute\("for", idSafe\)/);
@@ -2714,23 +2706,22 @@ describe('index.html — page source', () => {
   });
 
   // hamr's 2026-09-27 exit-check review #4: no horizontal scroll at 390px.
-  test('review #4: a max-width:480px rule stacks both audit tables into label:value mini-cards, keyed off the SAME data-label attribute buildAuditRowEl sets', () => {
-    assert.match(source, /@media \(max-width: 480px\)\{/);
-    const mqStart = source.indexOf('@media (max-width: 480px){');
+  test('review #4 (superseded by hamr\'s exit walk: one row per line, see audit-one-line.test.js): a max-width:640px rule restyles both audit tables, keyed off the SAME data-label attribute buildAuditRowEl sets', () => {
+    assert.match(source, /@media \(max-width: 640px\)\{/);
+    const mqStart = source.indexOf('@media (max-width: 640px){');
     const mqEnd = source.indexOf('\n  }', source.lastIndexOf('}', source.indexOf('\n  }\n</style>')));
     const mq = source.slice(mqStart, source.indexOf('</style>'));
-    assert.match(mq, /\[data-testid="audit-table"\] td::before, \.audit-group table td::before/);
-    assert.match(mq, /content:attr\(data-label\)/);
-    assert.match(mq, /display:block/);
+    assert.match(mq, /\[data-testid="audit-table"\] tr, \.audit-group table tr\{/);
+    assert.match(mq, /tr\.open td\.am-detail/);
     // the row-builder must set the SAME attribute the CSS reads.
     assert.match(source, /data-label=\\"Time\\"/);
     assert.match(source, /data-label=\\"Attempt\\"/);
   });
 
-  test('PROOF (review #4 can fail): removing the max-width:480px stacking rule would leave the wide multi-column table as the only layout at phone width', () => {
-    const withoutRule = source.replace(/@media \(max-width: 480px\)\{[\s\S]*?\n  \}\n<\/style>/, '</style>');
+  test('PROOF (review #4 can fail): removing the max-width:640px stacking rule would leave the wide multi-column table as the only layout at phone width', () => {
+    const withoutRule = source.replace(/@media \(max-width: 640px\)\{[\s\S]*?\n  \}\n<\/style>/, '</style>');
     assert.notEqual(withoutRule, source);
-    assert.doesNotMatch(withoutRule, /\[data-testid="audit-table"\] td::before/);
+    assert.doesNotMatch(withoutRule, /tr\.open td\.am-detail/);
   });
 
   // ---------------------------------------------------------------------
@@ -2743,15 +2734,13 @@ describe('index.html — page source', () => {
   // `describe('getRunDetail', ...)` block below.
   // ---------------------------------------------------------------------
 
-  test('step-card styling ruling: the header line is upper case + bold; every other card line is explicitly normal case/weight', () => {
-    assert.match(source, /\.step-card \.step-head\{[^}]*text-transform:uppercase[^}]*font-weight:700/);
+  test('step-card styling ruling (amendment 4): the header line is real case + bold; every other card line is explicitly normal case/weight', () => {
+    assert.match(source, /\.step-card \.step-head\{[^}]*text-transform:none[^}]*font-weight:700/);
     assert.match(source, /\.step-card \.step-line\{[^}]*text-transform:none[^}]*font-weight:400/);
   });
 
-  test('PROOF (styling ruling can fail): removing the step-head uppercase/bold rule leaves no CSS rule at all forcing the header\'s case/weight', () => {
-    const withoutRule = source.replace(/\.step-card \.step-head\{[^}]*\}\n/, '');
-    assert.notEqual(withoutRule, source);
-    assert.doesNotMatch(withoutRule, /\.step-card \.step-head\{[^}]*text-transform:uppercase/);
+  test('PROOF (styling ruling can fail): the step-head rule never says uppercase', () => {
+    assert.doesNotMatch(source, /\.step-card \.step-head\{[^}]*text-transform:uppercase/);
   });
 
   test('step cards are built from ONE header helper + a shared plain-line helper, never a second ad hoc line builder', () => {
