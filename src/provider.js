@@ -22,7 +22,8 @@ import {
 import { dirname, basename } from 'node:path';
 import { readFileInside } from './flow.js';
 import { readConfig, configDoorHome } from './config.js';
-import { OpenAI } from 'bare-agent/providers';
+import { OpenAI, Anthropic, Gemini } from 'bare-agent/providers';
+import { SHAPES } from './providershapes.js';
 
 /**
  * F28 (2026-09-15) / BA-27 (bare-agent >=0.47.0): DeepSeek sometimes emits a
@@ -58,6 +59,7 @@ export const PROVIDER_SLOTS = Object.freeze({
     baseUrl: 'https://api.synthetic.new/openai/v1',
     envVar: 'SYNTHETIC_API_KEY',
     defaultModel: 'hf:Qwen/Qwen3.8-27B',
+    shape: 'openai-api',
     legacyMaxTokens: false,
   }),
   deepseek: Object.freeze({
@@ -66,11 +68,45 @@ export const PROVIDER_SLOTS = Object.freeze({
     // F22: 'deepseek-v4-flash' is retired, routed to DeepSeek-V4.1-Flash —
     // request the live name so request === served.
     defaultModel: 'deepseek-flash',
+    shape: 'openai-api',
     // F11: DeepSeek ignores `max_completion_tokens`; only the legacy
     // `max_tokens` key bounds output.
     legacyMaxTokens: true,
   }),
 });
+
+/**
+ * THE one lookup of a slot's model, API shape and address (M4d amendment 1). Every model call (run,
+ * resume, model step, drafter), Test, Balance and the spend rows read the slot through this and nothing
+ * else: a value saved on the Settings page (`config.providers[slot]`) wins per field, else the code
+ * default above. A blank saved Base URL means the default FOR THE EFFECTIVE SHAPE: the slot's own code
+ * address while the shape is the slot's code shape, else that shape's vendor address ('' = bare-agent's own).
+ * Unknown slot throws. `config` is already-read config (see `readPriceConfig`); no I/O here.
+ * @param {string} slotName
+ * @param {{ config?: Record<string, any> }} [opts]
+ * @returns {{ slot: string, envVar: string, legacyMaxTokens: boolean,
+ *   model: string, shape: string, baseUrl: string,
+ *   defaults: { model: string, shape: string, baseUrl: string } }}
+ */
+export function resolveSlot(slotName, { config = {} } = {}) {
+  if (!Object.hasOwn(PROVIDER_SLOTS, slotName)) {
+    throw new Error(`unknown provider slot "${slotName}" — known slots: ${Object.keys(PROVIDER_SLOTS).join(', ')}`);
+  }
+  const def = PROVIDER_SLOTS[slotName];
+  const saved = (config.providers && Object.hasOwn(config.providers, slotName)) ? config.providers[slotName] : {};
+  const shape = saved.shape ?? def.shape;
+  const defaultBaseUrl = shape === def.shape ? def.baseUrl : (SHAPES.find((x) => x.id === shape)?.defaultUrl ?? '');
+  const savedUrl = typeof saved.baseUrl === 'string' ? saved.baseUrl.replace(/\/+$/, '') : '';
+  return {
+    slot: slotName,
+    envVar: def.envVar,
+    legacyMaxTokens: def.legacyMaxTokens === true && shape === 'openai-api',
+    model: saved.model ?? def.defaultModel,
+    shape,
+    baseUrl: savedUrl !== '' ? savedUrl : defaultBaseUrl,
+    defaults: { model: def.defaultModel, shape: def.shape, baseUrl: defaultBaseUrl },
+  };
+}
 
 /**
  * List-rate ceilings (USD/1K tokens), hand-entered — see
@@ -366,7 +402,7 @@ export function assertUnderGlobalCap(path, capUsd) {
  * @param {Record<string,string|undefined>} [env]
  */
 export function checkKeyPreflight(slotName, env = process.env) {
-  const slotDef = PROVIDER_SLOTS[slotName];
+  const slotDef = Object.hasOwn(PROVIDER_SLOTS, slotName) ? PROVIDER_SLOTS[slotName] : null;
   if (!slotDef) return { ok: false, message: `key: unknown provider slot "${slotName}"` };
   const varName = slotDef.envVar;
   const value = env[varName];
@@ -398,40 +434,48 @@ export function checkKeyPreflight(slotName, env = process.env) {
  *   `configHome` (a test) is where `config.json` prices are read; default: the door's home (`readPriceConfig`).
  *   `env` (M4d: the merged shell+keys-file env; default process.env) is where the key is read.
  *   `thinking` (bare-agent >=0.49) is sent verbatim as body.thinking; unset/null leaves the body unchanged.
- * @returns {{ provider: any, rates: {in:number, out:number, cacheReadMult?:number}, modelId: string, suffix: string, slot: string, prices: ReturnType<typeof resolvePrices> }}
+ * @returns {{ provider: any, rates: {in:number, out:number, cacheReadMult?:number}, modelId: string, suffix: string|null, slot: string, prices: ReturnType<typeof resolvePrices> }}
  */
 export function makeProvider(slotName, options = {}) {
   const {
     model, timeoutMs, deadlineMs, thinking, env = process.env, configHome,
   } = options;
-  const slot = PROVIDER_SLOTS[slotName];
-  if (!slot) {
+  if (!Object.hasOwn(PROVIDER_SLOTS, slotName)) {
     throw new Error(`unknown provider slot "${slotName}" — known slots: ${Object.keys(PROVIDER_SLOTS).join(', ')}`);
   }
 
   const keyCheck = checkKeyPreflight(slotName, env);
   if (!keyCheck.ok) throw new Error(keyCheck.message);
 
+  // A broken config throws by name here; it never falls back to the code defaults or the table, so a
+  // run's model, address or charge cannot change silently.
+  const config = readPriceConfig(configHome);
+  const slot = resolveSlot(slotName, { config });
   const apiKey = env[slot.envVar];
-  const modelId = model ?? slot.defaultModel;
-  const { suffix } = resolveModelRate(modelId);
-  // The ONE price lookup (a Settings price wins over the table). A broken config throws by name here;
-  // it never falls back to the table, so a run's charge cannot change silently.
-  const prices = resolvePrices(modelId, { slot: slotName, config: readPriceConfig(configHome) });
+  const modelId = model ?? slot.model;
+  // The ONE price lookup (a Settings price wins over the table; a model the table doesn't know prices
+  // at the table's highest rate, suffix null — unknown cost is never 0).
+  const prices = resolvePrices(modelId, { slot: slotName, config });
   const { rates } = prices;
+  const suffix = prices.suffix;
 
-  const provider = new MalformedToolCallTolerantOpenAI({
+  const common = {
     apiKey,
     model: modelId,
-    baseUrl: slot.baseUrl,
-    legacyMaxTokens: slot.legacyMaxTokens === true,
-    // bare-agent >=0.48: opt in to the raw broken tool-call arguments on
-    // `malformedToolCall` (capped upstream at 500 chars). Not exposeErrorBody.
-    exposeMalformedArgs: true,
+    ...(slot.baseUrl !== '' ? { baseUrl: slot.baseUrl } : {}),
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
     ...(deadlineMs !== undefined ? { deadlineMs } : {}),
     ...(thinking != null ? { thinking } : {}),
-  });
+  };
+  const provider = slot.shape === 'anthropic-api' ? new Anthropic(common)
+    : slot.shape === 'gemini-api' ? new Gemini(common)
+      : new MalformedToolCallTolerantOpenAI({
+        ...common,
+        legacyMaxTokens: slot.legacyMaxTokens,
+        // bare-agent >=0.48: opt in to the raw broken tool-call arguments on
+        // `malformedToolCall` (capped upstream at 500 chars). Not exposeErrorBody.
+        exposeMalformedArgs: true,
+      });
 
   return {
     provider, rates, modelId, suffix, slot: slotName, prices,

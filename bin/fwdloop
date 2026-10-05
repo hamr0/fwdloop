@@ -31,7 +31,7 @@ import { makeLiveModelStep } from '../src/model-step.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
 import {
-  checkKeyPreflight, PROVIDER_SLOTS, resolvePrices, readPriceConfig, ceilingCostUsd,
+  checkKeyPreflight, resolveSlot, resolvePrices, readPriceConfig, ceilingCostUsd,
 } from '../src/provider.js';
 import { configDoorHome } from '../src/config.js';
 import {
@@ -652,8 +652,9 @@ async function cmdDraft(rest) {
   // ONE price lookup (an injected test provider carries its own rates).
   let ceiling;
   try {
-    const modelId = injected.modelId ?? PROVIDER_SLOTS.deepseek.defaultModel;
-    const prices = injected.rates ? { rates: injected.rates } : resolvePrices(modelId, { slot: 'deepseek', config: readPriceConfig() });
+    const priceConfig = readPriceConfig();
+    const modelId = injected.modelId ?? resolveSlot('deepseek', { config: priceConfig }).model;
+    const prices = injected.rates ? { rates: injected.rates } : resolvePrices(modelId, { slot: 'deepseek', config: priceConfig });
     ceiling = ceilingCostUsd(modelId, undefined, { prices });
   } catch (err) {
     if (!(err instanceof ConfigError)) throw err;

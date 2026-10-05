@@ -3,7 +3,8 @@
 //
 // Shape (unknown top-level fields are kept, never dropped):
 //   { "monthlyLimitUsd": <number > 0>,            // absent = no limit (piece 3 reads it)
-//     "prices": { "<slot>": { "inPerM": n, "cachedInPerM": n, "outPerM": n } } }   // USD per 1M tokens, each optional
+//     "prices": { "<slot>": { "inPerM": n, "cachedInPerM": n, "outPerM": n } },    // USD per 1M tokens, each optional
+//     "providers": { "<slot>": { "model": "<id>", "shape": "<shape id>", "baseUrl": "" | "http(s)://…" } } }   // each optional (M4d amendment 1)
 // A price is a finite number above 0; 0, a negative, NaN, Infinity or text is a ConfigError
 // naming the slot and field — on write AND on read, so a hand-edited 0 can never price a call at $0.
 // Key VALUES never live here (keys file / shell only): a secret-shaped string is refused on write.
@@ -16,6 +17,7 @@ import {
 } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
+import { SHAPE_IDS } from './providershapes.js';
 
 /** A plain-words config failure (bad value, secret-shaped string, unreadable file). */
 export class ConfigError extends Error {}
@@ -81,7 +83,41 @@ function secretPaths(node, at, out) {
   }
 }
 
+export const PROVIDER_FIELDS = Object.freeze(['model', 'shape', 'baseUrl']);
+
+/** One provider field's value problem in plain words, or null when fine. Shared by validateDoc and the route. */
+export function providerFieldProblem(field, v) {
+  if (field === 'model') {
+    if (typeof v !== 'string' || v.length === 0 || v.length > 200 || /\s/.test(v)) return 'must be a model id: 1 to 200 characters, no spaces';
+  } else if (field === 'shape') {
+    if (!SHAPE_IDS.includes(v)) return `must be one of ${SHAPE_IDS.join(', ')}`;
+  } else if (field === 'baseUrl') {
+    if (typeof v !== 'string' || !(v === '' || /^https?:\/\/\S+$/.test(v))) return 'must be empty (the default) or an http(s) address';
+  } else return 'is not a provider field';
+  return null;
+}
+
+/** A Base URL as stored: trailing slashes dropped. */
+export const cleanBaseUrl = (v) => v.replace(/\/+$/, '');
+
 const isPrice = (v) => typeof v === 'number' && Number.isFinite(v) && v > 0;
+
+/** @param {any} providers */
+function validateProviders(providers) {
+  if (providers === undefined) return;
+  if (providers === null || typeof providers !== 'object' || Array.isArray(providers)) {
+    throw new ConfigError('providers must be an object of provider slots');
+  }
+  for (const [slot, row] of Object.entries(providers)) {
+    if (!SLOT_RE.test(slot)) throw new ConfigError(`providers: "${slot}" is not a provider slot name`);
+    if (row === null || typeof row !== 'object' || Array.isArray(row)) throw new ConfigError(`providers.${slot} must be an object`);
+    for (const [field, v] of Object.entries(row)) {
+      if (!PROVIDER_FIELDS.includes(field)) throw new ConfigError(`providers.${slot}.${field} is not a provider field (${PROVIDER_FIELDS.join(', ')})`);
+      const problem = providerFieldProblem(field, v);
+      if (problem) throw new ConfigError(`providers.${slot}.${field} ${problem}`);
+    }
+  }
+}
 
 /**
  * Validate a whole document's known fields; throws ConfigError naming the field.
@@ -91,6 +127,7 @@ function validateDoc(doc) {
   if (doc.monthlyLimitUsd !== undefined && !isPrice(doc.monthlyLimitUsd)) {
     throw new ConfigError('monthlyLimitUsd must be a number above 0 (remove the limit to have none)');
   }
+  validateProviders(doc.providers);
   if (doc.prices === undefined) return;
   if (doc.prices === null || typeof doc.prices !== 'object' || Array.isArray(doc.prices)) {
     throw new ConfigError('prices must be an object of provider slots');
@@ -151,7 +188,7 @@ export function updateConfig(patch, opts = {}) {
   /** @type {Record<string, any>} */
   const next = { ...cur };
   for (const [k, v] of Object.entries(patch)) {
-    if (k === 'prices') continue;
+    if (k === 'prices' || k === 'providers') continue;
     if (v === null) delete next[k];
     else next[k] = v;
   }
@@ -176,6 +213,29 @@ export function updateConfig(patch, opts = {}) {
       }
       if (Object.keys(prices).length === 0) delete next.prices;
       else next.prices = prices;
+    }
+  }
+  if (patch.providers !== undefined) {
+    const p = patch.providers;
+    if (p === null) {
+      delete next.providers;
+    } else {
+      if (typeof p !== 'object' || Array.isArray(p)) throw new ConfigError('providers must be an object of provider slots');
+      /** @type {Record<string, any>} */
+      const providers = { ...(next.providers ?? {}) };
+      for (const [slot, row] of Object.entries(p)) {
+        if (row === null) { delete providers[slot]; continue; }
+        if (typeof row !== 'object' || Array.isArray(row)) throw new ConfigError(`providers.${slot} must be an object`);
+        const merged = { ...(providers[slot] ?? {}) };
+        for (const [field, v] of Object.entries(row)) {
+          if (v === null) delete merged[field];
+          else merged[field] = field === 'baseUrl' && typeof v === 'string' ? cleanBaseUrl(v) : v;
+        }
+        if (Object.keys(merged).length === 0) delete providers[slot];
+        else providers[slot] = merged;
+      }
+      if (Object.keys(providers).length === 0) delete next.providers;
+      else next.providers = providers;
     }
   }
   validateDoc(next);

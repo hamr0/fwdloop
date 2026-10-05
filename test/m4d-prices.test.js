@@ -155,7 +155,7 @@ test('lookup: per field Settings wins over the table; a field left unset falls t
   assert.deepEqual(resolvePrices('deepseek-flash', { slot: 'synthetic', config: { prices: { deepseek: SET_PRICE } } }).source, { in: 'table', cachedIn: 'table', out: 'table' });
 });
 
-test('unknown model + no config: the table\'s HIGHEST entry per field (today\'s rule survives), never 0; makeProvider still refuses an unrated model', () => {
+test('unknown model + no config: the table\'s HIGHEST entry per field (today\'s rule survives), never 0; makeProvider builds an unrated model priced at that ceiling (M4d amendment 1)', () => {
   const p = resolvePrices('totally-unknown-model');
   const maxIn = Math.max(...Object.values(RATES_BY_SUFFIX).map((r) => r.in));
   const maxOut = Math.max(...Object.values(RATES_BY_SUFFIX).map((r) => r.out));
@@ -165,7 +165,9 @@ test('unknown model + no config: the table\'s HIGHEST entry per field (today\'s 
   assert.equal(p.rates.cacheReadMult, undefined, 'no cached price known: bare-agent applies 0.1x to the (highest) input rate');
   assert.ok(p.perM.inPerM > 0 && p.perM.outPerM > 0 && p.perM.cachedInPerM > 0);
   assert.equal(ceilingCostUsd('totally-unknown-model'), 32 * maxIn + 16 * maxOut);
-  assert.throws(() => makeProvider('deepseek', { model: 'totally-unknown-model', env: { DEEPSEEK_API_KEY: KEY }, configHome: newHome() }), /no hand-entered rate/);
+  const built = makeProvider('deepseek', { model: 'totally-unknown-model', env: { DEEPSEEK_API_KEY: KEY }, configHome: newHome() });
+  assert.equal(built.suffix, null);
+  assert.deepEqual(built.rates, p.rates, 'an unrated model is booked at the table\'s highest rate, never 0');
 });
 
 test('ceilingCostUsd follows a config price (the cap check and the booking agree); without one it is the table\'s', async () => {
