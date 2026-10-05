@@ -2039,8 +2039,8 @@ describe('index.html — page source', () => {
     assert.doesNotMatch(code, /XMLHttpRequest|sendBeacon/);
     // postJSON is called with exactly two paths.
     const postPaths = [...code.matchAll(/postJSON\(\s*"([^"]+)"/g)].map((m) => m[1]).sort();
-    // M4d piece 4 adds exactly the three Settings POSTs (test, price, limit); none of them writes the keys file.
-    assert.deepEqual(postPaths, ['/api/answer', '/api/remove-lock', '/api/reopen', '/api/resume', '/api/settings/money', '/api/settings/price', '/api/settings/test']);
+    // M4d piece 4 adds exactly the four Settings POSTs (test, price, provider, limit); none of them writes the keys file.
+    assert.deepEqual(postPaths, ['/api/answer', '/api/remove-lock', '/api/reopen', '/api/resume', '/api/settings/money', '/api/settings/price', '/api/settings/provider', '/api/settings/test']);
   });
 
   test('M4c-fix item 2: the page carries no token — no TOKEN variable, no token header, never a URL, storage, or a log', () => {

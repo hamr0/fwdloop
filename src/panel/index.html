@@ -3285,9 +3285,8 @@
     return "set here";
   }
   var PRICE_FIELDS = ["inPerM", "cachedInPerM", "outPerM"];
-  // The API shape is not in the provider rows: every fwdloop provider slot is built by the one OpenAI-compatible
-  // provider class (src/provider.js makeProvider), so it is the same word on every row.
-  var API_SHAPE = "OpenAI-compatible";
+  // Name, API shape and Base URL are editable (M4d amendment 1), saved on change one field at a time.
+  var PROV_FIELDS = ["name", "shape", "baseUrl"];
   function buildProviderRow(row){
     var tr = document.createElement("tr");
     tr.setAttribute("data-slot", row.slot);
@@ -3301,9 +3300,9 @@
     }).join("");
     tr.innerHTML =
       '<td><code>' + escapeXml(row.envVar) + '</code><div class="hint" data-f="status" data-testid="pv-status-' + escapeXml(row.slot) + '"></div></td>' +
-      '<td data-f="model"></td>' +
-      '<td>' + escapeXml(API_SHAPE) + '</td>' +
-      '<td data-f="addr"></td>' +
+      '<td class="pv-price-cell"><input type="text" data-prov="name" data-testid="prov-name" aria-label="' + escapeXml(row.label + " name") + '" autocomplete="off" spellcheck="false"><div class="hint pv-msg" data-f="msg-name" data-testid="prov-msg-name"></div></td>' +
+      '<td class="pv-price-cell"><select data-prov="shape" data-testid="prov-shape" aria-label="' + escapeXml(row.label + " API shape") + '"></select><div class="hint pv-msg" data-f="msg-shape" data-testid="prov-msg-shape"></div></td>' +
+      '<td class="pv-price-cell"><input type="text" data-prov="baseUrl" data-testid="prov-baseurl" aria-label="' + escapeXml(row.label + " Base URL") + '" autocomplete="off" spellcheck="false"><div class="hint pv-msg" data-f="msg-baseUrl" data-testid="prov-msg-baseUrl"></div></td>' +
       '<td class="pv-test-cell"><button class="btn small" type="button" data-act="test" data-testid="prov-test">Test</button><div class="hint pv-test-result" data-f="test" data-testid="prov-test-result"></div></td>' +
       '<td data-f="tokens" data-testid="pv-tokens-' + escapeXml(row.slot) + '"></td>' +
       '<td>' + balance + '</td>' + prices;
@@ -3322,8 +3321,22 @@
       var tr = pvRows.querySelector('[data-slot="' + row.slot + '"]');
       if(!tr){ tr = buildProviderRow(row); pvRows.appendChild(tr); }
       tr.querySelector("[data-f=status]").textContent = STATUS_WORD[row.keyStatus] || row.keyStatus;
-      tr.querySelector("[data-f=model]").textContent = row.model;
-      tr.querySelector("[data-f=addr]").textContent = row.baseUrl;
+      var nameIn = tr.querySelector('[data-prov=name]');
+      var shapeSel = tr.querySelector('[data-prov=shape]');
+      var urlIn = tr.querySelector('[data-prov=baseUrl]');
+      if(shapeSel.options.length !== data.shapes.length){
+        shapeSel.innerHTML = "";
+        data.shapes.forEach(function(sh){
+          var o = document.createElement("option");
+          o.value = sh.id; o.textContent = sh.label; shapeSel.appendChild(o);
+        });
+      }
+      nameIn.placeholder = row.defaults.model;
+      urlIn.placeholder = row.defaults.baseUrl !== "" ? row.defaults.baseUrl : "the vendor's own address";
+      // a box the person is typing in is never overwritten by a repaint
+      if(nameIn.getAttribute("data-dirty") !== "1") nameIn.value = row.model;
+      if(urlIn.getAttribute("data-dirty") !== "1") urlIn.value = row.savedBaseUrl;
+      if(document.activeElement !== shapeSel) shapeSel.value = row.shape;
       tr.querySelector("[data-f=tokens]").textContent = tokensText(row.tokens);
       PRICE_FIELDS.forEach(function(f){
         var inp = tr.querySelector('input[data-field="' + f + '"]');
@@ -3345,7 +3358,9 @@
   // Saved like bareloop saves a row field: on change (blur or Enter), no Save button.
   pvRows.addEventListener("change", function(ev){
     var inp = ev.target;
-    if(!inp.getAttribute || !inp.getAttribute("data-field")) return;
+    if(!inp.getAttribute) return;
+    if(inp.getAttribute("data-prov")){ saveProvider(inp.closest("tr"), inp); return; }
+    if(!inp.getAttribute("data-field")) return;
     savePrice(inp.closest("tr"), inp.getAttribute("data-field"));
   });
   function runTest(tr, slot){
@@ -3379,7 +3394,22 @@
     tr.querySelectorAll("input[data-field]").forEach(function(inp){ payload[inp.getAttribute("data-field")] = priceValue(inp.value); });
     postJSON("/api/settings/price", payload).then(function(r){
       if(r.body && r.body.ok){
-        tr.querySelectorAll("input").forEach(function(inp){ inp.removeAttribute("data-dirty"); });
+        tr.querySelectorAll("input[data-field]").forEach(function(inp){ inp.removeAttribute("data-dirty"); });
+        loadProviders();
+        setNote(msg, false, "saved — applies from the next model call");
+      } else setNote(msg, true, settingsRefusal(r));
+    }, function(){ setNote(msg, true, networkText()); });
+  }
+
+  // One field per save: {slot, name|shape|baseUrl}. An empty Base URL means the default; a refusal is the cell's hint line.
+  function saveProvider(tr, inp){
+    var key = inp.getAttribute("data-prov");
+    var msg = tr.querySelector("[data-f=msg-" + key + "]");
+    var payload = { slot: tr.getAttribute("data-slot") };
+    payload[key] = inp.value.trim();
+    postJSON("/api/settings/provider", payload).then(function(r){
+      if(r.body && r.body.ok){
+        inp.removeAttribute("data-dirty");
         loadProviders();
         setNote(msg, false, "saved — applies from the next model call");
       } else setNote(msg, true, settingsRefusal(r));

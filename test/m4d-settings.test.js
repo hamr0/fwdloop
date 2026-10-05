@@ -371,18 +371,20 @@ test('page: the Settings button, header, tabs and signed sentences; no per-run c
   assert.doesNotMatch(PAGE, /prov-card|break-card|set-card|set-strip|set-prices|money-grid|limit-save|price-save|set-limit/);
 });
 
-test('page: Providers is ONE table, columns in bareloop order then the three signed price columns; Name/shape/URL are show-only', () => {
+test('page: Providers is ONE table, columns in bareloop order then the three signed price columns; Name/shape/URL are text/select/text (amendment 1)', () => {
   const tables = [...SETTINGS_VIEW.matchAll(/<table[\s\S]*?<\/table>/g)].map((m) => m[0]);
   assert.equal(tables.length, 2, 'the provider table and the breakdown table, no cards');
   assert.deepEqual(th(tables[0]), ['Key', 'Name', 'API shape', 'Base URL', 'Test', 'Tokens used', 'Balance', 'In $/1M', 'Cached in $/1M', 'Out $/1M']);
   assert.match(tables[0], /<table class="pv-table"/);
   assert.match(SETTINGS_VIEW, /<div class="table-wrap"[^>]*>\s*<table class="pv-table"/);
-  // the row builder: model, shape and URL cells hold plain text, never an input or select (ruling 2A)
+  // the row builder (M4d amendment 1, replaces ruling 2A): Name = text box, API shape = dropdown, Base URL = text box
   const build = PAGE.slice(PAGE.indexOf('function buildProviderRow('), PAGE.indexOf('var STATUS_WORD'));
-  assert.ok(build.includes("'<td data-f=\"model\"></td>'") && build.includes("'<td data-f=\"addr\"></td>'") && build.includes("'<td>' + escapeXml(API_SHAPE) + '</td>'"));
-  assert.doesNotMatch(build, /<select|data-f="model"><input|data-f="addr"><input|API_SHAPE\) \+ '<input/);
-  // exactly one input source in a row: the price loop (3 fields), saved on change, with a hint line under each
-  assert.equal((build.match(/<input/g) || []).length, 1);
+  assert.match(build, /<input type="text" data-prov="name"/);
+  assert.match(build, /<select data-prov="shape"/);
+  assert.match(build, /<input type="text" data-prov="baseUrl"/);
+  assert.doesNotMatch(build, /API_SHAPE|data-f="model"|data-f="addr"/);
+  // inputs in a row: name + Base URL + the price loop (one source, 3 fields), each saved on change with a hint line under it
+  assert.equal((build.match(/<input/g) || []).length, 3);
   assert.match(build, /PRICE_FIELDS\.map\(function\(f\)/);
   assert.match(PAGE, /var PRICE_FIELDS = \["inPerM", "cachedInPerM", "outPerM"\];/);
   assert.match(PAGE, /pvRows\.addEventListener\("change"/);
