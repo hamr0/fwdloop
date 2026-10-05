@@ -3632,6 +3632,406 @@
     }, function(){ setNote(msg, true, networkText()); });
   });
 
+  // ---- Chat tab: describe, draft, sign and run a job from this page (M4e piece 3). ----
+  // borrowed-from: bareloop src/panel/index.html@ca7195e — `mainButtonFor`, `askBoxOpenFor`, `renderMain`, `renderProgress`, the
+  // scroll-on-change block in `renderActions`, `attachSession`/`reattachLive` (without the reuse/auto-sign branch), `syncCardLock`,
+  // `CLIENT_TERMINAL_PHASES`, `openNewCard`/`resetCard`/`refreshStartEnabled`, `staleTokenCheck` with its `authorPost`/`authorGet`
+  // wrapper and `staleTokenHook`, `fitBox`. fwdloop differs where its shape does: the draft is a detached CLI child whose state is
+  // READ from files (GET /api/author/live and /:id), a start is polled (GET /api/author/start/:id), auth is the panel's cookie
+  // (no header token), and the ask box is used only for the typed flow name at the sign step.
+  (function(){
+    var card = document.getElementById("job-card");
+    var clearBtn = document.getElementById("chat-clear-btn");
+    var thread = document.getElementById("chat-thread");
+    var msgInput = document.getElementById("chat-msg");
+    var mainBtn = document.getElementById("chat-main-btn");
+    var mainHint = document.getElementById("chat-main-hint");
+    var errEl = document.getElementById("chat-card-error");        // POLL-OWNED: the draft's own sentence (red / stopped)
+    var actionErrEl = document.getElementById("chat-action-error"); // ACTION-OWNED: only a click's refusal; the poll never wipes it
+    var progressRow = document.getElementById("chat-progress-row");
+    var newBox = document.getElementById("jf-new");
+    var runBox = document.getElementById("jf-run");
+    var inputsEl = document.getElementById("jf-inputs");
+    var runInputsEl = document.getElementById("jf-run-inputs");
+    var runFlowSel = document.getElementById("jf-run-flow");
+    var capNoteEl = document.getElementById("jf-cap-note");
+
+    var mode = "new";            // "new" | "run"
+    var mainAction = "none";
+    var startOk = false;
+    var sessionId = null;        // the draft's id (GET /api/author/<id>)
+    var sessionLive = false;     // a draft exists that is not abandoned or signed
+    var lastState = null;        // the draft as the server last described it
+    var signInfo = null;         // the first Sign click's reply: { hash, flowName, capUsd, runId }
+    var signClickedOnce = false;
+    var busy = false;            // a POST is in flight (disabled from the click until the reply)
+    var startId = null;          // the run start being watched (GET /api/author/start/<id>)
+    var pollTimer = null;
+    var startTimer = null;
+    var drafterModel = "";
+    var leftLine = "";
+    var flows = [];
+    // a draft that is abandoned or signed ends the card's life; red/stopped drafts stay on the card (to read, to fix, to retry)
+    var CLIENT_TERMINAL_PHASES = ["abandoned", "signed"];
+    var STALE_REFUSAL = "cookie-missing-or-wrong";
+    var STALE_LINE = "The panel restarted. Reload this page.";
+
+    // After a panel restart this page's cookie is dead: the server refuses EVERY call with 403 `cookie-missing-or-wrong`. The ONE
+    // place the Chat tab makes calls swaps that for one clear sentence and tells the poll to stop. No auto-reload.
+    var staleTokenHook = function(){};
+    function staleTokenCheck(j, status){
+      if(j && j.ok === false && j.refused === STALE_REFUSAL && (status === undefined || status === 403)){
+        j.say = STALE_LINE;
+        staleTokenHook();
+      }
+      return j;
+    }
+    function authorPost(path, body){
+      return postJSON(path, body || {}).then(function(r){ return {status: r.status, body: staleTokenCheck(r.body, r.status)}; });
+    }
+    function authorGet(path){
+      return fetch(path, { method: "GET", headers: { accept: "application/json" } }).then(function(r){
+        return r.text().then(function(t){
+          var j = null;
+          try{ j = JSON.parse(t); }catch(e){}
+          return staleTokenCheck(j, r.status);
+        });
+      });
+    }
+
+    // ---- the pure decisions (no DOM) ----
+    // ONE wide button below the ask box. Its wording, action and enabled state are ONE pure function of
+    // (state, typed-text-empty). state = { mode, session, startOk, busy, phase, signClicked, hash, capUsd }.
+    // Actions: draft | run | sign-prepare | sign | none.
+    function mainButtonFor(st, textEmpty){
+      var cap = st.capUsd;
+      var spends = (cap !== undefined && cap !== null && cap !== "") ? " — spends up to $" + cap : "";
+      var blocked = !st.startOk || !!st.busy;
+      if(st.mode === "run"){
+        return {text: "Run" + spends, action: "run", disabled: blocked};
+      }
+      if(!st.session){
+        return {text: "Draft", action: "draft", disabled: blocked};
+      }
+      if(st.phase === "drafting"){
+        return {text: "Draft", action: "none", disabled: true};
+      }
+      if(st.phase === "red"){
+        return {text: "Fix and draft again", action: "draft", disabled: blocked};
+      }
+      if(st.phase === "stopped"){
+        return {text: "Draft again", action: "draft", disabled: blocked};
+      }
+      if(st.phase === "green"){
+        if(st.signClicked){
+          return {text: "Sign " + String(st.hash || "").slice(0, 8) + " & run" + spends, action: "sign", disabled: !!textEmpty || !!st.busy};
+        }
+        return {text: "Sign & run", action: "sign-prepare", disabled: !!st.busy};
+      }
+      return {text: "Draft", action: "none", disabled: true};
+    }
+    // pure: the ask box takes typed text only at the sign step (the flow name to type); at every other time it is dimmed and emptied
+    function askBoxOpenFor(st){
+      return st.mode === "new" && !!st.session && st.phase === "green" && !!st.signClicked;
+    }
+    // pure: the progress list for a draft. Chronological; a waiting step has no check; a step's detail lines sit under it; no two
+    // identical lines in a row. `ctx` = { model, starting }.
+    function stepsFor(state, ctx){
+      var out = [];
+      var who = ctx.model ? ctx.model : "the drafter";
+      var cap = state && state.card && state.card.capUsd !== undefined && state.card.capUsd !== "" ? state.card.capUsd : "";
+      var capPart = cap !== "" ? ", run cap $" + cap : "";
+      if(state){
+        if(state.phase === "drafting"){
+          out.push({id: "drafting", label: "drafting with " + who + capPart, status: "running", details: []});
+        } else if(state.phase === "red"){
+          out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
+          out.push({id: "checks", label: "plan checks", status: "failed", details: (state.reds || []).slice()});
+        } else if(state.phase === "stopped"){
+          out.push({id: "drafting", label: "drafting with " + who + capPart, status: "failed", details: []});
+        } else if(state.phase === "green"){
+          out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
+          if(ctx.starting){
+            out.push({id: "signed", label: "signed", status: "done", details: []});
+          } else {
+            out.push({id: "sign", label: ctx.signClicked ? "waiting for the flow name" : "waiting for your signature", status: "waiting", details: []});
+          }
+        }
+      }
+      if(ctx.starting) out.push({id: "starting", label: "starting the run", status: "running", details: []});
+      return out.filter(function(s, i){ return i === 0 || JSON.stringify(s) !== JSON.stringify(out[i - 1]); });
+    }
+    // pure: did this POST succeed (one decision for every handler)
+    function chatPostOutcome(r){
+      var ok = !!(r && r.status >= 200 && r.status < 300 && r.body && r.body.ok === true);
+      return {ok: ok, error: ok ? "" : refusalText(r)};
+    }
+    // pure: the one sentence for a refused call — the server's own `say`, else its field refusals, else a plain fallback
+    function refusalText(r){
+      var b = r && r.body;
+      if(b && typeof b.say === "string" && b.say !== "") return b.say;
+      if(b && Array.isArray(b.refusals) && b.refusals.length) return "Not started. Fix the marked boxes. Nothing spent.";
+      return "The request failed. Nothing was sent.";
+    }
+
+    // grow a text box with its text (a few rows, then it scrolls inside); ONE function for the ask box and the card boxes.
+    // A box that is hidden (or not laid out) measures 0 and gets no inline height.
+    function fitBox(el){
+      el.style.height = "auto";
+      if(!el.scrollHeight){ el.style.height = ""; return; }
+      var border = el.offsetHeight - el.clientHeight;
+      el.style.height = Math.min(el.scrollHeight + border, 200) + "px";
+    }
+    function fitCardBoxes(){ fitBox(document.getElementById("jf-job")); }
+
+    // ---- the card's boxes ----
+    function byId(id){ return document.getElementById(id); }
+    function setVal(id, v){ byId(id).value = (v === undefined || v === null) ? "" : String(v); }
+    function makeInput(cls, placeholder, value){
+      var el = document.createElement("input");
+      el.type = "text"; el.className = cls; el.placeholder = placeholder; el.autocomplete = "off"; el.spellcheck = false;
+      el.value = (value === undefined || value === null) ? "" : String(value);
+      return el;
+    }
+    function makeErr(){ var d = document.createElement("div"); d.className = "jf-err"; return d; }
+    // New job: one row per input — a role and a full path, removable
+    function addInputRow(role, path){
+      var row = document.createElement("div");
+      row.className = "jf-inrow";
+      var rm = document.createElement("button");
+      rm.type = "button"; rm.className = "btn small jf-rm"; rm.textContent = "remove";
+      rm.setAttribute("aria-label", "Remove this input");
+      rm.addEventListener("click", function(){ row.remove(); clearFieldErrors(); refreshStartEnabled(); });
+      row.appendChild(makeInput("jf-role", "name, e.g. resume", role));
+      row.appendChild(makeInput("jf-path", "/full/path/to/file", path));
+      row.appendChild(rm);
+      row.appendChild(makeErr());
+      inputsEl.appendChild(row);
+      syncCardLock();
+    }
+    // Run a signed flow: one row per DECLARED role (the role is fixed), the path prefilled from the last run
+    function paintRunRows(f){
+      runInputsEl.innerHTML = "";
+      ((f && f.roles) || []).forEach(function(role){
+        var row = document.createElement("div");
+        row.className = "jf-inrow";
+        var ro = document.createElement("div");
+        ro.className = "jf-role-ro"; ro.textContent = role; ro.setAttribute("data-role", role);
+        row.appendChild(ro);
+        row.appendChild(makeInput("jf-path", "/full/path/to/file", f.lastSources ? f.lastSources[role] : ""));
+        row.appendChild(makeErr());
+        runInputsEl.appendChild(row);
+      });
+      syncCardLock();
+    }
+    function readRows(container){
+      return Array.prototype.map.call(container.children, function(row){
+        var roleEl = row.querySelector(".jf-role");
+        var role = roleEl ? roleEl.value.trim() : row.querySelector(".jf-role-ro").getAttribute("data-role");
+        return {role: role, path: row.querySelector(".jf-path").value.trim()};
+      });
+    }
+    function currentCard(){
+      return {
+        flowName: byId("jf-name").value.trim(),
+        job: byId("jf-job").value,
+        capUsd: byId("jf-cap-money").value.trim(),
+        destination: {line: byId("jf-dest-line").value.trim(), folder: byId("jf-dest-folder").value.trim()},
+        inputs: readRows(inputsEl)
+      };
+    }
+    function currentRun(){
+      return {flow: runFlowSel.value, inputs: readRows(runInputsEl), runId: byId("jf-run-id").value.trim()};
+    }
+    function selectedFlow(){
+      for(var i = 0; i < flows.length; i++){ if(flows[i].flow === runFlowSel.value) return flows[i]; }
+      return null;
+    }
+    // client-side convenience only (the server's $0 checks are the real gate): is there enough on the card to click?
+    function startReady(){
+      if(mode === "run"){
+        return !!selectedFlow() && readRows(runInputsEl).every(function(r){ return r.path !== ""; });
+      }
+      var c = currentCard();
+      var v = Number(c.capUsd);
+      return c.flowName !== "" && c.job.trim() !== "" && c.capUsd !== "" && isFinite(v) && v > 0;
+    }
+
+    // ---- a refusal shows next to its box ----
+    function clearFieldErrors(){
+      card.querySelectorAll(".jf-err").forEach(function(e){ e.textContent = ""; });
+    }
+    function errElFor(field){
+      var m = /^inputs\.(\d+)$/.exec(field);
+      var rows = mode === "run" ? runInputsEl : inputsEl;
+      if(m){
+        var row = rows.children[Number(m[1])];
+        return row ? row.querySelector(".jf-err") : null;
+      }
+      if(field === "inputs") return byId(mode === "run" ? "jf-err-run-inputs" : "jf-err-inputs");
+      return byId("jf-err-" + field);
+    }
+    // returns the sentences that had no box to sit next to
+    function showRefusals(list){
+      var unplaced = [];
+      list.forEach(function(r){
+        var el = errElFor(String(r.field));
+        if(el){ el.textContent = el.textContent ? el.textContent + " " + r.say : r.say; } else { unplaced.push(r.say); }
+      });
+      return unplaced;
+    }
+
+    // ---- the lock: while a draft is drafting or waiting to be signed, a start is in flight, or a POST is out, NOTHING on the card
+    // is editable (the draft was made from these values). ONE function owns it. A red or stopped draft unlocks the card (fix, draft again).
+    function cardLocked(){
+      var ph = (sessionLive && lastState) ? lastState.phase : null;
+      return busy || startId !== null || (mode === "new" && (ph === "drafting" || ph === "green"));
+    }
+    function syncCardLock(){
+      var on = cardLocked();
+      card.querySelectorAll("input[type=text], textarea").forEach(function(el){ el.readOnly = on; el.classList.toggle("locked", on); });
+      runFlowSel.disabled = on;
+      runFlowSel.classList.toggle("locked", on);
+      card.querySelectorAll("button.jf-rm, #jf-add-input").forEach(function(b){ b.disabled = on; });
+      card.querySelectorAll('input[name="jf-mode"]').forEach(function(r){ r.disabled = on || sessionLive; });
+    }
+    // top-right: Abandon while a draft is live and unsigned, else Clear
+    function clearButtonFor(live, hasId){
+      return live ? {text: "Abandon", disabled: !hasId || busy} : {text: "Clear", disabled: busy};
+    }
+    function refreshClearBtn(){
+      var b = clearButtonFor(sessionLive, !!sessionId);
+      clearBtn.textContent = b.text;
+      clearBtn.disabled = b.disabled;
+    }
+    function refreshStartEnabled(){
+      startOk = startReady();
+      syncCardLock();
+      renderMain();
+      refreshClearBtn();
+    }
+
+    // ---- Run a signed flow: the list comes from the server (only flows whose signature checks out) ----
+    var paintedFlow = null;
+    function newRunIdText(){
+      var hex = "";
+      try{
+        var a = new Uint8Array(4);
+        crypto.getRandomValues(a);
+        hex = Array.prototype.map.call(a, function(b){ return ("0" + b.toString(16)).slice(-2); }).join("");
+      }catch(e){ hex = String(Math.floor(Math.random() * 0xffffffff).toString(16)); }
+      return "run-" + Date.now().toString(36) + "-" + hex;
+    }
+    function paintRunFlow(){
+      var f = selectedFlow();
+      paintedFlow = runFlowSel.value;
+      byId("jf-run-cap").textContent = f ? "$" + f.capUsd : "";
+      paintRunRows(f);
+      byId("jf-run-id").value = f ? newRunIdText() : "";
+      clearFieldErrors();
+    }
+    function loadFlows(force){
+      authorGet("/api/author/flows").then(function(j){
+        if(!j || j.ok !== true) return;
+        flows = j.flows || [];
+        leftLine = (j.leftThisMonth && j.leftThisMonth.say) ? j.leftThisMonth.say : "";
+        capNoteEl.textContent = leftLine;
+        byId("jf-run-left").textContent = leftLine;
+        var was = runFlowSel.value;
+        runFlowSel.innerHTML = flows.map(function(f){ return '<option value="' + escapeXml(f.flow) + '">' + escapeXml(f.flow) + "</option>"; }).join("");
+        if(flows.some(function(f){ return f.flow === was; })) runFlowSel.value = was;
+        byId("jf-run-empty").textContent = flows.length ? "" : "No signed flow yet. Draft a new job first.";
+        if(force || paintedFlow !== runFlowSel.value || (flows.length === 0 && runInputsEl.children.length > 0)) paintRunFlow();
+        refreshStartEnabled();
+      }).catch(function(){ /* the card keeps what it had */ });
+    }
+    // the drafting line names the model the drafter really uses (Settings' deepseek row), never a guess
+    function loadModel(){
+      authorGet("/api/settings/providers").then(function(j){
+        var rows = (j && j.ok === true && Array.isArray(j.rows)) ? j.rows : [];
+        for(var i = 0; i < rows.length; i++){ if(rows[i].slot === "deepseek" && rows[i].model){ drafterModel = String(rows[i].model); } }
+      }).catch(function(){ /* the line then says "the drafter" */ });
+    }
+    function setMode(m){
+      mode = m;
+      document.querySelectorAll('input[name="jf-mode"]').forEach(function(r){ r.checked = (r.value === m); });
+      newBox.hidden = (m !== "new");
+      runBox.hidden = (m !== "run");
+      clearFieldErrors();
+      if(m === "run") loadFlows();
+      refreshStartEnabled();
+      fitCardBoxes();
+    }
+
+    // ---- render: the progress list, the readout, the ask box and the one main button ----
+    // Returns true when the list's content actually changed (a new line, or the latest line changed) so the caller can scroll only
+    // then; an identical poll tick returns false and leaves the person's scroll position alone.
+    function renderProgress(steps){
+      var before = progressRow.innerHTML;
+      progressRow.hidden = steps.length === 0;
+      progressRow.innerHTML = steps.map(function(st){
+        var cls = st.status === "waiting" ? "wait" : (st.status === "running" ? "run" : (st.status === "failed" ? "bad" : "ok"));
+        var sign = cls === "ok" ? "✓" : (cls === "bad" ? "✗" : "");
+        return '<li class="step ' + cls + '" data-step="' + escapeXml(st.id) + '"><div class="step-line"><span class="step-label">' + escapeXml(st.label) + '</span>' +
+          '<span class="step-sign">' + sign + '</span></div>' +
+          (st.details || []).map(function(d){ return '<div class="step-detail">' + escapeXml("> " + d) + '</div>'; }).join("") + '</li>';
+      }).join("");
+      return progressRow.innerHTML !== before;
+    }
+    // the plan the human is about to sign: the drafter's readout and the hash; nothing else goes in the thread
+    var threadKey = "";
+    function renderThread(state){
+      var html = "";
+      if(state && state.phase === "green" && state.readout){
+        html = '<div class="msg bot"><div class="who">fwdloop</div>' + escapeXml(String(state.readout).replace(/\s+$/, "")) +
+          '\n\nPlan hash: ' + escapeXml(state.hash || "") + '</div>';
+      }
+      if(html !== threadKey){ threadKey = html; thread.innerHTML = html; }
+    }
+    function renderMain(){
+      var st = {mode: mode, session: sessionLive, startOk: startOk, busy: busy || startId !== null, signClicked: signClickedOnce};
+      if(sessionLive && lastState){
+        st.phase = lastState.phase;
+        st.hash = signInfo ? signInfo.hash : lastState.hash;
+      }
+      if(mode === "run"){
+        var f = selectedFlow();
+        st.capUsd = f ? f.capUsd : undefined;
+      } else if(signInfo){
+        st.capUsd = signInfo.capUsd;
+      } else if(lastState && lastState.card){
+        st.capUsd = lastState.card.capUsd;
+      }
+      // the ask box is open only at the sign step (the flow name to type); otherwise dimmed and emptied
+      var open = askBoxOpenFor(st);
+      msgInput.disabled = !open;
+      if(!open) msgInput.value = "";
+      var b = mainButtonFor(st, !msgInput.value.trim());
+      mainBtn.textContent = b.text;
+      mainBtn.disabled = b.disabled;
+      mainAction = b.action;
+      mainHint.textContent = "";
+      fitBox(msgInput);
+      fitCardBoxes();
+    }
+    function renderActions(state){
+      lastState = state;
+      // #chat-card-error is POLL-OWNED: it carries only the draft's own sentence (a red plan or a stopped child), written here and
+      // nowhere else. A refused click goes to #chat-action-error, which this function never touches.
+      errEl.textContent = ((state.phase === "red" || state.phase === "stopped") && state.say) ? state.say : "";
+      var progressChanged = renderProgress(stepsFor(state, {model: drafterModel, starting: startId !== null, signClicked: signClickedOnce}));
+      sessionLive = CLIENT_TERMINAL_PHASES.indexOf(state.phase) === -1;
+      refreshStartEnabled();
+      // while the draft is live and the list changed, bring the newest progress line into view.
+      // Never moves keyboard focus, and an unchanged poll tick never scrolls.
+      if(progressChanged && sessionLive && progressRow.lastElementChild){
+        progressRow.lastElementChild.scrollIntoView({block: "nearest"});
+      }
+    }
+
+    // CHAT-NEXT
+  })();
+
   // theme toggle
   (function(){
     var root = document.documentElement;
