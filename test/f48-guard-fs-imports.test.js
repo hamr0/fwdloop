@@ -330,6 +330,12 @@ const ALLOWLIST = {
     reason: 'M4c: /proc reads only (cmdline, stat field 22, a /proc existence probe) plus lstatSync mtime of the run\'s own book files for the 10-minute fallback (presence/mtime only, content never read, symlinks not followed) — pids.jsonl itself is read via books.js readPidRows (readFileInside); M4c amendment 2: resume.lock — lstat (a symlinked lock reads as empty, never followed), one read of its holder JSON, and writeSync of that holder into the fd resumeRun just created with wx',
     names: { lstatSync: 2, readFileSync: 4, writeSync: 1 },
   },
+  'src/keysfile.js': {
+    reason: 'M4d: the ONE reader of the per-person keys file (~/.config/fwdloop/.env), a regular file OUTSIDE any run/flow dir, not a book. One open + fstat on the SAME fd (mode check, regular-file check, no TOCTOU) + one read of that fd; creates the dir/file (wx, 0600) when missing. Never follows into a run dir.',
+    names: {
+      closeSync: 1, fstatSync: 1, mkdirSync: 1, openSync: 2, readFileSync: 1, writeFileSync: 1,
+    },
+  },
   'src/provider.js': {
     reason: 'append-only spend-log writer — writes only, no reads',
     names: { appendFileSync: 1, mkdirSync: 1 },
