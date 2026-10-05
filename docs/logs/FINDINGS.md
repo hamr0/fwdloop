@@ -2879,3 +2879,21 @@ Not recoverable: the one run made before the fix (`m4d-exit-1`, $0.0185) is name
 
 Proof: `test/m4d-monthly.test.js` (no limit: row written and settled; spend counted and subtracted when a limit is
 set later; unwritable `runs.jsonl` refuses by name). With only the `src/monthly.js` fix reverted all three fail.
+
+## F56 — M4e POC: a dead draft looks like a running one; a run step's output is never key-swept; the send folder is fenced to the install folder (2026-10-05)
+
+Found by the M4e first POC ($0, stub providers; `poc/m4e/RESULTS.md`). Three things, none fixed here.
+
+1. A dead draft looks like a running one. `src/authoring.js:198` makes the draft dir and writes nothing until the
+   model round returns: no pid file, no state. A SIGKILLed draft leaves its `runs.jsonl` hold row open, because the
+   only settle is `process.on('exit')` in `bin/fwdloop`; the dir alone cannot tell running from killed. Plan: M4e
+   scope items 11 and 12 will have the draft child record its pid in the draft dir, as runs do.
+
+2. A run model step's output is never key-swept (POC c5). A model step that copies the key into its output writes
+   it raw into `artifacts/`, `ask.json`, `log.json` and `state.json`; `scrub`/`sweepForSecrets` exist only in
+   `src/authoring.js` and `src/panel/resume.js`. A real model is never given the key, so this needs a model that
+   quotes a key it was not given, or a provider error body that echoes it. hamr ruling "A1": fix-ledger, after M4e.
+
+3. The send folder is fenced to the install folder. `checkSendDestination` in `src/runner.js` joins the target onto
+   `REPO_ROOT`, so for an npm install the destination sits inside `node_modules`. hamr ruling "any folder": M4e
+   amendment 1 (not signed yet).
