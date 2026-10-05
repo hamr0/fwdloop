@@ -1,0 +1,383 @@
+// M4d piece 4 (docs/wiki/the-module-ladder.md, "M4d", scope items 2-3; negatives (i) (ii) (ix) (xi) (xiii) (xiv) and the
+// page half of (xv)). $0, no network: `fetch` is injected, and every test's config home is a tracked mkdtemp dir (the
+// real ~/.config/fwdloop is never touched). Each test goes red with its one src change taken out.
+import assert from 'node:assert/strict';
+import { test, after } from 'node:test';
+import http from 'node:http';
+import {
+  chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
+import { createPanelServer } from '../src/panel/server.js';
+import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
+import { keysFilePath } from '../src/keysfile.js';
+import { configPath } from '../src/config.js';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
+const CANARY = 'canary-key-m4d-p4-9f8e7d6c5b4a39281706';
+const tmp = (p) => mkdtempSync(path.join(tmpdir(), `fwdloop-m4d4-${p}-`));
+
+const HANDLES = [];
+after(() => Promise.all(HANDLES.map((h) => h.close())));
+
+/** A config home with a 0600 keys file holding the canary, plus a recording fake fetch. */
+async function setup({ keys = `DEEPSEEK_API_KEY=${CANARY}\n`, config, fetchImpl } = {}) {
+  const home = path.join(tmp('home'), 'fwdloop');
+  mkdirSync(home, { recursive: true, mode: 0o700 });
+  if (keys !== null) writeFileSync(keysFilePath(home), keys, { mode: 0o600 });
+  if (config !== undefined) writeFileSync(configPath(home), typeof config === 'string' ? config : JSON.stringify(config));
+  const calls = [];
+  const fake = fetchImpl ?? (async (url, opts) => ({ ok: true, status: 200, json: async () => ({ data: [] }), url, opts }));
+  const root = tmp('root');
+  const h = remember(await createPanelServer({
+    port: 0, root, settings: { home, env: {}, fetch: async (url, opts) => { calls.push({ url: String(url), method: opts?.method, headers: opts?.headers }); return fake(url, opts); } },
+  }));
+  HANDLES.push(h);
+  return { h, home, root, calls };
+}
+
+function rq(port, {
+  method = 'GET', url = '/', headers = {}, body,
+} = {}) {
+  return new Promise((resolve, reject) => {
+    const data = body === undefined ? undefined : (typeof body === 'string' ? body : JSON.stringify(body));
+    const hd = { host: `127.0.0.1:${port}`, ...cookieHeader(port), ...headers };
+    if (method === 'POST' && hd.origin === undefined) hd.origin = `http://127.0.0.1:${port}`;
+    if (hd.origin === null) delete hd.origin;
+    if (data !== undefined) hd['content-length'] = Buffer.byteLength(data);
+    const r = http.request({ host: '127.0.0.1', port, method, path: url, headers: hd, agent: false }, (res) => {
+      const ch = [];
+      res.on('data', (c) => ch.push(c));
+      res.on('end', () => {
+        const text = Buffer.concat(ch).toString('utf8');
+        resolve({ status: res.statusCode, text, json() { try { return JSON.parse(text); } catch { return null; } } });
+      });
+    });
+    r.on('error', reject);
+    if (data !== undefined) r.write(data);
+    r.end();
+  });
+}
+const post = (port, url, body, headers) => rq(port, { method: 'POST', url, body, headers });
+
+/** Every file under `dir` with its bytes — a before/after snapshot. */
+function snapshot(dir) {
+  const out = {};
+  const walk = (d) => {
+    for (const n of readdirSync(d).sort()) {
+      const f = path.join(d, n);
+      if (statSync(f).isDirectory()) walk(f);
+      else out[path.relative(dir, f)] = readFileSync(f, 'utf8');
+    }
+  };
+  walk(dir);
+  return out;
+}
+
+// ---- (i) / (ii) the canary key --------------------------------------------------------------------------------------
+test('(i)(ii) a canary key in the keys file is in no settings response and not on the page; a keys-writing POST is refused and the file is byte-identical', async () => {
+  const { h, home } = await setup({ config: { monthlyLimitUsd: 5 } });
+  const keysBefore = readFileSync(keysFilePath(home), 'utf8');
+  const bodies = [];
+  for (const [method, url, body] of [
+    ['GET', '/api/settings/providers'], ['GET', '/api/settings/money'], ['GET', '/api/settings/balance?slot=deepseek'],
+    ['POST', '/api/settings/test', { slot: 'deepseek' }], ['POST', '/api/settings/test', { slot: 'synthetic' }],
+    ['POST', '/api/settings/price', { slot: 'deepseek', inPerM: 0.5 }], ['POST', '/api/settings/money', { monthlyLimitUsd: 7 }],
+    ['POST', '/api/settings/keys', { DEEPSEEK_API_KEY: 'x' }], ['POST', '/api/settings/keys', { name: 'DEEPSEEK_API_KEY', value: CANARY }],
+    ['POST', '/api/settings/providers', { slot: 'deepseek' }], ['PUT', '/api/settings/keys', {}],
+  ]) {
+    const r = await rq(h.port, { method, url, body });
+    bodies.push(r.text);
+  }
+  const page = await rq(h.port, { url: '/' });
+  assert.equal(page.status, 200);
+  for (const t of [...bodies, page.text]) assert.ok(!t.includes(CANARY), 'the canary key is in no response body or page');
+  // the status is shown by name only
+  const prov = (await rq(h.port, { url: '/api/settings/providers' })).json();
+  assert.equal(prov.rows.find((r) => r.slot === 'deepseek').keyStatus, 'set in file');
+  assert.equal(prov.rows.find((r) => r.slot === 'synthetic').keyStatus, 'not set');
+  for (const url of ['/api/settings/keys', '/api/settings/keys/DEEPSEEK_API_KEY', '/api/settings/reload', '/api/settings/']) {
+    const r = await post(h.port, url, { value: 'x' });
+    assert.equal(r.status, 404, url);
+    assert.equal(r.json().ok, false);
+    assert.match(r.json().say, /typed into your keys file by hand/);
+  }
+  assert.equal(readFileSync(keysFilePath(home), 'utf8'), keysBefore, 'the keys file is byte-identical');
+});
+
+test('(i) the 1A refusal is shown as a plain sentence in the keys strip data, and a refused file marks every row "refused"', async () => {
+  const { h, home } = await setup();
+  chmodSync(keysFilePath(home), 0o644);
+  const prov = (await rq(h.port, { url: '/api/settings/providers' })).json();
+  assert.match(prov.keysFile.refusal, /can be read by other users\. Run: chmod 600/);
+  assert.ok(prov.rows.every((r) => r.keyStatus === 'refused'));
+  assert.ok(!JSON.stringify(prov).includes(CANARY));
+  const t = (await post(h.port, '/api/settings/test', { slot: 'deepseek' })).json();
+  assert.equal(t.ok, false);
+  assert.match(t.why, /chmod 600/);
+  chmodSync(keysFilePath(home), 0o600);
+  const again = (await rq(h.port, { url: '/api/settings/providers' })).json();
+  assert.equal(again.keysFile.refusal, null, 'Reload keys = ask again; the file is re-read each call');
+});
+
+// ---- (ix) Test and Balance -------------------------------------------------------------------------------------------
+test('(ix) Test and Balance GET only the models / balance URLs with the key in the header only; no completion, no spend row', async () => {
+  const fetchImpl = async (url) => (String(url).endsWith('/user/balance')
+    ? { ok: true, status: 200, json: async () => ({ balance_infos: [{ currency: 'USD', total_balance: '12.34' }] }) }
+    : { ok: true, status: 200, json: async () => ({ data: [{ id: 'deepseek-flash' }] }) });
+  const { h, home, root, calls } = await setup({ fetchImpl });
+  const homeBefore = snapshot(home);
+  const rootBefore = snapshot(root);
+  const t = (await post(h.port, '/api/settings/test', { slot: 'deepseek' })).json();
+  assert.equal(t.ok, true);
+  assert.ok(Number.isInteger(t.ms) && t.ms >= 0);
+  const b = (await rq(h.port, { url: '/api/settings/balance?slot=deepseek' })).json();
+  assert.deepEqual(b, { ok: true, balances: [{ currency: 'USD', total: '12.34' }] });
+  assert.deepEqual(calls.map((c) => [c.method, c.url]), [['GET', 'https://api.deepseek.com/models'], ['GET', 'https://api.deepseek.com/user/balance']]);
+  for (const c of calls) {
+    assert.doesNotMatch(c.url, /completion|chat|messages/);
+    assert.equal(c.headers.Authorization, `Bearer ${CANARY}`, 'the key travels in the header only');
+    assert.ok(!c.url.includes(CANARY));
+  }
+  assert.deepEqual(snapshot(home), homeBefore, 'no file under the config home changed (no spend row, no hold)');
+  assert.deepEqual(snapshot(root), rootBefore, 'no file under the root changed');
+  assert.ok(!existsSync(path.join(home, 'runs.jsonl')));
+  // synthetic Test: its own models URL; a provider without a balance call says so
+  await post(h.port, '/api/settings/test', { slot: 'synthetic' });
+  assert.equal(calls.length, 2, 'a slot with no key never reaches the network');
+  assert.deepEqual((await rq(h.port, { url: '/api/settings/balance?slot=synthetic' })).json(), { ok: false, why: 'Not offered by this provider.' });
+  assert.equal(calls.length, 2);
+});
+
+test('(ix) Test says why in plain sentences: no key, refused key, timeout-shaped, unreachable — never a code or the key', async () => {
+  const modes = {
+    refused: async () => ({ ok: false, status: 401, json: async () => ({}) }),
+    error: async () => ({ ok: false, status: 503, json: async () => ({}) }),
+    down: async () => { throw new TypeError(`fetch failed ${CANARY}`); },
+    abort: async (url, opts) => new Promise((_, rej) => { opts.signal.addEventListener('abort', () => rej(Object.assign(new Error('x'), { name: 'AbortError' }))); }),
+  };
+  const run = async (mode) => { const { h } = await setup({ fetchImpl: modes[mode] }); return (await post(h.port, '/api/settings/test', { slot: 'deepseek' })).json(); };
+  assert.equal((await run('refused')).why, 'The provider refused the key.');
+  assert.equal((await run('error')).why, 'The provider answered with an error.');
+  const down = await run('down');
+  assert.equal(down.why, 'Could not reach the provider.');
+  assert.ok(!JSON.stringify(down).includes(CANARY));
+  const nokey = await setup({ keys: '# nothing\n' });
+  assert.deepEqual((await post(nokey.h.port, '/api/settings/test', { slot: 'deepseek' })).json(), { ok: false, why: 'No key set for this provider.' });
+  assert.deepEqual((await post(nokey.h.port, '/api/settings/test', { slot: 'nope' })).json().ok, false);
+  // the 4 s deadline: an unanswered fetch is abandoned (checked with a short real wait on a fake that honours the abort signal)
+  const t0 = Date.now();
+  const slow = await run('abort');
+  assert.equal(slow.why, 'The provider did not answer in 4 seconds.');
+  assert.ok(Date.now() - t0 >= 3900 && Date.now() - t0 < 6000, `answered after ${Date.now() - t0} ms`);
+});
+
+// ---- (xi) price and limit validation ---------------------------------------------------------------------------------
+test('(xi) a bad price (0, -1, text, NaN, a mix) is refused naming the field and NOTHING is saved; null clears; a valid one saves', async () => {
+  const { h, home } = await setup({ config: { monthlyLimitUsd: 9, prices: { deepseek: { inPerM: 0.4 } } } });
+  const file = configPath(home);
+  const before = readFileSync(file, 'utf8');
+  const bad = [
+    [{ slot: 'deepseek', inPerM: 0 }, /Input price/], [{ slot: 'deepseek', outPerM: -1 }, /Output price/],
+    [{ slot: 'deepseek', cachedInPerM: 'abc' }, /Cached input price/], [{ slot: 'deepseek', inPerM: '0.5' }, /Input price/],
+    [{ slot: 'deepseek', inPerM: 1, outPerM: 0 }, /Output price/], [{ slot: 'deepseek', inPerM: 1, cachedInPerM: -0.1, outPerM: 2 }, /Cached input price/],
+    [{ slot: 'deepseek', inPerM: [1] }, /Input price/], [{ slot: 'deepseek' }, /Nothing to save/], [{ slot: 'nope', inPerM: 1 }, /not known/],
+  ];
+  for (const [body, re] of bad) {
+    const r = await post(h.port, '/api/settings/price', body);
+    assert.equal(r.status, 400, JSON.stringify(body));
+    assert.match(r.json().say, re);
+    assert.equal(readFileSync(file, 'utf8'), before, `config.json unchanged after ${JSON.stringify(body)}`);
+  }
+  const nan = await post(h.port, '/api/settings/price', '{"slot":"deepseek","inPerM":NaN}');
+  assert.equal(nan.status, 400);
+  assert.equal(readFileSync(file, 'utf8'), before);
+  const inf = await post(h.port, '/api/settings/price', '{"slot":"deepseek","inPerM":1e999}'); // parses to Infinity
+  assert.equal(inf.status, 400);
+  assert.equal(readFileSync(file, 'utf8'), before);
+  const ok = await post(h.port, '/api/settings/price', { slot: 'deepseek', outPerM: 1.5, cachedInPerM: 0.01 });
+  assert.equal(ok.json().ok, true);
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).prices.deepseek, { inPerM: 0.4, outPerM: 1.5, cachedInPerM: 0.01 });
+  assert.equal(JSON.parse(readFileSync(file, 'utf8')).monthlyLimitUsd, 9, 'other settings are kept');
+  const prov = (await rq(h.port, { url: '/api/settings/providers' })).json().rows.find((r) => r.slot === 'deepseek');
+  assert.deepEqual(prov.price.outPerM, { value: 1.5, source: 'settings' });
+  await post(h.port, '/api/settings/price', { slot: 'deepseek', inPerM: null, cachedInPerM: null, outPerM: null });
+  assert.equal(JSON.parse(readFileSync(file, 'utf8')).prices, undefined, 'null clears back to the table default');
+  const back = (await rq(h.port, { url: '/api/settings/providers' })).json().rows.find((r) => r.slot === 'deepseek');
+  assert.equal(back.price.inPerM.source, 'table');
+  assert.equal(back.price.cachedInPerM.value, 0.006);
+});
+
+test('(xi) the monthly limit: 0, negative, text refused and nothing saved; empty/null clears; a number saves', async () => {
+  const { h, home } = await setup({ config: { monthlyLimitUsd: 5 } });
+  const file = configPath(home);
+  const before = readFileSync(file, 'utf8');
+  for (const body of [{ monthlyLimitUsd: 0 }, { monthlyLimitUsd: -3 }, { monthlyLimitUsd: 'abc' }, { monthlyLimitUsd: '5' }, {}, { other: 1 }]) {
+    const r = await post(h.port, '/api/settings/money', body);
+    assert.equal(r.status, 400, JSON.stringify(body));
+    assert.match(r.json().say, /Nothing was saved/);
+    assert.equal(readFileSync(file, 'utf8'), before);
+  }
+  assert.equal((await post(h.port, '/api/settings/money', '{"monthlyLimitUsd":NaN}')).status, 400);
+  assert.equal(readFileSync(file, 'utf8'), before);
+  assert.equal((await post(h.port, '/api/settings/money', { monthlyLimitUsd: 12.5 })).json().monthlyLimitUsd, 12.5);
+  assert.equal(JSON.parse(readFileSync(file, 'utf8')).monthlyLimitUsd, 12.5);
+  assert.equal((await rq(h.port, { url: '/api/settings/money' })).json().monthlyLimitUsd, 12.5);
+  assert.equal((await post(h.port, '/api/settings/money', { monthlyLimitUsd: '' })).json().monthlyLimitUsd, null);
+  assert.equal(JSON.parse(readFileSync(file, 'utf8')).monthlyLimitUsd, undefined);
+  assert.equal((await rq(h.port, { url: '/api/settings/money' })).json().monthlyLimitUsd, null);
+});
+
+test('a broken config.json is a plain sentence on GET and a refusal on POST — never "no limit", never a path', async () => {
+  const { h, home } = await setup({ config: '{ not json' });
+  const m = (await rq(h.port, { url: '/api/settings/money' })).json();
+  assert.match(m.configProblem, /cannot be read/);
+  assert.ok(!m.configProblem.includes(home), 'no path in the sentence');
+  const p = (await rq(h.port, { url: '/api/settings/providers' })).json();
+  assert.match(p.configProblem, /cannot be read/);
+  const r = await post(h.port, '/api/settings/money', { monthlyLimitUsd: 3 });
+  assert.equal(r.status, 400);
+  assert.match(r.json().say, /Nothing was saved/);
+  assert.equal(readFileSync(configPath(home), 'utf8'), '{ not json');
+});
+
+// ---- (xiii) unknown cost ---------------------------------------------------------------------------------------------
+test('(xiii) money route: an unknown-cost spend row gives atLeast true (never 0), the breakdown too, and the page renders the ≥ prefix', async () => {
+  const { h, home } = await setup();
+  const runDir = tmp('rundir');
+  writeFileSync(path.join(runDir, 'spend.jsonl'), `${JSON.stringify({
+    provider: 'deepseek', costUsd: null, spendComplete: false, calls: 1, rounds: 0, price: { inPerM: 1, cachedInPerM: 0.1, outPerM: 4 }, at: new Date().toISOString(),
+  })}\n`);
+  writeFileSync(path.join(home, 'runs.jsonl'), `${JSON.stringify({ kind: 'hold', holdId: 'h1', what: 'run', flow: 'f', runId: 'r', runDir, pid: 1, holdUsd: 1, spentAtHold: 0, at: new Date().toISOString() })}\n`);
+  const m = (await rq(h.port, { url: '/api/settings/money' })).json();
+  assert.equal(m.month.atLeast, true);
+  assert.equal(m.total.atLeast, true);
+  assert.ok(m.month.usd > 0, 'priced at its ceiling, never 0');
+  assert.equal(m.byProvider.deepseek.month.atLeast, true);
+  assert.equal(m.preM4dRunsNotCounted, true);
+  const fmt = new Function(`${fnSrc('fmtUsd')}\nreturn fmtUsd;`)();
+  assert.equal(fmt(m.month.usd, m.month.atLeast), `≥$${m.month.usd.toFixed(4)}`);
+  assert.equal(fmt(0.5, false), '$0.5000');
+  assert.equal(fmt(undefined, true), 'unknown', 'a missing figure is never rendered as $0');
+  const mins = new Function(`${fnSrc('fmtMinutes')}\nreturn fmtMinutes;`)();
+  assert.equal(mins(2, true), '≥2.0 min');
+  assert.equal(mins(null, true), 'not recorded');
+  // the page paints every money figure and the breakdown through fmtUsd/fmtMinutes with the server's atLeast flags
+  assert.match(PAGE, /fmtUsd\(m\.usd, m\.atLeast\)/);
+  assert.match(PAGE, /fmtUsd\(t\.usd, t\.atLeast\)/);
+  assert.match(PAGE, /fmtUsd\(p\.month\.usd, p\.month\.atLeast\)/);
+  assert.match(PAGE, /fmtUsd\(p\.total\.usd, p\.total\.atLeast\)/);
+});
+
+/** Cut `function name(` .. its closing "\n  }" out of the page. */
+function fnSrc(name) {
+  const start = PAGE.indexOf(`function ${name}(`);
+  assert.ok(start !== -1, `function ${name} not found in index.html`);
+  return PAGE.slice(start, PAGE.indexOf('\n  }', start) + 4);
+}
+
+// ---- (xiv) no flow, no cap -------------------------------------------------------------------------------------------
+test('(xiv) no settings route reads or writes a flow: a flow dir is byte-identical across every settings POST', async () => {
+  const { h, root } = await setup();
+  const flow = path.join(root, 'myflow');
+  mkdirSync(path.join(flow, 'runs', 'r1'), { recursive: true });
+  writeFileSync(path.join(flow, 'declaration.json'), '{"cap":{"maxUsd":0.5}}');
+  writeFileSync(path.join(flow, 'runs', 'r1', 'spend.jsonl'), '{"costUsd":0.01}\n');
+  const before = snapshot(root);
+  for (const [url, body] of [
+    ['/api/settings/test', { slot: 'deepseek' }], ['/api/settings/price', { slot: 'deepseek', inPerM: 0.7 }], ['/api/settings/money', { monthlyLimitUsd: 3 }],
+    ['/api/settings/price', { slot: 'deepseek', inPerM: 0 }], ['/api/settings/keys', {}], ['/api/settings/flows', { flow: 'myflow', cap: 99 }],
+    ['/api/settings/money', { monthlyLimitUsd: 3, flow: 'myflow', maxUsd: 99, cap: 99 }],
+  ]) await post(h.port, url, body);
+  assert.deepEqual(snapshot(root), before);
+  // and the source: the settings module has no flow/cap vocabulary and no fs of its own
+  const src = readFileSync(path.join(HERE, '..', 'src', 'panel', 'settings.js'), 'utf8').replace(/^\s*\/\/.*$/gm, '');
+  assert.doesNotMatch(src, /declaration|signature|maxUsd|readFlow|writeFlow|resolveFlowDir|from 'node:fs'/);
+});
+
+// ---- gates -----------------------------------------------------------------------------------------------------------
+test('gates: settings routes need the cookie and the own Host; a POST needs the own Origin and a small body', async () => {
+  const { h, home } = await setup({ config: { monthlyLimitUsd: 5 } });
+  const file = configPath(home);
+  const before = readFileSync(file, 'utf8');
+  for (const url of ['/api/settings/providers', '/api/settings/money', '/api/settings/balance?slot=deepseek']) {
+    assert.equal((await rq(h.port, { url, headers: { cookie: '' } })).status, 403, `${url} without the cookie`);
+    assert.equal((await rq(h.port, { url, headers: { host: 'evil.example' } })).status, 403, `${url} with a foreign Host`);
+  }
+  for (const url of ['/api/settings/test', '/api/settings/price', '/api/settings/money', '/api/settings/keys']) {
+    const body = { slot: 'deepseek', inPerM: 9, monthlyLimitUsd: 99 };
+    assert.equal((await post(h.port, url, body, { cookie: '' })).status, 403, `${url} without the cookie`);
+    assert.equal((await post(h.port, url, body, { origin: null })).status, 403, `${url} without Origin`);
+    assert.equal((await post(h.port, url, body, { origin: 'http://evil.example' })).status, 403, `${url} with a foreign Origin`);
+  }
+  const big = await post(h.port, '/api/settings/money', JSON.stringify({ monthlyLimitUsd: 9, pad: 'x'.repeat(9000) }));
+  assert.equal(big.status, 413);
+  assert.equal((await post(h.port, '/api/settings/money', 'not json')).status, 400);
+  assert.equal(readFileSync(file, 'utf8'), before, 'no refused request changed config.json');
+  assert.equal((await rq(h.port, { url: '/api/settings/money' })).status, 200, 'with every gate met it is served');
+});
+
+test('Settings reads and writes only under the injected config home; with no home under a test process it is switched off', async () => {
+  const home = path.join(tmp('only'), 'fwdloop');
+  const h = remember(await createPanelServer({ port: 0, root: tmp('r2'), settings: { home, env: {} } }));
+  HANDLES.push(h);
+  await post(h.port, '/api/settings/money', { monthlyLimitUsd: 4 });
+  assert.equal(JSON.parse(readFileSync(configPath(home), 'utf8')).monthlyLimitUsd, 4);
+  const saved = process.env.FWDLOOP_CONFIG_HOME;
+  delete process.env.FWDLOOP_CONFIG_HOME;
+  try {
+    const off = remember(await createPanelServer({ port: 0, root: tmp('r3') }));
+    HANDLES.push(off);
+    const r = await rq(off.port, { url: '/api/settings/money' });
+    assert.equal(r.status, 404);
+    assert.equal(r.json().refused, 'settings-unavailable');
+  } finally { if (saved !== undefined) process.env.FWDLOOP_CONFIG_HOME = saved; }
+});
+
+// ---- the page: source-level checks -----------------------------------------------------------------------------------
+test('page: the Settings button, the view, the two tabs, the signed sentences; no per-run cap input, no key input', () => {
+  assert.match(PAGE, /data-testid="settings-open">&#9881; Settings</);
+  assert.match(PAGE, /id="settings-back"[^>]*>&larr; Back</);
+  assert.match(PAGE, /&#9508; SETTINGS &#9500;/);
+  assert.match(PAGE, /id="stab-providers"[^>]*>Providers</);
+  assert.match(PAGE, /id="stab-money"[^>]*>Money &amp; limits</);
+  assert.match(PAGE, /Put NAME=key lines in <code id="keys-path">~\/\.config\/fwdloop\/\.env<\/code> by hand &mdash; keys never reach this page\./);
+  assert.match(PAGE, /data-testid="reload-keys">Reload keys</);
+  assert.match(PAGE, /Limits are yours\. The agent can never change them\. A run whose cap is more than what is left this month does not start\./);
+  assert.match(PAGE, /Runs from before Settings existed are not counted here\./);
+  assert.match(PAGE, /older spend rows have no date; they count in to date only\./);
+  assert.match(PAGE, /saved \u2014 applies from the next model call/);
+  assert.match(PAGE, /not offered by this provider/);
+  // the only inputs in Settings are the three price boxes and the monthly limit
+  const view = PAGE.slice(PAGE.indexOf('id="settings-view"'), PAGE.indexOf('id="main-view"'));
+  assert.deepEqual([...view.matchAll(/<input[^>]*id="([^"]+)"/g)].map((m) => m[1]), ['limit-input']);
+  assert.doesNotMatch(view.replace(/<!--[\s\S]*?-->/g, ''), /\bcap\b(?! is more)|maxUsd|type="password"/i);
+  const js = PAGE.slice(PAGE.indexOf('M4d piece 4: Settings.'), PAGE.indexOf('// theme toggle')).replace(/^\s*\/\/.*$/gm, '');
+  assert.deepEqual([...js.matchAll(/data-field="' \+ field/g)].length, 1);
+  assert.deepEqual([...js.matchAll(/priceBox\(row\.slot, "(\w+)"/g)].map((m) => m[1]), ['inPerM', 'cachedInPerM', 'outPerM']);
+  assert.doesNotMatch(js, /\bcap\b|maxUsd/i);
+  assert.doesNotMatch(js, /\.(innerHTML|value)\s*=[^;]*(\.key\b|apiKey)/);
+});
+
+test('page: a typed price/limit box survives a repaint (dirty boxes are never overwritten) and the tick does not touch Settings', () => {
+  const js = PAGE.slice(PAGE.indexOf('M4d piece 4: Settings.'), PAGE.indexOf('// theme toggle'));
+  assert.match(js, /getAttribute\("data-dirty"\) !== "1"\) inp\.value/);
+  assert.match(js, /lim\.getAttribute\("data-dirty"\) !== "1"\) lim\.value/);
+  // pageTick never calls a Settings painter
+  const tick = PAGE.slice(PAGE.indexOf('function pageTick'), PAGE.indexOf('function pageTick') + 2500);
+  assert.doesNotMatch(tick, /loadProviders|loadMoney|paintProviders|paintMoney/);
+});
+
+test('page: phone rules — at 640px price boxes stack, rows take the full width, inputs are 16px', () => {
+  assert.match(PAGE, /\.set-card input\[type=text\][^{]*\{[^}]*font-size:16px/);
+  const phone = PAGE.slice(PAGE.indexOf('.set-label{flex:1 1 100%;}') - 80, PAGE.indexOf('.set-label{flex:1 1 100%;}') + 300);
+  assert.match(phone, /@media \(max-width: 640px\)/);
+  assert.match(phone, /\.set-prices\{flex-direction:column;\}/);
+  assert.match(phone, /\.set-break\{grid-template-columns:minmax\(0,1fr\);\}/);
+  assert.match(PAGE, /name="viewport"/);
+});
