@@ -11,8 +11,8 @@
 //                            child.log    the child's stdout+stderr, 0600 (quoted to the page only after `scrub`)
 //                            pid.json     { pid, procStart, startedAt } — the ONE liveness fact (spawn.js `writePidFile`)
 //
-// ONE WRITER PER FIELD: `start` writes start.json, pid.json (and child.log through the spawn helper); the CLI child writes the
-// run dir. The phase is never stored — it is READ from those files each time (`readStart`):
+// ONE WRITER PER FIELD: `start` writes start.json, pid.json (and child.log through the spawn helper); `clear` writes cleared.json
+// (the human dismissed a refusal, so a reload no longer shows it); the CLI child writes the run dir. The phase is never stored — it is READ from those files each time (`readStart`):
 //   starting  the child is alive and the run dir has no book row yet
 //   started   the run dir has its first book row (`pids.jsonl`, written by the run itself before its first step); `state` is
 //             working / parked / ended from `runLiveness` + `ask.json` (M4c's one "is it running?" rule), never a timer
@@ -145,6 +145,39 @@ export function createStarter(opts) {
       child.on('error', () => {}); // a later spawn failure leaves no pid-backed child: the start then reads as refused
       writePidFile(dir, child);
       return { status: 202, body: { ok: true, startId: id, flow, runId } };
+    },
+
+    /**
+     * The newest start the human has not cleared, for a page that was reloaded: `starting` (re-attach the poll) or `refused` (show the
+     * CLI's sentence). Null when that start began (`started`: the run is in Runs) or there is none.
+     * @param {string[]} keys
+     */
+    newestOpen(keys) {
+      const sd = startsDir();
+      if (sd === null) return null;
+      for (const id of readdirInside(sd, '.').filter((n) => ID_RE.test(n)).sort().reverse()) {
+        if (readFileInside(join(sd, id), 'cleared.json').ok) continue;
+        const v = readStart(join(sd, id), id, keys);
+        if (v === null) continue;
+        return v.phase === 'started' ? null : v;
+      }
+      return null;
+    },
+
+    /**
+     * `POST /api/author/start/:startId/clear`: the human dismisses a REFUSED start. Writes `cleared.json` once; any other phase is refused.
+     * @param {string} id @param {string[]} keys
+     */
+    clear(id, keys) {
+      const v = ID_RE.test(id) ? view(id, keys) : null;
+      if (v === null) return { status: 404, body: { ok: false, refused: 'no-such-start' } };
+      if (v.phase !== 'refused') return { status: 409, body: { ok: false, refused: 'not-clearable', say: 'Only a refused start can be cleared.' } };
+      try {
+        writeFileSync(join(/** @type {string} */ (startsDir()), id, 'cleared.json'), `${JSON.stringify({ at: new Date().toISOString() })}\n`, { mode: 0o600, flag: 'wx' });
+      } catch (e) {
+        if (/** @type {any} */ (e)?.code !== 'EEXIST') return { status: 500, body: { ok: false, refused: 'clear', say: 'The refusal could not be cleared.' } };
+      }
+      return { status: 200, body: { ok: true, startId: id } };
     },
 
     /** `GET /api/author/start/:startId`. @param {string} id @param {string[]} keys */

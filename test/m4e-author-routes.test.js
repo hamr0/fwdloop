@@ -294,7 +294,7 @@ test('(xii) the drafter never writes the cap, destination, ask TTL or input path
 
 test('(xiv) a refreshed tab (a NEW panel over the same root) re-attaches: /live reads the draft from files, drafting then green; abandoned or signed = no card', async () => {
   const w = await world({ mode: 'hang' });
-  assert.deepEqual((await w.get('/api/author/live')).json(), { ok: true, draft: null });
+  assert.deepEqual((await w.get('/api/author/live')).json(), { ok: true, draft: null, start: null });
   const id = (await w.post('/api/author/draft', w.card())).json().draftId;
   const second = await w.open(); // the panel restarted: nothing in memory survives
   const live = (await rq(second.port, { url: '/api/author/live' })).json();

@@ -162,3 +162,14 @@ test('F4 the ask box shows "Type the flow name to sign" only while it is open at
   assert.equal(open.disabled, false);
   assert.equal(open.placeholder, 'Type the flow name to sign', 'open at the sign step');
 });
+
+test('F2 page: after a reload a refused start shows its sentence and a starting one is re-attached; Clear dismisses it on the server', () => {
+  const re = fnSrc('reattachLive');
+  assert.match(re, /j\.start/);
+  assert.match(re, /st\.phase === "starting"[^\n]*beginStart\(st\.startId\)/);
+  assert.match(re, /st\.phase === "refused"[\s\S]*chatActionFailed\(/);
+  assert.match(re, /The flow is signed; start it from/, 'a refused SIGN start keeps its second sentence');
+  assert.match(fnSrc('pollStart'), /refusedStartId = j\.startId/);
+  assert.match(fnSrc('beginStart'), /refusedStartId = null/, 'a new start supersedes the old refusal');
+  assert.match(CHAT, /authorPost\("\/api\/author\/start\/" \+ rid \+ "\/clear"/);
+});

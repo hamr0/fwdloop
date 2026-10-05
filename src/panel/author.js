@@ -154,6 +154,9 @@ export function createAuthor(opts) {
     /** `GET /api/author/start/:startId`: the start's phase, read from its files. @param {string} id */
     startGet(id) { return starter.get(id, keysNow().keys); },
 
+    /** `POST /api/author/start/:startId/clear`: dismiss a refused start. @param {string} id */
+    startClear(id) { return starter.clear(id, keysNow().keys); },
+
     /**
      * `POST /api/author/draft`: card -> $0 checks -> one detached `fwdloop draft` -> 202 { draftId }. Nothing is created
      * on a refusal. Synchronous on purpose (see the file header).
@@ -260,15 +263,20 @@ export function createAuthor(opts) {
       return { status: 202, body: { ...started.body, signed: true } };
     },
 
-    /** `GET /api/author/live`: the newest draft that is not abandoned or signed — read from files, never memory. */
+    /**
+     * `GET /api/author/live`: the newest draft that is not abandoned or signed, and the newest panel start the human has not cleared
+     * (`starting` or `refused`; a `started` one is in Runs) — read from files, never memory.
+     */
     live() {
       const { keys } = keysNow();
+      /** @type {any} */
+      let draft = null;
       for (const id of listIds()) {
         const v = view(id, keys);
-        if (v && !FINISHED.has(v.phase)) return { status: 200, body: { ok: true, draft: v } };
+        if (v && !FINISHED.has(v.phase)) draft = v;
         break; // only the NEWEST draft can be the card's: an older one was replaced by it
       }
-      return { status: 200, body: { ok: true, draft: null } };
+      return { status: 200, body: { ok: true, draft, start: starter.newestOpen(keys) } };
     },
 
     /** `GET /api/author/:id`. @param {string} id */

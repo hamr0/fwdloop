@@ -413,9 +413,9 @@ const ALLOWLIST = {
     names: { mkdirSync: 2, realpathSync: 3, writeFileSync: 4 },
   },
   'src/panel/authorstart.js': {
-    reason: 'M4e piece 2b: the ONE run-start path — creates ITS OWN start folder `<root>/.starts/<id>/` (mkdir 0700) and writes the one file it owns there (start.json 0600; pid.json and child.log go through spawn.js); realpathSync of the typed --root at use time; existsSync of the new run dir (presence only, to refuse an id already used). Every READ of a start folder and of the run dir (pids.jsonl, ask.json) goes through readFileInside/readPidRows/readdirInside, never fs directly.',
+    reason: 'M4e piece 2b: the ONE run-start path — creates ITS OWN start folder `<root>/.starts/<id>/` (mkdir 0700) and writes the one file it owns there (start.json 0600; cleared.json 0600, once, when the human dismisses a refused start; pid.json and child.log go through spawn.js); realpathSync of the typed --root at use time; existsSync of the new run dir (presence only, to refuse an id already used). Every READ of a start folder and of the run dir (pids.jsonl, ask.json) goes through readFileInside/readPidRows/readdirInside, never fs directly.',
     names: {
-      existsSync: 1, mkdirSync: 2, realpathSync: 4, writeFileSync: 1,
+      existsSync: 1, mkdirSync: 2, realpathSync: 4, writeFileSync: 2,
     },
   },
   'src/panel/authorflows.js': {

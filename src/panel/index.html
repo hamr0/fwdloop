@@ -3431,6 +3431,7 @@
     var signClickedOnce = false;
     var busy = false;            // a POST is in flight (disabled from the click until the reply)
     var startId = null;          // the run start being watched (GET /api/author/start/<id>)
+    var refusedStartId = null;   // a refused start whose sentence is on the card; Clear dismisses it on the server (cleared.json)
     var pollTimer = null;
     var startTimer = null;
     var drafterModel = "";
@@ -3872,6 +3873,7 @@
     function beginStart(id){
       stopStart();
       startId = id;
+      refusedStartId = null;
       busy = false;
       startTimer = setInterval(pollStart, 1000);
       if(lastState){ renderActions(lastState); } else {
@@ -3898,6 +3900,7 @@
           // the CLI's own sentence ("Nothing spent." is in it); it STAYS until the next action
           var signed = j.kind === "sign";
           stopStart();
+          refusedStartId = j.startId;
           chatActionFailed(signed ? j.say + " The flow is signed; start it from \"Run a signed flow\"." : j.say);
           if(signed){ endSession(); loadFlows(true); } else { progressRow.hidden = true; progressRow.innerHTML = ""; refreshStartEnabled(); }
           return;
@@ -4009,14 +4012,25 @@
     function reattachLive(){
       if(sessionId || sessionLive || startId !== null) return;
       authorGet("/api/author/live").then(function(j){
-        if(sessionId || sessionLive || startId !== null || !j || j.ok !== true || !j.draft) return;
-        attachSession(j.draft);
+        if(sessionId || sessionLive || startId !== null || !j || j.ok !== true) return;
+        if(j.draft){ attachSession(j.draft); return; }
+        // no draft: the newest start the human has not cleared — still starting (watch it) or refused (show its sentence)
+        var st = j.start;
+        if(!st) return;
+        if(st.phase === "starting"){ beginStart(st.startId); return; }
+        if(st.phase === "refused"){
+          refusedStartId = st.startId;
+          chatActionFailed(st.kind === "sign" ? st.say + " The flow is signed; start it from \"Run a signed flow\"." : st.say);
+          if(st.kind === "sign") loadFlows(true);
+        }
       }).catch(function(){ /* nothing to attach to — the empty card stays */ });
     }
 
     // ---- wiring ----
     clearBtn.addEventListener("click", function(){
       if(clearBtn.textContent === "Abandon" && sessionId){ doAbandon(); return; }
+      // a refused start's sentence is dismissed on the server too, or a reload would bring it back
+      if(refusedStartId){ var rid = refusedStartId; refusedStartId = null; authorPost("/api/author/start/" + rid + "/clear", {}).catch(function(){}); }
       resetCard();
     });
     mainBtn.addEventListener("click", function(){
