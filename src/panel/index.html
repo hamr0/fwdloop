@@ -3397,241 +3397,6 @@
     return true;
   }
 
-  // ---- M4d piece 4: Settings. Nothing here is re-rendered by the page's refresh tick: the Settings DOM is
-  // painted only when it is opened, a tab is chosen, or a button here is pressed — and a price/limit box the
-  // person has typed in ("dirty") is never overwritten by a repaint. No key value ever reaches this page. ----
-  function fmtUsd(n, atLeast){
-    if(typeof n !== "number" || !isFinite(n)) return "unknown";
-    return (atLeast ? "≥" : "") + "$" + n.toFixed(4);
-  }
-  function fmtMinutes(m, atLeast){
-    if(typeof m !== "number" || !isFinite(m)) return "not recorded";
-    return (atLeast ? "≥" : "") + (m < 10 ? m.toFixed(1) : String(Math.round(m))) + " min";
-  }
-  // borrowed-from: bareloop src/panel/index.html@5a5a811 (tokensText)
-  function tokensText(n){
-    if(!n) return "0";
-    if(n >= 1e6) return (n / 1e6).toFixed(1) + "M";
-    if(n >= 1e3) return (n / 1e3).toFixed(1) + "k";
-    return String(n);
-  }
-  // The server's own plain sentence (`say`) when it sent one; else the same words every other refusal uses.
-  function settingsRefusal(r){
-    var b = r && r.body;
-    if(b && typeof b.say === "string" && b.say) return b.say;
-    return refusalText(r, null);
-  }
-  // borrowed-from: bareloop src/panel/index.html@5a5a811 (Settings: one provider table, a money strip)
-  // A hint line: plain text, red when it is a refusal. Empty text hides nothing and shows nothing.
-  function setNote(el, bad, text){
-    el.className = "hint" + (bad ? " bad" : "");
-    el.textContent = text || "";
-  }
-  var settingsView = document.getElementById("settings-view");
-  var mainView = document.getElementById("main-view");
-  var pvRows = document.getElementById("pv-rows");
-  var pvNote = document.getElementById("pv-note");
-  var PV_NOTE_DEFAULT = pvNote.textContent;
-  document.getElementById("settings-open").addEventListener("click", function(){
-    mainView.hidden = true; settingsView.hidden = false;
-    loadProviders(); loadMoney();
-  });
-  document.getElementById("settings-back").addEventListener("click", function(){
-    settingsView.hidden = true; mainView.hidden = false;
-  });
-  wireTabs([document.getElementById("stab-providers"), document.getElementById("stab-money")]);
-  document.getElementById("stab-money").addEventListener("click", function(){ loadMoney(); });
-  document.getElementById("stab-providers").addEventListener("click", function(){ loadProviders(); });
-
-  function loadProviders(){
-    return getJSON("/api/settings/providers").then(paintProviders, function(e){
-      setNote(document.getElementById("keys-refusal"), true, loadFailureText(e));
-    });
-  }
-  document.getElementById("reload-keys").addEventListener("click", function(){ loadProviders(); });
-
-  function sourceWord(src){
-    if(src === "table") return "default";
-    if(src === "ceiling") return "highest known rate, the model has no listed price";
-    if(src === "default-multiplier") return "default, 0.1 x input";
-    return "set here";
-  }
-  var PRICE_FIELDS = ["inPerM", "cachedInPerM", "outPerM"];
-  // Name, API shape and Base URL are editable (M4d amendment 1), saved on change one field at a time.
-  var PROV_FIELDS = ["name", "shape", "baseUrl"];
-  function buildProviderRow(row){
-    var tr = document.createElement("tr");
-    tr.setAttribute("data-slot", row.slot);
-    tr.setAttribute("data-testid", "provider-row-" + row.slot);
-    var balance = row.canBalance
-      ? '<button class="btn small" type="button" data-act="balance" data-testid="prov-balance">Check</button><div class="hint pv-balance-result" data-f="balance-result"></div>'
-      : '<span class="hint">not offered by this provider</span>';
-    var prices = PRICE_FIELDS.map(function(f){
-      return '<td class="pv-price-cell"><input type="text" inputmode="decimal" data-field="' + f + '" data-testid="price-' + f + '" aria-label="' + escapeXml(row.label + " " + f) + '">' +
-        '<div class="hint pv-msg" data-f="msg-' + f + '" data-testid="price-msg-' + f + '"></div></td>';
-    }).join("");
-    tr.innerHTML =
-      '<td><code>' + escapeXml(row.envVar) + '</code><div class="hint" data-f="status" data-testid="pv-status-' + escapeXml(row.slot) + '"></div></td>' +
-      '<td class="pv-price-cell"><input type="text" data-prov="name" data-testid="prov-name" aria-label="' + escapeXml(row.label + " name") + '" autocomplete="off" spellcheck="false"><div class="hint pv-msg" data-f="msg-name" data-testid="prov-msg-name"></div></td>' +
-      '<td class="pv-price-cell"><select data-prov="shape" data-testid="prov-shape" aria-label="' + escapeXml(row.label + " API shape") + '"></select><div class="hint pv-msg" data-f="msg-shape" data-testid="prov-msg-shape"></div></td>' +
-      '<td class="pv-price-cell"><input type="text" data-prov="baseUrl" data-testid="prov-baseurl" aria-label="' + escapeXml(row.label + " Base URL") + '" autocomplete="off" spellcheck="false"><div class="hint pv-msg" data-f="msg-baseUrl" data-testid="prov-msg-baseUrl"></div></td>' +
-      '<td class="pv-test-cell"><button class="btn small" type="button" data-act="test" data-testid="prov-test">Test</button><div class="hint pv-test-result" data-f="test" data-testid="prov-test-result"></div></td>' +
-      '<td data-f="tokens" data-testid="pv-tokens-' + escapeXml(row.slot) + '"></td>' +
-      '<td>' + balance + '</td>' + prices;
-    tr.querySelectorAll("input").forEach(function(inp){
-      inp.addEventListener("input", function(){ inp.setAttribute("data-dirty", "1"); });
-    });
-    return tr;
-  }
-  var STATUS_WORD = { "set in file": "set in file", "found in shell": "found in shell", "not set": "not set", "refused": "refused — see above" };
-  function paintProviders(data){
-    var path = data.keysFile && data.keysFile.path ? data.keysFile.path : "~/.config/fwdloop/.env";
-    document.getElementById("keys-path").textContent = path;
-    setNote(document.getElementById("keys-refusal"), true, data.keysFile && data.keysFile.refusal);
-    setNote(pvNote, !!data.configProblem, data.configProblem || PV_NOTE_DEFAULT);
-    data.rows.forEach(function(row){
-      var tr = pvRows.querySelector('[data-slot="' + row.slot + '"]');
-      if(!tr){ tr = buildProviderRow(row); pvRows.appendChild(tr); }
-      tr.querySelector("[data-f=status]").textContent = STATUS_WORD[row.keyStatus] || row.keyStatus;
-      var nameIn = tr.querySelector('[data-prov=name]');
-      var shapeSel = tr.querySelector('[data-prov=shape]');
-      var urlIn = tr.querySelector('[data-prov=baseUrl]');
-      if(shapeSel.options.length !== data.shapes.length){
-        shapeSel.innerHTML = "";
-        data.shapes.forEach(function(sh){
-          var o = document.createElement("option");
-          o.value = sh.id; o.textContent = sh.label; shapeSel.appendChild(o);
-        });
-      }
-      nameIn.placeholder = row.defaults.model;
-      urlIn.placeholder = row.defaults.baseUrl !== "" ? row.defaults.baseUrl : "the vendor's own address";
-      // a box the person is typing in is never overwritten by a repaint
-      if(nameIn.getAttribute("data-dirty") !== "1") nameIn.value = row.model;
-      if(urlIn.getAttribute("data-dirty") !== "1") urlIn.value = row.savedBaseUrl;
-      if(document.activeElement !== shapeSel) shapeSel.value = row.shape;
-      tr.querySelector("[data-f=tokens]").textContent = tokensText(row.tokens);
-      PRICE_FIELDS.forEach(function(f){
-        var inp = tr.querySelector('input[data-field="' + f + '"]');
-        var pr = row.price[f];
-        inp.placeholder = String(pr.value) + " (" + sourceWord(pr.source) + ")";
-        inp.title = inp.placeholder;
-        // a box the person has typed in is never overwritten by a repaint
-        if(inp.getAttribute("data-dirty") !== "1") inp.value = pr.source === "settings" ? String(pr.value) : "";
-      });
-    });
-  }
-  pvRows.addEventListener("click", function(ev){
-    var b = ev.target.closest && ev.target.closest("button[data-act]");
-    if(!b) return;
-    var tr = b.closest("tr");
-    if(b.getAttribute("data-act") === "test") runTest(tr, tr.getAttribute("data-slot"));
-    else if(b.getAttribute("data-act") === "balance") runBalance(tr, tr.getAttribute("data-slot"));
-  });
-  // Saved like bareloop saves a row field: on change (blur or Enter), no Save button.
-  pvRows.addEventListener("change", function(ev){
-    var inp = ev.target;
-    if(!inp.getAttribute) return;
-    if(inp.getAttribute("data-prov")){ saveProvider(inp.closest("tr"), inp); return; }
-    if(!inp.getAttribute("data-field")) return;
-    savePrice(inp.closest("tr"), inp.getAttribute("data-field"));
-  });
-  function runTest(tr, slot){
-    var out = tr.querySelector("[data-f=test]");
-    out.textContent = "testing…";
-    postJSON("/api/settings/test", { slot: slot }).then(function(r){
-      var b = r.body;
-      out.textContent = b && b.ok ? "OK · " + b.ms + " ms" : (b && b.why ? b.why : settingsRefusal(r));
-    }, function(){ out.textContent = networkText(); });
-  }
-  // Balance is read on a click, never on render (signed M4d: "read on a click").
-  function runBalance(tr, slot){
-    var out = tr.querySelector("[data-f=balance-result]");
-    out.textContent = "checking…";
-    getJSON("/api/settings/balance?slot=" + encodeURIComponent(slot)).then(function(b){
-      if(b.ok) out.textContent = b.balances.map(function(x){ return x.total + " " + x.currency; }).join(" + ");
-      else out.textContent = b.why || "Could not check the balance.";
-    }, function(e){ out.textContent = loadFailureText(e); });
-  }
-  // A box the person typed: empty = back to the default (null); a number is sent as a number; anything else is
-  // sent as the text typed, so the server refuses it by naming the box.
-  function priceValue(text){
-    var t = String(text).trim();
-    if(t === "") return null;
-    var n = Number(t);
-    return isFinite(n) ? n : t;
-  }
-  function savePrice(tr, changed){
-    var msg = tr.querySelector("[data-f=msg-" + changed + "]");
-    var payload = { slot: tr.getAttribute("data-slot") };
-    tr.querySelectorAll("input[data-field]").forEach(function(inp){ payload[inp.getAttribute("data-field")] = priceValue(inp.value); });
-    postJSON("/api/settings/price", payload).then(function(r){
-      if(r.body && r.body.ok){
-        tr.querySelectorAll("input[data-field]").forEach(function(inp){ inp.removeAttribute("data-dirty"); });
-        loadProviders();
-        setNote(msg, false, "saved — applies from the next model call");
-      } else setNote(msg, true, settingsRefusal(r));
-    }, function(){ setNote(msg, true, networkText()); });
-  }
-
-  // One field per save: {slot, name|shape|baseUrl}. An empty Base URL means the default; a refusal is the cell's hint line.
-  function saveProvider(tr, inp){
-    var key = inp.getAttribute("data-prov");
-    var msg = tr.querySelector("[data-f=msg-" + key + "]");
-    var payload = { slot: tr.getAttribute("data-slot") };
-    payload[key] = inp.value.trim();
-    postJSON("/api/settings/provider", payload).then(function(r){
-      if(r.body && r.body.ok){
-        inp.removeAttribute("data-dirty");
-        loadProviders();
-        setNote(msg, false, "saved — applies from the next model call");
-      } else setNote(msg, true, settingsRefusal(r));
-    }, function(){ setNote(msg, true, networkText()); });
-  }
-
-  function loadMoney(){
-    return getJSON("/api/settings/money").then(paintMoney, function(e){
-      setNote(document.getElementById("ml-msg"), true, loadFailureText(e));
-    });
-  }
-  var mlLimit = document.getElementById("ml-money");
-  function paintMoney(d){
-    var m = d.month, t = d.total;
-    document.getElementById("ml-usd").textContent = fmtUsd(m.usd, m.atLeast) + " / " + fmtUsd(t.usd, t.atLeast);
-    document.getElementById("ml-tokens").textContent = tokensText(m.tokens) + " / " + tokensText(t.tokens);
-    var notes = [];
-    if(d.preM4dRunsNotCounted) notes.push("Runs from before Settings existed are not counted here.");
-    if(d.undatedRows > 0) notes.push(d.undatedRows + (d.undatedRows === 1 ? " older spend row has no date; it counts in to date only." : " older spend rows have no date; they count in to date only."));
-    document.getElementById("ml-extra").textContent = notes.join(" ");
-    if(document.activeElement !== mlLimit && mlLimit.getAttribute("data-dirty") !== "1") mlLimit.value = typeof d.monthlyLimitUsd === "number" ? String(d.monthlyLimitUsd) : "";
-    if(d.configProblem) setNote(document.getElementById("ml-msg"), true, d.configProblem);
-    var names = Object.keys(d.byProvider || {});
-    document.getElementById("ml-breakdown").innerHTML = names.length ? names.map(function(k){
-      var p = d.byProvider[k];
-      return '<tr data-testid="break-row"><td>' + escapeXml(p.label) + '</td>' +
-        '<td>' + escapeXml(fmtUsd(p.month.usd, p.month.atLeast) + " / " + fmtUsd(p.total.usd, p.total.atLeast)) + '</td>' +
-        '<td>' + escapeXml(breakMinutes(p.month) + " / " + breakMinutes(p.total)) + '</td>' +
-        '<td>' + escapeXml(tokensText(p.total.tokens)) + '</td></tr>';
-    }).join("") : '<tr><td colspan="4" class="hint">no spend yet</td></tr>';
-  }
-  // "not recorded" only when there was spend but no minutes; a period with no spend at all is "0 min".
-  function breakMinutes(b){
-    if(b.modelMinutes === null && b.usd === 0 && !b.atLeast && b.tokens === 0) return "0 min";
-    return fmtMinutes(b.modelMinutes, b.modelMinutesAtLeast);
-  }
-  mlLimit.addEventListener("input", function(){ this.setAttribute("data-dirty", "1"); });
-  // Saved like bareloop saves it: on change (blur or Enter).
-  mlLimit.addEventListener("change", function(){
-    var msg = document.getElementById("ml-msg");
-    postJSON("/api/settings/money", { monthlyLimitUsd: priceValue(mlLimit.value) }).then(function(r){
-      if(r.body && r.body.ok){
-        mlLimit.removeAttribute("data-dirty");
-        loadMoney().then(function(){
-          setNote(msg, false, r.body.monthlyLimitUsd === null ? "saved — no monthly limit" : "saved — the limit is now $" + r.body.monthlyLimitUsd);
-        });
-      } else setNote(msg, true, settingsRefusal(r));
-    }, function(){ setNote(msg, true, networkText()); });
-  });
-
   // ---- Chat tab: describe, draft, sign and run a job from this page (M4e piece 3). ----
   // borrowed-from: bareloop src/panel/index.html@ca7195e — `mainButtonFor`, `askBoxOpenFor`, `renderMain`, `renderProgress`, the
   // scroll-on-change block in `renderActions`, `attachSession`/`reattachLive` (without the reuse/auto-sign branch), `syncCardLock`,
@@ -4029,8 +3794,501 @@
       }
     }
 
-    // CHAT-NEXT
+    // ---- actions ----
+    function stopPoll(){ if(pollTimer){ clearInterval(pollTimer); pollTimer = null; } }
+    function startPoll(){ stopPoll(); pollTimer = setInterval(poll, 2000); }
+    function stopStart(){ if(startTimer){ clearInterval(startTimer); startTimer = null; } startId = null; }
+    // the card's draft is over (abandoned or signed somewhere else, or signed here and its run refused): forget the session, keep
+    // the boxes. Touches neither error line, so a refusal on screen stays on screen.
+    function endSession(){
+      stopPoll();
+      sessionId = null; sessionLive = false; lastState = null; signInfo = null; signClickedOnce = false;
+      threadKey = ""; thread.innerHTML = "";
+      errEl.textContent = "";
+      progressRow.hidden = true; progressRow.innerHTML = "";
+      refreshStartEnabled();
+    }
+    function openNewCard(){
+      thread.innerHTML = ""; threadKey = "";
+      errEl.textContent = "";
+      actionErrEl.textContent = "";
+      clearFieldErrors();
+      stopStart();
+      sessionId = null; sessionLive = false; lastState = null; signInfo = null; signClickedOnce = false; busy = false;
+      stopPoll();
+      progressRow.hidden = true;
+      progressRow.innerHTML = "";
+      refreshStartEnabled();
+    }
+    // back to a fresh empty card: every box, the inputs, the progress list, the ask box
+    function resetCard(){
+      ["jf-name", "jf-job", "jf-cap-money", "jf-dest-line", "jf-dest-folder"].forEach(function(id){ byId(id).value = ""; });
+      inputsEl.innerHTML = "";
+      msgInput.value = "";
+      openNewCard();
+      loadFlows(mode === "run");
+      fitCardBoxes();
+    }
+    function chatActionFailed(message){
+      actionErrEl.textContent = message || "The request failed. Nothing was sent.";
+    }
+    function chatActionOk(){
+      actionErrEl.textContent = "";
+    }
+    // a refused POST: field refusals next to their boxes, one sentence in the action line (and any red lines under it)
+    function failFrom(r){
+      var b = r && r.body;
+      var unplaced = (b && Array.isArray(b.refusals)) ? showRefusals(b.refusals) : [];
+      var text = refusalText(r);
+      if(unplaced.length) text += " " + unplaced.join(" ");
+      if(b && Array.isArray(b.reds) && b.reds.length) text += "\n" + b.reds.map(function(x){ return "> " + x; }).join("\n");
+      chatActionFailed(text);
+    }
+    var NETWORK_SAY = "Could not reach the panel. Nothing was sent.";
+    // a dead cookie (panel restarted): show the one line where Chat actions show errors and stop polling
+    staleTokenHook = function(){
+      actionErrEl.textContent = STALE_LINE;
+      stopPoll();
+      stopStart();
+    };
+
+    function poll(){
+      if(!sessionId) return;
+      var polledId = sessionId;
+      authorGet("/api/author/" + polledId).then(function(j){
+        if(!j || j.ok !== true || polledId !== sessionId) return;
+        if(CLIENT_TERMINAL_PHASES.indexOf(j.phase) !== -1){
+          // abandoned or signed from elsewhere; a start of ours is being watched by pollStart instead
+          if(startId === null) endSession();
+          return;
+        }
+        renderThread(j);
+        renderActions(j);
+      }).catch(function(){ /* transient — next poll tries again */ });
+    }
+
+    // a run start (after a sign, or Run a signed flow): the CLI child may refuse before its run exists, so ask until the start says
+    function beginStart(id){
+      stopStart();
+      startId = id;
+      busy = false;
+      startTimer = setInterval(pollStart, 1000);
+      if(lastState){ renderActions(lastState); } else {
+        renderProgress(stepsFor(null, {model: drafterModel, starting: true, signClicked: false}));
+        refreshStartEnabled();
+      }
+      pollStart();
+    }
+    function pollStart(){
+      var watching = startId;
+      if(!watching) return;
+      authorGet("/api/author/start/" + watching).then(function(j){
+        if(watching !== startId) return;
+        if(!j) return;
+        if(j.ok === true && j.phase === "started"){
+          // the run lives in Runs now; the card goes back to the empty card
+          stopStart();
+          resetCard();
+          document.getElementById("tab-runs").click();
+          reloadLists();
+          return;
+        }
+        if(j.ok === true && j.phase === "refused"){
+          // the CLI's own sentence ("Nothing spent." is in it); it STAYS until the next action
+          var signed = j.kind === "sign";
+          stopStart();
+          chatActionFailed(signed ? j.say + " The flow is signed; start it from \"Run a signed flow\"." : j.say);
+          if(signed){ endSession(); loadFlows(true); } else { progressRow.hidden = true; progressRow.innerHTML = ""; refreshStartEnabled(); }
+          return;
+        }
+        if(j.ok === false && j.refused === "no-such-start"){
+          stopStart();
+          chatActionFailed("The panel could not find this start. Look in the Runs tab to see whether the run began.");
+          refreshStartEnabled();
+        }
+      }).catch(function(){ /* transient — next tick tries again */ });
+    }
+
+    function doDraft(){
+      clearFieldErrors();
+      chatActionOk();
+      // disabled from the click until the reply; unlocked below only if the draft is refused
+      busy = true;
+      refreshStartEnabled();
+      var body = currentCard();
+      authorPost("/api/author/draft", body).then(function(r){
+        busy = false;
+        var o = chatPostOutcome(r);
+        if(!o.ok){ failFrom(r); refreshStartEnabled(); return; }
+        sessionId = r.body.draftId;
+        sessionLive = true;
+        signInfo = null; signClickedOnce = false;
+        thread.innerHTML = ""; threadKey = "";
+        renderActions({draftId: sessionId, phase: "drafting", card: {capUsd: body.capUsd}});
+        startPoll();
+        poll();
+      }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
+    }
+    function doRun(){
+      clearFieldErrors();
+      chatActionOk();
+      busy = true;
+      refreshStartEnabled();
+      authorPost("/api/author/run", currentRun()).then(function(r){
+        var o = chatPostOutcome(r);
+        if(!o.ok){ busy = false; failFrom(r); refreshStartEnabled(); return; }
+        beginStart(r.body.startId);
+      }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
+    }
+    function doSign(){
+      if(!sessionId) return;
+      var id = sessionId;
+      if(!signClickedOnce){
+        // click 1: what is about to be signed (the hash, the name to type, the cap). Signs nothing.
+        busy = true;
+        refreshStartEnabled();
+        authorPost("/api/author/" + id + "/sign-prepare", {}).then(function(r){
+          busy = false;
+          var o = chatPostOutcome(r);
+          if(!o.ok){ failFrom(r); refreshStartEnabled(); return; }
+          chatActionOk();
+          signInfo = {hash: r.body.hash, flowName: r.body.flowName, capUsd: r.body.capUsd, runId: r.body.runId};
+          signClickedOnce = true;
+          if(lastState) renderActions(lastState); else refreshStartEnabled();
+        }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
+        return;
+      }
+      // click 2: the ONLY call that signs. It carries the hash this page showed and the name typed in the box.
+      busy = true;
+      refreshStartEnabled();
+      authorPost("/api/author/" + id + "/sign", {hash: signInfo.hash, typedName: msgInput.value, runId: signInfo.runId}).then(function(r){
+        var o = chatPostOutcome(r);
+        if(!o.ok){
+          busy = false;
+          failFrom(r);
+          if(r.body && r.body.signed === true){ endSession(); loadFlows(true); } else { refreshStartEnabled(); }
+          return;
+        }
+        chatActionOk();
+        stopPoll();
+        signClickedOnce = false;
+        beginStart(r.body.startId);
+      }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
+    }
+    function doAbandon(){
+      var id = sessionId;
+      busy = true;
+      refreshStartEnabled();
+      authorPost("/api/author/" + id + "/abandon", {}).then(function(r){
+        busy = false;
+        var o = chatPostOutcome(r);
+        if(!o.ok){ failFrom(r); refreshStartEnabled(); return; }
+        resetCard();
+      }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
+    }
+
+    // Re-attach after a page load/refresh or a panel restart: the server reads the newest unsigned draft from its files, so ask it.
+    // If one exists, this tab takes it over as if it had started it: the card filled from the draft's own copy, the poll loop, the
+    // progress list, the readout, the ask box and the main button. A signed or abandoned draft never comes back (empty card).
+    function attachSession(d){
+      var c = d.card || {};
+      openNewCard();
+      setMode("new");
+      setVal("jf-name", c.flowName); setVal("jf-job", c.job); setVal("jf-cap-money", c.capUsd);
+      setVal("jf-dest-line", c.destination && c.destination.line); setVal("jf-dest-folder", c.destination && c.destination.folder);
+      inputsEl.innerHTML = "";
+      (c.inputs || []).forEach(function(r){ addInputRow(r.role, r.path); });
+      sessionId = d.draftId;
+      sessionLive = CLIENT_TERMINAL_PHASES.indexOf(d.phase) === -1;
+      renderThread(d);
+      renderActions(d);
+      startPoll();
+      poll();
+    }
+    function reattachLive(){
+      if(sessionId || sessionLive || startId !== null) return;
+      authorGet("/api/author/live").then(function(j){
+        if(sessionId || sessionLive || startId !== null || !j || j.ok !== true || !j.draft) return;
+        attachSession(j.draft);
+      }).catch(function(){ /* nothing to attach to — the empty card stays */ });
+    }
+
+    // ---- wiring ----
+    clearBtn.addEventListener("click", function(){
+      if(clearBtn.textContent === "Abandon" && sessionId){ doAbandon(); return; }
+      resetCard();
+    });
+    mainBtn.addEventListener("click", function(){
+      if(mainBtn.disabled) return;
+      if(mainAction === "draft") doDraft();
+      else if(mainAction === "run") doRun();
+      else if(mainAction === "sign-prepare" || mainAction === "sign") doSign();
+    });
+    msgInput.addEventListener("input", renderMain);
+    // Enter in the ask box is the second Sign click (the name is typed); it never starts a draft or a run
+    msgInput.addEventListener("keydown", function(e){
+      if(e.key === "Enter" && !e.shiftKey && !e.isComposing){
+        e.preventDefault();
+        if(mainAction === "sign") mainBtn.click();
+      }
+    });
+    card.addEventListener("input", function(e){
+      var grp = e.target && e.target.closest ? e.target.closest(".field, .cap-field, .jf-inrow") : null;
+      if(grp) grp.querySelectorAll(".jf-err").forEach(function(x){ x.textContent = ""; });
+      fitCardBoxes();
+      refreshStartEnabled();
+    });
+    document.querySelectorAll('input[name="jf-mode"]').forEach(function(r){
+      r.addEventListener("change", function(){ if(r.checked) setMode(r.value); });
+    });
+    byId("jf-add-input").addEventListener("click", function(){ addInputRow("", ""); refreshStartEnabled(); });
+    runFlowSel.addEventListener("change", function(){ paintRunFlow(); refreshStartEnabled(); });
+    window.addEventListener("resize", function(){ fitCardBoxes(); fitBox(msgInput); });
+    document.getElementById("tab-chat").addEventListener("click", function(){ fitCardBoxes(); fitBox(msgInput); reattachLive(); loadFlows(); });
+    // the monthly limit changed in Settings: re-read the "left this month" line
+    document.addEventListener("fwdloop-limit-changed", function(){ loadFlows(); });
+
+    loadModel();
+    loadFlows();
+    reattachLive();
+    refreshStartEnabled();
   })();
+
+  // ---- M4d piece 4: Settings. Nothing here is re-rendered by the page's refresh tick: the Settings DOM is
+  // painted only when it is opened, a tab is chosen, or a button here is pressed — and a price/limit box the
+  // person has typed in ("dirty") is never overwritten by a repaint. No key value ever reaches this page. ----
+  function fmtUsd(n, atLeast){
+    if(typeof n !== "number" || !isFinite(n)) return "unknown";
+    return (atLeast ? "≥" : "") + "$" + n.toFixed(4);
+  }
+  function fmtMinutes(m, atLeast){
+    if(typeof m !== "number" || !isFinite(m)) return "not recorded";
+    return (atLeast ? "≥" : "") + (m < 10 ? m.toFixed(1) : String(Math.round(m))) + " min";
+  }
+  // borrowed-from: bareloop src/panel/index.html@5a5a811 (tokensText)
+  function tokensText(n){
+    if(!n) return "0";
+    if(n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+    if(n >= 1e3) return (n / 1e3).toFixed(1) + "k";
+    return String(n);
+  }
+  // The server's own plain sentence (`say`) when it sent one; else the same words every other refusal uses.
+  function settingsRefusal(r){
+    var b = r && r.body;
+    if(b && typeof b.say === "string" && b.say) return b.say;
+    return refusalText(r, null);
+  }
+  // borrowed-from: bareloop src/panel/index.html@5a5a811 (Settings: one provider table, a money strip)
+  // A hint line: plain text, red when it is a refusal. Empty text hides nothing and shows nothing.
+  function setNote(el, bad, text){
+    el.className = "hint" + (bad ? " bad" : "");
+    el.textContent = text || "";
+  }
+  var settingsView = document.getElementById("settings-view");
+  var mainView = document.getElementById("main-view");
+  var pvRows = document.getElementById("pv-rows");
+  var pvNote = document.getElementById("pv-note");
+  var PV_NOTE_DEFAULT = pvNote.textContent;
+  document.getElementById("settings-open").addEventListener("click", function(){
+    mainView.hidden = true; settingsView.hidden = false;
+    loadProviders(); loadMoney();
+  });
+  document.getElementById("settings-back").addEventListener("click", function(){
+    settingsView.hidden = true; mainView.hidden = false;
+  });
+  wireTabs([document.getElementById("stab-providers"), document.getElementById("stab-money")]);
+  document.getElementById("stab-money").addEventListener("click", function(){ loadMoney(); });
+  document.getElementById("stab-providers").addEventListener("click", function(){ loadProviders(); });
+
+  function loadProviders(){
+    return getJSON("/api/settings/providers").then(paintProviders, function(e){
+      setNote(document.getElementById("keys-refusal"), true, loadFailureText(e));
+    });
+  }
+  document.getElementById("reload-keys").addEventListener("click", function(){ loadProviders(); });
+
+  function sourceWord(src){
+    if(src === "table") return "default";
+    if(src === "ceiling") return "highest known rate, the model has no listed price";
+    if(src === "default-multiplier") return "default, 0.1 x input";
+    return "set here";
+  }
+  var PRICE_FIELDS = ["inPerM", "cachedInPerM", "outPerM"];
+  // Name, API shape and Base URL are editable (M4d amendment 1), saved on change one field at a time.
+  var PROV_FIELDS = ["name", "shape", "baseUrl"];
+  function buildProviderRow(row){
+    var tr = document.createElement("tr");
+    tr.setAttribute("data-slot", row.slot);
+    tr.setAttribute("data-testid", "provider-row-" + row.slot);
+    var balance = row.canBalance
+      ? '<button class="btn small" type="button" data-act="balance" data-testid="prov-balance">Check</button><div class="hint pv-balance-result" data-f="balance-result"></div>'
+      : '<span class="hint">not offered by this provider</span>';
+    var prices = PRICE_FIELDS.map(function(f){
+      return '<td class="pv-price-cell"><input type="text" inputmode="decimal" data-field="' + f + '" data-testid="price-' + f + '" aria-label="' + escapeXml(row.label + " " + f) + '">' +
+        '<div class="hint pv-msg" data-f="msg-' + f + '" data-testid="price-msg-' + f + '"></div></td>';
+    }).join("");
+    tr.innerHTML =
+      '<td><code>' + escapeXml(row.envVar) + '</code><div class="hint" data-f="status" data-testid="pv-status-' + escapeXml(row.slot) + '"></div></td>' +
+      '<td class="pv-price-cell"><input type="text" data-prov="name" data-testid="prov-name" aria-label="' + escapeXml(row.label + " name") + '" autocomplete="off" spellcheck="false"><div class="hint pv-msg" data-f="msg-name" data-testid="prov-msg-name"></div></td>' +
+      '<td class="pv-price-cell"><select data-prov="shape" data-testid="prov-shape" aria-label="' + escapeXml(row.label + " API shape") + '"></select><div class="hint pv-msg" data-f="msg-shape" data-testid="prov-msg-shape"></div></td>' +
+      '<td class="pv-price-cell"><input type="text" data-prov="baseUrl" data-testid="prov-baseurl" aria-label="' + escapeXml(row.label + " Base URL") + '" autocomplete="off" spellcheck="false"><div class="hint pv-msg" data-f="msg-baseUrl" data-testid="prov-msg-baseUrl"></div></td>' +
+      '<td class="pv-test-cell"><button class="btn small" type="button" data-act="test" data-testid="prov-test">Test</button><div class="hint pv-test-result" data-f="test" data-testid="prov-test-result"></div></td>' +
+      '<td data-f="tokens" data-testid="pv-tokens-' + escapeXml(row.slot) + '"></td>' +
+      '<td>' + balance + '</td>' + prices;
+    tr.querySelectorAll("input").forEach(function(inp){
+      inp.addEventListener("input", function(){ inp.setAttribute("data-dirty", "1"); });
+    });
+    return tr;
+  }
+  var STATUS_WORD = { "set in file": "set in file", "found in shell": "found in shell", "not set": "not set", "refused": "refused — see above" };
+  function paintProviders(data){
+    var path = data.keysFile && data.keysFile.path ? data.keysFile.path : "~/.config/fwdloop/.env";
+    document.getElementById("keys-path").textContent = path;
+    setNote(document.getElementById("keys-refusal"), true, data.keysFile && data.keysFile.refusal);
+    setNote(pvNote, !!data.configProblem, data.configProblem || PV_NOTE_DEFAULT);
+    data.rows.forEach(function(row){
+      var tr = pvRows.querySelector('[data-slot="' + row.slot + '"]');
+      if(!tr){ tr = buildProviderRow(row); pvRows.appendChild(tr); }
+      tr.querySelector("[data-f=status]").textContent = STATUS_WORD[row.keyStatus] || row.keyStatus;
+      var nameIn = tr.querySelector('[data-prov=name]');
+      var shapeSel = tr.querySelector('[data-prov=shape]');
+      var urlIn = tr.querySelector('[data-prov=baseUrl]');
+      if(shapeSel.options.length !== data.shapes.length){
+        shapeSel.innerHTML = "";
+        data.shapes.forEach(function(sh){
+          var o = document.createElement("option");
+          o.value = sh.id; o.textContent = sh.label; shapeSel.appendChild(o);
+        });
+      }
+      nameIn.placeholder = row.defaults.model;
+      urlIn.placeholder = row.defaults.baseUrl !== "" ? row.defaults.baseUrl : "the vendor's own address";
+      // a box the person is typing in is never overwritten by a repaint
+      if(nameIn.getAttribute("data-dirty") !== "1") nameIn.value = row.model;
+      if(urlIn.getAttribute("data-dirty") !== "1") urlIn.value = row.savedBaseUrl;
+      if(document.activeElement !== shapeSel) shapeSel.value = row.shape;
+      tr.querySelector("[data-f=tokens]").textContent = tokensText(row.tokens);
+      PRICE_FIELDS.forEach(function(f){
+        var inp = tr.querySelector('input[data-field="' + f + '"]');
+        var pr = row.price[f];
+        inp.placeholder = String(pr.value) + " (" + sourceWord(pr.source) + ")";
+        inp.title = inp.placeholder;
+        // a box the person has typed in is never overwritten by a repaint
+        if(inp.getAttribute("data-dirty") !== "1") inp.value = pr.source === "settings" ? String(pr.value) : "";
+      });
+    });
+  }
+  pvRows.addEventListener("click", function(ev){
+    var b = ev.target.closest && ev.target.closest("button[data-act]");
+    if(!b) return;
+    var tr = b.closest("tr");
+    if(b.getAttribute("data-act") === "test") runTest(tr, tr.getAttribute("data-slot"));
+    else if(b.getAttribute("data-act") === "balance") runBalance(tr, tr.getAttribute("data-slot"));
+  });
+  // Saved like bareloop saves a row field: on change (blur or Enter), no Save button.
+  pvRows.addEventListener("change", function(ev){
+    var inp = ev.target;
+    if(!inp.getAttribute) return;
+    if(inp.getAttribute("data-prov")){ saveProvider(inp.closest("tr"), inp); return; }
+    if(!inp.getAttribute("data-field")) return;
+    savePrice(inp.closest("tr"), inp.getAttribute("data-field"));
+  });
+  function runTest(tr, slot){
+    var out = tr.querySelector("[data-f=test]");
+    out.textContent = "testing…";
+    postJSON("/api/settings/test", { slot: slot }).then(function(r){
+      var b = r.body;
+      out.textContent = b && b.ok ? "OK · " + b.ms + " ms" : (b && b.why ? b.why : settingsRefusal(r));
+    }, function(){ out.textContent = networkText(); });
+  }
+  // Balance is read on a click, never on render (signed M4d: "read on a click").
+  function runBalance(tr, slot){
+    var out = tr.querySelector("[data-f=balance-result]");
+    out.textContent = "checking…";
+    getJSON("/api/settings/balance?slot=" + encodeURIComponent(slot)).then(function(b){
+      if(b.ok) out.textContent = b.balances.map(function(x){ return x.total + " " + x.currency; }).join(" + ");
+      else out.textContent = b.why || "Could not check the balance.";
+    }, function(e){ out.textContent = loadFailureText(e); });
+  }
+  // A box the person typed: empty = back to the default (null); a number is sent as a number; anything else is
+  // sent as the text typed, so the server refuses it by naming the box.
+  function priceValue(text){
+    var t = String(text).trim();
+    if(t === "") return null;
+    var n = Number(t);
+    return isFinite(n) ? n : t;
+  }
+  function savePrice(tr, changed){
+    var msg = tr.querySelector("[data-f=msg-" + changed + "]");
+    var payload = { slot: tr.getAttribute("data-slot") };
+    tr.querySelectorAll("input[data-field]").forEach(function(inp){ payload[inp.getAttribute("data-field")] = priceValue(inp.value); });
+    postJSON("/api/settings/price", payload).then(function(r){
+      if(r.body && r.body.ok){
+        tr.querySelectorAll("input[data-field]").forEach(function(inp){ inp.removeAttribute("data-dirty"); });
+        loadProviders();
+        setNote(msg, false, "saved — applies from the next model call");
+      } else setNote(msg, true, settingsRefusal(r));
+    }, function(){ setNote(msg, true, networkText()); });
+  }
+
+  // One field per save: {slot, name|shape|baseUrl}. An empty Base URL means the default; a refusal is the cell's hint line.
+  function saveProvider(tr, inp){
+    var key = inp.getAttribute("data-prov");
+    var msg = tr.querySelector("[data-f=msg-" + key + "]");
+    var payload = { slot: tr.getAttribute("data-slot") };
+    payload[key] = inp.value.trim();
+    postJSON("/api/settings/provider", payload).then(function(r){
+      if(r.body && r.body.ok){
+        inp.removeAttribute("data-dirty");
+        loadProviders();
+        setNote(msg, false, "saved — applies from the next model call");
+      } else setNote(msg, true, settingsRefusal(r));
+    }, function(){ setNote(msg, true, networkText()); });
+  }
+
+  function loadMoney(){
+    return getJSON("/api/settings/money").then(paintMoney, function(e){
+      setNote(document.getElementById("ml-msg"), true, loadFailureText(e));
+    });
+  }
+  var mlLimit = document.getElementById("ml-money");
+  function paintMoney(d){
+    var m = d.month, t = d.total;
+    document.getElementById("ml-usd").textContent = fmtUsd(m.usd, m.atLeast) + " / " + fmtUsd(t.usd, t.atLeast);
+    document.getElementById("ml-tokens").textContent = tokensText(m.tokens) + " / " + tokensText(t.tokens);
+    var notes = [];
+    if(d.preM4dRunsNotCounted) notes.push("Runs from before Settings existed are not counted here.");
+    if(d.undatedRows > 0) notes.push(d.undatedRows + (d.undatedRows === 1 ? " older spend row has no date; it counts in to date only." : " older spend rows have no date; they count in to date only."));
+    document.getElementById("ml-extra").textContent = notes.join(" ");
+    if(document.activeElement !== mlLimit && mlLimit.getAttribute("data-dirty") !== "1") mlLimit.value = typeof d.monthlyLimitUsd === "number" ? String(d.monthlyLimitUsd) : "";
+    if(d.configProblem) setNote(document.getElementById("ml-msg"), true, d.configProblem);
+    var names = Object.keys(d.byProvider || {});
+    document.getElementById("ml-breakdown").innerHTML = names.length ? names.map(function(k){
+      var p = d.byProvider[k];
+      return '<tr data-testid="break-row"><td>' + escapeXml(p.label) + '</td>' +
+        '<td>' + escapeXml(fmtUsd(p.month.usd, p.month.atLeast) + " / " + fmtUsd(p.total.usd, p.total.atLeast)) + '</td>' +
+        '<td>' + escapeXml(breakMinutes(p.month) + " / " + breakMinutes(p.total)) + '</td>' +
+        '<td>' + escapeXml(tokensText(p.total.tokens)) + '</td></tr>';
+    }).join("") : '<tr><td colspan="4" class="hint">no spend yet</td></tr>';
+  }
+  // "not recorded" only when there was spend but no minutes; a period with no spend at all is "0 min".
+  function breakMinutes(b){
+    if(b.modelMinutes === null && b.usd === 0 && !b.atLeast && b.tokens === 0) return "0 min";
+    return fmtMinutes(b.modelMinutes, b.modelMinutesAtLeast);
+  }
+  mlLimit.addEventListener("input", function(){ this.setAttribute("data-dirty", "1"); });
+  // Saved like bareloop saves it: on change (blur or Enter).
+  mlLimit.addEventListener("change", function(){
+    var msg = document.getElementById("ml-msg");
+    postJSON("/api/settings/money", { monthlyLimitUsd: priceValue(mlLimit.value) }).then(function(r){
+      if(r.body && r.body.ok){
+        mlLimit.removeAttribute("data-dirty");
+        loadMoney().then(function(){
+          setNote(msg, false, r.body.monthlyLimitUsd === null ? "saved — no monthly limit" : "saved — the limit is now $" + r.body.monthlyLimitUsd);
+          document.dispatchEvent(new CustomEvent("fwdloop-limit-changed"));
+        });
+      } else setNote(msg, true, settingsRefusal(r));
+    }, function(){ setNote(msg, true, networkText()); });
+  });
 
   // theme toggle
   (function(){
