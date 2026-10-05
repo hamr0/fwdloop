@@ -342,6 +342,12 @@ const ALLOWLIST = {
       closeSync: 1, fstatSync: 1, mkdirSync: 1, openSync: 2, readFileSync: 1, writeFileSync: 1,
     },
   },
+  'src/monthly.js': {
+    reason: 'M4d piece 3: the ONE writer/reader of the per-person runs.jsonl (~/.config/fwdloop), a regular file OUTSIDE any run/flow dir, not a book: one append (0600, dir 0700), one read of that file, and realpathSync to record a run dir by its real path (longest existing prefix). Every run/draft dir\'s own spend.jsonl is read through readSpendRows (readFileInside), never fs directly.',
+    names: {
+      appendFileSync: 1, mkdirSync: 1, readFileSync: 1, realpathSync: 1,
+    },
+  },
   'src/provider.js': {
     reason: 'append-only spend-log writer — writes only, no reads',
     names: { appendFileSync: 1, mkdirSync: 1 },
