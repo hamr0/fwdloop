@@ -62,5 +62,5 @@ test('every load-failure paint in the page goes through loadFailureText, never t
   assert.doesNotMatch(PAGE, /\be\.message\b/, 'no catch site paints the thrown message');
   assert.doesNotMatch(PAGE, /failed to load/, 'no "failed to load: <detail>" paint is left');
   const sites = PAGE.match(/(?<!function )loadFailureText\(e\)/g) || [];
-  assert.equal(sites.length, 6, 'run, asks x2, workflows, history, inbox');
+  assert.equal(sites.length, 9, 'run, asks x2, workflows, history, inbox, + M4d Settings: keys strip, balance, money');
 });

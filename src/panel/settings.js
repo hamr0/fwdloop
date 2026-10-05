@@ -88,7 +88,7 @@ export function createSettings(cfg) {
     });
   }
 
-  /** The key for a slot, for a header only; or `{why}` in plain words. @param {string} slot */
+  /** The key for a slot, for a header only; or `{why}` in plain words. @param {string} slot @returns {{ key?: string, why?: string }} */
   function keyFor(slot) {
     const k = keys();
     if (!k.ok) return { why: String(k.refusal) };
@@ -99,7 +99,7 @@ export function createSettings(cfg) {
     return { key: value };
   }
 
-  /** One $0 GET with a 4 s deadline and the key only in the header. @param {string} url @param {string} key */
+  /** One $0 GET with a 4 s deadline and the key only in the header. @param {string} url @param {string} key @returns {Promise<{ body?: any, why?: string }>} */
   async function getWithKey(url, key) {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
@@ -124,7 +124,7 @@ export function createSettings(cfg) {
     const k = keyFor(slot);
     if (k.why) return reply(200, { ok: false, why: k.why });
     const started = Date.now();
-    const r = await getWithKey(`${PROVIDER_SLOTS[slot].baseUrl}/models`, k.key);
+    const r = await getWithKey(`${PROVIDER_SLOTS[slot].baseUrl}/models`, String(k.key));
     if (r.why) return reply(200, { ok: false, why: r.why });
     return reply(200, { ok: true, ms: Date.now() - started });
   }
@@ -135,7 +135,7 @@ export function createSettings(cfg) {
     if (slot !== 'deepseek') return reply(200, { ok: false, why: 'Not offered by this provider.' });
     const k = keyFor(slot);
     if (k.why) return reply(200, { ok: false, why: k.why });
-    const r = await getWithKey(DEEPSEEK_BALANCE_URL, k.key);
+    const r = await getWithKey(DEEPSEEK_BALANCE_URL, String(k.key));
     if (r.why) return reply(200, { ok: false, why: r.why });
     const infos = Array.isArray(r.body?.balance_infos) ? r.body.balance_infos : [];
     const balances = infos
