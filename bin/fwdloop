@@ -66,8 +66,8 @@ function keyedEnv() {
 
 /**
  * M4d piece 3: the monthly check, at the ONE seam all three money doors (`run`, `resume`, `draft`) call,
- * before any spend and before any ledger write. No limit set (or a test process with no config home) =
- * no hold, no check. A broken config.json or an unwritable record refuses by name, never "no limit". A hold
+ * before any spend and before any ledger write. No limit set = a $0 hold row (so the run's spend is counted once a limit is set), no check;
+ * a test process with no config home = no row at all. A broken config.json or an unwritable record refuses by name, never "no limit". A hold
  * that does not fit refuses at $0 with the one refusal text. A hold that fits is given back when this
  * process ends or parks (the `exit` hook runs on every exit path; a SIGKILL leaves it for the next check,
  * which settles it as "process gone").

@@ -17,7 +17,9 @@ import { draftToDir } from '../src/authoring.js';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { appendSpendRow, readSpendRows } from '../src/provider.js';
-import { spendSummary, readRuns, monthlyRefusalText } from '../src/monthly.js';
+import {
+  spendSummary, readRuns, monthlyRefusalText, claimHold, settleHold, ConfigError,
+} from '../src/monthly.js';
 import { createResumer } from '../src/panel/resume.js';
 import { install } from './fixtures/m4d-fake-openai.mjs';
 import { job2Fixture } from './drafter-fixture.mjs';
@@ -234,13 +236,42 @@ test('(viii) an unparseable config.json refuses run, resume and draft by name; n
   assert.equal(readRuns(bad).length, 0, 'no hold row on a broken config');
 });
 
-test('no limit set (no config, or a config without one): the run goes, no hold row is written', () => {
+test('no limit set (no config, or a config without one): the run goes, a $0 hold row is written and settled when the process ends', () => {
   for (const home of [newHome(), newHome(undefined, JSON.stringify({ prices: {} }))]) {
     const j = job2Root();
     const r = cli(runArgs(j, 'r1'), envFor(home));
     assert.equal(r.status, 0, r.stderr);
-    assert.ok(!existsSync(path.join(home, 'runs.jsonl')));
+    const rows = readRuns(home);
+    assert.deepEqual(rows.map((x) => x.kind), ['hold', 'settled'], 'no live $ hold left behind');
+    assert.equal(rows[0].holdUsd, 0);
+    assert.equal(rows[0].runDir, runDirOf(j, 'r1'));
+    assert.equal(rows[1].holdId, rows[0].holdId);
   }
+});
+
+test('no limit set: the run is still recorded, its spend counts in the month, and a limit set LATER subtracts it', () => {
+  const home = newHome();
+  const dir = tmp('nolimit-run');
+  const c1 = claimHold({ what: 'run', flow: 'f', runId: 'r', runDir: dir, holdUsd: 0.25, home });
+  assert.equal(c1.ok, true);
+  assert.equal(typeof c1.holdId, 'string');
+  assert.equal(c1.room.limitUsd, null);
+  appendSpendRow(path.join(dir, 'spend.jsonl'), { provider: 'deepseek', model: 'deepseek-flash', costUsd: 0.0185 });
+  settleHold({ holdId: c1.holdId, why: 'ended or parked', home });
+  assert.ok(Math.abs(spendSummary({ home }).month.usd - 0.0185) < 1e-9, 'the Money tab sees the no-limit run');
+  writeFileSync(path.join(home, 'config.json'), JSON.stringify({ monthlyLimitUsd: 0.10 }));
+  const c2 = claimHold({ what: 'run', flow: 'f', runId: 'r2', runDir: tmp('next-run'), holdUsd: 0.25, home });
+  assert.equal(c2.ok, false);
+  assert.equal(c2.room.leftUsd, 0.08, 'the 0.0185 already spent comes off the $0.10 (floored to cents)');
+});
+
+test('no limit set and runs.jsonl cannot be written: the claim refuses by name (ConfigError), never runs uncounted', () => {
+  const home = newHome();
+  mkdirSync(path.join(home, 'runs.jsonl')); // a directory where the record file must be: append fails
+  assert.throws(
+    () => claimHold({ what: 'run', flow: 'f', runId: 'r', runDir: tmp('x'), holdUsd: 0.25, home }),
+    (e) => e instanceof ConfigError && /cannot write this hold to .*runs\.jsonl/.test(e.message),
+  );
 });
 
 test('a run that parks settles its own hold', () => {

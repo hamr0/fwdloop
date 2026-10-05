@@ -10,7 +10,8 @@
 // The claim (bareloop `claimRun`): the door APPENDS its hold FIRST, then reads the file; only live,
 // unsettled holds that come BEFORE its own row count against it, so whoever is first holds. A hold whose
 // process is gone (src/liveness.js `isFwdloopAlive`, M4c's one rule) is settled by the checker.
-// No limit set = no row, no check. An unreadable/invalid config.json THROWS ConfigError: the gate refuses
+// No limit set = a hold row of $0 and no check (the row is what names the run dir, so its spend is counted
+// once a limit is set). An unreadable/invalid config.json THROWS ConfigError: the gate refuses
 // by name, it never reads as "no limit".
 //
 // Honesty: a row whose cost is unknown counts as `spendRowCost` says (floor + ceiling at its own price) and
@@ -161,13 +162,13 @@ function liveHeldBefore(rows, idx, home, nowIso) {
 /**
  * @typedef {object} Claim
  * @property {boolean} ok the hold fits (or no limit is set)
- * @property {string|null} holdId null when no limit is set (no row was written)
+ * @property {string} holdId the hold row's id (a $0 hold when no limit is set)
  * @property {{limitUsd:number|null, leftUsd:number|null, heldUsd:number, heldRuns:number, needUsd:number, atLeast:boolean}} room
  */
 
 /**
- * The check at a door. Appends the hold row first, then decides. Throws ConfigError when config.json is
- * broken (nothing is appended). A refusal appends a `refused` row.
+ * The check at a door. Appends the hold row first (always, even with no limit), then decides. Throws ConfigError when config.json is
+ * broken (nothing is appended) or the row cannot be written. A refusal appends a `refused` row.
  * @param {{ what: 'run'|'resume'|'draft', flow: string|null, runId: string|null, runDir: string, holdUsd: number, spentAtHold?: number, home?: string, now?: () => number }} a
  * @returns {Claim}
  */
@@ -177,16 +178,18 @@ export function claimHold({
   const cfg = readConfig({ home });
   const limit = cfg.monthlyLimitUsd ?? null;
   const room = { limitUsd: limit, leftUsd: null, heldUsd: 0, heldRuns: 0, needUsd: holdUsd, atLeast: false };
-  if (limit === null) return { ok: true, holdId: null, room };
   const nowIso = new Date(now()).toISOString();
   const holdId = randomUUID();
   try {
     appendRow(home, {
-      kind: 'hold', holdId, what, flow, runId, runDir: realpathLoose(runDir), pid: process.pid, procStart: procStartOf('self'), holdUsd, spentAtHold, at: nowIso,
+      kind: 'hold', holdId, what, flow, runId, runDir: realpathLoose(runDir), pid: process.pid, procStart: procStartOf('self'),
+      // No limit set: $0 is held and no check runs, but the row still names the run dir so its spend is counted.
+      holdUsd: limit === null ? 0 : holdUsd, spentAtHold, at: nowIso,
     });
   } catch (/** @type {any} */ e) {
-    throw new ConfigError(`cannot write this hold to ${runsPath(home)} (${e?.code ?? 'error'}) — refusing rather than run past the monthly limit unchecked`);
+    throw new ConfigError(`cannot write this hold to ${runsPath(home)} (${e?.code ?? 'error'}) — refusing rather than run with its spend unrecorded or past the monthly limit unchecked`);
   }
+  if (limit === null) return { ok: true, holdId, room };
   const rows = readRuns(home);
   const idx = rows.findIndex((r) => r.kind === 'hold' && r.holdId === holdId);
   const { heldUsd, heldRuns } = liveHeldBefore(rows, idx < 0 ? rows.length : idx, home, nowIso);
