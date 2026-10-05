@@ -658,7 +658,7 @@ has a bareloop UI to borrow, so M4 is mostly adjusting, not designing.
   authoring only and is now M6, and every module after it shifts by one (old M6→M7, M7→M8, M8→M9,
   M9→M10). The renumber is done in the sections below, not deferred.
 
-### M4 (the UI) — scope, exit, negative — M4a SIGNED by hamr 2026-09-26 ("signed M4a"), M4a EXIT SIGNED 2026-09-27, M4b SIGNED by hamr 2026-09-29 ("sign m4b"), M4b EXIT SIGNED 2026-09-30 ("sign m4b exit"), M4c SIGNED 2026-09-30 ("sign m4c")
+### M4 (the UI) — scope, exit, negative — M4a SIGNED by hamr 2026-09-26 ("signed M4a"), M4a EXIT SIGNED 2026-09-27, M4b SIGNED by hamr 2026-09-29 ("sign m4b"), M4b EXIT SIGNED 2026-09-30 ("sign m4b exit"), M4c SIGNED 2026-09-30 ("sign m4c"), M4d SIGNED 2026-10-05 ("sign m4d")
 
 **Where it comes from** (answered by the `loop` session, 2026-09-26). bareloop's panel:
 `src/panel/index.html` (one file, all CSS and JS inline, vanilla, no build step, no npm UI deps; only
@@ -1197,7 +1197,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 - Negative (x) closed 2026-10-04 after signing: hamr ran `gh api -X PUT repos/hamr0/fwdloop/branches/main/protection` in his terminal (the session's gate refuses it); the response shows `required_status_checks.contexts: ["test"]` with every other protection field unchanged (1 review, stale reviews dismissed, linear history, conversation resolution, no force push or deletion, admins not enforced).
 - Version: hamr ruled v0.11.0 (not v0.10.1).
 
-#### M4d — Settings: keys, providers, money — DRAFT, NOT SIGNED
+#### M4d — Settings: keys, providers, money — SIGNED by hamr 2026-10-05 ("sign m4d"), cap $0.25
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings: providers, keys, money, ported from bareloop), then M4e (run a job from the panel). Today a key reaches fwdloop only from the shell that started it (`pass` loaded by hand, and the panel needs it in its own environment for a resume), there is no monthly money limit at all (each run has only its signed cap), and the prices live in code. M4e's Run button spends money, so the key and the monthly limit come first. hamr 2026-10-05: "let's start m4d".
 - **Rulings at drafting (hamr 2026-10-05):** "1A" — a keys file other users can read is refused, not warned; "2A" — the page shows providers, it does not add or edit them (model and address stay in code); "yes balance too"; "editable on page" — prices are set on the page. That last one **replaces the 2026-09-21 ruling** ("a rate changes by editing a row here, never a second table or a runtime flag"): from M4d the code table is the default and a price typed on the page wins.
