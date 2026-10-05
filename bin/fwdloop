@@ -31,6 +31,7 @@ import { makeLiveModelStep } from '../src/model-step.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
 import { checkKeyPreflight } from '../src/provider.js';
+import { keysForDoor } from '../src/keysfile.js';
 import {
   answerAsk, readAskEvidence, normalizeDecision, stripControl, withReopen,
 } from '../src/ask.js';
@@ -44,6 +45,18 @@ import { userInfo } from 'node:os';
 // drives. `PROVIDER_SLOTS.deepseek.envVar` is `DEEPSEEK_API_KEY`; this CLI
 // never reads a key any other way and never prints it.
 const MODEL_SLOT = 'deepseek';
+
+/**
+ * M4d: the ONE place a keyed command gets its env — the shell env with the keys file
+ * (`~/.config/fwdloop/.env`) filling what the shell leaves unset, loaded once at command
+ * start. A file other users can read is refused here (ruling 1A), before any dir or ledger
+ * write, at $0. process.env is never mutated: the merged env is handed down by hand.
+ */
+function keyedEnv() {
+  const loaded = keysForDoor();
+  if (!loaded.ok) fail(String(loaded.refusal));
+  return loaded.env;
+}
 
 function fail(message) {
   process.stderr.write(`fwdloop: ${message}\n`);
@@ -84,7 +97,7 @@ function today() {
  * be hit by a user typing `--something`. This is how the test suite drives
  * every CLI scenario at $0 with zero chance of a real network call.
  */
-async function resolveModelStep(spendPath) {
+async function resolveModelStep(spendPath, env) {
   if (process.env.NODE_ENV === 'test' && process.env.FWDLOOP_TEST_MODEL_STEP) {
     const modulePath = resolve(process.env.FWDLOOP_TEST_MODEL_STEP);
     const mod = await import(pathToFileURL(modulePath).href);
@@ -93,9 +106,9 @@ async function resolveModelStep(spendPath) {
     }
     return mod.default({ spendPath });
   }
-  const keyCheck = checkKeyPreflight(MODEL_SLOT);
+  const keyCheck = checkKeyPreflight(MODEL_SLOT, env);
   if (!keyCheck.ok) throw new Error(keyCheck.message);
-  return makeLiveModelStep({ slot: MODEL_SLOT, spendPath });
+  return makeLiveModelStep({ slot: MODEL_SLOT, spendPath, env });
 }
 
 function parseSourceFlags(list) {
@@ -176,6 +189,7 @@ async function cmdRun(rest) {
     },
     allowPositionals: true,
   });
+  const env = keyedEnv();
 
   const flowName = positionals[0];
   if (!flowName) fail('run: a flow name is required — fwdloop run <flow> --root <dir> --source <role>=<path> ...');
@@ -227,7 +241,7 @@ async function cmdRun(rest) {
   const spendPath = join(runDir, 'spend.jsonl');
   let modelStep;
   try {
-    modelStep = await resolveModelStep(spendPath);
+    modelStep = await resolveModelStep(spendPath, env);
   } catch (err) {
     fail(err.message);
     return;
@@ -444,6 +458,7 @@ async function cmdResume(rest) {
     },
     allowPositionals: true,
   });
+  const env = keyedEnv();
   const runId = positionals[0];
   if (!runId) fail('resume: a runId is required — fwdloop resume <runId> --flow <name> --root <dir>');
   if (!values.flow) fail('resume: --flow <name> is required');
@@ -468,7 +483,7 @@ async function cmdResume(rest) {
   const spendPath = join(runDir, 'spend.jsonl');
   let modelStep;
   try {
-    modelStep = await resolveModelStep(spendPath);
+    modelStep = await resolveModelStep(spendPath, env);
   } catch (err) {
     fail(err.message);
     return;
@@ -563,6 +578,7 @@ async function cmdDraft(rest) {
     },
     allowPositionals: true,
   });
+  const env = keyedEnv();
   const proseFile = positionals[0];
   if (!proseFile) fail('draft: a prose file is required — fwdloop draft <prose.txt> --out <draftDir> --root <flowsDir> --name <flow> [--budget <usd>]');
   for (const req of ['out', 'root', 'name']) if (!values[req]) fail(`draft: --${req} is required`);
@@ -578,6 +594,7 @@ async function cmdDraft(rest) {
     root: resolve(values.root),
     name: values.name,
     budgetUsd: values.budget === undefined ? undefined : Number(values.budget),
+    env,
     ...injected,
   });
   const cost = result.costUsd === null ? 'UNKNOWN' : costText(Number(result.costUsd), result.spendComplete);
@@ -601,6 +618,7 @@ async function cmdSign(rest) {
     options: { approve: { type: 'string' }, 'signed-by': { type: 'string' } },
     allowPositionals: true,
   });
+  const env = keyedEnv(); // sign takes no key, but its leak sweep must know the file's keys too
   const dir = positionals[0];
   if (!dir) fail('sign: a draft dir is required — fwdloop sign <dir> --approve <hash>');
   // Amendment 2: a person at a keyboard. TTY check first (cheapest), then the typed flow name; only then
@@ -613,7 +631,7 @@ async function cmdSign(rest) {
   const typed = await confirmTypedName({ name: flowName });
   if (!typed.ok) fail(`sign refused — ${typed.red}`);
   const result = signDraft({
-    dir: resolve(dir), approve: values.approve, signedBy: values['signed-by'] ?? userInfo().username,
+    dir: resolve(dir), approve: values.approve, signedBy: values['signed-by'] ?? userInfo().username, env,
   });
   if (!result.ok) fail(`sign refused — ${result.reds.join('; ')}`);
   process.stdout.write(`signed: ${result.flowDir} (by ${result.signature.signedBy})\n`);

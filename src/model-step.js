@@ -230,10 +230,11 @@ function toolFields(cumulative) {
  * @param {any} [opts.provider] - an injected provider (tests only; production always builds live via `slot`).
  * @param {{in:number,out:number}} [opts.rates]
  * @param {string} [opts.modelId]
+ * @param {Record<string,string|undefined>} [opts.env] - the merged shell+keys-file env the key is read from (default process.env).
  * @returns {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class?:string}) => Promise<any>}
  */
 export function makeLiveModelStep({
-  slot, model, spendPath, provider: injectedProvider, rates: injectedRates, modelId: injectedModelId,
+  slot, model, spendPath, provider: injectedProvider, rates: injectedRates, modelId: injectedModelId, env,
 }) {
   const live = injectedProvider == null;
 
@@ -248,7 +249,7 @@ export function makeLiveModelStep({
       // always a red, never a crash (rule 5).
       try {
         if (!slot) throw new Error('makeLiveModelStep: "slot" is required when no provider is injected');
-        ({ provider, rates, modelId } = makeProvider(slot, { model, ...LIVE_PROVIDER_OPTIONS }));
+        ({ provider, rates, modelId } = makeProvider(slot, { model, env, ...LIVE_PROVIDER_OPTIONS }));
       } catch (err) {
         // No provider was ever built, so no round could possibly have run —
         // `model: null`, `tokens: null` and `tools: null` (M4a-3) here are the one honest

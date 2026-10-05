@@ -295,21 +295,24 @@ export function checkKeyPreflight(slotName, env = process.env) {
  * values this project uses.
  *
  * @param {string} slotName
- * @param {{ model?: string, timeoutMs?: number, deadlineMs?: number, thinking?: object|null }} [options]
+ * @param {{ model?: string, timeoutMs?: number, deadlineMs?: number, thinking?: object|null, env?: Record<string,string|undefined> }} [options]
+ *   `env` (M4d: the merged shell+keys-file env; default process.env) is where the key is read.
  *   `thinking` (bare-agent >=0.49) is sent verbatim as body.thinking; unset/null leaves the body unchanged.
  * @returns {{ provider: any, rates: {in:number, out:number}, modelId: string, suffix: string, slot: string }}
  */
 export function makeProvider(slotName, options = {}) {
-  const { model, timeoutMs, deadlineMs, thinking } = options;
+  const {
+    model, timeoutMs, deadlineMs, thinking, env = process.env,
+  } = options;
   const slot = PROVIDER_SLOTS[slotName];
   if (!slot) {
     throw new Error(`unknown provider slot "${slotName}" — known slots: ${Object.keys(PROVIDER_SLOTS).join(', ')}`);
   }
 
-  const keyCheck = checkKeyPreflight(slotName);
+  const keyCheck = checkKeyPreflight(slotName, env);
   if (!keyCheck.ok) throw new Error(keyCheck.message);
 
-  const apiKey = process.env[slot.envVar];
+  const apiKey = env[slot.envVar];
   const modelId = model ?? slot.defaultModel;
   const { suffix, rates } = resolveModelRate(modelId);
 
