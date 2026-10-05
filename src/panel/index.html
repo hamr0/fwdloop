@@ -3236,8 +3236,12 @@
     if(typeof m !== "number" || !isFinite(m)) return "not recorded";
     return (atLeast ? "≥" : "") + (m < 10 ? m.toFixed(1) : String(Math.round(m))) + " min";
   }
-  function fmtTokens(n){
-    return String(typeof n === "number" && isFinite(n) ? n : 0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  // borrowed-from: bareloop src/panel/index.html@5a5a811 (tokensText)
+  function tokensText(n){
+    if(!n) return "0";
+    if(n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+    if(n >= 1e3) return (n / 1e3).toFixed(1) + "k";
+    return String(n);
   }
   // The server's own plain sentence (`say`) when it sent one; else the same words every other refusal uses.
   function settingsRefusal(r){
@@ -3320,7 +3324,7 @@
       tr.querySelector("[data-f=status]").textContent = STATUS_WORD[row.keyStatus] || row.keyStatus;
       tr.querySelector("[data-f=model]").textContent = row.model;
       tr.querySelector("[data-f=addr]").textContent = row.baseUrl;
-      tr.querySelector("[data-f=tokens]").textContent = fmtTokens(row.tokens);
+      tr.querySelector("[data-f=tokens]").textContent = tokensText(row.tokens);
       PRICE_FIELDS.forEach(function(f){
         var inp = tr.querySelector('input[data-field="' + f + '"]');
         var pr = row.price[f];
@@ -3391,10 +3395,10 @@
   function paintMoney(d){
     var m = d.month, t = d.total;
     document.getElementById("ml-usd").textContent = fmtUsd(m.usd, m.atLeast) + " / " + fmtUsd(t.usd, t.atLeast);
-    document.getElementById("ml-tokens").textContent = fmtTokens(m.tokens) + " / " + fmtTokens(t.tokens);
+    document.getElementById("ml-tokens").textContent = tokensText(m.tokens) + " / " + tokensText(t.tokens);
     var notes = [];
     if(d.preM4dRunsNotCounted) notes.push("Runs from before Settings existed are not counted here.");
-    if(d.undatedRows > 0) notes.push(d.undatedRows + (d.undatedRows === 1 ? " older spend row has" : " older spend rows have") + " no date; they count in to date only.");
+    if(d.undatedRows > 0) notes.push(d.undatedRows + (d.undatedRows === 1 ? " older spend row has no date; it counts in to date only." : " older spend rows have no date; they count in to date only."));
     document.getElementById("ml-extra").textContent = notes.join(" ");
     if(document.activeElement !== mlLimit && mlLimit.getAttribute("data-dirty") !== "1") mlLimit.value = typeof d.monthlyLimitUsd === "number" ? String(d.monthlyLimitUsd) : "";
     if(d.configProblem) setNote(document.getElementById("ml-msg"), true, d.configProblem);
@@ -3404,7 +3408,7 @@
       return '<tr data-testid="break-row"><td>' + escapeXml(p.label) + '</td>' +
         '<td>' + escapeXml(fmtUsd(p.month.usd, p.month.atLeast) + " / " + fmtUsd(p.total.usd, p.total.atLeast)) + '</td>' +
         '<td>' + escapeXml(breakMinutes(p.month) + " / " + breakMinutes(p.total)) + '</td>' +
-        '<td>' + escapeXml(fmtTokens(p.total.tokens)) + '</td></tr>';
+        '<td>' + escapeXml(tokensText(p.total.tokens)) + '</td></tr>';
     }).join("") : '<tr><td colspan="4" class="hint">no spend yet</td></tr>';
   }
   // "not recorded" only when there was spend but no minutes; a period with no spend at all is "0 min".

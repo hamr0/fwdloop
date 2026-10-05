@@ -401,7 +401,7 @@ function runPaintMoney(d, { activeIsLimit = false } = {}) {
   const els = { 'ml-usd': el(), 'ml-tokens': el(), 'ml-extra': el(), 'ml-msg': el(), 'ml-breakdown': el() };
   const mlLimit = el();
   const document = { getElementById: (id) => els[id], activeElement: activeIsLimit ? mlLimit : null };
-  const src = ['escapeXml', 'fmtUsd', 'fmtMinutes', 'fmtTokens', 'setNote', 'breakMinutes', 'paintMoney'].map(fnSrc).join('\n');
+  const src = ['escapeXml', 'fmtUsd', 'fmtMinutes', 'tokensText', 'setNote', 'breakMinutes', 'paintMoney'].map(fnSrc).join('\n');
   new Function('document', 'mlLimit', `${src}\npaintMoney(${JSON.stringify(d)});`)(document, mlLimit);
   return { els, mlLimit };
 }
@@ -425,17 +425,19 @@ test('page: the Money tab is a strip plus a breakdown TABLE; plurals; "0 min" on
   };
   base.byProvider.other.month.usd = 0.1;
   const one = runPaintMoney({ ...base, undatedRows: 1 }).els;
-  assert.match(one['ml-extra'].textContent, /1 older spend row has no date; they count in to date only\./);
+  assert.match(one['ml-extra'].textContent, /1 older spend row has no date; it counts in to date only\./);
   assert.doesNotMatch(one['ml-extra'].textContent, /rows have/);
-  assert.match(runPaintMoney({ ...base, undatedRows: 3 }).els['ml-extra'].textContent, /3 older spend rows have no date/);
+  assert.match(runPaintMoney({ ...base, undatedRows: 3 }).els['ml-extra'].textContent, /3 older spend rows have no date; they count in to date only\./);
   assert.match(one['ml-extra'].textContent, /Runs from before Settings existed are not counted here\./);
   const rows = one['ml-breakdown'].innerHTML.match(/<tr[\s\S]*?<\/tr>/g);
   assert.equal(rows.length, 3, 'one table row per provider, no cards');
-  assert.match(rows[0], /<td>deepseek<\/td><td>\$0\.5000 \/ \$1\.5000<\/td><td>2\.0 min \/ 5\.0 min<\/td><td>4,000<\/td>/);
+  assert.match(rows[0], /<td>deepseek<\/td><td>\$0\.5000 \/ \$1\.5000<\/td><td>2\.0 min \/ 5\.0 min<\/td><td>4\.0k<\/td>/);
   assert.match(rows[1], /<td>0 min \/ not recorded<\/td>/, 'no spend this month reads 0 min; spend with no minutes to date reads not recorded');
   assert.match(rows[2], /not recorded \/ not recorded/, 'spend but no minutes is "not recorded", never 0 min');
   assert.equal(runPaintMoney(base).els['ml-usd'].textContent, '$0.5000 / $1.5000');
-  assert.equal(runPaintMoney(base).els['ml-tokens'].textContent, '1,200 / 4,000');
+  assert.equal(runPaintMoney(base).els['ml-tokens'].textContent, '1.2k / 4.0k');
+  const big = { ...base, month: bucket(0.5, 16800000, 2), total: bucket(1.5, 950, 5) };
+  assert.equal(runPaintMoney(big).els['ml-tokens'].textContent, '16.8M / 950', 'bareloop tokensText: M, k and plain branches');
   // an unknown cost reads at-least, never $0; a typed limit box is not overwritten
   const unk = runPaintMoney({ ...base, month: { ...bucket(0.5, 1200, 2), atLeast: true } }).els;
   assert.equal(unk['ml-usd'].textContent, '≥$0.5000 / $1.5000');
