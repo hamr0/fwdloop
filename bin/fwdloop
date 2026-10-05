@@ -77,7 +77,15 @@ function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }
   const door = configDoorHome();
   const home = door.home;
   const also = [];
-  if (door.skip) return { addRunDir: () => {} };
+  if (door.skip) {
+    // A test process with no config home skips the money checks. Only an injected test hook may do that;
+    // a real provider call here would spend with no keys file, prices, limit or record.
+    const hook = what === 'draft' ? 'FWDLOOP_TEST_DRAFT_PROVIDER' : 'FWDLOOP_TEST_MODEL_STEP';
+    if (!(process.env.NODE_ENV === 'test' && process.env[hook])) {
+      fail('NODE_ENV=test is set without FWDLOOP_CONFIG_HOME, so the keys file, prices and monthly limit would be skipped. Nothing spent. Unset NODE_ENV, or set FWDLOOP_CONFIG_HOME.');
+    }
+    return { addRunDir: () => {} };
+  }
   let claim;
   try {
     claim = claimHold({
@@ -647,6 +655,11 @@ async function cmdDraft(rest) {
   if (process.env.NODE_ENV === 'test' && process.env.FWDLOOP_TEST_DRAFT_PROVIDER) {
     const mod = await import(pathToFileURL(resolve(process.env.FWDLOOP_TEST_DRAFT_PROVIDER)).href);
     injected = await mod.default();
+  }
+  // The key preflight comes first (draftToDir repeats it), so an unset key keeps its own message ahead of the NODE_ENV refusal.
+  if (injected.provider == null) {
+    const keyCheck = checkKeyPreflight('deepseek', env);
+    if (!keyCheck.ok) fail(`draft refused at $0 — ${keyCheck.message}`);
   }
   // M4d piece 3: the monthly check — a draft has no signed cap, so it holds one ceiling round, priced by the
   // ONE price lookup (an injected test provider carries its own rates).

@@ -18,7 +18,7 @@ import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
@@ -595,3 +595,56 @@ test('cli: show prints no ESC / control byte from model text, and keeps new line
   assert.match(res.stdout, /line1\n\tindented /, 'new lines and tabs are kept');
   assert.match(res.stdout, /cleared/);
 });
+
+// ---------------------------------------------------------------------------
+// Self-review fix: NODE_ENV=test (or NODE_TEST_CONTEXT) with no FWDLOOP_CONFIG_HOME skips the keys file, prices and monthly
+// limit. A REAL provider call must refuse at $0 then, never run silently; only an injected test hook may skip.
+// ---------------------------------------------------------------------------
+
+const NODE_ENV_TEST_REFUSAL = /NODE_ENV=test is set without FWDLOOP_CONFIG_HOME/;
+
+for (const [label, extra] of [['NODE_ENV=test', { NODE_ENV: 'test' }], ['NODE_TEST_CONTEXT', { NODE_TEST_CONTEXT: 'child-v8' }]]) {
+  test(`cli: ${label} with no config home and a real provider refuses "run" at $0 (no run dir, no spend; refused before any provider is built)`, async () => {
+    const root = tmpRoot('nodeenv-run');
+    writeJob2Flow(root);
+    const { resume, jd } = writeSources(tmpRoot('nodeenv-run-src'));
+    try {
+      const result = await new Promise((resolve) => {
+        const c = spawn(process.execPath, [BIN, 'run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-nodeenv'], {
+          env: { PATH: process.env.PATH ?? '', DEEPSEEK_API_KEY: 'fake-key-not-real', ...extra },
+        });
+        let err = '';
+        c.stderr.on('data', (d) => { err += d; });
+        c.on('close', (code) => resolve({ status: code, stderr: err }));
+      });
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, NODE_ENV_TEST_REFUSAL);
+      assert.equal(existsSync(path.join(root, 'job2', 'runs', 'run-nodeenv')), false, 'no run dir');
+      assert.equal(existsSync(path.join(root, 'job2', 'history.jsonl')), false, 'no history row');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test(`cli: ${label} with no config home and a real provider refuses "draft" at $0 (no draft dir; refused before any provider is built)`, async () => {
+    const root = tmpRoot('nodeenv-draft');
+    const out = path.join(tmpRoot('nodeenv-draft-out'), 'd');
+    const prose = path.join(root, 'prose.txt');
+    writeFileSync(prose, 'Do a thing.\n');
+    try {
+      const result = await new Promise((resolve) => {
+        const c = spawn(process.execPath, [BIN, 'draft', prose, '--out', out, '--root', root, '--name', 'nodeenv'], {
+          env: { PATH: process.env.PATH ?? '', DEEPSEEK_API_KEY: 'fake-key-not-real', ...extra },
+        });
+        let err = '';
+        c.stderr.on('data', (d) => { err += d; });
+        c.on('close', (code) => resolve({ status: code, stderr: err }));
+      });
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, NODE_ENV_TEST_REFUSAL);
+      assert.equal(existsSync(out), false, 'no draft dir');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
