@@ -1381,7 +1381,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
     - (h) ask section headers are blue at 1280/390/320, light and dark; all of the above at 1280/390/320 with no spill.
     - (i) `http://127.0.0.1:4800/` opens the panel with no `?t=` and no cookie; a POST with another site's Origin, or a Host other than 127.0.0.1:<port>, is refused and writes nothing; no token file is written;
   - **Cap:** within M4e's $0.50 (build at $0 with stub providers; one short live walk).
-- **Amendment 5 — NOT SIGNED (drafted 2026-10-06): Resume is the cap; Run opens files, destination, cap and ask wait; anything else is a new flow.**
+- **Amendment 5 — SIGNED by hamr 2026-10-06 ("sign m4e amendment 5"): Resume is the cap; Run opens files, destination, cap and ask wait; anything else is a new flow.**
   - **Why:** hamr, 2026-10-06, before amendment 4 item 5 was built: "keep it simple, resume is for the same run that got stopped by cap, or by you > only allowed to change cap, all else is dimmed; run is a new run for the same flow, same contract but input/output path may change but same steps so, it's considered same job, all else is dimmed, else, start a new flow", then "a daily run opens up cap/ask time too, add it". Amendment 4 item 5 sent a destination change to a new job; a daily-driver flow needs it per run.
   - **Replaces amendment 4 item 5 and its negative (f).** Amendment 4 items 4 and 6 (Resume, cap re-sign) stand as signed.
   - **1. Resume (unchanged from amendment 4 item 4).** The same run that stopped at its cap or by Stop. Only Cap $ is open; every other field shows dimmed. Same run id.
