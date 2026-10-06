@@ -17,13 +17,14 @@ import { keysForDoor, keysFilePath } from '../src/keysfile.js';
 import { isFwdloopAlive } from '../src/liveness.js';
 import { signDraft } from '../src/authoring.js';
 import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
+import { BOX_JOB, inputsText } from './m4e-box-fixture.mjs';
 
 export const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const FAKE_DRAFT = path.join(HERE, 'fixtures', 'cli-fake-draft-provider.mjs');
 export const FAKE_STEP = path.join(HERE, 'fixtures', 'm4e-fake-model-step.mjs');
 export const GATED_STEP = path.join(HERE, 'fixtures', 'm4e-gated-model-step.mjs');
 export const CANARY = 'sk-canary-M4E-piece2b-3c9d1e7a5b2f4860bb77';
-export const JOB = readFileSync(path.join(HERE, 'fixtures', 'job2-m6a.prose.txt'), 'utf8').split('\n').slice(0, 7).join('\n');
+export const JOB = BOX_JOB;
 export const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 export const tmp = (p) => mkdtempSync(path.join(tmpdir(), `fwdloop-m4e-2b-${p}-`));
 
@@ -115,8 +116,8 @@ export async function world({
   ROOTS.push(root);
   const h = await open();
   const card = (over = {}) => ({
-    flowName: 'job2', job: JOB, capUsd: '0.25', destination: { line: '5', folder: outDir },
-    inputs: [{ role: 'resume', path: path.join(inDir, 'resume.md') }, { role: 'jd', path: path.join(inDir, 'jd.md') }], ...over,
+    flowName: 'job2', job: JOB, capUsd: '0.25', askWait: '1h', destination: outDir,
+    inputs: inputsText([['resume', path.join(inDir, 'resume.md')], ['jd', path.join(inDir, 'jd.md')]]), ...over,
   });
   const post = (url, body, headers) => rq(h.port, { method: 'POST', url, body, headers });
   const get = (url, headers) => rq(h.port, { url, headers });

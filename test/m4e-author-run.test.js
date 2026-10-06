@@ -233,7 +233,7 @@ test('the panel\'s own .starts folder is never a flow and never a send destinati
   const drafts = checkSendDestination(`file:${path.join(w.root, '.drafts')}`, { root: w.root });
   assert.match(drafts.red, /the panel drafts folder/);
   // a card whose destination is .starts is refused by name at the card too
-  const c = await w.post('/api/author/draft', w.card({ flowName: 'viastarts', destination: { line: '5', folder: sd } }));
+  const c = await w.post('/api/author/draft', w.card({ flowName: 'viastarts', destination: sd }));
   assert.equal(c.status, 400);
   assert.ok(c.json().refusals.some((x) => x.field === 'destination' && /starts folder/.test(x.say)), c.text);
 });

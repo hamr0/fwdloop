@@ -18,7 +18,7 @@ import {
   checkFlowName, listFlowNames, listRunIds, readFileInside, readFlow, resolveRunDir,
 } from '../flow.js';
 import { spendSummary } from '../monthly.js';
-import { checkInputRows, cardFields } from './authorcard.js';
+import { checkInputRows, runInputRows } from './authorcard.js';
 import { newRunId } from './authorstart.js';
 import { providerKeys } from './spawn.js';
 
@@ -120,7 +120,7 @@ export function createFlowsDoor(opts) {
       }
       /** @type {{field: string, say: string}[]} */
       const refusals = [];
-      const rows = cardFields({ inputs: body?.inputs }).inputs;
+      const rows = runInputRows(body?.inputs);
       refusals.push(...checkInputRows(rows));
       const declared = (read.arbiter.sources ?? []).map((s) => s.role);
       for (const role of declared) {

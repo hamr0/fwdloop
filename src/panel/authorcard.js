@@ -2,9 +2,9 @@
 // `fwdloop draft` reads, and the $0 checks that run before any spawn. Pure of the panel: no HTTP, no spawn, no
 // writes — it reads the disk only to check the card's paths (realpathSync at the click, as the signed text says).
 //
-// The card writes EXACTLY the shape `flows/<flow>/prose.txt` has: the human's job lines (numbered, `guardrail:`
-// lines under them, `ask 30m:` marks, as typed), then the "Arbiter guardrails" block built ONLY from the card's
-// typed fields — cap, send line + folder, one `source <role> = file:<path>` per input. The drafter never writes
+// The card writes EXACTLY the shape `flows/<flow>/prose.txt` has: the job box's lines turned into the job file (`N. text`,
+// `   guardrail: text`, `N. ask <wait>: question` — M4e amendment 2), then the "Arbiter guardrails" block built ONLY from the card's
+// typed fields — cap, send at the LAST step to the folder, one `source <role> = file:<path>` per input line. The drafter never writes
 // any of it (hard line); this file is the only place the block is built.
 //
 // Every refusal is `{ field, say }`: the box it names and a plain sentence. A refusal spends $0 and creates
@@ -115,35 +115,38 @@ export function parseInputLines(text) {
 
 /**
  * Normalise what the page sent into the typed card (one reader of the request body's shape). Unknown fields are
- * dropped; nothing here judges a value.
+ * dropped; nothing here judges a value. `inputs` is the inputs box's TEXT (`name: path` per line); `destination` is the folder.
  * @param {any} body
  */
 export function cardFields(body) {
   const b = body && typeof body === 'object' ? body : {};
-  const d = b.destination && typeof b.destination === 'object' ? b.destination : {};
   return {
     flowName: str(b.flowName).trim(),
     job: str(b.job).replace(/\r\n?/g, '\n'),
+    destination: str(b.destination).trim(),
+    inputs: str(b.inputs).replace(/\r\n?/g, '\n'),
     capUsd: typeof b.capUsd === 'string' && b.capUsd.trim() !== '' ? Number(b.capUsd) : b.capUsd,
-    destination: { line: typeof d.line === 'string' ? d.line.trim() : d.line, folder: str(d.folder).trim() },
-    inputs: (Array.isArray(b.inputs) ? b.inputs : []).map((r) => ({ role: str(r?.role).trim(), path: str(r?.path).trim() })),
+    askWait: str(b.askWait).trim(),
   };
 }
 
-/** The send is "empty" (no send) when both of its boxes are blank. */
-const noDestination = (dest) => (dest.line === undefined || dest.line === null || dest.line === '') && dest.folder === '';
+/** The Run-a-signed-flow door's rows (a role is fixed by the signed flow): what the page sent, as `{role, path}`. @param {any} v */
+export function runInputRows(v) {
+  return (Array.isArray(v) ? v : []).map((r) => ({ role: str(r?.role).trim(), path: str(r?.path).trim() }));
+}
 
 /**
- * The prose file text for a card whose fields already passed {@link checkCard}. The job lines come first, as typed;
- * the arbiter block is built only from the card's own fields.
+ * The prose file text for a card whose fields already passed {@link checkCard}. The job lines come first (the job box's steps as the
+ * job file); the arbiter block is built only from the card's own fields. The ONE card -> prose function.
  * @param {ReturnType<typeof cardFields>} card
  * @returns {string}
  */
 export function cardToProse(card) {
-  const out = [card.job.replace(/\s+$/, '').replace(/^\s*\n/, ''), '', ARBITER_HEADING];
+  const { steps } = parseJobBox(card.job);
+  const out = [...jobFileLines(steps, card.askWait), '', ARBITER_HEADING];
   out.push(`guardrail: cap $${capText(Number(card.capUsd))} per run`);
-  if (!noDestination(card.destination)) out.push(`guardrail: send at line ${Number(card.destination.line)} to file:${card.destination.folder}`);
-  for (const i of card.inputs) out.push(`guardrail: source ${i.role} = file:${i.path}`);
+  if (card.destination !== '') out.push(`guardrail: send at line ${steps.length} to file:${card.destination}`);
+  for (const i of parseInputLines(card.inputs)) out.push(`guardrail: source ${i.role} = file:${i.path}`);
   return `${out.join('\n')}\n`;
 }
 
@@ -164,27 +167,28 @@ function fileProblem(p) {
 /**
  * The $0 check of the input rows, shared by the card (draft door) and the Run-a-signed-flow door: a role and a path on every row,
  * a role shape the signed-text parser accepts and used once, each path a full path to a readable regular file (realpath at the
- * click). Never reads a file's contents.
- * @param {{role: string, path: string}[]} rows
- * @returns {{field: string, say: string}[]} one refusal per bad row, field `inputs.<n>`
+ * click). Never reads a file's contents. A row from the card's inputs box carries its `line`: its refusal is field `inputs` and its
+ * sentence starts "Line N:". A Run-door row has no line: its refusal is field `inputs.<n>`.
+ * @param {{role: string, path: string, line?: number, noColon?: true}[]} rows
+ * @returns {{field: string, say: string}[]} one refusal per bad row
  */
 export function checkInputRows(rows) {
   /** @type {{field: string, say: string}[]} */
   const refusals = [];
-  const no = (field, say) => refusals.push({ field, say });
   const seen = new Set();
   rows.forEach((row, n) => {
-    const field = `inputs.${n}`;
-    if (row.role === '' && row.path === '') { no(field, 'This input row is empty. Fill it in or remove it.'); return; }
-    if (row.role === '') { no(field, 'This input has a path but no role. Give it a name such as "resume".'); return; }
-    if (!ROLE_RE.test(row.role)) { no(field, `The role "${row.role}" must be lowercase letters, digits, "-" or "_", starting with a letter.`); return; }
-    if (seen.has(row.role)) { no(field, `The role "${row.role}" is used twice. Each input needs its own role.`); return; }
+    const no = (say) => refusals.push(row.line === undefined ? { field: `inputs.${n}`, say } : { field: 'inputs', say: `Line ${row.line}: ${say}` });
+    if (row.noColon) { no('write it as name: path (for example resume: /home/me/resume.md).'); return; }
+    if (row.role === '' && row.path === '') { no('This input row is empty. Fill it in or remove it.'); return; }
+    if (row.role === '') { no('This input has a path but no role. Give it a name such as "resume".'); return; }
+    if (!ROLE_RE.test(row.role)) { no(`The role "${row.role}" must be lowercase letters, digits, "-" or "_", starting with a letter.`); return; }
+    if (seen.has(row.role)) { no(`The role "${row.role}" is used twice. Each input needs its own role.`); return; }
     seen.add(row.role);
-    if (row.path === '') { no(field, `The input "${row.role}" has a role but no path.`); return; }
-    if (CONTROL_RE.test(row.path)) { no(field, `The path for "${row.role}" has a character that cannot be in a path.`); return; }
-    if (!isAbsolute(row.path)) { no(field, `The path for "${row.role}" must be a full path starting with "/".`); return; }
+    if (row.path === '') { no(`The input "${row.role}" has a role but no path.`); return; }
+    if (CONTROL_RE.test(row.path)) { no(`The path for "${row.role}" has a character that cannot be in a path.`); return; }
+    if (!isAbsolute(row.path)) { no(`The path for "${row.role}" must be a full path starting with "/".`); return; }
     const why = fileProblem(row.path);
-    if (why) no(field, `The path for "${row.role}" ${why}`);
+    if (why) no(`The path for "${row.role}" ${why}`);
   });
   return refusals;
 }
@@ -210,39 +214,38 @@ export function checkCard(card, { root, env = {} }) {
   }
 
   // job
-  if (card.job.trim() === '') no('job', 'The job is empty. Write the job as numbered lines.');
+  if (card.job.trim() === '') no('job', 'The job is empty. Write one step per line.');
   else if (/^\s*arbiter guardrails\b/im.test(card.job)) {
     no('job', 'The job contains an "Arbiter guardrails" heading. The cap, the destination and the inputs go in their own boxes, not in the job text.');
-  }
+  } else for (const r of parseJobBox(card.job).refusals) no('job', r.say);
+
+  // ask wait: a number with m or h (it is written out on every ask line)
+  if (!isAskWait(card.askWait)) no('askWait', 'The ask wait must be a number with m or h, such as 30m or 1h.');
 
   // cap
   if (typeof card.capUsd === 'string' || typeof card.capUsd === 'number') {
     if (!(Number.isFinite(Number(card.capUsd)) && Number(card.capUsd) > 0)) no('capUsd', 'The cap must be a number above 0 (dollars per run).');
   } else no('capUsd', 'The cap must be a number above 0 (dollars per run).');
 
-  // destination: both boxes or neither
+  // destination: one folder, or empty for no send (it is sent at the last step)
   const dest = card.destination;
-  if (!noDestination(dest)) {
-    const line = Number(dest.line);
-    if (!(typeof dest.line === 'number' || (typeof dest.line === 'string' && dest.line !== '')) || !Number.isInteger(line) || line < 1) {
-      no('destination', 'The destination line must be a whole number: the job line whose result is sent.');
-    } else if (dest.folder === '') no('destination', 'The destination has a line but no folder. Type the folder, or clear the line for no send.');
-    else if (CONTROL_RE.test(dest.folder)) no('destination', 'The destination folder has a character that cannot be in a path.');
+  if (dest !== '') {
+    if (CONTROL_RE.test(dest)) no('destination', 'The destination folder has a character that cannot be in a path.');
     else {
-      const d = checkSendDestination(`file:${dest.folder}`, { root });
+      const d = checkSendDestination(`file:${dest}`, { root });
       if (!d.ok) no('destination', `${d.red.replace(/^destination: /, '')}.`);
     }
   }
 
-  // inputs: a role and a path on every row; no repeated role; each path a readable regular file (realpath)
-  refusals.push(...checkInputRows(card.inputs));
+  // inputs: one `name: path` per line; a role and a path on every line, no repeated role; each path a readable regular file (realpath)
+  refusals.push(...checkInputRows(parseInputLines(card.inputs)));
 
   // a provider key typed into any box never reaches a file
   /** @type {string[]} */
   const keys = [];
   for (const p of Object.values(PROVIDER_SLOTS)) { const k = env[p.envVar]; if (typeof k === 'string' && k.length >= 8) keys.push(k); }
   if (keys.length > 0) {
-    const boxes = [['job', card.job], ['flowName', card.flowName], ['destination', dest.folder], ...card.inputs.map((r, n) => [`inputs.${n}`, `${r.role}\n${r.path}`])];
+    const boxes = [['job', card.job], ['flowName', card.flowName], ['destination', dest], ['inputs', card.inputs]];
     for (const [field, text] of boxes) if (keys.some((k) => String(text).includes(k))) no(String(field), 'This box contains an API key. Keys go in Settings only. Nothing was saved.');
   }
 

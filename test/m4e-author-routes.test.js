@@ -22,11 +22,12 @@ import { parseSignedText } from '../src/signed-text.js';
 import { REFUSAL_SENTENCE } from '../src/monthly.js';
 import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
 import { job2Fixture } from './drafter-fixture.mjs';
+import { BOX_JOB, BOX_JOB_FILE, inputsText } from './m4e-box-fixture.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FAKE_DRAFT = path.join(HERE, 'fixtures', 'cli-fake-draft-provider.mjs');
 const CANARY = 'sk-canary-M4E-piece2a-7f3a9c1d2b8e4f60aa55';
-const JOB = readFileSync(path.join(HERE, 'fixtures', 'job2-m6a.prose.txt'), 'utf8').split('\n').slice(0, 7).join('\n');
+const JOB = BOX_JOB;
 const tmp = (p) => mkdtempSync(path.join(tmpdir(), `fwdloop-m4e-ar-${p}-`));
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
@@ -97,8 +98,8 @@ async function world({ limit, mode, keysMode = 0o600 } = {}) {
   ROOTS.push(root);
   const h = await open();
   const card = (over = {}) => ({
-    flowName: 'job2', job: JOB, capUsd: '0.25', destination: { line: '5', folder: outDir },
-    inputs: [{ role: 'resume', path: path.join(inDir, 'resume.md') }, { role: 'jd', path: path.join(inDir, 'jd.md') }], ...over,
+    flowName: 'job2', job: JOB, capUsd: '0.25', askWait: '1h', destination: outDir,
+    inputs: inputsText([['resume', path.join(inDir, 'resume.md')], ['jd', path.join(inDir, 'jd.md')]]), ...over,
   });
   const post = (url, body, headers) => rq(h.port, { method: 'POST', url, body, headers });
   const get = (url, headers) => rq(h.port, { url, headers });
@@ -149,7 +150,7 @@ test('(3,5) a valid card -> 202 {draftId}; the draft folder holds card.json, pro
   assert.equal(j.hash, readFileSync(path.join(dir, 'draft', 'spec.hash'), 'utf8').trim());
   assert.match(j.readout, /job2/);
   assert.deepEqual(j.card, {
-    flowName: 'job2', job: JOB, capUsd: 0.25, destination: { line: '5', folder: w.outDir }, inputs: w.card().inputs,
+    flowName: 'job2', job: JOB, capUsd: 0.25, askWait: '1h', destination: w.outDir, inputs: w.card().inputs,
   }, 'the card is returned as typed');
   for (const f of ['card.json', 'prose.txt', 'child.log', 'pid.json']) assert.ok(existsSync(path.join(dir, f)), f);
   assert.equal(statSync(path.join(dir, 'child.log')).mode & 0o777, 0o600);
@@ -157,6 +158,7 @@ test('(3,5) a valid card -> 202 {draftId}; the draft folder holds card.json, pro
   assert.ok(Number.isInteger(pid.pid) && typeof pid.procStart === 'string');
   assert.equal(JSON.parse(readFileSync(path.join(dir, 'card.json'), 'utf8')).flowName, 'job2');
   assert.equal(parseSignedText(readFileSync(path.join(dir, 'prose.txt'), 'utf8')).ok, true);
+  assert.ok(readFileSync(path.join(dir, 'prose.txt'), 'utf8').startsWith(`${BOX_JOB_FILE}\n\nArbiter guardrails`), 'the job box became exactly the job file');
   // a dot-name is never a flow: the panel's own lists do not show .drafts
   const runs = (await w.get('/api/runs')).json();
   assert.deepEqual(runs.rows, []);
@@ -168,10 +170,11 @@ test('(iii)(iv)(v) refusals over HTTP name the box, spend $0 and create nothing 
   mkdirSync(path.join(w.root, 'taken'));
   const cases = [
     [{ flowName: 'taken' }, 'flowName'], [{ flowName: '../x' }, 'flowName'], [{ flowName: 'a/b' }, 'flowName'],
-    [{ inputs: [{ role: 'resume', path: w.inDir }] }, 'inputs.0'],
-    [{ inputs: [{ role: 'resume', path: path.join(w.inDir, 'missing.md') }] }, 'inputs.0'],
-    [{ inputs: [{ role: '', path: path.join(w.inDir, 'resume.md') }] }, 'inputs.0'],
-    [{ capUsd: '0' }, 'capUsd'], [{ destination: { line: '5', folder: w.root } }, 'destination'],
+    [{ inputs: `resume: ${w.inDir}` }, 'inputs'],
+    [{ inputs: `resume: ${path.join(w.inDir, 'missing.md')}` }, 'inputs'],
+    [{ inputs: `: ${path.join(w.inDir, 'resume.md')}` }, 'inputs'], [{ inputs: 'no colon' }, 'inputs'],
+    [{ job: '~early\nstep' }, 'job'], [{ askWait: '30s' }, 'askWait'],
+    [{ capUsd: '0' }, 'capUsd'], [{ destination: w.root }, 'destination'],
   ];
   for (const [over, field] of cases) {
     // eslint-disable-next-line no-await-in-loop
@@ -267,7 +270,7 @@ test('(ix) the canary in the keys file reaches no reply, card.json, draft output
     assert.ok(!readFileSync(path.join(wd.dir(id_), 'card.json'), 'utf8').includes(CANARY));
   }
   // a key typed into the card is refused at the door and never written
-  const typed = await w3.post('/api/author/draft', w3.card({ flowName: 'typed', job: `${JOB}\n   guardrail: use ${CANARY}` }));
+  const typed = await w3.post('/api/author/draft', w3.card({ flowName: 'typed', job: `${JOB}\n~use ${CANARY}` }));
   assert.equal(typed.status, 400);
   assert.ok(!typed.text.includes(CANARY));
   assert.equal(w3.drafts().length, 1);
