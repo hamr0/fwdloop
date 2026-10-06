@@ -67,13 +67,16 @@ test('am4 item 1: the note is the refusal\'s own number (one function), writes n
 // the page: its own functions, cut out and run against stubs
 function pageNote({ capText, mode = 'new', flowCap = null, job = 'one step', fetchImpl }) {
   const log = { starts: 0, texts: {} };
-  const els = { 'jf-cap-note': { textContent: '', classList: { remove() {}, toggle() {} } }, 'jf-run-left': { textContent: '', classList: { remove() {}, toggle() {} } }, 'jf-cap-money': { value: capText }, 'jf-job': { value: job } };
+  const note = () => ({ textContent: '', classList: { remove() {}, toggle() {} } });
+  // amendment 5: the Run form's cap is a typed box (`runCapEl`), seeded with the flow's own cap; amendment 4: the Resume form has its own note
+  const els = { 'jf-cap-note': note(), 'jf-run-left': note(), 'jf-resume-left': note(), 'jf-cap-money': { value: capText }, 'jf-job': { value: job } };
   const src = [fnSrc(CHAT, 'setMoneyNote'), fnSrc(CHAT, 'jobHasModelStep'), fnSrc(CHAT, 'refreshCapNote')].join('\n');
   const f = new Function('els', 'mode', 'flowCap', 'fetchImpl', 'log', `
     var moneyRed = false; var capNoteSeq = 0;
     var capNoteEl = els["jf-cap-note"];
     function byId(id){ return els[id]; }
-    function selectedFlow(){ return flowCap === null ? null : { capUsd: flowCap }; }
+    function selectedFlow(){ return flowCap === null ? null : { capUsd: flowCap, capFloorUsd: 0.05, floorText: 'needs at least $0.05 per run' }; }
+    var runCapEl = { value: flowCap === null ? '' : String(flowCap) }; var resumeCapEl = { value: '' }; var resumeCtx = null;
     function authorGet(p){ return fetchImpl(p); }
     function refreshStartEnabled(){ log.starts++; }
     ${src}
@@ -90,8 +93,8 @@ test('am4 (a) page: red note turns the main button off (startReady) and a plain 
   assert.equal(p.els['jf-cap-note'].textContent, 'needs $0.50 ($0.10 left monthly)');
   assert.equal(p.red(), true);
   // startReady: the page's own function, with the red flag as its only input
-  const startReady = (moneyRed) => new Function('moneyRed', `var mode = "run"; function selectedFlow(){ return {}; } function readRows(){ return []; } function currentCard(){ return {}; } var runInputsEl = {};
-    ${fnSrc(CHAT, 'startReady')}\nreturn startReady();`)(moneyRed);
+  const startReady = (moneyRed) => new Function('moneyRed', `var mode = "run"; function selectedFlow(){ return {}; } function readRows(){ return []; } function currentCard(){ return {}; } var runInputsEl = {}; var runCapEl = { value: "0.25" }; var resumeCapEl = { value: "" }; var resumeCtx = null;
+    ${fnSrc(CHAT, 'capValid')}\n${fnSrc(CHAT, 'startReady')}\nreturn startReady();`)(moneyRed);
   assert.equal(startReady(true), false, 'red: the button is off');
   assert.equal(startReady(false), true, 'plain: the button is on');
   // the limit was raised: the next read is plain, the flag drops, the button state is recomputed
@@ -122,7 +125,7 @@ test('am4 (a) page: red note turns the main button off (startReady) and a plain 
 
 test('am4 item 1 page: the note re-reads on typing (debounced 250ms), on card open, on a signed-flow pick, on a Settings limit change', () => {
   assert.match(CHAT, /capNoteTimer = setTimeout\(refreshCapNote, 250\)/);
-  assert.match(CHAT, /id === "jf-cap-money"[\s\S]{0,80}scheduleCapNote\(\)/);
+  assert.match(CHAT, /id === "jf-cap-money"[\s\S]{0,200}scheduleCapNote\(\)/);
   assert.match(CHAT, /document\.addEventListener\("fwdloop-limit-changed", function\(\)\{ refreshCapNote\(\); \}\)/);
   assert.match(fnSrc(CHAT, 'paintRunFlow'), /refreshCapNote\(\)/);
   assert.match(fnSrc(CHAT, 'setMode'), /refreshCapNote\(\)/);

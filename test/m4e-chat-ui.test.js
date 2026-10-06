@@ -113,8 +113,8 @@ test('field set: the New job card has exactly the signed boxes; bareloop-only bo
 
 test('#chat-action-error is written only by the click handlers: the poll path never touches it', () => {
   const writers = [...CHAT.matchAll(/actionErrEl\.textContent\s*=/g)].length;
-  // chatActionFailed, chatActionOk, openNewCard (a click's reset)
-  assert.equal(writers, 3, 'only three places may write the action line');
+  // chatActionFailed, chatActionOk, openNewCard (a click's reset), the Resume form's Cancel click
+  assert.equal(writers, 4, 'only four places may write the action line (the last: Cancel of the Resume form, a click)');
   for (const name of ['poll', 'renderActions', 'renderProgress', 'renderThread', 'renderMain', 'endSession']) {
     assert.doesNotMatch(fnSrc(name).replace(/^\s*\/\/.*$/gm, ''), /actionErrEl|chatActionOk|chatActionFailed|chat-action-error|resetCard|openNewCard/, `${name} is on the poll path and must not touch #chat-action-error`);
   }
@@ -152,7 +152,7 @@ test('the Chat tab keeps the page rules: no token on the page, every POST goes t
   assert.doesNotMatch(code, /\bTOKEN\b|x-fwdloop-token/);
   assert.doesNotMatch(code, /\bfetch\([^)]*POST/);
   const paths = [...code.matchAll(/authorPost\(\s*"([^"]+)"/g)].map((m) => m[1]).filter((x) => !x.endsWith('/')).sort();
-  assert.deepEqual(paths, ['/api/author/draft', '/api/author/run']);
+  assert.deepEqual(paths, ['/api/author/draft', '/api/author/resume', '/api/author/resume-prepare', '/api/author/run', '/api/author/run-prepare']);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign-prepare"/);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign", \{hash: signInfo\.hash\}/);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/abandon"/);

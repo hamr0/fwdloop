@@ -225,19 +225,26 @@ export function createAuthor(opts) {
     run: flowsDoor.run,
     runPrepare: flowsDoor.runPrepare,
     resumePrepare: resumeDoor.prepare,
+    resumeForm: resumeDoor.form,
     resume: resumeDoor.resume,
 
     /**
      * `GET /api/author/monthly-check?cap=<usd>`: the note under Cap, one read-only check. `{ text, red }` is what to show (red =
      * the cap does not fit this month); `floorUsd` is the smallest cap that funds one round of a model step, for the page's
      * `needs at least $X per run` line. A cap that is not a number above 0 gets no note. Never spends, never writes.
-     * @param {unknown} cap
+     * @param {unknown} cap @param {string|null} [spent] what a resumed run has already spent (amendment 4 item 4)
      */
-    monthlyCheck(cap) {
+    monthlyCheck(cap, spent = null) {
       const n = Number(cap);
       const floorUsd = capFloorUsd('x');
       if (typeof cap !== 'string' || cap.trim() === '' || !Number.isFinite(n) || n <= 0) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText: capFloorText(floorUsd) } };
-      const claim = monthlyClaim(n);
+      // a Resume (amendment 4 item 1): only what the run still has to spend is held, so the note asks for `cap - spent`; a cap not above
+      // what is spent says so in the door's own words (red)
+      const spentUsd = typeof spent === 'string' && spent.trim() !== '' && Number.isFinite(Number(spent)) && Number(spent) > 0 ? Number(spent) : 0;
+      if (spentUsd > 0 && n <= spentUsd + 1e-9) {
+        return { status: 200, body: { ok: true, text: `The cap must be above what is already spent (at least $${(Math.ceil(spentUsd * 100 + 1e-6) / 100).toFixed(2)}).`, red: true, floorUsd, floorText: capFloorText(floorUsd) } };
+      }
+      const claim = monthlyClaim(n - spentUsd);
       if (claim === null || 'problem' in claim) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText: capFloorText(floorUsd) } };
       return { status: 200, body: { ok: true, ...monthlyNote(claim), floorUsd, floorText: capFloorText(floorUsd) } };
     },

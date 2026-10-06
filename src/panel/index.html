@@ -511,6 +511,12 @@
   .jf-inrow .btn.small{height:32px;padding:0 8px;}
   .jf-inrow .jf-role-ro{padding:5px 7px;min-height:32px;overflow-wrap:anywhere;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
   .jf-inrow .jf-err{grid-column:1 / -1;}
+  /* M4e amendment 4/5: what a Run or a Resume cannot change shows dimmed (the signature fixes it); only the open boxes are bright */
+  .field.dimmed{opacity:.6;}
+  .ro-lines{padding:6px 8px;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);font-size:12px;overflow-wrap:anywhere;max-height:160px;overflow-y:auto;}
+  .ro-lines .ro-line{display:flex;gap:8px;}
+  .ro-lines .ro-n{flex:none;min-width:1.4em;color:var(--text-faint);}
+  .jf-waitrow{margin-bottom:4px;}
   .jf-err{font-size:11px;color:var(--red);margin-top:2px;overflow-wrap:anywhere;}
   .jf-err:empty{display:none;}
   .dest-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:6px;}
@@ -723,7 +729,7 @@
             <h4 id="job-card-title">Job card</h4>
             <button class="btn card-clear" type="button" id="chat-clear-btn" data-testid="chat-clear">Clear</button>
 
-            <div class="radio-row" role="radiogroup" aria-label="What to do" data-testid="jf-mode">
+            <div class="radio-row" id="jf-mode-row" role="radiogroup" aria-label="What to do" data-testid="jf-mode">
               <label><input type="radio" name="jf-mode" value="new" checked> New job</label>
               <label><input type="radio" name="jf-mode" value="run"> Run a signed flow</label>
             </div>
@@ -781,23 +787,66 @@
                 <div class="hint" id="jf-run-empty" data-testid="jf-run-empty"></div>
                 <div class="jf-err" id="jf-err-flow" data-testid="jf-err-flow"></div>
               </div>
-              <div class="cap-row">
-                <div class="cap-field">
-                  <label>Cap $ (signed)</label>
-                  <div class="ro-value" id="jf-run-cap" data-testid="jf-run-cap"></div>
-                  <div class="hint" id="jf-run-left" data-testid="jf-run-left"></div>
-                </div>
+              <div class="field dimmed" data-testid="jf-run-job-field">
+                <label>The job</label>
+                <div class="ro-lines" id="jf-run-job" data-testid="jf-run-job"></div>
+                <div class="hint">Fixed by the signature (the steps, the job lines and the asks). To change one, start a new job.</div>
+              </div>
+              <div class="field">
+                <label for="jf-run-dest">Destination</label>
+                <input id="jf-run-dest" type="text" placeholder="/full/path/to/a/folder" autocomplete="off" spellcheck="false" data-testid="jf-run-dest">
+                <div class="hint" id="jf-run-dest-hint" data-testid="jf-run-dest-hint"></div>
+                <div class="jf-err" id="jf-err-run-destination" data-testid="jf-err-run-destination"></div>
               </div>
               <div class="field">
                 <label>Inputs</label>
                 <div id="jf-run-inputs" data-testid="jf-run-inputs"></div>
                 <div class="jf-err" id="jf-err-run-inputs" data-testid="jf-err-run-inputs"></div>
               </div>
+              <div class="cap-row">
+                <div class="cap-field">
+                  <label for="jf-run-cap">Cap $</label>
+                  <input id="jf-run-cap" type="text" inputmode="decimal" autocomplete="off" data-testid="jf-run-cap">
+                  <div class="hint" id="jf-run-left" data-testid="jf-run-left"></div>
+                  <div class="jf-err" id="jf-err-run-capUsd" data-testid="jf-err-run-capUsd"></div>
+                </div>
+                <div class="cap-field" id="jf-run-waits" data-testid="jf-run-waits"></div>
+              </div>
+              <div class="jf-err" id="jf-err-run-askWaits" data-testid="jf-err-run-askWaits"></div>
+              <div class="hint" id="jf-run-sign-hint" data-testid="jf-run-sign-hint">A different destination, cap or ask wait is signed for this run only: two clicks. The flow's own values never change.</div>
               <div class="field">
                 <label for="jf-run-id">Run id</label>
                 <input id="jf-run-id" type="text" autocomplete="off" spellcheck="false" data-testid="jf-run-id">
                 <div class="jf-err" id="jf-err-runId" data-testid="jf-err-runId"></div>
               </div>
+            </div>
+
+            <div id="jf-resume" data-testid="jf-resume" hidden>
+              <div class="field dimmed" data-testid="jf-resume-job-field">
+                <label>The job</label>
+                <div class="ro-lines" id="jf-resume-job" data-testid="jf-resume-job"></div>
+              </div>
+              <div class="field dimmed">
+                <label>Destination</label>
+                <div class="ro-lines" id="jf-resume-dest" data-testid="jf-resume-dest"></div>
+              </div>
+              <div class="field dimmed">
+                <label>Inputs</label>
+                <div class="ro-lines" id="jf-resume-inputs" data-testid="jf-resume-inputs"></div>
+              </div>
+              <div class="field dimmed">
+                <label>Ask wait</label>
+                <div class="ro-lines" id="jf-resume-waits" data-testid="jf-resume-waits"></div>
+              </div>
+              <div class="cap-row">
+                <div class="cap-field">
+                  <label for="jf-resume-cap">Cap $</label>
+                  <input id="jf-resume-cap" type="text" inputmode="decimal" autocomplete="off" data-testid="jf-resume-cap">
+                  <div class="hint" id="jf-resume-left" data-testid="jf-resume-left"></div>
+                  <div class="jf-err" id="jf-err-resume-capUsd" data-testid="jf-err-resume-capUsd"></div>
+                </div>
+              </div>
+              <div class="hint" id="jf-resume-hint" data-testid="jf-resume-hint"></div>
             </div>
 
             <div class="hint" id="chat-card-error" data-testid="chat-card-error"></div>
@@ -3508,8 +3557,19 @@
     var runInputsEl = document.getElementById("jf-run-inputs");
     var runFlowSel = document.getElementById("jf-run-flow");
     var capNoteEl = document.getElementById("jf-cap-note");
+    var runDestEl = document.getElementById("jf-run-dest");         // Run a signed flow: the open Destination box (amendment 5)
+    var runCapEl = document.getElementById("jf-run-cap");           // ... and the open Cap $ box
+    var runWaitsEl = document.getElementById("jf-run-waits");       // ... and one wait box per ask
+    var resumeBox = document.getElementById("jf-resume");           // the "Resume run-<n>" form (amendment 4 item 4): only Cap $ is open
+    var resumeCapEl = document.getElementById("jf-resume-cap");
+    var modeRow = document.getElementById("jf-mode-row");
+    var titleEl = document.getElementById("job-card-title");
 
-    var mode = "new";            // "new" | "run"
+    var mode = "new";            // "new" | "run" | "resume"
+    var runSignInfo = null;      // Run form, first Sign & run click: { hash } (cleared by any edit)
+    var resumeCtx = null;        // the run being resumed: { flow, runId, form }
+    var resumeSignInfo = null;   // Resume form, first Sign & resume click: { hash }
+    var modeBeforeResume = "new";
     var mainAction = "none";
     var startOk = false;
     var sessionId = null;        // the draft's id (GET /api/author/<id>)
@@ -3543,13 +3603,28 @@
     // ---- the pure decisions (no DOM) ----
     // ONE wide button below the card. Its wording, action and enabled state are ONE pure function of
     // state = { mode, session, startOk, busy, phase, signClicked, hash, capUsd }.
-    // Actions: draft | run | sign-prepare | sign | none.
+    // Actions: draft | run | run-sign-prepare | run-sign | resume-sign-prepare | resume-sign | revise | sign-prepare | sign | none.
     function mainButtonFor(st){
       var cap = st.capUsd;
       var spends = (cap !== undefined && cap !== null && cap !== "") ? " — spends up to $" + cap : "";
       var blocked = !st.startOk || !!st.busy;
       if(st.mode === "run"){
+        // amendment 5 item 3: inputs alone = Run (one click); a Destination, Cap $ or ask wait different from the flow's = Sign & run (two clicks, bound to a hash)
+        if(st.runDiffers){
+          if(st.runSignClicked){
+            var runCap = (cap !== undefined && cap !== null && cap !== "") ? " \u00b7 $" + cap : "";
+            return {text: "Sign " + String(st.hash || "").slice(0, 8) + " & run" + runCap, action: "run-sign", disabled: !!st.busy};
+          }
+          return {text: "Sign & run", action: "run-sign-prepare", disabled: blocked};
+        }
         return {text: "Run" + spends, action: "run", disabled: blocked};
+      }
+      if(st.mode === "resume"){
+        if(st.runSignClicked){
+          var resCap = (cap !== undefined && cap !== null && cap !== "") ? " \u00b7 $" + cap : "";
+          return {text: "Sign " + String(st.hash || "").slice(0, 8) + " & resume" + resCap, action: "resume-sign", disabled: !!st.busy};
+        }
+        return {text: "Sign & resume", action: "resume-sign-prepare", disabled: blocked};
       }
       if(!st.session){
         return {text: "Draft", action: "draft", disabled: blocked};
@@ -3732,8 +3807,32 @@
         askWait: askWaitEl.value.trim()
       };
     }
+    function runWaits(){
+      var waits = {};
+      runWaitsEl.querySelectorAll("input.jf-wait").forEach(function(el){ waits[el.getAttribute("data-line")] = el.value.trim(); });
+      return waits;
+    }
     function currentRun(){
-      return {flow: runFlowSel.value, inputs: readRows(runInputsEl), runId: (byId("jf-run-id").value.trim() === autoRunId ? "" : byId("jf-run-id").value.trim())};
+      return {
+        flow: runFlowSel.value, inputs: readRows(runInputsEl), runId: (byId("jf-run-id").value.trim() === autoRunId ? "" : byId("jf-run-id").value.trim()),
+        destination: runDestEl.value.trim(), capUsd: runCapEl.value.trim(), askWaits: runWaits()
+      };
+    }
+    // pure-ish (reads the boxes): does the Run form differ from the flow's own signed values? Only a convenience that picks the button's wording
+    // (Run vs Sign & run); the server decides again and never trusts this.
+    function runDiffers(){
+      var f = selectedFlow();
+      if(!f || !f.values) return false;
+      var dest = runDestEl.value.trim();
+      if(f.hasSend && dest !== "" && dest !== f.values.destination) return true;
+      var cap = runCapEl.value.trim();
+      if(cap !== "" && !(isFinite(Number(cap)) && Number(cap) === f.values.capUsd)) return true;
+      var waits = runWaits();
+      return Object.keys(waits).some(function(k){ return waits[k] !== "" && waits[k].toLowerCase() !== f.values.askWaits[k]; });
+    }
+    function capValid(text){
+      var v = Number(text);
+      return text !== "" && isFinite(v) && v > 0;
     }
     function selectedFlow(){
       for(var i = 0; i < flows.length; i++){ if(flows[i].flow === runFlowSel.value) return flows[i]; }
@@ -3743,7 +3842,10 @@
     function startReady(){
       if(moneyRed) return false;   // amendment 4 item 1: a cap that does not fit this month stops you before the click (the server still refuses)
       if(mode === "run"){
-        return !!selectedFlow() && readRows(runInputsEl).every(function(r){ return r.path !== ""; });
+        return !!selectedFlow() && readRows(runInputsEl).every(function(r){ return r.path !== ""; }) && capValid(runCapEl.value.trim());
+      }
+      if(mode === "resume"){
+        return !!resumeCtx && capValid(resumeCapEl.value.trim());
       }
       var c = currentCard();
       var v = Number(c.capUsd);
@@ -3758,9 +3860,9 @@
     var capNoteSeq = 0;
     var capNoteTimer = null;
     function setMoneyNote(text, red){
-      var els = [capNoteEl, byId("jf-run-left")];
+      var els = [capNoteEl, byId("jf-run-left"), byId("jf-resume-left")];
       els.forEach(function(el){ el.textContent = ""; el.classList.remove("money-red"); });
-      var el = els[mode === "run" ? 1 : 0];
+      var el = els[mode === "run" ? 1 : (mode === "resume" ? 2 : 0)];
       el.textContent = text;
       el.classList.toggle("money-red", !!red && text !== "");
       var was = moneyRed;
@@ -3772,14 +3874,20 @@
       return byId("jf-job").value.split("\n").some(function(l){ var t = l.trim(); return t !== "" && t.charAt(0) !== "~" && !/^ask\b/i.test(t); });
     }
     function refreshCapNote(){
-      var cap = mode === "run" ? (selectedFlow() ? String(selectedFlow().capUsd) : "") : byId("jf-cap-money").value.trim();
+      var cap = mode === "run" ? runCapEl.value.trim() : (mode === "resume" ? resumeCapEl.value.trim() : byId("jf-cap-money").value.trim());
       var seq = ++capNoteSeq;
       if(cap === ""){ setMoneyNote("", false); return; }
-      authorGet("/api/author/monthly-check?cap=" + encodeURIComponent(cap)).then(function(j){
+      // a Resume holds only what the run has still to spend (amendment 4 item 1): the server is told what is already spent
+      var spent = (mode === "resume" && resumeCtx) ? "&spent=" + encodeURIComponent(String(resumeCtx.form.spentUsd)) : "";
+      authorGet("/api/author/monthly-check?cap=" + encodeURIComponent(cap) + spent).then(function(j){
         if(seq !== capNoteSeq) return;
         if(!j || j.ok !== true){ setMoneyNote("", false); return; }
         var v = Number(cap);
         if(mode === "new" && j.floorText && isFinite(v) && v > 0 && v < j.floorUsd && jobHasModelStep()){ setMoneyNote(j.floorText, true); return; }
+        // a Run's own cap is never judged against the floor (an old flow signed lower still runs plain); a changed cap below it is red
+        var sf = selectedFlow();
+        if(mode === "run" && sf && j.floorText && isFinite(v) && v > 0 && v !== sf.capUsd && v < sf.capFloorUsd){ setMoneyNote(sf.floorText, true); return; }
+        if(mode === "resume" && resumeCtx && j.floorText && isFinite(v) && v > resumeCtx.form.spentUsd && v < resumeCtx.form.floorUsd){ setMoneyNote(resumeCtx.form.floorText, true); return; }
         setMoneyNote(typeof j.text === "string" ? j.text : "", j.red === true);
       }).catch(function(){ if(seq === capNoteSeq) setMoneyNote("", false); });
     }
@@ -3799,6 +3907,9 @@
         return row ? row.querySelector(".jf-err") : null;
       }
       if(field === "inputs") return byId(mode === "run" ? "jf-err-run-inputs" : "jf-err-inputs");
+      if(mode === "run" && (field === "destination" || field === "capUsd")) return byId("jf-err-run-" + field);
+      if(mode === "run" && /^askWaits/.test(field)) return byId("jf-err-run-askWaits");
+      if(mode === "resume" && field === "capUsd") return byId("jf-err-resume-capUsd");
       return byId("jf-err-" + field);
     }
     // returns the sentences that had no box to sit next to
@@ -3829,7 +3940,7 @@
       return live ? {text: "Abandon", disabled: !hasId || busy} : {text: "Clear", disabled: busy};
     }
     function refreshClearBtn(){
-      var b = clearButtonFor(sessionLive, !!sessionId);
+      var b = mode === "resume" ? {text: "Cancel", disabled: busy} : clearButtonFor(sessionLive, !!sessionId);
       clearBtn.textContent = b.text;
       clearBtn.disabled = b.disabled;
     }
@@ -3843,10 +3954,40 @@
     // ---- Run a signed flow: the list comes from the server (only flows whose signature checks out) ----
     var paintedFlow = null;
     var autoRunId = "";   // the prefilled next name (amendment 3): an untouched box sends "" and the server claims the next number itself
+    // the signed job as the dimmed read-only block both forms show (amendment 4/5: what a run cannot change is shown, not editable)
+    function paintJobDim(el, lines){
+      el.innerHTML = "";
+      (lines || []).forEach(function(l){
+        var row = document.createElement("div");
+        row.className = "ro-line";
+        var n = document.createElement("span"); n.className = "ro-n"; n.textContent = String(l.n);
+        var t = document.createElement("span"); t.textContent = (l.ask ? "Ask: " : "") + l.text + (l.guardrail ? "  ~ " + l.guardrail : "");
+        row.appendChild(n); row.appendChild(t);
+        el.appendChild(row);
+      });
+    }
     function paintRunFlow(){
       var f = selectedFlow();
       paintedFlow = runFlowSel.value;
-      byId("jf-run-cap").textContent = f ? "$" + f.capUsd : "";
+      runSignInfo = null;
+      paintJobDim(byId("jf-run-job"), f ? f.jobLines : []);
+      runDestEl.value = f && f.values && f.values.destination ? f.values.destination : "";
+      runDestEl.readOnly = !(f && f.hasSend);
+      runDestEl.classList.toggle("locked", !(f && f.hasSend));
+      byId("jf-run-dest-hint").textContent = !f ? "" : (f.hasSend ? "Where the accepted result is placed, at the last step. A different folder is signed for this run only." : "This flow has no send step, so there is no destination to set.");
+      runCapEl.value = f ? String(f.capUsd) : "";
+      runWaitsEl.innerHTML = "";
+      Object.keys((f && f.values && f.values.askWaits) || {}).forEach(function(line){
+        var row = document.createElement("div");
+        row.className = "jf-waitrow";
+        var lab = document.createElement("label");
+        lab.textContent = "Ask wait \u00b7 line " + line;
+        var inp = makeInput("jf-wait", "e.g. 30m", f.values.askWaits[line]);
+        inp.setAttribute("data-line", line);
+        inp.setAttribute("data-testid", "jf-run-wait-" + line);
+        row.appendChild(lab); row.appendChild(inp);
+        runWaitsEl.appendChild(row);
+      });
       paintRunRows(f);
       autoRunId = f && f.nextRunId ? f.nextRunId : "";
       byId("jf-run-id").value = autoRunId;
@@ -3875,9 +4016,13 @@
     }
     function setMode(m){
       mode = m;
+      runSignInfo = null; resumeSignInfo = null;
       document.querySelectorAll('input[name="jf-mode"]').forEach(function(r){ r.checked = (r.value === m); });
       newBox.hidden = (m !== "new");
       runBox.hidden = (m !== "run");
+      resumeBox.hidden = (m !== "resume");
+      modeRow.hidden = (m === "resume");
+      titleEl.textContent = (m === "resume" && resumeCtx) ? "Resume " + resumeCtx.runId + " \u00b7 " + resumeCtx.flow : "Job card";
       clearFieldErrors();
       if(m === "run") loadFlows();
       refreshCapNote();
@@ -3919,8 +4064,14 @@
       }
       st.boxOpen = askBoxOpenFor(st);
       if(mode === "run"){
-        var f = selectedFlow();
-        st.capUsd = f ? f.capUsd : undefined;
+        st.capUsd = runCapEl.value.trim();
+        st.runDiffers = runDiffers();
+        st.runSignClicked = !!runSignInfo;
+        st.hash = runSignInfo ? runSignInfo.hash : "";
+      } else if(mode === "resume"){
+        st.capUsd = resumeCapEl.value.trim();
+        st.runSignClicked = !!resumeSignInfo;
+        st.hash = resumeSignInfo ? resumeSignInfo.hash : "";
       } else if(signInfo){
         st.capUsd = signInfo.capUsd;
       } else if(lastState && lastState.card){
@@ -3984,6 +4135,7 @@
     }
     // back to a fresh empty card: every box, the inputs, the progress list, the ask box
     function resetCard(){
+      if(mode === "resume"){ resumeCtx = null; setMode(modeBeforeResume === "resume" ? "new" : modeBeforeResume); }
       ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; });
       askWaitEl.value = "1h";
       refreshCapNote();
@@ -4098,6 +4250,80 @@
         beginStart(r.body.startId);
       }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
     }
+    // Run a signed flow with a Destination, Cap $ or ask wait that differs from the flow's (amendment 5 item 3): click 1 asks the server what
+    // is about to be signed (a hash; signs nothing), click 2 is the ONLY call that signs and starts, carrying that hash.
+    function doRunSign(){
+      clearFieldErrors();
+      chatActionOk();
+      busy = true;
+      refreshStartEnabled();
+      if(!runSignInfo){
+        authorPost("/api/author/run-prepare", currentRun()).then(function(r){
+          busy = false;
+          var o = chatPostOutcome(r);
+          if(!o.ok){ failFrom(r); refreshStartEnabled(); return; }
+          if(r.body.needsSign !== true){ doRun(); return; }   // the server sees nothing to sign after all: a plain Run
+          runSignInfo = {hash: r.body.hash};
+          refreshStartEnabled();
+        }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
+        return;
+      }
+      var body = currentRun();
+      body.hash = runSignInfo.hash;
+      authorPost("/api/author/run", body).then(function(r){
+        var o = chatPostOutcome(r);
+        runSignInfo = null;
+        if(!o.ok){ busy = false; failFrom(r); refreshStartEnabled(); return; }
+        beginStart(r.body.startId);
+      }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
+    }
+    // the Resume form (amendment 4 item 4, "Sign & resume"): the same two clicks; the cap is the only thing in the body besides the run
+    function resumeBody(){ return {flow: resumeCtx.flow, runId: resumeCtx.runId, capUsd: resumeCapEl.value.trim()}; }
+    function doResumeSign(){
+      if(!resumeCtx) return;
+      clearFieldErrors();
+      chatActionOk();
+      busy = true;
+      refreshStartEnabled();
+      if(!resumeSignInfo){
+        authorPost("/api/author/resume-prepare", resumeBody()).then(function(r){
+          busy = false;
+          var o = chatPostOutcome(r);
+          if(!o.ok){ failFrom(r); refreshStartEnabled(); return; }
+          resumeSignInfo = {hash: r.body.hash};
+          refreshStartEnabled();
+        }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
+        return;
+      }
+      var body = resumeBody();
+      body.hash = resumeSignInfo.hash;
+      authorPost("/api/author/resume", body).then(function(r){
+        var o = chatPostOutcome(r);
+        resumeSignInfo = null;
+        if(!o.ok){ busy = false; failFrom(r); refreshStartEnabled(); return; }
+        beginStart(r.body.startId);
+      }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
+    }
+    // the Run tab's Resume button: read the form's facts from the server (it refuses a run that is not stopped), then show the card in resume mode
+    function openResume(detail){
+      authorGet("/api/author/resume-form?flow=" + encodeURIComponent(detail.flow) + "&runId=" + encodeURIComponent(detail.runId)).then(function(j){
+        document.getElementById("tab-chat").click();
+        if(!j || j.ok !== true){ chatActionFailed((j && j.say) || "This run cannot be resumed."); return; }
+        if(startId !== null || sessionLive){ chatActionFailed("Finish or clear what is on the card first, then Resume."); return; }
+        if(mode !== "resume") modeBeforeResume = mode;
+        resumeCtx = {flow: detail.flow, runId: detail.runId, form: j};
+        chatActionOk();
+        paintJobDim(byId("jf-resume-job"), j.jobLines);
+        byId("jf-resume-dest").textContent = j.values.destination || "no send step";
+        byId("jf-resume-inputs").innerHTML = "";
+        (j.inputs || []).forEach(function(i){ var d = document.createElement("div"); d.className = "ro-line"; d.textContent = i.role + ": " + i.path; byId("jf-resume-inputs").appendChild(d); });
+        byId("jf-resume-waits").textContent = Object.keys(j.values.askWaits || {}).map(function(k){ return "line " + k + ": " + j.values.askWaits[k]; }).join(" \u00b7 ") || "no ask";
+        resumeCapEl.value = String(j.values.capUsd);
+        byId("jf-resume-hint").textContent = "Already spent $" + Number(j.spentUsd).toFixed(4) + ". Same run, same steps, nothing is redrawn; a new cap is signed for this run. Other changes are a new run or a new job.";
+        setMode("resume");
+      }).catch(function(){ document.getElementById("tab-chat").click(); chatActionFailed(NETWORK_SAY); });
+    }
+    window.fwdloopOpenResume = openResume;
     function doSign(){
       if(!sessionId) return;
       var id = sessionId;
@@ -4200,6 +4426,7 @@
 
     // ---- wiring ----
     clearBtn.addEventListener("click", function(){
+      if(mode === "resume"){ resumeCtx = null; actionErrEl.textContent = ""; setMode(modeBeforeResume === "resume" ? "new" : modeBeforeResume); return; }
       if(clearBtn.textContent === "Abandon" && sessionId){ doAbandon(); return; }
       // a refused start's sentence is dismissed on the server too, or a reload would bring it back
       if(refusedStartId){ var rid = refusedStartId; refusedStartId = null; authorPost("/api/author/start/" + rid + "/clear", {}).catch(function(){}); }
@@ -4209,6 +4436,8 @@
       if(mainBtn.disabled) return;
       if(mainAction === "draft") doDraft();
       else if(mainAction === "run") doRun();
+      else if(mainAction === "run-sign-prepare" || mainAction === "run-sign") doRunSign();
+      else if(mainAction === "resume-sign-prepare" || mainAction === "resume-sign") doResumeSign();
       else if(mainAction === "revise") doRevise();
       else if(mainAction === "sign-prepare" || mainAction === "sign") doSign();
     });
@@ -4221,7 +4450,9 @@
       var grp = e.target && e.target.closest ? e.target.closest(".field, .cap-field, .jf-inrow") : null;
       if(grp) grp.querySelectorAll(".jf-err").forEach(function(x){ x.textContent = ""; });
       fitCardBoxes();
-      if(e.target && (e.target.id === "jf-cap-money" || e.target.id === "jf-job")) scheduleCapNote();
+      if(e.target && (e.target.id === "jf-cap-money" || e.target.id === "jf-job" || e.target.id === "jf-run-cap" || e.target.id === "jf-resume-cap")) scheduleCapNote();
+      // any edit voids the first Sign click of the Run / Resume form: what is shown must be what is signed
+      runSignInfo = null; resumeSignInfo = null;
       refreshStartEnabled();
     });
     document.querySelectorAll('input[name="jf-mode"]').forEach(function(r){

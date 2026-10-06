@@ -437,7 +437,8 @@ export function handleRequest(req, res, opts) {
     let r = { status: 404, body: /** @type {any} */ ({ ok: false, refused: 'not-found' }) };
     if (pathname === '/api/author/live') r = opts.author.live();
     else if (pathname === '/api/author/flows') r = opts.author.flows();
-    else if (pathname === '/api/author/monthly-check') r = opts.author.monthlyCheck(url.searchParams.get('cap'));
+    else if (pathname === '/api/author/monthly-check') r = opts.author.monthlyCheck(url.searchParams.get('cap'), url.searchParams.get('spent'));
+    else if (pathname === '/api/author/resume-form') r = opts.author.resumeForm(url.searchParams.get('flow'), url.searchParams.get('runId'));
     else if (sm) r = opts.author.startGet(sm[1]);
     else if (am) r = opts.author.get(am[1]);
     if (method === 'HEAD') { res.writeHead(r.status, { 'content-type': 'application/json; charset=utf-8' }); res.end(); return; }

@@ -16,13 +16,14 @@ import { userInfo } from 'node:os';
 
 import { scrub } from '../authoring.js';
 import { loadCatalogue } from '../catalogue.js';
-import { checkFlowName, readFlow, resolveRunDir } from '../flow.js';
+import { checkFlowName, readFileInside, readFlow, resolveRunDir } from '../flow.js';
 import { readResumeLock } from '../liveness.js';
 import { auditSpend } from '../runner.js';
 import {
   flowValues, pickRunValues, valuesHash, writeRunValues,
 } from '../runvalues.js';
-import { capFloorFor } from './authorcard.js';
+import { capFloorFor, capFloorText } from './authorcard.js';
+import { formFacts } from './authorflows.js';
 import { checkValues } from './authorvalues.js';
 import { getRunControls } from './data.js';
 import { providerKeys } from './spawn.js';
@@ -41,7 +42,7 @@ export function createResumeDoor(opts) {
    * Every $0 check, shared by both clicks. `{ok:false, reply}` or the facts the clicks need.
    * @param {any} body
    */
-  function inspect(body) {
+  function inspect(body, formOnly = false) {
     const no = (status, body2) => ({ ok: /** @type {false} */ (false), reply: { status, body: { ok: false, ...body2 } } });
     let realRoot;
     try { realRoot = realpathSync(root); } catch { return no(400, { refused: 'root', say: 'The flows folder this panel serves does not exist.' }); }
@@ -71,6 +72,7 @@ export function createResumeDoor(opts) {
     const spent = auditSpend(rd.runDir);
     if (!spent.ok) return no(409, { refused: 'books', say: `The run's books cannot be read (${spent.red}). Nothing was signed.` });
     const hasRound = read.declaration.steps.some((st) => !(read.arbiter.asks ?? []).some((a) => a.line === st.fromLine));
+    if (formOnly) return { ok: /** @type {true} */ (true), flow, runId, runDir: rd.runDir, version, base, spentUsd: spent.total, read, hasRound };
     const checked = checkValues({
       allowedKeys: KEYS, body: b, base, realRoot, capOnly: true, floorUsd: capFloorFor(hasRound), spentUsd: spent.total, monthlyClaim, always: true,
     });
@@ -86,9 +88,30 @@ export function createResumeDoor(opts) {
   }
 
   return {
+    /**
+     * `GET /api/author/resume-form?flow=&runId=`: what the "Resume run-<n>" form shows — the same locating checks as the clicks (a run that is not
+     * stopped or cap-halted gets the same refusal), then the values in force (dimmed on the form except the cap), what the run has spent, the
+     * job lines as signed and the files it froze. Writes nothing.
+     * @param {string|null} flow @param {string|null} runId
+     */
+    form(flow, runId) {
+      const s = inspect({ flow: flow ?? '', runId: runId ?? '' }, true);
+      if (!s.ok) return s.reply;
+      const inputsRead = readFileInside(s.runDir, 'inputs.json');
+      let inputs = [];
+      try { inputs = inputsRead.ok ? JSON.parse(inputsRead.text).map((m) => ({ role: String(m.id), path: String(m.source) })) : []; } catch { inputs = []; }
+      const floorUsd = capFloorFor(s.hasRound);
+      return {
+        status: 200,
+        body: {
+          ok: true, flow: s.flow, runId: s.runId, version: s.version, values: s.base, spentUsd: s.spentUsd, inputs, floorUsd, floorText: capFloorText(floorUsd), jobLines: formFacts(s.read).jobLines,
+        },
+      };
+    },
+
     /** `POST /api/author/resume-prepare`: the first click. Writes nothing. @param {any} body */
     prepare(body) {
-      const s = inspect(body);
+      const s = /** @type {any} */ (inspect(body));
       if (!s.ok) return s.reply;
       return {
         status: 200,
@@ -106,7 +129,7 @@ export function createResumeDoor(opts) {
     resume(body) {
       const loaded = loadEnv();
       if (!loaded.ok) return { status: 409, body: { ok: false, refused: 'keys-file', say: String(loaded.refusal) } };
-      const s = inspect(body);
+      const s = /** @type {any} */ (inspect(body));
       if (!s.ok) return s.reply;
       if (typeof s.hashGiven !== 'string' || s.hashGiven !== s.hash) {
         return { status: 409, body: { ok: false, refused: 'stale-hash', say: 'What you were shown is not what is on disk now (its hash differs). Nothing was signed. Look again, then sign.' } };
