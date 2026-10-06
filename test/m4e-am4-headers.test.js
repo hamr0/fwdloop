@@ -34,6 +34,15 @@ test('am4 (h) source: each section header of an ask artifact is wrapped in .art-
   const el2 = fakeDom().createElement('div');
   fill(el2, 'Hello there.\n\nbody text here\n\nlast line');
   assert.deepEqual(el2.children.filter((c) => c.className === 'art-head').map((c) => c.textContent), ['body text here']);
+  // walk fix 3: markdown heading lines count wherever they are, single newlines included; the bytes (with the #) are untouched
+  const md = '## summary of work history blurb\nworked places.\n## professional skills\nskills.\n## soft skills\nsoft skills.';
+  const el3 = fakeDom().createElement('div');
+  fill(el3, md);
+  assert.equal(el3.textContent, md, 'the # stays in the text');
+  assert.deepEqual(el3.children.filter((c) => c.className === 'art-head').map((c) => c.textContent), ['## summary of work history blurb', '## professional skills', '## soft skills']);
+  const el4 = fakeDom().createElement('div');
+  fill(el4, 'intro line\n#hashtag no space\n####### seven');
+  assert.deepEqual(el4.children.filter((c) => c.className === 'art-head'), [], 'no space after # or seven #: not a heading');
   // both ask-view renderers go through it
   assert.match(PAGE, /fillArtifactText\(draftEl, evidence\.draft\)/);
   assert.match(PAGE, /fillArtifactText\(art, u\.text\)/);

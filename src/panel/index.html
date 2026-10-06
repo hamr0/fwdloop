@@ -3368,7 +3368,10 @@
   // (60 characters or fewer), does not end in a sentence stop, and has another paragraph after it. The text itself is
   // untouched (textContent still equals the artifact, byte for byte); only the colour of those lines changes.
   var ART_HEAD_MAX = 60;
+  // A markdown heading line (1-6 "#", a space, then text) is a header wherever it sits, single newlines included, last paragraph too.
+  var ART_MD_HEAD = /^#{1,6} \S/;
   function isArtifactHeader(para, hasNext){
+    if(ART_MD_HEAD.test(para) && para.indexOf("\n") === -1) return true;
     return hasNext && para.length > 0 && para.length <= ART_HEAD_MAX && para.indexOf("\n") === -1 && !/[.!?:;,]$/.test(para.trim());
   }
   function fillArtifactText(el, text){
@@ -3376,7 +3379,24 @@
     var paras = String(text).split("\n\n");
     paras.forEach(function(para, i){
       if(i > 0) el.appendChild(document.createTextNode("\n\n"));
-      if(isArtifactHeader(para, i < paras.length - 1)){
+      if(para.indexOf("\n") !== -1){
+        // several lines in one paragraph: only markdown heading lines are headers; the "\n" between lines stays in the text
+        var plain = "";
+        para.split("\n").forEach(function(line, j){
+          var sep = j > 0 ? "\n" : "";
+          if(ART_MD_HEAD.test(line)){
+            el.appendChild(document.createTextNode(plain + sep));
+            plain = "";
+            var hh = document.createElement("span");
+            hh.className = "art-head";
+            hh.textContent = line;
+            el.appendChild(hh);
+          } else {
+            plain += sep + line;
+          }
+        });
+        if(plain !== "") el.appendChild(document.createTextNode(plain));
+      } else if(isArtifactHeader(para, i < paras.length - 1)){
         var h = document.createElement("span");
         h.className = "art-head";
         h.textContent = para;
