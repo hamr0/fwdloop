@@ -419,6 +419,7 @@
   .ask-question-heading{margin:6px 0 0;font-size:13px;font-weight:700;color:var(--text);}
   .ro-value{padding:6px 8px;min-height:32px;box-sizing:border-box;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
   .art-head{color:var(--accent);}
+  .ro-value.sub{margin-left:20px;min-height:0;padding-top:2px;padding-bottom:2px;border-top-width:0;overflow-wrap:anywhere;}
   .ro-value.scroll{max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;}
   .field-row{display:flex;flex-wrap:wrap;gap:10px;}
   .field-row .field{flex:1 1 140px;margin-bottom:10px;}
@@ -982,7 +983,7 @@
                piece within a field — replaces the old split asks/sends/
                sources/signed-lines blocks. Field order (signed): Job
                (prose) · Ask · Model · $ cap (+ redo cap) · Source ·
-               Destination · Guardrails · Success · Signed. At 390px every
+               Destination · Success · Signed (M4e amendment 6: each guardrail sits under its own line in Job). At 390px every
                field's own `label` already sits above its value (the
                existing global `label{display:block}` rule — no separate
                narrow-width override needed). -->
@@ -995,7 +996,6 @@
             <div class="field"><label>Ask</label><div id="details-asks"></div></div>
             <div class="field"><label>Source</label><div id="details-sources"></div></div>
             <div class="field"><label>Destination</label><div id="details-sends"></div></div>
-            <div class="field"><label>Guardrails</label><div id="details-guardrails"></div></div>
             <div class="field"><label>Success</label><div id="details-success"></div></div>
             <div class="field"><label>Signed</label><div class="ro-value" id="details-signature">—</div></div>
           </div>
@@ -2603,9 +2603,13 @@
   // getRunJob (src/panel/data.js), which reads fwdloop's own signed
   // declaration.json + signature.json (one per flow, unlike bareloop's
   // multi-source provenance chain — DROPPED per the M4a fit-check). ----
-  function ttlLabel(ms){
-    if(typeof ms !== "number") return "unknown";
-    return duration(ms);
+  // M4e amendment 6 item 6: ONE wait formatter for the Job block's "~ waits" row and the Ask row: "1h", "30m", "1h 30m", never "60m00s".
+  // A wait that is not a whole number of seconds falls back to `duration`.
+  function plainWait(ms){
+    if(typeof ms !== "number" || !(ms > 0)) return "unknown";
+    if(ms % 1000 !== 0) return duration(ms);
+    var t = ms / 1000, h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+    return [h ? h + "h" : "", m ? m + "m" : "", sec ? sec + "s" : ""].filter(Boolean).join(" ");
   }
   // hamr's 2026-09-27 exit-check review #5: ONE row-per-piece renderer,
   // shared by every multi-row Job field (prose/asks/sources/sends/
@@ -2634,12 +2638,29 @@
     document.getElementById("details-title").textContent = "Job — " + job.flow + " (signed)";
     // review #5: "Job (prose)" — the signed lines, numbered, WITHOUT their
     // guardrail mixed in (guardrails get their own field below).
-    renderRowsField("details-prose", job.prose, "no signed prose lines", function(l){
-      return l.line + ". " + l.text;
-    });
+    // M4e amendment 6 item 6: the Job block reads like the card: each numbered line, then its own `~` rows: its guardrail, an ask line's
+    // wait, a send line's destination. (The separate Guardrails field is gone.) `job` already carries the values in force for this run.
+    var jobEl = document.getElementById("details-prose");
+    jobEl.innerHTML = "";
+    if(!job.prose || !job.prose.length){
+      jobEl.appendChild(textDiv("hint", "no signed prose lines"));
+    } else {
+      job.prose.forEach(function(l){
+        jobEl.appendChild(textDiv("ro-value", l.line + ". " + l.text));
+        (job.guardrails || []).filter(function(g){ return g.line === l.line; }).forEach(function(g){
+          jobEl.appendChild(textDiv("ro-value sub", "~ " + g.guardrail));
+        });
+        (job.asks || []).filter(function(ak){ return ak.line === l.line; }).forEach(function(ak){
+          jobEl.appendChild(textDiv("ro-value sub", "~ waits " + plainWait(ak.waitMs)));
+        });
+        (job.sends || []).filter(function(sd){ return sd.line === l.line; }).forEach(function(sd){
+          jobEl.appendChild(textDiv("ro-value sub", "~ writes out to " + (sd.target || "unknown")));
+        });
+      });
+    }
     // review #5: "Ask" — one row per signed ask line.
     renderRowsField("details-asks", job.asks, "no signed asks", function(ak){
-      return "line " + ak.line + " · \"" + ak.question + "\" · waits " + ttlLabel(ak.waitMs);
+      return "line " + ak.line + " · \"" + ak.question + "\" · waits " + plainWait(ak.waitMs);
     });
     // hamr review #7: no declaration/signature book records a model on the
     // flow itself (checked against `src/panel/data.js`'s own
@@ -2648,17 +2669,11 @@
     document.getElementById("details-model").textContent = job.model
       ? ("model used: " + job.model + " (from this run's rows)")
       : (job.modelWhy || "no model call recorded yet");
-    // hamr's 2026-09-27 final tweak #1: "$ cap" — bareloop-style "$ cap /
-    // Time cap" row: money (signed capUsd + redo cap) THEN time. Checked
-    // against src/declaration.js and src/types.js's own Arbiter typedef:
-    // fwdloop's signed arbiter carries `capUsd`/`redoCap` (and per-ask
-    // `ttlMs`, which is an ask's own wait, not a run-wide time cap) — there
-    // is no signed run-wide time-cap field anywhere in the grammar, so this
-    // NEVER invents one; it says so in words instead.
+    // M4e amendment 6 item 5: "$<cap> per run · redo up to <n>". fwdloop has no run-wide time limit (each ask has its own wait, shown
+    // with its line), so the words never show here.
     document.getElementById("details-cap").textContent =
       (typeof job.capUsd === "number" ? ("$" + job.capUsd.toFixed(2)) : "unknown")
-      + " · redo cap " + (typeof job.redoCap === "number" ? job.redoCap : "unknown")
-      + " · time cap: no time cap signed";
+      + " per run · redo up to " + (typeof job.redoCap === "number" ? job.redoCap : "unknown");
     // review #5: "Source" — role -> basename only (never the full signed path).
     renderRowsField("details-sources", job.sources, "no signed sources", function(s){
       return s.role + " → " + s.basename;
@@ -2666,10 +2681,6 @@
     // review #5: "Destination" — one row per signed send.
     renderRowsField("details-sends", job.sends, "no signed sends", function(s){
       return "line " + s.line + " · " + (s.kind || "unknown") + " → " + (s.target || "unknown");
-    });
-    // review #5: "Guardrails" — ONE field, one row per numbered-line guardrail.
-    renderRowsField("details-guardrails", job.guardrails, "no numbered-line guardrails signed", function(g){
-      return "line " + g.line + " · " + g.guardrail;
     });
     // review #5: "Success" — one row per declared step, off data.js's own
     // deriveStepSuccessText (never re-derived client-side).

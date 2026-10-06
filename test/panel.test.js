@@ -19,6 +19,8 @@ import path from 'node:path';
 
 import { writeFlow, appendAudit, appendHistory } from '../src/index.js';
 import { loadCatalogue } from '../src/catalogue.js';
+import { readFlow } from '../src/flow.js';
+import { writeRunValues, valuesHash } from '../src/runvalues.js';
 import { createPanelServer, DEFAULT_PORT } from '../src/panel/server.js';
 import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
 import {
@@ -1411,6 +1413,24 @@ describe('deriveStepTryMarks / deriveStepGroupState (hamr\'s 2026-09-27 exit-che
 });
 
 describe('getRunJob', () => {
+  // M4e amendment 6 item 6 (g): a run with its own signed values (amendment 5) shows the values in force for that run.
+  test('am6 (g): a run with its own signed values reports that run\'s cap, destination and ask wait, not the flow\'s', () => {
+    const runDir = makeRunDir(FLOW_DIR, 'run-own-values');
+    const flowRead = readFlow({ root: ROOT, name: FLOW, catalogue: CATALOGUE });
+    assert.equal(flowRead.ok, true);
+    const askLine = String(flowRead.arbiter.asks[0].line);
+    const values = { capUsd: 0.4, destination: '/tmp/fwdloop-own-dest', askWaits: { [askLine]: '30m' } };
+    const rec = { flow: FLOW, flowSignatureHash: flowRead.signature.flow, runId: 'run-own-values', version: 0, values };
+    const w = writeRunValues(runDir, { ...rec, hash: valuesHash({ ...rec, runId: null }), signedBy: 'hamr', at: '2026-10-06T10:00:00.000Z' });
+    assert.equal(w.ok, true, JSON.stringify(w));
+    const job = getRunJob({ root: ROOT, flow: FLOW, runId: 'run-own-values', catalogue: CATALOGUE });
+    assert.equal(job.capUsd, 0.4);
+    assert.equal(job.sends[0].target, '/tmp/fwdloop-own-dest');
+    assert.equal(job.asks[0].waitMs, 1800000);
+    const plain = getRunJob({ root: ROOT, flow: FLOW, runId: 'run-done', catalogue: CATALOGUE });
+    assert.equal(plain.capUsd, 0.25, 'the flow\'s own run is unchanged');
+  });
+
   // hamr's 2026-09-27 exit-check review #5: the bareloop-style one-field-
   // per-piece layout (prose / asks / model / cap / sources / sends /
   // guardrails / success / signature), replacing the old split
@@ -2330,8 +2350,8 @@ describe('index.html — page source', () => {
   // puts details-prose back first, and the positions[i] > positions[i-1]
   // check on the FIRST pair (details-model vs details-cap is unaffected, but
   // details-cap vs details-prose) goes red.
-  test('final tweak #1: the Job tab\'s field order is Model, $ cap, Job (prose), Ask, Source, Destination, Guardrails, Success, Signed', () => {
-    const ids = ['details-model', 'details-cap', 'details-prose', 'details-asks', 'details-sources', 'details-sends', 'details-guardrails', 'details-success', 'details-signature'];
+  test('final tweak #1: the Job tab\'s field order is Model, $ cap, Job (prose), Ask, Source, Destination, Success, Signed (am6: no Guardrails field)', () => {
+    const ids = ['details-model', 'details-cap', 'details-prose', 'details-asks', 'details-sources', 'details-sends', 'details-success', 'details-signature'];
     const positions = ids.map((id) => {
       const idx = source.indexOf(`id="${id}"`);
       assert.ok(idx > 0, `expected to find id="${id}" in the page`);
@@ -2346,20 +2366,18 @@ describe('index.html — page source', () => {
     const fnStart = source.indexOf('function renderJob');
     const fnEnd = source.indexOf('\n  }', fnStart);
     const body = source.slice(fnStart, fnEnd);
-    assert.match(body, /redo cap/);
+    assert.match(body, /redo up to/);
     assert.doesNotMatch(source, /id="details-redo-cap"/); // the OLD, separate field id is gone
   });
 
-  // hamr's 2026-09-27 final tweak #1: fwdloop's signed arbiter (src/types.js
-  // Arbiter typedef, src/declaration.js) carries capUsd/redoCap and each
-  // ask's own ttlMs, but NO run-wide time-cap field at all — so the $ cap
-  // row must always say plainly that no time cap is signed, never invent
-  // one from an ask's ttlMs or any other value.
-  test('final tweak #1: the $ cap row states "no time cap signed" (fwdloop\'s arbiter has no signed time-cap field)', () => {
+  // M4e amendment 6 item 5 (negative (f)): the cap line is `$<cap> per run · redo up to <n>`; "time cap" never shows (fwdloop has no run-wide
+  // time cap; each ask's own wait shows under its line).
+  test('am6 (f): the cap row reads "$<cap> per run · redo up to <n>" and the page never says "time cap"', () => {
     const fnStart = source.indexOf('function renderJob');
     const fnEnd = source.indexOf('\n  }', fnStart);
     const body = source.slice(fnStart, fnEnd);
-    assert.match(body, /no time cap signed/);
+    assert.match(body, /" per run · redo up to "/);
+    assert.doesNotMatch(source, /time cap/i);
   });
 
   // hamr's 2026-09-27 final tweak #2: the signed timestamp is a raw ISO
