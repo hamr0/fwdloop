@@ -40,10 +40,11 @@ const KEY = 'test-key-not-a-secret-shape';
 
 // The usage of POC (b)'s real DeepSeek cache-hit round (poc/m4d/RESULTS.md).
 const POC_USAGE = { inputTokens: 225, cacheReadTokens: 2816, outputTokens: 22 };
-const SET_PRICE = { inPerM: 1.0, cachedInPerM: 0.1, outPerM: 4.0 };
+const SET_PRICE = { inPerM: 1.0, outPerM: 4.0 };
+const SET_BOOKED = { ...SET_PRICE, cachedInPerM: 1.0 }; // amendment 2: cached input books at the input rate
 const U = { inputTokens: 100, cacheReadTokens: 1000, outputTokens: 50 };
-const COST_TABLE_U = (100 * 0.30 + 1000 * 0.006 + 50 * 1.20) / 1e6; // 9.6e-5: deepseek-flash, code table
-const COST_SET_U = (100 * 1.0 + 1000 * 0.1 + 50 * 4.0) / 1e6; // 4e-4: the SET_PRICE above
+const COST_TABLE_U = (100 * 0.30 + 1000 * 0.30 + 50 * 1.20) / 1e6; // 1.2e-4: deepseek-flash, code table (cached input books at input, amendment 2)
+const COST_SET_U = (100 * 1.0 + 1000 * 1.0 + 50 * 4.0) / 1e6; // 1.3e-3: the SET_PRICE above
 
 const newHome = () => path.join(tmp('home'), 'fwdloop');
 /** Point the in-process price door at `home` for the duration of `fn` (NODE_ENV=test gate + the seam). */
@@ -124,21 +125,28 @@ test('config: an unreadable or unparseable file THROWS ConfigError — never {} 
 // the one lookup + ruling A
 // ---------------------------------------------------------------------------
 
-test('ruling A: deepseek-flash with no config books POC (b)\'s cache-hit round at $0.006/M — 0.000110796, not the 0.1x default', async () => {
-  const { rates, source } = resolvePrices('deepseek-flash');
-  assert.deepEqual(source, { in: 'table', cachedIn: 'table', out: 'table' });
-  const events = [];
-  const provider = { generate: async () => ({ text: 'x', toolCalls: [], usage: POC_USAGE, stopReason: 'stop', model: 'deepseek-flash' }) };
-  const loop = new Loop({ provider, rates, onLlmResult: async (ev) => { events.push(ev); } });
-  await loop.run([{ role: 'user', content: 'hi' }], []);
-  close(events[0].costUsd, (225 * 0.30 + 2816 * 0.006 + 22 * 1.20) / 1e6);
-  close(events[0].costUsd, 0.000110796); // = (67.5 + 16.896 + 26.4) micro-USD
-  // control: the old row (no cacheIn) booked this same round at bare-agent's 0.1x default = $0.000178
-  const old = resolvePrices('deepseek-flash', { ratesTable: { 'deepseek-flash': { in: 0.0003, out: 0.0012, source: 'published' } } });
-  assert.equal(old.rates.cacheReadMult, undefined);
-  assert.equal(old.perM.cachedInPerM, 0.03);
-  // the other rows are untouched: no cache field, so they keep the default multiplier
-  for (const [k, r] of Object.entries(RATES_BY_SUFFIX)) if (k !== 'deepseek-flash') assert.equal(r.cacheIn, undefined, k);
+test('amendment 2 (b,c): cached input books at the INPUT rate — a saved cachedInPerM and the table cache rate are never read', async () => {
+  const round = async (prices) => {
+    const events = [];
+    const provider = { generate: async () => ({ text: 'x', toolCalls: [], usage: POC_USAGE, stopReason: 'stop', model: 'deepseek-flash' }) };
+    const loop = new Loop({ provider, rates: prices.rates, onLlmResult: async (ev) => { events.push(ev); } });
+    await loop.run([{ role: 'user', content: 'hi' }], []);
+    return events[0].costUsd;
+  };
+  // (b) typed In $0.40/1M with a saved cachedInPerM of 0.04: the 2816 cached tokens book at $0.40/1M
+  const b = resolvePrices('deepseek-flash', { slot: 'deepseek', config: { prices: { deepseek: { inPerM: 0.4, cachedInPerM: 0.04 } } } });
+  close(await round(b), (225 * 0.4 + 2816 * 0.4 + 22 * 1.20) / 1e6);
+  assert.equal(b.perM.cachedInPerM, 0.4);
+  // (c) In empty: the table's input price ($0.30), never its cached rate
+  const c = resolvePrices('deepseek-flash');
+  close(await round(c), (225 * 0.30 + 2816 * 0.30 + 22 * 1.20) / 1e6);
+  assert.equal(c.perM.cachedInPerM, 0.3);
+  assert.deepEqual(c.source, { in: 'table', cachedIn: 'input', out: 'table' });
+  // a table row that still carries a cacheIn is ignored
+  const r = resolvePrices('m', { ratesTable: { m: { in: 0.001, cacheIn: 0.00001, out: 0.002 } } });
+  assert.equal(r.perM.cachedInPerM, 1);
+  assert.equal(r.rates.cacheReadMult, 1);
+  for (const row of Object.values(RATES_BY_SUFFIX)) assert.equal(row.cacheIn, undefined);
 });
 
 test('lookup: per field Settings wins over the table; a field left unset falls through to the table; sources are named per field', () => {
@@ -146,14 +154,14 @@ test('lookup: per field Settings wins over the table; a field left unset falls t
   const p = resolvePrices('deepseek-flash', { slot: 'deepseek', config });
   assert.equal(p.rates.out, 0.002);
   assert.equal(p.rates.in, 0.0003);
-  assert.deepEqual(p.source, { in: 'table', cachedIn: 'table', out: 'settings' });
-  assert.deepEqual(p.perM, { inPerM: 0.3, cachedInPerM: 0.006, outPerM: 2 });
+  assert.deepEqual(p.source, { in: 'table', cachedIn: 'input', out: 'settings' });
+  assert.deepEqual(p.perM, { inPerM: 0.3, cachedInPerM: 0.3, outPerM: 2 });
   const q = resolvePrices('deepseek-flash', { slot: 'deepseek', config: { prices: { deepseek: SET_PRICE } } });
-  assert.deepEqual(q.perM, SET_PRICE);
-  assert.deepEqual(q.source, { in: 'settings', cachedIn: 'settings', out: 'settings' });
-  close(q.rates.cacheReadMult, 0.1);
+  assert.deepEqual(q.perM, { inPerM: 1, cachedInPerM: 1, outPerM: 4 });
+  assert.deepEqual(q.source, { in: 'settings', cachedIn: 'input', out: 'settings' });
+  close(q.rates.cacheReadMult, 1);
   // another slot's price does not apply
-  assert.deepEqual(resolvePrices('deepseek-flash', { slot: 'synthetic', config: { prices: { deepseek: SET_PRICE } } }).source, { in: 'table', cachedIn: 'table', out: 'table' });
+  assert.deepEqual(resolvePrices('deepseek-flash', { slot: 'synthetic', config: { prices: { deepseek: SET_PRICE } } }).source, { in: 'table', cachedIn: 'input', out: 'table' });
 });
 
 test('unknown model + no config: the table\'s HIGHEST entry per field (today\'s rule survives), never 0; makeProvider builds an unrated model priced at that ceiling (M4d amendment 1)', () => {
@@ -162,8 +170,8 @@ test('unknown model + no config: the table\'s HIGHEST entry per field (today\'s 
   const maxOut = Math.max(...Object.values(RATES_BY_SUFFIX).map((r) => r.out));
   assert.equal(p.rates.in, maxIn);
   assert.equal(p.rates.out, maxOut);
-  assert.deepEqual(p.source, { in: 'ceiling', cachedIn: 'default-multiplier', out: 'ceiling' });
-  assert.equal(p.rates.cacheReadMult, undefined, 'no cached price known: bare-agent applies 0.1x to the (highest) input rate');
+  assert.deepEqual(p.source, { in: 'ceiling', cachedIn: 'input', out: 'ceiling' });
+  assert.equal(p.rates.cacheReadMult, 1, 'cached input is priced as input (the highest input rate)');
   assert.ok(p.perM.inPerM > 0 && p.perM.outPerM > 0 && p.perM.cachedInPerM > 0);
   assert.equal(ceilingCostUsd('totally-unknown-model'), 32 * maxIn + 16 * maxOut);
   const built = makeProvider('deepseek', { model: 'totally-unknown-model', env: { DEEPSEEK_API_KEY: KEY }, configHome: newHome() });
@@ -227,7 +235,7 @@ test('(x) a price set in config is booked from the next call; every earlier row 
       const rows1 = readSpendRows(spendPath);
       assert.equal(rows1.length, 1);
       close(rows1[0].costUsd, 2 * COST_TABLE_U); // two rounds at the table price
-      assert.deepEqual(rows1[0].price.source, { in: 'table', cachedIn: 'table', out: 'table' });
+      assert.deepEqual(rows1[0].price.source, { in: 'table', cachedIn: 'input', out: 'table' });
       const total1 = assertUnderGlobalCap(spendPath, 1e9);
       close(total1, rows1[0].costUsd);
 
@@ -238,7 +246,7 @@ test('(x) a price set in config is booked from the next call; every earlier row 
       assert.equal(rows2.length, 2);
       assert.deepEqual(rows2[0], rows1[0], 'the earlier row is byte-for-byte what it was');
       close(rows2[1].costUsd, 2 * COST_SET_U);
-      assert.deepEqual(rows2[1].price, { ...SET_PRICE, source: { in: 'settings', cachedIn: 'settings', out: 'settings' } });
+      assert.deepEqual(rows2[1].price, { ...SET_BOOKED, source: { in: 'settings', cachedIn: 'input', out: 'settings' } });
       close(assertUnderGlobalCap(spendPath, 1e9), rows1[0].costUsd + rows2[1].costUsd, 1e-12); // = old row as booked + new row
 
       updateConfig({ prices: { deepseek: { inPerM: 9 } } }, { home }); // a later change touches neither
@@ -250,7 +258,7 @@ test('(x) a price set in config is booked from the next call; every earlier row 
 test('(xii) with a config price set: the model step, the drafter and a CLI resume ALL book the config price — none falls back to the code table', async () => {
   const home = newHome();
   updateConfig({ prices: { deepseek: SET_PRICE } }, { home });
-  const want = { ...SET_PRICE, source: { in: 'settings', cachedIn: 'settings', out: 'settings' } };
+  const want = { ...SET_BOOKED, source: { in: 'settings', cachedIn: 'input', out: 'settings' } };
 
   // model step
   const spendPath = spendPathIn();

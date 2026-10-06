@@ -184,8 +184,8 @@ test('(xi) a bad price (0, -1, text, NaN, a mix) is refused naming the field and
   const before = readFileSync(file, 'utf8');
   const bad = [
     [{ slot: 'deepseek', inPerM: 0 }, /Input price/], [{ slot: 'deepseek', outPerM: -1 }, /Output price/],
-    [{ slot: 'deepseek', cachedInPerM: 'abc' }, /Cached input price/], [{ slot: 'deepseek', inPerM: '0.5' }, /Input price/],
-    [{ slot: 'deepseek', inPerM: 1, outPerM: 0 }, /Output price/], [{ slot: 'deepseek', inPerM: 1, cachedInPerM: -0.1, outPerM: 2 }, /Cached input price/],
+    [{ slot: 'deepseek', inPerM: '0.5' }, /Input price/],
+    [{ slot: 'deepseek', inPerM: 1, outPerM: 0 }, /Output price/], [{ slot: 'deepseek', cachedInPerM: 0.01 }, /priced as input/], [{ slot: 'deepseek', inPerM: 1, cachedInPerM: 0.05, outPerM: 2 }, /priced as input/],
     [{ slot: 'deepseek', inPerM: [1] }, /Input price/], [{ slot: 'deepseek' }, /Nothing to save/], [{ slot: 'nope', inPerM: 1 }, /not known/],
   ];
   for (const [body, re] of bad) {
@@ -200,17 +200,17 @@ test('(xi) a bad price (0, -1, text, NaN, a mix) is refused naming the field and
   const inf = await post(h.port, '/api/settings/price', '{"slot":"deepseek","inPerM":1e999}'); // parses to Infinity
   assert.equal(inf.status, 400);
   assert.equal(readFileSync(file, 'utf8'), before);
-  const ok = await post(h.port, '/api/settings/price', { slot: 'deepseek', outPerM: 1.5, cachedInPerM: 0.01 });
+  const ok = await post(h.port, '/api/settings/price', { slot: 'deepseek', outPerM: 1.5 });
   assert.equal(ok.json().ok, true);
-  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).prices.deepseek, { inPerM: 0.4, outPerM: 1.5, cachedInPerM: 0.01 });
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).prices.deepseek, { inPerM: 0.4, outPerM: 1.5 });
   assert.equal(JSON.parse(readFileSync(file, 'utf8')).monthlyLimitUsd, 9, 'other settings are kept');
   const prov = (await rq(h.port, { url: '/api/settings/providers' })).json().rows.find((r) => r.slot === 'deepseek');
   assert.deepEqual(prov.price.outPerM, { value: 1.5, source: 'settings' });
-  await post(h.port, '/api/settings/price', { slot: 'deepseek', inPerM: null, cachedInPerM: null, outPerM: null });
+  await post(h.port, '/api/settings/price', { slot: 'deepseek', inPerM: null, outPerM: null });
   assert.equal(JSON.parse(readFileSync(file, 'utf8')).prices, undefined, 'null clears back to the table default');
   const back = (await rq(h.port, { url: '/api/settings/providers' })).json().rows.find((r) => r.slot === 'deepseek');
   assert.equal(back.price.inPerM.source, 'table');
-  assert.equal(back.price.cachedInPerM.value, 0.006);
+  assert.equal(back.price.cachedInPerM, undefined, 'no cached-input price is offered or shown');
 });
 
 test('(xi) the monthly limit: 0, negative, text refused and nothing saved; empty/null clears; a number saves', async () => {
@@ -369,10 +369,10 @@ test('page: the Settings button, header, tabs and signed sentences; no per-run c
   assert.doesNotMatch(PAGE, /prov-card|break-card|set-card|set-strip|set-prices|money-grid|limit-save|price-save|set-limit/);
 });
 
-test('page: Providers is ONE table, columns in bareloop order then the three signed price columns; Name/shape/URL are text/select/text (amendment 1)', () => {
+test('page: Providers is ONE table, columns in bareloop order then the two price columns (amendment 2); Name/shape/URL are text/select/text (amendment 1)', () => {
   const tables = [...SETTINGS_VIEW.matchAll(/<table[\s\S]*?<\/table>/g)].map((m) => m[0]);
   assert.equal(tables.length, 2, 'the provider table and the breakdown table, no cards');
-  assert.deepEqual(th(tables[0]), ['Key', 'Name', 'API shape', 'Base URL', 'Test', 'Tokens used', 'Balance', 'In $/1M', 'Cached in $/1M', 'Out $/1M']);
+  assert.deepEqual(th(tables[0]), ['Key', 'Name', 'API shape', 'Base URL', 'Test', 'Tokens used', 'Balance', 'In $/1M', 'Out $/1M']);
   assert.match(tables[0], /<table class="pv-table"/);
   assert.match(SETTINGS_VIEW, /<div class="table-wrap"[^>]*>\s*<table class="pv-table"/);
   // the row builder (M4d amendment 1, replaces ruling 2A): Name = text box, API shape = dropdown, Base URL = text box
@@ -381,10 +381,11 @@ test('page: Providers is ONE table, columns in bareloop order then the three sig
   assert.match(build, /<select data-prov="shape"/);
   assert.match(build, /<input type="text" data-prov="baseUrl"/);
   assert.doesNotMatch(build, /API_SHAPE|data-f="model"|data-f="addr"/);
-  // inputs in a row: name + Base URL + the price loop (one source, 3 fields), each saved on change with a hint line under it
+  // inputs in a row: name + Base URL + the price loop (one source, 2 fields), each saved on change with a hint line under it
   assert.equal((build.match(/<input/g) || []).length, 3);
+  assert.doesNotMatch(PAGE, /cachedIn|Cached in/i, 'amendment 2 (a): no Cached in column or box anywhere on the page');
   assert.match(build, /PRICE_FIELDS\.map\(function\(f\)/);
-  assert.match(PAGE, /var PRICE_FIELDS = \["inPerM", "cachedInPerM", "outPerM"\];/);
+  assert.match(PAGE, /var PRICE_FIELDS = \["inPerM", "outPerM"\];/);
   assert.match(PAGE, /pvRows\.addEventListener\("change"/);
   assert.match(build, /class="hint pv-msg"/);
   // the Test cell has one fixed width; the wrap scrolls inside its own box
@@ -491,4 +492,13 @@ test('settings: Test never follows a redirect (Balance shares getWithKey) with t
   } finally {
     a.close(); b.close();
   }
+});
+
+test('amendment 2 (a): the Providers table has no Cached in column or box; the row builder makes exactly one cell per signed price field (source-level; browser walk at 1280/390/320 owed)', () => {
+  const head = SETTINGS_VIEW.match(/<table class="pv-table"[\s\S]*?<\/thead>/)[0];
+  assert.doesNotMatch(head, /Cached/i);
+  assert.equal((head.match(/\$\/1M/g) || []).length, 2);
+  const m = PAGE.match(/var PRICE_FIELDS = (\[[^\]]*\]);/);
+  assert.deepEqual(JSON.parse(m[1]), ['inPerM', 'outPerM']);
+  assert.doesNotMatch(PAGE.slice(PAGE.indexOf('function paintProviders('), PAGE.indexOf('pvRows.addEventListener("click"')), /cachedIn/);
 });

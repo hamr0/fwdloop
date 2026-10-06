@@ -675,7 +675,7 @@
         <div class="table-wrap" data-testid="provider-table-wrap">
           <table class="pv-table" data-testid="provider-table">
             <thead>
-              <tr><th>Key</th><th>Name</th><th>API shape</th><th>Base URL</th><th>Test</th><th>Tokens used</th><th>Balance</th><th>In $/1M</th><th>Cached in $/1M</th><th>Out $/1M</th></tr>
+              <tr><th>Key</th><th>Name</th><th>API shape</th><th>Base URL</th><th>Test</th><th>Tokens used</th><th>Balance</th><th>In $/1M</th><th>Out $/1M</th></tr>
             </thead>
             <tbody id="pv-rows"></tbody>
           </table>
@@ -4555,10 +4555,9 @@
   function sourceWord(src){
     if(src === "table") return "default";
     if(src === "ceiling") return "highest known rate, the model has no listed price";
-    if(src === "default-multiplier") return "default, 0.1 x input";
     return "set here";
   }
-  var PRICE_FIELDS = ["inPerM", "cachedInPerM", "outPerM"];
+  var PRICE_FIELDS = ["inPerM", "outPerM"];
   // Name, API shape and Base URL are editable (M4d amendment 1), saved on change one field at a time.
   var PROV_FIELDS = ["name", "shape", "baseUrl"];
   function buildProviderRow(row){

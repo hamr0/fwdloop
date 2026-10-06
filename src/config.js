@@ -3,7 +3,7 @@
 //
 // Shape (unknown top-level fields are kept, never dropped):
 //   { "monthlyLimitUsd": <number > 0>,            // absent = no limit (piece 3 reads it)
-//     "prices": { "<slot>": { "inPerM": n, "cachedInPerM": n, "outPerM": n } },    // USD per 1M tokens, each optional
+//     "prices": { "<slot>": { "inPerM": n, "cachedInPerM": n, "outPerM": n } },    // USD per 1M tokens, each optional; a saved "cachedInPerM" is tolerated, never read (M4d amendment 2)
 //     "providers": { "<slot>": { "model": "<id>", "shape": "<shape id>", "baseUrl": "" | "http(s)://…" } } }   // each optional (M4d amendment 1)
 // A price is a finite number above 0; 0, a negative, NaN, Infinity or text is a ConfigError
 // naming the slot and field — on write AND on read, so a hand-edited 0 can never price a call at $0.
@@ -53,6 +53,7 @@ export function configDoorHome() {
   return { skip: home === undefined, home };
 }
 
+/** Fields a config file may hold; `cachedInPerM` stays so an older file still loads, but nothing prices from it. */
 export const PRICE_FIELDS = Object.freeze(['inPerM', 'cachedInPerM', 'outPerM']);
 const SLOT_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
