@@ -945,6 +945,8 @@
                toggle; column order everywhere is Attempt, Step (dropped in
                Grouped — the header already names it), Action, Gap, Cost,
                Verdict, Close. -->
+          <!-- M4e amendment 6 item 4: the flow's Setup (card, drafts, changes, notes, sign) first, in the same row format as the run's rows -->
+          <div id="audit-setup" data-testid="audit-setup" hidden></div>
           <div id="audit-empty" class="hint" data-testid="audit-empty" style="font-size:13px;padding:24px 0;">select a run first</div>
           <div id="audit-content" data-testid="audit-content" hidden>
             <!-- hamr's 2026-09-27 exit-check review #2: All/Human/Blocked on
@@ -1112,6 +1114,8 @@
   // call at all (an ask/hitl row) drops the tokens slot entirely — never a
   // fake "0 tokens".
   function auditCostCellText(r){
+    if(r.setup && typeof r.usd !== "number" && r.verdict === "hitl") return "—";   // a setup row you wrote (card, note, sign) has no cost
+    if(r.setup) return money(r.usd, r.spendComplete);   // a draft/change row: its own booked cost, "unknown" when nobody booked it
     var bits = [money(r.usd, r.spendComplete)];
     var td = r.tokensDisplay;
     if(td && td.kind === "total") bits.push(td.total + " tokens");
@@ -2328,7 +2332,7 @@
       lines.push(["refused", r.refused.map(function(x){ return x.verb + " " + x.path + " (" + x.rule + ")"; }).join("; ")]);
     }
     if(Array.isArray(r.ungranted) && r.ungranted.length > 0) lines.push(["not granted, called anyway", r.ungranted.join(", ")]);
-    lines.push(["close", closeClassLabel(r.class)], ["cost", auditCostCellText(r)]);
+    lines.push(["close", r.setup ? "—" : closeClassLabel(r.class)], ["cost", auditCostCellText(r)]);
     var when = readableDateTime(r.at);
     lines.push(["time", (typeof r.atWhy === "string" && r.atWhy.length > 0) ? r.atWhy : (when || "unknown")]);
     return lines.map(function(l){ return "<div class=\"am-d\"><b>" + escapeXml(l[0]) + ":</b> " + escapeXml(l[1]) + "</div>"; }).join("");
@@ -2359,7 +2363,7 @@
       "<td data-label=\"Gap\">" + escapeXml(isRejectRow ? "" : (r.gap || "")) + "</td>" +
       "<td data-label=\"Cost\">" + escapeXml(auditCostCellText(r)) + "</td>" +
       "<td data-label=\"Verdict\"><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
-      "<td data-label=\"Close\">" + escapeXml(closeClassLabel(r.class)) + "</td>" +
+      "<td data-label=\"Close\">" + escapeXml(r.setup ? "—" : closeClassLabel(r.class)) + "</td>" +
       "<td data-label=\"Time\">" + auditTimeCellHtml(r) + "</td>" +
       // phone-only one-line cells (CSS shows these and hides the rest below 640px; hidden on desktop)
       "<td class=\"am am-glyph\" aria-hidden=\"true\">" + escapeXml(glyph || "·") + "</td>" +
@@ -2580,10 +2584,36 @@
       filterEmpty.hidden = true;
     }
   }
+  // M4e amendment 6 item 4: the Setup block, drawn from the server's `result.setup` with the SAME row builder as the run's rows. A flow with no
+  // setup.jsonl says so in words; the run's own Sign & run rows (amendment 5) are in the same list.
+  function renderSetupBlock(result){
+    var box = document.getElementById("audit-setup");
+    box.innerHTML = "";
+    var setup = result && result.setup;
+    if(!setup){ box.hidden = true; return; }
+    box.hidden = false;
+    var wrap = document.createElement("div");
+    wrap.className = "audit-group";
+    wrap.setAttribute("data-testid", "audit-setup-group");
+    var h = document.createElement("h4");
+    h.textContent = "Setup";
+    wrap.appendChild(h);
+    if(setup.why) wrap.appendChild(textDiv("hint", setup.why));
+    if(setup.rows && setup.rows.length){
+      var table = document.createElement("table");
+      table.innerHTML = "<thead><tr><th>Attempt</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th><th>Time</th></tr></thead><tbody></tbody>";
+      var tbody = table.querySelector("tbody");
+      setup.rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, false)); });
+      table.setAttribute("data-testid", "audit-table-setup");
+      wrap.appendChild(table);
+    }
+    box.appendChild(wrap);
+  }
   function renderAudit(result){
     var empty = document.getElementById("audit-empty");
     var content = document.getElementById("audit-content");
     lastAuditResult = result;
+    renderSetupBlock(result);
     if(!result || result.empty){
       empty.hidden = false;
       empty.textContent = (result && result.why) || "no audit rows for this run";

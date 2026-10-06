@@ -402,6 +402,10 @@ const ALLOWLIST = {
       accessSync: 1, constants: 1, lstatSync: 1, realpathSync: 1, statSync: 1,
     },
   },
+  'src/setup.js': {
+    reason: 'M4e amendment 6 item 4: the ONE writer of `<flow>/setup.jsonl` — one exclusive create (flag wx, 0600) of a file in the flow folder `signDraft` just wrote; lstatSync of a draft folder\'s own card/note file for its modified time only (a symlink is not followed, nothing is read). Every READ (the draft folder, the flow\'s setup.jsonl) goes through readFileInside/readdirInside/readSpendRows.',
+    names: { lstatSync: 1, writeFileSync: 1 },
+  },
   'src/draftspend.js': {
     reason: 'M4e piece 2a: the draft folder\'s own per-call spend record (`draft-spend.json`) — one atomic write (tmp + rename) of the file the drafter just booked into, in the draft dir `draftToDir` itself created. Every READ goes through readFileInside/readSpendRows.',
     names: { renameSync: 1, writeFileSync: 1 },

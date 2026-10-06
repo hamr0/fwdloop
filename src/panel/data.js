@@ -34,7 +34,8 @@ import {
   readAsk, readRunState, readLog, readHaltRecord, stopPending,
 } from '../runner.js';
 import { readSpendRows } from '../provider.js';
-import { applyRunValues, pickRunValues } from '../runvalues.js';
+import { applyRunValues, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
+import { readSetup } from '../setup.js';
 import {
   runLiveness, booksFresh, readResumeLock,
 } from '../liveness.js';
@@ -1374,6 +1375,60 @@ export function getRunDetail({
   };
 }
 
+/** The words the Audit tab's Setup block says for a flow with no `setup.jsonl` (M4e amendment 6 item 4). */
+export const NO_SETUP_WORDS = 'no setup record (signed before amendment 6)';
+
+/**
+ * M4e amendment 6 item 4: the Setup block of the Audit tab — the flow's own `setup.jsonl` (card, drafts, changes, notes, sign), then this
+ * run's own signed-values rows (amendment 5: "Sign & run" for version 0, "Sign & resume" for a later version), every row in the SAME shape
+ * as the run's audit rows so the page draws both with one row builder. Reads only through the safe gateways; never throws.
+ * @param {string} flowDir @param {string} runDir
+ * @returns {{present: boolean, why: string|null, rows: any[]}}
+ */
+export function getSetupBlock(flowDir, runDir) {
+  const setup = readSetup(flowDir);
+  const rows = [];
+  const human = (r, attempt, extra) => ({
+    attempt, step: 'setup', class: 'hitl', verdict: 'hitl', at: r.at ?? null, setup: true, blocked: false, action: 'human', tokensDisplay: { kind: 'no-model' }, ...extra,
+  });
+  const model = (r, attempt, label) => ({
+    attempt, step: 'setup', class: null, verdict: r.verdict === 'green' ? 'green' : (r.verdict === 'red' ? 'red' : 'not-done'), gap: r.gap ?? '', at: r.at ?? null, setup: true, blocked: false,
+    action: `${label} · ${r.model ?? 'model not recorded'}${r.hash ? ` · plan ${String(r.hash).slice(0, 8)}` : ''}`,
+    usd: typeof r.costUsd === 'number' ? r.costUsd : undefined, spendComplete: r.spendComplete === true, tokensDisplay: { kind: 'no-model' },
+  });
+  if (setup.present) {
+    setup.rows.forEach((r, i) => {
+      const n = i + 1;
+      if (r.kind === 'card') {
+        const c = r.card && typeof r.card === 'object' ? r.card : {};
+        const gap = [`flow ${c.flowName ?? '?'}`, `cap $${c.capUsd ?? '?'}`, c.destination ? `destination ${c.destination}` : null, c.askWait ? `ask wait ${c.askWait}` : null,
+          typeof c.inputs === 'string' && c.inputs.trim() ? `inputs: ${c.inputs.trim().replace(/\n+/g, ' / ')}` : null, `job: ${String(c.job ?? '').trim().replace(/\n+/g, ' / ')}`].filter(Boolean).join(' · ');
+        rows.push(human(r, n, { action: 'card (you)', gap }));
+      } else if (r.kind === 'note') rows.push(human(r, n, { action: 'note (you)', gap: String(r.text ?? '') }));
+      else if (r.kind === 'draft') rows.push(model(r, n, 'draft'));
+      else if (r.kind === 'change') rows.push(model(r, n, `change ${r.n}`));
+      else if (r.kind === 'sign') rows.push(human(r, n, { action: `sign (${r.signedBy ?? 'you'})`, gap: `plan ${String(r.hash ?? '').slice(0, 12)}` }));
+    });
+  }
+  const versions = [];
+  for (const f of readdirInside(runDir, '.')) {
+    const m = VALUES_FILE_RE.exec(f);
+    if (m !== null) versions.push({ file: f, version: m[1] === undefined ? 0 : Number(m[1]) });
+  }
+  versions.sort((a, b) => a.version - b.version);
+  for (const { file, version } of versions) {
+    const t = readFileInside(runDir, file);
+    let rec = null;
+    try { rec = t.ok ? JSON.parse(t.text) : null; } catch { rec = null; }
+    const v = rec && typeof rec === 'object' ? rec.values : null;
+    const gap = v && typeof v === 'object'
+      ? [`cap $${v.capUsd}`, v.destination ? `destination ${v.destination}` : null, v.askWaits && Object.keys(v.askWaits).length ? `ask waits ${Object.entries(v.askWaits).map(([l, w]) => `line ${l}: ${w}`).join(', ')}` : null].filter(Boolean).join(' · ')
+      : `${file} could not be read`;
+    rows.push(human({ at: rec?.at }, rows.length + 1, { action: `${version === 0 ? 'Sign & run' : 'Sign & resume'} (${rec?.signedBy ?? 'you'})`, gap }));
+  }
+  return { present: setup.present, why: setup.present ? null : NO_SETUP_WORDS, rows };
+}
+
 /**
  * `GET /api/runs/:flow/:runId/audit` — the Audit/logs tab (M4a scope item
  * 2): the raw `audit.jsonl` rows, scoped strictly to this run (each run's
@@ -1381,7 +1436,7 @@ export function getRunDetail({
  * shared-sidecar contamination risk here the way bareloop's gate-audit
  * sidecar had). `null` when the flow/runId doesn't resolve (404).
  * @param {{root: string, flow: string, runId: string}} opts
- * @returns {{flow:string, runId:string, rows:any[], groups:any[], empty:boolean, why:string|null}|null}
+ * @returns {{flow:string, runId:string, rows:any[], groups:any[], setup:{present:boolean, why:string|null, rows:any[]}, empty:boolean, why:string|null}|null}
  */
 export function getRunAudit({ root, flow, runId }) {
   const run = resolveRunPath(root, flow, runId);
@@ -1403,6 +1458,7 @@ export function getRunAudit({ root, flow, runId }) {
     // step header pieces, computed here off these SAME enriched rows —
     // never a second, client-side re-grouping.
     groups: deriveAuditGroups(rows),
+    setup: getSetupBlock(run.flowDir, run.runDir),
     empty: rows.length === 0,
     why: rows.length === 0 ? 'audit.jsonl is empty or missing — no attempt has been made yet' : null,
   };

@@ -29,6 +29,7 @@ import { writeFlow, readFileInside, readdirInside, checkFlowName } from './flow.
 import { checkSendDestination } from './runner.js';
 import { PROVIDER_SLOTS, checkKeyPreflight, appendSpendRow } from './provider.js';
 import { writeDraftSpend } from './draftspend.js';
+import { writeSetup } from './setup.js';
 
 export const DRAFT_BUDGET_USD = 0.10;
 export const SPEC_HASH_FILE = 'spec.hash';
@@ -335,9 +336,10 @@ export async function draftToDir({
 /**
  * The human step, $0. Every refusal returns reds and writes NO flow.
  * `signedBy` must come from the human's own invocation (the CLI's --signed-by/username).
+ * `sessionDir` (the panel's draft folder: card, notes, every change) widens the setup record; the CLI has none, so its record is the one plan folder.
  */
 export function signDraft({
-  dir, approve, signedBy, signedAt = new Date().toISOString(), env = process.env,
+  dir, approve, signedBy, signedAt = new Date().toISOString(), env = process.env, sessionDir,
 }) {
   const refuse = (...reds) => ({ ok: false, reds });
   if (readFileInside(dir, LEAK_MARKER_FILE).ok) return refuse(`sign: "${dir}" carries a key-leak marker (${LEAK_MARKER_FILE}) — never signed`);
@@ -393,5 +395,10 @@ export function signDraft({
     root: target.root, name: target.name, proseText: parts['prose.txt'], declaration, signedBy, signedAt, catalogue: cat.primitives,
   });
   if (!written.ok) return { ok: false, reds: written.reds };
-  return { ok: true, flowDir: written.dir, signature: written.signature };
+  // M4e amendment 6 item 4: the draft's record goes into the flow folder once, outside the three signed files. The flow IS signed by now, so a
+  // failure to write it never un-signs: it is returned (`setup.ok:false`) for the caller to say, and the audit reads "no setup record".
+  const setup = writeSetup({
+    flowDir: written.dir, sessionDir, planDir: dir, hash: h.hash, signedBy, signedAt, flowHash: written.signature?.flow, secrets: /** @type {string[]} */ (keys.filter((k) => typeof k === 'string' && k.length >= 8)),
+  });
+  return { ok: true, flowDir: written.dir, signature: written.signature, setup };
 }

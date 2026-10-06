@@ -349,7 +349,7 @@ export function createAuthor(opts) {
       }
       const signedBy = userInfo().username;
       const result = signDraft({
-        dir: join(dir, v.plan), approve: v.hash, signedBy, env: loaded.env,
+        dir: join(dir, v.plan), approve: v.hash, signedBy, env: loaded.env, sessionDir: dir,
       });
       if (!result.ok) {
         const keys = providerKeys(loaded.env);
