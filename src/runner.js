@@ -695,6 +695,8 @@ async function runStepRalph({
   // cut this step short of (their numbering is in `attemptOffset`; a try the Stop cut mid-way is replaced by the new one, never counted
   // against the limit, so Resume always gets at least one new try).
   readStop = null, stepNo = 0, triesDone = 0,
+  // the id of step stepNo-1 (null for step 1): a Stop before this step's first call words itself "after step N-1" and is filed under that step
+  prevStepId = null,
 }) {
   /** @type {string|null} */
   let gap = initialGap ?? null;
@@ -704,11 +706,15 @@ async function runStepRalph({
   let lastTurns = null;
   const stopWords = (tryNo, turns) => (turns > 0
     ? `stopped after turn ${turns} of try ${tryNo} of step ${stepNo}`
-    : (tryNo > 0 ? `stopped after try ${tryNo} of step ${stepNo}` : `stopped before try 1 of step ${stepNo}`)); // the words name this step, the one the row is filed under
+    : (tryNo > 0 ? `stopped after try ${tryNo} of step ${stepNo}` : (stepNo > 1 ? `stopped after step ${stepNo - 1}` : 'stopped before step 1')));
   /** The ralph's return for a Stop: the cut try's own row fields (`book`) ride the one `stopped` row `settleStop` writes.
    *  @param {string} where @param {Record<string, any>} [book] @returns {{ok:false, outcome:string, red:string, stop:{where:string, book:Record<string, any>, step:string|null}}} */
   const stopped = (where, book = {}) => ({
-    ok: false, outcome: 'stopped', red: `stopped by you — ${where}`, stop: { where, book, step: step?.emits ?? step?.goal ?? null },
+    ok: false,
+    outcome: 'stopped',
+    red: `stopped by you — ${where}`,
+    // one value: the words name the step the row is filed under — "after step N-1" (before this step's first call) is N-1's, the rest this step's
+    stop: { where, book, step: where === stopWords(0, 0) ? prevStepId : (step?.emits ?? step?.goal ?? null) },
   });
 
   for (let n = 1; n <= maxN; n += 1) {
@@ -1182,7 +1188,7 @@ function makeOneShotThenParkAskStep({ decision, reason, artifactSha256 }) {
  * @returns {Promise<any>}
  */
 async function runAskSlot({
-  step, stepIndex, askSlot, priorId, priorStep, priorStepNo, priorArtifact, redoCap, effectiveCeilingUsd, capUsd,
+  step, stepIndex, askSlot, priorId, priorStep, priorStepNo, priorPrevStepId = null, priorArtifact, redoCap, effectiveCeilingUsd, capUsd,
   primitives, businessDate, modelStep, askStep, spent, spendComplete, recordAudit,
   evidenceUnjudged, unjudgedCount, redone: initialRedone,
   runDir, flowDir, runId, flowRoot, flowName, signatureHash, inputsManifest, attemptsLog, artifacts, now, startedAt,
@@ -1348,7 +1354,7 @@ async function runAskSlot({
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
         step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone, now,
-        readStop: () => stopPending(runDir), stepNo: priorStepNo,
+        readStop: () => stopPending(runDir), stepNo: priorStepNo, prevStepId: priorPrevStepId,
       });
       if (!redoResult.ok) {
         return {
@@ -1527,6 +1533,7 @@ async function foldFromStep({
         priorId,
         priorStep: steps[priorStepIndex],
         priorStepNo: priorStepIndex + 1,
+        priorPrevStepId: priorStepIndex > 0 ? (steps[priorStepIndex - 1].emits ?? null) : null,
         priorArtifact,
         redoCap,
         effectiveCeilingUsd,
@@ -1591,7 +1598,7 @@ async function foldFromStep({
     // eslint-disable-next-line no-await-in-loop
     const stepResult = await runStepRalph({
       step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null, now,
-      readStop: () => stopPending(runDir), stepNo: i + 1, attemptOffset: i === i0 ? resumeTries.numbered : 0, triesDone: i === i0 ? resumeTries.done : 0,
+      readStop: () => stopPending(runDir), stepNo: i + 1, prevStepId: i > 0 ? (steps[i - 1].emits ?? steps[i - 1].goal ?? null) : null, attemptOffset: i === i0 ? resumeTries.numbered : 0, triesDone: i === i0 ? resumeTries.done : 0,
     });
     if (!stepResult.ok) {
       return haltRun({
@@ -2153,6 +2160,7 @@ export async function resumeRun({
       priorId,
       priorStep: steps[priorStepIndex],
       priorStepNo: priorStepIndex + 1,
+      priorPrevStepId: priorStepIndex > 0 ? (steps[priorStepIndex - 1].emits ?? null) : null,
       priorArtifact,
       redoCap,
       effectiveCeilingUsd,
