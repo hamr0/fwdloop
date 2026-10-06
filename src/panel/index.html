@@ -3737,11 +3737,19 @@
       var ok = !!(r && r.status >= 200 && r.status < 300 && r.body && r.body.ok === true);
       return {ok: ok, error: ok ? "" : refusalText(r)};
     }
+    var FIX_BOXES_SAY = "Not started. Fix the marked boxes. Nothing spent.";
+    // the banner that only points at marked boxes goes when the last marked box clears; any other sentence (a refusal with no box) stays
+    function dropFixBoxesBanner(){
+      if(actionErrEl.textContent !== FIX_BOXES_SAY) return;
+      var any = false;
+      card.querySelectorAll(".jf-err").forEach(function(x){ if(x.textContent) any = true; });
+      if(!any) actionErrEl.textContent = "";
+    }
     // pure: the one sentence for a refused call — the server's own `say`, else its field refusals, else a plain fallback
     function refusalText(r){
       var b = r && r.body;
       if(b && typeof b.say === "string" && b.say !== "") return b.say;
-      if(b && Array.isArray(b.refusals) && b.refusals.length) return "Not started. Fix the marked boxes. Nothing spent.";
+      if(b && Array.isArray(b.refusals) && b.refusals.length) return FIX_BOXES_SAY;
       return "The request failed. Nothing was sent.";
     }
 
@@ -4478,6 +4486,7 @@
     card.addEventListener("input", function(e){
       var grp = e.target && e.target.closest ? e.target.closest(".field, .cap-field, .jf-inrow") : null;
       if(grp) grp.querySelectorAll(".jf-err").forEach(function(x){ x.textContent = ""; });
+      dropFixBoxesBanner();
       fitCardBoxes();
       if(e.target && (e.target.id === "jf-cap-money" || e.target.id === "jf-job" || e.target.id === "jf-run-cap" || e.target.id === "jf-resume-cap")) scheduleCapNote();
       // any edit voids the first Sign click of the Run / Resume form: what is shown must be what is signed

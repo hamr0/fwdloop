@@ -113,8 +113,9 @@ test('field set: the New job card has exactly the signed boxes; bareloop-only bo
 
 test('#chat-action-error is written only by the click handlers: the poll path never touches it', () => {
   const writers = [...CHAT.matchAll(/actionErrEl\.textContent\s*=/g)].length;
-  // chatActionFailed, chatActionOk, openNewCard (a click's reset), the Resume form's Cancel click
-  assert.equal(writers, 4, 'only four places may write the action line (the last: Cancel of the Resume form, a click)');
+  // chatActionFailed, chatActionOk, openNewCard (a click's reset), the Resume form's Cancel click,
+  // dropFixBoxesBanner (the human's own edit clearing the last marked box)
+  assert.equal(writers, 5, 'only five places may write the action line (the last two: Cancel of the Resume form, an edit that clears the last marked box)');
   for (const name of ['poll', 'renderActions', 'renderProgress', 'renderThread', 'renderMain', 'endSession']) {
     assert.doesNotMatch(fnSrc(name).replace(/^\s*\/\/.*$/gm, ''), /actionErrEl|chatActionOk|chatActionFailed|chat-action-error|resetCard|openNewCard/, `${name} is on the poll path and must not touch #chat-action-error`);
   }
@@ -198,4 +199,24 @@ test('hamr 2026-10-06: a load or refresh opens the LEFT side on the Chat tab —
   assert.match(handler, /selectRun\(first\.flow, first\.runId/, 'the right side still opens the newest run');
   assert.match(PAGE, /<button role="tab" id="tab-chat"[^>]*aria-selected="true"/, 'Chat is the tab selected in the markup');
   assert.match(PAGE, /id="panel-chat" class="tabpanel active"/);
+});
+
+test('walk fix 2: the "Fix the marked boxes" banner goes when the last marked box clears; any other refusal sentence stays', () => {
+  const SAY = 'Not started. Fix the marked boxes. Nothing spent.';
+  const mk = (banner, boxes) => {
+    const actionErrEl = { textContent: banner };
+    const card = { querySelectorAll: () => boxes };
+    const fn = new Function('actionErrEl', 'card', 'FIX_BOXES_SAY', `${fnSrc('dropFixBoxesBanner')}\nreturn dropFixBoxesBanner;`)(actionErrEl, card, SAY);
+    return { actionErrEl, fn };
+  };
+  const still = mk(SAY, [{ textContent: '' }, { textContent: 'Cap is too low.' }]);
+  still.fn();
+  assert.equal(still.actionErrEl.textContent, SAY, 'a marked box still has its refusal: the banner stays');
+  const cleared = mk(SAY, [{ textContent: '' }, { textContent: '' }]);
+  cleared.fn();
+  assert.equal(cleared.actionErrEl.textContent, '', 'no marked box left: the banner is gone');
+  const other = mk('A run is already live.', [{ textContent: '' }]);
+  other.fn();
+  assert.equal(other.actionErrEl.textContent, 'A run is already live.', 'a refusal with no box is not this banner');
+  assert.match(CHAT, /x\.textContent = ""; \}\);\n\s+dropFixBoxesBanner\(\);/, 'the per-box clear on input calls it');
 });
