@@ -15,11 +15,10 @@ import { scrub } from '../authoring.js';
 import { loadCatalogue } from '../catalogue.js';
 import { ConfigError, readConfig } from '../config.js';
 import {
-  checkFlowName, listFlowNames, listRunIds, readFileInside, readFlow, resolveRunDir,
+  checkFlowName, listFlowNames, listRunIds, nextRunId, readFileInside, readFlow, resolveRunDir,
 } from '../flow.js';
 import { spendSummary } from '../monthly.js';
 import { checkInputRows, runInputRows } from './authorcard.js';
-import { newRunId } from './authorstart.js';
 import { providerKeys } from './spawn.js';
 
 const NO_LIMIT = 'no monthly limit set';
@@ -90,7 +89,7 @@ export function createFlowsDoor(opts) {
         const roles = (read.arbiter.sources ?? []).map((s) => s.role);
         const last = lastSources(join(realRoot, name), roles);
         flows.push({
-          flow: name, capUsd: read.arbiter.capUsd, roles, lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
+          flow: name, capUsd: read.arbiter.capUsd, roles, nextRunId: nextRunId(join(realRoot, name)), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
         });
       }
       return { status: 200, body: { ok: true, flows, leftThisMonth: left } };
@@ -129,9 +128,11 @@ export function createFlowsDoor(opts) {
       rows.forEach((r, n) => {
         if (r.role !== '' && !declared.includes(r.role)) refusals.push({ field: `inputs.${n}`, say: `This flow has no input named "${r.role}" (it takes: ${declared.join(', ') || 'none'}).` });
       });
-      const runId = typeof body?.runId === 'string' && body.runId !== '' ? body.runId : newRunId();
-      const run = starter.checkRun(flow, runId);
-      if (!run.ok) refusals.push({ field: 'runId', say: String(run.say) });
+      const runId = typeof body?.runId === 'string' ? body.runId.trim() : '';
+      if (runId !== '') {
+        const run = starter.checkRun(flow, runId);
+        if (!run.ok) refusals.push({ field: 'runId', say: String(run.say) });
+      }
       if (refusals.length > 0) return { status: 400, body: { ok: false, refused: 'run', refusals } };
       return starter.start({
         kind: 'run', flow, runId, sources: declared.map((role) => ({ role, path: /** @type {{path: string}} */ (rows.find((r) => r.role === role)).path })),

@@ -45,7 +45,7 @@ test('(1) sign-prepare (the first click): a green draft returns the readout, the
   assert.equal(j.flowName, 'job2');
   assert.equal(j.capUsd, 0.25);
   assert.match(j.readout, /DRAFT READOUT/);
-  assert.ok(j.runId.length > 5, 'a run id is suggested');
+  assert.equal(j.runId, 'run-1', 'the next run name is suggested');
   assert.equal(snapshot(w, dir), before, 'nothing written');
   // not green: unknown id, a draft that is still drafting, a red one
   assert.equal((await w.post('/api/author/d-0000000000-0000/sign-prepare', {})).status, 404);

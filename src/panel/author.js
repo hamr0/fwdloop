@@ -30,11 +30,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { PANEL_DRAFTS_DIR, scrub, signDraft } from '../authoring.js';
-import { readFileInside, readdirInside } from '../flow.js';
+import { nextRunId, readFileInside, readdirInside } from '../flow.js';
 import { isFwdloopAlive } from '../liveness.js';
 import { cardFields, checkCard, checkInputRows, parseInputLines } from './authorcard.js';
 import { createFlowsDoor } from './authorflows.js';
-import { createStarter, newRunId } from './authorstart.js';
+import { createStarter } from './authorstart.js';
 import {
   childRunning, providerKeys, readJsonFile, spawnDetached, writePidFile,
 } from './spawn.js';
@@ -209,7 +209,7 @@ export function createAuthor(opts) {
       return {
         status: 200,
         body: {
-          ok: true, draftId: id, hash: seen.v.hash, flowName: seen.name, capUsd: seen.v.card.capUsd, readout: seen.v.readout, runId: newRunId(),
+          ok: true, draftId: id, hash: seen.v.hash, flowName: seen.name, capUsd: seen.v.card.capUsd, readout: seen.v.readout, runId: nextRunId(join(root, seen.name)),
         },
       };
     },
@@ -235,9 +235,12 @@ export function createAuthor(opts) {
       const inputs = parseInputLines(typeof v.card.inputs === 'string' ? v.card.inputs : '');
       const bad = checkInputRows(inputs);
       if (bad.length > 0) return { status: 400, body: { ok: false, refused: 'inputs', refusals: bad } };
-      const runId = typeof b.runId === 'string' && b.runId !== '' ? b.runId : newRunId();
-      const run = starter.checkRun(name, runId);
-      if (!run.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: run.say } };
+      // '' = no typed id: the start claims the next `run-<n>` (M4e amendment 3); a typed one is checked here, before signing
+      const runId = typeof b.runId === 'string' ? b.runId : '';
+      if (runId !== '') {
+        const run = starter.checkRun(name, runId);
+        if (!run.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: run.say } };
+      }
       const signedBy = userInfo().username;
       const result = signDraft({
         dir: join(dir, 'draft'), approve: v.hash, signedBy, env: loaded.env,
@@ -247,7 +250,7 @@ export function createAuthor(opts) {
         return { status: 409, body: { ok: false, refused: 'sign-refused', say: 'The draft did not pass the signing checks. Nothing was signed.', reds: result.reds.map((r) => scrub(String(r), keys)) } };
       }
       writeFileSync(join(dir, 'signed.json'), `${JSON.stringify({
-        at: new Date().toISOString(), signedBy, hash: v.hash, flow: name, runId,
+        at: new Date().toISOString(), signedBy, hash: v.hash, flow: name, runId: runId === '' ? null : runId,
       })}\n`, { mode: 0o600 });
       const started = starter.start({
         kind: 'sign', flow: name, runId, sources: inputs.map((r) => ({ role: r.role, path: r.path })),

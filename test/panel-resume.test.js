@@ -391,7 +391,7 @@ test('(viii) lock held past the retry window: API says "your answer is saved; th
 test('M4b p3 (iii) panel path: accept through POST /api/answer records the hash; the artifact tampered before the resume -> the real send refuses by name, nothing shipped', async () => {
   const runId = 'p3-panel-tamper';
   const sendDir = path.join(REPO, 'poc', 'm0', 'out');
-  const shipped = () => (existsSync(sendDir) ? readdirSync(sendDir).filter((f) => f.startsWith(`${runId}-`)) : []);
+  const shipped = () => (existsSync(sendDir) ? readdirSync(sendDir).filter((f) => f.includes(`-${runId}-`)) : []);
   const clean = () => { for (const f of shipped()) unlinkSync(path.join(sendDir, f)); };
   clean();
   try {

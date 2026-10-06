@@ -31,7 +31,7 @@ assert.equal(catalogueLoaded.ok, true, catalogueLoaded.ok ? '' : catalogueLoaded
 const CATALOGUE = catalogueLoaded.primitives;
 
 const sha256OfBytes = (buf) => createHash('sha256').update(buf).digest('hex');
-const shippedFiles = (runId) => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR).filter((f) => f.startsWith(`${runId}-`)) : []);
+const shippedFiles = (runId) => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR).filter((f) => f.includes(`-${runId}-`)) : []);
 const cleanShipped = (runId) => { for (const f of shippedFiles(runId)) rmSync(path.join(SEND_DIR, f), { force: true }); };
 
 // job #2's prose with a SECOND ask inserted at line 5; the send (line 6) ships

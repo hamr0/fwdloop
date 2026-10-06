@@ -244,6 +244,47 @@ export function listRunIds(flowDir) {
 }
 
 /**
+ * M4e amendment 3 item 2: the ONE place a run gets its default name. `run-<n>`, counting up per flow (the run lives in its flow's
+ * folder, so the name only has to be unique there). `nextRunId` only LOOKS (max existing `run-<n>` + 1; the page's prefill);
+ * `claimRunId` CLAIMS: it creates the run folder exclusively (mkdir with no `recursive` on the final component, so a second
+ * starter gets EEXIST, never the same folder) and bumps n on EEXIST, a bounded number of times. Runs already made keep their ids.
+ * @param {string} flowDir
+ * @returns {string}
+ */
+export function nextRunId(flowDir) {
+  let max = 0;
+  for (const id of listRunIds(flowDir)) {
+    const m = /^run-([0-9]+)$/.exec(id);
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return `run-${max + 1}`;
+}
+
+const CLAIM_TRIES = 50;
+
+/**
+ * @param {string} flowDir
+ * @returns {{ok:true, runId:string, runDir:string}|{ok:false, red:string}}
+ */
+export function claimRunId(flowDir) {
+  const runsDir = path.join(flowDir, RUNS_DIR);
+  let n = Number(nextRunId(flowDir).slice(4));
+  for (let i = 0; i < CLAIM_TRIES; i += 1, n += 1) {
+    const runId = `run-${n}`;
+    const r = resolveRunDir(flowDir, runId);
+    if (!r.ok) return r;
+    try {
+      mkdirSync(runsDir, { recursive: true });
+      mkdirSync(r.runDir); // NOT recursive: the exclusive create IS the claim
+      return { ok: true, runId, runDir: r.runDir };
+    } catch (err) {
+      if (/** @type {any} */ (err)?.code !== 'EEXIST') return { ok: false, red: `run: could not claim a run name — ${/** @type {Error} */ (err).message}` };
+    }
+  }
+  return { ok: false, red: `run: could not claim a run name after ${CLAIM_TRIES} tries` };
+}
+
+/**
  * F48 round 3 (docs/logs/FINDINGS.md): the ONE mechanism every book reader
  * in src/ and bin/ routes through to read a file that lives inside a run
  * dir or flow dir — closing the symlink-escape class at the source instead

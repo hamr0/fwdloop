@@ -1349,7 +1349,7 @@ async function foldFromStep({
         });
       }
       const content = contentResult.value;
-      const filename = `${runId}-${step.emits}.json`;
+      const filename = `${flowName}-${runId}-${step.emits}.json`;
       // eslint-disable-next-line no-await-in-loop
       const sendResult = await sendStep(target, filename, content, acceptedAskEmitsThisRun.get(askArtifactId), { root: flowRoot, runDir });
       const sendRow = makeAuditRow({

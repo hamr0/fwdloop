@@ -300,9 +300,9 @@ function scanFsUsage(text) {
  */
 const ALLOWLIST = {
   'src/flow.js': {
-    reason: 'the safe-read implementation itself (readFileInside/readdirInside/writeFlow/readFlow) — the one gateway every book reader is expected to route through, plus its own symlink-guard checks and atomic-write plumbing',
+    reason: 'the safe-read implementation itself (readFileInside/readdirInside/writeFlow/readFlow) — the one gateway every book reader is expected to route through, plus its own symlink-guard checks and atomic-write plumbing, plus claimRunId (M4e amendment 3: the exclusive mkdir of the next run-<n> folder, and the runs/ folder above it)',
     names: {
-      accessSync: 1, constants: 2, existsSync: 6, lstatSync: 4, mkdirSync: 2,
+      accessSync: 1, constants: 2, existsSync: 6, lstatSync: 4, mkdirSync: 4,
       readdirSync: 3, readFileSync: 2, realpathSync: 5, renameSync: 1, rmSync: 3,
       writeFileSync: 1,
     },
@@ -413,9 +413,9 @@ const ALLOWLIST = {
     names: { mkdirSync: 2, realpathSync: 3, writeFileSync: 4 },
   },
   'src/panel/authorstart.js': {
-    reason: 'M4e piece 2b: the ONE run-start path — creates ITS OWN start folder `<root>/.starts/<id>/` (mkdir 0700) and writes the one file it owns there (start.json 0600; cleared.json 0600, once, when the human dismisses a refused start; pid.json and child.log go through spawn.js); realpathSync of the typed --root at use time; existsSync of the new run dir (presence only, to refuse an id already used). Every READ of a start folder and of the run dir (pids.jsonl, ask.json) goes through readFileInside/readPidRows/readdirInside, never fs directly.',
+    reason: 'M4e piece 2b: the ONE run-start path — creates ITS OWN start folder `<root>/.starts/<id>/` (mkdir 0700) and writes the one file it owns there (start.json 0600; cleared.json 0600, once, when the human dismisses a refused start; pid.json and child.log go through spawn.js); realpathSync of the typed --root at use time; existsSync of the new run dir (presence only, to refuse an id already used); rmdirSync of a run dir this start just claimed when the start is refused before the child runs (rmdir removes only an EMPTY folder). Every READ of a start folder and of the run dir (pids.jsonl, ask.json) goes through readFileInside/readPidRows/readdirInside, never fs directly.',
     names: {
-      existsSync: 1, mkdirSync: 2, realpathSync: 4, writeFileSync: 2,
+      existsSync: 1, mkdirSync: 2, realpathSync: 5, rmdirSync: 1, writeFileSync: 2,
     },
   },
   'src/panel/authorflows.js': {
@@ -427,8 +427,10 @@ const ALLOWLIST = {
     names: { realpathSync: 3, unlinkSync: 1 },
   },
   'bin/fwdloop': {
-    reason: 'CLI existence checks (source/run-dir presence) plus the one realpathSync in resolveRoot (hamr ruling 2026-09-29: the typed --root is followed once at start) — no content reads',
-    names: { existsSync: 3, realpathSync: 1 },
+    reason: 'CLI existence checks (source/run-dir presence; readdirSync only counts the entries of a pre-claimed run dir, rmdirSync only removes an EMPTY claimed run dir on exit) plus the one realpathSync in resolveRoot (hamr ruling 2026-09-29: the typed --root is followed once at start) — no content reads',
+    names: {
+      existsSync: 3, readdirSync: 1, realpathSync: 1, rmdirSync: 1,
+    },
   },
 };
 

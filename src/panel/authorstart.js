@@ -22,7 +22,7 @@
 // arrive together run one after the other and the second sees the first's `starting` start and is refused.
 import { randomBytes } from 'node:crypto';
 import {
-  existsSync, mkdirSync, realpathSync, writeFileSync,
+  existsSync, mkdirSync, realpathSync, rmdirSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +30,7 @@ import { fileURLToPath } from 'node:url';
 import { scrub } from '../authoring.js';
 import { readPidRows } from '../books.js';
 import {
-  PANEL_STARTS_DIR, checkRunId, readFileInside, readdirInside, resolveRunDir,
+  PANEL_STARTS_DIR, checkRunId, claimRunId, readFileInside, readdirInside, resolveRunDir,
 } from '../flow.js';
 import { booksFresh, runLiveness } from '../liveness.js';
 import {
@@ -44,9 +44,6 @@ const newId = () => `s-${Date.now().toString(36).padStart(10, '0')}-${randomByte
 const LOG_TAIL_CHARS = 1500;
 const NOTHING_SPENT = 'Nothing spent.';
 const ENDED_SAY = `The run process ended before it started. ${NOTHING_SPENT}`;
-
-/** The default run id, the CLI's own shape. */
-export const newRunId = () => `run-${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`;
 
 /**
  * @param {{ root: string, bin?: string }} opts
@@ -107,6 +104,7 @@ export function createStarter(opts) {
     /**
      * Start `fwdloop run` for a flow whose every $0 check already passed at the calling door. Re-checks the run id here (nothing
      * awaits between this check and the spawn). 202 { startId, runId } or a refusal; a refusal creates nothing.
+     * `runId` '' = no typed id: the start CLAIMS the next `run-<n>` itself (claimRunId, folder created exclusively; amendment 3).
      * @param {{ kind: 'run'|'sign', flow: string, runId: string, sources: {role: string, path: string}[] }} a
      * @param {Record<string, string|undefined>} env the merged keys env: the child's env AND the scrub list
      * @returns {{ status: number, body: any }}
@@ -116,13 +114,24 @@ export function createStarter(opts) {
     }, env) {
       const sd = startsDir();
       if (sd === null) return { status: 400, body: { ok: false, refused: 'root', say: 'The flows folder this panel serves does not exist.' } };
-      const run = checkRun(flow, runId);
-      if (!run.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: run.say } };
+      /** @type {string|null} */
+      let claimedDir = null;
+      if (runId === '') {
+        const c = claimRunId(join(realpathSync(root), flow));
+        if (!c.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: `${c.red.replace(/^run: /, '')}.` } };
+        ({ runId } = c);
+        claimedDir = c.runDir;
+      } else {
+        const run = checkRun(flow, runId);
+        if (!run.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: run.say } };
+      }
+      const unclaim = () => { if (claimedDir !== null) { try { rmdirSync(claimedDir); } catch { /* not empty / gone */ } } };
       const keys = providerKeys(env);
       // one start at a time while one is still spawning for this flow (a double click, two tabs)
       for (const id of readdirInside(sd, '.').filter((n) => ID_RE.test(n)).sort().reverse()) {
         const v = readStart(join(sd, id), id, keys);
         if (v && v.flow === flow && v.phase === 'starting') {
+          unclaim();
           return { status: 409, body: { ok: false, refused: 'start-live', startId: id, say: 'A run of this flow is already starting. Wait for it.' } };
         }
       }
@@ -140,6 +149,7 @@ export function createStarter(opts) {
           bin, argv, env, logPath: join(dir, 'child.log'),
         });
       } catch (e) {
+        unclaim();
         return { status: 500, body: { ok: false, refused: 'spawn', say: `The run could not be started (${/** @type {any} */ (e)?.code ?? 'error'}). ${NOTHING_SPENT}`, startId: id } };
       }
       child.on('error', () => {}); // a later spawn failure leaves no pid-backed child: the start then reads as refused

@@ -905,7 +905,7 @@ test('F45 fix 3: history wallMs times the whole run (through the pause), not jus
 // ---------------------------------------------------------------------------
 
 const sha256OfBytes = (buf) => createHash('sha256').update(buf).digest('hex');
-const shippedFiles = (runId) => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR).filter((f) => f.startsWith(`${runId}-`)) : []);
+const shippedFiles = (runId) => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR).filter((f) => f.includes(`-${runId}-`)) : []);
 const cleanShipped = (runId) => { for (const f of shippedFiles(runId)) rmSync(path.join(SEND_DIR, f), { force: true }); };
 const realSendArgs = (args) => ({ ...baseRunArgs(args), sendStep: sendViaPrimitive });
 
@@ -1012,5 +1012,34 @@ test('M4b p3 legacy: an accept answer.json with NO recorded hash (older version)
     assert.match(res.red, /no accepted-artifact hash was recorded/);
     assert.deepEqual(shippedFiles(runId), []);
     assert.equal(historyFor(a.root, runId)[0].outcome, 'red');
+  } finally { cleanShipped(runId); }
+});
+
+test('M4e am3 (b2): two flows whose run-1 both send to one destination folder place two different files, neither refused', async () => {
+  const runId = 'run-1';
+  cleanShipped(runId);
+  try {
+    const root = tmpRoot('b2');
+    const { fn: modelStep } = makeJob2ModelStep();
+    for (const name of ['job2', 'job2b']) {
+      writeJob2Flow(root, { name });
+      // eslint-disable-next-line no-await-in-loop
+      const parked = await runFlow({
+        ...baseRunArgs({
+          root, name, modelStep, askStep: makeParkingAskStep(), runId,
+        }),
+        sources: writeSources(tmpRoot(`b2-src-${name}`)),
+      });
+      assert.equal(parked.outcome, 'paused', parked.red);
+      assert.equal(answerAsk({ runDir: parked.runDir, askId: parked.askId, decision: 'accept' }).ok, true);
+      // eslint-disable-next-line no-await-in-loop
+      const done = await resumeRun(realSendArgs({
+        root, name, modelStep, runId,
+      }));
+      assert.equal(done.outcome, 'complete', done.red);
+    }
+    const files = shippedFiles(runId).sort();
+    assert.equal(files.length, 2, `shipped: ${files}`);
+    assert.ok(files[0].startsWith('job2-run-1-') && files[1].startsWith('job2b-run-1-'), files.join(','));
   } finally { cleanShipped(runId); }
 });
