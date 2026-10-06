@@ -209,3 +209,35 @@ test('an empty note, a change on a draft that is not green, and a change on a mi
   assert.equal(red.status, 409);
   assert.equal(red.json().refused, 'not-green');
 });
+
+// M4e amendment 4 item 3 negative (c), server side: the notes carry what the bubbles say; Start over is one new draft id and one new draft call.
+test('am4 item 3 (c): two changes list two notes, each with its hash and changes left; Start over = one new draft, the old draft stays on disk, a refresh shows only the new one', async () => {
+  const { w, id, g } = await greenWorld({ limit: 5 });
+  const s1 = await reviseAndSettle(w, id, 'first');
+  const s2 = await reviseAndSettle(w, id, 'second');
+  assert.deepEqual(s2.notes.map((x) => [x.n, x.hash === undefined ? null : x.hash.length > 8, x.left]), [[1, true, 1], [2, true, 0]]);
+  assert.equal(s2.notes[0].hash, s1.hash);
+  assert.equal(s2.notes[1].hash, s2.hash);
+  const before = spendSummary({ home: w.home });
+  const oldFiles = readdirSync(w.dir(id)).sort();
+  // Start over is the page's ordinary Draft call from the card as it is
+  const card = JSON.parse(readFileSync(path.join(w.dir(id), 'card.json'), 'utf8'));
+  const r = await w.post('/api/author/draft', card);
+  assert.equal(r.status, 202, r.text);
+  const nid = r.json().draftId;
+  assert.notEqual(nid, id, 'a new draft id');
+  const ns = await phaseOf(w, nid, ['green', 'red', 'stopped']);
+  assert.equal(ns.phase, 'green');
+  await childGone(w, nid);
+  assert.deepEqual(readdirSync(w.dir(id)).sort(), oldFiles, 'the old draft files are untouched');
+  assert.notEqual(ns.hash, undefined);
+  assert.equal(ns.changesLeft, 2, 'its own two changes');
+  assert.deepEqual(ns.notes, []);
+  const after = spendSummary({ home: w.home });
+  const round = (1000 / 1000) * RATES.in + (200 / 1000) * RATES.out;
+  assert.ok(Math.abs(after.total.usd - before.total.usd - round) < 1e-9, 'exactly one new draft call booked');
+  const live = (await w.get('/api/author/live')).json().draft;
+  assert.equal(live.draftId, nid);
+  assert.deepEqual(live.notes, [], 'a refresh brings back no old bubbles');
+  assert.ok(g.hash);
+});

@@ -101,3 +101,50 @@ test('wiring: Send posts the note to /revise; a refused note stays in the box; a
   assert.match(CHAT, /borrowed-from|ask box/, 'the block still says where it came from');
   assert.match(PAGE, /borrowed-from: bareloop src\/panel\/index\.html@d151ec7/);
 });
+
+// M4e amendment 4 item 3 negative (c), page side: bubbles, Start over, ids. Real rendering at 1280/390/320 is the browser walk still owed.
+const twoNotes = {
+  phase: 'green', hash: 'bbbbbbbbbbbbbbbb', readout: 'plan', changesLeft: 0,
+  notes: [
+    { n: 1, text: 'use grep\n', phase: 'green', hash: 'aaaaaaaa11112222', left: 1 },
+    { n: 2, text: 'shorter', phase: 'green', hash: 'bbbbbbbb33334444', left: 0 },
+  ],
+};
+test('am4 item 3 (c): two notes are two you bubbles and two fwdloop bubbles, in order, with the hash and changes left', () => {
+  const b = load('bubblesFor', fnSrc('changesLeftText'))(twoNotes);
+  assert.deepEqual(b, [
+    { role: 'you', who: 'you', text: 'use grep' },
+    { role: 'bot', who: 'fwdloop', text: 'New plan, hash aaaaaaaa. 1 change left.' },
+    { role: 'you', who: 'you', text: 'shorter' },
+    { role: 'bot', who: 'fwdloop', text: 'New plan, hash bbbbbbbb. 0 changes left.' },
+  ]);
+});
+test('am4 item 3: a red or running change shows only the you bubble (its reds stay in the progress list, never echoed)', () => {
+  const f = load('bubblesFor', fnSrc('changesLeftText'));
+  const b = f({ phase: 'green', notes: [{ n: 1, text: 'x', phase: 'red', reds: ['r'], say: 's' }, { n: 2, text: 'y', phase: 'running' }] });
+  assert.deepEqual(b.map((m) => m.role), ['you', 'you']);
+  assert.ok(!JSON.stringify(b).includes('"r"'));
+  assert.deepEqual(f({ phase: 'red', notes: twoNotes.notes }), [], 'no bubbles unless there is a plan');
+  assert.deepEqual(f(null), []);
+});
+test('am4 item 3 (c): Start over shows only after the second change (box closed); never while changes are left, drafting or in Run mode', () => {
+  const f = load('startOverShownFor');
+  const st = { mode: 'new', session: true, phase: 'green', left: 0 };
+  assert.equal(f(st), true);
+  assert.equal(f({ ...st, left: 1 }), false);
+  assert.equal(f({ ...st, left: 2 }), false);
+  assert.equal(f({ ...st, left: undefined }), false);
+  for (const phase of ['drafting', 'revising', 'red', 'stopped']) assert.equal(f({ ...st, phase }), false);
+  assert.equal(f({ ...st, mode: 'run' }), false);
+  assert.equal(f({ ...st, session: false }), false);
+});
+test('am4 item 3: Start over is wired to the one Draft call (no abandon, no second path), the thread draws the bubbles, and the ids are unique', () => {
+  assert.match(CHAT, /startOverBtn\.addEventListener\("click", function\(\)\{ if\(!startOverBtn\.disabled\) doDraft\(\); \}\);/);
+  assert.match(CHAT, /startOverBtn\.hidden = !startOverShownFor\(st\)/);
+  assert.match(fnSrc('renderThread'), /bubblesFor\(state\)/);
+  assert.equal((PAGE.match(/id="chat-startover-btn"/g) || []).length, 1);
+  assert.match(SECTION, /<button[^>]*id="chat-startover-btn"[^>]*hidden>Start over<\/button>/);
+  // no spill: bubbles wrap and never exceed the column; the you bubble's indent is small
+  assert.match(PAGE, /\.msg\{[^}]*max-width:100%[^}]*word-break:break-word[^}]*white-space:pre-wrap/);
+  assert.match(PAGE, /\.msg\.you\{[^}]*margin-left:20px/);
+});

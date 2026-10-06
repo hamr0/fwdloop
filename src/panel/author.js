@@ -173,7 +173,7 @@ export function createAuthor(opts) {
       const text = readFileInside(dir, `note-${n}.txt`);
       const entry = { n, text: text.ok ? scrub(text.text, keys) : '' };
       const res = resultOf(dir, `draft-${n}`, keys);
-      if (res && res.phase === 'green') { plan = { rel: `draft-${n}`, ...res }; return { ...entry, phase: 'green' }; }
+      if (res && res.phase === 'green') { plan = { rel: `draft-${n}`, ...res }; return { ...entry, phase: 'green', hash: res.hash, left: Math.max(0, MAX_CHANGES - (i + 1)) }; }
       if (res) return { ...entry, phase: 'red', reds: res.reds, say: CHANGE_RED_SAY };
       if (i === noteNs.length - 1 && childRunning(dir)) { running = true; return { ...entry, phase: 'running' }; }
       return { ...entry, phase: 'stopped', say: logTail(dir, `revise-${n}.log`, keys) || STOPPED_SAY };

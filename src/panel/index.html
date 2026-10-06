@@ -477,6 +477,9 @@
   .msg.bot{border-left:3px solid var(--border-strong);}
   .msg.bot .who::before{content:"$ ";}
   .msg .who{font-size:11px;color:var(--text-faint);margin-bottom:3px;text-transform:none;font-weight:400;}
+  /* borrowed-from: bareloop src/panel/index.html@c1d87ce (the "you" bubble: indented, accent left border) */
+  .msg.you{background:var(--bg);margin-left:20px;border-left:3px solid var(--accent);}
+  .msg.you .who::before{content:"> ";}
   .chat-input-row{margin-top:10px;border-top:1px dotted var(--border-strong);padding-top:10px;}
   .chat-input-row input{width:100%;box-sizing:border-box;}
   /* borrowed-from: bareloop src/panel/index.html@d151ec7 (the ask box: a wrapping textarea, 2x height, thick border, dimmed while it cannot be used).
@@ -868,6 +871,8 @@
           </div>
           <button class="btn primary wide" type="button" id="chat-main-btn" data-testid="chat-main" disabled>Draft</button>
           <div class="hint" id="chat-main-hint" data-testid="chat-main-hint"></div>
+          <!-- M4e amendment 4 item 3: after the second change the ask box is closed; Start over drafts again from the card as it is (a fresh draft) -->
+          <button class="btn wide" type="button" id="chat-startover-btn" data-testid="chat-startover" hidden>Start over</button>
           <div class="hint">Only your click signs.</div>
         </section>
 
@@ -3547,6 +3552,7 @@
     var askWaitEl = document.getElementById("jf-ask-wait");
     var mainBtn = document.getElementById("chat-main-btn");
     var mainHint = document.getElementById("chat-main-hint");
+    var startOverBtn = document.getElementById("chat-startover-btn");
     var msgEl = document.getElementById("chat-msg");               // the ask box: a note asking for a change to the green plan
     var msgRow = document.getElementById("chat-msg-row");
     var errEl = document.getElementById("chat-card-error");        // POLL-OWNED: the draft's own sentence (red / stopped)
@@ -3657,6 +3663,22 @@
     // pure: the ask box is open on a green plan with changes left (bareloop: it closes at 0); the hint under the button says how many.
     function askBoxOpenFor(st){
       return st.mode === "new" && !!st.session && st.phase === "green" && (st.left || 0) > 0;
+    }
+    // pure: Start over shows only when the plan on show has used both changes (the ask box is closed): the second choice beside Sign & run
+    function startOverShownFor(st){
+      return st.mode === "new" && !!st.session && st.phase === "green" && st.left === 0;
+    }
+    // borrowed-from: bareloop src/panel/index.html@c1d87ce (renderMessages: "you" / bot bubbles, each with a who label)
+    // pure: the bubbles under the plan, from the draft's notes: each note is a you bubble in the human's words, each green change a fwdloop bubble.
+    // A red or stopped change gets no bubble of its own: its reds are in the progress list, shown once.
+    function bubblesFor(state){
+      var out = [];
+      if(!state || (state.phase !== "green" && state.phase !== "revising")) return out;
+      (state.notes || []).forEach(function(nt){
+        out.push({role: "you", who: "you", text: String(nt.text || "").replace(/\s+$/, "")});
+        if(nt.phase === "green") out.push({role: "bot", who: "fwdloop", text: "New plan, hash " + String(nt.hash || "").slice(0, 8) + ". " + changesLeftText(nt.left) + "."});
+      });
+      return out;
     }
     function changesLeftText(left){
       return left + (left === 1 ? " change left" : " changes left");
@@ -4049,9 +4071,12 @@
     var threadKey = "";
     function renderThread(state){
       var html = "";
-      if(state && state.phase === "green" && state.readout){
+      if(state && (state.phase === "green" || state.phase === "revising") && state.readout){
         html = '<div class="msg bot"><div class="who">fwdloop</div>' + escapeXml(String(state.readout).replace(/\s+$/, "")) +
-          '\n\nPlan hash: ' + escapeXml(state.hash || "") + '</div>';
+          '\n\nPlan hash: ' + escapeXml(state.hash || "") + '</div>' +
+          bubblesFor(state).map(function(m){
+            return '<div class="msg ' + m.role + '"><div class="who">' + escapeXml(m.who) + '</div>' + escapeXml(m.text) + '</div>';
+          }).join("");
       }
       if(html !== threadKey){ threadKey = html; thread.innerHTML = html; }
     }
@@ -4086,6 +4111,8 @@
       msgRow.hidden = !boxShown;
       msgEl.readOnly = !st.boxOpen || !!busy;
       mainHint.textContent = st.boxOpen ? changesLeftText(st.left) : "";
+      startOverBtn.hidden = !startOverShownFor(st);
+      startOverBtn.disabled = !!st.busy;
       fitCardBoxes();
       if(boxShown) fitBox(msgEl);
     }
@@ -4432,6 +4459,8 @@
       if(refusedStartId){ var rid = refusedStartId; refusedStartId = null; authorPost("/api/author/start/" + rid + "/clear", {}).catch(function(){}); }
       resetCard();
     });
+    // Start over (amendment 4 item 3): the same draft call as Draft, from the card as it is now; the old draft's files stay (a new draft id)
+    startOverBtn.addEventListener("click", function(){ if(!startOverBtn.disabled) doDraft(); });
     mainBtn.addEventListener("click", function(){
       if(mainBtn.disabled) return;
       if(mainAction === "draft") doDraft();
