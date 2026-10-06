@@ -679,6 +679,7 @@ function makeAuditRow({
  *   defaults to the real wall clock.
  * @param {(() => boolean)|null} [opts.readStop] - amendment 7 item 8: the run's stop reader, asked before every try and (via modelStep's seam) every model call
  * @param {number} [opts.stepNo] - this step's 1-based number, for the words of a stop row
+ * @param {string|null} [opts.prevStepId] - the id of step stepNo-1 (null for step 1): the step a "stopped after step N-1" row is filed under
  * @param {number} [opts.triesDone] - tries a Stop already closed on this step (they count against its limit)
  * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string, stop?:{where:string, book:Record<string, any>, step?:string|null}}>}
  */
