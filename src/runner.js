@@ -1206,7 +1206,7 @@ function makeOneShotThenParkAskStep({ decision, reason, artifactSha256 }) {
  * @returns {Promise<any>}
  */
 async function runAskSlot({
-  step, stepIndex, askSlot, priorId, priorStep, priorArtifact, redoCap, effectiveCeilingUsd, capUsd,
+  step, stepIndex, askSlot, priorId, priorStep, priorStepNo, priorArtifact, redoCap, effectiveCeilingUsd, capUsd,
   primitives, businessDate, modelStep, askStep, spent, spendComplete, recordAudit,
   evidenceUnjudged, unjudgedCount, redone: initialRedone,
   runDir, flowDir, runId, flowRoot, flowName, signatureHash, inputsManifest, attemptsLog, artifacts, now, startedAt,
@@ -1372,9 +1372,12 @@ async function runAskSlot({
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
         step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone, now,
+        readStop: () => stopPending(runDir), stepNo: priorStepNo,
       });
       if (!redoResult.ok) {
-        return { type: 'halted', outcome: redoResult.outcome, red: redoResult.red };
+        return {
+          type: 'halted', outcome: redoResult.outcome, red: redoResult.red, ...(redoResult.stop ? { stop: redoResult.stop } : {}),
+        };
       }
       currentPrior = redoResult.artifact;
       // A redo deliberately REPLACES the prior step's own artifact — the one
@@ -1547,6 +1550,7 @@ async function foldFromStep({
         askSlot,
         priorId,
         priorStep: steps[priorStepIndex],
+        priorStepNo: priorStepIndex + 1,
         priorArtifact,
         redoCap,
         effectiveCeilingUsd,
@@ -1578,7 +1582,8 @@ async function foldFromStep({
       if (askResult.type === 'paused') return askResult.result;
       if (askResult.type === 'halted') {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value && askResult.stop?.book?.spendComplete !== false, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
+          ...(askResult.stop ? { stop: askResult.stop } : {}),
           resumeAt: { stepIndex: i, flowRoot, flowName, inputsManifest, unjudged: evidenceUnjudged },
         });
       }
@@ -2171,6 +2176,7 @@ export async function resumeRun({
       askSlot,
       priorId,
       priorStep: steps[priorStepIndex],
+      priorStepNo: priorStepIndex + 1,
       priorArtifact,
       redoCap,
       effectiveCeilingUsd,
@@ -2202,7 +2208,8 @@ export async function resumeRun({
     if (askResult.type === 'paused') return askResult.result;
     if (askResult.type === 'halted') {
       return haltRun({
-        flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs: getNowMs, signatureHash: state.signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
+        flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs: getNowMs, signatureHash: state.signatureHash, spent, priorSpendComplete: spendComplete.value && askResult.stop?.book?.spendComplete !== false, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
+          ...(askResult.stop ? { stop: askResult.stop } : {}),
         resumeAt: { stepIndex: state.stepIndex, flowRoot: root, flowName: name, inputsManifest: state.inputsManifest, unjudged: state.evidenceUnjudged ?? [] },
       });
     }

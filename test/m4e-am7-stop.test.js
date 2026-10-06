@@ -226,3 +226,47 @@ test('am7 (e) control: a run with no Stop writes no stop rows', async () => {
   assert.equal((await runFlow({ ...args(w, fn), sources: w.sources })).outcome, 'paused');
   assert.deepEqual(stopRows(w.runDir), []);
 });
+
+/** Run job2 to its ask (parked), then answer `redo` — the next resumeRun re-runs step 3 through the human-redo path. */
+async function parkThenRedo(w) {
+  const first = fake();
+  assert.equal((await runFlow({ ...args(w, first.fn), sources: w.sources })).outcome, 'paused');
+  const ask = JSON.parse(readFileSync(path.join(w.runDir, 'ask.json'), 'utf8'));
+  assert.equal(answerAsk({ runDir: w.runDir, askId: ask.askId, decision: 'redo', reason: 'again please' }).ok, true);
+}
+
+test('am7 (e) redo mid-turn: a Stop that lands during turn 1 of a human-redo re-run stops BEFORE turn 2 — one provider call, booked, rows present, books balance', async () => {
+  const w = mk('rdmt');
+  await parkThenRedo(w);
+  const { fn, gen } = liveStep3(w, {
+    script: (n) => { if (n === 1) return toolTurn('t1'); throw new Error('no second call may start'); },
+    onGenerate: (n) => { if (n === 1) requestStop(w.runDir); },
+  });
+  const r = await resumeRun(args(w, fn));
+  assert.equal(r.outcome, 'stopped', r.red);
+  assert.equal(gen.calls, 1, 'no new call started after the Stop');
+  const rows = stopRows(w.runDir);
+  assert.deepEqual(rows.map((x) => x.verdict), ['stop-asked', 'stopped']);
+  assert.match(rows[1].gap, /^stopped after turn 1 of try \d of step 3$/);
+  assert.equal(rows[1].step, 'resume-summary');
+  assert.ok(rows[1].usd > 0 && rows[1].tokens?.inputTokens === 100, `the in-flight call is booked: ${JSON.stringify(rows[1])}`);
+  assert.equal(existsSync(path.join(w.runDir, STOP_FILE)), false, 'the request is consumed');
+  const hist = readHistory(w.flowDir).at(-1);
+  assert.equal(hist.outcome, 'stopped');
+  assert.ok(Math.abs(hist.spentUsd - auditSum(w.runDir)) < 1e-9, `books balance: history ${hist.spentUsd} vs audit ${auditSum(w.runDir)}`);
+  assert.equal(readHaltRecord(w.runDir).halt.stepIndex, 3, 're-enters at the ask');
+});
+
+test('am7 (e) redo between tries: a Stop during try 1 of a redo that closes red ends the run stopped BEFORE try 2 — no new call', async () => {
+  const w = mk('rdbt');
+  await parkThenRedo(w);
+  const redo = fake({ plan: () => 'red', onCall: (n) => { if (n === 1) requestStop(w.runDir); } });
+  const r = await resumeRun(args(w, redo.fn));
+  assert.equal(r.outcome, 'stopped', r.red);
+  assert.equal(redo.calls.filter((c) => c === 'resume-summary').length, 1, 'redo try 2 never called the model');
+  const rows = stopRows(w.runDir);
+  assert.deepEqual(rows.map((x) => x.verdict), ['stop-asked', 'stopped']);
+  assert.match(rows[1].gap, /^stopped after turn 2 of try \d of step 3$/);
+  const hist = readHistory(w.flowDir).at(-1);
+  assert.ok(Math.abs(hist.spentUsd - auditSum(w.runDir)) < 1e-9, 'books balance');
+});
