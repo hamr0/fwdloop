@@ -140,7 +140,6 @@ function settleStop({
 }) {
   const req = readStopRequest(runDir);
   if (!req && !stop) return;
-  if (!existsSync(runDir)) return;
   const note = {
     step: null, attempt: null, class: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, tokens: null, tools: null, refused: [],
   };

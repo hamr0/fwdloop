@@ -1257,6 +1257,9 @@
     if(verdict === "ask-timeout" || verdict === "ask-expired") return "expired waiting for you";
     if(verdict === "ask-reopened") return "reopened by you";
     if(verdict === "lock-removed") return "old lock removed by you";
+    if(verdict === "stop-asked") return "stop asked by you";
+    if(verdict === "stopped") return "stopped by you";
+    if(verdict === "stop-not-honoured") return "stop not honoured";
     if(verdict === "green") return "passed";
     if(verdict === "hitl") return "human check";
     if(verdict === "not-done") return "not done";
@@ -1270,6 +1273,7 @@
   function verdictGlyph(verdict, closeClass){
     if(closeClass === "hitl" && verdict === "red") return null;
     if(verdict === "paused" || verdict === "refused" || verdict === "ask-timeout" || verdict === "ask-expired" || verdict === "ask-reopened" || verdict === "lock-removed") return null;
+    if(verdict === "stop-asked" || verdict === "stopped" || verdict === "stop-not-honoured") return null; // amendment 7 item 8: a Stop is neither a pass nor a failure
     return verdictPassed(verdict) ? "✓" : "✗";
   }
   // The run-row glyph strings src/panel/data.js's computeGlyph emits are

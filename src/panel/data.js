@@ -649,7 +649,7 @@ export function isBlockedVerdict(verdict) {
 function markForVerdict(verdict, closeClass) {
   if (closeClass === 'hitl' && verdict === 'red') return '✗'; // the human's own redo
   if (verdict === 'green' || verdict === 'hitl') return '✓';
-  if (verdict === 'paused' || verdict === 'refused' || verdict === 'ask-timeout' || verdict === 'ask-expired' || verdict === 'ask-reopened' || verdict === 'lock-removed') return '·';
+  if (verdict === 'paused' || verdict === 'refused' || verdict === 'ask-timeout' || verdict === 'ask-expired' || verdict === 'ask-reopened' || verdict === 'lock-removed' || verdict === 'stop-asked' || verdict === 'stopped' || verdict === 'stop-not-honoured') return '·';
   return '✗';
 }
 
