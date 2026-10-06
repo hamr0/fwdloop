@@ -345,7 +345,7 @@ export function createAuthor(opts) {
       try {
         child = spawnDetached({
           bin,
-          argv: ['draft', join(dir, 'prose.txt'), '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', v.card.flowName, '--revise-from', join(dir, v.plan), '--note', noteFile],
+          argv: ['draft', join(dir, 'prose.txt'), '--out', join(dir, `draft-${n}`), '--root', dirname(/** @type {string} */ (dd)), '--name', v.card.flowName, '--revise-from', join(dir, v.plan), '--note', noteFile],
           env: loaded.env,
           logPath: join(dir, `revise-${n}.log`),
         });

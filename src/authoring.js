@@ -216,8 +216,9 @@ export async function draftToDir({
     }
     // the card's fields come only from the card: a revise carries the SAME prose, byte for byte, as the plan it revises
     if (prev['prose.txt'] !== prose.text) return refuse(['revise: the prose differs from the plan being revised — a revise never changes the card']);
-    let note;
-    try { note = readFileSync(noteFile, 'utf8'); } catch (e) { return refuse([`revise: cannot read the note "${noteFile}": ${e.code ?? e.message}`]); }
+    const noteRead = readFileInside(path.dirname(noteFile), path.basename(noteFile));
+    if (!noteRead.ok) return refuse([`revise: cannot read the note "${noteFile}": ${noteRead.missing ? 'missing' : noteRead.red}`]);
+    const note = noteRead.text;
     if (note.trim() === '') return refuse(['revise: the note is empty']);
     if (textHasKey(note, env)) return refuse(['note: contains an API key value — refused']);
     let plan;
