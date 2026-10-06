@@ -335,7 +335,7 @@ export async function draft({
       declaration.steps = declaration.steps.map((st) => (isPlainObject(st) ? { ...st, goal: goalForLine(st.fromLine, lines) } : st));
     }
     const verdict = validateDeclaration(declaration, {
-      arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true,
+      arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
     });
     lastDecl = declaration;
     if (verdict.ok) {

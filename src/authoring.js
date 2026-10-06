@@ -375,7 +375,7 @@ export function signDraft({
   const cat = loadCatalogue();
   if (!cat.ok) return refuse(`sign: catalogue: ${cat.reds.join('; ')}`);
   const verdict = validateDeclaration(declaration, {
-    arbiter: signed.arbiter, lines: signed.lines, catalogue: cat.primitives, wired: WIRED_VERBS, verbatimGoals: true,
+    arbiter: signed.arbiter, lines: signed.lines, catalogue: cat.primitives, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
   });
   if (!verdict.ok) return { ok: false, reds: verdict.reds };
 

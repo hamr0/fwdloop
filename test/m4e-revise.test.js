@@ -34,7 +34,7 @@ async function firstDraft() {
   });
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   const note = path.join(work, 'note.txt');
-  writeFileSync(note, 'Please check the sections in the other order.');
+  writeFileSync(note, 'Please check that it mentions the JD.');
   return {
     work, root, proseFile, dir, note, first: r, fx,
   };
@@ -48,7 +48,7 @@ const revised = (w, replies, extra = {}) => {
     }),
   };
 };
-const changed = () => { const a = validArgs(); a.steps[2].close.shape.sections = [...a.steps[2].close.shape.sections].reverse(); return a; };
+const changed = () => { const a = validArgs(); a.steps[2].close.shape.mustCarry = ['JD']; return a; };
 
 test('(d) a revise with a note: one drafter call given the current plan and the note, a new plan with a new hash, the note kept with it, booked like a draft', async () => {
   const w = await firstDraft();
@@ -58,11 +58,11 @@ test('(d) a revise with a note: one drafter call given the current plan and the 
   assert.equal(provider.calls.length, 1, 'ONE paid call');
   const sent = provider.calls[0].messages.find((m) => m.role === 'user').content;
   assert.match(sent, /asks for a change to the plan/);
-  assert.match(sent, /Please check the sections in the other order\./, 'the note is in the call');
+  assert.match(sent, /Please check that it mentions the JD\./, 'the note is in the call');
   assert.match(sent, /"resume-summary"/, 'the current plan is in the call');
   assert.notEqual(r.hash, w.first.hash, 'a new plan has a new hash');
   const dir2 = path.join(w.work, 'draft-1');
-  assert.equal(readFileSync(path.join(dir2, 'note.txt'), 'utf8'), 'Please check the sections in the other order.', 'the note is kept with the draft it made');
+  assert.equal(readFileSync(path.join(dir2, 'note.txt'), 'utf8'), 'Please check that it mentions the JD.', 'the note is kept with the draft it made');
   assert.equal(readFileSync(path.join(dir2, 'spec.hash'), 'utf8').trim(), r.hash);
   const rows = readSpendRows(path.join(dir2, 'spend.jsonl'));
   assert.equal(rows.length, 1);

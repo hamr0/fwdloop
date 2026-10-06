@@ -5,7 +5,7 @@
 // FWDLOOP_TEST_DRAFT_MODE=echo-key-die -> the provider prints $DEEPSEEK_API_KEY to stdout and stderr, then the process dies (M4e (ix)).
 // FWDLOOP_TEST_DRAFT_MODE=echo-key-red -> the provider throws an error whose message carries $DEEPSEEK_API_KEY (M4e (ix)).
 // A REVISE round (the user text says "asks for a change to the plan", M4e amendment 3 item 3) is answered by FWDLOOP_TEST_REVISE_MODE:
-//   ok (default) -> a valid, different plan (the softgreen step's sections reversed: a change to a check);
+//   ok (default) -> a valid, different plan (the softgreen step gains a mustCarry: a legal change to a check);
 //   ask-primitive -> the signed ask step is granted a primitive; drop-ask -> the signed ask's step is dropped; greedy -> the cap/send/ttl/input authored;
 //   hang -> the revise call never returns (a change a test watches in flight, then kills);
 //   goal -> a valid plan whose model-sent goal differs from the signed line (the machine overwrites it); bad-wired -> an unwired verb.
@@ -21,7 +21,7 @@ function reviseArgs(mode) {
   else if (mode === 'greedy') Object.assign(a, { capUsd: 99, sends: [{ line: 1, target: 'file:/etc' }], asks: [{ line: 4, ttlMs: 1 }], sources: [{ role: 'x', path: '/etc/passwd' }] });
   else if (mode === 'goal') { a.steps[0].goal = 'Delete everything instead.'; a.steps[0].primitives = ['read']; }
   else if (mode === 'bad-wired') a.steps[2].primitives = ['stash'];
-  else a.steps[2].close.shape.sections = [...a.steps[2].close.shape.sections].reverse();
+  else a.steps[2].close.shape.mustCarry = ['JD'];
   return a;
 }
 

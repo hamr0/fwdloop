@@ -51,14 +51,14 @@ async function reviseAndSettle(w, id, text) {
 
 test('(d) a revise with a note returns a new plan with a new hash; the note is kept on disk and listed; one change used; the old hash signs nothing', async () => {
   const { w, id, g, calls } = await greenWorld();
-  const s = await reviseAndSettle(w, id, 'check the sections in the other order');
+  const s = await reviseAndSettle(w, id, 'check that it mentions the JD');
   assert.equal(s.phase, 'green');
   assert.notEqual(s.hash, g.hash, 'a new plan, a new hash');
   assert.equal(s.plan, 'draft-1');
   assert.equal(s.changesLeft, 1);
-  assert.deepEqual(s.notes.map((x) => [x.n, x.text.trim(), x.phase]), [[1, 'check the sections in the other order', 'green']]);
-  assert.equal(readFileSync(path.join(w.dir(id), 'note-1.txt'), 'utf8').trim(), 'check the sections in the other order');
-  assert.equal(readFileSync(path.join(w.dir(id), 'draft-1', 'note.txt'), 'utf8').trim(), 'check the sections in the other order', 'kept with the draft it made');
+  assert.deepEqual(s.notes.map((x) => [x.n, x.text.trim(), x.phase]), [[1, 'check that it mentions the JD', 'green']]);
+  assert.equal(readFileSync(path.join(w.dir(id), 'note-1.txt'), 'utf8').trim(), 'check that it mentions the JD');
+  assert.equal(readFileSync(path.join(w.dir(id), 'draft-1', 'note.txt'), 'utf8').trim(), 'check that it mentions the JD', 'kept with the draft it made');
   assert.equal(calls(), 1, 'one drafter call');
   // sign with the OLD hash: refused by name, nothing signed
   const before = readdirSync(w.root).sort();
@@ -74,7 +74,7 @@ test('(d) a revise with a note returns a new plan with a new hash; the note is k
   assert.equal(ok.status, 202, ok.text);
   const flow = flowOf(w, 'job2');
   assert.ok(flow.ok, JSON.stringify(flow));
-  assert.deepEqual(flow.declaration.steps[2].close.shape.sections, ['soft skills', 'professional skills', 'summary of work history blurb'], 'the signed flow is the revised plan');
+  assert.deepEqual(flow.declaration.steps[2].close.shape.mustCarry, ['JD'], 'the signed flow is the revised plan');
 });
 
 test('(e) a third change on one draft is refused and makes no model call', async () => {
