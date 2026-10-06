@@ -247,11 +247,22 @@ function guardrailWordLimit(guardrail) {
   return m ? Number(m[1]) : null;
 }
 
-/** M4e amendment 6 item 1: a step's check cannot fight its own job line. Sections must be found in the line's words
+const NUMBER_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+/** M4e amendment 7 item 1: the first "<N> sections" in a guardrail (N digits, or the words one..ten), or null. */
+function guardrailSectionCount(guardrail) {
+  const m = typeof guardrail === 'string' ? /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+)?sections?\b/i.exec(guardrail) : null;
+  if (!m) return null;
+  return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()];
+}
+const MAX_SECTION_NAME_WORDS = 8;
+const MAX_SECTION_SHARE_OF_LINE = 0.6;
+const wordCount = (t) => t.trim().split(/\s+/).filter(Boolean).length;
+
+/** M4e amendment 6 item 1 (+ amendment 7 item 1): a step's check cannot fight its own job line. Sections must be found in the line's words
  *  (case-insensitive substring of the goal, first occurrence) and in the line's order; `maxWords` must equal the line's
  *  own guardrail limit when that guardrail states one. A shape key a note may still change (mustCarry, linesPerInvoice)
  *  is untouched. Pushes reds naming the step and both orders/values. */
-function checkShapeFitsJobLine(step, i, lines, reds) {
+export function checkShapeFitsJobLine(step, i, lines, reds) {
   const { shape } = step.close;
   const label = `steps[${i}]`;
   const line = Number.isInteger(step.fromLine) ? lines.find((l) => l.n === step.fromLine) : undefined;
@@ -270,6 +281,26 @@ function checkShapeFitsJobLine(step, i, lines, reds) {
         reds.push(`declaration: ${label} the job line says ${jobOrder.join(', then ')}; the check says ${shape.sections.join(', then ')} — change the job line on the card to change the order`);
       }
     }
+  }
+  const wantSections = guardrailSectionCount(line?.guardrail);
+  if (Array.isArray(shape.sections)) {
+    if (wantSections !== null && shape.sections.length !== wantSections) {
+      reds.push(`declaration: ${label} the guardrail says ${wantSections} sections; the check has ${shape.sections.length}`);
+    }
+    const goalWords = typeof step.goal === 'string' ? wordCount(step.goal) : 0;
+    const names = shape.sections.filter((n) => typeof n === 'string' && n.trim().length > 0);
+    for (const name of names) {
+      const n = wordCount(name);
+      if (n > MAX_SECTION_NAME_WORDS) {
+        reds.push(`declaration: ${label}.close.shape.sections names "${name}" (${n} words) — a section name is a short phrase from the job line, at most ${MAX_SECTION_NAME_WORDS} words`);
+      } else if (goalWords > 0 && n / goalWords >= MAX_SECTION_SHARE_OF_LINE) {
+        reds.push(`declaration: ${label}.close.shape.sections names "${name}", which is the job line or most of it — a section name is a short phrase from the line`);
+      }
+    }
+    const norm = names.map((n) => n.toLowerCase().replace(/\s+/g, ' ').trim());
+    norm.forEach((a, x) => norm.forEach((b, y) => {
+      if (x !== y && a.includes(b)) reds.push(`declaration: ${label}.close.shape.sections "${names[x]}" contains "${names[y]}" — one section name may not contain another`);
+    }));
   }
   const limit = guardrailWordLimit(line?.guardrail);
   if (limit !== null && shape.maxWords !== undefined && shape.maxWords !== limit) {
