@@ -54,7 +54,7 @@ import {
 import { WIRED_VERBS } from './primitives.js';
 import { configHome, configDoorHome } from './config.js';
 import { closeByClass } from './closers.js';
-import { appendAudit, appendHistory, HALT_OUTCOMES } from './books.js';
+import { appendAudit, appendHistory, readAudit, HALT_OUTCOMES } from './books.js';
 import { applyRunValues, pickRunValues } from './runvalues.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
@@ -111,9 +111,50 @@ export function requestStop(runDir) {
   }
 }
 
-/** Is a stop pending for this run? (read-only; the seam is the one consumer) @param {string} runDir */
+/** The ONE reader of the stop request: `{at}` (when it was asked; null if unreadable) or `null` when none is pending. @param {string} runDir */
+export function readStopRequest(runDir) {
+  const r = readFileInside(runDir, STOP_FILE);
+  if (!r.ok) return null;
+  try { const at = JSON.parse(r.text)?.at; return { at: typeof at === 'string' ? at : null }; } catch { return { at: null }; }
+}
+
+/** Is a stop pending for this run? (read-only) @param {string} runDir */
 export function stopPending(runDir) {
-  return readFileInside(runDir, STOP_FILE).ok;
+  return readStopRequest(runDir) !== null;
+}
+
+/**
+ * M4e amendment 7 item 8: the ONE writer of a Stop's audit rows, and the one place a request is cleared — a Stop is never cleared
+ * silently. A pending request leaves "stop asked (you) at <time>" and then its outcome: `stop` given = honoured (`verdict:'stopped'`,
+ * `stop.where` its words, `stop.book` the cut try's own row fields so the call in flight is booked); otherwise `not honoured: the run
+ * ended (<outcome>) first`. No pending request and no `stop` = no rows. The notes cost 0; a booked call's cost rides the `stopped` row.
+ *
+ * @param {object} o
+ * @param {string} o.runDir
+ * @param {() => string} o.now
+ * @param {string} o.outcome how the run ended (the words of the not-honoured row)
+ * @param {{where:string, book?:Record<string, any>}|null} [o.stop]
+ */
+function settleStop({
+  runDir, now, outcome, stop = null,
+}) {
+  const req = readStopRequest(runDir);
+  if (!req && !stop) return;
+  if (!existsSync(runDir)) return;
+  const note = {
+    step: null, attempt: null, class: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, tokens: null, tools: null, refused: [],
+  };
+  appendAudit(runDir, {
+    ...note, verdict: 'stop-asked', gap: `stop asked (you) at ${req?.at ?? 'an unrecorded time'}`, at: req?.at ?? now(),
+  });
+  appendAudit(runDir, stop
+    ? {
+      ...note, ...stop.book, verdict: 'stopped', gap: stop.where, at: now(),
+    }
+    : {
+      ...note, verdict: 'stop-not-honoured', gap: `not honoured: the run ended (${outcome}) first`, at: now(),
+    });
+  clearStop(runDir);
 }
 
 function clearStop(runDir) {
@@ -671,14 +712,30 @@ async function runStepRalph({
   // none left in production; a defensive default only) still writes a valid
   // ISO string.
   now = () => new Date().toISOString(),
+  // M4e amendment 7 item 8: the Stop seam before every model call. `readStop` is the run's one stop reader (the fold's closure over
+  // `readStopRequest`); `stepNo` is this step's 1-based number for the words of the stop row; `triesDone` is the tries a Stop already
+  // cut this step short of (their numbering is in `attemptOffset`; a try the Stop cut mid-way is replaced by the new one, never counted
+  // against the limit, so Resume always gets at least one new try).
+  readStop = null, stepNo = 0, triesDone = 0,
 }) {
   /** @type {string|null} */
   let gap = initialGap ?? null;
   let strikes = 0;
   const seenGaps = new Set();
+  const maxN = MAX_ATTEMPTS - triesDone;
+  let lastTurns = null;
+  const stopWords = (tryNo, turns) => (turns > 0
+    ? `stopped after turn ${turns} of try ${tryNo} of step ${stepNo}`
+    : (tryNo > 0 ? `stopped after try ${tryNo} of step ${stepNo}` : (stepNo > 1 ? `stopped after step ${stepNo - 1}` : 'stopped before step 1')));
+  /** The ralph's return for a Stop: the cut try's own row fields (`book`) ride the one `stopped` row `settleStop` writes. */
+  const stopped = (where, book = {}) => ({
+    ok: false, outcome: 'stopped', red: `stopped by you — ${where}`, stop: { where, book },
+  });
 
-  for (let n = 1; n <= MAX_ATTEMPTS; n += 1) {
+  for (let n = 1; n <= maxN; n += 1) {
     const attempt = attemptOffset + n;
+    // Between tries: the previous try closed red, no new model call has started — a pending Stop ends the run here.
+    if (n > 1 && readStop && readStop()) return stopped(stopWords(attempt - 1, lastTurns ?? 0));
     // This attempt's known floor from a FIRST transport fault that then
     // retried — every audit row this attempt still writes must carry this
     // floor summed with its own cost (F41 books gap: the fault's cost was
@@ -708,9 +765,11 @@ async function runStepRalph({
     // construction test below proves the context itself stays clean).
     const stepMeta = Object.freeze({ class: step.close?.class ?? null });
 
+    const stopSeam = readStop ? Object.freeze({ stopRequested: readStop }) : undefined;
+
     const startedAt = Date.now();
     // eslint-disable-next-line no-await-in-loop
-    let result = await modelStep(executorContext, grantedTools, stepMeta);
+    let result = await modelStep(executorContext, grantedTools, stepMeta, stopSeam);
     if (result && result.ok === false && result.transport === true) {
       // A known partial cost from the FIRST transport fault must survive as
       // the floor even though this attempt goes on to retry — never
@@ -726,7 +785,7 @@ async function runStepRalph({
       // `transport: true` shape, exactly once.
       const first = result;
       // eslint-disable-next-line no-await-in-loop
-      result = await modelStep(executorContext, grantedTools, stepMeta);
+      result = await modelStep(executorContext, grantedTools, stepMeta, stopSeam);
       // The first call's gate refusals and tool tally belong to this attempt's
       // audit row too (the retry's collector starts empty). Only refused /
       // tools / ungranted are merged — cost is never touched here.
@@ -739,6 +798,19 @@ async function runStepRalph({
       }
     }
     const wallMs = Date.now() - startedAt;
+
+    // A Stop landed during this try: the call in flight finished and is booked here (its cost into the run's spend and onto the one
+    // `stopped` row), no new call started. Unknown cost stays unknown (usd null, spend incomplete), never 0.
+    const turns = typeof result?.turns === 'number' ? result.turns : null;
+    lastTurns = turns;
+    if (result && result.ok === false && result.stopped === true) {
+      if (typeof result.costUsd === 'number') spent.value += result.costUsd;
+      const usd = sumKnownUsd(attemptFloorUsd, result.costUsd);
+      const ranCalls = (turns ?? 0) > 0 || attemptFloorUsd !== null;
+      return stopped(stopWords(ranCalls ? attempt : attempt - 1, turns ?? 0), makeAuditRow({
+        step, attempt: ranCalls ? attempt : null, verdict: 'stopped', gap: null, usd, spendComplete: usd !== null, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
+      }));
+    }
 
     if (result && result.ok === false && result.transport === true) {
       if (typeof result.costUsd === 'number') spent.value += result.costUsd;
@@ -766,7 +838,7 @@ async function runStepRalph({
       recordAudit(makeAuditRow({
         step, attempt, verdict: 'red', gap: red, usd, spendComplete: usd !== null, wallMs, model: result?.model, modelMatch: result?.modelMatch, strike, at: now(), tokens: result?.tokens ?? null, tools: result?.tools ?? null, ungranted: result?.ungranted, refused: result?.refused,
       }), red);
-      if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${red}` };
+      if (n === maxN) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: step "${step.goal}" — ${red}` };
       gap = red;
       // eslint-disable-next-line no-continue
@@ -805,7 +877,7 @@ async function runStepRalph({
       recordAudit(makeAuditRow({
         step, attempt, verdict: 'red', gap: happened.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: true, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
       }), result.artifact ?? null);
-      if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: ${happened.red}` };
+      if (n === maxN) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: ${happened.red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: ${happened.red}` };
       gap = happened.red ?? null;
       // eslint-disable-next-line no-continue
@@ -840,7 +912,7 @@ async function runStepRalph({
       step, attempt, verdict: 'red', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
     }), result.artifact);
 
-    if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${closed.red}` };
+    if (n === maxN) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${closed.red}` };
     if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: step "${step.goal}" — ${closed.red}` };
     gap = closed.red ?? null;
   }
@@ -1228,7 +1300,7 @@ async function runAskSlot({
       // at its final outcome (complete / a halt / ask-expired), written by
       // `foldFromStep`/`resumeRun`, never here.
       writeLog(runDir, { runId, outcome: 'paused', attempts: attemptsLog, artifacts });
-      clearStop(runDir); // a parked run is not running: a Stop that landed during this step has nothing left to stop
+      settleStop({ runDir, now, outcome: 'paused' }); // a parked run is not running: a Stop that landed during this step has nothing left to stop
       return {
         type: 'paused',
         result: {
@@ -1346,6 +1418,9 @@ async function foldFromStep({
   // `@param {object} opts` this function's block comment never declared)
   // is what keeps every OTHER destructured field's inferred type intact.
   firstStepGap = /** @type {string|null} */ (null),
+  // Amendment 7 item 8: a run Resumed after a Stop that cut step `i0` mid-way re-enters it as a NEW try — `numbered` tries already
+  // wear numbers (the new one is numbered after them), `done` of them closed and count against the step's limit.
+  resumeTries = { numbered: 0, done: 0 },
 }) {
   let runAcceptedThisRun = acceptedThisRun;
   let runUnjudged = unjudgedSinceLastAsk;
@@ -1354,11 +1429,12 @@ async function foldFromStep({
     const step = steps[i];
 
     // M4e amendment 4 item 4: the Stop seam. Step i-1 has closed (artifact written, rows booked); a pending request ends the run here.
+    // Amendment 7 item 8 adds the same seam before every model call (turns and tries, inside `runStepRalph`/`modelStep`).
     if (stopPending(runDir)) {
-      clearStop(runDir);
       return haltRun({
         flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
         outcome: 'stopped', red: `stopped by you before step ${i + 1} ("${step.goal}")`,
+        stop: { where: i === 0 ? 'stopped before step 1' : `stopped after step ${i}` },
         resumeAt: { stepIndex: i, flowRoot, flowName, inputsManifest, unjudged: runUnjudged },
       });
     }
@@ -1531,10 +1607,12 @@ async function foldFromStep({
     // eslint-disable-next-line no-await-in-loop
     const stepResult = await runStepRalph({
       step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null, now,
+      readStop: () => stopPending(runDir), stepNo: i + 1, attemptOffset: i === i0 ? resumeTries.numbered : 0, triesDone: i === i0 ? resumeTries.done : 0,
     });
     if (!stepResult.ok) {
       return haltRun({
-        flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: stepResult.outcome, red: stepResult.red,
+        flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value && stepResult.stop?.book?.spendComplete !== false, attempts: attemptsLog, artifacts, outcome: stepResult.outcome, red: stepResult.red,
+        ...(stepResult.stop ? { stop: stepResult.stop } : {}),
         resumeAt: { stepIndex: i, flowRoot, flowName, inputsManifest, unjudged: runUnjudged },
       });
     }
@@ -1562,7 +1640,7 @@ async function foldFromStep({
   writeLog(runDir, {
     runId, outcome: 'complete', attempts: attemptsLog, artifacts,
   });
-  clearStop(runDir);
+  settleStop({ runDir, now, outcome: 'complete' });
   return {
     outcome: 'complete', runDir, artifacts, spentUsd: spent.value,
   };
@@ -2291,7 +2369,7 @@ export async function continueRun({
     // Consume-once BEFORE acting (the answer's own rule, F44): the rename is a one-winner gate on top of the lock.
     const taken = readdirInside(runDir, '.').filter((n) => /^halt\.\d+\.consumed\.json$/.test(n)).length;
     renameSync(join(runDir, HALT_FILE), join(runDir, `halt.${taken + 1}.consumed.json`));
-    clearStop(runDir); // a request left over from before the halt is not this continue's
+    settleStop({ runDir, now, outcome: halt.outcome ?? 'halted' }); // a request left over from before the halt is not this continue's
     recordPid(runDir, 'continue', now());
 
     const spent = { value: audit.total };
@@ -2322,8 +2400,19 @@ export async function continueRun({
     };
     const runStartedAt = typeof halt.startedAt === 'number' ? halt.startedAt : startedAt;
 
+    // Amendment 7 item 8: a Stop that cut the step short leaves its tries in the books; Resume re-enters it as a NEW try, numbered after them.
+    // A try the Stop cut mid-way (its `stopped` row) wears a number but is replaced, not counted against the step's limit. Read from the
+    // books (the source of truth), never a second record. A cap-halt re-entry keeps its own, earlier behaviour.
+    const resumeTries = { numbered: 0, done: 0 };
+    if (halt.outcome === 'stopped' && steps[halt.stepIndex]) {
+      const tries = readAudit(runDir).filter((r) => r.step === steps[halt.stepIndex].emits && Number.isInteger(r.attempt) && r.verdict !== 'cap-halt');
+      resumeTries.numbered = tries.length;
+      resumeTries.done = Math.min(tries.filter((r) => r.verdict !== 'stopped').length, MAX_ATTEMPTS - 1);
+    }
+
     const result = await foldFromStep({
       i0: halt.stepIndex,
+      resumeTries,
       steps,
       askLines,
       sendLines,
@@ -2440,10 +2529,12 @@ export function readAsk(runDir) {
  *   false. Defaults to `true` (every pre-existing call site is unaffected).
  * @param {{stepIndex: number, flowRoot: string, flowName: string, inputsManifest: any, unjudged?: any[]}|null} [opts.resumeAt] - M4e
  *   amendment 4 item 4: where a `cap-halt`/`stopped` run is re-entered; `haltRun` writes `halt.json` from it (and only for those outcomes).
+ * @param {{where:string, book?:Record<string, any>}|null} [opts.stop] - amendment 7 item 8: this halt honours a Stop (its words, and the
+ *   cut try's row fields so the call in flight is booked); a request still pending on any other halt is recorded `not honoured`.
  */
 function haltRun({
   flowDir, runDir, runId, capUsd, startedAt, now, nowMs = Date.now, outcome, red, spent, attempts = [], artifacts = {}, signatureHash = null,
-  priorSpendComplete = true, resumeAt = null,
+  priorSpendComplete = true, resumeAt = null, stop = null,
 }) {
   // F45 finding 3: `startedAt` here is always the RUN's start (every caller
   // now passes `runStartedAt` under this key — see call sites), so `wallMs`
@@ -2467,7 +2558,7 @@ function haltRun({
         stepIndex: resumeAt.stepIndex, startedAt, unjudged: resumeAt.unjudged ?? [],
       }, null, 2)}\n`, { flag: 'wx' });
     }
-    clearStop(runDir);
+    settleStop({ runDir, now, outcome, stop }); // amendment 7 item 8: every Stop leaves its rows
   }
   return { outcome, red, spentUsd: spent.value };
 }
