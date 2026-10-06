@@ -71,6 +71,15 @@ export function scrub(text, secrets) {
   return out;
 }
 
+/**
+ * Does `text` carry any provider key VALUE in `env` (every slot, 8+ chars, literal)? The one test for a human's free text
+ * (the revise note) — the same literal rule `scrub` and `sweepForSecrets` use.
+ * @param {string} text @param {Record<string, string|undefined>} env
+ */
+export function textHasKey(text, env) {
+  return Object.values(PROVIDER_SLOTS).some((p) => { const k = env[p.envVar]; return typeof k === 'string' && k.length >= 8 && text.includes(k); });
+}
+
 /** Count files directly inside `dir` that contain a secret literally. */
 export function sweepForSecrets(dir, secrets) {
   const live = secrets.filter((s) => typeof s === 'string' && s.length >= 8);
@@ -166,7 +175,7 @@ export function readProseFile(file) {
  * Test seam: `provider`/`rates`/`modelId` are injected; without them a live provider is built.
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot = 'deepseek', model, budgetUsd = DRAFT_BUDGET_USD, env = process.env, provider, rates, modelId,
+  proseFile, dir, root, name, slot = 'deepseek', model, budgetUsd = DRAFT_BUDGET_USD, env = process.env, provider, rates, modelId, reviseFrom, noteFile,
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
   const nameCheck = checkFlowName(name);
@@ -194,6 +203,27 @@ export async function draftToDir({
   }
   const secrets = secretVar && env[secretVar] ? [env[secretVar]] : [];
   if (secrets.some((s) => s.length >= 8 && prose.text.includes(s))) return refuse(['prose: contains an API key value — refused']);
+  // M4e amendment 3 item 3: a revise starts from the current green plan's dir plus the human's note, and nothing else. All $0, before the dir is claimed.
+  /** @type {{ plan: any, note: string }|undefined} */
+  let revise;
+  if ((reviseFrom === undefined) !== (noteFile === undefined)) return refuse(['draft: --revise-from and --note go together']);
+  if (reviseFrom !== undefined && noteFile !== undefined) {
+    const prev = {};
+    for (const f of ['prose.txt', 'declaration.json', SPEC_HASH_FILE]) {
+      const r = readFileInside(reviseFrom, f);
+      if (!r.ok) return refuse([`revise: "${reviseFrom}" is not a green draft — ${f} ${r.missing ? 'is missing' : `is refused (${r.red})`}`]);
+      prev[f] = r.text;
+    }
+    // the card's fields come only from the card: a revise carries the SAME prose, byte for byte, as the plan it revises
+    if (prev['prose.txt'] !== prose.text) return refuse(['revise: the prose differs from the plan being revised — a revise never changes the card']);
+    let note;
+    try { note = readFileSync(noteFile, 'utf8'); } catch (e) { return refuse([`revise: cannot read the note "${noteFile}": ${e.code ?? e.message}`]); }
+    if (note.trim() === '') return refuse(['revise: the note is empty']);
+    if (textHasKey(note, env)) return refuse(['note: contains an API key value — refused']);
+    let plan;
+    try { plan = JSON.parse(prev['declaration.json']); } catch { return refuse(['revise: the plan being revised is not valid JSON']); }
+    revise = { plan, note };
+  }
   // Red messages can echo what a provider's error body echoed (a key): scrubbed like every file, before anything prints them.
   const cleanReds = (reds) => (reds ?? []).map((r) => scrub(String(r), secrets));
   // Claim the dir BEFORE the paid round (exclusive mkdir: a race or an existing path refuses at $0).
@@ -225,7 +255,7 @@ export async function draftToDir({
     }
   };
   const result = await draft({
-    proseText: prose.text, slot, model, budgetUsd, provider, rates, modelId, env, onBook,
+    proseText: prose.text, slot, model, budgetUsd, provider, rates, modelId, env, onBook, revise,
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }
@@ -243,6 +273,7 @@ export async function draftToDir({
   files['prose.txt'] = prose.text; // verbatim
   const targetText = dj({ root, name });
   files['target.json'] = targetText;
+  if (revise) files['note.txt'] = revise.note; // kept with the draft it made (write-once: the dir is exclusive)
   files['log.json'] = scrub(dj({
     ok: result.ok, stop: result.stop, reds: result.reds, rounds: result.rounds, calls: result.calls, costUsd: result.costUsd, spendComplete: result.spendComplete,
     modelId: result.modelId, modelReturned: result.modelReturned, structureRetries: result.structureRetries,
