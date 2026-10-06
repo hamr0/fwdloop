@@ -2367,7 +2367,7 @@
       "<td data-label=\"Time\">" + auditTimeCellHtml(r) + "</td>" +
       // phone-only one-line cells (CSS shows these and hides the rest below 640px; hidden on desktop)
       "<td class=\"am am-glyph\" aria-hidden=\"true\">" + escapeXml(glyph || "·") + "</td>" +
-      "<td class=\"am am-cost\">" + escapeXml(money(r.usd, r.spendComplete)) + "</td>" +
+      "<td class=\"am am-cost\">" + escapeXml(r.setup ? auditCostCellText(r) : money(r.usd, r.spendComplete)) + "</td>" +
       "<td class=\"am am-time\">" + escapeXml(auditShortTime(r)) + "</td>" +
       "<td class=\"am am-detail\">" + auditDetailHtml(r, word, actionText, isRejectRow) + "</td>";
     tr.innerHTML = cells;
