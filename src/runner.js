@@ -692,7 +692,7 @@ function makeAuditRow({
  * @param {Record<string, any>} [opts.primitivesMap]
  * @param {Record<string, any>} opts.readsMap
  * @param {string} opts.businessDate
- * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<any>} opts.modelStep
+ * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}, seam?:{stopRequested?:() => boolean}) => Promise<any>} opts.modelStep
  * @param {{ value: number }} opts.spent
  * @param {number} opts.capUsd
  * @param {number} opts.ceilingUsd
@@ -701,7 +701,10 @@ function makeAuditRow({
  * @param {number} [opts.attemptOffset]
  * @param {() => string} [opts.now] - M4a-2: stamps each audit row's `at`;
  *   defaults to the real wall clock.
- * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string}>}
+ * @param {(() => boolean)|null} [opts.readStop] - amendment 7 item 8: the run's stop reader, asked before every try and (via modelStep's seam) every model call
+ * @param {number} [opts.stepNo] - this step's 1-based number, for the words of a stop row
+ * @param {number} [opts.triesDone] - tries a Stop already closed on this step (they count against its limit)
+ * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string, stop?:{where:string, book:Record<string, any>}}>}
  */
 async function runStepRalph({
   step, primitivesMap, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd, recordAudit, initialGap = null, attemptOffset = 0,
@@ -726,7 +729,8 @@ async function runStepRalph({
   const stopWords = (tryNo, turns) => (turns > 0
     ? `stopped after turn ${turns} of try ${tryNo} of step ${stepNo}`
     : (tryNo > 0 ? `stopped after try ${tryNo} of step ${stepNo}` : (stepNo > 1 ? `stopped after step ${stepNo - 1}` : 'stopped before step 1')));
-  /** The ralph's return for a Stop: the cut try's own row fields (`book`) ride the one `stopped` row `settleStop` writes. */
+  /** The ralph's return for a Stop: the cut try's own row fields (`book`) ride the one `stopped` row `settleStop` writes.
+   *  @param {string} where @param {Record<string, any>} [book] @returns {{ok:false, outcome:string, red:string, stop:{where:string, book:Record<string, any>}}} */
   const stopped = (where, book = {}) => ({
     ok: false, outcome: 'stopped', red: `stopped by you — ${where}`, stop: { where, book },
   });

@@ -337,8 +337,9 @@ export function makeLiveModelStep({
       };
       const tools = [...primitiveTools, emitTool];
       const roundMeterings = [];
-      const stopSeam = typeof seam?.stopRequested === 'function'
-        ? { assemble: async (msgs) => { if (seam.stopRequested()) throw new HaltError('stop requested', { rule: STOP_RULE }); return msgs; } }
+      const stopRequested = seam?.stopRequested;
+      const stopSeam = typeof stopRequested === 'function'
+        ? { assemble: async (msgs) => { if (stopRequested()) throw new HaltError('stop requested', { rule: STOP_RULE }); return msgs; } }
         : {};
       const loop = new Loop({ provider, rates, onLlmResult: async (ev) => { roundMeterings.push(ev); }, ...stopSeam });
 
