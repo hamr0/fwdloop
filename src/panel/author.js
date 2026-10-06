@@ -37,7 +37,12 @@ import {
 } from '../authoring.js';
 import { nextRunId, readFileInside, readdirInside } from '../flow.js';
 import { isFwdloopAlive } from '../liveness.js';
-import { cardFields, checkCard, checkInputRows, parseInputLines } from './authorcard.js';
+import {
+  checkMonthlyRoom, ConfigError, monthlyNote, monthlyRefusalText,
+} from '../monthly.js';
+import {
+  capFloorText, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines,
+} from './authorcard.js';
 import { createFlowsDoor } from './authorflows.js';
 import { createStarter } from './authorstart.js';
 import {
@@ -86,6 +91,19 @@ export function createAuthor(opts) {
   };
 
   const readJson = readJsonFile;
+
+  /**
+   * The monthly room for a cap, from the ONE read-only check the CLI's door also decides on (`checkMonthlyRoom`, src/monthly.js).
+   * `null` when this process has no config home (the CLI skips its check there too); `{ problem }` when config.json cannot be read.
+   * @param {number} capUsd
+   */
+  function monthlyClaim(capUsd) {
+    if (skipMonthly) return null;
+    try { return checkMonthlyRoom({ capUsd, home }); } catch (e) {
+      if (e instanceof ConfigError) return { problem: e.message };
+      throw e;
+    }
+  }
 
   /**
    * The draft's state, READ from its files. `keys` = the provider key values to scrub from anything quoted.
@@ -200,6 +218,21 @@ export function createAuthor(opts) {
     flows: flowsDoor.flows,
     run: flowsDoor.run,
 
+    /**
+     * `GET /api/author/monthly-check?cap=<usd>`: the note under Cap, one read-only check. `{ text, red }` is what to show (red =
+     * the cap does not fit this month); `floorUsd` is the smallest cap that funds one round of a model step, for the page's
+     * `needs at least $X per run` line. A cap that is not a number above 0 gets no note. Never spends, never writes.
+     * @param {unknown} cap
+     */
+    monthlyCheck(cap) {
+      const n = Number(cap);
+      const floorUsd = capFloorUsd('x');
+      if (typeof cap !== 'string' || cap.trim() === '' || !Number.isFinite(n) || n <= 0) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText: capFloorText(floorUsd) } };
+      const claim = monthlyClaim(n);
+      if (claim === null || 'problem' in claim) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText: capFloorText(floorUsd) } };
+      return { status: 200, body: { ok: true, ...monthlyNote(claim), floorUsd, floorText: capFloorText(floorUsd) } };
+    },
+
     /** `GET /api/author/start/:startId`: the start's phase, read from its files. @param {string} id */
     startGet(id) { return starter.get(id, keysNow().keys); },
 
@@ -220,6 +253,10 @@ export function createAuthor(opts) {
       const card = cardFields(body);
       const checked = checkCard(card, { root: realpathSync(root), env: loaded.env });
       if (!checked.ok) return { status: 400, body: { ok: false, refused: 'card', refusals: checked.refusals } };
+      // amendment 4 item 1: a cap that does not fit this month refuses here too, at $0, with the one refusal text (the page's red note is only a courtesy)
+      const claim = monthlyClaim(Number(card.capUsd));
+      if (claim && 'problem' in claim) return { status: 409, body: { ok: false, refused: 'monthly', say: `${claim.problem} — refusing rather than guess the monthly limit. Nothing spent.` } };
+      if (claim && !claim.ok) return { status: 400, body: { ok: false, refused: 'card', refusals: [{ field: 'capUsd', say: monthlyRefusalText(claim.room) }] } };
       for (const id of listIds()) {
         const v = view(id, keys);
         if (v && (v.phase === 'drafting' || v.phase === 'revising')) {
@@ -277,6 +314,9 @@ export function createAuthor(opts) {
       if (!seen.ok) return seen.reply;
       const { v, name, dir } = seen;
       const b = body && typeof body === 'object' ? body : {};
+      // amendment 4 item 2: a cap that cannot fund one round of the first model step is never signed (it would cap-halt at $0 spent)
+      const floor = capFloorUsd(typeof v.card.job === 'string' ? v.card.job : '');
+      if (Number(v.card.capUsd) < floor) return { status: 400, body: { ok: false, refused: 'cap-too-small', say: capFloorText(floor) } };
       if (typeof b.hash !== 'string' || b.hash !== v.hash) {
         return { status: 409, body: { ok: false, refused: 'stale-hash', say: 'The plan on disk is not the one you were shown (its hash differs). Nothing was signed. Reload and read the plan again.' } };
       }

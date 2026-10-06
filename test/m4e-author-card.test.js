@@ -61,7 +61,7 @@ test('(1) round trip: the card becomes the prose shape and the existing parser r
 
 test('(1) no destination = no send line; a cap that would print as an exponent is spelled as a plain decimal', () => {
   const s = scene();
-  const r = checkCard(s.card({ destination: '', capUsd: 0.0000001 }), { root: s.root });
+  const r = checkCard(s.card({ destination: '', capUsd: 0.0000001, job: 'Ask: is this ok?' }), { root: s.root }); // only an ask: it funds no model round, so no cap floor (amendment 4 item 2)
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.ok(!/send at/.test(r.prose));
   assert.match(r.prose, /guardrail: cap \$0\.0000001 per run/);

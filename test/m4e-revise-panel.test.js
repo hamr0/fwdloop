@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  existsSync, readdirSync, readFileSync,
+  existsSync, readdirSync, readFileSync, writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
 
@@ -129,9 +129,11 @@ test('(g) a change is booked like a draft call: counted once in Money and the mo
 });
 
 test('(g) over the monthly limit a change refuses at $0: no spend, no dir, no change used, the plan stays', async () => {
-  // one ceiling round is $0.0288 and one paid round $0.00054: a $0.03 limit lets the first draft's hold fit (3c left) and not the change's (2c left)
+  // one ceiling round is $0.0288 and one paid round $0.00054: a $0.03 limit leaves 2c after the first draft's spend, not enough for the change's hold
   assert.equal(ceilingCostUsd(MODEL, undefined, { prices: { rates: RATES } }), 0.0288);
-  const { w, id, g, calls } = await greenWorld({ limit: 0.03 });
+  const { w, id, g, calls } = await greenWorld();
+  // the draft's own cap must fit the month (amendment 4 item 1), so the limit is lowered AFTER the first draft
+  writeFileSync(path.join(w.home, 'config.json'), JSON.stringify({ monthlyLimitUsd: 0.03 }));
   const spent = spendSummary({ home: w.home }).total.usd;
   const s = await reviseAndSettle(w, id, 'a change');
   assert.equal(s.phase, 'green');

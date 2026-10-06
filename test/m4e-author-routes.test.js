@@ -200,14 +200,14 @@ test('(vi) two POSTs together for one flow start exactly one child; a second flo
   }
 });
 
-test('(vii) over the monthly limit the child refuses at $0: the draft reads stopped with the signed sentence; nothing booked, no draft output', async () => {
+test('(vii) over the monthly limit the draft is refused at the door at $0 with the signed sentence under Cap; nothing is created, nothing booked (M4e amendment 4 (a))', async () => {
   const w = await world({ limit: 0.00001 });
   const r = await w.post('/api/author/draft', w.card());
-  assert.equal(r.status, 202);
-  const j = await phaseOf(w, r.json().draftId, ['stopped', 'green']);
-  assert.equal(j.phase, 'stopped');
-  assert.ok(j.say.includes(REFUSAL_SENTENCE), j.say);
-  assert.ok(!existsSync(path.join(w.dir(r.json().draftId), 'draft')), 'no draft output');
+  assert.equal(r.status, 400);
+  assert.equal(r.json().refused, 'card');
+  const cap = r.json().refusals.find((x) => x.field === 'capUsd');
+  assert.ok(cap && cap.say.includes(REFUSAL_SENTENCE), r.text);
+  assert.deepEqual(w.drafts(), [], 'nothing was created');
   assert.equal(spendSummary({ home: w.home }).total.usd, 0);
 });
 

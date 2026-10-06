@@ -189,6 +189,7 @@
   .badge.cyan{color:var(--cyan);}
 
   .hint{font-size:11px;color:var(--text-faint);margin-top:4px;}
+  .hint.money-red{color:var(--red);}
   .btn{padding:8px 14px;min-height:44px;border:1px solid var(--border-strong);background:var(--panel2);color:var(--text);white-space:nowrap;flex:none;position:relative;}
   .btn::before{content:"[ ";color:var(--text-faint);}
   .btn::after{content:" ]";color:var(--text-faint);}
@@ -412,8 +413,8 @@
      line) so it reads as a clear, bold heading without a second border. */
   .ask-question-heading{margin:6px 0 0;font-size:13px;font-weight:700;color:var(--text);}
   .ro-value{padding:6px 8px;min-height:32px;box-sizing:border-box;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
-  .ro-value.scroll{max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;}
   .art-head{color:var(--accent);}
+  .ro-value.scroll{max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;}
   .field-row{display:flex;flex-wrap:wrap;gap:10px;}
   .field-row .field{flex:1 1 140px;margin-bottom:10px;}
 
@@ -3268,7 +3269,6 @@
     });
     return ev;
   }
-  // M4c item 5: "your answers so far" — one line per answered draft, every field from
   // M4e amendment 4 item 7: a section header of the artifact shows in the panel's blue accent. The signed text gives no
   // rule for what a header is, so the simplest honest one: a paragraph (text between blank lines) that is one short line
   // (60 characters or fewer), does not end in a sentence stop, and has another paragraph after it. The text itself is
@@ -3292,6 +3292,7 @@
       }
     });
   }
+  // M4c item 5: "your answers so far" — one line per answered draft, every field from
   // the server's block (data.js groupAskBlocks); the page only lays it out.
   function answerLineText(a){
     return "draft " + a.draft + " → " + a.decision + (a.reason ? ' "' + a.reason + '"' : "")
@@ -3482,7 +3483,6 @@
     var pollTimer = null;
     var startTimer = null;
     var drafterModel = "";
-    var leftLine = "";
     var flows = [];
     // a draft that is abandoned or signed ends the card's life; red/stopped drafts stay on the card (to read, to fix, to retry)
     var CLIENT_TERMINAL_PHASES = ["abandoned", "signed"];
@@ -3701,12 +3701,51 @@
     }
     // client-side convenience only (the server's $0 checks are the real gate): is there enough on the card to click?
     function startReady(){
+      if(moneyRed) return false;   // amendment 4 item 1: a cap that does not fit this month stops you before the click (the server still refuses)
       if(mode === "run"){
         return !!selectedFlow() && readRows(runInputsEl).every(function(r){ return r.path !== ""; });
       }
       var c = currentCard();
       var v = Number(c.capUsd);
       return c.flowName !== "" && c.job.trim() !== "" && c.capUsd !== "" && isFinite(v) && v > 0;
+    }
+
+    // ---- the money note under Cap (M4e amendment 4 items 1-2) ----
+    // borrowed-from: bareloop src/panel/index.html@c1d87ce — `refreshCapNote` (debounced re-read as the cap is typed), without its
+    // plain-text-only rule: here a note that is red turns the main button off. The words and the numbers come from the server
+    // (GET /api/author/monthly-check, one read-only check); the page decides nothing but where to show them. A fetch error clears the note.
+    var moneyRed = false;
+    var capNoteSeq = 0;
+    var capNoteTimer = null;
+    function setMoneyNote(text, red){
+      var els = [capNoteEl, byId("jf-run-left")];
+      els.forEach(function(el){ el.textContent = ""; el.classList.remove("money-red"); });
+      var el = els[mode === "run" ? 1 : 0];
+      el.textContent = text;
+      el.classList.toggle("money-red", !!red && text !== "");
+      var was = moneyRed;
+      moneyRed = !!red && text !== "";
+      if(was !== moneyRed) refreshStartEnabled();
+    }
+    // a job with a step that is not an Ask needs a model round (the server's own rule decides; this only skips the floor line for an empty box)
+    function jobHasModelStep(){
+      return byId("jf-job").value.split("\n").some(function(l){ var t = l.trim(); return t !== "" && t.charAt(0) !== "~" && !/^ask\b/i.test(t); });
+    }
+    function refreshCapNote(){
+      var cap = mode === "run" ? (selectedFlow() ? String(selectedFlow().capUsd) : "") : byId("jf-cap-money").value.trim();
+      var seq = ++capNoteSeq;
+      if(cap === ""){ setMoneyNote("", false); return; }
+      authorGet("/api/author/monthly-check?cap=" + encodeURIComponent(cap)).then(function(j){
+        if(seq !== capNoteSeq) return;
+        if(!j || j.ok !== true){ setMoneyNote("", false); return; }
+        var v = Number(cap);
+        if(mode === "new" && j.floorText && isFinite(v) && v > 0 && v < j.floorUsd && jobHasModelStep()){ setMoneyNote(j.floorText, true); return; }
+        setMoneyNote(typeof j.text === "string" ? j.text : "", j.red === true);
+      }).catch(function(){ if(seq === capNoteSeq) setMoneyNote("", false); });
+    }
+    function scheduleCapNote(){
+      if(capNoteTimer) clearTimeout(capNoteTimer);
+      capNoteTimer = setTimeout(refreshCapNote, 250);
     }
 
     // ---- a refusal shows next to its box ----
@@ -3772,19 +3811,18 @@
       autoRunId = f && f.nextRunId ? f.nextRunId : "";
       byId("jf-run-id").value = autoRunId;
       clearFieldErrors();
+      refreshCapNote();
     }
     function loadFlows(force){
       authorGet("/api/author/flows").then(function(j){
         if(!j || j.ok !== true) return;
         flows = j.flows || [];
-        leftLine = (j.leftThisMonth && j.leftThisMonth.say) ? j.leftThisMonth.say : "";
-        capNoteEl.textContent = leftLine;
-        byId("jf-run-left").textContent = leftLine;
         var was = runFlowSel.value;
         runFlowSel.innerHTML = flows.map(function(f){ return '<option value="' + escapeXml(f.flow) + '">' + escapeXml(f.flow) + "</option>"; }).join("");
         if(flows.some(function(f){ return f.flow === was; })) runFlowSel.value = was;
         byId("jf-run-empty").textContent = flows.length ? "" : "No signed flow yet. Draft a new job first.";
         if(force || paintedFlow !== runFlowSel.value || (flows.length === 0 && runInputsEl.children.length > 0)) paintRunFlow();
+        refreshCapNote();
         refreshStartEnabled();
       }).catch(function(){ /* the card keeps what it had */ });
     }
@@ -3802,6 +3840,7 @@
       runBox.hidden = (m !== "run");
       clearFieldErrors();
       if(m === "run") loadFlows();
+      refreshCapNote();
       refreshStartEnabled();
       fitCardBoxes();
     }
@@ -3907,6 +3946,7 @@
     function resetCard(){
       ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; });
       askWaitEl.value = "1h";
+      refreshCapNote();
       openNewCard();
       loadFlows(mode === "run");
       fitCardBoxes();
@@ -4092,6 +4132,7 @@
       openNewCard();
       setMode("new");
       setVal("jf-name", c.flowName); setVal("jf-job", c.job); setVal("jf-cap-money", c.capUsd);
+      refreshCapNote();
       setVal("jf-dest-folder", typeof c.destination === "string" ? c.destination : ""); setVal("jf-inputs", typeof c.inputs === "string" ? c.inputs : ""); setVal("jf-ask-wait", c.askWait || "1h");
       sessionId = d.draftId;
       sessionLive = CLIENT_TERMINAL_PHASES.indexOf(d.phase) === -1;
@@ -4140,6 +4181,7 @@
       var grp = e.target && e.target.closest ? e.target.closest(".field, .cap-field, .jf-inrow") : null;
       if(grp) grp.querySelectorAll(".jf-err").forEach(function(x){ x.textContent = ""; });
       fitCardBoxes();
+      if(e.target && (e.target.id === "jf-cap-money" || e.target.id === "jf-job")) scheduleCapNote();
       refreshStartEnabled();
     });
     document.querySelectorAll('input[name="jf-mode"]').forEach(function(r){
@@ -4148,8 +4190,8 @@
     runFlowSel.addEventListener("change", function(){ paintRunFlow(); refreshStartEnabled(); });
     window.addEventListener("resize", fitCardBoxes);
     document.getElementById("tab-chat").addEventListener("click", function(){ fitCardBoxes(); reattachLive(); loadFlows(); });
-    // the monthly limit changed in Settings: re-read the "left this month" line
-    document.addEventListener("fwdloop-limit-changed", function(){ loadFlows(); });
+    // the monthly limit changed in Settings: re-read the note for whatever cap is on the card (no reload; the button follows)
+    document.addEventListener("fwdloop-limit-changed", function(){ refreshCapNote(); });
 
     loadModel();
     loadFlows();

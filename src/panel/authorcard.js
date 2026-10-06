@@ -15,7 +15,7 @@ import {
 import { isAbsolute, join } from 'node:path';
 
 import { checkFlowName } from '../flow.js';
-import { checkSendDestination } from '../runner.js';
+import { checkSendDestination, resolveCeilingUsd } from '../runner.js';
 import { parseSignedText } from '../signed-text.js';
 import { PROVIDER_SLOTS } from '../provider.js';
 
@@ -194,6 +194,22 @@ export function checkInputRows(rows) {
 }
 
 /**
+ * M4e amendment 4 item 2: the smallest per-run cap that funds ONE round of the first model step. The runner halts a step when
+ * `spent + ceiling > cap` (`runStepRalph`), and every ordinary (non-ask) step is a model step, so the floor is the runner's own
+ * per-round ceiling (`resolveCeilingUsd`) as soon as the job has one such line; a job of only asks spends nothing before its stop.
+ * ONE function: the card's Draft check, Sign, and the page's note all read it. Returns 0 when no step needs a round.
+ * @param {string} jobText
+ */
+export function capFloorUsd(jobText) {
+  return parseJobBox(jobText).steps.some((s) => s.ask === null) ? resolveCeilingUsd(null) : 0;
+}
+
+/** The one sentence for a cap under the floor (red under Cap, and the Draft / sign refusal). @param {number} floorUsd */
+export function capFloorText(floorUsd) {
+  return `needs at least $${(Math.ceil(floorUsd * 100 - 1e-6) / 100).toFixed(2)} per run`;
+}
+
+/**
  * Every $0 check on the card, before any spawn (scope 6). Collects all refusals so the page can name every box.
  * @param {ReturnType<typeof cardFields>} card
  * @param {{ root: string, env?: Record<string, string|undefined> }} ctx `env` = the merged keys env: a key value typed into any box is refused
@@ -225,6 +241,7 @@ export function checkCard(card, { root, env = {} }) {
   // cap
   if (typeof card.capUsd === 'string' || typeof card.capUsd === 'number') {
     if (!(Number.isFinite(Number(card.capUsd)) && Number(card.capUsd) > 0)) no('capUsd', 'The cap must be a number above 0 (dollars per run).');
+    else if (Number(card.capUsd) < capFloorUsd(card.job)) no('capUsd', capFloorText(capFloorUsd(card.job)));
   } else no('capUsd', 'The cap must be a number above 0 (dollars per run).');
 
   // destination: one folder, or empty for no send (it is sent at the last step)
