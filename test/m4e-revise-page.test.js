@@ -152,7 +152,7 @@ test('am4 item 3: Start over is wired to the one Draft call (no abandon, no seco
 test('am6 item 3 (c): the thread draws the bubbles oldest first, THEN the plan; the plan sits above the note box and the main button', () => {
   const prelude = `var threadKey = ""; var thread = { innerHTML: "" };
     var escapeXml = function(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); };
-    ${fnSrc('changesLeftText')}\n${fnSrc('bubblesFor')}`;
+    ${fnSrc('changesLeftText')}\n${fnSrc('bubblesFor')}\n${fnSrc('readoutHtml')}`;
   const render = new Function(`${prelude}\n${fnSrc('renderThread')}\nreturn function(s){ renderThread(s); return thread.innerHTML; };`)();
   const html = render({
     phase: 'green', readout: 'THE PLAN', hash: 'abc123',

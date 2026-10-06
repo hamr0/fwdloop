@@ -240,7 +240,7 @@
   .wf-sign-line .sign-word,.hdr-verdict .sign-word{color:var(--text);}
   .hdr-verdict{font-size:12px;color:var(--text-dim);min-width:0;overflow-wrap:anywhere;}
   .wf-meta{font-size:12px;color:var(--text-dim);}
-  .wf-meta + .wf-meta::before{content:" · ";color:var(--text-faint);}
+  .wf-sep{font-size:12px;color:var(--text-faint);}
   .wf-row.selected,.hist-row.selected{border:2px solid var(--accent);border-radius:4px;}
   /* item 2 (2026-09-26 merge): a Workflows-view job row expands inline to
      list ALL its runs (build spec's own design) — the caret glyph on the
@@ -1618,10 +1618,7 @@
       '<span class="wf-line1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span>' +
       '<span class="wf-name" title="' + escapeXml(fullName) + '">' + escapeXml(fullName) + '</span></span>' +
       '<span class="wf-sign-line" data-testid="run-sign-word">' + signHtml(r.word, r.line, r.label) + '</span>' +
-      '<span class="wf-meta-line">' +
-      '<span class="wf-meta">' + escapeXml(runSpendText(r)) + '</span>' +
-      '<span class="wf-meta">' + escapeXml(runAtText(r)) + '</span>' +
-      '</span>';
+      runMetaLineHtml(r, null);
     row.addEventListener("click", function(){ openRunFromRuns(r, row); });
     row.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); } });
     return row;
@@ -1676,6 +1673,16 @@
   // every History/expanded row say the same thing, from the same server fields.
   function runSpendText(r){
     return r.spend || r.spendWhy || "unknown";
+  }
+  // M4e amendment 7 item 5: a run's wall time in plain units ("6m23s"), the ONE formatter (`duration`); unrecorded = no part, never a made-up one.
+  function runWallText(r){
+    return typeof r.wallMs === "number" ? duration(r.wallMs) : null;
+  }
+  // ONE builder for a Runs card's last line, job card and sub-card alike: "$0.0616 · 6m23s · 2026-10-06 · 1 run". The separators are real
+  // text between the parts (a CSS ::before is not text: a text read of the card ran "2026-10-061 run" together).
+  function runMetaLineHtml(r, extra){
+    var bits = [runSpendText(r), runWallText(r), runAtText(r), extra].filter(function(b){ return b !== null && b !== undefined; });
+    return '<span class="wf-meta-line">' + bits.map(function(b){ return '<span class="wf-meta">' + escapeXml(b) + '</span>'; }).join('<span class="wf-sep"> · </span>') + '</span>';
   }
   function runAtText(r){
     return r.at ? r.at.slice(0,10) : (r.askedAt ? "asked " + readableDateTime(r.askedAt) : (r.startedAt ? "started " + readableDateTime(r.startedAt) : (r.atWhy || "unknown")));
@@ -1803,11 +1810,7 @@
         '<span class="wf-line1"><span class="wf-caret">' + (hasOtherRuns ? (expanded ? "▼" : "▶") : "") + '</span><span class="' + dotClass(g.lastGlyph, g.lastRow.pulse) + '"></span>' +
         '<span class="wf-name" title="' + escapeXml(wfFullName) + '">' + escapeXml(wfFullName) + '</span></span>' +
         '<span class="wf-sign-line" data-testid="run-sign-word">' + signHtml(g.lastRow.word, g.lastRow.line, g.lastLabel) + '</span>' +
-        '<span class="wf-meta-line">' +
-        '<span class="wf-meta">' + escapeXml(runSpendText(g.lastRow)) + '</span>' +
-        '<span class="wf-meta">' + escapeXml(runAtText(g.lastRow)) + '</span>' +
-        '<span class="wf-meta">' + g.runCount + ' run' + (g.runCount === 1 ? '' : 's') + '</span>' +
-        '</span>';
+        runMetaLineHtml(g.lastRow, g.runCount + ' run' + (g.runCount === 1 ? '' : 's'));
       row.addEventListener("click", function(){
         // a single-run flow has nothing to expand — the click still opens
         // the run, it just never toggles `wfExpanded` for it.
@@ -2705,11 +2708,13 @@
     document.getElementById("details-model").textContent = job.model
       ? ("model used: " + job.model + " (from this run's rows)")
       : (job.modelWhy || "no model call recorded yet");
-    // M4e amendment 6 item 5: "$<cap> per run · redo up to <n>". fwdloop has no run-wide time limit (each ask has its own wait, shown
-    // with its line), so the words never show here.
+    // M4e amendment 6 item 5 + amendment 7 item 4: "$<cap> per run · 1h wait · redo up to <n>"; several asks: "waits 1h, 30m", each through plainWait.
+    // fwdloop has no run-wide time limit (each ask has its own wait), so no ask means no wait part at all.
+    var waitParts = (job.asks || []).filter(function(ak){ return typeof ak.waitMs === "number"; }).map(function(ak){ return plainWait(ak.waitMs); });
+    var waitText = waitParts.length === 0 ? "" : (waitParts.length === 1 ? waitParts[0] + " wait" : "waits " + waitParts.join(", "));
     document.getElementById("details-cap").textContent =
       (typeof job.capUsd === "number" ? ("$" + job.capUsd.toFixed(2)) : "unknown")
-      + " per run · redo up to " + (typeof job.redoCap === "number" ? job.redoCap : "unknown");
+      + " per run" + (waitText ? " · " + waitText : "") + " · redo up to " + (typeof job.redoCap === "number" ? job.redoCap : "unknown");
     // review #5: "Source" — role -> basename only (never the full signed path).
     renderRowsField("details-sources", job.sources, "no signed sources", function(s){
       return s.role + " → " + s.basename;
@@ -4158,6 +4163,13 @@
     }
     // the plan the human is about to sign: the drafter's readout and the hash; nothing else goes in the thread
     var threadKey = "";
+    // M4e amendment 7 item 3: the readout is plain text; the server names which lines are headings (one list, authoring.js), shown bold.
+    function readoutHtml(state){
+      var heads = Array.isArray(state.readoutHeads) ? state.readoutHeads : [];
+      return String(state.readout).replace(/\s+$/, "").split("\n").map(function(l, i){
+        return heads.indexOf(i) >= 0 ? '<b class="readout-head">' + escapeXml(l) + '</b>' : escapeXml(l);
+      }).join("\n");
+    }
     function renderThread(state){
       var html = "";
       if(state && (state.phase === "green" || state.phase === "revising") && state.readout){
@@ -4165,7 +4177,7 @@
         html = bubblesFor(state).map(function(m){
           return '<div class="msg ' + m.role + '"><div class="who">' + escapeXml(m.who) + '</div>' + escapeXml(m.text) + '</div>';
         }).join("") +
-          '<div class="msg bot" data-testid="chat-plan"><div class="who">fwdloop</div>' + escapeXml(String(state.readout).replace(/\s+$/, "")) +
+          '<div class="msg bot" data-testid="chat-plan"><div class="who">fwdloop</div>' + readoutHtml(state) +
           '\n\nPlan hash: ' + escapeXml(state.hash || "") + '</div>';
       }
       if(html !== threadKey){ threadKey = html; thread.innerHTML = html; }

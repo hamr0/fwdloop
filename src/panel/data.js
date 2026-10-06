@@ -1013,6 +1013,7 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
         waitingAskId: waitingAsk ? waitingAsk.ask.askId : null,
         timeLeftMs: waitingAsk ? waitingAsk.timeLeftMs : null,
         at: ctx.historyRow ? ctx.historyRow.at : null,
+        wallMs: ctx.historyRow && typeof ctx.historyRow.wallMs === 'number' ? ctx.historyRow.wallMs : null,
         askedAt,
         startedAt: isRunningNow(ctx, glyph) ? ctx.startedAt : null,
         atWhy: (ctx.historyRow || askedAt) ? null

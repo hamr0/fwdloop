@@ -2376,7 +2376,7 @@ describe('index.html — page source', () => {
     const fnStart = source.indexOf('function renderJob');
     const fnEnd = source.indexOf('\n  }', fnStart);
     const body = source.slice(fnStart, fnEnd);
-    assert.match(body, /" per run · redo up to "/);
+    assert.match(body, /" per run" \+ \(waitText \? " · " \+ waitText : ""\) \+ " · redo up to "/);
     assert.doesNotMatch(source, /time cap/i);
   });
 

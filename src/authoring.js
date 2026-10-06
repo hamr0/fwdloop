@@ -109,6 +109,24 @@ export const costText = (n, spendComplete = true) => {
 };
 const usd = costText;
 
+/** The readout's section headings: the ONE list. buildReadout writes them from here and `readoutHeadIndexes` finds them by it,
+ *  so the panel's bold and the template cannot drift (M4e amendment 7 item 3). */
+const READOUT_HEADS = {
+  inputs: 'INPUTS',
+  steps: 'STEPS',
+  asks: 'ASKS (human stops)',
+  sends: 'SEND TARGET (nothing leaves before an accepted ask)',
+  refused: 'REFUSED LINES',
+  jobLines: 'JOB LINES',
+};
+/** Zero-based indexes of the heading lines in a readout's text (split on "\n"): the panel renders those bold. */
+export function readoutHeadIndexes(text) {
+  const heads = new Set(Object.values(READOUT_HEADS));
+  const idx = [];
+  String(text).split('\n').forEach((l, i) => { if (heads.has(l)) idx.push(i); });
+  return idx;
+}
+
 /** Plain-text readout of what the human is about to sign. Pure. */
 export function buildReadout({
   declaration, arbiter, lines, name, modelId, costUsd, rounds, spendComplete, root,
@@ -118,29 +136,33 @@ export function buildReadout({
   out.push(`Drafted by: ${modelId ?? '?'} in ${rounds} round(s), cost ${usd(costUsd, spendComplete)}`);
   if (typeof root === 'string') out.push(`Flows root: ${root}  (the flow is written to <flows root>/${name} when you sign)`);
   out.push(`Cap per run (signed by you in the prose): $${arbiter.capUsd}`, '');
-  out.push('INPUTS');
+  out.push(READOUT_HEADS.inputs);
   for (const s of arbiter.sources) {
     const h = declaration.inputFacts?.[s.role];
     out.push(`  ${s.role} = ${s.path}${h ? `  [headings: ${h.join(' | ') || 'none'}]` : ''}`);
   }
-  out.push('', 'STEPS');
+  out.push('', READOUT_HEADS.steps);
   declaration.steps.forEach((st, i) => {
     out.push(`  ${i + 1}. (line ${st.fromLine}) ${st.goal}`);
     out.push(`     grants: ${st.primitives?.length ? st.primitives.join(', ') : 'none (pure stop)'}`
       + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${st.close?.class}`);
   });
-  out.push('', 'ASKS (human stops)');
+  out.push('', READOUT_HEADS.asks);
   for (const a of arbiter.asks) out.push(`  line ${a.line}: "${a.question}" (ttl ${fmtTtl(a.ttlMs)})`);
   if (arbiter.asks.length === 0) out.push('  none');
-  out.push('', 'SEND TARGET (nothing leaves before an accepted ask)');
+  out.push('', READOUT_HEADS.sends);
   for (const s of arbiter.sends) out.push(`  line ${s.line} -> ${s.target.kind}:${s.target.path}`);
   if (arbiter.sends.length === 0) out.push('  none');
   const refused = declaration.refused ?? [];
   if (refused.length) {
-    out.push('', 'REFUSED LINES');
+    out.push('', READOUT_HEADS.refused);
     for (const r of refused) out.push(`  line ${r.line}: ${r.reason}`);
   }
-  out.push('', 'JOB LINES', ...lines.map((l) => `  ${l.n}. ${l.text}`));
+  out.push('', READOUT_HEADS.jobLines);
+  for (const l of lines) {
+    out.push(`  ${l.n}. ${l.text}`);
+    if (typeof l.guardrail === 'string' && l.guardrail.trim() !== '') out.push(`  ~ ${l.guardrail}`);
+  }
   return `${out.join('\n')}\n`;
 }
 

@@ -33,7 +33,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  PANEL_DRAFTS_DIR, scrub, signDraft, textHasKey,
+  PANEL_DRAFTS_DIR, readoutHeadIndexes, scrub, signDraft, textHasKey,
 } from '../authoring.js';
 import { nextRunId, readFileInside, readdirInside } from '../flow.js';
 import { isFwdloopAlive } from '../liveness.js';
@@ -146,7 +146,8 @@ export function createAuthor(opts) {
     const hashFile = readFileInside(dir, `${rel}/spec.hash`);
     if (hashFile.ok && hashFile.text.trim() !== '') {
       const readout = readFileInside(dir, `${rel}/readout.txt`);
-      return { phase: 'green', hash: hashFile.text.trim(), readout: readout.ok ? scrub(readout.text, keys) : '' };
+      const text = readout.ok ? scrub(readout.text, keys) : '';
+      return { phase: 'green', hash: hashFile.text.trim(), readout: text, readoutHeads: readoutHeadIndexes(text) };
     }
     const leak = readFileInside(dir, `${rel}/scrub-leak.red`);
     const log = readJson(dir, `${rel}/log.json`);
@@ -162,7 +163,7 @@ export function createAuthor(opts) {
    * A green first plan, plus its changes (amendment 3 item 3): the plan to sign is the NEWEST green of `draft`, `draft-1`, ...; a
    * red or stopped change never replaces it. `phase` is `revising` only while the newest change's child runs. One reader of every
    * change fact: the notes (`note-<n>.txt`), each change's own folder and log, and how many changes are used (their folders).
-   * @param {any} base @param {string} dir @param {{ hash: string, readout: string }} first @param {string[]} keys
+   * @param {any} base @param {string} dir @param {{ hash: string, readout: string, readoutHeads?: number[] }} first @param {string[]} keys
    */
   function withChanges(base, dir, first, keys) {
     const names = readdirInside(dir, '.');
@@ -180,7 +181,7 @@ export function createAuthor(opts) {
       return { ...entry, phase: 'stopped', say: logTail(dir, `revise-${n}.log`, keys) || STOPPED_SAY };
     });
     return {
-      ...base, phase: running ? 'revising' : 'green', hash: plan.hash, readout: plan.readout, plan: plan.rel, changesLeft: Math.max(0, MAX_CHANGES - used), notes,
+      ...base, phase: running ? 'revising' : 'green', hash: plan.hash, readout: plan.readout, readoutHeads: plan.readoutHeads, plan: plan.rel, changesLeft: Math.max(0, MAX_CHANGES - used), notes,
     };
   }
 

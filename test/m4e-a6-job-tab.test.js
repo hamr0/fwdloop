@@ -77,8 +77,12 @@ test('(g) waits read in plain units: 1h, 30m, 1h 30m, never 60m00s', () => {
   assert.equal(plainWait(0), 'unknown');
 });
 
-test('(f) the cap line is "$<cap> per run · redo up to <n>"; never "time cap"', () => {
+test('(f) the cap line is "$<cap> per run · <wait> wait · redo up to <n>"; never "time cap"; several asks "waits 1h, 30m"; no ask no wait (M4e amendment 7 item 4)', () => {
   const { document } = render(JOB);
-  assert.equal(document.els['details-cap'].textContent, '$0.50 per run · redo up to 3');
+  assert.equal(document.els['details-cap'].textContent, '$0.50 per run · 1h wait · redo up to 3');
+  const two = render({ ...JOB, asks: [{ line: 4, question: 'a', waitMs: 3600000 }, { line: 5, question: 'b', waitMs: 1800000 }] });
+  assert.equal(two.document.els['details-cap'].textContent, '$0.50 per run · waits 1h, 30m · redo up to 3');
+  const none = render({ ...JOB, asks: [] });
+  assert.equal(none.document.els['details-cap'].textContent, '$0.50 per run · redo up to 3');
   assert.doesNotMatch(PAGE, /time cap/i);
 });
