@@ -413,6 +413,7 @@
   .ask-question-heading{margin:6px 0 0;font-size:13px;font-weight:700;color:var(--text);}
   .ro-value{padding:6px 8px;min-height:32px;box-sizing:border-box;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
   .ro-value.scroll{max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;}
+  .art-head{color:var(--accent);}
   .field-row{display:flex;flex-wrap:wrap;gap:10px;}
   .field-row .field{flex:1 1 140px;margin-bottom:10px;}
 
@@ -3236,7 +3237,7 @@
     if(evidence.draft){
       var draftEl = document.createElement("div");
       draftEl.className = "ro-value scroll";
-      draftEl.textContent = evidence.draft;
+      fillArtifactText(draftEl, evidence.draft);
       // hamr's 2026-09-27 exit-check review #3: "the box headers should be
       // bolder" — a real heading class (same weight/size/uppercase posture
       // as the Job tab's own field `<label>`s), never the plain `.hint`
@@ -3262,12 +3263,35 @@
       }
       var art = document.createElement("div");
       art.className = "ro-value scroll";
-      art.textContent = typeof u.text === "string" ? u.text : "no artifact text on file";
+      if(typeof u.text === "string"){ fillArtifactText(art, u.text); } else { art.textContent = "no artifact text on file"; }
       ev.appendChild(art);
     });
     return ev;
   }
   // M4c item 5: "your answers so far" — one line per answered draft, every field from
+  // M4e amendment 4 item 7: a section header of the artifact shows in the panel's blue accent. The signed text gives no
+  // rule for what a header is, so the simplest honest one: a paragraph (text between blank lines) that is one short line
+  // (60 characters or fewer), does not end in a sentence stop, and has another paragraph after it. The text itself is
+  // untouched (textContent still equals the artifact, byte for byte); only the colour of those lines changes.
+  var ART_HEAD_MAX = 60;
+  function isArtifactHeader(para, hasNext){
+    return hasNext && para.length > 0 && para.length <= ART_HEAD_MAX && para.indexOf("\n") === -1 && !/[.!?:;,]$/.test(para.trim());
+  }
+  function fillArtifactText(el, text){
+    el.textContent = "";
+    var paras = String(text).split("\n\n");
+    paras.forEach(function(para, i){
+      if(i > 0) el.appendChild(document.createTextNode("\n\n"));
+      if(isArtifactHeader(para, i < paras.length - 1)){
+        var h = document.createElement("span");
+        h.className = "art-head";
+        h.textContent = para;
+        el.appendChild(h);
+      } else {
+        el.appendChild(document.createTextNode(para));
+      }
+    });
+  }
   // the server's block (data.js groupAskBlocks); the page only lays it out.
   function answerLineText(a){
     return "draft " + a.draft + " → " + a.decision + (a.reason ? ' "' + a.reason + '"' : "")

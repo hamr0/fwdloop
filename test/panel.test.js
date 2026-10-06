@@ -2115,7 +2115,7 @@ describe('index.html — page source', () => {
     // its own bold heading element (`qHeading`), still set via
     // `.textContent` only, never interpolated into innerHTML.
     assert.match(source, /qHeading\.textContent = qText/);
-    assert.match(source, /draftEl\.textContent = evidence\.draft/);
+    assert.match(source, /fillArtifactText\(draftEl, evidence\.draft\)/); // am4 item 7: sets textContent / text nodes only, see test/m4e-am4-headers.test.js
     assert.match(source, /art\.textContent = /);
   });
 
