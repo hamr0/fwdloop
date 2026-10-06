@@ -124,3 +124,15 @@ test('M4e am7 item 7: runner.js holds no verb decider of its own — it imports 
   assert.match(runner, /import \{[^}]*unwiredRed[^}]*\} from '\.\/canrun\.js'/);
   assert.doesNotMatch(canrun, /from '\.\/runner\.js'/, 'no import cycle');
 });
+
+test('(d) Run again with the flow or the run missing from the query (null, not empty) is refused by name, never thrown on', async () => {
+  const w = await world();
+  await w.signedFlow();
+  w.seedPassed('job2', 'run-1');
+  for (const url of ['/api/author/run-again', '/api/author/run-again?flow=job2', '/api/author/run-again?runId=run-1']) {
+    // eslint-disable-next-line no-await-in-loop
+    const r = await w.get(url);
+    assert.equal(r.status, 400, url);
+    assert.match(r.json().say, /Say which (flow|run)/, url);
+  }
+});

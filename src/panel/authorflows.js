@@ -241,17 +241,21 @@ export function createFlowsDoor(opts) {
       const no = (status, say, extra = {}) => ({ status, body: { ok: false, refused: 'run-again', say, ...extra } });
       const realRoot = realRootOrNull();
       if (realRoot === null) return no(400, 'The flows folder this panel serves does not exist.');
-      const named = checkFlowName(flow ?? '');
+      // a missing query value is refused by name, never passed on as null
+      if (typeof flow !== 'string' || flow === '') return no(400, 'Say which flow to run again.');
+      if (typeof runId !== 'string' || runId === '') return no(400, 'Say which run to run again.');
+      const named = checkFlowName(flow);
       if (!named.ok) return no(400, `${named.red}.`);
-      const rr = resolveRunDir(join(realRoot, flow), runId ?? '');
+      const rr = resolveRunDir(join(realRoot, flow), runId);
       if (!rr.ok) return no(400, `${rr.red}.`);
-      if (!listRunIds(join(realRoot, flow)).includes(String(runId))) return no(404, `"${flow}" has no run "${runId}".`);
+      if (!listRunIds(join(realRoot, flow)).includes(runId)) return no(404, `"${flow}" has no run "${runId}".`);
       const read = readSigned(realRoot, flow);
       const can = canFlowRun(read);
       if (!can.ok) {
         const red = scrub(String(can.red), providerKeys(loadEnv().env));
         return no(409, `"${flow}" will not run: ${red}`, { red });
       }
+      if (!read.ok) return no(409, `"${flow}" will not run: it does not read.`);   // narrows the type; canFlowRun has already refused this
       const roles = (read.arbiter.sources ?? []).map((s) => s.role);
       return {
         status: 200,
