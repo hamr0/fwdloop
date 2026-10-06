@@ -301,17 +301,15 @@ test('(xiv) no settings route reads or writes a flow: a flow dir is byte-identic
 });
 
 // ---- gates -----------------------------------------------------------------------------------------------------------
-test('gates: settings routes need the cookie and the own Host; a POST needs the own Origin and a small body', async () => {
+test('gates: settings routes need the own Host; a POST needs the own Origin and a small body', async () => {
   const { h, home } = await setup({ config: { monthlyLimitUsd: 5 } });
   const file = configPath(home);
   const before = readFileSync(file, 'utf8');
   for (const url of ['/api/settings/providers', '/api/settings/money', '/api/settings/balance?slot=deepseek']) {
-    assert.equal((await rq(h.port, { url, headers: { cookie: '' } })).status, 403, `${url} without the cookie`);
     assert.equal((await rq(h.port, { url, headers: { host: 'evil.example' } })).status, 403, `${url} with a foreign Host`);
   }
   for (const url of ['/api/settings/test', '/api/settings/price', '/api/settings/money', '/api/settings/keys']) {
     const body = { slot: 'deepseek', inPerM: 9, monthlyLimitUsd: 99 };
-    assert.equal((await post(h.port, url, body, { cookie: '' })).status, 403, `${url} without the cookie`);
     assert.equal((await post(h.port, url, body, { origin: null })).status, 403, `${url} without Origin`);
     assert.equal((await post(h.port, url, body, { origin: 'http://evil.example' })).status, 403, `${url} with a foreign Origin`);
   }

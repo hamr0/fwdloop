@@ -13,8 +13,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
-import { createPanelServer, handleRequest, writeTokenFile, loadOrMakeToken } from '../src/panel/server.js';
-import { remember, cookieHeader, cookieName } from '../scripts/panel-fixtures/panel-auth.mjs';
+import { createPanelServer, handleRequest } from '../src/panel/server.js';
+import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
 
 const tmp = (p) => mkdtempSync(path.join(tmpdir(), `fwdloop-m4cfix-${p}-`));
 
@@ -51,62 +51,6 @@ function rq(port, {
     r.end();
   });
 }
-
-// --- item 2: token file, link, cookie -------------------------------------
-test('item 2 (ii): every request needs the cookie — page, /api, POST — 403 without, and no body carries the token', async () => {
-  const h = await start();
-  const none = { cookie: '' };
-  const wrong = { cookie: `${cookieName(h.port)}=${'0'.repeat(64)}` };
-  for (const headers of [none, wrong]) {
-    for (const [method, url] of [['GET', '/'], ['GET', '/index.html'], ['GET', '/api/runs'], ['GET', '/api/inbox'], ['HEAD', '/'], ['POST', '/api/answer'], ['PUT', '/api/answer']]) {
-      const r = await rq(h.port, {
-        method, url, headers: { ...headers, origin: `http://127.0.0.1:${h.port}` }, body: method === 'POST' ? '{}' : undefined,
-      });
-      assert.equal(r.status, 403, `${method} ${url}`);
-      assert.ok(!r.text.includes(h.token) && !JSON.stringify(r.headers).includes(h.token), 'the refusal carries no token');
-    }
-  }
-  assert.equal((await rq(h.port, { url: '/' })).status, 200, 'with the cookie the page is served');
-});
-
-test('item 2: the printed link sets an HttpOnly SameSite=Strict cookie and redirects to /; a wrong ?t= sets nothing', async () => {
-  const h = await start();
-  const link = await rq(h.port, { url: `/?t=${h.token}`, headers: { cookie: '' } });
-  assert.equal(link.status, 302);
-  assert.equal(link.headers.location, '/');
-  const sc = String(link.headers['set-cookie']);
-  assert.match(sc, new RegExp(`^${cookieName(h.port)}=${h.token};`));
-  assert.match(sc, /HttpOnly/);
-  assert.match(sc, /SameSite=Strict/);
-  const bad = await rq(h.port, { url: `/?t=${'f'.repeat(64)}`, headers: { cookie: '' } });
-  assert.equal(bad.status, 403);
-  assert.equal(bad.headers['set-cookie'], undefined);
-  const elsewhere = await rq(h.port, { url: `/api/runs?t=${h.token}`, headers: { cookie: '' } });
-  assert.equal(elsewhere.status, 403, 'the link works on / only');
-  const page = await rq(h.port, { url: '/' });
-  assert.ok(!page.text.includes(h.token), 'the served page carries no token');
-});
-
-test('item 2 (ii): writeTokenFile — dir 0700, file 0600, replaced (even a loose old one), XDG_RUNTIME_DIR first; a symlinked dir is refused', () => {
-  const xdg = tmp('xdg');
-  const file = writeTokenFile({ port: 4801, token: 'a'.repeat(64), env: { XDG_RUNTIME_DIR: xdg } });
-  assert.equal(file, path.join(xdg, 'fwdloop', 'panel-4801.token'));
-  assert.equal(statSync(file).mode & 0o777, 0o600);
-  assert.equal(statSync(path.dirname(file)).mode & 0o777, 0o700);
-  assert.equal(readFileSync(file, 'utf8').trim(), 'a'.repeat(64));
-  // an old, loose file is replaced by a 0600 one
-  const dir = path.dirname(file);
-  const loose = path.join(dir, 'panel-4802.token');
-  writeTokenFile({ port: 4802, token: 'b'.repeat(64), dir });
-  assert.equal(statSync(loose).mode & 0o777, 0o600);
-  writeTokenFile({ port: 4802, token: 'c'.repeat(64), dir });
-  assert.equal(readFileSync(loose, 'utf8').trim(), 'c'.repeat(64));
-  const real = tmp('real');
-  const link = path.join(tmp('lnk'), 'fwdloop');
-  symlinkSync(real, link);
-  assert.throws(() => writeTokenFile({ port: 4803, token: 'd'.repeat(64), dir: link }), /not a directory owned by this user/);
-  assert.equal(existsSync(path.join(real, 'panel-4803.token')), false);
-});
 
 // --- item 3: anti-frame / no-store headers on EVERY response ---------------
 test('item 3 (iii): every response — page, JSON, 404, 403, 405, 302, HEAD — carries X-Frame-Options, frame-ancestors and no-store', async () => {
@@ -199,14 +143,14 @@ test('item 5 (v): no error body holds an absolute path — library, bad-runId, s
   const secretPath = `${outside}/secret-spot`;
   const fakeResumer = { start() { throw new Error(`boom at ${secretPath}`); }, get() { return null; } };
   const srv = http.createServer((req, res) => handleRequest(req, res, {
-    root, port: /** @type {any} */ (srv.address()).port, token: 't'.repeat(64), resumer: fakeResumer,
+    root, port: /** @type {any} */ (srv.address()).port, resumer: fakeResumer,
   }));
   await new Promise((r) => { srv.listen(0, '127.0.0.1', r); });
   const port = /** @type {any} */ (srv.address()).port;
   try {
     writeFileSync(path.join(root, 'ok', 'runs', 'run-1', 'answer.json'), JSON.stringify({ askId: 'a1', decision: 'accept' }));
     const r500 = await rq(port, {
-      method: 'POST', url: '/api/resume', headers: { origin: `http://127.0.0.1:${port}`, cookie: `${cookieName(port)}=${'t'.repeat(64)}` }, body: { flow: 'ok', runId: 'run-1' },
+      method: 'POST', url: '/api/resume', headers: { origin: `http://127.0.0.1:${port}` }, body: { flow: 'ok', runId: 'run-1' },
     });
     assert.equal(r500.status, 500);
     assert.equal(r500.json().red, 'internal error');
@@ -315,73 +259,52 @@ test('negative (xi): a pre-M4c-fix run is served as before and the panel rewrite
   assert.deepEqual(snap(), before);
 });
 
-test('exit walk: a browser GET / with no cookie gets a plain 403 page saying what to do (no token, no script); API routes keep the JSON 403', async () => {
-  const h = await start();
-  const nock = { cookie: '' };
-  const page = await rq(h.port, { headers: { ...nock, accept: 'text/html,application/xhtml+xml' } });
-  assert.equal(page.status, 403);
-  assert.match(page.headers['content-type'], /text\/html/);
-  assert.match(page.text, /open the link printed in the terminal/);
-  assert.equal(page.text.includes(h.token), false, 'no token in the body');
-  assert.doesNotMatch(page.text, /<script/i);
-  assert.equal(page.headers['x-frame-options'], 'DENY');
-  assert.equal(page.headers['cache-control'], 'no-store');
-  assert.match(page.headers['content-security-policy'], /frame-ancestors 'none'/);
-  const api = await rq(h.port, { url: '/api/runs', headers: { ...nock, accept: 'text/html' } });
-  assert.equal(api.status, 403);
-  assert.equal(api.json().refused, 'cookie-missing-or-wrong');
-  const fetchStyle = await rq(h.port, { headers: { ...nock, accept: '*/*' } });
-  assert.equal(fetchStyle.json().refused, 'cookie-missing-or-wrong');
-});
-
-test('1A: loadOrMakeToken reuses a good token file; a 0644 file, a loose dir, junk or a missing file gets a new token', () => {
-  const dir = tmp('reuse');
-  chmodSync(dir, 0o700);
-  assert.match(loadOrMakeToken({ port: 4821, dir }), /^[0-9a-f]{64}$/);
-  writeTokenFile({ port: 4821, token: 'a'.repeat(64), dir });
-  assert.equal(loadOrMakeToken({ port: 4821, dir }), 'a'.repeat(64), 'reused');
-  const file = path.join(dir, 'panel-4821.token');
-  chmodSync(file, 0o644);
-  assert.notEqual(loadOrMakeToken({ port: 4821, dir }), 'a'.repeat(64), 'a loose file is not trusted');
-  chmodSync(file, 0o600);
-  writeFileSync(file, 'junk\n');
-  chmodSync(file, 0o600);
-  assert.notEqual(loadOrMakeToken({ port: 4821, dir }), 'junk');
-  writeTokenFile({ port: 4821, token: 'a'.repeat(64), dir });
-  chmodSync(dir, 0o755);
-  assert.notEqual(loadOrMakeToken({ port: 4821, dir }), 'a'.repeat(64), 'a loose dir is not trusted');
-  chmodSync(dir, 0o700);
-});
-
-test('1A: fwdloop panel start, stop, start again on the same port: same token, the first start\'s cookie is accepted by the second; a 0644 token file is replaced', async () => {
-  const xdg = tmp('xdg-restart');
-  const root = tmp('restart-root');
+// --- M4e amendment 4 item 8: no token, no cookie ---------------------------------------------------------
+// Negative (i): `http://127.0.0.1:<port>/` opens with no `?t=` and no cookie; a POST with another site's Origin, or a Host that is not
+// 127.0.0.1:<port>, is refused and writes nothing; no token file is written.
+test('am4 (i): the panel opens with no ?t= and no cookie; foreign Origin / Host POSTs are refused and write nothing; no token file', async () => {
+  const xdg = tmp('xdg-notoken');
+  const home = tmp('home-notoken');
+  const root = tmp('notoken-root');
   const port = await new Promise((res) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => res(p)); }); });
   const BIN = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'bin', 'fwdloop');
-  const startPanel = async () => {
-    const child = spawn(process.execPath, [BIN, 'panel', '--root', root, '--port', String(port)], { env: { PATH: process.env.PATH, XDG_RUNTIME_DIR: xdg } });
-    let out = '';
-    child.stdout.on('data', (d) => { out += d; });
-    for (let i = 0; i < 100 && !/\?t=[0-9a-f]{64}/.test(out); i += 1) await new Promise((r) => { setTimeout(r, 100); }); // eslint-disable-line no-await-in-loop
-    const token = /\?t=([0-9a-f]{64})/.exec(out)?.[1];
-    return { child, token, out };
-  };
-  const stop = (c) => new Promise((r) => { c.once('exit', r); c.kill(); });
-  const a = await startPanel();
-  assert.ok(a.token, a.out);
-  await stop(a.child);
-  const b = await startPanel();
+  const child = spawn(process.execPath, [BIN, 'panel', '--root', root, '--port', String(port)], {
+    env: { PATH: process.env.PATH, XDG_RUNTIME_DIR: xdg, HOME: home, FWDLOOP_CONFIG_HOME: path.join(home, 'cfg') },
+  });
+  let out = '';
+  child.stdout.on('data', (d) => { out += d; });
+  const stop = () => new Promise((r) => { child.once('exit', r); child.kill(); });
   try {
-    assert.equal(b.token, a.token, 'same token across a restart');
-    assert.match(b.out, /open this link/, 'the link is still printed');
-    const r = await rq(port, { headers: cookieHeader(port, a.token) });
-    assert.equal(r.status, 200, 'the first start\'s cookie is accepted');
-  } finally { await stop(b.child); }
-  chmodSync(path.join(xdg, 'fwdloop', `panel-${port}.token`), 0o644);
-  const c = await startPanel();
-  try {
-    assert.ok(c.token);
-    assert.notEqual(c.token, a.token, 'a 0644 token file is replaced, not reused');
-    assert.equal(statSync(path.join(xdg, 'fwdloop', `panel-${port}.token`)).mode & 0o777, 0o600);
-  } finally { await stop(c.child); }
+    for (let i = 0; i < 100 && !out.includes(`http://127.0.0.1:${port}/`); i += 1) await new Promise((r) => { setTimeout(r, 100); }); // eslint-disable-line no-await-in-loop
+    assert.match(out, new RegExp(`^http://127\\.0\\.0\\.1:${port}/$`, 'm'), 'prints the bare address');
+    assert.doesNotMatch(out, /\?t=|cookie/i);
+    const page = await rq(port, { url: '/' });
+    assert.equal(page.status, 200, 'opens with no ?t= and no cookie');
+    assert.equal(page.headers['set-cookie'], undefined, 'sets no cookie');
+    const body = { flow: 'x', runId: 'run-1', askId: 'a', decision: 'accept' };
+    const own = `http://127.0.0.1:${port}`;
+    const evil = await rq(port, { method: 'POST', url: '/api/answer', headers: { origin: 'http://evil.example.com' }, body });
+    assert.equal(evil.status, 403);
+    assert.equal(evil.json().refused, 'origin-not-own');
+    const none = await rq(port, { method: 'POST', url: '/api/answer', body });
+    assert.equal(none.json().refused, 'origin-not-own');
+    const rebind = await rq(port, { method: 'POST', url: '/api/answer', headers: { origin: own, host: 'evil.example.com' }, body });
+    assert.equal(rebind.json().refused, 'host-not-own-address');
+    assert.equal((await rq(port, { url: '/api/runs', headers: { host: 'evil.example.com' } })).status, 403, 'a GET with a foreign Host is refused too');
+    assert.deepEqual(readdirSync(root), [], 'nothing written under --root');
+    assert.equal(existsSync(path.join(xdg, 'fwdloop')), false, 'no token dir under XDG_RUNTIME_DIR');
+    assert.equal(existsSync(path.join(home, '.cache', 'fwdloop')), false, 'no token dir under ~/.cache');
+  } finally { await stop(); }
+});
+
+test('am4 (i): a taken port is still a loud failure', async () => {
+  const port = await new Promise((res) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => res({ s, p: s.address().port })); });
+  const BIN = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'bin', 'fwdloop');
+  const child = spawn(process.execPath, [BIN, 'panel', '--root', tmp('taken-root'), '--port', String(port.p)], { env: { PATH: process.env.PATH, HOME: tmp('home-taken') } });
+  let err = '';
+  child.stderr.on('data', (d) => { err += d; });
+  const code = await new Promise((r) => { child.once('exit', r); });
+  await new Promise((r) => { port.s.close(r); });
+  assert.notEqual(code, 0);
+  assert.match(err, /already in use/);
 });

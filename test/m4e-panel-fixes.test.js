@@ -64,7 +64,7 @@ test('F2 a refused start survives a reload: /api/author/live returns it until Cl
   assert.equal(c.status, 200, c.text);
   assert.ok(existsSync(path.join(w.root, '.starts', startId, 'cleared.json')));
   assert.equal((await live(w)).start ?? null, null);
-  assert.equal((await rq(w.h.port, { method: 'POST', url: `/api/author/start/${startId}/clear`, body: {}, headers: { cookie: null } })).status, 403, 'the same gated door');
+  assert.equal((await rq(w.h.port, { method: 'POST', url: `/api/author/start/${startId}/clear`, body: {}, headers: { origin: 'http://evil.example' } })).status, 403, 'the same gated door');
   // a start that began (a run exists) is not returned: nothing to re-attach, nothing refused
   writeFileSync(path.join(w.home, 'config.json'), JSON.stringify({ monthlyLimitUsd: 50 }));
   const r2 = await w.post('/api/author/run', { ...runBody(w), runId: 'r2' });

@@ -113,8 +113,8 @@ test('field set: the New job card has exactly the signed boxes; bareloop-only bo
 
 test('#chat-action-error is written only by the click handlers: the poll path never touches it', () => {
   const writers = [...CHAT.matchAll(/actionErrEl\.textContent\s*=/g)].length;
-  // chatActionFailed, chatActionOk, openNewCard (a click's reset) and staleTokenHook
-  assert.equal(writers, 4, 'only four places may write the action line');
+  // chatActionFailed, chatActionOk, openNewCard (a click's reset)
+  assert.equal(writers, 3, 'only three places may write the action line');
   for (const name of ['poll', 'renderActions', 'renderProgress', 'renderThread', 'renderMain', 'endSession']) {
     assert.doesNotMatch(fnSrc(name).replace(/^\s*\/\/.*$/gm, ''), /actionErrEl|chatActionOk|chatActionFailed|chat-action-error|resetCard|openNewCard/, `${name} is on the poll path and must not touch #chat-action-error`);
   }
@@ -145,17 +145,6 @@ test('progress list rules: waiting has no check, detail on its own lines, no rep
   assert.match(rp, /escapeXml\("> " \+ d\)/);
   assert.match(fnSrc('renderActions'), /if\(progressChanged && sessionLive && progressRow\.lastElementChild\)[\s\S]*scrollIntoView\(\{block: "nearest"\}\)/);
   assert.doesNotMatch(CHAT.replace(/^\s*\/\/.*$/gm, ''), /\.focus\(\)/);
-});
-
-test('stale page: a 403 cookie refusal becomes one plain sentence and stops the poll', () => {
-  const prelude = 'var STALE_REFUSAL = "cookie-missing-or-wrong"; var STALE_LINE = "The panel restarted. Reload this page."; var hits = 0; var staleTokenHook = function(){ hits++; };';
-  const f = new Function(`${prelude}\n${fnSrc('staleTokenCheck')}\nreturn { staleTokenCheck, hits: function(){ return hits; } };`)();
-  const j = { ok: false, refused: 'cookie-missing-or-wrong', red: 'x' };
-  assert.equal(f.staleTokenCheck(j, 403).say, 'The panel restarted. Reload this page.');
-  assert.equal(f.hits(), 1);
-  assert.equal(f.staleTokenCheck({ ok: false, refused: 'name-mismatch', say: 'no' }, 400).say, 'no');
-  assert.equal(f.hits(), 1, 'another refusal is not a stale page');
-  assert.match(CHAT, /staleTokenHook = function\(\)\{[\s\S]*?stopPoll\(\);/);
 });
 
 test('the Chat tab keeps the page rules: no token on the page, every POST goes through postJSON, the only POSTs are the author doors', () => {

@@ -30,17 +30,17 @@ const stateOf = (w, startId, state) => until(async () => {
   return j?.phase === 'started' && j.state === state ? j : null;
 });
 
-test('(ii) the run door is the SAME gated door: no cookie, no/foreign Origin, wrong method -> refused, nothing created', async () => {
+test('(ii) the run door is the SAME gated door: no/foreign Origin, wrong method -> refused, nothing created', async () => {
   const w = await world();
   await w.signedFlow();
   const body = runBody(w);
-  for (const [c, want] of [[{ headers: { cookie: null } }, 403], [{ headers: { origin: null } }, 403], [{ headers: { origin: 'http://evil.example' } }, 403], [{ headers: { host: 'evil.example' } }, 403]]) {
+  for (const [c, want] of [[{ headers: { origin: null } }, 403], [{ headers: { origin: 'http://evil.example' } }, 403], [{ headers: { host: 'evil.example' } }, 403]]) {
     // eslint-disable-next-line no-await-in-loop
     assert.equal((await rq(w.h.port, { method: 'POST', url: '/api/author/run', body, ...c })).status, want, JSON.stringify(c));
   }
   assert.equal((await rq(w.h.port, { url: '/api/author/run' })).status, 404, 'a GET of the POST door is not a door');
-  assert.equal((await rq(w.h.port, { url: '/api/author/flows', headers: { cookie: null } })).status, 403);
-  assert.equal((await rq(w.h.port, { url: '/api/author/start/s-0000000000-0000', headers: { cookie: null } })).status, 403);
+  assert.equal((await rq(w.h.port, { url: '/api/author/flows', headers: { host: 'evil.example' } })).status, 403);
+  assert.equal((await rq(w.h.port, { url: '/api/author/start/s-0000000000-0000', headers: { host: 'evil.example' } })).status, 403);
   assert.deepEqual(w.starts(), [], 'no start folder was created by any refusal');
   assert.equal(existsSync(runDirOf(w, 'job2', 'r1')), false);
 });

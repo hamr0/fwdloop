@@ -71,8 +71,8 @@ test('doors: try-again is offered ONLY for not-started (never for doors/starting
 test('refusals: every one is a plain sentence — no HTTP status, refusal code, askId or path (M4c-fix walk issue 3)', () => {
   assert.equal(refusalText({ status: 409, body: { ok: false, refused: 'library', red: 'answerAsk: askId "x" is unknown for run /r' }, text: '' }),
     'This ask is no longer open.');
-  assert.equal(refusalText({ status: 403, body: { refused: 'cookie-missing-or-wrong', red: 'cookie-missing-or-wrong: open the link' }, text: '' }),
-    'The panel does not recognise this page. Open the link the terminal printed.');
+  assert.equal(refusalText({ status: 403, body: { refused: 'origin-not-own', red: 'origin-not-own: http://evil.example' }, text: '' }),
+    'The panel does not recognise this page. Reload it.');
   assert.equal(refusalText({ status: 405, body: null, text: 'method not allowed' }), 'That did not go through. Reload the page to see where this run stands.');
 });
 

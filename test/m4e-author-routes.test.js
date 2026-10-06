@@ -120,17 +120,16 @@ async function until(fn, ms = 20000) {
 }
 const phaseOf = (w, id, phases) => until(async () => { const j = (await w.get(`/api/author/${id}`)).json(); return phases.includes(j?.phase) ? j : null; });
 
-test('(ii) the draft door is the SAME gated door: no cookie, no/foreign Origin, foreign Host, wrong method -> refused, nothing created', async () => {
+test('(ii) the draft door is the SAME gated door: no/foreign Origin, foreign Host, wrong method -> refused, nothing created', async () => {
   const w = await world();
   const body = w.card();
   const cases = [
-    [{ headers: { cookie: null } }, 403], [{ headers: { origin: null } }, 403], [{ headers: { origin: 'http://evil.example' } }, 403], [{ headers: { host: 'evil.example' } }, 403],
+    [{ headers: { origin: null } }, 403], [{ headers: { origin: 'http://evil.example' } }, 403], [{ headers: { host: 'evil.example' } }, 403],
   ];
   for (const [c, want] of cases) {
     // eslint-disable-next-line no-await-in-loop
     assert.equal((await rq(w.h.port, { method: 'POST', url: '/api/author/draft', body, ...c })).status, want, JSON.stringify(c));
   }
-  assert.equal((await rq(w.h.port, { url: '/api/author/live', headers: { cookie: null } })).status, 403);
   assert.equal((await rq(w.h.port, { url: '/api/author/draft' })).status, 404, 'a GET of the POST door is not a door');
   assert.equal((await w.post('/api/author/nope', {})).status, 404);
   assert.equal((await w.post('/api/author/draft', 'not json')).status, 400);
@@ -331,7 +330,7 @@ test('(xvi) Abandon stops the child by its recorded pid, makes no further model 
   assert.equal(isFwdloopAlive(pid.pid, pid.procStart), true);
   const before = spendSummary({ home: w.home }).total.usd;
   assert.ok(before > 0);
-  assert.equal((await rq(w.h.port, { method: 'POST', url: `/api/author/${id}/abandon`, body: {}, headers: { cookie: null } })).status, 403);
+  assert.equal((await rq(w.h.port, { method: 'POST', url: `/api/author/${id}/abandon`, body: {}, headers: { origin: 'http://evil.example' } })).status, 403);
   const a = await w.post(`/api/author/${id}/abandon`, {});
   assert.equal(a.status, 200, a.text);
   assert.equal(a.json().stopped, true);

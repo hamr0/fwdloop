@@ -117,11 +117,11 @@ test('(2)(4) the right hash alone (no typed name) signs with the SAME signDraft,
   assert.deepEqual(listed.flows.map((f) => f.flow), ['job2']);
 });
 
-test('(ii) sign and sign-prepare are the SAME gated door: no cookie, no/foreign Origin, GET -> refused, nothing signed', async () => {
+test('(ii) sign and sign-prepare are the SAME gated door: no/foreign Origin, GET -> refused, nothing signed', async () => {
   const { w, id, hash, dir } = await greenWorld();
   const before = snapshot(w, dir);
   for (const suffix of ['sign', 'sign-prepare']) {
-    for (const [c, want] of [[{ headers: { cookie: null } }, 403], [{ headers: { origin: null } }, 403], [{ headers: { origin: 'http://evil.example' } }, 403], [{ headers: { host: 'evil.example' } }, 403]]) {
+    for (const [c, want] of [[{ headers: { origin: null } }, 403], [{ headers: { origin: 'http://evil.example' } }, 403], [{ headers: { host: 'evil.example' } }, 403]]) {
       // eslint-disable-next-line no-await-in-loop
       assert.equal((await rq(w.h.port, { method: 'POST', url: `/api/author/${id}/${suffix}`, body: signBody(hash), ...c })).status, want, `${suffix} ${JSON.stringify(c)}`);
     }

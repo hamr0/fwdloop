@@ -970,8 +970,7 @@
   "use strict";
 
   var PORT = "__FWDLOOP_PANEL_PORT__";
-  // M4c-fix item 2: the page carries NO token. The panel link sets an HttpOnly cookie; every
-  // request (reads and the two POSTs) is authenticated by that cookie, sent by the browser itself.
+  // No token, no cookie (M4e amendment 4 item 8): the panel is local and trusted; the server checks Host and, on a POST, Origin.
   document.getElementById("host-line").textContent = "127.0.0.1:" + PORT;
 
   function wireTabs(tabButtons){
@@ -994,8 +993,8 @@
 
   // ---- fetch helpers. Reads are GET. The ONLY non-GET requests on this page are
   // the two POSTs below (M4b): /api/answer (a human clicking a door) and
-  // /api/resume ("try the resume again"). Auth is the HttpOnly cookie
-  // (never the DOM, a URL, storage or a log). Same-origin. ----
+  // /api/resume ("try the resume again"). No auth header (the server checks Host and
+  // Origin). Same-origin. ----
   function getJSON(path){
     return fetch(path, { method: "GET", headers: { accept: "application/json" } }).then(function(r){
       if(!r.ok){ var err = new Error(path + ": HTTP " + r.status); err.status = r.status; throw err; }
@@ -1006,7 +1005,7 @@
   // message (it carries the path and the HTTP code), never a status number.
   function loadFailureText(e){
     var status = e && e.status;
-    if(status === 403) return "The panel does not recognise this page. Open the link the terminal printed.";
+    if(status === 403) return "The panel does not recognise this page. Reload it.";
     if(status === 404) return "This run is no longer there.";
     return "Could not load this; reload the page.";
   }
@@ -3025,9 +3024,8 @@
       "askid-required": "That click was not understood. Reload the page and try again.",
       "body-not-json": "That click was not understood. Reload the page and try again.",
       "body-too-large": "That is too long to send. Please shorten your reason.",
-      "cookie-missing-or-wrong": "The panel does not recognise this page. Open the link the terminal printed.",
-      "origin-not-own": "The panel does not recognise this page. Open the link the terminal printed.",
-      "host-not-own-address": "The panel does not recognise this page. Open the link the terminal printed.",
+      "origin-not-own": "The panel does not recognise this page. Reload it.",
+      "host-not-own-address": "The panel does not recognise this page. Reload it.",
       "internal": "Something went wrong inside the panel. Nothing was changed."
     };
     var byWords = [
@@ -3423,10 +3421,8 @@
   // ---- Chat tab: describe, draft, sign and run a job from this page (M4e piece 3). ----
   // borrowed-from: bareloop src/panel/index.html@ca7195e — `mainButtonFor`, `renderMain`, `renderProgress`, the
   // scroll-on-change block in `renderActions`, `attachSession`/`reattachLive` (without the reuse/auto-sign branch), `syncCardLock`,
-  // `CLIENT_TERMINAL_PHASES`, `openNewCard`/`resetCard`/`refreshStartEnabled`, `staleTokenCheck` with its `authorPost`/`authorGet`
-  // wrapper and `staleTokenHook`, `fitBox`. fwdloop differs where its shape does: the draft is a detached CLI child whose state is
-  // READ from files (GET /api/author/live and /:id), a start is polled (GET /api/author/start/:id), auth is the panel's cookie
-  // (no header token). Sign is two clicks, no typed name (M4e amendment 2); the ask box is bareloop's "Ask for a change to the plan" (amendment 3 item 3).
+  // `CLIENT_TERMINAL_PHASES`, `openNewCard`/`resetCard`/`refreshStartEnabled`, `authorPost`/`authorGet`, `fitBox`. fwdloop differs where its shape does: the draft is a detached CLI child whose state is
+  // READ from files (GET /api/author/live and /:id), a start is polled (GET /api/author/start/:id), no token or cookie. Sign is two clicks, no typed name (M4e amendment 2); the ask box is bareloop's "Ask for a change to the plan" (amendment 3 item 3).
   (function(){
     var card = document.getElementById("chat-job-card");
     var clearBtn = document.getElementById("chat-clear-btn");
@@ -3466,28 +3462,16 @@
     var flows = [];
     // a draft that is abandoned or signed ends the card's life; red/stopped drafts stay on the card (to read, to fix, to retry)
     var CLIENT_TERMINAL_PHASES = ["abandoned", "signed"];
-    var STALE_REFUSAL = "cookie-missing-or-wrong";
-    var STALE_LINE = "The panel restarted. Reload this page.";
 
-    // After a panel restart this page's cookie is dead: the server refuses EVERY call with 403 `cookie-missing-or-wrong`. The ONE
-    // place the Chat tab makes calls swaps that for one clear sentence and tells the poll to stop. No auto-reload.
-    var staleTokenHook = function(){};
-    function staleTokenCheck(j, status){
-      if(j && j.ok === false && j.refused === STALE_REFUSAL && (status === undefined || status === 403)){
-        j.say = STALE_LINE;
-        staleTokenHook();
-      }
-      return j;
-    }
     function authorPost(path, body){
-      return postJSON(path, body || {}).then(function(r){ return {status: r.status, body: staleTokenCheck(r.body, r.status)}; });
+      return postJSON(path, body || {}).then(function(r){ return {status: r.status, body: r.body}; });
     }
     function authorGet(path){
       return fetch(path, { method: "GET", headers: { accept: "application/json" } }).then(function(r){
         return r.text().then(function(t){
           var j = null;
           try{ j = JSON.parse(t); }catch(e){}
-          return staleTokenCheck(j, r.status);
+          return j;
         });
       });
     }
@@ -3919,12 +3903,6 @@
       chatActionFailed(text);
     }
     var NETWORK_SAY = "Could not reach the panel. Nothing was sent.";
-    // a dead cookie (panel restarted): show the one line where Chat actions show errors and stop polling
-    staleTokenHook = function(){
-      actionErrEl.textContent = STALE_LINE;
-      stopPoll();
-      stopStart();
-    };
 
     function poll(){
       if(!sessionId) return;

@@ -379,10 +379,8 @@ const ALLOWLIST = {
     names: { readFileSync: 1 },
   },
   'src/panel/server.js': {
-    reason: 'the panel\'s own bundled index.html next to the source file — a self/package file, not run/flow-dir content; plus M4c-fix item 5: `cleanPaths` realpaths --root to show paths relative to it in error bodies; plus hamr 1A: `loadOrMakeToken` lstats and reads the panel\'s own token file/dir to reuse the token; plus M4c-fix item 2: `writeTokenFile` makes the panel\'s own token dir (0700, lstat-checked) and file (0600) under $XDG_RUNTIME_DIR or ~/.cache — outside the flows root and every run dir',
-    names: {
-      chmodSync: 1, closeSync: 1, lstatSync: 3, mkdirSync: 1, openSync: 1, readFileSync: 2, realpathSync: 1, unlinkSync: 1, writeSync: 1,
-    },
+    reason: 'the panel\'s own bundled index.html next to the source file — a self/package file, not run/flow-dir content; plus M4c-fix item 5: `cleanPaths` realpaths --root to show paths relative to it in error bodies (M4e amendment 4 item 8 removed the token file helpers that used the rest)',
+    names: { readFileSync: 1, realpathSync: 1 },
   },
   'src/panel/data.js': {
     reason: 'read-only checks (existsSync/realpathSync symlink guards) — actual book content is read via the imported readFlow/readAudit/readHistory/readAsk/etc. helpers, never fs directly',

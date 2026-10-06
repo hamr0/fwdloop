@@ -178,7 +178,6 @@ test('amendment 1 (b): POST /api/reopen — gated like the other POSTs, one clic
   assert.deepEqual(ask.reopen, { waitMs: WAIT, late: false, why: 'Nobody answered in time.' });
   assert.equal(ask.open, false);
   // gates
-  assert.equal((await rq(port, { method: 'POST', url: '/api/reopen', headers: { ...own, cookie: '' }, body })).status, 403);
   assert.equal((await rq(port, { method: 'POST', url: '/api/reopen', headers: { ...own, origin: 'http://evil.example.com' }, body })).status, 403);
   assert.equal((await rq(port, { method: 'POST', url: '/api/reopen', headers: own, body: { ...body, askId: '' } })).status, 400);
   assert.deepEqual(reopens(run.runDir), [], 'a refused request wrote nothing');

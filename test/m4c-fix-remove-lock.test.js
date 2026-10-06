@@ -99,7 +99,6 @@ test('(h) route: gated like the other POSTs; an empty lock is removed, ONE audit
   const run = savedAnswerRun('route');
   writeFileSync(run.lock, '');
   const s = await serve(run);
-  assert.equal((await s.post({ ...s.own, cookie: '' })).status, 403, 'no cookie');
   assert.equal((await s.post({ ...s.own, origin: 'http://evil.example.com' })).status, 403, 'foreign origin');
   assert.equal((await s.post(s.own, { flow: run.flow })).status, 400, 'no run named');
   assert.equal(existsSync(run.lock), true, 'refused requests removed nothing');

@@ -297,8 +297,9 @@ test('detached: the panel server process is SIGKILLed right after the reply; the
     env: { ...serverEnv(), PANEL_ROOT: run.root, PANEL_LOGDIR: logDir },
   });
   SERVER_PROCS.push(srv.pid);
-  const { port, token } = JSON.parse(await new Promise((res) => { srv.stdout.once('data', (d) => res(String(d))); }));
-  TOKENS.set(port, token);
+  const { port } = JSON.parse(await new Promise((res) => { srv.stdout.once('data', (d) => res(String(d))); }));
+  TOKENS.set(port, true);
+  const token = await pageToken(port);
   const r = await answer(port, token, run, 'redo', 'redo it');
   assert.equal(r.status, 202, r.text);
   process.kill(-srv.pid, 'SIGKILL'); // the whole panel process group, now
@@ -495,9 +496,6 @@ test('POST /api/resume: refused by name with no saved answer, and with no token 
   assert.equal(sneaky.json().refused, 'no-saved-answer');
   assert.deepEqual(readdirSync(run.runDir).filter((f) => f.startsWith('answer.')), [], '/api/resume must never write an answer');
 
-  const noTok = await resumePost(port, token, run, { origin: `http://127.0.0.1:${port}`, cookie: '', 'content-type': 'application/json' });
-  assert.equal(noTok.status, 403);
-  assert.equal(noTok.json().refused, 'cookie-missing-or-wrong');
   const badOrigin = await resumePost(port, token, run, { ...good(port, token), origin: 'http://evil.example.com' });
   assert.equal(badOrigin.json().refused, 'origin-not-own');
   const badHost = await resumePost(port, token, run, { ...good(port, token), host: 'evil.example.com' });

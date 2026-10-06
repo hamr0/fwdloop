@@ -49,7 +49,7 @@ test('a failed load reads as a plain sentence for 403, 404, 500 and a network fa
     500: await failureOf(resp(500)),
     network: await failureOf(() => Promise.reject(new TypeError('fetch failed'))),
   };
-  assert.match(texts[403], /Open the link the terminal printed/);
+  assert.match(texts[403], /Reload it/);
   assert.equal(texts[404], 'This run is no longer there.');
   assert.equal(texts[500], 'Could not load this; reload the page.');
   assert.equal(texts.network, 'Could not load this; reload the page.');
