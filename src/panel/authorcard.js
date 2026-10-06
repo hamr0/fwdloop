@@ -36,6 +36,83 @@ function capText(n) {
 
 const str = (v) => (typeof v === 'string' ? v : '');
 
+/** The ask wait the card takes (amendment 2 item 5): a whole number above 0 with `m` or `h`, nothing else. */
+const WAIT_RE = /^(\d+)([mh])$/i;
+/** @param {string} t @returns {boolean} */
+export const isAskWait = (t) => { const m = WAIT_RE.exec(t); return m !== null && Number(m[1]) > 0; };
+
+/** The first 40 characters of a line, for a refusal sentence. @param {string} t */
+const snip = (t) => (t.length > 40 ? `${t.slice(0, 40)}…` : t);
+
+/**
+ * The job box (M4e amendment 2 item 1), a pure function of its text. One non-empty line is one step; a line starting with `~` is a
+ * guardrail of the step above; `Ask:` / `Ask 2h:` (case-insensitive) is an ask with the card's wait / its own wait; empty lines are
+ * dropped. A refusal is `{ line, say }`, `line` = the 1-based line of the box (blank lines count, so the human can find it).
+ * @param {string} text
+ * @returns {{ steps: { n: number, text: string, ask: null | { wait: string|null, question: string }, guardrails: string[] }[], refusals: { line: number, say: string }[] }}
+ */
+export function parseJobBox(text) {
+  /** @type {{ n: number, text: string, ask: null | { wait: string|null, question: string }, guardrails: string[] }[]} */
+  const steps = [];
+  /** @type {{ line: number, say: string }[]} */
+  const refusals = [];
+  String(text).split('\n').forEach((raw, i) => {
+    const t = raw.trim();
+    if (t === '') return;
+    const at = i + 1;
+    const no = (say) => refusals.push({ line: at, say: `Line ${at} ("${snip(t)}") ${say}` });
+    if (t.startsWith('~')) {
+      const g = t.slice(1).trim();
+      if (steps.length === 0) no('starts with ~ but no step is above it. A ~ line belongs to the step above, so put a step first.');
+      else if (g === '') no('is only a ~. Write the guardrail after it.');
+      else steps[steps.length - 1].guardrails.push(g);
+      return;
+    }
+    const n = steps.length + 1;
+    if (/^ask[: ]/i.test(t)) {
+      const m = /^ask(?:\s+(\d+)\s*([mh]))?\s*:\s*(.*)$/i.exec(t);
+      if (!m) no('is not an ask. Write it as "Ask: question" or "Ask 2h: question" (m for minutes, h for hours).');
+      else if (m[1] !== undefined && Number(m[1]) <= 0) no('has an ask wait of 0. The wait must be above 0.');
+      else if (m[3] === '') no('is an ask with no question after the colon.');
+      else steps.push({ n, text: t, ask: { wait: m[1] === undefined ? null : `${Number(m[1])}${m[2].toLowerCase()}`, question: m[3] }, guardrails: [] });
+      return;
+    }
+    steps.push({ n, text: t, ask: null, guardrails: [] });
+  });
+  return { steps, refusals };
+}
+
+/** The job file lines (`N. text`, `   guardrail: text`, `N. ask <wait>: question`) for parsed steps; the wait is ALWAYS written out. @param {ReturnType<typeof parseJobBox>['steps']} steps @param {string} askWait */
+export function jobFileLines(steps, askWait) {
+  /** @type {string[]} */
+  const out = [];
+  for (const s of steps) {
+    out.push(s.ask ? `${s.n}. ask ${s.ask.wait ?? askWait.toLowerCase()}: ${s.ask.question}` : `${s.n}. ${s.text}`);
+    for (const g of s.guardrails) out.push(`   guardrail: ${g}`);
+  }
+  return out;
+}
+
+/**
+ * The inputs box (amendment 2 item 2): one `name: path` per non-empty line, split at the FIRST colon. `line` is the line's own number
+ * as the box shows it (empty lines are skipped and not numbered). A line with no colon is flagged `noColon`.
+ * @param {string} text
+ * @returns {{ line: number, role: string, path: string, noColon?: true }[]}
+ */
+export function parseInputLines(text) {
+  /** @type {{ line: number, role: string, path: string, noColon?: true }[]} */
+  const rows = [];
+  for (const raw of String(text).split('\n')) {
+    const t = raw.trim();
+    if (t === '') continue;
+    const line = rows.length + 1;
+    const c = t.indexOf(':');
+    if (c === -1) rows.push({ line, role: t, path: '', noColon: true });
+    else rows.push({ line, role: t.slice(0, c).trim(), path: t.slice(c + 1).trim() });
+  }
+  return rows;
+}
+
 /**
  * Normalise what the page sent into the typed card (one reader of the request body's shape). Unknown fields are
  * dropped; nothing here judges a value.
