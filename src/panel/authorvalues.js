@@ -13,6 +13,16 @@ export const NEW_FLOW_SAY = 'Only the files, the destination, the money cap and 
 export const RESUME_ONLY_CAP_SAY = 'A resume changes only the cap. New files or a new destination or ask wait is a new run of this flow (Run a signed flow); a change to a job line or an ask is a new flow (New job).';
 const WAIT_SAY = 'The ask wait must be a whole number with s, m or h, such as 30m or 1h.';
 
+/**
+ * The smallest cap a Resume accepts: the next whole cent above what is spent, but never under the cap floor. ONE function for the
+ * door's refusal and the page's note, so the "at least $X" it names is itself accepted.
+ * @param {number} spentUsd @param {number} floorUsd
+ */
+export function leastResumeCapUsd(spentUsd, floorUsd) {
+  const aboveSpent = Math.ceil(spentUsd * 100 + 1e-6) / 100;
+  return Math.max(aboveSpent, Math.ceil(floorUsd * 100 - 1e-6) / 100);
+}
+
 /** @param {unknown} v */
 const typed = (v) => (typeof v === 'string' ? v.trim() : v);
 
@@ -53,8 +63,7 @@ export function checkValues({
   }
   if (refusals.length === 0) {
     if (spentUsd > 0 && capUsd <= spentUsd + 1e-9) {
-      const least = Math.ceil(spentUsd * 100 + 1e-6) / 100;
-      no('capUsd', `The cap must be above what is already spent (at least $${least.toFixed(2)}).`);
+      no('capUsd', `The cap must be above what is already spent (at least $${leastResumeCapUsd(spentUsd, floorUsd).toFixed(2)}).`);
     } else if (capUsd < floorUsd && (always || capUsd !== base.capUsd)) no('capUsd', capFloorText(floorUsd));
   }
 

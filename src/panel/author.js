@@ -43,6 +43,7 @@ import {
 import {
   capFloorText, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines,
 } from './authorcard.js';
+import { leastResumeCapUsd } from './authorvalues.js';
 import { createFlowsDoor } from './authorflows.js';
 import { createResumeDoor } from './authorresume.js';
 import { createStarter } from './authorstart.js';
@@ -242,7 +243,7 @@ export function createAuthor(opts) {
       // what is spent says so in the door's own words (red)
       const spentUsd = typeof spent === 'string' && spent.trim() !== '' && Number.isFinite(Number(spent)) && Number(spent) > 0 ? Number(spent) : 0;
       if (spentUsd > 0 && n <= spentUsd + 1e-9) {
-        return { status: 200, body: { ok: true, text: `The cap must be above what is already spent (at least $${(Math.ceil(spentUsd * 100 + 1e-6) / 100).toFixed(2)}).`, red: true, floorUsd, floorText: capFloorText(floorUsd) } };
+        return { status: 200, body: { ok: true, text: `The cap must be above what is already spent (at least $${leastResumeCapUsd(spentUsd, floorUsd).toFixed(2)}).`, red: true, floorUsd, floorText: capFloorText(floorUsd) } };
       }
       const claim = monthlyClaim(n - spentUsd);
       if (claim === null || 'problem' in claim) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText: capFloorText(floorUsd) } };
