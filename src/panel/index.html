@@ -230,7 +230,7 @@
      the same behavior fix #7 already gave phone width alone. */
   .wf-meta-line{white-space:normal;overflow:visible;text-overflow:clip;min-width:0;}
   /* M4c-fix amendment 2 (g), line 2 of a run row: **word** — plain why. Wraps, never clips. */
-  .wf-sign-line{font-size:12px;color:var(--text-dim);white-space:normal;overflow-wrap:anywhere;min-width:0;}
+  .wf-sign-line{font-size:12px;color:var(--text-dim);white-space:normal;overflow-wrap:anywhere;}
   .wf-sign-line .sign-word,.hdr-verdict .sign-word{color:var(--text);}
   .hdr-verdict{font-size:12px;color:var(--text-dim);min-width:0;overflow-wrap:anywhere;}
   .wf-meta{font-size:12px;color:var(--text-dim);}
@@ -450,7 +450,7 @@
   .chat-steps{list-style:none;margin:2px 0 10px;padding:0;font-size:12px;}
   .chat-steps .step{padding:1px 0;}
   .chat-steps .step-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 10px;}
-  .chat-steps .step-label{color:var(--text);min-width:11em;}
+  .chat-steps .step-label{color:var(--text);min-width:11em;overflow-wrap:anywhere;}
   .chat-steps .step-sign{font-weight:700;}
   .chat-steps .step.run .step-sign{color:var(--amber);}
   .chat-steps .step.ok .step-sign{color:var(--green);}
@@ -472,6 +472,12 @@
   .msg .who{font-size:11px;color:var(--text-faint);margin-bottom:3px;text-transform:none;font-weight:400;}
   .chat-input-row{margin-top:10px;border-top:1px dotted var(--border-strong);padding-top:10px;}
   .chat-input-row input{width:100%;box-sizing:border-box;}
+  /* borrowed-from: bareloop src/panel/index.html@d151ec7 (the ask box: a wrapping textarea, 2x height, thick border, dimmed while it cannot be used).
+     M4e amendment 3 item 3: it opens only on a green plan ("Ask for a change to the plan"); `hidden` closes it. */
+  .chat-input-row[hidden]{display:none;}
+  textarea[data-testid="chat-msg"]{width:100%;box-sizing:border-box;font:inherit;color:var(--text);resize:vertical;overflow-y:auto;max-height:200px;}
+  #chat-msg{min-height:64px;padding:8px 12px;border:2px solid var(--field-border);background:var(--field-bg);}
+  #chat-msg:read-only{background:var(--bg);opacity:.55;cursor:not-allowed;}
   /* the card's free-text boxes wrap (textarea): grow a few rows (fitBox), then scroll inside */
   .job-card textarea.jf-wrap{width:100%;box-sizing:border-box;font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);resize:vertical;overflow-y:auto;max-height:200px;}
   /* the focused/selected Chat-card field gets a blue border (the accent), no outline ring */
@@ -486,9 +492,9 @@
   .jf-mirror{position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;white-space:pre-wrap;overflow-wrap:break-word;word-wrap:break-word;box-sizing:content-box;padding:0;border:0;margin:0;}
   .jf-mirror div{margin:0;padding:0;}
   /* editable Chat-card fields get the standard soft white (a step below the ask box); disabled/readonly keep the base colour */
-  #panel-chat input:not(:disabled):not([readonly]):not([type="radio"]):not([type="checkbox"]),
+  #panel-chat input:not(:disabled):not([readonly]):not(#chat-msg):not([type="radio"]):not([type="checkbox"]),
   #panel-chat select:not(:disabled),
-  #panel-chat textarea:not(:disabled):not([readonly]){background:var(--field-soft-bg);}
+  #panel-chat textarea:not(:disabled):not([readonly]):not(#chat-msg){background:var(--field-soft-bg);}
   /* ONE wide button below the message box; its wording comes from mainButtonFor */
   .btn.wide{width:100%;margin-top:10px;white-space:normal;}
   /* amendment 2 item 7: the main button's label ("Sign <hash8> & run · $<cap>") stays on ONE line inside the card */
@@ -799,6 +805,11 @@
                action handlers, never cleared by the poll (the poll owns #chat-card-error instead) -->
           <div class="hint" id="chat-action-error" data-testid="chat-action-error"></div>
 
+          <!-- M4e amendment 3 item 3: opens when a green plan shows (bareloop's ask box); a typed note turns the main button into Send -->
+          <div class="chat-input-row" id="chat-msg-row" data-testid="chat-msg-row" hidden>
+            <label for="chat-msg" style="display:none">Message</label>
+            <textarea id="chat-msg" rows="2" placeholder="Ask for a change to the plan" autocomplete="off" data-testid="chat-msg"></textarea>
+          </div>
           <button class="btn primary wide" type="button" id="chat-main-btn" data-testid="chat-main" disabled>Draft</button>
           <div class="hint" id="chat-main-hint" data-testid="chat-main-hint"></div>
           <div class="hint">Only your click signs.</div>
@@ -3415,7 +3426,7 @@
   // `CLIENT_TERMINAL_PHASES`, `openNewCard`/`resetCard`/`refreshStartEnabled`, `staleTokenCheck` with its `authorPost`/`authorGet`
   // wrapper and `staleTokenHook`, `fitBox`. fwdloop differs where its shape does: the draft is a detached CLI child whose state is
   // READ from files (GET /api/author/live and /:id), a start is polled (GET /api/author/start/:id), auth is the panel's cookie
-  // (no header token), and there is no ask box: Sign is two clicks, no typed name (M4e amendment 2).
+  // (no header token). Sign is two clicks, no typed name (M4e amendment 2); the ask box is bareloop's "Ask for a change to the plan" (amendment 3 item 3).
   (function(){
     var card = document.getElementById("chat-job-card");
     var clearBtn = document.getElementById("chat-clear-btn");
@@ -3426,6 +3437,8 @@
     var askWaitEl = document.getElementById("jf-ask-wait");
     var mainBtn = document.getElementById("chat-main-btn");
     var mainHint = document.getElementById("chat-main-hint");
+    var msgEl = document.getElementById("chat-msg");               // the ask box: a note asking for a change to the green plan
+    var msgRow = document.getElementById("chat-msg-row");
     var errEl = document.getElementById("chat-card-error");        // POLL-OWNED: the draft's own sentence (red / stopped)
     var actionErrEl = document.getElementById("chat-action-error"); // ACTION-OWNED: only a click's refusal; the poll never wipes it
     var progressRow = document.getElementById("chat-progress-row");
@@ -3502,7 +3515,14 @@
       if(st.phase === "stopped"){
         return {text: "Draft again", action: "draft", disabled: blocked};
       }
+      if(st.phase === "revising"){
+        return {text: "Sign & run", action: "none", disabled: true};
+      }
       if(st.phase === "green"){
+        // amendment 3 item 3: a note in the ask box makes the one button Send (a change to the plan); empty, it is Sign & run
+        if(st.boxOpen && !st.textEmpty){
+          return {text: "Send", action: "revise", disabled: !!st.busy};
+        }
         if(st.signClicked){
           var signCap = (cap !== undefined && cap !== null && cap !== "") ? " \u00b7 $" + cap : "";
           return {text: "Sign " + String(st.hash || "").slice(0, 8) + " & run" + signCap, action: "sign", disabled: !!st.busy};
@@ -3510,6 +3530,13 @@
         return {text: "Sign & run", action: "sign-prepare", disabled: !!st.busy};
       }
       return {text: "Draft", action: "none", disabled: true};
+    }
+    // pure: the ask box is open on a green plan with changes left (bareloop: it closes at 0); the hint under the button says how many.
+    function askBoxOpenFor(st){
+      return st.mode === "new" && !!st.session && st.phase === "green" && (st.left || 0) > 0;
+    }
+    function changesLeftText(left){
+      return left + (left === 1 ? " change left" : " changes left");
     }
     // pure: the gutter beside a box (amendment 2, plain numbers by amendment 3), one entry per LOGICAL line. The job: `N` on a step line (numbers go on), `~` on a
     // guardrail line, nothing on an empty line. The inputs: a number per non-empty line.
@@ -3538,9 +3565,19 @@
           out.push({id: "checks", label: "plan checks", status: "failed", details: (state.reds || []).slice()});
         } else if(state.phase === "stopped"){
           out.push({id: "drafting", label: "drafting with " + who + capPart, status: "failed", details: []});
-        } else if(state.phase === "green"){
+        } else if(state.phase === "green" || state.phase === "revising"){
           out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
-          if(ctx.starting){
+          // amendment 3 item 3: each note the human sent is a line of its own, with its result (a red change shows its reds)
+          (state.notes || []).forEach(function(nt){
+            var body = String(nt.text || "").replace(/\s+$/, "");
+            var label = "change " + nt.n + ": " + body;
+            if(nt.phase === "running") out.push({id: "change-" + nt.n, label: label, status: "running", details: []});
+            else if(nt.phase === "green") out.push({id: "change-" + nt.n, label: label, status: "done", details: []});
+            else out.push({id: "change-" + nt.n, label: label, status: "failed", details: (nt.reds && nt.reds.length ? nt.reds.slice() : []).concat(nt.say ? [nt.say] : [])});
+          });
+          if(state.phase === "revising"){
+            // the last green plan stays on show; nothing to sign until the change comes back
+          } else if(ctx.starting){
             out.push({id: "signed", label: "signed", status: "done", details: []});
           } else {
             out.push({id: "sign", label: ctx.signClicked ? "waiting for your second click" : "waiting for your signature", status: "waiting", details: []});
@@ -3691,7 +3728,7 @@
     // is editable (the draft was made from these values). ONE function owns it. A red or stopped draft unlocks the card (fix, draft again).
     function cardLocked(){
       var ph = (sessionLive && lastState) ? lastState.phase : null;
-      return busy || startId !== null || (mode === "new" && (ph === "drafting" || ph === "green"));
+      return busy || startId !== null || (mode === "new" && (ph === "drafting" || ph === "revising" || ph === "green"));
     }
     function syncCardLock(){
       var on = cardLocked();
@@ -3787,11 +3824,13 @@
       if(html !== threadKey){ threadKey = html; thread.innerHTML = html; }
     }
     function renderMain(){
-      var st = {mode: mode, session: sessionLive, startOk: startOk, busy: busy || startId !== null, signClicked: signClickedOnce};
+      var st = {mode: mode, session: sessionLive, startOk: startOk, busy: busy || startId !== null, signClicked: signClickedOnce, textEmpty: msgEl.value.trim() === ""};
       if(sessionLive && lastState){
         st.phase = lastState.phase;
         st.hash = signInfo ? signInfo.hash : lastState.hash;
+        st.left = lastState.changesLeft;
       }
+      st.boxOpen = askBoxOpenFor(st);
       if(mode === "run"){
         var f = selectedFlow();
         st.capUsd = f ? f.capUsd : undefined;
@@ -3804,11 +3843,18 @@
       mainBtn.textContent = b.text;
       mainBtn.disabled = b.disabled;
       mainAction = b.action;
-      mainHint.textContent = "";
+      // the ask box: open on a green plan with changes left, shown but locked while a change is being drafted, closed at 0 left
+      var boxShown = st.boxOpen || (mode === "new" && sessionLive && st.phase === "revising");
+      msgRow.hidden = !boxShown;
+      msgEl.readOnly = !st.boxOpen || !!busy;
+      mainHint.textContent = st.boxOpen ? changesLeftText(st.left) : "";
       fitCardBoxes();
+      if(boxShown) fitBox(msgEl);
     }
     function renderActions(state){
       lastState = state;
+      // a newer plan than the one the first Sign click showed (a change came back, or another tab): the first click is void; sign re-checks on the server too
+      if(signInfo && state.hash && state.hash !== signInfo.hash){ signInfo = null; signClickedOnce = false; }
       // #chat-card-error is POLL-OWNED: it carries only the draft's own sentence (a red plan or a stopped child), written here and
       // nowhere else. A refused click goes to #chat-action-error, which this function never touches.
       errEl.textContent = ((state.phase === "red" || state.phase === "stopped") && state.say) ? state.say : "";
@@ -3838,6 +3884,7 @@
     }
     function openNewCard(){
       thread.innerHTML = ""; threadKey = "";
+      msgEl.value = "";
       errEl.textContent = "";
       actionErrEl.textContent = "";
       clearFieldErrors();
@@ -4004,6 +4051,25 @@
         beginStart(r.body.startId);
       }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
     }
+    // amendment 3 item 3: send the note; the server drafts a changed plan beside the old one (the old one stays signable until a new green one exists).
+    // A refused note stays in the box (unsent input is never wiped).
+    function doRevise(){
+      if(!sessionId) return;
+      var id = sessionId;
+      var text = msgEl.value;
+      chatActionOk();
+      busy = true;
+      refreshStartEnabled();
+      authorPost("/api/author/" + id + "/revise", {text: text}).then(function(r){
+        busy = false;
+        var o = chatPostOutcome(r);
+        if(!o.ok){ failFrom(r); refreshStartEnabled(); return; }
+        msgEl.value = "";
+        signInfo = null; signClickedOnce = false;
+        refreshStartEnabled();
+        poll();
+      }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
+    }
     function doAbandon(){
       var id = sessionId;
       busy = true;
@@ -4060,7 +4126,13 @@
       if(mainBtn.disabled) return;
       if(mainAction === "draft") doDraft();
       else if(mainAction === "run") doRun();
+      else if(mainAction === "revise") doRevise();
       else if(mainAction === "sign-prepare" || mainAction === "sign") doSign();
+    });
+    msgEl.addEventListener("input", function(){ fitBox(msgEl); renderMain(); });
+    // Enter sends the note, Shift+Enter is a newline (bareloop's ask box)
+    msgEl.addEventListener("keydown", function(e){
+      if(e.key === "Enter" && !e.shiftKey && mainAction === "revise"){ e.preventDefault(); if(!mainBtn.disabled) doRevise(); }
     });
     card.addEventListener("input", function(e){
       var grp = e.target && e.target.closest ? e.target.closest(".field, .cap-field, .jf-inrow") : null;
