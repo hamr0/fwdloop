@@ -1243,6 +1243,14 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Balance** shows only for a slot whose shape is OpenAI-compatible and whose host is `api.deepseek.com` (bareloop's rule); other rows say "not offered by this provider".
   - **Risk, one line:** the key is sent to whatever Base URL is saved; the page is local and token-gated, same as bareloop.
   - **Negatives:** (a) a bad Base URL, an empty model id or an unknown shape is refused and nothing is saved; (b) a saved model id is what the next run's spend rows record, and it is priced by the one lookup; (c) a run already booked keeps its recorded model and price; (d) no route writes the keys file and no key value appears (unchanged).
+- **Amendment 2 — NOT SIGNED (drafted 2026-10-06): no Cached input box; cached input is priced as input.**
+  - **Why:** hamr 2026-10-06: "remove cached in column from settings > providers", ruling "cached is same as input". Replaces the "cached input" box of M4d scope item 2's **Price** line (three boxes become two: input, output).
+  - **1.** The Providers table shows **In $/1M** and **Out $/1M** only; the **Cached in** column is gone.
+  - **2.** Cached input tokens are priced at the row's input price (the typed In $/1M, or the code table's input price when empty). Never cheaper than input, so cost is never under-counted; with a provider that discounts cached tokens it can over-count, which is the safe side.
+  - **3.** A `cachedInPerM` already saved in `~/.config/fwdloop/config.json` is no longer read for pricing and is never shown; the file is not rewritten. The code table's own cached rate (`cacheIn`, the 10% default multiplier) is no longer used for pricing either. One function sets the cached rate; every caller reads it.
+  - **4.** Runs already booked keep their recorded costs; this applies from the next model call on.
+  - **Negatives:** (a) the Providers table has no Cached in column or box at 1280, 390 and 320 px; (b) with input $0.40/1M and a saved `cachedInPerM` of 0.04, a round with cached tokens books them at $0.40/1M; (c) with In $/1M empty, cached tokens book at the table's input price, never its cached rate; (d) a POST that sets `cachedInPerM` is refused and saves nothing.
+  - **Cap:** $0 (build and tests with stub providers).
 - **Built after signing — not signed text (2026-10-05):**
   - F55 fix: every run, resume and draft now writes a record row to `runs.jsonl` even with no monthly limit set ($0 hold, nothing held), so its spend is counted; a row that cannot be written refuses by name.
   - A shell with `NODE_ENV=test` (or a `node --test` child) and no `FWDLOOP_CONFIG_HOME` refuses a real run, resume or draft at $0 with "fwdloop: NODE_ENV=test is set without FWDLOOP_CONFIG_HOME, so the keys file, prices and monthly limit would be skipped. Nothing spent. Unset NODE_ENV, or set FWDLOOP_CONFIG_HOME."
