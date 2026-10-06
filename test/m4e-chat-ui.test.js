@@ -24,7 +24,7 @@ const base = { mode: 'new', session: false, startOk: true, busy: false };
 
 test('mainButtonFor: every state gives its label, action and enabled state', () => {
   const mb = load('mainButtonFor');
-  const want = (st, textEmpty, text, action, disabled) => assert.deepEqual(mb(st, textEmpty), { text, action, disabled }, JSON.stringify(st));
+  const want = (st, _unused, text, action, disabled) => assert.deepEqual(mb(st), { text, action, disabled }, JSON.stringify(st));
   // nothing live: Draft, enabled only when the card is fillable and nothing is in flight
   want(base, true, 'Draft', 'draft', false);
   want({ ...base, startOk: false }, true, 'Draft', 'draft', true);
@@ -40,36 +40,48 @@ test('mainButtonFor: every state gives its label, action and enabled state', () 
   want({ ...base, session: true, phase: 'red' }, true, 'Fix and draft again', 'draft', false);
   want({ ...base, session: true, phase: 'red', startOk: false }, true, 'Fix and draft again', 'draft', true);
   want({ ...base, session: true, phase: 'stopped' }, true, 'Draft again', 'draft', false);
-  // green: Sign & run, then (after the first click) the hash and the cap, enabled only once a name is typed
+  // green: Sign & run, then (after the first click) the hash and the cap, no typed name
   want({ ...base, session: true, phase: 'green' }, true, 'Sign & run', 'sign-prepare', false);
   want({ ...base, session: true, phase: 'green', busy: true }, true, 'Sign & run', 'sign-prepare', true);
   const signed = {
     ...base, session: true, phase: 'green', signClicked: true, hash: '7cc0122f0f3058b12a57', capUsd: 0.25,
   };
-  want(signed, true, 'Sign 7cc0122f & run \u2014 spends up to $0.25', 'sign', true);
-  want(signed, false, 'Sign 7cc0122f & run \u2014 spends up to $0.25', 'sign', false);
-  want({ ...signed, busy: true }, false, 'Sign 7cc0122f & run \u2014 spends up to $0.25', 'sign', true);
+  want(signed, true, 'Sign 7cc0122f & run \u00b7 $0.25', 'sign', false); // no typed name: enabled at once
+  want({ ...signed, busy: true }, false, 'Sign 7cc0122f & run \u00b7 $0.25', 'sign', true);
+  want({ ...signed, capUsd: undefined }, false, 'Sign 7cc0122f & run', 'sign', false);
   // any other phase: nothing to click
   want({ ...base, session: true, phase: 'signed' }, true, 'Draft', 'none', true);
 });
 
-test('askBoxOpenFor: open only at the sign step; dimmed and emptied at every other time', () => {
-  const open = load('askBoxOpenFor');
-  assert.equal(open({ ...base, session: true, phase: 'green', signClicked: true }), true);
-  assert.equal(open({ ...base, session: true, phase: 'green', signClicked: false }), false);
-  for (const phase of ['drafting', 'red', 'stopped', 'signed', 'abandoned']) assert.equal(open({ ...base, session: true, phase, signClicked: true }), false, phase);
-  assert.equal(open({ ...base, session: false, phase: 'green', signClicked: true }), false);
-  assert.equal(open({ ...base, mode: 'run', session: true, phase: 'green', signClicked: true }), false);
-  // the page empties and disables the box whenever it is not open
-  assert.match(fnSrc('renderMain'), /msgInput\.disabled = !open;[\s\S]*?if\(!open\) msgInput\.value = "";/);
+test('(a)(h) the gutter: `N >` per step line, `~` per guardrail line, nothing on an empty line; inputs get a number per non-empty line', () => {
+  const marks = load('gutterMarks');
+  assert.deepEqual(marks('job', 'Read\n~rule\n~rule 2\n\nAsk: ok?\n  ~indented\nlast'), ['1 >', '~', '~', '', '2 >', '~', '3 >']);
+  assert.deepEqual(marks('inputs', 'resume: /a\n\njd: /b\n'), ['1', '', '2', '']);
+  assert.deepEqual(marks('job', ''), ['']);
+  // the page's gutter and the server's parser agree on which line is a step (the server parser is the one that decides)
+  assert.match(fnSrc('paintGutter'), /gutterMarks\(kind, ta\.value\)/);
+});
+
+test('(f) there is no ask box and no typed name anywhere on the page: Sign is two clicks', () => {
+  assert.doesNotMatch(PAGE, /chat-msg|typedName|Type the flow name/);
+  assert.match(fnSrc('doSign'), /click 1[\s\S]*sign-prepare[\s\S]*click 2/);
+});
+
+test('(h) the main button label for a 0.25 cap and an 8-char hash is short enough for one line at 320px, and the CSS forbids wrapping', () => {
+  const mb = load('mainButtonFor');
+  const label = mb({ ...base, session: true, phase: 'green', signClicked: true, hash: '7cc0122f0f3058b12a57', capUsd: 0.25 }).text;
+  assert.equal(label, 'Sign 7cc0122f & run \u00b7 $0.25');
+  // measured in a browser at 320px (orchestrator walk): the button's content box is >= 250px, 13px monospace is ~8px a character
+  assert.ok(label.length <= 31, `label is ${label.length} characters`);
+  assert.match(PAGE, /#chat-main-btn\{white-space:nowrap;/);
 });
 
 test('field set: the New job card has exactly the signed boxes; bareloop-only boxes are gone; the card box is captioned Destination', () => {
-  for (const id of ['jf-name', 'jf-job', 'jf-cap-money', 'jf-dest-line', 'jf-dest-folder', 'jf-inputs', 'jf-add-input', 'jf-run-flow', 'jf-run-cap', 'jf-run-left', 'jf-run-inputs', 'jf-run-id', 'chat-msg', 'chat-main-btn', 'chat-action-error', 'chat-card-error', 'chat-clear-btn']) {
+  for (const id of ['jf-name', 'jf-job', 'jf-job-gut', 'jf-cap-money', 'jf-ask-wait', 'jf-dest-folder', 'jf-inputs', 'jf-inputs-gut', 'jf-run-flow', 'jf-run-cap', 'jf-run-left', 'jf-run-inputs', 'jf-run-id', 'chat-main-btn', 'chat-action-error', 'chat-card-error', 'chat-clear-btn']) {
     assert.ok(SECTION.includes(`id="${id}"`), `#${id} missing`);
   }
   const labels = [...SECTION.matchAll(/<label[^>]*>([\s\S]*?)<\/label>/g)].map((m) => m[1].replace(/<[^>]+>/g, '').trim());
-  for (const cap of ['Flow name', 'The job', 'Cap $', 'Destination', 'Inputs', 'New job', 'Run a signed flow']) assert.ok(labels.includes(cap), `caption "${cap}" missing`);
+  for (const cap of ['Flow name', 'The job', 'Cap $', 'Ask wait', 'Destination', 'Inputs', 'New job', 'Run a signed flow']) assert.ok(labels.includes(cap), `caption "${cap}" missing`);
   assert.doesNotMatch(SECTION, />\s*Send to\s*</);
   for (const gone of ['jf-goal', 'jf-source', 'jf-success', 'jf-guardrails', 'jf-judge', 'jf-model', 'jf-verdict', 'jf-cap-time', 'startfrom', 'Check type', 'Time cap', 'Judge examples', 'Reuse']) {
     assert.ok(!SECTION.includes(gone), `${gone} must not be on the card`);
@@ -78,7 +90,11 @@ test('field set: the New job card has exactly the signed boxes; bareloop-only bo
   assert.match(SECTION, /name="jf-mode" value="new" checked/);
   assert.match(SECTION, /Where the accepted result is placed/);
   assert.match(SECTION, /Only your click signs\./);
-  assert.doesNotMatch(SECTION, /id="chat-msg"[^>]*placeholder=/, 'the placeholder is set by renderMain only while the box is open');
+  // amendment 2 item 4: Flow name, The job, Destination, Inputs, then Cap $ with Ask wait (default 1h) in one row
+  const at = (needle) => SECTION.indexOf(needle);
+  assert.ok(at('id="jf-name"') < at('id="jf-job"') && at('id="jf-job"') < at('id="jf-dest-folder"') && at('id="jf-dest-folder"') < at('id="jf-inputs"') && at('id="jf-inputs"') < at('id="jf-cap-money"') && at('id="jf-cap-money"') < at('id="jf-ask-wait"'));
+  assert.match(SECTION, /id="jf-ask-wait" type="text" value="1h"/);
+  assert.doesNotMatch(SECTION, /jf-dest-line|jf-add-input/);
   assert.match(CHAT, /borrowed-from: bareloop src\/panel\/index\.html@ca7195e/);
   assert.match(PAGE, /--field-bg:#ffffff; --field-soft-bg:#f7f7f9;[\s\S]*--field-bg:#ffffff; --field-soft-bg:#f7f7f9;/, 'field tokens in both light blocks');
   assert.match(PAGE, /--field-bg:var\(--bg\); --field-soft-bg:var\(--bg\); --field-border:var\(--text-dim\);/, 'and the dark default');
@@ -138,29 +154,8 @@ test('the Chat tab keeps the page rules: no token on the page, every POST goes t
   const paths = [...code.matchAll(/authorPost\(\s*"([^"]+)"/g)].map((m) => m[1]).filter((x) => !x.endsWith('/')).sort();
   assert.deepEqual(paths, ['/api/author/draft', '/api/author/run']);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign-prepare"/);
-  assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign", \{hash: signInfo\.hash, typedName: msgInput\.value, runId: signInfo\.runId\}/);
+  assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign", \{hash: signInfo\.hash, runId: signInfo\.runId\}/);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/abandon"/);
-});
-
-test('F4 the ask box shows "Type the flow name to sign" only while it is open at the sign step; empty otherwise', () => {
-  // renderMain runs in one scope with the page's own functions and stand-ins for its state and boxes ('STALE' = what the box held before)
-  const run = (state) => new Function(`
-    var mode = ${JSON.stringify(state.mode)}, startOk = true, busy = false, startId = null, signClickedOnce = ${!!state.signClicked}, sessionLive = ${!!state.session}, lastState = ${JSON.stringify(state.lastState ?? null)}, signInfo = null, mainAction = 'none';
-    var msgInput = { disabled: false, value: '', placeholder: 'STALE' };
-    var mainBtn = { textContent: '', disabled: false }, mainHint = { textContent: '' };
-    function selectedFlow(){ return null; } function fitBox(){} function fitCardBoxes(){}
-    ${fnSrc('askBoxOpenFor')}
-    ${fnSrc('mainButtonFor')}
-    ${fnSrc('renderMain')}
-    renderMain();
-    return msgInput;
-  `)();
-  assert.equal(run({ mode: 'new' }).placeholder, '', 'empty card: closed');
-  assert.equal(run({ mode: 'new', session: true, lastState: { phase: 'green' } }).placeholder, '', 'green, sign not clicked yet: closed');
-  assert.equal(run({ mode: 'run' }).placeholder, '', 'run mode: closed');
-  const open = run({ mode: 'new', session: true, signClicked: true, lastState: { phase: 'green' } });
-  assert.equal(open.disabled, false);
-  assert.equal(open.placeholder, 'Type the flow name to sign', 'open at the sign step');
 });
 
 test('F2 page: after a reload a refused start shows its sentence and a starting one is re-attached; Clear dismisses it on the server', () => {
@@ -186,4 +181,11 @@ test('F3 audit: every author POST in the page shows a refusal (any non-2xx, any 
   // failFrom always ends in chatActionFailed with a sentence (the server's say, else the fixed fallback) — never a silent return
   assert.match(fnSrc('failFrom'), /chatActionFailed\(text\);/);
   assert.match(fnSrc('refusalText'), /The request failed\. Nothing was sent\./);
+});
+
+test('re-attach restores every new field (job, destination, inputs, cap, ask wait) and the POST body carries exactly the new shape', () => {
+  const at = fnSrc('attachSession');
+  for (const id of ['jf-name', 'jf-job', 'jf-cap-money', 'jf-dest-folder', 'jf-inputs', 'jf-ask-wait']) assert.match(at, new RegExp(`setVal\\("${id}"`), id);
+  assert.match(fnSrc('currentCard'), /flowName:[\s\S]*job: jobEl\.value,[\s\S]*destination: destEl\.value\.trim\(\),[\s\S]*inputs: inputsBox\.value,[\s\S]*capUsd:[\s\S]*askWait: askWaitEl\.value\.trim\(\)/);
+  assert.match(fnSrc('resetCard'), /askWaitEl\.value = "1h"/, 'a cleared card goes back to the default wait');
 });

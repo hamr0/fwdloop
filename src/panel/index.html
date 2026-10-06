@@ -3409,17 +3409,20 @@
   }
 
   // ---- Chat tab: describe, draft, sign and run a job from this page (M4e piece 3). ----
-  // borrowed-from: bareloop src/panel/index.html@ca7195e — `mainButtonFor`, `askBoxOpenFor`, `renderMain`, `renderProgress`, the
+  // borrowed-from: bareloop src/panel/index.html@ca7195e — `mainButtonFor`, `renderMain`, `renderProgress`, the
   // scroll-on-change block in `renderActions`, `attachSession`/`reattachLive` (without the reuse/auto-sign branch), `syncCardLock`,
   // `CLIENT_TERMINAL_PHASES`, `openNewCard`/`resetCard`/`refreshStartEnabled`, `staleTokenCheck` with its `authorPost`/`authorGet`
   // wrapper and `staleTokenHook`, `fitBox`. fwdloop differs where its shape does: the draft is a detached CLI child whose state is
   // READ from files (GET /api/author/live and /:id), a start is polled (GET /api/author/start/:id), auth is the panel's cookie
-  // (no header token), and the ask box is used only for the typed flow name at the sign step.
+  // (no header token), and there is no ask box: Sign is two clicks, no typed name (M4e amendment 2).
   (function(){
     var card = document.getElementById("job-card");
     var clearBtn = document.getElementById("chat-clear-btn");
     var thread = document.getElementById("chat-thread");
-    var msgInput = document.getElementById("chat-msg");
+    var jobEl = document.getElementById("jf-job");
+    var inputsBox = document.getElementById("jf-inputs");        // the New-job inputs textarea (`name: path` per line)
+    var destEl = document.getElementById("jf-dest-folder");
+    var askWaitEl = document.getElementById("jf-ask-wait");
     var mainBtn = document.getElementById("chat-main-btn");
     var mainHint = document.getElementById("chat-main-hint");
     var errEl = document.getElementById("chat-card-error");        // POLL-OWNED: the draft's own sentence (red / stopped)
@@ -3427,7 +3430,6 @@
     var progressRow = document.getElementById("chat-progress-row");
     var newBox = document.getElementById("jf-new");
     var runBox = document.getElementById("jf-run");
-    var inputsEl = document.getElementById("jf-inputs");
     var runInputsEl = document.getElementById("jf-run-inputs");
     var runFlowSel = document.getElementById("jf-run-flow");
     var capNoteEl = document.getElementById("jf-cap-note");
@@ -3477,10 +3479,10 @@
     }
 
     // ---- the pure decisions (no DOM) ----
-    // ONE wide button below the ask box. Its wording, action and enabled state are ONE pure function of
-    // (state, typed-text-empty). state = { mode, session, startOk, busy, phase, signClicked, hash, capUsd }.
+    // ONE wide button below the card. Its wording, action and enabled state are ONE pure function of
+    // state = { mode, session, startOk, busy, phase, signClicked, hash, capUsd }.
     // Actions: draft | run | sign-prepare | sign | none.
-    function mainButtonFor(st, textEmpty){
+    function mainButtonFor(st){
       var cap = st.capUsd;
       var spends = (cap !== undefined && cap !== null && cap !== "") ? " — spends up to $" + cap : "";
       var blocked = !st.startOk || !!st.busy;
@@ -3501,15 +3503,24 @@
       }
       if(st.phase === "green"){
         if(st.signClicked){
-          return {text: "Sign " + String(st.hash || "").slice(0, 8) + " & run" + spends, action: "sign", disabled: !!textEmpty || !!st.busy};
+          var signCap = (cap !== undefined && cap !== null && cap !== "") ? " \u00b7 $" + cap : "";
+          return {text: "Sign " + String(st.hash || "").slice(0, 8) + " & run" + signCap, action: "sign", disabled: !!st.busy};
         }
         return {text: "Sign & run", action: "sign-prepare", disabled: !!st.busy};
       }
       return {text: "Draft", action: "none", disabled: true};
     }
-    // pure: the ask box takes typed text only at the sign step (the flow name to type); at every other time it is dimmed and emptied
-    function askBoxOpenFor(st){
-      return st.mode === "new" && !!st.session && st.phase === "green" && !!st.signClicked;
+    // pure: the gutter beside a box (amendment 2), one entry per LOGICAL line. The job: `N >` on a step line (numbers go on), `~` on a
+    // guardrail line, nothing on an empty line. The inputs: a number per non-empty line.
+    function gutterMarks(kind, text){
+      var n = 0;
+      return String(text).split("\n").map(function(line){
+        var t = line.trim();
+        if(t === "") return "";
+        if(kind === "job" && t.charAt(0) === "~") return "~";
+        n += 1;
+        return kind === "job" ? n + " >" : String(n);
+      });
     }
     // pure: the progress list for a draft. Chronological; a waiting step has no check; a step's detail lines sit under it; no two
     // identical lines in a row. `ctx` = { model, starting }.
@@ -3531,7 +3542,7 @@
           if(ctx.starting){
             out.push({id: "signed", label: "signed", status: "done", details: []});
           } else {
-            out.push({id: "sign", label: ctx.signClicked ? "waiting for the flow name" : "waiting for your signature", status: "waiting", details: []});
+            out.push({id: "sign", label: ctx.signClicked ? "waiting for your second click" : "waiting for your signature", status: "waiting", details: []});
           }
         }
       }
@@ -3551,7 +3562,7 @@
       return "The request failed. Nothing was sent.";
     }
 
-    // grow a text box with its text (a few rows, then it scrolls inside); ONE function for the ask box and the card boxes.
+    // grow a text box with its text (a few rows, then it scrolls inside); ONE function for the card boxes.
     // A box that is hidden (or not laid out) measures 0 and gets no inline height.
     function fitBox(el){
       el.style.height = "auto";
@@ -3559,7 +3570,39 @@
       var border = el.offsetHeight - el.clientHeight;
       el.style.height = Math.min(el.scrollHeight + border, 200) + "px";
     }
-    function fitCardBoxes(){ fitBox(document.getElementById("jf-job")); }
+    // Paint a gutter: a hidden mirror of the textarea (same font, same content width, same wrapping) measures each logical line's height;
+    // the gutter gets one entry of exactly that height, its mark on the first visual line. Re-run on every input, resize and fit.
+    function paintGutter(ta, kind){
+      var gut = document.getElementById(ta.id + "-gut");
+      if(!gut || !ta.clientWidth) return;                       // hidden (the other mode): painted when it is shown
+      var inner = gut.firstChild;
+      var cs = getComputedStyle(ta);
+      var mir = ta.jfMirror;
+      if(!mir){ mir = document.createElement("div"); mir.className = "jf-mirror"; ta.parentNode.appendChild(mir); ta.jfMirror = mir; }
+      ["fontFamily", "fontSize", "fontWeight", "fontStyle", "letterSpacing", "wordSpacing", "lineHeight", "tabSize"].forEach(function(k){ mir.style[k] = cs[k]; });
+      gut.style.lineHeight = cs.lineHeight;
+      var padT = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.borderTopWidth) || 0);
+      mir.style.width = Math.max(0, ta.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)) + "px";
+      mir.innerHTML = "";
+      var lines = ta.value.split("\n");
+      lines.forEach(function(l){ var d = document.createElement("div"); d.textContent = l === "" ? "\u200b" : l; mir.appendChild(d); });
+      var marks = gutterMarks(kind, ta.value);
+      var hs = Array.prototype.map.call(mir.children, function(d){ return d.getBoundingClientRect().height; });
+      inner.innerHTML = "";
+      inner.style.paddingTop = padT + "px";
+      marks.forEach(function(m, i){ var d = document.createElement("div"); d.style.height = hs[i] + "px"; d.textContent = m; inner.appendChild(d); });
+      inner.style.transform = "translateY(" + (-ta.scrollTop) + "px)";
+    }
+    function fitCardBoxes(){
+      fitBox(jobEl); fitBox(inputsBox);
+      paintGutter(jobEl, "job"); paintGutter(inputsBox, "inputs");
+    }
+    [[jobEl, "job"], [inputsBox, "inputs"]].forEach(function(pair){
+      pair[0].addEventListener("scroll", function(){
+        var inner = document.getElementById(pair[0].id + "-gut").firstChild;
+        inner.style.transform = "translateY(" + (-pair[0].scrollTop) + "px)";
+      });
+    });
 
     // ---- the card's boxes ----
     function byId(id){ return document.getElementById(id); }
@@ -3571,21 +3614,6 @@
       return el;
     }
     function makeErr(){ var d = document.createElement("div"); d.className = "jf-err"; return d; }
-    // New job: one row per input — a role and a full path, removable
-    function addInputRow(role, path){
-      var row = document.createElement("div");
-      row.className = "jf-inrow";
-      var rm = document.createElement("button");
-      rm.type = "button"; rm.className = "btn small jf-rm"; rm.textContent = "remove";
-      rm.setAttribute("aria-label", "Remove this input");
-      rm.addEventListener("click", function(){ row.remove(); clearFieldErrors(); refreshStartEnabled(); });
-      row.appendChild(makeInput("jf-role", "name, e.g. resume", role));
-      row.appendChild(makeInput("jf-path", "/full/path/to/file", path));
-      row.appendChild(rm);
-      row.appendChild(makeErr());
-      inputsEl.appendChild(row);
-      syncCardLock();
-    }
     // Run a signed flow: one row per DECLARED role (the role is fixed), the path prefilled from the last run
     function paintRunRows(f){
       runInputsEl.innerHTML = "";
@@ -3611,10 +3639,11 @@
     function currentCard(){
       return {
         flowName: byId("jf-name").value.trim(),
-        job: byId("jf-job").value,
+        job: jobEl.value,
+        destination: destEl.value.trim(),
+        inputs: inputsBox.value,
         capUsd: byId("jf-cap-money").value.trim(),
-        destination: {line: byId("jf-dest-line").value.trim(), folder: byId("jf-dest-folder").value.trim()},
-        inputs: readRows(inputsEl)
+        askWait: askWaitEl.value.trim()
       };
     }
     function currentRun(){
@@ -3640,9 +3669,8 @@
     }
     function errElFor(field){
       var m = /^inputs\.(\d+)$/.exec(field);
-      var rows = mode === "run" ? runInputsEl : inputsEl;
-      if(m){
-        var row = rows.children[Number(m[1])];
+      if(m){                                  // a Run-a-signed-flow row (the New job card reports "inputs" by line number)
+        var row = runInputsEl.children[Number(m[1])];
         return row ? row.querySelector(".jf-err") : null;
       }
       if(field === "inputs") return byId(mode === "run" ? "jf-err-run-inputs" : "jf-err-inputs");
@@ -3669,7 +3697,6 @@
       card.querySelectorAll("input[type=text], textarea").forEach(function(el){ el.readOnly = on; el.classList.toggle("locked", on); });
       runFlowSel.disabled = on;
       runFlowSel.classList.toggle("locked", on);
-      card.querySelectorAll("button.jf-rm, #jf-add-input").forEach(function(b){ b.disabled = on; });
       card.querySelectorAll('input[name="jf-mode"]').forEach(function(r){ r.disabled = on || sessionLive; });
     }
     // top-right: Abandon while a draft is live and unsigned, else Clear
@@ -3740,7 +3767,7 @@
       fitCardBoxes();
     }
 
-    // ---- render: the progress list, the readout, the ask box and the one main button ----
+    // ---- render: the progress list, the readout and the one main button ----
     // Returns true when the list's content actually changed (a new line, or the latest line changed) so the caller can scroll only
     // then; an identical poll tick returns false and leaves the person's scroll position alone.
     function renderProgress(steps){
@@ -3779,17 +3806,11 @@
       } else if(lastState && lastState.card){
         st.capUsd = lastState.card.capUsd;
       }
-      // the ask box is open only at the sign step (the flow name to type); otherwise dimmed and emptied
-      var open = askBoxOpenFor(st);
-      msgInput.disabled = !open;
-      msgInput.placeholder = open ? "Type the flow name to sign" : "";
-      if(!open) msgInput.value = "";
-      var b = mainButtonFor(st, !msgInput.value.trim());
+      var b = mainButtonFor(st);
       mainBtn.textContent = b.text;
       mainBtn.disabled = b.disabled;
       mainAction = b.action;
       mainHint.textContent = "";
-      fitBox(msgInput);
       fitCardBoxes();
     }
     function renderActions(state){
@@ -3835,9 +3856,8 @@
     }
     // back to a fresh empty card: every box, the inputs, the progress list, the ask box
     function resetCard(){
-      ["jf-name", "jf-job", "jf-cap-money", "jf-dest-line", "jf-dest-folder"].forEach(function(id){ byId(id).value = ""; });
-      inputsEl.innerHTML = "";
-      msgInput.value = "";
+      ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; });
+      askWaitEl.value = "1h";
       openNewCard();
       loadFlows(mode === "run");
       fitCardBoxes();
@@ -3959,7 +3979,7 @@
       if(!sessionId) return;
       var id = sessionId;
       if(!signClickedOnce){
-        // click 1: what is about to be signed (the hash, the name to type, the cap). Signs nothing.
+        // click 1: what is about to be signed (the hash, the cap). Signs nothing.
         busy = true;
         refreshStartEnabled();
         authorPost("/api/author/" + id + "/sign-prepare", {}).then(function(r){
@@ -3973,10 +3993,10 @@
         }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
         return;
       }
-      // click 2: the ONLY call that signs. It carries the hash this page showed and the name typed in the box.
+      // click 2: the ONLY call that signs. It carries the hash this page showed; the server signs only if it is still the draft's hash on disk.
       busy = true;
       refreshStartEnabled();
-      authorPost("/api/author/" + id + "/sign", {hash: signInfo.hash, typedName: msgInput.value, runId: signInfo.runId}).then(function(r){
+      authorPost("/api/author/" + id + "/sign", {hash: signInfo.hash, runId: signInfo.runId}).then(function(r){
         var o = chatPostOutcome(r);
         if(!o.ok){
           busy = false;
@@ -4004,15 +4024,13 @@
 
     // Re-attach after a page load/refresh or a panel restart: the server reads the newest unsigned draft from its files, so ask it.
     // If one exists, this tab takes it over as if it had started it: the card filled from the draft's own copy, the poll loop, the
-    // progress list, the readout, the ask box and the main button. A signed or abandoned draft never comes back (empty card).
+    // progress list, the readout and the main button. A signed or abandoned draft never comes back (empty card).
     function attachSession(d){
       var c = d.card || {};
       openNewCard();
       setMode("new");
       setVal("jf-name", c.flowName); setVal("jf-job", c.job); setVal("jf-cap-money", c.capUsd);
-      setVal("jf-dest-line", c.destination && c.destination.line); setVal("jf-dest-folder", c.destination && c.destination.folder);
-      inputsEl.innerHTML = "";
-      (c.inputs || []).forEach(function(r){ addInputRow(r.role, r.path); });
+      setVal("jf-dest-folder", typeof c.destination === "string" ? c.destination : ""); setVal("jf-inputs", typeof c.inputs === "string" ? c.inputs : ""); setVal("jf-ask-wait", c.askWait || "1h");
       sessionId = d.draftId;
       sessionLive = CLIENT_TERMINAL_PHASES.indexOf(d.phase) === -1;
       renderThread(d);
@@ -4050,14 +4068,6 @@
       else if(mainAction === "run") doRun();
       else if(mainAction === "sign-prepare" || mainAction === "sign") doSign();
     });
-    msgInput.addEventListener("input", renderMain);
-    // Enter in the ask box is the second Sign click (the name is typed); it never starts a draft or a run
-    msgInput.addEventListener("keydown", function(e){
-      if(e.key === "Enter" && !e.shiftKey && !e.isComposing){
-        e.preventDefault();
-        if(mainAction === "sign") mainBtn.click();
-      }
-    });
     card.addEventListener("input", function(e){
       var grp = e.target && e.target.closest ? e.target.closest(".field, .cap-field, .jf-inrow") : null;
       if(grp) grp.querySelectorAll(".jf-err").forEach(function(x){ x.textContent = ""; });
@@ -4067,10 +4077,9 @@
     document.querySelectorAll('input[name="jf-mode"]').forEach(function(r){
       r.addEventListener("change", function(){ if(r.checked) setMode(r.value); });
     });
-    byId("jf-add-input").addEventListener("click", function(){ addInputRow("", ""); refreshStartEnabled(); });
     runFlowSel.addEventListener("change", function(){ paintRunFlow(); refreshStartEnabled(); });
-    window.addEventListener("resize", function(){ fitCardBoxes(); fitBox(msgInput); });
-    document.getElementById("tab-chat").addEventListener("click", function(){ fitCardBoxes(); fitBox(msgInput); reattachLive(); loadFlows(); });
+    window.addEventListener("resize", fitCardBoxes);
+    document.getElementById("tab-chat").addEventListener("click", function(){ fitCardBoxes(); reattachLive(); loadFlows(); });
     // the monthly limit changed in Settings: re-read the "left this month" line
     document.addEventListener("fwdloop-limit-changed", function(){ loadFlows(); });
 
