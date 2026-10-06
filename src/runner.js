@@ -51,7 +51,7 @@ import {
 import {
   writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen,
 } from './ask.js';
-import { WIRED_VERBS } from './primitives.js';
+import { findUnwiredVerbStep, unwiredRed } from './canrun.js'; // M4e am7 item 7: the ONE decider (F46 refusal lives there)
 import { configHome, configDoorHome } from './config.js';
 import { closeByClass } from './closers.js';
 import { appendAudit, appendHistory, readAudit, HALT_OUTCOMES } from './books.js';
@@ -355,34 +355,6 @@ function checkArtifactHappened(step, artifact) {
 
 function hashFile(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
-}
-
-/**
- * F46 (docs/logs/FINDINGS.md): a step whose declaration grants a verb the
- * catalogue lists but `resolvePrimitives` has no case for (e.g. litectx's
- * `compress`) must refuse the whole run at preflight, naming the step and
- * the verb — never a warning the run continues (and spends) past. Lives
- * here, not in `bin/fwdloop`, so any caller of `runFlow`/`resumeRun`
- * (the CLI, M4's web panel) gets the same refusal for free — one writer,
- * `src/primitives.js`'s own `WIRED_VERBS`, never a second copy of the list.
- * A verb absent from the catalogue entirely is caught earlier, at
- * declaration-validation time (`readFlow`) — by the time a declaration
- * reaches here every granted verb is already catalogue-present, so
- * `WIRED_VERBS` alone is enough to tell "wired" from "not yet".
- *
- * @param {Record<string, any>} declaration - `readFlow`'s own loosely-typed
- *   `ReadFlowOk.declaration` shape (src/types.js) — same idiom as every
- *   other reader of it in this file (e.g. `declaration.steps` below); only
- *   `steps[].{emits,fromLine,primitives}` are actually read here.
- * @returns {{step: {emits: string, fromLine: number}, verb: string}|null}
- */
-function findUnwiredVerbStep(declaration) {
-  for (const step of declaration.steps) {
-    for (const verb of step.primitives ?? []) {
-      if (!WIRED_VERBS.has(verb)) return { step, verb };
-    }
-  }
-  return null;
 }
 
 /** A run dir that already holds `ask.json`/`answer.json` from an earlier run
@@ -1020,7 +992,7 @@ export async function runFlow({
       nowMs: getNowMs,
       signatureHash: signature.flow,
       outcome: 'preflight-red',
-      red: `preflight: step "${unwiredVerb.step.emits}" (line ${unwiredVerb.step.fromLine}) grants verb "${unwiredVerb.verb}", which has no wired implementation`,
+      red: unwiredRed(unwiredVerb),
       spent: { value: 0 },
     });
   }
@@ -1821,7 +1793,7 @@ export async function resumeRun({
     if (unwiredVerb) {
       return {
         outcome: 'refused',
-        red: `preflight: step "${unwiredVerb.step.emits}" (line ${unwiredVerb.step.fromLine}) grants verb "${unwiredVerb.verb}", which has no wired implementation`,
+        red: unwiredRed(unwiredVerb),
       };
     }
   }
@@ -2315,7 +2287,7 @@ export async function continueRun({
   const preflightRead = readFlow({ root, name, catalogue });
   if (preflightRead.ok) {
     const unwiredVerb = findUnwiredVerbStep(preflightRead.declaration);
-    if (unwiredVerb) return refused(`preflight: step "${unwiredVerb.step.emits}" (line ${unwiredVerb.step.fromLine}) grants verb "${unwiredVerb.verb}", which has no wired implementation`);
+    if (unwiredVerb) return refused(unwiredRed(unwiredVerb));
   }
   if (primitiveReds?.length) return refused(primitiveReds[0]);
 

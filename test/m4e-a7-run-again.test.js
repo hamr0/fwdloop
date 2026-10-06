@@ -113,3 +113,14 @@ test('(d) with nothing picked no run starts: a Run POST with no flow is refused 
   assert.equal(r.json().refused, 'flow');
   assert.deepEqual(w.starts(), []);
 });
+
+test('M4e am7 item 7: runner.js holds no verb decider of its own — it imports findUnwiredVerbStep/unwiredRed from canrun.js; canrun.js does not import runner.js', () => {
+  const runner = readFileSync(path.join(HERE, '..', 'src', 'runner.js'), 'utf8');
+  const canrun = readFileSync(path.join(HERE, '..', 'src', 'canrun.js'), 'utf8');
+  assert.doesNotMatch(runner, /function findUnwiredVerbStep/, 'runner.js must not define its own findUnwiredVerbStep');
+  assert.doesNotMatch(runner, /which has no wired implementation/, 'runner.js must not carry its own red wording');
+  assert.doesNotMatch(runner, /WIRED_VERBS/, 'runner.js must not carry its own verb list');
+  assert.match(runner, /import \{[^}]*findUnwiredVerbStep[^}]*\} from '\.\/canrun\.js'/);
+  assert.match(runner, /import \{[^}]*unwiredRed[^}]*\} from '\.\/canrun\.js'/);
+  assert.doesNotMatch(canrun, /from '\.\/runner\.js'/, 'no import cycle');
+});
