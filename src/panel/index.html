@@ -2784,7 +2784,7 @@
     runsFilterBar.setItems(runs);
     var first = runs.find(function(r){ return r.runId !== null; });
     if(first){
-      document.getElementById("tab-runs").click();
+      // the LEFT side is not switched here: a load or refresh always opens on the Chat tab (hamr 2026-10-06)
       // newest run overall, opened directly — the Workflows view starts
       // collapsed, but its flow row still renders "selected" since
       // `runsFilterBar.refresh()` re-renders AFTER currentFlow/currentRunId

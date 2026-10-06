@@ -189,3 +189,13 @@ test('re-attach restores every new field (job, destination, inputs, cap, ask wai
   assert.match(fnSrc('currentCard'), /flowName:[\s\S]*job: jobEl\.value,[\s\S]*destination: destEl\.value\.trim\(\),[\s\S]*inputs: inputsBox\.value,[\s\S]*capUsd:[\s\S]*askWait: askWaitEl\.value\.trim\(\)/);
   assert.match(fnSrc('resetCard'), /askWaitEl\.value = "1h"/, 'a cleared card goes back to the default wait');
 });
+
+test('hamr 2026-10-06: a load or refresh opens the LEFT side on the Chat tab — the load-time /api/runs handler never clicks the Runs tab', () => {
+  const start = PAGE.indexOf('getJSON("/api/runs").then(function(result){');
+  assert.ok(start !== -1, 'the load-time handler is there');
+  const handler = PAGE.slice(start, PAGE.indexOf('}).catch(function(e){', start));
+  assert.doesNotMatch(handler.replace(/^\s*\/\/.*$/gm, ''), /getElementById\("tab-runs"\)\.click\(\)/);
+  assert.match(handler, /selectRun\(first\.flow, first\.runId/, 'the right side still opens the newest run');
+  assert.match(PAGE, /<button role="tab" id="tab-chat"[^>]*aria-selected="true"/, 'Chat is the tab selected in the markup');
+  assert.match(PAGE, /id="panel-chat" class="tabpanel active"/);
+});
