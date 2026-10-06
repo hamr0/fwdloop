@@ -53,13 +53,24 @@ test('mainButtonFor: every state gives its label, action and enabled state', () 
   want({ ...base, session: true, phase: 'signed' }, true, 'Draft', 'none', true);
 });
 
-test('(a)(h) the gutter: `N >` per step line, `~` per guardrail line, nothing on an empty line; inputs get a number per non-empty line', () => {
+test('(a)(h) the gutter: plain `N` per step line, `~` per guardrail line, nothing on an empty line; inputs get a number per non-empty line', () => {
   const marks = load('gutterMarks');
-  assert.deepEqual(marks('job', 'Read\n~rule\n~rule 2\n\nAsk: ok?\n  ~indented\nlast'), ['1 >', '~', '~', '', '2 >', '~', '3 >']);
+  assert.deepEqual(marks('job', 'Read\n~rule\n~rule 2\n\nAsk: ok?\n  ~indented\nlast'), ['1', '~', '~', '', '2', '~', '3']);
   assert.deepEqual(marks('inputs', 'resume: /a\n\njd: /b\n'), ['1', '', '2', '']);
   assert.deepEqual(marks('job', ''), ['']);
   // the page's gutter and the server's parser agree on which line is a step (the server parser is the one that decides)
   assert.match(fnSrc('paintGutter'), /gutterMarks\(kind, ta\.value\)/);
+  // amendment 3: no `>` anywhere in the marks, and the numbers start at the box's left edge (left-aligned, no wide right-aligned column)
+  assert.doesNotMatch(fnSrc('gutterMarks'), />/);
+  const gutCss = PAGE.match(/\.jf-gut\{[^}]*\}/)[0];
+  assert.match(gutCss, /text-align:left/);
+  assert.doesNotMatch(gutCss, /text-align:right/);
+});
+
+test('amendment 3 item 2: the Run id box is prefilled with the server\'s next name and an untouched box sends "" (the server claims)', () => {
+  assert.match(fnSrc('paintRunFlow'), /autoRunId = f && f\.nextRunId \? f\.nextRunId : ""/);
+  assert.match(fnSrc('currentRun'), /value\.trim\(\) === autoRunId \? ""/);
+  assert.doesNotMatch(PAGE, /newRunIdText|toString\(36\)/);
 });
 
 test('(f) there is no ask box and no typed name anywhere on the page: Sign is two clicks', () => {
@@ -154,7 +165,7 @@ test('the Chat tab keeps the page rules: no token on the page, every POST goes t
   const paths = [...code.matchAll(/authorPost\(\s*"([^"]+)"/g)].map((m) => m[1]).filter((x) => !x.endsWith('/')).sort();
   assert.deepEqual(paths, ['/api/author/draft', '/api/author/run']);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign-prepare"/);
-  assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign", \{hash: signInfo\.hash, runId: signInfo\.runId\}/);
+  assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign", \{hash: signInfo\.hash\}/);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/abandon"/);
 });
 
