@@ -32,7 +32,7 @@ import { fileURLToPath } from 'node:url';
 import { PANEL_DRAFTS_DIR, scrub, signDraft } from '../authoring.js';
 import { readFileInside, readdirInside } from '../flow.js';
 import { isFwdloopAlive } from '../liveness.js';
-import { cardFields, checkCard, checkInputRows } from './authorcard.js';
+import { cardFields, checkCard, checkInputRows, parseInputLines } from './authorcard.js';
 import { createFlowsDoor } from './authorflows.js';
 import { createStarter, newRunId } from './authorstart.js';
 import {
@@ -199,7 +199,7 @@ export function createAuthor(opts) {
 
     /**
      * `POST /api/author/:id/sign-prepare` (the first click of "Sign & run"): what the human is about to sign — the readout, the
-     * hash, the flow name to type, the cap. GREEN drafts only. Writes nothing: the page holds the hash it was shown, and `sign`
+     * hash, the flow name, the cap. GREEN drafts only. Writes nothing: the page holds the hash it was shown, and `sign`
      * re-reads everything from disk.
      * @param {string} id
      */
@@ -215,9 +215,8 @@ export function createAuthor(opts) {
     },
 
     /**
-     * `POST /api/author/:id/sign` body `{ hash, typedName, runId? }`: sign and start the run — only when the draft is green and
-     * not abandoned/signed, the hash is the one on disk and the typed name is the draft's own `target.json` name EXACTLY (no
-     * trim, no case fold). Then the SAME `signDraft` as `fwdloop sign`, `signed.json`, and the ONE run start. Any mismatch
+     * `POST /api/author/:id/sign` body `{ hash, runId? }`: sign and start the run — only when the draft is green and
+     * not abandoned/signed and the hash is the one on disk (M4e amendment 2: the second click, no typed name). Then the SAME `signDraft` as `fwdloop sign`, `signed.json`, and the ONE run start. Any mismatch
      * refuses by name, signs nothing, writes nothing, spends nothing. Fully synchronous (no await between the checks and the
      * writes), so two sign POSTs together sign once: the second reads the first's `signed.json` and is refused.
      * @param {string} id @param {any} body
@@ -232,14 +231,8 @@ export function createAuthor(opts) {
       if (typeof b.hash !== 'string' || b.hash !== v.hash) {
         return { status: 409, body: { ok: false, refused: 'stale-hash', say: 'The plan on disk is not the one you were shown (its hash differs). Nothing was signed. Reload and read the plan again.' } };
       }
-      if (typeof b.typedName !== 'string' || b.typedName === '') {
-        return { status: 400, body: { ok: false, refused: 'name-missing', say: 'Type the flow name to sign. Nothing was signed.' } };
-      }
-      if (b.typedName !== name) {
-        return { status: 400, body: { ok: false, refused: 'name-mismatch', say: 'The name you typed is not the flow name (it must match exactly). Nothing was signed.' } };
-      }
       // everything the run needs is checked BEFORE signing, so a refusal never leaves a signed flow with no run
-      const inputs = v.card.inputs ?? [];
+      const inputs = parseInputLines(typeof v.card.inputs === 'string' ? v.card.inputs : '');
       const bad = checkInputRows(inputs);
       if (bad.length > 0) return { status: 400, body: { ok: false, refused: 'inputs', refusals: bad } };
       const runId = typeof b.runId === 'string' && b.runId !== '' ? b.runId : newRunId();

@@ -32,9 +32,9 @@ async function greenWorld(opts) {
 }
 const rootListing = (w) => readdirSync(w.root).sort();
 const snapshot = (w, dir) => JSON.stringify([rootListing(w), w.starts(), existsSync(path.join(dir, 'signed.json')), readdirSync(dir).sort()]);
-const signBody = (hash, over = {}) => ({ hash, typedName: 'job2', ...over });
+const signBody = (hash, over = {}) => ({ hash, ...over });
 
-test('(1) sign-prepare: a green draft returns the readout, the hash from spec.hash, the flow name to type and the cap — and writes nothing', async () => {
+test('(1) sign-prepare (the first click): a green draft returns the readout, the hash from spec.hash, the flow name and the cap — and writes nothing', async () => {
   const { w, id, hash, dir } = await greenWorld();
   const before = snapshot(w, dir);
   const r = await w.post(`/api/author/${id}/sign-prepare`, {});
@@ -60,15 +60,12 @@ test('(1) sign-prepare: a green draft returns the readout, the hash from spec.ha
   assert.equal((await bad.post(`/api/author/${bid}/sign-prepare`, {})).json().refused, 'not-green');
 });
 
-test('(i) a stale hash, an edited draft, a missing / empty / wrong / wrong-case / padded name signs NOTHING: the flows root, the starts and the draft folder are byte-for-byte what they were', async () => {
+test('(f) a stale, wrong-case, missing or non-string hash signs NOTHING (no typed name is asked for): the flows root, the starts and the draft folder are byte-for-byte what they were', async () => {
   const { w, id, hash, dir } = await greenWorld();
   const before = snapshot(w, dir);
   const bodies = [
-    [signBody('f'.repeat(64)), 409, 'stale-hash'], [{ typedName: 'job2' }, 409, 'stale-hash'], [signBody(hash.toUpperCase()), 409, 'stale-hash'],
-    [{ hash }, 400, 'name-missing'], [signBody(hash, { typedName: '' }), 400, 'name-missing'], [signBody(hash, { typedName: 42 }), 400, 'name-missing'],
-    [signBody(hash, { typedName: 'job1' }), 400, 'name-mismatch'], [signBody(hash, { typedName: 'JOB2' }), 400, 'name-mismatch'],
-    [signBody(hash, { typedName: 'Job2' }), 400, 'name-mismatch'], [signBody(hash, { typedName: 'job2 ' }), 400, 'name-mismatch'],
-    [signBody(hash, { typedName: ' job2' }), 400, 'name-mismatch'], [signBody(hash, { typedName: 'job2\n' }), 400, 'name-mismatch'],
+    [signBody('f'.repeat(64)), 409, 'stale-hash'], [{}, 409, 'stale-hash'], [{ typedName: 'job2' }, 409, 'stale-hash'], [signBody(hash.toUpperCase()), 409, 'stale-hash'],
+    [signBody(`${hash} `), 409, 'stale-hash'], [{ hash: 42 }, 409, 'stale-hash'], [{ hash: '' }, 409, 'stale-hash'],
   ];
   for (const [body, status, refused] of bodies) {
     // eslint-disable-next-line no-await-in-loop
@@ -93,7 +90,7 @@ test('(i) a stale hash, an edited draft, a missing / empty / wrong / wrong-case 
   assert.equal((await w.get(`/api/author/${id}`)).json().phase, 'green');
 });
 
-test('(2)(4) the right hash and the exact name sign with the SAME signDraft, write signed.json, start the run; the flow is signed by the panel\'s OS user and passes readFlow; the draft reads signed', async () => {
+test('(2)(4) the right hash alone (no typed name) signs with the SAME signDraft, write signed.json, start the run; the flow is signed by the panel\'s OS user and passes readFlow; the draft reads signed', async () => {
   const { w, id, hash, dir } = await greenWorld({ limit: 5 });
   const r = await w.post(`/api/author/${id}/sign`, signBody(hash, { runId: 'first' }));
   assert.equal(r.status, 202, r.text);
@@ -206,6 +203,6 @@ test('a missing input or a bad run id refuses BEFORE signing: no signed flow is 
   const gone = await w.post(`/api/author/${id}/sign`, signBody(hash));
   assert.equal(gone.status, 400);
   assert.equal(gone.json().refused, 'inputs');
-  assert.ok(gone.json().refusals.some((x) => x.field === 'inputs.1'));
+  assert.ok(gone.json().refusals.some((x) => x.field === 'inputs' && /^Line 2: /.test(x.say)));
   assert.equal(snapshot(w, dir), before);
 });
