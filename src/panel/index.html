@@ -706,7 +706,7 @@
           <!-- borrowed-from: bareloop src/panel/index.html@ca7195e (Chat markup: the one always-there card, top-right Abandon/Clear,
                the thread, the one progress list, the action-error line the poll never wipes, the ask box, the ONE wide button).
                fwdloop fields: Flow name, The job, Cap $, Destination, Inputs (New job) or a signed flow's inputs (Run a signed flow). -->
-          <div class="job-card compact" id="job-card" data-testid="job-card">
+          <div class="job-card compact" id="chat-job-card" data-testid="job-card">
             <h4 id="job-card-title">Job card</h4>
             <button class="btn card-clear" type="button" id="chat-clear-btn" data-testid="chat-clear">Clear</button>
 
@@ -3417,7 +3417,7 @@
   // READ from files (GET /api/author/live and /:id), a start is polled (GET /api/author/start/:id), auth is the panel's cookie
   // (no header token), and there is no ask box: Sign is two clicks, no typed name (M4e amendment 2).
   (function(){
-    var card = document.getElementById("job-card");
+    var card = document.getElementById("chat-job-card");
     var clearBtn = document.getElementById("chat-clear-btn");
     var thread = document.getElementById("chat-thread");
     var jobEl = document.getElementById("jf-job");
