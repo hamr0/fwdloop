@@ -471,20 +471,27 @@
   .msg .who{font-size:11px;color:var(--text-faint);margin-bottom:3px;text-transform:none;font-weight:400;}
   .chat-input-row{margin-top:10px;border-top:1px dotted var(--border-strong);padding-top:10px;}
   .chat-input-row input{width:100%;box-sizing:border-box;}
-  /* the ask box and the card's free-text boxes wrap (textarea): grow a few rows (fitBox), then scroll inside */
-  textarea[data-testid="chat-msg"]{width:100%;box-sizing:border-box;font:inherit;color:var(--text);resize:vertical;overflow-y:auto;max-height:200px;}
+  /* the card's free-text boxes wrap (textarea): grow a few rows (fitBox), then scroll inside */
   .job-card textarea.jf-wrap{width:100%;box-sizing:border-box;font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);resize:vertical;overflow-y:auto;max-height:200px;}
   /* the focused/selected Chat-card field gets a blue border (the accent), no outline ring */
   #panel-chat :is(input,select,textarea):focus{border-color:var(--accent);outline:none;}
-  /* the ask box is dimmed until something asks for a reply (placeholder stays readable) */
-  #chat-msg:disabled{background:var(--bg);opacity:.55;cursor:not-allowed;}
-  #chat-msg{min-height:64px;padding:8px 12px;border:2px solid var(--field-border);background:var(--field-bg);}
+  /* amendment 2: the job and inputs boxes have a gutter OUTSIDE them on the left (`N >` per step, `~` per guardrail; a number per input
+     line), one entry per logical line, as tall as that line wraps (measured from a hidden mirror, see paintGutter) */
+  .jf-gutbox{position:relative;display:flex;align-items:stretch;gap:4px;}
+  .jf-gutbox textarea.jf-wrap{flex:1 1 auto;min-width:0;width:auto;overflow-wrap:break-word;word-wrap:break-word;white-space:pre-wrap;}
+  .jf-gut{flex:0 0 3.2em;overflow:hidden;position:relative;color:var(--text-faint);text-align:right;user-select:none;-webkit-user-select:none;font:inherit;}
+  .jf-gut-in{position:absolute;left:0;right:0;top:0;}
+  .jf-gut-in div{white-space:nowrap;overflow:hidden;}
+  .jf-mirror{position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;white-space:pre-wrap;overflow-wrap:break-word;word-wrap:break-word;box-sizing:content-box;padding:0;border:0;margin:0;}
+  .jf-mirror div{margin:0;padding:0;}
   /* editable Chat-card fields get the standard soft white (a step below the ask box); disabled/readonly keep the base colour */
-  #panel-chat input:not(:disabled):not([readonly]):not(#chat-msg):not([type="radio"]):not([type="checkbox"]),
+  #panel-chat input:not(:disabled):not([readonly]):not([type="radio"]):not([type="checkbox"]),
   #panel-chat select:not(:disabled),
-  #panel-chat textarea:not(:disabled):not([readonly]):not(#chat-msg){background:var(--field-soft-bg);}
+  #panel-chat textarea:not(:disabled):not([readonly]){background:var(--field-soft-bg);}
   /* ONE wide button below the message box; its wording comes from mainButtonFor */
   .btn.wide{width:100%;margin-top:10px;white-space:normal;}
+  /* amendment 2 item 7: the main button's label ("Sign <hash8> & run · $<cap>") stays on ONE line inside the card */
+  #chat-main-btn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%;}
   /* fwdloop's own additions (not bareloop): input rows, per-box refusal lines, the read-only Run-mode cap */
   .jf-inrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;gap:6px;margin-bottom:4px;align-items:start;}
   .jf-inrow .btn.small{height:32px;padding:0 8px;}
@@ -715,9 +722,27 @@
               </div>
               <div class="field">
                 <label for="jf-job">The job</label>
-                <textarea class="jf-wrap" id="jf-job" rows="6" data-testid="jf-job" placeholder="1. First thing to do&#10;guardrail: a rule for line 1&#10;2. Second thing&#10;3. ask 30m: the question you want to be asked, then wait up to 30 minutes"></textarea>
-                <div class="hint">Numbered lines. Put a <code>guardrail: ...</code> line under the line it belongs to. Write a stop for you as <code>ask 30m: ...</code>.</div>
+                <div class="jf-gutbox">
+                  <div class="jf-gut" id="jf-job-gut" data-testid="jf-job-gut" aria-hidden="true"><div class="jf-gut-in"></div></div>
+                  <textarea class="jf-wrap" id="jf-job" rows="6" data-testid="jf-job" autocomplete="off" spellcheck="false" placeholder="Read my resume&#10;~keep it under 600 words&#10;Ask: check it with me&#10;Write it out"></textarea>
+                </div>
+                <div class="hint">One step per line. A line starting with <code>~</code> is a guardrail of the step above it. <code>Ask:</code> stops for you; <code>Ask 2h:</code> sets that ask's own wait.</div>
                 <div class="jf-err" id="jf-err-job" data-testid="jf-err-job"></div>
+              </div>
+              <div class="field">
+                <label for="jf-dest-folder">Destination</label>
+                <input id="jf-dest-folder" type="text" placeholder="/full/path/to/a/folder" autocomplete="off" spellcheck="false" data-testid="jf-dest-folder">
+                <div class="hint">Where the accepted result is placed, at the last step. Leave empty for no send.</div>
+                <div class="jf-err" id="jf-err-destination" data-testid="jf-err-destination"></div>
+              </div>
+              <div class="field">
+                <label for="jf-inputs">Inputs</label>
+                <div class="jf-gutbox">
+                  <div class="jf-gut" id="jf-inputs-gut" data-testid="jf-inputs-gut" aria-hidden="true"><div class="jf-gut-in"></div></div>
+                  <textarea class="jf-wrap" id="jf-inputs" rows="3" data-testid="jf-inputs" autocomplete="off" spellcheck="false" placeholder="resume: /full/path/to/resume.md"></textarea>
+                </div>
+                <div class="hint">One line per file: a name, a colon, its full path starting with /. The page never reads the file.</div>
+                <div class="jf-err" id="jf-err-inputs" data-testid="jf-err-inputs"></div>
               </div>
               <div class="cap-row" data-testid="cap-row">
                 <div class="cap-field">
@@ -726,22 +751,12 @@
                   <div class="hint" id="jf-cap-note" data-testid="cap-note"></div>
                   <div class="jf-err" id="jf-err-capUsd" data-testid="jf-err-capUsd"></div>
                 </div>
-              </div>
-              <div class="field">
-                <label for="jf-dest-line">Destination</label>
-                <div class="dest-row">
-                  <input id="jf-dest-line" type="text" inputmode="numeric" placeholder="at line" autocomplete="off" data-testid="jf-dest-line">
-                  <input id="jf-dest-folder" type="text" placeholder="/full/path/to/a/folder" autocomplete="off" spellcheck="false" data-testid="jf-dest-folder">
+                <div class="cap-field">
+                  <label for="jf-ask-wait">Ask wait</label>
+                  <input id="jf-ask-wait" type="text" value="1h" autocomplete="off" spellcheck="false" data-testid="jf-ask-wait">
+                  <div class="hint">For each <code>Ask:</code> step. Number + m or h.</div>
+                  <div class="jf-err" id="jf-err-askWait" data-testid="jf-err-askWait"></div>
                 </div>
-                <div class="hint">Where the accepted result is placed. Leave both empty for no send.</div>
-                <div class="jf-err" id="jf-err-destination" data-testid="jf-err-destination"></div>
-              </div>
-              <div class="field">
-                <label>Inputs</label>
-                <div id="jf-inputs" data-testid="jf-inputs"></div>
-                <button class="btn small" type="button" id="jf-add-input" data-testid="jf-add-input">+ add input</button>
-                <div class="hint">One row per file: a name (such as resume) and its full path starting with /. The page never reads the file.</div>
-                <div class="jf-err" id="jf-err-inputs" data-testid="jf-err-inputs"></div>
               </div>
             </div>
 
@@ -783,10 +798,6 @@
                action handlers, never cleared by the poll (the poll owns #chat-card-error instead) -->
           <div class="hint" id="chat-action-error" data-testid="chat-action-error"></div>
 
-          <div class="chat-input-row">
-            <label for="chat-msg" style="display:none">Type the flow name to sign</label>
-            <textarea id="chat-msg" rows="2" data-testid="chat-msg" autocomplete="off" spellcheck="false"></textarea>
-          </div>
           <button class="btn primary wide" type="button" id="chat-main-btn" data-testid="chat-main" disabled>Draft</button>
           <div class="hint" id="chat-main-hint" data-testid="chat-main-hint"></div>
           <div class="hint">Only your click signs.</div>
