@@ -308,10 +308,10 @@ const ALLOWLIST = {
     },
   },
   'src/runner.js': {
-    reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create + stale-lock clear + cleanup, M4c amendment 2) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above); M4e amendment 1: checkSendDestination realpaths/stats the send FOLDER (a business destination, not a book) and the refused folders; the flow-folder test (existsSync of a FLOW_FILES file under the root child); M4e amendment 4 item 4: requestStop (one `wx` write of stop.request), clearStop (its one unlink) and the halt record (one `wx` write of halt.json, only for a cap-halt or stopped run)',
+    reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create + stale-lock clear + cleanup, M4c amendment 2) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above); M4e amendment 1: checkSendDestination realpaths/stats the send FOLDER (a business destination, not a book) and the refused folders; the flow-folder test (existsSync of a FLOW_FILES file under the root child); M4e amendment 4 item 4: requestStop (one `wx` write of stop.request), clearStop (its one unlink) and the halt record (one `wx` write of halt.json, only for a cap-halt or stopped run); `continueRun` (Resume) repeats resumeRun\'s frozen-input re-hash (existsSync + readFileSync), its lock close and consumes halt.json by one rename',
     names: {
-      accessSync: 1, closeSync: 2, constants: 1, copyFileSync: 1, existsSync: 8,
-      mkdirSync: 6, openSync: 1, readFileSync: 3, realpathSync: 5, renameSync: 1,
+      accessSync: 1, closeSync: 3, constants: 1, copyFileSync: 1, existsSync: 9,
+      mkdirSync: 6, openSync: 1, readFileSync: 4, realpathSync: 5, renameSync: 2,
       statSync: 2, unlinkSync: 4, writeFileSync: 7,
     },
     readArtifactCallSites: 4,
@@ -413,8 +413,12 @@ const ALLOWLIST = {
   'src/panel/authorstart.js': {
     reason: 'M4e piece 2b: the ONE run-start path — creates ITS OWN start folder `<root>/.starts/<id>/` (mkdir 0700) and writes the one file it owns there (start.json 0600; cleared.json 0600, once, when the human dismisses a refused start; pid.json and child.log go through spawn.js); realpathSync of the typed --root at use time; existsSync of the new run dir (presence only, to refuse an id already used); rmdirSync of a run dir this start just claimed when the start is refused before the child runs (rmdir removes only an EMPTY folder). Every READ of a start folder and of the run dir (pids.jsonl, ask.json) goes through readFileInside/readPidRows/readdirInside, never fs directly.',
     names: {
-      existsSync: 1, mkdirSync: 2, realpathSync: 5, rmdirSync: 1, writeFileSync: 2,
+      existsSync: 1, mkdirSync: 5, realpathSync: 7, rmdirSync: 1, writeFileSync: 3,
     },
+  },
+  'src/panel/authorresume.js': {
+    reason: 'M4e amendment 4 items 4 and 6: the Resume door — realpathSync of the typed --root at use time. Writes nothing itself: the new signed cap version goes through `writeRunValues` (src/runvalues.js, write-once) and the continue through authorstart.js; every book it reads goes through readFlow/readdirInside/readFileInside.',
+    names: { realpathSync: 1 },
   },
   'src/panel/authorflows.js': {
     reason: 'M4e piece 2b: the Run-a-signed-flow door — realpathSync of the typed --root at use time, and one lstatSync of each run\'s `inputs.json` for its mtime only (to find the NEWEST run; nothing is read from it this way — the manifest itself is read through readFileInside). Writes nothing.',
@@ -427,8 +431,12 @@ const ALLOWLIST = {
   'bin/fwdloop': {
     reason: 'CLI existence checks (source/run-dir presence; readdirSync only counts the entries of a pre-claimed run dir, rmdirSync only removes an EMPTY claimed run dir on exit) plus the one realpathSync in resolveRoot (hamr ruling 2026-09-29: the typed --root is followed once at start) — no content reads',
     names: {
-      existsSync: 3, readdirSync: 1, realpathSync: 1, rmdirSync: 1,
+      existsSync: 4, readdirSync: 1, realpathSync: 1, rmdirSync: 1,
     },
+  },
+  'src/runvalues.js': {
+    reason: 'M4e amendment 5 item 3 / amendment 4 item 6: the run\'s signed values version files — ONE write-once writer (`writeFileSync` with flag wx, mode 0600) and ONE remover (`unlinkSync` of a lone signed-values.json in a run folder whose start was refused before the run began). Every read goes through readFileInside/readdirInside.',
+    names: { unlinkSync: 1, writeFileSync: 1 },
   },
 };
 

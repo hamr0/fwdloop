@@ -26,8 +26,9 @@ import {
 } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import {
-  runFlow, resumeRun, makeParkingAskStep, readAsk, readRunState,
+  runFlow, resumeRun, continueRun, auditSpend, makeParkingAskStep, readAsk, readRunState,
 } from '../src/runner.js';
+import { applyRunValues, pickRunValues, dropUnstartedValues } from '../src/runvalues.js';
 import { makeLiveModelStep } from '../src/model-step.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
@@ -220,6 +221,10 @@ function reportRunResult(result, { rootArg }) {
     reportRunResult(result.newRun, { rootArg });
     return;
   }
+  if (result.outcome === 'stopped') {
+    process.stdout.write(`stopped: spentUsd=${result.spentUsd} — ${result.red}\n`);
+    return;
+  }
   if (result.outcome === 'ask-expired') {
     process.stderr.write(`fwdloop: ask-expired — run cancelled, spentUsd=${result.spentUsd}\n`);
     process.exitCode = 1;
@@ -259,7 +264,7 @@ async function cmdRun(rest) {
 
   const read = readFlow({ root, name: flowName, catalogue });
   if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
-  const { arbiter, declaration } = read;
+  const { declaration } = read;
 
   let parsedSources;
   try {
@@ -268,7 +273,7 @@ async function cmdRun(rest) {
     fail(`run: ${err.message}`);
     return;
   }
-  const declaredRoles = (arbiter.sources ?? []).map((s) => s.role);
+  const declaredRoles = (read.arbiter.sources ?? []).map((s) => s.role);
   for (const role of declaredRoles) {
     if (!Object.hasOwn(parsedSources, role)) {
       fail(`run: flow "${flowName}" declares source role "${role}" — pass --source ${role}=<path>`);
@@ -298,10 +303,15 @@ async function cmdRun(rest) {
     const runIdCheck = resolveRunDir(join(root, flowName), runId);
     if (!runIdCheck.ok) fail(runIdCheck.red);
     runDir = runIdCheck.runDir;
-    if (existsSync(runDir) && readdirSync(runDir).length > 0) fail(`run: run dir "${runDir}" already exists — use a new --run-id`);
+    // M4e amendment 5: the panel's Sign & run puts the run's signed values in the folder BEFORE the start; that one file is not "a run".
+    if (existsSync(runDir) && readdirSync(runDir).filter((n) => n !== 'signed-values.json').length > 0) fail(`run: run dir "${runDir}" already exists — use a new --run-id`);
   }
+  // M4e amendment 5 item 3: the cap this run was signed with (its own values file, else the flow's) is what the monthly hold is for.
+  const applied = applyRunValues(read.arbiter, flowName, read.signature.flow, pickRunValues(runDir));
+  if (!applied.ok) fail(`run: ${applied.red}`);
+  const { arbiter } = applied;
   // a refusal before the run starts must not leave the claimed empty folder behind (rmdir only ever removes an EMPTY folder)
-  process.on('exit', () => { try { rmdirSync(runDir); } catch { /* not empty, or gone: nothing to undo */ } });
+  process.on('exit', () => { dropUnstartedValues(runDir); try { rmdirSync(runDir); } catch { /* not empty, or gone: nothing to undo */ } });
 
   // The key preflight (item A: "refuses at $0 BEFORE any book write") runs
   // here — before ANY directory for this run is created.
@@ -547,12 +557,16 @@ async function cmdResume(rest) {
 
   const read = readFlow({ root, name: flowName, catalogue });
   if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
-  const { declaration, arbiter } = read;
+  const { declaration } = read;
 
   const runIdCheck = resolveRunDir(join(root, flowName), runId);
   if (!runIdCheck.ok) fail(runIdCheck.red);
   const { runDir } = runIdCheck;
   if (!existsSync(runDir)) fail(`resume: no run dir for runId "${runId}" under flow "${flowName}"`);
+  // M4e amendment 5 item 3: the cap this run was signed with (its own values file, else the flow's)
+  const applied = applyRunValues(read.arbiter, flowName, read.signature.flow, pickRunValues(runDir));
+  if (!applied.ok) fail(`resume: ${applied.red}`);
+  const { arbiter } = applied;
 
   const spendPath = join(runDir, 'spend.jsonl');
   let modelStep;
@@ -596,6 +610,92 @@ async function cmdResume(rest) {
   });
 
   const result = await resumeRun({
+    root,
+    name: flowName,
+    runId,
+    catalogue,
+    modelStep,
+    sendStep: sendViaPrimitive,
+    primitives,
+    primitiveReds,
+    businessDate: today(),
+  });
+
+  for (const d of rerunDirs(result, join(root, flowName))) hold.addRunDir(d);
+  reportRunResult(result, { rootArg: values.root });
+}
+
+// ---------------------------------------------------------------------------
+// continue — M4e amendment 4 items 4 and 6: Resume of a STOPPED or CAP-HALTED run (the same run id), under the run's highest signed
+// values version (the human's new cap). `fwdloop continue <runId> --flow <name> --root <dir>`. The panel's "Sign & resume" writes
+// the new signed version first and then starts this; run by hand it continues under whatever version is on disk.
+// ---------------------------------------------------------------------------
+
+async function cmdContinue(rest) {
+  const { values, positionals } = parseArgs({
+    args: rest,
+    options: {
+      flow: { type: 'string' },
+      root: { type: 'string' },
+    },
+    allowPositionals: true,
+  });
+  const env = keyedEnv();
+  const runId = positionals[0];
+  if (!runId) fail('continue: a runId is required — fwdloop continue <runId> --flow <name> --root <dir>');
+  if (!values.flow) fail('continue: --flow <name> is required');
+  if (!values.root) fail('continue: --root <dir> is required');
+
+  const root = resolveRoot('continue', values.root);
+  const flowName = values.flow;
+
+  const loaded = loadCatalogue();
+  if (!loaded.ok) fail(`catalogue: ${loaded.reds.join('; ')}`);
+  const catalogue = loaded.primitives;
+
+  const read = readFlow({ root, name: flowName, catalogue });
+  if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
+  const { declaration } = read;
+
+  const runIdCheck = resolveRunDir(join(root, flowName), runId);
+  if (!runIdCheck.ok) fail(runIdCheck.red);
+  const { runDir } = runIdCheck;
+  if (!existsSync(runDir)) fail(`continue: no run dir for runId "${runId}" under flow "${flowName}"`);
+  const applied = applyRunValues(read.arbiter, flowName, read.signature.flow, pickRunValues(runDir));
+  if (!applied.ok) fail(`continue: ${applied.red}`);
+
+  const spendPath = join(runDir, 'spend.jsonl');
+  let modelStep;
+  try {
+    modelStep = await resolveModelStep(spendPath, env);
+  } catch (err) {
+    fail(err.message);
+    return;
+  }
+
+  // The monthly check: the hold is the cap in force minus what the run's own books say it has spent (never less than 0).
+  const spentSoFar = auditSpend(runDir);
+  if (!spentSoFar.ok) fail(`continue: run "${runId}" ${spentSoFar.red}`);
+  const hold = takeMonthlyHold({
+    what: 'resume', flow: flowName, runId, runDir, holdUsd: Math.max(0, applied.arbiter.capUsd - spentSoFar.total), spentAtHold: spentSoFar.total,
+  });
+
+  const inputsManifestRead = readFileInside(runDir, 'inputs.json');
+  let inputsManifest = [];
+  if (inputsManifestRead.ok) {
+    try {
+      inputsManifest = JSON.parse(inputsManifestRead.text);
+    } catch (err) {
+      fail(`continue: inputs.json for run "${runId}" is not valid JSON — ${err.message}`);
+      return;
+    }
+  }
+  const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
+  const { tools: primitives, reds: primitiveReds } = resolvePrimitives(catalogue, allVerbs, {
+    runDir, inputs: inputsManifest.map((m) => ({ id: m.id, frozen: m.frozen })),
+  });
+
+  const result = await continueRun({
     root,
     name: flowName,
     runId,
@@ -743,7 +843,7 @@ async function cmdSign(rest) {
 
 async function main() {
   const [verb, ...rest] = process.argv.slice(2);
-  if (!verb) fail('usage: fwdloop draft|sign|run|inbox|show|answer|resume|panel ...');
+  if (!verb) fail('usage: fwdloop draft|sign|run|inbox|show|answer|resume|continue|panel ...');
 
   if (verb === 'draft') return cmdDraft(rest);
   if (verb === 'sign') return cmdSign(rest);
@@ -752,8 +852,9 @@ async function main() {
   if (verb === 'show') return cmdShow(rest);
   if (verb === 'answer') return cmdAnswer(rest);
   if (verb === 'resume') return cmdResume(rest);
+  if (verb === 'continue') return cmdContinue(rest);
   if (verb === 'panel') return cmdPanel(rest);
-  fail(`unknown verb "${verb}" — expected draft | sign | run | inbox | show | answer | resume | panel`);
+  fail(`unknown verb "${verb}" — expected draft | sign | run | inbox | show | answer | resume | continue | panel`);
   return undefined;
 }
 

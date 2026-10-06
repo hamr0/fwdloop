@@ -44,6 +44,7 @@ import {
   capFloorText, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines,
 } from './authorcard.js';
 import { createFlowsDoor } from './authorflows.js';
+import { createResumeDoor } from './authorresume.js';
 import { createStarter } from './authorstart.js';
 import {
   childRunning, providerKeys, readJsonFile, spawnDetached, writePidFile,
@@ -83,6 +84,11 @@ export function createAuthor(opts) {
   const starter = createStarter({ root, bin });
   const flowsDoor = createFlowsDoor({
     root, home, skipMonthly, loadEnv, starter,
+  });
+
+  /** The ONE monthly check, defined below (a function declaration, so the doors above may take it now). */
+  const resumeDoor = createResumeDoor({
+    root, loadEnv, monthlyClaim: (usd) => monthlyClaim(usd), starter,
   });
 
   /** The drafts folder's real path, or null when the flows root does not exist. */
@@ -217,6 +223,8 @@ export function createAuthor(opts) {
   return {
     flows: flowsDoor.flows,
     run: flowsDoor.run,
+    resumePrepare: resumeDoor.prepare,
+    resume: resumeDoor.resume,
 
     /**
      * `GET /api/author/monthly-check?cap=<usd>`: the note under Cap, one read-only check. `{ text, red }` is what to show (red =

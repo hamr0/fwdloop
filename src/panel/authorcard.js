@@ -201,12 +201,30 @@ export function checkInputRows(rows) {
  * @param {string} jobText
  */
 export function capFloorUsd(jobText) {
-  return parseJobBox(jobText).steps.some((s) => s.ask === null) ? resolveCeilingUsd(null) : 0;
+  return capFloorFor(parseJobBox(jobText).steps.some((s) => s.ask === null));
+}
+
+/** The floor itself, for a caller that already knows whether the job has a step that is not an ask (a signed flow: any step off an ask line). @param {boolean} hasRoundStep */
+export function capFloorFor(hasRoundStep) {
+  return hasRoundStep ? resolveCeilingUsd(null) : 0;
 }
 
 /** The one sentence for a cap under the floor (red under Cap, and the Draft / sign refusal). @param {number} floorUsd */
 export function capFloorText(floorUsd) {
   return `needs at least $${(Math.ceil(floorUsd * 100 - 1e-6) / 100).toFixed(2)} per run`;
+}
+
+/**
+ * Amendment 1's destination checks, in ONE place: the New job card and the per-run destination of amendment 5 both ask it. `null` = fine,
+ * else the sentence (a folder that is the run folder, a flow folder, the root, `.drafts`, `.starts`, the config folder, a file, a missing
+ * folder, a path with a control character). Never overwrite is the send's own rule at write time.
+ * @param {string} dest the folder as typed @param {string} root the flows root
+ * @returns {string|null}
+ */
+export function destinationRefusal(dest, root) {
+  if (CONTROL_RE.test(dest)) return 'The destination folder has a character that cannot be in a path.';
+  const d = checkSendDestination(`file:${dest}`, { root });
+  return d.ok ? null : `${d.red.replace(/^destination: /, '')}.`;
 }
 
 /**
@@ -247,11 +265,8 @@ export function checkCard(card, { root, env = {} }) {
   // destination: one folder, or empty for no send (it is sent at the last step)
   const dest = card.destination;
   if (dest !== '') {
-    if (CONTROL_RE.test(dest)) no('destination', 'The destination folder has a character that cannot be in a path.');
-    else {
-      const d = checkSendDestination(`file:${dest}`, { root });
-      if (!d.ok) no('destination', `${d.red.replace(/^destination: /, '')}.`);
-    }
+    const why = destinationRefusal(dest, root);
+    if (why !== null) no('destination', why);
   }
 
   // inputs: one `name: path` per line; a role and a path on every line, no repeated role; each path a readable regular file (realpath)

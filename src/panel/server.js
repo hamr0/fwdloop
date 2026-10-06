@@ -307,7 +307,7 @@ function resumeRoute(res, body, root, resumer) {
 }
 
 /**
- * `POST /api/author/{draft,run,<id>/sign-prepare,<id>/sign,<id>/revise,<id>/abandon,start/<id>/clear}` — run after the same gates as every other POST.
+ * `POST /api/author/{draft,run,resume-prepare,resume,<id>/sign-prepare,<id>/sign,<id>/revise,<id>/abandon,start/<id>/clear}` — run after the same gates as every other POST.
  * Anything else under `/api/author/` is a 404 by name.
  * @param {any} res @param {string} url @param {any} body @param {ReturnType<typeof createAuthor>} author
  */
@@ -315,6 +315,8 @@ function authorPost(res, url, body, author) {
   const send = (r) => sendJson(res, r.status, r.body);
   if (url === '/api/author/draft') { send(author.start(body)); return; }
   if (url === '/api/author/run') { send(author.run(body)); return; }
+  if (url === '/api/author/resume-prepare') { send(author.resumePrepare(body)); return; }
+  if (url === '/api/author/resume') { send(author.resume(body)); return; }
   const sp = /^\/api\/author\/([^/]+)\/sign-prepare$/.exec(url);
   if (sp) { send(author.signPrepare(sp[1])); return; }
   const sg = /^\/api\/author\/([^/]+)\/sign$/.exec(url);

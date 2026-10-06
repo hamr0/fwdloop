@@ -33,7 +33,7 @@ function appendLine(filePath, row) {
  * rewritten, not a book the arbiter reads. One row per process that works on
  * the run (`src/liveness.js` `recordPid` builds the row).
  * @param {string} runDir
- * @param {{pid: number, startedAt: string, procStart: string|null, leg: 'run'|'resume'}} row
+ * @param {{pid: number, startedAt: string, procStart: string|null, leg: 'run'|'resume'|'continue'}} row
  */
 export function appendPidRow(runDir, row) {
   appendLine(join(runDir, 'pids.jsonl'), row);

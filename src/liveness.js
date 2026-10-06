@@ -75,7 +75,7 @@ function hasProc() {
  * The one writer call: this process records itself in the run dir's
  * `pids.jsonl`, before its first step.
  * @param {string} runDir
- * @param {'run'|'resume'} leg
+ * @param {'run'|'resume'|'continue'} leg
  * @param {string} at ISO timestamp from the run's own clock
  */
 export function recordPid(runDir, leg, at) {

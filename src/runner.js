@@ -46,7 +46,7 @@ import {
 import { fileURLToPath } from 'node:url';
 
 import {
-  readFlow, resolveRunDir, readFileInside, resolveInside, FLOW_FILES, PANEL_STARTS_DIR,
+  readFlow, resolveRunDir, readFileInside, readdirInside, resolveInside, FLOW_FILES, PANEL_STARTS_DIR,
 } from './flow.js';
 import {
   writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen,
@@ -55,6 +55,7 @@ import { WIRED_VERBS } from './primitives.js';
 import { configHome, configDoorHome } from './config.js';
 import { closeByClass } from './closers.js';
 import { appendAudit, appendHistory, HALT_OUTCOMES } from './books.js';
+import { applyRunValues, pickRunValues } from './runvalues.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
 } from './liveness.js';
@@ -916,14 +917,21 @@ export async function runFlow({
     return { outcome: 'refused', red: read.reds[0], reds: read.reds };
   }
 
-  const { arbiter, declaration, signature } = read;
+  const { declaration, signature } = read;
+  const runDir = runIdCheck.runDir;
+  // M4e amendment 5 item 3: the values THIS run was signed with (cap, send folder, ask waits) lie over the flow's own — one decision (`pickRunValues`).
+  const applied = applyRunValues(read.arbiter, name, signature.flow, pickRunValues(runDir));
+  if (!applied.ok) {
+    return haltRun({
+      flowDir, runDir, runId, capUsd: null, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: applied.red, spent: { value: 0 },
+    });
+  }
+  const { arbiter } = applied;
   const capUsd = arbiter.capUsd;
   const redoCap = arbiter.redoCap ?? 3;
   const effectiveCeilingUsd = ceilingUsd ?? resolveCeilingUsd(null);
   const askLines = new Map((arbiter.asks ?? []).map((a) => [a.line, a]));
   const sendLines = new Map((arbiter.sends ?? []).map((s) => [s.line, s]));
-
-  const runDir = runIdCheck.runDir;
 
   const unwiredVerb = findUnwiredVerbStep(declaration);
   if (unwiredVerb) {
@@ -1571,17 +1579,19 @@ async function foldFromStep({
  * resumable run's audit.jsonl). A row this function cannot price refuses
  * rather than guessing (never `?? 0`, never skipped).
  * @param {string} runDir
- * @returns {{ ok: true, total: number } | { ok: false, red: string }}
+ * @param {{skipVerdicts?: string[]}} [opts]
+ * @returns {{ ok: true, total: number, complete: boolean } | { ok: false, red: string }}
  */
-function sumAuditUsd(runDir) {
+function sumAuditUsd(runDir, { skipVerdicts = /** @type {string[]} */ ([]) } = {}) {
   // F48 round 3: goes through `readFileInside` (`src/flow.js`) rather than a
   // raw `readFileSync` — a symlinked `audit.jsonl` (or a symlinked ancestor
   // directory) reads as "missing" (total 0), never as some outside file's
   // content summed into a cap check.
   const result = readFileInside(runDir, 'audit.jsonl');
-  if (!result.ok) return { ok: true, total: 0 };
+  if (!result.ok) return { ok: true, total: 0, complete: true };
   const lines = result.text.split('\n').filter((line) => line.trim().length > 0);
   let total = 0;
+  let complete = true;
   for (const line of lines) {
     let row;
     try {
@@ -1589,12 +1599,15 @@ function sumAuditUsd(runDir) {
     } catch (err) {
       return { ok: false, red: `audit.jsonl line is not valid JSON — ${err.message}` };
     }
+    // a row of a verdict the caller names cost nothing and carries `usd: null` on purpose (a cap-halt: the round was never bought)
+    if (skipVerdicts.includes(row.verdict)) continue;
+    if (row.spendComplete === false) complete = false;
     if (typeof row.usd !== 'number' || !Number.isFinite(row.usd)) {
       return { ok: false, red: `audit.jsonl carries a row whose "usd" is not a finite number (got ${JSON.stringify(row.usd)}) — refusing to sum past an unpriced round` };
     }
     total += row.usd;
   }
-  return { ok: true, total };
+  return { ok: true, total, complete };
 }
 
 /** Unlink `resume.lock` only when its recorded holder is still THIS process (`readResumeLock`'s holder pid + start
@@ -1781,7 +1794,11 @@ export async function resumeRun({
     if (!read.ok) {
       return { outcome: 'refused', red: `resume: flow re-read failed for run "${runId}": ${read.reds.join('; ')}` };
     }
-    const { declaration, arbiter, signature } = read;
+    const { declaration, signature } = read;
+    // M4e amendment 5 item 3 / amendment 4 item 6: the run's own signed values (its highest version) lie over the flow's.
+    const applied = applyRunValues(read.arbiter, name, signature.flow, pickRunValues(runDir));
+    if (!applied.ok) return { outcome: 'refused', red: `resume: run "${runId}" — ${applied.red}` };
+    const { arbiter } = applied;
 
     if (signature.flow !== state.signatureHash) {
       return { outcome: 'refused', red: `resume: signature mismatch for run "${runId}" — the flow changed while parked` };
@@ -2153,6 +2170,193 @@ export async function resumeRun({
       attemptsLog,
     });
 
+    if (result.outcome === 'complete') return { ...result, auditRows };
+    return result;
+  } finally {
+    releaseResumeLock(runDir, lockPath);
+    try { closeSync(lockFd); } catch { /* already closed */ }
+  }
+}
+
+/**
+ * What a run has spent so far, from its own books (audit.jsonl is the source of truth): the sum of every priced row (a cap-halt
+ * row cost nothing and carries no number), and whether any row left the total a floor. Used by `continueRun` and the CLI's hold.
+ * @param {string} runDir
+ * @returns {{ ok: true, total: number, complete: boolean } | { ok: false, red: string }}
+ */
+export function auditSpend(runDir) {
+  return sumAuditUsd(runDir, { skipVerdicts: ['cap-halt'] });
+}
+
+/**
+ * M4e amendment 4 items 4 and 6 (Resume of a stopped or cap-halted run): the SAME run id continues, never a new run. Takes the
+ * same exclusive `resume.lock` as an answer-resume (one resume at a time per run), reads `halt.json` (the runner's own record of
+ * where it stopped), re-verifies the flow's signature, the frozen inputs and every finished step's artifact, lays the run's
+ * highest signed values version over the flow's (`pickRunValues`: the human's new cap lives there, write-once, never in the flow's
+ * own files), refuses by name at $0 when that cap is not above what is already spent, consumes `halt.json` by rename (the
+ * mutex, like an answer), then re-enters the ONE fold at the first step with no artifact. Done steps are not re-run, spend so
+ * far (re-summed from the books) counts against the new cap, the plan is never redrawn.
+ *
+ * @param {object} opts same shape as `resumeRun`'s
+ * @param {string} opts.root
+ * @param {string} opts.name
+ * @param {string} opts.runId
+ * @param {unknown} opts.catalogue
+ * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<any>} opts.modelStep
+ * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
+ * @param {Record<string, any>} [opts.primitives]
+ * @param {string[]} [opts.primitiveReds]
+ * @param {() => string} [opts.clock]
+ * @param {string} opts.businessDate
+ * @param {number} [opts.ceilingUsd]
+ * @param {() => number} [opts.nowMs]
+ */
+export async function continueRun({
+  root, name, runId, catalogue, modelStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd, nowMs,
+}) {
+  const now = typeof clock === 'function' ? clock : () => new Date().toISOString();
+  const getNowMs = typeof nowMs === 'function' ? nowMs : Date.now;
+  const flowDir = join(root, name);
+  const startedAt = getNowMs();
+  const refused = (red) => ({ outcome: 'refused', red: `continue: ${red}` });
+
+  const runIdCheck = resolveRunDir(flowDir, runId);
+  if (!runIdCheck.ok) return { outcome: 'refused', red: runIdCheck.red };
+  const runDir = runIdCheck.runDir;
+
+  const preflightRead = readFlow({ root, name, catalogue });
+  if (preflightRead.ok) {
+    const unwiredVerb = findUnwiredVerbStep(preflightRead.declaration);
+    if (unwiredVerb) return refused(`preflight: step "${unwiredVerb.step.emits}" (line ${unwiredVerb.step.fromLine}) grants verb "${unwiredVerb.verb}", which has no wired implementation`);
+  }
+  if (primitiveReds?.length) return refused(primitiveReds[0]);
+
+  const lockPath = join(runDir, 'resume.lock');
+  const took = await takeResumeLock(runDir, runId, lockPath);
+  if (!took.ok) return { outcome: 'refused', red: took.red };
+  const { lockFd } = took;
+
+  try {
+    const haltRead = readHaltRecord(runDir);
+    if (!haltRead.ok) {
+      return refused(haltRead.missing
+        ? `run "${runId}" was not stopped or cap-halted by this version (no halt record) — there is nothing to continue; start a new run`
+        : `run "${runId}" ${haltRead.red}`);
+    }
+    const { halt } = haltRead;
+    if (!sameRoot(halt.flow?.root, root) || halt.flow?.name !== name) {
+      return refused(`run "${runId}" was halted against flow "${halt.flow?.root}/${halt.flow?.name}", not the requested "${root}/${name}" — refusing rather than reading a different flow than asked`);
+    }
+    if (!Number.isInteger(halt.stepIndex) || halt.stepIndex < 0) return refused(`run "${runId}" halt.json field "stepIndex" is not a step number`);
+
+    const read = readFlow({ root, name, catalogue });
+    if (!read.ok) return refused(`flow re-read failed for run "${runId}": ${read.reds.join('; ')}`);
+    const { declaration, signature } = read;
+    if (signature.flow !== halt.signatureHash) return refused(`signature mismatch for run "${runId}" — the flow changed while it was halted`);
+    // the human's signed values for this run (its highest version): the new cap is read from here, nowhere else
+    const applied = applyRunValues(read.arbiter, name, signature.flow, pickRunValues(runDir));
+    if (!applied.ok) return refused(`run "${runId}" — ${applied.red}`);
+    const { arbiter } = applied;
+
+    for (const entry of halt.inputsManifest ?? []) {
+      if (!existsSync(entry.frozen)) return refused(`frozen input "${entry.id}" missing for run "${runId}" (${entry.frozen})`);
+      if (createHash('sha256').update(readFileSync(entry.frozen)).digest('hex') !== entry.sha256) {
+        return refused(`frozen input "${entry.id}" changed while halted for run "${runId}"`);
+      }
+    }
+
+    const { steps } = declaration;
+    if (halt.stepIndex > steps.length) return refused(`run "${runId}" halt.json names step ${halt.stepIndex}, past this flow's ${steps.length} steps`);
+    /** @type {Record<string, any>} */
+    const artifacts = {};
+    for (let i = 0; i < halt.stepIndex; i += 1) {
+      const a = readArtifactResult(runDir, steps[i].emits);
+      if (!a.ok) {
+        return refused(a.missing
+          ? `artifact "${steps[i].emits}" missing for run "${runId}" — cannot continue`
+          : `artifact "${steps[i].emits}" for run "${runId}" — ${a.red} — refusing rather than treating a refused read as "not done" and re-running it`);
+      }
+      artifacts[steps[i].emits] = a.value;
+    }
+
+    const audit = auditSpend(runDir);
+    if (!audit.ok) return refused(`run "${runId}" ${audit.red}`);
+    const capUsd = arbiter.capUsd;
+    if (!(capUsd - audit.total > SPEND_TOLERANCE_USD)) {
+      return refused(`the cap $${capUsd} is not above what run "${runId}" has already spent ($${audit.total}) — raise it first; $0 spent now`);
+    }
+    const recordedHashes = readAcceptedHashesByEmits(runDir);
+    if (!recordedHashes.ok) return { outcome: 'refused', red: recordedHashes.red };
+
+    // Consume-once BEFORE acting (the answer's own rule, F44): the rename is a one-winner gate on top of the lock.
+    const taken = readdirInside(runDir, '.').filter((n) => /^halt\.\d+\.consumed\.json$/.test(n)).length;
+    renameSync(join(runDir, HALT_FILE), join(runDir, `halt.${taken + 1}.consumed.json`));
+    clearStop(runDir); // a request left over from before the halt is not this continue's
+    recordPid(runDir, 'continue', now());
+
+    const spent = { value: audit.total };
+    const spendComplete = { value: audit.complete };
+    const askLines = new Map((arbiter.asks ?? []).map((a) => [a.line, a]));
+    const sendLines = new Map((arbiter.sends ?? []).map((s) => [s.line, s]));
+    const askStepEmits = new Set(steps.filter((s) => askLines.has(s.fromLine)).map((s) => s.emits));
+    const acceptedAskEmitsThisRun = new Map();
+    for (const emits of askStepEmits) {
+      const idx = steps.findIndex((s) => s.emits === emits);
+      // a step before the halt point has its artifact (the gate above refused any that was missing or red)
+      if (idx !== -1 && idx < halt.stepIndex) {
+        acceptedAskEmitsThisRun.set(emits, recordedHashes.byEmits.get(emits) ?? null);
+      }
+    }
+    const attemptsLog = [];
+    const auditRows = [];
+    const recordAudit = (row, modelOutput, unjudgedCount) => {
+      const fullRow = unjudgedCount === undefined ? row : { ...row, unjudgedCount };
+      auditRows.push(fullRow);
+      appendAudit(runDir, fullRow);
+      if (row.spendComplete === false) spendComplete.value = false;
+      if (modelOutput !== undefined) {
+        attemptsLog.push({
+          step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, ...(row.refused ? { refused: row.refused } : {}), modelOutput,
+        });
+      }
+    };
+    const runStartedAt = typeof halt.startedAt === 'number' ? halt.startedAt : startedAt;
+
+    const result = await foldFromStep({
+      i0: halt.stepIndex,
+      steps,
+      askLines,
+      sendLines,
+      askStepEmits,
+      runDir,
+      flowDir,
+      runId,
+      flowRoot: root,
+      flowName: name,
+      signatureHash: halt.signatureHash,
+      inputsManifest: halt.inputsManifest,
+      capUsd,
+      redoCap: arbiter.redoCap ?? 3,
+      effectiveCeilingUsd: ceilingUsd ?? resolveCeilingUsd(null),
+      primitives,
+      businessDate,
+      modelStep,
+      // a continued run never waits in-process: a signed ask it reaches parks, under the wait in force
+      askStep: makeParkingAskStep(),
+      sendStep,
+      now,
+      startedAt,
+      runStartedAt,
+      nowMs: getNowMs,
+      spent,
+      spendComplete,
+      artifacts,
+      acceptedThisRun: acceptedAskEmitsThisRun.size > 0,
+      acceptedAskEmitsThisRun,
+      unjudgedSinceLastAsk: Array.isArray(halt.unjudged) ? halt.unjudged : [],
+      recordAudit,
+      attemptsLog,
+    });
     if (result.outcome === 'complete') return { ...result, auditRows };
     return result;
   } finally {
