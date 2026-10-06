@@ -34,6 +34,7 @@ import {
   readAsk, readRunState, readLog, readHaltRecord, stopPending,
 } from '../runner.js';
 import { readSpendRows } from '../provider.js';
+import { applyRunValues, pickRunValues } from '../runvalues.js';
 import {
   runLiveness, booksFresh, readResumeLock,
 } from '../liveness.js';
@@ -846,6 +847,8 @@ export function summarizeSpendRows(spendRows) {
  */
 function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attempt = null) {
   const flowRead = readFlow({ root, name: flowName, catalogue });
+  // M4e amendment 5 item 3 / amendment 4 item 6: the run's own signed values (its newest version) lie over the flow's
+  const inForce = flowRead.ok ? applyRunValues(flowRead.arbiter, flowName, flowRead.signature.flow, pickRunValues(runDir)) : null;
   const historyRows = readHistory(flowDir);
   const historyRow = endRow(historyRows, runDir, runId);
   const halt = readHaltRecord(runDir);
@@ -865,6 +868,8 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     flowDir,
     runDir,
     flowRead,
+    // the arbiter this run executes under (the flow's own unless the run has signed values), or null when the flow does not read
+    arbiter: inForce && inForce.ok ? inForce.arbiter : (flowRead.ok ? flowRead.arbiter : null),
     historyRow,
     // M4e amendment 4 item 4: a cap-halted or stopped run that can be continued (`halt.json` is the runner's record)
     resumable: halt.ok && historyRow !== null && historyRow.outcome === halt.halt.outcome,
@@ -1340,7 +1345,7 @@ export function getRunDetail({
     resume: ctx.resume,
     outcome: ctx.historyRow ? ctx.historyRow.outcome : null,
     outcomeWhy: ctx.historyRow ? null : (isRunningNow(ctx, glyph) ? RUNNING_WHY : 'no history row (parked or died before completion)'),
-    capUsd: ctx.historyRow ? ctx.historyRow.capUsd : (ctx.flowRead.ok ? ctx.flowRead.arbiter.capUsd : null),
+    capUsd: ctx.historyRow ? ctx.historyRow.capUsd : (ctx.arbiter ? ctx.arbiter.capUsd : null),
     spend,
     model,
     modelWhy,
@@ -1501,7 +1506,9 @@ export function getRunJob({
   // pretending the signed prose named it.
   const auditRows = readAudit(run.runDir);
   const model = deriveRunModel(auditRows);
-  const a = flowRead.arbiter ?? {};
+  // the run's own signed values (cap, send folder, ask waits) when it has them; the flow's own otherwise
+  const applied = applyRunValues(flowRead.arbiter, flow, sig.flow, pickRunValues(run.runDir));
+  const a = (applied.ok ? applied.arbiter : flowRead.arbiter) ?? {};
   const asks = a.asks ?? [];
   const sends = a.sends ?? [];
   const sources = a.sources ?? [];

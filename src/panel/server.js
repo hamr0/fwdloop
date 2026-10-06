@@ -315,6 +315,7 @@ function authorPost(res, url, body, author) {
   const send = (r) => sendJson(res, r.status, r.body);
   if (url === '/api/author/draft') { send(author.start(body)); return; }
   if (url === '/api/author/run') { send(author.run(body)); return; }
+  if (url === '/api/author/run-prepare') { send(author.runPrepare(body)); return; }
   if (url === '/api/author/resume-prepare') { send(author.resumePrepare(body)); return; }
   if (url === '/api/author/resume') { send(author.resume(body)); return; }
   const sp = /^\/api\/author\/([^/]+)\/sign-prepare$/.exec(url);

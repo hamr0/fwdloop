@@ -72,7 +72,7 @@ export function createResumeDoor(opts) {
     if (!spent.ok) return no(409, { refused: 'books', say: `The run's books cannot be read (${spent.red}). Nothing was signed.` });
     const hasRound = read.declaration.steps.some((st) => !(read.arbiter.asks ?? []).some((a) => a.line === st.fromLine));
     const checked = checkValues({
-      allowedKeys: KEYS, body: b, base, realRoot, capOnly: true, floorUsd: capFloorFor(hasRound), spentUsd: spent.total, monthlyClaim,
+      allowedKeys: KEYS, body: b, base, realRoot, capOnly: true, floorUsd: capFloorFor(hasRound), spentUsd: spent.total, monthlyClaim, always: true,
     });
     if (!checked.ok) {
       return no(checked.status, checked.refused ? { refused: checked.refused, say: checked.say, refusals: checked.refusals } : { refused: 'resume', refusals: checked.refusals, say: checked.refusals[0]?.say ?? 'Not resumed. Fix the marked box.' });

@@ -25,11 +25,13 @@ const typed = (v) => (typeof v === 'string' ? v.trim() : v);
  * @param {boolean} a.capOnly Resume: destination and waits are never read from the body
  * @param {number} a.floorUsd the smallest cap that funds one round of a step (amendment 4 item 2); 0 = none
  * @param {number} [a.spentUsd] what the run has already spent (Resume): the cap must be above it
+ * @param {boolean} [a.always] Resume: the floor and the monthly check always apply. A Run applies them only when its cap differs from the
+ *   flow's own (a plain Run keeps the CLI's own gate, as it always did), so an old flow signed below today's floor still runs plain.
  * @param {(remainingUsd: number) => null | { problem: string } | { ok: boolean, room: any }} a.monthlyClaim the one monthly check
  * @returns {{ ok: true, values: {capUsd: number, destination: string|null, askWaits: Record<string,string>}, differs: boolean, remainingUsd: number } | { ok: false, status: number, refusals: {field: string, say: string}[], refused?: string, say?: string }}
  */
 export function checkValues({
-  allowedKeys, body, base, realRoot, capOnly, floorUsd, spentUsd = 0, monthlyClaim,
+  allowedKeys, body, base, realRoot, capOnly, floorUsd, spentUsd = 0, monthlyClaim, always = false,
 }) {
   /** @type {{field: string, say: string}[]} */
   const refusals = [];
@@ -53,7 +55,7 @@ export function checkValues({
     if (spentUsd > 0 && capUsd <= spentUsd + 1e-9) {
       const least = Math.ceil(spentUsd * 100 + 1e-6) / 100;
       no('capUsd', `The cap must be above what is already spent (at least $${least.toFixed(2)}).`);
-    } else if (capUsd < floorUsd) no('capUsd', capFloorText(floorUsd));
+    } else if (capUsd < floorUsd && (always || capUsd !== base.capUsd)) no('capUsd', capFloorText(floorUsd));
   }
 
   let destination = base.destination;
@@ -82,7 +84,7 @@ export function checkValues({
     }
   }
 
-  if (refusals.length === 0) {
+  if (refusals.length === 0 && (always || capUsd !== base.capUsd)) {
     // the one monthly check: what this run can still spend (a fresh run: its cap; a resume: the cap above what it already spent)
     const remainingUsd = capUsd - spentUsd;
     const claim = monthlyClaim(remainingUsd);
