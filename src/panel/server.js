@@ -53,11 +53,11 @@ import { fileURLToPath } from 'node:url';
 
 import { loadCatalogue } from '../catalogue.js';
 import { answerAsk, reopenAsk, normalizeDecision } from '../ask.js';
-import { readHistory } from '../books.js';
+import { readHistory, endRow } from '../books.js';
 import { resolveRunDir } from '../flow.js';
-import { readAsk } from '../runner.js';
+import { readAsk, requestStop } from '../runner.js';
 import {
-  listRuns, getRunDetail, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
+  listRuns, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
 import { createResumer } from './resume.js';
 import { createAuthor } from './author.js';
@@ -211,7 +211,7 @@ function reopenRoute(res, body, root, resumer) {
   const runDir = resolveRun(res, root, flow, runId);
   if (runDir === null) return;
   if (resumer.busy(flow, runId)) { refuseBusy(res); return; }
-  if (readHistory(dirname(dirname(runDir))).some((r) => r && r.runId === runId)) {
+  if (endRow(readHistory(dirname(dirname(runDir))), runDir, runId) !== null) {
     refuse(res, 409, 'run-ended', 'this run has ended — there is nothing to reopen');
     return;
   }
@@ -251,6 +251,34 @@ function removeLockRoute(res, body, root, resumer) {
   sendJson(res, 202, {
     ok: true, lockRemoved: true, resume: 'started', askId: saved.askId, tries: attempt.tries, maxTries: attempt.maxTries,
   });
+}
+
+/** The two words of a refused Stop (bareloop's texts, M4e amendment 4 item 4). */
+const NOT_RUNNING_SAY = 'This run is not running, so there is nothing to stop.';
+const STARTING_SAY = 'The run is still starting — it has not written its log yet. Try again in a moment.';
+
+/**
+ * `POST /api/stop` — runs after the same gates as the answer (own Host, own Origin). The human's Stop (M4e amendment 4
+ * item 4): writes the run's stop file; the runner reads it at the seam after the current step closes. Only a run that is
+ * running is stopped; a parked, ended or not-yet-started run is refused in words and nothing is written. The same
+ * decision (`runControls`) the Run tab's button reads.
+ * @param {any} res @param {any} body @param {string} root
+ */
+function stopRoute(res, body, root) {
+  const b = body !== null && typeof body === 'object' ? body : {};
+  const { flow, runId } = b;
+  const runDir = resolveRun(res, root, flow, runId);
+  if (runDir === null) return;
+  const loaded = loadCatalogue();
+  if (!loaded.ok) { refuse(res, 500, 'catalogue', 'the catalogue failed to load'); return; }
+  const controls = getRunControls({
+    root, flow, runId, catalogue: loaded.primitives,
+  });
+  if (controls === null) { refuse(res, 404, 'no-such-run', 'there is no such run'); return; }
+  if (controls.starting) { sendJson(res, 409, { ok: false, refused: 'starting', say: STARTING_SAY }); return; }
+  if (!controls.canStop) { sendJson(res, 409, { ok: false, refused: 'not-running', say: NOT_RUNNING_SAY }); return; }
+  const written = requestStop(runDir);
+  sendJson(res, 202, { ok: true, stopping: true, already: written === 'exists' });
 }
 
 /**
@@ -332,10 +360,11 @@ export function handleRequest(req, res, opts) {
   const isSettingsPost = method === 'POST' && String(req.url).startsWith('/api/settings/');
   // M4e piece 2a: every `/api/author/...` POST goes through the SAME door (own Host, own Origin, body cap) — no second guard.
   const isAuthorPost = method === 'POST' && String(req.url).startsWith('/api/author/');
-  if (method === 'POST' && (isSettingsPost || isAuthorPost || req.url === '/api/answer' || req.url === '/api/resume' || req.url === '/api/reopen' || req.url === '/api/remove-lock')) {
+  if (method === 'POST' && (isSettingsPost || isAuthorPost || req.url === '/api/answer' || req.url === '/api/resume' || req.url === '/api/reopen' || req.url === '/api/remove-lock' || req.url === '/api/stop')) {
     const isResume = req.url === '/api/resume';
     const isReopen = req.url === '/api/reopen';
     const isRemoveLock = req.url === '/api/remove-lock';
+    const isStop = req.url === '/api/stop';
     const origin = req.headers.origin;
     if (origin !== `http://127.0.0.1:${opts.port}` && origin !== `http://localhost:${opts.port}`) {
       refuse(res, 403, 'origin-not-own', String(origin));
@@ -366,6 +395,7 @@ export function handleRequest(req, res, opts) {
         if (isResume) resumeRoute(res, body, opts.root, opts.resumer);
         else if (isReopen) reopenRoute(res, body, opts.root, opts.resumer);
         else if (isRemoveLock) removeLockRoute(res, body, opts.root, opts.resumer);
+        else if (isStop) stopRoute(res, body, opts.root);
         else answerRoute(res, body, opts.root, opts.resumer);
       } catch (e) {
         sendJson(res, 500, { ok: false, refused: 'internal', red: 'internal error' });
@@ -375,7 +405,7 @@ export function handleRequest(req, res, opts) {
   }
 
   if (method !== 'GET' && method !== 'HEAD') {
-    sendText(res, 405, 'method not allowed — GET/HEAD for reads; the only writes are POST /api/answer, POST /api/resume, POST /api/reopen, POST /api/remove-lock, POST /api/settings/... and POST /api/author/...');
+    sendText(res, 405, 'method not allowed — GET/HEAD for reads; the only writes are POST /api/answer, POST /api/resume, POST /api/reopen, POST /api/remove-lock, POST /api/stop, POST /api/settings/... and POST /api/author/...');
     return;
   }
 

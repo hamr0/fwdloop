@@ -22,10 +22,10 @@ const root = path.join(base, 'walk');
 after(() => rmSync(base, { recursive: true, force: true }));
 
 const WORDS = {
-  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed',
+  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed', '[■]': 'stopped',
 };
 
-test('(g) one table: each of the seven signs maps to its one word, and a plain line never repeats it', () => {
+test('(g) one table: each of the eight signs maps to its one word, and a plain line never repeats it', () => {
   assert.deepEqual(SIGN_WORDS, WORDS);
   assert.deepEqual(signParts('[II]', 'stuck — your answer is saved; the run stopped before using it'),
     { word: 'stuck', line: 'your answer is saved; the run stopped before using it' });

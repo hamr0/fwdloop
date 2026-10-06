@@ -21,7 +21,7 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { readFileInside } from './flow.js';
+import { readFileInside, readdirInside } from './flow.js';
 
 function appendLine(filePath, row) {
   mkdirSync(dirname(filePath), { recursive: true });
@@ -300,4 +300,25 @@ export function appendHistory(flowDir, row) {
  */
 export function readHistory(flowDir) {
   return readLines(flowDir, 'history.jsonl');
+}
+
+/** The two outcomes a run can be continued from (M4e amendment 4 item 4): the runner leaves `halt.json` for them. */
+export const HALT_OUTCOMES = Object.freeze(['cap-halt', 'stopped']);
+
+/**
+ * The ONE rule for "how did this run end": the LAST history row of the run (a run that was stopped or cap-halted and
+ * continued has one row per leg; history stays append-only). `null` when the run has no row yet, and also while a
+ * continue is in flight: the last row is a halt row, `halt.json` is gone (the continue consumed it by rename to
+ * `halt.<n>.consumed.json`) — an older halt row is then not the run's end. A run halted before halt records existed has
+ * no consumed file, so its halt row stays final.
+ * @param {any[]} historyRows `readHistory`'s rows @param {string} runDir @param {string} runId
+ * @returns {any|null}
+ */
+export function endRow(historyRows, runDir, runId) {
+  let last = null;
+  for (const r of historyRows) if (r && r.runId === runId) last = r;
+  if (last === null || !HALT_OUTCOMES.includes(last.outcome)) return last;
+  const names = readdirInside(runDir, '.');
+  const continuing = !names.includes('halt.json') && names.some((n) => /^halt\.\d+\.consumed\.json$/.test(n));
+  return continuing ? null : last;
 }

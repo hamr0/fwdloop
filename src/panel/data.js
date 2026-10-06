@@ -28,9 +28,11 @@ import {
   readFlow, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
 } from '../flow.js';
 import {
-  readAudit, readHistory, readPidRows, auditRowTokens, auditRowAt, auditRowTools,
+  readAudit, readHistory, endRow, readPidRows, auditRowTokens, auditRowAt, auditRowTools,
 } from '../books.js';
-import { readAsk, readRunState, readLog } from '../runner.js';
+import {
+  readAsk, readRunState, readLog, readHaltRecord, stopPending,
+} from '../runner.js';
 import { readSpendRows } from '../provider.js';
 import {
   runLiveness, booksFresh, readResumeLock,
@@ -219,7 +221,7 @@ export const CRASHED_LABEL = 'crashed after taking your answer — start a fresh
  * @type {Record<string, string>}
  */
 export const SIGN_WORDS = {
-  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed',
+  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed', '[■]': 'stopped',
 };
 
 /**
@@ -317,6 +319,7 @@ export function glyphPulses(g) {
  * `computeGlyph`, the derivation the M4a POC proved against every real run
  * on disk. Ladder wording (M4a scope item 4):
  *  - `[✓]` passed — a history row with `outcome:'complete'`.
+ *  - `[■]` stopped (M4e amendment 4) — a history row `stopped`, or `cap-halt` with a halt record to continue from.
  *  - `[✗]` failed — a history row with any other outcome (never `[?]`).
  *  - `[·]` waiting on you — parked (`ask.json` present), no consumed answer,
  *    NOT past its own `expiresAt`.
@@ -348,14 +351,17 @@ export function glyphPulses(g) {
  *    A saved answer with a live process is `[▶]` working on your answer.
  *  - `[?]` crashed after taking your answer (amendment 2 (f)) — the answer was
  *    consumed, the process is gone, no end row: cannot be carried on.
- * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string}} ctx
- * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]'|'[II]', label: string}}
+ * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string, resumable?: boolean}} ctx
+ * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]'|'[II]'|'[■]', label: string}}
  */
 export function computeGlyph({
-  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock,
+  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock, resumable,
 }) {
   if (historyRow) {
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
+    // M4e amendment 4 item 4: a run the human stopped, or one that hit its money cap and can be continued, is `[■]` stopped — never "failed".
+    if (historyRow.outcome === 'stopped') return { glyph: '[■]', label: 'stopped — after the step that was running; Resume to go on' };
+    if (historyRow.outcome === 'cap-halt' && resumable) return { glyph: '[■]', label: 'stopped — the money cap was reached; raise it and Resume' };
     // M4b amendment 3: a run the human ended on purpose with rerun is not a failure.
     if (historyRow.outcome === 'rerun') return { glyph: '[✗]', label: 'stopped by you (rerun), a fresh run was started' };
     // M4c-fix amendment 1 (c): a run ended because its ask expired is `[!]` expired, never failed (it spent nothing more).
@@ -841,7 +847,8 @@ export function summarizeSpendRows(spendRows) {
 function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attempt = null) {
   const flowRead = readFlow({ root, name: flowName, catalogue });
   const historyRows = readHistory(flowDir);
-  const historyRow = historyRows.find((r) => r && r.runId === runId) ?? null;
+  const historyRow = endRow(historyRows, runDir, runId);
+  const halt = readHaltRecord(runDir);
   const auditRows = readAudit(runDir);
   const spendRows = readSpendRows(join(runDir, 'spend.jsonl'));
   const logJson = readLog(runDir);
@@ -859,6 +866,8 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     runDir,
     flowRead,
     historyRow,
+    // M4e amendment 4 item 4: a cap-halted or stopped run that can be continued (`halt.json` is the runner's record)
+    resumable: halt.ok && historyRow !== null && historyRow.outcome === halt.halt.outcome,
     auditRows,
     spendRows,
     logJson,
@@ -889,6 +898,42 @@ function lastPidStartedAt(runDir) {
 const RUNNING_WHY = 'still running — not finished yet';
 /** @param {any} ctx @param {string} glyph */
 const isRunningNow = (ctx, glyph) => !ctx.historyRow && glyph === '[▶]';
+
+/**
+ * M4e amendment 4 item 4: the ONE decision for the Run tab's Stop and Resume buttons (the Stop and Resume doors read the
+ * same object, so the page never offers what the door would refuse). `running` is the glyph's own rule (`isRunningNow`);
+ * a run with no process record yet is `starting`; a parked run (`[·]`/`[!]`, an open ask) is neither.
+ * @param {any} ctx `loadRunContext`'s result @param {string} glyph `computeGlyph`'s sign
+ * @returns {{canStop: boolean, stopRequested: boolean, starting: boolean, canResume: boolean, resumeOutcome: string|null, spentUsd: number|null, spendComplete: boolean|null, capUsd: number|null}}
+ */
+export function runControls(ctx, glyph) {
+  const running = isRunningNow(ctx, glyph) && !ctx.askJson;
+  const starting = !ctx.historyRow && !ctx.askJson && readPidRows(ctx.runDir).length === 0;
+  const canResume = ctx.resumable === true;
+  return {
+    canStop: running,
+    stopRequested: running && stopPending(ctx.runDir),
+    starting,
+    canResume,
+    resumeOutcome: canResume ? ctx.historyRow.outcome : null,
+    spentUsd: canResume && typeof ctx.historyRow.spentUsd === 'number' ? ctx.historyRow.spentUsd : null,
+    spendComplete: canResume ? ctx.historyRow.spendComplete !== false : null,
+    capUsd: canResume && typeof ctx.historyRow.capUsd === 'number' ? ctx.historyRow.capUsd : null,
+  };
+}
+
+/**
+ * `runControls` for one run read straight from the books (the Stop door's own read). `null` when the run does not resolve.
+ * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
+ */
+export function getRunControls({
+  root, flow, runId, catalogue,
+}) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok || !existsSync(run.runDir)) return null;
+  const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null);
+  return runControls(ctx, computeGlyph(ctx).glyph);
+}
 
 /**
  * `GET /api/runs` — every flow under `root`, every run under each flow
@@ -952,6 +997,7 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
         ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
         pulse: glyphPulses({ glyph, label }),
         stuck: glyph === '[II]',
+        controls: runControls(ctx, glyph),
         resume: ctx.resume,
         spend,
         spendWhy: (!ctx.historyRow && spend === null)
@@ -1209,6 +1255,9 @@ export function getRunDetail({
     // M4b amendment 3: the human ended this run on purpose; an earlier redo's
     // audit row is not "why it stopped".
     stopReasonWhy = 'stopped by you (rerun), a fresh run was started — there is no failure to show';
+  } else if (ctx.historyRow && ctx.historyRow.outcome === 'stopped') {
+    // M4e amendment 4: the human's Stop is not a failure on any step; no step card carries it.
+    stopReasonWhy = typeof ctx.logJson?.red === 'string' && ctx.logJson.red.length > 0 ? ctx.logJson.red : 'stopped by you';
   } else if (ctx.resume && (ctx.resume.state === 'starting' || ctx.resume.state === 'not-started')) {
     // M4b amendment 1: the human already answered — never "waiting on you".
     stopReasonWhy = ctx.resume.reason ? `${ctx.resume.label}: ${ctx.resume.reason}` : ctx.resume.label;
@@ -1287,6 +1336,7 @@ export function getRunDetail({
     ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
     signWords: SIGN_WORDS,
     pulse: glyphPulses({ glyph, label }),
+    controls: runControls(ctx, glyph),
     resume: ctx.resume,
     outcome: ctx.historyRow ? ctx.historyRow.outcome : null,
     outcomeWhy: ctx.historyRow ? null : (isRunningNow(ctx, glyph) ? RUNNING_WHY : 'no history row (parked or died before completion)'),
@@ -1913,7 +1963,7 @@ export function getRunAsks({
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
-  const histRow = readHistory(run.flowDir).find((r) => r && r.runId === runId);
+  const histRow = endRow(readHistory(run.flowDir), run.runDir, runId) ?? undefined;
   const hasHistoryRow = !!histRow;
   // hamr's 2026-09-27 browser-walk bug #4: the Ask tab's own asks must carry
   // the SAME `open`/`timeLeftMs` fields listStops already computes for the
@@ -1982,19 +2032,18 @@ export function listStops({ root, resumeAttempt }) {
   for (const flowName of listFlowNames(root)) {
     const flowDir = join(root, flowName);
     const historyRows = readHistory(flowDir).filter((r) => r && typeof r.runId === 'string');
-    const historyRunIds = new Set(historyRows.map((r) => r.runId));
-    const expiredEnds = new Set(historyRows.filter((r) => r.outcome === 'ask-expired').map((r) => r.runId));
     for (const runId of listRunIds(flowDir)) {
       const run = resolveRunPath(root, flowName, runId);
       if (!run.ok) continue;
-      const hasHistoryRow = historyRunIds.has(runId);
+      const end = endRow(historyRows, run.runDir, runId);
+      const hasHistoryRow = end !== null;
       const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flowName, runId) ?? null, ask: readAsk(run.runDir) });
       // M4c amendment 2: stuck by the ONE rule (`stuckState`), marked on the ask whose answer is saved.
       const st = runStuck(run.runDir, resume);
       const stuckAskId = !hasHistoryRow && st.stuck ? (resume?.askId ?? null) : null;
       const openAskJson = hasHistoryRow ? null : readAsk(run.runDir);
       const savedAskId = readSavedAnswer(run.runDir)?.askId;
-      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, expiredEnds.has(runId)).map((ask) => ({
+      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, end?.outcome === 'ask-expired').map((ask) => ({
         flow: flowName,
         runId,
         ...ask,

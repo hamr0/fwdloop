@@ -160,6 +160,11 @@
   /* M4c amendment 2: stuck — answer saved, nobody carrying the run on. Its own glyph,
      amber like the other "needs you" signs; it pulses (server-decided, glyphPulses). */
   .dot.stuck::before{content:"[II]";color:var(--amber);}
+  /* M4e amendment 4: stopped — by you, or at the money cap; Resume goes on. Grey like the other quiet end, never the red [✗]. */
+  .dot.stopped::before{content:"[■]";color:var(--grey-dot);}
+  /* the Run tab's top action row (Stop, Resume) */
+  .run-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;}
+  .run-actions .answer-msg{margin-top:0;flex:1 1 100%;}
   /* M4c: only the two "alive" signs pulse — [▶] running and [·] waiting on
      you — keyed to `.pulse`, which the server decides (glyphPulses), never to
      a colour class (.grey is also the placeholder dot). A gentle opacity wave on the existing colors;
@@ -865,6 +870,7 @@
         <section id="panel-run" class="tabpanel active" role="tabpanel" aria-labelledby="tab-run">
           <div id="run-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run from Workflows or History</div>
           <div id="run-content" hidden>
+            <div class="run-actions" id="run-actions" data-testid="run-actions" hidden></div>
             <div class="counters" id="run-counters" data-testid="live-counters"></div>
             <div class="summary-box" id="run-summary" data-testid="run-summary"></div>
             <div class="map-box" data-testid="step-map" id="map-box"><div id="map-mount"></div></div>
@@ -1226,6 +1232,7 @@
     // (never "amber", which draws the reserved running arrow [▶]).
     if(g === "[!]") return "expired";
     if(g === "[II]") return "stuck";
+    if(g === "[■]") return "stopped";
     return "grey"; // "[·]" — waiting on a human, or answered-not-resumed
   }
 
@@ -1771,6 +1778,7 @@
         '<div class="chips" role="group" aria-label="Filter">' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✓]" title="passed" data-testid="chip-' + scope + '-res-pass">✓</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✗]" title="stopped" data-testid="chip-' + scope + '-res-fail">✗</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[■]" title="stopped, can be resumed" data-testid="chip-' + scope + '-res-stopped">■</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[·]" title="waiting on a human" data-testid="chip-' + scope + '-res-waiting">&middot;</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[▶]" title="running" data-testid="chip-' + scope + '-res-running">▶</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[?]" title="died or unknown" data-testid="chip-' + scope + '-res-unknown">?</button>' +
@@ -2042,6 +2050,7 @@
       '<div class="summary-row" data-testid="summary-close"><span class="sum-label">close:</span><span class="sum-val">' + escapeXml(closeText) + '</span></div>' +
       '<div class="summary-row" data-testid="summary-spend"><span class="sum-label">spend:</span><span class="sum-val">' + spendSummaryText(detail.spendSummary) + '</span></div>';
 
+    renderRunActions(detail);
     renderStepMap(stepBoxes);
 
     var listEl = document.getElementById("step-list");
@@ -2078,6 +2087,36 @@
       card.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); card.click(); } });
       listEl.appendChild(card);
     });
+  }
+  // M4e amendment 4 item 4: the Run tab's top action row. Stop shows only while the server says the run is running
+  // (`detail.controls.canStop`, the same decision the door reads) and reads "stopping after this step…" once asked;
+  // Resume shows on a stopped or cap-halted run. The server is the arbiter: a refusal is shown in its own words.
+  var stopSay = null;
+  function renderRunActions(detail){
+    var el = document.getElementById("run-actions");
+    var c = detail.controls || {};
+    el.innerHTML = "";
+    if(stopSay && stopSay.key !== detail.flow + "/" + detail.runId) stopSay = null;
+    if(c.canStop){
+      var stopBtn = makeButton(c.stopRequested ? "stopping after this step\u2026" : "Stop", "run-stop", function(){
+        stopBtn.disabled = true;
+        postJSON("/api/stop", { flow: detail.flow, runId: detail.runId }).then(function(r){
+          if(r.status === 202 && r.body && r.body.ok){ stopSay = null; }
+          else { stopSay = { key: detail.flow + "/" + detail.runId, text: (r.body && r.body.say) || "The run could not be stopped." }; }
+          return reloadRun(detail.flow, detail.runId);
+        }).catch(function(){
+          stopSay = { key: detail.flow + "/" + detail.runId, text: networkText() };
+          return reloadRun(detail.flow, detail.runId);
+        });
+      });
+      stopBtn.disabled = !!c.stopRequested;
+      el.appendChild(stopBtn);
+    }
+    if(c.canResume){
+      el.appendChild(makeButton("Resume", "run-resume", function(){ if(window.fwdloopOpenResume) window.fwdloopOpenResume(detail); }));
+    }
+    if(stopSay){ var m = document.createElement("div"); m.className = "answer-msg refused"; m.setAttribute("data-testid", "run-stop-say"); m.textContent = stopSay.text; el.appendChild(m); }
+    el.hidden = el.children.length === 0;
   }
   // A plain lower-case, non-bold data line (hamr's 2026-09-27 styling
   // ruling: only the header is upper case/bold) — every non-header line on
@@ -2675,7 +2714,7 @@
   var wasHidden = false;
   // One writer of `openRunLive`: every paint of the open run's detail goes through here.
   function paintRun(d){
-    openRunLive = !(d && (d.glyph === "[\u2713]" || d.glyph === "[\u2717]"));
+    openRunLive = !(d && (d.glyph === "[\u2713]" || d.glyph === "[\u2717]" || d.glyph === "[\u25A0]"));
     var next = sig(d);
     if(next !== null && next === lastSig.detail) return;
     lastSig.detail = next;
@@ -2756,6 +2795,7 @@
     if(detail && detail.glyph === "[✓]") return { done: true, cls: "info", text: "run finished [✓] — the sent artifact is in the Run tab" };
     if(detail && detail.outcome === "rerun") return { done: true, cls: "info", text: "rerun: this run ended and a fresh run was started — find it in Runs" };
     if(detail && detail.glyph === "[✗]") return { done: true, cls: "info", text: "run ended [✗] " + (detail.label || "") };
+    if(detail && detail.glyph === "[■]") return { done: true, cls: "info", text: "run stopped [■] — " + (detail.line || detail.label || "") };
     var st = asks && asks.resume ? asks.resume.label : null;
     return { done: false, cls: "info", text: (st || "answer applied") + " — run: " + ((detail && detail.label) || "state unknown") };
   }

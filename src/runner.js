@@ -54,7 +54,7 @@ import {
 import { WIRED_VERBS } from './primitives.js';
 import { configHome, configDoorHome } from './config.js';
 import { closeByClass } from './closers.js';
-import { appendAudit, appendHistory } from './books.js';
+import { appendAudit, appendHistory, HALT_OUTCOMES } from './books.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
 } from './liveness.js';
@@ -80,6 +80,51 @@ export const MAX_ATTEMPTS = 4;
  *  orders of magnitude below the cheapest real round (audit rows here run
  *  $0.0006+), so nothing a real tamper produces can hide inside it. */
 export const SPEND_TOLERANCE_USD = 1e-9;
+
+// ---------------------------------------------------------------------------
+// M4e amendment 4 item 4 (Stop) and the halt record Resume continues from.
+//
+// `stop.request` is written by the panel's Stop door (`requestStop`, its one writer) and read ONLY at the seam at the top of
+// `foldFromStep`'s loop, i.e. after the previous step closed (its artifact written, its audit rows booked): every kind of
+// step (model, a non-ask hitl pass-through, the signed send, an accepted ask) therefore reads it the same way. The reader
+// consumes it (unlink) and the run ends `stopped`. A park clears a pending request (a parked run is not running); a stop that
+// arrives after the last step closed finds nothing left to stop and the run completes.
+//
+// `halt.json` is the one record a `cap-halt` or `stopped` run leaves for Resume (`continueRun`): where to re-enter (`stepIndex`,
+// the first step whose artifact is not written), what was frozen/signed, and the hitl evidence not yet shown to an ask. Money and
+// the spend-complete floor are NOT in it: the books (audit.jsonl) are the source of truth and `continueRun` re-sums them.
+// Write-once (`wx`); `continueRun` consumes it by rename to `halt.<n>.consumed.json`, so "resumable" = halt.json exists.
+// ---------------------------------------------------------------------------
+
+export const STOP_FILE = 'stop.request';
+export const HALT_FILE = 'halt.json';
+
+/** The panel's one write of a stop request. `'exists'` = already asked, nothing more to do. @param {string} runDir */
+export function requestStop(runDir) {
+  try {
+    writeFileSync(join(runDir, STOP_FILE), `${JSON.stringify({ at: new Date().toISOString() })}\n`, { mode: 0o600, flag: 'wx' });
+    return 'written';
+  } catch (err) {
+    if (err.code === 'EEXIST') return 'exists';
+    throw err;
+  }
+}
+
+/** Is a stop pending for this run? (read-only; the seam is the one consumer) @param {string} runDir */
+export function stopPending(runDir) {
+  return readFileInside(runDir, STOP_FILE).ok;
+}
+
+function clearStop(runDir) {
+  try { unlinkSync(join(runDir, STOP_FILE)); } catch { /* none pending */ }
+}
+
+/** The one reader of halt.json: `{ok:true, halt}`, `{ok:false, missing:true}` (not resumable), or `{ok:false, red}`. @param {string} runDir */
+export function readHaltRecord(runDir) {
+  const r = readFileInside(runDir, HALT_FILE);
+  if (!r.ok) return r.missing ? { ok: false, missing: true } : { ok: false, red: `halt.json — ${r.red}` };
+  try { return { ok: true, halt: JSON.parse(r.text) }; } catch (err) { return { ok: false, red: `halt.json is not valid JSON — ${err.message}` }; }
+}
 
 // ---------------------------------------------------------------------------
 // Money — piece 2 wires live provider rates; this piece takes a per-attempt
@@ -1175,6 +1220,7 @@ async function runAskSlot({
       // at its final outcome (complete / a halt / ask-expired), written by
       // `foldFromStep`/`resumeRun`, never here.
       writeLog(runDir, { runId, outcome: 'paused', attempts: attemptsLog, artifacts });
+      clearStop(runDir); // a parked run is not running: a Stop that landed during this step has nothing left to stop
       return {
         type: 'paused',
         result: {
@@ -1298,6 +1344,16 @@ async function foldFromStep({
 
   for (let i = i0; i < steps.length; i += 1) {
     const step = steps[i];
+
+    // M4e amendment 4 item 4: the Stop seam. Step i-1 has closed (artifact written, rows booked); a pending request ends the run here.
+    if (stopPending(runDir)) {
+      clearStop(runDir);
+      return haltRun({
+        flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+        outcome: 'stopped', red: `stopped by you before step ${i + 1} ("${step.goal}")`,
+        resumeAt: { stepIndex: i, flowRoot, flowName, inputsManifest, unjudged: runUnjudged },
+      });
+    }
 
     // --- the signed send slot: never through modelStep, only after an
     // accept THIS run, re-checked at write time. ---
@@ -1436,6 +1492,7 @@ async function foldFromStep({
       if (askResult.type === 'halted') {
         return haltRun({
           flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
+          resumeAt: { stepIndex: i, flowRoot, flowName, inputsManifest, unjudged: evidenceUnjudged },
         });
       }
 
@@ -1470,6 +1527,7 @@ async function foldFromStep({
     if (!stepResult.ok) {
       return haltRun({
         flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: stepResult.outcome, red: stepResult.red,
+        resumeAt: { stepIndex: i, flowRoot, flowName, inputsManifest, unjudged: runUnjudged },
       });
     }
     writeArtifact(runDir, step.emits, stepResult.artifact);
@@ -1496,6 +1554,7 @@ async function foldFromStep({
   writeLog(runDir, {
     runId, outcome: 'complete', attempts: attemptsLog, artifacts,
   });
+  clearStop(runDir);
   return {
     outcome: 'complete', runDir, artifacts, spentUsd: spent.value,
   };
@@ -2046,6 +2105,7 @@ export async function resumeRun({
     if (askResult.type === 'halted') {
       return haltRun({
         flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs: getNowMs, signatureHash: state.signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
+        resumeAt: { stepIndex: state.stepIndex, flowRoot: root, flowName: name, inputsManifest: state.inputsManifest, unjudged: state.evidenceUnjudged ?? [] },
       });
     }
 
@@ -2174,10 +2234,12 @@ export function readAsk(runDir) {
  *   earlier attempt this run, that already left `spendComplete: false`).
  *   ANDed with this halt's own outcome-based verdict — once false, always
  *   false. Defaults to `true` (every pre-existing call site is unaffected).
+ * @param {{stepIndex: number, flowRoot: string, flowName: string, inputsManifest: any, unjudged?: any[]}|null} [opts.resumeAt] - M4e
+ *   amendment 4 item 4: where a `cap-halt`/`stopped` run is re-entered; `haltRun` writes `halt.json` from it (and only for those outcomes).
  */
 function haltRun({
   flowDir, runDir, runId, capUsd, startedAt, now, nowMs = Date.now, outcome, red, spent, attempts = [], artifacts = {}, signatureHash = null,
-  priorSpendComplete = true,
+  priorSpendComplete = true, resumeAt = null,
 }) {
   // F45 finding 3: `startedAt` here is always the RUN's start (every caller
   // now passes `runStartedAt` under this key — see call sites), so `wallMs`
@@ -2194,6 +2256,14 @@ function haltRun({
     writeLog(runDir, {
       runId, outcome, red, attempts, artifacts,
     });
+    // M4e amendment 4 item 4: a cap-halted or stopped run leaves the one record Resume continues from (its only writer).
+    if (resumeAt && HALT_OUTCOMES.includes(outcome)) {
+      writeFileSync(join(runDir, HALT_FILE), `${JSON.stringify({
+        runId, outcome, at: now(), flow: { root: resumeAt.flowRoot, name: resumeAt.flowName }, signatureHash, inputsManifest: resumeAt.inputsManifest,
+        stepIndex: resumeAt.stepIndex, startedAt, unjudged: resumeAt.unjudged ?? [],
+      }, null, 2)}\n`, { flag: 'wx' });
+    }
+    clearStop(runDir);
   }
   return { outcome, red, spentUsd: spent.value };
 }
