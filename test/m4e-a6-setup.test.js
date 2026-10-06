@@ -13,7 +13,7 @@ import { draftToDir, signDraft, PANEL_DRAFTS_DIR } from '../src/authoring.js';
 import { readFlow, writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { readSetup, writeSetup, SETUP_FILE } from '../src/setup.js';
-import { getRunAudit, NO_SETUP_WORDS } from '../src/panel/data.js';
+import { getRunAudit, NO_DRAFT_WORDS } from '../src/panel/data.js';
 import { writeRunValues, valuesHash } from '../src/runvalues.js';
 import { PROVIDER_SLOTS } from '../src/provider.js';
 import {
@@ -112,19 +112,19 @@ test('(d) Audit shows the Setup block first for run-1 and run-2; run-2 with its 
   assert.equal(w.ok, true, JSON.stringify(w));
   const a1 = getRunAudit({ root: s.root, flow: 'job2', runId: 'run-1' });
   const a2 = getRunAudit({ root: s.root, flow: 'job2', runId: 'run-2' });
-  assert.equal(a1.setup.present, true);
-  assert.equal(a1.setup.why, null);
-  const actions = (a) => a.setup.rows.map((x) => x.action);
+  assert.equal(a1.draft.present, true);
+  assert.equal(a1.draft.why, null);
+  const actions = (a) => a.draft.rows.map((x) => x.action);
   assert.match(actions(a1)[0], /^card/);
   assert.match(actions(a1)[1], /^draft · deepseek-flash · plan /);
   assert.match(actions(a1)[3], /^change 1 · deepseek-flash/);
   assert.match(actions(a1).at(-1), /^sign \(hamr\)/);
-  assert.equal(a1.setup.rows.length, 5, 'run-1 has no Sign & run row of its own');
-  assert.equal(a2.setup.rows.length, 6);
+  assert.equal(a1.draft.rows.length, 5, 'run-1 has no Sign & run row of its own');
+  assert.equal(a2.draft.rows.length, 6);
   assert.match(actions(a2).at(-1), /^Sign & run \(hamr\)/);
-  assert.match(a2.setup.rows.at(-1).gap, /cap \$0\.4 · destination \/tmp\/elsewhere · ask waits line 4: 30m/);
-  assert.deepEqual(a2.setup.rows.at(-1).gapWaits, [{ line: '4', wait: '30m', waitMs: 1_800_000 }], 'the page gets the wait typed, to format with plainWait');
-  assert.ok(a1.setup.rows.every((x) => x.setup === true && typeof x.attempt === 'number'), 'the same row shape the run rows have');
+  assert.match(a2.draft.rows.at(-1).gap, /cap \$0\.4 · destination \/tmp\/elsewhere · ask waits line 4: 30m/);
+  assert.deepEqual(a2.draft.rows.at(-1).gapWaits, [{ line: '4', wait: '30m', waitMs: 1_800_000 }], 'the page gets the wait typed, to format with plainWait');
+  assert.ok(a1.draft.rows.every((x) => x.setup === true && typeof x.attempt === 'number'), 'the same row shape the run rows have');
 });
 
 test('(d) a flow signed before this says so in words', async () => {
@@ -138,9 +138,9 @@ test('(d) a flow signed before this says so in words', async () => {
   mkdirSync(path.join(flowDir(s), 'runs', 'run-1'), { recursive: true });
   assert.ok(!existsSync(path.join(flowDir(s), SETUP_FILE)));
   const a = getRunAudit({ root: s.root, flow: 'job2', runId: 'run-1' });
-  assert.equal(a.setup.present, false);
-  assert.equal(a.setup.why, NO_SETUP_WORDS);
-  assert.equal(NO_SETUP_WORDS, 'no setup record (signed before amendment 6)');
+  assert.equal(a.draft.present, false);
+  assert.equal(a.draft.why, NO_DRAFT_WORDS);
+  assert.equal(NO_DRAFT_WORDS, 'no draft record', 'amendment 7 item 2: Setup is renamed Draft everywhere');
 });
 
 test('a CLI sign (no session folder) records its one plan and the sign', async () => {
@@ -152,12 +152,13 @@ test('a CLI sign (no session folder) records its one plan and the sign', async (
   assert.deepEqual(readSetup(flowDir(s)).rows.map((x) => x.kind), ['draft', 'sign']);
 });
 
-test('(d) the page draws the Setup block first, above the run rows, with the same row builder', () => {
+test('(d) the page draws the Draft as the first Audit group, a normal card inside the filters, with the same row builder', () => {
   const page = readFileSync(new URL('../src/panel/index.html', import.meta.url), 'utf8');
-  assert.ok(page.indexOf('id="audit-setup"') > 0 && page.indexOf('id="audit-setup"') < page.indexOf('id="audit-empty"'), 'Setup sits above the empty line and the run rows');
-  assert.ok(page.indexOf('id="audit-empty"') < page.indexOf('id="audit-content"'));
-  const fnAt = page.indexOf('function renderSetupBlock');
-  const body = page.slice(fnAt, page.indexOf('\n  }\n', fnAt));
-  assert.match(body, /buildAuditRowEl\(r, false\)/, 'one row builder for Setup and run rows');
-  assert.match(page, /function renderAudit\(result\)\{[^}]*renderSetupBlock\(result\)/s);
+  assert.ok(!page.includes('id="audit-setup"') && !page.includes('renderSetupBlock'), 'no separate Setup block any more');
+  const at = page.indexOf('function renderAuditGroups');
+  const body = page.slice(at, page.indexOf('\n  function renderAuditFlat', at));
+  assert.match(body, /draftGroupFor\(result\)/);
+  assert.match(body, /\(draftG \? \[draftG\] : \[\]\)\.concat\(/, 'the Draft group is FIRST');
+  assert.match(body, /buildAuditRowEl\(r, false\)/, 'one row builder for the Draft and the run rows');
+  assert.ok(page.indexOf('id="audit-content"') < page.indexOf('id="audit-groups"'), 'the groups (and so the Draft) sit inside the content with the filters above');
 });

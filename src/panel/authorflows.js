@@ -143,6 +143,11 @@ export function createFlowsDoor(opts) {
     };
   }
 
+  /** The real path of the flows folder this panel serves, or null when it is not there — the one place `root` is resolved. */
+  function realRootOrNull() {
+    try { return realpathSync(root); } catch { return null; }
+  }
+
   /** Read one flow the way the CLI will (`readFlow`: signature verified). @param {string} realRoot @param {string} name */
   function readSigned(realRoot, name) {
     const cat = loadCatalogue();
@@ -157,8 +162,8 @@ export function createFlowsDoor(opts) {
    */
   function inspect(body, keys) {
     const reply = (status, b) => ({ ok: /** @type {false} */ (false), reply: { status, body: { ok: false, ...b } } });
-    let realRoot;
-    try { realRoot = realpathSync(root); } catch { return reply(400, { refused: 'root', say: 'The flows folder this panel serves does not exist.' }); }
+    const realRoot = realRootOrNull();
+    if (realRoot === null) return reply(400, { refused: 'root', say: 'The flows folder this panel serves does not exist.' });
     const flow = typeof body?.flow === 'string' ? body.flow : '';
     const named = checkFlowName(flow);
     if (!named.ok) return reply(400, { refused: 'flow', refusals: [{ field: 'flow', say: `${named.red}.` }] });
@@ -212,8 +217,8 @@ export function createFlowsDoor(opts) {
   return {
     /** `GET /api/author/flows`. */
     flows() {
-      let realRoot;
-      try { realRoot = realpathSync(root); } catch { return { status: 200, body: { ok: true, flows: [] } }; }
+      const realRoot = realRootOrNull();
+      if (realRoot === null) return { status: 200, body: { ok: true, flows: [] } };
       const left = leftThisMonth();
       const flows = [];
       for (const name of listFlowNames(realRoot)) {
@@ -234,8 +239,8 @@ export function createFlowsDoor(opts) {
      */
     runAgain(flow, runId) {
       const no = (status, say, extra = {}) => ({ status, body: { ok: false, refused: 'run-again', say, ...extra } });
-      let realRoot;
-      try { realRoot = realpathSync(root); } catch { return no(400, 'The flows folder this panel serves does not exist.'); }
+      const realRoot = realRootOrNull();
+      if (realRoot === null) return no(400, 'The flows folder this panel serves does not exist.');
       const named = checkFlowName(flow ?? '');
       if (!named.ok) return no(400, `${named.red}.`);
       const rr = resolveRunDir(join(realRoot, flow), runId ?? '');

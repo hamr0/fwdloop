@@ -962,8 +962,6 @@
                toggle; column order everywhere is Attempt, Step (dropped in
                Grouped — the header already names it), Action, Gap, Cost,
                Verdict, Close. -->
-          <!-- M4e amendment 6 item 4: the flow's Setup (card, drafts, changes, notes, sign) first, in the same row format as the run's rows -->
-          <div id="audit-setup" data-testid="audit-setup" hidden></div>
           <div id="audit-empty" class="hint" data-testid="audit-empty" style="font-size:13px;padding:24px 0;">select a run first</div>
           <div id="audit-content" data-testid="audit-content" hidden>
             <!-- hamr's 2026-09-27 exit-check review #2: All/Human/Blocked on
@@ -1138,7 +1136,7 @@
   }
   function auditCostCellText(r){
     if(r.setup && typeof r.usd !== "number" && r.verdict === "hitl") return "—";   // a setup row you wrote (card, note, sign) has no cost
-    if(r.setup) return money(r.usd, r.spendComplete);   // a draft/change row: its own booked cost, "unknown" when nobody booked it
+    if(r.setup) return money(r.usd, r.spendComplete) + (typeof r.wallMs === "number" ? " \u00b7 " + duration(r.wallMs) : "");   // a draft/change row: its own booked cost ("unknown" when nobody booked it) and time (left out when not recorded)
     var bits = [money(r.usd, r.spendComplete)];
     var td = r.tokensDisplay;
     if(td && td.kind === "total") bits.push(td.total + " tokens");
@@ -1220,6 +1218,18 @@
       });
     }
     return out;
+  }
+  // M4e amendment 7 item 2: the Draft's one line — on the first step card and in the Audit group's header: `drafting · <time> · $<cost> · <n> calls · ✓`.
+  // `d` is the server's one Draft summary (src/panel/data.js `draftTotals`): a figure not recorded reads "unknown", never 0; a flow signed before
+  // amendment 6 reads "no draft record" and no cost.
+  function draftLineText(d){
+    if(!d || !d.present) return "drafting \u00b7 " + ((d && d.why) || "no draft record");
+    return ["drafting", typeof d.timeMs === "number" ? duration(d.timeMs) : "time unknown", d.cost || "cost unknown",
+      typeof d.calls === "number" ? countWord(d.calls, "call") : "calls unknown", "\u2713"].join(" \u00b7 ");
+  }
+  // The Map's first box: the Draft, then step 1. A box with no audit attempts of its own; its state word says "no draft record" when there is none.
+  function draftBox(d){
+    return {draft: true, emits: "drafting", goal: "", closeClass: null, primitives: [], attempts: [], tryCount: 0, tryMarks: [], state: d && d.present ? "done" : "pending", noRecord: !(d && d.present), n: 0};
   }
   // A readable local date/time instead of a raw ISO timestamp (fix #5) — an
   // unparseable value still shows the raw string (never blank/nothing), so
@@ -1396,7 +1406,8 @@
   // step number + name + try N + state, kept short so naturalBoxWidth stays
   // small and the map stays compact instead of stretching to the pane width.
   function stepTitleText(idx, s){
-    var base = (idx + 1) + ' ' + s.emits;
+    if(s.draft) return "drafting";
+    var base = (s.n || idx + 1) + ' ' + s.emits;
     var tryText = tryCountText(s.tryCount, s.attempts);
     if(tryText) base += ' — ' + tryText;
     return base;
@@ -1541,7 +1552,7 @@
           '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[1]) + '</text>';
       }
       body += '<text x="' + (x + boxW / 2) + '" y="' + stateY +
-        '" text-anchor="middle" font-size="10" fill="' + colors.textFill + '">' + escapeXml(stateWord(s.state)) + '</text>';
+        '" text-anchor="middle" font-size="10" fill="' + colors.textFill + '">' + escapeXml(s.noRecord ? "no draft record" : stateWord(s.state)) + '</text>';
       body += '</g>';
       // hamr's 2026-09-27 retry-loop review: a step whose server-computed
       // tryCount is >1 gets a dashed grey self-loop under its box, labelled
@@ -2172,10 +2183,12 @@
       '<div class="summary-row" data-testid="summary-spend"><span class="sum-label">spend:</span><span class="sum-val">' + spendSummaryText(detail.spendSummary) + '</span></div>';
 
     renderRunActions(detail);
-    renderStepMap(stepBoxes);
+    // amendment 7 item 2: the Draft is the first box of the Map (an arrow runs on to step 1); the steps keep their own numbers
+    renderStepMap(stepBoxes.length ? [draftBox(detail.draft)].concat(stepBoxes.map(function(b, i){ return Object.assign({}, b, {n: i + 1}); })) : stepBoxes);
 
     var listEl = document.getElementById("step-list");
     listEl.innerHTML = "";
+    if(stepBoxes.length) listEl.appendChild(buildDraftCardEl(detail.draft));
     stepBoxes.forEach(function(box, idx){
       var card = document.createElement("div");
       card.className = "step-card" + (box.state === "waiting" ? " running" : "");
@@ -2264,6 +2277,22 @@
     if(testId) div.setAttribute("data-testid", testId);
     div.textContent = text;
     return div;
+  }
+  // M4e amendment 7 item 2: the first card under the Map — the Draft's one line, then its rows (card, draft, notes, changes, sign) as the Audit's
+  // Draft group has them. A click opens the Audit tab on that group, like a step card's.
+  function buildDraftCardEl(d){
+    var card = document.createElement("div");
+    card.className = "step-card";
+    card.setAttribute("data-testid", "step-card-draft");
+    card.appendChild(textLineEl("step-head", draftLineText(d), "step-card-draft-line"));
+    ((d && d.rows) || []).forEach(function(r, i){
+      card.appendChild(textLineEl("step-meta", String(r.action || "") + (r.gap ? " \u00b7 " + r.gap : ""), "step-card-draft-row-" + i));
+    });
+    card.setAttribute("tabindex", "0");
+    card.setAttribute("role", "button");
+    card.addEventListener("click", function(){ openAuditGroup("drafting"); });
+    card.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); card.click(); } });
+    return card;
   }
   // The card's HEADER line: "N · step-name  [state]  [close class]" — real
   // case, bold from CSS (`.step-card .step-head`), the state/close chips
@@ -2474,6 +2503,7 @@
   // Tokens are appended ONLY when the server sent a real total (omitted,
   // never "0 tokens", for a pre-M4a-2 row or a no-model-call step).
   function auditGroupHeaderText(g){
+    if(g.draft) return draftLineText(g.summary);
     var bits = [
       "[" + g.state + "]", g.step, duration(g.timeMs), (g.cost || "cost unknown"),
       "try " + g.tryCount + " " + g.tryMarks.join(""),
@@ -2497,6 +2527,15 @@
     if(mark === "✓") return "green";
     if(mark === "✗") return "red";
     return "grey"; // "·" — still open, no resolution row yet
+  }
+  // The Draft group's header tail (amendment 7 item 2): `· <time> · $<cost> · <n> calls ✓` from the one Draft summary; a flow with no draft
+  // record says so and has no cost. Apart from buildAuditGroupHeaderEl so the step groups' title keeps no time in it.
+  function draftTailInto(tail, ds){
+    function part(cls, text){ var sp = document.createElement("span"); sp.className = cls; sp.textContent = text; tail.appendChild(sp); }
+    part("audit-fold-sep", "\u00b7 ");
+    if(!(ds && ds.present)){ tail.appendChild(document.createTextNode((ds && ds.why) || "no draft record")); return; }
+    tail.appendChild(document.createTextNode((typeof ds.timeMs === "number" ? duration(ds.timeMs) : "time unknown") + " \u00b7 " + (ds.cost || "cost unknown") + " \u00b7 " + (typeof ds.calls === "number" ? countWord(ds.calls, "call") : "calls unknown") + " "));
+    part("mark green", "\u2713");
   }
   // Builds the SAME header line `auditGroupHeaderText` renders as plain
   // text (used as this header's aria-label, for a screen reader), but as
@@ -2525,17 +2564,20 @@
     tail.className = "audit-fold-tail";
     // the dots and the word "try" are their own spans so a phone can drop them (keeping cost, N and the marks)
     function tailPart(cls, text){ var sp = document.createElement("span"); sp.className = cls; sp.textContent = text; tail.appendChild(sp); }
-    tailPart("audit-fold-sep", "· ");
-    tail.appendChild(document.createTextNode(g.cost || "cost unknown"));
-    tailPart("audit-fold-sep", " · ");
-    tailPart("audit-fold-try", "try ");
-    tailPart("audit-fold-n", g.tryCount + " ");
-    g.tryMarks.forEach(function(mark){
-      var markSpan = document.createElement("span");
-      markSpan.className = "mark " + auditMarkClass(mark);
-      markSpan.textContent = mark;
-      tail.appendChild(markSpan);
-    });
+    if(g.draft) draftTailInto(tail, g.summary);
+    else {
+      tailPart("audit-fold-sep", "· ");
+      tail.appendChild(document.createTextNode(g.cost || "cost unknown"));
+      tailPart("audit-fold-sep", " · ");
+      tailPart("audit-fold-try", "try ");
+      tailPart("audit-fold-n", g.tryCount + " ");
+      g.tryMarks.forEach(function(mark){
+        var markSpan = document.createElement("span");
+        markSpan.className = "mark " + auditMarkClass(mark);
+        markSpan.textContent = mark;
+        tail.appendChild(markSpan);
+      });
+    }
     h4.appendChild(tail);
     return h4;
   }
@@ -2550,10 +2592,17 @@
     if(auditExpandedRun !== runKey){ auditExpanded = {}; auditExpandedRun = runKey; }
     var container = document.getElementById("audit-groups");
     container.innerHTML = "";
-    if(!result || result.empty) return;
+    if(!result) return;
     var anyVisible = false;
-    (result.groups || []).forEach(function(g){
+    // amendment 7 item 2: the Draft is the first group, a normal card (collapsed by default); a run with no audit rows yet still has it
+    var draftG = draftGroupFor(result);
+    var groups = (draftG ? [draftG] : []).concat(result.empty ? [] : (result.groups || []));
+    groups.forEach(function(g){
       var rows = (g.rows || []).filter(auditRowMatchesFilter);
+      // a flow with no draft record: a header-only card that says so (shown under All; there is nothing to filter)
+      var noRecord = !!g.draft && !(g.summary && g.summary.present);
+      if(noRecord && auditFilterMode !== "all") return;
+      if(noRecord) rows = [{}];   // one placeholder so the card is drawn; it has no table
       if(rows.length === 0) return; // a group with no matching rows is hidden, never an empty shell
       anyVisible = true;
       var wrap = document.createElement("div");
@@ -2570,6 +2619,7 @@
       // seen without a click; the rest start closed. A manual toggle wins on re-render (auditExpanded).
       var failed = (g.rows || []).some(function(r){ return !!r.gap; });
       var isOpen = Object.prototype.hasOwnProperty.call(auditExpanded, g.step) ? auditExpanded[g.step] : failed;
+      if(g.draft && !Object.prototype.hasOwnProperty.call(auditExpanded, g.step)) isOpen = false;   // the Draft starts closed: its card row has a "gap" (the job text)
       wrap.classList.add("audit-fold");
       if(!isOpen) wrap.classList.add("closed");
       var header = buildAuditGroupHeaderEl(g);
@@ -2579,6 +2629,7 @@
       header.setAttribute("aria-label", auditGroupHeaderText(g));
       header.style.cursor = "pointer";
       wrap.appendChild(header);
+      if(noRecord){ container.appendChild(wrap); return; }   // nothing to open: the header already says "no draft record"
       var table = document.createElement("table");
       table.hidden = !isOpen;
       table.innerHTML = "<thead><tr><th>Attempt</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th><th>Time</th></tr></thead><tbody></tbody>";
@@ -2614,8 +2665,9 @@
   function renderAuditFlat(result){
     var tbody = document.getElementById("audit-tbody");
     tbody.innerHTML = "";
-    if(!result || result.empty) return false;
-    var rows = result.rows.filter(auditRowMatchesFilter);
+    if(!result) return false;
+    var dr = result.draft && result.draft.present ? result.draft.rows : [];
+    var rows = dr.concat(result.empty ? [] : result.rows).filter(auditRowMatchesFilter);
     rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, true)); });
     return rows.length > 0;
   }
@@ -2648,43 +2700,27 @@
       filterEmpty.hidden = true;
     }
   }
-  // M4e amendment 6 item 4: the Setup block, drawn from the server's `result.setup` with the SAME row builder as the run's rows. A flow with no
-  // setup.jsonl says so in words; the run's own Sign & run rows (amendment 5) are in the same list.
-  function renderSetupBlock(result){
-    var box = document.getElementById("audit-setup");
-    box.innerHTML = "";
-    var setup = result && result.setup;
-    if(!setup){ box.hidden = true; return; }
-    box.hidden = false;
-    var wrap = document.createElement("div");
-    wrap.className = "audit-group";
-    wrap.setAttribute("data-testid", "audit-setup-group");
-    var h = document.createElement("h4");
-    h.textContent = "Setup";
-    wrap.appendChild(h);
-    if(setup.why) wrap.appendChild(textDiv("hint", setup.why));
-    if(setup.rows && setup.rows.length){
-      var table = document.createElement("table");
-      table.innerHTML = "<thead><tr><th>Attempt</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th><th>Time</th></tr></thead><tbody></tbody>";
-      var tbody = table.querySelector("tbody");
-      setup.rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, false)); });
-      table.setAttribute("data-testid", "audit-table-setup");
-      wrap.appendChild(table);
-    }
-    box.appendChild(wrap);
+  // M4e amendment 7 item 2: the Draft as the first Audit group (one card like the steps', collapsed by default): the group header reads the server's one
+  // Draft summary; its rows (card, draft, notes, changes, sign, then this run's own Sign & run rows) come from the same row builder as the run's rows.
+  function draftGroupFor(result){
+    var d = result && result.draft;
+    if(!d) return null;
+    return {step: "drafting", draft: true, state: d.present ? "done" : "no record", summary: d.summary, rows: d.rows || []};
   }
   function renderAudit(result){
     var empty = document.getElementById("audit-empty");
     var content = document.getElementById("audit-content");
     lastAuditResult = result;
-    renderSetupBlock(result);
-    if(!result || result.empty){
+    // a run with no audit rows yet still has its Draft: say so in words, and show the card
+    var hasDraft = !!(result && result.draft);
+    if(!result || (result.empty && !hasDraft)){
       empty.hidden = false;
       empty.textContent = (result && result.why) || "no audit rows for this run";
       content.hidden = true;
       return;
     }
-    empty.hidden = true;
+    empty.hidden = !result.empty;
+    if(result.empty) empty.textContent = result.why || "no audit rows for this run";
     content.hidden = false;
     // a fresh run's own view keeps whatever mode (Grouped/Flat) the chips
     // are already showing, defaulting to Grouped on first load.

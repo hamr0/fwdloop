@@ -338,6 +338,9 @@ export async function draftToDir({
       spendComplete: result.spendComplete,
       stop: result.stop,
       budgetUsd,
+      // the draft's own time (amendment 7 item 2: the Draft's total time adds up from these); null when no call was booked
+      startedAt,
+      wallMs: startedAt === null ? null : Math.max(0, Date.now() - Date.parse(startedAt)),
     });
     for (const [f, text] of Object.entries(files)) writeFileSync(path.join(dir, f), text);
     leaks = sweepForSecrets(dir, secrets);

@@ -1356,6 +1356,8 @@ export function getRunDetail({
     wallMsWhy,
     steps,
     stepsWhy,
+    // M4e amendment 7 item 2: the Draft is the run's first step on the Map and under it — one summary, read from the same function the Audit group uses
+    draft: ((b) => ({ ...b.summary, rows: b.rows }))(getDraftBlock(ctx.flowDir, ctx.runDir)),
     modelWrote,
     modelWroteWhy,
     stopReason,
@@ -1376,26 +1378,45 @@ export function getRunDetail({
   };
 }
 
-/** The words the Audit tab's Setup block says for a flow with no `setup.jsonl` (M4e amendment 6 item 4). */
-export const NO_SETUP_WORDS = 'no setup record (signed before amendment 6)';
+/** The words the Draft says for a flow with no `setup.jsonl` (M4e amendment 6 item 4; renamed Draft by amendment 7 item 2). */
+export const NO_DRAFT_WORDS = 'no draft record';
 
 /**
- * M4e amendment 6 item 4: the Setup block of the Audit tab — the flow's own `setup.jsonl` (card, drafts, changes, notes, sign), then this
+ * What the Draft adds up to, from the draft/change rows ONE place (the Map box, the first step card and the Audit group all read it, so
+ * the three can never disagree). A figure any row did not record is unknown (`null`), never 0 and never a partial sum shown as complete;
+ * money follows `costDisplay` ("at least $X" for a floor, none when no row priced).
+ * @param {any[]} modelRows the draft and change rows (`kind` draft | change) of `setup.jsonl`
+ * @returns {{calls: number|null, timeMs: number|null, usd: number|null, spendComplete: boolean, cost: string|null, modelRows: number}}
+ */
+export function draftTotals(modelRows) {
+  const priced = modelRows.filter((r) => typeof r.costUsd === 'number');
+  const usd = priced.length > 0 ? priced.reduce((a, r) => a + r.costUsd, 0) : null;
+  const spendComplete = modelRows.length > 0 && priced.length === modelRows.length && modelRows.every((r) => r.spendComplete === true);
+  const allNum = (f) => (modelRows.length > 0 && modelRows.every((r) => typeof r[f] === 'number') ? modelRows.reduce((a, r) => a + r[f], 0) : null);
+  const cd = usd === null ? null : costDisplay(usd, spendComplete);
+  return {
+    calls: allNum('calls'), timeMs: allNum('wallMs'), usd, spendComplete, cost: cd && cd.ok ? cd.display : null, modelRows: modelRows.length,
+  };
+}
+
+/**
+ * M4e amendment 6 item 4 / amendment 7 item 2: the Draft of a run — the flow's own `setup.jsonl` (card, drafts, changes, notes, sign), then this
  * run's own signed-values rows (amendment 5: "Sign & run" for version 0, "Sign & resume" for a later version), every row in the SAME shape
  * as the run's audit rows so the page draws both with one row builder. Reads only through the safe gateways; never throws.
  * @param {string} flowDir @param {string} runDir
- * @returns {{present: boolean, why: string|null, rows: any[]}}
+ * @returns {{present: boolean, why: string|null, rows: any[], summary: {present: boolean, why?: string, calls?: number|null, timeMs?: number|null, usd?: number|null, spendComplete?: boolean, cost?: string|null, modelRows?: number}}}
  */
-export function getSetupBlock(flowDir, runDir) {
+export function getDraftBlock(flowDir, runDir) {
   const setup = readSetup(flowDir);
   const rows = [];
   const human = (r, attempt, extra) => ({
-    attempt, step: 'setup', class: 'hitl', verdict: 'hitl', at: r.at ?? null, setup: true, blocked: false, action: 'human', tokensDisplay: { kind: 'no-model' }, ...extra,
+    attempt, step: 'drafting', class: 'hitl', verdict: 'hitl', at: r.at ?? null, setup: true, blocked: false, action: 'human', tokensDisplay: { kind: 'no-model' }, ...extra,
   });
   const model = (r, attempt, label) => ({
-    attempt, step: 'setup', class: null, verdict: r.verdict === 'green' ? 'green' : (r.verdict === 'red' ? 'red' : 'not-done'), gap: r.gap ?? '', at: r.at ?? null, setup: true, blocked: false,
+    attempt, step: 'drafting', class: null, verdict: r.verdict === 'green' ? 'green' : (r.verdict === 'red' ? 'red' : 'not-done'), gap: r.gap ?? '', at: r.at ?? null, setup: true, blocked: false,
     action: `${label} · ${r.model ?? 'model not recorded'}${r.hash ? ` · plan ${String(r.hash).slice(0, 8)}` : ''}`,
     usd: typeof r.costUsd === 'number' ? r.costUsd : undefined, spendComplete: r.spendComplete === true, tokensDisplay: { kind: 'no-model' },
+    ...(typeof r.wallMs === 'number' ? { wallMs: r.wallMs } : {}),
   });
   if (setup.present) {
     setup.rows.forEach((r, i) => {
@@ -1430,7 +1451,12 @@ export function getSetupBlock(flowDir, runDir) {
       : `${file} could not be read`;
     rows.push(human({ at: rec?.at }, rows.length + 1, { action: `${version === 0 ? 'Sign & run' : 'Sign & resume'} (${rec?.signedBy ?? 'you'})`, gap, ...(waits.length ? { gapHead: head, gapWaits: waits } : {}) }));
   }
-  return { present: setup.present, why: setup.present ? null : NO_SETUP_WORDS, rows };
+  const totals = setup.present ? draftTotals(setup.rows.filter((r) => r.kind === 'draft' || r.kind === 'change')) : null;
+  // the group the Audit tab draws as a normal card (collapsed by default) and the box the Map and the first step card read
+  const summary = setup.present && totals ? { present: true, ...totals } : { present: false, why: NO_DRAFT_WORDS };
+  return {
+    present: setup.present, why: setup.present ? null : NO_DRAFT_WORDS, rows, summary,
+  };
 }
 
 /**
@@ -1440,7 +1466,7 @@ export function getSetupBlock(flowDir, runDir) {
  * shared-sidecar contamination risk here the way bareloop's gate-audit
  * sidecar had). `null` when the flow/runId doesn't resolve (404).
  * @param {{root: string, flow: string, runId: string}} opts
- * @returns {{flow:string, runId:string, rows:any[], groups:any[], setup:{present:boolean, why:string|null, rows:any[]}, empty:boolean, why:string|null}|null}
+ * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, empty:boolean, why:string|null}|null}
  */
 export function getRunAudit({ root, flow, runId }) {
   const run = resolveRunPath(root, flow, runId);
@@ -1462,7 +1488,7 @@ export function getRunAudit({ root, flow, runId }) {
     // step header pieces, computed here off these SAME enriched rows —
     // never a second, client-side re-grouping.
     groups: deriveAuditGroups(rows),
-    setup: getSetupBlock(run.flowDir, run.runDir),
+    draft: getDraftBlock(run.flowDir, run.runDir),
     empty: rows.length === 0,
     why: rows.length === 0 ? 'audit.jsonl is empty or missing — no attempt has been made yet' : null,
   };

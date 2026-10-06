@@ -3,7 +3,7 @@
 // into the flow folder as `setup.jsonl`. It sits outside the three signed files (`FLOW_FILES`), so `readFlow` and the signature never see
 // it. ONE writer (`writeSetup`, called from `signDraft`, which the CLI and the panel both use) and ONE reader (`readSetup`).
 //
-// What each row throws away: a draft/change row keeps model, cost, verdict, plan hash and its first red, NOT the plan itself (the signed
+// What each row throws away: a draft/change row keeps model, cost, calls, time, verdict, plan hash and its first red, NOT the plan itself (the signed
 // declaration is the plan) nor the model's tokens/rounds; a card row keeps the card's own typed fields; a note keeps its text verbatim.
 // Third outcomes: a draft with no result is `stopped`; a cost nobody booked is `null` (shown "unknown", never $0).
 import { lstatSync, writeFileSync } from 'node:fs';
@@ -45,6 +45,8 @@ function planRow(sessionDir, rel, kind, n) {
   return {
     kind, n, at: typeof spent?.at === 'string' ? spent.at : null, model: spent?.model ?? log?.modelId ?? null,
     costUsd: typeof spent?.costUsd === 'number' ? spent.costUsd : null, spendComplete: spent ? spent.spendComplete !== false && typeof spent.costUsd === 'number' : false,
+    // calls and time as the draft booked them; null = not recorded (never 0)
+    calls: Number.isInteger(spent?.calls) ? spent.calls : null, wallMs: typeof spent?.wallMs === 'number' ? spent.wallMs : null,
     verdict, hash, gap,
   };
 }

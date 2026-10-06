@@ -426,7 +426,7 @@ const ALLOWLIST = {
   },
   'src/panel/authorflows.js': {
     reason: 'M4e piece 2b: the Run-a-signed-flow door — realpathSync of the typed --root at use time, and one lstatSync of each run\'s `inputs.json` for its mtime only (to find the NEWEST run; nothing is read from it this way — the manifest itself is read through readFileInside). Writes nothing.',
-    names: { lstatSync: 1, realpathSync: 2 },
+    names: { lstatSync: 1, realpathSync: 1 },
   },
   'src/panel/lock.js': {
     reason: 'M4c-fix amendment 2 (h): the human\'s "Remove the old lock" — realpaths the run dir and --root at use time (the lock must sit inside this run, inside root), then unlinks the one `resume.lock` file, and only when `readResumeLock` (the one lock reader) says it has no recorded holder. No book content is read.',
