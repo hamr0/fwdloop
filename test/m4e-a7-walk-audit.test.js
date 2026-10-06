@@ -132,3 +132,14 @@ test('walk 4: a narrow Audit group header wraps so the name keeps its own readab
   assert.match(blk, /h4\.audit-status-header\{flex-wrap:wrap;/);
   assert.match(blk, /\.audit-fold-name\{[^}]*white-space:normal;[^}]*overflow-wrap:anywhere/);
 });
+
+test('walk 2: a Stop before a step\'s first call (Resume then an immediate Stop) words itself by the step it is filed under — one value, not "after step N-1" filed under N', async () => {
+  const w = mk('g4');
+  const { fn } = fake();
+  const cut = async (ctx, ...rest) => (emitsOf(ctx) === 'resume-summary' ? { ok: false, stopped: true, costUsd: 0, turns: 0 } : fn(ctx, ...rest));
+  const r = await runFlow({ ...args(w, cut), sources: w.sources });
+  assert.equal(r.outcome, 'stopped', r.red);
+  const row = stopRows(w.runDir).find((x) => x.verdict === 'stopped');
+  assert.equal(row.step, 'resume-summary');
+  assert.equal(row.gap, 'stopped before try 1 of step 3', 'the words name the step the row is filed under');
+});

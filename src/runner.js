@@ -704,7 +704,7 @@ async function runStepRalph({
   let lastTurns = null;
   const stopWords = (tryNo, turns) => (turns > 0
     ? `stopped after turn ${turns} of try ${tryNo} of step ${stepNo}`
-    : (tryNo > 0 ? `stopped after try ${tryNo} of step ${stepNo}` : (stepNo > 1 ? `stopped after step ${stepNo - 1}` : 'stopped before step 1')));
+    : (tryNo > 0 ? `stopped after try ${tryNo} of step ${stepNo}` : `stopped before try 1 of step ${stepNo}`)); // the words name this step, the one the row is filed under
   /** The ralph's return for a Stop: the cut try's own row fields (`book`) ride the one `stopped` row `settleStop` writes.
    *  @param {string} where @param {Record<string, any>} [book] @returns {{ok:false, outcome:string, red:string, stop:{where:string, book:Record<string, any>, step:string|null}}} */
   const stopped = (where, book = {}) => ({
