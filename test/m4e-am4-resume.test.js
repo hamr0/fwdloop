@@ -230,6 +230,30 @@ test('am4 (e) door: Resume over HTTP — cap-halted run, same run id, the new ca
   assert.equal(parked.json().refused, 'not-resumable');
 });
 
+test('walk fix 4: two Resume POSTs back to back with the same hash — exactly one continues, the other is refused in words, $0, nothing more signed', async () => {
+  const w = await world({ limit: 5 });
+  const { flowDir } = await w.signedFlow({ capUsd: '0.05' });
+  const runDir = path.join(flowDir, 'runs', 'r1');
+  await w.post('/api/author/run', { flow: 'job2', inputs: w.inputs(), runId: 'r1' });
+  await until(async () => (await w.get('/api/runs/job2/r1')).json()?.glyph === '[■]');
+  const startsBefore = w.starts().length;
+  const { hash } = (await w.post('/api/author/resume-prepare', { flow: 'job2', runId: 'r1', capUsd: '0.25' })).json();
+  const body = { flow: 'job2', runId: 'r1', capUsd: '0.25', hash };
+  const [a, b] = await Promise.all([w.post('/api/author/resume', body), w.post('/api/author/resume', body)]);
+  const codes = [a.status, b.status].sort();
+  assert.equal(codes[0], 202, `one resume goes ahead: ${a.text} / ${b.text}`);
+  assert.equal(codes[1], 409, 'the other is refused');
+  const refused = (a.status === 409 ? a : b).json();
+  assert.equal(refused.ok, false);
+  assert.match(refused.say, /\S{3,} \S{3,} \S{3,}/, 'in words');
+  // a third, after the first has written its version, is refused too
+  const c = await w.post('/api/author/resume', body);
+  assert.equal(c.status, 409);
+  assert.equal(w.starts().length, startsBefore + 1, 'exactly one continue process was started');
+  assert.deepEqual(readdirSync(runDir).filter((n) => /^signed-values-/.test(n)), ['signed-values-r1.json'], 'one signed values file');
+  await until(async () => { const d = (await w.get('/api/runs/job2/r1')).json(); return d?.glyph === '[·]' && d.controls.canStop === false ? d : null; });
+});
+
 test('am4 (e) door: a Resume whose remaining cap does not fit the month is refused at $0 with the one refusal text; a run that is not stopped is not resumable', async () => {
   const w = await world({ limit: 0.3 });
   await w.signedFlow({ capUsd: '0.05' });

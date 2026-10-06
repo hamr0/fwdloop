@@ -122,3 +122,18 @@ test('every id on the page is unique (the Run and Resume forms added ids)', () =
   const dupes = ids.filter((i) => (seen.has(i) ? true : (seen.add(i), false)));
   assert.deepEqual(dupes, []);
 });
+
+test('walk fix 4: after Sign & resume click 2 the Run tab shows a disabled "resuming…" instead of Resume until the run is live/ended, the start is refused, or 30 s pass', () => {
+  const at = PAGE.indexOf('  function resumeWaiting(');
+  const fn = new Function(`var RESUMING_MAX_MS = 30000;\n${PAGE.slice(at, PAGE.indexOf('\n  }\n', at) + 5)}\nreturn resumeWaiting;`)();
+  const m = { key: 'f/r1', at: 1000 };
+  assert.equal(fn(m, 'f/r1', true, 2000), true, 'still stopped after click 2: wait');
+  assert.equal(fn(m, 'f/r1', false, 2000), false, 'live or ended: nothing to wait for');
+  assert.equal(fn(m, 'f/r2', true, 2000), false, 'another run is not held');
+  assert.equal(fn(null, 'f/r1', true, 2000), false);
+  assert.equal(fn(m, 'f/r1', true, 1000 + 30000), false, 'a child that died: Resume comes back');
+  const RA = PAGE.slice(PAGE.indexOf('  function renderRunActions('), PAGE.indexOf('  // A plain lower-case, non-bold data line'));
+  assert.match(RA, /makeButton\("resuming\\u2026", "run-resuming"[\s\S]*?disabled = true/, 'the replacement button is disabled');
+  assert.match(CHAT, /window\.fwdloopResuming = \{key: resumingKey, at: Date\.now\(\)\};\n\s+beginStart\(/, 'set only once click 2 was accepted');
+  assert.match(CHAT, /window\.fwdloopResuming = null; \/\/ a refused start/, 'a refused start gives Resume back');
+});

@@ -2146,6 +2146,13 @@
   // (`detail.controls.canStop`, the same decision the door reads) and reads "stopping after this step…" once asked;
   // Resume shows on a stopped or cap-halted run. The server is the arbiter: a refusal is shown in its own words.
   var stopSay = null;
+  // Walk fix 4: after Sign & resume click 2 is accepted the run is still "stopped" for a few seconds. `window.fwdloopResuming`
+  // ({key, at}, set by the Chat card, the one writer) keeps Resume from being offered again until a detail read shows the run live or
+  // ended (canResume false), or the start was refused, or 30 s pass (a child that died leaves the run stopped; Resume must come back).
+  var RESUMING_MAX_MS = 30000;
+  function resumeWaiting(m, key, canResume, now){
+    return !!m && m.key === key && canResume && now - m.at < RESUMING_MAX_MS;
+  }
   function renderRunActions(detail){
     var el = document.getElementById("run-actions");
     var c = detail.controls || {};
@@ -2166,7 +2173,13 @@
       stopBtn.disabled = !!c.stopRequested;
       el.appendChild(stopBtn);
     }
-    if(c.canResume){
+    var runKey = detail.flow + "/" + detail.runId;
+    if(window.fwdloopResuming && window.fwdloopResuming.key === runKey && !c.canResume) window.fwdloopResuming = null;
+    if(resumeWaiting(window.fwdloopResuming, runKey, !!c.canResume, Date.now())){
+      var rb = makeButton("resuming\u2026", "run-resuming", function(){});
+      rb.disabled = true;
+      el.appendChild(rb);
+    } else if(c.canResume){
       el.appendChild(makeButton("Resume", "run-resume", function(){ if(window.fwdloopOpenResume) window.fwdloopOpenResume(detail); }));
     }
     if(stopSay){ var m = document.createElement("div"); m.className = "answer-msg refused"; m.setAttribute("data-testid", "run-stop-say"); m.textContent = stopSay.text; el.appendChild(m); }
@@ -4261,6 +4274,7 @@
           // the CLI's own sentence ("Nothing spent." is in it); it STAYS until the next action
           var signed = j.kind === "sign";
           stopStart();
+          window.fwdloopResuming = null; // a refused start leaves the run stopped: Resume is offered again
           refusedStartId = j.startId;
           chatActionFailed(signed ? j.say + " The flow is signed; start it from \"Run a signed flow\"." : j.say);
           if(signed){ endSession(); loadFlows(true); } else { progressRow.hidden = true; progressRow.innerHTML = ""; refreshStartEnabled(); }
@@ -4352,10 +4366,12 @@
       }
       var body = resumeBody();
       body.hash = resumeSignInfo.hash;
+      var resumingKey = resumeCtx.flow + "/" + resumeCtx.runId;
       authorPost("/api/author/resume", body).then(function(r){
         var o = chatPostOutcome(r);
         resumeSignInfo = null;
         if(!o.ok){ busy = false; failFrom(r); refreshStartEnabled(); return; }
+        window.fwdloopResuming = {key: resumingKey, at: Date.now()};
         beginStart(r.body.startId);
       }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
     }
