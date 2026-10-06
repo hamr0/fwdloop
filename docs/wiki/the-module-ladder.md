@@ -1243,7 +1243,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Balance** shows only for a slot whose shape is OpenAI-compatible and whose host is `api.deepseek.com` (bareloop's rule); other rows say "not offered by this provider".
   - **Risk, one line:** the key is sent to whatever Base URL is saved; the page is local and token-gated, same as bareloop.
   - **Negatives:** (a) a bad Base URL, an empty model id or an unknown shape is refused and nothing is saved; (b) a saved model id is what the next run's spend rows record, and it is priced by the one lookup; (c) a run already booked keeps its recorded model and price; (d) no route writes the keys file and no key value appears (unchanged).
-- **Amendment 2 — NOT SIGNED (drafted 2026-10-06): no Cached input box; cached input is priced as input.**
+- **Amendment 2 — SIGNED by hamr 2026-10-06 ("sign m4d amendment 2"): no Cached input box; cached input is priced as input.**
   - **Why:** hamr 2026-10-06: "remove cached in column from settings > providers", ruling "cached is same as input". Replaces the "cached input" box of M4d scope item 2's **Price** line (three boxes become two: input, output).
   - **1.** The Providers table shows **In $/1M** and **Out $/1M** only; the **Cached in** column is gone.
   - **2.** Cached input tokens are priced at the row's input price (the typed In $/1M, or the code table's input price when empty). Never cheaper than input, so cost is never under-counted; with a provider that discounts cached tokens it can over-count, which is the safe side.
