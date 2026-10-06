@@ -1403,6 +1403,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
     - (c) a refused destination, a too-small cap, a cap over the monthly room, or a malformed wait is refused at $0, nothing written;
     - (d) a POST that changes a job line, an ask's words or the steps through Run is refused and starts nothing;
     - (e) Resume shows only Cap $ open (amendment 4 (e) stands).
+  - **Cap:** within M4e's $0.50.
 - **Amendment 6 — NOT SIGNED (drafted 2026-10-06): a change can't fight the job line; plan sits between chat and button; setup goes into the audit.**
   - **Why:** hamr's live walk of amendments 4-5, 2026-10-06, run `m4e-exit-3 (run-1)`: the second note "put skills before work history" made the revised plan's check want the sections in the order skills, work history, while the job line (the step's goal, verbatim) says work history, skills. The step never sees its close (hard line), so the model wrote the job line's order and the check failed it four times: `failed (attempt-fallback)`, $0.0505. The machine caught it, as it should; the plan should never have been green. hamr also asked "is there a chance the plan blocks inputs/steps/asks/job lines", "draft plan should always sit between chat and button", and "should beginning part of drafting/setup get into audit, same output? i think yes".
   - **1. A change can't fight the job line.** A plan (first draft or any change) whose step check names sections in an order different from the order the step's job line names them is red, naming the step and both orders: "the job line says work history, then skills; the check says skills, then work history — change the job line on the card to change the order". The same for a section name not in the job line's words, and for a word limit tighter or looser than the line's own guardrail. A note that asks for such a change gets a red change (amendment 3: the last green plan stays signable). What a note can still change: a step's tools, what it reads, and its check where the job line and guardrail say nothing.
@@ -1416,7 +1417,6 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
     - (d) after sign, `setup.jsonl` exists with the card, every draft/change row with its cost, every note and the sign row; writing it twice is refused; Audit / logs shows the Setup block first for run-1 and for run-2; a flow signed earlier says so in words;
     - (e) no key value in `setup.jsonl` (canary).
   - **Cap:** within M4e's $0.50 ($0 build; the replay in (a) is one paid change call, about $0.01).
-  - **Cap:** within M4e's $0.50.
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
