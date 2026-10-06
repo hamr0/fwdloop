@@ -380,6 +380,9 @@
     .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC";}
     .audit-fold-sep,.audit-fold-try{display:none;}
     .audit-fold-n{margin-left:.4em;}
+    /* a narrow header WRAPS (amendment 7 walk): the name keeps a readable line of its own and the tail drops under it, never a one-letter name */
+    .audit-group.audit-fold h4.audit-status-header{flex-wrap:wrap;row-gap:2px;}
+    .audit-fold-name{flex:0 1 auto;max-width:100%;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;}
   }
   .audit-group.audit-fold table{margin-top:8px;}
   .audit-group.audit-fold table[hidden]{display:none !important;}
@@ -592,10 +595,11 @@
     [data-testid="audit-table"] td[data-label="Step"], .audit-group table td[data-label="Step"],
     [data-testid="audit-table"] td[data-label="Verdict"], .audit-group table td[data-label="Verdict"]{display:block;}
     [data-testid="audit-table"] td[data-label="Attempt"]::before, .audit-group table td[data-label="Attempt"]::before{content:"#";}
+    [data-testid="audit-table"] td[data-label="Attempt"]:empty::before, .audit-group table td[data-label="Attempt"]:empty::before{content:none;}
     [data-testid="audit-table"] td.am-glyph, .audit-group table td.am-glyph{order:1;flex:0 0 auto;}
     [data-testid="audit-table"] td[data-label="Attempt"], .audit-group table td[data-label="Attempt"]{order:2;flex:0 0 auto;color:var(--text-dim);}
     [data-testid="audit-table"] td[data-label="Step"], .audit-group table td[data-label="Step"]{order:3;flex:1 1 0;overflow:hidden;text-overflow:ellipsis;}
-    [data-testid="audit-table"] td[data-label="Verdict"], .audit-group table td[data-label="Verdict"]{order:4;flex:0 1 auto;max-width:9em;overflow:hidden;text-overflow:ellipsis;}
+    [data-testid="audit-table"] td[data-label="Verdict"], .audit-group table td[data-label="Verdict"]{order:4;flex:0 1 auto;max-width:9em;white-space:normal;overflow-wrap:anywhere;}
     [data-testid="audit-table"] td.am-cost, .audit-group table td.am-cost{order:5;flex:0 0 auto;}
     [data-testid="audit-table"] td.am-time, .audit-group table td.am-time{order:6;flex:0 0 auto;color:var(--text-dim);}
     /* no step cell (grouped view): the verdict takes the slack so cost and time sit at the right */
@@ -2419,13 +2423,13 @@
   // What a phone tap shows under the one-line entry: everything the line cut short, in full, as wrapped lines.
   // Only fields the row actually has — a line with nothing to say is left out, never filled with a made-up value.
   function auditDetailHtml(r, word, actionText, isRejectRow){
-    var lines = [["step", r.step], ["result", word], ["action", actionText]];
+    var lines = (typeof r.step === "string" && r.step.length > 0 ? [["step", r.step]] : []).concat([["result", word], ["action", actionText]]);
     if(!isRejectRow && r.gap) lines.push(["gap", auditGapText(r)]);
     if(Array.isArray(r.refused) && r.refused.length > 0){
       lines.push(["refused", r.refused.map(function(x){ return x.verb + " " + x.path + " (" + x.rule + ")"; }).join("; ")]);
     }
     if(Array.isArray(r.ungranted) && r.ungranted.length > 0) lines.push(["not granted, called anyway", r.ungranted.join(", ")]);
-    lines.push(["close", r.setup ? "—" : closeClassLabel(r.class)], ["cost", auditCostCellText(r)]);
+    lines.push(["close", auditCloseText(r)], ["cost", auditCostCellText(r)]);
     var when = readableDateTime(r.at);
     lines.push(["time", (typeof r.atWhy === "string" && r.atWhy.length > 0) ? r.atWhy : (when || "unknown")]);
     return lines.map(function(l){ return "<div class=\"am-d\"><b>" + escapeXml(l[0]) + ":</b> " + escapeXml(l[1]) + "</div>"; }).join("");
@@ -2437,6 +2441,10 @@
   // the mobile (max-width:480px) stacked-card CSS reads via `attr()` —
   // review item #4: the Time cell (and every other cell) must stay inside
   // its own card at 390px, never truncated or pushed off the page edge.
+  // The one place the Attempt and Close cells get their text: a row that is not an attempt (a Stop's note, a setup row) has no attempt
+  // number and no close class — it shows nothing / "—", never "null", "unknown" or "#null".
+  function auditAttemptText(r){ return (typeof r.attempt === "number" || (typeof r.attempt === "string" && r.attempt.length > 0)) ? String(r.attempt) : ""; }
+  function auditCloseText(r){ return (r.setup || r.class === null || r.class === undefined) ? "—" : closeClassLabel(r.class); }
   function buildAuditRowEl(r, includeStep){
     var tr = document.createElement("tr");
     var glyph = verdictGlyph(r.verdict, r.class);
@@ -2450,13 +2458,13 @@
     // pre-M4a-3 row or a non-model row appends nothing at all.
     var actionText = action + (typeof r.toolsPhrase === "string" ? " · " + r.toolsPhrase : "");
     var cells =
-      "<td data-label=\"Attempt\">" + escapeXml(String(r.attempt)) + "</td>" +
+      "<td data-label=\"Attempt\">" + escapeXml(auditAttemptText(r)) + "</td>" +
       (includeStep ? "<td data-label=\"Step\">" + escapeXml(r.step) + "</td>" : "") +
       "<td data-label=\"Action\">" + escapeXml(actionText) + "</td>" +
       "<td data-label=\"Gap\">" + escapeXml(isRejectRow ? "" : auditGapText(r)) + "</td>" +
       "<td data-label=\"Cost\">" + escapeXml(auditCostCellText(r)) + "</td>" +
       "<td data-label=\"Verdict\"><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
-      "<td data-label=\"Close\">" + escapeXml(r.setup ? "—" : closeClassLabel(r.class)) + "</td>" +
+      "<td data-label=\"Close\">" + escapeXml(auditCloseText(r)) + "</td>" +
       "<td data-label=\"Time\">" + auditTimeCellHtml(r) + "</td>" +
       // phone-only one-line cells (CSS shows these and hides the rest below 640px; hidden on desktop)
       "<td class=\"am am-glyph\" aria-hidden=\"true\">" + escapeXml(glyph || "·") + "</td>" +
@@ -2506,8 +2514,8 @@
     if(g.draft) return draftLineText(g.summary);
     var bits = [
       "[" + g.state + "]", g.step, duration(g.timeMs), (g.cost || "cost unknown"),
-      "try " + g.tryCount + " " + g.tryMarks.join(""),
     ];
+    if(!g.run) bits.push("try " + g.tryCount + " " + g.tryMarks.join(""));
     if(typeof g.tokensTotal === "number") bits.splice(4, 0, g.tokensTotal + " tokens");
     return bits.join(" · ");
   }
@@ -2565,6 +2573,7 @@
     // the dots and the word "try" are their own spans so a phone can drop them (keeping cost, N and the marks)
     function tailPart(cls, text){ var sp = document.createElement("span"); sp.className = cls; sp.textContent = text; tail.appendChild(sp); }
     if(g.draft) draftTailInto(tail, g.summary);
+    else if(g.run){ tailPart("audit-fold-sep", "· "); tail.appendChild(document.createTextNode(g.cost || "cost unknown")); }   // the run's own group: no tries, no dots
     else {
       tailPart("audit-fold-sep", "· ");
       tail.appendChild(document.createTextNode(g.cost || "cost unknown"));
@@ -2617,7 +2626,7 @@
       // map/step-card jump) does, never the initial state.
       // M4c-fix amendment 2 (f): a step with any failed try (a row with a gap) starts OPEN so its gap is
       // seen without a click; the rest start closed. A manual toggle wins on re-render (auditExpanded).
-      var failed = (g.rows || []).some(function(r){ return !!r.gap; });
+      var failed = (g.rows || []).some(function(r){ return !!r.gap && !/^stop/.test(r.verdict || ""); });   // a Stop's own words are not a failed try
       var isOpen = Object.prototype.hasOwnProperty.call(auditExpanded, g.step) ? auditExpanded[g.step] : failed;
       if(g.draft && !Object.prototype.hasOwnProperty.call(auditExpanded, g.step)) isOpen = false;   // the Draft starts closed: its card row has a "gap" (the job text)
       wrap.classList.add("audit-fold");

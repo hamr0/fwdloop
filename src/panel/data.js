@@ -692,6 +692,14 @@ export function deriveStepTryMarks(closeClass, rows) {
   return rows.map((r) => markForVerdict(r.verdict, closeClass));
 }
 
+/** A Stop's notes are not tries: the asked/not-honoured rows, and a `stopped` row that cut no try (no attempt number). */
+function isTryRow(r) {
+  return r.verdict !== 'stop-asked' && r.verdict !== 'stop-not-honoured' && !(r.verdict === 'stopped' && !Number.isInteger(r.attempt));
+}
+
+/** The name of the one group for audit rows that name no step. */
+const RUN_GROUP = 'run';
+
 /**
  * A step group's own state word for the Audit tab's collapsed header —
  * the SAME rule `src/panel/index.html`'s client-side `stepBoxState` already
@@ -706,7 +714,9 @@ export function deriveStepTryMarks(closeClass, rows) {
  * @returns {'done'|'waiting'|'stopped'}
  */
 export function deriveStepGroupState(rows) {
-  const last = rows[rows.length - 1];
+  // a Stop's notes (asked / not honoured) say nothing about the step's own state; a step with only notes reads as stopped
+  const own = rows.filter((r) => r.verdict !== 'stop-asked' && r.verdict !== 'stop-not-honoured');
+  const last = own.length > 0 ? own[own.length - 1] : rows[rows.length - 1];
   if (last.verdict === 'paused' || last.verdict === 'refused') return 'waiting';
   return (last.verdict === 'green' || last.verdict === 'hitl') ? 'done' : 'stopped';
 }
@@ -739,13 +749,16 @@ export function deriveStepGroupState(rows) {
  */
 export function deriveAuditGroups(enrichedRows) {
   const order = [];
-  const byStep = {};
+  const byStep = new Map();
+  // a row naming no step (a Stop before step 1) is the run's own: one group, `run: true`, never a null id
   for (const r of enrichedRows) {
-    if (!Object.prototype.hasOwnProperty.call(byStep, r.step)) { byStep[r.step] = []; order.push(r.step); }
-    byStep[r.step].push(r);
+    const key = typeof r.step === 'string' && r.step.length > 0 ? r.step : null;
+    if (!byStep.has(key)) { byStep.set(key, []); order.push(key); }
+    byStep.get(key).push(r);
   }
-  return order.map((step) => {
-    const rows = byStep[step];
+  return order.map((key) => {
+    const rows = byStep.get(key);
+    const step = key ?? RUN_GROUP;
     const closeClass = rows[0].class ?? null;
     const timeMs = rows.reduce((acc, r) => acc + (typeof r.wallMs === 'number' ? r.wallMs : 0), 0);
 
@@ -772,7 +785,7 @@ export function deriveAuditGroups(enrichedRows) {
     }
     const tokensTotalValue = (anyNotRecorded || !anyTotal) ? null : tokensTotal;
 
-    const tryMarks = deriveStepTryMarks(closeClass, rows);
+    const tryMarks = deriveStepTryMarks(closeClass, rows.filter(isTryRow));
     const { toolsTotal, toolsWhy, ungranted } = summarizeStepTools(rows);
     return {
       step,
@@ -785,8 +798,9 @@ export function deriveAuditGroups(enrichedRows) {
       toolsTotal,
       toolsWhy,
       ungranted,
-      tryCount: tryMarks.length,
-      tryMarks,
+      tryCount: key === null ? 0 : tryMarks.length,
+      tryMarks: key === null ? [] : tryMarks,
+      ...(key === null ? { run: true } : {}),
       rows,
     };
   });
@@ -1095,11 +1109,12 @@ function enrichAuditRows(rawRows) {
  * pairing at all — each row IS one model attempt, so try N stays
  * `list.length` there, unchanged from before this fix.
  * @param {string|null} closeClass
- * @param {Array<{verdict:string}>} list
+ * @param {Array<{verdict:string}>} listAll
  * @returns {number}
  */
-function computeTryCount(closeClass, list) {
-  if (!list || !list.length) return 0;
+function computeTryCount(closeClass, listAll) {
+  const list = (listAll ?? []).filter(isTryRow);
+  if (!list.length) return 0;
   if (closeClass === 'hitl') {
     const pausedCount = list.filter((a) => a.verdict === 'paused').length;
     // No paused row at all is not a shape this step ever produces in

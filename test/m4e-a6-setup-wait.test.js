@@ -12,7 +12,7 @@ const fn = (name) => {
   return PAGE.slice(start, PAGE.indexOf('\n  }\n', start) + 5);
 };
 const NAMES = ['escapeXml', 'money', 'duration', 'plainWait', 'verdictPassed', 'readableDateTime', 'verdictGlyph', 'verdictWord', 'closeClassLabel', 'auditTimeCellHtml', 'auditShortTime',
-  'auditDetailHtml', 'auditGapText', 'auditCostCellText', 'buildAuditRowEl'];
+  'auditDetailHtml', 'auditGapText', 'auditCostCellText', 'auditAttemptText', 'auditCloseText', 'buildAuditRowEl'];
 
 function build(row) {
   const doc = { createElement: () => ({ classList: { toggle: () => false }, setAttribute() {}, addEventListener() {}, innerHTML: '' }) };

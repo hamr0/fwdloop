@@ -133,22 +133,26 @@ export function stopPending(runDir) {
  * @param {string} o.runDir
  * @param {() => string} o.now
  * @param {string} o.outcome how the run ended (the words of the not-honoured row)
- * @param {{where:string, book?:Record<string, any>}|null} [o.stop]
+ * Every row names the step it is about (the audit groups by it): the stop's own `step` (the step its words name; null = none, e.g.
+ * "stopped before step 1"), else its book's step; with no stop, the step the run ended on (the last row that names one).
+ * @param {{where:string, step?:string|null, book?:Record<string, any>}|null} [o.stop]
  */
 function settleStop({
   runDir, now, outcome, stop = null,
 }) {
   const req = readStopRequest(runDir);
   if (!req && !stop) return;
+  const lastStep = () => readAudit(runDir).map((r) => r.step).filter((s) => typeof s === 'string' && s.length > 0).pop() ?? null;
+  const step = stop ? (stop.step ?? stop.book?.step ?? null) : lastStep();
   const note = {
-    step: null, attempt: null, class: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, tokens: null, tools: null, refused: [],
+    step, attempt: null, class: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, tokens: null, tools: null, refused: [],
   };
   appendAudit(runDir, {
     ...note, verdict: 'stop-asked', gap: `stop asked (you) at ${req?.at ?? 'an unrecorded time'}`, at: req?.at ?? now(),
   });
   appendAudit(runDir, stop
     ? {
-      ...note, ...stop.book, verdict: 'stopped', gap: stop.where, at: now(),
+      ...note, ...stop.book, step, verdict: 'stopped', gap: stop.where, at: now(),
     }
     : {
       ...note, verdict: 'stop-not-honoured', gap: `not honoured: the run ended (${outcome}) first`, at: now(),
@@ -676,7 +680,7 @@ function makeAuditRow({
  * @param {(() => boolean)|null} [opts.readStop] - amendment 7 item 8: the run's stop reader, asked before every try and (via modelStep's seam) every model call
  * @param {number} [opts.stepNo] - this step's 1-based number, for the words of a stop row
  * @param {number} [opts.triesDone] - tries a Stop already closed on this step (they count against its limit)
- * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string, stop?:{where:string, book:Record<string, any>}}>}
+ * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string, stop?:{where:string, book:Record<string, any>, step?:string|null}}>}
  */
 async function runStepRalph({
   step, primitivesMap, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd, recordAudit, initialGap = null, attemptOffset = 0,
@@ -702,9 +706,9 @@ async function runStepRalph({
     ? `stopped after turn ${turns} of try ${tryNo} of step ${stepNo}`
     : (tryNo > 0 ? `stopped after try ${tryNo} of step ${stepNo}` : (stepNo > 1 ? `stopped after step ${stepNo - 1}` : 'stopped before step 1')));
   /** The ralph's return for a Stop: the cut try's own row fields (`book`) ride the one `stopped` row `settleStop` writes.
-   *  @param {string} where @param {Record<string, any>} [book] @returns {{ok:false, outcome:string, red:string, stop:{where:string, book:Record<string, any>}}} */
+   *  @param {string} where @param {Record<string, any>} [book] @returns {{ok:false, outcome:string, red:string, stop:{where:string, book:Record<string, any>, step:string|null}}} */
   const stopped = (where, book = {}) => ({
-    ok: false, outcome: 'stopped', red: `stopped by you — ${where}`, stop: { where, book },
+    ok: false, outcome: 'stopped', red: `stopped by you — ${where}`, stop: { where, book, step: step?.emits ?? step?.goal ?? null },
   });
 
   for (let n = 1; n <= maxN; n += 1) {
@@ -1412,7 +1416,7 @@ async function foldFromStep({
       return haltRun({
         flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
         outcome: 'stopped', red: `stopped by you before step ${i + 1} ("${step.goal}")`,
-        stop: { where: i === 0 ? 'stopped before step 1' : `stopped after step ${i}` },
+        stop: { where: i === 0 ? 'stopped before step 1' : `stopped after step ${i}`, step: i === 0 ? null : (steps[i - 1].emits ?? steps[i - 1].goal ?? null) },
         resumeAt: { stepIndex: i, flowRoot, flowName, inputsManifest, unjudged: runUnjudged },
       });
     }
@@ -2511,7 +2515,7 @@ export function readAsk(runDir) {
  *   false. Defaults to `true` (every pre-existing call site is unaffected).
  * @param {{stepIndex: number, flowRoot: string, flowName: string, inputsManifest: any, unjudged?: any[]}|null} [opts.resumeAt] - M4e
  *   amendment 4 item 4: where a `cap-halt`/`stopped` run is re-entered; `haltRun` writes `halt.json` from it (and only for those outcomes).
- * @param {{where:string, book?:Record<string, any>}|null} [opts.stop] - amendment 7 item 8: this halt honours a Stop (its words, and the
+ * @param {{where:string, step?:string|null, book?:Record<string, any>}|null} [opts.stop] - amendment 7 item 8: this halt honours a Stop (its words, and the
  *   cut try's row fields so the call in flight is booked); a request still pending on any other halt is recorded `not honoured`.
  */
 function haltRun({
