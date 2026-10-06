@@ -7,6 +7,7 @@
 // A REVISE round (the user text says "asks for a change to the plan", M4e amendment 3 item 3) is answered by FWDLOOP_TEST_REVISE_MODE:
 //   ok (default) -> a valid, different plan (the softgreen step's sections reversed: a change to a check);
 //   ask-primitive -> the signed ask step is granted a primitive; drop-ask -> the signed ask's step is dropped; greedy -> the cap/send/ttl/input authored;
+//   hang -> the revise call never returns (a change a test watches in flight, then kills);
 //   goal -> a valid plan whose model-sent goal differs from the signed line (the machine overwrites it); bad-wired -> an unwired verb.
 // FWDLOOP_TEST_REVISE_LOG=<file> -> every revise round's messages are appended there as one JSON line.
 // FWDLOOP_TEST_DRAFT_MODE=bad -> the model always grants an unwired verb (a red draft).
@@ -69,6 +70,7 @@ export default function make() {
     if (user.includes('asks for a change to the plan')) revising = true;
     if (!revising) return gen(messages, ...rest);
     if (process.env.FWDLOOP_TEST_REVISE_LOG) appendFileSync(process.env.FWDLOOP_TEST_REVISE_LOG, `${JSON.stringify(messages)}\n`);
+    if (process.env.FWDLOOP_TEST_REVISE_MODE === 'hang') return new Promise((r) => { setTimeout(r, 3_600_000); });
     return toolReply(reviseArgs(process.env.FWDLOOP_TEST_REVISE_MODE ?? 'ok'));
   };
   return { provider, rates: RATES, modelId: MODEL };
