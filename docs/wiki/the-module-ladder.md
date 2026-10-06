@@ -1381,6 +1381,21 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
     - (h) ask section headers are blue at 1280/390/320, light and dark; all of the above at 1280/390/320 with no spill.
     - (i) `http://127.0.0.1:4800/` opens the panel with no `?t=` and no cookie; a POST with another site's Origin, or a Host other than 127.0.0.1:<port>, is refused and writes nothing; no token file is written;
   - **Cap:** within M4e's $0.50 (build at $0 with stub providers; one short live walk).
+- **Amendment 5 — NOT SIGNED (drafted 2026-10-06): Resume is the cap; Run opens files, destination, cap and ask wait; anything else is a new flow.**
+  - **Why:** hamr, 2026-10-06, before amendment 4 item 5 was built: "keep it simple, resume is for the same run that got stopped by cap, or by you > only allowed to change cap, all else is dimmed; run is a new run for the same flow, same contract but input/output path may change but same steps so, it's considered same job, all else is dimmed, else, start a new flow", then "a daily run opens up cap/ask time too, add it". Amendment 4 item 5 sent a destination change to a new job; a daily-driver flow needs it per run.
+  - **Replaces amendment 4 item 5 and its negative (f).** Amendment 4 items 4 and 6 (Resume, cap re-sign) stand as signed.
+  - **1. Resume (unchanged from amendment 4 item 4).** The same run that stopped at its cap or by Stop. Only Cap $ is open; every other field shows dimmed. Same run id.
+  - **2. Run a signed flow = a new run of the same flow.** The same steps and the same job lines and asks; it gets the next `run-<n>`. Open boxes: **Inputs** (the files), **Destination**, **Cap $**, and each ask's **wait**. Everything else shows dimmed: the job lines, the ask words and their positions, the steps.
+  - **3. What needs a signature.** Inputs alone: the button is **Run** (one click), as today. A Destination, Cap $ or ask wait different from the flow's signed value: the button is **Sign & run** (two clicks, bound to a hash of those values, like page sign); a non-human POST signs nothing. The signed values for that run are written once into the run's own folder before it starts, and that run uses them; the flow's `prose.txt` and `signature.json` are never changed, and the next run starts again from the flow's signed values.
+  - **4. Same checks as a new job.** A changed destination passes amendment 1's checks (refused: the run folder, flow folders, the root, `.drafts`, `.starts`, `~/.config/fwdloop`, a file, a missing folder; never overwrite). A changed cap gets amendment 4's money note and the too-small check. A changed ask wait passes the same wait grammar as the card (`<int>` then `s`, `m` or `h`). Nothing leaves the machine without the destination signed for that run and a human accept in that run (hard line unchanged).
+  - **5. Anything else is a new flow.** A change to a job line, an ask's words or position, or the number of steps is not a run: the card says so and offers New job (prefilled from the flow) — a fresh draft and a new flow name.
+  - **Negatives:**
+    - (a) Run with new input files only starts with one click as `run-<n+1>`; the flow's signed files are unchanged on disk;
+    - (b) Run with a new destination, a higher cap, or a different ask wait shows Sign & run; one click or a stale hash signs nothing and starts nothing; two clicks start the run, it uses the new values (the send lands in the new folder; the cap and the wait are the new ones), and the next plain Run uses the flow's own values again;
+    - (c) a refused destination, a too-small cap, a cap over the monthly room, or a malformed wait is refused at $0, nothing written;
+    - (d) a POST that changes a job line, an ask's words or the steps through Run is refused and starts nothing;
+    - (e) Resume shows only Cap $ open (amendment 4 (e) stands).
+  - **Cap:** within M4e's $0.50.
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
