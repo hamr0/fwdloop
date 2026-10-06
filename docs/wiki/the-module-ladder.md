@@ -1421,6 +1421,22 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
     - (f) the Job tab never shows "time cap"; the cap line is `$<cap> per run · redo up to <n>`;
     - (g) the Job tab shows each guardrail as `~` under its own line, the wait under the ask line in plain units, the send line's destination under it, and no Guardrails block, at 1280, 390 and 320 px; a run with its own signed values shows those.
   - **Cap:** within M4e's $0.50 ($0 build; the replay in (a) is one paid change call, about $0.01).
+- **Amendment 7 — NOT SIGNED (drafted 2026-10-06): a check can't be emptied; Draft is the first step; small readout and card fixes.**
+  - **Why:** hamr's live walk of amendment 6, 2026-10-06, flow `m4e-exit-4`. The note "put skills before work history" came back **green**, not red: the change replaced the three section names with ONE "section" equal to the whole job line, which is a substring of the line, so amendment 6 item 1 let it through. The run then pasted the whole job line as its first line (attempt 3 green), so the signed "3 sections" guardrail was never checked. Amendment 6's negative (a) failed live. hamr also asked: the readout's headings in bold; "audit, setup renamed to draft and be a normal card collapsed by default, similar to bareloop but keep fwdloop different columns … all/humans/blocked, grouped/flat stay on top"; "drafting should also appear as first step on map under run and cards below map under run"; the cap line "`$0.50 per run · 1 hr wait · redo up to 3`"; and a Runs card read `2026-10-061 run`.
+  - **1. A check can't be emptied.** On top of amendment 6 item 1, at draft, change and sign:
+    - when a line's guardrail states a number of sections ("3 sections"), the step's `sections` must have exactly that many; otherwise red: "the guardrail says 3 sections; the check has 1";
+    - a section name is a short phrase from the line (at most 8 words), never the whole line or most of it; otherwise red naming it;
+    - one section name may not contain another.
+    A red change keeps the last green plan (amendment 3). The step still never sees its close; a gap names what is missing, as today.
+  - **2. Draft is the first step.** "Setup" is renamed **Draft** everywhere. On a run's **Map**, the first box is **drafting**, with an arrow to step 1; under the map, the first card is `drafting · <time> · $<cost> · <n> calls · ✓`, with the draft's rows (card, draft, notes, changes, sign) under it. In **Audit / logs**, Draft is a normal group card, **collapsed by default**, opening to its rows in fwdloop's own columns; the All / Humans / Blocked and Grouped / Flat controls stay on top. Clicking the drafting card on the Map opens Audit on the Draft group. Its total time, calls and cost add up to the Draft rows, and the cost equals the drafting figure shown elsewhere. A flow signed before amendment 6 shows the drafting box as "no draft record" and no cost (never $0).
+  - **3. The readout's headings are bold.** In the draft readout, **INPUTS**, **STEPS**, **ASKS**, **SEND TARGET** and **JOB LINES** are bold. Text only.
+  - **4. The wait on the cap line.** The Job tab's cap line reads `$0.50 per run · 1h wait · redo up to 3` (one ask; with several asks: `waits 1h, 30m`), plain units from the one formatter.
+  - **5. Runs card spacing.** A Runs card's last line keeps its separators: `$0.0616 · 6m23s · 2026-10-06 · 1 run`, never `2026-10-061 run`; the time reads in plain units.
+  - **Negatives:**
+    - (a) replaying "put skills before work history" on the m4e-exit-4 card gives a red change (never green), the last green plan stays; a plan with one section on a "3 sections" guardrail is red; a section named by the whole line is red;
+    - (b) Draft shows as the first Map box and first card under the map for a run of a flow signed after amendment 6, collapsed in Audit by default with the filters above it, and its time/calls/cost add up; an older flow says "no draft record";
+    - (c) the readout headings are bold; the cap line shows the wait; the Runs card reads with its separators; at 1280, 390 and 320 px, light and dark.
+  - **Cap:** within M4e's $0.50 ($0 build; the replay in (a) is one paid change call, about $0.01).
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
