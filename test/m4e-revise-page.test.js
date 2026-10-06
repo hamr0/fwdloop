@@ -148,3 +148,23 @@ test('am4 item 3: Start over is wired to the one Draft call (no abandon, no seco
   assert.match(PAGE, /\.msg\{[^}]*max-width:100%[^}]*word-break:break-word[^}]*white-space:pre-wrap/);
   assert.match(PAGE, /\.msg\.you\{[^}]*margin-left:20px/);
 });
+
+test('am6 item 3 (c): the thread draws the bubbles oldest first, THEN the plan; the plan sits above the note box and the main button', () => {
+  const prelude = `var threadKey = ""; var thread = { innerHTML: "" };
+    var escapeXml = function(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); };
+    ${fnSrc('changesLeftText')}\n${fnSrc('bubblesFor')}`;
+  const render = new Function(`${prelude}\n${fnSrc('renderThread')}\nreturn function(s){ renderThread(s); return thread.innerHTML; };`)();
+  const html = render({
+    phase: 'green', readout: 'THE PLAN', hash: 'abc123',
+    notes: [{ text: 'first note', phase: 'green', hash: 'h1h1h1h1h1', left: 1 }, { text: 'second note', phase: 'green', hash: 'h2h2h2h2h2', left: 0 }],
+  });
+  const at = (s) => html.indexOf(s);
+  assert.ok(at('first note') !== -1 && at('second note') !== -1 && at('THE PLAN') !== -1);
+  assert.ok(at('first note') < at('second note'), 'oldest first');
+  assert.ok(at('second note') < at('THE PLAN'), 'the plan comes after every bubble');
+  assert.ok(at('h2h2h2h2') < at('THE PLAN'), 'the newest fwdloop bubble is above the plan too');
+  assert.ok(html.trimEnd().endsWith('Plan hash: abc123</div>'), 'the plan is the last thing in the thread');
+  const pos = (id) => SECTION.indexOf(`id="${id}"`);
+  assert.ok(pos('chat-card-error') < pos('chat-progress-row') && pos('chat-progress-row') < pos('chat-thread'), 'card fields, progress, then the thread');
+  assert.ok(pos('chat-thread') < pos('chat-msg-row') && pos('chat-msg-row') < pos('chat-main-btn'), 'thread, note box, main button');
+});
