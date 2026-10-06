@@ -2897,3 +2897,22 @@ Found by the M4e first POC ($0, stub providers; `poc/m4e/RESULTS.md`). Three thi
 3. The send folder is fenced to the install folder. `checkSendDestination` in `src/runner.js` joins the target onto
    `REPO_ROOT`, so for an npm install the destination sits inside `node_modules`. hamr ruling "any folder": M4e
    amendment 1 (not signed yet).
+
+## F57 — A change emptied the sections check: one "section" equal to the whole job line passed amendment 6 (2026-10-06)
+
+Live walk of M4e amendment 6, flow `flows/m4e-exit-4`. The note "put skills before work history" was meant to come
+back red (am6 negative (a)). It came back green: the change set `sections` to ONE entry equal to the whole job line
+(`a summary resume: how it matches the JD, … 250ish each`). That entry is a substring of the goal, so am6 item 1
+(order / name / word limit) passed it.
+
+Signed and run: summary-resume attempts 1-2 red on that heading, attempt 3 green after the model pasted the whole job
+line as its first line. The guardrail "3 sections" was never checked. Run passed, $0.049438.
+
+Two lessons. A check can be emptied while still "matching" its line, so a section count must match the guardrail and
+a section name must be a short phrase. And the gap feedback that names a missing heading lets the model satisfy a
+degenerate heading by pasting it.
+
+Also seen: hamr's job line 3 contains a stray "4>" (typed, likely from the old gutter mark).
+
+Fix proposed as M4e amendment 7 item 1 (NOT SIGNED). Evidence: `flows/m4e-exit-4/declaration.json`, `setup.jsonl`
+(change n=1 green, hash 4c838b35…), `runs/run-1/audit.jsonl`.
