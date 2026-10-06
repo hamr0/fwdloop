@@ -152,7 +152,7 @@ test('the Chat tab keeps the page rules: no token on the page, every POST goes t
   assert.doesNotMatch(code, /\bTOKEN\b|x-fwdloop-token/);
   assert.doesNotMatch(code, /\bfetch\([^)]*POST/);
   const paths = [...code.matchAll(/authorPost\(\s*"([^"]+)"/g)].map((m) => m[1]).filter((x) => !x.endsWith('/')).sort();
-  assert.deepEqual(paths, ['/api/author/draft', '/api/author/resume', '/api/author/resume-prepare', '/api/author/run', '/api/author/run-prepare']);
+  assert.deepEqual(paths, ['/api/author/draft', '/api/author/resume', '/api/author/resume-prepare', '/api/author/run', '/api/author/run', '/api/author/run-prepare']);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign-prepare"/);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign", \{hash: signInfo\.hash\}/);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/abandon"/);
