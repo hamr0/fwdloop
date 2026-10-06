@@ -34,7 +34,7 @@ import {
   readAsk, readRunState, readLog, readHaltRecord, stopPending,
 } from '../runner.js';
 import { readSpendRows } from '../provider.js';
-import { applyRunValues, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
+import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
 import { readSetup } from '../setup.js';
 import {
   runLiveness, booksFresh, readResumeLock,
@@ -1421,10 +1421,13 @@ export function getSetupBlock(flowDir, runDir) {
     let rec = null;
     try { rec = t.ok ? JSON.parse(t.text) : null; } catch { rec = null; }
     const v = rec && typeof rec === 'object' ? rec.values : null;
+    const waits = v && typeof v === 'object' && v.askWaits && typeof v.askWaits === 'object'
+      ? Object.entries(v.askWaits).map(([line, wait]) => ({ line, wait: String(wait), waitMs: parseWaitMs(wait) })) : [];
+    const head = v && typeof v === 'object' ? [`cap $${v.capUsd}`, v.destination ? `destination ${v.destination}` : null].filter(Boolean) : [];
     const gap = v && typeof v === 'object'
-      ? [`cap $${v.capUsd}`, v.destination ? `destination ${v.destination}` : null, v.askWaits && Object.keys(v.askWaits).length ? `ask waits ${Object.entries(v.askWaits).map(([l, w]) => `line ${l}: ${w}`).join(', ')}` : null].filter(Boolean).join(' · ')
+      ? [...head, waits.length ? `ask waits ${waits.map((w) => `line ${w.line}: ${w.wait}`).join(', ')}` : null].filter(Boolean).join(' · ')
       : `${file} could not be read`;
-    rows.push(human({ at: rec?.at }, rows.length + 1, { action: `${version === 0 ? 'Sign & run' : 'Sign & resume'} (${rec?.signedBy ?? 'you'})`, gap }));
+    rows.push(human({ at: rec?.at }, rows.length + 1, { action: `${version === 0 ? 'Sign & run' : 'Sign & resume'} (${rec?.signedBy ?? 'you'})`, gap, ...(waits.length ? { gapHead: head, gapWaits: waits } : {}) }));
   }
   return { present: setup.present, why: setup.present ? null : NO_SETUP_WORDS, rows };
 }

@@ -123,6 +123,7 @@ test('(d) Audit shows the Setup block first for run-1 and run-2; run-2 with its 
   assert.equal(a2.setup.rows.length, 6);
   assert.match(actions(a2).at(-1), /^Sign & run \(hamr\)/);
   assert.match(a2.setup.rows.at(-1).gap, /cap \$0\.4 · destination \/tmp\/elsewhere · ask waits line 4: 30m/);
+  assert.deepEqual(a2.setup.rows.at(-1).gapWaits, [{ line: '4', wait: '30m', waitMs: 1_800_000 }], 'the page gets the wait typed, to format with plainWait');
   assert.ok(a1.setup.rows.every((x) => x.setup === true && typeof x.attempt === 'number'), 'the same row shape the run rows have');
 });
 

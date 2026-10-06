@@ -1113,6 +1113,12 @@
   // recorded" in that middle slot instead of a number; a row with no model
   // call at all (an ask/hitl row) drops the tokens slot entirely — never a
   // fake "0 tokens".
+  // a Sign & run row's ask waits read through plainWait (same as the Job tab); every other row's gap is as recorded
+  function auditGapText(r){
+    if(!Array.isArray(r.gapWaits) || !r.gapWaits.length) return r.gap || "";
+    var waits = r.gapWaits.map(function(w){ return "line " + w.line + ": " + (typeof w.waitMs === "number" ? plainWait(w.waitMs) : w.wait); }).join(", ");
+    return (r.gapHead || []).concat(["ask waits " + waits]).join(" · ");
+  }
   function auditCostCellText(r){
     if(r.setup && typeof r.usd !== "number" && r.verdict === "hitl") return "—";   // a setup row you wrote (card, note, sign) has no cost
     if(r.setup) return money(r.usd, r.spendComplete);   // a draft/change row: its own booked cost, "unknown" when nobody booked it
@@ -2327,7 +2333,7 @@
   // Only fields the row actually has — a line with nothing to say is left out, never filled with a made-up value.
   function auditDetailHtml(r, word, actionText, isRejectRow){
     var lines = [["step", r.step], ["result", word], ["action", actionText]];
-    if(!isRejectRow && r.gap) lines.push(["gap", r.gap]);
+    if(!isRejectRow && r.gap) lines.push(["gap", auditGapText(r)]);
     if(Array.isArray(r.refused) && r.refused.length > 0){
       lines.push(["refused", r.refused.map(function(x){ return x.verb + " " + x.path + " (" + x.rule + ")"; }).join("; ")]);
     }
@@ -2360,7 +2366,7 @@
       "<td data-label=\"Attempt\">" + escapeXml(String(r.attempt)) + "</td>" +
       (includeStep ? "<td data-label=\"Step\">" + escapeXml(r.step) + "</td>" : "") +
       "<td data-label=\"Action\">" + escapeXml(actionText) + "</td>" +
-      "<td data-label=\"Gap\">" + escapeXml(isRejectRow ? "" : (r.gap || "")) + "</td>" +
+      "<td data-label=\"Gap\">" + escapeXml(isRejectRow ? "" : auditGapText(r)) + "</td>" +
       "<td data-label=\"Cost\">" + escapeXml(auditCostCellText(r)) + "</td>" +
       "<td data-label=\"Verdict\"><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
       "<td data-label=\"Close\">" + escapeXml(r.setup ? "—" : closeClassLabel(r.class)) + "</td>" +
