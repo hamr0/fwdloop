@@ -1443,6 +1443,11 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
     - (e) a Stop during a step ends the run stopped after the model call in flight (a turn or a try), no new call starts, Resume re-enters that step; every Stop leaves an audit row with its outcome, including "not honoured" when the run ended first.
   - **Cap:** within M4e's $0.50 ($0 build; the replay in (a) is one paid change call, about $0.01).
 
+- **Built after signing — not signed text (2026-10-06):**
+  - hamr's ruling on item 7's list rows ("Signed flow" pick list), after signing: each row is two lines, bareloop's shape with fwdloop's first part: `<flow name>` over `<n> steps · <n> asks · <G> green · <N> not green · about $<X> and <Y> a run`. An unknown cost or time is said ("time not recorded", "cost not recorded", "cost and time not recorded"), never $0 or 0; money and time come from the page's one `money()` and `duration()` (so the time reads `6m23s`, not minutes). A row for a typed run name (`run-2`) is the same two lines (the flow's record).
+  - Built as: `src/canrun.js` `canFlowRun` (the list's rule and the Run again refusal; preflight's own words), `GET /api/author/run-again` (any run, any outcome), the Signed flow box a search box over a list with a picked box and `change` (borrowed from bareloop's job picker); the list holds flows with a passed run (a run whose last history row is `complete`) that `canFlowRun` accepts. `src/runner.js` still carries its own copy of the unwired-verb check (same words, proved equal by `poc/m4e-am7/canrun.mjs`); pointing it at `canFlowRun` is a one-line follow-up once the runner branch is merged.
+  - Item 2 as built: the API key is `draft` (was `setup`); the file stays `setup.jsonl` (signed in amendment 6). A draft's spend row now records `startedAt` and `wallMs`; a Draft from before that shows "time unknown", never 0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
