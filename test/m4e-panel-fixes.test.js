@@ -17,6 +17,7 @@ killChildrenAfter();
 test('F1 the courtesy line reads the monthly limit from FWDLOOP_CONFIG_HOME at request time, like the CLI check (no settings.home injected, config written after the panel started)', async () => {
   const w = await world();
   await w.signedFlow();
+  w.seedPassed('job2');
   const prev = process.env.FWDLOOP_CONFIG_HOME;
   process.env.FWDLOOP_CONFIG_HOME = w.home;
   // the way `fwdloop panel` builds it: no settings.home, so the door's home (FWDLOOP_CONFIG_HOME) must be the one read

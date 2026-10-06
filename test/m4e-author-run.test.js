@@ -79,6 +79,7 @@ test('(iii)(iv)(v)(x) refusals over HTTP name the box, spend $0 and create nothi
 test('(x) only flows whose readFlow passes are listed; a tampered or unsigned flow is not listed and a POST naming it is refused', async () => {
   const w = await world();
   const a = await w.signedFlow({ flowName: 'good' });
+  w.seedPassed('good');
   await w.signedFlow({ flowName: 'tampered' });
   mkdirSync(path.join(w.root, 'unsigned', 'runs'), { recursive: true });
   writeFileSync(path.join(w.root, 'unsigned', 'prose.txt'), 'x');
@@ -103,6 +104,7 @@ test('(x) only flows whose readFlow passes are listed; a tampered or unsigned fl
 test('(5)(8) a run starts as ONE detached CLI child: start folder with start.json, child.log 0600 and pid.json; starting/started from files; the frozen inputs match; parks at its ask; the list then shows the last run\'s paths and left this month', async () => {
   const w = await world({ limit: 5 });
   await w.signedFlow();
+  w.seedPassed('job2');
   const r = await w.post('/api/author/run', runBody(w));
   assert.equal(r.status, 202, r.text);
   const { startId, runId } = r.json();

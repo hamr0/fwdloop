@@ -2,7 +2,9 @@
 // RUN-A-SIGNED-FLOW door of the panel's backend — `GET /api/author/flows` and `POST /api/author/run`. No spawn of its own: a
 // run starts only through `authorstart.js`'s one `start`. Reads the disk; writes nothing.
 //
-//   flows()   only flows whose `readFlow` passes (a missing, unsigned or tampered flow is never listed), each with its signed
+//   flows()   only flows whose `readFlow` passes (a missing, unsigned or tampered flow is never listed), that `canFlowRun` accepts
+//             (the one function shared with the run's own preflight: an unwired verb is not listed) and that have at least one
+//             passed run (amendment 7 item 7; Run again reaches the rest), each with its signed
 //             cap, its declared source roles, the source paths the NEWEST run of that flow used (its `inputs.json`
 //             manifest `source` field; blank when none) and what is left this month (a courtesy: the CLI's own monthly
 //             check is what refuses).
@@ -12,6 +14,8 @@ import { lstatSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scrub } from '../authoring.js';
+import { endRow, readHistory } from '../books.js';
+import { canFlowRun } from '../canrun.js';
 import { loadCatalogue } from '../catalogue.js';
 import { ConfigError, readConfig } from '../config.js';
 import {
@@ -19,7 +23,9 @@ import {
 } from '../flow.js';
 import { spendSummary } from '../monthly.js';
 import { userInfo } from 'node:os';
-import { flowValues, valuesHash } from '../runvalues.js';
+import {
+  applyRunValues, flowValues, pickRunValues, valuesHash,
+} from '../runvalues.js';
 import {
   capFloorFor, capFloorText, checkInputRows, runInputRows,
 } from './authorcard.js';
@@ -71,26 +77,70 @@ export function createFlowsDoor(opts) {
     };
   }
 
-  /** The source paths the newest run of this flow used: role -> path, from that run's `inputs.json`. Blank = none. @param {string} flowDir @param {string[]} roles */
-  function lastSources(flowDir, roles) {
+  /** The source paths one run froze: role -> path, from that run's `inputs.json`. Blank = none. @param {string} runDir @param {string[]} roles */
+  function sourcesOf(runDir, roles) {
     /** @type {Record<string, string>} */
     const out = Object.fromEntries(roles.map((r) => [r, '']));
-    let newest = null;
-    for (const id of listRunIds(flowDir)) {
-    const r = resolveRunDir(flowDir, id);
-    if (!r.ok) continue;
-    let t;
-    try { t = lstatSync(join(r.runDir, 'inputs.json')).mtimeMs; } catch { continue; }
-    if (newest === null || t > newest.t || (t === newest.t && id > newest.id)) newest = { t, id, runDir: r.runDir };
-    }
-    if (newest === null) return { runId: null, sources: out };
-    const f = readFileInside(newest.runDir, 'inputs.json');
+    if (runDir === '') return out;
+    const f = readFileInside(runDir, 'inputs.json');
     let rows = [];
     try { rows = f.ok ? JSON.parse(f.text) : []; } catch { rows = []; }
     for (const row of Array.isArray(rows) ? rows : []) {
-    if (row && typeof row.id === 'string' && roles.includes(row.id) && typeof row.source === 'string') out[row.id] = row.source;
+      if (row && typeof row.id === 'string' && roles.includes(row.id) && typeof row.source === 'string') out[row.id] = row.source;
     }
-    return { runId: newest.id, sources: out };
+    return out;
+  }
+
+  /** The source paths the newest run of this flow used: role -> path, from that run's `inputs.json`. Blank = none. @param {string} flowDir @param {string[]} roles */
+  function lastSources(flowDir, roles) {
+    let newest = null;
+    for (const id of listRunIds(flowDir)) {
+      const r = resolveRunDir(flowDir, id);
+      if (!r.ok) continue;
+      let t;
+      try { t = lstatSync(join(r.runDir, 'inputs.json')).mtimeMs; } catch { continue; }
+      if (newest === null || t > newest.t || (t === newest.t && id > newest.id)) newest = { t, id, runDir: r.runDir };
+    }
+    if (newest === null) return { runId: null, sources: sourcesOf('', roles) };
+    return { runId: newest.id, sources: sourcesOf(newest.runDir, roles) };
+  }
+
+  /** The values one run ran with: the flow's own, with the run's newest signed version laid over (`applyRunValues`). Unreadable = the flow's own. @param {any} read @param {string} name @param {string} runDir */
+  function runValuesOf(read, name, runDir) {
+    const applied = applyRunValues(read.arbiter, name, read.signature.flow, pickRunValues(runDir));
+    return { values: flowValues(applied.ok ? applied.arbiter : read.arbiter) };
+  }
+
+  /**
+   * What the Signed flow list shows of a flow's runs, read from its books: the passed runs (each with the values and input paths it
+   * ran with, so picking a run fills them in) and the track record (bareloop's reuse-estimate shape). An average reads only figures that
+   * are exact: a run with an unpriced spend or no wall time is left out of it, never counted as $0 or 0 min (unknown is never zero).
+   * @param {string} flowDir @param {string} name @param {any} read @param {string[]} roles
+   */
+  function runsOf(flowDir, name, read, roles) {
+    const history = readHistory(flowDir);
+    const passed = [];
+    let green = 0; let notGreen = 0; let spendSum = 0; let spendN = 0; let wallSum = 0; let wallN = 0;
+    for (const id of listRunIds(flowDir)) {
+      const r = resolveRunDir(flowDir, id);
+      if (!r.ok) continue;
+      const end = endRow(history, r.runDir, id);
+      if (end === null) continue;   // not ended (running, parked, died): neither green nor not green
+      if (end.outcome === 'complete') {
+        green += 1;
+        passed.push({ runId: id, ...runValuesOf(read, name, r.runDir), sources: sourcesOf(r.runDir, roles) });
+      } else notGreen += 1;
+      if (end.spendComplete === true && Number.isFinite(end.spentUsd) && end.spentUsd >= 0) { spendSum += end.spentUsd; spendN += 1; }
+      if (Number.isFinite(end.wallMs) && end.wallMs > 0) { wallSum += end.wallMs; wallN += 1; }
+    }
+    const asks = new Set((read.arbiter.asks ?? []).map((a) => a.line));
+    return {
+      passed,
+      stats: {
+        steps: read.declaration.steps.filter((st) => !asks.has(st.fromLine)).length, asks: asks.size, green, notGreen,
+        avgSpendUsd: spendN > 0 ? spendSum / spendN : null, avgWallMs: wallN > 0 ? wallSum / wallN : null,
+      },
+    };
   }
 
   /** Read one flow the way the CLI will (`readFlow`: signature verified). @param {string} realRoot @param {string} name */
@@ -146,6 +196,19 @@ export function createFlowsDoor(opts) {
     };
   }
 
+  /** One flow's record for the page: its signed values and facts, its last run's inputs, its passed runs and its track record. @param {string} realRoot @param {string} name @param {any} read @param {any} left */
+  function entryFor(realRoot, name, read, left) {
+    const roles = (read.arbiter.sources ?? []).map((s) => s.role);
+    const flowDir = join(realRoot, name);
+    const last = lastSources(flowDir, roles);
+    const { passed, stats } = runsOf(flowDir, name, read, roles);
+    return {
+      flow: name, capUsd: read.arbiter.capUsd, roles, nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
+      runs: passed, stats,
+      ...formFacts(read),
+    };
+  }
+
   return {
     /** `GET /api/author/flows`. */
     flows() {
@@ -155,15 +218,42 @@ export function createFlowsDoor(opts) {
       const flows = [];
       for (const name of listFlowNames(realRoot)) {
         const read = readSigned(realRoot, name);
-        if (!read.ok) continue;
-        const roles = (read.arbiter.sources ?? []).map((s) => s.role);
-        const last = lastSources(join(realRoot, name), roles);
-        flows.push({
-          flow: name, capUsd: read.arbiter.capUsd, roles, nextRunId: nextRunId(join(realRoot, name)), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
-          ...formFacts(read),
-        });
+        if (!canFlowRun(read).ok) continue;
+        const entry = entryFor(realRoot, name, read, left);
+        if (entry.runs.length === 0) continue;   // amendment 7 item 7: only a flow with a passed run is listed
+        flows.push(entry);
       }
       return { status: 200, body: { ok: true, flows, leftThisMonth: left } };
+    },
+
+    /**
+     * `GET /api/author/run-again?flow=&runId=` (amendment 7 item 6): the Signed flow form for ONE run of a signed flow, any outcome, with that
+     * run's values and input paths as `pick`. The list's rule (passed run, preflight accepts) does not apply here; a flow the run's own
+     * preflight would refuse says why, in the preflight's words. Reads only.
+     * @param {string|null} flow @param {string|null} runId
+     */
+    runAgain(flow, runId) {
+      const no = (status, say, extra = {}) => ({ status, body: { ok: false, refused: 'run-again', say, ...extra } });
+      let realRoot;
+      try { realRoot = realpathSync(root); } catch { return no(400, 'The flows folder this panel serves does not exist.'); }
+      const named = checkFlowName(flow ?? '');
+      if (!named.ok) return no(400, `${named.red}.`);
+      const rr = resolveRunDir(join(realRoot, flow), runId ?? '');
+      if (!rr.ok) return no(400, `${rr.red}.`);
+      if (!listRunIds(join(realRoot, flow)).includes(String(runId))) return no(404, `"${flow}" has no run "${runId}".`);
+      const read = readSigned(realRoot, flow);
+      const can = canFlowRun(read);
+      if (!can.ok) {
+        const red = scrub(String(can.red), providerKeys(loadEnv().env));
+        return no(409, `"${flow}" will not run: ${red}`, { red });
+      }
+      const roles = (read.arbiter.sources ?? []).map((s) => s.role);
+      return {
+        status: 200,
+        body: {
+          ok: true, flow: entryFor(realRoot, flow, read, leftThisMonth()), pick: { runId, ...runValuesOf(read, flow, rr.runDir), sources: sourcesOf(rr.runDir, roles) },
+        },
+      };
     },
 
     /**

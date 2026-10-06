@@ -224,6 +224,7 @@ export function createAuthor(opts) {
 
   return {
     flows: flowsDoor.flows,
+    runAgain: flowsDoor.runAgain,
     run: flowsDoor.run,
     runPrepare: flowsDoor.runPrepare,
     resumePrepare: resumeDoor.prepare,

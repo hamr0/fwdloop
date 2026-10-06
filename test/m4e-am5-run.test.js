@@ -40,6 +40,7 @@ const second = (w) => { const d = path.join(w.work, 'out2'); mkdirSync(d); retur
 test('(a) Run with new input files only starts with ONE click as run-<n+1>; the flow\'s signed files are unchanged and the run has no signed-values file', async () => {
   const w = await world();
   const { flowDir } = await w.signedFlow();
+  w.seedPassed('job2');
   const files = ['prose.txt', 'signature.json', 'declaration.json'].map((f) => sha(path.join(flowDir, f)));
   const r1 = (await w.post('/api/author/run', { flow: 'job2', inputs: w.inputs() })).json();
   assert.equal(r1.runId, 'run-1');
@@ -61,13 +62,14 @@ test('(a) Run with new input files only starts with ONE click as run-<n+1>; the 
 test('(b) a new destination + higher cap + different ask wait: Sign & run — no hash / a stale hash sign and start nothing; two clicks start it; it USES the new values; the next plain Run uses the flow\'s own again', async () => {
   const w = await world({ limit: 5 });
   const { flowDir } = await w.signedFlow();
+  w.seedPassed('job2');
   const out2 = second(w);
   const flowFiles = ['prose.txt', 'signature.json', 'declaration.json'].map((f) => sha(path.join(flowDir, f)));
   const own = (await w.get('/api/author/flows')).json().flows[0];
   assert.equal(own.values.destination, w.outDir);
   assert.equal(own.values.capUsd, 0.25);
   const changed = { flow: 'job2', inputs: w.inputs(), destination: out2, capUsd: '0.40', askWaits: { 4: '2h' } };
-  const runs = () => readdirSync(path.join(flowDir, 'runs'));
+  const runs = () => readdirSync(path.join(flowDir, 'runs')).filter((n) => n !== 'seed-pass');
   const startsBefore = w.starts().length;
   // click 1 (run-prepare) writes nothing and says a signature is needed
   const prep = (await w.post('/api/author/run-prepare', changed)).json();
@@ -181,6 +183,7 @@ test('(d) a POST that changes a job line, an ask\'s words or the steps through R
 test('(e)+form facts: the flows list carries what the form dims and what it opens (job lines with their ask and wait, the destination, the cap floor)', async () => {
   const w = await world();
   await w.signedFlow();
+  w.seedPassed('job2');
   const f = (await w.get('/api/author/flows')).json().flows[0];
   assert.equal(f.hasSend, true);
   assert.deepEqual(f.values, { capUsd: 0.25, destination: w.outDir, askWaits: { 4: '30m' } });

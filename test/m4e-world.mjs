@@ -3,7 +3,7 @@
 // the test model step (both $0). Everything lives under mkdtemp dirs removed at exit; `killChildren` kills every child a
 // test left running (the draft and start folders' pid files). Never touches the real HOME or config home.
 import {
-  chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync,
+  appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync,
 } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -126,6 +126,13 @@ export async function world({
     dir: (id) => path.join(root, '.drafts', id),
     starts: () => (existsSync(path.join(root, '.starts')) ? readdirSync(path.join(root, '.starts')) : []),
     inputs: () => [{ role: 'resume', path: path.join(inDir, 'resume.md') }, { role: 'jd', path: path.join(inDir, 'jd.md') }],
+    /** Give a flow one PASSED run (a run folder plus a `complete` history row) so the Signed flow list offers it (amendment 7 item 7). The id is not `run-<n>`: run naming is unchanged. */
+    seedPassed(flow, runId = 'seed-pass', row = {}) {
+      mkdirSync(path.join(root, flow, 'runs', runId), { recursive: true });
+      appendFileSync(path.join(root, flow, 'history.jsonl'), `${JSON.stringify({
+        runId, at: '2026-10-06T10:00:00.000Z', outcome: 'complete', spentUsd: 0.02, spendComplete: true, capUsd: 0.25, wallMs: 90_000, signatureHash: 'x', ...row,
+      })}\n`);
+    },
     /** Draft through the panel's own door, wait green, sign in-process with the CLI's own `signDraft` (what `fwdloop sign` calls). */
     async signedFlow(over = {}) {
       const id = (await post('/api/author/draft', card(over))).json().draftId;

@@ -106,6 +106,7 @@ test('(c) a refused CLI start leaves no empty claimed run folder behind', async 
 test('the panel: /api/author/flows offers the next name; Run with no id claims it; the next start gets the next number; a typed id is checked as before', async () => {
   const w = await world();
   await w.signedFlow();
+  w.seedPassed('job2');
   const flows = (await w.get('/api/author/flows')).json();
   assert.equal(flows.flows[0].nextRunId, 'run-1');
   const body = (over = {}) => ({ flow: 'job2', inputs: w.inputs(), runId: '', ...over });

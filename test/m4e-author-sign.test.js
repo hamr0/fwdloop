@@ -113,6 +113,7 @@ test('(2)(4) the right hash alone (no typed name) signs with the SAME signDraft,
   // a signed draft cannot be signed again or abandoned
   assert.equal((await w.post(`/api/author/${id}/sign`, signBody(hash))).json().refused, 'not-green');
   assert.equal((await w.post(`/api/author/${id}/abandon`, {})).status, 409);
+  w.seedPassed('job2');
   const listed = (await w.get('/api/author/flows')).json();
   assert.deepEqual(listed.flows.map((f) => f.flow), ['job2']);
 });
