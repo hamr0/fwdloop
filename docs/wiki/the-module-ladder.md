@@ -1483,6 +1483,25 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
     - (e) at 1280, 390 and 320 px, light and dark, nothing spills.
   - **Cap:** within M4e's $0.50; $0 build.
 
+- **Amendment 10 — NOT SIGNED: Audit group headers use the step card's status, bold.**
+  - **Why:** hamr 2026-10-07: "done resume_text· $0.0050 · try 1 ✓ > [✓] passed . resume_text· $0.0050 · try 1 ✓ 'passed' in bold #2 drafting card 'under run' should have [✓] passed like the other headers #3 do this first then i will review all". Today an Audit group header's badge (`buildAuditGroupHeaderEl`, `src/panel/index.html`) shows the raw `g.state` (`done` / `waiting` / `stopped`, from `deriveStepGroupState`, `src/panel/data.js`) in the old `.badge` bracket CSS (`[done]`), while the Run-tab step card head (`buildStepCardHeadEl`) shows the same state through `stateWord` as `[✓] passed`. Two vocabularies for one state. The aria text (`auditGroupHeaderText`) is a third writer of the same words (`"[" + g.state + "]"`), and the Draft group's tail (`draftTailInto`) still writes the old `N calls` while `draftLineText` writes amendment 9's `n model calls` / `at least N model calls` from `draftCallsWord` (two writers for one line; amendment 9 said one).
+  - **Replaces:** the state word of the Audit group title set by M4c-fix amendment 2 (l) ("`[sign] step name · cost · try N ✗✓`", built as the raw `[done]` / `[waiting]` / `[stopped]` word, not a sign), and the 2026-09-27 review rule (M4a, in the CSS comment on `.audit-status-header`) that the Audit group header is not bold. Everything else in (l) (cost, try N and marks, name cut with …, the phone form) stays.
+  - **1. Every Audit group header's status reads in the step card's form and words, bold.** From the one `stateWord` and `STEP_SIGN` / `signWords` (the server's `SIGN_WORDS`); the build adds no second map. The header reads `[✓] passed · resume_text · $0.0050 · try 1 ✓`, the whole status (sign and word) bold (`font-weight` >= 600). The sign carries its own brackets, so the badge draws no second pair (`.sign-badge`, today scoped to `.step-card` only, is extended to the Audit header). The mapping, one per state the code produces (`deriveStepGroupState` gives exactly `done` / `waiting` / `stopped`; the run's own group, `run: true`, takes the same function, so the same three):
+    - `done` -> `[✓] passed` (green);
+    - `waiting` -> `[·] waiting` (amber);
+    - `stopped` -> `[✗] failed` (red): the step card's word for `stopped` is `failed` (`STEP_SIGN.stopped` is `[✗]`, `SIGN_WORDS['[✗]']` is `failed`), so the Audit header says `failed`, not `stopped`; a Stop's own `[■] stopped` is a run sign this item does not add;
+    - `pending` -> `not started` plain, as the step card; a group only exists for a step with a row, so it cannot show in Audit.
+    Colors stay `auditStateClass`'s. The run's own group reads `<status> · <name> · $<cost>` with no tries, as today.
+  - **2. The Draft group header gets the same badge.** `[✓] passed · drafting · <time> · $<cost> · <n> model calls ✓` for a signed flow (`d.ended === "done"`, as `draftCardLines`); `not signed` plain (no glyph, no brackets) when there is no sign row; a flow with no draft record unchanged (`drafting · no draft record`, no badge). The tail's model-calls words come from the one `draftCallsWord` (`at least N model calls` for an old flow). The build removes the second writer: `draftTailInto` stops writing `N calls` itself, and the DOM header and the aria text both read their words from one function.
+  - **3. The aria-label (`auditGroupHeaderText`) reads the same words as the visible header:** the status in `stateWord`'s words (`[✓] passed · resume_text · $0.0050 · try 1 ✓`), not `[done]`; the Draft header's aria text is the same line as its visible one.
+  - **Negatives:**
+    - (a) a passed step's Audit header reads `[✓] passed · <step> · $<cost> · try N <marks>`, "passed" bold (`font-weight` >= 600);
+    - (b) a waiting group reads `[·] waiting` and a stopped group `[✗] failed`, the step card's word for that state; the raw `done` / `waiting` / `stopped` never shows as the status unless it IS the step card's word for that state (`waiting` is);
+    - (c) the Draft header shows `[✓] passed` and `at least N model calls` for an old flow, with the same time as the drafting card;
+    - (d) the visible header and its aria-label carry the same words, for step, run and Draft groups;
+    - (e) at 1280, 390 and 320 px, light and dark, nothing spills and the name stays readable (the badge is `flex:none`; the name is the cut flex child).
+  - **Cap:** within M4e's $0.50; $0 build.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
