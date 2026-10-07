@@ -370,6 +370,7 @@
   .audit-group.audit-fold h4.audit-status-header > .badge,.audit-group.audit-fold h4.audit-status-header::before{flex:none;white-space:pre;}
   .audit-fold-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .audit-fold-tail{flex:none;white-space:nowrap;}
+  .audit-fold-dot{flex:none;}
   .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6  ";color:var(--text-faint);}
   .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC  ";}
   .audit-group.audit-fold h4.audit-status-header::after{content:none;}
@@ -380,8 +381,10 @@
     .audit-group.audit-fold h4.audit-status-header > .badge{padding-left:0;padding-right:0;font-size:10px;}
     .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6";}
     .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC";}
-    .audit-fold-sep,.audit-fold-try{display:none;}
-    .audit-fold-n{margin-left:.4em;}
+    .audit-fold-sep{display:none;}
+    .audit-fold-try{margin-left:.4em;}   /* the cost and the try count never touch: "$0.0010" + "1" must not read $0.00101 */
+    /* the tail wraps inside the header (never spills or is cut): it may break at its spaces and shrink */
+    .audit-fold-tail{flex:0 1 auto;min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere;}
     /* a narrow header WRAPS (amendment 7 walk): the name keeps a readable line of its own and the tail drops under it, never a one-letter name */
     .audit-group.audit-fold h4.audit-status-header{flex-wrap:wrap;row-gap:2px;}
     .audit-fold-name{flex:0 1 auto;max-width:100%;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;}
@@ -2540,21 +2543,22 @@
   // M4e amendment 10: ONE function for each header line's words, `auditGroupHeaderParts` (status in the step card's `stateWord`, name, then the Draft's figures
   // or the step's cost and tries); `buildAuditGroupHeaderEl` draws these parts and `auditGroupHeaderText` joins them, so the visible line and its aria are
   // the same words. `status` is null with no draft record; `state` colors it (`auditStateClass`); `signed`: the status carries its own brackets.
+  var AUDIT_DOT = "\u00b7";   // the separator between the status badge and the name, read by the visible header and the aria line alike
   function auditGroupHeaderParts(g){
     if(g.draft){
       var ds = g.summary;
       if(!(ds && ds.present)) return {status: null, name: "drafting", why: (ds && ds.why) || "no draft record"};
       var passed = ds.ended === "done";
-      return {status: passed ? stateWord("done") : "not signed", state: passed ? "done" : "pending", signed: true, name: "drafting", draftFigs: draftFigures(ds), passed: passed};
+      return {status: passed ? stateWord("done") : "not signed", state: passed ? "done" : "pending", signed: true, name: "drafting", dot: AUDIT_DOT, draftFigs: draftFigures(ds), passed: passed};
     }
-    var parts = {status: stateWord(g.state), state: g.state, signed: true, name: g.step, cost: g.cost || "cost unknown"};
+    var parts = {status: stateWord(g.state), state: g.state, signed: true, dot: AUDIT_DOT, name: g.step, cost: g.cost || "cost unknown"};
     if(!g.run) parts.tries = {n: g.tryCount, marks: g.tryMarks};   // the run's own group has no tries
     return parts;
   }
   function auditGroupHeaderText(g){
     var p = auditGroupHeaderParts(g);
     if(g.draft) return draftLineText(g.summary);
-    var line = [p.status, p.name, p.cost].join(" \u00b7 ");
+    var line = [p.status, p.name, p.cost].join(" " + p.dot + " ");
     if(p.tries) line += " \u00b7 try " + p.tries.n + " " + p.tries.marks.join("");
     return line;
   }
@@ -2600,6 +2604,10 @@
       stateSpan.setAttribute("data-testid", "audit-group-state");
       stateSpan.textContent = p.status;
       h4.appendChild(stateSpan);
+      var dotSpan = document.createElement("span");
+      dotSpan.className = "audit-fold-dot";
+      dotSpan.textContent = p.dot;
+      h4.appendChild(dotSpan);
     }
     // M4c-fix amendment 2 (l): the title is `[sign] name · cost · try N ✗✓` — the name alone is cut with … (own flex child),
     // cost and tries never; time and tokens live in each try's detail. The whole name is in the title attribute and aria-label.

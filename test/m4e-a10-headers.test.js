@@ -14,7 +14,8 @@ const cut = (name) => {
 };
 const stepSignLine = PAGE.split('\n').find((l) => l.trim().startsWith('var STEP_SIGN ='));
 const fns = ['stepBoxState', 'countWord', 'money', 'duration', 'draftFigures', 'draftCallsWord', 'stateWord', 'draftLineText', 'auditGroupHeaderParts', 'auditGroupHeaderText', 'auditStateClass', 'buildStepBoxes'];
-const page = new Function(`var signWords=${JSON.stringify(SIGN_WORDS)};function verdictPassed(v){return v==="green"||v==="hitl";}${stepSignLine}\n${fns.map((n) => { try { return cut(n); } catch { return ''; } }).join('\n')}
+const dotLine = PAGE.split('\n').find((l) => l.trim().startsWith('var AUDIT_DOT ='));
+const page = new Function(`var signWords=${JSON.stringify(SIGN_WORDS)};function verdictPassed(v){return v==="green"||v==="hitl";}${stepSignLine}\n${dotLine}\n${fns.map((n) => { try { return cut(n); } catch { return ''; } }).join('\n')}
 return {stateWord, auditStateClass, auditGroupHeaderText, draftLineText, buildStepBoxes, auditGroupHeaderParts: typeof auditGroupHeaderParts === 'undefined' ? null : auditGroupHeaderParts};`)();
 
 const row = (verdict, step = 's1', extra = {}) => ({ step, verdict, class: 'green', wallMs: 1000, usd: 0.005, spendComplete: true, ...extra });
@@ -71,4 +72,20 @@ test('(g) a red step with a not-honoured stop row reads failed; a passed step wi
   assert.equal(page.stateWord(red.state), '[✗] failed');
   const [none] = page.buildStepBoxes([{ emits: 's1', attempts: [], groupState: null }]);
   assert.equal(none.state, 'pending');
+});
+
+test('walk fixes: (1) the Draft tail wraps at a phone, (2) the visible header has the dot after the badge from the parts, (3) cost and try count never touch', () => {
+  const phone = PAGE.slice(PAGE.indexOf('(l) a phone: the name is the only thing'), PAGE.indexOf('.audit-group.audit-fold table{margin-top'));
+  // (1) the tail may wrap and shrink inside the header at a phone
+  assert.match(phone, /\.audit-fold-tail\{[^}]*white-space:\s*normal/);
+  assert.match(phone, /\.audit-fold-tail\{[^}]*min-width:\s*0/);
+  // (2) the dot comes from the parts list (the aria joins with the same p.dot), not a second literal
+  const dom = PAGE.slice(PAGE.indexOf('function buildAuditGroupHeaderEl'), PAGE.indexOf('// Grouped view: one section per step'));
+  assert.match(dom, /textContent = p\.dot/);
+  assert.match(cut('auditGroupHeaderText'), /p\.dot/);
+  assert.equal(page.auditGroupHeaderParts({ step: 's1', state: 'done', cost: '$0.0010', tryCount: 1, tryMarks: ['✓'] }).dot, '·');
+  assert.doesNotMatch(phone, /\.audit-fold-dot\{[^}]*display:\s*none/);
+  // (3) on a phone the word "try" stays (or a visible separator does) with a space before it: cost and count never glue
+  assert.doesNotMatch(phone, /audit-fold-try[^{]*\{[^}]*display:\s*none/);
+  assert.match(phone, /\.audit-fold-try\{[^}]*margin-left/);
 });
