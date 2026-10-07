@@ -2679,9 +2679,6 @@ function haltRun({
   const spendComplete = priorSpendComplete
     && outcome !== 'provider-red' && outcome !== 'pricing-red' && outcome !== 'cap-halt';
   mkdirSync(flowDir, { recursive: true });
-  appendHistory(flowDir, {
-    runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash,
-  });
   if (existsSync(runDir)) {
     recordLateAnswerIfAny(runDir, now);
     writeLog(runDir, {
@@ -2697,5 +2694,9 @@ function haltRun({
     }
     settleStop({ runDir, now, outcome, stop }); // amendment 7 item 8: every Stop leaves its rows
   }
+  // The history end row is the LAST write: a reader that sees it finds the run fully settled (halt.json, log.json, stop rows).
+  appendHistory(flowDir, {
+    runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash,
+  });
   return { outcome, red, spentUsd: spent.value };
 }
