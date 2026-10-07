@@ -61,7 +61,7 @@ export function createResumeDoor(opts) {
       root: realRoot, flow, runId, catalogue: cat.primitives,
     });
     if (controls === null) return no(404, { refused: 'no-such-run', say: 'There is no such run.' });
-    if (controls.canStop) return no(409, { refused: 'running', say: 'This run is still running. Stop it first, or wait for it to end; a Resume is for a run that stopped.' });
+    if (controls.canStop && !controls.atAsk) return no(409, { refused: 'running', say: 'This run is still running. Stop it first, or wait for it to end; a Resume is for a run that stopped.' });
     if (!controls.canResume) return no(409, { refused: 'not-resumable', say: 'This run did not stop at its cap or by Stop, so there is nothing to resume. Start a new run instead.' });
     const lock = readResumeLock(rd.runDir);
     if (lock.state === 'live' || lock.state === 'unknown') return no(409, { refused: 'already-resuming', say: 'This run is already carrying on. Wait a moment, then look again.' });

@@ -215,7 +215,7 @@ test('am4 (e) door: Resume over HTTP — cap-halted run, same run id, the new ca
   assert.equal(go.status, 202, go.text);
   assert.equal(go.json().signed, true);
   assert.equal(go.json().runId, 'r1', 'the SAME run');
-  const end = await until(async () => { const d = (await w.get('/api/runs/job2/r1')).json(); return d?.glyph === '[·]' && d.controls.canStop === false ? d : null; });
+  const end = await until(async () => { const d = (await w.get('/api/runs/job2/r1')).json(); return d?.glyph === '[·]' && d.controls.atAsk === true ? d : null; });
   assert.match(end.label, /waiting on you/);
   assert.deepEqual(readdirSync(path.join(flowDir, 'runs')), ['r1'], 'still one run');
   assert.equal(JSON.parse(readFileSync(path.join(runDir, 'signed-values-r1.json'), 'utf8')).values.capUsd, 0.25);
@@ -251,7 +251,7 @@ test('walk fix 4: two Resume POSTs back to back with the same hash — exactly o
   assert.equal(c.status, 409);
   assert.equal(w.starts().length, startsBefore + 1, 'exactly one continue process was started');
   assert.deepEqual(readdirSync(runDir).filter((n) => /^signed-values-/.test(n)), ['signed-values-r1.json'], 'one signed values file');
-  await until(async () => { const d = (await w.get('/api/runs/job2/r1')).json(); return d?.glyph === '[·]' && d.controls.canStop === false ? d : null; });
+  await until(async () => { const d = (await w.get('/api/runs/job2/r1')).json(); return d?.glyph === '[·]' && d.controls.atAsk === true ? d : null; });
 });
 
 test('am4 (e) door: a Resume whose remaining cap does not fit the month is refused at $0 with the one refusal text; a run that is not stopped is not resumable', async () => {
