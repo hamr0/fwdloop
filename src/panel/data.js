@@ -175,7 +175,10 @@ export const RESUME_REASON_UNKNOWN = 'reason unknown: the panel restarted, so it
  * @param {{savedAnswer: {askId:string, decision:string|null, answeredAt?:string|null}|null, attempt: any, ask?: any}} ctx
  * @returns {{state: 'starting'|'not-started'|'broken'|'took-over', askId: string|null, tries: number|null, maxTries: number|null, reason: string|null, label: string}|null}
  */
-export function deriveResumeState({ savedAnswer: saved, attempt, ask = null }) {
+export function deriveResumeState({ savedAnswer: savedOnDisk, attempt, ask = null }) {
+  // An answer.json naming another ask than the open one is not this run's answer (answerAsk refuses to write one; a
+  // hand-placed file can): the run reads as what it is, waiting at the open ask. Readers never move the file.
+  const saved = savedOnDisk && ask && typeof ask.askId === 'string' && savedOnDisk.askId !== ask.askId ? null : savedOnDisk;
   const pastDeadline = !!(ask && saved && ask.askId === saved.askId && Date.parse(ask.expiresAt) < Date.now());
   if (saved && pastDeadline && answerTiming(saved.answeredAt, ask.expiresAt) !== 'on-time') return null;
   const tries = attempt ? attempt.tries : null;
