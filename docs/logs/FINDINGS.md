@@ -2945,3 +2945,13 @@ read his keys anyway.
 
 Ruling (hamr, choice "A1", 2026-10-07): keep the panel without a token. It is a single-user tool and assumes no other OS
 user on the machine. Accepted for a machine only hamr logs in to. On a shared machine, do not run the panel.
+
+## F60 — A Stop and an answer in the same millisecond: the rule broke the tie as "Stop first" and threw the answer away (2026-10-07)
+
+CI on PR #20 (run 37677772054) failed `test/m4e-am4-stop.test.js:134`: resumable at step 3, expected 4. On the fast CI machine
+`answerAsk` and `requestStop` ran back to back and stamped the SAME millisecond. Amendment 13's rule in `resumeRun` stopped
+the run AT the ask unless the answer was strictly earlier than the Stop, so a tie counted as "Stop came first" and the answer
+was set aside. Locally it was never seen because the two clicks are at least 1 ms apart. Ruling (hamr, choice "1"): on a tie
+the ANSWER WINS; only a Stop asked strictly before the answer stops at the ask. The fold's own seam then reads the Stop and
+stops before the next step, so nothing ships. A Stop with no readable time still stops at the ask (now explicit in code).
+Lesson: a time-ordering rule needs an explicit tie case and a test with identical timestamps, not wall-clock luck.
