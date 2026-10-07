@@ -2543,8 +2543,8 @@
   // M4e amendment 10: ONE function for each header line's words, `auditGroupHeaderParts` (status in the step card's `stateWord`, name, then the Draft's figures
   // or the step's cost and tries); `buildAuditGroupHeaderEl` draws these parts and `auditGroupHeaderText` joins them, so the visible line and its aria are
   // the same words. `status` is null with no draft record; `state` colors it (`auditStateClass`); `signed`: the status carries its own brackets.
-  var AUDIT_DOT = "\u00b7";   // the separator between the status badge and the name, read by the visible header and the aria line alike
   function auditGroupHeaderParts(g){
+    var AUDIT_DOT = "\u00b7";   // the separator between the status badge and the name, read by the visible header and the aria line alike
     if(g.draft){
       var ds = g.summary;
       if(!(ds && ds.present)) return {status: null, name: "drafting", why: (ds && ds.why) || "no draft record"};

@@ -14,8 +14,7 @@ const cut = (name) => {
 };
 const stepSignLine = PAGE.split('\n').find((l) => l.trim().startsWith('var STEP_SIGN ='));
 const fns = ['stepBoxState', 'countWord', 'money', 'duration', 'draftFigures', 'draftCallsWord', 'stateWord', 'draftLineText', 'auditGroupHeaderParts', 'auditGroupHeaderText', 'auditStateClass', 'buildStepBoxes'];
-const dotLine = PAGE.split('\n').find((l) => l.trim().startsWith('var AUDIT_DOT ='));
-const page = new Function(`var signWords=${JSON.stringify(SIGN_WORDS)};function verdictPassed(v){return v==="green"||v==="hitl";}${stepSignLine}\n${dotLine}\n${fns.map((n) => { try { return cut(n); } catch { return ''; } }).join('\n')}
+const page = new Function(`var signWords=${JSON.stringify(SIGN_WORDS)};function verdictPassed(v){return v==="green"||v==="hitl";}${stepSignLine}\n${fns.map((n) => { try { return cut(n); } catch { return ''; } }).join('\n')}
 return {stateWord, auditStateClass, auditGroupHeaderText, draftLineText, buildStepBoxes, auditGroupHeaderParts: typeof auditGroupHeaderParts === 'undefined' ? null : auditGroupHeaderParts};`)();
 
 const row = (verdict, step = 's1', extra = {}) => ({ step, verdict, class: 'green', wallMs: 1000, usd: 0.005, spendComplete: true, ...extra });
