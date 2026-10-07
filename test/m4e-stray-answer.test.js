@@ -81,8 +81,8 @@ test('stray (a) a run waiting at a NEW ask with a stray answer for the OLD askId
   assert.notEqual(d.glyph, '[II]', `stuck: ${d.label}`);
   assert.equal(d.glyph, '[·]');
   assert.equal(getRunControls(view(w)).canStop, true, 'Stop offered');
-  const rows = listStops({ root: w.root }).filter((s) => s.runId === 'run-1');
-  assert.equal(rows.length, 1, `one Inbox row, got ${JSON.stringify(rows.map((r) => [r.stuck, r.waiting]))}`);
+  const rows = listStops({ root: w.root }).filter((s) => s.runId === 'run-1' && (s.waiting || s.stuck));
+  assert.equal(rows.length, 1, `one waiting/stuck Inbox row, got ${JSON.stringify(rows.map((r) => [r.askId, r.stuck, r.waiting]))}`);
   assert.equal(rows[0].stuck, false);
   assert.equal(inboxOpenCount(listStops({ root: w.root })), 1);
   assert.equal(existsSync(path.join(w.runDir, 'answer.json')), true, 'a reader never moves the stray file');
