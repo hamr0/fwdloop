@@ -1241,6 +1241,10 @@
   function draftFigures(d){
     return [typeof d.timeMs === "number" ? duration(d.timeMs) : "time unknown", d.cost || "cost unknown", draftCallsWord(d)];
   }
+  // M4e amendment 11: the human-checks words, ONE function for the drafting card's line 2 and the Audit Draft header (`1 human check`, `2 human checks`).
+  function draftHumanWord(d){
+    return typeof d.humanChecks === "number" ? countWord(d.humanChecks, "human check") : "human checks unknown";
+  }
   // M4e amendment 10 item 2: with the step card's status first: `[✓] passed · drafting · <time> · $<cost> · <n> model calls ✓` (signed), `not signed · drafting · ...`
   // plain (no sign row, no mark), `drafting · no draft record` (no draft record, no status). The Audit header's visible words come from the same
   // `auditGroupHeaderParts`, so this is the aria line too.
@@ -1254,7 +1258,7 @@
   function draftCardLines(d){
     if(!d || !d.present) return {title: "0 \u00b7 drafting", status: null, passed: false, lines: [(d && d.why) || "no draft record"]};
     var passed = d.ended === "done";
-    var figs = draftFigures(d).concat([typeof d.humanChecks === "number" ? countWord(d.humanChecks, "human check") : "human checks unknown"]);
+    var figs = draftFigures(d).concat([draftHumanWord(d)]);
     if(passed) figs.push("\u2713");
     return {title: "0 \u00b7 drafting", status: passed ? stateWord("done") : "not signed", passed: passed, lines: [figs.join(" \u00b7 "), (d.happened || []).join(" \u00b7 ")]};
   }
@@ -2549,7 +2553,7 @@
       var ds = g.summary;
       if(!(ds && ds.present)) return {status: null, name: "drafting", why: (ds && ds.why) || "no draft record"};
       var passed = ds.ended === "done";
-      return {status: passed ? stateWord("done") : "not signed", state: passed ? "done" : "pending", signed: true, name: "drafting", dot: AUDIT_DOT, draftFigs: draftFigures(ds), passed: passed};
+      return {status: passed ? stateWord("done") : "not signed", state: passed ? "done" : "pending", signed: true, name: "drafting", dot: AUDIT_DOT, draftFigs: draftFigures(ds).concat([draftHumanWord(ds)]), passed: passed};
     }
     var parts = {status: stateWord(g.state), state: g.state, signed: true, dot: AUDIT_DOT, name: g.step, cost: g.cost || "cost unknown"};
     if(!g.run) parts.tries = {n: g.tryCount, marks: g.tryMarks};   // the run's own group has no tries

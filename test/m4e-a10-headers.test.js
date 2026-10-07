@@ -13,7 +13,7 @@ const cut = (name) => {
   return PAGE.slice(start, PAGE.indexOf('\n  }\n', start) + 5);
 };
 const stepSignLine = PAGE.split('\n').find((l) => l.trim().startsWith('var STEP_SIGN ='));
-const fns = ['stepBoxState', 'countWord', 'money', 'duration', 'draftFigures', 'draftCallsWord', 'stateWord', 'draftLineText', 'auditGroupHeaderParts', 'auditGroupHeaderText', 'auditStateClass', 'buildStepBoxes'];
+const fns = ['stepBoxState', 'countWord', 'money', 'duration', 'draftFigures', 'draftHumanWord', 'draftCallsWord', 'stateWord', 'draftLineText', 'auditGroupHeaderParts', 'auditGroupHeaderText', 'auditStateClass', 'buildStepBoxes'];
 const page = new Function(`var signWords=${JSON.stringify(SIGN_WORDS)};function verdictPassed(v){return v==="green"||v==="hitl";}${stepSignLine}\n${fns.map((n) => { try { return cut(n); } catch { return ''; } }).join('\n')}
 return {stateWord, auditStateClass, auditGroupHeaderText, draftLineText, buildStepBoxes, auditGroupHeaderParts: typeof auditGroupHeaderParts === 'undefined' ? null : auditGroupHeaderParts};`)();
 
@@ -35,8 +35,8 @@ test('(b) waiting reads [·] waiting; a red group reads [✗] failed; never the 
 
 test('(c) the Draft header: [✓] passed, at least N model calls for an old flow; not signed plain; no record unchanged', () => {
   const d = { present: true, ended: 'done', timeMs: 155000, cost: '$0.0200', calls: 2, callsAtLeast: true };
-  assert.equal(page.draftLineText(d), '[✓] passed · drafting · 2m35s · $0.0200 · at least 2 model calls ✓');
-  assert.equal(page.draftLineText({ ...d, ended: null }), 'not signed · drafting · 2m35s · $0.0200 · at least 2 model calls');
+  assert.equal(page.draftLineText(d), '[✓] passed · drafting · 2m35s · $0.0200 · at least 2 model calls · human checks unknown ✓');
+  assert.equal(page.draftLineText({ ...d, ended: null }), 'not signed · drafting · 2m35s · $0.0200 · at least 2 model calls · human checks unknown');
   assert.equal(page.draftLineText({ present: false, why: 'no draft record' }), 'drafting · no draft record');
 });
 

@@ -35,7 +35,7 @@ async function draftOf(rows) {
   return getRunDetail({ root: w.root, flow: 'job2', runId: 'run-1', catalogue: CAT }).draft;
 }
 // amendment 9 reshaped the card: the lines flattened here as `[title + status, line 2, line 3]` so amendment 8's "what happened" and unknown rules stay checked
-const { draftCardLines: card9 } = new Function(`var STEP_SIGN={done:"[\u2713]"};var signWords={"[\u2713]":"passed"};${['countWord', 'money', 'duration', 'draftFigures', 'draftCallsWord', 'stateWord', 'draftCardLines'].map(cut).join('\n')}\nreturn { draftCardLines };`)();
+const { draftCardLines: card9 } = new Function(`var STEP_SIGN={done:"[\u2713]"};var signWords={"[\u2713]":"passed"};${['countWord', 'money', 'duration', 'draftFigures', 'draftHumanWord', 'draftCallsWord', 'stateWord', 'draftCardLines'].map(cut).join('\n')}\nreturn { draftCardLines };`)();
 const draftCardLines = (d) => { const c = card9(d); return c.status === null ? [c.title, ...c.lines] : [`${c.title} ${c.status}`, ...c.lines]; };
 
 test('(b) a signed flow: drafting / done / time · $cost · n calls · ✓ / what happened', async () => {

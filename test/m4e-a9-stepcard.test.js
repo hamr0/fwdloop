@@ -18,7 +18,7 @@ const cut = (name) => {
   assert.ok(start > 0, `${name} not found`);
   return PAGE.slice(start, PAGE.indexOf('\n  }\n', start) + 5);
 };
-const { draftCardLines, draftLineText } = new Function(`var STEP_SIGN={done:"[✓]"};var signWords={"[✓]":"passed"};${['countWord', 'money', 'duration', 'draftFigures', 'draftCallsWord', 'stateWord', 'auditGroupHeaderParts', 'draftCardLines', 'draftLineText'].map(cut).join('\n')}\nreturn { draftCardLines, draftLineText };`)();
+const { draftCardLines, draftLineText } = new Function(`var STEP_SIGN={done:"[✓]"};var signWords={"[✓]":"passed"};${['countWord', 'money', 'duration', 'draftFigures', 'draftHumanWord', 'draftCallsWord', 'stateWord', 'auditGroupHeaderParts', 'draftCardLines', 'draftLineText'].map(cut).join('\n')}\nreturn { draftCardLines, draftLineText };`)();
 // an OLD row: no wallMs, no calls
 const old = (kind, over = {}) => ({ kind, n: 0, at: '2026-10-06T10:00:00.000Z', model: 'deepseek-flash', costUsd: 0.01, spendComplete: true, verdict: 'green', hash: 'abcdef012345', gap: null, ...over });
 const card = { kind: 'card', n: 0, at: '2026-10-06T09:58:00.000Z', card: { flowName: 'job2', job: 'x', capUsd: 0.25 } };
@@ -82,6 +82,16 @@ test('(d) the card and the Audit header read the one draft time', async () => {
   assert.equal(detail.draft.timeMs, audit.draft.summary.timeMs);
   assert.equal(detail.draft.timeMs, 155000);
   const header = draftLineText(audit.draft.summary);
-  assert.equal(header, '[✓] passed · drafting · 2m35s · $0.0100 · at least 1 model call ✓');
+  assert.equal(header, '[✓] passed · drafting · 2m35s · $0.0100 · at least 1 model call · 1 human check ✓');
   assert.ok(draftCardLines(detail.draft).lines[0].startsWith('2m35s · $0.0100 · at least 1 model call'), 'same time and model-calls words');
+});
+
+test('amendment 11: the Audit Draft header ends `· <h> human checks ✓`, h = the drafting card\'s count (1 note = 2; none = 1 human check)', async () => {
+  const one = await draftOf([card, old('draft'), note, sign]);
+  const h = draftLineText(one.audit.draft.summary);
+  assert.match(h, /^\[✓\] passed · drafting · .+ · \$.+ · .*model calls? · 2 human checks ✓$/);
+  assert.match(draftCardLines(one.detail.draft).lines[0], / · 2 human checks · /);
+  const none = await draftOf([card, old('draft'), sign]);
+  assert.match(draftLineText(none.audit.draft.summary), / · 1 human check ✓$/);
+  assert.equal(draftLineText({ present: false, why: 'no draft record' }), 'drafting · no draft record');
 });
