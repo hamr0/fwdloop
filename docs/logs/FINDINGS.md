@@ -2916,3 +2916,21 @@ Also seen: hamr's job line 3 contains a stray "4>" (typed, likely from the old g
 
 Fix proposed as M4e amendment 7 item 1 (NOT SIGNED). Evidence: `flows/m4e-exit-4/declaration.json`, `setup.jsonl`
 (change n=1 green, hash 4c838b35…), `runs/run-1/audit.jsonl`.
+
+## F58 — A change can silently drop a section; nothing compares it with the plan it changes (2026-10-07)
+
+hamr's live walk, flow `flows/new-close2`, draft `flows/.drafts/d-00muy9asgq-5d5f`. The draft's sections
+(`draft/declaration.json`) were `["how it matches the JD", "summary of work history blurb", "professional skills, soft skills"]`.
+The note was "put skills before work history." The change (green, `draft-1/declaration.json`) set sections to
+`["How it matches the JD", "Professional skills", "Soft skills"]`: it DROPPED "summary of work history blurb" instead of
+reordering. hamr signed; run-1 complete, $0.0357.
+
+Why it passed: M4e amendment 7 item 1's checks all hold (count equals the guardrail's 3, short names taken from the line,
+no containment). Nothing compares a change's sections with the plan it changes. The job line names 4 parts but the
+guardrail says 3 sections, which forces a merge or a drop.
+
+Not an LLM-judge problem. The gap is that a dropped section is invisible to the human who signs.
+
+Proposed, NOT agreed (hamr 2026-10-07: "we will fix it next, need to think about it, just not now"): M4e amendment 13 —
+the change readout names any section dropped or added versus the last green plan ("dropped: summary of work history
+blurb"), computed mechanically from the two section lists and never by reading the note. The human decides.
