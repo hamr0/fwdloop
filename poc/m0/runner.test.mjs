@@ -1,7 +1,7 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  writeFileSync, readFileSync, mkdirSync, existsSync, symlinkSync, rmSync,
+  writeFileSync, readFileSync, mkdirSync, existsSync, symlinkSync, rmSync, readdirSync,
 } from 'node:fs';
 import { mkdtempSync } from '../../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
@@ -21,6 +21,19 @@ import {
 // silently resolves to a poc/m0/poc/m0/ litter directory instead of failing loudly.
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..');
+
+// runDeclaration has no outDir parameter and the declared send target is file:poc/m0/out, so
+// the stubbed runs below write <runId>/ and <runId>-sent.txt into the real OUT_DIR. Nothing may
+// stay behind: snapshot the directory now and, once this file's tests end, remove every entry
+// this file's run-id prefixes created since (a timestamped name, so a hand-kept run is never hit).
+const OUT_BEFORE = new Set(existsSync(OUT_DIR) ? readdirSync(OUT_DIR) : []);
+const OWN_RUN_ENTRY = /^(test-happened-|test-preflight-|fold-).*\d{10,}(-sent\.txt)?$/;
+after(() => {
+  if (!existsSync(OUT_DIR)) return;
+  for (const name of readdirSync(OUT_DIR)) {
+    if (!OUT_BEFORE.has(name) && OWN_RUN_ENTRY.test(name)) rmSync(join(OUT_DIR, name), { recursive: true, force: true });
+  }
+});
 
 // F9/finding 2: runDeclaration's rate lookup now delegates to provider.mjs's resolveModelRate —
 // the ONE writer for suffix-strip + table-lookup — rather than a second hand-rolled copy. A
