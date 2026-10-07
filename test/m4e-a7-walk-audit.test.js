@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
-import { readHistory, readAudit } from '../src/books.js';
+import { readHistory, readAudit, appendAudit } from '../src/books.js';
 import { answerAsk } from '../src/ask.js';
 import { makeLiveModelStep } from '../src/model-step.js';
 import {
@@ -142,4 +142,17 @@ test('walk 2: a Stop before a step\'s first call (Resume then an immediate Stop)
   const row = stopRows(w.runDir).find((x) => x.verdict === 'stopped');
   assert.equal(row.gap, 'stopped after step 2', 'the signed words');
   assert.equal(row.step, 'jd-text', 'filed under the step the words name (step 2)');
+});
+
+test('walk 5: the Flat view Step cell of a step-less row reads "run" (the grouped view\'s group name, one decider), never "null"', () => {
+  const w = mk('g5');
+  mkdirSync(w.runDir, { recursive: true });
+  const note = { step: null, attempt: null, class: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, tokens: null, tools: null, refused: [] };
+  appendAudit(w.runDir, { ...note, verdict: 'stop-asked', gap: 'stop asked (you) at 2026-10-06T22:32:00.000Z', at: '2026-10-06T22:32:00.000Z' });
+  appendAudit(w.runDir, { ...note, verdict: 'stopped', gap: 'stopped before step 1', at: '2026-10-06T22:32:01.000Z' });
+  const served = getRunAudit({ root: w.root, flow: 'job2', runId: 'run-1', catalogue: CAT });
+  assert.equal(served.rows.length, 2);
+  assert.ok(served.rows.every((x) => x.step === null && x.stepName === 'run'), 'flat rows carry the name');
+  assert.equal(served.groups.find((g) => g.run).step, 'run', 'the same word as the group');
+  assert.match(PAGE, /<td data-label=\\"Step\\">" \+ escapeXml\(r\.stepName \|\| r\.step\)/);
 });

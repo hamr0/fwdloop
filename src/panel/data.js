@@ -699,6 +699,10 @@ function isTryRow(r) {
 
 /** The name of the one group for audit rows that name no step. */
 const RUN_GROUP = 'run';
+/** The one decider of a row's step name for the Audit tab: its step, else the run's own group name. */
+function auditStepName(step) {
+  return typeof step === 'string' && step.length > 0 ? step : RUN_GROUP;
+}
 
 /**
  * A step group's own state word for the Audit tab's collapsed header —
@@ -758,7 +762,7 @@ export function deriveAuditGroups(enrichedRows) {
   }
   return order.map((key) => {
     const rows = byStep.get(key);
-    const step = key ?? RUN_GROUP;
+    const step = auditStepName(key);
     const closeClass = rows[0].class ?? null;
     const timeMs = rows.reduce((acc, r) => acc + (typeof r.wallMs === 'number' ? r.wallMs : 0), 0);
 
@@ -1090,6 +1094,7 @@ export function orderRuns(rows) {
 function enrichAuditRows(rawRows) {
   return rawRows.map((row) => ({
     ...row,
+    stepName: auditStepName(row.step),
     action: deriveAuditAction(row),
     tokensDisplay: deriveAuditTokensDisplay(row),
     toolsPhrase: deriveAuditToolsPhrase(row),

@@ -2459,7 +2459,7 @@
     var actionText = action + (typeof r.toolsPhrase === "string" ? " · " + r.toolsPhrase : "");
     var cells =
       "<td data-label=\"Attempt\">" + escapeXml(auditAttemptText(r)) + "</td>" +
-      (includeStep ? "<td data-label=\"Step\">" + escapeXml(r.step) + "</td>" : "") +
+      (includeStep ? "<td data-label=\"Step\">" + escapeXml(r.stepName || r.step) + "</td>" : "") +
       "<td data-label=\"Action\">" + escapeXml(actionText) + "</td>" +
       "<td data-label=\"Gap\">" + escapeXml(isRejectRow ? "" : auditGapText(r)) + "</td>" +
       "<td data-label=\"Cost\">" + escapeXml(auditCostCellText(r)) + "</td>" +
