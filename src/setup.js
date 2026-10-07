@@ -47,6 +47,8 @@ function planRow(sessionDir, rel, kind, n) {
     costUsd: typeof spent?.costUsd === 'number' ? spent.costUsd : null, spendComplete: spent ? spent.spendComplete !== false && typeof spent.costUsd === 'number' : false,
     // calls and time as the draft booked them; null = not recorded (never 0)
     calls: Number.isInteger(spent?.calls) ? spent.calls : null, wallMs: typeof spent?.wallMs === 'number' ? spent.wallMs : null,
+    // retries the drafter spent on structure (log.json); null = not recorded (a plan from before it), never 0
+    structureRetries: Number.isInteger(log?.structureRetries) ? log.structureRetries : null,
     verdict, hash, gap,
   };
 }
