@@ -1511,6 +1511,13 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Signed text, as shown to hamr:** the Audit Draft header reads `[✓] passed · drafting · <time> · $<cost> · <n> model calls · <h> human checks ✓`. `<h>` comes from the same count as the drafting card, so the two can't disagree. Everything else in amendment 10 stays the same.
   - **Cap:** within M4e's $0.50; $0 build.
 
+**Exit evidence (live, 2026-10-07) — EXIT SIGNED by hamr 2026-10-07 ("sign m4e exit"):**
+
+- Flow `flows/new-close1`, deepseek-flash, run from the panel. run-1 ended `attempt-fallback` ($0.0539): step `summary_resume_draft` red 4 tries on the heading / 600-word checks, so the mechanical checks caught a weak model. run-2: a Stop was honoured ("stopped after step 2", the stop rows filed under step 2, `jd_text`), then Resume, one redo at the ask, accepted, `complete`, $0.0544 total (`flows/new-close1/history.jsonl`, `runs/run-2/audit.jsonl`).
+- hamr's walk sheet: steps 1-6 and amendment 11 reported passing (2026-10-07), then "sign m4e exit". The paid replay of "put skills before work history" on `m4e-exit-4`: red change, last green plan kept — per hamr's walk; the red change is not recorded in `flows/m4e-exit-4/setup.jsonl` (its only change row there, 2026-10-06, is green).
+- Amendments 7-11 signed and built; $0 browser walks at 1280/390/320, light and dark, passed (am7, am8, am9, am10 + re-walk, am11).
+- Not exercised live: a Stop landing mid-try (covered by tests `test/m4e-am7-stop.test.js`).
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
