@@ -34,11 +34,13 @@ async function draftOf(rows) {
   writeFileSync(path.join(flowDir, 'setup.jsonl'), `${rows.map((r) => JSON.stringify(r)).join('\n')}\n`);
   return getRunDetail({ root: w.root, flow: 'job2', runId: 'run-1', catalogue: CAT }).draft;
 }
-const { draftCardLines } = load('countWord', 'money', 'duration', 'draftCardLines');
+// amendment 9 reshaped the card: the lines flattened here as `[title + status, line 2, line 3]` so amendment 8's "what happened" and unknown rules stay checked
+const { draftCardLines: card9 } = new Function(`var STEP_SIGN={done:"[\u2713]"};var signWords={"[\u2713]":"passed"};${['countWord', 'money', 'duration', 'draftCallsWord', 'stateWord', 'draftCardLines'].map(cut).join('\n')}\nreturn { draftCardLines };`)();
+const draftCardLines = (d) => { const c = card9(d); return c.status === null ? [c.title, ...c.lines] : [`${c.title} ${c.status}`, ...c.lines]; };
 
 test('(b) a signed flow: drafting / done / time · $cost · n calls · ✓ / what happened', async () => {
   const d = await draftOf([card, row('draft'), { kind: 'note', n: 1, at: 'x', text: 'SECRETNOTE' }, row('change', { n: 1, calls: 3, wallMs: 7000, costUsd: 0.02 }), sign]);
-  assert.deepEqual(draftCardLines(d), ['drafting', 'done', '12.0s · $0.0300 · 5 calls · ✓', 'your card · drafting · your note · changing · signed (hamr)']);
+  assert.deepEqual(draftCardLines(d), ['0 · drafting [✓] passed', '3m00s · $0.0300 · 5 model calls · 2 human checks · ✓', 'your card · drafting · your note · changing · signed (hamr)']);
 });
 
 test('(a) the card carries no inputs, job lines, destination, plan id or note text', async () => {
@@ -51,18 +53,18 @@ test('(a) the card carries no inputs, job lines, destination, plan id or note te
 test('(b) a red change before the sign: done, ✓, change red; a red first draft says draft red; no sign row says not signed with no mark', async () => {
   const red = await draftOf([card, row('draft'), row('change', { n: 1, verdict: 'red', hash: null }), sign]);
   const l = draftCardLines(red);
-  assert.deepEqual([l[1], l[2].endsWith('✓'), l[3]], ['done', true, 'your card · drafting · change red · signed (hamr)']);
-  assert.match(draftCardLines(await draftOf([card, row('draft', { verdict: 'red', hash: null }), sign]))[3], /draft red/);
+  assert.deepEqual([l[0], l[1].endsWith('✓'), l[2]], ['0 · drafting [✓] passed', true, 'your card · drafting · change red · signed (hamr)']);
+  assert.match(draftCardLines(await draftOf([card, row('draft', { verdict: 'red', hash: null }), sign]))[2], /draft red/);
   const un = draftCardLines(await draftOf([card, row('draft')]));
-  assert.equal(un[1], 'not signed');
-  assert.doesNotMatch(un[2], /✓/);
+  assert.equal(un[0], '0 · drafting not signed');
+  assert.doesNotMatch(un[1], /✓/);
 });
 
 test('(b) a retried draft reads drafting (retry K of N), N = MAX_STRUCTURE_RETRIES; no field = no retry text, never retry 0', async () => {
   const d = await draftOf([card, row('draft', { structureRetries: 1 }), row('change', { n: 1, structureRetries: 2 }), sign]);
-  assert.equal(draftCardLines(d)[3], 'your card · drafting (retry 1 of 2) · changing (retry 2 of 2) · signed (hamr)');
+  assert.equal(draftCardLines(d)[2], 'your card · drafting (retry 1 of 2) · changing (retry 2 of 2) · signed (hamr)');
   const z = await draftOf([card, row('draft', { structureRetries: 0 }), row('draft', { structureRetries: null }), sign]);
-  assert.doesNotMatch(draftCardLines(z)[3], /retry/);
+  assert.doesNotMatch(draftCardLines(z)[2], /retry/);
 });
 
 test('(b) planRow copies structureRetries from the plan\'s log.json onto the Draft row; none recorded = null', () => {
@@ -77,12 +79,12 @@ test('(b) planRow copies structureRetries from the plan\'s log.json onto the Dra
 });
 
 test('(c) an unknown time, cost or call count reads unknown, never 0', async () => {
-  const d = await draftOf([card, row('draft', { costUsd: null, spendComplete: false, calls: null, wallMs: null }), sign]);
+  const d = await draftOf([{ ...card, at: undefined }, row('draft', { costUsd: null, spendComplete: false, calls: null, wallMs: null }), sign]);
   const l = draftCardLines(d);
-  assert.equal(l[2], 'time unknown · cost unknown · calls unknown · ✓');
-  assert.doesNotMatch(l[2], /\b0\b|\$0/);
+  assert.equal(l[1], 'time unknown · cost unknown · at least 1 model call · 1 human check · ✓');
+  assert.doesNotMatch(l[1], /\b0\b|\$0/);
 });
 
 test('a flow with no draft record: drafting / no draft record, no figures', () => {
-  assert.deepEqual(draftCardLines({ present: false, why: 'no draft record' }), ['drafting', 'no draft record']);
+  assert.deepEqual(draftCardLines({ present: false, why: 'no draft record' }), ['0 · drafting', 'no draft record']);
 });

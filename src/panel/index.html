@@ -1223,24 +1223,29 @@
     }
     return out;
   }
-  // M4e amendment 7 item 2: the Draft's one line — on the first step card and in the Audit group's header: `drafting · <time> · $<cost> · <n> calls · ✓`.
+  // M4e amendment 9: the model-calls words, ONE function for the card's line 2 and the Audit header: `<n> model calls` (`1 model call`), `at least <n> model calls`
+  // when a draft/change row recorded no `calls` (it counts 1), `calls unknown` with no model row.
+  function draftCallsWord(d){
+    if(typeof d.calls !== "number") return "calls unknown";
+    return (d.callsAtLeast ? "at least " : "") + countWord(d.calls, "model call");
+  }
+  // M4e amendment 7 item 2 / 9: the Draft's one line in the Audit group's header: `drafting · <time> · $<cost> · <n> model calls · ✓`.
   // `d` is the server's one Draft summary (src/panel/data.js `draftTotals`): a figure not recorded reads "unknown", never 0; a flow signed before
   // amendment 6 reads "no draft record" and no cost.
   function draftLineText(d){
     if(!d || !d.present) return "drafting \u00b7 " + ((d && d.why) || "no draft record");
-    return ["drafting", typeof d.timeMs === "number" ? duration(d.timeMs) : "time unknown", d.cost || "cost unknown",
-      typeof d.calls === "number" ? countWord(d.calls, "call") : "calls unknown", "\u2713"].join(" \u00b7 ");
+    return ["drafting", typeof d.timeMs === "number" ? duration(d.timeMs) : "time unknown", d.cost || "cost unknown", draftCallsWord(d), "\u2713"].join(" \u00b7 ");
   }
-  // M4e amendment 8 item 1: the drafting card's four short lines, from ONE function (bareloop's card): `drafting` / how it ended (`done` | `not signed`) /
-  // `<time> · $<cost> · <n> calls · ✓` (a figure not recorded reads unknown, never 0; the mark only on `done`) / what happened (`d.happened`, joined by ` · `).
-  // The figures are the same `draftTotals` the Map box and the Audit header read. A flow with no draft record: `drafting` and `no draft record`.
+  // M4e amendment 9: the drafting card, step 0 of the Run tab, from ONE function: `title` (`0 · drafting`, bold h4), `status` (the step card's `stateWord`: `[✓] passed`
+  // with a sign row, plain `not signed` without; none for a flow with no draft record), then `lines`: `<time> · $<cost> · <n> model calls · <h> human checks · ✓`
+  // (a figure not recorded reads unknown, never 0; the mark only on passed) and what happened (`d.happened`, joined by ` · `). Same `draftTotals` as the Audit header.
   function draftCardLines(d){
-    if(!d || !d.present) return ["drafting", (d && d.why) || "no draft record"];
-    var ended = d.ended === "done" ? "done" : "not signed";
-    var figs = [typeof d.timeMs === "number" ? duration(d.timeMs) : "time unknown", d.cost || "cost unknown",
-      typeof d.calls === "number" ? countWord(d.calls, "call") : "calls unknown"];
-    if(ended === "done") figs.push("\u2713");
-    return ["drafting", ended, figs.join(" \u00b7 "), (d.happened || []).join(" \u00b7 ")];
+    if(!d || !d.present) return {title: "0 \u00b7 drafting", status: null, passed: false, lines: [(d && d.why) || "no draft record"]};
+    var passed = d.ended === "done";
+    var figs = [typeof d.timeMs === "number" ? duration(d.timeMs) : "time unknown", d.cost || "cost unknown", draftCallsWord(d),
+      typeof d.humanChecks === "number" ? countWord(d.humanChecks, "human check") : "human checks unknown"];
+    if(passed) figs.push("\u2713");
+    return {title: "0 \u00b7 drafting", status: passed ? stateWord("done") : "not signed", passed: passed, lines: [figs.join(" \u00b7 "), (d.happened || []).join(" \u00b7 ")]};
   }
   // The Map's first box: the Draft, then step 1. A box with no audit attempts of its own; its state word says "no draft record" when there is none.
   function draftBox(d){
@@ -2293,13 +2298,28 @@
     div.textContent = text;
     return div;
   }
-  // M4e amendment 8: the first card under the Map — the Draft's four short lines (`draftCardLines`); the rows stay in Audit → Draft. A click opens the Audit tab on that group, like a step card's.
+  // M4e amendment 9: the first card under the Map, shaped like a step card: head `0 · drafting` (bold h4) + status (`draftCardLines`), then its two lines; the rows
+  // stay in Audit → Draft. A click opens the Audit tab on that group, like a step card's.
   function buildDraftCardEl(d){
     var card = document.createElement("div");
     card.className = "step-card";
     card.setAttribute("data-testid", "step-card-draft");
-    draftCardLines(d).forEach(function(t, i){
-      if(t !== "") card.appendChild(textLineEl(i === 0 ? "step-head" : "step-meta", t, "step-card-draft-line-" + (i + 1)));
+    var c = draftCardLines(d);
+    var head = document.createElement("div");
+    head.className = "step-head";
+    var h4 = document.createElement("h4");
+    h4.textContent = c.title;
+    head.appendChild(h4);
+    if(c.status !== null){
+      var badge = document.createElement("span");
+      badge.className = "badge " + (c.passed ? auditStateClass("done") + " sign-badge" : auditStateClass("pending"));
+      badge.setAttribute("data-testid", "step-card-draft-state");
+      badge.textContent = c.status;
+      head.appendChild(badge);
+    }
+    card.appendChild(head);
+    c.lines.forEach(function(t, i){
+      if(t !== "") card.appendChild(textLineEl("step-meta", t, "step-card-draft-line-" + (i + 2)));
     });
     card.setAttribute("tabindex", "0");
     card.setAttribute("role", "button");

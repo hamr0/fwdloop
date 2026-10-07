@@ -20,16 +20,16 @@ const row = (kind, over = {}) => ({
   kind, n: 0, at: '2026-10-06T10:00:00.000Z', model: 'deepseek-flash', costUsd: 0.01, spendComplete: true, calls: 2, wallMs: 5000, verdict: 'green', hash: 'abcdef012345', gap: null, ...over,
 });
 
-test('(b) draftTotals: time, calls and cost are the sums of the draft and change rows; a floor reads "at least"', () => {
-  const t = draftTotals([row('draft'), row('change', { n: 1, costUsd: 0.02, calls: 3, wallMs: 7000 })]);
-  assert.deepEqual([t.calls, t.timeMs, t.cost, t.modelRows], [5, 12000, '$0.0300', 2]);
+test('(b) draftTotals: calls and cost are the sums of the draft and change rows, time is card to sign (amendment 9); a floor reads "at least"', () => {
+  const t = draftTotals([row('draft'), row('change', { n: 1, costUsd: 0.02, calls: 3, wallMs: 7000 })], { cardAt: '2026-10-06T09:59:00.000Z', signAt: '2026-10-06T10:02:00.000Z' });
+  assert.deepEqual([t.calls, t.timeMs, t.cost, t.modelRows], [5, 180000, '$0.0300', 2]);
   assert.equal(draftTotals([row('draft'), row('change', { spendComplete: false })]).cost, 'at least $0.0200');
 });
 
 test('(b) draftTotals: a figure any row did not record is unknown, never 0 and never a partial sum shown as whole', () => {
   const t = draftTotals([row('draft'), row('change', { costUsd: null, calls: null, wallMs: null })]);
-  assert.equal(t.calls, null);
-  assert.equal(t.timeMs, null);
+  assert.deepEqual([t.calls, t.callsAtLeast], [3, true], 'a row with no calls counts 1 and the figure is a floor');
+  assert.equal(t.timeMs, null, 'no card/sign timestamps: unknown');
   assert.equal(t.cost, 'at least $0.0100', 'one row priced: a floor, flagged');
   const none = draftTotals([row('draft', { costUsd: null, spendComplete: false })]);
   assert.equal(none.cost, null, 'nothing priced: no cost at all');
@@ -63,7 +63,7 @@ test('(b) for a flow signed after amendment 6 the Audit group and the Run detail
   const detail = getRunDetail({ root: w.root, flow: 'job2', runId: 'run-1', catalogue: CAT });
   const { rows: _r, ...fromDetail } = detail.draft;
   assert.deepEqual(fromDetail, audit.draft.summary, 'one summary: the Map box, the first card and the Audit group read the same figures');
-  assert.deepEqual([audit.draft.summary.calls, audit.draft.summary.timeMs, audit.draft.summary.cost], [5, 10500, '$0.0303']);
+  assert.deepEqual([audit.draft.summary.calls, audit.draft.summary.timeMs, audit.draft.summary.cost], [5, 180000, '$0.0303']);
   const model = audit.draft.rows.filter((x) => /^(draft|change)/.test(x.action));
   assert.equal(model.length, 2);
   assert.ok(Math.abs(model.reduce((a, x) => a + x.usd, 0) - 0.0303) < 1e-9, 'the cost is the sum of the Draft rows');
@@ -88,8 +88,8 @@ const cut = (name) => {
 const load = (...names) => new Function(`${names.map(cut).join('\n')}\nreturn { ${names.join(', ')} };`)();
 
 test('(b) the Draft\'s one line on the first card and in the Audit header: drafting · time · $cost · n calls · ✓; unknown figures say so; no record says so', () => {
-  const { draftLineText } = load('countWord', 'money', 'duration', 'draftLineText');
-  assert.equal(draftLineText({ present: true, timeMs: 10500, cost: '$0.0303', calls: 5 }), 'drafting · 10.5s · $0.0303 · 5 calls · ✓');
+  const { draftLineText } = load('countWord', 'money', 'duration', 'draftCallsWord', 'draftLineText');
+  assert.equal(draftLineText({ present: true, timeMs: 10500, cost: '$0.0303', calls: 5 }), 'drafting · 10.5s · $0.0303 · 5 model calls · ✓');
   assert.equal(draftLineText({ present: true, timeMs: null, cost: null, calls: null }), 'drafting · time unknown · cost unknown · calls unknown · ✓');
   assert.equal(draftLineText({ present: false, why: 'no draft record' }), 'drafting · no draft record');
   assert.doesNotMatch(draftLineText({ present: false, why: 'no draft record' }), /\$/);

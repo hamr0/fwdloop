@@ -1403,20 +1403,28 @@ export function getRunDetail({
 export const NO_DRAFT_WORDS = 'no draft record';
 
 /**
- * What the Draft adds up to, from the draft/change rows ONE place (the Map box, the first step card and the Audit group all read it, so
- * the three can never disagree). A figure any row did not record is unknown (`null`), never 0 and never a partial sum shown as complete;
- * money follows `costDisplay` ("at least $X" for a floor, none when no row priced).
+ * What the Draft adds up to, ONE place (the Map box, the first step card and the Audit group all read it, so the three can never disagree).
+ * M4e amendment 9: `timeMs` is the card row's `at` to the sign row's `at` (the whole drafting, human time included), `null` when either has no
+ * usable `at`; never a sum of the model rows' `wallMs`. `calls` sums the rows' `calls`, a row with none counts 1 and sets `callsAtLeast`, so an
+ * unknown never shows as a smaller exact number; no model rows = `null`. `humanChecks` = the note rows + the sign row + the run's signed-values
+ * rows (the card is not a check), given by the caller as `ctx.humanChecks`. Money follows `costDisplay` ("at least $X" for a floor).
  * @param {any[]} modelRows the draft and change rows (`kind` draft | change) of `setup.jsonl`
- * @returns {{calls: number|null, timeMs: number|null, usd: number|null, spendComplete: boolean, cost: string|null, modelRows: number}}
+ * @param {{cardAt?: any, signAt?: any, humanChecks?: number|null}} [ctx]
+ * @returns {{calls: number|null, callsAtLeast: boolean, timeMs: number|null, humanChecks: number|null, usd: number|null, spendComplete: boolean, cost: string|null, modelRows: number}}
  */
-export function draftTotals(modelRows) {
+export function draftTotals(modelRows, ctx = {}) {
   const priced = modelRows.filter((r) => typeof r.costUsd === 'number');
   const usd = priced.length > 0 ? priced.reduce((a, r) => a + r.costUsd, 0) : null;
   const spendComplete = modelRows.length > 0 && priced.length === modelRows.length && modelRows.every((r) => r.spendComplete === true);
-  const allNum = (f) => (modelRows.length > 0 && modelRows.every((r) => typeof r[f] === 'number') ? modelRows.reduce((a, r) => a + r[f], 0) : null);
   const cd = usd === null ? null : costDisplay(usd, spendComplete);
+  const t0 = typeof ctx.cardAt === 'string' ? Date.parse(ctx.cardAt) : NaN;
+  const t1 = typeof ctx.signAt === 'string' ? Date.parse(ctx.signAt) : NaN;
+  const timeMs = Number.isFinite(t0) && Number.isFinite(t1) && t1 >= t0 ? t1 - t0 : null;
+  const calls = modelRows.length > 0 ? modelRows.reduce((a, r) => a + (typeof r.calls === 'number' ? r.calls : 1), 0) : null;
   return {
-    calls: allNum('calls'), timeMs: allNum('wallMs'), usd, spendComplete, cost: cd && cd.ok ? cd.display : null, modelRows: modelRows.length,
+    calls, callsAtLeast: modelRows.some((r) => typeof r.calls !== 'number'), timeMs,
+    humanChecks: Number.isInteger(ctx.humanChecks) ? ctx.humanChecks : null,
+    usd, spendComplete, cost: cd && cd.ok ? cd.display : null, modelRows: modelRows.length,
   };
 }
 
@@ -1425,7 +1433,7 @@ export function draftTotals(modelRows) {
  * run's own signed-values rows (amendment 5: "Sign & run" for version 0, "Sign & resume" for a later version), every row in the SAME shape
  * as the run's audit rows so the page draws both with one row builder. Reads only through the safe gateways; never throws.
  * @param {string} flowDir @param {string} runDir
- * @returns {{present: boolean, why: string|null, rows: any[], summary: {present: boolean, why?: string, calls?: number|null, timeMs?: number|null, usd?: number|null, spendComplete?: boolean, cost?: string|null, modelRows?: number}}}
+ * @returns {{present: boolean, why: string|null, rows: any[], summary: {present: boolean, why?: string, calls?: number|null, callsAtLeast?: boolean, humanChecks?: number|null, timeMs?: number|null, usd?: number|null, spendComplete?: boolean, cost?: string|null, modelRows?: number}}}
  */
 export function getDraftBlock(flowDir, runDir) {
   const setup = readSetup(flowDir);
@@ -1481,7 +1489,11 @@ export function getDraftBlock(flowDir, runDir) {
     happened.push(`${version === 0 ? 'signed to run' : 'signed to resume'} (${rec?.signedBy ?? 'you'})`);
     rows.push(human({ at: rec?.at }, rows.length + 1, { action: `${version === 0 ? 'Sign & run' : 'Sign & resume'} (${rec?.signedBy ?? 'you'})`, gap, ...(waits.length ? { gapHead: head, gapWaits: waits } : {}) }));
   }
-  const totals = setup.present ? draftTotals(setup.rows.filter((r) => r.kind === 'draft' || r.kind === 'change')) : null;
+  const lastSign = setup.present ? [...setup.rows].reverse().find((r) => r.kind === 'sign') : undefined;
+  const humanChecks = setup.present ? setup.rows.filter((r) => r.kind === 'note' || r.kind === 'sign').length + versions.length : null;
+  const totals = setup.present
+    ? draftTotals(setup.rows.filter((r) => r.kind === 'draft' || r.kind === 'change'), { cardAt: setup.rows.find((r) => r.kind === 'card')?.at, signAt: lastSign?.at, humanChecks })
+    : null;
   // the group the Audit tab draws as a normal card (collapsed by default) and the box the Map and the first step card read
   // `ended` = how the drafting ended: `done` only with a sign row, else `not signed` (no `red` state: a red change shows on line 4 only)
   const ended = setup.present && setup.rows.some((r) => r.kind === 'sign') ? 'done' : 'not signed';
