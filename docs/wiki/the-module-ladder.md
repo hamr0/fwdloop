@@ -1518,6 +1518,11 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 - Amendments 7-11 signed and built; $0 browser walks at 1280/390/320, light and dark, passed (am7, am8, am9, am10 + re-walk, am11).
 - Not exercised live: a Stop landing mid-try (covered by tests `test/m4e-am7-stop.test.js`).
 
+- **Amendment 12 — SIGNED by hamr 2026-10-07 ("sign m4e amendment 12"), after the exit: a Runs sub-card drops its flow name.**
+  - **Why:** hamr asked several times (2026-10-06/07), pasting `m4e-exit-3a (run-1) / passed / $0.0616 · 7m28s · 2026-10-06 > (run-1) passed goal met / $0.0616 · 7m28s · 2026-10-06`.
+  - **Signed text, as shown to hamr:** a sub-card under its flow's card in Runs reads `(run-<n>) <word> — <label>` on one line (for example `(run-1) passed — goal met`), then its `$ · time · date` line. It drops the flow name, because the flow card above already shows it. The flow card, History and every other place keep `<flow> (run-<n>)`, as in amendment 3.
+  - **Cap:** within M4e's $0.50; $0 build.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
