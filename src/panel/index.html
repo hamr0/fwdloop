@@ -1678,7 +1678,8 @@
   // Workflows view's per-flow expansion — the two never drift on how a run
   // row reads. Rekeyed from bareloop's job/runid to fwdloop's flow/runId
   // (GET /api/runs row shape: src/panel/data.js's listRuns).
-  function buildRunRowEl(r){
+  // opts.sub (amendment 12): a Workflows sub-card drops the flow name from its visible text; no other caller passes opts.
+  function buildRunRowEl(r, opts){
     var row = document.createElement("div");
     // Selected state is computed here, off the module's own `currentRunId`,
     // so a row freshly built by a RE-RENDER (switching Runs view mode, or a
@@ -1703,11 +1704,21 @@
       row.removeAttribute("role");
       return row;
     }
-    row.innerHTML =
-      '<span class="wf-line1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span>' +
-      '<span class="wf-name" title="' + escapeXml(fullName) + '">' + escapeXml(fullName) + '</span></span>' +
-      '<span class="wf-sign-line" data-testid="run-sign-word">' + signHtml(r.word, r.line, r.label) + '</span>' +
-      runMetaLineHtml(r, null);
+    if(opts && opts.sub){
+      // amendment 12: line 1 `(run-<n>) <word> — <label>`; the flow name stays in title/aria only
+      row.setAttribute("aria-label", fullName);
+      row.innerHTML =
+        '<span class="wf-line1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span>' +
+        '<span class="wf-name" title="' + escapeXml(fullName) + '">(' + escapeXml(r.runId) + ')</span> ' +
+        '<span class="wf-sign-line" data-testid="run-sign-word">' + signHtml(r.word, r.line, r.label) + '</span></span>' +
+        runMetaLineHtml(r, null);
+    } else {
+      row.innerHTML =
+        '<span class="wf-line1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span>' +
+        '<span class="wf-name" title="' + escapeXml(fullName) + '">' + escapeXml(fullName) + '</span></span>' +
+        '<span class="wf-sign-line" data-testid="run-sign-word">' + signHtml(r.word, r.line, r.label) + '</span>' +
+        runMetaLineHtml(r, null);
+    }
     row.addEventListener("click", function(){ openRunFromRuns(r, row); });
     row.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); } });
     return row;
@@ -1913,7 +1924,7 @@
       if(expanded){
         var runsWrap = document.createElement("div");
         runsWrap.className = "wf-runs";
-        childRuns.forEach(function(r){ runsWrap.appendChild(buildRunRowEl(r)); });
+        childRuns.forEach(function(r){ runsWrap.appendChild(buildRunRowEl(r, { sub: true })); });
         wrap.appendChild(runsWrap);
       }
       el.appendChild(wrap);
