@@ -308,10 +308,10 @@ const ALLOWLIST = {
     },
   },
   'src/runner.js': {
-    reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create + stale-lock clear + cleanup, M4c amendment 2) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above); M4e amendment 1: checkSendDestination realpaths/stats the send FOLDER (a business destination, not a book) and the refused folders; the flow-folder test (existsSync of a FLOW_FILES file under the root child); M4e amendment 4 item 4: requestStop (one `wx` write of stop.request), clearStop (its one unlink) and the halt record (one `wx` write of halt.json, only for a cap-halt or stopped run); `continueRun` (Resume) repeats resumeRun\'s frozen-input re-hash (existsSync + readFileSync), its lock close and consumes halt.json by one rename',
+    reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create + stale-lock clear + cleanup, M4c amendment 2) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above); M4e amendment 1: checkSendDestination realpaths/stats the send FOLDER (a business destination, not a book) and the refused folders; the flow-folder test (existsSync of a FLOW_FILES file under the root child); M4e amendment 4 item 4: requestStop (one `wx` write of stop.request), clearStop (its one unlink) and the halt record (one `wx` write of halt.json, only for a cap-halt or stopped run); `continueRun` (Resume) repeats resumeRun\'s frozen-input re-hash (existsSync + readFileSync), its lock close and consumes halt.json by one rename; M4e amendment 13: `stopParkedRun` takes the resume lock (one more close) and `stopAtAsk` sets the stopped ask aside by two renames (ask.json, state.json -> ask/state.<askId>.stopped.json) after existsSync checks for a consumed answer and a saved answer.json',
     names: {
-      accessSync: 1, closeSync: 3, constants: 1, copyFileSync: 1, existsSync: 9,
-      mkdirSync: 6, openSync: 1, readFileSync: 4, realpathSync: 5, renameSync: 2,
+      accessSync: 1, closeSync: 4, constants: 1, copyFileSync: 1, existsSync: 11,
+      mkdirSync: 6, openSync: 1, readFileSync: 4, realpathSync: 5, renameSync: 4,
       statSync: 2, unlinkSync: 4, writeFileSync: 7,
     },
     readArtifactCallSites: 4,

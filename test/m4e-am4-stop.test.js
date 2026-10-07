@@ -99,7 +99,7 @@ test('am4 (d) control: the same run with no stop request goes on past step 2 to 
   assert.equal(existsSync(path.join(w.flowDir, 'runs', 'run-1', HALT_FILE)), false);
 });
 
-test('am4 (d): a stop during step 3 stops BEFORE the ask (the seam sits in front of every step, an ask included); a stop that lands as a run parks is cleared, not carried to the resume', async () => {
+test('am4 (d): a stop during step 3 stops BEFORE the ask (the seam sits in front of every step, an ask included); a stop that lands as a run parks stops it AT the ask (amendment 13), nothing carried to a later resume', async () => {
   const w = mk('dl');
   const runDir = path.join(w.flowDir, 'runs', 'run-1');
   const { fn } = step(async (emits) => { if (emits === 'resume-summary') requestStop(runDir); });
@@ -112,12 +112,11 @@ test('am4 (d): a stop during step 3 stops BEFORE the ask (the seam sits in front
   const { fn: fn2 } = step();
   const parkAndStop = async () => { requestStop(runDir2); return { decision: 'park' }; };
   const p = await runFlow({ ...args(w2, fn2, 'run-1', { askStep: parkAndStop }), sources: w2.sources });
-  assert.equal(p.outcome, 'paused', p.red);
-  assert.equal(existsSync(path.join(runDir2, STOP_FILE)), false, 'a parked run holds no stop request');
-  const ask = JSON.parse(readFileSync(path.join(runDir2, 'ask.json'), 'utf8'));
-  assert.equal(answerAsk({ runDir: runDir2, askId: ask.askId, decision: 'accept' }).ok, true);
-  const done = await resumeRun(args(w2, fn2));
-  assert.equal(done.outcome, 'complete', done.red);
+  // amendment 13 replaces "a Stop as the run parks is cleared (paused)": a park is not an end, the run stops at the ask
+  assert.equal(p.outcome, 'stopped', p.red);
+  assert.equal(existsSync(path.join(runDir2, STOP_FILE)), false, 'the request is consumed, not carried');
+  assert.equal(existsSync(path.join(runDir2, 'ask.json')), false, 'no ask waits');
+  assert.equal(readHaltRecord(runDir2).halt.stepIndex, 3, 'Resume asks again at the ask step');
 });
 
 test('am4 (d): the seam reads the request for EVERY kind of step — a stop pending when an accepted ask hands over to the signed send stops BEFORE the send (nothing shipped)', async () => {
@@ -173,11 +172,12 @@ test('am4 (d): the Stop door over HTTP — running -> 202 and a stop file; the r
   // a parked run: its own flow, run to the ask
   const start2 = (await w.post('/api/author/run', { flow: 'job2', inputs: w.inputs(), runId: 'r2' })).json();
   await until(async () => { const j = (await w.get(`/api/author/start/${start2.startId}`)).json(); return j?.phase === 'started' && j.state === 'parked' ? j : null; });
+  // amendment 13: a Stop on a waiting run is accepted and stops the run at the ask (was: refused in words)
+  assert.equal((await w.get('/api/runs/job2/r2')).json().controls.canStop, true, 'a waiting run shows Stop');
   const parked = await w.post('/api/stop', { flow: 'job2', runId: 'r2' });
-  assert.equal(parked.status, 409);
-  assert.equal(parked.json().say, 'This run is not running, so there is nothing to stop.');
-  assert.equal(existsSync(path.join(w.root, 'job2', 'runs', 'r2', STOP_FILE)), false);
-  assert.equal((await w.get('/api/runs/job2/r2')).json().controls.canStop, false, 'a parked run shows no Stop');
+  assert.equal(parked.status, 202, parked.text);
+  assert.equal(existsSync(path.join(w.root, 'job2', 'runs', 'r2', STOP_FILE)), false, 'the request is consumed at the ask');
+  assert.equal((await w.get('/api/runs/job2/r2')).json().glyph, '[■]');
 });
 
 test('am4: a cap-halted run that has its halt record reads [■] stopped (resumable); one without it (a run from before the record existed) stays failed', async () => {

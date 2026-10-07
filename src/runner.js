@@ -49,12 +49,14 @@ import {
   readFlow, resolveRunDir, readFileInside, readdirInside, resolveInside, FLOW_FILES, PANEL_STARTS_DIR,
 } from './flow.js';
 import {
-  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen,
+  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen, setAsideAnswer,
 } from './ask.js';
 import { findUnwiredVerbStep, unwiredRed } from './canrun.js'; // M4e am7 item 7: the ONE decider (F46 refusal lives there)
 import { configHome, configDoorHome } from './config.js';
 import { closeByClass } from './closers.js';
-import { appendAudit, appendHistory, readAudit, HALT_OUTCOMES } from './books.js';
+import {
+  appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
+} from './books.js';
 import { applyRunValues, pickRunValues } from './runvalues.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
@@ -88,7 +90,8 @@ export const SPEND_TOLERANCE_USD = 1e-9;
 // `stop.request` is written by the panel's Stop door (`requestStop`, its one writer) and read ONLY at the seam at the top of
 // `foldFromStep`'s loop, i.e. after the previous step closed (its artifact written, its audit rows booked): every kind of
 // step (model, a non-ask hitl pass-through, the signed send, an accepted ask) therefore reads it the same way. The reader
-// consumes it (unlink) and the run ends `stopped`. A park clears a pending request (a parked run is not running); a stop that
+// consumes it (unlink) and the run ends `stopped`. Amendment 13: when the turn leads to an ask (or the run already waits at one) the run
+// stops AT the ask (`stopAtAsk`, the one place; `stopParkedRun` for a waiting run), because a park is not an end; a stop that
 // arrives after the last step closed finds nothing left to stop and the run completes.
 //
 // `halt.json` is the one record a `cap-halt` or `stopped` run leaves for Resume (`continueRun`): where to re-enter (`stepIndex`,
@@ -1210,6 +1213,17 @@ async function runAskSlot({
     // M4b amendment 3: a decision from any askStep is translated once, here.
     const answer = { ...rawAnswer, decision: normalizeDecision(rawAnswer.decision) };
 
+    if (answer.decision === 'park' && stopPending(runDir)) {
+      // M4e amendment 13: a Stop pending as the turn leads to an ask stops AT the ask — nothing is written for it, no wait begins.
+      return {
+        type: 'halted',
+        outcome: 'stopped',
+        red: `stopped by you at the ask of step ${stepIndex + 1} ("${step.goal}")`,
+        stop: { where: `stopped at the ask of step ${stepIndex + 1}`, step: step.emits ?? step.goal ?? null },
+        redone,
+      };
+    }
+
     if (answer.decision === 'park') {
       // M3 scope item 1 (fixes F43): the wait is ALWAYS the signed ttlMs —
       // no code default ever overrides it, on the first park or any re-park.
@@ -1286,7 +1300,15 @@ async function runAskSlot({
       // at its final outcome (complete / a halt / ask-expired), written by
       // `foldFromStep`/`resumeRun`, never here.
       writeLog(runDir, { runId, outcome: 'paused', attempts: attemptsLog, artifacts });
-      settleStop({ runDir, now, outcome: 'paused' }); // a parked run is not running: a Stop that landed during this step has nothing left to stop
+      // M4e amendment 13: a park is not an end. A Stop that landed while the ask was being written stops the run at the ask
+      // (the ask is set aside; one winner against the Stop door, by rename).
+      if (stopPending(runDir)) {
+        const stopped = stopAtAsk({
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, signatureHash, spent, spendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+          stepIndex, stepEmits: step.emits ?? step.goal ?? null, flowRoot, flowName, inputsManifest, unjudged: evidenceUnjudged, redone, parkedAskId: askId,
+        });
+        if (stopped) return { type: 'stopped', result: stopped };
+      }
       return {
         type: 'paused',
         result: {
@@ -1410,6 +1432,8 @@ async function foldFromStep({
   // Amendment 7 item 8: a run Resumed after a Stop that cut step `i0` mid-way re-enters it as a NEW try — `numbered` tries already
   // wear numbers (the new one is numbered after them), `done` of them closed and count against the step's limit.
   resumeTries = { numbered: 0, done: 0 },
+  // Amendment 13: the redo count a stop-at-ask carried in its halt record, restored for the ask step it re-enters (`i0`).
+  resumeRedone = 0,
 }) {
   let runAcceptedThisRun = acceptedThisRun;
   let runUnjudged = unjudgedSinceLastAsk;
@@ -1420,6 +1444,13 @@ async function foldFromStep({
     // M4e amendment 4 item 4: the Stop seam. Step i-1 has closed (artifact written, rows booked); a pending request ends the run here.
     // Amendment 7 item 8 adds the same seam before every model call (turns and tries, inside `runStepRalph`/`modelStep`).
     if (stopPending(runDir)) {
+      // Amendment 13: when the turn that just closed leads to an ask, the run stops AT the ask, in the ask's words.
+      if (askLines.has(step.fromLine)) {
+        return stopAtAsk({
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, spendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+          stepIndex: i, stepEmits: step.emits ?? step.goal ?? null, flowRoot, flowName, inputsManifest, unjudged: runUnjudged, redone: i === i0 ? resumeRedone : 0,
+        });
+      }
       return haltRun({
         flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
         outcome: 'stopped', red: `stopped by you before step ${i + 1} ("${step.goal}")`,
@@ -1548,7 +1579,7 @@ async function foldFromStep({
         recordAudit,
         evidenceUnjudged,
         unjudgedCount,
-        redone: 0,
+        redone: i === i0 ? resumeRedone : 0,
         runDir,
         flowDir,
         runId,
@@ -1563,12 +1594,14 @@ async function foldFromStep({
         runStartedAt,
       });
 
-      if (askResult.type === 'paused') return askResult.result;
+      if (askResult.type === 'paused' || askResult.type === 'stopped') return askResult.result;
       if (askResult.type === 'halted') {
         return haltRun({
           flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value && askResult.stop?.book?.spendComplete !== false, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
           ...(askResult.stop ? { stop: askResult.stop } : {}),
-          resumeAt: { stepIndex: i, flowRoot, flowName, inputsManifest, unjudged: evidenceUnjudged },
+          resumeAt: {
+            stepIndex: i, flowRoot, flowName, inputsManifest, unjudged: evidenceUnjudged, redone: askResult.redone,
+          },
         });
       }
 
@@ -2000,6 +2033,20 @@ export async function resumeRun({
       return { outcome: 'refused', red: `resume: answer.json for run "${runId}" has a missing or unreadable answeredAt ("${answer.answeredAt}") — refusing rather than treating it as on time` };
     }
 
+    // M4e amendment 13: a Stop asked before this answer was saved was asked of a run that was waiting (it landed after the park,
+    // before the Stop door could act). The run is stopped AT the ask and the answer to it is not used. A Stop asked after the
+    // answer was saved belongs to the apply that follows: the fold's own seam reads it.
+    const stopReq = readStopRequest(runDir);
+    if (stopReq && !(Date.parse(answer.answeredAt) < Date.parse(stopReq.at ?? ''))) {
+      const prev = readLog(runDir);
+      return stopAtAsk({
+        flowDir, runDir, runId, capUsd: arbiter.capUsd ?? null, startedAt: runStartedAt, now, nowMs: getNowMs, signatureHash: state.signatureHash, spent, spendComplete: spendComplete.value,
+        attempts: Array.isArray(prev?.attempts) ? prev.attempts : [], artifacts: prev?.artifacts && typeof prev.artifacts === 'object' ? prev.artifacts : {},
+        stepIndex: state.stepIndex, stepEmits: steps[state.stepIndex]?.emits ?? null, flowRoot: root, flowName: name, inputsManifest: state.inputsManifest,
+        unjudged: state.evidenceUnjudged ?? [], redone: typeof state.redone === 'number' ? state.redone : 0, parkedAskId: state.askId,
+      });
+    }
+
     // M4b amendment 2: hashes recorded by earlier-process accepts, read back
     // from the archive + consumed markers. Refused BEFORE the consume below so
     // the answer stays replayable.
@@ -2190,12 +2237,14 @@ export async function resumeRun({
       runStartedAt,
     });
 
-    if (askResult.type === 'paused') return askResult.result;
+    if (askResult.type === 'paused' || askResult.type === 'stopped') return askResult.result;
     if (askResult.type === 'halted') {
       return haltRun({
         flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs: getNowMs, signatureHash: state.signatureHash, spent, priorSpendComplete: spendComplete.value && askResult.stop?.book?.spendComplete !== false, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
           ...(askResult.stop ? { stop: askResult.stop } : {}),
-        resumeAt: { stepIndex: state.stepIndex, flowRoot: root, flowName: name, inputsManifest: state.inputsManifest, unjudged: state.evidenceUnjudged ?? [] },
+        resumeAt: {
+          stepIndex: state.stepIndex, flowRoot: root, flowName: name, inputsManifest: state.inputsManifest, unjudged: state.evidenceUnjudged ?? [], redone: askResult.redone,
+        },
       });
     }
 
@@ -2438,11 +2487,103 @@ export async function continueRun({
       acceptedThisRun: acceptedAskEmitsThisRun.size > 0,
       acceptedAskEmitsThisRun,
       unjudgedSinceLastAsk: Array.isArray(halt.unjudged) ? halt.unjudged : [],
+      resumeRedone: Number.isInteger(halt.redone) && halt.redone > 0 ? halt.redone : 0,
       recordAudit,
       attemptsLog,
     });
     if (result.outcome === 'complete') return { ...result, auditRows };
     return result;
+  } finally {
+    releaseResumeLock(runDir, lockPath);
+    try { closeSync(lockFd); } catch { /* already closed */ }
+  }
+}
+
+/**
+ * M4e amendment 13 (SIGNED 2026-10-07): a Stop at an ask. The ONE place a run is stopped at its ask, whether the turn led to it
+ * (`parkedAskId` null: nothing was written for the ask) or the ask was already parked (`parkedAskId` set: the open ask and its
+ * state are set aside as `ask.<id>.stopped.json` / `state.<id>.stopped.json` so no wait can expire and no answer can reach them;
+ * the rename of `ask.json` is the one-winner gate, like an answer's). A saved answer to that ask is set aside, never used. The
+ * rows are `settleStop`'s ("stop asked (you) at <time>", then "stopped at the ask of step N"); `halt.json` points at the ask
+ * step, with the redo count carried, so Resume asks again, fresh, with no model call.
+ * @param {Record<string, any>} o
+ * @returns {any}
+ */
+function stopAtAsk(o) {
+  const {
+    flowDir, runDir, runId, capUsd, startedAt, now, nowMs, signatureHash, spent, spendComplete = true, attempts = [], artifacts = {},
+    stepIndex, stepEmits, flowRoot, flowName, inputsManifest, unjudged, redone, parkedAskId = null,
+  } = o;
+  const red = `stopped by you at the ask of step ${stepIndex + 1}`;
+  if (parkedAskId !== null) {
+    try { renameSync(join(runDir, 'ask.json'), join(runDir, `ask.${parkedAskId}.stopped.json`)); } catch {
+      return { outcome: 'stopped', red, spentUsd: spent.value }; // another stopper won the rename: it writes the rows
+    }
+    try { renameSync(join(runDir, 'state.json'), join(runDir, `state.${parkedAskId}.stopped.json`)); } catch { /* no state: nothing to set aside */ }
+    if (existsSync(join(runDir, 'answer.json'))) setAsideAnswer(runDir, parkedAskId, 'late');
+  }
+  return haltRun({
+    flowDir, runDir, runId, capUsd, startedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete, attempts, artifacts,
+    outcome: 'stopped', red,
+    stop: { where: `stopped at the ask of step ${stepIndex + 1}`, step: stepEmits },
+    resumeAt: {
+      stepIndex, flowRoot, flowName, inputsManifest, unjudged, redone,
+    },
+  });
+}
+
+/**
+ * M4e amendment 13: the Stop on a run that already waits at its ask (the panel's Stop door; also the fallback for a request that
+ * landed right after the park). Writes the request if none is pending (`requestStop`, its one writer), takes the same exclusive
+ * `resume.lock` as a resume, checks the run really is parked on its open, unanswered ask, and stops it at the ask (`stopAtAsk`).
+ * Refused by name, writing nothing, for a run that is not waiting at an ask. $0: no model call, no spend.
+ * @param {object} opts
+ * @param {string} opts.root
+ * @param {string} opts.name
+ * @param {string} opts.runId
+ * @param {unknown} opts.catalogue
+ * @param {() => string} [opts.clock]
+ * @param {() => number} [opts.nowMs]
+ */
+export async function stopParkedRun({
+  root, name, runId, catalogue, clock, nowMs,
+}) {
+  const now = typeof clock === 'function' ? clock : () => new Date().toISOString();
+  const flowDir = join(root, name);
+  const refused = (red) => ({ outcome: 'refused', red: `stop: ${red}` });
+  const runIdCheck = resolveRunDir(flowDir, runId);
+  if (!runIdCheck.ok) return { outcome: 'refused', red: runIdCheck.red };
+  const runDir = runIdCheck.runDir;
+
+  const lockPath = join(runDir, 'resume.lock');
+  const took = await takeResumeLock(runDir, runId, lockPath);
+  if (!took.ok) return { outcome: 'refused', red: took.red };
+  const { lockFd } = took;
+  try {
+    const ask = readAsk(runDir);
+    const state = readRunState(runDir);
+    if (!ask || typeof ask.askId !== 'string' || !state || state.askId !== ask.askId) return refused(`run "${runId}" is not waiting at an ask`);
+    if (existsSync(join(runDir, `answer.${ask.askId}.consumed.json`))) return refused(`run "${runId}" already took its answer`);
+    if (endRow(readHistory(flowDir), runDir, runId) !== null) return refused(`run "${runId}" has ended`);
+    if (!Number.isInteger(state.stepIndex) || state.stepIndex < 0) return refused(`run "${runId}" state.json field "stepIndex" is not a step number`);
+    const audit = auditSpend(runDir);
+    if (!audit.ok) return refused(`run "${runId}" ${audit.red}`);
+    requestStop(runDir); // 'exists' when the door (or a race) wrote it already
+    const read = readFlow({ root, name, catalogue });
+    let capUsd = null;
+    if (read.ok) {
+      const applied = applyRunValues(read.arbiter, name, read.signature.flow, pickRunValues(runDir));
+      if (applied.ok) capUsd = applied.arbiter.capUsd ?? null;
+    }
+    const prev = readLog(runDir);
+    const stepEmits = readAudit(runDir).filter((r) => r.verdict === 'paused').map((r) => r.step).pop() ?? null;
+    return stopAtAsk({
+      flowDir, runDir, runId, capUsd, startedAt: typeof state.startedAt === 'number' ? state.startedAt : Date.now(), now, nowMs: typeof nowMs === 'function' ? nowMs : Date.now,
+      signatureHash: state.signatureHash ?? null, spent: { value: audit.total }, spendComplete: audit.complete,
+      attempts: Array.isArray(prev?.attempts) ? prev.attempts : [], artifacts: prev?.artifacts && typeof prev.artifacts === 'object' ? prev.artifacts : {},
+      stepIndex: state.stepIndex, stepEmits, flowRoot: root, flowName: name, inputsManifest: state.inputsManifest, unjudged: state.evidenceUnjudged ?? [],
+      redone: typeof state.redone === 'number' ? state.redone : 0, parkedAskId: ask.askId,
+    });
   } finally {
     releaseResumeLock(runDir, lockPath);
     try { closeSync(lockFd); } catch { /* already closed */ }
@@ -2522,7 +2663,7 @@ export function readAsk(runDir) {
  *   earlier attempt this run, that already left `spendComplete: false`).
  *   ANDed with this halt's own outcome-based verdict — once false, always
  *   false. Defaults to `true` (every pre-existing call site is unaffected).
- * @param {{stepIndex: number, flowRoot: string, flowName: string, inputsManifest: any, unjudged?: any[]}|null} [opts.resumeAt] - M4e
+ * @param {{stepIndex: number, flowRoot: string, flowName: string, inputsManifest: any, unjudged?: any[], redone?: number}|null} [opts.resumeAt] - M4e
  *   amendment 4 item 4: where a `cap-halt`/`stopped` run is re-entered; `haltRun` writes `halt.json` from it (and only for those outcomes).
  * @param {{where:string, step?:string|null, book?:Record<string, any>}|null} [opts.stop] - amendment 7 item 8: this halt honours a Stop (its words, and the
  *   cut try's row fields so the call in flight is booked); a request still pending on any other halt is recorded `not honoured`.
@@ -2551,6 +2692,7 @@ function haltRun({
       writeFileSync(join(runDir, HALT_FILE), `${JSON.stringify({
         runId, outcome, at: now(), flow: { root: resumeAt.flowRoot, name: resumeAt.flowName }, signatureHash, inputsManifest: resumeAt.inputsManifest,
         stepIndex: resumeAt.stepIndex, startedAt, unjudged: resumeAt.unjudged ?? [],
+        ...(Number.isInteger(resumeAt.redone) ? { redone: resumeAt.redone } : {}),
       }, null, 2)}\n`, { flag: 'wx' });
     }
     settleStop({ runDir, now, outcome, stop }); // amendment 7 item 8: every Stop leaves its rows

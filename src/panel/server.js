@@ -55,7 +55,7 @@ import { loadCatalogue } from '../catalogue.js';
 import { answerAsk, reopenAsk, normalizeDecision } from '../ask.js';
 import { readHistory, endRow } from '../books.js';
 import { resolveRunDir } from '../flow.js';
-import { readAsk, requestStop } from '../runner.js';
+import { readAsk, requestStop, stopParkedRun } from '../runner.js';
 import {
   listRuns, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
@@ -264,7 +264,7 @@ const STARTING_SAY = 'The run is still starting — it has not written its log y
  * decision (`runControls`) the Run tab's button reads.
  * @param {any} res @param {any} body @param {string} root
  */
-function stopRoute(res, body, root) {
+async function stopRoute(res, body, root) {
   const b = body !== null && typeof body === 'object' ? body : {};
   const { flow, runId } = b;
   const runDir = resolveRun(res, root, flow, runId);
@@ -277,7 +277,18 @@ function stopRoute(res, body, root) {
   if (controls === null) { refuse(res, 404, 'no-such-run', 'there is no such run'); return; }
   if (controls.starting) { sendJson(res, 409, { ok: false, refused: 'starting', say: STARTING_SAY }); return; }
   if (!controls.canStop) { sendJson(res, 409, { ok: false, refused: 'not-running', say: NOT_RUNNING_SAY }); return; }
+  // Amendment 13: a run waiting at its ask is stopped at the ask now; a running one is asked to stop and ends at its next seam.
+  // The write comes first and the parked check after it, so a park landing between the two is still caught (the runner checks
+  // the request after it writes the ask; whichever sees both wins the rename, the other finds nothing to do).
   const written = requestStop(runDir);
+  const ask = readAsk(runDir);
+  if (controls.atAsk || (ask && parkedOnYou(runDir, ask.askId))) {
+    const stopped = await stopParkedRun({
+      root, name: flow, runId, catalogue: loaded.primitives,
+    });
+    if (stopped.outcome === 'stopped') { sendJson(res, 202, { ok: true, stopping: false, stopped: true }); return; }
+    // not parked after all (a resume took its answer) or a resume still closing: the request stays for the runner's own seam
+  }
   sendJson(res, 202, { ok: true, stopping: true, already: written === 'exists' });
 }
 
@@ -398,7 +409,11 @@ export function handleRequest(req, res, opts) {
         if (isResume) resumeRoute(res, body, opts.root, opts.resumer);
         else if (isReopen) reopenRoute(res, body, opts.root, opts.resumer);
         else if (isRemoveLock) removeLockRoute(res, body, opts.root, opts.resumer);
-        else if (isStop) stopRoute(res, body, opts.root);
+        else if (isStop) {
+          stopRoute(res, body, opts.root).catch(() => {
+            if (!res.headersSent) sendJson(res, 500, { ok: false, refused: 'internal', red: 'internal error' });
+          });
+        }
         else answerRoute(res, body, opts.root, opts.resumer);
       } catch (e) {
         sendJson(res, 500, { ok: false, refused: 'internal', red: 'internal error' });

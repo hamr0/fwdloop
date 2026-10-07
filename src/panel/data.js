@@ -930,14 +930,17 @@ const isRunningNow = (ctx, glyph) => !ctx.historyRow && glyph === '[▶]';
  * same object, so the page never offers what the door would refuse). `running` is the glyph's own rule (`isRunningNow`);
  * a run with no process record yet is `starting`; a parked run (`[·]`/`[!]`, an open ask) is neither.
  * @param {any} ctx `loadRunContext`'s result @param {string} glyph `computeGlyph`'s sign
- * @returns {{canStop: boolean, stopRequested: boolean, starting: boolean, canResume: boolean, resumeOutcome: string|null, spentUsd: number|null, spendComplete: boolean|null, capUsd: number|null}}
+ * @returns {{canStop: boolean, atAsk: boolean, stopRequested: boolean, starting: boolean, canResume: boolean, resumeOutcome: string|null, spentUsd: number|null, spendComplete: boolean|null, capUsd: number|null}}
  */
-export function runControls(ctx, glyph) {
+export function runControls(ctx, glyph, label = '') {
   const running = isRunningNow(ctx, glyph) && !ctx.askJson;
+  // M4e amendment 13: a run waiting at its ask (open, unanswered, not expired) shows Stop too; it stops the run at the ask.
+  const atAsk = !ctx.historyRow && !!ctx.askJson && glyph === '[·]' && label === WAITING_LABEL;
   const starting = !ctx.historyRow && !ctx.askJson && readPidRows(ctx.runDir).length === 0;
   const canResume = ctx.resumable === true;
   return {
-    canStop: running,
+    canStop: running || atAsk,
+    atAsk,
     stopRequested: running && stopPending(ctx.runDir),
     starting,
     canResume,
@@ -958,7 +961,8 @@ export function getRunControls({
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok || !existsSync(run.runDir)) return null;
   const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null);
-  return runControls(ctx, computeGlyph(ctx).glyph);
+  const g = computeGlyph(ctx);
+  return runControls(ctx, g.glyph, g.label);
 }
 
 /**
@@ -1023,7 +1027,7 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
         ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
         pulse: glyphPulses({ glyph, label }),
         stuck: glyph === '[II]',
-        controls: runControls(ctx, glyph),
+        controls: runControls(ctx, glyph, label),
         resume: ctx.resume,
         spend,
         spendWhy: (!ctx.historyRow && spend === null)
@@ -1365,7 +1369,7 @@ export function getRunDetail({
     ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
     signWords: SIGN_WORDS,
     pulse: glyphPulses({ glyph, label }),
-    controls: runControls(ctx, glyph),
+    controls: runControls(ctx, glyph, label),
     resume: ctx.resume,
     outcome: ctx.historyRow ? ctx.historyRow.outcome : null,
     outcomeWhy: ctx.historyRow ? null : (isRunningNow(ctx, glyph) ? RUNNING_WHY : 'no history row (parked or died before completion)'),

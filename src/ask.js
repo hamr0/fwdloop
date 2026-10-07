@@ -736,6 +736,9 @@ export function listArchivedAsks(runDir) {
       } catch (err) {
         answer = { status: 'open', why: `${join(runDir, consumedRelPath)} is not valid JSON — ${err.message}` };
       }
+    } else if (readFileInside(runDir, `ask.${askId}.stopped.json`).ok) {
+      // M4e amendment 13: a human stopped the run at this ask; no wait can expire on it.
+      answer = { status: 'stopped' };
     } else if (typeof ask.expiresAt === 'string' && !Number.isNaN(Date.parse(ask.expiresAt))
       && Date.now() > Date.parse(effectiveExpiresAt(runDir, askId, ask.expiresAt))) {
       answer = { status: 'expired' };

@@ -2258,8 +2258,8 @@
       listEl.appendChild(card);
     });
   }
-  // M4e amendment 4 item 4: the Run tab's top action row. Stop shows only while the server says the run is running
-  // (`detail.controls.canStop`, the same decision the door reads) and reads "stopping after this step…" once asked;
+  // M4e amendment 4 item 4: the Run tab's top action row. Stop shows only while the server says the run is running or waiting at its ask
+  // (`detail.controls.canStop`, the same decision the door reads; amendment 13) and reads "stopping after this step…" once asked;
   // Resume shows on a stopped or cap-halted run. The server is the arbiter: a refusal is shown in its own words.
   var stopSay = null;
   // Walk fix 4: after Sign & resume click 2 is accepted the run is still "stopped" for a few seconds. `window.fwdloopResuming`

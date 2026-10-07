@@ -179,7 +179,8 @@ test('am7 (e) a Stop that lands during the EMIT turn lets the step close (artifa
   assert.equal(r.outcome, 'stopped', r.red);
   assert.equal(gen.calls, 1, 'no call after the emit turn');
   assert.ok(existsSync(path.join(w.runDir, 'artifacts', 'resume-summary.json')), 'step 3 closed');
-  assert.equal(stopRows(w.runDir).at(-1).gap, 'stopped after step 3');
+  // amendment 13: the turn leads to the ask, so the run stops at the ask (was: "stopped after step 3")
+  assert.equal(stopRows(w.runDir).at(-1).gap, 'stopped at the ask of step 4');
 });
 
 test('am7 (e) a Stop at a step boundary now leaves rows too: "stopped after step 2"', async () => {
@@ -204,13 +205,15 @@ test('am7 (e) not honoured: a Stop during the try that ends the step red (struck
   assert.ok(Math.abs(readHistory(w.flowDir).at(-1).spentUsd - auditSum(w.runDir)) < 1e-9, 'books balance');
 });
 
-test('am7 (e) not honoured: a Stop as the run parks at its ask leaves "not honoured: the run ended (paused) first"; a Stop that lands as the run COMPLETES leaves "(complete)"', async () => {
+test('am7 (e) amendment 13 replaced "(paused)": a Stop as the run parks stops it at the ask; a Stop that lands as the run COMPLETES still leaves "not honoured: the run ended (complete) first"', async () => {
   const w = mk('np');
   const { fn } = fake();
   const parkAndStop = async () => { requestStop(w.runDir); return { decision: 'park' }; };
   const p = await runFlow({ ...args(w, fn, { askStep: parkAndStop }), sources: w.sources });
-  assert.equal(p.outcome, 'paused', p.red);
-  assert.equal(stopRows(w.runDir).at(-1).gap, 'not honoured: the run ended (paused) first');
+  assert.equal(p.outcome, 'stopped', p.red);
+  assert.equal(stopRows(w.runDir).at(-1).gap, 'stopped at the ask of step 4');
+  const resumed = await continueRun(args(w, fn));
+  assert.equal(resumed.outcome, 'paused', resumed.red);
   const ask = JSON.parse(readFileSync(path.join(w.runDir, 'ask.json'), 'utf8'));
   assert.equal(answerAsk({ runDir: w.runDir, askId: ask.askId, decision: 'accept' }).ok, true);
   const send = async (...a) => { requestStop(w.runDir); return sendViaPrimitive(...a); };

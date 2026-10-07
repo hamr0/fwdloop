@@ -157,7 +157,11 @@ test('am13 (a) a Stop during a human-redo re-run whose turn leads back to the as
   const r = await resumeRun(args(w, redo.fn));
   assert.equal(r.outcome, 'stopped', r.red);
   assert.equal(stopRows(w.runDir).at(-1).gap, AT_ASK);
-  assert.equal(existsSync(path.join(w.runDir, 'ask.json')) && readJson(path.join(w.runDir, 'ask.json')).askId === w.ask.askId, false, 'the old ask is not left waiting');
+  const d = getRunDetail({
+    root: w.root, flow: 'job2', runId: 'run-1', catalogue: CAT,
+  });
+  assert.equal(d.glyph, '[■]', 'the old, answered ask is not left waiting');
+  assert.equal(d.controls.canResume, true);
   assert.equal(readHaltRecord(w.runDir).halt.stepIndex, 3);
 });
 
