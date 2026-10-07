@@ -1463,6 +1463,26 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
     - (d) at 1280, 390 and 320 px, light and dark, nothing spills.
   - **Cap:** within M4e's $0.50; $0 build.
 
+- **Amendment 9 — NOT SIGNED: the drafting card reads like a step card, step 0.**
+  - **Why:** hamr's walk of amendment 8, 2026-10-07: "needs to be something like this> 0 . drafting [passed] / time unknown · $0.0048 · 2 human checks · ✓ / your card · drafting · your note · changing · signed (hamr) — 'drafting' should be bold, what other things you can show and why time is unknown, if it's always like that then something else". Time read unknown because a flow drafted before amendment 7's build carries no `wallMs` on its draft/change rows (the old rows lack the field); it is not always unknown, only for those flows. hamr said "yes" (2026-10-07) to the shape below.
+  - **1. The drafting card is three lines, the first shaped like a Run-tab step card.** Replaces lines 1-3 of amendment 8 item 1 (line 4, the "what happened" list, becomes line 3 unchanged; everything else in amendment 8 stays):
+    - line 1: `0 · drafting`, with `drafting` bold, and the status on the right. A step card's head is `<n> · <name>` in the bold `h4` plus a status badge made by the page's `stateWord`: the sign glyph and the server's word (`SIGN_WORDS`), so a passed step reads `[✓] passed`, and a step not started reads `not started` with no glyph. The drafting card uses the same form: `[✓] passed` when there is a sign row; `not signed` (plain, no glyph, like `not started`) when there is none. The code today writes `setup.jsonl` only at sign, so `not signed` cannot show yet; it stays so a card never says `passed` without a sign row. No close-class badge (the drafting card is not a step). This replaces amendment 8's `done` / `not signed` line; there is still no red state;
+    - line 2: `<time> · $<cost> · <n> model calls · <h> human checks · ✓`:
+      - **time** = from the card row's `at` to the sign row's `at` (the whole drafting, human time included, as bareloop counts it), shown through the page's one `duration()`. If either has no `at`, `time unknown`; never 0. This replaces `draftTotals.timeMs`, which summed the model rows' `wallMs` only, so any older row made it null;
+      - **cost** from `draftTotals` as today (`$<cost>`, `at least $X` for a floor, `cost unknown` when no row priced);
+      - **model calls** = the sum of the draft/change rows' `calls` where recorded. A draft/change row with no `calls` counts as 1 and the figure reads `at least <n> model calls` (`at least 1 model call` for one), so an unknown never shows as a smaller exact number. No draft/change rows: `calls unknown`. All rows recorded: `<n> model calls` (`1 model call`);
+      - **human checks** = the note rows + the sign row (`kind` `note` and `kind` `sign` in `setup.jsonl`); the card row is not a check. A run's own signed-values rows (the run's `values` files, which `getDraftBlock` already reads: `signed to run` for version 0, `signed to resume` for a later one) count too, one each. Shown `<h> human checks` (`1 human check`); `0 human checks` cannot show on a signed flow, and is a real count, not a missing figure;
+      - `✓` on passed; no mark on not signed;
+    - line 3: amendment 8's line 4, unchanged: `your card · drafting · your note · changing · signed (<who>)`, with the retry, red and signed-to-run phrases as amendment 8 gives them.
+    The old flow case (`no draft record`) unchanged: `0 · drafting` and `no draft record`. One decider for the draft's time: the build computes the card-to-sign time once in `getDraftBlock`/`draftTotals` (`src/panel/data.js`), and the card, the Map box's readout and the Audit group header (`draftLineText`) all read it, so the three can never disagree. Today the Map box draws only the state word, so this is a rule for any time it shows, not a new figure on it. The Audit header keeps its own line (`drafting · <time> · $<cost> · <n> calls · ✓`, amendment 7 item 2) with this time and the same model-calls words as line 2.
+  - **Negatives:**
+    - (a) a flow drafted before amendment 7 (rows without `wallMs` or `calls`) shows a real card-to-sign time and `at least <n> model calls`, never `time unknown` when both timestamps exist; with a missing `at` it reads `time unknown`, never 0;
+    - (b) line 1 is `0 · drafting`, `drafting` bold, the status in step-card form (`[✓] passed`; `not signed` plain);
+    - (c) human checks count the note rows + the sign row (the card not counted), plus a run's signed-to-run / signed-to-resume rows; a flow with no notes shows `1 human check`;
+    - (d) the card, the Map box and the Audit header show the same draft time;
+    - (e) at 1280, 390 and 320 px, light and dark, nothing spills.
+  - **Cap:** within M4e's $0.50; $0 build.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
