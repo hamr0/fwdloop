@@ -2033,11 +2033,15 @@ export async function resumeRun({
       return { outcome: 'refused', red: `resume: answer.json for run "${runId}" has a missing or unreadable answeredAt ("${answer.answeredAt}") — refusing rather than treating it as on time` };
     }
 
-    // M4e amendment 13: a Stop asked before this answer was saved was asked of a run that was waiting (it landed after the park,
-    // before the Stop door could act). The run is stopped AT the ask and the answer to it is not used. A Stop asked after the
-    // answer was saved belongs to the apply that follows: the fold's own seam reads it.
+    // M4e amendment 13: a Stop asked STRICTLY before this answer was saved was asked of a run that was waiting (it landed after the
+    // park, before the Stop door could act). The run is stopped AT the ask and the answer to it is not used. A Stop asked at the same
+    // instant as the answer, or after it, belongs to the apply that follows: the fold's own seam reads it and stops before the next
+    // step. On a tie the ANSWER WINS (hamr's ruling, 2026-10-07: a fast CI gave both the same millisecond). A Stop with no readable
+    // time is stopped at the ask: conservative, stated here so it never falls out of a NaN comparison.
     const stopReq = readStopRequest(runDir);
-    if (stopReq && !(Date.parse(answer.answeredAt) < Date.parse(stopReq.at ?? ''))) {
+    const stopMs = stopReq ? Date.parse(stopReq.at ?? '') : NaN;
+    const stopFirst = Number.isNaN(stopMs) || stopMs < Date.parse(answer.answeredAt);
+    if (stopReq && stopFirst) {
       const prev = readLog(runDir);
       return stopAtAsk({
         flowDir, runDir, runId, capUsd: arbiter.capUsd ?? null, startedAt: runStartedAt, now, nowMs: getNowMs, signatureHash: state.signatureHash, spent, spendComplete: spendComplete.value,
