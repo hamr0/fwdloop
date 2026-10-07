@@ -2443,12 +2443,12 @@ describe('index.html — page source', () => {
     assert.doesNotMatch(styleBlock, wouldFailIfPresent, 'sanity: this shape is not currently present, proving the check above is not vacuous');
   });
 
-  test('review: the group header status word is its own span carrying a status color class, built directly off g.state (never parsed from the header string)', () => {
+  test('review: the group header status word is its own span carrying a status color class, built off the one parts function (never parsed from the header string)', () => {
     const fnStart = source.indexOf('function buildAuditGroupHeaderEl');
     const fnEnd = source.indexOf('\n  }', fnStart);
     const body = source.slice(fnStart, fnEnd);
-    assert.match(body, /stateSpan\.className = "badge " \+ auditStateClass\(g\.state\)/);
-    assert.match(body, /stateSpan\.textContent = g\.state/);
+    assert.match(body, /stateSpan\.className = "badge " \+ auditStateClass\(p\.state\)/);
+    assert.match(body, /stateSpan\.textContent = p\.status/);
     // never re-derived by slicing/parsing a rendered "[state]" string apart.
     assert.doesNotMatch(body, /\.split\(|\.match\(|\.indexOf\("\["|\.slice\(1/);
   });
@@ -2480,7 +2480,7 @@ describe('index.html — page source', () => {
     const fnStart = source.indexOf('function buildAuditGroupHeaderEl');
     const fnEnd = source.indexOf('\n  }', fnStart);
     const body = source.slice(fnStart, fnEnd);
-    assert.match(body, /g\.tryMarks\.forEach/);
+    assert.match(body, /p\.tries\.marks\.forEach/);
     assert.match(body, /markSpan\.className = "mark " \+ auditMarkClass\(mark\)/);
     const markFnStart = source.indexOf('function auditMarkClass');
     const markFnEnd = source.indexOf('\n  }', markFnStart);
@@ -2627,19 +2627,17 @@ describe('index.html — page source', () => {
 
   // hamr's 2026-09-27 exit-check review #1: Audit groups render server-
   // computed header pieces, never their own re-derivation.
-  test('review #1: the Audit group header is built ONLY from server fields (state/step/timeMs/cost/tokensTotal/tryCount/tryMarks) — no client-side sum/pairing survives', () => {
-    const fnStart = source.indexOf('function auditGroupHeaderText');
+  test('review #1 (amendment 10): the Audit group header is built ONLY from server fields (state/step/cost/tryCount/tryMarks, the Draft summary) in ONE parts function — no client-side sum/pairing survives', () => {
+    const fnStart = source.indexOf('function auditGroupHeaderParts');
     const fnEnd = source.indexOf('\n  }', fnStart);
     const body = source.slice(fnStart, fnEnd);
     assert.match(body, /g\.state/);
     assert.match(body, /g\.step/);
-    assert.match(body, /duration\(g\.timeMs\)/);
     assert.match(body, /g\.cost/);
     assert.match(body, /g\.tryCount/);
-    assert.match(body, /g\.tryMarks\.join/);
-    assert.match(body, /g\.tokensTotal/);
-    // never "calls"/"tools" — no such book (review #1's own instruction).
-    assert.doesNotMatch(body, /calls|tools/);
+    assert.match(body, /g\.tryMarks/);
+    // never "tools" — no such book (review #1's own instruction).
+    assert.doesNotMatch(body, /tools/);
   });
 
   test('review #1: Audit groups are COLLAPSED by default in the page markup too (no aria-expanded="true" default anywhere in the Audit section)', () => {

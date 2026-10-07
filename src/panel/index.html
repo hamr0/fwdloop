@@ -305,7 +305,7 @@
      `[✓]`, so it draws no second pair of brackets (`.sign-badge`). */
   .step-card .step-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;text-transform:none;font-weight:700;}
   .step-card h4{margin:0;font-size:13px;text-transform:none;letter-spacing:normal;}
-  .step-card .sign-badge::before,.step-card .sign-badge::after{content:none;}
+  .sign-badge::before,.sign-badge::after{content:none;}
   /* Every OTHER line on the card (goal, actions, granted, stopped reason) —
      lower case exactly as the data reads, normal weight; never inherits the
      header's uppercase/bold (same ruling, the non-header half of it). */
@@ -351,7 +351,8 @@
   .audit-group h4::before{content:"┤ ";color:var(--text-faint);}
   .audit-group h4::after{content:" ├";color:var(--text-faint);}
   /* hamr's 2026-09-27 review: the Audit-group's own state header ("[done] ·
-     step · ...", built by buildAuditGroupHeaderEl) is NOT bold — a plain h4
+     step · ...", built by buildAuditGroupHeaderEl): M4e amendment 10 made its STATUS bold (the `> .badge`,
+     weight 700); the rest of the line stays normal — a plain h4
      is bold by default, so its own class (`.audit-status-header`, NOT the
      shared `.audit-group h4`, which the Ask tab's `.ask-question-heading`
      h4 also matches and must stay bold per review #3) overrides it back to
@@ -359,6 +360,7 @@
      `.audit-group h4` (0,1,1) and `.ask-question-heading` (0,1,0) alone, so
      this never un-bolds the ask question heading. */
   .audit-group h4.audit-status-header{font-weight:400;}
+  .audit-group h4.audit-status-header > .badge{font-weight:700;}
   /* M4c-fix amendment 2 (f): a foldable step group. The header sits IN the box (not pinned over its top edge),
      so a long header wraps inside its own box and never lands on the next group; a closed group is that one
      header line with a caret and no empty table under it. */
@@ -1232,9 +1234,16 @@
   // M4e amendment 7 item 2 / 9: the Draft's one line in the Audit group's header: `drafting · <time> · $<cost> · <n> model calls · ✓`.
   // `d` is the server's one Draft summary (src/panel/data.js `draftTotals`): a figure not recorded reads "unknown", never 0; a flow signed before
   // amendment 6 reads "no draft record" and no cost.
+  // The Draft's three figures, ONE function for the card's line 2, the Audit header and its aria: `<time> · $<cost> · <n> model calls`.
+  function draftFigures(d){
+    return [typeof d.timeMs === "number" ? duration(d.timeMs) : "time unknown", d.cost || "cost unknown", draftCallsWord(d)];
+  }
+  // M4e amendment 10 item 2: with the step card's status first: `[✓] passed · drafting · <time> · $<cost> · <n> model calls ✓` (signed), `not signed · drafting · ...`
+  // plain (no sign row, no mark), `drafting · no draft record` (no draft record, no status). The Audit header's visible words come from the same
+  // `auditGroupHeaderParts`, so this is the aria line too.
   function draftLineText(d){
-    if(!d || !d.present) return "drafting \u00b7 " + ((d && d.why) || "no draft record");
-    return ["drafting", typeof d.timeMs === "number" ? duration(d.timeMs) : "time unknown", d.cost || "cost unknown", draftCallsWord(d), "\u2713"].join(" \u00b7 ");
+    var p = auditGroupHeaderParts({draft: true, summary: d});
+    return [p.status, p.name].concat(p.draftFigs || [p.why]).filter(function(x){ return x; }).join(" \u00b7 ") + (p.passed ? " \u2713" : "");
   }
   // M4e amendment 9: the drafting card, step 0 of the Run tab, from ONE function: `title` (`0 · drafting`, bold h4), `status` (the step card's `stateWord`: `[✓] passed`
   // with a sign row, plain `not signed` without; none for a flow with no draft record), then `lines`: `<time> · $<cost> · <n> model calls · <h> human checks · ✓`
@@ -1242,8 +1251,7 @@
   function draftCardLines(d){
     if(!d || !d.present) return {title: "0 \u00b7 drafting", status: null, passed: false, lines: [(d && d.why) || "no draft record"]};
     var passed = d.ended === "done";
-    var figs = [typeof d.timeMs === "number" ? duration(d.timeMs) : "time unknown", d.cost || "cost unknown", draftCallsWord(d),
-      typeof d.humanChecks === "number" ? countWord(d.humanChecks, "human check") : "human checks unknown"];
+    var figs = draftFigures(d).concat([typeof d.humanChecks === "number" ? countWord(d.humanChecks, "human check") : "human checks unknown"]);
     if(passed) figs.push("\u2713");
     return {title: "0 \u00b7 drafting", status: passed ? stateWord("done") : "not signed", passed: passed, lines: [figs.join(" \u00b7 "), (d.happened || []).join(" \u00b7 ")]};
   }
@@ -1269,7 +1277,7 @@
   // M4c-fix amendment 2 (g): a step's own sign + word come from the SAME one table the run rows use (the server's
   // SIGN_WORDS, sent on the run detail as `signWords`); the page keeps no table of its own. Not started: no sign.
   var signWords = {};
-  var STEP_SIGN = { done: "[\u2713]", stopped: "[\u2717]", waiting: "[\u00b7]" };
+  var STEP_SIGN = { done: "[\u2713]", stopped: "[\u2717]", waiting: "[\u00b7]", "user-stopped": "[\u25a0]" };
   function stateWord(state){
     if(state === "pending") return "not started";
     var g = STEP_SIGN[state];
@@ -1392,6 +1400,7 @@
     if(state === "done") return {stroke:"var(--green)", textFill:"#2e7d32"};
     if(state === "stopped") return {stroke:"var(--red)", textFill:"var(--red)"};
     if(state === "waiting") return {stroke:"var(--amber)", textFill:"#b8860b"};
+    if(state === "user-stopped") return {stroke:"var(--grey-dot)", textFill:"var(--grey-dot)"};   // a Stop the human asked: grey, never red
     return {stroke:"var(--border-strong)", textFill:"var(--text-faint)"}; // not started yet
   }
   var stepMapUidCounter = 0;
@@ -1432,19 +1441,8 @@
     if(tryText) base += ' — ' + tryText;
     return base;
   }
-  // The declared step's own run-state, for the map box and the summary's
-  // "which step stopped and why" (M4a exit: "say which step stopped it and
-  // why, from one screen"): `pending` (no attempt yet), `done` (last
-  // attempt passed), `waiting` (the run is currently parked ON this step —
-  // its last attempt's verdict is `paused`/`refused`, i.e. it went to a
-  // human ask and hasn't been answered/resolved yet), `stopped` (a real
-  // stop — the last attempt failed for any other reason).
-  function stepBoxState(s){
-    if(!s.attempts || !s.attempts.length) return "pending";
-    var last = s.attempts[s.attempts.length - 1];
-    if(last.verdict === "paused" || last.verdict === "refused") return "waiting";
-    return verdictPassed(last.verdict) ? "done" : "stopped";
-  }
+  // The declared step's own run-state (map box, card, "which step stopped and why") is the server's `groupState` (src/panel/data.js
+  // `deriveStepGroupState`, M4e amendment 10: the one decider): `pending` (no row yet), `done`, `waiting`, `stopped` (red), `user-stopped` (a Stop).
   // hamr's 2026-09-27 review: a step with a server-computed `tryCount > 1`
   // (M2/M3's runner already counts retries/redraft attempts honestly — never
   // recounted here from `attempts.length`, which double-counts an ask step's
@@ -1473,7 +1471,7 @@
         // book-derived list, never guessed from `primitives` by exclusion.
         toolsTotal: s.toolsTotal || null, toolsWhy: s.toolsWhy || null, ungranted: s.ungranted || [],
         stoppedReason: s.stoppedReason || null,
-        state: stepBoxState(s),
+        state: s.groupState || "pending",   // the server's one decider (deriveStepGroupState); no group = no row yet = not started
       };
     });
   }
@@ -2539,14 +2537,26 @@
   // presentational formatter; nothing here re-derives state/cost/tries).
   // Tokens are appended ONLY when the server sent a real total (omitted,
   // never "0 tokens", for a pre-M4a-2 row or a no-model-call step).
+  // M4e amendment 10: ONE function for each header line's words, `auditGroupHeaderParts` (status in the step card's `stateWord`, name, then the Draft's figures
+  // or the step's cost and tries); `buildAuditGroupHeaderEl` draws these parts and `auditGroupHeaderText` joins them, so the visible line and its aria are
+  // the same words. `status` is null with no draft record; `state` colors it (`auditStateClass`); `signed`: the status carries its own brackets.
+  function auditGroupHeaderParts(g){
+    if(g.draft){
+      var ds = g.summary;
+      if(!(ds && ds.present)) return {status: null, name: "drafting", why: (ds && ds.why) || "no draft record"};
+      var passed = ds.ended === "done";
+      return {status: passed ? stateWord("done") : "not signed", state: passed ? "done" : "pending", signed: true, name: "drafting", draftFigs: draftFigures(ds), passed: passed};
+    }
+    var parts = {status: stateWord(g.state), state: g.state, signed: true, name: g.step, cost: g.cost || "cost unknown"};
+    if(!g.run) parts.tries = {n: g.tryCount, marks: g.tryMarks};   // the run's own group has no tries
+    return parts;
+  }
   function auditGroupHeaderText(g){
+    var p = auditGroupHeaderParts(g);
     if(g.draft) return draftLineText(g.summary);
-    var bits = [
-      "[" + g.state + "]", g.step, duration(g.timeMs), (g.cost || "cost unknown"),
-    ];
-    if(!g.run) bits.push("try " + g.tryCount + " " + g.tryMarks.join(""));
-    if(typeof g.tokensTotal === "number") bits.splice(4, 0, g.tokensTotal + " tokens");
-    return bits.join(" · ");
+    var line = [p.status, p.name, p.cost].join(" \u00b7 ");
+    if(p.tries) line += " \u00b7 try " + p.tries.n + " " + p.tries.marks.join("");
+    return line;
   }
   // hamr's 2026-09-27 review: the header's status word gets the SAME color
   // vocabulary the runs list already uses (glyphClass's green/red/amber/
@@ -2558,58 +2568,60 @@
     if(state === "done") return "green";
     if(state === "waiting") return "amber";
     if(state === "stopped") return "red";
-    return "grey";
+    return "grey";   // user-stopped (the same --grey-dot as the [■] dot), pending
   }
   function auditMarkClass(mark){
     if(mark === "✓") return "green";
     if(mark === "✗") return "red";
     return "grey"; // "·" — still open, no resolution row yet
   }
-  // The Draft group's header tail (amendment 7 item 2): `· <time> · $<cost> · <n> calls ✓` from the one Draft summary; a flow with no draft
-  // record says so and has no cost. Apart from buildAuditGroupHeaderEl so the step groups' title keeps no time in it.
-  function draftTailInto(tail, ds){
+  // The Draft group's header tail (amendment 7 item 2, 10): `· <time> · $<cost> · <n> model calls ✓` from `auditGroupHeaderParts`' figures (the one
+  // `draftFigures`, `draftCallsWord`); a flow with no draft record says so and has no cost. Apart from buildAuditGroupHeaderEl so the step groups' title keeps no time in it.
+  function draftTailInto(tail, p){
     function part(cls, text){ var sp = document.createElement("span"); sp.className = cls; sp.textContent = text; tail.appendChild(sp); }
     part("audit-fold-sep", "\u00b7 ");
-    if(!(ds && ds.present)){ tail.appendChild(document.createTextNode((ds && ds.why) || "no draft record")); return; }
-    tail.appendChild(document.createTextNode((typeof ds.timeMs === "number" ? duration(ds.timeMs) : "time unknown") + " \u00b7 " + (ds.cost || "cost unknown") + " \u00b7 " + (typeof ds.calls === "number" ? countWord(ds.calls, "call") : "calls unknown") + " "));
-    part("mark green", "\u2713");
+    if(!p.draftFigs){ tail.appendChild(document.createTextNode(p.why)); return; }
+    tail.appendChild(document.createTextNode(p.draftFigs.join(" \u00b7 ") + (p.passed ? " " : "")));
+    if(p.passed) part("mark green", "\u2713");
   }
   // Builds the SAME header line `auditGroupHeaderText` renders as plain
   // text (used as this header's aria-label, for a screen reader), but as
-  // real DOM: the status word is its own `<span class="badge STATE">`
-  // (reusing the existing `.badge` bracket/color CSS, never a second
-  // "[state]" string built here) and each try mark is its own colored
+  // real DOM: the status (the step card's sign and word, amendment 10) is its own `<span class="badge STATE sign-badge">`
+  // (the sign carries its own brackets, so `.sign-badge` draws no second pair) and each try mark is its own colored
   // `<span class="mark STATE">` — built directly off `g.state`/`g.tryMarks`,
   // never by parsing `auditGroupHeaderText`'s own string back apart.
   function buildAuditGroupHeaderEl(g){
     var h4 = document.createElement("h4");
     h4.className = "audit-status-header";
-    var stateSpan = document.createElement("span");
-    stateSpan.className = "badge " + auditStateClass(g.state);
-    stateSpan.setAttribute("data-testid", "audit-group-state");
-    stateSpan.textContent = g.state;
-    h4.appendChild(stateSpan);
+    var p = auditGroupHeaderParts(g);
+    if(p.status !== null){
+      var stateSpan = document.createElement("span");
+      stateSpan.className = "badge " + auditStateClass(p.state) + " sign-badge";
+      stateSpan.setAttribute("data-testid", "audit-group-state");
+      stateSpan.textContent = p.status;
+      h4.appendChild(stateSpan);
+    }
     // M4c-fix amendment 2 (l): the title is `[sign] name · cost · try N ✗✓` — the name alone is cut with … (own flex child),
     // cost and tries never; time and tokens live in each try's detail. The whole name is in the title attribute and aria-label.
     var nameSpan = document.createElement("span");
     nameSpan.className = "audit-fold-name";
     nameSpan.setAttribute("data-testid", "audit-group-name");
-    nameSpan.title = g.step;
-    nameSpan.textContent = g.step;
+    nameSpan.title = p.name;
+    nameSpan.textContent = p.name;
     h4.appendChild(nameSpan);
     var tail = document.createElement("span");
     tail.className = "audit-fold-tail";
     // the dots and the word "try" are their own spans so a phone can drop them (keeping cost, N and the marks)
     function tailPart(cls, text){ var sp = document.createElement("span"); sp.className = cls; sp.textContent = text; tail.appendChild(sp); }
-    if(g.draft) draftTailInto(tail, g.summary);
-    else if(g.run){ tailPart("audit-fold-sep", "· "); tail.appendChild(document.createTextNode(g.cost || "cost unknown")); }   // the run's own group: no tries, no dots
+    if(g.draft) draftTailInto(tail, p);
+    else if(!p.tries){ tailPart("audit-fold-sep", "· "); tail.appendChild(document.createTextNode(p.cost)); }   // the run's own group: no tries, no dots
     else {
       tailPart("audit-fold-sep", "· ");
-      tail.appendChild(document.createTextNode(g.cost || "cost unknown"));
+      tail.appendChild(document.createTextNode(p.cost));
       tailPart("audit-fold-sep", " · ");
       tailPart("audit-fold-try", "try ");
-      tailPart("audit-fold-n", g.tryCount + " ");
-      g.tryMarks.forEach(function(mark){
+      tailPart("audit-fold-n", p.tries.n + " ");
+      p.tries.marks.forEach(function(mark){
         var markSpan = document.createElement("span");
         markSpan.className = "mark " + auditMarkClass(mark);
         markSpan.textContent = mark;
@@ -2743,7 +2755,7 @@
   function draftGroupFor(result){
     var d = result && result.draft;
     if(!d) return null;
-    return {step: "drafting", draft: true, state: d.present ? "done" : "no record", summary: d.summary, rows: d.rows || []};
+    return {step: "drafting", draft: true, summary: d.summary, rows: d.rows || []};
   }
   function renderAudit(result){
     var empty = document.getElementById("audit-empty");

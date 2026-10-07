@@ -18,7 +18,7 @@ const cut = (name) => {
   assert.ok(start > 0, `${name} not found`);
   return PAGE.slice(start, PAGE.indexOf('\n  }\n', start) + 5);
 };
-const { draftCardLines, draftLineText } = new Function(`var STEP_SIGN={done:"[✓]"};var signWords={"[✓]":"passed"};${['countWord', 'money', 'duration', 'draftCallsWord', 'stateWord', 'draftCardLines', 'draftLineText'].map(cut).join('\n')}\nreturn { draftCardLines, draftLineText };`)();
+const { draftCardLines, draftLineText } = new Function(`var STEP_SIGN={done:"[✓]"};var signWords={"[✓]":"passed"};${['countWord', 'money', 'duration', 'draftFigures', 'draftCallsWord', 'stateWord', 'auditGroupHeaderParts', 'draftCardLines', 'draftLineText'].map(cut).join('\n')}\nreturn { draftCardLines, draftLineText };`)();
 // an OLD row: no wallMs, no calls
 const old = (kind, over = {}) => ({ kind, n: 0, at: '2026-10-06T10:00:00.000Z', model: 'deepseek-flash', costUsd: 0.01, spendComplete: true, verdict: 'green', hash: 'abcdef012345', gap: null, ...over });
 const card = { kind: 'card', n: 0, at: '2026-10-06T09:58:00.000Z', card: { flowName: 'job2', job: 'x', capUsd: 0.25 } };
@@ -82,6 +82,6 @@ test('(d) the card and the Audit header read the one draft time', async () => {
   assert.equal(detail.draft.timeMs, audit.draft.summary.timeMs);
   assert.equal(detail.draft.timeMs, 155000);
   const header = draftLineText(audit.draft.summary);
-  assert.equal(header, 'drafting · 2m35s · $0.0100 · at least 1 model call · ✓');
+  assert.equal(header, '[✓] passed · drafting · 2m35s · $0.0100 · at least 1 model call ✓');
   assert.ok(draftCardLines(detail.draft).lines[0].startsWith('2m35s · $0.0100 · at least 1 model call'), 'same time and model-calls words');
 });

@@ -105,7 +105,7 @@ test('walk 2: a Stop before step 1 has no step; deriveAuditGroups makes it the g
   assert.deepEqual(groups[0].tryMarks, []);
   // the page: no tries, no dots, and a Stop's own words do not open the group
   const i = PAGE.indexOf('function buildAuditGroupHeaderEl');
-  assert.match(PAGE.slice(i, PAGE.indexOf('return h4;', i)), /else if\(g\.run\)/);
+  assert.match(PAGE.slice(i, PAGE.indexOf('return h4;', i)), /else if\(!p\.tries\)/);
   assert.match(PAGE, /!!r\.gap && !\/\^stop\/\.test/);
 });
 

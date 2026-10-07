@@ -707,22 +707,23 @@ function auditStepName(step) {
 
 /**
  * A step group's own state word for the Audit tab's collapsed header —
- * the SAME rule `src/panel/index.html`'s client-side `stepBoxState` already
- * applies to the Run tab's map/cards (ported here so the Audit header can
- * be computed server-side too, off the SAME last-row-wins logic): `waiting`
+ * the ONE decider of a step's state: the Run tab's map and cards read it too
+ * (`groupState` on each step; the page keeps no rule of its own), last-row-wins: `waiting`
  * (the run is currently parked on this step — its last attempt's verdict is
  * `paused`/`refused`), `done` (the last attempt passed — `green`/`hitl`),
- * `stopped` (the last attempt failed for any other reason). A group only
+ * `user-stopped` (M4e amendment 10: the step's own last row is `stopped`, a Stop
+ * the human asked), `stopped` (the last attempt failed for any other reason). A group only
  * ever exists for a step with at least one row, so `pending` never appears
  * here (unlike the Run tab's map, which also covers never-attempted steps).
  * @param {Array<{verdict:string}>} rows one step's own audit rows, book order
- * @returns {'done'|'waiting'|'stopped'}
+ * @returns {'done'|'waiting'|'stopped'|'user-stopped'}
  */
 export function deriveStepGroupState(rows) {
   // a Stop's notes (asked / not honoured) say nothing about the step's own state; a step with only notes reads as stopped
   const own = rows.filter((r) => r.verdict !== 'stop-asked' && r.verdict !== 'stop-not-honoured');
   const last = own.length > 0 ? own[own.length - 1] : rows[rows.length - 1];
   if (last.verdict === 'paused' || last.verdict === 'refused') return 'waiting';
+  if (last.verdict === 'stopped') return 'user-stopped';
   return (last.verdict === 'green' || last.verdict === 'hitl') ? 'done' : 'stopped';
 }
 

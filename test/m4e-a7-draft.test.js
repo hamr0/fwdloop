@@ -87,10 +87,11 @@ const cut = (name) => {
 };
 const load = (...names) => new Function(`${names.map(cut).join('\n')}\nreturn { ${names.join(', ')} };`)();
 
-test('(b) the Draft\'s one line on the first card and in the Audit header: drafting · time · $cost · n calls · ✓; unknown figures say so; no record says so', () => {
-  const { draftLineText } = load('countWord', 'money', 'duration', 'draftCallsWord', 'draftLineText');
-  assert.equal(draftLineText({ present: true, timeMs: 10500, cost: '$0.0303', calls: 5 }), 'drafting · 10.5s · $0.0303 · 5 model calls · ✓');
-  assert.equal(draftLineText({ present: true, timeMs: null, cost: null, calls: null }), 'drafting · time unknown · cost unknown · calls unknown · ✓');
+test('(b) the Draft\'s one line on the first card and in the Audit header (amendment 10: with the step card\'s status): [✓] passed · drafting · time · $cost · n calls ✓; unknown figures say so; no record says so', () => {
+  const { draftLineText } = new Function(`var STEP_SIGN={done:"[✓]"};var signWords={"[✓]":"passed"};${['countWord', 'money', 'duration', 'draftFigures', 'draftCallsWord', 'stateWord', 'auditGroupHeaderParts', 'draftLineText'].map(cut).join('\n')}\nreturn { draftLineText };`)();
+  assert.equal(draftLineText({ present: true, ended: 'done', timeMs: 10500, cost: '$0.0303', calls: 5 }), '[✓] passed · drafting · 10.5s · $0.0303 · 5 model calls ✓');
+  assert.equal(draftLineText({ present: true, ended: 'done', timeMs: null, cost: null, calls: null }), '[✓] passed · drafting · time unknown · cost unknown · calls unknown ✓');
+  assert.equal(draftLineText({ present: true, ended: 'not signed', timeMs: 10500, cost: '$0.0303', calls: 5 }), 'not signed · drafting · 10.5s · $0.0303 · 5 model calls');
   assert.equal(draftLineText({ present: false, why: 'no draft record' }), 'drafting · no draft record');
   assert.doesNotMatch(draftLineText({ present: false, why: 'no draft record' }), /\$/);
 });
