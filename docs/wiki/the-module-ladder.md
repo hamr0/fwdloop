@@ -1523,6 +1523,11 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Signed text, as shown to hamr:** a sub-card under its flow's card in Runs reads `(run-<n>) <word> — <label>` on one line (for example `(run-1) passed — goal met`), then its `$ · time · date` line. It drops the flow name, because the flow card above already shows it. The flow card, History and every other place keep `<flow> (run-<n>)`, as in amendment 3.
   - **Cap:** within M4e's $0.50; $0 build.
 
+- **Amendment 13 — SIGNED by hamr 2026-10-07 ("sign m4e amendment 13"), after the exit: Stop at an ask.**
+  - **Why:** /self-review 2026-10-07 found a late Stop could survive a park (src/panel/server.js stopRoute checks canStop then requestStop; a park in between leaves stop.request, and the later answer-Resume halts on a click made before the park). hamr: "stop shouln't be a brute, it waits this turn and stop, simple, it's not a race, if the turn leads up to ask question, stop there and on resume fresh ask."
+  - **Signed text, as shown to hamr:** A Stop waits for the turn in flight, then stops. If that turn leads to an ask, or the run is already waiting at an ask, the run stops at the ask: the record says `stop asked (you) at <time>`, then `stopped at the ask of step N`, no ask waits and no wait can expire. Stop shows on a waiting run too. **Resume** asks the same question again, fresh: a new ask on the same output, with its own wait, and no model call ($0). An answer written to the old ask is never used. This replaces amendment 7 item 8's `not honoured: the run ended (paused) first` for a run that parks, because a park is not an end. `not honoured` stays for a run that completes or halts first.
+  - **Cap:** within M4e's $0.50; $0 build.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
