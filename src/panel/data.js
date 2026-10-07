@@ -1423,7 +1423,7 @@ export function draftTotals(modelRows, ctx = {}) {
   const calls = modelRows.length > 0 ? modelRows.reduce((a, r) => a + (typeof r.calls === 'number' ? r.calls : 1), 0) : null;
   return {
     calls, callsAtLeast: modelRows.some((r) => typeof r.calls !== 'number'), timeMs,
-    humanChecks: Number.isInteger(ctx.humanChecks) ? ctx.humanChecks : null,
+    humanChecks: typeof ctx.humanChecks === 'number' && Number.isInteger(ctx.humanChecks) ? ctx.humanChecks : null,
     usd, spendComplete, cost: cd && cd.ok ? cd.display : null, modelRows: modelRows.length,
   };
 }
