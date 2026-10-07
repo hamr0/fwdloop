@@ -5,6 +5,78 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-10-07
+
+M4e: a Chat card in the panel. Describe a job, watch it drafted, sign it with two clicks and run it,
+all without leaving the panel. A run can be stopped and continued, and a stop at an ask stops at the
+ask.
+
+### Added
+- A Chat tab, borrowed from bareloop's Chat card and opened by default: Flow name, The job, Cap,
+  Destination folder, Inputs and Ask wait. Draft writes the plan through the one drafter, shows it
+  with its checks, and Sign & run is two clicks bound to the plan's hash (no typed name). A draft is
+  a panel-owned folder under `.drafts/`; its spend is booked per call and counted once by Money and
+  the monthly check. A refused start survives a reload; Clear removes it.
+- The job box takes one step per line, `~` guardrail lines under their job line, and Ask marks; the
+  inputs box takes the input files. The card shows the plan, the chat history as bubbles, and a note
+  box in a fixed order.
+- Revise the plan: "Ask for a change to the plan" sends up to two changes (`fwdloop draft
+  --revise-from <plan> --note <file>` on the CLI, `POST /api/author/:id/revise` on the panel). Notes
+  are write-once; a red change keeps the last green plan; Start over gives a fresh draft.
+- A plan that fights its job line (sections out of order or unnamed, a word limit off the guardrail)
+  is red at draft, change and sign. A check can no longer be emptied.
+- Run a signed flow from the panel: a typing search over flows that have passed and can run, with
+  their track record; Run again sits first in the Run tab's action row. Run opens Inputs,
+  Destination, Cap $ and each ask wait; a changed value needs the same two-click hash, and the
+  values in force are written once into the run's folder and shown in the Run and Job tabs.
+- Stop: a Stop button on the Run tab, read before every model call and between tries. Every stop
+  leaves audit rows, reads `[■] stopped` and shows as neutral. Resume is the cap alone (Cap $, a
+  money note with the real smallest accepted cap, Sign & resume in two clicks); `fwdloop continue`
+  does the same from the CLI under a write-once signed-values version.
+- A money note under Cap ("needs $0.50 ($0.10 left monthly)" or "$4.90 left monthly"), re-read as
+  you type; a cap below one round of the first model step is refused at Draft and at sign.
+- Amendment 13: a Stop at an ask stops at the ask, and Resume asks again, fresh. A waiting run
+  offers Stop but is not "running" to the Resume door.
+- Run names are `run-<n>` per flow, claimed by an exclusive mkdir, shown as `<flow> (run-<n>)`; the
+  send file is named `<flow>-<runId>-<emits>.json`.
+- Setup is shown as Draft: `setup.jsonl` is written once at sign and every run's Audit tab starts
+  with a Draft block (drafting is step 0, with the card-to-sign time, model calls, human checks and
+  cost; unknown cost never reads 0). Audit headers use the step card's status word, in bold.
+- Ask headers (a short one-line paragraph before a paragraph) show in the panel's accent colour; the
+  text is unchanged.
+
+### Changed
+- The send destination is any folder you name (an absolute `file:` target). Only the flow root, flow
+  folders, the run folder, the config folder and `.drafts` are refused by name; a send never
+  overwrites.
+- The panel needs no token and no cookie: `fwdloop panel` prints `http://127.0.0.1:<port>/`. The
+  127.0.0.1 bind, the own-Host gate on every route, the own-Origin gate on every POST and the loud
+  taken-port failure stay. The token file, the `?t=` link and the cookie gate are removed, and an old
+  token file is never read or deleted. The panel is single-user (F59).
+- Runs sub-cards read `(run-n) word - label` and drop the flow name; a passed one reads
+  `(run-n) passed - goal met`.
+- Cached input is priced as input (M4d amendment 2): the Cached in column and box are gone and a
+  POST of `cachedInPerM` is refused.
+- Job tab reads like the card: no "time cap", `~` guardrail, wait and destination rows under their
+  lines; the ask wait prints through one plain formatter (90m reads 1h 30m).
+
+### Fixed
+- `haltRun` writes the halt record before the history end row, so a stopped run always shows Resume.
+- A stray answer for another ask no longer makes a waiting run read stuck; the saved-answer
+  classifier ignores an answer for an ask that is not open.
+- The Chat card has its own id, `chat-job-card`; a duplicate id had emptied the Job tab. At 320px the
+  card's top-right button no longer covers the radio row.
+- After Sign & resume click 2 the Run tab shows a disabled "resuming..." until the run is live or
+  ended; of two resume POSTs one continues and one is refused.
+- "Fix the marked boxes" clears when the last marked box clears; the ask box placeholder shows only
+  while the box is open.
+- The test suite's fixture sends and `runner.test.mjs` write to a temp dir and clean up.
+
+### Known limits
+- F58 is open: a change to the plan can silently drop a section. The fix is the next amendment.
+- F59: the panel is single-user; anything on this machine that can reach 127.0.0.1 reaches it, with
+  no token.
+
 ## [0.12.0] - 2026-10-05
 
 M4d: a Settings page. Provider keys, provider details, prices and a monthly spend limit are set in
