@@ -335,6 +335,42 @@ test('am13 (f) the race: a Stop request that landed right after the park, then t
   assert.equal(existsSync(path.join(w.runDir, 'ask.json')), false);
 });
 
+/** Park, then save an answer at a fixed instant and write a Stop request stamped `stopAt(answeredAt)` — no wall-clock luck. */
+async function stopVsAnswer(tag, stopAt) {
+  const w = await parked(tag);
+  const answeredAt = new Date(Date.parse(w.ask.askedAt ?? new Date().toISOString()) + 1000).toISOString();
+  assert.equal(answerAsk({ runDir: w.runDir, askId: w.ask.askId, decision: 'accept', clock: () => answeredAt }).ok, true);
+  writeFileSync(path.join(w.runDir, STOP_FILE), `${JSON.stringify(stopAt === undefined ? {} : { at: stopAt(answeredAt) })}\n`);
+  return { w, answeredAt, r: await resumeRun(args(w, w.model.fn)) };
+}
+
+test('am13 (h) a Stop and an answer in the SAME millisecond: the answer wins — applied, and the fold seam stops BEFORE the send (hamr, 2026-10-07)', async () => {
+  const { w, r } = await stopVsAnswer('h1', (a) => a);
+  assert.equal(r.outcome, 'stopped', r.red);
+  assert.equal(readHaltRecord(w.runDir).halt.stepIndex, 4, 'resumable at the send step: the answer was applied');
+  assert.equal(existsSync(path.join(w.runDir, `answer.${w.ask.askId}.consumed.json`)), true, 'the answer was consumed');
+  assert.equal(readdirSync(w.runDir).some((n) => n.startsWith(`answer.${w.ask.askId}.late.`)), false, 'not set aside');
+  assert.deepEqual(readdirSync(w.dest), [], 'nothing shipped');
+});
+
+test('am13 (h) a Stop asked 1 ms BEFORE the answer was saved still stops AT the ask, the answer set aside (unchanged)', async () => {
+  const { w, r } = await stopVsAnswer('h2', (a) => new Date(Date.parse(a) - 1).toISOString());
+  assert.equal(r.outcome, 'stopped', r.red);
+  assert.equal(readHaltRecord(w.runDir).halt.stepIndex, 3, 'stopped at the ask');
+  assert.equal(existsSync(path.join(w.runDir, `answer.${w.ask.askId}.consumed.json`)), false, 'the answer was not used');
+  assert.deepEqual(readdirSync(w.dest), [], 'nothing shipped');
+});
+
+test('am13 (h) a Stop whose time is missing (`at` null) still stops AT the ask (conservative, unchanged)', async () => {
+  for (const [tag, at] of [['h4', undefined]]) {
+    const { w, r } = await stopVsAnswer(tag, at);
+    assert.equal(r.outcome, 'stopped', r.red);
+    assert.equal(readHaltRecord(w.runDir).halt.stepIndex, 3, `${tag}: stopped at the ask`);
+    assert.equal(existsSync(path.join(w.runDir, `answer.${w.ask.askId}.consumed.json`)), false, `${tag}: the answer was not used`);
+    assert.deepEqual(readdirSync(w.dest), [], `${tag}: nothing shipped`);
+  }
+});
+
 test('am13 (g) not honoured stays for a run that COMPLETES first: a Stop landing as the signed send closes leaves "not honoured: the run ended (complete) first"', async () => {
   const w = await parked('g1');
   assert.equal(answerAsk({ runDir: w.runDir, askId: w.ask.askId, decision: 'accept' }).ok, true);
