@@ -24,7 +24,7 @@ function build(r, opts) {
   return new Function('document', body)(document)(r, opts);
 }
 const text = (html) => html.replace(/<[^>]*>/g, '').replace(/&mdash;/g, '—');
-const RUN = { flow: 'm4e-exit-3a', runId: 'run-1', glyph: '[✓]', word: 'passed', line: 'goal met', label: 'passed' };
+const RUN = { flow: 'm4e-exit-3a', runId: 'run-1', glyph: '[✓]', word: 'passed', line: null, label: 'passed' }; // as the server sends a complete run: no line
 
 test('sub-card line 1 reads `(run-1) passed — goal met` and shows no flow name; title keeps the full name', () => {
   const row = build(RUN, { sub: true });
@@ -36,14 +36,18 @@ test('sub-card line 1 reads `(run-1) passed — goal met` and shows no flow name
   assert.match(row.innerHTML, /\$0\.0616 · 7m28s · 2026-10-06/);
 });
 
-test('a sub-card with no line has no dash', () => {
-  const row = build({ ...RUN, line: '' }, { sub: true });
+test('a red sub-card keeps its own label; a no-line non-passed sub-card has no dash', () => {
+  const red = build({ ...RUN, glyph: '[✗]', word: 'failed', line: 'failed (halt)', label: 'failed (halt)' }, { sub: true });
+  assert.match(text(red.innerHTML), /^\(run-1\) failed — failed \(halt\)/);
+  assert.ok(!text(red.innerHTML).includes('goal met'));
+  const row = build({ ...RUN, glyph: '[■]', word: 'stopped', line: '' }, { sub: true });
   assert.ok(!text(row.innerHTML).includes('—'));
 });
 
 test('without opts (flow card, History) the row still reads `<flow> (run-<n>)`', () => {
   const row = build(RUN);
-  assert.match(text(row.innerHTML), /^m4e-exit-3a \(run-1\)passed — goal met/);
+  assert.match(text(row.innerHTML), /^m4e-exit-3a \(run-1\)passed/);
+  assert.ok(!text(row.innerHTML).includes('goal met'), 'flow card / History text unchanged');
   assert.match(row.innerHTML, /title="m4e-exit-3a \(run-1\)"/);
 });
 

@@ -1710,7 +1710,7 @@
       row.innerHTML =
         '<span class="wf-line1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span>' +
         '<span class="wf-name" title="' + escapeXml(fullName) + '">(' + escapeXml(r.runId) + ')</span> ' +
-        '<span class="wf-sign-line" data-testid="run-sign-word">' + signHtml(r.word, r.line, r.label) + '</span></span>' +
+        '<span class="wf-sign-line" data-testid="run-sign-word">' + signHtml(r.word, (r.word === 'passed' && r.glyph === '[✓]' && !r.line) ? 'goal met' : r.line, r.label) + '</span></span>' +
         runMetaLineHtml(r, null);
     } else {
       row.innerHTML =
