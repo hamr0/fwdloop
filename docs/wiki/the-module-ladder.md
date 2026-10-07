@@ -1506,6 +1506,11 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
     - (g) a red step with a "not honoured" stop row reads `[✗] failed` on both, and a passed step with a stop note after it reads `[✓] passed`;
   - **Cap:** within M4e's $0.50; $0 build.
 
+- **Amendment 11 — SIGNED by hamr 2026-10-07 ("sign m4e amendment 11"): the Audit Draft header shows the human checks.**
+  - **Why:** hamr's review 2026-10-07: "#2 audit drafting header [✓] passed·drafting· 1m12s · $0.0011 · 1 model call ✓  > [✓] passed·drafting· 1m12s · $0.0011 · 1 model call . 2 human calls ✓" (worded "human checks" to match the drafting card, amendment 9).
+  - **Signed text, as shown to hamr:** the Audit Draft header reads `[✓] passed · drafting · <time> · $<cost> · <n> model calls · <h> human checks ✓`. `<h>` comes from the same count as the drafting card, so the two can't disagree. Everything else in amendment 10 stays the same.
+  - **Cap:** within M4e's $0.50; $0 build.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
