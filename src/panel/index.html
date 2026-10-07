@@ -1231,6 +1231,17 @@
     return ["drafting", typeof d.timeMs === "number" ? duration(d.timeMs) : "time unknown", d.cost || "cost unknown",
       typeof d.calls === "number" ? countWord(d.calls, "call") : "calls unknown", "\u2713"].join(" \u00b7 ");
   }
+  // M4e amendment 8 item 1: the drafting card's four short lines, from ONE function (bareloop's card): `drafting` / how it ended (`done` | `not signed`) /
+  // `<time> · $<cost> · <n> calls · ✓` (a figure not recorded reads unknown, never 0; the mark only on `done`) / what happened (`d.happened`, joined by ` · `).
+  // The figures are the same `draftTotals` the Map box and the Audit header read. A flow with no draft record: `drafting` and `no draft record`.
+  function draftCardLines(d){
+    if(!d || !d.present) return ["drafting", (d && d.why) || "no draft record"];
+    var ended = d.ended === "done" ? "done" : "not signed";
+    var figs = [typeof d.timeMs === "number" ? duration(d.timeMs) : "time unknown", d.cost || "cost unknown",
+      typeof d.calls === "number" ? countWord(d.calls, "call") : "calls unknown"];
+    if(ended === "done") figs.push("\u2713");
+    return ["drafting", ended, figs.join(" \u00b7 "), (d.happened || []).join(" \u00b7 ")];
+  }
   // The Map's first box: the Draft, then step 1. A box with no audit attempts of its own; its state word says "no draft record" when there is none.
   function draftBox(d){
     return {draft: true, emits: "drafting", goal: "", closeClass: null, primitives: [], attempts: [], tryCount: 0, tryMarks: [], state: d && d.present ? "done" : "pending", noRecord: !(d && d.present), n: 0};
@@ -2282,15 +2293,13 @@
     div.textContent = text;
     return div;
   }
-  // M4e amendment 7 item 2: the first card under the Map — the Draft's one line, then its rows (card, draft, notes, changes, sign) as the Audit's
-  // Draft group has them. A click opens the Audit tab on that group, like a step card's.
+  // M4e amendment 8: the first card under the Map — the Draft's four short lines (`draftCardLines`); the rows stay in Audit → Draft. A click opens the Audit tab on that group, like a step card's.
   function buildDraftCardEl(d){
     var card = document.createElement("div");
     card.className = "step-card";
     card.setAttribute("data-testid", "step-card-draft");
-    card.appendChild(textLineEl("step-head", draftLineText(d), "step-card-draft-line"));
-    ((d && d.rows) || []).forEach(function(r, i){
-      card.appendChild(textLineEl("step-meta", String(r.action || "") + (r.gap ? " \u00b7 " + r.gap : ""), "step-card-draft-row-" + i));
+    draftCardLines(d).forEach(function(t, i){
+      if(t !== "") card.appendChild(textLineEl(i === 0 ? "step-head" : "step-meta", t, "step-card-draft-line-" + (i + 1)));
     });
     card.setAttribute("tabindex", "0");
     card.setAttribute("role", "button");

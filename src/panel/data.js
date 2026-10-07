@@ -36,6 +36,7 @@ import {
 import { readSpendRows } from '../provider.js';
 import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
 import { readSetup } from '../setup.js';
+import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import {
   runLiveness, booksFresh, readResumeLock,
 } from '../liveness.js';
@@ -1438,9 +1439,17 @@ export function getDraftBlock(flowDir, runDir) {
     usd: typeof r.costUsd === 'number' ? r.costUsd : undefined, spendComplete: r.spendComplete === true, tokensDisplay: { kind: 'no-model' },
     ...(typeof r.wallMs === 'number' ? { wallMs: r.wallMs } : {}),
   });
+  // M4e amendment 8 item 1, line 4: one short phrase per Draft row, in order (the drafting card joins them with ` · `)
+  const happened = [];
+  const retry = (r) => (Number.isInteger(r.structureRetries) && r.structureRetries >= 1 ? ` (retry ${r.structureRetries} of ${MAX_STRUCTURE_RETRIES})` : '');
   if (setup.present) {
     setup.rows.forEach((r, i) => {
       const n = i + 1;
+      if (r.kind === 'card') happened.push('your card');
+      else if (r.kind === 'note') happened.push('your note');
+      else if (r.kind === 'draft') happened.push(r.verdict === 'green' ? `drafting${retry(r)}` : 'draft red');
+      else if (r.kind === 'change') happened.push(r.verdict === 'red' ? 'change red' : `changing${retry(r)}`);
+      else if (r.kind === 'sign') happened.push(`signed (${r.signedBy ?? 'you'})`);
       if (r.kind === 'card') {
         const c = r.card && typeof r.card === 'object' ? r.card : {};
         const gap = [`flow ${c.flowName ?? '?'}`, `cap $${c.capUsd ?? '?'}`, c.destination ? `destination ${c.destination}` : null, c.askWait ? `ask wait ${c.askWait}` : null,
@@ -1469,11 +1478,14 @@ export function getDraftBlock(flowDir, runDir) {
     const gap = v && typeof v === 'object'
       ? [...head, waits.length ? `ask waits ${waits.map((w) => `line ${w.line}: ${w.wait}`).join(', ')}` : null].filter(Boolean).join(' · ')
       : `${file} could not be read`;
+    happened.push(`${version === 0 ? 'signed to run' : 'signed to resume'} (${rec?.signedBy ?? 'you'})`);
     rows.push(human({ at: rec?.at }, rows.length + 1, { action: `${version === 0 ? 'Sign & run' : 'Sign & resume'} (${rec?.signedBy ?? 'you'})`, gap, ...(waits.length ? { gapHead: head, gapWaits: waits } : {}) }));
   }
   const totals = setup.present ? draftTotals(setup.rows.filter((r) => r.kind === 'draft' || r.kind === 'change')) : null;
   // the group the Audit tab draws as a normal card (collapsed by default) and the box the Map and the first step card read
-  const summary = setup.present && totals ? { present: true, ...totals } : { present: false, why: NO_DRAFT_WORDS };
+  // `ended` = how the drafting ended: `done` only with a sign row, else `not signed` (no `red` state: a red change shows on line 4 only)
+  const ended = setup.present && setup.rows.some((r) => r.kind === 'sign') ? 'done' : 'not signed';
+  const summary = setup.present && totals ? { present: true, ...totals, ended, happened } : { present: false, why: NO_DRAFT_WORDS };
   return {
     present: setup.present, why: setup.present ? null : NO_DRAFT_WORDS, rows, summary,
   };
