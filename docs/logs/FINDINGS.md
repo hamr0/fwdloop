@@ -2931,6 +2931,6 @@ guardrail says 3 sections, which forces a merge or a drop.
 
 Not an LLM-judge problem. The gap is that a dropped section is invisible to the human who signs.
 
-Proposed, NOT agreed (hamr 2026-10-07: "we will fix it next, need to think about it, just not now"): M4e amendment 13 —
+Proposed, NOT agreed (hamr 2026-10-07: "we will fix it next, need to think about it, just not now"): a future M4e amendment (not yet numbered; 13 was signed the same day for Stop at an ask) —
 the change readout names any section dropped or added versus the last green plan ("dropped: summary of work history
 blurb"), computed mechanically from the two section lists and never by reading the note. The human decides.
