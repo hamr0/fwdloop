@@ -2934,3 +2934,14 @@ Not an LLM-judge problem. The gap is that a dropped section is invisible to the 
 Proposed, NOT agreed (hamr 2026-10-07: "we will fix it next, need to think about it, just not now"): a future M4e amendment (not yet numbered; 13 was signed the same day for Stop at an ask) —
 the change readout names any section dropped or added versus the last green plan ("dropped: summary of work history
 blurb"), computed mechanically from the two section lists and never by reading the note. The human decides.
+
+## F59 — The panel is single-user: a different OS user on the same machine can reach every route (hamr's ruling, 2026-10-07)
+
+Found by /branch-review at 67f8e78 (`src/panel/server.js` ~370). The panel listens on 127.0.0.1 and checks only the Host
+header, plus the Origin header on POST. It has no token or cookie (as signed in M4e amendment 4 item 8). A non-browser
+client run by ANOTHER OS user on the same machine can forge both headers and reach every route: start runs that spend
+hamr's provider keys, answer asks, and send files. Programs running as hamr himself are not a new exposure; they could
+read his keys anyway.
+
+Ruling (hamr, choice "A1", 2026-10-07): keep the panel without a token. It is a single-user tool and assumes no other OS
+user on the machine. Accepted for a machine only hamr logs in to. On a shared machine, do not run the panel.
