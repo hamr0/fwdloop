@@ -1072,7 +1072,14 @@
   // Origin). Same-origin. ----
   function getJSON(path){
     return fetch(path, { method: "GET", headers: { accept: "application/json" } }).then(function(r){
-      if(!r.ok){ var err = new Error(path + ": HTTP " + r.status); err.status = r.status; throw err; }
+      if(!r.ok){
+        // the refusal's own name rides on the error (C1): the one load-failure sentence tells "outside the folder" from the other 403
+        return r.json().then(function(b){ return b; }, function(){ return null; }).then(function(b){
+          var err = new Error(path + ": HTTP " + r.status); err.status = r.status;
+          if(b && typeof b.refused === "string") err.refused = b.refused;
+          throw err;
+        });
+      }
       return r.json();
     });
   }
@@ -1080,6 +1087,7 @@
   // message (it carries the path and the HTTP code), never a status number.
   function loadFailureText(e){
     var status = e && e.status;
+    if(status === 403 && e.refused === "flow-outside-root") return "This flow is outside the panel's folder.";
     if(status === 403) return "The panel does not recognise this page. Reload it.";
     if(status === 404) return "This run is no longer there.";
     return "Could not load this; reload the page.";
@@ -3146,7 +3154,7 @@
     if(row.stuck) return row.stuckLine || row.stuckLabel;
     if(row.working) return "working on your " + row.working + "…";
     if(row.open && row.resume) return row.resume.label;
-    var bits = [row.status];
+    var bits = [row.statusText || row.status];
     if(row.reason) bits.push("reason: " + row.reason);
     if(row.answeredAt) bits.push("answered " + (readableDateTime(row.answeredAt) || row.answeredAt));
     if(row.why) bits.push(row.why);
@@ -3243,7 +3251,7 @@
     if(ask.waiting) return textDiv("wf-meta", "time left: " + duration(ask.timeLeftMs));
     // an open ask with a saved answer: the header meta line already says the resume label (stuck or starting) — once.
     if(ask.open && ask.resume) return null;
-    var bits = [ask.status];
+    var bits = [ask.statusText || ask.status];
     if(ask.reason) bits.push("reason: " + ask.reason);
     if(ask.answeredAt) bits.push("answered " + (readableDateTime(ask.answeredAt) || ask.answeredAt));
     if(ask.why) bits.push(ask.why);
@@ -3654,7 +3662,7 @@
     bits.push(stepBit);
     bits.push("draft " + block.draftNo);
     bits.push(typeof ask.askedAt === "string" ? "asked " + (readableDateTime(ask.askedAt) || ask.askedAt) : "asked: unknown");
-    bits.push(ask.waiting ? "waiting on you" : (ask.open && ask.resume ? ask.resume.label : ask.status));
+    bits.push(ask.waiting ? "waiting on you" : (ask.open && ask.resume ? ask.resume.label : (ask.statusText || ask.status)));
     return bits.join(" · ");
   }
   // One block per signed ask line (M4c item 5), drawn from the server's `blocks`.

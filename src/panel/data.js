@@ -242,7 +242,10 @@ export function signParts(glyph, label, noWord = false) {
   const word = noWord ? null : (SIGN_WORDS[glyph] ?? null);
   if (word === null) return { word: null, line: label ?? null };
   if (typeof label !== 'string' || label === word) return { word, line: null };
-  return { word, line: label.startsWith(`${word} — `) ? label.slice(word.length + 3) : label };
+  if (label.startsWith(`${word} — `)) return { word, line: label.slice(word.length + 3) };
+  // amendment 16 I4: the signed words `stopped at the ask of step N` are drawn whole, never as a bold "stopped" + dash + the rest
+  if (STOPPED_AT_ASK_START_RE.test(label)) return { word: null, line: label };
+  return { word, line: label };
 }
 
 /** The sign an Inbox row wears (null for a past answer, which shows its status word instead). */
@@ -357,16 +360,18 @@ export function glyphPulses(g) {
  *    A saved answer with a live process is `[▶]` working on your answer.
  *  - `[?]` crashed after taking your answer (amendment 2 (f)) — the answer was
  *    consumed, the process is gone, no end row: cannot be carried on.
- * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string, resumable?: boolean}} ctx
+ * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string, resumable?: boolean, stoppedAtAsk?: string|null}} ctx
  * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]'|'[II]'|'[■]', label: string}}
  */
 export function computeGlyph({
-  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock, resumable,
+  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock, resumable, stoppedAtAsk,
 }) {
   if (historyRow) {
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
     // M4e amendment 4 item 4: a run the human stopped, or one that hit its money cap and can be continued, is `[■]` stopped — never "failed".
-    if (historyRow.outcome === 'stopped') return { glyph: '[■]', label: 'stopped — after the step that was running; Resume to go on' };
+    if (historyRow.outcome === 'stopped') {
+      return { glyph: '[■]', label: stoppedAtAsk ? `${stoppedAtAsk}; Resume to go on` : 'stopped — after the step that was running; Resume to go on' };
+    }
     if (historyRow.outcome === 'cap-halt' && resumable) return { glyph: '[■]', label: 'stopped — the money cap was reached; raise it and Resume' };
     // M4b amendment 3: a run the human ended on purpose with rerun is not a failure.
     if (historyRow.outcome === 'rerun') return { glyph: '[✗]', label: 'stopped by you (rerun), a fresh run was started' };
@@ -897,6 +902,8 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     historyRow,
     // M4e amendment 4 item 4: a cap-halted or stopped run that can be continued (`halt.json` is the runner's record)
     resumable: halt.ok && historyRow !== null && historyRow.outcome === halt.halt.outcome,
+    // amendment 16 I4: how a stopped run was stopped, in the runner's own words (`stopped at the ask of step N`), or null (stopped after a step)
+    stoppedAtAsk: lastStoppedAtAsk(auditRows),
     auditRows,
     spendRows,
     logJson,
@@ -913,6 +920,19 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     // own `startedAt`), so a `[▶]` run has a real time and never "parked or died". Not a book change.
     startedAt: historyRow ? null : lastPidStartedAt(runDir),
   };
+}
+
+const STOPPED_AT_ASK_RE = /^stopped at the ask of step \d+$/;
+const STOPPED_AT_ASK_START_RE = /^stopped at the ask of step \d+/;
+/**
+ * The ONE reader of "was this run stopped at its ask": the newest `stopped` audit row, when the runner wrote its `gap` as
+ * `stopped at the ask of step N` (amendment 13's signed words). Any other stop (after a step, before step 1) is null.
+ * @param {any[]} auditRows @returns {string|null}
+ */
+function lastStoppedAtAsk(auditRows) {
+  const stopped = auditRows.filter((r) => r.verdict === 'stopped' && typeof r.gap === 'string' && !Number.isInteger(r.attempt));
+  const gap = stopped.length > 0 ? stopped[stopped.length - 1].gap : null;
+  return typeof gap === 'string' && STOPPED_AT_ASK_RE.test(gap) ? gap : null;
 }
 
 /** @param {string} runDir @returns {string|null} */
@@ -1414,7 +1434,7 @@ export const NO_DRAFT_WORDS = 'no draft record';
  * What the Draft adds up to, ONE place (the Map box, the first step card and the Audit group all read it, so the three can never disagree).
  * M4e amendment 9: `timeMs` is the card row's `at` to the sign row's `at` (the whole drafting, human time included), `null` when either has no
  * usable `at`; never a sum of the model rows' `wallMs`. `calls` sums the rows' `calls`, a row with none counts 1 and sets `callsAtLeast`, so an
- * unknown never shows as a smaller exact number; no model rows = `null`. `humanChecks` = the note rows + the sign row + the run's signed-values
+ * unknown never shows as a smaller exact number; no model rows = `null`. `humanChecks` = the note rows + the revise rows (each is the card the human edited and sent) + the sign row + the run's signed-values
  * rows (the card is not a check), given by the caller as `ctx.humanChecks`. Money follows `costDisplay` ("at least $X" for a floor).
  * @param {any[]} modelRows the draft and change rows (`kind` draft | change) of `setup.jsonl`
  * @param {{cardAt?: any, signAt?: any, humanChecks?: number|null}} [ctx]
@@ -1502,7 +1522,7 @@ export function getDraftBlock(flowDir, runDir) {
     rows.push(human({ at: rec?.at }, rows.length + 1, { action: `${version === 0 ? 'Sign & run' : 'Sign & resume'} (${rec?.signedBy ?? 'you'})`, gap, ...(waits.length ? { gapHead: head, gapWaits: waits } : {}) }));
   }
   const lastSign = setup.present ? [...setup.rows].reverse().find((r) => r.kind === 'sign') : undefined;
-  const humanChecks = setup.present ? setup.rows.filter((r) => r.kind === 'note' || r.kind === 'sign').length + versions.length : null;
+  const humanChecks = setup.present ? setup.rows.filter((r) => r.kind === 'note' || r.kind === 'sign' || r.kind === 'revise').length + versions.length : null;
   const totals = setup.present
     ? draftTotals(setup.rows.filter((r) => r.kind === 'draft' || r.kind === 'change' || r.kind === 'revise' || r.kind === 'startover'), { cardAt: setup.rows.find((r) => r.kind === 'card')?.at, signAt: lastSign?.at, humanChecks })
     : null;
@@ -1992,6 +2012,15 @@ function runAsksInOrder(runDir, hasHistoryRow, endedExpired = false) {
     .map(({ row }) => row);
   // M4c-fix amendment 1 (c): a run ended because its ask expired reads expired, never accepted. The late answer the
   // terminal resume consumed was refused, so the newest ask carries `expired` (and says why), not the answer's word.
+  // amendment 16 I4: the n-th ask a Stop set aside is the n-th `stopped at the ask of step N` row (both are written in time order, one each)
+  const atAskWords = readAudit(runDir).filter((r) => r.verdict === 'stopped' && STOPPED_AT_ASK_RE.test(String(r.gap)));
+  let nthStopped = 0;
+  for (let i = 0; i < ordered.length; i++) {
+    if (ordered[i].status !== 'stopped') continue;
+    const words = atAskWords[nthStopped]?.gap;
+    nthStopped += 1;
+    if (typeof words === 'string') ordered[i] = { ...ordered[i], statusText: words };
+  }
   const last = ordered[ordered.length - 1];
   if (endedExpired && last && (last.status === 'accepted' || last.status === 'redo' || last.status === 'reran')) {
     ordered[ordered.length - 1] = { ...last, status: 'expired', reason: null, why: LATE_ANSWER_WHY };
