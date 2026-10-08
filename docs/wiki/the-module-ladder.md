@@ -1583,7 +1583,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - hamr "yes to both": a step whose check reads its reply is also refused any other write-class verb (e.g. `edit`), not only `write`; and the guardrail reader also reads the "ish" forms ("250ish each", "250ish words per section") as about 250 words each.
   - hamr's live walk (`new-attempt (run-1)`): the step's answer form also offered `lines`, which no check reads; the model put the resume there. `lines` was removed from the softgreen answer form, so `text` is the only place to answer (same hole as item 5).
 
-- **Amendment 16 — DRAFT, NOT SIGNED: the fix list after amendment 15.**
+- **Amendment 16 — SIGNED by hamr 2026-10-08 ("sign m4e amendment 16"): the fix list after amendment 15.**
   - **Why:** /self-review and /refactor (ledger mode) of branch `m4e-am14`, 2026-10-08. hamr went through every item and ruled each one "fix" (and sent I5 upstream). Dropped by hamr: C10 (no panel token; already ruled single-user, A1) and C15 (editing with 0 revises left; accepted known limit). Item ids are the ledger review's.
   - **Checks (amendment 15 follow-ups)**
     - **C13.** A guardrail that gives a size for each section but no number of sections, or a check with `wordsPerSection` and no section names, is red at draft, revise and sign, by name. It can never pass unchecked.
