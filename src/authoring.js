@@ -187,6 +187,17 @@ export function readProseFile(file) {
 }
 
 /**
+ * The ONE check of a draft's API key, at $0 before any ledger write (C3, amendment 16): `bin/fwdloop draft` and `draftToDir` both call
+ * it, so both refuse with the same sentence. null = the key is fine; else the sentence (never the key's value).
+ * @param {string} slot @param {Record<string,string|undefined>} env
+ * @returns {string|null}
+ */
+export function draftKeyRefusal(slot, env) {
+  const key = checkKeyPreflight(slot, env);
+  return key.ok ? null : String(key.message);
+}
+
+/**
  * Draft into `dir`. $0 refusals (return {ok:false, wrote:false}, nothing on disk): bad key,
  * unreadable/blank prose, prose that contains the key, missing inputs / bad signed text, dir
  * already exists. After a paid round the dir is ALWAYS written — green (spec.hash present) or
@@ -219,8 +230,8 @@ export async function draftToDir({
   const injected = provider != null;
   const secretVar = PROVIDER_SLOTS[slot]?.envVar;
   if (!injected) {
-    const key = checkKeyPreflight(slot, env);
-    if (!key.ok) return refuse([key.message]);
+    const refusal = draftKeyRefusal(slot, env);
+    if (refusal !== null) return refuse([refusal]);
   }
   const secrets = secretVar && env[secretVar] ? [env[secretVar]] : [];
   if (secrets.some((s) => s.length >= 8 && prose.text.includes(s))) return refuse(['prose: contains an API key value — refused']);

@@ -45,7 +45,7 @@ import {
 } from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
-import { draftToDir, signDraft, SIGN_LINE, costText } from '../src/authoring.js';
+import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText } from '../src/authoring.js';
 import { userInfo } from 'node:os';
 
 // The baseline model (project rule, CLAUDE.md/AGENT_RULES: "deepseek-flash
@@ -775,8 +775,8 @@ async function cmdDraft(rest) {
   }
   // The key preflight comes first (draftToDir repeats it), so an unset key keeps its own message ahead of the NODE_ENV refusal.
   if (injected.provider == null) {
-    const keyCheck = checkKeyPreflight('deepseek', env);
-    if (!keyCheck.ok) fail(`draft refused at $0 — ${keyCheck.message}`);
+    const refusal = draftKeyRefusal(MODEL_SLOT, env);
+    if (refusal !== null) fail(`draft refused at $0 — ${refusal}`);
   }
   // M4d piece 3: the monthly check — a draft has no signed cap, so it holds one ceiling round, priced by the
   // ONE price lookup (an injected test provider carries its own rates).
