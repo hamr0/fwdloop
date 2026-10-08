@@ -49,7 +49,7 @@ import { createFlowsDoor } from './authorflows.js';
 import { createResumeDoor } from './authorresume.js';
 import { createStarter } from './authorstart.js';
 import {
-  childRunning, providerKeys, readJsonFile, spawnDetached, writePidFile,
+  childRunning as childRunningNow, providerKeys, readJsonFile, spawnDetached, writePidFile,
 } from './spawn.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -74,13 +74,13 @@ const KILL_HARD_WAIT_MS = 2000;
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
 /**
- * @param {{ root: string, home?: string, skipMonthly?: boolean, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null }, bin?: string }} opts
+ * @param {{ root: string, home?: string, skipMonthly?: boolean, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null }, bin?: string, childRunning?: (dir: string) => boolean }} opts
  *   `loadEnv` is the keys-file door (`keysForDoor`): called before EVERY spawn and every reply that quotes a log, so editing
  *   the file needs no restart. Its `env` is BOTH the child's spawn env AND the scrub list (POC (a), M4d wiring rule).
  */
 export function createAuthor(opts) {
   const {
-    root, loadEnv, home, skipMonthly = false, bin = BIN,
+    root, loadEnv, home, skipMonthly = false, bin = BIN, childRunning = childRunningNow,
   } = opts;
   // the ONE run-start path (sign and run both end in `starter.start`) and the Run-a-signed-flow door built on it
   const starter = createStarter({ root, bin });
@@ -124,11 +124,14 @@ export function createAuthor(opts) {
     const signed = readJson(dir, 'signed.json');
     if (signed) return { ...base, phase: 'signed' };
 
+    // C9: ask "is it still running" FIRST, then read the result. A child that finishes between the two reads is then seen as finished
+    // with its result on disk; the other order could see no result, then no child, and call a finished draft stopped.
+    const running = childRunning(dir);
     const first = resultOf(dir, 'draft', keys);
     if (first && first.phase === 'green') return withRevises(base, dir, first, keys);
     if (first) return { ...base, ...first };
     // no result yet: the child is the only thing that can still produce one
-    if (childRunning(dir)) return { ...base, phase: 'drafting' };
+    if (running) return { ...base, phase: 'drafting' };
     return { ...base, phase: 'stopped', say: logTail(dir, 'child.log', keys) || STOPPED_SAY };
   }
 
@@ -175,10 +178,11 @@ export function createAuthor(opts) {
     const newest = ns.length > 0 ? ns[ns.length - 1] : 0;
     const card = newest > 0 ? (readJson(dir, `card-${newest}.json`) ?? base.card) : base.card;
     const revises = ns.map((n) => {
+      const running = n === newest && childRunning(dir); // C9: running first, then the result
       const res = resultOf(dir, `draft-${n}`, keys);
       if (res && res.phase === 'green') return { n, phase: 'green', hash: res.hash };
       if (res) return { n, phase: 'red', reds: res.reds, say: REVISE_RED_SAY };
-      if (n === newest && childRunning(dir)) return { n, phase: 'running' };
+      if (running) return { n, phase: 'running' };
       return { n, phase: 'stopped', say: logTail(dir, `revise-${n}.log`, keys) || STOPPED_SAY };
     });
     const cur = newest > 0 ? revises[revises.length - 1] : { phase: 'green' };
