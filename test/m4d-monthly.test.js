@@ -141,7 +141,7 @@ test('(v) resume over the limit refuses at $0 and leaves the answer unconsumed; 
   assert.equal(hold.what, 'resume');
   assert.ok(Math.abs(hold.holdUsd - (0.25 - spent)) < 1e-9, `hold ${hold.holdUsd}`);
   assert.equal(hold.spentAtHold, spent);
-  assert.deepEqual(readRuns(roomy).map((x) => x.kind), ['hold', 'settled'], 'the finished resume settled its own hold');
+  assert.deepEqual(readRuns(roomy).map((x) => x.kind), ['hold', 'settled', 'rolled'], 'the finished resume settled its own hold, then rolled its run up (I1)');
 });
 
 // (v) draft
@@ -159,7 +159,7 @@ test('(v) draft over the limit refuses with the amount and the sentence: nonzero
   const roomy = newHome(5);
   const ok = cli(['draft', prose, '--out', out, '--root', path.join(work, 'flows'), '--name', 'x'], envFor(roomy, { FWDLOOP_TEST_DRAFT_PROVIDER: FAKE_DRAFT }));
   assert.equal(ok.status, 0, ok.stderr);
-  assert.deepEqual(readRuns(roomy).map((x) => `${x.kind}`), ['hold', 'settled']);
+  assert.deepEqual(readRuns(roomy).map((x) => `${x.kind}`), ['hold', 'settled', 'rolled']);
   assert.equal(holdRows(roomy)[0].what, 'draft');
 });
 
@@ -243,7 +243,7 @@ test('no limit set (no config, or a config without one): the run goes, a $0 hold
     const r = cli(runArgs(j, 'r1'), envFor(home));
     assert.equal(r.status, 0, r.stderr);
     const rows = readRuns(home);
-    assert.deepEqual(rows.map((x) => x.kind), ['hold', 'settled'], 'no live $ hold left behind');
+    assert.deepEqual(rows.map((x) => x.kind), ['hold', 'settled', 'rolled'], 'no live $ hold left behind');
     assert.equal(rows[0].holdUsd, 0);
     assert.equal(rows[0].runDir, runDirOf(j, 'r1'));
     assert.equal(rows[1].holdId, rows[0].holdId);
@@ -280,7 +280,7 @@ test('a run that parks settles its own hold', () => {
   const j = job2Root();
   assert.equal(cli(runArgs(j, 'r1'), envFor(home)).status, 0);
   const rows = readRuns(home);
-  assert.deepEqual(rows.map((x) => x.kind), ['hold', 'settled']);
+  assert.deepEqual(rows.map((x) => x.kind), ['hold', 'settled', 'rolled']);
   assert.equal(rows[0].what, 'run');
   assert.equal(rows[0].holdUsd, 0.25);
   assert.equal(rows[0].runDir, path.join(runDirOf(j, 'r1')).replace(/^/, ''), 'the realpath of the run dir');
