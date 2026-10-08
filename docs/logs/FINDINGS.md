@@ -2974,3 +2974,23 @@ stops a step whose check reads its reply from being given `write`.
 hamr 2026-10-08: "conflicting requirements should be checked for sure ... under 600 words doesn't check out with
 250ish". Ruling "1": the model reads, the machine does the math. The drafter extracts the per-section size as a typed
 number; a $0 check does the sum. A text step whose check reads its reply gets no `write`. Drafted as M4e amendment 15.
+
+## F62 — The monthly claim and Money tab took about 1 s at 10,000 runs; settled runs are now rolled up (amendment 16 I1, 2026-10-08)
+
+Measured at $0 on a temp root of fake settled runs (3 spend rows each, every hold settled; `/tmp/.../scratchpad/i1-timing.mjs`): the monthly claim is
+`checkMonthlyRoom` (the same room `claimHold` decides on), the Money tab is `spendSummary`. Median of 5 after one warm-up, ms, on a busy machine (load about 5).
+
+| runs | claim, before | Money, before | claim, after | Money, after |
+|---|---|---|---|---|
+| 100 | 11.6 | 9.6 | 2.7 | 2.4 |
+| 1,000 | 115.7 | 105.6 | 25.2 | 20.9 |
+| 10,000 | 998.3 | 946.7 | 193.3 | 173.2 |
+
+10,000 runs crossed the signed 200 ms line, so settled rows were compacted. The cost was one file read per run dir. Now `settleHold` calls `rollSettled`
+(`src/monthly.js`), which appends `rolled` rows (200 dirs each) to `runs.jsonl` for dirs whose every hold has ended. `spendSummary` uses a dir's rolled rows
+only if no row at or after the snapshot's `seen` names that dir; a resume or rerun names it again, so it is read live. The claim also passes the rows it
+already read to `spendSummary`, so the file is parsed once. Totals are identical: tests compare the whole summary before and after with every dir file deleted.
+
+What it costs to leave or to keep: the first roll of 10,000 legacy dirs reads them once (about 1 s, at the exit of whichever process settles first). After the
+roll at 10,000 runs the claim is still about 190 ms (parsing 6 MB of `runs.jsonl` is most of it), so the margin under 200 ms is thin on a slower disk.
+A dir deleted after it was rolled keeps its rolled spend in the totals (before, it dropped out); nothing in fwdloop deletes a spend-bearing dir.
