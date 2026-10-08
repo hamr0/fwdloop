@@ -140,8 +140,9 @@ export function buildReadout({
     // M4e amendment 14 item 5: the check's sections in its order (+ word limit); fixed text from typed fields, never model prose.
     const shape = st.close?.shape;
     if (Array.isArray(shape?.sections) && shape.sections.length > 0) {
+      const per = Number.isInteger(shape.wordsPerSection) ? ` · about ${shape.wordsPerSection} words each` : '';
       const lim = Number.isInteger(shape.maxWords) ? ` · under ${shape.maxWords} words` : '';
-      out.push(`     sections: ${shape.sections.join(' · ')}${lim}`);
+      out.push(`     sections: ${shape.sections.join(' · ')}${per}${lim}`);
     }
   });
   out.push('', READOUT_HEADS.asks);

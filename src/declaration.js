@@ -99,7 +99,14 @@ function checkOwnKeys(obj, allowed, path, reds) {
  *  name. */
 export const SHAPE_KEYS = Object.freeze(['maxWords', 'sections', 'linesPerInvoice', 'mustCarry']);
 
+/** Shape keys only the MACHINE sets (M4e amendment 15): read from the line's guardrail, never offered to the drafter's model. */
+export const MACHINE_SHAPE_KEYS = Object.freeze(['wordsPerSection']);
+
 const SHAPE_TYPE_CHECKS = Object.freeze({
+  wordsPerSection: {
+    expected: 'a positive integer',
+    check: (v) => Number.isInteger(v) && v > 0,
+  },
   maxWords: {
     expected: 'a positive integer',
     check: (v) => Number.isInteger(v) && v > 0,
@@ -148,7 +155,7 @@ function checkShapeKeys(shape, path, reds) {
     const value = shape[key];
     if (ARBITER_KEYS.includes(key)) {
       reds.push(`declaration: arbiter field "${key}" at ${childPath} — the drafter cannot author it`);
-    } else if (!SHAPE_KEYS.includes(key)) {
+    } else if (!SHAPE_KEYS.includes(key) && !MACHINE_SHAPE_KEYS.includes(key)) {
       reds.push(`declaration: unknown shape key "${key}" at ${childPath}`);
     } else {
       const typeCheck = SHAPE_TYPE_CHECKS[key];
@@ -262,6 +269,21 @@ export function guardrailSectionCount(guardrail) {
   if (!m) return null;
   return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()];
 }
+
+/** M4e amendment 15 item 2: for each line whose guardrail gives a size for each section, a section count AND a word limit,
+ *  size x count more than the limit is a red naming the line and the numbers. $0; also run before any model call. */
+export function checkGuardrailSums(lines) {
+  const reds = [];
+  for (const l of Array.isArray(lines) ? lines : []) {
+    const per = guardrailWordsPerSection(l?.guardrail);
+    const count = guardrailSectionCount(l?.guardrail);
+    const limit = guardrailWordLimit(l?.guardrail);
+    if (per !== null && count !== null && limit !== null && per * count > limit) {
+      reds.push(`line ${l.n}'s guardrail asks about ${per} words for each of ${count} sections (${per * count}) but under ${limit} words in total. Change the guardrail.`);
+    }
+  }
+  return reds;
+}
 const MAX_SECTION_NAME_WORDS = 8;
 const MAX_SECTION_SHARE_OF_LINE = 0.6;
 const wordCount = (t) => t.trim().split(/\s+/).filter(Boolean).length;
@@ -309,6 +331,13 @@ export function checkShapeFitsJobLine(step, i, lines, reds) {
     norm.forEach((a, x) => norm.forEach((b, y) => {
       if (x !== y && a.includes(b)) reds.push(`declaration: ${label}.close.shape.sections "${names[x]}" contains "${names[y]}" — one section name may not contain another`);
     }));
+  }
+  // M4e amendment 15 item 1: wordsPerSection is the guardrail's number, set by the machine; it never differs from it.
+  const wantPer = guardrailWordsPerSection(line?.guardrail);
+  if (shape.wordsPerSection !== undefined && shape.wordsPerSection !== wantPer) {
+    reds.push(`declaration: ${label} the check has wordsPerSection ${shape.wordsPerSection}; the guardrail says ${wantPer === null ? 'no size for each section' : `${wantPer} words each`} — change the guardrail on the card to change it`);
+  } else if (shape.wordsPerSection === undefined && wantPer !== null) {
+    reds.push(`declaration: ${label} the guardrail says ${wantPer} words each; the check has no wordsPerSection`);
   }
   const limit = guardrailWordLimit(line?.guardrail);
   if (limit !== null && shape.maxWords !== undefined && shape.maxWords !== limit) {
@@ -374,6 +403,7 @@ export function validateDeclaration(declaration, context = {}) {
     return deepFreeze({ ok: false, reds });
   }
   const { steps } = declaration;
+  if (fitJobLine === true) reds.push(...checkGuardrailSums(safeLines).map((r) => `declaration: ${r}`));
 
   // --- guardrailClasses (REQUIRED — the harness always writes it; empty {}
   // is fine, missing entirely is not) ------------------------------------
@@ -595,6 +625,12 @@ export function validateDeclaration(declaration, context = {}) {
           }
         }
       }
+    }
+
+    // M4e amendment 15 item 5: a step whose check reads its reply (softgreen) gets no `write` — the answer would land in a file the check never reads.
+    if (fitJobLine === true && effectiveClass === 'softgreen' && primitives !== null
+      && primitives.some((v) => typeof v === 'string' && catalogueByVerb.get(v)?.class === 'write')) {
+      reds.push(`declaration: step ${i + 1}'s check reads its reply, so it can't write files. The send step writes the result out.`);
     }
 
     // picks — the listing rule, generalised

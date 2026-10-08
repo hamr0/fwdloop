@@ -17,7 +17,7 @@
 
 import { Loop, HaltError } from 'bare-agent';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
-import { validateDeclaration, SHAPE_KEYS } from './declaration.js';
+import { validateDeclaration, SHAPE_KEYS, checkGuardrailSums, guardrailWordsPerSection } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { readInputFacts } from './input-facts.js';
@@ -198,6 +198,9 @@ export async function draft({
   const { lines, arbiter } = parsed;
   const ttlReds = unsignedAskTtls(arbiter);
   if (ttlReds.length) return fail(ttlReds);
+  // M4e amendment 15 item 2: a guardrail that fights itself on words is red at $0, before any provider is built or called.
+  const sumReds = checkGuardrailSums(lines);
+  if (sumReds.length) return fail(sumReds);
   const menu = wiredMenu(skills);
   const facts = readInputFacts(arbiter.sources);
   if (!facts.ok) return fail(facts.reds);
@@ -304,6 +307,16 @@ export async function draft({
     // M6a amendment 1 (F50): the goal is the signed line, set by the machine; whatever the model sent is overwritten.
     if (Array.isArray(declaration.steps)) {
       declaration.steps = declaration.steps.map((st) => (isPlainObject(st) ? { ...st, goal: goalForLine(st.fromLine, lines) } : st));
+    }
+    // M4e amendment 15 item 1: `wordsPerSection` is the guardrail's number, set by the machine. If the model sent one it is overwritten
+    // (or dropped when the guardrail gives none), so it can never differ from the guardrail.
+    if (Array.isArray(declaration.steps)) {
+      declaration.steps = declaration.steps.map((st) => {
+        if (!isPlainObject(st) || !isPlainObject(st.close) || !isPlainObject(st.close.shape)) return st;
+        const { wordsPerSection: _drop, ...shape } = st.close.shape;
+        const per = guardrailWordsPerSection(lines.find((l) => l.n === st.fromLine)?.guardrail);
+        return { ...st, close: { ...st.close, shape: per === null ? shape : { ...shape, wordsPerSection: per } } };
+      });
     }
     const verdict = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
