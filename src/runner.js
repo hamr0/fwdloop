@@ -884,7 +884,7 @@ async function runStepRalph({
       continue;
     }
 
-    const closed = closeByClass(step, artifact, { reads: readsMap, businessDate });
+    const closed = await closeByClass(step, artifact, { reads: readsMap, businessDate });
 
     if (closed.verdict === 'green' || closed.verdict === 'hitl') {
       recordAudit(makeAuditRow({

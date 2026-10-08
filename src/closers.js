@@ -38,8 +38,8 @@
 //   resolving is `crash`.
 //
 // SOFTGREEN (compose) step artifact: `{ text: string }`
-//   - `text` is the whole composed text; `maxWords`/`sections` (F38's
-//     `closeWordsAndSections`) run over it directly.
+//   - `text` is the whole composed text; `maxWords`/`sections`/`wordsPerSection` run over it directly. Since M4e amendment 18 these
+//     soft checks run on bareguard's rubric (`softgreenSpec`), reported in our own words (`renderSoftgreenGaps`).
 //   - `linesPerInvoice`/`mustCarry` (new here, M0 had no equivalent —
 //     M0's own `closeCompose` checked citations+brackets, which M2's
 //     `green` class already covers; this piece's `mustCarry` check is
@@ -61,6 +61,8 @@
 // once its happened check clears; see src/runner.js's own docblock for this
 // reading, flagged there as an interpretation call, not a rule from the
 // signed text).
+
+import { createRubric, checkStep } from 'bareguard';
 
 /** @typedef {import('./types.js').CloseVerdict} CloseVerdict */
 
@@ -245,133 +247,119 @@ export function closeGreen(artifact, ctx) {
 }
 
 /**
- * The declared-shape word-cap + ordered-sections check, F38 version (every
- * failing check reported, not just the first). Identical rules to
- * poc/m0/shape.mjs's own `closeWordsAndSections`.
+ * M4e amendment 18: the soft checks run on bareguard 0.21.0. `softgreenSpec(shape)` is the ONE place a declared shape
+ * becomes a rubric spec (signing and the run both build through `buildSoftgreenRubric`, so a shape that signs is a shape
+ * that builds). The checks are in this fixed order, which is the order their sentences read in:
+ * allowedKeys, maxWords, sectionOrder, sectionWords, blockLines.
+ * A key that is declared at all gets its check built, so a half-declared shape (wordsPerSection with no sections, one of
+ * linesPerInvoice/mustCarry) cannot build and is a crash at run time, never silently skipped.
  *
- * @param {unknown} text
- * M4e amendment 15 item 3: with `wordsPerSection`, each listed section's own words (after its heading line, up to the next listed
- * heading or the end; text before the first heading belongs to none) must be within +-20% of it, inclusive.
- *
- * @param {{ maxWords: number, sections: string[], wordsPerSection?: number }} declared
- * @returns {CloseVerdict}
+ * @param {Record<string, any>} shape
  */
-export function closeWordsAndSections(text, { maxWords, sections, wordsPerSection }) {
-  if (typeof text !== 'string') {
-    return { verdict: 'unparseable', red: `expected string text, got ${text === null ? 'null' : typeof text}` };
+export function softgreenSpec(shape) {
+  const checks = [{ id: 'keys', rule: 'allowedKeys', keys: ['text'] }];
+  if (shape.maxWords !== undefined) checks.push({ id: 'words', rule: 'maxWords', field: 'text', value: shape.maxWords });
+  if (shape.sections !== undefined) checks.push({ id: 'sections', rule: 'sectionOrder', field: 'text', names: shape.sections });
+  if (shape.wordsPerSection !== undefined) checks.push({ id: 'perSection', rule: 'sectionWords', field: 'text', names: shape.sections, wordsPerSection: shape.wordsPerSection });
+  if (shape.linesPerInvoice !== undefined || shape.mustCarry !== undefined) {
+    checks.push({ id: 'lines', rule: 'blockLines', field: 'text', size: shape.linesPerInvoice, phrases: shape.mustCarry });
   }
-
-  const lines = text.split(/\r?\n/);
-  const reds = /** @type {string[]} */ ([]);
-
-  let wordCount = 0;
-  for (const line of lines) {
-    const stripped = line.replace(/^#+\s*/, '');
-    const words = stripped.split(/\s+/).filter((w) => w.length > 0);
-    wordCount += words.length;
-  }
-  if (Number.isFinite(maxWords) && wordCount > maxWords) {
-    reds.push(`${wordCount} words, limit ${maxWords}`);
-  }
-
-  const headingLines = lines
-    .map((line) => line.replace(/^#+\s*/, '').replace(/:\s*$/, '').trim().toLowerCase())
-    .filter((l) => l.length > 0);
-
-  // Heading positions in the original `lines` (headingLines drops empty lines, so keep a map back).
-  const lineIdx = [];
-  lines.forEach((line, k) => { if (line.replace(/^#+\s*/, '').replace(/:\s*$/, '').trim().length > 0) lineIdx.push(k); });
-  const starts = []; // {name, line} for each listed heading found, in order
-  let searchFrom = 0;
-  for (const section of sections ?? []) {
-    const want = section.trim().toLowerCase();
-    const foundAt = headingLines.indexOf(want, searchFrom);
-    if (foundAt === -1) {
-      const anywhere = headingLines.indexOf(want);
-      if (anywhere === -1) {
-        reds.push(`no line is exactly the heading "${section}" (a heading is a line that is only that text, optionally after #)`);
-      } else {
-        reds.push(`section heading "${section}" is out of order`);
-      }
-    } else {
-      searchFrom = foundAt + 1;
-      starts.push({ name: section, line: lineIdx[foundAt] });
-    }
-  }
-
-  if (Number.isInteger(wordsPerSection) && wordsPerSection > 0) {
-    const lo = Math.ceil((wordsPerSection * 8) / 10);
-    const hi = Math.floor((wordsPerSection * 12) / 10);
-    const listed = starts.map((s) => s.line);
-    for (const s of starts) {
-      const next = listed.filter((l) => l > s.line).sort((a, b) => a - b)[0] ?? lines.length;
-      let n = 0;
-      for (const line of lines.slice(s.line + 1, next)) n += line.replace(/^#+\s*/, '').split(/\s+/).filter((w) => w.length > 0).length;
-      if (n < lo || n > hi) reds.push(`${s.name}: ${n} words, about ${wordsPerSection} asked (${lo}-${hi})`);
-    }
-  }
-
-  if (reds.length > 0) return { verdict: 'red', red: reds.join('; '), reds };
-  return { verdict: 'green', reds: [] };
+  return { schema: 1, goal: 'softgreen', checkpoints: { close: { gating: true, checks } } };
 }
 
+/** Throws bareguard's `invalid rubric: ...` for a shape it cannot build. @param {Record<string, any>} shape */
+export function buildSoftgreenRubric(shape) {
+  return createRubric(softgreenSpec(shape));
+}
+
+const partAfter = (item) => item.slice(item.indexOf(':') + 1);
+
 /**
- * `linesPerInvoice`/`mustCarry`: group `text`'s own non-empty lines into
- * blocks of `linesPerInvoice` lines; every `mustCarry` string must appear
- * (case-insensitive substring) somewhere in each block. Returns an array of
- * red strings (empty when clean) — the caller folds these into its own
- * `reds` list alongside `closeWordsAndSections`'s.
+ * The ONE render function (amendment 18 item 4A): bareguard's typed gaps in, fwdloop's plain-English sentences out, byte for byte
+ * what the hand-written checks said before the switch (test/m4e-am18-parity.test.js proves it on 142 inputs).
+ * What it throws away: bareguard bounds every offender list at 20 (MAX_ITEMS); past that the sentence says how many more there were.
+ * A gap it has no sentence for is still a red, worded generically, never dropped.
+ *
+ * @param {any[]} gaps
+ * @param {{ linesPerInvoice?: number }} shape
+ * @returns {{ red: string, reds: string[] }}
  */
-export function closeLinesAndCarry(text, { linesPerInvoice, mustCarry }) {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+function renderSoftgreenGaps(gaps, shape) {
+  const extra = gaps.find((g) => g.check === 'allowedKeys');
+  if (extra) {
+    // The answer sits in the wrong place: nothing else is judged until it is in "text".
+    const keys = extra.keys ?? [];
+    return {
+      red: `softgreen artifact has key(s) ${keys.map((k) => `"${k}"`).join(', ')} besides "text"; the check reads "text" only, so put the whole answer in "text"`,
+      reds: [`extra key(s): ${keys.join(', ')}`],
+    };
+  }
   const reds = [];
-  if (lines.length === 0) {
-    reds.push('text has no non-empty lines to check against linesPerInvoice');
-    return reds;
-  }
-  if (lines.length % linesPerInvoice !== 0) {
-    reds.push(`text has ${lines.length} non-empty line(s), not a multiple of linesPerInvoice ${linesPerInvoice}`);
-  }
-  for (let i = 0; i < lines.length; i += linesPerInvoice) {
-    const block = lines.slice(i, i + linesPerInvoice).join(' ');
-    for (const must of mustCarry ?? []) {
-      if (!block.toLowerCase().includes(String(must).toLowerCase())) {
-        reds.push(`invoice block starting at line ${i + 1} is missing "${must}"`);
+  let moreSections = 0;
+  for (const g of gaps) {
+    const kinds = String(g.kind ?? '').split(',');
+    if (g.check === 'maxWords') {
+      reds.push(`${g.measured} words, limit ${g.limit}`);
+    } else if (g.check === 'sectionOrder' && Array.isArray(g.items)) {
+      for (const it of g.items) {
+        const name = partAfter(it);
+        reds.push(it.startsWith('missing:')
+          ? `no line is exactly the heading "${name}" (a heading is a line that is only that text, optionally after #)`
+          : `section heading "${name}" is out of order`);
       }
+      if (g.itemsTotal) reds.push(`${g.itemsTotal - g.items.length} more section(s) are missing or out of order`);
+    } else if (g.check === 'sectionWords') {
+      reds.push(`${g.section}: ${g.words} words, about ${g.asked} asked (${g.lo}-${g.hi})`);
+      moreSections = Math.max(moreSections, (g.itemsTotal ?? 0) - 20);
+    } else if (g.check === 'blockLines') {
+      if (kinds.includes('zero-lines')) reds.push('text has no non-empty lines to check against linesPerInvoice');
+      if (kinds.includes('not-multiple')) reds.push(`text has ${g.measured} non-empty line(s), not a multiple of linesPerInvoice ${g.limit}`);
+      for (const it of g.items ?? []) {
+        const block = Number(/^block (\d+):/.exec(it)?.[1]);
+        reds.push(`invoice block starting at line ${(block - 1) * (shape.linesPerInvoice ?? 1) + 1} is missing "${partAfter(it)}"`);
+      }
+      if (g.itemsTotal) reds.push(`${g.itemsTotal - (g.items?.length ?? 0)} more block(s) are missing a required word`);
+    } else {
+      reds.push(`the ${g.check} check failed (${g.kind ?? 'no detail'})`);
     }
   }
-  return reds;
+  if (moreSections > 0) reds.push(`${moreSections} more section(s) are outside the range`);
+  return { red: reds.join('; '), reds };
+}
+
+/** What the artifact looks like in a message, without ever throwing on a hostile object. */
+function describeArtifact(artifact) {
+  try { return JSON.stringify(artifact); } catch { return '[an object that cannot be read]'; }
 }
 
 /**
- * `softgreen` close: dispatches to `closeWordsAndSections` (when the shape
- * declares `maxWords`/`sections`) and/or `closeLinesAndCarry` (when it
- * declares `linesPerInvoice`/`mustCarry`) and reports every failing check
- * from both, one sentence each (F38's rule, never widened to first-red-only).
+ * `softgreen` close: the declared shape (`maxWords`, `sections`, `wordsPerSection`, `linesPerInvoice` + `mustCarry`, and the
+ * one-key rule) is checked by bareguard's rubric (amendment 18 item 1) and every failing check is reported, one sentence each
+ * (F38's rule, never widened to first-red-only). Our front door stays: an answer that is not `{text: string}` is `unparseable`
+ * before bareguard sees it. A shape that cannot be built, or a check that stopped, is `crash`: never green.
+ * Async because bareguard's `checkStep` is.
  *
  * @param {any} artifact
  * @param {{ maxWords?: number, sections?: string[], wordsPerSection?: number, linesPerInvoice?: number, mustCarry?: string[] }} shape
- * @returns {CloseVerdict}
+ * @returns {Promise<CloseVerdict>}
  */
-export function closeSoftgreen(artifact, shape) {
-  if (!artifact || typeof artifact !== 'object' || typeof artifact.text !== 'string') {
-    return /** @type {CloseVerdict} */ ({ verdict: 'unparseable', red: `softgreen artifact must be an object shaped {text: string}, got ${JSON.stringify(artifact)}` });
+export async function closeSoftgreen(artifact, shape) {
+  let text;
+  try {
+    text = artifact && typeof artifact === 'object' ? artifact.text : undefined;
+  } catch {
+    text = undefined;
   }
-  const extra = Object.keys(artifact).filter((k) => k !== 'text');
-  if (extra.length > 0) {
-    return { verdict: 'red', red: `softgreen artifact has key(s) ${extra.map((k) => `"${k}"`).join(', ')} besides "text"; the check reads "text" only, so put the whole answer in "text"`, reds: [`extra key(s): ${extra.join(', ')}`] };
+  if (typeof text !== 'string') {
+    return /** @type {CloseVerdict} */ ({ verdict: 'unparseable', red: `softgreen artifact must be an object shaped {text: string}, got ${describeArtifact(artifact)}` });
   }
   try {
-    const reds = /** @type {string[]} */ ([]);
-    if (shape.maxWords !== undefined || shape.sections !== undefined) {
-      const wc = closeWordsAndSections(artifact.text, { maxWords: shape.maxWords ?? Infinity, sections: shape.sections ?? [], wordsPerSection: shape.wordsPerSection });
-      if (wc.verdict === 'unparseable') return /** @type {CloseVerdict} */ (wc);
-      reds.push(...(wc.reds ?? []));
+    const rubric = buildSoftgreenRubric(shape);
+    const res = await checkStep(rubric, 'close', artifact);
+    if (res.verdict === 'stopped') {
+      return { verdict: 'crash', red: `softgreen close crashed: the ${res.fault.id} check stopped (${res.fault.kind}${res.fault.detail ? `: ${res.fault.detail}` : ''})` };
     }
-    if (shape.linesPerInvoice !== undefined && shape.mustCarry !== undefined) {
-      reds.push(...closeLinesAndCarry(artifact.text, { linesPerInvoice: shape.linesPerInvoice, mustCarry: shape.mustCarry }));
-    }
-    if (reds.length > 0) return { verdict: 'red', red: reds.join('; '), reds };
+    if (res.verdict === 'red') return { verdict: 'red', ...renderSoftgreenGaps(res.gaps, shape) };
     return { verdict: 'green', red: null, reds: [] };
   } catch (err) {
     return { verdict: 'crash', red: `softgreen close crashed: ${err.message}` };
@@ -384,12 +372,12 @@ export function closeSoftgreen(artifact, shape) {
  * @param {{ close?: { class?: string, shape?: Record<string, any> } }} step
  * @param {unknown} artifact
  * @param {{ reads: Record<string, any>, businessDate: string }} ctx
- * @returns {CloseVerdict}
+ * @returns {Promise<CloseVerdict>}
  */
-export function closeByClass(step, artifact, ctx) {
+export async function closeByClass(step, artifact, ctx) {
   const cls = step?.close?.class;
   if (cls === 'green') return closeGreen(artifact, ctx);
-  if (cls === 'softgreen') return closeSoftgreen(artifact, step?.close?.shape ?? {});
+  if (cls === 'softgreen') return await closeSoftgreen(artifact, step?.close?.shape ?? {});
   if (cls === 'hitl') return { verdict: 'hitl', red: null };
   return { verdict: 'crash', red: `closeByClass: unknown close class ${JSON.stringify(cls)}` };
 }
