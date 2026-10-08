@@ -24,6 +24,7 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow } from '../src/runner.js';
 import { makeLiveModelStep } from '../src/model-step.js';
 import { makeFileAskStep } from '../src/ask.js';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -95,7 +96,7 @@ test('job #2 live-shape: a planted softgreen red heals on attempt 2, the file as
   const written = writeFlow({
     root,
     name: 'job2',
-    proseText: fixture('job2-with-sources.signed.txt'),
+    proseText: sandboxSend(fixture('job2-with-sources.signed.txt')),
     declaration: fixtureJson('job2.m1.declaration.json'),
     signedBy: 'hamr',
     signedAt: '2026-09-24T12:00:00Z',
@@ -212,7 +213,7 @@ test('job #2 live-shape: an ask timeout halts the run "ask-timeout", a pause spe
   // every ask, and no code default (e.g. `makeFileAskStep`'s own
   // `timeoutMs`) ever overrides it — so this test needs a short SIGNED ttl
   // ("ask 1s:") rather than relying on `timeoutMs` alone to fire fast.
-  const shortTtlProse = fixture('job2-with-sources.signed.txt').replace('4. ask: check it with me,', '4. ask 1s: check it with me,');
+  const shortTtlProse = sandboxSend(fixture('job2-with-sources.signed.txt')).replace('4. ask: check it with me,', '4. ask 1s: check it with me,');
   const written = writeFlow({
     root,
     name: 'job2',

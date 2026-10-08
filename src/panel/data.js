@@ -28,10 +28,15 @@ import {
   readFlow, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
 } from '../flow.js';
 import {
-  readAudit, readHistory, readPidRows, auditRowTokens, auditRowAt, auditRowTools,
+  readAudit, readHistory, endRow, readPidRows, auditRowTokens, auditRowAt, auditRowTools,
 } from '../books.js';
-import { readAsk, readRunState, readLog } from '../runner.js';
+import {
+  readAsk, readRunState, readLog, readHaltRecord, stopPending,
+} from '../runner.js';
 import { readSpendRows } from '../provider.js';
+import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
+import { readSetup } from '../setup.js';
+import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import {
   runLiveness, booksFresh, readResumeLock,
 } from '../liveness.js';
@@ -170,7 +175,10 @@ export const RESUME_REASON_UNKNOWN = 'reason unknown: the panel restarted, so it
  * @param {{savedAnswer: {askId:string, decision:string|null, answeredAt?:string|null}|null, attempt: any, ask?: any}} ctx
  * @returns {{state: 'starting'|'not-started'|'broken'|'took-over', askId: string|null, tries: number|null, maxTries: number|null, reason: string|null, label: string}|null}
  */
-export function deriveResumeState({ savedAnswer: saved, attempt, ask = null }) {
+export function deriveResumeState({ savedAnswer: savedOnDisk, attempt, ask = null }) {
+  // An answer.json naming another ask than the open one is not this run's answer (answerAsk refuses to write one; a
+  // hand-placed file can): the run reads as what it is, waiting at the open ask. Readers never move the file.
+  const saved = savedOnDisk && ask && typeof ask.askId === 'string' && savedOnDisk.askId !== ask.askId ? null : savedOnDisk;
   const pastDeadline = !!(ask && saved && ask.askId === saved.askId && Date.parse(ask.expiresAt) < Date.now());
   if (saved && pastDeadline && answerTiming(saved.answeredAt, ask.expiresAt) !== 'on-time') return null;
   const tries = attempt ? attempt.tries : null;
@@ -219,7 +227,7 @@ export const CRASHED_LABEL = 'crashed after taking your answer — start a fresh
  * @type {Record<string, string>}
  */
 export const SIGN_WORDS = {
-  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed',
+  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed', '[■]': 'stopped',
 };
 
 /**
@@ -317,6 +325,7 @@ export function glyphPulses(g) {
  * `computeGlyph`, the derivation the M4a POC proved against every real run
  * on disk. Ladder wording (M4a scope item 4):
  *  - `[✓]` passed — a history row with `outcome:'complete'`.
+ *  - `[■]` stopped (M4e amendment 4) — a history row `stopped`, or `cap-halt` with a halt record to continue from.
  *  - `[✗]` failed — a history row with any other outcome (never `[?]`).
  *  - `[·]` waiting on you — parked (`ask.json` present), no consumed answer,
  *    NOT past its own `expiresAt`.
@@ -348,14 +357,17 @@ export function glyphPulses(g) {
  *    A saved answer with a live process is `[▶]` working on your answer.
  *  - `[?]` crashed after taking your answer (amendment 2 (f)) — the answer was
  *    consumed, the process is gone, no end row: cannot be carried on.
- * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string}} ctx
- * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]'|'[II]', label: string}}
+ * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string, resumable?: boolean}} ctx
+ * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]'|'[II]'|'[■]', label: string}}
  */
 export function computeGlyph({
-  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock,
+  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock, resumable,
 }) {
   if (historyRow) {
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
+    // M4e amendment 4 item 4: a run the human stopped, or one that hit its money cap and can be continued, is `[■]` stopped — never "failed".
+    if (historyRow.outcome === 'stopped') return { glyph: '[■]', label: 'stopped — after the step that was running; Resume to go on' };
+    if (historyRow.outcome === 'cap-halt' && resumable) return { glyph: '[■]', label: 'stopped — the money cap was reached; raise it and Resume' };
     // M4b amendment 3: a run the human ended on purpose with rerun is not a failure.
     if (historyRow.outcome === 'rerun') return { glyph: '[✗]', label: 'stopped by you (rerun), a fresh run was started' };
     // M4c-fix amendment 1 (c): a run ended because its ask expired is `[!]` expired, never failed (it spent nothing more).
@@ -641,7 +653,7 @@ export function isBlockedVerdict(verdict) {
 function markForVerdict(verdict, closeClass) {
   if (closeClass === 'hitl' && verdict === 'red') return '✗'; // the human's own redo
   if (verdict === 'green' || verdict === 'hitl') return '✓';
-  if (verdict === 'paused' || verdict === 'refused' || verdict === 'ask-timeout' || verdict === 'ask-expired' || verdict === 'ask-reopened' || verdict === 'lock-removed') return '·';
+  if (verdict === 'paused' || verdict === 'refused' || verdict === 'ask-timeout' || verdict === 'ask-expired' || verdict === 'ask-reopened' || verdict === 'lock-removed' || verdict === 'stop-asked' || verdict === 'stopped' || verdict === 'stop-not-honoured') return '·';
   return '✗';
 }
 
@@ -684,22 +696,37 @@ export function deriveStepTryMarks(closeClass, rows) {
   return rows.map((r) => markForVerdict(r.verdict, closeClass));
 }
 
+/** A Stop's notes are not tries: the asked/not-honoured rows, and a `stopped` row that cut no try (no attempt number). */
+function isTryRow(r) {
+  return r.verdict !== 'stop-asked' && r.verdict !== 'stop-not-honoured' && !(r.verdict === 'stopped' && !Number.isInteger(r.attempt));
+}
+
+/** The name of the one group for audit rows that name no step. */
+const RUN_GROUP = 'run';
+/** The one decider of a row's step name for the Audit tab: its step, else the run's own group name. */
+function auditStepName(step) {
+  return typeof step === 'string' && step.length > 0 ? step : RUN_GROUP;
+}
+
 /**
  * A step group's own state word for the Audit tab's collapsed header —
- * the SAME rule `src/panel/index.html`'s client-side `stepBoxState` already
- * applies to the Run tab's map/cards (ported here so the Audit header can
- * be computed server-side too, off the SAME last-row-wins logic): `waiting`
+ * the ONE decider of a step's state: the Run tab's map and cards read it too
+ * (`groupState` on each step; the page keeps no rule of its own), last-row-wins: `waiting`
  * (the run is currently parked on this step — its last attempt's verdict is
  * `paused`/`refused`), `done` (the last attempt passed — `green`/`hitl`),
- * `stopped` (the last attempt failed for any other reason). A group only
+ * `user-stopped` (M4e amendment 10: the step's own last row is `stopped`, a Stop
+ * the human asked), `stopped` (the last attempt failed for any other reason). A group only
  * ever exists for a step with at least one row, so `pending` never appears
  * here (unlike the Run tab's map, which also covers never-attempted steps).
  * @param {Array<{verdict:string}>} rows one step's own audit rows, book order
- * @returns {'done'|'waiting'|'stopped'}
+ * @returns {'done'|'waiting'|'stopped'|'user-stopped'}
  */
 export function deriveStepGroupState(rows) {
-  const last = rows[rows.length - 1];
+  // a Stop's notes (asked / not honoured) say nothing about the step's own state; a step with only notes reads as stopped
+  const own = rows.filter((r) => r.verdict !== 'stop-asked' && r.verdict !== 'stop-not-honoured');
+  const last = own.length > 0 ? own[own.length - 1] : rows[rows.length - 1];
   if (last.verdict === 'paused' || last.verdict === 'refused') return 'waiting';
+  if (last.verdict === 'stopped') return 'user-stopped';
   return (last.verdict === 'green' || last.verdict === 'hitl') ? 'done' : 'stopped';
 }
 
@@ -731,13 +758,16 @@ export function deriveStepGroupState(rows) {
  */
 export function deriveAuditGroups(enrichedRows) {
   const order = [];
-  const byStep = {};
+  const byStep = new Map();
+  // a row naming no step (a Stop before step 1) is the run's own: one group, `run: true`, never a null id
   for (const r of enrichedRows) {
-    if (!Object.prototype.hasOwnProperty.call(byStep, r.step)) { byStep[r.step] = []; order.push(r.step); }
-    byStep[r.step].push(r);
+    const key = typeof r.step === 'string' && r.step.length > 0 ? r.step : null;
+    if (!byStep.has(key)) { byStep.set(key, []); order.push(key); }
+    byStep.get(key).push(r);
   }
-  return order.map((step) => {
-    const rows = byStep[step];
+  return order.map((key) => {
+    const rows = byStep.get(key);
+    const step = auditStepName(key);
     const closeClass = rows[0].class ?? null;
     const timeMs = rows.reduce((acc, r) => acc + (typeof r.wallMs === 'number' ? r.wallMs : 0), 0);
 
@@ -764,7 +794,7 @@ export function deriveAuditGroups(enrichedRows) {
     }
     const tokensTotalValue = (anyNotRecorded || !anyTotal) ? null : tokensTotal;
 
-    const tryMarks = deriveStepTryMarks(closeClass, rows);
+    const tryMarks = deriveStepTryMarks(closeClass, rows.filter(isTryRow));
     const { toolsTotal, toolsWhy, ungranted } = summarizeStepTools(rows);
     return {
       step,
@@ -777,8 +807,9 @@ export function deriveAuditGroups(enrichedRows) {
       toolsTotal,
       toolsWhy,
       ungranted,
-      tryCount: tryMarks.length,
-      tryMarks,
+      tryCount: key === null ? 0 : tryMarks.length,
+      tryMarks: key === null ? [] : tryMarks,
+      ...(key === null ? { run: true } : {}),
       rows,
     };
   });
@@ -840,8 +871,11 @@ export function summarizeSpendRows(spendRows) {
  */
 function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attempt = null) {
   const flowRead = readFlow({ root, name: flowName, catalogue });
+  // M4e amendment 5 item 3 / amendment 4 item 6: the run's own signed values (its newest version) lie over the flow's
+  const inForce = flowRead.ok ? applyRunValues(flowRead.arbiter, flowName, flowRead.signature.flow, pickRunValues(runDir)) : null;
   const historyRows = readHistory(flowDir);
-  const historyRow = historyRows.find((r) => r && r.runId === runId) ?? null;
+  const historyRow = endRow(historyRows, runDir, runId);
+  const halt = readHaltRecord(runDir);
   const auditRows = readAudit(runDir);
   const spendRows = readSpendRows(join(runDir, 'spend.jsonl'));
   const logJson = readLog(runDir);
@@ -858,7 +892,11 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     flowDir,
     runDir,
     flowRead,
+    // the arbiter this run executes under (the flow's own unless the run has signed values), or null when the flow does not read
+    arbiter: inForce && inForce.ok ? inForce.arbiter : (flowRead.ok ? flowRead.arbiter : null),
     historyRow,
+    // M4e amendment 4 item 4: a cap-halted or stopped run that can be continued (`halt.json` is the runner's record)
+    resumable: halt.ok && historyRow !== null && historyRow.outcome === halt.halt.outcome,
     auditRows,
     spendRows,
     logJson,
@@ -889,6 +927,46 @@ function lastPidStartedAt(runDir) {
 const RUNNING_WHY = 'still running — not finished yet';
 /** @param {any} ctx @param {string} glyph */
 const isRunningNow = (ctx, glyph) => !ctx.historyRow && glyph === '[▶]';
+
+/**
+ * M4e amendment 4 item 4: the ONE decision for the Run tab's Stop and Resume buttons (the Stop and Resume doors read the
+ * same object, so the page never offers what the door would refuse). `running` is the glyph's own rule (`isRunningNow`);
+ * a run with no process record yet is `starting`; a parked run (`[·]`/`[!]`, an open ask) is neither.
+ * @param {any} ctx `loadRunContext`'s result @param {string} glyph `computeGlyph`'s sign
+ * @returns {{canStop: boolean, atAsk: boolean, stopRequested: boolean, starting: boolean, canResume: boolean, resumeOutcome: string|null, spentUsd: number|null, spendComplete: boolean|null, capUsd: number|null}}
+ */
+export function runControls(ctx, glyph, label = '') {
+  const running = isRunningNow(ctx, glyph) && !ctx.askJson;
+  // M4e amendment 13: a run waiting at its ask (open, unanswered, not expired) shows Stop too; it stops the run at the ask.
+  const atAsk = !ctx.historyRow && !!ctx.askJson && glyph === '[·]' && label === WAITING_LABEL;
+  const starting = !ctx.historyRow && !ctx.askJson && readPidRows(ctx.runDir).length === 0;
+  const canResume = ctx.resumable === true;
+  return {
+    canStop: running || atAsk,
+    atAsk,
+    stopRequested: running && stopPending(ctx.runDir),
+    starting,
+    canResume,
+    resumeOutcome: canResume ? ctx.historyRow.outcome : null,
+    spentUsd: canResume && typeof ctx.historyRow.spentUsd === 'number' ? ctx.historyRow.spentUsd : null,
+    spendComplete: canResume ? ctx.historyRow.spendComplete !== false : null,
+    capUsd: canResume && typeof ctx.historyRow.capUsd === 'number' ? ctx.historyRow.capUsd : null,
+  };
+}
+
+/**
+ * `runControls` for one run read straight from the books (the Stop door's own read). `null` when the run does not resolve.
+ * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
+ */
+export function getRunControls({
+  root, flow, runId, catalogue,
+}) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok || !existsSync(run.runDir)) return null;
+  const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null);
+  const g = computeGlyph(ctx);
+  return runControls(ctx, g.glyph, g.label);
+}
 
 /**
  * `GET /api/runs` — every flow under `root`, every run under each flow
@@ -952,6 +1030,7 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
         ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
         pulse: glyphPulses({ glyph, label }),
         stuck: glyph === '[II]',
+        controls: runControls(ctx, glyph, label),
         resume: ctx.resume,
         spend,
         spendWhy: (!ctx.historyRow && spend === null)
@@ -961,6 +1040,7 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
         waitingAskId: waitingAsk ? waitingAsk.ask.askId : null,
         timeLeftMs: waitingAsk ? waitingAsk.timeLeftMs : null,
         at: ctx.historyRow ? ctx.historyRow.at : null,
+        wallMs: ctx.historyRow && typeof ctx.historyRow.wallMs === 'number' ? ctx.historyRow.wallMs : null,
         askedAt,
         startedAt: isRunningNow(ctx, glyph) ? ctx.startedAt : null,
         atWhy: (ctx.historyRow || askedAt) ? null
@@ -1023,6 +1103,7 @@ export function orderRuns(rows) {
 function enrichAuditRows(rawRows) {
   return rawRows.map((row) => ({
     ...row,
+    stepName: auditStepName(row.step),
     action: deriveAuditAction(row),
     tokensDisplay: deriveAuditTokensDisplay(row),
     toolsPhrase: deriveAuditToolsPhrase(row),
@@ -1042,11 +1123,12 @@ function enrichAuditRows(rawRows) {
  * pairing at all — each row IS one model attempt, so try N stays
  * `list.length` there, unchanged from before this fix.
  * @param {string|null} closeClass
- * @param {Array<{verdict:string}>} list
+ * @param {Array<{verdict:string}>} listAll
  * @returns {number}
  */
-function computeTryCount(closeClass, list) {
-  if (!list || !list.length) return 0;
+function computeTryCount(closeClass, listAll) {
+  const list = (listAll ?? []).filter(isTryRow);
+  if (!list.length) return 0;
   if (closeClass === 'hitl') {
     const pausedCount = list.filter((a) => a.verdict === 'paused').length;
     // No paused row at all is not a shape this step ever produces in
@@ -1209,6 +1291,9 @@ export function getRunDetail({
     // M4b amendment 3: the human ended this run on purpose; an earlier redo's
     // audit row is not "why it stopped".
     stopReasonWhy = 'stopped by you (rerun), a fresh run was started — there is no failure to show';
+  } else if (ctx.historyRow && ctx.historyRow.outcome === 'stopped') {
+    // M4e amendment 4: the human's Stop is not a failure on any step; no step card carries it.
+    stopReasonWhy = typeof ctx.logJson?.red === 'string' && ctx.logJson.red.length > 0 ? ctx.logJson.red : 'stopped by you';
   } else if (ctx.resume && (ctx.resume.state === 'starting' || ctx.resume.state === 'not-started')) {
     // M4b amendment 1: the human already answered — never "waiting on you".
     stopReasonWhy = ctx.resume.reason ? `${ctx.resume.label}: ${ctx.resume.reason}` : ctx.resume.label;
@@ -1287,10 +1372,11 @@ export function getRunDetail({
     ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
     signWords: SIGN_WORDS,
     pulse: glyphPulses({ glyph, label }),
+    controls: runControls(ctx, glyph, label),
     resume: ctx.resume,
     outcome: ctx.historyRow ? ctx.historyRow.outcome : null,
     outcomeWhy: ctx.historyRow ? null : (isRunningNow(ctx, glyph) ? RUNNING_WHY : 'no history row (parked or died before completion)'),
-    capUsd: ctx.historyRow ? ctx.historyRow.capUsd : (ctx.flowRead.ok ? ctx.flowRead.arbiter.capUsd : null),
+    capUsd: ctx.historyRow ? ctx.historyRow.capUsd : (ctx.arbiter ? ctx.arbiter.capUsd : null),
     spend,
     model,
     modelWhy,
@@ -1299,6 +1385,8 @@ export function getRunDetail({
     wallMsWhy,
     steps,
     stepsWhy,
+    // M4e amendment 7 item 2: the Draft is the run's first step on the Map and under it — one summary, read from the same function the Audit group uses
+    draft: ((b) => ({ ...b.summary, rows: b.rows }))(getDraftBlock(ctx.flowDir, ctx.runDir)),
     modelWrote,
     modelWroteWhy,
     stopReason,
@@ -1319,6 +1407,110 @@ export function getRunDetail({
   };
 }
 
+/** The words the Draft says for a flow with no `setup.jsonl` (M4e amendment 6 item 4; renamed Draft by amendment 7 item 2). */
+export const NO_DRAFT_WORDS = 'no draft record';
+
+/**
+ * What the Draft adds up to, ONE place (the Map box, the first step card and the Audit group all read it, so the three can never disagree).
+ * M4e amendment 9: `timeMs` is the card row's `at` to the sign row's `at` (the whole drafting, human time included), `null` when either has no
+ * usable `at`; never a sum of the model rows' `wallMs`. `calls` sums the rows' `calls`, a row with none counts 1 and sets `callsAtLeast`, so an
+ * unknown never shows as a smaller exact number; no model rows = `null`. `humanChecks` = the note rows + the sign row + the run's signed-values
+ * rows (the card is not a check), given by the caller as `ctx.humanChecks`. Money follows `costDisplay` ("at least $X" for a floor).
+ * @param {any[]} modelRows the draft and change rows (`kind` draft | change) of `setup.jsonl`
+ * @param {{cardAt?: any, signAt?: any, humanChecks?: number|null}} [ctx]
+ * @returns {{calls: number|null, callsAtLeast: boolean, timeMs: number|null, humanChecks: number|null, usd: number|null, spendComplete: boolean, cost: string|null, modelRows: number}}
+ */
+export function draftTotals(modelRows, ctx = {}) {
+  const priced = modelRows.filter((r) => typeof r.costUsd === 'number');
+  const usd = priced.length > 0 ? priced.reduce((a, r) => a + r.costUsd, 0) : null;
+  const spendComplete = modelRows.length > 0 && priced.length === modelRows.length && modelRows.every((r) => r.spendComplete === true);
+  const cd = usd === null ? null : costDisplay(usd, spendComplete);
+  const t0 = typeof ctx.cardAt === 'string' ? Date.parse(ctx.cardAt) : NaN;
+  const t1 = typeof ctx.signAt === 'string' ? Date.parse(ctx.signAt) : NaN;
+  const timeMs = Number.isFinite(t0) && Number.isFinite(t1) && t1 >= t0 ? t1 - t0 : null;
+  const calls = modelRows.length > 0 ? modelRows.reduce((a, r) => a + (typeof r.calls === 'number' ? r.calls : 1), 0) : null;
+  return {
+    calls, callsAtLeast: modelRows.some((r) => typeof r.calls !== 'number'), timeMs,
+    humanChecks: typeof ctx.humanChecks === 'number' && Number.isInteger(ctx.humanChecks) ? ctx.humanChecks : null,
+    usd, spendComplete, cost: cd && cd.ok ? cd.display : null, modelRows: modelRows.length,
+  };
+}
+
+/**
+ * M4e amendment 6 item 4 / amendment 7 item 2: the Draft of a run — the flow's own `setup.jsonl` (card, drafts, changes, notes, sign), then this
+ * run's own signed-values rows (amendment 5: "Sign & run" for version 0, "Sign & resume" for a later version), every row in the SAME shape
+ * as the run's audit rows so the page draws both with one row builder. Reads only through the safe gateways; never throws.
+ * @param {string} flowDir @param {string} runDir
+ * @returns {{present: boolean, why: string|null, rows: any[], summary: {present: boolean, why?: string, calls?: number|null, callsAtLeast?: boolean, humanChecks?: number|null, timeMs?: number|null, usd?: number|null, spendComplete?: boolean, cost?: string|null, modelRows?: number}}}
+ */
+export function getDraftBlock(flowDir, runDir) {
+  const setup = readSetup(flowDir);
+  const rows = [];
+  const human = (r, attempt, extra) => ({
+    attempt, step: 'drafting', class: 'hitl', verdict: 'hitl', at: r.at ?? null, setup: true, blocked: false, action: 'human', tokensDisplay: { kind: 'no-model' }, ...extra,
+  });
+  const model = (r, attempt, label) => ({
+    attempt, step: 'drafting', class: null, verdict: r.verdict === 'green' ? 'green' : (r.verdict === 'red' ? 'red' : 'not-done'), gap: r.gap ?? '', at: r.at ?? null, setup: true, blocked: false,
+    action: `${label} · ${r.model ?? 'model not recorded'}${r.hash ? ` · plan ${String(r.hash).slice(0, 8)}` : ''}`,
+    usd: typeof r.costUsd === 'number' ? r.costUsd : undefined, spendComplete: r.spendComplete === true, tokensDisplay: { kind: 'no-model' },
+    ...(typeof r.wallMs === 'number' ? { wallMs: r.wallMs } : {}),
+  });
+  // M4e amendment 8 item 1, line 4: one short phrase per Draft row, in order (the drafting card joins them with ` · `)
+  const happened = [];
+  const retry = (r) => (Number.isInteger(r.structureRetries) && r.structureRetries >= 1 ? ` (retry ${r.structureRetries} of ${MAX_STRUCTURE_RETRIES})` : '');
+  if (setup.present) {
+    setup.rows.forEach((r, i) => {
+      const n = i + 1;
+      if (r.kind === 'card') happened.push('your card');
+      else if (r.kind === 'note') happened.push('your note');
+      else if (r.kind === 'draft') happened.push(r.verdict === 'green' ? `drafting${retry(r)}` : 'draft red');
+      else if (r.kind === 'change') happened.push(r.verdict === 'red' ? 'change red' : `changing${retry(r)}`);
+      else if (r.kind === 'sign') happened.push(`signed (${r.signedBy ?? 'you'})`);
+      if (r.kind === 'card') {
+        const c = r.card && typeof r.card === 'object' ? r.card : {};
+        const gap = [`flow ${c.flowName ?? '?'}`, `cap $${c.capUsd ?? '?'}`, c.destination ? `destination ${c.destination}` : null, c.askWait ? `ask wait ${c.askWait}` : null,
+          typeof c.inputs === 'string' && c.inputs.trim() ? `inputs: ${c.inputs.trim().replace(/\n+/g, ' / ')}` : null, `job: ${String(c.job ?? '').trim().replace(/\n+/g, ' / ')}`].filter(Boolean).join(' · ');
+        rows.push(human(r, n, { action: 'card (you)', gap }));
+      } else if (r.kind === 'note') rows.push(human(r, n, { action: 'note (you)', gap: String(r.text ?? '') }));
+      else if (r.kind === 'draft') rows.push(model(r, n, 'draft'));
+      else if (r.kind === 'change') rows.push(model(r, n, `change ${r.n}`));
+      else if (r.kind === 'sign') rows.push(human(r, n, { action: `sign (${r.signedBy ?? 'you'})`, gap: `plan ${String(r.hash ?? '').slice(0, 12)}` }));
+    });
+  }
+  const versions = [];
+  for (const f of readdirInside(runDir, '.')) {
+    const m = VALUES_FILE_RE.exec(f);
+    if (m !== null) versions.push({ file: f, version: m[1] === undefined ? 0 : Number(m[1]) });
+  }
+  versions.sort((a, b) => a.version - b.version);
+  for (const { file, version } of versions) {
+    const t = readFileInside(runDir, file);
+    let rec = null;
+    try { rec = t.ok ? JSON.parse(t.text) : null; } catch { rec = null; }
+    const v = rec && typeof rec === 'object' ? rec.values : null;
+    const waits = v && typeof v === 'object' && v.askWaits && typeof v.askWaits === 'object'
+      ? Object.entries(v.askWaits).map(([line, wait]) => ({ line, wait: String(wait), waitMs: parseWaitMs(wait) })) : [];
+    const head = v && typeof v === 'object' ? [`cap $${v.capUsd}`, v.destination ? `destination ${v.destination}` : null].filter(Boolean) : [];
+    const gap = v && typeof v === 'object'
+      ? [...head, waits.length ? `ask waits ${waits.map((w) => `line ${w.line}: ${w.wait}`).join(', ')}` : null].filter(Boolean).join(' · ')
+      : `${file} could not be read`;
+    happened.push(`${version === 0 ? 'signed to run' : 'signed to resume'} (${rec?.signedBy ?? 'you'})`);
+    rows.push(human({ at: rec?.at }, rows.length + 1, { action: `${version === 0 ? 'Sign & run' : 'Sign & resume'} (${rec?.signedBy ?? 'you'})`, gap, ...(waits.length ? { gapHead: head, gapWaits: waits } : {}) }));
+  }
+  const lastSign = setup.present ? [...setup.rows].reverse().find((r) => r.kind === 'sign') : undefined;
+  const humanChecks = setup.present ? setup.rows.filter((r) => r.kind === 'note' || r.kind === 'sign').length + versions.length : null;
+  const totals = setup.present
+    ? draftTotals(setup.rows.filter((r) => r.kind === 'draft' || r.kind === 'change'), { cardAt: setup.rows.find((r) => r.kind === 'card')?.at, signAt: lastSign?.at, humanChecks })
+    : null;
+  // the group the Audit tab draws as a normal card (collapsed by default) and the box the Map and the first step card read
+  // `ended` = how the drafting ended: `done` only with a sign row, else `not signed` (no `red` state: a red change shows on line 4 only)
+  const ended = setup.present && setup.rows.some((r) => r.kind === 'sign') ? 'done' : 'not signed';
+  const summary = setup.present && totals ? { present: true, ...totals, ended, happened } : { present: false, why: NO_DRAFT_WORDS };
+  return {
+    present: setup.present, why: setup.present ? null : NO_DRAFT_WORDS, rows, summary,
+  };
+}
+
 /**
  * `GET /api/runs/:flow/:runId/audit` — the Audit/logs tab (M4a scope item
  * 2): the raw `audit.jsonl` rows, scoped strictly to this run (each run's
@@ -1326,7 +1518,7 @@ export function getRunDetail({
  * shared-sidecar contamination risk here the way bareloop's gate-audit
  * sidecar had). `null` when the flow/runId doesn't resolve (404).
  * @param {{root: string, flow: string, runId: string}} opts
- * @returns {{flow:string, runId:string, rows:any[], groups:any[], empty:boolean, why:string|null}|null}
+ * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, empty:boolean, why:string|null}|null}
  */
 export function getRunAudit({ root, flow, runId }) {
   const run = resolveRunPath(root, flow, runId);
@@ -1348,6 +1540,7 @@ export function getRunAudit({ root, flow, runId }) {
     // step header pieces, computed here off these SAME enriched rows —
     // never a second, client-side re-grouping.
     groups: deriveAuditGroups(rows),
+    draft: getDraftBlock(run.flowDir, run.runDir),
     empty: rows.length === 0,
     why: rows.length === 0 ? 'audit.jsonl is empty or missing — no attempt has been made yet' : null,
   };
@@ -1451,7 +1644,9 @@ export function getRunJob({
   // pretending the signed prose named it.
   const auditRows = readAudit(run.runDir);
   const model = deriveRunModel(auditRows);
-  const a = flowRead.arbiter ?? {};
+  // the run's own signed values (cap, send folder, ask waits) when it has them; the flow's own otherwise
+  const applied = applyRunValues(flowRead.arbiter, flow, sig.flow, pickRunValues(run.runDir));
+  const a = (applied.ok ? applied.arbiter : flowRead.arbiter) ?? {};
   const asks = a.asks ?? [];
   const sends = a.sends ?? [];
   const sources = a.sources ?? [];
@@ -1913,7 +2108,7 @@ export function getRunAsks({
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
-  const histRow = readHistory(run.flowDir).find((r) => r && r.runId === runId);
+  const histRow = endRow(readHistory(run.flowDir), run.runDir, runId) ?? undefined;
   const hasHistoryRow = !!histRow;
   // hamr's 2026-09-27 browser-walk bug #4: the Ask tab's own asks must carry
   // the SAME `open`/`timeLeftMs` fields listStops already computes for the
@@ -1982,19 +2177,18 @@ export function listStops({ root, resumeAttempt }) {
   for (const flowName of listFlowNames(root)) {
     const flowDir = join(root, flowName);
     const historyRows = readHistory(flowDir).filter((r) => r && typeof r.runId === 'string');
-    const historyRunIds = new Set(historyRows.map((r) => r.runId));
-    const expiredEnds = new Set(historyRows.filter((r) => r.outcome === 'ask-expired').map((r) => r.runId));
     for (const runId of listRunIds(flowDir)) {
       const run = resolveRunPath(root, flowName, runId);
       if (!run.ok) continue;
-      const hasHistoryRow = historyRunIds.has(runId);
+      const end = endRow(historyRows, run.runDir, runId);
+      const hasHistoryRow = end !== null;
       const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flowName, runId) ?? null, ask: readAsk(run.runDir) });
       // M4c amendment 2: stuck by the ONE rule (`stuckState`), marked on the ask whose answer is saved.
       const st = runStuck(run.runDir, resume);
       const stuckAskId = !hasHistoryRow && st.stuck ? (resume?.askId ?? null) : null;
       const openAskJson = hasHistoryRow ? null : readAsk(run.runDir);
       const savedAskId = readSavedAnswer(run.runDir)?.askId;
-      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, expiredEnds.has(runId)).map((ask) => ({
+      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, end?.outcome === 'ask-expired').map((ask) => ({
         flow: flowName,
         runId,
         ...ask,

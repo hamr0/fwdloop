@@ -13,6 +13,7 @@ import { spawnSync } from 'node:child_process';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { getRunAsks, listStops } from '../src/panel/data.js';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(HERE, '..');
@@ -39,7 +40,7 @@ function parked(tag, runIds) {
   const root = mkdtempSync(path.join(tmpdir(), `fwdloop-walk3-${tag}-`));
   ROOTS.push(root);
   const w = writeFlow({
-    root, name: 'job2', proseText: fixture('job2-with-sources.signed.txt'), declaration: JSON.parse(fixture('job2.m1.declaration.json')), signedBy: 'hamr', signedAt: '2026-09-25T12:00:00Z', catalogue: CAT,
+    root, name: 'job2', proseText: sandboxSend(fixture('job2-with-sources.signed.txt')), declaration: JSON.parse(fixture('job2.m1.declaration.json')), signedBy: 'hamr', signedAt: '2026-09-25T12:00:00Z', catalogue: CAT,
   });
   assert.equal(w.ok, true);
   const src = mkdtempSync(path.join(tmpdir(), `fwdloop-walk3-${tag}-src-`));
@@ -220,7 +221,7 @@ test('issue 3: no refusal the page can show contains an HTTP status, a refusal c
     `reopenAsk: askId "${id}" already answered for run ${run}`, `reopenAsk: could not write the reopen record — EACCES`, 'something nobody planned for',
   ];
   const named = ['already-resuming', 'no-saved-answer', 'run-ended', 'flow-outside-root', 'bad-flow', 'bad-runId', 'askid-required', 'body-not-json', 'body-too-large',
-    'cookie-missing-or-wrong', 'origin-not-own', 'host-not-own-address', 'internal'];
+    'origin-not-own', 'host-not-own-address', 'internal'];
   const refusalText = new Function(`${['refusalText', 'blankReasonText'].map(fnSrc).join('\n')} return refusalText;`)();
   const bodies = [
     ...library.map((red) => ({ status: 409, body: { ok: false, refused: 'library', red } })),

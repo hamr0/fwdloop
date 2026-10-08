@@ -21,6 +21,7 @@ import { makeFileAskStep } from '../src/ask.js';
 import {
   runFlow, buildExecutorContext, findForbiddenInContext, STRIKE_LIMIT, MAX_ATTEMPTS, writeArtifact, readArtifact,
 } from '../src/runner.js';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -73,7 +74,7 @@ function writeJob2Flow(root, name = 'job2') {
   const result = writeFlow({
     root,
     name,
-    proseText: fixture('job2-with-sources.signed.txt'),
+    proseText: sandboxSend(fixture('job2-with-sources.signed.txt')),
     declaration: fixtureJson('job2.m1.declaration.json'),
     signedBy: SIGNED_BY,
     signedAt: SIGNED_AT,
@@ -237,7 +238,7 @@ test('M2 fix (a): send content is the signed ask\'s artifact by identity, never 
   sendStep.reads = ['jd-text', 'resume-summary-approved'];
 
   const written = writeFlow({
-    root, name: 'job2', proseText: fixture('job2-with-sources.signed.txt'), declaration: decl, signedBy: SIGNED_BY, signedAt: SIGNED_AT, catalogue: CATALOGUE,
+    root, name: 'job2', proseText: sandboxSend(fixture('job2-with-sources.signed.txt')), declaration: decl, signedBy: SIGNED_BY, signedAt: SIGNED_AT, catalogue: CATALOGUE,
   });
   assert.equal(written.ok, true, written.ok ? '' : written.reds.join('\n'));
 
@@ -552,7 +553,7 @@ test('F46: a step granting an unwired verb (e.g. "compress") refuses runFlow at 
   const written = writeFlow({
     root,
     name: 'job2-unwired',
-    proseText: fixture('job2-with-sources.signed.txt'),
+    proseText: sandboxSend(fixture('job2-with-sources.signed.txt')),
     declaration,
     signedBy: SIGNED_BY,
     signedAt: SIGNED_AT,

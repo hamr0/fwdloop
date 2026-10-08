@@ -14,7 +14,7 @@
 // Every refusal is a plain sentence in `say`; nothing here puts an HTTP code, an id or a path on the page.
 import { PROVIDER_SLOTS, resolvePrices, resolveSlot, checkKeyPreflight } from '../provider.js';
 import {
-  readConfig, updateConfig, ConfigError, PRICE_FIELDS, providerFieldProblem, cleanBaseUrl,
+  readConfig, updateConfig, ConfigError, providerFieldProblem, cleanBaseUrl,
 } from '../config.js';
 import { SHAPES } from '../providershapes.js';
 import { keysForDoor } from '../keysfile.js';
@@ -23,8 +23,8 @@ import { spendSummary } from '../monthly.js';
 const DEEPSEEK_BALANCE_URL = 'https://api.deepseek.com/user/balance';
 const TIMEOUT_MS = 4000;
 
-/** Plain words for each price field (the page's three boxes). */
-const FIELD_LABEL = Object.freeze({ inPerM: 'Input', cachedInPerM: 'Cached input', outPerM: 'Output' });
+/** Plain words for each price field (the page's two boxes; cached input is priced as input, M4d amendment 2). */
+const FIELD_LABEL = Object.freeze({ inPerM: 'Input', outPerM: 'Output' });
 
 const BROKEN_CONFIG = 'Your settings file (config.json) cannot be read. Fix or remove it, then look again.';
 
@@ -87,7 +87,6 @@ export function createSettings(cfg) {
         tokens: spend.byProvider[slot]?.total.tokens ?? 0,
         price: {
           inPerM: one(p.perM.inPerM, p.source.in),
-          cachedInPerM: one(p.perM.cachedInPerM, p.source.cachedIn),
           outPerM: one(p.perM.outPerM, p.source.out),
         },
         canBalance: canBalance(eff),
@@ -179,7 +178,10 @@ export function createSettings(cfg) {
     if (!slot) return refuse('unknown-provider', 'That provider is not known.');
     /** @type {Record<string, number|null>} */
     const patch = {};
-    for (const f of PRICE_FIELDS) {
+    if (Object.hasOwn(body, 'cachedInPerM')) {
+      return refuse('bad-price', 'Cached input has no price of its own: it is priced as input. Nothing was saved.');
+    }
+    for (const f of /** @type {const} */ (['inPerM', 'outPerM'])) {
       if (!Object.hasOwn(body, f)) continue;
       const v = body[f];
       if (v !== null && !isNumberAbove0(v)) {

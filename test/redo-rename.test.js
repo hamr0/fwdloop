@@ -26,6 +26,7 @@ import {
 import {
   computeGlyph, getRunDetail, listRuns, listStops, getRunAsks,
 } from '../src/panel/data.js';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
@@ -46,7 +47,7 @@ function writeJob2Flow(root, name = 'job2') {
   const result = writeFlow({
     root,
     name,
-    proseText: fixture('job2-with-sources.signed.txt'),
+    proseText: sandboxSend(fixture('job2-with-sources.signed.txt')),
     declaration: fixtureJson('job2.m1.declaration.json'),
     signedBy: 'hamr',
     signedAt: '2026-09-25T12:00:00Z',

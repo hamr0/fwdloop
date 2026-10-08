@@ -19,6 +19,8 @@ import path from 'node:path';
 
 import { writeFlow, appendAudit, appendHistory } from '../src/index.js';
 import { loadCatalogue } from '../src/catalogue.js';
+import { readFlow } from '../src/flow.js';
+import { writeRunValues, valuesHash } from '../src/runvalues.js';
 import { createPanelServer, DEFAULT_PORT } from '../src/panel/server.js';
 import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
 import {
@@ -29,6 +31,7 @@ import {
 } from '../src/panel/data.js';
 import { readSpendRows, appendSpendRow } from '../src/provider.js';
 import { writeAskArchive } from '../src/ask.js';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -51,7 +54,7 @@ function writeTestFlow(root, name) {
   const result = writeFlow({
     root,
     name,
-    proseText: fixture('job2-with-sources.signed.txt'),
+    proseText: sandboxSend(fixture('job2-with-sources.signed.txt')),
     declaration: fixtureJson('job2.m1.declaration.json'),
     signedBy: SIGNED_BY,
     signedAt: SIGNED_AT,
@@ -1410,6 +1413,24 @@ describe('deriveStepTryMarks / deriveStepGroupState (hamr\'s 2026-09-27 exit-che
 });
 
 describe('getRunJob', () => {
+  // M4e amendment 6 item 6 (g): a run with its own signed values (amendment 5) shows the values in force for that run.
+  test('am6 (g): a run with its own signed values reports that run\'s cap, destination and ask wait, not the flow\'s', () => {
+    const runDir = makeRunDir(FLOW_DIR, 'run-own-values');
+    const flowRead = readFlow({ root: ROOT, name: FLOW, catalogue: CATALOGUE });
+    assert.equal(flowRead.ok, true);
+    const askLine = String(flowRead.arbiter.asks[0].line);
+    const values = { capUsd: 0.4, destination: '/tmp/fwdloop-own-dest', askWaits: { [askLine]: '30m' } };
+    const rec = { flow: FLOW, flowSignatureHash: flowRead.signature.flow, runId: 'run-own-values', version: 0, values };
+    const w = writeRunValues(runDir, { ...rec, hash: valuesHash({ ...rec, runId: null }), signedBy: 'hamr', at: '2026-10-06T10:00:00.000Z' });
+    assert.equal(w.ok, true, JSON.stringify(w));
+    const job = getRunJob({ root: ROOT, flow: FLOW, runId: 'run-own-values', catalogue: CATALOGUE });
+    assert.equal(job.capUsd, 0.4);
+    assert.equal(job.sends[0].target, '/tmp/fwdloop-own-dest');
+    assert.equal(job.asks[0].waitMs, 1800000);
+    const plain = getRunJob({ root: ROOT, flow: FLOW, runId: 'run-done', catalogue: CATALOGUE });
+    assert.equal(plain.capUsd, 0.25, 'the flow\'s own run is unchanged');
+  });
+
   // hamr's 2026-09-27 exit-check review #5: the bareloop-style one-field-
   // per-piece layout (prose / asks / model / cap / sources / sends /
   // guardrails / success / signature), replacing the old split
@@ -2026,7 +2047,7 @@ describe('index.html — page source', () => {
     }
   });
 
-  test('M4b: the only non-GET fetches on the page are POST /api/answer, POST /api/reopen, POST /api/remove-lock, POST /api/resume and the three Settings POSTs, all through postJSON', () => {
+  test('M4b: the only non-GET fetches on the page are POST /api/answer, POST /api/reopen, POST /api/remove-lock, POST /api/resume, POST /api/stop and the four Settings POSTs, all through postJSON', () => {
     const code = stripComments(source);
     // Every fetch( call: its first argument and its options.
     const calls = [...code.matchAll(/fetch\(([^,]+),\s*\{([\s\S]*?)\}\)\.then/g)];
@@ -2040,7 +2061,7 @@ describe('index.html — page source', () => {
     // postJSON is called with exactly two paths.
     const postPaths = [...code.matchAll(/postJSON\(\s*"([^"]+)"/g)].map((m) => m[1]).sort();
     // M4d piece 4 adds exactly the four Settings POSTs (test, price, provider, limit); none of them writes the keys file.
-    assert.deepEqual(postPaths, ['/api/answer', '/api/remove-lock', '/api/reopen', '/api/resume', '/api/settings/money', '/api/settings/price', '/api/settings/provider', '/api/settings/test']);
+    assert.deepEqual(postPaths, ['/api/answer', '/api/remove-lock', '/api/reopen', '/api/resume', '/api/settings/money', '/api/settings/price', '/api/settings/provider', '/api/settings/test', '/api/stop']);
   });
 
   test('M4c-fix item 2: the page carries no token — no TOKEN variable, no token header, never a URL, storage, or a log', () => {
@@ -2114,7 +2135,7 @@ describe('index.html — page source', () => {
     // its own bold heading element (`qHeading`), still set via
     // `.textContent` only, never interpolated into innerHTML.
     assert.match(source, /qHeading\.textContent = qText/);
-    assert.match(source, /draftEl\.textContent = evidence\.draft/);
+    assert.match(source, /fillArtifactText\(draftEl, evidence\.draft\)/); // am4 item 7: sets textContent / text nodes only, see test/m4e-am4-headers.test.js
     assert.match(source, /art\.textContent = /);
   });
 
@@ -2329,8 +2350,8 @@ describe('index.html — page source', () => {
   // puts details-prose back first, and the positions[i] > positions[i-1]
   // check on the FIRST pair (details-model vs details-cap is unaffected, but
   // details-cap vs details-prose) goes red.
-  test('final tweak #1: the Job tab\'s field order is Model, $ cap, Job (prose), Ask, Source, Destination, Guardrails, Success, Signed', () => {
-    const ids = ['details-model', 'details-cap', 'details-prose', 'details-asks', 'details-sources', 'details-sends', 'details-guardrails', 'details-success', 'details-signature'];
+  test('final tweak #1: the Job tab\'s field order is Model, $ cap, Job (prose), Ask, Source, Destination, Success, Signed (am6: no Guardrails field)', () => {
+    const ids = ['details-model', 'details-cap', 'details-prose', 'details-asks', 'details-sources', 'details-sends', 'details-success', 'details-signature'];
     const positions = ids.map((id) => {
       const idx = source.indexOf(`id="${id}"`);
       assert.ok(idx > 0, `expected to find id="${id}" in the page`);
@@ -2345,20 +2366,18 @@ describe('index.html — page source', () => {
     const fnStart = source.indexOf('function renderJob');
     const fnEnd = source.indexOf('\n  }', fnStart);
     const body = source.slice(fnStart, fnEnd);
-    assert.match(body, /redo cap/);
+    assert.match(body, /redo up to/);
     assert.doesNotMatch(source, /id="details-redo-cap"/); // the OLD, separate field id is gone
   });
 
-  // hamr's 2026-09-27 final tweak #1: fwdloop's signed arbiter (src/types.js
-  // Arbiter typedef, src/declaration.js) carries capUsd/redoCap and each
-  // ask's own ttlMs, but NO run-wide time-cap field at all — so the $ cap
-  // row must always say plainly that no time cap is signed, never invent
-  // one from an ask's ttlMs or any other value.
-  test('final tweak #1: the $ cap row states "no time cap signed" (fwdloop\'s arbiter has no signed time-cap field)', () => {
+  // M4e amendment 6 item 5 (negative (f)): the cap line is `$<cap> per run · redo up to <n>`; "time cap" never shows (fwdloop has no run-wide
+  // time cap; each ask's own wait shows under its line).
+  test('am6 (f): the cap row reads "$<cap> per run · redo up to <n>" and the page never says "time cap"', () => {
     const fnStart = source.indexOf('function renderJob');
     const fnEnd = source.indexOf('\n  }', fnStart);
     const body = source.slice(fnStart, fnEnd);
-    assert.match(body, /no time cap signed/);
+    assert.match(body, /" per run" \+ \(waitText \? " · " \+ waitText : ""\) \+ " · redo up to "/);
+    assert.doesNotMatch(source, /time cap/i);
   });
 
   // hamr's 2026-09-27 final tweak #2: the signed timestamp is a raw ISO
@@ -2424,12 +2443,12 @@ describe('index.html — page source', () => {
     assert.doesNotMatch(styleBlock, wouldFailIfPresent, 'sanity: this shape is not currently present, proving the check above is not vacuous');
   });
 
-  test('review: the group header status word is its own span carrying a status color class, built directly off g.state (never parsed from the header string)', () => {
+  test('review: the group header status word is its own span carrying a status color class, built off the one parts function (never parsed from the header string)', () => {
     const fnStart = source.indexOf('function buildAuditGroupHeaderEl');
     const fnEnd = source.indexOf('\n  }', fnStart);
     const body = source.slice(fnStart, fnEnd);
-    assert.match(body, /stateSpan\.className = "badge " \+ auditStateClass\(g\.state\)/);
-    assert.match(body, /stateSpan\.textContent = g\.state/);
+    assert.match(body, /stateSpan\.className = "badge " \+ auditStateClass\(p\.state\)/);
+    assert.match(body, /stateSpan\.textContent = p\.status/);
     // never re-derived by slicing/parsing a rendered "[state]" string apart.
     assert.doesNotMatch(body, /\.split\(|\.match\(|\.indexOf\("\["|\.slice\(1/);
   });
@@ -2461,7 +2480,7 @@ describe('index.html — page source', () => {
     const fnStart = source.indexOf('function buildAuditGroupHeaderEl');
     const fnEnd = source.indexOf('\n  }', fnStart);
     const body = source.slice(fnStart, fnEnd);
-    assert.match(body, /g\.tryMarks\.forEach/);
+    assert.match(body, /p\.tries\.marks\.forEach/);
     assert.match(body, /markSpan\.className = "mark " \+ auditMarkClass\(mark\)/);
     const markFnStart = source.indexOf('function auditMarkClass');
     const markFnEnd = source.indexOf('\n  }', markFnStart);
@@ -2608,19 +2627,17 @@ describe('index.html — page source', () => {
 
   // hamr's 2026-09-27 exit-check review #1: Audit groups render server-
   // computed header pieces, never their own re-derivation.
-  test('review #1: the Audit group header is built ONLY from server fields (state/step/timeMs/cost/tokensTotal/tryCount/tryMarks) — no client-side sum/pairing survives', () => {
-    const fnStart = source.indexOf('function auditGroupHeaderText');
+  test('review #1 (amendment 10): the Audit group header is built ONLY from server fields (state/step/cost/tryCount/tryMarks, the Draft summary) in ONE parts function — no client-side sum/pairing survives', () => {
+    const fnStart = source.indexOf('function auditGroupHeaderParts');
     const fnEnd = source.indexOf('\n  }', fnStart);
     const body = source.slice(fnStart, fnEnd);
     assert.match(body, /g\.state/);
     assert.match(body, /g\.step/);
-    assert.match(body, /duration\(g\.timeMs\)/);
     assert.match(body, /g\.cost/);
     assert.match(body, /g\.tryCount/);
-    assert.match(body, /g\.tryMarks\.join/);
-    assert.match(body, /g\.tokensTotal/);
-    // never "calls"/"tools" — no such book (review #1's own instruction).
-    assert.doesNotMatch(body, /calls|tools/);
+    assert.match(body, /g\.tryMarks/);
+    // never "tools" — no such book (review #1's own instruction).
+    assert.doesNotMatch(body, /tools/);
   });
 
   test('review #1: Audit groups are COLLAPSED by default in the page markup too (no aria-expanded="true" default anywhere in the Audit section)', () => {

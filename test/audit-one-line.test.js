@@ -29,7 +29,7 @@ test('everything the line cuts short is hidden on a phone until the row is tappe
 
 test('the opened block carries step, result, gap, refused, tools, close, cost and time in full', () => {
   const fn = html.slice(html.indexOf('function auditDetailHtml'), html.indexOf('function buildAuditRowEl'));
-  for (const label of ['["step", r.step]', '["result", word]', '["action", actionText]', '["gap", r.gap]', '"refused"', 'r.refused', '"close"', '"cost"', '"time"']) {
+  for (const label of ['["step", r.step]', '["result", word]', '["action", actionText]', '["gap", auditGapText(r)]', '"refused"', 'r.refused', '"close"', '"cost"', '"time"']) {
     assert.ok(fn.includes(label), label);
   }
   assert.match(html, /"<td class=\\"am am-detail\\">" \+ auditDetailHtml\(/, 'built into every row');

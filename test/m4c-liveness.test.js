@@ -21,6 +21,7 @@ import { listRuns, getRunDetail } from '../src/panel/data.js';
 import { isFwdloopAlive, runLiveness, procStartOf } from '../src/liveness.js';
 import { appendAudit } from '../src/books.js';
 import { resolvePrimitives } from '../src/primitives.js';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
@@ -45,7 +46,7 @@ function makeFlow(root, name = 'job2') {
   const result = writeFlow({
     root,
     name,
-    proseText: fixture('job2-with-sources.signed.txt'),
+    proseText: sandboxSend(fixture('job2-with-sources.signed.txt')),
     declaration: JSON.parse(fixture('job2.m1.declaration.json')),
     signedBy: 'hamr',
     signedAt: '2026-09-30T12:00:00Z',

@@ -2879,3 +2879,79 @@ Not recoverable: the one run made before the fix (`m4d-exit-1`, $0.0185) is name
 
 Proof: `test/m4d-monthly.test.js` (no limit: row written and settled; spend counted and subtracted when a limit is
 set later; unwritable `runs.jsonl` refuses by name). With only the `src/monthly.js` fix reverted all three fail.
+
+## F56 — M4e POC: a dead draft looks like a running one; a run step's output is never key-swept; the send folder is fenced to the install folder (2026-10-05)
+
+Found by the M4e first POC ($0, stub providers; `poc/m4e/RESULTS.md`). Three things, none fixed here.
+
+1. A dead draft looks like a running one. `src/authoring.js:198` makes the draft dir and writes nothing until the
+   model round returns: no pid file, no state. A SIGKILLed draft leaves its `runs.jsonl` hold row open, because the
+   only settle is `process.on('exit')` in `bin/fwdloop`; the dir alone cannot tell running from killed. Plan: M4e
+   scope items 11 and 12 will have the draft child record its pid in the draft dir, as runs do.
+
+2. A run model step's output is never key-swept (POC c5). A model step that copies the key into its output writes
+   it raw into `artifacts/`, `ask.json`, `log.json` and `state.json`; `scrub`/`sweepForSecrets` exist only in
+   `src/authoring.js` and `src/panel/resume.js`. A real model is never given the key, so this needs a model that
+   quotes a key it was not given, or a provider error body that echoes it. hamr ruling "A1": fix-ledger, after M4e.
+
+3. The send folder is fenced to the install folder. `checkSendDestination` in `src/runner.js` joins the target onto
+   `REPO_ROOT`, so for an npm install the destination sits inside `node_modules`. hamr ruling "any folder": M4e
+   amendment 1 (not signed yet).
+
+## F57 — A change emptied the sections check: one "section" equal to the whole job line passed amendment 6 (2026-10-06)
+
+Live walk of M4e amendment 6, flow `flows/m4e-exit-4`. The note "put skills before work history" was meant to come
+back red (am6 negative (a)). It came back green: the change set `sections` to ONE entry equal to the whole job line
+(`a summary resume: how it matches the JD, … 250ish each`). That entry is a substring of the goal, so am6 item 1
+(order / name / word limit) passed it.
+
+Signed and run: summary-resume attempts 1-2 red on that heading, attempt 3 green after the model pasted the whole job
+line as its first line. The guardrail "3 sections" was never checked. Run passed, $0.049438.
+
+Two lessons. A check can be emptied while still "matching" its line, so a section count must match the guardrail and
+a section name must be a short phrase. And the gap feedback that names a missing heading lets the model satisfy a
+degenerate heading by pasting it.
+
+Also seen: hamr's job line 3 contains a stray "4>" (typed, likely from the old gutter mark).
+
+Fix proposed as M4e amendment 7 item 1 (NOT SIGNED). Evidence: `flows/m4e-exit-4/declaration.json`, `setup.jsonl`
+(change n=1 green, hash 4c838b35…), `runs/run-1/audit.jsonl`.
+
+## F58 — A change can silently drop a section; nothing compares it with the plan it changes (2026-10-07)
+
+hamr's live walk, flow `flows/new-close2`, draft `flows/.drafts/d-00muy9asgq-5d5f`. The draft's sections
+(`draft/declaration.json`) were `["how it matches the JD", "summary of work history blurb", "professional skills, soft skills"]`.
+The note was "put skills before work history." The change (green, `draft-1/declaration.json`) set sections to
+`["How it matches the JD", "Professional skills", "Soft skills"]`: it DROPPED "summary of work history blurb" instead of
+reordering. hamr signed; run-1 complete, $0.0357.
+
+Why it passed: M4e amendment 7 item 1's checks all hold (count equals the guardrail's 3, short names taken from the line,
+no containment). Nothing compares a change's sections with the plan it changes. The job line names 4 parts but the
+guardrail says 3 sections, which forces a merge or a drop.
+
+Not an LLM-judge problem. The gap is that a dropped section is invisible to the human who signs.
+
+Proposed, NOT agreed (hamr 2026-10-07: "we will fix it next, need to think about it, just not now"): a future M4e amendment (not yet numbered; 13 was signed the same day for Stop at an ask) —
+the change readout names any section dropped or added versus the last green plan ("dropped: summary of work history
+blurb"), computed mechanically from the two section lists and never by reading the note. The human decides.
+
+## F59 — The panel is single-user: a different OS user on the same machine can reach every route (hamr's ruling, 2026-10-07)
+
+Found by /branch-review at 67f8e78 (`src/panel/server.js` ~370). The panel listens on 127.0.0.1 and checks only the Host
+header, plus the Origin header on POST. It has no token or cookie (as signed in M4e amendment 4 item 8). A non-browser
+client run by ANOTHER OS user on the same machine can forge both headers and reach every route: start runs that spend
+hamr's provider keys, answer asks, and send files. Programs running as hamr himself are not a new exposure; they could
+read his keys anyway.
+
+Ruling (hamr, choice "A1", 2026-10-07): keep the panel without a token. It is a single-user tool and assumes no other OS
+user on the machine. Accepted for a machine only hamr logs in to. On a shared machine, do not run the panel.
+
+## F60 — A Stop and an answer in the same millisecond: the rule broke the tie as "Stop first" and threw the answer away (2026-10-07)
+
+CI on PR #20 (run 37677772054) failed `test/m4e-am4-stop.test.js:134`: resumable at step 3, expected 4. On the fast CI machine
+`answerAsk` and `requestStop` ran back to back and stamped the SAME millisecond. Amendment 13's rule in `resumeRun` stopped
+the run AT the ask unless the answer was strictly earlier than the Stop, so a tie counted as "Stop came first" and the answer
+was set aside. Locally it was never seen because the two clicks are at least 1 ms apart. Ruling (hamr, choice "1"): on a tie
+the ANSWER WINS; only a Stop asked strictly before the answer stops at the ask. The fold's own seam then reads the Stop and
+stops before the next step, so nothing ships. A Stop with no readable time still stops at the ask (now explicit in code).
+Lesson: a time-ordering rule needs an explicit tie case and a test with identical timestamps, not wall-clock luck.

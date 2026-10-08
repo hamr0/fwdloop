@@ -22,10 +22,10 @@ const root = path.join(base, 'walk');
 after(() => rmSync(base, { recursive: true, force: true }));
 
 const WORDS = {
-  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed',
+  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed', '[■]': 'stopped',
 };
 
-test('(g) one table: each of the seven signs maps to its one word, and a plain line never repeats it', () => {
+test('(g) one table: each of the eight signs maps to its one word, and a plain line never repeats it', () => {
   assert.deepEqual(SIGN_WORDS, WORDS);
   assert.deepEqual(signParts('[II]', 'stuck — your answer is saved; the run stopped before using it'),
     { word: 'stuck', line: 'your answer is saved; the run stopped before using it' });
@@ -79,7 +79,7 @@ test('(g) a step\'s own word comes from the same table: [✓] passed, [✗] fail
 });
 
 test('(g) layout: a Runs row is sign + name, then **word** — why, then the meta line; the header follows (k): sign + name, then word — why', () => {
-  const row = /wf-line1[\s\S]{0,400}?wf-sign-line" data-testid="run-sign-word">' \+ signHtml\(r\.word[\s\S]{0,120}?wf-meta-line[\s\S]{0,120}?runSpendText\(r\)/.exec(PAGE);
+  const row = /wf-line1[\s\S]{0,400}?wf-sign-line" data-testid="run-sign-word">' \+ signHtml\(r\.word[\s\S]{0,120}?runMetaLineHtml\(r, null\)/.exec(PAGE);
   assert.ok(row, 'Runs row order');
   assert.match(PAGE, /wf-sign-line" data-testid="run-sign-word">' \+ signHtml\(g\.lastRow\.word/, 'grouped Runs row');
   const hdr = PAGE.indexOf('id="active-wf-verdict"');

@@ -16,7 +16,7 @@ test('no uppercase on the card header row (head, its h4)', () => {
 });
 
 test('a signed state chip drops the badge brackets (one [sign] word); close chip and "not started" keep them', () => {
-  assert.match(PAGE, /\.step-card \.sign-badge::before,\.step-card \.sign-badge::after\{content:none;\}/);
+  assert.match(PAGE, /\.sign-badge::before,\.sign-badge::after\{content:none;\}/);
   const i = PAGE.indexOf('function buildStepCardHeadEl(');
   const body = PAGE.slice(i, PAGE.indexOf('\n  }', i));
   assert.match(body, /STEP_SIGN\[box\.state\] \? " sign-badge" : ""/);

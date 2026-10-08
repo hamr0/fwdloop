@@ -20,6 +20,7 @@ import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
 import { answerAsk } from '../src/ask.js';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -53,7 +54,7 @@ function writeJob2Flow(root, { name = 'job2' } = {}) {
   const result = writeFlow({
     root,
     name,
-    proseText: fixture('job2-with-sources.signed.txt'),
+    proseText: sandboxSend(fixture('job2-with-sources.signed.txt')),
     declaration: fixtureJson('job2.m1.declaration.json'),
     signedBy: SIGNED_BY,
     signedAt: SIGNED_AT,

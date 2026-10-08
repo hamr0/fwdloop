@@ -21,6 +21,7 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
 import { answerAsk, writeAskArchive } from '../src/ask.js';
 import { sendViaPrimitive } from '../src/send.js';
+import { sandboxSend, SEND_DIR } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -29,14 +30,13 @@ const catalogueLoaded = loadCatalogue();
 assert.equal(catalogueLoaded.ok, true, catalogueLoaded.ok ? '' : catalogueLoaded.reds.join('\n'));
 const CATALOGUE = catalogueLoaded.primitives;
 
-const SEND_DIR = path.join(HERE, '..', 'poc', 'm0', 'out');
 const sha256OfBytes = (buf) => createHash('sha256').update(buf).digest('hex');
-const shippedFiles = (runId) => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR).filter((f) => f.startsWith(`${runId}-`)) : []);
+const shippedFiles = (runId) => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR).filter((f) => f.includes(`-${runId}-`)) : []);
 const cleanShipped = (runId) => { for (const f of shippedFiles(runId)) rmSync(path.join(SEND_DIR, f), { force: true }); };
 
 // job #2's prose with a SECOND ask inserted at line 5; the send (line 6) ships
 // the artifact accepted at ASK 1 (`resume-summary-approved`).
-const TWO_ASK_PROSE = fixture('job2-with-sources.signed.txt')
+const TWO_ASK_PROSE = sandboxSend(fixture('job2-with-sources.signed.txt'))
   .replace('5. and once I accept, write it out.', '5. ask: one more look before it goes,\n6. and once I accept, write it out.')
   .replace('send at line 5', 'send at line 6');
 assert.ok(TWO_ASK_PROSE.includes('5. ask: one more look'), 'fixture anchor moved');

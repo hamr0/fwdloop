@@ -26,7 +26,8 @@ import { randomUUID } from 'node:crypto';
 
 import { readConfig, configHome, ConfigError } from './config.js';
 import { isFwdloopAlive, procStartOf } from './liveness.js';
-import { readSpendRows, spendRowCost } from './provider.js';
+import { spendRowCost } from './provider.js';
+import { readDirSpendRows } from './draftspend.js';
 
 export { ConfigError };
 
@@ -81,9 +82,9 @@ function namedDirs(rows) {
   return [...dirs];
 }
 
-/** One dir's total spend (every row, `spendRowCost`). */
+/** One dir's total spend (every row, `spendRowCost`; a draft dir's live record until its final row exists — src/draftspend.js). */
 function dirSpend(dir) {
-  return readSpendRows(join(dir, 'spend.jsonl')).reduce((n, r) => n + spendRowCost(r).usd, 0);
+  return readDirSpendRows(dir).reduce((n, r) => n + spendRowCost(r).usd, 0);
 }
 
 /**
@@ -107,7 +108,7 @@ export function spendSummary(opts = {}) {
     else b.modelMs = (b.modelMs ?? 0) + wall;
   };
   for (const dir of namedDirs(readRuns(opts.home))) {
-    for (const row of readSpendRows(join(dir, 'spend.jsonl'))) {
+    for (const row of readDirSpendRows(dir)) {
       const { usd, complete } = spendRowCost(row);
       const tokens = tokensOf(row.tokens);
       const wall = Number.isFinite(row.wallMs) && row.wallMs >= 0 ? row.wallMs : null;
@@ -140,16 +141,17 @@ export function spendSummary(opts = {}) {
 
 /**
  * Settle every unsettled hold BEFORE `idx` whose process is gone; return what the live ones still hold.
- * `null` from the liveness check ("cannot tell") never settles: it holds.
+ * `null` from the liveness check ("cannot tell") never settles: it holds. `settle: false` (the page's read-only note) counts the same
+ * but writes nothing.
  */
-function liveHeldBefore(rows, idx, home, nowIso) {
+function liveHeldBefore(rows, idx, home, nowIso, settle = true) {
   const ended = new Set(rows.filter((r) => r.kind === 'settled' || r.kind === 'released' || r.kind === 'refused').map((r) => r.holdId));
   let heldUsd = 0;
   let heldRuns = 0;
   for (const r of rows.slice(0, idx)) {
     if (r.kind !== 'hold' || ended.has(r.holdId) || !Number.isFinite(r.holdUsd)) continue;
     if (isFwdloopAlive(r.pid, typeof r.procStart === 'string' ? r.procStart : null) === false) {
-      appendRow(home, { kind: 'settled', holdId: r.holdId, at: nowIso, why: 'process gone' });
+      if (settle) appendRow(home, { kind: 'settled', holdId: r.holdId, at: nowIso, why: 'process gone' });
       continue;
     }
     const spentSince = Math.max(0, dirSpend(r.runDir) - (Number.isFinite(r.spentAtHold) ? r.spentAtHold : 0));
@@ -157,6 +159,53 @@ function liveHeldBefore(rows, idx, home, nowIso) {
     if (extra > 0) { heldUsd += extra; heldRuns += 1; }
   }
   return { heldUsd, heldRuns };
+}
+
+/**
+ * The ONE computation of "does a hold of `holdUsd` fit this month": the limit minus this month's counted spend minus what live
+ * runs before `idx` still hold, in whole cents. `claimHold` (the door) and `checkMonthlyRoom` (the page's note) both call it, so the
+ * note and the refusal are never two opinions.
+ * @param {{ limit: number, holdUsd: number, rows: any[], idx: number, home?: string, now: () => number, nowIso: string, settle?: boolean }} a
+ */
+function roomFor({ limit, holdUsd, rows, idx, home, now, nowIso, settle = true }) {
+  const { heldUsd, heldRuns } = liveHeldBefore(rows, idx, home, nowIso, settle);
+  const month = spendSummary({ home, now }).month;
+  const leftCents = Math.max(0, Math.floor((limit - month.usd - heldUsd) * 100 + 1e-6));
+  const needCents = Math.ceil(holdUsd * 100 - 1e-6); // a non-finite hold never fits — never read as $0
+  return {
+    ok: needCents <= leftCents, leftUsd: leftCents / 100, heldUsd, heldRuns, atLeast: month.atLeast,
+  };
+}
+
+// borrowed-from: bareloop src/monthly.js@c1d87ce (`checkMonthlyRoom`, shape only: fwdloop's holds and rows differ)
+/**
+ * Read-only: would a run holding `capUsd` fit this month? The same numbers `claimHold` decides on, but no hold row and no settle is
+ * written — it is what the panel's note under Cap shows. Throws ConfigError when config.json is broken.
+ * @param {{ capUsd: number, home?: string, now?: () => number }} a
+ * @returns {Claim}
+ */
+export function checkMonthlyRoom({ capUsd, home, now = Date.now }) {
+  const limit = readConfig({ home }).monthlyLimitUsd ?? null;
+  const room = { limitUsd: limit, leftUsd: null, heldUsd: 0, heldRuns: 0, needUsd: capUsd, atLeast: false };
+  if (limit === null) return { ok: true, holdId: '', room };
+  const rows = readRuns(home);
+  const { ok, ...found } = roomFor({ limit, holdUsd: capUsd, rows, idx: rows.length, home, now, nowIso: new Date(now()).toISOString(), settle: false });
+  Object.assign(room, found);
+  return { ok, holdId: '', room };
+}
+
+/**
+ * The short line under the Cap box (M4e amendment 4 item 1), from the same room: `needs $0.50 ($0.10 left monthly)` (red) when the
+ * cap does not fit, `$4.90 left monthly` when it does; '' when no limit is set. Money is never rounded down to look like it fits.
+ * @param {Claim} claim
+ * @returns {{ text: string, red: boolean }}
+ */
+export function monthlyNote(claim) {
+  const { room } = claim;
+  if (room.limitUsd === null || room.leftUsd === null) return { text: '', red: false };
+  const left = `$${room.leftUsd.toFixed(2)}`;
+  if (!claim.ok) return { text: `needs $${(Math.ceil(room.needUsd * 100 - 1e-6) / 100).toFixed(2)} (${left} left monthly)`, red: true };
+  return { text: `${room.atLeast ? 'at most ' : ''}${left} left monthly`, red: false };
 }
 
 /**
@@ -192,12 +241,8 @@ export function claimHold({
   if (limit === null) return { ok: true, holdId, room };
   const rows = readRuns(home);
   const idx = rows.findIndex((r) => r.kind === 'hold' && r.holdId === holdId);
-  const { heldUsd, heldRuns } = liveHeldBefore(rows, idx < 0 ? rows.length : idx, home, nowIso);
-  const month = spendSummary({ home, now }).month;
-  const leftCents = Math.max(0, Math.floor((limit - month.usd - heldUsd) * 100 + 1e-6));
-  const needCents = Math.ceil(holdUsd * 100 - 1e-6); // a non-finite hold never fits — never read as $0
-  const ok = needCents <= leftCents;
-  Object.assign(room, { leftUsd: leftCents / 100, heldUsd, heldRuns, atLeast: month.atLeast });
+  const { ok, ...found } = roomFor({ limit, holdUsd, rows, idx: idx < 0 ? rows.length : idx, home, now, nowIso });
+  Object.assign(room, found);
   if (!ok) {
     try { appendRow(home, { kind: 'refused', holdId, at: nowIso, why: 'over the monthly limit' }); } catch { /* the refusal stands; a dead process's hold is settled by the next check */ }
     return { ok: false, holdId, room };

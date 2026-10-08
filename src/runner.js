@@ -41,19 +41,23 @@ import {
 } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import {
-  dirname, extname, join, resolve, sep,
+  dirname, extname, isAbsolute, join, resolve, sep,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  readFlow, resolveRunDir, readFileInside, resolveInside,
+  readFlow, resolveRunDir, readFileInside, readdirInside, resolveInside, FLOW_FILES, PANEL_STARTS_DIR,
 } from './flow.js';
 import {
-  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen,
+  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen, setAsideAnswer,
 } from './ask.js';
-import { WIRED_VERBS } from './primitives.js';
+import { findUnwiredVerbStep, unwiredRed } from './canrun.js'; // M4e am7 item 7: the ONE decider (F46 refusal lives there)
+import { configHome, configDoorHome } from './config.js';
 import { closeByClass } from './closers.js';
-import { appendAudit, appendHistory } from './books.js';
+import {
+  appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
+} from './books.js';
+import { applyRunValues, pickRunValues } from './runvalues.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
 } from './liveness.js';
@@ -79,6 +83,96 @@ export const MAX_ATTEMPTS = 4;
  *  orders of magnitude below the cheapest real round (audit rows here run
  *  $0.0006+), so nothing a real tamper produces can hide inside it. */
 export const SPEND_TOLERANCE_USD = 1e-9;
+
+// ---------------------------------------------------------------------------
+// M4e amendment 4 item 4 (Stop) and the halt record Resume continues from.
+//
+// `stop.request` is written by the panel's Stop door (`requestStop`, its one writer) and read ONLY at the seam at the top of
+// `foldFromStep`'s loop, i.e. after the previous step closed (its artifact written, its audit rows booked): every kind of
+// step (model, a non-ask hitl pass-through, the signed send, an accepted ask) therefore reads it the same way. The reader
+// consumes it (unlink) and the run ends `stopped`. Amendment 13: when the turn leads to an ask (or the run already waits at one) the run
+// stops AT the ask (`stopAtAsk`, the one place; `stopParkedRun` for a waiting run), because a park is not an end; a stop that
+// arrives after the last step closed finds nothing left to stop and the run completes.
+//
+// `halt.json` is the one record a `cap-halt` or `stopped` run leaves for Resume (`continueRun`): where to re-enter (`stepIndex`,
+// the first step whose artifact is not written), what was frozen/signed, and the hitl evidence not yet shown to an ask. Money and
+// the spend-complete floor are NOT in it: the books (audit.jsonl) are the source of truth and `continueRun` re-sums them.
+// Write-once (`wx`); `continueRun` consumes it by rename to `halt.<n>.consumed.json`, so "resumable" = halt.json exists.
+// ---------------------------------------------------------------------------
+
+export const STOP_FILE = 'stop.request';
+export const HALT_FILE = 'halt.json';
+
+/** The panel's one write of a stop request. `'exists'` = already asked, nothing more to do. @param {string} runDir */
+export function requestStop(runDir) {
+  try {
+    writeFileSync(join(runDir, STOP_FILE), `${JSON.stringify({ at: new Date().toISOString() })}\n`, { mode: 0o600, flag: 'wx' });
+    return 'written';
+  } catch (err) {
+    if (err.code === 'EEXIST') return 'exists';
+    throw err;
+  }
+}
+
+/** The ONE reader of the stop request: `{at}` (when it was asked; null if unreadable) or `null` when none is pending. @param {string} runDir */
+export function readStopRequest(runDir) {
+  const r = readFileInside(runDir, STOP_FILE);
+  if (!r.ok) return null;
+  try { const at = JSON.parse(r.text)?.at; return { at: typeof at === 'string' ? at : null }; } catch { return { at: null }; }
+}
+
+/** Is a stop pending for this run? (read-only) @param {string} runDir */
+export function stopPending(runDir) {
+  return readStopRequest(runDir) !== null;
+}
+
+/**
+ * M4e amendment 7 item 8: the ONE writer of a Stop's audit rows, and the one place a request is cleared — a Stop is never cleared
+ * silently. A pending request leaves "stop asked (you) at <time>" and then its outcome: `stop` given = honoured (`verdict:'stopped'`,
+ * `stop.where` its words, `stop.book` the cut try's own row fields so the call in flight is booked); otherwise `not honoured: the run
+ * ended (<outcome>) first`. No pending request and no `stop` = no rows. The notes cost 0; a booked call's cost rides the `stopped` row.
+ *
+ * @param {object} o
+ * @param {string} o.runDir
+ * @param {() => string} o.now
+ * @param {string} o.outcome how the run ended (the words of the not-honoured row)
+ * Every row names the step it is about (the audit groups by it): the stop's own `step` (the step its words name; null = none, e.g.
+ * "stopped before step 1"), else its book's step; with no stop, the step the run ended on (the last row that names one).
+ * @param {{where:string, step?:string|null, book?:Record<string, any>}|null} [o.stop]
+ */
+function settleStop({
+  runDir, now, outcome, stop = null,
+}) {
+  const req = readStopRequest(runDir);
+  if (!req && !stop) return;
+  const lastStep = () => readAudit(runDir).map((r) => r.step).filter((s) => typeof s === 'string' && s.length > 0).pop() ?? null;
+  const step = stop ? (stop.step ?? stop.book?.step ?? null) : lastStep();
+  const note = {
+    step, attempt: null, class: null, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, tokens: null, tools: null, refused: [],
+  };
+  appendAudit(runDir, {
+    ...note, verdict: 'stop-asked', gap: `stop asked (you) at ${req?.at ?? 'an unrecorded time'}`, at: req?.at ?? now(),
+  });
+  appendAudit(runDir, stop
+    ? {
+      ...note, ...stop.book, step, verdict: 'stopped', gap: stop.where, at: now(),
+    }
+    : {
+      ...note, verdict: 'stop-not-honoured', gap: `not honoured: the run ended (${outcome}) first`, at: now(),
+    });
+  clearStop(runDir);
+}
+
+function clearStop(runDir) {
+  try { unlinkSync(join(runDir, STOP_FILE)); } catch { /* none pending */ }
+}
+
+/** The one reader of halt.json: `{ok:true, halt}`, `{ok:false, missing:true}` (not resumable), or `{ok:false, red}`. @param {string} runDir */
+export function readHaltRecord(runDir) {
+  const r = readFileInside(runDir, HALT_FILE);
+  if (!r.ok) return r.missing ? { ok: false, missing: true } : { ok: false, red: `halt.json — ${r.red}` };
+  try { return { ok: true, halt: JSON.parse(r.text) }; } catch (err) { return { ok: false, red: `halt.json is not valid JSON — ${err.message}` }; }
+}
 
 // ---------------------------------------------------------------------------
 // Money — piece 2 wires live provider rates; this piece takes a per-attempt
@@ -270,34 +364,6 @@ function hashFile(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
 }
 
-/**
- * F46 (docs/logs/FINDINGS.md): a step whose declaration grants a verb the
- * catalogue lists but `resolvePrimitives` has no case for (e.g. litectx's
- * `compress`) must refuse the whole run at preflight, naming the step and
- * the verb — never a warning the run continues (and spends) past. Lives
- * here, not in `bin/fwdloop`, so any caller of `runFlow`/`resumeRun`
- * (the CLI, M4's web panel) gets the same refusal for free — one writer,
- * `src/primitives.js`'s own `WIRED_VERBS`, never a second copy of the list.
- * A verb absent from the catalogue entirely is caught earlier, at
- * declaration-validation time (`readFlow`) — by the time a declaration
- * reaches here every granted verb is already catalogue-present, so
- * `WIRED_VERBS` alone is enough to tell "wired" from "not yet".
- *
- * @param {Record<string, any>} declaration - `readFlow`'s own loosely-typed
- *   `ReadFlowOk.declaration` shape (src/types.js) — same idiom as every
- *   other reader of it in this file (e.g. `declaration.steps` below); only
- *   `steps[].{emits,fromLine,primitives}` are actually read here.
- * @returns {{step: {emits: string, fromLine: number}, verb: string}|null}
- */
-function findUnwiredVerbStep(declaration) {
-  for (const step of declaration.steps) {
-    for (const verb of step.primitives ?? []) {
-      if (!WIRED_VERBS.has(verb)) return { step, verb };
-    }
-  }
-  return null;
-}
-
 /** A run dir that already holds `ask.json`/`answer.json` from an earlier run
  *  is a stale-answer hazard — refuse, never silently proceed or delete. */
 export function checkFreshRunDir(runDir) {
@@ -332,39 +398,85 @@ export function freezeInputs(runDir, sources) {
   return { ok: true, manifest };
 }
 
-/** The send target's directory must resolve (lexically AND after
- *  realpath — a symlink inside the repo pointing outside it must not pass)
- *  inside the repo, and be writable. Re-checked at write time, not just at
- *  preflight (time-of-check vs time-of-use, M0's own fix).
+/** realpath of a path that may not exist (falls back to the lexical resolve). */
+function realOrResolved(p) {
+  try { return realpathSync(p); } catch { return resolve(p); }
+}
+
+const isInside = (child, base) => child === base || child.startsWith(base + sep);
+
+/** The send target's folder (M4e amendment 1, "Destination is any folder").
+ *  An absolute `file:/abs/path` is that folder, anywhere on the machine. A
+ *  relative path keeps its M0/M2 meaning: joined onto the install folder and
+ *  fenced inside it (lexically AND after realpath — a symlink inside the repo
+ *  pointing outside must not pass). Either way, with `realpathSync` (symlinks
+ *  followed), the folder must exist, be a folder, be writable, and must NOT be
+ *  the run's own folder (its records and `inputs/`), the panel/CLI flow root, any flow
+ *  folder under it (one holding a FLOW_FILES file) or `<root>/.drafts` or `<root>/.starts`, or the fwdloop config folder (holds the keys).
+ *  Called at sign time and re-called at write time (time-of-check vs
+ *  time-of-use, M0's own fix) — the one rule for both.
  *  @param {string} target
+ *  @param {{root?: string, runDir?: string}} [ctx] `root` = the flow root, `runDir` = this run's folder
  *  @returns {{ok:true, dir:string} | {ok:false, red:string}} */
-export function checkSendDestination(target) {
+export function checkSendDestination(target, ctx = {}) {
   const match = /^file:(.+)$/.exec(target ?? '');
   if (!match) return { ok: false, red: `destination: send target "${target}" is not a "file:<path>" target` };
-  const dir = join(REPO_ROOT, match[1]);
-  const resolvedDir = resolve(dir);
-  const resolvedRoot = resolve(REPO_ROOT);
-  if (resolvedDir !== resolvedRoot && !resolvedDir.startsWith(resolvedRoot + sep)) {
-    return { ok: false, red: `destination: send target "${target}" resolves outside the repo (${dir})` };
-  }
-  try {
-    const realDir = realpathSync(dir);
-    const realRoot = realpathSync(REPO_ROOT);
-    if (realDir !== realRoot && !realDir.startsWith(realRoot + sep)) {
-      return {
-        ok: false,
-        red: `destination: send target "${target}" is a symlink that resolves outside the repo (${realDir})`,
-      };
+  const absolute = isAbsolute(match[1]);
+  const dir = absolute ? match[1] : join(REPO_ROOT, match[1]);
+  if (!absolute) {
+    const resolvedDir = resolve(dir);
+    const resolvedRoot = resolve(REPO_ROOT);
+    if (!isInside(resolvedDir, resolvedRoot)) {
+      return { ok: false, red: `destination: send target "${target}" resolves outside the repo (${dir})` };
     }
+    try {
+      const realDir = realpathSync(dir);
+      const realRoot = realpathSync(REPO_ROOT);
+      if (!isInside(realDir, realRoot)) {
+        return {
+          ok: false,
+          red: `destination: send target "${target}" is a symlink that resolves outside the repo (${realDir})`,
+        };
+      }
+    } catch {
+      // dir doesn't exist — handled by the not-a-folder red below.
+    }
+  }
+  let realDir;
+  try {
+    realDir = realpathSync(dir);
+    if (!statSync(realDir).isDirectory()) throw new Error('not a directory');
   } catch {
-    // dir doesn't exist yet — handled by the accessSync red below.
+    return { ok: false, red: `destination: send target "${target}" is not an existing folder (${dir})` };
+  }
+  const refused = [];
+  if (ctx.runDir) refused.push([realOrResolved(ctx.runDir), "the run's own folder (its records and inputs)"]);
+  refused.push([realOrResolved(configHome(configDoorHome().home)), 'the fwdloop config folder']);
+  if (ctx.root) {
+    const realRoot = realOrResolved(ctx.root);
+    if (realDir === realRoot) {
+      return { ok: false, red: `destination: send target "${target}" is the flow root (${realDir}) — refused` };
+    }
+    if (isInside(realDir, realRoot)) {
+      const child = realDir.slice(realRoot.length + 1).split(sep)[0];
+      const childDir = join(realRoot, child);
+      // a flow folder = holds any of the flow's own files (the same FLOW_FILES `src/flow.js` writes)
+      if (FLOW_FILES.some((f) => existsSync(join(childDir, f)))) refused.push([childDir, 'a flow folder']);
+      else if (child === '.drafts') refused.push([childDir, 'the panel drafts folder']);
+      else if (child === PANEL_STARTS_DIR) refused.push([childDir, 'the panel starts folder']);
+    }
+  }
+  for (const [base, what] of refused) {
+    if (isInside(realDir, base)) {
+      return { ok: false, red: `destination: send target "${target}" is ${what} (${realDir}) — refused` };
+    }
   }
   try {
     accessSync(dir, fsConstants.W_OK);
   } catch (err) {
     return { ok: false, red: `destination: send target directory "${dir}" is not writable (${err.code})` };
   }
-  return { ok: true, dir };
+  return { ok: true, dir: absolute ? realDir : dir };
 }
 
 // ---------------------------------------------------------------------------
@@ -559,7 +671,7 @@ function makeAuditRow({
  * @param {Record<string, any>} [opts.primitivesMap]
  * @param {Record<string, any>} opts.readsMap
  * @param {string} opts.businessDate
- * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<any>} opts.modelStep
+ * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}, seam?:{stopRequested?:() => boolean}) => Promise<any>} opts.modelStep
  * @param {{ value: number }} opts.spent
  * @param {number} opts.capUsd
  * @param {number} opts.ceilingUsd
@@ -568,7 +680,11 @@ function makeAuditRow({
  * @param {number} [opts.attemptOffset]
  * @param {() => string} [opts.now] - M4a-2: stamps each audit row's `at`;
  *   defaults to the real wall clock.
- * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string}>}
+ * @param {(() => boolean)|null} [opts.readStop] - amendment 7 item 8: the run's stop reader, asked before every try and (via modelStep's seam) every model call
+ * @param {number} [opts.stepNo] - this step's 1-based number, for the words of a stop row
+ * @param {string|null} [opts.prevStepId] - the id of step stepNo-1 (null for step 1): the step a "stopped after step N-1" row is filed under
+ * @param {number} [opts.triesDone] - tries a Stop already closed on this step (they count against its limit)
+ * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string, stop?:{where:string, book:Record<string, any>, step?:string|null}}>}
  */
 async function runStepRalph({
   step, primitivesMap, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd, recordAudit, initialGap = null, attemptOffset = 0,
@@ -578,14 +694,37 @@ async function runStepRalph({
   // none left in production; a defensive default only) still writes a valid
   // ISO string.
   now = () => new Date().toISOString(),
+  // M4e amendment 7 item 8: the Stop seam before every model call. `readStop` is the run's one stop reader (the fold's closure over
+  // `readStopRequest`); `stepNo` is this step's 1-based number for the words of the stop row; `triesDone` is the tries a Stop already
+  // cut this step short of (their numbering is in `attemptOffset`; a try the Stop cut mid-way is replaced by the new one, never counted
+  // against the limit, so Resume always gets at least one new try).
+  readStop = null, stepNo = 0, triesDone = 0,
+  // the id of step stepNo-1 (null for step 1): a Stop before this step's first call words itself "after step N-1" and is filed under that step
+  prevStepId = null,
 }) {
   /** @type {string|null} */
   let gap = initialGap ?? null;
   let strikes = 0;
   const seenGaps = new Set();
+  const maxN = MAX_ATTEMPTS - triesDone;
+  let lastTurns = null;
+  const stopWords = (tryNo, turns) => (turns > 0
+    ? `stopped after turn ${turns} of try ${tryNo} of step ${stepNo}`
+    : (tryNo > 0 ? `stopped after try ${tryNo} of step ${stepNo}` : (stepNo > 1 ? `stopped after step ${stepNo - 1}` : 'stopped before step 1')));
+  /** The ralph's return for a Stop: the cut try's own row fields (`book`) ride the one `stopped` row `settleStop` writes.
+   *  @param {string} where @param {Record<string, any>} [book] @returns {{ok:false, outcome:string, red:string, stop:{where:string, book:Record<string, any>, step:string|null}}} */
+  const stopped = (where, book = {}) => ({
+    ok: false,
+    outcome: 'stopped',
+    red: `stopped by you — ${where}`,
+    // one value: the words name the step the row is filed under — "after step N-1" (before this step's first call) is N-1's, the rest this step's
+    stop: { where, book, step: where === stopWords(0, 0) ? prevStepId : (step?.emits ?? step?.goal ?? null) },
+  });
 
-  for (let n = 1; n <= MAX_ATTEMPTS; n += 1) {
+  for (let n = 1; n <= maxN; n += 1) {
     const attempt = attemptOffset + n;
+    // Between tries: the previous try closed red, no new model call has started — a pending Stop ends the run here.
+    if (n > 1 && readStop && readStop()) return stopped(stopWords(attempt - 1, lastTurns ?? 0));
     // This attempt's known floor from a FIRST transport fault that then
     // retried — every audit row this attempt still writes must carry this
     // floor summed with its own cost (F41 books gap: the fault's cost was
@@ -615,9 +754,11 @@ async function runStepRalph({
     // construction test below proves the context itself stays clean).
     const stepMeta = Object.freeze({ class: step.close?.class ?? null });
 
+    const stopSeam = readStop ? Object.freeze({ stopRequested: readStop }) : undefined;
+
     const startedAt = Date.now();
     // eslint-disable-next-line no-await-in-loop
-    let result = await modelStep(executorContext, grantedTools, stepMeta);
+    let result = await modelStep(executorContext, grantedTools, stepMeta, stopSeam);
     if (result && result.ok === false && result.transport === true) {
       // A known partial cost from the FIRST transport fault must survive as
       // the floor even though this attempt goes on to retry — never
@@ -633,7 +774,7 @@ async function runStepRalph({
       // `transport: true` shape, exactly once.
       const first = result;
       // eslint-disable-next-line no-await-in-loop
-      result = await modelStep(executorContext, grantedTools, stepMeta);
+      result = await modelStep(executorContext, grantedTools, stepMeta, stopSeam);
       // The first call's gate refusals and tool tally belong to this attempt's
       // audit row too (the retry's collector starts empty). Only refused /
       // tools / ungranted are merged — cost is never touched here.
@@ -646,6 +787,19 @@ async function runStepRalph({
       }
     }
     const wallMs = Date.now() - startedAt;
+
+    // A Stop landed during this try: the call in flight finished and is booked here (its cost into the run's spend and onto the one
+    // `stopped` row), no new call started. Unknown cost stays unknown (usd null, spend incomplete), never 0.
+    const turns = typeof result?.turns === 'number' ? result.turns : null;
+    lastTurns = turns;
+    if (result && result.ok === false && result.stopped === true) {
+      if (typeof result.costUsd === 'number') spent.value += result.costUsd;
+      const usd = sumKnownUsd(attemptFloorUsd, result.costUsd);
+      const ranCalls = (turns ?? 0) > 0 || attemptFloorUsd !== null;
+      return stopped(stopWords(ranCalls ? attempt : attempt - 1, turns ?? 0), makeAuditRow({
+        step, attempt: ranCalls ? attempt : null, verdict: 'stopped', gap: null, usd, spendComplete: usd !== null, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
+      }));
+    }
 
     if (result && result.ok === false && result.transport === true) {
       if (typeof result.costUsd === 'number') spent.value += result.costUsd;
@@ -673,7 +827,7 @@ async function runStepRalph({
       recordAudit(makeAuditRow({
         step, attempt, verdict: 'red', gap: red, usd, spendComplete: usd !== null, wallMs, model: result?.model, modelMatch: result?.modelMatch, strike, at: now(), tokens: result?.tokens ?? null, tools: result?.tools ?? null, ungranted: result?.ungranted, refused: result?.refused,
       }), red);
-      if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${red}` };
+      if (n === maxN) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: step "${step.goal}" — ${red}` };
       gap = red;
       // eslint-disable-next-line no-continue
@@ -712,7 +866,7 @@ async function runStepRalph({
       recordAudit(makeAuditRow({
         step, attempt, verdict: 'red', gap: happened.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: true, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
       }), result.artifact ?? null);
-      if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: ${happened.red}` };
+      if (n === maxN) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: ${happened.red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: ${happened.red}` };
       gap = happened.red ?? null;
       // eslint-disable-next-line no-continue
@@ -747,7 +901,7 @@ async function runStepRalph({
       step, attempt, verdict: 'red', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
     }), result.artifact);
 
-    if (n === MAX_ATTEMPTS) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${closed.red}` };
+    if (n === maxN) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${closed.red}` };
     if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: step "${step.goal}" — ${closed.red}` };
     gap = closed.red ?? null;
   }
@@ -824,14 +978,21 @@ export async function runFlow({
     return { outcome: 'refused', red: read.reds[0], reds: read.reds };
   }
 
-  const { arbiter, declaration, signature } = read;
+  const { declaration, signature } = read;
+  const runDir = runIdCheck.runDir;
+  // M4e amendment 5 item 3: the values THIS run was signed with (cap, send folder, ask waits) lie over the flow's own — one decision (`pickRunValues`).
+  const applied = applyRunValues(read.arbiter, name, signature.flow, pickRunValues(runDir));
+  if (!applied.ok) {
+    return haltRun({
+      flowDir, runDir, runId, capUsd: null, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: applied.red, spent: { value: 0 },
+    });
+  }
+  const { arbiter } = applied;
   const capUsd = arbiter.capUsd;
   const redoCap = arbiter.redoCap ?? 3;
   const effectiveCeilingUsd = ceilingUsd ?? resolveCeilingUsd(null);
   const askLines = new Map((arbiter.asks ?? []).map((a) => [a.line, a]));
   const sendLines = new Map((arbiter.sends ?? []).map((s) => [s.line, s]));
-
-  const runDir = runIdCheck.runDir;
 
   const unwiredVerb = findUnwiredVerbStep(declaration);
   if (unwiredVerb) {
@@ -845,7 +1006,7 @@ export async function runFlow({
       nowMs: getNowMs,
       signatureHash: signature.flow,
       outcome: 'preflight-red',
-      red: `preflight: step "${unwiredVerb.step.emits}" (line ${unwiredVerb.step.fromLine}) grants verb "${unwiredVerb.verb}", which has no wired implementation`,
+      red: unwiredRed(unwiredVerb),
       spent: { value: 0 },
     });
   }
@@ -1031,7 +1192,7 @@ function makeOneShotThenParkAskStep({ decision, reason, artifactSha256 }) {
  * @returns {Promise<any>}
  */
 async function runAskSlot({
-  step, stepIndex, askSlot, priorId, priorStep, priorArtifact, redoCap, effectiveCeilingUsd, capUsd,
+  step, stepIndex, askSlot, priorId, priorStep, priorStepNo, priorPrevStepId = null, priorArtifact, redoCap, effectiveCeilingUsd, capUsd,
   primitives, businessDate, modelStep, askStep, spent, spendComplete, recordAudit,
   evidenceUnjudged, unjudgedCount, redone: initialRedone,
   runDir, flowDir, runId, flowRoot, flowName, signatureHash, inputsManifest, attemptsLog, artifacts, now, startedAt,
@@ -1051,6 +1212,17 @@ async function runAskSlot({
     });
     // M4b amendment 3: a decision from any askStep is translated once, here.
     const answer = { ...rawAnswer, decision: normalizeDecision(rawAnswer.decision) };
+
+    if (answer.decision === 'park' && stopPending(runDir)) {
+      // M4e amendment 13: a Stop pending as the turn leads to an ask stops AT the ask — nothing is written for it, no wait begins.
+      return {
+        type: 'halted',
+        outcome: 'stopped',
+        red: `stopped by you at the ask of step ${stepIndex + 1} ("${step.goal}")`,
+        stop: { where: `stopped at the ask of step ${stepIndex + 1}`, step: step.emits ?? step.goal ?? null },
+        redone,
+      };
+    }
 
     if (answer.decision === 'park') {
       // M3 scope item 1 (fixes F43): the wait is ALWAYS the signed ttlMs —
@@ -1128,6 +1300,15 @@ async function runAskSlot({
       // at its final outcome (complete / a halt / ask-expired), written by
       // `foldFromStep`/`resumeRun`, never here.
       writeLog(runDir, { runId, outcome: 'paused', attempts: attemptsLog, artifacts });
+      // M4e amendment 13: a park is not an end. A Stop that landed while the ask was being written stops the run at the ask
+      // (the ask is set aside; one winner against the Stop door, by rename).
+      if (stopPending(runDir)) {
+        const stopped = stopAtAsk({
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, signatureHash, spent, spendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+          stepIndex, stepEmits: step.emits ?? step.goal ?? null, flowRoot, flowName, inputsManifest, unjudged: evidenceUnjudged, redone, parkedAskId: askId,
+        });
+        if (stopped) return { type: 'stopped', result: stopped };
+      }
       return {
         type: 'paused',
         result: {
@@ -1196,9 +1377,12 @@ async function runAskSlot({
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
         step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone, now,
+        readStop: () => stopPending(runDir), stepNo: priorStepNo, prevStepId: priorPrevStepId,
       });
       if (!redoResult.ok) {
-        return { type: 'halted', outcome: redoResult.outcome, red: redoResult.red };
+        return {
+          type: 'halted', outcome: redoResult.outcome, red: redoResult.red, ...(redoResult.stop ? { stop: redoResult.stop } : {}),
+        };
       }
       currentPrior = redoResult.artifact;
       // A redo deliberately REPLACES the prior step's own artifact — the one
@@ -1245,12 +1429,35 @@ async function foldFromStep({
   // `@param {object} opts` this function's block comment never declared)
   // is what keeps every OTHER destructured field's inferred type intact.
   firstStepGap = /** @type {string|null} */ (null),
+  // Amendment 7 item 8: a run Resumed after a Stop that cut step `i0` mid-way re-enters it as a NEW try — `numbered` tries already
+  // wear numbers (the new one is numbered after them), `done` of them closed and count against the step's limit.
+  resumeTries = { numbered: 0, done: 0 },
+  // Amendment 13: the redo count a stop-at-ask carried in its halt record, restored for the ask step it re-enters (`i0`).
+  resumeRedone = 0,
 }) {
   let runAcceptedThisRun = acceptedThisRun;
   let runUnjudged = unjudgedSinceLastAsk;
 
   for (let i = i0; i < steps.length; i += 1) {
     const step = steps[i];
+
+    // M4e amendment 4 item 4: the Stop seam. Step i-1 has closed (artifact written, rows booked); a pending request ends the run here.
+    // Amendment 7 item 8 adds the same seam before every model call (turns and tries, inside `runStepRalph`/`modelStep`).
+    if (stopPending(runDir)) {
+      // Amendment 13: when the turn that just closed leads to an ask, the run stops AT the ask, in the ask's words.
+      if (askLines.has(step.fromLine)) {
+        return stopAtAsk({
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, spendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+          stepIndex: i, stepEmits: step.emits ?? step.goal ?? null, flowRoot, flowName, inputsManifest, unjudged: runUnjudged, redone: i === i0 ? resumeRedone : 0,
+        });
+      }
+      return haltRun({
+        flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+        outcome: 'stopped', red: `stopped by you before step ${i + 1} ("${step.goal}")`,
+        stop: { where: i === 0 ? 'stopped before step 1' : `stopped after step ${i}`, step: i === 0 ? null : (steps[i - 1].emits ?? steps[i - 1].goal ?? null) },
+        resumeAt: { stepIndex: i, flowRoot, flowName, inputsManifest, unjudged: runUnjudged },
+      });
+    }
 
     // --- the signed send slot: never through modelStep, only after an
     // accept THIS run, re-checked at write time. ---
@@ -1302,9 +1509,9 @@ async function foldFromStep({
         });
       }
       const content = contentResult.value;
-      const filename = `${runId}-${step.emits}.json`;
+      const filename = `${flowName}-${runId}-${step.emits}.json`;
       // eslint-disable-next-line no-await-in-loop
-      const sendResult = await sendStep(target, filename, content, acceptedAskEmitsThisRun.get(askArtifactId));
+      const sendResult = await sendStep(target, filename, content, acceptedAskEmitsThisRun.get(askArtifactId), { root: flowRoot, runDir });
       const sendRow = makeAuditRow({
         step, attempt: 1, verdict: sendResult.ok ? 'green' : 'red', gap: sendResult.ok ? null : sendResult.red, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       });
@@ -1357,6 +1564,8 @@ async function foldFromStep({
         askSlot,
         priorId,
         priorStep: steps[priorStepIndex],
+        priorStepNo: priorStepIndex + 1,
+        priorPrevStepId: priorStepIndex > 0 ? (steps[priorStepIndex - 1].emits ?? null) : null,
         priorArtifact,
         redoCap,
         effectiveCeilingUsd,
@@ -1370,7 +1579,7 @@ async function foldFromStep({
         recordAudit,
         evidenceUnjudged,
         unjudgedCount,
-        redone: 0,
+        redone: i === i0 ? resumeRedone : 0,
         runDir,
         flowDir,
         runId,
@@ -1385,10 +1594,14 @@ async function foldFromStep({
         runStartedAt,
       });
 
-      if (askResult.type === 'paused') return askResult.result;
+      if (askResult.type === 'paused' || askResult.type === 'stopped') return askResult.result;
       if (askResult.type === 'halted') {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value && askResult.stop?.book?.spendComplete !== false, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
+          ...(askResult.stop ? { stop: askResult.stop } : {}),
+          resumeAt: {
+            stepIndex: i, flowRoot, flowName, inputsManifest, unjudged: evidenceUnjudged, redone: askResult.redone,
+          },
         });
       }
 
@@ -1419,10 +1632,13 @@ async function foldFromStep({
     // eslint-disable-next-line no-await-in-loop
     const stepResult = await runStepRalph({
       step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null, now,
+      readStop: () => stopPending(runDir), stepNo: i + 1, prevStepId: i > 0 ? (steps[i - 1].emits ?? steps[i - 1].goal ?? null) : null, attemptOffset: i === i0 ? resumeTries.numbered : 0, triesDone: i === i0 ? resumeTries.done : 0,
     });
     if (!stepResult.ok) {
       return haltRun({
-        flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: stepResult.outcome, red: stepResult.red,
+        flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value && stepResult.stop?.book?.spendComplete !== false, attempts: attemptsLog, artifacts, outcome: stepResult.outcome, red: stepResult.red,
+        ...(stepResult.stop ? { stop: stepResult.stop } : {}),
+        resumeAt: { stepIndex: i, flowRoot, flowName, inputsManifest, unjudged: runUnjudged },
       });
     }
     writeArtifact(runDir, step.emits, stepResult.artifact);
@@ -1449,6 +1665,7 @@ async function foldFromStep({
   writeLog(runDir, {
     runId, outcome: 'complete', attempts: attemptsLog, artifacts,
   });
+  settleStop({ runDir, now, outcome: 'complete' });
   return {
     outcome: 'complete', runDir, artifacts, spentUsd: spent.value,
   };
@@ -1465,17 +1682,19 @@ async function foldFromStep({
  * resumable run's audit.jsonl). A row this function cannot price refuses
  * rather than guessing (never `?? 0`, never skipped).
  * @param {string} runDir
- * @returns {{ ok: true, total: number } | { ok: false, red: string }}
+ * @param {{skipVerdicts?: string[]}} [opts]
+ * @returns {{ ok: true, total: number, complete: boolean } | { ok: false, red: string }}
  */
-function sumAuditUsd(runDir) {
+function sumAuditUsd(runDir, { skipVerdicts = /** @type {string[]} */ ([]) } = {}) {
   // F48 round 3: goes through `readFileInside` (`src/flow.js`) rather than a
   // raw `readFileSync` — a symlinked `audit.jsonl` (or a symlinked ancestor
   // directory) reads as "missing" (total 0), never as some outside file's
   // content summed into a cap check.
   const result = readFileInside(runDir, 'audit.jsonl');
-  if (!result.ok) return { ok: true, total: 0 };
+  if (!result.ok) return { ok: true, total: 0, complete: true };
   const lines = result.text.split('\n').filter((line) => line.trim().length > 0);
   let total = 0;
+  let complete = true;
   for (const line of lines) {
     let row;
     try {
@@ -1483,12 +1702,15 @@ function sumAuditUsd(runDir) {
     } catch (err) {
       return { ok: false, red: `audit.jsonl line is not valid JSON — ${err.message}` };
     }
+    // a row of a verdict the caller names cost nothing and carries `usd: null` on purpose (a cap-halt: the round was never bought)
+    if (skipVerdicts.includes(row.verdict)) continue;
+    if (row.spendComplete === false) complete = false;
     if (typeof row.usd !== 'number' || !Number.isFinite(row.usd)) {
       return { ok: false, red: `audit.jsonl carries a row whose "usd" is not a finite number (got ${JSON.stringify(row.usd)}) — refusing to sum past an unpriced round` };
     }
     total += row.usd;
   }
-  return { ok: true, total };
+  return { ok: true, total, complete };
 }
 
 /** Unlink `resume.lock` only when its recorded holder is still THIS process (`readResumeLock`'s holder pid + start
@@ -1616,7 +1838,7 @@ export async function resumeRun({
     if (unwiredVerb) {
       return {
         outcome: 'refused',
-        red: `preflight: step "${unwiredVerb.step.emits}" (line ${unwiredVerb.step.fromLine}) grants verb "${unwiredVerb.verb}", which has no wired implementation`,
+        red: unwiredRed(unwiredVerb),
       };
     }
   }
@@ -1675,7 +1897,11 @@ export async function resumeRun({
     if (!read.ok) {
       return { outcome: 'refused', red: `resume: flow re-read failed for run "${runId}": ${read.reds.join('; ')}` };
     }
-    const { declaration, arbiter, signature } = read;
+    const { declaration, signature } = read;
+    // M4e amendment 5 item 3 / amendment 4 item 6: the run's own signed values (its highest version) lie over the flow's.
+    const applied = applyRunValues(read.arbiter, name, signature.flow, pickRunValues(runDir));
+    if (!applied.ok) return { outcome: 'refused', red: `resume: run "${runId}" — ${applied.red}` };
+    const { arbiter } = applied;
 
     if (signature.flow !== state.signatureHash) {
       return { outcome: 'refused', red: `resume: signature mismatch for run "${runId}" — the flow changed while parked` };
@@ -1805,6 +2031,24 @@ export async function resumeRun({
     const timing = answerTiming(answer.answeredAt, effectiveExpiresAt(runDir, state.askId, state.expiresAt));
     if (timing === 'unreadable') {
       return { outcome: 'refused', red: `resume: answer.json for run "${runId}" has a missing or unreadable answeredAt ("${answer.answeredAt}") — refusing rather than treating it as on time` };
+    }
+
+    // M4e amendment 13: a Stop asked STRICTLY before this answer was saved was asked of a run that was waiting (it landed after the
+    // park, before the Stop door could act). The run is stopped AT the ask and the answer to it is not used. A Stop asked at the same
+    // instant as the answer, or after it, belongs to the apply that follows: the fold's own seam reads it and stops before the next
+    // step. On a tie the ANSWER WINS (hamr's ruling, 2026-10-07: a fast CI gave both the same millisecond). A Stop with no readable
+    // time is stopped at the ask: conservative, stated here so it never falls out of a NaN comparison.
+    const stopReq = readStopRequest(runDir);
+    const stopMs = stopReq ? Date.parse(stopReq.at ?? '') : NaN;
+    const stopFirst = Number.isNaN(stopMs) || stopMs < Date.parse(answer.answeredAt);
+    if (stopReq && stopFirst) {
+      const prev = readLog(runDir);
+      return stopAtAsk({
+        flowDir, runDir, runId, capUsd: arbiter.capUsd ?? null, startedAt: runStartedAt, now, nowMs: getNowMs, signatureHash: state.signatureHash, spent, spendComplete: spendComplete.value,
+        attempts: Array.isArray(prev?.attempts) ? prev.attempts : [], artifacts: prev?.artifacts && typeof prev.artifacts === 'object' ? prev.artifacts : {},
+        stepIndex: state.stepIndex, stepEmits: steps[state.stepIndex]?.emits ?? null, flowRoot: root, flowName: name, inputsManifest: state.inputsManifest,
+        unjudged: state.evidenceUnjudged ?? [], redone: typeof state.redone === 'number' ? state.redone : 0, parkedAskId: state.askId,
+      });
     }
 
     // M4b amendment 2: hashes recorded by earlier-process accepts, read back
@@ -1967,6 +2211,8 @@ export async function resumeRun({
       askSlot,
       priorId,
       priorStep: steps[priorStepIndex],
+      priorStepNo: priorStepIndex + 1,
+      priorPrevStepId: priorStepIndex > 0 ? (steps[priorStepIndex - 1].emits ?? null) : null,
       priorArtifact,
       redoCap,
       effectiveCeilingUsd,
@@ -1995,10 +2241,14 @@ export async function resumeRun({
       runStartedAt,
     });
 
-    if (askResult.type === 'paused') return askResult.result;
+    if (askResult.type === 'paused' || askResult.type === 'stopped') return askResult.result;
     if (askResult.type === 'halted') {
       return haltRun({
-        flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs: getNowMs, signatureHash: state.signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
+        flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs: getNowMs, signatureHash: state.signatureHash, spent, priorSpendComplete: spendComplete.value && askResult.stop?.book?.spendComplete !== false, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
+          ...(askResult.stop ? { stop: askResult.stop } : {}),
+        resumeAt: {
+          stepIndex: state.stepIndex, flowRoot: root, flowName: name, inputsManifest: state.inputsManifest, unjudged: state.evidenceUnjudged ?? [], redone: askResult.redone,
+        },
       });
     }
 
@@ -2048,6 +2298,296 @@ export async function resumeRun({
 
     if (result.outcome === 'complete') return { ...result, auditRows };
     return result;
+  } finally {
+    releaseResumeLock(runDir, lockPath);
+    try { closeSync(lockFd); } catch { /* already closed */ }
+  }
+}
+
+/**
+ * What a run has spent so far, from its own books (audit.jsonl is the source of truth): the sum of every priced row (a cap-halt
+ * row cost nothing and carries no number), and whether any row left the total a floor. Used by `continueRun` and the CLI's hold.
+ * @param {string} runDir
+ * @returns {{ ok: true, total: number, complete: boolean } | { ok: false, red: string }}
+ */
+export function auditSpend(runDir) {
+  return sumAuditUsd(runDir, { skipVerdicts: ['cap-halt'] });
+}
+
+/**
+ * M4e amendment 4 items 4 and 6 (Resume of a stopped or cap-halted run): the SAME run id continues, never a new run. Takes the
+ * same exclusive `resume.lock` as an answer-resume (one resume at a time per run), reads `halt.json` (the runner's own record of
+ * where it stopped), re-verifies the flow's signature, the frozen inputs and every finished step's artifact, lays the run's
+ * highest signed values version over the flow's (`pickRunValues`: the human's new cap lives there, write-once, never in the flow's
+ * own files), refuses by name at $0 when that cap is not above what is already spent, consumes `halt.json` by rename (the
+ * mutex, like an answer), then re-enters the ONE fold at the first step with no artifact. Done steps are not re-run, spend so
+ * far (re-summed from the books) counts against the new cap, the plan is never redrawn.
+ *
+ * @param {object} opts same shape as `resumeRun`'s
+ * @param {string} opts.root
+ * @param {string} opts.name
+ * @param {string} opts.runId
+ * @param {unknown} opts.catalogue
+ * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<any>} opts.modelStep
+ * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
+ * @param {Record<string, any>} [opts.primitives]
+ * @param {string[]} [opts.primitiveReds]
+ * @param {() => string} [opts.clock]
+ * @param {string} opts.businessDate
+ * @param {number} [opts.ceilingUsd]
+ * @param {() => number} [opts.nowMs]
+ */
+export async function continueRun({
+  root, name, runId, catalogue, modelStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd, nowMs,
+}) {
+  const now = typeof clock === 'function' ? clock : () => new Date().toISOString();
+  const getNowMs = typeof nowMs === 'function' ? nowMs : Date.now;
+  const flowDir = join(root, name);
+  const startedAt = getNowMs();
+  const refused = (red) => ({ outcome: 'refused', red: `continue: ${red}` });
+
+  const runIdCheck = resolveRunDir(flowDir, runId);
+  if (!runIdCheck.ok) return { outcome: 'refused', red: runIdCheck.red };
+  const runDir = runIdCheck.runDir;
+
+  const preflightRead = readFlow({ root, name, catalogue });
+  if (preflightRead.ok) {
+    const unwiredVerb = findUnwiredVerbStep(preflightRead.declaration);
+    if (unwiredVerb) return refused(unwiredRed(unwiredVerb));
+  }
+  if (primitiveReds?.length) return refused(primitiveReds[0]);
+
+  const lockPath = join(runDir, 'resume.lock');
+  const took = await takeResumeLock(runDir, runId, lockPath);
+  if (!took.ok) return { outcome: 'refused', red: took.red };
+  const { lockFd } = took;
+
+  try {
+    const haltRead = readHaltRecord(runDir);
+    if (!haltRead.ok) {
+      return refused(haltRead.missing
+        ? `run "${runId}" was not stopped or cap-halted by this version (no halt record) — there is nothing to continue; start a new run`
+        : `run "${runId}" ${haltRead.red}`);
+    }
+    const { halt } = haltRead;
+    if (!sameRoot(halt.flow?.root, root) || halt.flow?.name !== name) {
+      return refused(`run "${runId}" was halted against flow "${halt.flow?.root}/${halt.flow?.name}", not the requested "${root}/${name}" — refusing rather than reading a different flow than asked`);
+    }
+    if (!Number.isInteger(halt.stepIndex) || halt.stepIndex < 0) return refused(`run "${runId}" halt.json field "stepIndex" is not a step number`);
+
+    const read = readFlow({ root, name, catalogue });
+    if (!read.ok) return refused(`flow re-read failed for run "${runId}": ${read.reds.join('; ')}`);
+    const { declaration, signature } = read;
+    if (signature.flow !== halt.signatureHash) return refused(`signature mismatch for run "${runId}" — the flow changed while it was halted`);
+    // the human's signed values for this run (its highest version): the new cap is read from here, nowhere else
+    const applied = applyRunValues(read.arbiter, name, signature.flow, pickRunValues(runDir));
+    if (!applied.ok) return refused(`run "${runId}" — ${applied.red}`);
+    const { arbiter } = applied;
+
+    for (const entry of halt.inputsManifest ?? []) {
+      if (!existsSync(entry.frozen)) return refused(`frozen input "${entry.id}" missing for run "${runId}" (${entry.frozen})`);
+      if (createHash('sha256').update(readFileSync(entry.frozen)).digest('hex') !== entry.sha256) {
+        return refused(`frozen input "${entry.id}" changed while halted for run "${runId}"`);
+      }
+    }
+
+    const { steps } = declaration;
+    if (halt.stepIndex > steps.length) return refused(`run "${runId}" halt.json names step ${halt.stepIndex}, past this flow's ${steps.length} steps`);
+    /** @type {Record<string, any>} */
+    const artifacts = {};
+    for (let i = 0; i < halt.stepIndex; i += 1) {
+      const a = readArtifactResult(runDir, steps[i].emits);
+      if (!a.ok) {
+        return refused(a.missing
+          ? `artifact "${steps[i].emits}" missing for run "${runId}" — cannot continue`
+          : `artifact "${steps[i].emits}" for run "${runId}" — ${a.red} — refusing rather than treating a refused read as "not done" and re-running it`);
+      }
+      artifacts[steps[i].emits] = a.value;
+    }
+
+    const audit = auditSpend(runDir);
+    if (!audit.ok) return refused(`run "${runId}" ${audit.red}`);
+    const capUsd = arbiter.capUsd;
+    if (!(capUsd - audit.total > SPEND_TOLERANCE_USD)) {
+      return refused(`the cap $${capUsd} is not above what run "${runId}" has already spent ($${audit.total}) — raise it first; $0 spent now`);
+    }
+    const recordedHashes = readAcceptedHashesByEmits(runDir);
+    if (!recordedHashes.ok) return { outcome: 'refused', red: recordedHashes.red };
+
+    // Consume-once BEFORE acting (the answer's own rule, F44): the rename is a one-winner gate on top of the lock.
+    const taken = readdirInside(runDir, '.').filter((n) => /^halt\.\d+\.consumed\.json$/.test(n)).length;
+    renameSync(join(runDir, HALT_FILE), join(runDir, `halt.${taken + 1}.consumed.json`));
+    settleStop({ runDir, now, outcome: halt.outcome ?? 'halted' }); // a request left over from before the halt is not this continue's
+    recordPid(runDir, 'continue', now());
+
+    const spent = { value: audit.total };
+    const spendComplete = { value: audit.complete };
+    const askLines = new Map((arbiter.asks ?? []).map((a) => [a.line, a]));
+    const sendLines = new Map((arbiter.sends ?? []).map((s) => [s.line, s]));
+    const askStepEmits = new Set(steps.filter((s) => askLines.has(s.fromLine)).map((s) => s.emits));
+    const acceptedAskEmitsThisRun = new Map();
+    for (const emits of askStepEmits) {
+      const idx = steps.findIndex((s) => s.emits === emits);
+      // a step before the halt point has its artifact (the gate above refused any that was missing or red)
+      if (idx !== -1 && idx < halt.stepIndex) {
+        acceptedAskEmitsThisRun.set(emits, recordedHashes.byEmits.get(emits) ?? null);
+      }
+    }
+    const attemptsLog = [];
+    const auditRows = [];
+    const recordAudit = (row, modelOutput, unjudgedCount) => {
+      const fullRow = unjudgedCount === undefined ? row : { ...row, unjudgedCount };
+      auditRows.push(fullRow);
+      appendAudit(runDir, fullRow);
+      if (row.spendComplete === false) spendComplete.value = false;
+      if (modelOutput !== undefined) {
+        attemptsLog.push({
+          step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, ...(row.refused ? { refused: row.refused } : {}), modelOutput,
+        });
+      }
+    };
+    const runStartedAt = typeof halt.startedAt === 'number' ? halt.startedAt : startedAt;
+
+    // Amendment 7 item 8: a Stop that cut the step short leaves its tries in the books; Resume re-enters it as a NEW try, numbered after them.
+    // A try the Stop cut mid-way (its `stopped` row) wears a number but is replaced, not counted against the step's limit. Read from the
+    // books (the source of truth), never a second record. A cap-halt re-entry keeps its own, earlier behaviour.
+    const resumeTries = { numbered: 0, done: 0 };
+    if (halt.outcome === 'stopped' && steps[halt.stepIndex]) {
+      const tries = readAudit(runDir).filter((r) => r.step === steps[halt.stepIndex].emits && Number.isInteger(r.attempt) && r.verdict !== 'cap-halt');
+      resumeTries.numbered = tries.length;
+      resumeTries.done = Math.min(tries.filter((r) => r.verdict !== 'stopped').length, MAX_ATTEMPTS - 1);
+    }
+
+    const result = await foldFromStep({
+      i0: halt.stepIndex,
+      resumeTries,
+      steps,
+      askLines,
+      sendLines,
+      askStepEmits,
+      runDir,
+      flowDir,
+      runId,
+      flowRoot: root,
+      flowName: name,
+      signatureHash: halt.signatureHash,
+      inputsManifest: halt.inputsManifest,
+      capUsd,
+      redoCap: arbiter.redoCap ?? 3,
+      effectiveCeilingUsd: ceilingUsd ?? resolveCeilingUsd(null),
+      primitives,
+      businessDate,
+      modelStep,
+      // a continued run never waits in-process: a signed ask it reaches parks, under the wait in force
+      askStep: makeParkingAskStep(),
+      sendStep,
+      now,
+      startedAt,
+      runStartedAt,
+      nowMs: getNowMs,
+      spent,
+      spendComplete,
+      artifacts,
+      acceptedThisRun: acceptedAskEmitsThisRun.size > 0,
+      acceptedAskEmitsThisRun,
+      unjudgedSinceLastAsk: Array.isArray(halt.unjudged) ? halt.unjudged : [],
+      resumeRedone: Number.isInteger(halt.redone) && halt.redone > 0 ? halt.redone : 0,
+      recordAudit,
+      attemptsLog,
+    });
+    if (result.outcome === 'complete') return { ...result, auditRows };
+    return result;
+  } finally {
+    releaseResumeLock(runDir, lockPath);
+    try { closeSync(lockFd); } catch { /* already closed */ }
+  }
+}
+
+/**
+ * M4e amendment 13 (SIGNED 2026-10-07): a Stop at an ask. The ONE place a run is stopped at its ask, whether the turn led to it
+ * (`parkedAskId` null: nothing was written for the ask) or the ask was already parked (`parkedAskId` set: the open ask and its
+ * state are set aside as `ask.<id>.stopped.json` / `state.<id>.stopped.json` so no wait can expire and no answer can reach them;
+ * the rename of `ask.json` is the one-winner gate, like an answer's). A saved answer to that ask is set aside, never used. The
+ * rows are `settleStop`'s ("stop asked (you) at <time>", then "stopped at the ask of step N"); `halt.json` points at the ask
+ * step, with the redo count carried, so Resume asks again, fresh, with no model call.
+ * @param {Record<string, any>} o
+ * @returns {any}
+ */
+function stopAtAsk(o) {
+  const {
+    flowDir, runDir, runId, capUsd, startedAt, now, nowMs, signatureHash, spent, spendComplete = true, attempts = [], artifacts = {},
+    stepIndex, stepEmits, flowRoot, flowName, inputsManifest, unjudged, redone, parkedAskId = null,
+  } = o;
+  const red = `stopped by you at the ask of step ${stepIndex + 1}`;
+  if (parkedAskId !== null) {
+    try { renameSync(join(runDir, 'ask.json'), join(runDir, `ask.${parkedAskId}.stopped.json`)); } catch {
+      return { outcome: 'stopped', red, spentUsd: spent.value }; // another stopper won the rename: it writes the rows
+    }
+    try { renameSync(join(runDir, 'state.json'), join(runDir, `state.${parkedAskId}.stopped.json`)); } catch { /* no state: nothing to set aside */ }
+    if (existsSync(join(runDir, 'answer.json'))) setAsideAnswer(runDir, parkedAskId, 'late');
+  }
+  return haltRun({
+    flowDir, runDir, runId, capUsd, startedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete, attempts, artifacts,
+    outcome: 'stopped', red,
+    stop: { where: `stopped at the ask of step ${stepIndex + 1}`, step: stepEmits },
+    resumeAt: {
+      stepIndex, flowRoot, flowName, inputsManifest, unjudged, redone,
+    },
+  });
+}
+
+/**
+ * M4e amendment 13: the Stop on a run that already waits at its ask (the panel's Stop door; also the fallback for a request that
+ * landed right after the park). Writes the request if none is pending (`requestStop`, its one writer), takes the same exclusive
+ * `resume.lock` as a resume, checks the run really is parked on its open, unanswered ask, and stops it at the ask (`stopAtAsk`).
+ * Refused by name, writing nothing, for a run that is not waiting at an ask. $0: no model call, no spend.
+ * @param {object} opts
+ * @param {string} opts.root
+ * @param {string} opts.name
+ * @param {string} opts.runId
+ * @param {unknown} opts.catalogue
+ * @param {() => string} [opts.clock]
+ * @param {() => number} [opts.nowMs]
+ */
+export async function stopParkedRun({
+  root, name, runId, catalogue, clock, nowMs,
+}) {
+  const now = typeof clock === 'function' ? clock : () => new Date().toISOString();
+  const flowDir = join(root, name);
+  const refused = (red) => ({ outcome: 'refused', red: `stop: ${red}` });
+  const runIdCheck = resolveRunDir(flowDir, runId);
+  if (!runIdCheck.ok) return { outcome: 'refused', red: runIdCheck.red };
+  const runDir = runIdCheck.runDir;
+
+  const lockPath = join(runDir, 'resume.lock');
+  const took = await takeResumeLock(runDir, runId, lockPath);
+  if (!took.ok) return { outcome: 'refused', red: took.red };
+  const { lockFd } = took;
+  try {
+    const ask = readAsk(runDir);
+    const state = readRunState(runDir);
+    if (!ask || typeof ask.askId !== 'string' || !state || state.askId !== ask.askId) return refused(`run "${runId}" is not waiting at an ask`);
+    if (existsSync(join(runDir, `answer.${ask.askId}.consumed.json`))) return refused(`run "${runId}" already took its answer`);
+    if (endRow(readHistory(flowDir), runDir, runId) !== null) return refused(`run "${runId}" has ended`);
+    if (!Number.isInteger(state.stepIndex) || state.stepIndex < 0) return refused(`run "${runId}" state.json field "stepIndex" is not a step number`);
+    const audit = auditSpend(runDir);
+    if (!audit.ok) return refused(`run "${runId}" ${audit.red}`);
+    requestStop(runDir); // 'exists' when the door (or a race) wrote it already
+    const read = readFlow({ root, name, catalogue });
+    let capUsd = null;
+    if (read.ok) {
+      const applied = applyRunValues(read.arbiter, name, read.signature.flow, pickRunValues(runDir));
+      if (applied.ok) capUsd = applied.arbiter.capUsd ?? null;
+    }
+    const prev = readLog(runDir);
+    const stepEmits = readAudit(runDir).filter((r) => r.verdict === 'paused').map((r) => r.step).pop() ?? null;
+    return stopAtAsk({
+      flowDir, runDir, runId, capUsd, startedAt: typeof state.startedAt === 'number' ? state.startedAt : Date.now(), now, nowMs: typeof nowMs === 'function' ? nowMs : Date.now,
+      signatureHash: state.signatureHash ?? null, spent: { value: audit.total }, spendComplete: audit.complete,
+      attempts: Array.isArray(prev?.attempts) ? prev.attempts : [], artifacts: prev?.artifacts && typeof prev.artifacts === 'object' ? prev.artifacts : {},
+      stepIndex: state.stepIndex, stepEmits, flowRoot: root, flowName: name, inputsManifest: state.inputsManifest, unjudged: state.evidenceUnjudged ?? [],
+      redone: typeof state.redone === 'number' ? state.redone : 0, parkedAskId: ask.askId,
+    });
   } finally {
     releaseResumeLock(runDir, lockPath);
     try { closeSync(lockFd); } catch { /* already closed */ }
@@ -2127,10 +2667,14 @@ export function readAsk(runDir) {
  *   earlier attempt this run, that already left `spendComplete: false`).
  *   ANDed with this halt's own outcome-based verdict — once false, always
  *   false. Defaults to `true` (every pre-existing call site is unaffected).
+ * @param {{stepIndex: number, flowRoot: string, flowName: string, inputsManifest: any, unjudged?: any[], redone?: number}|null} [opts.resumeAt] - M4e
+ *   amendment 4 item 4: where a `cap-halt`/`stopped` run is re-entered; `haltRun` writes `halt.json` from it (and only for those outcomes).
+ * @param {{where:string, step?:string|null, book?:Record<string, any>}|null} [opts.stop] - amendment 7 item 8: this halt honours a Stop (its words, and the
+ *   cut try's row fields so the call in flight is booked); a request still pending on any other halt is recorded `not honoured`.
  */
 function haltRun({
   flowDir, runDir, runId, capUsd, startedAt, now, nowMs = Date.now, outcome, red, spent, attempts = [], artifacts = {}, signatureHash = null,
-  priorSpendComplete = true,
+  priorSpendComplete = true, resumeAt = null, stop = null,
 }) {
   // F45 finding 3: `startedAt` here is always the RUN's start (every caller
   // now passes `runStartedAt` under this key — see call sites), so `wallMs`
@@ -2139,14 +2683,24 @@ function haltRun({
   const spendComplete = priorSpendComplete
     && outcome !== 'provider-red' && outcome !== 'pricing-red' && outcome !== 'cap-halt';
   mkdirSync(flowDir, { recursive: true });
-  appendHistory(flowDir, {
-    runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash,
-  });
   if (existsSync(runDir)) {
     recordLateAnswerIfAny(runDir, now);
     writeLog(runDir, {
       runId, outcome, red, attempts, artifacts,
     });
+    // M4e amendment 4 item 4: a cap-halted or stopped run leaves the one record Resume continues from (its only writer).
+    if (resumeAt && HALT_OUTCOMES.includes(outcome)) {
+      writeFileSync(join(runDir, HALT_FILE), `${JSON.stringify({
+        runId, outcome, at: now(), flow: { root: resumeAt.flowRoot, name: resumeAt.flowName }, signatureHash, inputsManifest: resumeAt.inputsManifest,
+        stepIndex: resumeAt.stepIndex, startedAt, unjudged: resumeAt.unjudged ?? [],
+        ...(Number.isInteger(resumeAt.redone) ? { redone: resumeAt.redone } : {}),
+      }, null, 2)}\n`, { flag: 'wx' });
+    }
+    settleStop({ runDir, now, outcome, stop }); // amendment 7 item 8: every Stop leaves its rows
   }
+  // The history end row is the LAST write: a reader that sees it finds the run fully settled (halt.json, log.json, stop rows).
+  appendHistory(flowDir, {
+    runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash,
+  });
   return { outcome, red, spentUsd: spent.value };
 }

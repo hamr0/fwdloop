@@ -166,6 +166,33 @@ function reviseMessage(reds) {
     + `${TOOL} again with the complete corrected declaration:\n${reds.map((r) => `- ${r}`).join('\n')}`;
 }
 
+/**
+ * M4e amendment 3 item 3 (revise the plan): the first round's user text when the human asked for a change. The model sees the
+ * current plan (its own fields only: no machine-set `goal`, no `inputFacts`) and the note; the rules above still hold, and the
+ * validator below is the ONE check that refuses a plan that touches what only the card may set.
+ */
+export function reviseOpening(plan, note) {
+  const own = {
+    steps: (plan.steps ?? []).map(({ goal, ...rest }) => rest), // eslint-disable-line no-unused-vars
+    guardrailClasses: plan.guardrailClasses ?? {},
+    unjudgeable: plan.unjudgeable ?? {},
+    refused: plan.refused ?? [],
+  };
+  return [
+    `The human reviewed the plan below and asks for a change to the plan. Call ${TOOL} with the complete revised plan.`,
+    '',
+    'Current plan:',
+    JSON.stringify(own),
+    '',
+    'The human\'s note:',
+    note,
+    '',
+    'The note may change HOW steps are done (their primitives, reads, close checks). It can never change the numbered job lines, '
+    + 'the cap, the destination, the signed asks and their waits, or the inputs: those come only from the card, so keep every '
+    + 'line served by its step and every signed ask a pure stop exactly as the rules above say.',
+  ].join('\n');
+}
+
 function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 
 // F49: deepseek-flash 400s on a forced tool_choice in thinking mode; the drafter forces its tool, so disable thinking.
@@ -176,13 +203,19 @@ export const DRAFT_PROVIDER_OPTIONS = Object.freeze({ ...LIVE_PROVIDER_OPTIONS, 
  * the batch); otherwise a live provider is built from `slot` (throws on a bad
  * key — the batch preflights first). `budgetUsd` is this draft's hard cap.
  * `makeProviderFn` is a test seam: the live-provider factory (default `makeProvider`).
+ * `onBook` (M4e piece 2a, scope 13): called right BEFORE each provider call (`inFlight: true`, the call counted in
+ * `calls`) and right AFTER it (`inFlight: false`), with what is known so far, so the caller can book spend per call
+ * and a draft killed between rounds still has its paid rounds on disk. It may throw before a call (nothing is
+ * spent then and the draft stops); after a call it is the caller's to keep from throwing.
+ * `revise` (M4e amendment 3 item 3): `{ plan, note }` — the current green plan and the human's note; the first round then asks for the
+ * revised plan. Everything else (the $0 gates, the validator, the budget, the metering) is the same code path as a first draft.
  *
  * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number, calls:number, spendComplete:boolean,
  *   costUsd:number|null, modelReturned:string|null, modelId?:string, price?:object|null, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[]}>}
  */
 export async function draft({
   proseText, slot = 'deepseek', model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
-  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider,
+  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, revise,
 }) {
   const fail = (reds, extra = {}) => ({
     ok: false, declaration: null, reds, rounds: 0, calls: 0, spendComplete: true, costUsd: 0, modelReturned: null, structureRetries: 0, revisions: 0, stop: 'pre-flight', log: [], ...extra,
@@ -228,7 +261,7 @@ export async function draft({
   let revisions = 0;
   let lastReds = [];
   let lastDecl = null;
-  let userText = `Call ${TOOL} now.`;
+  let userText = revise ? reviseOpening(revise.plan, revise.note) : `Call ${TOOL} now.`;
   let nextKind = 'first'; // what the round about to run actually is
   let validatorReds = []; // the last validator refusal; a structure retry after a revision must not drop it
   let stop = null;
@@ -255,6 +288,10 @@ export async function draft({
     let result;
     let threw = null;
     calls += 1;
+    const book = (inFlight) => onBook?.({
+      inFlight, calls, unmetered, metered: sumMeterings(meterings), modelId, price: priceRecord(prices, rates),
+    });
+    book(true);
     try {
       result = await loop.run(
         [{ role: 'system', content: system }, { role: 'user', content: userText }],
@@ -265,6 +302,7 @@ export async function draft({
       threw = err;
       if (roundEvents.length === 0) unmetered += 1;
     }
+    book(false);
     const entry = { round: log.length + 1, kind: nextKind };
 
     if (threw) {
@@ -297,7 +335,7 @@ export async function draft({
       declaration.steps = declaration.steps.map((st) => (isPlainObject(st) ? { ...st, goal: goalForLine(st.fromLine, lines) } : st));
     }
     const verdict = validateDeclaration(declaration, {
-      arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true,
+      arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
     });
     lastDecl = declaration;
     if (verdict.ok) {

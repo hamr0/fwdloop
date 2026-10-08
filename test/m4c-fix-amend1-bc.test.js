@@ -19,6 +19,7 @@ import { reopenAsk, effectiveExpiresAt, answerAsk } from '../src/ask.js';
 import { createPanelServer } from '../src/panel/server.js';
 import { computeGlyph, getRunAsks, listRuns } from '../src/panel/data.js';
 import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(HERE, '..');
@@ -44,7 +45,7 @@ function expiredRun(tag) {
   const root = tmp(tag);
   ROOTS.push(root);
   const w = writeFlow({
-    root, name: 'job2', proseText: fixture('job2-with-sources.signed.txt'), declaration: JSON.parse(fixture('job2.m1.declaration.json')), signedBy: 'hamr', signedAt: '2026-09-25T12:00:00Z', catalogue: CAT,
+    root, name: 'job2', proseText: sandboxSend(fixture('job2-with-sources.signed.txt')), declaration: JSON.parse(fixture('job2.m1.declaration.json')), signedBy: 'hamr', signedAt: '2026-09-25T12:00:00Z', catalogue: CAT,
   });
   assert.equal(w.ok, true);
   const src = tmp(`${tag}-src`);
@@ -177,7 +178,6 @@ test('amendment 1 (b): POST /api/reopen — gated like the other POSTs, one clic
   assert.deepEqual(ask.reopen, { waitMs: WAIT, late: false, why: 'Nobody answered in time.' });
   assert.equal(ask.open, false);
   // gates
-  assert.equal((await rq(port, { method: 'POST', url: '/api/reopen', headers: { ...own, cookie: '' }, body })).status, 403);
   assert.equal((await rq(port, { method: 'POST', url: '/api/reopen', headers: { ...own, origin: 'http://evil.example.com' }, body })).status, 403);
   assert.equal((await rq(port, { method: 'POST', url: '/api/reopen', headers: own, body: { ...body, askId: '' } })).status, 400);
   assert.deepEqual(reopens(run.runDir), [], 'a refused request wrote nothing');

@@ -115,8 +115,8 @@ export function resolveSlot(slotName, { config = {} } = {}) {
  * provider slot) wins over a row here, per field, through `resolvePrices` below —
  * the one lookup every model call is booked and cap-checked by (M4d, signed
  * 2026-10-05; that REPLACES the 2026-09-21 "edit a row here, never a runtime
- * flag" ruling). `cacheIn` (optional) is the cache-READ price per 1K; a row
- * without it books cache reads at bare-agent's default 0.1x of `in`.
+ * flag" ruling). Cached input is priced as input
+ * (M4d amendment 2): a row has no cache rate.
  */
 export const RATES_BY_SUFFIX = {
   'zai-org/GLM-5.2': { in: 0.0006, out: 0.0022, source: 'published' },
@@ -130,9 +130,9 @@ export const RATES_BY_SUFFIX = {
   'syn:small:text': { in: 0.0006, out: 0.0025, source: 'ceiling' },
   'deepseek-v4-flash': { in: 0.00044, out: 0.00132, source: 'published' }, // F22: retired name, historical rows only
   // DeepSeek-V4.1-Flash, peak. Source: https://api-docs.deepseek.com/quick_start/pricing/ (fetched
-  // 2026-10-05: cache hit $0.006, cache miss $0.30, output $1.20 per 1M). `cacheIn` = the hit price
-  // (hamr ruling "A", 2026-10-05, poc/m4d/RESULTS.md (b): bare-agent's 0.1x default booked hits 5x real).
-  'deepseek-flash': { in: 0.0003, cacheIn: 0.000006, out: 0.0012, source: 'published' },
+  // 2026-10-05: cache miss $0.30, output $1.20 per 1M). The cache-hit
+  // price is deliberately not used: cached input books at `in` (M4d amendment 2, signed 2026-10-06).
+  'deepseek-flash': { in: 0.0003, out: 0.0012, source: 'published' },
   'deepseek-v4-pro': { in: 0.00132, out: 0.00396, source: 'published' },
 };
 
@@ -172,15 +172,15 @@ const perM = (per1K) => Number((per1K * 1000).toPrecision(12));
  * THE one price lookup (M4d scope item 6): every model call — run, resume, model step, drafter —
  * is booked and cap-checked from this. Per field: a Settings price (`config.prices[slot]`, USD per
  * 1M -> per 1K) wins, else the code table's row, else the table's HIGHEST entry for that field
- * (an unknown model; unknown cost is never 0). A cache-read price is known only from Settings or a
- * row's `cacheIn`; otherwise it is left out (`cacheReadMult` omitted -> bare-agent's 0.1x of `in`).
+ * (an unknown model; unknown cost is never 0). M4d amendment 2: cached input is priced AS input —
+ * `cacheReadMult` is always 1; a saved `cachedInPerM` and a row's `cacheIn` are never read here.
  *
  * @param {string} modelId
  * @param {{ slot?: string, config?: Record<string, any>, ratesTable?: Record<string, any> }} [opts]
  * @returns {{
  *   rates: { in: number, out: number, cacheReadMult?: number },
  *   perM: { inPerM: number, cachedInPerM: number, outPerM: number },
- *   source: { in: 'settings'|'table'|'ceiling', cachedIn: 'settings'|'table'|'default-multiplier', out: 'settings'|'table'|'ceiling' },
+ *   source: { in: 'settings'|'table'|'ceiling', cachedIn: 'input', out: 'settings'|'table'|'ceiling' },
  *   suffix: string|null,
  * }}
  */
@@ -196,17 +196,12 @@ export function resolvePrices(modelId, { slot, config = {}, ratesTable = RATES_B
   };
   const inF = field('inPerM', 'in');
   const outF = field('outPerM', 'out');
-  let cachedIn = null;
-  let cachedSrc = 'default-multiplier';
-  if (set.cachedInPerM !== undefined) { cachedIn = set.cachedInPerM / 1000; cachedSrc = 'settings'; }
-  else if (row && row.cacheIn !== undefined) { cachedIn = row.cacheIn; cachedSrc = 'table'; }
-  /** @type {{ in: number, out: number, cacheReadMult?: number }} */
-  const rates = { in: inF.v, out: outF.v };
-  if (cachedIn !== null) rates.cacheReadMult = cachedIn / inF.v;
+  /** @type {{ in: number, out: number, cacheReadMult: number }} */
+  const rates = { in: inF.v, out: outF.v, cacheReadMult: 1 };
   return {
     rates,
-    perM: { inPerM: perM(inF.v), cachedInPerM: perM(cachedIn ?? inF.v * 0.1), outPerM: perM(outF.v) },
-    source: { in: /** @type {any} */ (inF.src), cachedIn: /** @type {any} */ (cachedSrc), out: /** @type {any} */ (outF.src) },
+    perM: { inPerM: perM(inF.v), cachedInPerM: perM(inF.v), outPerM: perM(outF.v) },
+    source: { in: /** @type {any} */ (inF.src), cachedIn: 'input', out: /** @type {any} */ (outF.src) },
     suffix: resolved ? resolved.suffix : null,
   };
 }

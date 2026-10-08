@@ -241,6 +241,73 @@ function deriveFromLine(fromLine, lines, guardrailClasses) {
   return { ok: true, class: resolved.class, line };
 }
 
+/** The first "<n> words" in a guardrail ("3 sections, all under 600 words" -> 600), or null. */
+function guardrailWordLimit(guardrail) {
+  const m = typeof guardrail === 'string' ? /(\d+)\s*words?\b/i.exec(guardrail) : null;
+  return m ? Number(m[1]) : null;
+}
+
+const NUMBER_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+/** M4e amendment 7 item 1: the first "<N> sections" in a guardrail (N digits, or the words one..ten), or null. */
+function guardrailSectionCount(guardrail) {
+  const m = typeof guardrail === 'string' ? /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+)?sections?\b/i.exec(guardrail) : null;
+  if (!m) return null;
+  return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()];
+}
+const MAX_SECTION_NAME_WORDS = 8;
+const MAX_SECTION_SHARE_OF_LINE = 0.6;
+const wordCount = (t) => t.trim().split(/\s+/).filter(Boolean).length;
+
+/** M4e amendment 6 item 1 (+ amendment 7 item 1): a step's check cannot fight its own job line. Sections must be found in the line's words
+ *  (case-insensitive substring of the goal, first occurrence) and in the line's order; `maxWords` must equal the line's
+ *  own guardrail limit when that guardrail states one. A shape key a note may still change (mustCarry, linesPerInvoice)
+ *  is untouched. Pushes reds naming the step and both orders/values. */
+export function checkShapeFitsJobLine(step, i, lines, reds) {
+  const { shape } = step.close;
+  const label = `steps[${i}]`;
+  const line = Number.isInteger(step.fromLine) ? lines.find((l) => l.n === step.fromLine) : undefined;
+  if (Array.isArray(shape.sections) && shape.sections.every((n) => typeof n === 'string' && n.length > 0) && typeof step.goal === 'string') {
+    const goal = step.goal.toLowerCase().replace(/\s+/g, ' ');
+    const found = [];
+    for (const name of shape.sections) {
+      const at = goal.indexOf(name.toLowerCase().replace(/\s+/g, ' ').trim());
+      if (at < 0) {
+        reds.push(`declaration: ${label}.close.shape.sections names "${name}", which is not in the job line's words — change the job line on the card to change what it names`);
+      } else found.push({ name, at });
+    }
+    if (found.length === shape.sections.length) {
+      const jobOrder = [...found].sort((a, b) => a.at - b.at).map((f) => f.name);
+      if (jobOrder.some((n, k) => n !== shape.sections[k])) {
+        reds.push(`declaration: ${label} the job line says ${jobOrder.join(', then ')}; the check says ${shape.sections.join(', then ')} — change the job line on the card to change the order`);
+      }
+    }
+  }
+  const wantSections = guardrailSectionCount(line?.guardrail);
+  if (Array.isArray(shape.sections)) {
+    if (wantSections !== null && shape.sections.length !== wantSections) {
+      reds.push(`declaration: ${label} the guardrail says ${wantSections} sections; the check has ${shape.sections.length}`);
+    }
+    const goalWords = typeof step.goal === 'string' ? wordCount(step.goal) : 0;
+    const names = shape.sections.filter((n) => typeof n === 'string' && n.trim().length > 0);
+    for (const name of names) {
+      const n = wordCount(name);
+      if (n > MAX_SECTION_NAME_WORDS) {
+        reds.push(`declaration: ${label}.close.shape.sections names "${name}" (${n} words) — a section name is a short phrase from the job line, at most ${MAX_SECTION_NAME_WORDS} words`);
+      } else if (goalWords > 0 && n / goalWords >= MAX_SECTION_SHARE_OF_LINE) {
+        reds.push(`declaration: ${label}.close.shape.sections names "${name}", which is the job line or most of it — a section name is a short phrase from the line`);
+      }
+    }
+    const norm = names.map((n) => n.toLowerCase().replace(/\s+/g, ' ').trim());
+    norm.forEach((a, x) => norm.forEach((b, y) => {
+      if (x !== y && a.includes(b)) reds.push(`declaration: ${label}.close.shape.sections "${names[x]}" contains "${names[y]}" — one section name may not contain another`);
+    }));
+  }
+  const limit = guardrailWordLimit(line?.guardrail);
+  if (limit !== null && shape.maxWords !== undefined && shape.maxWords !== limit) {
+    reds.push(`declaration: ${label} the job line's guardrail says ${limit} words; the check says ${shape.maxWords} — change the guardrail on the card to change the limit`);
+  }
+}
+
 /**
  * Validate a drafter declaration against the M1 closed schema. `arbiter`
  * and `lines` are `parseSignedText`'s output; `catalogue` is a plain array
@@ -253,11 +320,13 @@ function deriveFromLine(fromLine, lines, guardrailClasses) {
  * by name, even if the catalogue lists it. Omitted = no wired check (existing callers).
  * `verbatimGoals` (optional boolean; M6a amendment 1): when true, a step naming a signed line must carry that line's
  * text as its goal, exactly. Off by default so already-signed flows keep running; draft and sign turn it on.
- * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string>, verbatimGoals?: boolean }} [context]
+ * `fitJobLine` (optional boolean; M4e amendment 6): when true, a `close.shape` whose sections/maxWords fight the step's job
+ * line or its guardrail is a red. Draft, change and sign turn it on; readFlow does not (signed flows keep running).
+ * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string>, verbatimGoals?: boolean, fitJobLine?: boolean }} [context]
  * @returns {ValidateDeclarationResult}
  */
 export function validateDeclaration(declaration, context = {}) {
-  const { arbiter, lines, catalogue, wired, verbatimGoals } = context;
+  const { arbiter, lines, catalogue, wired, verbatimGoals, fitJobLine } = context;
   const reds = [];
 
   if (!isPlainObject(declaration)) {
@@ -514,6 +583,7 @@ export function validateDeclaration(declaration, context = {}) {
             reds.push(`declaration: ${label}.close.shape must be an object`);
           } else {
             checkShapeKeys(step.close.shape, `declaration.${label}.close.shape`, reds);
+            if (fitJobLine === true) checkShapeFitsJobLine(step, i, safeLines, reds);
           }
         }
       }

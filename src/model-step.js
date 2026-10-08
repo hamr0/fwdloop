@@ -24,7 +24,7 @@
 // (green/softgreen/anything else) — never from the step's `shape` — the
 // executor context (M2 scope item 3) carries neither.
 
-import { Loop } from 'bare-agent';
+import { Loop, HaltError } from 'bare-agent';
 import { GateRefusal } from './primitives.js';
 import { ConfigError } from './config.js';
 
@@ -215,11 +215,22 @@ function addToolCounts(cumulative, byTool, grantedNames) {
 // clean row would just be noise).
 function toolFields(cumulative) {
   return {
+    // M4e amendment 7 item 8: model calls (turns) this attempt made, so a Stop can say "after turn T of try K".
+    turns: cumulative.rounds,
     tools: cumulative.tools,
     // Gate refusals this attempt — always present (empty array when none) so
     // absence can never be confused with "none".
     refused: cumulative.refused,
     ...(cumulative.ungranted.length > 0 ? { ungranted: cumulative.ungranted } : {}),
+  };
+}
+
+const STOP_RULE = 'stop-requested';
+
+/** The attempt result for a Stop that landed mid-attempt: every call made is already summed into `cumulative`. */
+function stoppedResult(cumulative, modelId, modelMatch) {
+  return {
+    ok: false, stopped: true, red: 'stopped by you', costUsd: cumulative.costUsd, tokens: cumulative.tokens, ...toolFields(cumulative), model: modelId, modelMatch,
   };
 }
 
@@ -232,14 +243,17 @@ function toolFields(cumulative) {
  * @param {{in:number,out:number}} [opts.rates]
  * @param {string} [opts.modelId]
  * @param {Record<string,string|undefined>} [opts.env] - the merged shell+keys-file env the key is read from (default process.env).
- * @returns {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class?:string}) => Promise<any>}
+ * @returns {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class?:string}, seam?:{stopRequested?:() => boolean}) => Promise<any>}
  */
 export function makeLiveModelStep({
   slot, model, spendPath, provider: injectedProvider, rates: injectedRates, modelId: injectedModelId, env,
 }) {
   const live = injectedProvider == null;
 
-  return async function liveModelStep(executorContext, grantedTools, stepMeta = {}) {
+  // M4e amendment 7 item 8: `seam.stopRequested` (the runner's one stop reader, never this module's) is asked before EVERY model call —
+  // each turn inside a Loop (bare-agent's `assemble`, which runs before every `provider.generate`, a thrown HaltError being a clean
+  // return) and each new Loop (a new round of this attempt). The call in flight when a Stop lands finishes and is metered; none starts after.
+  return async function liveModelStep(executorContext, grantedTools, stepMeta = {}, seam = {}) {
     let provider = injectedProvider;
     let rates = injectedRates;
     let modelId = injectedModelId;
@@ -323,7 +337,11 @@ export function makeLiveModelStep({
       };
       const tools = [...primitiveTools, emitTool];
       const roundMeterings = [];
-      const loop = new Loop({ provider, rates, onLlmResult: async (ev) => { roundMeterings.push(ev); } });
+      const stopRequested = seam?.stopRequested;
+      const stopSeam = typeof stopRequested === 'function'
+        ? { assemble: async (msgs) => { if (stopRequested()) throw new HaltError('stop requested', { rule: STOP_RULE }); return msgs; } }
+        : {};
+      const loop = new Loop({ provider, rates, onLlmResult: async (ev) => { roundMeterings.push(ev); }, ...stopSeam });
 
       const startedAt = Date.now();
       let result;
@@ -389,6 +407,10 @@ export function makeLiveModelStep({
       }
 
       const wallMs = Date.now() - startedAt;
+      const stoppedByYou = result.error === `halt:${STOP_RULE}`;
+      // A Stop read before this Loop's first call: no call ran, so there is nothing to meter or book — and an empty metering
+      // must never be added as "cost unknown" onto the calls an earlier round already made.
+      if (stoppedByYou && roundMeterings.length === 0) return stoppedResult(cumulative, modelId, null);
       const metered = sumMeterings(roundMeterings);
       cumulative = addMeter(cumulative, metered);
       cumulative = { ...cumulative, ...addToolCounts(cumulative, result.metrics?.byTool, grantedNames) };
@@ -405,6 +427,10 @@ export function makeLiveModelStep({
       });
 
       const modelMatch = classifyModelId(modelId, metered.model);
+
+      // The call in flight finished and is booked above. If it already emitted the artifact the step simply closes (the runner's
+      // after-step seam then ends the run); otherwise the step ends here, `stopped`, with its tries and spend carried.
+      if (stoppedByYou && capturedArtifact === undefined) return stoppedResult(cumulative, modelId, modelMatch);
 
       if (result.stopReason === 'max_tokens') {
         // Rule 4: deterministic (the step needs a smaller output or a

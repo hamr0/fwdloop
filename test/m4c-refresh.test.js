@@ -15,6 +15,7 @@ import path from 'node:path';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { listRuns, getRunDetail } from '../src/panel/data.js';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
@@ -146,16 +147,16 @@ test('the Workflows card and every run row say the same words, from the run\'s o
   assert.equal(words.at({ askedAt: '2026-10-01T09:00:00Z' }), 'asked T(2026-10-01T09:00:00Z)');
   // both cards go through them (the Workflows card used to read only `at`, so a running or parked flow said "unknown")
   const wf = page.slice(page.indexOf('var wfFullName'), page.indexOf('row.addEventListener("click"', page.indexOf('var wfFullName')));
-  assert.match(wf, /runAtText\(g\.lastRow\)/);
-  assert.match(wf, /runSpendText\(g\.lastRow\)/);
-  assert.match(fnSrc('buildRunRowEl'), /runAtText\(r\)/);
+  assert.match(wf, /runMetaLineHtml\(g\.lastRow, /);
+  assert.match(fnSrc('runMetaLineHtml'), /runSpendText\(r\)[\s\S]*runAtText\(r\)/);
+  assert.match(fnSrc('buildRunRowEl'), /runMetaLineHtml\(r, null\)/);
 });
 
 // ---- a running run's words -----------------------------------------------------------------------
 test('a run mid-step reads [▶] with a start time; no "unknown", no "parked or died" anywhere in its card or header', async () => {
   const root = mkdtempSync(path.join(tmpdir(), 'fwdloop-m4c-refresh-'));
   const w = writeFlow({
-    root, name: 'job2', proseText: fixture('job2-with-sources.signed.txt'), declaration: JSON.parse(fixture('job2.m1.declaration.json')),
+    root, name: 'job2', proseText: sandboxSend(fixture('job2-with-sources.signed.txt')), declaration: JSON.parse(fixture('job2.m1.declaration.json')),
     signedBy: 'hamr', signedAt: '2026-09-30T12:00:00Z', catalogue: CATALOGUE,
   });
   assert.equal(w.ok, true);

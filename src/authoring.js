@@ -28,9 +28,13 @@ import { canonicalBytes } from './signature.js';
 import { writeFlow, readFileInside, readdirInside, checkFlowName } from './flow.js';
 import { checkSendDestination } from './runner.js';
 import { PROVIDER_SLOTS, checkKeyPreflight, appendSpendRow } from './provider.js';
+import { writeDraftSpend } from './draftspend.js';
+import { writeSetup } from './setup.js';
 
 export const DRAFT_BUDGET_USD = 0.10;
 export const SPEC_HASH_FILE = 'spec.hash';
+/** The one folder under the flows root where the panel keeps its draft folders (M4e). Starts with a dot, so it is never a flow name. */
+export const PANEL_DRAFTS_DIR = '.drafts';
 /** Written when the end sweep finds a key in the draft dir; sign refuses a dir that has it. */
 export const LEAK_MARKER_FILE = 'scrub-leak.red';
 export const SIGN_LINE = (dir, hash) => `DRAFTED — NOT SIGNED. To sign: fwdloop sign ${dir} --approve ${hash}`;
@@ -68,6 +72,15 @@ export function scrub(text, secrets) {
   return out;
 }
 
+/**
+ * Does `text` carry any provider key VALUE in `env` (every slot, 8+ chars, literal)? The one test for a human's free text
+ * (the revise note) — the same literal rule `scrub` and `sweepForSecrets` use.
+ * @param {string} text @param {Record<string, string|undefined>} env
+ */
+export function textHasKey(text, env) {
+  return Object.values(PROVIDER_SLOTS).some((p) => { const k = env[p.envVar]; return typeof k === 'string' && k.length >= 8 && text.includes(k); });
+}
+
 /** Count files directly inside `dir` that contain a secret literally. */
 export function sweepForSecrets(dir, secrets) {
   const live = secrets.filter((s) => typeof s === 'string' && s.length >= 8);
@@ -96,6 +109,24 @@ export const costText = (n, spendComplete = true) => {
 };
 const usd = costText;
 
+/** The readout's section headings: the ONE list. buildReadout writes them from here and `readoutHeadIndexes` finds them by it,
+ *  so the panel's bold and the template cannot drift (M4e amendment 7 item 3). */
+const READOUT_HEADS = {
+  inputs: 'INPUTS',
+  steps: 'STEPS',
+  asks: 'ASKS (human stops)',
+  sends: 'SEND TARGET (nothing leaves before an accepted ask)',
+  refused: 'REFUSED LINES',
+  jobLines: 'JOB LINES',
+};
+/** Zero-based indexes of the heading lines in a readout's text (split on "\n"): the panel renders those bold. */
+export function readoutHeadIndexes(text) {
+  const heads = new Set(Object.values(READOUT_HEADS));
+  const idx = [];
+  String(text).split('\n').forEach((l, i) => { if (heads.has(l)) idx.push(i); });
+  return idx;
+}
+
 /** Plain-text readout of what the human is about to sign. Pure. */
 export function buildReadout({
   declaration, arbiter, lines, name, modelId, costUsd, rounds, spendComplete, root,
@@ -105,29 +136,33 @@ export function buildReadout({
   out.push(`Drafted by: ${modelId ?? '?'} in ${rounds} round(s), cost ${usd(costUsd, spendComplete)}`);
   if (typeof root === 'string') out.push(`Flows root: ${root}  (the flow is written to <flows root>/${name} when you sign)`);
   out.push(`Cap per run (signed by you in the prose): $${arbiter.capUsd}`, '');
-  out.push('INPUTS');
+  out.push(READOUT_HEADS.inputs);
   for (const s of arbiter.sources) {
     const h = declaration.inputFacts?.[s.role];
     out.push(`  ${s.role} = ${s.path}${h ? `  [headings: ${h.join(' | ') || 'none'}]` : ''}`);
   }
-  out.push('', 'STEPS');
+  out.push('', READOUT_HEADS.steps);
   declaration.steps.forEach((st, i) => {
     out.push(`  ${i + 1}. (line ${st.fromLine}) ${st.goal}`);
     out.push(`     grants: ${st.primitives?.length ? st.primitives.join(', ') : 'none (pure stop)'}`
       + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${st.close?.class}`);
   });
-  out.push('', 'ASKS (human stops)');
+  out.push('', READOUT_HEADS.asks);
   for (const a of arbiter.asks) out.push(`  line ${a.line}: "${a.question}" (ttl ${fmtTtl(a.ttlMs)})`);
   if (arbiter.asks.length === 0) out.push('  none');
-  out.push('', 'SEND TARGET (nothing leaves before an accepted ask)');
+  out.push('', READOUT_HEADS.sends);
   for (const s of arbiter.sends) out.push(`  line ${s.line} -> ${s.target.kind}:${s.target.path}`);
   if (arbiter.sends.length === 0) out.push('  none');
   const refused = declaration.refused ?? [];
   if (refused.length) {
-    out.push('', 'REFUSED LINES');
+    out.push('', READOUT_HEADS.refused);
     for (const r of refused) out.push(`  line ${r.line}: ${r.reason}`);
   }
-  out.push('', 'JOB LINES', ...lines.map((l) => `  ${l.n}. ${l.text}`));
+  out.push('', READOUT_HEADS.jobLines);
+  for (const l of lines) {
+    out.push(`  ${l.n}. ${l.text}`);
+    if (typeof l.guardrail === 'string' && l.guardrail.trim() !== '') out.push(`  ~ ${l.guardrail}`);
+  }
   return `${out.join('\n')}\n`;
 }
 
@@ -163,7 +198,7 @@ export function readProseFile(file) {
  * Test seam: `provider`/`rates`/`modelId` are injected; without them a live provider is built.
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot = 'deepseek', model, budgetUsd = DRAFT_BUDGET_USD, env = process.env, provider, rates, modelId,
+  proseFile, dir, root, name, slot = 'deepseek', model, budgetUsd = DRAFT_BUDGET_USD, env = process.env, provider, rates, modelId, reviseFrom, noteFile,
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
   const nameCheck = checkFlowName(name);
@@ -174,7 +209,10 @@ export async function draftToDir({
   const realRoot = realpathOfNew(root);
   const realDir = realpathOfNew(dir);
   const rel = path.relative(realRoot, realDir);
-  if (rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel))) {
+  // M4e piece 2: the panel's own draft folders live at exactly `<root>/.drafts/<id>/...` (a dot-name is never a flow:
+  // `checkFlowName` refuses it, so `listFlowNames`/`readFlow` never list it). Nothing else under the root is allowed.
+  const panelDrafts = rel.startsWith(`${PANEL_DRAFTS_DIR}${path.sep}`) && !path.isAbsolute(rel);
+  if (!panelDrafts && (rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel)))) {
     return refuse([`draft: "${dir}" is inside the flows root "${root}" — an unsigned draft would show as a flow; use a --out outside the flows root`]);
   }
   const read = readProseFile(proseFile);
@@ -188,6 +226,28 @@ export async function draftToDir({
   }
   const secrets = secretVar && env[secretVar] ? [env[secretVar]] : [];
   if (secrets.some((s) => s.length >= 8 && prose.text.includes(s))) return refuse(['prose: contains an API key value — refused']);
+  // M4e amendment 3 item 3: a revise starts from the current green plan's dir plus the human's note, and nothing else. All $0, before the dir is claimed.
+  /** @type {{ plan: any, note: string }|undefined} */
+  let revise;
+  if ((reviseFrom === undefined) !== (noteFile === undefined)) return refuse(['draft: --revise-from and --note go together']);
+  if (reviseFrom !== undefined && noteFile !== undefined) {
+    const prev = {};
+    for (const f of ['prose.txt', 'declaration.json', SPEC_HASH_FILE]) {
+      const r = readFileInside(reviseFrom, f);
+      if (!r.ok) return refuse([`revise: "${reviseFrom}" is not a green draft — ${f} ${r.missing ? 'is missing' : `is refused (${r.red})`}`]);
+      prev[f] = r.text;
+    }
+    // the card's fields come only from the card: a revise carries the SAME prose, byte for byte, as the plan it revises
+    if (prev['prose.txt'] !== prose.text) return refuse(['revise: the prose differs from the plan being revised — a revise never changes the card']);
+    const noteRead = readFileInside(path.dirname(noteFile), path.basename(noteFile));
+    if (!noteRead.ok) return refuse([`revise: cannot read the note "${noteFile}": ${noteRead.missing ? 'missing' : noteRead.red}`]);
+    const note = noteRead.text;
+    if (note.trim() === '') return refuse(['revise: the note is empty']);
+    if (textHasKey(note, env)) return refuse(['note: contains an API key value — refused']);
+    let plan;
+    try { plan = JSON.parse(prev['declaration.json']); } catch { return refuse(['revise: the plan being revised is not valid JSON']); }
+    revise = { plan, note };
+  }
   // Red messages can echo what a provider's error body echoed (a key): scrubbed like every file, before anything prints them.
   const cleanReds = (reds) => (reds ?? []).map((r) => scrub(String(r), secrets));
   // Claim the dir BEFORE the paid round (exclusive mkdir: a race or an existing path refuses at $0).
@@ -200,8 +260,26 @@ export async function draftToDir({
     return e.code === 'EEXIST' ? exists() : refuse([`draft: cannot create "${dir}": ${e.code ?? e.message}`]);
   }
 
+  // Spend is booked per call into `<dir>/draft-spend.json` (src/draftspend.js), so a draft stopped between rounds
+  // keeps what it paid. The first write is the mark that a call is in flight: if that cannot be written, the call is not made.
+  let startedAt = null;
+  const onBook = ({
+    inFlight, calls, unmetered, metered, modelId: usedModel, price,
+  }) => {
+    const now = new Date().toISOString();
+    startedAt ??= now;
+    try {
+      writeDraftSpend(dir, {
+        kind: 'draft-live', provider: slot, model: usedModel ?? modelId ?? null, price: price ?? null, tokens: metered.tokens, costUsd: metered.costUsd, rounds: metered.rounds,
+        calls, spendComplete: !inFlight && unmetered === 0 && metered.costUsd !== null, inFlight, at: startedAt, startedAt, updatedAt: now,
+      });
+    } catch (e) {
+      if (inFlight) throw new Error(`draft: cannot book the spend before the call (${e.code ?? e.message}) — nothing was spent`);
+      // after a call the cost is already in the file as "one call in flight" (a ceiling): the honest direction, so no throw
+    }
+  };
   const result = await draft({
-    proseText: prose.text, slot, model, budgetUsd, provider, rates, modelId, env,
+    proseText: prose.text, slot, model, budgetUsd, provider, rates, modelId, env, onBook, revise,
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }
@@ -219,6 +297,7 @@ export async function draftToDir({
   files['prose.txt'] = prose.text; // verbatim
   const targetText = dj({ root, name });
   files['target.json'] = targetText;
+  if (revise) files['note.txt'] = revise.note; // kept with the draft it made (write-once: the dir is exclusive)
   files['log.json'] = scrub(dj({
     ok: result.ok, stop: result.stop, reds: result.reds, rounds: result.rounds, calls: result.calls, costUsd: result.costUsd, spendComplete: result.spendComplete,
     modelId: result.modelId, modelReturned: result.modelReturned, structureRetries: result.structureRetries,
@@ -259,6 +338,9 @@ export async function draftToDir({
       spendComplete: result.spendComplete,
       stop: result.stop,
       budgetUsd,
+      // the draft's own time (amendment 7 item 2: the Draft's total time adds up from these); null when no call was booked
+      startedAt,
+      wallMs: startedAt === null ? null : Math.max(0, Date.now() - Date.parse(startedAt)),
     });
     for (const [f, text] of Object.entries(files)) writeFileSync(path.join(dir, f), text);
     leaks = sweepForSecrets(dir, secrets);
@@ -279,9 +361,10 @@ export async function draftToDir({
 /**
  * The human step, $0. Every refusal returns reds and writes NO flow.
  * `signedBy` must come from the human's own invocation (the CLI's --signed-by/username).
+ * `sessionDir` (the panel's draft folder: card, notes, every change) widens the setup record; the CLI has none, so its record is the one plan folder.
  */
 export function signDraft({
-  dir, approve, signedBy, signedAt = new Date().toISOString(), env = process.env,
+  dir, approve, signedBy, signedAt = new Date().toISOString(), env = process.env, sessionDir,
 }) {
   const refuse = (...reds) => ({ ok: false, reds });
   if (readFileInside(dir, LEAK_MARKER_FILE).ok) return refuse(`sign: "${dir}" carries a key-leak marker (${LEAK_MARKER_FILE}) — never signed`);
@@ -319,7 +402,7 @@ export function signDraft({
   const cat = loadCatalogue();
   if (!cat.ok) return refuse(`sign: catalogue: ${cat.reds.join('; ')}`);
   const verdict = validateDeclaration(declaration, {
-    arbiter: signed.arbiter, lines: signed.lines, catalogue: cat.primitives, wired: WIRED_VERBS, verbatimGoals: true,
+    arbiter: signed.arbiter, lines: signed.lines, catalogue: cat.primitives, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
   });
   if (!verdict.ok) return { ok: false, reds: verdict.reds };
 
@@ -328,7 +411,7 @@ export function signDraft({
     if (s.kind === 'file' && !existsSync(s.path)) reds.push(`sign: input source "${s.role}" is missing at ${s.path}`);
   }
   for (const s of signed.arbiter.sends) {
-    const d = checkSendDestination(`${s.target.kind}:${s.target.path}`);
+    const d = checkSendDestination(`${s.target.kind}:${s.target.path}`, { root: target.root });
     if (!d.ok) reds.push(`sign: ${d.red}`);
   }
   if (reds.length) return { ok: false, reds };
@@ -337,5 +420,10 @@ export function signDraft({
     root: target.root, name: target.name, proseText: parts['prose.txt'], declaration, signedBy, signedAt, catalogue: cat.primitives,
   });
   if (!written.ok) return { ok: false, reds: written.reds };
-  return { ok: true, flowDir: written.dir, signature: written.signature };
+  // M4e amendment 6 item 4: the draft's record goes into the flow folder once, outside the three signed files. The flow IS signed by now, so a
+  // failure to write it never un-signs: it is returned (`setup.ok:false`) for the caller to say, and the audit reads "no setup record".
+  const setup = writeSetup({
+    flowDir: written.dir, sessionDir, planDir: dir, hash: h.hash, signedBy, signedAt, flowHash: written.signature?.flow, secrets: /** @type {string[]} */ (keys.filter((k) => typeof k === 'string' && k.length >= 8)),
+  });
+  return { ok: true, flowDir: written.dir, signature: written.signature, setup };
 }

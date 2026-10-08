@@ -30,7 +30,7 @@ test('a closed group shows a right caret and an open one a down caret, driven by
 });
 
 test('a step with any failed try (a row with a gap) starts open; the others start closed', () => {
-  assert.match(fn, /var failed = \(g\.rows \|\| \[\]\)\.some\(function\(r\)\{ return !!r\.gap; \}\);/);
+  assert.match(fn, /var failed = \(g\.rows \|\| \[\]\)\.some\(function\(r\)\{ return !!r\.gap && !\/\^stop\/\.test\(r\.verdict \|\| ""\); \}\);/);
   assert.match(fn, /auditExpanded\[g\.step\] : failed/);
 });
 

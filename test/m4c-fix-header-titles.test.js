@@ -57,8 +57,8 @@ test('(l) on a phone the Audit title drops the dots and the word "try", keeps co
   const i = PAGE.indexOf('/* (l) a phone');
   assert.ok(i > 0, 'phone block for the Audit title');
   const blk = PAGE.slice(i, PAGE.indexOf('\n  }', i));
-  assert.match(blk, /\.audit-fold-sep,\.audit-fold-try\{display:none;\}/);
-  assert.match(blk, /\.audit-fold-n\{margin-left:/, 'N keeps a gap from the cost once the dot is gone');
+  assert.match(blk, /\.audit-fold-sep\{display:none;\}/);
+  assert.match(blk, /\.audit-fold-try\{margin-left:/, 'amendment 10 walk: "try" stays on a phone and keeps a gap from the cost, so cost and N never touch');
   assert.match(blk, /> \.badge\{padding-left:0;padding-right:0;/);
   const i2 = PAGE.indexOf('h4.className = "audit-status-header"');
   const body = PAGE.slice(i2, PAGE.indexOf('return h4;', i2));

@@ -22,6 +22,7 @@ import { spawn, spawnSync } from 'node:child_process';
 
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
@@ -72,7 +73,7 @@ function writeSources(srcDir) {
 }
 
 function writeJob2Flow(root, { name = 'job2', askMark = 'ask:' } = {}) {
-  const base = fixture('job2-with-sources.signed.txt');
+  const base = sandboxSend(fixture('job2-with-sources.signed.txt'));
   assert.ok(base.includes('4. ask: check it with me,'), 'fixture line 4 must still read "ask: check it with me,"');
   const proseText = base.replace('4. ask: check it with me,', `4. ${askMark} check it with me,`);
   const result = writeFlow({
@@ -521,7 +522,7 @@ test('cli: run refuses at preflight when a step grants an unwired verb (litectx\
   // via writeFlow (not the shared fixture file) so the signature actually
   // matches — editing declaration.json after signing would just trip the
   // (unrelated) signature-mismatch check instead of this one.
-  const base = fixture('job2-with-sources.signed.txt');
+  const base = sandboxSend(fixture('job2-with-sources.signed.txt'));
   const declaration = fixtureJson('job2.m1.declaration.json');
   const draftStep = declaration.steps.find((s) => s.emits === 'resume-summary');
   assert.ok(draftStep, 'expected a "resume-summary" step');

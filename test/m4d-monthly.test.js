@@ -23,6 +23,7 @@ import {
 import { createResumer } from '../src/panel/resume.js';
 import { install } from './fixtures/m4d-fake-openai.mjs';
 import { job2Fixture } from './drafter-fixture.mjs';
+import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
@@ -76,7 +77,7 @@ const envFor = (home, extra = {}) => ({
 const cli = (args, env) => spawnSync(process.execPath, [BIN, ...args], { env, encoding: 'utf8', timeout: 30_000 });
 function job2Root() {
   const root = tmp('root');
-  const base = readFileSync(path.join(HERE, 'fixtures', 'job2-with-sources.signed.txt'), 'utf8');
+  const base = sandboxSend(readFileSync(path.join(HERE, 'fixtures', 'job2-with-sources.signed.txt'), 'utf8'));
   const r = writeFlow({
     root, name: 'job2', proseText: base, declaration: JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'job2.m1.declaration.json'), 'utf8')), signedBy: 'hamr', signedAt: '2026-09-25T12:00:00Z', catalogue,
   });
