@@ -486,17 +486,6 @@
   .msg.bot{border-left:3px solid var(--border-strong);}
   .msg.bot .who::before{content:"$ ";}
   .msg .who{font-size:11px;color:var(--text-faint);margin-bottom:3px;text-transform:none;font-weight:400;}
-  /* borrowed-from: bareloop src/panel/index.html@c1d87ce (the "you" bubble: indented, accent left border) */
-  .msg.you{background:var(--bg);margin-left:20px;border-left:3px solid var(--accent);}
-  .msg.you .who::before{content:"> ";}
-  .chat-input-row{margin-top:10px;border-top:1px dotted var(--border-strong);padding-top:10px;}
-  .chat-input-row input{width:100%;box-sizing:border-box;}
-  /* borrowed-from: bareloop src/panel/index.html@d151ec7 (the ask box: a wrapping textarea, 2x height, thick border, dimmed while it cannot be used).
-     M4e amendment 3 item 3: it opens only on a green plan ("Ask for a change to the plan"); `hidden` closes it. */
-  .chat-input-row[hidden]{display:none;}
-  textarea[data-testid="chat-msg"]{width:100%;box-sizing:border-box;font:inherit;color:var(--text);resize:vertical;overflow-y:auto;max-height:200px;}
-  #chat-msg{min-height:64px;padding:8px 12px;border:2px solid var(--field-border);background:var(--field-bg);}
-  #chat-msg:read-only{background:var(--bg);opacity:.55;cursor:not-allowed;}
   /* the card's free-text boxes wrap (textarea): grow a few rows (fitBox), then scroll inside */
   .job-card textarea.jf-wrap{width:100%;box-sizing:border-box;font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);resize:vertical;overflow-y:auto;max-height:200px;}
   /* the focused/selected Chat-card field gets a blue border (the accent), no outline ring */
@@ -511,9 +500,9 @@
   .jf-mirror{position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;white-space:pre-wrap;overflow-wrap:break-word;word-wrap:break-word;box-sizing:content-box;padding:0;border:0;margin:0;}
   .jf-mirror div{margin:0;padding:0;}
   /* editable Chat-card fields get the standard soft white (a step below the ask box); disabled/readonly keep the base colour */
-  #panel-chat input:not(:disabled):not([readonly]):not(#chat-msg):not([type="radio"]):not([type="checkbox"]),
+  #panel-chat input:not(:disabled):not([readonly]):not([type="radio"]):not([type="checkbox"]),
   #panel-chat select:not(:disabled),
-  #panel-chat textarea:not(:disabled):not([readonly]):not(#chat-msg){background:var(--field-soft-bg);}
+  #panel-chat textarea:not(:disabled):not([readonly]){background:var(--field-soft-bg);}
   /* ONE wide button below the message box; its wording comes from mainButtonFor */
   .btn.wide{width:100%;margin-top:10px;white-space:normal;}
   /* amendment 2 item 7: the main button's label ("Sign <hash8> & run · $<cap>") stays on ONE line inside the card */
@@ -885,21 +874,18 @@
           <!-- ONE progress list: every step is one line that updates in place; a waiting step has no check -->
           <ol class="chat-steps" id="chat-progress-row" data-testid="chat-steps" aria-live="polite" hidden></ol>
 
-          <!-- M4e amendment 6 item 3: bubbles (oldest first), then the current plan, then the note box and the main button: the plan sits next to Sign & run -->
+          <!-- M4e amendment 14: the plan, then the main button (no bubbles, no note box): the plan sits next to Sign & run -->
           <div class="chat-thread" id="chat-thread" data-testid="chat-thread"></div>
 
           <!-- a refused draft / run / sign / abandon POST (or a refused start) shows here and STAYS: set only by this tab's own
                action handlers, never cleared by the poll (the poll owns #chat-card-error instead) -->
           <div class="hint" id="chat-action-error" data-testid="chat-action-error"></div>
 
-          <!-- M4e amendment 3 item 3: opens when a green plan shows (bareloop's ask box); a typed note turns the main button into Send -->
-          <div class="chat-input-row" id="chat-msg-row" data-testid="chat-msg-row" hidden>
-            <label for="chat-msg" style="display:none">Message</label>
-            <textarea id="chat-msg" rows="2" placeholder="Ask for a change to the plan" autocomplete="off" data-testid="chat-msg"></textarea>
-          </div>
           <button class="btn primary wide" type="button" id="chat-main-btn" data-testid="chat-main" disabled>Draft</button>
           <div class="hint" id="chat-main-hint" data-testid="chat-main-hint"></div>
-          <!-- M4e amendment 4 item 3: after the second change the ask box is closed; Start over drafts again from the card as it is (a fresh draft) -->
+          <!-- M4e amendment 14 item 2: on a green plan, Revise opens every card field (the main button then reads Draft) -->
+          <button class="btn wide" type="button" id="chat-revise-btn" data-testid="chat-revise" hidden>Revise</button>
+          <!-- M4e amendment 14 item 3: after the second revise, on a green plan: Start over drafts the card as it is, a fresh draft with 2 new revises -->
           <button class="btn wide" type="button" id="chat-startover-btn" data-testid="chat-startover" hidden>Start over</button>
           <div class="hint">Only your click signs.</div>
         </section>
@@ -3791,7 +3777,7 @@
   // borrowed-from: bareloop src/panel/index.html@ca7195e — `mainButtonFor`, `renderMain`, `renderProgress`, the
   // scroll-on-change block in `renderActions`, `attachSession`/`reattachLive` (without the reuse/auto-sign branch), `syncCardLock`,
   // `CLIENT_TERMINAL_PHASES`, `openNewCard`/`resetCard`/`refreshStartEnabled`, `authorPost`/`authorGet`, `fitBox`. fwdloop differs where its shape does: the draft is a detached CLI child whose state is
-  // READ from files (GET /api/author/live and /:id), a start is polled (GET /api/author/start/:id), no token or cookie. Sign is two clicks, no typed name (M4e amendment 2); the ask box is bareloop's "Ask for a change to the plan" (amendment 3 item 3).
+  // READ from files (GET /api/author/live and /:id), a start is polled (GET /api/author/start/:id), no token or cookie. Sign is two clicks, no typed name (M4e amendment 2); Revise reopens the card fields and drafts the card again, no note (amendment 14).
   (function(){
     var card = document.getElementById("chat-job-card");
     var clearBtn = document.getElementById("chat-clear-btn");
@@ -3803,8 +3789,7 @@
     var mainBtn = document.getElementById("chat-main-btn");
     var mainHint = document.getElementById("chat-main-hint");
     var startOverBtn = document.getElementById("chat-startover-btn");
-    var msgEl = document.getElementById("chat-msg");               // the ask box: a note asking for a change to the green plan
-    var msgRow = document.getElementById("chat-msg-row");
+    var reviseBtn = document.getElementById("chat-revise-btn");
     var errEl = document.getElementById("chat-card-error");        // POLL-OWNED: the draft's own sentence (red / stopped)
     var actionErrEl = document.getElementById("chat-action-error"); // ACTION-OWNED: only a click's refusal; the poll never wipes it
     var progressRow = document.getElementById("chat-progress-row");
@@ -3837,6 +3822,7 @@
     var lastState = null;        // the draft as the server last described it
     var signInfo = null;         // the first Sign click's reply: { hash, flowName, capUsd, runId }
     var signClickedOnce = false;
+    var reviseOpen = false;      // amendment 14 item 2: Revise was pressed on a green plan, so every card field is open (ONE writer: setReviseOpen)
     var busy = false;            // a POST is in flight (disabled from the click until the reply)
     var startId = null;          // the run start being watched (GET /api/author/start/<id>)
     var refusedStartId = null;   // a refused start whose sentence is on the card; Clear dismisses it on the server (cleared.json)
@@ -3892,6 +3878,10 @@
       if(st.phase === "drafting"){
         return {text: "Draft", action: "none", disabled: true};
       }
+      if((st.phase === "red" || st.phase === "stopped") && st.revisable){
+        // amendment 14 items 3-4: a red revise keeps the edits; Draft is another revise, Start over (no revises left) a fresh draft
+        return (st.left || 0) > 0 ? {text: "Draft", action: "revise", disabled: blocked} : {text: "Start over", action: "draft", disabled: blocked};
+      }
       if(st.phase === "red"){
         return {text: "Fix and draft again", action: "draft", disabled: blocked};
       }
@@ -3902,9 +3892,9 @@
         return {text: "Sign & run", action: "none", disabled: true};
       }
       if(st.phase === "green"){
-        // amendment 3 item 3: a note in the ask box makes the one button Send (a change to the plan); empty, it is Sign & run
-        if(st.boxOpen && !st.textEmpty){
-          return {text: "Send", action: "revise", disabled: !!st.busy};
+        // amendment 14 item 2: Revise opened the card, so the one button is Draft (the card posted to the revise route)
+        if(st.reviseOpen && st.revisable && (st.left || 0) > 0){
+          return {text: "Draft", action: "revise", disabled: blocked};
         }
         if(st.signClicked){
           var signCap = (cap !== undefined && cap !== null && cap !== "") ? " \u00b7 $" + cap : "";
@@ -3914,28 +3904,20 @@
       }
       return {text: "Draft", action: "none", disabled: true};
     }
-    // pure: the ask box is open on a green plan with changes left (bareloop: it closes at 0); the hint under the button says how many.
-    function askBoxOpenFor(st){
-      return st.mode === "new" && !!st.session && st.phase === "green" && (st.left || 0) > 0;
+    // pure: the green plan's Revise button (amendment 14 item 2): on a green plan with revises left, before Revise is pressed
+    function reviseShownFor(st){
+      return st.mode === "new" && !!st.session && st.phase === "green" && !!st.revisable && (st.left || 0) > 0 && !st.reviseOpen;
     }
-    // pure: Start over shows only when the plan on show has used both changes (the ask box is closed): the second choice beside Sign & run
+    // pure: Start over beside Sign & run (amendment 14 item 3): a green plan whose revises are all used. (A red or stopped one has it as the main button.)
     function startOverShownFor(st){
-      return st.mode === "new" && !!st.session && st.phase === "green" && st.left === 0;
+      return st.mode === "new" && !!st.session && st.phase === "green" && !!st.revisable && st.left === 0;
     }
-    // borrowed-from: bareloop src/panel/index.html@c1d87ce (renderMessages: "you" / bot bubbles, each with a who label)
-    // pure: the bubbles above the plan (amendment 6 item 3), from the draft's notes: each note is a you bubble in the human's words, each green change a fwdloop bubble.
-    // A red or stopped change gets no bubble of its own: its reds are in the progress list, shown once.
-    function bubblesFor(state){
-      var out = [];
-      if(!state || (state.phase !== "green" && state.phase !== "revising")) return out;
-      (state.notes || []).forEach(function(nt){
-        out.push({role: "you", who: "you", text: String(nt.text || "").replace(/\s+$/, "")});
-        if(nt.phase === "green") out.push({role: "bot", who: "fwdloop", text: "New plan, hash " + String(nt.hash || "").slice(0, 8) + ". " + changesLeftText(nt.left) + "."});
-      });
-      return out;
+    // pure: are the card fields open on a green plan? After Revise, or when no revise is left (amendment 14 item 3: all fields stay open)
+    function greenFieldsOpenFor(st){
+      return !!st.revisable && (!!st.reviseOpen || st.left === 0);
     }
-    function changesLeftText(left){
-      return left + (left === 1 ? " change left" : " changes left");
+    function revisesLeftText(left){
+      return left + (left === 1 ? " revise left" : " revises left");
     }
     // pure: the gutter beside a box (amendment 2, plain numbers by amendment 3), one entry per LOGICAL line. The job: `N` on a step line (numbers go on), `~` on a
     // guardrail line, nothing on an empty line. The inputs: a number per non-empty line.
@@ -3959,6 +3941,19 @@
       if(state){
         if(state.phase === "drafting"){
           out.push({id: "drafting", label: "drafting with " + who + capPart, status: "running", details: []});
+        } else if(Array.isArray(state.revises)){
+          // amendment 14: a draft whose first plan was green. One line per revise with its result; a red one shows its reds (its sentence is on the card error line).
+          out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
+          state.revises.forEach(function(rv){
+            var label = "revise " + rv.n;
+            if(rv.phase === "running") out.push({id: "revise-" + rv.n, label: label, status: "running", details: []});
+            else if(rv.phase === "green") out.push({id: "revise-" + rv.n, label: label, status: "done", details: []});
+            else out.push({id: "revise-" + rv.n, label: label, status: "failed", details: (rv.reds && rv.reds.length ? rv.reds.slice() : [])});
+          });
+          if(state.phase === "green"){
+            if(ctx.starting) out.push({id: "signed", label: "signed", status: "done", details: []});
+            else out.push({id: "sign", label: ctx.signClicked ? "waiting for your second click" : "waiting for your signature", status: "waiting", details: []});
+          }
         } else if(state.phase === "red"){
           out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
           out.push({id: "checks", label: "plan checks", status: "failed", details: (state.reds || []).slice()});
@@ -3966,19 +3961,9 @@
           out.push({id: "drafting", label: "drafting with " + who + capPart, status: "failed", details: []});
         } else if(state.phase === "green" || state.phase === "revising"){
           out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
-          // amendment 3 item 3: each note the human sent is a line of its own, with its result (a red change shows its reds)
-          (state.notes || []).forEach(function(nt){
-            var body = String(nt.text || "").replace(/\s+$/, "");
-            var label = "change " + nt.n + ": " + body;
-            if(nt.phase === "running") out.push({id: "change-" + nt.n, label: label, status: "running", details: []});
-            else if(nt.phase === "green") out.push({id: "change-" + nt.n, label: label, status: "done", details: []});
-            else out.push({id: "change-" + nt.n, label: label, status: "failed", details: (nt.reds && nt.reds.length ? nt.reds.slice() : []).concat(nt.say ? [nt.say] : [])});
-          });
-          if(state.phase === "revising"){
-            // the last green plan stays on show; nothing to sign until the change comes back
-          } else if(ctx.starting){
+          if(ctx.starting){
             out.push({id: "signed", label: "signed", status: "done", details: []});
-          } else {
+          } else if(state.phase !== "revising"){
             out.push({id: "sign", label: ctx.signClicked ? "waiting for your second click" : "waiting for your signature", status: "waiting", details: []});
           }
         }
@@ -4211,7 +4196,9 @@
     // is editable (the draft was made from these values). ONE function owns it. A red or stopped draft unlocks the card (fix, draft again).
     function cardLocked(){
       var ph = (sessionLive && lastState) ? lastState.phase : null;
-      return busy || startId !== null || (mode === "new" && (ph === "drafting" || ph === "revising" || ph === "green"));
+      // amendment 14: a green plan locks the card until Revise opens it (or no revise is left); a red or stopped one is open
+      var greenOpen = ph === "green" && greenFieldsOpenFor({revisable: Array.isArray(lastState.revises), reviseOpen: reviseOpen, left: lastState.revisesLeft});
+      return busy || startId !== null || (mode === "new" && (ph === "drafting" || ph === "revising" || (ph === "green" && !greenOpen)));
     }
     function syncCardLock(){
       var on = cardLocked();
@@ -4382,25 +4369,23 @@
       }).join("\n");
     }
     function renderThread(state){
+      // a revise being drafted leaves the plan on show until the new one replaces it (the view carries no plan meanwhile)
+      if(state && state.phase === "revising") return;
       var html = "";
-      if(state && (state.phase === "green" || state.phase === "revising") && state.readout){
-        // M4e amendment 6 item 3: bubbles (oldest first), THEN the current plan, so the plan sits right above the note box and the button
-        html = bubblesFor(state).map(function(m){
-          return '<div class="msg ' + m.role + '"><div class="who">' + escapeXml(m.who) + '</div>' + escapeXml(m.text) + '</div>';
-        }).join("") +
-          '<div class="msg bot" data-testid="chat-plan"><div class="who">fwdloop</div>' + readoutHtml(state) +
+      if(state && state.phase === "green" && state.readout){
+        html = '<div class="msg bot" data-testid="chat-plan"><div class="who">fwdloop</div>' + readoutHtml(state) +
           '\n\nPlan hash: ' + escapeXml(state.hash || "") + '</div>';
       }
       if(html !== threadKey){ threadKey = html; thread.innerHTML = html; }
     }
     function renderMain(){
-      var st = {mode: mode, session: sessionLive, startOk: startOk, busy: busy || startId !== null, signClicked: signClickedOnce, textEmpty: msgEl.value.trim() === ""};
+      var st = {mode: mode, session: sessionLive, startOk: startOk, busy: busy || startId !== null, signClicked: signClickedOnce, reviseOpen: reviseOpen};
       if(sessionLive && lastState){
         st.phase = lastState.phase;
         st.hash = signInfo ? signInfo.hash : lastState.hash;
-        st.left = lastState.changesLeft;
+        st.revisable = Array.isArray(lastState.revises);
+        st.left = lastState.revisesLeft;
       }
-      st.boxOpen = askBoxOpenFor(st);
       if(mode === "run"){
         st.capUsd = runCapEl.value.trim();
         st.runDiffers = runDiffers();
@@ -4419,15 +4404,13 @@
       mainBtn.textContent = b.text;
       mainBtn.disabled = b.disabled;
       mainAction = b.action;
-      // the ask box: open on a green plan with changes left, shown but locked while a change is being drafted, closed at 0 left
-      var boxShown = st.boxOpen || (mode === "new" && sessionLive && st.phase === "revising");
-      msgRow.hidden = !boxShown;
-      msgEl.readOnly = !st.boxOpen || !!busy;
-      mainHint.textContent = st.boxOpen ? changesLeftText(st.left) : "";
+      // amendment 14 item 3: the count shows while a draft has revises to count; at 0 the way on is Start over
+      mainHint.textContent = (mode === "new" && sessionLive && st.revisable && st.phase !== "signed") ? (st.left > 0 ? revisesLeftText(st.left) : "No revises left: Start over keeps the fields and gives 2 new ones.") : "";
+      reviseBtn.hidden = !reviseShownFor(st);
+      reviseBtn.disabled = !!st.busy;
       startOverBtn.hidden = !startOverShownFor(st);
       startOverBtn.disabled = !!st.busy;
       fitCardBoxes();
-      if(boxShown) fitBox(msgEl);
     }
     function renderActions(state){
       lastState = state;
@@ -4454,7 +4437,7 @@
     // the boxes. Touches neither error line, so a refusal on screen stays on screen.
     function endSession(){
       stopPoll();
-      sessionId = null; sessionLive = false; lastState = null; signInfo = null; signClickedOnce = false;
+      sessionId = null; sessionLive = false; lastState = null; signInfo = null; signClickedOnce = false; reviseOpen = false;
       threadKey = ""; thread.innerHTML = "";
       errEl.textContent = "";
       progressRow.hidden = true; progressRow.innerHTML = "";
@@ -4462,12 +4445,11 @@
     }
     function openNewCard(){
       thread.innerHTML = ""; threadKey = "";
-      msgEl.value = "";
       errEl.textContent = "";
       actionErrEl.textContent = "";
       clearFieldErrors();
       stopStart();
-      sessionId = null; sessionLive = false; lastState = null; signInfo = null; signClickedOnce = false; busy = false;
+      sessionId = null; sessionLive = false; lastState = null; signInfo = null; signClickedOnce = false; busy = false; reviseOpen = false;
       stopPoll();
       progressRow.hidden = true;
       progressRow.innerHTML = "";
@@ -4573,7 +4555,7 @@
         if(!o.ok){ failFrom(r); refreshStartEnabled(); return; }
         sessionId = r.body.draftId;
         sessionLive = true;
-        signInfo = null; signClickedOnce = false;
+        signInfo = null; signClickedOnce = false; reviseOpen = false;
         thread.innerHTML = ""; threadKey = "";
         renderActions({draftId: sessionId, phase: "drafting", card: {capUsd: body.capUsd}});
         startPoll();
@@ -4718,22 +4700,23 @@
         beginStart(r.body.startId);
       }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
     }
-    // amendment 3 item 3: send the note; the server drafts a changed plan beside the old one (the old one stays signable until a new green one exists).
-    // A refused note stays in the box (unsent input is never wiped).
+    // amendment 14 item 2: Draft on an open card posts the card (the same shape as the draft call) to the revise route; the model gets the card only.
+    // A refused revise leaves every field as typed (unsent input is never wiped). The new plan replaces the shown one when it comes back.
     function doRevise(){
       if(!sessionId) return;
       var id = sessionId;
-      var text = msgEl.value;
+      var body = currentCard();
+      clearFieldErrors();
       chatActionOk();
       busy = true;
       refreshStartEnabled();
-      authorPost("/api/author/" + id + "/revise", {text: text}).then(function(r){
+      authorPost("/api/author/" + id + "/revise", body).then(function(r){
         busy = false;
         var o = chatPostOutcome(r);
         if(!o.ok){ failFrom(r); refreshStartEnabled(); return; }
-        msgEl.value = "";
+        reviseOpen = false;
         signInfo = null; signClickedOnce = false;
-        refreshStartEnabled();
+        renderActions(Object.assign({}, lastState, {phase: "revising"}));
         poll();
       }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
     }
@@ -4791,7 +4774,9 @@
       if(refusedStartId){ var rid = refusedStartId; refusedStartId = null; authorPost("/api/author/start/" + rid + "/clear", {}).catch(function(){}); }
       resetCard();
     });
-    // Start over (amendment 4 item 3): the same draft call as Draft, from the card as it is now; the old draft's files stay (a new draft id)
+    // Revise (amendment 14 item 2): opens every card field, filled as last submitted; nothing is sent
+    reviseBtn.addEventListener("click", function(){ if(reviseBtn.disabled) return; reviseOpen = true; refreshStartEnabled(); });
+    // Start over (amendment 14 item 3): the same draft call as Draft, from the card as it is now; the old draft's files stay (a new draft id, 2 new revises)
     startOverBtn.addEventListener("click", function(){ if(!startOverBtn.disabled) doDraft(); });
     mainBtn.addEventListener("click", function(){
       if(mainBtn.disabled) return;
@@ -4801,11 +4786,6 @@
       else if(mainAction === "resume-sign-prepare" || mainAction === "resume-sign") doResumeSign();
       else if(mainAction === "revise") doRevise();
       else if(mainAction === "sign-prepare" || mainAction === "sign") doSign();
-    });
-    msgEl.addEventListener("input", function(){ fitBox(msgEl); renderMain(); });
-    // Enter sends the note, Shift+Enter is a newline (bareloop's ask box)
-    msgEl.addEventListener("keydown", function(e){
-      if(e.key === "Enter" && !e.shiftKey && mainAction === "revise"){ e.preventDefault(); if(!mainBtn.disabled) doRevise(); }
     });
     card.addEventListener("input", function(e){
       var grp = e.target && e.target.closest ? e.target.closest(".field, .cap-field, .jf-inrow") : null;

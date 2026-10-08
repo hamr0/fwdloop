@@ -73,7 +73,7 @@ test('amendment 3 item 2: the Run id box is prefilled with the server\'s next na
   assert.doesNotMatch(PAGE, /newRunIdText|toString\(36\)/);
 });
 
-test('(f) there is no typed name anywhere on the page: Sign is two clicks (the one ask box is the revise box, amendment 3 item 3: test/m4e-revise-page.test.js)', () => {
+test('(f) there is no typed name anywhere on the page: Sign is two clicks (no note box: amendment 14, test/m4e-revise-page.test.js)', () => {
   assert.doesNotMatch(PAGE, /typedName|Type the flow name/);
   assert.match(fnSrc('doSign'), /click 1[\s\S]*sign-prepare[\s\S]*click 2/);
 });
