@@ -44,6 +44,8 @@
 /** Every top-level, step-level and close-level field this schema defines —
  *  kept in sync with the checks below so a mutation suite can assert it
  *  tested every one of them (same trick as ARBITER_FIELDS/SIGNATURE_FIELDS). */
+import { buildSoftgreenRubric } from './closers.js';
+
 export const DECLARATION_FIELDS = Object.freeze([
   // top level
   'steps',
@@ -303,6 +305,7 @@ const wordCount = (t) => t.trim().split(/\s+/).filter(Boolean).length;
 export function checkShapeFitsJobLine(step, i, lines, reds) {
   const { shape } = step.close;
   const label = `steps[${i}]`;
+  const redsBefore = reds.length;
   const line = Number.isInteger(step.fromLine) ? lines.find((l) => l.n === step.fromLine) : undefined;
   if (Array.isArray(shape.sections) && shape.sections.every((n) => typeof n === 'string' && n.length > 0) && typeof step.goal === 'string') {
     const goal = step.goal.toLowerCase().replace(/\s+/g, ' ');
@@ -360,6 +363,37 @@ export function checkShapeFitsJobLine(step, i, lines, reds) {
   const limit = guardrailWordLimit(line?.guardrail);
   if (limit !== null && shape.maxWords !== undefined && shape.maxWords !== limit) {
     reds.push(`declaration: ${label} the job line's guardrail says ${limit} words; the check says ${shape.maxWords} — change the guardrail on the card to change the limit`);
+  }
+  // M4e amendment 18 item 3: a shape bareguard will not build is red here, by name, not a crash at run time.
+  checkShapeBuilds(shape, label, reds, redsBefore);
+}
+
+/** bareguard refuses a signed name or phrase past this many characters (rubric MAX_SIGNED_LEN). */
+const MAX_SIGNED_ENTRY = 1000;
+
+/** What bareguard's rubric builder refuses that the type checks above let through: blank or over-long entries and a section
+ *  name ending in ":" (a heading's ":" is dropped from the line, never from the name, so it could never match). Anything it
+ *  still refuses is caught by trying the real builder, `buildSoftgreenRubric` (the same one the run uses), when nothing else
+ *  was red for this step: so a shape that passes here always builds at run time. */
+function checkShapeBuilds(shape, label, reds, redsBefore) {
+  for (const key of ['sections', 'mustCarry']) {
+    if (!Array.isArray(shape[key])) continue;
+    shape[key].forEach((entry, k) => {
+      if (typeof entry !== 'string' || entry.length === 0) return; // the type check already reds these
+      const at = `${label}.close.shape.${key}[${k}]`;
+      if (entry.trim() === '') reds.push(`declaration: ${at} is blank — every entry needs real text`);
+      else if (entry.length > MAX_SIGNED_ENTRY) reds.push(`declaration: ${at} is ${entry.length} characters; the most one entry may be is ${MAX_SIGNED_ENTRY}`);
+      else if (key === 'sections' && entry.trim().endsWith(':')) {
+        reds.push(`declaration: ${at} names "${entry}", which ends in ":" and can never match a heading (the ":" is dropped from the heading line, not from the name) — drop the ":"`);
+      }
+    });
+  }
+  const typesOk = Object.keys(shape).every((k) => SHAPE_TYPE_CHECKS[k]?.check(shape[k]) === true);
+  if (reds.length !== redsBefore || !typesOk) return;
+  try {
+    buildSoftgreenRubric(shape);
+  } catch (err) {
+    reds.push(`declaration: ${label}.close.shape cannot be built into a check — ${String(err.message).replace(/^invalid rubric: /, '')}`);
   }
 }
 
