@@ -106,3 +106,47 @@ test('2A a Stop with no time, a number, or a non-date, landing as an answer is g
   assert.equal(ends[2].recorded, true);
 });
 
+// ---- 3A ----
+const NOW = Date.parse('2026-10-08T12:00:00Z');
+const iso = (d) => new Date(NOW - d * 86400000).toISOString();
+function monthWorld() {
+  const base = mkdtempSync(path.join(tmpdir(), 'fwdloop-am17-3a-'));
+  const home = path.join(base, 'cfg');
+  mkdirSync(home, { mode: 0o700 });
+  const dirs = ['gone', 'fine'].map((n) => {
+    const d = path.join(base, 'runs', n);
+    mkdirSync(d, { recursive: true });
+    writeFileSync(path.join(d, 'spend.jsonl'), `${JSON.stringify({ kind: 'step', provider: 'deepseek', costUsd: 0.01, spendComplete: true, at: iso(1) })}\n`);
+    return d;
+  });
+  const L = [
+    { kind: 'hold', holdId: 'g', what: 'run', flow: 'j', runId: 'gone', runDir: dirs[0], pid: 1, procStart: null, holdUsd: 0.25, spentAtHold: 0, at: iso(1) },
+    { kind: 'settled', holdId: 'g', at: iso(1), why: 'process gone' },
+    { kind: 'hold', holdId: 'f', what: 'run', flow: 'j', runId: 'fine', runDir: dirs[1], pid: 1, procStart: null, holdUsd: 0.25, spentAtHold: 0, at: iso(1) },
+    { kind: 'settled', holdId: 'f', at: iso(1), why: 'ended or parked' },
+  ];
+  writeFileSync(path.join(home, 'runs.jsonl'), `${L.map((l) => JSON.stringify(l)).join('\n')}\n`);
+  return { base, home, dirs };
+}
+test('3A a "process gone" run is never rolled: its later spend still counts in the month and the total', () => {
+  const w = monthWorld();
+  try {
+    monthly.rollSettled({ home: w.home, now: () => NOW });
+    const rolled = monthly.readRuns(w.home).filter((r) => r.kind === 'rolled').flatMap((r) => Object.keys(r.dirs));
+    assert.deepEqual(rolled, [w.dirs[1]], 'only the run that finished on its own is rolled');
+    appendFileSync(path.join(w.dirs[0], 'spend.jsonl'), `${JSON.stringify({ kind: 'step', provider: 'deepseek', costUsd: 0.5, spendComplete: true, at: iso(0) })}\n`);
+    const s = monthly.spendSummary({ home: w.home, now: () => NOW });
+    assert.ok(Math.abs(s.month.usd - 0.52) < 1e-9, `month ${s.month.usd}`);
+    assert.ok(Math.abs(s.total.usd - 0.52) < 1e-9, `total ${JSON.stringify(s.total)}`);
+  } finally { rmSync(w.base, { recursive: true, force: true }); }
+});
+test('3A a rolled run whose folder is later deleted keeps its spend', () => {
+  const w = monthWorld();
+  try {
+    monthly.rollSettled({ home: w.home, now: () => NOW });
+    rmSync(w.dirs[1], { recursive: true, force: true });
+    const s = monthly.spendSummary({ home: w.home, now: () => NOW });
+    assert.ok(Math.abs(s.month.usd - 0.02) < 1e-9, `month ${s.month.usd} (gone dir 0.01 live + fine dir 0.01 rolled)`);
+  } finally { rmSync(w.base, { recursive: true, force: true }); }
+});
+

@@ -341,6 +341,11 @@ export function rollSettled({ home, now = Date.now } = {}) {
       const unended = typeof r.holdId !== 'string' || !ended.has(r.holdId);
       if (unended) for (const d of named) open.add(d);
     }
+    // amendment 17 3A: a hold the checker settled as "process gone" may have been misjudged (the run still spends): its dirs are never rolled
+    const goneHolds = new Set(rows.filter((r) => r.kind === 'settled' && r.why === 'process gone').map((r) => r.holdId));
+    for (const r of rows) {
+      if (r.kind !== 'rolled' && typeof r.holdId === 'string' && goneHolds.has(r.holdId)) for (const d of dirsNamedBy(r)) open.add(d);
+    }
     const have = rolledEntries(rows);
     const todo = namedDirs(rows).filter((d) => !open.has(d) && !have.has(d));
     for (let i = 0; i < todo.length; i += ROLL_CHUNK) {
