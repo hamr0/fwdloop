@@ -84,6 +84,7 @@ for (const [what, mutate, re] of [
 test('(b) a revise that changes only what a step carries (a mustCarry word, the sections kept in the line\'s order) is a green plan', async () => {
   const w = await firstDraft();
   const ok = validArgs();
+  ok.steps[2].close.shape.linesPerInvoice = 1; // am16 C12: mustCarry comes with linesPerInvoice
   ok.steps[2].close.shape.mustCarry = ['JD'];
   const r = await change(w, ok).run();
   assert.equal(r.ok, true, JSON.stringify(r.reds));

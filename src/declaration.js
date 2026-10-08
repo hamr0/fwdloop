@@ -248,18 +248,22 @@ function deriveFromLine(fromLine, lines, guardrailClasses) {
   return { ok: true, class: resolved.class, line };
 }
 
+/** M4e amendment 16 C14: a guardrail number, with or without thousands separators ("1,000" -> 1000). Commas must group by exactly three
+ *  ("1,00" and "1,0000" match nothing), and the number cannot start in the middle of another one. */
+const readNumber = (t) => Number(t.replace(/,/g, ''));
+
 /** The first "<n> words" in a guardrail ("3 sections, all under 600 words" -> 600), or null. A "<n> words each" / "<n> words per
  *  section" is the per-section size (M4e amendment 15), never the total limit. */
 export function guardrailWordLimit(guardrail) {
   if (typeof guardrail !== 'string') return null;
-  for (const m of guardrail.matchAll(/(\d+)\s*words?\b(?!\s*(?:each|per\s+section)\b)/gi)) return Number(m[1]);
+  for (const m of guardrail.matchAll(/(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)\s*words?\b(?!\s*(?:each|per\s+section)\b)/gi)) return readNumber(m[1]);
   return null;
 }
 
 /** M4e amendment 15 item 1: the "<n> words each" / "<n> words per section" size in a guardrail ("about 250 words each", "250ish each" -> 250), or null. */
 export function guardrailWordsPerSection(guardrail) {
-  const m = typeof guardrail === 'string' ? /(\d+)(?:\s*words?|ish(?:\s+words?)?)\s+(?:each|per\s+section)\b/i.exec(guardrail) : null;
-  return m ? Number(m[1]) : null;
+  const m = typeof guardrail === 'string' ? /(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)(?:\s*words?|ish(?:\s+words?)?)\s+(?:each|per\s+section)\b/i.exec(guardrail) : null;
+  return m ? readNumber(m[1]) : null;
 }
 
 const NUMBER_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
@@ -278,6 +282,10 @@ export function checkGuardrailSums(lines) {
     const per = guardrailWordsPerSection(l?.guardrail);
     const count = guardrailSectionCount(l?.guardrail);
     const limit = guardrailWordLimit(l?.guardrail);
+    // M4e amendment 16 C13: a size for each section with no number of sections can never be checked.
+    if (per !== null && count === null) {
+      reds.push(`line ${l.n}'s guardrail gives ${per} words for each section but not how many sections. Say the number of sections in the guardrail.`);
+    }
     if (per !== null && count !== null && limit !== null && per * count > limit) {
       reds.push(`line ${l.n}'s guardrail asks about ${per} words for each of ${count} sections (${per * count}) but under ${limit} words in total. Change the guardrail.`);
     }
@@ -338,6 +346,16 @@ export function checkShapeFitsJobLine(step, i, lines, reds) {
     reds.push(`declaration: ${label} the check has wordsPerSection ${shape.wordsPerSection}; the guardrail says ${wantPer === null ? 'no size for each section' : `${wantPer} words each`} — change the guardrail on the card to change it`);
   } else if (shape.wordsPerSection === undefined && wantPer !== null) {
     reds.push(`declaration: ${label} the guardrail says ${wantPer} words each; the check has no wordsPerSection`);
+  }
+  // M4e amendment 16 C13: a size for each section needs the section names to be checked against.
+  if (shape.wordsPerSection !== undefined && !(Array.isArray(shape.sections) && shape.sections.length > 0)) {
+    reds.push(`declaration: ${label}.close.shape has wordsPerSection but no sections — it needs the section names to check each one`);
+  }
+  // M4e amendment 16 C12: linesPerInvoice and mustCarry only work as a pair.
+  if ((shape.linesPerInvoice === undefined) !== (shape.mustCarry === undefined)) {
+    const have = shape.linesPerInvoice === undefined ? 'mustCarry' : 'linesPerInvoice';
+    const miss = shape.linesPerInvoice === undefined ? 'linesPerInvoice' : 'mustCarry';
+    reds.push(`declaration: ${label}.close.shape has ${have} but no ${miss} — they work as a pair, so the check needs both`);
   }
   const limit = guardrailWordLimit(line?.guardrail);
   if (limit !== null && shape.maxWords !== undefined && shape.maxWords !== limit) {
