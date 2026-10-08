@@ -1533,6 +1533,25 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - hamr's ruling on a tie (F60, `docs/logs/FINDINGS.md`): when a Stop and the saved answer carry the SAME millisecond, the ANSWER WINS. Only a Stop asked strictly before the answer was saved stops the run at the ask and sets the answer aside; a tied or later Stop is read by the fold's own seam, which stops before the next step, so nothing ships. A Stop whose time is missing or unreadable still stops at the ask.
   - Built as: `src/runner.js` `resumeRun` (`stopFirst`), test `test/m4e-am13-stop-at-ask.test.js` (h).
 
+- **Amendment 14 — DRAFT, NOT SIGNED: Revise reopens the card; no notes (F58).**
+  - **Why:** F58 (`docs/logs/FINDINGS.md`). On `new-close2` the note "put skills before work history" came back as a green change that DROPPED the section "summary of work history blurb" instead of moving it, and amendments 6 and 7 let it through. A free-text note asks the model to guess what the human meant. hamr 2026-10-08: "chat can't be open ended … revise opens up the whole chat fields, change what you want and go again, no chat, that way we keep order, avoid misinterpretation of [a] probabilistic model and you get to review, else, start over and it keeps the same job just a new start with 2 new shots"; "you have a plan offered, you read it, approve it or revise".
+  - **1. No note box.** After a green plan, the card shows the plan and two buttons: **Sign & run** and **Revise**. Nothing the human types goes to the model as a note. This replaces amendment 3 item 3's note box and **Send**, and amendment 4 item 3's **you** / **fwdloop** bubbles.
+  - **2. Revise reopens the card.** **Revise** opens every card field, filled in as last drafted: flow name, job lines and their guardrails, asks and their waits, inputs, cap and destination. The human edits them and presses **Draft**. That is a fresh draft of the card as it is now. The model gets the card only, never the old plan or a note. The new plan replaces the shown one, with a new hash. Every draft check (amendment 6 item 1, amendment 7 item 1) applies to it.
+  - **3. Two revises, then Start over.** Each draft gets 2 revises, shown as "2 revises left" or "1 revise left". After the second revise, the button reads **Start over**. All fields stay open. Draft starts a fresh draft with its own 2 revises (amendment 4 item 3's Start over, now with the fields open). Every revise and every Start over is booked as a draft call (amendment 3, unchanged).
+  - **4. A red revise.** A revise that comes back red shows its reds, and the card keeps the human's edits. **Sign & run** stays off until a plan is green, because the last green plan was drafted from a different card. This replaces amendment 3's "keeps the last green plan to sign" for a revise.
+  - **5. The plan shows every step's sections.** In the readout, under each step whose check names sections, the section names and word limit show in the check's order (`sections: How it matches the JD · Professional skills · Soft skills · under 600 words`). Before signing, the human can see if a section is missing.
+  - **6. Draft record.** Each revise is written to the draft record as the card as submitted, plus the model, cost, green or red, and plan hash. There is no note row. The Audit Draft group shows it as `revise 1`, `revise 2` and `start over`. Flows signed before this amendment keep showing their note rows as they are. A key value in any field is refused, as today.
+  - **Negatives:**
+    - (a) after a green plan, the card shows no note box; a POST carrying a note is refused at $0 with no model call;
+    - (b) Revise opens every field, filled with the last drafted values. Editing a job line and pressing Draft gives a plan whose step goal is the new line, verbatim, with a new hash. Signing the old hash signs nothing;
+    - (c) the model request for a revise carries the card only: no old plan and no note (checked in the request body);
+    - (d) a third revise is refused at $0. The button reads Start over. Start over keeps the fields, gives 2 new revises, and is booked as a draft call;
+    - (e) a red revise shows its reds, keeps the human's edits, and leaves Sign & run off;
+    - (f) F58 replay: on `new-close2`'s card, Revise with line 3 edited to put skills before work history. The plan's readout lists that step's sections in the check's order, so a missing section is visible before signing (one paid draft call);
+    - (g) a refresh during or after a revise brings back the newest plan, the revises-left count and the open fields;
+    - (h) the card, the readout's sections line and the Revise and Start over buttons fit at 1280, 390 and 320 px.
+  - **Cap:** within M4e's $0.50; $0 build, plus about $0.01 for (f).
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
