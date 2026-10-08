@@ -2726,7 +2726,7 @@ function haltRun({
     // failed log, halt.json or settle row above never costs the row its real signature hash or the run's spend.
     // The one exception is the earlier rule (test/m4e-halt-write-order.test.js): a `stopped` row with no halt.json would read "stopped" with
     // no Resume offered, so a Stop whose halt record failed leaves no end row. C7 names the cap-halt, which always gets its row.
-    const stoppedWithoutHaltRecord = outcome === 'stopped' && resumeAt && !existsSync(join(runDir, HALT_FILE));
+    const stoppedWithoutHaltRecord = outcome === 'stopped' && resumeAt && !readHaltRecord(runDir).ok;
     if (!stoppedWithoutHaltRecord) {
       appendHistory(flowDir, {
         runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash,
