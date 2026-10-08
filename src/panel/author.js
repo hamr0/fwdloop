@@ -56,6 +56,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = join(HERE, '..', '..', 'bin', 'fwdloop');
 
 /** A draft id: `d-` + the start time in base 36 (so ids sort oldest to newest) + 4 random hex. */
+const STARTED_OVER_FILE = 'started-over-from.json';
 const ID_RE = /^d-[0-9a-z]{10}-[0-9a-f]{4}$/;
 const newId = () => `d-${Date.now().toString(36).padStart(10, '0')}-${randomBytes(2).toString('hex')}`;
 /** The phases that end a card's life: Abandon or a sign. Everything else is still on the card (to read, to sign, to retry). */
@@ -307,6 +308,11 @@ export function createAuthor(opts) {
       mkdirSync(dir, { mode: 0o700 });
       const proseFile = join(dir, 'prose.txt');
       writeFileSync(join(dir, 'card.json'), `${JSON.stringify(card, null, 2)}\n`, { mode: 0o600 });
+      // amendment 14 item 6: a Start over names the draft it started over from; write-once, here only. An id that is not one of this panel's drafts is ignored.
+      const from = body?.startedOverFrom;
+      if (typeof from === 'string' && ID_RE.test(from) && listIds().includes(from)) {
+        writeFileSync(join(dir, STARTED_OVER_FILE), `${JSON.stringify({ startedOverFrom: from })}\n`, { mode: 0o600, flag: 'wx' });
+      }
       writeFileSync(proseFile, vet.prose, { mode: 0o600 });
       let child;
       try {

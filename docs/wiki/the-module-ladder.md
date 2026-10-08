@@ -1551,6 +1551,8 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
     - (g) a refresh during or after a revise brings back the newest plan, the revises-left count and the open fields;
     - (h) the card, the readout's sections line and the Revise and Start over buttons fit at 1280, 390 and 320 px.
   - **Cap:** within M4e's $0.50; $0 build, plus about $0.01 for (f).
+- **Built after signing — not signed text (2026-10-08):**
+  - Known limit, accepted by hamr ("why are you overcomplicating this"): with 0 revises left on a green plan the fields stay open (item 3); an edit not sent with Start over is not in the plan, and Sign & run signs the plan shown, never the unsent edit. No Cancel on an open Revise; a refresh closes it.
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs

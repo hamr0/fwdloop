@@ -69,10 +69,10 @@ test('item 3: "2 revises left" / "1 revise left"; at 0 the button reads Start ov
   assert.equal(so({ ...green, left: 0, mode: 'run' }), false);
   // red/stopped with none left: Start over IS the main button, and its action is the draft call
   for (const phase of ['red', 'stopped']) {
-    assert.deepEqual(mb({ ...green, phase, left: 0 }), { text: 'Start over', action: 'draft', disabled: false });
+    assert.deepEqual(mb({ ...green, phase, left: 0 }), { text: 'Start over', action: 'draft', startOver: true, disabled: false });
     assert.deepEqual(mb({ ...green, phase, left: 1 }), { text: 'Draft', action: 'revise', disabled: false }, 'revises left: another revise, not a new draft');
   }
-  assert.match(CODE, /startOverBtn\.addEventListener\("click", function\(\)\{ if\(!startOverBtn\.disabled\) doDraft\(\); \}\);/);
+  assert.match(CODE, /startOverBtn\.addEventListener\("click", function\(\)\{ if\(!startOverBtn\.disabled\) doDraft\(sessionId\); \}\);/, 'Start over names the draft it starts over from (amendment 14 item 6)');
   assert.match(fnSrc('doDraft'), /authorPost\("\/api\/author\/draft", body\)/);
   assert.match(fnSrc('doDraft'), /reviseOpen = false/, 'a new draft starts with the fields locked behind its own Revise');
   // the hint line says how many are left, and what the way on is at 0

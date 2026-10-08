@@ -66,7 +66,9 @@ export function buildSetupRows({
   if (sessionDir) {
     const card = readJson(sessionDir, 'card.json');
     if (card) rows.push({ kind: 'card', n: 0, at: mtimeIso(sessionDir, 'card.json'), card });
-    rows.push(planRow(sessionDir, 'draft', 'draft', 0));
+    // amendment 14 item 6: a draft begun by Start over says so (written once by the panel's start); its row reads `start over`
+    const so = readJson(sessionDir, 'started-over-from.json');
+    rows.push(planRow(sessionDir, 'draft', typeof so?.startedOverFrom === 'string' ? 'startover' : 'draft', 0));
     // amendment 14 item 6: each revise is the card as submitted, then its plan row (model, cost, verdict, hash); there is no note row
     const ns = readdirInside(sessionDir, '.').map((f) => CARD_RE.exec(f)?.[1]).filter((x) => x !== undefined).map(Number).sort((a, b) => a - b);
     for (const n of ns) {

@@ -3816,6 +3816,7 @@
     var resumeSignInfo = null;   // Resume form, first Sign & resume click: { hash }
     var modeBeforeResume = "new";
     var mainAction = "none";
+    var mainStartOver = false;   // the main button reads Start over (amendment 14 item 6: that draft names the one it started over from)
     var startOk = false;
     var sessionId = null;        // the draft's id (GET /api/author/<id>)
     var sessionLive = false;     // a draft exists that is not abandoned or signed
@@ -3880,7 +3881,7 @@
       }
       if((st.phase === "red" || st.phase === "stopped") && st.revisable){
         // amendment 14 items 3-4: a red revise keeps the edits; Draft is another revise, Start over (no revises left) a fresh draft
-        return (st.left || 0) > 0 ? {text: "Draft", action: "revise", disabled: blocked} : {text: "Start over", action: "draft", disabled: blocked};
+        return (st.left || 0) > 0 ? {text: "Draft", action: "revise", disabled: blocked} : {text: "Start over", action: "draft", startOver: true, disabled: blocked};
       }
       if(st.phase === "red"){
         return {text: "Fix and draft again", action: "draft", disabled: blocked};
@@ -4403,7 +4404,7 @@
       var b = mainButtonFor(st);
       mainBtn.textContent = b.text;
       mainBtn.disabled = b.disabled;
-      mainAction = b.action;
+      mainAction = b.action; mainStartOver = !!b.startOver;
       // amendment 14 item 3: the count shows while a draft has revises to count; at 0 the way on is Start over
       mainHint.textContent = (mode === "new" && sessionLive && st.revisable && st.phase !== "signed") ? (st.left > 0 ? revisesLeftText(st.left) : "No revises left: Start over keeps the fields and gives 2 new ones.") : "";
       reviseBtn.hidden = !reviseShownFor(st);
@@ -4542,13 +4543,14 @@
       }).catch(function(){ /* transient — next tick tries again */ });
     }
 
-    function doDraft(){
+    function doDraft(startedOverFrom){
       clearFieldErrors();
       chatActionOk();
       // disabled from the click until the reply; unlocked below only if the draft is refused
       busy = true;
       refreshStartEnabled();
       var body = currentCard();
+      if(startedOverFrom) body.startedOverFrom = startedOverFrom;
       authorPost("/api/author/draft", body).then(function(r){
         busy = false;
         var o = chatPostOutcome(r);
@@ -4777,10 +4779,10 @@
     // Revise (amendment 14 item 2): opens every card field, filled as last submitted; nothing is sent
     reviseBtn.addEventListener("click", function(){ if(reviseBtn.disabled) return; reviseOpen = true; refreshStartEnabled(); });
     // Start over (amendment 14 item 3): the same draft call as Draft, from the card as it is now; the old draft's files stay (a new draft id, 2 new revises)
-    startOverBtn.addEventListener("click", function(){ if(!startOverBtn.disabled) doDraft(); });
+    startOverBtn.addEventListener("click", function(){ if(!startOverBtn.disabled) doDraft(sessionId); });
     mainBtn.addEventListener("click", function(){
       if(mainBtn.disabled) return;
-      if(mainAction === "draft") doDraft();
+      if(mainAction === "draft") doDraft(mainStartOver ? sessionId : null);
       else if(mainAction === "run") doRun();
       else if(mainAction === "run-sign-prepare" || mainAction === "run-sign") doRunSign();
       else if(mainAction === "resume-sign-prepare" || mainAction === "resume-sign") doResumeSign();

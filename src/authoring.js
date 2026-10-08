@@ -137,6 +137,12 @@ export function buildReadout({
     out.push(`  ${i + 1}. (line ${st.fromLine}) ${st.goal}`);
     out.push(`     grants: ${st.primitives?.length ? st.primitives.join(', ') : 'none (pure stop)'}`
       + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${st.close?.class}`);
+    // M4e amendment 14 item 5: the check's sections in its order (+ word limit); fixed text from typed fields, never model prose.
+    const shape = st.close?.shape;
+    if (Array.isArray(shape?.sections) && shape.sections.length > 0) {
+      const lim = Number.isInteger(shape.maxWords) ? ` · under ${shape.maxWords} words` : '';
+      out.push(`     sections: ${shape.sections.join(' · ')}${lim}`);
+    }
   });
   out.push('', READOUT_HEADS.asks);
   for (const a of arbiter.asks) out.push(`  line ${a.line}: "${a.question}" (ttl ${fmtTtl(a.ttlMs)})`);

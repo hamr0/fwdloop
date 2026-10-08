@@ -1465,6 +1465,7 @@ export function getDraftBlock(flowDir, runDir) {
       else if (r.kind === 'note') happened.push('your note');
       else if (r.kind === 'draft') happened.push(r.verdict === 'green' ? `drafting${retry(r)}` : 'draft red');
       else if (r.kind === 'change') happened.push(r.verdict === 'red' ? 'change red' : `changing${retry(r)}`);
+      else if (r.kind === 'startover') happened.push(r.verdict === 'green' ? `starting over${retry(r)}` : 'start over red');
       else if (r.kind === 'revise') happened.push(r.verdict === 'red' ? 'revise red' : `revising${retry(r)}`);
       else if (r.kind === 'sign') happened.push(`signed (${r.signedBy ?? 'you'})`);
       if (r.kind === 'card') {
@@ -1475,6 +1476,7 @@ export function getDraftBlock(flowDir, runDir) {
       } else if (r.kind === 'note') rows.push(human(r, n, { action: 'note (you)', gap: String(r.text ?? '') }));
       else if (r.kind === 'draft') rows.push(model(r, n, 'draft'));
       else if (r.kind === 'change') rows.push(model(r, n, `change ${r.n}`));
+      else if (r.kind === 'startover') rows.push(model(r, n, 'start over'));
       else if (r.kind === 'revise') rows.push(model(r, n, `revise ${r.n}`));
       else if (r.kind === 'sign') rows.push(human(r, n, { action: `sign (${r.signedBy ?? 'you'})`, gap: `plan ${String(r.hash ?? '').slice(0, 12)}` }));
     });
@@ -1502,7 +1504,7 @@ export function getDraftBlock(flowDir, runDir) {
   const lastSign = setup.present ? [...setup.rows].reverse().find((r) => r.kind === 'sign') : undefined;
   const humanChecks = setup.present ? setup.rows.filter((r) => r.kind === 'note' || r.kind === 'sign').length + versions.length : null;
   const totals = setup.present
-    ? draftTotals(setup.rows.filter((r) => r.kind === 'draft' || r.kind === 'change'), { cardAt: setup.rows.find((r) => r.kind === 'card')?.at, signAt: lastSign?.at, humanChecks })
+    ? draftTotals(setup.rows.filter((r) => r.kind === 'draft' || r.kind === 'change' || r.kind === 'revise' || r.kind === 'startover'), { cardAt: setup.rows.find((r) => r.kind === 'card')?.at, signAt: lastSign?.at, humanChecks })
     : null;
   // the group the Audit tab draws as a normal card (collapsed by default) and the box the Map and the first step card read
   // `ended` = how the drafting ended: `done` only with a sign row, else `not signed` (no `red` state: a red change shows on line 4 only)
