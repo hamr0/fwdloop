@@ -251,6 +251,23 @@ export function claimHold({
 }
 
 /**
+ * Amendment 16 C2: a hold's process starts spending into one more run dir (a rerun's new run): name it NOW, so a process killed hard
+ * still has that dir's spend counted. Append-only; `namedDirs` dedupes, so the settle note naming it again never counts it twice.
+ * Never throws (a failed note is closed by the settle note's `alsoRunDirs` on a normal exit).
+ * @param {{ holdId: string|null, runDir: string, home?: string, now?: () => number }} a
+ */
+export function nameRunDir({
+  holdId, runDir, home, now = Date.now,
+}) {
+  if (!holdId) return;
+  try {
+    appendRow(home, {
+      kind: 'named', holdId, at: new Date(now()).toISOString(), alsoRunDirs: [realpathLoose(runDir)],
+    });
+  } catch { /* see above */ }
+}
+
+/**
  * The run's own process ends or parks: give the hold back. Never throws (a failed settle is closed by the
  * next check as "process gone"). `alsoRunDirs` names dirs this process also spent into (a rerun's new run).
  * @param {{ holdId: string|null, why: string, home?: string, now?: () => number, alsoRunDirs?: string[] }} a

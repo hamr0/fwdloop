@@ -37,7 +37,7 @@ import {
 } from '../src/provider.js';
 import { configDoorHome } from '../src/config.js';
 import {
-  claimHold, settleHold, monthlyRefusalText, ConfigError,
+  claimHold, settleHold, nameRunDir, monthlyRefusalText, ConfigError,
 } from '../src/monthly.js';
 import { keysForDoor } from '../src/keysfile.js';
 import {
@@ -73,7 +73,7 @@ function keyedEnv() {
  * that does not fit refuses at $0 with the one refusal text. A hold that fits is given back when this
  * process ends or parks (the `exit` hook runs on every exit path; a SIGKILL leaves it for the next check,
  * which settles it as "process gone").
- * @returns {{ addRunDir: (d: string) => void }}
+ * @returns {{ addRunDir: (d: string) => void, nameRunDir: (d: string) => void }}
  */
 function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }) {
   const door = configDoorHome();
@@ -86,7 +86,7 @@ function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }
     if (!(process.env.NODE_ENV === 'test' && process.env[hook])) {
       fail('NODE_ENV=test is set without FWDLOOP_CONFIG_HOME, so the keys file, prices and monthly limit would be skipped. Nothing spent. Unset NODE_ENV, or set FWDLOOP_CONFIG_HOME.');
     }
-    return { addRunDir: () => {} };
+    return { addRunDir: () => {}, nameRunDir: () => {} };
   }
   let claim;
   try {
@@ -103,13 +103,17 @@ function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }
       holdId: claim.holdId, why: process.exitCode ? 'ended (red)' : 'ended or parked', home, alsoRunDirs: also,
     }));
   }
-  return { addRunDir: (d) => also.push(d) };
+  return {
+    addRunDir: (d) => also.push(d),
+    // C2: a rerun's new run dir is named in the money record the moment it starts.
+    nameRunDir: (d) => { also.push(d); nameRunDir({ holdId: claim.holdId, runDir: d, home }); },
+  };
 }
 
 /** The new runs a `rerun` chain started in this process — their spend belongs to this hold's month too. */
 function rerunDirs(result, flowDir) {
   const dirs = [];
-  for (let r = result; r && r.outcome === 'rerun'; r = r.newRun) dirs.push(join(flowDir, r.newRunId));
+  for (let r = result; r && r.outcome === 'rerun'; r = r.newRun) dirs.push(join(flowDir, 'runs', r.newRunId));
   return dirs;
 }
 
@@ -619,6 +623,7 @@ async function cmdResume(rest) {
     primitives,
     primitiveReds,
     businessDate: today(),
+    onRerunStart: (d) => hold.nameRunDir(d),
   });
 
   for (const d of rerunDirs(result, join(root, flowName))) hold.addRunDir(d);

@@ -1822,6 +1822,8 @@ export async function resumeRun({
   // F45 finding 3 (see `runFlow`'s own `nowMs`): additive, defaults to the
   // real `Date.now` for every existing caller.
   nowMs,
+  // Amendment 16 C2: called with the new run's folder just before a `rerun` starts it, so the caller can name it in the money records.
+  onRerunStart,
 }) {
   const now = typeof clock === 'function' ? clock : () => new Date().toISOString();
   const getNowMs = typeof nowMs === 'function' ? nowMs : Date.now;
@@ -2141,6 +2143,7 @@ export async function resumeRun({
       // they aren't already" — they already are, via this field).
       const rerunSources = (state.inputsManifest ?? []).map((entry) => ({ id: entry.id, path: entry.source }));
 
+      if (typeof onRerunStart === 'function') onRerunStart(newRunDir);
       const newRun = await runFlow({
         root,
         name,
@@ -2721,9 +2724,14 @@ function haltRun({
   } finally {
     // The history end row is the LAST write and is always written (amendment 16 C7): a reader that sees it finds the run settled, and a
     // failed log, halt.json or settle row above never costs the row its real signature hash or the run's spend.
-    appendHistory(flowDir, {
-      runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash,
-    });
+    // The one exception is the earlier rule (test/m4e-halt-write-order.test.js): a `stopped` row with no halt.json would read "stopped" with
+    // no Resume offered, so a Stop whose halt record failed leaves no end row. C7 names the cap-halt, which always gets its row.
+    const stoppedWithoutHaltRecord = outcome === 'stopped' && resumeAt && !existsSync(join(runDir, HALT_FILE));
+    if (!stoppedWithoutHaltRecord) {
+      appendHistory(flowDir, {
+        runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash,
+      });
+    }
   }
   return { outcome, red, spentUsd: spent.value };
 }
