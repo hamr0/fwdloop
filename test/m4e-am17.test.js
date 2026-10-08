@@ -80,3 +80,29 @@ test('1A a Stop before any ask parks, then a Stop at the ask of step 4: the ask 
   assert.equal(listStops({ root: w.root }).find((x) => x.runId === 'run-1').statusText, 'stopped at the ask of step 4', 'Inbox');
 });
 
+// ---- 2A ----
+test('2A a stop time that is no date ({}, number, empty, non-date, torn file) is "now"; all end the same way', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'fwdloop-am17-2a-'));
+  const NOWISO = '2026-10-08T12:00:00.000Z';
+  for (const body of ['{}', '{"at":5}', '{"at":""}', '{"at":null}', '{"at":"last tuesday"}', '{not json']) {
+    writeFileSync(path.join(dir, STOP_FILE), `${body}\n`);
+    assert.equal(R.readStopRequest(dir, () => NOWISO)?.at, NOWISO, body);
+  }
+  writeFileSync(path.join(dir, STOP_FILE), '{"at":"2026-10-08T09:00:00.000Z"}\n');
+  assert.equal(R.readStopRequest(dir, () => NOWISO).at, '2026-10-08T09:00:00.000Z', 'a real date is kept');
+});
+test('2A a Stop with no time, a number, or a non-date, landing as an answer is given, all end the same way', async () => {
+  const ends = [];
+  for (const [i, body] of ['{}', '{"at":5}', '{"at":"last tuesday"}'].entries()) {
+    const w = await parked(`b${i}`);
+    assert.equal(answerAsk({ runDir: w.runDir, askId: w.ask.askId, decision: 'accept' }).ok, true);
+    writeFileSync(path.join(w.runDir, STOP_FILE), `${body}\n`);
+    const r = await resumeRun(args(w));
+    const rows = readAudit(w.runDir).filter((x) => /^stop/.test(x.verdict));
+    ends.push({ outcome: r.outcome, verdicts: rows.map((x) => x.verdict), recorded: rows.every((x) => !/unrecorded/.test(x.gap)) });
+  }
+  assert.deepEqual(ends[0], ends[2], '{} ends like "last tuesday"');
+  assert.deepEqual(ends[1], ends[2], '{"at":5} ends like "last tuesday"');
+  assert.equal(ends[2].recorded, true);
+});
+

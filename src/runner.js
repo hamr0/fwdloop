@@ -115,18 +115,21 @@ export function requestStop(runDir) {
 }
 
 /**
- * The ONE reader of the stop request: `{at}` (when it was asked; null if unreadable) or `null` when none is pending. Amendment 16 C11: a time
- * that is not a real date is treated as made "now" (`now`, when given), so the stop completes with every record and the ask is never lost.
+ * The ONE reader of the stop request: `{at}` (when it was asked) or `null` when none is pending. Amendment 16 C11 / amendment 17 2A: a
+ * time that is not a real date (a non-date string, a number, a missing or empty time, a torn file) is treated as made "now" (`now`,
+ * when given), one rule for all, so the stop completes with every record and the ask is never lost. Without `now` (a pending check)
+ * such a request reads `{at:null}`.
  * @param {string} runDir @param {() => string} [now]
  */
 export function readStopRequest(runDir, now) {
   const r = readFileInside(runDir, STOP_FILE);
   if (!r.ok) return null;
+  let at = null;
   try {
-    const at = JSON.parse(r.text)?.at;
-    if (typeof at !== 'string') return { at: null };
-    return { at: Number.isNaN(Date.parse(at)) ? (typeof now === 'function' ? now() : null) : at };
-  } catch { return { at: null }; }
+    const t = JSON.parse(r.text)?.at;
+    if (typeof t === 'string' && !Number.isNaN(Date.parse(t))) at = t;
+  } catch { /* a torn file: no time */ }
+  return { at: at ?? (typeof now === 'function' ? now() : null) };
 }
 
 /** Is a stop pending for this run? (read-only) @param {string} runDir */
@@ -2051,10 +2054,9 @@ export async function resumeRun({
     // park, before the Stop door could act). The run is stopped AT the ask and the answer to it is not used. A Stop asked at the same
     // instant as the answer, or after it, belongs to the apply that follows: the fold's own seam reads it and stops before the next
     // step. On a tie the ANSWER WINS (hamr's ruling, 2026-10-07: a fast CI gave both the same millisecond). A Stop with no readable
-    // time is stopped at the ask: conservative, stated here so it never falls out of a NaN comparison.
+    // time is read as made "now" by `readStopRequest` (amendment 17 2A, one rule), which is after the answer: the answer wins.
     const stopReq = readStopRequest(runDir, now);
-    const stopMs = stopReq ? Date.parse(stopReq.at ?? '') : NaN;
-    const stopFirst = Number.isNaN(stopMs) || stopMs < Date.parse(answer.answeredAt);
+    const stopFirst = stopReq !== null && Date.parse(stopReq.at) < Date.parse(answer.answeredAt);
     if (stopReq && stopFirst) {
       const prev = readLog(runDir);
       return stopAtAsk({
