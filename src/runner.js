@@ -1658,14 +1658,18 @@ async function foldFromStep({
   // run really was sitting there waiting on a human, so it belongs in
   // "how long did this run take", not carved out of it.
   const wallMs = nowMs() - runStartedAt;
-  appendHistory(flowDir, {
-    runId, at: now(), outcome: 'complete', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd, wallMs, signatureHash,
-  });
-  recordLateAnswerIfAny(runDir, now);
-  writeLog(runDir, {
-    runId, outcome: 'complete', attempts: attemptsLog, artifacts,
-  });
-  settleStop({ runDir, now, outcome: 'complete' });
+  try {
+    recordLateAnswerIfAny(runDir, now);
+    writeLog(runDir, {
+      runId, outcome: 'complete', attempts: attemptsLog, artifacts,
+    });
+    settleStop({ runDir, now, outcome: 'complete' });
+  } finally {
+    // Amendment 16 C6/C7: the history end row is written last, and always.
+    appendHistory(flowDir, {
+      runId, at: now(), outcome: 'complete', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd, wallMs, signatureHash,
+    });
+  }
   return {
     outcome: 'complete', runDir, artifacts, spentUsd: spent.value,
   };
@@ -2102,11 +2106,15 @@ export async function resumeRun({
       for (let i = 0; i < state.stepIndex; i += 1) {
         priorArtifactsForLog[steps[i].emits] = readArtifact(runDir, steps[i].emits);
       }
-      appendHistory(flowDir, {
-        runId, at: now(), outcome: 'rerun', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
-      });
-      recordLateAnswerIfAny(runDir, now);
-      writeLog(runDir, { runId, outcome: 'rerun', attempts: [], artifacts: priorArtifactsForLog });
+      try {
+        recordLateAnswerIfAny(runDir, now);
+        writeLog(runDir, { runId, outcome: 'rerun', attempts: [], artifacts: priorArtifactsForLog });
+      } finally {
+        // Amendment 16 C6/C7: the history end row is written last, and always.
+        appendHistory(flowDir, {
+          runId, at: now(), outcome: 'rerun', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
+        });
+      }
 
       // Deterministic derived id (M3 scope item 7) — refused by name, never
       // silently renumbered, if it already exists.
@@ -2683,24 +2691,28 @@ function haltRun({
   const spendComplete = priorSpendComplete
     && outcome !== 'provider-red' && outcome !== 'pricing-red' && outcome !== 'cap-halt';
   mkdirSync(flowDir, { recursive: true });
-  if (existsSync(runDir)) {
-    recordLateAnswerIfAny(runDir, now);
-    writeLog(runDir, {
-      runId, outcome, red, attempts, artifacts,
-    });
-    // M4e amendment 4 item 4: a cap-halted or stopped run leaves the one record Resume continues from (its only writer).
-    if (resumeAt && HALT_OUTCOMES.includes(outcome)) {
-      writeFileSync(join(runDir, HALT_FILE), `${JSON.stringify({
-        runId, outcome, at: now(), flow: { root: resumeAt.flowRoot, name: resumeAt.flowName }, signatureHash, inputsManifest: resumeAt.inputsManifest,
-        stepIndex: resumeAt.stepIndex, startedAt, unjudged: resumeAt.unjudged ?? [],
-        ...(Number.isInteger(resumeAt.redone) ? { redone: resumeAt.redone } : {}),
-      }, null, 2)}\n`, { flag: 'wx' });
+  try {
+    if (existsSync(runDir)) {
+      recordLateAnswerIfAny(runDir, now);
+      writeLog(runDir, {
+        runId, outcome, red, attempts, artifacts,
+      });
+      // M4e amendment 4 item 4: a cap-halted or stopped run leaves the one record Resume continues from (its only writer).
+      if (resumeAt && HALT_OUTCOMES.includes(outcome)) {
+        writeFileSync(join(runDir, HALT_FILE), `${JSON.stringify({
+          runId, outcome, at: now(), flow: { root: resumeAt.flowRoot, name: resumeAt.flowName }, signatureHash, inputsManifest: resumeAt.inputsManifest,
+          stepIndex: resumeAt.stepIndex, startedAt, unjudged: resumeAt.unjudged ?? [],
+          ...(Number.isInteger(resumeAt.redone) ? { redone: resumeAt.redone } : {}),
+        }, null, 2)}\n`, { flag: 'wx' });
+      }
+      settleStop({ runDir, now, outcome, stop }); // amendment 7 item 8: every Stop leaves its rows
     }
-    settleStop({ runDir, now, outcome, stop }); // amendment 7 item 8: every Stop leaves its rows
+  } finally {
+    // The history end row is the LAST write and is always written (amendment 16 C7): a reader that sees it finds the run settled, and a
+    // failed log, halt.json or settle row above never costs the row its real signature hash or the run's spend.
+    appendHistory(flowDir, {
+      runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash,
+    });
   }
-  // The history end row is the LAST write: a reader that sees it finds the run fully settled (halt.json, log.json, stop rows).
-  appendHistory(flowDir, {
-    runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash,
-  });
   return { outcome, red, spentUsd: spent.value };
 }
