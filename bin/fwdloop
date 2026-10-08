@@ -754,13 +754,13 @@ async function cmdDraft(rest) {
   const { values, positionals } = parseArgs({
     args: rest,
     options: {
-      out: { type: 'string' }, root: { type: 'string' }, name: { type: 'string' }, budget: { type: 'string' }, 'revise-from': { type: 'string' }, note: { type: 'string' },
+      out: { type: 'string' }, root: { type: 'string' }, name: { type: 'string' }, budget: { type: 'string' },
     },
     allowPositionals: true,
   });
   const env = keyedEnv();
   const proseFile = positionals[0];
-  if (!proseFile) fail('draft: a prose file is required — fwdloop draft <prose.txt> --out <draftDir> --root <flowsDir> --name <flow> [--budget <usd>] [--revise-from <planDir> --note <file>]');
+  if (!proseFile) fail('draft: a prose file is required — fwdloop draft <prose.txt> --out <draftDir> --root <flowsDir> --name <flow> [--budget <usd>]');
   for (const req of ['out', 'root', 'name']) if (!values[req]) fail(`draft: --${req} is required`);
 
   let injected = {};
@@ -794,8 +794,6 @@ async function cmdDraft(rest) {
     root: resolve(values.root),
     name: values.name,
     budgetUsd: values.budget === undefined ? undefined : Number(values.budget),
-    reviseFrom: values['revise-from'] === undefined ? undefined : resolve(values['revise-from']),
-    noteFile: values.note === undefined ? undefined : resolve(values.note),
     env,
     ...injected,
   });

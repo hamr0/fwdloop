@@ -411,8 +411,8 @@ const ALLOWLIST = {
     names: { renameSync: 1, writeFileSync: 1 },
   },
   'src/panel/author.js': {
-    reason: 'M4e piece 2a: the panel\'s draft door — creates ITS OWN draft folder `<root>/.drafts/<id>/` (mkdir 0700) and writes the files it owns there (card.json, prose.txt, pid.json, abandoned.json, all 0600; and, M4e amendment 3 item 3, one `note-<n>.txt` per change the human asks for, write-once (exclusive create), 0600, never a key); realpathSync of the typed --root at use time. Every READ of a draft folder (its own files and the CLI child\'s output under draft/) goes through readFileInside/readdirInside (src/flow.js), never fs directly.',
-    names: { mkdirSync: 2, realpathSync: 3, writeFileSync: 5 },
+    reason: 'M4e piece 2a: the panel\'s draft door — creates ITS OWN draft folder `<root>/.drafts/<id>/` (mkdir 0700) and writes the files it owns there (card.json, prose.txt, pid.json, abandoned.json, all 0600; and, M4e amendment 14, per revise a `card-<n>.json` and `prose-<n>.txt`, each write-once (exclusive create), 0600, the card as submitted, never a key); realpathSync of the typed --root at use time. Every READ of a draft folder (its own files and the CLI child\'s output under draft/) goes through readFileInside/readdirInside (src/flow.js), never fs directly.',
+    names: { mkdirSync: 2, realpathSync: 4, writeFileSync: 6 },
   },
   'src/panel/authorstart.js': {
     reason: 'M4e piece 2b: the ONE run-start path — creates ITS OWN start folder `<root>/.starts/<id>/` (mkdir 0700) and writes the one file it owns there (start.json 0600; cleared.json 0600, once, when the human dismisses a refused start; pid.json and child.log go through spawn.js); realpathSync of the typed --root at use time; existsSync of the new run dir (presence only, to refuse an id already used); rmdirSync of a run dir this start just claimed when the start is refused before the child runs (rmdir removes only an EMPTY folder). Every READ of a start folder and of the run dir (pids.jsonl, ask.json) goes through readFileInside/readPidRows/readdirInside, never fs directly.',

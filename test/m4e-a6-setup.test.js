@@ -24,7 +24,7 @@ const CAT = loadCatalogue().primitives;
 const KEY = 'sk-canary-A6-setup-5d2c7e19b4a8f3066d21';
 const SLOT_ENV = PROVIDER_SLOTS.deepseek.envVar;
 
-/** A panel-shaped draft folder: card.json, draft/, a note, draft-1/ (a change), as `src/panel/author.js` lays it out. */
+/** A panel-shaped draft folder: card.json, draft/, card-1.json, draft-1/ (a revise), as `src/panel/author.js` lays it out (amendment 14). */
 async function session() {
   const fx = job2Fixture();
   const work = mkdtempSync(path.join(tmpdir(), 'fwdloop-a6-setup-'));
@@ -39,13 +39,12 @@ async function session() {
     proseFile, dir: path.join(dir, 'draft'), root, name: 'job2', provider: fakeProvider([toolReply(validArgs())]), rates: RATES, modelId: MODEL, env: {},
   });
   assert.equal(first.ok, true, JSON.stringify(first.reds));
-  // the session's own note file carries the key (a hand-planted leak); the plan dir's copy is clean so sign's own plan-dir sweep passes and ONLY the setup scrub is under test
-  writeFileSync(path.join(dir, 'note-1.txt'), `make it mention the JD ${KEY}\n`);
-  writeFileSync(path.join(dir, 'note-clean.txt'), 'make it mention the JD\n');
+  // the revise's card (as submitted) carries the key (a hand-planted leak); the plan dir's prose is clean so sign's own plan-dir sweep passes and ONLY the setup scrub is under test
+  writeFileSync(path.join(dir, 'card-1.json'), `${JSON.stringify({ ...card, job: `read my resume and the JD ${KEY}` }, null, 2)}\n`);
   const change = validArgs();
   change.steps[2].close.shape.mustCarry = ['JD'];
   const second = await draftToDir({
-    proseFile, dir: path.join(dir, 'draft-1'), root, name: 'job2', provider: fakeProvider([toolReply(change)]), rates: RATES, modelId: MODEL, env: {}, reviseFrom: path.join(dir, 'draft'), noteFile: path.join(dir, 'note-clean.txt'),
+    proseFile, dir: path.join(dir, 'draft-1'), root, name: 'job2', provider: fakeProvider([toolReply(change)]), rates: RATES, modelId: MODEL, env: {},
   });
   assert.equal(second.ok, true, JSON.stringify(second.reds));
   return { root, dir, work, first, second };
@@ -55,21 +54,22 @@ const sign = (s, extra = {}) => signDraft({
 });
 const flowDir = (s) => path.join(s.root, 'job2');
 
-test('(d) after sign, setup.jsonl has the card, every draft and change with its cost and verdict, the note, and the sign row; the flow still reads', async () => {
+test('(d) after sign, setup.jsonl has the card, every draft and revise with its cost and verdict, each revise card as submitted, and the sign row; no note row; the flow still reads', async () => {
   const s = await session();
   const r = sign(s);
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.equal(r.setup.ok, true, JSON.stringify(r.setup));
   const setup = readSetup(flowDir(s));
   assert.equal(setup.present, true);
-  assert.deepEqual(setup.rows.map((x) => x.kind), ['card', 'draft', 'note', 'change', 'sign']);
-  const [card, draft, note, change, signRow] = setup.rows;
+  assert.deepEqual(setup.rows.map((x) => x.kind), ['card', 'draft', 'card', 'revise', 'sign']);
+  const [card, draft, card1, change, signRow] = setup.rows;
   assert.equal(card.card.flowName, 'job2');
   assert.equal(draft.verdict, 'green');
   assert.equal(draft.hash, s.first.hash);
   assert.equal(draft.model, MODEL);
   assert.ok(draft.costUsd > 0, 'priced, never 0');
-  assert.match(note.text, /make it mention the JD/);
+  assert.equal(card1.n, 1);
+  assert.match(card1.card.job, /read my resume and the JD/);
   assert.equal(change.hash, s.second.hash);
   assert.equal(change.verdict, 'green');
   assert.ok(change.costUsd > 0);
@@ -93,7 +93,7 @@ test('(d) writing setup.jsonl a second time is refused and changes nothing', asy
   assert.equal(readFileSync(path.join(flowDir(s), SETUP_FILE), 'utf8'), before);
 });
 
-test('(e) no key value in setup.jsonl, though the key sat in the card and in the note', async () => {
+test('(e) no key value in setup.jsonl, though the key sat in the card and in a revise card', async () => {
   const s = await session();
   assert.equal(sign(s).ok, true);
   const text = readFileSync(path.join(flowDir(s), SETUP_FILE), 'utf8');
@@ -117,7 +117,7 @@ test('(d) Audit shows the Setup block first for run-1 and run-2; run-2 with its 
   const actions = (a) => a.draft.rows.map((x) => x.action);
   assert.match(actions(a1)[0], /^card/);
   assert.match(actions(a1)[1], /^draft · deepseek-flash · plan /);
-  assert.match(actions(a1)[3], /^change 1 · deepseek-flash/);
+  assert.match(actions(a1)[3], /^revise 1 · deepseek-flash/);
   assert.match(actions(a1).at(-1), /^sign \(hamr\)/);
   assert.equal(a1.draft.rows.length, 5, 'run-1 has no Sign & run row of its own');
   assert.equal(a2.draft.rows.length, 6);

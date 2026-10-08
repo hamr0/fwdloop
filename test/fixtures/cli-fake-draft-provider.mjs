@@ -4,26 +4,13 @@
 // FWDLOOP_TEST_DRAFT_MODE=greedy -> the model tries to author the cap, a send target, an ask TTL and an input path (M4e (xii)): a red draft.
 // FWDLOOP_TEST_DRAFT_MODE=echo-key-die -> the provider prints $DEEPSEEK_API_KEY to stdout and stderr, then the process dies (M4e (ix)).
 // FWDLOOP_TEST_DRAFT_MODE=echo-key-red -> the provider throws an error whose message carries $DEEPSEEK_API_KEY (M4e (ix)).
-// A REVISE round (the user text says "asks for a change to the plan", M4e amendment 3 item 3) is answered by FWDLOOP_TEST_REVISE_MODE:
-//   ok (default) -> a valid, different plan (the softgreen step gains a mustCarry: a legal change to a check);
-//   ask-primitive -> the signed ask step is granted a primitive; drop-ask -> the signed ask's step is dropped; greedy -> the cap/send/ttl/input authored;
-//   hang -> the revise call never returns (a change a test watches in flight, then kills);
-//   goal -> a valid plan whose model-sent goal differs from the signed line (the machine overwrites it); bad-wired -> an unwired verb.
-// FWDLOOP_TEST_REVISE_LOG=<file> -> every revise round's messages are appended there as one JSON line.
+// M4e amendment 14: a revise is a plain fresh draft of the edited card, so there is no revise mode. Per-card test switches, read from the
+// SYSTEM prompt (the job lines are in it):
+//   a line containing REDMARK -> the model grants an unwired verb (a red plan); HANGMARK -> the call never returns (a draft a test watches in flight).
+// FWDLOOP_TEST_DRAFT_LOG=<file> -> every provider call's messages are appended there as one JSON line (what the model was actually sent).
 // FWDLOOP_TEST_DRAFT_MODE=bad -> the model always grants an unwired verb (a red draft).
 import { appendFileSync } from 'node:fs';
 import { RATES, MODEL, validArgs, fakeProvider, toolReply } from '../drafter-fixture.mjs';
-
-function reviseArgs(mode) {
-  const a = validArgs();
-  if (mode === 'ask-primitive') a.steps[3].primitives = ['write'];
-  else if (mode === 'drop-ask') a.steps.splice(3, 1);
-  else if (mode === 'greedy') Object.assign(a, { capUsd: 99, sends: [{ line: 1, target: 'file:/etc' }], asks: [{ line: 4, ttlMs: 1 }], sources: [{ role: 'x', path: '/etc/passwd' }] });
-  else if (mode === 'goal') { a.steps[0].goal = 'Delete everything instead.'; a.steps[0].primitives = ['read']; }
-  else if (mode === 'bad-wired') a.steps[2].primitives = ['stash'];
-  else a.steps[2].close.shape.mustCarry = ['JD'];
-  return a;
-}
 
 export default function make() {
   const args = validArgs();
@@ -62,17 +49,16 @@ export default function make() {
     };
     return { provider, rates: RATES, modelId: MODEL };
   }
+  const redArgs = validArgs();
+  redArgs.steps[2].primitives = ['stash'];
   const provider = fakeProvider([toolReply(args)]);
   const gen = provider.generate.bind(provider);
-  let revising = false; // once a revise round was seen, the validator's follow-up rounds stay in revise mode
   provider.generate = async (messages, ...rest) => {
-    const user = String(messages.find((m) => m.role === 'user')?.content ?? '');
-    if (user.includes('asks for a change to the plan')) revising = true;
-    if (!revising) return gen(messages, ...rest);
-    if (process.env.FWDLOOP_TEST_REVISE_LOG) appendFileSync(process.env.FWDLOOP_TEST_REVISE_LOG, `${JSON.stringify(messages)}\n`);
-    if (process.env.FWDLOOP_TEST_REVISE_MODE === 'hang') return new Promise((r) => { setTimeout(r, 3_600_000); });
-    return toolReply(reviseArgs(process.env.FWDLOOP_TEST_REVISE_MODE ?? 'ok'));
+    if (process.env.FWDLOOP_TEST_DRAFT_LOG) appendFileSync(process.env.FWDLOOP_TEST_DRAFT_LOG, `${JSON.stringify(messages)}\n`);
+    const system = String(messages.find((m) => m.role === 'system')?.content ?? '');
+    if (system.includes('HANGMARK')) return new Promise((r) => { setTimeout(r, 3_600_000); });
+    if (system.includes('REDMARK')) return toolReply(redArgs);
+    return gen(messages, ...rest);
   };
   return { provider, rates: RATES, modelId: MODEL };
 }
-

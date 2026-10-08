@@ -28,13 +28,11 @@ async function firstDraft() {
     proseFile, dir, root, name: 'job2', provider: fakeProvider([toolReply(validArgs())]), rates: RATES, modelId: MODEL, env: {},
   });
   assert.equal(r.ok, true, JSON.stringify(r.reds));
-  const note = path.join(work, 'note.txt');
-  writeFileSync(note, 'put skills before work history');
-  return { work, root, proseFile, dir, note, first: r };
+  return { work, root, proseFile, dir, first: r };
 }
 const change = (w, args) => {
   const provider = fakeProvider([toolReply(args)]);
-  return { provider, run: () => draftToDir({ proseFile: w.proseFile, dir: path.join(w.work, 'draft-1'), root: w.root, name: 'job2', provider, rates: RATES, modelId: MODEL, env: {}, reviseFrom: w.dir, noteFile: w.note }) };
+  return { provider, run: () => draftToDir({ proseFile: w.proseFile, dir: path.join(w.work, 'draft-1'), root: w.root, name: 'job2', provider, rates: RATES, modelId: MODEL, env: {} }) };
 };
 
 test('(a) a change that reorders a section against its job line is red naming the step and both orders; the last green plan stays', async () => {
@@ -83,7 +81,7 @@ for (const [what, mutate, re] of [
   });
 }
 
-test('(b) a note that changes only what a step carries (a mustCarry word, the sections kept in the line\'s order) is a green plan', async () => {
+test('(b) a revise that changes only what a step carries (a mustCarry word, the sections kept in the line\'s order) is a green plan', async () => {
   const w = await firstDraft();
   const ok = validArgs();
   ok.steps[2].close.shape.mustCarry = ['JD'];

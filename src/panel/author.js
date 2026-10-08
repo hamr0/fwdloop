@@ -13,9 +13,10 @@
 //   child.log     the child's stdout+stderr, mode 0600 (quoted to the page only after `scrub`)
 //   pid.json      { pid, procStart } written right after the spawn; the ONE liveness fact (`isFwdloopAlive`, M4c)
 //   draft/        the CLI's own output (spec.hash, readout.txt, log.json, spend.jsonl, draft-spend.json ...)
-//   note-<n>.txt  the human's note for change <n> (M4e amendment 3 item 3), written by `revise`, write-once ('wx'), never a key
-//   draft-<n>/    the CLI's output for change <n> (`fwdloop draft --revise-from <plan> --note note-<n>.txt`): its own full draft dir, with
-//                 note.txt beside spec.hash; `revise-<n>.log` is that child's log. The plan to sign is the NEWEST green of draft, draft-1 ...
+//   card-<n>.json the card as the human submitted it for revise <n> (M4e amendment 14 item 2), written by `revise`, write-once ('wx'), never a key
+//   prose-<n>.txt the prose file built from card-<n>.json (the ONE `cardToProse`); the model gets this card only, never the old plan
+//   draft-<n>/    the CLI's output for revise <n> (`fwdloop draft prose-<n>.txt --out draft-<n>`, a plain fresh draft): its own full draft dir;
+//                 `revise-<n>.log` is that child's log. The plan to sign is the NEWEST of draft, draft-1, ... and only if it is green (`withRevises`).
 //   abandoned.json  written by Abandon, after the child is gone
 //   signed.json   written by `sign` (piece 2b) right after `signDraft` succeeds; the phase reader reads it
 //
@@ -33,7 +34,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  PANEL_DRAFTS_DIR, readoutHeadIndexes, scrub, signDraft, textHasKey,
+  PANEL_DRAFTS_DIR, readoutHeadIndexes, scrub, signDraft,
 } from '../authoring.js';
 import { nextRunId, readFileInside, readdirInside } from '../flow.js';
 import { isFwdloopAlive } from '../liveness.js';
@@ -62,12 +63,11 @@ const FINISHED = new Set(['abandoned', 'signed']);
 const LOG_TAIL_CHARS = 1500;
 const STOPPED_SAY = 'The draft process ended before it finished (it was stopped from outside). Nothing was signed and nothing was sent. Draft again.';
 const RED_SAY = 'The drafter\'s plan did not pass the checks. Nothing was signed and nothing was sent. Fix the job and draft again; this draft is kept on disk and is never reused.';
-/** Up to 2 changes per draft (amendment 3 item 3); a change is used once its `draft-<n>/` exists (a refusal at $0 makes none). */
-export const MAX_CHANGES = 2;
-const NOTE_MAX_CHARS = 2000;
-const NOTE_RE = /^note-(\d+)\.txt$/;
+/** Up to 2 revises per draft (amendment 14 item 3); a revise is used once its `draft-<n>/` exists (a refusal at $0 makes none). */
+export const MAX_REVISES = 2;
+const CARD_RE = /^card-(\d+)\.json$/;
 const PLAN_DIR_RE = /^draft-(\d+)$/;
-const CHANGE_RED_SAY = 'The change did not pass the checks. The plan above is unchanged and still the one to sign.';
+const REVISE_RED_SAY = 'The revised plan did not pass the checks. Nothing can be signed until a plan is green. Your edits are kept: change the card and draft again.';
 const KILL_WAIT_MS = 3000;
 const KILL_HARD_WAIT_MS = 2000;
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
@@ -124,7 +124,7 @@ export function createAuthor(opts) {
     if (signed) return { ...base, phase: 'signed' };
 
     const first = resultOf(dir, 'draft', keys);
-    if (first && first.phase === 'green') return withChanges(base, dir, first, keys);
+    if (first && first.phase === 'green') return withRevises(base, dir, first, keys);
     if (first) return { ...base, ...first };
     // no result yet: the child is the only thing that can still produce one
     if (childRunning(dir)) return { ...base, phase: 'drafting' };
@@ -160,29 +160,36 @@ export function createAuthor(opts) {
   }
 
   /**
-   * A green first plan, plus its changes (amendment 3 item 3): the plan to sign is the NEWEST green of `draft`, `draft-1`, ...; a
-   * red or stopped change never replaces it. `phase` is `revising` only while the newest change's child runs. One reader of every
-   * change fact: the notes (`note-<n>.txt`), each change's own folder and log, and how many changes are used (their folders).
+   * A green first plan, plus its revises (amendment 14). The ONE function that decides what is signable: the plan to sign is the NEWEST of
+   * `draft`, `draft-1`, ... and ONLY if it is green. A red or stopped newest revise means nothing is signable (the older green plan was
+   * drafted from a different card), and the card shown is the one last submitted. `phase` is `revising` only while the newest revise's
+   * child runs. One reader of every revise fact: each `card-<n>.json`, its own folder and log, and how many are used (their folders).
    * @param {any} base @param {string} dir @param {{ hash: string, readout: string, readoutHeads?: number[] }} first @param {string[]} keys
    */
-  function withChanges(base, dir, first, keys) {
+  function withRevises(base, dir, first, keys) {
     const names = readdirInside(dir, '.');
-    const noteNs = names.map((n) => NOTE_RE.exec(n)?.[1]).filter((x) => x !== undefined).map(Number).sort((a, b) => a - b);
+    const ns = names.map((n) => CARD_RE.exec(n)?.[1]).filter((x) => x !== undefined).map(Number).sort((a, b) => a - b);
     const used = names.filter((n) => PLAN_DIR_RE.test(n)).length;
-    let plan = { rel: 'draft', ...first };
-    let running = false;
-    const notes = noteNs.map((n, i) => {
-      const text = readFileInside(dir, `note-${n}.txt`);
-      const entry = { n, text: text.ok ? scrub(text.text, keys) : '' };
+    const revisesLeft = Math.max(0, MAX_REVISES - used);
+    const newest = ns.length > 0 ? ns[ns.length - 1] : 0;
+    const card = newest > 0 ? (readJson(dir, `card-${newest}.json`) ?? base.card) : base.card;
+    const revises = ns.map((n) => {
       const res = resultOf(dir, `draft-${n}`, keys);
-      if (res && res.phase === 'green') { plan = { rel: `draft-${n}`, ...res }; return { ...entry, phase: 'green', hash: res.hash, left: Math.max(0, MAX_CHANGES - (i + 1)) }; }
-      if (res) return { ...entry, phase: 'red', reds: res.reds, say: CHANGE_RED_SAY };
-      if (i === noteNs.length - 1 && childRunning(dir)) { running = true; return { ...entry, phase: 'running' }; }
-      return { ...entry, phase: 'stopped', say: logTail(dir, `revise-${n}.log`, keys) || STOPPED_SAY };
+      if (res && res.phase === 'green') return { n, phase: 'green', hash: res.hash };
+      if (res) return { n, phase: 'red', reds: res.reds, say: REVISE_RED_SAY };
+      if (n === newest && childRunning(dir)) return { n, phase: 'running' };
+      return { n, phase: 'stopped', say: logTail(dir, `revise-${n}.log`, keys) || STOPPED_SAY };
     });
-    return {
-      ...base, phase: running ? 'revising' : 'green', hash: plan.hash, readout: plan.readout, readoutHeads: plan.readoutHeads, plan: plan.rel, changesLeft: Math.max(0, MAX_CHANGES - used), notes,
-    };
+    const cur = newest > 0 ? revises[revises.length - 1] : { phase: 'green' };
+    const shared = { ...base, card, revises, revisesLeft };
+    if (newest === 0) return { ...shared, phase: 'green', hash: first.hash, readout: first.readout, readoutHeads: first.readoutHeads, plan: 'draft' };
+    if (cur.phase === 'green') {
+      const res = resultOf(dir, `draft-${newest}`, keys);
+      return { ...shared, phase: 'green', hash: res.hash, readout: res.readout, readoutHeads: res.readoutHeads, plan: `draft-${newest}` };
+    }
+    if (cur.phase === 'running') return { ...shared, phase: 'revising' };
+    if (cur.phase === 'red') return { ...shared, phase: 'red', reds: cur.reds, say: REVISE_RED_SAY };
+    return { ...shared, phase: 'stopped', say: cur.say };
   }
 
   /** Draft ids, newest first. */
@@ -220,6 +227,22 @@ export function createAuthor(opts) {
     return {
       ok: true, v: /** @type {any} */ (v), name, dir,
     };
+  }
+
+  /**
+   * The $0 checks both a first draft and a revise run on the card as submitted: the card's own checks (a key value, the flow name,
+   * every field), then the monthly room for its cap. `{ ok: true, card, prose }` or `{ ok: false, reply }`. Writes nothing.
+   * @param {any} body @param {{ ok: boolean, env: Record<string, string|undefined> }} loaded
+   */
+  function vetCard(body, loaded) {
+    const card = cardFields(body);
+    const checked = checkCard(card, { root: realpathSync(root), env: loaded.env });
+    if (!checked.ok) return { ok: false, reply: { status: 400, body: { ok: false, refused: 'card', refusals: checked.refusals } } };
+    // amendment 4 item 1: a cap that does not fit this month refuses here too, at $0, with the one refusal text (the page's red note is only a courtesy)
+    const claim = monthlyClaim(Number(card.capUsd));
+    if (claim && 'problem' in claim) return { ok: false, reply: { status: 409, body: { ok: false, refused: 'monthly', say: `${claim.problem} — refusing rather than guess the monthly limit. Nothing spent.` } } };
+    if (claim && !claim.ok) return { ok: false, reply: { status: 400, body: { ok: false, refused: 'card', refusals: [{ field: 'capUsd', say: monthlyRefusalText(claim.room) }] } } };
+    return { ok: true, card, prose: checked.prose };
   }
 
   return {
@@ -269,13 +292,9 @@ export function createAuthor(opts) {
       if (!loaded.ok) return { status: 409, body: { ok: false, refused: 'keys-file', say: String(loaded.refusal) } };
       const dd = draftsDir();
       if (dd === null) return { status: 400, body: { ok: false, refused: 'root', say: 'The flows folder this panel serves does not exist.' } };
-      const card = cardFields(body);
-      const checked = checkCard(card, { root: realpathSync(root), env: loaded.env });
-      if (!checked.ok) return { status: 400, body: { ok: false, refused: 'card', refusals: checked.refusals } };
-      // amendment 4 item 1: a cap that does not fit this month refuses here too, at $0, with the one refusal text (the page's red note is only a courtesy)
-      const claim = monthlyClaim(Number(card.capUsd));
-      if (claim && 'problem' in claim) return { status: 409, body: { ok: false, refused: 'monthly', say: `${claim.problem} — refusing rather than guess the monthly limit. Nothing spent.` } };
-      if (claim && !claim.ok) return { status: 400, body: { ok: false, refused: 'card', refusals: [{ field: 'capUsd', say: monthlyRefusalText(claim.room) }] } };
+      const vet = vetCard(body, loaded);
+      if (!vet.ok) return vet.reply;
+      const { card } = vet;
       for (const id of listIds()) {
         const v = view(id, keys);
         if (v && (v.phase === 'drafting' || v.phase === 'revising')) {
@@ -288,7 +307,7 @@ export function createAuthor(opts) {
       mkdirSync(dir, { mode: 0o700 });
       const proseFile = join(dir, 'prose.txt');
       writeFileSync(join(dir, 'card.json'), `${JSON.stringify(card, null, 2)}\n`, { mode: 0o600 });
-      writeFileSync(proseFile, checked.prose, { mode: 0o600 });
+      writeFileSync(proseFile, vet.prose, { mode: 0o600 });
       let child;
       try {
         child = spawnDetached({
@@ -368,48 +387,52 @@ export function createAuthor(opts) {
     },
 
     /**
-     * `POST /api/author/:id/revise` body `{ text }` (M4e amendment 3 item 3, bareloop's "Ask for a change"): the human's note on a GREEN
-     * plan -> $0 checks -> one detached `fwdloop draft --revise-from <current plan> --note note-<n>.txt --out draft-<n>` -> 202. Up to
-     * MAX_CHANGES per draft; a refusal makes no model call and writes nothing. The new plan is read back from `draft-<n>/` like any
-     * draft; the old plan stays signable until a newer green one exists. Synchronous, like `start`.
+     * `POST /api/author/:id/revise` body = the card fields, as `POST /api/author/draft` takes them (M4e amendment 14): the human's edited
+     * card on a draft whose first plan was green -> the same $0 checks as a first draft -> `card-<n>.json` + `prose-<n>.txt` (write-once)
+     * -> one detached plain `fwdloop draft prose-<n>.txt --out draft-<n>` -> 202. The model gets the card only. Up to MAX_REVISES per
+     * draft; a refusal makes no model call and writes nothing. A body carrying a note (`text`/`note`) is refused: nothing the human types
+     * goes to the model as a note. Synchronous, like `start`.
      * @param {string} id @param {any} body
      */
     revise(id, body) {
       const { loaded, keys } = keysNow();
       if (!loaded.ok) return { status: 409, body: { ok: false, refused: 'keys-file', say: String(loaded.refusal) } };
       if (!ID_RE.test(id)) return { status: 404, body: { ok: false, refused: 'no-such-draft' } };
+      if (body && typeof body === 'object' && ('text' in body || 'note' in body)) {
+        return { status: 400, body: { ok: false, refused: 'note', say: 'A revise takes the card only; a note is not accepted. Edit the card fields and draft again. Nothing was sent.' } };
+      }
       const dd = draftsDir();
       const dir = dd === null ? null : join(dd, id);
       const v = dir === null ? null : /** @type {any} */ (readDraft(dir, id, keys));
       if (dir === null || v === null || v.card === null) return { status: 404, body: { ok: false, refused: 'no-such-draft' } };
-      if (v.phase === 'revising') return { status: 409, body: { ok: false, refused: 'draft-live', say: 'A change is already being drafted. Wait for it.' } };
-      if (v.phase !== 'green') return { status: 409, body: { ok: false, refused: 'not-green', say: `This draft is ${v.phase}, not a finished plan, so it cannot be changed.` } };
-      if (v.changesLeft <= 0) return { status: 409, body: { ok: false, refused: 'no-changes-left', say: `This draft has used its ${MAX_CHANGES} changes. Sign it, abandon it, or edit the card and draft again.` } };
+      if (v.phase === 'revising') return { status: 409, body: { ok: false, refused: 'draft-live', say: 'A revise is already being drafted. Wait for it.' } };
+      // only a draft whose first plan was green has revises (`withRevises` is the one reader that sets them)
+      if (!Array.isArray(v.revises)) return { status: 409, body: { ok: false, refused: 'not-revisable', say: `This draft is ${v.phase}, so it cannot be revised. Draft again from the card.` } };
+      if (v.revisesLeft <= 0) return { status: 409, body: { ok: false, refused: 'no-revises-left', say: `This draft has used its ${MAX_REVISES} revises. Start over: it keeps the fields and gives ${MAX_REVISES} new revises.` } };
       if (childRunning(dir)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'The draft process is still finishing. Try again in a moment.' } };
-      const text = body && typeof body.text === 'string' ? body.text.trim() : '';
-      if (text === '') return { status: 400, body: { ok: false, refused: 'note-empty', say: 'Write what you want changed first. Nothing was sent.' } };
-      if (text.length > NOTE_MAX_CHARS) return { status: 400, body: { ok: false, refused: 'note-long', say: `The note is longer than ${NOTE_MAX_CHARS} characters. Shorten it. Nothing was sent.` } };
-      if (textHasKey(text, loaded.env)) return { status: 400, body: { ok: false, refused: 'note-key', say: 'This note contains an API key. Keys go in Settings only. Nothing was saved or sent.' } };
+      const vet = vetCard(body, loaded);
+      if (!vet.ok) return vet.reply;
       for (const other of listIds()) {
         if (other === id) continue;
         const ov = view(other, keys);
         if (ov && (ov.phase === 'drafting' || ov.phase === 'revising')) {
-          return { status: 409, body: { ok: false, refused: 'draft-live', draftId: other, say: 'A draft is already running. Wait for it, or abandon it, before asking for a change.' } };
+          return { status: 409, body: { ok: false, refused: 'draft-live', draftId: other, say: 'A draft is already running. Wait for it, or abandon it, before revising.' } };
         }
       }
-      const n = Math.max(0, ...v.notes.map((x) => x.n)) + 1;
-      const noteFile = join(dir, `note-${n}.txt`);
-      writeFileSync(noteFile, `${text}\n`, { mode: 0o600, flag: 'wx' });
+      const n = Math.max(0, ...v.revises.map((x) => x.n)) + 1;
+      const proseFile = join(dir, `prose-${n}.txt`);
+      writeFileSync(join(dir, `card-${n}.json`), `${JSON.stringify(vet.card, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+      writeFileSync(proseFile, vet.prose, { mode: 0o600, flag: 'wx' });
       let child;
       try {
         child = spawnDetached({
           bin,
-          argv: ['draft', join(dir, 'prose.txt'), '--out', join(dir, `draft-${n}`), '--root', dirname(/** @type {string} */ (dd)), '--name', v.card.flowName, '--revise-from', join(dir, v.plan), '--note', noteFile],
+          argv: ['draft', proseFile, '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', vet.card.flowName],
           env: loaded.env,
           logPath: join(dir, `revise-${n}.log`),
         });
       } catch (e) {
-        return { status: 500, body: { ok: false, refused: 'spawn', say: `The change could not be started (${/** @type {any} */ (e)?.code ?? 'error'}). Nothing was spent.`, draftId: id } };
+        return { status: 500, body: { ok: false, refused: 'spawn', say: `The revise could not be started (${/** @type {any} */ (e)?.code ?? 'error'}). Nothing was spent.`, draftId: id } };
       }
       child.on('error', () => {});
       writePidFile(dir, child);
