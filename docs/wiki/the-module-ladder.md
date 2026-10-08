@@ -1617,6 +1617,15 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - I2 ("a Stop during a transport retry books the larger cost") did not reproduce. The runner sums the first fault's floor and the retry's cost, and the audit rows already add up to the history total in every case. A guard test is in `test/m4e-am16-records.test.js`. hamr ruled "I2 done by test": no code change.
   - I1 measured (`docs/logs/FINDINGS.md`, F62): 10,000 runs took about 1 s, over 200 ms, so settled runs are rolled up: `rollSettled` (`src/monthly.js`) appends `rolled` rows to `runs.jsonl` when a hold settles; a dir named again after its snapshot is read live; no month total changes.
 
+- **Amendment 17 — SIGNED by hamr 2026-10-08 ("your proposals approved, go"): the self-review fixes after amendment 16.**
+  - **Why:** /self-review of c1995d4..577d86c, 2026-10-08. hamr picked 1A, 2A, 3A and item 5.
+  - **1A.** Each stopped ask takes its step number from its own place in the run (the same reader that already says which step each ask belongs to), not by counting "stopped at the ask" records in order. Same signed words: `stopped at the ask of step N`.
+  - **2A.** Any stop time that is not a real date (a non-date string, a number, a missing or empty time) is treated as made "now", one rule for all. The stale comment is fixed.
+  - **3A.** Only runs that finished on their own are rolled up. A run fwdloop settled as "process gone" is never rolled, so it is always read fresh. A deleted run folder keeps its spend in the totals (the money was really spent).
+  - **5.** The `src/monthly.js` header says what the file holds now, including `named` and `rolled` rows.
+  - **Negatives:** (1A) Stop before any ask parks, resume, then Stop at the ask of step 5 reads "step 5", not "step 2"; (2A) `{}`, `{"at":5}` and `{"at":"last tuesday"}` all end the same way; (3A) a "process gone" run that spends again after another run's roll still counts in the month and total; (5) docs only.
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
