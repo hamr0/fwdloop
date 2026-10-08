@@ -1583,6 +1583,36 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - hamr "yes to both": a step whose check reads its reply is also refused any other write-class verb (e.g. `edit`), not only `write`; and the guardrail reader also reads the "ish" forms ("250ish each", "250ish words per section") as about 250 words each.
   - hamr's live walk (`new-attempt (run-1)`): the step's answer form also offered `lines`, which no check reads; the model put the resume there. `lines` was removed from the softgreen answer form, so `text` is the only place to answer (same hole as item 5).
 
+- **Amendment 16 — DRAFT, NOT SIGNED: the fix list after amendment 15.**
+  - **Why:** /self-review and /refactor (ledger mode) of branch `m4e-am14`, 2026-10-08. hamr went through every item and ruled each one "fix" (and sent I5 upstream). Dropped by hamr: C10 (no panel token; already ruled single-user, A1) and C15 (editing with 0 revises left; accepted known limit). Item ids are the ledger review's.
+  - **Checks (amendment 15 follow-ups)**
+    - **C13.** A guardrail that gives a size for each section but no number of sections, or a check with `wordsPerSection` and no section names, is red at draft, revise and sign, by name. It can never pass unchecked.
+    - **C14.** The guardrail readers read thousands separators: "1,000 words" and "1,000 words each" read 1000. "1,00" and "1,0000" are not misread.
+    - **C12.** A check with only one of `linesPerInvoice` / `mustCarry` is red at draft, revise and sign, by name. The pair is unchanged.
+  - **Records always balance**
+    - **C7.** A cap-halt always writes its history end row with the real signature hash and the run's spend, even if writing the log, halt.json or the settle row fails first.
+    - **C6.** On a completed run and a rerun, the history end row is written last, and always written, as in C7.
+    - **C8.** A Stop at an ask counts as stopped only when the ask was already taken by another Stop (file not found). Any other error (permission, other disk errors) says plainly that the stop failed, names the error, and leaves the run as it was.
+    - **C11.** A stop request whose time is not a real date is treated as made "now"; the stop completes with all its records, and the ask is never lost.
+    - **I2.** A Stop that lands during a retry after a transport error books the larger of the known costs, so the audit rows always add up to the run's history total.
+    - **C2.** A "run again" names its new run folder in the money records when it starts, so a run killed hard still has its spend counted in the month and the total.
+  - **Panel**
+    - **C1.** A flow refused because it is outside the panel's folder says so in plain words ("This flow is outside the panel's folder."), not "reload". The other 403 keeps its words.
+    - **C9.** A draft is read "is it still running" first, then its result, so a draft that finished is never shown as "ended before it finished".
+    - **C16.** The Draft header's human checks also count each revise (the edited card sent by the human).
+    - **I4.** A run stopped at its ask reads `stopped at the ask of step N` (amendment 13's signed words) in Runs, the run header, the Ask tab and Inbox; a run stopped after a step keeps its label.
+  - **Code**
+    - **C3.** One function checks the draft's API key; the CLI and authoring both call it.
+    - **C4.** The keys file passes only known key names (KEY_NAMES) to run, resume and draft children; other names in the file are still listed in Settings but never reach a child.
+    - **C5.** The unreachable `if (!read.ok)` in `src/panel/authorflows.js` is removed.
+    - **I1.** Measure the monthly claim and Money tab load at 100, 1,000 and 10,000 runs ($0, temp root). If 10,000 runs take more than 200 ms, compact settled rows without changing any month total; otherwise record the timings and change nothing.
+  - **Docs**
+    - **I3.** Under amendment 14's or the M4e exit's "Built after signing", a note: the paid replay of "put skills before work history" cited in the M4e exit evidence has no record kept on disk. The signed line is unchanged.
+    - **Nit.** The stray `).;` in the M4c-fix "Known limits" line is fixed to `).` on hamr's word ("nit fix"). This is the only signed character changed.
+  - **Upstream (no fwdloop code):** I5 — the per-section count and the extra-key red were sent to bareguard as an ask (2026-10-08). fwdloop does not switch to bareguard's rubric until both are in.
+  - **Negatives:** each item has a test that fails before its fix: (C13) the no-sections plan is red; (C14) "1,000" reads 1000; (C12) a lone key is red; (C7, C6) an injected write error still leaves the history row with the right spend; (C8) a locked run folder gives "the stop failed", and a real double Stop still stops once; (C11) `{"at":"last tuesday"}` stops cleanly with full records; (I2) fault, then Stop during the retry: audit sum = history total; (C2) a killed "run again" still has its spend counted, a normal one isn't counted twice; (C1) the outside-folder 403 shows its words; (C9) forced timing shows "done"; (C16) one revise shows +1; (I4) the signed words at 1280, 390 and 320 px; (C3) both entries refuse the same way; (C4) `NODE_OPTIONS` in the keys file never reaches a child; (C5) the suite is unchanged; (I1) a timing table; the nit and I3 are docs only.
+  - **Cap:** $0. Nothing here needs a paid call.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
