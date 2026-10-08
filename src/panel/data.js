@@ -2012,14 +2012,18 @@ function runAsksInOrder(runDir, hasHistoryRow, endedExpired = false) {
     .map(({ row }) => row);
   // M4c-fix amendment 1 (c): a run ended because its ask expired reads expired, never accepted. The late answer the
   // terminal resume consumed was refused, so the newest ask carries `expired` (and says why), not the answer's word.
-  // amendment 16 I4: the n-th ask a Stop set aside is the n-th `stopped at the ask of step N` row (both are written in time order, one each)
-  const atAskWords = readAudit(runDir).filter((r) => r.verdict === 'stopped' && STOPPED_AT_ASK_RE.test(String(r.gap)));
-  let nthStopped = 0;
-  for (let i = 0; i < ordered.length; i++) {
-    if (ordered[i].status !== 'stopped') continue;
-    const words = atAskWords[nthStopped]?.gap;
-    nthStopped += 1;
-    if (typeof words === 'string') ordered[i] = { ...ordered[i], statusText: words };
+  // amendment 17 1A: an ask a Stop set aside takes its words from its OWN place in the run: the step `deriveAskStepInfo` (the one
+  // reader of which step each ask belongs to) names for it, matched to the `stopped at the ask of step N` row written for that step.
+  // Never by counting those rows in order: a Stop that landed before any ask parked writes one too, with no ask behind it.
+  if (ordered.some((a) => a.status === 'stopped')) {
+    const audit = readAudit(runDir);
+    const stepOf = deriveAskStepInfo(ordered, audit, null);
+    const atAsk = audit.filter((r) => r.verdict === 'stopped' && STOPPED_AT_ASK_RE.test(String(r.gap)));
+    for (let i = 0; i < ordered.length; i++) {
+      if (ordered[i].status !== 'stopped' || stepOf[i].step === null) continue;
+      const words = atAsk.filter((r) => r.step === stepOf[i].step).pop()?.gap;
+      if (typeof words === 'string') ordered[i] = { ...ordered[i], statusText: words };
+    }
   }
   const last = ordered[ordered.length - 1];
   if (endedExpired && last && (last.status === 'accepted' || last.status === 'redo' || last.status === 'reran')) {
