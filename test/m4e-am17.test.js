@@ -150,3 +150,10 @@ test('3A a rolled run whose folder is later deleted keeps its spend', () => {
   } finally { rmSync(w.base, { recursive: true, force: true }); }
 });
 
+// ---- 5 ----
+test('5 the src/monthly.js header lists `named` and `rolled` rows and no longer says it carries no money', () => {
+  const head = readFileSync(path.join(HERE, '..', 'src', 'monthly.js'), 'utf8').split('\n').slice(0, 12).join('\n');
+  assert.match(head, /named/);
+  assert.match(head, /rolled/);
+  assert.doesNotMatch(head, /carries no money of its own/);
+});

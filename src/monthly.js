@@ -4,8 +4,12 @@
 // ONE record: `<configHome>/runs.jsonl`, append-only, mode 0600, one row per hold and per terminal note.
 //   hold:     { kind:'hold', holdId, what:'run'|'resume'|'draft', flow, runId, runDir, pid, procStart, holdUsd, spentAtHold, at }
 //   terminal: { kind:'settled'|'released'|'refused', holdId, at, why [, alsoRunDirs] }
-// Rows are only ever appended. Month spend is read from each named run/draft dir's OWN `spend.jsonl`
-// (so the total is the same whichever `--root` a run used) — this file carries no money of its own.
+//   named:    { kind:'named', holdId, at, alsoRunDirs } — a hold's process starts spending into one more run dir (a rerun's new run)
+//   rolled:   { kind:'rolled', at, seen, dirs } — the reduced spend rows of dirs whose holds all ended on their own (never "process
+//             gone"), so a read opens one record, not one file per run; `seen` = how many rows the record had when it was read
+// Rows are only ever appended. Month spend is read from each named run/draft dir's OWN `spend.jsonl` (so the total is the same
+// whichever `--root` a run used); only a `rolled` row stands in for a dir's file (its copy of that dir's spend, kept if the dir is
+// deleted). hold, terminal and named rows carry no money.
 //
 // The claim (bareloop `claimRun`): the door APPENDS its hold FIRST, then reads the file; only live,
 // unsettled holds that come BEFORE its own row count against it, so whoever is first holds. A hold whose
