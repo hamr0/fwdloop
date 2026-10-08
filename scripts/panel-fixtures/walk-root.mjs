@@ -148,5 +148,5 @@ process.stdout.write(`root: ${root}
   run-ended-expired  ended because its ask expired: [!] expired, never [✗]
 start the panel (answers resume with the fake model step, $0):
   NODE_ENV=test FWDLOOP_TEST_MODEL_STEP=${FAKE} node ${path.join(REPO, 'bin', 'fwdloop')} panel --root ${root} --port ${port}
-then open the link it prints (ends in ?t=...), desktop and 390 px
+then open the link it prints (http://127.0.0.1:<port>/), desktop and 390 px
 `);
