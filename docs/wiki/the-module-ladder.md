@@ -1389,6 +1389,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
     - (h) ask section headers are blue at 1280/390/320, light and dark; all of the above at 1280/390/320 with no spill.
     - (i) `http://127.0.0.1:4800/` opens the panel with no `?t=` and no cookie; a POST with another site's Origin, or a Host other than 127.0.0.1:<port>, is refused and writes nothing; no token file is written;
   - **Cap:** within M4e's $0.50 (build at $0 with stub providers; one short live walk).
+  - **Built after signing — not signed text (2026-10-07):** hamr's ruling F59 (`docs/logs/FINDINGS.md`) on item 8's "nothing new": with no token, a different OS user on the same machine can reach every panel route (Host and Origin are forgeable by a non-browser client). Ruled: the panel is a single-user tool and assumes no other OS user on the machine; on a shared machine, do not run it.
 - **Amendment 5 — SIGNED by hamr 2026-10-06 ("sign m4e amendment 5"): Resume is the cap; Run opens files, destination, cap and ask wait; anything else is a new flow.**
   - **Why:** hamr, 2026-10-06, before amendment 4 item 5 was built: "keep it simple, resume is for the same run that got stopped by cap, or by you > only allowed to change cap, all else is dimmed; run is a new run for the same flow, same contract but input/output path may change but same steps so, it's considered same job, all else is dimmed, else, start a new flow", then "a daily run opens up cap/ask time too, add it". Amendment 4 item 5 sent a destination change to a new job; a daily-driver flow needs it per run.
   - **Replaces amendment 4 item 5 and its negative (f).** Amendment 4 items 4 and 6 (Resume, cap re-sign) stand as signed.
@@ -1527,6 +1528,10 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Why:** /self-review 2026-10-07 found a late Stop could survive a park (src/panel/server.js stopRoute checks canStop then requestStop; a park in between leaves stop.request, and the later answer-Resume halts on a click made before the park). hamr: "stop shouln't be a brute, it waits this turn and stop, simple, it's not a race, if the turn leads up to ask question, stop there and on resume fresh ask."
   - **Signed text, as shown to hamr:** A Stop waits for the turn in flight, then stops. If that turn leads to an ask, or the run is already waiting at an ask, the run stops at the ask: the record says `stop asked (you) at <time>`, then `stopped at the ask of step N`, no ask waits and no wait can expire. Stop shows on a waiting run too. **Resume** asks the same question again, fresh: a new ask on the same output, with its own wait, and no model call ($0). An answer written to the old ask is never used. This replaces amendment 7 item 8's `not honoured: the run ended (paused) first` for a run that parks, because a park is not an end. `not honoured` stays for a run that completes or halts first.
   - **Cap:** within M4e's $0.50; $0 build.
+
+- **Built after signing — not signed text (2026-10-07):**
+  - hamr's ruling on a tie (F60, `docs/logs/FINDINGS.md`): when a Stop and the saved answer carry the SAME millisecond, the ANSWER WINS. Only a Stop asked strictly before the answer was saved stops the run at the ask and sets the answer aside; a tied or later Stop is read by the fold's own seam, which stops before the next step, so nothing ships. A Stop whose time is missing or unreadable still stops at the ask.
+  - Built as: `src/runner.js` `resumeRun` (`stopFirst`), test `test/m4e-am13-stop-at-ask.test.js` (h).
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
