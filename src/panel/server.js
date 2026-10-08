@@ -287,6 +287,7 @@ async function stopRoute(res, body, root) {
       root, name: flow, runId, catalogue: loaded.primitives,
     });
     if (stopped.outcome === 'stopped') { sendJson(res, 202, { ok: true, stopping: false, stopped: true }); return; }
+    if (stopped.outcome === 'stop-failed') { sendJson(res, 500, { ok: false, refused: 'stop-failed', say: stopped.red }); return; }
     // not parked after all (a resume took its answer) or a resume still closing: the request stays for the runner's own seam
   }
   sendJson(res, 202, { ok: true, stopping: true, already: written === 'exists' });

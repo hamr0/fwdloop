@@ -1307,7 +1307,7 @@ async function runAskSlot({
           flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, signatureHash, spent, spendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
           stepIndex, stepEmits: step.emits ?? step.goal ?? null, flowRoot, flowName, inputsManifest, unjudged: evidenceUnjudged, redone, parkedAskId: askId,
         });
-        if (stopped) return { type: 'stopped', result: stopped };
+        if (stopped && stopped.outcome !== 'stop-failed') return { type: 'stopped', result: stopped };
       }
       return {
         type: 'paused',
@@ -2528,8 +2528,11 @@ function stopAtAsk(o) {
   } = o;
   const red = `stopped by you at the ask of step ${stepIndex + 1}`;
   if (parkedAskId !== null) {
-    try { renameSync(join(runDir, 'ask.json'), join(runDir, `ask.${parkedAskId}.stopped.json`)); } catch {
-      return { outcome: 'stopped', red, spentUsd: spent.value }; // another stopper won the rename: it writes the rows
+    try { renameSync(join(runDir, 'ask.json'), join(runDir, `ask.${parkedAskId}.stopped.json`)); } catch (err) {
+      // Amendment 16 C8: only "file not found" means another stopper won the rename (it writes the rows). Any other error is a failed
+      // stop: said plainly with the error named, nothing written, the run left as it was.
+      if (err?.code === 'ENOENT') return { outcome: 'stopped', red, spentUsd: spent.value };
+      return { outcome: 'stop-failed', red: `the stop failed: could not set the ask aside (${err?.code ?? 'error'}: ${err?.message ?? err})`, spentUsd: spent.value };
     }
     try { renameSync(join(runDir, 'state.json'), join(runDir, `state.${parkedAskId}.stopped.json`)); } catch { /* no state: nothing to set aside */ }
     if (existsSync(join(runDir, 'answer.json'))) setAsideAnswer(runDir, parkedAskId, 'late');
