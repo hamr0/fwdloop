@@ -2935,6 +2935,8 @@ Proposed, NOT agreed (hamr 2026-10-07: "we will fix it next, need to think about
 the change readout names any section dropped or added versus the last green plan ("dropped: summary of work history
 blurb"), computed mechanically from the two section lists and never by reading the note. The human decides.
 
+Ruled 2026-10-08 (hamr): the note box goes. Revise reopens the whole card for the human to edit and draft again; 2 revises, then Start over; a red revise can't be signed. Signed as M4e amendment 14 (docs/wiki/the-module-ladder.md). The proposal above (a dropped/added readout) was not taken.
+
 ## F59 — The panel is single-user: a different OS user on the same machine can reach every route (hamr's ruling, 2026-10-07)
 
 Found by /branch-review at 67f8e78 (`src/panel/server.js` ~370). The panel listens on 127.0.0.1 and checks only the Host
