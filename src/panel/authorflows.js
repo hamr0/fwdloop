@@ -249,13 +249,13 @@ export function createFlowsDoor(opts) {
       const rr = resolveRunDir(join(realRoot, flow), runId);
       if (!rr.ok) return no(400, `${rr.red}.`);
       if (!listRunIds(join(realRoot, flow)).includes(runId)) return no(404, `"${flow}" has no run "${runId}".`);
-      const read = readSigned(realRoot, flow);
-      const can = canFlowRun(read);
+      const readRaw = readSigned(realRoot, flow);
+      const can = canFlowRun(readRaw);
       if (!can.ok) {
         const red = scrub(String(can.red), providerKeys(loadEnv().env));
         return no(409, `"${flow}" will not run: ${red}`, { red });
       }
-      if (!read.ok) return no(409, `"${flow}" will not run: it does not read.`);   // narrows the type; canFlowRun has already refused this
+      const read = /** @type {Extract<typeof readRaw, { ok: true }>} */ (readRaw); // canFlowRun refuses every failed read above
       const roles = (read.arbiter.sources ?? []).map((s) => s.role);
       return {
         status: 200,
