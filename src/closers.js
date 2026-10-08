@@ -249,10 +249,13 @@ export function closeGreen(artifact, ctx) {
  * poc/m0/shape.mjs's own `closeWordsAndSections`.
  *
  * @param {unknown} text
- * @param {{ maxWords: number, sections: string[] }} declared
+ * M4e amendment 15 item 3: with `wordsPerSection`, each listed section's own words (after its heading line, up to the next listed
+ * heading or the end; text before the first heading belongs to none) must be within +-20% of it, inclusive.
+ *
+ * @param {{ maxWords: number, sections: string[], wordsPerSection?: number }} declared
  * @returns {CloseVerdict}
  */
-export function closeWordsAndSections(text, { maxWords, sections }) {
+export function closeWordsAndSections(text, { maxWords, sections, wordsPerSection }) {
   if (typeof text !== 'string') {
     return { verdict: 'unparseable', red: `expected string text, got ${text === null ? 'null' : typeof text}` };
   }
@@ -274,6 +277,10 @@ export function closeWordsAndSections(text, { maxWords, sections }) {
     .map((line) => line.replace(/^#+\s*/, '').replace(/:\s*$/, '').trim().toLowerCase())
     .filter((l) => l.length > 0);
 
+  // Heading positions in the original `lines` (headingLines drops empty lines, so keep a map back).
+  const lineIdx = [];
+  lines.forEach((line, k) => { if (line.replace(/^#+\s*/, '').replace(/:\s*$/, '').trim().length > 0) lineIdx.push(k); });
+  const starts = []; // {name, line} for each listed heading found, in order
   let searchFrom = 0;
   for (const section of sections ?? []) {
     const want = section.trim().toLowerCase();
@@ -287,6 +294,19 @@ export function closeWordsAndSections(text, { maxWords, sections }) {
       }
     } else {
       searchFrom = foundAt + 1;
+      starts.push({ name: section, line: lineIdx[foundAt] });
+    }
+  }
+
+  if (Number.isInteger(wordsPerSection) && wordsPerSection > 0) {
+    const lo = Math.ceil((wordsPerSection * 8) / 10);
+    const hi = Math.floor((wordsPerSection * 12) / 10);
+    const listed = starts.map((s) => s.line);
+    for (const s of starts) {
+      const next = listed.filter((l) => l > s.line).sort((a, b) => a - b)[0] ?? lines.length;
+      let n = 0;
+      for (const line of lines.slice(s.line + 1, next)) n += line.replace(/^#+\s*/, '').split(/\s+/).filter((w) => w.length > 0).length;
+      if (n < lo || n > hi) reds.push(`${s.name}: ${n} words, about ${wordsPerSection} asked (${lo}-${hi})`);
     }
   }
 
@@ -329,7 +349,7 @@ export function closeLinesAndCarry(text, { linesPerInvoice, mustCarry }) {
  * from both, one sentence each (F38's rule, never widened to first-red-only).
  *
  * @param {any} artifact
- * @param {{ maxWords?: number, sections?: string[], linesPerInvoice?: number, mustCarry?: string[] }} shape
+ * @param {{ maxWords?: number, sections?: string[], wordsPerSection?: number, linesPerInvoice?: number, mustCarry?: string[] }} shape
  * @returns {CloseVerdict}
  */
 export function closeSoftgreen(artifact, shape) {
@@ -339,7 +359,7 @@ export function closeSoftgreen(artifact, shape) {
   try {
     const reds = /** @type {string[]} */ ([]);
     if (shape.maxWords !== undefined || shape.sections !== undefined) {
-      const wc = closeWordsAndSections(artifact.text, { maxWords: shape.maxWords ?? Infinity, sections: shape.sections ?? [] });
+      const wc = closeWordsAndSections(artifact.text, { maxWords: shape.maxWords ?? Infinity, sections: shape.sections ?? [], wordsPerSection: shape.wordsPerSection });
       if (wc.verdict === 'unparseable') return /** @type {CloseVerdict} */ (wc);
       reds.push(...(wc.reds ?? []));
     }

@@ -241,9 +241,17 @@ function deriveFromLine(fromLine, lines, guardrailClasses) {
   return { ok: true, class: resolved.class, line };
 }
 
-/** The first "<n> words" in a guardrail ("3 sections, all under 600 words" -> 600), or null. */
+/** The first "<n> words" in a guardrail ("3 sections, all under 600 words" -> 600), or null. A "<n> words each" / "<n> words per
+ *  section" is the per-section size (M4e amendment 15), never the total limit. */
 export function guardrailWordLimit(guardrail) {
-  const m = typeof guardrail === 'string' ? /(\d+)\s*words?\b/i.exec(guardrail) : null;
+  if (typeof guardrail !== 'string') return null;
+  for (const m of guardrail.matchAll(/(\d+)\s*words?\b(?!\s*(?:each|per\s+section)\b)/gi)) return Number(m[1]);
+  return null;
+}
+
+/** M4e amendment 15 item 1: the "<n> words each" / "<n> words per section" size in a guardrail ("about 250 words each" -> 250), or null. */
+export function guardrailWordsPerSection(guardrail) {
+  const m = typeof guardrail === 'string' ? /(\d+)\s*words?\s+(?:each|per\s+section)\b/i.exec(guardrail) : null;
   return m ? Number(m[1]) : null;
 }
 
