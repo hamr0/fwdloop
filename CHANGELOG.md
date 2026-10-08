@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.13.0] - 2026-10-07
+## [0.13.0] - 2026-10-08
 
 M4e: a Chat card in the panel. Describe a job, watch it drafted, sign it with two clicks and run it,
 all without leaving the panel. A run can be stopped and continued, and a stop at an ask stops at the
@@ -71,6 +71,9 @@ ask.
 - "Fix the marked boxes" clears when the last marked box clears; the ask box placeholder shows only
   while the box is open.
 - The test suite's fixture sends and `runner.test.mjs` write to a temp dir and clean up.
+- A Stop and an answer saved in the same millisecond keep the answer, and the run stops before the
+  next step instead of at the ask; only a Stop strictly before the answer stops at the ask (F60,
+  hamr's ruling).
 
 ### Known limits
 - F58 is open: a change to the plan can silently drop a section. The fix is the next amendment.
