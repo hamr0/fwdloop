@@ -1562,20 +1562,23 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - The walk root was the repo root, because the panel was started without `--root flows`, so the flow sits at `./resume-job`, untracked.
   - Orchestrator's browser walk at $0 (fake drafter, fresh root per width) at 1280, 390 and 320 px: green plan (Sign & run, Revise, "2 revises left", fields locked); Revise opens the fields with Draft; a red revise keeps the edits, has no Sign & run and shows "1 revise left"; 0 left shows Sign & run and Start over; no note box; no box spills past the screen.
 
-- **Amendment 15 — DRAFT, NOT SIGNED: a plan can't fight itself on words; a text step can't hide its answer in a file (F61).**
-  - **Why:** F61 (`docs/logs/FINDINGS.md`). On `resume-job (run-1)`, line 3 asked for "3 sections all under 600 words, 250ish each" (about 750 words in 600), and step 3 was granted `write`. Four tries were red: too long, or the resume put in a file while the reply only described it. hamr 2026-10-08: "conflicting requirements should be checked for sure ... under 600 words doesn't check out with 250ish"; ruling "1" (the model reads, the machine does the math).
-  - **1. Words per section is a typed number.** When a line gives a size for each section ("250ish each", "about 200 words per section"), the drafter puts it in that step's check as `wordsPerSection`. The readout's sections line shows it: `sections: A · B · C · about 250 words each · under 600 words`. It is a target the step is told, not a run-time check; `maxWords` stays the only hard word check.
-  - **2. The machine does the math, at $0.** At draft, revise and sign, if `wordsPerSection` × the number of sections is more than `maxWords`, the plan is red and names the line and both numbers: "line 3 asks about 250 words for each of 3 sections (750) but under 600 words in total. Change the line." The check reads only the plan's typed fields, never the job's prose.
-  - **3. A step whose check reads its reply gets no `write`.** A plan that grants `write` to a step whose check reads that step's reply text (a softgreen check) is red at draft, revise and sign: "step 3's check reads its reply, so it can't write files. The send step writes the result out."
-  - **Known limit:** the drafter can miss a per-section size in the prose. Then there's no number, no math and no red, as today; the sections line shows what it took, for the human to read before signing.
+- **Amendment 15 — DRAFT, NOT SIGNED: a guardrail's size for each section is read by code, added up, and checked (F61); a text step can't hide its answer in a file.**
+  - **Why:** F61 (`docs/logs/FINDINGS.md`). On `resume-job (run-1)`, line 3 asked for "3 sections all under 600 words, 250ish each" (about 750 words in 600), and step 3 was granted `write`. Four tries were red: too long, or the resume put in a file while the reply only described it. hamr 2026-10-08: "conflicting requirements should be checked for sure ... under 600 words doesn't check out with 250ish"; "guardrails are the ones should have things to check, anything outside guardrails is probabilistic"; ruling "1" (a per-section size in a guardrail is also checked at run time).
+  - **1. Code reads the size for each section from the guardrail.** The same way it already reads "600 words" and "3 sections" (amendments 6 and 7), code reads a per-section size from the line's guardrail: "about 250 words each", "250 words each", "~250 words each", "250 words per section". The machine sets it in the step's check as `wordsPerSection`; the model never writes it. A size written only in the job line, not the guardrail, is a hint to the writer and is never checked.
+  - **2. The sum, at $0.** At draft, revise and sign, if `wordsPerSection` × the guardrail's number of sections is more than its word limit, the plan is red and names the line and the numbers: "line 3's guardrail asks about 250 words for each of 3 sections (750) but under 600 words in total. Change the guardrail."
+  - **3. Each section is counted at run time.** When a check has `wordsPerSection`, the step's output is red if any section's words fall outside ±20% of it ("about": 250 allows 200 to 300). A section's words are the words after its heading line up to the next listed heading, or to the end; text before the first heading belongs to no section. The red names the section and its count: "Soft Skills: 340 words, about 250 asked (200-300)". This is added to the existing word and heading checks; they are unchanged.
+  - **4. The readout shows it.** The sections line reads `sections: A · B · C · about 250 words each · under 600 words`.
+  - **5. A step whose check reads its reply gets no `write`.** A plan that grants `write` to a step whose check reads that step's reply text (a softgreen check) is red at draft, revise and sign: "step 3's check reads its reply, so it can't write files. The send step writes the result out."
+  - **Not in this amendment:** bareguard's rubric (its Day 1 checks must equal ours, hamr 2026-10-07) has no per-section count yet. It becomes an upstream ask when the bareguard swap is scoped.
   - **Negatives:**
-    - (a) a card whose line 3 is `resume-job`'s ("3 sections all under 600 words, 250ish each") drafts red, naming 750 and 600 (one paid draft call);
-    - (b) the same card with "180ish each" drafts green, and the sections line shows "about 180 words each" (one paid draft call);
-    - (c) a line with no per-section size gives no `wordsPerSection` and no math; green as today;
-    - (d) a plan granting `write` to a softgreen step is red at draft, revise and sign, $0 (fake provider);
-    - (e) the math check is given the plan's typed fields only, never the prose (a test proves the prose never reaches it);
-    - (f) a rerun of `resume-job` with the fixed line goes past step 3 (one paid run, about $0.07).
-  - **Cap:** within a new $0.25 for this amendment: $0 build, about $0.02 for (a)-(b), about $0.07 for (f).
+    - (a) a card with the guardrail `~3 sections, about 250 words each, under 600 words` drafts red at $0 before any model call, naming 750 and 600;
+    - (b) the guardrail `~3 sections, about 180 words each, under 600 words` drafts green, the plan's check has `wordsPerSection: 180`, and the sections line shows "about 180 words each" (one paid draft call);
+    - (c) "250ish each" only in the job line, with the guardrail `~3 sections, all under 600 words`, gives no `wordsPerSection`; green as today;
+    - (d) at run time, with `wordsPerSection: 180`: a section of 144 or 216 words passes; 143 or 217 is red, naming the section and its count; a missing heading still reds as today (fake model step, $0);
+    - (e) a plan whose model output tries to set `wordsPerSection` itself is red, or the value is overwritten by the guardrail's number; it never differs from the guardrail ($0, fake provider);
+    - (f) a plan granting `write` to a softgreen step is red at draft, revise and sign, $0 (fake provider);
+    - (g) a rerun of `resume-job` with the guardrail fixed goes past step 3 (one paid run, about $0.07).
+  - **Cap:** a new $0.25 for this amendment: $0 build, about $0.01 for (b), about $0.07 for (g).
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
