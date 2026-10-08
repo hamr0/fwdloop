@@ -103,10 +103,10 @@ const SOFTGREEN_SCHEMA = Object.freeze({
   type: 'object',
   properties: {
     text: { type: 'string' },
-    lines: { type: 'array', items: { type: 'string' } },
     ...DONE_PROPS,
   },
   required: ['text', 'done'],
+  additionalProperties: false,
 });
 
 // hitl/read-style steps: the documented common shapes are {text} or

@@ -37,7 +37,7 @@
 //   casualty, never a red — bareloop F17); an internal error while
 //   resolving is `crash`.
 //
-// SOFTGREEN (compose) step artifact: `{ text: string, lines?: string[] }`
+// SOFTGREEN (compose) step artifact: `{ text: string }`
 //   - `text` is the whole composed text; `maxWords`/`sections` (F38's
 //     `closeWordsAndSections`) run over it directly.
 //   - `linesPerInvoice`/`mustCarry` (new here, M0 had no equivalent —
@@ -46,9 +46,10 @@
 //     the text-shape half only) group `text`'s own non-empty lines into
 //     blocks of `linesPerInvoice` lines and require every `mustCarry`
 //     string to appear (case-insensitive substring) in each block.
-//   - What this LEAVES OUT (named, not silently assumed): the optional
-//     `lines` field is never cross-checked against `text` itself, and
-//     `mustCarry` is a substring match on the block's own words, never a
+//   - Any key besides `text` (done/blocker are stripped before the close)
+//     is refused red by name: the check reads `text` only, so an answer
+//     placed elsewhere must never pass or hide.
+//   - What this LEAVES OUT (named, not silently assumed): `mustCarry` is a substring match on the block's own words, never a
 //     citation-level check that the carried figure is the RIGHT figure —
 //     that grounding is `green`'s job, on a different step, per the
 //     signed scope ("close by declared class, one closer per class").
@@ -355,6 +356,10 @@ export function closeLinesAndCarry(text, { linesPerInvoice, mustCarry }) {
 export function closeSoftgreen(artifact, shape) {
   if (!artifact || typeof artifact !== 'object' || typeof artifact.text !== 'string') {
     return /** @type {CloseVerdict} */ ({ verdict: 'unparseable', red: `softgreen artifact must be an object shaped {text: string}, got ${JSON.stringify(artifact)}` });
+  }
+  const extra = Object.keys(artifact).filter((k) => k !== 'text');
+  if (extra.length > 0) {
+    return { verdict: 'red', red: `softgreen artifact has key(s) ${extra.map((k) => `"${k}"`).join(', ')} besides "text"; the check reads "text" only, so put the whole answer in "text"`, reds: [`extra key(s): ${extra.join(', ')}`] };
   }
   try {
     const reds = /** @type {string[]} */ ([]);

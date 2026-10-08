@@ -88,3 +88,10 @@ test('closeByClass: an unknown class is a crash, never a silent pass', () => {
   const verdict = closeByClass({ close: { class: 'bogus' } }, {}, { reads: {}, businessDate: '2026-06-01' });
   assert.equal(verdict.verdict, 'crash');
 });
+
+test('closeSoftgreen: an extra key (e.g. lines) is red by name, even when the text is fine', () => {
+  const v = closeSoftgreen({ text: 'hello', lines: ['the real answer'] }, { maxWords: 10, sections: [] });
+  assert.equal(v.verdict, 'red');
+  assert.match(v.red, /"lines"/);
+  assert.equal(closeSoftgreen({ text: 'hello' }, { maxWords: 10, sections: [] }).verdict, 'green');
+});

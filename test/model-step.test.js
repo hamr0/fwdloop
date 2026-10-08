@@ -588,3 +588,11 @@ test('refused: a bareguard write refusal lands in result.refused with verb, reso
   const clean = await make(scripted(false))(CTX, { write: tools.write }, { class: 'hitl' });
   assert.deepEqual(clean.refused, []);
 });
+
+// Live walk (new-attempt run-1): the softgreen answer form offered `lines`, which no check reads;
+// the model put the resume there. `text` is the only answer field.
+test('buildEmitArtifactSchema: softgreen offers only text + done/blocker, and refuses extra keys', () => {
+  const s = buildEmitArtifactSchema('softgreen');
+  assert.deepEqual(Object.keys(s.properties).sort(), ['blocker', 'done', 'text']);
+  assert.equal(s.additionalProperties, false);
+});
