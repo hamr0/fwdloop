@@ -114,11 +114,19 @@ export function requestStop(runDir) {
   }
 }
 
-/** The ONE reader of the stop request: `{at}` (when it was asked; null if unreadable) or `null` when none is pending. @param {string} runDir */
-export function readStopRequest(runDir) {
+/**
+ * The ONE reader of the stop request: `{at}` (when it was asked; null if unreadable) or `null` when none is pending. Amendment 16 C11: a time
+ * that is not a real date is treated as made "now" (`now`, when given), so the stop completes with every record and the ask is never lost.
+ * @param {string} runDir @param {() => string} [now]
+ */
+export function readStopRequest(runDir, now) {
   const r = readFileInside(runDir, STOP_FILE);
   if (!r.ok) return null;
-  try { const at = JSON.parse(r.text)?.at; return { at: typeof at === 'string' ? at : null }; } catch { return { at: null }; }
+  try {
+    const at = JSON.parse(r.text)?.at;
+    if (typeof at !== 'string') return { at: null };
+    return { at: Number.isNaN(Date.parse(at)) ? (typeof now === 'function' ? now() : null) : at };
+  } catch { return { at: null }; }
 }
 
 /** Is a stop pending for this run? (read-only) @param {string} runDir */
@@ -143,7 +151,7 @@ export function stopPending(runDir) {
 function settleStop({
   runDir, now, outcome, stop = null,
 }) {
-  const req = readStopRequest(runDir);
+  const req = readStopRequest(runDir, now);
   if (!req && !stop) return;
   const lastStep = () => readAudit(runDir).map((r) => r.step).filter((s) => typeof s === 'string' && s.length > 0).pop() ?? null;
   const step = stop ? (stop.step ?? stop.book?.step ?? null) : lastStep();
@@ -2042,7 +2050,7 @@ export async function resumeRun({
     // instant as the answer, or after it, belongs to the apply that follows: the fold's own seam reads it and stops before the next
     // step. On a tie the ANSWER WINS (hamr's ruling, 2026-10-07: a fast CI gave both the same millisecond). A Stop with no readable
     // time is stopped at the ask: conservative, stated here so it never falls out of a NaN comparison.
-    const stopReq = readStopRequest(runDir);
+    const stopReq = readStopRequest(runDir, now);
     const stopMs = stopReq ? Date.parse(stopReq.at ?? '') : NaN;
     const stopFirst = Number.isNaN(stopMs) || stopMs < Date.parse(answer.answeredAt);
     if (stopReq && stopFirst) {
