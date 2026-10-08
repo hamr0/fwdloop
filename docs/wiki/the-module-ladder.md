@@ -1626,6 +1626,15 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Negatives:** (1A) Stop before any ask parks, resume, then Stop at the ask of step 5 reads "step 5", not "step 2"; (2A) `{}`, `{"at":5}` and `{"at":"last tuesday"}` all end the same way; (3A) a "process gone" run that spends again after another run's roll still counts in the month and total; (5) docs only.
   - **Cap:** $0.
 
+- **Amendment 18 — SIGNED by hamr 2026-10-08 ("am18 approved, 4A"): the soft checks move to bareguard 0.21.0.**
+  - **Why:** bareguard 0.21.0 shipped the per-section words and extra-key rules (am16 I5). A $0 test of 142 inputs against fwdloop's own checks found 0 real disagreements; both promised messages match ours letter for letter.
+  - **1. Scope.** Only the soft checks (`softgreen`: words, sections, words per section, extra keys, lines per block and must-carry words) move to bareguard. `green`, `hitl` and "unparseable" stay fwdloop's.
+  - **2. Our front door stays.** A bad answer (a plain string, a number, a missing `text`) still reads "unparseable" before bareguard sees it. A booby-trapped answer object can no longer crash the check.
+  - **3. Refuse at sign, not at run.** Shapes bareguard will not build (for example 2.5 words per section, an empty must-carry list) are red at draft, revise and sign, by name.
+  - **4A. Our wording stays.** The sentences the model reads on a retry are fwdloop's plain English, built from bareguard's typed results.
+  - **5. Proof.** The 142-input comparison becomes a permanent test: a red today stays red after the switch, a green stays green.
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
