@@ -2957,3 +2957,20 @@ was set aside. Locally it was never seen because the two clicks are at least 1 m
 the ANSWER WINS; only a Stop asked strictly before the answer stops at the ask. The fold's own seam then reads the Stop and
 stops before the next step, so nothing ships. A Stop with no readable time still stops at the ask (now explicit in code).
 Lesson: a time-ordering rule needs an explicit tie case and a test with identical timestamps, not wall-clock luck.
+
+## F61 — A plan that fights itself on words, and a text step that hides its answer in a file (2026-10-08)
+
+hamr's amendment 14 exit walk, flow `resume-job` (run-1), `attempt-fallback`, $0.0707. Line 3 reads "3 sections all
+under 600 words, 250ish each": about 750 words asked inside a 600-word limit. The plan took `maxWords: 600` and dropped
+"250ish each", because the check has no field for it. Step 3 was granted `write`. Four tries were all red: one at 620
+words; in the others the model wrote the resume to a file in `out/` (`summary_resume.md` 623 words,
+`summary-resume.md` 706, plus a third file) and replied with a description, so the heading check, which reads the
+reply, found no headings.
+
+Why nothing caught it: the drafter turns lines into typed fields and is never asked whether two of them clash; the
+bareguard rubric grades a step's output against a signed shape, too late for a clash inside the plan. And nothing
+stops a step whose check reads its reply from being given `write`.
+
+hamr 2026-10-08: "conflicting requirements should be checked for sure ... under 600 words doesn't check out with
+250ish". Ruling "1": the model reads, the machine does the math. The drafter extracts the per-section size as a typed
+number; a $0 check does the sum. A text step whose check reads its reply gets no `write`. Drafted as M4e amendment 15.

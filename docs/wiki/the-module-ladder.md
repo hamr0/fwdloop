@@ -1554,6 +1554,29 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 - **Built after signing — not signed text (2026-10-08):**
   - Known limit, accepted by hamr ("why are you overcomplicating this"): with 0 revises left on a green plan the fields stay open (item 3); an edit not sent with Start over is not in the plan, and Sign & run signs the plan shown, never the unsent edit. No Cancel on an open Revise; a refresh closes it.
 
+- **Amendment 14 exit — SIGNED by hamr 2026-10-08 ("sign m4e amendment 14 exit"); evidence from hamr's live walk and the files.**
+  - hamr's walk sheet: steps 1, 2, 3, 4, 6 and 7 reported passing ("all pass except the run resume-job (run-1)").
+  - From the files (`resume-job/setup.jsonl`): `card`, `draft` green `bd5440ad` ($0.0011), `card`, `revise` green `36dd5e6e` ($0.0012), `sign` `36dd5e6e`. A plan was signed after a revise drafted from the edited card only.
+  - Steps 3 (a second revise) and 4 (Start over) have no file evidence. The only draft folder under the walk root (`.drafts/d-00muzduk9g-c676`) has one revise and no `started-over-from.json`. hamr chose to record them on his word ("2"). The browser walk below covers them at $0.
+  - Run `resume-job (run-1)`: `attempt-fallback`, $0.0707. Step 3 was red 4 times (words 620 > 600; three tries put the resume in a file and replied with a description). This is outside amendment 14 and became F61 (`docs/logs/FINDINGS.md`).
+  - The walk root was the repo root, because the panel was started without `--root flows`, so the flow sits at `./resume-job`, untracked.
+  - Orchestrator's browser walk at $0 (fake drafter, fresh root per width) at 1280, 390 and 320 px: green plan (Sign & run, Revise, "2 revises left", fields locked); Revise opens the fields with Draft; a red revise keeps the edits, has no Sign & run and shows "1 revise left"; 0 left shows Sign & run and Start over; no note box; no box spills past the screen.
+
+- **Amendment 15 — DRAFT, NOT SIGNED: a plan can't fight itself on words; a text step can't hide its answer in a file (F61).**
+  - **Why:** F61 (`docs/logs/FINDINGS.md`). On `resume-job (run-1)`, line 3 asked for "3 sections all under 600 words, 250ish each" (about 750 words in 600), and step 3 was granted `write`. Four tries were red: too long, or the resume put in a file while the reply only described it. hamr 2026-10-08: "conflicting requirements should be checked for sure ... under 600 words doesn't check out with 250ish"; ruling "1" (the model reads, the machine does the math).
+  - **1. Words per section is a typed number.** When a line gives a size for each section ("250ish each", "about 200 words per section"), the drafter puts it in that step's check as `wordsPerSection`. The readout's sections line shows it: `sections: A · B · C · about 250 words each · under 600 words`. It is a target the step is told, not a run-time check; `maxWords` stays the only hard word check.
+  - **2. The machine does the math, at $0.** At draft, revise and sign, if `wordsPerSection` × the number of sections is more than `maxWords`, the plan is red and names the line and both numbers: "line 3 asks about 250 words for each of 3 sections (750) but under 600 words in total. Change the line." The check reads only the plan's typed fields, never the job's prose.
+  - **3. A step whose check reads its reply gets no `write`.** A plan that grants `write` to a step whose check reads that step's reply text (a softgreen check) is red at draft, revise and sign: "step 3's check reads its reply, so it can't write files. The send step writes the result out."
+  - **Known limit:** the drafter can miss a per-section size in the prose. Then there's no number, no math and no red, as today; the sections line shows what it took, for the human to read before signing.
+  - **Negatives:**
+    - (a) a card whose line 3 is `resume-job`'s ("3 sections all under 600 words, 250ish each") drafts red, naming 750 and 600 (one paid draft call);
+    - (b) the same card with "180ish each" drafts green, and the sections line shows "about 180 words each" (one paid draft call);
+    - (c) a line with no per-section size gives no `wordsPerSection` and no math; green as today;
+    - (d) a plan granting `write` to a softgreen step is red at draft, revise and sign, $0 (fake provider);
+    - (e) the math check is given the plan's typed fields only, never the prose (a test proves the prose never reaches it);
+    - (f) a rerun of `resume-job` with the fixed line goes past step 3 (one paid run, about $0.07).
+  - **Cap:** within a new $0.25 for this amendment: $0 build, about $0.02 for (a)-(b), about $0.07 for (f).
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
