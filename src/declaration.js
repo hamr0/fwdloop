@@ -242,14 +242,14 @@ function deriveFromLine(fromLine, lines, guardrailClasses) {
 }
 
 /** The first "<n> words" in a guardrail ("3 sections, all under 600 words" -> 600), or null. */
-function guardrailWordLimit(guardrail) {
+export function guardrailWordLimit(guardrail) {
   const m = typeof guardrail === 'string' ? /(\d+)\s*words?\b/i.exec(guardrail) : null;
   return m ? Number(m[1]) : null;
 }
 
 const NUMBER_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
 /** M4e amendment 7 item 1: the first "<N> sections" in a guardrail (N digits, or the words one..ten), or null. */
-function guardrailSectionCount(guardrail) {
+export function guardrailSectionCount(guardrail) {
   const m = typeof guardrail === 'string' ? /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+)?sections?\b/i.exec(guardrail) : null;
   if (!m) return null;
   return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()];
