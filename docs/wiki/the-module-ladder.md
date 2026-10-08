@@ -1579,6 +1579,8 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
     - (f) a plan granting `write` to a softgreen step is red at draft, revise and sign, $0 (fake provider);
     - (g) a rerun of `resume-job` with the guardrail fixed goes past step 3 (one paid run, about $0.07).
   - **Cap:** a new $0.25 for this amendment: $0 build, about $0.01 for (b), about $0.07 for (g).
+- **Built after signing — not signed text (2026-10-08):**
+  - hamr "yes to both": a step whose check reads its reply is also refused any other write-class verb (e.g. `edit`), not only `write`; and the guardrail reader also reads the "ish" forms ("250ish each", "250ish words per section") as about 250 words each.
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs

@@ -256,9 +256,9 @@ export function guardrailWordLimit(guardrail) {
   return null;
 }
 
-/** M4e amendment 15 item 1: the "<n> words each" / "<n> words per section" size in a guardrail ("about 250 words each" -> 250), or null. */
+/** M4e amendment 15 item 1: the "<n> words each" / "<n> words per section" size in a guardrail ("about 250 words each", "250ish each" -> 250), or null. */
 export function guardrailWordsPerSection(guardrail) {
-  const m = typeof guardrail === 'string' ? /(\d+)\s*words?\s+(?:each|per\s+section)\b/i.exec(guardrail) : null;
+  const m = typeof guardrail === 'string' ? /(\d+)(?:\s*words?|ish(?:\s+words?)?)\s+(?:each|per\s+section)\b/i.exec(guardrail) : null;
   return m ? Number(m[1]) : null;
 }
 
