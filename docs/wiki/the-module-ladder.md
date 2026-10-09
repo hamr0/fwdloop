@@ -1791,6 +1791,13 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Done when:** browser walks at 1280, 390 and 320 px show it, with nothing spilling past the screen.
   - **Cap:** $0.
 
+- **Amendment 38 — SIGNED by hamr 2026-10-10 ("sign am38"): the plan lines are bold blue, with a legend.**
+  - **Change to amendment 37's colour.** Each step line under your lines (`› step 3 · …`) is **bold blue**, not muted. Its open detail stays in the same blue, not bold.
+  - **Legend at the bottom of the Job tab:** "› blue lines = the approved plan (what the agent does for each of your lines)."
+  - **An open step shows `⌄`,** and a folded one shows `›`.
+  - **Done when:** screenshots at 1280, 390 and 320 px show it, with nothing spilling past the screen.
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
