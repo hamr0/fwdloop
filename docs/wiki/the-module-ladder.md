@@ -1729,6 +1729,12 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Fail:** stop. Go back to how things were before 2A, and log it in FINDINGS.
   - **Cap:** inside am28's $0.25.
 
+- **Amendment 30 — SIGNED by hamr 2026-10-09 ("sign am30"): one clear way to write a guardrail number.**
+  - **Rule (hamr 2026-10-09):** the machine checks a guardrail number only when it's written one clear way: "under N words", "N words each", "N sections". Other ways ("a 600-word summary", "six hundred words", "1.5k words") are not seen by the machine. Code is never taught more ways to write a number. What the machine can't see, the AI leaves out ("Not checked" shows it), you fix with Revise, or the drafter asks about.
+  - **No guardrail at all:** only the default checks every step already has apply.
+  - **Change to amendment 28's red:** it adds one sentence that says how to fix it: "line 3's check says 600 words; the guardrail has no 600. Write it in the guardrail as 'under 600 words'."
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
