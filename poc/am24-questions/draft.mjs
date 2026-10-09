@@ -10,6 +10,8 @@
 import { Loop, HaltError } from 'bare-agent';
 import { parseSignedText, unsignedAskTtls } from '../../src/signed-text.js';
 import { validateDeclaration, checkGuardrailSums, guardrailWordsPerSection } from '../../src/declaration.js';
+import { linesNamedByReds } from '../../src/drafter.js'; // one copy: the POC uses the shipped function
+export { linesNamedByReds };
 import { loadCatalogue } from '../../src/catalogue.js';
 import { WIRED_VERBS, wiredMenu } from '../../src/primitives.js';
 import { readInputFacts } from '../../src/input-facts.js';
@@ -74,24 +76,6 @@ export function buildPocSchema(menu, { questions = false, notChecked = false } =
   }
   if (notChecked) extra.notChecked = { type: 'array', items: { type: 'string' }, description: 'what the job asks for that no typed check verifies' };
   return { ...s, properties: { ...s.properties, ...extra } };
-}
-
-/**
- * Which job lines did these reds name? Reds name a line three ways: "line N" (also "ask at line N", "(line N)",
- * "guardrailClasses key \"N\""), "steps[i]" (mapped through that declaration's steps[i].fromLine), and "step N's check"
- * (1-based). A red naming none (a missing top-level key, an unknown key) names no line. Returns sorted real line numbers.
- */
-export function linesNamedByReds(reds, declaration, lineNums) {
-  const found = new Set();
-  const steps = Array.isArray(declaration?.steps) ? declaration.steps : [];
-  const stepLine = (i) => (isPlainObject(steps[i]) && Number.isInteger(steps[i].fromLine) ? steps[i].fromLine : null);
-  for (const red of reds) {
-    for (const m of red.matchAll(/\bline (\d+)\b/g)) found.add(Number(m[1]));
-    for (const m of red.matchAll(/guardrailClasses key "(\d+)"|unjudgeable key "(\d+)"/g)) found.add(Number(m[1] ?? m[2]));
-    for (const m of red.matchAll(/steps\[(\d+)\]/g)) { const n = stepLine(Number(m[1])); if (n !== null) found.add(n); }
-    for (const m of red.matchAll(/\bstep (\d+)'s check/g)) { const n = stepLine(Number(m[1]) - 1); if (n !== null) found.add(n); }
-  }
-  return [...found].filter((n) => lineNums.includes(n)).sort((x, y) => x - y);
 }
 
 /**
