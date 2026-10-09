@@ -1749,6 +1749,16 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Done when:** the same job runs again live and reaches your ask.
   - **Cap:** $0.25.
 
+- **Amendment 34 — SIGNED by hamr 2026-10-09 ("sign am34"): the Job tab shows what you asked beside what the plan does.**
+  - **The tab stays "Job".** It holds two blocks.
+  - **"What you asked"** is your signed words only: your numbered lines, each `~` guardrail under its line, then the ask's wait, the destination, cap, Source and Signed. No AI text goes in it.
+  - **"What the plan does"** is the signed plan, read from the signed flow's files and never drafted again. One row per step shows which line it came from, what it reads, what it makes, what it may do, and its check (what "Checked" said at sign). The ask step shows "ASK · waits 1h". Below the rows: "Not checked (the AI's own reading)", always with its label.
+  - **Lined up:** on a wide screen the two blocks sit side by side, and each step's row lines up with the line it came from. When there's no room, the plan block drops below the other one. No sideways scroll.
+  - **Change to amendment 6 item 6:** the separate **Success** box goes away. Each step's check shows in its own row in "What the plan does" instead.
+  - **A run with its own signed values** shows the plan for that run.
+  - **Done when:** browser walks at 1280, 390 and 320 px show both blocks, rows line up on the wide screen, and nothing spills past the screen.
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
