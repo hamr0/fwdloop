@@ -1773,6 +1773,13 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Done when:** browser walks at 1280, 390 and 320 px show both blocks, rows line up on the wide screen, and nothing spills past the screen.
   - **Cap:** $0.
 
+- **Amendment 35 — SIGNED by hamr 2026-10-09 ("sign am35"): the step map's retry mark matches bareloop.**
+  - **Change to amendment 31's "Retries" item.** A step that took more than one try shows a **dashed box**, with `↻N` in front of its status (N = the number of tries), as in am31's own example `[↻2 ✓ doc-run]` and as bareloop does.
+  - **Removed:** the "— try N" after the name and the third "try N" line. The box keeps exactly its two lines: name, then status.
+  - **Copied from bareloop `9edb3e1`,** with a `borrowed-from` header.
+  - **Done when:** the 320 px screenshot shows `6 doc-run` in a dashed box with `↻2 [✓] passed`, and "try" appears nowhere on the map.
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
