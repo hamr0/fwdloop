@@ -1676,6 +1676,20 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Negatives:** a ':' section name, a blank phrase and an over-long entry each give a plain sentence with no `spec.` or `checks[` in it; the raw reason is still in the record.
   - **Cap:** $0.
 
+- **Amendment 24 — SIGNED by hamr 2026-10-09 ("sign am24"): the drafter may ask up to 2 questions before sign; the plan shows what is checked and what is not.**
+  - **Ruling lifted:** M4e's out-of-scope line "drafter questions back to the human (fwdloop's drafter asks none)". Nothing else in the PRD changes.
+  - **1. Asking.** The same one drafter call may return up to 2 questions, each naming the job line it is about. No extra AI call. A question with no line, a line that does not exist, or a third question is dropped and written to the draft's log.
+  - **2. Answer required.** The Draft view asks one at a time: "A question the plan raised (1 of 2)". There is no Skip. A blank answer asks again. Closing the box loses nothing: the question stays open and the draft waits. Sign is refused while any question is open.
+  - **3. Answers become guardrails.** Each answer is added word for word as a `~` guardrail under its line. The AI never rewrites it. The goal stays your line word for word. A step still sees only goal + reads + gap.
+  - **4. Redraft.** After the last answer, the plan is drafted again with your answers in. One paid call, and it does not use a revise. The redraft cannot ask new questions.
+  - **5. Signed and shown.** The answers are part of the signed job text and the sign hash. At sign they are shown under "Your answers".
+  - **6. Checked / Not checked.** "Checked" is built by the machine from the plan's typed checks, never written by the AI. "Not checked" comes from the same drafter call, labelled "the drafter's own reading, not a guarantee". Info only; not signed.
+  - **7. Revise** works as today; answer guardrails are editable like any guardrail.
+  - **Negatives:** a question about line 9 in a 4-line job is dropped and logged; a third question is dropped and logged; a blank answer asks again; Sign is refused while a question is open; an answer shows word for word as a `~` line, in the signed text and under "Your answers"; the redraft asks nothing; "Checked" lists only what a typed check really checks; "Not checked" always carries its label.
+  - **POC first ($, real deepseek-flash):** 10 vague jobs and 10 clear ones. Pass: vague jobs get at least one question naming a real line; clear ones mostly get none; the draft call never breaks. Fail: stop and rethink.
+  - **Cap:** $0.50 for the POC and the exit walk.
+  - Source: bareloop `loop` review 2026-10-09 (bareloop src/authorflow.js CONFIRM_SCHEMA, forceAnsweredQuestions; FINDINGS F174, F175).
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
