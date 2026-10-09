@@ -61,7 +61,7 @@ export function canFlowRun(read) {
   return { ok: true };
 }
 
-/** The one sentence for a signed flow that will not run: the Signed list's reason and Run again's 409 say the same words. @param {string} flow @param {string} red */
+/** The one sentence for a signed flow that will not run: the panel's run door (the POST /api/author/run 409) and Run again say the same words. The Signed list no longer shows a refused flow. @param {string} flow @param {string} red */
 export function willNotRunSay(flow, red) {
   return `"${flow}" will not run: ${red}`;
 }
