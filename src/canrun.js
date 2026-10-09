@@ -60,3 +60,8 @@ export function canFlowRun(read) {
   if (unbuildable) return { ok: false, red: unbuildableRed(unbuildable) };
   return { ok: true };
 }
+
+/** The one sentence for a signed flow that will not run: the Signed list's reason and Run again's 409 say the same words. @param {string} flow @param {string} red */
+export function willNotRunSay(flow, red) {
+  return `"${flow}" will not run: ${red}`;
+}

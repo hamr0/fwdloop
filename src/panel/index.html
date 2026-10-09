@@ -522,6 +522,8 @@
   .rw-list li:hover,.rw-list li.hl{background:var(--panel2);}
   .rw-name{font-weight:700;overflow-wrap:anywhere;} .rw-name mark{background:none;color:var(--accent);text-decoration:underline;}
   .rw-meta{font-size:11px;color:var(--text-dim);margin-top:2px;overflow-wrap:anywhere;}
+  .rw-list li.rw-refused{cursor:default;color:var(--text-dim);opacity:.7;}
+  .rw-list li.rw-refused:hover{background:none;}
   .rw-empty{padding:7px 8px;font-size:12px;color:var(--text-dim);}
   .rw-picked{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;padding:6px 8px;border:1px solid var(--accent);}
   .rw-picked span{overflow-wrap:anywhere;}
@@ -1210,7 +1212,8 @@
     var q = String(text || "").trim().toLowerCase();
     var out = [];
     (flows || []).forEach(function(f){
-      if(q === "" || f.flow.toLowerCase().indexOf(q) !== -1) out.push({flow: f.flow, runId: null, label: f.flow, meta: flowStatLine(f)});
+      // amendment 21 item 1: a flow that will not run is listed greyed; its second line is the reason, and it has no runs to pick
+      if(q === "" || f.flow.toLowerCase().indexOf(q) !== -1) out.push({flow: f.flow, runId: null, label: f.flow, refused: f.refused === true, meta: f.refused === true ? f.say : flowStatLine(f)});
     });
     if(q !== ""){
       (flows || []).forEach(function(f){
@@ -4297,11 +4300,11 @@
       rwShown = flowChoices(flows, q);
       if(rwHl >= rwShown.length) rwHl = 0;
       rwListEl.innerHTML = rwShown.length ? rwShown.map(function(c, i){
-        return '<li data-i="' + i + '" data-testid="rw-item" class="' + (i === rwHl ? "hl" : "") + '"><div class="rw-name">' + rwMark(c.label, q) + '</div><div class="rw-meta">' + escapeXml(c.meta) + "</div></li>";
+        return '<li data-i="' + i + '" data-testid="rw-item"' + (c.refused ? ' aria-disabled="true"' : "") + ' class="' + (c.refused ? "rw-refused" : (i === rwHl ? "hl" : "")) + '"><div class="rw-name">' + rwMark(c.label, q) + '</div><div class="rw-meta">' + escapeXml(c.meta) + "</div></li>";
       }).join("") : '<div class="rw-empty" data-testid="rw-empty">' + (flows.length === 0 ? "No signed flow has a passed run yet." : 'No flow or run matches "' + escapeXml(q) + '".') + "</div>";
     }
     function pickFlowChoice(c){
-      if(!c || cardLocked()) return;
+      if(!c || c.refused || cardLocked()) return;
       var entry = null;
       flows.forEach(function(f){ if(f.flow === c.flow) entry = f; });
       if(entry === null) return;

@@ -2,8 +2,9 @@
 // RUN-A-SIGNED-FLOW door of the panel's backend — `GET /api/author/flows` and `POST /api/author/run`. No spawn of its own: a
 // run starts only through `authorstart.js`'s one `start`. Reads the disk; writes nothing.
 //
-//   flows()   only flows whose `readFlow` passes (a missing, unsigned or tampered flow is never listed), that `canFlowRun` accepts
-//             (the one function shared with the run's own preflight: an unwired verb is not listed) and that have at least one
+//   flows()   only flows whose `readFlow` passes (a missing, unsigned or tampered flow is never listed). One that `canFlowRun` refuses
+//             (the one function shared with the run's own preflight: an unwired verb, a check that cannot be built) is listed
+//             `refused: true` with `say`, Run again's sentence (amendment 21 item 1); any other needs at least one
 //             passed run (amendment 7 item 7; Run again reaches the rest), each with its signed
 //             cap, its declared source roles, the source paths the NEWEST run of that flow used (its `inputs.json`
 //             manifest `source` field; blank when none) and what is left this month (a courtesy: the CLI's own monthly
@@ -15,7 +16,7 @@ import { join } from 'node:path';
 
 import { scrub } from '../authoring.js';
 import { endRow, readHistory } from '../books.js';
-import { canFlowRun } from '../canrun.js';
+import { canFlowRun, willNotRunSay } from '../canrun.js';
 import { loadCatalogue } from '../catalogue.js';
 import { ConfigError, readConfig } from '../config.js';
 import {
@@ -171,6 +172,11 @@ export function createFlowsDoor(opts) {
     if (!read.ok) {
     return reply(400, { refused: 'flow', refusals: [{ field: 'flow', say: `"${flow}" is not a signed flow that passes its checks, so it will not run.` }], reds: read.reds.map((r) => scrub(String(r), keys)) });
     }
+    const can = canFlowRun(read);   // amendment 21 item 1: a flow the list shows refused is refused here too, in the same sentence
+    if (!can.ok) {
+      const red = scrub(String(can.red), keys);
+      return reply(409, { refused: 'flow', say: willNotRunSay(flow, red), refusals: [{ field: 'flow', say: willNotRunSay(flow, red) }] });
+    }
     const checked = checkValues({
     allowedKeys: RUN_KEYS, body, base: flowValues(read.arbiter), realRoot, capOnly: false, floorUsd: formFacts(read).capFloorUsd, monthlyClaim,
     });
@@ -223,7 +229,12 @@ export function createFlowsDoor(opts) {
       const flows = [];
       for (const name of listFlowNames(realRoot)) {
         const read = readSigned(realRoot, name);
-        if (!canFlowRun(read).ok) continue;
+        if (!read.ok) continue;   // a missing, unsigned or tampered flow is never listed
+        const can = canFlowRun(read);
+        if (!can.ok) {   // amendment 21 item 1: no flow vanishes; it is listed refused, with the sentence Run again gives
+          flows.push({ flow: name, refused: true, say: willNotRunSay(name, scrub(String(can.red), providerKeys(loadEnv().env))) });
+          continue;
+        }
         const entry = entryFor(realRoot, name, read, left);
         if (entry.runs.length === 0) continue;   // amendment 7 item 7: only a flow with a passed run is listed
         flows.push(entry);
@@ -253,7 +264,7 @@ export function createFlowsDoor(opts) {
       const can = canFlowRun(readRaw);
       if (!can.ok) {
         const red = scrub(String(can.red), providerKeys(loadEnv().env));
-        return no(409, `"${flow}" will not run: ${red}`, { red });
+        return no(409, willNotRunSay(flow, red), { red });
       }
       const read = /** @type {Extract<typeof readRaw, { ok: true }>} */ (readRaw); // canFlowRun refuses every failed read above
       const roles = (read.arbiter.sources ?? []).map((s) => s.role);
