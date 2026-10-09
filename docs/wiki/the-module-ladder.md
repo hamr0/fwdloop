@@ -1810,6 +1810,12 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Done when:** screenshots at 1280, 390 and 320 px show it, with nothing spilling past the screen.
   - **Cap:** $0.
 
+- **Built after signing — not signed text (2026-10-10), amendments 33-40:**
+  - **Amendment 33:** the bump is built (7cb80f2): `bareguard` is `^0.21.2` in package.json; a numbered `#` heading now matches its section.
+  - **Amendments 34, 36:** the Job data (`GET /api/runs/:flow/:runId/job`) carries `plan` (one row per step with its check, plus "Not checked") instead of `success`; the drafter's "Not checked" list is read from the `notChecked` field of the sign row in `setup.jsonl`.
+  - **Amendments 37-40 changed amendment 34's layout as built:** the Job tab is one column, not two blocks. Each step is folded under its line. Only the `›` / `⌄` marker is blue (am39 replaced am38's blue text). "Not checked" is a folded line after the last job line (am40).
+  - **Amendments 31, 35:** the step map is HTML boxes that wrap (not SVG); a retried box is dashed with `↻N` before its status.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
