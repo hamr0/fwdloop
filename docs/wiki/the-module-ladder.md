@@ -1720,6 +1720,15 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **POC first (real deepseek-flash):** 10 guardrails with mixed numbers. To pass, the AI picks the right one on all 10.
   - **Cap:** $0.25.
 
+- **Amendment 29 — SIGNED by hamr 2026-10-09 ("sign am29"): the AI picks only the whole-output limit; code keeps reading the size for each section.**
+  - **POC result for am28 (2026-10-09, real deepseek-flash, $0.0125, `poc/am28-word-limit/results-am28-1.json`):** 8 of 10 right, so it failed the bar. The whole-output limit was right on all 9 jobs that answered. On "under 600 words, each heading at most 3 words", the AI also wrote 3 as the size for each section. One call broke and gave no usable answer.
+  - **Change to amendment 28.** The AI fills only `maxWords`. `wordsPerSection` stays as amendment 15 item 1 signed it: code reads it from the guardrail ("N words each", "N words per section"), and the AI never writes it.
+  - **Still in force from am28:** the AI's `maxWords` must appear word for word in that line's guardrail, or the plan is red. "Checked" shows the pick at sign. "Smallest wins" is undone.
+  - **The drafter is told:** "use the guardrail's ceiling for the whole output."
+  - **POC rerun (real deepseek-flash):** the same 10 jobs. A broken call is retried once, as the real drafter does. To pass, `maxWords` must be right on all 10, and code's per-section size must be right on all 10 (checked for free).
+  - **Fail:** stop. Go back to how things were before 2A, and log it in FINDINGS.
+  - **Cap:** inside am28's $0.25.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
