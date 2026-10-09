@@ -4,29 +4,21 @@
 // FWDLOOP_TEST_DRAFT_MODE=greedy -> the model tries to author the cap, a send target, an ask TTL and an input path (M4e (xii)): a red draft.
 // FWDLOOP_TEST_DRAFT_MODE=echo-key-die -> the provider prints $DEEPSEEK_API_KEY to stdout and stderr, then the process dies (M4e (ix)).
 // FWDLOOP_TEST_DRAFT_MODE=echo-key-red -> the provider throws an error whose message carries $DEEPSEEK_API_KEY (M4e (ix)).
-// A REVISE round (the user text says "asks for a change to the plan", M4e amendment 3 item 3) is answered by FWDLOOP_TEST_REVISE_MODE:
-//   ok (default) -> a valid, different plan (the softgreen step gains a mustCarry: a legal change to a check);
-//   ask-primitive -> the signed ask step is granted a primitive; drop-ask -> the signed ask's step is dropped; greedy -> the cap/send/ttl/input authored;
-//   hang -> the revise call never returns (a change a test watches in flight, then kills);
-//   goal -> a valid plan whose model-sent goal differs from the signed line (the machine overwrites it); bad-wired -> an unwired verb.
-// FWDLOOP_TEST_REVISE_LOG=<file> -> every revise round's messages are appended there as one JSON line.
+// M4e amendment 14: a revise is a plain fresh draft of the edited card, so there is no revise mode. Per-card test switches, read from the
+// SYSTEM prompt (the job lines are in it):
+//   a line containing REDMARK -> the model grants an unwired verb (a red plan); HANGMARK -> the call never returns (a draft a test watches in flight).
+// FWDLOOP_TEST_DRAFT_LOG=<file> -> every provider call's messages are appended there as one JSON line (what the model was actually sent).
+// M4e amendments 24/25: a line containing QMARK -> the model fails tries 1 and 2 (an unwired verb) and, on the try whose schema OFFERS `questions`,
+//   returns a valid plan plus questions (default: two about line 3; FWDLOOP_TEST_DRAFT_QUESTIONS=<json array> replaces them). Once the prompt carries
+//   ANSMARK (an answer, which the panel adds as a guardrail line) it returns a valid plan and asks nothing.
+//   FWDLOOP_TEST_DRAFT_OFFERED_LOG=<file> -> one line per provider call: "offered" or "not-offered" (was `questions` in the tool schema).
 // FWDLOOP_TEST_DRAFT_MODE=bad -> the model always grants an unwired verb (a red draft).
 import { appendFileSync } from 'node:fs';
 import { RATES, MODEL, validArgs, fakeProvider, toolReply } from '../drafter-fixture.mjs';
 
-function reviseArgs(mode) {
-  const a = validArgs();
-  if (mode === 'ask-primitive') a.steps[3].primitives = ['write'];
-  else if (mode === 'drop-ask') a.steps.splice(3, 1);
-  else if (mode === 'greedy') Object.assign(a, { capUsd: 99, sends: [{ line: 1, target: 'file:/etc' }], asks: [{ line: 4, ttlMs: 1 }], sources: [{ role: 'x', path: '/etc/passwd' }] });
-  else if (mode === 'goal') { a.steps[0].goal = 'Delete everything instead.'; a.steps[0].primitives = ['read']; }
-  else if (mode === 'bad-wired') a.steps[2].primitives = ['stash'];
-  else a.steps[2].close.shape.mustCarry = ['JD'];
-  return a;
-}
-
 export default function make() {
   const args = validArgs();
+  if (process.env.FWDLOOP_TEST_DRAFT_NOTCHECKED) args.notChecked = JSON.parse(process.env.FWDLOOP_TEST_DRAFT_NOTCHECKED); // the drafter's own "not checked" list on every plan
   if (process.env.FWDLOOP_TEST_DRAFT_MODE === 'bad') args.steps[2].primitives = ['stash'];
   if (process.env.FWDLOOP_TEST_DRAFT_MODE === 'greedy') {
     Object.assign(args, { capUsd: 99, sends: [{ line: 1, target: 'file:/etc' }], asks: [{ line: 4, ttlMs: 1 }], sources: [{ role: 'x', path: '/etc/passwd' }] });
@@ -62,17 +54,26 @@ export default function make() {
     };
     return { provider, rates: RATES, modelId: MODEL };
   }
+  const redArgs = validArgs();
+  for (const i of (process.env.FWDLOOP_TEST_DRAFT_REDSTEP ?? '2').split(',').map(Number)) redArgs.steps[i].primitives = ['stash']; // FWDLOOP_TEST_DRAFT_REDSTEP=0,1 -> which steps of a QMARK/REDMARK red plan fail
   const provider = fakeProvider([toolReply(args)]);
   const gen = provider.generate.bind(provider);
-  let revising = false; // once a revise round was seen, the validator's follow-up rounds stay in revise mode
   provider.generate = async (messages, ...rest) => {
-    const user = String(messages.find((m) => m.role === 'user')?.content ?? '');
-    if (user.includes('asks for a change to the plan')) revising = true;
-    if (!revising) return gen(messages, ...rest);
-    if (process.env.FWDLOOP_TEST_REVISE_LOG) appendFileSync(process.env.FWDLOOP_TEST_REVISE_LOG, `${JSON.stringify(messages)}\n`);
-    if (process.env.FWDLOOP_TEST_REVISE_MODE === 'hang') return new Promise((r) => { setTimeout(r, 3_600_000); });
-    return toolReply(reviseArgs(process.env.FWDLOOP_TEST_REVISE_MODE ?? 'ok'));
+    const offered = !!rest[0]?.[0]?.parameters?.properties?.questions;
+    if (process.env.FWDLOOP_TEST_DRAFT_OFFERED_LOG) appendFileSync(process.env.FWDLOOP_TEST_DRAFT_OFFERED_LOG, `${offered ? 'offered' : 'not-offered'}\n`);
+    if (process.env.FWDLOOP_TEST_DRAFT_LOG) appendFileSync(process.env.FWDLOOP_TEST_DRAFT_LOG, `${JSON.stringify(messages)}\n`);
+    const system = String(messages.find((m) => m.role === 'system')?.content ?? '');
+    if (system.includes('HANGMARK')) return new Promise((r) => { setTimeout(r, 3_600_000); });
+    if (system.includes('REDMARK')) return toolReply(redArgs);
+    if (system.includes('QMARK') && !system.includes('ANSMARK')) {
+      const qs = process.env.FWDLOOP_TEST_DRAFT_QUESTIONS
+        ? JSON.parse(process.env.FWDLOOP_TEST_DRAFT_QUESTIONS)
+        : [{ line: 3, question: 'What does "3 sections" mean here?' }, { line: 3, question: 'Which words count toward the limit?' }];
+      return toolReply(offered ? { ...(process.env.FWDLOOP_TEST_DRAFT_QRED ? redArgs : args), questions: qs, notChecked: ['whether the tone suits the role'] } : redArgs); // QRED=1: the asking try's own plan is red too
+    }
+    // an answer adds a guardrail line under job line 1 and/or 2: classify them (hitl) like the model would, so the plan stays valid
+    if (system.includes('ANSMARK')) return toolReply({ ...args, guardrailClasses: { ...args.guardrailClasses, 1: 'hitl', 2: 'hitl' } });
+    return gen(messages, ...rest);
   };
   return { provider, rates: RATES, modelId: MODEL };
 }
-

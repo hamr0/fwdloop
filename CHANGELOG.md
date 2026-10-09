@@ -5,6 +5,68 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-10-10
+
+M4e, second half: Revise is now the card itself, the plan's checks run on bareguard's rubric with
+plain-words refusals, the drafter shows what it Checked and what it did Not check, and the Job tab
+reads as your lines with the approved plan folded under each one. bareguard moves to ^0.21.2.
+
+### Added
+- Revise reopens the Chat card (amendment 14): Sign & run and Revise sit side by side, a revise takes
+  the card rather than a note box, up to two revises are left and then Start over; only the newest
+  green plan can be signed. Revise rows are kept in setup, and a start over is recorded and shown as
+  "start over" in Audit.
+- Per-section word math (amendments 15 and 16): a size guardrail is read per section ("250 words each",
+  "250ish each", "250ish words per section", thousands separators), the machine sets
+  `wordsPerSection`, a guardrail whose numbers do not add up is red at $0 before any model call and
+  at sign, and the readout says "about N words each". A softgreen step is never granted write or edit
+  and the drafter is told so.
+- Softgreen checks run on bareguard's rubric (amendments 18 to 20): one render function keeps our
+  wording, every softgreen check is built at preflight before the first model call, and a shape
+  bareguard cannot build is red at draft, revise and sign, by name. "N more" is derived from each
+  gap's total minus the list shown.
+- Plain-words refusals (amendments 21 to 23): the run door refuses a signed flow that will not run
+  up front (409), and Run again says the same sentence; a refused flow is not listed under Run a
+  signed flow. The reason names the step and what to do, in plain words; bareguard's raw reason is
+  kept in the run's records, never shown as the sentence.
+- Drafter questions, Checked and Not checked (amendments 24 and 25): the drafter's Not checked list
+  is kept on every try, questions open only on the third try, after tries 1 and 2 both failed, your answers are write-once
+  on disk and trigger a redraft, and the Draft view shows Your answers, Checked (built from the typed
+  closes) and Not checked (labelled, unsigned). The panel has a question view.
+- The drafter picks `maxWords` itself and the code checks it is a number the guardrail names
+  (amendment 29, after a paid POC at 10/10, $0.0124). Code still reads the size for each section.
+- The step map wraps like text, as HTML boxes and arrows (amendment 31), and a retried step shows a
+  dashed box with a retry mark before its status (amendment 35); both borrowed from bareloop.
+- The sign row in `setup.jsonl` keeps the drafter's Not checked list (amendment 36).
+- The Job tab shows your lines with the signed plan folded under each (amendments 34, 37 to 40): each
+  job line, its `~` rows, then its step as a folded line (details/summary); only the marker is blue
+  (› folded, ⌄ open), step text is plain ink and detail dim, the legend reads "› = the approved plan",
+  and Not checked is a folded plan line with a gap before Ask. The Job data carries the signed plan
+  (steps, checks, Not checked); the Success box is removed.
+
+### Changed
+- bareguard dependency bumped from ^0.19.2 to ^0.21.2 (0.21.0 for the rubric; 0.21.2 so a numbered
+  `#` heading matches its section, amendment 33).
+- Reading 10,000 runs took about 1 s (amendment 16 I1, F62), so settled runs are now rolled up into
+  `rolled` rows in `runs.jsonl`; no month total changes. A "process gone" run is never rolled, and a deleted rolled run keeps its spend.
+- The keys file passes only the known key names to a child process; `NODE_OPTIONS` in the file never
+  reaches one. One `draftKeyRefusal` checks the draft key for the CLI and the panel.
+- Several `~` lines under one step are one guardrail, joined once; answers join the same way.
+
+### Fixed
+- The history end row is written last and always, even when the log, `halt.json` or the settle row
+  fails.
+- A Stop counts as stopped only when another Stop took the ask; any other error says the stop failed
+  and leaves the run as it was. A stop time that is no real date is treated as now.
+- A rerun names its new run folder in the money records when it starts.
+- A draft is read "is it still running" first, then its result, so a finished draft is never shown as
+  ended before it finished.
+- An outside-folder 403 says so in plain words; the Draft header counts each revise; a run stopped at
+  its ask reads "stopped at the ask of ..." and plain "stopped" when the step is unknown, in Runs,
+  Ask and Inbox alike.
+- Two softgreen answer forms: `lines` is dropped (text is the only answer field) and extra keys on a
+  softgreen artifact are red by name.
+
 ## [0.13.0] - 2026-10-08
 
 M4e: a Chat card in the panel. Describe a job, watch it drafted, sign it with two clicks and run it,

@@ -37,7 +37,7 @@ import {
 } from '../src/provider.js';
 import { configDoorHome } from '../src/config.js';
 import {
-  claimHold, settleHold, monthlyRefusalText, ConfigError,
+  claimHold, settleHold, nameRunDir, monthlyRefusalText, ConfigError,
 } from '../src/monthly.js';
 import { keysForDoor } from '../src/keysfile.js';
 import {
@@ -45,7 +45,7 @@ import {
 } from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
-import { draftToDir, signDraft, SIGN_LINE, costText } from '../src/authoring.js';
+import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
 import { userInfo } from 'node:os';
 
 // The baseline model (project rule, CLAUDE.md/AGENT_RULES: "deepseek-flash
@@ -73,7 +73,7 @@ function keyedEnv() {
  * that does not fit refuses at $0 with the one refusal text. A hold that fits is given back when this
  * process ends or parks (the `exit` hook runs on every exit path; a SIGKILL leaves it for the next check,
  * which settles it as "process gone").
- * @returns {{ addRunDir: (d: string) => void }}
+ * @returns {{ addRunDir: (d: string) => void, nameRunDir: (d: string) => void }}
  */
 function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }) {
   const door = configDoorHome();
@@ -86,7 +86,7 @@ function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }
     if (!(process.env.NODE_ENV === 'test' && process.env[hook])) {
       fail('NODE_ENV=test is set without FWDLOOP_CONFIG_HOME, so the keys file, prices and monthly limit would be skipped. Nothing spent. Unset NODE_ENV, or set FWDLOOP_CONFIG_HOME.');
     }
-    return { addRunDir: () => {} };
+    return { addRunDir: () => {}, nameRunDir: () => {} };
   }
   let claim;
   try {
@@ -103,13 +103,17 @@ function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }
       holdId: claim.holdId, why: process.exitCode ? 'ended (red)' : 'ended or parked', home, alsoRunDirs: also,
     }));
   }
-  return { addRunDir: (d) => also.push(d) };
+  return {
+    addRunDir: (d) => also.push(d),
+    // C2: a rerun's new run dir is named in the money record the moment it starts.
+    nameRunDir: (d) => { also.push(d); nameRunDir({ holdId: claim.holdId, runDir: d, home }); },
+  };
 }
 
 /** The new runs a `rerun` chain started in this process — their spend belongs to this hold's month too. */
 function rerunDirs(result, flowDir) {
   const dirs = [];
-  for (let r = result; r && r.outcome === 'rerun'; r = r.newRun) dirs.push(join(flowDir, r.newRunId));
+  for (let r = result; r && r.outcome === 'rerun'; r = r.newRun) dirs.push(join(flowDir, 'runs', r.newRunId));
   return dirs;
 }
 
@@ -619,6 +623,7 @@ async function cmdResume(rest) {
     primitives,
     primitiveReds,
     businessDate: today(),
+    onRerunStart: (d) => hold.nameRunDir(d),
   });
 
   for (const d of rerunDirs(result, join(root, flowName))) hold.addRunDir(d);
@@ -754,13 +759,15 @@ async function cmdDraft(rest) {
   const { values, positionals } = parseArgs({
     args: rest,
     options: {
-      out: { type: 'string' }, root: { type: 'string' }, name: { type: 'string' }, budget: { type: 'string' }, 'revise-from': { type: 'string' }, note: { type: 'string' },
+      out: { type: 'string' }, root: { type: 'string' }, name: { type: 'string' }, budget: { type: 'string' },
+      // M4e amendment 24 item 4: the redraft after the human's answers never asks (the panel passes this; a plain draft may ask on try 3)
+      'no-questions': { type: 'boolean' },
     },
     allowPositionals: true,
   });
   const env = keyedEnv();
   const proseFile = positionals[0];
-  if (!proseFile) fail('draft: a prose file is required — fwdloop draft <prose.txt> --out <draftDir> --root <flowsDir> --name <flow> [--budget <usd>] [--revise-from <planDir> --note <file>]');
+  if (!proseFile) fail('draft: a prose file is required — fwdloop draft <prose.txt> --out <draftDir> --root <flowsDir> --name <flow> [--budget <usd>]');
   for (const req of ['out', 'root', 'name']) if (!values[req]) fail(`draft: --${req} is required`);
 
   let injected = {};
@@ -770,8 +777,8 @@ async function cmdDraft(rest) {
   }
   // The key preflight comes first (draftToDir repeats it), so an unset key keeps its own message ahead of the NODE_ENV refusal.
   if (injected.provider == null) {
-    const keyCheck = checkKeyPreflight('deepseek', env);
-    if (!keyCheck.ok) fail(`draft refused at $0 — ${keyCheck.message}`);
+    const refusal = draftKeyRefusal(MODEL_SLOT, env);
+    if (refusal !== null) fail(`draft refused at $0 — ${refusal}`);
   }
   // M4d piece 3: the monthly check — a draft has no signed cap, so it holds one ceiling round, priced by the
   // ONE price lookup (an injected test provider carries its own rates).
@@ -794,8 +801,7 @@ async function cmdDraft(rest) {
     root: resolve(values.root),
     name: values.name,
     budgetUsd: values.budget === undefined ? undefined : Number(values.budget),
-    reviseFrom: values['revise-from'] === undefined ? undefined : resolve(values['revise-from']),
-    noteFile: values.note === undefined ? undefined : resolve(values.note),
+    noQuestions: values['no-questions'] === true,
     env,
     ...injected,
   });
@@ -811,6 +817,10 @@ async function cmdDraft(rest) {
     process.exitCode = 1;
     return;
   }
+  if (result.questions > 0) {
+    process.stdout.write('DRAFTED — NOT SIGNABLE YET: the plan raised a question. Answer it in the panel (fwdloop panel); the panel drafts again with your answers.\n');
+    return;
+  }
   process.stdout.write(`${SIGN_LINE(resolve(values.out), result.hash)}\n`);
 }
 
@@ -823,6 +833,9 @@ async function cmdSign(rest) {
   const env = keyedEnv(); // sign takes no key, but its leak sweep must know the file's keys too
   const dir = positionals[0];
   if (!dir) fail('sign: a draft dir is required — fwdloop sign <dir> --approve <hash>');
+  // M4e amendments 24/25: a plan with a question is not signed from here — the answers are taken in the panel. One check, also run again inside signDraft.
+  const openQuestion = questionsRefusal(resolve(dir));
+  if (openQuestion !== null) fail(`sign refused — ${openQuestion}`);
   // Amendment 2: a person at a keyboard. TTY check first (cheapest), then the typed flow name; only then
   // signDraft's own $0 checks (hash, wired, goals, TTL, sources, send, leak). signDraft writes only on success.
   if (!isInteractive()) fail(`sign refused — ${NEEDS_TTY}`);

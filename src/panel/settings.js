@@ -1,7 +1,7 @@
 // borrowed-from: bareloop src/panel/settingsroutes.js@2b101d5 — ADAPTED for fwdloop.
 // M4d piece 4 (docs/wiki/the-module-ladder.md, "M4d", scope items 2-3): the Settings routes under
 // `/api/settings/`, dispatched by `src/panel/server.js` AFTER the same gates as every other route
-// (Host, cookie, and for a POST: Origin + the 8 KiB body cap). This file only decides what a settings
+// (Host, and for a POST: Origin + the 8 KiB body cap). This file only decides what a settings
 // request means.
 //
 // What it never does (negatives (i) (ii) (ix) (xiv)):

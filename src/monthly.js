@@ -4,8 +4,12 @@
 // ONE record: `<configHome>/runs.jsonl`, append-only, mode 0600, one row per hold and per terminal note.
 //   hold:     { kind:'hold', holdId, what:'run'|'resume'|'draft', flow, runId, runDir, pid, procStart, holdUsd, spentAtHold, at }
 //   terminal: { kind:'settled'|'released'|'refused', holdId, at, why [, alsoRunDirs] }
-// Rows are only ever appended. Month spend is read from each named run/draft dir's OWN `spend.jsonl`
-// (so the total is the same whichever `--root` a run used) — this file carries no money of its own.
+//   named:    { kind:'named', holdId, at, alsoRunDirs } — a hold's process starts spending into one more run dir (a rerun's new run)
+//   rolled:   { kind:'rolled', at, seen, dirs } — the reduced spend rows of dirs whose holds all ended on their own (never "process
+//             gone"), so a read opens one record, not one file per run; `seen` = how many rows the record had when it was read
+// Rows are only ever appended. Month spend is read from each named run/draft dir's OWN `spend.jsonl` (so the total is the same
+// whichever `--root` a run used); only a `rolled` row stands in for a dir's file (its copy of that dir's spend, kept if the dir is
+// deleted). hold, terminal and named rows carry no money.
 //
 // The claim (bareloop `claimRun`): the door APPENDS its hold FIRST, then reads the file; only live,
 // unsettled holds that come BEFORE its own row count against it, so whoever is first holds. A hold whose
@@ -61,7 +65,7 @@ export function readRuns(home) {
   try { text = readFileSync(runsPath(home), 'utf8'); } catch { return []; }
   const rows = [];
   for (const line of text.split('\n')) {
-    if (!line.trim()) continue;
+    if (line === '') continue; // a blank or torn line is skipped by the parse below
     try { const r = JSON.parse(line); if (r && typeof r === 'object') rows.push(r); } catch { /* skip */ }
   }
   return rows;
@@ -75,10 +79,7 @@ const sameMonth = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() 
 /** Every run/draft dir the record names (deduped by realpath), including dirs a settle note adds. */
 function namedDirs(rows) {
   const dirs = new Set();
-  for (const r of rows) {
-    if (r.kind === 'hold' && typeof r.runDir === 'string') dirs.add(r.runDir);
-    if (Array.isArray(r.alsoRunDirs)) for (const d of r.alsoRunDirs) if (typeof d === 'string') dirs.add(d);
-  }
+  for (const r of rows) for (const d of dirsNamedBy(r)) dirs.add(d);
   return [...dirs];
 }
 
@@ -88,8 +89,78 @@ function dirSpend(dir) {
 }
 
 /**
+ * One spend row reduced to exactly what `spendSummary` reads of it (I1, amendment 16): `u` cost (spendRowCost), `c` complete, `t` tokens,
+ * `w` wall ms or null, `p` the provider key, `a` the row's `at` as written (absent when it had none). Nothing else of a row is used.
+ */
+function reduceRow(row) {
+  const { usd, complete } = spendRowCost(row);
+  return {
+    u: usd,
+    c: complete,
+    t: tokensOf(row.tokens),
+    w: Number.isFinite(row.wallMs) && row.wallMs >= 0 ? row.wallMs : null,
+    p: typeof row.provider === 'string' && row.provider !== '' ? row.provider : NOT_RECORDED,
+    ...(row.at === undefined ? {} : { a: row.at }),
+  };
+}
+
+const diskRows = (dir) => readDirSpendRows(dir).map(reduceRow);
+
+/** The run dirs a row names: a hold's `runDir`, and any `alsoRunDirs` (a settle or named note). */
+function dirsNamedBy(r) {
+  const out = [];
+  if (r.kind === 'hold' && typeof r.runDir === 'string') out.push(r.runDir);
+  if (Array.isArray(r.alsoRunDirs)) for (const d of r.alsoRunDirs) if (typeof d === 'string') out.push(d);
+  return out;
+}
+
+/**
+ * The dirs of every hold the checker settled as "process gone" (amendment 17 3A): that run may have been misjudged and still spend,
+ * so such a dir is never rolled (rollSettled) and an older rolled row for it is never used (rolledEntries, amendment 19 1).
+ * @param {any[]} rows
+ * @returns {Set<string>}
+ */
+function goneDirs(rows) {
+  const goneHolds = new Set(rows.filter((r) => r.kind === 'settled' && r.why === 'process gone').map((r) => r.holdId));
+  const out = new Set();
+  for (const r of rows) {
+    if (r.kind !== 'rolled' && typeof r.holdId === 'string' && goneHolds.has(r.holdId)) for (const d of dirsNamedBy(r)) out.add(d);
+  }
+  return out;
+}
+
+/**
+ * The rolled spend of settled dirs (I1, amendment 16). A `rolled` row in runs.jsonl carries, for dirs whose every hold had ended,
+ * their reduced spend rows, and `seen` = how many rows the record had when the snapshot was read. An entry is used only if NO row
+ * at index >= `seen` names that dir (a resume or a rerun names it again, so its live spend is read from the dir instead). Anything
+ * else — no entry, a newer naming row — reads the dir as before, so a total can never differ from reading every dir.
+ * @param {any[]} rows
+ * @returns {Map<string, ReturnType<typeof reduceRow>[]>}
+ */
+function rolledEntries(rows) {
+  /** @type {Map<string, {seen: number, rows: any[]}>} */
+  const best = new Map();
+  /** @type {Map<string, number>} */
+  const lastNamed = new Map();
+  rows.forEach((r, i) => {
+    for (const d of dirsNamedBy(r)) lastNamed.set(d, i);
+    if (r.kind === 'rolled' && Number.isInteger(r.seen) && r.dirs && typeof r.dirs === 'object') {
+      for (const [d, rs] of Object.entries(r.dirs)) {
+        const prev = best.get(d);
+        if (Array.isArray(rs) && !(prev && prev.seen > r.seen)) best.set(d, { seen: r.seen, rows: rs });
+      }
+    }
+  });
+  const gone = goneDirs(rows);
+  const out = new Map();
+  for (const [d, e] of best) if (!gone.has(d) && (lastNamed.get(d) ?? -1) < e.seen) out.set(d, e.rows);
+  return out;
+}
+
+/**
  * The Money tab's figures (piece 4 reads this) and the check's month total.
- * @param {{ home?: string, now?: () => number }} [opts]
+ * `rows` (a caller that has just read the record, like the claim) saves a second parse of the same file.
+ * @param {{ home?: string, now?: () => number, rows?: any[] }} [opts]
  */
 export function spendSummary(opts = {}) {
   const nowDate = new Date((opts.now ?? Date.now)());
@@ -107,17 +178,18 @@ export function spendSummary(opts = {}) {
     if (wall === null) b.modelMsAtLeast = true;
     else b.modelMs = (b.modelMs ?? 0) + wall;
   };
-  for (const dir of namedDirs(readRuns(opts.home))) {
-    for (const row of readDirSpendRows(dir)) {
-      const { usd, complete } = spendRowCost(row);
-      const tokens = tokensOf(row.tokens);
-      const wall = Number.isFinite(row.wallMs) && row.wallMs >= 0 ? row.wallMs : null;
-      const key = typeof row.provider === 'string' && row.provider !== '' ? row.provider : NOT_RECORDED;
+  const record = opts.rows ?? readRuns(opts.home);
+  const rolled = rolledEntries(record);
+  for (const dir of namedDirs(record)) {
+    for (const row of rolled.get(dir) ?? diskRows(dir)) {
+      const {
+        u: usd, c: complete, t: tokens, w: wall, p: key,
+      } = row;
       const p = (byProvider[key] ??= { label: key, month: newBucket(), total: newBucket() });
       add(total, usd, complete, tokens, wall);
       add(p.total, usd, complete, tokens, wall);
-      if (row.at === undefined || row.at === null) { undatedRows += 1; continue; }
-      const at = new Date(row.at);
+      if (row.a === undefined || row.a === null) { undatedRows += 1; continue; }
+      const at = new Date(row.a);
       if (Number.isNaN(at.getTime())) { month.atLeast = true; p.month.atLeast = true; continue; } // could be this month: unknown, never dropped
       if (sameMonth(at, nowDate)) {
         add(month, usd, complete, tokens, wall);
@@ -169,7 +241,7 @@ function liveHeldBefore(rows, idx, home, nowIso, settle = true) {
  */
 function roomFor({ limit, holdUsd, rows, idx, home, now, nowIso, settle = true }) {
   const { heldUsd, heldRuns } = liveHeldBefore(rows, idx, home, nowIso, settle);
-  const month = spendSummary({ home, now }).month;
+  const month = spendSummary({ home, now, rows }).month;
   const leftCents = Math.max(0, Math.floor((limit - month.usd - heldUsd) * 100 + 1e-6));
   const needCents = Math.ceil(holdUsd * 100 - 1e-6); // a non-finite hold never fits — never read as $0
   return {
@@ -251,6 +323,55 @@ export function claimHold({
 }
 
 /**
+ * Amendment 16 C2: a hold's process starts spending into one more run dir (a rerun's new run): name it NOW, so a process killed hard
+ * still has that dir's spend counted. Append-only; `namedDirs` dedupes, so the settle note naming it again never counts it twice.
+ * Never throws (a failed note is closed by the settle note's `alsoRunDirs` on a normal exit).
+ * @param {{ holdId: string|null, runDir: string, home?: string, now?: () => number }} a
+ */
+export function nameRunDir({
+  holdId, runDir, home, now = Date.now,
+}) {
+  if (!holdId) return;
+  try {
+    appendRow(home, {
+      kind: 'named', holdId, at: new Date(now()).toISOString(), alsoRunDirs: [realpathLoose(runDir)],
+    });
+  } catch { /* see above */ }
+}
+
+/** How many dirs one `rolled` row carries (keeps each appended line small enough to be one whole write). */
+const ROLL_CHUNK = 200;
+
+/**
+ * I1 (amendment 16): fold the spend of every run/draft dir whose holds have ALL ended (settled, released or refused) into `rolled`
+ * rows, so the next month figure or Money load reads one record instead of one file per run. Append-only; a dir already rolled and not
+ * named since is left alone. Reads the dirs it folds exactly as `spendSummary` would, so no total changes. Never throws.
+ * @param {{ home?: string, now?: () => number }} [a]
+ */
+export function rollSettled({ home, now = Date.now } = {}) {
+  try {
+    const rows = readRuns(home);
+    const seen = rows.length;
+    const ended = new Set(rows.filter((r) => r.kind === 'settled' || r.kind === 'released' || r.kind === 'refused').map((r) => r.holdId));
+    /** @type {Set<string>} */
+    const open = new Set();
+    for (const r of rows) {
+      if (r.kind === 'rolled') continue;
+      const named = dirsNamedBy(r);
+      const unended = typeof r.holdId !== 'string' || !ended.has(r.holdId);
+      if (unended) for (const d of named) open.add(d);
+    }
+    for (const d of goneDirs(rows)) open.add(d);
+    const have = rolledEntries(rows);
+    const todo = namedDirs(rows).filter((d) => !open.has(d) && !have.has(d));
+    for (let i = 0; i < todo.length; i += ROLL_CHUNK) {
+      const dirs = Object.fromEntries(todo.slice(i, i + ROLL_CHUNK).map((d) => [d, diskRows(d)]));
+      appendRow(home, { kind: 'rolled', at: new Date(now()).toISOString(), seen, dirs });
+    }
+  } catch { /* a failed roll only means the next read opens the dirs, as before */ }
+}
+
+/**
  * The run's own process ends or parks: give the hold back. Never throws (a failed settle is closed by the
  * next check as "process gone"). `alsoRunDirs` names dirs this process also spent into (a rerun's new run).
  * @param {{ holdId: string|null, why: string, home?: string, now?: () => number, alsoRunDirs?: string[] }} a
@@ -264,6 +385,7 @@ export function settleHold({
       kind: 'settled', holdId, at: new Date(now()).toISOString(), why, ...(alsoRunDirs?.length ? { alsoRunDirs: alsoRunDirs.map(realpathLoose) } : {}),
     });
   } catch { /* see above */ }
+  rollSettled({ home, now });
 }
 
 /**

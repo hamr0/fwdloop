@@ -145,8 +145,10 @@ export function loadKeysEnv(opts = {}) {
     const parsed = parseKeysText(readFileSync(fd, 'utf8'));
     /** @type {Record<string,string|undefined>} */
     const env = { ...base };
-    for (const [name, value] of Object.entries(parsed)) {
-      if (!env[name]) env[name] = value;
+    // C4 (amendment 16): only the known key names reach the env (and so a child). Any other name in the file is listed in `names`
+    // for Settings but its value stays here — a `NODE_OPTIONS` line must never reach a run, resume or draft child.
+    for (const name of KEY_NAMES) {
+      if (!env[name] && Object.hasOwn(parsed, name)) env[name] = parsed[name];
     }
     return {
       ok: true, path, exists: true, names: Object.entries(parsed).filter(([, v]) => v !== '').map(([n]) => n).sort(), shellOnly: knownShell(parsed), refusal: null, env,

@@ -24,7 +24,7 @@
      the CSS is harmless dead weight rather than a second stylesheet to maintain). */
   :root{
     --bg:#1a1b26; --panel:#1f2335; --panel2:#24283b; --border:#292e42; --border-strong:#3b4261;
-    --text:#c0caf5; --text-dim:#a9b1d6; --text-faint:#565f89;
+    --text:#c0caf5; --text-dim:#a9b1d6; --text-faint:#565f89; --plan:#7aa2f7;
     --green:#9ece6a; --green-bg:#1c2b23;
     --red:#f7768e; --red-bg:#2b1822;
     --amber:#e0af68; --amber-bg:#2b2416;
@@ -66,7 +66,7 @@
   @media (prefers-color-scheme: light){
     :root:not([data-theme="dark"]){
       --bg:#e1e2e7; --panel:#d0d5e3; --panel2:#e9e9ed; --border:#c4c8da; --border-strong:#a8b0cc;
-      --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5;
+      --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5; --plan:#2668c2;
       --green:#567238; --green-bg:#dfe7d4;
       --red:#c92353; --red-bg:#fbe0e8;
       --amber:#82643a; --amber-bg:#f0e6d3;
@@ -81,7 +81,7 @@
   }
   :root[data-theme="light"]{
     --bg:#e1e2e7; --panel:#d0d5e3; --panel2:#e9e9ed; --border:#c4c8da; --border-strong:#a8b0cc;
-    --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5;
+    --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5; --plan:#2668c2;
     --green:#567238; --green-bg:#dfe7d4;
     --red:#c92353; --red-bg:#fbe0e8;
     --amber:#82643a; --amber-bg:#f0e6d3;
@@ -289,13 +289,24 @@
   .sum-val{color:var(--text);}
   .summary-box .num{color:var(--accent);font-weight:700;}
 
-  /* hamr review #3: "map cards taking page full width, should be smaller" —
-     the SVG's own natural width is centered in the box rather than the box
-     stretching each node to fill the pane (computeMapLayout below is also
-     capped to stop a node from stretching past a modest ceiling). */
-  .map-box{border:1px solid var(--border-strong);padding:10px;overflow-x:auto;margin-top:16px;margin-bottom:14px;background:var(--panel2);text-align:center;}
+  /* borrowed-from: bareloop src/panel/index.html@9edb3e1 (on d25e52a) — boxes as wide as their own text, side by side,
+     wrapping; a name is never cut. A box + its trailing arrow are ONE unit (the arrow never wraps alone); the lead arrow
+     of a wrapped line hangs in the container's left padding (absolute, zero layout impact — toggling it moves nothing). */
+  .map-box{border:1px solid var(--border-strong);padding:10px;margin-top:16px;margin-bottom:14px;background:var(--panel2);}
   .map-box::before{content:"┤ MAP ├";display:block;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;margin:-2px 0 8px 0;}
-  .map-box svg{display:block;max-width:100%;height:auto;margin:0 auto;}
+  .map-chips{display:flex;flex-wrap:wrap;gap:8px 4px;align-items:flex-start;padding-left:1.4em;}
+  .map-item{position:relative;display:inline-flex;align-items:center;gap:4px;max-width:100%;}
+  .map-arrow{color:var(--text-dim);font-size:13px;flex:none;}
+  .map-lead{display:none;position:absolute;left:-1.3em;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:13px;}
+  .map-item.line-start .map-lead{display:block;}
+  .map-chip{display:flex;flex-direction:column;align-items:flex-start;width:auto;max-width:100%;min-width:0;box-sizing:border-box;font:inherit;font-size:12px;line-height:1.4;text-align:left;padding:4px 8px;border:2px solid var(--border-strong);border-radius:0;background:var(--panel2);color:var(--text);white-space:normal;overflow-wrap:anywhere;cursor:pointer;}
+  .map-chip .chip-state{font-size:10px;color:var(--text-faint);}
+  .map-chip.s-done{border-color:var(--green);} .map-chip.s-done .chip-state{color:#2e7d32;}
+  .map-chip.s-stopped{border-color:var(--red);} .map-chip.s-stopped .chip-state{color:var(--red);}
+  .map-chip.s-waiting{border-color:var(--amber);} .map-chip.s-waiting .chip-state{color:#b8860b;}
+  .map-chip.s-user-stopped{border-color:var(--grey-dot);} .map-chip.s-user-stopped .chip-state{color:var(--grey-dot);}
+  .map-chip .chip-retry{font-size:10px;color:var(--text-faint);}
+  .map-chip.retry{border-style:dashed;}   /* borrowed-from: bareloop src/panel/index.html@9edb3e1 */
 
   .step-card{position:relative;border:1px solid var(--border);padding:10px;margin-bottom:8px;background:var(--panel2);}
   .step-card.running{border:1px double var(--amber);}
@@ -428,6 +439,20 @@
   .ro-value{padding:6px 8px;min-height:32px;box-sizing:border-box;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
   .art-head{color:var(--accent);}
   .ro-value.sub{margin-left:20px;min-height:0;padding-top:2px;padding-bottom:2px;border-top-width:0;overflow-wrap:anywhere;}
+  /* M4e amendment 37 (changes 34's layout): the Job tab is ONE column at every width. Each signed line, its ~ rows, then its step(s) folded under it:
+     a native <details> whose <summary> is one short line in the text colour with a › / ⌄ marker in the plan colour; open, it shows reads / makes / may do / check. */
+  .job-line{margin-bottom:6px;}
+  .plan-fold{margin:0 0 0 20px;min-width:0;overflow-wrap:anywhere;}
+  .plan-sum{color:var(--text);cursor:pointer;list-style:none;padding:3px 0;font-size:12px;}
+  .plan-sum::-webkit-details-marker{display:none;}
+  .plan-sum::before{content:"› ";color:var(--plan);font-weight:700;}
+  .plan-fold[open] > .plan-sum::before{content:"⌄ ";}
+  .plan-legend{color:var(--text-dim);font-size:12px;margin-top:12px;overflow-wrap:anywhere;}
+  .plan-legend .plan-mark{color:var(--plan);font-weight:700;}
+  .plan-fold .plan-head,.plan-fold .plan-row{color:var(--text-dim);}
+  .plan-fold .plan-head{font-weight:400;}
+  .plan-fold .plan-row{padding-left:12px;}
+  #details-plan-tail{margin-bottom:16px;}
   .ro-value.scroll{max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;}
   .field-row{display:flex;flex-wrap:wrap;gap:10px;}
   .field-row .field{flex:1 1 140px;margin-bottom:10px;}
@@ -484,19 +509,17 @@
   .chat-thread:empty{display:none;}
   .msg{padding:8px 10px;border:1px solid var(--border);max-width:100%;background:var(--panel2);font-size:13px;word-break:break-word;white-space:pre-wrap;}
   .msg.bot{border-left:3px solid var(--border-strong);}
+  /* M4e amendments 24/25: the question the plan raised (one at a time), then Your answers / Checked / Not checked beside the plan */
+  .chat-question{border:1px solid var(--border);border-left:3px solid var(--amber);background:var(--panel2);padding:8px 10px;margin-bottom:10px;max-width:100%;box-sizing:border-box;}
+  .chat-question .q-head{font-size:11px;color:var(--text-faint);}
+  .chat-question .q-line{font-size:12px;color:var(--text-faint);margin-top:4px;overflow-wrap:anywhere;}
+  .chat-question .q-text{font-size:13px;margin-top:4px;overflow-wrap:anywhere;white-space:pre-wrap;}
+  .chat-question textarea{display:block;width:100%;max-width:100%;box-sizing:border-box;margin-top:8px;min-height:3.4em;font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);resize:vertical;}
+  .chat-question .q-err{color:var(--red);}
+  .chat-extras{display:flex;flex-direction:column;gap:10px;margin-bottom:10px;}
+  .chat-extras:empty{display:none;}
   .msg.bot .who::before{content:"$ ";}
   .msg .who{font-size:11px;color:var(--text-faint);margin-bottom:3px;text-transform:none;font-weight:400;}
-  /* borrowed-from: bareloop src/panel/index.html@c1d87ce (the "you" bubble: indented, accent left border) */
-  .msg.you{background:var(--bg);margin-left:20px;border-left:3px solid var(--accent);}
-  .msg.you .who::before{content:"> ";}
-  .chat-input-row{margin-top:10px;border-top:1px dotted var(--border-strong);padding-top:10px;}
-  .chat-input-row input{width:100%;box-sizing:border-box;}
-  /* borrowed-from: bareloop src/panel/index.html@d151ec7 (the ask box: a wrapping textarea, 2x height, thick border, dimmed while it cannot be used).
-     M4e amendment 3 item 3: it opens only on a green plan ("Ask for a change to the plan"); `hidden` closes it. */
-  .chat-input-row[hidden]{display:none;}
-  textarea[data-testid="chat-msg"]{width:100%;box-sizing:border-box;font:inherit;color:var(--text);resize:vertical;overflow-y:auto;max-height:200px;}
-  #chat-msg{min-height:64px;padding:8px 12px;border:2px solid var(--field-border);background:var(--field-bg);}
-  #chat-msg:read-only{background:var(--bg);opacity:.55;cursor:not-allowed;}
   /* the card's free-text boxes wrap (textarea): grow a few rows (fitBox), then scroll inside */
   .job-card textarea.jf-wrap{width:100%;box-sizing:border-box;font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);resize:vertical;overflow-y:auto;max-height:200px;}
   /* the focused/selected Chat-card field gets a blue border (the accent), no outline ring */
@@ -511,9 +534,9 @@
   .jf-mirror{position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;white-space:pre-wrap;overflow-wrap:break-word;word-wrap:break-word;box-sizing:content-box;padding:0;border:0;margin:0;}
   .jf-mirror div{margin:0;padding:0;}
   /* editable Chat-card fields get the standard soft white (a step below the ask box); disabled/readonly keep the base colour */
-  #panel-chat input:not(:disabled):not([readonly]):not(#chat-msg):not([type="radio"]):not([type="checkbox"]),
+  #panel-chat input:not(:disabled):not([readonly]):not([type="radio"]):not([type="checkbox"]),
   #panel-chat select:not(:disabled),
-  #panel-chat textarea:not(:disabled):not([readonly]):not(#chat-msg){background:var(--field-soft-bg);}
+  #panel-chat textarea:not(:disabled):not([readonly]){background:var(--field-soft-bg);}
   /* ONE wide button below the message box; its wording comes from mainButtonFor */
   .btn.wide{width:100%;margin-top:10px;white-space:normal;}
   /* amendment 2 item 7: the main button's label ("Sign <hash8> & run · $<cap>") stays on ONE line inside the card */
@@ -885,21 +908,31 @@
           <!-- ONE progress list: every step is one line that updates in place; a waiting step has no check -->
           <ol class="chat-steps" id="chat-progress-row" data-testid="chat-steps" aria-live="polite" hidden></ol>
 
-          <!-- M4e amendment 6 item 3: bubbles (oldest first), then the current plan, then the note box and the main button: the plan sits next to Sign & run -->
+          <!-- M4e amendment 14: the plan, then the main button (no bubbles, no note box): the plan sits next to Sign & run -->
           <div class="chat-thread" id="chat-thread" data-testid="chat-thread"></div>
+
+          <!-- M4e amendments 24/25: a question the plan raised, one at a time. No Skip. Static markup: the poll only rewrites the texts when the question changes, never the answer box -->
+          <div class="chat-question" id="chat-question" data-testid="chat-question" hidden>
+            <div class="q-head" id="chat-q-head" data-testid="chat-q-head"></div>
+            <div class="q-line" id="chat-q-line" data-testid="chat-q-line"></div>
+            <div class="q-text" id="chat-q-text" data-testid="chat-q-text"></div>
+            <textarea id="chat-q-answer" data-testid="chat-q-answer" rows="2" autocomplete="off" spellcheck="false" aria-label="Your answer" placeholder="Your answer, on one line"></textarea>
+            <div class="hint q-err" id="chat-q-error" data-testid="chat-q-error" role="alert"></div>
+            <button class="btn primary wide" type="button" id="chat-q-send" data-testid="chat-q-send">Send</button>
+          </div>
+
+          <!-- M4e amendments 24/25: beside a green plan, Your answers (if it was drafted with any), Checked (built by code from the typed checks) and Not checked (the drafter's own reading) -->
+          <div class="chat-extras" id="chat-extras" data-testid="chat-extras"></div>
 
           <!-- a refused draft / run / sign / abandon POST (or a refused start) shows here and STAYS: set only by this tab's own
                action handlers, never cleared by the poll (the poll owns #chat-card-error instead) -->
           <div class="hint" id="chat-action-error" data-testid="chat-action-error"></div>
 
-          <!-- M4e amendment 3 item 3: opens when a green plan shows (bareloop's ask box); a typed note turns the main button into Send -->
-          <div class="chat-input-row" id="chat-msg-row" data-testid="chat-msg-row" hidden>
-            <label for="chat-msg" style="display:none">Message</label>
-            <textarea id="chat-msg" rows="2" placeholder="Ask for a change to the plan" autocomplete="off" data-testid="chat-msg"></textarea>
-          </div>
           <button class="btn primary wide" type="button" id="chat-main-btn" data-testid="chat-main" disabled>Draft</button>
           <div class="hint" id="chat-main-hint" data-testid="chat-main-hint"></div>
-          <!-- M4e amendment 4 item 3: after the second change the ask box is closed; Start over drafts again from the card as it is (a fresh draft) -->
+          <!-- M4e amendment 14 item 2: on a green plan, Revise opens every card field (the main button then reads Draft) -->
+          <button class="btn wide" type="button" id="chat-revise-btn" data-testid="chat-revise" hidden>Revise</button>
+          <!-- M4e amendment 14 item 3: after the second revise, on a green plan: Start over drafts the card as it is, a fresh draft with 2 new revises -->
           <button class="btn wide" type="button" id="chat-startover-btn" data-testid="chat-startover" hidden>Start over</button>
           <div class="hint">Only your click signs.</div>
         </section>
@@ -1009,7 +1042,7 @@
                piece within a field — replaces the old split asks/sends/
                sources/signed-lines blocks. Field order (signed): Job
                (prose) · Ask · Model · $ cap (+ redo cap) · Source ·
-               Destination · Success · Signed (M4e amendment 6: each guardrail sits under its own line in Job). At 390px every
+               Destination · Signed (am34: Success is gone; the plan block holds each step check) (M4e amendment 6: each guardrail sits under its own line in Job). At 390px every
                field's own `label` already sits above its value (the
                existing global `label{display:block}` rule — no separate
                narrow-width override needed). -->
@@ -1017,13 +1050,18 @@
           <div class="job-card" id="job-card" hidden data-testid="job-card-readonly">
             <h4 id="details-title">Job card — signed</h4>
             <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
-            <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap">—</div></div>
-            <div class="field"><label>Job (prose)</label><div id="details-prose"></div></div>
-            <div class="field"><label>Ask</label><div id="details-asks"></div></div>
-            <div class="field"><label>Source</label><div id="details-sources"></div></div>
-            <div class="field"><label>Destination</label><div id="details-sends"></div></div>
-            <div class="field"><label>Success</label><div id="details-success"></div></div>
-            <div class="field"><label>Signed</label><div class="ro-value" id="details-signature">—</div></div>
+            <!-- M4e amendment 37: ONE column. #details-prose holds one wrapper per signed line (the line, its ~ rows, its steps folded under it);
+                 #details-plan-tail holds any step from no listed line, then the folded "not checked" line; then Ask, Destination, $ cap, Source, Signed. -->
+            <div id="job-grid" data-testid="job-grid">
+              <div id="details-prose"></div>
+              <div id="details-plan-tail"></div>
+              <div class="field"><label>Ask</label><div id="details-asks"></div></div>
+              <div class="field"><label>Destination</label><div id="details-sends"></div></div>
+              <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap">—</div></div>
+              <div class="field"><label>Source</label><div id="details-sources"></div></div>
+              <div class="field"><label>Signed</label><div class="ro-value" id="details-signature">—</div></div>
+              <div class="plan-legend" data-testid="plan-legend"><span class="plan-mark">›</span> = the approved plan</div>
+            </div>
           </div>
         </section>
 
@@ -1086,7 +1124,14 @@
   // Origin). Same-origin. ----
   function getJSON(path){
     return fetch(path, { method: "GET", headers: { accept: "application/json" } }).then(function(r){
-      if(!r.ok){ var err = new Error(path + ": HTTP " + r.status); err.status = r.status; throw err; }
+      if(!r.ok){
+        // the refusal's own name rides on the error (C1): the one load-failure sentence tells "outside the folder" from the other 403
+        return r.json().then(function(b){ return b; }, function(){ return null; }).then(function(b){
+          var err = new Error(path + ": HTTP " + r.status); err.status = r.status;
+          if(b && typeof b.refused === "string") err.refused = b.refused;
+          throw err;
+        });
+      }
       return r.json();
     });
   }
@@ -1094,6 +1139,7 @@
   // message (it carries the path and the HTTP code), never a status number.
   function loadFailureText(e){
     var status = e && e.status;
+    if(status === 403 && e.refused === "flow-outside-root") return "This flow is outside the panel's folder.";
     if(status === 403) return "The panel does not recognise this page. Reload it.";
     if(status === 404) return "This run is no longer there.";
     return "Could not load this; reload the page.";
@@ -1400,23 +1446,9 @@
   }
 
   // ---- step map renderer (box-drawing geometry kept from the borrowed
-  // page's buildStepMapSVG; the DATA it draws is fwdloop's own: one box per
+  // page's step-map builder; the DATA it draws is fwdloop's own: one box per
   // `declaration.steps` entry, no scout/plan/judge/fix-loop/rounds — ruling
   // A, "no per-round parts"). ----
-  function stepMapColors(state){
-    if(state === "done") return {stroke:"var(--green)", textFill:"#2e7d32"};
-    if(state === "stopped") return {stroke:"var(--red)", textFill:"var(--red)"};
-    if(state === "waiting") return {stroke:"var(--amber)", textFill:"#b8860b"};
-    if(state === "user-stopped") return {stroke:"var(--grey-dot)", textFill:"var(--grey-dot)"};   // a Stop the human asked: grey, never red
-    return {stroke:"var(--border-strong)", textFill:"var(--text-faint)"}; // not started yet
-  }
-  var stepMapUidCounter = 0;
-  var MAP_MARGIN = 10, MAP_GAP = 28;
-  var CHAR_W = 7.2;
-  var TITLE_HPAD = 16;
-  var MIN_BOX_W = 100;
-  var BOX_H = 60, BOX_H_2LINE = 78;
-  var ROW_GAP = 70;
   // hamr review #2: "map cards missing try 2 if multiple attempts/iteration"
   // — a plain "try N" count whenever a step has been attempted more than
   // once, plus a mark when the LATEST attempt followed a human redo (the
@@ -1439,13 +1471,11 @@
   // failed · attempt 2 passed · …") is a map node's single biggest source of
   // width — that level of detail belongs in the Audit tab, never on the
   // node. A node's title is just
-  // step number + name + try N + state, kept short so naturalBoxWidth stays
+  // step number + name + state, kept short so naturalBoxWidth stays
   // small and the map stays compact instead of stretching to the pane width.
   function stepTitleText(idx, s){
     if(s.draft) return "drafting";
     var base = (s.n || idx + 1) + ' ' + s.emits;
-    var tryText = tryCountText(s.tryCount, s.attempts);
-    if(tryText) base += ' — ' + tryText;
     return base;
   }
   // The declared step's own run-state (map box, card, "which step stopped and why") is the server's `groupState` (src/panel/data.js
@@ -1482,151 +1512,36 @@
       };
     });
   }
-  function naturalBoxWidth(steps){
-    var maxChars = 0;
-    steps.forEach(function(s, idx){ maxChars = Math.max(maxChars, stepTitleText(idx, s).length); });
-    return Math.max(MIN_BOX_W, Math.ceil(maxChars * CHAR_W) + TITLE_HPAD);
+  // borrowed-from: bareloop src/panel/index.html@9edb3e1 (on d25e52a). The map is plain HTML + CSS (.map-chips / .map-item /
+  // .map-chip): the browser wraps it, so no width arithmetic and no sideways scroll. Each box keeps its two lines — the name
+  // (stepTitleText) then the status word (stateWord); a retried box (am35) is dashed and its status line starts with "↻N".
+  function buildStepMapHTML(steps){
+    var last = steps.length - 1;
+    var body = steps.map(function(s, idx){
+      var tries = boxRetryTry(s);
+      var cls = "map-chip s-" + String(s.state).replace(/[^a-z-]/g, "") + (tries ? " retry" : "");
+      var name = escapeXml(stepTitleText(idx, s));
+      var state = escapeXml(s.noRecord ? "no draft record" : stateWord(s.state));
+      // hamr review #4: each box is a clickable button tagged with the step's own `emits` id — the click listener that
+      // jumps to the Audit tab's matching group is wired AFTER insertion (wireMapClicks), never inline here.
+      var chip = '<button type="button" class="' + cls + ' map-step" data-emits="' + escapeXml(s.emits) + '"' + (tries ? ' data-retry="' + tries + '"' : '') +
+        ' title="' + name + '" aria-label="open ' + escapeXml(s.emits) + ' in Audit">' +
+        '<span class="chip-name">' + name + '</span><span class="chip-state">' +
+        (tries ? '<span class="chip-retry">\u21bb' + tries + '</span> ' : '') + state + '</span></button>';
+      return '<span class="map-item" role="listitem">' +
+        (idx > 0 ? '<span class="map-lead" aria-hidden="true">\u2192</span>' : '') +
+        chip + (idx < last ? '<span class="map-arrow" aria-hidden="true">\u2192</span>' : '') + '</span>';
+    }).join("");
+    return '<div class="map-chips" role="list" aria-label="step map">' + body + '</div>';
   }
-  // hamr review #3: nodes stay compact — a box never stretches past a modest
-  // ceiling over its own natural (text-fit) width, even when the available
-  // pane is much wider (the bug: every node used to grow to fill the row).
-  var MAX_BOX_STRETCH = 1.25;
-  function computeMapLayout(n, availW, naturalW){
-    if(!availW) return {perRow:n, boxW:naturalW};
-    var usableW = availW - MAP_MARGIN * 2;
-    var ceiling = naturalW * MAX_BOX_STRETCH;
-    for(var perRow = n; perRow >= 2; perRow--){
-      var totalW = perRow * naturalW + (perRow - 1) * MAP_GAP;
-      if(totalW <= usableW){
-        var stretched = (usableW - (perRow - 1) * MAP_GAP) / perRow;
-        return {perRow:perRow, boxW:Math.max(naturalW, Math.min(stretched, ceiling))};
-      }
+  // The first box of each WRAPPED line shows a leading arrow. CSS cannot know which box starts a line, so after render/resize
+  // this compares each item's offsetTop with the previous item's (same line = same top). Takes anything with offsetTop +
+  // classList (real elements, or stubs in tests). The lead arrow is absolute, so toggling never reflows a box — no loop.
+  function markLineStarts(items){
+    for(var i = 0; i < items.length; i++){
+      var starts = i > 0 && items[i].offsetTop > items[i - 1].offsetTop;
+      if(starts) items[i].classList.add("line-start"); else items[i].classList.remove("line-start");
     }
-    return {perRow:1, boxW:Math.max(MIN_BOX_W, Math.min(usableW, ceiling))};
-  }
-  // M4c-fix amendment 2 (l): a line longer than the box is cut with … (the whole name stays in the node's <title>
-  // and on its step card below the map).
-  function mapLabel(line, maxChars){
-    return line.length <= maxChars ? line : line.slice(0, Math.max(1, maxChars - 1)) + "\u2026";
-  }
-  function wrapTitleLines(text, maxWidth){
-    var maxChars = Math.max(1, Math.floor((maxWidth - TITLE_HPAD) / CHAR_W));
-    return wrapTitleLinesRaw(text, maxChars).map(function(l){ return mapLabel(l, maxChars); });
-  }
-  function wrapTitleLinesRaw(text, maxChars){
-    if(text.length <= maxChars) return [text];
-    var words = text.split(' ');
-    var line1 = '', i = 0;
-    for(; i < words.length; i++){
-      var cand = line1 ? line1 + ' ' + words[i] : words[i];
-      if(line1 && cand.length > maxChars) break;
-      line1 = cand;
-    }
-    if(!line1) return [text.slice(0, maxChars), text.slice(maxChars)];
-    var line2 = words.slice(i).join(' ');
-    return line2 ? [line1, line2] : [line1];
-  }
-  function buildStepMapSVG(steps, availWidth){
-    var n = steps.length;
-    var naturalW = naturalBoxWidth(steps);
-    var layout = computeMapLayout(n, availWidth, naturalW);
-    var perRow = layout.perRow, boxW = layout.boxW, gap = MAP_GAP;
-    var rows = Math.ceil(n / perRow);
-    var margin = MAP_MARGIN;
-    var titleLines = steps.map(function(s, idx){ return wrapTitleLines(stepTitleText(idx, s), boxW); });
-    var maxLines = titleLines.reduce(function(m, l){ return Math.max(m, l.length); }, 1);
-    var boxH = maxLines > 1 ? BOX_H_2LINE : BOX_H;
-    var rowH = boxH + ROW_GAP;
-    var totalW = margin * 2 + perRow * boxW + (perRow - 1) * gap;
-    var totalH = rows * rowH;
-    var uid = "sm" + (stepMapUidCounter++);
-    var body =
-      '<defs>' +
-        '<marker id="' + uid + '-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">' +
-          '<path d="M0,0 L6,3 L0,6 z" fill="var(--text-dim)"></path></marker>' +
-        '<marker id="' + uid + '-arrow-grey" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">' +
-          '<path d="M0,0 L6,3 L0,6 z" fill="var(--text-faint)"></path></marker>' +
-      '</defs>';
-    steps.forEach(function(s, idx){
-      var row = Math.floor(idx / perRow);
-      var col = idx % perRow;
-      var rtl = (row % 2) === 1;
-      var slotCol = rtl ? (perRow - 1 - col) : col;
-      var x = margin + slotCol * (boxW + gap);
-      var y = 30 + row * rowH;
-      var colors = stepMapColors(s.state);
-      var lines = titleLines[idx];
-      var nextRowIdx = idx < n - 1 ? Math.floor((idx + 1) / perRow) : null;
-      var hasDrop = nextRowIdx !== null && nextRowIdx !== row;
-      var stateY = y + boxH - 18;
-      // hamr review #4: each node is a clickable group ("map-step", tagged
-      // with the step's own `emits` id) — the click listener that turns this
-      // into a jump to the Audit tab's matching group is wired AFTER
-      // insertion (renderStepMap, below), never inline here (this function
-      // only ever builds a markup string).
-      body += '<g class="map-step" data-emits="' + escapeXml(s.emits) + '" tabindex="0" role="button" aria-label="open ' + escapeXml(s.emits) + ' in Audit"><title>' + escapeXml(stepTitleText(idx, s)) + '</title>';
-      body += '<rect x="' + x + '" y="' + y + '" width="' + boxW + '" height="' + boxH +
-        '" rx="0" fill="var(--panel2)" stroke="' + colors.stroke + '" stroke-width="2"></rect>';
-      if(lines.length === 1){
-        body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 25) +
-          '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[0]) + '</text>';
-      } else {
-        body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 17) +
-          '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[0]) + '</text>';
-        body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 29) +
-          '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[1]) + '</text>';
-      }
-      body += '<text x="' + (x + boxW / 2) + '" y="' + stateY +
-        '" text-anchor="middle" font-size="10" fill="' + colors.textFill + '">' + escapeXml(s.noRecord ? "no draft record" : stateWord(s.state)) + '</text>';
-      body += '</g>';
-      // hamr's 2026-09-27 retry-loop review: a step whose server-computed
-      // tryCount is >1 gets a dashed grey self-loop under its box, labelled
-      // "try N" — ported from bareloop commit 16825a7's own curve (same
-      // control-point proportions, scaled to THIS box's own width). When the
-      // same box also carries the row-to-row snake drop below (which leaves
-      // from dead-center, x=cx), the loop's start is shifted off-center by a
-      // fixed pixel offset so the two paths never begin at the same point.
-      var retryTry = boxRetryTry(s);
-      if(retryTry){
-        var retryShift = hasDrop ? 14 : 0;
-        var bottom = y + boxH;
-        var sx = x + boxW * 0.50 - retryShift, sy = bottom + 5;
-        var c1x = x + boxW * 0.278 - retryShift, c1y = bottom + 30;
-        var c2x = x + boxW * 0.167 - retryShift, c2y = bottom + 30;
-        var ex = x + boxW * 0.028 - retryShift, ey = bottom + 2;
-        body += '<path d="M ' + sx + ' ' + sy + ' C ' + c1x + ' ' + c1y + ', ' + c2x + ' ' + c2y + ', ' + ex + ' ' + ey +
-          '" fill="none" stroke="var(--text-faint)" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#' + uid + '-arrow-grey)"></path>';
-        body += '<text x="' + (x + boxW * 0.267 - retryShift) + '" y="' + (bottom + 32) +
-          '" text-anchor="middle" font-size="10" fill="var(--text-faint)">try ' + retryTry + '</text>';
-      }
-      if(idx < n - 1){
-        if(nextRowIdx === row){
-          var midY = y + boxH / 2;
-          if(!rtl){
-            var nx = x + boxW + gap;
-            body += '<line x1="' + (x + boxW) + '" y1="' + midY + '" x2="' + (nx - 2) + '" y2="' + midY +
-              '" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#' + uid + '-arrow)"></line>';
-          } else {
-            var px = x - gap - boxW;
-            body += '<line x1="' + x + '" y1="' + midY + '" x2="' + (px + boxW + 2) + '" y2="' + midY +
-              '" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#' + uid + '-arrow)"></line>';
-          }
-        } else {
-          var cx = x + boxW / 2;
-          body += '<line x1="' + cx + '" y1="' + (y + boxH) + '" x2="' + cx + '" y2="' + (y + rowH - 2) +
-            '" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#' + uid + '-arrow)"></line>';
-        }
-      }
-    });
-    return '<svg width="' + totalW + '" height="' + totalH + '" viewBox="0 0 ' + totalW + ' ' + totalH + '" role="img" aria-label="step map">' + body + '</svg>';
-  }
-  var lastSteps = null;
-  var lastWidth = null;
-  function mapAvailWidth(wrapper){
-    if(!wrapper) return null;
-    var w = wrapper.getBoundingClientRect().width;
-    if(!w) return null;
-    return Math.max(0, w - 20);
   }
   // hamr review #4: "clicking on cards below codegraph maps should take you
   // to audit trail" — a map node's click (or Enter/Space, since the node
@@ -1644,34 +1559,32 @@
   function renderStepMap(steps){
     var mount = document.getElementById("map-mount");
     var wrapper = document.getElementById("map-box");
-    lastSteps = steps;
     if(!steps || !steps.length){
       mount.innerHTML = "";
       wrapper.hidden = true;
       return;
     }
     wrapper.hidden = false;
-    var w = mapAvailWidth(wrapper);
-    lastWidth = w;
-    mount.innerHTML = buildStepMapSVG(steps, w);
+    mount.innerHTML = buildStepMapHTML(steps);
     wireMapClicks(mount);
+    reflowMap();
   }
   function reflowMap(){
-    var wrapper = document.getElementById("map-box");
-    if(!wrapper || wrapper.hidden || !lastSteps) return;
-    var w = mapAvailWidth(wrapper);
-    if(w === null || w === lastWidth) return;
-    lastWidth = w;
-    var mount = document.getElementById("map-mount");
-    mount.innerHTML = buildStepMapSVG(lastSteps, w);
-    wireMapClicks(mount);
+    var box = document.getElementById("map-box");
+    if(!box || box.hidden) return;
+    markLineStarts(Array.prototype.slice.call(box.querySelectorAll(".map-item")));
+  }
+  var reflowTimer = null;
+  function reflowMapSoon(){
+    if(reflowTimer) clearTimeout(reflowTimer);
+    reflowTimer = setTimeout(function(){ reflowTimer = null; reflowMap(); }, 60);
   }
   if(typeof ResizeObserver !== "undefined"){
-    var ro = new ResizeObserver(function(){ reflowMap(); });
-    var mb = document.getElementById("map-box");
-    if(mb) ro.observe(mb);
+    var mapRo = new ResizeObserver(reflowMapSoon);
+    var mapBoxEl = document.getElementById("map-box");
+    if(mapBoxEl) mapRo.observe(mapBoxEl);
   } else {
-    window.addEventListener("resize", reflowMap);
+    window.addEventListener("resize", reflowMapSoon);
   }
 
   // ---- Runs tab: ONE run-row builder shared by History (flat) and the
@@ -2815,8 +2728,7 @@
     return [h ? h + "h" : "", m ? m + "m" : "", sec ? sec + "s" : ""].filter(Boolean).join(" ");
   }
   // hamr's 2026-09-27 exit-check review #5: ONE row-per-piece renderer,
-  // shared by every multi-row Job field (prose/asks/sources/sends/
-  // guardrails/success) — a real `.ro-value` per item (never a single
+  // shared by the multi-row Job fields (asks/sources/sends) — a real `.ro-value` per item (never a single
   // " · "-joined line, which used to hide a book text value if it happened
   // to contain " · " itself), an explicit "none signed" hint for an empty
   // list, book text always via `.textContent`.
@@ -2830,6 +2742,53 @@
     items.forEach(function(item){
       el.appendChild(textDiv("ro-value", rowTextFn(item)));
     });
+  }
+  // M4e amendments 34 + 37: one step of the signed plan, folded under its job line. All of it is read off `job.plan` (src/panel/data.js
+  // `buildJobPlan`: declaration.json and the setup.jsonl sign row); the page words nothing of its own except "nothing" for an empty list.
+  // The summary is one short line: `step 3 · read → summaryResume · machine check` (may do, then what it makes, then the check kind from the
+  // step's TYPED close class: green/softgreen = machine check, anything else = you check). A write/send step on a line with a signed destination
+  // adds `→ <destination>`. The ask step reads `step 4 · ASK · waits 1h`.
+  function stepSummaryText(st, job){
+    var head = "step " + st.step + " · ";
+    if(st.ask) return head + "ASK · waits " + plainWait(st.waitMs);
+    var out = ((st.mayDo || []).length ? st.mayDo.join(", ") + " " : "") + "→ " + (st.makes || "unknown");
+    var sends = (job.sends || []).filter(function(sd){ return sd.line === st.line; });
+    var writes = (st.mayDo || []).some(function(p){ return p === "write" || p === "send"; });
+    if(writes && sends.length) out += " → " + (sends[0].target || "unknown");
+    return head + out + " · " + (st.checkClass === "green" || st.checkClass === "softgreen" ? "machine check" : "you check");
+  }
+  function jobStepFold(st, job){
+    var fold = document.createElement("details");
+    fold.className = "plan-fold";
+    var sum = document.createElement("summary");
+    sum.className = "plan-sum";
+    sum.textContent = stepSummaryText(st, job);
+    fold.appendChild(sum);
+    fold.appendChild(textDiv("plan-head", "step " + st.step + " · from line " + (st.line === null || st.line === undefined ? "none" : st.line)));
+    fold.appendChild(textDiv("plan-row", "reads: " + ((st.reads || []).length ? st.reads.join(", ") : "nothing")));
+    fold.appendChild(textDiv("plan-row", "makes: " + (st.makes || "unknown")));
+    fold.appendChild(textDiv("plan-row", "may do: " + ((st.mayDo || []).length ? st.mayDo.join(", ") : "nothing (pure stop)")));
+    fold.appendChild(textDiv("plan-row", "check: " + (st.ask ? "ASK · waits " + plainWait(st.waitMs) : (st.check || []).join(" "))));
+    return fold;
+  }
+  // The tail: any step that came from no listed line, then the folded "not checked (the AI's own reading)" summary (its label is always shown).
+  // `placed` (step numbers already folded under a line) is filled by renderJob's line loop before this runs.
+  function paintJobPlan(job, placed){
+    var plan = job.plan || {steps: [], notChecked: {recorded: false, items: []}};
+    var tail = document.getElementById("details-plan-tail");
+    tail.innerHTML = "";
+    (plan.steps || []).filter(function(st){ return !placed[st.step]; }).forEach(function(st){ tail.appendChild(jobStepFold(st, job)); });
+    var nc = plan.notChecked || {};
+    var fold = document.createElement("details");
+    fold.className = "plan-fold plan-notchecked";
+    var sum = document.createElement("summary");
+    sum.className = "plan-sum";
+    sum.textContent = "not checked (the AI's own reading)";
+    fold.appendChild(sum);
+    if(!nc.recorded) fold.appendChild(textDiv("plan-row", "not recorded (signed before amendment 34)"));
+    else if(!(nc.items || []).length) fold.appendChild(textDiv("plan-row", "the AI listed nothing"));
+    else nc.items.forEach(function(it){ fold.appendChild(textDiv("plan-row", it)); });
+    tail.appendChild(fold);
   }
   function renderJob(job){
     var empty = document.getElementById("job-empty");
@@ -2845,22 +2804,32 @@
     // wait, a send line's destination. (The separate Guardrails field is gone.) `job` already carries the values in force for this run.
     var jobEl = document.getElementById("details-prose");
     jobEl.innerHTML = "";
+    // M4e amendment 37: one wrapper per signed line: the human's words, its `~` rows, then its step(s) folded under it (the plan, never in the same row).
+    var placed = {};
     if(!job.prose || !job.prose.length){
       jobEl.appendChild(textDiv("hint", "no signed prose lines"));
     } else {
       job.prose.forEach(function(l){
-        jobEl.appendChild(textDiv("ro-value", l.line + ". " + l.text));
+        var cell = document.createElement("div");
+        cell.className = "job-line";
+        cell.appendChild(textDiv("ro-value", l.line + ". " + l.text));
         (job.guardrails || []).filter(function(g){ return g.line === l.line; }).forEach(function(g){
-          jobEl.appendChild(textDiv("ro-value sub", "~ " + g.guardrail));
+          cell.appendChild(textDiv("ro-value sub", "~ " + g.guardrail));
         });
         (job.asks || []).filter(function(ak){ return ak.line === l.line; }).forEach(function(ak){
-          jobEl.appendChild(textDiv("ro-value sub", "~ waits " + plainWait(ak.waitMs)));
+          cell.appendChild(textDiv("ro-value sub", "~ waits " + plainWait(ak.waitMs)));
         });
         (job.sends || []).filter(function(sd){ return sd.line === l.line; }).forEach(function(sd){
-          jobEl.appendChild(textDiv("ro-value sub", "~ writes out to " + (sd.target || "unknown")));
+          cell.appendChild(textDiv("ro-value sub", "~ writes out to " + (sd.target || "unknown")));
         });
+        ((job.plan && job.plan.steps) || []).filter(function(st){ return st.line === l.line; }).forEach(function(st){
+          placed[st.step] = true;
+          cell.appendChild(jobStepFold(st, job));
+        });
+        jobEl.appendChild(cell);
       });
     }
+    paintJobPlan(job, placed);
     // review #5: "Ask" — one row per signed ask line.
     renderRowsField("details-asks", job.asks, "no signed asks", function(ak){
       return "line " + ak.line + " · \"" + ak.question + "\" · waits " + plainWait(ak.waitMs);
@@ -2886,11 +2855,6 @@
     // review #5: "Destination" — one row per signed send.
     renderRowsField("details-sends", job.sends, "no signed sends", function(s){
       return "line " + s.line + " · " + (s.kind || "unknown") + " → " + (s.target || "unknown");
-    });
-    // review #5: "Success" — one row per declared step, off data.js's own
-    // deriveStepSuccessText (never re-derived client-side).
-    renderRowsField("details-success", job.success, "no declared steps", function(s){
-      return s.step + " · " + s.text;
     });
     var sig = job.signature;
     // hamr's 2026-09-27 final tweak #2: `sig.signedAt` is the raw signed ISO
@@ -3160,7 +3124,7 @@
     if(row.stuck) return row.stuckLine || row.stuckLabel;
     if(row.working) return "working on your " + row.working + "…";
     if(row.open && row.resume) return row.resume.label;
-    var bits = [row.status];
+    var bits = [row.statusText || row.status];
     if(row.reason) bits.push("reason: " + row.reason);
     if(row.answeredAt) bits.push("answered " + (readableDateTime(row.answeredAt) || row.answeredAt));
     if(row.why) bits.push(row.why);
@@ -3257,7 +3221,7 @@
     if(ask.waiting) return textDiv("wf-meta", "time left: " + duration(ask.timeLeftMs));
     // an open ask with a saved answer: the header meta line already says the resume label (stuck or starting) — once.
     if(ask.open && ask.resume) return null;
-    var bits = [ask.status];
+    var bits = [ask.statusText || ask.status];
     if(ask.reason) bits.push("reason: " + ask.reason);
     if(ask.answeredAt) bits.push("answered " + (readableDateTime(ask.answeredAt) || ask.answeredAt));
     if(ask.why) bits.push(ask.why);
@@ -3668,7 +3632,7 @@
     bits.push(stepBit);
     bits.push("draft " + block.draftNo);
     bits.push(typeof ask.askedAt === "string" ? "asked " + (readableDateTime(ask.askedAt) || ask.askedAt) : "asked: unknown");
-    bits.push(ask.waiting ? "waiting on you" : (ask.open && ask.resume ? ask.resume.label : ask.status));
+    bits.push(ask.waiting ? "waiting on you" : (ask.open && ask.resume ? ask.resume.label : (ask.statusText || ask.status)));
     return bits.join(" · ");
   }
   // One block per signed ask line (M4c item 5), drawn from the server's `blocks`.
@@ -3791,7 +3755,7 @@
   // borrowed-from: bareloop src/panel/index.html@ca7195e — `mainButtonFor`, `renderMain`, `renderProgress`, the
   // scroll-on-change block in `renderActions`, `attachSession`/`reattachLive` (without the reuse/auto-sign branch), `syncCardLock`,
   // `CLIENT_TERMINAL_PHASES`, `openNewCard`/`resetCard`/`refreshStartEnabled`, `authorPost`/`authorGet`, `fitBox`. fwdloop differs where its shape does: the draft is a detached CLI child whose state is
-  // READ from files (GET /api/author/live and /:id), a start is polled (GET /api/author/start/:id), no token or cookie. Sign is two clicks, no typed name (M4e amendment 2); the ask box is bareloop's "Ask for a change to the plan" (amendment 3 item 3).
+  // READ from files (GET /api/author/live and /:id), a start is polled (GET /api/author/start/:id), no token or cookie. Sign is two clicks, no typed name (M4e amendment 2); Revise reopens the card fields and drafts the card again, no note (amendment 14).
   (function(){
     var card = document.getElementById("chat-job-card");
     var clearBtn = document.getElementById("chat-clear-btn");
@@ -3803,11 +3767,18 @@
     var mainBtn = document.getElementById("chat-main-btn");
     var mainHint = document.getElementById("chat-main-hint");
     var startOverBtn = document.getElementById("chat-startover-btn");
-    var msgEl = document.getElementById("chat-msg");               // the ask box: a note asking for a change to the green plan
-    var msgRow = document.getElementById("chat-msg-row");
+    var reviseBtn = document.getElementById("chat-revise-btn");
     var errEl = document.getElementById("chat-card-error");        // POLL-OWNED: the draft's own sentence (red / stopped)
     var actionErrEl = document.getElementById("chat-action-error"); // ACTION-OWNED: only a click's refusal; the poll never wipes it
     var progressRow = document.getElementById("chat-progress-row");
+    var questionBox = document.getElementById("chat-question");
+    var qHead = document.getElementById("chat-q-head");
+    var qLine = document.getElementById("chat-q-line");
+    var qText = document.getElementById("chat-q-text");
+    var qAnswer = document.getElementById("chat-q-answer");
+    var qError = document.getElementById("chat-q-error");
+    var qSend = document.getElementById("chat-q-send");
+    var extrasEl = document.getElementById("chat-extras");
     var newBox = document.getElementById("jf-new");
     var runBox = document.getElementById("jf-run");
     var runInputsEl = document.getElementById("jf-run-inputs");
@@ -3831,12 +3802,17 @@
     var resumeSignInfo = null;   // Resume form, first Sign & resume click: { hash }
     var modeBeforeResume = "new";
     var mainAction = "none";
+    var mainStartOver = false;   // the main button reads Start over (amendment 14 item 6: that draft names the one it started over from)
     var startOk = false;
     var sessionId = null;        // the draft's id (GET /api/author/<id>)
     var sessionLive = false;     // a draft exists that is not abandoned or signed
     var lastState = null;        // the draft as the server last described it
     var signInfo = null;         // the first Sign click's reply: { hash, flowName, capUsd, runId }
     var signClickedOnce = false;
+    var reviseOpen = false;      // amendment 14 item 2: Revise was pressed on a green plan, so every card field is open (ONE writer: setReviseOpen)
+    var qKey = "";               // which question the box is showing (draft id + k): the answer box is rewritten only when this changes
+    var qBusy = false;           // an answer POST is in flight
+    var extrasKey = "";
     var busy = false;            // a POST is in flight (disabled from the click until the reply)
     var startId = null;          // the run start being watched (GET /api/author/start/<id>)
     var refusedStartId = null;   // a refused start whose sentence is on the card; Clear dismisses it on the server (cleared.json)
@@ -3892,19 +3868,27 @@
       if(st.phase === "drafting"){
         return {text: "Draft", action: "none", disabled: true};
       }
+      if((st.phase === "red" || st.phase === "stopped") && st.revisable){
+        // amendment 14 items 3-4: a red revise keeps the edits; Draft is another revise, Start over (no revises left) a fresh draft
+        return (st.left || 0) > 0 ? {text: "Draft", action: "revise", disabled: blocked} : {text: "Start over", action: "draft", startOver: true, disabled: blocked};
+      }
       if(st.phase === "red"){
         return {text: "Fix and draft again", action: "draft", disabled: blocked};
       }
       if(st.phase === "stopped"){
         return {text: "Draft again", action: "draft", disabled: blocked};
       }
-      if(st.phase === "revising"){
+      if(st.phase === "revising" || st.phase === "redrafting"){
+        return {text: "Sign & run", action: "none", disabled: true};
+      }
+      if(st.phase === "questions-open"){
+        // amendments 24/25: nothing is signable, and a revise is no way round it: the question is answered first
         return {text: "Sign & run", action: "none", disabled: true};
       }
       if(st.phase === "green"){
-        // amendment 3 item 3: a note in the ask box makes the one button Send (a change to the plan); empty, it is Sign & run
-        if(st.boxOpen && !st.textEmpty){
-          return {text: "Send", action: "revise", disabled: !!st.busy};
+        // amendment 14 item 2: Revise opened the card, so the one button is Draft (the card posted to the revise route)
+        if(st.reviseOpen && st.revisable && (st.left || 0) > 0){
+          return {text: "Draft", action: "revise", disabled: blocked};
         }
         if(st.signClicked){
           var signCap = (cap !== undefined && cap !== null && cap !== "") ? " \u00b7 $" + cap : "";
@@ -3914,28 +3898,20 @@
       }
       return {text: "Draft", action: "none", disabled: true};
     }
-    // pure: the ask box is open on a green plan with changes left (bareloop: it closes at 0); the hint under the button says how many.
-    function askBoxOpenFor(st){
-      return st.mode === "new" && !!st.session && st.phase === "green" && (st.left || 0) > 0;
+    // pure: the green plan's Revise button (amendment 14 item 2): on a green plan with revises left, before Revise is pressed
+    function reviseShownFor(st){
+      return st.mode === "new" && !!st.session && st.phase === "green" && !!st.revisable && (st.left || 0) > 0 && !st.reviseOpen;
     }
-    // pure: Start over shows only when the plan on show has used both changes (the ask box is closed): the second choice beside Sign & run
+    // pure: Start over beside Sign & run (amendment 14 item 3): a green plan whose revises are all used. (A red or stopped one has it as the main button.)
     function startOverShownFor(st){
-      return st.mode === "new" && !!st.session && st.phase === "green" && st.left === 0;
+      return st.mode === "new" && !!st.session && st.phase === "green" && !!st.revisable && st.left === 0;
     }
-    // borrowed-from: bareloop src/panel/index.html@c1d87ce (renderMessages: "you" / bot bubbles, each with a who label)
-    // pure: the bubbles above the plan (amendment 6 item 3), from the draft's notes: each note is a you bubble in the human's words, each green change a fwdloop bubble.
-    // A red or stopped change gets no bubble of its own: its reds are in the progress list, shown once.
-    function bubblesFor(state){
-      var out = [];
-      if(!state || (state.phase !== "green" && state.phase !== "revising")) return out;
-      (state.notes || []).forEach(function(nt){
-        out.push({role: "you", who: "you", text: String(nt.text || "").replace(/\s+$/, "")});
-        if(nt.phase === "green") out.push({role: "bot", who: "fwdloop", text: "New plan, hash " + String(nt.hash || "").slice(0, 8) + ". " + changesLeftText(nt.left) + "."});
-      });
-      return out;
+    // pure: are the card fields open on a green plan? After Revise, or when no revise is left (amendment 14 item 3: all fields stay open)
+    function greenFieldsOpenFor(st){
+      return !!st.revisable && (!!st.reviseOpen || st.left === 0);
     }
-    function changesLeftText(left){
-      return left + (left === 1 ? " change left" : " changes left");
+    function revisesLeftText(left){
+      return left + (left === 1 ? " revise left" : " revises left");
     }
     // pure: the gutter beside a box (amendment 2, plain numbers by amendment 3), one entry per LOGICAL line. The job: `N` on a step line (numbers go on), `~` on a
     // guardrail line, nothing on an empty line. The inputs: a number per non-empty line.
@@ -3959,6 +3935,22 @@
       if(state){
         if(state.phase === "drafting"){
           out.push({id: "drafting", label: "drafting with " + who + capPart, status: "running", details: []});
+        } else if(Array.isArray(state.revises)){
+          // amendment 14: a draft whose first plan was green. One line per revise with its result; a red one shows its reds (its sentence is on the card error line).
+          out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
+          var reviseNo = 0;
+          state.revises.forEach(function(rv){
+            // an answer redraft (amendment 24 item 4) is not a revise and is not counted as one
+            var label = rv.kind === "answers" ? "drafted again with your answers" : "revise " + (reviseNo += 1);
+            if(rv.phase === "running") out.push({id: "revise-" + rv.n, label: label, status: "running", details: []});
+            else if(rv.phase === "green") out.push({id: "revise-" + rv.n, label: label, status: "done", details: []});
+            else out.push({id: "revise-" + rv.n, label: label, status: "failed", details: (rv.reds && rv.reds.length ? rv.reds.slice() : [])});
+          });
+          if(state.phase === "green"){
+            if(ctx.starting) out.push({id: "signed", label: "signed", status: "done", details: []});
+            else out.push({id: "sign", label: ctx.signClicked ? "waiting for your second click" : "waiting for your signature", status: "waiting", details: []});
+          }
+          if(state.phase === "questions-open") out.push({id: "question", label: "waiting for your answer (" + state.openK + " of " + state.total + ")", status: "waiting", details: []});
         } else if(state.phase === "red"){
           out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
           out.push({id: "checks", label: "plan checks", status: "failed", details: (state.reds || []).slice()});
@@ -3966,25 +3958,44 @@
           out.push({id: "drafting", label: "drafting with " + who + capPart, status: "failed", details: []});
         } else if(state.phase === "green" || state.phase === "revising"){
           out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
-          // amendment 3 item 3: each note the human sent is a line of its own, with its result (a red change shows its reds)
-          (state.notes || []).forEach(function(nt){
-            var body = String(nt.text || "").replace(/\s+$/, "");
-            var label = "change " + nt.n + ": " + body;
-            if(nt.phase === "running") out.push({id: "change-" + nt.n, label: label, status: "running", details: []});
-            else if(nt.phase === "green") out.push({id: "change-" + nt.n, label: label, status: "done", details: []});
-            else out.push({id: "change-" + nt.n, label: label, status: "failed", details: (nt.reds && nt.reds.length ? nt.reds.slice() : []).concat(nt.say ? [nt.say] : [])});
-          });
-          if(state.phase === "revising"){
-            // the last green plan stays on show; nothing to sign until the change comes back
-          } else if(ctx.starting){
+          if(ctx.starting){
             out.push({id: "signed", label: "signed", status: "done", details: []});
-          } else {
+          } else if(state.phase !== "revising"){
             out.push({id: "sign", label: ctx.signClicked ? "waiting for your second click" : "waiting for your signature", status: "waiting", details: []});
           }
         }
       }
       if(ctx.starting) out.push({id: "starting", label: "starting the run", status: "running", details: []});
       return out.filter(function(s, i){ return i === 0 || JSON.stringify(s) !== JSON.stringify(out[i - 1]); });
+    }
+    // pure: the question box's content (amendments 24/25), or null when no question is open. One question at a time: `openK` of `total`.
+    function questionViewFor(state){
+      if(!state || state.phase !== "questions-open" || !Array.isArray(state.questions)) return null;
+      var q = state.questions.filter(function(x){ return x.k === state.openK; })[0];
+      if(!q) return null;
+      return {
+        key: String(state.draftId) + ":" + q.k, k: q.k,
+        head: "A question the plan raised (" + q.k + " of " + state.total + ")",
+        line: q.lineText ? "About job line " + q.line + ": " + q.lineText : "About job line " + q.line,
+        question: q.question
+      };
+    }
+    // pure: what sits beside a green plan: Your answers (only when the plan was drafted with some), Checked (the machine's sentences from the
+    // typed checks) and Not checked (the drafter's own list, ALWAYS with its label), or null when there is no plan to show
+    function extrasFor(state){
+      if(!state || state.phase !== "green" || !Array.isArray(state.checked)) return null;
+      var blocks = [];
+      if(Array.isArray(state.answers) && state.answers.length){
+        blocks.push({id: "chat-answers", head: "Your answers", sub: "", lines: state.answers.map(function(a){
+          return "line " + a.line + (a.lineText ? ": " + a.lineText : "") + "\n  > " + a.answer;
+        })});
+      }
+      blocks.push({id: "chat-checked", head: "Checked", sub: "built by the machine from the plan's checks", lines: state.checked.map(function(c){
+        return (c.line !== null && c.line !== undefined ? "line " + c.line : "step " + c.step) + ": " + c.sentences.join(" ");
+      })});
+      var nc = state.notChecked || {};
+      blocks.push({id: "chat-notchecked", head: "Not checked", sub: nc.label || "the drafter's own reading, not a guarantee", lines: (nc.items && nc.items.length) ? nc.items.map(function(x){ return "- " + x; }) : ["The drafter listed nothing."]});
+      return {blocks: blocks};
     }
     // pure: did this POST succeed (one decision for every handler)
     function chatPostOutcome(r){
@@ -4211,7 +4222,9 @@
     // is editable (the draft was made from these values). ONE function owns it. A red or stopped draft unlocks the card (fix, draft again).
     function cardLocked(){
       var ph = (sessionLive && lastState) ? lastState.phase : null;
-      return busy || startId !== null || (mode === "new" && (ph === "drafting" || ph === "revising" || ph === "green"));
+      // amendment 14: a green plan locks the card until Revise opens it (or no revise is left); a red or stopped one is open
+      var greenOpen = ph === "green" && greenFieldsOpenFor({revisable: Array.isArray(lastState.revises), reviseOpen: reviseOpen, left: lastState.revisesLeft});
+      return busy || startId !== null || (mode === "new" && (ph === "drafting" || ph === "revising" || ph === "redrafting" || ph === "questions-open" || (ph === "green" && !greenOpen)));
     }
     function syncCardLock(){
       var on = cardLocked();
@@ -4382,25 +4395,49 @@
       }).join("\n");
     }
     function renderThread(state){
+      // a revise being drafted leaves the plan on show until the new one replaces it (the view carries no plan meanwhile)
+      if(state && (state.phase === "revising" || state.phase === "redrafting")) return;
       var html = "";
-      if(state && (state.phase === "green" || state.phase === "revising") && state.readout){
-        // M4e amendment 6 item 3: bubbles (oldest first), THEN the current plan, so the plan sits right above the note box and the button
-        html = bubblesFor(state).map(function(m){
-          return '<div class="msg ' + m.role + '"><div class="who">' + escapeXml(m.who) + '</div>' + escapeXml(m.text) + '</div>';
-        }).join("") +
-          '<div class="msg bot" data-testid="chat-plan"><div class="who">fwdloop</div>' + readoutHtml(state) +
+      if(state && state.phase === "green" && state.readout){
+        html = '<div class="msg bot" data-testid="chat-plan"><div class="who">fwdloop</div>' + readoutHtml(state) +
           '\n\nPlan hash: ' + escapeXml(state.hash || "") + '</div>';
       }
       if(html !== threadKey){ threadKey = html; thread.innerHTML = html; }
     }
+    // the question box: static markup, so the poll never re-renders over an unsent answer. The texts and the empty answer box are written only
+    // when the QUESTION changes (a new key); the same question on the next tick touches nothing.
+    function renderQuestion(state){
+      var v = questionViewFor(state);
+      if(!v){
+        if(qKey !== ""){ qKey = ""; qAnswer.value = ""; qError.textContent = ""; }
+        questionBox.hidden = true;
+        return;
+      }
+      questionBox.hidden = false;
+      if(v.key !== qKey){
+        qKey = v.key;
+        qHead.textContent = v.head; qLine.textContent = v.line; qText.textContent = v.question;
+        qAnswer.value = ""; qError.textContent = "";
+      }
+    }
+    // Your answers / Checked / Not checked; a plan being drafted again leaves them on show (like the plan), anything else without a green plan clears them
+    function renderExtras(state){
+      if(state && (state.phase === "revising" || state.phase === "redrafting")) return;
+      var v = extrasFor(state);
+      var html = v ? v.blocks.map(function(b){
+        return '<div class="msg" id="' + b.id + '" data-testid="' + b.id + '"><b class="readout-head">' + escapeXml(b.head) + '</b>' +
+          (b.sub ? ' <span class="hint">(' + escapeXml(b.sub) + ')</span>' : '') + '\n' + b.lines.map(escapeXml).join("\n") + '</div>';
+      }).join("") : "";
+      if(html !== extrasKey){ extrasKey = html; extrasEl.innerHTML = html; }
+    }
     function renderMain(){
-      var st = {mode: mode, session: sessionLive, startOk: startOk, busy: busy || startId !== null, signClicked: signClickedOnce, textEmpty: msgEl.value.trim() === ""};
+      var st = {mode: mode, session: sessionLive, startOk: startOk, busy: busy || startId !== null, signClicked: signClickedOnce, reviseOpen: reviseOpen};
       if(sessionLive && lastState){
         st.phase = lastState.phase;
         st.hash = signInfo ? signInfo.hash : lastState.hash;
-        st.left = lastState.changesLeft;
+        st.revisable = Array.isArray(lastState.revises);
+        st.left = lastState.revisesLeft;
       }
-      st.boxOpen = askBoxOpenFor(st);
       if(mode === "run"){
         st.capUsd = runCapEl.value.trim();
         st.runDiffers = runDiffers();
@@ -4418,19 +4455,19 @@
       var b = mainButtonFor(st);
       mainBtn.textContent = b.text;
       mainBtn.disabled = b.disabled;
-      mainAction = b.action;
-      // the ask box: open on a green plan with changes left, shown but locked while a change is being drafted, closed at 0 left
-      var boxShown = st.boxOpen || (mode === "new" && sessionLive && st.phase === "revising");
-      msgRow.hidden = !boxShown;
-      msgEl.readOnly = !st.boxOpen || !!busy;
-      mainHint.textContent = st.boxOpen ? changesLeftText(st.left) : "";
+      mainAction = b.action; mainStartOver = !!b.startOver;
+      // amendment 14 item 3: the count shows while a draft has revises to count; at 0 the way on is Start over
+      mainHint.textContent = (mode === "new" && sessionLive && st.revisable && st.phase !== "signed" && st.phase !== "questions-open") ? (st.left > 0 ? revisesLeftText(st.left) : "No revises left: Start over keeps the fields and gives 2 new ones.") : "";
+      reviseBtn.hidden = !reviseShownFor(st);
+      reviseBtn.disabled = !!st.busy;
       startOverBtn.hidden = !startOverShownFor(st);
       startOverBtn.disabled = !!st.busy;
       fitCardBoxes();
-      if(boxShown) fitBox(msgEl);
     }
     function renderActions(state){
       lastState = state;
+      renderQuestion(state);
+      renderExtras(state);
       // a newer plan than the one the first Sign click showed (a change came back, or another tab): the first click is void; sign re-checks on the server too
       if(signInfo && state.hash && state.hash !== signInfo.hash){ signInfo = null; signClickedOnce = false; }
       // #chat-card-error is POLL-OWNED: it carries only the draft's own sentence (a red plan or a stopped child), written here and
@@ -4454,20 +4491,21 @@
     // the boxes. Touches neither error line, so a refusal on screen stays on screen.
     function endSession(){
       stopPoll();
-      sessionId = null; sessionLive = false; lastState = null; signInfo = null; signClickedOnce = false;
+      sessionId = null; sessionLive = false; lastState = null; signInfo = null; signClickedOnce = false; reviseOpen = false;
       threadKey = ""; thread.innerHTML = "";
+      renderQuestion(null); renderExtras(null);
       errEl.textContent = "";
       progressRow.hidden = true; progressRow.innerHTML = "";
       refreshStartEnabled();
     }
     function openNewCard(){
       thread.innerHTML = ""; threadKey = "";
-      msgEl.value = "";
+      renderQuestion(null); renderExtras(null);
       errEl.textContent = "";
       actionErrEl.textContent = "";
       clearFieldErrors();
       stopStart();
-      sessionId = null; sessionLive = false; lastState = null; signInfo = null; signClickedOnce = false; busy = false;
+      sessionId = null; sessionLive = false; lastState = null; signInfo = null; signClickedOnce = false; busy = false; reviseOpen = false;
       stopPoll();
       progressRow.hidden = true;
       progressRow.innerHTML = "";
@@ -4560,20 +4598,34 @@
       }).catch(function(){ /* transient — next tick tries again */ });
     }
 
-    function doDraft(){
+    // Send (amendments 24/25): the answer to the question now open. A blank answer is refused by the server in plain words and the question stays open.
+    function doAnswer(){
+      if(qBusy || !sessionId || !lastState || lastState.phase !== "questions-open") return;
+      qBusy = true; qSend.disabled = true; qError.textContent = "";
+      var id = sessionId;
+      authorPost("/api/author/" + id + "/answer", {k: lastState.openK, answer: qAnswer.value}).then(function(r){
+        qBusy = false; qSend.disabled = false;
+        if(id !== sessionId) return;
+        if(!(r.status >= 200 && r.status < 300 && r.body && r.body.ok === true)){ qError.textContent = refusalText(r); return; }
+        qAnswer.value = "";
+        poll();
+      }).catch(function(){ qBusy = false; qSend.disabled = false; qError.textContent = NETWORK_SAY; });
+    }
+    function doDraft(startedOverFrom){
       clearFieldErrors();
       chatActionOk();
       // disabled from the click until the reply; unlocked below only if the draft is refused
       busy = true;
       refreshStartEnabled();
       var body = currentCard();
+      if(startedOverFrom) body.startedOverFrom = startedOverFrom;
       authorPost("/api/author/draft", body).then(function(r){
         busy = false;
         var o = chatPostOutcome(r);
         if(!o.ok){ failFrom(r); refreshStartEnabled(); return; }
         sessionId = r.body.draftId;
         sessionLive = true;
-        signInfo = null; signClickedOnce = false;
+        signInfo = null; signClickedOnce = false; reviseOpen = false;
         thread.innerHTML = ""; threadKey = "";
         renderActions({draftId: sessionId, phase: "drafting", card: {capUsd: body.capUsd}});
         startPoll();
@@ -4718,22 +4770,23 @@
         beginStart(r.body.startId);
       }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
     }
-    // amendment 3 item 3: send the note; the server drafts a changed plan beside the old one (the old one stays signable until a new green one exists).
-    // A refused note stays in the box (unsent input is never wiped).
+    // amendment 14 item 2: Draft on an open card posts the card (the same shape as the draft call) to the revise route; the model gets the card only.
+    // A refused revise leaves every field as typed (unsent input is never wiped). The new plan replaces the shown one when it comes back.
     function doRevise(){
       if(!sessionId) return;
       var id = sessionId;
-      var text = msgEl.value;
+      var body = currentCard();
+      clearFieldErrors();
       chatActionOk();
       busy = true;
       refreshStartEnabled();
-      authorPost("/api/author/" + id + "/revise", {text: text}).then(function(r){
+      authorPost("/api/author/" + id + "/revise", body).then(function(r){
         busy = false;
         var o = chatPostOutcome(r);
         if(!o.ok){ failFrom(r); refreshStartEnabled(); return; }
-        msgEl.value = "";
+        reviseOpen = false;
         signInfo = null; signClickedOnce = false;
-        refreshStartEnabled();
+        renderActions(Object.assign({}, lastState, {phase: "revising"}));
         poll();
       }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
     }
@@ -4791,21 +4844,20 @@
       if(refusedStartId){ var rid = refusedStartId; refusedStartId = null; authorPost("/api/author/start/" + rid + "/clear", {}).catch(function(){}); }
       resetCard();
     });
-    // Start over (amendment 4 item 3): the same draft call as Draft, from the card as it is now; the old draft's files stay (a new draft id)
-    startOverBtn.addEventListener("click", function(){ if(!startOverBtn.disabled) doDraft(); });
+    // Revise (amendment 14 item 2): opens every card field, filled as last submitted; nothing is sent
+    reviseBtn.addEventListener("click", function(){ if(reviseBtn.disabled) return; reviseOpen = true; refreshStartEnabled(); });
+    // Start over (amendment 14 item 3): the same draft call as Draft, from the card as it is now; the old draft's files stay (a new draft id, 2 new revises)
+    startOverBtn.addEventListener("click", function(){ if(!startOverBtn.disabled) doDraft(sessionId); });
+    qSend.addEventListener("click", doAnswer);
+    qAnswer.addEventListener("keydown", function(e){ if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); doAnswer(); } });
     mainBtn.addEventListener("click", function(){
       if(mainBtn.disabled) return;
-      if(mainAction === "draft") doDraft();
+      if(mainAction === "draft") doDraft(mainStartOver ? sessionId : null);
       else if(mainAction === "run") doRun();
       else if(mainAction === "run-sign-prepare" || mainAction === "run-sign") doRunSign();
       else if(mainAction === "resume-sign-prepare" || mainAction === "resume-sign") doResumeSign();
       else if(mainAction === "revise") doRevise();
       else if(mainAction === "sign-prepare" || mainAction === "sign") doSign();
-    });
-    msgEl.addEventListener("input", function(){ fitBox(msgEl); renderMain(); });
-    // Enter sends the note, Shift+Enter is a newline (bareloop's ask box)
-    msgEl.addEventListener("keydown", function(e){
-      if(e.key === "Enter" && !e.shiftKey && mainAction === "revise"){ e.preventDefault(); if(!mainBtn.disabled) doRevise(); }
     });
     card.addEventListener("input", function(e){
       var grp = e.target && e.target.closest ? e.target.closest(".field, .cap-field, .jf-inrow") : null;

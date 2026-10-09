@@ -17,7 +17,7 @@
 
 import { Loop, HaltError } from 'bare-agent';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
-import { validateDeclaration, SHAPE_KEYS } from './declaration.js';
+import { validateDeclaration, SHAPE_KEYS, checkGuardrailSums, guardrailWordsPerSection } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { readInputFacts } from './input-facts.js';
@@ -32,8 +32,11 @@ export const DRAFT_SKILLS = Object.freeze(['core']);
 
 export const CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
 
+/** The whole-output-ceiling rule, told once to the drafter (schema and prompt use this string). Amendment 29; no number words (am25). */
+export const WHOLE_OUTPUT_CEILING_RULE = "use the guardrail's ceiling for the whole output";
+
 const SHAPE_PROPS = Object.freeze({
-  maxWords: { type: 'integer', minimum: 1, description: "the whole output's word ceiling" },
+  maxWords: { type: 'integer', minimum: 1, description: `the whole output's word ceiling; ${WHOLE_OUTPUT_CEILING_RULE}` },
   sections: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 }, description: 'required section headings, in order' },
   linesPerInvoice: { type: 'integer', minimum: 1, description: 'lines the output must carry per invoice' },
   mustCarry: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 }, description: 'named fields every line must carry' },
@@ -115,6 +118,94 @@ export function buildDeclarationSchema(menu) {
 
 const TOOL = 'emit_declaration';
 
+// ---- M4e amendments 24 + 25: questions (try 3 only) and "not checked" (every try) ---------------------------------
+// borrowed-from: fwdloop poc/am24-questions/draft.mjs@dda0e0f (prompts, linesNamedByReds, normalizeQuestions), adjusted to the product drafter.
+export const MAX_QUESTIONS = 2;
+
+/** What fwdloop's typed checks can really check (bareloop F174: give the model the real list, or "Not checked" is invented). */
+export const CHECKABLE = Object.freeze([
+  'green: a figure cites its source cell or formula',
+  'softgreen: the output carries named section headings (sections), in order',
+  `softgreen: a word ceiling for the whole output (maxWords; ${WHOLE_OUTPUT_CEILING_RULE}) and per section (wordsPerSection)`,
+  'softgreen: a line count per invoice (linesPerInvoice) and fields every line must carry (mustCarry)',
+  'hitl: a human accepts or reviews at a signed ask — the machine checks only that the step happened',
+]);
+
+/** Offered on EVERY try (it is information, not asking). */
+export const NOTCHECKED_PROMPT = [
+  'notChecked (optional): a short list of things about the job that no check below will verify. These are the ONLY things fwdloop can check:',
+  ...CHECKABLE.map((c) => `- ${c}`),
+  'Anything the job asks for beyond those (tone, correctness of prose, completeness, matching a taste) is NOT checked: list it in "notChecked", a plain short phrase each. [] or leave out if nothing.',
+].join('\n');
+
+/** Try 3 only, and only after tries 1 and 2 both failed validation. No digit and no number word anywhere (a test greps this): the machine, not the prompt, bounds the count. */
+export const QUESTIONS_PROMPT = [
+  'You may add "questions" to this reply. Ask only about a job line named in the refusals above, and only if that line cannot be drafted without the answer',
+  '(an undefined size, format, destination, or what "done" means). Each question is {line, question}: "line" is the number of the job line it is about.',
+  'If the refusals can be fixed without asking, fix them and leave "questions" out. Never ask about a trigger, cap, ask position or TTL, allow-list or send target (signed, not yours).',
+  'Still emit the complete corrected declaration.',
+].join('\n');
+
+/** The declaration schema plus the optional `notChecked` (every try) and, on try 3 only, `questions`. Neither is in `required`. */
+export function buildRoundSchema(menu, { questions = false } = {}) {
+  const s = buildDeclarationSchema(menu);
+  const extra = { notChecked: { type: 'array', items: { type: 'string' }, description: 'what the job asks for that no typed check verifies' } };
+  if (questions) {
+    extra.questions = {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { line: { type: 'integer' }, question: { type: 'string' } },
+        required: ['line', 'question'],
+      },
+      description: 'questions the job cannot be drafted without; each names the job line it is about',
+    };
+  }
+  return { ...s, properties: { ...s.properties, ...extra } };
+}
+
+/**
+ * Which job lines did these reds name? Reds name a line three ways: "line N" (also "ask at line N", "(line N)",
+ * "guardrailClasses key \"N\""), "steps[i]" (mapped through that declaration's steps[i].fromLine), and "step N's check"
+ * (1-based). A red naming none (a missing top-level key, an unknown key) names no line. Returns sorted real line numbers.
+ */
+export function linesNamedByReds(reds, declaration, lineNums) {
+  const found = new Set();
+  const steps = Array.isArray(declaration?.steps) ? declaration.steps : [];
+  const stepLine = (i) => (isPlainObject(steps[i]) && Number.isInteger(steps[i].fromLine) ? steps[i].fromLine : null);
+  for (const red of reds) {
+    for (const m of red.matchAll(/\bline (\d+)\b/g)) found.add(Number(m[1]));
+    for (const m of red.matchAll(/guardrailClasses key "(\d+)"|unjudgeable key "(\d+)"/g)) found.add(Number(m[1] ?? m[2]));
+    for (const m of red.matchAll(/steps\[(\d+)\]/g)) { const n = stepLine(Number(m[1])); if (n !== null) found.add(n); }
+    for (const m of red.matchAll(/\bstep (\d+)'s check/g)) { const n = stepLine(Number(m[1]) - 1); if (n !== null) found.add(n); }
+  }
+  return [...found].filter((n) => lineNums.includes(n)).sort((x, y) => x - y);
+}
+
+/**
+ * Amendment 25: a question is kept only if its line is one try 2's reds named; no line, a blank question or a third question is
+ * dropped. Every drop comes back with its reason, for the draft's log. Returns {kept, dropped}.
+ */
+export function normalizeQuestions(raw, failedLines) {
+  const kept = [];
+  const dropped = [];
+  if (raw === undefined || raw === null) return { kept, dropped };
+  if (!Array.isArray(raw)) return { kept, dropped: [{ reason: 'questions is not a list', raw }] };
+  for (const q of raw) {
+    if (!isPlainObject(q) || !Number.isInteger(q.line)) { dropped.push({ reason: 'no line', raw: q }); continue; }
+    if (!failedLines.includes(q.line)) { dropped.push({ reason: `line ${q.line} is not a line try 2's checks failed on`, raw: q }); continue; }
+    if (typeof q.question !== 'string' || q.question.trim() === '') { dropped.push({ reason: 'blank question', raw: q }); continue; }
+    if (kept.length >= MAX_QUESTIONS) { dropped.push({ reason: 'third question', raw: q }); continue; }
+    kept.push({ line: q.line, question: q.question.trim() });
+  }
+  return { kept, dropped };
+}
+
+/** `notChecked` as the model sent it: non-blank strings only, trimmed. Anything else is an empty list. */
+function cleanNotChecked(raw) {
+  return Array.isArray(raw) ? raw.filter((x) => typeof x === 'string' && x.trim() !== '').map((x) => x.trim()) : [];
+}
+
 function jobLinesText(lines, asks) {
   const askLines = new Set(asks.map((a) => a.line));
   return lines
@@ -138,6 +229,7 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
     '- guardrailClasses: for each job line that HAS a guardrail, classify its wording once: "green" (every figure must cite its source cell), "softgreen" (the human declared a SHAPE the output must take), "hitl" (an ask/accept/review gate, or anything you are not sure of). When unsure, "hitl".',
     '- close.class MUST equal the class of the guardrail on that step\'s fromLine (guardrailClasses[fromLine]); a line with no guardrail is "hitl". A step cannot claim a class its own line does not earn.',
     '- close.shape only on a softgreen step; it is the human\'s declared shape in structured form.',
+    '- A step whose check reads its reply (softgreen) answers in its reply text and is never granted `write`, `edit` or any other write-class verb; only the send step at the end writes files out.',
     `- Signed ask line(s): ${askLines.length ? askLines.join(', ') : 'none'}. For each, emit EXACTLY ONE step: fromLine = that line, close.class "hitl", primitives []. It is a stop only — never grant a primitive on it, and never emit a pause at any other line.`,
     `- Signed send line(s): ${sendLines.length ? sendLines.join(', ') : 'none'}. That step is drafted like any other: grant the write primitive and read the artifact of the ask step that comes before it. Its target and position are signed, not yours.`,
     '- Nothing hitl may come after the last signed ask except the send step.',
@@ -166,33 +258,6 @@ function reviseMessage(reds) {
     + `${TOOL} again with the complete corrected declaration:\n${reds.map((r) => `- ${r}`).join('\n')}`;
 }
 
-/**
- * M4e amendment 3 item 3 (revise the plan): the first round's user text when the human asked for a change. The model sees the
- * current plan (its own fields only: no machine-set `goal`, no `inputFacts`) and the note; the rules above still hold, and the
- * validator below is the ONE check that refuses a plan that touches what only the card may set.
- */
-export function reviseOpening(plan, note) {
-  const own = {
-    steps: (plan.steps ?? []).map(({ goal, ...rest }) => rest), // eslint-disable-line no-unused-vars
-    guardrailClasses: plan.guardrailClasses ?? {},
-    unjudgeable: plan.unjudgeable ?? {},
-    refused: plan.refused ?? [],
-  };
-  return [
-    `The human reviewed the plan below and asks for a change to the plan. Call ${TOOL} with the complete revised plan.`,
-    '',
-    'Current plan:',
-    JSON.stringify(own),
-    '',
-    'The human\'s note:',
-    note,
-    '',
-    'The note may change HOW steps are done (their primitives, reads, close checks). It can never change the numbered job lines, '
-    + 'the cap, the destination, the signed asks and their waits, or the inputs: those come only from the card, so keep every '
-    + 'line served by its step and every signed ask a pure stop exactly as the rules above say.',
-  ].join('\n');
-}
-
 function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 
 // F49: deepseek-flash 400s on a forced tool_choice in thinking mode; the drafter forces its tool, so disable thinking.
@@ -207,15 +272,14 @@ export const DRAFT_PROVIDER_OPTIONS = Object.freeze({ ...LIVE_PROVIDER_OPTIONS, 
  * `calls`) and right AFTER it (`inFlight: false`), with what is known so far, so the caller can book spend per call
  * and a draft killed between rounds still has its paid rounds on disk. It may throw before a call (nothing is
  * spent then and the draft stops); after a call it is the caller's to keep from throwing.
- * `revise` (M4e amendment 3 item 3): `{ plan, note }` — the current green plan and the human's note; the first round then asks for the
- * revised plan. Everything else (the $0 gates, the validator, the budget, the metering) is the same code path as a first draft.
  *
  * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number, calls:number, spendComplete:boolean,
- *   costUsd:number|null, modelReturned:string|null, modelId?:string, price?:object|null, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[]}>}
+ *   costUsd:number|null, modelReturned:string|null, modelId?:string, price?:object|null, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[],
+ *   questions?:{line:number, question:string}[], droppedQuestions?:object[], notChecked?:string[]}>}
  */
 export async function draft({
   proseText, slot = 'deepseek', model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
-  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, revise,
+  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true,
 }) {
   const fail = (reds, extra = {}) => ({
     ok: false, declaration: null, reds, rounds: 0, calls: 0, spendComplete: true, costUsd: 0, modelReturned: null, structureRetries: 0, revisions: 0, stop: 'pre-flight', log: [], ...extra,
@@ -227,6 +291,9 @@ export async function draft({
   const { lines, arbiter } = parsed;
   const ttlReds = unsignedAskTtls(arbiter);
   if (ttlReds.length) return fail(ttlReds);
+  // M4e amendment 15 item 2: a guardrail that fights itself on words is red at $0, before any provider is built or called.
+  const sumReds = checkGuardrailSums(lines);
+  if (sumReds.length) return fail(sumReds);
   const menu = wiredMenu(skills);
   const facts = readInputFacts(arbiter.sources);
   if (!facts.ok) return fail(facts.reds);
@@ -243,8 +310,10 @@ export async function draft({
     }
   }
 
-  const schema = buildDeclarationSchema(menu);
-  const system = buildSystemPrompt({ menu, lines, arbiter, factsInfo: facts.info });
+  // `notChecked` is offered on every try (information, not asking); `questions` only on try 3 (below).
+  const baseSystem = buildSystemPrompt({ menu, lines, arbiter, factsInfo: facts.info });
+  const system = `${baseSystem}\n\n${NOTCHECKED_PROMPT}`;
+  const lineNums = lines.map((l) => l.n);
   // Full catalogue + the wired set: an unwired verb reds "not wired" by name; an unsigned skill reds by skill.
   const cat = loadCatalogue();
   if (!cat.ok) return fail([`catalogue: ${cat.reds.join('; ')}`]);
@@ -261,10 +330,13 @@ export async function draft({
   let revisions = 0;
   let lastReds = [];
   let lastDecl = null;
-  let userText = revise ? reviseOpening(revise.plan, revise.note) : `Call ${TOOL} now.`;
+  let userText = `Call ${TOOL} now.`;
   let nextKind = 'first'; // what the round about to run actually is
   let validatorReds = []; // the last validator refusal; a structure retry after a revision must not drop it
   let stop = null;
+  let failedLines = []; // the job lines try 2's reds named: a question is kept only about one of these (amendment 25)
+  /** @type {{questions:{line:number, question:string}[], droppedQuestions:object[], notChecked:string[]}} */
+  let extras = { questions: [], droppedQuestions: [], notChecked: [] }; // from the round that produced `lastDecl`, never an earlier one
   let calls = 0; // provider calls made (a call that threw before metering is in `calls`, not in `rounds`)
   let unmetered = 0; // calls that failed with no metering: their cost is unknown
 
@@ -274,7 +346,13 @@ export async function draft({
     const spent = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
     if (spent + roundCeiling > budgetUsd) { stop = 'budget'; break; }
 
+    // assigned inside the tool's execute callback, which TS cannot see
+    /** @type {any} */
     let captured;
+    // Amendment 25: a lock is a mechanism. Only try 3 of 3, and only when tries 1 and 2 BOTH failed validation (`revisions` counts the
+    // validator's refusals fed back), gets the `questions` property; the redraft after an answer passes offerQuestions:false and never does.
+    const askOpen = offerQuestions && revisions === MAX_REVISIONS;
+    const schema = buildRoundSchema(menu, { questions: askOpen });
     const tool = {
       name: TOOL,
       description: 'Emit the flow declaration over the granted primitives, or refuse lines you cannot serve.',
@@ -326,24 +404,42 @@ export async function draft({
       nextKind = 'structure-retry';
       userText = `Your last reply was not a usable tool call (${why}). Call ${TOOL} now with a complete, valid JSON declaration.`;
       if (validatorReds.length) userText += `\n\nThe last declaration you emitted was still refused by the validator; keep fixing these too:\n${validatorReds.map((r) => `- ${r}`).join('\n')}`;
+      if (askOpen) userText += `\n\n${QUESTIONS_PROMPT}`;
       continue;
     }
 
-    const declaration = { .../** @type {object} */ (captured), inputFacts: facts.inputFacts };
+    // `notChecked` was offered on every try, so it is information and never reaches the validator. `questions` is stripped only where it was
+    // offered; sent when not offered it stays, and the validator reds it as an unknown key (a stray key, never a silent pass).
+    const { questions: rawQuestions, notChecked: rawNotChecked, ...captureRest } = /** @type {Record<string, any>} */ (captured);
+    /** @type {Record<string, any>} */
+    const declaration = { ...(askOpen ? captureRest : { ...captureRest, ...(rawQuestions === undefined ? {} : { questions: rawQuestions }) }), inputFacts: facts.inputFacts };
     // M6a amendment 1 (F50): the goal is the signed line, set by the machine; whatever the model sent is overwritten.
     if (Array.isArray(declaration.steps)) {
       declaration.steps = declaration.steps.map((st) => (isPlainObject(st) ? { ...st, goal: goalForLine(st.fromLine, lines) } : st));
+    }
+    // M4e amendment 15 item 1: `wordsPerSection` is the guardrail's number, set by the machine. If the model sent one it is overwritten
+    // (or dropped when the guardrail gives none), so it can never differ from the guardrail.
+    if (Array.isArray(declaration.steps)) {
+      declaration.steps = declaration.steps.map((st) => {
+        if (!isPlainObject(st) || !isPlainObject(st.close) || !isPlainObject(st.close.shape)) return st;
+        const { wordsPerSection: _drop, ...shape } = st.close.shape;
+        const per = guardrailWordsPerSection(lines.find((l) => l.n === st.fromLine)?.guardrail);
+        return { ...st, close: { ...st.close, shape: per === null ? shape : { ...shape, wordsPerSection: per } } };
+      });
     }
     const verdict = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
     });
     lastDecl = declaration;
+    const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
+    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: cleanNotChecked(rawNotChecked) };
+    if (asked.dropped.length) entry.droppedQuestions = asked.dropped;
     if (verdict.ok) {
       entry.outcome = 'valid';
       log.push(entry);
       const m = sumMeterings(meterings);
       return {
-        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log,
+        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log, ...extras,
       };
     }
     lastReds = [...verdict.reds];
@@ -355,12 +451,16 @@ export async function draft({
     validatorReds = lastReds;
     nextKind = 'revision';
     userText = reviseMessage(lastReds);
+    if (offerQuestions && revisions === MAX_REVISIONS) {
+      failedLines = linesNamedByReds(lastReds, declaration, lineNums);
+      userText += `\n\n${QUESTIONS_PROMPT}`;
+    }
   }
 
   const m = sumMeterings(meterings);
   // Runner convention: `costUsd` is the priced sum (null when ANY round is unpriced, so the CLI prints UNKNOWN,
   // never a bare number), and `spendComplete:false` marks a call that failed unmetered or a round left unpriced.
   return {
-    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop, log,
+    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop, log, ...extras,
   };
 }

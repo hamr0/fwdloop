@@ -51,7 +51,9 @@ import {
 import {
   writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen, setAsideAnswer,
 } from './ask.js';
-import { findUnwiredVerbStep, unwiredRed } from './canrun.js'; // M4e am7 item 7: the ONE decider (F46 refusal lives there)
+import {
+  findUnwiredVerbStep, unwiredRed, findUnbuildableCheckStep, unbuildableRed,
+} from './canrun.js'; // M4e am7 item 7: the ONE decider (F46 refusal lives there)
 import { configHome, configDoorHome } from './config.js';
 import { closeByClass } from './closers.js';
 import {
@@ -114,11 +116,22 @@ export function requestStop(runDir) {
   }
 }
 
-/** The ONE reader of the stop request: `{at}` (when it was asked; null if unreadable) or `null` when none is pending. @param {string} runDir */
-export function readStopRequest(runDir) {
+/**
+ * The ONE reader of the stop request: `{at}` (when it was asked) or `null` when none is pending. Amendment 16 C11 / amendment 17 2A: a
+ * time that is not a real date (a non-date string, a number, a missing or empty time, a torn file) is treated as made "now" (`now`,
+ * when given), one rule for all, so the stop completes with every record and the ask is never lost. Without `now` (a pending check)
+ * such a request reads `{at:null}`.
+ * @param {string} runDir @param {() => string} [now]
+ */
+export function readStopRequest(runDir, now) {
   const r = readFileInside(runDir, STOP_FILE);
   if (!r.ok) return null;
-  try { const at = JSON.parse(r.text)?.at; return { at: typeof at === 'string' ? at : null }; } catch { return { at: null }; }
+  let at = null;
+  try {
+    const t = JSON.parse(r.text)?.at;
+    if (typeof t === 'string' && !Number.isNaN(Date.parse(t))) at = t;
+  } catch { /* a torn file: no time */ }
+  return { at: at ?? (typeof now === 'function' ? now() : null) };
 }
 
 /** Is a stop pending for this run? (read-only) @param {string} runDir */
@@ -143,7 +156,7 @@ export function stopPending(runDir) {
 function settleStop({
   runDir, now, outcome, stop = null,
 }) {
-  const req = readStopRequest(runDir);
+  const req = readStopRequest(runDir, now);
   if (!req && !stop) return;
   const lastStep = () => readAudit(runDir).map((r) => r.step).filter((s) => typeof s === 'string' && s.length > 0).pop() ?? null;
   const step = stop ? (stop.step ?? stop.book?.step ?? null) : lastStep();
@@ -873,7 +886,7 @@ async function runStepRalph({
       continue;
     }
 
-    const closed = closeByClass(step, artifact, { reads: readsMap, businessDate });
+    const closed = await closeByClass(step, artifact, { reads: readsMap, businessDate });
 
     if (closed.verdict === 'green' || closed.verdict === 'hitl') {
       recordAudit(makeAuditRow({
@@ -1008,6 +1021,14 @@ export async function runFlow({
       outcome: 'preflight-red',
       red: unwiredRed(unwiredVerb),
       spent: { value: 0 },
+    });
+  }
+
+  // M4e amendment 19 4: every softgreen check is built before the first model call; one that cannot be built is refused at $0, by step name
+  const unbuildable = findUnbuildableCheckStep(declaration);
+  if (unbuildable) {
+    return haltRun({
+      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: unbuildableRed(unbuildable), detail: unbuildable.why, spent: { value: 0 },
     });
   }
 
@@ -1307,7 +1328,7 @@ async function runAskSlot({
           flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, signatureHash, spent, spendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
           stepIndex, stepEmits: step.emits ?? step.goal ?? null, flowRoot, flowName, inputsManifest, unjudged: evidenceUnjudged, redone, parkedAskId: askId,
         });
-        if (stopped) return { type: 'stopped', result: stopped };
+        if (stopped && stopped.outcome !== 'stop-failed') return { type: 'stopped', result: stopped };
       }
       return {
         type: 'paused',
@@ -1658,14 +1679,18 @@ async function foldFromStep({
   // run really was sitting there waiting on a human, so it belongs in
   // "how long did this run take", not carved out of it.
   const wallMs = nowMs() - runStartedAt;
-  appendHistory(flowDir, {
-    runId, at: now(), outcome: 'complete', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd, wallMs, signatureHash,
-  });
-  recordLateAnswerIfAny(runDir, now);
-  writeLog(runDir, {
-    runId, outcome: 'complete', attempts: attemptsLog, artifacts,
-  });
-  settleStop({ runDir, now, outcome: 'complete' });
+  try {
+    recordLateAnswerIfAny(runDir, now);
+    writeLog(runDir, {
+      runId, outcome: 'complete', attempts: attemptsLog, artifacts,
+    });
+    settleStop({ runDir, now, outcome: 'complete' });
+  } finally {
+    // Amendment 16 C6/C7: the history end row is written last, and always.
+    appendHistory(flowDir, {
+      runId, at: now(), outcome: 'complete', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd, wallMs, signatureHash,
+    });
+  }
   return {
     outcome: 'complete', runDir, artifacts, spentUsd: spent.value,
   };
@@ -1804,12 +1829,15 @@ function sameRoot(recorded, requested) {
  * @param {string} opts.businessDate
  * @param {number} [opts.ceilingUsd]
  * @param {() => number} [opts.nowMs] - F45 finding 3; see `runFlow`'s own.
+ * @param {(newRunDir:string) => void} [opts.onRerunStart] - amendment 16 C2: called with the new run's folder just before a `rerun` starts it.
  */
 export async function resumeRun({
   root, name, runId, catalogue, modelStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd,
   // F45 finding 3 (see `runFlow`'s own `nowMs`): additive, defaults to the
   // real `Date.now` for every existing caller.
   nowMs,
+  // Amendment 16 C2: called with the new run's folder just before a `rerun` starts it, so the caller can name it in the money records.
+  onRerunStart,
 }) {
   const now = typeof clock === 'function' ? clock : () => new Date().toISOString();
   const getNowMs = typeof nowMs === 'function' ? nowMs : Date.now;
@@ -1841,6 +1869,8 @@ export async function resumeRun({
         red: unwiredRed(unwiredVerb),
       };
     }
+    const unbuildable = findUnbuildableCheckStep(preflightRead.declaration);
+    if (unbuildable) return { outcome: 'refused', red: unbuildableRed(unbuildable), detail: unbuildable.why };
   }
 
   if (primitiveReds?.length) return { outcome: 'refused', red: primitiveReds[0] };
@@ -2037,10 +2067,9 @@ export async function resumeRun({
     // park, before the Stop door could act). The run is stopped AT the ask and the answer to it is not used. A Stop asked at the same
     // instant as the answer, or after it, belongs to the apply that follows: the fold's own seam reads it and stops before the next
     // step. On a tie the ANSWER WINS (hamr's ruling, 2026-10-07: a fast CI gave both the same millisecond). A Stop with no readable
-    // time is stopped at the ask: conservative, stated here so it never falls out of a NaN comparison.
-    const stopReq = readStopRequest(runDir);
-    const stopMs = stopReq ? Date.parse(stopReq.at ?? '') : NaN;
-    const stopFirst = Number.isNaN(stopMs) || stopMs < Date.parse(answer.answeredAt);
+    // time is read as made "now" by `readStopRequest` (amendment 17 2A, one rule), which is after the answer: the answer wins.
+    const stopReq = readStopRequest(runDir, now);
+    const stopFirst = stopReq !== null && Date.parse(/** @type {string} */ (stopReq.at)) < Date.parse(answer.answeredAt);
     if (stopReq && stopFirst) {
       const prev = readLog(runDir);
       return stopAtAsk({
@@ -2102,11 +2131,15 @@ export async function resumeRun({
       for (let i = 0; i < state.stepIndex; i += 1) {
         priorArtifactsForLog[steps[i].emits] = readArtifact(runDir, steps[i].emits);
       }
-      appendHistory(flowDir, {
-        runId, at: now(), outcome: 'rerun', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
-      });
-      recordLateAnswerIfAny(runDir, now);
-      writeLog(runDir, { runId, outcome: 'rerun', attempts: [], artifacts: priorArtifactsForLog });
+      try {
+        recordLateAnswerIfAny(runDir, now);
+        writeLog(runDir, { runId, outcome: 'rerun', attempts: [], artifacts: priorArtifactsForLog });
+      } finally {
+        // Amendment 16 C6/C7: the history end row is written last, and always.
+        appendHistory(flowDir, {
+          runId, at: now(), outcome: 'rerun', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
+        });
+      }
 
       // Deterministic derived id (M3 scope item 7) — refused by name, never
       // silently renumbered, if it already exists.
@@ -2125,6 +2158,7 @@ export async function resumeRun({
       // they aren't already" — they already are, via this field).
       const rerunSources = (state.inputsManifest ?? []).map((entry) => ({ id: entry.id, path: entry.source }));
 
+      if (typeof onRerunStart === 'function') onRerunStart(newRunDir);
       const newRun = await runFlow({
         root,
         name,
@@ -2344,7 +2378,7 @@ export async function continueRun({
   const getNowMs = typeof nowMs === 'function' ? nowMs : Date.now;
   const flowDir = join(root, name);
   const startedAt = getNowMs();
-  const refused = (red) => ({ outcome: 'refused', red: `continue: ${red}` });
+  const refused = (red, detail) => ({ outcome: 'refused', red: `continue: ${red}`, ...(detail ? { detail } : {}) });
 
   const runIdCheck = resolveRunDir(flowDir, runId);
   if (!runIdCheck.ok) return { outcome: 'refused', red: runIdCheck.red };
@@ -2354,6 +2388,8 @@ export async function continueRun({
   if (preflightRead.ok) {
     const unwiredVerb = findUnwiredVerbStep(preflightRead.declaration);
     if (unwiredVerb) return refused(unwiredRed(unwiredVerb));
+    const unbuildable = findUnbuildableCheckStep(preflightRead.declaration);
+    if (unbuildable) return refused(unbuildableRed(unbuildable), unbuildable.why);
   }
   if (primitiveReds?.length) return refused(primitiveReds[0]);
 
@@ -2520,8 +2556,11 @@ function stopAtAsk(o) {
   } = o;
   const red = `stopped by you at the ask of step ${stepIndex + 1}`;
   if (parkedAskId !== null) {
-    try { renameSync(join(runDir, 'ask.json'), join(runDir, `ask.${parkedAskId}.stopped.json`)); } catch {
-      return { outcome: 'stopped', red, spentUsd: spent.value }; // another stopper won the rename: it writes the rows
+    try { renameSync(join(runDir, 'ask.json'), join(runDir, `ask.${parkedAskId}.stopped.json`)); } catch (err) {
+      // Amendment 16 C8: only "file not found" means another stopper won the rename (it writes the rows). Any other error is a failed
+      // stop: said plainly with the error named, nothing written, the run left as it was.
+      if (err?.code === 'ENOENT') return { outcome: 'stopped', red, spentUsd: spent.value };
+      return { outcome: 'stop-failed', red: `the stop failed: could not set the ask aside (${err?.code ?? 'error'}: ${err?.message ?? err})`, spentUsd: spent.value };
     }
     try { renameSync(join(runDir, 'state.json'), join(runDir, `state.${parkedAskId}.stopped.json`)); } catch { /* no state: nothing to set aside */ }
     if (existsSync(join(runDir, 'answer.json'))) setAsideAnswer(runDir, parkedAskId, 'late');
@@ -2654,6 +2693,7 @@ export function readAsk(runDir) {
  * @param {() => number} [opts.nowMs] - F45 finding 3; defaults to `Date.now`.
  * @param {string} opts.outcome
  * @param {string} [opts.red]
+ * @param {string|null} [opts.detail] - amendment 23: bareguard's raw reason, recorded beside `red` (never the sentence).
  * @param {{ value: number }} opts.spent
  * @param {any[]} [opts.attempts]
  * @param {Record<string, any>} [opts.artifacts]
@@ -2674,7 +2714,7 @@ export function readAsk(runDir) {
  */
 function haltRun({
   flowDir, runDir, runId, capUsd, startedAt, now, nowMs = Date.now, outcome, red, spent, attempts = [], artifacts = {}, signatureHash = null,
-  priorSpendComplete = true, resumeAt = null, stop = null,
+  priorSpendComplete = true, resumeAt = null, stop = null, detail = null,
 }) {
   // F45 finding 3: `startedAt` here is always the RUN's start (every caller
   // now passes `runStartedAt` under this key — see call sites), so `wallMs`
@@ -2683,24 +2723,33 @@ function haltRun({
   const spendComplete = priorSpendComplete
     && outcome !== 'provider-red' && outcome !== 'pricing-red' && outcome !== 'cap-halt';
   mkdirSync(flowDir, { recursive: true });
-  if (existsSync(runDir)) {
-    recordLateAnswerIfAny(runDir, now);
-    writeLog(runDir, {
-      runId, outcome, red, attempts, artifacts,
-    });
-    // M4e amendment 4 item 4: a cap-halted or stopped run leaves the one record Resume continues from (its only writer).
-    if (resumeAt && HALT_OUTCOMES.includes(outcome)) {
-      writeFileSync(join(runDir, HALT_FILE), `${JSON.stringify({
-        runId, outcome, at: now(), flow: { root: resumeAt.flowRoot, name: resumeAt.flowName }, signatureHash, inputsManifest: resumeAt.inputsManifest,
-        stepIndex: resumeAt.stepIndex, startedAt, unjudged: resumeAt.unjudged ?? [],
-        ...(Number.isInteger(resumeAt.redone) ? { redone: resumeAt.redone } : {}),
-      }, null, 2)}\n`, { flag: 'wx' });
+  try {
+    if (existsSync(runDir)) {
+      recordLateAnswerIfAny(runDir, now);
+      writeLog(runDir, {
+        runId, outcome, red, ...(detail ? { detail } : {}), attempts, artifacts,
+      });
+      // M4e amendment 4 item 4: a cap-halted or stopped run leaves the one record Resume continues from (its only writer).
+      if (resumeAt && HALT_OUTCOMES.includes(outcome)) {
+        writeFileSync(join(runDir, HALT_FILE), `${JSON.stringify({
+          runId, outcome, at: now(), flow: { root: resumeAt.flowRoot, name: resumeAt.flowName }, signatureHash, inputsManifest: resumeAt.inputsManifest,
+          stepIndex: resumeAt.stepIndex, startedAt, unjudged: resumeAt.unjudged ?? [],
+          ...(Number.isInteger(resumeAt.redone) ? { redone: resumeAt.redone } : {}),
+        }, null, 2)}\n`, { flag: 'wx' });
+      }
+      settleStop({ runDir, now, outcome, stop }); // amendment 7 item 8: every Stop leaves its rows
     }
-    settleStop({ runDir, now, outcome, stop }); // amendment 7 item 8: every Stop leaves its rows
+  } finally {
+    // The history end row is the LAST write and is always written (amendment 16 C7): a reader that sees it finds the run settled, and a
+    // failed log, halt.json or settle row above never costs the row its real signature hash or the run's spend.
+    // The one exception is the earlier rule (test/m4e-halt-write-order.test.js): a `stopped` row with no halt.json would read "stopped" with
+    // no Resume offered, so a Stop whose halt record failed leaves no end row. C7 names the cap-halt, which always gets its row.
+    const stoppedWithoutHaltRecord = outcome === 'stopped' && resumeAt && !readHaltRecord(runDir).ok;
+    if (!stoppedWithoutHaltRecord) {
+      appendHistory(flowDir, {
+        runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash, ...(detail ? { detail } : {}), // amendment 23: bareguard's raw reason, never the sentence
+      });
+    }
   }
-  // The history end row is the LAST write: a reader that sees it finds the run fully settled (halt.json, log.json, stop rows).
-  appendHistory(flowDir, {
-    runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash,
-  });
-  return { outcome, red, spentUsd: spent.value };
+  return { outcome, red, ...(detail ? { detail } : {}), spentUsd: spent.value };
 }

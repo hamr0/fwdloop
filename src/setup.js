@@ -1,21 +1,23 @@
 // M4e amendment 6 item 4 (docs/wiki/the-module-ladder.md, "M4e", "Amendment 6"): the SETUP record. At sign, the draft folder's own
-// record (the card, each draft and change with its model, cost and verdict, each note in the human's words, and the sign) is copied once
+// record (the card, each draft and revise with its model, cost and verdict, and the sign) is copied once
 // into the flow folder as `setup.jsonl`. It sits outside the three signed files (`FLOW_FILES`), so `readFlow` and the signature never see
 // it. ONE writer (`writeSetup`, called from `signDraft`, which the CLI and the panel both use) and ONE reader (`readSetup`).
 //
-// What each row throws away: a draft/change row keeps model, cost, calls, time, verdict, plan hash and its first red, NOT the plan itself (the signed
-// declaration is the plan) nor the model's tokens/rounds; a card row keeps the card's own typed fields; a note keeps its text verbatim.
+// What each row throws away: a draft/revise row keeps model, cost, calls, time, verdict, plan hash and its first red, NOT the plan itself (the signed
+// declaration is the plan) nor the model's tokens/rounds; a card row keeps the card's own typed fields. Rows written before amendment 14 may
+// carry `note` / `change` kinds; they are only ever READ back, from the flow's own setup.jsonl.
 // Third outcomes: a draft with no result is `stopped`; a cost nobody booked is `null` (shown "unknown", never $0).
 import { lstatSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scrub } from './authoring.js';
+import { notCheckedBlock } from './checked.js';
 import { readDraftSpend } from './draftspend.js';
 import { readFileInside, readdirInside } from './flow.js';
 import { readSpendRows } from './provider.js';
 
 export const SETUP_FILE = 'setup.jsonl';
-const NOTE_RE = /^note-(\d+)\.txt$/;
+const CARD_RE = /^card-(\d+)\.json$/;
 
 const readJson = (dir, rel) => {
   const r = readFileInside(dir, rel);
@@ -54,7 +56,7 @@ function planRow(sessionDir, rel, kind, n) {
 }
 
 /**
- * The rows of a draft's record, oldest first. `sessionDir` is the panel's draft folder (card.json, draft/, note-<n>.txt, draft-<n>/); a CLI
+ * The rows of a draft's record, oldest first. `sessionDir` is the panel's draft folder (card.json, draft/, card-<n>.json, draft-<n>/); a CLI
  * draft has none, so its record is its one plan folder (`planDir`, read as `draft`) plus the sign.
  * @param {{ sessionDir?: string, planDir: string, hash: string, signedBy: string, signedAt: string, flowHash?: string }} a
  */
@@ -65,21 +67,26 @@ export function buildSetupRows({
   if (sessionDir) {
     const card = readJson(sessionDir, 'card.json');
     if (card) rows.push({ kind: 'card', n: 0, at: mtimeIso(sessionDir, 'card.json'), card });
-    rows.push(planRow(sessionDir, 'draft', 'draft', 0));
-    const notes = readdirInside(sessionDir, '.').map((f) => NOTE_RE.exec(f)?.[1]).filter((x) => x !== undefined).map(Number).sort((a, b) => a - b);
-    for (const n of notes) {
-      const t = readFileInside(sessionDir, `note-${n}.txt`);
-      rows.push({
-        kind: 'note', n, at: mtimeIso(sessionDir, `note-${n}.txt`), text: t.ok ? t.text.replace(/\n$/, '') : '',
-      });
-      rows.push(planRow(sessionDir, `draft-${n}`, 'change', n));
+    // amendment 14 item 6: a draft begun by Start over says so (written once by the panel's start); its row reads `start over`
+    const so = readJson(sessionDir, 'started-over-from.json');
+    rows.push(planRow(sessionDir, 'draft', typeof so?.startedOverFrom === 'string' ? 'startover' : 'draft', 0));
+    // amendment 14 item 6: each revise is the card as submitted, then its plan row (model, cost, verdict, hash); there is no note row
+    const ns = readdirInside(sessionDir, '.').map((f) => CARD_RE.exec(f)?.[1]).filter((x) => x !== undefined).map(Number).sort((a, b) => a - b);
+    for (const n of ns) {
+      const card = readJson(sessionDir, `card-${n}.json`);
+      if (card) rows.push({ kind: 'card', n, at: mtimeIso(sessionDir, `card-${n}.json`), card });
+      // M4e amendment 24 item 4: a plan drafted again after the human's answers is booked as `redraft`, not `revise` (it uses none of the 2 revises)
+      rows.push(planRow(sessionDir, `draft-${n}`, readJson(sessionDir, `redraft-${n}.json`) ? 'redraft' : 'revise', n));
     }
   } else {
     const r = planRow(planDir, '.', 'draft', 0);
     rows.push(r);
   }
+  // M4e amendment 36: the drafter's own "Not checked" list (the green plan folder's not-checked.json), kept word for word with its label. Not signed,
+  // not in any hash. An unreadable or missing file is an empty list (a plan from before amendment 25 has none).
+  const notChecked = notCheckedBlock(readJson(planDir, 'not-checked.json')?.notChecked);
   rows.push({
-    kind: 'sign', n: 0, at: signedAt, signedBy, hash, flowHash: flowHash ?? null,
+    kind: 'sign', n: 0, at: signedAt, signedBy, hash, flowHash: flowHash ?? null, notChecked,
   });
   return rows;
 }

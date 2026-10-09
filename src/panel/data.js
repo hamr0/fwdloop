@@ -36,6 +36,7 @@ import {
 import { readSpendRows } from '../provider.js';
 import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
 import { readSetup } from '../setup.js';
+import { checkedLines, notCheckedBlock, NOT_CHECKED_LABEL } from '../checked.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import {
   runLiveness, booksFresh, readResumeLock,
@@ -242,7 +243,10 @@ export function signParts(glyph, label, noWord = false) {
   const word = noWord ? null : (SIGN_WORDS[glyph] ?? null);
   if (word === null) return { word: null, line: label ?? null };
   if (typeof label !== 'string' || label === word) return { word, line: null };
-  return { word, line: label.startsWith(`${word} — `) ? label.slice(word.length + 3) : label };
+  if (label.startsWith(`${word} — `)) return { word, line: label.slice(word.length + 3) };
+  // amendment 16 I4: the signed words `stopped at the ask of step N` are drawn whole, never as a bold "stopped" + dash + the rest
+  if (STOPPED_AT_ASK_START_RE.test(label)) return { word: null, line: label };
+  return { word, line: label };
 }
 
 /** The sign an Inbox row wears (null for a past answer, which shows its status word instead). */
@@ -357,16 +361,18 @@ export function glyphPulses(g) {
  *    A saved answer with a live process is `[▶]` working on your answer.
  *  - `[?]` crashed after taking your answer (amendment 2 (f)) — the answer was
  *    consumed, the process is gone, no end row: cannot be carried on.
- * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string, resumable?: boolean}} ctx
+ * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string, resumable?: boolean, stoppedAtAsk?: string|null}} ctx
  * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]'|'[II]'|'[■]', label: string}}
  */
 export function computeGlyph({
-  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock, resumable,
+  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock, resumable, stoppedAtAsk,
 }) {
   if (historyRow) {
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
     // M4e amendment 4 item 4: a run the human stopped, or one that hit its money cap and can be continued, is `[■]` stopped — never "failed".
-    if (historyRow.outcome === 'stopped') return { glyph: '[■]', label: 'stopped — after the step that was running; Resume to go on' };
+    if (historyRow.outcome === 'stopped') {
+      return { glyph: '[■]', label: stoppedAtAsk ? `${stoppedAtAsk}${STOPPED_AT_ASK_START_RE.test(stoppedAtAsk) ? ';' : ' —'} Resume to go on` : 'stopped — after the step that was running; Resume to go on' };
+    }
     if (historyRow.outcome === 'cap-halt' && resumable) return { glyph: '[■]', label: 'stopped — the money cap was reached; raise it and Resume' };
     // M4b amendment 3: a run the human ended on purpose with rerun is not a failure.
     if (historyRow.outcome === 'rerun') return { glyph: '[✗]', label: 'stopped by you (rerun), a fresh run was started' };
@@ -897,6 +903,8 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     historyRow,
     // M4e amendment 4 item 4: a cap-halted or stopped run that can be continued (`halt.json` is the runner's record)
     resumable: halt.ok && historyRow !== null && historyRow.outcome === halt.halt.outcome,
+    // amendment 16 I4: how a stopped run was stopped, in the runner's own words (`stopped at the ask of step N`), or null (stopped after a step)
+    stoppedAtAsk: lastStoppedAtAsk(runDir, auditRows, historyRow !== null),
     auditRows,
     spendRows,
     logJson,
@@ -913,6 +921,45 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     // own `startedAt`), so a `[▶]` run has a real time and never "parked or died". Not a book change.
     startedAt: historyRow ? null : lastPidStartedAt(runDir),
   };
+}
+
+const STOPPED_AT_ASK_RE = /^stopped at the ask of step \d+$/;
+const STOPPED_AT_ASK_START_RE = /^stopped at the ask of step \d+/;
+/**
+ * The ONE reader of the words a stopped ask wears (amendment 19 3): for each ask, oldest-first, the `stopped at the ask of step N`
+ * row written for the step `deriveAskStepInfo` pairs it with, or null when the books cannot name that step (never a guess; never
+ * by counting those rows in order: a Stop that landed before any ask parked writes one too, with no ask behind it).
+ * @param {any[]} ordered `runAsksInOrder`'s asks, oldest-first @param {any[]} audit this run's audit rows
+ * @returns {(string|null)[]}
+ */
+function stoppedAskWords(ordered, audit) {
+  const stepOf = deriveAskStepInfo(ordered, audit, null);
+  const atAsk = audit.filter((r) => r.verdict === 'stopped' && STOPPED_AT_ASK_RE.test(String(r.gap)));
+  return ordered.map((_, i) => {
+    if (stepOf[i].step === null) return null;
+    const words = atAsk.filter((r) => r.step === stepOf[i].step).pop()?.gap;
+    return typeof words === 'string' ? words : null;
+  });
+}
+
+/** What the Runs label says of a run stopped at an ask whose step the books cannot name; the Ask tab and the Inbox say the same. */
+const STOPPED_STEP_UNKNOWN = 'stopped';
+
+/**
+ * How a stopped run was stopped, for its Runs label: the newest `stopped` audit row, when the runner wrote its `gap` as
+ * `stopped at the ask of step N` (amendment 13's signed words) -> those words, as the Ask tab's row for that ask reads them
+ * (`stoppedAskWords`, the one reader); `stopped` alone when the step cannot be known; null for any other stop (after a step, before step 1).
+ * @param {string} runDir @param {any[]} auditRows @param {boolean} hasHistoryRow @returns {string|null}
+ */
+function lastStoppedAtAsk(runDir, auditRows, hasHistoryRow) {
+  const stopped = auditRows.filter((r) => r.verdict === 'stopped' && typeof r.gap === 'string' && !Number.isInteger(r.attempt));
+  const last = stopped.length > 0 ? stopped[stopped.length - 1] : null;
+  if (!last || !STOPPED_AT_ASK_RE.test(last.gap)) return null;
+  const ordered = runAsksInOrder(runDir, hasHistoryRow);
+  const stepOf = deriveAskStepInfo(ordered, auditRows, null);
+  const words = stoppedAskWords(ordered, auditRows);
+  const i = stepOf.findIndex((x) => x.step !== null && x.step === last.step);
+  return i >= 0 && words[i] !== null ? words[i] : STOPPED_STEP_UNKNOWN;
 }
 
 /** @param {string} runDir @returns {string|null} */
@@ -1414,7 +1461,7 @@ export const NO_DRAFT_WORDS = 'no draft record';
  * What the Draft adds up to, ONE place (the Map box, the first step card and the Audit group all read it, so the three can never disagree).
  * M4e amendment 9: `timeMs` is the card row's `at` to the sign row's `at` (the whole drafting, human time included), `null` when either has no
  * usable `at`; never a sum of the model rows' `wallMs`. `calls` sums the rows' `calls`, a row with none counts 1 and sets `callsAtLeast`, so an
- * unknown never shows as a smaller exact number; no model rows = `null`. `humanChecks` = the note rows + the sign row + the run's signed-values
+ * unknown never shows as a smaller exact number; no model rows = `null`. `humanChecks` = the note rows + the revise rows (each is the card the human edited and sent) + the sign row + the run's signed-values
  * rows (the card is not a check), given by the caller as `ctx.humanChecks`. Money follows `costDisplay` ("at least $X" for a floor).
  * @param {any[]} modelRows the draft and change rows (`kind` draft | change) of `setup.jsonl`
  * @param {{cardAt?: any, signAt?: any, humanChecks?: number|null}} [ctx]
@@ -1465,6 +1512,9 @@ export function getDraftBlock(flowDir, runDir) {
       else if (r.kind === 'note') happened.push('your note');
       else if (r.kind === 'draft') happened.push(r.verdict === 'green' ? `drafting${retry(r)}` : 'draft red');
       else if (r.kind === 'change') happened.push(r.verdict === 'red' ? 'change red' : `changing${retry(r)}`);
+      else if (r.kind === 'startover') happened.push(r.verdict === 'green' ? `starting over${retry(r)}` : 'start over red');
+      else if (r.kind === 'revise') happened.push(r.verdict === 'red' ? 'revise red' : `revising${retry(r)}`);
+      else if (r.kind === 'redraft') happened.push(r.verdict === 'red' ? 'redraft red' : `redrafting with your answers${retry(r)}`);
       else if (r.kind === 'sign') happened.push(`signed (${r.signedBy ?? 'you'})`);
       if (r.kind === 'card') {
         const c = r.card && typeof r.card === 'object' ? r.card : {};
@@ -1474,6 +1524,9 @@ export function getDraftBlock(flowDir, runDir) {
       } else if (r.kind === 'note') rows.push(human(r, n, { action: 'note (you)', gap: String(r.text ?? '') }));
       else if (r.kind === 'draft') rows.push(model(r, n, 'draft'));
       else if (r.kind === 'change') rows.push(model(r, n, `change ${r.n}`));
+      else if (r.kind === 'startover') rows.push(model(r, n, 'start over'));
+      else if (r.kind === 'revise') rows.push(model(r, n, `revise ${r.n}`));
+      else if (r.kind === 'redraft') rows.push(model(r, n, `answers redraft ${r.n}`));
       else if (r.kind === 'sign') rows.push(human(r, n, { action: `sign (${r.signedBy ?? 'you'})`, gap: `plan ${String(r.hash ?? '').slice(0, 12)}` }));
     });
   }
@@ -1498,9 +1551,9 @@ export function getDraftBlock(flowDir, runDir) {
     rows.push(human({ at: rec?.at }, rows.length + 1, { action: `${version === 0 ? 'Sign & run' : 'Sign & resume'} (${rec?.signedBy ?? 'you'})`, gap, ...(waits.length ? { gapHead: head, gapWaits: waits } : {}) }));
   }
   const lastSign = setup.present ? [...setup.rows].reverse().find((r) => r.kind === 'sign') : undefined;
-  const humanChecks = setup.present ? setup.rows.filter((r) => r.kind === 'note' || r.kind === 'sign').length + versions.length : null;
+  const humanChecks = setup.present ? setup.rows.filter((r) => r.kind === 'note' || r.kind === 'sign' || r.kind === 'revise' || r.kind === 'redraft').length + versions.length : null;
   const totals = setup.present
-    ? draftTotals(setup.rows.filter((r) => r.kind === 'draft' || r.kind === 'change'), { cardAt: setup.rows.find((r) => r.kind === 'card')?.at, signAt: lastSign?.at, humanChecks })
+    ? draftTotals(setup.rows.filter((r) => r.kind === 'draft' || r.kind === 'change' || r.kind === 'revise' || r.kind === 'redraft' || r.kind === 'startover'), { cardAt: setup.rows.find((r) => r.kind === 'card')?.at, signAt: lastSign?.at, humanChecks })
     : null;
   // the group the Audit tab draws as a normal card (collapsed by default) and the box the Map and the first step card read
   // `ended` = how the drafting ended: `done` only with a sign row, else `not signed` (no `red` state: a red change shows on line 4 only)
@@ -1547,66 +1600,32 @@ export function getRunAudit({ root, flow, runId }) {
 }
 
 /**
- * `GET /api/runs/:flow/:runId/job` — the Job tab (M4a scope item 2): the
- * signed prose, the arbiter block (cap, asks with TTL, redo cap, sends,
- * sources), and the signature (who, when, hash). Derived purely from the
- * flow's own signed files (`readFlow`) — fwdloop always has exactly one
- * signed `declaration.json` + `signature.json` per flow, so there is no
- * multi-source provenance chain to resolve (unlike bareloop's `getRunJob` —
- * DROPPED per the fit-check). `runId` is only used to confirm the run
- * exists at all; `null` when it doesn't (404).
- * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
- * @returns {any|null}
+ * M4e amendment 34: the signed plan as the Job tab shows it. One row per declared step: the job line it came from, what it reads, what it makes, the
+ * primitives it may use (an ask step grants none), its check (the `checkedLines` sentences, the same words the human saw at sign) and, for the step a
+ * signed ask binds to, that ask's wait. "Not checked" comes from the sign row of the flow's setup.jsonl: `recorded:false` (and no items) for a flow
+ * signed before amendment 36, which the page says in words; never an empty list read as "nothing".
+ * @param {any} declaration @param {Array<{line:number, ttlMs?:number}>} asks @param {string} flowDir
  */
-/**
- * hamr's 2026-09-27 exit-check review #5: one plain-words sentence for a
- * declared step's own close rule — the Job tab's "Success" field. Derived
- * STRICTLY from `step.close` (and, for the "your accept" wording, whether
- * this step is the one line `arbiter.asks[]` itself binds to) — never a
- * fabricated cite/shape value:
- *  - `hitl`: "human check", or "human check (your accept)" when this step's
- *    own `fromLine` is a signed ask line (the ask step itself — the one a
- *    human pauses a run on, distinct from an ordinary hitl pass-through
- *    step with no ask binding).
- *  - `softgreen`: "shape: N headings (a / b / c)" when `close.shape.sections`
- *    is signed, "max W words" appended when `close.shape.maxWords` is
- *    signed, "blocks of L lines" / "must carry: a, b" for the invoice-block
- *    shape keys (`linesPerInvoice`/`mustCarry`) — every signed shape key
- *    shown, nothing invented; "shape (no shape rules signed)" when a
- *    softgreen step signs no `close.shape` at all (declaration.js allows
- *    this — an empty/absent shape is not itself a red).
- *  - `green`: "cited" — `CLOSE_ALLOWED` (`src/declaration.js`) never lets a
- *    step declare WHAT it cites ahead of time (that's the drafted
- *    artifact's own per-run field data, not signed prose), so there is
- *    never anything honest to append here.
- *  - anything else: the raw class name, named as unknown, never silently
- *    dropped or guessed into one of the three above; no class at all names
- *    that plainly too.
- * @param {{close?: {class?: string, shape?: any}, fromLine?: number|null}} step one `declaration.steps` entry
- * @param {Array<{line:number}>} arbiterAsks `arbiter.asks`, for the "your accept" check
- * @returns {string}
- */
-export function deriveStepSuccessText(step, arbiterAsks) {
-  const cls = step?.close?.class ?? null;
-  if (cls === null) return 'no close class recorded';
-  if (cls === 'hitl') {
-    const isAskStep = Array.isArray(arbiterAsks) && arbiterAsks.some((a) => a.line === step.fromLine);
-    return isAskStep ? 'human check (your accept)' : 'human check';
-  }
-  if (cls === 'green') return 'cited';
-  if (cls === 'softgreen') {
-    const shape = step?.close?.shape;
-    if (!shape || typeof shape !== 'object') return 'shape (no shape rules signed)';
-    const parts = [];
-    if (Array.isArray(shape.sections) && shape.sections.length > 0) {
-      parts.push(`${shape.sections.length} heading${shape.sections.length === 1 ? '' : 's'} (${shape.sections.join(' / ')})`);
-    }
-    if (typeof shape.maxWords === 'number') parts.push(`max ${shape.maxWords} words`);
-    if (typeof shape.linesPerInvoice === 'number') parts.push(`blocks of ${shape.linesPerInvoice} lines`);
-    if (Array.isArray(shape.mustCarry) && shape.mustCarry.length > 0) parts.push(`must carry: ${shape.mustCarry.join(', ')}`);
-    return parts.length > 0 ? `shape: ${parts.join(', ')}` : 'shape (no shape rules signed)';
-  }
-  return `unknown close class "${cls}"`;
+function buildJobPlan(declaration, asks, flowDir) {
+  const lines = checkedLines(declaration, { hasAsk: asks.length > 0 });
+  const steps = (Array.isArray(declaration?.steps) ? declaration.steps : []).map((st, i) => {
+    const ak = asks.find((x) => x.line === st.fromLine);
+    return {
+      step: i + 1,
+      line: Number.isInteger(st.fromLine) ? st.fromLine : null,
+      reads: Array.isArray(st.reads) ? st.reads : [],
+      makes: typeof st.emits === 'string' ? st.emits : null,
+      mayDo: Array.isArray(st.primitives) ? st.primitives : [],
+      check: lines[i].sentences,
+      checkClass: lines[i].class,
+      ask: !!ak,
+      waitMs: ak && typeof ak.ttlMs === 'number' ? ak.ttlMs : null,
+    };
+  });
+  const setup = readSetup(flowDir);
+  const nc = setup.present ? setup.rows.find((r) => r.kind === 'sign')?.notChecked : undefined;
+  const recorded = !!nc && Array.isArray(nc.items);
+  return { steps, notChecked: { label: NOT_CHECKED_LABEL, items: recorded ? notCheckedBlock(nc.items).items : [], recorded } };
 }
 
 /**
@@ -1617,8 +1636,7 @@ export function deriveStepSuccessText(step, arbiterAsks) {
  * signature.json/prose lines — nothing invented; a piece the books can't
  * name carries its own why, never a blank or a guess. Field order (server
  * order matches the page's own render order): prose, asks, model, cap
- * (+redo cap), sources, sends, guardrails, success (one row per step, off
- * `deriveStepSuccessText`), signature.
+ * (+redo cap), sources, sends, guardrails, plan (one row per step, amendment 34), signature.
  * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
  * @returns {any|null}
  */
@@ -1650,7 +1668,6 @@ export function getRunJob({
   const asks = a.asks ?? [];
   const sends = a.sends ?? [];
   const sources = a.sources ?? [];
-  const declSteps = Array.isArray(flowRead.declaration?.steps) ? flowRead.declaration.steps : [];
   return {
     flow,
     runId,
@@ -1684,8 +1701,7 @@ export function getRunJob({
     guardrails: flowRead.lines
       .filter((l) => typeof l.guardrail === 'string' && l.guardrail.length > 0)
       .map((l) => ({ line: l.n, guardrail: l.guardrail })),
-    // review #5: "Success" — one row per declared step, in declaration order.
-    success: declSteps.map((s) => ({ step: s.emits, text: deriveStepSuccessText(s, asks) })),
+    plan: buildJobPlan(flowRead.declaration, asks, run.flowDir),
     signature: (sig && typeof sig.signedBy === 'string' && typeof sig.signedAt === 'string' && typeof sig.flow === 'string')
       ? { signedBy: sig.signedBy, signedAt: sig.signedAt, hash: sig.flow }
       : null,
@@ -1988,6 +2004,15 @@ function runAsksInOrder(runDir, hasHistoryRow, endedExpired = false) {
     .map(({ row }) => row);
   // M4c-fix amendment 1 (c): a run ended because its ask expired reads expired, never accepted. The late answer the
   // terminal resume consumed was refused, so the newest ask carries `expired` (and says why), not the answer's word.
+  // amendment 17 1A: an ask a Stop set aside takes its words from its OWN place in the run: the step `deriveAskStepInfo` (the one
+  // reader of which step each ask belongs to) names for it, matched to the `stopped at the ask of step N` row written for that step.
+  // Never by counting those rows in order: a Stop that landed before any ask parked writes one too, with no ask behind it.
+  if (ordered.some((a) => a.status === 'stopped')) {
+    const words = stoppedAskWords(ordered, readAudit(runDir));
+    for (let i = 0; i < ordered.length; i++) {
+      if (ordered[i].status === 'stopped' && words[i] !== null) ordered[i] = { ...ordered[i], statusText: words[i] };
+    }
+  }
   const last = ordered[ordered.length - 1];
   if (endedExpired && last && (last.status === 'accepted' || last.status === 'redo' || last.status === 'reran')) {
     ordered[ordered.length - 1] = { ...last, status: 'expired', reason: null, why: LATE_ANSWER_WHY };

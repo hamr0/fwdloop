@@ -82,13 +82,56 @@ export function parseJobBox(text) {
   return { steps, refusals };
 }
 
+/**
+ * M4e amendment 24 item 3: the submitted job box with each answer added WORD FOR WORD as a `~` line under the job line it is about, after
+ * that line's own `~` lines (several answers for one line keep their order). The job box's own lines are untouched; the card -> prose path
+ * (`cardToProse`) then writes the answer as that line's guardrail, so it reaches the signed text and the hash. Pure. An answer for a line
+ * the box does not have is NOT added (the caller sees the count).
+ * @param {string} job @param {{ line: number, answer: string }[]} answers
+ * @returns {{ job: string, added: number }}
+ */
+export function appendAnswersToJob(job, answers) {
+  const raw = String(job).split('\n');
+  /** @type {Map<number, number>} the index of the last non-empty box line that belongs to each step (its own line or a `~` under it) */
+  const lastOf = new Map();
+  let step = 0;
+  raw.forEach((l, i) => {
+    const t = l.trim();
+    if (t === '') return;
+    if (!t.startsWith('~')) step += 1;
+    if (step > 0) lastOf.set(step, i);
+  });
+  /** @type {Map<number, string[]>} */
+  const after = new Map();
+  let added = 0;
+  for (const a of answers) {
+    if (!lastOf.has(a.line)) continue;
+    const at = /** @type {number} */ (lastOf.get(a.line));
+    after.set(at, [...(after.get(at) ?? []), `~ ${a.answer}`]);
+    added += 1;
+  }
+  const out = [];
+  raw.forEach((l, i) => { out.push(l); for (const g of after.get(i) ?? []) out.push(g); });
+  return { job: out.join('\n'), added };
+}
+
+/**
+ * THE one place a step's `~` lines become its guardrail: several `~` lines under one step are ONE continuous guardrail (hamr ruling 2026-10-09),
+ * each part verbatim (trimmed), in typed order, joined by "; ". An answer (am24) is one more `~` line, so it joins here too. The signed-text parser
+ * stays strict 1-for-1 because the job file never carries more than one `guardrail:` per line.
+ * @param {string[]} parts
+ */
+export function joinGuardrails(parts) {
+  return parts.map((g) => g.trim()).join('; ');
+}
+
 /** The job file lines (`N. text`, `   guardrail: text`, `N. ask <wait>: question`) for parsed steps; the wait is ALWAYS written out. @param {ReturnType<typeof parseJobBox>['steps']} steps @param {string} askWait */
 export function jobFileLines(steps, askWait) {
   /** @type {string[]} */
   const out = [];
   for (const s of steps) {
     out.push(s.ask ? `${s.n}. ask ${s.ask.wait ?? askWait.toLowerCase()}: ${s.ask.question}` : `${s.n}. ${s.text}`);
-    for (const g of s.guardrails) out.push(`   guardrail: ${g}`);
+    if (s.guardrails.length > 0) out.push(`   guardrail: ${joinGuardrails(s.guardrails)}`);
   }
   return out;
 }

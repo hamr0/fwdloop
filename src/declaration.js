@@ -36,6 +36,8 @@
 // No `new RegExp` anywhere in this file — a test in test/signed-text.test.js
 // greps all of src/ for that, and it must keep passing with this file added.
 
+import { buildSoftgreenRubric } from './closers.js';
+
 /** @typedef {import('./types.js').Arbiter} Arbiter */
 /** @typedef {import('./types.js').SignedLine} SignedLine */
 /** @typedef {import('./types.js').CatalogueEntry} CatalogueEntry */
@@ -99,7 +101,14 @@ function checkOwnKeys(obj, allowed, path, reds) {
  *  name. */
 export const SHAPE_KEYS = Object.freeze(['maxWords', 'sections', 'linesPerInvoice', 'mustCarry']);
 
+/** Shape keys only the MACHINE sets (M4e amendment 15): read from the line's guardrail, never offered to the drafter's model. */
+export const MACHINE_SHAPE_KEYS = Object.freeze(['wordsPerSection']);
+
 const SHAPE_TYPE_CHECKS = Object.freeze({
+  wordsPerSection: {
+    expected: 'a positive integer',
+    check: (v) => Number.isInteger(v) && v > 0,
+  },
   maxWords: {
     expected: 'a positive integer',
     check: (v) => Number.isInteger(v) && v > 0,
@@ -148,7 +157,7 @@ function checkShapeKeys(shape, path, reds) {
     const value = shape[key];
     if (ARBITER_KEYS.includes(key)) {
       reds.push(`declaration: arbiter field "${key}" at ${childPath} — the drafter cannot author it`);
-    } else if (!SHAPE_KEYS.includes(key)) {
+    } else if (!SHAPE_KEYS.includes(key) && !MACHINE_SHAPE_KEYS.includes(key)) {
       reds.push(`declaration: unknown shape key "${key}" at ${childPath}`);
     } else {
       const typeCheck = SHAPE_TYPE_CHECKS[key];
@@ -241,30 +250,64 @@ function deriveFromLine(fromLine, lines, guardrailClasses) {
   return { ok: true, class: resolved.class, line };
 }
 
-/** The first "<n> words" in a guardrail ("3 sections, all under 600 words" -> 600), or null. */
-function guardrailWordLimit(guardrail) {
-  const m = typeof guardrail === 'string' ? /(\d+)\s*words?\b/i.exec(guardrail) : null;
-  return m ? Number(m[1]) : null;
+/** M4e amendment 16 C14: a guardrail number, with or without thousands separators ("1,000" -> 1000). Commas must group by exactly three
+ *  ("1,00" and "1,0000" match nothing), and the number cannot start in the middle of another one. */
+const readNumber = (t) => Number(t.replace(/,/g, ''));
+
+/** Every whole-output word number in a guardrail ("3 sections, under 600 words, each heading at most 3 words" -> [600, 3]), in order; [] when
+ *  there is none. Code does not decide which one is the limit: the AI picks `maxWords` and the validator checks the pick is one of these
+ *  (M4e amendments 28 + 29). A "<n> words each" / "<n> words per section" is the per-section size (amendment 15), never listed here. */
+export function guardrailWordNumbers(guardrail) {
+  if (typeof guardrail !== 'string') return [];
+  return [...guardrail.matchAll(/(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)\s*words?\b(?!\s*(?:each|per\s+section)\b)/gi)].map((m) => readNumber(m[1]));
+}
+
+/** M4e amendment 15 item 1: the "<n> words each" / "<n> words per section" size in a guardrail ("about 250 words each", "250ish each" -> 250), or null. */
+export function guardrailWordsPerSection(guardrail) {
+  const m = typeof guardrail === 'string' ? /(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)(?:\s*words?|ish(?:\s+words?)?)\s+(?:each|per\s+section)\b/i.exec(guardrail) : null;
+  return m ? readNumber(m[1]) : null;
 }
 
 const NUMBER_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
 /** M4e amendment 7 item 1: the first "<N> sections" in a guardrail (N digits, or the words one..ten), or null. */
-function guardrailSectionCount(guardrail) {
+export function guardrailSectionCount(guardrail) {
   const m = typeof guardrail === 'string' ? /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+)?sections?\b/i.exec(guardrail) : null;
   if (!m) return null;
   return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()];
+}
+
+/** M4e amendment 15 item 2: for each line whose guardrail gives a size for each section, a section count AND a word number,
+ *  size x count more than the LARGEST word number (no possible pick fits) is a red naming the line and the numbers. $0; run before any model
+ *  call, when there is no AI pick yet (amendment 29). After the draft the AI's `maxWords` is checked in checkShapeFitsJobLine. */
+export function checkGuardrailSums(lines) {
+  const reds = [];
+  for (const l of Array.isArray(lines) ? lines : []) {
+    const per = guardrailWordsPerSection(l?.guardrail);
+    const count = guardrailSectionCount(l?.guardrail);
+    const nums = guardrailWordNumbers(l?.guardrail);
+    const limit = nums.length > 0 ? Math.max(...nums) : null;
+    // M4e amendment 16 C13: a size for each section with no number of sections can never be checked.
+    if (per !== null && count === null) {
+      reds.push(`line ${l.n}'s guardrail gives ${per} words for each section but not how many sections. Say the number of sections in the guardrail.`);
+    }
+    if (per !== null && count !== null && limit !== null && per * count > limit) {
+      reds.push(`line ${l.n}'s guardrail asks about ${per} words for each of ${count} sections (${per * count}) but under ${limit} words in total. Change the guardrail.`);
+    }
+  }
+  return reds;
 }
 const MAX_SECTION_NAME_WORDS = 8;
 const MAX_SECTION_SHARE_OF_LINE = 0.6;
 const wordCount = (t) => t.trim().split(/\s+/).filter(Boolean).length;
 
 /** M4e amendment 6 item 1 (+ amendment 7 item 1): a step's check cannot fight its own job line. Sections must be found in the line's words
- *  (case-insensitive substring of the goal, first occurrence) and in the line's order; `maxWords` must equal the line's
- *  own guardrail limit when that guardrail states one. A shape key a note may still change (mustCarry, linesPerInvoice)
+ *  (case-insensitive substring of the goal, first occurrence) and in the line's order; `maxWords` (the AI's pick, amendment 29) must be one
+ *  of the line's guardrail word numbers when that guardrail has any. A shape key a note may still change (mustCarry, linesPerInvoice)
  *  is untouched. Pushes reds naming the step and both orders/values. */
 export function checkShapeFitsJobLine(step, i, lines, reds) {
   const { shape } = step.close;
   const label = `steps[${i}]`;
+  const redsBefore = reds.length;
   const line = Number.isInteger(step.fromLine) ? lines.find((l) => l.n === step.fromLine) : undefined;
   if (Array.isArray(shape.sections) && shape.sections.every((n) => typeof n === 'string' && n.length > 0) && typeof step.goal === 'string') {
     const goal = step.goal.toLowerCase().replace(/\s+/g, ' ');
@@ -302,9 +345,61 @@ export function checkShapeFitsJobLine(step, i, lines, reds) {
       if (x !== y && a.includes(b)) reds.push(`declaration: ${label}.close.shape.sections "${names[x]}" contains "${names[y]}" — one section name may not contain another`);
     }));
   }
-  const limit = guardrailWordLimit(line?.guardrail);
-  if (limit !== null && shape.maxWords !== undefined && shape.maxWords !== limit) {
-    reds.push(`declaration: ${label} the job line's guardrail says ${limit} words; the check says ${shape.maxWords} — change the guardrail on the card to change the limit`);
+  // M4e amendment 15 item 1: wordsPerSection is the guardrail's number, set by the machine; it never differs from it.
+  const wantPer = guardrailWordsPerSection(line?.guardrail);
+  if (shape.wordsPerSection !== undefined && shape.wordsPerSection !== wantPer) {
+    reds.push(`declaration: ${label} the check has wordsPerSection ${shape.wordsPerSection}; the guardrail says ${wantPer === null ? 'no size for each section' : `${wantPer} words each`} — change the guardrail on the card to change it`);
+  } else if (shape.wordsPerSection === undefined && wantPer !== null) {
+    reds.push(`declaration: ${label} the guardrail says ${wantPer} words each; the check has no wordsPerSection`);
+  }
+  // M4e amendment 16 C13: a size for each section needs the section names to be checked against.
+  if (shape.wordsPerSection !== undefined && !(Array.isArray(shape.sections) && shape.sections.length > 0)) {
+    reds.push(`declaration: ${label}.close.shape has wordsPerSection but no sections — it needs the section names to check each one`);
+  }
+  // M4e amendment 16 C12: linesPerInvoice and mustCarry only work as a pair.
+  if ((shape.linesPerInvoice === undefined) !== (shape.mustCarry === undefined)) {
+    const have = shape.linesPerInvoice === undefined ? 'mustCarry' : 'linesPerInvoice';
+    const miss = shape.linesPerInvoice === undefined ? 'linesPerInvoice' : 'mustCarry';
+    reds.push(`declaration: ${label}.close.shape has ${have} but no ${miss} — they work as a pair, so the check needs both`);
+  }
+  // M4e amendments 28 + 29: maxWords is the AI's pick; it must be one of the guardrail's whole-output word numbers, or it is invented.
+  const nums = guardrailWordNumbers(line?.guardrail);
+  if (nums.length > 0 && shape.maxWords !== undefined && !nums.includes(shape.maxWords)) {
+    reds.push(`declaration: line ${line.n}'s check says ${shape.maxWords} words; the guardrail has no ${shape.maxWords}.`);
+  } else if (wantPer !== null && shape.maxWords !== undefined && Array.isArray(shape.sections) && shape.sections.length > 0 && wantPer * shape.sections.length > shape.maxWords) {
+    // am29: after the draft the sum uses the AI's pick (the $0 check before the draft can only use the largest candidate).
+    reds.push(`declaration: line ${line.n}'s guardrail asks about ${wantPer} words for each of ${shape.sections.length} sections (${wantPer * shape.sections.length}) but the check says ${shape.maxWords} words in total. Change the guardrail.`);
+  }
+  // M4e amendment 18 item 3: a shape bareguard will not build is red here, by name, not a crash at run time.
+  checkShapeBuilds(shape, label, reds, redsBefore);
+}
+
+/** bareguard refuses a signed name or phrase past this many characters (rubric MAX_SIGNED_LEN). */
+const MAX_SIGNED_ENTRY = 1000;
+
+/** What bareguard's rubric builder refuses that the type checks above let through: blank or over-long entries and a section
+ *  name ending in ":" (a heading's ":" is dropped from the line, never from the name, so it could never match). Anything it
+ *  still refuses is caught by trying the real builder, `buildSoftgreenRubric` (the same one the run uses), when nothing else
+ *  was red for this step: so a shape that passes here always builds at run time. */
+function checkShapeBuilds(shape, label, reds, redsBefore) {
+  for (const key of ['sections', 'mustCarry']) {
+    if (!Array.isArray(shape[key])) continue;
+    shape[key].forEach((entry, k) => {
+      if (typeof entry !== 'string' || entry.length === 0) return; // the type check already reds these
+      const at = `${label}.close.shape.${key}[${k}]`;
+      if (entry.trim() === '') reds.push(`declaration: ${at} is blank — every entry needs real text`);
+      else if (entry.length > MAX_SIGNED_ENTRY) reds.push(`declaration: ${at} is ${entry.length} characters; the most one entry may be is ${MAX_SIGNED_ENTRY}`);
+      else if (key === 'sections' && entry.trim().endsWith(':')) {
+        reds.push(`declaration: ${at} names "${entry}", which ends in ":" and can never match a heading (the ":" is dropped from the heading line, not from the name) — drop the ":"`);
+      }
+    });
+  }
+  const typesOk = Object.keys(shape).every((k) => SHAPE_TYPE_CHECKS[k]?.check(shape[k]) === true);
+  if (reds.length !== redsBefore || !typesOk) return;
+  try {
+    buildSoftgreenRubric(shape);
+  } catch (err) {
+    reds.push(`declaration: ${label}.close.shape cannot be built into a check — ${String(err.message).replace(/^invalid rubric: /, '')}`);
   }
 }
 
@@ -366,6 +461,7 @@ export function validateDeclaration(declaration, context = {}) {
     return deepFreeze({ ok: false, reds });
   }
   const { steps } = declaration;
+  if (fitJobLine === true) reds.push(...checkGuardrailSums(safeLines).map((r) => `declaration: ${r}`));
 
   // --- guardrailClasses (REQUIRED — the harness always writes it; empty {}
   // is fine, missing entirely is not) ------------------------------------
@@ -587,6 +683,12 @@ export function validateDeclaration(declaration, context = {}) {
           }
         }
       }
+    }
+
+    // M4e amendment 15 item 5: a step whose check reads its reply (softgreen) gets no `write` — the answer would land in a file the check never reads.
+    if (fitJobLine === true && effectiveClass === 'softgreen' && primitives !== null
+      && primitives.some((v) => typeof v === 'string' && catalogueByVerb.get(v)?.class === 'write')) {
+      reds.push(`declaration: step ${i + 1}'s check reads its reply, so it can't write files. The send step writes the result out.`);
     }
 
     // picks — the listing rule, generalised

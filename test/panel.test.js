@@ -27,7 +27,7 @@ import {
   computeGlyph, costDisplay, listRuns, getRunDetail, getRunAudit, getRunJob, listStops, getRunAsks,
   deriveRunModel, deriveAuditAction, summarizeSpendRows, deriveAuditTokensDisplay, deriveAuditAtWhy,
   isBlockedVerdict, deriveStepTryMarks, deriveStepGroupState, deriveAuditGroups, deriveAskStepInfo,
-  deriveStepSuccessText, deriveAuditToolsPhrase,
+  deriveAuditToolsPhrase,
 } from '../src/panel/data.js';
 import { readSpendRows, appendSpendRow } from '../src/provider.js';
 import { writeAskArchive } from '../src/ask.js';
@@ -1477,19 +1477,6 @@ describe('getRunJob', () => {
     assert.match(job.guardrails[1].guardrail, /accept/);
   });
 
-  test('review #5: Success — one row per declared step, in declaration order; the ask step (line 4) reads "human check (your accept)", the others plain "human check" or "shape: ..."', () => {
-    const job = getRunJob({
-      root: ROOT, flow: FLOW, runId: 'run-done', catalogue: CATALOGUE,
-    });
-    assert.equal(job.success.length, 5);
-    assert.deepEqual(job.success.map((s) => s.step), ['resume-text', 'jd-text', 'resume-summary', 'resume-summary-approved', 'resume-summary-output']);
-    assert.equal(job.success.find((s) => s.step === 'resume-text').text, 'human check');
-    assert.equal(job.success.find((s) => s.step === 'resume-summary-approved').text, 'human check (your accept)');
-    const summarySuccess = job.success.find((s) => s.step === 'resume-summary').text;
-    assert.match(summarySuccess, /^shape: 3 headings \(/);
-    assert.match(summarySuccess, /max 600 words/);
-  });
-
   test('hamr review #7: the Job tab carries the model, read from this run\'s own audit.jsonl rows', () => {
     const job = getRunJob({
       root: ROOT, flow: FLOW, runId: 'run-done', catalogue: CATALOGUE,
@@ -1514,50 +1501,6 @@ describe('getRunJob', () => {
       root: ROOT, flow: FLOW, runId: 'run-failed', catalogue: CATALOGUE,
     });
     assert.equal(a.signature.hash, b.signature.hash);
-  });
-});
-
-describe('deriveStepSuccessText (hamr\'s 2026-09-27 exit-check review #5: the Job tab\'s Success field)', () => {
-  test('hitl, not bound to any signed ask line: "human check"', () => {
-    const step = { close: { class: 'hitl' }, fromLine: 1 };
-    assert.equal(deriveStepSuccessText(step, [{ line: 4 }]), 'human check');
-  });
-
-  test('hitl, bound to the signed ask line: "human check (your accept)"', () => {
-    const step = { close: { class: 'hitl' }, fromLine: 4 };
-    assert.equal(deriveStepSuccessText(step, [{ line: 4 }]), 'human check (your accept)');
-  });
-
-  test('softgreen with sections + maxWords: "shape: N headings (a / b / c), max W words"', () => {
-    const step = { close: { class: 'softgreen', shape: { sections: ['a', 'b', 'c'], maxWords: 600 } } };
-    assert.equal(deriveStepSuccessText(step, []), 'shape: 3 headings (a / b / c), max 600 words');
-  });
-
-  test('softgreen with the invoice-block shape keys (linesPerInvoice/mustCarry), never the sections wording', () => {
-    const step = { close: { class: 'softgreen', shape: { linesPerInvoice: 4, mustCarry: ['total', 'date'] } } };
-    assert.equal(deriveStepSuccessText(step, []), 'shape: blocks of 4 lines, must carry: total, date');
-  });
-
-  test('softgreen with NO shape signed at all: names it plainly, never invents sections/words', () => {
-    const step = { close: { class: 'softgreen' } };
-    assert.equal(deriveStepSuccessText(step, []), 'shape (no shape rules signed)');
-  });
-
-  test('green: "cited" — declaration.js never lets a step declare what it cites, so nothing is appended', () => {
-    const step = { close: { class: 'green' } };
-    assert.equal(deriveStepSuccessText(step, []), 'cited');
-  });
-
-  test('PROOF (can fail): an unknown/unsigned close class is named as unknown, never silently mapped to one of the three known words', () => {
-    const step = { close: { class: 'some-future-class-this-suite-does-not-know-about' } };
-    assert.equal(deriveStepSuccessText(step, []), 'unknown close class "some-future-class-this-suite-does-not-know-about"');
-    // the exact bug this guards: falling through to "human check" (hitl's
-    // own wording) for anything unrecognised, silently.
-    assert.notEqual(deriveStepSuccessText(step, []), 'human check');
-  });
-
-  test('no close class recorded at all: named plainly, never a crash', () => {
-    assert.equal(deriveStepSuccessText({}, []), 'no close class recorded');
   });
 });
 
@@ -2211,7 +2154,7 @@ describe('index.html — page source', () => {
   });
 
   test('review #3: map boxes are compact (never stretched to fill the full available width) and centered', () => {
-    assert.match(source, /\.map-box\{[^}]*text-align:center/);
+    assert.match(source, /\.map-chips\{display:flex;flex-wrap:wrap/);  // am31: boxes as wide as their own text, wrapping (no stretch to fill)
   });
 
   test('review #4: clicking a map node or a step card switches to the Audit tab and scrolls to that step\'s group', () => {
@@ -2350,8 +2293,8 @@ describe('index.html — page source', () => {
   // puts details-prose back first, and the positions[i] > positions[i-1]
   // check on the FIRST pair (details-model vs details-cap is unaffected, but
   // details-cap vs details-prose) goes red.
-  test('final tweak #1: the Job tab\'s field order is Model, $ cap, Job (prose), Ask, Source, Destination, Success, Signed (am6: no Guardrails field)', () => {
-    const ids = ['details-model', 'details-cap', 'details-prose', 'details-asks', 'details-sources', 'details-sends', 'details-success', 'details-signature'];
+  test('final tweak #1: the Job tab\'s field order is Model, the lines with their steps folded under them, Not checked, Ask, Destination, $ cap, Source, Signed (am37)', () => {
+    const ids = ['details-model', 'details-prose', 'details-plan-tail', 'details-asks', 'details-sends', 'details-cap', 'details-sources', 'details-signature'];
     const positions = ids.map((id) => {
       const idx = source.indexOf(`id="${id}"`);
       assert.ok(idx > 0, `expected to find id="${id}" in the page`);
@@ -2527,11 +2470,11 @@ describe('index.html — page source', () => {
   // just a source-text grep.
   function loadStepMapGeometry() {
     const start = source.indexOf('function escapeXml');
-    const end = source.indexOf('function mapAvailWidth');
+    const end = source.indexOf('function wireMapClicks');
     const body = source.slice(start, end);
     // eslint-disable-next-line no-new-func
     const factory = new Function(`${body}
-      return { buildStepBoxes, buildStepMapSVG, boxRetryTry, tryCountText, stepTitleText };
+      return { buildStepBoxes, buildStepMapHTML, boxRetryTry, tryCountText, stepTitleText };
     `);
     return factory();
   }
@@ -2543,25 +2486,25 @@ describe('index.html — page source', () => {
     assert.equal(boxRetryTry({ tryCount: 0 }), 0);
   });
 
-  test('buildStepMapSVG: a step with server tryCount 3 renders a dashed retry loop path labelled "try 3"', () => {
-    const { buildStepBoxes, buildStepMapSVG } = loadStepMapGeometry();
+  test('buildStepMapHTML: a step with server tryCount 3 renders the "↻3" retry mark (am35: dashed box, no "try" text)', () => {
+    const { buildStepBoxes, buildStepMapHTML } = loadStepMapGeometry();
     const steps = buildStepBoxes([
       { emits: 'flaky-step', goal: 'g', closeClass: 'green', attempts: [{ verdict: 'red' }, { verdict: 'red' }, { verdict: 'green' }], tryCount: 3 },
     ]);
-    const svg = buildStepMapSVG(steps, 900);
-    assert.match(svg, /stroke-dasharray="3,3"/, 'expected a dashed retry path when tryCount > 1');
-    assert.match(svg, />try 3</, 'expected the retry label to carry the server tryCount');
+    const html = buildStepMapHTML(steps);
+    assert.match(html, /data-retry="3"/, 'expected a retry mark when tryCount > 1');
+    assert.match(html, /<span class="chip-state"><span class="chip-retry">↻3<\/span> /, 'expected the retry mark to carry the server tryCount');
   });
 
-  test('buildStepMapSVG: a step with tryCount 1 (or missing) renders NO dashed retry path — proof the check above can fail', () => {
-    const { buildStepBoxes, buildStepMapSVG } = loadStepMapGeometry();
+  test('buildStepMapHTML: a step with tryCount 1 (or missing) renders NO retry mark — proof the check above can fail', () => {
+    const { buildStepBoxes, buildStepMapHTML } = loadStepMapGeometry();
     const steps = buildStepBoxes([
       { emits: 'clean-step', goal: 'g', closeClass: 'green', attempts: [{ verdict: 'green' }], tryCount: 1 },
       { emits: 'never-run', goal: 'g', closeClass: 'green', attempts: [], tryCount: 0 },
     ]);
-    const svg = buildStepMapSVG(steps, 900);
-    assert.doesNotMatch(svg, /stroke-dasharray="3,3"/, 'no box here has tryCount > 1, so no retry loop should render');
-    assert.doesNotMatch(svg, />try /, 'no "try N" label should render either');
+    const html = buildStepMapHTML(steps);
+    assert.doesNotMatch(html, /data-retry/, 'no box here has tryCount > 1');
+    assert.doesNotMatch(html, /chip-retry/, 'no "try N" label should render either');
   });
 
   // ---------------------------------------------------------------------

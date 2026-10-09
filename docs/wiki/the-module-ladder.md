@@ -1146,7 +1146,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 - **Exit:** every fix has a test that went red with the fix taken out; the fix list holds none of the in-scope items (dropped by /refactor revalidation, not by hand); a real browser walk at 1280 and 390 opens the panel by the printed link, shows a run, answers an ask, and a second Resume is refused; hamr opens the panel by the printed link and signs.
 - **Cap:** $0 — no paid model runs needed (fakes and the existing books).
 - **Not in scope:** Settings (M4d); a Run button (M4e); per-run read/write folders; new answer words; any change to an existing book's shape beyond the token file; the two accepted hand-edit limits.
-- **Known limits written down:** the 1e-9 USD spend tolerance; a hand-written in-time `answeredAt`; the panel trusts your own user's programs (anything running as you can read the token file).; "Remove the old lock" (amendment 2 (h)) re-checks the holder twice but a resume can still take the lock between the last check and the unlink, which deletes that resume's fresh lock (amendment 3 (d): "cannot close it fully").
+- **Known limits written down:** the 1e-9 USD spend tolerance; a hand-written in-time `answeredAt`; the panel trusts your own user's programs (anything running as you can read the token file). "Remove the old lock" (amendment 2 (h)) re-checks the holder twice but a resume can still take the lock between the last check and the unlink, which deletes that resume's fresh lock (amendment 3 (d): "cannot close it fully").
 - **Later ruling, not a signed amendment (hamr "1A", 2026-10-03, built in d1aa5fb after the scope was signed):** the panel token is reused across restarts while its file is still mode 0600 and owned by you (a loose, foreign or junk file gets a new token), so a bookmark of the page keeps working once the printed link was opened; a bare browser `GET /` without the cookie gets a plain 403 page that says to open the link the terminal printed, not blank JSON (API routes keep the JSON 403).
 - **Branch-review fixes, not a signed amendment (2026-10-04, d87656d..c99df79):** (1) a resume whose lock-holder write fails (disk full or file-size limit) removes the empty `resume.lock` that same call just created and refuses by name, so no stuck lock is left behind; a lock another resumer made is never touched. (2) A failed page load is one of three plain sentences, painted from one function in the page: 403 "The panel does not recognise this page. Open the link the terminal printed.", 404 "This run is no longer there.", anything else (including no network) "Could not load this; reload the page." Run, Ask, Workflows, History and Inbox all use it (amendment 2 (b)).
 
@@ -1532,6 +1532,289 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 - **Built after signing — not signed text (2026-10-07):**
   - hamr's ruling on a tie (F60, `docs/logs/FINDINGS.md`): when a Stop and the saved answer carry the SAME millisecond, the ANSWER WINS. Only a Stop asked strictly before the answer was saved stops the run at the ask and sets the answer aside; a tied or later Stop is read by the fold's own seam, which stops before the next step, so nothing ships. A Stop whose time is missing or unreadable still stops at the ask.
   - Built as: `src/runner.js` `resumeRun` (`stopFirst`), test `test/m4e-am13-stop-at-ask.test.js` (h).
+
+- **Amendment 14 — SIGNED by hamr 2026-10-08 ("sign m4e amendment 14"): Revise reopens the card; no notes (F58).**
+  - **Why:** F58 (`docs/logs/FINDINGS.md`). On `new-close2` the note "put skills before work history" came back as a green change that DROPPED the section "summary of work history blurb" instead of moving it, and amendments 6 and 7 let it through. A free-text note asks the model to guess what the human meant. hamr 2026-10-08: "chat can't be open ended … revise opens up the whole chat fields, change what you want and go again, no chat, that way we keep order, avoid misinterpretation of [a] probabilistic model and you get to review, else, start over and it keeps the same job just a new start with 2 new shots"; "you have a plan offered, you read it, approve it or revise".
+  - **1. No note box.** After a green plan, the card shows the plan and two buttons: **Sign & run** and **Revise**. Nothing the human types goes to the model as a note. This replaces amendment 3 item 3's note box and **Send**, and amendment 4 item 3's **you** / **fwdloop** bubbles.
+  - **2. Revise reopens the card.** **Revise** opens every card field, filled in as last drafted: flow name, job lines and their guardrails, asks and their waits, inputs, cap and destination. The human edits them and presses **Draft**. That is a fresh draft of the card as it is now. The model gets the card only, never the old plan or a note. The new plan replaces the shown one, with a new hash. Every draft check (amendment 6 item 1, amendment 7 item 1) applies to it.
+  - **3. Two revises, then Start over.** Each draft gets 2 revises, shown as "2 revises left" or "1 revise left". After the second revise, the button reads **Start over**. All fields stay open. Draft starts a fresh draft with its own 2 revises (amendment 4 item 3's Start over, now with the fields open). Every revise and every Start over is booked as a draft call (amendment 3, unchanged).
+  - **4. A red revise.** A revise that comes back red shows its reds, and the card keeps the human's edits. **Sign & run** stays off until a plan is green, because the last green plan was drafted from a different card. This replaces amendment 3's "keeps the last green plan to sign" for a revise.
+  - **5. The plan shows every step's sections.** In the readout, under each step whose check names sections, the section names and word limit show in the check's order (`sections: How it matches the JD · Professional skills · Soft skills · under 600 words`). Before signing, the human can see if a section is missing.
+  - **6. Draft record.** Each revise is written to the draft record as the card as submitted, plus the model, cost, green or red, and plan hash. There is no note row. The Audit Draft group shows it as `revise 1`, `revise 2` and `start over`. Flows signed before this amendment keep showing their note rows as they are. A key value in any field is refused, as today.
+  - **Negatives:**
+    - (a) after a green plan, the card shows no note box; a POST carrying a note is refused at $0 with no model call;
+    - (b) Revise opens every field, filled with the last drafted values. Editing a job line and pressing Draft gives a plan whose step goal is the new line, verbatim, with a new hash. Signing the old hash signs nothing;
+    - (c) the model request for a revise carries the card only: no old plan and no note (checked in the request body);
+    - (d) a third revise is refused at $0. The button reads Start over. Start over keeps the fields, gives 2 new revises, and is booked as a draft call;
+    - (e) a red revise shows its reds, keeps the human's edits, and leaves Sign & run off;
+    - (f) F58 replay: on `new-close2`'s card, Revise with line 3 edited to put skills before work history. The plan's readout lists that step's sections in the check's order, so a missing section is visible before signing (one paid draft call);
+    - (g) a refresh during or after a revise brings back the newest plan, the revises-left count and the open fields;
+    - (h) the card, the readout's sections line and the Revise and Start over buttons fit at 1280, 390 and 320 px.
+  - **Cap:** within M4e's $0.50; $0 build, plus about $0.01 for (f).
+- **Built after signing — not signed text (2026-10-08):**
+  - Known limit, accepted by hamr ("why are you overcomplicating this"): with 0 revises left on a green plan the fields stay open (item 3); an edit not sent with Start over is not in the plan, and Sign & run signs the plan shown, never the unsent edit. No Cancel on an open Revise; a refresh closes it.
+
+- **Amendment 14 exit — SIGNED by hamr 2026-10-08 ("sign m4e amendment 14 exit"); evidence from hamr's live walk and the files.**
+  - hamr's walk sheet: steps 1, 2, 3, 4, 6 and 7 reported passing ("all pass except the run resume-job (run-1)").
+  - From the files (`resume-job/setup.jsonl`): `card`, `draft` green `bd5440ad` ($0.0011), `card`, `revise` green `36dd5e6e` ($0.0012), `sign` `36dd5e6e`. A plan was signed after a revise drafted from the edited card only.
+  - Steps 3 (a second revise) and 4 (Start over) have no file evidence. The only draft folder under the walk root (`.drafts/d-00muzduk9g-c676`) has one revise and no `started-over-from.json`. hamr chose to record them on his word ("2"). The browser walk below covers them at $0.
+  - Run `resume-job (run-1)`: `attempt-fallback`, $0.0707. Step 3 was red 4 times (words 620 > 600; three tries put the resume in a file and replied with a description). This is outside amendment 14 and became F61 (`docs/logs/FINDINGS.md`).
+  - The walk root was the repo root, because the panel was started without `--root flows`, so the flow sits at `./resume-job`, untracked.
+  - Orchestrator's browser walk at $0 (fake drafter, fresh root per width) at 1280, 390 and 320 px: green plan (Sign & run, Revise, "2 revises left", fields locked); Revise opens the fields with Draft; a red revise keeps the edits, has no Sign & run and shows "1 revise left"; 0 left shows Sign & run and Start over; no note box; no box spills past the screen.
+
+- **Amendment 15 — SIGNED by hamr 2026-10-08 ("sign m4e amendment 15"): a guardrail's size for each section is read by code, added up, and checked (F61); a text step can't hide its answer in a file.**
+  - **Why:** F61 (`docs/logs/FINDINGS.md`). On `resume-job (run-1)`, line 3 asked for "3 sections all under 600 words, 250ish each" (about 750 words in 600), and step 3 was granted `write`. Four tries were red: too long, or the resume put in a file while the reply only described it. hamr 2026-10-08: "conflicting requirements should be checked for sure ... under 600 words doesn't check out with 250ish"; "guardrails are the ones should have things to check, anything outside guardrails is probabilistic"; ruling "1" (a per-section size in a guardrail is also checked at run time).
+  - **1. Code reads the size for each section from the guardrail.** The same way it already reads "600 words" and "3 sections" (amendments 6 and 7), code reads a per-section size from the line's guardrail: "about 250 words each", "250 words each", "~250 words each", "250 words per section". The machine sets it in the step's check as `wordsPerSection`; the model never writes it. A size written only in the job line, not the guardrail, is a hint to the writer and is never checked.
+  - **2. The sum, at $0.** At draft, revise and sign, if `wordsPerSection` × the guardrail's number of sections is more than its word limit, the plan is red and names the line and the numbers: "line 3's guardrail asks about 250 words for each of 3 sections (750) but under 600 words in total. Change the guardrail."
+  - **3. Each section is counted at run time.** When a check has `wordsPerSection`, the step's output is red if any section's words fall outside ±20% of it ("about": 250 allows 200 to 300). A section's words are the words after its heading line up to the next listed heading, or to the end; text before the first heading belongs to no section. The red names the section and its count: "Soft Skills: 340 words, about 250 asked (200-300)". This is added to the existing word and heading checks; they are unchanged.
+  - **4. The readout shows it.** The sections line reads `sections: A · B · C · about 250 words each · under 600 words`.
+  - **5. A step whose check reads its reply gets no `write`.** A plan that grants `write` to a step whose check reads that step's reply text (a softgreen check) is red at draft, revise and sign: "step 3's check reads its reply, so it can't write files. The send step writes the result out."
+  - **Not in this amendment:** bareguard's rubric (its Day 1 checks must equal ours, hamr 2026-10-07) has no per-section count yet. It becomes an upstream ask when the bareguard swap is scoped.
+  - **Negatives:**
+    - (a) a card with the guardrail `~3 sections, about 250 words each, under 600 words` drafts red at $0 before any model call, naming 750 and 600;
+    - (b) the guardrail `~3 sections, about 180 words each, under 600 words` drafts green, the plan's check has `wordsPerSection: 180`, and the sections line shows "about 180 words each" (one paid draft call);
+    - (c) "250ish each" only in the job line, with the guardrail `~3 sections, all under 600 words`, gives no `wordsPerSection`; green as today;
+    - (d) at run time, with `wordsPerSection: 180`: a section of 144 or 216 words passes; 143 or 217 is red, naming the section and its count; a missing heading still reds as today (fake model step, $0);
+    - (e) a plan whose model output tries to set `wordsPerSection` itself is red, or the value is overwritten by the guardrail's number; it never differs from the guardrail ($0, fake provider);
+    - (f) a plan granting `write` to a softgreen step is red at draft, revise and sign, $0 (fake provider);
+    - (g) a rerun of `resume-job` with the guardrail fixed goes past step 3 (one paid run, about $0.07).
+  - **Cap:** a new $0.25 for this amendment: $0 build, about $0.01 for (b), about $0.07 for (g).
+- **Built after signing — not signed text (2026-10-08):**
+  - hamr "yes to both": a step whose check reads its reply is also refused any other write-class verb (e.g. `edit`), not only `write`; and the guardrail reader also reads the "ish" forms ("250ish each", "250ish words per section") as about 250 words each.
+  - hamr's live walk (`new-attempt (run-1)`): the step's answer form also offered `lines`, which no check reads; the model put the resume there. `lines` was removed from the softgreen answer form, so `text` is the only place to answer (same hole as item 5).
+  - Record gap (amendment 16 I3, hamr 2026-10-08): the paid replay of "put skills before work history" cited in the M4e exit evidence has no record kept on disk. The signed line is unchanged.
+
+- **Amendment 16 — SIGNED by hamr 2026-10-08 ("sign m4e amendment 16"): the fix list after amendment 15.**
+  - **Why:** /self-review and /refactor (ledger mode) of branch `m4e-am14`, 2026-10-08. hamr went through every item and ruled each one "fix" (and sent I5 upstream). Dropped by hamr: C10 (no panel token; already ruled single-user, A1) and C15 (editing with 0 revises left; accepted known limit). Item ids are the ledger review's.
+  - **Checks (amendment 15 follow-ups)**
+    - **C13.** A guardrail that gives a size for each section but no number of sections, or a check with `wordsPerSection` and no section names, is red at draft, revise and sign, by name. It can never pass unchecked.
+    - **C14.** The guardrail readers read thousands separators: "1,000 words" and "1,000 words each" read 1000. "1,00" and "1,0000" are not misread.
+    - **C12.** A check with only one of `linesPerInvoice` / `mustCarry` is red at draft, revise and sign, by name. The pair is unchanged.
+  - **Records always balance**
+    - **C7.** A cap-halt always writes its history end row with the real signature hash and the run's spend, even if writing the log, halt.json or the settle row fails first.
+    - **C6.** On a completed run and a rerun, the history end row is written last, and always written, as in C7.
+    - **C8.** A Stop at an ask counts as stopped only when the ask was already taken by another Stop (file not found). Any other error (permission, other disk errors) says plainly that the stop failed, names the error, and leaves the run as it was.
+    - **C11.** A stop request whose time is not a real date is treated as made "now"; the stop completes with all its records, and the ask is never lost.
+    - **I2.** A Stop that lands during a retry after a transport error books the larger of the known costs, so the audit rows always add up to the run's history total.
+    - **C2.** A "run again" names its new run folder in the money records when it starts, so a run killed hard still has its spend counted in the month and the total.
+  - **Panel**
+    - **C1.** A flow refused because it is outside the panel's folder says so in plain words ("This flow is outside the panel's folder."), not "reload". The other 403 keeps its words.
+    - **C9.** A draft is read "is it still running" first, then its result, so a draft that finished is never shown as "ended before it finished".
+    - **C16.** The Draft header's human checks also count each revise (the edited card sent by the human).
+    - **I4.** A run stopped at its ask reads `stopped at the ask of step N` (amendment 13's signed words) in Runs, the run header, the Ask tab and Inbox; a run stopped after a step keeps its label.
+  - **Code**
+    - **C3.** One function checks the draft's API key; the CLI and authoring both call it.
+    - **C4.** The keys file passes only known key names (KEY_NAMES) to run, resume and draft children; other names in the file are still listed in Settings but never reach a child.
+    - **C5.** The unreachable `if (!read.ok)` in `src/panel/authorflows.js` is removed.
+    - **I1.** Measure the monthly claim and Money tab load at 100, 1,000 and 10,000 runs ($0, temp root). If 10,000 runs take more than 200 ms, compact settled rows without changing any month total; otherwise record the timings and change nothing.
+  - **Docs**
+    - **I3.** Under amendment 14's or the M4e exit's "Built after signing", a note: the paid replay of "put skills before work history" cited in the M4e exit evidence has no record kept on disk. The signed line is unchanged.
+    - **Nit.** The stray `).;` in the M4c-fix "Known limits" line is fixed to `).` on hamr's word ("nit fix"). This is the only signed character changed.
+  - **Upstream (no fwdloop code):** I5 — the per-section count and the extra-key red were sent to bareguard as an ask (2026-10-08). fwdloop does not switch to bareguard's rubric until both are in.
+  - **Negatives:** each item has a test that fails before its fix: (C13) the no-sections plan is red; (C14) "1,000" reads 1000; (C12) a lone key is red; (C7, C6) an injected write error still leaves the history row with the right spend; (C8) a locked run folder gives "the stop failed", and a real double Stop still stops once; (C11) `{"at":"last tuesday"}` stops cleanly with full records; (I2) fault, then Stop during the retry: audit sum = history total; (C2) a killed "run again" still has its spend counted, a normal one isn't counted twice; (C1) the outside-folder 403 shows its words; (C9) forced timing shows "done"; (C16) one revise shows +1; (I4) the signed words at 1280, 390 and 320 px; (C3) both entries refuse the same way; (C4) `NODE_OPTIONS` in the keys file never reaches a child; (C5) the suite is unchanged; (I1) a timing table; the nit and I3 are docs only.
+  - **Cap:** $0. Nothing here needs a paid call.
+- **Built after signing — not signed text (2026-10-08):**
+  - I2 ("a Stop during a transport retry books the larger cost") did not reproduce. The runner sums the first fault's floor and the retry's cost, and the audit rows already add up to the history total in every case. A guard test is in `test/m4e-am16-records.test.js`. hamr ruled "I2 done by test": no code change.
+  - I1 measured (`docs/logs/FINDINGS.md`, F62): 10,000 runs took about 1 s, over 200 ms, so settled runs are rolled up: `rollSettled` (`src/monthly.js`) appends `rolled` rows to `runs.jsonl` when a hold settles; a dir named again after its snapshot is read live; no month total changes.
+
+- **Amendment 17 — SIGNED by hamr 2026-10-08 ("your proposals approved, go"): the self-review fixes after amendment 16.**
+  - **Why:** /self-review of c1995d4..577d86c, 2026-10-08. hamr picked 1A, 2A, 3A and item 5.
+  - **1A.** Each stopped ask takes its step number from its own place in the run (the same reader that already says which step each ask belongs to), not by counting "stopped at the ask" records in order. Same signed words: `stopped at the ask of step N`.
+  - **2A.** Any stop time that is not a real date (a non-date string, a number, a missing or empty time) is treated as made "now", one rule for all. The stale comment is fixed.
+  - **3A.** Only runs that finished on their own are rolled up. A run fwdloop settled as "process gone" is never rolled, so it is always read fresh. A deleted run folder keeps its spend in the totals (the money was really spent).
+  - **5.** The `src/monthly.js` header says what the file holds now, including `named` and `rolled` rows.
+  - **Negatives:** (1A) Stop before any ask parks, resume, then Stop at the ask of step 5 reads "step 5", not "step 2"; (2A) `{}`, `{"at":5}` and `{"at":"last tuesday"}` all end the same way; (3A) a "process gone" run that spends again after another run's roll still counts in the month and total; (5) docs only.
+  - **Cap:** $0.
+
+- **Amendment 18 — SIGNED by hamr 2026-10-08 ("am18 approved, 4A"): the soft checks move to bareguard 0.21.0.**
+  - **Why:** bareguard 0.21.0 shipped the per-section words and extra-key rules (am16 I5). A $0 test of 142 inputs against fwdloop's own checks found 0 real disagreements; both promised messages match ours letter for letter.
+  - **1. Scope.** Only the soft checks (`softgreen`: words, sections, words per section, extra keys, lines per block and must-carry words) move to bareguard. `green`, `hitl` and "unparseable" stay fwdloop's.
+  - **2. Our front door stays.** A bad answer (a plain string, a number, a missing `text`) still reads "unparseable" before bareguard sees it. A booby-trapped answer object can no longer crash the check.
+  - **3. Refuse at sign, not at run.** Shapes bareguard will not build (for example 2.5 words per section, an empty must-carry list) are red at draft, revise and sign, by name.
+  - **4A. Our wording stays.** The sentences the model reads on a retry are fwdloop's plain English, built from bareguard's typed results.
+  - **5. Proof.** The 142-input comparison becomes a permanent test: a red today stays red after the switch, a green stays green.
+  - **Cap:** $0.
+
+- **Amendment 19 — SIGNED by hamr 2026-10-09 ("approved for all the rest fixes changes/ideas proposals"): the fixes after the second self-review and the ledger refactor.**
+  - **Why:** /self-review of 577d86c..2b20828 and /refactor (ledger mode), 2026-10-09.
+  - **1. Old roll-ups.** A `rolled` row already written for a run fwdloop settled as "process gone" is ignored; that run is read fresh. The month and total equal the disk.
+  - **2. The "N more" count.** Past bareguard's 20-item list, the lines-and-carry sentence counts blocks, not missing words.
+  - **3. One label reader.** The Runs label and the Ask/Inbox row for a stopped ask come from one reader and always agree; when the step cannot be known, both say plain "stopped".
+  - **4. Check before spending.** At run start, every softgreen step's check is built before the first model call; one that cannot be built is refused at $0, by step name.
+  - **5. Tests.** The parity table gains cases with more than 20 problems and shapes that mix every soft check; a runner-level test covers a shape that cannot be built (refused at $0, nothing spent, no green).
+  - **Upstream (no fwdloop code):** bareguard was asked (2026-10-09) to export its 20-item cap; until then fwdloop keeps 20.
+  - **Negatives:** (1) an old rolled row for a "process gone" run, then more spend: month = disk; (2) 25 blocks each missing 2 words reads "5 more block(s)"; (3) a lost ask file: Runs and Ask/Inbox both say "stopped"; (4) a pre-am18 flow with a ':' section name is refused at $0 with no model call; (5) the new tests fail when their fixes are reverted.
+  - **Cap:** $0.
+  - **Built after signing — not signed text (2026-10-09):**
+    - bareguard declined to export its cap (no exported caps); fwdloop now derives "N more" from each gap's `itemsTotal` and list length, so no hardcoded 20 remains.
+
+- **Amendment 20 — SIGNED by hamr 2026-10-09 ("A"): amendment 19 item 2 counts missing words, not blocks.**
+  - **Why:** counting blocks past bareguard's list meant copying bareguard's own "what is a block" rule into fwdloop; bareguard will not add a block count. Amendment 19's negative (2) also had wrong arithmetic ("5 more"; the right block count was 15).
+  - **Change.** Past the list bareguard shows, the lines-and-carry sentence says how many more missing words there are (`itemsTotal` minus the list shown). No fwdloop copy of bareguard's block rule remains. This replaces amendment 19 item 2 and its negative (2); amendment 19's signed text is left as it was.
+  - **Negative:** 25 blocks each missing 2 words reads "30 more missing word(s)"; the count does not depend on 20.
+  - **Cap:** $0.
+
+- **Amendment 21 — SIGNED by hamr 2026-10-09 ("am21 approved, 2A"): the last ledger items after self-review round 3.**
+  - **Why:** /self-review round 3 and /refactor (ledger mode), 2026-10-09.
+  - **1. No flow vanishes.** A signed flow that will not run (a check that cannot be built, or an unwired verb) stays in the Signed list, greyed, with no Run button, and says why in plain words, the same sentence "Run again" gives.
+  - **2A. The Runs hint stays.** When the step of a stopped ask cannot be known, Runs reads "stopped — Resume to go on" and Ask/Inbox read "stopped". All three say plain "stopped" with no step; the Runs row keeps its "what to do" hint like every Runs label.
+  - **3. Test.** A plan shape that passed before amendment 18 and cannot be built now is refused at $0 at run start and is never booked green.
+  - **Kept for later (ledger):** Money load speed at 10,000 runs.
+  - **Negatives:** (1) a flow with a ':' section name shows in the Signed list with its reason and no Run button, at 1280, 390 and 320 px; (3) the test fails when the preflight is removed.
+  - **Cap:** $0.
+
+- **Amendment 22 — SIGNED by hamr 2026-10-09 ("delete that part"): amendment 21 item 1's list entry is removed.**
+  - **Why:** listing a refused flow in "Run a signed flow" contradicts amendment 7 item 7 (only green, ready flows are listed). A refused flow is not listed, as before amendment 21.
+  - **Kept:** the panel's run door refuses a flow its preflight would refuse up front (409, the same sentence Run again gives), so nothing starts and fails later.
+  - **Where the reason shows:** "Run again" on that flow's run in Runs.
+  - **Cap:** $0.
+
+- **Amendment 23 — SIGNED by hamr 2026-10-09 ("A"): a flow that will not run says why in plain words.**
+  - **Why:** the refusal for a check that cannot be built showed bareguard's raw wording (`spec.checkpoints.close.checks[2].names[0] …`). Every refusal says what to do in plain words (PRD).
+  - **Change.** The refusal names the step number and the section name or phrase, and says what to do. Example: *This flow will not run: step 3's section name "summary of work history blurb:" ends in ':'. Remove the ':' and sign the job again.* bareguard's raw reason is kept in the run's records, never shown as the sentence.
+  - **Where:** the panel's run door, Run again, and the CLI preflight refusal: one function makes the sentence.
+  - **Negatives:** a ':' section name, a blank phrase and an over-long entry each give a plain sentence with no `spec.` or `checks[` in it; the raw reason is still in the record.
+  - **Cap:** $0.
+
+- **Amendment 24 — SIGNED by hamr 2026-10-09 ("sign am24"): the drafter may ask up to 2 questions before sign; the plan shows what is checked and what is not.**
+  - **Ruling lifted:** M4e's out-of-scope line "drafter questions back to the human (fwdloop's drafter asks none)". Nothing else in the PRD changes.
+  - **1. Asking.** The same one drafter call may return up to 2 questions, each naming the job line it is about. No extra AI call. A question with no line, a line that does not exist, or a third question is dropped and written to the draft's log.
+  - **2. Answer required.** The Draft view asks one at a time: "A question the plan raised (1 of 2)". There is no Skip. A blank answer asks again. Closing the box loses nothing: the question stays open and the draft waits. Sign is refused while any question is open.
+  - **3. Answers become guardrails.** Each answer is added word for word as a `~` guardrail under its line. The AI never rewrites it. The goal stays your line word for word. A step still sees only goal + reads + gap.
+  - **4. Redraft.** After the last answer, the plan is drafted again with your answers in. One paid call, and it does not use a revise. The redraft cannot ask new questions.
+  - **5. Signed and shown.** The answers are part of the signed job text and the sign hash. At sign they are shown under "Your answers".
+  - **6. Checked / Not checked.** "Checked" is built by the machine from the plan's typed checks, never written by the AI. "Not checked" comes from the same drafter call, labelled "the drafter's own reading, not a guarantee". Info only; not signed.
+  - **7. Revise** works as today; answer guardrails are editable like any guardrail.
+  - **Negatives:** a question about line 9 in a 4-line job is dropped and logged; a third question is dropped and logged; a blank answer asks again; Sign is refused while a question is open; an answer shows word for word as a `~` line, in the signed text and under "Your answers"; the redraft asks nothing; "Checked" lists only what a typed check really checks; "Not checked" always carries its label.
+  - **POC first ($, real deepseek-flash):** 10 vague jobs and 10 clear ones. Pass: vague jobs get at least one question naming a real line; clear ones mostly get none; the draft call never breaks. Fail: stop and rethink.
+  - **Cap:** $0.50 for the POC and the exit walk.
+  - Source: bareloop `loop` review 2026-10-09 (bareloop src/authorflow.js CONFIRM_SCHEMA, forceAnsweredQuestions; FINDINGS F174, F175).
+
+- **Amendment 25 — SIGNED by hamr 2026-10-09 ("sign am25"): questions open only when tries 1 and 2 of the draft both fail.**
+  - **Why:** hamr 2026-10-09: the AI may treat "at most 2" as a target and ask when nothing is unclear. A lock must be a mechanism, not prompt wording. So the machine decides when asking is allowed.
+  - **Change to amendment 24 item 1.** Tries 1 and 2 of 3 have no way to ask: try 1 is a clean draft, try 2 is the first revision with the reds fed back. Only try 3 of 3, and only after tries 1 and 2 both failed their checks, gets the option: up to 2 questions, each about a line try 2's checks failed on. The AI is never told a number; the machine keeps 2 and drops the rest, logged. Amendment 24's items 2 to 7 are unchanged (answer required, no Skip, answers become `~` guardrails, redraft, signed and shown, Checked / Not checked, revise).
+  - **Why try 3:** try 2 lets the AI fix its own mistakes from the reds first; asking on the last try means the job is really unclear. Revise still works afterwards.
+  - **A confident guess** (a vague job that passes try 1 or try 2) is not asked; the machine-built "Checked" list at sign is where you see the guess and press Revise.
+  - **Negatives:** tries 1 and 2 never carry questions; a question on a line try 2's checks did not fail on is dropped and logged; no number appears in the drafter's prompt or schema.
+  - **POC bar (fixed before the run):** every vague job that fails tries 1 and 2 asks at least one question naming a failed line on try 3; at least 9 of 10 clear jobs ask nothing; at least 18 of 20 final plans valid; no call breaks. Reported, deciding nothing: how many vague jobs passed try 1 and try 2 (confident guesses).
+  - **Cap:** inside amendment 24's $0.50.
+
+- **Amendment 26 — SIGNED by hamr 2026-10-09 ("sign am26"): the POC result for amendments 24 and 25, and hamr's ruling to keep the try-3 design.**
+  - **POC (2026-10-09, real deepseek-flash, $0.069 of the $0.50 cap; results poc/am24-questions/results-am25-try3-1.json and results-am25-first-1.json):** both designs asked 0 questions on all 20 jobs. Try-3 design: 5 vague jobs were valid on try 1, 4 on try 2, 1 reached try 3 and asked nothing. Bareloop's design (questions offered on try 1 with "Most jobs need no questions"): 0 of 20 asked. All 40 plans were valid; no clear job asked; nothing broke. The AI listed the unclear parts under Not checked instead (e.g. "what 'tidy up' means", "the team's send destination not being named"). Both designs failed the signed bar.
+  - **Ruling:** amendment 24 said a failed POC means stop and rethink. hamr: keep the try-3 design anyway; it costs nothing when unused, and models vary. A chattier model can only ask after two failed tries (a mechanism, not wording). Checked / Not checked at sign is the main net for a guess.
+  - **Build:** amendments 24 and 25 as signed.
+
+- **Amendment 27 — SIGNED by hamr 2026-10-09 ("sign am27"): "Your answers" after a revise.**
+  - **Change to amendment 24 item 5.** "Your answers" shows only on the plan that was drafted from your answers. After a Revise, your answers are ordinary `~` guardrails in the job text you sign (as item 7 already says), with no separate "Your answers" box.
+  - **Why:** you sign the plan you're shown, and the answers are already in it word for word. A second box would only repeat it.
+  - **Code:** none. The panel already works this way. A test will pin it down so it can't change by accident.
+  - **Cap:** $0.
+
+- **Amendment 28 — SIGNED by hamr 2026-10-09 ("sign am28"): the AI picks the word limit; code only checks it's real.**
+  - **Change to amendments 6 and 15 (item 1), and the 2A ruling.** The drafter reads the guardrail and fills `maxWords` and `wordsPerSection`. Code no longer decides which number is which.
+  - **The check is a mechanism, not a guess.** Each number the AI writes must appear word for word in that line's guardrail, or the plan is red: "line 3's check says 300 words; the guardrail has no 300." An invented number can't pass.
+  - **You see it before you sign.** "Checked" shows the number the AI picked ("under 600 words"). If it picked wrong (say 3, from the headings), you see it and Revise.
+  - **Unchanged:** the sum check from am15 item 2 (it now uses the AI's numbers), the run-time word counts, and "3 sections".
+  - **Undone:** "smallest wins" in the code and in the drafter's sentence. The drafter is told: "use the guardrail's ceiling for the whole output, and its size for each section."
+  - **Negatives:** a guardrail of "under 600 words, each heading at most 3 words" gives a green plan with `maxWords` 600. A `maxWords` that doesn't appear in the guardrail is red. The am15 (a) case is still red at $0.
+  - **POC first (real deepseek-flash):** 10 guardrails with mixed numbers. To pass, the AI picks the right one on all 10.
+  - **Cap:** $0.25.
+
+- **Amendment 29 — SIGNED by hamr 2026-10-09 ("sign am29"): the AI picks only the whole-output limit; code keeps reading the size for each section.**
+  - **POC result for am28 (2026-10-09, real deepseek-flash, $0.0125, `poc/am28-word-limit/results-am28-1.json`):** 8 of 10 right, so it failed the bar. The whole-output limit was right on all 9 jobs that answered. On "under 600 words, each heading at most 3 words", the AI also wrote 3 as the size for each section. One call broke and gave no usable answer.
+  - **Change to amendment 28.** The AI fills only `maxWords`. `wordsPerSection` stays as amendment 15 item 1 signed it: code reads it from the guardrail ("N words each", "N words per section"), and the AI never writes it.
+  - **Still in force from am28:** the AI's `maxWords` must appear word for word in that line's guardrail, or the plan is red. "Checked" shows the pick at sign. "Smallest wins" is undone.
+  - **The drafter is told:** "use the guardrail's ceiling for the whole output."
+  - **POC rerun (real deepseek-flash):** the same 10 jobs. A broken call is retried once, as the real drafter does. To pass, `maxWords` must be right on all 10, and code's per-section size must be right on all 10 (checked for free).
+  - **Fail:** stop. Go back to how things were before 2A, and log it in FINDINGS.
+  - **Cap:** inside am28's $0.25.
+
+- **Amendment 30 — SIGNED by hamr 2026-10-09 ("sign am30"): one clear way to write a guardrail number.**
+  - **Rule (hamr 2026-10-09):** the machine checks a guardrail number only when it's written one clear way: "under N words", "N words each", "N sections". Other ways ("a 600-word summary", "six hundred words", "1.5k words") are not seen by the machine. Code is never taught more ways to write a number. What the machine can't see, the AI leaves out ("Not checked" shows it), you fix with Revise, or the drafter asks about.
+  - **No guardrail at all:** only the default checks every step already has apply.
+  - **Change to amendment 28's red:** it adds one sentence that says how to fix it: "line 3's check says 600 words; the guardrail has no 600. Write it in the guardrail as 'under 600 words'."
+  - **Cap:** $0.
+
+- **Amendment 31 — SIGNED by hamr 2026-10-09 ("sign am31"): the step map wraps like text (same as bareloop, layout A).**
+  - **Boxes:** each box keeps its two lines exactly as they are today (name, then status), with no change to the wording. A box is as wide as its own longest line. A name is never cut off.
+  - **Flow:** boxes run left to right and wrap onto new lines at the screen's width, with no sideways scroll on a phone.
+  - **Arrows:** `→` sits between boxes, stuck to the box before it, so it never wraps alone. A box at the end of a line ends with `→` when more steps follow. The first box of a wrapped line starts with `→`. The last box has no arrow.
+  - **Retries:** keep today's retry mark.
+  - **Copied from bareloop `d25e52a`,** with a `borrowed-from` header, never imported.
+  - **Done when:** browser walks at 1280, 390 and 320 px match the layout below, nothing spills past the screen, and a screenshot sits beside bareloop's.
+  ```
+  [✓ scout] → [✓ plan] → [✓ doc-checks] →
+  → [✓ doc-email] → [✓ doc-sink] → [↻2 ✓ doc-run] →
+  → [✗ doc-audit-sweep]
+  ```
+  - **Cap:** $0.
+
+- **Amendment 32 — SIGNED by hamr 2026-10-09 ("sign am32"): only what was proven stays built.**
+  - **Withdrawn: amendment 30** (the "Write it in the guardrail as…" sentence). It was never tried on a real draft.
+  - **Not built: amendment 28's red when the guardrail has no word number at all,** and the extra drafter sentence about leaving the limit out. Neither had a real failure behind it. Each comes back only when a real draft shows it's needed.
+  - **Stays: amendment 29,** exactly as its POC proved it (10 of 10).
+  - **Cap:** $0.
+  - *Built after signing — not signed text:* commits 4253efd, 7d4baa2 and d8a5005 were reverted (ab975a5, 839e7ce, 424ec40); src/ and test/ equal 90c5ed4, the code the am29 POC tested.
+
+- **Amendment 33 — SIGNED by hamr 2026-10-09 ("sign am33"): reasonable unless a guardrail says otherwise.**
+  - **Rule (hamr 2026-10-09):** only what a guardrail names is checked strictly. Form nobody specified (a number in front of a heading, capital letters, a trailing ":") passes. Example: "starts with GT" in a guardrail checks how it starts; "6 digits" checks only the length.
+  - **Now:** a heading with a list number in front ("## 1. Work History") matches its section ("Work history"). It comes from bareguard's next release and is adopted by a version bump.
+  - **Evidence:** live walk am29-walk-1 run-1, 2026-10-09, $0.037. Try 3's only red was the numbering.
+  - **Done when:** the same job runs again live and reaches your ask.
+  - **Cap:** $0.25.
+
+- **Amendment 34 — SIGNED by hamr 2026-10-09 ("sign am34"): the Job tab shows what you asked beside what the plan does.**
+  - **The tab stays "Job".** It holds two blocks.
+  - **"What you asked"** is your signed words only: your numbered lines, each `~` guardrail under its line, then the ask's wait, the destination, cap, Source and Signed. No AI text goes in it.
+  - **"What the plan does"** is the signed plan, read from the signed flow's files and never drafted again. One row per step shows which line it came from, what it reads, what it makes, what it may do, and its check (what "Checked" said at sign). The ask step shows "ASK · waits 1h". Below the rows: "Not checked (the AI's own reading)", always with its label.
+  - **Lined up:** on a wide screen the two blocks sit side by side, and each step's row lines up with the line it came from. When there's no room, the plan block drops below the other one. No sideways scroll.
+  - **Change to amendment 6 item 6:** the separate **Success** box goes away. Each step's check shows in its own row in "What the plan does" instead.
+  - **A run with its own signed values** shows the plan for that run.
+  - **Done when:** browser walks at 1280, 390 and 320 px show both blocks, rows line up on the wide screen, and nothing spills past the screen.
+  - **Cap:** $0.
+
+- **Amendment 35 — SIGNED by hamr 2026-10-09 ("sign am35"): the step map's retry mark matches bareloop.**
+  - **Change to amendment 31's "Retries" item.** A step that took more than one try shows a **dashed box**, with `↻N` in front of its status (N = the number of tries), as in am31's own example `[↻2 ✓ doc-run]` and as bareloop does.
+  - **Removed:** the "— try N" after the name and the third "try N" line. The box keeps exactly its two lines: name, then status.
+  - **Copied from bareloop `9edb3e1`,** with a `borrowed-from` header.
+  - **Done when:** the 320 px screenshot shows `6 doc-run` in a dashed box with `↻2 [✓] passed`, and "try" appears nowhere on the map.
+  - **Cap:** $0.
+
+- **Amendment 36 — SIGNED by hamr 2026-10-09 ("sign am36"): "Not checked" is kept at sign.**
+  - At sign, the drafter's "Not checked" list is written once into the sign row of the flow's `setup.jsonl`, word for word with its label. It's not signed and not part of the hash.
+  - The Job tab reads it from there. A flow signed before this shows "Not checked: not recorded (signed before amendment 34)".
+  - **Cap:** $0.
+
+- **Amendment 37 — SIGNED by hamr 2026-10-10 ("sign am37"): the Job tab: your line, then its step folded under it.**
+  - **Change to amendment 34's layout.** One column on every screen. Each of your numbered lines, with its `~` guardrails, is followed by its step, indented and in a muted plan colour, as one short line: `› step 3 · → summaryResume · machine check`. Tap `›` to open the step's full detail (reads, makes, may do, check). The ask step reads `› step 4 · ASK · waits 1h`.
+  - **Kept from am34:** your words and the plan never share a line. The plan is read from the signed flow's files. "Not checked (the AI's own reading)" comes after the lines, then Ask, Destination, Cap, Source and Signed.
+  - **Done when:** browser walks at 1280, 390 and 320 px show it, with nothing spilling past the screen.
+  - **Cap:** $0.
+
+- **Amendment 38 — SIGNED by hamr 2026-10-10 ("sign am38"): the plan lines are bold blue, with a legend.**
+  - **Change to amendment 37's colour.** Each step line under your lines (`› step 3 · …`) is **bold blue**, not muted. Its open detail stays in the same blue, not bold.
+  - **Legend at the bottom of the Job tab:** "› blue lines = the approved plan (what the agent does for each of your lines)."
+  - **An open step shows `⌄`,** and a folded one shows `›`.
+  - **Done when:** screenshots at 1280, 390 and 320 px show it, with nothing spilling past the screen.
+  - **Cap:** $0.
+
+- **Amendment 39 — SIGNED by hamr 2026-10-10 ("sign am39"): only the marker is blue.**
+  - **Change to amendment 38.** Only the `›` (folded) or `⌄` (open) marker is bold blue. The step line's text is in the same ink as your lines, a bit smaller, and not bold. An open step's detail is in the plain dim ink.
+  - **The legend at the bottom reads:** "› = the approved plan", with the `›` in bold blue.
+  - **Done when:** screenshots at 1280, 390 and 320 px match lab version E, with nothing spilling past the screen.
+  - **Cap:** $0.
+
+- **Amendment 40 — SIGNED by hamr 2026-10-10 ("sign am40"): "Not checked" looks like the plan, not like your settings.**
+  - **Change to amendments 34 and 37's "Not checked" block.** It keeps its place after your last line and its label "not checked (the AI's own reading)". It's shown in the plan's shape: a folded line with the blue `›`, the same size and indent as a step line. Tap it to open; the items show in the dim ink like an open step's detail. No boxes, no bold heading.
+  - **A gap** separates it from Ask, Destination, Cap, Source and Signed.
+  - **Done when:** screenshots at 1280, 390 and 320 px show it, with nothing spilling past the screen.
+  - **Cap:** $0.
+
+- **Built after signing — not signed text (2026-10-10), amendments 33-40:**
+  - **Amendment 33:** the bump is built (7cb80f2): `bareguard` is `^0.21.2` in package.json; a numbered `#` heading now matches its section.
+  - **Amendments 34, 36:** the Job data (`GET /api/runs/:flow/:runId/job`) carries `plan` (one row per step with its check, plus "Not checked") instead of `success`; the drafter's "Not checked" list is read from the `notChecked` field of the sign row in `setup.jsonl`.
+  - **Amendments 37-40 changed amendment 34's layout as built:** the Job tab is one column, not two blocks. Each step is folded under its line. Only the `›` / `⌄` marker is blue (am39 replaced am38's blue text). "Not checked" is a folded line after the last job line (am40).
+  - **Amendments 31, 35:** the step map is HTML boxes that wrap (not SVG); a retried box is dashed with `↻N` before its status.
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs

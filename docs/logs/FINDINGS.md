@@ -2935,6 +2935,8 @@ Proposed, NOT agreed (hamr 2026-10-07: "we will fix it next, need to think about
 the change readout names any section dropped or added versus the last green plan ("dropped: summary of work history
 blurb"), computed mechanically from the two section lists and never by reading the note. The human decides.
 
+Ruled 2026-10-08 (hamr): the note box goes. Revise reopens the whole card for the human to edit and draft again; 2 revises, then Start over; a red revise can't be signed. Signed as M4e amendment 14 (docs/wiki/the-module-ladder.md). The proposal above (a dropped/added readout) was not taken.
+
 ## F59 — The panel is single-user: a different OS user on the same machine can reach every route (hamr's ruling, 2026-10-07)
 
 Found by /branch-review at 67f8e78 (`src/panel/server.js` ~370). The panel listens on 127.0.0.1 and checks only the Host
@@ -2955,3 +2957,49 @@ was set aside. Locally it was never seen because the two clicks are at least 1 m
 the ANSWER WINS; only a Stop asked strictly before the answer stops at the ask. The fold's own seam then reads the Stop and
 stops before the next step, so nothing ships. A Stop with no readable time still stops at the ask (now explicit in code).
 Lesson: a time-ordering rule needs an explicit tie case and a test with identical timestamps, not wall-clock luck.
+
+## F61 — A plan that fights itself on words, and a text step that hides its answer in a file (2026-10-08)
+
+hamr's amendment 14 exit walk, flow `resume-job` (run-1), `attempt-fallback`, $0.0707. Line 3 reads "3 sections all
+under 600 words, 250ish each": about 750 words asked inside a 600-word limit. The plan took `maxWords: 600` and dropped
+"250ish each", because the check has no field for it. Step 3 was granted `write`. Four tries were all red: one at 620
+words; in the others the model wrote the resume to a file in `out/` (`summary_resume.md` 623 words,
+`summary-resume.md` 706, plus a third file) and replied with a description, so the heading check, which reads the
+reply, found no headings.
+
+Why nothing caught it: the drafter turns lines into typed fields and is never asked whether two of them clash; the
+bareguard rubric grades a step's output against a signed shape, too late for a clash inside the plan. And nothing
+stops a step whose check reads its reply from being given `write`.
+
+hamr 2026-10-08: "conflicting requirements should be checked for sure ... under 600 words doesn't check out with
+250ish". Ruling "1": the model reads, the machine does the math. The drafter extracts the per-section size as a typed
+number; a $0 check does the sum. A text step whose check reads its reply gets no `write`. Drafted as M4e amendment 15.
+
+## F62 — The monthly claim and Money tab took about 1 s at 10,000 runs; settled runs are now rolled up (amendment 16 I1, 2026-10-08)
+
+Measured at $0 on a temp root of fake settled runs (3 spend rows each, every hold settled; `/tmp/.../scratchpad/i1-timing.mjs`): the monthly claim is
+`checkMonthlyRoom` (the same room `claimHold` decides on), the Money tab is `spendSummary`. Median of 5 after one warm-up, ms, on a busy machine (load about 5).
+
+| runs | claim, before | Money, before | claim, after | Money, after |
+|---|---|---|---|---|
+| 100 | 11.6 | 9.6 | 2.7 | 2.4 |
+| 1,000 | 115.7 | 105.6 | 25.2 | 20.9 |
+| 10,000 | 998.3 | 946.7 | 193.3 | 173.2 |
+
+10,000 runs crossed the signed 200 ms line, so settled rows were compacted. The cost was one file read per run dir. Now `settleHold` calls `rollSettled`
+(`src/monthly.js`), which appends `rolled` rows (200 dirs each) to `runs.jsonl` for dirs whose every hold has ended. `spendSummary` uses a dir's rolled rows
+only if no row at or after the snapshot's `seen` names that dir; a resume or rerun names it again, so it is read live. The claim also passes the rows it
+already read to `spendSummary`, so the file is parsed once. Totals are identical: tests compare the whole summary before and after with every dir file deleted.
+
+What it costs to leave or to keep: the first roll of 10,000 legacy dirs reads them once (about 1 s, at the exit of whichever process settles first). After the
+roll at 10,000 runs the claim is still about 190 ms (parsing 6 MB of `runs.jsonl` is most of it), so the margin under 200 ms is thin on a slower disk.
+A dir deleted after it was rolled keeps its rolled spend in the totals (before, it dropped out); nothing in fwdloop deletes a spend-bearing dir.
+
+## F63 — The drafter's empty `unjudgeable: []` is refused as a type error and burns the last try (2026-10-09)
+
+Evidence: hamr's live walk 2026-10-09, flow `am29-walk-1`, draft folder `flows/.drafts/d-00mv1fxoag-0ee7/draft/log.json`, deepseek-flash, $0.0043, 3 rounds, stop "validator".
+Round 1: line 3 marked unjudgeable while `guardrailClasses` proposes softgreen (red). Round 2: section names not in the job line's words ("Match with the JD", "Work History Summary", "Professional Skills and Soft Skills"). Round 3: `unjudgeable` sent as `[]`, red `"unjudgeable" must be an object keyed by line number` (`src/declaration.js:518`).
+
+Cause noted: the walk's job line 3 listed four things (how it matches the JD, work history blurb, professional skills, soft skills) under a "3 sections" guardrail. That was the orchestrator's walk sheet, not the user. The `[]` refusal is a separate, real point: an empty list carries no data but costs a paid round.
+
+Status: open, not fixed; no fix proposed until hamr rules.

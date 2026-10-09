@@ -1,0 +1,836 @@
+{
+  "summary": {
+    "tag": "am25-first-1",
+    "arm": "first",
+    "ran": 20,
+    "of": 20,
+    "stoppedBy": null,
+    "verdict": {
+      "complete": true,
+      "vagueAsked": {
+        "got": 0,
+        "of": 10,
+        "need": 10,
+        "ok": false
+      },
+      "clearQuiet": {
+        "got": 10,
+        "of": 10,
+        "need": 9,
+        "ok": true
+      },
+      "neverBreaks": {
+        "broken": 0,
+        "ok": true
+      },
+      "declarationValid": {
+        "got": 20,
+        "of": 20,
+        "need": 18,
+        "ok": true
+      },
+      "report": {
+        "vaguePassedTry1": 8
+      },
+      "pass": false
+    },
+    "costUsd": 0.03415,
+    "perDraftUsd": 0.001708,
+    "ledgerTotalUsd": 0.06938
+  },
+  "records": [
+    {
+      "id": "v01",
+      "arm": "first",
+      "kind": "vague",
+      "why": "tidy: undefined, no format or size",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": true,
+      "passedTry2": null,
+      "failedLines": [],
+      "tryReds": {
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 1,
+      "notChecked": [
+        "what 'tidy up' means",
+        "completeness of the vendor list",
+        "correctness of entries",
+        "send destination"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 1,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1553,
+        "outputTokens": 335,
+        "cacheReadTokens": 512,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.001228,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 2160,
+      "reds": []
+    },
+    {
+      "id": "v02",
+      "arm": "first",
+      "kind": "vague",
+      "why": "summary: size/format/audience undefined",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": true,
+      "passedTry2": null,
+      "failedLines": [],
+      "tryReds": {
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 1,
+      "notChecked": [
+        "accuracy of the figures",
+        "tone and style for the boss",
+        "completeness of the summary",
+        "the actual reception of the sent message"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 1,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1562,
+        "outputTokens": 311,
+        "cacheReadTokens": 512,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012028000000000002,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1838,
+      "reds": []
+    },
+    {
+      "id": "v03",
+      "arm": "first",
+      "kind": "vague",
+      "why": "something: format, tone, length, per-customer or one letter",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": true,
+      "passedTry2": null,
+      "failedLines": [],
+      "tryReds": {
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 1,
+      "notChecked": [
+        "tone of the replies",
+        "correctness of the replies",
+        "completeness against every complaint",
+        "destination addresses of the customers",
+        "whether the draft genuinely reflects the complaints file"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 1,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1558,
+        "outputTokens": 349,
+        "cacheReadTokens": 512,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012468,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1841,
+      "reds": []
+    },
+    {
+      "id": "v04",
+      "arm": "first",
+      "kind": "vague",
+      "why": "important numbers: which, how many",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": true,
+      "passedTry2": null,
+      "failedLines": [],
+      "tryReds": {
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 1,
+      "notChecked": [
+        "which numbers count as important",
+        "correctness and tone of the report prose",
+        "the report's format and layout",
+        "completeness of the report",
+        "the send target and destination of the report"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 2,
+      "structureRetries": 1,
+      "tokens": {
+        "inputTokens": 1756,
+        "outputTokens": 629,
+        "cacheReadTokens": 2432,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.00243,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 3886,
+      "reds": []
+    },
+    {
+      "id": "v05",
+      "arm": "first",
+      "kind": "vague",
+      "why": "somewhere useful / what is needed: destination and done undefined",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": true,
+      "passedTry2": null,
+      "failedLines": [],
+      "tryReds": {
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 1,
+      "notChecked": [
+        "correctness of the extracted action items",
+        "whether the action items are complete",
+        "where the action items are put",
+        "what the final needed action is"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 1,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1560,
+        "outputTokens": 314,
+        "cacheReadTokens": 512,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012056,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1534,
+      "reds": []
+    },
+    {
+      "id": "v06",
+      "arm": "first",
+      "kind": "vague",
+      "why": "sells better: length, tone, format undefined",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": false,
+      "passedTry2": true,
+      "failedLines": [],
+      "tryReds": {
+        "1": [
+          "declaration: steps[1] (line 2) is a pause (no primitives, hitl) at an unsigned line"
+        ],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 2,
+      "notChecked": [
+        "whether the rewrite actually sells better",
+        "tone and persuasiveness of the prose",
+        "fidelity to the original product description",
+        "the destination and file format of the written-out copy"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 2,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1796,
+        "outputTokens": 605,
+        "cacheReadTokens": 2048,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0022636,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 3788,
+      "reds": []
+    },
+    {
+      "id": "v07",
+      "arm": "first",
+      "kind": "vague",
+      "why": "last year: no source named; differences: format undefined",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": true,
+      "passedTry2": null,
+      "failedLines": [],
+      "tryReds": {
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 1,
+      "notChecked": [
+        "correctness of the comparison with last year",
+        "completeness of the listed differences",
+        "accuracy of figures",
+        "tone of the write-up",
+        "where the write-up is sent and to whom"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 1,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1568,
+        "outputTokens": 418,
+        "cacheReadTokens": 512,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0013336,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 2152,
+      "reds": []
+    },
+    {
+      "id": "v08",
+      "arm": "first",
+      "kind": "vague",
+      "why": "good ones: criteria and count undefined; let them know: what and how",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": false,
+      "passedTry2": true,
+      "failedLines": [],
+      "tryReds": {
+        "1": [
+          "declaration: unjudgeable names line 1, which has no guardrail to be unjudgeable about",
+          "declaration: unjudgeable names line 2, which has no guardrail to be unjudgeable about",
+          "declaration: unjudgeable names line 4, which has no guardrail to be unjudgeable about",
+          "declaration: steps[1] (line 2) is a pause (no primitives, hitl) at an unsigned line"
+        ],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 2,
+      "notChecked": [
+        "which applications count as 'good'",
+        "tone and wording of the notification",
+        "completeness of the folder scan",
+        "delivery of the notifications to the applicants"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 2,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1737,
+        "outputTokens": 634,
+        "cacheReadTokens": 2176,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0023260000000000004,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 3683,
+      "reds": []
+    },
+    {
+      "id": "v09",
+      "arm": "first",
+      "kind": "vague",
+      "why": "odd and brief undefined",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": true,
+      "passedTry2": null,
+      "failedLines": [],
+      "tryReds": {
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 1,
+      "notChecked": [
+        "which items count as odd",
+        "accuracy of the note's prose",
+        "how brief is brief"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 1,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1571,
+        "outputTokens": 342,
+        "cacheReadTokens": 512,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012436000000000003,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1741,
+      "reds": []
+    },
+    {
+      "id": "v10",
+      "arm": "first",
+      "kind": "vague",
+      "why": "nicely: sections/size undefined; the team: destination vague",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": true,
+      "passedTry2": null,
+      "failedLines": [],
+      "tryReds": {
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 1,
+      "notChecked": [
+        "quality and tone of the write-up",
+        "whether the findings are complete or correct",
+        "whether the survey results file was the intended one",
+        "the team's send destination not being named"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 1,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1431,
+        "outputTokens": 353,
+        "cacheReadTokens": 640,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.001252,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 2045,
+      "reds": []
+    },
+    {
+      "id": "c01",
+      "arm": "first",
+      "kind": "clear",
+      "why": "job1 verbatim shape",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": false,
+      "passedTry2": true,
+      "failedLines": [],
+      "tryReds": {
+        "1": [
+          "declaration: steps[3].close.shape has linesPerInvoice but no mustCarry — they work as a pair, so the check needs both"
+        ],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 2,
+      "notChecked": [
+        "which customer the chat message really refers to",
+        "correctness of the invoice figures",
+        "accuracy of the earliest due date",
+        "correctness of the overdue count as of the business date",
+        "tone and wording of the reply",
+        "completeness of the reply"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 2,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1739,
+        "outputTokens": 901,
+        "cacheReadTokens": 2304,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0026984,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 4305,
+      "reds": []
+    },
+    {
+      "id": "c02",
+      "arm": "first",
+      "kind": "clear",
+      "why": "sections and word cap given",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": false,
+      "passedTry2": false,
+      "failedLines": [],
+      "tryReds": {
+        "1": [
+          "declaration: line 2 is marked unjudgeable but guardrailClasses proposes \"softgreen\" — unjudgeable never upgrades or downgrades the class, it can only explain a hitl"
+        ],
+        "2": [
+          "declaration: line 2 is marked unjudgeable but guardrailClasses proposes \"softgreen\" — unjudgeable never upgrades or downgrades the class, it can only explain a hitl",
+          "declaration: steps[1].close.class \"hitl\" does not match \"softgreen\", which is what fromLine derives to — a step cannot claim a class its own guardrail does not produce"
+        ],
+        "3": []
+      },
+      "triesRun": 3,
+      "notChecked": [
+        "accuracy of the totals and cost figures",
+        "correctness of the prose in each section",
+        "whether the Changes From Last Month comparison is right",
+        "per-section word limits (only a whole-output ceiling was declared)",
+        "the destination of the written file"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 3,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1935,
+        "outputTokens": 1049,
+        "cacheReadTokens": 3840,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0035688,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 6137,
+      "reds": []
+    },
+    {
+      "id": "c03",
+      "arm": "first",
+      "kind": "clear",
+      "why": "linesPerInvoice + mustCarry",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": false,
+      "passedTry2": true,
+      "failedLines": [],
+      "tryReds": {
+        "1": [
+          "declaration: step 2's check reads its reply, so it can't write files. The send step writes the result out."
+        ],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 2,
+      "notChecked": [
+        "accuracy of invoice number, customer and amount against the source",
+        "correctness of send destination and delivery"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 3,
+      "structureRetries": 1,
+      "tokens": {
+        "inputTokens": 2006,
+        "outputTokens": 897,
+        "cacheReadTokens": 3712,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0033636000000000004,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 5390,
+      "reds": []
+    },
+    {
+      "id": "c04",
+      "arm": "first",
+      "kind": "clear",
+      "why": "green cite",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": true,
+      "passedTry2": null,
+      "failedLines": [],
+      "tryReds": {
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 1,
+      "notChecked": [
+        "correctness of the revenue and order-count arithmetic",
+        "which week the figures cover",
+        "the format and destination of the written figures"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 1,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1581,
+        "outputTokens": 334,
+        "cacheReadTokens": 512,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012380000000000002,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1671,
+      "reds": []
+    },
+    {
+      "id": "c05",
+      "arm": "first",
+      "kind": "clear",
+      "why": "sections + words",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": true,
+      "passedTry2": null,
+      "failedLines": [],
+      "tryReds": {
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 1,
+      "notChecked": [
+        "accuracy of the extracted action items",
+        "whether every action item was captured (completeness)",
+        "heading-to-content placement",
+        "where the file is written to / its filename"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 1,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1579,
+        "outputTokens": 349,
+        "cacheReadTokens": 512,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012552000000000002,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1843,
+      "reds": []
+    },
+    {
+      "id": "c06",
+      "arm": "first",
+      "kind": "clear",
+      "why": "sections + words",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": true,
+      "passedTry2": null,
+      "failedLines": [],
+      "tryReds": {
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 1,
+      "notChecked": [
+        "prose quality of the rewrite",
+        "faithfulness to the product description's meaning",
+        "destination or filename of the written output"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 1,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1579,
+        "outputTokens": 359,
+        "cacheReadTokens": 512,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012672,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1738,
+      "reds": []
+    },
+    {
+      "id": "c07",
+      "arm": "first",
+      "kind": "clear",
+      "why": "lines + mustCarry",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": true,
+      "passedTry2": null,
+      "failedLines": [],
+      "tryReds": {
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 1,
+      "notChecked": [
+        "correctness of which items actually rose in price",
+        "accuracy of the prices transcribed",
+        "destination of the send"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 1,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1590,
+        "outputTokens": 341,
+        "cacheReadTokens": 512,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.00125,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1701,
+      "reds": []
+    },
+    {
+      "id": "c08",
+      "arm": "first",
+      "kind": "clear",
+      "why": "green + softgreen",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": true,
+      "passedTry2": null,
+      "failedLines": [],
+      "tryReds": {
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 1,
+      "notChecked": [
+        "that the totals are arithmetically correct",
+        "tone and wording of the note",
+        "that the statement is read correctly"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 1,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1607,
+        "outputTokens": 380,
+        "cacheReadTokens": 512,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0013036,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1881,
+      "reds": []
+    },
+    {
+      "id": "c09",
+      "arm": "first",
+      "kind": "clear",
+      "why": "sections + words",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": true,
+      "passedTry2": null,
+      "failedLines": [],
+      "tryReds": {
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 1,
+      "notChecked": [
+        "accuracy of findings",
+        "quality of prose",
+        "genuine grounding in the survey data"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 1,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1580,
+        "outputTokens": 330,
+        "cacheReadTokens": 512,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012328,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1738,
+      "reds": []
+    },
+    {
+      "id": "c10",
+      "arm": "first",
+      "kind": "clear",
+      "why": "lines + mustCarry",
+      "questions": [],
+      "droppedQuestions": [],
+      "droppedCount": 0,
+      "passedTry1": true,
+      "passedTry2": null,
+      "failedLines": [],
+      "tryReds": {
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "triesRun": 1,
+      "notChecked": [
+        "quality and tone of the reply prose",
+        "whether each reply actually addresses its complaint",
+        "completeness of the complaint list"
+      ],
+      "declarationValid": true,
+      "stop": null,
+      "stopReason": "tool_use",
+      "rounds": 1,
+      "structureRetries": 0,
+      "tokens": {
+        "inputTokens": 1579,
+        "outputTokens": 339,
+        "cacheReadTokens": 512,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012432,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1740,
+      "reds": []
+    }
+  ]
+}

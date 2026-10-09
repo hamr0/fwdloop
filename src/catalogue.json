@@ -2,10 +2,10 @@
   "version": 1,
   "primitives": [
     {
-      "verb": "write", "component": "write", "package": "bare-agent/tools", "symbol": "createShellTools", "tool": "shell_write", "class": "write", "skill": "core", "desc": "Create or overwrite a file with given contents."
+      "verb": "write", "component": "write", "package": "bare-agent/tools", "symbol": "createShellTools", "tool": "shell_write", "class": "write", "skill": "core", "desc": "Create or overwrite a file with given contents. Never granted to a step whose check reads its reply (softgreen)."
     },
     {
-      "verb": "edit", "component": "write", "package": "bare-agent/tools", "symbol": "createShellTools", "tool": "shell_edit", "class": "write", "skill": "core", "desc": "Change part of an existing file in place."
+      "verb": "edit", "component": "write", "package": "bare-agent/tools", "symbol": "createShellTools", "tool": "shell_edit", "class": "write", "skill": "core", "desc": "Change part of an existing file in place. Never granted to a step whose check reads its reply (softgreen)."
     },
     {
       "verb": "read", "component": "select", "package": "bare-agent/tools", "symbol": "createShellTools", "tool": "shell_read", "class": "read", "skill": "core", "desc": "Read a file's text."

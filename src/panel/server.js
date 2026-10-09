@@ -287,6 +287,7 @@ async function stopRoute(res, body, root) {
       root, name: flow, runId, catalogue: loaded.primitives,
     });
     if (stopped.outcome === 'stopped') { sendJson(res, 202, { ok: true, stopping: false, stopped: true }); return; }
+    if (stopped.outcome === 'stop-failed') { sendJson(res, 500, { ok: false, refused: 'stop-failed', say: stopped.red }); return; }
     // not parked after all (a resume took its answer) or a resume still closing: the request stays for the runner's own seam
   }
   sendJson(res, 202, { ok: true, stopping: true, already: written === 'exists' });
@@ -318,7 +319,7 @@ function resumeRoute(res, body, root, resumer) {
 }
 
 /**
- * `POST /api/author/{draft,run,resume-prepare,resume,<id>/sign-prepare,<id>/sign,<id>/revise,<id>/abandon,start/<id>/clear}` — run after the same gates as every other POST.
+ * `POST /api/author/{draft,run,resume-prepare,resume,<id>/sign-prepare,<id>/sign,<id>/revise,<id>/answer,<id>/abandon,start/<id>/clear}` — run after the same gates as every other POST.
  * Anything else under `/api/author/` is a 404 by name.
  * @param {any} res @param {string} url @param {any} body @param {ReturnType<typeof createAuthor>} author
  */
@@ -335,6 +336,8 @@ function authorPost(res, url, body, author) {
   if (sg) { send(author.sign(sg[1], body)); return; }
   const rv = /^\/api\/author\/([^/]+)\/revise$/.exec(url);
   if (rv) { send(author.revise(rv[1], body)); return; }
+  const an = /^\/api\/author\/([^/]+)\/answer$/.exec(url);
+  if (an) { send(author.answer(an[1], body)); return; }
   const sc = /^\/api\/author\/start\/([^/]+)\/clear$/.exec(url);
   if (sc) { send(author.startClear(sc[1])); return; }
   const m = /^\/api\/author\/([^/]+)\/abandon$/.exec(url);

@@ -44,9 +44,9 @@ test('(l) the grouped Audit title is [sign] name · cost · try N, the name cut 
   assert.doesNotMatch(code, /tokens|timeMs|duration\(/, 'no time or tokens in the title');
 });
 
-test('(l) the step map cuts a long name with … and keeps the whole name in a <title>', () => {
-  assert.match(PAGE, /function mapLabel\(/);
-  assert.match(PAGE, /<title>' \+ escapeXml\(stepTitleText/);
+test('(l, am31) the step map never cuts a name: no mapLabel, the whole name wraps in its box and sits in the title attribute', () => {
+  assert.doesNotMatch(PAGE, /function mapLabel\(/);
+  assert.match(PAGE, /title="' \+ name \+ '"/);
 });
 
 test('(l) the sign and caret never shrink, so a narrow title cuts only the name (walk: the sign broke letter by letter at 390 without this)', () => {

@@ -28,13 +28,11 @@ async function firstDraft() {
     proseFile, dir, root, name: 'job2', provider: fakeProvider([toolReply(validArgs())]), rates: RATES, modelId: MODEL, env: {},
   });
   assert.equal(r.ok, true, JSON.stringify(r.reds));
-  const note = path.join(work, 'note.txt');
-  writeFileSync(note, 'put skills before work history');
-  return { work, root, proseFile, dir, note, first: r };
+  return { work, root, proseFile, dir, first: r };
 }
 const change = (w, args) => {
   const provider = fakeProvider([toolReply(args)]);
-  return { provider, run: () => draftToDir({ proseFile: w.proseFile, dir: path.join(w.work, 'draft-1'), root: w.root, name: 'job2', provider, rates: RATES, modelId: MODEL, env: {}, reviseFrom: w.dir, noteFile: w.note }) };
+  return { provider, run: () => draftToDir({ proseFile: w.proseFile, dir: path.join(w.work, 'draft-1'), root: w.root, name: 'job2', provider, rates: RATES, modelId: MODEL, env: {} }) };
 };
 
 test('(a) a change that reorders a section against its job line is red naming the step and both orders; the last green plan stays', async () => {
@@ -69,8 +67,8 @@ test('(a) the same at a FIRST draft: red, nothing to sign', async () => {
 
 for (const [what, mutate, re] of [
   ['a renamed section not in the job line', (a) => { a.steps[2].close.shape.sections = ['summary of work history blurb', 'professional skills', 'hobbies']; }, /names "hobbies", which is not in the job line's words/],
-  ['a tighter word limit than the line\'s guardrail', (a) => { a.steps[2].close.shape.maxWords = 300; }, /guardrail says 600 words; the check says 300/],
-  ['a looser word limit than the line\'s guardrail', (a) => { a.steps[2].close.shape.maxWords = 900; }, /guardrail says 600 words; the check says 900/],
+  ['a tighter word limit than the line\'s guardrail', (a) => { a.steps[2].close.shape.maxWords = 300; }, /check says 300 words; the guardrail has no 300/],
+  ['a looser word limit than the line\'s guardrail', (a) => { a.steps[2].close.shape.maxWords = 900; }, /check says 900 words; the guardrail has no 900/],
 ]) {
   test(`(a) a change with ${what} is red and names both`, async () => {
     const w = await firstDraft();
@@ -83,9 +81,10 @@ for (const [what, mutate, re] of [
   });
 }
 
-test('(b) a note that changes only what a step carries (a mustCarry word, the sections kept in the line\'s order) is a green plan', async () => {
+test('(b) a revise that changes only what a step carries (a mustCarry word, the sections kept in the line\'s order) is a green plan', async () => {
   const w = await firstDraft();
   const ok = validArgs();
+  ok.steps[2].close.shape.linesPerInvoice = 1; // am16 C12: mustCarry comes with linesPerInvoice
   ok.steps[2].close.shape.mustCarry = ['JD'];
   const r = await change(w, ok).run();
   assert.equal(r.ok, true, JSON.stringify(r.reds));
