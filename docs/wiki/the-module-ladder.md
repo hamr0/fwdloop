@@ -1648,6 +1648,12 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Built after signing — not signed text (2026-10-09):**
     - bareguard declined to export its cap (no exported caps); fwdloop now derives "N more" from each gap's `itemsTotal` and list length, so no hardcoded 20 remains.
 
+- **Amendment 20 — SIGNED by hamr 2026-10-09 ("A"): amendment 19 item 2 counts missing words, not blocks.**
+  - **Why:** counting blocks past bareguard's list meant copying bareguard's own "what is a block" rule into fwdloop; bareguard will not add a block count. Amendment 19's negative (2) also had wrong arithmetic ("5 more"; the right block count was 15).
+  - **Change.** Past the list bareguard shows, the lines-and-carry sentence says how many more missing words there are (`itemsTotal` minus the list shown). No fwdloop copy of bareguard's block rule remains. This replaces amendment 19 item 2 and its negative (2); amendment 19's signed text is left as it was.
+  - **Negative:** 25 blocks each missing 2 words reads "30 more missing word(s)"; the count does not depend on 20.
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
