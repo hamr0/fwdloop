@@ -1690,7 +1690,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Cap:** $0.50 for the POC and the exit walk.
   - Source: bareloop `loop` review 2026-10-09 (bareloop src/authorflow.js CONFIRM_SCHEMA, forceAnsweredQuestions; FINDINGS F174, F175).
 
-- **Amendment 25 — DRAFT, NOT SIGNED: questions open only when the first draft fails.**
+- **Amendment 25 — DRAFT, NOT SIGNED: questions open only on try 3 of 3, after two failed drafts.**
   - **Why:** hamr 2026-10-09: the AI may treat "at most 2" as a target and ask when nothing is unclear. A lock must be a mechanism, not prompt wording. So the machine decides when asking is allowed.
   - **Change to amendment 24 item 1.** Tries 1 and 2 of 3 have no way to ask: try 1 is a clean draft, try 2 is the first revision with the reds fed back. Only try 3 of 3, and only after tries 1 and 2 both failed their checks, gets the option: up to 2 questions, each about a line try 2's checks failed on. The AI is never told a number; the machine keeps 2 and drops the rest, logged. Amendment 24's items 2 to 7 are unchanged (answer required, no Skip, answers become `~` guardrails, redraft, signed and shown, Checked / Not checked, revise).
   - **Why try 3:** try 2 lets the AI fix its own mistakes from the reds first; asking on the last try means the job is really unclear. Revise still works afterwards.
