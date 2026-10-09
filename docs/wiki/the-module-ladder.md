@@ -1669,6 +1669,13 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Where the reason shows:** "Run again" on that flow's run in Runs.
   - **Cap:** $0.
 
+- **Amendment 23 — SIGNED by hamr 2026-10-09 ("A"): a flow that will not run says why in plain words.**
+  - **Why:** the refusal for a check that cannot be built showed bareguard's raw wording (`spec.checkpoints.close.checks[2].names[0] …`). Every refusal says what to do in plain words (PRD).
+  - **Change.** The refusal names the step number and the section name or phrase, and says what to do. Example: *This flow will not run: step 3's section name "summary of work history blurb:" ends in ':'. Remove the ':' and sign the job again.* bareguard's raw reason is kept in the run's records, never shown as the sentence.
+  - **Where:** the panel's run door, Run again, and the CLI preflight refusal: one function makes the sentence.
+  - **Negatives:** a ':' section name, a blank phrase and an over-long entry each give a plain sentence with no `spec.` or `checks[` in it; the raw reason is still in the record.
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
