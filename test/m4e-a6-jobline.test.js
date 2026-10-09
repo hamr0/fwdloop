@@ -67,8 +67,8 @@ test('(a) the same at a FIRST draft: red, nothing to sign', async () => {
 
 for (const [what, mutate, re] of [
   ['a renamed section not in the job line', (a) => { a.steps[2].close.shape.sections = ['summary of work history blurb', 'professional skills', 'hobbies']; }, /names "hobbies", which is not in the job line's words/],
-  ['a tighter word limit than the line\'s guardrail', (a) => { a.steps[2].close.shape.maxWords = 300; }, /guardrail says 600 words; the check says 300/],
-  ['a looser word limit than the line\'s guardrail', (a) => { a.steps[2].close.shape.maxWords = 900; }, /guardrail says 600 words; the check says 900/],
+  ['a tighter word limit than the line\'s guardrail', (a) => { a.steps[2].close.shape.maxWords = 300; }, /check says 300 words; the guardrail has no 300/],
+  ['a looser word limit than the line\'s guardrail', (a) => { a.steps[2].close.shape.maxWords = 900; }, /check says 900 words; the guardrail has no 900/],
 ]) {
   test(`(a) a change with ${what} is red and names both`, async () => {
     const w = await firstDraft();

@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { rmSync } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import * as D from '../src/declaration.js';
+const firstNum = (g) => D.guardrailWordNumbers(g)[0] ?? null; // these inputs hold one whole-output number
 import { draftToDir, signDraft, specHash, SPEC_HASH_FILE } from '../src/authoring.js';
 import { RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply } from './drafter-fixture.mjs';
 
@@ -52,7 +53,7 @@ for (const [g, limit, per] of [
   ['1,0000 words', null, null],
 ]) {
   test(`C14 reader: "${g}" reads limit ${limit}, each ${per}`, () => {
-    assert.equal(D.guardrailWordLimit(g), limit);
+    assert.equal(firstNum(g), limit);
     assert.equal(D.guardrailWordsPerSection(g), per);
   });
 }

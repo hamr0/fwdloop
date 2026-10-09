@@ -4,7 +4,7 @@ import { test } from 'node:test';
 
 import { parseJobBox, jobFileLines, appendAnswersToJob } from '../src/panel/authorcard.js';
 import { parseSignedText } from '../src/signed-text.js';
-import { guardrailWordLimit, guardrailSectionCount } from '../src/declaration.js';
+import { guardrailWordNumbers, guardrailSectionCount } from '../src/declaration.js';
 
 const lines = (text, wait = '1h') => jobFileLines(parseJobBox(text).steps, wait);
 
@@ -23,8 +23,8 @@ test('J2: the joined job file parses under the strict signed-text parser (no "se
 test('J3: the guardrail readers read the joined text', () => {
   const g = '3 sections; under 600 words';
   assert.equal(guardrailSectionCount(g), 3);
-  assert.equal(guardrailWordLimit(g), 600);
-  assert.equal(guardrailWordLimit('about 1,000 words; no tables'), 1000);
+  assert.deepEqual(guardrailWordNumbers(g), [600]);
+  assert.deepEqual(guardrailWordNumbers('about 1,000 words; no tables'), [1000]);
 });
 
 test('J4: an answer is one more ~ line: it becomes the guardrail of a step with none, and joins after an existing one with "; "', () => {

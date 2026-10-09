@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as D from '../src/declaration.js';
+const firstNum = (g) => D.guardrailWordNumbers(g)[0] ?? null; // these inputs hold one whole-output number
 import { closeSoftgreen } from '../src/closers.js';
 
 // ---- piece 1: the guardrail reader ---------------------------------------------------------------------------------------------------
@@ -25,22 +26,22 @@ for (const [g, want] of [
 }
 
 test('reader: the per-section number is never mistaken for the total limit', () => {
-  assert.equal(D.guardrailWordLimit('about 250 words each, under 600 words'), 600);
-  assert.equal(D.guardrailWordLimit('~3 sections, about 250 words each, under 600 words'), 600);
-  assert.equal(D.guardrailWordLimit('3 sections, 250 words per section, under 600 words'), 600);
-  assert.equal(D.guardrailWordLimit('250 words each'), null, 'only a per-section size: no total limit');
+  assert.equal(firstNum('about 250 words each, under 600 words'), 600);
+  assert.equal(firstNum('~3 sections, about 250 words each, under 600 words'), 600);
+  assert.equal(firstNum('3 sections, 250 words per section, under 600 words'), 600);
+  assert.equal(firstNum('250 words each'), null, 'only a per-section size: no total limit');
 });
 test('reader: the "ish" per-section size is never the total limit', () => {
-  assert.equal(D.guardrailWordLimit('~3 sections, 250ish each, under 600 words'), 600);
-  assert.equal(D.guardrailWordLimit('250ish words each'), null);
+  assert.equal(firstNum('~3 sections, 250ish each, under 600 words'), 600);
+  assert.equal(firstNum('250ish words each'), null);
 });
 test('sum check: "~3 sections, 250ish each, under 600 words" reds (750 > 600) at $0', () => {
   const reds = D.checkGuardrailSums([{ n: 3, guardrail: '~3 sections, 250ish each, under 600 words' }]);
   assert.deepEqual(reds, ["line 3's guardrail asks about 250 words for each of 3 sections (750) but under 600 words in total. Change the guardrail."]);
 });
 test('reader: the existing total and count readers are unchanged', () => {
-  assert.equal(D.guardrailWordLimit('3 sections, all under 600 words'), 600);
-  assert.equal(D.guardrailWordLimit('no numbers'), null);
+  assert.equal(firstNum('3 sections, all under 600 words'), 600);
+  assert.equal(firstNum('no numbers'), null);
   assert.equal(D.guardrailSectionCount('~3 sections, about 250 words each, under 600 words'), 3);
   assert.equal(D.guardrailSectionCount('3 sections, 250 words per section'), 3);
 });
