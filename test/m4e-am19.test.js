@@ -162,8 +162,8 @@ test('4 a pre-am18 flow with an unbuildable check is refused at $0 by step name:
     const r = await runFlow({ ...args(w), sources: w.sources });
     assert.equal(modelCalls, before, 'no model call');
     assert.equal(r.outcome, 'preflight-red', JSON.stringify(r).slice(0, 300));
-    assert.ok(r.red.includes(`"${w.badStep}"`), `names the step: ${r.red}`);
-    assert.match(r.red, /cannot be built/);
+    assert.ok(r.red.includes('step 3'), `names the step: ${r.red}`);
+    assert.match(r.red, /^This flow will not run: step \d+/); assert.doesNotMatch(r.red, /spec\.|checks\[/);
     assert.equal(readAudit(w.runDir).some((x) => x.verdict === 'green'), false);
     assert.equal(existsSync(path.join(w.runDir, 'spend.jsonl')), false, 'nothing spent');
   } finally { rmSync(w.base, { recursive: true, force: true }); }
@@ -186,8 +186,8 @@ for (const [name, mut, outcome = 'preflight-red'] of [
       assert.equal(modelCalls, before, 'no model call');
       assert.equal(r.outcome, outcome, `${name}: ${JSON.stringify(r).slice(0, 300)}`);
       if (outcome === 'preflight-red') {
-        assert.ok(r.red.includes(`"${w.badStep}"`), `names the step: ${r.red}`);
-        assert.match(r.red, /cannot be built/);
+        assert.ok(r.red.includes('step 3'), `names the step: ${r.red}`);
+        assert.match(r.red, /^This flow will not run: step \d+/); assert.doesNotMatch(r.red, /spec\.|checks\[/);
       }
       assert.equal(readAudit(w.runDir).some((x) => x.verdict === 'green'), false);
       assert.equal(existsSync(path.join(w.runDir, 'spend.jsonl')), false, 'nothing spent');

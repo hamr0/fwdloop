@@ -1028,7 +1028,7 @@ export async function runFlow({
   const unbuildable = findUnbuildableCheckStep(declaration);
   if (unbuildable) {
     return haltRun({
-      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: unbuildableRed(unbuildable), spent: { value: 0 },
+      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: unbuildableRed(unbuildable), detail: unbuildable.why, spent: { value: 0 },
     });
   }
 
@@ -1869,7 +1869,7 @@ export async function resumeRun({
       };
     }
     const unbuildable = findUnbuildableCheckStep(preflightRead.declaration);
-    if (unbuildable) return { outcome: 'refused', red: unbuildableRed(unbuildable) };
+    if (unbuildable) return { outcome: 'refused', red: unbuildableRed(unbuildable), detail: unbuildable.why };
   }
 
   if (primitiveReds?.length) return { outcome: 'refused', red: primitiveReds[0] };
@@ -2377,7 +2377,7 @@ export async function continueRun({
   const getNowMs = typeof nowMs === 'function' ? nowMs : Date.now;
   const flowDir = join(root, name);
   const startedAt = getNowMs();
-  const refused = (red) => ({ outcome: 'refused', red: `continue: ${red}` });
+  const refused = (red, detail) => ({ outcome: 'refused', red: `continue: ${red}`, ...(detail ? { detail } : {}) });
 
   const runIdCheck = resolveRunDir(flowDir, runId);
   if (!runIdCheck.ok) return { outcome: 'refused', red: runIdCheck.red };
@@ -2388,7 +2388,7 @@ export async function continueRun({
     const unwiredVerb = findUnwiredVerbStep(preflightRead.declaration);
     if (unwiredVerb) return refused(unwiredRed(unwiredVerb));
     const unbuildable = findUnbuildableCheckStep(preflightRead.declaration);
-    if (unbuildable) return refused(unbuildableRed(unbuildable));
+    if (unbuildable) return refused(unbuildableRed(unbuildable), unbuildable.why);
   }
   if (primitiveReds?.length) return refused(primitiveReds[0]);
 
@@ -2712,7 +2712,7 @@ export function readAsk(runDir) {
  */
 function haltRun({
   flowDir, runDir, runId, capUsd, startedAt, now, nowMs = Date.now, outcome, red, spent, attempts = [], artifacts = {}, signatureHash = null,
-  priorSpendComplete = true, resumeAt = null, stop = null,
+  priorSpendComplete = true, resumeAt = null, stop = null, detail = null,
 }) {
   // F45 finding 3: `startedAt` here is always the RUN's start (every caller
   // now passes `runStartedAt` under this key — see call sites), so `wallMs`
@@ -2725,7 +2725,7 @@ function haltRun({
     if (existsSync(runDir)) {
       recordLateAnswerIfAny(runDir, now);
       writeLog(runDir, {
-        runId, outcome, red, attempts, artifacts,
+        runId, outcome, red, ...(detail ? { detail } : {}), attempts, artifacts,
       });
       // M4e amendment 4 item 4: a cap-halted or stopped run leaves the one record Resume continues from (its only writer).
       if (resumeAt && HALT_OUTCOMES.includes(outcome)) {
@@ -2745,9 +2745,9 @@ function haltRun({
     const stoppedWithoutHaltRecord = outcome === 'stopped' && resumeAt && !readHaltRecord(runDir).ok;
     if (!stoppedWithoutHaltRecord) {
       appendHistory(flowDir, {
-        runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash,
+        runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash, ...(detail ? { detail } : {}), // amendment 23: bareguard's raw reason, never the sentence
       });
     }
   }
-  return { outcome, red, spentUsd: spent.value };
+  return { outcome, red, ...(detail ? { detail } : {}), spentUsd: spent.value };
 }
