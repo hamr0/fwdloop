@@ -370,7 +370,7 @@ export function computeGlyph({
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
     // M4e amendment 4 item 4: a run the human stopped, or one that hit its money cap and can be continued, is `[■]` stopped — never "failed".
     if (historyRow.outcome === 'stopped') {
-      return { glyph: '[■]', label: stoppedAtAsk ? `${stoppedAtAsk}; Resume to go on` : 'stopped — after the step that was running; Resume to go on' };
+      return { glyph: '[■]', label: stoppedAtAsk ? `${stoppedAtAsk}${STOPPED_AT_ASK_START_RE.test(stoppedAtAsk) ? ';' : ' —'} Resume to go on` : 'stopped — after the step that was running; Resume to go on' };
     }
     if (historyRow.outcome === 'cap-halt' && resumable) return { glyph: '[■]', label: 'stopped — the money cap was reached; raise it and Resume' };
     // M4b amendment 3: a run the human ended on purpose with rerun is not a failure.
@@ -903,7 +903,7 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     // M4e amendment 4 item 4: a cap-halted or stopped run that can be continued (`halt.json` is the runner's record)
     resumable: halt.ok && historyRow !== null && historyRow.outcome === halt.halt.outcome,
     // amendment 16 I4: how a stopped run was stopped, in the runner's own words (`stopped at the ask of step N`), or null (stopped after a step)
-    stoppedAtAsk: lastStoppedAtAsk(auditRows),
+    stoppedAtAsk: lastStoppedAtAsk(runDir, auditRows, historyRow !== null),
     auditRows,
     spendRows,
     logJson,
@@ -925,14 +925,40 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
 const STOPPED_AT_ASK_RE = /^stopped at the ask of step \d+$/;
 const STOPPED_AT_ASK_START_RE = /^stopped at the ask of step \d+/;
 /**
- * The ONE reader of "was this run stopped at its ask": the newest `stopped` audit row, when the runner wrote its `gap` as
- * `stopped at the ask of step N` (amendment 13's signed words). Any other stop (after a step, before step 1) is null.
- * @param {any[]} auditRows @returns {string|null}
+ * The ONE reader of the words a stopped ask wears (amendment 19 3): for each ask, oldest-first, the `stopped at the ask of step N`
+ * row written for the step `deriveAskStepInfo` pairs it with, or null when the books cannot name that step (never a guess; never
+ * by counting those rows in order: a Stop that landed before any ask parked writes one too, with no ask behind it).
+ * @param {any[]} ordered `runAsksInOrder`'s asks, oldest-first @param {any[]} audit this run's audit rows
+ * @returns {(string|null)[]}
  */
-function lastStoppedAtAsk(auditRows) {
+function stoppedAskWords(ordered, audit) {
+  const stepOf = deriveAskStepInfo(ordered, audit, null);
+  const atAsk = audit.filter((r) => r.verdict === 'stopped' && STOPPED_AT_ASK_RE.test(String(r.gap)));
+  return ordered.map((_, i) => {
+    if (stepOf[i].step === null) return null;
+    const words = atAsk.filter((r) => r.step === stepOf[i].step).pop()?.gap;
+    return typeof words === 'string' ? words : null;
+  });
+}
+
+/** What the Runs label says of a run stopped at an ask whose step the books cannot name; the Ask tab and the Inbox say the same. */
+const STOPPED_STEP_UNKNOWN = 'stopped';
+
+/**
+ * How a stopped run was stopped, for its Runs label: the newest `stopped` audit row, when the runner wrote its `gap` as
+ * `stopped at the ask of step N` (amendment 13's signed words) -> those words, as the Ask tab's row for that ask reads them
+ * (`stoppedAskWords`, the one reader); `stopped` alone when the step cannot be known; null for any other stop (after a step, before step 1).
+ * @param {string} runDir @param {any[]} auditRows @param {boolean} hasHistoryRow @returns {string|null}
+ */
+function lastStoppedAtAsk(runDir, auditRows, hasHistoryRow) {
   const stopped = auditRows.filter((r) => r.verdict === 'stopped' && typeof r.gap === 'string' && !Number.isInteger(r.attempt));
-  const gap = stopped.length > 0 ? stopped[stopped.length - 1].gap : null;
-  return typeof gap === 'string' && STOPPED_AT_ASK_RE.test(gap) ? gap : null;
+  const last = stopped.length > 0 ? stopped[stopped.length - 1] : null;
+  if (!last || !STOPPED_AT_ASK_RE.test(last.gap)) return null;
+  const ordered = runAsksInOrder(runDir, hasHistoryRow);
+  const stepOf = deriveAskStepInfo(ordered, auditRows, null);
+  const words = stoppedAskWords(ordered, auditRows);
+  const i = stepOf.findIndex((x) => x.step !== null && x.step === last.step);
+  return i >= 0 && words[i] !== null ? words[i] : STOPPED_STEP_UNKNOWN;
 }
 
 /** @param {string} runDir @returns {string|null} */
@@ -2016,13 +2042,9 @@ function runAsksInOrder(runDir, hasHistoryRow, endedExpired = false) {
   // reader of which step each ask belongs to) names for it, matched to the `stopped at the ask of step N` row written for that step.
   // Never by counting those rows in order: a Stop that landed before any ask parked writes one too, with no ask behind it.
   if (ordered.some((a) => a.status === 'stopped')) {
-    const audit = readAudit(runDir);
-    const stepOf = deriveAskStepInfo(ordered, audit, null);
-    const atAsk = audit.filter((r) => r.verdict === 'stopped' && STOPPED_AT_ASK_RE.test(String(r.gap)));
+    const words = stoppedAskWords(ordered, readAudit(runDir));
     for (let i = 0; i < ordered.length; i++) {
-      if (ordered[i].status !== 'stopped' || stepOf[i].step === null) continue;
-      const words = atAsk.filter((r) => r.step === stepOf[i].step).pop()?.gap;
-      if (typeof words === 'string') ordered[i] = { ...ordered[i], statusText: words };
+      if (ordered[i].status === 'stopped' && words[i] !== null) ordered[i] = { ...ordered[i], statusText: words[i] };
     }
   }
   const last = ordered[ordered.length - 1];
