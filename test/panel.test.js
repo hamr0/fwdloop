@@ -2293,8 +2293,8 @@ describe('index.html — page source', () => {
   // puts details-prose back first, and the positions[i] > positions[i-1]
   // check on the FIRST pair (details-model vs details-cap is unaffected, but
   // details-cap vs details-prose) goes red.
-  test('final tweak #1: the Job tab\'s field order is Model, $ cap, Job (prose), Ask, Source, Destination, Success, Signed (am6: no Guardrails field)', () => {
-    const ids = ['details-model', 'details-cap', 'details-prose', 'details-asks', 'details-sources', 'details-sends', 'details-success', 'details-signature'];
+  test('final tweak #1: the Job tab\'s field order is Model, the asked lines, Ask, Destination, $ cap, Source, Signed, then the plan block (am34)', () => {
+    const ids = ['details-model', 'details-prose', 'details-asks', 'details-sends', 'details-cap', 'details-sources', 'details-signature', 'details-plan'];
     const positions = ids.map((id) => {
       const idx = source.indexOf(`id="${id}"`);
       assert.ok(idx > 0, `expected to find id="${id}" in the page`);

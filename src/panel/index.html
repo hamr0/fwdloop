@@ -439,6 +439,29 @@
   .ro-value{padding:6px 8px;min-height:32px;box-sizing:border-box;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
   .art-head{color:var(--accent);}
   .ro-value.sub{margin-left:20px;min-height:0;padding-top:2px;padding-bottom:2px;border-top-width:0;overflow-wrap:anywhere;}
+  /* M4e amendment 34: the Job tab's two blocks on one grid. The grid's own width decides (container query): wide = two columns with each step's
+     cell on its job line's row (--r set by the renderer); narrow = one column, the asked block and then the plan block (DOM order). */
+  #job-card{container-type:inline-size;}
+  .jg{display:block;}
+  .jg-lines{display:contents;}
+  .jg-head{margin:10px 0 6px;font-size:13px;font-weight:700;color:var(--text);}
+  .jg-cell:empty{display:none;}
+  .jg-cell,.jg-tail{min-width:0;}
+  .plan-step{margin-bottom:6px;overflow-wrap:anywhere;}
+  .plan-head{font-weight:700;color:var(--text);}
+  #details-plan-tail .plan-head{margin:2px 0 4px;}
+  .plan-step .plan-row{color:var(--text-dim);}
+  @container (min-width:640px){
+    .jg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:14px;align-items:start;}
+    .jg-head{grid-row:1;margin-top:0;}
+    .jg-head.jg-asked{grid-column:1;}
+    .jg-head.jg-plan-side{grid-column:2;}
+    .jg-cell:empty{display:block;}
+    .jg-cell.jg-asked{grid-column:1;grid-row:var(--r);}
+    .jg-cell.jg-plan-side{grid-column:2;grid-row:var(--r);}
+    .jg-tail.jg-asked{grid-column:1;grid-row:var(--rt);}
+    .jg-tail.jg-plan-side{grid-column:2;grid-row:var(--rt);}
+  }
   .ro-value.scroll{max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;}
   .field-row{display:flex;flex-wrap:wrap;gap:10px;}
   .field-row .field{flex:1 1 140px;margin-bottom:10px;}
@@ -1028,7 +1051,7 @@
                piece within a field — replaces the old split asks/sends/
                sources/signed-lines blocks. Field order (signed): Job
                (prose) · Ask · Model · $ cap (+ redo cap) · Source ·
-               Destination · Success · Signed (M4e amendment 6: each guardrail sits under its own line in Job). At 390px every
+               Destination · Signed (am34: Success is gone; the plan block holds each step check) (M4e amendment 6: each guardrail sits under its own line in Job). At 390px every
                field's own `label` already sits above its value (the
                existing global `label{display:block}` rule — no separate
                narrow-width override needed). -->
@@ -1036,13 +1059,23 @@
           <div class="job-card" id="job-card" hidden data-testid="job-card-readonly">
             <h4 id="details-title">Job card — signed</h4>
             <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
-            <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap">—</div></div>
-            <div class="field"><label>Job (prose)</label><div id="details-prose"></div></div>
-            <div class="field"><label>Ask</label><div id="details-asks"></div></div>
-            <div class="field"><label>Source</label><div id="details-sources"></div></div>
-            <div class="field"><label>Destination</label><div id="details-sends"></div></div>
-            <div class="field"><label>Success</label><div id="details-success"></div></div>
-            <div class="field"><label>Signed</label><div class="ro-value" id="details-signature">—</div></div>
+            <!-- M4e amendment 34: two blocks on ONE grid, one grid row per job line. Wide: "What you asked" left, "What the plan does" right, each
+                 step's cell on the row of the line it came from. Narrow: the whole asked block, then the whole plan block (DOM order). The two
+                 `display:contents` wrappers hold the per-line cells the renderer adds. -->
+            <div class="jg" id="job-grid" data-testid="job-grid">
+              <h5 class="jg-head jg-asked">What you asked</h5>
+              <div id="details-prose" class="jg-lines"></div>
+              <div class="jg-tail jg-asked" id="job-tail-asked">
+                <div class="field"><label>Ask</label><div id="details-asks"></div></div>
+                <div class="field"><label>Destination</label><div id="details-sends"></div></div>
+                <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap">—</div></div>
+                <div class="field"><label>Source</label><div id="details-sources"></div></div>
+                <div class="field"><label>Signed</label><div class="ro-value" id="details-signature">—</div></div>
+              </div>
+              <h5 class="jg-head jg-plan-side">What the plan does</h5>
+              <div id="details-plan" class="jg-lines"></div>
+              <div class="jg-tail jg-plan-side" id="details-plan-tail"></div>
+            </div>
           </div>
         </section>
 
@@ -2725,6 +2758,48 @@
       el.appendChild(textDiv("ro-value", rowTextFn(item)));
     });
   }
+  // M4e amendment 34: one step of the signed plan — from line, reads, makes, may do, check. All of it is read off `job.plan` (src/panel/data.js
+  // `buildJobPlan`: declaration.json and the setup.jsonl sign row); the page words nothing of its own except "nothing" for an empty list.
+  function jobStepBox(st){
+    var box = document.createElement("div");
+    box.className = "ro-value plan-step";
+    box.appendChild(textDiv("plan-head", "step " + st.step + " · from line " + (st.line === null || st.line === undefined ? "none" : st.line)));
+    box.appendChild(textDiv("plan-row", "reads: " + ((st.reads || []).length ? st.reads.join(", ") : "nothing")));
+    box.appendChild(textDiv("plan-row", "makes: " + (st.makes || "unknown")));
+    box.appendChild(textDiv("plan-row", "may do: " + ((st.mayDo || []).length ? st.mayDo.join(", ") : "nothing (pure stop)")));
+    box.appendChild(textDiv("plan-row", "check: " + (st.ask ? "ASK · waits " + plainWait(st.waitMs) : (st.check || []).join(" "))));
+    return box;
+  }
+  // "What the plan does": one cell per job line on that line's grid row (empty when no step came from it; several steps stack), then the tail:
+  // any step that came from no listed line, and "Not checked (the AI's own reading)" with its label always.
+  function paintJobPlan(job){
+    var plan = job.plan || {steps: [], notChecked: {recorded: false, items: []}};
+    var planEl = document.getElementById("details-plan");
+    var tail = document.getElementById("details-plan-tail");
+    planEl.innerHTML = "";
+    tail.innerHTML = "";
+    var lines = job.prose || [];
+    var placed = {};
+    lines.forEach(function(l, i){
+      var cell = document.createElement("div");
+      cell.className = "jg-cell jg-plan-side";
+      cell.setAttribute("style", "--r:" + (i + 2));
+      (plan.steps || []).filter(function(st){ return st.line === l.line; }).forEach(function(st){
+        placed[st.step] = true;
+        cell.appendChild(jobStepBox(st));
+      });
+      planEl.appendChild(cell);
+    });
+    (plan.steps || []).filter(function(st){ return !placed[st.step]; }).forEach(function(st){ tail.appendChild(jobStepBox(st)); });
+    tail.appendChild(textDiv("plan-head", "Not checked (the AI's own reading)"));
+    var nc = plan.notChecked || {};
+    if(!nc.recorded) tail.appendChild(textDiv("hint", "not recorded (signed before amendment 34)"));
+    else if(!(nc.items || []).length) tail.appendChild(textDiv("hint", "the AI listed nothing"));
+    else nc.items.forEach(function(it){ tail.appendChild(textDiv("ro-value", it)); });
+    var rt = "--rt:" + (lines.length + 2);
+    tail.setAttribute("style", rt);
+    document.getElementById("job-tail-asked").setAttribute("style", rt);
+  }
   function renderJob(job){
     var empty = document.getElementById("job-empty");
     var card = document.getElementById("job-card");
@@ -2739,22 +2814,28 @@
     // wait, a send line's destination. (The separate Guardrails field is gone.) `job` already carries the values in force for this run.
     var jobEl = document.getElementById("details-prose");
     jobEl.innerHTML = "";
+    // M4e amendment 34: "What you asked" — one grid cell per signed line (grid row = line index + 2; row 1 is the headings), holding only the human's words.
     if(!job.prose || !job.prose.length){
       jobEl.appendChild(textDiv("hint", "no signed prose lines"));
     } else {
-      job.prose.forEach(function(l){
-        jobEl.appendChild(textDiv("ro-value", l.line + ". " + l.text));
+      job.prose.forEach(function(l, i){
+        var cell = document.createElement("div");
+        cell.className = "jg-cell jg-asked";
+        cell.setAttribute("style", "--r:" + (i + 2));
+        cell.appendChild(textDiv("ro-value", l.line + ". " + l.text));
         (job.guardrails || []).filter(function(g){ return g.line === l.line; }).forEach(function(g){
-          jobEl.appendChild(textDiv("ro-value sub", "~ " + g.guardrail));
+          cell.appendChild(textDiv("ro-value sub", "~ " + g.guardrail));
         });
         (job.asks || []).filter(function(ak){ return ak.line === l.line; }).forEach(function(ak){
-          jobEl.appendChild(textDiv("ro-value sub", "~ waits " + plainWait(ak.waitMs)));
+          cell.appendChild(textDiv("ro-value sub", "~ waits " + plainWait(ak.waitMs)));
         });
         (job.sends || []).filter(function(sd){ return sd.line === l.line; }).forEach(function(sd){
-          jobEl.appendChild(textDiv("ro-value sub", "~ writes out to " + (sd.target || "unknown")));
+          cell.appendChild(textDiv("ro-value sub", "~ writes out to " + (sd.target || "unknown")));
         });
+        jobEl.appendChild(cell);
       });
     }
+    paintJobPlan(job);
     // review #5: "Ask" — one row per signed ask line.
     renderRowsField("details-asks", job.asks, "no signed asks", function(ak){
       return "line " + ak.line + " · \"" + ak.question + "\" · waits " + plainWait(ak.waitMs);
@@ -2780,11 +2861,6 @@
     // review #5: "Destination" — one row per signed send.
     renderRowsField("details-sends", job.sends, "no signed sends", function(s){
       return "line " + s.line + " · " + (s.kind || "unknown") + " → " + (s.target || "unknown");
-    });
-    // review #5: "Success" — one row per declared step, off data.js's own
-    // deriveStepSuccessText (never re-derived client-side).
-    renderRowsField("details-success", job.success, "no declared steps", function(s){
-      return s.step + " · " + s.text;
     });
     var sig = job.signature;
     // hamr's 2026-09-27 final tweak #2: `sig.signedAt` is the raw signed ISO

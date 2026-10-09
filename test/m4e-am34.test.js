@@ -82,3 +82,92 @@ test('the page: two blocks, no Success box, the plan block holds a Not checked l
   assert.match(PAGE, /ASK · waits /);
   assert.match(PAGE, /not recorded \(signed before amendment 34\)/);
 });
+
+// ---- the renderer, run against a tiny fake DOM (the real layout is the browser walk) ----
+const fn = (name) => {
+  const start = PAGE.indexOf(`  function ${name}(`);
+  assert.ok(start !== -1, `function ${name} not found`);
+  return PAGE.slice(start, PAGE.indexOf('\n  }\n', start) + 5);
+};
+function fakeDom() {
+  const els = {};
+  const mk = () => {
+    const e = {
+      children: [], className: '', textContent: '', hidden: false, attrs: {},
+      appendChild(c) { e.children.push(c); return c; },
+      setAttribute(k, v) { e.attrs[k] = v; },
+    };
+    Object.defineProperty(e, 'innerHTML', { set() { e.children = []; }, get() { return ''; } });
+    return e;
+  };
+  return { getElementById: (id) => (els[id] ??= mk()), createElement: () => mk(), els };
+}
+function render(job) {
+  const document = fakeDom();
+  const src = ['duration', 'plainWait', 'textDiv', 'renderRowsField', 'readableDateTime', 'jobStepBox', 'paintJobPlan', 'renderJob'].map(fn).join('\n');
+  new Function('document', `${src}\nreturn { renderJob };`)(document).renderJob(job);
+  return document;
+}
+const walk = (e) => [`${e.className}|${e.textContent}`, ...e.children.flatMap(walk)];
+const PLAN = {
+  steps: [
+    { step: 1, line: 1, reads: [], makes: 'resume-text', mayDo: ['readDocx'], check: ['No machine check of the content: you check it at the ask.'], ask: false, waitMs: null },
+    { step: 2, line: 3, reads: ['resume-text', 'jd-text'], makes: 'resume-summary', mayDo: ['read'], check: ['The reply is checked as plain text only.', 'The whole output is under 600 words.'], ask: false, waitMs: null },
+    { step: 3, line: 3, reads: ['resume-summary'], makes: 'second', mayDo: [], check: ['z'], ask: false, waitMs: null },
+    { step: 4, line: 4, reads: ['resume-summary'], makes: 'approved', mayDo: [], check: ['x'], ask: true, waitMs: 5400000 },
+  ],
+  notChecked: { label: 'l', items: ['tone', 'the JD match'], recorded: true },
+};
+const JOB = {
+  resolved: true, flow: 'f', model: null, modelWhy: 'x',
+  prose: [{ line: 1, text: 'a' }, { line: 2, text: 'no step here' }, { line: 3, text: 'c' }, { line: 4, text: 'd' }],
+  guardrails: [], asks: [{ line: 4, question: 'q', waitMs: 5400000 }], sends: [], sources: [], capUsd: 0.5, redoCap: 3, signature: null, signatureWhy: 'unsigned', plan: PLAN,
+};
+
+test('the plan renders one cell per job line, on that line\'s grid row; a line with no step leaves its cell empty; two steps on one line stack', () => {
+  const d = render(JOB);
+  const cells = d.els['details-plan'].children;
+  assert.deepEqual(cells.map((c) => c.attrs.style), ['--r:2', '--r:3', '--r:4', '--r:5']);
+  assert.deepEqual(cells.map((c) => c.children.length), [1, 0, 2, 1]);
+  assert.deepEqual(d.els['details-prose'].children.map((c) => c.attrs.style), ['--r:2', '--r:3', '--r:4', '--r:5'], 'the same rows as the job lines');
+});
+
+test('a step box shows from line, reads, makes, may do and its check', () => {
+  const box = render(JOB).els['details-plan'].children[2].children[0];
+  assert.deepEqual(walk(box).slice(1), [
+    'plan-head|step 2 · from line 3', 'plan-row|reads: resume-text, jd-text', 'plan-row|makes: resume-summary', 'plan-row|may do: read',
+    'plan-row|check: The reply is checked as plain text only. The whole output is under 600 words.',
+  ]);
+});
+
+test('no reads reads "nothing"; no grants reads "nothing (pure stop)"; the ask step shows "ASK · waits <wait>" in plain units', () => {
+  const d = render(JOB);
+  const first = walk(d.els['details-plan'].children[0].children[0]);
+  assert.ok(first.includes('plan-row|reads: nothing'));
+  const second = walk(d.els['details-plan'].children[2].children[1]);
+  assert.ok(second.includes('plan-row|may do: nothing (pure stop)'));
+  const ask = walk(d.els['details-plan'].children[3].children[0]);
+  assert.ok(ask.includes('plan-row|check: ASK · waits 1h 30m'), ask.join('\n'));
+});
+
+test('Not checked always carries its label; items one row each; an older flow says it is not recorded', () => {
+  let t = walk(render(JOB).els['details-plan-tail']);
+  assert.ok(t.includes("plan-head|Not checked (the AI's own reading)"), t.join('\n'));
+  assert.ok(t.includes('ro-value|tone') && t.includes('ro-value|the JD match'));
+  t = walk(render({ ...JOB, plan: { ...PLAN, notChecked: { label: 'l', items: [], recorded: false } } }).els['details-plan-tail']);
+  assert.ok(t.includes("plan-head|Not checked (the AI's own reading)"));
+  assert.ok(t.includes('hint|not recorded (signed before amendment 34)'), t.join('\n'));
+  t = walk(render({ ...JOB, plan: { ...PLAN, notChecked: { label: 'l', items: [], recorded: true } } }).els['details-plan-tail']);
+  assert.ok(t.includes("plan-head|Not checked (the AI's own reading)"));
+});
+
+test('"What you asked" holds no plan text: its cells carry only the signed lines, guardrails, waits and destinations', () => {
+  const d = render(JOB);
+  const text = d.els['details-prose'].children.flatMap(walk).join('\n');
+  assert.doesNotMatch(text, /reads:|makes:|may do:|check:|Not checked/);
+});
+
+test('a run with its own signed values shows that run\'s plan (the wait on the ask step follows the job data)', () => {
+  const j = { ...JOB, asks: [{ line: 4, question: 'q', waitMs: 1800000 }], plan: { ...PLAN, steps: PLAN.steps.map((s) => (s.ask ? { ...s, waitMs: 1800000 } : s)) } };
+  assert.ok(walk(render(j).els['details-plan'].children[3].children[0]).includes('plan-row|check: ASK · waits 30m'));
+});
