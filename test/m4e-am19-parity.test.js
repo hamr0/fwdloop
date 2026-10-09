@@ -55,7 +55,7 @@ const TAILS = {
 };
 const EXTRA_KEYS_ID = 'over20 extra keys | 25 extra keys';
 
-const isTail = (r) => /^\d+ more (section\(s\) |missing word\(s\)$)/.test(r);
+const isTail = (r) => /^\d+ more (section\(s\) are (missing or out of order|outside the range)|missing word\(s\))$/.test(r);
 
 test('am19 parity: the big table covers exactly the cases defined, ids unique', () => {
   assert.equal(FROZEN_BIG.length, bigCases.length);
