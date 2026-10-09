@@ -1635,6 +1635,17 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **5. Proof.** The 142-input comparison becomes a permanent test: a red today stays red after the switch, a green stays green.
   - **Cap:** $0.
 
+- **Amendment 19 — SIGNED by hamr 2026-10-09 ("approved for all the rest fixes changes/ideas proposals"): the fixes after the second self-review and the ledger refactor.**
+  - **Why:** /self-review of 577d86c..2b20828 and /refactor (ledger mode), 2026-10-09.
+  - **1. Old roll-ups.** A `rolled` row already written for a run fwdloop settled as "process gone" is ignored; that run is read fresh. The month and total equal the disk.
+  - **2. The "N more" count.** Past bareguard's 20-item list, the lines-and-carry sentence counts blocks, not missing words.
+  - **3. One label reader.** The Runs label and the Ask/Inbox row for a stopped ask come from one reader and always agree; when the step cannot be known, both say plain "stopped".
+  - **4. Check before spending.** At run start, every softgreen step's check is built before the first model call; one that cannot be built is refused at $0, by step name.
+  - **5. Tests.** The parity table gains cases with more than 20 problems and shapes that mix every soft check; a runner-level test covers a shape that cannot be built (refused at $0, nothing spent, no green).
+  - **Upstream (no fwdloop code):** bareguard was asked (2026-10-09) to export its 20-item cap; until then fwdloop keeps 20.
+  - **Negatives:** (1) an old rolled row for a "process gone" run, then more spend: month = disk; (2) 25 blocks each missing 2 words reads "5 more block(s)"; (3) a lost ask file: Runs and Ask/Inbox both say "stopped"; (4) a pre-am18 flow with a ':' section name is refused at $0 with no model call; (5) the new tests fail when their fixes are reverted.
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
