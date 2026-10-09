@@ -1654,6 +1654,15 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Negative:** 25 blocks each missing 2 words reads "30 more missing word(s)"; the count does not depend on 20.
   - **Cap:** $0.
 
+- **Amendment 21 — SIGNED by hamr 2026-10-09 ("am21 approved, 2A"): the last ledger items after self-review round 3.**
+  - **Why:** /self-review round 3 and /refactor (ledger mode), 2026-10-09.
+  - **1. No flow vanishes.** A signed flow that will not run (a check that cannot be built, or an unwired verb) stays in the Signed list, greyed, with no Run button, and says why in plain words, the same sentence "Run again" gives.
+  - **2A. The Runs hint stays.** When the step of a stopped ask cannot be known, Runs reads "stopped — Resume to go on" and Ask/Inbox read "stopped". All three say plain "stopped" with no step; the Runs row keeps its "what to do" hint like every Runs label.
+  - **3. Test.** A plan shape that passed before amendment 18 and cannot be built now is refused at $0 at run start and is never booked green.
+  - **Kept for later (ledger):** Money load speed at 10,000 runs.
+  - **Negatives:** (1) a flow with a ':' section name shows in the Signed list with its reason and no Run button, at 1280, 390 and 320 px; (3) the test fails when the preflight is removed.
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
