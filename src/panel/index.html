@@ -440,7 +440,7 @@
   .art-head{color:var(--accent);}
   .ro-value.sub{margin-left:20px;min-height:0;padding-top:2px;padding-bottom:2px;border-top-width:0;overflow-wrap:anywhere;}
   /* M4e amendment 37 (changes 34's layout): the Job tab is ONE column at every width. Each signed line, its ~ rows, then its step(s) folded under it:
-     a native <details> whose <summary> is one short muted line in the plan colour; open, it shows reads / makes / may do / check. */
+     a native <details> whose <summary> is one short line in the text colour with a › / ⌄ marker in the plan colour; open, it shows reads / makes / may do / check. */
   .job-line{margin-bottom:6px;}
   .plan-fold{margin:0 0 0 20px;min-width:0;overflow-wrap:anywhere;}
   .plan-sum{color:var(--text);cursor:pointer;list-style:none;padding:3px 0;font-size:12px;}
@@ -1051,7 +1051,7 @@
             <h4 id="details-title">Job card — signed</h4>
             <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
             <!-- M4e amendment 37: ONE column. #details-prose holds one wrapper per signed line (the line, its ~ rows, its steps folded under it);
-                 #details-plan-tail holds any step from no listed line, then "Not checked"; then Ask, Destination, $ cap, Source, Signed. -->
+                 #details-plan-tail holds any step from no listed line, then the folded "not checked" line; then Ask, Destination, $ cap, Source, Signed. -->
             <div id="job-grid" data-testid="job-grid">
               <div id="details-prose"></div>
               <div id="details-plan-tail"></div>
@@ -2728,8 +2728,7 @@
     return [h ? h + "h" : "", m ? m + "m" : "", sec ? sec + "s" : ""].filter(Boolean).join(" ");
   }
   // hamr's 2026-09-27 exit-check review #5: ONE row-per-piece renderer,
-  // shared by every multi-row Job field (prose/asks/sources/sends/
-  // guardrails/success) — a real `.ro-value` per item (never a single
+  // shared by the multi-row Job fields (asks/sources/sends) — a real `.ro-value` per item (never a single
   // " · "-joined line, which used to hide a book text value if it happened
   // to contain " · " itself), an explicit "none signed" hint for an empty
   // list, book text always via `.textContent`.
@@ -2772,7 +2771,7 @@
     fold.appendChild(textDiv("plan-row", "check: " + (st.ask ? "ASK · waits " + plainWait(st.waitMs) : (st.check || []).join(" "))));
     return fold;
   }
-  // The tail: any step that came from no listed line, then "Not checked (the AI's own reading)" with its label always.
+  // The tail: any step that came from no listed line, then the folded "not checked (the AI's own reading)" summary (its label is always shown).
   // `placed` (step numbers already folded under a line) is filled by renderJob's line loop before this runs.
   function paintJobPlan(job, placed){
     var plan = job.plan || {steps: [], notChecked: {recorded: false, items: []}};
