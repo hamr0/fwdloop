@@ -1699,7 +1699,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **POC bar (fixed before the run):** every vague job that fails tries 1 and 2 asks at least one question naming a failed line on try 3; at least 9 of 10 clear jobs ask nothing; at least 18 of 20 final plans valid; no call breaks. Reported, deciding nothing: how many vague jobs passed try 1 and try 2 (confident guesses).
   - **Cap:** inside amendment 24's $0.50.
 
-- **Amendment 26 — DRAFT, NOT SIGNED: the POC result for amendments 24 and 25, and hamr's ruling to keep the try-3 design.**
+- **Amendment 26 — SIGNED by hamr 2026-10-09 ("sign am26"): the POC result for amendments 24 and 25, and hamr's ruling to keep the try-3 design.**
   - **POC (2026-10-09, real deepseek-flash, $0.069 of the $0.50 cap; results poc/am24-questions/results-am25-try3-1.json and results-am25-first-1.json):** both designs asked 0 questions on all 20 jobs. Try-3 design: 5 vague jobs were valid on try 1, 4 on try 2, 1 reached try 3 and asked nothing. Bareloop's design (questions offered on try 1 with "Most jobs need no questions"): 0 of 20 asked. All 40 plans were valid; no clear job asked; nothing broke. The AI listed the unclear parts under Not checked instead (e.g. "what 'tidy up' means", "the team's send destination not being named"). Both designs failed the signed bar.
   - **Ruling:** amendment 24 said a failed POC means stop and rethink. hamr: keep the try-3 design anyway; it costs nothing when unused, and models vary. A chattier model can only ask after two failed tries (a mechanism, not wording). Checked / Not checked at sign is the main net for a guess.
   - **Build:** amendments 24 and 25 as signed.
