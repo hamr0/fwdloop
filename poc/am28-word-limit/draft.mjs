@@ -15,7 +15,7 @@ import { wiredMenu } from '../../src/primitives.js';
 import { readInputFacts } from '../../src/input-facts.js';
 import { makeProvider, sumMeterings, ceilingCostUsd } from '../../src/provider.js';
 import {
-  buildRoundSchema, buildSystemPrompt, NOTCHECKED_PROMPT, SMALLEST_CEILING_RULE, DRAFT_PROVIDER_OPTIONS, DRAFT_MAX_TOKENS, DRAFT_SKILLS,
+  buildRoundSchema, buildSystemPrompt, NOTCHECKED_PROMPT, WHOLE_OUTPUT_CEILING_RULE, DRAFT_PROVIDER_OPTIONS, DRAFT_MAX_TOKENS, DRAFT_SKILLS,
 } from '../../src/drafter.js';
 
 const TOOL = 'emit_declaration';
@@ -23,19 +23,14 @@ const TOOL = 'emit_declaration';
 export const AM28_RULE = "use the guardrail's ceiling for the whole output";
 export const POC_STRUCTURE_RETRIES = 1;
 
-/** The real schema + system prompt, with the one sentence swapped. Throws if the swap did not happen (a silent no-op would void the POC). */
+/** The real schema + system prompt. Since am29 landed in src/drafter.js the product carries the sentence itself, so there is no swap; throws if it is missing. */
 export function am28Setup({ menu, lines, arbiter, factsInfo }) {
   const system = `${buildSystemPrompt({ menu, lines, arbiter, factsInfo })}\n\n${NOTCHECKED_PROMPT}`;
   const schema = buildRoundSchema(menu);
-  const shape = schema.properties.steps.items.properties.close.properties.shape;
-  const swapped = JSON.parse(JSON.stringify(schema).replaceAll(SMALLEST_CEILING_RULE, AM28_RULE));
-  const sshape = swapped.properties.steps.items.properties.close.properties.shape;
-  const sys = system.replaceAll(SMALLEST_CEILING_RULE, AM28_RULE);
-  if (JSON.stringify(shape).includes(AM28_RULE) || !JSON.stringify(sshape).includes(AM28_RULE) || !sys.includes(AM28_RULE)
-    || sys.includes(SMALLEST_CEILING_RULE) || JSON.stringify(swapped).includes(SMALLEST_CEILING_RULE)) {
-    throw new Error('am28Setup: the wording swap did not land in both the prompt and the schema');
+  if (WHOLE_OUTPUT_CEILING_RULE !== AM28_RULE || !JSON.stringify(schema).includes(AM28_RULE) || !system.includes(AM28_RULE)) {
+    throw new Error('am28Setup: the product drafter does not carry the am29 sentence in both the prompt and the schema');
   }
-  return { system: sys, schema: swapped };
+  return { system, schema };
 }
 
 /** Draft one job in one round. Never throws on a provider/model fault (that is `stop`). `provider`/`rates`/`modelId` injectable for the $0 test. */
