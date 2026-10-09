@@ -138,12 +138,12 @@ test('2 "N more" never depends on the number 20: fake gaps cut at 5', () => {
 
 // ---- 4 ----
 /** A flow signed BEFORE amendment 18: the same flow, its first section name ending in ':' (the sign-time check would now refuse it). */
-function oldFlowWithUnbuildableShape(tag) {
+function oldFlowWithUnbuildableShape(tag, mutShape = (shape) => { shape.sections[0] += ':'; }) {
   const w = mk(tag);
   const declPath = path.join(w.flowDir, 'declaration.json');
   const decl = JSON.parse(readFileSync(declPath, 'utf8'));
   const step = decl.steps.find((x) => x.close?.shape?.sections);
-  step.close.shape.sections[0] += ':';
+  mutShape(step.close.shape);
   const declarationText = `${JSON.stringify(decl, null, 2)}\n`;
   const proseText = readFileSync(path.join(w.flowDir, 'prose.txt'), 'utf8');
   const sig = signFlow({
@@ -168,3 +168,29 @@ test('4 a pre-am18 flow with an unbuildable check is refused at $0 by step name:
     assert.equal(existsSync(path.join(w.runDir, 'spend.jsonl')), false, 'nothing spent');
   } finally { rmSync(w.base, { recursive: true, force: true }); }
 });
+
+// amendment 21 item 3: every old-green/new-crash shape the runner can be handed (built as a fixture, past the sign-time validator)
+// is refused at $0 at run start: no model call, no spend, never green. Removing the preflight alone turns this red.
+for (const [name, mut, outcome = 'preflight-red'] of [
+  ['mustCarry alone', (sh) => { delete sh.linesPerInvoice; sh.mustCarry = ['x']; }],
+  ['linesPerInvoice alone', (sh) => { delete sh.mustCarry; sh.linesPerInvoice = 2; }],
+  // these two the signed validator itself refuses when the flow is read (outcome 'refused'), so they never reach the preflight
+  ['sections not an array', (sh) => { sh.sections = 'summary'; }, 'refused'],
+  ['wordsPerSection with no sections', (sh) => { delete sh.sections; sh.wordsPerSection = [1, 5]; }, 'refused'],
+]) {
+  test(`4 (amendment 21 3) old shape "${name}" is refused at $0 at run start, never green`, async () => {
+    const w = oldFlowWithUnbuildableShape(`4-${name.replaceAll(' ', '')}`, mut);
+    try {
+      const before = modelCalls;
+      const r = await runFlow({ ...args(w), sources: w.sources });
+      assert.equal(modelCalls, before, 'no model call');
+      assert.equal(r.outcome, outcome, `${name}: ${JSON.stringify(r).slice(0, 300)}`);
+      if (outcome === 'preflight-red') {
+        assert.ok(r.red.includes(`"${w.badStep}"`), `names the step: ${r.red}`);
+        assert.match(r.red, /cannot be built/);
+      }
+      assert.equal(readAudit(w.runDir).some((x) => x.verdict === 'green'), false);
+      assert.equal(existsSync(path.join(w.runDir, 'spend.jsonl')), false, 'nothing spent');
+    } finally { rmSync(w.base, { recursive: true, force: true }); }
+  });
+}
