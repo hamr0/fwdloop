@@ -18,6 +18,7 @@ import { RATES, MODEL, validArgs, fakeProvider, toolReply } from '../drafter-fix
 
 export default function make() {
   const args = validArgs();
+  if (process.env.FWDLOOP_TEST_DRAFT_NOTCHECKED) args.notChecked = JSON.parse(process.env.FWDLOOP_TEST_DRAFT_NOTCHECKED); // the drafter's own "not checked" list on every plan
   if (process.env.FWDLOOP_TEST_DRAFT_MODE === 'bad') args.steps[2].primitives = ['stash'];
   if (process.env.FWDLOOP_TEST_DRAFT_MODE === 'greedy') {
     Object.assign(args, { capUsd: 99, sends: [{ line: 1, target: 'file:/etc' }], asks: [{ line: 4, ttlMs: 1 }], sources: [{ role: 'x', path: '/etc/passwd' }] });

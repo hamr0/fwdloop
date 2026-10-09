@@ -312,3 +312,78 @@ test('B6: appendAnswersToJob puts an answer under its own line after that line\'
   assert.equal(r.added, 3);
   assert.equal(appendAnswersToJob('one', []).job, 'one');
 });
+
+// ---- Piece 3: Checked (built by code from typed closes) / Not checked (the drafter's own reading, labelled) ----------------------------------
+// eslint-disable-next-line import/first
+import { checkedLines, notCheckedBlock, NOT_CHECKED_LABEL } from '../src/checked.js';
+
+test('C1: Checked lists only what a typed check really checks, per step, in plain sentences', () => {
+  const lines = checkedLines({
+    steps: [
+      { fromLine: 1, goal: 'g1', close: { class: 'green' } },
+      { fromLine: 2, goal: 'g2', close: { class: 'softgreen', shape: { sections: ['Fit', 'Skills'], wordsPerSection: 200, maxWords: 600 } } },
+      { fromLine: 3, goal: 'g3', close: { class: 'softgreen', shape: { linesPerInvoice: 3, mustCarry: ['date', 'total'] } } },
+      { fromLine: 4, goal: 'g4', close: { class: 'hitl' } },
+    ],
+  });
+  assert.equal(lines.length, 4);
+  assert.match(lines[0].sentences.join(' '), /cite its source cell.*recomputes/);
+  assert.deepEqual(lines[1].sentences, [
+    'The reply is checked as plain text only.', 'The whole output is under 600 words.', 'These section headings are there, in this order: Fit, Skills.', 'Each of those sections is about 200 words.']);
+  assert.deepEqual(lines[2].sentences, ['The reply is checked as plain text only.', 'The output comes in blocks of 3 lines.', 'Every block carries: date, total.']);
+  assert.deepEqual(lines[3].sentences, ['No machine check of the content: you check it at the ask.']);
+  assert.deepEqual(checkedLines({ steps: [{ close: { class: 'hitl' } }] }, { hasAsk: false })[0].sentences, ['No machine check of the content; the machine checks only that the step happened.'], 'no ask in the job: it never says you check it at the ask');
+  // a softgreen with only sections says nothing about words, lines or tone
+  const only = checkedLines({ steps: [{ close: { class: 'softgreen', shape: { sections: ['A'] } } }] })[0].sentences.join(' ');
+  assert.doesNotMatch(only, /words|lines|tone|carries/);
+});
+
+test('C2: Checked is built from typed fields only: model prose, an unknown shape key and extra step text never appear in it', () => {
+  const hostile = {
+    steps: [{
+      fromLine: 1, goal: 'g', note: 'tone is checked and the facts are verified', close: { class: 'softgreen', shape: { sections: ['A'], toneIsFriendly: true, comment: 'every claim verified' } },
+    }],
+    checked: ['everything is verified'],
+  };
+  const text = JSON.stringify(checkedLines(hostile));
+  assert.doesNotMatch(text, /tone|verified|friendly|every claim/);
+});
+
+test('C3: Not checked always carries its label, with or without items; blanks and non-strings are dropped', () => {
+  assert.equal(NOT_CHECKED_LABEL, "the drafter's own reading, not a guarantee");
+  for (const raw of [undefined, null, [], 'x', 7]) assert.deepEqual(notCheckedBlock(raw), { label: NOT_CHECKED_LABEL, items: [] });
+  assert.deepEqual(notCheckedBlock([' tone ', '', 3, 'wording']), { label: NOT_CHECKED_LABEL, items: ['tone', 'wording'] });
+});
+
+test('C4: a green plan carries Checked and Not checked (labelled) in its state and at sign-prepare; neither is in the readout, the plan folder\'s hash parts, or the hash', async () => {
+  const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_NOTCHECKED: JSON.stringify(['whether the tone suits the role']) } });
+  const id = (await w.post('/api/author/draft', w.card())).json().draftId;
+  const g = await settleOn(w, id, ['green', 'red', 'stopped', 'questions-open']);
+  await childGone(w, id);
+  assert.equal(g.phase, 'green', JSON.stringify(g));
+  assert.equal(g.notChecked.label, NOT_CHECKED_LABEL);
+  assert.deepEqual(g.notChecked.items, ['whether the tone suits the role']);
+  assert.equal(g.checked.length, 5, 'one entry per step');
+  assert.ok(g.checked.every((c) => c.sentences.length > 0));
+  assert.equal(g.checked[2].class, 'softgreen');
+  assert.match(g.checked[2].sentences.join(' '), /under 600 words/);
+  const sp = (await w.post(`/api/author/${id}/sign-prepare`, {})).json();
+  assert.equal(sp.ok, true);
+  assert.deepEqual(sp.notChecked, g.notChecked);
+  assert.deepEqual(sp.checked, g.checked);
+  assert.deepEqual(sp.answers, []);
+  const dir = path.join(w.dir(id), 'draft');
+  const readout = readFileSync(path.join(dir, 'readout.txt'), 'utf8');
+  assert.doesNotMatch(readout, /tone suits|Not checked|Checked/);
+  const declText = readFileSync(path.join(dir, 'declaration.json'), 'utf8');
+  assert.doesNotMatch(declText, /tone suits|notChecked/, 'stripped before the declaration is written');
+  const h = specHash({
+    proseText: readFileSync(path.join(dir, 'prose.txt'), 'utf8'), declarationText: declText, inputFactsText: readFileSync(path.join(dir, 'input-facts.json'), 'utf8'), readoutText: readout, targetText: readFileSync(path.join(dir, 'target.json'), 'utf8'),
+  });
+  assert.equal(h.hash, g.hash, 'the hash is the five signed parts only');
+  // a plan whose drafter listed nothing still shows the label
+  const w2 = await world();
+  const id2 = (await w2.post('/api/author/draft', w2.card())).json().draftId;
+  const g2 = await settleOn(w2, id2, ['green', 'red', 'stopped']);
+  assert.deepEqual(g2.notChecked, { label: NOT_CHECKED_LABEL, items: [] });
+});

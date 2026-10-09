@@ -36,7 +36,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  ANSWER_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, readQuestions, readoutHeadIndexes, scrub, signDraft,
+  ANSWER_FILE, NOT_CHECKED_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, readQuestions, readoutHeadIndexes, scrub, signDraft,
 } from '../authoring.js';
 import { nextRunId, readFileInside, readdirInside } from '../flow.js';
 import { isFwdloopAlive } from '../liveness.js';
@@ -46,6 +46,8 @@ import {
 import {
   answerClash, appendAnswersToJob, capFloorText, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
 } from './authorcard.js';
+import { checkedLines, notCheckedBlock } from '../checked.js';
+import { parseSignedText } from '../signed-text.js';
 import { leastResumeCapUsd } from './authorvalues.js';
 import { createFlowsDoor } from './authorflows.js';
 import { createResumeDoor } from './authorresume.js';
@@ -214,9 +216,21 @@ export function createAuthor(opts) {
     if (q.questions.length > 0) return { ...shared, phase: 'stopped', say: ANSWERS_NOT_DRAFTED_SAY };
     if (res.phase === 'green') {
       const answers = newest > 0 && redrafts.has(newest) ? answersOf(dir, newest, keys) : [];
-      return { ...shared, phase: 'green', hash: res.hash, readout: res.readout, readoutHeads: res.readoutHeads, plan: rel, answers };
+      return { ...shared, phase: 'green', hash: res.hash, readout: res.readout, readoutHeads: res.readoutHeads, plan: rel, answers, ...planChecks(dir, rel) };
     }
     return { ...shared, phase: 'red', reds: res.reds, say: newest === 0 ? RED_SAY : cur.say };
+  }
+
+  /**
+   * What the human is shown beside a green plan at sign: "Checked" (built by `checkedLines` from the plan's typed closes, never model text) and
+   * "Not checked" (the drafter's own list, always with its label). Read-only; neither is signed or in the hash. @param {string} dir @param {string} rel
+   */
+  function planChecks(dir, rel) {
+    const decl = readJson(dir, `${rel}/declaration.json`);
+    const prose = readFileInside(dir, `${rel}/prose.txt`);
+    const parsed = prose.ok ? parseSignedText(prose.text) : null;
+    const hasAsk = parsed?.ok === true ? parsed.arbiter.asks.length > 0 : true;
+    return { checked: checkedLines(decl, { hasAsk }), notChecked: notCheckedBlock(readJson(dir, `${rel}/${NOT_CHECKED_FILE}`)?.notChecked) };
   }
 
   /** The answers an answer-redraft was drafted with, as the marker recorded them: `[{ line, lineText, question, answer }]` (scrubbed). @param {string} dir @param {number} n @param {string[]} keys */
@@ -377,7 +391,7 @@ export function createAuthor(opts) {
       return {
         status: 200,
         body: {
-          ok: true, draftId: id, hash: seen.v.hash, flowName: seen.name, capUsd: seen.v.card.capUsd, readout: seen.v.readout, runId: nextRunId(join(root, seen.name)),
+          ok: true, draftId: id, hash: seen.v.hash, flowName: seen.name, capUsd: seen.v.card.capUsd, readout: seen.v.readout, answers: seen.v.answers, checked: seen.v.checked, notChecked: seen.v.notChecked, runId: nextRunId(join(root, seen.name)),
         },
       };
     },
