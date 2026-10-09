@@ -1829,6 +1829,7 @@ function sameRoot(recorded, requested) {
  * @param {string} opts.businessDate
  * @param {number} [opts.ceilingUsd]
  * @param {() => number} [opts.nowMs] - F45 finding 3; see `runFlow`'s own.
+ * @param {(newRunDir:string) => void} [opts.onRerunStart] - amendment 16 C2: called with the new run's folder just before a `rerun` starts it.
  */
 export async function resumeRun({
   root, name, runId, catalogue, modelStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd,
@@ -2068,7 +2069,7 @@ export async function resumeRun({
     // step. On a tie the ANSWER WINS (hamr's ruling, 2026-10-07: a fast CI gave both the same millisecond). A Stop with no readable
     // time is read as made "now" by `readStopRequest` (amendment 17 2A, one rule), which is after the answer: the answer wins.
     const stopReq = readStopRequest(runDir, now);
-    const stopFirst = stopReq !== null && Date.parse(stopReq.at) < Date.parse(answer.answeredAt);
+    const stopFirst = stopReq !== null && Date.parse(/** @type {string} */ (stopReq.at)) < Date.parse(answer.answeredAt);
     if (stopReq && stopFirst) {
       const prev = readLog(runDir);
       return stopAtAsk({
@@ -2692,6 +2693,7 @@ export function readAsk(runDir) {
  * @param {() => number} [opts.nowMs] - F45 finding 3; defaults to `Date.now`.
  * @param {string} opts.outcome
  * @param {string} [opts.red]
+ * @param {string|null} [opts.detail] - amendment 23: bareguard's raw reason, recorded beside `red` (never the sentence).
  * @param {{ value: number }} opts.spent
  * @param {any[]} [opts.attempts]
  * @param {Record<string, any>} [opts.artifacts]
