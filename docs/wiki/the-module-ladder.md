@@ -1785,6 +1785,12 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - The Job tab reads it from there. A flow signed before this shows "Not checked: not recorded (signed before amendment 34)".
   - **Cap:** $0.
 
+- **Amendment 37 — SIGNED by hamr 2026-10-10 ("sign am37"): the Job tab: your line, then its step folded under it.**
+  - **Change to amendment 34's layout.** One column on every screen. Each of your numbered lines, with its `~` guardrails, is followed by its step, indented and in a muted plan colour, as one short line: `› step 3 · → summaryResume · machine check`. Tap `›` to open the step's full detail (reads, makes, may do, check). The ask step reads `› step 4 · ASK · waits 1h`.
+  - **Kept from am34:** your words and the plan never share a line. The plan is read from the signed flow's files. "Not checked (the AI's own reading)" comes after the lines, then Ask, Destination, Cap, Source and Signed.
+  - **Done when:** browser walks at 1280, 390 and 320 px show it, with nothing spilling past the screen.
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
