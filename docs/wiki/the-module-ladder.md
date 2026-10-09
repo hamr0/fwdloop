@@ -1710,6 +1710,16 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Code:** none. The panel already works this way. A test will pin it down so it can't change by accident.
   - **Cap:** $0.
 
+- **Amendment 28 — SIGNED by hamr 2026-10-09 ("sign am28"): the AI picks the word limit; code only checks it's real.**
+  - **Change to amendments 6 and 15 (item 1), and the 2A ruling.** The drafter reads the guardrail and fills `maxWords` and `wordsPerSection`. Code no longer decides which number is which.
+  - **The check is a mechanism, not a guess.** Each number the AI writes must appear word for word in that line's guardrail, or the plan is red: "line 3's check says 300 words; the guardrail has no 300." An invented number can't pass.
+  - **You see it before you sign.** "Checked" shows the number the AI picked ("under 600 words"). If it picked wrong (say 3, from the headings), you see it and Revise.
+  - **Unchanged:** the sum check from am15 item 2 (it now uses the AI's numbers), the run-time word counts, and "3 sections".
+  - **Undone:** "smallest wins" in the code and in the drafter's sentence. The drafter is told: "use the guardrail's ceiling for the whole output, and its size for each section."
+  - **Negatives:** a guardrail of "under 600 words, each heading at most 3 words" gives a green plan with `maxWords` 600. A `maxWords` that doesn't appear in the guardrail is red. The am15 (a) case is still red at $0.
+  - **POC first (real deepseek-flash):** 10 guardrails with mixed numbers. To pass, the AI picks the right one on all 10.
+  - **Cap:** $0.25.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
