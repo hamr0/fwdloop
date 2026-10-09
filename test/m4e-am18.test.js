@@ -48,9 +48,7 @@ for (const [label, shape] of [
 function validatorReds(shape) {
   const reds = [];
   // wordsPerSection is the guardrail's own number (amendment 15), so the line states the same one.
-  // maxWords is the AI's pick from the guardrail's whole-output number (amendments 28 + 29), so the line states it too.
-  const per = Number.isInteger(shape.wordsPerSection) && Array.isArray(shape.sections) ? `${shape.sections.length} sections, ${shape.wordsPerSection} words each` : '';
-  const guardrail = [per, Number.isInteger(shape.maxWords) && shape.maxWords > 0 ? `under ${shape.maxWords} words` : ''].filter(Boolean).join(', ');
+  const guardrail = Number.isInteger(shape.wordsPerSection) && Array.isArray(shape.sections) ? `${shape.sections.length} sections, ${shape.wordsPerSection} words each` : '';
   const LINES = [{ n: 3, guardrail }];
   const step = { fromLine: 3, goal: 'write the summary and the skills and the a and the soft skills', close: { shape } };
   const sh = D.checkShapes({ steps: [step] });
