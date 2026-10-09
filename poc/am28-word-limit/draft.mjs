@@ -1,10 +1,12 @@
-// M4e amendment 28 POC — ONE drafter round per job with the am28 wording. NOT the product.
+// M4e amendment 28/29 POC — one drafter round per job (plus ONE structure retry on a broken call) with the am29 wording. NOT the product.
 // borrowed-from: src/drafter.js@43a9f77 (the real system prompt, schema, forced tool call, per-round metering, thinking disabled).
 //
 // src/drafter.js bakes the "smallest wins" sentence into module constants and has no override seam, so this file builds the
 // round from the REAL exports (buildSystemPrompt, NOTCHECKED_PROMPT, buildRoundSchema, DRAFT_PROVIDER_OPTIONS) and replaces that
-// ONE sentence with the am28 sentence in both the prompt and the schema. It also adds `wordsPerSection` to the shape schema (today
-// the machine sets it; under am28 the model writes it). Nothing in src changes. Each call is metered via Loop's onLlmResult.
+// ONE sentence with the am29 sentence in both the prompt and the schema. The model does NOT write wordsPerSection (code reads it from
+// the guardrail, am15 item 1). Nothing in src changes. Each call is metered via Loop's onLlmResult.
+// Retry rule copied from src/drafter.js (structure retry: same system prompt, a user message naming why the last reply was unusable);
+// am29 signs ONE retry, where the real drafter's MAX_STRUCTURE_RETRIES is 2. A provider throw is not retried (as in the real drafter).
 
 import { Loop, HaltError } from 'bare-agent';
 import { parseSignedText, unsignedAskTtls } from '../../src/signed-text.js';
@@ -17,9 +19,9 @@ import {
 } from '../../src/drafter.js';
 
 const TOOL = 'emit_declaration';
-/** Signed in amendment 28: "use the guardrail's ceiling for the whole output, and its size for each section". */
-export const AM28_RULE = "use the guardrail's ceiling for the whole output, and its size for each section";
-const PER_SECTION_DESC = "the size of each section in words, exactly as the guardrail states it; leave it out when the guardrail gives no size for each section";
+/** Signed in amendment 29: "use the guardrail's ceiling for the whole output". */
+export const AM28_RULE = "use the guardrail's ceiling for the whole output";
+export const POC_STRUCTURE_RETRIES = 1;
 
 /** The real schema + system prompt, with the one sentence swapped. Throws if the swap did not happen (a silent no-op would void the POC). */
 export function am28Setup({ menu, lines, arbiter, factsInfo }) {
@@ -28,8 +30,6 @@ export function am28Setup({ menu, lines, arbiter, factsInfo }) {
   const shape = schema.properties.steps.items.properties.close.properties.shape;
   const swapped = JSON.parse(JSON.stringify(schema).replaceAll(SMALLEST_CEILING_RULE, AM28_RULE));
   const sshape = swapped.properties.steps.items.properties.close.properties.shape;
-  sshape.properties = { ...sshape.properties, wordsPerSection: { type: 'integer', minimum: 1, description: PER_SECTION_DESC } };
-  sshape.description = `${sshape.description}, wordsPerSection`;
   const sys = system.replaceAll(SMALLEST_CEILING_RULE, AM28_RULE);
   if (JSON.stringify(shape).includes(AM28_RULE) || !JSON.stringify(sshape).includes(AM28_RULE) || !sys.includes(AM28_RULE)
     || sys.includes(SMALLEST_CEILING_RULE) || JSON.stringify(swapped).includes(SMALLEST_CEILING_RULE)) {
@@ -69,26 +69,40 @@ export async function draftOnce({
   };
   const events = [];
   const loop = new Loop({ provider, rates, onLlmResult: async (ev) => { events.push(ev); } });
+  let userText = `Call ${TOOL} now.`;
+  let calls = 0;
   let result;
   let stop = null;
   let stopReason = null;
-  try {
-    result = await loop.run(
-      [{ role: 'system', content: system }, { role: 'user', content: `Call ${TOOL} now.` }],
-      [tool],
-      { maxTokens: DRAFT_MAX_TOKENS, toolChoice: { name: TOOL } },
-    );
-  } catch (err) { stop = 'provider-red'; stopReason = err.message; }
+  let unmetered = 0;
+  for (let attempt = 0; attempt <= POC_STRUCTURE_RETRIES; attempt += 1) {
+    captured = undefined;
+    calls += 1;
+    const before = events.length;
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      result = await loop.run(
+        [{ role: 'system', content: system }, { role: 'user', content: userText }],
+        [tool],
+        { maxTokens: DRAFT_MAX_TOKENS, toolChoice: { name: TOOL } },
+      );
+    } catch (err) { stop = 'provider-red'; stopReason = err.message; if (events.length === before) unmetered += 1; break; }
+    if (events.length === before) unmetered += 1;
+    if (captured && typeof captured === 'object' && !Array.isArray(captured)) break;
+    const malformed = provider?.lastMalformedToolCall ?? null;
+    const why = result?.stopReason === 'max_tokens' ? 'truncated: the round hit the output cap with no completed tool call'
+      : malformed ? `the tool call's arguments were not valid JSON (${malformed.error})`
+        : 'no usable tool call (text instead of the tool)';
+    stop = 'structure'; stopReason = why;
+    userText = `Your last reply was not a usable tool call (${why}). Call ${TOOL} now with a complete, valid JSON declaration.`;
+  }
+  const gotCall = captured && typeof captured === 'object' && !Array.isArray(captured);
+  if (gotCall && stop === 'structure') { stop = null; stopReason = null; }
   const m = sumMeterings(events);
-  const unmetered = events.length === 0 ? 1 : 0;
   const out = {
-    ...base, stop, stopReason, rounds: m.rounds, calls: 1, tokens: m.tokens, costUsd: unmetered ? null : m.costUsd,
+    ...base, stop, stopReason, rounds: m.rounds, calls, tokens: m.tokens, costUsd: unmetered ? null : m.costUsd,
     spendComplete: unmetered === 0 && m.costUsd !== null, modelReturned: m.model,
   };
   if (stop) return out;
-  if (!captured || typeof captured !== 'object' || Array.isArray(captured)) {
-    const why = result?.stopReason === 'max_tokens' ? 'truncated: the round hit the output cap with no completed tool call' : 'no usable tool call';
-    return { ...out, stop: 'structure', stopReason: why };
-  }
   return { ...out, stop: null, steps: Array.isArray(captured.steps) ? captured.steps : [] };
 }

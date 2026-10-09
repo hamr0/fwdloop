@@ -1,11 +1,13 @@
-// M4e amendment 28 POC — paid-batch runner. NOT the product.
+// M4e amendment 29 POC — paid-batch runner. NOT the product.
 //
 //   export DEEPSEEK_API_KEY=$(pass amr/deepseek_api | head -n1 | tr -d '\r\n')
-//   setsid nohup node poc/am28-word-limit/run.mjs --tag am28-1 > poc/am28-word-limit/am28-1.log 2>&1 &
+//   setsid nohup node poc/am28-word-limit/run.mjs --tag am28-2 > poc/am28-word-limit/am28-2.log 2>&1 &
+//   node poc/am28-word-limit/run.mjs --per-section      # $0: code's per-section size for the 10 jobs, no key, no call
 //
-// One real drafter round per job (draft.mjs, am28 wording). Per job: the maxWords and wordsPerSection the model wrote on the
-// guardrail's step vs the known right answer. BAR: all 10 right. $0 gates before any ledger write: empty/odd key, existing tag.
-// Spend stop: before each job, ledger total (an unpriced row counts at its ceiling) + one round's ceiling must stay <= $0.25.
+// One real drafter round per job, one structure retry on a broken call (draft.mjs, am29 wording). Per job: the maxWords the model
+// wrote on the guardrail's step vs the known right answer, and the per-section size CODE reads (guardrailWordsPerSection) vs the
+// known right answer (the model never writes it). BAR: both right on all 10. Tag am28-1 is consumed (results file exists): refused. $0 gates before any ledger write: empty/odd key, existing tag.
+// Spend stop: before each job, ledger total (an unpriced row counts at its ceiling) + one job's ceiling must stay <= $0.25.
 // Results are write-once (wx); nothing written contains the key.
 
 import { existsSync, writeFileSync } from 'node:fs';
@@ -13,7 +15,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkKeyPreflight, appendSpendRow, ceilingCostUsd } from '../../src/provider.js';
 import { ledgerTotalUsd, scrub, secretsFromEnv } from '../m6a/batch.mjs';
-import { draftOnce } from './draft.mjs';
+import { guardrailWordsPerSection } from '../../src/declaration.js';
+import { draftOnce, POC_STRUCTURE_RETRIES } from './draft.mjs';
 import { JOBS } from './jobs.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -21,7 +24,7 @@ export const SPEND_STOP_USD = 0.25;
 export const PER_JOB_BUDGET_USD = 0.10;
 export const CALL_DEADLINE_MS = 300_000;
 const DEFAULT_MODEL = 'deepseek-flash';
-export const BAR_TEXT = 'BAR: the model picks the right maxWords (and wordsPerSection where the guardrail gives one, omits it where not) on all 10 jobs.';
+export const BAR_TEXT = 'BAR: the model picks the right maxWords on all 10 jobs AND code reads the right per-section size (null where none) on all 10.';
 
 function withDeadline(promise, ms) {
   let timer;
@@ -29,12 +32,12 @@ function withDeadline(promise, ms) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-/** What the model wrote for the guardrail's line: the first step with fromLine = that line, its close.shape numbers. */
+/** What the model wrote for the guardrail's line: the first step with fromLine = that line, its close.shape.maxWords. */
 export function extractWrote(steps, line) {
   const st = Array.isArray(steps) ? steps.find((s) => s && s.fromLine === line) : undefined;
   const shape = st?.close?.shape;
   const has = (k) => shape && typeof shape === 'object' && Object.hasOwn(shape, k);
-  return { stepFound: !!st, maxWords: has('maxWords') ? shape.maxWords : null, wordsPerSection: has('wordsPerSection') ? shape.wordsPerSection : null };
+  return { stepFound: !!st, maxWords: has('maxWords') ? shape.maxWords : null };
 }
 
 /** The am28 mechanism, reported only: does the number appear word for word in the guardrail (digits, commas allowed)? */
@@ -44,18 +47,23 @@ export function appearsInGuardrail(n, guardrail) {
   return nums.includes(n);
 }
 
-/** Strict equality, no tolerance: a number is right or wrong. null = must be absent. */
+/** Code's per-section size for a job (src/declaration.js), null where the guardrail gives none. $0. */
+export function codePerSection(job) { return guardrailWordsPerSection(job.guardrail); }
+
+/** Strict equality, no tolerance. maxWords is the model's; the per-section size is code's (null = none) and does not depend on the call. */
 export function scoreJob(job, wrote) {
   const maxOk = wrote.maxWords === job.expect.maxWords;
-  const perOk = wrote.wordsPerSection === job.expect.wordsPerSection;
+  const perOk = codePerSection(job) === job.expect.wordsPerSection;
   return { maxOk, perOk, pass: wrote.stepFound && maxOk && perOk };
 }
 
 export function evaluate(records, jobs = JOBS) {
   const complete = records.length === jobs.length;
   const right = records.filter((r) => r.pass).length;
+  const maxRight = records.filter((r) => r.maxOk).length;
+  const perRight = records.filter((r) => r.perOk).length;
   const broken = records.filter((r) => r.stop !== null).length;
-  return { complete, right, of: jobs.length, broken, pass: complete && right === jobs.length };
+  return { complete, right, maxRight, perRight, of: jobs.length, broken, pass: complete && right === jobs.length && maxRight === jobs.length && perRight === jobs.length };
 }
 
 export async function runBatch({
@@ -72,7 +80,8 @@ export async function runBatch({
   const resultsPath = join(outDir, `results-${tag}.json`);
   if (existsSync(resultsPath)) throw new Error(`run: tag "${tag}" already has results — use a new --tag, never overwrite evidence`);
   const secrets = secretsFromEnv(env.DEEPSEEK_API_KEY);
-  const roundCeiling = ceilingCostUsd(injected?.modelId ?? model);
+  // A job may use a first round plus the structure retries; the stop line and an unpriced job both use that worst case.
+  const roundCeiling = ceilingCostUsd(injected?.modelId ?? model) * (1 + POC_STRUCTURE_RETRIES);
 
   writeLine(BAR_TEXT);
   const records = [];
@@ -80,7 +89,7 @@ export async function runBatch({
   for (const job of jobs) {
     const total = ledgerTotalUsd(spendPath);
     if (total + roundCeiling > stopUsd) {
-      stoppedBy = `spend: ledger $${total.toFixed(4)} + one round's ceiling $${roundCeiling.toFixed(4)} would pass $${stopUsd.toFixed(2)}`;
+      stoppedBy = `spend: ledger $${total.toFixed(4)} + one job's ceiling $${roundCeiling.toFixed(4)} would pass $${stopUsd.toFixed(2)}`;
       break;
     }
     const started = Date.now();
@@ -100,17 +109,16 @@ export async function runBatch({
       costUsd: r.costUsd, rounds: r.rounds, calls: r.calls, spendComplete: r.spendComplete, wallMs,
     });
     const wrote = extractWrote(r.steps, job.guardrailLine);
-    const score = r.stop === null ? scoreJob(job, wrote) : { maxOk: false, perOk: false, pass: false };
+    const score = r.stop === null ? scoreJob(job, wrote) : { maxOk: false, perOk: codePerSection(job) === job.expect.wordsPerSection, pass: false };
     const rec = {
       id: job.id, guardrail: job.guardrail, trap: job.trap, expected: job.expect, wrote,
       maxInGuardrail: appearsInGuardrail(wrote.maxWords, job.guardrail),
-      perInGuardrail: wrote.wordsPerSection === null ? null : appearsInGuardrail(wrote.wordsPerSection, job.guardrail),
-      ...score, stop: r.stop, stopReason: r.stopReason ?? null, rounds: r.rounds, tokens: r.tokens, costUsd: r.costUsd,
+      codePerSection: codePerSection(job), ...score, stop: r.stop, stopReason: r.stopReason ?? null, rounds: r.rounds, calls: r.calls, tokens: r.tokens, costUsd: r.costUsd,
       modelReturned: r.modelReturned ?? null, wallMs,
     };
     records.push(rec);
     writeLine(`${job.id} [${job.guardrail}]: ${r.stop ? `STOP ${r.stop} ${r.stopReason ?? ''}` : score.pass ? 'RIGHT' : 'WRONG'} `
-      + `maxWords wrote=${wrote.maxWords} want=${job.expect.maxWords}; wordsPerSection wrote=${wrote.wordsPerSection} want=${job.expect.wordsPerSection} `
+      + `maxWords wrote=${wrote.maxWords} want=${job.expect.maxWords}; per-section (code) ${codePerSection(job)} want=${job.expect.wordsPerSection} `
       + `cost=${r.costUsd === null ? 'UNKNOWN' : `$${r.costUsd.toFixed(5)}`}`);
     if (timedOut) { stoppedBy = 'deadline: a call hung; stopping, its cost booked at the ceiling'; break; }
   }
@@ -125,12 +133,23 @@ export async function runBatch({
   };
   writeFileSync(resultsPath, scrub(`${JSON.stringify({ summary, records }, null, 2)}\n`, secrets), { flag: 'wx' });
   writeLine(`SUMMARY ${JSON.stringify(summary)}`);
-  writeLine(`right: ${verdict.right}/${verdict.of} (need all); calls that broke: ${verdict.broken}`);
+  writeLine(`maxWords right: ${verdict.maxRight}/${verdict.of}; per-section right: ${verdict.perRight}/${verdict.of}; both: ${verdict.right}/${verdict.of} (need all); calls that broke after retry: ${verdict.broken}`);
   writeLine(verdict.pass ? 'BAR: PASS' : `BAR: FAIL${verdict.complete ? '' : ' (incomplete run)'}`);
   return { records, summary };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === `file://${process.argv[1]}` && process.argv.includes('--per-section')) {
+  // $0: no key, no ledger, no call.
+  let bad = 0;
+  for (const j of JOBS) {
+    const got = codePerSection(j);
+    const ok = got === j.expect.wordsPerSection;
+    if (!ok) bad += 1;
+    process.stdout.write(`${j.id} [${j.guardrail}]: code=${got} want=${j.expect.wordsPerSection} ${ok ? 'RIGHT' : 'WRONG'}\n`);
+  }
+  process.stdout.write(`per-section: ${JOBS.length - bad}/${JOBS.length}\n`);
+  process.exit(bad ? 3 : 0);
+} else if (import.meta.url === `file://${process.argv[1]}`) {
   const i = process.argv.indexOf('--tag');
   const tag = i !== -1 ? process.argv[i + 1] : undefined;
   runBatch({ tag }).then(
