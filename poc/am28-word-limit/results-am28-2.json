@@ -1,0 +1,331 @@
+{
+  "summary": {
+    "tag": "am28-2",
+    "ran": 10,
+    "of": 10,
+    "stoppedBy": null,
+    "verdict": {
+      "complete": true,
+      "right": 10,
+      "maxRight": 10,
+      "perRight": 10,
+      "of": 10,
+      "broken": 0,
+      "pass": true
+    },
+    "costUsd": 0.01237,
+    "ledgerTotalUsd": 0.02483
+  },
+  "records": [
+    {
+      "id": "w01",
+      "guardrail": "under 600 words, each heading at most 3 words",
+      "trap": "heading limit after the ceiling",
+      "expected": {
+        "maxWords": 600,
+        "wordsPerSection": null
+      },
+      "wrote": {
+        "stepFound": true,
+        "maxWords": 600
+      },
+      "maxInGuardrail": true,
+      "codePerSection": null,
+      "maxOk": true,
+      "perOk": true,
+      "pass": true,
+      "stop": null,
+      "stopReason": null,
+      "rounds": 1,
+      "calls": 1,
+      "tokens": {
+        "inputTokens": 1323,
+        "outputTokens": 385,
+        "cacheReadTokens": 640,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012472,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 2096
+    },
+    {
+      "id": "w02",
+      "guardrail": "each heading at most 3 words, under 600 words",
+      "trap": "heading limit BEFORE the ceiling",
+      "expected": {
+        "maxWords": 600,
+        "wordsPerSection": null
+      },
+      "wrote": {
+        "stepFound": true,
+        "maxWords": 600
+      },
+      "maxInGuardrail": true,
+      "codePerSection": null,
+      "maxOk": true,
+      "perOk": true,
+      "pass": true,
+      "stop": null,
+      "stopReason": null,
+      "rounds": 1,
+      "calls": 1,
+      "tokens": {
+        "inputTokens": 1323,
+        "outputTokens": 365,
+        "cacheReadTokens": 640,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012231999999999998,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1683
+    },
+    {
+      "id": "w03",
+      "guardrail": "3 sections, about 150 words each, under 600 words",
+      "trap": "size per section vs whole ceiling",
+      "expected": {
+        "maxWords": 600,
+        "wordsPerSection": 150
+      },
+      "wrote": {
+        "stepFound": true,
+        "maxWords": 600
+      },
+      "maxInGuardrail": true,
+      "codePerSection": 150,
+      "maxOk": true,
+      "perOk": true,
+      "pass": true,
+      "stop": null,
+      "stopReason": null,
+      "rounds": 1,
+      "calls": 1,
+      "tokens": {
+        "inputTokens": 1329,
+        "outputTokens": 351,
+        "cacheReadTokens": 640,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012088000000000001,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1464
+    },
+    {
+      "id": "w04",
+      "guardrail": "under 400 words, quote at most 2 lines of 20 words",
+      "trap": "quote limit is a word count too",
+      "expected": {
+        "maxWords": 400,
+        "wordsPerSection": null
+      },
+      "wrote": {
+        "stepFound": true,
+        "maxWords": 400
+      },
+      "maxInGuardrail": true,
+      "codePerSection": null,
+      "maxOk": true,
+      "perOk": true,
+      "pass": true,
+      "stop": null,
+      "stopReason": null,
+      "rounds": 1,
+      "calls": 1,
+      "tokens": {
+        "inputTokens": 1326,
+        "outputTokens": 382,
+        "cacheReadTokens": 640,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012448,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 2350
+    },
+    {
+      "id": "w05",
+      "guardrail": "a 5-word title, body under 300 words",
+      "trap": "title length",
+      "expected": {
+        "maxWords": 300,
+        "wordsPerSection": null
+      },
+      "wrote": {
+        "stepFound": true,
+        "maxWords": 300
+      },
+      "maxInGuardrail": true,
+      "codePerSection": null,
+      "maxOk": true,
+      "perOk": true,
+      "pass": true,
+      "stop": null,
+      "stopReason": null,
+      "rounds": 1,
+      "calls": 1,
+      "tokens": {
+        "inputTokens": 1322,
+        "outputTokens": 429,
+        "cacheReadTokens": 640,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012996000000000001,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 2456
+    },
+    {
+      "id": "w06",
+      "guardrail": "under 1,000 words, bullets of at most 12 words",
+      "trap": "comma in the number; bullet limit",
+      "expected": {
+        "maxWords": 1000,
+        "wordsPerSection": null
+      },
+      "wrote": {
+        "stepFound": true,
+        "maxWords": 1000
+      },
+      "maxInGuardrail": true,
+      "codePerSection": null,
+      "maxOk": true,
+      "perOk": true,
+      "pass": true,
+      "stop": null,
+      "stopReason": null,
+      "rounds": 1,
+      "calls": 1,
+      "tokens": {
+        "inputTokens": 1325,
+        "outputTokens": 369,
+        "cacheReadTokens": 640,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012288000000000002,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1740
+    },
+    {
+      "id": "w07",
+      "guardrail": "no more than 250 words, 4 sections, at most 50 words per section",
+      "trap": "per-section stated after the count",
+      "expected": {
+        "maxWords": 250,
+        "wordsPerSection": 50
+      },
+      "wrote": {
+        "stepFound": true,
+        "maxWords": 250
+      },
+      "maxInGuardrail": true,
+      "codePerSection": 50,
+      "maxOk": true,
+      "perOk": true,
+      "pass": true,
+      "stop": null,
+      "stopReason": null,
+      "rounds": 1,
+      "calls": 1,
+      "tokens": {
+        "inputTokens": 1333,
+        "outputTokens": 366,
+        "cacheReadTokens": 640,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012284,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1940
+    },
+    {
+      "id": "w08",
+      "guardrail": "3 sections, 120 words each, 400 words in total",
+      "trap": "\"in total\" ceiling after a per-section size",
+      "expected": {
+        "maxWords": 400,
+        "wordsPerSection": 120
+      },
+      "wrote": {
+        "stepFound": true,
+        "maxWords": 400
+      },
+      "maxInGuardrail": true,
+      "codePerSection": 120,
+      "maxOk": true,
+      "perOk": true,
+      "pass": true,
+      "stop": null,
+      "stopReason": null,
+      "rounds": 1,
+      "calls": 1,
+      "tokens": {
+        "inputTokens": 1329,
+        "outputTokens": 416,
+        "cacheReadTokens": 640,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012868000000000003,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1844
+    },
+    {
+      "id": "w09",
+      "guardrail": "the report is 800 words at most; each paragraph 5 sentences max; headings Intro, Body, Close",
+      "trap": "number words and sentence counts",
+      "expected": {
+        "maxWords": 800,
+        "wordsPerSection": null
+      },
+      "wrote": {
+        "stepFound": true,
+        "maxWords": 800
+      },
+      "maxInGuardrail": true,
+      "codePerSection": null,
+      "maxOk": true,
+      "perOk": true,
+      "pass": true,
+      "stop": null,
+      "stopReason": null,
+      "rounds": 1,
+      "calls": 1,
+      "tokens": {
+        "inputTokens": 1333,
+        "outputTokens": 343,
+        "cacheReadTokens": 640,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012008000000000001,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1665
+    },
+    {
+      "id": "w10",
+      "guardrail": "keep it to 2 pages, under 500 words, sign off with a 10-word line",
+      "trap": "pages and a sign-off line",
+      "expected": {
+        "maxWords": 500,
+        "wordsPerSection": null
+      },
+      "wrote": {
+        "stepFound": true,
+        "maxWords": 500
+      },
+      "maxInGuardrail": true,
+      "codePerSection": null,
+      "maxOk": true,
+      "perOk": true,
+      "pass": true,
+      "stop": null,
+      "stopReason": null,
+      "rounds": 1,
+      "calls": 1,
+      "tokens": {
+        "inputTokens": 1331,
+        "outputTokens": 347,
+        "cacheReadTokens": 640,
+        "cacheCreationTokens": 0
+      },
+      "costUsd": 0.0012047999999999998,
+      "modelReturned": "deepseek-flash",
+      "wallMs": 1865
+    }
+  ]
+}
