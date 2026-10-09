@@ -29,7 +29,7 @@ function unwiredFlow(root, name) {
   assert.equal(r.ok, true, r.ok ? '' : r.reds.join('; '));
 }
 
-test('(d) a flow with an unwired verb or no passed run is not listed; one with a passed run is, with its track record', async () => {
+test('(d) a flow with no passed run is not listed; an unwired one is listed refused (amendment 21 1); one with a passed run is, with its track record', async () => {
   const w = await world();
   await w.signedFlow({ flowName: 'good' });
   await w.signedFlow({ flowName: 'never-passed' });
@@ -39,7 +39,8 @@ test('(d) a flow with an unwired verb or no passed run is not listed; one with a
   w.seedPassed('unwired', 'run-1');
   w.seedPassed('never-passed', 'run-1', { outcome: 'cap-halt' });
   const l = await list(w);
-  assert.deepEqual(l.flows.map((f) => f.flow), ['good'], 'unwired (preflight would refuse) and never-passed are not listed');
+  assert.deepEqual(l.flows.map((f) => f.flow), ['good', 'unwired'], 'never-passed is not listed; unwired (preflight would refuse) is listed, refused');
+  assert.equal(l.flows[1].refused, true);
   const f = l.flows[0];
   assert.deepEqual(f.runs.map((r) => r.runId), ['run-1'], 'only the passed run is offered by name');
   assert.deepEqual(f.runs[0].values, f.values, 'a run with no signed values of its own ran with the flow\'s own');
