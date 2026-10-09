@@ -1,5 +1,5 @@
-// M4e amendment 34: the Job tab holds two blocks. "What you asked" is the human's signed words only; "What the plan does" is read from the signed flow's
-// own files (declaration.json for the steps and their checks, the setup.jsonl sign row for "Not checked"). $0. The layout itself is a browser walk.
+// M4e amendments 34 + 37: the Job tab is one column: each signed line, its ~ rows, then its step folded under it (the plan is read from the signed flow's
+// own files: declaration.json for the steps and their checks, the setup.jsonl sign row for "Not checked"). $0. The layout itself is a browser walk.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -43,6 +43,7 @@ test('the plan has one row per step: from line, reads, makes, may do, and the ch
     assert.deepEqual(s.reads, x.decl.steps[i].reads);
     assert.equal(s.makes, x.decl.steps[i].emits);
     assert.deepEqual(s.check, checked[i].sentences, 'the check is checkedLines, not new wording');
+    assert.equal(s.checkClass, checked[i].class, 'the typed close class rides along so the page never reads prose');
   });
   assert.deepEqual(plan.steps[0].mayDo, ['readDocx']);
   assert.deepEqual(plan.steps[3].mayDo, [], 'the ask step grants nothing: the page says "nothing (pure stop)"');
@@ -73,14 +74,22 @@ test('no Success field any more: the job carries no `success` rows', () => {
   assert.equal('success' in world([SIGN([])]).job(), false);
 });
 
-test('the page: two blocks, no Success box, the plan block holds a Not checked label', () => {
-  assert.match(PAGE, /What you asked/);
-  assert.match(PAGE, /What the plan does/);
+test('the page (am37): one column, no side-by-side grid, no two block headings; the fold is a native details/summary; a plan colour token in both themes', () => {
+  assert.doesNotMatch(PAGE, /What you asked/);
+  assert.doesNotMatch(PAGE, /What the plan does/);
+  assert.doesNotMatch(PAGE, /@container/);
+  assert.doesNotMatch(PAGE, /container-type/);
+  assert.doesNotMatch(PAGE, /\.jg[-{ ]|jg-asked|jg-plan-side|id="job-grid"[^>]*class="jg"/);
   assert.doesNotMatch(PAGE, /details-success/);
   assert.match(PAGE, /Not checked \(the AI's own reading\)/);
   assert.match(PAGE, /nothing \(pure stop\)/);
   assert.match(PAGE, /ASK · waits /);
   assert.match(PAGE, /not recorded \(signed before amendment 34\)/);
+  assert.match(PAGE, /createElement\("details"\)/);
+  assert.match(PAGE, /createElement\("summary"\)/);
+  const tokens = PAGE.match(/--plan:#[0-9a-fA-F]{3,8}/g) || [];
+  assert.ok(tokens.length >= 3, `--plan must be defined for dark, light (media) and light (attr): ${tokens}`);
+  assert.match(PAGE, /\.plan-sum\{[^}]*color:var\(--plan\)/);
 });
 
 // ---- the renderer, run against a tiny fake DOM (the real layout is the browser walk) ----
@@ -91,63 +100,103 @@ const fn = (name) => {
 };
 function fakeDom() {
   const els = {};
-  const mk = () => {
+  const mk = (tag) => {
     const e = {
-      children: [], className: '', textContent: '', hidden: false, attrs: {},
+      tag, children: [], className: '', textContent: '', hidden: false, attrs: {},
       appendChild(c) { e.children.push(c); return c; },
       setAttribute(k, v) { e.attrs[k] = v; },
     };
     Object.defineProperty(e, 'innerHTML', { set() { e.children = []; }, get() { return ''; } });
     return e;
   };
-  return { getElementById: (id) => (els[id] ??= mk()), createElement: () => mk(), els };
+  return { getElementById: (id) => (els[id] ??= mk('div')), createElement: (t) => mk(t), els };
 }
 function render(job) {
   const document = fakeDom();
-  const src = ['duration', 'plainWait', 'textDiv', 'renderRowsField', 'readableDateTime', 'jobStepBox', 'paintJobPlan', 'renderJob'].map(fn).join('\n');
+  const src = ['duration', 'plainWait', 'textDiv', 'renderRowsField', 'readableDateTime', 'stepSummaryText', 'jobStepFold', 'paintJobPlan', 'renderJob'].map(fn).join('\n');
   new Function('document', `${src}\nreturn { renderJob };`)(document).renderJob(job);
   return document;
 }
-const walk = (e) => [`${e.className}|${e.textContent}`, ...e.children.flatMap(walk)];
+const walk = (e) => [`${e.tag === 'div' ? '' : `<${e.tag}>`}${e.className}|${e.textContent}`, ...e.children.flatMap(walk)];
 const PLAN = {
   steps: [
-    { step: 1, line: 1, reads: [], makes: 'resume-text', mayDo: ['readDocx'], check: ['No machine check of the content: you check it at the ask.'], ask: false, waitMs: null },
-    { step: 2, line: 3, reads: ['resume-text', 'jd-text'], makes: 'resume-summary', mayDo: ['read'], check: ['The reply is checked as plain text only.', 'The whole output is under 600 words.'], ask: false, waitMs: null },
-    { step: 3, line: 3, reads: ['resume-summary'], makes: 'second', mayDo: [], check: ['z'], ask: false, waitMs: null },
-    { step: 4, line: 4, reads: ['resume-summary'], makes: 'approved', mayDo: [], check: ['x'], ask: true, waitMs: 5400000 },
+    { step: 1, line: 1, reads: [], makes: 'resume-text', mayDo: ['readDocx'], check: ['No machine check of the content: you check it at the ask.'], checkClass: 'hitl', ask: false, waitMs: null },
+    { step: 2, line: 3, reads: ['resume-text', 'jd-text'], makes: 'resume-summary', mayDo: ['read'], check: ['The reply is checked as plain text only.', 'The whole output is under 600 words.'], checkClass: 'softgreen', ask: false, waitMs: null },
+    { step: 3, line: 3, reads: ['resume-summary'], makes: 'summaryResume', mayDo: [], check: ['z'], checkClass: 'softgreen', ask: false, waitMs: null },
+    { step: 4, line: 4, reads: ['resume-summary'], makes: 'approved', mayDo: [], check: ['x'], checkClass: 'hitl', ask: true, waitMs: 5400000 },
   ],
   notChecked: { label: 'l', items: ['tone', 'the JD match'], recorded: true },
 };
 const JOB = {
   resolved: true, flow: 'f', model: null, modelWhy: 'x',
   prose: [{ line: 1, text: 'a' }, { line: 2, text: 'no step here' }, { line: 3, text: 'c' }, { line: 4, text: 'd' }],
-  guardrails: [], asks: [{ line: 4, question: 'q', waitMs: 5400000 }], sends: [], sources: [], capUsd: 0.5, redoCap: 3, signature: null, signatureWhy: 'unsigned', plan: PLAN,
+  guardrails: [{ line: 3, guardrail: 'g3' }], asks: [{ line: 4, question: 'q', waitMs: 5400000 }], sends: [], sources: [], capUsd: 0.5, redoCap: 3, signature: null, signatureWhy: 'unsigned', plan: PLAN,
 };
+const lineEls = (d) => d.els['details-prose'].children;
 
-test('the plan renders one cell per job line, on that line\'s grid row; a line with no step leaves its cell empty; two steps on one line stack', () => {
+test('one column: each job line is one wrapper holding the line, its ~ rows, then its steps folded; a line with no step is just the line', () => {
   const d = render(JOB);
-  const cells = d.els['details-plan'].children;
-  assert.deepEqual(cells.map((c) => c.attrs.style), ['--r:2', '--r:3', '--r:4', '--r:5']);
-  assert.deepEqual(cells.map((c) => c.children.length), [1, 0, 2, 1]);
-  assert.deepEqual(d.els['details-prose'].children.map((c) => c.attrs.style), ['--r:2', '--r:3', '--r:4', '--r:5'], 'the same rows as the job lines');
+  assert.equal(lineEls(d).length, 4);
+  assert.ok(lineEls(d).every((l) => l.attrs.style === undefined), 'no grid row styling');
+  assert.deepEqual(lineEls(d).map((l) => l.children.map((c) => c.tag)), [['div', 'details'], ['div'], ['div', 'div', 'details', 'details'], ['div', 'div', 'details']]);
+  assert.equal(d.els['details-plan'], undefined, 'no separate plan block');
 });
 
-test('a step box shows from line, reads, makes, may do and its check', () => {
-  const box = render(JOB).els['details-plan'].children[2].children[0];
-  assert.deepEqual(walk(box).slice(1), [
+test('each step\'s fold comes right after its line\'s last ~ row, in step order', () => {
+  const l3 = lineEls(render(JOB))[2].children;
+  assert.deepEqual(l3.map((c) => c.className), ['ro-value', 'ro-value sub', 'plan-fold', 'plan-fold']);
+  assert.equal(l3[1].textContent, '~ g3');
+  assert.match(l3[2].children[0].textContent, /step 2 /);
+  assert.match(l3[3].children[0].textContent, /step 3 /);
+});
+
+test('the summary text: "› step N · <may do> → <makes> · machine check | you check"; no grant leaves just "→ makes"', () => {
+  const l = lineEls(render(JOB));
+  assert.equal(l[0].children[1].children[0].textContent, '› step 1 · readDocx → resume-text · you check');
+  assert.equal(l[2].children[2].children[0].textContent, '› step 2 · read → resume-summary · machine check');
+  assert.equal(l[2].children[3].children[0].textContent, '› step 3 · → summaryResume · machine check');
+});
+
+test('the ask step\'s summary reads "› step N · ASK · waits <wait>" in plain units', () => {
+  assert.equal(lineEls(render(JOB))[3].children[2].children[0].textContent, '› step 4 · ASK · waits 1h 30m');
+});
+
+test('a write step on a line with a signed destination shows "→ <destination>"', () => {
+  const j = {
+    ...JOB, sends: [{ line: 3, kind: 'file', target: '/tmp/out' }],
+    plan: { ...PLAN, steps: PLAN.steps.map((s) => (s.step === 2 ? { ...s, mayDo: ['write'] } : s)) },
+  };
+  assert.equal(lineEls(render(j))[2].children.find((c) => c.tag === 'details').children[0].textContent, '› step 2 · write → resume-summary → /tmp/out · machine check');
+});
+
+test('the fold is a details with a summary first; the plan rows carry the plan-colour classes', () => {
+  const fold = lineEls(render(JOB))[2].children[2];
+  assert.equal(fold.tag, 'details');
+  assert.equal(fold.children[0].tag, 'summary');
+  assert.equal(fold.children[0].className, 'plan-sum');
+  assert.equal(fold.className, 'plan-fold');
+});
+
+test('the open detail shows from line, reads, makes, may do and its check (same values as before)', () => {
+  const fold = lineEls(render(JOB))[2].children[2];
+  assert.deepEqual(walk(fold).slice(2), [
     'plan-head|step 2 · from line 3', 'plan-row|reads: resume-text, jd-text', 'plan-row|makes: resume-summary', 'plan-row|may do: read',
     'plan-row|check: The reply is checked as plain text only. The whole output is under 600 words.',
   ]);
 });
 
-test('no reads reads "nothing"; no grants reads "nothing (pure stop)"; the ask step shows "ASK · waits <wait>" in plain units', () => {
-  const d = render(JOB);
-  const first = walk(d.els['details-plan'].children[0].children[0]);
-  assert.ok(first.includes('plan-row|reads: nothing'));
-  const second = walk(d.els['details-plan'].children[2].children[1]);
-  assert.ok(second.includes('plan-row|may do: nothing (pure stop)'));
-  const ask = walk(d.els['details-plan'].children[3].children[0]);
-  assert.ok(ask.includes('plan-row|check: ASK · waits 1h 30m'), ask.join('\n'));
+test('no reads reads "nothing"; no grants reads "nothing (pure stop)"; the ask step shows "ASK · waits <wait>" in the check row', () => {
+  const l = lineEls(render(JOB));
+  assert.ok(walk(l[0].children[1]).includes('plan-row|reads: nothing'));
+  assert.ok(walk(l[2].children[3]).includes('plan-row|may do: nothing (pure stop)'));
+  assert.ok(walk(l[3].children[2]).includes('plan-row|check: ASK · waits 1h 30m'));
+});
+
+test('a step from no listed line goes to the tail, before Not checked', () => {
+  const j = { ...JOB, plan: { ...PLAN, steps: [...PLAN.steps, { ...PLAN.steps[0], step: 5, line: null }] } };
+  const t = render(j).els['details-plan-tail'].children;
+  assert.equal(t[0].tag, 'details');
+  assert.equal(t[1].textContent, "Not checked (the AI's own reading)");
 });
 
 test('Not checked always carries its label; items one row each; an older flow says it is not recorded', () => {
@@ -161,13 +210,12 @@ test('Not checked always carries its label; items one row each; an older flow sa
   assert.ok(t.includes("plan-head|Not checked (the AI's own reading)"));
 });
 
-test('"What you asked" holds no plan text: its cells carry only the signed lines, guardrails, waits and destinations', () => {
-  const d = render(JOB);
-  const text = d.els['details-prose'].children.flatMap(walk).join('\n');
-  assert.doesNotMatch(text, /reads:|makes:|may do:|check:|Not checked/);
+test('your words and the plan never share an element: no ro-value / sub row carries plan text', () => {
+  const rowsOfWords = lineEls(render(JOB)).flatMap((l) => l.children.filter((c) => c.tag === 'div')).flatMap(walk).join('\n');
+  assert.doesNotMatch(rowsOfWords, /reads:|makes:|may do:|check:|Not checked|› step/);
 });
 
 test('a run with its own signed values shows that run\'s plan (the wait on the ask step follows the job data)', () => {
   const j = { ...JOB, asks: [{ line: 4, question: 'q', waitMs: 1800000 }], plan: { ...PLAN, steps: PLAN.steps.map((s) => (s.ask ? { ...s, waitMs: 1800000 } : s)) } };
-  assert.ok(walk(render(j).els['details-plan'].children[3].children[0]).includes('plan-row|check: ASK · waits 30m'));
+  assert.equal(lineEls(render(j))[3].children[2].children[0].textContent, '› step 4 · ASK · waits 30m');
 });

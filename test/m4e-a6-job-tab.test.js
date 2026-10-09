@@ -34,7 +34,7 @@ const rows = (el) => el.children.map((c) => `${c.className}|${c.textContent}`);
 
 function render(job) {
   const document = fakeDom();
-  const src = ['duration', 'plainWait', 'textDiv', 'renderRowsField', 'readableDateTime', 'jobStepBox', 'paintJobPlan', 'renderJob'].map(fn).join('\n');
+  const src = ['duration', 'plainWait', 'textDiv', 'renderRowsField', 'readableDateTime', 'stepSummaryText', 'jobStepFold', 'paintJobPlan', 'renderJob'].map(fn).join('\n');
   const run = new Function('document', `${src}\nreturn { renderJob, plainWait };`)(document);
   run.renderJob(job);
   return { document, plainWait: run.plainWait };
@@ -58,15 +58,16 @@ const JOB = {
   plan: PLAN,
 };
 
-const cells = (el) => el.children.map((c) => ({ row: c.attrs?.style, rows: c.children.map((r) => `${r.className}|${r.textContent}`) }));
+// am37: one wrapper per line (no grid rows); only the words rows (the plan folds are <details>) are compared here
+const cells = (el) => el.children.map((c) => ({ rows: c.children.filter((r) => r.className !== 'plan-fold').map((r) => `${r.className}|${r.textContent}`) }));
 
-test('(g) each guardrail is a "~" row under its own line, the wait under the ask line, the destination under the send line; one cell and one grid row per line', () => {
+test('(g) each guardrail is a "~" row under its own line, the wait under the ask line, the destination under the send line; one wrapper per line, no grid row', () => {
   const { document } = render(JOB);
   assert.deepEqual(cells(document.els['details-prose']), [
-    { row: '--r:2', rows: ['ro-value|1. Read my resume,'] },
-    { row: '--r:3', rows: ['ro-value|3. write me a summary,', 'ro-value sub|~ 3 sections, all under 600 words'] },
-    { row: '--r:4', rows: ['ro-value|4. check it with me,', 'ro-value sub|~ nothing goes out before I accept', 'ro-value sub|~ waits 1h'] },
-    { row: '--r:5', rows: ['ro-value|5. and write it out.', 'ro-value sub|~ writes out to /tmp/out'] },
+    { rows: ['ro-value|1. Read my resume,'] },
+    { rows: ['ro-value|3. write me a summary,', 'ro-value sub|~ 3 sections, all under 600 words'] },
+    { rows: ['ro-value|4. check it with me,', 'ro-value sub|~ nothing goes out before I accept', 'ro-value sub|~ waits 1h'] },
+    { rows: ['ro-value|5. and write it out.', 'ro-value sub|~ writes out to /tmp/out'] },
   ]);
   assert.equal(rows(document.els['details-asks'])[0], 'ro-value|line 4 · "check it with me" · waits 1h', 'the Ask row uses the same formatter');
 });

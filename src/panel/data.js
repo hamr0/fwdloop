@@ -1617,6 +1617,7 @@ function buildJobPlan(declaration, asks, flowDir) {
       makes: typeof st.emits === 'string' ? st.emits : null,
       mayDo: Array.isArray(st.primitives) ? st.primitives : [],
       check: lines[i].sentences,
+      checkClass: lines[i].class,
       ask: !!ak,
       waitMs: ak && typeof ak.ttlMs === 'number' ? ak.ttlMs : null,
     };
