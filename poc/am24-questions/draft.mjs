@@ -1,11 +1,11 @@
-// M4e amendment 24 POC — the drafter plus optional `questions` and `notChecked`. NOT the product.
-// borrowed-from: fwdloop src/drafter.js@d9a21cc (schema, system prompt, forced tool call, per-round metering).
+// M4e amendment 25 POC — the real drafter's three tries; `questions` opens only on try 3 of 3. NOT the product.
+// borrowed-from: fwdloop src/drafter.js@d9a21cc (schema, system prompt, forced tool call, per-round metering, revise message).
 //
-// The schema and system prompt are built by src/drafter.js's own exports, so the baseline cannot drift;
-// this file only ADDS: two optional properties, one prompt block, and the post-processing
-// (normalizeQuestions). ONE round per job (plus at most MAX_STRUCTURE_RETRIES when the round gave no usable
-// tool call); no validator revisions — the POC measures the first declaration. Every round is metered via
-// Loop's onLlmResult. A `max_tokens` stop is truncation, never "no tool call".
+// Try 1 = the real drafter's schema and prompt, no questions. Try 2 = the real first revision (reds fed back), no questions.
+// Try 3 = the real second revision PLUS the optional `questions` property, `notChecked`, and a prompt line; offered only
+// when tries 1 and 2 both failed validateDeclaration. A question is kept only if its line is one try 2's reds named.
+// No number appears in the prompt or schema description; the machine keeps 2. Every round is metered via Loop's
+// onLlmResult. A `max_tokens` stop is truncation, never "no tool call".
 
 import { Loop, HaltError } from 'bare-agent';
 import { parseSignedText, unsignedAskTtls } from '../../src/signed-text.js';
@@ -16,9 +16,10 @@ import { readInputFacts } from '../../src/input-facts.js';
 import { makeProvider, sumMeterings, ceilingCostUsd } from '../../src/provider.js';
 import {
   buildDeclarationSchema, buildSystemPrompt, goalForLine, DRAFT_PROVIDER_OPTIONS, DRAFT_MAX_TOKENS, DRAFT_SKILLS,
+  MAX_STRUCTURE_RETRIES, MAX_REVISIONS,
 } from '../../src/drafter.js';
 
-export const MAX_STRUCTURE_RETRIES = 1;
+export { MAX_STRUCTURE_RETRIES };
 export const MAX_QUESTIONS = 2;
 const TOOL = 'emit_declaration';
 
@@ -32,43 +33,68 @@ export const CHECKABLE = [
   'hitl: a human accepts or reviews at a signed ask — the machine checks only that the step happened',
 ];
 
+/** Try 3 only. No digit and no number word anywhere in it (a test greps this). The machine, not the prompt, bounds the count. */
 export const QUESTIONS_PROMPT = [
-  'Questions (optional, at most 2): add "questions" ONLY for something genuinely missing that you cannot draft a line without',
+  'You may add "questions" to this reply. Ask only about a job line named in the refusals above, and only if that line cannot be drafted without the answer',
   '(an undefined size, format, destination, or what "done" means). Each question is {line, question}: "line" is the number of the job line it is about.',
-  'Never ask to double-check what the job already says. Never ask about a trigger, cap, ask position or TTL, allow-list or send target (signed, not yours).',
-  'A job that is fully specified gets NO questions: leave "questions" out. Still emit the complete declaration either way.',
-  '',
-  'notChecked (optional): a short list of things about the job that no check below will verify. These are the ONLY things fwdloop can check:',
-  ...CHECKABLE.map((c) => `- ${c}`),
-  'Anything the job asks for beyond those (tone, correctness of prose, completeness, matching a taste) is NOT checked: list it in "notChecked", one plain short phrase each. [] or leave out if nothing.',
+  'If the refusals can be fixed without asking, fix them and leave "questions" out. Never ask about a trigger, cap, ask position or TTL, allow-list or send target (signed, not yours).',
+  'Still emit the complete corrected declaration.',
 ].join('\n');
 
-/** The drafter's schema plus the two optional properties. Not in `required`. */
-export function buildPocSchema(menu) {
+export const NOTCHECKED_PROMPT = [
+  'notChecked (optional): a short list of things about the job that no check below will verify. These are the ONLY things fwdloop can check:',
+  ...CHECKABLE.map((c) => `- ${c}`),
+  'Anything the job asks for beyond those (tone, correctness of prose, completeness, matching a taste) is NOT checked: list it in "notChecked", a plain short phrase each. [] or leave out if nothing.',
+].join('\n');
+
+/** The real drafter's revise message (src/drafter.js reviseMessage). */
+function reviseMessage(reds) {
+  return 'The declaration you just emitted was REFUSED by the validator. Fix every one of these and call '
+    + `${TOOL} again with the complete corrected declaration:\n${reds.map((r) => `- ${r}`).join('\n')}`;
+}
+
+/** The drafter's schema; `questions` and `notChecked` are optional additions, added only on try 3. Not in `required`. */
+export function buildPocSchema(menu, { questions = false, notChecked = false } = {}) {
   const s = buildDeclarationSchema(menu);
-  return {
-    ...s,
-    properties: {
-      ...s.properties,
-      questions: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: { line: { type: 'integer' }, question: { type: 'string', minLength: 1 } },
-          required: ['line', 'question'],
-        },
-        description: 'at most 2 questions the job cannot be drafted without; each names its job line',
+  const extra = {};
+  if (questions) {
+    extra.questions = {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { line: { type: 'integer' }, question: { type: 'string' } },
+        required: ['line', 'question'],
       },
-      notChecked: { type: 'array', items: { type: 'string' }, description: 'what the job asks for that no typed check verifies' },
-    },
-  };
+      description: 'questions the job cannot be drafted without; each names the job line it is about',
+    };
+  }
+  if (notChecked) extra.notChecked = { type: 'array', items: { type: 'string' }, description: 'what the job asks for that no typed check verifies' };
+  return { ...s, properties: { ...s.properties, ...extra } };
 }
 
 /**
- * amendment 24 item 1: a question with no line, a line that does not exist, a blank question, or a third question
- * is dropped, and the drop is returned for the log. `lineNums` = the job's real line numbers.
+ * Which job lines did these reds name? Reds name a line three ways: "line N" (also "ask at line N", "(line N)",
+ * "guardrailClasses key \"N\""), "steps[i]" (mapped through that declaration's steps[i].fromLine), and "step N's check"
+ * (1-based). A red naming none (a missing top-level key, an unknown key) names no line. Returns sorted real line numbers.
  */
-export function normalizeQuestions(raw, lineNums) {
+export function linesNamedByReds(reds, declaration, lineNums) {
+  const found = new Set();
+  const steps = Array.isArray(declaration?.steps) ? declaration.steps : [];
+  const stepLine = (i) => (isPlainObject(steps[i]) && Number.isInteger(steps[i].fromLine) ? steps[i].fromLine : null);
+  for (const red of reds) {
+    for (const m of red.matchAll(/\bline (\d+)\b/g)) found.add(Number(m[1]));
+    for (const m of red.matchAll(/guardrailClasses key "(\d+)"|unjudgeable key "(\d+)"/g)) found.add(Number(m[1] ?? m[2]));
+    for (const m of red.matchAll(/steps\[(\d+)\]/g)) { const n = stepLine(Number(m[1])); if (n !== null) found.add(n); }
+    for (const m of red.matchAll(/\bstep (\d+)'s check/g)) { const n = stepLine(Number(m[1]) - 1); if (n !== null) found.add(n); }
+  }
+  return [...found].filter((n) => lineNums.includes(n)).sort((x, y) => x - y);
+}
+
+/**
+ * amendment 25: a question is kept only if its line is one try 2's reds named; a question with no line, a blank
+ * question, or a third question is dropped. Every drop is returned with its reason, for the log.
+ */
+export function normalizeQuestions(raw, failedLines) {
   const kept = [];
   const dropped = [];
   if (raw === undefined || raw === null) return { kept, dropped };
@@ -76,7 +102,7 @@ export function normalizeQuestions(raw, lineNums) {
   for (const q of raw) {
     const okShape = q && typeof q === 'object' && !Array.isArray(q);
     if (!okShape || !Number.isInteger(q.line)) { dropped.push({ reason: 'no line', raw: q }); continue; }
-    if (!lineNums.includes(q.line)) { dropped.push({ reason: `line ${q.line} does not exist`, raw: q }); continue; }
+    if (!failedLines.includes(q.line)) { dropped.push({ reason: `line ${q.line} is not a line try 2's checks failed on`, raw: q }); continue; }
     if (typeof q.question !== 'string' || q.question.trim() === '') { dropped.push({ reason: 'blank question', raw: q }); continue; }
     if (kept.length >= MAX_QUESTIONS) { dropped.push({ reason: 'third question', raw: q }); continue; }
     kept.push({ line: q.line, question: q.question });
@@ -95,7 +121,7 @@ export async function draftWithQuestions({
   budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider,
 }) {
   const base = {
-    questions: [], droppedQuestions: [], notChecked: null, declarationValid: false, reds: [], stop: 'pre-flight', stopReason: null,
+    questions: [], droppedQuestions: [], notChecked: null, passedTry1: null, passedTry2: null, tryReds: { 1: [], 2: [], 3: [] }, failedLines: [], triesRun: 0, declarationValid: false, reds: [], stop: 'pre-flight', stopReason: null,
     rounds: 0, calls: 0, tokens: null, costUsd: 0, spendComplete: true, structureRetries: 0, modelReturned: null,
   };
   const parsed = parseSignedText(proseText);
@@ -113,8 +139,11 @@ export async function draftWithQuestions({
     } catch (err) { return { ...base, reds: [`key: ${err.message}`] }; }
   }
   const menu = wiredMenu(skills);
-  const schema = buildPocSchema(menu);
-  const system = `${buildSystemPrompt({ menu, lines, arbiter, factsInfo: facts.info })}\n\n${QUESTIONS_PROMPT}`;
+  const baseSystem = buildSystemPrompt({ menu, lines, arbiter, factsInfo: facts.info });
+  // Tries 1 and 2: the real drafter's schema and prompt, untouched. Try 3 only: questions + notChecked.
+  const roundSetup = (tryNo) => (tryNo === 3
+    ? { schema: buildPocSchema(menu, { questions: true, notChecked: true }), system: `${baseSystem}\n\n${NOTCHECKED_PROMPT}` }
+    : { schema: buildPocSchema(menu), system: baseSystem });
   const cat = loadCatalogue();
   if (!cat.ok) return { ...base, reds: [`catalogue: ${cat.reds.join('; ')}`] };
   const roundCeiling = ceilingCostUsd(modelId);
@@ -128,10 +157,37 @@ export async function draftWithQuestions({
   let stop = null;
   let stopReason = null;
   let captured;
+  let tryNo = 1; // 1..3 = 1 first draft + MAX_REVISIONS revisions
+  const tryReds = { 1: [], 2: [], 3: [] };
+  const tryValid = { 1: null, 2: null, 3: null };
+  let failedLines = [];
+  let lastVerdict = null;
+  const validate = (cap, offered) => {
+    const { questions: rawQ, notChecked: rawNC, ...rest } = cap;
+    // Where a property was not offered it is NOT stripped: a stray key reds as unknown, as in the real drafter.
+    const declaration = offered ? { ...rest, inputFacts: facts.inputFacts } : { ...cap, inputFacts: facts.inputFacts };
+    if (Array.isArray(declaration.steps)) {
+      declaration.steps = declaration.steps.map((st) => {
+        if (!isPlainObject(st)) return st;
+        let next = { ...st, goal: goalForLine(st.fromLine, lines) };
+        if (isPlainObject(next.close) && isPlainObject(next.close.shape)) {
+          const { wordsPerSection: _drop, ...shape } = next.close.shape;
+          const per = guardrailWordsPerSection(lines.find((l) => l.n === st.fromLine)?.guardrail);
+          next = { ...next, close: { ...next.close, shape: per === null ? shape : { ...shape, wordsPerSection: per } } };
+        }
+        return next;
+      });
+    }
+    const verdict = validateDeclaration(declaration, {
+      arbiter, lines, catalogue: cat.primitives, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
+    });
+    return { verdict, declaration, rawQ, rawNC };
+  };
   for (;;) {
     const spent = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
     if (spent + roundCeiling > budgetUsd) { stop = 'budget'; break; }
     captured = undefined;
+    const { schema, system } = roundSetup(tryNo);
     const tool = {
       name: TOOL,
       description: 'Emit the flow declaration over the granted primitives, or refuse lines you cannot serve.',
@@ -153,7 +209,18 @@ export async function draftWithQuestions({
       stop = 'provider-red'; stopReason = err.message; break;
     }
     stopReason = result?.stopReason ?? null;
-    if (isPlainObject(captured)) break;
+    if (isPlainObject(captured)) {
+      const v = validate(captured, tryNo === 3);
+      tryValid[tryNo] = v.verdict.ok;
+      tryReds[tryNo] = v.verdict.ok ? [] : [...v.verdict.reds];
+      lastVerdict = v;
+      if (v.verdict.ok || tryNo === 1 + MAX_REVISIONS) break;
+      if (tryNo === 2) failedLines = linesNamedByReds(tryReds[2], v.declaration, lines.map((l) => l.n));
+      tryNo += 1;
+      userText = reviseMessage(tryReds[tryNo - 1]);
+      if (tryNo === 3) userText += `\n\n${QUESTIONS_PROMPT}`;
+      continue;
+    }
     const malformed = provider?.lastMalformedToolCall ?? null;
     const why = result?.stopReason === 'max_tokens' ? 'truncated: the round hit the output cap with no completed tool call'
       : malformed ? `the tool call's arguments were not valid JSON (${malformed.error})`
@@ -161,6 +228,8 @@ export async function draftWithQuestions({
     if (structureRetries >= MAX_STRUCTURE_RETRIES) { stop = 'structure'; stopReason = why; break; }
     structureRetries += 1;
     userText = `Your last reply was not a usable tool call (${why}). Call ${TOOL} now with a complete, valid JSON declaration.`;
+    if (tryReds[tryNo - 1]?.length) userText += `\n\nThe last declaration you emitted was still refused by the validator; keep fixing these too:\n${tryReds[tryNo - 1].map((r) => `- ${r}`).join('\n')}`;
+    if (tryNo === 3) userText += `\n\n${QUESTIONS_PROMPT}`;
   }
 
   const m = sumMeterings(meterings);
@@ -168,31 +237,20 @@ export async function draftWithQuestions({
     ...base, stop, stopReason, rounds: m.rounds, calls, tokens: m.tokens, costUsd: m.costUsd,
     spendComplete: unmetered === 0 && m.costUsd !== null, structureRetries, modelReturned: m.model,
   };
-  if (!isPlainObject(captured)) return { ...out, stop: stop ?? 'structure', reds: [stopReason ?? 'no tool call'] };
-
-  const { questions: rawQ, notChecked: rawNC, ...rest } = captured;
-  const { kept, dropped } = normalizeQuestions(rawQ, lines.map((l) => l.n));
-  const notChecked = Array.isArray(rawNC) ? rawNC.filter((x) => typeof x === 'string' && x.trim() !== '') : null;
-
-  // The same machine overwrites the real drafter makes, then the real validator.
-  const declaration = { ...rest, inputFacts: facts.inputFacts };
-  if (Array.isArray(declaration.steps)) {
-    declaration.steps = declaration.steps.map((st) => {
-      if (!isPlainObject(st)) return st;
-      let next = { ...st, goal: goalForLine(st.fromLine, lines) };
-      if (isPlainObject(next.close) && isPlainObject(next.close.shape)) {
-        const { wordsPerSection: _drop, ...shape } = next.close.shape;
-        const per = guardrailWordsPerSection(lines.find((l) => l.n === st.fromLine)?.guardrail);
-        next = { ...next, close: { ...next.close, shape: per === null ? shape : { ...shape, wordsPerSection: per } } };
-      }
-      return next;
-    });
+  const tries = {
+    passedTry1: tryValid[1], passedTry2: tryValid[2], tryReds, failedLines,
+  };
+  // A stop (budget / provider-red / structure) is a broken call: no verdict is claimed past the last try that finished.
+  if (stop !== null || !isPlainObject(captured)) {
+    return { ...out, ...tries, stop: stop ?? 'structure', reds: [stopReason ?? 'no tool call'], declarationValid: false };
   }
-  const verdict = validateDeclaration(declaration, {
-    arbiter, lines, catalogue: cat.primitives, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
-  });
+  const { verdict, rawQ, rawNC } = lastVerdict;
+  // Questions and notChecked are read only from try 3, the only round that offered them.
+  const asked = tryNo === 3;
+  const { kept, dropped } = asked ? normalizeQuestions(rawQ, failedLines) : { kept: [], dropped: [] };
+  const notChecked = asked && Array.isArray(rawNC) ? rawNC.filter((x) => typeof x === 'string' && x.trim() !== '') : null;
   return {
-    ...out, stop: stop ?? null, questions: kept, droppedQuestions: dropped, notChecked,
+    ...out, ...tries, stop: null, questions: kept, droppedQuestions: dropped, notChecked, triesRun: tryNo,
     declarationValid: verdict.ok, reds: verdict.ok ? [] : [...verdict.reds],
   };
 }

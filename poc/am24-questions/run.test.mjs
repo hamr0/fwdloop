@@ -1,4 +1,4 @@
-// M4e amendment 24 POC — $0 tests for the harness: a fake provider, no key, no network.
+// M4e amendment 25 POC — $0 tests for the harness: a fake provider, no key, no network.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { mkdtempSync } from '../../scripts/tmp-track.mjs';
 import { ceilingCostUsd } from '../../src/provider.js';
 import { runBatch, evaluate } from './run.mjs';
+import * as D from './draft.mjs';
 import { normalizeQuestions, buildPocSchema, QUESTIONS_PROMPT, draftWithQuestions } from './draft.mjs';
 import { JOBS, VAGUE, CLEAR } from './jobs.mjs';
 import {
@@ -29,6 +30,20 @@ const quiet = () => {};
 const outDir = () => mkdtempSync(path.join(tmpdir(), 'fwdloop-am24-'));
 const inj = (replies) => ({ provider: fakeProvider(replies), rates: RATES, modelId: MODEL });
 const withQ = (questions, extra = {}) => ({ ...validArgs(), questions, ...extra });
+/** Fails validateDeclaration; its red names steps[1] = job line 2. */
+const bad = () => { const a = validArgs(); a.steps[1].primitives = ['nope']; return a; };
+/** A fake provider that also records the tool schema each call was offered. */
+function recProvider(replies) {
+  const p = fakeProvider(replies);
+  const inner = p.generate.bind(p);
+  p.schemas = [];
+  p.generate = async (messages, tools, options) => {
+    p.schemas.push(JSON.parse(JSON.stringify(tools[0].parameters ?? tools[0].function?.parameters ?? tools[0].input_schema ?? null)));
+    return inner(messages, tools, options);
+  };
+  return p;
+}
+const NUMBERISH = /\d|\b(one|two|three|four|five|six|seven|eight|nine|ten|couple|few|several|pair|dozen|single|once|twice|max|maximum|at most|up to|limit)\b/i;
 
 test('fixtures: 10 vague + 10 clear, every one parses, unique ids', async () => {
   assert.equal(VAGUE.length, 10); assert.equal(CLEAR.length, 10);
@@ -37,49 +52,120 @@ test('fixtures: 10 vague + 10 clear, every one parses, unique ids', async () => 
   for (const j of JOBS) assert.equal(parseSignedText(j.prose).ok, true, j.id);
 });
 
-test('normalizeQuestions: bad line dropped, nonexistent line dropped, third dropped, each with a reason', () => {
-  const lines = [1, 2, 3, 4];
+test('normalizeQuestions: a line try 2 did not fail on is dropped, a third is dropped, each with a reason', () => {
   const r = normalizeQuestions([
     { question: 'no line at all' },
     { line: 9, question: 'line 9 in a 4-line job' },
+    { line: 1, question: 'a real line, but try 2 did not fail on it' },
     { line: 2, question: 'ok one' },
     { line: 3, question: 'ok two' },
-    { line: 1, question: 'a third question' },
-  ], lines);
+    { line: 2, question: 'a third question' },
+  ], [2, 3]);
   assert.deepEqual(r.kept.map((q) => q.line), [2, 3]);
-  assert.deepEqual(r.dropped.map((d) => d.reason), ['no line', 'line 9 does not exist', 'third question']);
-  assert.deepEqual(normalizeQuestions(undefined, lines), { kept: [], dropped: [] });
+  assert.deepEqual(r.dropped.map((d) => d.reason), [
+    'no line', "line 9 is not a line try 2's checks failed on", "line 1 is not a line try 2's checks failed on", 'third question']);
+  assert.deepEqual(normalizeQuestions(undefined, [1]), { kept: [], dropped: [] });
+  assert.equal(normalizeQuestions([{ line: 1, question: 'x' }], []).kept.length, 0, 'no failed line means nothing may be asked');
 });
 
-test('schema: questions/notChecked are optional additions to the real drafter schema; prompt carries the real checkable list', () => {
-  const s = buildPocSchema([{ verb: 'read' }]);
-  assert.ok(s.properties.questions && s.properties.notChecked && s.properties.steps);
+test('linesNamedByReds: line N, steps[i] via fromLine, step N\'s check; a red naming no line names none', () => {
+  const decl = { steps: [{ fromLine: 1 }, { fromLine: 3 }, { fromLine: null }] };
+  const nums = [1, 2, 3, 4];
+  assert.deepEqual(D.linesNamedByReds(['declaration: ask at line 4 has no step bound to it'], decl, nums), [4]);
+  assert.deepEqual(D.linesNamedByReds(['declaration: steps[1].primitives names "x"'], decl, nums), [3]);
+  assert.deepEqual(D.linesNamedByReds(["declaration: step 1's check reads its reply"], decl, nums), [1]);
+  assert.deepEqual(D.linesNamedByReds(['declaration: steps[2] has no line', 'declaration: "refused" is required', 'line 9 is not real'], decl, nums), []);
+});
+
+test('schema: questions/notChecked are optional, off by default; no number or number word in the questions text', () => {
+  const plain = buildPocSchema([{ verb: 'read' }]);
+  assert.ok(!plain.properties.questions && !plain.properties.notChecked && plain.properties.steps);
+  const s = buildPocSchema([{ verb: 'read' }], { questions: true, notChecked: true });
+  assert.ok(s.properties.questions && s.properties.notChecked);
   assert.ok(!s.required.includes('questions') && !s.required.includes('notChecked'));
-  for (const w of ['green', 'sections', 'wordsPerSection', 'linesPerInvoice', 'mustCarry', 'hitl']) assert.match(QUESTIONS_PROMPT, new RegExp(w));
+  assert.doesNotMatch(QUESTIONS_PROMPT, NUMBERISH);
+  assert.doesNotMatch(JSON.stringify(s.properties.questions), NUMBERISH);
+  assert.doesNotMatch(D.NOTCHECKED_PROMPT, NUMBERISH);
+  for (const w of ['green', 'sections', 'wordsPerSection', 'linesPerInvoice', 'mustCarry', 'hitl']) assert.match(D.NOTCHECKED_PROMPT, new RegExp(w));
 });
 
-test('draft: bad-line and third-question are dropped and counted; declaration still valid; notChecked recorded', async () => {
+test('draft: a clean first draft offers no questions (schema had no questions property) and keeps none', async () => {
   const { prose } = job2Fixture();
-  const r = await draftWithQuestions({
-    proseText: prose,
-    ...inj([toolReply(withQ([
-      { line: 9, question: 'beyond the job' }, { line: 3, question: 'how long?' }, { line: 4, question: 'where to?' }, { line: 1, question: 'third' },
-    ], { notChecked: ['tone', ' '] }))]),
-  });
-  assert.equal(r.stop, null);
+  const provider = recProvider([toolReply(validArgs())]);
+  const r = await draftWithQuestions({ proseText: prose, provider, rates: RATES, modelId: MODEL });
+  assert.equal(provider.calls.length, 1);
+  assert.ok(provider.schemas[0] && provider.schemas[0].properties.steps, 'the recorded schema is the real one');
+  assert.equal(provider.schemas[0].properties.questions, undefined);
+  assert.equal(provider.schemas[0].properties.notChecked, undefined);
+  assert.equal(r.passedTry1, true);
+  assert.equal(r.passedTry2, null);
   assert.equal(r.declarationValid, true);
-  assert.deepEqual(r.questions.map((q) => q.line), [3, 4]);
-  assert.deepEqual(r.droppedQuestions.map((d) => d.reason), ['line 9 does not exist', 'third question']);
-  assert.deepEqual(r.notChecked, ['tone']);
-  assert.ok(r.costUsd > 0 && r.tokens.outputTokens > 0 && r.rounds === 1);
+  assert.deepEqual(r.questions, []);
 });
 
-test('draft: a max_tokens stop is truncation (stop structure), never "no tool call"; both rounds metered', async () => {
+test('draft: try 2 is the real revision with no questions; a try 2 that passes never opens questions', async () => {
+  const { prose } = job2Fixture();
+  const provider = recProvider([toolReply(bad()), toolReply(validArgs())]);
+  const r = await draftWithQuestions({ proseText: prose, provider, rates: RATES, modelId: MODEL });
+  assert.equal(provider.calls.length, 2);
+  assert.equal(provider.schemas[1].properties.questions, undefined, 'try 2 offers no questions');
+  assert.match(provider.calls[1].messages[1].content, /REFUSED by the validator/);
+  assert.match(provider.calls[1].messages[1].content, /steps\[1\]/, 'the reds are fed back');
+  assert.doesNotMatch(provider.calls[1].messages[1].content, /"questions"/);
+  assert.equal(provider.calls[1].messages[0].content, provider.calls[0].messages[0].content, 'same system prompt as try 1');
+  assert.equal(r.passedTry1, false); assert.equal(r.passedTry2, true);
+  assert.equal(r.declarationValid, true);
+  assert.deepEqual(r.questions, []);
+});
+
+test('draft: a question sent on try 2 (not offered) is a stray key and reds, it is never kept', async () => {
+  const { prose } = job2Fixture();
+  const provider = recProvider([toolReply(bad()), toolReply(withQ([{ line: 2, question: 'sneaky' }])), toolReply(validArgs())]);
+  const r = await draftWithQuestions({ proseText: prose, provider, rates: RATES, modelId: MODEL });
+  assert.equal(r.passedTry2, false);
+  assert.deepEqual(r.questions, []);
+});
+
+test('draft: only after tries 1 and 2 both fail does try 3 offer questions; one on a non-failed line is dropped and logged', async () => {
+  const { prose } = job2Fixture();
+  const provider = recProvider([
+    toolReply(bad()), toolReply(bad()),
+    toolReply(withQ([{ line: 4, question: 'not a failed line' }, { line: 2, question: 'how long?' }], { notChecked: ['tone'] })),
+  ]);
+  const r = await draftWithQuestions({ proseText: prose, provider, rates: RATES, modelId: MODEL });
+  assert.equal(provider.calls.length, 3);
+  assert.equal(provider.schemas[0].properties.questions, undefined);
+  assert.equal(provider.schemas[1].properties.questions, undefined);
+  assert.ok(provider.schemas[2].properties.questions && provider.schemas[2].properties.notChecked, 'try 3 offers them');
+  assert.deepEqual(r.failedLines, [2]);
+  assert.deepEqual(r.questions.map((q) => q.line), [2]);
+  assert.deepEqual(r.droppedQuestions.map((d) => d.reason), ["line 4 is not a line try 2's checks failed on"]);
+  assert.deepEqual(r.notChecked, ['tone']);
+  assert.equal(r.passedTry1, false); assert.equal(r.passedTry2, false);
+  assert.equal(r.stop, null);
+  assert.ok(r.costUsd > 0 && r.rounds === 3);
+});
+
+test('draft: no number in what the drafter is told on try 3 beyond the real revision message', async () => {
+  const { prose } = job2Fixture();
+  const provider = recProvider([toolReply(bad()), toolReply(bad()), toolReply(withQ([]))]);
+  await draftWithQuestions({ proseText: prose, provider, rates: RATES, modelId: MODEL });
+  const [, , c3] = provider.calls;
+  const user = c3.messages[1].content;
+  const added = user.slice(user.indexOf(QUESTIONS_PROMPT));
+  assert.equal(added, QUESTIONS_PROMPT, 'try 3 ends with the questions line');
+  assert.doesNotMatch(added, NUMBERISH);
+  const sysAdded = c3.messages[0].content.slice(provider.calls[0].messages[0].content.length);
+  assert.doesNotMatch(sysAdded, NUMBERISH);
+  assert.doesNotMatch(JSON.stringify(provider.schemas[2].properties.questions), NUMBERISH);
+});
+
+test('draft: a max_tokens stop is truncation (stop structure), never "no tool call"; every round metered', async () => {
   const { prose } = job2Fixture();
   const r = await draftWithQuestions({ proseText: prose, ...inj([truncatedReply()]) });
   assert.equal(r.stop, 'structure');
   assert.match(r.stopReason, /^truncated/);
-  assert.equal(r.rounds, 2);
+  assert.equal(r.rounds, 3, 'the real drafter allows two structure retries');
   assert.equal(r.declarationValid, false);
   assert.ok(r.costUsd > 0);
 });
@@ -97,10 +183,12 @@ test('batch: runs, books every job, writes results-<tag>.json; an existing tag r
   const dir = outDir();
   const { prose } = job2Fixture();
   const jobs = [{ id: 'a', kind: 'vague', prose, why: 'x' }, { id: 'b', kind: 'clear', prose, why: 'y' }];
-  const provider = fakeProvider([toolReply(withQ([{ line: 3, question: 'size?' }])), toolReply(withQ([]))]);
+  const provider = fakeProvider([toolReply(bad()), toolReply(bad()), toolReply(withQ([{ line: 2, question: 'size?' }])), toolReply(validArgs())]);
   const { records } = await runBatch({ tag: 't1', jobs, outDir: dir, injected: { provider, rates: RATES, modelId: MODEL }, writeLine: quiet, env: {} });
   assert.equal(records[0].questions.length, 1);
+  assert.deepEqual([records[0].passedTry1, records[0].passedTry2, records[0].failedLines], [false, false, [2]]);
   assert.equal(records[1].questions.length, 0);
+  assert.equal(records[1].passedTry1, true);
   const res = JSON.parse(readFileSync(path.join(dir, 'results-t1.json'), 'utf8'));
   assert.equal(res.records.length, 2);
   assert.equal(res.records[0].declarationValid, true);
@@ -130,12 +218,18 @@ test('batch: the spend stop halts before the next job would pass the line, and s
   assert.equal(r2.records.length, 0);
 });
 
-test('evaluate: the bar can fail (vague silent, clear chatty, a broken call, an invalid declaration)', () => {
-  const rec = (kind, q, over = {}) => ({ kind, questions: Array(q).fill({ line: 1, question: 'x' }), stop: null, declarationValid: true, ...over });
-  const good = [...Array(10).fill(0).map(() => rec('vague', 1)), ...Array(10).fill(0).map(() => rec('clear', 0))];
+test('evaluate: the bar can fail (a failed-twice vague job silent, clear chatty, a broken call, invalid plans)', () => {
+  const rec = (kind, q, over = {}) => ({
+    kind, questions: Array(q).fill({ line: 1, question: 'x' }), stop: null, declarationValid: true, passedTry1: false, passedTry2: false, ...over,
+  });
+  const good = [...Array(10).fill(0).map(() => rec('vague', 1)), ...Array(10).fill(0).map(() => rec('clear', 0, { passedTry1: true, passedTry2: null }))];
   assert.equal(evaluate(good).pass, true);
-  assert.equal(evaluate([...good.slice(0, 3).map(() => rec('vague', 0)), ...good.slice(3)]).pass, false, 'vague jobs got no question');
-  assert.equal(evaluate([...good.slice(0, 10), ...Array(10).fill(0).map(() => rec('clear', 1))]).pass, false, 'clear jobs all got a question');
+  assert.equal(evaluate([rec('vague', 0), ...good.slice(1)]).pass, false, 'a vague job that failed both tries asked nothing');
+  assert.equal(evaluate([rec('vague', 0, { passedTry1: true, passedTry2: null }), ...good.slice(1)]).pass, true, 'a confident guess is not required to ask');
+  assert.equal(evaluate([...good.slice(0, 10), ...Array(2).fill(0).map(() => rec('clear', 1)), ...good.slice(12)]).pass, false, '2 of 10 clear jobs asked');
+  assert.equal(evaluate([...good.slice(0, 10), rec('clear', 1), ...good.slice(11)]).pass, true, '1 of 10 clear jobs asked is inside the bar');
   assert.equal(evaluate([rec('vague', 1, { stop: 'structure' }), ...good.slice(1)]).pass, false, 'a call broke');
   assert.equal(evaluate(good.map((r, i) => (i < 3 ? { ...r, declarationValid: false } : r))).pass, false, '3 invalid declarations');
+  assert.equal(evaluate(good).report.vagueFailedBoth, 10);
+  assert.equal(evaluate(good.map((r) => (r.kind === 'vague' ? { ...r, passedTry1: true } : r))).report.vacuous, true);
 });
