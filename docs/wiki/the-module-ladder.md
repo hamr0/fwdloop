@@ -1804,6 +1804,12 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Done when:** screenshots at 1280, 390 and 320 px match lab version E, with nothing spilling past the screen.
   - **Cap:** $0.
 
+- **Amendment 40 — SIGNED by hamr 2026-10-10 ("sign am40"): "Not checked" looks like the plan, not like your settings.**
+  - **Change to amendments 34 and 37's "Not checked" block.** It keeps its place after your last line and its label "not checked (the AI's own reading)". It's shown in the plan's shape: a folded line with the blue `›`, the same size and indent as a step line. Tap it to open; the items show in the dim ink like an open step's detail. No boxes, no bold heading.
+  - **A gap** separates it from Ask, Destination, Cap, Source and Signed.
+  - **Done when:** screenshots at 1280, 390 and 320 px show it, with nothing spilling past the screen.
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
