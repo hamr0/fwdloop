@@ -254,12 +254,13 @@ function deriveFromLine(fromLine, lines, guardrailClasses) {
  *  ("1,00" and "1,0000" match nothing), and the number cannot start in the middle of another one. */
 const readNumber = (t) => Number(t.replace(/,/g, ''));
 
-/** The first "<n> words" in a guardrail ("3 sections, all under 600 words" -> 600), or null. A "<n> words each" / "<n> words per
- *  section" is the per-section size (M4e amendment 15), never the total limit. */
+/** The word limit in a guardrail ("3 sections, all under 600 words" -> 600), or null. The ONE place "which number" is decided: a limit is an upper
+ *  bound, so with several ("under 600 words; under 300 words", a joined guardrail) the TIGHTEST (smallest) wins (hamr 2026-10-09, 2A). A "<n> words each" /
+ *  "<n> words per section" is the per-section size (M4e amendment 15), never the total limit. */
 export function guardrailWordLimit(guardrail) {
   if (typeof guardrail !== 'string') return null;
-  for (const m of guardrail.matchAll(/(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)\s*words?\b(?!\s*(?:each|per\s+section)\b)/gi)) return readNumber(m[1]);
-  return null;
+  const found = [...guardrail.matchAll(/(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)\s*words?\b(?!\s*(?:each|per\s+section)\b)/gi)].map((m) => readNumber(m[1]));
+  return found.length > 0 ? Math.min(...found) : null;
 }
 
 /** M4e amendment 15 item 1: the "<n> words each" / "<n> words per section" size in a guardrail ("about 250 words each", "250ish each" -> 250), or null. */
