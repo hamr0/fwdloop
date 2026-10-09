@@ -233,3 +233,108 @@ test('evaluate: the bar can fail (a failed-twice vague job silent, clear chatty,
   assert.equal(evaluate(good).report.vagueFailedBoth, 10);
   assert.equal(evaluate(good.map((r) => (r.kind === 'vague' ? { ...r, passedTry1: true } : r))).report.vacuous, true);
 });
+
+// ---- arm "first" (bareloop's way): questions offered on try 1 with the declaration; retries offer none ----
+const FIRST_LINE = 'Most jobs need no questions. Ask only if something you need to draft a job line is truly missing (an undefined size, format, destination, or what done means), and name that line. Never ask to double-check what the job already says.';
+const withQ1 = (base, questions, extra = {}) => ({ ...base, questions, ...extra });
+
+test('arm first: questions + notChecked offered on try 1 only; retries offer none and carry no questions text', async () => {
+  const { prose } = job2Fixture();
+  const provider = recProvider([
+    toolReply(withQ1(bad(), [{ line: 2, question: 'how long?' }], { notChecked: ['tone'] })), toolReply(bad()), toolReply(validArgs()),
+  ]);
+  const r = await draftWithQuestions({ proseText: prose, provider, rates: RATES, modelId: MODEL, arm: 'first' });
+  assert.equal(provider.calls.length, 3);
+  assert.ok(provider.schemas[0].properties.questions && provider.schemas[0].properties.notChecked, 'try 1 offers both');
+  assert.equal(provider.schemas[1].properties.questions, undefined);
+  assert.equal(provider.schemas[2].properties.questions, undefined);
+  assert.equal(provider.schemas[1].properties.notChecked, undefined);
+  assert.match(provider.calls[0].messages[0].content, new RegExp(FIRST_LINE.replace(/[.()]/g, '\\$&')));
+  assert.equal(provider.calls[1].messages[0].content.includes('Most jobs need no questions'), false);
+  assert.equal(provider.calls[2].messages[0].content, provider.calls[1].messages[0].content, 'retries share the real drafter system prompt');
+  assert.doesNotMatch(provider.calls[1].messages[1].content, /questions/i);
+  assert.doesNotMatch(provider.calls[2].messages[1].content, /questions/i);
+  assert.deepEqual(r.questions, [{ line: 2, question: 'how long?' }]);
+  assert.deepEqual(r.notChecked, ['tone']);
+  assert.equal(r.passedTry1, false); assert.equal(r.passedTry2, false);
+  assert.equal(r.triesRun, 3); assert.equal(r.declarationValid, true); assert.equal(r.arm, 'first');
+});
+
+test('arm first: a clean first draft asks nothing; a question sent on a retry is a stray key, never kept', async () => {
+  const { prose } = job2Fixture();
+  const p1 = recProvider([toolReply(validArgs())]);
+  const r1 = await draftWithQuestions({ proseText: prose, provider: p1, rates: RATES, modelId: MODEL, arm: 'first' });
+  assert.deepEqual(r1.questions, []); assert.equal(r1.triesRun, 1); assert.equal(r1.passedTry1, true);
+  const p2 = recProvider([toolReply(bad()), toolReply(withQ1(validArgs(), [{ line: 2, question: 'sneaky' }])), toolReply(validArgs())]);
+  const r2 = await draftWithQuestions({ proseText: prose, provider: p2, rates: RATES, modelId: MODEL, arm: 'first' });
+  assert.deepEqual(r2.questions, []);
+  assert.equal(r2.passedTry2, false);
+});
+
+test('arm first: a question on a line that is not a job line is dropped and logged; a third is capped', async () => {
+  const { prose } = job2Fixture();
+  const provider = recProvider([toolReply(withQ1(validArgs(), [
+    { line: 99, question: 'ghost line' }, { question: 'no line' }, { line: 1, question: 'a' }, { line: 2, question: 'b' }, { line: 3, question: 'c' },
+  ]))]);
+  const r = await draftWithQuestions({ proseText: prose, provider, rates: RATES, modelId: MODEL, arm: 'first' });
+  assert.deepEqual(r.questions.map((q) => q.line), [1, 2]);
+  assert.deepEqual(r.droppedQuestions.map((d) => d.reason), ['line 99 is not a job line', 'no line', 'third question']);
+  const n = normalizeQuestions([{ line: 1, question: 'x' }], [1, 2], 'a job line');
+  assert.equal(n.kept.length, 1);
+});
+
+test('arm first: the prompt line is exact and no number is in the prompt or the schema', async () => {
+  const { prose } = job2Fixture();
+  const provider = recProvider([toolReply(bad()), toolReply(validArgs())]);
+  await draftWithQuestions({ proseText: prose, provider, rates: RATES, modelId: MODEL, arm: 'first' });
+  const sys1 = provider.calls[0].messages[0].content;
+  const base = provider.calls[1].messages[0].content;
+  const added = sys1.slice(base.length);
+  assert.ok(added.includes(FIRST_LINE), 'the exact line is in the try 1 system prompt');
+  assert.equal(D.FIRST_QUESTIONS_PROMPT, FIRST_LINE);
+  assert.doesNotMatch(added, NUMBERISH);
+  assert.doesNotMatch(JSON.stringify(provider.schemas[0].properties.questions), NUMBERISH);
+});
+
+test('arm: unknown arm refuses at $0; default arm is try3; results record the arm; evaluate(first) can fail', async () => {
+  const dir = outDir();
+  const { prose } = job2Fixture();
+  const jobs = [{ id: 'a', kind: 'vague', prose, why: 'x' }];
+  await assert.rejects(runBatch({ tag: 'z', arm: 'bogus', jobs, outDir: dir, injected: inj([toolReply(validArgs())]), writeLine: quiet, env: {} }), /arm/);
+  const lines = [];
+  await runBatch({ tag: 'f1', arm: 'first', jobs, outDir: dir, injected: inj([toolReply(withQ1(validArgs(), [{ line: 2, question: 'q?' }]))]), writeLine: (s) => lines.push(s), env: {} });
+  await runBatch({ tag: 't3', jobs, outDir: dir, injected: inj([toolReply(validArgs())]), writeLine: quiet, env: {} });
+  const f1 = JSON.parse(readFileSync(path.join(dir, 'results-f1.json'), 'utf8'));
+  const t3 = JSON.parse(readFileSync(path.join(dir, 'results-t3.json'), 'utf8'));
+  assert.equal(f1.summary.arm, 'first'); assert.equal(f1.records[0].arm, 'first'); assert.equal(t3.summary.arm, 'try3');
+  assert.match(lines[0], /BAR \(first\)/, 'the bar is printed before any run');
+  const rec = (kind, q, over = {}) => ({ kind, questions: Array(q).fill({ line: 1, question: 'x' }), stop: null, declarationValid: true, ...over });
+  const good = [...Array(10).fill(0).map(() => rec('vague', 1)), ...Array(10).fill(0).map(() => rec('clear', 0))];
+  assert.equal(evaluate(good, JOBS, 'first').pass, true);
+  assert.equal(evaluate([rec('vague', 0), ...good.slice(1)], JOBS, 'first').pass, false, 'a vague job asked nothing (a guess is not enough here)');
+  assert.equal(evaluate([...good.slice(0, 10), rec('clear', 1), ...good.slice(11)], JOBS, 'first').pass, true);
+  assert.equal(evaluate([...good.slice(0, 10), rec('clear', 1), rec('clear', 1), ...good.slice(12)], JOBS, 'first').pass, false);
+  assert.equal(evaluate(good.map((r, i) => (i < 3 ? { ...r, declarationValid: false } : r)), JOBS, 'first').pass, false);
+  assert.equal(evaluate([rec('vague', 1, { stop: 'structure' }), ...good.slice(1)], JOBS, 'first').pass, false);
+});
+
+test('compare: side-by-side table from two fixture results files, $0, reads files only', async () => {
+  const { compare } = await import('./compare.mjs');
+  const dir = outDir();
+  const mk = (arm, q, cost) => ({
+    summary: { tag: arm, arm, costUsd: cost, verdict: { pass: arm === 'first', declarationValid: { got: 2, of: 2, need: 18, ok: true } } },
+    records: [
+      { id: 'v1', kind: 'vague', questions: q ? [{ line: 2, question: 'which folder?' }] : [], declarationValid: true, triesRun: q ? 3 : 1 },
+      { id: 'c1', kind: 'clear', questions: [], declarationValid: false, triesRun: 3 },
+    ],
+  });
+  writeFileSync(path.join(dir, 'results-ta.json'), JSON.stringify(mk('try3', true, 0.05)));
+  writeFileSync(path.join(dir, 'results-tb.json'), JSON.stringify(mk('first', false, 0.03)));
+  const out = compare('ta', 'tb', dir);
+  assert.match(out, /v1/); assert.match(out, /which folder\?/); assert.match(out, /valid/); assert.match(out, /RED/);
+  assert.match(out, /try3/); assert.match(out, /first/);
+  assert.match(out, /0\.05/); assert.match(out, /0\.03/);
+  assert.match(out, /avg questions.*clear/i); assert.match(out, /avg questions.*vague/i);
+  assert.match(out, /BAR: (PASS|FAIL)/);
+  assert.throws(() => compare('ta', 'nope', dir), /no results/);
+});

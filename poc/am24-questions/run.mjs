@@ -2,6 +2,7 @@
 //
 //   export DEEPSEEK_API_KEY="$(pass amr/deepseek_api | head -n1 | tr -d '\r\n')"
 //   setsid nohup node poc/am24-questions/run.mjs --tag am25-1 > poc/am24-questions/am25-1.log 2>&1 &
+//   (add --arm first for the bareloop-style arm; default try3. One shared ledger, one $0.40 stop for both arms.)
 //
 // Drafts each of the 20 jobs (jobs.mjs) through the real three tries (questions open only on try 3) and writes results-<tag>.json. $0 gates, all before any ledger write:
 // empty/missing/odd key refuses, an existing tag refuses, and the ledger (spend.jsonl here) is checked against the
@@ -14,7 +15,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkKeyPreflight, appendSpendRow, ceilingCostUsd } from '../../src/provider.js';
 import { ledgerTotalUsd, scrub, secretsFromEnv } from '../m6a/batch.mjs';
-import { draftWithQuestions } from './draft.mjs';
+import { draftWithQuestions, ARMS } from './draft.mjs';
 import { JOBS } from './jobs.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -32,7 +33,10 @@ function withDeadline(promise, ms) {
 }
 
 /** Pass/fail against the signed bar. `records` must hold every job; a short run is never a pass. */
-export function evaluate(records, jobs = JOBS) {
+export const BAR_FIRST_TEXT = 'BAR (first): all 10 vague jobs ask at least one question naming a real job line; at least 9 of 10 clear jobs ask nothing; at least 18 of 20 final plans valid; no call breaks. Every question is reported verbatim.';
+
+export function evaluate(records, jobs = JOBS, arm = 'try3') {
+  if (arm === 'first') return evaluateFirst(records, jobs);
   const vague = records.filter((r) => r.kind === 'vague');
   const clear = records.filter((r) => r.kind === 'clear');
   // A vague job that failed tries 1 and 2 must have asked at least one question (kept questions all name a line try 2 failed on).
@@ -59,12 +63,32 @@ export function evaluate(records, jobs = JOBS) {
   return { ...checks, report, pass: complete && checks.vagueFailedBothAsked.ok && checks.clearQuiet.ok && checks.neverBreaks.ok && checks.declarationValid.ok };
 }
 
+/** Arm first: the bar is fixed before any run (BAR_FIRST_TEXT). A kept question already names a real job line. */
+function evaluateFirst(records, jobs) {
+  const vague = records.filter((r) => r.kind === 'vague');
+  const clear = records.filter((r) => r.kind === 'clear');
+  const vagueAsked = vague.filter((r) => r.questions.length >= 1).length;
+  const clearQuiet = clear.filter((r) => r.questions.length === 0).length;
+  const valid = records.filter((r) => r.declarationValid).length;
+  const broken = records.filter((r) => r.stop !== null).length;
+  const complete = records.length === jobs.length;
+  const checks = {
+    complete,
+    vagueAsked: { got: vagueAsked, of: vague.length, need: 10, ok: vague.length === 10 && vagueAsked === 10 },
+    clearQuiet: { got: clearQuiet, of: clear.length, need: BAR.clearQuiet, ok: clearQuiet >= BAR.clearQuiet },
+    neverBreaks: { broken, ok: broken === 0 },
+    declarationValid: { got: valid, of: records.length, need: BAR.validMin, ok: valid >= BAR.validMin },
+  };
+  return { ...checks, report: { vaguePassedTry1: vague.filter((r) => r.passedTry1 === true).length }, pass: complete && checks.vagueAsked.ok && checks.clearQuiet.ok && checks.neverBreaks.ok && checks.declarationValid.ok };
+}
+
 export async function runBatch({
-  tag, jobs = JOBS, outDir = __dirname, spendPath = join(outDir, 'spend.jsonl'), stopUsd = SPEND_STOP_USD,
+  arm = 'try3', tag, jobs = JOBS, outDir = __dirname, spendPath = join(outDir, 'spend.jsonl'), stopUsd = SPEND_STOP_USD,
   budgetUsd = PER_JOB_BUDGET_USD, deadlineMs = CALL_DEADLINE_MS, env = process.env, injected, model = DEFAULT_MODEL,
   writeLine = (s) => process.stdout.write(`${s}\n`),
 }) {
   // ---- $0 gates, before any ledger write -------------------------------------------
+  if (!ARMS.includes(arm)) throw new Error(`run: --arm must be try3 or first, got "${arm}"`);
   if (!tag || /[^A-Za-z0-9._-]/.test(tag)) throw new Error('run: --tag is required (letters, digits, . _ - only)');
   if (!injected) {
     const key = checkKeyPreflight('deepseek', env);
@@ -75,6 +99,7 @@ export async function runBatch({
   const secrets = secretsFromEnv(env.DEEPSEEK_API_KEY);
   const roundCeiling = ceilingCostUsd(injected?.modelId ?? model);
 
+  if (arm === 'first') writeLine(BAR_FIRST_TEXT);
   const records = [];
   let stoppedBy = null;
   for (let i = 0; i < jobs.length; i += 1) {
@@ -88,7 +113,7 @@ export async function runBatch({
     let r;
     try {
       // eslint-disable-next-line no-await-in-loop
-      r = await withDeadline(draftWithQuestions({ proseText: job.prose, model, budgetUsd, env, ...(injected ?? {}) }), deadlineMs);
+      r = await withDeadline(draftWithQuestions({ proseText: job.prose, arm, model, budgetUsd, env, ...(injected ?? {}) }), deadlineMs);
     } catch (err) {
       r = { stop: 'crash', passedTry1: null, passedTry2: null, reds: [`crash: ${err.message}`], questions: [], droppedQuestions: [], notChecked: null, declarationValid: false, costUsd: null, rounds: null, tokens: null };
     }
@@ -101,7 +126,7 @@ export async function runBatch({
       costUsd: r.costUsd, rounds: r.rounds, calls: r.calls, spendComplete: r.spendComplete, wallMs,
     });
     const rec = {
-      id: job.id, kind: job.kind, why: job.why, questions: r.questions, droppedQuestions: r.droppedQuestions,
+      id: job.id, arm, kind: job.kind, why: job.why, questions: r.questions, droppedQuestions: r.droppedQuestions,
       droppedCount: r.droppedQuestions.length, passedTry1: r.passedTry1 ?? null, passedTry2: r.passedTry2 ?? null,
       failedLines: r.failedLines ?? [], tryReds: r.tryReds ?? null, triesRun: r.triesRun ?? null, notChecked: r.notChecked, declarationValid: r.declarationValid,
       stop: r.stop, stopReason: r.stopReason ?? null, rounds: r.rounds, structureRetries: r.structureRetries ?? null, tokens: r.tokens, costUsd: r.costUsd,
@@ -116,17 +141,21 @@ export async function runBatch({
 
   const unknown = records.some((x) => x.costUsd === null);
   const cost = records.reduce((s, x) => s + (x.costUsd ?? roundCeiling), 0);
-  const verdict = evaluate(records, jobs);
+  const verdict = evaluate(records, jobs, arm);
   const summary = {
-    tag, ran: records.length, of: jobs.length, stoppedBy, verdict,
+    tag, arm, ran: records.length, of: jobs.length, stoppedBy, verdict,
     costUsd: unknown ? `at least ${cost.toFixed(5)} (some job unpriced)` : Number(cost.toFixed(5)),
     perDraftUsd: records.length && !unknown ? Number((cost / records.length).toFixed(6)) : null,
     ledgerTotalUsd: Number(ledgerTotalUsd(spendPath).toFixed(5)),
   };
   writeFileSync(resultsPath, scrub(`${JSON.stringify({ summary, records }, null, 2)}\n`, secrets), { flag: 'wx' });
   writeLine(`SUMMARY ${JSON.stringify(summary)}`);
-  writeLine(`vague jobs that failed tries 1 and 2 and asked a failed-line question: ${verdict.vagueFailedBothAsked.got}/${verdict.vagueFailedBothAsked.of} (need all)${verdict.report.vacuous ? ' VACUOUS: no vague job failed both tries' : ''}`);
-  writeLine(`reported only: vague passed try 1 = ${verdict.report.vaguePassedTry1}, passed try 2 = ${verdict.report.vaguePassedTry2}, failed both = ${verdict.report.vagueFailedBoth}`);
+  if (arm === 'first') {
+    writeLine(`vague jobs that asked a question naming a real line: ${verdict.vagueAsked.got}/${verdict.vagueAsked.of} (need all)`);
+  } else {
+    writeLine(`vague jobs that failed tries 1 and 2 and asked a failed-line question: ${verdict.vagueFailedBothAsked.got}/${verdict.vagueFailedBothAsked.of} (need all)${verdict.report.vacuous ? ' VACUOUS: no vague job failed both tries' : ''}`);
+    writeLine(`reported only: vague passed try 1 = ${verdict.report.vaguePassedTry1}, passed try 2 = ${verdict.report.vaguePassedTry2}, failed both = ${verdict.report.vagueFailedBoth}`);
+  }
   writeLine(`clear asked nothing: ${verdict.clearQuiet.got}/${verdict.clearQuiet.of} (need ${verdict.clearQuiet.need})`);
   writeLine(`calls that broke (stop != null): ${verdict.neverBreaks.broken} (need 0)`);
   writeLine(`declaration valid: ${verdict.declarationValid.got}/${verdict.declarationValid.of} (need ${verdict.declarationValid.need})`);
@@ -137,7 +166,9 @@ export async function runBatch({
 if (import.meta.url === `file://${process.argv[1]}`) {
   const i = process.argv.indexOf('--tag');
   const tag = i !== -1 ? process.argv[i + 1] : undefined;
-  runBatch({ tag }).then(
+  const a = process.argv.indexOf('--arm');
+  const arm = a !== -1 ? process.argv[a + 1] : 'try3';
+  runBatch({ tag, arm }).then(
     ({ summary }) => process.exit(summary.verdict.pass ? 0 : 3),
     (err) => { process.stderr.write(`REFUSED: ${scrub(err.message, secretsFromEnv(process.env.DEEPSEEK_API_KEY))}\n`); process.exit(1); },
   );

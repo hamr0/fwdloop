@@ -41,6 +41,10 @@ export const QUESTIONS_PROMPT = [
   'Still emit the complete corrected declaration.',
 ].join('\n');
 
+/** Arm "first" (bareloop's wording, measured to matter): offered on try 1 with the declaration. Exact text; no digit. */
+export const FIRST_QUESTIONS_PROMPT = 'Most jobs need no questions. Ask only if something you need to draft a job line is truly missing (an undefined size, format, destination, or what done means), and name that line. Never ask to double-check what the job already says.';
+export const ARMS = ['try3', 'first'];
+
 export const NOTCHECKED_PROMPT = [
   'notChecked (optional): a short list of things about the job that no check below will verify. These are the ONLY things fwdloop can check:',
   ...CHECKABLE.map((c) => `- ${c}`),
@@ -94,7 +98,7 @@ export function linesNamedByReds(reds, declaration, lineNums) {
  * amendment 25: a question is kept only if its line is one try 2's reds named; a question with no line, a blank
  * question, or a third question is dropped. Every drop is returned with its reason, for the log.
  */
-export function normalizeQuestions(raw, failedLines) {
+export function normalizeQuestions(raw, failedLines, label = "a line try 2's checks failed on") {
   const kept = [];
   const dropped = [];
   if (raw === undefined || raw === null) return { kept, dropped };
@@ -102,7 +106,7 @@ export function normalizeQuestions(raw, failedLines) {
   for (const q of raw) {
     const okShape = q && typeof q === 'object' && !Array.isArray(q);
     if (!okShape || !Number.isInteger(q.line)) { dropped.push({ reason: 'no line', raw: q }); continue; }
-    if (!failedLines.includes(q.line)) { dropped.push({ reason: `line ${q.line} is not a line try 2's checks failed on`, raw: q }); continue; }
+    if (!failedLines.includes(q.line)) { dropped.push({ reason: `line ${q.line} is not ${label}`, raw: q }); continue; }
     if (typeof q.question !== 'string' || q.question.trim() === '') { dropped.push({ reason: 'blank question', raw: q }); continue; }
     if (kept.length >= MAX_QUESTIONS) { dropped.push({ reason: 'third question', raw: q }); continue; }
     kept.push({ line: q.line, question: q.question });
@@ -118,9 +122,12 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
  */
 export async function draftWithQuestions({
   proseText, slot = 'deepseek', model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
-  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider,
+  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, arm = 'try3',
 }) {
+  if (!ARMS.includes(arm)) throw new Error(`draft: unknown arm "${arm}" (try3 | first)`);
+  const first = arm === 'first';
   const base = {
+    arm,
     questions: [], droppedQuestions: [], notChecked: null, passedTry1: null, passedTry2: null, tryReds: { 1: [], 2: [], 3: [] }, failedLines: [], triesRun: 0, declarationValid: false, reds: [], stop: 'pre-flight', stopReason: null,
     rounds: 0, calls: 0, tokens: null, costUsd: 0, spendComplete: true, structureRetries: 0, modelReturned: null,
   };
@@ -141,7 +148,12 @@ export async function draftWithQuestions({
   const menu = wiredMenu(skills);
   const baseSystem = buildSystemPrompt({ menu, lines, arbiter, factsInfo: facts.info });
   // Tries 1 and 2: the real drafter's schema and prompt, untouched. Try 3 only: questions + notChecked.
-  const roundSetup = (tryNo) => (tryNo === 3
+  // Arm first: questions + notChecked on try 1 only (with bareloop's prompt line); retries are the real revisions.
+  const roundSetup = (tryNo) => (first
+    ? (tryNo === 1
+      ? { schema: buildPocSchema(menu, { questions: true, notChecked: true }), system: `${baseSystem}\n\n${NOTCHECKED_PROMPT}\n\n${FIRST_QUESTIONS_PROMPT}` }
+      : { schema: buildPocSchema(menu), system: baseSystem })
+    : tryNo === 3
     ? { schema: buildPocSchema(menu, { questions: true, notChecked: true }), system: `${baseSystem}\n\n${NOTCHECKED_PROMPT}` }
     : { schema: buildPocSchema(menu), system: baseSystem });
   const cat = loadCatalogue();
@@ -162,6 +174,8 @@ export async function draftWithQuestions({
   const tryValid = { 1: null, 2: null, 3: null };
   let failedLines = [];
   let lastVerdict = null;
+  let try1Extras = null; // arm first: the raw questions / notChecked the try 1 reply carried
+  const offeredOn = first ? 1 : 3;
   const validate = (cap, offered) => {
     const { questions: rawQ, notChecked: rawNC, ...rest } = cap;
     // Where a property was not offered it is NOT stripped: a stray key reds as unknown, as in the real drafter.
@@ -210,15 +224,16 @@ export async function draftWithQuestions({
     }
     stopReason = result?.stopReason ?? null;
     if (isPlainObject(captured)) {
-      const v = validate(captured, tryNo === 3);
+      const v = validate(captured, tryNo === offeredOn);
+      if (first && tryNo === 1) try1Extras = { rawQ: v.rawQ, rawNC: v.rawNC };
       tryValid[tryNo] = v.verdict.ok;
       tryReds[tryNo] = v.verdict.ok ? [] : [...v.verdict.reds];
       lastVerdict = v;
       if (v.verdict.ok || tryNo === 1 + MAX_REVISIONS) break;
-      if (tryNo === 2) failedLines = linesNamedByReds(tryReds[2], v.declaration, lines.map((l) => l.n));
+      if (!first && tryNo === 2) failedLines = linesNamedByReds(tryReds[2], v.declaration, lines.map((l) => l.n));
       tryNo += 1;
       userText = reviseMessage(tryReds[tryNo - 1]);
-      if (tryNo === 3) userText += `\n\n${QUESTIONS_PROMPT}`;
+      if (!first && tryNo === 3) userText += `\n\n${QUESTIONS_PROMPT}`;
       continue;
     }
     const malformed = provider?.lastMalformedToolCall ?? null;
@@ -229,7 +244,7 @@ export async function draftWithQuestions({
     structureRetries += 1;
     userText = `Your last reply was not a usable tool call (${why}). Call ${TOOL} now with a complete, valid JSON declaration.`;
     if (tryReds[tryNo - 1]?.length) userText += `\n\nThe last declaration you emitted was still refused by the validator; keep fixing these too:\n${tryReds[tryNo - 1].map((r) => `- ${r}`).join('\n')}`;
-    if (tryNo === 3) userText += `\n\n${QUESTIONS_PROMPT}`;
+    if (!first && tryNo === 3) userText += `\n\n${QUESTIONS_PROMPT}`;
   }
 
   const m = sumMeterings(meterings);
@@ -244,10 +259,13 @@ export async function draftWithQuestions({
   if (stop !== null || !isPlainObject(captured)) {
     return { ...out, ...tries, stop: stop ?? 'structure', reds: [stopReason ?? 'no tool call'], declarationValid: false };
   }
-  const { verdict, rawQ, rawNC } = lastVerdict;
-  // Questions and notChecked are read only from try 3, the only round that offered them.
-  const asked = tryNo === 3;
-  const { kept, dropped } = asked ? normalizeQuestions(rawQ, failedLines) : { kept: [], dropped: [] };
+  const { verdict } = lastVerdict;
+  // Questions and notChecked are read only from the one round that offered them (try 3, or try 1 in arm first).
+  const asked = first || tryNo === 3;
+  const { rawQ, rawNC } = first ? (try1Extras ?? {}) : lastVerdict;
+  const { kept, dropped } = !asked ? { kept: [], dropped: [] }
+    : first ? normalizeQuestions(rawQ, lines.map((l) => l.n), 'a job line')
+      : normalizeQuestions(rawQ, failedLines);
   const notChecked = asked && Array.isArray(rawNC) ? rawNC.filter((x) => typeof x === 'string' && x.trim() !== '') : null;
   return {
     ...out, ...tries, stop: null, questions: kept, droppedQuestions: dropped, notChecked, triesRun: tryNo,
