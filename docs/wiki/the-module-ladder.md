@@ -1663,6 +1663,12 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Negatives:** (1) a flow with a ':' section name shows in the Signed list with its reason and no Run button, at 1280, 390 and 320 px; (3) the test fails when the preflight is removed.
   - **Cap:** $0.
 
+- **Amendment 22 — SIGNED by hamr 2026-10-09 ("delete that part"): amendment 21 item 1's list entry is removed.**
+  - **Why:** listing a refused flow in "Run a signed flow" contradicts amendment 7 item 7 (only green, ready flows are listed). A refused flow is not listed, as before amendment 21.
+  - **Kept:** the panel's run door refuses a flow its preflight would refuse up front (409, the same sentence Run again gives), so nothing starts and fails later.
+  - **Where the reason shows:** "Run again" on that flow's run in Runs.
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
