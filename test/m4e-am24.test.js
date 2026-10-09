@@ -501,3 +501,16 @@ test('P7: the answer route is the same gated POST door as every author door (Hos
   assert.equal(existsSync(path.join(w.dir(id), 'draft', 'answer-1.json')), false);
   assert.equal((await state(w, id)).openK, 1);
 });
+
+test('B7: a plan that is still red on try 3 but asked a question is questions-open (no spec.hash, nothing signable); answering it drafts again to a green plan', async () => {
+  const { w, id, s } = await askingWorld({ FWDLOOP_TEST_DRAFT_REDSTEP: '0,1', FWDLOOP_TEST_DRAFT_QUESTIONS: Q12, FWDLOOP_TEST_DRAFT_QRED: '1' });
+  assert.equal(s.phase, 'questions-open', JSON.stringify(s));
+  assert.equal(existsSync(path.join(w.dir(id), 'draft', 'spec.hash')), false, 'the red plan has no hash to sign');
+  assert.equal((await w.post(`/api/author/${id}/sign`, { hash: 'x' })).json().refused, 'question-open');
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'ANSMARK the resume in my inputs' })).status, 200);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 2, answer: 'the part about skills' })).status, 202);
+  const g = await until(async () => { const j = await state(w, id); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });
+  await childGone(w, id);
+  assert.equal(g.phase, 'green', JSON.stringify(g));
+  assert.equal(g.revisesLeft, 2);
+});

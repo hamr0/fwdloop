@@ -69,7 +69,7 @@ export default function make() {
       const qs = process.env.FWDLOOP_TEST_DRAFT_QUESTIONS
         ? JSON.parse(process.env.FWDLOOP_TEST_DRAFT_QUESTIONS)
         : [{ line: 3, question: 'What does "3 sections" mean here?' }, { line: 3, question: 'Which words count toward the limit?' }];
-      return toolReply(offered ? { ...args, questions: qs, notChecked: ['whether the tone suits the role'] } : redArgs);
+      return toolReply(offered ? { ...(process.env.FWDLOOP_TEST_DRAFT_QRED ? redArgs : args), questions: qs, notChecked: ['whether the tone suits the role'] } : redArgs); // QRED=1: the asking try's own plan is red too
     }
     // an answer adds a guardrail line under job line 1 and/or 2: classify them (hitl) like the model would, so the plan stays valid
     if (system.includes('ANSMARK')) return toolReply({ ...args, guardrailClasses: { ...args.guardrailClasses, 1: 'hitl', 2: 'hitl' } });
