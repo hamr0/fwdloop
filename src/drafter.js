@@ -274,7 +274,8 @@ export const DRAFT_PROVIDER_OPTIONS = Object.freeze({ ...LIVE_PROVIDER_OPTIONS, 
  * spent then and the draft stops); after a call it is the caller's to keep from throwing.
  *
  * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number, calls:number, spendComplete:boolean,
- *   costUsd:number|null, modelReturned:string|null, modelId?:string, price?:object|null, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[]}>}
+ *   costUsd:number|null, modelReturned:string|null, modelId?:string, price?:object|null, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[],
+ *   questions?:{line:number, question:string}[], droppedQuestions?:object[], notChecked?:string[]}>}
  */
 export async function draft({
   proseText, slot = 'deepseek', model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
@@ -334,6 +335,7 @@ export async function draft({
   let validatorReds = []; // the last validator refusal; a structure retry after a revision must not drop it
   let stop = null;
   let failedLines = []; // the job lines try 2's reds named: a question is kept only about one of these (amendment 25)
+  /** @type {{questions:{line:number, question:string}[], droppedQuestions:object[], notChecked:string[]}} */
   let extras = { questions: [], droppedQuestions: [], notChecked: [] }; // from the round that produced `lastDecl`, never an earlier one
   let calls = 0; // provider calls made (a call that threw before metering is in `calls`, not in `rounds`)
   let unmetered = 0; // calls that failed with no metering: their cost is unknown
@@ -344,6 +346,8 @@ export async function draft({
     const spent = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
     if (spent + roundCeiling > budgetUsd) { stop = 'budget'; break; }
 
+    // assigned inside the tool's execute callback, which TS cannot see
+    /** @type {any} */
     let captured;
     // Amendment 25: a lock is a mechanism. Only try 3 of 3, and only when tries 1 and 2 BOTH failed validation (`revisions` counts the
     // validator's refusals fed back), gets the `questions` property; the redraft after an answer passes offerQuestions:false and never does.
@@ -407,6 +411,7 @@ export async function draft({
     // `notChecked` was offered on every try, so it is information and never reaches the validator. `questions` is stripped only where it was
     // offered; sent when not offered it stays, and the validator reds it as an unknown key (a stray key, never a silent pass).
     const { questions: rawQuestions, notChecked: rawNotChecked, ...captureRest } = /** @type {Record<string, any>} */ (captured);
+    /** @type {Record<string, any>} */
     const declaration = { ...(askOpen ? captureRest : { ...captureRest, ...(rawQuestions === undefined ? {} : { questions: rawQuestions }) }), inputFacts: facts.inputFacts };
     // M6a amendment 1 (F50): the goal is the signed line, set by the machine; whatever the model sent is overwritten.
     if (Array.isArray(declaration.steps)) {
