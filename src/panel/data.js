@@ -36,6 +36,7 @@ import {
 import { readSpendRows } from '../provider.js';
 import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
 import { readSetup } from '../setup.js';
+import { checkedLines, notCheckedBlock, NOT_CHECKED_LABEL } from '../checked.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import {
   runLiveness, booksFresh, readResumeLock,
@@ -1599,66 +1600,31 @@ export function getRunAudit({ root, flow, runId }) {
 }
 
 /**
- * `GET /api/runs/:flow/:runId/job` — the Job tab (M4a scope item 2): the
- * signed prose, the arbiter block (cap, asks with TTL, redo cap, sends,
- * sources), and the signature (who, when, hash). Derived purely from the
- * flow's own signed files (`readFlow`) — fwdloop always has exactly one
- * signed `declaration.json` + `signature.json` per flow, so there is no
- * multi-source provenance chain to resolve (unlike bareloop's `getRunJob` —
- * DROPPED per the fit-check). `runId` is only used to confirm the run
- * exists at all; `null` when it doesn't (404).
- * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
- * @returns {any|null}
+ * M4e amendment 34: the signed plan as the Job tab shows it. One row per declared step: the job line it came from, what it reads, what it makes, the
+ * primitives it may use (an ask step grants none), its check (the `checkedLines` sentences, the same words the human saw at sign) and, for the step a
+ * signed ask binds to, that ask's wait. "Not checked" comes from the sign row of the flow's setup.jsonl: `recorded:false` (and no items) for a flow
+ * signed before amendment 36, which the page says in words; never an empty list read as "nothing".
+ * @param {any} declaration @param {Array<{line:number, ttlMs?:number}>} asks @param {string} flowDir
  */
-/**
- * hamr's 2026-09-27 exit-check review #5: one plain-words sentence for a
- * declared step's own close rule — the Job tab's "Success" field. Derived
- * STRICTLY from `step.close` (and, for the "your accept" wording, whether
- * this step is the one line `arbiter.asks[]` itself binds to) — never a
- * fabricated cite/shape value:
- *  - `hitl`: "human check", or "human check (your accept)" when this step's
- *    own `fromLine` is a signed ask line (the ask step itself — the one a
- *    human pauses a run on, distinct from an ordinary hitl pass-through
- *    step with no ask binding).
- *  - `softgreen`: "shape: N headings (a / b / c)" when `close.shape.sections`
- *    is signed, "max W words" appended when `close.shape.maxWords` is
- *    signed, "blocks of L lines" / "must carry: a, b" for the invoice-block
- *    shape keys (`linesPerInvoice`/`mustCarry`) — every signed shape key
- *    shown, nothing invented; "shape (no shape rules signed)" when a
- *    softgreen step signs no `close.shape` at all (declaration.js allows
- *    this — an empty/absent shape is not itself a red).
- *  - `green`: "cited" — `CLOSE_ALLOWED` (`src/declaration.js`) never lets a
- *    step declare WHAT it cites ahead of time (that's the drafted
- *    artifact's own per-run field data, not signed prose), so there is
- *    never anything honest to append here.
- *  - anything else: the raw class name, named as unknown, never silently
- *    dropped or guessed into one of the three above; no class at all names
- *    that plainly too.
- * @param {{close?: {class?: string, shape?: any}, fromLine?: number|null}} step one `declaration.steps` entry
- * @param {Array<{line:number}>} arbiterAsks `arbiter.asks`, for the "your accept" check
- * @returns {string}
- */
-export function deriveStepSuccessText(step, arbiterAsks) {
-  const cls = step?.close?.class ?? null;
-  if (cls === null) return 'no close class recorded';
-  if (cls === 'hitl') {
-    const isAskStep = Array.isArray(arbiterAsks) && arbiterAsks.some((a) => a.line === step.fromLine);
-    return isAskStep ? 'human check (your accept)' : 'human check';
-  }
-  if (cls === 'green') return 'cited';
-  if (cls === 'softgreen') {
-    const shape = step?.close?.shape;
-    if (!shape || typeof shape !== 'object') return 'shape (no shape rules signed)';
-    const parts = [];
-    if (Array.isArray(shape.sections) && shape.sections.length > 0) {
-      parts.push(`${shape.sections.length} heading${shape.sections.length === 1 ? '' : 's'} (${shape.sections.join(' / ')})`);
-    }
-    if (typeof shape.maxWords === 'number') parts.push(`max ${shape.maxWords} words`);
-    if (typeof shape.linesPerInvoice === 'number') parts.push(`blocks of ${shape.linesPerInvoice} lines`);
-    if (Array.isArray(shape.mustCarry) && shape.mustCarry.length > 0) parts.push(`must carry: ${shape.mustCarry.join(', ')}`);
-    return parts.length > 0 ? `shape: ${parts.join(', ')}` : 'shape (no shape rules signed)';
-  }
-  return `unknown close class "${cls}"`;
+function buildJobPlan(declaration, asks, flowDir) {
+  const lines = checkedLines(declaration, { hasAsk: asks.length > 0 });
+  const steps = (Array.isArray(declaration?.steps) ? declaration.steps : []).map((st, i) => {
+    const ak = asks.find((x) => x.line === st.fromLine);
+    return {
+      step: i + 1,
+      line: Number.isInteger(st.fromLine) ? st.fromLine : null,
+      reads: Array.isArray(st.reads) ? st.reads : [],
+      makes: typeof st.emits === 'string' ? st.emits : null,
+      mayDo: Array.isArray(st.primitives) ? st.primitives : [],
+      check: lines[i].sentences,
+      ask: !!ak,
+      waitMs: ak && typeof ak.ttlMs === 'number' ? ak.ttlMs : null,
+    };
+  });
+  const setup = readSetup(flowDir);
+  const nc = setup.present ? setup.rows.find((r) => r.kind === 'sign')?.notChecked : undefined;
+  const recorded = !!nc && Array.isArray(nc.items);
+  return { steps, notChecked: { label: NOT_CHECKED_LABEL, items: recorded ? notCheckedBlock(nc.items).items : [], recorded } };
 }
 
 /**
@@ -1669,8 +1635,7 @@ export function deriveStepSuccessText(step, arbiterAsks) {
  * signature.json/prose lines — nothing invented; a piece the books can't
  * name carries its own why, never a blank or a guess. Field order (server
  * order matches the page's own render order): prose, asks, model, cap
- * (+redo cap), sources, sends, guardrails, success (one row per step, off
- * `deriveStepSuccessText`), signature.
+ * (+redo cap), sources, sends, guardrails, plan (one row per step, amendment 34), signature.
  * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
  * @returns {any|null}
  */
@@ -1702,7 +1667,6 @@ export function getRunJob({
   const asks = a.asks ?? [];
   const sends = a.sends ?? [];
   const sources = a.sources ?? [];
-  const declSteps = Array.isArray(flowRead.declaration?.steps) ? flowRead.declaration.steps : [];
   return {
     flow,
     runId,
@@ -1736,8 +1700,7 @@ export function getRunJob({
     guardrails: flowRead.lines
       .filter((l) => typeof l.guardrail === 'string' && l.guardrail.length > 0)
       .map((l) => ({ line: l.n, guardrail: l.guardrail })),
-    // review #5: "Success" — one row per declared step, in declaration order.
-    success: declSteps.map((s) => ({ step: s.emits, text: deriveStepSuccessText(s, asks) })),
+    plan: buildJobPlan(flowRead.declaration, asks, run.flowDir),
     signature: (sig && typeof sig.signedBy === 'string' && typeof sig.signedAt === 'string' && typeof sig.flow === 'string')
       ? { signedBy: sig.signedBy, signedAt: sig.signedAt, hash: sig.flow }
       : null,

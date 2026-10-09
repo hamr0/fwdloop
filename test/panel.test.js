@@ -27,7 +27,7 @@ import {
   computeGlyph, costDisplay, listRuns, getRunDetail, getRunAudit, getRunJob, listStops, getRunAsks,
   deriveRunModel, deriveAuditAction, summarizeSpendRows, deriveAuditTokensDisplay, deriveAuditAtWhy,
   isBlockedVerdict, deriveStepTryMarks, deriveStepGroupState, deriveAuditGroups, deriveAskStepInfo,
-  deriveStepSuccessText, deriveAuditToolsPhrase,
+  deriveAuditToolsPhrase,
 } from '../src/panel/data.js';
 import { readSpendRows, appendSpendRow } from '../src/provider.js';
 import { writeAskArchive } from '../src/ask.js';
@@ -1477,19 +1477,6 @@ describe('getRunJob', () => {
     assert.match(job.guardrails[1].guardrail, /accept/);
   });
 
-  test('review #5: Success — one row per declared step, in declaration order; the ask step (line 4) reads "human check (your accept)", the others plain "human check" or "shape: ..."', () => {
-    const job = getRunJob({
-      root: ROOT, flow: FLOW, runId: 'run-done', catalogue: CATALOGUE,
-    });
-    assert.equal(job.success.length, 5);
-    assert.deepEqual(job.success.map((s) => s.step), ['resume-text', 'jd-text', 'resume-summary', 'resume-summary-approved', 'resume-summary-output']);
-    assert.equal(job.success.find((s) => s.step === 'resume-text').text, 'human check');
-    assert.equal(job.success.find((s) => s.step === 'resume-summary-approved').text, 'human check (your accept)');
-    const summarySuccess = job.success.find((s) => s.step === 'resume-summary').text;
-    assert.match(summarySuccess, /^shape: 3 headings \(/);
-    assert.match(summarySuccess, /max 600 words/);
-  });
-
   test('hamr review #7: the Job tab carries the model, read from this run\'s own audit.jsonl rows', () => {
     const job = getRunJob({
       root: ROOT, flow: FLOW, runId: 'run-done', catalogue: CATALOGUE,
@@ -1514,50 +1501,6 @@ describe('getRunJob', () => {
       root: ROOT, flow: FLOW, runId: 'run-failed', catalogue: CATALOGUE,
     });
     assert.equal(a.signature.hash, b.signature.hash);
-  });
-});
-
-describe('deriveStepSuccessText (hamr\'s 2026-09-27 exit-check review #5: the Job tab\'s Success field)', () => {
-  test('hitl, not bound to any signed ask line: "human check"', () => {
-    const step = { close: { class: 'hitl' }, fromLine: 1 };
-    assert.equal(deriveStepSuccessText(step, [{ line: 4 }]), 'human check');
-  });
-
-  test('hitl, bound to the signed ask line: "human check (your accept)"', () => {
-    const step = { close: { class: 'hitl' }, fromLine: 4 };
-    assert.equal(deriveStepSuccessText(step, [{ line: 4 }]), 'human check (your accept)');
-  });
-
-  test('softgreen with sections + maxWords: "shape: N headings (a / b / c), max W words"', () => {
-    const step = { close: { class: 'softgreen', shape: { sections: ['a', 'b', 'c'], maxWords: 600 } } };
-    assert.equal(deriveStepSuccessText(step, []), 'shape: 3 headings (a / b / c), max 600 words');
-  });
-
-  test('softgreen with the invoice-block shape keys (linesPerInvoice/mustCarry), never the sections wording', () => {
-    const step = { close: { class: 'softgreen', shape: { linesPerInvoice: 4, mustCarry: ['total', 'date'] } } };
-    assert.equal(deriveStepSuccessText(step, []), 'shape: blocks of 4 lines, must carry: total, date');
-  });
-
-  test('softgreen with NO shape signed at all: names it plainly, never invents sections/words', () => {
-    const step = { close: { class: 'softgreen' } };
-    assert.equal(deriveStepSuccessText(step, []), 'shape (no shape rules signed)');
-  });
-
-  test('green: "cited" — declaration.js never lets a step declare what it cites, so nothing is appended', () => {
-    const step = { close: { class: 'green' } };
-    assert.equal(deriveStepSuccessText(step, []), 'cited');
-  });
-
-  test('PROOF (can fail): an unknown/unsigned close class is named as unknown, never silently mapped to one of the three known words', () => {
-    const step = { close: { class: 'some-future-class-this-suite-does-not-know-about' } };
-    assert.equal(deriveStepSuccessText(step, []), 'unknown close class "some-future-class-this-suite-does-not-know-about"');
-    // the exact bug this guards: falling through to "human check" (hitl's
-    // own wording) for anything unrecognised, silently.
-    assert.notEqual(deriveStepSuccessText(step, []), 'human check');
-  });
-
-  test('no close class recorded at all: named plainly, never a crash', () => {
-    assert.equal(deriveStepSuccessText({}, []), 'no close class recorded');
   });
 });
 
