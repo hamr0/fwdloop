@@ -36,6 +36,8 @@
 // No `new RegExp` anywhere in this file — a test in test/signed-text.test.js
 // greps all of src/ for that, and it must keep passing with this file added.
 
+import { buildSoftgreenRubric } from './closers.js';
+
 /** @typedef {import('./types.js').Arbiter} Arbiter */
 /** @typedef {import('./types.js').SignedLine} SignedLine */
 /** @typedef {import('./types.js').CatalogueEntry} CatalogueEntry */
@@ -44,8 +46,6 @@
 /** Every top-level, step-level and close-level field this schema defines —
  *  kept in sync with the checks below so a mutation suite can assert it
  *  tested every one of them (same trick as ARBITER_FIELDS/SIGNATURE_FIELDS). */
-import { buildSoftgreenRubric } from './closers.js';
-
 export const DECLARATION_FIELDS = Object.freeze([
   // top level
   'steps',
