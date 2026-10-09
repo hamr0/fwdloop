@@ -1780,6 +1780,11 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Done when:** the 320 px screenshot shows `6 doc-run` in a dashed box with `↻2 [✓] passed`, and "try" appears nowhere on the map.
   - **Cap:** $0.
 
+- **Amendment 36 — SIGNED by hamr 2026-10-09 ("sign am36"): "Not checked" is kept at sign.**
+  - At sign, the drafter's "Not checked" list is written once into the sign row of the flow's `setup.jsonl`, word for word with its label. It's not signed and not part of the hash.
+  - The Job tab reads it from there. A flow signed before this shows "Not checked: not recorded (signed before amendment 34)".
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
