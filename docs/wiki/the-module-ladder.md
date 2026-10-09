@@ -1645,6 +1645,8 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Upstream (no fwdloop code):** bareguard was asked (2026-10-09) to export its 20-item cap; until then fwdloop keeps 20.
   - **Negatives:** (1) an old rolled row for a "process gone" run, then more spend: month = disk; (2) 25 blocks each missing 2 words reads "5 more block(s)"; (3) a lost ask file: Runs and Ask/Inbox both say "stopped"; (4) a pre-am18 flow with a ':' section name is refused at $0 with no model call; (5) the new tests fail when their fixes are reverted.
   - **Cap:** $0.
+  - **Built after signing — not signed text (2026-10-09):**
+    - bareguard declined to export its cap (no exported caps); fwdloop now derives "N more" from each gap's `itemsTotal` and list length, so no hardcoded 20 remains.
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs

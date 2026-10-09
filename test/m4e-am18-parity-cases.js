@@ -123,3 +123,57 @@ pair('blockLines+mustCarry(size1)', { linesPerInvoice: 1, mustCarry: ['Ünï'] }
   ['hash', { text: '# ünï' }], ['crlf', { text: 'ünï\r\nünï' }], ['3', { text: 'ünï\nünï\nünï' }], ['tab', { text: 'x\tünï' }], ['x', { text: 'x' }], ['non-object', null],
 ]);
 
+
+// ---- amendment 19 item 5: past bareguard's 20-item list, and shapes that mix every soft check. Frozen rows (from the same pre-switch
+// code) live in m4e-am19-parity.test.js. Kept apart from `cases` so the 142-input table above stays exactly as signed.
+export const bigCases = [];
+function big(pairName, shape, inputs) {
+  for (const [label, input] of inputs) bigCases.push({ pair: pairName, label, shape, input });
+}
+const names = (n) => Array.from({ length: n }, (_, i) => `Sec${i + 1}`);
+const body = (ns, per) => ns.map((n) => `# ${n}\n${w(per)}`).join('\n');
+big('over20 sectionOrder', { sections: names(25) }, [
+  ['25 sections all missing', { text: 'nothing here' }],
+  ['21 sections all missing', { text: 'nothing here' }],
+  ['25 sections, 20 present in order, 5 missing', { text: body(names(20), 3) }],
+]);
+bigCases[1].shape = { sections: names(21) };
+big('over20 sectionWords', { sections: names(25), wordsPerSection: 10 }, [
+  ['25 sections all too short', { text: body(names(25), 1) }],
+  ['25 sections, 22 too long', { text: body(names(25).slice(0, 22), 40) + '\n' + body(names(25).slice(22), 10) }],
+  ['25 sections, exactly 20 too short', { text: body(names(20), 1) + '\n' + body(names(25).slice(20), 10) }],
+  ['25 sections, 21 too short', { text: body(names(21), 1) + '\n' + body(names(25).slice(21), 10) }],
+]);
+const OB = { linesPerInvoice: 1, mustCarry: ['zz', 'yy'] };
+big('over20 blockLines', OB, [
+  ['25 blocks each missing 2 words', { text: Array.from({ length: 25 }, (_, i) => `line${i}`).join('\n') }],
+  ['25 blocks, each missing 1 word', { text: Array.from({ length: 25 }, () => 'zz only').join('\n') }],
+  ['30 blocks, mixed 0/1/2 missing', { text: Array.from({ length: 30 }, (_, i) => (i % 3 === 0 ? 'zz yy ok' : i % 3 === 1 ? 'zz only' : 'neither')).join('\n') }],
+  ['10 blocks both missing (20 items, no cut)', { text: Array.from({ length: 10 }, (_, i) => `l${i}`).join('\n') }],
+  ['11 blocks both missing (22 items, cut)', { text: Array.from({ length: 11 }, (_, i) => `l${i}`).join('\n') }],
+  ['25 blocks missing + not multiple (size 2)', { text: Array.from({ length: 51 }, (_, i) => `l${i}`).join('\n') }],
+]);
+bigCases[bigCases.length - 1].shape = { linesPerInvoice: 2, mustCarry: ['zz', 'yy'] };
+big('over20 extra keys', {}, [
+  ['25 extra keys', { text: 'ok', ...Object.fromEntries(Array.from({ length: 25 }, (_, i) => [`k${i}`, 1])) }],
+  ['20 extra keys', { text: 'ok', ...Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`k${i}`, 1])) }],
+]);
+const MIX = {
+  maxWords: 60, sections: names(3), wordsPerSection: 10, linesPerInvoice: 2, mustCarry: ['zz', 'yy'],
+};
+big('mixed shape', MIX, [
+  ['all pass', { text: '# Sec1\nzz yy a b c d e f g h\n# Sec2\nzz yy a b c d e f g h\n# Sec3\nzz yy a b c d e f g h' }],
+  ['over words only', { text: `# Sec1\nzz yy ${w(10)}\n# Sec2\nzz yy ${w(10)}\n# Sec3\nzz yy ${w(40)}` }],
+  ['every check red', { text: `# Sec3\n${w(70)}\n# Sec1\nx` }],
+  ['sections ok, per-section red, blocks red', { text: '# Sec1\na\n# Sec2\nb\n# Sec3\nc' }],
+  ['not multiple of block size', { text: '# Sec1\nzz yy a b c d e f g h\n# Sec2\nzz yy a b c d e f g h\n# Sec3\nzz yy a b c d e f g h\nlast' }],
+  ['extra key + red text', { text: 'nothing', extra: 1 }],
+  ['empty text', { text: '' }],
+]);
+const MIX2 = {
+  maxWords: 20, sections: names(25), wordsPerSection: 2, linesPerInvoice: 1, mustCarry: ['zz'],
+};
+big('mixed shape over20', MIX2, [
+  ['25 sections all red in every check', { text: body(names(25), 5) }],
+  ['no headings, long text', { text: w(40) }],
+]);
