@@ -257,6 +257,7 @@ export function closeGreen(artifact, ctx) {
  * @param {Record<string, any>} shape
  */
 export function softgreenSpec(shape) {
+  /** @type {Record<string, any>[]} */
   const checks = [{ id: 'keys', rule: 'allowedKeys', keys: ['text'] }];
   if (shape.maxWords !== undefined) checks.push({ id: 'words', rule: 'maxWords', field: 'text', value: shape.maxWords });
   if (shape.sections !== undefined) checks.push({ id: 'sections', rule: 'sectionOrder', field: 'text', names: shape.sections });
@@ -362,7 +363,9 @@ export async function closeSoftgreen(artifact, shape) {
     const rubric = buildSoftgreenRubric(shape);
     const res = await checkStep(rubric, 'close', artifact);
     if (res.verdict === 'stopped') {
-      return { verdict: 'crash', red: `softgreen close crashed: the ${res.fault.id} check stopped (${res.fault.kind}${res.fault.detail ? `: ${res.fault.detail}` : ''})` };
+      // bareguard's StepResult carries the first fault whenever the verdict is 'stopped' (rubric.js: "the first fault, when stopped").
+      const fault = /** @type {NonNullable<typeof res.fault>} */ (res.fault);
+      return { verdict: 'crash', red: `softgreen close crashed: the ${fault.id} check stopped (${fault.kind}${fault.detail ? `: ${fault.detail}` : ''})` };
     }
     if (res.verdict === 'red') return { verdict: 'red', ...renderSoftgreenGaps(res.gaps, shape) };
     return { verdict: 'green', red: null, reds: [] };
