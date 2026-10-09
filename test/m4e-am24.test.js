@@ -387,3 +387,117 @@ test('C4: a green plan carries Checked and Not checked (labelled) in its state a
   const g2 = await settleOn(w2, id2, ['green', 'red', 'stopped']);
   assert.deepEqual(g2.notChecked, { label: NOT_CHECKED_LABEL, items: [] });
 });
+
+// ---- Piece 4: the panel page (source-level like test/m4e-revise-page.test.js; the real browser walk is separate) -----------------------------
+// eslint-disable-next-line import/first
+import { rq } from './m4e-world.mjs';
+
+const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
+const CHAT = PAGE.slice(PAGE.indexOf('// ---- Chat tab: describe, draft, sign and run'), PAGE.indexOf('// ---- M4d piece 4: Settings.'));
+function fnSrc(name) {
+  const start = CHAT.indexOf(`    function ${name}(`);
+  assert.ok(start !== -1, `function ${name} not found in the Chat block`);
+  return CHAT.slice(start, CHAT.indexOf('\n    }\n', start) + 7);
+}
+const load = (name, prelude = '') => new Function(`${prelude}\n${fnSrc(name)}\nreturn ${name};`)();
+const openState = { draftId: 'd-1', phase: 'questions-open', openK: 1, total: 2, questions: [
+  { k: 1, line: 3, lineText: 'write me a summary resume', question: 'What does "3 sections" mean?', answered: false },
+  { k: 2, line: 3, lineText: 'write me a summary resume', question: 'Which words count?', answered: false }] };
+
+test('P1: the question view says "A question the plan raised (k of n)", one at a time; no question open means no view', () => {
+  const v = load('questionViewFor')(openState);
+  assert.equal(v.head, 'A question the plan raised (1 of 2)');
+  assert.equal(v.line, 'About job line 3: write me a summary resume');
+  assert.equal(v.question, 'What does "3 sections" mean?');
+  assert.equal(load('questionViewFor')({ ...openState, openK: 2 }).head, 'A question the plan raised (2 of 2)');
+  for (const st of [null, { ...openState, phase: 'green' }, { ...openState, phase: 'redrafting' }, { ...openState, questions: [] }]) assert.equal(load('questionViewFor')(st), null);
+});
+
+test('P2: there is no Skip; the box has an answer field and a Send button; ids are unique across the page', () => {
+  const block = PAGE.slice(PAGE.indexOf('id="chat-question"'), PAGE.indexOf('id="chat-extras"'));
+  assert.doesNotMatch(block, /skip/i);
+  assert.match(block, /id="chat-q-answer"/);
+  assert.match(block, /<button[^>]*id="chat-q-send"[^>]*>Send<\/button>/);
+  const ids = [...PAGE.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+  const dup = ids.filter((x, i) => ids.indexOf(x) !== i);
+  assert.deepEqual([...new Set(dup)], [], 'no element id appears twice');
+  for (const id of ['chat-question', 'chat-q-head', 'chat-q-line', 'chat-q-text', 'chat-q-answer', 'chat-q-error', 'chat-q-send', 'chat-extras']) assert.equal(ids.filter((x) => x === id).length, 1, id);
+  assert.doesNotMatch(CHAT.replace(/^\s*\/\/.*$/gm, ''), /skip/i);
+});
+
+test('P3: while a question is open the main button is off, the card is locked, the steps line waits for the answer; a redraft is not counted as a revise', () => {
+  const mb = load('mainButtonFor');
+  assert.deepEqual(mb({ mode: 'new', session: true, startOk: true, phase: 'questions-open', revisable: true, left: 2 }), { text: 'Sign & run', action: 'none', disabled: true });
+  assert.deepEqual(mb({ mode: 'new', session: true, startOk: true, phase: 'redrafting', revisable: true, left: 2 }), { text: 'Sign & run', action: 'none', disabled: true });
+  assert.match(fnSrc('cardLocked'), /ph === "questions-open"/);
+  const steps = load('stepsFor');
+  const s = steps({ ...openState, card: {}, revises: [] }, { model: 'm', starting: false, signClicked: false });
+  assert.deepEqual(s.map((x) => `${x.id}:${x.status}:${x.label}`), ['drafted:done:drafted with m', 'question:waiting:waiting for your answer (1 of 2)']);
+  const after = steps({ phase: 'green', card: {}, revises: [{ n: 1, kind: 'answers', phase: 'green' }, { n: 2, kind: 'revise', phase: 'green' }] }, { model: 'm', starting: false, signClicked: false });
+  assert.deepEqual(after.map((x) => x.label), ['drafted with m', 'drafted again with your answers', 'revise 1', 'waiting for your signature']);
+});
+
+test('P4: a poll tick never rewrites an answer being typed; only a NEW question (or none) clears the box', () => {
+  const prelude = `var qKey = ""; var questionBox = {hidden: true}; var qHead = {}; var qLine = {}; var qText = {}; var qAnswer = {value: ""}; var qError = {textContent: ""};
+    ${fnSrc('questionViewFor')}`;
+  const render = new Function(`${prelude}\n${fnSrc('renderQuestion')}\nreturn { render: renderQuestion, a: qAnswer, err: qError, box: questionBox, head: qHead };`)();
+  render.render(openState);
+  assert.equal(render.box.hidden, false);
+  assert.equal(render.head.textContent, 'A question the plan raised (1 of 2)');
+  render.a.value = 'half typed answer';
+  render.err.textContent = 'Write an answer.';
+  for (let i = 0; i < 3; i += 1) render.render(JSON.parse(JSON.stringify(openState))); // three poll ticks
+  assert.equal(render.a.value, 'half typed answer', 'unsent input survives the poll');
+  assert.equal(render.err.textContent, 'Write an answer.');
+  render.render({ ...openState, openK: 2 });
+  assert.equal(render.a.value, '', 'the next question starts empty');
+  assert.equal(render.head.textContent, 'A question the plan raised (2 of 2)');
+  render.render({ phase: 'redrafting' });
+  assert.equal(render.box.hidden, true);
+  // only these two functions assign the answer box; the poll path (renderActions, renderThread, poll) does not
+  for (const name of ['poll', 'renderActions', 'renderThread', 'renderExtras', 'renderMain']) assert.doesNotMatch(fnSrc(name), /qAnswer\.value\s*=/, name);
+});
+
+test('P5: Send posts k and the text to the answer route; a refusal shows the server\'s words in the question box and keeps it open; the wire is the gated POST door', () => {
+  const d = fnSrc('doAnswer');
+  assert.match(d, /authorPost\("\/api\/author\/" \+ id \+ "\/answer", \{k: lastState\.openK, answer: qAnswer\.value\}\)/);
+  assert.match(d, /qError\.textContent = refusalText\(r\)/);
+  assert.doesNotMatch(d, /qAnswer\.value = ""[\s\S]*refusalText/, 'a refusal does not clear what was typed');
+  assert.match(CHAT, /qSend\.addEventListener\("click", doAnswer\)/);
+});
+
+test('P6: Your answers sit under their line; Checked is listed; Not checked always carries its label; none of it shows without a green plan', () => {
+  const ex = load('extrasFor');
+  const green = {
+    phase: 'green', answers: [{ line: 3, lineText: 'write me a summary resume', question: 'q', answer: 'Skills, Fit and History' }],
+    checked: [{ step: 1, line: 3, sentences: ['The whole output is under 600 words.'] }, { step: 2, line: null, sentences: ['No machine check of the content: you check it at the ask.'] }],
+    notChecked: { label: "the drafter's own reading, not a guarantee", items: ['tone'] },
+  };
+  const v = ex(green);
+  assert.deepEqual(v.blocks.map((b) => b.id), ['chat-answers', 'chat-checked', 'chat-notchecked']);
+  assert.deepEqual(v.blocks[0].lines, ['line 3: write me a summary resume\n  > Skills, Fit and History']);
+  assert.deepEqual(v.blocks[1].lines, ['line 3: The whole output is under 600 words.', 'step 2: No machine check of the content: you check it at the ask.']);
+  assert.equal(v.blocks[2].sub, "the drafter's own reading, not a guarantee");
+  assert.deepEqual(v.blocks[2].lines, ['- tone']);
+  const none = ex({ ...green, answers: [], notChecked: { label: NOT_CHECKED_LABEL, items: [] } });
+  assert.deepEqual(none.blocks.map((b) => b.id), ['chat-checked', 'chat-notchecked'], 'no answers: no Your answers block');
+  assert.equal(none.blocks[1].sub, NOT_CHECKED_LABEL);
+  assert.deepEqual(none.blocks[1].lines, ['The drafter listed nothing.']);
+  assert.equal(ex({ ...green, notChecked: undefined }).blocks[2].sub, "the drafter's own reading, not a guarantee", 'the label survives a missing list');
+  for (const st of [null, { ...green, phase: 'red' }, { ...green, phase: 'questions-open' }, { phase: 'green' }]) assert.equal(ex(st), null);
+  // the answers and the lists are escaped, never raw html
+  assert.match(fnSrc('renderExtras'), /escapeXml\(b\.head\)[\s\S]*b\.lines\.map\(escapeXml\)/);
+});
+
+test('P7: the answer route is the same gated POST door as every author door (Host + Origin; no token or cookie, amendment 4 item 8): no / foreign Origin, foreign Host -> refused, nothing written; a GET is not a door', async () => {
+  const { w, id } = await askingWorld();
+  const body = { k: 1, answer: 'an answer' };
+  for (const [c, want] of [[{ headers: { origin: null } }, 403], [{ headers: { origin: 'http://evil.example' } }, 403], [{ headers: { host: 'evil.example' } }, 403]]) {
+    // eslint-disable-next-line no-await-in-loop
+    const r = await rq(w.h.port, { method: 'POST', url: `/api/author/${id}/answer`, body, ...c });
+    assert.equal(r.status, want, JSON.stringify(c));
+  }
+  assert.equal((await rq(w.h.port, { url: `/api/author/${id}/answer` })).status, 404);
+  assert.equal(existsSync(path.join(w.dir(id), 'draft', 'answer-1.json')), false);
+  assert.equal((await state(w, id)).openK, 1);
+});

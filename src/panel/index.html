@@ -484,6 +484,15 @@
   .chat-thread:empty{display:none;}
   .msg{padding:8px 10px;border:1px solid var(--border);max-width:100%;background:var(--panel2);font-size:13px;word-break:break-word;white-space:pre-wrap;}
   .msg.bot{border-left:3px solid var(--border-strong);}
+  /* M4e amendments 24/25: the question the plan raised (one at a time), then Your answers / Checked / Not checked beside the plan */
+  .chat-question{border:1px solid var(--border);border-left:3px solid var(--amber);background:var(--panel2);padding:8px 10px;margin-bottom:10px;max-width:100%;box-sizing:border-box;}
+  .chat-question .q-head{font-size:11px;color:var(--text-faint);}
+  .chat-question .q-line{font-size:12px;color:var(--text-faint);margin-top:4px;overflow-wrap:anywhere;}
+  .chat-question .q-text{font-size:13px;margin-top:4px;overflow-wrap:anywhere;white-space:pre-wrap;}
+  .chat-question textarea{display:block;width:100%;max-width:100%;box-sizing:border-box;margin-top:8px;min-height:3.4em;font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);resize:vertical;}
+  .chat-question .q-err{color:var(--red);}
+  .chat-extras{display:flex;flex-direction:column;gap:10px;margin-bottom:10px;}
+  .chat-extras:empty{display:none;}
   .msg.bot .who::before{content:"$ ";}
   .msg .who{font-size:11px;color:var(--text-faint);margin-bottom:3px;text-transform:none;font-weight:400;}
   /* the card's free-text boxes wrap (textarea): grow a few rows (fitBox), then scroll inside */
@@ -876,6 +885,19 @@
 
           <!-- M4e amendment 14: the plan, then the main button (no bubbles, no note box): the plan sits next to Sign & run -->
           <div class="chat-thread" id="chat-thread" data-testid="chat-thread"></div>
+
+          <!-- M4e amendments 24/25: a question the plan raised, one at a time. No Skip. Static markup: the poll only rewrites the texts when the question changes, never the answer box -->
+          <div class="chat-question" id="chat-question" data-testid="chat-question" hidden>
+            <div class="q-head" id="chat-q-head" data-testid="chat-q-head"></div>
+            <div class="q-line" id="chat-q-line" data-testid="chat-q-line"></div>
+            <div class="q-text" id="chat-q-text" data-testid="chat-q-text"></div>
+            <textarea id="chat-q-answer" data-testid="chat-q-answer" rows="2" autocomplete="off" spellcheck="false" aria-label="Your answer" placeholder="Your answer, on one line"></textarea>
+            <div class="hint q-err" id="chat-q-error" data-testid="chat-q-error" role="alert"></div>
+            <button class="btn primary wide" type="button" id="chat-q-send" data-testid="chat-q-send">Send</button>
+          </div>
+
+          <!-- M4e amendments 24/25: beside a green plan, Your answers (if it was drafted with any), Checked (built by code from the typed checks) and Not checked (the drafter's own reading) -->
+          <div class="chat-extras" id="chat-extras" data-testid="chat-extras"></div>
 
           <!-- a refused draft / run / sign / abandon POST (or a refused start) shows here and STAYS: set only by this tab's own
                action handlers, never cleared by the poll (the poll owns #chat-card-error instead) -->
@@ -3801,6 +3823,14 @@
     var errEl = document.getElementById("chat-card-error");        // POLL-OWNED: the draft's own sentence (red / stopped)
     var actionErrEl = document.getElementById("chat-action-error"); // ACTION-OWNED: only a click's refusal; the poll never wipes it
     var progressRow = document.getElementById("chat-progress-row");
+    var questionBox = document.getElementById("chat-question");
+    var qHead = document.getElementById("chat-q-head");
+    var qLine = document.getElementById("chat-q-line");
+    var qText = document.getElementById("chat-q-text");
+    var qAnswer = document.getElementById("chat-q-answer");
+    var qError = document.getElementById("chat-q-error");
+    var qSend = document.getElementById("chat-q-send");
+    var extrasEl = document.getElementById("chat-extras");
     var newBox = document.getElementById("jf-new");
     var runBox = document.getElementById("jf-run");
     var runInputsEl = document.getElementById("jf-run-inputs");
@@ -3832,6 +3862,9 @@
     var signInfo = null;         // the first Sign click's reply: { hash, flowName, capUsd, runId }
     var signClickedOnce = false;
     var reviseOpen = false;      // amendment 14 item 2: Revise was pressed on a green plan, so every card field is open (ONE writer: setReviseOpen)
+    var qKey = "";               // which question the box is showing (draft id + k): the answer box is rewritten only when this changes
+    var qBusy = false;           // an answer POST is in flight
+    var extrasKey = "";
     var busy = false;            // a POST is in flight (disabled from the click until the reply)
     var startId = null;          // the run start being watched (GET /api/author/start/<id>)
     var refusedStartId = null;   // a refused start whose sentence is on the card; Clear dismisses it on the server (cleared.json)
@@ -3897,7 +3930,11 @@
       if(st.phase === "stopped"){
         return {text: "Draft again", action: "draft", disabled: blocked};
       }
-      if(st.phase === "revising"){
+      if(st.phase === "revising" || st.phase === "redrafting"){
+        return {text: "Sign & run", action: "none", disabled: true};
+      }
+      if(st.phase === "questions-open"){
+        // amendments 24/25: nothing is signable, and a revise is no way round it: the question is answered first
         return {text: "Sign & run", action: "none", disabled: true};
       }
       if(st.phase === "green"){
@@ -3953,8 +3990,10 @@
         } else if(Array.isArray(state.revises)){
           // amendment 14: a draft whose first plan was green. One line per revise with its result; a red one shows its reds (its sentence is on the card error line).
           out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
+          var reviseNo = 0;
           state.revises.forEach(function(rv){
-            var label = "revise " + rv.n;
+            // an answer redraft (amendment 24 item 4) is not a revise and is not counted as one
+            var label = rv.kind === "answers" ? "drafted again with your answers" : "revise " + (reviseNo += 1);
             if(rv.phase === "running") out.push({id: "revise-" + rv.n, label: label, status: "running", details: []});
             else if(rv.phase === "green") out.push({id: "revise-" + rv.n, label: label, status: "done", details: []});
             else out.push({id: "revise-" + rv.n, label: label, status: "failed", details: (rv.reds && rv.reds.length ? rv.reds.slice() : [])});
@@ -3963,6 +4002,7 @@
             if(ctx.starting) out.push({id: "signed", label: "signed", status: "done", details: []});
             else out.push({id: "sign", label: ctx.signClicked ? "waiting for your second click" : "waiting for your signature", status: "waiting", details: []});
           }
+          if(state.phase === "questions-open") out.push({id: "question", label: "waiting for your answer (" + state.openK + " of " + state.total + ")", status: "waiting", details: []});
         } else if(state.phase === "red"){
           out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
           out.push({id: "checks", label: "plan checks", status: "failed", details: (state.reds || []).slice()});
@@ -3979,6 +4019,35 @@
       }
       if(ctx.starting) out.push({id: "starting", label: "starting the run", status: "running", details: []});
       return out.filter(function(s, i){ return i === 0 || JSON.stringify(s) !== JSON.stringify(out[i - 1]); });
+    }
+    // pure: the question box's content (amendments 24/25), or null when no question is open. One question at a time: `openK` of `total`.
+    function questionViewFor(state){
+      if(!state || state.phase !== "questions-open" || !Array.isArray(state.questions)) return null;
+      var q = state.questions.filter(function(x){ return x.k === state.openK; })[0];
+      if(!q) return null;
+      return {
+        key: String(state.draftId) + ":" + q.k, k: q.k,
+        head: "A question the plan raised (" + q.k + " of " + state.total + ")",
+        line: q.lineText ? "About job line " + q.line + ": " + q.lineText : "About job line " + q.line,
+        question: q.question
+      };
+    }
+    // pure: what sits beside a green plan: Your answers (only when the plan was drafted with some), Checked (the machine's sentences from the
+    // typed checks) and Not checked (the drafter's own list, ALWAYS with its label), or null when there is no plan to show
+    function extrasFor(state){
+      if(!state || state.phase !== "green" || !Array.isArray(state.checked)) return null;
+      var blocks = [];
+      if(Array.isArray(state.answers) && state.answers.length){
+        blocks.push({id: "chat-answers", head: "Your answers", sub: "", lines: state.answers.map(function(a){
+          return "line " + a.line + (a.lineText ? ": " + a.lineText : "") + "\n  > " + a.answer;
+        })});
+      }
+      blocks.push({id: "chat-checked", head: "Checked", sub: "built by the machine from the plan's checks", lines: state.checked.map(function(c){
+        return (c.line !== null && c.line !== undefined ? "line " + c.line : "step " + c.step) + ": " + c.sentences.join(" ");
+      })});
+      var nc = state.notChecked || {};
+      blocks.push({id: "chat-notchecked", head: "Not checked", sub: nc.label || "the drafter's own reading, not a guarantee", lines: (nc.items && nc.items.length) ? nc.items.map(function(x){ return "- " + x; }) : ["The drafter listed nothing."]});
+      return {blocks: blocks};
     }
     // pure: did this POST succeed (one decision for every handler)
     function chatPostOutcome(r){
@@ -4207,7 +4276,7 @@
       var ph = (sessionLive && lastState) ? lastState.phase : null;
       // amendment 14: a green plan locks the card until Revise opens it (or no revise is left); a red or stopped one is open
       var greenOpen = ph === "green" && greenFieldsOpenFor({revisable: Array.isArray(lastState.revises), reviseOpen: reviseOpen, left: lastState.revisesLeft});
-      return busy || startId !== null || (mode === "new" && (ph === "drafting" || ph === "revising" || (ph === "green" && !greenOpen)));
+      return busy || startId !== null || (mode === "new" && (ph === "drafting" || ph === "revising" || ph === "redrafting" || ph === "questions-open" || (ph === "green" && !greenOpen)));
     }
     function syncCardLock(){
       var on = cardLocked();
@@ -4379,13 +4448,39 @@
     }
     function renderThread(state){
       // a revise being drafted leaves the plan on show until the new one replaces it (the view carries no plan meanwhile)
-      if(state && state.phase === "revising") return;
+      if(state && (state.phase === "revising" || state.phase === "redrafting")) return;
       var html = "";
       if(state && state.phase === "green" && state.readout){
         html = '<div class="msg bot" data-testid="chat-plan"><div class="who">fwdloop</div>' + readoutHtml(state) +
           '\n\nPlan hash: ' + escapeXml(state.hash || "") + '</div>';
       }
       if(html !== threadKey){ threadKey = html; thread.innerHTML = html; }
+    }
+    // the question box: static markup, so the poll never re-renders over an unsent answer. The texts and the empty answer box are written only
+    // when the QUESTION changes (a new key); the same question on the next tick touches nothing.
+    function renderQuestion(state){
+      var v = questionViewFor(state);
+      if(!v){
+        if(qKey !== ""){ qKey = ""; qAnswer.value = ""; qError.textContent = ""; }
+        questionBox.hidden = true;
+        return;
+      }
+      questionBox.hidden = false;
+      if(v.key !== qKey){
+        qKey = v.key;
+        qHead.textContent = v.head; qLine.textContent = v.line; qText.textContent = v.question;
+        qAnswer.value = ""; qError.textContent = "";
+      }
+    }
+    // Your answers / Checked / Not checked; a plan being drafted again leaves them on show (like the plan), anything else without a green plan clears them
+    function renderExtras(state){
+      if(state && (state.phase === "revising" || state.phase === "redrafting")) return;
+      var v = extrasFor(state);
+      var html = v ? v.blocks.map(function(b){
+        return '<div class="msg" id="' + b.id + '" data-testid="' + b.id + '"><b class="readout-head">' + escapeXml(b.head) + '</b>' +
+          (b.sub ? ' <span class="hint">(' + escapeXml(b.sub) + ')</span>' : '') + '\n' + b.lines.map(escapeXml).join("\n") + '</div>';
+      }).join("") : "";
+      if(html !== extrasKey){ extrasKey = html; extrasEl.innerHTML = html; }
     }
     function renderMain(){
       var st = {mode: mode, session: sessionLive, startOk: startOk, busy: busy || startId !== null, signClicked: signClickedOnce, reviseOpen: reviseOpen};
@@ -4414,7 +4509,7 @@
       mainBtn.disabled = b.disabled;
       mainAction = b.action; mainStartOver = !!b.startOver;
       // amendment 14 item 3: the count shows while a draft has revises to count; at 0 the way on is Start over
-      mainHint.textContent = (mode === "new" && sessionLive && st.revisable && st.phase !== "signed") ? (st.left > 0 ? revisesLeftText(st.left) : "No revises left: Start over keeps the fields and gives 2 new ones.") : "";
+      mainHint.textContent = (mode === "new" && sessionLive && st.revisable && st.phase !== "signed" && st.phase !== "questions-open") ? (st.left > 0 ? revisesLeftText(st.left) : "No revises left: Start over keeps the fields and gives 2 new ones.") : "";
       reviseBtn.hidden = !reviseShownFor(st);
       reviseBtn.disabled = !!st.busy;
       startOverBtn.hidden = !startOverShownFor(st);
@@ -4423,6 +4518,8 @@
     }
     function renderActions(state){
       lastState = state;
+      renderQuestion(state);
+      renderExtras(state);
       // a newer plan than the one the first Sign click showed (a change came back, or another tab): the first click is void; sign re-checks on the server too
       if(signInfo && state.hash && state.hash !== signInfo.hash){ signInfo = null; signClickedOnce = false; }
       // #chat-card-error is POLL-OWNED: it carries only the draft's own sentence (a red plan or a stopped child), written here and
@@ -4448,12 +4545,14 @@
       stopPoll();
       sessionId = null; sessionLive = false; lastState = null; signInfo = null; signClickedOnce = false; reviseOpen = false;
       threadKey = ""; thread.innerHTML = "";
+      renderQuestion(null); renderExtras(null);
       errEl.textContent = "";
       progressRow.hidden = true; progressRow.innerHTML = "";
       refreshStartEnabled();
     }
     function openNewCard(){
       thread.innerHTML = ""; threadKey = "";
+      renderQuestion(null); renderExtras(null);
       errEl.textContent = "";
       actionErrEl.textContent = "";
       clearFieldErrors();
@@ -4551,6 +4650,19 @@
       }).catch(function(){ /* transient — next tick tries again */ });
     }
 
+    // Send (amendments 24/25): the answer to the question now open. A blank answer is refused by the server in plain words and the question stays open.
+    function doAnswer(){
+      if(qBusy || !sessionId || !lastState || lastState.phase !== "questions-open") return;
+      qBusy = true; qSend.disabled = true; qError.textContent = "";
+      var id = sessionId;
+      authorPost("/api/author/" + id + "/answer", {k: lastState.openK, answer: qAnswer.value}).then(function(r){
+        qBusy = false; qSend.disabled = false;
+        if(id !== sessionId) return;
+        if(!(r.status >= 200 && r.status < 300 && r.body && r.body.ok === true)){ qError.textContent = refusalText(r); return; }
+        qAnswer.value = "";
+        poll();
+      }).catch(function(){ qBusy = false; qSend.disabled = false; qError.textContent = NETWORK_SAY; });
+    }
     function doDraft(startedOverFrom){
       clearFieldErrors();
       chatActionOk();
@@ -4788,6 +4900,8 @@
     reviseBtn.addEventListener("click", function(){ if(reviseBtn.disabled) return; reviseOpen = true; refreshStartEnabled(); });
     // Start over (amendment 14 item 3): the same draft call as Draft, from the card as it is now; the old draft's files stay (a new draft id, 2 new revises)
     startOverBtn.addEventListener("click", function(){ if(!startOverBtn.disabled) doDraft(sessionId); });
+    qSend.addEventListener("click", doAnswer);
+    qAnswer.addEventListener("keydown", function(e){ if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); doAnswer(); } });
     mainBtn.addEventListener("click", function(){
       if(mainBtn.disabled) return;
       if(mainAction === "draft") doDraft(mainStartOver ? sessionId : null);

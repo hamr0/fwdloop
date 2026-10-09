@@ -22,7 +22,9 @@ const load = (name, prelude = '') => new Function(`${prelude}\n${fnSrc(name)}\nr
 const green = { mode: 'new', session: true, startOk: true, busy: false, phase: 'green', revisable: true, left: 2 };
 
 test('item 1: after a green plan there is no note box, no Send, no bubbles; the buttons are Sign & run and Revise', () => {
-  assert.doesNotMatch(PAGE, /chat-msg|Ask for a change|bubblesFor|\bSend\b/);
+  // M4e amendments 24/25 added ONE Send: the answer to a question the plan raised (#chat-q-send). It is not a note to the model about a plan.
+  const withoutAnswerSend = PAGE.replace(/<button[^>]*id="chat-q-send"[^>]*>Send<\/button>/, '').replace(/\/\/ Send \(amendments 24\/25\)[^\n]*/, '');
+  assert.doesNotMatch(withoutAnswerSend, /chat-msg|Ask for a change|bubblesFor|\bSend\b/);
   assert.doesNotMatch(CODE, /msgEl|msgRow|textEmpty|boxOpen|changesLeft|\.notes\b/);
   assert.doesNotMatch(PAGE, /\.msg\.you|class="msg you|role: "you"/);
   const mb = load('mainButtonFor');
