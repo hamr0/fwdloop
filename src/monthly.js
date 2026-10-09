@@ -115,6 +115,21 @@ function dirsNamedBy(r) {
 }
 
 /**
+ * The dirs of every hold the checker settled as "process gone" (amendment 17 3A): that run may have been misjudged and still spend,
+ * so such a dir is never rolled (rollSettled) and an older rolled row for it is never used (rolledEntries, amendment 19 1).
+ * @param {any[]} rows
+ * @returns {Set<string>}
+ */
+function goneDirs(rows) {
+  const goneHolds = new Set(rows.filter((r) => r.kind === 'settled' && r.why === 'process gone').map((r) => r.holdId));
+  const out = new Set();
+  for (const r of rows) {
+    if (r.kind !== 'rolled' && typeof r.holdId === 'string' && goneHolds.has(r.holdId)) for (const d of dirsNamedBy(r)) out.add(d);
+  }
+  return out;
+}
+
+/**
  * The rolled spend of settled dirs (I1, amendment 16). A `rolled` row in runs.jsonl carries, for dirs whose every hold had ended,
  * their reduced spend rows, and `seen` = how many rows the record had when the snapshot was read. An entry is used only if NO row
  * at index >= `seen` names that dir (a resume or a rerun names it again, so its live spend is read from the dir instead). Anything
@@ -136,8 +151,9 @@ function rolledEntries(rows) {
       }
     }
   });
+  const gone = goneDirs(rows);
   const out = new Map();
-  for (const [d, e] of best) if ((lastNamed.get(d) ?? -1) < e.seen) out.set(d, e.rows);
+  for (const [d, e] of best) if (!gone.has(d) && (lastNamed.get(d) ?? -1) < e.seen) out.set(d, e.rows);
   return out;
 }
 
@@ -345,11 +361,7 @@ export function rollSettled({ home, now = Date.now } = {}) {
       const unended = typeof r.holdId !== 'string' || !ended.has(r.holdId);
       if (unended) for (const d of named) open.add(d);
     }
-    // amendment 17 3A: a hold the checker settled as "process gone" may have been misjudged (the run still spends): its dirs are never rolled
-    const goneHolds = new Set(rows.filter((r) => r.kind === 'settled' && r.why === 'process gone').map((r) => r.holdId));
-    for (const r of rows) {
-      if (r.kind !== 'rolled' && typeof r.holdId === 'string' && goneHolds.has(r.holdId)) for (const d of dirsNamedBy(r)) open.add(d);
-    }
+    for (const d of goneDirs(rows)) open.add(d);
     const have = rolledEntries(rows);
     const todo = namedDirs(rows).filter((d) => !open.has(d) && !have.has(d));
     for (let i = 0; i < todo.length; i += ROLL_CHUNK) {
