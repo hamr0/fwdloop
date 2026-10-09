@@ -1798,6 +1798,12 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Done when:** screenshots at 1280, 390 and 320 px show it, with nothing spilling past the screen.
   - **Cap:** $0.
 
+- **Amendment 39 — SIGNED by hamr 2026-10-10 ("sign am39"): only the marker is blue.**
+  - **Change to amendment 38.** Only the `›` (folded) or `⌄` (open) marker is bold blue. The step line's text is in the same ink as your lines, a bit smaller, and not bold. An open step's detail is in the plain dim ink.
+  - **The legend at the bottom reads:** "› = the approved plan", with the `›` in bold blue.
+  - **Done when:** screenshots at 1280, 390 and 320 px match lab version E, with nothing spilling past the screen.
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
