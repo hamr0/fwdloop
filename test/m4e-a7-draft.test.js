@@ -97,18 +97,18 @@ test('(b) the Draft\'s one line on the first card and in the Audit header (amend
 });
 
 test('(b) the Map: the Draft is the FIRST box, step 1 keeps its own number, an arrow runs between them, no draft record reads in the box', () => {
-  const { draftBox, stepTitleText, buildStepMapSVG, buildStepBoxes } = new Function(`${PAGE.slice(PAGE.indexOf('function escapeXml'), PAGE.indexOf('function mapAvailWidth'))}
-    return { draftBox, stepTitleText, buildStepMapSVG, buildStepBoxes };`)();
+  const { draftBox, stepTitleText, buildStepMapHTML, buildStepBoxes } = new Function(`${PAGE.slice(PAGE.indexOf('function escapeXml'), PAGE.indexOf('function wireMapClicks'))}
+    return { draftBox, stepTitleText, buildStepMapHTML, buildStepBoxes };`)();
   const steps = buildStepBoxes([{ emits: 'a', goal: 'g', closeClass: 'hitl', attempts: [], tryCount: 0 }, { emits: 'b', goal: 'g', closeClass: 'hitl', attempts: [], tryCount: 0 }]);
   const boxes = [draftBox({ present: true })].concat(steps.map((b, i) => ({ ...b, n: i + 1 })));
   assert.equal(stepTitleText(0, boxes[0]), 'drafting');
   assert.equal(stepTitleText(1, boxes[1]), '1 a', 'step 1 keeps its number although it sits second');
   assert.equal(stepTitleText(2, boxes[2]), '2 b');
-  const svg = buildStepMapSVG(boxes, 800);
+  const svg = buildStepMapHTML(boxes);
   assert.ok(svg.indexOf('data-emits="drafting"') > 0 && svg.indexOf('data-emits="drafting"') < svg.indexOf('data-emits="a"'), 'the Draft box comes first');
-  assert.equal((svg.match(/marker-end="url\(#sm\d+-arrow\)"/g) || []).length, 2, 'an arrow after the Draft and one after step 1');
-  assert.match(buildStepMapSVG([draftBox({ present: false }), boxes[1]], 800), />no draft record</);
-  assert.doesNotMatch(buildStepMapSVG([draftBox({ present: true }), boxes[1]], 800), /no draft record/);
+  assert.equal((svg.match(/class="map-arrow"/g) || []).length, 2, 'an arrow after the Draft and one after step 1');
+  assert.match(buildStepMapHTML([draftBox({ present: false }), boxes[1]]), />no draft record</);
+  assert.doesNotMatch(buildStepMapHTML([draftBox({ present: true }), boxes[1]]), /no draft record/);
 });
 
 test('(b) the page: renderRun puts the Draft box first on the Map and its card first under it; a click on either opens the Audit Draft group; Audit lists it first and closed', () => {

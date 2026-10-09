@@ -2211,7 +2211,7 @@ describe('index.html — page source', () => {
   });
 
   test('review #3: map boxes are compact (never stretched to fill the full available width) and centered', () => {
-    assert.match(source, /\.map-box\{[^}]*text-align:center/);
+    assert.match(source, /\.map-chips\{display:flex;flex-wrap:wrap/);  // am31: boxes as wide as their own text, wrapping (no stretch to fill)
   });
 
   test('review #4: clicking a map node or a step card switches to the Audit tab and scrolls to that step\'s group', () => {
@@ -2527,11 +2527,11 @@ describe('index.html — page source', () => {
   // just a source-text grep.
   function loadStepMapGeometry() {
     const start = source.indexOf('function escapeXml');
-    const end = source.indexOf('function mapAvailWidth');
+    const end = source.indexOf('function wireMapClicks');
     const body = source.slice(start, end);
     // eslint-disable-next-line no-new-func
     const factory = new Function(`${body}
-      return { buildStepBoxes, buildStepMapSVG, boxRetryTry, tryCountText, stepTitleText };
+      return { buildStepBoxes, buildStepMapHTML, boxRetryTry, tryCountText, stepTitleText };
     `);
     return factory();
   }
@@ -2543,25 +2543,25 @@ describe('index.html — page source', () => {
     assert.equal(boxRetryTry({ tryCount: 0 }), 0);
   });
 
-  test('buildStepMapSVG: a step with server tryCount 3 renders a dashed retry loop path labelled "try 3"', () => {
-    const { buildStepBoxes, buildStepMapSVG } = loadStepMapGeometry();
+  test('buildStepMapHTML: a step with server tryCount 3 renders the "try 3" retry label (am31: no SVG loop)', () => {
+    const { buildStepBoxes, buildStepMapHTML } = loadStepMapGeometry();
     const steps = buildStepBoxes([
       { emits: 'flaky-step', goal: 'g', closeClass: 'green', attempts: [{ verdict: 'red' }, { verdict: 'red' }, { verdict: 'green' }], tryCount: 3 },
     ]);
-    const svg = buildStepMapSVG(steps, 900);
-    assert.match(svg, /stroke-dasharray="3,3"/, 'expected a dashed retry path when tryCount > 1');
-    assert.match(svg, />try 3</, 'expected the retry label to carry the server tryCount');
+    const html = buildStepMapHTML(steps);
+    assert.match(html, /data-retry="3"/, 'expected a retry mark when tryCount > 1');
+    assert.match(html, /<span class="chip-retry">try 3<\/span>/, 'expected the retry label to carry the server tryCount');
   });
 
-  test('buildStepMapSVG: a step with tryCount 1 (or missing) renders NO dashed retry path — proof the check above can fail', () => {
-    const { buildStepBoxes, buildStepMapSVG } = loadStepMapGeometry();
+  test('buildStepMapHTML: a step with tryCount 1 (or missing) renders NO retry mark — proof the check above can fail', () => {
+    const { buildStepBoxes, buildStepMapHTML } = loadStepMapGeometry();
     const steps = buildStepBoxes([
       { emits: 'clean-step', goal: 'g', closeClass: 'green', attempts: [{ verdict: 'green' }], tryCount: 1 },
       { emits: 'never-run', goal: 'g', closeClass: 'green', attempts: [], tryCount: 0 },
     ]);
-    const svg = buildStepMapSVG(steps, 900);
-    assert.doesNotMatch(svg, /stroke-dasharray="3,3"/, 'no box here has tryCount > 1, so no retry loop should render');
-    assert.doesNotMatch(svg, />try /, 'no "try N" label should render either');
+    const html = buildStepMapHTML(steps);
+    assert.doesNotMatch(html, /data-retry/, 'no box here has tryCount > 1');
+    assert.doesNotMatch(html, /chip-retry/, 'no "try N" label should render either');
   });
 
   // ---------------------------------------------------------------------

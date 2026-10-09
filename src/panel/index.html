@@ -289,13 +289,23 @@
   .sum-val{color:var(--text);}
   .summary-box .num{color:var(--accent);font-weight:700;}
 
-  /* hamr review #3: "map cards taking page full width, should be smaller" —
-     the SVG's own natural width is centered in the box rather than the box
-     stretching each node to fill the pane (computeMapLayout below is also
-     capped to stop a node from stretching past a modest ceiling). */
-  .map-box{border:1px solid var(--border-strong);padding:10px;overflow-x:auto;margin-top:16px;margin-bottom:14px;background:var(--panel2);text-align:center;}
+  /* borrowed-from: bareloop src/panel/index.html@9edb3e1 (on d25e52a) — boxes as wide as their own text, side by side,
+     wrapping; a name is never cut. A box + its trailing arrow are ONE unit (the arrow never wraps alone); the lead arrow
+     of a wrapped line hangs in the container's left padding (absolute, zero layout impact — toggling it moves nothing). */
+  .map-box{border:1px solid var(--border-strong);padding:10px;margin-top:16px;margin-bottom:14px;background:var(--panel2);}
   .map-box::before{content:"┤ MAP ├";display:block;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;margin:-2px 0 8px 0;}
-  .map-box svg{display:block;max-width:100%;height:auto;margin:0 auto;}
+  .map-chips{display:flex;flex-wrap:wrap;gap:8px 4px;align-items:flex-start;padding-left:1.4em;}
+  .map-item{position:relative;display:inline-flex;align-items:center;gap:4px;max-width:100%;}
+  .map-arrow{color:var(--text-dim);font-size:13px;flex:none;}
+  .map-lead{display:none;position:absolute;left:-1.3em;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:13px;}
+  .map-item.line-start .map-lead{display:block;}
+  .map-chip{display:flex;flex-direction:column;align-items:flex-start;width:auto;max-width:100%;min-width:0;box-sizing:border-box;font:inherit;font-size:12px;line-height:1.4;text-align:left;padding:4px 8px;border:2px solid var(--border-strong);border-radius:0;background:var(--panel2);color:var(--text);white-space:normal;overflow-wrap:anywhere;cursor:pointer;}
+  .map-chip .chip-state{font-size:10px;color:var(--text-faint);}
+  .map-chip.s-done{border-color:var(--green);} .map-chip.s-done .chip-state{color:#2e7d32;}
+  .map-chip.s-stopped{border-color:var(--red);} .map-chip.s-stopped .chip-state{color:var(--red);}
+  .map-chip.s-waiting{border-color:var(--amber);} .map-chip.s-waiting .chip-state{color:#b8860b;}
+  .map-chip.s-user-stopped{border-color:var(--grey-dot);} .map-chip.s-user-stopped .chip-state{color:var(--grey-dot);}
+  .map-chip .chip-retry{font-size:10px;color:var(--text-faint);}
 
   .step-card{position:relative;border:1px solid var(--border);padding:10px;margin-bottom:8px;background:var(--panel2);}
   .step-card.running{border:1px double var(--amber);}
@@ -1416,23 +1426,9 @@
   }
 
   // ---- step map renderer (box-drawing geometry kept from the borrowed
-  // page's buildStepMapSVG; the DATA it draws is fwdloop's own: one box per
+  // page's step-map builder; the DATA it draws is fwdloop's own: one box per
   // `declaration.steps` entry, no scout/plan/judge/fix-loop/rounds — ruling
   // A, "no per-round parts"). ----
-  function stepMapColors(state){
-    if(state === "done") return {stroke:"var(--green)", textFill:"#2e7d32"};
-    if(state === "stopped") return {stroke:"var(--red)", textFill:"var(--red)"};
-    if(state === "waiting") return {stroke:"var(--amber)", textFill:"#b8860b"};
-    if(state === "user-stopped") return {stroke:"var(--grey-dot)", textFill:"var(--grey-dot)"};   // a Stop the human asked: grey, never red
-    return {stroke:"var(--border-strong)", textFill:"var(--text-faint)"}; // not started yet
-  }
-  var stepMapUidCounter = 0;
-  var MAP_MARGIN = 10, MAP_GAP = 28;
-  var CHAR_W = 7.2;
-  var TITLE_HPAD = 16;
-  var MIN_BOX_W = 100;
-  var BOX_H = 60, BOX_H_2LINE = 78;
-  var ROW_GAP = 70;
   // hamr review #2: "map cards missing try 2 if multiple attempts/iteration"
   // — a plain "try N" count whenever a step has been attempted more than
   // once, plus a mark when the LATEST attempt followed a human redo (the
@@ -1498,151 +1494,36 @@
       };
     });
   }
-  function naturalBoxWidth(steps){
-    var maxChars = 0;
-    steps.forEach(function(s, idx){ maxChars = Math.max(maxChars, stepTitleText(idx, s).length); });
-    return Math.max(MIN_BOX_W, Math.ceil(maxChars * CHAR_W) + TITLE_HPAD);
+  // borrowed-from: bareloop src/panel/index.html@9edb3e1 (on d25e52a). The map is plain HTML + CSS (.map-chips / .map-item /
+  // .map-chip): the browser wraps it, so no width arithmetic and no sideways scroll. Each box keeps its two lines — the name
+  // (stepTitleText) then the status word (stateWord) — and a retried box keeps today's "try N" label.
+  function buildStepMapHTML(steps){
+    var last = steps.length - 1;
+    var body = steps.map(function(s, idx){
+      var tries = boxRetryTry(s);
+      var cls = "map-chip s-" + String(s.state).replace(/[^a-z-]/g, "");
+      var name = escapeXml(stepTitleText(idx, s));
+      var state = escapeXml(s.noRecord ? "no draft record" : stateWord(s.state));
+      // hamr review #4: each box is a clickable button tagged with the step's own `emits` id — the click listener that
+      // jumps to the Audit tab's matching group is wired AFTER insertion (wireMapClicks), never inline here.
+      var chip = '<button type="button" class="' + cls + ' map-step" data-emits="' + escapeXml(s.emits) + '"' + (tries ? ' data-retry="' + tries + '"' : '') +
+        ' title="' + name + '" aria-label="open ' + escapeXml(s.emits) + ' in Audit">' +
+        '<span class="chip-name">' + name + '</span><span class="chip-state">' + state + '</span>' +
+        (tries ? '<span class="chip-retry">try ' + tries + '</span>' : '') + '</button>';
+      return '<span class="map-item" role="listitem">' +
+        (idx > 0 ? '<span class="map-lead" aria-hidden="true">\u2192</span>' : '') +
+        chip + (idx < last ? '<span class="map-arrow" aria-hidden="true">\u2192</span>' : '') + '</span>';
+    }).join("");
+    return '<div class="map-chips" role="list" aria-label="step map">' + body + '</div>';
   }
-  // hamr review #3: nodes stay compact — a box never stretches past a modest
-  // ceiling over its own natural (text-fit) width, even when the available
-  // pane is much wider (the bug: every node used to grow to fill the row).
-  var MAX_BOX_STRETCH = 1.25;
-  function computeMapLayout(n, availW, naturalW){
-    if(!availW) return {perRow:n, boxW:naturalW};
-    var usableW = availW - MAP_MARGIN * 2;
-    var ceiling = naturalW * MAX_BOX_STRETCH;
-    for(var perRow = n; perRow >= 2; perRow--){
-      var totalW = perRow * naturalW + (perRow - 1) * MAP_GAP;
-      if(totalW <= usableW){
-        var stretched = (usableW - (perRow - 1) * MAP_GAP) / perRow;
-        return {perRow:perRow, boxW:Math.max(naturalW, Math.min(stretched, ceiling))};
-      }
+  // The first box of each WRAPPED line shows a leading arrow. CSS cannot know which box starts a line, so after render/resize
+  // this compares each item's offsetTop with the previous item's (same line = same top). Takes anything with offsetTop +
+  // classList (real elements, or stubs in tests). The lead arrow is absolute, so toggling never reflows a box — no loop.
+  function markLineStarts(items){
+    for(var i = 0; i < items.length; i++){
+      var starts = i > 0 && items[i].offsetTop > items[i - 1].offsetTop;
+      if(starts) items[i].classList.add("line-start"); else items[i].classList.remove("line-start");
     }
-    return {perRow:1, boxW:Math.max(MIN_BOX_W, Math.min(usableW, ceiling))};
-  }
-  // M4c-fix amendment 2 (l): a line longer than the box is cut with … (the whole name stays in the node's <title>
-  // and on its step card below the map).
-  function mapLabel(line, maxChars){
-    return line.length <= maxChars ? line : line.slice(0, Math.max(1, maxChars - 1)) + "\u2026";
-  }
-  function wrapTitleLines(text, maxWidth){
-    var maxChars = Math.max(1, Math.floor((maxWidth - TITLE_HPAD) / CHAR_W));
-    return wrapTitleLinesRaw(text, maxChars).map(function(l){ return mapLabel(l, maxChars); });
-  }
-  function wrapTitleLinesRaw(text, maxChars){
-    if(text.length <= maxChars) return [text];
-    var words = text.split(' ');
-    var line1 = '', i = 0;
-    for(; i < words.length; i++){
-      var cand = line1 ? line1 + ' ' + words[i] : words[i];
-      if(line1 && cand.length > maxChars) break;
-      line1 = cand;
-    }
-    if(!line1) return [text.slice(0, maxChars), text.slice(maxChars)];
-    var line2 = words.slice(i).join(' ');
-    return line2 ? [line1, line2] : [line1];
-  }
-  function buildStepMapSVG(steps, availWidth){
-    var n = steps.length;
-    var naturalW = naturalBoxWidth(steps);
-    var layout = computeMapLayout(n, availWidth, naturalW);
-    var perRow = layout.perRow, boxW = layout.boxW, gap = MAP_GAP;
-    var rows = Math.ceil(n / perRow);
-    var margin = MAP_MARGIN;
-    var titleLines = steps.map(function(s, idx){ return wrapTitleLines(stepTitleText(idx, s), boxW); });
-    var maxLines = titleLines.reduce(function(m, l){ return Math.max(m, l.length); }, 1);
-    var boxH = maxLines > 1 ? BOX_H_2LINE : BOX_H;
-    var rowH = boxH + ROW_GAP;
-    var totalW = margin * 2 + perRow * boxW + (perRow - 1) * gap;
-    var totalH = rows * rowH;
-    var uid = "sm" + (stepMapUidCounter++);
-    var body =
-      '<defs>' +
-        '<marker id="' + uid + '-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">' +
-          '<path d="M0,0 L6,3 L0,6 z" fill="var(--text-dim)"></path></marker>' +
-        '<marker id="' + uid + '-arrow-grey" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">' +
-          '<path d="M0,0 L6,3 L0,6 z" fill="var(--text-faint)"></path></marker>' +
-      '</defs>';
-    steps.forEach(function(s, idx){
-      var row = Math.floor(idx / perRow);
-      var col = idx % perRow;
-      var rtl = (row % 2) === 1;
-      var slotCol = rtl ? (perRow - 1 - col) : col;
-      var x = margin + slotCol * (boxW + gap);
-      var y = 30 + row * rowH;
-      var colors = stepMapColors(s.state);
-      var lines = titleLines[idx];
-      var nextRowIdx = idx < n - 1 ? Math.floor((idx + 1) / perRow) : null;
-      var hasDrop = nextRowIdx !== null && nextRowIdx !== row;
-      var stateY = y + boxH - 18;
-      // hamr review #4: each node is a clickable group ("map-step", tagged
-      // with the step's own `emits` id) — the click listener that turns this
-      // into a jump to the Audit tab's matching group is wired AFTER
-      // insertion (renderStepMap, below), never inline here (this function
-      // only ever builds a markup string).
-      body += '<g class="map-step" data-emits="' + escapeXml(s.emits) + '" tabindex="0" role="button" aria-label="open ' + escapeXml(s.emits) + ' in Audit"><title>' + escapeXml(stepTitleText(idx, s)) + '</title>';
-      body += '<rect x="' + x + '" y="' + y + '" width="' + boxW + '" height="' + boxH +
-        '" rx="0" fill="var(--panel2)" stroke="' + colors.stroke + '" stroke-width="2"></rect>';
-      if(lines.length === 1){
-        body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 25) +
-          '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[0]) + '</text>';
-      } else {
-        body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 17) +
-          '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[0]) + '</text>';
-        body += '<text x="' + (x + boxW / 2) + '" y="' + (y + 29) +
-          '" text-anchor="middle" font-size="12" fill="var(--text)">' + escapeXml(lines[1]) + '</text>';
-      }
-      body += '<text x="' + (x + boxW / 2) + '" y="' + stateY +
-        '" text-anchor="middle" font-size="10" fill="' + colors.textFill + '">' + escapeXml(s.noRecord ? "no draft record" : stateWord(s.state)) + '</text>';
-      body += '</g>';
-      // hamr's 2026-09-27 retry-loop review: a step whose server-computed
-      // tryCount is >1 gets a dashed grey self-loop under its box, labelled
-      // "try N" — ported from bareloop commit 16825a7's own curve (same
-      // control-point proportions, scaled to THIS box's own width). When the
-      // same box also carries the row-to-row snake drop below (which leaves
-      // from dead-center, x=cx), the loop's start is shifted off-center by a
-      // fixed pixel offset so the two paths never begin at the same point.
-      var retryTry = boxRetryTry(s);
-      if(retryTry){
-        var retryShift = hasDrop ? 14 : 0;
-        var bottom = y + boxH;
-        var sx = x + boxW * 0.50 - retryShift, sy = bottom + 5;
-        var c1x = x + boxW * 0.278 - retryShift, c1y = bottom + 30;
-        var c2x = x + boxW * 0.167 - retryShift, c2y = bottom + 30;
-        var ex = x + boxW * 0.028 - retryShift, ey = bottom + 2;
-        body += '<path d="M ' + sx + ' ' + sy + ' C ' + c1x + ' ' + c1y + ', ' + c2x + ' ' + c2y + ', ' + ex + ' ' + ey +
-          '" fill="none" stroke="var(--text-faint)" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#' + uid + '-arrow-grey)"></path>';
-        body += '<text x="' + (x + boxW * 0.267 - retryShift) + '" y="' + (bottom + 32) +
-          '" text-anchor="middle" font-size="10" fill="var(--text-faint)">try ' + retryTry + '</text>';
-      }
-      if(idx < n - 1){
-        if(nextRowIdx === row){
-          var midY = y + boxH / 2;
-          if(!rtl){
-            var nx = x + boxW + gap;
-            body += '<line x1="' + (x + boxW) + '" y1="' + midY + '" x2="' + (nx - 2) + '" y2="' + midY +
-              '" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#' + uid + '-arrow)"></line>';
-          } else {
-            var px = x - gap - boxW;
-            body += '<line x1="' + x + '" y1="' + midY + '" x2="' + (px + boxW + 2) + '" y2="' + midY +
-              '" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#' + uid + '-arrow)"></line>';
-          }
-        } else {
-          var cx = x + boxW / 2;
-          body += '<line x1="' + cx + '" y1="' + (y + boxH) + '" x2="' + cx + '" y2="' + (y + rowH - 2) +
-            '" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#' + uid + '-arrow)"></line>';
-        }
-      }
-    });
-    return '<svg width="' + totalW + '" height="' + totalH + '" viewBox="0 0 ' + totalW + ' ' + totalH + '" role="img" aria-label="step map">' + body + '</svg>';
-  }
-  var lastSteps = null;
-  var lastWidth = null;
-  function mapAvailWidth(wrapper){
-    if(!wrapper) return null;
-    var w = wrapper.getBoundingClientRect().width;
-    if(!w) return null;
-    return Math.max(0, w - 20);
   }
   // hamr review #4: "clicking on cards below codegraph maps should take you
   // to audit trail" — a map node's click (or Enter/Space, since the node
@@ -1660,34 +1541,32 @@
   function renderStepMap(steps){
     var mount = document.getElementById("map-mount");
     var wrapper = document.getElementById("map-box");
-    lastSteps = steps;
     if(!steps || !steps.length){
       mount.innerHTML = "";
       wrapper.hidden = true;
       return;
     }
     wrapper.hidden = false;
-    var w = mapAvailWidth(wrapper);
-    lastWidth = w;
-    mount.innerHTML = buildStepMapSVG(steps, w);
+    mount.innerHTML = buildStepMapHTML(steps);
     wireMapClicks(mount);
+    reflowMap();
   }
   function reflowMap(){
-    var wrapper = document.getElementById("map-box");
-    if(!wrapper || wrapper.hidden || !lastSteps) return;
-    var w = mapAvailWidth(wrapper);
-    if(w === null || w === lastWidth) return;
-    lastWidth = w;
-    var mount = document.getElementById("map-mount");
-    mount.innerHTML = buildStepMapSVG(lastSteps, w);
-    wireMapClicks(mount);
+    var box = document.getElementById("map-box");
+    if(!box || box.hidden) return;
+    markLineStarts(Array.prototype.slice.call(box.querySelectorAll(".map-item")));
+  }
+  var reflowTimer = null;
+  function reflowMapSoon(){
+    if(reflowTimer) clearTimeout(reflowTimer);
+    reflowTimer = setTimeout(function(){ reflowTimer = null; reflowMap(); }, 60);
   }
   if(typeof ResizeObserver !== "undefined"){
-    var ro = new ResizeObserver(function(){ reflowMap(); });
-    var mb = document.getElementById("map-box");
-    if(mb) ro.observe(mb);
+    var mapRo = new ResizeObserver(reflowMapSoon);
+    var mapBoxEl = document.getElementById("map-box");
+    if(mapBoxEl) mapRo.observe(mapBoxEl);
   } else {
-    window.addEventListener("resize", reflowMap);
+    window.addEventListener("resize", reflowMapSoon);
   }
 
   // ---- Runs tab: ONE run-row builder shared by History (flat) and the
