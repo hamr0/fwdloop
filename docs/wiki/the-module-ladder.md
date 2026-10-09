@@ -1704,6 +1704,12 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Ruling:** amendment 24 said a failed POC means stop and rethink. hamr: keep the try-3 design anyway; it costs nothing when unused, and models vary. A chattier model can only ask after two failed tries (a mechanism, not wording). Checked / Not checked at sign is the main net for a guess.
   - **Build:** amendments 24 and 25 as signed.
 
+- **Amendment 27 — SIGNED by hamr 2026-10-09 ("sign am27"): "Your answers" after a revise.**
+  - **Change to amendment 24 item 5.** "Your answers" shows only on the plan that was drafted from your answers. After a Revise, your answers are ordinary `~` guardrails in the job text you sign (as item 7 already says), with no separate "Your answers" box.
+  - **Why:** you sign the plan you're shown, and the answers are already in it word for word. A second box would only repeat it.
+  - **Code:** none. The panel already works this way. A test will pin it down so it can't change by accident.
+  - **Cap:** $0.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
