@@ -1735,6 +1735,20 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Change to amendment 28's red:** it adds one sentence that says how to fix it: "line 3's check says 600 words; the guardrail has no 600. Write it in the guardrail as 'under 600 words'."
   - **Cap:** $0.
 
+- **Amendment 31 — SIGNED by hamr 2026-10-09 ("sign am31"): the step map wraps like text (same as bareloop, layout A).**
+  - **Boxes:** each box keeps its two lines exactly as they are today (name, then status), with no change to the wording. A box is as wide as its own longest line. A name is never cut off.
+  - **Flow:** boxes run left to right and wrap onto new lines at the screen's width, with no sideways scroll on a phone.
+  - **Arrows:** `→` sits between boxes, stuck to the box before it, so it never wraps alone. A box at the end of a line ends with `→` when more steps follow. The first box of a wrapped line starts with `→`. The last box has no arrow.
+  - **Retries:** keep today's retry mark.
+  - **Copied from bareloop `d25e52a`,** with a `borrowed-from` header, never imported.
+  - **Done when:** browser walks at 1280, 390 and 320 px match the layout below, nothing spills past the screen, and a screenshot sits beside bareloop's.
+  ```
+  [✓ scout] → [✓ plan] → [✓ doc-checks] →
+  → [✓ doc-email] → [✓ doc-sink] → [↻2 ✓ doc-run] →
+  → [✗ doc-audit-sweep]
+  ```
+  - **Cap:** $0.
+
 - **Amendment 32 — SIGNED by hamr 2026-10-09 ("sign am32"): only what was proven stays built.**
   - **Withdrawn: amendment 30** (the "Write it in the guardrail as…" sentence). It was never tried on a real draft.
   - **Not built: amendment 28's red when the guardrail has no word number at all,** and the extra drafter sentence about leaving the limit out. Neither had a real failure behind it. Each comes back only when a real draft shows it's needed.
