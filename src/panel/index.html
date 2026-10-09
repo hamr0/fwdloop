@@ -452,7 +452,7 @@
   .plan-fold .plan-head,.plan-fold .plan-row{color:var(--text-dim);}
   .plan-fold .plan-head{font-weight:400;}
   .plan-fold .plan-row{padding-left:12px;}
-  #details-plan-tail .plan-head{margin:8px 0 4px;font-weight:700;color:var(--text);}
+  #details-plan-tail{margin-bottom:16px;}
   .ro-value.scroll{max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;}
   .field-row{display:flex;flex-wrap:wrap;gap:10px;}
   .field-row .field{flex:1 1 140px;margin-bottom:10px;}
@@ -2779,11 +2779,17 @@
     var tail = document.getElementById("details-plan-tail");
     tail.innerHTML = "";
     (plan.steps || []).filter(function(st){ return !placed[st.step]; }).forEach(function(st){ tail.appendChild(jobStepFold(st, job)); });
-    tail.appendChild(textDiv("plan-head", "Not checked (the AI's own reading)"));
     var nc = plan.notChecked || {};
-    if(!nc.recorded) tail.appendChild(textDiv("hint", "not recorded (signed before amendment 34)"));
-    else if(!(nc.items || []).length) tail.appendChild(textDiv("hint", "the AI listed nothing"));
-    else nc.items.forEach(function(it){ tail.appendChild(textDiv("ro-value", it)); });
+    var fold = document.createElement("details");
+    fold.className = "plan-fold plan-notchecked";
+    var sum = document.createElement("summary");
+    sum.className = "plan-sum";
+    sum.textContent = "not checked (the AI's own reading)";
+    fold.appendChild(sum);
+    if(!nc.recorded) fold.appendChild(textDiv("plan-row", "not recorded (signed before amendment 34)"));
+    else if(!(nc.items || []).length) fold.appendChild(textDiv("plan-row", "the AI listed nothing"));
+    else nc.items.forEach(function(it){ fold.appendChild(textDiv("plan-row", it)); });
+    tail.appendChild(fold);
   }
   function renderJob(job){
     var empty = document.getElementById("job-empty");

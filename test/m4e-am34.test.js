@@ -81,7 +81,7 @@ test('the page (am37): one column, no side-by-side grid, no two block headings; 
   assert.doesNotMatch(PAGE, /container-type/);
   assert.doesNotMatch(PAGE, /\.jg[-{ ]|jg-asked|jg-plan-side|id="job-grid"[^>]*class="jg"/);
   assert.doesNotMatch(PAGE, /details-success/);
-  assert.match(PAGE, /Not checked \(the AI's own reading\)/);
+  assert.match(PAGE, /not checked \(the AI's own reading\)/);
   assert.match(PAGE, /nothing \(pure stop\)/);
   assert.match(PAGE, /ASK · waits /);
   assert.match(PAGE, /not recorded \(signed before amendment 34\)/);
@@ -196,23 +196,23 @@ test('a step from no listed line goes to the tail, before Not checked', () => {
   const j = { ...JOB, plan: { ...PLAN, steps: [...PLAN.steps, { ...PLAN.steps[0], step: 5, line: null }] } };
   const t = render(j).els['details-plan-tail'].children;
   assert.equal(t[0].tag, 'details');
-  assert.equal(t[1].textContent, "Not checked (the AI's own reading)");
+  assert.equal(t[1].children[0].textContent, "not checked (the AI's own reading)");
 });
 
 test('Not checked always carries its label; items one row each; an older flow says it is not recorded', () => {
   let t = walk(render(JOB).els['details-plan-tail']);
-  assert.ok(t.includes("plan-head|Not checked (the AI's own reading)"), t.join('\n'));
-  assert.ok(t.includes('ro-value|tone') && t.includes('ro-value|the JD match'));
+  assert.ok(t.includes("<summary>plan-sum|not checked (the AI's own reading)"), t.join('\n'));
+  assert.ok(t.includes('plan-row|tone') && t.includes('plan-row|the JD match'));
   t = walk(render({ ...JOB, plan: { ...PLAN, notChecked: { label: 'l', items: [], recorded: false } } }).els['details-plan-tail']);
-  assert.ok(t.includes("plan-head|Not checked (the AI's own reading)"));
-  assert.ok(t.includes('hint|not recorded (signed before amendment 34)'), t.join('\n'));
+  assert.ok(t.includes("<summary>plan-sum|not checked (the AI's own reading)"));
+  assert.ok(t.includes('plan-row|not recorded (signed before amendment 34)'), t.join('\n'));
   t = walk(render({ ...JOB, plan: { ...PLAN, notChecked: { label: 'l', items: [], recorded: true } } }).els['details-plan-tail']);
-  assert.ok(t.includes("plan-head|Not checked (the AI's own reading)"));
+  assert.ok(t.includes("<summary>plan-sum|not checked (the AI's own reading)"));
 });
 
 test('your words and the plan never share an element: no ro-value / sub row carries plan text', () => {
   const rowsOfWords = lineEls(render(JOB)).flatMap((l) => l.children.filter((c) => c.tag === 'div')).flatMap(walk).join('\n');
-  assert.doesNotMatch(rowsOfWords, /reads:|makes:|may do:|check:|Not checked|› step/);
+  assert.doesNotMatch(rowsOfWords, /reads:|makes:|may do:|check:|not checked|› step/);
 });
 
 test('a run with its own signed values shows that run\'s plan (the wait on the ask step follows the job data)', () => {
