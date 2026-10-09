@@ -32,8 +32,11 @@ export const DRAFT_SKILLS = Object.freeze(['core']);
 
 export const CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
 
+/** The smallest-ceiling rule, told once to the drafter (schema and prompt use this string). Matches guardrailWordLimit. No number words (am25). */
+export const SMALLEST_CEILING_RULE = 'when a guardrail names different word ceilings for the whole output, use the smallest; a size for each section is not a whole-output ceiling';
+
 const SHAPE_PROPS = Object.freeze({
-  maxWords: { type: 'integer', minimum: 1, description: "the whole output's word ceiling; if a guardrail names more than one word limit, use the smallest" },
+  maxWords: { type: 'integer', minimum: 1, description: `the whole output's word ceiling; ${SMALLEST_CEILING_RULE}` },
   sections: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 }, description: 'required section headings, in order' },
   linesPerInvoice: { type: 'integer', minimum: 1, description: 'lines the output must carry per invoice' },
   mustCarry: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 }, description: 'named fields every line must carry' },
@@ -123,7 +126,7 @@ export const MAX_QUESTIONS = 2;
 export const CHECKABLE = Object.freeze([
   'green: a figure cites its source cell or formula',
   'softgreen: the output carries named section headings (sections), in order',
-  'softgreen: a word ceiling for the whole output (maxWords; if a guardrail names different ceilings, the smallest) and per section (wordsPerSection)',
+  `softgreen: a word ceiling for the whole output (maxWords; ${SMALLEST_CEILING_RULE}) and per section (wordsPerSection)`,
   'softgreen: a line count per invoice (linesPerInvoice) and fields every line must carry (mustCarry)',
   'hitl: a human accepts or reviews at a signed ask — the machine checks only that the step happened',
 ]);
