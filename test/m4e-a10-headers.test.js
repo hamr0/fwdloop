@@ -56,7 +56,7 @@ test('(f) a step the human stopped is user-stopped: [■] stopped, grey, never f
   assert.equal(page.stateWord('user-stopped'), '[■] stopped');
   assert.equal(page.auditStateClass('user-stopped'), 'grey');
   assert.match(page.auditGroupHeaderText(group([row('stopped')])), /^\[■\] stopped · s1/);
-  assert.match(PAGE, /state === "user-stopped"[^\n]*grey-dot/);
+  assert.match(PAGE, /\.map-chip\.s-user-stopped\{[^}]*grey-dot/);
 });
 
 test('(g) a red step with a not-honoured stop row reads failed; a passed step with a stop note reads passed, on the card too', () => {
