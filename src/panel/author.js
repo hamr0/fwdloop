@@ -200,7 +200,7 @@ export function createAuthor(opts) {
       if (running) return { n, kind, phase: 'running' };
       return { n, kind, phase: 'stopped', say: logTail(dir, `${kind === 'answers' ? 'redraft' : 'revise'}-${n}.log`, keys) || STOPPED_SAY };
     });
-    const cur = newest > 0 ? revises[revises.length - 1] : { phase: first.phase, kind: 'first' };
+    const cur = /** @type {{ phase: string, kind: string, say?: string }} */ (newest > 0 ? revises[revises.length - 1] : { phase: first.phase, kind: 'first' });
     const shared = { ...base, card, revises, revisesLeft };
     const rel = newest > 0 ? `draft-${newest}` : 'draft';
     if (cur.phase === 'running') return { ...shared, phase: cur.kind === 'answers' ? 'redrafting' : 'revising' };
@@ -286,6 +286,7 @@ export function createAuthor(opts) {
    * The $0 checks both a first draft and a revise run on the card as submitted: the card's own checks (a key value, the flow name,
    * every field), then the monthly room for its cap. `{ ok: true, card, prose }` or `{ ok: false, reply }`. Writes nothing.
    * @param {any} body @param {{ ok: boolean, env: Record<string, string|undefined> }} loaded
+   * @returns {{ ok: true, card: any, prose: string }|{ ok: false, reply: { status: number, body: any } }}
    */
   function vetCard(body, loaded) {
     const card = cardFields(body);
