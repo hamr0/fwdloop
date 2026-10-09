@@ -27,3 +27,14 @@ test('one sentence carries the whole-output-ceiling rule in the schema and the p
 test('NUMBERISH finds nothing in the maxWords description', () => {
   assert.doesNotMatch(maxWordsDesc(), NUMBERISH);
 });
+
+test('a separate sentence tells the drafter to leave the whole-output ceiling out when the guardrail names no ceiling', async () => {
+  const { WHOLE_OUTPUT_CEILING_RULE, NO_CEILING_RULE } = await import('../src/drafter.js');
+  assert.equal(WHOLE_OUTPUT_CEILING_RULE, "use the guardrail's ceiling for the whole output");
+  assert.equal(NO_CEILING_RULE, 'If the guardrail names no ceiling for the whole output, leave the whole-output ceiling out.');
+  assert.ok(maxWordsDesc().includes(WHOLE_OUTPUT_CEILING_RULE), 'signed sentence still in the schema');
+  assert.ok(NOTCHECKED_PROMPT.includes(WHOLE_OUTPUT_CEILING_RULE), 'signed sentence still in the prompt');
+  assert.ok(maxWordsDesc().includes(NO_CEILING_RULE), 'schema carries the new sentence');
+  assert.ok(NOTCHECKED_PROMPT.includes(NO_CEILING_RULE), 'prompt carries the new sentence');
+  assert.doesNotMatch(NO_CEILING_RULE, NUMBERISH);
+});
