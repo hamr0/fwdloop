@@ -6,7 +6,7 @@ import { parseJobBox, jobFileLines, parseInputLines, isAskWait } from '../src/pa
 
 const lines = (text, wait = '1h') => jobFileLines(parseJobBox(text).steps, wait);
 
-test('(a) one line is one step: numbers in order, each ~ line a guardrail under its step, Ask: with the default wait, Ask 2h: with its own', () => {
+test('(a) one line is one step: numbers in order, the ~ lines under a step ONE guardrail (joined by "; "), Ask: with the default wait, Ask 2h: with its own', () => {
   const box = [
     'Read my resume',
     '~keep it under 600 words',
@@ -19,8 +19,7 @@ test('(a) one line is one step: numbers in order, each ~ line a guardrail under 
   ].join('\n');
   assert.deepEqual(lines(box, '1h'), [
     '1. Read my resume',
-    '   guardrail: keep it under 600 words',
-    '   guardrail: no tables',
+    '   guardrail: keep it under 600 words; no tables',
     '2. ask 1h: is this right?',
     '   guardrail: nothing goes out before I accept',
     '3. ask 2h: second look',

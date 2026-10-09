@@ -294,15 +294,13 @@ test('B5: a question about line 9 in a 5-line job and a third question are dropp
   assert.equal(existsSync(path.join(none.w.dir(none.id), 'draft', 'questions.json')), false);
 });
 
-test('B5b: a question about a line that already has a guardrail (or two about one line) cannot become its own ~ line: refused up front, nothing saved, still open', async () => {
+test('B5b: an answer about a line that already has a guardrail is accepted (no guardrail-clash) and joins after it', async () => {
   const { w, id, s } = await askingWorld();
   assert.equal(s.phase, 'questions-open');
   const r = await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'a perfectly good answer' });
-  assert.equal(r.status, 409, r.text);
-  assert.equal(r.json().refused, 'guardrail-clash');
-  assert.match(r.json().say, /only one guardrail/);
-  assert.equal(existsSync(path.join(w.dir(id), 'draft', 'answer-1.json')), false);
-  assert.equal((await state(w, id)).phase, 'questions-open');
+  assert.notEqual(r.json().refused, 'guardrail-clash', r.text);
+  assert.equal(r.status, 200, r.text);
+  assert.equal(existsSync(path.join(w.dir(id), 'draft', 'answer-1.json')), true);
 });
 
 test('B6: appendAnswersToJob puts an answer under its own line after that line\'s ~ lines, leaves the rest alone, and counts what it added', () => {

@@ -44,7 +44,7 @@ import {
   checkMonthlyRoom, ConfigError, monthlyNote, monthlyRefusalText,
 } from '../monthly.js';
 import {
-  answerClash, appendAnswersToJob, capFloorText, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
+  appendAnswersToJob, capFloorText, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
 } from './authorcard.js';
 import { checkedLines, notCheckedBlock } from '../checked.js';
 import { parseSignedText } from '../signed-text.js';
@@ -523,10 +523,6 @@ export function createAuthor(opts) {
       if (keys.some((k) => k.length >= 8 && answer.includes(k))) return { status: 400, body: { ok: false, refused: 'key', say: 'This answer contains an API key. Keys go in Settings only. Nothing was saved.' } };
       if (childRunning(dir)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'The draft process is still finishing. Try again in a moment.' } };
       const planDir = join(dir, v.plan);
-      // A line carries one guardrail (strict 1-for-1), so an answer can't be a second `~` line under a line that has one. Refused up front,
-      // before any answer is written, in plain words; never merged into the existing guardrail (that would rewrite what was signed in the card).
-      const clash = answerClash(typeof v.card.job === 'string' ? v.card.job : '', v.questions);
-      if (clash !== null) return { status: 409, body: { ok: false, refused: 'guardrail-clash', say: `These questions are about job line ${clash}, which can carry only one guardrail line, and the answer can't be added as a second one. Nothing was saved. Abandon this draft, write what you want into that line's guardrail on the card, and draft again.` } };
       const q = v.questions.find((x) => x.k === v.openK);
       const last = v.questions.filter((x) => !x.answered).length === 1;
       const answerFile = join(planDir, ANSWER_FILE(v.openK));

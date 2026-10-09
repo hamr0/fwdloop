@@ -116,17 +116,13 @@ export function appendAnswersToJob(job, answers) {
 }
 
 /**
- * A job line carries ONE guardrail (the signed-text grammar is strict 1-for-1: a second `guardrail:` under a line is refused), so an answer can be
- * added as its own `~` line only to a line with no `~` line yet, and only one answer per line. Returns the first job line where that fails, or null.
- * @param {string} job @param {{ line: number }[]} answers
- * @returns {number|null}
+ * THE one place a step's `~` lines become its guardrail: several `~` lines under one step are ONE continuous guardrail (hamr ruling 2026-10-09),
+ * each part verbatim (trimmed), in typed order, joined by "; ". An answer (am24) is one more `~` line, so it joins here too. The signed-text parser
+ * stays strict 1-for-1 because the job file never carries more than one `guardrail:` per line.
+ * @param {string[]} parts
  */
-export function answerClash(job, answers) {
-  const steps = parseJobBox(job).steps;
-  const per = new Map();
-  for (const a of answers) per.set(a.line, (per.get(a.line) ?? 0) + 1);
-  for (const [line, n] of per) if ((steps[line - 1]?.guardrails.length ?? 0) + n > 1) return line;
-  return null;
+export function joinGuardrails(parts) {
+  return parts.map((g) => g.trim()).join('; ');
 }
 
 /** The job file lines (`N. text`, `   guardrail: text`, `N. ask <wait>: question`) for parsed steps; the wait is ALWAYS written out. @param {ReturnType<typeof parseJobBox>['steps']} steps @param {string} askWait */
@@ -135,7 +131,7 @@ export function jobFileLines(steps, askWait) {
   const out = [];
   for (const s of steps) {
     out.push(s.ask ? `${s.n}. ask ${s.ask.wait ?? askWait.toLowerCase()}: ${s.ask.question}` : `${s.n}. ${s.text}`);
-    for (const g of s.guardrails) out.push(`   guardrail: ${g}`);
+    if (s.guardrails.length > 0) out.push(`   guardrail: ${joinGuardrails(s.guardrails)}`);
   }
   return out;
 }
