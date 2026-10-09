@@ -91,7 +91,7 @@ export function readQuestions(planDir) {
     if (a.ok) { try { const t = JSON.parse(a.text)?.answer; if (typeof t === 'string' && t.trim() !== '') answer = t; } catch { /* unreadable = unanswered */ } }
     return { k, line: q.line, question: String(q.question), answer };
   });
-  return { questions, open: questions.filter((q) => q.answer === null) };
+  return { questions, open: /** @type {any} */ (questions.filter((q) => q.answer === null)) };
 }
 
 export const OPEN_QUESTION_SAY = 'A question the plan raised is still open. Answer it in the panel (fwdloop panel), then sign the plan it drafts after your answers. Nothing was signed.';
