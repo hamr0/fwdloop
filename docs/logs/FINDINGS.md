@@ -2994,3 +2994,12 @@ already read to `spendSummary`, so the file is parsed once. Totals are identical
 What it costs to leave or to keep: the first roll of 10,000 legacy dirs reads them once (about 1 s, at the exit of whichever process settles first). After the
 roll at 10,000 runs the claim is still about 190 ms (parsing 6 MB of `runs.jsonl` is most of it), so the margin under 200 ms is thin on a slower disk.
 A dir deleted after it was rolled keeps its rolled spend in the totals (before, it dropped out); nothing in fwdloop deletes a spend-bearing dir.
+
+## F63 — The drafter's empty `unjudgeable: []` is refused as a type error and burns the last try (2026-10-09)
+
+Evidence: hamr's live walk 2026-10-09, flow `am29-walk-1`, draft folder `flows/.drafts/d-00mv1fxoag-0ee7/draft/log.json`, deepseek-flash, $0.0043, 3 rounds, stop "validator".
+Round 1: line 3 marked unjudgeable while `guardrailClasses` proposes softgreen (red). Round 2: section names not in the job line's words ("Match with the JD", "Work History Summary", "Professional Skills and Soft Skills"). Round 3: `unjudgeable` sent as `[]`, red `"unjudgeable" must be an object keyed by line number` (`src/declaration.js:518`).
+
+Cause noted: the walk's job line 3 listed four things (how it matches the JD, work history blurb, professional skills, soft skills) under a "3 sections" guardrail. That was the orchestrator's walk sheet, not the user. The `[]` refusal is a separate, real point: an empty list carries no data but costs a paid round.
+
+Status: open, not fixed; no fix proposed until hamr rules.
