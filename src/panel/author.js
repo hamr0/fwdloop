@@ -215,7 +215,7 @@ export function createAuthor(opts) {
     }
     if (q.questions.length > 0) return { ...shared, phase: 'stopped', say: ANSWERS_NOT_DRAFTED_SAY };
     if (res.phase === 'green') {
-      const answers = newest > 0 && redrafts.has(newest) ? answersOf(dir, newest, keys) : [];
+      const answers = answersOf(dir, newest, redrafts, keys);
       return { ...shared, phase: 'green', hash: res.hash, readout: res.readout, readoutHeads: res.readoutHeads, plan: rel, answers, ...planChecks(dir, rel) };
     }
     return { ...shared, phase: 'red', reds: res.reds, say: newest === 0 ? RED_SAY : cur.say };
@@ -233,14 +233,21 @@ export function createAuthor(opts) {
     return { checked: checkedLines(decl, { hasAsk }), notChecked: notCheckedBlock(readJson(dir, `${rel}/${NOT_CHECKED_FILE}`)?.notChecked) };
   }
 
-  /** The answers an answer-redraft was drafted with, as the marker recorded them: `[{ line, lineText, question, answer }]` (scrubbed). @param {string} dir @param {number} n @param {string[]} keys */
-  function answersOf(dir, n, keys) {
+  /**
+   * "Your answers" for the NEWEST plan (`newest`; 0 = the first plan): the answers of the nearest answer-redraft at or before it (the marker
+   * `redraft-<n>.json` recorded them), so a revise after a redraft keeps them. Honesty: an answer shows only while its text is still in the NEWEST
+   * card's guardrail for that line (a revise may have deleted it), and `lineText` comes from the newest card. `[{ line, lineText, question, answer }]`, scrubbed.
+   * @param {string} dir @param {number} newest @param {Set<number>} redrafts @param {string[]} keys
+   */
+  function answersOf(dir, newest, redrafts, keys) {
+    let n = newest;
+    while (n > 0 && !redrafts.has(n)) n -= 1;
+    if (n === 0) return [];
     const rec = readJson(dir, `redraft-${n}.json`);
-    const card = readJson(dir, `card-${n}.json`);
-    const steps = parseJobBox(typeof card?.job === 'string' ? card.job : '').steps;
-    return (Array.isArray(rec?.answers) ? rec.answers : []).map((a) => ({
-      line: a.line, lineText: steps[a.line - 1]?.text ?? null, question: scrub(String(a.question), keys), answer: scrub(String(a.answer), keys),
-    }));
+    const steps = parseJobBox(typeof readJson(dir, `card-${newest}.json`)?.job === 'string' ? readJson(dir, `card-${newest}.json`).job : '').steps;
+    return (Array.isArray(rec?.answers) ? rec.answers : [])
+      .filter((a) => (steps[a.line - 1]?.guardrails ?? []).some((g) => g.includes(String(a.answer))))
+      .map((a) => ({ line: a.line, lineText: steps[a.line - 1]?.text ?? null, question: scrub(String(a.question), keys), answer: scrub(String(a.answer), keys) }));
   }
 
   /** Draft ids, newest first. */
