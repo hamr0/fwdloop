@@ -1690,6 +1690,14 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Cap:** $0.50 for the POC and the exit walk.
   - Source: bareloop `loop` review 2026-10-09 (bareloop src/authorflow.js CONFIRM_SCHEMA, forceAnsweredQuestions; FINDINGS F174, F175).
 
+- **Amendment 25 — DRAFT, NOT SIGNED: questions open only when the first draft fails.**
+  - **Why:** hamr 2026-10-09: the AI may treat "at most 2" as a target and ask when nothing is unclear. A lock must be a mechanism, not prompt wording. So the machine decides when asking is allowed.
+  - **Change to amendment 24 item 1.** The first draft (try 1 of 3) has no way to ask. Only when it fails its checks does try 2 of 3 get the option: up to 2 questions, each about a line its checks failed on. The AI is never told a number; the machine keeps 2 and drops the rest, logged. Amendment 24's items 2 to 7 are unchanged (answer required, no Skip, answers become `~` guardrails, redraft, signed and shown, Checked / Not checked, revise).
+  - **A confident guess** (a vague job that passes try 1) is not asked; the machine-built "Checked" list at sign is where you see the guess and press Revise.
+  - **Negatives:** a clean first draft never carries questions; a question on a line its checks did not fail on is dropped and logged; no number appears in the drafter's prompt or schema.
+  - **POC bar (fixed before the run):** every vague job that fails try 1 asks at least one question naming a failed line on try 2; at least 9 of 10 clear jobs ask nothing; at least 18 of 20 final plans valid; no call breaks. Reported, deciding nothing: how many vague jobs passed try 1 (confident guesses).
+  - **Cap:** inside amendment 24's $0.50.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
