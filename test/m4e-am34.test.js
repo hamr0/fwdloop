@@ -150,15 +150,15 @@ test('each step\'s fold comes right after its line\'s last ~ row, in step order'
   assert.match(l3[3].children[0].textContent, /step 3 /);
 });
 
-test('the summary text: "› step N · <may do> → <makes> · machine check | you check"; no grant leaves just "→ makes"', () => {
+test('the summary text: "step N · <may do> → <makes> · machine check | you check"; no grant leaves just "→ makes"', () => {
   const l = lineEls(render(JOB));
-  assert.equal(l[0].children[1].children[0].textContent, '› step 1 · readDocx → resume-text · you check');
-  assert.equal(l[2].children[2].children[0].textContent, '› step 2 · read → resume-summary · machine check');
-  assert.equal(l[2].children[3].children[0].textContent, '› step 3 · → summaryResume · machine check');
+  assert.equal(l[0].children[1].children[0].textContent, 'step 1 · readDocx → resume-text · you check');
+  assert.equal(l[2].children[2].children[0].textContent, 'step 2 · read → resume-summary · machine check');
+  assert.equal(l[2].children[3].children[0].textContent, 'step 3 · → summaryResume · machine check');
 });
 
-test('the ask step\'s summary reads "› step N · ASK · waits <wait>" in plain units', () => {
-  assert.equal(lineEls(render(JOB))[3].children[2].children[0].textContent, '› step 4 · ASK · waits 1h 30m');
+test('the ask step\'s summary reads "step N · ASK · waits <wait>" in plain units', () => {
+  assert.equal(lineEls(render(JOB))[3].children[2].children[0].textContent, 'step 4 · ASK · waits 1h 30m');
 });
 
 test('a write step on a line with a signed destination shows "→ <destination>"', () => {
@@ -166,7 +166,7 @@ test('a write step on a line with a signed destination shows "→ <destination>"
     ...JOB, sends: [{ line: 3, kind: 'file', target: '/tmp/out' }],
     plan: { ...PLAN, steps: PLAN.steps.map((s) => (s.step === 2 ? { ...s, mayDo: ['write'] } : s)) },
   };
-  assert.equal(lineEls(render(j))[2].children.find((c) => c.tag === 'details').children[0].textContent, '› step 2 · write → resume-summary → /tmp/out · machine check');
+  assert.equal(lineEls(render(j))[2].children.find((c) => c.tag === 'details').children[0].textContent, 'step 2 · write → resume-summary → /tmp/out · machine check');
 });
 
 test('the fold is a details with a summary first; the plan rows carry the plan-colour classes', () => {
@@ -217,5 +217,5 @@ test('your words and the plan never share an element: no ro-value / sub row carr
 
 test('a run with its own signed values shows that run\'s plan (the wait on the ask step follows the job data)', () => {
   const j = { ...JOB, asks: [{ line: 4, question: 'q', waitMs: 1800000 }], plan: { ...PLAN, steps: PLAN.steps.map((s) => (s.ask ? { ...s, waitMs: 1800000 } : s)) } };
-  assert.equal(lineEls(render(j))[3].children[2].children[0].textContent, '› step 4 · ASK · waits 30m');
+  assert.equal(lineEls(render(j))[3].children[2].children[0].textContent, 'step 4 · ASK · waits 30m');
 });

@@ -24,7 +24,7 @@
      the CSS is harmless dead weight rather than a second stylesheet to maintain). */
   :root{
     --bg:#1a1b26; --panel:#1f2335; --panel2:#24283b; --border:#292e42; --border-strong:#3b4261;
-    --text:#c0caf5; --text-dim:#a9b1d6; --text-faint:#565f89; --plan:#8a94c4;
+    --text:#c0caf5; --text-dim:#a9b1d6; --text-faint:#565f89; --plan:#7aa2f7;
     --green:#9ece6a; --green-bg:#1c2b23;
     --red:#f7768e; --red-bg:#2b1822;
     --amber:#e0af68; --amber-bg:#2b2416;
@@ -66,7 +66,7 @@
   @media (prefers-color-scheme: light){
     :root:not([data-theme="dark"]){
       --bg:#e1e2e7; --panel:#d0d5e3; --panel2:#e9e9ed; --border:#c4c8da; --border-strong:#a8b0cc;
-      --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5; --plan:#5a6496;
+      --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5; --plan:#2668c2;
       --green:#567238; --green-bg:#dfe7d4;
       --red:#c92353; --red-bg:#fbe0e8;
       --amber:#82643a; --amber-bg:#f0e6d3;
@@ -81,7 +81,7 @@
   }
   :root[data-theme="light"]{
     --bg:#e1e2e7; --panel:#d0d5e3; --panel2:#e9e9ed; --border:#c4c8da; --border-strong:#a8b0cc;
-    --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5; --plan:#5a6496;
+    --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5; --plan:#2668c2;
     --green:#567238; --green-bg:#dfe7d4;
     --red:#c92353; --red-bg:#fbe0e8;
     --amber:#82643a; --amber-bg:#f0e6d3;
@@ -443,11 +443,13 @@
      a native <details> whose <summary> is one short muted line in the plan colour; open, it shows reads / makes / may do / check. */
   .job-line{margin-bottom:6px;}
   .plan-fold{margin:0 0 0 20px;min-width:0;overflow-wrap:anywhere;}
-  .plan-sum{color:var(--plan);cursor:pointer;list-style:none;padding:3px 0;font-size:12px;}
+  .plan-sum{color:var(--plan);cursor:pointer;list-style:none;padding:3px 0;font-size:12px;font-weight:700;}
   .plan-sum::-webkit-details-marker{display:none;}
-  .plan-fold[open] > .plan-sum{font-weight:700;}
+  .plan-sum::before{content:"› ";}
+  .plan-fold[open] > .plan-sum::before{content:"⌄ ";}
+  .plan-legend{color:var(--plan);font-size:12px;margin-top:12px;overflow-wrap:anywhere;}
   .plan-fold .plan-head,.plan-fold .plan-row{color:var(--plan);}
-  .plan-fold .plan-head{font-weight:700;}
+  .plan-fold .plan-head{font-weight:400;}
   .plan-fold .plan-row{padding-left:12px;}
   #details-plan-tail .plan-head{margin:8px 0 4px;font-weight:700;color:var(--text);}
   .ro-value.scroll{max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;}
@@ -1057,6 +1059,7 @@
               <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap">—</div></div>
               <div class="field"><label>Source</label><div id="details-sources"></div></div>
               <div class="field"><label>Signed</label><div class="ro-value" id="details-signature">—</div></div>
+              <div class="plan-legend" data-testid="plan-legend">› blue lines = the approved plan (what the agent does for each of your lines).</div>
             </div>
           </div>
         </section>
@@ -2742,11 +2745,11 @@
   }
   // M4e amendments 34 + 37: one step of the signed plan, folded under its job line. All of it is read off `job.plan` (src/panel/data.js
   // `buildJobPlan`: declaration.json and the setup.jsonl sign row); the page words nothing of its own except "nothing" for an empty list.
-  // The summary is one short line: `› step 3 · read → summaryResume · machine check` (may do, then what it makes, then the check kind from the
+  // The summary is one short line: `step 3 · read → summaryResume · machine check` (may do, then what it makes, then the check kind from the
   // step's TYPED close class: green/softgreen = machine check, anything else = you check). A write/send step on a line with a signed destination
-  // adds `→ <destination>`. The ask step reads `› step 4 · ASK · waits 1h`.
+  // adds `→ <destination>`. The ask step reads `step 4 · ASK · waits 1h`.
   function stepSummaryText(st, job){
-    var head = "› step " + st.step + " · ";
+    var head = "step " + st.step + " · ";
     if(st.ask) return head + "ASK · waits " + plainWait(st.waitMs);
     var out = ((st.mayDo || []).length ? st.mayDo.join(", ") + " " : "") + "→ " + (st.makes || "unknown");
     var sends = (job.sends || []).filter(function(sd){ return sd.line === st.line; });
