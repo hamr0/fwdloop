@@ -55,11 +55,25 @@ test('an AI maxWords of 3 is in the guardrail, so it is green (the human sees it
   assert.equal(readDecl(dir).steps[2].close.shape.maxWords, 3);
 });
 
-test('kept: a guardrail with no word number does not red any maxWords; a check with no maxWords does not red', async () => {
+test('a guardrail with no word number and an AI maxWords of 450 is red with the signed wording; a check with no maxWords stays green', async () => {
   const a = await draft('3 sections', (x) => { x.steps[2].close.shape.maxWords = 450; });
-  assert.equal(a.r.ok, true, JSON.stringify(a.r.reds));
+  assert.equal(a.r.ok, false);
+  assert.ok(a.r.reds.some((x) => x.includes("line 3's check says 450 words; the guardrail has no 450.")), JSON.stringify(a.r.reds));
   const b = await draft(G, (x) => { delete x.steps[2].close.shape.maxWords; });
   assert.equal(b.r.ok, true, JSON.stringify(b.r.reds));
+  const c = await draft('3 sections', (x) => { delete x.steps[2].close.shape.maxWords; });
+  assert.equal(c.r.ok, true, JSON.stringify(c.r.reds));
+});
+test('checkShapeFitsJobLine: a step with a maxWords and no guardrail line at all is red too', () => {
+  const reds = [];
+  D.checkShapeFitsJobLine({ goal: 'g', fromLine: 3, close: { shape: { maxWords: 300 } } }, 0, [{ n: 3 }], reds);
+  assert.ok(reds.some((x) => x.includes("line 3's check says 300 words; the guardrail has no 300.")), JSON.stringify(reds));
+  const none = [];
+  D.checkShapeFitsJobLine({ goal: 'g', close: { shape: { maxWords: 300 } } }, 0, [], none);
+  assert.equal(none.length, 1, JSON.stringify(none));
+  const ok = [];
+  D.checkShapeFitsJobLine({ goal: 'g', fromLine: 3, close: { shape: {} } }, 0, [{ n: 3 }], ok);
+  assert.deepEqual(ok, []);
 });
 
 test('am15 (a) stays red at $0 before any model call, naming 750 and 600', async () => {
