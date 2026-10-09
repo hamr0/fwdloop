@@ -101,7 +101,7 @@ test('3 a lost ask file (2 paused rows, 1 ask): the Runs label, the Ask tab and 
     assert.equal(ask, undefined, 'Ask tab: plain stopped');
     assert.equal(inbox, undefined, 'Inbox: plain stopped');
     assert.doesNotMatch(label, /at the ask of step/, `Runs label must not name a step the Ask tab cannot: ${label}`);
-    assert.match(label, /^stopped\b/);
+    assert.equal(label, 'stopped — Resume to go on', 'amendment 21 2A: the Runs row keeps its what-to-do hint');
   } finally { rmSync(w.base, { recursive: true, force: true }); }
 });
 
