@@ -366,7 +366,7 @@ export function checkShapeFitsJobLine(step, i, lines, reds) {
   const nums = guardrailWordNumbers(line?.guardrail);
   // A guardrail with no word number (or no guardrail line) leaves nothing for the pick to match: red too.
   if (shape.maxWords !== undefined && !nums.includes(shape.maxWords)) {
-    reds.push(`declaration: line ${line?.n ?? step.fromLine ?? i + 1}'s check says ${shape.maxWords} words; the guardrail has no ${shape.maxWords}. Write it in the guardrail as 'under ${shape.maxWords} words'.`);
+    reds.push(`declaration: line ${line?.n ?? step.fromLine ?? i + 1}'s check says ${shape.maxWords} words; the guardrail has no ${shape.maxWords}.`);
   } else if (wantPer !== null && shape.maxWords !== undefined && Array.isArray(shape.sections) && shape.sections.length > 0 && wantPer * shape.sections.length > shape.maxWords) {
     // am29: after the draft the sum uses the AI's pick (the $0 check before the draft can only use the largest candidate).
     reds.push(`declaration: line ${line.n}'s guardrail asks about ${wantPer} words for each of ${shape.sections.length} sections (${wantPer * shape.sections.length}) but the check says ${shape.maxWords} words in total. Change the guardrail.`);
