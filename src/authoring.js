@@ -37,6 +37,11 @@ export const SPEC_HASH_FILE = 'spec.hash';
 export const PANEL_DRAFTS_DIR = '.drafts';
 /** Written when the end sweep finds a key in the draft dir; sign refuses a dir that has it. */
 export const LEAK_MARKER_FILE = 'scrub-leak.red';
+/** M4e amendments 24/25: the drafter's questions (written once by `fwdloop draft`), each human answer (`answer-<k>.json`, written once by the panel),
+ *  and the drafter's own "not checked" reading (information only; never in the readout, so never in the hash). */
+export const QUESTIONS_FILE = 'questions.json';
+export const NOT_CHECKED_FILE = 'not-checked.json';
+export const ANSWER_FILE = (k) => `answer-${k}.json`;
 export const SIGN_LINE = (dir, hash) => `DRAFTED — NOT SIGNED. To sign: fwdloop sign ${dir} --approve ${hash}`;
 
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -63,6 +68,40 @@ export function specHash({
   if (!target.ok) return { ok: false, red: 'target.json: is not valid JSON' };
   const framed = JSON.stringify([sha(prose.bytes), sha(decl.bytes), sha(facts.bytes), sha(readout.bytes), sha(target.bytes)]);
   return { ok: true, hash: sha(Buffer.from(framed, 'utf8')) };
+}
+
+/**
+ * The questions a plan folder raised and the answers on disk, READ from its files — the ONE reader (the panel's phase reader, the sign
+ * checks and the page all use it). `questions` = [{ k, line, question, answer|null }], `open` = those with no answer. A blank or unreadable
+ * answer file counts as no answer. No questions file = `{ questions: [], open: [] }`.
+ * @param {string} planDir
+ * @returns {{ questions: {k:number, line:number, question:string, answer:string|null}[], open: {k:number, line:number, question:string, answer:null}[] }}
+ */
+export function readQuestions(planDir) {
+  const none = { questions: [], open: [] };
+  const f = readFileInside(planDir, QUESTIONS_FILE);
+  if (!f.ok) return none;
+  let list;
+  try { list = JSON.parse(f.text)?.questions; } catch { return none; }
+  if (!Array.isArray(list)) return none;
+  const questions = list.map((q, i) => {
+    const k = i + 1;
+    const a = readFileInside(planDir, ANSWER_FILE(k));
+    let answer = null;
+    if (a.ok) { try { const t = JSON.parse(a.text)?.answer; if (typeof t === 'string' && t.trim() !== '') answer = t; } catch { /* unreadable = unanswered */ } }
+    return { k, line: q.line, question: String(q.question), answer };
+  });
+  return { questions, open: questions.filter((q) => q.answer === null) };
+}
+
+export const OPEN_QUESTION_SAY = 'A question the plan raised is still open. Answer it in the panel (fwdloop panel), then sign the plan it drafts after your answers. Nothing was signed.';
+export const ANSWERED_QUESTION_SAY = 'This plan raised questions, and your answers went into a newer plan. Sign the newest plan, not this one. Nothing was signed.';
+
+/** The ONE check that a plan folder with questions is not signable (CLI sign, the page's sign route and signDraft all call it). null = fine. @param {string} planDir */
+export function questionsRefusal(planDir) {
+  const q = readQuestions(planDir);
+  if (q.questions.length === 0) return null;
+  return q.open.length > 0 ? OPEN_QUESTION_SAY : ANSWERED_QUESTION_SAY;
 }
 
 /** Literal (never RegExp) key scrub; a secret under 8 chars is skipped so it can't blank ordinary text. */
@@ -207,7 +246,7 @@ export function draftKeyRefusal(slot, env) {
  * Test seam: `provider`/`rates`/`modelId` are injected; without them a live provider is built.
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot = 'deepseek', model, budgetUsd = DRAFT_BUDGET_USD, env = process.env, provider, rates, modelId,
+  proseFile, dir, root, name, slot = 'deepseek', model, budgetUsd = DRAFT_BUDGET_USD, env = process.env, provider, rates, modelId, noQuestions = false,
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
   const nameCheck = checkFlowName(name);
@@ -266,7 +305,7 @@ export async function draftToDir({
     }
   };
   const result = await draft({
-    proseText: prose.text, slot, model, budgetUsd, provider, rates, modelId, env, onBook,
+    proseText: prose.text, slot, model, budgetUsd, provider, rates, modelId, env, onBook, offerQuestions: !noQuestions,
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }
@@ -284,6 +323,10 @@ export async function draftToDir({
   files['prose.txt'] = prose.text; // verbatim
   const targetText = dj({ root, name });
   files['target.json'] = targetText;
+  // Amendments 24/25: the questions and the drafter's own "not checked" reading are written BEFORE log.json/spec.hash (the panel reads those
+  // two as "the draft finished"), as their own files: never in the readout, so never in the hash.
+  if (result.questions?.length) files[QUESTIONS_FILE] = scrub(dj({ questions: result.questions }), secrets);
+  files[NOT_CHECKED_FILE] = scrub(dj({ notChecked: result.notChecked ?? [] }), secrets);
   files['log.json'] = scrub(dj({
     ok: result.ok, stop: result.stop, reds: result.reds, rounds: result.rounds, calls: result.calls, costUsd: result.costUsd, spendComplete: result.spendComplete,
     modelId: result.modelId, modelReturned: result.modelReturned, structureRetries: result.structureRetries,
@@ -340,7 +383,7 @@ export async function draftToDir({
     return paidFail(`write failed after the paid round (${e.code ?? e.message}); the draft dir is incomplete and never signable`);
   }
   return {
-    ok: result.ok, wrote: true, dir, hash, reds: cleanReds(result.reds), costUsd: result.costUsd, spendComplete: result.spendComplete, stop: result.stop, rounds: result.rounds, calls: result.calls, leaks: 0,
+    ok: result.ok, wrote: true, dir, hash, questions: result.questions?.length ?? 0, reds: cleanReds(result.reds), costUsd: result.costUsd, spendComplete: result.spendComplete, stop: result.stop, rounds: result.rounds, calls: result.calls, leaks: 0,
   };
 }
 
@@ -354,6 +397,8 @@ export function signDraft({
 }) {
   const refuse = (...reds) => ({ ok: false, reds });
   if (readFileInside(dir, LEAK_MARKER_FILE).ok) return refuse(`sign: "${dir}" carries a key-leak marker (${LEAK_MARKER_FILE}) — never signed`);
+  const openQuestion = questionsRefusal(dir);
+  if (openQuestion !== null) return refuse(`sign: ${openQuestion}`);
   // Sign is $0 and takes no key, so it can only sweep for keys present in ITS env (any provider slot's).
   // With none set the sweep is skipped: the marker above and the missing spec.hash are then the guard.
   const keys = Object.values(PROVIDER_SLOTS).map((p) => env[p.envVar]).filter(Boolean);

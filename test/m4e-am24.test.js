@@ -121,3 +121,194 @@ test('A8: normalizeQuestions and linesNamedByReds', () => {
   assert.deepEqual(linesNamedByReds(['declaration: ask at line 4 has no step', 'declaration: steps[1].primitives bad'], decl, [1, 2, 3, 4]), [3, 4]);
   assert.ok(buildRoundSchema([{ verb: 'read' }], { questions: true }).properties.questions);
 });
+
+// ---- Piece 2: draft files and state (the panel's real HTTP door against the real `fwdloop draft` child, $0) --------------------------------
+// eslint-disable-next-line import/first
+import { spawnSync } from 'node:child_process';
+// eslint-disable-next-line import/first
+import { existsSync, readFileSync } from 'node:fs';
+// eslint-disable-next-line import/first
+import path from 'node:path';
+// eslint-disable-next-line import/first
+import { isFwdloopAlive } from '../src/liveness.js';
+// eslint-disable-next-line import/first
+import { signDraft, specHash, OPEN_QUESTION_SAY, readQuestions } from '../src/authoring.js';
+// eslint-disable-next-line import/first
+import { appendAnswersToJob, parseJobBox } from '../src/panel/authorcard.js';
+// eslint-disable-next-line import/first
+import { buildSetupRows } from '../src/setup.js';
+// eslint-disable-next-line import/first
+import {
+  JOB, HERE, killChildrenAfter, until, world, tmp,
+} from './m4e-world.mjs';
+
+killChildrenAfter();
+const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
+const QJOB = JOB.replace('Read my resume,', 'Read my resume QMARK,');
+const state = async (w, id) => (await w.get(`/api/author/${id}`)).json();
+const settleOn = (w, id, phases) => until(async () => { const j = await state(w, id); return phases.includes(j?.phase) ? j : null; });
+const childGone = (w, id) => until(() => {
+  try { const p = JSON.parse(readFileSync(path.join(w.dir(id), 'pid.json'), 'utf8')); return isFwdloopAlive(p.pid, p.procStart) !== true; } catch { return true; }
+});
+const Q12 = JSON.stringify([{ line: 1, question: 'Which resume do you mean?' }, { line: 2, question: 'Which part of the JD matters most?' }]);
+async function askingWorld(extraEnv = {}) {
+  const offeredLog = path.join(tmp('offered'), 'offered.log');
+  const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_OFFERED_LOG: offeredLog, ...extraEnv } });
+  const id = (await w.post('/api/author/draft', w.card({ job: QJOB }))).json().draftId;
+  const s = await settleOn(w, id, ['questions-open', 'green', 'red', 'stopped']);
+  await childGone(w, id);
+  const offered = () => (existsSync(offeredLog) ? readFileSync(offeredLog, 'utf8').split('\n').filter(Boolean) : []);
+  return { w, id, s, offered };
+}
+
+test('B1: tries 1 and 2 of the real child asked nothing, try 3 asked two; the draft is questions-open, questions.json is in the plan folder, a reload keeps it open', async () => {
+  const { w, id, s, offered } = await askingWorld();
+  assert.equal(s.phase, 'questions-open', JSON.stringify(s));
+  assert.deepEqual(offered(), ['not-offered', 'not-offered', 'offered']);
+  assert.equal(s.total, 2);
+  assert.equal(s.openK, 1);
+  assert.deepEqual(s.questions.map((q) => [q.k, q.line, q.answered]), [[1, 3, false], [2, 3, false]]);
+  assert.match(s.questions[0].lineText, /^write me a summary resume/);
+  const planDir = path.join(w.dir(id), 'draft');
+  assert.equal(readQuestions(planDir).open.length, 2);
+  assert.ok(existsSync(path.join(planDir, 'questions.json')) && existsSync(path.join(planDir, 'not-checked.json')));
+  assert.equal(s.hash, undefined, 'nothing is signable while a question is open');
+  const again = await state(w, id);
+  assert.equal(again.phase, 'questions-open', 'a reload keeps the question open');
+  const live = (await w.get('/api/author/live')).json();
+  assert.equal(live.draft.phase, 'questions-open');
+});
+
+test('B2: a blank answer is refused and the question stays open; no answer file; no way to skip', async () => {
+  const { w, id } = await askingWorld();
+  for (const answer of ['', '   ', '\n', undefined, 7]) {
+    // eslint-disable-next-line no-await-in-loop
+    const r = await w.post(`/api/author/${id}/answer`, { k: 1, answer });
+    assert.equal(r.status, 400, JSON.stringify(answer));
+    assert.equal(r.json().refused, 'blank-answer');
+    assert.match(r.json().say, /can't be skipped/);
+  }
+  assert.equal(existsSync(path.join(w.dir(id), 'draft', 'answer-1.json')), false);
+  assert.equal((await state(w, id)).openK, 1);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'two\nlines' })).json().refused, 'one-line');
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: `has a key ${'sk-canary-M4E-piece2b-3c9d1e7a5b2f4860bb77'}` })).json().refused, 'key');
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 2, answer: 'out of order' })).json().refused, 'stale-question');
+  assert.equal(existsSync(path.join(w.dir(id), 'draft', 'answer-2.json')), false);
+});
+
+test('B3: sign is refused while a question is open at the page sign route, at signDraft, and at the CLI (which says: answer in the panel)', async () => {
+  const { w, id } = await askingWorld();
+  const planDir = path.join(w.dir(id), 'draft');
+  const hash = readFileSync(path.join(planDir, 'spec.hash'), 'utf8').trim();
+  assert.ok(hash.length > 10, 'the first plan is green on disk; only the open question stops the sign');
+  for (const url of ['sign-prepare', 'sign']) {
+    // eslint-disable-next-line no-await-in-loop
+    const r = await w.post(`/api/author/${id}/${url}`, { hash });
+    assert.equal(r.status, 409, url);
+    assert.equal(r.json().refused, 'question-open');
+  }
+  const flows = () => existsSync(path.join(w.root, 'job2'));
+  assert.equal(flows(), false);
+  const direct = signDraft({ dir: planDir, approve: hash, signedBy: 'tester', env: {} });
+  assert.equal(direct.ok, false);
+  assert.match(direct.reds.join(' '), /still open/);
+  assert.equal(flows(), false, 'signDraft wrote no flow');
+  const cli = spawnSync(process.execPath, [BIN, 'sign', planDir, '--approve', hash], { env: { ...w.env }, encoding: 'utf8' });
+  assert.notEqual(cli.status, 0);
+  assert.match(cli.stderr, /Answer it in the panel/);
+  assert.equal(flows(), false);
+  // all three read the one check
+  assert.ok(direct.reds[0].includes(OPEN_QUESTION_SAY));
+  // revise is not a way round an open question
+  const rev = await w.post(`/api/author/${id}/revise`, w.card({ job: QJOB }));
+  assert.equal(rev.status, 409);
+  assert.equal(rev.json().refused, 'question-open');
+});
+
+test('B4: answering every question drafts again with a fresh child that never asks; each answer is a verbatim ~ line in the card, the prose, the signed text and the hash; it uses no revise', async () => {
+  const { w, id, offered } = await askingWorld({ FWDLOOP_TEST_DRAFT_REDSTEP: '0,1', FWDLOOP_TEST_DRAFT_QUESTIONS: Q12 });
+  const a1 = 'ANSMARK use the resume in my inputs, not an old one';
+  const a2 = 'Count every word except the headings';
+  const r1 = await w.post(`/api/author/${id}/answer`, { k: 1, answer: a1 });
+  assert.equal(r1.status, 200, r1.text);
+  const mid = await state(w, id);
+  assert.equal(mid.phase, 'questions-open');
+  assert.equal(mid.openK, 2, 'one at a time');
+  assert.deepEqual(JSON.parse(readFileSync(path.join(w.dir(id), 'draft', 'answer-1.json'), 'utf8')).answer, a1);
+  const r2 = await w.post(`/api/author/${id}/answer`, { k: 2, answer: a2 });
+  assert.equal(r2.status, 202, r2.text);
+  const g = await until(async () => { const j = await state(w, id); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });
+  await childGone(w, id);
+  assert.equal(g.phase, 'green', JSON.stringify(g));
+  assert.deepEqual(offered().slice(3), ['not-offered'], 'the redraft asked nothing (one call, no questions property)');
+  assert.equal(g.revisesLeft, 2, 'an answer redraft is not a revise');
+  assert.equal(g.revises[0].kind, 'answers');
+  // the card: each answer a ~ line under line 3, after that line's own ~ line, word for word
+  const card = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
+  const steps = parseJobBox(card.job).steps;
+  assert.deepEqual([steps[0].guardrails, steps[1].guardrails, steps[2].guardrails], [[a1], [a2], ['3 sections, all under 600 words']]);
+  assert.equal(steps.length, 5);
+  // the prose, then the signed flow, carry them; the goal is still the line verbatim
+  const prose = readFileSync(path.join(w.dir(id), 'prose-1.txt'), 'utf8');
+  assert.ok(prose.includes(`1. Read my resume QMARK,\n   guardrail: ${a1}\n2. and read the JD to compare it against,\n   guardrail: ${a2}\n3. `));
+  assert.equal(readFileSync(path.join(w.dir(id), 'draft-1', 'prose.txt'), 'utf8'), prose);
+  const decl = JSON.parse(readFileSync(path.join(w.dir(id), 'draft-1', 'declaration.json'), 'utf8'));
+  assert.equal(decl.steps[0].goal, 'Read my resume QMARK,', 'the step goal is the signed line, not the answer');
+  // under "Your answers", with the line each belongs to
+  assert.deepEqual(g.answers.map((a) => [a.line, a.answer]), [[1, a1], [2, a2]]);
+  assert.match(g.answers[1].lineText, /^and read the JD/);
+  // in the hash: the same plan without the answer lines hashes differently
+  const parts = (dir) => ['prose.txt', 'declaration.json', 'input-facts.json', 'readout.txt', 'target.json'].map((f) => readFileSync(path.join(dir, f), 'utf8'));
+  const [proseText, declarationText, inputFactsText, readoutText, targetText] = parts(path.join(w.dir(id), 'draft-1'));
+  const hashWith = specHash({ proseText, declarationText, inputFactsText, readoutText, targetText });
+  const hashWithout = specHash({ proseText: proseText.replace(`   guardrail: ${a1}\n`, ''), declarationText, inputFactsText, readoutText, targetText });
+  assert.equal(hashWith.hash, g.hash);
+  assert.notEqual(hashWith.hash, hashWithout.hash);
+  // signing the redraft puts the answers in the signed prose
+  const signed = signDraft({ dir: path.join(w.dir(id), 'draft-1'), approve: g.hash, signedBy: 'tester', env: {} });
+  assert.equal(signed.ok, true, JSON.stringify(signed));
+  assert.ok(readFileSync(path.join(signed.flowDir, 'prose.txt'), 'utf8').includes(`guardrail: ${a1}`));
+  // booked as an answer redraft, not a revise
+  const rows = buildSetupRows({
+    sessionDir: w.dir(id), planDir: path.join(w.dir(id), 'draft-1'), hash: g.hash, signedBy: 't', signedAt: new Date().toISOString(),
+  }).map((r) => r.kind);
+  assert.ok(rows.includes('redraft') && !rows.includes('revise'), rows.join(','));
+  // the first plan's folder can no longer be signed (its answers are in the newer plan)
+  const old = signDraft({ dir: path.join(w.dir(id), 'draft'), approve: readFileSync(path.join(w.dir(id), 'draft', 'spec.hash'), 'utf8').trim(), signedBy: 'tester', env: {} });
+  assert.equal(old.ok, false);
+});
+
+test('B5: a question about line 9 in a 5-line job and a third question are dropped and logged; if none is kept the draft is just green', async () => {
+  const qs = [
+    { line: 9, question: 'about a line that is not there' },
+    { line: 3, question: 'kept one' }, { line: 3, question: 'kept two' }, { line: 3, question: 'a third' },
+  ];
+  const { w, id, s } = await askingWorld({ FWDLOOP_TEST_DRAFT_QUESTIONS: JSON.stringify(qs) });
+  assert.equal(s.total, 2);
+  assert.deepEqual(s.questions.map((q) => q.question), ['kept one', 'kept two']);
+  const log = JSON.parse(readFileSync(path.join(w.dir(id), 'draft', 'log.json'), 'utf8'));
+  const dropped = log.log.flatMap((e) => e.droppedQuestions ?? []);
+  assert.deepEqual(dropped.map((d) => d.reason), ["line 9 is not a line try 2's checks failed on", 'third question']);
+  const none = await askingWorld({ FWDLOOP_TEST_DRAFT_QUESTIONS: JSON.stringify([{ line: 9, question: 'x' }]) });
+  assert.equal(none.s.phase, 'green', 'every question dropped: nothing to answer');
+  assert.equal(existsSync(path.join(none.w.dir(none.id), 'draft', 'questions.json')), false);
+});
+
+test('B5b: a question about a line that already has a guardrail (or two about one line) cannot become its own ~ line: refused up front, nothing saved, still open', async () => {
+  const { w, id, s } = await askingWorld();
+  assert.equal(s.phase, 'questions-open');
+  const r = await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'a perfectly good answer' });
+  assert.equal(r.status, 409, r.text);
+  assert.equal(r.json().refused, 'guardrail-clash');
+  assert.match(r.json().say, /only one guardrail/);
+  assert.equal(existsSync(path.join(w.dir(id), 'draft', 'answer-1.json')), false);
+  assert.equal((await state(w, id)).phase, 'questions-open');
+});
+
+test('B6: appendAnswersToJob puts an answer under its own line after that line\'s ~ lines, leaves the rest alone, and counts what it added', () => {
+  const job = 'one\n~g1\n\ntwo\nthree\n~g3';
+  const r = appendAnswersToJob(job, [{ line: 1, answer: 'a' }, { line: 3, answer: 'b' }, { line: 1, answer: 'c' }, { line: 9, answer: 'z' }]);
+  assert.equal(r.job, 'one\n~g1\n~ a\n~ c\n\ntwo\nthree\n~g3\n~ b');
+  assert.equal(r.added, 3);
+  assert.equal(appendAnswersToJob('one', []).job, 'one');
+});

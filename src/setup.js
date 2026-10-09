@@ -74,7 +74,8 @@ export function buildSetupRows({
     for (const n of ns) {
       const card = readJson(sessionDir, `card-${n}.json`);
       if (card) rows.push({ kind: 'card', n, at: mtimeIso(sessionDir, `card-${n}.json`), card });
-      rows.push(planRow(sessionDir, `draft-${n}`, 'revise', n));
+      // M4e amendment 24 item 4: a plan drafted again after the human's answers is booked as `redraft`, not `revise` (it uses none of the 2 revises)
+      rows.push(planRow(sessionDir, `draft-${n}`, readJson(sessionDir, `redraft-${n}.json`) ? 'redraft' : 'revise', n));
     }
   } else {
     const r = planRow(planDir, '.', 'draft', 0);

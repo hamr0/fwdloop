@@ -28,13 +28,15 @@
 // write pid.json, no await between), so two requests that arrive together run one after the other and the second
 // sees the first's live child and is refused. A dead child never blocks (its pid is read, never assumed).
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync, realpathSync, rmSync, writeFileSync,
+} from 'node:fs';
 import { userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  PANEL_DRAFTS_DIR, readoutHeadIndexes, scrub, signDraft,
+  ANSWER_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, readQuestions, readoutHeadIndexes, scrub, signDraft,
 } from '../authoring.js';
 import { nextRunId, readFileInside, readdirInside } from '../flow.js';
 import { isFwdloopAlive } from '../liveness.js';
@@ -42,7 +44,7 @@ import {
   checkMonthlyRoom, ConfigError, monthlyNote, monthlyRefusalText,
 } from '../monthly.js';
 import {
-  capFloorText, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines,
+  answerClash, appendAnswersToJob, capFloorText, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
 } from './authorcard.js';
 import { leastResumeCapUsd } from './authorvalues.js';
 import { createFlowsDoor } from './authorflows.js';
@@ -67,6 +69,12 @@ const RED_SAY = 'The drafter\'s plan did not pass the checks. Nothing was signed
 /** Up to 2 revises per draft (amendment 14 item 3); a revise is used once its `draft-<n>/` exists (a refusal at $0 makes none). */
 export const MAX_REVISES = 2;
 const CARD_RE = /^card-(\d+)\.json$/;
+/** The phases in which a draft child is running (a first draft, a revise, or the redraft after the human's answers). */
+const LIVE_PHASES = new Set(['drafting', 'revising', 'redrafting']);
+const ANSWERS_NOT_DRAFTED_SAY = 'Your answers are saved, but the plan was not drafted again with them (the process did not start). Nothing was signed. Draft again from the card.';
+const REDRAFT_RED_SAY = 'The plan drafted with your answers did not pass the checks. Nothing can be signed until a plan is green. Your answers are kept in the card: change it and draft again.';
+const BLANK_ANSWER_SAY = 'Write an answer. A question can\'t be skipped; the plan waits for it.';
+const ONE_LINE_ANSWER_SAY = 'Write the answer on one line. It is added to your job as one guardrail line.';
 const PLAN_DIR_RE = /^draft-(\d+)$/;
 const REVISE_RED_SAY = 'The revised plan did not pass the checks. Nothing can be signed until a plan is green. Your edits are kept: change the card and draft again.';
 const KILL_WAIT_MS = 3000;
@@ -128,7 +136,8 @@ export function createAuthor(opts) {
     // with its result on disk; the other order could see no result, then no child, and call a finished draft stopped.
     const running = childRunning(dir);
     const first = resultOf(dir, 'draft', keys);
-    if (first && first.phase === 'green') return withRevises(base, dir, first, keys);
+    // a first plan that asked questions (green or red) is read by `withRevises` too: it is the ONE function that decides the phase of every plan
+    if (first && (first.phase === 'green' || readQuestions(join(dir, 'draft')).questions.length > 0)) return withRevises(base, dir, first, keys);
     if (first) return { ...base, ...first };
     // no result yet: the child is the only thing that can still produce one
     if (running) return { ...base, phase: 'drafting' };
@@ -164,37 +173,60 @@ export function createAuthor(opts) {
   }
 
   /**
-   * A green first plan, plus its revises (amendment 14). The ONE function that decides what is signable: the plan to sign is the NEWEST of
-   * `draft`, `draft-1`, ... and ONLY if it is green. A red or stopped newest revise means nothing is signable (the older green plan was
-   * drafted from a different card), and the card shown is the one last submitted. `phase` is `revising` only while the newest revise's
-   * child runs. One reader of every revise fact: each `card-<n>.json`, its own folder and log, and how many are used (their folders).
-   * @param {any} base @param {string} dir @param {{ hash: string, readout: string, readoutHeads?: number[] }} first @param {string[]} keys
+   * A first plan (green, or red with questions), plus its revises and answer redrafts (amendments 14, 24). The ONE function that decides
+   * what is signable and what phase a draft is in: the plan to look at is the NEWEST of `draft`, `draft-1`, ...; it is signable ONLY if it is
+   * green AND has no question open. A newest plan with an unanswered question is `questions-open` (nothing is signable, a reload keeps it open).
+   * A red or stopped newest plan means nothing is signable (an older green plan was drafted from a different card), and the card shown is the one
+   * last submitted. `phase` is `revising` / `redrafting` only while the newest plan's child runs. A revise uses one of the 2; an answer redraft
+   * (marked by `redraft-<n>.json`) uses none. One reader of every such fact: each `card-<n>.json`, its folder and log, its questions and answers.
+   * @param {any} base @param {string} dir @param {any} first the first plan's result (green, or red that asked questions) @param {string[]} keys
    */
   function withRevises(base, dir, first, keys) {
     const names = readdirInside(dir, '.');
     const ns = names.map((n) => CARD_RE.exec(n)?.[1]).filter((x) => x !== undefined).map(Number).sort((a, b) => a - b);
-    const used = names.filter((n) => PLAN_DIR_RE.test(n)).length;
+    const redrafts = new Set(ns.filter((n) => readJson(dir, `redraft-${n}.json`) !== null));
+    const used = names.filter((n) => PLAN_DIR_RE.test(n) && !redrafts.has(Number(PLAN_DIR_RE.exec(n)?.[1]))).length;
     const revisesLeft = Math.max(0, MAX_REVISES - used);
     const newest = ns.length > 0 ? ns[ns.length - 1] : 0;
     const card = newest > 0 ? (readJson(dir, `card-${newest}.json`) ?? base.card) : base.card;
     const revises = ns.map((n) => {
+      const kind = redrafts.has(n) ? 'answers' : 'revise';
       const running = n === newest && childRunning(dir); // C9: running first, then the result
       const res = resultOf(dir, `draft-${n}`, keys);
-      if (res && res.phase === 'green') return { n, phase: 'green', hash: res.hash };
-      if (res) return { n, phase: 'red', reds: res.reds, say: REVISE_RED_SAY };
-      if (running) return { n, phase: 'running' };
-      return { n, phase: 'stopped', say: logTail(dir, `revise-${n}.log`, keys) || STOPPED_SAY };
+      if (res && res.phase === 'green') return { n, kind, phase: 'green', hash: res.hash };
+      if (res) return { n, kind, phase: 'red', reds: res.reds, say: kind === 'answers' ? REDRAFT_RED_SAY : REVISE_RED_SAY };
+      if (running) return { n, kind, phase: 'running' };
+      return { n, kind, phase: 'stopped', say: logTail(dir, `${kind === 'answers' ? 'redraft' : 'revise'}-${n}.log`, keys) || STOPPED_SAY };
     });
-    const cur = newest > 0 ? revises[revises.length - 1] : { phase: 'green' };
+    const cur = newest > 0 ? revises[revises.length - 1] : { phase: first.phase, kind: 'first' };
     const shared = { ...base, card, revises, revisesLeft };
-    if (newest === 0) return { ...shared, phase: 'green', hash: first.hash, readout: first.readout, readoutHeads: first.readoutHeads, plan: 'draft' };
-    if (cur.phase === 'green') {
-      const res = resultOf(dir, `draft-${newest}`, keys);
-      return { ...shared, phase: 'green', hash: res.hash, readout: res.readout, readoutHeads: res.readoutHeads, plan: `draft-${newest}` };
+    const rel = newest > 0 ? `draft-${newest}` : 'draft';
+    if (cur.phase === 'running') return { ...shared, phase: cur.kind === 'answers' ? 'redrafting' : 'revising' };
+    if (cur.phase === 'stopped') return { ...shared, phase: 'stopped', say: cur.say };
+    const res = newest > 0 ? resultOf(dir, rel, keys) : first;
+    // the plan's questions: any open one makes the phase `questions-open`, whatever colour the plan is (the answers are what it was waiting for)
+    const q = readQuestions(join(dir, rel));
+    if (q.open.length > 0) {
+      const lineText = (line) => parseJobBox(typeof card?.job === 'string' ? card.job : '').steps[line - 1]?.text ?? null;
+      const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null }));
+      return { ...shared, phase: 'questions-open', plan: rel, questions, openK: q.open[0].k, total: q.questions.length };
     }
-    if (cur.phase === 'running') return { ...shared, phase: 'revising' };
-    if (cur.phase === 'red') return { ...shared, phase: 'red', reds: cur.reds, say: REVISE_RED_SAY };
-    return { ...shared, phase: 'stopped', say: cur.say };
+    if (q.questions.length > 0) return { ...shared, phase: 'stopped', say: ANSWERS_NOT_DRAFTED_SAY };
+    if (res.phase === 'green') {
+      const answers = newest > 0 && redrafts.has(newest) ? answersOf(dir, newest, keys) : [];
+      return { ...shared, phase: 'green', hash: res.hash, readout: res.readout, readoutHeads: res.readoutHeads, plan: rel, answers };
+    }
+    return { ...shared, phase: 'red', reds: res.reds, say: newest === 0 ? RED_SAY : cur.say };
+  }
+
+  /** The answers an answer-redraft was drafted with, as the marker recorded them: `[{ line, lineText, question, answer }]` (scrubbed). @param {string} dir @param {number} n @param {string[]} keys */
+  function answersOf(dir, n, keys) {
+    const rec = readJson(dir, `redraft-${n}.json`);
+    const card = readJson(dir, `card-${n}.json`);
+    const steps = parseJobBox(typeof card?.job === 'string' ? card.job : '').steps;
+    return (Array.isArray(rec?.answers) ? rec.answers : []).map((a) => ({
+      line: a.line, lineText: steps[a.line - 1]?.text ?? null, question: scrub(String(a.question), keys), answer: scrub(String(a.answer), keys),
+    }));
   }
 
   /** Draft ids, newest first. */
@@ -226,6 +258,8 @@ export function createAuthor(opts) {
     const dir = dd === null ? null : join(dd, id);
     const v = dir === null ? null : readDraft(dir, id, keysNow().keys);
     if (dir === null || v === null || v.card === null) return no(404, 'no-such-draft');
+    // amendments 24/25: a plan with a question open is never signed from here; signDraft refuses it again from the plan folder (the same check)
+    if (v.phase === 'questions-open') return no(409, 'question-open', OPEN_QUESTION_SAY);
     if (v.phase !== 'green') return no(409, 'not-green', `This draft is ${v.phase}, not a finished plan, so it cannot be signed.`);
     const name = readJson(dir, `${v.plan}/target.json`)?.name;
     if (typeof name !== 'string') return no(409, 'no-name', 'The draft has no readable flow name. Nothing was signed.');
@@ -302,7 +336,7 @@ export function createAuthor(opts) {
       const { card } = vet;
       for (const id of listIds()) {
         const v = view(id, keys);
-        if (v && (v.phase === 'drafting' || v.phase === 'revising')) {
+        if (v && LIVE_PHASES.has(v.phase)) {
           return { status: 409, body: { ok: false, refused: 'draft-live', draftId: id, say: 'A draft is already running. Wait for it, or abandon it, before starting another.' } };
         }
       }
@@ -415,7 +449,8 @@ export function createAuthor(opts) {
       const dir = dd === null ? null : join(dd, id);
       const v = dir === null ? null : /** @type {any} */ (readDraft(dir, id, keys));
       if (dir === null || v === null || v.card === null) return { status: 404, body: { ok: false, refused: 'no-such-draft' } };
-      if (v.phase === 'revising') return { status: 409, body: { ok: false, refused: 'draft-live', say: 'A revise is already being drafted. Wait for it.' } };
+      if (v.phase === 'revising' || v.phase === 'redrafting') return { status: 409, body: { ok: false, refused: 'draft-live', say: 'A plan is already being drafted. Wait for it.' } };
+      if (v.phase === 'questions-open') return { status: 409, body: { ok: false, refused: 'question-open', say: 'A question the plan raised is still open. Answer it first; it is not a revise.' } };
       // only a draft whose first plan was green has revises (`withRevises` is the one reader that sets them)
       if (!Array.isArray(v.revises)) return { status: 409, body: { ok: false, refused: 'not-revisable', say: `This draft is ${v.phase}, so it cannot be revised. Draft again from the card.` } };
       if (v.revisesLeft <= 0) return { status: 409, body: { ok: false, refused: 'no-revises-left', say: `This draft has used its ${MAX_REVISES} revises. Start over: it keeps the fields and gives ${MAX_REVISES} new revises.` } };
@@ -425,7 +460,7 @@ export function createAuthor(opts) {
       for (const other of listIds()) {
         if (other === id) continue;
         const ov = view(other, keys);
-        if (ov && (ov.phase === 'drafting' || ov.phase === 'revising')) {
+        if (ov && LIVE_PHASES.has(ov.phase)) {
           return { status: 409, body: { ok: false, refused: 'draft-live', draftId: other, say: 'A draft is already running. Wait for it, or abandon it, before revising.' } };
         }
       }
@@ -447,6 +482,83 @@ export function createAuthor(opts) {
       child.on('error', () => {});
       writePidFile(dir, child);
       return { status: 202, body: { ok: true, draftId: id, n } };
+    },
+
+    /**
+     * `POST /api/author/:id/answer` body `{ k, answer }` (M4e amendments 24, 25): the human's answer to the plan's question `k` of `n`, one at a time.
+     * A blank answer is refused and the question stays open; there is no skip. The answer is written ONCE ('wx') as `<plan>/answer-<k>.json`. After
+     * the LAST answer the plan is drafted again as a fresh plain `fwdloop draft --no-questions` child (it never asks), from the submitted card with
+     * each answer added word for word as a `~` guardrail under its line (the one `appendAnswersToJob`, then the one `cardToProse`). It is booked as
+     * an answer redraft (`redraft-<n>.json`), not a revise: it uses none of the 2. Synchronous, like `revise`; a refusal at $0 writes nothing.
+     * @param {string} id @param {any} body
+     */
+    answer(id, body) {
+      const { loaded, keys } = keysNow();
+      if (!loaded.ok) return { status: 409, body: { ok: false, refused: 'keys-file', say: String(loaded.refusal) } };
+      if (!ID_RE.test(id)) return { status: 404, body: { ok: false, refused: 'no-such-draft' } };
+      const dd = draftsDir();
+      const dir = dd === null ? null : join(dd, id);
+      const v = dir === null ? null : /** @type {any} */ (readDraft(dir, id, keys));
+      if (dir === null || v === null || v.card === null) return { status: 404, body: { ok: false, refused: 'no-such-draft' } };
+      if (v.phase !== 'questions-open') return { status: 409, body: { ok: false, refused: 'no-question-open', say: 'This draft has no question waiting for an answer.' } };
+      const b = body && typeof body === 'object' ? body : {};
+      if (b.k !== v.openK) return { status: 409, body: { ok: false, refused: 'stale-question', say: 'That is not the question now open. Reload and answer the one shown.' } };
+      const answer = typeof b.answer === 'string' ? b.answer.trim() : '';
+      if (answer === '') return { status: 400, body: { ok: false, refused: 'blank-answer', say: BLANK_ANSWER_SAY } };
+      if (/[\r\n]/.test(answer)) return { status: 400, body: { ok: false, refused: 'one-line', say: ONE_LINE_ANSWER_SAY } };
+      if (keys.some((k) => k.length >= 8 && answer.includes(k))) return { status: 400, body: { ok: false, refused: 'key', say: 'This answer contains an API key. Keys go in Settings only. Nothing was saved.' } };
+      if (childRunning(dir)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'The draft process is still finishing. Try again in a moment.' } };
+      const planDir = join(dir, v.plan);
+      // A line carries one guardrail (strict 1-for-1), so an answer can't be a second `~` line under a line that has one. Refused up front,
+      // before any answer is written, in plain words; never merged into the existing guardrail (that would rewrite what was signed in the card).
+      const clash = answerClash(typeof v.card.job === 'string' ? v.card.job : '', v.questions);
+      if (clash !== null) return { status: 409, body: { ok: false, refused: 'guardrail-clash', say: `These questions are about job line ${clash}, which can carry only one guardrail line, and the answer can't be added as a second one. Nothing was saved. Abandon this draft, write what you want into that line's guardrail on the card, and draft again.` } };
+      const q = v.questions.find((x) => x.k === v.openK);
+      const last = v.questions.filter((x) => !x.answered).length === 1;
+      const answerFile = join(planDir, ANSWER_FILE(v.openK));
+      // the whole redraft is checked at $0 BEFORE the answer is written, so a refusal leaves the question open and nothing on disk
+      /** @type {any} */
+      let redraft = null;
+      if (last) {
+        const all = readQuestions(planDir).questions.map((x) => ({ line: x.line, question: x.question, answer: x.k === v.openK ? answer : x.answer }));
+        const grown = appendAnswersToJob(typeof v.card.job === 'string' ? v.card.job : '', /** @type {{line:number, answer:string}[]} */ (all));
+        if (grown.added !== all.length) return { status: 409, body: { ok: false, refused: 'no-such-line', say: 'An answer is about a job line the card no longer has. Draft again from the card. Nothing was signed.' } };
+        const vet = vetCard({ ...v.card, job: grown.job }, loaded);
+        if (!vet.ok) return vet.reply;
+        for (const other of listIds()) {
+          if (other === id) continue;
+          const ov = view(other, keys);
+          if (ov && LIVE_PHASES.has(ov.phase)) return { status: 409, body: { ok: false, refused: 'draft-live', draftId: other, say: 'A draft is already running. Wait for it, or abandon it, before answering.' } };
+        }
+        redraft = { vet, all };
+      }
+      try {
+        writeFileSync(answerFile, `${JSON.stringify({ k: v.openK, line: q.line, question: q.question, answer, at: new Date().toISOString() })}\n`, { mode: 0o600, flag: 'wx' });
+      } catch (e) {
+        return { status: 409, body: { ok: false, refused: 'already-answered', say: /** @type {any} */ (e)?.code === 'EEXIST' ? 'That question already has an answer.' : 'The answer could not be saved. Nothing was sent.' } };
+      }
+      if (!last) return { status: 200, body: { ok: true, draftId: id, next: v.openK + 1 } };
+      const n = Math.max(0, ...v.revises.map((x) => x.n)) + 1;
+      const files = [`card-${n}.json`, `prose-${n}.txt`, `redraft-${n}.json`].map((f) => join(dir, f));
+      const undo = () => { for (const f of [...files, answerFile]) rmSync(f, { force: true }); };
+      let child;
+      try {
+        writeFileSync(files[0], `${JSON.stringify(redraft.vet.card, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+        writeFileSync(files[1], redraft.vet.prose, { mode: 0o600, flag: 'wx' });
+        writeFileSync(files[2], `${JSON.stringify({ fromPlan: v.plan, answers: redraft.all.map((x) => ({ line: x.line, question: x.question, answer: x.answer })) })}\n`, { mode: 0o600, flag: 'wx' });
+        child = spawnDetached({
+          bin,
+          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions'],
+          env: loaded.env,
+          logPath: join(dir, `redraft-${n}.log`),
+        });
+      } catch (e) {
+        undo();
+        return { status: 500, body: { ok: false, refused: 'spawn', say: `The plan could not be drafted again (${/** @type {any} */ (e)?.code ?? 'error'}). Your answer was not kept; answer again. Nothing was spent.`, draftId: id } };
+      }
+      child.on('error', () => {});
+      writePidFile(dir, child);
+      return { status: 202, body: { ok: true, draftId: id, n, redrafting: true } };
     },
 
     /**

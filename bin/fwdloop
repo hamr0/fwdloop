@@ -45,7 +45,7 @@ import {
 } from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
-import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText } from '../src/authoring.js';
+import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
 import { userInfo } from 'node:os';
 
 // The baseline model (project rule, CLAUDE.md/AGENT_RULES: "deepseek-flash
@@ -760,6 +760,8 @@ async function cmdDraft(rest) {
     args: rest,
     options: {
       out: { type: 'string' }, root: { type: 'string' }, name: { type: 'string' }, budget: { type: 'string' },
+      // M4e amendment 24 item 4: the redraft after the human's answers never asks (the panel passes this; a plain draft may ask on try 3)
+      'no-questions': { type: 'boolean' },
     },
     allowPositionals: true,
   });
@@ -799,6 +801,7 @@ async function cmdDraft(rest) {
     root: resolve(values.root),
     name: values.name,
     budgetUsd: values.budget === undefined ? undefined : Number(values.budget),
+    noQuestions: values['no-questions'] === true,
     env,
     ...injected,
   });
@@ -814,6 +817,10 @@ async function cmdDraft(rest) {
     process.exitCode = 1;
     return;
   }
+  if (result.questions > 0) {
+    process.stdout.write('DRAFTED — NOT SIGNABLE YET: the plan raised a question. Answer it in the panel (fwdloop panel); the panel drafts again with your answers.\n');
+    return;
+  }
   process.stdout.write(`${SIGN_LINE(resolve(values.out), result.hash)}\n`);
 }
 
@@ -826,6 +833,9 @@ async function cmdSign(rest) {
   const env = keyedEnv(); // sign takes no key, but its leak sweep must know the file's keys too
   const dir = positionals[0];
   if (!dir) fail('sign: a draft dir is required — fwdloop sign <dir> --approve <hash>');
+  // M4e amendments 24/25: a plan with a question is not signed from here — the answers are taken in the panel. One check, also run again inside signDraft.
+  const openQuestion = questionsRefusal(resolve(dir));
+  if (openQuestion !== null) fail(`sign refused — ${openQuestion}`);
   // Amendment 2: a person at a keyboard. TTY check first (cheapest), then the typed flow name; only then
   // signDraft's own $0 checks (hash, wired, goals, TTL, sources, send, leak). signDraft writes only on success.
   if (!isInteractive()) fail(`sign refused — ${NEEDS_TTY}`);

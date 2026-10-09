@@ -82,6 +82,53 @@ export function parseJobBox(text) {
   return { steps, refusals };
 }
 
+/**
+ * M4e amendment 24 item 3: the submitted job box with each answer added WORD FOR WORD as a `~` line under the job line it is about, after
+ * that line's own `~` lines (several answers for one line keep their order). The job box's own lines are untouched; the card -> prose path
+ * (`cardToProse`) then writes the answer as that line's guardrail, so it reaches the signed text and the hash. Pure. An answer for a line
+ * the box does not have is NOT added (the caller sees the count).
+ * @param {string} job @param {{ line: number, answer: string }[]} answers
+ * @returns {{ job: string, added: number }}
+ */
+export function appendAnswersToJob(job, answers) {
+  const raw = String(job).split('\n');
+  /** @type {Map<number, number>} the index of the last non-empty box line that belongs to each step (its own line or a `~` under it) */
+  const lastOf = new Map();
+  let step = 0;
+  raw.forEach((l, i) => {
+    const t = l.trim();
+    if (t === '') return;
+    if (!t.startsWith('~')) step += 1;
+    if (step > 0) lastOf.set(step, i);
+  });
+  /** @type {Map<number, string[]>} */
+  const after = new Map();
+  let added = 0;
+  for (const a of answers) {
+    if (!lastOf.has(a.line)) continue;
+    const at = /** @type {number} */ (lastOf.get(a.line));
+    after.set(at, [...(after.get(at) ?? []), `~ ${a.answer}`]);
+    added += 1;
+  }
+  const out = [];
+  raw.forEach((l, i) => { out.push(l); for (const g of after.get(i) ?? []) out.push(g); });
+  return { job: out.join('\n'), added };
+}
+
+/**
+ * A job line carries ONE guardrail (the signed-text grammar is strict 1-for-1: a second `guardrail:` under a line is refused), so an answer can be
+ * added as its own `~` line only to a line with no `~` line yet, and only one answer per line. Returns the first job line where that fails, or null.
+ * @param {string} job @param {{ line: number }[]} answers
+ * @returns {number|null}
+ */
+export function answerClash(job, answers) {
+  const steps = parseJobBox(job).steps;
+  const per = new Map();
+  for (const a of answers) per.set(a.line, (per.get(a.line) ?? 0) + 1);
+  for (const [line, n] of per) if ((steps[line - 1]?.guardrails.length ?? 0) + n > 1) return line;
+  return null;
+}
+
 /** The job file lines (`N. text`, `   guardrail: text`, `N. ask <wait>: question`) for parsed steps; the wait is ALWAYS written out. @param {ReturnType<typeof parseJobBox>['steps']} steps @param {string} askWait */
 export function jobFileLines(steps, askWait) {
   /** @type {string[]} */
