@@ -2543,14 +2543,14 @@ describe('index.html — page source', () => {
     assert.equal(boxRetryTry({ tryCount: 0 }), 0);
   });
 
-  test('buildStepMapHTML: a step with server tryCount 3 renders the "try 3" retry label (am31: no SVG loop)', () => {
+  test('buildStepMapHTML: a step with server tryCount 3 renders the "↻3" retry mark (am35: dashed box, no "try" text)', () => {
     const { buildStepBoxes, buildStepMapHTML } = loadStepMapGeometry();
     const steps = buildStepBoxes([
       { emits: 'flaky-step', goal: 'g', closeClass: 'green', attempts: [{ verdict: 'red' }, { verdict: 'red' }, { verdict: 'green' }], tryCount: 3 },
     ]);
     const html = buildStepMapHTML(steps);
     assert.match(html, /data-retry="3"/, 'expected a retry mark when tryCount > 1');
-    assert.match(html, /<span class="chip-retry">try 3<\/span>/, 'expected the retry label to carry the server tryCount');
+    assert.match(html, /<span class="chip-state"><span class="chip-retry">↻3<\/span> /, 'expected the retry mark to carry the server tryCount');
   });
 
   test('buildStepMapHTML: a step with tryCount 1 (or missing) renders NO retry mark — proof the check above can fail', () => {

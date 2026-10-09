@@ -19,14 +19,14 @@ function boxes(f) {
   st.forEach((b, i) => { b.state = i < 6 ? 'done' : 'stopped'; b.n = i + 1; });
   return st;
 }
-const text = (html, cls) => [...html.matchAll(new RegExp(`<span class="${cls}">([^<]*)</span>`, 'g'))].map((m) => m[1]);
+const text = (html, cls) => [...html.matchAll(new RegExp(`<span class="${cls}">((?:[^<]|<span class="chip-retry">[^<]*</span>)*)</span>`, 'g'))].map((m) => m[1].replace(/<[^>]*>/g, ''));
 
 test('am31: each box keeps its two lines exactly as before (name from stepTitleText, then the status word); a name is never cut', () => {
   const f = load();
   const html = f.buildStepMapHTML([f.draftBox({ present: true })].concat(boxes(f)));
   // captured from the SVG renderer before the change (wide layout, nothing cut)
-  assert.deepEqual(text(html, 'chip-name'), ['drafting', '1 scout', '2 plan', '3 doc-checks', '4 doc-email', '5 doc-sink', '6 doc-run — try 2', '7 doc-audit-sweep']);
-  assert.deepEqual(text(html, 'chip-state'), ['done', 'done', 'done', 'done', 'done', 'done', 'done', 'stopped'].map((s) => f.stateWord(s)));
+  assert.deepEqual(text(html, 'chip-name'), ['drafting', '1 scout', '2 plan', '3 doc-checks', '4 doc-email', '5 doc-sink', '6 doc-run', '7 doc-audit-sweep']);
+  assert.deepEqual(text(html, 'chip-state'), ['done', 'done', 'done', 'done', 'done', 'done', '↻2 ' + f.stateWord('done'), 'stopped'].map((s) => s === 'done' || s === 'stopped' ? f.stateWord(s) : s));
   assert.doesNotMatch(html, /…/, 'no ellipsis cut');
   assert.match(f.buildStepMapHTML([f.draftBox({ present: false })]), /no draft record/);
 });
@@ -44,14 +44,29 @@ test('am31: an arrow after every box but the last (stuck to its box); a lead arr
   assert.doesNotMatch(html, /<svg|<line /, 'no SVG left');
 });
 
-test('am31: the retry mark is kept on a retried box and only there', () => {
+test('am35: a retried box is dashed, its status line starts with ↻N, and "try" appears nowhere on the map', () => {
   const f = load();
   const html = f.buildStepMapHTML(boxes(f));
   assert.equal((html.match(/data-retry="/g) || []).length, 1);
-  assert.match(html, /data-retry="2"/);
-  // today's mark is the label "try N" under the box (kept as is; bareloop's dashed border + ↻N is NOT adopted)
-  assert.deepEqual(text(html, 'chip-retry'), ['try 2']);
-  assert.doesNotMatch(html, /↻/);
+  assert.match(html, /class="map-chip s-done retry map-step"[^>]*data-retry="2"/);
+  assert.match(html, /<span class="chip-state"><span class="chip-retry">↻2<\/span> [^<]+<\/span>/);
+  assert.equal((html.match(/chip-retry/g) || []).length, 1, 'only the retried step carries ↻N');
+  assert.equal((html.match(/class="map-chip [^"]*\bretry\b/g) || []).length, 1, 'only the retried box is dashed');
+  assert.doesNotMatch(html, /\btry\b/i, 'no "try" text anywhere in the map');
+  assert.doesNotMatch(html, /<span class="chip-retry">[^↻]/);
+});
+
+test('am35: a box with one try is unchanged (no retry class, no mark, same two lines)', () => {
+  const f = load();
+  const html = f.buildStepMapHTML(boxes(f));
+  const one = html.split('<span class="map-item"')[1];
+  assert.doesNotMatch(one, /retry|↻/);
+  assert.match(one, /<span class="chip-name">1 scout<\/span><span class="chip-state">[^<↻]+<\/span><\/button>/);
+});
+
+test('am35: the page has the retry CSS and the borrowed-from header', () => {
+  assert.match(PAGE, /\.map-chip\.retry\{border-style:dashed;?\}/);
+  assert.match(PAGE, /borrowed-from: bareloop src\/panel\/index\.html@9edb3e1/);
 });
 
 test('am31: markLineStarts adds line-start to a box whose offsetTop is below the previous box, removes it otherwise', () => {

@@ -306,6 +306,7 @@
   .map-chip.s-waiting{border-color:var(--amber);} .map-chip.s-waiting .chip-state{color:#b8860b;}
   .map-chip.s-user-stopped{border-color:var(--grey-dot);} .map-chip.s-user-stopped .chip-state{color:var(--grey-dot);}
   .map-chip .chip-retry{font-size:10px;color:var(--text-faint);}
+  .map-chip.retry{border-style:dashed;}   /* borrowed-from: bareloop src/panel/index.html@9edb3e1 */
 
   .step-card{position:relative;border:1px solid var(--border);padding:10px;margin-bottom:8px;background:var(--panel2);}
   .step-card.running{border:1px double var(--amber);}
@@ -1451,13 +1452,11 @@
   // failed · attempt 2 passed · …") is a map node's single biggest source of
   // width — that level of detail belongs in the Audit tab, never on the
   // node. A node's title is just
-  // step number + name + try N + state, kept short so naturalBoxWidth stays
+  // step number + name + state, kept short so naturalBoxWidth stays
   // small and the map stays compact instead of stretching to the pane width.
   function stepTitleText(idx, s){
     if(s.draft) return "drafting";
     var base = (s.n || idx + 1) + ' ' + s.emits;
-    var tryText = tryCountText(s.tryCount, s.attempts);
-    if(tryText) base += ' — ' + tryText;
     return base;
   }
   // The declared step's own run-state (map box, card, "which step stopped and why") is the server's `groupState` (src/panel/data.js
@@ -1496,20 +1495,20 @@
   }
   // borrowed-from: bareloop src/panel/index.html@9edb3e1 (on d25e52a). The map is plain HTML + CSS (.map-chips / .map-item /
   // .map-chip): the browser wraps it, so no width arithmetic and no sideways scroll. Each box keeps its two lines — the name
-  // (stepTitleText) then the status word (stateWord) — and a retried box keeps today's "try N" label.
+  // (stepTitleText) then the status word (stateWord); a retried box (am35) is dashed and its status line starts with "↻N".
   function buildStepMapHTML(steps){
     var last = steps.length - 1;
     var body = steps.map(function(s, idx){
       var tries = boxRetryTry(s);
-      var cls = "map-chip s-" + String(s.state).replace(/[^a-z-]/g, "");
+      var cls = "map-chip s-" + String(s.state).replace(/[^a-z-]/g, "") + (tries ? " retry" : "");
       var name = escapeXml(stepTitleText(idx, s));
       var state = escapeXml(s.noRecord ? "no draft record" : stateWord(s.state));
       // hamr review #4: each box is a clickable button tagged with the step's own `emits` id — the click listener that
       // jumps to the Audit tab's matching group is wired AFTER insertion (wireMapClicks), never inline here.
       var chip = '<button type="button" class="' + cls + ' map-step" data-emits="' + escapeXml(s.emits) + '"' + (tries ? ' data-retry="' + tries + '"' : '') +
         ' title="' + name + '" aria-label="open ' + escapeXml(s.emits) + ' in Audit">' +
-        '<span class="chip-name">' + name + '</span><span class="chip-state">' + state + '</span>' +
-        (tries ? '<span class="chip-retry">try ' + tries + '</span>' : '') + '</button>';
+        '<span class="chip-name">' + name + '</span><span class="chip-state">' +
+        (tries ? '<span class="chip-retry">\u21bb' + tries + '</span> ' : '') + state + '</span></button>';
       return '<span class="map-item" role="listitem">' +
         (idx > 0 ? '<span class="map-lead" aria-hidden="true">\u2192</span>' : '') +
         chip + (idx < last ? '<span class="map-arrow" aria-hidden="true">\u2192</span>' : '') + '</span>';
