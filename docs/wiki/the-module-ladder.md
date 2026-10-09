@@ -1734,13 +1734,13 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **No guardrail at all:** only the default checks every step already has apply.
   - **Change to amendment 28's red:** it adds one sentence that says how to fix it: "line 3's check says 600 words; the guardrail has no 600. Write it in the guardrail as 'under 600 words'."
   - **Cap:** $0.
+
 - **Amendment 32 — SIGNED by hamr 2026-10-09 ("sign am32"): only what was proven stays built.**
   - **Withdrawn: amendment 30** (the "Write it in the guardrail as…" sentence). It was never tried on a real draft.
   - **Not built: amendment 28's red when the guardrail has no word number at all,** and the extra drafter sentence about leaving the limit out. Neither had a real failure behind it. Each comes back only when a real draft shows it's needed.
   - **Stays: amendment 29,** exactly as its POC proved it (10 of 10).
   - **Cap:** $0.
   - *Built after signing — not signed text:* commits 4253efd, 7d4baa2 and d8a5005 were reverted (ab975a5, 839e7ce, 424ec40); src/ and test/ equal 90c5ed4, the code the am29 POC tested.
-
 
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
