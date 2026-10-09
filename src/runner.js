@@ -51,7 +51,9 @@ import {
 import {
   writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen, setAsideAnswer,
 } from './ask.js';
-import { findUnwiredVerbStep, unwiredRed } from './canrun.js'; // M4e am7 item 7: the ONE decider (F46 refusal lives there)
+import {
+  findUnwiredVerbStep, unwiredRed, findUnbuildableCheckStep, unbuildableRed,
+} from './canrun.js'; // M4e am7 item 7: the ONE decider (F46 refusal lives there)
 import { configHome, configDoorHome } from './config.js';
 import { closeByClass } from './closers.js';
 import {
@@ -1022,6 +1024,14 @@ export async function runFlow({
     });
   }
 
+  // M4e amendment 19 4: every softgreen check is built before the first model call; one that cannot be built is refused at $0, by step name
+  const unbuildable = findUnbuildableCheckStep(declaration);
+  if (unbuildable) {
+    return haltRun({
+      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: unbuildableRed(unbuildable), spent: { value: 0 },
+    });
+  }
+
   if (primitiveReds?.length) {
     return haltRun({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: primitiveReds[0], spent: { value: 0 },
@@ -1858,6 +1868,8 @@ export async function resumeRun({
         red: unwiredRed(unwiredVerb),
       };
     }
+    const unbuildable = findUnbuildableCheckStep(preflightRead.declaration);
+    if (unbuildable) return { outcome: 'refused', red: unbuildableRed(unbuildable) };
   }
 
   if (primitiveReds?.length) return { outcome: 'refused', red: primitiveReds[0] };
@@ -2375,6 +2387,8 @@ export async function continueRun({
   if (preflightRead.ok) {
     const unwiredVerb = findUnwiredVerbStep(preflightRead.declaration);
     if (unwiredVerb) return refused(unwiredRed(unwiredVerb));
+    const unbuildable = findUnbuildableCheckStep(preflightRead.declaration);
+    if (unbuildable) return refused(unbuildableRed(unbuildable));
   }
   if (primitiveReds?.length) return refused(primitiveReds[0]);
 

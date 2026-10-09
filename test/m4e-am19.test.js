@@ -3,12 +3,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync,
+  appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync,
 } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { writeFlow } from '../src/flow.js';
+import { signFlow } from '../src/signature.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { readAudit } from '../src/books.js';
 import { sendViaPrimitive } from '../src/send.js';
@@ -134,4 +135,37 @@ test('2 "N more" never depends on the number 20: fake gaps cut at 5', () => {
   const text = Array.from({ length: 8 }, (_, i) => `l${i}`).join('\n');
   const blocks = renderSoftgreenGaps([{ check: 'blockLines', kind: 'block-missing', measured: 8, limit: 1, items: ['block 1:zz', 'block 2:zz', 'block 3:zz', 'block 4:zz', 'block 5:zz'], itemsTotal: 8 }], { linesPerInvoice: 1, mustCarry: ['zz'] }, text);
   assert.ok(blocks.reds.includes('3 more block(s) are missing a required word'), blocks.red);
+});
+
+// ---- 4 ----
+/** A flow signed BEFORE amendment 18: the same flow, its first section name ending in ':' (the sign-time check would now refuse it). */
+function oldFlowWithUnbuildableShape(tag) {
+  const w = mk(tag);
+  const declPath = path.join(w.flowDir, 'declaration.json');
+  const decl = JSON.parse(readFileSync(declPath, 'utf8'));
+  const step = decl.steps.find((x) => x.close?.shape?.sections);
+  step.close.shape.sections[0] += ':';
+  const declarationText = `${JSON.stringify(decl, null, 2)}\n`;
+  const proseText = readFileSync(path.join(w.flowDir, 'prose.txt'), 'utf8');
+  const sig = signFlow({
+    proseText, declarationText, signedBy: 'hamr', signedAt: '2026-10-06T00:00:00Z',
+  });
+  assert.equal(sig.ok, true);
+  writeFileSync(declPath, declarationText);
+  writeFileSync(path.join(w.flowDir, 'signature.json'), `${JSON.stringify(sig.signature, null, 2)}\n`);
+  w.badStep = step.emits;
+  return w;
+}
+test('4 a pre-am18 flow with an unbuildable check is refused at $0 by step name: no model call, no spend, never green', async () => {
+  const w = oldFlowWithUnbuildableShape('4');
+  try {
+    const before = modelCalls;
+    const r = await runFlow({ ...args(w), sources: w.sources });
+    assert.equal(modelCalls, before, 'no model call');
+    assert.equal(r.outcome, 'preflight-red', JSON.stringify(r).slice(0, 300));
+    assert.ok(r.red.includes(`"${w.badStep}"`), `names the step: ${r.red}`);
+    assert.match(r.red, /cannot be built/);
+    assert.equal(readAudit(w.runDir).some((x) => x.verdict === 'green'), false);
+    assert.equal(existsSync(path.join(w.runDir, 'spend.jsonl')), false, 'nothing spent');
+  } finally { rmSync(w.base, { recursive: true, force: true }); }
 });
