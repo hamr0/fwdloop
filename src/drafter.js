@@ -33,7 +33,7 @@ export const DRAFT_SKILLS = Object.freeze(['core']);
 export const CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
 
 const SHAPE_PROPS = Object.freeze({
-  maxWords: { type: 'integer', minimum: 1, description: "the whole output's word ceiling" },
+  maxWords: { type: 'integer', minimum: 1, description: "the whole output's word ceiling; if a guardrail names more than one word limit, use the smallest" },
   sections: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 }, description: 'required section headings, in order' },
   linesPerInvoice: { type: 'integer', minimum: 1, description: 'lines the output must carry per invoice' },
   mustCarry: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 }, description: 'named fields every line must carry' },
@@ -123,7 +123,7 @@ export const MAX_QUESTIONS = 2;
 export const CHECKABLE = Object.freeze([
   'green: a figure cites its source cell or formula',
   'softgreen: the output carries named section headings (sections), in order',
-  'softgreen: a word ceiling for the whole output (maxWords) and per section (wordsPerSection)',
+  'softgreen: a word ceiling for the whole output (maxWords; if a guardrail names different ceilings, the smallest) and per section (wordsPerSection)',
   'softgreen: a line count per invoice (linesPerInvoice) and fields every line must carry (mustCarry)',
   'hitl: a human accepts or reviews at a signed ask — the machine checks only that the step happened',
 ]);
