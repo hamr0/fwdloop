@@ -443,12 +443,13 @@
      a native <details> whose <summary> is one short muted line in the plan colour; open, it shows reads / makes / may do / check. */
   .job-line{margin-bottom:6px;}
   .plan-fold{margin:0 0 0 20px;min-width:0;overflow-wrap:anywhere;}
-  .plan-sum{color:var(--plan);cursor:pointer;list-style:none;padding:3px 0;font-size:12px;font-weight:700;}
+  .plan-sum{color:var(--text);cursor:pointer;list-style:none;padding:3px 0;font-size:12px;}
   .plan-sum::-webkit-details-marker{display:none;}
-  .plan-sum::before{content:"› ";}
+  .plan-sum::before{content:"› ";color:var(--plan);font-weight:700;}
   .plan-fold[open] > .plan-sum::before{content:"⌄ ";}
-  .plan-legend{color:var(--plan);font-size:12px;margin-top:12px;overflow-wrap:anywhere;}
-  .plan-fold .plan-head,.plan-fold .plan-row{color:var(--plan);}
+  .plan-legend{color:var(--text-dim);font-size:12px;margin-top:12px;overflow-wrap:anywhere;}
+  .plan-legend .plan-mark{color:var(--plan);font-weight:700;}
+  .plan-fold .plan-head,.plan-fold .plan-row{color:var(--text-dim);}
   .plan-fold .plan-head{font-weight:400;}
   .plan-fold .plan-row{padding-left:12px;}
   #details-plan-tail .plan-head{margin:8px 0 4px;font-weight:700;color:var(--text);}
@@ -1059,7 +1060,7 @@
               <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap">—</div></div>
               <div class="field"><label>Source</label><div id="details-sources"></div></div>
               <div class="field"><label>Signed</label><div class="ro-value" id="details-signature">—</div></div>
-              <div class="plan-legend" data-testid="plan-legend">› blue lines = the approved plan (what the agent does for each of your lines).</div>
+              <div class="plan-legend" data-testid="plan-legend"><span class="plan-mark">›</span> = the approved plan</div>
             </div>
           </div>
         </section>

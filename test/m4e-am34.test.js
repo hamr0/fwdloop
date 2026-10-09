@@ -89,7 +89,7 @@ test('the page (am37): one column, no side-by-side grid, no two block headings; 
   assert.match(PAGE, /createElement\("summary"\)/);
   const tokens = PAGE.match(/--plan:#[0-9a-fA-F]{3,8}/g) || [];
   assert.ok(tokens.length >= 3, `--plan must be defined for dark, light (media) and light (attr): ${tokens}`);
-  assert.match(PAGE, /\.plan-sum\{[^}]*color:var\(--plan\)/);
+  assert.match(PAGE, /\.plan-sum::before\{[^}]*color:var\(--plan\)/); // am39: only the marker carries the plan colour
 });
 
 // ---- the renderer, run against a tiny fake DOM (the real layout is the browser walk) ----
