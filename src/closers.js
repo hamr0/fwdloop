@@ -268,7 +268,7 @@ export function softgreenSpec(shape) {
   return { schema: 1, goal: 'softgreen', checkpoints: { close: { gating: true, checks } } };
 }
 
-/** Throws bareguard's `invalid rubric: ...` for a shape it cannot build. @param {Record<string, any>} shape */
+/** Throws bareguard's `invalid rubric: ...` for a shape it cannot build. @param {Record<string, any>} shape @returns {ReturnType<typeof createRubric>} */
 export function buildSoftgreenRubric(shape) {
   return createRubric(softgreenSpec(shape));
 }
