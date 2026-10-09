@@ -11,6 +11,7 @@ import { lstatSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scrub } from './authoring.js';
+import { notCheckedBlock } from './checked.js';
 import { readDraftSpend } from './draftspend.js';
 import { readFileInside, readdirInside } from './flow.js';
 import { readSpendRows } from './provider.js';
@@ -81,8 +82,11 @@ export function buildSetupRows({
     const r = planRow(planDir, '.', 'draft', 0);
     rows.push(r);
   }
+  // M4e amendment 36: the drafter's own "Not checked" list (the green plan folder's not-checked.json), kept word for word with its label. Not signed,
+  // not in any hash. An unreadable or missing file is an empty list (a plan from before amendment 25 has none).
+  const notChecked = notCheckedBlock(readJson(planDir, 'not-checked.json')?.notChecked);
   rows.push({
-    kind: 'sign', n: 0, at: signedAt, signedBy, hash, flowHash: flowHash ?? null,
+    kind: 'sign', n: 0, at: signedAt, signedBy, hash, flowHash: flowHash ?? null, notChecked,
   });
   return rows;
 }
