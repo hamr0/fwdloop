@@ -1742,6 +1742,13 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Cap:** $0.
   - *Built after signing — not signed text:* commits 4253efd, 7d4baa2 and d8a5005 were reverted (ab975a5, 839e7ce, 424ec40); src/ and test/ equal 90c5ed4, the code the am29 POC tested.
 
+- **Amendment 33 — SIGNED by hamr 2026-10-09 ("sign am33"): reasonable unless a guardrail says otherwise.**
+  - **Rule (hamr 2026-10-09):** only what a guardrail names is checked strictly. Form nobody specified (a number in front of a heading, capital letters, a trailing ":") passes. Example: "starts with GT" in a guardrail checks how it starts; "6 digits" checks only the length.
+  - **Now:** a heading with a list number in front ("## 1. Work History") matches its section ("Work history"). It comes from bareguard's next release and is adopted by a version bump.
+  - **Evidence:** live walk am29-walk-1 run-1, 2026-10-09, $0.037. Try 3's only red was the numbering.
+  - **Done when:** the same job runs again live and reaches your ask.
+  - **Cap:** $0.25.
+
 **Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
