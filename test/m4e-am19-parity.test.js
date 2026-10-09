@@ -45,17 +45,17 @@ const TAILS = {
   "over20 sectionWords | 25 sections all too short": { tails: ["5 more section(s) are outside the range"], dropped: 5 },
   "over20 sectionWords | 25 sections, 22 too long": { tails: ["2 more section(s) are outside the range"], dropped: 2 },
   "over20 sectionWords | 25 sections, 21 too short": { tails: ["1 more section(s) are outside the range"], dropped: 1 },
-  "over20 blockLines | 25 blocks each missing 2 words": { tails: ["15 more block(s) are missing a required word"], dropped: 30 },
-  "over20 blockLines | 25 blocks, each missing 1 word": { tails: ["5 more block(s) are missing a required word"], dropped: 5 },
-  "over20 blockLines | 30 blocks, mixed 0/1/2 missing": { tails: ["6 more block(s) are missing a required word"], dropped: 10 },
-  "over20 blockLines | 11 blocks both missing (22 items, cut)": { tails: ["1 more block(s) are missing a required word"], dropped: 2 },
-  "over20 blockLines | 25 blocks missing + not multiple (size 2)": { tails: ["16 more block(s) are missing a required word"], dropped: 32 },
-  "mixed shape over20 | 25 sections all red in every check": { tails: ["30 more block(s) are missing a required word", "5 more section(s) are outside the range"], dropped: 35 },
+  "over20 blockLines | 25 blocks each missing 2 words": { tails: ["30 more missing word(s)"], dropped: 30 },
+  "over20 blockLines | 25 blocks, each missing 1 word": { tails: ["5 more missing word(s)"], dropped: 5 },
+  "over20 blockLines | 30 blocks, mixed 0/1/2 missing": { tails: ["10 more missing word(s)"], dropped: 10 },
+  "over20 blockLines | 11 blocks both missing (22 items, cut)": { tails: ["2 more missing word(s)"], dropped: 2 },
+  "over20 blockLines | 25 blocks missing + not multiple (size 2)": { tails: ["32 more missing word(s)"], dropped: 32 },
+  "mixed shape over20 | 25 sections all red in every check": { tails: ["30 more missing word(s)", "5 more section(s) are outside the range"], dropped: 35 },
   "mixed shape over20 | no headings, long text": { tails: ["5 more section(s) are missing or out of order"], dropped: 5 },
 };
 const EXTRA_KEYS_ID = 'over20 extra keys | 25 extra keys';
 
-const isTail = (r) => /^\d+ more (section|block)\(s\) /.test(r);
+const isTail = (r) => /^\d+ more (section\(s\) |missing word\(s\)$)/.test(r);
 
 test('am19 parity: the big table covers exactly the cases defined, ids unique', () => {
   assert.equal(FROZEN_BIG.length, bigCases.length);

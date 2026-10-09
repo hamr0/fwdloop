@@ -274,19 +274,6 @@ export function buildSoftgreenRubric(shape) {
 
 const partAfter = (item) => item.slice(item.indexOf(':') + 1);
 
-/** How many blocks of `text` lack at least one `mustCarry` word (bareguard's own block rule: non-empty lines, case-insensitive substring). */
-function blocksMissingWords(text, shape) {
-  const size = shape.linesPerInvoice ?? 1;
-  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '');
-  const words = (shape.mustCarry ?? []).map((p) => p.toLowerCase());
-  let n = 0;
-  for (let i = 0; i < lines.length; i += size) {
-    const block = lines.slice(i, i + size).join(' ').toLowerCase();
-    if (words.some((p) => !block.includes(p))) n += 1;
-  }
-  return n;
-}
-
 /**
  * The ONE render function (amendment 18 item 4A): bareguard's typed gaps in, fwdloop's plain-English sentences out, byte for byte
  * what the hand-written checks said before the switch (test/m4e-am18-parity.test.js proves it on 142 inputs); past bareguard's own
@@ -296,10 +283,9 @@ function blocksMissingWords(text, shape) {
  *
  * @param {any[]} gaps
  * @param {{ linesPerInvoice?: number, mustCarry?: string[] }} shape
- * @param {string} [text] the answer's text: only to count the blocks a cut block list hides
  * @returns {{ red: string, reds: string[] }}
  */
-export function renderSoftgreenGaps(gaps, shape, text = '') {
+export function renderSoftgreenGaps(gaps, shape) {
   const extra = gaps.find((g) => g.check === 'allowedKeys');
   if (extra) {
     // The answer sits in the wrong place: nothing else is judged until it is in "text".
@@ -335,11 +321,9 @@ export function renderSoftgreenGaps(gaps, shape, text = '') {
         const block = Number(/^block (\d+):/.exec(it)?.[1]);
         reds.push(`invoice block starting at line ${(block - 1) * (shape.linesPerInvoice ?? 1) + 1} is missing "${partAfter(it)}"`);
       }
-      // bareguard lists (block, word) misses; the sentence counts BLOCKS, so the hidden ones are counted from the text
-      if (g.itemsTotal && g.itemsTotal > (g.items?.length ?? 0)) {
-        const more = blocksMissingWords(text, shape) - new Set((g.items ?? []).map((it) => /^block (\d+):/.exec(it)?.[1])).size;
-        if (more > 0) reds.push(`${more} more block(s) are missing a required word`);
-      }
+      // bareguard lists (block, word) misses and bounds the list; the tail counts the missing words it left out (amendment 20)
+      const moreWords = (g.itemsTotal ?? 0) - (g.items?.length ?? 0);
+      if (moreWords > 0) reds.push(`${moreWords} more missing word(s)`);
     } else {
       reds.push(`the ${g.check} check failed (${g.kind ?? 'no detail'})`);
     }
@@ -380,7 +364,7 @@ export async function closeSoftgreen(artifact, shape) {
     if (res.verdict === 'stopped') {
       return { verdict: 'crash', red: `softgreen close crashed: the ${res.fault.id} check stopped (${res.fault.kind}${res.fault.detail ? `: ${res.fault.detail}` : ''})` };
     }
-    if (res.verdict === 'red') return { verdict: 'red', ...renderSoftgreenGaps(res.gaps, shape, text) };
+    if (res.verdict === 'red') return { verdict: 'red', ...renderSoftgreenGaps(res.gaps, shape) };
     return { verdict: 'green', red: null, reds: [] };
   } catch (err) {
     return { verdict: 'crash', red: `softgreen close crashed: ${err.message}` };

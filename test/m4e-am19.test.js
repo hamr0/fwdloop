@@ -107,34 +107,33 @@ test('3 a lost ask file (2 paused rows, 1 ask): the Runs label, the Ask tab and 
 
 // ---- 2 ----
 import { closeSoftgreen, renderSoftgreenGaps } from '../src/closers.js';
-test('2 25 blocks each missing 2 words reads "15 more block(s)" (10 shown), not 30', async () => {
+test('2 (amendment 20) 25 blocks each missing 2 words reads "30 more missing word(s)", not a block count', async () => {
   const text = Array.from({ length: 25 }, (_, i) => `line${i}`).join('\n');
   const v = await closeSoftgreen({ text }, { linesPerInvoice: 1, mustCarry: ['zz', 'yy'] });
   assert.equal(v.verdict, 'red');
-  assert.ok(v.reds.includes('15 more block(s) are missing a required word'), v.red);
+  assert.ok(v.reds.includes('30 more missing word(s)'), v.red);
 });
-test('2 a block missing only one word still counts once; blocks that carry everything are not counted', async () => {
+test('2 (amendment 20) the tail counts missing words: shown + more = all of them, whatever the blocks', async () => {
   const lines = [];
   for (let i = 0; i < 30; i++) lines.push(i % 3 === 0 ? 'zz yy ok' : i % 3 === 1 ? 'zz only' : 'neither');
   const v = await closeSoftgreen({ text: lines.join('\n') }, { linesPerInvoice: 1, mustCarry: ['zz', 'yy'] });
   // missing blocks: i%3==1 (10 blocks, 1 word) and i%3==2 (10 blocks, 2 words) = 20 blocks, 30 words; 20 are shown (10 blocks)... 
-  const m = /(\d+) more block\(s\)/.exec(v.red);
-  const shown = new Set([...v.red.matchAll(/starting at line (\d+)/g)].map((x) => x[1])).size;
-  assert.equal(Number(m[1]) + shown, 20, v.red);
+  const m = /(\d+) more missing word\(s\)/.exec(v.red);
+  const shown = [...v.red.matchAll(/ is missing "/g)].length;
+  assert.equal(Number(m[1]) + shown, 30, v.red);
 });
 test('2 "N more" never depends on the number 20: fake gaps cut at 5', () => {
-  const sec = renderSoftgreenGaps([{ check: 'sectionOrder', items: ['missing:a', 'missing:b', 'missing:c', 'missing:d', 'missing:e'], itemsTotal: 8 }], {}, '');
+  const sec = renderSoftgreenGaps([{ check: 'sectionOrder', items: ['missing:a', 'missing:b', 'missing:c', 'missing:d', 'missing:e'], itemsTotal: 8 }], {});
   assert.ok(sec.reds.includes('3 more section(s) are missing or out of order'), sec.red);
   const gaps = Array.from({ length: 5 }, (_, i) => ({
     check: 'sectionWords', section: `s${i}`, words: 1, asked: 10, lo: 8, hi: 12, itemsTotal: 9,
   }));
-  assert.ok(renderSoftgreenGaps(gaps, {}, '').reds.includes('4 more section(s) are outside the range'));
-  assert.ok(!renderSoftgreenGaps(gaps.slice(0, 2).map((g) => ({ ...g, itemsTotal: undefined })), {}, '').red.includes('more'), 'no itemsTotal = nothing more');
-  const keys = renderSoftgreenGaps([{ check: 'allowedKeys', keys: ['a', 'b', 'c', 'd', 'e'], itemsTotal: 7 }], {}, '');
+  assert.ok(renderSoftgreenGaps(gaps, {}).reds.includes('4 more section(s) are outside the range'));
+  assert.ok(!renderSoftgreenGaps(gaps.slice(0, 2).map((g) => ({ ...g, itemsTotal: undefined })), {}).red.includes('more'), 'no itemsTotal = nothing more');
+  const keys = renderSoftgreenGaps([{ check: 'allowedKeys', keys: ['a', 'b', 'c', 'd', 'e'], itemsTotal: 7 }], {});
   assert.match(keys.red, /and 2 more/);
-  const text = Array.from({ length: 8 }, (_, i) => `l${i}`).join('\n');
-  const blocks = renderSoftgreenGaps([{ check: 'blockLines', kind: 'block-missing', measured: 8, limit: 1, items: ['block 1:zz', 'block 2:zz', 'block 3:zz', 'block 4:zz', 'block 5:zz'], itemsTotal: 8 }], { linesPerInvoice: 1, mustCarry: ['zz'] }, text);
-  assert.ok(blocks.reds.includes('3 more block(s) are missing a required word'), blocks.red);
+  const blocks = renderSoftgreenGaps([{ check: 'blockLines', kind: 'block-missing', measured: 8, limit: 1, items: ['block 1:zz', 'block 2:zz', 'block 3:zz', 'block 4:zz', 'block 5:zz'], itemsTotal: 8 }], { linesPerInvoice: 1, mustCarry: ['zz'] });
+  assert.ok(blocks.reds.includes('3 more missing word(s)'), blocks.red);
 });
 
 // ---- 4 ----
