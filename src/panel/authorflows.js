@@ -2,9 +2,8 @@
 // RUN-A-SIGNED-FLOW door of the panel's backend — `GET /api/author/flows` and `POST /api/author/run`. No spawn of its own: a
 // run starts only through `authorstart.js`'s one `start`. Reads the disk; writes nothing.
 //
-//   flows()   only flows whose `readFlow` passes (a missing, unsigned or tampered flow is never listed). One that `canFlowRun` refuses
-//             (the one function shared with the run's own preflight: an unwired verb, a check that cannot be built) is listed
-//             `refused: true` with `say`, Run again's sentence (amendment 21 item 1); any other needs at least one
+//   flows()   only flows whose `readFlow` passes (a missing, unsigned or tampered flow is never listed), that `canFlowRun` accepts
+//             (the one function shared with the run's own preflight: an unwired verb is not listed; amendment 22) and that have at least one
 //             passed run (amendment 7 item 7; Run again reaches the rest), each with its signed
 //             cap, its declared source roles, the source paths the NEWEST run of that flow used (its `inputs.json`
 //             manifest `source` field; blank when none) and what is left this month (a courtesy: the CLI's own monthly
@@ -229,12 +228,7 @@ export function createFlowsDoor(opts) {
       const flows = [];
       for (const name of listFlowNames(realRoot)) {
         const read = readSigned(realRoot, name);
-        if (!read.ok) continue;   // a missing, unsigned or tampered flow is never listed
-        const can = canFlowRun(read);
-        if (!can.ok) {   // amendment 21 item 1: no flow vanishes; it is listed refused, with the sentence Run again gives
-          flows.push({ flow: name, refused: true, say: willNotRunSay(name, scrub(String(can.red), providerKeys(loadEnv().env))) });
-          continue;
-        }
+        if (!canFlowRun(read).ok) continue;   // a refused flow (unreadable, unwired verb, unbuildable check) is never listed
         const entry = entryFor(realRoot, name, read, left);
         if (entry.runs.length === 0) continue;   // amendment 7 item 7: only a flow with a passed run is listed
         flows.push(entry);
