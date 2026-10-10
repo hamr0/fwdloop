@@ -1608,15 +1608,19 @@ export function getRunAudit({ root, flow, runId }) {
  */
 function buildJobPlan(declaration, asks, flowDir) {
   const lines = checkedLines(declaration, { hasAsk: asks.length > 0 });
-  const steps = (Array.isArray(declaration?.steps) ? declaration.steps : []).map((st, i) => {
+  const declSteps = Array.isArray(declaration?.steps) ? declaration.steps : [];
+  // am41 item 2: a step after the LAST ask has nothing left to "check at the ask": the human's part is the accept that lets it go.
+  const lastAsk = declSteps.reduce((m, st, i) => (asks.some((x) => x.line === st.fromLine) ? i : m), -1);
+  const steps = declSteps.map((st, i) => {
     const ak = asks.find((x) => x.line === st.fromLine);
+    const afterAsk = lastAsk !== -1 && i > lastAsk && lines[i].class !== 'green' && lines[i].class !== 'softgreen';
     return {
       step: i + 1,
       line: Number.isInteger(st.fromLine) ? st.fromLine : null,
       reads: Array.isArray(st.reads) ? st.reads : [],
       makes: typeof st.emits === 'string' ? st.emits : null,
       mayDo: Array.isArray(st.primitives) ? st.primitives : [],
-      check: lines[i].sentences,
+      check: afterAsk ? ['No machine check of the content; you check it after you accept.'] : lines[i].sentences,
       checkClass: lines[i].class,
       ask: !!ak,
       waitMs: ak && typeof ak.ttlMs === 'number' ? ak.ttlMs : null,

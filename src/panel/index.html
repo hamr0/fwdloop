@@ -2755,7 +2755,11 @@
     var sends = (job.sends || []).filter(function(sd){ return sd.line === st.line; });
     var writes = (st.mayDo || []).some(function(p){ return p === "write" || p === "send"; });
     if(writes && sends.length) out += " → " + (sends[0].target || "unknown");
-    return head + out + " · " + (st.checkClass === "green" || st.checkClass === "softgreen" ? "machine check" : "you check");
+    if(st.checkClass === "green" || st.checkClass === "softgreen") return head + out + " · machine check";
+    // am41 item 2: after the last ask step the human's part is the accept, not a check.
+    var lastAsk = 0;
+    ((job.plan && job.plan.steps) || []).forEach(function(p){ if(p.ask && p.step > lastAsk) lastAsk = p.step; });
+    return head + out + " · " + (lastAsk > 0 && st.step > lastAsk ? "after you accept" : "you check");
   }
   function jobStepFold(st, job){
     var fold = document.createElement("details");

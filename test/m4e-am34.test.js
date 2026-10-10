@@ -42,7 +42,8 @@ test('the plan has one row per step: from line, reads, makes, may do, and the ch
     assert.equal(s.line, x.decl.steps[i].fromLine);
     assert.deepEqual(s.reads, x.decl.steps[i].reads);
     assert.equal(s.makes, x.decl.steps[i].emits);
-    assert.deepEqual(s.check, checked[i].sentences, 'the check is checkedLines, not new wording');
+    const afterAsk = i > plan.steps.findIndex((x) => x.ask) && checked[i].class === 'hitl'; // am41 item 2 rewords only these
+    if (!afterAsk) assert.deepEqual(s.check, checked[i].sentences, 'the check is checkedLines, not new wording');
     assert.equal(s.checkClass, checked[i].class, 'the typed close class rides along so the page never reads prose');
   });
   assert.deepEqual(plan.steps[0].mayDo, ['readDocx']);
@@ -155,6 +156,23 @@ test('the summary text: "step N · <may do> → <makes> · machine check | you c
   assert.equal(l[0].children[1].children[0].textContent, 'step 1 · readDocx → resume-text · you check');
   assert.equal(l[2].children[2].children[0].textContent, 'step 2 · read → resume-summary · machine check');
   assert.equal(l[2].children[3].children[0].textContent, 'step 3 · → summaryResume · machine check');
+});
+
+test('am41 item 2: a step after the last ask says "after you accept", not "you check"; a step before the ask still says "you check"', () => {
+  const plan = { ...PLAN, steps: [...PLAN.steps, { step: 5, line: 5, reads: ['approved'], makes: 'sent', mayDo: ['write'], check: ['c'], checkClass: 'hitl', ask: false, waitMs: null }] };
+  const l = lineEls(render({ ...JOB, prose: [...JOB.prose, { line: 5, text: 'e' }], plan }));
+  assert.equal(l[4].children[1].children[0].textContent, 'step 5 · write → sent · after you accept');
+  assert.equal(l[0].children[1].children[0].textContent, 'step 1 · readDocx → resume-text · you check');
+  assert.equal(l[2].children[2].children[0].textContent, 'step 2 · read → resume-summary · machine check');
+});
+
+test('am41 item 2: the plan data words a hitl step after the last ask as "after you accept" in its check row too', () => {
+  const { plan } = world([SIGN([])]).job();
+  const askAt = plan.steps.findIndex((s) => s.ask);
+  const after = plan.steps.filter((s, i) => i > askAt && s.checkClass === 'hitl');
+  assert.ok(after.length > 0, 'fixture has a hitl step after the ask');
+  after.forEach((s) => { assert.deepEqual(s.check, ['No machine check of the content; you check it after you accept.']); });
+  plan.steps.filter((s, i) => i < askAt && s.checkClass === 'hitl').forEach((s) => assert.match(s.check[0], /at the ask/));
 });
 
 test('the ask step\'s summary reads "step N · ASK · waits <wait>" in plain units', () => {
