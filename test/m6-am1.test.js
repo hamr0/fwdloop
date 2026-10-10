@@ -3,11 +3,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import {
+  existsSync, readFileSync, readdirSync, statSync, writeFileSync,
+} from 'node:fs';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import { loadCatalogue } from '../src/catalogue.js';
+import { getRunControls } from '../src/panel/data.js';
 import { readFlow } from '../src/flow.js';
+import { isFwdloopAlive, procStartOf } from '../src/liveness.js';
 import { killChildrenAfter, until, world } from './m4e-world.mjs';
 
 killChildrenAfter();
@@ -62,4 +68,35 @@ test('(3) sign with replaces while a run waits is refused with the same sentence
   assert.equal(s.json().say, 'finish or stop run-1 first');
   assert.equal(readFlow({ root: w.root, name: 'job2', catalogue: CAT }).signature.flow, hashBefore);
   assert.deepEqual(snapshot(flowDir), snap, 'nothing written');
+});
+
+// F1 (review): once the human has answered, ask.json stays on disk. A run working on that answer is running: Stop shows, edit is refused.
+const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'fwdloop');
+async function liveFwdloop(w) {
+  const c = spawn(process.execPath, [BIN, 'panel', '--root', path.join(w.work, 'livepanel'), '--port', '0'], { stdio: 'ignore' });
+  await until(() => { const s = procStartOf(c.pid); return s !== null && isFwdloopAlive(c.pid) === true; });
+  return c;
+}
+
+test('(F1) a run working on your answer (ask.json stays, a live pid) can be stopped, blocks edit, and a sign with replaces gets 409 run-live', async () => {
+  const { w, flowDir } = await signedWorld();
+  const entry = await flowEntry(w);
+  const d = await w.post('/api/author/draft', editCard(w, entry, { capUsd: '0.30' }));
+  const id = d.json().draftId;
+  const g = await phaseOf(w, id, ['green']);
+  await parkRun(w);
+  const runDir = path.join(flowDir, 'runs', 'run-1');
+  const ask = JSON.parse(readFileSync(path.join(runDir, 'ask.json'), 'utf8'));
+  writeFileSync(path.join(runDir, `answer.${ask.askId}.consumed.json`), JSON.stringify({ askId: ask.askId, decision: 'redo', reason: 'x' }));
+  const live = await liveFwdloop(w);
+  try {
+    writeFileSync(path.join(runDir, 'pids.jsonl'), `${JSON.stringify({ pid: live.pid, startedAt: new Date().toISOString(), procStart: procStartOf(live.pid), leg: 'resume' })}\n`);
+    assert.equal(existsSync(path.join(runDir, 'ask.json')), true);
+    const c = getRunControls({ root: w.root, flow: 'job2', runId: 'run-1', catalogue: CAT });
+    assert.equal(c.canStop, true, JSON.stringify(c));
+    assert.deepEqual((await flowEntry(w)).edit, { ok: false, say: 'finish or stop run-1 first' });
+    const s = await w.post(`/api/author/${id}/sign`, { hash: g.hash });
+    assert.equal(s.status, 409, s.text);
+    assert.equal(s.json().refused, 'run-live');
+  } finally { live.kill('SIGKILL'); }
 });

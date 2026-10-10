@@ -985,7 +985,9 @@ const isRunningNow = (ctx, glyph) => !ctx.historyRow && glyph === '[▶]';
  * @returns {{canStop: boolean, atAsk: boolean, stopRequested: boolean, starting: boolean, canResume: boolean, resumeOutcome: string|null, spentUsd: number|null, spendComplete: boolean|null, capUsd: number|null}}
  */
 export function runControls(ctx, glyph, label = '') {
-  const running = isRunningNow(ctx, glyph) && !ctx.askJson;
+  // M6 F1: ask.json stays on disk once the human has answered, so it blocks `running` only while the ask is unanswered
+  // (`[▶]` with an ask is only ever "working on your answer": a saved answer, or a consumed one with a live process).
+  const running = isRunningNow(ctx, glyph) && (!ctx.askJson || ctx.consumedAnswerExists || ctx.resume?.state === 'not-started');
   // M4e amendment 13: a run waiting at its ask (open, unanswered, not expired) shows Stop too; it stops the run at the ask.
   const atAsk = !ctx.historyRow && !!ctx.askJson && glyph === '[·]' && label === WAITING_LABEL;
   const starting = !ctx.historyRow && !ctx.askJson && readPidRows(ctx.runDir).length === 0;
