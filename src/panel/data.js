@@ -2232,7 +2232,7 @@ export function getRunAsks({
  * force-`false` here as a second, independent check (belt-and-braces on the
  * one thing the brief calls out by name: "the Inbox tab's open count counts
  * only truly open asks — parked run, no history row, unexpired, unanswered").
- * @param {{root: string, resumeAttempt?: (flow: string, runId: string) => any}} opts
+ * @param {{root: string, resumeAttempt?: (flow: string, runId: string) => any, catalogue?: any}} opts
  * @returns {any[]}
  */
 export function listStops({ root, resumeAttempt, catalogue }) {
