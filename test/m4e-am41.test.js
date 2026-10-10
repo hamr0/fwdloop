@@ -104,6 +104,31 @@ test('item 7: stepsFor gives a failed step the plain sentences as details and th
   assert.deepEqual(f.details, [plain(KINDS[2]).say]);
   assert.deepEqual(f.raw, [KINDS[2]]);
   const rp = fnSrc('renderProgress');
-  assert.match(rp, /<details class="step-raw"><summary>details<\/summary>/);
+  assert.match(rp, /<details class="step-raw" data-fold=.*<summary>details<\/summary>/);
   assert.match(rp, /escapeXml\(raw\[/);
+});
+
+// am41 item 7 fix: an opened "details" fold stays open across the poll re-render until the person closes it.
+function progressHarness(openMap) {
+  const row = { _h: '', writes: 0, hidden: false, get innerHTML() { return this._h; }, set innerHTML(v) { this.writes++; this._h = v; } };
+  const mk = new Function('progressRow', 'openMap', `var progressHtml = ""; var progressOpen = openMap;\n${fn('escapeXml')}\n${fnSrc('renderProgress')}\nreturn renderProgress;`);
+  return { row, render: mk(row, openMap) };
+}
+const STEPS = [{ id: 'plan', label: 'Plan check', status: 'failed', details: ['one plain sentence'], raw: ['raw checker text'] }];
+
+test('item 7 fold: an identical poll re-render does not rewrite the list (a rewrite snaps an opened fold shut)', () => {
+  const { row, render } = progressHarness({});
+  assert.equal(render(STEPS), true);
+  const w = row.writes;
+  assert.equal(render(STEPS), false);
+  assert.equal(row.writes, w, 'second identical render must not touch innerHTML');
+});
+
+test('item 7 fold: when the list does change, a fold the person opened is drawn open again; one never opened stays shut', () => {
+  const { row, render } = progressHarness({ 'plan:0': true });
+  render(STEPS);
+  assert.match(row.innerHTML, /<details class="step-raw" data-fold="plan:0" open>/);
+  const { row: row2, render: render2 } = progressHarness({});
+  render2(STEPS);
+  assert.doesNotMatch(row2.innerHTML, /open>/);
 });

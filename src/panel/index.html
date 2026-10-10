@@ -4427,21 +4427,32 @@
     // ---- render: the progress list, the readout and the one main button ----
     // Returns true when the list's content actually changed (a new line, or the latest line changed) so the caller can scroll only
     // then; an identical poll tick returns false and leaves the person's scroll position alone.
+    // A fold the person opened stays open: the list is rewritten only when its markup changed, and a rewrite draws each fold open again
+    // from progressOpen (keyed step id : detail index, set by the toggle listener) until the person closes it.
+    var progressHtml = "";
+    var progressOpen = {};
+    progressRow.addEventListener("toggle", function(e){
+      var key = e.target && e.target.getAttribute ? e.target.getAttribute("data-fold") : null;
+      if(key) progressOpen[key] = e.target.open === true;
+    }, true);
     function renderProgress(steps){
-      var before = progressRow.innerHTML;
       progressRow.hidden = steps.length === 0;
-      progressRow.innerHTML = steps.map(function(st){
+      var html = steps.map(function(st){
         var cls = st.status === "waiting" ? "wait" : (st.status === "running" ? "run" : (st.status === "failed" ? "bad" : "ok"));
         var sign = cls === "ok" ? "✓" : (cls === "bad" ? "✗" : "");
         return '<li class="step ' + cls + '" data-step="' + escapeXml(st.id) + '"><div class="step-line"><span class="step-label">' + escapeXml(st.label) + '</span>' +
           '<span class="step-sign">' + sign + '</span></div>' +
           (st.details || []).map(function(d, k){
             var raw = st.raw || [];
-            var fold = typeof raw[k] === "string" && raw[k] !== "" ? '<details class="step-raw"><summary>details</summary>' + escapeXml(raw[k]) + '</details>' : "";
+            var key = st.id + ":" + k;
+            var fold = typeof raw[k] === "string" && raw[k] !== "" ? '<details class="step-raw" data-fold="' + escapeXml(key) + '"' + (progressOpen[key] ? " open" : "") + '><summary>details</summary>' + escapeXml(raw[k]) + '</details>' : "";
             return '<div class="step-detail">' + escapeXml("> " + d) + fold + '</div>';
           }).join("") + '</li>';
       }).join("");
-      return progressRow.innerHTML !== before;
+      if(html === progressHtml) return false;
+      progressHtml = html;
+      progressRow.innerHTML = html;
+      return true;
     }
     // the plan the human is about to sign: the drafter's readout and the hash; nothing else goes in the thread
     var threadKey = "";
@@ -4553,7 +4564,7 @@
       threadKey = ""; thread.innerHTML = "";
       renderQuestion(null); renderExtras(null);
       errEl.textContent = "";
-      progressRow.hidden = true; progressRow.innerHTML = "";
+      progressRow.hidden = true; progressRow.innerHTML = ""; progressHtml = "";
       refreshStartEnabled();
     }
     function openNewCard(){
@@ -4566,7 +4577,7 @@
       sessionId = null; sessionLive = false; lastState = null; signInfo = null; signClickedOnce = false; busy = false; reviseOpen = false;
       stopPoll();
       progressRow.hidden = true;
-      progressRow.innerHTML = "";
+      progressRow.innerHTML = ""; progressHtml = "";
       refreshStartEnabled();
     }
     // back to a fresh empty card: every box, the inputs, the progress list, the ask box
@@ -4645,7 +4656,7 @@
           window.fwdloopResuming = null; // a refused start leaves the run stopped: Resume is offered again
           refusedStartId = j.startId;
           chatActionFailed(signed ? j.say + " The flow is signed; start it from \"Run a signed flow\"." : j.say);
-          if(signed){ endSession(); loadFlows(true); } else { progressRow.hidden = true; progressRow.innerHTML = ""; refreshStartEnabled(); }
+          if(signed){ endSession(); loadFlows(true); } else { progressRow.hidden = true; progressRow.innerHTML = ""; progressHtml = ""; refreshStartEnabled(); }
           return;
         }
         if(j.ok === false && j.refused === "no-such-start"){
