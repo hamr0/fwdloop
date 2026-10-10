@@ -513,7 +513,7 @@ export function writeFlow({
     const copyDir = path.join(dir, SIGNED_COPY_DIR);
     mkdirSync(copyDir);
     written.push(copyDir);
-    writeFileSync(path.join(copyDir, 'prose.txt'), proseText, { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(path.join(copyDir, 'prose.txt'), /** @type {string} */ (proseText), { encoding: 'utf8', flag: 'wx' });
     writeFileSync(path.join(copyDir, 'declaration.json'), declarationText, { encoding: 'utf8', flag: 'wx' });
     writeOne('signature.json', `${JSON.stringify(signResult.signature, null, 2)}\n`);
 
@@ -622,7 +622,7 @@ export function readFlow({ root, name, catalogue }) {
   const verified = verifyFlow({
     proseText, declarationText, signature: signatureJson,
   });
-  if (!verified.ok) return { ok: false, reds: [...verified.reds, ...explainEdit(dir, signatureJson, proseText, declarationText)] };
+  if (!verified.ok) return { ok: false, reds: [...verified.reds, ...explainEdit(dir, signatureJson, /** @type {string} */ (proseText), /** @type {string} */ (declarationText))] };
 
   const signed = parseSignedText(proseText);
   if (!signed.ok) return { ok: false, reds: signed.reds };
