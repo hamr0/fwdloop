@@ -1,6 +1,6 @@
 // M6 amendment 3 (SIGNED 2026-10-10, "u2 signed"): grey while starting. While a run of a job is starting, "Edit this job" is refused with
 // "a run is starting" (the flows list), and so is a sign that replaces the job. "Starting" is the panel's own decision: a start folder in
-// phase `starting` for this flow (authorstart), or a run whose controls report `starting` (runControls). $0: no model is ever called.
+// phase `starting` for this flow (starter.startingFor). $0: no model is ever called.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync, rmdirSync, writeFileSync } from 'node:fs';
