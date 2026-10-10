@@ -146,7 +146,7 @@ const FIELD_META = {
     level: 'top', required: true, needle: '"guardrailClasses"', invalidNeedle: 'guardrailClasses', retype: () => [], invalid: () => ({ 1: 'blue' }),
   },
   unjudgeable: {
-    level: 'top', required: true, needle: '"unjudgeable"', invalidNeedle: 'unjudgeable', retype: () => [], invalid: () => ({ 3: 'no guardrail on line 3' }),
+    level: 'top', required: true, needle: '"unjudgeable"', invalidNeedle: 'unjudgeable', retype: () => ['x'], invalid: () => ({ 3: 'no guardrail on line 3' }),
   },
   refused: {
     level: 'top', required: true, needle: '"refused"', invalidNeedle: 'refused', retype: () => ({}), invalid: () => [{ line: 99, reason: 'nope' }],
@@ -981,5 +981,19 @@ describe('M6a: the optional `wired` set', () => {
     const d = baseDeclaration();
     d.steps[0].primitives = ['compress'];
     assert.equal(run(d).ok, true);
+  });
+});
+
+describe('amendment 41 item 1 (F63): an empty `unjudgeable` list counts as nothing', () => {
+  test('unjudgeable [] validates green, same as {}', () => {
+    const decl = baseDeclaration();
+    decl.unjudgeable = [];
+    const result = run(decl);
+    assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+  });
+  test('a NON-empty unjudgeable list is still red', () => {
+    const decl = baseDeclaration();
+    decl.unjudgeable = ['line 2'];
+    assertRed(run(decl), '"unjudgeable"', 'non-empty array');
   });
 });
