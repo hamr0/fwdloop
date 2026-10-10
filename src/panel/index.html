@@ -126,7 +126,7 @@
 
   [hidden]{display:none !important;}
   .main{display:flex;flex:1;min-height:0;}
-  .left-pane{width:420px;flex:none;border-right:1px solid var(--border-strong);display:flex;flex-direction:column;background:var(--panel);}
+  .left-pane{width:630px;flex:none;border-right:1px solid var(--border-strong);display:flex;flex-direction:column;background:var(--panel);}
   .right-pane{flex:1;min-width:0;display:flex;flex-direction:column;}
 
   .tabrow{display:flex;border-bottom:1px solid var(--border-strong);background:var(--panel2);counter-reset:tabnum;}
@@ -523,7 +523,10 @@
   .msg.bot .who::before{content:"$ ";}
   .msg .who{font-size:11px;color:var(--text-faint);margin-bottom:3px;text-transform:none;font-weight:400;}
   /* the card's free-text boxes wrap (textarea): grow a few rows (fitBox), then scroll inside */
-  .job-card textarea.jf-wrap{width:100%;box-sizing:border-box;font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);resize:vertical;overflow-y:auto;max-height:200px;}
+  .job-card textarea.jf-wrap{width:100%;box-sizing:border-box;font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);resize:vertical;overflow-y:auto;}
+  /* M6 am2: every job box (the textarea and the read-only lines) grows with its text up to 8 lines, then scrolls inside:
+     8 x 1.5em + 6px padding x2 + 1px border x2; ONE rule, fitBox reads this cap */
+  .job-card textarea.jf-wrap, .job-card .ro-lines{line-height:1.5;max-height:calc(12em + 14px);}
   /* the focused/selected Chat-card field gets a blue border (the accent), no outline ring */
   #panel-chat :is(input,select,textarea):focus{border-color:var(--accent);outline:none;}
   /* amendment 2: the job and inputs boxes have a gutter OUTSIDE them on the left (`N >` per step, `~` per guardrail; a number per input
@@ -562,7 +565,7 @@
   .rw-picked{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;padding:6px 8px;border:1px solid var(--accent);}
   .rw-picked span{overflow-wrap:anywhere;}
   .rw-picked a{font-size:12px;cursor:pointer;flex:none;}
-  .ro-lines{padding:6px 8px;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);font-size:12px;overflow-wrap:anywhere;max-height:160px;overflow-y:auto;}
+  .ro-lines{padding:6px 8px;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);font-size:12px;overflow-wrap:anywhere;overflow-y:auto;}
   .ro-lines .ro-line{display:flex;gap:8px;}
   .ro-lines .ro-n{flex:none;min-width:1.4em;color:var(--text-faint);}
   .jf-waitrow{margin-bottom:4px;}
@@ -4067,7 +4070,8 @@
       el.style.height = "auto";
       if(!el.scrollHeight){ el.style.height = ""; return; }
       var border = el.offsetHeight - el.clientHeight;
-      el.style.height = Math.min(el.scrollHeight + border, 200) + "px";
+      var cap = parseFloat(window.getComputedStyle(el).maxHeight);
+      el.style.height = Math.min(el.scrollHeight + border, cap > 0 ? cap : 200) + "px";
     }
     // Paint a gutter: a hidden mirror of the textarea (same font, same content width, same wrapping) measures each logical line's height;
     // the gutter gets one entry of exactly that height, its mark on the first visual line. Re-run on every input, resize and fit.
