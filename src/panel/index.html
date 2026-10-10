@@ -785,6 +785,7 @@
             </div>
 
             <div id="jf-new" data-testid="jf-new">
+              <div class="hint edit-banner" id="jf-edit-banner" data-testid="jf-edit-banner" hidden></div>
               <div class="field">
                 <label for="jf-name">Flow name</label>
                 <input id="jf-name" type="text" placeholder="lowercase letters, digits, - or _" autocomplete="off" spellcheck="false" data-testid="jf-name">
@@ -845,7 +846,9 @@
               <div class="field dimmed" data-testid="jf-run-job-field">
                 <label>The job</label>
                 <div class="ro-lines" id="jf-run-job" data-testid="jf-run-job"></div>
-                <div class="hint">Fixed by the signature (the steps, the job lines and the asks). To change one, start a new job.</div>
+                <div class="hint">Fixed by the signature (the steps, the job lines and the asks). To change them, edit the job: the AI drafts a new plan, and signing it replaces this job.</div>
+                <button class="btn" type="button" id="jf-run-edit" data-testid="jf-run-edit">Edit this job</button>
+                <div class="hint" id="jf-run-edit-why" data-testid="jf-run-edit-why"></div>
               </div>
               <div class="field">
                 <label for="jf-run-dest">Destination</label>
@@ -3796,6 +3799,7 @@
     var modeRow = document.getElementById("jf-mode-row");
     var titleEl = document.getElementById("job-card-title");
 
+    var editOf = null;           // M6: the signed job this card EDITS: { flow, flowHash } (ONE writer each: startEdit sets it, leaveEdit clears it); null = a new job
     var mode = "new";            // "new" | "run" | "resume"
     var runSignInfo = null;      // Run form, first Sign & run click: { hash } (cleared by any edit)
     var resumeCtx = null;        // the run being resumed: { flow, runId, form }
@@ -4138,7 +4142,8 @@
         destination: destEl.value.trim(),
         inputs: inputsBox.value,
         capUsd: byId("jf-cap-money").value.trim(),
-        askWait: askWaitEl.value.trim()
+        askWait: askWaitEl.value.trim(),
+        editOf: editOf
       };
     }
     function runWaits(){
@@ -4268,8 +4273,10 @@
     function syncCardLock(){
       var on = cardLocked();
       card.querySelectorAll("input[type=text], textarea").forEach(function(el){ el.readOnly = on; el.classList.toggle("locked", on); });
+      if(editOf !== null){ byId("jf-name").readOnly = true; byId("jf-name").classList.add("locked"); }   // M6: an edit keeps its job's name
       runFlowSel.disabled = on;
       runFlowSel.classList.toggle("locked", on);
+      syncEditBtn();
       rwPickedEl.classList.toggle("locked", on);
       card.querySelectorAll('input[name="jf-mode"]').forEach(function(r){ r.disabled = on || sessionLive; });
     }
@@ -4307,6 +4314,38 @@
         el.appendChild(row);
       });
     }
+    // ---- M6: Edit a signed job. The list entry carries the job as a card (`edit`); Edit fills the New-job boxes from it and keeps the job's name and
+    // the signature hash it was opened at. Nothing is written until the normal Draft -> Sign. Clear / Abandon leave the job exactly as it was.
+    var editBtn = document.getElementById("jf-run-edit");
+    var editWhyEl = document.getElementById("jf-run-edit-why");
+    var editBannerEl = document.getElementById("jf-edit-banner");
+    function syncEditBtn(){
+      if(!editBtn) return;   // called by the first lock sync, before this block has run
+      var f = selectedFlow();
+      var can = !!(f && f.edit && f.edit.ok === true);
+      editBtn.disabled = !can || cardLocked() || sessionLive || startId !== null;
+      editWhyEl.textContent = (f && f.edit && f.edit.ok === false) ? f.edit.say : "";
+    }
+    function startEdit(){
+      var f = selectedFlow();
+      if(!f || !f.edit || f.edit.ok !== true || cardLocked() || sessionLive) return;
+      var c = f.edit.card;
+      editOf = {flow: f.flow, flowHash: f.edit.flowHash};
+      setMode("new");
+      setVal("jf-name", f.flow); setVal("jf-job", c.job); setVal("jf-cap-money", c.capUsd);
+      setVal("jf-dest-folder", c.destination); setVal("jf-inputs", c.inputs); setVal("jf-ask-wait", c.askWait || "1h");
+      editBannerEl.textContent = "Editing \u201c" + f.flow + "\u201d. Draft it, read the new plan, then sign: signing replaces this job. Clear leaves it exactly as it was.";
+      editBannerEl.hidden = false;
+      actionErrEl.textContent = "";
+      refreshCapNote(); fitCardBoxes(); refreshStartEnabled();
+    }
+    // the card stops editing a job: the name box is free again
+    function leaveEdit(){
+      editOf = null;
+      editBannerEl.hidden = true; editBannerEl.textContent = "";
+      var nm = byId("jf-name"); nm.readOnly = false; nm.classList.remove("locked");
+    }
+    editBtn.addEventListener("click", startEdit);
     function paintRunFlow(){
       var f = selectedFlow();
       var v = f ? (pickedRun ? pickedRun.values : f.values) : null;   // a picked run's own values, else the flow's own
@@ -4335,6 +4374,7 @@
       byId("jf-run-id").value = autoRunId;
       clearFieldErrors();
       refreshCapNote();
+      syncEditBtn();
     }
     // borrowed-from: bareloop src/panel/index.html@b5e37b8 — the Reuse workflow picker: ONE function shows the search box + list before a pick and the
     // picked box after; a row is the name (the typed part marked) over the flow's track record line.
@@ -4568,6 +4608,7 @@
     // back to a fresh empty card: every box, the inputs, the progress list, the ask box
     function resetCard(){
       if(mode === "resume"){ resumeCtx = null; setMode(modeBeforeResume === "resume" ? "new" : modeBeforeResume); }
+      leaveEdit();
       ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; });
       askWaitEl.value = "1h";
       refreshCapNote();
@@ -4641,7 +4682,7 @@
           window.fwdloopResuming = null; // a refused start leaves the run stopped: Resume is offered again
           refusedStartId = j.startId;
           chatActionFailed(signed ? j.say + " The flow is signed; start it from \"Run a signed flow\"." : j.say);
-          if(signed){ endSession(); loadFlows(true); } else { progressRow.hidden = true; progressRow.innerHTML = ""; progressHtml = ""; refreshStartEnabled(); }
+          if(signed){ leaveEdit(); endSession(); loadFlows(true); } else { progressRow.hidden = true; progressRow.innerHTML = ""; progressHtml = ""; refreshStartEnabled(); }
           return;
         }
         if(j.ok === false && j.refused === "no-such-start"){
@@ -4815,7 +4856,7 @@
         if(!o.ok){
           busy = false;
           failFrom(r);
-          if(r.body && r.body.signed === true){ endSession(); loadFlows(true); } else { refreshStartEnabled(); }
+          if(r.body && r.body.signed === true){ leaveEdit(); endSession(); loadFlows(true); } else { refreshStartEnabled(); }
           return;
         }
         chatActionOk();
@@ -4866,6 +4907,11 @@
       setVal("jf-name", c.flowName); setVal("jf-job", c.job); setVal("jf-cap-money", c.capUsd);
       refreshCapNote();
       setVal("jf-dest-folder", typeof c.destination === "string" ? c.destination : ""); setVal("jf-inputs", typeof c.inputs === "string" ? c.inputs : ""); setVal("jf-ask-wait", c.askWait || "1h");
+      if(c.editOf && typeof c.editOf.flow === "string"){
+        editOf = {flow: c.editOf.flow, flowHash: c.editOf.flowHash};
+        editBannerEl.textContent = "Editing \u201c" + c.editOf.flow + "\u201d. Draft it, read the new plan, then sign: signing replaces this job. Clear leaves it exactly as it was.";
+        editBannerEl.hidden = false;
+      }
       sessionId = d.draftId;
       sessionLive = CLIENT_TERMINAL_PHASES.indexOf(d.phase) === -1;
       renderThread(d);
@@ -4924,7 +4970,10 @@
       refreshStartEnabled();
     });
     document.querySelectorAll('input[name="jf-mode"]').forEach(function(r){
-      r.addEventListener("change", function(){ if(r.checked) setMode(r.value); });
+      r.addEventListener("change", function(){
+        if(r.checked && editOf !== null && r.value !== "new" && !sessionLive){ leaveEdit(); ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; }); }
+        if(r.checked) setMode(r.value);
+      });
     });
     runFlowSel.addEventListener("input", function(){ rwHl = 0; renderFlowSearch(); });
     runFlowSel.addEventListener("keydown", function(e){
