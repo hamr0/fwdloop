@@ -14,6 +14,9 @@ import { loadCatalogue } from '../src/catalogue.js';
 import {
   readFlow, readRunJobCopy, writeFlow, writeRunJobCopy,
 } from '../src/flow.js';
+import { runFlow, makeParkingAskStep } from '../src/runner.js';
+import { readHistory } from '../src/books.js';
+import { sendViaPrimitive } from '../src/send.js';
 import { killChildrenAfter, until, world } from './m4e-world.mjs';
 
 killChildrenAfter();
@@ -114,4 +117,36 @@ test('the Job tab says which job it shows, in the words the server sends', async
   assert.match(page, /id="details-jobfrom"/);
   assert.match(page, /This is the job as this run started it\./);
   assert.match(page, /job\.jobFromWhy/);
+});
+
+// F3 (review): the copy must be the job this run verified at its start. A swap between the read and the copy halts the run.
+test('a job replaced between the run\'s read and its copy: the run halts preflight-red, keeps no copy, spends nothing', async () => {
+  const base = mkdtempSync(path.join(tmpdir(), 'fwdloop-m6f3-'));
+  const root = path.join(base, 'flows'); const dest = path.join(base, 'dest'); const src = path.join(base, 'src');
+  for (const d of [root, dest, src]) mkdirSync(d, { recursive: true });
+  writeFileSync(path.join(src, 'resume.docx'), 'Resume text.'); writeFileSync(path.join(src, 'jd.md'), 'JD text.');
+  const prose = fx('job2-with-sources.signed.txt').replaceAll('file:poc/m0/out', `file:${dest}`);
+  const decl = JSON.parse(fx('job2.m1.declaration.json'));
+  const first = writeFlow({ root, name: 'job2', proseText: prose, declaration: decl, signedBy: 'hamr', signedAt: '2026-10-10T10:00:00Z', catalogue: CAT });
+  assert.equal(first.ok, true, JSON.stringify(first.reds));
+  const oldHash = readFlow({ root, name: 'job2', catalogue: CAT }).signature.flow;
+  let swapped = false;
+  // existing seam: runFlow reads `primitiveReds.length` after its read of the job and before the copy; the getter swaps the job there
+  const primitiveReds = { get length() {
+    const r = writeFlow({ root, name: 'job2', proseText: prose.replace('cap $0.25', 'cap $0.30'), declaration: decl, signedBy: 'hamr', signedAt: '2026-10-10T11:00:00Z', catalogue: CAT, replaces: { flowHash: oldHash } });
+    assert.equal(r.ok, true, JSON.stringify(r.reds));
+    swapped = true;
+    return 0;
+  } };
+  const modelStep = async () => { throw new Error('no step may run'); };
+  const r = await runFlow({
+    root, name: 'job2', runId: 'run-1', catalogue: CAT, modelStep, sendStep: sendViaPrimitive, primitives: {}, primitiveReds, businessDate: '2026-06-01', ceilingUsd: 0.01, askStep: makeParkingAskStep(),
+    sources: [{ id: 'resume', path: path.join(src, 'resume.docx') }, { id: 'jd', path: path.join(src, 'jd.md') }],
+  });
+  assert.equal(swapped, true, 'the seam fired');
+  assert.equal(r.outcome, 'preflight-red', JSON.stringify(r));
+  assert.match(r.red, /the job was replaced while this run was starting/);
+  const runDir = path.join(root, 'job2', 'runs', 'run-1');
+  assert.equal(existsSync(path.join(runDir, 'job')), false, 'no mismatched copy is kept');
+  assert.equal(readHistory(path.join(root, 'job2')).at(-1).signatureHash, oldHash);
 });

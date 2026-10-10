@@ -761,10 +761,10 @@ const RUN_JOB_DIR = 'job';
  * M6 ("Each run saves a copy of the job it ran when it starts"): the ONE writer of `<runDir>/job/`. Reads the flow's three files, proves them against
  * the flow's own signature first (a flow that does not verify is never copied), then writes them write-once (`wx`). `{ok:false, red}` writes nothing
  * it did not finish (a half-written copy is removed). Never throws.
- * @param {string} flowDir @param {string} runDir
+ * @param {string} flowDir @param {string} runDir @param {string} [expectedFlowHash] the `signature.flow` the caller read; a different job on disk is refused
  * @returns {{ok: true} | {ok: false, red: string}}
  */
-export function writeRunJobCopy(flowDir, runDir) {
+export function writeRunJobCopy(flowDir, runDir, expectedFlowHash) {
   const texts = {};
   for (const f of FLOW_FILES) {
     const r = readFileInside(flowDir, f);
@@ -775,6 +775,8 @@ export function writeRunJobCopy(flowDir, runDir) {
   try { signature = JSON.parse(texts['signature.json']); } catch { return { ok: false, red: 'job copy: signature.json is not valid JSON' }; }
   const verified = verifyFlow({ proseText: texts['prose.txt'], declarationText: texts['declaration.json'], signature });
   if (!verified.ok) return { ok: false, red: `job copy: the flow does not match its signature (${verified.reds[0]})` };
+  // M6 F3: the copy must be the job the run verified at its start; a job replaced since is never copied (nothing is written)
+  if (typeof expectedFlowHash === 'string' && signature.flow !== expectedFlowHash) return { ok: false, red: 'the job was replaced while this run was starting' };
   const dir = path.join(runDir, RUN_JOB_DIR);
   try {
     mkdirSync(dir);

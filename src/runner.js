@@ -1047,7 +1047,7 @@ export async function runFlow({
   mkdirSync(runDir, { recursive: true });
 
   // M6: the run keeps a write-once copy of the job it runs, from before its first step (its Job tab shows this, not the flow's later versions)
-  const jobCopy = writeRunJobCopy(flowDir, runDir);
+  const jobCopy = writeRunJobCopy(flowDir, runDir, signature.flow);
   if (!jobCopy.ok) {
     return haltRun({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: jobCopy.red, spent: { value: 0 },
