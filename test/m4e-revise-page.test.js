@@ -82,14 +82,15 @@ test('item 3: "2 revises left" / "1 revise left"; at 0 the button reads Start ov
 });
 
 test('item 4: a red revise lists its reds, keeps the edits, and has no Sign & run', () => {
-  const steps = load('stepsFor');
+  const steps = new Function(`${fnSrc('plainPlanCheck')}\n${fnSrc('failedDetails')}\n${fnSrc('stepsFor')}\nreturn stepsFor;`)();
   const view = {
     phase: 'red', card: { capUsd: '0.25' }, reds: ['declaration: ask at line 4 is a stop only'], say: 'The revised plan did not pass the checks.', revisesLeft: 1,
     revises: [{ n: 1, phase: 'red', reds: ['declaration: ask at line 4 is a stop only'], say: 'x' }],
   };
   const s = steps(view, { model: 'm', starting: false, signClicked: false });
   assert.deepEqual(s.map((x) => `${x.id}:${x.status}`), ['drafted:done', 'revise-1:failed'], 'no sign line: nothing is signable');
-  assert.deepEqual(s[1].details, ['declaration: ask at line 4 is a stop only'], 'the reds once; the sentence is on the card error line');
+  assert.deepEqual(s[1].raw, ['declaration: ask at line 4 is a stop only'], 'the reds once (raw, am41 item 7); the sentence is on the card error line');
+  assert.equal(s[1].details.length, 1);
   const mb = load('mainButtonFor');
   const red = { ...green, phase: 'red', left: 1 };
   assert.notEqual(mb(red).action, 'sign-prepare');

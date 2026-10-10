@@ -130,13 +130,14 @@ test('#chat-action-error is written only by the click handlers: the poll path ne
 });
 
 test('progress list rules: waiting has no check, detail on its own lines, no repeated lines; scroll on change only, never focus', () => {
-  const steps = load('stepsFor');
+  const steps = new Function(`${fnSrc('plainPlanCheck')}\n${fnSrc('failedDetails')}\n${fnSrc('stepsFor')}\nreturn stepsFor;`)();
   const waiting = steps({ phase: 'green', card: { capUsd: 0.25 } }, { model: 'm', starting: false, signClicked: false });
   assert.deepEqual(waiting.map((s) => [s.id, s.status]), [['drafted', 'done'], ['sign', 'waiting']]);
   const drafting = steps({ phase: 'drafting', card: { capUsd: '0.25' } }, { model: 'deepseek-flash', starting: false });
   assert.deepEqual(drafting, [{ id: 'drafting', label: 'drafting with deepseek-flash, run cap $0.25', status: 'running', details: [] }]);
   const red = steps({ phase: 'red', reds: ['a', 'b'] }, { model: 'm', starting: false });
-  assert.deepEqual(red[1].details, ['a', 'b']);
+  assert.deepEqual(red[1].raw, ['a', 'b'], 'am41 item 7: the raw texts ride along; details are the plain sentences');
+  assert.equal(red[1].details.length, 2);
   const dup = steps({ phase: 'drafting' }, { model: '', starting: true });
   assert.equal(new Set(dup.map((s) => JSON.stringify(s))).size, dup.length);
   // rendering: a waiting step is class wait with no check sign; the detail is a "> " line of its own

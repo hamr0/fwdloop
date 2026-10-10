@@ -499,6 +499,8 @@
   .chat-steps .step.wait .step-label{color:var(--amber);}
   .chat-steps .step-detail{display:block;flex-basis:100%;min-width:0;padding-left:1.2em;color:var(--text-faint);word-break:break-word;white-space:pre-wrap;}
   .chat-steps .step.bad .step-detail{color:var(--red);}
+  .chat-steps .step-raw{margin-top:2px;color:var(--text-faint);}
+  .chat-steps .step-raw summary{cursor:pointer;}
   .chat-steps .step.run .step-sign::after{content:"\2026";}
   @keyframes step-dots{0%{content:"";}25%{content:".";}50%{content:"..";}75%{content:"...";}}
   @media (prefers-reduced-motion: no-preference){
@@ -3938,6 +3940,44 @@
         return String(n);
       });
     }
+    // am41 item 7: ONE function turns a checker's red (the text src/declaration.js writes) into one plain sentence for the card. The raw text rides
+    // along unchanged and is folded under "details"; a red no rule below knows gets the generic sentence and still shows its raw text. This reads
+    // the checker's own fixed wording, never the model's prose.
+    function plainPlanCheck(raw){
+      var PLAN_CHECK_RULES = [
+        [/which is not in the job line's words/, "A section name in the plan's check is not in your job line. Change the job line to use the section words you want."],
+        [/the job line says .*; the check says/, "The sections in the plan's check come in a different order than your job line. Change the job line to change the order."],
+        [/the guardrail says \d+ sections; the check has/, "The number of sections in your guardrail is not the number in the plan's check."],
+        [/section name is a short phrase|which is the job line or most of it/, "A section name in the plan's check is too long; it must be a short phrase from your job line."],
+        [/one section name may not contain another/, "One section name in the plan's check contains another, which cannot be checked."],
+        [/wordsPerSection/, "The words for each section in your guardrail and in the plan's check do not match."],
+        [/work as a pair/, "The plan's check has one part of a pair without the other, so it cannot be checked."],
+        [/is blank|characters; the most one entry|ends in ":"/, "A name in the plan's check is empty, too long or ends in a colon, so it cannot be matched."],
+        [/cannot be built into a check/, "The plan's check cannot be built from what the AI wrote."],
+        [/is not its signed line/, "A step does not use your job line word for word as its goal."],
+        [/not in the catalogue|not wired|which is not signed|checkpoint/, "A step uses a tool that is not available for this job."],
+        [/reads artifact|is a duplicate|\.reads must|\.emits must/, "The steps do not pass their results to each other in a workable order."],
+        [/ask at line \d+|signed ask at line|ask slot/, "The ask on one of your lines is not set up as a plain stop where you decide."],
+        [/send at line \d+|signed send at line|send slot/, "The send step is not set up to follow your accept and write only to your destination."],
+        [/hitl after the last signed ask/, "A step after your last ask would leave without your seeing it, so it is refused."],
+        [/is a pause .* unsigned line/, "A step pauses at a line you did not sign as an ask."],
+        [/neither served by any step/, "A line of your job is not covered by any step."],
+        [/picks|inputFacts|invented name/, "The plan names a field that is not in your input."],
+        [/guardrailClasses|unjudgeable|refused/, "The AI's notes on which lines it can check are not in a form the checker accepts."],
+        [/^line \d+'s (guardrail|check)|can't write files/, null],
+        [/must be an? |is required|must name|does not name/, "The plan the AI wrote is not in the shape the checker needs."]
+      ];
+      var text = typeof raw === "string" ? raw : "";
+      for(var i = 0; i < PLAN_CHECK_RULES.length; i++){
+        if(PLAN_CHECK_RULES[i][0].test(text)) return {say: PLAN_CHECK_RULES[i][1] === null ? text.replace(/^declaration: /, "") : PLAN_CHECK_RULES[i][1], raw: text};
+      }
+      return {say: "One of the checks on the plan failed.", raw: text};
+    }
+    // a failed step's details: the plain sentences, with the raw checker texts beside them in `raw`
+    function failedDetails(reds){
+      var rows = (reds || []).map(plainPlanCheck);
+      return {details: rows.map(function(r){ return r.say; }), raw: rows.map(function(r){ return r.raw; })};
+    }
     // pure: the progress list for a draft. Chronological; a waiting step has no check; a step's detail lines sit under it; no two
     // identical lines in a row. `ctx` = { model, starting }.
     function stepsFor(state, ctx){
@@ -3957,7 +3997,7 @@
             var label = rv.kind === "answers" ? "drafted again with your answers" : "revise " + (reviseNo += 1);
             if(rv.phase === "running") out.push({id: "revise-" + rv.n, label: label, status: "running", details: []});
             else if(rv.phase === "green") out.push({id: "revise-" + rv.n, label: label, status: "done", details: []});
-            else out.push({id: "revise-" + rv.n, label: label, status: "failed", details: (rv.reds && rv.reds.length ? rv.reds.slice() : [])});
+            else { var rf = failedDetails(rv.reds); out.push({id: "revise-" + rv.n, label: label, status: "failed", details: rf.details, raw: rf.raw}); }
           });
           if(state.phase === "green"){
             if(ctx.starting) out.push({id: "signed", label: "signed", status: "done", details: []});
@@ -3966,7 +4006,8 @@
           if(state.phase === "questions-open") out.push({id: "question", label: "waiting for your answer (" + state.openK + " of " + state.total + ")", status: "waiting", details: []});
         } else if(state.phase === "red"){
           out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
-          out.push({id: "checks", label: "plan checks", status: "failed", details: (state.reds || []).slice()});
+          var cf = failedDetails(state.reds);
+          out.push({id: "checks", label: "plan checks", status: "failed", details: cf.details, raw: cf.raw});
         } else if(state.phase === "stopped"){
           out.push({id: "drafting", label: "drafting with " + who + capPart, status: "failed", details: []});
         } else if(state.phase === "green" || state.phase === "revising"){
@@ -4394,7 +4435,11 @@
         var sign = cls === "ok" ? "✓" : (cls === "bad" ? "✗" : "");
         return '<li class="step ' + cls + '" data-step="' + escapeXml(st.id) + '"><div class="step-line"><span class="step-label">' + escapeXml(st.label) + '</span>' +
           '<span class="step-sign">' + sign + '</span></div>' +
-          (st.details || []).map(function(d){ return '<div class="step-detail">' + escapeXml("> " + d) + '</div>'; }).join("") + '</li>';
+          (st.details || []).map(function(d, k){
+            var raw = st.raw || [];
+            var fold = typeof raw[k] === "string" && raw[k] !== "" ? '<details class="step-raw"><summary>details</summary>' + escapeXml(raw[k]) + '</details>' : "";
+            return '<div class="step-detail">' + escapeXml("> " + d) + fold + '</div>';
+          }).join("") + '</li>';
       }).join("");
       return progressRow.innerHTML !== before;
     }
