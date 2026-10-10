@@ -100,3 +100,23 @@ test('a symlinked copy is refused, not followed', () => {
   writeFileSync(path.join(x.dir, 'prose.txt'), PROSE.replace('cap $0.25', 'cap $0.30'));
   assert.match(read(x.root).reds.join('\n'), /can't be trusted to compare/);
 });
+
+// --- the panel doors say what changed, not only "does not pass its checks" ---
+import { mkdirSync as mkdir2 } from 'node:fs';
+import { killChildrenAfter, world } from './m4e-world.mjs';
+
+killChildrenAfter();
+
+test('the panel run door and the resume door say what changed in the signed files', async () => {
+  const w = await world();
+  const a = await w.signedFlow();
+  const p = path.join(a.flowDir, 'prose.txt');
+  writeFileSync(p, readFileSync(p, 'utf8').replace(/cap \$[0-9.]+/, 'cap $0.77'));
+  const run = await w.post('/api/author/run', { flow: 'job2', inputs: w.inputs(), runId: 'r1' });
+  assert.equal(run.status, 400);
+  assert.match(run.json().refusals[0].say, /the cap changed/);
+  mkdir2(path.join(a.flowDir, 'runs', 'r1'), { recursive: true });
+  const res = await w.post('/api/author/resume-prepare', { flow: 'job2', runId: 'r1', capUsd: '0.05' });
+  assert.equal(res.status, 400);
+  assert.match(res.json().say, /the cap changed/);
+});

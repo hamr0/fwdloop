@@ -19,7 +19,7 @@ import { canFlowRun, willNotRunSay } from '../canrun.js';
 import { loadCatalogue } from '../catalogue.js';
 import { ConfigError, readConfig } from '../config.js';
 import {
-  checkFlowName, listFlowNames, listRunIds, nextRunId, readFileInside, readFlow, resolveRunDir,
+  changeSentence, checkFlowName, listFlowNames, listRunIds, nextRunId, readFileInside, readFlow, resolveRunDir,
 } from '../flow.js';
 import { spendSummary } from '../monthly.js';
 import { userInfo } from 'node:os';
@@ -169,7 +169,7 @@ export function createFlowsDoor(opts) {
     if (!named.ok) return reply(400, { refused: 'flow', refusals: [{ field: 'flow', say: `${named.red}.` }] });
     const read = readSigned(realRoot, flow);
     if (!read.ok) {
-    return reply(400, { refused: 'flow', refusals: [{ field: 'flow', say: `"${flow}" is not a signed flow that passes its checks, so it will not run.` }], reds: read.reds.map((r) => scrub(String(r), keys)) });
+    return reply(400, { refused: 'flow', refusals: [{ field: 'flow', say: `"${flow}" is not a signed flow that passes its checks, so it will not run.${changeSentence(read.reds.map((r) => scrub(String(r), keys)))}` }], reds: read.reds.map((r) => scrub(String(r), keys)) });
     }
     const can = canFlowRun(read);   // amendment 21 item 1: a flow the list shows refused is refused here too, in the same sentence
     if (!can.ok) {

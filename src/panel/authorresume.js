@@ -16,7 +16,7 @@ import { userInfo } from 'node:os';
 
 import { scrub } from '../authoring.js';
 import { loadCatalogue } from '../catalogue.js';
-import { checkFlowName, readFileInside, readFlow, resolveRunDir } from '../flow.js';
+import { changeSentence, checkFlowName, readFileInside, readFlow, resolveRunDir } from '../flow.js';
 import { readResumeLock } from '../liveness.js';
 import { auditSpend } from '../runner.js';
 import {
@@ -56,7 +56,7 @@ export function createResumeDoor(opts) {
     const cat = loadCatalogue();
     if (!cat.ok) return no(500, { refused: 'catalogue', say: 'The catalogue could not be loaded. Nothing was signed.' });
     const read = readFlow({ root: realRoot, name: flow, catalogue: cat.primitives });
-    if (!read.ok) return no(400, { refused: 'flow', say: `"${flow}" is not a signed flow that passes its checks, so a run of it will not resume.` });
+    if (!read.ok) return no(400, { refused: 'flow', say: `"${flow}" is not a signed flow that passes its checks, so a run of it will not resume.${changeSentence(read.reds)}` });
     const controls = getRunControls({
       root: realRoot, flow, runId, catalogue: cat.primitives,
     });
