@@ -722,15 +722,18 @@ export function readFlow({ root, name, catalogue }) {
   });
   if (!verified.ok) return { ok: false, reds: [...verified.reds, ...explainEdit(dir, signatureJson, /** @type {string} */ (proseText), /** @type {string} */ (declarationText))] };
 
-  const read = interpretSigned({
-    proseText: /** @type {string} */ (proseText), declarationJson, signatureJson, catalogue,
+  return interpretSigned({
+    proseText: /** @type {string} */ (proseText), declarationJson, signatureJson, catalogue, dir,
   });
-  return read.ok ? { ...read, dir } : read;
 }
 
-/** The part of a read that follows a passed signature check, shared by `readFlow` and `readRunJobCopy`: parse the signed text, validate the declaration. */
+/**
+ * The part of a read that follows a passed signature check, shared by `readFlow` and `readRunJobCopy`: parse the signed text, validate the declaration.
+ * @param {{proseText: string, declarationJson: any, signatureJson: any, catalogue: unknown, dir: string}} a
+ * @returns {ReadFlowResult}
+ */
 function interpretSigned({
-  proseText, declarationJson, signatureJson, catalogue,
+  proseText, declarationJson, signatureJson, catalogue, dir,
 }) {
   const signed = parseSignedText(proseText);
   if (!signed.ok) return { ok: false, reds: signed.reds };
@@ -742,6 +745,7 @@ function interpretSigned({
 
   return {
     ok: /** @type {true} */ (true),
+    dir,
     lines: signed.lines,
     arbiter: signed.arbiter,
     declaration: declarationJson,
@@ -787,6 +791,7 @@ export function writeRunJobCopy(flowDir, runDir) {
  * shape as a good `readFlow` (lines, arbiter, declaration, signature, classes), after the copy was verified against the copied signature.
  * `{present:true, ok:false, reds}` = a copy that was edited or is incomplete: refused, never shown as the job.
  * @param {string} runDir @param {unknown} catalogue
+ * @returns {{present: false} | ({present: true} & ReadFlowResult)}
  */
 export function readRunJobCopy(runDir, catalogue) {
   const dir = path.join(runDir, RUN_JOB_DIR);
@@ -801,11 +806,13 @@ export function readRunJobCopy(runDir, catalogue) {
   try { if (signatureText !== null) signatureJson = JSON.parse(signatureText); } catch { reds.push('flow: signature.json is not valid JSON'); }
   if (reds.length > 0) return { present: true, ok: false, reds };
   const verified = verifyFlow({ proseText, declarationText, signature: signatureJson });
-  if (!verified.ok) return { present: true, ok: false, reds: verified.reds };
-  const read = interpretSigned({
-    proseText: /** @type {string} */ (proseText), declarationJson, signatureJson, catalogue,
-  });
-  return { present: true, ...read };
+  if (!verified.ok) return { present: true, ok: false, reds: [...verified.reds] };
+  return {
+    present: /** @type {true} */ (true),
+    ...interpretSigned({
+      proseText: /** @type {string} */ (proseText), declarationJson, signatureJson, catalogue, dir,
+    }),
+  };
 }
 
 /**

@@ -432,7 +432,7 @@ export function createAuthor(opts) {
       const editOf = v.card.editOf && typeof v.card.editOf === 'object' ? v.card.editOf : null;
       if (editOf !== null && editOf.flow !== name) return { status: 409, body: { ok: false, refused: 'edit-name', say: 'This draft edits another job than the name it was drafted under. Nothing was signed.' } };
       const result = signDraft({
-        dir: join(dir, v.plan), approve: v.hash, signedBy, env: loaded.env, sessionDir: dir, ...(editOf !== null ? { replaces: { flowHash: String(editOf.flowHash) } } : {}),
+        dir: join(dir, v.plan), approve: v.hash, signedBy, env: loaded.env, sessionDir: dir, replaces: editOf !== null ? { flowHash: String(editOf.flowHash) } : undefined,
       });
       if (!result.ok) {
         const keys = providerKeys(loaded.env);

@@ -393,6 +393,7 @@ export async function draftToDir({
  * `sessionDir` (the panel's draft folder: card, notes, every change) widens the setup record; the CLI has none, so its record is the one plan folder.
  * M6: `replaces: {flowHash}` (a draft opened from an existing signed job, carrying that job's signature hash) makes this sign REPLACE that job
  * (`writeFlow` checks the hash is still the job's); without it a taken name is refused as ever.
+ * @param {{dir: any, approve?: any, signedBy: any, signedAt?: string, env?: Record<string, string|undefined>, sessionDir?: string, replaces?: {flowHash: string}}} a
  */
 export function signDraft({
   dir, approve, signedBy, signedAt = new Date().toISOString(), env = process.env, sessionDir, replaces,
