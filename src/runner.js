@@ -46,7 +46,7 @@ import {
 import { fileURLToPath } from 'node:url';
 
 import {
-  readFlow, resolveRunDir, readFileInside, readdirInside, resolveInside, FLOW_FILES, PANEL_STARTS_DIR,
+  readFlow, resolveRunDir, readFileInside, readdirInside, resolveInside, FLOW_FILES, PANEL_STARTS_DIR, writeRunJobCopy,
 } from './flow.js';
 import {
   writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen, setAsideAnswer,
@@ -1045,6 +1045,14 @@ export async function runFlow({
     });
   }
   mkdirSync(runDir, { recursive: true });
+
+  // M6: the run keeps a write-once copy of the job it runs, from before its first step (its Job tab shows this, not the flow's later versions)
+  const jobCopy = writeRunJobCopy(flowDir, runDir);
+  if (!jobCopy.ok) {
+    return haltRun({
+      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: jobCopy.red, spent: { value: 0 },
+    });
+  }
 
   const frozen = freezeInputs(runDir, sources ?? []);
   if (!frozen.ok) {

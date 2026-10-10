@@ -722,6 +722,16 @@ export function readFlow({ root, name, catalogue }) {
   });
   if (!verified.ok) return { ok: false, reds: [...verified.reds, ...explainEdit(dir, signatureJson, /** @type {string} */ (proseText), /** @type {string} */ (declarationText))] };
 
+  const read = interpretSigned({
+    proseText: /** @type {string} */ (proseText), declarationJson, signatureJson, catalogue,
+  });
+  return read.ok ? { ...read, dir } : read;
+}
+
+/** The part of a read that follows a passed signature check, shared by `readFlow` and `readRunJobCopy`: parse the signed text, validate the declaration. */
+function interpretSigned({
+  proseText, declarationJson, signatureJson, catalogue,
+}) {
   const signed = parseSignedText(proseText);
   if (!signed.ok) return { ok: false, reds: signed.reds };
 
@@ -731,14 +741,71 @@ export function readFlow({ root, name, catalogue }) {
   if (!validated.ok) return { ok: false, reds: validated.reds };
 
   return {
-    ok: true,
-    dir,
+    ok: /** @type {true} */ (true),
     lines: signed.lines,
     arbiter: signed.arbiter,
     declaration: declarationJson,
     signature: signatureJson,
     classes: validated.classes,
   };
+}
+
+/** M6: the folder inside a run that holds the copy of the job it ran. */
+const RUN_JOB_DIR = 'job';
+
+/**
+ * M6 ("Each run saves a copy of the job it ran when it starts"): the ONE writer of `<runDir>/job/`. Reads the flow's three files, proves them against
+ * the flow's own signature first (a flow that does not verify is never copied), then writes them write-once (`wx`). `{ok:false, red}` writes nothing
+ * it did not finish (a half-written copy is removed). Never throws.
+ * @param {string} flowDir @param {string} runDir
+ * @returns {{ok: true} | {ok: false, red: string}}
+ */
+export function writeRunJobCopy(flowDir, runDir) {
+  const texts = {};
+  for (const f of FLOW_FILES) {
+    const r = readFileInside(flowDir, f);
+    if (!r.ok) return { ok: false, red: `job copy: could not read ${f} (${r.missing ? 'missing' : r.red})` };
+    texts[f] = r.text;
+  }
+  let signature;
+  try { signature = JSON.parse(texts['signature.json']); } catch { return { ok: false, red: 'job copy: signature.json is not valid JSON' }; }
+  const verified = verifyFlow({ proseText: texts['prose.txt'], declarationText: texts['declaration.json'], signature });
+  if (!verified.ok) return { ok: false, red: `job copy: the flow does not match its signature (${verified.reds[0]})` };
+  const dir = path.join(runDir, RUN_JOB_DIR);
+  try {
+    mkdirSync(dir);
+    for (const f of FLOW_FILES) writeFileSync(path.join(dir, f), texts[f], { encoding: 'utf8', flag: 'wx' });
+  } catch (err) {
+    try { if (err.code !== 'EEXIST') rmSync(dir, { recursive: true, force: true }); } catch { /* best-effort */ }
+    return { ok: false, red: err.code === 'EEXIST' ? 'job copy: this run already has its copy — never overwritten' : `job copy: could not write (${err.code ?? err.message})` };
+  }
+  return { ok: true };
+}
+
+/**
+ * M6: the job a run ran, from its own copy. `{present:false}` = the run has none (it started before M6). `{present:true, ok:true, ...}` = the same
+ * shape as a good `readFlow` (lines, arbiter, declaration, signature, classes), after the copy was verified against the copied signature.
+ * `{present:true, ok:false, reds}` = a copy that was edited or is incomplete: refused, never shown as the job.
+ * @param {string} runDir @param {unknown} catalogue
+ */
+export function readRunJobCopy(runDir, catalogue) {
+  const dir = path.join(runDir, RUN_JOB_DIR);
+  if (!existsSync(dir)) return { present: false };
+  const reds = [];
+  const proseText = readTextFile(path.join(dir, 'prose.txt'), 'prose.txt', reds);
+  const declarationText = readTextFile(path.join(dir, 'declaration.json'), 'declaration.json', reds);
+  const signatureText = readTextFile(path.join(dir, 'signature.json'), 'signature.json', reds);
+  let declarationJson;
+  let signatureJson;
+  try { if (declarationText !== null) declarationJson = JSON.parse(declarationText); } catch { reds.push('flow: declaration.json is not valid JSON'); }
+  try { if (signatureText !== null) signatureJson = JSON.parse(signatureText); } catch { reds.push('flow: signature.json is not valid JSON'); }
+  if (reds.length > 0) return { present: true, ok: false, reds };
+  const verified = verifyFlow({ proseText, declarationText, signature: signatureJson });
+  if (!verified.ok) return { present: true, ok: false, reds: verified.reds };
+  const read = interpretSigned({
+    proseText: /** @type {string} */ (proseText), declarationJson, signatureJson, catalogue,
+  });
+  return { present: true, ...read };
 }
 
 /**

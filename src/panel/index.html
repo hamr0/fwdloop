@@ -1051,6 +1051,7 @@
           <div id="job-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
           <div class="job-card" id="job-card" hidden data-testid="job-card-readonly">
             <h4 id="details-title">Job card — signed</h4>
+            <div class="hint" id="details-jobfrom" data-testid="details-jobfrom"></div>
             <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
             <!-- am41 item 6: the same "The job" label the Chat card carries, over the signed lines -->
             <div class="field" style="margin-bottom:0"><label id="details-job-title">The job</label></div>
@@ -2795,6 +2796,8 @@
     empty.hidden = true;
     card.hidden = false;
     document.getElementById("details-title").textContent = "Job — " + job.flow + " (signed)";
+    // M6: which job this is: the copy the run saved when it started, or (a run from before M6) the flow's job as it is now
+    document.getElementById("details-jobfrom").textContent = job.jobFrom === "run" ? "This is the job as this run started it." : (job.jobFromWhy || "");
     // review #5: "Job (prose)" — the signed lines, numbered, WITHOUT their
     // guardrail mixed in (guardrails get their own field below).
     // M4e amendment 6 item 6: the Job block reads like the card: each numbered line, then its own `~` rows: its guardrail, an ask line's

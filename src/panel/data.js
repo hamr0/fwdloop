@@ -25,7 +25,7 @@ import {
 import { join, basename, sep } from 'node:path';
 
 import {
-  readFlow, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
+  readFlow, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
 } from '../flow.js';
 import {
   readAudit, readHistory, endRow, readPidRows, auditRowTokens, auditRowAt, auditRowTools,
@@ -1458,6 +1458,8 @@ export function getRunDetail({
 
 /** The words the Draft says for a flow with no `setup.jsonl` (M4e amendment 6 item 4; renamed Draft by amendment 7 item 2). */
 export const NO_DRAFT_WORDS = 'no draft record';
+/** M6: what the Job tab says for a run that started before runs kept a copy of their job. */
+export const NO_JOB_COPY_WORDS = 'This run started before runs kept a copy of their job, so this shows the job as it is now.';
 
 /**
  * What the Draft adds up to, ONE place (the Map box, the first step card and the Audit group all read it, so the three can never disagree).
@@ -1606,9 +1608,10 @@ export function getRunAudit({ root, flow, runId }) {
  * primitives it may use (an ask step grants none), its check (the `checkedLines` sentences, the same words the human saw at sign) and, for the step a
  * signed ask binds to, that ask's wait. "Not checked" comes from the sign row of the flow's setup.jsonl: `recorded:false` (and no items) for a flow
  * signed before amendment 36, which the page says in words; never an empty list read as "nothing".
- * @param {any} declaration @param {Array<{line:number, ttlMs?:number}>} asks @param {string} flowDir
+ * M6: a sign row that names another signing than the job being shown (`flowHash`) is not this job's record: `recorded:false`, never the new job's words.
+ * @param {any} declaration @param {Array<{line:number, ttlMs?:number}>} asks @param {string} flowDir @param {string|null} [flowHash] the signature hash of the job being shown
  */
-function buildJobPlan(declaration, asks, flowDir) {
+function buildJobPlan(declaration, asks, flowDir, flowHash = null) {
   const lines = checkedLines(declaration, { askLines: asks.map((x) => x.line) });
   const declSteps = Array.isArray(declaration?.steps) ? declaration.steps : [];
   const steps = declSteps.map((st, i) => {
@@ -1626,7 +1629,9 @@ function buildJobPlan(declaration, asks, flowDir) {
     };
   });
   const setup = readSetup(flowDir);
-  const nc = setup.present ? setup.rows.find((r) => r.kind === 'sign')?.notChecked : undefined;
+  const signRow = setup.present ? setup.rows.find((r) => r.kind === 'sign') : undefined;
+  const ofThisJob = !!signRow && (typeof signRow.flowHash !== 'string' || flowHash === null || signRow.flowHash === flowHash);
+  const nc = ofThisJob ? signRow?.notChecked : undefined;
   const recorded = !!nc && Array.isArray(nc.items);
   return { steps, notChecked: { label: NOT_CHECKED_LABEL, items: recorded ? notCheckedBlock(nc.items).items : [], recorded } };
 }
@@ -1650,7 +1655,15 @@ export function getRunJob({
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
 
-  const flowRead = readFlow({ root, name: flow, catalogue });
+  // M6: the job THIS run ran is its own copy (`<run>/job/`, saved when it started). A run from before M6 has none: it shows the flow's job as it is
+  // now and says so (`jobFrom: 'current'`, `jobFromWhy`). A copy that does not verify is refused by name, never swapped for the flow's job.
+  const copy = readRunJobCopy(run.runDir, catalogue);
+  if (copy.present && !copy.ok) {
+    return {
+      flow, runId, resolved: false, why: `This run's saved copy of its job does not match its signature, so it is not shown: ${copy.reds.join('; ')}`,
+    };
+  }
+  const flowRead = copy.present ? copy : readFlow({ root, name: flow, catalogue });
   if (!flowRead.ok) {
     return {
       flow, runId, resolved: false, why: `readFlow refused: ${flowRead.reds.join('; ')}`,
@@ -1675,6 +1688,8 @@ export function getRunJob({
     flow,
     runId,
     resolved: true,
+    jobFrom: copy.present ? 'run' : 'current',
+    jobFromWhy: copy.present ? null : NO_JOB_COPY_WORDS,
     model,
     // `model` is read from this run's own audit.jsonl rows, never the signed
     // prose/declaration (neither records one) — the page says so in words
@@ -1704,7 +1719,7 @@ export function getRunJob({
     guardrails: flowRead.lines
       .filter((l) => typeof l.guardrail === 'string' && l.guardrail.length > 0)
       .map((l) => ({ line: l.n, guardrail: l.guardrail })),
-    plan: buildJobPlan(flowRead.declaration, asks, run.flowDir),
+    plan: buildJobPlan(flowRead.declaration, asks, run.flowDir, typeof sig?.flow === 'string' ? sig.flow : null),
     signature: (sig && typeof sig.signedBy === 'string' && typeof sig.signedAt === 'string' && typeof sig.flow === 'string')
       ? { signedBy: sig.signedBy, signedAt: sig.signedAt, hash: sig.flow }
       : null,
