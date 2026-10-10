@@ -2003,6 +2003,8 @@ through M5 (docs/archive/PRD.md:597-605).
 
 - **M6 amendment 2 — SIGNED by hamr 2026-10-10 ("sign m6 am2"): roomier job card.** 1. The job box grows with its text up to 8 lines, then scrolls inside. Same rule as bareloop. 2. On a wide screen the left pane goes from 420 px to 630 px. On a phone it stays full width. **Done when:** a test that fails first, plus screenshots at 1280, 390 and 320 px with no sideways scroll. **Cap:** $0.
 
+**Exit evidence (live, 2026-10-10) — EXIT SIGNED by hamr 2026-10-10 ("sign m6 exit"):** in the panel only, hamr edited am29-walk-2 to add line 4 ("write 3 questions I could ask the interviewer", guardrail "under 100 words"), signed it, and started run-2 with its own job copy; run-2 went red at step 3 on its word band ($0.055, the check working as signed). run-1's Job tab still shows the old 5 lines. Amendments 1 (`f861cb2`) and 2 (`834bcc3`) built test-first with $0 walks at 1280, 390 and 320 px. Suite 2614/2614, typecheck 0.
+
 ## M7 — skills and persona
 
 Skill directories gate the drafter's visible primitive subset, and a signed persona line affects
