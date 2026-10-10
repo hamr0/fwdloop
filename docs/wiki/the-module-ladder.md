@@ -1827,6 +1827,10 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Done when:** each item has a test that fails first, and there are screenshots at 1280, 390 and 320 px with nothing spilling past the screen.
   - **Cap:** $0.
 
+- **Amendment 42 — SIGNED by hamr 2026-10-10 ("sign am42"): the Chat card's Checked list matches the Job tab.** A step after the last ask reads "you check it after you accept" in the Chat card's Checked list, the same as on the Job tab (am41 item 2). One place holds the words. **Done when:** a test that fails first, plus screenshots at 1280, 390 and 320 px with nothing spilling past the screen. **Cap:** $0.
+
+- **Amendment 43 — SIGNED by hamr 2026-10-10 ("sign am43"): say what changed.** When you sign, fwdloop keeps a copy of the signed files. If the files are edited later, the refusal names what changed, like "line 3's guardrail" or "the cap", not just the file name. **Done when:** a test for each kind of change fails first. **Cap:** $0.
+
 **Per-run read/write folders — DROPPED by hamr 2026-10-10 (inputs + destination already cover it; revisit only if a real job needs it). Kept for the record, NOT SIGNED.** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
@@ -1968,6 +1972,8 @@ any edit flips it and demands re-accept, and rollback restores a previous accept
   whose cases still pass (docs/archive/PRD.md:592-593).
 - **Negative:** a flow edited on disk without re-accept is a red naming the changed field, never a
   silent run of the new version (docs/archive/PRD.md:594-595).
+
+- **M5 CLOSED — SIGNED by hamr 2026-10-10 ("sign m5-close"):** Accept is sign (already built). An edited flow already refuses to run. Dry run waits until a real outside send exists. Versions move to the module that adds editing a signed flow.
 
 ## M6 — describe, sign, and edit a flow (authoring)
 
