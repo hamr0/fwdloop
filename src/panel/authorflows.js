@@ -27,7 +27,7 @@ import {
   applyRunValues, flowValues, pickRunValues, valuesHash,
 } from '../runvalues.js';
 import {
-  capFloorFor, capFloorText, checkInputRows, runInputRows,
+  capFloorFor, capFloorText, cardFromSigned, checkInputRows, runInputRows,
 } from './authorcard.js';
 import { checkValues } from './authorvalues.js';
 import { providerKeys } from './spawn.js';
@@ -216,6 +216,8 @@ export function createFlowsDoor(opts) {
       flow: name, capUsd: read.arbiter.capUsd, roles, nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
       runs: passed, stats,
       ...formFacts(read),
+      // M6: the job as a card to edit (`ok:true, card, flowHash` = the signature hash it is opened at), or why it cannot be (`ok:false, say`)
+      edit: (() => { const c = cardFromSigned(read); return c.ok ? { ok: true, card: c.card, flowHash: read.signature.flow } : c; })(),
     };
   }
 

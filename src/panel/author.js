@@ -428,8 +428,11 @@ export function createAuthor(opts) {
         if (!run.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: run.say } };
       }
       const signedBy = userInfo().username;
+      // M6: a card that edits a signed job signs as a REPLACEMENT of that job, only at the signature hash it was opened at (the writer re-checks it)
+      const editOf = v.card.editOf && typeof v.card.editOf === 'object' ? v.card.editOf : null;
+      if (editOf !== null && editOf.flow !== name) return { status: 409, body: { ok: false, refused: 'edit-name', say: 'This draft edits another job than the name it was drafted under. Nothing was signed.' } };
       const result = signDraft({
-        dir: join(dir, v.plan), approve: v.hash, signedBy, env: loaded.env, sessionDir: dir,
+        dir: join(dir, v.plan), approve: v.hash, signedBy, env: loaded.env, sessionDir: dir, ...(editOf !== null ? { replaces: { flowHash: String(editOf.flowHash) } } : {}),
       });
       if (!result.ok) {
         const keys = providerKeys(loaded.env);
