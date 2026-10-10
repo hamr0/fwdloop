@@ -2009,6 +2009,12 @@ through M5 (docs/archive/PRD.md:597-605).
 
 **Exit evidence (live, 2026-10-10) — EXIT SIGNED by hamr 2026-10-10 ("sign m6 exit"):** in the panel only, hamr edited am29-walk-2 to add line 4 ("write 3 questions I could ask the interviewer", guardrail "under 100 words"), signed it, and started run-2 with its own job copy; run-2 went red at step 3 on its word band ($0.055, the check working as signed). run-1's Job tab still shows the old 5 lines. Amendments 1 (`f861cb2`) and 2 (`834bcc3`) built test-first with $0 walks at 1280, 390 and 320 px. Suite 2614/2614, typecheck 0.
 
+- **Built after signing — not signed text (2026-10-10), M6 fixes:**
+  - *F1 (`450713b`):* a run working on your answer counts as running, so Edit is greyed and the replacing sign is refused (`ask.json` stays on disk after the answer; it now blocks "running" only while the ask is unanswered).
+  - *F3 (`86cabf9`):* the run's job copy is written only if the job on disk still has the signature hash the run verified; if the job was replaced while the run was starting, the run stops `preflight-red` and writes no copy.
+  - *F5 (`a8a9d8b`):* a run halted under a job that was later replaced offers no Resume button (the runner would refuse it as a signature mismatch); amendment 4 added the words.
+  - *Known limits, not fixed:* a hard kill (SIGKILL) in the middle of a replacing sign leaves the old files in `.replace-old-<pid>-<ms>/` and the job refused until they are moved back by hand. The Run, Map and Audit tabs read the flow's current job, not the run's copy; only the Job tab reads the copy.
+
 ## M7 — skills and persona
 
 Skill directories gate the drafter's visible primitive subset, and a signed persona line affects
