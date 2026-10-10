@@ -31,3 +31,12 @@ test('item 5: renderWorkflows draws only the capped sub-cards and, when some are
   assert.match(src, /older runs: use search/);
   assert.doesNotMatch(src, /childRuns\.forEach/);
 });
+
+test('item 6: the Job tab has a "The job" title (a field label, like the Chat card) under Model and above the signed lines, with a unique id', () => {
+  const model = PAGE.indexOf('id="details-model"');
+  const title = PAGE.indexOf('id="details-job-title"');
+  const prose = PAGE.indexOf('id="details-prose"');
+  assert.ok(model !== -1 && title > model && prose > title, `order model ${model} < title ${title} < prose ${prose}`);
+  assert.match(PAGE, /<label id="details-job-title">The job<\/label>/);
+  assert.equal((PAGE.match(/id="details-job-title"/g) || []).length, 1);
+});
