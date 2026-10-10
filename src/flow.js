@@ -414,11 +414,14 @@ function readTextFile(filePath, label, reds) {
  * last (each via a temp file + rename in the same directory), creates an
  * empty `runs/`, and proves the result by reading it back with `readFlow`.
  *
- * @param {{root: unknown, name: unknown, proseText: unknown, declaration: unknown, signedBy: unknown, signedAt: unknown, catalogue: unknown}} input
+ * M6: with `replaces: {flowHash}` it instead REPLACES the signed job already under that name (see `replaceSigned`), and only if that job is
+ * still the one with that signature hash. `onReplaceStep` is a test seam: called after each move of the swap; a throw there is a failure.
+ *
+ * @param {{root: unknown, name: unknown, proseText: unknown, declaration: unknown, signedBy: unknown, signedAt: unknown, catalogue: unknown, replaces?: {flowHash: string}, onReplaceStep?: (step: string) => void}} input
  * @returns {WriteFlowResult}
  */
 export function writeFlow({
-  root, name, proseText, declaration, signedBy, signedAt, catalogue,
+  root, name, proseText, declaration, signedBy, signedAt, catalogue, replaces, onReplaceStep,
 }) {
   const nameCheck = checkFlowName(name);
   if (!nameCheck.ok) return { ok: false, reds: [nameCheck.red] };
@@ -449,6 +452,12 @@ export function writeFlow({
   if (!signResult.ok) return { ok: false, reds: signResult.reds };
 
   const dir = path.join(root, safeName);
+
+  if (replaces !== undefined) {
+    return replaceSigned({
+      root, name: safeName, dir, proseText: /** @type {string} */ (proseText), declarationText, signature: signResult.signature, replaces, catalogue, onReplaceStep,
+    });
+  }
 
   // Refuse if any of the three files already exists — M1 never overwrites a
   // signed flow (versions are M4).
@@ -535,6 +544,86 @@ export function writeFlow({
   return {
     ok: true, dir, signature: signResult.signature,
   };
+}
+
+/** M6: the names `replaceSigned` swaps, signature last (the file that makes the folder a signed flow). `setup.jsonl` is only moved away: the caller writes the new one. */
+const SWAP_NAMES = ['prose.txt', 'declaration.json', SIGNED_COPY_DIR, 'setup.jsonl', 'signature.json'];
+
+/**
+ * M6 ("Signing replaces the job"): replace the signed job in `<root>/<name>/`, ALL OR NOTHING, keeping the name, `runs/` and the flow's books.
+ * Refuses (touching nothing) unless the folder holds a signed job whose `signature.json` `flow` hash is `replaces.flowHash` (a draft opened from an
+ * older version of the job, or a job signed again meanwhile, is refused by name). The new files are staged inside the folder first; the swap then moves
+ * each old file into a backup folder and its new one into place (signature last); ANY failure, or a proof read that does not verify, moves everything
+ * back. On success the backup is deleted — no old version is kept anywhere (hamr's ruling). Only a hard kill inside the swap leaves the backup
+ * (`.replace-old-*`) holding the old files; nothing recovers it automatically.
+ * @param {{root: string, name: string, dir: string, proseText: string, declarationText: string, signature: any, replaces: {flowHash: string}, catalogue: unknown, onReplaceStep?: (step: string) => void}} a
+ * @returns {WriteFlowResult}
+ */
+function replaceSigned({
+  root, name, dir, proseText, declarationText, signature, replaces, catalogue, onReplaceStep,
+}) {
+  const red = (/** @type {string} */ r) => ({ ok: /** @type {false} */ (false), reds: [r] });
+  let dirStat;
+  try { dirStat = lstatSync(dir); } catch { return red(`flow: nothing signed to replace — "${name}" has no folder here`); }
+  if (dirStat.isSymbolicLink() || !dirStat.isDirectory()) return red(`flow: "${dir}" is not a plain folder, refused`);
+  const onDisk = readFileInside(dir, 'signature.json');
+  let current = null;
+  try { current = onDisk.ok ? JSON.parse(onDisk.text)?.flow : null; } catch { current = null; }
+  if (typeof current !== 'string') return red(`flow: nothing signed to replace — "${name}" has no readable signature.json`);
+  if (typeof replaces?.flowHash !== 'string' || current !== replaces.flowHash) {
+    return red(`flow: "${name}" was signed again since you opened it for editing, so this edit is out of date. Nothing was changed. Open the job again and redo the edit.`);
+  }
+
+  const stamp = `${process.pid}-${Date.now()}`;
+  const stage = path.join(dir, `.replace-new-${stamp}`);
+  const backup = path.join(dir, `.replace-old-${stamp}`);
+  const moved = [];   // names whose OLD file is now in backup
+  const placed = [];  // names whose NEW file is now in dir
+  const cleanup = () => {
+    for (const p of [stage, backup]) { try { rmSync(p, { recursive: true, force: true }); } catch { /* best-effort */ } }
+  };
+  const putBack = () => {
+    for (const n of [...placed].reverse()) rmSync(path.join(dir, n), { recursive: true, force: true });
+    for (const n of [...moved].reverse()) renameSync(path.join(backup, n), path.join(dir, n));
+  };
+  const fail = (/** @type {string} */ why) => {
+    try { putBack(); } catch (err) {
+      // the old files could not all be put back: say where they are rather than pretend (the backup is NOT cleaned up)
+      return red(`flow: ${why}; the old job could not be fully put back (${err.message}) — its files are in ${backup}`);
+    }
+    cleanup();
+    return red(`flow: ${why}`);
+  };
+
+  try {
+    mkdirSync(stage);
+    mkdirSync(backup);
+    mkdirSync(path.join(stage, SIGNED_COPY_DIR));
+    writeFileSync(path.join(stage, 'prose.txt'), proseText, 'utf8');
+    writeFileSync(path.join(stage, 'declaration.json'), declarationText, 'utf8');
+    writeFileSync(path.join(stage, SIGNED_COPY_DIR, 'prose.txt'), proseText, { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(path.join(stage, SIGNED_COPY_DIR, 'declaration.json'), declarationText, { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(path.join(stage, 'signature.json'), `${JSON.stringify(signature, null, 2)}\n`, 'utf8');
+  } catch (err) {
+    cleanup();
+    return red(`flow: could not stage the new files — ${err.message}. Nothing was changed.`);
+  }
+
+  try {
+    for (const n of SWAP_NAMES) {
+      if (existsSync(path.join(dir, n))) { renameSync(path.join(dir, n), path.join(backup, n)); moved.push(n); }
+      if (existsSync(path.join(stage, n))) { renameSync(path.join(stage, n), path.join(dir, n)); placed.push(n); }
+      onReplaceStep?.(n);
+    }
+  } catch (err) {
+    return fail(`could not replace the job — ${err.message}`);
+  }
+
+  // the mechanical "it happened" check, as at sign: read the replaced job back through the one reader
+  const proof = readFlow({ root, name, catalogue });
+  if (!proof.ok) return fail(`the replaced job does not verify (${proof.reds.join('; ')})`);
+  cleanup();
+  return { ok: true, dir, signature };
 }
 
 /**
