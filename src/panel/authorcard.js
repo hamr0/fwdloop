@@ -170,8 +170,8 @@ export function cardFields(body) {
     inputs: str(b.inputs).replace(/\r\n?/g, '\n'),
     capUsd: typeof b.capUsd === 'string' && b.capUsd.trim() !== '' ? Number(b.capUsd) : b.capUsd,
     askWait: str(b.askWait).trim(),
-    // M6: set only when this card EDITS a signed job: which job, and the signature hash it was opened at
-    editOf: typeof b.editOf?.flow === 'string' && typeof b.editOf?.flowHash === 'string' && b.editOf.flowHash !== '' ? { flow: b.editOf.flow, flowHash: b.editOf.flowHash } : null,
+    // M6: present only when this card EDITS a signed job: which job, and the signature hash it was opened at
+    ...(typeof b.editOf?.flow === 'string' && typeof b.editOf?.flowHash === 'string' && b.editOf.flowHash !== '' ? { editOf: { flow: b.editOf.flow, flowHash: b.editOf.flowHash } } : {}),
   };
 }
 

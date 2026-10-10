@@ -89,10 +89,10 @@ test('cardFromSigned: a job with something the card has no box for is refused in
   }
 });
 
-test('cardFields: editOf is {flow, flowHash} or null, nothing else', () => {
+test('cardFields: editOf is {flow, flowHash} or absent, nothing else', () => {
   assert.deepEqual(cardFields({ editOf: { flow: 'a', flowHash: 'h', extra: 1 } }).editOf, { flow: 'a', flowHash: 'h' });
   for (const bad of [undefined, null, 'a', 3, {}, { flow: 'a' }, { flow: 1, flowHash: 'h' }, { flow: 'a', flowHash: '' }]) {
-    assert.equal(cardFields({ editOf: bad }).editOf, null, JSON.stringify(bad));
+    assert.equal('editOf' in cardFields({ editOf: bad }), false, JSON.stringify(bad));
   }
 });
 

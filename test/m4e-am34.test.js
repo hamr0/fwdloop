@@ -28,7 +28,7 @@ function world(setupRows) {
   });
   assert.equal(w.ok, true, JSON.stringify(w.reds));
   mkdirSync(path.join(w.dir, 'runs', 'run-1'), { recursive: true });
-  if (setupRows) writeFileSync(path.join(w.dir, SETUP_FILE), `${setupRows.map((r) => JSON.stringify(r)).join('\n')}\n`);
+  if (setupRows) writeFileSync(path.join(w.dir, SETUP_FILE), `${setupRows.map((r) => JSON.stringify(r.flowHash === undefined ? r : { ...r, flowHash: w.signature.flow })).join('\n')}\n`); // the sign row's flowHash is the signature hash (M6: a row of another signing is not this job's)
   return { root, decl, job: () => getRunJob({ root, flow: 'f', runId: 'run-1', catalogue: CAT }) };
 }
 const SIGN = (items) => ({ kind: 'sign', n: 0, at: '2026-10-09T12:00:00Z', signedBy: 'hamr', hash: 'h', flowHash: 'fh', notChecked: { label: NOT_CHECKED_LABEL, items } });
