@@ -35,7 +35,7 @@ import { providerKeys } from './spawn.js';
 
 /** M6 amendment 1: the sentence the page shows and the sign route refuses with, for a job with a run running or waiting at its ask. @param {string} runId */
 export const editBlockedSay = (runId) => `finish or stop ${runId} first`;
-/** M6 amendment 3: the sentence for a job with a run still starting (its start folder, or a run whose controls say `starting`). */
+/** M6 amendment 3: the sentence for a job with a start still alive (its start folder in phase `starting`). */
 export const EDIT_STARTING_SAY = 'a run is starting';
 const NO_LIMIT = 'no monthly limit set';
 /** The body keys a run start takes (amendment 5 item 2): the open boxes plus the hash of the second click. Any other key is refused by name. */
@@ -214,8 +214,8 @@ export function createFlowsDoor(opts) {
   /**
    * Why a job cannot be edited right now, in the sentence the page shows and the sign route refuses with; `null` when it can. M6 amendment 1:
    * the newest run that is running or waiting at its ask, by the panel's ONE decision (`runControls`, via `getRunControls`: `canStop`) ->
-   * "finish or stop run-N first". M6 amendment 3: a start in phase `starting` for this flow (`starter.startingFor`) or a run whose controls
-   * say `starting` -> "a run is starting". A stopped, finished or expired run does not count.
+   * "finish or stop run-N first". M6 amendment 3: a start folder in phase `starting` for this flow whose child is alive (`starter.startingFor`,
+   * the start door's own rule) -> "a run is starting"; a start that is done, refused or dead unlocks. A stopped, finished or expired run does not count.
    * @param {string} realRoot @param {string} name @returns {string|null}
    */
   function editBlockOf(realRoot, name) {
@@ -226,7 +226,6 @@ export function createFlowsDoor(opts) {
     for (const id of ids) {
       const c = getRunControls({ root: realRoot, flow: name, runId: id, catalogue: cat.primitives });
       if (c?.canStop === true) return editBlockedSay(id);
-      if (c?.starting === true) return EDIT_STARTING_SAY;
     }
     return null;
   }

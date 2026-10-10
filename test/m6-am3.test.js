@@ -62,9 +62,19 @@ test('(1) a start in phase `starting`: the flows list says "a run is starting" a
   await until(async () => ((await flowEntry(w)).edit.ok === true ? true : null));
 });
 
-test('(2) a run whose controls report `starting` (a run folder with no process record, no ask, no end row) blocks edit with the same words', async () => {
+test('(2) a dead start (its child gone) plus an empty run folder with no pid row: Edit unlocks, and a replacing sign is not refused as run-live', async () => {
   const w = await signedWorld();
-  mkdirSync(path.join(w.root, 'job2', 'runs', 'run-1'), { recursive: true });
-  assert.equal(getRunControls({ root: w.root, flow: 'job2', runId: 'run-1', catalogue: CAT }).starting, true);
-  assert.deepEqual((await flowEntry(w)).edit, { ok: false, say: SAY });
+  const entry = await flowEntry(w);
+  const d = await w.post('/api/author/draft', editCard(w, entry, { capUsd: '0.30' }));
+  const id = d.json().draftId;
+  const g = await phaseOf(w, id, ['green']);
+  const child = await liveFwdloop(w);
+  startingStart(w, child);
+  child.kill('SIGKILL');
+  await until(() => isFwdloopAlive(child.pid) !== true);
+  assert.equal(getRunControls({ root: w.root, flow: 'job2', runId: 'run-1', catalogue: CAT }).starting, true, 'the orphan run folder still reads starting to runControls (untouched)');
+  const e = (await flowEntry(w)).edit;
+  assert.equal(e.ok, true, JSON.stringify(e));
+  const s = await w.post(`/api/author/${id}/sign`, { hash: g.hash });
+  assert.notEqual(s.json().refused, 'run-live', s.text);
 });
