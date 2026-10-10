@@ -1781,6 +1781,11 @@
   // selection on the next render.
   var wfExpanded = {};
 
+  // am41 item 5: a job card shows its latest 7 sub-cards (`runs` is newest first); the rest are reached by search.
+  function capChildRuns(runs){
+    return {shown: runs.slice(0, 7), hidden: Math.max(0, runs.length - 7)};
+  }
+
   function renderWorkflows(flows){
     var el = document.getElementById("wf-list");
     el.innerHTML = "";
@@ -1837,7 +1842,9 @@
       if(expanded){
         var runsWrap = document.createElement("div");
         runsWrap.className = "wf-runs";
-        childRuns.forEach(function(r){ runsWrap.appendChild(buildRunRowEl(r, { sub: true })); });
+        var capped = capChildRuns(childRuns);
+        capped.shown.forEach(function(r){ runsWrap.appendChild(buildRunRowEl(r, { sub: true })); });
+        if(capped.hidden > 0) runsWrap.appendChild(textDiv("hint wf-older", "older runs: use search"));
         wrap.appendChild(runsWrap);
       }
       el.appendChild(wrap);
