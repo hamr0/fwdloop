@@ -82,7 +82,8 @@ test('the page (am37): one column, no side-by-side grid, no two block headings; 
   assert.doesNotMatch(PAGE, /container-type/);
   assert.doesNotMatch(PAGE, /\.jg[-{ ]|jg-asked|jg-plan-side|id="job-grid"[^>]*class="jg"/);
   assert.doesNotMatch(PAGE, /details-success/);
-  assert.match(PAGE, /not checked \(the AI's own reading\)/);
+  assert.doesNotMatch(PAGE, /not checked \(the AI's own reading\)/); // am41 item 3: the words live in src/checked.js only
+  assert.equal(NOT_CHECKED_LABEL, "not checked (the AI's own reading)");
   assert.match(PAGE, /nothing \(pure stop\)/);
   assert.match(PAGE, /ASK · waits /);
   assert.match(PAGE, /not recorded \(signed before amendment 34\)/);
@@ -126,7 +127,7 @@ const PLAN = {
     { step: 3, line: 3, reads: ['resume-summary'], makes: 'summaryResume', mayDo: [], check: ['z'], checkClass: 'softgreen', ask: false, waitMs: null },
     { step: 4, line: 4, reads: ['resume-summary'], makes: 'approved', mayDo: [], check: ['x'], checkClass: 'hitl', ask: true, waitMs: 5400000 },
   ],
-  notChecked: { label: 'l', items: ['tone', 'the JD match'], recorded: true },
+  notChecked: { label: NOT_CHECKED_LABEL, items: ['tone', 'the JD match'], recorded: true },
 };
 const JOB = {
   resolved: true, flow: 'f', model: null, modelWhy: 'x',
@@ -221,10 +222,10 @@ test('Not checked always carries its label; items one row each; an older flow sa
   let t = walk(render(JOB).els['details-plan-tail']);
   assert.ok(t.includes("<summary>plan-sum|not checked (the AI's own reading)"), t.join('\n'));
   assert.ok(t.includes('plan-row|tone') && t.includes('plan-row|the JD match'));
-  t = walk(render({ ...JOB, plan: { ...PLAN, notChecked: { label: 'l', items: [], recorded: false } } }).els['details-plan-tail']);
+  t = walk(render({ ...JOB, plan: { ...PLAN, notChecked: { label: NOT_CHECKED_LABEL, items: [], recorded: false } } }).els['details-plan-tail']);
   assert.ok(t.includes("<summary>plan-sum|not checked (the AI's own reading)"));
   assert.ok(t.includes('plan-row|not recorded (signed before amendment 34)'), t.join('\n'));
-  t = walk(render({ ...JOB, plan: { ...PLAN, notChecked: { label: 'l', items: [], recorded: true } } }).els['details-plan-tail']);
+  t = walk(render({ ...JOB, plan: { ...PLAN, notChecked: { label: NOT_CHECKED_LABEL, items: [], recorded: true } } }).els['details-plan-tail']);
   assert.ok(t.includes("<summary>plan-sum|not checked (the AI's own reading)"));
 });
 

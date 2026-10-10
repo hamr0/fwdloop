@@ -921,7 +921,7 @@
             <button class="btn primary wide" type="button" id="chat-q-send" data-testid="chat-q-send">Send</button>
           </div>
 
-          <!-- M4e amendments 24/25: beside a green plan, Your answers (if it was drafted with any), Checked (built by code from the typed checks) and Not checked (the drafter's own reading) -->
+          <!-- M4e amendments 24/25: beside a green plan, Your answers (if it was drafted with any), Checked (built by code from the typed checks) and Not checked (labelled, from src/checked.js) -->
           <div class="chat-extras" id="chat-extras" data-testid="chat-extras"></div>
 
           <!-- a refused draft / run / sign / abandon POST (or a refused start) shows here and STAYS: set only by this tab's own
@@ -2775,7 +2775,7 @@
     fold.appendChild(textDiv("plan-row", "check: " + (st.ask ? "ASK · waits " + plainWait(st.waitMs) : (st.check || []).join(" "))));
     return fold;
   }
-  // The tail: any step that came from no listed line, then the folded "not checked (the AI's own reading)" summary (its label is always shown).
+  // The tail: any step that came from no listed line, then the folded Not-checked summary (its label comes from the payload, src/checked.js; always shown).
   // `placed` (step numbers already folded under a line) is filled by renderJob's line loop before this runs.
   function paintJobPlan(job, placed){
     var plan = job.plan || {steps: [], notChecked: {recorded: false, items: []}};
@@ -2787,7 +2787,7 @@
     fold.className = "plan-fold plan-notchecked";
     var sum = document.createElement("summary");
     sum.className = "plan-sum";
-    sum.textContent = "not checked (the AI's own reading)";
+    sum.textContent = nc.label || "";
     fold.appendChild(sum);
     if(!nc.recorded) fold.appendChild(textDiv("plan-row", "not recorded (signed before amendment 34)"));
     else if(!(nc.items || []).length) fold.appendChild(textDiv("plan-row", "the AI listed nothing"));
@@ -3998,7 +3998,7 @@
         return (c.line !== null && c.line !== undefined ? "line " + c.line : "step " + c.step) + ": " + c.sentences.join(" ");
       })});
       var nc = state.notChecked || {};
-      blocks.push({id: "chat-notchecked", head: "Not checked", sub: nc.label || "the drafter's own reading, not a guarantee", lines: (nc.items && nc.items.length) ? nc.items.map(function(x){ return "- " + x; }) : ["The drafter listed nothing."]});
+      blocks.push({id: "chat-notchecked", head: nc.label || "", sub: "", lines: (nc.items && nc.items.length) ? nc.items.map(function(x){ return "- " + x; }) : ["The drafter listed nothing."]});
       return {blocks: blocks};
     }
     // pure: did this POST succeed (one decision for every handler)

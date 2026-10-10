@@ -129,6 +129,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 // eslint-disable-next-line import/first
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 // eslint-disable-next-line import/first
 import { isFwdloopAlive } from '../src/liveness.js';
 // eslint-disable-next-line import/first
@@ -348,7 +349,7 @@ test('C2: Checked is built from typed fields only: model prose, an unknown shape
 });
 
 test('C3: Not checked always carries its label, with or without items; blanks and non-strings are dropped', () => {
-  assert.equal(NOT_CHECKED_LABEL, "the drafter's own reading, not a guarantee");
+  assert.equal(NOT_CHECKED_LABEL, "not checked (the AI's own reading)"); // am41 item 3
   for (const raw of [undefined, null, [], 'x', 7]) assert.deepEqual(notCheckedBlock(raw), { label: NOT_CHECKED_LABEL, items: [] });
   assert.deepEqual(notCheckedBlock([' tone ', '', 3, 'wording']), { label: NOT_CHECKED_LABEL, items: ['tone', 'wording'] });
 });
@@ -469,19 +470,20 @@ test('P6: Your answers sit under their line; Checked is listed; Not checked alwa
   const green = {
     phase: 'green', answers: [{ line: 3, lineText: 'write me a summary resume', question: 'q', answer: 'Skills, Fit and History' }],
     checked: [{ step: 1, line: 3, sentences: ['The whole output is under 600 words.'] }, { step: 2, line: null, sentences: ['No machine check of the content: you check it at the ask.'] }],
-    notChecked: { label: "the drafter's own reading, not a guarantee", items: ['tone'] },
+    notChecked: { label: NOT_CHECKED_LABEL, items: ['tone'] },
   };
   const v = ex(green);
   assert.deepEqual(v.blocks.map((b) => b.id), ['chat-answers', 'chat-checked', 'chat-notchecked']);
   assert.deepEqual(v.blocks[0].lines, ['line 3: write me a summary resume\n  > Skills, Fit and History']);
   assert.deepEqual(v.blocks[1].lines, ['line 3: The whole output is under 600 words.', 'step 2: No machine check of the content: you check it at the ask.']);
-  assert.equal(v.blocks[2].sub, "the drafter's own reading, not a guarantee");
+  assert.equal(v.blocks[2].head, NOT_CHECKED_LABEL, 'am41 item 3: the words are the head, once');
+  assert.equal(v.blocks[2].sub, '');
   assert.deepEqual(v.blocks[2].lines, ['- tone']);
   const none = ex({ ...green, answers: [], notChecked: { label: NOT_CHECKED_LABEL, items: [] } });
   assert.deepEqual(none.blocks.map((b) => b.id), ['chat-checked', 'chat-notchecked'], 'no answers: no Your answers block');
-  assert.equal(none.blocks[1].sub, NOT_CHECKED_LABEL);
+  assert.equal(none.blocks[1].head, NOT_CHECKED_LABEL);
+  assert.equal(none.blocks[1].sub, '');
   assert.deepEqual(none.blocks[1].lines, ['The drafter listed nothing.']);
-  assert.equal(ex({ ...green, notChecked: undefined }).blocks[2].sub, "the drafter's own reading, not a guarantee", 'the label survives a missing list');
   for (const st of [null, { ...green, phase: 'red' }, { ...green, phase: 'questions-open' }, { phase: 'green' }]) assert.equal(ex(st), null);
   // the answers and the lists are escaped, never raw html
   assert.match(fnSrc('renderExtras'), /escapeXml\(b\.head\)[\s\S]*b\.lines\.map\(escapeXml\)/);
@@ -511,4 +513,10 @@ test('B7: a plan that is still red on try 3 but asked a question is questions-op
   await childGone(w, id);
   assert.equal(g.phase, 'green', JSON.stringify(g));
   assert.equal(g.revisesLeft, 2);
+});
+
+test('am41 item 3: the page holds no copy of the Not-checked words; the Chat card head is the payload label, once', () => {
+  const page = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'panel', 'index.html'), 'utf8');
+  assert.doesNotMatch(page, /drafter's own reading/);
+  assert.doesNotMatch(page, /AI's own reading/);
 });

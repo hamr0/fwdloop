@@ -8,8 +8,8 @@
 // NOT CHECKED is the drafter's own reading (a list of short phrases it wrote in the same call). It is information only: shown with its label,
 // never signed, never in the readout, never in the spec hash. What this throws away: anything the drafter did not list; the list is not complete.
 
-/** The label that always sits with the "Not checked" list. */
-export const NOT_CHECKED_LABEL = "the drafter's own reading, not a guarantee";
+/** The label that always sits with the "Not checked" list (am41 item 3: the ONE place these words live; the Job tab and the Chat card read it off their payloads). */
+export const NOT_CHECKED_LABEL = "not checked (the AI's own reading)";
 
 const list = (xs) => xs.join(', ');
 
