@@ -14,7 +14,7 @@ import {
 } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 
-import { checkFlowName } from '../flow.js';
+import { checkFlowName, signedHashOf } from '../flow.js';
 import { checkSendDestination, resolveCeilingUsd } from '../runner.js';
 import { parseSignedText } from '../signed-text.js';
 import { PROVIDER_SLOTS } from '../provider.js';
@@ -170,6 +170,8 @@ export function cardFields(body) {
     inputs: str(b.inputs).replace(/\r\n?/g, '\n'),
     capUsd: typeof b.capUsd === 'string' && b.capUsd.trim() !== '' ? Number(b.capUsd) : b.capUsd,
     askWait: str(b.askWait).trim(),
+    // M6: set only when this card EDITS a signed job: which job, and the signature hash it was opened at
+    editOf: typeof b.editOf?.flow === 'string' && typeof b.editOf?.flowHash === 'string' && b.editOf.flowHash !== '' ? { flow: b.editOf.flow, flowHash: b.editOf.flowHash } : null,
   };
 }
 
@@ -191,6 +193,51 @@ export function cardToProse(card) {
   if (card.destination !== '') out.push(`guardrail: send at line ${steps.length} to file:${card.destination}`);
   for (const i of parseInputLines(card.inputs)) out.push(`guardrail: source ${i.role} = file:${i.path}`);
   return `${out.join('\n')}\n`;
+}
+
+/** An ask wait in ms as the card spells it (`30m`, `2h`), or null when it is not a whole number of minutes. @param {number} ms */
+function waitText(ms) {
+  if (!Number.isInteger(ms) || ms <= 0 || ms % 60000 !== 0) return null;
+  return ms % 3600000 === 0 ? `${ms / 3600000}h` : `${ms / 60000}m`;
+}
+
+/**
+ * M6: a signed job turned back into the card's fields (the job box, inputs box, destination, cap, ask wait), from `parseSignedText`'s `lines` and
+ * `arbiter`. The ONE rule of fidelity is mechanical: the card is offered only if writing it again (`cardToProse` -> `parseSignedText`) gives back the
+ * SAME lines and the SAME arbiter (an old unsigned `ask:` wait is the one thing allowed to differ: it comes back signed at its 30m). A setting the
+ * card has no box for (a redo cap, a second send, a send off the last line, a wait in seconds) makes the answer `{ok:false, say}`; nothing is dropped.
+ * @param {{ lines: {n: number, text: string, guardrail: string}[], arbiter: any }} signed
+ * @returns {{ ok: true, card: { job: string, inputs: string, destination: string, capUsd: string, askWait: string } } | { ok: false, say: string }}
+ */
+export function cardFromSigned({ lines, arbiter }) {
+  const no = () => ({ ok: /** @type {false} */ (false), say: 'This job has a setting the card has no box for, so it cannot be opened for editing here.' });
+  const asks = new Map((arbiter.asks ?? []).map((a) => [a.line, a]));
+  const jobLines = [];
+  let firstWait = null;
+  for (const l of lines) {
+    const ak = asks.get(l.n);
+    if (ak) {
+      const w = waitText(ak.ttlMs);
+      if (w === null) return no();
+      firstWait ??= w;
+      jobLines.push(`Ask ${w}: ${l.text}`);
+    } else jobLines.push(l.text);
+    if (typeof l.guardrail === 'string' && l.guardrail !== '') jobLines.push(`~ ${l.guardrail}`);
+  }
+  const sends = arbiter.sends ?? [];
+  if (sends.length > 1 || (sends.length === 1 && sends[0].target?.kind !== 'file')) return no();
+  const card = {
+    job: jobLines.join('\n'),
+    inputs: (arbiter.sources ?? []).map((x) => `${x.role}: ${x.path}`).join('\n'),
+    destination: sends.length === 1 ? sends[0].target.path : '',
+    capUsd: capText(Number(arbiter.capUsd)),
+    askWait: firstWait ?? '1h',
+  };
+  const again = parseSignedText(cardToProse(cardFields({ ...card, flowName: 'x' })));
+  const norm = (a) => JSON.stringify({ ...a, asks: (a.asks ?? []).map(({ ttlSigned, ...rest }) => rest) });
+  const sameLines = again.ok && JSON.stringify(again.lines) === JSON.stringify(lines);
+  if (!sameLines || norm(again.arbiter) !== norm(arbiter)) return no();
+  return { ok: true, card };
 }
 
 /** The refusal for a path that does not name a readable regular file (realpath at the click). @param {string} p */
@@ -281,10 +328,15 @@ export function checkCard(card, { root, env = {} }) {
   const refusals = [];
   const no = (field, say) => refusals.push({ field, say });
 
-  // flow name: the CLI's own check, and not an existing flow
+  // flow name: the CLI's own check, and not an existing flow (M6: unless this card edits that very job, still at the hash it was opened at)
   const name = checkFlowName(card.flowName);
   if (!name.ok) no('flowName', `${name.red}. Use lowercase letters, digits, "-" or "_".`);
-  else {
+  else if (card.editOf) {
+    const was = signedHashOf(join(root, card.editOf.flow));
+    if (card.flowName !== card.editOf.flow) no('flowName', `The name of a job being edited cannot change. It stays "${card.editOf.flow}".`);
+    else if (was === null) no('flowName', `The job "${card.editOf.flow}" is no longer here, so it cannot be edited. Clear the card and start a new job.`);
+    else if (was !== card.editOf.flowHash) no('flowName', `"${card.editOf.flow}" was signed again since you opened it for editing. Open it again to edit the new version. Nothing was changed.`);
+  } else {
     let there = true;
     try { lstatSync(join(root, card.flowName)); } catch { there = false; }
     if (there) no('flowName', `There is already a flow named "${card.flowName}" here. Pick a name that is not used yet.`);
