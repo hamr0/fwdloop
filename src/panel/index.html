@@ -4336,7 +4336,7 @@
       setVal("jf-dest-folder", c.destination); setVal("jf-inputs", c.inputs); setVal("jf-ask-wait", c.askWait || "1h");
       editBannerEl.textContent = "Editing \u201c" + f.flow + "\u201d. Draft it, read the new plan, then sign: signing replaces this job. Clear leaves it exactly as it was.";
       editBannerEl.hidden = false;
-      actionErrEl.textContent = "";
+      chatActionOk();
       refreshCapNote(); fitCardBoxes(); refreshStartEnabled();
     }
     // the card stops editing a job: the name box is free again
