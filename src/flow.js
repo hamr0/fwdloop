@@ -28,6 +28,7 @@ import path from 'node:path';
 import { parseSignedText } from './signed-text.js';
 import { signFlow, verifyFlow } from './signature.js';
 import { validateDeclaration } from './declaration.js';
+import { describeChange } from './signed-diff.js';
 
 /** @typedef {import('./types.js').WriteFlowResult} WriteFlowResult */
 /** @typedef {import('./types.js').ReadFlowResult} ReadFlowResult */
@@ -40,6 +41,8 @@ export const FLOW_FILES = Object.freeze(['prose.txt', 'declaration.json', 'signa
 export const PANEL_STARTS_DIR = '.starts';
 
 const RUNS_DIR = 'runs';
+/** Amendment 43: the write-once copy of the two signed files, made at sign by `writeFlow` (the ONE writer). Outside FLOW_FILES: it never enters the signature or `readFlow`'s success path. */
+const SIGNED_COPY_DIR = 'signed';
 
 /**
  * Check a flow name against the allowed shape: 1..64 characters, lowercase
@@ -455,6 +458,10 @@ export function writeFlow({
     }
   }
 
+  if (existsSync(path.join(dir, SIGNED_COPY_DIR))) {
+    return { ok: false, reds: [`flow: "${SIGNED_COPY_DIR}" already exists at ${path.join(dir, SIGNED_COPY_DIR)}`] };
+  }
+
   // Track what THIS call creates so a failure partway through can be rolled
   // back — a directory must never be left with a signature but a missing
   // file.
@@ -466,7 +473,7 @@ export function writeFlow({
       if (createdDir) {
         rmSync(dir, { recursive: true, force: true });
       } else {
-        for (const p of written) rmSync(p, { force: true });
+        for (const p of written) rmSync(p, { recursive: true, force: true });
       }
     } catch {
       // best-effort cleanup; the red already reports the real failure
@@ -495,6 +502,12 @@ export function writeFlow({
   try {
     writeOne('prose.txt', proseText);
     writeOne('declaration.json', declarationText);
+    // am43: the copy of what is being signed, write-once (`wx` refuses an existing file), before the signature that makes it a signed flow.
+    const copyDir = path.join(dir, SIGNED_COPY_DIR);
+    mkdirSync(copyDir);
+    written.push(copyDir);
+    writeFileSync(path.join(copyDir, 'prose.txt'), proseText, { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(path.join(copyDir, 'declaration.json'), declarationText, { encoding: 'utf8', flag: 'wx' });
     writeOne('signature.json', `${JSON.stringify(signResult.signature, null, 2)}\n`);
 
     const runsDir = path.join(dir, RUNS_DIR);
@@ -602,7 +615,7 @@ export function readFlow({ root, name, catalogue }) {
   const verified = verifyFlow({
     proseText, declarationText, signature: signatureJson,
   });
-  if (!verified.ok) return { ok: false, reds: verified.reds };
+  if (!verified.ok) return { ok: false, reds: [...verified.reds, ...explainEdit(dir, signatureJson, proseText, declarationText)] };
 
   const signed = parseSignedText(proseText);
   if (!signed.ok) return { ok: false, reds: signed.reds };
@@ -621,4 +634,25 @@ export function readFlow({ root, name, catalogue }) {
     signature: signatureJson,
     classes: validated.classes,
   };
+}
+
+/**
+ * Amendment 43: after a failed verify, name what changed by comparing with the copy `writeFlow` kept at sign. The copy is trusted ONLY if it
+ * verifies against signature.json itself; otherwise it is never compared. Returns extra reds (plain sentences); never throws.
+ * @param {string} dir @param {any} signature @param {string} proseText @param {string} declarationText
+ * @returns {string[]}
+ */
+function explainEdit(dir, signature, proseText, declarationText) {
+  const oldProse = readFileInside(dir, `${SIGNED_COPY_DIR}/prose.txt`);
+  const oldDecl = readFileInside(dir, `${SIGNED_COPY_DIR}/declaration.json`);
+  if (!oldProse.ok && oldProse.missing && !oldDecl.ok && oldDecl.missing) {
+    return ['changed since signing: (signed before amendment 43: no copy to compare)'];
+  }
+  if (!oldProse.ok || !oldDecl.ok) return ["changed since signing: the saved copy of the signed files is incomplete, so it can't be trusted to compare"];
+  if (!verifyFlow({ proseText: oldProse.text, declarationText: oldDecl.text, signature }).ok) {
+    return ["changed since signing: the saved copy of the signed files does not match the signature, so it can't be trusted to compare"];
+  }
+  const changes = describeChange({ oldProse: oldProse.text, newProse: proseText, oldDecl: oldDecl.text, newDecl: declarationText });
+  if (changes.length === 0) return ['changed since signing: the files match the saved copy; signature.json itself was changed'];
+  return changes.map((c) => `changed since signing: ${c}`);
 }
