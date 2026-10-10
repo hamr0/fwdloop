@@ -546,6 +546,17 @@ export function writeFlow({
   };
 }
 
+/**
+ * The signature hash (`signature.json` `flow`) of the signed job in `flowDir`, or null when there is no readable one. It does NOT verify the
+ * files (that is `readFlow`): it only says which signing this folder is at, for M6's "was this job signed again since you opened it".
+ * @param {string} flowDir @returns {string|null}
+ */
+export function signedHashOf(flowDir) {
+  const f = readFileInside(flowDir, 'signature.json');
+  if (!f.ok) return null;
+  try { const h = JSON.parse(f.text)?.flow; return typeof h === 'string' && h !== '' ? h : null; } catch { return null; }
+}
+
 /** M6: the names `replaceSigned` swaps, signature last (the file that makes the folder a signed flow). `setup.jsonl` is only moved away: the caller writes the new one. */
 const SWAP_NAMES = ['prose.txt', 'declaration.json', SIGNED_COPY_DIR, 'setup.jsonl', 'signature.json'];
 
@@ -566,10 +577,8 @@ function replaceSigned({
   let dirStat;
   try { dirStat = lstatSync(dir); } catch { return red(`flow: nothing signed to replace — "${name}" has no folder here`); }
   if (dirStat.isSymbolicLink() || !dirStat.isDirectory()) return red(`flow: "${dir}" is not a plain folder, refused`);
-  const onDisk = readFileInside(dir, 'signature.json');
-  let current = null;
-  try { current = onDisk.ok ? JSON.parse(onDisk.text)?.flow : null; } catch { current = null; }
-  if (typeof current !== 'string') return red(`flow: nothing signed to replace — "${name}" has no readable signature.json`);
+  const current = signedHashOf(dir);
+  if (current === null) return red(`flow: nothing signed to replace — "${name}" has no readable signature.json`);
   if (typeof replaces?.flowHash !== 'string' || current !== replaces.flowHash) {
     return red(`flow: "${name}" was signed again since you opened it for editing, so this edit is out of date. Nothing was changed. Open the job again and redo the edit.`);
   }
