@@ -506,7 +506,7 @@ export function handleRequest(req, res, opts) {
   }
 
   if (pathname === '/api/inbox') {
-    const rows = listStops({ root: opts.root, resumeAttempt });
+    const rows = listStops({ root: opts.root, resumeAttempt, catalogue });
     send(200, { rows, openCount: inboxOpenCount(rows) });
     return;
   }

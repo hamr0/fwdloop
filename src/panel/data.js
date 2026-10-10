@@ -361,14 +361,16 @@ export function glyphPulses(g) {
  *    A saved answer with a live process is `[▶]` working on your answer.
  *  - `[?]` crashed after taking your answer (amendment 2 (f)) — the answer was
  *    consumed, the process is gone, no end row: cannot be carried on.
- * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string, resumable?: boolean, stoppedAtAsk?: string|null}} ctx
+ * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string, resumable?: boolean, stoppedAtAsk?: string|null, jobEdited?: boolean}} ctx
  * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]'|'[II]'|'[■]', label: string}}
  */
 export function computeGlyph({
-  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock, resumable, stoppedAtAsk,
+  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock, resumable, stoppedAtAsk, jobEdited,
 }) {
   if (historyRow) {
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
+    // M6 amendment 4: a stopped (or cap-halted) run whose job was edited and signed since cannot be resumed; the words say so.
+    if (jobEdited === true && (historyRow.outcome === 'stopped' || historyRow.outcome === 'cap-halt')) return { glyph: '[■]', label: JOB_EDITED_LINE };
     // M4e amendment 4 item 4: a run the human stopped, or one that hit its money cap and can be continued, is `[■]` stopped — never "failed".
     if (historyRow.outcome === 'stopped') {
       return { glyph: '[■]', label: stoppedAtAsk ? `${stoppedAtAsk}${STOPPED_AT_ASK_START_RE.test(stoppedAtAsk) ? ';' : ' —'} Resume to go on` : 'stopped — after the step that was running; Resume to go on' };
@@ -863,6 +865,13 @@ export function summarizeSpendRows(spendRows) {
   };
 }
 
+/** M6 F5: the ONE comparison of a run's halt record with the job on disk (`sameJob`; the runner refuses a Resume otherwise). */
+const haltMatchesJob = (halt, flowRead) => halt.ok && flowRead.ok && halt.halt.signatureHash === flowRead.signature.flow;
+/** M6 amendment 4: a stopped / cap-halted run (its halt record agrees with its end row) whose readable job is not the one it halted under. */
+const runJobEdited = (halt, historyRow, flowRead) => halt.ok && flowRead.ok && historyRow !== null && historyRow.outcome === halt.halt.outcome && !haltMatchesJob(halt, flowRead);
+/** The whole line (Runs, Ask and Inbox alike) of a stopped run whose job was edited since: no Resume is offered. */
+const JOB_EDITED_LINE = 'stopped — the job was edited; start a new run';
+
 /**
  * Read every book fwdloop can hold for one run, once. The shared context
  * every deriver below (and the POC before it) builds its fields from.
@@ -904,7 +913,9 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     // M4e amendment 4 item 4: a cap-halted or stopped run that can be continued (`halt.json` is the runner's record)
     resumable: halt.ok && historyRow !== null && historyRow.outcome === halt.halt.outcome,
     // M6 F5: the job on disk is still the one the run halted under (the runner refuses a Resume otherwise: "signature mismatch")
-    sameJob: halt.ok && flowRead.ok && halt.halt.signatureHash === flowRead.signature.flow,
+    sameJob: haltMatchesJob(halt, flowRead),
+    // M6 amendment 4: the stopped / cap-halted run whose job was edited since (the opposite of `sameJob`, only where the job could be read)
+    jobEdited: runJobEdited(halt, historyRow, flowRead),
     // amendment 16 I4: how a stopped run was stopped, in the runner's own words (`stopped at the ask of step N`), or null (stopped after a step)
     stoppedAtAsk: lastStoppedAtAsk(runDir, auditRows, historyRow !== null),
     auditRows,
@@ -2007,7 +2018,7 @@ function legacyRunAsks(runDir, hasHistoryRow) {
  *   (hamr's 2026-09-27 live check).
  * @returns {any[]}
  */
-function runAsksInOrder(runDir, hasHistoryRow, endedExpired = false) {
+function runAsksInOrder(runDir, hasHistoryRow, endedExpired = false, jobEdited = false) {
   const archivedResult = listArchivedAsks(runDir);
   const rows = archivedResult.archived
     ? archivedResult.asks.map(normalizeArchivedRow)
@@ -2037,6 +2048,8 @@ function runAsksInOrder(runDir, hasHistoryRow, endedExpired = false) {
     // am41 item 4: the newest stopped ask whose step the books cannot name says what the Runs label says (the same words), not a bare "stopped".
     const newest = ordered.length - 1;
     if (ordered[newest].status === 'stopped' && words[newest] === null) ordered[newest] = { ...ordered[newest], statusText: STOPPED_UNKNOWN_LINE };
+    // M6 amendment 4: the job was edited since the stop, so no stopped ask promises a Resume
+    if (jobEdited) for (let i = 0; i < ordered.length; i++) if (ordered[i].status === 'stopped') ordered[i] = { ...ordered[i], statusText: JOB_EDITED_LINE };
   }
   const last = ordered[ordered.length - 1];
   if (endedExpired && last && (last.status === 'accepted' || last.status === 'redo' || last.status === 'reran')) {
@@ -2165,11 +2178,11 @@ export function getRunAsks({
   // Inbox — otherwise an open ask's Ask-tab header/body falls back to the
   // raw status word "unanswered" and no time-left, disagreeing with the
   // Inbox row for that exact same ask.
-  const ordered = runAsksInOrder(run.runDir, hasHistoryRow, histRow?.outcome === 'ask-expired');
-  const auditRows = readAudit(run.runDir);
   const flowRead = readFlow({
     root, name: flow, catalogue,
   });
+  const ordered = runAsksInOrder(run.runDir, hasHistoryRow, histRow?.outcome === 'ask-expired', runJobEdited(readHaltRecord(run.runDir), histRow ?? null, flowRead));
+  const auditRows = readAudit(run.runDir);
   const declSteps = flowRead.ok ? flowRead.declaration.steps : null;
   const stepInfo = deriveAskStepInfo(ordered, auditRows, declSteps);
   let resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null, ask: readAsk(run.runDir) });
@@ -2222,7 +2235,7 @@ export function getRunAsks({
  * @param {{root: string, resumeAttempt?: (flow: string, runId: string) => any}} opts
  * @returns {any[]}
  */
-export function listStops({ root, resumeAttempt }) {
+export function listStops({ root, resumeAttempt, catalogue }) {
   const rows = [];
   for (const flowName of listFlowNames(root)) {
     const flowDir = join(root, flowName);
@@ -2238,7 +2251,10 @@ export function listStops({ root, resumeAttempt }) {
       const stuckAskId = !hasHistoryRow && st.stuck ? (resume?.askId ?? null) : null;
       const openAskJson = hasHistoryRow ? null : readAsk(run.runDir);
       const savedAskId = readSavedAnswer(run.runDir)?.askId;
-      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, end?.outcome === 'ask-expired').map((ask) => ({
+      // M6 amendment 4: read the job only for a run that ended stopped / cap-halted (and only when the caller gave the catalogue to read it with)
+      const jobEdited = end !== null && (end.outcome === 'stopped' || end.outcome === 'cap-halt') && catalogue !== undefined
+        && runJobEdited(readHaltRecord(run.runDir), end, readFlow({ root, name: flowName, catalogue }));
+      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, end?.outcome === 'ask-expired', jobEdited).map((ask) => ({
         flow: flowName,
         runId,
         ...ask,
