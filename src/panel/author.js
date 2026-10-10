@@ -229,8 +229,8 @@ export function createAuthor(opts) {
     const decl = readJson(dir, `${rel}/declaration.json`);
     const prose = readFileInside(dir, `${rel}/prose.txt`);
     const parsed = prose.ok ? parseSignedText(prose.text) : null;
-    const hasAsk = parsed?.ok === true ? parsed.arbiter.asks.length > 0 : true;
-    return { checked: checkedLines(decl, { hasAsk }), notChecked: notCheckedBlock(readJson(dir, `${rel}/${NOT_CHECKED_FILE}`)?.notChecked) };
+    const opts = parsed?.ok === true ? { askLines: parsed.arbiter.asks.map((x) => x.line) } : { hasAsk: true };
+    return { checked: checkedLines(decl, opts), notChecked: notCheckedBlock(readJson(dir, `${rel}/${NOT_CHECKED_FILE}`)?.notChecked) };
   }
 
   /** The answers an answer-redraft was drafted with, as the marker recorded them: `[{ line, lineText, question, answer }]` (scrubbed). @param {string} dir @param {number} n @param {string[]} keys */
