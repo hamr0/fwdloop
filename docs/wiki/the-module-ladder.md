@@ -1816,7 +1816,18 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Amendments 37-40 changed amendment 34's layout as built:** the Job tab is one column, not two blocks. Each step is folded under its line. Only the `›` / `⌄` marker is blue (am39 replaced am38's blue text). "Not checked" is a folded line after the last job line (am40).
   - **Amendments 31, 35:** the step map is HTML boxes that wrap (not SVG); a retried box is dashed with `↻N` before its status.
 
-**Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
+- **Amendment 41 — SIGNED by hamr 2026-10-10 ("sign am41"): small fixes from the v0.14.0 leftovers.**
+  1. If the AI sends an *empty* `[]` for `unjudgeable`, it counts as "nothing", the same as `{}`. A non-empty list is still red. (F63)
+  2. A step that comes after the last ask doesn't say "you check" on the Job tab. It says "after you accept".
+  3. The Job tab and the Chat card both say "not checked (the AI's own reading)". One place holds the words.
+  4. A stopped run says "stopped — Resume to go on" in Runs, Ask and Inbox alike.
+  5. Opening a job card shows its latest 7 runs at most, then one line: "older runs: use search".
+  6. The Job tab has a "The job" title under Model, the same as the Chat card.
+  7. On the Chat card, each failed plan check reads as one plain sentence. The raw checker text stays folded under it as "details".
+  - **Done when:** each item has a test that fails first, and there are screenshots at 1280, 390 and 320 px with nothing spilling past the screen.
+  - **Cap:** $0.
+
+**Per-run read/write folders — DROPPED by hamr 2026-10-10 (inputs + destination already cover it; revisit only if a real job needs it). Kept for the record, NOT SIGNED.** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
 follow-on amendment would let a run name its OWN read/write folders instead of always defaulting to
