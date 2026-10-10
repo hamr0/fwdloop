@@ -30,8 +30,11 @@ import {
   capFloorFor, capFloorText, cardFromSigned, checkInputRows, runInputRows,
 } from './authorcard.js';
 import { checkValues } from './authorvalues.js';
+import { getRunControls } from './data.js';
 import { providerKeys } from './spawn.js';
 
+/** M6 amendment 1: the sentence the page shows and the sign route refuses with, for a job with a run running or waiting at its ask. @param {string} runId */
+export const editBlockedSay = (runId) => `finish or stop ${runId} first`;
 const NO_LIMIT = 'no monthly limit set';
 /** The body keys a run start takes (amendment 5 item 2): the open boxes plus the hash of the second click. Any other key is refused by name. */
 const RUN_KEYS = ['flow', 'inputs', 'runId', 'destination', 'capUsd', 'askWaits', 'hash'];
@@ -206,6 +209,18 @@ export function createFlowsDoor(opts) {
     };
   }
 
+  /**
+   * M6 amendment 1: the newest run of a flow that is running or waiting at its ask, by the panel's ONE decision (`runControls`, via
+   * `getRunControls`: `canStop` is exactly running-or-at-an-ask), as `run-<n>`; `null` when none. A stopped, finished or expired run does not count.
+   * @param {string} realRoot @param {string} name @returns {string|null}
+   */
+  function liveRunOf(realRoot, name) {
+    const cat = loadCatalogue();
+    if (!cat.ok) return null;
+    const ids = listRunIds(join(realRoot, name)).filter((id) => /^run-\d+$/.test(id)).sort((a, b) => Number(b.slice(4)) - Number(a.slice(4)));
+    return ids.find((id) => getRunControls({ root: realRoot, flow: name, runId: id, catalogue: cat.primitives })?.canStop === true) ?? null;
+  }
+
   /** One flow's record for the page: its signed values and facts, its last run's inputs, its passed runs and its track record. @param {string} realRoot @param {string} name @param {any} read @param {any} left */
   function entryFor(realRoot, name, read, left) {
     const roles = (read.arbiter.sources ?? []).map((s) => s.role);
@@ -217,11 +232,21 @@ export function createFlowsDoor(opts) {
       runs: passed, stats,
       ...formFacts(read),
       // M6: the job as a card to edit (`ok:true, card, flowHash` = the signature hash it is opened at), or why it cannot be (`ok:false, say`)
-      edit: (() => { const c = cardFromSigned(read); return c.ok ? { ok: true, card: c.card, flowHash: read.signature.flow } : c; })(),
+      edit: (() => {
+        const live = liveRunOf(realRoot, name);
+        if (live !== null) return { ok: false, say: editBlockedSay(live) };
+        const c = cardFromSigned(read); return c.ok ? { ok: true, card: c.card, flowHash: read.signature.flow } : c;
+      })(),
     };
   }
 
   return {
+    /** M6 amendment 1: the newest `run-<n>` of this flow running or waiting at its ask, or null (the sign route's check). @param {string} name */
+    liveRun(name) {
+      const realRoot = realRootOrNull();
+      return realRoot === null ? null : liveRunOf(realRoot, name);
+    },
+
     /** `GET /api/author/flows`. */
     flows() {
       const realRoot = realRootOrNull();
