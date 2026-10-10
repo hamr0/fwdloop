@@ -28,6 +28,7 @@ import path from 'node:path';
 import { parseSignedText } from './signed-text.js';
 import { signFlow, verifyFlow } from './signature.js';
 import { validateDeclaration } from './declaration.js';
+import { describeChange } from './signed-diff.js';
 
 /** @typedef {import('./types.js').WriteFlowResult} WriteFlowResult */
 /** @typedef {import('./types.js').ReadFlowResult} ReadFlowResult */
@@ -40,6 +41,15 @@ export const FLOW_FILES = Object.freeze(['prose.txt', 'declaration.json', 'signa
 export const PANEL_STARTS_DIR = '.starts';
 
 const RUNS_DIR = 'runs';
+/** Amendment 43: the write-once copy of the two signed files, made at sign by `writeFlow` (the ONE writer). Outside FLOW_FILES: it never enters the signature or `readFlow`'s success path. */
+const SIGNED_COPY_DIR = 'signed';
+const CHANGED_PREFIX = 'changed since signing: ';
+
+/** The plain "what changed" sentences inside a readFlow refusal (am43), joined for a sentence a human reads; '' when there are none. @param {string[]} reds */
+export function changeSentence(reds) {
+  const xs = reds.filter((r) => typeof r === 'string' && r.startsWith(CHANGED_PREFIX)).map((r) => r.slice(CHANGED_PREFIX.length));
+  return xs.length > 0 ? ` What changed: ${xs.join('; ')}.` : '';
+}
 
 /**
  * Check a flow name against the allowed shape: 1..64 characters, lowercase
@@ -404,11 +414,14 @@ function readTextFile(filePath, label, reds) {
  * last (each via a temp file + rename in the same directory), creates an
  * empty `runs/`, and proves the result by reading it back with `readFlow`.
  *
- * @param {{root: unknown, name: unknown, proseText: unknown, declaration: unknown, signedBy: unknown, signedAt: unknown, catalogue: unknown}} input
+ * M6: with `replaces: {flowHash}` it instead REPLACES the signed job already under that name (see `replaceSigned`), and only if that job is
+ * still the one with that signature hash. `onReplaceStep` is a test seam: called after each move of the swap; a throw there is a failure.
+ *
+ * @param {{root: unknown, name: unknown, proseText: unknown, declaration: unknown, signedBy: unknown, signedAt: unknown, catalogue: unknown, replaces?: {flowHash: string}, onReplaceStep?: (step: string) => void}} input
  * @returns {WriteFlowResult}
  */
 export function writeFlow({
-  root, name, proseText, declaration, signedBy, signedAt, catalogue,
+  root, name, proseText, declaration, signedBy, signedAt, catalogue, replaces, onReplaceStep,
 }) {
   const nameCheck = checkFlowName(name);
   if (!nameCheck.ok) return { ok: false, reds: [nameCheck.red] };
@@ -440,6 +453,12 @@ export function writeFlow({
 
   const dir = path.join(root, safeName);
 
+  if (replaces !== undefined) {
+    return replaceSigned({
+      root, name: safeName, dir, proseText: /** @type {string} */ (proseText), declarationText, signature: signResult.signature, replaces, catalogue, onReplaceStep,
+    });
+  }
+
   // Refuse if any of the three files already exists — M1 never overwrites a
   // signed flow (versions are M4).
   for (const fileName of FLOW_FILES) {
@@ -455,6 +474,10 @@ export function writeFlow({
     }
   }
 
+  if (existsSync(path.join(dir, SIGNED_COPY_DIR))) {
+    return { ok: false, reds: [`flow: "${SIGNED_COPY_DIR}" already exists at ${path.join(dir, SIGNED_COPY_DIR)}`] };
+  }
+
   // Track what THIS call creates so a failure partway through can be rolled
   // back — a directory must never be left with a signature but a missing
   // file.
@@ -466,7 +489,7 @@ export function writeFlow({
       if (createdDir) {
         rmSync(dir, { recursive: true, force: true });
       } else {
-        for (const p of written) rmSync(p, { force: true });
+        for (const p of written) rmSync(p, { recursive: true, force: true });
       }
     } catch {
       // best-effort cleanup; the red already reports the real failure
@@ -495,6 +518,12 @@ export function writeFlow({
   try {
     writeOne('prose.txt', proseText);
     writeOne('declaration.json', declarationText);
+    // am43: the copy of what is being signed, write-once (`wx` refuses an existing file), before the signature that makes it a signed flow.
+    const copyDir = path.join(dir, SIGNED_COPY_DIR);
+    mkdirSync(copyDir);
+    written.push(copyDir);
+    writeFileSync(path.join(copyDir, 'prose.txt'), /** @type {string} */ (proseText), { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(path.join(copyDir, 'declaration.json'), declarationText, { encoding: 'utf8', flag: 'wx' });
     writeOne('signature.json', `${JSON.stringify(signResult.signature, null, 2)}\n`);
 
     const runsDir = path.join(dir, RUNS_DIR);
@@ -515,6 +544,95 @@ export function writeFlow({
   return {
     ok: true, dir, signature: signResult.signature,
   };
+}
+
+/**
+ * The signature hash (`signature.json` `flow`) of the signed job in `flowDir`, or null when there is no readable one. It does NOT verify the
+ * files (that is `readFlow`): it only says which signing this folder is at, for M6's "was this job signed again since you opened it".
+ * @param {string} flowDir @returns {string|null}
+ */
+export function signedHashOf(flowDir) {
+  const f = readFileInside(flowDir, 'signature.json');
+  if (!f.ok) return null;
+  try { const h = JSON.parse(f.text)?.flow; return typeof h === 'string' && h !== '' ? h : null; } catch { return null; }
+}
+
+/** M6: the names `replaceSigned` swaps, signature last (the file that makes the folder a signed flow). `setup.jsonl` is only moved away: the caller writes the new one. */
+const SWAP_NAMES = ['prose.txt', 'declaration.json', SIGNED_COPY_DIR, 'setup.jsonl', 'signature.json'];
+
+/**
+ * M6 ("Signing replaces the job"): replace the signed job in `<root>/<name>/`, ALL OR NOTHING, keeping the name, `runs/` and the flow's books.
+ * Refuses (touching nothing) unless the folder holds a signed job whose `signature.json` `flow` hash is `replaces.flowHash` (a draft opened from an
+ * older version of the job, or a job signed again meanwhile, is refused by name). The new files are staged inside the folder first; the swap then moves
+ * each old file into a backup folder and its new one into place (signature last); ANY failure, or a proof read that does not verify, moves everything
+ * back. On success the backup is deleted — no old version is kept anywhere (hamr's ruling). Only a hard kill inside the swap leaves the backup
+ * (`.replace-old-*`) holding the old files; nothing recovers it automatically.
+ * @param {{root: string, name: string, dir: string, proseText: string, declarationText: string, signature: any, replaces: {flowHash: string}, catalogue: unknown, onReplaceStep?: (step: string) => void}} a
+ * @returns {WriteFlowResult}
+ */
+function replaceSigned({
+  root, name, dir, proseText, declarationText, signature, replaces, catalogue, onReplaceStep,
+}) {
+  const red = (/** @type {string} */ r) => ({ ok: /** @type {false} */ (false), reds: [r] });
+  let dirStat;
+  try { dirStat = lstatSync(dir); } catch { return red(`flow: nothing signed to replace — "${name}" has no folder here`); }
+  if (dirStat.isSymbolicLink() || !dirStat.isDirectory()) return red(`flow: "${dir}" is not a plain folder, refused`);
+  const current = signedHashOf(dir);
+  if (current === null) return red(`flow: nothing signed to replace — "${name}" has no readable signature.json`);
+  if (typeof replaces?.flowHash !== 'string' || current !== replaces.flowHash) {
+    return red(`flow: "${name}" was signed again since you opened it for editing, so this edit is out of date. Nothing was changed. Open the job again and redo the edit.`);
+  }
+
+  const stamp = `${process.pid}-${Date.now()}`;
+  const stage = path.join(dir, `.replace-new-${stamp}`);
+  const backup = path.join(dir, `.replace-old-${stamp}`);
+  const moved = [];   // names whose OLD file is now in backup
+  const placed = [];  // names whose NEW file is now in dir
+  const cleanup = () => {
+    for (const p of [stage, backup]) { try { rmSync(p, { recursive: true, force: true }); } catch { /* best-effort */ } }
+  };
+  const putBack = () => {
+    for (const n of [...placed].reverse()) rmSync(path.join(dir, n), { recursive: true, force: true });
+    for (const n of [...moved].reverse()) renameSync(path.join(backup, n), path.join(dir, n));
+  };
+  const fail = (/** @type {string} */ why) => {
+    try { putBack(); } catch (err) {
+      // the old files could not all be put back: say where they are rather than pretend (the backup is NOT cleaned up)
+      return red(`flow: ${why}; the old job could not be fully put back (${err.message}) — its files are in ${backup}`);
+    }
+    cleanup();
+    return red(`flow: ${why}`);
+  };
+
+  try {
+    mkdirSync(stage);
+    mkdirSync(backup);
+    mkdirSync(path.join(stage, SIGNED_COPY_DIR));
+    writeFileSync(path.join(stage, 'prose.txt'), proseText, 'utf8');
+    writeFileSync(path.join(stage, 'declaration.json'), declarationText, 'utf8');
+    writeFileSync(path.join(stage, SIGNED_COPY_DIR, 'prose.txt'), proseText, { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(path.join(stage, SIGNED_COPY_DIR, 'declaration.json'), declarationText, { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(path.join(stage, 'signature.json'), `${JSON.stringify(signature, null, 2)}\n`, 'utf8');
+  } catch (err) {
+    cleanup();
+    return red(`flow: could not stage the new files — ${err.message}. Nothing was changed.`);
+  }
+
+  try {
+    for (const n of SWAP_NAMES) {
+      if (existsSync(path.join(dir, n))) { renameSync(path.join(dir, n), path.join(backup, n)); moved.push(n); }
+      if (existsSync(path.join(stage, n))) { renameSync(path.join(stage, n), path.join(dir, n)); placed.push(n); }
+      onReplaceStep?.(n);
+    }
+  } catch (err) {
+    return fail(`could not replace the job — ${err.message}`);
+  }
+
+  // the mechanical "it happened" check, as at sign: read the replaced job back through the one reader
+  const proof = readFlow({ root, name, catalogue });
+  if (!proof.ok) return fail(`the replaced job does not verify (${proof.reds.join('; ')})`);
+  cleanup();
+  return { ok: true, dir, signature };
 }
 
 /**
@@ -602,8 +720,21 @@ export function readFlow({ root, name, catalogue }) {
   const verified = verifyFlow({
     proseText, declarationText, signature: signatureJson,
   });
-  if (!verified.ok) return { ok: false, reds: verified.reds };
+  if (!verified.ok) return { ok: false, reds: [...verified.reds, ...explainEdit(dir, signatureJson, /** @type {string} */ (proseText), /** @type {string} */ (declarationText))] };
 
+  return interpretSigned({
+    proseText: /** @type {string} */ (proseText), declarationJson, signatureJson, catalogue, dir,
+  });
+}
+
+/**
+ * The part of a read that follows a passed signature check, shared by `readFlow` and `readRunJobCopy`: parse the signed text, validate the declaration.
+ * @param {{proseText: string, declarationJson: any, signatureJson: any, catalogue: unknown, dir: string}} a
+ * @returns {ReadFlowResult}
+ */
+function interpretSigned({
+  proseText, declarationJson, signatureJson, catalogue, dir,
+}) {
   const signed = parseSignedText(proseText);
   if (!signed.ok) return { ok: false, reds: signed.reds };
 
@@ -613,7 +744,7 @@ export function readFlow({ root, name, catalogue }) {
   if (!validated.ok) return { ok: false, reds: validated.reds };
 
   return {
-    ok: true,
+    ok: /** @type {true} */ (true),
     dir,
     lines: signed.lines,
     arbiter: signed.arbiter,
@@ -621,4 +752,88 @@ export function readFlow({ root, name, catalogue }) {
     signature: signatureJson,
     classes: validated.classes,
   };
+}
+
+/** M6: the folder inside a run that holds the copy of the job it ran. */
+const RUN_JOB_DIR = 'job';
+
+/**
+ * M6 ("Each run saves a copy of the job it ran when it starts"): the ONE writer of `<runDir>/job/`. Reads the flow's three files, proves them against
+ * the flow's own signature first (a flow that does not verify is never copied), then writes them write-once (`wx`). `{ok:false, red}` writes nothing
+ * it did not finish (a half-written copy is removed). Never throws.
+ * @param {string} flowDir @param {string} runDir @param {string} [expectedFlowHash] the `signature.flow` the caller read; a different job on disk is refused
+ * @returns {{ok: true} | {ok: false, red: string}}
+ */
+export function writeRunJobCopy(flowDir, runDir, expectedFlowHash) {
+  const texts = {};
+  for (const f of FLOW_FILES) {
+    const r = readFileInside(flowDir, f);
+    if (!r.ok) return { ok: false, red: `job copy: could not read ${f} (${r.missing ? 'missing' : r.red})` };
+    texts[f] = r.text;
+  }
+  let signature;
+  try { signature = JSON.parse(texts['signature.json']); } catch { return { ok: false, red: 'job copy: signature.json is not valid JSON' }; }
+  const verified = verifyFlow({ proseText: texts['prose.txt'], declarationText: texts['declaration.json'], signature });
+  if (!verified.ok) return { ok: false, red: `job copy: the flow does not match its signature (${verified.reds[0]})` };
+  // M6 F3: the copy must be the job the run verified at its start; a job replaced since is never copied (nothing is written)
+  if (typeof expectedFlowHash === 'string' && signature.flow !== expectedFlowHash) return { ok: false, red: 'the job was replaced while this run was starting' };
+  const dir = path.join(runDir, RUN_JOB_DIR);
+  try {
+    mkdirSync(dir);
+    for (const f of FLOW_FILES) writeFileSync(path.join(dir, f), texts[f], { encoding: 'utf8', flag: 'wx' });
+  } catch (err) {
+    try { if (err.code !== 'EEXIST') rmSync(dir, { recursive: true, force: true }); } catch { /* best-effort */ }
+    return { ok: false, red: err.code === 'EEXIST' ? 'job copy: this run already has its copy — never overwritten' : `job copy: could not write (${err.code ?? err.message})` };
+  }
+  return { ok: true };
+}
+
+/**
+ * M6: the job a run ran, from its own copy. `{present:false}` = the run has none (it started before M6). `{present:true, ok:true, ...}` = the same
+ * shape as a good `readFlow` (lines, arbiter, declaration, signature, classes), after the copy was verified against the copied signature.
+ * `{present:true, ok:false, reds}` = a copy that was edited or is incomplete: refused, never shown as the job.
+ * @param {string} runDir @param {unknown} catalogue
+ * @returns {{present: false} | ({present: true} & ReadFlowResult)}
+ */
+export function readRunJobCopy(runDir, catalogue) {
+  const dir = path.join(runDir, RUN_JOB_DIR);
+  if (!existsSync(dir)) return { present: false };
+  const reds = [];
+  const proseText = readTextFile(path.join(dir, 'prose.txt'), 'prose.txt', reds);
+  const declarationText = readTextFile(path.join(dir, 'declaration.json'), 'declaration.json', reds);
+  const signatureText = readTextFile(path.join(dir, 'signature.json'), 'signature.json', reds);
+  let declarationJson;
+  let signatureJson;
+  try { if (declarationText !== null) declarationJson = JSON.parse(declarationText); } catch { reds.push('flow: declaration.json is not valid JSON'); }
+  try { if (signatureText !== null) signatureJson = JSON.parse(signatureText); } catch { reds.push('flow: signature.json is not valid JSON'); }
+  if (reds.length > 0) return { present: true, ok: false, reds };
+  const verified = verifyFlow({ proseText, declarationText, signature: signatureJson });
+  if (!verified.ok) return { present: true, ok: false, reds: [...verified.reds] };
+  return {
+    present: /** @type {true} */ (true),
+    ...interpretSigned({
+      proseText: /** @type {string} */ (proseText), declarationJson, signatureJson, catalogue, dir,
+    }),
+  };
+}
+
+/**
+ * Amendment 43: after a failed verify, name what changed by comparing with the copy `writeFlow` kept at sign. The copy is trusted ONLY if it
+ * verifies against signature.json itself; otherwise it is never compared. Returns extra reds (plain sentences); never throws.
+ * @param {string} dir @param {any} signature @param {string} proseText @param {string} declarationText
+ * @returns {string[]}
+ */
+function explainEdit(dir, signature, proseText, declarationText) {
+  const oldProse = readFileInside(dir, `${SIGNED_COPY_DIR}/prose.txt`);
+  const oldDecl = readFileInside(dir, `${SIGNED_COPY_DIR}/declaration.json`);
+  if (!oldProse.ok && oldProse.missing && !oldDecl.ok && oldDecl.missing) {
+    return [CHANGED_PREFIX + '(signed before amendment 43: no copy to compare)'];
+  }
+  if (!oldProse.ok || !oldDecl.ok) return [CHANGED_PREFIX + "the saved copy of the signed files is incomplete, so it can't be trusted to compare"];
+  if (!verifyFlow({ proseText: oldProse.text, declarationText: oldDecl.text, signature }).ok) {
+    return [CHANGED_PREFIX + "the saved copy of the signed files does not match the signature, so it can't be trusted to compare"];
+  }
+  const changes = describeChange({ oldProse: oldProse.text, newProse: proseText, oldDecl: oldDecl.text, newDecl: declarationText });
+  if (changes.length === 0) return [CHANGED_PREFIX + 'the files match the saved copy; signature.json itself was changed'];
+  return changes.map((c) => `${CHANGED_PREFIX}${c}`);
 }

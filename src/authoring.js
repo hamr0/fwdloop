@@ -391,9 +391,12 @@ export async function draftToDir({
  * The human step, $0. Every refusal returns reds and writes NO flow.
  * `signedBy` must come from the human's own invocation (the CLI's --signed-by/username).
  * `sessionDir` (the panel's draft folder: card, notes, every change) widens the setup record; the CLI has none, so its record is the one plan folder.
+ * M6: `replaces: {flowHash}` (a draft opened from an existing signed job, carrying that job's signature hash) makes this sign REPLACE that job
+ * (`writeFlow` checks the hash is still the job's); without it a taken name is refused as ever.
+ * @param {{dir: any, approve?: any, signedBy: any, signedAt?: string, env?: Record<string, string|undefined>, sessionDir?: string, replaces?: {flowHash: string}}} a
  */
 export function signDraft({
-  dir, approve, signedBy, signedAt = new Date().toISOString(), env = process.env, sessionDir,
+  dir, approve, signedBy, signedAt = new Date().toISOString(), env = process.env, sessionDir, replaces,
 }) {
   const refuse = (...reds) => ({ ok: false, reds });
   if (readFileInside(dir, LEAK_MARKER_FILE).ok) return refuse(`sign: "${dir}" carries a key-leak marker (${LEAK_MARKER_FILE}) — never signed`);
@@ -448,7 +451,7 @@ export function signDraft({
   if (reds.length) return { ok: false, reds };
 
   const written = writeFlow({
-    root: target.root, name: target.name, proseText: parts['prose.txt'], declaration, signedBy, signedAt, catalogue: cat.primitives,
+    root: target.root, name: target.name, proseText: parts['prose.txt'], declaration, signedBy, signedAt, catalogue: cat.primitives, replaces,
   });
   if (!written.ok) return { ok: false, reds: written.reds };
   // M4e amendment 6 item 4: the draft's record goes into the flow folder once, outside the three signed files. The flow IS signed by now, so a

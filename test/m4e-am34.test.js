@@ -28,7 +28,7 @@ function world(setupRows) {
   });
   assert.equal(w.ok, true, JSON.stringify(w.reds));
   mkdirSync(path.join(w.dir, 'runs', 'run-1'), { recursive: true });
-  if (setupRows) writeFileSync(path.join(w.dir, SETUP_FILE), `${setupRows.map((r) => JSON.stringify(r)).join('\n')}\n`);
+  if (setupRows) writeFileSync(path.join(w.dir, SETUP_FILE), `${setupRows.map((r) => JSON.stringify(r.flowHash === undefined ? r : { ...r, flowHash: w.signature.flow })).join('\n')}\n`); // the sign row's flowHash is the signature hash (M6: a row of another signing is not this job's)
   return { root, decl, job: () => getRunJob({ root, flow: 'f', runId: 'run-1', catalogue: CAT }) };
 }
 const SIGN = (items) => ({ kind: 'sign', n: 0, at: '2026-10-09T12:00:00Z', signedBy: 'hamr', hash: 'h', flowHash: 'fh', notChecked: { label: NOT_CHECKED_LABEL, items } });
@@ -42,7 +42,8 @@ test('the plan has one row per step: from line, reads, makes, may do, and the ch
     assert.equal(s.line, x.decl.steps[i].fromLine);
     assert.deepEqual(s.reads, x.decl.steps[i].reads);
     assert.equal(s.makes, x.decl.steps[i].emits);
-    assert.deepEqual(s.check, checked[i].sentences, 'the check is checkedLines, not new wording');
+    const afterAsk = i > plan.steps.findIndex((x) => x.ask) && checked[i].class === 'hitl'; // am41 item 2 rewords only these
+    if (!afterAsk) assert.deepEqual(s.check, checked[i].sentences, 'the check is checkedLines, not new wording');
     assert.equal(s.checkClass, checked[i].class, 'the typed close class rides along so the page never reads prose');
   });
   assert.deepEqual(plan.steps[0].mayDo, ['readDocx']);
@@ -81,7 +82,8 @@ test('the page (am37): one column, no side-by-side grid, no two block headings; 
   assert.doesNotMatch(PAGE, /container-type/);
   assert.doesNotMatch(PAGE, /\.jg[-{ ]|jg-asked|jg-plan-side|id="job-grid"[^>]*class="jg"/);
   assert.doesNotMatch(PAGE, /details-success/);
-  assert.match(PAGE, /not checked \(the AI's own reading\)/);
+  assert.doesNotMatch(PAGE, /not checked \(the AI's own reading\)/); // am41 item 3: the words live in src/checked.js only
+  assert.equal(NOT_CHECKED_LABEL, "not checked (the AI's own reading)");
   assert.match(PAGE, /nothing \(pure stop\)/);
   assert.match(PAGE, /ASK · waits /);
   assert.match(PAGE, /not recorded \(signed before amendment 34\)/);
@@ -125,7 +127,7 @@ const PLAN = {
     { step: 3, line: 3, reads: ['resume-summary'], makes: 'summaryResume', mayDo: [], check: ['z'], checkClass: 'softgreen', ask: false, waitMs: null },
     { step: 4, line: 4, reads: ['resume-summary'], makes: 'approved', mayDo: [], check: ['x'], checkClass: 'hitl', ask: true, waitMs: 5400000 },
   ],
-  notChecked: { label: 'l', items: ['tone', 'the JD match'], recorded: true },
+  notChecked: { label: NOT_CHECKED_LABEL, items: ['tone', 'the JD match'], recorded: true },
 };
 const JOB = {
   resolved: true, flow: 'f', model: null, modelWhy: 'x',
@@ -155,6 +157,23 @@ test('the summary text: "step N · <may do> → <makes> · machine check | you c
   assert.equal(l[0].children[1].children[0].textContent, 'step 1 · readDocx → resume-text · you check');
   assert.equal(l[2].children[2].children[0].textContent, 'step 2 · read → resume-summary · machine check');
   assert.equal(l[2].children[3].children[0].textContent, 'step 3 · → summaryResume · machine check');
+});
+
+test('am41 item 2: a step after the last ask says "after you accept", not "you check"; a step before the ask still says "you check"', () => {
+  const plan = { ...PLAN, steps: [...PLAN.steps, { step: 5, line: 5, reads: ['approved'], makes: 'sent', mayDo: ['write'], check: ['c'], checkClass: 'hitl', ask: false, waitMs: null }] };
+  const l = lineEls(render({ ...JOB, prose: [...JOB.prose, { line: 5, text: 'e' }], plan }));
+  assert.equal(l[4].children[1].children[0].textContent, 'step 5 · write → sent · after you accept');
+  assert.equal(l[0].children[1].children[0].textContent, 'step 1 · readDocx → resume-text · you check');
+  assert.equal(l[2].children[2].children[0].textContent, 'step 2 · read → resume-summary · machine check');
+});
+
+test('am41 item 2: the plan data words a hitl step after the last ask as "after you accept" in its check row too', () => {
+  const { plan } = world([SIGN([])]).job();
+  const askAt = plan.steps.findIndex((s) => s.ask);
+  const after = plan.steps.filter((s, i) => i > askAt && s.checkClass === 'hitl');
+  assert.ok(after.length > 0, 'fixture has a hitl step after the ask');
+  after.forEach((s) => { assert.deepEqual(s.check, ['No machine check of the content; you check it after you accept.']); });
+  plan.steps.filter((s, i) => i < askAt && s.checkClass === 'hitl').forEach((s) => assert.match(s.check[0], /at the ask/));
 });
 
 test('the ask step\'s summary reads "step N · ASK · waits <wait>" in plain units', () => {
@@ -203,10 +222,10 @@ test('Not checked always carries its label; items one row each; an older flow sa
   let t = walk(render(JOB).els['details-plan-tail']);
   assert.ok(t.includes("<summary>plan-sum|not checked (the AI's own reading)"), t.join('\n'));
   assert.ok(t.includes('plan-row|tone') && t.includes('plan-row|the JD match'));
-  t = walk(render({ ...JOB, plan: { ...PLAN, notChecked: { label: 'l', items: [], recorded: false } } }).els['details-plan-tail']);
+  t = walk(render({ ...JOB, plan: { ...PLAN, notChecked: { label: NOT_CHECKED_LABEL, items: [], recorded: false } } }).els['details-plan-tail']);
   assert.ok(t.includes("<summary>plan-sum|not checked (the AI's own reading)"));
   assert.ok(t.includes('plan-row|not recorded (signed before amendment 34)'), t.join('\n'));
-  t = walk(render({ ...JOB, plan: { ...PLAN, notChecked: { label: 'l', items: [], recorded: true } } }).els['details-plan-tail']);
+  t = walk(render({ ...JOB, plan: { ...PLAN, notChecked: { label: NOT_CHECKED_LABEL, items: [], recorded: true } } }).els['details-plan-tail']);
   assert.ok(t.includes("<summary>plan-sum|not checked (the AI's own reading)"));
 });
 

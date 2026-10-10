@@ -8,18 +8,21 @@
 // NOT CHECKED is the drafter's own reading (a list of short phrases it wrote in the same call). It is information only: shown with its label,
 // never signed, never in the readout, never in the spec hash. What this throws away: anything the drafter did not list; the list is not complete.
 
-/** The label that always sits with the "Not checked" list. */
-export const NOT_CHECKED_LABEL = "the drafter's own reading, not a guarantee";
+/** The label that always sits with the "Not checked" list (am41 item 3: the ONE place these words live; the Job tab and the Chat card read it off their payloads). */
+export const NOT_CHECKED_LABEL = "not checked (the AI's own reading)";
 
 const list = (xs) => xs.join(', ');
 
 /**
  * One entry per step, in plan order: the plain sentences for what its typed close checks.
- * @param {{ steps?: any[] }} declaration @param {{ hasAsk?: boolean }} [opts] hasAsk = the job has a signed ask line (so "you check it at the ask" is true)
+ * @param {{ steps?: any[] }} declaration @param {{ hasAsk?: boolean, askLines?: number[] }} [opts] hasAsk = the job has a signed ask line (so "you check it at the ask" is true);
+ *   askLines = the job lines of the signed asks, which also lets a step after the LAST ask read "you check it after you accept" (am41 item 2, am42: the ONE place for these words)
  * @returns {{ step: number, line: number|null, goal: string, class: string, sentences: string[] }[]}
  */
-export function checkedLines(declaration, { hasAsk = true } = {}) {
+export function checkedLines(declaration, { hasAsk = true, askLines } = {}) {
   const steps = Array.isArray(declaration?.steps) ? declaration.steps : [];
+  if (Array.isArray(askLines)) hasAsk = askLines.length > 0;
+  const lastAsk = Array.isArray(askLines) ? steps.reduce((m, st, i) => (askLines.includes(st?.fromLine) ? i : m), -1) : -1;
   return steps.map((st, i) => {
     const cls = st?.close?.class;
     const shape = st?.close?.shape && typeof st.close.shape === 'object' ? st.close.shape : {};
@@ -35,7 +38,8 @@ export function checkedLines(declaration, { hasAsk = true } = {}) {
       if (Number.isInteger(shape.linesPerInvoice)) out.push(`The output comes in blocks of ${shape.linesPerInvoice} lines.`);
       if (Array.isArray(shape.mustCarry) && shape.mustCarry.length > 0) out.push(`Every block carries: ${list(shape.mustCarry)}.`);
     } else {
-      out.push(hasAsk ? 'No machine check of the content: you check it at the ask.' : 'No machine check of the content; the machine checks only that the step happened.');
+      if (lastAsk !== -1 && i > lastAsk) out.push('No machine check of the content; you check it after you accept.');
+      else out.push(hasAsk ? 'No machine check of the content: you check it at the ask.' : 'No machine check of the content; the machine checks only that the step happened.');
     }
     return {
       step: i + 1, line: Number.isInteger(st?.fromLine) ? st.fromLine : null, goal: typeof st?.goal === 'string' ? st.goal : '', class: String(cls), sentences: out,

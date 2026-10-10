@@ -1816,7 +1816,22 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **Amendments 37-40 changed amendment 34's layout as built:** the Job tab is one column, not two blocks. Each step is folded under its line. Only the `›` / `⌄` marker is blue (am39 replaced am38's blue text). "Not checked" is a folded line after the last job line (am40).
   - **Amendments 31, 35:** the step map is HTML boxes that wrap (not SVG); a retried box is dashed with `↻N` before its status.
 
-**Next amendment to scope: per-run read/write folders (NOT SIGNED).** The fix-once switch-over
+- **Amendment 41 — SIGNED by hamr 2026-10-10 ("sign am41"): small fixes from the v0.14.0 leftovers.**
+  1. If the AI sends an *empty* `[]` for `unjudgeable`, it counts as "nothing", the same as `{}`. A non-empty list is still red. (F63)
+  2. A step that comes after the last ask doesn't say "you check" on the Job tab. It says "after you accept".
+  3. The Job tab and the Chat card both say "not checked (the AI's own reading)". One place holds the words.
+  4. A stopped run says "stopped — Resume to go on" in Runs, Ask and Inbox alike.
+  5. Opening a job card shows its latest 7 runs at most, then one line: "older runs: use search".
+  6. The Job tab has a "The job" title under Model, the same as the Chat card.
+  7. On the Chat card, each failed plan check reads as one plain sentence. The raw checker text stays folded under it as "details".
+  - **Done when:** each item has a test that fails first, and there are screenshots at 1280, 390 and 320 px with nothing spilling past the screen.
+  - **Cap:** $0.
+
+- **Amendment 42 — SIGNED by hamr 2026-10-10 ("sign am42"): the Chat card's Checked list matches the Job tab.** A step after the last ask reads "you check it after you accept" in the Chat card's Checked list, the same as on the Job tab (am41 item 2). One place holds the words. **Done when:** a test that fails first, plus screenshots at 1280, 390 and 320 px with nothing spilling past the screen. **Cap:** $0.
+
+- **Amendment 43 — SIGNED by hamr 2026-10-10 ("sign am43"): say what changed.** When you sign, fwdloop keeps a copy of the signed files. If the files are edited later, the refusal names what changed, like "line 3's guardrail" or "the cap", not just the file name. **Done when:** a test for each kind of change fails first. **Cap:** $0.
+
+**Per-run read/write folders — DROPPED by hamr 2026-10-10 (inputs + destination already cover it; revisit only if a real job needs it). Kept for the record, NOT SIGNED.** The fix-once switch-over
 (fix-ledger "step `write` may overwrite frozen inputs", 2026-09-28) gave every step a bareguard fs
 Gate scoped to today's default — read the run dir + frozen inputs, write only `<runDir>/out`. A
 follow-on amendment would let a run name its OWN read/write folders instead of always defaulting to
@@ -1958,6 +1973,8 @@ any edit flips it and demands re-accept, and rollback restores a previous accept
 - **Negative:** a flow edited on disk without re-accept is a red naming the changed field, never a
   silent run of the new version (docs/archive/PRD.md:594-595).
 
+- **M5 CLOSED — SIGNED by hamr 2026-10-10 ("sign m5-close"):** Accept is sign (already built). An edited flow already refuses to run. Dry run waits until a real outside send exists. Versions move to the module that adds editing a signed flow.
+
 ## M6 — describe, sign, and edit a flow (authoring)
 
 Authoring only now — watching a run, the inbox and its three doors, and the audit view moved to M4
@@ -1973,6 +1990,30 @@ through M5 (docs/archive/PRD.md:597-605).
   module's own negative is an edit that skips re-accept, which M5 catches
   (docs/archive/PRD.md:608-609).
 - **Wording (from M6a amendment 1, M6b scope):** the readout/UI says "how each step is checked" where it now says "Success", and "shown to you at the next ask" where it says "human check" on non-ask lines.
+
+- **M6 scope — SIGNED by hamr 2026-10-10 ("sign m6"): edit a signed job.**
+  1. In the Chat card's "Run a signed flow", a signed job can be opened for editing. The card fills in with its lines, guardrails, inputs, destination, cap and waits.
+  2. You edit. The AI drafts the plan again, with the same checks, Revise and sign as a new job. Signing replaces the job.
+  3. Each run saves a copy of the job it ran when it starts. Its Job tab shows that copy.
+  - **Done when:** in the panel only, you sign a job, run it, edit it to add a line, sign again, and run it. The old run's Job tab still shows the old lines. Screenshots at 1280, 390 and 320 px.
+  - **Must fail when:** you open a job for editing, then abandon it or never sign. The job must stay exactly as it was signed and still run. An unsigned edit never changes it.
+  - **Cap:** $0.25 of live drafting.
+
+- **M6 amendment 1 — SIGNED by hamr 2026-10-10 ("sign m6 am1"): no editing while a run waits.** While a run of a job is running or waiting at its ask, "Edit this job" is greyed out and says "finish or stop run-N first". **Done when:** a test that fails first, plus screenshots at 1280, 390 and 320 px. **Cap:** $0.
+
+- **M6 amendment 2 — SIGNED by hamr 2026-10-10 ("sign m6 am2"): roomier job card.** 1. The job box grows with its text up to 8 lines, then scrolls inside. Same rule as bareloop. 2. On a wide screen the left pane goes from 420 px to 630 px. On a phone it stays full width. **Done when:** a test that fails first, plus screenshots at 1280, 390 and 320 px with no sideways scroll. **Cap:** $0.
+
+- **M6 amendment 3 — SIGNED by hamr 2026-10-10 ("u2 signed"): grey while starting.** While a run of a job is starting, "Edit this job" is greyed out and says "a run is starting". **Done when:** a test that fails first, plus screenshots at 1280, 390 and 320 px. **Cap:** $0.
+
+- **M6 amendment 4 — SIGNED by hamr 2026-10-10 ("sign m6 am4"): no "Resume" on an edited job.** A stopped run (or one stopped at its money cap) whose job was edited and signed since says "stopped — the job was edited; start a new run" in Runs, Ask and Inbox, and offers no Resume. Every other stopped run keeps "Resume to go on". **Done when:** a test that fails first, plus screenshots at 1280, 390 and 320 px. **Cap:** $0.
+
+**Exit evidence (live, 2026-10-10) — EXIT SIGNED by hamr 2026-10-10 ("sign m6 exit"):** in the panel only, hamr edited am29-walk-2 to add line 4 ("write 3 questions I could ask the interviewer", guardrail "under 100 words"), signed it, and started run-2 with its own job copy; run-2 went red at step 3 on its word band ($0.055, the check working as signed). run-1's Job tab still shows the old 5 lines. Amendments 1 (`f861cb2`) and 2 (`834bcc3`) built test-first with $0 walks at 1280, 390 and 320 px. Suite 2614/2614, typecheck 0.
+
+- **Built after signing — not signed text (2026-10-10), M6 fixes:**
+  - *F1 (`450713b`):* a run working on your answer counts as running, so Edit is greyed and the replacing sign is refused (`ask.json` stays on disk after the answer; it now blocks "running" only while the ask is unanswered).
+  - *F3 (`86cabf9`):* the run's job copy is written only if the job on disk still has the signature hash the run verified; if the job was replaced while the run was starting, the run stops `preflight-red` and writes no copy.
+  - *F5 (`a8a9d8b`):* a run halted under a job that was later replaced offers no Resume button (the runner would refuse it as a signature mismatch); amendment 4 added the words.
+  - *Known limits, not fixed:* a hard kill (SIGKILL) in the middle of a replacing sign leaves the old files in `.replace-old-<pid>-<ms>/` and the job refused until they are moved back by hand. The Run, Map and Audit tabs read the flow's current job, not the run's copy; only the Job tab reads the copy.
 
 ## M7 — skills and persona
 

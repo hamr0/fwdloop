@@ -2474,7 +2474,7 @@ describe('index.html — page source', () => {
     const body = source.slice(start, end);
     // eslint-disable-next-line no-new-func
     const factory = new Function(`${body}
-      return { buildStepBoxes, buildStepMapHTML, boxRetryTry, tryCountText, stepTitleText };
+      return { buildStepBoxes, buildStepMapHTML, boxRetryTry, stepTitleText };
     `);
     return factory();
   }

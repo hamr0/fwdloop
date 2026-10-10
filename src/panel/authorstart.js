@@ -106,8 +106,20 @@ export function createStarter(opts) {
     return d === null ? null : readStart(join(d, id), id, keys);
   };
 
+  /** M6 amendment 3: the ONE rule for "a run of this flow is starting": the newest start folder of the flow in phase `starting`, or null. @param {string} flow @param {string[]} keys */
+  function startingFor(flow, keys) {
+    const sd = startsDir();
+    if (sd === null) return null;
+    for (const id of readdirInside(sd, '.').filter((n) => ID_RE.test(n)).sort().reverse()) {
+      const v = readStart(join(sd, id), id, keys);
+      if (v && v.flow === flow && v.phase === 'starting') return id;
+    }
+    return null;
+  }
+
   return {
     checkRun,
+    startingFor,
 
     /**
      * Start `fwdloop run` for a flow whose every $0 check already passed at the calling door. Re-checks the run id here (nothing
@@ -150,12 +162,10 @@ export function createStarter(opts) {
       }
       const keys = providerKeys(env);
       // one start at a time while one is still spawning for this flow (a double click, two tabs)
-      for (const id of readdirInside(sd, '.').filter((n) => ID_RE.test(n)).sort().reverse()) {
-        const v = readStart(join(sd, id), id, keys);
-        if (v && v.flow === flow && v.phase === 'starting') {
-          unclaim();
-          return { status: 409, body: { ok: false, refused: 'start-live', startId: id, say: 'A run of this flow is already starting. Wait for it.' } };
-        }
+      const startingId = startingFor(flow, keys);
+      if (startingId !== null) {
+        unclaim();
+        return { status: 409, body: { ok: false, refused: 'start-live', startId: startingId, say: 'A run of this flow is already starting. Wait for it.' } };
       }
       const id = newId();
       const dir = join(sd, id);
@@ -190,10 +200,8 @@ export function createStarter(opts) {
       const sd = startsDir();
       if (sd === null) return { status: 400, body: { ok: false, refused: 'root', say: 'The flows folder this panel serves does not exist.' } };
       const keys = providerKeys(env);
-      for (const id of readdirInside(sd, '.').filter((n) => ID_RE.test(n)).sort().reverse()) {
-        const v = readStart(join(sd, id), id, keys);
-        if (v && v.flow === flow && v.phase === 'starting') return { status: 409, body: { ok: false, refused: 'start-live', startId: id, say: 'A run of this flow is already starting. Wait for it.' } };
-      }
+      const startingId = startingFor(flow, keys);
+      if (startingId !== null) return { status: 409, body: { ok: false, refused: 'start-live', startId: startingId, say: 'A run of this flow is already starting. Wait for it.' } };
       const id = newId();
       const dir = join(sd, id);
       mkdirSync(sd, { recursive: true, mode: 0o700 });

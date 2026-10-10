@@ -35,7 +35,7 @@ function render(job) {
 }
 const walk = (e) => [`${e.tag === 'div' ? '' : `<${e.tag}>`}${e.className}|${e.textContent}`, ...e.children.flatMap(walk)];
 const LABEL = "not checked (the AI's own reading)";
-const PLAN = (nc) => ({ steps: [{ step: 1, line: 1, reads: [], makes: 'a', mayDo: [], check: ['x'], checkClass: 'hitl', ask: false, waitMs: null }], notChecked: nc });
+const PLAN = (nc) => ({ steps: [{ step: 1, line: 1, reads: [], makes: 'a', mayDo: [], check: ['x'], checkClass: 'hitl', ask: false, waitMs: null }], notChecked: { label: LABEL, ...nc } });
 const JOB = (nc) => ({
   resolved: true, flow: 'f', model: null, modelWhy: 'x', prose: [{ line: 1, text: 'a' }, { line: 2, text: 'b' }],
   guardrails: [], asks: [], sends: [], sources: [], capUsd: 0.5, redoCap: 3, signature: null, signatureWhy: 'unsigned', plan: PLAN(nc),

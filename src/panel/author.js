@@ -229,8 +229,8 @@ export function createAuthor(opts) {
     const decl = readJson(dir, `${rel}/declaration.json`);
     const prose = readFileInside(dir, `${rel}/prose.txt`);
     const parsed = prose.ok ? parseSignedText(prose.text) : null;
-    const hasAsk = parsed?.ok === true ? parsed.arbiter.asks.length > 0 : true;
-    return { checked: checkedLines(decl, { hasAsk }), notChecked: notCheckedBlock(readJson(dir, `${rel}/${NOT_CHECKED_FILE}`)?.notChecked) };
+    const opts = parsed?.ok === true ? { askLines: parsed.arbiter.asks.map((x) => x.line) } : { hasAsk: true };
+    return { checked: checkedLines(decl, opts), notChecked: notCheckedBlock(readJson(dir, `${rel}/${NOT_CHECKED_FILE}`)?.notChecked) };
   }
 
   /** The answers an answer-redraft was drafted with, as the marker recorded them: `[{ line, lineText, question, answer }]` (scrubbed). @param {string} dir @param {number} n @param {string[]} keys */
@@ -428,8 +428,14 @@ export function createAuthor(opts) {
         if (!run.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: run.say } };
       }
       const signedBy = userInfo().username;
+      // M6: a card that edits a signed job signs as a REPLACEMENT of that job, only at the signature hash it was opened at (the writer re-checks it)
+      const editOf = v.card.editOf && typeof v.card.editOf === 'object' ? v.card.editOf : null;
+      if (editOf !== null && editOf.flow !== name) return { status: 409, body: { ok: false, refused: 'edit-name', say: 'This draft edits another job than the name it was drafted under. Nothing was signed.' } };
+      // M6 amendments 1 and 3: a replacing sign is refused while a run of the job is running, waiting at its ask or starting (a stale page cannot get round the greyed button)
+      const editBlock = editOf !== null ? flowsDoor.editBlock(name) : null;
+      if (editBlock !== null) return { status: 409, body: { ok: false, refused: 'run-live', say: editBlock } };
       const result = signDraft({
-        dir: join(dir, v.plan), approve: v.hash, signedBy, env: loaded.env, sessionDir: dir,
+        dir: join(dir, v.plan), approve: v.hash, signedBy, env: loaded.env, sessionDir: dir, replaces: editOf !== null ? { flowHash: String(editOf.flowHash) } : undefined,
       });
       if (!result.ok) {
         const keys = providerKeys(loaded.env);

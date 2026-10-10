@@ -5,6 +5,58 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-10-10
+
+M6: edit a signed job from the Chat card. Signing the edit replaces the job all or nothing, and each
+run keeps a copy of the job it ran. Also the v0.14.0 leftovers (amendment 41), one place for "you
+check it after you accept" (amendment 42), and a write-once copy of the signed files that lets a
+refusal say what changed (amendment 43).
+
+### Added
+- Edit a signed job (M6): "Edit this job" on a signed flow fills the Chat card with its lines,
+  guardrails, inputs, destination, cap and waits. The AI drafts the plan again with the same checks,
+  and Revise and sign work as for a new job. Signing replaces the job all or nothing; an edit you
+  abandon or never sign leaves the signed job exactly as it was.
+- Each run saves a copy of the job it ran when it starts, and its Job tab shows that copy, so an old
+  run still shows the old lines after the job is edited.
+- Sign keeps a write-once `signed/` copy of the signed files (amendment 43). When a later verify
+  fails, the refusal names what changed ("line 3's guardrail", "the cap"), not just the file; the run
+  and resume doors say so too.
+- A job card shows its latest 7 runs, then "older runs: use search" (amendment 41 item 5). The Job tab
+  carries a "The job" title under Model (item 6).
+
+### Changed
+- "Edit this job" is greyed while a run of the job is running or waiting ("finish or stop run-N
+  first"), and the replacing sign is refused (M6 amendment 1). It is also greyed while a run is
+  starting ("a run is starting"), only for as long as the start is alive (amendment 3).
+- The left pane is 630px wide on a wide screen, and job boxes grow to 8 lines, then scroll (M6
+  amendment 2).
+- A stopped run whose job was edited and signed since says "stopped — the job was edited; start a new
+  run" in Runs, Ask and Inbox, with no Resume. Other stopped runs say "stopped — Resume to go on" in
+  Runs, Ask and Inbox alike (M6 amendment 4; amendment 41 item 4).
+- A step after the last ask reads "after you accept" on the Job tab and "you check it after you
+  accept" in the Chat card's Checked list; one place holds those words, and one holds the Not-checked
+  words (amendments 41 items 2 and 3, 42).
+- On the Chat card, a failed plan check reads as one plain sentence with the raw checker text folded
+  under "details"; an opened fold stays open across refreshes (amendment 41 item 7).
+
+### Fixed
+- An empty `[]` for `unjudgeable` counts as nothing, the same as `{}`; a non-empty list is still red
+  (F63, amendment 41 item 1).
+- A run working on your answer counts as running, so Edit is greyed and the replacing sign is refused
+  (M6 F1).
+- The run's job copy is written only if the job on disk still has the signature hash the run
+  verified; if the job was replaced while the run was starting, the run stops `preflight-red` and
+  writes no copy (M6 F3).
+- A run halted under a job that was later replaced offers no Resume button, since the runner would
+  refuse it as a signature mismatch (M6 F5).
+
+### Known limits
+- A hard kill (SIGKILL) in the middle of a replacing sign leaves the old files in
+  `.replace-old-<pid>-<ms>/` and the job refused until they are moved back by hand.
+- The Run, Map and Audit tabs read the flow's current job, not the run's copy; only the Job tab reads
+  the copy.
+
 ## [0.14.0] - 2026-10-10
 
 M4e, second half: Revise is now the card itself, the plan's checks run on bareguard's rubric with

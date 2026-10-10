@@ -490,6 +490,8 @@ export function validateDeclaration(declaration, context = {}) {
   let unjudgeable = {};
   if (!Object.prototype.hasOwnProperty.call(declaration, 'unjudgeable')) {
     reds.push('declaration: "unjudgeable" is required (an object keyed by line number; {} is fine)');
+  } else if (Array.isArray(declaration.unjudgeable) && declaration.unjudgeable.length === 0) {
+    // am41 item 1 (F63): an empty list carries no data; it counts as {}. A non-empty list falls to the red below.
   } else if (isPlainObject(declaration.unjudgeable)) {
     unjudgeable = declaration.unjudgeable;
     for (const [key, reason] of Object.entries(unjudgeable)) {

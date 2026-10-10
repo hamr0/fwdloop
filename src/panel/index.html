@@ -126,7 +126,7 @@
 
   [hidden]{display:none !important;}
   .main{display:flex;flex:1;min-height:0;}
-  .left-pane{width:420px;flex:none;border-right:1px solid var(--border-strong);display:flex;flex-direction:column;background:var(--panel);}
+  .left-pane{width:630px;flex:none;border-right:1px solid var(--border-strong);display:flex;flex-direction:column;background:var(--panel);}
   .right-pane{flex:1;min-width:0;display:flex;flex-direction:column;}
 
   .tabrow{display:flex;border-bottom:1px solid var(--border-strong);background:var(--panel2);counter-reset:tabnum;}
@@ -499,6 +499,8 @@
   .chat-steps .step.wait .step-label{color:var(--amber);}
   .chat-steps .step-detail{display:block;flex-basis:100%;min-width:0;padding-left:1.2em;color:var(--text-faint);word-break:break-word;white-space:pre-wrap;}
   .chat-steps .step.bad .step-detail{color:var(--red);}
+  .chat-steps .step-raw{margin-top:2px;color:var(--text-faint);}
+  .chat-steps .step-raw summary{cursor:pointer;}
   .chat-steps .step.run .step-sign::after{content:"\2026";}
   @keyframes step-dots{0%{content:"";}25%{content:".";}50%{content:"..";}75%{content:"...";}}
   @media (prefers-reduced-motion: no-preference){
@@ -521,7 +523,10 @@
   .msg.bot .who::before{content:"$ ";}
   .msg .who{font-size:11px;color:var(--text-faint);margin-bottom:3px;text-transform:none;font-weight:400;}
   /* the card's free-text boxes wrap (textarea): grow a few rows (fitBox), then scroll inside */
-  .job-card textarea.jf-wrap{width:100%;box-sizing:border-box;font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);resize:vertical;overflow-y:auto;max-height:200px;}
+  .job-card textarea.jf-wrap{width:100%;box-sizing:border-box;font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);resize:vertical;overflow-y:auto;}
+  /* M6 am2: every job box (the textarea and the read-only lines) grows with its text up to 8 lines, then scrolls inside:
+     8 x 1.5em + 6px padding x2 + 1px border x2; ONE rule, fitBox reads this cap */
+  .job-card textarea.jf-wrap, .job-card .ro-lines{line-height:1.5;max-height:calc(12em + 14px);}
   /* the focused/selected Chat-card field gets a blue border (the accent), no outline ring */
   #panel-chat :is(input,select,textarea):focus{border-color:var(--accent);outline:none;}
   /* amendment 2: the job and inputs boxes have a gutter OUTSIDE them on the left (`N >` per step, `~` per guardrail; a number per input
@@ -560,7 +565,7 @@
   .rw-picked{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;padding:6px 8px;border:1px solid var(--accent);}
   .rw-picked span{overflow-wrap:anywhere;}
   .rw-picked a{font-size:12px;cursor:pointer;flex:none;}
-  .ro-lines{padding:6px 8px;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);font-size:12px;overflow-wrap:anywhere;max-height:160px;overflow-y:auto;}
+  .ro-lines{padding:6px 8px;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);font-size:12px;overflow-wrap:anywhere;overflow-y:auto;}
   .ro-lines .ro-line{display:flex;gap:8px;}
   .ro-lines .ro-n{flex:none;min-width:1.4em;color:var(--text-faint);}
   .jf-waitrow{margin-bottom:4px;}
@@ -783,6 +788,7 @@
             </div>
 
             <div id="jf-new" data-testid="jf-new">
+              <div class="hint edit-banner" id="jf-edit-banner" data-testid="jf-edit-banner" hidden></div>
               <div class="field">
                 <label for="jf-name">Flow name</label>
                 <input id="jf-name" type="text" placeholder="lowercase letters, digits, - or _" autocomplete="off" spellcheck="false" data-testid="jf-name">
@@ -843,7 +849,9 @@
               <div class="field dimmed" data-testid="jf-run-job-field">
                 <label>The job</label>
                 <div class="ro-lines" id="jf-run-job" data-testid="jf-run-job"></div>
-                <div class="hint">Fixed by the signature (the steps, the job lines and the asks). To change one, start a new job.</div>
+                <div class="hint">Fixed by the signature (the steps, the job lines and the asks). To change them, edit the job: the AI drafts a new plan, and signing it replaces this job.</div>
+                <button class="btn" type="button" id="jf-run-edit" data-testid="jf-run-edit">Edit this job</button>
+                <div class="hint" id="jf-run-edit-why" data-testid="jf-run-edit-why"></div>
               </div>
               <div class="field">
                 <label for="jf-run-dest">Destination</label>
@@ -921,7 +929,7 @@
             <button class="btn primary wide" type="button" id="chat-q-send" data-testid="chat-q-send">Send</button>
           </div>
 
-          <!-- M4e amendments 24/25: beside a green plan, Your answers (if it was drafted with any), Checked (built by code from the typed checks) and Not checked (the drafter's own reading) -->
+          <!-- M4e amendments 24/25: beside a green plan, Your answers (if it was drafted with any), Checked (built by code from the typed checks) and Not checked (labelled, from src/checked.js) -->
           <div class="chat-extras" id="chat-extras" data-testid="chat-extras"></div>
 
           <!-- a refused draft / run / sign / abandon POST (or a refused start) shows here and STAYS: set only by this tab's own
@@ -1049,7 +1057,10 @@
           <div id="job-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
           <div class="job-card" id="job-card" hidden data-testid="job-card-readonly">
             <h4 id="details-title">Job card — signed</h4>
+            <div class="hint" id="details-jobfrom" data-testid="details-jobfrom"></div>
             <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
+            <!-- am41 item 6: the same "The job" label the Chat card carries, over the signed lines -->
+            <div class="field" style="margin-bottom:0"><label id="details-job-title">The job</label></div>
             <!-- M4e amendment 37: ONE column. #details-prose holds one wrapper per signed line (the line, its ~ rows, its steps folded under it);
                  #details-plan-tail holds any step from no listed line, then the folded "not checked" line; then Ask, Destination, $ cap, Source, Signed. -->
             <div id="job-grid" data-testid="job-grid">
@@ -1449,24 +1460,6 @@
   // page's step-map builder; the DATA it draws is fwdloop's own: one box per
   // `declaration.steps` entry, no scout/plan/judge/fix-loop/rounds — ruling
   // A, "no per-round parts"). ----
-  // hamr review #2: "map cards missing try 2 if multiple attempts/iteration"
-  // — a plain "try N" count whenever a step has been attempted more than
-  // once, plus a mark when the LATEST attempt followed a human redo (the
-  // same `afterReject` boundary src/panel/data.js already worked out —
-  // never re-derived here). One attempt (the common case) shows no "try"
-  // text at all, matching bareloop's own "only say it when it's true" shape.
-  // `tryCount` is server-derived (src/panel/data.js's computeTryCount) —
-  // for an ask (hitl) step it counts asks shown to the human (a pause row
-  // + its answer row are the SAME try), for a model step it counts model
-  // attempts. Never re-derived here from `attempts.length` (browser
-  // re-walk bug #2: that over-counted an ask step's pause/answer pairs).
-  function tryCountText(tryCount, attempts){
-    if(!tryCount || tryCount <= 1) return "";
-    var last = attempts && attempts.length ? attempts[attempts.length - 1] : null;
-    var txt = "try " + tryCount;
-    if(last && last.afterReject) txt += " (re-attempt after redo)";
-    return txt;
-  }
   // hamr review (browser re-walk #1): the per-attempt list ("attempt 1
   // failed · attempt 2 passed · …") is a map node's single biggest source of
   // width — that level of detail belongs in the Audit tab, never on the
@@ -1781,6 +1774,11 @@
   // selection on the next render.
   var wfExpanded = {};
 
+  // am41 item 5: a job card shows its latest 7 sub-cards (`runs` is newest first); the rest are reached by search.
+  function capChildRuns(runs){
+    return {shown: runs.slice(0, 7), hidden: Math.max(0, runs.length - 7)};
+  }
+
   function renderWorkflows(flows){
     var el = document.getElementById("wf-list");
     el.innerHTML = "";
@@ -1837,7 +1835,9 @@
       if(expanded){
         var runsWrap = document.createElement("div");
         runsWrap.className = "wf-runs";
-        childRuns.forEach(function(r){ runsWrap.appendChild(buildRunRowEl(r, { sub: true })); });
+        var capped = capChildRuns(childRuns);
+        capped.shown.forEach(function(r){ runsWrap.appendChild(buildRunRowEl(r, { sub: true })); });
+        if(capped.hidden > 0) runsWrap.appendChild(textDiv("hint wf-older", "older runs: use search"));
         wrap.appendChild(runsWrap);
       }
       el.appendChild(wrap);
@@ -2755,7 +2755,11 @@
     var sends = (job.sends || []).filter(function(sd){ return sd.line === st.line; });
     var writes = (st.mayDo || []).some(function(p){ return p === "write" || p === "send"; });
     if(writes && sends.length) out += " → " + (sends[0].target || "unknown");
-    return head + out + " · " + (st.checkClass === "green" || st.checkClass === "softgreen" ? "machine check" : "you check");
+    if(st.checkClass === "green" || st.checkClass === "softgreen") return head + out + " · machine check";
+    // am41 item 2: after the last ask step the human's part is the accept, not a check.
+    var lastAsk = 0;
+    ((job.plan && job.plan.steps) || []).forEach(function(p){ if(p.ask && p.step > lastAsk) lastAsk = p.step; });
+    return head + out + " · " + (lastAsk > 0 && st.step > lastAsk ? "after you accept" : "you check");
   }
   function jobStepFold(st, job){
     var fold = document.createElement("details");
@@ -2771,7 +2775,7 @@
     fold.appendChild(textDiv("plan-row", "check: " + (st.ask ? "ASK · waits " + plainWait(st.waitMs) : (st.check || []).join(" "))));
     return fold;
   }
-  // The tail: any step that came from no listed line, then the folded "not checked (the AI's own reading)" summary (its label is always shown).
+  // The tail: any step that came from no listed line, then the folded Not-checked summary (its label comes from the payload, src/checked.js; always shown).
   // `placed` (step numbers already folded under a line) is filled by renderJob's line loop before this runs.
   function paintJobPlan(job, placed){
     var plan = job.plan || {steps: [], notChecked: {recorded: false, items: []}};
@@ -2783,7 +2787,7 @@
     fold.className = "plan-fold plan-notchecked";
     var sum = document.createElement("summary");
     sum.className = "plan-sum";
-    sum.textContent = "not checked (the AI's own reading)";
+    sum.textContent = nc.label || "";
     fold.appendChild(sum);
     if(!nc.recorded) fold.appendChild(textDiv("plan-row", "not recorded (signed before amendment 34)"));
     else if(!(nc.items || []).length) fold.appendChild(textDiv("plan-row", "the AI listed nothing"));
@@ -2798,6 +2802,8 @@
     empty.hidden = true;
     card.hidden = false;
     document.getElementById("details-title").textContent = "Job — " + job.flow + " (signed)";
+    // M6: which job this is: the copy the run saved when it started, or (a run from before M6) the flow's job as it is now
+    document.getElementById("details-jobfrom").textContent = job.jobFrom === "run" ? "This is the job as this run started it." : (job.jobFromWhy || "");
     // review #5: "Job (prose)" — the signed lines, numbered, WITHOUT their
     // guardrail mixed in (guardrails get their own field below).
     // M4e amendment 6 item 6: the Job block reads like the card: each numbered line, then its own `~` rows: its guardrail, an ask line's
@@ -3796,6 +3802,7 @@
     var modeRow = document.getElementById("jf-mode-row");
     var titleEl = document.getElementById("job-card-title");
 
+    var editOf = null;           // M6: the signed job this card EDITS: { flow, flowHash } (ONE writer each: startEdit sets it, leaveEdit clears it); null = a new job
     var mode = "new";            // "new" | "run" | "resume"
     var runSignInfo = null;      // Run form, first Sign & run click: { hash } (cleared by any edit)
     var resumeCtx = null;        // the run being resumed: { flow, runId, form }
@@ -3925,6 +3932,44 @@
         return String(n);
       });
     }
+    // am41 item 7: ONE function turns a checker's red (the text src/declaration.js writes) into one plain sentence for the card. The raw text rides
+    // along unchanged and is folded under "details"; a red no rule below knows gets the generic sentence and still shows its raw text. This reads
+    // the checker's own fixed wording, never the model's prose.
+    function plainPlanCheck(raw){
+      var PLAN_CHECK_RULES = [
+        [/which is not in the job line's words/, "A section name in the plan's check is not in your job line. Change the job line to use the section words you want."],
+        [/the job line says .*; the check says/, "The sections in the plan's check come in a different order than your job line. Change the job line to change the order."],
+        [/the guardrail says \d+ sections; the check has/, "The number of sections in your guardrail is not the number in the plan's check."],
+        [/section name is a short phrase|which is the job line or most of it/, "A section name in the plan's check is too long; it must be a short phrase from your job line."],
+        [/one section name may not contain another/, "One section name in the plan's check contains another, which cannot be checked."],
+        [/wordsPerSection/, "The words for each section in your guardrail and in the plan's check do not match."],
+        [/work as a pair/, "The plan's check has one part of a pair without the other, so it cannot be checked."],
+        [/is blank|characters; the most one entry|ends in ":"/, "A name in the plan's check is empty, too long or ends in a colon, so it cannot be matched."],
+        [/cannot be built into a check/, "The plan's check cannot be built from what the AI wrote."],
+        [/is not its signed line/, "A step does not use your job line word for word as its goal."],
+        [/not in the catalogue|not wired|which is not signed|checkpoint/, "A step uses a tool that is not available for this job."],
+        [/reads artifact|is a duplicate|\.reads must|\.emits must/, "The steps do not pass their results to each other in a workable order."],
+        [/ask at line \d+|signed ask at line|ask slot/, "The ask on one of your lines is not set up as a plain stop where you decide."],
+        [/send at line \d+|signed send at line|send slot/, "The send step is not set up to follow your accept and write only to your destination."],
+        [/hitl after the last signed ask/, "A step after your last ask would leave without your seeing it, so it is refused."],
+        [/is a pause .* unsigned line/, "A step pauses at a line you did not sign as an ask."],
+        [/neither served by any step/, "A line of your job is not covered by any step."],
+        [/picks|inputFacts|invented name/, "The plan names a field that is not in your input."],
+        [/guardrailClasses|unjudgeable|refused/, "The AI's notes on which lines it can check are not in a form the checker accepts."],
+        [/^line \d+'s (guardrail|check)|can't write files/, null],
+        [/must be an? |is required|must name|does not name/, "The plan the AI wrote is not in the shape the checker needs."]
+      ];
+      var text = typeof raw === "string" ? raw : "";
+      for(var i = 0; i < PLAN_CHECK_RULES.length; i++){
+        if(PLAN_CHECK_RULES[i][0].test(text)) return {say: PLAN_CHECK_RULES[i][1] === null ? text.replace(/^declaration: /, "") : PLAN_CHECK_RULES[i][1], raw: text};
+      }
+      return {say: "One of the checks on the plan failed.", raw: text};
+    }
+    // a failed step's details: the plain sentences, with the raw checker texts beside them in `raw`
+    function failedDetails(reds){
+      var rows = (reds || []).map(plainPlanCheck);
+      return {details: rows.map(function(r){ return r.say; }), raw: rows.map(function(r){ return r.raw; })};
+    }
     // pure: the progress list for a draft. Chronological; a waiting step has no check; a step's detail lines sit under it; no two
     // identical lines in a row. `ctx` = { model, starting }.
     function stepsFor(state, ctx){
@@ -3944,7 +3989,7 @@
             var label = rv.kind === "answers" ? "drafted again with your answers" : "revise " + (reviseNo += 1);
             if(rv.phase === "running") out.push({id: "revise-" + rv.n, label: label, status: "running", details: []});
             else if(rv.phase === "green") out.push({id: "revise-" + rv.n, label: label, status: "done", details: []});
-            else out.push({id: "revise-" + rv.n, label: label, status: "failed", details: (rv.reds && rv.reds.length ? rv.reds.slice() : [])});
+            else { var rf = failedDetails(rv.reds); out.push({id: "revise-" + rv.n, label: label, status: "failed", details: rf.details, raw: rf.raw}); }
           });
           if(state.phase === "green"){
             if(ctx.starting) out.push({id: "signed", label: "signed", status: "done", details: []});
@@ -3953,7 +3998,8 @@
           if(state.phase === "questions-open") out.push({id: "question", label: "waiting for your answer (" + state.openK + " of " + state.total + ")", status: "waiting", details: []});
         } else if(state.phase === "red"){
           out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
-          out.push({id: "checks", label: "plan checks", status: "failed", details: (state.reds || []).slice()});
+          var cf = failedDetails(state.reds);
+          out.push({id: "checks", label: "plan checks", status: "failed", details: cf.details, raw: cf.raw});
         } else if(state.phase === "stopped"){
           out.push({id: "drafting", label: "drafting with " + who + capPart, status: "failed", details: []});
         } else if(state.phase === "green" || state.phase === "revising"){
@@ -3994,7 +4040,7 @@
         return (c.line !== null && c.line !== undefined ? "line " + c.line : "step " + c.step) + ": " + c.sentences.join(" ");
       })});
       var nc = state.notChecked || {};
-      blocks.push({id: "chat-notchecked", head: "Not checked", sub: nc.label || "the drafter's own reading, not a guarantee", lines: (nc.items && nc.items.length) ? nc.items.map(function(x){ return "- " + x; }) : ["The drafter listed nothing."]});
+      blocks.push({id: "chat-notchecked", head: nc.label || "", sub: "", lines: (nc.items && nc.items.length) ? nc.items.map(function(x){ return "- " + x; }) : ["The drafter listed nothing."]});
       return {blocks: blocks};
     }
     // pure: did this POST succeed (one decision for every handler)
@@ -4024,7 +4070,8 @@
       el.style.height = "auto";
       if(!el.scrollHeight){ el.style.height = ""; return; }
       var border = el.offsetHeight - el.clientHeight;
-      el.style.height = Math.min(el.scrollHeight + border, 200) + "px";
+      var cap = parseFloat(window.getComputedStyle(el).maxHeight);
+      el.style.height = Math.min(el.scrollHeight + border, cap > 0 ? cap : 200) + "px";
     }
     // Paint a gutter: a hidden mirror of the textarea (same font, same content width, same wrapping) measures each logical line's height;
     // the gutter gets one entry of exactly that height, its mark on the first visual line. Re-run on every input, resize and fit.
@@ -4099,7 +4146,8 @@
         destination: destEl.value.trim(),
         inputs: inputsBox.value,
         capUsd: byId("jf-cap-money").value.trim(),
-        askWait: askWaitEl.value.trim()
+        askWait: askWaitEl.value.trim(),
+        editOf: editOf
       };
     }
     function runWaits(){
@@ -4229,8 +4277,10 @@
     function syncCardLock(){
       var on = cardLocked();
       card.querySelectorAll("input[type=text], textarea").forEach(function(el){ el.readOnly = on; el.classList.toggle("locked", on); });
+      if(editOf !== null){ byId("jf-name").readOnly = true; byId("jf-name").classList.add("locked"); }   // M6: an edit keeps its job's name
       runFlowSel.disabled = on;
       runFlowSel.classList.toggle("locked", on);
+      syncEditBtn();
       rwPickedEl.classList.toggle("locked", on);
       card.querySelectorAll('input[name="jf-mode"]').forEach(function(r){ r.disabled = on || sessionLive; });
     }
@@ -4268,6 +4318,38 @@
         el.appendChild(row);
       });
     }
+    // ---- M6: Edit a signed job. The list entry carries the job as a card (`edit`); Edit fills the New-job boxes from it and keeps the job's name and
+    // the signature hash it was opened at. Nothing is written until the normal Draft -> Sign. Clear / Abandon leave the job exactly as it was.
+    var editBtn = document.getElementById("jf-run-edit");
+    var editWhyEl = document.getElementById("jf-run-edit-why");
+    var editBannerEl = document.getElementById("jf-edit-banner");
+    function syncEditBtn(){
+      if(!editBtn) return;   // called by the first lock sync, before this block has run
+      var f = selectedFlow();
+      var can = !!(f && f.edit && f.edit.ok === true);
+      editBtn.disabled = !can || cardLocked() || sessionLive || startId !== null;
+      editWhyEl.textContent = (f && f.edit && f.edit.ok === false) ? f.edit.say : "";
+    }
+    function startEdit(){
+      var f = selectedFlow();
+      if(!f || !f.edit || f.edit.ok !== true || cardLocked() || sessionLive) return;
+      var c = f.edit.card;
+      editOf = {flow: f.flow, flowHash: f.edit.flowHash};
+      setMode("new");
+      setVal("jf-name", f.flow); setVal("jf-job", c.job); setVal("jf-cap-money", c.capUsd);
+      setVal("jf-dest-folder", c.destination); setVal("jf-inputs", c.inputs); setVal("jf-ask-wait", c.askWait || "1h");
+      editBannerEl.textContent = "Editing \u201c" + f.flow + "\u201d. Draft it, read the new plan, then sign: signing replaces this job. Clear leaves it exactly as it was.";
+      editBannerEl.hidden = false;
+      chatActionOk();
+      refreshCapNote(); fitCardBoxes(); refreshStartEnabled();
+    }
+    // the card stops editing a job: the name box is free again
+    function leaveEdit(){
+      editOf = null;
+      editBannerEl.hidden = true; editBannerEl.textContent = "";
+      var nm = byId("jf-name"); nm.readOnly = false; nm.classList.remove("locked");
+    }
+    editBtn.addEventListener("click", startEdit);
     function paintRunFlow(){
       var f = selectedFlow();
       var v = f ? (pickedRun ? pickedRun.values : f.values) : null;   // a picked run's own values, else the flow's own
@@ -4296,6 +4378,7 @@
       byId("jf-run-id").value = autoRunId;
       clearFieldErrors();
       refreshCapNote();
+      syncEditBtn();
     }
     // borrowed-from: bareloop src/panel/index.html@b5e37b8 — the Reuse workflow picker: ONE function shows the search box + list before a pick and the
     // picked box after; a row is the name (the typed part marked) over the flow's track record line.
@@ -4373,17 +4456,32 @@
     // ---- render: the progress list, the readout and the one main button ----
     // Returns true when the list's content actually changed (a new line, or the latest line changed) so the caller can scroll only
     // then; an identical poll tick returns false and leaves the person's scroll position alone.
+    // A fold the person opened stays open: the list is rewritten only when its markup changed, and a rewrite draws each fold open again
+    // from progressOpen (keyed step id : detail index, set by the toggle listener) until the person closes it.
+    var progressHtml = "";
+    var progressOpen = {};
+    progressRow.addEventListener("toggle", function(e){
+      var key = e.target && e.target.getAttribute ? e.target.getAttribute("data-fold") : null;
+      if(key) progressOpen[key] = e.target.open === true;
+    }, true);
     function renderProgress(steps){
-      var before = progressRow.innerHTML;
       progressRow.hidden = steps.length === 0;
-      progressRow.innerHTML = steps.map(function(st){
+      var html = steps.map(function(st){
         var cls = st.status === "waiting" ? "wait" : (st.status === "running" ? "run" : (st.status === "failed" ? "bad" : "ok"));
         var sign = cls === "ok" ? "✓" : (cls === "bad" ? "✗" : "");
         return '<li class="step ' + cls + '" data-step="' + escapeXml(st.id) + '"><div class="step-line"><span class="step-label">' + escapeXml(st.label) + '</span>' +
           '<span class="step-sign">' + sign + '</span></div>' +
-          (st.details || []).map(function(d){ return '<div class="step-detail">' + escapeXml("> " + d) + '</div>'; }).join("") + '</li>';
+          (st.details || []).map(function(d, k){
+            var raw = st.raw || [];
+            var key = st.id + ":" + k;
+            var fold = typeof raw[k] === "string" && raw[k] !== "" ? '<details class="step-raw" data-fold="' + escapeXml(key) + '"' + (progressOpen[key] ? " open" : "") + '><summary>details</summary>' + escapeXml(raw[k]) + '</details>' : "";
+            return '<div class="step-detail">' + escapeXml("> " + d) + fold + '</div>';
+          }).join("") + '</li>';
       }).join("");
-      return progressRow.innerHTML !== before;
+      if(html === progressHtml) return false;
+      progressHtml = html;
+      progressRow.innerHTML = html;
+      return true;
     }
     // the plan the human is about to sign: the drafter's readout and the hash; nothing else goes in the thread
     var threadKey = "";
@@ -4495,7 +4593,7 @@
       threadKey = ""; thread.innerHTML = "";
       renderQuestion(null); renderExtras(null);
       errEl.textContent = "";
-      progressRow.hidden = true; progressRow.innerHTML = "";
+      progressRow.hidden = true; progressRow.innerHTML = ""; progressHtml = "";
       refreshStartEnabled();
     }
     function openNewCard(){
@@ -4508,12 +4606,13 @@
       sessionId = null; sessionLive = false; lastState = null; signInfo = null; signClickedOnce = false; busy = false; reviseOpen = false;
       stopPoll();
       progressRow.hidden = true;
-      progressRow.innerHTML = "";
+      progressRow.innerHTML = ""; progressHtml = "";
       refreshStartEnabled();
     }
     // back to a fresh empty card: every box, the inputs, the progress list, the ask box
     function resetCard(){
       if(mode === "resume"){ resumeCtx = null; setMode(modeBeforeResume === "resume" ? "new" : modeBeforeResume); }
+      leaveEdit();
       ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; });
       askWaitEl.value = "1h";
       refreshCapNote();
@@ -4587,7 +4686,7 @@
           window.fwdloopResuming = null; // a refused start leaves the run stopped: Resume is offered again
           refusedStartId = j.startId;
           chatActionFailed(signed ? j.say + " The flow is signed; start it from \"Run a signed flow\"." : j.say);
-          if(signed){ endSession(); loadFlows(true); } else { progressRow.hidden = true; progressRow.innerHTML = ""; refreshStartEnabled(); }
+          if(signed){ leaveEdit(); endSession(); loadFlows(true); } else { progressRow.hidden = true; progressRow.innerHTML = ""; progressHtml = ""; refreshStartEnabled(); }
           return;
         }
         if(j.ok === false && j.refused === "no-such-start"){
@@ -4761,7 +4860,7 @@
         if(!o.ok){
           busy = false;
           failFrom(r);
-          if(r.body && r.body.signed === true){ endSession(); loadFlows(true); } else { refreshStartEnabled(); }
+          if(r.body && r.body.signed === true){ leaveEdit(); endSession(); loadFlows(true); } else { refreshStartEnabled(); }
           return;
         }
         chatActionOk();
@@ -4812,6 +4911,11 @@
       setVal("jf-name", c.flowName); setVal("jf-job", c.job); setVal("jf-cap-money", c.capUsd);
       refreshCapNote();
       setVal("jf-dest-folder", typeof c.destination === "string" ? c.destination : ""); setVal("jf-inputs", typeof c.inputs === "string" ? c.inputs : ""); setVal("jf-ask-wait", c.askWait || "1h");
+      if(c.editOf && typeof c.editOf.flow === "string"){
+        editOf = {flow: c.editOf.flow, flowHash: c.editOf.flowHash};
+        editBannerEl.textContent = "Editing \u201c" + c.editOf.flow + "\u201d. Draft it, read the new plan, then sign: signing replaces this job. Clear leaves it exactly as it was.";
+        editBannerEl.hidden = false;
+      }
       sessionId = d.draftId;
       sessionLive = CLIENT_TERMINAL_PHASES.indexOf(d.phase) === -1;
       renderThread(d);
@@ -4870,7 +4974,10 @@
       refreshStartEnabled();
     });
     document.querySelectorAll('input[name="jf-mode"]').forEach(function(r){
-      r.addEventListener("change", function(){ if(r.checked) setMode(r.value); });
+      r.addEventListener("change", function(){
+        if(r.checked && editOf !== null && r.value !== "new" && !sessionLive){ leaveEdit(); ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; }); }
+        if(r.checked) setMode(r.value);
+      });
     });
     runFlowSel.addEventListener("input", function(){ rwHl = 0; renderFlowSearch(); });
     runFlowSel.addEventListener("keydown", function(e){
