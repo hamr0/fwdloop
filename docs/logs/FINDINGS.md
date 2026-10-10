@@ -3003,3 +3003,5 @@ Round 1: line 3 marked unjudgeable while `guardrailClasses` proposes softgreen (
 Cause noted: the walk's job line 3 listed four things (how it matches the JD, work history blurb, professional skills, soft skills) under a "3 sections" guardrail. That was the orchestrator's walk sheet, not the user. The `[]` refusal is a separate, real point: an empty list carries no data but costs a paid round.
 
 Status: open, not fixed; no fix proposed until hamr rules.
+
+Status update: Fixed by amendment 41 item 1 (3c1ee16). An empty `unjudgeable: []` now counts as `{}`; a non-empty list is still red.
