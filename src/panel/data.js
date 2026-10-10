@@ -903,6 +903,8 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     historyRow,
     // M4e amendment 4 item 4: a cap-halted or stopped run that can be continued (`halt.json` is the runner's record)
     resumable: halt.ok && historyRow !== null && historyRow.outcome === halt.halt.outcome,
+    // M6 F5: the job on disk is still the one the run halted under (the runner refuses a Resume otherwise: "signature mismatch")
+    sameJob: halt.ok && flowRead.ok && halt.halt.signatureHash === flowRead.signature.flow,
     // amendment 16 I4: how a stopped run was stopped, in the runner's own words (`stopped at the ask of step N`), or null (stopped after a step)
     stoppedAtAsk: lastStoppedAtAsk(runDir, auditRows, historyRow !== null),
     auditRows,
@@ -991,7 +993,7 @@ export function runControls(ctx, glyph, label = '') {
   // M4e amendment 13: a run waiting at its ask (open, unanswered, not expired) shows Stop too; it stops the run at the ask.
   const atAsk = !ctx.historyRow && !!ctx.askJson && glyph === '[·]' && label === WAITING_LABEL;
   const starting = !ctx.historyRow && !ctx.askJson && readPidRows(ctx.runDir).length === 0;
-  const canResume = ctx.resumable === true;
+  const canResume = ctx.resumable === true && ctx.sameJob === true;
   return {
     canStop: running || atAsk,
     atAsk,
