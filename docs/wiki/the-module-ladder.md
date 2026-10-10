@@ -2001,6 +2001,8 @@ through M5 (docs/archive/PRD.md:597-605).
 
 - **M6 amendment 1 — SIGNED by hamr 2026-10-10 ("sign m6 am1"): no editing while a run waits.** While a run of a job is running or waiting at its ask, "Edit this job" is greyed out and says "finish or stop run-N first". **Done when:** a test that fails first, plus screenshots at 1280, 390 and 320 px. **Cap:** $0.
 
+- **M6 amendment 2 — SIGNED by hamr 2026-10-10 ("sign m6 am2"): roomier job card.** 1. The job box grows with its text up to 8 lines, then scrolls inside. Same rule as bareloop. 2. On a wide screen the left pane goes from 420 px to 630 px. On a phone it stays full width. **Done when:** a test that fails first, plus screenshots at 1280, 390 and 320 px with no sideways scroll. **Cap:** $0.
+
 ## M7 — skills and persona
 
 Skill directories gate the drafter's visible primitive subset, and a signed persona line affects
