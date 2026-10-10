@@ -49,7 +49,7 @@ import {
 import { checkedLines, notCheckedBlock } from '../checked.js';
 import { parseSignedText } from '../signed-text.js';
 import { leastResumeCapUsd } from './authorvalues.js';
-import { createFlowsDoor, editBlockedSay } from './authorflows.js';
+import { createFlowsDoor } from './authorflows.js';
 import { createResumeDoor } from './authorresume.js';
 import { createStarter } from './authorstart.js';
 import {
@@ -431,9 +431,9 @@ export function createAuthor(opts) {
       // M6: a card that edits a signed job signs as a REPLACEMENT of that job, only at the signature hash it was opened at (the writer re-checks it)
       const editOf = v.card.editOf && typeof v.card.editOf === 'object' ? v.card.editOf : null;
       if (editOf !== null && editOf.flow !== name) return { status: 409, body: { ok: false, refused: 'edit-name', say: 'This draft edits another job than the name it was drafted under. Nothing was signed.' } };
-      // M6 amendment 1: a replacing sign is refused while a run of the job is running or waiting at its ask (a stale page cannot get round the greyed button)
-      const liveRun = editOf !== null ? flowsDoor.liveRun(name) : null;
-      if (liveRun !== null) return { status: 409, body: { ok: false, refused: 'run-live', say: editBlockedSay(liveRun) } };
+      // M6 amendments 1 and 3: a replacing sign is refused while a run of the job is running, waiting at its ask or starting (a stale page cannot get round the greyed button)
+      const editBlock = editOf !== null ? flowsDoor.editBlock(name) : null;
+      if (editBlock !== null) return { status: 409, body: { ok: false, refused: 'run-live', say: editBlock } };
       const result = signDraft({
         dir: join(dir, v.plan), approve: v.hash, signedBy, env: loaded.env, sessionDir: dir, replaces: editOf !== null ? { flowHash: String(editOf.flowHash) } : undefined,
       });

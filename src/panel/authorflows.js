@@ -35,6 +35,8 @@ import { providerKeys } from './spawn.js';
 
 /** M6 amendment 1: the sentence the page shows and the sign route refuses with, for a job with a run running or waiting at its ask. @param {string} runId */
 export const editBlockedSay = (runId) => `finish or stop ${runId} first`;
+/** M6 amendment 3: the sentence for a job with a run still starting (its start folder, or a run whose controls say `starting`). */
+export const EDIT_STARTING_SAY = 'a run is starting';
 const NO_LIMIT = 'no monthly limit set';
 /** The body keys a run start takes (amendment 5 item 2): the open boxes plus the hash of the second click. Any other key is refused by name. */
 const RUN_KEYS = ['flow', 'inputs', 'runId', 'destination', 'capUsd', 'askWaits', 'hash'];
@@ -210,15 +212,23 @@ export function createFlowsDoor(opts) {
   }
 
   /**
-   * M6 amendment 1: the newest run of a flow that is running or waiting at its ask, by the panel's ONE decision (`runControls`, via
-   * `getRunControls`: `canStop` is exactly running-or-at-an-ask), as `run-<n>`; `null` when none. A stopped, finished or expired run does not count.
+   * Why a job cannot be edited right now, in the sentence the page shows and the sign route refuses with; `null` when it can. M6 amendment 1:
+   * the newest run that is running or waiting at its ask, by the panel's ONE decision (`runControls`, via `getRunControls`: `canStop`) ->
+   * "finish or stop run-N first". M6 amendment 3: a start in phase `starting` for this flow (`starter.startingFor`) or a run whose controls
+   * say `starting` -> "a run is starting". A stopped, finished or expired run does not count.
    * @param {string} realRoot @param {string} name @returns {string|null}
    */
-  function liveRunOf(realRoot, name) {
+  function editBlockOf(realRoot, name) {
     const cat = loadCatalogue();
     if (!cat.ok) return null;
+    if (starter.startingFor(name, []) !== null) return EDIT_STARTING_SAY;
     const ids = listRunIds(join(realRoot, name)).filter((id) => /^run-\d+$/.test(id)).sort((a, b) => Number(b.slice(4)) - Number(a.slice(4)));
-    return ids.find((id) => getRunControls({ root: realRoot, flow: name, runId: id, catalogue: cat.primitives })?.canStop === true) ?? null;
+    for (const id of ids) {
+      const c = getRunControls({ root: realRoot, flow: name, runId: id, catalogue: cat.primitives });
+      if (c?.canStop === true) return editBlockedSay(id);
+      if (c?.starting === true) return EDIT_STARTING_SAY;
+    }
+    return null;
   }
 
   /** One flow's record for the page: its signed values and facts, its last run's inputs, its passed runs and its track record. @param {string} realRoot @param {string} name @param {any} read @param {any} left */
@@ -233,18 +243,18 @@ export function createFlowsDoor(opts) {
       ...formFacts(read),
       // M6: the job as a card to edit (`ok:true, card, flowHash` = the signature hash it is opened at), or why it cannot be (`ok:false, say`)
       edit: (() => {
-        const live = liveRunOf(realRoot, name);
-        if (live !== null) return { ok: false, say: editBlockedSay(live) };
+        const blocked = editBlockOf(realRoot, name);
+        if (blocked !== null) return { ok: false, say: blocked };
         const c = cardFromSigned(read); return c.ok ? { ok: true, card: c.card, flowHash: read.signature.flow } : c;
       })(),
     };
   }
 
   return {
-    /** M6 amendment 1: the newest `run-<n>` of this flow running or waiting at its ask, or null (the sign route's check). @param {string} name */
-    liveRun(name) {
+    /** M6 amendments 1 and 3: the sentence that says why this flow cannot be edited now, or null (the sign route's check). @param {string} name */
+    editBlock(name) {
       const realRoot = realRootOrNull();
-      return realRoot === null ? null : liveRunOf(realRoot, name);
+      return realRoot === null ? null : editBlockOf(realRoot, name);
     },
 
     /** `GET /api/author/flows`. */
