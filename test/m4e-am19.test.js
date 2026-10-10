@@ -81,7 +81,7 @@ test('1 an OLD rolled row for a "process gone" run is ignored: month and total e
 });
 
 // ---- 3 ----
-test('3 a lost ask file (2 paused rows, 1 ask): the Runs label, the Ask tab and the Inbox all say plain "stopped"', async () => {
+test('3 a lost ask file (2 paused rows, 1 ask): the Runs label, the Ask tab and the Inbox all say "stopped — Resume to go on" (am41 item 4)', async () => {
   const w = mk('3');
   try {
     const r = await runFlow({ ...args(w), sources: w.sources });
@@ -98,8 +98,8 @@ test('3 a lost ask file (2 paused rows, 1 ask): the Runs label, the Ask tab and 
     const label = listRuns({ root: w.root, catalogue: CAT }).find((x) => x.runId === 'run-1').label;
     const ask = getRunAsks(view(w)).asks[0].statusText;
     const inbox = listStops({ root: w.root }).find((x) => x.runId === 'run-1').statusText;
-    assert.equal(ask, undefined, 'Ask tab: plain stopped');
-    assert.equal(inbox, undefined, 'Inbox: plain stopped');
+    assert.equal(ask, 'stopped — Resume to go on', 'Ask tab (am41 item 4)');
+    assert.equal(inbox, 'stopped — Resume to go on', 'Inbox (am41 item 4)');
     assert.doesNotMatch(label, /at the ask of step/, `Runs label must not name a step the Ask tab cannot: ${label}`);
     assert.equal(label, 'stopped — Resume to go on', 'amendment 21 2A: the Runs row keeps its what-to-do hint');
   } finally { rmSync(w.base, { recursive: true, force: true }); }

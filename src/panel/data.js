@@ -944,6 +944,8 @@ function stoppedAskWords(ordered, audit) {
 
 /** What the Runs label says of a run stopped at an ask whose step the books cannot name; the Ask tab and the Inbox say the same. */
 const STOPPED_STEP_UNKNOWN = 'stopped';
+/** The whole line a stopped run reads when its step cannot be named (Runs, Ask and Inbox alike; am41 item 4). `computeGlyph` builds the same words from STOPPED_STEP_UNKNOWN. */
+const STOPPED_UNKNOWN_LINE = `${STOPPED_STEP_UNKNOWN} — Resume to go on`;
 
 /**
  * How a stopped run was stopped, for its Runs label: the newest `stopped` audit row, when the runner wrote its `gap` as
@@ -2016,6 +2018,9 @@ function runAsksInOrder(runDir, hasHistoryRow, endedExpired = false) {
     for (let i = 0; i < ordered.length; i++) {
       if (ordered[i].status === 'stopped' && words[i] !== null) ordered[i] = { ...ordered[i], statusText: words[i] };
     }
+    // am41 item 4: the newest stopped ask whose step the books cannot name says what the Runs label says (the same words), not a bare "stopped".
+    const newest = ordered.length - 1;
+    if (ordered[newest].status === 'stopped' && words[newest] === null) ordered[newest] = { ...ordered[newest], statusText: STOPPED_UNKNOWN_LINE };
   }
   const last = ordered[ordered.length - 1];
   if (endedExpired && last && (last.status === 'accepted' || last.status === 'redo' || last.status === 'reran')) {
