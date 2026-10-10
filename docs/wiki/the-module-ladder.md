@@ -1991,6 +1991,14 @@ through M5 (docs/archive/PRD.md:597-605).
   (docs/archive/PRD.md:608-609).
 - **Wording (from M6a amendment 1, M6b scope):** the readout/UI says "how each step is checked" where it now says "Success", and "shown to you at the next ask" where it says "human check" on non-ask lines.
 
+- **M6 scope — SIGNED by hamr 2026-10-10 ("sign m6"): edit a signed job.**
+  1. In the Chat card's "Run a signed flow", a signed job can be opened for editing. The card fills in with its lines, guardrails, inputs, destination, cap and waits.
+  2. You edit. The AI drafts the plan again, with the same checks, Revise and sign as a new job. Signing replaces the job.
+  3. Each run saves a copy of the job it ran when it starts. Its Job tab shows that copy.
+  - **Done when:** in the panel only, you sign a job, run it, edit it to add a line, sign again, and run it. The old run's Job tab still shows the old lines. Screenshots at 1280, 390 and 320 px.
+  - **Must fail when:** you open a job for editing, then abandon it or never sign. The job must stay exactly as it was signed and still run. An unsigned edit never changes it.
+  - **Cap:** $0.25 of live drafting.
+
 ## M7 — skills and persona
 
 Skill directories gate the drafter's visible primitive subset, and a signed persona line affects
