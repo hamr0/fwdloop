@@ -2005,6 +2005,8 @@ through M5 (docs/archive/PRD.md:597-605).
 
 - **M6 amendment 3 — SIGNED by hamr 2026-10-10 ("u2 signed"): grey while starting.** While a run of a job is starting, "Edit this job" is greyed out and says "a run is starting". **Done when:** a test that fails first, plus screenshots at 1280, 390 and 320 px. **Cap:** $0.
 
+- **M6 amendment 4 — SIGNED by hamr 2026-10-10 ("sign m6 am4"): no "Resume" on an edited job.** A stopped run (or one stopped at its money cap) whose job was edited and signed since says "stopped — the job was edited; start a new run" in Runs, Ask and Inbox, and offers no Resume. Every other stopped run keeps "Resume to go on". **Done when:** a test that fails first, plus screenshots at 1280, 390 and 320 px. **Cap:** $0.
+
 **Exit evidence (live, 2026-10-10) — EXIT SIGNED by hamr 2026-10-10 ("sign m6 exit"):** in the panel only, hamr edited am29-walk-2 to add line 4 ("write 3 questions I could ask the interviewer", guardrail "under 100 words"), signed it, and started run-2 with its own job copy; run-2 went red at step 3 on its word band ($0.055, the check working as signed). run-1's Job tab still shows the old 5 lines. Amendments 1 (`f861cb2`) and 2 (`834bcc3`) built test-first with $0 walks at 1280, 390 and 320 px. Suite 2614/2614, typecheck 0.
 
 ## M7 — skills and persona
