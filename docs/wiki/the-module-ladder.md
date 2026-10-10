@@ -1999,6 +1999,8 @@ through M5 (docs/archive/PRD.md:597-605).
   - **Must fail when:** you open a job for editing, then abandon it or never sign. The job must stay exactly as it was signed and still run. An unsigned edit never changes it.
   - **Cap:** $0.25 of live drafting.
 
+- **M6 amendment 1 — SIGNED by hamr 2026-10-10 ("sign m6 am1"): no editing while a run waits.** While a run of a job is running or waiting at its ask, "Edit this job" is greyed out and says "finish or stop run-N first". **Done when:** a test that fails first, plus screenshots at 1280, 390 and 320 px. **Cap:** $0.
+
 ## M7 — skills and persona
 
 Skill directories gate the drafter's visible primitive subset, and a signed persona line affects
