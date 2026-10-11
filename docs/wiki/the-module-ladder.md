@@ -1321,6 +1321,21 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 4. Runs, asks and sends work the same otherwise.
 **Done when:** a test that fails first (the `aging-live-1` ask, as drafted, is refused at $0); then one live re-draft of the aging job passes the checker, and a run reaches "check it with me" showing the buckets. **Cap:** inside am8's $0.05.
 
+**M4d amendment 10 — DRAFT, not signed: the Chat list shows every step of a draft.**
+1. The Chat card's step list (copied from bareloop in M4e) gets one line for each thing a draft really does, in this order. Each line ends in ✓ or ✗.
+   - **thinking on ✓** or **thinking off ✓** when bareagent did what you asked. If the model ignored it, can't switch it, or didn't confirm it, the line gets ✗ and shows am7's words, loud, in red.
+   - **inputs ✓**, with one detail line per input, for example `> aging: 11 columns`.
+   - **drafted with <model> ✓**, with a detail line such as `> 1 round · $0.0056`.
+   - **plan checks ✓**, shown on a passed draft too, not only on a refused one. A ✗ puts each refusal on its own detail line.
+   - **rubrics ✓**, only when a step is checked by shape, with a detail line `> line N: built`. A ✗ shows bareguard's reason.
+   - **try 2 of 3** and **try 3 of 3**, only when a retry happened, each with its reason on a detail line.
+2. A step that didn't happen is not shown.
+3. Details appear only when a step has some. Each detail sits on its own line under the step, starts with `> `, and is grey (red under a ✗). A step with no details is one line.
+4. While the draft runs, the list shows "drafting with <model>" as today. The full list appears when the draft ends.
+5. The list sits outside the readout. The readout and its hash don't change.
+6. The thinking line now shown next to the plan moves into this list, so it is in one place.
+**Done when:** a test that fails first; a $0 browser walk at 1280, 390 and 320; and one live deepseek-flash draft with Thinking ticked shows the list. **Cap:** inside am8's $0.05.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
