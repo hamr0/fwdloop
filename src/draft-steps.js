@@ -28,6 +28,7 @@ function reasonOf(entry) {
 export function draftStepList({ log, declaration }) {
   if (log === null || typeof log !== 'object') return null;
   const rounds = Array.isArray(log.log) ? log.log : [];
+  /** @type {Array<{ id: string, label: string, status: 'done'|'failed', details: string[], reds?: string[] }>} */
   const out = [];
 
   const t = log.thinking;
@@ -44,7 +45,7 @@ export function draftStepList({ log, declaration }) {
   const gotPlan = rounds.some((e) => e.outcome === 'valid' || String(e.outcome).startsWith('validator'));
   const n = typeof log.rounds === 'number' ? log.rounds : 0;
   const who = typeof log.modelId === 'string' && log.modelId !== '' ? log.modelId : 'the drafter';
-  const drafted = { id: 'drafted', label: `drafted with ${who}`, status: gotPlan ? 'done' : 'failed', details: [`${n} round${n === 1 ? '' : 's'} · ${money(log)}`] };
+  const drafted = { id: 'drafted', label: `drafted with ${who}`, status: /** @type {'done'|'failed'} */ (gotPlan ? 'done' : 'failed'), details: [`${n} round${n === 1 ? '' : 's'} · ${money(log)}`] };
   if (!gotPlan) drafted.details.push(...(Array.isArray(log.reds) ? log.reds.map(String) : []));
   out.push(drafted);
 
