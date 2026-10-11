@@ -110,7 +110,7 @@ export async function draft({
   const schema = buildDeclarationSchema(menu);
   const system = buildSystemPrompt({ menu, lines, arbiter, factsInfo: facts.info });
   const validationCatalogue = menu; // wired + signed-skill only: an unwired verb is "not in the catalogue"
-  const roundCeiling = ceilingCostUsd(modelId);
+  const roundCeiling = ceilingCostUsd(rates);
 
   const meterings = [];
   const log = [];

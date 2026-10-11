@@ -166,7 +166,10 @@ async function resolveModelStep(spendPath, env) {
     // A test double has no model of its own. When Settings has one model ticked with both prices its hold applies (so a cap-halt
     // is exercised the way a live run's is); with none, the double holds nothing. It is never refused here: it spends nothing.
     const modelStep = await mod.default({ spendPath });
-    const usable = configDoorHome().skip ? null : resolveUsableModel(MODEL_SLOT, { config: readPriceConfig() });
+    let usable = null;
+    try { usable = configDoorHome().skip ? null : resolveUsableModel(MODEL_SLOT, { config: readPriceConfig() }); } catch (err) {
+      if (!(err instanceof ConfigError)) throw err; // a broken config is refused by name at the monthly hold, right after this
+    }
     return { modelStep, ...(usable?.ok ? { ceilingUsd: ceilingCostUsd(usable.rates) } : {}) };
   }
   const keyCheck = checkKeyPreflight(MODEL_SLOT, env);
@@ -174,7 +177,11 @@ async function resolveModelStep(spendPath, env) {
   // The ONE decision of which model runs and at what price (M4d amendment 5): refused by name, at $0, before a
   // run dir or a book row exists. The run's per-round hold is that model's own Settings price times the token bounds.
   if (configDoorHome().skip) throw new Error(NO_CONFIG_HOME_REFUSAL); // a test process with no config home reads no Settings: say why, not "tick a model"
-  const usable = resolveUsableModel(MODEL_SLOT, { config: readPriceConfig() });
+  let usable;
+  try { usable = resolveUsableModel(MODEL_SLOT, { config: readPriceConfig() }); } catch (err) {
+    if (!(err instanceof ConfigError)) throw err;
+    throw new Error(`${err.message} — refusing to start rather than guess the price. Nothing spent.`);
+  }
   if (!usable.ok) throw new Error(usable.say);
   return {
     modelStep: makeLiveModelStep({ slot: MODEL_SLOT, model: usable.model, spendPath, env }),
