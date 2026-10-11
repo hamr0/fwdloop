@@ -806,7 +806,7 @@
               <div class="hint edit-banner" id="jf-edit-banner" data-testid="jf-edit-banner" hidden></div>
               <div class="field">
                 <label for="jf-model">Model</label>
-                <select id="jf-model" data-testid="jf-model"></select>
+                <select id="jf-model" data-testid="jf-model" disabled><option value="">Reading your models…</option></select>
                 <label class="jf-thinking"><input type="checkbox" id="jf-thinking" data-testid="jf-thinking"> Thinking on</label>
                 <div class="hint" id="jf-thinking-note" data-testid="jf-thinking-note"></div>
                 <div class="jf-err" id="jf-err-model" data-testid="jf-err-model"></div>
@@ -4487,9 +4487,20 @@
       for(var i = 0; i < modelLines.length; i += 1){ if(modelLines[i].slot === provider && modelLines[i].model === model){ modelEl.value = String(i); break; } }
       paintThinking();
     }
-    function loadModel(){
+    // `tries` counts the reads that failed in a row (a click passes an Event, which is not a number: that is a fresh read).
+    // A failed read never leaves the menu blank: it says so and reads again by itself, a few times, so the first load fills it.
+    function loadModel(tries){
+      var failed = typeof tries === "number" ? tries : 0;
+      function unread(){
+        if(modelLines.length > 0) return;   // a menu that was filled keeps what it had
+        modelEl.innerHTML = ""; modelEl.disabled = true;
+        var o = document.createElement("option"); o.value = "";
+        o.textContent = failed < 5 ? "Could not read your models. Trying again\u2026" : "Could not read your models. Reload the page.";
+        modelEl.appendChild(o);
+        if(failed < 5) setTimeout(function(){ loadModel(failed + 1); }, 1500);
+      }
       authorGet("/api/author/models").then(function(j){
-        if(!j || j.ok !== true) return;
+        if(!j || j.ok !== true){ failed += 1; unread(); return; }
         var was = modelPick();
         modelLines = j.lines || [];
         modelEl.innerHTML = "";
@@ -4501,7 +4512,7 @@
           modelLines.forEach(function(l, i){ var o = document.createElement("option"); o.value = String(i); o.textContent = l.label; modelEl.appendChild(o); });
         }
         setModelPick(was.provider, was.model);
-      }).catch(function(){ /* the menu keeps what it had */ });
+      }).catch(function(){ failed += 1; unread(); });
     }
     function setMode(m){
       mode = m;

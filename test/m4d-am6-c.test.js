@@ -149,7 +149,7 @@ test('C8: Settings has nothing about thinking, and the old per-model "Thinking o
 });
 
 test('C9: the page has a Model menu in the New job card, sends the pick and the tick with the card, and shows the recorded model on the Run and Resume forms', () => {
-  assert.match(PAGE, /<label for="jf-model">Model<\/label>\s*<select id="jf-model" data-testid="jf-model">/);
+  assert.match(PAGE, /<label for="jf-model">Model<\/label>\s*<select id="jf-model" data-testid="jf-model"[^>]*>/);
   const body = PAGE.slice(PAGE.indexOf('function currentCard('), PAGE.indexOf('function runWaits('));
   assert.match(body, /provider:/);
   assert.match(body, /thinking:/);
