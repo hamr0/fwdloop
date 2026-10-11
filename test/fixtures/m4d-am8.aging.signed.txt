@@ -1,0 +1,10 @@
+1. Read the aging report
+2. Put each invoice in its overdue bucket as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90+
+   guardrail: every invoice appears exactly once
+3. ask 1h: check it with me
+4. Write it out
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.03 per run
+guardrail: send at line 4 to file:/home/hamr/fwdloop-out
+guardrail: source aging = file:/home/hamr/PycharmProjects/fwdloop/fixtures/ar-aging.csv
