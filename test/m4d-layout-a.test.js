@@ -132,6 +132,17 @@ test('browser: layout F geometry, fold default, shape / Base URL save on change,
   await q('document.getElementById("reload-keys").click()');
   await new Promise((r) => setTimeout(r, 600));
   assert.equal(await q('document.querySelector(\'.pv-key[data-slot="B_KEY"]\').dataset.open'), '1', 'a repaint keeps the person\'s fold');
+  // lab match: no refresh-result line under the key row; the folded summary is ONE inline line in the key row; a failed list is ONE amber row and the typed box opens only on its link
+  assert.equal(await q('document.querySelectorAll("[data-f=test]").length'), 0, 'no refresh-result line');
+  assert.equal(await q('document.querySelectorAll(".pv-sum").length'), 3, 'one summary per key, no duplicate');
+  assert.equal(await q('document.querySelector(\'.pv-key[data-slot="B_KEY"] .pv-krow [data-f=sum]\') !== null'), true, 'the summary sits inside the key row');
+  await q('document.querySelector(\'.pv-key[data-slot="B_KEY"] [data-act=fold]\').click()');
+  assert.equal(await q('(function(){var k=document.querySelector(\'.pv-key[data-slot="B_KEY"]\');return k.querySelector(".pv-krow").getBoundingClientRect().height < 60 && getComputedStyle(k.querySelector(".pv-sum")).display !== "none";})()'), true);
+  await q('document.querySelector(\'.pv-key[data-slot="C_KEY"] [data-act=fold]\').click()');
+  assert.equal(await q('document.querySelectorAll(\'.pv-key[data-slot="C_KEY"] .pv-failed\').length'), 1, 'one failed row');
+  assert.equal(await q('document.querySelector(\'.pv-key[data-slot="C_KEY"] [data-f=typed]\').hidden'), true, 'the typed box is closed until its link is clicked');
+  await q('document.querySelector(\'.pv-key[data-slot="C_KEY"] [data-act=typed-open]\').click()');
+  assert.equal(await q('document.querySelector(\'.pv-key[data-slot="C_KEY"] [data-f=typed]\').hidden'), false);
   // per-model tokens: the model that rows name shows them, the other shows a dash
   assert.equal(await q('document.querySelector(\'.pv-key[data-slot="A_KEY"] .pv-mrow[data-model="flash"] [data-f=model-tokens]\').textContent'), '1.4k');
   assert.equal(await q('document.querySelector(\'.pv-key[data-slot="A_KEY"] .pv-mrow[data-model="v4-pro"] [data-f=model-tokens]\').textContent'), '—');

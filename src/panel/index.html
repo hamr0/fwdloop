@@ -697,7 +697,7 @@
   .pv-refcell{display:flex;justify-content:flex-end;}
   .pv-refbtn{white-space:nowrap;flex:0 0 auto;}
   .pv-refbtn:disabled{opacity:.5;cursor:not-allowed;}
-  .pv-sum{padding:0 8px 6px 34px;color:var(--text-dim);font-size:12px;overflow-wrap:anywhere;}
+  .pv-sum{color:var(--text-faint);font-size:11px;font-weight:400;}
   .pv-key[data-open="1"] .pv-sum{display:none;}
   .pv-knote{padding:0 8px 4px 34px;margin:0;}
   .pv-knote:empty{display:none;}
@@ -747,7 +747,7 @@
     .pv-cell.pv-pair{display:grid;grid-template-columns:104px minmax(0,1fr) minmax(0,1fr);}
     .pv-cell.pv-pair::before{content:"In / Out $/1M";font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);font-weight:700;}
     .pv-fold,.pv-refbtn,.pv-more .pv-add{min-height:44px;min-width:44px;}
-    .pv-sum,.pv-knote,.pv-more{padding-left:8px;}
+    .pv-knote,.pv-more{padding-left:8px;}
     .pv-m-msg{padding-left:8px;}
   }
 </style>
@@ -5221,15 +5221,14 @@
     key.setAttribute("data-testid", "provider-row-" + row.slot);
     key.innerHTML =
       '<div class="pv-krow">' +
-        '<div class="pv-cell pv-name nolbl"><button class="pv-fold" type="button" data-act="fold" data-testid="pv-fold"></button><code></code><span class="pv-status" data-f="status" data-testid="pv-status-' + escapeXml(row.slot) + '"></span></div>' +
+        '<div class="pv-cell pv-name nolbl"><button class="pv-fold" type="button" data-act="fold" data-testid="pv-fold"></button><code></code><span class="pv-status" data-f="status" data-testid="pv-status-' + escapeXml(row.slot) + '"></span><span class="pv-sum" data-f="sum" data-testid="pv-sum"></span></div>' +
         '<div class="pv-cell"><span class="pv-lbl">API shape</span><select data-prov="shape" data-testid="prov-shape" aria-label="' + escapeXml(row.label + " API shape") + '"></select></div>' +
         '<div class="pv-cell pv-c-url"><span class="pv-lbl">Base URL</span><input type="text" data-prov="baseUrl" data-testid="prov-baseurl" aria-label="' + escapeXml(row.label + " Base URL") + '" autocomplete="off" spellcheck="false" placeholder="type the Base URL"></div>' +
         '<div class="pv-cell"><span class="pv-lbl">Old max_tokens</span><label class="pv-legacy"><input type="checkbox" data-prov="legacyMaxTokens" data-testid="prov-legacy" aria-label="' + escapeXml(row.label + " legacy max_tokens") + '"><span data-f="legacy-word">off</span></label></div>' +
         '<div class="pv-cell pv-tok pv-ktok"><span class="pv-lbl">Tokens</span><span data-f="tokens" data-testid="pv-tokens-' + escapeXml(row.slot) + '"></span></div>' +
         '<div class="pv-cell pv-refcell nolbl"><button class="btn small pv-refbtn" type="button" data-act="refresh-models" data-testid="prov-refresh" aria-label="' + escapeXml("Refresh models for " + row.label) + '">&#10227; Refresh</button></div>' +
       '</div>' +
-      '<div class="pv-sum" data-f="sum" data-testid="pv-sum"></div>' +
-      '<div class="pv-knote"><div class="hint pv-test-result" data-f="test" data-testid="prov-test-result"></div><div class="hint bad pv-msg" data-f="msg-edit" data-testid="prov-msg-edit"></div><div class="hint pv-msg" data-f="msg-legacyMaxTokens" data-testid="prov-msg-legacyMaxTokens"></div></div>' +
+      '<div class="pv-knote"><div class="hint bad pv-msg" data-f="msg-edit" data-testid="prov-msg-edit"></div><div class="hint pv-msg" data-f="msg-legacyMaxTokens" data-testid="prov-msg-legacyMaxTokens"></div></div>' +
       '<div class="pv-models" data-models-for="' + escapeXml(row.slot) + '" data-testid="models-row-' + escapeXml(row.slot) + '">' +
         '<div class="pv-mhead" aria-hidden="true"><span class="pv-um"><span class="pv-uh">USE</span><span>MODEL</span></span><span class="pv-pair"><span>IN $/1M</span><span>OUT $/1M</span></span><span class="pv-tok">TOKENS</span></div>' +
         '<div data-f="models"></div>' +
@@ -5288,7 +5287,7 @@
     var lines = linesFor(row);
     var l = listed[row.slot];
     var typed = mr.querySelector("[data-f=typed]");
-    typed.hidden = !(typedOpen[row.slot] === true || (l && l.why));
+    typed.hidden = typedOpen[row.slot] !== true;
     var wanted = lines.map(function(m){ return m.model; });
     Array.prototype.slice.call(box.querySelectorAll(".pv-mrow")).forEach(function(el){
       if(wanted.indexOf(el.getAttribute("data-model")) < 0) box.removeChild(el);
@@ -5320,7 +5319,6 @@
     b.innerHTML = pending === true ? "&#10227; refreshing&hellip;" : "&#10227; Refresh";
   }
   function refreshModels(slot, tr){
-    var out = tr.querySelector("[data-f=test]");
     listed[slot] = { pending: true };
     setRefreshBtn(tr, true);
     return postJSON("/api/settings/models", { slot: slot }).then(function(r){
@@ -5328,7 +5326,6 @@
       listed[slot] = b && b.ok ? { models: b.models } : { why: (b && b.why) ? b.why : settingsRefusal(r) };
     }, function(){ listed[slot] = { why: networkText() }; }).then(function(){
       if(lastData) paintProviders(lastData, false);
-      if(listed[slot].why) out.textContent = listed[slot].why; else out.textContent = listed[slot].models.length + " models";
     });
   }
   function paintProviders(data, list){
