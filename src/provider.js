@@ -439,6 +439,9 @@ export function draftCallOptions({ shape, model }, mode = 'off') {
   return Object.hasOwn(OPENAI_DRAFT_OFF_OPTIONS, model) ? { ...OPENAI_DRAFT_OFF_OPTIONS[model] } : {};
 }
 
+/** True when 'off' does something for this model, i.e. the setting can change it (the Settings line says so). @param {{shape: string, model: string}} target */
+export const canChangeDraftThinking = (target) => Object.keys(draftCallOptions(target, 'off')).length > 0;
+
 /**
  * Build a provider for the given slot. Throws (never defaults) on an
  * unknown slot, a missing/bad env key, or a model with no hand-entered

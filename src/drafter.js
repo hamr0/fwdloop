@@ -22,10 +22,10 @@ import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { readInputFacts } from './input-facts.js';
 import {
-  makeProvider, sumMeterings, ceilingCostUsd, priceRecord, draftCallOptions,
+  makeProvider, sumMeterings, ceilingCostUsd, priceRecord, draftCallOptions, readPriceConfig,
 } from './provider.js';
 import { LIVE_PROVIDER_OPTIONS } from './model-step.js';
-import { ConfigError } from './config.js';
+import { ConfigError, draftThinkingMode } from './config.js';
 
 export const MAX_STRUCTURE_RETRIES = 2;
 export const MAX_REVISIONS = 2;
@@ -278,7 +278,7 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
  */
 export async function draft({
   proseText, slot = 'deepseek', model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
-  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = 'off',
+  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'|undefined} */ (undefined),
 }) {
   const fail = (reds, extra = {}) => ({
     ok: false, declaration: null, reds, rounds: 0, calls: 0, spendComplete: true, costUsd: 0, modelReturned: null, structureRetries: 0, revisions: 0, stop: 'pre-flight', log: [], ...extra,
@@ -286,7 +286,11 @@ export async function draft({
 
   // ---- $0 gates, before any provider is built -------------------------------
   // `draftThinking` ('on'|'off', M4d am3 A1) is turned into the wire field by provider.js's draftCallOptions, the one owner (F49 lives there).
-  try { draftCallOptions({ shape: '', model: '' }, draftThinking); } catch (err) { return fail([`config: ${err.message}`]); }
+  // Not injected (the door): read the Settings tick-box NOW, per draft, so a change applies to the next draft.
+  try {
+    draftThinking ??= draftThinkingMode(readPriceConfig());
+    draftCallOptions({ shape: '', model: '' }, draftThinking);
+  } catch (err) { return fail([`config: ${err.message}`]); }
   const parsed = parseSignedText(proseText);
   if (!parsed.ok) return fail(parsed.reds.map((r) => `signed-text: ${r}`));
   const { lines, arbiter } = parsed;

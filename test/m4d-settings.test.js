@@ -363,8 +363,8 @@ test('page: the Settings button, header, tabs and signed sentences; no per-run c
   assert.match(PAGE, /Runs from before Settings existed are not counted here\./);
   assert.match(PAGE, /saved — applies from the next model call/);
   assert.match(PAGE, /not offered by this provider/);
-  // only the monthly limit is a static input; the price boxes are built per row; no Save button, no cap, no key input
-  assert.deepEqual([...SETTINGS_VIEW.matchAll(/<input[^>]*id="([^"]+)"/g)].map((m) => m[1]), ['ml-money']);
+  // only the drafting-thinking tick-box (M4d am3) and the monthly limit are static inputs; the price boxes are built per row; no Save button, no cap, no key input
+  assert.deepEqual([...SETTINGS_VIEW.matchAll(/<input[^>]*id="([^"]+)"/g)].map((m) => m[1]), ['dt-box', 'ml-money']);
   assert.doesNotMatch(SETTINGS_VIEW.replace(/<!--[\s\S]*?-->/g, ''), /\bcap\b(?! is more)|maxUsd|type="password"|>Save</i);
   assert.doesNotMatch(PAGE, /prov-card|break-card|set-card|set-strip|set-prices|money-grid|limit-save|price-save|set-limit/);
 });

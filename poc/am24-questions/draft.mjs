@@ -17,9 +17,11 @@ import { WIRED_VERBS, wiredMenu } from '../../src/primitives.js';
 import { readInputFacts } from '../../src/input-facts.js';
 import { makeProvider, sumMeterings, ceilingCostUsd } from '../../src/provider.js';
 import {
-  buildDeclarationSchema, buildSystemPrompt, goalForLine, DRAFT_PROVIDER_OPTIONS, DRAFT_MAX_TOKENS, DRAFT_SKILLS,
+  buildDeclarationSchema, buildSystemPrompt, goalForLine, DRAFT_MAX_TOKENS, DRAFT_SKILLS,
   MAX_STRUCTURE_RETRIES, MAX_REVISIONS,
 } from '../../src/drafter.js';
+// DRAFT_PROVIDER_OPTIONS left src/drafter.js (M4d am3: provider.js draftCallOptions owns it); this frozen POC keeps its old value.
+const DRAFT_PROVIDER_OPTIONS = { timeoutMs: 300_000, deadlineMs: 240_000, thinking: { type: 'disabled' } };
 
 export { MAX_STRUCTURE_RETRIES };
 export const MAX_QUESTIONS = 2;

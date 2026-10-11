@@ -1990,7 +1990,7 @@ describe('index.html — page source', () => {
     }
   });
 
-  test('M4b: the only non-GET fetches on the page are POST /api/answer, POST /api/reopen, POST /api/remove-lock, POST /api/resume, POST /api/stop and the four Settings POSTs, all through postJSON', () => {
+  test('M4b: the only non-GET fetches on the page are POST /api/answer, POST /api/reopen, POST /api/remove-lock, POST /api/resume, POST /api/stop and the five Settings POSTs, all through postJSON', () => {
     const code = stripComments(source);
     // Every fetch( call: its first argument and its options.
     const calls = [...code.matchAll(/fetch\(([^,]+),\s*\{([\s\S]*?)\}\)\.then/g)];
@@ -2004,7 +2004,7 @@ describe('index.html — page source', () => {
     // postJSON is called with exactly two paths.
     const postPaths = [...code.matchAll(/postJSON\(\s*"([^"]+)"/g)].map((m) => m[1]).sort();
     // M4d piece 4 adds exactly the four Settings POSTs (test, price, provider, limit); none of them writes the keys file.
-    assert.deepEqual(postPaths, ['/api/answer', '/api/remove-lock', '/api/reopen', '/api/resume', '/api/settings/money', '/api/settings/price', '/api/settings/provider', '/api/settings/test', '/api/stop']);
+    assert.deepEqual(postPaths, ['/api/answer', '/api/remove-lock', '/api/reopen', '/api/resume', '/api/settings/money', '/api/settings/price', '/api/settings/provider', '/api/settings/test', '/api/settings/thinking', '/api/stop']);
   });
 
   test('M4c-fix item 2: the page carries no token — no TOKEN variable, no token header, never a URL, storage, or a log', () => {

@@ -12,9 +12,11 @@
 //   - no route reads or writes a flow or its cap. The only files touched are config.json (via
 //     `updateConfig`) and the keys file (read through `keysForDoor`), both under the one config home.
 // Every refusal is a plain sentence in `say`; nothing here puts an HTTP code, an id or a path on the page.
-import { PROVIDER_SLOTS, resolvePrices, resolveSlot, checkKeyPreflight } from '../provider.js';
 import {
-  readConfig, updateConfig, ConfigError, providerFieldProblem, cleanBaseUrl,
+  PROVIDER_SLOTS, resolvePrices, resolveSlot, checkKeyPreflight, canChangeDraftThinking,
+} from '../provider.js';
+import {
+  readConfig, updateConfig, ConfigError, providerFieldProblem, cleanBaseUrl, draftThinkingMode,
 } from '../config.js';
 import { SHAPES } from '../providershapes.js';
 import { keysForDoor } from '../keysfile.js';
@@ -92,8 +94,11 @@ export function createSettings(cfg) {
         canBalance: canBalance(eff),
       };
     });
+    // The drafting model today is the deepseek row's model.
+    const dm = resolveSlot('deepseek', { config: c.config });
     return reply(200, {
       ok: true,
+      draftThinking: { on: draftThinkingMode(c.config) === 'on', canChange: canChangeDraftThinking(dm), model: dm.model },
       keysFile: { path: k.path, exists: k.exists, refusal: k.refusal },
       configProblem: c.problem,
       shapes: SHAPES.map(({ id, label }) => ({ id, label })),
@@ -224,6 +229,23 @@ export function createSettings(cfg) {
     return reply(200, { ok: true, slot });
   }
 
+  /** The "Thinking on (drafting)" tick-box: one boolean for all jobs, only for a drafting model the allow-list knows. */
+  function thinking(body) {
+    if (typeof body?.on !== 'boolean') return refuse('bad-thinking', 'Send on or off. Nothing was saved.');
+    const c = config();
+    if (c.problem) return refuse('config-broken', `${BROKEN_CONFIG} Nothing was saved.`);
+    if (!canChangeDraftThinking(resolveSlot('deepseek', { config: c.config }))) {
+      return refuse('thinking-fixed', "Thinking can't change this for this model, so nothing was saved.");
+    }
+    try {
+      updateConfig({ draftThinking: body.on }, { home: cfg.home });
+    } catch (e) {
+      if (!(e instanceof ConfigError)) throw e;
+      return refuse('config-broken', `${BROKEN_CONFIG} Nothing was saved.`);
+    }
+    return reply(200, { ok: true, on: body.on });
+  }
+
   function moneyGet() {
     const c = config();
     const summary = spendSummary({ home: cfg.home, now: cfg.now });
@@ -253,7 +275,7 @@ export function createSettings(cfg) {
    */
   async function handle({ method, pathname, query, body }) {
     if (cfg.skip) return refuse('settings-unavailable', 'Settings is not available here.', 404);
-    const known = { GET: ['/api/settings/providers', '/api/settings/balance', '/api/settings/money'], POST: ['/api/settings/test', '/api/settings/price', '/api/settings/provider', '/api/settings/money'] };
+    const known = { GET: ['/api/settings/providers', '/api/settings/balance', '/api/settings/money'], POST: ['/api/settings/test', '/api/settings/price', '/api/settings/provider', '/api/settings/money', '/api/settings/thinking'] };
     if (!(known[method] ?? []).includes(pathname)) return refuse('no-such-settings-route', 'Settings cannot do that. Keys are typed into your keys file by hand.', 404);
     if (method === 'GET') {
       if (pathname === '/api/settings/providers') return providers();
@@ -263,6 +285,7 @@ export function createSettings(cfg) {
     if (pathname === '/api/settings/test') return test(body);
     if (pathname === '/api/settings/price') return price(body);
     if (pathname === '/api/settings/provider') return provider(body);
+    if (pathname === '/api/settings/thinking') return thinking(body);
     return moneyPost(body);
   }
 

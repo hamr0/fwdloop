@@ -4,6 +4,7 @@
 // Shape (unknown top-level fields are kept, never dropped):
 //   { "monthlyLimitUsd": <number > 0>,            // absent = no limit (piece 3 reads it)
 //     "prices": { "<slot>": { "inPerM": n, "cachedInPerM": n, "outPerM": n } },    // USD per 1M tokens, each optional; a saved "cachedInPerM" is tolerated, never read (M4d amendment 2)
+//     "draftThinking": true | false,                // M4d amendment 3: drafting with the model's thinking on; absent = off
 //     "providers": { "<slot>": { "model": "<id>", "shape": "<shape id>", "baseUrl": "" | "http(s)://…" } } }   // each optional (M4d amendment 1)
 // A price is a finite number above 0; 0, a negative, NaN, Infinity or text is a ConfigError
 // naming the slot and field — on write AND on read, so a hand-edited 0 can never price a call at $0.
@@ -120,6 +121,9 @@ function validateProviders(providers) {
   }
 }
 
+/** The drafting thinking mode a config says: 'on' only for a literal `true`, else 'off' (the default). The one reader. @param {Record<string, any>} config @returns {'on'|'off'} */
+export const draftThinkingMode = (config) => (config.draftThinking === true ? 'on' : 'off');
+
 /**
  * Validate a whole document's known fields; throws ConfigError naming the field.
  * @param {Record<string, any>} doc
@@ -127,6 +131,9 @@ function validateProviders(providers) {
 function validateDoc(doc) {
   if (doc.monthlyLimitUsd !== undefined && !isPrice(doc.monthlyLimitUsd)) {
     throw new ConfigError('monthlyLimitUsd must be a number above 0 (remove the limit to have none)');
+  }
+  if (doc.draftThinking !== undefined && typeof doc.draftThinking !== 'boolean') {
+    throw new ConfigError('draftThinking must be true or false');
   }
   validateProviders(doc.providers);
   if (doc.prices === undefined) return;

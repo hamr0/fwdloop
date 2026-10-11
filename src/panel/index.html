@@ -674,6 +674,8 @@
   .pv-table td,.pv-table th{white-space:nowrap;vertical-align:top;}
   .pv-table select,.pv-table input{min-height:32px;max-width:190px;box-sizing:border-box;}
   .pv-table .hint{display:block;margin-top:3px;}
+  .dt-row{margin-top:14px;font-size:13px;overflow-wrap:anywhere;}
+  .dt-row label{display:flex;align-items:center;gap:8px;}
   /* the Test cell keeps ONE width whatever the result says ("testing…", "OK · 312 ms", a long failure note) */
   .pv-table td.pv-test-cell{width:180px;min-width:180px;max-width:180px;}
   .pv-table .pv-test-result,.pv-table .pv-msg,.pv-table .pv-balance-result{white-space:normal;overflow-wrap:anywhere;}
@@ -731,6 +733,10 @@
           </table>
         </div>
         <div class="hint" id="pv-note" data-testid="pv-note" style="margin-top:6px;">Test asks the provider for its model list &mdash; it costs nothing. A price left empty uses the default; a typed price applies from the next model call on.</div>
+        <div class="dt-row" data-testid="draft-thinking">
+          <label for="dt-box"><input type="checkbox" id="dt-box" data-testid="dt-box"> Thinking on (drafting)</label>
+          <div class="hint" id="dt-note" data-testid="dt-note">Off by default, for all jobs. Applies to the next draft; running a job is not affected.</div>
+        </div>
       </section>
       <section id="spanel-money" class="tabpanel" role="tabpanel" aria-labelledby="stab-money" hidden>
         <div class="money-strip" data-testid="money-strip">
@@ -5088,11 +5094,29 @@
     return tr;
   }
   var STATUS_WORD = { "set in file": "set in file", "found in shell": "found in shell", "not set": "not set", "refused": "refused — see above" };
+  // "Thinking on (drafting)": one box for all jobs. A drafting model the allow-list does not know cannot be changed, so say so and disable it.
+  var dtBox = document.getElementById("dt-box");
+  var DT_NOTE_DEFAULT = document.getElementById("dt-note").textContent;
+  function paintThinking(d){
+    if(!d) return;
+    dtBox.checked = !!d.on;
+    dtBox.disabled = !d.canChange;
+    setNote(document.getElementById("dt-note"), false, d.canChange ? DT_NOTE_DEFAULT : "can't change this for this model");
+  }
+  dtBox.addEventListener("change", function(){
+    var note = document.getElementById("dt-note");
+    postJSON("/api/settings/thinking", { on: dtBox.checked }).then(function(r){
+      if(r.body && r.body.ok) setNote(note, false, "saved — applies from the next draft");
+      else { setNote(note, true, settingsRefusal(r)); loadProviders(); }
+    }, function(){ setNote(note, true, networkText()); loadProviders(); });
+  });
+
   function paintProviders(data){
     var path = data.keysFile && data.keysFile.path ? data.keysFile.path : "~/.config/fwdloop/.env";
     document.getElementById("keys-path").textContent = path;
     setNote(document.getElementById("keys-refusal"), true, data.keysFile && data.keysFile.refusal);
     setNote(pvNote, !!data.configProblem, data.configProblem || PV_NOTE_DEFAULT);
+    paintThinking(data.draftThinking);
     data.rows.forEach(function(row){
       var tr = pvRows.querySelector('[data-slot="' + row.slot + '"]');
       if(!tr){ tr = buildProviderRow(row); pvRows.appendChild(tr); }
