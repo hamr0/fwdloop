@@ -500,6 +500,7 @@
   .chat-steps .step.wait .step-label{color:var(--amber);}
   .chat-steps .step-detail{display:block;flex-basis:100%;min-width:0;padding-left:1.2em;color:var(--text-faint);word-break:break-word;white-space:pre-wrap;}
   .chat-steps .step.bad .step-detail{color:var(--red);}
+  .chat-steps .step[data-step="thinking"].bad .step-label{color:var(--red);font-weight:600;}
   .chat-steps .step-raw{margin-top:2px;color:var(--text-faint);}
   .chat-steps .step-raw summary{cursor:pointer;}
   .chat-steps .step.run .step-sign::after{content:"\2026";}
@@ -4099,6 +4100,16 @@
     function stepsFor(state, ctx){
       var out = [];
       var who = ctx.model ? ctx.model : "the drafter";
+      // M4d am10: when the server sent the draft's own list (state.stepList, built by one function in src/draft-steps.js) it is rendered as it is,
+      // each ✗ plan-check refusal turned into its plain sentence; a draft with no log lists what it always did (`fallback`).
+      function draftLines(fallback){
+        if(!state || !Array.isArray(state.stepList) || state.stepList.length === 0) return fallback();
+        state.stepList.forEach(function(st){
+          var row = {id: st.id, label: st.label, status: st.status === "failed" ? "failed" : "done", details: st.details || []};
+          if(Array.isArray(st.reds)){ var fd = failedDetails(st.reds); row.details = fd.details; row.raw = fd.raw; }
+          out.push(row);
+        });
+      }
       var cap = state && state.card && state.card.capUsd !== undefined && state.card.capUsd !== "" ? state.card.capUsd : "";
       var capPart = cap !== "" ? ", run cap $" + cap : "";
       if(state){
@@ -4106,7 +4117,7 @@
           out.push({id: "drafting", label: "drafting with " + who + capPart, status: "running", details: []});
         } else if(Array.isArray(state.revises)){
           // amendment 14: a draft whose first plan was green. One line per revise with its result; a red one shows its reds (its sentence is on the card error line).
-          out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
+          draftLines(function(){ out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []}); });
           var reviseNo = 0;
           state.revises.forEach(function(rv){
             // an answer redraft (amendment 24 item 4) is not a revise and is not counted as one
@@ -4121,13 +4132,15 @@
           }
           if(state.phase === "questions-open") out.push({id: "question", label: "waiting for your answer (" + state.openK + " of " + state.total + ")", status: "waiting", details: []});
         } else if(state.phase === "red"){
-          out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
-          var cf = failedDetails(state.reds);
-          out.push({id: "checks", label: "plan checks", status: "failed", details: cf.details, raw: cf.raw});
+          draftLines(function(){
+            out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
+            var cf = failedDetails(state.reds);
+            out.push({id: "checks", label: "plan checks", status: "failed", details: cf.details, raw: cf.raw});
+          });
         } else if(state.phase === "stopped"){
           out.push({id: "drafting", label: "drafting with " + who + capPart, status: "failed", details: []});
         } else if(state.phase === "green" || state.phase === "revising"){
-          out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
+          draftLines(function(){ out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []}); });
           if(ctx.starting){
             out.push({id: "signed", label: "signed", status: "done", details: []});
           } else if(state.phase !== "revising"){
@@ -4160,8 +4173,6 @@
           return "line " + a.line + (a.lineText ? ": " + a.lineText : "") + "\n  > " + a.answer;
         })});
       }
-      // M4d am7: bareagent's thinking verdict, said loudly when it did not go as asked (the sentence is built server-side, one function)
-      if(typeof state.thinkingSay === "string" && state.thinkingSay) blocks.push({id: "chat-thinking", head: state.thinkingSay, sub: "", lines: []});
       blocks.push({id: "chat-checked", head: "Checked", sub: "built by the machine from the plan's checks", lines: state.checked.map(function(c){
         return (c.line !== null && c.line !== undefined ? "line " + c.line : "step " + c.step) + ": " + c.sentences.join(" ");
       })});

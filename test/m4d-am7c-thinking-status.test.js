@@ -96,15 +96,10 @@ test('E1: the page view of a green plan carries the thinking line in its step li
   assert.deepEqual([g2.stepList[0].status, g2.stepList[0].label], ['done', 'thinking off']);
 });
 
-test('E2: the page\'s extrasFor adds a "chat-thinking" block only when the plan carries a sentence', () => {
+test('E2: M4d am10 item 6 - the thinking sentence is in the step list, no longer a "chat-thinking" block beside the plan', () => {
   const start = PAGE.indexOf('function extrasFor(');
   const fn = PAGE.slice(start, PAGE.indexOf('\n    }', start) + 6);
   const extrasFor = new Function(`${fn}\nreturn extrasFor;`)();
   const base = { phase: 'green', checked: [], notChecked: { label: 'Not checked', items: [] } };
-  const withSay = extrasFor({ ...base, thinkingSay: 'thinking: not confirmed by the model' });
-  const think = withSay.blocks.filter((b) => b.id === 'chat-thinking');
-  assert.equal(think.length, 1);
-  assert.equal(think[0].head, 'thinking: not confirmed by the model');
-  assert.equal(extrasFor({ ...base, thinkingSay: null }).blocks.some((b) => b.id === 'chat-thinking'), false);
-  assert.equal(extrasFor(base).blocks.some((b) => b.id === 'chat-thinking'), false);
+  assert.equal(extrasFor({ ...base, thinkingSay: 'thinking: not confirmed by the model' }).blocks.some((b) => b.id === 'chat-thinking'), false);
 });
