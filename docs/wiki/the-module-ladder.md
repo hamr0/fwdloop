@@ -1314,6 +1314,13 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 4. Runs and rules stay the same otherwise. The cell check isn't loosened.
 **Done when:** a test that fails first (the `aging-live-1` plan, as it was drafted, is refused at $0); one live re-draft of the same job passes the checker; and a run of it reaches "check it with me". **Cap:** $0.05 of its own, because am3's $0.10 is almost used up.
 
+**M4d amendment 9 — SIGNED by hamr 2026-10-11 ("sign m4d am9"): an ask must show you something.**
+1. An ask step ("check it with me") has to read the output of an earlier step, the thing you're being asked to check. Its first read is what you see at the ask.
+2. If a plan has an ask step that reads nothing, or reads something no earlier step makes, the plan checker refuses it at draft time, by name, with $0 spent: "Line N asks you to check something, but it reads nothing. Line N must read <earlier step output>."
+3. The drafter is told the same rule.
+4. Runs, asks and sends work the same otherwise.
+**Done when:** a test that fails first (the `aging-live-1` ask, as drafted, is refused at $0); then one live re-draft of the aging job passes the checker, and a run reaches "check it with me" showing the buckets. **Cap:** inside am8's $0.05.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
