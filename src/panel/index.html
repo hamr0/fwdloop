@@ -675,7 +675,7 @@
      every model row sit on the same column edges. Key band: KEY | API SHAPE | BASE URL (two columns) | OLD MAX_TOKENS | TOKENS | refresh.
      Model row: [USE 44px][MODEL] under KEY, IN + OUT side by side under BASE URL, TOKENS on the key band's TOKENS edge. A key row has a
      solid 1px line, a model row a dotted 1px hairline. Below 1280px every row collapses to stacked label : value lines. */
-  .pv-grid{--pv-cols:minmax(0,3fr) minmax(0,1.4fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,.9fr) 160px;font-size:13px;}
+  .pv-grid{--pv-cols:minmax(0,2.8fr) minmax(0,1.5fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.9fr) minmax(0,.6fr) 272px;font-size:13px;}
   .pv-head,.pv-krow,.pv-mhead,.pv-mrow{display:grid;grid-template-columns:var(--pv-cols);column-gap:8px;align-items:center;padding:0 8px;min-width:0;}
   .pv-head > *,.pv-krow > *,.pv-mhead > *,.pv-mrow > *{min-width:0;}
   .pv-head,.pv-mhead{font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:0.04em;min-height:26px;}
@@ -694,7 +694,7 @@
   .pv-legacy{display:inline-flex;align-items:center;gap:6px;cursor:pointer;min-height:28px;text-transform:none;letter-spacing:0;font-weight:400;font-size:12px;}
   .pv-legacy input,.pv-m-use input{width:16px;height:16px;margin:0;accent-color:var(--accent);cursor:pointer;}
   .pv-tok{text-align:right;font-variant-numeric:tabular-nums;}
-  .pv-refcell{display:flex;justify-content:flex-end;}
+  .pv-refcell{display:flex;justify-content:flex-end;gap:6px;}
   .pv-refbtn{white-space:nowrap;flex:0 0 auto;}
   .pv-refbtn:disabled{opacity:.5;cursor:not-allowed;}
   .pv-sum{color:var(--text-faint);font-size:11px;font-weight:400;}
@@ -5231,9 +5231,9 @@
         '<div class="pv-cell pv-c-url"><span class="pv-lbl">Base URL</span><input type="text" data-prov="baseUrl" data-testid="prov-baseurl" aria-label="' + escapeXml(row.label + " Base URL") + '" autocomplete="off" spellcheck="false" placeholder="type the Base URL"></div>' +
         '<div class="pv-cell"><span class="pv-lbl">Old max_tokens</span><label class="pv-legacy"><input type="checkbox" data-prov="legacyMaxTokens" data-testid="prov-legacy" aria-label="' + escapeXml(row.label + " legacy max_tokens") + '"><span data-f="legacy-word">off</span></label></div>' +
         '<div class="pv-cell pv-tok pv-ktok"><span class="pv-lbl">Tokens</span><span data-f="tokens" data-testid="pv-tokens-' + escapeXml(row.slot) + '"></span></div>' +
-        '<div class="pv-cell pv-refcell nolbl"><button class="btn small pv-refbtn" type="button" data-act="refresh-models" data-testid="prov-refresh" aria-label="' + escapeXml("Refresh models for " + row.label) + '">&#10227; Refresh</button></div>' +
+        '<div class="pv-cell pv-refcell nolbl"><button class="btn small pv-refbtn" type="button" data-act="test-key" data-testid="prov-test" aria-label="' + escapeXml("Test " + row.envVar) + '">Test</button><button class="btn small pv-refbtn" type="button" data-act="refresh-models" data-testid="prov-refresh" aria-label="' + escapeXml("Refresh models for " + row.label) + '">&#10227; Refresh</button></div>' +
       '</div>' +
-      '<div class="pv-knote"><div class="hint bad pv-msg" data-f="msg-edit" data-testid="prov-msg-edit"></div><div class="hint pv-msg" data-f="msg-legacyMaxTokens" data-testid="prov-msg-legacyMaxTokens"></div></div>' +
+      '<div class="pv-knote"><div class="hint bad pv-msg" data-f="msg-edit" data-testid="prov-msg-edit"></div><div class="hint pv-msg" data-f="msg-legacyMaxTokens" data-testid="prov-msg-legacyMaxTokens"></div><div class="hint pv-msg" data-f="msg-test" data-testid="prov-msg-test" role="status"></div></div>' +
       '<div class="pv-models" data-models-for="' + escapeXml(row.slot) + '" data-testid="models-row-' + escapeXml(row.slot) + '">' +
         '<div class="pv-mhead" aria-hidden="true"><span class="pv-um"><span class="pv-uh">USE</span><span>MODEL</span></span><span class="pv-pair"><span>IN $/1M</span><span>OUT $/1M</span></span><span class="pv-tok">TOKENS</span></div>' +
         '<div data-f="models"></div>' +
@@ -5323,6 +5323,27 @@
     b.disabled = pending === true;
     b.innerHTML = pending === true ? "&#10227; refreshing&hellip;" : "&#10227; Refresh";
   }
+  // The Test button: "[ Test ]", disabled "[ testing… ]" while the free call is out. The route says ok + ms or a plain-words why; written on the key row's own note.
+  function testKey(slot, key){
+    var b = key.querySelector("[data-act=test-key]");
+    var msg = key.querySelector("[data-f=msg-test]");
+    var row = lastData && lastData.rows.filter(function(r){ return r.slot === slot; })[0];
+    if(row && row.baseUrl === ""){
+      setNote(msg, true, "Type a Base URL for " + row.envVar + " in Settings.");
+      return;
+    }
+    b.disabled = true;
+    b.innerHTML = "testing&hellip;";
+    setNote(msg, false, "");
+    postJSON("/api/settings/test", { slot: slot }).then(function(r){
+      var d = r.body;
+      if(d && d.ok === true) setNote(msg, false, "OK \u00b7 " + d.ms + " ms");
+      else setNote(msg, true, d && d.why ? d.why : settingsRefusal(r));
+    }, function(){ setNote(msg, true, networkText()); }).then(function(){
+      b.disabled = false;
+      b.innerHTML = "Test";
+    });
+  }
   function refreshModels(slot, tr){
     listed[slot] = { pending: true };
     setRefreshBtn(tr, true);
@@ -5402,6 +5423,7 @@
     var slot = key.getAttribute("data-slot");
     var act = b.getAttribute("data-act");
     if(act === "refresh-models") refreshModels(slot, key);
+    else if(act === "test-key") testKey(slot, key);
     else if(act === "fold"){ folds[slot] = !folds[slot]; paintProviders(lastData, false); }
     else if(act === "typed-open"){ typedOpen[slot] = !typedOpen[slot]; paintProviders(lastData, false); }
     else if(act === "add-model") addTypedModel(slot, b.closest("[data-f=typed]"));

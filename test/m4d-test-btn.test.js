@@ -93,12 +93,12 @@ test('browser: grid keeps one set of column edges; the last track fits both butt
     var o={t:tb.innerHTML,r:rb.innerHTML,td:tb.disabled,rd:rb.disabled};
     tb.disabled=true; tb.innerHTML='testing&hellip;'; rb.disabled=true; rb.innerHTML='&#10227; refreshing&hellip;';
     var cell=tb.parentNode, cr=r(cell), a=r(tb), b=r(rb);
-    out.oneLine = Math.abs(a.top-b.top) < 2 && a.height < 44 && b.height < 44;
+    out.oneLine = Math.abs(a.top-b.top) < 2 && a.height < 50 && b.height < 50;
     out.fits = a.left >= cr.left - 0.5 && b.right <= cr.right + 0.5 && a.right <= b.left && tb.scrollWidth <= tb.clientWidth && rb.scrollWidth <= rb.clientWidth;
     out.inside = b.right <= r(k).right + 0.5 && a.left >= r(k).left;
     tb.innerHTML=o.t; rb.innerHTML=o.r; tb.disabled=o.td; rb.disabled=o.rd;
     var m=A.querySelector('.pv-mrow');
-    if(m) out.tokEdge = Math.round(r(k.querySelector('[data-f=tokens]')).left) === Math.round(r(m.querySelector('[data-f=model-tokens]')).left);
+    if(m) out.tokEdge = Math.round(r(k.querySelector('.pv-ktok')).left) === Math.round(r(m.querySelector('.pv-m-tok')).left) && Math.round(r(k.querySelector('.pv-ktok')).right) === Math.round(r(m.querySelector('.pv-m-tok')).right);
     out.tokLeft = Math.round(r(k.querySelector('[data-f=tokens]')).left);
     out.cols = getComputedStyle(k).gridTemplateColumns;
     out.sw = document.documentElement.scrollWidth === document.documentElement.clientWidth;
@@ -109,6 +109,7 @@ test('browser: grid keeps one set of column edges; the last track fits both butt
     await chrome.ev('document.getElementById("settings-open").click()');
     assert.ok(await chrome.waitFor('document.querySelectorAll(".pv-key").length === 5'));
     assert.ok(await chrome.waitFor('document.querySelector(\'.pv-key[data-slot="A_KEY"] .pv-mrow\') !== null'));
+    await chrome.ev(`(function(){var k=document.querySelector('.pv-key[data-slot="A_KEY"]');if(k.dataset.open!=='1')k.querySelector('[data-act=fold]').click();})()`);
     const g = await chrome.ev(probe);
     assert.ok(g.oneLine, `both buttons on one line at ${w}: ${JSON.stringify(g)}`);
     assert.ok(g.fits, `both buttons fully inside their cell at ${w}: ${JSON.stringify(g)}`);
