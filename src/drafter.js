@@ -379,7 +379,8 @@ export async function draft({
       result = await loop.run(
         [{ role: 'system', content: system }, { role: 'user', content: userText }],
         [tool],
-        { maxTokens: DRAFT_MAX_TOKENS, toolChoice: { name: TOOL } },
+        // M4d am4: thinking 'on' forces no tool (provider default 'auto'; a text reply goes to the structure retry); 'off' forces it.
+        { maxTokens: DRAFT_MAX_TOKENS, ...(draftThinking === 'on' ? {} : { toolChoice: { name: TOOL } }) },
       );
     } catch (err) {
       threw = err;
