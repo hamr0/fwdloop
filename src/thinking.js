@@ -43,11 +43,11 @@ export const THINKING_UNVERIFIED_SAY = 'thinking off (not verified for this mode
 
 /**
  * The ONE place the thinking words live (M4d am11: bareloop's words). The ✗ line shown in the Chat list when thinking did not go as asked;
- * 'applied' (and no status) says nothing here (the list's own "thinking on ✓" / "thinking off ✓" covers it). @param {'on'|'off'} asked @param {string|null} status @returns {string|null}
+ * The words are fixed strings, never built from what was asked: they say what the model did (bareloop's code-owned words). 'applied' (and no status) says nothing here (the list's own "thinking on ✓" / "thinking off ✓" covers it). @param {'on'|'off'} asked @param {string|null} status @returns {string|null}
  */
 export function thinkingSay(asked, status) {
-  if (status === 'ignored') return `thinking ${asked} (the model thought anyway)`;
-  if (status === 'unsupported') return `thinking ${asked} (this model can't change it)`;
-  if (status === 'unknown') return `thinking ${asked} (not confirmed)`;
+  if (status === 'ignored') return 'thinking on (the model thought anyway)';
+  if (status === 'unsupported') return "thinking on (this model can't change it)";
+  if (status === 'unknown') return 'thinking off (not confirmed)';
   return null;
 }

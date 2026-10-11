@@ -30,7 +30,7 @@ test('A2: thinking off applied says "thinking off"; no thinking record or no sta
 });
 
 test('A3: ignored / unsupported / unknown: the line fails and carries am7\'s own words as its label', () => {
-  for (const [status, say] of [['ignored', 'thinking on (the model thought anyway)'], ['unsupported', "thinking on (this model can't change it)"], ['unknown', 'thinking on (not confirmed)']]) {
+  for (const [status, say] of [['ignored', 'thinking on (the model thought anyway)'], ['unsupported', "thinking on (this model can't change it)"], ['unknown', 'thinking off (not confirmed)']]) {
     const l = draftStepList({ log: okLog({ thinking: { asked: 'on', status, say } }), declaration: decl() });
     assert.deepEqual([l[0].id, l[0].status, l[0].label], ['thinking', 'failed', say]);
   }
