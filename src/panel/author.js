@@ -53,6 +53,7 @@ import {
 } from '../provider.js';
 import { thinkingSupport as bareagentThinkingSupport, THINKING_FIXED_SAY } from '../thinking.js';
 import { parseSignedText } from '../signed-text.js';
+import { draftStepList } from '../draft-steps.js';
 import { leastResumeCapUsd } from './authorvalues.js';
 import { createFlowsDoor } from './authorflows.js';
 import { createResumeDoor } from './authorresume.js';
@@ -158,6 +159,19 @@ export function createAuthor(opts) {
   }
 
   /**
+   * M4d am10: the Chat list of what this plan's draft really did, READ from its log.json and declaration (never from the readout, which is signed text),
+   * built by the ONE function `draftStepList`; every string scrubbed. `null` when the draft left no log (the page then lists what it always did).
+   * @param {string} dir @param {string} rel @param {string[]} keys
+   */
+  function stepListOf(dir, rel, keys) {
+    const declaration = readJson(dir, `${rel}/declaration.json`) ?? readJson(dir, `${rel}/declaration.rejected.json`);
+    const list = draftStepList({ log: readJson(dir, `${rel}/log.json`), declaration });
+    if (list === null) return null;
+    const sc = (x) => scrub(String(x), keys);
+    return list.map((st) => ({ ...st, label: sc(st.label), details: st.details.map(sc), ...(st.reds ? { reds: st.reds.map(sc) } : {}) }));
+  }
+
+  /**
    * One plan folder's result, READ from its files: green (spec.hash), red (a log that says not ok, or a leak marker), or null (no result yet).
    * @param {string} dir the draft folder @param {string} rel `draft` or `draft-<n>` @param {string[]} keys
    * @returns {any}
@@ -167,16 +181,14 @@ export function createAuthor(opts) {
     if (hashFile.ok && hashFile.text.trim() !== '') {
       const readout = readFileInside(dir, `${rel}/readout.txt`);
       const text = readout.ok ? scrub(readout.text, keys) : '';
-      // M4d am7: bareagent's `thinkingStatus` for this draft, as the one sentence (null when it went as asked). Read from log.json, never from the readout (that is signed text).
-      const say = readJson(dir, `${rel}/log.json`)?.thinking?.say;
-      return { phase: 'green', hash: hashFile.text.trim(), readout: text, readoutHeads: readoutHeadIndexes(text), thinkingSay: typeof say === 'string' ? scrub(say, keys) : null };
+      return { phase: 'green', hash: hashFile.text.trim(), readout: text, readoutHeads: readoutHeadIndexes(text), stepList: stepListOf(dir, rel, keys) };
     }
     const leak = readFileInside(dir, `${rel}/scrub-leak.red`);
     const log = readJson(dir, `${rel}/log.json`);
     if (leak.ok || (log && log.ok === false)) {
       const reds = Array.isArray(log?.reds) ? log.reds.map((r) => scrub(String(r), keys)) : [];
       if (leak.ok) reds.push(scrub(leak.text.trim(), keys));
-      return { phase: 'red', reds, say: RED_SAY };
+      return { phase: 'red', reds, say: RED_SAY, stepList: stepListOf(dir, rel, keys) };
     }
     return null;
   }
@@ -208,7 +220,7 @@ export function createAuthor(opts) {
       return { n, kind, phase: 'stopped', say: logTail(dir, `${kind === 'answers' ? 'redraft' : 'revise'}-${n}.log`, keys) || STOPPED_SAY };
     });
     const cur = /** @type {{ phase: string, kind: string, say?: string }} */ (newest > 0 ? revises[revises.length - 1] : { phase: first.phase, kind: 'first' });
-    const shared = { ...base, card, revises, revisesLeft };
+    const shared = { ...base, card, revises, revisesLeft, stepList: first.stepList ?? null };
     const rel = newest > 0 ? `draft-${newest}` : 'draft';
     if (cur.phase === 'running') return { ...shared, phase: cur.kind === 'answers' ? 'redrafting' : 'revising' };
     if (cur.phase === 'stopped') return { ...shared, phase: 'stopped', say: cur.say };
@@ -223,7 +235,7 @@ export function createAuthor(opts) {
     if (q.questions.length > 0) return { ...shared, phase: 'stopped', say: ANSWERS_NOT_DRAFTED_SAY };
     if (res.phase === 'green') {
       const answers = newest > 0 && redrafts.has(newest) ? answersOf(dir, newest, keys) : [];
-      return { ...shared, phase: 'green', hash: res.hash, readout: res.readout, readoutHeads: res.readoutHeads, thinkingSay: res.thinkingSay, plan: rel, answers, ...planChecks(dir, rel) };
+      return { ...shared, phase: 'green', hash: res.hash, readout: res.readout, readoutHeads: res.readoutHeads, plan: rel, answers, ...planChecks(dir, rel) };
     }
     return { ...shared, phase: 'red', reds: res.reds, say: newest === 0 ? RED_SAY : cur.say };
   }

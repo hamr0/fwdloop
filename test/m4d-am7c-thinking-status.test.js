@@ -84,16 +84,16 @@ test('D3: a ValidationError that still exists upstream (raw thinking + thinkingM
   assert.match(r.reds[0], /^thinking: /);
 });
 
-test('E1: the page view of a green plan carries the sentence (from log.json), and the thinking block shows it; applied shows nothing', async () => {
+test('E1: the page view of a green plan carries the thinking line in its step list (from log.json; M4d am10 moved it there); applied is a plain "thinking off"', async () => {
   const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_THINKING_STATUS: 'ignored' } });
   const id = (await w.post('/api/author/draft', w.card({}))).json().draftId;
   const g = await until(async () => { const j = (await w.get(`/api/author/${id}`)).json(); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });
   assert.equal(g.phase, 'green');
-  assert.equal(g.thinkingSay, 'thinking: you asked off, the model ignored it');
+  assert.deepEqual([g.stepList[0].id, g.stepList[0].status, g.stepList[0].label], ['thinking', 'failed', 'thinking: you asked off, the model ignored it']);
   const w2 = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_THINKING_STATUS: 'applied' } });
   const id2 = (await w2.post('/api/author/draft', w2.card({}))).json().draftId;
   const g2 = await until(async () => { const j = (await w2.get(`/api/author/${id2}`)).json(); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });
-  assert.equal(g2.thinkingSay ?? null, null);
+  assert.deepEqual([g2.stepList[0].status, g2.stepList[0].label], ['done', 'thinking off']);
 });
 
 test('E2: the page\'s extrasFor adds a "chat-thinking" block only when the plan carries a sentence', () => {
