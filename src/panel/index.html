@@ -674,8 +674,8 @@
   /* M4d Providers layout F (hamr approved 2026-10-11, the design lab's Variant F): ONE shared grid, so a key row, the model sub-head and
      every model row sit on the same column edges. Key band: KEY | API SHAPE | BASE URL (two columns) | OLD MAX_TOKENS | TOKENS | refresh.
      Model row: [USE 44px][MODEL] under KEY, IN + OUT side by side under BASE URL, TOKENS on the key band's TOKENS edge. A key row has a
-     solid 1px line, a model row a dotted 1px hairline. Up to 720px every row collapses to stacked label : value lines. */
-  .pv-grid{--pv-cols:minmax(0,2fr) minmax(0,1.5fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.4fr) minmax(0,.9fr) 160px;font-size:13px;}
+     solid 1px line, a model row a dotted 1px hairline. Below 1280px every row collapses to stacked label : value lines. */
+  .pv-grid{--pv-cols:minmax(0,3fr) minmax(0,1.4fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,.9fr) 160px;font-size:13px;}
   .pv-head,.pv-krow,.pv-mhead,.pv-mrow{display:grid;grid-template-columns:var(--pv-cols);column-gap:8px;align-items:center;padding:0 8px;min-width:0;}
   .pv-head > *,.pv-krow > *,.pv-mhead > *,.pv-mrow > *{min-width:0;}
   .pv-head,.pv-mhead{font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:0.04em;min-height:26px;}
@@ -730,7 +730,7 @@
   @media (max-width: 899px){
     .money-strip{grid-template-columns:1fr 1fr;}
   }
-  @media (max-width: 720px){
+  @media (max-width: 1279px){
     .pv-head,.pv-mhead{display:none;}
     .pv-krow,.pv-mrow{display:block;padding:2px 8px;}
     .pv-cell{display:grid;grid-template-columns:104px minmax(0,1fr);gap:8px;align-items:center;min-height:44px;border-top:1px dotted var(--border);}

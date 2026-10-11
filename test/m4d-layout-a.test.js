@@ -71,7 +71,7 @@ test('page: the layout-F skeleton is in the source (key band head, model sub-hea
   assert.ok(PAGE.includes('&#10227; Refresh<') && PAGE.includes('&#10227; refreshing&hellip;'));
   assert.doesNotMatch(PAGE, /data-act="edit|"Edit " \+|openEdit|closeEdit|saveEdit|edit-save/);
   assert.ok(PAGE.includes('refresh models (free) · old max_tokens: tick if the server wants the old field name'));
-  assert.match(PAGE, /@media \(max-width: ?720px\)/);
+  assert.match(PAGE, /@media \(max-width: ?1279px\)/);
 });
 
 const CHROME_SKIP = process.env.FWDLOOP_NO_BROWSER === '1';
@@ -173,4 +173,49 @@ test('browser: layout F geometry, fold default, shape / Base URL save on change,
   assert.ok(await chrome.waitFor('document.querySelector(\'.pv-key[data-slot="A_KEY"] .pv-mrow[data-model="v4-pro"] [data-f=msg-model]\').textContent.length > 0'));
   assert.equal(await q('document.querySelector(\'.pv-key[data-slot="A_KEY"] .pv-mrow[data-model="v4-pro"] [data-f=msg-model]\').textContent'), 'Fill both prices to tick this model.');
   assert.ok(await chrome.waitFor('document.querySelector(\'.pv-key[data-slot="A_KEY"] .pv-mrow[data-model="v4-pro"] [data-mf=use]\').checked === false'));
+});
+
+test('browser: between the phone stack and 1280 nothing in a key row or a model row wraps or is cut; at every width the page does not scroll sideways', { skip: CHROME_SKIP && 'no browser' }, async (t) => {
+  const chrome = await launchChrome();
+  if (!chrome) { t.skip('no chromium installed'); return; }
+  CLOSERS.push(async () => chrome.close());
+  const { h } = await world();
+  const measure = `(function(){
+    var vw = document.documentElement.clientWidth, bad = [], cut = [];
+    document.querySelectorAll('#spanel-providers *').forEach(function(e){ var r = e.getBoundingClientRect(); if(r.width && (r.right > vw + 0.5 || r.left < -0.5)) bad.push(e.className || e.tagName); });
+    document.querySelectorAll('.pv-krow > .pv-cell, .pv-mrow > .pv-cell').forEach(function(c){
+      if(c.getBoundingClientRect().width === 0) return;
+      var inner = c.querySelector('select, input[type=text]');
+      if(c.scrollWidth > c.clientWidth + 1 || c.getBoundingClientRect().height > 50) cut.push(c.className + ' ' + c.scrollWidth + '/' + c.clientWidth + ' h' + Math.round(c.getBoundingClientRect().height) + ' ' + c.textContent.slice(0, 30));
+      if(c.classList.contains('pv-name')){ var tops = [...c.children].filter(function(k){ return k.getBoundingClientRect().width > 0; }).map(function(k){ var r = k.getBoundingClientRect(); return Math.round(r.top + r.height / 2); }); if(Math.max.apply(null, tops) - Math.min.apply(null, tops) > 6) cut.push('name cell wraps: ' + c.textContent); }
+      if(inner){
+        var cs = getComputedStyle(inner), probe = document.createElement('span');
+        probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;font:' + cs.font;
+        probe.textContent = inner.tagName === 'SELECT' ? inner.selectedOptions[0].textContent : inner.value;
+        document.body.appendChild(probe);
+        var need = probe.getBoundingClientRect().width + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + (inner.tagName === 'SELECT' ? 22 : 2);
+        document.body.removeChild(probe);
+        if(need > inner.getBoundingClientRect().width) cut.push('box cut: ' + probe.textContent + ' needs ' + Math.round(need) + ' has ' + Math.round(inner.getBoundingClientRect().width));
+      }
+    });
+    document.querySelectorAll('.pv-head > *, .pv-mhead > *, .pv-mhead .pv-um > *').forEach(function(c){ if(c.getBoundingClientRect().width && c.getBoundingClientRect().height > 24) cut.push('head wraps: ' + c.textContent); });
+    return { sw: document.documentElement.scrollWidth, vw: vw, bad: bad, cut: cut };
+  })()`;
+  for (const w of [1920, 1280, 1279, 1180, 1024, 900, 780, 721, 390, 320]) {
+    await chrome.open(`http://127.0.0.1:${h.port}/`, w);
+    await chrome.ev('document.getElementById("settings-open").click()');
+    assert.ok(await chrome.waitFor('document.querySelectorAll(".pv-key").length === 3 && document.querySelector(\'.pv-key[data-slot="B_KEY"] .pv-sum\').textContent.includes("3 models")'));
+    // real-length names and addresses (the fixture's are short)
+    await chrome.ev('document.querySelectorAll(".pv-key").forEach(function(k){ k.querySelector("code").textContent = "SYNTHETIC_API_KEY"; k.querySelector("[data-prov=baseUrl]").value = "https://api.synthetic.new/openai/v1"; })');
+    await chrome.ev('document.querySelectorAll(".pv-key").forEach(function(k){ if(k.dataset.open === "0") k.querySelector("[data-act=fold]").click(); })');
+    assert.equal(await chrome.ev('getComputedStyle(document.querySelector(".pv-krow")).display'), w > 1279 ? 'grid' : 'block', `grid from 1280px, stacked label:value lines at ${w}`);
+    const open = await chrome.ev(measure);
+    await chrome.ev('document.querySelectorAll(".pv-key").forEach(function(k){ k.querySelector("[data-act=fold]").click(); })');
+    const folded = await chrome.ev(measure);
+    for (const m of [open, folded]) {
+      assert.equal(m.sw, m.vw, `no sideways scroll at ${w}`);
+      assert.deepEqual(m.bad, [], `no box spills at ${w}`);
+      if (w > 1279) assert.deepEqual(m.cut, [], `no wrapped or cut cell at ${w}`);
+    }
+  }
 });
