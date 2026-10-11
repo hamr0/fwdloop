@@ -2965,8 +2965,22 @@
   // One last-payload signature per render. Equal payload = the DOM is not touched. `selectRun` resets
   // the ones a different selection invalidates.
   var lastSig = { inbox: null, runs: null, detail: null, asks: null, audit: null };
+  // `timeLeftMs` differs on every poll and is not part of what a page draw is built from (the words move in place: `liveLeft`/`tickLeft`),
+  // so it is left out: a poll that changed nothing else is "unchanged" and rebuilds nothing (a rebuild resets every scrolled box).
   function sig(obj){
-    try { return JSON.stringify(obj); } catch(e){ return null; }
+    try { return JSON.stringify(obj, function(k, v){ return k === "timeLeftMs" ? undefined : v; }); } catch(e){ return null; }
+  }
+  // "time left" counts down IN PLACE. ONE writer: `liveLeft` stamps the element with when its time ends and how to say it; `tickLeft` (the page's
+  // 2 s tick) says it again. Nothing else re-draws these words, so the countdown never costs a rebuild over what the human is reading.
+  function liveLeft(el, timeLeftMs, say){
+    if(typeof timeLeftMs !== "number") { say(timeLeftMs); return; }
+    el.classList.add("live-left");
+    el._endsAt = Date.now() + timeLeftMs;
+    el._say = say;
+    say(timeLeftMs);
+  }
+  function tickLeft(){
+    document.querySelectorAll(".live-left").forEach(function(el){ el._say(Math.max(0, el._endsAt - Date.now())); });
   }
   // Saves/restores scrollTop of the given element ids around a re-render.
   function withScrollPreserved(ids, fn){
@@ -3022,9 +3036,9 @@
       document.getElementById("run-content").hidden = true;
     });
     // the same late-reply guard on audit, job and asks: a reply for a run the user already left paints nothing
-    getJSON(base + "/audit").then(function(a){ if(still()) renderAudit(a); }).catch(function(){ if(still()) renderAudit(null); });
+    getJSON(base + "/audit").then(function(a){ if(still()){ lastSig.audit = sig(a); renderAudit(a); } }).catch(function(){ if(still()) renderAudit(null); });
     getJSON(base + "/job").then(function(j){ if(still()) renderJob(j); }).catch(function(){ if(still()) renderJob(null); });
-    getJSON(base + "/asks").then(function(result){ if(still()) renderAsk(result, focusAskId || null); }).catch(function(e){
+    getJSON(base + "/asks").then(function(result){ if(still()) paintAsks(result, focusAskId || null); }).catch(function(e){
       if(still()) renderAsk(null, null, loadFailureText(e));
     });
   }
@@ -3069,17 +3083,21 @@
       withScrollPreserved(["left-pane-body"], function(){ runsFilterBar.setItems(rows); runsFilterBar.refresh(); });
     }).catch(function(){});
   }
+  // The ONE way the Ask tab is drawn from the books: the Ask tab is drawn from the books AND the page's own pending answer ("working…" block).
+  // The signature is stamped only when renderAsk REALLY drew (it returns false when held over a typed reason): a held redraw leaves the stamp
+  // unset, so the next tick retries it against the same payload. Both the selection's first draw and every poll come through here, so the
+  // first poll after a click finds the stamp and rebuilds nothing (an unstamped first draw was a second, needless rebuild 2 s later).
+  function paintAsks(a, focusAskId){
+    var next = sig({ asks: a, pending: pendingAnswer });
+    if(focusAskId || next === null || next !== lastSig.asks){ lastSig.asks = renderAsk(a, focusAskId) ? next : null; }
+  }
   function reloadRun(flow, runId, skipLists){
     var base = "/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId);
     var still = function(){ return currentFlow === flow && currentRunId === runId; };
     var detailP = getJSON(base).then(function(d){ if(still()) paintRun(d); return d; }).catch(function(){ if(still()) openRunLive = false; return null; });   // unreadable books: the list rate, not 2 s forever
     var asksP = getJSON(base + "/asks").then(function(a){
       if(still()){
-        // the Ask tab is drawn from the books AND the page's own pending answer ("working…" block)
-        var next = sig({ asks: a, pending: pendingAnswer });
-        // the signature is stamped only when renderAsk REALLY drew (it returns false when held over a typed
-        // reason): a held redraw leaves the stamp unset, so the next tick retries it against the same payload
-        if(next === null || next !== lastSig.asks){ lastSig.asks = renderAsk(a, null) ? next : null; }
+        paintAsks(a, null);
       }
       return a;
     }).catch(function(e){ if(still()){ lastSig.asks = null; renderAsk(null, null, loadFailureText(e)); } return null; });
@@ -3099,6 +3117,7 @@
     if(document.hidden){ wasHidden = true; schedulePoll(LIVE_POLL_MS); return; }
     var catchUp = wasHidden;   // first tick after the tab came back: force both
     wasHidden = false;
+    tickLeft();
     var watch = live;
     var sel = currentFlow !== null && currentRunId !== null;
     var watchIsSelected = watch && sel && watch.flow === currentFlow && watch.runId === currentRunId;
@@ -3250,7 +3269,11 @@
     wrap.appendChild(head);
     var meta = textDiv("wf-sign-line", "");
     meta.setAttribute("data-testid", "inbox-sign-word");
-    meta.innerHTML = signHtml(row.word, stopStatusLine(row), stopStatusLine(row));
+    if(row.waiting){
+      liveLeft(meta, row.timeLeftMs, function(ms){ var h = signHtml(row.word, "time left: " + duration(ms), "time left: " + duration(ms)); if(meta._h !== h){ meta._h = h; meta.innerHTML = h; } });
+    } else {
+      meta.innerHTML = signHtml(row.word, stopStatusLine(row), stopStatusLine(row));
+    }
     wrap.appendChild(meta);
     if(typeof row.question === "string"){
       wrap.appendChild(textDiv("step-meta", "question: " + row.question));
@@ -3307,7 +3330,11 @@
   // role="button" (never a real <button>), same posture as the step-map's
   // own SVG nodes elsewhere on this page. ----
   function askStatusBlock(ask){
-    if(ask.waiting) return textDiv("wf-meta", "time left: " + duration(ask.timeLeftMs));
+    if(ask.waiting){
+      var left = textDiv("wf-meta", "");
+      liveLeft(left, ask.timeLeftMs, function(ms){ var t = "time left: " + duration(ms); if(left.textContent !== t) left.textContent = t; });
+      return left;
+    }
     // an open ask with a saved answer: the header meta line already says the resume label (stuck or starting) — once.
     if(ask.open && ask.resume) return null;
     var bits = [ask.statusText || ask.status];
@@ -3805,7 +3832,17 @@
         kept[w.getAttribute("data-testid")] = { open: w.getAttribute("data-open"), expanded: w.firstChild.getAttribute("aria-expanded") === "true" };
       });
     }
+    // A redraw (the books really changed) must not move what the human is reading either: every evidence box keeps its scrollTop (same run only),
+    // and so does the pane. The rebuilt boxes are filled below, per block, once they are in the page.
+    var sameRun = askDrawnFor === result.flow + "/" + result.runId;
+    var tops = {};
+    if(sameRun){
+      list.querySelectorAll("[data-testid^='ask-block-']").forEach(function(w){
+        tops[w.getAttribute("data-testid")] = Array.prototype.map.call(w.querySelectorAll(".scroll"), function(b){ return b.scrollTop; });
+      });
+    }
     askDrawnFor = result.flow + "/" + result.runId;
+    var paneTop = (document.getElementById("right-pane-body") || {}).scrollTop;
     list.innerHTML = "";
     // Default expansion: the block holding the ask a click from the Inbox
     // (`focusAskId`) named wins; otherwise a block with an open ask expands;
@@ -3828,6 +3865,8 @@
         row.classList.add("audit-group-highlight");
       }
       list.appendChild(row);
+      var savedTops = tops[row.getAttribute("data-testid")];
+      if(savedTops) Array.prototype.forEach.call(row.querySelectorAll(".scroll"), function(b, i){ if(savedTops[i]) b.scrollTop = savedTops[i]; });
       if(expanded){
         // Scroll the focused ask into view (M4a-1 design: clicking a stop
         // on the left "focuses" it on the right) — never on a run's own
@@ -3837,6 +3876,7 @@
         }
       }
     });
+    if(sameRun && paneTop){ var pane = document.getElementById("right-pane-body"); if(pane) pane.scrollTop = paneTop; }
     return true;
   }
 
