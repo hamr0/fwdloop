@@ -4594,7 +4594,8 @@
     function thinkingBoxState(line, wasChecked){
       if(!line || !line.thinking) return {disabled: true, checked: false, note: ""};
       if(line.thinking.canChange !== true) return {disabled: true, checked: false, note: line.thinking.say || ""};
-      return {disabled: false, checked: wasChecked === true, note: ""};
+      // an unchecked model's note (am11 item 2) says "thinking off"; ticked, it would be wrong, so it goes
+      return {disabled: false, checked: wasChecked === true, note: wasChecked === true ? "" : (line.thinking.say || "")};
     }
     function paintThinking(){
       var st = thinkingBoxState(modelLines[Number(modelEl.value)], thinkingEl.checked);
@@ -4603,6 +4604,7 @@
       drafterModel = modelPick().model;
     }
     modelEl.addEventListener("change", function(){ paintThinking(); refreshCapNote(); });
+    thinkingEl.addEventListener("change", paintThinking);
     function setModelPick(provider, model){
       for(var i = 0; i < modelLines.length; i += 1){ if(modelLines[i].slot === provider && modelLines[i].model === model){ modelEl.value = String(i); break; } }
       paintThinking();

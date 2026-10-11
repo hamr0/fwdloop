@@ -28,7 +28,7 @@ test('C1: a green draft carries its list: thinking, inputs, drafted, plan checks
 test('C2: ignored thinking: the thinking line fails with am7\'s words; the old thinkingSay field is gone from the view', async () => {
   const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_THINKING_STATUS: 'ignored' } });
   const { j } = await finish(w);
-  assert.deepEqual([j.stepList[0].status, j.stepList[0].label], ['failed', 'thinking: you asked off, the model ignored it']);
+  assert.deepEqual([j.stepList[0].status, j.stepList[0].label], ['failed', 'thinking off (the model thought anyway)']);
   assert.equal(Object.hasOwn(j, 'thinkingSay'), false);
 });
 

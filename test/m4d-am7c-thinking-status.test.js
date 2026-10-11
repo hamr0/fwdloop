@@ -40,10 +40,12 @@ test('B2: the Chat menu asks the lookup with the row\'s own Base URL', async () 
 });
 
 test('C1: the loud sentences, one function; applied says nothing', () => {
-  assert.equal(thinkingSay('off', 'ignored'), 'thinking: you asked off, the model ignored it');
-  assert.equal(thinkingSay('off', 'unsupported'), "thinking: this model can't switch it; ran without");
-  assert.equal(thinkingSay('on', 'unsupported'), "thinking: this model can't switch it; ran without");
-  assert.equal(thinkingSay('on', 'unknown'), 'thinking: not confirmed by the model');
+  assert.equal(thinkingSay('on', 'ignored'), 'thinking on (the model thought anyway)');
+  assert.equal(thinkingSay('off', 'ignored'), 'thinking off (the model thought anyway)');
+  assert.equal(thinkingSay('off', 'unsupported'), "thinking off (this model can't change it)");
+  assert.equal(thinkingSay('on', 'unsupported'), "thinking on (this model can't change it)");
+  assert.equal(thinkingSay('off', 'unknown'), 'thinking off (not confirmed)');
+  assert.equal(thinkingSay('on', 'unknown'), 'thinking on (not confirmed)');
   assert.equal(thinkingSay('off', 'applied'), null);
   assert.equal(thinkingSay('off', null), null);
 });
@@ -65,7 +67,7 @@ test('D1: each round records its thinkingStatus (and thinkingApplied stays); the
   assert.equal(r.ok, true);
   assert.deepEqual(r.log.map((e) => e.thinkingStatus), ['unknown', 'ignored']);
   assert.equal(r.log[1].thinkingApplied, false);
-  assert.deepEqual(r.thinking, { asked: 'off', status: 'ignored', say: 'thinking: you asked off, the model ignored it' });
+  assert.deepEqual(r.thinking, { asked: 'off', status: 'ignored', say: 'thinking off (the model thought anyway)' });
 });
 
 test('D2: applied everywhere (or no status from the provider) means no sentence', async () => {
@@ -89,7 +91,7 @@ test('E1: the page view of a green plan carries the thinking line in its step li
   const id = (await w.post('/api/author/draft', w.card({}))).json().draftId;
   const g = await until(async () => { const j = (await w.get(`/api/author/${id}`)).json(); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });
   assert.equal(g.phase, 'green');
-  assert.deepEqual([g.stepList[0].id, g.stepList[0].status, g.stepList[0].label], ['thinking', 'failed', 'thinking: you asked off, the model ignored it']);
+  assert.deepEqual([g.stepList[0].id, g.stepList[0].status, g.stepList[0].label], ['thinking', 'failed', 'thinking off (the model thought anyway)']);
   const w2 = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_THINKING_STATUS: 'applied' } });
   const id2 = (await w2.post('/api/author/draft', w2.card({}))).json().draftId;
   const g2 = await until(async () => { const j = (await w2.get(`/api/author/${id2}`)).json(); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });

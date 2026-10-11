@@ -38,13 +38,16 @@ export function worstThinkingStatus(statuses) {
   return WORST_FIRST.find((s) => statuses.includes(s)) ?? null;
 }
 
+/** The note beside the Chat "Thinking on" box, before any draft, for a model bareagent has not checked (M4d am11 item 2). */
+export const THINKING_UNVERIFIED_SAY = 'thinking off (not verified for this model)';
+
 /**
- * The one sentence the page shows when thinking did not go as asked (M4d am7: a model that can't or won't is said loudly, never silent).
- * 'applied' (and no status) says nothing. @param {'on'|'off'} asked @param {string|null} status @returns {string|null}
+ * The ONE place the thinking words live (M4d am11: bareloop's words). The ✗ line shown in the Chat list when thinking did not go as asked;
+ * 'applied' (and no status) says nothing here (the list's own "thinking on ✓" / "thinking off ✓" covers it). @param {'on'|'off'} asked @param {string|null} status @returns {string|null}
  */
 export function thinkingSay(asked, status) {
-  if (status === 'ignored') return `thinking: you asked ${asked}, the model ignored it`;
-  if (status === 'unsupported') return "thinking: this model can't switch it; ran without";
-  if (status === 'unknown') return 'thinking: not confirmed by the model';
+  if (status === 'ignored') return `thinking ${asked} (the model thought anyway)`;
+  if (status === 'unsupported') return `thinking ${asked} (this model can't change it)`;
+  if (status === 'unknown') return `thinking ${asked} (not confirmed)`;
   return null;
 }

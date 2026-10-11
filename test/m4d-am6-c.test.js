@@ -130,12 +130,16 @@ test('C7 (amendment 7): the "Thinking on" box asks ONE function over bareagent\'
   assert.deepEqual(line.thinking, { support: false, canChange: false, say: "can't change this for this model" });
   assert.deepEqual(calls, [['openai-api', 'fake-ticked', { baseUrl: 'http://127.0.0.1:9' }]]);
   const w2 = await world();
-  assert.deepEqual((await w2.get('/api/author/models')).json().lines[0].thinking, { support: 'unverified', canChange: true, say: '' });
+  assert.deepEqual((await w2.get('/api/author/models')).json().lines[0].thinking, { support: 'unverified', canChange: true, say: 'thinking off (not verified for this model)' });
   // the page: the box is greyed with the sentence when the answer is false, works otherwise, and is unticked by default
   const fn = PAGE.slice(PAGE.indexOf('function thinkingBoxState('), PAGE.indexOf('\n    }', PAGE.indexOf('function thinkingBoxState(')) + 6);
   const state = new Function(`${fn}\nreturn thinkingBoxState;`)();
   assert.deepEqual(state({ thinking: { canChange: false, say: "can't change this for this model" } }), { disabled: true, checked: false, note: "can't change this for this model" });
   assert.deepEqual(state({ thinking: { canChange: true, say: '' } }, true), { disabled: false, checked: true, note: '' });
+  // M4d am11 item 2: an unverified model, box unticked: the note says so; ticked: no note (it would say off while on)
+  const unv = { thinking: { canChange: true, say: 'thinking off (not verified for this model)' } };
+  assert.deepEqual(state(unv, false), { disabled: false, checked: false, note: 'thinking off (not verified for this model)' });
+  assert.deepEqual(state(unv, true), { disabled: false, checked: true, note: '' });
   assert.deepEqual(state(null), { disabled: true, checked: false, note: '' });
   assert.match(PAGE, /<input type="checkbox" id="jf-thinking"(?![^>]*checked)[^>]*> Thinking on/);
 });

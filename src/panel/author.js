@@ -51,7 +51,7 @@ import { checkedLines, notCheckedBlock } from '../checked.js';
 import {
   readPriceConfig, resolveSlot, resolveUsableModel, tickedLines,
 } from '../provider.js';
-import { thinkingSupport as bareagentThinkingSupport, THINKING_FIXED_SAY } from '../thinking.js';
+import { thinkingSupport as bareagentThinkingSupport, THINKING_FIXED_SAY, THINKING_UNVERIFIED_SAY } from '../thinking.js';
 import { parseSignedText } from '../signed-text.js';
 import { draftStepList } from '../draft-steps.js';
 import { leastResumeCapUsd } from './authorvalues.js';
@@ -383,7 +383,7 @@ export function createAuthor(opts) {
       const lines = tickedLines(config, loaded.keyNames ?? []).map((l) => {
         const row = resolveSlot(l.slot, { config });
         const support = thinkingSupport(row.shape, l.model, { baseUrl: row.baseUrl }); // the Base URL lets bareagent resolve the row by its host, as its request path does
-        return { ...l, thinking: { support, canChange: support !== false, say: support === false ? THINKING_FIXED_SAY : '' } };
+        return { ...l, thinking: { support, canChange: support !== false, say: support === false ? THINKING_FIXED_SAY : (support === 'unverified' ? THINKING_UNVERIFIED_SAY : '') } };
       });
       return { status: 200, body: { ok: true, lines, say: lines.length === 0 ? 'Tick a model in Settings > Providers.' : '' } };
     },

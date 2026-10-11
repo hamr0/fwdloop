@@ -15,7 +15,7 @@ function fn(name) {
 const steps = new Function(`${fn('plainPlanCheck')}\n${fn('failedDetails')}\n${fn('stepsFor')}\nreturn stepsFor;`)();
 const ctx = { model: 'm', starting: false, signClicked: false };
 const list = [
-  { id: 'thinking', label: 'thinking: you asked on, the model ignored it', status: 'failed', details: [] },
+  { id: 'thinking', label: 'thinking on (the model thought anyway)', status: 'failed', details: [] },
   { id: 'inputs', label: 'inputs', status: 'done', details: ['aging: 11 columns'] },
   { id: 'drafted', label: 'drafted with deepseek-flash', status: 'done', details: ['1 round · $0.0056'] },
   { id: 'checks', label: 'plan checks', status: 'done', details: [] },
