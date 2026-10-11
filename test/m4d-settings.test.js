@@ -471,7 +471,7 @@ test('settings: Test never follows a redirect with the key; a plain sentence, an
 test('amendment 2 (a) under am3 C: no Cached in column or box; the model line builder makes exactly one box per signed price field (Price in, Price out); source-level, browser walk separate', () => {
   const head = SETTINGS_VIEW.match(/<div class="pv-head"[\s\S]*?<\/div>/)[0];
   assert.doesNotMatch(head, /Cached/i);
-  const mh = PAGE.match(/<div class="pv-mhead"[\s\S]*?<\/div><\/div>/)[0];
+  const mh = PAGE.match(/<div class="pv-mhead"[\s\S]*?<\/div>/)[0];
   assert.match(mh, /IN \$\/1M[\s\S]*OUT \$\/1M/, 'layout F: the price columns sit on the child rows, headed once');
   const line = PAGE.slice(PAGE.indexOf('function buildModelLine('), PAGE.indexOf('function paintModels('));
   assert.deepEqual([...line.matchAll(/data-mf="(\w+)"/g)].map((m) => m[1]), ['use', 'inPerM', 'outPerM']); // M4d am7: nothing about thinking in Settings

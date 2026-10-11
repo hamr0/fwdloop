@@ -68,7 +68,7 @@ test('page: the layout-F skeleton is in the source (key band head, model sub-hea
   assert.deepEqual([...head.matchAll(/<span[^>]*>([^<]*)<\/span>/g)].map((m) => m[1]), ['KEY', 'API SHAPE', 'BASE URL', 'OLD MAX_TOKENS', 'TOKENS', '']);
   assert.ok(PAGE.includes('USE') && PAGE.includes('IN $/1M') && PAGE.includes('OUT $/1M'));
   assert.match(PAGE, /"Refresh models for " \+/);
-  assert.ok(PAGE.includes('[ &#10227; Refresh ]') && PAGE.includes('[ &#10227; refreshing&hellip; ]'));
+  assert.ok(PAGE.includes('&#10227; Refresh<') && PAGE.includes('&#10227; refreshing&hellip;'));
   assert.doesNotMatch(PAGE, /data-act="edit|"Edit " \+|openEdit|closeEdit|saveEdit|edit-save/);
   assert.ok(PAGE.includes('refresh models (free) · old max_tokens: tick if the server wants the old field name'));
   assert.match(PAGE, /@media \(max-width: ?720px\)/);
@@ -100,28 +100,29 @@ test('browser: layout F geometry, fold default, shape / Base URL save on change,
     var tokK=r(k.querySelector('[data-f=tokens]')), tokM=r(m.querySelector('[data-f=model-tokens]'));
     var btn=k.querySelector('[data-act=refresh-models]'), br=r(btn), kr=r(k);
     return {
-      keyNameLeft: Math.round(r(k.querySelector('.pv-name code')).left), modelNameVsUse: Math.round(name.left - use.right),
+      keyNameLeft: Math.round(r(k.querySelector('.pv-name code')).left), modelNameVsUse: Math.round(name.left - r(m.querySelector('.pv-m-use')).right),
       useBox: Math.round(r(m.querySelector('.pv-m-use')).width),
       inOutGap: Math.round(out.left - inn.right), sameRow: Math.abs(inn.top - out.top) < 2,
       tokRight: Math.round(tokK.right) === Math.round(tokM.right), tokLeft: Math.round(tokK.left) === Math.round(tokM.left),
       oldOwnCol: old.right <= tokK.left && old.left >= url.right - 1 && old.left >= out.right - 0.5,
       urlUnderPair: Math.abs(url.left - inn.left) < 2 && Math.abs(url.right - out.right) < 2,
       shapeIsSelect: k.querySelector('[data-prov=shape]').tagName, urlIsText: k.querySelector('[data-prov=baseUrl]').type,
-      refreshOneLine: btn.scrollWidth <= btn.clientWidth && br.height < 44 && getComputedStyle(btn).whiteSpace === 'nowrap', refreshText: btn.textContent,
+      refreshOneLine: btn.scrollWidth <= btn.clientWidth && br.height < 44 && getComputedStyle(btn).whiteSpace === 'nowrap', refreshText: btn.textContent, refreshBrackets: getComputedStyle(btn, '::before').content + ' ' + getComputedStyle(btn, '::after').content,
       headEdges: [...hd.children].map(function(c){return Math.round(r(c).left);}), keyEdges: [...k.children].map(function(c){return Math.round(r(c).left);}),
       keyBorder: getComputedStyle(A).borderTopStyle + ' ' + getComputedStyle(A).borderTopWidth, modBorder: getComputedStyle(m).borderTopStyle + ' ' + getComputedStyle(m).borderTopWidth,
       mhead: mh ? mh.textContent.replace(/\\s+/g, ' ').trim() : null
     };
   })()`);
   assert.equal(geo.shapeIsSelect, 'SELECT'); assert.equal(geo.urlIsText, 'text');
-  assert.ok(geo.modelNameVsUse >= 0 && geo.modelNameVsUse <= 8, `the name sits against the USE cell (${geo.modelNameVsUse})`);
+  assert.ok(geo.modelNameVsUse === 0, `the name sits against the USE cell (${geo.modelNameVsUse})`);
   assert.equal(geo.useBox, 44, 'the checkbox cell is 44px');
   assert.ok(geo.sameRow && geo.inOutGap >= 6 && geo.inOutGap <= 10, `In/Out side by side with ~8px (${geo.inOutGap})`);
   assert.ok(geo.tokRight && geo.tokLeft, 'model TOKENS sit on the key band\'s TOKENS edge');
   assert.ok(geo.urlUnderPair, 'Base URL spans the same columns as In + Out');
   assert.ok(geo.oldOwnCol, 'OLD MAX_TOKENS has its own column, clear of the price boxes');
   assert.ok(geo.refreshOneLine, 'Refresh is one line, never squeezed');
-  assert.equal(geo.refreshText, '[ ⟳ Refresh ]');
+  assert.equal(geo.refreshText, '⟳ Refresh');
+  assert.equal(geo.refreshBrackets, '"[ " " ]"', 'the panel\'s own bracket button look');
   assert.equal(geo.keyBorder, 'solid 1px'); assert.equal(geo.modBorder, 'dotted 1px');
   assert.match(geo.mhead, /^USE\s*MODEL\s*IN \$\/1M\s*OUT \$\/1M\s*TOKENS$/);
   assert.equal(geo.headEdges[1], geo.keyEdges[1], 'API SHAPE head and the select share an edge');

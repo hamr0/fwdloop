@@ -671,47 +671,57 @@
   .keyfile-strip-actions{display:flex;gap:6px;flex:none;}
   .keyfile-strip code{background:var(--bg);border:1px solid var(--border-strong);padding:1px 5px;font-size:11px;color:var(--amber);overflow-wrap:anywhere;}
   .settings-view input,.settings-view select{font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);}
-  /* M4d Providers layout A (hamr approved 2026-10-11): one parent row per key, child rows per model, one grid of columns
-     KEY / MODEL · SHAPE · BASE URL · OLD MAX_TOKENS · USE · IN · OUT · TOKENS (+ the key's two buttons). Up to 600px the columns
-     collapse into small labels under the name (the phone mock). */
-  .pv-grid{--pv-cols:minmax(0,1.5fr) minmax(0,1.7fr) 66px 36px 66px 66px 56px 120px;font-size:13px;}
-  .pv-head,.pv-krow,.pv-mrow{display:grid;grid-template-columns:var(--pv-cols);gap:4px 8px;align-items:center;padding:6px 10px;}
-  .pv-head{font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:0.04em;border-bottom:1px solid var(--border-strong);}
-  .pv-key{border-bottom:1px solid var(--border);}
-  .pv-key:last-child{border-bottom:0;}
+  /* M4d Providers layout F (hamr approved 2026-10-11, the design lab's Variant F): ONE shared grid, so a key row, the model sub-head and
+     every model row sit on the same column edges. Key band: KEY | API SHAPE | BASE URL (two columns) | OLD MAX_TOKENS | TOKENS | refresh.
+     Model row: [USE 44px][MODEL] under KEY, IN + OUT side by side under BASE URL, TOKENS on the key band's TOKENS edge. A key row has a
+     solid 1px line, a model row a dotted 1px hairline. Up to 720px every row collapses to stacked label : value lines. */
+  .pv-grid{--pv-cols:minmax(0,2fr) minmax(0,1.5fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.4fr) minmax(0,.9fr) 160px;font-size:13px;}
+  .pv-head,.pv-krow,.pv-mhead,.pv-mrow{display:grid;grid-template-columns:var(--pv-cols);column-gap:8px;align-items:center;padding:0 8px;min-width:0;}
+  .pv-head > *,.pv-krow > *,.pv-mhead > *,.pv-mrow > *{min-width:0;}
+  .pv-head,.pv-mhead{font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:0.04em;min-height:26px;}
+  .pv-head{background:var(--panel2);border-bottom:1px solid var(--border-strong);}
+  .pv-mhead{background:var(--bg);border-bottom:1px dotted var(--border-strong);}
+  .pv-key{border-top:1px solid var(--border-strong);}
+  .pv-krow{min-height:40px;padding-top:4px;padding-bottom:4px;}
+  .pv-c-url{grid-column:3 / span 2;}
+  .pv-lbl{display:none;}
   .pv-name{display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px;min-width:0;overflow-wrap:anywhere;}
   .pv-name code{font-weight:700;}
   .pv-ok{color:var(--green);font-weight:700;}
-  .pv-fold{border:0;background:none;color:var(--text);font:inherit;padding:2px 4px;min-width:24px;min-height:24px;cursor:pointer;}
-  .pv-line{color:var(--text-dim);min-width:0;overflow-wrap:anywhere;}
-  .pv-edit{display:flex;flex-direction:column;gap:6px;min-width:0;}
-  .pv-edit select,.pv-edit input{width:100%;max-width:100%;min-height:32px;box-sizing:border-box;}
-  .pv-edit-btns{display:flex;flex-wrap:wrap;gap:6px;}
-  .pv-cap{display:none;}
-  .pv-legacy{display:flex;align-items:center;gap:4px;}
-  .pv-sum{grid-column:4 / span 3;color:var(--text-dim);font-size:12px;overflow-wrap:anywhere;}
-  .pv-key[data-open="1"] .pv-sum{visibility:hidden;}
-  .pv-tok{text-align:right;}
-  .pv-act{display:flex;gap:4px;justify-content:flex-end;}
-  .pv-act .btn{min-width:0;padding:0 5px;}
-  .pv-knote{padding:0 10px 4px 34px;margin:0;}
+  .pv-fold{border:0;background:none;color:var(--text);font:inherit;padding:0 4px 0 0;min-width:22px;min-height:24px;cursor:pointer;text-align:left;}
+  .pv-krow select,.pv-krow input[type=text]{width:100%;max-width:100%;min-height:28px;box-sizing:border-box;}
+  .pv-grid select,.pv-grid input[type=text]{font-size:12px;height:28px;padding:2px 6px;}
+  .pv-legacy{display:inline-flex;align-items:center;gap:6px;cursor:pointer;min-height:28px;text-transform:none;letter-spacing:0;font-weight:400;font-size:12px;}
+  .pv-legacy input,.pv-m-use input{width:16px;height:16px;margin:0;accent-color:var(--accent);cursor:pointer;}
+  .pv-tok{text-align:right;font-variant-numeric:tabular-nums;}
+  .pv-refcell{display:flex;justify-content:flex-end;}
+  .pv-refbtn{white-space:nowrap;flex:0 0 auto;}
+  .pv-refbtn:disabled{opacity:.5;cursor:not-allowed;}
+  .pv-sum{padding:0 8px 6px 34px;color:var(--text-dim);font-size:12px;overflow-wrap:anywhere;}
+  .pv-key[data-open="1"] .pv-sum{display:none;}
+  .pv-knote{padding:0 8px 4px 34px;margin:0;}
   .pv-knote:empty{display:none;}
   .pv-knote > .hint:empty{display:none;}
   .pv-key[data-open="0"] .pv-models{display:none;}
-  .pv-mrow{padding-top:3px;padding-bottom:3px;}
-  .pv-m-name{grid-column:1;padding-left:24px;min-width:0;overflow-wrap:anywhere;font-size:12px;}
-  .pv-m-use{grid-column:4;}
-  .pv-m-in{grid-column:5;}
-  .pv-m-out{grid-column:6;}
-  .pv-m-tok{grid-column:7;text-align:right;}
-  .pv-m-in,.pv-m-out{display:flex;align-items:center;gap:4px;min-width:0;}
-  .pv-m-in input,.pv-m-out input{width:100%;min-width:0;min-height:30px;box-sizing:border-box;padding:4px 6px;}
-  .pv-m-msg{grid-column:1 / -1;padding-left:24px;margin:0;}
+  .pv-mrow{border-top:1px dotted var(--border-strong);min-height:32px;}
+  .pv-mrow:hover,.pv-mrow:focus-within{background:var(--panel2);}
+  .pv-um{grid-column:1;display:flex;align-items:center;gap:0;min-width:0;}
+  .pv-uh,.pv-m-use{flex:0 0 44px;width:44px;display:flex;align-items:center;justify-content:center;}
+  .pv-m-use{min-height:32px;}
+  .pv-m-name{min-width:0;overflow-wrap:anywhere;font-size:12px;}
+  .pv-pair{grid-column:3 / span 2;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:8px;align-items:center;min-width:0;}
+  .pv-pair > *{min-width:0;}
+  .pv-pair input[type=text]{width:100%;text-align:right;}
+  .pv-mhead .pv-tok{text-align:right;}
+  .pv-mhead .pv-tok,.pv-m-tok{grid-column:6;}
+  .pv-m-msg{grid-column:1 / -1;padding:2px 8px 2px 52px;margin:0;}
   .pv-m-msg:empty{display:none;}
-  .pv-more{padding:2px 10px 6px 34px;}
-  .pv-more .pv-add{border:0;background:none;color:var(--text-dim);font:inherit;font-size:12px;padding:2px 0;cursor:pointer;text-decoration:underline;}
+  .pv-more{padding:3px 8px 3px 34px;border-top:1px dotted var(--border-strong);}
+  .pv-more:empty{display:none;}
+  .pv-more .pv-add{border:0;background:none;color:var(--accent);font:inherit;font-size:12px;padding:2px 0;min-height:24px;cursor:pointer;text-decoration:underline;}
+  .pv-more.pv-failed{color:var(--amber);background:var(--amber-bg);font-size:12px;}
   .pv-typed{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:4px;}
-  .pv-typed input{flex:1 1 160px;min-width:0;min-height:32px;box-sizing:border-box;}
+  .pv-typed input{flex:1 1 160px;min-width:0;max-width:260px;min-height:28px;box-sizing:border-box;}
   .pv-typed .hint{flex:1 1 100%;margin:0;}
   .field label.jf-thinking{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:6px;margin-top:6px;font-size:12px;text-transform:none;letter-spacing:0;}
   .field label.jf-thinking input{width:auto;min-height:0;margin:0;}
@@ -720,28 +730,25 @@
   @media (max-width: 899px){
     .money-strip{grid-template-columns:1fr 1fr;}
   }
-  @media (max-width: 600px){
-    .pv-head{display:none;}
-    .pv-krow{grid-template-columns:minmax(0,1fr) auto;}
-    .pv-krow .pv-name{grid-column:1;grid-row:1;}
-    .pv-krow .pv-act{grid-column:2;grid-row:1;}
-    .pv-krow .pv-linecell{grid-column:1 / -1;grid-row:2;padding-left:30px;}
-    .pv-line{display:flex;flex-direction:column;}
-    .pv-line .pv-sep{display:none;}
-    .pv-krow .pv-legacy{grid-column:1;grid-row:3;padding-left:30px;}
-    .pv-krow .pv-tok{grid-column:2;grid-row:3;}
-    .pv-tok.pv-ktok::after{content:" tok";}
-    .pv-krow .pv-sum{grid-column:1 / -1;grid-row:4;padding-left:30px;}
-    .pv-cap{display:inline;font-size:11px;color:var(--text-dim);}
-    .pv-knote{padding-left:30px;}
-    .pv-mrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;}
-    .pv-m-name{grid-column:1 / span 2;grid-row:1;padding-left:30px;}
-    .pv-m-use{grid-column:3;grid-row:1;justify-self:end;}
-    .pv-m-in{grid-column:1;grid-row:2;margin-left:30px;}
-    .pv-m-out{grid-column:2;grid-row:2;}
-    .pv-m-tok{grid-column:3;grid-row:2;}
-    .pv-m-msg{grid-row:3;padding-left:30px;}
-    .pv-more{padding-left:30px;}
+  @media (max-width: 720px){
+    .pv-head,.pv-mhead{display:none;}
+    .pv-krow,.pv-mrow{display:block;padding:2px 8px;}
+    .pv-cell{display:grid;grid-template-columns:104px minmax(0,1fr);gap:8px;align-items:center;min-height:44px;border-top:1px dotted var(--border);}
+    .pv-cell:first-child{border-top:none;}
+    .pv-lbl{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);font-weight:700;}
+    .pv-cell.nolbl{display:flex;}
+    .pv-tok{text-align:left;}
+    .pv-grid select,.pv-grid input[type=text]{height:44px;font-size:14px;}
+    .pv-krow select,.pv-krow input[type=text]{min-height:44px;}
+    .pv-legacy{min-height:44px;gap:10px;}
+    .pv-legacy input,.pv-m-use input{width:24px;height:24px;}
+    .pv-um{min-height:44px;}
+    .pv-uh,.pv-m-use{min-height:44px;}
+    .pv-cell.pv-pair{display:grid;grid-template-columns:104px minmax(0,1fr) minmax(0,1fr);}
+    .pv-cell.pv-pair::before{content:"In / Out $/1M";font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);font-weight:700;}
+    .pv-fold,.pv-refbtn,.pv-more .pv-add{min-height:44px;min-width:44px;}
+    .pv-sum,.pv-knote,.pv-more{padding-left:8px;}
+    .pv-m-msg{padding-left:8px;}
   }
 </style>
 </head>
@@ -784,11 +791,11 @@
         </div>
         <div class="table-wrap" data-testid="provider-table-wrap">
           <div class="pv-grid" data-testid="provider-table">
-            <div class="pv-head" aria-hidden="true"><span>KEY / MODEL</span><span>SHAPE · BASE URL</span><span>OLD MAX_TOKENS</span><span>USE</span><span>IN $/1M</span><span>OUT $/1M</span><span class="pv-tok">TOKENS</span><span></span></div>
+            <div class="pv-head" aria-hidden="true"><span>KEY</span><span>API SHAPE</span><span class="pv-c-url">BASE URL</span><span>OLD MAX_TOKENS</span><span class="pv-tok">TOKENS</span><span></span></div>
             <div id="pv-rows"></div>
           </div>
         </div>
-        <div class="hint" id="pv-note" data-testid="pv-note" style="margin-top:6px;">⟳ refresh models (free) · ✎ edit shape / base URL · old max_tokens: tick if the server wants the old field name</div>
+        <div class="hint" id="pv-note" data-testid="pv-note" style="margin-top:6px;">⟳ refresh models (free) · old max_tokens: tick if the server wants the old field name</div>
       </section>
       <section id="spanel-money" class="tabpanel" role="tabpanel" aria-labelledby="stab-money" hidden>
         <div class="money-strip" data-testid="money-strip">
@@ -5202,11 +5209,10 @@
   }
   document.getElementById("reload-keys").addEventListener("click", function(){ loadProviders(true); });
 
-  // M4d Providers layout A. One parent block per key (.pv-key): its shape + Base URL as one grey line, the legacy tick, its tokens, and
-  // two buttons (refresh models, edit). Its model lines are child rows under it (.pv-mrow). The key row owns shape, Base URL and the
-  // legacy tick, so a model line can never drift from them.
+  // M4d Providers layout F. One parent block per key (.pv-key): its key band (name, API shape select, Base URL box, the legacy tick, tokens,
+  // the Refresh button), a folded summary, and its model lines as child rows (.pv-mrow). The key row owns shape, Base URL and the legacy
+  // tick, so a model line can never drift from them. Shape and Base URL are always editable; a change of either saves both (judged together).
   var folds = {};      // slot -> true (unfolded) / false (folded): set once, on first paint (a key with a ticked model starts unfolded), then only the person changes it
-  var editing = {};    // slot -> true while the pencil's boxes are open
   var typedOpen = {};  // slot -> true while "+ type a model name" is open
   function buildProviderRow(row){
     var key = document.createElement("div");
@@ -5215,16 +5221,17 @@
     key.setAttribute("data-testid", "provider-row-" + row.slot);
     key.innerHTML =
       '<div class="pv-krow">' +
-        '<div class="pv-name"><button class="pv-fold" type="button" data-act="fold" data-testid="pv-fold"></button><code></code><span class="pv-status" data-f="status" data-testid="pv-status-' + escapeXml(row.slot) + '"></span></div>' +
-        '<div class="pv-linecell"><span class="pv-line" data-testid="pv-line"></span></div>' +
-        '<label class="pv-legacy"><span class="pv-cap">old max_tokens</span><input type="checkbox" data-prov="legacyMaxTokens" data-testid="prov-legacy" aria-label="' + escapeXml(row.label + " legacy max_tokens") + '"></label>' +
-        '<div class="pv-sum" data-f="sum" data-testid="pv-sum"></div>' +
-        '<div class="pv-tok pv-ktok" data-f="tokens" data-testid="pv-tokens-' + escapeXml(row.slot) + '"></div>' +
-        '<div class="pv-act"><button class="btn small" type="button" data-act="refresh-models" data-testid="prov-refresh" aria-label="' + escapeXml("Refresh models for " + row.label) + '">&#10227;</button>' +
-        '<button class="btn small" type="button" data-act="edit" data-testid="prov-edit" aria-label="' + escapeXml("Edit " + row.label) + '">&#9998;</button></div>' +
+        '<div class="pv-cell pv-name nolbl"><button class="pv-fold" type="button" data-act="fold" data-testid="pv-fold"></button><code></code><span class="pv-status" data-f="status" data-testid="pv-status-' + escapeXml(row.slot) + '"></span></div>' +
+        '<div class="pv-cell"><span class="pv-lbl">API shape</span><select data-prov="shape" data-testid="prov-shape" aria-label="' + escapeXml(row.label + " API shape") + '"></select></div>' +
+        '<div class="pv-cell pv-c-url"><span class="pv-lbl">Base URL</span><input type="text" data-prov="baseUrl" data-testid="prov-baseurl" aria-label="' + escapeXml(row.label + " Base URL") + '" autocomplete="off" spellcheck="false" placeholder="type the Base URL"></div>' +
+        '<div class="pv-cell"><span class="pv-lbl">Old max_tokens</span><label class="pv-legacy"><input type="checkbox" data-prov="legacyMaxTokens" data-testid="prov-legacy" aria-label="' + escapeXml(row.label + " legacy max_tokens") + '"><span data-f="legacy-word">off</span></label></div>' +
+        '<div class="pv-cell pv-tok pv-ktok"><span class="pv-lbl">Tokens</span><span data-f="tokens" data-testid="pv-tokens-' + escapeXml(row.slot) + '"></span></div>' +
+        '<div class="pv-cell pv-refcell nolbl"><button class="btn small pv-refbtn" type="button" data-act="refresh-models" data-testid="prov-refresh" aria-label="' + escapeXml("Refresh models for " + row.label) + '">&#10227; Refresh</button></div>' +
       '</div>' +
-      '<div class="pv-knote"><div class="hint pv-test-result" data-f="test" data-testid="prov-test-result"></div><div class="hint pv-msg" data-f="msg-legacyMaxTokens" data-testid="prov-msg-legacyMaxTokens"></div></div>' +
+      '<div class="pv-sum" data-f="sum" data-testid="pv-sum"></div>' +
+      '<div class="pv-knote"><div class="hint pv-test-result" data-f="test" data-testid="prov-test-result"></div><div class="hint bad pv-msg" data-f="msg-edit" data-testid="prov-msg-edit"></div><div class="hint pv-msg" data-f="msg-legacyMaxTokens" data-testid="prov-msg-legacyMaxTokens"></div></div>' +
       '<div class="pv-models" data-models-for="' + escapeXml(row.slot) + '" data-testid="models-row-' + escapeXml(row.slot) + '">' +
+        '<div class="pv-mhead" aria-hidden="true"><span class="pv-um"><span class="pv-uh">USE</span><span>MODEL</span></span><span class="pv-pair"><span>IN $/1M</span><span>OUT $/1M</span></span><span class="pv-tok">TOKENS</span></div>' +
         '<div data-f="models"></div>' +
         '<div class="pv-more"><button class="pv-add" type="button" data-act="typed-open" data-testid="model-typed-open">+ type a model name</button>' +
         '<div class="pv-typed" data-f="typed" hidden><input type="text" data-typed="1" data-testid="model-typed" autocomplete="off" spellcheck="false" aria-label="' + escapeXml(row.label + " model name") + '" placeholder="type a model name"> ' +
@@ -5234,20 +5241,20 @@
     key.querySelectorAll("input").forEach(function(inp){
       inp.addEventListener("input", function(){ inp.setAttribute("data-dirty", "1"); });
     });
+    key.querySelector("select").addEventListener("change", function(ev){ ev.target.setAttribute("data-dirty", "1"); });
     return key;
   }
-  // One child row per model: name, Use, In, Out, Tokens. The price pair is both-or-neither; the server's one rule says why not.
+  // One child row per model: [Use][name], In + Out side by side, Tokens. The price pair is both-or-neither; the server's one rule says why not.
   function buildModelLine(slot, m){
     var d = document.createElement("div");
     d.className = "pv-mrow";
     d.setAttribute("data-model", m.model);
     d.setAttribute("data-testid", "model-line");
     d.innerHTML =
-      '<code class="pv-m-name"></code>' +
-      '<div class="pv-m-use"><input type="checkbox" data-mf="use" data-testid="model-use"></div>' +
-      '<label class="pv-m-in"><span class="pv-cap">in</span><input type="text" inputmode="decimal" data-mf="inPerM" data-testid="model-in" autocomplete="off"></label>' +
-      '<label class="pv-m-out"><span class="pv-cap">out</span><input type="text" inputmode="decimal" data-mf="outPerM" data-testid="model-out" autocomplete="off"></label>' +
-      '<div class="pv-m-tok" data-f="model-tokens" data-testid="model-tokens"></div>' +
+      '<div class="pv-cell pv-um nolbl"><span class="pv-m-use"><input type="checkbox" data-mf="use" data-testid="model-use"></span><code class="pv-m-name"></code></div>' +
+      '<div class="pv-cell pv-pair"><label><input type="text" inputmode="decimal" data-mf="inPerM" data-testid="model-in" autocomplete="off"></label>' +
+      '<label><input type="text" inputmode="decimal" data-mf="outPerM" data-testid="model-out" autocomplete="off"></label></div>' +
+      '<div class="pv-cell pv-tok pv-m-tok"><span class="pv-lbl">Tokens</span><span data-f="model-tokens" data-testid="model-tokens"></span></div>' +
       '<div class="hint pv-msg pv-m-msg" data-f="msg-model" data-testid="model-msg"></div>';
     d.querySelector(".pv-m-name").textContent = m.model;
     d.querySelector("[data-mf=use]").setAttribute("aria-label", slot + " " + m.model + " use");
@@ -5302,12 +5309,20 @@
     note = box.querySelector("[data-f=models-note]");
     if(!note){ note = document.createElement("div"); note.className = "hint pv-more"; note.setAttribute("data-f", "models-note"); note.setAttribute("data-testid", "models-note"); box.appendChild(note); }
     setNote(note, false, l && l.why ? l.why + " Type the model name below." : (lines.length === 0 ? "No models yet. Press ⟳ to refresh models, or type a name." : ""));
-    note.className += " pv-more";
+    note.className += " pv-more" + (l && l.why ? " pv-failed" : "");
+    box.parentNode.querySelector(".pv-mhead").hidden = lines.length === 0;
   }
   var STATUS_WORD = { "set in file": "set in file", "found in shell": "found in shell", "not set": "not set", "refused": "refused — see above" };
+  // The Refresh button: "[ ⟳ Refresh ]", disabled "[ ⟳ refreshing… ]" while the free list call is out.
+  function setRefreshBtn(key, pending){
+    var b = key.querySelector("[data-act=refresh-models]");
+    b.disabled = pending === true;
+    b.innerHTML = pending === true ? "&#10227; refreshing&hellip;" : "&#10227; Refresh";
+  }
   function refreshModels(slot, tr){
     var out = tr.querySelector("[data-f=test]");
     listed[slot] = { pending: true };
+    setRefreshBtn(tr, true);
     return postJSON("/api/settings/models", { slot: slot }).then(function(r){
       var b = r.body;
       listed[slot] = b && b.ok ? { models: b.models } : { why: (b && b.why) ? b.why : settingsRefusal(r) };
@@ -5316,12 +5331,6 @@
       if(listed[slot].why) out.textContent = listed[slot].why; else out.textContent = listed[slot].models.length + " models";
     });
   }
-  function shapeLabel(data, id){
-    var found = data.shapes.filter(function(sh){ return sh.id === id; })[0];
-    return found ? found.label : id;
-  }
-  // The line shows the address as typed, minus a leading "https://" only (nothing else is hidden).
-  function urlShown(u){ return u === "" ? "no Base URL yet" : u.replace(/^https:\/\//, ""); }
   function paintProviders(data, list){
     lastData = data;
     var path = data.keysFile && data.keysFile.path ? data.keysFile.path : "~/.config/fwdloop/.env";
@@ -5338,6 +5347,7 @@
       fold.setAttribute("aria-expanded", folds[row.slot] ? "true" : "false");
       fold.setAttribute("aria-label", (folds[row.slot] ? "Fold " : "Unfold ") + row.label + " models");
       paintModels(row, key.querySelector(".pv-models"));
+      setRefreshBtn(key, !!(listed[row.slot] && listed[row.slot].pending));
       key.querySelector("[data-f=sum]").textContent = sumText(row);
       var st = key.querySelector("[data-f=status]");
       var word = STATUS_WORD[row.keyStatus] || row.keyStatus;
@@ -5347,12 +5357,16 @@
       if(st.className.indexOf("pv-ok") >= 0) st.setAttribute("aria-label", word); else st.removeAttribute("aria-label");
       var legacyIn = key.querySelector('[data-prov=legacyMaxTokens]');
       if(document.activeElement !== legacyIn) legacyIn.checked = row.legacyMaxTokens === true;
-      // the grey line: "<shape label> · <Base URL>"; the pencil's boxes hold the row while they are open
-      var line = key.querySelector(".pv-line");
-      line.innerHTML = '<span class="pv-shape"></span><span class="pv-sep"> · </span><span class="pv-url"></span>';
-      line.querySelector(".pv-shape").textContent = shapeLabel(data, row.shape);
-      line.querySelector(".pv-url").textContent = urlShown(row.baseUrl);
-      line.hidden = editing[row.slot] === true;
+      key.querySelector("[data-f=legacy-word]").textContent = legacyIn.checked ? "on" : "off";
+      // shape + Base URL: the key row's own boxes, written from the server's row unless the person has typed in them (a refused value stays typed, with its sentence)
+      var sel = key.querySelector("[data-prov=shape]");
+      if(sel.options.length !== data.shapes.length || data.shapes.some(function(sh, i){ return sel.options[i].value !== sh.id; })){
+        sel.textContent = "";
+        data.shapes.forEach(function(sh){ var o = document.createElement("option"); o.value = sh.id; o.textContent = sh.label; sel.appendChild(o); });
+      }
+      if(sel.getAttribute("data-dirty") !== "1") sel.value = row.shape;
+      var urlIn = key.querySelector("[data-prov=baseUrl]");
+      if(urlIn.getAttribute("data-dirty") !== "1" && document.activeElement !== urlIn) urlIn.value = row.baseUrl;
       key.querySelector("[data-f=tokens]").textContent = tokensText(row.tokens);
     });
     // rows that left the keys file leave the page
@@ -5365,45 +5379,18 @@
       else refreshModels(row.slot, key);
     });
   }
-  // The pencil: shape + Base URL become two boxes in the key's own row, Save / Cancel fold it back to one line.
-  function openEdit(key){
-    var slot = key.getAttribute("data-slot");
-    if(editing[slot]) return;
-    var row = lastData.rows.filter(function(r){ return r.slot === slot; })[0];
-    editing[slot] = true;
-    var box = document.createElement("div");
-    box.className = "pv-edit";
-    box.innerHTML =
-      '<select data-prov="shape" data-testid="prov-shape" aria-label="' + escapeXml(row.label + " API shape") + '"></select>' +
-      '<input type="text" data-prov="baseUrl" data-testid="prov-baseurl" aria-label="' + escapeXml(row.label + " Base URL") + '" autocomplete="off" spellcheck="false" placeholder="type the Base URL">' +
-      '<div class="pv-edit-btns"><button class="btn small" type="button" data-act="edit-save" data-testid="prov-edit-save">Save</button><button class="btn small" type="button" data-act="edit-cancel" data-testid="prov-edit-cancel">Cancel</button></div>' +
-      '<div class="hint bad pv-msg" data-f="msg-edit" data-testid="prov-msg-edit"></div>';
-    var sel = box.querySelector("select");
-    lastData.shapes.forEach(function(sh){
-      var o = document.createElement("option");
-      o.value = sh.id; o.textContent = sh.label; sel.appendChild(o);
-    });
-    sel.value = row.shape;
-    box.querySelector("input").value = row.baseUrl;
-    key.querySelector(".pv-linecell").appendChild(box);
-    key.querySelector(".pv-line").hidden = true;
-    box.querySelector("input").focus();
-  }
-  function closeEdit(key){
-    var slot = key.getAttribute("data-slot");
-    editing[slot] = false;
-    var box = key.querySelector(".pv-edit");
-    if(box) box.parentNode.removeChild(box);
-    key.querySelector(".pv-line").hidden = false;
-  }
-  // Save sends both fields in one request; the server judges them together and says which sentence on a refusal (nothing saved).
-  function saveEdit(key){
-    var box = key.querySelector(".pv-edit");
-    var msg = box.querySelector("[data-f=msg-edit]");
-    var payload = { slot: key.getAttribute("data-slot"), shape: box.querySelector("[data-prov=shape]").value, baseUrl: box.querySelector("[data-prov=baseUrl]").value.trim() };
+  // Shape and Base URL save together, on change of either (blur / Enter / pick); the server judges them as a pair and says which sentence on
+  // a refusal (nothing saved, the typed value stays so the person can fix it).
+  function saveEndpoint(key){
+    var msg = key.querySelector("[data-f=msg-edit]");
+    var payload = { slot: key.getAttribute("data-slot"), shape: key.querySelector("[data-prov=shape]").value, baseUrl: key.querySelector("[data-prov=baseUrl]").value.trim() };
     postJSON("/api/settings/provider", payload).then(function(r){
-      if(r.body && r.body.ok){ closeEdit(key); loadProviders(); }
-      else setNote(msg, true, settingsRefusal(r));
+      if(r.body && r.body.ok){
+        key.querySelector("[data-prov=shape]").removeAttribute("data-dirty");
+        key.querySelector("[data-prov=baseUrl]").removeAttribute("data-dirty");
+        setNote(msg, true, "");
+        loadProviders();
+      } else setNote(msg, true, settingsRefusal(r));
     }, function(){ setNote(msg, true, networkText()); });
   }
   pvRows.addEventListener("click", function(ev){
@@ -5414,17 +5401,15 @@
     var act = b.getAttribute("data-act");
     if(act === "refresh-models") refreshModels(slot, key);
     else if(act === "fold"){ folds[slot] = !folds[slot]; paintProviders(lastData, false); }
-    else if(act === "edit") openEdit(key);
-    else if(act === "edit-cancel") closeEdit(key);
-    else if(act === "edit-save") saveEdit(key);
     else if(act === "typed-open"){ typedOpen[slot] = !typedOpen[slot]; paintProviders(lastData, false); }
     else if(act === "add-model") addTypedModel(slot, b.closest("[data-f=typed]"));
   });
-  // Saved like bareloop saves a row field: on change (blur or Enter), no Save button. The legacy tick saves alone; shape and Base URL have the pencil.
+  // Saved like bareloop saves a row field: on change (blur or Enter), no Save button. The legacy tick saves alone; shape and Base URL save as a pair.
   pvRows.addEventListener("change", function(ev){
     var inp = ev.target;
     if(!inp.getAttribute) return;
     if(inp.getAttribute("data-prov") === "legacyMaxTokens"){ saveProvider(inp.closest(".pv-key"), inp); return; }
+    if(inp.getAttribute("data-prov") === "shape" || inp.getAttribute("data-prov") === "baseUrl"){ saveEndpoint(inp.closest(".pv-key")); return; }
     if(!inp.getAttribute("data-mf")) return;
     saveModel(inp.closest(".pv-models") ? inp.closest(".pv-models").getAttribute("data-models-for") : "", inp.closest(".pv-mrow"));
   });
