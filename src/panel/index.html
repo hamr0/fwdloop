@@ -674,7 +674,7 @@
   /* M4d Providers layout A (hamr approved 2026-10-11): one parent row per key, child rows per model, one grid of columns
      KEY / MODEL · SHAPE · BASE URL · OLD MAX_TOKENS · USE · IN · OUT · TOKENS (+ the key's two buttons). Up to 600px the columns
      collapse into small labels under the name (the phone mock). */
-  .pv-grid{--pv-cols:minmax(0,1.5fr) minmax(0,1.7fr) 74px 40px 74px 74px 62px 66px;font-size:13px;}
+  .pv-grid{--pv-cols:minmax(0,1.5fr) minmax(0,1.7fr) 66px 36px 66px 66px 56px 120px;font-size:13px;}
   .pv-head,.pv-krow,.pv-mrow{display:grid;grid-template-columns:var(--pv-cols);gap:4px 8px;align-items:center;padding:6px 10px;}
   .pv-head{font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:0.04em;border-bottom:1px solid var(--border-strong);}
   .pv-key{border-bottom:1px solid var(--border);}
@@ -693,7 +693,7 @@
   .pv-key[data-open="1"] .pv-sum{visibility:hidden;}
   .pv-tok{text-align:right;}
   .pv-act{display:flex;gap:4px;justify-content:flex-end;}
-  .pv-act .btn{min-width:30px;min-height:30px;padding:2px 6px;}
+  .pv-act .btn{min-width:0;padding:0 5px;}
   .pv-knote{padding:0 10px 4px 34px;margin:0;}
   .pv-knote:empty{display:none;}
   .pv-knote > .hint:empty{display:none;}
