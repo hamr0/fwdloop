@@ -167,7 +167,9 @@ export function createAuthor(opts) {
     if (hashFile.ok && hashFile.text.trim() !== '') {
       const readout = readFileInside(dir, `${rel}/readout.txt`);
       const text = readout.ok ? scrub(readout.text, keys) : '';
-      return { phase: 'green', hash: hashFile.text.trim(), readout: text, readoutHeads: readoutHeadIndexes(text) };
+      // M4d am7: bareagent's `thinkingStatus` for this draft, as the one sentence (null when it went as asked). Read from log.json, never from the readout (that is signed text).
+      const say = readJson(dir, `${rel}/log.json`)?.thinking?.say;
+      return { phase: 'green', hash: hashFile.text.trim(), readout: text, readoutHeads: readoutHeadIndexes(text), thinkingSay: typeof say === 'string' ? scrub(say, keys) : null };
     }
     const leak = readFileInside(dir, `${rel}/scrub-leak.red`);
     const log = readJson(dir, `${rel}/log.json`);
@@ -221,7 +223,7 @@ export function createAuthor(opts) {
     if (q.questions.length > 0) return { ...shared, phase: 'stopped', say: ANSWERS_NOT_DRAFTED_SAY };
     if (res.phase === 'green') {
       const answers = newest > 0 && redrafts.has(newest) ? answersOf(dir, newest, keys) : [];
-      return { ...shared, phase: 'green', hash: res.hash, readout: res.readout, readoutHeads: res.readoutHeads, plan: rel, answers, ...planChecks(dir, rel) };
+      return { ...shared, phase: 'green', hash: res.hash, readout: res.readout, readoutHeads: res.readoutHeads, thinkingSay: res.thinkingSay, plan: rel, answers, ...planChecks(dir, rel) };
     }
     return { ...shared, phase: 'red', reds: res.reds, say: newest === 0 ? RED_SAY : cur.say };
   }
@@ -367,7 +369,8 @@ export function createAuthor(opts) {
       let config;
       try { config = readPriceConfig(home); } catch { return { status: 200, body: { ok: true, lines: [], say: 'Your settings file (config.json) cannot be read. Fix or remove it, then look again.' } }; }
       const lines = tickedLines(config, loaded.keyNames ?? []).map((l) => {
-        const support = thinkingSupport(resolveSlot(l.slot, { config }).shape, l.model);
+        const row = resolveSlot(l.slot, { config });
+        const support = thinkingSupport(row.shape, l.model, { baseUrl: row.baseUrl }); // the Base URL lets bareagent resolve the row by its host, as its request path does
         return { ...l, thinking: { support, canChange: support !== false, say: support === false ? THINKING_FIXED_SAY : '' } };
       });
       return { status: 200, body: { ok: true, lines, say: lines.length === 0 ? 'Tick a model in Settings > Providers.' : '' } };

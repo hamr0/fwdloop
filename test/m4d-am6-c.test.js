@@ -125,10 +125,10 @@ test('C7 (amendment 7): the "Thinking on" box asks ONE function over bareagent\'
   assert.equal(thinkingSupport('openai-api', 'm', { impl: () => 'maybe' }), 'unverified');
   assert.equal(thinkingSupport('openai-api', 'm', { impl: () => { throw new Error('boom'); } }), 'unverified');
   const calls = [];
-  const w = await world({ authorOpts: { thinkingSupport: (shape, model) => { calls.push([shape, model]); return false; } } });
+  const w = await world({ authorOpts: { thinkingSupport: (shape, model, opts) => { calls.push([shape, model, opts]); return false; } } });
   const line = (await w.get('/api/author/models')).json().lines[0];
   assert.deepEqual(line.thinking, { support: false, canChange: false, say: "can't change this for this model" });
-  assert.deepEqual(calls, [['openai-api', 'fake-ticked']]);
+  assert.deepEqual(calls, [['openai-api', 'fake-ticked', { baseUrl: 'http://127.0.0.1:9' }]]);
   const w2 = await world();
   assert.deepEqual((await w2.get('/api/author/models')).json().lines[0].thinking, { support: 'unverified', canChange: true, say: '' });
   // the page: the box is greyed with the sentence when the answer is false, works otherwise, and is unticked by default

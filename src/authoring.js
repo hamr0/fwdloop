@@ -334,7 +334,7 @@ export async function draftToDir({
   files['log.json'] = scrub(dj({
     ok: result.ok, stop: result.stop, reds: result.reds, rounds: result.rounds, calls: result.calls, costUsd: result.costUsd, spendComplete: result.spendComplete,
     modelId: result.modelId, modelReturned: result.modelReturned, structureRetries: result.structureRetries,
-    revisions: result.revisions, log: result.log,
+    revisions: result.revisions, thinking: result.thinking, log: result.log,
   }), secrets);
   let hash = null;
   if (result.ok) {

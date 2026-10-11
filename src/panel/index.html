@@ -4119,6 +4119,8 @@
           return "line " + a.line + (a.lineText ? ": " + a.lineText : "") + "\n  > " + a.answer;
         })});
       }
+      // M4d am7: bareagent's thinking verdict, said loudly when it did not go as asked (the sentence is built server-side, one function)
+      if(typeof state.thinkingSay === "string" && state.thinkingSay) blocks.push({id: "chat-thinking", head: state.thinkingSay, sub: "", lines: []});
       blocks.push({id: "chat-checked", head: "Checked", sub: "built by the machine from the plan's checks", lines: state.checked.map(function(c){
         return (c.line !== null && c.line !== undefined ? "line " + c.line : "step " + c.step) + ": " + c.sentences.join(" ");
       })});
@@ -4683,7 +4685,7 @@
       var v = extrasFor(state);
       var html = v ? v.blocks.map(function(b){
         return '<div class="msg" id="' + b.id + '" data-testid="' + b.id + '"><b class="readout-head">' + escapeXml(b.head) + '</b>' +
-          (b.sub ? ' <span class="hint">(' + escapeXml(b.sub) + ')</span>' : '') + '\n' + b.lines.map(escapeXml).join("\n") + '</div>';
+          (b.sub ? ' <span class="hint">(' + escapeXml(b.sub) + ')</span>' : '') + (b.lines.length ? '\n' + b.lines.map(escapeXml).join("\n") : '') + '</div>';
       }).join("") : "";
       if(html !== extrasKey){ extrasKey = html; extrasEl.innerHTML = html; }
     }

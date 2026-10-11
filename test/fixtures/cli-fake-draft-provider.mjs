@@ -12,6 +12,7 @@
 //   returns a valid plan plus questions (default: two about line 3; FWDLOOP_TEST_DRAFT_QUESTIONS=<json array> replaces them). Once the prompt carries
 //   ANSMARK (an answer, which the panel adds as a guardrail line) it returns a valid plan and asks nothing.
 //   FWDLOOP_TEST_DRAFT_OFFERED_LOG=<file> -> one line per provider call: "offered" or "not-offered" (was `questions` in the tool schema).
+// FWDLOOP_TEST_DRAFT_THINKING_STATUS=<applied|unsupported|ignored|unknown> -> every reply carries that bareagent `thinkingStatus` (M4d am7).
 // FWDLOOP_TEST_DRAFT_MODE=bad -> the model always grants an unwired verb (a red draft).
 import { appendFileSync } from 'node:fs';
 import { RATES, MODEL, validArgs, fakeProvider, toolReply } from '../drafter-fixture.mjs';
@@ -75,5 +76,10 @@ export default function make() {
     if (system.includes('ANSMARK')) return toolReply({ ...args, guardrailClasses: { ...args.guardrailClasses, 1: 'hitl', 2: 'hitl' } });
     return gen(messages, ...rest);
   };
+  const status = process.env.FWDLOOP_TEST_DRAFT_THINKING_STATUS;
+  if (status) {
+    const inner = provider.generate.bind(provider);
+    provider.generate = async (...a) => ({ ...(await inner(...a)), thinkingStatus: status });
+  }
   return { provider, rates: RATES, modelId: MODEL };
 }

@@ -17,10 +17,9 @@ import {
 const run = (provider, extra = {}) => draft({ proseText: job2Fixture().prose, provider, rates: RATES, modelId: MODEL, ...extra });
 const DEAD = 'http://127.0.0.1:1';
 
-test('A1: bare-agent 0.51 is installed', () => {
+test('A1: bare-agent 0.52 is installed (the installed-version pin lives in m4d-am7c-thinking-status.test.js)', () => {
   const v = JSON.parse(readFileSync(new URL('../node_modules/bare-agent/package.json', import.meta.url), 'utf8')).version;
-  assert.match(v, /^0\.5[1-9]\.|^0\.[6-9]\d\./);
-  assert.match(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).dependencies['bare-agent'], /0\.51\./);
+  assert.match(v, /^0\.5[2-9]\.|^0\.[6-9]\d\./);
 });
 
 test('B1: the drafter sends thinkingMode off/on and never a raw `thinking` field; am4 holds (off = forced tool, on = none)', async () => {
@@ -74,21 +73,21 @@ test('D1: a ValidationError from bareagent is a loud refusal by name at $0, one 
   assert.equal(r.rounds, 0);
 });
 
-test('D2: the REAL Anthropic provider on a model that cannot turn thinking off: refused before any send, $0', async () => {
+test('D2: the REAL Anthropic provider on a model that cannot turn thinking off (0.52): NOT refused for that - the call is sent (here it meets the dead port), never a thinking refusal', async () => {
   const provider = new Anthropic({ apiKey: 'k', model: 'claude-opus-5-5', baseUrl: DEAD });
   const r = await run(provider, { draftThinking: 'off' });
-  assert.equal(r.stop, 'thinking-refused');
-  assert.equal(r.costUsd, 0);
-  assert.equal(r.spendComplete, true);
+  assert.notEqual(r.stop, 'thinking-refused');
+  assert.equal(r.stop, 'provider-red');
 });
 
-test('D3: bareagent contract probe: raw `thinking` + `thinkingMode` together throws; on + forced toolChoice on a deepseek model throws before sending', async () => {
+test('D3: bareagent contract probe: raw `thinking` + `thinkingMode` together still throws; on + forced toolChoice on a deepseek model no longer does', async () => {
   assert.throws(() => new OpenAI({
     apiKey: 'k', model: 'deepseek-flash', baseUrl: DEAD, thinking: { type: 'disabled' }, thinkingMode: 'off',
   }), ValidationError);
   const p = new OpenAI({ apiKey: 'k', model: 'deepseek-flash', baseUrl: DEAD });
   const tool = { name: 't', description: 'd', parameters: { type: 'object', properties: {} }, execute: async () => ({}) };
-  await assert.rejects(p.generate([{ role: 'user', content: 'x' }], [tool], { thinkingMode: 'on', toolChoice: { name: 't' } }), ValidationError);
+  // 0.52: DeepSeek 'on' + a forced tool choice no longer throws; it is sent with thinking disabled and reported 'unsupported' (here: it reaches the dead port)
+  await assert.rejects(p.generate([{ role: 'user', content: 'x' }], [tool], { thinkingMode: 'on', toolChoice: { name: 't' } }), (e) => !(e instanceof ValidationError));
 });
 
 test('E1: thinkingApplied from the run is recorded on the round\'s log entry (and so in log.json)', async () => {

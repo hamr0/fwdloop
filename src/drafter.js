@@ -27,6 +27,7 @@ import {
 } from './provider.js';
 import { LIVE_PROVIDER_OPTIONS } from './model-step.js';
 import { ConfigError } from './config.js';
+import { thinkingSay, worstThinkingStatus } from './thinking.js';
 
 export const MAX_STRUCTURE_RETRIES = 2;
 export const MAX_REVISIONS = 2;
@@ -286,12 +287,17 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
  *
  * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number, calls:number, spendComplete:boolean,
  *   costUsd:number|null, modelReturned:string|null, modelId?:string, price?:object|null, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[],
- *   questions?:{line:number, question:string}[], droppedQuestions?:object[], notChecked?:string[]}>}
+ *   questions?:{line:number, question:string}[], droppedQuestions?:object[], notChecked?:string[], thinking?:{asked:string, status:string|null, say:string|null}}>}
  */
 export async function draft({
   proseText, slot, model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
   budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
 }) {
+  // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
+  const thinkingOf = () => {
+    const status = worstThinkingStatus(log.map((e) => e.thinkingStatus));
+    return { asked: draftThinking, status, say: thinkingSay(draftThinking, status) };
+  };
   const fail = (reds, extra = {}) => ({
     ok: false, declaration: null, reds, rounds: 0, calls: 0, spendComplete: true, costUsd: 0, modelReturned: null, structureRetries: 0, revisions: 0, stop: 'pre-flight', log: [], ...extra,
   });
@@ -411,6 +417,7 @@ export async function draft({
       break;
     }
     if (result?.thinkingApplied !== undefined) entry.thinkingApplied = result.thinkingApplied; // bareagent's verdict on this round: true | false | null
+    if (result?.thinkingStatus !== undefined) entry.thinkingStatus = result.thinkingStatus; // 'applied' | 'unsupported' | 'ignored' | 'unknown' (bare-agent >= 0.52)
 
     if (threw) {
       entry.outcome = `provider-red: ${threw.message}`;
@@ -481,7 +488,7 @@ export async function draft({
       log.push(entry);
       const m = sumMeterings(meterings);
       return {
-        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log, ...extras,
+        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log, thinking: thinkingOf(), ...extras,
       };
     }
     lastReds = [...verdict.reds];
@@ -505,6 +512,6 @@ export async function draft({
   // Runner convention: `costUsd` is the priced sum (null when ANY round is unpriced, so the CLI prints UNKNOWN,
   // never a bare number), and `spendComplete:false` marks a call that failed unmetered or a round left unpriced.
   return {
-    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop, log, ...extras,
+    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop, log, thinking: thinkingOf(), ...extras,
   };
 }
