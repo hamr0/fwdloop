@@ -1336,6 +1336,16 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 6. The thinking line now shown next to the plan moves into this list, so it is in one place.
 **Done when:** a test that fails first; a $0 browser walk at 1280, 390 and 320; and one live deepseek-flash draft with Thinking ticked shows the list. **Cap:** inside am8's $0.05.
 
+**M4d amendment 11 — DRAFT, not signed: thinking uses bareloop's words.**
+1. The thinking line in am10's list uses the same words as bareloop (hamr OK'd them for bareloop 2026-10-11):
+   - did what you asked → **thinking on ✓** or **thinking off ✓**
+   - the model can't change it → **thinking on (this model can't change it) ✗**
+   - the model thought anyway → **thinking on (the model thought anyway) ✗**
+   - not confirmed → **thinking off (not confirmed) ✗**
+2. Next to the Chat "Thinking on" box, before any draft, a model that bareagent hasn't checked shows **thinking off (not verified for this model)**.
+3. The ✗ lines stay red and loud, as am10 says. These words replace "am7's words" in am10 item 1 and the words the builder chose in piece 1c.
+**Done when:** a test that fails first for each line above, and the $0 browser walk shows them. **Cap:** $0.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
