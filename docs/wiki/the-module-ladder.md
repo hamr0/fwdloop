@@ -1321,7 +1321,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 4. Runs, asks and sends work the same otherwise.
 **Done when:** a test that fails first (the `aging-live-1` ask, as drafted, is refused at $0); then one live re-draft of the aging job passes the checker, and a run reaches "check it with me" showing the buckets. **Cap:** inside am8's $0.05.
 
-**M4d amendment 10 — DRAFT, not signed: the Chat list shows every step of a draft.**
+**M4d amendment 10 — SIGNED by hamr 2026-10-11 ("sign m4d am10"): the Chat list shows every step of a draft.**
 1. The Chat card's step list (copied from bareloop in M4e) gets one line for each thing a draft really does, in this order. Each line ends in ✓ or ✗.
    - **thinking on ✓** or **thinking off ✓** when bareagent did what you asked. If the model ignored it, can't switch it, or didn't confirm it, the line gets ✗ and shows am7's words, loud, in red.
    - **inputs ✓**, with one detail line per input, for example `> aging: 11 columns`.
