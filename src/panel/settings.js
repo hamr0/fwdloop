@@ -63,8 +63,11 @@ export function createSettings(cfg) {
     const spend = spendSummary({ home: cfg.home, now: cfg.now });
     const rows = rowNames(k).map((slot) => {
       const eff = resolveSlot(slot, { config: c.config });
+      const own = spend.byModel[slot] ?? {};
       const models = effectiveModels(slot, c.config).map(({ model, use, inPerM, outPerM }) => ({
         model, use, ...(inPerM === undefined ? {} : { inPerM }), ...(outPerM === undefined ? {} : { outPerM }),
+        // this model's own tokens from the spend rows that name it; absent = no row names it (never 0)
+        ...(Object.hasOwn(own, model) ? { tokens: own[model] } : {}),
       }));
       let keyStatus = 'not set';
       if (!k.ok) keyStatus = 'refused';

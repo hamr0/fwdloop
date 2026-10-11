@@ -100,6 +100,7 @@ function reduceRow(row) {
     t: tokensOf(row.tokens),
     w: Number.isFinite(row.wallMs) && row.wallMs >= 0 ? row.wallMs : null,
     p: typeof row.provider === 'string' && row.provider !== '' ? row.provider : NOT_RECORDED,
+    ...(typeof row.model === 'string' && row.model !== '' ? { m: row.model } : {}),
     ...(row.at === undefined ? {} : { a: row.at }),
   };
 }
@@ -171,6 +172,8 @@ export function spendSummary(opts = {}) {
   const month = newBucket();
   /** @type {Record<string, {label: string, month: ReturnType<typeof newBucket>, total: ReturnType<typeof newBucket>}>} */
   const byProvider = {};
+  /** Tokens per provider key per model, from the rows that name their model (a row that names none, or a rolled row from before this, counts in no model). @type {Record<string, Record<string, number>>} */
+  const byModel = {};
   let undatedRows = 0;
   const add = (b, usd, complete, tokens, wall) => {
     b.rows += 1; b.usd += usd; b.tokens += tokens;
@@ -183,8 +186,12 @@ export function spendSummary(opts = {}) {
   for (const dir of namedDirs(record)) {
     for (const row of rolled.get(dir) ?? diskRows(dir)) {
       const {
-        u: usd, c: complete, t: tokens, w: wall, p: key,
+        u: usd, c: complete, t: tokens, w: wall, p: key, m: model,
       } = row;
+      if (model !== undefined) {
+        const per = (byModel[key] ??= {});
+        per[model] = (per[model] ?? 0) + tokens;
+      }
       const p = (byProvider[key] ??= { label: key, month: newBucket(), total: newBucket() });
       add(total, usd, complete, tokens, wall);
       add(p.total, usd, complete, tokens, wall);
@@ -205,6 +212,7 @@ export function spendSummary(opts = {}) {
     month: fin(month),
     total: fin(total),
     byProvider: Object.fromEntries(Object.entries(byProvider).map(([k, v]) => [k, { label: v.label, month: fin(v.month), total: fin(v.total) }])),
+    byModel,
     undatedRows,
     // Runs from before M4d were never written to runs.jsonl: their money is in no figure here.
     preM4dRunsNotCounted: true,
