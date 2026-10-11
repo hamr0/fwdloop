@@ -221,3 +221,8 @@ test('walk fix 2: the "Fix the marked boxes" banner goes when the last marked bo
   assert.equal(other.actionErrEl.textContent, 'A run is already live.', 'a refusal with no box is not this banner');
   assert.match(CHAT, /x\.textContent = ""; \}\);\n\s+dropFixBoxesBanner\(\);/, 'the per-box clear on input calls it');
 });
+
+test('Clear after Run again (or a picked flow) unpicks the flow: resetCard clears the pick through the one writer', () => {
+  assert.match(fnSrc('resetCard'), /clearPick\(\)/, 'resetCard must clear pickedFlow/pickedRun/againEntry and the search box');
+  assert.match(fnSrc('unpickFlow'), /clearPick\(\)/, 'unpickFlow and resetCard share one writer of the pick');
+});
