@@ -3022,6 +3022,8 @@ POC (pre-registered at `/tmp/claude-1000/PREREG-poc-hint.md`, 10+10 interleaved 
 
 Ruling (hamr 2026-10-11): log only, nothing to change.
 
+Status update: the bound is built (bare-agent 0.52.0 hands over the full raw text; `src/model-step.js` shows the first 2000 characters, then `… (N more chars)`).
+
 ## F65 — most drafts of a 5-line softgreen job end red on "line N is marked unjudgeable but guardrailClasses proposes softgreen" (2026-10-11)
 
 In the same 20-draft POC (deepseek-flash, thinking off, per-draft budget $0.03, prose `/tmp/claude-1000/live-am4/prose.txt`), only 5 of 20 drafts were valid.
@@ -3039,3 +3041,18 @@ Possible reading, not verified: the validator rule on unjudgeable vs guardrailCl
 Outputs are in `/tmp/claude-1000/poc-hint-keep/out/`.
 
 Ruling (hamr 2026-10-11): log only, nothing to change now.
+
+## F66 — the drafter read "Nothing hitl may come after the last signed ask" as "before", and refused line 2 of `aging-live-3` (2026-10-11)
+
+The drafter prompt rule at `src/drafter.js:250` says "Nothing hitl may come after the last signed ask except the send step." In a live draft of `aging-live-3` the model read it as "before" and refused line 2 of the job, the job's main line.
+
+Evidence: `flows/aging-live-3` is not on disk (abandoned), so this is the readout text, quoted. REFUSED LINES, line 2: "the only checkable wording ('every invoice appears exactly once') is not a green figure-cites-cell guardrail nor a declared shape, so the step would be hitl, and hitl is not allowed before the last signed ask except the send step".
+
+Two things went wrong:
+- The model reversed the rule: the rule is about steps AFTER the last signed ask, and line 2 sits before it.
+- The plan checker accepted a plan with the job's main line refused. Nothing stopped a plan whose main work was never planned.
+
+The redraft (`aging-live-4`) was correct. The run passed live on 2026-10-11 at $0.0046.
+
+Ruling: log only. No code change for F66.
+
