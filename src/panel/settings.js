@@ -21,7 +21,7 @@ import {
 import { SHAPES } from '../providershapes.js';
 import { keysForDoor } from '../keysfile.js';
 import { spendSummary } from '../monthly.js';
-import { spawn as realSpawn } from 'node:child_process';
+import { spawnOpener as realSpawn } from './spawn.js';
 import { dirname } from 'node:path';
 import { homedir } from 'node:os';
 

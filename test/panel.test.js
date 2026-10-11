@@ -2003,8 +2003,8 @@ describe('index.html — page source', () => {
     assert.doesNotMatch(code, /XMLHttpRequest|sendBeacon/);
     // postJSON is called with exactly two paths.
     const postPaths = [...code.matchAll(/postJSON\(\s*"([^"]+)"/g)].map((m) => m[1]).sort();
-    // M4d piece 4 adds the Settings POSTs (model, models, provider, limit); none of them writes the keys file. Layout A: the Test button is gone (the model list is the same free GET) and provider is posted from two places (the key row's shape / Base URL change, the legacy tick).
-    assert.deepEqual(postPaths, ['/api/answer', '/api/remove-lock', '/api/reopen', '/api/resume', '/api/settings/model', '/api/settings/model', '/api/settings/models', '/api/settings/money', '/api/settings/provider', '/api/settings/provider', '/api/stop']);
+    // M4d piece 4 adds the Settings POSTs (model, models, provider, limit); none of them writes the keys file. Layout F adds the Test button back (POST /api/settings/test) and Open keys folder; provider is posted from two places (the key row's shape / Base URL change, the legacy tick).
+    assert.deepEqual(postPaths, ['/api/answer', '/api/remove-lock', '/api/reopen', '/api/resume', '/api/settings/model', '/api/settings/model', '/api/settings/models', '/api/settings/money', '/api/settings/open-keys-folder', '/api/settings/provider', '/api/settings/provider', '/api/settings/test', '/api/stop']);
   });
 
   test('M4c-fix item 2: the page carries no token — no TOKEN variable, no token header, never a URL, storage, or a log', () => {

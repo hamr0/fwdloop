@@ -18,6 +18,15 @@ import { keyValues } from '../keysfile.js';
 const UNKNOWN_FRESH_MS = 10 * 60 * 1000;
 
 /**
+ * The ONE spawn for the Settings "Open keys folder" button (borrowed-from: bareloop src/panel/settingsroutes.js@07c298f): the OS file manager
+ * (`xdg-open` / `open`) on a folder the server chose, argv array, no shell, detached. Settings calls it only through its injected seam.
+ * @param {string} cmd @param {string[]} args @param {import('node:child_process').SpawnOptions} o
+ */
+export function spawnOpener(cmd, args, o) {
+  return spawn(cmd, args, o);
+}
+
+/**
  * @param {{ bin: string, argv: string[], env: Record<string, string|undefined>, logPath: string }} a
  * @returns {import('node:child_process').ChildProcess} the child (already `unref()`ed; the log fd is closed here)
  */

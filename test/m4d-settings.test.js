@@ -341,7 +341,7 @@ test('page: the Settings button, header, tabs and signed sentences; no per-run c
   assert.match(PAGE, /\.keyfile-strip::before\{content:"┤ KEYS ├";/);
   assert.match(PAGE, /\.keyfile-strip code\{[^}]*color:var\(--amber\)/);
   assert.match(SETTINGS_VIEW, /Put <code>NAME=key<\/code> lines in <code id="keys-path"[^>]*>~\/\.config\/fwdloop\/\.env<\/code>, then Reload keys[^<]*keys never reach this page\./);
-  assert.match(SETTINGS_VIEW, /<div class="keyfile-strip-actions">\s*<button[^>]*id="reload-keys"[^>]*>Reload keys</);
+  assert.match(SETTINGS_VIEW, /<div class="keyfile-strip-actions">\s*<button[^>]*id="open-keys-folder"[^>]*>Open keys folder<\/button>\s*<button[^>]*id="reload-keys"[^>]*>Reload keys</);
   // the hint lines
   // layout F: the hint under the grid is the footnote (no Test button; Test and the model list were one free GET; no pencil, shape and Base URL are always editable)
   assert.match(SETTINGS_VIEW, /⟳ refresh models \(free\) · old max_tokens: tick if the server wants the old field name/);
