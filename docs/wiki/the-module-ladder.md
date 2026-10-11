@@ -1299,6 +1299,14 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 9. This finishes am3 part B and replaces: am3 C10 (the price moving over), am3 A2 (the Thinking box in Settings), and M4d am1's built-in rows.
 **Done when:** a search of `src/` finds no provider name, model name, web address or price; tests that fail first; I walk hamr's real panel at 1280, 390 and 320 px (your key loads, the models list, you tick deepseek-flash with prices, and Chat shows it with the Thinking box); then one live draft with thinking off and one with thinking on. **Cap:** inside am3's $0.10, with about $0.038 left.
 
+**M4d amendment 7 — SIGNED by hamr 2026-10-11 ("sign m4d am7"): bareagent decides thinking.**
+1. "Thinking on" is only in Chat. Settings has nothing about thinking. The per-model "Thinking off" menu is deleted.
+2. The Chat "Thinking on" box asks bareagent's `thinkingSupport(provider, model)`. If it says false, the box is greyed out with "can't change this for this model". If it says true or "unverified", the box works. A refusal from the model is a loud error, never silent.
+3. Turning thinking on or off is done by bareagent, not our code.
+4. Until bareagent publishes `thinkingSupport`, the box treats every model as "unverified".
+5. This replaces am5 item 3 and the "Thinking off" part of am6 item 4.
+**Done when:** a test that fails first, and the Chat box greys out when the answer is false. **Cap:** $0.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
