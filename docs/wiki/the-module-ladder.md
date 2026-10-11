@@ -1251,6 +1251,27 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **4.** Runs already booked keep their recorded costs; this applies from the next model call on.
   - **Negatives:** (a) the Providers table has no Cached in column or box at 1280, 390 and 320 px; (b) with input $0.40/1M and a saved `cachedInPerM` of 0.04, a round with cached tokens books them at $0.40/1M; (c) with In $/1M empty, cached tokens book at the table's input price, never its cached rate; (d) a POST that sets `cachedInPerM` is refused and saves nothing.
   - **Cap:** $0 (build and tests with stub providers).
+
+**M4d amendment 3 — SIGNED by hamr 2026-10-11 ("sign m4d am3"): models, prices and thinking, as bareloop.**
+- **A. Thinking (drafting only; run steps unchanged)**
+  1. Drafting sends "thinking off" only to models on one allow-list. Today that's deepseek-flash. Any other model gets nothing sent.
+  2. Settings gets one tick-box, "Thinking on (drafting)", unticked by default, for all jobs. For a model not on the list, it reads "can't change this for this model".
+  3. A draft cut off at the length limit counts as a failed try, so the try-3 question can open. *(This changes amendment 25's "only after tries 1 and 2 both failed their checks".)*
+- **B. Models**
+  4. Each provider row in Settings lists its models from the provider's free list call, with a "Refresh models" button. If the call fails, you type the model name.
+  5. Each model has a "Use" tick. Only ticked models show in a new Chat model menu, as "provider · model". The picked model drafts the plan and runs the job, and the Job tab shows which one.
+  6. Still no adding or removing providers. A row's Name, shape and Base URL stay editable, so a row can point at a local server.
+- **C. Prices**
+  7. Each model line has its own price, in and out per 1M tokens. You can't tick a model without both. A half-filled price saves nothing: "Fill both price boxes or clear both."
+  8. 0 / 0 is allowed when you type it, for local models. It counts as a chosen price, not an unknown one.
+  9. A ticked model is always priced. The "highest rate in the table" fallback stays only for a model nobody ticked, like an old run or the CLI.
+  10. Moving over: each row's current price moves to its current model, already ticked.
+  11. Key values never show on the page. Only names and found / not set.
+- **This replaces** these M4d lines: ruling 2A's "model stays in code", scope 2's "one row per provider" and "a price above 0", scope 6 and amendment 1's "highest rate" for ticked models, and negative (xi)'s refusal of 0.
+- **Done when:** tests that fail first; a $0 walk at 1280, 390 and 320 px; and one live draft on deepseek-flash with thinking off, then with it on.
+- **Must fail when:** ticking a model with one price box empty saves nothing, and that model never shows in the Chat menu.
+- **Cap:** $0.10.
+
 - **Built after signing — not signed text (2026-10-05):**
   - F55 fix: every run, resume and draft now writes a record row to `runs.jsonl` even with no monthly limit set ($0 hold, nothing held), so its spend is counted; a row that cannot be written refuses by name.
   - A shell with `NODE_ENV=test` (or a `node --test` child) and no `FWDLOOP_CONFIG_HOME` refuses a real run, resume or draft at $0 with "fwdloop: NODE_ENV=test is set without FWDLOOP_CONFIG_HOME, so the keys file, prices and monthly limit would be skipped. Nothing spent. Unset NODE_ENV, or set FWDLOOP_CONFIG_HOME."
