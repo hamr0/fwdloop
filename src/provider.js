@@ -169,28 +169,59 @@ export const CEILING_OUTPUT_TOKENS = 16000;
 const perM = (per1K) => Number((per1K * 1000).toPrecision(12));
 
 /**
- * THE one price lookup (M4d scope item 6): every model call — run, resume, model step, drafter —
- * is booked and cap-checked from this. Per field: a Settings price (`config.prices[slot]`, USD per
- * 1M -> per 1K) wins, else the code table's row, else the table's HIGHEST entry for that field
- * (an unknown model; unknown cost is never 0). M4d amendment 2: cached input is priced AS input —
- * `cacheReadMult` is always 1; a saved `cachedInPerM` and a row's `cacheIn` are never read here.
+ * A slot's model lines as Settings and pricing see them (M4d amendment 3 items 7-10). A saved list
+ * (`config.models[slot]`) is returned as stored. With no list, ONE line is built from the slot's current
+ * model (`resolveSlot`), ticked, with the old `config.prices[slot]` in/out when both are there; a missing or
+ * half old price takes the code table's pair for that model (`tablePriced`: pricing still reads the table, so
+ * the booked source stays "table"); a model with neither is left unticked and `unpriced` says so. Nothing is
+ * written here — the file changes only when the person saves.
+ * @param {string} slot
+ * @param {Record<string, any>} [config]
+ * @param {Record<string, any>} [ratesTable]
+ * @returns {{ lines: Array<{ model: string, use: boolean, inPerM?: number, outPerM?: number }>, migrated: boolean, tablePriced: boolean, unpriced: boolean }}
+ */
+export function effectiveModels(slot, config = {}, ratesTable = RATES_BY_SUFFIX) {
+  if (config.models && Object.hasOwn(config.models, slot)) {
+    return { lines: config.models[slot], migrated: false, tablePriced: false, unpriced: false };
+  }
+  if (!Object.hasOwn(PROVIDER_SLOTS, slot)) return { lines: [], migrated: false, tablePriced: false, unpriced: false };
+  const { model } = resolveSlot(slot, { config });
+  const old = (config.prices && Object.hasOwn(config.prices, slot)) ? config.prices[slot] : {};
+  if (old.inPerM !== undefined && old.outPerM !== undefined) {
+    return { lines: [{ model, use: true, inPerM: old.inPerM, outPerM: old.outPerM }], migrated: true, tablePriced: false, unpriced: false };
+  }
+  const row = lookupRate(model, ratesTable)?.rates;
+  if (row) {
+    return { lines: [{ model, use: true, inPerM: perM(row.in), outPerM: perM(row.out) }], migrated: true, tablePriced: true, unpriced: false };
+  }
+  return { lines: [{ model, use: false }], migrated: true, tablePriced: false, unpriced: true };
+}
+
+/**
+ * THE one price lookup (M4d scope item 6, amendment 3 item 9): every model call — run, resume, model step,
+ * drafter — is booked and cap-checked from this. A TICKED model line in the slot's list (`effectiveModels`)
+ * carries its own in/out pair (USD per 1M -> per 1K; 0 / 0 is a chosen price) and wins, source "model".
+ * Otherwise the code table's row, else the table's HIGHEST entry for that field (a model nobody ticked —
+ * an old run, the CLI; unknown cost is never 0). M4d amendment 2: cached input is priced AS input —
+ * `cacheReadMult` is always 1; a row's `cacheIn` is never read here.
  *
  * @param {string} modelId
  * @param {{ slot?: string, config?: Record<string, any>, ratesTable?: Record<string, any> }} [opts]
  * @returns {{
  *   rates: { in: number, out: number, cacheReadMult?: number },
  *   perM: { inPerM: number, cachedInPerM: number, outPerM: number },
- *   source: { in: 'settings'|'table'|'ceiling', cachedIn: 'input', out: 'settings'|'table'|'ceiling' },
+ *   source: { in: 'model'|'table'|'ceiling', cachedIn: 'input', out: 'model'|'table'|'ceiling' },
  *   suffix: string|null,
  * }}
  */
 export function resolvePrices(modelId, { slot, config = {}, ratesTable = RATES_BY_SUFFIX } = {}) {
   const resolved = lookupRate(modelId, ratesTable);
   const row = resolved ? resolved.rates : null;
-  const set = (slot !== undefined && config.prices && Object.hasOwn(config.prices, slot)) ? config.prices[slot] : {};
+  const eff = slot !== undefined ? effectiveModels(slot, config, ratesTable) : null;
+  const line = (eff && !eff.tablePriced) ? eff.lines.find((m) => m.model === modelId && m.use === true) : undefined;
   const ceilingOf = (field) => Math.max(...Object.values(ratesTable).map((r) => r[field]));
-  const field = (settingsKey, rowField) => {
-    if (set[settingsKey] !== undefined) return { v: set[settingsKey] / 1000, src: 'settings' };
+  const field = (lineKey, rowField) => {
+    if (line && typeof line[lineKey] === 'number') return { v: line[lineKey] / 1000, src: 'model' };
     if (row) return { v: row[rowField], src: 'table' };
     return { v: ceilingOf(rowField), src: 'ceiling' };
   };

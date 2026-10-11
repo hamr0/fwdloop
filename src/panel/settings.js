@@ -13,10 +13,10 @@
 //     `updateConfig`) and the keys file (read through `keysForDoor`), both under the one config home.
 // Every refusal is a plain sentence in `say`; nothing here puts an HTTP code, an id or a path on the page.
 import {
-  PROVIDER_SLOTS, resolvePrices, resolveSlot, checkKeyPreflight, canChangeDraftThinking,
+  PROVIDER_SLOTS, effectiveModels, resolveSlot, checkKeyPreflight, canChangeDraftThinking,
 } from '../provider.js';
 import {
-  readConfig, updateConfig, ConfigError, providerFieldProblem, cleanBaseUrl, draftThinkingMode,
+  readConfig, updateConfig, ConfigError, providerFieldProblem, cleanBaseUrl, draftThinkingMode, modelsProblem,
 } from '../config.js';
 import { SHAPES } from '../providershapes.js';
 import { keysForDoor } from '../keysfile.js';
@@ -24,9 +24,6 @@ import { spendSummary } from '../monthly.js';
 
 const DEEPSEEK_BALANCE_URL = 'https://api.deepseek.com/user/balance';
 const TIMEOUT_MS = 4000;
-
-/** Plain words for each price field (the page's two boxes; cached input is priced as input, M4d amendment 2). */
-const FIELD_LABEL = Object.freeze({ inPerM: 'Input', outPerM: 'Output' });
 
 const BROKEN_CONFIG = 'Your settings file (config.json) cannot be read. Fix or remove it, then look again.';
 
@@ -70,8 +67,9 @@ export function createSettings(cfg) {
     const spend = spendSummary({ home: cfg.home, now: cfg.now });
     const rows = Object.entries(PROVIDER_SLOTS).map(([slot, def]) => {
       const eff = resolveSlot(slot, { config: c.config });
-      const p = resolvePrices(eff.model, { slot, config: c.config });
-      const one = (value, source) => ({ value, source });
+      const em = effectiveModels(slot, c.config);
+      // The slot's current model always has a line to fill (unticked, no price) when the list lacks it.
+      const models = em.lines.some((m) => m.model === eff.model) ? em.lines : [...em.lines, { model: eff.model, use: false }];
       let keyStatus = 'not set';
       if (!k.ok) keyStatus = 'refused';
       else if (k.names.includes(def.envVar)) keyStatus = 'set in file';
@@ -87,10 +85,8 @@ export function createSettings(cfg) {
         savedBaseUrl: /** @type {Record<string, any>} */ (c.config).providers?.[slot]?.baseUrl ?? '',
         defaults: eff.defaults,
         tokens: spend.byProvider[slot]?.total.tokens ?? 0,
-        price: {
-          inPerM: one(p.perM.inPerM, p.source.in),
-          outPerM: one(p.perM.outPerM, p.source.out),
-        },
+        models,
+        unpriced: em.unpriced,
         canBalance: canBalance(eff),
       };
     });
@@ -177,26 +173,35 @@ export function createSettings(cfg) {
     return reply(200, { ok: true, balances });
   }
 
-  /** Validate EVERY field first; write only if all pass. */
-  function price(body) {
+  /**
+   * Save one model line: {slot, model, use?, inPerM?, outPerM?} (a field left out keeps the line's value; a price
+   * `null` clears it). The whole slot list is judged by `modelsProblem` (the one rule) BEFORE anything is written;
+   * Idea borrowed from bareloop src/panel/settingsroutes.js@caf019b (both prices or neither, :165-179), not copied: the
+   * rule here is `modelsProblem` (tick needs both, 0 / 0 allowed, exact sentence).
+   * the first save for a slot writes the migrated list and drops the slot's old `prices.<slot>`.
+   */
+  function model(body) {
     const slot = slotOf(body?.slot);
     if (!slot) return refuse('unknown-provider', 'That provider is not known.');
-    /** @type {Record<string, number|null>} */
-    const patch = {};
+    const c = config();
+    if (c.problem) return refuse('config-broken', `${BROKEN_CONFIG} Nothing was saved.`);
     if (Object.hasOwn(body, 'cachedInPerM')) {
       return refuse('bad-price', 'Cached input has no price of its own: it is priced as input. Nothing was saved.');
     }
+    if (typeof body.model !== 'string') return refuse('bad-model', 'Pick a model line. Nothing was saved.');
+    const list = effectiveModels(slot, c.config).lines.map((m) => ({ ...m }));
+    let line = list.find((m) => m.model === body.model);
+    if (!line) { line = { model: body.model, use: false }; list.push(line); }
+    if (Object.hasOwn(body, 'use')) line.use = body.use;
     for (const f of /** @type {const} */ (['inPerM', 'outPerM'])) {
       if (!Object.hasOwn(body, f)) continue;
-      const v = body[f];
-      if (v !== null && !isNumberAbove0(v)) {
-        return refuse('bad-price', `${FIELD_LABEL[f]} price must be a number above 0, or empty to use the default. Nothing was saved.`);
-      }
-      patch[f] = v;
+      if (body[f] === null) delete line[f];
+      else line[f] = body[f];
     }
-    if (Object.keys(patch).length === 0) return refuse('bad-price', 'Nothing to save.');
+    const problem = modelsProblem(list);
+    if (problem) return refuse('bad-model', problem);
     try {
-      updateConfig({ prices: { [slot]: patch } }, { home: cfg.home });
+      updateConfig({ models: { [slot]: list }, prices: { [slot]: null } }, { home: cfg.home });
     } catch (e) {
       if (!(e instanceof ConfigError)) throw e;
       return refuse('config-broken', `${BROKEN_CONFIG} Nothing was saved.`);
@@ -275,7 +280,7 @@ export function createSettings(cfg) {
    */
   async function handle({ method, pathname, query, body }) {
     if (cfg.skip) return refuse('settings-unavailable', 'Settings is not available here.', 404);
-    const known = { GET: ['/api/settings/providers', '/api/settings/balance', '/api/settings/money'], POST: ['/api/settings/test', '/api/settings/price', '/api/settings/provider', '/api/settings/money', '/api/settings/thinking'] };
+    const known = { GET: ['/api/settings/providers', '/api/settings/balance', '/api/settings/money'], POST: ['/api/settings/test', '/api/settings/model', '/api/settings/provider', '/api/settings/money', '/api/settings/thinking'] };
     if (!(known[method] ?? []).includes(pathname)) return refuse('no-such-settings-route', 'Settings cannot do that. Keys are typed into your keys file by hand.', 404);
     if (method === 'GET') {
       if (pathname === '/api/settings/providers') return providers();
@@ -283,7 +288,7 @@ export function createSettings(cfg) {
       return moneyGet();
     }
     if (pathname === '/api/settings/test') return test(body);
-    if (pathname === '/api/settings/price') return price(body);
+    if (pathname === '/api/settings/model') return model(body);
     if (pathname === '/api/settings/provider') return provider(body);
     if (pathname === '/api/settings/thinking') return thinking(body);
     return moneyPost(body);

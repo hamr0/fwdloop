@@ -87,7 +87,7 @@ test('(i)(ii) a canary key in the keys file is in no settings response and not o
   for (const [method, url, body] of [
     ['GET', '/api/settings/providers'], ['GET', '/api/settings/money'], ['GET', '/api/settings/balance?slot=deepseek'],
     ['POST', '/api/settings/test', { slot: 'deepseek' }], ['POST', '/api/settings/test', { slot: 'synthetic' }],
-    ['POST', '/api/settings/price', { slot: 'deepseek', inPerM: 0.5 }], ['POST', '/api/settings/money', { monthlyLimitUsd: 7 }],
+    ['POST', '/api/settings/model', { slot: 'deepseek', model: 'deepseek-flash', use: true, inPerM: 0.5, outPerM: 1 }], ['POST', '/api/settings/money', { monthlyLimitUsd: 7 }],
     ['POST', '/api/settings/keys', { DEEPSEEK_API_KEY: 'x' }], ['POST', '/api/settings/keys', { name: 'DEEPSEEK_API_KEY', value: CANARY }],
     ['POST', '/api/settings/providers', { slot: 'deepseek' }], ['PUT', '/api/settings/keys', {}],
   ]) {
@@ -178,39 +178,31 @@ test('(ix) Test says why in plain sentences: no key, refused key, timeout-shaped
 });
 
 // ---- (xi) price and limit validation ---------------------------------------------------------------------------------
-test('(xi) a bad price (0, -1, text, NaN, a mix) is refused naming the field and NOTHING is saved; null clears; a valid one saves', async () => {
-  const { h, home } = await setup({ config: { monthlyLimitUsd: 9, prices: { deepseek: { inPerM: 0.4 } } } });
+test('(xi) a bad model price (-1, text, NaN, Infinity, a half pair) is refused and NOTHING is saved; a valid pair saves — 0 / 0 too (am3 items 7-8 replace the old "0 is refused")', async () => {
+  const { h, home } = await setup({ config: { monthlyLimitUsd: 9, models: { deepseek: [{ model: 'deepseek-flash', use: true, inPerM: 0.4, outPerM: 1.2 }] } } });
   const file = configPath(home);
   const before = readFileSync(file, 'utf8');
+  const M = { slot: 'deepseek', model: 'deepseek-flash', use: true };
   const bad = [
-    [{ slot: 'deepseek', inPerM: 0 }, /Input price/], [{ slot: 'deepseek', outPerM: -1 }, /Output price/],
-    [{ slot: 'deepseek', inPerM: '0.5' }, /Input price/],
-    [{ slot: 'deepseek', inPerM: 1, outPerM: 0 }, /Output price/], [{ slot: 'deepseek', cachedInPerM: 0.01 }, /priced as input/], [{ slot: 'deepseek', inPerM: 1, cachedInPerM: 0.05, outPerM: 2 }, /priced as input/],
-    [{ slot: 'deepseek', inPerM: [1] }, /Input price/], [{ slot: 'deepseek' }, /Nothing to save/], [{ slot: 'nope', inPerM: 1 }, /not known/],
+    [{ ...M, inPerM: -1, outPerM: 1 }, /number, 0 or more/], [{ ...M, inPerM: 1, outPerM: '2' }, /number, 0 or more/],
+    [{ ...M, inPerM: 1, outPerM: null }, /Fill both price boxes or clear both\./], [{ ...M, inPerM: [1], outPerM: 1 }, /number, 0 or more/],
+    [{ ...M, inPerM: 1, cachedInPerM: 0.05, outPerM: 2 }, /priced as input/], [{ slot: 'nope', model: 'x', use: false }, /not known/],
   ];
   for (const [body, re] of bad) {
-    const r = await post(h.port, '/api/settings/price', body);
+    const r = await post(h.port, '/api/settings/model', body);
     assert.equal(r.status, 400, JSON.stringify(body));
     assert.match(r.json().say, re);
     assert.equal(readFileSync(file, 'utf8'), before, `config.json unchanged after ${JSON.stringify(body)}`);
   }
-  const nan = await post(h.port, '/api/settings/price', '{"slot":"deepseek","inPerM":NaN}');
+  const nan = await post(h.port, '/api/settings/model', '{"slot":"deepseek","model":"deepseek-flash","use":true,"inPerM":NaN,"outPerM":1}');
   assert.equal(nan.status, 400);
-  assert.equal(readFileSync(file, 'utf8'), before);
-  const inf = await post(h.port, '/api/settings/price', '{"slot":"deepseek","inPerM":1e999}'); // parses to Infinity
+  const inf = await post(h.port, '/api/settings/model', '{"slot":"deepseek","model":"deepseek-flash","use":true,"inPerM":1e999,"outPerM":1}'); // parses to Infinity
   assert.equal(inf.status, 400);
-  assert.equal(readFileSync(file, 'utf8'), before);
-  const ok = await post(h.port, '/api/settings/price', { slot: 'deepseek', outPerM: 1.5 });
+  const ok = await post(h.port, '/api/settings/model', { ...M, inPerM: 0, outPerM: 0 });
   assert.equal(ok.json().ok, true);
-  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).prices.deepseek, { inPerM: 0.4, outPerM: 1.5 });
-  assert.equal(JSON.parse(readFileSync(file, 'utf8')).monthlyLimitUsd, 9, 'other settings are kept');
-  const prov = (await rq(h.port, { url: '/api/settings/providers' })).json().rows.find((r) => r.slot === 'deepseek');
-  assert.deepEqual(prov.price.outPerM, { value: 1.5, source: 'settings' });
-  await post(h.port, '/api/settings/price', { slot: 'deepseek', inPerM: null, outPerM: null });
-  assert.equal(JSON.parse(readFileSync(file, 'utf8')).prices, undefined, 'null clears back to the table default');
-  const back = (await rq(h.port, { url: '/api/settings/providers' })).json().rows.find((r) => r.slot === 'deepseek');
-  assert.equal(back.price.inPerM.source, 'table');
-  assert.equal(back.price.cachedInPerM, undefined, 'no cached-input price is offered or shown');
+  const saved = JSON.parse(readFileSync(file, 'utf8'));
+  assert.ok(saved.models.deepseek.some((l) => l.model === 'deepseek-flash' && l.inPerM === 0 && l.outPerM === 0), '0 / 0 typed is saved as a chosen price');
+  assert.equal(saved.monthlyLimitUsd, 9, 'other settings are kept');
 });
 
 test('(xi) the monthly limit: 0, negative, text refused and nothing saved; empty/null clears; a number saves', async () => {
@@ -290,8 +282,8 @@ test('(xiv) no settings route reads or writes a flow: a flow dir is byte-identic
   writeFileSync(path.join(flow, 'runs', 'r1', 'spend.jsonl'), '{"costUsd":0.01}\n');
   const before = snapshot(root);
   for (const [url, body] of [
-    ['/api/settings/test', { slot: 'deepseek' }], ['/api/settings/price', { slot: 'deepseek', inPerM: 0.7 }], ['/api/settings/money', { monthlyLimitUsd: 3 }],
-    ['/api/settings/price', { slot: 'deepseek', inPerM: 0 }], ['/api/settings/keys', {}], ['/api/settings/flows', { flow: 'myflow', cap: 99 }],
+    ['/api/settings/test', { slot: 'deepseek' }], ['/api/settings/model', { slot: 'deepseek', model: 'deepseek-flash', use: true, inPerM: 0.7, outPerM: 1 }], ['/api/settings/money', { monthlyLimitUsd: 3 }],
+    ['/api/settings/model', { slot: 'deepseek', model: 'deepseek-flash', use: true, inPerM: 0, outPerM: 0 }], ['/api/settings/keys', {}], ['/api/settings/flows', { flow: 'myflow', cap: 99 }],
     ['/api/settings/money', { monthlyLimitUsd: 3, flow: 'myflow', maxUsd: 99, cap: 99 }],
   ]) await post(h.port, url, body);
   assert.deepEqual(snapshot(root), before);
@@ -308,7 +300,7 @@ test('gates: settings routes need the own Host; a POST needs the own Origin and 
   for (const url of ['/api/settings/providers', '/api/settings/money', '/api/settings/balance?slot=deepseek']) {
     assert.equal((await rq(h.port, { url, headers: { host: 'evil.example' } })).status, 403, `${url} with a foreign Host`);
   }
-  for (const url of ['/api/settings/test', '/api/settings/price', '/api/settings/money', '/api/settings/keys']) {
+  for (const url of ['/api/settings/test', '/api/settings/model', '/api/settings/money', '/api/settings/keys']) {
     const body = { slot: 'deepseek', inPerM: 9, monthlyLimitUsd: 99 };
     assert.equal((await post(h.port, url, body, { origin: null })).status, 403, `${url} without Origin`);
     assert.equal((await post(h.port, url, body, { origin: 'http://evil.example' })).status, 403, `${url} with a foreign Origin`);
@@ -358,34 +350,33 @@ test('page: the Settings button, header, tabs and signed sentences; no per-run c
   assert.match(SETTINGS_VIEW, /Put <code>NAME=key<\/code> lines in <code id="keys-path"[^>]*>~\/\.config\/fwdloop\/\.env<\/code>, then Reload keys[^<]*keys never reach this page\./);
   assert.match(SETTINGS_VIEW, /<div class="keyfile-strip-actions">\s*<button[^>]*id="reload-keys"[^>]*>Reload keys</);
   // the hint lines
-  assert.match(SETTINGS_VIEW, /Test asks the provider for its model list &mdash; it costs nothing\. A price left empty uses the default; a typed price applies from the next model call on\./);
+  assert.match(SETTINGS_VIEW, /Test asks the provider for its model list &mdash; it costs nothing\. Under each provider, tick Use on a model only once both its prices are filled \(USD per 1M tokens; 0 and 0 is allowed\)\. A price applies from the next model call on\./);
   assert.match(SETTINGS_VIEW, /Limits are yours\. The agent can never change them\. A run whose cap is more than what is left this month does not start\./);
   assert.match(PAGE, /Runs from before Settings existed are not counted here\./);
   assert.match(PAGE, /saved — applies from the next model call/);
   assert.match(PAGE, /not offered by this provider/);
-  // only the drafting-thinking tick-box (M4d am3) and the monthly limit are static inputs; the price boxes are built per row; no Save button, no cap, no key input
+  // only the drafting-thinking tick-box (M4d am3) and the monthly limit are static inputs; the model price boxes are built per model line; no Save button, no cap, no key input
   assert.deepEqual([...SETTINGS_VIEW.matchAll(/<input[^>]*id="([^"]+)"/g)].map((m) => m[1]), ['dt-box', 'ml-money']);
   assert.doesNotMatch(SETTINGS_VIEW.replace(/<!--[\s\S]*?-->/g, ''), /\bcap\b(?! is more)|maxUsd|type="password"|>Save</i);
   assert.doesNotMatch(PAGE, /prov-card|break-card|set-card|set-strip|set-prices|money-grid|limit-save|price-save|set-limit/);
 });
 
-test('page: Providers is ONE table, columns in bareloop order then the two price columns (amendment 2); Name/shape/URL are text/select/text (amendment 1)', () => {
+test('page: Providers is ONE table, columns in bareloop order, prices on a model line under each row (am3 C replaces the two price columns); Name/shape/URL are text/select/text (amendment 1)', () => {
   const tables = [...SETTINGS_VIEW.matchAll(/<table[\s\S]*?<\/table>/g)].map((m) => m[0]);
   assert.equal(tables.length, 2, 'the provider table and the breakdown table, no cards');
-  assert.deepEqual(th(tables[0]), ['Key', 'Name', 'API shape', 'Base URL', 'Test', 'Tokens used', 'Balance', 'In $/1M', 'Out $/1M']);
+  assert.deepEqual(th(tables[0]), ['Key', 'Name', 'API shape', 'Base URL', 'Test', 'Tokens used', 'Balance']);
   assert.match(tables[0], /<table class="pv-table"/);
   assert.match(SETTINGS_VIEW, /<div class="table-wrap"[^>]*>\s*<table class="pv-table"/);
   // the row builder (M4d amendment 1, replaces ruling 2A): Name = text box, API shape = dropdown, Base URL = text box
-  const build = PAGE.slice(PAGE.indexOf('function buildProviderRow('), PAGE.indexOf('var STATUS_WORD'));
+  const build = PAGE.slice(PAGE.indexOf('function buildProviderRow('), PAGE.indexOf('function buildModelsRow('));
   assert.match(build, /<input type="text" data-prov="name"/);
   assert.match(build, /<select data-prov="shape"/);
   assert.match(build, /<input type="text" data-prov="baseUrl"/);
   assert.doesNotMatch(build, /API_SHAPE|data-f="model"|data-f="addr"/);
-  // inputs in a row: name + Base URL + the price loop (one source, 2 fields), each saved on change with a hint line under it
-  assert.equal((build.match(/<input/g) || []).length, 3);
+  // inputs in a row: name + Base URL, each saved on change with a hint line under it (the prices moved to the model lines)
+  assert.equal((build.match(/<input/g) || []).length, 2);
   assert.doesNotMatch(PAGE, /cachedIn|Cached in/i, 'amendment 2 (a): no Cached in column or box anywhere on the page');
-  assert.match(build, /PRICE_FIELDS\.map\(function\(f\)/);
-  assert.match(PAGE, /var PRICE_FIELDS = \["inPerM", "outPerM"\];/);
+  assert.doesNotMatch(build, /PRICE_FIELDS/);
   assert.match(PAGE, /pvRows\.addEventListener\("change"/);
   assert.match(build, /class="hint pv-msg"/);
   // the Test cell has one fixed width; the wrap scrolls inside its own box
@@ -494,11 +485,11 @@ test('settings: Test never follows a redirect (Balance shares getWithKey) with t
   }
 });
 
-test('amendment 2 (a): the Providers table has no Cached in column or box; the row builder makes exactly one cell per signed price field (source-level; browser walk at 1280/390/320 owed)', () => {
+test('amendment 2 (a) under am3 C: no Cached in column or box; the model line builder makes exactly one box per signed price field (Price in, Price out); source-level, browser walk separate', () => {
   const head = SETTINGS_VIEW.match(/<table class="pv-table"[\s\S]*?<\/thead>/)[0];
   assert.doesNotMatch(head, /Cached/i);
-  assert.equal((head.match(/\$\/1M/g) || []).length, 2);
-  const m = PAGE.match(/var PRICE_FIELDS = (\[[^\]]*\]);/);
-  assert.deepEqual(JSON.parse(m[1]), ['inPerM', 'outPerM']);
+  assert.doesNotMatch(head, /\$\/1M/, 'the price columns moved to the model lines');
+  const line = PAGE.slice(PAGE.indexOf('function buildModelLine('), PAGE.indexOf('function paintModels('));
+  assert.deepEqual([...line.matchAll(/data-mf="(\w+)"/g)].map((m) => m[1]), ['use', 'inPerM', 'outPerM']);
   assert.doesNotMatch(PAGE.slice(PAGE.indexOf('function paintProviders('), PAGE.indexOf('pvRows.addEventListener("click"')), /cachedIn/);
 });

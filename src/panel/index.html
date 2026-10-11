@@ -680,6 +680,15 @@
   .pv-table td.pv-test-cell{width:180px;min-width:180px;max-width:180px;}
   .pv-table .pv-test-result,.pv-table .pv-msg,.pv-table .pv-balance-result{white-space:normal;overflow-wrap:anywhere;}
   .pv-table td.pv-price-cell{width:170px;min-width:170px;max-width:170px;}
+  /* M4d amendment 3 C: one line per model under its provider row — Use, name, Price in, Price out (wraps on a phone) */
+  .pv-models-row td{white-space:normal;padding:2px 8px 10px;}
+  .pv-models{position:sticky;left:0;box-sizing:border-box;width:min(100%, calc(100vw - 56px));display:flex;flex-direction:column;gap:6px;}
+  .pv-model-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;}
+  .pv-model-line label.pv-use{display:flex;align-items:center;gap:5px;font-size:12px;}
+  .pv-model-name{flex:1 1 140px;min-width:0;overflow-wrap:anywhere;font-size:12px;}
+  .pv-model-line .pv-box{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--text-dim);}
+  .pv-model-line .pv-box input{width:96px;}
+  .pv-model-line > .hint{flex:1 1 100%;margin:0;}
   .hint.bad{color:var(--red);}
   .table-wrap{overflow-x:auto;border:1px solid var(--border-strong);background:var(--panel2);max-width:100%;}
   @media (max-width: 899px){
@@ -727,12 +736,12 @@
         <div class="table-wrap" data-testid="provider-table-wrap">
           <table class="pv-table" data-testid="provider-table">
             <thead>
-              <tr><th>Key</th><th>Name</th><th>API shape</th><th>Base URL</th><th>Test</th><th>Tokens used</th><th>Balance</th><th>In $/1M</th><th>Out $/1M</th></tr>
+              <tr><th>Key</th><th>Name</th><th>API shape</th><th>Base URL</th><th>Test</th><th>Tokens used</th><th>Balance</th></tr>
             </thead>
             <tbody id="pv-rows"></tbody>
           </table>
         </div>
-        <div class="hint" id="pv-note" data-testid="pv-note" style="margin-top:6px;">Test asks the provider for its model list &mdash; it costs nothing. A price left empty uses the default; a typed price applies from the next model call on.</div>
+        <div class="hint" id="pv-note" data-testid="pv-note" style="margin-top:6px;">Test asks the provider for its model list &mdash; it costs nothing. Under each provider, tick Use on a model only once both its prices are filled (USD per 1M tokens; 0 and 0 is allowed). A price applies from the next model call on.</div>
         <div class="dt-row" data-testid="draft-thinking">
           <label for="dt-box"><input type="checkbox" id="dt-box" data-testid="dt-box"> Thinking on (drafting)</label>
           <div class="hint" id="dt-note" data-testid="dt-note">Off by default, for all jobs. Applies to the next draft; running a job is not affected.</div>
@@ -5061,12 +5070,6 @@
   }
   document.getElementById("reload-keys").addEventListener("click", function(){ loadProviders(); });
 
-  function sourceWord(src){
-    if(src === "table") return "default";
-    if(src === "ceiling") return "highest known rate, the model has no listed price";
-    return "set here";
-  }
-  var PRICE_FIELDS = ["inPerM", "outPerM"];
   // Name, API shape and Base URL are editable (M4d amendment 1), saved on change one field at a time.
   var PROV_FIELDS = ["name", "shape", "baseUrl"];
   function buildProviderRow(row){
@@ -5076,10 +5079,6 @@
     var balance = row.canBalance
       ? '<button class="btn small" type="button" data-act="balance" data-testid="prov-balance">Check</button><div class="hint pv-balance-result" data-f="balance-result"></div>'
       : '<span class="hint">not offered by this provider</span>';
-    var prices = PRICE_FIELDS.map(function(f){
-      return '<td class="pv-price-cell"><input type="text" inputmode="decimal" data-field="' + f + '" data-testid="price-' + f + '" aria-label="' + escapeXml(row.label + " " + f) + '">' +
-        '<div class="hint pv-msg" data-f="msg-' + f + '" data-testid="price-msg-' + f + '"></div></td>';
-    }).join("");
     tr.innerHTML =
       '<td><code>' + escapeXml(row.envVar) + '</code><div class="hint" data-f="status" data-testid="pv-status-' + escapeXml(row.slot) + '"></div></td>' +
       '<td class="pv-price-cell"><input type="text" data-prov="name" data-testid="prov-name" aria-label="' + escapeXml(row.label + " name") + '" autocomplete="off" spellcheck="false"><div class="hint pv-msg" data-f="msg-name" data-testid="prov-msg-name"></div></td>' +
@@ -5087,11 +5086,62 @@
       '<td class="pv-price-cell"><input type="text" data-prov="baseUrl" data-testid="prov-baseurl" aria-label="' + escapeXml(row.label + " Base URL") + '" autocomplete="off" spellcheck="false"><div class="hint pv-msg" data-f="msg-baseUrl" data-testid="prov-msg-baseUrl"></div></td>' +
       '<td class="pv-test-cell"><button class="btn small" type="button" data-act="test" data-testid="prov-test">Test</button><div class="hint pv-test-result" data-f="test" data-testid="prov-test-result"></div></td>' +
       '<td data-f="tokens" data-testid="pv-tokens-' + escapeXml(row.slot) + '"></td>' +
-      '<td>' + balance + '</td>' + prices;
+      '<td>' + balance + '</td>';
     tr.querySelectorAll("input").forEach(function(inp){
       inp.addEventListener("input", function(){ inp.setAttribute("data-dirty", "1"); });
     });
     return tr;
+  }
+  // The model lines sit in their own row under the provider row (M4d amendment 3 C). One line per model:
+  // Use, the model name, Price in, Price out. The price pair is both-or-neither; the server's one rule says why not.
+  function buildModelsRow(row){
+    var tr = document.createElement("tr");
+    tr.className = "pv-models-row";
+    tr.setAttribute("data-models-for", row.slot);
+    tr.setAttribute("data-testid", "models-row-" + row.slot);
+    tr.innerHTML = '<td colspan="7"><div class="pv-models" data-f="models"></div></td>';
+    return tr;
+  }
+  function buildModelLine(slot, m){
+    var d = document.createElement("div");
+    d.className = "pv-model-line";
+    d.setAttribute("data-model", m.model);
+    d.setAttribute("data-testid", "model-line");
+    d.innerHTML =
+      '<label class="pv-use"><input type="checkbox" data-mf="use" data-testid="model-use"> Use</label>' +
+      '<code class="pv-model-name"></code>' +
+      '<label class="pv-box">Price in $/1M<input type="text" inputmode="decimal" data-mf="inPerM" data-testid="model-in" autocomplete="off"></label>' +
+      '<label class="pv-box">Price out $/1M<input type="text" inputmode="decimal" data-mf="outPerM" data-testid="model-out" autocomplete="off"></label>' +
+      '<div class="hint pv-msg pv-model-msg" data-f="msg-model" data-testid="model-msg"></div>';
+    d.querySelector(".pv-model-name").textContent = m.model;
+    d.querySelector("[data-mf=use]").setAttribute("aria-label", slot + " " + m.model + " use");
+    d.querySelector("[data-mf=inPerM]").setAttribute("aria-label", m.model + " price in per 1M tokens");
+    d.querySelector("[data-mf=outPerM]").setAttribute("aria-label", m.model + " price out per 1M tokens");
+    d.querySelectorAll("input[type=text]").forEach(function(inp){
+      inp.addEventListener("input", function(){ inp.setAttribute("data-dirty", "1"); });
+    });
+    return d;
+  }
+  function paintModels(row, mr){
+    var box = mr.querySelector("[data-f=models]");
+    var wanted = row.models.map(function(m){ return m.model; });
+    Array.prototype.slice.call(box.children).forEach(function(el){
+      if(wanted.indexOf(el.getAttribute("data-model")) < 0) box.removeChild(el);
+    });
+    row.models.forEach(function(m){
+      var line = Array.prototype.find.call(box.children, function(el){ return el.getAttribute("data-model") === m.model; });
+      if(!line){ line = buildModelLine(row.slot, m); box.appendChild(line); }
+      var use = line.querySelector("[data-mf=use]");
+      use.checked = m.use === true;
+      ["inPerM", "outPerM"].forEach(function(f){
+        var inp = line.querySelector('[data-mf="' + f + '"]');
+        inp.placeholder = "not set";
+        if(inp.getAttribute("data-dirty") !== "1") inp.value = typeof m[f] === "number" ? String(m[f]) : "";
+      });
+    });
+    var note = mr.querySelector("[data-f=models-note]");
+    if(!note){ note = document.createElement("div"); note.className = "hint"; note.setAttribute("data-f", "models-note"); note.setAttribute("data-testid", "models-note"); box.appendChild(note); }
+    setNote(note, false, row.unpriced ? "This model has no known price. Fill both price boxes to tick Use; until then it is priced at the highest known rate." : "");
   }
   var STATUS_WORD = { "set in file": "set in file", "found in shell": "found in shell", "not set": "not set", "refused": "refused — see above" };
   // "Thinking on (drafting)": one box for all jobs. A drafting model the allow-list does not know cannot be changed, so say so and disable it.
@@ -5119,7 +5169,8 @@
     paintThinking(data.draftThinking);
     data.rows.forEach(function(row){
       var tr = pvRows.querySelector('[data-slot="' + row.slot + '"]');
-      if(!tr){ tr = buildProviderRow(row); pvRows.appendChild(tr); }
+      if(!tr){ tr = buildProviderRow(row); pvRows.appendChild(tr); pvRows.appendChild(buildModelsRow(row)); }
+      paintModels(row, pvRows.querySelector('[data-models-for="' + row.slot + '"]'));
       tr.querySelector("[data-f=status]").textContent = STATUS_WORD[row.keyStatus] || row.keyStatus;
       var nameIn = tr.querySelector('[data-prov=name]');
       var shapeSel = tr.querySelector('[data-prov=shape]');
@@ -5138,14 +5189,6 @@
       if(urlIn.getAttribute("data-dirty") !== "1") urlIn.value = row.savedBaseUrl;
       if(document.activeElement !== shapeSel) shapeSel.value = row.shape;
       tr.querySelector("[data-f=tokens]").textContent = tokensText(row.tokens);
-      PRICE_FIELDS.forEach(function(f){
-        var inp = tr.querySelector('input[data-field="' + f + '"]');
-        var pr = row.price[f];
-        inp.placeholder = String(pr.value) + " (" + sourceWord(pr.source) + ")";
-        inp.title = inp.placeholder;
-        // a box the person has typed in is never overwritten by a repaint
-        if(inp.getAttribute("data-dirty") !== "1") inp.value = pr.source === "settings" ? String(pr.value) : "";
-      });
     });
   }
   pvRows.addEventListener("click", function(ev){
@@ -5160,8 +5203,8 @@
     var inp = ev.target;
     if(!inp.getAttribute) return;
     if(inp.getAttribute("data-prov")){ saveProvider(inp.closest("tr"), inp); return; }
-    if(!inp.getAttribute("data-field")) return;
-    savePrice(inp.closest("tr"), inp.getAttribute("data-field"));
+    if(!inp.getAttribute("data-mf")) return;
+    saveModel(inp.closest("tr").getAttribute("data-models-for"), inp.closest(".pv-model-line"));
   });
   function runTest(tr, slot){
     var out = tr.querySelector("[data-f=test]");
@@ -5188,16 +5231,23 @@
     var n = Number(t);
     return isFinite(n) ? n : t;
   }
-  function savePrice(tr, changed){
-    var msg = tr.querySelector("[data-f=msg-" + changed + "]");
-    var payload = { slot: tr.getAttribute("data-slot") };
-    tr.querySelectorAll("input[data-field]").forEach(function(inp){ payload[inp.getAttribute("data-field")] = priceValue(inp.value); });
-    postJSON("/api/settings/price", payload).then(function(r){
+  // One model line per save: {slot, model, use, inPerM, outPerM}. A refusal is the line's hint (the server's one rule),
+  // and nothing was saved: the repaint puts the tick back.
+  function saveModel(slot, line){
+    var msg = line.querySelector("[data-f=msg-model]");
+    var payload = {
+      slot: slot,
+      model: line.getAttribute("data-model"),
+      use: line.querySelector("[data-mf=use]").checked,
+      inPerM: priceValue(line.querySelector("[data-mf=inPerM]").value),
+      outPerM: priceValue(line.querySelector("[data-mf=outPerM]").value)
+    };
+    postJSON("/api/settings/model", payload).then(function(r){
       if(r.body && r.body.ok){
-        tr.querySelectorAll("input[data-field]").forEach(function(inp){ inp.removeAttribute("data-dirty"); });
+        line.querySelectorAll("input[type=text]").forEach(function(inp){ inp.removeAttribute("data-dirty"); });
         loadProviders();
         setNote(msg, false, "saved — applies from the next model call");
-      } else setNote(msg, true, settingsRefusal(r));
+      } else { setNote(msg, true, settingsRefusal(r)); loadProviders(); }
     }, function(){ setNote(msg, true, networkText()); });
   }
 
