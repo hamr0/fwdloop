@@ -48,7 +48,7 @@ test('C4: a draft with a retry lists try 2 of 3 with the reason; a clean draft l
   assert.equal(j.phase, 'green');
   const t = j.stepList.find((s) => s.id === 'try-2');
   assert.equal(t.label, 'try 2 of 3');
-  assert.ok(t.details.length > 0);
+  assert.ok(t.reds.length > 0);
   assert.ok(!j.stepList.some((s) => s.id === 'try-3'));
   const clean = await finish(await world());
   assert.ok(!clean.j.stepList.some((s) => s.id.startsWith('try')));

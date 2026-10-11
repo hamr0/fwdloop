@@ -1,7 +1,7 @@
 // M4d amendment 10: the Chat card's list of what a draft really did. ONE function builds it (here), from the draft's own log.json and its
 // declaration; the page only renders it. It sits outside the readout (never signed, never hashed).
 //
-// Each entry: { id, label, status: 'done' | 'failed', details: string[], reds?: string[] }. `reds` (plan checks only) are the checker's raw
+// Each entry: { id, label, status: 'done' | 'failed', details: string[], reds?: string[] }. `reds` (plan checks and try lines) are the checker's raw
 // refusals: the page turns each into its plain sentence (one function there). A step that didn't happen is not in the list.
 // Throws away: the log's per-round tokens, the model's replies and the questions; only the facts named in the amendment are kept.
 // Third outcomes: no log -> null (nothing to list); a cost that is null reads "cost unknown", an incomplete sum reads "at least $X", never 0.
@@ -14,11 +14,11 @@ function money(log) {
   return `${log.spendComplete === false ? 'at least ' : ''}$${log.costUsd.toFixed(4)}`;
 }
 
-/** Why a round did not give a plan, as detail lines: its validator reds, else its outcome without the machine prefix. */
+/** Why a round did not give a plan: its validator reds (raw, as `reds`: the page's one translator makes them plain), else its outcome as a detail line. */
 function reasonOf(entry) {
-  if (Array.isArray(entry?.reds) && entry.reds.length > 0) return entry.reds.map(String);
+  if (Array.isArray(entry?.reds) && entry.reds.length > 0) return { details: [], reds: entry.reds.map(String) };
   const o = typeof entry?.outcome === 'string' ? entry.outcome : '';
-  return o === '' ? [] : [o.replace(/^structure: /, '')];
+  return { details: o === '' ? [] : [o.replace(/^structure: /, '')] };
 }
 
 /**
@@ -73,7 +73,7 @@ export function draftStepList({ log, declaration }) {
   rounds.forEach((e, i) => {
     if (i === 0) return;
     const no = i + 1;
-    out.push({ id: `try-${no}`, label: no <= TRIES ? `try ${no} of ${TRIES}` : `try ${no}`, status: e.outcome === 'valid' ? 'done' : 'failed', details: reasonOf(rounds[i - 1]) });
+    out.push({ id: `try-${no}`, label: no <= TRIES ? `try ${no} of ${TRIES}` : `try ${no}`, status: e.outcome === 'valid' ? 'done' : 'failed', ...reasonOf(rounds[i - 1]) });
   });
   return out;
 }

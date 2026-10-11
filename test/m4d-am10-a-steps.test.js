@@ -55,13 +55,15 @@ test('A5: a retry: try 2 of 3 and try 3 of 3 only when they happened, each with 
     declaration: decl(),
   });
   assert.deepEqual(shape(l).slice(-2), ['checks:done:plan checks', 'try-2:done:try 2 of 3']);
-  assert.deepEqual(l.find((s) => s.id === 'try-2').details, reds1);
+  const t2 = l.find((s) => s.id === 'try-2');
+  assert.deepEqual(t2.reds, reds1); // validator refusals ride as `reds`: the page's one translator turns them into plain sentences
+  assert.deepEqual(t2.details, []);
   assert.equal(l.find((s) => s.id === 'drafted').details[0], '2 rounds · $0.0056');
   const l3 = draftStepList({
     log: okLog({ rounds: 3, log: [{ round: 1, kind: 'first', outcome: 'structure: no usable tool call (text instead of the tool)' }, { round: 2, kind: 'structure-retry', outcome: 'validator: 1 red(s)', reds: reds1 }, { round: 3, kind: 'revision', outcome: 'valid' }] }),
     declaration: decl(),
   });
-  assert.deepEqual(l3.filter((s) => s.id.startsWith('try')).map((s) => [s.label, s.details]), [['try 2 of 3', ['no usable tool call (text instead of the tool)']], ['try 3 of 3', reds1]]);
+  assert.deepEqual(l3.filter((s) => s.id.startsWith('try')).map((s) => [s.label, s.details, s.reds]), [['try 2 of 3', ['no usable tool call (text instead of the tool)'], undefined], ['try 3 of 3', [], reds1]]);
 });
 
 test('A6: a softgreen step adds rubrics with "line N: built"; none when no step is shape-checked; a rubric that cannot be built fails with bareguard\'s reason', () => {

@@ -59,3 +59,17 @@ test('D5: item 6 - the thinking sentence is no longer a block beside the plan (o
   assert.match(PAGE, /\.chat-steps \.step-detail\{[^}]*color:var\(--text-faint\)/);
   assert.match(PAGE, /\.chat-steps \.step\.bad \.step-detail\{color:var\(--red\);\}/);
 });
+
+test('D6: a try line\'s validator refusals go through the SAME plain-sentence path as plan checks, raw folded beside them (one translator)', () => {
+  const a = 'declaration: line 2 is marked unjudgeable but guardrailClasses proposes "softgreen" — pick one';
+  const b = 'declaration: steps[1].close.shape.sections names "Total Owed", which is not in the job line\'s words — use words from the line';
+  const s = steps({ phase: 'green', card: {}, revises: [], stepList: [list[2], { id: 'try-2', label: 'try 2 of 3', status: 'done', details: [], reds: [a, b] }] }, ctx);
+  const t = s.find((x) => x.id === 'try-2');
+  assert.deepEqual(t.raw, [a, b]);
+  assert.equal(t.details.length, 2);
+  for (const d of t.details) assert.doesNotMatch(d, /^declaration:/);
+  assert.match(t.details[1], /section name in the plan's check is not in your job line/i);
+  // a structure reason (no reds) stays a plain detail
+  const u = steps({ phase: 'green', card: {}, revises: [], stepList: [{ id: 'try-2', label: 'try 2 of 3', status: 'done', details: ['no usable tool call'] }] }, ctx);
+  assert.deepEqual([u[0].details, u[0].raw], [['no usable tool call'], undefined]);
+});
