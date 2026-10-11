@@ -1277,6 +1277,8 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 - **Must fail when:** ticking a model with one price box empty saves nothing, and that model never shows in the Chat menu.
 - **Cap:** $0.10.
 
+**M4d amendment 4 — SIGNED by hamr 2026-10-11 ("sign m4d am4"): thinking on means no forced tool.** When "Thinking on (drafting)" is ticked, the drafter does not force the AI to answer through the tool, same as bareloop. A reply with no tool call is retried as today. With the box unticked, the tool is still forced, so M6a is unchanged. **Done when:** a test that fails first, and one live deepseek-flash draft with the box ticked, which reaches the plan with no provider error. **Cap:** inside am3's $0.10.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
