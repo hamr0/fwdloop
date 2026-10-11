@@ -188,23 +188,17 @@ export function readHaltRecord(runDir) {
 }
 
 // ---------------------------------------------------------------------------
-// Money — piece 2 wires live provider rates; this piece takes a per-attempt
-// ceiling as injected data, defaulting to a frozen table's highest entry for
-// an unknown model id (never a silent $0/unbounded assumption).
+// Money - the per-attempt hold is injected data: the caller works it out from the
+// picked model's own Settings prices (`ceilingCostUsd(rates)`, src/provider.js) and passes
+// it as `ceilingUsd`. No model name or price lives here (M4d amendment 5 item 4).
 // ---------------------------------------------------------------------------
 
-const CEILING_TABLE_USD = Object.freeze({
-  'deepseek-flash': 0.02,
-  'synthetic-default': 0.05,
-});
-
-/** @param {string|null|undefined} modelId */
-export function resolveCeilingUsd(modelId) {
-  if (typeof modelId === 'string' && Object.prototype.hasOwnProperty.call(CEILING_TABLE_USD, modelId)) {
-    return CEILING_TABLE_USD[modelId];
-  }
-  return Math.max(...Object.values(CEILING_TABLE_USD));
-}
+/**
+ * The hold one model round must fit under the cap. A caller with a model passes the number from Settings prices;
+ * a caller with no model prices (a test double) holds nothing.
+ * @param {number|undefined} ceilingUsd
+ */
+const holdOf = (ceilingUsd) => (Number.isFinite(ceilingUsd) && /** @type {number} */ (ceilingUsd) >= 0 ? /** @type {number} */ (ceilingUsd) : 0);
 
 // ---------------------------------------------------------------------------
 // The executor — "goal in, gap back", constructed WITHOUT its close and
@@ -940,7 +934,7 @@ async function runStepRalph({
  * @param {string[]} [opts.primitiveReds] - `resolvePrimitives`'s own `reds` (e.g. bareguard refusing a symlinked file scope); any entry refuses the run at $0 like an unwired verb, before the run dir exists.
  * @param {() => string} [opts.clock] - returns the current ISO timestamp; defaults to the wall clock.
  * @param {string} opts.businessDate - the run's explicit "as of today", never the wall clock.
- * @param {number} [opts.ceilingUsd] - per-attempt ceiling override; defaults to `resolveCeilingUsd(null)`.
+ * @param {number} [opts.ceilingUsd] - per-attempt ceiling override; the model's hold from Settings prices (`ceilingCostUsd`); absent = no hold.
  * @param {string|null} [opts.initialGap] - M3 scope item 7 (rerun as a fresh
  *   run): a human's rerun reason, carried as the FIRST ordinary step's
  *   starting gap. Never used by a plain `runFlow` call outside `resumeRun`'s
@@ -1003,7 +997,7 @@ export async function runFlow({
   const { arbiter } = applied;
   const capUsd = arbiter.capUsd;
   const redoCap = arbiter.redoCap ?? 3;
-  const effectiveCeilingUsd = ceilingUsd ?? resolveCeilingUsd(null);
+  const effectiveCeilingUsd = holdOf(ceilingUsd);
   const askLines = new Map((arbiter.asks ?? []).map((a) => [a.line, a]));
   const sendLines = new Map((arbiter.sends ?? []).map((s) => [s.line, s]));
 
@@ -2234,7 +2228,7 @@ export async function resumeRun({
 
     const capUsd = arbiter.capUsd;
     const redoCap = arbiter.redoCap ?? 3;
-    const effectiveCeilingUsd = ceilingUsd ?? resolveCeilingUsd(null);
+    const effectiveCeilingUsd = holdOf(ceilingUsd);
 
     const step = steps[state.stepIndex];
     const askSlot = askLines.get(step.fromLine);
@@ -2518,7 +2512,7 @@ export async function continueRun({
       inputsManifest: halt.inputsManifest,
       capUsd,
       redoCap: arbiter.redoCap ?? 3,
-      effectiveCeilingUsd: ceilingUsd ?? resolveCeilingUsd(null),
+      effectiveCeilingUsd: holdOf(ceilingUsd),
       primitives,
       businessDate,
       modelStep,

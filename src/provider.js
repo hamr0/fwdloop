@@ -1,16 +1,16 @@
 // M2 piece 2 (docs/wiki/the-module-ladder.md, "M2 — scope, exit, negative —
-// SIGNED", scope items 7/8): provider slots, hand-entered rates, the spend
-// ceiling, the key preflight, and `makeProvider`. Money honesty (project
-// rule, CLAUDE.md): unknown cost is NEVER rendered as 0 — an unknown model
-// prices at the rate table's HIGHEST entry and the row is stamped
-// `substituted`; `assertUnderGlobalCap`/`appendSpendRow` never coerce a null
-// cost to a number.
+// SIGNED", scope items 7/8): provider slots, the usable-model decision, the spend
+// ceiling, the key preflight, and `makeProvider`. Models and prices live in Settings
+// only (M4d amendment 5): no table, no default model. Money honesty (project rule,
+// CLAUDE.md): unknown cost is NEVER rendered as 0 — a row with no booked cost reads
+// "at least" (`spendRowCost`); `assertUnderGlobalCap`/`appendSpendRow` never coerce a
+// null cost to a number.
 //
 // borrowed-from: fwdloop poc/m0/provider.mjs@76a3607 (`PROVIDER_SLOTS`,
-// `makeProvider`, `resolveModelRate`, `MalformedToolCallTolerantOpenAI` —
+// `makeProvider`, `MalformedToolCallTolerantOpenAI` —
 // F28's tolerant wrapper for a DeepSeek tool-call whose `arguments` is bad
-// JSON) and fwdloop poc/m0/spend.mjs@76a3607 (`RATES_BY_SUFFIX`,
-// `lookupRate`, `ceilingCostUsd`, `classifyModelId`, `appendSpendRow`,
+// JSON) and fwdloop poc/m0/spend.mjs@76a3607 (`ceilingCostUsd`,
+// `classifyModelId`, `appendSpendRow`,
 // `assertUnderGlobalCap`) and fwdloop poc/m1/slot-batch.mjs@76a3607
 // (`checkKeyPreflight`: refuse an unset/empty/whitespace/newline key at $0,
 // before any ledger write — F26/2026-09-21's live defect). Rewritten
@@ -53,21 +53,18 @@ class MalformedToolCallTolerantOpenAI extends OpenAI {
 }
 
 /** Provider slots. Frozen — add a new slot here, never inline a baseUrl/env
- *  var elsewhere. `deepseek` is the baseline (F12); `synthetic` is second. */
+ *  var elsewhere. A slot holds only what is not a model or a price: its key env name, its API shape and its
+ *  address. Models and prices live in Settings > Providers and nowhere in code (M4d amendment 5). */
 export const PROVIDER_SLOTS = Object.freeze({
   synthetic: Object.freeze({
     baseUrl: 'https://api.synthetic.new/openai/v1',
     envVar: 'SYNTHETIC_API_KEY',
-    defaultModel: 'hf:Qwen/Qwen3.8-27B',
     shape: 'openai-api',
     legacyMaxTokens: false,
   }),
   deepseek: Object.freeze({
     baseUrl: 'https://api.deepseek.com',
     envVar: 'DEEPSEEK_API_KEY',
-    // F22: 'deepseek-v4-flash' is retired, routed to DeepSeek-V4.1-Flash —
-    // request the live name so request === served.
-    defaultModel: 'deepseek-flash',
     shape: 'openai-api',
     // F11: DeepSeek ignores `max_completion_tokens`; only the legacy
     // `max_tokens` key bounds output.
@@ -76,17 +73,23 @@ export const PROVIDER_SLOTS = Object.freeze({
 });
 
 /**
- * THE one lookup of a slot's model, API shape and address (M4d amendment 1). Every model call (run,
- * resume, model step, drafter), Test, Balance and the spend rows read the slot through this and nothing
- * else: a value saved on the Settings page (`config.providers[slot]`) wins per field, else the code
- * default above. A blank saved Base URL means the default FOR THE EFFECTIVE SHAPE: the slot's own code
+ * The ONE provider slot a draft or a run uses until the Chat model menu exists (M4d amendment 5, interim rule): its
+ * ticked, priced model is picked by `resolveUsableModel`. A slot name is not a model or a price.
+ */
+export const MODEL_SLOT = 'deepseek';
+
+/**
+ * THE one lookup of a slot's API shape and address (M4d amendment 1), and the model NAME typed in its Name box
+ * (`model`, null when none was typed: there is no code default, M4d amendment 5). Test, Balance and the Settings
+ * page read the slot through this; which model a call USES is decided by `resolveUsableModel`, not by the name.
+ * A value saved on the Settings page (`config.providers[slot]`) wins per field, else the code default above. A blank saved Base URL means the default FOR THE EFFECTIVE SHAPE: the slot's own code
  * address while the shape is the slot's code shape, else that shape's vendor address ('' = bare-agent's own).
  * Unknown slot throws. `config` is already-read config (see `readPriceConfig`); no I/O here.
  * @param {string} slotName
  * @param {{ config?: Record<string, any> }} [opts]
  * @returns {{ slot: string, envVar: string, legacyMaxTokens: boolean,
- *   model: string, shape: string, baseUrl: string,
- *   defaults: { model: string, shape: string, baseUrl: string } }}
+ *   model: string|null, shape: string, baseUrl: string,
+ *   defaults: { shape: string, baseUrl: string } }}
  */
 export function resolveSlot(slotName, { config = {} } = {}) {
   if (!Object.hasOwn(PROVIDER_SLOTS, slotName)) {
@@ -101,61 +104,11 @@ export function resolveSlot(slotName, { config = {} } = {}) {
     slot: slotName,
     envVar: def.envVar,
     legacyMaxTokens: def.legacyMaxTokens === true && shape === 'openai-api',
-    model: saved.model ?? def.defaultModel,
+    model: saved.model ?? null,
     shape,
     baseUrl: savedUrl !== '' ? savedUrl : defaultBaseUrl,
-    defaults: { model: def.defaultModel, shape: def.shape, baseUrl: defaultBaseUrl },
+    defaults: { shape: def.shape, baseUrl: defaultBaseUrl },
   };
-}
-
-/**
- * List-rate ceilings (USD/1K tokens), hand-entered — see
- * poc/m0/spend.mjs@76a3607 for sourcing notes per row. This table is the DEFAULT
- * price: a price set in Settings (`~/.config/fwdloop/config.json` `prices`, per
- * provider slot) wins over a row here, per field, through `resolvePrices` below —
- * the one lookup every model call is booked and cap-checked by (M4d, signed
- * 2026-10-05; that REPLACES the 2026-09-21 "edit a row here, never a runtime
- * flag" ruling). Cached input is priced as input
- * (M4d amendment 2): a row has no cache rate.
- */
-export const RATES_BY_SUFFIX = {
-  'zai-org/GLM-5.2': { in: 0.0006, out: 0.0022, source: 'published' },
-  'moonshotai/Kimi-K3': { in: 0.0006, out: 0.0025, source: 'published' },
-  'zai-org/GLM-5.3-Flash': { in: 0.00015, out: 0.0005, source: 'published' },
-  'zai-org/GLM-4.7-Flash': { in: 0.00006, out: 0.0004, source: 'published' },
-  'Qwen/Qwen3.8-27B': { in: 0.00015, out: 0.002, source: 'published' },
-  'openai/gpt-oss-120b': { in: 0.00003, out: 0.00017, source: 'published' },
-  'nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4': { in: 0.000085, out: 0.0004, source: 'published' },
-  'syn:large:text': { in: 0.0006, out: 0.0025, source: 'ceiling' },
-  'syn:small:text': { in: 0.0006, out: 0.0025, source: 'ceiling' },
-  'deepseek-v4-flash': { in: 0.00044, out: 0.00132, source: 'published' }, // F22: retired name, historical rows only
-  // DeepSeek-V4.1-Flash, peak. Source: https://api-docs.deepseek.com/quick_start/pricing/ (fetched
-  // 2026-10-05: cache miss $0.30, output $1.20 per 1M). The cache-hit
-  // price is deliberately not used: cached input books at `in` (M4d amendment 2, signed 2026-10-06).
-  'deepseek-flash': { in: 0.0003, out: 0.0012, source: 'published' },
-  'deepseek-v4-pro': { in: 0.00132, out: 0.00396, source: 'published' },
-};
-
-/**
- * Strip an `hf:` routing prefix and look up `suffix` with `Object.hasOwn` —
- * never plain truthiness/`in`, which would let a suffix like `"constructor"`
- * resolve to an inherited `Object.prototype` member.
- * @param {string|null|undefined} modelId
- * @param {Record<string, any>} [ratesTable]
- */
-export function lookupRate(modelId, ratesTable = RATES_BY_SUFFIX) {
-  if (!modelId) return null;
-  const suffix = String(modelId).replace(/^hf:/, '');
-  if (!Object.hasOwn(ratesTable, suffix)) return null;
-  return { suffix, rates: ratesTable[suffix] };
-}
-
-/** Resolve a modelId to its hand-entered rate row, or throw — a caller here
- *  must never carry forward a 0 rate. */
-export function resolveModelRate(modelId, ratesTable = RATES_BY_SUFFIX) {
-  const resolved = lookupRate(modelId, ratesTable);
-  if (!resolved) throw new Error(`no hand-entered rate for model suffix "${String(modelId).replace(/^hf:/, '')}"`);
-  return resolved;
 }
 
 // The two hard bounds a round is priced against when its real cost is
@@ -177,7 +130,7 @@ const perM = (per1K) => Number((per1K * 1000).toPrecision(12));
  * is true for the two unticked cases. Nothing is written here — the file changes only when the person saves.
  * @param {string} slot
  * @param {Record<string, any>} [config]
- * @returns {{ lines: Array<{ model: string, use: boolean, inPerM?: number, outPerM?: number }>, migrated: boolean, unpriced: boolean }}
+ * @returns {{ lines: Array<{ model: string, use: boolean, inPerM?: number, outPerM?: number, thinkingOff?: 'cant'|'disabled' }>, migrated: boolean, unpriced: boolean }}
  */
 export function effectiveModels(slot, config = {}) {
   if (config.models && Object.hasOwn(config.models, slot)) {
@@ -185,6 +138,8 @@ export function effectiveModels(slot, config = {}) {
   }
   if (!Object.hasOwn(PROVIDER_SLOTS, slot)) return { lines: [], migrated: false, unpriced: false };
   const { model } = resolveSlot(slot, { config });
+  // No code default (M4d amendment 5): a slot nobody typed a name into has nothing to tick.
+  if (model === null) return { lines: [], migrated: false, unpriced: false };
   const old = (config.prices && Object.hasOwn(config.prices, slot)) ? config.prices[slot] : {};
   if (old.inPerM !== undefined && old.outPerM !== undefined) {
     return { lines: [{ model, use: true, inPerM: old.inPerM, outPerM: old.outPerM }], migrated: true, unpriced: false };
@@ -197,48 +152,57 @@ export function effectiveModels(slot, config = {}) {
 }
 
 /**
- * THE one price lookup (M4d scope item 6, amendment 3 item 9): every model call — run, resume, model step,
- * drafter — is booked and cap-checked from this. A TICKED model line in the slot's list (`effectiveModels`)
- * carries its own in/out pair (USD per 1M -> per 1K; 0 / 0 is a chosen price) and wins, source "model".
- * Otherwise the code table's row, else the table's HIGHEST entry for that field (a model nobody ticked —
- * an old run, the CLI; unknown cost is never 0). M4d amendment 2: cached input is priced AS input —
- * `cacheReadMult` is always 1; a row's `cacheIn` is never read here.
+ * THE one decision of "usable model" (M4d amendment 5): a model is usable only if it is ticked in Settings with both
+ * prices. Every model call - the drafter, a run, resume / continue, the command line, the panel - asks this and nothing
+ * else; no model name, price or switch lives in code. Returns the model, its slot, its prices (USD per 1M, and per 1K
+ * for the Loop; 0 / 0 is a chosen price) and its thinking-off option, or a plain refusal in `say`.
  *
- * @param {string} modelId
- * @param {{ slot?: string, config?: Record<string, any>, ratesTable?: Record<string, any> }} [opts]
+ * `model` (named) must be a ticked, priced line: else "Tick <model> in Settings > Providers with both prices first."
+ * No `model`: the interim rule until the Chat model menu - the slot must have EXACTLY ONE ticked, priced line; none or
+ * more than one is refused with a plain sentence. Pure: `config` is already-read config, no I/O.
+ *
+ * @param {string} slotName
+ * @param {{ config?: Record<string, any>, model?: string }} [opts]
  * @returns {{
- *   rates: { in: number, out: number, cacheReadMult?: number },
- *   perM: { inPerM: number, cachedInPerM: number, outPerM: number },
- *   source: { in: 'model'|'table'|'ceiling', cachedIn: 'input', out: 'model'|'table'|'ceiling' },
- *   suffix: string|null,
- * }}
+ *   ok: true, slot: string, model: string, thinkingOff: 'cant'|'disabled',
+ *   rates: { in: number, out: number, cacheReadMult: number },
+ *   prices: { perM: { inPerM: number, cachedInPerM: number, outPerM: number }, source: { in: 'model', cachedIn: 'input', out: 'model' } },
+ * } | { ok: false, say: string }}
  */
-export function resolvePrices(modelId, { slot, config = {}, ratesTable = RATES_BY_SUFFIX } = {}) {
-  const resolved = lookupRate(modelId, ratesTable);
-  const row = resolved ? resolved.rates : null;
-  const eff = slot !== undefined ? effectiveModels(slot, config) : null;
-  const line = eff ? eff.lines.find((m) => m.model === modelId && m.use === true) : undefined;
-  const ceilingOf = (field) => Math.max(...Object.values(ratesTable).map((r) => r[field]));
-  const field = (lineKey, rowField) => {
-    if (line && typeof line[lineKey] === 'number') return { v: line[lineKey] / 1000, src: 'model' };
-    if (row) return { v: row[rowField], src: 'table' };
-    return { v: ceilingOf(rowField), src: 'ceiling' };
-  };
-  const inF = field('inPerM', 'in');
-  const outF = field('outPerM', 'out');
-  /** @type {{ in: number, out: number, cacheReadMult: number }} */
-  const rates = { in: inF.v, out: outF.v, cacheReadMult: 1 };
+export function resolveUsableModel(slotName, { config = {}, model } = {}) {
+  const lines = effectiveModels(slotName, config).lines;
+  const priced = (l) => l.use === true && typeof l.inPerM === 'number' && Number.isFinite(l.inPerM) && typeof l.outPerM === 'number' && Number.isFinite(l.outPerM);
+  let line;
+  if (model !== undefined) {
+    line = lines.find((l) => l.model === model && priced(l));
+    if (!line) return { ok: false, say: `Tick ${model} in Settings > Providers with both prices first.` };
+  } else {
+    const ticked = lines.filter(priced);
+    if (ticked.length === 0) return { ok: false, say: 'Tick a model in Settings > Providers with both prices first.' };
+    if (ticked.length > 1) return { ok: false, say: `More than one model is ticked for ${slotName} in Settings > Providers. Leave one ticked, or name the model.` };
+    [line] = ticked;
+  }
+  const inPerM = /** @type {number} */ (line.inPerM);
+  const outPerM = /** @type {number} */ (line.outPerM);
+  const inPer1K = inPerM / 1000;
+  const outPer1K = outPerM / 1000;
   return {
-    rates,
-    perM: { inPerM: perM(inF.v), cachedInPerM: perM(inF.v), outPerM: perM(outF.v) },
-    source: { in: /** @type {any} */ (inF.src), cachedIn: 'input', out: /** @type {any} */ (outF.src) },
-    suffix: resolved ? resolved.suffix : null,
+    ok: true,
+    slot: slotName,
+    model: line.model,
+    thinkingOff: line.thinkingOff === 'disabled' ? 'disabled' : 'cant',
+    // cached input is priced AS input (M4d amendment 2): `cacheReadMult` is always 1
+    rates: { in: inPer1K, out: outPer1K, cacheReadMult: 1 },
+    prices: {
+      perM: { inPerM, cachedInPerM: inPerM, outPerM },
+      source: { in: 'model', cachedIn: 'input', out: 'model' },
+    },
   };
 }
 
 /**
  * The `price` object a spend row records: the per-1M numbers the call was booked at and where each
- * came from. From a `resolvePrices` result; or from INJECTED rates (tests) with source "injected".
+ * came from. From a `resolveUsableModel` result's `prices`; or from INJECTED rates (tests) with source "injected".
  * @param {{ perM: any, source: any }|null|undefined} prices
  * @param {{ in: number, out: number, cacheReadMult?: number }|null|undefined} [injectedRates]
  */
@@ -266,21 +230,17 @@ export function readPriceConfig(home) {
 }
 
 /**
- * The ceiling cost (USD) of one round of `modelId` — never 0, never null.
- * A known model prices at its own rate; an unknown/missing model prices at
- * the HIGHEST in/out rate anywhere in `ratesTable`. `opts.prices` (a
- * `resolvePrices` result, e.g. from `makeProvider`) makes the cap check use the
- * SAME price the round is booked at.
+ * The money hold (USD) of one round: the picked model's OWN Settings prices (`rates`, per 1K tokens, from
+ * `resolveUsableModel`) times the two token bounds above. Not a table, not a fallback.
+ * @param {{ in: number, out: number }} rates
  */
-export function ceilingCostUsd(modelId, ratesTable = RATES_BY_SUFFIX, opts = {}) {
-  const { rates } = opts.prices ?? resolvePrices(modelId, { ratesTable });
+export function ceilingCostUsd(rates) {
   return (CEILING_INPUT_TOKENS / 1000) * rates.in + (CEILING_OUTPUT_TOKENS / 1000) * rates.out;
 }
 
 /**
  * Compare the model asked for against the model actually served.
  * `match` identical; `prefix` identical once a routing prefix is stripped;
- * `alias` a declared `syn:` alias resolving to a concrete model (expected);
  * `substituted` a concrete request served by a DIFFERENT concrete model
  * (the one that matters — the signed hash records the request, not what
  * ran); `unreported` the provider told us nothing.
@@ -290,7 +250,6 @@ export function classifyModelId(requested, returned) {
   if (returned === null || returned === undefined || returned === '') return 'unreported';
   if (requested === returned) return 'match';
   if (String(requested).replace(/^[a-z]+:/, '') === returned) return 'prefix';
-  if (/^syn:/.test(requested)) return 'alias';
   return 'substituted';
 }
 
@@ -351,13 +310,15 @@ export function appendSpendRow(path, row) {
 // "missing", never as some outside file's content folded into a cap check
 // or shown on the panel.
 // A row with no booked cost is repriced at ITS OWN booked price's ceiling when it recorded one
-// (M4d: forward only — today's Settings price never re-prices an old row), else at the code table's.
+// (M4d: forward only — today's Settings price never re-prices an old row). A row that recorded no price at all (an
+// old row; the code table that once priced it is gone, M4d amendment 5) has no ceiling to add: 0 here, and the row
+// stays `complete: false`, so every total that holds it reads "at least", never as a clean figure.
 function rowCeilingUsd(row) {
   const p = row.price;
   if (p && typeof p === 'object' && Number.isFinite(p.inPerM) && p.inPerM > 0 && Number.isFinite(p.outPerM) && p.outPerM > 0) {
     return (CEILING_INPUT_TOKENS / 1e6) * p.inPerM + (CEILING_OUTPUT_TOKENS / 1e6) * p.outPerM;
   }
-  return ceilingCostUsd(row.model);
+  return 0;
 }
 
 /**
@@ -445,37 +406,37 @@ export function checkKeyPreflight(slotName, env = process.env) {
 }
 
 /**
- * The drafter's THINKING knob (M4d amendment 3, A1). A mode is an operator param, never model output.
- * 'on' sends nothing; 'off' sends the allow-listed per-model options (F49: deepseek-flash 400s on a forced
- * tool_choice in thinking mode, so its entry disables thinking). A model not listed gets nothing sent.
+ * The drafter's THINKING knob (M4d amendment 3, A1; amendment 5 item 3). A mode is an operator param, never model output.
+ * 'on' sends nothing; 'off' sends what the model's own Settings line says: `thinkingOff: 'disabled'` sends
+ * `{ thinking: { type: 'disabled' } }`, 'cant' (the default) sends nothing. No model is named in code.
  */
 export const DRAFT_THINKING_MODES = Object.freeze(['on', 'off']);
-// borrowed-from: bareloop src/providers.js@2330f1e
-const OPENAI_DRAFT_OFF_OPTIONS = Object.freeze({
-  'deepseek-flash': Object.freeze({ thinking: Object.freeze({ type: 'disabled' }) }),
-});
 
 /**
- * The ONE owner of the options a DRAFTING call carries for thinking. Any mode but 'on' | 'off' throws.
- * @param {{shape: string, model: string}} target
+ * The ONE owner of the options a DRAFTING call carries for thinking. Any mode but 'on' | 'off' throws. The API shape
+ * still gates it: `thinking: disabled` is the OpenAI-compatible body field, so other shapes send nothing.
+ * @param {{shape: string, thinkingOff?: 'cant'|'disabled'}} target
  * @param {unknown} [mode] default 'off'
  * @returns {Record<string, any>}
  */
-export function draftCallOptions({ shape, model }, mode = 'off') {
+export function draftCallOptions({ shape, thinkingOff }, mode = 'off') {
   if (!DRAFT_THINKING_MODES.includes(/** @type {any} */ (mode))) {
     throw new Error(`draftThinking must be one of ${DRAFT_THINKING_MODES.join(' | ')}, got ${JSON.stringify(mode)}`);
   }
-  if (mode === 'on' || shape !== 'openai-api') return {};
-  return Object.hasOwn(OPENAI_DRAFT_OFF_OPTIONS, model) ? { ...OPENAI_DRAFT_OFF_OPTIONS[model] } : {};
+  if (mode === 'on' || shape !== 'openai-api' || thinkingOff !== 'disabled') return {};
+  return { thinking: { type: 'disabled' } };
 }
 
-/** True when 'off' does something for this model, i.e. the setting can change it (the Settings line says so). @param {{shape: string, model: string}} target */
+/** True when 'off' does something for this line, i.e. the setting can change it (the Settings box says so). @param {{shape: string, thinkingOff?: 'cant'|'disabled'}} target */
 export const canChangeDraftThinking = (target) => Object.keys(draftCallOptions(target, 'off')).length > 0;
+
+/** A model that is not usable (`resolveUsableModel`): its message is the plain sentence, shown as it is (no "key:" or "config:" prefix). */
+export class ModelRefusal extends Error {}
 
 /**
  * Build a provider for the given slot. Throws (never defaults) on an
- * unknown slot, a missing/bad env key, or a model with no hand-entered
- * rate. Returns `{ provider, rates, modelId, suffix, slot }`.
+ * unknown slot, a missing/bad env key, or a model that is not usable (`resolveUsableModel`: ticked in Settings with
+ * both prices - the message is its plain sentence). Returns `{ provider, rates, modelId, slot, prices, thinkingOff }`.
  *
  * `timeoutMs`/`deadlineMs` bound a silent socket (BA-18 idle) and a
  * zombie-stream total wall clock (BA-19), respectively — see
@@ -488,7 +449,7 @@ export const canChangeDraftThinking = (target) => Object.keys(draftCallOptions(t
  *   `env` (M4d: the merged shell+keys-file env; default process.env) is where the key is read.
  *   `thinking` (bare-agent >=0.49) is sent verbatim as body.thinking; unset/null leaves the body unchanged.
  *   `draftThinking` (drafting only) wins over `thinking` and is turned into it by `draftCallOptions`.
- * @returns {{ provider: any, rates: {in:number, out:number, cacheReadMult?:number}, modelId: string, suffix: string|null, slot: string, prices: ReturnType<typeof resolvePrices> }}
+ * @returns {{ provider: any, rates: {in:number, out:number, cacheReadMult?:number}, modelId: string, slot: string, prices: { perM: any, source: any }, thinkingOff: 'cant'|'disabled' }}
  */
 export function makeProvider(slotName, options = {}) {
   const {
@@ -501,20 +462,19 @@ export function makeProvider(slotName, options = {}) {
   const keyCheck = checkKeyPreflight(slotName, env);
   if (!keyCheck.ok) throw new Error(keyCheck.message);
 
-  // A broken config throws by name here; it never falls back to the code defaults or the table, so a
-  // run's model, address or charge cannot change silently.
+  // A broken config throws by name here; it never falls back to a default, so a run's model, address or
+  // charge cannot change silently.
   const config = readPriceConfig(configHome);
   const slot = resolveSlot(slotName, { config });
   const apiKey = env[slot.envVar];
-  const modelId = model ?? slot.model;
-  // The ONE price lookup (a Settings price wins over the table; a model the table doesn't know prices
-  // at the table's highest rate, suffix null — unknown cost is never 0).
-  const prices = resolvePrices(modelId, { slot: slotName, config });
-  const { rates } = prices;
-  const suffix = prices.suffix;
+  // The ONE decision of which model may be used, and at what price (M4d amendment 5).
+  const usable = resolveUsableModel(slotName, { config, model });
+  if (!usable.ok) throw new ModelRefusal(usable.say);
+  const modelId = usable.model;
+  const { rates, prices, thinkingOff } = usable;
 
   // Drafting only: `draftThinking` ('on'|'off') is turned into the wire field by the ONE owner, draftCallOptions.
-  const thinking = draftThinking === undefined ? thinkingOpt : draftCallOptions({ shape: slot.shape, model: modelId }, draftThinking).thinking;
+  const thinking = draftThinking === undefined ? thinkingOpt : draftCallOptions({ shape: slot.shape, thinkingOff }, draftThinking).thinking;
   const common = {
     apiKey,
     model: modelId,
@@ -534,6 +494,6 @@ export function makeProvider(slotName, options = {}) {
       });
 
   return {
-    provider, rates, modelId, suffix, slot: slotName, prices,
+    provider, rates, modelId, slot: slotName, prices, thinkingOff,
   };
 }

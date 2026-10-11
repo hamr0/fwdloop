@@ -4445,11 +4445,10 @@
         refreshStartEnabled();
       }).catch(function(){ /* the card keeps what it had */ });
     }
-    // the drafting line names the model the drafter really uses (Settings' deepseek row), never a guess
+    // the drafting line names the model the drafter really uses (Settings' one ticked, priced model), never a guess
     function loadModel(){
       authorGet("/api/settings/providers").then(function(j){
-        var rows = (j && j.ok === true && Array.isArray(j.rows)) ? j.rows : [];
-        for(var i = 0; i < rows.length; i++){ if(rows[i].slot === "deepseek" && rows[i].model){ drafterModel = String(rows[i].model); } }
+        if(j && j.ok === true && j.draftThinking && j.draftThinking.model){ drafterModel = String(j.draftThinking.model); }
       }).catch(function(){ /* the line then says "the drafter" */ });
     }
     function setMode(m){
@@ -5112,11 +5111,13 @@
       '<code class="pv-model-name"></code>' +
       '<label class="pv-box">Price in $/1M<input type="text" inputmode="decimal" data-mf="inPerM" data-testid="model-in" autocomplete="off"></label>' +
       '<label class="pv-box">Price out $/1M<input type="text" inputmode="decimal" data-mf="outPerM" data-testid="model-out" autocomplete="off"></label>' +
+      '<label class="pv-box">Thinking off<select data-mf="thinkingOff" data-testid="model-thinking"><option value="cant">can\'t</option><option value="disabled">send thinking: disabled</option></select></label>' +
       '<div class="hint pv-msg pv-model-msg" data-f="msg-model" data-testid="model-msg"></div>';
     d.querySelector(".pv-model-name").textContent = m.model;
     d.querySelector("[data-mf=use]").setAttribute("aria-label", slot + " " + m.model + " use");
     d.querySelector("[data-mf=inPerM]").setAttribute("aria-label", m.model + " price in per 1M tokens");
     d.querySelector("[data-mf=outPerM]").setAttribute("aria-label", m.model + " price out per 1M tokens");
+    d.querySelector("[data-mf=thinkingOff]").setAttribute("aria-label", m.model + " how to turn thinking off");
     d.querySelectorAll("input[type=text]").forEach(function(inp){
       inp.addEventListener("input", function(){ inp.setAttribute("data-dirty", "1"); });
     });
@@ -5133,6 +5134,8 @@
       if(!line){ line = buildModelLine(row.slot, m); box.appendChild(line); }
       var use = line.querySelector("[data-mf=use]");
       use.checked = m.use === true;
+      var tOff = line.querySelector("[data-mf=thinkingOff]");
+      if(document.activeElement !== tOff) tOff.value = m.thinkingOff === "disabled" ? "disabled" : "cant";
       ["inPerM", "outPerM"].forEach(function(f){
         var inp = line.querySelector('[data-mf="' + f + '"]');
         inp.placeholder = "not set";
@@ -5151,7 +5154,7 @@
     if(!d) return;
     dtBox.checked = !!d.on;
     dtBox.disabled = !d.canChange;
-    setNote(document.getElementById("dt-note"), false, d.canChange ? DT_NOTE_DEFAULT : "can't change this for this model");
+    setNote(document.getElementById("dt-note"), false, d.canChange ? DT_NOTE_DEFAULT : (d.model ? "can't change this for this model" : (d.why || "can't change this for this model")));
   }
   dtBox.addEventListener("change", function(){
     var note = document.getElementById("dt-note");
@@ -5182,7 +5185,7 @@
           o.value = sh.id; o.textContent = sh.label; shapeSel.appendChild(o);
         });
       }
-      nameIn.placeholder = row.defaults.model;
+      nameIn.placeholder = "a model id";
       urlIn.placeholder = row.defaults.baseUrl !== "" ? row.defaults.baseUrl : "the vendor's own address";
       // a box the person is typing in is never overwritten by a repaint
       if(nameIn.getAttribute("data-dirty") !== "1") nameIn.value = row.model;
@@ -5240,7 +5243,8 @@
       model: line.getAttribute("data-model"),
       use: line.querySelector("[data-mf=use]").checked,
       inPerM: priceValue(line.querySelector("[data-mf=inPerM]").value),
-      outPerM: priceValue(line.querySelector("[data-mf=outPerM]").value)
+      outPerM: priceValue(line.querySelector("[data-mf=outPerM]").value),
+      thinkingOff: line.querySelector("[data-mf=thinkingOff]").value
     };
     postJSON("/api/settings/model", payload).then(function(r){
       if(r.body && r.body.ok){

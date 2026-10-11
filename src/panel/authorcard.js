@@ -15,9 +15,11 @@ import {
 import { isAbsolute, join } from 'node:path';
 
 import { checkFlowName, signedHashOf } from '../flow.js';
-import { checkSendDestination, resolveCeilingUsd } from '../runner.js';
+import { checkSendDestination } from '../runner.js';
 import { parseSignedText } from '../signed-text.js';
-import { PROVIDER_SLOTS } from '../provider.js';
+import {
+  PROVIDER_SLOTS, MODEL_SLOT, readPriceConfig, resolveUsableModel, ceilingCostUsd,
+} from '../provider.js';
 
 /** The heading line the prose files use (flows/job2-m6a-3/prose.txt); the parser matches `/^arbiter guardrails\b/i`. */
 export const ARBITER_HEADING = 'Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):';
@@ -286,7 +288,7 @@ export function checkInputRows(rows) {
 /**
  * M4e amendment 4 item 2: the smallest per-run cap that funds ONE round of the first model step. The runner halts a step when
  * `spent + ceiling > cap` (`runStepRalph`), and every ordinary (non-ask) step is a model step, so the floor is the runner's own
- * per-round ceiling (`resolveCeilingUsd`) as soon as the job has one such line; a job of only asks spends nothing before its stop.
+ * per-round hold (the picked model's own Settings prices times the token bounds) as soon as the job has one such line; a job of only asks spends nothing before its stop.
  * ONE function: the card's Draft check, Sign, and the page's note all read it. Returns 0 when no step needs a round.
  * @param {string} jobText
  */
@@ -296,7 +298,12 @@ export function capFloorUsd(jobText) {
 
 /** The floor itself, for a caller that already knows whether the job has a step that is not an ask (a signed flow: any step off an ask line). @param {boolean} hasRoundStep */
 export function capFloorFor(hasRoundStep) {
-  return hasRoundStep ? resolveCeilingUsd(null) : 0;
+  if (!hasRoundStep) return 0;
+  // No usable model (nothing ticked, a broken config): nothing is held here, and the run itself is refused by name (`resolveUsableModel`).
+  try {
+    const u = resolveUsableModel(MODEL_SLOT, { config: readPriceConfig() });
+    return u.ok ? ceilingCostUsd(u.rates) : 0;
+  } catch { return 0; }
 }
 
 /** The one sentence for a cap under the floor (red under Cap, and the Draft / sign refusal). @param {number} floorUsd */

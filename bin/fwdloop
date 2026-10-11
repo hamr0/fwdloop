@@ -33,7 +33,7 @@ import { makeLiveModelStep } from '../src/model-step.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
 import {
-  checkKeyPreflight, resolveSlot, resolvePrices, readPriceConfig, ceilingCostUsd,
+  checkKeyPreflight, MODEL_SLOT, resolveUsableModel, readPriceConfig, ceilingCostUsd,
 } from '../src/provider.js';
 import { configDoorHome } from '../src/config.js';
 import {
@@ -48,11 +48,9 @@ import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.
 import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
 import { userInfo } from 'node:os';
 
-// The baseline model (project rule, CLAUDE.md/AGENT_RULES: "deepseek-flash
-// ... Never Claude for fwdloop's own runs") — the ONE provider slot this CLI
-// drives. `PROVIDER_SLOTS.deepseek.envVar` is `DEEPSEEK_API_KEY`; this CLI
-// never reads a key any other way and never prints it.
-const MODEL_SLOT = 'deepseek';
+// The ONE provider slot this CLI drives is `MODEL_SLOT` (src/provider.js); its key is read from the env the slot names
+// and never printed. WHICH model runs is whatever Settings > Providers has ticked with both prices
+// (`resolveUsableModel`, M4d amendment 5): this file names no model and no price.
 
 /**
  * M4d: the ONE place a keyed command gets its env — the shell env with the keys file
@@ -142,7 +140,7 @@ function today() {
 }
 
 /**
- * Build the run's `modelStep`. Live by default (`makeLiveModelStep` against
+ * Build the run's `modelStep` and its per-round hold (`{ modelStep, ceilingUsd }`). Live by default (`makeLiveModelStep` against
  * `MODEL_SLOT`, refusing an unset/empty/whitespace key via
  * `checkKeyPreflight` BEFORE this function returns — i.e. before the caller
  * has created a run dir or written any book row).
@@ -163,11 +161,18 @@ async function resolveModelStep(spendPath, env) {
     if (typeof mod.default !== 'function') {
       throw new Error(`FWDLOOP_TEST_MODEL_STEP module "${modulePath}" has no default export function`);
     }
-    return mod.default({ spendPath });
+    return { modelStep: await mod.default({ spendPath }) };
   }
   const keyCheck = checkKeyPreflight(MODEL_SLOT, env);
   if (!keyCheck.ok) throw new Error(keyCheck.message);
-  return makeLiveModelStep({ slot: MODEL_SLOT, spendPath, env });
+  // The ONE decision of which model runs and at what price (M4d amendment 5): refused by name, at $0, before a
+  // run dir or a book row exists. The run's per-round hold is that model's own Settings price times the token bounds.
+  const usable = resolveUsableModel(MODEL_SLOT, { config: readPriceConfig() });
+  if (!usable.ok) throw new Error(usable.say);
+  return {
+    modelStep: makeLiveModelStep({ slot: MODEL_SLOT, model: usable.model, spendPath, env }),
+    ceilingUsd: ceilingCostUsd(usable.rates),
+  };
 }
 
 function parseSourceFlags(list) {
@@ -321,8 +326,9 @@ async function cmdRun(rest) {
   // here — before ANY directory for this run is created.
   const spendPath = join(runDir, 'spend.jsonl');
   let modelStep;
+  let ceilingUsd;
   try {
-    modelStep = await resolveModelStep(spendPath, env);
+    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env));
   } catch (err) {
     fail(err.message);
     return;
@@ -354,6 +360,7 @@ async function cmdRun(rest) {
     sources,
     catalogue,
     modelStep,
+    ceilingUsd,
     askStep: makeParkingAskStep(),
     sendStep: sendViaPrimitive,
     primitives,
@@ -574,8 +581,9 @@ async function cmdResume(rest) {
 
   const spendPath = join(runDir, 'spend.jsonl');
   let modelStep;
+  let ceilingUsd;
   try {
-    modelStep = await resolveModelStep(spendPath, env);
+    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env));
   } catch (err) {
     fail(err.message);
     return;
@@ -619,6 +627,7 @@ async function cmdResume(rest) {
     runId,
     catalogue,
     modelStep,
+    ceilingUsd,
     sendStep: sendViaPrimitive,
     primitives,
     primitiveReds,
@@ -671,8 +680,9 @@ async function cmdContinue(rest) {
 
   const spendPath = join(runDir, 'spend.jsonl');
   let modelStep;
+  let ceilingUsd;
   try {
-    modelStep = await resolveModelStep(spendPath, env);
+    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env));
   } catch (err) {
     fail(err.message);
     return;
@@ -706,6 +716,7 @@ async function cmdContinue(rest) {
     runId,
     catalogue,
     modelStep,
+    ceilingUsd,
     sendStep: sendViaPrimitive,
     primitives,
     primitiveReds,
@@ -780,14 +791,18 @@ async function cmdDraft(rest) {
     const refusal = draftKeyRefusal(MODEL_SLOT, env);
     if (refusal !== null) fail(`draft refused at $0 — ${refusal}`);
   }
-  // M4d piece 3: the monthly check — a draft has no signed cap, so it holds one ceiling round, priced by the
-  // ONE price lookup (an injected test provider carries its own rates).
+  // M4d piece 3: the monthly check — a draft has no signed cap, so it holds one ceiling round, priced from the
+  // picked model's own Settings prices (an injected test provider carries its own rates). A model that is not
+  // ticked with both prices is refused here by name, at $0, before the monthly hold or any draft folder (M4d amendment 5).
   let ceiling;
   try {
-    const priceConfig = readPriceConfig();
-    const modelId = injected.modelId ?? resolveSlot('deepseek', { config: priceConfig }).model;
-    const prices = injected.rates ? { rates: injected.rates } : resolvePrices(modelId, { slot: 'deepseek', config: priceConfig });
-    ceiling = ceilingCostUsd(modelId, undefined, { prices });
+    let rates = injected.rates;
+    if (!rates) {
+      const usable = resolveUsableModel(MODEL_SLOT, { config: readPriceConfig() });
+      if (!usable.ok) fail(`draft refused at $0 — ${usable.say}`);
+      rates = usable.rates;
+    }
+    ceiling = ceilingCostUsd(rates);
   } catch (err) {
     if (!(err instanceof ConfigError)) throw err;
     fail(`${err.message} — refusing to draft rather than guess the price. Nothing spent.`);

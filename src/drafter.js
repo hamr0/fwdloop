@@ -22,7 +22,7 @@ import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { readInputFacts } from './input-facts.js';
 import {
-  makeProvider, sumMeterings, ceilingCostUsd, priceRecord, draftCallOptions, readPriceConfig,
+  makeProvider, MODEL_SLOT, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord, draftCallOptions, readPriceConfig,
 } from './provider.js';
 import { LIVE_PROVIDER_OPTIONS } from './model-step.js';
 import { ConfigError, draftThinkingMode } from './config.js';
@@ -277,7 +277,7 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
  *   questions?:{line:number, question:string}[], droppedQuestions?:object[], notChecked?:string[]}>}
  */
 export async function draft({
-  proseText, slot = 'deepseek', model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
+  proseText, slot = MODEL_SLOT, model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
   budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'|undefined} */ (undefined),
 }) {
   const fail = (reds, extra = {}) => ({
@@ -289,7 +289,7 @@ export async function draft({
   // Not injected (the door): read the Settings tick-box NOW, per draft, so a change applies to the next draft.
   try {
     draftThinking ??= draftThinkingMode(readPriceConfig());
-    draftCallOptions({ shape: '', model: '' }, draftThinking);
+    draftCallOptions({ shape: '' }, draftThinking);
   } catch (err) { return fail([`config: ${err.message}`]); }
   const parsed = parseSignedText(proseText);
   if (!parsed.ok) return fail(parsed.reds.map((r) => `signed-text: ${r}`));
@@ -311,7 +311,7 @@ export async function draft({
         provider, rates, modelId, prices = null,
       } = makeProviderFn(slot, { model, env, ...LIVE_PROVIDER_OPTIONS, draftThinking }));
     } catch (err) {
-      return fail([`${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`]);
+      return fail([err instanceof ModelRefusal ? err.message : `${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`]);
     }
   }
 
@@ -323,7 +323,9 @@ export async function draft({
   const cat = loadCatalogue();
   if (!cat.ok) return fail([`catalogue: ${cat.reds.join('; ')}`]);
   const validationCatalogue = cat.primitives;
-  const roundCeiling = ceilingCostUsd(modelId, undefined, prices ? { prices } : {});
+  // The hold: the picked model's own Settings prices (or the rates a test injected) times the token bounds - never a table.
+  if (!rates) return fail(['price: this round has no price to hold - tick a model in Settings > Providers with both prices first']);
+  const roundCeiling = ceilingCostUsd(rates);
   // One round at its ceiling must fit the budget, or refuse at $0 before any provider call.
   if (roundCeiling > budgetUsd) {
     return fail([`budget: $${budgetUsd} is below one round's worst-case cost — the minimum budget is $${roundCeiling.toFixed(4)}`]);

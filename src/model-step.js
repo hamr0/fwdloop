@@ -29,7 +29,7 @@ import { GateRefusal } from './primitives.js';
 import { ConfigError } from './config.js';
 
 import {
-  makeProvider, sumMeterings, appendSpendRow, classifyModelId, priceRecord,
+  makeProvider, ModelRefusal, sumMeterings, appendSpendRow, classifyModelId, priceRecord,
 } from './provider.js';
 
 // F27: DeepSeek's `chat/completions` can send HTTP 200 + headers + one byte
@@ -260,7 +260,7 @@ export function makeLiveModelStep({
     let prices = null;
     if (live) {
       // makeProvider throws synchronously on a missing/bad key, an unknown
-      // slot, or an unrated model — never let that escape as an unhandled
+      // slot, or a model that is not ticked in Settings with both prices — never let that escape as an unhandled
       // rejection out of the ralph loop; a step's own model failure is
       // always a red, never a crash (rule 5).
       try {
@@ -275,7 +275,7 @@ export function makeLiveModelStep({
         // a call that never happened). A row that names a model must carry its
         // tokens (appendAudit refuses it otherwise), so the model is not named.
         return {
-          ok: false, red: `${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`, costUsd: null, model: null, tokens: null, tools: null,
+          ok: false, red: err instanceof ModelRefusal ? err.message : `${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`, costUsd: null, model: null, tokens: null, tools: null,
         };
       }
     }

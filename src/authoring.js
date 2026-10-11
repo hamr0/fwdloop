@@ -27,7 +27,9 @@ import { WIRED_VERBS } from './primitives.js';
 import { canonicalBytes } from './signature.js';
 import { writeFlow, readFileInside, readdirInside, checkFlowName } from './flow.js';
 import { checkSendDestination } from './runner.js';
-import { PROVIDER_SLOTS, checkKeyPreflight, appendSpendRow } from './provider.js';
+import {
+  PROVIDER_SLOTS, MODEL_SLOT, checkKeyPreflight, appendSpendRow,
+} from './provider.js';
 import { writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
 
@@ -246,7 +248,7 @@ export function draftKeyRefusal(slot, env) {
  * Test seam: `provider`/`rates`/`modelId` are injected; without them a live provider is built.
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot = 'deepseek', model, budgetUsd = DRAFT_BUDGET_USD, env = process.env, provider, rates, modelId, noQuestions = false,
+  proseFile, dir, root, name, slot = MODEL_SLOT, model, budgetUsd = DRAFT_BUDGET_USD, env = process.env, provider, rates, modelId, noQuestions = false,
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
   const nameCheck = checkFlowName(name);

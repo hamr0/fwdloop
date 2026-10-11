@@ -6,7 +6,7 @@
 //     "prices": { "<slot>": { "inPerM": n, "cachedInPerM": n, "outPerM": n } },    // USD per 1M tokens, each optional; a saved "cachedInPerM" is tolerated, never read (M4d amendment 2)
 //     "draftThinking": true | false,                // M4d amendment 3: drafting with the model's thinking on; absent = off
 //     "providers": { "<slot>": { "model": "<id>", "shape": "<shape id>", "baseUrl": "" | "http(s)://…" } },   // each optional (M4d amendment 1)
-//     "models": { "<slot>": [ { "model": "<id>", "use": true|false, "inPerM": n, "outPerM": n } ] } }          // M4d amendment 3 C: a price per model
+//     "models": { "<slot>": [ { "model": "<id>", "use": true|false, "inPerM": n, "outPerM": n, "thinkingOff": "cant"|"disabled" } ] } }          // M4d amendment 3 C: a price per model
 // A models line's price is a PAIR or nothing (`modelsProblem` is the one rule): 0 / 0 typed is a chosen price, a
 // ticked line needs both, a half pair is refused. A slot with no list is migrated on READ (`effectiveModels` in
 // src/provider.js); the file is only rewritten when the person saves.
@@ -106,6 +106,9 @@ export function providerFieldProblem(field, v) {
 /** A Base URL as stored: trailing slashes dropped. */
 export const cleanBaseUrl = (v) => v.replace(/\/+$/, '');
 
+/** How a model line says its thinking is turned off (M4d amendment 5 item 3): "cant" (the default; nothing is sent) or "disabled" (sends `thinking: {type: 'disabled'}`). */
+export const THINKING_OFF = Object.freeze(['cant', 'disabled']);
+
 const isPrice = (v) => typeof v === 'number' && Number.isFinite(v) && v > 0;
 
 /**
@@ -130,7 +133,8 @@ export function modelsProblem(list) {
     if (has('inPerM') !== has('outPerM')) return 'Fill both price boxes or clear both.';
     if (has('inPerM') && !(isNum(line.inPerM) && isNum(line.outPerM))) return 'A price must be a number, 0 or more.';
     if (line.use && !has('inPerM')) return 'A model can be ticked only with both prices.';
-    for (const k of Object.keys(line)) if (!['model', 'use', 'inPerM', 'outPerM'].includes(k)) return `A model line has no "${k}" field.`;
+    if (line.thinkingOff !== undefined && !THINKING_OFF.includes(line.thinkingOff)) return `Thinking off must be ${THINKING_OFF.map((v) => `"${v}"`).join(' or ')}.`;
+    for (const k of Object.keys(line)) if (!['model', 'use', 'inPerM', 'outPerM', 'thinkingOff'].includes(k)) return `A model line has no "${k}" field.`;
   }
   return null;
 }

@@ -13,7 +13,7 @@
 //     `updateConfig`) and the keys file (read through `keysForDoor`), both under the one config home.
 // Every refusal is a plain sentence in `say`; nothing here puts an HTTP code, an id or a path on the page.
 import {
-  PROVIDER_SLOTS, effectiveModels, resolveSlot, checkKeyPreflight, canChangeDraftThinking,
+  PROVIDER_SLOTS, MODEL_SLOT, effectiveModels, resolveSlot, resolveUsableModel, checkKeyPreflight, canChangeDraftThinking,
 } from '../provider.js';
 import {
   readConfig, updateConfig, ConfigError, providerFieldProblem, cleanBaseUrl, draftThinkingMode, modelsProblem,
@@ -61,6 +61,13 @@ export function createSettings(cfg) {
     }
   }
 
+  /** The drafting model and whether its line lets thinking be turned off. @param {Record<string, any>} config */
+  function draftingModel(config) {
+    const u = resolveUsableModel(MODEL_SLOT, { config });
+    if (!u.ok) return { model: null, canChange: false, why: u.say };
+    return { model: u.model, canChange: canChangeDraftThinking({ shape: resolveSlot(MODEL_SLOT, { config }).shape, thinkingOff: u.thinkingOff }), why: null };
+  }
+
   function providers() {
     const k = keys();
     const c = config();
@@ -68,8 +75,10 @@ export function createSettings(cfg) {
     const rows = Object.entries(PROVIDER_SLOTS).map(([slot, def]) => {
       const eff = resolveSlot(slot, { config: c.config });
       const em = effectiveModels(slot, c.config);
-      // The slot's current model always has a line to fill (unticked, no price) when the list lacks it.
-      const models = em.lines.some((m) => m.model === eff.model) ? em.lines : [...em.lines, { model: eff.model, use: false }];
+      // The slot's typed name always has a line to fill (unticked, no price) when the list lacks it; a line with no
+      // thinkingOff of its own reads "cant" (the default, M4d amendment 5 item 3).
+      const named = eff.model === null || em.lines.some((m) => m.model === eff.model) ? em.lines : [...em.lines, { model: eff.model, use: false }];
+      const models = named.map((m) => ({ ...m, thinkingOff: m.thinkingOff ?? 'cant' }));
       let keyStatus = 'not set';
       if (!k.ok) keyStatus = 'refused';
       else if (k.names.includes(def.envVar)) keyStatus = 'set in file';
@@ -90,11 +99,11 @@ export function createSettings(cfg) {
         canBalance: canBalance(eff),
       };
     });
-    // The drafting model today is the deepseek row's model.
-    const dm = resolveSlot('deepseek', { config: c.config });
+    // The drafting model today is the MODEL_SLOT slot's ONE ticked, priced line (`resolveUsableModel`, the one decision).
+    const dm = draftingModel(c.config);
     return reply(200, {
       ok: true,
-      draftThinking: { on: draftThinkingMode(c.config) === 'on', canChange: canChangeDraftThinking(dm), model: dm.model },
+      draftThinking: { on: draftThinkingMode(c.config) === 'on', canChange: dm.canChange, model: dm.model, why: dm.why },
       keysFile: { path: k.path, exists: k.exists, refusal: k.refusal },
       configProblem: c.problem,
       shapes: SHAPES.map(({ id, label }) => ({ id, label })),
@@ -174,7 +183,7 @@ export function createSettings(cfg) {
   }
 
   /**
-   * Save one model line: {slot, model, use?, inPerM?, outPerM?} (a field left out keeps the line's value; a price
+   * Save one model line: {slot, model, use?, inPerM?, outPerM?, thinkingOff?} (a field left out keeps the line's value; a price
    * `null` clears it). The whole slot list is judged by `modelsProblem` (the one rule) BEFORE anything is written;
    * Idea borrowed from bareloop src/panel/settingsroutes.js@caf019b (both prices or neither, :165-179), not copied: the
    * rule here is `modelsProblem` (tick needs both, 0 / 0 allowed, exact sentence).
@@ -190,10 +199,11 @@ export function createSettings(cfg) {
     }
     if (typeof body.model !== 'string') return refuse('bad-model', 'Pick a model line. Nothing was saved.');
     // A migrated half-typed line (one price box filled) that is not the line being saved is left unpriced, so it never blocks this save.
-    const list = effectiveModels(slot, c.config).lines.map((m) => (m.model !== body.model && (m.inPerM === undefined) !== (m.outPerM === undefined) ? { model: m.model, use: m.use } : { ...m }));
+    const list = effectiveModels(slot, c.config).lines.map((m) => (m.model !== body.model && (m.inPerM === undefined) !== (m.outPerM === undefined) ? { model: m.model, use: m.use, ...(m.thinkingOff === undefined ? {} : { thinkingOff: m.thinkingOff }) } : { ...m }));
     let line = list.find((m) => m.model === body.model);
     if (!line) { line = { model: body.model, use: false }; list.push(line); }
     if (Object.hasOwn(body, 'use')) line.use = body.use;
+    if (Object.hasOwn(body, 'thinkingOff')) line.thinkingOff = body.thinkingOff;
     for (const f of /** @type {const} */ (['inPerM', 'outPerM'])) {
       if (!Object.hasOwn(body, f)) continue;
       if (body[f] === null) delete line[f];
@@ -240,7 +250,7 @@ export function createSettings(cfg) {
     if (typeof body?.on !== 'boolean') return refuse('bad-thinking', 'Send on or off. Nothing was saved.');
     const c = config();
     if (c.problem) return refuse('config-broken', `${BROKEN_CONFIG} Nothing was saved.`);
-    if (!canChangeDraftThinking(resolveSlot('deepseek', { config: c.config }))) {
+    if (!draftingModel(c.config).canChange) {
       return refuse('thinking-fixed', "Thinking can't change this for this model, so nothing was saved.");
     }
     try {
