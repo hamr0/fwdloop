@@ -1307,6 +1307,13 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 5. This replaces am5 item 3 and the "Thinking off" part of am6 item 4.
 **Done when:** a test that fails first, and the Chat box greys out when the answer is false. **Cap:** $0.
 
+**M4d amendment 8 — SIGNED by hamr 2026-10-11 ("sign m4d am8"): a cell-checked step must read cells.**
+1. A step whose check is "green" (every figure must cite its source cell) has to read an input with cells, such as a CSV or a spreadsheet. A text summary from an earlier step doesn't count.
+2. If a plan breaks this, the plan checker refuses it at draft time, by name, with $0 spent: "Line N's check needs cells, but it reads only <step output>. Line N must read <input>."
+3. The drafter is told the same rule, so it plans a green step to read the input file directly. (That's our rule: a new check rule is always told to the drafter too.)
+4. Runs and rules stay the same otherwise. The cell check isn't loosened.
+**Done when:** a test that fails first (the `aging-live-1` plan, as it was drafted, is refused at $0); one live re-draft of the same job passes the checker; and a run of it reaches "check it with me". **Cap:** $0.05 of its own, because am3's $0.10 is almost used up.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
