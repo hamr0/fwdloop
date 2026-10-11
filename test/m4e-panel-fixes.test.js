@@ -9,8 +9,7 @@ import { createPanelServer } from '../src/panel/server.js';
 import { keysForDoor } from '../src/keysfile.js';
 import { remember } from '../scripts/panel-fixtures/panel-auth.mjs';
 import {
-  killChildrenAfter, rq, until, world,
-} from './m4e-world.mjs';
+  killChildrenAfter, rq, until, world, tickedConfig } from './m4e-world.mjs';
 
 killChildrenAfter();
 
@@ -25,7 +24,7 @@ test('F1 the courtesy line reads the monthly limit from FWDLOOP_CONFIG_HOME at r
   try {
     const flows = async () => (await rq(h.port, { url: '/api/author/flows' })).json();
     assert.equal((await flows()).leftThisMonth.say, 'no monthly limit set');
-    writeFileSync(path.join(w.home, 'config.json'), JSON.stringify({ monthlyLimitUsd: 0.1 }));
+    writeFileSync(path.join(w.home, 'config.json'), JSON.stringify(tickedConfig({ monthlyLimitUsd: 0.1 })));
     const after = await flows();
     assert.equal(after.leftThisMonth.limitUsd, 0.1, JSON.stringify(after.leftThisMonth));
     assert.match(after.flows[0].leftThisMonth.say, /left this month/);
@@ -47,7 +46,7 @@ test('F2 a refused start survives a reload: /api/author/live returns it until Cl
   await w.signedFlow();
   assert.equal((await live(w)).start ?? null, null, 'no start yet');
   // lowered below the flow's $0.25 cap after the draft: the CLI child refuses at $0
-  writeFileSync(path.join(w.home, 'config.json'), JSON.stringify({ monthlyLimitUsd: 0.1 }));
+  writeFileSync(path.join(w.home, 'config.json'), JSON.stringify(tickedConfig({ monthlyLimitUsd: 0.1 })));
   const r = await w.post('/api/author/run', runBody(w));
   assert.equal(r.status, 202, r.text);
   const { startId } = r.json();
@@ -67,7 +66,7 @@ test('F2 a refused start survives a reload: /api/author/live returns it until Cl
   assert.equal((await live(w)).start ?? null, null);
   assert.equal((await rq(w.h.port, { method: 'POST', url: `/api/author/start/${startId}/clear`, body: {}, headers: { origin: 'http://evil.example' } })).status, 403, 'the same gated door');
   // a start that began (a run exists) is not returned: nothing to re-attach, nothing refused
-  writeFileSync(path.join(w.home, 'config.json'), JSON.stringify({ monthlyLimitUsd: 50 }));
+  writeFileSync(path.join(w.home, 'config.json'), JSON.stringify(tickedConfig({ monthlyLimitUsd: 50 })));
   const r2 = await w.post('/api/author/run', { ...runBody(w), runId: 'r2' });
   assert.equal(r2.status, 202, r2.text);
   await startPhase(w, r2.json().startId, ['started']);

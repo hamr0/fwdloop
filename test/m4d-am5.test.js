@@ -11,14 +11,12 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
-import { keysFilePath } from '../src/keysfile.js';
-import { configPath, modelsProblem } from '../src/config.js';
+import { configPath } from '../src/config.js';
 import {
-  resolveUsableModel, ceilingCostUsd, draftCallOptions, makeProvider, effectiveModels, spendRowCost, CEILING_INPUT_TOKENS, CEILING_OUTPUT_TOKENS,
+  resolveUsableModel, ceilingCostUsd, makeProvider, effectiveModels, spendRowCost, CEILING_INPUT_TOKENS, CEILING_OUTPUT_TOKENS,
 } from '../src/provider.js';
 import { draft } from '../src/drafter.js';
 import { job2Fixture } from './drafter-fixture.mjs';
-import { createSettings } from '../src/panel/settings.js';
 import { capFloorFor } from '../src/panel/authorcard.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { writeFlow } from '../src/flow.js';
@@ -31,7 +29,7 @@ const tmp = (p) => mkdtempSync(path.join(tmpdir(), `fwdloop-m4dam5-${p}-`));
 const KEY = 'canary-key-m4d-am5-0123456789abcdef';
 
 const LINE = { model: 'my-model', use: true, inPerM: 2, outPerM: 8 };
-const cfg = (models, extra = {}) => ({ models: { deepseek: models }, ...extra });
+const cfg = (models, extra = {}) => ({ models: { DEEPSEEK_API_KEY: models }, providers: { DEEPSEEK_API_KEY: { baseUrl: 'http://127.0.0.1:9' } }, ...extra });
 
 // ---------------------------------------------------------------- item 1: nothing in code ----
 /** Every file under a dir (the tree itself is tracked source; node_modules is not under src). */
@@ -71,118 +69,65 @@ test('am5 item 1: a grep of src/ and bin/ finds no model name, price literal or 
 
 // ---------------------------------------------------------------- item 2: one function decides usable ----
 test('am5 item 2: a model is usable only when ticked with both prices; the sentence names it', () => {
-  const ok = resolveUsableModel('deepseek', { config: cfg([LINE]) });
+  const ok = resolveUsableModel('DEEPSEEK_API_KEY', { config: cfg([LINE]), model: 'my-model' });
   assert.equal(ok.ok, true);
   assert.equal(ok.model, 'my-model');
-  assert.equal(ok.slot, 'deepseek');
+  assert.equal(ok.slot, 'DEEPSEEK_API_KEY');
   assert.deepEqual([ok.prices.perM.inPerM, ok.prices.perM.outPerM], [2, 8]);
   assert.equal(ok.prices.source.in, 'model');
-  assert.equal(ok.thinkingOff, 'cant');
   // asked for by name, not ticked
-  const unticked = resolveUsableModel('deepseek', { config: cfg([{ ...LINE, use: false }]), model: 'my-model' });
+  const unticked = resolveUsableModel('DEEPSEEK_API_KEY', { config: cfg([{ ...LINE, use: false }]), model: 'my-model' });
   assert.deepEqual([unticked.ok, unticked.say], [false, 'Tick my-model in Settings > Providers with both prices first.']);
   // asked for by name, not listed at all
-  const unlisted = resolveUsableModel('deepseek', { config: cfg([LINE]), model: 'other' });
+  const unlisted = resolveUsableModel('DEEPSEEK_API_KEY', { config: cfg([LINE]), model: 'other' });
   assert.equal(unlisted.say, 'Tick other in Settings > Providers with both prices first.');
 });
 
-test('am5 interim rule: no model asked for -> exactly one ticked model of the slot, else refused', () => {
-  const none = resolveUsableModel('deepseek', { config: {} });
-  assert.equal(none.ok, false);
+test('am6: a model is always asked for by name; none named is refused with the Tick sentence; 0 / 0 is still usable', () => {
+  const none = resolveUsableModel('DEEPSEEK_API_KEY', { config: cfg([LINE]) });
+  assert.equal(none.ok, false, 'one ticked model is no longer picked for you');
   assert.match(none.say, /^Tick a model in Settings > Providers/);
-  const noneTicked = resolveUsableModel('deepseek', { config: cfg([{ model: 'a', use: false }]) });
-  assert.match(noneTicked.say, /^Tick a model in Settings > Providers/);
-  const two = resolveUsableModel('deepseek', { config: cfg([LINE, { model: 'b', use: true, inPerM: 1, outPerM: 1 }]) });
-  assert.equal(two.ok, false);
-  assert.match(two.say, /more than one model is ticked/i);
-  // 0 / 0 typed is a chosen price, still usable
-  const zero = resolveUsableModel('deepseek', { config: cfg([{ model: 'local', use: true, inPerM: 0, outPerM: 0 }]) });
+  const zero = resolveUsableModel('DEEPSEEK_API_KEY', { config: cfg([{ model: 'local', use: true, inPerM: 0, outPerM: 0 }]), model: 'local' });
   assert.equal(zero.ok, true);
 });
 
-test('am5 item 2: no code default model - a slot with no saved model and no lines has nothing to tick', () => {
-  assert.deepEqual(effectiveModels('deepseek', {}).lines, []);
-  // the old migration still turns a saved name + old prices into ONE ticked line
-  const mig = effectiveModels('deepseek', { providers: { deepseek: { model: 'saved' } }, prices: { deepseek: { inPerM: 1, outPerM: 2 } } });
-  assert.deepEqual(mig.lines, [{ model: 'saved', use: true, inPerM: 1, outPerM: 2 }]);
+test('am5 item 2 / am6: no code default model and no migration - a key with no saved lines has nothing to tick', () => {
+  assert.deepEqual(effectiveModels('DEEPSEEK_API_KEY', {}), []);
+  assert.deepEqual(effectiveModels('DEEPSEEK_API_KEY', { providers: { DEEPSEEK_API_KEY: { model: 'saved' } }, prices: { DEEPSEEK_API_KEY: { inPerM: 1, outPerM: 2 } } }), []);
 });
 
 test('am5 item 2: makeProvider refuses an unusable model by name, at $0, before any call', () => {
   const home = tmp('mp');
   mkdirSync(home, { recursive: true });
   writeFileSync(configPath(home), JSON.stringify(cfg([{ model: 'x', use: false }])));
-  assert.throws(() => makeProvider('deepseek', { env: { DEEPSEEK_API_KEY: KEY }, configHome: home, model: 'x' }), /^Error: Tick x in Settings > Providers with both prices first\.$/);
-  assert.throws(() => makeProvider('deepseek', { env: { DEEPSEEK_API_KEY: KEY }, configHome: home }), /Tick a model in Settings > Providers/);
+  assert.throws(() => makeProvider('DEEPSEEK_API_KEY', { env: { DEEPSEEK_API_KEY: KEY }, configHome: home, model: 'x' }), /^Error: Tick x in Settings > Providers with both prices first\.$/);
+  assert.throws(() => makeProvider('DEEPSEEK_API_KEY', { env: { DEEPSEEK_API_KEY: KEY }, configHome: home }), /Tick a model in Settings > Providers/);
 });
 
 test('am5 item 2: the drafter refuses an unusable model at $0 with the sentence (no provider built)', async () => {
   const home = tmp('dr');
   mkdirSync(home, { recursive: true });
-  writeFileSync(configPath(home), JSON.stringify({}));
+  writeFileSync(configPath(home), JSON.stringify({ providers: { DEEPSEEK_API_KEY: { baseUrl: 'http://127.0.0.1:9' } } }));
   const saved = { c: process.env.FWDLOOP_CONFIG_HOME, n: process.env.NODE_ENV };
   process.env.FWDLOOP_CONFIG_HOME = home;
   process.env.NODE_ENV = 'test';
   try {
-    const r = await draft({ proseText: job2Fixture().prose, env: { DEEPSEEK_API_KEY: KEY } });
+    const r = await draft({ proseText: job2Fixture().prose, slot: 'DEEPSEEK_API_KEY', model: 'nope', env: { DEEPSEEK_API_KEY: KEY } });
     assert.equal(r.ok, false);
     assert.equal(r.calls, 0);
-    assert.match(r.reds.join(' '), /Tick a model in Settings > Providers/);
+    assert.match(r.reds.join(' '), /Tick nope in Settings > Providers/);
   } finally {
     for (const [k, v] of [['FWDLOOP_CONFIG_HOME', saved.c], ['NODE_ENV', saved.n]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   }
 });
 
-// ---------------------------------------------------------------- item 3: thinking off per line ----
-test('am5 item 3: thinkingOff is a field on the model line: cant (default) or disabled, nothing else', () => {
-  assert.equal(modelsProblem([{ ...LINE, thinkingOff: 'disabled' }]), null);
-  assert.equal(modelsProblem([{ ...LINE, thinkingOff: 'cant' }]), null);
-  assert.match(modelsProblem([{ ...LINE, thinkingOff: 'yes' }]), /thinking/i);
-});
-
-test('am5 item 3: draftCallOptions reads the line, not a code list', () => {
-  assert.deepEqual(draftCallOptions({ shape: 'openai-api', thinkingOff: 'disabled' }, 'off'), { thinking: { type: 'disabled' } });
-  assert.deepEqual(draftCallOptions({ shape: 'openai-api', thinkingOff: 'cant' }, 'off'), {});
-  assert.deepEqual(draftCallOptions({ shape: 'openai-api', thinkingOff: 'disabled' }, 'on'), {});
-  // a model name alone decides nothing any more
-  assert.deepEqual(draftCallOptions({ shape: 'openai-api', model: 'anything' }, 'off'), {});
-});
-
-function settingsWorld(config) {
-  const home = path.join(tmp('st'), 'fwdloop');
-  mkdirSync(home, { recursive: true, mode: 0o700 });
-  writeFileSync(keysFilePath(home), `DEEPSEEK_API_KEY=${KEY}\n`, { mode: 0o600 });
-  writeFileSync(configPath(home), JSON.stringify(config));
-  return { home, s: createSettings({ home, env: {} }) };
-}
-const get = (s) => s.handle({ method: 'GET', pathname: '/api/settings/providers', query: new URLSearchParams(), body: null });
-
-test('am5 item 3: the Settings route saves thinkingOff on the line and the box reads it', async () => {
-  const { s } = settingsWorld(cfg([LINE]));
-  let r = await get(s);
-  assert.equal(r.body.rows.find((x) => x.slot === 'deepseek').models[0].thinkingOff, 'cant');
-  assert.deepEqual([r.body.draftThinking.canChange, r.body.draftThinking.model], [false, 'my-model']);
-  const save = await s.handle({ method: 'POST', pathname: '/api/settings/model', query: new URLSearchParams(), body: { slot: 'deepseek', model: 'my-model', thinkingOff: 'disabled' } });
-  assert.equal(save.body.ok, true, JSON.stringify(save.body));
-  r = await get(s);
-  assert.equal(r.body.rows.find((x) => x.slot === 'deepseek').models[0].thinkingOff, 'disabled');
-  assert.equal(r.body.draftThinking.canChange, true);
-  const bad = await s.handle({ method: 'POST', pathname: '/api/settings/model', query: new URLSearchParams(), body: { slot: 'deepseek', model: 'my-model', thinkingOff: 'nope' } });
-  assert.equal(bad.body.ok, false);
-});
-
-test('am5 item 3: the Thinking box says "can\'t change this" when the drafting line says cant, and the page offers the choice', () => {
-  const page = readFileSync(path.join(SRC, 'panel', 'index.html'), 'utf8');
-  assert.match(page, /data-mf="thinkingOff"/);
-  assert.match(page, /send thinking: disabled/);
-});
-
 // ---------------------------------------------------------------- item 4: the hold from Settings prices ----
 test('am5 item 4: the hold is the ticked line\'s own price times the token bounds', () => {
-  const u = resolveUsableModel('deepseek', { config: cfg([LINE]) });
+  const u = resolveUsableModel('DEEPSEEK_API_KEY', { config: cfg([LINE]), model: 'my-model' });
   const want = (CEILING_INPUT_TOKENS / 1e6) * 2 + (CEILING_OUTPUT_TOKENS / 1e6) * 8;
   assert.ok(Math.abs(ceilingCostUsd(u.rates) - want) < 1e-12);
   // a free local model holds 0 because its price IS 0, typed
-  const z = resolveUsableModel('deepseek', { config: cfg([{ model: 'local', use: true, inPerM: 0, outPerM: 0 }]) });
+  const z = resolveUsableModel('DEEPSEEK_API_KEY', { config: cfg([{ model: 'local', use: true, inPerM: 0, outPerM: 0 }]), model: 'local' });
   assert.equal(ceilingCostUsd(z.rates), 0);
 });
 
@@ -199,7 +144,7 @@ test('am5 item 6: an unknown-cost row with NO recorded price is never complete a
   assert.equal(r.complete, false); // renders "at least", not a clean figure
 });
 
-test('am5 item 4: the cap floor is the ticked model\'s hold, 0 only when nothing is ticked', () => {
+test('am5 item 4: the cap floor is the picked ticked model\'s hold, 0 only when nothing is picked', () => {
   const home = tmp('floor');
   mkdirSync(home, { recursive: true });
   writeFileSync(configPath(home), JSON.stringify(cfg([LINE])));
@@ -208,8 +153,9 @@ test('am5 item 4: the cap floor is the ticked model\'s hold, 0 only when nothing
   process.env.NODE_ENV = 'test';
   try {
     const want = (CEILING_INPUT_TOKENS / 1e6) * 2 + (CEILING_OUTPUT_TOKENS / 1e6) * 8;
-    assert.ok(Math.abs(capFloorFor(true) - want) < 1e-12);
-    assert.equal(capFloorFor(false), 0);
+    assert.ok(Math.abs(capFloorFor(true, undefined, { slot: 'DEEPSEEK_API_KEY', model: 'my-model' }) - want) < 1e-12);
+    assert.equal(capFloorFor(false, undefined, { slot: 'DEEPSEEK_API_KEY', model: 'my-model' }), 0);
+    assert.equal(capFloorFor(true, undefined, null), 0, 'no model picked: nothing is held here, the run is refused by name');
   } finally {
     for (const [k, v] of [['FWDLOOP_CONFIG_HOME', saved.c], ['NODE_ENV', saved.n]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   }
@@ -233,7 +179,9 @@ test('am5 item 5: a fresh install, nothing ticked - `draft` says "Tick a model i
   const out = path.join(work, 'd');
   const r = cli(['draft', prose, '--out', out, '--root', path.join(work, 'flows'), '--name', 'x'], home);
   assert.notEqual(r.status, 0);
-  assert.match(r.stderr, /Tick a model in Settings > Providers/);
+  assert.match(r.stderr, /Tick a model in Settings > Providers/, 'nothing ticked, no --model');
+  const named = cli(['draft', prose, '--out', out, '--root', path.join(work, 'flows'), '--name', 'x', '--model', 'm1'], home);
+  assert.match(named.stderr, /Tick m1 in Settings > Providers with both prices first/);
   assert.equal(readdirSync(work).includes('d'), false, 'no draft dir claimed');
   assert.equal(readdirSync(home).filter((n) => /runs|spend/.test(n)).length, 0, 'no ledger row written');
 });
@@ -258,7 +206,7 @@ test('am5 item 5: `run` on a fresh install is refused by name at $0, before a ru
   writeFileSync(path.join(src, 'jd.md'), 'JD text goes here.');
   const r = cli(['run', 'job2', '--root', root, '--source', `resume=${path.join(src, 'resume.docx')}`, '--source', `jd=${path.join(src, 'jd.md')}`, '--run-id', 'run-1'], home);
   assert.notEqual(r.status, 0);
-  assert.match(r.stderr, /Tick a model in Settings > Providers/);
+  assert.match(r.stderr, /This job has no model recorded/);
   assert.equal(existsSync(path.join(root, 'job2', 'runs', 'run-1')), false, 'no run folder');
   assert.equal(readdirSync(home).filter((n) => /runs|spend/.test(n)).length, 0, 'no ledger row');
 });

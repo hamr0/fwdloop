@@ -1,0 +1,5 @@
+// Test-only stand-in for bin/fwdloop (the `bin` seam of the panel author door; named `fwdloop` so the liveness rule reads it as ours):
+// records the argv the panel spawned it with to the file named by ARGV_FILE, then exits.
+import { appendFileSync } from 'node:fs';
+
+appendFileSync(process.env.ARGV_FILE, `${JSON.stringify(process.argv.slice(2))}\n`);

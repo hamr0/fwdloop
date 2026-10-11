@@ -12,7 +12,7 @@ import { join } from 'node:path';
 
 import { readFileInside } from '../flow.js';
 import { isFwdloopAlive, procStartOf } from '../liveness.js';
-import { PROVIDER_SLOTS } from '../provider.js';
+import { keyValues } from '../keysfile.js';
 
 /** A pid whose liveness cannot be told (no /proc) counts as running only while its pid.json is this fresh (M4c's 10-minute rule). */
 const UNKNOWN_FRESH_MS = 10 * 60 * 1000;
@@ -65,13 +65,10 @@ export function childRunning(dir) {
 }
 
 /**
- * The provider key VALUES in the merged env — the scrub list. The env that holds them is the SAME object that is the child's
- * spawn env (POC (a), M4d wiring rule), so the list can never differ from what the child was given.
- * @param {Record<string, string|undefined>} env
+ * The provider key VALUES of a keys load (`keysForDoor`) — the scrub list. The env that holds them is the SAME object that is the child's
+ * spawn env (POC (a), M4d wiring rule), and the names are the load's own `keyNames`, so the list can never differ from what the child was given.
+ * @param {{ env: Record<string, string|undefined>, keyNames?: string[] }} loaded
  */
-export function providerKeys(env) {
-  /** @type {string[]} */
-  const out = [];
-  for (const p of Object.values(PROVIDER_SLOTS)) { const k = env[p.envVar]; if (typeof k === 'string' && k !== '') out.push(k); }
-  return out;
+export function providerKeys(loaded) {
+  return keyValues(loaded.env, loaded.keyNames);
 }

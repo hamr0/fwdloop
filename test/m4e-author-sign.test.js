@@ -16,8 +16,7 @@ import { readFlow } from '../src/flow.js';
 import { REFUSAL_SENTENCE } from '../src/monthly.js';
 import { chmodSentence } from '../src/keysfile.js';
 import {
-  CANARY, killChildrenAfter, rq, until, world,
-} from './m4e-world.mjs';
+  CANARY, killChildrenAfter, rq, until, world, tickedConfig } from './m4e-world.mjs';
 
 killChildrenAfter();
 
@@ -147,7 +146,7 @@ test('(vi) two sign POSTs together sign once and start exactly one child; the se
 
 test('(vii) the monthly limit below the cap: the sign signs (it is $0) and the run start reads refused with the signed sentence; nothing spent, no run dir', async () => {
   const { w, id, hash } = await greenWorld();
-  writeFileSync(path.join(w.home, 'config.json'), JSON.stringify({ monthlyLimitUsd: 0.00001 }));
+  writeFileSync(path.join(w.home, 'config.json'), JSON.stringify(tickedConfig({ monthlyLimitUsd: 0.00001 })));
   const r = await w.post(`/api/author/${id}/sign`, signBody(hash, { runId: 'm1' }));
   assert.equal(r.status, 202, r.text);
   const j = await until(async () => { const v = (await w.get(`/api/author/start/${r.json().startId}`)).json(); return v.phase !== 'starting' ? v : null; });

@@ -4,9 +4,8 @@
 // Shape (unknown top-level fields are kept, never dropped):
 //   { "monthlyLimitUsd": <number > 0>,            // absent = no limit (piece 3 reads it)
 //     "prices": { "<slot>": { "inPerM": n, "cachedInPerM": n, "outPerM": n } },    // USD per 1M tokens, each optional; a saved "cachedInPerM" is tolerated, never read (M4d amendment 2)
-//     "draftThinking": true | false,                // M4d amendment 3: drafting with the model's thinking on; absent = off
-//     "providers": { "<slot>": { "model": "<id>", "shape": "<shape id>", "baseUrl": "" | "http(s)://…" } },   // each optional (M4d amendment 1)
-//     "models": { "<slot>": [ { "model": "<id>", "use": true|false, "inPerM": n, "outPerM": n, "thinkingOff": "cant"|"disabled" } ] } }          // M4d amendment 3 C: a price per model
+//     "providers": { "<KEY_NAME>": { "shape": "<shape id>", "baseUrl": "http(s)://…", "legacyMaxTokens": true|false } },   // each optional; a row is a key name from the keys file (M4d amendment 6). An older file's "model" is tolerated and read by nothing.
+//     "models": { "<KEY_NAME>": [ { "model": "<id>", "use": true|false, "inPerM": n, "outPerM": n } ] } }          // M4d amendment 3 C: a price per model
 // A models line's price is a PAIR or nothing (`modelsProblem` is the one rule): 0 / 0 typed is a chosen price, a
 // ticked line needs both, a half pair is refused. A slot with no list is migrated on READ (`effectiveModels` in
 // src/provider.js); the file is only rewritten when the person saves.
@@ -89,7 +88,7 @@ function secretPaths(node, at, out) {
   }
 }
 
-export const PROVIDER_FIELDS = Object.freeze(['model', 'shape', 'baseUrl']);
+export const PROVIDER_FIELDS = Object.freeze(['model', 'shape', 'baseUrl', 'legacyMaxTokens']);
 
 /** One provider field's value problem in plain words, or null when fine. Shared by validateDoc and the route. */
 export function providerFieldProblem(field, v) {
@@ -97,6 +96,8 @@ export function providerFieldProblem(field, v) {
     if (typeof v !== 'string' || v.length === 0 || v.length > 200 || /\s/.test(v)) return 'must be a model id: 1 to 200 characters, no spaces';
   } else if (field === 'shape') {
     if (!SHAPE_IDS.includes(v)) return `must be one of ${SHAPE_IDS.join(', ')}`;
+  } else if (field === 'legacyMaxTokens') {
+    if (typeof v !== 'boolean') return 'must be true or false';
   } else if (field === 'baseUrl') {
     if (typeof v !== 'string' || !(v === '' || /^https?:\/\/\S+$/.test(v))) return 'must be empty (the default) or an http(s) address';
   } else return 'is not a provider field';
@@ -105,9 +106,6 @@ export function providerFieldProblem(field, v) {
 
 /** A Base URL as stored: trailing slashes dropped. */
 export const cleanBaseUrl = (v) => v.replace(/\/+$/, '');
-
-/** How a model line says its thinking is turned off (M4d amendment 5 item 3): "cant" (the default; nothing is sent) or "disabled" (sends `thinking: {type: 'disabled'}`). */
-export const THINKING_OFF = Object.freeze(['cant', 'disabled']);
 
 const isPrice = (v) => typeof v === 'number' && Number.isFinite(v) && v > 0;
 
@@ -132,8 +130,8 @@ export function modelsProblem(list) {
     const isNum = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
     if (has('inPerM') !== has('outPerM')) return 'Fill both price boxes or clear both.';
     if (has('inPerM') && !(isNum(line.inPerM) && isNum(line.outPerM))) return 'A price must be a number, 0 or more.';
-    if (line.use && !has('inPerM')) return 'A model can be ticked only with both prices.';
-    if (line.thinkingOff !== undefined && !THINKING_OFF.includes(line.thinkingOff)) return `Thinking off must be ${THINKING_OFF.map((v) => `"${v}"`).join(' or ')}.`;
+    if (line.use && !has('inPerM')) return 'Fill both prices to tick this model.';
+    // `thinkingOff` is an older file's field (M4d amendment 5): tolerated so the file loads, read by nothing, dropped on the next save of the list (amendment 7).
     for (const k of Object.keys(line)) if (!['model', 'use', 'inPerM', 'outPerM', 'thinkingOff'].includes(k)) return `A model line has no "${k}" field.`;
   }
   return null;
@@ -167,9 +165,6 @@ function validateProviders(providers) {
   }
 }
 
-/** The drafting thinking mode a config says: 'on' only for a literal `true`, else 'off' (the default). The one reader. @param {Record<string, any>} config @returns {'on'|'off'} */
-export const draftThinkingMode = (config) => (config.draftThinking === true ? 'on' : 'off');
-
 /**
  * Validate a whole document's known fields; throws ConfigError naming the field.
  * @param {Record<string, any>} doc
@@ -177,9 +172,6 @@ export const draftThinkingMode = (config) => (config.draftThinking === true ? 'o
 function validateDoc(doc) {
   if (doc.monthlyLimitUsd !== undefined && !isPrice(doc.monthlyLimitUsd)) {
     throw new ConfigError('monthlyLimitUsd must be a number above 0 (remove the limit to have none)');
-  }
-  if (doc.draftThinking !== undefined && typeof doc.draftThinking !== 'boolean') {
-    throw new ConfigError('draftThinking must be true or false');
   }
   validateProviders(doc.providers);
   validateModels(doc.models);

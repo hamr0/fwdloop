@@ -13,6 +13,7 @@ import {
   draftToDir, signDraft, specHash, LEAK_MARKER_FILE, sweepForSecrets, scrub, SPEC_HASH_FILE, SIGN_LINE,
 } from '../src/authoring.js';
 import { readSpendRows, ceilingCostUsd } from '../src/provider.js';
+import { tickedHome } from './fixtures/m4d-ticked.mjs';
 import {
   RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply,
 } from './drafter-fixture.mjs';
@@ -30,7 +31,7 @@ async function makeDraft({ replies = [toolReply(validArgs())], extra = {}, prose
   const dir = path.join(work, 'draft');
   const root = path.join(work, 'flows');
   const r = await draftToDir({
-    proseFile, dir, root, name: 'job2', provider, rates: RATES, modelId: MODEL, env: {}, ...extra,
+    proseFile, dir, root, name: 'job2', provider, rates: RATES, modelId: MODEL, env: {}, slot: 'DEEPSEEK_API_KEY', ...extra,
   });
   return {
     r, dir, root, work, proseFile, provider, fx,
@@ -91,7 +92,7 @@ test('draft: $0 refusals write nothing and spend nothing (bad key, missing input
   const work = tmp('r');
   const proseFile = path.join(work, 'prose.txt');
   writeFileSync(proseFile, fx.prose);
-  const base = { proseFile, dir: path.join(work, 'd'), root: path.join(work, 'flows'), name: 'job2' };
+  const base = { proseFile, dir: path.join(work, 'd'), root: path.join(work, 'flows'), name: 'job2', slot: 'DEEPSEEK_API_KEY' };
   for (const env of [{}, { DEEPSEEK_API_KEY: '   ' }, { DEEPSEEK_API_KEY: 'abc\ndef' }]) {
     const r = await draftToDir({ ...base, env });
     assert.equal(r.wrote, false);
@@ -208,7 +209,7 @@ test('cli draft: a red draft writes its dir, prints no sign line, exits non-zero
 
 test('cli draft: an unset key refuses at $0 (no dir) with the live path, and the test hatch needs NODE_ENV=test', () => {
   const s = cliSetup();
-  const r = cli(['draft', s.proseFile, '--out', s.dir, '--root', s.root, '--name', 'job2'], { FWDLOOP_TEST_DRAFT_PROVIDER: FAKE_DRAFT, NODE_TEST_CONTEXT: 'child-v8' });
+  const r = cli(['draft', s.proseFile, '--out', s.dir, '--root', s.root, '--name', 'job2', '--model', 'deepseek-flash'], { FWDLOOP_TEST_DRAFT_PROVIDER: FAKE_DRAFT, NODE_TEST_CONTEXT: 'child-v8', FWDLOOP_CONFIG_HOME: tickedHome() });
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /key: DEEPSEEK_API_KEY is not set/);
   assert.ok(!existsSync(s.dir));
@@ -566,7 +567,7 @@ test('sweep leak: draft returns red, leaves NO spec.hash, writes the marker; sig
   // target.json is not scrubbed; a key in the flows root path reaches disk and only the sweep sees it.
   const root = path.join(work, `flows-${KEY}`);
   const r = await draftToDir({
-    proseFile, dir, root, name: 'job2', provider: fakeProvider([toolReply(validArgs())]), rates: RATES, modelId: MODEL, env: { DEEPSEEK_API_KEY: KEY },
+    proseFile, dir, root, name: 'job2', provider: fakeProvider([toolReply(validArgs())]), rates: RATES, modelId: MODEL, env: { DEEPSEEK_API_KEY: KEY }, slot: 'DEEPSEEK_API_KEY',
   });
   assert.equal(r.ok, false);
   assert.ok(r.leaks > 0);
@@ -590,7 +591,7 @@ test('sign re-sweeps: a key planted in the draft dir after draft is refused when
   const { r, root, dir } = await makeDraft();
   const log = path.join(dir, 'log.json'); // outside the spec hash, so the hash still matches
   writeFileSync(log, `${readFileSync(log, 'utf8')}\n${KEY}\n`);
-  const s = signDraft({ dir, approve: r.hash, signedBy: 'alice', env: { DEEPSEEK_API_KEY: KEY } });
+  const s = signDraft({ dir, approve: r.hash, signedBy: 'alice', env: { DEEPSEEK_API_KEY: KEY }, keyNames: ['DEEPSEEK_API_KEY'] });
   assert.equal(s.ok, false);
   assert.match(s.reds.join(' '), /contains a key value/);
   noFlow(root);
@@ -761,7 +762,7 @@ test('item 11: a drafter red whose provider error echoes the key is scrubbed bef
   writeFileSync(proseFile, fx.prose);
   const provider = { lastMalformedToolCall: null, async generate() { throw new Error(`401 invalid Authorization: Bearer ${KEY}`); } };
   const r = await draftToDir({
-    proseFile, dir: path.join(work, 'd'), root: path.join(work, 'flows'), name: 'job2', provider, rates: RATES, modelId: MODEL, env: { DEEPSEEK_API_KEY: KEY },
+    proseFile, dir: path.join(work, 'd'), root: path.join(work, 'flows'), name: 'job2', provider, rates: RATES, modelId: MODEL, env: { DEEPSEEK_API_KEY: KEY }, slot: 'DEEPSEEK_API_KEY',
   });
   assert.equal(r.ok, false);
   assert.match(r.reds.join(' '), /provider-red/);

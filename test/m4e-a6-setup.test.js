@@ -15,14 +15,13 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { readSetup, writeSetup, SETUP_FILE } from '../src/setup.js';
 import { getRunAudit, NO_DRAFT_WORDS } from '../src/panel/data.js';
 import { writeRunValues, valuesHash } from '../src/runvalues.js';
-import { PROVIDER_SLOTS } from '../src/provider.js';
 import {
   RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply,
 } from './drafter-fixture.mjs';
 
 const CAT = loadCatalogue().primitives;
 const KEY = 'sk-canary-A6-setup-5d2c7e19b4a8f3066d21';
-const SLOT_ENV = PROVIDER_SLOTS.deepseek.envVar;
+const SLOT_ENV = 'DEEPSEEK_API_KEY';
 
 /** A panel-shaped draft folder: card.json, draft/, card-1.json, draft-1/ (a revise), as `src/panel/author.js` lays it out (amendment 14). */
 async function session() {
@@ -51,7 +50,7 @@ async function session() {
   return { root, dir, work, first, second };
 }
 const sign = (s, extra = {}) => signDraft({
-  dir: path.join(s.dir, 'draft-1'), approve: s.second.hash, signedBy: 'hamr', signedAt: '2026-10-06T12:00:00.000Z', env: { [SLOT_ENV]: KEY }, sessionDir: s.dir, ...extra,
+  dir: path.join(s.dir, 'draft-1'), approve: s.second.hash, signedBy: 'hamr', signedAt: '2026-10-06T12:00:00.000Z', env: { [SLOT_ENV]: KEY }, keyNames: [SLOT_ENV], sessionDir: s.dir, ...extra,
 });
 const flowDir = (s) => path.join(s.root, 'job2');
 

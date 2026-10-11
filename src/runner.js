@@ -83,7 +83,7 @@ export const MAX_ATTEMPTS = 4;
  *  (audit.jsonl) stay the source of truth; this tolerance only absorbs
  *  summation-order noise, not a real gap. A billionth of a dollar is ~6
  *  orders of magnitude below the cheapest real round (audit rows here run
- *  $0.0006+), so nothing a real tamper produces can hide inside it. */
+ *  a few hundredths of a cent and up), so nothing a real tamper produces can hide inside it. */
 export const SPEND_TOLERANCE_USD = 1e-9;
 
 // ---------------------------------------------------------------------------

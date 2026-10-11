@@ -94,7 +94,7 @@ export async function runBatch({
   if (!ARMS.includes(arm)) throw new Error(`run: --arm must be try3 or first, got "${arm}"`);
   if (!tag || /[^A-Za-z0-9._-]/.test(tag)) throw new Error('run: --tag is required (letters, digits, . _ - only)');
   if (!injected) {
-    const key = checkKeyPreflight('deepseek', env);
+    const key = checkKeyPreflight('DEEPSEEK_API_KEY', env);
     if (!key.ok) throw new Error(key.message);
   }
   const resultsPath = join(outDir, `results-${tag}.json`);

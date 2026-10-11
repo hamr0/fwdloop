@@ -87,14 +87,14 @@ test('(h) the main button label for a 0.25 cap and an 8-char hash is short enoug
   assert.match(PAGE, /#chat-main-btn\{white-space:nowrap;/);
 });
 
-test('field set: the New job card has exactly the signed boxes; bareloop-only boxes are gone; the card box is captioned Destination', () => {
+test('field set: the New job card has exactly the signed boxes (+ the Model menu and Thinking tick, M4d am6/am7); bareloop-only boxes are gone; the card box is captioned Destination', () => {
   for (const id of ['jf-name', 'jf-job', 'jf-job-gut', 'jf-cap-money', 'jf-ask-wait', 'jf-dest-folder', 'jf-inputs', 'jf-inputs-gut', 'jf-run-flow', 'jf-run-cap', 'jf-run-left', 'jf-run-inputs', 'jf-run-id', 'chat-main-btn', 'chat-action-error', 'chat-card-error', 'chat-clear-btn']) {
     assert.ok(SECTION.includes(`id="${id}"`), `#${id} missing`);
   }
   const labels = [...SECTION.matchAll(/<label[^>]*>([\s\S]*?)<\/label>/g)].map((m) => m[1].replace(/<[^>]+>/g, '').trim());
-  for (const cap of ['Flow name', 'The job', 'Cap $', 'Ask wait', 'Destination', 'Inputs', 'New job', 'Run a signed flow']) assert.ok(labels.includes(cap), `caption "${cap}" missing`);
+  for (const cap of ['Model', 'Thinking on', 'Flow name', 'The job', 'Cap $', 'Ask wait', 'Destination', 'Inputs', 'New job', 'Run a signed flow']) assert.ok(labels.includes(cap), `caption "${cap}" missing`);
   assert.doesNotMatch(SECTION, />\s*Send to\s*</);
-  for (const gone of ['jf-goal', 'jf-source', 'jf-success', 'jf-guardrails', 'jf-judge', 'jf-model', 'jf-verdict', 'jf-cap-time', 'startfrom', 'Check type', 'Time cap', 'Judge examples', 'Reuse']) {
+  for (const gone of ['jf-goal', 'jf-source', 'jf-success', 'jf-guardrails', 'jf-judge', 'jf-verdict', 'jf-cap-time', 'startfrom', 'Check type', 'Time cap', 'Judge examples', 'Reuse']) {
     assert.ok(!SECTION.includes(gone), `${gone} must not be on the card`);
     assert.ok(!CHAT.replace(/^\s*\/\/.*$/gm, '').includes(gone), `${gone} must not be in the Chat script`);
   }

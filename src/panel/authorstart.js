@@ -128,12 +128,13 @@ export function createStarter(opts) {
      * `values` (M4e amendment 5 item 3): the human's signed values for THIS run (the page's second click), written once into the run's own
      * folder as `signed-values.json` BEFORE the spawn; the run then uses them (`pickRunValues`). None = the flow's own.
      * @param {{ kind: 'run'|'sign', flow: string, runId: string, sources: {role: string, path: string}[], values?: any }} a
-     * @param {Record<string, string|undefined>} env the merged keys env: the child's env AND the scrub list
+     * @param {{ env: Record<string, string|undefined>, keyNames?: string[] }} loaded the keys load: its env is the child's env AND (with its key names) the scrub list
      * @returns {{ status: number, body: any }}
      */
     start({
       kind, flow, runId, sources, values = null,
-    }, env) {
+    }, loaded) {
+      const { env } = loaded;
       const sd = startsDir();
       if (sd === null) return { status: 400, body: { ok: false, refused: 'root', say: 'The flows folder this panel serves does not exist.' } };
       /** @type {string|null} */
@@ -160,7 +161,7 @@ export function createStarter(opts) {
         const w = writeRunValues(runDirOf(), { ...values, runId });
         if (!w.ok) { unclaim(); return { status: 500, body: { ok: false, refused: 'values', say: `The signed values could not be saved. ${NOTHING_SPENT}` } }; }
       }
-      const keys = providerKeys(env);
+      const keys = providerKeys(loaded);
       // one start at a time while one is still spawning for this flow (a double click, two tabs)
       const startingId = startingFor(flow, keys);
       if (startingId !== null) {
@@ -193,13 +194,14 @@ export function createStarter(opts) {
      * Start `fwdloop continue <runId>` (M4e amendment 4 item 4): Resume of a stopped or cap-halted run, after the door wrote the run's new
      * signed values version. The same detached-child shape as `start`; the start folder reads as `starting` until the child consumes
      * `halt.json`, then `started`; a child that died with `halt.json` still there is `refused` with its own sentence. One start at a time per flow.
-     * @param {{ flow: string, runId: string, version: number }} a @param {Record<string, string|undefined>} env the merged keys env
+     * @param {{ flow: string, runId: string, version: number }} a @param {{ env: Record<string, string|undefined>, keyNames?: string[] }} loaded the keys load
      * @returns {{ status: number, body: any }}
      */
-    startContinue({ flow, runId, version }, env) {
+    startContinue({ flow, runId, version }, loaded) {
+      const { env } = loaded;
       const sd = startsDir();
       if (sd === null) return { status: 400, body: { ok: false, refused: 'root', say: 'The flows folder this panel serves does not exist.' } };
-      const keys = providerKeys(env);
+      const keys = providerKeys(loaded);
       const startingId = startingFor(flow, keys);
       if (startingId !== null) return { status: 409, body: { ok: false, refused: 'start-live', startId: startingId, say: 'A run of this flow is already starting. Wait for it.' } };
       const id = newId();

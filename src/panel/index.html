@@ -689,6 +689,10 @@
   .pv-model-line .pv-box{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--text-dim);}
   .pv-model-line .pv-box input{width:96px;}
   .pv-model-line > .hint{flex:1 1 100%;margin:0;}
+  .pv-typed{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px 10px;margin-top:6px;}
+  .pv-typed .pv-box{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--text-dim);}
+  .field label.jf-thinking{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:6px;margin-top:6px;font-size:12px;text-transform:none;letter-spacing:0;}
+  .field label.jf-thinking input{width:auto;min-height:0;margin:0;}
   .hint.bad{color:var(--red);}
   .table-wrap{overflow-x:auto;border:1px solid var(--border-strong);background:var(--panel2);max-width:100%;}
   @media (max-width: 899px){
@@ -736,16 +740,12 @@
         <div class="table-wrap" data-testid="provider-table-wrap">
           <table class="pv-table" data-testid="provider-table">
             <thead>
-              <tr><th>Key</th><th>Name</th><th>API shape</th><th>Base URL</th><th>Test</th><th>Tokens used</th><th>Balance</th></tr>
+              <tr><th>Key</th><th>API shape</th><th>Base URL</th><th>Legacy max_tokens</th><th>Test</th><th>Tokens used</th></tr>
             </thead>
             <tbody id="pv-rows"></tbody>
           </table>
         </div>
-        <div class="hint" id="pv-note" data-testid="pv-note" style="margin-top:6px;">Test asks the provider for its model list &mdash; it costs nothing. Under each provider, tick Use on a model only once both its prices are filled (USD per 1M tokens; 0 and 0 is allowed). A price applies from the next model call on.</div>
-        <div class="dt-row" data-testid="draft-thinking">
-          <label for="dt-box"><input type="checkbox" id="dt-box" data-testid="dt-box"> Thinking on (drafting)</label>
-          <div class="hint" id="dt-note" data-testid="dt-note">Off by default, for all jobs. Applies to the next draft; running a job is not affected.</div>
-        </div>
+        <div class="hint" id="pv-note" data-testid="pv-note" style="margin-top:6px;">Every key in your keys file is a row. Type its API shape and Base URL; Test asks the provider for its model list &mdash; it costs nothing. Under each provider, tick Use on a model only once both its prices are filled (USD per 1M tokens; 0 and 0 is allowed). A price applies from the next model call on.</div>
       </section>
       <section id="spanel-money" class="tabpanel" role="tabpanel" aria-labelledby="stab-money" hidden>
         <div class="money-strip" data-testid="money-strip">
@@ -804,6 +804,13 @@
 
             <div id="jf-new" data-testid="jf-new">
               <div class="hint edit-banner" id="jf-edit-banner" data-testid="jf-edit-banner" hidden></div>
+              <div class="field">
+                <label for="jf-model">Model</label>
+                <select id="jf-model" data-testid="jf-model"></select>
+                <label class="jf-thinking"><input type="checkbox" id="jf-thinking" data-testid="jf-thinking"> Thinking on</label>
+                <div class="hint" id="jf-thinking-note" data-testid="jf-thinking-note"></div>
+                <div class="jf-err" id="jf-err-model" data-testid="jf-err-model"></div>
+              </div>
               <div class="field">
                 <label for="jf-name">Flow name</label>
                 <input id="jf-name" type="text" placeholder="lowercase letters, digits, - or _" autocomplete="off" spellcheck="false" data-testid="jf-name">
@@ -864,6 +871,7 @@
               <div class="field dimmed" data-testid="jf-run-job-field">
                 <label>The job</label>
                 <div class="ro-lines" id="jf-run-job" data-testid="jf-run-job"></div>
+                <div class="hint" id="jf-run-model" data-testid="jf-run-model"></div>
                 <div class="hint">Fixed by the signature (the steps, the job lines and the asks). To change them, edit the job: the AI drafts a new plan, and signing it replaces this job.</div>
                 <button class="btn" type="button" id="jf-run-edit" data-testid="jf-run-edit">Edit this job</button>
                 <div class="hint" id="jf-run-edit-why" data-testid="jf-run-edit-why"></div>
@@ -901,6 +909,7 @@
               <div class="field dimmed" data-testid="jf-resume-job-field">
                 <label>The job</label>
                 <div class="ro-lines" id="jf-resume-job" data-testid="jf-resume-job"></div>
+                <div class="hint" id="jf-resume-model" data-testid="jf-resume-model"></div>
               </div>
               <div class="field dimmed">
                 <label>Destination</label>
@@ -4162,6 +4171,9 @@
         inputs: inputsBox.value,
         capUsd: byId("jf-cap-money").value.trim(),
         askWait: askWaitEl.value.trim(),
+        provider: modelPick().provider,
+        model: modelPick().model,
+        thinking: thinkingEl.checked && !thinkingEl.disabled,
         editOf: editOf
       };
     }
@@ -4237,8 +4249,10 @@
       var seq = ++capNoteSeq;
       if(cap === ""){ setMoneyNote("", false); return; }
       // a Resume holds only what the run has still to spend (amendment 4 item 1): the server is told what is already spent
-      var spent = (mode === "resume" && resumeCtx) ? "&spent=" + encodeURIComponent(String(resumeCtx.form.spentUsd)) : "";
-      authorGet("/api/author/monthly-check?cap=" + encodeURIComponent(cap) + spent).then(function(j){
+      var spent = (mode === "resume" && resumeCtx) ? "&spent=" + encodeURIComponent(String(resumeCtx.form.spentUsd)) + "&flow=" + encodeURIComponent(resumeCtx.flow) : "";
+      var pk = modelPick();
+      var picked = (mode === "new" && pk.provider !== "") ? "&provider=" + encodeURIComponent(pk.provider) + "&model=" + encodeURIComponent(pk.model) : "";
+      authorGet("/api/author/monthly-check?cap=" + encodeURIComponent(cap) + spent + picked).then(function(j){
         if(seq !== capNoteSeq) return;
         if(!j || j.ok !== true){ setMoneyNote("", false); return; }
         var v = Number(cap);
@@ -4371,6 +4385,7 @@
       paintedFlow = pickedKey();
       runSignInfo = null;
       paintJobDim(byId("jf-run-job"), f ? f.jobLines : []);
+      byId("jf-run-model").textContent = f && f.model ? "Model: " + f.model.label : (f ? "No model is recorded for this job. Run it from the command line with --model." : "");
       runDestEl.value = v && v.destination ? v.destination : "";
       runDestEl.readOnly = !(f && f.hasSend);
       runDestEl.classList.toggle("locked", !(f && f.hasSend));
@@ -4445,11 +4460,48 @@
         refreshStartEnabled();
       }).catch(function(){ /* the card keeps what it had */ });
     }
-    // the drafting line names the model the drafter really uses (Settings' one ticked, priced model), never a guess
+    // ---- the Model menu and the per-job "Thinking on" box (M4d amendments 6 and 7) ----
+    // The menu is the ticked lines of Settings > Providers, "provider · model"; the server decides what is listed (GET /api/author/models) and
+    // whether Thinking can change for a line (one function over bareagent's answer, src/thinking.js). The page decides nothing.
+    var modelEl = byId("jf-model");
+    var thinkingEl = byId("jf-thinking");
+    var modelLines = [];
+    function modelPick(){
+      var l = modelLines[Number(modelEl.value)];
+      return l ? {provider: l.slot, model: l.model} : {provider: "", model: ""};
+    }
+    // the box's state for a menu line: unticked by default; greyed with the server's sentence when thinking cannot change for that model
+    function thinkingBoxState(line, wasChecked){
+      if(!line || !line.thinking) return {disabled: true, checked: false, note: ""};
+      if(line.thinking.canChange !== true) return {disabled: true, checked: false, note: line.thinking.say || ""};
+      return {disabled: false, checked: wasChecked === true, note: ""};
+    }
+    function paintThinking(){
+      var st = thinkingBoxState(modelLines[Number(modelEl.value)], thinkingEl.checked);
+      thinkingEl.disabled = st.disabled; thinkingEl.checked = st.checked;
+      byId("jf-thinking-note").textContent = st.note;
+      drafterModel = modelPick().model;
+    }
+    modelEl.addEventListener("change", function(){ paintThinking(); refreshCapNote(); });
+    function setModelPick(provider, model){
+      for(var i = 0; i < modelLines.length; i += 1){ if(modelLines[i].slot === provider && modelLines[i].model === model){ modelEl.value = String(i); break; } }
+      paintThinking();
+    }
     function loadModel(){
-      authorGet("/api/settings/providers").then(function(j){
-        if(j && j.ok === true && j.draftThinking && j.draftThinking.model){ drafterModel = String(j.draftThinking.model); }
-      }).catch(function(){ /* the line then says "the drafter" */ });
+      authorGet("/api/author/models").then(function(j){
+        if(!j || j.ok !== true) return;
+        var was = modelPick();
+        modelLines = j.lines || [];
+        modelEl.innerHTML = "";
+        if(modelLines.length === 0){
+          var none = document.createElement("option"); none.value = ""; none.textContent = j.say || "Tick a model in Settings > Providers."; modelEl.appendChild(none);
+          modelEl.disabled = true;
+        } else {
+          modelEl.disabled = false;
+          modelLines.forEach(function(l, i){ var o = document.createElement("option"); o.value = String(i); o.textContent = l.label; modelEl.appendChild(o); });
+        }
+        setModelPick(was.provider, was.model);
+      }).catch(function(){ /* the menu keeps what it had */ });
     }
     function setMode(m){
       mode = m;
@@ -4629,6 +4681,7 @@
       leaveEdit();
       ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; });
       askWaitEl.value = "1h";
+      thinkingEl.checked = false; // per job: unticked for the next one
       refreshCapNote();
       openNewCard();
       loadFlows(mode === "run");
@@ -4822,6 +4875,7 @@
         resumeCtx = {flow: detail.flow, runId: detail.runId, form: j};
         chatActionOk();
         paintJobDim(byId("jf-resume-job"), j.jobLines);
+        byId("jf-resume-model").textContent = j.model ? "Model: " + j.model.label : "No model is recorded for this job.";
         byId("jf-resume-dest").textContent = j.values.destination || "no send step";
         byId("jf-resume-inputs").innerHTML = "";
         (j.inputs || []).forEach(function(i){ var d = document.createElement("div"); d.className = "ro-line"; d.textContent = i.role + ": " + i.path; byId("jf-resume-inputs").appendChild(d); });
@@ -4923,6 +4977,7 @@
       openNewCard();
       setMode("new");
       setVal("jf-name", c.flowName); setVal("jf-job", c.job); setVal("jf-cap-money", c.capUsd);
+      setModelPick(c.provider || "", c.model || ""); thinkingEl.checked = c.thinking === true && !thinkingEl.disabled;
       refreshCapNote();
       setVal("jf-dest-folder", typeof c.destination === "string" ? c.destination : ""); setVal("jf-inputs", typeof c.inputs === "string" ? c.inputs : ""); setVal("jf-ask-wait", c.askWait || "1h");
       if(c.editOf && typeof c.editOf.flow === "string"){
@@ -5011,6 +5066,8 @@
     document.addEventListener("fwdloop-limit-changed", function(){ refreshCapNote(); });
 
     loadModel();
+    document.getElementById("settings-back").addEventListener("click", loadModel); // the menu re-reads after Settings changed what is ticked
+    document.getElementById("tab-chat").addEventListener("click", loadModel);
     loadFlows();
     reattachLive();
     refreshStartEnabled();
@@ -5053,7 +5110,7 @@
   var PV_NOTE_DEFAULT = pvNote.textContent;
   document.getElementById("settings-open").addEventListener("click", function(){
     mainView.hidden = true; settingsView.hidden = false;
-    loadProviders(); loadMoney();
+    loadProviders(true); loadMoney();
   });
   document.getElementById("settings-back").addEventListener("click", function(){
     settingsView.hidden = true; mainView.hidden = false;
@@ -5062,30 +5119,26 @@
   document.getElementById("stab-money").addEventListener("click", function(){ loadMoney(); });
   document.getElementById("stab-providers").addEventListener("click", function(){ loadProviders(); });
 
-  function loadProviders(){
-    return getJSON("/api/settings/providers").then(paintProviders, function(e){
+  // `list` true = also ask each provider for its model list (free): on page open, on Reload keys. A save repaints without asking again.
+  function loadProviders(list){
+    return getJSON("/api/settings/providers").then(function(d){ paintProviders(d, list === true); }, function(e){
       setNote(document.getElementById("keys-refusal"), true, loadFailureText(e));
     });
   }
-  document.getElementById("reload-keys").addEventListener("click", function(){ loadProviders(); });
+  document.getElementById("reload-keys").addEventListener("click", function(){ loadProviders(true); });
 
-  // Name, API shape and Base URL are editable (M4d amendment 1), saved on change one field at a time.
-  var PROV_FIELDS = ["name", "shape", "baseUrl"];
+  // API shape, Base URL and the legacy max_tokens tick are typed per row (M4d amendment 6), saved on change one field at a time.
   function buildProviderRow(row){
     var tr = document.createElement("tr");
     tr.setAttribute("data-slot", row.slot);
     tr.setAttribute("data-testid", "provider-row-" + row.slot);
-    var balance = row.canBalance
-      ? '<button class="btn small" type="button" data-act="balance" data-testid="prov-balance">Check</button><div class="hint pv-balance-result" data-f="balance-result"></div>'
-      : '<span class="hint">not offered by this provider</span>';
     tr.innerHTML =
       '<td><code>' + escapeXml(row.envVar) + '</code><div class="hint" data-f="status" data-testid="pv-status-' + escapeXml(row.slot) + '"></div></td>' +
-      '<td class="pv-price-cell"><input type="text" data-prov="name" data-testid="prov-name" aria-label="' + escapeXml(row.label + " name") + '" autocomplete="off" spellcheck="false"><div class="hint pv-msg" data-f="msg-name" data-testid="prov-msg-name"></div></td>' +
       '<td class="pv-price-cell"><select data-prov="shape" data-testid="prov-shape" aria-label="' + escapeXml(row.label + " API shape") + '"></select><div class="hint pv-msg" data-f="msg-shape" data-testid="prov-msg-shape"></div></td>' +
       '<td class="pv-price-cell"><input type="text" data-prov="baseUrl" data-testid="prov-baseurl" aria-label="' + escapeXml(row.label + " Base URL") + '" autocomplete="off" spellcheck="false"><div class="hint pv-msg" data-f="msg-baseUrl" data-testid="prov-msg-baseUrl"></div></td>' +
-      '<td class="pv-test-cell"><button class="btn small" type="button" data-act="test" data-testid="prov-test">Test</button><div class="hint pv-test-result" data-f="test" data-testid="prov-test-result"></div></td>' +
-      '<td data-f="tokens" data-testid="pv-tokens-' + escapeXml(row.slot) + '"></td>' +
-      '<td>' + balance + '</td>';
+      '<td><label class="pv-use"><input type="checkbox" data-prov="legacyMaxTokens" data-testid="prov-legacy" aria-label="' + escapeXml(row.label + " legacy max_tokens") + '"> on</label><div class="hint pv-msg" data-f="msg-legacyMaxTokens" data-testid="prov-msg-legacyMaxTokens"></div></td>' +
+      '<td class="pv-test-cell"><button class="btn small" type="button" data-act="test" data-testid="prov-test">Test</button> <button class="btn small" type="button" data-act="refresh-models" data-testid="prov-refresh">Refresh models</button><div class="hint pv-test-result" data-f="test" data-testid="prov-test-result"></div></td>' +
+      '<td data-f="tokens" data-testid="pv-tokens-' + escapeXml(row.slot) + '"></td>';
     tr.querySelectorAll("input").forEach(function(inp){
       inp.addEventListener("input", function(){ inp.setAttribute("data-dirty", "1"); });
     });
@@ -5098,7 +5151,9 @@
     tr.className = "pv-models-row";
     tr.setAttribute("data-models-for", row.slot);
     tr.setAttribute("data-testid", "models-row-" + row.slot);
-    tr.innerHTML = '<td colspan="7"><div class="pv-models" data-f="models"></div></td>';
+    tr.innerHTML = '<td colspan="6"><div class="pv-models" data-f="models"></div>' +
+      '<div class="pv-typed" data-f="typed" hidden><label class="pv-box">Type a model name<input type="text" data-typed="1" data-testid="model-typed" autocomplete="off" spellcheck="false" aria-label="' + escapeXml(row.label + " model name") + '"></label> ' +
+      '<button class="btn small" type="button" data-act="add-model" data-testid="model-add">Add</button><div class="hint pv-msg" data-f="typed-msg" data-testid="model-typed-msg"></div></div></td>';
     return tr;
   }
   function buildModelLine(slot, m){
@@ -5111,31 +5166,41 @@
       '<code class="pv-model-name"></code>' +
       '<label class="pv-box">Price in $/1M<input type="text" inputmode="decimal" data-mf="inPerM" data-testid="model-in" autocomplete="off"></label>' +
       '<label class="pv-box">Price out $/1M<input type="text" inputmode="decimal" data-mf="outPerM" data-testid="model-out" autocomplete="off"></label>' +
-      '<label class="pv-box">Thinking off<select data-mf="thinkingOff" data-testid="model-thinking"><option value="cant">can\'t</option><option value="disabled">send thinking: disabled</option></select></label>' +
       '<div class="hint pv-msg pv-model-msg" data-f="msg-model" data-testid="model-msg"></div>';
     d.querySelector(".pv-model-name").textContent = m.model;
     d.querySelector("[data-mf=use]").setAttribute("aria-label", slot + " " + m.model + " use");
     d.querySelector("[data-mf=inPerM]").setAttribute("aria-label", m.model + " price in per 1M tokens");
     d.querySelector("[data-mf=outPerM]").setAttribute("aria-label", m.model + " price out per 1M tokens");
-    d.querySelector("[data-mf=thinkingOff]").setAttribute("aria-label", m.model + " how to turn thinking off");
     d.querySelectorAll("input[type=text]").forEach(function(inp){
       inp.addEventListener("input", function(){ inp.setAttribute("data-dirty", "1"); });
     });
     return d;
   }
+  // The provider's own model list per key (asked on page open, Reload keys, Refresh models): { models: [ids] } or { why }. Not saved: only ticked or typed lines are.
+  var listed = {};
+  var lastData = null;
+  function linesFor(row){
+    var l = listed[row.slot];
+    var have = {};
+    row.models.forEach(function(m){ have[m.model] = true; });
+    var extra = (l && l.models ? l.models : []).filter(function(id){ return !have[id]; }).map(function(id){ return { model: id, use: false }; });
+    return row.models.concat(extra);
+  }
   function paintModels(row, mr){
     var box = mr.querySelector("[data-f=models]");
-    var wanted = row.models.map(function(m){ return m.model; });
+    var lines = linesFor(row);
+    var l = listed[row.slot];
+    var typed = mr.querySelector("[data-f=typed]");
+    typed.hidden = !(l && l.why);
+    var wanted = lines.map(function(m){ return m.model; });
     Array.prototype.slice.call(box.children).forEach(function(el){
       if(wanted.indexOf(el.getAttribute("data-model")) < 0) box.removeChild(el);
     });
-    row.models.forEach(function(m){
+    lines.forEach(function(m){
       var line = Array.prototype.find.call(box.children, function(el){ return el.getAttribute("data-model") === m.model; });
       if(!line){ line = buildModelLine(row.slot, m); box.appendChild(line); }
       var use = line.querySelector("[data-mf=use]");
       use.checked = m.use === true;
-      var tOff = line.querySelector("[data-mf=thinkingOff]");
-      if(document.activeElement !== tOff) tOff.value = m.thinkingOff === "disabled" ? "disabled" : "cant";
       ["inPerM", "outPerM"].forEach(function(f){
         var inp = line.querySelector('[data-mf="' + f + '"]');
         inp.placeholder = "not set";
@@ -5144,38 +5209,32 @@
     });
     var note = mr.querySelector("[data-f=models-note]");
     if(!note){ note = document.createElement("div"); note.className = "hint"; note.setAttribute("data-f", "models-note"); note.setAttribute("data-testid", "models-note"); box.appendChild(note); }
-    setNote(note, false, row.unpriced ? "No price set here yet. Fill both price boxes (0 is fine for a local model) to tick Use." : "");
+    setNote(note, false, l && l.why ? l.why + " Type the model name below." : (lines.length === 0 ? "No models yet. Press Refresh models, or type a name." : ""));
   }
   var STATUS_WORD = { "set in file": "set in file", "found in shell": "found in shell", "not set": "not set", "refused": "refused — see above" };
-  // "Thinking on (drafting)": one box for all jobs. A drafting model the allow-list does not know cannot be changed, so say so and disable it.
-  var dtBox = document.getElementById("dt-box");
-  var DT_NOTE_DEFAULT = document.getElementById("dt-note").textContent;
-  function paintThinking(d){
-    if(!d) return;
-    dtBox.checked = !!d.on;
-    dtBox.disabled = !d.canChange;
-    setNote(document.getElementById("dt-note"), false, d.canChange ? DT_NOTE_DEFAULT : (d.model ? "can't change this for this model" : (d.why || "can't change this for this model")));
+  function refreshModels(slot, tr){
+    var out = tr.querySelector("[data-f=test]");
+    listed[slot] = { pending: true };
+    return postJSON("/api/settings/models", { slot: slot }).then(function(r){
+      var b = r.body;
+      listed[slot] = b && b.ok ? { models: b.models } : { why: (b && b.why) ? b.why : settingsRefusal(r) };
+    }, function(){ listed[slot] = { why: networkText() }; }).then(function(){
+      if(lastData) paintProviders(lastData, false);
+      if(listed[slot].why) out.textContent = listed[slot].why; else out.textContent = listed[slot].models.length + " models";
+    });
   }
-  dtBox.addEventListener("change", function(){
-    var note = document.getElementById("dt-note");
-    postJSON("/api/settings/thinking", { on: dtBox.checked }).then(function(r){
-      if(r.body && r.body.ok) setNote(note, false, "saved — applies from the next draft");
-      else { setNote(note, true, settingsRefusal(r)); loadProviders(); }
-    }, function(){ setNote(note, true, networkText()); loadProviders(); });
-  });
-
-  function paintProviders(data){
+  function paintProviders(data, list){
+    lastData = data;
     var path = data.keysFile && data.keysFile.path ? data.keysFile.path : "~/.config/fwdloop/.env";
     document.getElementById("keys-path").textContent = path;
     setNote(document.getElementById("keys-refusal"), true, data.keysFile && data.keysFile.refusal);
     setNote(pvNote, !!data.configProblem, data.configProblem || PV_NOTE_DEFAULT);
-    paintThinking(data.draftThinking);
     data.rows.forEach(function(row){
       var tr = pvRows.querySelector('[data-slot="' + row.slot + '"]');
       if(!tr){ tr = buildProviderRow(row); pvRows.appendChild(tr); pvRows.appendChild(buildModelsRow(row)); }
       paintModels(row, pvRows.querySelector('[data-models-for="' + row.slot + '"]'));
       tr.querySelector("[data-f=status]").textContent = STATUS_WORD[row.keyStatus] || row.keyStatus;
-      var nameIn = tr.querySelector('[data-prov=name]');
+      var legacyIn = tr.querySelector('[data-prov=legacyMaxTokens]');
       var shapeSel = tr.querySelector('[data-prov=shape]');
       var urlIn = tr.querySelector('[data-prov=baseUrl]');
       if(shapeSel.options.length !== data.shapes.length){
@@ -5185,13 +5244,25 @@
           o.value = sh.id; o.textContent = sh.label; shapeSel.appendChild(o);
         });
       }
-      nameIn.placeholder = "a model id";
-      urlIn.placeholder = row.defaults.baseUrl !== "" ? row.defaults.baseUrl : "the vendor's own address";
+      urlIn.placeholder = "type the Base URL";
       // a box the person is typing in is never overwritten by a repaint
-      if(nameIn.getAttribute("data-dirty") !== "1") nameIn.value = row.model;
-      if(urlIn.getAttribute("data-dirty") !== "1") urlIn.value = row.savedBaseUrl;
+      if(urlIn.getAttribute("data-dirty") !== "1") urlIn.value = row.baseUrl;
+      if(document.activeElement !== legacyIn) legacyIn.checked = row.legacyMaxTokens === true;
       if(document.activeElement !== shapeSel) shapeSel.value = row.shape;
       tr.querySelector("[data-f=tokens]").textContent = tokensText(row.tokens);
+    });
+    // rows that left the keys file leave the table
+    Array.prototype.slice.call(pvRows.querySelectorAll("tr[data-slot]")).forEach(function(tr){
+      if(!data.rows.some(function(r){ return r.slot === tr.getAttribute("data-slot"); })){
+        var mr = pvRows.querySelector('[data-models-for="' + tr.getAttribute("data-slot") + '"]');
+        if(mr) pvRows.removeChild(mr);
+        pvRows.removeChild(tr);
+      }
+    });
+    if(list) data.rows.forEach(function(row){
+      var tr = pvRows.querySelector('[data-slot="' + row.slot + '"]');
+      if(row.baseUrl === ""){ listed[row.slot] = { why: "Type a Base URL for " + row.slot + " in Settings." }; paintModels(row, pvRows.querySelector('[data-models-for="' + row.slot + '"]')); }
+      else refreshModels(row.slot, tr);
     });
   }
   pvRows.addEventListener("click", function(ev){
@@ -5199,7 +5270,8 @@
     if(!b) return;
     var tr = b.closest("tr");
     if(b.getAttribute("data-act") === "test") runTest(tr, tr.getAttribute("data-slot"));
-    else if(b.getAttribute("data-act") === "balance") runBalance(tr, tr.getAttribute("data-slot"));
+    else if(b.getAttribute("data-act") === "refresh-models") refreshModels(tr.getAttribute("data-slot"), tr);
+    else if(b.getAttribute("data-act") === "add-model") addTypedModel(b.closest("tr").getAttribute("data-models-for"), b.closest("[data-f=typed]"));
   });
   // Saved like bareloop saves a row field: on change (blur or Enter), no Save button.
   pvRows.addEventListener("change", function(ev){
@@ -5216,15 +5288,6 @@
       var b = r.body;
       out.textContent = b && b.ok ? "OK · " + b.ms + " ms" : (b && b.why ? b.why : settingsRefusal(r));
     }, function(){ out.textContent = networkText(); });
-  }
-  // Balance is read on a click, never on render (signed M4d: "read on a click").
-  function runBalance(tr, slot){
-    var out = tr.querySelector("[data-f=balance-result]");
-    out.textContent = "checking…";
-    getJSON("/api/settings/balance?slot=" + encodeURIComponent(slot)).then(function(b){
-      if(b.ok) out.textContent = b.balances.map(function(x){ return x.total + " " + x.currency; }).join(" + ");
-      else out.textContent = b.why || "Could not check the balance.";
-    }, function(e){ out.textContent = loadFailureText(e); });
   }
   // A box the person typed: empty = back to the default (null); a number is sent as a number; anything else is
   // sent as the text typed, so the server refuses it by naming the box.
@@ -5243,8 +5306,7 @@
       model: line.getAttribute("data-model"),
       use: line.querySelector("[data-mf=use]").checked,
       inPerM: priceValue(line.querySelector("[data-mf=inPerM]").value),
-      outPerM: priceValue(line.querySelector("[data-mf=outPerM]").value),
-      thinkingOff: line.querySelector("[data-mf=thinkingOff]").value
+      outPerM: priceValue(line.querySelector("[data-mf=outPerM]").value)
     };
     postJSON("/api/settings/model", payload).then(function(r){
       if(r.body && r.body.ok){
@@ -5255,12 +5317,22 @@
     }, function(){ setNote(msg, true, networkText()); });
   }
 
-  // One field per save: {slot, name|shape|baseUrl}. An empty Base URL means the default; a refusal is the cell's hint line.
+  // A model name typed because the list failed: saved as an unticked, empty line (typed lines are saved); the person then fills the prices and ticks it.
+  function addTypedModel(slot, box){
+    var inp = box.querySelector("input");
+    var msg = box.querySelector("[data-f=typed-msg]");
+    postJSON("/api/settings/model", { slot: slot, model: inp.value.trim(), use: false }).then(function(r){
+      if(r.body && r.body.ok){ inp.value = ""; setNote(msg, false, "added"); loadProviders(); }
+      else setNote(msg, true, settingsRefusal(r));
+    }, function(){ setNote(msg, true, networkText()); });
+  }
+
+  // One field per save: {slot, shape|baseUrl|legacyMaxTokens}. A refusal is the cell's hint line.
   function saveProvider(tr, inp){
     var key = inp.getAttribute("data-prov");
     var msg = tr.querySelector("[data-f=msg-" + key + "]");
     var payload = { slot: tr.getAttribute("data-slot") };
-    payload[key] = inp.value.trim();
+    payload[key] = inp.type === "checkbox" ? inp.checked : inp.value.trim();
     postJSON("/api/settings/provider", payload).then(function(r){
       if(r.body && r.body.ok){
         inp.removeAttribute("data-dirty");

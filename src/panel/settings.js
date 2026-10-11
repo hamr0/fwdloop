@@ -7,22 +7,21 @@
 // What it never does (negatives (i) (ii) (ix) (xiv)):
 //   - no route WRITES the keys file, and no response carries a key value: a key is read from the merged
 //     env only to put in an `Authorization` header, then forgotten;
-//   - Test and Balance are one GET each (`<baseUrl>/models`, DeepSeek's `/user/balance`), never a
+//   - Test and the model list are one GET (`<baseUrl>/models`), never a
 //     completion, and write no spend row;
 //   - no route reads or writes a flow or its cap. The only files touched are config.json (via
 //     `updateConfig`) and the keys file (read through `keysForDoor`), both under the one config home.
 // Every refusal is a plain sentence in `say`; nothing here puts an HTTP code, an id or a path on the page.
 import {
-  PROVIDER_SLOTS, MODEL_SLOT, effectiveModels, resolveSlot, resolveUsableModel, checkKeyPreflight, canChangeDraftThinking,
+  effectiveModels, resolveSlot, checkKeyPreflight,
 } from '../provider.js';
 import {
-  readConfig, updateConfig, ConfigError, providerFieldProblem, cleanBaseUrl, draftThinkingMode, modelsProblem,
+  readConfig, updateConfig, ConfigError, providerFieldProblem, cleanBaseUrl, modelsProblem,
 } from '../config.js';
 import { SHAPES } from '../providershapes.js';
 import { keysForDoor } from '../keysfile.js';
 import { spendSummary } from '../monthly.js';
 
-const DEEPSEEK_BALANCE_URL = 'https://api.deepseek.com/user/balance';
 const TIMEOUT_MS = 4000;
 
 const BROKEN_CONFIG = 'Your settings file (config.json) cannot be read. Fix or remove it, then look again.';
@@ -44,14 +43,11 @@ export function createSettings(cfg) {
   /** @param {string} refused @param {string} say @param {number} [status] */
   const refuse = (refused, say, status = 400) => reply(status, { ok: false, refused, say });
 
-  /** The slot named by a request, or null. @param {unknown} slot */
-  const slotOf = (slot) => (typeof slot === 'string' && Object.hasOwn(PROVIDER_SLOTS, slot) ? slot : null);
+  /** The row names: every key in the file with a value, plus a set-up key only the shell holds (M4d amendment 6 item 1). */
+  const rowNames = (k) => [...new Set([...k.names, ...k.shellOnly])].sort();
 
-  /** Balance is offered only on an OpenAI-compatible slot whose host is api.deepseek.com (bareloop's rule). @param {{ shape: string, baseUrl: string }} eff */
-  function canBalance(eff) {
-    if (eff.shape !== 'openai-api') return false;
-    try { return new URL(eff.baseUrl).host === 'api.deepseek.com'; } catch { return false; }
-  }
+  /** The row named by a request, or null: only a key that is in the keys file (or the shell) is a row. @param {unknown} slot */
+  const slotOf = (slot) => (typeof slot === 'string' && rowNames(keys()).includes(slot) ? slot : null);
 
   /** config.json, or `{problem}` in plain words when it is broken (never read as "nothing set"). */
   function config() {
@@ -61,49 +57,33 @@ export function createSettings(cfg) {
     }
   }
 
-  /** The drafting model and whether its line lets thinking be turned off. @param {Record<string, any>} config */
-  function draftingModel(config) {
-    const u = resolveUsableModel(MODEL_SLOT, { config });
-    if (!u.ok) return { model: null, canChange: false, why: u.say };
-    return { model: u.model, canChange: canChangeDraftThinking({ shape: resolveSlot(MODEL_SLOT, { config }).shape, thinkingOff: u.thinkingOff }), why: null };
-  }
-
   function providers() {
     const k = keys();
     const c = config();
     const spend = spendSummary({ home: cfg.home, now: cfg.now });
-    const rows = Object.entries(PROVIDER_SLOTS).map(([slot, def]) => {
+    const rows = rowNames(k).map((slot) => {
       const eff = resolveSlot(slot, { config: c.config });
-      const em = effectiveModels(slot, c.config);
-      // The slot's typed name always has a line to fill (unticked, no price) when the list lacks it; a line with no
-      // thinkingOff of its own reads "cant" (the default, M4d amendment 5 item 3).
-      const named = eff.model === null || em.lines.some((m) => m.model === eff.model) ? em.lines : [...em.lines, { model: eff.model, use: false }];
-      const models = named.map((m) => ({ ...m, thinkingOff: m.thinkingOff ?? 'cant' }));
+      const models = effectiveModels(slot, c.config).map(({ model, use, inPerM, outPerM }) => ({
+        model, use, ...(inPerM === undefined ? {} : { inPerM }), ...(outPerM === undefined ? {} : { outPerM }),
+      }));
       let keyStatus = 'not set';
       if (!k.ok) keyStatus = 'refused';
-      else if (k.names.includes(def.envVar)) keyStatus = 'set in file';
-      else if (k.shellOnly.includes(def.envVar)) keyStatus = 'found in shell';
+      else if (k.names.includes(slot)) keyStatus = 'set in file';
+      else if (k.shellOnly.includes(slot)) keyStatus = 'found in shell';
       return {
         slot,
         label: slot,
-        envVar: def.envVar,
+        envVar: slot,
         keyStatus,
-        model: eff.model,
         shape: eff.shape,
         baseUrl: eff.baseUrl,
-        savedBaseUrl: /** @type {Record<string, any>} */ (c.config).providers?.[slot]?.baseUrl ?? '',
-        defaults: eff.defaults,
+        legacyMaxTokens: eff.legacyMaxTokens,
         tokens: spend.byProvider[slot]?.total.tokens ?? 0,
         models,
-        unpriced: em.unpriced,
-        canBalance: canBalance(eff),
       };
     });
-    // The drafting model today is the MODEL_SLOT slot's ONE ticked, priced line (`resolveUsableModel`, the one decision).
-    const dm = draftingModel(c.config);
     return reply(200, {
       ok: true,
-      draftThinking: { on: draftThinkingMode(c.config) === 'on', canChange: dm.canChange, model: dm.model, why: dm.why },
       keysFile: { path: k.path, exists: k.exists, refusal: k.refusal },
       configProblem: c.problem,
       shapes: SHAPES.map(({ id, label }) => ({ id, label })),
@@ -115,8 +95,7 @@ export function createSettings(cfg) {
   function keyFor(slot) {
     const k = keys();
     if (!k.ok) return { why: String(k.refusal) };
-    const def = PROVIDER_SLOTS[slot];
-    const value = k.env[def.envVar];
+    const value = k.env[slot];
     if (value === undefined || value === '') return { why: 'No key set for this provider.' };
     if (!checkKeyPreflight(slot, k.env).ok) return { why: 'The key has a space or a line break in it. Fix it in your keys file, then reload keys.' };
     return { key: value };
@@ -130,7 +109,7 @@ export function createSettings(cfg) {
   }
 
   /** One $0 GET with a 4 s deadline and the key only in the header. @param {string} url @param {string} key @returns {Promise<{ body?: any, why?: string }>} */
-  async function getWithKey(url, key, shape = 'openai-api') {
+  async function getWithKey(url, key, shape) {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
     try {
@@ -149,45 +128,54 @@ export function createSettings(cfg) {
     }
   }
 
-  async function test(body) {
-    const slot = slotOf(body?.slot);
-    if (!slot) return refuse('unknown-provider', 'That provider is not known.');
-    const k = keyFor(slot);
-    if (k.why) return reply(200, { ok: false, why: k.why });
-    const started = Date.now();
-    const c = config();
-    if (c.problem) return reply(200, { ok: false, why: c.problem });
-    const eff = resolveSlot(slot, { config: c.config });
-    const base = eff.baseUrl !== '' ? eff.baseUrl : 'https://generativelanguage.googleapis.com/v1beta'; // bare-agent's own Gemini address
-    const r = await getWithKey(`${base}/models`, String(k.key), eff.shape);
-    if (r.why) return reply(200, { ok: false, why: r.why });
-    return reply(200, { ok: true, ms: Date.now() - started });
-  }
-
-  async function balance(query) {
-    const slot = slotOf(query.get('slot'));
-    if (!slot) return refuse('unknown-provider', 'That provider is not known.');
-    const c = config();
-    if (c.problem) return reply(200, { ok: false, why: c.problem });
-    if (!canBalance(resolveSlot(slot, { config: c.config }))) return reply(200, { ok: false, why: 'Not offered by this provider.' });
-    const k = keyFor(slot);
-    if (k.why) return reply(200, { ok: false, why: k.why });
-    const r = await getWithKey(DEEPSEEK_BALANCE_URL, String(k.key));
-    if (r.why) return reply(200, { ok: false, why: r.why });
-    const infos = Array.isArray(r.body?.balance_infos) ? r.body.balance_infos : [];
-    const balances = infos
-      .filter((b) => b && typeof b.currency === 'string' && b.total_balance !== undefined)
-      .map((b) => ({ currency: b.currency, total: String(b.total_balance) }));
-    if (balances.length === 0) return reply(200, { ok: false, why: 'The provider did not report a balance.' });
-    return reply(200, { ok: true, balances });
+  /** The model ids a provider's list answer holds, per API shape (`data[].id` for two shapes; the third shape: `models[].name`, minus its `models/` prefix). @param {string} shape @param {any} body @returns {string[]} */
+  function idsOf(shape, body) {
+    const list = shape === 'gemini-api' ? body?.models : body?.data;
+    const key = shape === 'gemini-api' ? 'name' : 'id';
+    const ids = (Array.isArray(list) ? list : []).map((m) => (typeof m?.[key] === 'string' ? m[key].replace(/^models\//, '') : '')).filter((id) => id !== '');
+    return [...new Set(ids)].sort();
   }
 
   /**
-   * Save one model line: {slot, model, use?, inPerM?, outPerM?, thinkingOff?} (a field left out keeps the line's value; a price
+   * The ONE model-list call (M4d amendment 6 item 3): one free GET of `<Base URL>/models` with the key in the header only. Test and the page's list
+   * both read it. `{ ok:true, models, ms }` or `{ ok:false, why }` in plain words. Writes nothing.
+   * @param {unknown} rawSlot
+   */
+  async function listModels(rawSlot) {
+    const slot = slotOf(rawSlot);
+    if (!slot) return { unknown: true };
+    const started = Date.now();
+    const c = config();
+    if (c.problem) return { ok: false, why: c.problem };
+    const eff = resolveSlot(slot, { config: c.config });
+    // the address comes first: a key reaches the env only once its row is set up, so a row with no address has nothing to send yet
+    if (eff.baseUrl === '') return { ok: false, why: `Type a Base URL for ${slot} in Settings.` };
+    const k = keyFor(slot);
+    if (k.why) return { ok: false, why: k.why };
+    const r = await getWithKey(`${eff.baseUrl}/models`, String(k.key), eff.shape);
+    if (r.why) return { ok: false, why: r.why };
+    return { ok: true, models: idsOf(eff.shape, r.body), ms: Date.now() - started };
+  }
+
+  async function test(body) {
+    const r = await listModels(body?.slot);
+    if (r.unknown) return refuse('unknown-provider', 'That provider is not known.');
+    return reply(200, r.ok ? { ok: true, ms: r.ms } : r);
+  }
+
+  async function models(body) {
+    const r = await listModels(body?.slot);
+    if (r.unknown) return refuse('unknown-provider', 'That provider is not known.');
+    if (!r.ok) return reply(200, r);
+    const ids = r.models ?? [];
+    return reply(200, ids.length === 0 ? { ok: false, why: 'The provider did not list any models.' } : { ok: true, models: ids });
+  }
+
+  /**
+   * Save one model line: {slot, model, use?, inPerM?, outPerM?} (a field left out keeps the line's value; a price
    * `null` clears it). The whole slot list is judged by `modelsProblem` (the one rule) BEFORE anything is written;
    * Idea borrowed from bareloop src/panel/settingsroutes.js@caf019b (both prices or neither, :165-179), not copied: the
    * rule here is `modelsProblem` (tick needs both, 0 / 0 allowed, exact sentence).
-   * the first save for a slot writes the migrated list and drops the slot's old `prices.<slot>`.
    */
   function model(body) {
     const slot = slotOf(body?.slot);
@@ -198,12 +186,11 @@ export function createSettings(cfg) {
       return refuse('bad-price', 'Cached input has no price of its own: it is priced as input. Nothing was saved.');
     }
     if (typeof body.model !== 'string') return refuse('bad-model', 'Pick a model line. Nothing was saved.');
-    // A migrated half-typed line (one price box filled) that is not the line being saved is left unpriced, so it never blocks this save.
-    const list = effectiveModels(slot, c.config).lines.map((m) => (m.model !== body.model && (m.inPerM === undefined) !== (m.outPerM === undefined) ? { model: m.model, use: m.use, ...(m.thinkingOff === undefined ? {} : { thinkingOff: m.thinkingOff }) } : { ...m }));
+    // the saved list as it is, minus an older file's `thinkingOff` (read by nothing; dropped here, amendment 7)
+    const list = effectiveModels(slot, c.config).map((m) => { const { thinkingOff, ...rest } = /** @type {Record<string, any>} */ (m); return { ...rest }; });
     let line = list.find((m) => m.model === body.model);
     if (!line) { line = { model: body.model, use: false }; list.push(line); }
     if (Object.hasOwn(body, 'use')) line.use = body.use;
-    if (Object.hasOwn(body, 'thinkingOff')) line.thinkingOff = body.thinkingOff;
     for (const f of /** @type {const} */ (['inPerM', 'outPerM'])) {
       if (!Object.hasOwn(body, f)) continue;
       if (body[f] === null) delete line[f];
@@ -212,7 +199,7 @@ export function createSettings(cfg) {
     const problem = modelsProblem(list);
     if (problem) return refuse('bad-model', problem);
     try {
-      updateConfig({ models: { [slot]: list }, prices: { [slot]: null } }, { home: cfg.home });
+      updateConfig({ models: { [slot]: list } }, { home: cfg.home });
     } catch (e) {
       if (!(e instanceof ConfigError)) throw e;
       return refuse('config-broken', `${BROKEN_CONFIG} Nothing was saved.`);
@@ -220,20 +207,19 @@ export function createSettings(cfg) {
     return reply(200, { ok: true, slot });
   }
 
-  /** Save a provider slot's name (model id), shape and Base URL. Validate EVERY field first; write only if all pass. */
+  /** Save a row's shape, Base URL and legacyMaxTokens tick. Validate EVERY field first; write only if all pass. */
   function provider(body) {
     const slot = slotOf(body?.slot);
     if (!slot) return refuse('unknown-provider', 'That provider is not known.');
-    const fields = { name: 'model', shape: 'shape', baseUrl: 'baseUrl' };
-    const say = { name: 'The name must be a model id: 1 to 200 characters, no spaces.', shape: 'Pick an API shape from the list.', baseUrl: 'The Base URL must be empty (use the default) or start with http:// or https://.' };
-    /** @type {Record<string, string|null>} */
+    const say = { shape: 'Pick an API shape from the list.', baseUrl: 'The Base URL must start with http:// or https://.', legacyMaxTokens: 'The legacy max_tokens tick must be on or off.' };
+    /** @type {Record<string, string|boolean|null>} */
     const patch = {};
-    for (const [key, field] of Object.entries(fields)) {
+    for (const key of Object.keys(say)) {
       if (!Object.hasOwn(body, key)) continue;
       const v = body[key];
       const clearUrl = key === 'baseUrl' && v === '';
-      if (!clearUrl && providerFieldProblem(field, v) !== null) return refuse('bad-provider', `${say[key]} Nothing was saved.`);
-      patch[field] = clearUrl ? null : (key === 'baseUrl' ? cleanBaseUrl(v) : v);
+      if (!clearUrl && providerFieldProblem(key, v) !== null) return refuse('bad-provider', `${say[key]} Nothing was saved.`);
+      patch[key] = clearUrl ? null : (key === 'baseUrl' ? cleanBaseUrl(v) : v);
     }
     if (Object.keys(patch).length === 0) return refuse('bad-provider', 'Nothing to save.');
     try {
@@ -243,23 +229,6 @@ export function createSettings(cfg) {
       return refuse('config-broken', `${BROKEN_CONFIG} Nothing was saved.`);
     }
     return reply(200, { ok: true, slot });
-  }
-
-  /** The "Thinking on (drafting)" tick-box: one boolean for all jobs, only for a drafting model the allow-list knows. */
-  function thinking(body) {
-    if (typeof body?.on !== 'boolean') return refuse('bad-thinking', 'Send on or off. Nothing was saved.');
-    const c = config();
-    if (c.problem) return refuse('config-broken', `${BROKEN_CONFIG} Nothing was saved.`);
-    if (!draftingModel(c.config).canChange) {
-      return refuse('thinking-fixed', "Thinking can't change this for this model, so nothing was saved.");
-    }
-    try {
-      updateConfig({ draftThinking: body.on }, { home: cfg.home });
-    } catch (e) {
-      if (!(e instanceof ConfigError)) throw e;
-      return refuse('config-broken', `${BROKEN_CONFIG} Nothing was saved.`);
-    }
-    return reply(200, { ok: true, on: body.on });
   }
 
   function moneyGet() {
@@ -291,17 +260,16 @@ export function createSettings(cfg) {
    */
   async function handle({ method, pathname, query, body }) {
     if (cfg.skip) return refuse('settings-unavailable', 'Settings is not available here.', 404);
-    const known = { GET: ['/api/settings/providers', '/api/settings/balance', '/api/settings/money'], POST: ['/api/settings/test', '/api/settings/model', '/api/settings/provider', '/api/settings/money', '/api/settings/thinking'] };
+    const known = { GET: ['/api/settings/providers', '/api/settings/money'], POST: ['/api/settings/test', '/api/settings/models', '/api/settings/model', '/api/settings/provider', '/api/settings/money'] };
     if (!(known[method] ?? []).includes(pathname)) return refuse('no-such-settings-route', 'Settings cannot do that. Keys are typed into your keys file by hand.', 404);
     if (method === 'GET') {
       if (pathname === '/api/settings/providers') return providers();
-      if (pathname === '/api/settings/balance') return balance(query);
       return moneyGet();
     }
     if (pathname === '/api/settings/test') return test(body);
+    if (pathname === '/api/settings/models') return models(body);
     if (pathname === '/api/settings/model') return model(body);
     if (pathname === '/api/settings/provider') return provider(body);
-    if (pathname === '/api/settings/thinking') return thinking(body);
     return moneyPost(body);
   }
 

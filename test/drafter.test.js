@@ -132,9 +132,9 @@ test('$0 gates: bad prose and an unreadable source refuse before any provider ca
   assert.equal(bad.costUsd, 0);
 });
 
-// F49, end to end: draft()'s own live-provider path must put thinking:{type:'disabled'} on the wire.
+// M4d am7 (replaces F49's wire field): draft()'s own live-provider path puts NO thinking field on the wire - bareagent does that switching.
 // Seam: draft({ makeProviderFn }) wraps the real makeProvider and repoints its baseUrl at a local server.
-test('draft() live path sends body.thinking = {type:"disabled"} on the request (local server, no network)', async () => {
+test('draft() live path runs against a ticked Settings line and sends no body.thinking (local server, no network)', async () => {
   let body;
   const server = http.createServer((req, res) => {
     let raw = '';
@@ -159,6 +159,8 @@ test('draft() live path sends body.thinking = {type:"disabled"} on the request (
     const fx = job2Fixture();
     const r = await draft({
       proseText: fx.prose,
+      slot: 'DEEPSEEK_API_KEY',
+      model: 'deepseek-flash',
       makeProviderFn: (slot, opts) => {
         const built = makeProvider(slot, opts);
         built.provider.baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -166,7 +168,7 @@ test('draft() live path sends body.thinking = {type:"disabled"} on the request (
       },
     });
     assert.equal(r.ok, true, JSON.stringify(r.reds));
-    assert.deepEqual(body.thinking, { type: 'disabled' });
+    assert.equal(body.thinking, undefined);
   } finally {
     restoreDoor();
     if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved; else delete process.env.DEEPSEEK_API_KEY;

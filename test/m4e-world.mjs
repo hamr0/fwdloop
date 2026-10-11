@@ -87,8 +87,15 @@ export async function until(fn, ms = 20000) {
 /**
  * @param {{ limit?: number, mode?: string, keysMode?: number, step?: string, bin?: string, extraEnv?: Record<string,string> }} [o]
  */
+/** The config the world's home starts from (M4d am6: a key row with an address, one ticked model), plus `extra` (e.g. a monthly limit). */
+export const tickedConfig = (extra = {}) => ({
+  providers: { DEEPSEEK_API_KEY: { shape: 'openai-api', baseUrl: 'http://127.0.0.1:9' } },
+  models: { DEEPSEEK_API_KEY: [{ model: 'fake-ticked', use: true, inPerM: 0.75, outPerM: 1.625 }] },
+  ...extra,
+});
+
 export async function world({
-  limit, mode, keysMode = 0o600, step = FAKE_STEP, bin, extraEnv = {},
+  limit, mode, keysMode = 0o600, step = FAKE_STEP, bin, extraEnv = {}, authorOpts = {},
 } = {}) {
   const work = tmp('w');
   const root = path.join(work, 'flows');
@@ -101,9 +108,7 @@ export async function world({
   chmodSync(keysFilePath(home), keysMode);
   // M4d am5: the model's hold comes from the ticked Settings line. These prices make one round's hold $0.05
   // (32000 in-tokens x 0.75 + 16000 out-tokens x 1.625, per 1M), the figure these walks were written around.
-  writeFileSync(path.join(home, 'config.json'), JSON.stringify({
-    models: { deepseek: [{ model: 'fake-ticked', use: true, inPerM: 0.75, outPerM: 1.625 }] }, ...(limit !== undefined ? { monthlyLimitUsd: limit } : {}),
-  }));
+  writeFileSync(path.join(home, 'config.json'), JSON.stringify(tickedConfig(limit !== undefined ? { monthlyLimitUsd: limit } : {})));
   writeFileSync(path.join(inDir, 'resume.md'), '# R\n');
   writeFileSync(path.join(inDir, 'jd.md'), '# J\n');
   const gate = path.join(work, 'gate');
@@ -112,7 +117,7 @@ export async function world({
   };
   const open = async ({ bin: binOverride } = {}) => {
     const h = remember(await createPanelServer({
-      port: 0, root, settings: { home, env: {} }, author: { loadEnv: () => keysForDoor({ env, keysHome: home }), ...(binOverride ?? bin ? { bin: binOverride ?? bin } : {}) },
+      port: 0, root, settings: { home, env: {} }, author: { loadEnv: () => keysForDoor({ env, keysHome: home }), ...(binOverride ?? bin ? { bin: binOverride ?? bin } : {}), ...authorOpts },
     }));
     HANDLES.push(h);
     return h;
@@ -120,7 +125,7 @@ export async function world({
   ROOTS.push(root);
   const h = await open();
   const card = (over = {}) => ({
-    flowName: 'job2', job: JOB, capUsd: '0.25', askWait: '1h', destination: outDir,
+    flowName: 'job2', job: JOB, capUsd: '0.25', askWait: '1h', destination: outDir, provider: 'DEEPSEEK_API_KEY', model: 'fake-ticked',
     inputs: inputsText([['resume', path.join(inDir, 'resume.md')], ['jd', path.join(inDir, 'jd.md')]]), ...over,
   });
   const post = (url, body, headers) => rq(h.port, { method: 'POST', url, body, headers });

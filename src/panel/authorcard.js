@@ -17,9 +17,7 @@ import { isAbsolute, join } from 'node:path';
 import { checkFlowName, signedHashOf } from '../flow.js';
 import { checkSendDestination } from '../runner.js';
 import { parseSignedText } from '../signed-text.js';
-import {
-  PROVIDER_SLOTS, MODEL_SLOT, readPriceConfig, resolveUsableModel, ceilingCostUsd,
-} from '../provider.js';
+import { readPriceConfig, resolveUsableModel, ceilingCostUsd } from '../provider.js';
 
 /** The heading line the prose files use (flows/job2-m6a-3/prose.txt); the parser matches `/^arbiter guardrails\b/i`. */
 export const ARBITER_HEADING = 'Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):';
@@ -172,6 +170,9 @@ export function cardFields(body) {
     inputs: str(b.inputs).replace(/\r\n?/g, '\n'),
     capUsd: typeof b.capUsd === 'string' && b.capUsd.trim() !== '' ? Number(b.capUsd) : b.capUsd,
     askWait: str(b.askWait).trim(),
+    // M4d amendment 6: the picked model (a key name and a model id from Chat's menu) and the per-job "Thinking on" tick; present only when sent
+    ...(str(b.provider).trim() !== '' || str(b.model).trim() !== '' ? { provider: str(b.provider).trim(), model: str(b.model).trim() } : {}),
+    ...(b.thinking === true ? { thinking: true } : {}),
     // M6: present only when this card EDITS a signed job: which job, and the signature hash it was opened at
     ...(typeof b.editOf?.flow === 'string' && typeof b.editOf?.flowHash === 'string' && b.editOf.flowHash !== '' ? { editOf: { flow: b.editOf.flow, flowHash: b.editOf.flowHash } } : {}),
   };
@@ -291,17 +292,19 @@ export function checkInputRows(rows) {
  * per-round hold (the picked model's own Settings prices times the token bounds) as soon as the job has one such line; a job of only asks spends nothing before its stop.
  * ONE function: the card's Draft check, Sign, and the page's note all read it. Returns 0 when no step needs a round.
  * @param {string} jobText @param {string} [home] the config home the panel reads Settings from (default: the process door)
+ * @param {{ slot?: string, provider?: string, model?: string }|null} [pick] the job's picked model (M4d amendment 6): its own Settings prices are the hold (a card names its key as `provider`)
  */
-export function capFloorUsd(jobText, home) {
-  return capFloorFor(parseJobBox(jobText).steps.some((s) => s.ask === null), home);
+export function capFloorUsd(jobText, home, pick) {
+  return capFloorFor(parseJobBox(jobText).steps.some((s) => s.ask === null), home, pick);
 }
 
-/** The floor itself, for a caller that already knows whether the job has a step that is not an ask (a signed flow: any step off an ask line). @param {boolean} hasRoundStep @param {string} [home] */
-export function capFloorFor(hasRoundStep, home) {
-  if (!hasRoundStep) return 0;
-  // No usable model (nothing ticked, a broken config): nothing is held here, and the run itself is refused by name (`resolveUsableModel`).
+/** The floor itself, for a caller that already knows whether the job has a step that is not an ask (a signed flow: any step off an ask line). @param {boolean} hasRoundStep @param {string} [home] @param {{ slot?: string, provider?: string, model?: string }|null} [pick] */
+export function capFloorFor(hasRoundStep, home, pick) {
+  const slot = pick?.slot ?? pick?.provider;
+  if (!hasRoundStep || !slot) return 0;
+  // No usable model (nothing picked or ticked, a broken config): nothing is held here, and the run itself is refused by name (`resolveUsableModel`).
   try {
-    const u = resolveUsableModel(MODEL_SLOT, { config: readPriceConfig(home) });
+    const u = resolveUsableModel(slot, { config: readPriceConfig(home), model: pick?.model });
     return u.ok ? ceilingCostUsd(u.rates) : 0;
   } catch { return 0; }
 }
@@ -327,10 +330,10 @@ export function destinationRefusal(dest, root) {
 /**
  * Every $0 check on the card, before any spawn (scope 6). Collects all refusals so the page can name every box.
  * @param {ReturnType<typeof cardFields>} card
- * @param {{ root: string, env?: Record<string, string|undefined>, home?: string }} ctx `env` = the merged keys env: a key value typed into any box is refused; `home` = the config home Settings is read from (the cap floor)
+ * @param {{ root: string, keys?: string[], home?: string }} ctx `keys` = the provider key values (the keys load's scrub list): a key value typed into any box is refused; `home` = the config home Settings is read from (the cap floor)
  * @returns {{ ok: true, prose: string }|{ ok: false, refusals: {field: string, say: string}[] }}
  */
-export function checkCard(card, { root, env = {}, home }) {
+export function checkCard(card, { root, keys = [], home }) {
   /** @type {{field: string, say: string}[]} */
   const refusals = [];
   const no = (field, say) => refusals.push({ field, say });
@@ -361,7 +364,7 @@ export function checkCard(card, { root, env = {}, home }) {
   // cap
   if (typeof card.capUsd === 'string' || typeof card.capUsd === 'number') {
     if (!(Number.isFinite(Number(card.capUsd)) && Number(card.capUsd) > 0)) no('capUsd', 'The cap must be a number above 0 (dollars per run).');
-    else if (Number(card.capUsd) < capFloorUsd(card.job, home)) no('capUsd', capFloorText(capFloorUsd(card.job, home)));
+    else if (Number(card.capUsd) < capFloorUsd(card.job, home, card)) no('capUsd', capFloorText(capFloorUsd(card.job, home, card)));
   } else no('capUsd', 'The cap must be a number above 0 (dollars per run).');
 
   // destination: one folder, or empty for no send (it is sent at the last step)
@@ -375,12 +378,10 @@ export function checkCard(card, { root, env = {}, home }) {
   refusals.push(...checkInputRows(parseInputLines(card.inputs)));
 
   // a provider key typed into any box never reaches a file
-  /** @type {string[]} */
-  const keys = [];
-  for (const p of Object.values(PROVIDER_SLOTS)) { const k = env[p.envVar]; if (typeof k === 'string' && k.length >= 8) keys.push(k); }
-  if (keys.length > 0) {
+  const longKeys = keys.filter((k) => k.length >= 8);
+  if (longKeys.length > 0) {
     const boxes = [['job', card.job], ['flowName', card.flowName], ['destination', dest], ['inputs', card.inputs]];
-    for (const [field, text] of boxes) if (keys.some((k) => String(text).includes(k))) no(String(field), 'This box contains an API key. Keys go in Settings only. Nothing was saved.');
+    for (const [field, text] of boxes) if (longKeys.some((k) => String(text).includes(k))) no(String(field), 'This box contains an API key. Keys go in Settings only. Nothing was saved.');
   }
 
   if (refusals.length > 0) return { ok: false, refusals };

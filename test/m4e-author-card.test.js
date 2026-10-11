@@ -191,7 +191,7 @@ test('(a) the job box becomes exactly the job file the fixture has (numbers in o
 test('(ix) a provider key typed into any box is refused at the card, nothing is built from it', () => {
   const s = scene();
   const KEY = 'sk-canary-m4e-card-0123456789abcdef';
-  const r = checkCard(s.card({ job: `${JOB}\n~use ${KEY}` }), { root: s.root, env: { DEEPSEEK_API_KEY: KEY } });
+  const r = checkCard(s.card({ job: `${JOB}\n~use ${KEY}` }), { root: s.root, keys: [KEY] });
   assert.deepEqual(refusedFields(r), ['job']);
   assert.ok(!JSON.stringify(r).includes(KEY), 'the refusal never quotes the key');
 });

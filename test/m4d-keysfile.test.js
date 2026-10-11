@@ -13,7 +13,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 
 import {
-  parseKeysText, loadKeysEnv, keysForDoor, keysFilePath, chmodSentence, KEY_NAMES,
+  parseKeysText, loadKeysEnv, keysForDoor, keysFilePath, chmodSentence,
 } from '../src/keysfile.js';
 import { makeProvider, checkKeyPreflight } from '../src/provider.js';
 import { tickedHome } from './fixtures/m4d-ticked.mjs';
@@ -41,6 +41,8 @@ function homeWith(body, mode = 0o600) {
   mkdirSync(home, { recursive: true, mode: 0o700 });
   writeFileSync(keysFilePath(home), body, { mode });
   chmodSync(keysFilePath(home), mode);
+  // M4d am6: a key reaches the env only once its row is set up in Settings
+  writeFileSync(path.join(home, 'config.json'), JSON.stringify({ providers: { DEEPSEEK_API_KEY: { baseUrl: 'http://127.0.0.1:9' } } }));
   return home;
 }
 
@@ -56,26 +58,25 @@ test('parse: export prefix, comments, quotes; bad names and bad lines skipped; a
 
 test('created 0600 in a 0700 dir when missing: commented key names only, no value; not a refusal', () => {
   const home = path.join(tmp('create'), 'fwdloop');
-  const r = loadKeysEnv({ env: {}, home });
+  const r = loadKeysEnv({ configured: ['DEEPSEEK_API_KEY', 'SYNTHETIC_API_KEY'], env: {}, home });
   assert.equal(r.ok, true);
   assert.equal(r.exists, true);
   assert.equal(statSync(keysFilePath(home)).mode & 0o777, 0o600);
   assert.equal(statSync(home).mode & 0o777, 0o700);
   const text = readFileSync(keysFilePath(home), 'utf8');
-  for (const n of KEY_NAMES) assert.ok(text.includes(`# ${n}=`), `${n} listed as a comment`);
-  assert.ok(KEY_NAMES.includes('DEEPSEEK_API_KEY') && KEY_NAMES.includes('SYNTHETIC_API_KEY'));
+  assert.match(text, /^# fwdloop keys/, 'no key name is built in: the file carries a header only (M4d am6)');
   for (const line of text.split('\n')) assert.ok(line === '' || line.startsWith('#'), `only comments: ${line}`);
   assert.deepEqual(r.names, []);
   assert.equal(r.env.DEEPSEEK_API_KEY, undefined);
   // an existing file is never touched
   writeFileSync(keysFilePath(home), 'DEEPSEEK_API_KEY=mine\n');
-  assert.equal(loadKeysEnv({ env: {}, home }).env.DEEPSEEK_API_KEY, 'mine');
+  assert.equal(loadKeysEnv({ configured: ['DEEPSEEK_API_KEY', 'SYNTHETIC_API_KEY'], env: {}, home }).env.DEEPSEEK_API_KEY, 'mine');
 });
 
 test('(iii) a keys file with group or other bits is refused with the exact sentence, and carries no file value', () => {
   for (const mode of [0o640, 0o604, 0o644, 0o660, 0o666, 0o602]) {
     const home = homeWith(`DEEPSEEK_API_KEY=${CANARY}\n`, mode);
-    const r = loadKeysEnv({ env: {}, home });
+    const r = loadKeysEnv({ configured: ['DEEPSEEK_API_KEY', 'SYNTHETIC_API_KEY'], env: {}, home });
     assert.equal(r.ok, false, `mode ${mode.toString(8)}`);
     assert.equal(r.refusal, `Your keys file can be read by other users. Run: chmod 600 ${keysFilePath(home)}`);
     assert.equal(r.refusal, chmodSentence(home));
@@ -85,13 +86,13 @@ test('(iii) a keys file with group or other bits is refused with the exact sente
   // the default home prints the ~ form
   assert.equal(chmodSentence(), 'Your keys file can be read by other users. Run: chmod 600 ~/.config/fwdloop/.env');
   // 0400 (owner read only) and 0600 are fine
-  for (const mode of [0o400, 0o600]) assert.equal(loadKeysEnv({ env: {}, home: homeWith('A=1\n', mode) }).ok, true);
+  for (const mode of [0o400, 0o600]) assert.equal(loadKeysEnv({ configured: ['DEEPSEEK_API_KEY', 'SYNTHETIC_API_KEY'], env: {}, home: homeWith('A=1\n', mode) }).ok, true);
 });
 
 test('an unreadable file refuses by name, without its content', () => {
   if (process.getuid && process.getuid() === 0) return; // root reads anything
   const home = homeWith(`DEEPSEEK_API_KEY=${CANARY}\n`, 0o000);
-  const r = loadKeysEnv({ env: {}, home });
+  const r = loadKeysEnv({ configured: ['DEEPSEEK_API_KEY', 'SYNTHETIC_API_KEY'], env: {}, home });
   assert.equal(r.ok, false);
   assert.match(r.refusal, /could not be read \(EACCES\)/);
   assert.ok(!JSON.stringify(r).includes(CANARY));
@@ -99,7 +100,7 @@ test('an unreadable file refuses by name, without its content', () => {
 
 test('(iv) the shell wins: a shell value beats the file; the file only fills unset or empty names', () => {
   const home = homeWith(`DEEPSEEK_API_KEY=from-file-1\nSYNTHETIC_API_KEY=from-file-2\n`);
-  const r = loadKeysEnv({ env: { DEEPSEEK_API_KEY: 'from-shell', SYNTHETIC_API_KEY: '' }, home });
+  const r = loadKeysEnv({ configured: ['DEEPSEEK_API_KEY', 'SYNTHETIC_API_KEY'], env: { DEEPSEEK_API_KEY: 'from-shell', SYNTHETIC_API_KEY: '' }, home });
   assert.equal(r.env.DEEPSEEK_API_KEY, 'from-shell');
   assert.equal(r.env.SYNTHETIC_API_KEY, 'from-file-2');
   assert.deepEqual(r.shellOnly, ['DEEPSEEK_API_KEY'].filter((n) => !r.names.includes(n)));
@@ -109,7 +110,7 @@ test('loading returns a NEW env and never mutates process.env or the base env', 
   const home = homeWith(`DEEPSEEK_API_KEY=${CANARY}\n`);
   const base = { PATH: '/x' };
   const before = JSON.stringify(process.env);
-  const r = loadKeysEnv({ env: base, home });
+  const r = loadKeysEnv({ configured: ['DEEPSEEK_API_KEY', 'SYNTHETIC_API_KEY'], env: base, home });
   assert.equal(r.env.DEEPSEEK_API_KEY, CANARY);
   assert.notEqual(r.env, base);
   assert.deepEqual(base, { PATH: '/x' });
@@ -123,7 +124,7 @@ test('loading returns a NEW env and never mutates process.env or the base env', 
 
 test('names-only info: names, path, exists, shellOnly — no value anywhere but env', () => {
   const home = homeWith(`DEEPSEEK_API_KEY=${CANARY}\n# SYNTHETIC_API_KEY=\n`);
-  const r = loadKeysEnv({ env: { SYNTHETIC_API_KEY: 'shellval-123456' }, home });
+  const r = loadKeysEnv({ configured: ['DEEPSEEK_API_KEY', 'SYNTHETIC_API_KEY'], env: { SYNTHETIC_API_KEY: 'shellval-123456' }, home });
   const { env, ...info } = r;
   assert.deepEqual(info.names, ['DEEPSEEK_API_KEY']);
   assert.deepEqual(info.shellOnly, ['SYNTHETIC_API_KEY']);
@@ -143,17 +144,17 @@ test('keysForDoor: an injected env alone, or NODE_ENV=test without a home, never
 
 test('(i) makeProvider and checkKeyPreflight take the merged env: the file key is used, process.env is not consulted', () => {
   const home = homeWith(`DEEPSEEK_API_KEY=${CANARY}\n`);
-  const { env } = loadKeysEnv({ env: {}, home });
+  const { env } = loadKeysEnv({ configured: ['DEEPSEEK_API_KEY', 'SYNTHETIC_API_KEY'], env: {}, home });
   assert.equal(process.env.DEEPSEEK_API_KEY === CANARY, false);
-  assert.equal(checkKeyPreflight('deepseek', env).ok, true);
-  const built = makeProvider('deepseek', { env, configHome: tickedHome() });
+  assert.equal(checkKeyPreflight('DEEPSEEK_API_KEY', env).ok, true);
+  const built = makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', env, configHome: tickedHome() });
   assert.equal(built.provider.apiKey, CANARY);
   // without the merged env the same call refuses (the shell has no key): the env option is what carries it
   const saved = process.env.DEEPSEEK_API_KEY;
   delete process.env.DEEPSEEK_API_KEY;
   try {
-    assert.throws(() => makeProvider('deepseek', { env: {} }), /DEEPSEEK_API_KEY is not set/);
-    assert.throws(() => makeProvider('deepseek'), /DEEPSEEK_API_KEY is not set/);
+    assert.throws(() => makeProvider('DEEPSEEK_API_KEY', { env: {} }), /DEEPSEEK_API_KEY is not set/);
+    assert.throws(() => makeProvider('DEEPSEEK_API_KEY'), /DEEPSEEK_API_KEY is not set/);
   } finally {
     if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved;
   }
@@ -161,14 +162,14 @@ test('(i) makeProvider and checkKeyPreflight take the merged env: the file key i
 
 test('(i) a file key is scrubbed from a drafter red exactly like a shell key', async () => {
   const home = homeWith(`DEEPSEEK_API_KEY=${CANARY}\n`);
-  const { env } = loadKeysEnv({ env: {}, home });
+  const { env } = loadKeysEnv({ configured: ['DEEPSEEK_API_KEY', 'SYNTHETIC_API_KEY'], env: {}, home });
   const fx = job2Fixture();
   const work = tmp('draft');
   const proseFile = path.join(work, 'prose.txt');
   writeFileSync(proseFile, fx.prose);
   const provider = { lastMalformedToolCall: null, async generate() { throw new Error(`401 invalid Authorization: Bearer ${CANARY}`); } };
   const r = await draftToDir({
-    proseFile, dir: path.join(work, 'd'), root: path.join(work, 'flows'), name: 'job2', provider, rates: RATES, modelId: MODEL, env,
+    proseFile, dir: path.join(work, 'd'), root: path.join(work, 'flows'), name: 'job2', provider, rates: RATES, modelId: MODEL, env, slot: 'DEEPSEEK_API_KEY',
   });
   assert.equal(r.ok, false);
   assert.ok(!r.reds.join(' ').includes(CANARY), 'the file key never leaves in a red');

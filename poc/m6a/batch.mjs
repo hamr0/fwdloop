@@ -86,7 +86,7 @@ export async function runBatch({
   if (!Number.isInteger(n) || n < 1) throw new Error(`batch: --n must be a positive integer, got "${n}"`);
   if (!tag || /[^A-Za-z0-9._-]/.test(tag)) throw new Error('batch: --tag is required (letters, digits, . _ - only)');
   if (!injected) {
-    const key = checkKeyPreflight('deepseek', env);
+    const key = checkKeyPreflight('DEEPSEEK_API_KEY', env);
     if (!key.ok) throw new Error(key.message);
   }
   const jsonl = join(outDir, `${tag}.jsonl`);
@@ -110,7 +110,7 @@ export async function runBatch({
     let r;
     try {
       // eslint-disable-next-line no-await-in-loop
-      r = await withDeadline(draft({ proseText, model, budgetUsd: draftBudgetUsd, ...(injected ?? {}) }), deadlineMs);
+      r = await withDeadline(draft({ proseText, slot: 'DEEPSEEK_API_KEY', model, budgetUsd: draftBudgetUsd, ...(injected ?? {}) }), deadlineMs);
     } catch (err) {
       r = { ok: false, declaration: null, reds: [`crash: ${err.message}`], rounds: null, costUsd: null, stop: 'crash', log: [] };
     }

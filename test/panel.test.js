@@ -2004,7 +2004,7 @@ describe('index.html — page source', () => {
     // postJSON is called with exactly two paths.
     const postPaths = [...code.matchAll(/postJSON\(\s*"([^"]+)"/g)].map((m) => m[1]).sort();
     // M4d piece 4 adds exactly the four Settings POSTs (test, model, provider, limit); none of them writes the keys file.
-    assert.deepEqual(postPaths, ['/api/answer', '/api/remove-lock', '/api/reopen', '/api/resume', '/api/settings/model', '/api/settings/money', '/api/settings/provider', '/api/settings/test', '/api/settings/thinking', '/api/stop']);
+    assert.deepEqual(postPaths, ['/api/answer', '/api/remove-lock', '/api/reopen', '/api/resume', '/api/settings/model', '/api/settings/model', '/api/settings/models', '/api/settings/money', '/api/settings/provider', '/api/settings/test', '/api/stop']);
   });
 
   test('M4c-fix item 2: the page carries no token — no TOKEN variable, no token header, never a URL, storage, or a log', () => {

@@ -27,9 +27,9 @@ import { WIRED_VERBS } from './primitives.js';
 import { canonicalBytes } from './signature.js';
 import { writeFlow, readFileInside, readdirInside, checkFlowName } from './flow.js';
 import { checkSendDestination } from './runner.js';
-import {
-  PROVIDER_SLOTS, MODEL_SLOT, checkKeyPreflight, appendSpendRow,
-} from './provider.js';
+import { checkKeyPreflight, appendSpendRow } from './provider.js';
+import { keyValues } from './keysfile.js';
+import { readModelRecord, writeModelRecord } from './flowmodel.js';
 import { writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
 
@@ -248,7 +248,7 @@ export function draftKeyRefusal(slot, env) {
  * Test seam: `provider`/`rates`/`modelId` are injected; without them a live provider is built.
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot = MODEL_SLOT, model, budgetUsd = DRAFT_BUDGET_USD, env = process.env, provider, rates, modelId, noQuestions = false,
+  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, budgetUsd = DRAFT_BUDGET_USD, env = process.env, provider, rates, modelId, noQuestions = false,
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
   const nameCheck = checkFlowName(name);
@@ -269,12 +269,11 @@ export async function draftToDir({
   if (!read.ok) return refuse([String(read.red)]);
   const prose = { text: String(read.text) };
   const injected = provider != null;
-  const secretVar = PROVIDER_SLOTS[slot]?.envVar;
   if (!injected) {
     const refusal = draftKeyRefusal(slot, env);
     if (refusal !== null) return refuse([refusal]);
   }
-  const secrets = secretVar && env[secretVar] ? [env[secretVar]] : [];
+  const secrets = keyValues(env, [...new Set([...(keyNames ?? []), ...(typeof slot === 'string' ? [slot] : [])])]);
   if (secrets.some((s) => s.length >= 8 && prose.text.includes(s))) return refuse(['prose: contains an API key value — refused']);
   // Red messages can echo what a provider's error body echoed (a key): scrubbed like every file, before anything prints them.
   const cleanReds = (reds) => (reds ?? []).map((r) => scrub(String(r), secrets));
@@ -307,7 +306,7 @@ export async function draftToDir({
     }
   };
   const result = await draft({
-    proseText: prose.text, slot, model, budgetUsd, provider, rates, modelId, env, onBook, offerQuestions: !noQuestions,
+    proseText: prose.text, slot, model, budgetUsd, provider, rates, modelId, env, onBook, offerQuestions: !noQuestions, draftThinking,
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }
@@ -325,6 +324,9 @@ export async function draftToDir({
   files['prose.txt'] = prose.text; // verbatim
   const targetText = dj({ root, name });
   files['target.json'] = targetText;
+  // M4d am6 item 6: the pick is remembered beside the draft (written below as model.json, outside the signed files) so the signed job runs with it.
+  const recordModel = model ?? result.modelId ?? modelId;
+  const pick = typeof slot === 'string' && typeof recordModel === 'string' && recordModel !== '' ? { slot, model: recordModel } : null;
   // Amendments 24/25: the questions and the drafter's own "not checked" reading are written BEFORE log.json/spec.hash (the panel reads those
   // two as "the draft finished"), as their own files: never in the readout, so never in the hash.
   if (result.questions?.length) files[QUESTIONS_FILE] = scrub(dj({ questions: result.questions }), secrets);
@@ -374,6 +376,7 @@ export async function draftToDir({
       wallMs: startedAt === null ? null : Math.max(0, Date.now() - Date.parse(startedAt)),
     });
     for (const [f, text] of Object.entries(files)) writeFileSync(path.join(dir, f), text);
+    if (pick !== null) writeModelRecord(dir, pick);
     leaks = sweepForSecrets(dir, secrets);
     if (leaks > 0) {
       const red = `scrub: ${leaks} file(s) in the draft dir contain a key value`;
@@ -395,18 +398,18 @@ export async function draftToDir({
  * `sessionDir` (the panel's draft folder: card, notes, every change) widens the setup record; the CLI has none, so its record is the one plan folder.
  * M6: `replaces: {flowHash}` (a draft opened from an existing signed job, carrying that job's signature hash) makes this sign REPLACE that job
  * (`writeFlow` checks the hash is still the job's); without it a taken name is refused as ever.
- * @param {{dir: any, approve?: any, signedBy: any, signedAt?: string, env?: Record<string, string|undefined>, sessionDir?: string, replaces?: {flowHash: string}}} a
+ * @param {{dir: any, approve?: any, signedBy: any, signedAt?: string, env?: Record<string, string|undefined>, keyNames?: string[], sessionDir?: string, replaces?: {flowHash: string}}} a
  */
 export function signDraft({
-  dir, approve, signedBy, signedAt = new Date().toISOString(), env = process.env, sessionDir, replaces,
+  dir, approve, signedBy, signedAt = new Date().toISOString(), env = process.env, keyNames, sessionDir, replaces,
 }) {
   const refuse = (...reds) => ({ ok: false, reds });
   if (readFileInside(dir, LEAK_MARKER_FILE).ok) return refuse(`sign: "${dir}" carries a key-leak marker (${LEAK_MARKER_FILE}) — never signed`);
   const openQuestion = questionsRefusal(dir);
   if (openQuestion !== null) return refuse(`sign: ${openQuestion}`);
-  // Sign is $0 and takes no key, so it can only sweep for keys present in ITS env (any provider slot's).
+  // Sign is $0 and takes no key, so it can only sweep for the keys it is told of (`keyNames`, the rows set up in Settings).
   // With none set the sweep is skipped: the marker above and the missing spec.hash are then the guard.
-  const keys = Object.values(PROVIDER_SLOTS).map((p) => env[p.envVar]).filter(Boolean);
+  const keys = keyValues(env, keyNames);
   if (sweepForSecrets(dir, keys) > 0) return refuse(`sign: "${dir}" contains a key value — nothing signed`);
   if (typeof approve !== 'string' || approve === '') return refuse('sign: --approve <hash> is required');
   const read = (f) => readFileInside(dir, f);
@@ -461,5 +464,12 @@ export function signDraft({
   const setup = writeSetup({
     flowDir: written.dir, sessionDir, planDir: dir, hash: h.hash, signedBy, signedAt, flowHash: written.signature?.flow, secrets: /** @type {string[]} */ (keys.filter((k) => typeof k === 'string' && k.length >= 8)),
   });
-  return { ok: true, flowDir: written.dir, signature: written.signature, setup };
+  // M4d am6 item 6: the draft's model pick goes into the flow folder beside the signed files; a run reads it from there. The flow IS signed by now,
+  // so a failure to write it never un-signs: `modelRecord.ok:false` is returned for the caller to say (the run is then refused by name).
+  const pickRecord = readModelRecord(dir);
+  let modelRecord = { ok: true, recorded: pickRecord !== null };
+  if (pickRecord !== null) {
+    try { writeModelRecord(written.dir, pickRecord); } catch (e) { modelRecord = { ok: false, recorded: false, why: /** @type {any} */ (e)?.code ?? 'error' }; }
+  }
+  return { ok: true, flowDir: written.dir, signature: written.signature, setup, modelRecord };
 }

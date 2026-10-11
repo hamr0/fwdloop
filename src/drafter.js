@@ -22,10 +22,10 @@ import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { readInputFacts } from './input-facts.js';
 import {
-  makeProvider, MODEL_SLOT, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord, draftCallOptions, readPriceConfig,
+  makeProvider, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord,
 } from './provider.js';
 import { LIVE_PROVIDER_OPTIONS } from './model-step.js';
-import { ConfigError, draftThinkingMode } from './config.js';
+import { ConfigError } from './config.js';
 
 export const MAX_STRUCTURE_RETRIES = 2;
 export const MAX_REVISIONS = 2;
@@ -277,20 +277,16 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
  *   questions?:{line:number, question:string}[], droppedQuestions?:object[], notChecked?:string[]}>}
  */
 export async function draft({
-  proseText, slot = MODEL_SLOT, model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
-  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'|undefined} */ (undefined),
+  proseText, slot, model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
+  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
 }) {
   const fail = (reds, extra = {}) => ({
     ok: false, declaration: null, reds, rounds: 0, calls: 0, spendComplete: true, costUsd: 0, modelReturned: null, structureRetries: 0, revisions: 0, stop: 'pre-flight', log: [], ...extra,
   });
 
   // ---- $0 gates, before any provider is built -------------------------------
-  // `draftThinking` ('on'|'off', M4d am3 A1) is turned into the wire field by provider.js's draftCallOptions, the one owner (F49 lives there).
-  // Not injected (the door): read the Settings tick-box NOW, per draft, so a change applies to the next draft.
-  try {
-    draftThinking ??= draftThinkingMode(readPriceConfig());
-    draftCallOptions({ shape: '' }, draftThinking);
-  } catch (err) { return fail([`config: ${err.message}`]); }
+  // `draftThinking` ('on'|'off', M4d am6 item 7 / am7: the Chat tick-box, per job) is an intent only: turning thinking on or off on the wire is bareagent's (am7 item 3).
+  if (draftThinking !== 'on' && draftThinking !== 'off') return fail([`config: draftThinking must be on | off, got ${JSON.stringify(draftThinking)}`]);
   const parsed = parseSignedText(proseText);
   if (!parsed.ok) return fail(parsed.reds.map((r) => `signed-text: ${r}`));
   const { lines, arbiter } = parsed;
@@ -309,7 +305,7 @@ export async function draft({
     try {
       ({
         provider, rates, modelId, prices = null,
-      } = makeProviderFn(slot, { model, env, ...LIVE_PROVIDER_OPTIONS, draftThinking }));
+      } = makeProviderFn(slot, { model, env, ...LIVE_PROVIDER_OPTIONS }));
     } catch (err) {
       return fail([err instanceof ModelRefusal ? err.message : `${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`]);
     }

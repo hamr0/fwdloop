@@ -13,7 +13,7 @@ import { OpenAI } from 'bare-agent/providers';
 import { tickedHome } from './fixtures/m4d-ticked.mjs';
 
 import {
-  PROVIDER_SLOTS, ceilingCostUsd,
+  ceilingCostUsd,
   classifyModelId, sumMeterings, appendSpendRow, assertUnderGlobalCap, checkKeyPreflight,
   makeProvider, spendRowCost,
 } from '../src/provider.js';
@@ -89,36 +89,36 @@ test('assertUnderGlobalCap: passes (does not throw) with plenty of headroom', ()
 });
 
 test('checkKeyPreflight: refuses an unset key at $0, before any ledger write', () => {
-  const result = checkKeyPreflight('deepseek', {});
+  const result = checkKeyPreflight('DEEPSEEK_API_KEY', {});
   assert.equal(result.ok, false);
   assert.match(result.message, /DEEPSEEK_API_KEY is not set/);
 });
 
 test('checkKeyPreflight: refuses an empty-string key', () => {
-  const result = checkKeyPreflight('deepseek', { DEEPSEEK_API_KEY: '' });
+  const result = checkKeyPreflight('DEEPSEEK_API_KEY', { DEEPSEEK_API_KEY: '' });
   assert.equal(result.ok, false);
 });
 
 test('checkKeyPreflight: refuses a key with a trailing newline (F26 — a two-line pass entry)', () => {
-  const result = checkKeyPreflight('deepseek', { DEEPSEEK_API_KEY: 'sk-real-key\n' });
+  const result = checkKeyPreflight('DEEPSEEK_API_KEY', { DEEPSEEK_API_KEY: 'sk-real-key\n' });
   assert.equal(result.ok, false);
   assert.match(result.message, /newline/);
 });
 
 test('checkKeyPreflight: refuses a key with embedded whitespace', () => {
-  const result = checkKeyPreflight('deepseek', { DEEPSEEK_API_KEY: 'sk-real key' });
+  const result = checkKeyPreflight('DEEPSEEK_API_KEY', { DEEPSEEK_API_KEY: 'sk-real key' });
   assert.equal(result.ok, false);
   assert.match(result.message, /whitespace/);
 });
 
 test('checkKeyPreflight: refuses an unknown slot name', () => {
-  const result = checkKeyPreflight('not-a-slot', { DEEPSEEK_API_KEY: 'sk-x' });
+  const result = checkKeyPreflight('not a slot', { DEEPSEEK_API_KEY: 'sk-x' });
   assert.equal(result.ok, false);
-  assert.match(result.message, /unknown provider slot/);
+  assert.match(result.message, /unknown provider/);
 });
 
 test('checkKeyPreflight: accepts a clean key', () => {
-  const result = checkKeyPreflight('deepseek', { DEEPSEEK_API_KEY: 'sk-clean-key-value' });
+  const result = checkKeyPreflight('DEEPSEEK_API_KEY', { DEEPSEEK_API_KEY: 'sk-clean-key-value' });
   assert.equal(result.ok, true);
 });
 
@@ -126,33 +126,28 @@ test('makeProvider: throws (never silently proceeds) when the slot\'s key is mis
   const saved = process.env.DEEPSEEK_API_KEY;
   delete process.env.DEEPSEEK_API_KEY;
   try {
-    assert.throws(() => makeProvider('deepseek', {}), /DEEPSEEK_API_KEY is not set/);
+    assert.throws(() => makeProvider('DEEPSEEK_API_KEY', {}), /DEEPSEEK_API_KEY is not set/);
   } finally {
     if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved;
   }
 });
 
 test('makeProvider: throws on an unknown slot before touching any key', () => {
-  assert.throws(() => makeProvider('not-a-real-slot', {}), /unknown provider slot/);
+  assert.throws(() => makeProvider('not a real slot', {}), /unknown provider/);
 });
 
 test('makeProvider: with a key present, builds a provider for the requested model without any network call', () => {
   const saved = process.env.DEEPSEEK_API_KEY;
   process.env.DEEPSEEK_API_KEY = 'sk-fake-test-key';
   try {
-    const built = makeProvider('deepseek', { model: 'deepseek-flash', configHome: tickedHome() });
+    const built = makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', configHome: tickedHome() });
     assert.equal(built.modelId, 'deepseek-flash');
-    assert.equal(built.slot, 'deepseek');
+    assert.equal(built.slot, 'DEEPSEEK_API_KEY');
     assert.ok(built.provider);
     assert.ok(built.rates.in > 0);
   } finally {
     if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved; else delete process.env.DEEPSEEK_API_KEY;
   }
-});
-
-test('PROVIDER_SLOTS: deepseek carries legacyMaxTokens (F11 — it ignores max_completion_tokens)', () => {
-  assert.equal(PROVIDER_SLOTS.deepseek.legacyMaxTokens, true);
-  assert.equal(PROVIDER_SLOTS.synthetic.legacyMaxTokens, false);
 });
 
 // BA-27 / 0.48 validation: the REAL wrapper from makeProvider, pointed at a
@@ -189,7 +184,7 @@ const EMIT_X = [{ name: 'emit_x', description: 'd', parameters: { type: 'object'
 
 test('makeProvider("deepseek")\'s real wrapper: malformed args come back verbatim in lastMalformedToolCall.rawArguments, usage metered', async () => {
   await withMalformedServer('{"a":1}}', async (port) => {
-    const built = makeProvider('deepseek', { model: 'deepseek-flash', configHome: tickedHome() });
+    const built = makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', configHome: tickedHome() });
     built.provider.baseUrl = `http://127.0.0.1:${port}`;
     const result = await built.provider.generate([{ role: 'user', content: 'hi' }], EMIT_X);
     assert.deepEqual(result.toolCalls, []);
@@ -203,7 +198,7 @@ test('makeProvider("deepseek")\'s real wrapper: malformed args come back verbati
 
 test('makeProvider("deepseek")\'s real wrapper: 800-char malformed args are capped upstream at 500 with rawTruncated:true', async () => {
   await withMalformedServer(`{"a":"${'x'.repeat(790)}"}}`, async (port) => {
-    const built = makeProvider('deepseek', { model: 'deepseek-flash', configHome: tickedHome() });
+    const built = makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', configHome: tickedHome() });
     built.provider.baseUrl = `http://127.0.0.1:${port}`;
     await built.provider.generate([{ role: 'user', content: 'hi' }], EMIT_X);
     assert.equal(built.provider.lastMalformedToolCall.rawArguments.length, 500);
@@ -241,7 +236,7 @@ async function sentBody(options) {
   const saved = process.env.DEEPSEEK_API_KEY;
   process.env.DEEPSEEK_API_KEY = 'sk-fake-test-key';
   try {
-    const built = makeProvider('deepseek', { model: 'deepseek-flash', configHome: tickedHome(), ...options });
+    const built = makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', configHome: tickedHome(), ...options });
     built.provider.baseUrl = `http://127.0.0.1:${server.address().port}`;
     await built.provider.generate([{ role: 'user', content: 'hi' }], []);
   } finally {

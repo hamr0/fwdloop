@@ -11,7 +11,7 @@
 // One writer of each field: `writeRunValues` writes the version file (this door is its only caller for versions >= 1); the runner reads the
 // highest version through `pickRunValues` and nothing else. The agent, the chat notes and the drafter have no path here.
 import { realpathSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { userInfo } from 'node:os';
 
 import { scrub } from '../authoring.js';
@@ -27,6 +27,7 @@ import { formFacts } from './authorflows.js';
 import { checkValues } from './authorvalues.js';
 import { getRunControls } from './data.js';
 import { providerKeys } from './spawn.js';
+import { readModelRecord } from '../flowmodel.js';
 
 const KEYS = ['flow', 'runId', 'capUsd', 'hash'];
 
@@ -74,7 +75,7 @@ export function createResumeDoor(opts) {
     const hasRound = read.declaration.steps.some((st) => !(read.arbiter.asks ?? []).some((a) => a.line === st.fromLine));
     if (formOnly) return { ok: /** @type {true} */ (true), flow, runId, runDir: rd.runDir, version, base, spentUsd: spent.total, read, hasRound };
     const checked = checkValues({
-      allowedKeys: KEYS, body: b, base, realRoot, capOnly: true, floorUsd: capFloorFor(hasRound, home), spentUsd: spent.total, monthlyClaim, always: true,
+      allowedKeys: KEYS, body: b, base, realRoot, capOnly: true, floorUsd: capFloorFor(hasRound, home, readModelRecord(join(realRoot, flow))), spentUsd: spent.total, monthlyClaim, always: true,
     });
     if (!checked.ok) {
       return no(checked.status, checked.refused ? { refused: checked.refused, say: checked.say, refusals: checked.refusals } : { refused: 'resume', refusals: checked.refusals, say: checked.refusals[0]?.say ?? 'Not resumed. Fix the marked box.' });
@@ -100,11 +101,11 @@ export function createResumeDoor(opts) {
       const inputsRead = readFileInside(s.runDir, 'inputs.json');
       let inputs = [];
       try { inputs = inputsRead.ok ? JSON.parse(inputsRead.text).map((m) => ({ role: String(m.id), path: String(m.source) })) : []; } catch { inputs = []; }
-      const floorUsd = capFloorFor(s.hasRound, home);
+      const floorUsd = capFloorFor(s.hasRound, home, readModelRecord(dirname(dirname(s.runDir))));
       return {
         status: 200,
         body: {
-          ok: true, flow: s.flow, runId: s.runId, version: s.version, values: s.base, spentUsd: s.spentUsd, inputs, floorUsd, floorText: capFloorText(floorUsd), jobLines: formFacts(s.read).jobLines,
+          ok: true, flow: s.flow, runId: s.runId, version: s.version, values: s.base, spentUsd: s.spentUsd, inputs, floorUsd, floorText: capFloorText(floorUsd), jobLines: formFacts(s.read, home, dirname(dirname(s.runDir))).jobLines, model: formFacts(s.read, home, dirname(dirname(s.runDir))).model,
         },
       };
     },
@@ -138,10 +139,10 @@ export function createResumeDoor(opts) {
         flow: s.flow, flowSignatureHash: s.signatureHash, runId: s.runId, version: s.version, values: s.values, hash: s.hash, signedBy: userInfo().username, at: new Date().toISOString(),
       });
       if (!w.ok) {
-        const keys = providerKeys(loaded.env);
+        const keys = providerKeys(loaded);
         return { status: 409, body: { ok: false, refused: 'sign-refused', say: `${scrub(w.red, keys)}. Nothing was started.` } };
       }
-      const started = starter.startContinue({ flow: s.flow, runId: s.runId, version: s.version }, loaded.env);
+      const started = starter.startContinue({ flow: s.flow, runId: s.runId, version: s.version }, loaded);
       if (started.status !== 202) return { status: started.status, body: { ...started.body, signed: true, say: `${started.body.say ?? 'The resume did not start.'} The new cap is signed; try Resume again.` } };
       return { status: 202, body: { ...started.body, signed: true, version: s.version } };
     },

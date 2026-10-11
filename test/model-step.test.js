@@ -305,7 +305,7 @@ test('key preflight: a live call with no key set returns a red, never throws (ru
   const saved = process.env.DEEPSEEK_API_KEY;
   delete process.env.DEEPSEEK_API_KEY;
   try {
-    const modelStep = makeLiveModelStep({ slot: 'deepseek', model: 'deepseek-flash', spendPath });
+    const modelStep = makeLiveModelStep({ slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', spendPath });
     const result = await modelStep(CTX, {}, { class: 'hitl' });
     assert.equal(result.ok, false);
     assert.match(result.red, /key: .*DEEPSEEK_API_KEY is not set/);
@@ -320,7 +320,7 @@ test('item 13: a key red with a model named records a valid audit row (no model 
   const saved = process.env.DEEPSEEK_API_KEY;
   delete process.env.DEEPSEEK_API_KEY;
   try {
-    const modelStep = makeLiveModelStep({ slot: 'deepseek', model: 'deepseek-flash', spendPath: path.join(dir, 'spend.jsonl') });
+    const modelStep = makeLiveModelStep({ slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', spendPath: path.join(dir, 'spend.jsonl') });
     const result = await modelStep(CTX, {}, { class: 'hitl' });
     assert.equal(result.ok, false);
     // the row the runner builds from a step result (src/runner.js, the red branch)
@@ -524,7 +524,7 @@ test('M4a-3: a no-model-call red (key preflight) carries tools:null, exactly lik
   const saved = process.env.DEEPSEEK_API_KEY;
   delete process.env.DEEPSEEK_API_KEY;
   try {
-    const modelStep = makeLiveModelStep({ slot: 'deepseek', model: 'deepseek-flash', spendPath });
+    const modelStep = makeLiveModelStep({ slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', spendPath });
     const result = await modelStep(CTX, {}, { class: 'hitl' });
     assert.equal(result.ok, false);
     assert.equal(result.tools, null);

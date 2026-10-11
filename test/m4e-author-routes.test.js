@@ -23,6 +23,7 @@ import { REFUSAL_SENTENCE } from '../src/monthly.js';
 import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
 import { job2Fixture } from './drafter-fixture.mjs';
 import { BOX_JOB, BOX_JOB_FILE, inputsText } from './m4e-box-fixture.mjs';
+import { tickedConfig } from './m4e-world.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FAKE_DRAFT = path.join(HERE, 'fixtures', 'cli-fake-draft-provider.mjs');
@@ -82,7 +83,7 @@ async function world({ limit, mode, keysMode = 0o600 } = {}) {
   mkdirSync(home, { recursive: true, mode: 0o700 });
   writeFileSync(keysFilePath(home), `DEEPSEEK_API_KEY=${CANARY}\n`, { mode: keysMode });
   chmodSync(keysFilePath(home), keysMode);
-  if (limit !== undefined) writeFileSync(path.join(home, 'config.json'), JSON.stringify({ monthlyLimitUsd: limit }));
+  writeFileSync(path.join(home, 'config.json'), JSON.stringify(tickedConfig(limit !== undefined ? { monthlyLimitUsd: limit } : {})));
   writeFileSync(path.join(inDir, 'resume.md'), '# R\n');
   writeFileSync(path.join(inDir, 'jd.md'), '# J\n');
   const env = {
@@ -98,7 +99,7 @@ async function world({ limit, mode, keysMode = 0o600 } = {}) {
   ROOTS.push(root);
   const h = await open();
   const card = (over = {}) => ({
-    flowName: 'job2', job: JOB, capUsd: '0.25', askWait: '1h', destination: outDir,
+    flowName: 'job2', job: JOB, capUsd: '0.25', askWait: '1h', destination: outDir, provider: 'DEEPSEEK_API_KEY', model: 'fake-ticked',
     inputs: inputsText([['resume', path.join(inDir, 'resume.md')], ['jd', path.join(inDir, 'jd.md')]]), ...over,
   });
   const post = (url, body, headers) => rq(h.port, { method: 'POST', url, body, headers });
@@ -149,7 +150,7 @@ test('(3,5) a valid card -> 202 {draftId}; the draft folder holds card.json, pro
   assert.equal(j.hash, readFileSync(path.join(dir, 'draft', 'spec.hash'), 'utf8').trim());
   assert.match(j.readout, /job2/);
   assert.deepEqual(j.card, {
-    flowName: 'job2', job: JOB, capUsd: 0.25, askWait: '1h', destination: w.outDir, inputs: w.card().inputs,
+    flowName: 'job2', job: JOB, capUsd: 0.25, askWait: '1h', destination: w.outDir, inputs: w.card().inputs, provider: 'DEEPSEEK_API_KEY', model: 'fake-ticked',
   }, 'the card is returned as typed');
   for (const f of ['card.json', 'prose.txt', 'child.log', 'pid.json']) assert.ok(existsSync(path.join(dir, f)), f);
   assert.equal(statSync(path.join(dir, 'child.log')).mode & 0o777, 0o600);

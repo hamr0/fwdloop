@@ -402,6 +402,10 @@ const ALLOWLIST = {
       accessSync: 1, constants: 1, lstatSync: 1, realpathSync: 1, statSync: 1,
     },
   },
+  'src/flowmodel.js': {
+    reason: 'M4d amendment 6: the ONE writer of `model.json` - one exclusive create (flag wx, 0600) of the model pick in the draft folder `draftToDir` made, or in the flow folder `signDraft` just wrote. Every READ goes through readFileInside.',
+    names: { writeFileSync: 1 },
+  },
   'src/setup.js': {
     reason: 'M4e amendment 6 item 4: the ONE writer of `<flow>/setup.jsonl` — one exclusive create (flag wx, 0600) of a file in the flow folder `signDraft` just wrote; lstatSync of a draft folder\'s own card/note file for its modified time only (a symlink is not followed, nothing is read). Every READ (the draft folder, the flow\'s setup.jsonl) goes through readFileInside/readdirInside/readSpendRows.',
     names: { lstatSync: 1, writeFileSync: 1 },

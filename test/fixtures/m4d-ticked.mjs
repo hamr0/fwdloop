@@ -13,10 +13,15 @@ export const TICKED_LINE = Object.freeze({
 });
 
 /** @param {Array<Record<string, any>>} [lines] @param {string} [slot] @param {Record<string, any>} [extra] other config fields */
-export function tickedHome(lines = [TICKED_LINE], slot = 'deepseek', extra = {}) {
+export const TICKED_SLOT = 'DEEPSEEK_API_KEY';
+
+/** M4d am6: a provider row is a key name, and a row runs only with a Base URL typed (any address; tests repoint the provider at a local server). */
+export const TICKED_PROVIDER = Object.freeze({ shape: 'openai-api', baseUrl: 'http://127.0.0.1:9', legacyMaxTokens: true });
+
+export function tickedHome(lines = [TICKED_LINE], slot = TICKED_SLOT, extra = {}) {
   const home = path.join(mkdtempSync(path.join(tmpdir(), 'fwdloop-ticked-')), 'fwdloop');
   mkdirSync(home, { recursive: true, mode: 0o700 });
-  writeFileSync(configPath(home), JSON.stringify({ models: { [slot]: lines }, ...extra }));
+  writeFileSync(configPath(home), JSON.stringify({ models: { [slot]: lines }, providers: { [slot]: TICKED_PROVIDER }, ...extra }));
   return home;
 }
 

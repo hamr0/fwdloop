@@ -3,24 +3,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import http from 'node:http';
 import { draft, MAX_STRUCTURE_RETRIES } from '../src/drafter.js';
-import { draftCallOptions, makeProvider } from '../src/provider.js';
-import { withTickedDoor } from './fixtures/m4d-ticked.mjs';
+import { makeProvider } from '../src/provider.js';
+import { withTickedDoor, TICKED_SLOT, TICKED_MODEL } from './fixtures/m4d-ticked.mjs';
 import {
   RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply, truncatedReply,
 } from './drafter-fixture.mjs';
-
-const DS = { shape: 'openai-api', thinkingOff: 'disabled' };
-
-// M4d am5 item 3: the model line's own `thinkingOff` replaces the code allow-list (no model is named here or in src/).
-test('item 1: the line decides — "disabled" off sends disabled; "cant" off sends nothing; on sends nothing; bad mode throws', () => {
-  assert.deepEqual(draftCallOptions(DS, 'off'), { thinking: { type: 'disabled' } });
-  assert.deepEqual(draftCallOptions(DS), { thinking: { type: 'disabled' } }, 'default is off');
-  assert.deepEqual(draftCallOptions({ shape: 'openai-api', thinkingOff: 'cant' }, 'off'), {});
-  assert.deepEqual(draftCallOptions({ shape: 'openai-api' }, 'off'), {}, 'no thinkingOff = "cant", the default');
-  assert.deepEqual(draftCallOptions({ shape: 'anthropic-api', thinkingOff: 'disabled' }, 'off'), {});
-  assert.deepEqual(draftCallOptions(DS, 'on'), {});
-  for (const bad of ['', 'ON', true, null, 'auto']) assert.throws(() => draftCallOptions(DS, bad), /draftThinking must be one of/);
-});
 
 async function wireBody(extra) {
   let body;
@@ -44,6 +31,8 @@ async function wireBody(extra) {
   try {
     const r = await draft({
       proseText: job2Fixture().prose,
+      slot: TICKED_SLOT,
+      model: TICKED_MODEL,
       makeProviderFn: (slot, opts) => { const b = makeProvider(slot, opts); b.provider.baseUrl = `http://127.0.0.1:${server.address().port}`; return b; },
       ...extra,
     });
@@ -56,16 +45,16 @@ async function wireBody(extra) {
   }
 }
 
-test('item 1 on the wire: default and off send thinking disabled (F49); on sends no thinking field', async () => {
-  assert.deepEqual((await wireBody({})).thinking, { type: 'disabled' });
-  assert.deepEqual((await wireBody({ draftThinking: 'off' })).thinking, { type: 'disabled' });
+test('M4d am7: our drafter puts no thinking field on the wire, ticked or not (bareagent does the switching, am7 item 3)', async () => {
+  assert.equal((await wireBody({})).thinking, undefined);
+  assert.equal((await wireBody({ draftThinking: 'off' })).thinking, undefined);
   assert.equal((await wireBody({ draftThinking: 'on' })).thinking, undefined);
 });
 
 test('item 1: a bad draftThinking mode refuses the draft before any call', async () => {
-  const r = await draft({ proseText: job2Fixture().prose, draftThinking: 'maybe', makeProviderFn: () => { throw new Error('should not build'); } }).catch((e) => e);
-  assert.ok(r instanceof Error || r.ok === false);
-  assert.match(String(r.message ?? r.reds), /draftThinking must be one of/);
+  const r = await draft({ proseText: job2Fixture().prose, draftThinking: 'maybe', makeProviderFn: () => { throw new Error('should not build'); } });
+  assert.equal(r.ok, false);
+  assert.match(r.reds.join(' '), /draftThinking must be on \| off/);
 });
 
 function recProvider(replies) {

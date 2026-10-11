@@ -1,14 +1,13 @@
 // M2 piece 2 (docs/wiki/the-module-ladder.md, "M2 — scope, exit, negative —
-// SIGNED", scope items 7/8): provider slots, the usable-model decision, the spend
-// ceiling, the key preflight, and `makeProvider`. Models and prices live in Settings
-// only (M4d amendment 5): no table, no default model. Money honesty (project rule,
+// SIGNED", scope items 7/8): provider rows, the usable-model decision, the spend
+// ceiling, the key preflight, and `makeProvider`. Providers, models, prices and addresses live in Settings
+// only (M4d amendments 5 and 6): a provider is a key name in the keys file, nothing is built in. Money honesty (project rule,
 // CLAUDE.md): unknown cost is NEVER rendered as 0 — a row with no booked cost reads
 // "at least" (`spendRowCost`); `assertUnderGlobalCap`/`appendSpendRow` never coerce a
 // null cost to a number.
 //
-// borrowed-from: fwdloop poc/m0/provider.mjs@76a3607 (`PROVIDER_SLOTS`,
-// `makeProvider`, `MalformedToolCallTolerantOpenAI` —
-// F28's tolerant wrapper for a DeepSeek tool-call whose `arguments` is bad
+// borrowed-from: fwdloop poc/m0/provider.mjs@76a3607 (`makeProvider`, `MalformedToolCallTolerantOpenAI` —
+// F28's tolerant wrapper for a provider tool-call whose `arguments` is bad
 // JSON) and fwdloop poc/m0/spend.mjs@76a3607 (`ceilingCostUsd`,
 // `classifyModelId`, `appendSpendRow`,
 // `assertUnderGlobalCap`) and fwdloop poc/m1/slot-batch.mjs@76a3607
@@ -23,14 +22,13 @@ import { dirname, basename } from 'node:path';
 import { readFileInside } from './flow.js';
 import { readConfig, configDoorHome } from './config.js';
 import { OpenAI, Anthropic, Gemini } from 'bare-agent/providers';
-import { SHAPES } from './providershapes.js';
 
 /**
- * F28 (2026-09-15) / BA-27 (bare-agent >=0.47.0): DeepSeek sometimes emits a
+ * F28 (2026-09-15) / BA-27 (bare-agent >=0.47.0): some providers sometimes emit a
  * tool-call whose `function.arguments` is not valid JSON. Before 0.47,
  * bare-agent's own `generate()` threw a bare `SyntaxError` AFTER the HTTP
  * round already succeeded — losing the billed round and hanging metering.
- * As of 0.47, `OpenAI.generate()` (bare-agent/src/provider-openai.js, via
+ * As of 0.47, `OpenAI.generate()` (bare-agent's OpenAI-protocol client, via
  * `provider-toolcalls.js`'s `parseToolCalls`) no longer throws: it resolves
  * normally with `toolCalls: []` and a `malformedToolCall: { name, error }`
  * field already on the result. As of 0.48 the constructor option
@@ -52,62 +50,33 @@ class MalformedToolCallTolerantOpenAI extends OpenAI {
   }
 }
 
-/** Provider slots. Frozen — add a new slot here, never inline a baseUrl/env
- *  var elsewhere. A slot holds only what is not a model or a price: its key env name, its API shape and its
- *  address. Models and prices live in Settings > Providers and nowhere in code (M4d amendment 5). */
-export const PROVIDER_SLOTS = Object.freeze({
-  synthetic: Object.freeze({
-    baseUrl: 'https://api.synthetic.new/openai/v1',
-    envVar: 'SYNTHETIC_API_KEY',
-    shape: 'openai-api',
-    legacyMaxTokens: false,
-  }),
-  deepseek: Object.freeze({
-    baseUrl: 'https://api.deepseek.com',
-    envVar: 'DEEPSEEK_API_KEY',
-    shape: 'openai-api',
-    // F11: DeepSeek ignores `max_completion_tokens`; only the legacy
-    // `max_tokens` key bounds output.
-    legacyMaxTokens: true,
-  }),
-});
+/** The API shape a row has until one is picked in Settings: the wire protocol most providers speak (a shape is a protocol, not a provider). */
+const DEFAULT_SHAPE = 'openai-api';
+
+/** A provider row is named by its key's env name (M4d amendment 6): letters, digits, underscore; not a place, not a model. */
+const KEY_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+export const isKeyName = (v) => typeof v === 'string' && KEY_NAME_RE.test(v);
 
 /**
- * The ONE provider slot a draft or a run uses until the Chat model menu exists (M4d amendment 5, interim rule): its
- * ticked, priced model is picked by `resolveUsableModel`. A slot name is not a model or a price.
- */
-export const MODEL_SLOT = 'deepseek';
-
-/**
- * THE one lookup of a slot's API shape and address (M4d amendment 1), and the model NAME typed in its Name box
- * (`model`, null when none was typed: there is no code default, M4d amendment 5). Test, Balance and the Settings
- * page read the slot through this; which model a call USES is decided by `resolveUsableModel`, not by the name.
- * A value saved on the Settings page (`config.providers[slot]`) wins per field, else the code default above. A blank saved Base URL means the default FOR THE EFFECTIVE SHAPE: the slot's own code
- * address while the shape is the slot's code shape, else that shape's vendor address ('' = bare-agent's own).
- * Unknown slot throws. `config` is already-read config (see `readPriceConfig`); no I/O here.
+ * THE one lookup of a row's API shape, address and legacy-token tick (M4d amendment 6). A row IS its key's env name, so the slot name and the
+ * env var are the same word. What a row holds is only what the person typed in Settings (`config.providers[slot]`): nothing is built
+ * in, so a row nobody typed an address for has `baseUrl: ''` and cannot run or list models. Which model a call USES is decided by
+ * `resolveUsableModel`. An invalid name throws. `config` is already-read config (see `readPriceConfig`); no I/O here.
  * @param {string} slotName
  * @param {{ config?: Record<string, any> }} [opts]
- * @returns {{ slot: string, envVar: string, legacyMaxTokens: boolean,
- *   model: string|null, shape: string, baseUrl: string,
- *   defaults: { shape: string, baseUrl: string } }}
+ * @returns {{ slot: string, envVar: string, legacyMaxTokens: boolean, shape: string, baseUrl: string }}
  */
 export function resolveSlot(slotName, { config = {} } = {}) {
-  if (!Object.hasOwn(PROVIDER_SLOTS, slotName)) {
-    throw new Error(`unknown provider slot "${slotName}" — known slots: ${Object.keys(PROVIDER_SLOTS).join(', ')}`);
-  }
-  const def = PROVIDER_SLOTS[slotName];
+  if (!isKeyName(slotName)) throw new Error(`unknown provider "${slotName}" — a provider is the name of a key in your keys file`);
   const saved = (config.providers && Object.hasOwn(config.providers, slotName)) ? config.providers[slotName] : {};
-  const shape = saved.shape ?? def.shape;
-  const defaultBaseUrl = shape === def.shape ? def.baseUrl : (SHAPES.find((x) => x.id === shape)?.defaultUrl ?? '');
-  const savedUrl = typeof saved.baseUrl === 'string' ? saved.baseUrl.replace(/\/+$/, '') : '';
+  const shape = saved.shape ?? DEFAULT_SHAPE;
   return {
     slot: slotName,
-    envVar: def.envVar,
-    legacyMaxTokens: def.legacyMaxTokens === true && shape === 'openai-api',
-    model: saved.model ?? null,
+    envVar: slotName,
+    // F11: some providers ignore `max_completion_tokens`; only the legacy `max_tokens` key bounds their output. A per-row tick in Settings.
+    legacyMaxTokens: saved.legacyMaxTokens === true && shape === 'openai-api',
     shape,
-    baseUrl: savedUrl !== '' ? savedUrl : defaultBaseUrl,
-    defaults: { shape: def.shape, baseUrl: defaultBaseUrl },
+    baseUrl: typeof saved.baseUrl === 'string' ? saved.baseUrl.replace(/\/+$/, '') : '',
   };
 }
 
@@ -121,67 +90,69 @@ export const CEILING_OUTPUT_TOKENS = 16000;
 
 const perM = (per1K) => Number((per1K * 1000).toPrecision(12));
 
+const isPriced = (l) => l.use === true && typeof l.inPerM === 'number' && Number.isFinite(l.inPerM) && typeof l.outPerM === 'number' && Number.isFinite(l.outPerM);
+
 /**
- * A slot's model lines as Settings and pricing see them (M4d amendment 3 items 7-10; hamr's ruling: a ticked
- * model's prices come only from what the person typed, never from the code table). A saved list
- * (`config.models[slot]`) is returned as stored. With no list, ONE line is built from the slot's current
- * model (`resolveSlot`) and the old `config.prices[slot]`: both in and out typed -> ticked with them; only one
- * typed -> UNTICKED with that number pre-filled (the other box empty); none -> unticked, no price. `unpriced`
- * is true for the two unticked cases. Nothing is written here — the file changes only when the person saves.
+ * A row's saved model lines (`config.models[slot]`) as Settings shows them; none saved = no lines. Nothing is built in
+ * and nothing is migrated: a line exists only because a person typed or ticked it.
  * @param {string} slot
  * @param {Record<string, any>} [config]
- * @returns {{ lines: Array<{ model: string, use: boolean, inPerM?: number, outPerM?: number, thinkingOff?: 'cant'|'disabled' }>, migrated: boolean, unpriced: boolean }}
+ * @returns {Array<{ model: string, use: boolean, inPerM?: number, outPerM?: number }>}
  */
 export function effectiveModels(slot, config = {}) {
-  if (config.models && Object.hasOwn(config.models, slot)) {
-    return { lines: config.models[slot], migrated: false, unpriced: false };
-  }
-  if (!Object.hasOwn(PROVIDER_SLOTS, slot)) return { lines: [], migrated: false, unpriced: false };
-  const { model } = resolveSlot(slot, { config });
-  // No code default (M4d amendment 5): a slot nobody typed a name into has nothing to tick.
-  if (model === null) return { lines: [], migrated: false, unpriced: false };
-  const old = (config.prices && Object.hasOwn(config.prices, slot)) ? config.prices[slot] : {};
-  if (old.inPerM !== undefined && old.outPerM !== undefined) {
-    return { lines: [{ model, use: true, inPerM: old.inPerM, outPerM: old.outPerM }], migrated: true, unpriced: false };
-  }
-  /** @type {{ model: string, use: boolean, inPerM?: number, outPerM?: number }} */
-  const line = { model, use: false };
-  if (old.inPerM !== undefined) line.inPerM = old.inPerM;
-  if (old.outPerM !== undefined) line.outPerM = old.outPerM;
-  return { lines: [line], migrated: true, unpriced: true };
+  return config.models && Object.hasOwn(config.models, slot) ? config.models[slot] : [];
 }
 
 /**
- * THE one decision of "usable model" (M4d amendment 5): a model is usable only if it is ticked in Settings with both
- * prices. Every model call - the drafter, a run, resume / continue, the command line, the panel - asks this and nothing
- * else; no model name, price or switch lives in code. Returns the model, its slot, its prices (USD per 1M, and per 1K
- * for the Loop; 0 / 0 is a chosen price) and its thinking-off option, or a plain refusal in `say`.
- *
- * `model` (named) must be a ticked, priced line: else "Tick <model> in Settings > Providers with both prices first."
- * No `model`: the interim rule until the Chat model menu - the slot must have EXACTLY ONE ticked, priced line; none or
- * more than one is refused with a plain sentence. Pure: `config` is already-read config, no I/O.
+ * Every ticked, priced line of the given rows, in row order: what Chat's model menu offers and what a run may use (M4d amendment 6
+ * item 6). `rows` limits it to providers that still have a key (a model whose key is gone cannot run).
+ * @param {Record<string, any>} config @param {string[]} rows key names
+ * @returns {{ slot: string, model: string, label: string }[]}
+ */
+export function tickedLines(config, rows) {
+  /** @type {{ slot: string, model: string, label: string }[]} */
+  const out = [];
+  for (const slot of rows) {
+    for (const l of effectiveModels(slot, config)) if (isPriced(l)) out.push({ slot, model: l.model, label: `${slot} · ${l.model}` });
+  }
+  return out;
+}
+
+/**
+ * The ticked, priced line a person names by model id (the command line): `--model <id>`, and `--provider <KEY>` when two keys tick the same id.
+ * Reads only the lines Settings holds. @param {Record<string, any>} config @param {{ model?: string, provider?: string }} [named]
+ * @returns {{ ok: true, slot: string, model: string } | { ok: false, say: string }}
+ */
+export function pickTicked(config, { model, provider } = {}) {
+  const ticked = tickedLines(config, Object.keys(config.models ?? {}));
+  if (model === undefined || model === '') {
+    return { ok: false, say: ticked.length === 0 ? 'Tick a model in Settings > Providers with both prices first.' : 'Name the model with --model <id>: one ticked in Settings > Providers with both prices.' };
+  }
+  const hits = ticked.filter((l) => l.model === model && (provider === undefined || l.slot === provider));
+  if (hits.length === 0) return { ok: false, say: `Tick ${model} in Settings > Providers with both prices first.` };
+  if (hits.length > 1) return { ok: false, say: `${model} is ticked under more than one key (${hits.map((h) => h.slot).join(', ')}). Add --provider <KEY> to say which.` };
+  return { ok: true, slot: hits[0].slot, model };
+}
+
+/**
+ * THE one decision of "usable model" (M4d amendments 5 and 6): a model is usable only if it is ticked in Settings with both prices,
+ * under the named provider. Every model call - the drafter, a run, resume / continue, the command line, the panel - asks this and
+ * nothing else; no model name, price or switch lives in code. Returns the model, its provider and its prices (USD per 1M, and per 1K
+ * for the Loop; 0 / 0 is a chosen price), or a plain refusal in `say`.
+ * No model named: "Tick a model in Settings > Providers with both prices first." Pure: `config` is already-read config, no I/O.
  *
  * @param {string} slotName
  * @param {{ config?: Record<string, any>, model?: string }} [opts]
  * @returns {{
- *   ok: true, slot: string, model: string, thinkingOff: 'cant'|'disabled',
+ *   ok: true, slot: string, model: string,
  *   rates: { in: number, out: number, cacheReadMult: number },
  *   prices: { perM: { inPerM: number, cachedInPerM: number, outPerM: number }, source: { in: 'model', cachedIn: 'input', out: 'model' } },
  * } | { ok: false, say: string }}
  */
 export function resolveUsableModel(slotName, { config = {}, model } = {}) {
-  const lines = effectiveModels(slotName, config).lines;
-  const priced = (l) => l.use === true && typeof l.inPerM === 'number' && Number.isFinite(l.inPerM) && typeof l.outPerM === 'number' && Number.isFinite(l.outPerM);
-  let line;
-  if (model !== undefined) {
-    line = lines.find((l) => l.model === model && priced(l));
-    if (!line) return { ok: false, say: `Tick ${model} in Settings > Providers with both prices first.` };
-  } else {
-    const ticked = lines.filter(priced);
-    if (ticked.length === 0) return { ok: false, say: 'Tick a model in Settings > Providers with both prices first.' };
-    if (ticked.length > 1) return { ok: false, say: `More than one model is ticked for ${slotName} in Settings > Providers. Leave one ticked, or name the model.` };
-    [line] = ticked;
-  }
+  if (model === undefined || model === '') return { ok: false, say: 'Tick a model in Settings > Providers with both prices first.' };
+  const line = effectiveModels(slotName, config).find((l) => l.model === model && isPriced(l));
+  if (!line) return { ok: false, say: `Tick ${model} in Settings > Providers with both prices first.` };
   const inPerM = /** @type {number} */ (line.inPerM);
   const outPerM = /** @type {number} */ (line.outPerM);
   const inPer1K = inPerM / 1000;
@@ -190,7 +161,6 @@ export function resolveUsableModel(slotName, { config = {}, model } = {}) {
     ok: true,
     slot: slotName,
     model: line.model,
-    thinkingOff: line.thinkingOff === 'disabled' ? 'disabled' : 'cant',
     // cached input is priced AS input (M4d amendment 2): `cacheReadMult` is always 1
     rates: { in: inPer1K, out: outPer1K, cacheReadMult: 1 },
     prices: {
@@ -378,7 +348,7 @@ export function assertUnderGlobalCap(path, capUsd) {
 
 /**
  * $0 preflight before any draft round and before any ledger write: the key
- * env var for `slotName` must be set, non-empty, and free of any
+ * env var named `slotName` must be set, non-empty, and free of any
  * whitespace/control character (F26, 2026-09-21: a two-line `pass` entry
  * exported a key with a trailing newline — still truthy, so a bare
  * `if (!apiKey)` never caught it). Never throws — `{ ok:true }` or
@@ -388,9 +358,8 @@ export function assertUnderGlobalCap(path, capUsd) {
  * @param {Record<string,string|undefined>} [env]
  */
 export function checkKeyPreflight(slotName, env = process.env) {
-  const slotDef = Object.hasOwn(PROVIDER_SLOTS, slotName) ? PROVIDER_SLOTS[slotName] : null;
-  if (!slotDef) return { ok: false, message: `key: unknown provider slot "${slotName}"` };
-  const varName = slotDef.envVar;
+  if (!isKeyName(slotName)) return { ok: false, message: `key: unknown provider "${slotName}"` };
+  const varName = slotName;
   const value = env[varName];
   if (value === undefined || value === '') {
     return { ok: false, message: `key: ${varName} is not set — export it before running` };
@@ -405,38 +374,13 @@ export function checkKeyPreflight(slotName, env = process.env) {
   return { ok: true };
 }
 
-/**
- * The drafter's THINKING knob (M4d amendment 3, A1; amendment 5 item 3). A mode is an operator param, never model output.
- * 'on' sends nothing; 'off' sends what the model's own Settings line says: `thinkingOff: 'disabled'` sends
- * `{ thinking: { type: 'disabled' } }`, 'cant' (the default) sends nothing. No model is named in code.
- */
-export const DRAFT_THINKING_MODES = Object.freeze(['on', 'off']);
-
-/**
- * The ONE owner of the options a DRAFTING call carries for thinking. Any mode but 'on' | 'off' throws. The API shape
- * still gates it: `thinking: disabled` is the OpenAI-compatible body field, so other shapes send nothing.
- * @param {{shape: string, thinkingOff?: 'cant'|'disabled'}} target
- * @param {unknown} [mode] default 'off'
- * @returns {Record<string, any>}
- */
-export function draftCallOptions({ shape, thinkingOff }, mode = 'off') {
-  if (!DRAFT_THINKING_MODES.includes(/** @type {any} */ (mode))) {
-    throw new Error(`draftThinking must be one of ${DRAFT_THINKING_MODES.join(' | ')}, got ${JSON.stringify(mode)}`);
-  }
-  if (mode === 'on' || shape !== 'openai-api' || thinkingOff !== 'disabled') return {};
-  return { thinking: { type: 'disabled' } };
-}
-
-/** True when 'off' does something for this line, i.e. the setting can change it (the Settings box says so). @param {{shape: string, thinkingOff?: 'cant'|'disabled'}} target */
-export const canChangeDraftThinking = (target) => Object.keys(draftCallOptions(target, 'off')).length > 0;
-
 /** A model that is not usable (`resolveUsableModel`): its message is the plain sentence, shown as it is (no "key:" or "config:" prefix). */
 export class ModelRefusal extends Error {}
 
 /**
- * Build a provider for the given slot. Throws (never defaults) on an
- * unknown slot, a missing/bad env key, or a model that is not usable (`resolveUsableModel`: ticked in Settings with
- * both prices - the message is its plain sentence). Returns `{ provider, rates, modelId, slot, prices, thinkingOff }`.
+ * Build a provider for the given row (the name of a key). Throws (never defaults) on an
+ * unknown name, a row with no Base URL (typed in Settings), a missing/bad env key, or a model that is not usable (`resolveUsableModel`: ticked in Settings with
+ * both prices - the message is its plain sentence). Returns `{ provider, rates, modelId, slot, prices }`.
  *
  * `timeoutMs`/`deadlineMs` bound a silent socket (BA-18 idle) and a
  * zombie-stream total wall clock (BA-19), respectively — see
@@ -444,21 +388,16 @@ export class ModelRefusal extends Error {}
  * values this project uses.
  *
  * @param {string} slotName
- * @param {{ model?: string, timeoutMs?: number, deadlineMs?: number, thinking?: object|null, draftThinking?: 'on'|'off', env?: Record<string,string|undefined>, configHome?: string }} [options]
+ * @param {{ model?: string, timeoutMs?: number, deadlineMs?: number, thinking?: object|null, env?: Record<string,string|undefined>, configHome?: string }} [options]
  *   `configHome` (a test) is where `config.json` prices are read; default: the door's home (`readPriceConfig`).
  *   `env` (M4d: the merged shell+keys-file env; default process.env) is where the key is read.
  *   `thinking` (bare-agent >=0.49) is sent verbatim as body.thinking; unset/null leaves the body unchanged.
- *   `draftThinking` (drafting only) wins over `thinking` and is turned into it by `draftCallOptions`.
- * @returns {{ provider: any, rates: {in:number, out:number, cacheReadMult?:number}, modelId: string, slot: string, prices: { perM: any, source: any }, thinkingOff: 'cant'|'disabled' }}
+ * @returns {{ provider: any, rates: {in:number, out:number, cacheReadMult?:number}, modelId: string, slot: string, prices: { perM: any, source: any } }}
  */
 export function makeProvider(slotName, options = {}) {
   const {
-    model, timeoutMs, deadlineMs, thinking: thinkingOpt, draftThinking, env = process.env, configHome,
+    model, timeoutMs, deadlineMs, thinking, env = process.env, configHome,
   } = options;
-  if (!Object.hasOwn(PROVIDER_SLOTS, slotName)) {
-    throw new Error(`unknown provider slot "${slotName}" — known slots: ${Object.keys(PROVIDER_SLOTS).join(', ')}`);
-  }
-
   const keyCheck = checkKeyPreflight(slotName, env);
   if (!keyCheck.ok) throw new Error(keyCheck.message);
 
@@ -467,18 +406,17 @@ export function makeProvider(slotName, options = {}) {
   const config = readPriceConfig(configHome);
   const slot = resolveSlot(slotName, { config });
   const apiKey = env[slot.envVar];
+  if (slot.baseUrl === '') throw new ModelRefusal(`Type a Base URL for ${slotName} in Settings.`);
   // The ONE decision of which model may be used, and at what price (M4d amendment 5).
   const usable = resolveUsableModel(slotName, { config, model });
   if (!usable.ok) throw new ModelRefusal(usable.say);
   const modelId = usable.model;
-  const { rates, prices, thinkingOff } = usable;
+  const { rates, prices } = usable;
 
-  // Drafting only: `draftThinking` ('on'|'off') is turned into the wire field by the ONE owner, draftCallOptions.
-  const thinking = draftThinking === undefined ? thinkingOpt : draftCallOptions({ shape: slot.shape, thinkingOff }, draftThinking).thinking;
   const common = {
     apiKey,
     model: modelId,
-    ...(slot.baseUrl !== '' ? { baseUrl: slot.baseUrl } : {}),
+    baseUrl: slot.baseUrl,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
     ...(deadlineMs !== undefined ? { deadlineMs } : {}),
     ...(thinking != null ? { thinking } : {}),
@@ -494,6 +432,6 @@ export function makeProvider(slotName, options = {}) {
       });
 
   return {
-    provider, rates, modelId, slot: slotName, prices, thinkingOff,
+    provider, rates, modelId, slot: slotName, prices,
   };
 }

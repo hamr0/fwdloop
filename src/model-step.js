@@ -32,7 +32,7 @@ import {
   makeProvider, ModelRefusal, sumMeterings, appendSpendRow, classifyModelId, priceRecord,
 } from './provider.js';
 
-// F27: DeepSeek's `chat/completions` can send HTTP 200 + headers + one byte
+// F27: a provider's `chat/completions` can send HTTP 200 + headers + one byte
 // then nothing — a "zombie stream" that `timeoutMs`'s idle bound never
 // trips on. `deadlineMs` is bare-agent's TOTAL wall-clock ceiling
 // (`code: 'EDEADLINE'`, `retryable: false`) — deliberately shorter than
@@ -236,7 +236,7 @@ function stoppedResult(cumulative, modelId, modelMatch) {
 
 /**
  * @param {object} opts
- * @param {string} [opts.slot] - a `src/provider.js` PROVIDER_SLOTS name; required when `provider` isn't injected.
+ * @param {string} [opts.slot] - a provider row (the name of a key in the keys file); required when `provider` isn't injected.
  * @param {string} [opts.model] - overrides the slot's default model.
  * @param {string} opts.spendPath - the run's spend.jsonl (never a second ledger).
  * @param {any} [opts.provider] - an injected provider (tests only; production always builds live via `slot`).

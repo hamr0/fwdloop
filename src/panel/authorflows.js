@@ -32,6 +32,7 @@ import {
 import { checkValues } from './authorvalues.js';
 import { getRunControls } from './data.js';
 import { providerKeys } from './spawn.js';
+import { readModelRecord } from '../flowmodel.js';
 
 /** M6 amendment 1: the sentence the page shows and the sign route refuses with, for a job with a run running or waiting at its ask. @param {string} runId */
 export const editBlockedSay = (runId) => `finish or stop ${runId} first`;
@@ -44,17 +45,19 @@ const RUN_KEYS = ['flow', 'inputs', 'runId', 'destination', 'capUsd', 'askWaits'
 /**
  * What the Run / Resume forms show of a signed flow (read from its own files, never from a model): the job lines as the signed text has them
  * (an ask line carries its question and its wait), the values the open boxes start from, and the cap floor. Amendment 5 item 2: all the rest is dimmed.
- * @param {any} read `readFlow`'s ok result @param {string} [home] the config home Settings is read from
+ * @param {any} read `readFlow`'s ok result @param {string} [home] the config home Settings is read from @param {string} [flowDir] the signed flow's folder: the model recorded beside it is the one it runs with (M4d amendment 6)
  */
-export function formFacts(read, home) {
+export function formFacts(read, home, flowDir) {
   const asks = new Map((read.arbiter.asks ?? []).map((a) => [a.line, a]));
   const values = flowValues(read.arbiter);
   const jobLines = read.lines.map((l) => ({
     n: l.n, text: l.text, guardrail: l.guardrail || null, ask: asks.has(l.n) ? { wait: values.askWaits[String(l.n)] } : null,
   }));
   const hasRound = read.declaration.steps.some((st) => !asks.has(st.fromLine));
+  const pick = flowDir === undefined ? null : readModelRecord(flowDir);
   return {
-    values, jobLines, hasSend: values.destination !== null, capFloorUsd: capFloorFor(hasRound, home), floorText: capFloorText(capFloorFor(hasRound, home)),
+    values, jobLines, hasSend: values.destination !== null, capFloorUsd: capFloorFor(hasRound, home, pick), floorText: capFloorText(capFloorFor(hasRound, home, pick)),
+    model: pick === null ? null : { slot: pick.slot, model: pick.model, label: `${pick.slot} · ${pick.model}` },
   };
 }
 
@@ -182,7 +185,7 @@ export function createFlowsDoor(opts) {
       return reply(409, { refused: 'flow', say: willNotRunSay(flow, red), refusals: [{ field: 'flow', say: willNotRunSay(flow, red) }] });
     }
     const checked = checkValues({
-    allowedKeys: RUN_KEYS, body, base: flowValues(read.arbiter), realRoot, capOnly: false, floorUsd: formFacts(read, home).capFloorUsd, monthlyClaim,
+    allowedKeys: RUN_KEYS, body, base: flowValues(read.arbiter), realRoot, capOnly: false, floorUsd: formFacts(read, home, join(realRoot, flow)).capFloorUsd, monthlyClaim,
     });
     if (!checked.ok && checked.refused) return reply(checked.status, { refused: checked.refused, say: checked.say, refusals: checked.refusals });
     /** @type {{field: string, say: string}[]} */
@@ -239,7 +242,7 @@ export function createFlowsDoor(opts) {
     return {
       flow: name, capUsd: read.arbiter.capUsd, roles, nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
       runs: passed, stats,
-      ...formFacts(read, home),
+      ...formFacts(read, home, flowDir),
       // M6: the job as a card to edit (`ok:true, card, flowHash` = the signature hash it is opened at), or why it cannot be (`ok:false, say`)
       edit: (() => {
         const blocked = editBlockOf(realRoot, name);
@@ -293,7 +296,7 @@ export function createFlowsDoor(opts) {
       const readRaw = readSigned(realRoot, flow);
       const can = canFlowRun(readRaw);
       if (!can.ok) {
-        const red = scrub(String(can.red), providerKeys(loadEnv().env));
+        const red = scrub(String(can.red), providerKeys(loadEnv()));
         return no(409, willNotRunSay(flow, red), { red });
       }
       const read = /** @type {Extract<typeof readRaw, { ok: true }>} */ (readRaw); // canFlowRun refuses every failed read above
@@ -313,7 +316,7 @@ export function createFlowsDoor(opts) {
      * @param {any} body
      */
     runPrepare(body) {
-      const s = inspect(body, providerKeys(loadEnv().env));
+      const s = inspect(body, providerKeys(loadEnv()));
       if (!s.ok) return s.reply;
       return {
         status: 200, body: {
@@ -331,7 +334,7 @@ export function createFlowsDoor(opts) {
     run(body) {
       const loaded = loadEnv();
       if (!loaded.ok) return { status: 409, body: { ok: false, refused: 'keys-file', say: String(loaded.refusal) } };
-      const s = inspect(body, providerKeys(loaded.env));
+      const s = inspect(body, providerKeys(loaded));
       if (!s.ok) return s.reply;
       let values = null;
       if (s.differs) {
@@ -347,7 +350,7 @@ export function createFlowsDoor(opts) {
       }
       return starter.start({
         kind: 'run', flow: s.flow, runId: s.runId, sources: s.declared.map((role) => ({ role, path: /** @type {{path: string}} */ (s.rows.find((r) => r.role === role)).path })), values,
-      }, loaded.env);
+      }, loaded);
     },
   };
 }

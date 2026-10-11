@@ -54,7 +54,7 @@ const newHome = () => path.join(tmp('home'), 'fwdloop');
 const tickedHome = (line = TYPED_LINE) => {
   const home = newHome();
   mkdirSync(home, { recursive: true });
-  updateConfig({ models: { deepseek: [line] } }, { home });
+  updateConfig({ providers: { DEEPSEEK_API_KEY: { baseUrl: 'http://127.0.0.1:9' } }, models: { DEEPSEEK_API_KEY: [line] } }, { home });
   return home;
 };
 /** Point the in-process price door at `home` for the duration of `fn` (NODE_ENV=test gate + the seam). */
@@ -69,7 +69,7 @@ async function withHome(home, fn) {
 const withFake = async (usage, fn) => { const restore = install(usage); try { return await fn(); } finally { restore(); } };
 const spendPathIn = () => path.join(tmp('spend'), 'spend.jsonl');
 const CTX = { goal: 'draft a thing', primitives: [], reads: {}, gap: null };
-const liveStep = (spendPath) => makeLiveModelStep({ slot: 'deepseek', spendPath, env: { DEEPSEEK_API_KEY: KEY } });
+const liveStep = (spendPath) => makeLiveModelStep({ slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', spendPath, env: { DEEPSEEK_API_KEY: KEY } });
 const close = (a, b, eps = 1e-12) => assert.ok(Math.abs(a - b) <= eps, `${a} vs ${b}`);
 
 // ---------------------------------------------------------------------------
@@ -78,13 +78,13 @@ const close = (a, b, eps = 1e-12) => assert.ok(Math.abs(a - b) <= eps, `${a} vs 
 
 test('(xi) config: 0, negative, NaN, Infinity or text in any price field (or the limit) is a ConfigError naming slot+field, and the file is unchanged', () => {
   const home = newHome();
-  updateConfig({ prices: { deepseek: { inPerM: 0.5 } }, monthlyLimitUsd: 10 }, { home });
+  updateConfig({ prices: { DEEPSEEK_API_KEY: { inPerM: 0.5 } }, monthlyLimitUsd: 10 }, { home });
   const before = readFileSync(configPath(home), 'utf8');
   for (const field of ['inPerM', 'cachedInPerM', 'outPerM']) {
     for (const bad of [0, -1, Number.NaN, Infinity, -Infinity, '0.5', '', true, [], {}]) {
       assert.throws(
-        () => updateConfig({ prices: { deepseek: { [field]: bad } } }, { home }),
-        (e) => e instanceof ConfigError && e.message.includes(`prices.deepseek.${field}`),
+        () => updateConfig({ prices: { DEEPSEEK_API_KEY: { [field]: bad } } }, { home }),
+        (e) => e instanceof ConfigError && e.message.includes(`prices.DEEPSEEK_API_KEY.${field}`),
         `${field}=${String(bad)}`,
       );
     }
@@ -92,21 +92,21 @@ test('(xi) config: 0, negative, NaN, Infinity or text in any price field (or the
   for (const bad of [0, -5, Number.NaN, Infinity, '9']) {
     assert.throws(() => updateConfig({ monthlyLimitUsd: bad }, { home }), (e) => e instanceof ConfigError && /monthlyLimitUsd/.test(e.message));
   }
-  assert.throws(() => updateConfig({ prices: { deepseek: { bogusPerM: 1 } } }, { home }), /not a price field/);
+  assert.throws(() => updateConfig({ prices: { DEEPSEEK_API_KEY: { bogusPerM: 1 } } }, { home }), /not a price field/);
   assert.equal(readFileSync(configPath(home), 'utf8'), before, 'a refusal writes nothing');
   assert.deepEqual(readdirSync(home).filter((f) => f.includes('.tmp')), [], 'no tmp litter');
 });
 
 test('config: a valid write is 0600, atomic (tmp + rename, no tmp left), round-trips, merges per slot and per field, null deletes', () => {
   const home = newHome();
-  const w = updateConfig({ prices: { deepseek: { inPerM: 0.5, outPerM: 2 } }, monthlyLimitUsd: 12.5 }, { home });
+  const w = updateConfig({ prices: { DEEPSEEK_API_KEY: { inPerM: 0.5, outPerM: 2 } }, monthlyLimitUsd: 12.5 }, { home });
   assert.deepEqual(w, readConfig({ home }));
   assert.equal(statSync(configPath(home)).mode & 0o777, 0o600);
   assert.deepEqual(readdirSync(home), ['config.json']);
-  updateConfig({ prices: { deepseek: { cachedInPerM: 0.05 }, synthetic: { inPerM: 1 } } }, { home });
-  assert.deepEqual(readConfig({ home }).prices, { deepseek: { inPerM: 0.5, outPerM: 2, cachedInPerM: 0.05 }, synthetic: { inPerM: 1 } });
-  updateConfig({ prices: { deepseek: { inPerM: null }, synthetic: null }, monthlyLimitUsd: null }, { home });
-  assert.deepEqual(readConfig({ home }), { prices: { deepseek: { outPerM: 2, cachedInPerM: 0.05 } } });
+  updateConfig({ prices: { DEEPSEEK_API_KEY: { cachedInPerM: 0.05 }, synthetic: { inPerM: 1 } } }, { home });
+  assert.deepEqual(readConfig({ home }).prices, { DEEPSEEK_API_KEY: { inPerM: 0.5, outPerM: 2, cachedInPerM: 0.05 }, synthetic: { inPerM: 1 } });
+  updateConfig({ prices: { DEEPSEEK_API_KEY: { inPerM: null }, synthetic: null }, monthlyLimitUsd: null }, { home });
+  assert.deepEqual(readConfig({ home }), { prices: { DEEPSEEK_API_KEY: { outPerM: 2, cachedInPerM: 0.05 } } });
 });
 
 test('config: a secret-shaped string anywhere is refused and nothing is written; a missing file reads {}', () => {
@@ -127,8 +127,8 @@ test('config: an unreadable or unparseable file THROWS ConfigError — never {} 
     assert.throws(() => updateConfig({ monthlyLimitUsd: 5 }, { home }), ConfigError, body);
     assert.equal(readFileSync(configPath(home), 'utf8'), body, 'the broken file is left as found');
   }
-  writeFileSync(configPath(home), JSON.stringify({ prices: { deepseek: { inPerM: 0 } } }));
-  assert.throws(() => readConfig({ home }), /prices\.deepseek\.inPerM/, 'a hand-edited 0 never prices a call at $0');
+  writeFileSync(configPath(home), JSON.stringify({ prices: { DEEPSEEK_API_KEY: { inPerM: 0 } } }));
+  assert.throws(() => readConfig({ home }), /prices\.DEEPSEEK_API_KEY\.inPerM/, 'a hand-edited 0 never prices a call at $0');
 });
 
 // ---------------------------------------------------------------------------
@@ -144,12 +144,12 @@ test('amendment 2 (b,c): cached input books at the INPUT rate - a saved cachedIn
     return events[0].costUsd;
   };
   // (b) typed In $0.40/1M with a saved cachedInPerM of 0.04: the 2816 cached tokens book at $0.40/1M
-  const b = resolveUsableModel('deepseek', { config: { models: { deepseek: [{ model: 'deepseek-flash', use: true, inPerM: 0.4, outPerM: 1.2 }] }, prices: { deepseek: { cachedInPerM: 0.04 } } } });
+  const b = resolveUsableModel('DEEPSEEK_API_KEY', { config: { models: { DEEPSEEK_API_KEY: [{ model: 'deepseek-flash', use: true, inPerM: 0.4, outPerM: 1.2 }] }, prices: { DEEPSEEK_API_KEY: { cachedInPerM: 0.04 } } }, model: 'deepseek-flash' });
   close(await round(b), (225 * 0.4 + 2816 * 0.4 + 22 * 1.20) / 1e6);
   assert.equal(b.prices.perM.cachedInPerM, 0.4);
   assert.equal(b.rates.cacheReadMult, 1);
   // (c) In typed 0.30: the 2816 cached tokens book at 0.30, there is no cache rate anywhere
-  const c = resolveUsableModel('deepseek', { config: { models: { deepseek: [TYPED_LINE] } } });
+  const c = resolveUsableModel('DEEPSEEK_API_KEY', { config: { models: { DEEPSEEK_API_KEY: [TYPED_LINE] } }, model: 'deepseek-flash' });
   close(await round(c), (225 * 0.30 + 2816 * 0.30 + 22 * 1.20) / 1e6);
   assert.equal(c.prices.perM.cachedInPerM, 0.3);
   assert.deepEqual(c.prices.source, { in: 'model', cachedIn: 'input', out: 'model' });
@@ -157,28 +157,31 @@ test('amendment 2 (b,c): cached input books at the INPUT rate - a saved cachedIn
 
 test('lookup: a ticked model line\'s pair is THE price (am3 items 7, 9; am5 item 1); a half old price is not usable; sources are named', () => {
   // a price is both fields or neither: a legacy half price with a typed name is an unticked line, not usable, never mixed with anything
-  const half = resolveUsableModel('deepseek', { config: { providers: { deepseek: { model: 'deepseek-flash' } }, prices: { deepseek: { outPerM: 2.0 } } }, model: 'deepseek-flash' });
+  const half = resolveUsableModel('DEEPSEEK_API_KEY', { config: { providers: { DEEPSEEK_API_KEY: { model: 'deepseek-flash' } }, prices: { DEEPSEEK_API_KEY: { outPerM: 2.0 } } }, model: 'deepseek-flash' });
   assert.deepEqual([half.ok, half.say], [false, 'Tick deepseek-flash in Settings > Providers with both prices first.']);
-  const q = resolveUsableModel('deepseek', { config: { models: { deepseek: [{ model: 'deepseek-flash', use: true, ...SET_PRICE }] } } });
+  const q = resolveUsableModel('DEEPSEEK_API_KEY', { config: { models: { DEEPSEEK_API_KEY: [{ model: 'deepseek-flash', use: true, ...SET_PRICE }] } }, model: 'deepseek-flash' });
   assert.deepEqual(q.prices.perM, { inPerM: 1, cachedInPerM: 1, outPerM: 4 });
   assert.deepEqual(q.prices.source, { in: 'model', cachedIn: 'input', out: 'model' });
   close(q.rates.cacheReadMult, 1);
   // another slot's list does not apply
-  assert.equal(resolveUsableModel('synthetic', { config: { models: { deepseek: [{ model: 'deepseek-flash', use: true, ...SET_PRICE }] } }, model: 'deepseek-flash' }).ok, false);
+  assert.equal(resolveUsableModel('synthetic', { config: { models: { DEEPSEEK_API_KEY: [{ model: 'deepseek-flash', use: true, ...SET_PRICE }] } }, model: 'deepseek-flash' }).ok, false);
 });
 
 test('no config, or a model nobody ticked: nothing is usable and nothing is priced from code - makeProvider refuses by name (M4d am5 item 1/2; replaces "the table\'s HIGHEST entry")', () => {
-  assert.equal(resolveUsableModel('deepseek', {}).ok, false);
-  assert.throws(() => makeProvider('deepseek', { model: 'totally-unknown-model', env: { DEEPSEEK_API_KEY: KEY }, configHome: tickedHome() }), /^Error: Tick totally-unknown-model in Settings > Providers with both prices first\.$/);
-  assert.throws(() => makeProvider('deepseek', { env: { DEEPSEEK_API_KEY: KEY }, configHome: path.join(tmp('empty'), 'fwdloop') }), /Tick a model in Settings > Providers/);
+  assert.equal(resolveUsableModel('DEEPSEEK_API_KEY', {}).ok, false);
+  assert.throws(() => makeProvider('DEEPSEEK_API_KEY', { model: 'totally-unknown-model', env: { DEEPSEEK_API_KEY: KEY }, configHome: tickedHome() }), /^Error: Tick totally-unknown-model in Settings > Providers with both prices first\.$/);
+  const noLines = newHome();
+  updateConfig({ providers: { DEEPSEEK_API_KEY: { baseUrl: 'http://127.0.0.1:9' } } }, { home: noLines });
+  assert.throws(() => makeProvider('DEEPSEEK_API_KEY', { env: { DEEPSEEK_API_KEY: KEY }, configHome: noLines }), /Tick a model in Settings > Providers/);
+  assert.throws(() => makeProvider('DEEPSEEK_API_KEY', { model: 'm', env: { DEEPSEEK_API_KEY: KEY }, configHome: path.join(tmp('empty'), 'fwdloop') }), /^Error: Type a Base URL for DEEPSEEK_API_KEY in Settings\.$/);
 });
 
 test('ceilingCostUsd follows the ticked line\'s price (the cap check and the booking agree)', async () => {
   const homeA = tickedHome();
   const homeB = tickedHome({ model: 'deepseek-flash', use: true, ...SET_PRICE });
-  const lowCeiling = ceilingCostUsd(makeProvider('deepseek', { env: { DEEPSEEK_API_KEY: KEY }, configHome: homeA }).rates);
+  const lowCeiling = ceilingCostUsd(makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', env: { DEEPSEEK_API_KEY: KEY }, configHome: homeA }).rates);
   close(lowCeiling, 32 * 0.0003 + 16 * 0.0012);
-  const { rates, prices } = makeProvider('deepseek', { env: { DEEPSEEK_API_KEY: KEY }, configHome: homeB });
+  const { rates, prices } = makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', env: { DEEPSEEK_API_KEY: KEY }, configHome: homeB });
   const withSet = ceilingCostUsd(rates);
   close(withSet, 32 * 0.001 + 16 * 0.004);
   assert.ok(withSet > lowCeiling);
@@ -187,14 +190,14 @@ test('ceilingCostUsd follows the ticked line\'s price (the cap check and the boo
   await withHome(homeB, async () => {
     const fx = job2Fixture();
     const budgetUsd = (lowCeiling + withSet) / 2;
-    const r = await withFake(U, () => draft({ proseText: fx.prose, slot: 'deepseek', env: { DEEPSEEK_API_KEY: KEY }, budgetUsd }));
+    const r = await withFake(U, () => draft({ proseText: fx.prose, slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', env: { DEEPSEEK_API_KEY: KEY }, budgetUsd }));
     assert.equal(r.ok, false);
     assert.equal(r.stop, 'pre-flight');
     assert.match(r.reds[0], new RegExp(`minimum budget is \\$${withSet.toFixed(4)}`));
   });
   await withHome(homeA, async () => {
     const fx = job2Fixture();
-    const r = await withFake(U, () => draft({ proseText: fx.prose, slot: 'deepseek', env: { DEEPSEEK_API_KEY: KEY }, budgetUsd: (lowCeiling + withSet) / 2 }));
+    const r = await withFake(U, () => draft({ proseText: fx.prose, slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', env: { DEEPSEEK_API_KEY: KEY }, budgetUsd: (lowCeiling + withSet) / 2 }));
     assert.equal(r.ok, true, JSON.stringify(r.reds));
   });
 });
@@ -203,14 +206,14 @@ test('a broken config makes makeProvider THROW by name — it never falls back t
   const home = newHome();
   mkdirSync(home, { recursive: true });
   writeFileSync(configPath(home), '{oops');
-  assert.throws(() => makeProvider('deepseek', { env: { DEEPSEEK_API_KEY: KEY }, configHome: home }), ConfigError);
+  assert.throws(() => makeProvider('DEEPSEEK_API_KEY', { env: { DEEPSEEK_API_KEY: KEY }, configHome: home }), ConfigError);
   await withHome(home, async () => {
     const step = liveStep(spendPathIn());
     const res = await step(CTX, {}, { class: 'hitl' });
     assert.equal(res.ok, false);
     assert.match(res.red, /^config: .*not readable JSON/);
     const fx = job2Fixture();
-    const d = await draft({ proseText: fx.prose, slot: 'deepseek', env: { DEEPSEEK_API_KEY: KEY } });
+    const d = await draft({ proseText: fx.prose, slot: 'DEEPSEEK_API_KEY', env: { DEEPSEEK_API_KEY: KEY } });
     assert.equal(d.ok, false);
     assert.match(d.reds[0], /^config: /);
   });
@@ -234,7 +237,7 @@ test('(x) a price set in config is booked from the next call; every earlier row 
       const total1 = assertUnderGlobalCap(spendPath, 1e9);
       close(total1, rows1[0].costUsd);
 
-      updateConfig({ models: { deepseek: [{ model: 'deepseek-flash', use: true, ...SET_PRICE }] } }, { home }); // the price changes between two calls
+      updateConfig({ models: { DEEPSEEK_API_KEY: [{ model: 'deepseek-flash', use: true, ...SET_PRICE }] } }, { home }); // the price changes between two calls
       const r2 = await liveStep(spendPath)(CTX, {}, { class: 'hitl' });
       assert.equal(r2.ok, true, r2.red);
       const rows2 = readSpendRows(spendPath);
@@ -244,7 +247,7 @@ test('(x) a price set in config is booked from the next call; every earlier row 
       assert.deepEqual(rows2[1].price, { ...SET_BOOKED, source: { in: 'model', cachedIn: 'input', out: 'model' } });
       close(assertUnderGlobalCap(spendPath, 1e9), rows1[0].costUsd + rows2[1].costUsd, 1e-12); // = old row as booked + new row
 
-      updateConfig({ prices: { deepseek: { inPerM: 9 } } }, { home }); // a later change touches neither
+      updateConfig({ prices: { DEEPSEEK_API_KEY: { inPerM: 9 } } }, { home }); // a later change touches neither
       assert.deepEqual(readSpendRows(spendPath).slice(0, 2), rows2);
     });
   });
@@ -252,7 +255,7 @@ test('(x) a price set in config is booked from the next call; every earlier row 
 
 test('(xii) with a config price set: the model step, the drafter and a CLI resume ALL book the config price — none falls back to the code table', async () => {
   const home = newHome();
-  updateConfig({ models: { deepseek: [{ model: 'deepseek-flash', use: true, ...SET_PRICE }] } }, { home });
+  updateConfig({ providers: { DEEPSEEK_API_KEY: { baseUrl: 'http://127.0.0.1:9' } }, models: { DEEPSEEK_API_KEY: [{ model: 'deepseek-flash', use: true, ...SET_PRICE }] } }, { home });
   const want = { ...SET_BOOKED, source: { in: 'model', cachedIn: 'input', out: 'model' } };
 
   // model step
@@ -263,12 +266,12 @@ test('(xii) with a config price set: the model step, the drafter and a CLI resum
   }));
   const [stepRow] = readSpendRows(spendPath);
   assert.deepEqual(stepRow.price, want);
-  assert.equal(stepRow.provider, 'deepseek');
+  assert.equal(stepRow.provider, 'DEEPSEEK_API_KEY');
   close(stepRow.costUsd, 2 * COST_SET_U);
   assert.notEqual(stepRow.costUsd, 2 * COST_TABLE_U);
 
   // drafter
-  const d = await withHome(home, () => withFake(U, () => draft({ proseText: job2Fixture().prose, slot: 'deepseek', env: { DEEPSEEK_API_KEY: KEY } })));
+  const d = await withHome(home, () => withFake(U, () => draft({ proseText: job2Fixture().prose, slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', env: { DEEPSEEK_API_KEY: KEY } })));
   assert.equal(d.ok, true, JSON.stringify(d.reds));
   assert.deepEqual(d.price, want);
   close(d.costUsd, COST_SET_U);
@@ -294,9 +297,9 @@ test('(xii) with a config price set: the model step, the drafter and a CLI resum
   const liveEnv = {
     ...base, NODE_ENV: 'test', FWDLOOP_CONFIG_HOME: home, DEEPSEEK_API_KEY: KEY, M4D_FAKE_USAGE: JSON.stringify(U),
   };
-  const res = spawnSync(process.execPath, ['--import', PRELOAD, BIN, 'resume', 'run-1', '--flow', 'job2', '--root', root], { env: liveEnv, encoding: 'utf8', timeout: 60000 });
+  const res = spawnSync(process.execPath, ['--import', PRELOAD, BIN, 'resume', 'run-1', '--flow', 'job2', '--root', root, '--model', 'deepseek-flash'], { env: liveEnv, encoding: 'utf8', timeout: 60000 });
   assert.ok(!/config:|key:/.test(res.stderr), res.stderr);
-  const rows = readSpendRows(path.join(runDir, 'spend.jsonl')).filter((r) => r.provider === 'deepseek');
+  const rows = readSpendRows(path.join(runDir, 'spend.jsonl')).filter((r) => r.provider === 'DEEPSEEK_API_KEY');
   assert.ok(rows.length >= 1, `resume booked a live model row: ${res.stderr}${res.stdout}`);
   for (const r of rows) {
     assert.deepEqual(r.price, want);
@@ -317,7 +320,7 @@ test('every new spend row carries provider and price (model step and draft row);
   }));
   const rows = readSpendRows(spendPath);
   assert.equal(rows[0].provider, undefined);
-  assert.equal(rows[1].provider, 'deepseek');
+  assert.equal(rows[1].provider, 'DEEPSEEK_API_KEY');
   assert.deepEqual(Object.keys(rows[1].price).sort(), ['cachedInPerM', 'inPerM', 'outPerM', 'source']);
   assert.equal(summarizeSpendRows(rows).empty, false);
   assert.equal(summarizeSpendRows([old]).rounds, 1);
@@ -339,10 +342,10 @@ test('every new spend row carries provider and price (model step and draft row);
   const proseFile = path.join(out, 'prose.txt');
   writeFileSync(proseFile, fx.prose);
   const dd = await withHome(home, () => withFake(U, () => draftToDir({
-    proseFile, dir: path.join(out, 'd'), root: flowsRoot, name: 'x', env: { DEEPSEEK_API_KEY: KEY },
+    proseFile, dir: path.join(out, 'd'), root: flowsRoot, name: 'x', env: { DEEPSEEK_API_KEY: KEY }, slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash',
   })));
   assert.equal(dd.ok, true, JSON.stringify(dd.reds));
   const [drow] = readSpendRows(path.join(out, 'd', 'spend.jsonl'));
-  assert.equal(drow.provider, 'deepseek');
-  assert.deepEqual(drow.price, priceRecord(resolveUsableModel('deepseek', { config: readConfig({ home }) }).prices));
+  assert.equal(drow.provider, 'DEEPSEEK_API_KEY');
+  assert.deepEqual(drow.price, priceRecord(resolveUsableModel('DEEPSEEK_API_KEY', { config: readConfig({ home }), model: 'deepseek-flash' }).prices));
 });

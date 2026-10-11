@@ -13,8 +13,7 @@ import { chmodSentence } from '../src/keysfile.js';
 import { spendSummary, REFUSAL_SENTENCE } from '../src/monthly.js';
 import { runLiveness } from '../src/liveness.js';
 import {
-  CANARY, GATED_STEP, HERE, killChildrenAfter, rq, until, world,
-} from './m4e-world.mjs';
+  CANARY, GATED_STEP, HERE, killChildrenAfter, rq, until, world, tickedConfig } from './m4e-world.mjs';
 
 killChildrenAfter();
 
@@ -147,7 +146,7 @@ test('(vi) two run POSTs together for one flow start exactly one child (the seco
 test('(vii) over the monthly limit the child refuses at $0: the start reads refused with the signed sentence; no run dir, nothing booked', async () => {
   const w = await world();
   await w.signedFlow(); // drafted with no limit set; the limit is lowered afterwards, below the flow's $0.25 cap
-  writeFileSync(path.join(w.home, 'config.json'), JSON.stringify({ monthlyLimitUsd: 0.00001 }));
+  writeFileSync(path.join(w.home, 'config.json'), JSON.stringify(tickedConfig({ monthlyLimitUsd: 0.00001 })));
   const before = spendSummary({ home: w.home }).total.usd;
   const r = await w.post('/api/author/run', runBody(w));
   assert.equal(r.status, 202);
