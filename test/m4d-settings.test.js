@@ -343,7 +343,8 @@ test('page: the Settings button, header, tabs and signed sentences; no per-run c
   assert.match(SETTINGS_VIEW, /Put <code>NAME=key<\/code> lines in <code id="keys-path"[^>]*>~\/\.config\/fwdloop\/\.env<\/code>, then Reload keys[^<]*keys never reach this page\./);
   assert.match(SETTINGS_VIEW, /<div class="keyfile-strip-actions">\s*<button[^>]*id="reload-keys"[^>]*>Reload keys</);
   // the hint lines
-  assert.match(SETTINGS_VIEW, /Every key in your keys file is a row\. Type its API shape and Base URL; Test asks the provider for its model list &mdash; it costs nothing\. Under each provider, tick Use on a model only once both its prices are filled \(USD per 1M tokens; 0 and 0 is allowed\)\. A price applies from the next model call on\./);
+  // layout A: the hint under the grid is the footnote (the old sentence named a Test button the layout no longer has; Test and the model list were one free GET)
+  assert.match(SETTINGS_VIEW, /⟳ refresh models \(free\) · ✎ edit shape \/ base URL · old max_tokens: tick if the server wants the old field name/);
   assert.match(SETTINGS_VIEW, /Limits are yours\. The agent can never change them\. A run whose cap is more than what is left this month does not start\./);
   assert.match(PAGE, /Runs from before Settings existed are not counted here\./);
   assert.match(PAGE, /saved — applies from the next model call/);
@@ -353,25 +354,18 @@ test('page: the Settings button, header, tabs and signed sentences; no per-run c
   assert.doesNotMatch(PAGE, /prov-card|break-card|set-card|set-strip|set-prices|money-grid|limit-save|price-save|set-limit/);
 });
 
-test('page: Providers is ONE table, columns in bareloop order, prices on a model line under each row (am3 C replaces the two price columns); shape/URL/legacy tick are select/text/tick (amendments 1 and 6)', () => {
+test('page: Providers is ONE grid, columns in layout-A order, prices on a child row per model under each key; shape/URL are the pencil\'s select/text and the legacy tick is the key row\'s (amendments 1, 6, layout A)', () => {
   const tables = [...SETTINGS_VIEW.matchAll(/<table[\s\S]*?<\/table>/g)].map((m) => m[0]);
-  assert.equal(tables.length, 2, 'the provider table and the breakdown table, no cards');
-  assert.deepEqual(th(tables[0]), ['Key', 'API shape', 'Base URL', 'Legacy max_tokens', 'Test', 'Tokens used']);
-  assert.match(tables[0], /<table class="pv-table"/);
-  assert.match(SETTINGS_VIEW, /<div class="table-wrap"[^>]*>\s*<table class="pv-table"/);
-  // the row builder (M4d amendment 1, replaces ruling 2A): Name = text box, API shape = dropdown, Base URL = text box
-  const build = PAGE.slice(PAGE.indexOf('function buildProviderRow('), PAGE.indexOf('function buildModelsRow('));
-  assert.match(build, /<select data-prov="shape"/);
-  assert.match(build, /<input type="text" data-prov="baseUrl"/);
-  assert.doesNotMatch(build, /API_SHAPE|data-f="model"|data-f="addr"/);
-  // inputs in a row: name + Base URL, each saved on change with a hint line under it (the prices moved to the model lines)
-  assert.equal((build.match(/<input/g) || []).length, 2, 'Base URL and the legacy tick');
+  assert.equal(tables.length, 1, 'only the breakdown is a table; Providers is a grid, no cards');
+  const head = SETTINGS_VIEW.match(/<div class="pv-head"[\s\S]*?<\/div>/)[0];
+  assert.deepEqual([...head.matchAll(/<span[^>]*>([^<]*)<\/span>/g)].map((m) => m[1]), ['KEY / MODEL', 'SHAPE · BASE URL', 'OLD MAX_TOKENS', 'USE', 'IN $/1M', 'OUT $/1M', 'TOKENS', '']);
+  assert.match(SETTINGS_VIEW, /<div class="table-wrap"[^>]*>\s*<div class="pv-grid"/);
+  const build = PAGE.slice(PAGE.indexOf('function buildProviderRow('), PAGE.indexOf('function buildModelLine('));
+  assert.doesNotMatch(build, /API_SHAPE|data-f="model"|data-f="addr"|cachedIn|PRICE_FIELDS/);
+  assert.equal((build.match(/<input/g) || []).length, 2, 'the legacy tick and the typed-name box (shape and URL are the pencil\'s)');
   assert.doesNotMatch(PAGE, /cachedIn|Cached in/i, 'amendment 2 (a): no Cached in column or box anywhere on the page');
-  assert.doesNotMatch(build, /PRICE_FIELDS/);
   assert.match(PAGE, /pvRows\.addEventListener\("change"/);
   assert.match(build, /class="hint pv-msg"/);
-  // the Test cell has one fixed width; the wrap scrolls inside its own box
-  assert.match(PAGE, /\.pv-table td\.pv-test-cell\{width:180px;min-width:180px;max-width:180px;\}/);
   assert.match(PAGE, /\.table-wrap\{overflow-x:auto;/);
   assert.doesNotMatch(PAGE, /\/api\/settings\/balance|runBalance/, 'the balance check is gone (M4d am6)');
 });
@@ -441,10 +435,10 @@ test('page: a typed price/limit box survives a repaint, the limit saves on chang
 test('page: phone rules — wraps scroll in their own box, the strip collapses, inputs and selects use the bareloop look, nothing is wider than its box', () => {
   assert.match(PAGE, /\.settings-view input,\.settings-view select\{font:inherit;padding:6px 8px;border:1px solid var\(--border-strong\);border-radius:0;background:var\(--bg\);color:var\(--text\);\}/);
   assert.doesNotMatch(PAGE, /\.settings-view input\[type=text\]\{[^}]*font-size:16px/);
-  assert.match(PAGE, /\.pv-table select,\.pv-table input\{min-height:32px;max-width:190px;box-sizing:border-box;\}/);
+  assert.match(PAGE, /\.pv-edit select,\.pv-edit input\{width:100%;max-width:100%;min-height:32px;box-sizing:border-box;\}/);
   assert.match(PAGE, /\.money-item input\{width:100%;height:44px;box-sizing:border-box;\}/);
   assert.match(PAGE, /\.keyfile-strip-main\{[^}]*min-width:0;overflow-wrap:anywhere;/);
-  assert.match(PAGE, /\.pv-table \.pv-test-result,[^{]*\{white-space:normal;overflow-wrap:anywhere;\}/);
+  assert.match(PAGE, /\.pv-line\{[^}]*overflow-wrap:anywhere;\}/);
   assert.match(PAGE, /\.table-wrap\{overflow-x:auto;[^}]*max-width:100%;/);
   assert.match(PAGE, /name="viewport"/);
 });
@@ -475,9 +469,9 @@ test('settings: Test never follows a redirect with the key; a plain sentence, an
 });
 
 test('amendment 2 (a) under am3 C: no Cached in column or box; the model line builder makes exactly one box per signed price field (Price in, Price out); source-level, browser walk separate', () => {
-  const head = SETTINGS_VIEW.match(/<table class="pv-table"[\s\S]*?<\/thead>/)[0];
+  const head = SETTINGS_VIEW.match(/<div class="pv-head"[\s\S]*?<\/div>/)[0];
   assert.doesNotMatch(head, /Cached/i);
-  assert.doesNotMatch(head, /\$\/1M/, 'the price columns moved to the model lines');
+  assert.match(head, /IN \$\/1M[\s\S]*OUT \$\/1M/, 'layout A: the price columns sit on the child rows, headed once');
   const line = PAGE.slice(PAGE.indexOf('function buildModelLine('), PAGE.indexOf('function paintModels('));
   assert.deepEqual([...line.matchAll(/data-mf="(\w+)"/g)].map((m) => m[1]), ['use', 'inPerM', 'outPerM']); // M4d am7: nothing about thinking in Settings
   assert.doesNotMatch(PAGE.slice(PAGE.indexOf('function paintProviders('), PAGE.indexOf('pvRows.addEventListener("click"')), /cachedIn/);

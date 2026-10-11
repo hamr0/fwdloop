@@ -104,9 +104,9 @@ test('B4: ticking needs both prices - "Fill both prices to tick this model."; 0 
   assert.deepEqual(readConfig({ home: w.home }).models.LIST_KEY, [{ model: 'typed-one', use: false }, { model: 'm1', use: true, inPerM: 0, outPerM: 0 }]);
 });
 
-test('B5: the page - a Refresh models button per row; one line per model with tick, Price in, Price out and nothing about thinking; a typed model box when the list failed; listing on open, Reload keys and Refresh, never on a save', () => {
-  const build = PAGE.slice(PAGE.indexOf('function buildProviderRow('), PAGE.indexOf('function buildModelsRow('));
-  assert.match(build + PAGE, /data-act="refresh-models"[^>]*>Refresh models</);
+test('B5: the page - a refresh-models button per key row (layout A: the arrow); one line per model with tick, Price in, Price out and nothing about thinking; a typed model box when the list failed; listing on open, Reload keys and Refresh, never on a save', () => {
+  const build = PAGE.slice(PAGE.indexOf('function buildProviderRow('), PAGE.indexOf('function buildModelLine('));
+  assert.match(build, /data-act="refresh-models"[^>]*aria-label="[^"]*"[^>]*>&#10227;</);
   const line = PAGE.slice(PAGE.indexOf('function buildModelLine('), PAGE.indexOf('function paintModels('));
   assert.deepEqual([...line.matchAll(/data-mf="(\w+)"/g)].map((m) => m[1]), ['use', 'inPerM', 'outPerM']);
   assert.match(PAGE, /data-testid="model-typed"/);

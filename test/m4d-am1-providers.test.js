@@ -191,10 +191,13 @@ test('Test follows the saved row: it calls the saved address with the shape\'s h
   assert.ok(!cfgText(home).includes(KEY));
 });
 
-test('page: API shape is a <select>, Base URL a text input, legacy max_tokens a tick - saved on change through /api/settings/provider', () => {
-  const build = PAGE.slice(PAGE.indexOf('function buildProviderRow('), PAGE.indexOf('var STATUS_WORD'));
-  const cells = [...build.matchAll(/<(input type="text"|input type="checkbox"|select) data-prov="(\w+)"/g)].map((m) => [m[2], m[1]]);
-  assert.deepEqual(cells, [['shape', 'select'], ['baseUrl', 'input type="text"'], ['legacyMaxTokens', 'input type="checkbox"']]);
+test('page: API shape is a <select> and Base URL a text input, both in the pencil\'s boxes (layout A), saved together through /api/settings/provider; the legacy max_tokens tick saves alone on change', () => {
+  const edit = PAGE.slice(PAGE.indexOf('function openEdit('), PAGE.indexOf('function closeEdit('));
+  const cells = [...edit.matchAll(/<(input type="text"|select) data-prov="(\w+)"/g)].map((m) => [m[2], m[1]]);
+  assert.deepEqual(cells, [['shape', 'select'], ['baseUrl', 'input type="text"']]);
+  const row = PAGE.slice(PAGE.indexOf('function buildProviderRow('), PAGE.indexOf('function buildModelLine('));
+  assert.deepEqual([...row.matchAll(/<(input type="checkbox") data-prov="(\w+)"/g)].map((m) => [m[2], m[1]]), [['legacyMaxTokens', 'input type="checkbox"']]);
   assert.match(PAGE, /postJSON\("\/api\/settings\/provider"/);
-  assert.match(PAGE, /saveProvider\(inp\.closest\("tr"\), inp\)/);
+  assert.match(PAGE, /saveProvider\(inp\.closest\("\.pv-key"\), inp\)/);
+  assert.match(PAGE, /shape: box\.querySelector\("\[data-prov=shape\]"\)\.value, baseUrl: box\.querySelector/, 'Save sends both fields in one request');
 });
