@@ -66,8 +66,12 @@ async function open(width) {
   await chrome.open(`http://127.0.0.1:${h.port}/`, width);
   // count every Ask poll the page makes, so "waited more than two refresh ticks" is a count, not a guess
   await chrome.ev(`window.__asks = 0; (function(){ var f = window.fetch; window.fetch = function(u){ if(String(u).indexOf("/asks") !== -1) window.__asks++; return f.apply(this, arguments); }; })()`);
+  // The page opens the newest run on its own at load (GET /api/runs, then selectRun + a click on the Run tab). Under load that lands AFTER an early
+  // Ask click and bounces the tab back to Run, leaving the boxes drawn but hidden (scrollHeight 0, so a scrollTop set clamps to 0). Wait for it, then click.
+  assert.ok(await chrome.waitFor('!document.getElementById("run-content").hidden'), 'the page opened the newest run');
   await chrome.ev('document.getElementById("tab-ask").click()');
   assert.ok(await chrome.waitFor(`${BOXES}.length >= 3`), 'the ask shows its evidence boxes');
+  assert.equal(await chrome.ev('document.getElementById("panel-ask").hidden'), false, 'the Ask tab is the one on screen (boxes are laid out, so scrollTop can be set)');
   return { chrome, world };
 }
 
