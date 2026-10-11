@@ -26,7 +26,7 @@ function makeDoc() {
   const doc = { hidden: false, activeElement: null, byId: {} };
   const el = () => {
     const e = {
-      className: '', children: [], attrs: {}, textContent: '', scrollTop: 0, builds: 0, parent: null,
+      className: '', classList: { add() {} }, children: [], attrs: {}, textContent: '', scrollTop: 0, builds: 0, parent: null,
       setAttribute(k, v) { this.attrs[k] = String(v); },
       getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; },
       appendChild(c) { c.parent = this; this.children.push(c); return c; },
@@ -60,7 +60,7 @@ function inboxHarness(state = {}) {
     function duration(ms){ return ms + "ms"; } function readableDateTime(x){ return x; }
     function selectRun(){}
     var INBOX_HEADS = { 1: "waiting on you", 2: "working", 3: "answered" };
-    ${['sig', 'escapeXml', 'signHtml', 'withScrollPreserved', 'withFocusPreserved', 'textDiv', 'stopStatusLine', 'renderStopRow', 'renderInbox', 'buildInbox'].map(fnSrc).join('\n')}
+    ${['sig', 'escapeXml', 'signHtml', 'withScrollPreserved', 'withFocusPreserved', 'textDiv', 'liveLeft', 'stopStatusLine', 'renderStopRow', 'renderInbox', 'buildInbox'].map(fnSrc).join('\n')}
     return { renderInbox: renderInbox, pick: function(f, r, a){ currentFlow = f; currentRunId = r; currentAskId = a; } };
   `)(doc, state);
   const list = doc.getElementById('inbox-list');
@@ -74,7 +74,7 @@ function loopHarness(world) {
   const seen = { fetched: [], inbox: 0 };
   const timers = [];
   const clock = { now: 1e9 };
-  const doc = { hidden: false, activeElement: null, getElementById: () => null };
+  const doc = { hidden: false, activeElement: null, getElementById: () => null, querySelectorAll: () => [] };
   const getJSON = async (p) => {
     seen.fetched.push(p);
     if (p === '/api/runs') return { rows: world.runs };
@@ -92,7 +92,7 @@ function loopHarness(world) {
     var runsFilterBar = { setItems: function(){}, refresh: function(){} };
     function renderInbox(){ seen.inbox++; } function renderRun(){} function renderAudit(){} function renderAsk(r){ return seen.renderAsk ? seen.renderAsk(r) : undefined; }
     function watchStep(){}
-    ${['holdAskRender', 'sig', 'withScrollPreserved', 'paintRun', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick'].map(fnSrc).join('\n')}
+    ${['holdAskRender', 'sig', 'tickLeft', 'withScrollPreserved', 'paintRun', 'paintAsks', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick'].map(fnSrc).join('\n')}
     return { schedulePoll: schedulePoll, hold: holdAskRender, state: { get openRunLive(){ return openRunLive; } } };
   `)(getJSON, doc, (fn) => { timers.push(fn); return timers.length; }, () => {}, seen, { now: () => clock.now });
   const tick = async () => { clock.now += 2000; const fn = timers.pop(); assert.ok(fn, 'a tick was scheduled'); fn(); await sleep(20); };
@@ -124,6 +124,8 @@ test('(b) an unchanged payload never rebuilds the Inbox DOM; a changed one does'
   scope.renderInbox(JSON.parse(JSON.stringify(rows)), 1);
   assert.equal(list.builds, 1, 'same payload: the DOM is not touched');
   scope.renderInbox([stop('a1', { timeLeftMs: 50000 })], 1);
+  assert.equal(list.builds, 1, 'only the time left moved: it counts down in place, nothing is rebuilt (hamr, Ask-tab scroll bug)');
+  scope.renderInbox([stop('a1', { question: 'a different question' })], 1);
   assert.equal(list.builds, 2, 'control: a changed payload does rebuild');
 });
 
@@ -135,7 +137,7 @@ test('(c) a selected Inbox row stays selected + aria-pressed (and keyboard-focus
   assert.doesNotMatch(rowOf(list, 'a1').className, /\bselected\b/, 'only the named ask lights up');
   rowOf(list, 'a2').focus();
   const before = rowOf(list, 'a2');
-  scope.renderInbox([stop('a1', { timeLeftMs: 1 }), stop('a2', { timeLeftMs: 1 })], 2);
+  scope.renderInbox([stop('a1', { question: 'q2' }), stop('a2', { question: 'q2' })], 2);
   const after = rowOf(list, 'a2');
   assert.notEqual(after, before, 'the row really was rebuilt');
   assert.match(after.className, /\bselected\b/);
@@ -234,6 +236,7 @@ test('(i) selectRun: a late detail reply for a run you left never paints over th
   const scope = new Function('getJSON', 'document', 'painted', `
     var currentFlow = null, currentRunId = null, currentAskId = null, openRunLive = true;
     var lastSig = { inbox: null, runs: null, detail: null, asks: null, audit: null };
+    var pendingAnswer = null; ${fnSrc('sig')} ${fnSrc('paintAsks')}
     function clearSelection(){} function renderAudit(){} function renderJob(){} function renderAsk(){}
     function paintRun(d){ painted.push(d.runId); openRunLive = !(d && d.glyph === "[\u2713]"); }
     ${fnSrc('selectRun')}
@@ -265,6 +268,7 @@ test('amendment 1 (e)(4) selectRun: a late audit, job and asks reply for a run y
   const scope = new Function('getJSON', 'document', 'drawn', `
     var currentFlow = null, currentRunId = null, currentAskId = null, openRunLive = true;
     var lastSig = { inbox: null, runs: null, detail: null, asks: null, audit: null };
+    var pendingAnswer = null; ${fnSrc('sig')} ${fnSrc('paintAsks')}
     function clearSelection(){} function paintRun(){}
     function renderAudit(a){ drawn.push('audit:' + (a && a.id)); }
     function renderJob(j){ drawn.push('job:' + (j && j.id)); }
