@@ -1287,6 +1287,18 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 5. A fresh install with nothing ticked says "Tick a model in Settings > Providers" and spends nothing.
 **Done when:** a grep of `src/` finds no model name or price, there are tests that fail first, and one live draft runs priced from Settings only. **Cap:** inside am3's $0.10 ($0.028 used).
 
+**M4d amendment 6 — SIGNED by hamr 2026-10-11 ("sign m4d am6"): Settings is the only place for providers, models and prices. Nothing is hardcoded.**
+1. Providers come only from your keys. Every key with a value in `.env` gets a row in Settings. The two built-in rows (deepseek and synthetic) are deleted.
+2. Each row's API shape and Base URL are typed in Settings. No default web address lives in code. A row with no Base URL can't list or run models, and says so: "Type a Base URL for <KEY> in Settings."
+3. Models come from the provider. Settings asks for the model list, for free. It does this when the page opens, on "Reload keys", and on a "Refresh models" button per key. If the call fails, you type the model name.
+4. One line per provider and model. Each line has: a tick box, Price in $/1M, Price out $/1M, and Thinking off ("can't" / "send thinking: disabled").
+5. A ticked line needs both prices. An empty one is refused: "Fill both prices to tick this model." 0 is accepted, for local models. An unticked line can stay empty.
+6. Chat lists only ticked lines, as "provider · model". The picked model drafts and runs the job, and the Job tab shows which one. With nothing ticked: "Tick a model in Settings > Providers", and $0 is spent.
+7. "Thinking on" is a tick box in Chat, one per job, unticked by default. It applies to that job's drafting only; run steps don't change. The Settings box is deleted.
+8. Everything below is deleted from the code: the fixed "draft on deepseek" setting (`MODEL_SLOT`); the built-in provider rows and their web addresses; the "balance only on api.deepseek.com" rule and deepseek's balance address; the deepseek-only `legacyMaxTokens` quirk, which becomes a per-row choice in Settings.
+9. This finishes am3 part B and replaces: am3 C10 (the price moving over), am3 A2 (the Thinking box in Settings), and M4d am1's built-in rows.
+**Done when:** a search of `src/` finds no provider name, model name, web address or price; tests that fail first; I walk hamr's real panel at 1280, 390 and 320 px (your key loads, the models list, you tick deepseek-flash with prices, and Chat shows it with the Thinking box); then one live draft with thinking off and one with thinking on. **Cap:** inside am3's $0.10, with about $0.038 left.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
