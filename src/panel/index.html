@@ -694,7 +694,11 @@
   .pv-legacy{display:inline-flex;align-items:center;gap:6px;cursor:pointer;min-height:28px;text-transform:none;letter-spacing:0;font-weight:400;font-size:12px;}
   .pv-legacy input,.pv-m-use input{width:16px;height:16px;margin:0;accent-color:var(--accent);cursor:pointer;}
   .pv-tok{text-align:right;font-variant-numeric:tabular-nums;}
-  .pv-refcell{display:flex;justify-content:flex-end;gap:6px;}
+  .pv-refcell{display:flex;justify-content:flex-end;}
+  .pv-refbox{display:flex;flex-direction:column;align-items:flex-start;max-width:100%;}
+  .pv-refbtns{display:flex;gap:6px;}
+  .pv-refbox .pv-msg{width:0;min-width:100%;overflow-wrap:anywhere;margin:2px 0 0;}
+  .pv-refbox .pv-msg:empty{display:none;}
   .pv-refbtn{white-space:nowrap;flex:0 0 auto;}
   .pv-refbtn:disabled{opacity:.5;cursor:not-allowed;}
   .pv-sum{color:var(--text-faint);font-size:11px;font-weight:400;}
@@ -5244,9 +5248,9 @@
         '<div class="pv-cell pv-c-url"><span class="pv-lbl">Base URL</span><input type="text" data-prov="baseUrl" data-testid="prov-baseurl" aria-label="' + escapeXml(row.label + " Base URL") + '" autocomplete="off" spellcheck="false" placeholder="type the Base URL"></div>' +
         '<div class="pv-cell"><span class="pv-lbl">Old max_tokens</span><label class="pv-legacy"><input type="checkbox" data-prov="legacyMaxTokens" data-testid="prov-legacy" aria-label="' + escapeXml(row.label + " legacy max_tokens") + '"><span data-f="legacy-word">off</span></label></div>' +
         '<div class="pv-cell pv-tok pv-ktok"><span class="pv-lbl">Tokens</span><span data-f="tokens" data-testid="pv-tokens-' + escapeXml(row.slot) + '"></span></div>' +
-        '<div class="pv-cell pv-refcell nolbl"><button class="btn small pv-refbtn" type="button" data-act="test-key" data-testid="prov-test" aria-label="' + escapeXml("Test " + row.envVar) + '">Test</button><button class="btn small pv-refbtn" type="button" data-act="refresh-models" data-testid="prov-refresh" aria-label="' + escapeXml("Refresh models for " + row.label) + '">&#10227; Refresh</button></div>' +
+        '<div class="pv-cell pv-refcell nolbl"><div class="pv-refbox"><div class="pv-refbtns"><button class="btn small pv-refbtn" type="button" data-act="test-key" data-testid="prov-test" aria-label="' + escapeXml("Test " + row.envVar) + '">Test</button><button class="btn small pv-refbtn" type="button" data-act="refresh-models" data-testid="prov-refresh" aria-label="' + escapeXml("Refresh models for " + row.label) + '">&#10227; Refresh</button></div><div class="hint pv-msg" data-f="msg-test" data-testid="prov-msg-test" role="status"></div></div></div>' +
       '</div>' +
-      '<div class="pv-knote"><div class="hint bad pv-msg" data-f="msg-edit" data-testid="prov-msg-edit"></div><div class="hint pv-msg" data-f="msg-legacyMaxTokens" data-testid="prov-msg-legacyMaxTokens"></div><div class="hint pv-msg" data-f="msg-test" data-testid="prov-msg-test" role="status"></div></div>' +
+      '<div class="pv-knote"><div class="hint bad pv-msg" data-f="msg-edit" data-testid="prov-msg-edit"></div><div class="hint pv-msg" data-f="msg-legacyMaxTokens" data-testid="prov-msg-legacyMaxTokens"></div></div>' +
       '<div class="pv-models" data-models-for="' + escapeXml(row.slot) + '" data-testid="models-row-' + escapeXml(row.slot) + '">' +
         '<div class="pv-mhead" aria-hidden="true"><span class="pv-um"><span class="pv-uh">USE</span><span>MODEL</span></span><span class="pv-pair"><span>IN $/1M</span><span>OUT $/1M</span></span><span class="pv-tok">TOKENS</span></div>' +
         '<div data-f="models"></div>' +
