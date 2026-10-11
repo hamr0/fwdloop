@@ -38,7 +38,7 @@ test('(a) a green step that reads nothing is refused too; no cells input signed 
   const noCsv = parseSignedText(prose.replace(/source aging = file:.*/, 'source aging = file:/tmp/aging.docx'));
   assert.equal(noCsv.ok, true, JSON.stringify(noCsv.reds));
   const r = check(asDrafted(), noCsv);
-  assert.ok(r.reds.some((x) => x.includes("Line 2's check needs cells, but it reads only aging_text. Line 2 must read a csv input, and this job signs none.")), JSON.stringify(r.reds));
+  assert.ok(r.reds.some((x) => x.includes("Line 2's check needs cells, but it reads only aging_text. Line 2 must read a spreadsheet input, and this job signs none.")), JSON.stringify(r.reds));
 });
 
 test('(b) the same plan with step 2 reading `aging` passes the checker', () => {
@@ -58,7 +58,7 @@ test('(b) a read naming an unknown id is still refused; a step output may not sh
 
 test('(c) a run where the green step reads `aging` gets its cells and passes the green close; a bad cite is still red', async () => {
   const root = mkdtempSync(path.join(tmpdir(), 'fwdloop-am8-'));
-  const d = asDrafted(); d.steps[1].reads = ['aging'];
+  const d = asDrafted(); d.steps[1].reads = ['aging']; d.steps[2].reads = ['bucket_assignment']; // the stop reads what it asks about
   const csv = path.join(root, 'aging.csv');
   writeFileSync(csv, readFileSync(path.join(HERE, '..', 'fixtures', 'ar-aging.csv')));
   const text = sandboxSend(prose.replace('file:/home/hamr/fwdloop-out', 'file:poc/m0/out').replace(/source aging = file:.*/, `source aging = file:${csv}`));
@@ -81,10 +81,12 @@ test('(c) a run where the green step reads `aging` gets its cells and passes the
   const good = await run('run-1', 'aging!E2');
   assert.equal(seen[0].aging.kind, 'cells');
   assert.equal(seen[0].aging.rows[0].cells.E, '4200');
+  assert.ok(good.auditRows, JSON.stringify([good.outcome, good.red]));
   assert.notEqual(good.outcome, 'red', good.red);
   assert.ok(good.auditRows.some((r) => r.step === 'bucket_assignment' && r.verdict === 'green'), JSON.stringify(good.auditRows.map((r) => [r.step, r.verdict])));
   const bad = await run('run-2', 'aging!E3');
-  assert.ok(!bad.auditRows.some((r) => r.step === 'bucket_assignment' && r.verdict === 'green'));
+  assert.equal(bad.outcome, 'struck-out'); // a wrong cite is still caught: the close is not loosened
+  assert.match(bad.red, /4200 ≠ cite aging!E3 = 1500/);
 });
 
 test('(d) the drafter prompt tells the rule plainly', () => {

@@ -21,6 +21,7 @@ import { validateDeclaration, SHAPE_KEYS, checkGuardrailSums, guardrailWordsPerS
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { readInputFacts } from './input-facts.js';
+import { isCellsPath } from './closers.js';
 import {
   makeProvider, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord,
 } from './provider.js';
@@ -65,7 +66,7 @@ export function buildDeclarationSchema(menu) {
               items: { type: 'string', enum: menu.map((e) => e.verb) },
               description: 'verbs this step is granted, from the menu only; [] for a pure stop',
             },
-            reads: { type: 'array', items: { type: 'string' }, description: 'artifact ids emitted by EARLIER steps only' },
+            reads: { type: 'array', items: { type: 'string' }, description: 'artifact ids emitted by EARLIER steps only, or the role of a CSV input (a step whose line has a green guardrail must list a CSV input role here)' },
             emits: { type: 'string', minLength: 1, description: 'the ONE new artifact id this step declares (unique)' },
             fromLine: { type: ['integer', 'null'], description: 'the ONE numbered job line this step serves' },
             picks: {
@@ -216,6 +217,15 @@ function jobLinesText(lines, asks) {
     .join('\n');
 }
 
+/** M4d amendment 8: the green step must read an input with cells, so the drafter is told the rule and which inputs have cells. */
+function greenReadRule(sources) {
+  const csvRoles = (sources ?? []).filter((s) => s.kind === 'file' && isCellsPath(s.path)).map((s) => s.role);
+  const rule = '- A step whose line has a "green" guardrail must list the CSV input\'s role in its reads (for example reads: ["aging"]), because only an input with cells can be cited; a text output of an earlier step has no cells. A green step that reads only other steps is refused.';
+  return [csvRoles.length
+    ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}.`
+    : `${rule} This job signs no CSV input, so a guardrail that needs cited cells cannot be classed green here: class it "hitl".`];
+}
+
 export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
   const askLines = arbiter.asks.map((a) => a.line);
   const sendLines = arbiter.sends.map((s) => s.line);
@@ -226,10 +236,11 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
     ...menu.map((e) => `- ${e.verb}: ${e.desc} (class: ${e.class})`),
     '',
     'Rules:',
-    '- Steps share one artifact space. Each step: primitives (verbs it needs, [] if none), reads (artifact ids emitted by an EARLIER step only), emits (ONE new unique artifact id), fromLine (the ONE job line it serves), close. The machine fills each step\'s goal with that signed line, verbatim — you never write a goal.',
+    '- Steps share one artifact space. Each step: primitives (verbs it needs, [] if none), reads (artifact ids emitted by an EARLIER step, or the role of a CSV input listed under Inputs), emits (ONE new unique artifact id), fromLine (the ONE job line it serves), close. The machine fills each step\'s goal with that signed line, verbatim — you never write a goal.',
     '- Every numbered job line must be served by a step (fromLine = that line) or listed in "refused" with a reason.',
     '- guardrailClasses: for each job line that HAS a guardrail, classify its wording once: "green" (every figure must cite its source cell), "softgreen" (the human declared a SHAPE the output must take), "hitl" (an ask/accept/review gate, or anything you are not sure of). When unsure, "hitl".',
     '- close.class MUST equal the class of the guardrail on that step\'s fromLine (guardrailClasses[fromLine]); a line with no guardrail is "hitl". A step cannot claim a class its own line does not earn.',
+    ...greenReadRule(arbiter.sources),
     '- close.shape only on a softgreen step; it is the human\'s declared shape in structured form.',
     '- A step whose check reads its reply (softgreen) answers in its reply text and is never granted `write`, `edit` or any other write-class verb; only the send step at the end writes files out.',
     `- Signed ask line(s): ${askLines.length ? askLines.join(', ') : 'none'}. For each, emit EXACTLY ONE step: fromLine = that line, close.class "hitl", primitives []. It is a stop only — never grant a primitive on it, and never emit a pause at any other line.`,

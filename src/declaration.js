@@ -36,7 +36,7 @@
 // No `new RegExp` anywhere in this file — a test in test/signed-text.test.js
 // greps all of src/ for that, and it must keep passing with this file added.
 
-import { buildSoftgreenRubric } from './closers.js';
+import { buildSoftgreenRubric, isCellsPath } from './closers.js';
 
 /** @typedef {import('./types.js').Arbiter} Arbiter */
 /** @typedef {import('./types.js').SignedLine} SignedLine */
@@ -442,6 +442,9 @@ export function validateDeclaration(declaration, context = {}) {
   const safeArbiter = /** @type {Arbiter} */ (arbiter);
   const skills = Array.isArray(safeArbiter.skills) ? safeArbiter.skills : [];
   const sourceRoles = Array.isArray(safeArbiter.sources) ? safeArbiter.sources.map((s) => s?.role) : [];
+  // M4d amendment 8: the inputs with cells (a spreadsheet file). A step may read one by its role; a green step must.
+  const cellsRoles = Array.isArray(safeArbiter.sources)
+    ? safeArbiter.sources.filter((s) => s?.kind === 'file' && isCellsPath(s.path)).map((s) => s.role) : [];
   const asks = Array.isArray(safeArbiter.asks) ? safeArbiter.asks : [];
   const askLines = asks.map((a) => a.line);
   const sends = Array.isArray(safeArbiter.sends) ? safeArbiter.sends : [];
@@ -633,12 +636,14 @@ export function validateDeclaration(declaration, context = {}) {
     // walkable chain — every read must have been emitted by an EARLIER step
     if (reads !== null && emits !== null) {
       for (const readId of reads) {
+        if (cellsRoles.includes(readId) && !declaredEmits.has(readId)) continue; // an input with cells, frozen at run start (M4d amendment 8)
         if (readId === emits || !declaredEmits.has(readId)) {
           reds.push(`declaration: ${label} reads artifact "${readId}" that no earlier step declared`);
         }
       }
     }
     if (emits !== null) declaredEmits.add(emits);
+    if (fitJobLine === true && emits !== null && cellsRoles.includes(emits)) reds.push(`declaration: ${label}.emits "${emits}" is also a signed input — one id, one meaning`);
 
     // fromLine + class derivation — the key itself is required (value may be
     // null, meaning "no line"; the key being entirely absent is not the same
@@ -691,6 +696,15 @@ export function validateDeclaration(declaration, context = {}) {
     if (fitJobLine === true && effectiveClass === 'softgreen' && primitives !== null
       && primitives.some((v) => typeof v === 'string' && catalogueByVerb.get(v)?.class === 'write')) {
       reds.push(`declaration: step ${i + 1}'s check reads its reply, so it can't write files. The send step writes the result out.`);
+    }
+
+    // M4d amendment 8: a step whose check is green (every figure cites a source cell) must read an input with cells; a text
+    // output of an earlier step has no cells to cite.
+    if (fitJobLine === true && effectiveClass === 'green' && reads !== null && !reads.some((r) => cellsRoles.includes(r))) {
+      const n = fromLine;
+      const reading = reads.length === 0 ? 'it reads nothing' : `it reads only ${reads.join(', ')}`;
+      const want = cellsRoles.length === 0 ? 'a spreadsheet input, and this job signs none' : cellsRoles.join(' or ');
+      reds.push(`declaration: Line ${n}'s check needs cells, but ${reading}. Line ${n} must read ${want}.`);
     }
 
     // picks — the listing rule, generalised

@@ -12,6 +12,7 @@
 
 import { readFileSync } from 'node:fs';
 import { readDocxText, readDocxHeadings } from './docx.js';
+import { isCellsPath } from './closers.js';
 
 /**
  * @param {Array<{kind?:string, role:string, path:string}>} sources arbiter.sources
@@ -38,7 +39,9 @@ export function readInputFacts(sources) {
       if (raw.trim() === '') { reds.push(`input "${s.role}": "${s.path}" is empty`); continue; }
       const headings = raw.split(/\r?\n/).filter((l) => /^#{1,6}\s+\S/.test(l)).map((l) => l.replace(/^#{1,6}\s*/, '').trim());
       inputFacts[s.role] = headings;
-      info.push(`- ${s.role}: a text/markdown file, ~${raw.trim().split(/\s+/).length} words, headings: ${headings.join(', ') || '(none)'} (read it with "read")`);
+      info.push(isCellsPath(s.path)
+        ? `- ${s.role}: a CSV file with cells (a step reads it by listing "${s.role}" in its reads; or with "read")`
+        : `- ${s.role}: a text/markdown file, ~${raw.trim().split(/\s+/).length} words, headings: ${headings.join(', ') || '(none)'} (read it with "read")`);
     }
   }
   return { ok: reds.length === 0, inputFacts, info, reds };

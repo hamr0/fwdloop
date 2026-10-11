@@ -41,8 +41,9 @@ import {
 } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import {
-  dirname, extname, isAbsolute, join, resolve, sep,
+  basename, dirname, extname, isAbsolute, join, resolve, sep,
 } from 'node:path';
+import { parseCsv } from './csv.js';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -55,7 +56,7 @@ import {
   findUnwiredVerbStep, unwiredRed, findUnbuildableCheckStep, unbuildableRed,
 } from './canrun.js'; // M4e am7 item 7: the ONE decider (F46 refusal lives there)
 import { configHome, configDoorHome } from './config.js';
-import { closeByClass } from './closers.js';
+import { closeByClass, isCellsPath } from './closers.js';
 import {
   appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
 } from './books.js';
@@ -568,9 +569,30 @@ function readArtifactsMapChecked(runDir, ids) {
     if (!result.ok && !result.missing) {
       return { ok: false, red: `artifact "${id}" — ${result.red}` };
     }
+    if (!result.ok && result.missing) {
+      // M4d amendment 8: an id no step wrote may name a frozen CSV input; a step reads it as cells, so a green check can cite it.
+      const input = readInputCells(runDir, id);
+      if (!input.ok && !input.missing) return { ok: false, red: `input "${id}" — ${input.red}` };
+      if (input.ok) { map[id] = input.value; continue; }
+    }
     map[id] = result.ok ? result.value : undefined;
   }
   return { ok: true, map };
+}
+
+/** A frozen CSV input as `{kind:'cells', header, rows}` (the shape `addressCells` gives), checked against the sha256 recorded at freeze.
+ *  Same three outcomes as `readArtifactResult`: not an input of this run (`missing`), refused (`red`), or the cells. */
+function readInputCells(runDir, id) {
+  const manifest = readFileInside(runDir, 'inputs.json');
+  if (!manifest.ok) return manifest.missing ? { ok: false, missing: true } : { ok: false, missing: false, red: manifest.red };
+  let entries;
+  try { entries = JSON.parse(manifest.text); } catch (err) { return { ok: false, missing: false, red: `inputs.json is not valid JSON — ${err.message}` }; }
+  const entry = Array.isArray(entries) ? entries.find((e) => e?.id === id) : undefined;
+  if (!entry || !isCellsPath(entry.frozen)) return { ok: false, missing: true };
+  const file = readFileInside(runDir, `inputs/${basename(entry.frozen)}`);
+  if (!file.ok) return file.missing ? { ok: false, missing: false, red: 'the frozen copy is missing' } : { ok: false, missing: false, red: file.red };
+  if (createHash('sha256').update(file.text).digest('hex') !== entry.sha256) return { ok: false, missing: false, red: 'the frozen copy changed since it was frozen' };
+  return { ok: true, value: { kind: 'cells', ...parseCsv(file.text) } };
 }
 
 // ---------------------------------------------------------------------------
