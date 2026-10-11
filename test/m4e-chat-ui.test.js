@@ -226,3 +226,9 @@ test('Clear after Run again (or a picked flow) unpicks the flow: resetCard clear
   assert.match(fnSrc('resetCard'), /clearPick\(\)/, 'resetCard must clear pickedFlow/pickedRun/againEntry and the search box');
   assert.match(fnSrc('unpickFlow'), /clearPick\(\)/, 'unpickFlow and resetCard share one writer of the pick');
 });
+
+test('New job card: Destination comes below Inputs (field order only)', () => {
+  const at = (id) => SECTION.indexOf(`id="${id}"`);
+  assert.ok(at('jf-job') < at('jf-inputs') && at('jf-inputs') < at('jf-dest-folder') && at('jf-dest-folder') < at('jf-cap-money'),
+    'order: the job, Inputs, Destination, Cap');
+});
