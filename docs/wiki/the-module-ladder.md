@@ -1279,6 +1279,14 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 
 **M4d amendment 4 — SIGNED by hamr 2026-10-11 ("sign m4d am4"): thinking on means no forced tool.** When "Thinking on (drafting)" is ticked, the drafter does not force the AI to answer through the tool, same as bareloop. A reply with no tool call is retried as today. With the box unticked, the tool is still forced, so M6a is unchanged. **Done when:** a test that fails first, and one live deepseek-flash draft with the box ticked, which reaches the plan with no provider error. **Cap:** inside am3's $0.10.
 
+**M4d amendment 5 — SIGNED by hamr 2026-10-11 ("sign m4d am5"): Settings > Providers is the only place for models and prices (hamr 2026-10-11).**
+1. No model name, price, default model or thinking switch lives in code. The code table, its "highest rate" fallback, the per-model run hold and the default models are deleted.
+2. A model can be used anywhere (Chat, a run, the command line) only if it's ticked in Settings with both prices. Anything else is refused by name: "Tick <model> in Settings > Providers with both prices first."
+3. Each model line in Settings says how to turn its thinking off: "can't" (the default) or "send thinking: disabled". The one "Thinking on (drafting)" box uses that line. "can't" shows "can't change this for this model".
+4. The money hold before a run is worked out from the run's own ticked model price. A cost already booked on an old run stays as it was.
+5. A fresh install with nothing ticked says "Tick a model in Settings > Providers" and spends nothing.
+**Done when:** a grep of `src/` finds no model name or price, there are tests that fail first, and one live draft runs priced from Settings only. **Cap:** inside am3's $0.10 ($0.028 used).
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
