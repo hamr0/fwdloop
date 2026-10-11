@@ -138,3 +138,25 @@ test('browser: the KEYS strip text is never crushed: at every width it has >= 60
     assert.ok(g.chars >= 20, `a text line holds under 20 characters at ${w}: ${JSON.stringify(g)}`);
   }
 });
+
+test('browser: a Test result sits directly BELOW the [ Test ] button, inside the buttons track, long sentences wrap there (1280 and 390)', { skip: SKIP && 'no browser' }, async (t) => {
+  const chrome = await launchChrome();
+  if (!chrome) { t.skip('no chromium installed'); return; }
+  CLOSERS.push(async () => chrome.close());
+  const { h } = await world();
+  for (const [w, slot, expect] of [[1280, 'A_KEY', /^OK/], [1280, 'B_KEY', /refused/], [390, 'A_KEY', /^OK/], [390, 'B_KEY', /refused/]]) {
+    await chrome.open(`http://127.0.0.1:${h.port}/`, w);
+    await chrome.ev('document.getElementById("settings-open").click()');
+    assert.ok(await chrome.waitFor('document.querySelectorAll(".pv-key").length === 5'));
+    await chrome.ev(`document.querySelector('.pv-key[data-slot="${slot}"] [data-act=test-key]').click()`);
+    assert.ok(await chrome.waitFor(`document.querySelector('.pv-key[data-slot="${slot}"] [data-f=msg-test]').textContent.length > 0 && !document.querySelector('.pv-key[data-slot="${slot}"] [data-act=test-key]').disabled`));
+    const g = await chrome.ev(`(function(){
+      var k=document.querySelector('.pv-key[data-slot="${slot}"]'), m=k.querySelector('[data-f=msg-test]'), b=k.querySelector('[data-act=test-key]');
+      var mr=m.getBoundingClientRect(), br=b.getBoundingClientRect(), cr=k.querySelector('.pv-refcell').getBoundingClientRect();
+      return { text:m.textContent, leftOk: mr.left >= br.left - 0.5, topOk: mr.top >= br.bottom - 0.5, inCell: mr.right <= cr.right + 0.5 && mr.left >= cr.left - 0.5, sw: document.documentElement.scrollWidth === document.documentElement.clientWidth };
+    })()`);
+    assert.match(g.text, expect);
+    assert.ok(g.leftOk && g.topOk && g.inCell && g.sw, `result below the Test button at ${w} ${slot}: ${JSON.stringify(g)}`);
+    if (w === 1280 || w === 390) await chrome.screenshot(`/tmp/claude-1000/m4d-test/result-${w}-${slot}.png`);
+  }
+});
