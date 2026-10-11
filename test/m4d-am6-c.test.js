@@ -119,9 +119,9 @@ test('C6: a job runs with the model recorded beside it; a line unticked since is
 
 test('C7 (amendment 7): the "Thinking on" box asks ONE function over bareagent\'s thinkingSupport: absent export or a nonsense answer = unverified; false greys the box', async () => {
   assert.equal(thinkingSupport('openai-api', 'm', { impl: undefined }), 'unverified');
-  assert.equal(thinkingSupport('openai-api', 'm'), 'unverified', 'the installed bareagent does not export it yet: feature-detected, no version table');
-  assert.equal(thinkingSupport('openai-api', 'm', { impl: () => true }), true);
-  assert.equal(thinkingSupport('openai-api', 'm', { impl: () => false }), false);
+  assert.equal(thinkingSupport('openai-api', 'm'), 'unverified', 'the installed bareagent does not know this model: unverified');
+  assert.equal(thinkingSupport('openai-api', 'm', { impl: () => ({ switchable: true }) }), true);
+  assert.equal(thinkingSupport('openai-api', 'm', { impl: () => ({ switchable: false }) }), false);
   assert.equal(thinkingSupport('openai-api', 'm', { impl: () => 'maybe' }), 'unverified');
   assert.equal(thinkingSupport('openai-api', 'm', { impl: () => { throw new Error('boom'); } }), 'unverified');
   const calls = [];

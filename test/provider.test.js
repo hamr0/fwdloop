@@ -196,13 +196,13 @@ test('makeProvider("deepseek")\'s real wrapper: malformed args come back verbati
   });
 });
 
-test('makeProvider("deepseek")\'s real wrapper: 800-char malformed args are capped upstream at 500 with rawTruncated:true', async () => {
+test('makeProvider("deepseek")\'s real wrapper: 800-char malformed args now come back whole (bare-agent 0.50: uncapped, rawTruncated never set)', async () => {
   await withMalformedServer(`{"a":"${'x'.repeat(790)}"}}`, async (port) => {
     const built = makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', configHome: tickedHome() });
     built.provider.baseUrl = `http://127.0.0.1:${port}`;
     await built.provider.generate([{ role: 'user', content: 'hi' }], EMIT_X);
-    assert.equal(built.provider.lastMalformedToolCall.rawArguments.length, 500);
-    assert.equal(built.provider.lastMalformedToolCall.rawTruncated, true);
+    assert.equal(built.provider.lastMalformedToolCall.rawArguments.length, 799);
+    assert.ok(!built.provider.lastMalformedToolCall.rawTruncated);
   });
 });
 
@@ -249,11 +249,6 @@ async function sentBody(options) {
 test('makeProvider("deepseek") with no thinking option: the sent body has no thinking key', async () => {
   const body = await sentBody({});
   assert.equal('thinking' in body, false);
-});
-
-test('makeProvider("deepseek", {thinking}) sends body.thinking verbatim', async () => {
-  const body = await sentBody({ thinking: { type: 'disabled' } });
-  assert.deepEqual(body.thinking, { type: 'disabled' });
 });
 
 // M4c-fix item 18 / negative (vii): an incomplete spend row never counts below the ceiling price.

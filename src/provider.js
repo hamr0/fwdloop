@@ -388,15 +388,14 @@ export class ModelRefusal extends Error {}
  * values this project uses.
  *
  * @param {string} slotName
- * @param {{ model?: string, timeoutMs?: number, deadlineMs?: number, thinking?: object|null, env?: Record<string,string|undefined>, configHome?: string }} [options]
+ * @param {{ model?: string, timeoutMs?: number, deadlineMs?: number, env?: Record<string,string|undefined>, configHome?: string }} [options]
  *   `configHome` (a test) is where `config.json` prices are read; default: the door's home (`readPriceConfig`).
  *   `env` (M4d: the merged shell+keys-file env; default process.env) is where the key is read.
- *   `thinking` (bare-agent >=0.49) is sent verbatim as body.thinking; unset/null leaves the body unchanged.
  * @returns {{ provider: any, rates: {in:number, out:number, cacheReadMult?:number}, modelId: string, slot: string, prices: { perM: any, source: any } }}
  */
 export function makeProvider(slotName, options = {}) {
   const {
-    model, timeoutMs, deadlineMs, thinking, env = process.env, configHome,
+    model, timeoutMs, deadlineMs, env = process.env, configHome,
   } = options;
   const keyCheck = checkKeyPreflight(slotName, env);
   if (!keyCheck.ok) throw new Error(keyCheck.message);
@@ -419,7 +418,6 @@ export function makeProvider(slotName, options = {}) {
     baseUrl: slot.baseUrl,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
     ...(deadlineMs !== undefined ? { deadlineMs } : {}),
-    ...(thinking != null ? { thinking } : {}),
   };
   const provider = slot.shape === 'anthropic-api' ? new Anthropic(common)
     : slot.shape === 'gemini-api' ? new Gemini(common)

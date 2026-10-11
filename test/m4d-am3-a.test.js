@@ -45,9 +45,9 @@ async function wireBody(extra) {
   }
 }
 
-test('M4d am7: our drafter puts no thinking field on the wire, ticked or not (bareagent does the switching, am7 item 3)', async () => {
-  assert.equal((await wireBody({})).thinking, undefined);
-  assert.equal((await wireBody({ draftThinking: 'off' })).thinking, undefined);
+test('M4d am7: bareagent does the switching (item 3): unticked / off puts ITS off field on the wire, ticked / on puts none (the model thinks by default)', async () => {
+  assert.deepEqual((await wireBody({})).thinking, { type: 'disabled' });
+  assert.deepEqual((await wireBody({ draftThinking: 'off' })).thinking, { type: 'disabled' });
   assert.equal((await wireBody({ draftThinking: 'on' })).thinking, undefined);
 });
 

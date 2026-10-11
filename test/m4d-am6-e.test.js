@@ -45,8 +45,8 @@ const ALLOWED = [
   },
   {
     file: 'src/thinking.js',
-    re: /openai-api/g,
-    why: 'a comment naming a shape id as an example of the first argument',
+    re: /anthropic-api|openai-api|gemini-api|'anthropic'|'openai'|'gemini'/g,
+    why: 'the map from our shape id to bareagent\'s own provider kind (the first argument of its thinkingSupport lookup). Vocabulary of the library, not a vendor address or model.',
   },
   {
     file: 'src/panel/index.html',

@@ -134,7 +134,7 @@ test('$0 gates: bad prose and an unreadable source refuse before any provider ca
 
 // M4d am7 (replaces F49's wire field): draft()'s own live-provider path puts NO thinking field on the wire - bareagent does that switching.
 // Seam: draft({ makeProviderFn }) wraps the real makeProvider and repoints its baseUrl at a local server.
-test('draft() live path runs against a ticked Settings line and sends no body.thinking (local server, no network)', async () => {
+test('draft() live path runs against a ticked Settings line and the wire carries only bareagent own off switch (local server, no network)', async () => {
   let body;
   const server = http.createServer((req, res) => {
     let raw = '';
@@ -168,7 +168,8 @@ test('draft() live path runs against a ticked Settings line and sends no body.th
       },
     });
     assert.equal(r.ok, true, JSON.stringify(r.reds));
-    assert.equal(body.thinking, undefined);
+    // the drafter sends thinkingMode 'off' (the default); bareagent turns it into its own wire field. Our code writes no raw `thinking`.
+    assert.deepEqual(body.thinking, { type: 'disabled' });
   } finally {
     restoreDoor();
     if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved; else delete process.env.DEEPSEEK_API_KEY;
