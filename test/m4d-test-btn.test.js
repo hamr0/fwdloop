@@ -117,3 +117,24 @@ test('browser: grid keeps one set of column edges; the last track fits both butt
     if (w > 1279) assert.ok(g.tokEdge, `key and model TOKENS share an edge at ${w}`);
   }
 });
+
+test('browser: the KEYS strip text is never crushed: at every width it has >= 60% of the strip, or the buttons sit below it; a line holds >= 20 characters', { skip: SKIP && 'no browser' }, async (t) => {
+  const chrome = await launchChrome();
+  if (!chrome) { t.skip('no chromium installed'); return; }
+  CLOSERS.push(async () => chrome.close());
+  const { h } = await world();
+  for (const w of [1920, 1280, 1024, 780, 390, 320]) {
+    await chrome.open(`http://127.0.0.1:${h.port}/`, w);
+    await chrome.ev('document.getElementById("settings-open").click()');
+    assert.ok(await chrome.waitFor('document.querySelectorAll(".pv-key").length === 5'));
+    const g = await chrome.ev(`(function(){
+      var s=document.querySelector('.keyfile-strip'), m=s.querySelector('.keyfile-strip-main'), a=s.querySelector('.keyfile-strip-actions');
+      var cs=getComputedStyle(s), inner=s.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
+      var span=m.querySelector('span'), ch=parseFloat(getComputedStyle(span).fontSize)*0.6;
+      var mr=m.getBoundingClientRect(), ar=a.getBoundingClientRect();
+      return { frac: mr.width/inner, below: ar.top >= mr.bottom - 1, chars: mr.width/ch, mw: Math.round(mr.width), inner: Math.round(inner) };
+    })()`);
+    assert.ok(g.frac >= 0.6 || g.below, `strip text crushed at ${w}: ${JSON.stringify(g)}`);
+    assert.ok(g.chars >= 20, `a text line holds under 20 characters at ${w}: ${JSON.stringify(g)}`);
+  }
+});
