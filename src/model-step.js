@@ -38,6 +38,11 @@ import {
 // (`code: 'EDEADLINE'`, `retryable: false`) — deliberately shorter than
 // `timeoutMs` so a hung request reds well inside the idle bound. Frozen +
 // exported so a test can assert on the live call's actual config.
+/** How much of a malformed tool call's raw arguments is logged/shown (bare-agent hands over all of it). */
+const RAW_ARGS_BOUND = 2000;
+/** The raw text cut at `RAW_ARGS_BOUND` chars with the cut said out loud, never silently. @param {string} raw */
+const boundRaw = (raw) => (raw.length > RAW_ARGS_BOUND ? `${raw.slice(0, RAW_ARGS_BOUND)}… (${raw.length - RAW_ARGS_BOUND} more chars)` : raw);
+
 export const LIVE_PROVIDER_OPTIONS = Object.freeze({ timeoutMs: 300_000, deadlineMs: 240_000 });
 
 const TRANSPORT_CODES = Object.freeze([
@@ -451,12 +456,9 @@ export function makeLiveModelStep({
         if (noToolCallStreak >= 2) {
           const malformed = provider?.lastMalformedToolCall ?? null;
           if (malformed) {
-            // bare-agent >=0.48 delivers `rawArguments` only when the provider
-            // was built with `exposeMalformedArgs: true`; upstream caps it and
-            // sets `rawTruncated` when clipped. Absent -> no "; raw:" suffix.
-            const rawSuffix = malformed.rawArguments !== undefined
-              ? `; raw: ${malformed.rawArguments}${malformed.rawTruncated === true ? ' (truncated)' : ''}`
-              : '';
+            // bare-agent >=0.50 delivers the FULL `rawArguments` (verbatim, uncapped; `rawTruncated` is never set), and only when the provider was
+            // built with `exposeMalformedArgs: true`. We bound what is logged and shown, with the cut said out loud. Absent -> no "; raw:" suffix.
+            const rawSuffix = malformed.rawArguments !== undefined ? `; raw: ${boundRaw(malformed.rawArguments)}` : '';
             return {
               ok: false,
               red: `the tool call's arguments were not valid JSON twice in a row (${malformed.error})${rawSuffix}`,

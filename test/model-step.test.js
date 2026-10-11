@@ -152,20 +152,30 @@ test('a malformed tool-call twice in a row reds naming it distinctly, metered bo
   assert.ok(rows.every((r) => typeof r.costUsd === 'number'));
 });
 
-test('a truncated rawArguments marker adds \" (truncated)\" to the red', async () => {
+// bare-agent >= 0.50 hands over the FULL raw arguments (rawTruncated is never set), so WE bound what is logged/shown: 2000 chars, then an explicit count.
+const withRaw = (raw, more = {}) => {
   const provider = fakeAlwaysMalformedProvider();
   const orig = provider.generate;
   provider.generate = async function generate() {
     const r = await orig.call(this);
-    this.lastMalformedToolCall = { ...this.lastMalformedToolCall, rawTruncated: true };
+    this.lastMalformedToolCall = { ...this.lastMalformedToolCall, rawArguments: raw, ...more };
     return r;
   };
-  const modelStep = makeLiveModelStep({
-    spendPath: tmpSpendPath(), provider, rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash',
-  });
-  const result = await modelStep(CTX, {}, { class: 'hitl' });
-  assert.match(result.red, /not valid JSON twice/);
-  assert.match(result.red, /; raw: \{"a":1\}\} \(truncated\)$/);
+  return makeLiveModelStep({ spendPath: tmpSpendPath(), provider, rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash' });
+};
+
+test('long raw arguments are cut at 2000 chars with an explicit "… (N more chars)" suffix, never silently', async () => {
+  const raw = `{"a":"${'x'.repeat(4990)}"}}`;
+  const result = await withRaw(raw)(CTX, {}, { class: 'hitl' });
+  assert.ok(result.red.endsWith(`; raw: ${raw.slice(0, 2000)}… (${raw.length - 2000} more chars)`), result.red.slice(-80));
+});
+
+test('raw arguments of exactly 2000 chars are shown whole, with no suffix; the old rawTruncated flag adds nothing', async () => {
+  const raw = `{"a":"${'y'.repeat(1991)}"}}`;
+  assert.equal(raw.length, 2000);
+  const result = await withRaw(raw, { rawTruncated: true })(CTX, {}, { class: 'hitl' });
+  assert.ok(result.red.endsWith(`; raw: ${raw}`));
+  assert.doesNotMatch(result.red, /truncated|more chars/);
 });
 
 test('PROOF the above can fail: a malformed round followed by a clean one is ok:true', async () => {

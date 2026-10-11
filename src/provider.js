@@ -32,13 +32,14 @@ import { OpenAI, Anthropic, Gemini } from 'bare-agent/providers';
  * `provider-toolcalls.js`'s `parseToolCalls`) no longer throws: it resolves
  * normally with `toolCalls: []` and a `malformedToolCall: { name, error }`
  * field already on the result. As of 0.48 the constructor option
- * `exposeMalformedArgs: true` (set in `makeProvider`) adds `rawArguments`
- * (capped upstream at 500 chars, `rawTruncated: true` when clipped). `Loop.run()` does not forward unknown
+ * `exposeMalformedArgs: true` (set in `makeProvider`) adds `rawArguments`; since 0.50
+ * it is the FULL raw string, uncapped (`rawTruncated` is never set), so `model-step.js`
+ * bounds what it logs or shows. `Loop.run()` does not forward unknown
  * `generate()` fields into its own return, so this wrapper ALSO stashes the
  * marker on the instance (`this.lastMalformedToolCall`, reset at the top of
  * every `generate()` call) — the one channel `runModelStepOnPrimitives`
  * (same provider reference) can read after `loop.run()` returns. We require
- * bare-agent >=0.48 (package.json `^0.49.0`) and never patch around its
+ * bare-agent >=0.50 (package.json `^0.52.0`) and never patch around its
  * private response internals.
  */
 class MalformedToolCallTolerantOpenAI extends OpenAI {
