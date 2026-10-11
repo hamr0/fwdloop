@@ -784,8 +784,10 @@
           <div class="keyfile-strip-main">
             <span>Put <code>NAME=key</code> lines in <code id="keys-path" data-testid="keys-path">~/.config/fwdloop/.env</code>, then Reload keys &mdash; each row below says whether its key is set. Only names are listed; keys never reach this page.</span>
             <span class="hint bad" id="keys-refusal" data-testid="keys-refusal"></span>
+            <span class="hint" id="keys-open-note" data-testid="keys-open-note"></span>
           </div>
           <div class="keyfile-strip-actions">
+            <button class="btn small" id="open-keys-folder" type="button" data-testid="open-keys-folder" aria-label="Open keys folder">Open keys folder</button>
             <button class="btn small" id="reload-keys" type="button" data-testid="reload-keys">Reload keys</button>
           </div>
         </div>
@@ -5212,6 +5214,16 @@
       setNote(document.getElementById("keys-refusal"), true, loadFailureText(e));
     });
   }
+  // borrowed-from: bareloop src/panel/index.html@07c298f (Open keys folder): the server opens the FOLDER in the file manager; if it cannot, the path shows as text.
+  document.getElementById("open-keys-folder").addEventListener("click", function(){
+    var out = document.getElementById("keys-open-note");
+    out.textContent = "";
+    postJSON("/api/settings/open-keys-folder", {}).then(function(r){
+      var b = r.body || {};
+      if(b.ok === true) out.textContent = b.opened ? "" : "Could not open it here. Your keys folder: " + (b.path || "(unknown)");
+      else out.textContent = settingsRefusal(r);
+    }, function(){ out.textContent = networkText(); });
+  });
   document.getElementById("reload-keys").addEventListener("click", function(){ loadProviders(true); });
 
   // M4d Providers layout F. One parent block per key (.pv-key): its key band (name, API shape select, Base URL box, the legacy tick, tokens,

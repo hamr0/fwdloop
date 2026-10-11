@@ -592,7 +592,7 @@ export function createPanelServer(opts) {
   // Settings reads and writes only under the one config home: an injected one (tests), else the door's — under a test
   // process with no FWDLOOP_CONFIG_HOME, Settings is switched off rather than touch the real ~/.config/fwdloop.
   const settings = createSettings({
-    home: opts.settings?.home ?? door.home, skip: opts.settings?.home === undefined && door.skip, env: opts.settings?.env, fetch: opts.settings?.fetch, now: opts.settings?.now,
+    home: opts.settings?.home ?? door.home, skip: opts.settings?.home === undefined && door.skip, env: opts.settings?.env, fetch: opts.settings?.fetch, now: opts.settings?.now, openFolderSpawn: opts.settings?.openFolderSpawn, platform: opts.settings?.platform,
   });
   return new Promise((resolve, reject) => {
     // Bound port is resolved from the live socket (`server.address().port`)

@@ -21,6 +21,9 @@ import {
 import { SHAPES } from '../providershapes.js';
 import { keysForDoor } from '../keysfile.js';
 import { spendSummary } from '../monthly.js';
+import { spawn as realSpawn } from 'node:child_process';
+import { dirname } from 'node:path';
+import { homedir } from 'node:os';
 
 const TIMEOUT_MS = 4000;
 
@@ -29,7 +32,7 @@ const BROKEN_CONFIG = 'Your settings file (config.json) cannot be read. Fix or r
 const isNumberAbove0 = (v) => typeof v === 'number' && Number.isFinite(v) && v > 0;
 
 /**
- * @param {{ home?: string, skip?: boolean, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number }} cfg
+ * @param {{ home?: string, skip?: boolean, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: Function, platform?: string }} cfg
  *   `home` the config home (undefined = the real `~/.config/fwdloop`); `skip` true under a test process
  *   with no `FWDLOOP_CONFIG_HOME` (Settings then touches nothing); `env` the shell side (tests only);
  *   `fetch` and `now` are test seams.
@@ -160,6 +163,38 @@ export function createSettings(cfg) {
     return { ok: true, models: idsOf(eff.shape, r.body), ms: Date.now() - started };
   }
 
+  /**
+   * borrowed-from: bareloop src/panel/settingsroutes.js@07c298f (the open-keys-folder route), adapted to fwdloop's reply shape.
+   * Opens the FOLDER of the server's own keys file path (never a file, never an editor, never a path from the request) in the OS file
+   * manager: argv array, no shell, detached. Another OS, a failed spawn, or a test process with no injected opener: `opened:false` and
+   * the folder path, which the page shows as text. `openFolderSpawn` / `platform` are test seams.
+   * @param {any} body
+   */
+  function openKeysFolder(body) {
+    if (body !== null && typeof body === 'object' && Object.keys(body).length > 0) {
+      return Promise.resolve(refuse('no-path-allowed', 'The keys folder is opened from the panel\'s own settings; a path cannot be sent. Nothing was opened.'));
+    }
+    const shown = keys().path;
+    const dir = dirname(shown.startsWith('~') ? homedir() + shown.slice(1) : shown);
+    const cannot = () => reply(200, { ok: true, opened: false, path: dir });
+    const platform = cfg.platform ?? process.platform;
+    const cmd = platform === 'linux' ? 'xdg-open' : (platform === 'darwin' ? 'open' : null);
+    const opener = cfg.openFolderSpawn ?? (process.env.NODE_ENV === 'test' ? null : realSpawn);
+    if (!cmd || !opener) return Promise.resolve(cannot());
+    return new Promise((resolve) => {
+      let child;
+      try { child = opener(cmd, [dir], { detached: true, stdio: 'ignore' }); } catch { resolve(cannot()); return; }
+      let settled = false;
+      child.once('error', () => { if (!settled) { settled = true; resolve(cannot()); } });
+      child.once('spawn', () => {
+        if (settled) return;
+        settled = true;
+        if (typeof child.unref === 'function') child.unref();
+        resolve(reply(200, { ok: true, opened: true, path: dir }));
+      });
+    });
+  }
+
   async function test(body) {
     const r = await listModels(body?.slot);
     if (r.unknown) return refuse('unknown-provider', 'That provider is not known.');
@@ -263,12 +298,13 @@ export function createSettings(cfg) {
    */
   async function handle({ method, pathname, query, body }) {
     if (cfg.skip) return refuse('settings-unavailable', 'Settings is not available here.', 404);
-    const known = { GET: ['/api/settings/providers', '/api/settings/money'], POST: ['/api/settings/test', '/api/settings/models', '/api/settings/model', '/api/settings/provider', '/api/settings/money'] };
+    const known = { GET: ['/api/settings/providers', '/api/settings/money'], POST: ['/api/settings/open-keys-folder', '/api/settings/test', '/api/settings/models', '/api/settings/model', '/api/settings/provider', '/api/settings/money'] };
     if (!(known[method] ?? []).includes(pathname)) return refuse('no-such-settings-route', 'Settings cannot do that. Keys are typed into your keys file by hand.', 404);
     if (method === 'GET') {
       if (pathname === '/api/settings/providers') return providers();
       return moneyGet();
     }
+    if (pathname === '/api/settings/open-keys-folder') return openKeysFolder(body);
     if (pathname === '/api/settings/test') return test(body);
     if (pathname === '/api/settings/models') return models(body);
     if (pathname === '/api/settings/model') return model(body);
