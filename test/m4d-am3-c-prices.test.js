@@ -111,22 +111,25 @@ test('pricing: a ticked model\'s own price wins (source "model"); 0 / 0 is a pri
 });
 
 // ---- migration ---------------------------------------------------------------------------------------------------------
-test('migration (item 10): no list -> one ticked line for the current model with the old in/out; half or missing -> table pair; neither -> unticked and reported; file untouched', () => {
-  // a: both old prices
+test('migration (item 10, hamr ruling: prices come only from what was typed): both -> ticked line; half -> UNTICKED with the typed number pre-filled; nothing -> unticked, no price; never the code table; file untouched', () => {
+  // a: both old prices typed
   let r = effectiveModels('deepseek', { prices: { deepseek: { inPerM: 0.4, outPerM: 1.5 } } });
   assert.deepEqual(r.lines, [{ model: 'deepseek-flash', use: true, inPerM: 0.4, outPerM: 1.5 }]);
   assert.equal(r.migrated, true);
   assert.equal(r.unpriced, false);
-  // b: half old price, table has the model -> the table pair
+  // b: half typed (only in) -> unticked, the typed box kept, the other empty; the table pair is NOT used
   r = effectiveModels('deepseek', { prices: { deepseek: { inPerM: 0.4 } } });
-  assert.deepEqual(r.lines, [{ model: 'deepseek-flash', use: true, inPerM: 0.3, outPerM: 1.2 }]);
-  // c: no old price, table has the model
+  assert.deepEqual(r.lines, [{ model: 'deepseek-flash', use: false, inPerM: 0.4 }]);
+  assert.equal(r.unpriced, true);
+  r = effectiveModels('deepseek', { prices: { deepseek: { outPerM: 2 } } });
+  assert.deepEqual(r.lines, [{ model: 'deepseek-flash', use: false, outPerM: 2 }]);
+  // c: nothing typed, even for a model the table knows -> unticked, no price
   r = effectiveModels('deepseek', {});
-  assert.deepEqual(r.lines, [{ model: 'deepseek-flash', use: true, inPerM: 0.3, outPerM: 1.2 }]);
-  // d: a saved model the table does not know, no old price -> unticked, reported
+  assert.deepEqual(r.lines, [{ model: 'deepseek-flash', use: false }]);
+  assert.equal(r.unpriced, true);
+  // d: an unknown model, nothing typed
   r = effectiveModels('deepseek', { providers: { deepseek: { model: 'my-own-model' } } });
   assert.deepEqual(r.lines, [{ model: 'my-own-model', use: false }]);
-  assert.equal(r.unpriced, true);
   // d2: unknown model WITH a full old price keeps it
   r = effectiveModels('deepseek', { providers: { deepseek: { model: 'my-own-model' } }, prices: { deepseek: { inPerM: 1, outPerM: 2 } } });
   assert.deepEqual(r.lines, [{ model: 'my-own-model', use: true, inPerM: 1, outPerM: 2 }]);
@@ -135,10 +138,32 @@ test('migration (item 10): no list -> one ticked line for the current model with
   r = effectiveModels('deepseek', { models: { deepseek: list }, prices: { deepseek: { inPerM: 1, outPerM: 2 } } });
   assert.deepEqual(r.lines, list);
   assert.equal(r.migrated, false);
-  // the legacy price keeps pricing the current model after the move (and books as the model's price)
+  // the full legacy price keeps pricing the current model after the move (and books as the model's price)
   const p = resolvePrices('deepseek-flash', { slot: 'deepseek', config: { prices: { deepseek: { inPerM: 0.4, outPerM: 1.5 } } } });
   assert.deepEqual(p.perM, { inPerM: 0.4, cachedInPerM: 0.4, outPerM: 1.5 });
   assert.equal(p.source.in, 'model');
+});
+
+test('hamr\'s real config shape prices.deepseek = {inPerM:0.4, cachedInPerM:0.4}: an unticked deepseek-flash line with 0.4 in, out empty; source is never "model" until both are typed and Use is ticked', async () => {
+  const config = { prices: { deepseek: { inPerM: 0.4, cachedInPerM: 0.4 } } };
+  assert.deepEqual(effectiveModels('deepseek', config).lines, [{ model: 'deepseek-flash', use: false, inPerM: 0.4 }]);
+  assert.notEqual(resolvePrices('deepseek-flash', { slot: 'deepseek', config }).source.in, 'model');
+  const { h, home } = await setup({ config });
+  const before = readFileSync(configPath(home), 'utf8');
+  const row = await provRow(h.port);
+  assert.deepEqual(row.models, [{ model: 'deepseek-flash', use: false, inPerM: 0.4 }]);
+  assert.equal(row.unpriced, true);
+  assert.equal(readFileSync(configPath(home), 'utf8'), before, 'reading writes nothing');
+  // ticking with only the typed in-price is refused; nothing saved
+  const bad = await post(h.port, '/api/settings/model', { slot: 'deepseek', model: 'deepseek-flash', use: true, inPerM: 0.4, outPerM: null });
+  assert.equal(bad.json().say, HALF);
+  assert.equal(readFileSync(configPath(home), 'utf8'), before);
+  // another line saved meanwhile is not blocked by the half-filled migrated line
+  assert.equal((await post(h.port, '/api/settings/model', { slot: 'deepseek', model: 'other', use: false })).json().ok, true);
+  // both typed and ticked: now (and only now) the model price applies
+  assert.equal((await post(h.port, '/api/settings/model', { slot: 'deepseek', model: 'deepseek-flash', use: true, inPerM: 0.4, outPerM: 1.5 })).json().ok, true);
+  const saved = readConfig({ home });
+  assert.equal(resolvePrices('deepseek-flash', { slot: 'deepseek', config: saved }).source.in, 'model');
 });
 
 // ---- the route ---------------------------------------------------------------------------------------------------------

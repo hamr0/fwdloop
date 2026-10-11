@@ -5141,7 +5141,7 @@
     });
     var note = mr.querySelector("[data-f=models-note]");
     if(!note){ note = document.createElement("div"); note.className = "hint"; note.setAttribute("data-f", "models-note"); note.setAttribute("data-testid", "models-note"); box.appendChild(note); }
-    setNote(note, false, row.unpriced ? "This model has no known price. Fill both price boxes to tick Use; until then it is priced at the highest known rate." : "");
+    setNote(note, false, row.unpriced ? "No price set here yet. Fill both price boxes (0 is fine for a local model) to tick Use." : "");
   }
   var STATUS_WORD = { "set in file": "set in file", "found in shell": "found in shell", "not set": "not set", "refused": "refused — see above" };
   // "Thinking on (drafting)": one box for all jobs. A drafting model the allow-list does not know cannot be changed, so say so and disable it.

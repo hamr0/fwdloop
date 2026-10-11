@@ -189,7 +189,8 @@ export function createSettings(cfg) {
       return refuse('bad-price', 'Cached input has no price of its own: it is priced as input. Nothing was saved.');
     }
     if (typeof body.model !== 'string') return refuse('bad-model', 'Pick a model line. Nothing was saved.');
-    const list = effectiveModels(slot, c.config).lines.map((m) => ({ ...m }));
+    // A migrated half-typed line (one price box filled) that is not the line being saved is left unpriced, so it never blocks this save.
+    const list = effectiveModels(slot, c.config).lines.map((m) => (m.model !== body.model && (m.inPerM === undefined) !== (m.outPerM === undefined) ? { model: m.model, use: m.use } : { ...m }));
     let line = list.find((m) => m.model === body.model);
     if (!line) { line = { model: body.model, use: false }; list.push(line); }
     if (Object.hasOwn(body, 'use')) line.use = body.use;

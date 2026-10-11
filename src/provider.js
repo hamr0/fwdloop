@@ -169,32 +169,31 @@ export const CEILING_OUTPUT_TOKENS = 16000;
 const perM = (per1K) => Number((per1K * 1000).toPrecision(12));
 
 /**
- * A slot's model lines as Settings and pricing see them (M4d amendment 3 items 7-10). A saved list
+ * A slot's model lines as Settings and pricing see them (M4d amendment 3 items 7-10; hamr's ruling: a ticked
+ * model's prices come only from what the person typed, never from the code table). A saved list
  * (`config.models[slot]`) is returned as stored. With no list, ONE line is built from the slot's current
- * model (`resolveSlot`), ticked, with the old `config.prices[slot]` in/out when both are there; a missing or
- * half old price takes the code table's pair for that model (`tablePriced`: pricing still reads the table, so
- * the booked source stays "table"); a model with neither is left unticked and `unpriced` says so. Nothing is
- * written here — the file changes only when the person saves.
+ * model (`resolveSlot`) and the old `config.prices[slot]`: both in and out typed -> ticked with them; only one
+ * typed -> UNTICKED with that number pre-filled (the other box empty); none -> unticked, no price. `unpriced`
+ * is true for the two unticked cases. Nothing is written here — the file changes only when the person saves.
  * @param {string} slot
  * @param {Record<string, any>} [config]
- * @param {Record<string, any>} [ratesTable]
- * @returns {{ lines: Array<{ model: string, use: boolean, inPerM?: number, outPerM?: number }>, migrated: boolean, tablePriced: boolean, unpriced: boolean }}
+ * @returns {{ lines: Array<{ model: string, use: boolean, inPerM?: number, outPerM?: number }>, migrated: boolean, unpriced: boolean }}
  */
-export function effectiveModels(slot, config = {}, ratesTable = RATES_BY_SUFFIX) {
+export function effectiveModels(slot, config = {}) {
   if (config.models && Object.hasOwn(config.models, slot)) {
-    return { lines: config.models[slot], migrated: false, tablePriced: false, unpriced: false };
+    return { lines: config.models[slot], migrated: false, unpriced: false };
   }
-  if (!Object.hasOwn(PROVIDER_SLOTS, slot)) return { lines: [], migrated: false, tablePriced: false, unpriced: false };
+  if (!Object.hasOwn(PROVIDER_SLOTS, slot)) return { lines: [], migrated: false, unpriced: false };
   const { model } = resolveSlot(slot, { config });
   const old = (config.prices && Object.hasOwn(config.prices, slot)) ? config.prices[slot] : {};
   if (old.inPerM !== undefined && old.outPerM !== undefined) {
-    return { lines: [{ model, use: true, inPerM: old.inPerM, outPerM: old.outPerM }], migrated: true, tablePriced: false, unpriced: false };
+    return { lines: [{ model, use: true, inPerM: old.inPerM, outPerM: old.outPerM }], migrated: true, unpriced: false };
   }
-  const row = lookupRate(model, ratesTable)?.rates;
-  if (row) {
-    return { lines: [{ model, use: true, inPerM: perM(row.in), outPerM: perM(row.out) }], migrated: true, tablePriced: true, unpriced: false };
-  }
-  return { lines: [{ model, use: false }], migrated: true, tablePriced: false, unpriced: true };
+  /** @type {{ model: string, use: boolean, inPerM?: number, outPerM?: number }} */
+  const line = { model, use: false };
+  if (old.inPerM !== undefined) line.inPerM = old.inPerM;
+  if (old.outPerM !== undefined) line.outPerM = old.outPerM;
+  return { lines: [line], migrated: true, unpriced: true };
 }
 
 /**
@@ -217,8 +216,8 @@ export function effectiveModels(slot, config = {}, ratesTable = RATES_BY_SUFFIX)
 export function resolvePrices(modelId, { slot, config = {}, ratesTable = RATES_BY_SUFFIX } = {}) {
   const resolved = lookupRate(modelId, ratesTable);
   const row = resolved ? resolved.rates : null;
-  const eff = slot !== undefined ? effectiveModels(slot, config, ratesTable) : null;
-  const line = (eff && !eff.tablePriced) ? eff.lines.find((m) => m.model === modelId && m.use === true) : undefined;
+  const eff = slot !== undefined ? effectiveModels(slot, config) : null;
+  const line = eff ? eff.lines.find((m) => m.model === modelId && m.use === true) : undefined;
   const ceilingOf = (field) => Math.max(...Object.values(ratesTable).map((r) => r[field]));
   const field = (lineKey, rowField) => {
     if (line && typeof line[lineKey] === 'number') return { v: line[lineKey] / 1000, src: 'model' };
