@@ -642,6 +642,7 @@ export function validateDeclaration(declaration, context = {}) {
         }
       }
     }
+    const earlierEmits = [...declaredEmits]; // outputs of EARLIER steps, in order (the nearest is last)
     if (emits !== null) declaredEmits.add(emits);
     if (fitJobLine === true && emits !== null && cellsRoles.includes(emits)) reds.push(`declaration: ${label}.emits "${emits}" is also a signed input — one id, one meaning`);
 
@@ -705,6 +706,15 @@ export function validateDeclaration(declaration, context = {}) {
       const reading = reads.length === 0 ? 'it reads nothing' : `it reads only ${reads.join(', ')}`;
       const want = cellsRoles.length === 0 ? 'a spreadsheet input, and this job signs none' : cellsRoles.join(' or ');
       reds.push(`declaration: Line ${n}'s check needs cells, but ${reading}. Line ${n} must read ${want}.`);
+    }
+
+    // M4d amendment 9: an ask step shows you something: its FIRST read must be the output of an earlier step. A read is not a
+    // grant (the ask stays a pure stop); the check is for the plan checker only (fitJobLine), so signed flows still run.
+    if (fitJobLine === true && reads !== null && fromLine !== null && askLines.includes(fromLine)
+      && (reads.length === 0 || !earlierEmits.includes(reads[0]))) {
+      const want = earlierEmits.length === 0 ? 'the output of an earlier step, and no earlier step makes one' : earlierEmits[earlierEmits.length - 1];
+      const got = reads.length === 0 ? 'it reads nothing' : `its first read, ${reads[0]}, is not made by an earlier step`;
+      reds.push(`declaration: Line ${fromLine} asks you to check something, but ${got}. Line ${fromLine} must read ${want}.`);
     }
 
     // picks — the listing rule, generalised

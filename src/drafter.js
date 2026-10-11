@@ -66,7 +66,7 @@ export function buildDeclarationSchema(menu) {
               items: { type: 'string', enum: menu.map((e) => e.verb) },
               description: 'verbs this step is granted, from the menu only; [] for a pure stop',
             },
-            reads: { type: 'array', items: { type: 'string' }, description: 'artifact ids emitted by EARLIER steps only, or the role of a CSV input (a step whose line has a green guardrail must list a CSV input role here)' },
+            reads: { type: 'array', items: { type: 'string' }, description: 'artifact ids emitted by EARLIER steps only (an ask step lists the earlier output to be checked FIRST), or the role of a CSV input (a step whose line has a green guardrail must list a CSV input role here)' },
             emits: { type: 'string', minLength: 1, description: 'the ONE new artifact id this step declares (unique)' },
             fromLine: { type: ['integer', 'null'], description: 'the ONE numbered job line this step serves' },
             picks: {
@@ -245,6 +245,7 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
     '- A step whose check reads its reply (softgreen) answers in its reply text and is never granted `write`, `edit` or any other write-class verb; only the send step at the end writes files out.',
     `- Signed ask line(s): ${askLines.length ? askLines.join(', ') : 'none'}. For each, emit EXACTLY ONE step: fromLine = that line, close.class "hitl", primitives []. It is a stop only — never grant a primitive on it, and never emit a pause at any other line.`,
     `- Signed send line(s): ${sendLines.length ? sendLines.join(', ') : 'none'}. That step is drafted like any other: grant the write primitive and read the artifact of the ask step that comes before it. Its target and position are signed, not yours.`,
+    '- An ask step must read the output of an earlier step, the thing you are asked to check: its FIRST read is what the human sees at the ask (for example reads: ["bucket_assignment"], the nearest earlier step\'s emits). An ask that reads nothing, or reads something no earlier step makes, is refused. Reading is not a grant: the ask still grants no primitive.',
     '- Nothing hitl may come after the last signed ask except the send step.',
     '- You never author a trigger, cap, ask position or TTL, allow-list, send target, or what "done" means.',
     '',
