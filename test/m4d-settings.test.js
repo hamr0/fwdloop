@@ -343,8 +343,8 @@ test('page: the Settings button, header, tabs and signed sentences; no per-run c
   assert.match(SETTINGS_VIEW, /Put <code>NAME=key<\/code> lines in <code id="keys-path"[^>]*>~\/\.config\/fwdloop\/\.env<\/code>, then Reload keys[^<]*keys never reach this page\./);
   assert.match(SETTINGS_VIEW, /<div class="keyfile-strip-actions">\s*<button[^>]*id="reload-keys"[^>]*>Reload keys</);
   // the hint lines
-  // layout A: the hint under the grid is the footnote (the old sentence named a Test button the layout no longer has; Test and the model list were one free GET)
-  assert.match(SETTINGS_VIEW, /⟳ refresh models \(free\) · ✎ edit shape \/ base URL · old max_tokens: tick if the server wants the old field name/);
+  // layout F: the hint under the grid is the footnote (no Test button; Test and the model list were one free GET; no pencil, shape and Base URL are always editable)
+  assert.match(SETTINGS_VIEW, /⟳ refresh models \(free\) · old max_tokens: tick if the server wants the old field name/);
   assert.match(SETTINGS_VIEW, /Limits are yours\. The agent can never change them\. A run whose cap is more than what is left this month does not start\./);
   assert.match(PAGE, /Runs from before Settings existed are not counted here\./);
   assert.match(PAGE, /saved — applies from the next model call/);
@@ -358,11 +358,12 @@ test('page: Providers is ONE grid, columns in layout-A order, prices on a child 
   const tables = [...SETTINGS_VIEW.matchAll(/<table[\s\S]*?<\/table>/g)].map((m) => m[0]);
   assert.equal(tables.length, 1, 'only the breakdown is a table; Providers is a grid, no cards');
   const head = SETTINGS_VIEW.match(/<div class="pv-head"[\s\S]*?<\/div>/)[0];
-  assert.deepEqual([...head.matchAll(/<span[^>]*>([^<]*)<\/span>/g)].map((m) => m[1]), ['KEY / MODEL', 'SHAPE · BASE URL', 'OLD MAX_TOKENS', 'USE', 'IN $/1M', 'OUT $/1M', 'TOKENS', '']);
+  assert.deepEqual([...head.matchAll(/<span[^>]*>([^<]*)<\/span>/g)].map((m) => m[1]), ['KEY', 'API SHAPE', 'BASE URL', 'OLD MAX_TOKENS', 'TOKENS', '']);
   assert.match(SETTINGS_VIEW, /<div class="table-wrap"[^>]*>\s*<div class="pv-grid"/);
   const build = PAGE.slice(PAGE.indexOf('function buildProviderRow('), PAGE.indexOf('function buildModelLine('));
   assert.doesNotMatch(build, /API_SHAPE|data-f="model"|data-f="addr"|cachedIn|PRICE_FIELDS/);
-  assert.equal((build.match(/<input/g) || []).length, 2, 'the legacy tick and the typed-name box (shape and URL are the pencil\'s)');
+  assert.equal((build.match(/<input/g) || []).length, 3, 'Base URL, the legacy tick and the typed-name box (shape is the one <select>)');
+  assert.equal((build.match(/<select/g) || []).length, 1);
   assert.doesNotMatch(PAGE, /cachedIn|Cached in/i, 'amendment 2 (a): no Cached in column or box anywhere on the page');
   assert.match(PAGE, /pvRows\.addEventListener\("change"/);
   assert.match(build, /class="hint pv-msg"/);
@@ -435,10 +436,9 @@ test('page: a typed price/limit box survives a repaint, the limit saves on chang
 test('page: phone rules — wraps scroll in their own box, the strip collapses, inputs and selects use the bareloop look, nothing is wider than its box', () => {
   assert.match(PAGE, /\.settings-view input,\.settings-view select\{font:inherit;padding:6px 8px;border:1px solid var\(--border-strong\);border-radius:0;background:var\(--bg\);color:var\(--text\);\}/);
   assert.doesNotMatch(PAGE, /\.settings-view input\[type=text\]\{[^}]*font-size:16px/);
-  assert.match(PAGE, /\.pv-edit select,\.pv-edit input\{width:100%;max-width:100%;min-height:32px;box-sizing:border-box;\}/);
+  assert.match(PAGE, /\.pv-krow select,\.pv-krow input\[type=text\]\{width:100%;max-width:100%;min-height:28px;box-sizing:border-box;\}/);
   assert.match(PAGE, /\.money-item input\{width:100%;height:44px;box-sizing:border-box;\}/);
   assert.match(PAGE, /\.keyfile-strip-main\{[^}]*min-width:0;overflow-wrap:anywhere;/);
-  assert.match(PAGE, /\.pv-line\{[^}]*overflow-wrap:anywhere;\}/);
   assert.match(PAGE, /\.table-wrap\{overflow-x:auto;[^}]*max-width:100%;/);
   assert.match(PAGE, /name="viewport"/);
 });
@@ -471,7 +471,8 @@ test('settings: Test never follows a redirect with the key; a plain sentence, an
 test('amendment 2 (a) under am3 C: no Cached in column or box; the model line builder makes exactly one box per signed price field (Price in, Price out); source-level, browser walk separate', () => {
   const head = SETTINGS_VIEW.match(/<div class="pv-head"[\s\S]*?<\/div>/)[0];
   assert.doesNotMatch(head, /Cached/i);
-  assert.match(head, /IN \$\/1M[\s\S]*OUT \$\/1M/, 'layout A: the price columns sit on the child rows, headed once');
+  const mh = PAGE.match(/<div class="pv-mhead"[\s\S]*?<\/div><\/div>/)[0];
+  assert.match(mh, /IN \$\/1M[\s\S]*OUT \$\/1M/, 'layout F: the price columns sit on the child rows, headed once');
   const line = PAGE.slice(PAGE.indexOf('function buildModelLine('), PAGE.indexOf('function paintModels('));
   assert.deepEqual([...line.matchAll(/data-mf="(\w+)"/g)].map((m) => m[1]), ['use', 'inPerM', 'outPerM']); // M4d am7: nothing about thinking in Settings
   assert.doesNotMatch(PAGE.slice(PAGE.indexOf('function paintProviders('), PAGE.indexOf('pvRows.addEventListener("click"')), /cachedIn/);
