@@ -3005,3 +3005,37 @@ Cause noted: the walk's job line 3 listed four things (how it matches the JD, wo
 Status: open, not fixed; no fix proposed until hamr rules.
 
 Status update: Fixed by amendment 41 item 1 (3c1ee16). An empty `unjudgeable: []` now counts as `{}`; a non-empty list is still red.
+
+## F64 — deepseek-flash sends one stray `}` after valid tool-call JSON; today's retry already recovers (2026-10-11)
+
+In live drafts of `flows/am29-walk-2`'s prose on deepseek-flash (thinking off, forced tool), a draft round fails with "structure: the tool call's arguments were not valid JSON (Unexpected non-whitespace character after JSON at position N)", where N = length-1.
+
+Cause, probed with $0.0142 of raw captures (`/tmp/claude-1000/live-am4/raw-*.json`):
+- The arguments are a complete valid JSON object plus ONE extra `}`.
+- `finish_reason` is `tool_calls`, there is one tool call, and it is not truncated.
+- It reproduces on main (2 of 5 rounds), so it is not new.
+- Longer declarations show it more often. Older drafts in `flows/.drafts` show only 2 hits.
+
+bare-agent refuses and never repairs (BA-27, since 0.43.0). bare-agent 0.49.0 keeps only the first 500 chars of `rawArguments`. hamr approved, 2026-10-11, the full raw text under opt-in `exposeMalformedArgs`, building as bare-agent v0.50.0. fwdloop must bound it on its own side when it upgrades (`src/model-step.js:457-458` puts raw into a run step's red).
+
+POC (pre-registered at `/tmp/claude-1000/PREREG-poc-hint.md`, 10+10 interleaved drafts, $0.0338): the retry text that names the extra character did not help. Next-round-clean was 2/2 for today's text and 5/5 for the hint. By the pre-registered rule, keep today's text. Not adopted.
+
+Ruling (hamr 2026-10-11): log only, nothing to change.
+
+## F65 — most drafts of a 5-line softgreen job end red on "line N is marked unjudgeable but guardrailClasses proposes softgreen" (2026-10-11)
+
+In the same 20-draft POC (deepseek-flash, thinking off, per-draft budget $0.03, prose `/tmp/claude-1000/live-am4/prose.txt`), only 5 of 20 drafts were valid.
+
+Of the 15 reds:
+- 11 were "declaration: line 3/4 is marked unjudgeable but guardrailClasses proposes \"softgreen\" — unjudgeable never upgrades or downgrades the class, it can only explain a hitl";
+- 2 were `steps[2].close.shape.sections names "How I match the JD", which is not in the…`;
+- 1 was `unknown shape key "maxWordsPerSection"`;
+- 1 was "step 3's check reads its reply, so it can't write files".
+
+Caveat: every red draft stopped on `budget` ($0.03), so some may not have used all their revisions. The share is an upper bound on failure for a larger budget.
+
+Possible reading, not verified: the validator rule on unjudgeable vs guardrailClasses may not be told to the drafter (see the project rule that a new validator rule must also be told to the drafter).
+
+Outputs are in `/tmp/claude-1000/poc-hint-keep/out/`.
+
+Ruling (hamr 2026-10-11): log only, nothing to change now.
