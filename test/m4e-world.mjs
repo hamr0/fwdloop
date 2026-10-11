@@ -99,7 +99,11 @@ export async function world({
   mkdirSync(home, { recursive: true, mode: 0o700 });
   writeFileSync(keysFilePath(home), `DEEPSEEK_API_KEY=${CANARY}\n`, { mode: keysMode });
   chmodSync(keysFilePath(home), keysMode);
-  if (limit !== undefined) writeFileSync(path.join(home, 'config.json'), JSON.stringify({ monthlyLimitUsd: limit }));
+  // M4d am5: the model's hold comes from the ticked Settings line. These prices make one round's hold $0.05
+  // (32000 in-tokens x 0.75 + 16000 out-tokens x 1.625, per 1M), the figure these walks were written around.
+  writeFileSync(path.join(home, 'config.json'), JSON.stringify({
+    models: { deepseek: [{ model: 'fake-ticked', use: true, inPerM: 0.75, outPerM: 1.625 }] }, ...(limit !== undefined ? { monthlyLimitUsd: limit } : {}),
+  }));
   writeFileSync(path.join(inDir, 'resume.md'), '# R\n');
   writeFileSync(path.join(inDir, 'jd.md'), '# J\n');
   const gate = path.join(work, 'gate');

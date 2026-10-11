@@ -1,0 +1,29 @@
+// M4d amendment 5: a model is usable only when ticked in Settings with both prices, so a test that builds a real
+// provider needs a config home that says so. `tickedHome()` makes one under a tracked tmp dir and returns its path;
+// `withTickedDoor()` also points the process door (FWDLOOP_CONFIG_HOME) at it and returns a restore function.
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { mkdtempSync } from '../../scripts/tmp-track.mjs';
+import { configPath } from '../../src/config.js';
+
+export const TICKED_MODEL = 'deepseek-flash';
+export const TICKED_LINE = Object.freeze({
+  model: TICKED_MODEL, use: true, inPerM: 0.3, outPerM: 1.2, thinkingOff: 'disabled',
+});
+
+/** @param {Array<Record<string, any>>} [lines] @param {string} [slot] @param {Record<string, any>} [extra] other config fields */
+export function tickedHome(lines = [TICKED_LINE], slot = 'deepseek', extra = {}) {
+  const home = path.join(mkdtempSync(path.join(tmpdir(), 'fwdloop-ticked-')), 'fwdloop');
+  mkdirSync(home, { recursive: true, mode: 0o700 });
+  writeFileSync(configPath(home), JSON.stringify({ models: { [slot]: lines }, ...extra }));
+  return home;
+}
+
+/** Point the process door at a ticked home. @returns {() => void} restore */
+export function withTickedDoor(lines, slot, extra) {
+  const home = tickedHome(lines, slot, extra);
+  const saved = process.env.FWDLOOP_CONFIG_HOME;
+  process.env.FWDLOOP_CONFIG_HOME = home;
+  return () => { if (saved === undefined) delete process.env.FWDLOOP_CONFIG_HOME; else process.env.FWDLOOP_CONFIG_HOME = saved; };
+}

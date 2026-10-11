@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { REFUSAL_SENTENCE } from '../src/monthly.js';
 import { capFloorText, capFloorUsd } from '../src/panel/authorcard.js';
-import { resolveCeilingUsd } from '../src/runner.js';
+import { ceilingCostUsd } from '../src/provider.js';
 import {
   JOB, killChildrenAfter, until, world,
 } from './m4e-world.mjs';
@@ -135,11 +135,12 @@ test('am4 item 1 page: the note re-reads on typing (debounced 250ms), on card op
 });
 
 // ---- item 2 / negative (b) --------------------------------------------------------------------------------------------------
-test('am4 (b): a cap below one ceiling round is refused at Draft at $0 with the sentence; at sign too; the floor is the runner\'s own ceiling', async () => {
-  assert.equal(capFloorUsd(JOB), resolveCeilingUsd(null), 'one function: the runner\'s per-round ceiling');
-  assert.equal(capFloorUsd('Ask: is this ok?'), 0, 'a job of only asks spends no round');
-  assert.equal(capFloorText(0.05), 'needs at least $0.05 per run');
+test('am4 (b): a cap below one ceiling round is refused at Draft at $0 with the sentence; at sign too; the floor is the ticked model\'s own hold (M4d am5)', async () => {
   const w = await world();
+  assert.equal(capFloorUsd(JOB, w.home), ceilingCostUsd({ in: 0.00075, out: 0.001625 }), 'one function: the ticked Settings line\'s per-round hold');
+  assert.equal(capFloorUsd('Ask: is this ok?', w.home), 0, 'a job of only asks spends no round');
+  assert.equal(capFloorUsd(JOB, path.join(w.work, 'no-settings-here')), 0, 'nothing ticked: no model, nothing held (the run itself is refused by name)');
+  assert.equal(capFloorText(0.05), 'needs at least $0.05 per run');
   const small = await w.post('/api/author/draft', w.card({ capUsd: '0.01' }));
   assert.equal(small.status, 400, small.text);
   assert.deepEqual(small.json().refusals.filter((x) => x.field === 'capUsd').map((x) => x.say), ['needs at least $0.05 per run']);

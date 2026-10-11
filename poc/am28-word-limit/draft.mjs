@@ -53,7 +53,7 @@ export async function draftOnce({
   }
   const cat = loadCatalogue();
   if (!cat.ok) return { ...base, stopReason: `catalogue: ${cat.reds.join('; ')}` };
-  const roundCeiling = ceilingCostUsd(modelId);
+  const roundCeiling = ceilingCostUsd(rates);
   if (roundCeiling > budgetUsd) return { ...base, stopReason: `budget: below one round's worst-case cost $${roundCeiling.toFixed(4)}` };
 
   const { system, schema } = am28Setup({ menu: wiredMenu(DRAFT_SKILLS), lines, arbiter, factsInfo: facts.info });

@@ -19,7 +19,7 @@ import {
   readConfig, updateConfig, configPath, ConfigError,
 } from '../src/config.js';
 import {
-  resolvePrices, makeProvider, ceilingCostUsd, RATES_BY_SUFFIX, readSpendRows, assertUnderGlobalCap, priceRecord,
+  resolveUsableModel, makeProvider, ceilingCostUsd, readSpendRows, assertUnderGlobalCap, priceRecord, spendRowCost,
 } from '../src/provider.js';
 import { makeLiveModelStep } from '../src/model-step.js';
 import { draft } from '../src/drafter.js';
@@ -46,7 +46,17 @@ const U = { inputTokens: 100, cacheReadTokens: 1000, outputTokens: 50 };
 const COST_TABLE_U = (100 * 0.30 + 1000 * 0.30 + 50 * 1.20) / 1e6; // 1.2e-4: deepseek-flash, code table (cached input books at input, amendment 2)
 const COST_SET_U = (100 * 1.0 + 1000 * 1.0 + 50 * 4.0) / 1e6; // 1.3e-3: the SET_PRICE above
 
+// M4d am5: there is no code price table; a price is the one typed on a ticked Settings line. TYPED_LINE is the price the
+// old table used to carry for this model, now simply typed (so the cost arithmetic below keeps its numbers).
+const TYPED_LINE = { model: 'deepseek-flash', use: true, inPerM: 0.3, outPerM: 1.2 };
 const newHome = () => path.join(tmp('home'), 'fwdloop');
+/** A fresh config home with one ticked line (default: TYPED_LINE). */
+const tickedHome = (line = TYPED_LINE) => {
+  const home = newHome();
+  mkdirSync(home, { recursive: true });
+  updateConfig({ models: { deepseek: [line] } }, { home });
+  return home;
+};
 /** Point the in-process price door at `home` for the duration of `fn` (NODE_ENV=test gate + the seam). */
 async function withHome(home, fn) {
   const saved = { NODE_ENV: process.env.NODE_ENV, FWDLOOP_CONFIG_HOME: process.env.FWDLOOP_CONFIG_HOME };
@@ -125,7 +135,7 @@ test('config: an unreadable or unparseable file THROWS ConfigError — never {} 
 // the one lookup + ruling A
 // ---------------------------------------------------------------------------
 
-test('amendment 2 (b,c): cached input books at the INPUT rate — a saved cachedInPerM and the table cache rate are never read', async () => {
+test('amendment 2 (b,c): cached input books at the INPUT rate - a saved cachedInPerM is never read', async () => {
   const round = async (prices) => {
     const events = [];
     const provider = { generate: async () => ({ text: 'x', toolCalls: [], usage: POC_USAGE, stopReason: 'stop', model: 'deepseek-flash' }) };
@@ -134,70 +144,57 @@ test('amendment 2 (b,c): cached input books at the INPUT rate — a saved cached
     return events[0].costUsd;
   };
   // (b) typed In $0.40/1M with a saved cachedInPerM of 0.04: the 2816 cached tokens book at $0.40/1M
-  const b = resolvePrices('deepseek-flash', { slot: 'deepseek', config: { prices: { deepseek: { inPerM: 0.4, outPerM: 1.2, cachedInPerM: 0.04 } } } }); // am3 item 10: a legacy price is used only as a full in/out pair
+  const b = resolveUsableModel('deepseek', { config: { models: { deepseek: [{ model: 'deepseek-flash', use: true, inPerM: 0.4, outPerM: 1.2 }] }, prices: { deepseek: { cachedInPerM: 0.04 } } } });
   close(await round(b), (225 * 0.4 + 2816 * 0.4 + 22 * 1.20) / 1e6);
-  assert.equal(b.perM.cachedInPerM, 0.4);
-  // (c) In empty: the table's input price ($0.30), never its cached rate
-  const c = resolvePrices('deepseek-flash');
+  assert.equal(b.prices.perM.cachedInPerM, 0.4);
+  assert.equal(b.rates.cacheReadMult, 1);
+  // (c) In typed 0.30: the 2816 cached tokens book at 0.30, there is no cache rate anywhere
+  const c = resolveUsableModel('deepseek', { config: { models: { deepseek: [TYPED_LINE] } } });
   close(await round(c), (225 * 0.30 + 2816 * 0.30 + 22 * 1.20) / 1e6);
-  assert.equal(c.perM.cachedInPerM, 0.3);
-  assert.deepEqual(c.source, { in: 'table', cachedIn: 'input', out: 'table' });
-  // a table row that still carries a cacheIn is ignored
-  const r = resolvePrices('m', { ratesTable: { m: { in: 0.001, cacheIn: 0.00001, out: 0.002 } } });
-  assert.equal(r.perM.cachedInPerM, 1);
-  assert.equal(r.rates.cacheReadMult, 1);
-  for (const row of Object.values(RATES_BY_SUFFIX)) assert.equal(row.cacheIn, undefined);
+  assert.equal(c.prices.perM.cachedInPerM, 0.3);
+  assert.deepEqual(c.prices.source, { in: 'model', cachedIn: 'input', out: 'model' });
 });
 
-test('lookup: a ticked model line\'s pair wins as a pair (am3 items 7, 9); a legacy half price no longer mixes with the table — it moves as the table pair; sources are named', () => {
-  // am3 replaces "per field Settings wins, an unset field falls through": a price is both fields or neither
-  const half = resolvePrices('deepseek-flash', { slot: 'deepseek', config: { prices: { deepseek: { outPerM: 2.0 } } } });
-  assert.deepEqual(half.perM, { inPerM: 0.3, cachedInPerM: 0.3, outPerM: 1.2 }, 'a half old price is not mixed: the table pair');
-  assert.deepEqual(half.source, { in: 'table', cachedIn: 'input', out: 'table' });
-  const q = resolvePrices('deepseek-flash', { slot: 'deepseek', config: { models: { deepseek: [{ model: 'deepseek-flash', use: true, ...SET_PRICE }] } } });
-  assert.deepEqual(q.perM, { inPerM: 1, cachedInPerM: 1, outPerM: 4 });
-  assert.deepEqual(q.source, { in: 'model', cachedIn: 'input', out: 'model' });
+test('lookup: a ticked model line\'s pair is THE price (am3 items 7, 9; am5 item 1); a half old price is not usable; sources are named', () => {
+  // a price is both fields or neither: a legacy half price with a typed name is an unticked line, not usable, never mixed with anything
+  const half = resolveUsableModel('deepseek', { config: { providers: { deepseek: { model: 'deepseek-flash' } }, prices: { deepseek: { outPerM: 2.0 } } }, model: 'deepseek-flash' });
+  assert.deepEqual([half.ok, half.say], [false, 'Tick deepseek-flash in Settings > Providers with both prices first.']);
+  const q = resolveUsableModel('deepseek', { config: { models: { deepseek: [{ model: 'deepseek-flash', use: true, ...SET_PRICE }] } } });
+  assert.deepEqual(q.prices.perM, { inPerM: 1, cachedInPerM: 1, outPerM: 4 });
+  assert.deepEqual(q.prices.source, { in: 'model', cachedIn: 'input', out: 'model' });
   close(q.rates.cacheReadMult, 1);
   // another slot's list does not apply
-  assert.deepEqual(resolvePrices('deepseek-flash', { slot: 'synthetic', config: { models: { deepseek: [{ model: 'deepseek-flash', use: true, ...SET_PRICE }] } } }).source, { in: 'table', cachedIn: 'input', out: 'table' });
+  assert.equal(resolveUsableModel('synthetic', { config: { models: { deepseek: [{ model: 'deepseek-flash', use: true, ...SET_PRICE }] } }, model: 'deepseek-flash' }).ok, false);
 });
 
-test('unknown model + no config: the table\'s HIGHEST entry per field (today\'s rule survives), never 0; makeProvider builds an unrated model priced at that ceiling (M4d amendment 1)', () => {
-  const p = resolvePrices('totally-unknown-model');
-  const maxIn = Math.max(...Object.values(RATES_BY_SUFFIX).map((r) => r.in));
-  const maxOut = Math.max(...Object.values(RATES_BY_SUFFIX).map((r) => r.out));
-  assert.equal(p.rates.in, maxIn);
-  assert.equal(p.rates.out, maxOut);
-  assert.deepEqual(p.source, { in: 'ceiling', cachedIn: 'input', out: 'ceiling' });
-  assert.equal(p.rates.cacheReadMult, 1, 'cached input is priced as input (the highest input rate)');
-  assert.ok(p.perM.inPerM > 0 && p.perM.outPerM > 0 && p.perM.cachedInPerM > 0);
-  assert.equal(ceilingCostUsd('totally-unknown-model'), 32 * maxIn + 16 * maxOut);
-  const built = makeProvider('deepseek', { model: 'totally-unknown-model', env: { DEEPSEEK_API_KEY: KEY }, configHome: newHome() });
-  assert.equal(built.suffix, null);
-  assert.deepEqual(built.rates, p.rates, 'an unrated model is booked at the table\'s highest rate, never 0');
+test('no config, or a model nobody ticked: nothing is usable and nothing is priced from code - makeProvider refuses by name (M4d am5 item 1/2; replaces "the table\'s HIGHEST entry")', () => {
+  assert.equal(resolveUsableModel('deepseek', {}).ok, false);
+  assert.throws(() => makeProvider('deepseek', { model: 'totally-unknown-model', env: { DEEPSEEK_API_KEY: KEY }, configHome: tickedHome() }), /^Error: Tick totally-unknown-model in Settings > Providers with both prices first\.$/);
+  assert.throws(() => makeProvider('deepseek', { env: { DEEPSEEK_API_KEY: KEY }, configHome: path.join(tmp('empty'), 'fwdloop') }), /Tick a model in Settings > Providers/);
 });
 
-test('ceilingCostUsd follows a config price (the cap check and the booking agree); without one it is the table\'s', async () => {
-  const home = newHome();
-  const tableCeiling = ceilingCostUsd('deepseek-flash');
-  close(tableCeiling, 32 * 0.0003 + 16 * 0.0012);
-  updateConfig({ prices: { deepseek: SET_PRICE } }, { home });
-  const { prices } = makeProvider('deepseek', { env: { DEEPSEEK_API_KEY: KEY }, configHome: home });
-  const withSet = ceilingCostUsd('deepseek-flash', undefined, { prices });
+test('ceilingCostUsd follows the ticked line\'s price (the cap check and the booking agree)', async () => {
+  const homeA = tickedHome();
+  const homeB = tickedHome({ model: 'deepseek-flash', use: true, ...SET_PRICE });
+  const lowCeiling = ceilingCostUsd(makeProvider('deepseek', { env: { DEEPSEEK_API_KEY: KEY }, configHome: homeA }).rates);
+  close(lowCeiling, 32 * 0.0003 + 16 * 0.0012);
+  const { rates, prices } = makeProvider('deepseek', { env: { DEEPSEEK_API_KEY: KEY }, configHome: homeB });
+  const withSet = ceilingCostUsd(rates);
   close(withSet, 32 * 0.001 + 16 * 0.004);
-  assert.ok(withSet > tableCeiling);
-  // through the drafter: a budget that fits one table ceiling but not one Settings-priced ceiling refuses at $0
-  await withHome(home, async () => {
+  assert.ok(withSet > lowCeiling);
+  assert.equal(prices.source.in, 'model');
+  // through the drafter: a budget that fits one low ceiling but not one higher-priced ceiling refuses at $0
+  await withHome(homeB, async () => {
     const fx = job2Fixture();
-    const budgetUsd = (tableCeiling + withSet) / 2;
+    const budgetUsd = (lowCeiling + withSet) / 2;
     const r = await withFake(U, () => draft({ proseText: fx.prose, slot: 'deepseek', env: { DEEPSEEK_API_KEY: KEY }, budgetUsd }));
     assert.equal(r.ok, false);
     assert.equal(r.stop, 'pre-flight');
     assert.match(r.reds[0], new RegExp(`minimum budget is \\$${withSet.toFixed(4)}`));
   });
-  await withHome(newHome(), async () => {
+  await withHome(homeA, async () => {
     const fx = job2Fixture();
-    const r = await withFake(U, () => draft({ proseText: fx.prose, slot: 'deepseek', env: { DEEPSEEK_API_KEY: KEY }, budgetUsd: (tableCeiling + withSet) / 2 }));
+    const r = await withFake(U, () => draft({ proseText: fx.prose, slot: 'deepseek', env: { DEEPSEEK_API_KEY: KEY }, budgetUsd: (lowCeiling + withSet) / 2 }));
     assert.equal(r.ok, true, JSON.stringify(r.reds));
   });
 });
@@ -224,7 +221,7 @@ test('a broken config makes makeProvider THROW by name — it never falls back t
 // ---------------------------------------------------------------------------
 
 test('(x) a price set in config is booked from the next call; every earlier row and the run total stay exactly as booked', async () => {
-  const home = newHome();
+  const home = tickedHome();
   const spendPath = spendPathIn();
   await withHome(home, async () => {
     await withFake(U, async () => {
@@ -232,8 +229,8 @@ test('(x) a price set in config is booked from the next call; every earlier row 
       assert.equal(r1.ok, true, r1.red);
       const rows1 = readSpendRows(spendPath);
       assert.equal(rows1.length, 1);
-      close(rows1[0].costUsd, 2 * COST_TABLE_U); // two rounds at the table price
-      assert.deepEqual(rows1[0].price.source, { in: 'table', cachedIn: 'input', out: 'table' });
+      close(rows1[0].costUsd, 2 * COST_TABLE_U); // two rounds at the first typed price
+      assert.deepEqual(rows1[0].price.source, { in: 'model', cachedIn: 'input', out: 'model' });
       const total1 = assertUnderGlobalCap(spendPath, 1e9);
       close(total1, rows1[0].costUsd);
 
@@ -308,7 +305,7 @@ test('(xii) with a config price set: the model step, the drafter and a CLI resum
 });
 
 test('every new spend row carries provider and price (model step and draft row); old rows without them still read, summarize and total', async () => {
-  const home = newHome();
+  const home = tickedHome();
   const spendPath = spendPathIn();
   // an OLD row (pre-M4d shape: no provider, no price) already in the book
   mkdirSync(path.dirname(spendPath), { recursive: true });
@@ -325,10 +322,12 @@ test('every new spend row carries provider and price (model step and draft row);
   assert.equal(summarizeSpendRows(rows).empty, false);
   assert.equal(summarizeSpendRows([old]).rounds, 1);
   close(assertUnderGlobalCap(spendPath, 1e9), 0.0001 + rows[1].costUsd);
-  // a null-cost OLD row is repriced at the table ceiling (as before); a null-cost NEW row at its OWN booked price's ceiling
+  // M4d am5 item 6: a null-cost OLD row (no recorded price) can no longer be repriced from a code table: it counts its floor and reads
+  // incomplete ("at least"), never as a clean total; a null-cost NEW row is held at its OWN booked price's ceiling
   const nullOld = spendPathIn();
   appendFileSync(nullOld, `${JSON.stringify({ model: 'deepseek-flash', costUsd: null, spendComplete: false, calls: 1, rounds: 0 })}\n`);
-  close(assertUnderGlobalCap(nullOld, 1e9), ceilingCostUsd('deepseek-flash'));
+  close(assertUnderGlobalCap(nullOld, 1e9), 0);
+  assert.equal(spendRowCost(JSON.parse(readFileSync(nullOld, 'utf8'))).complete, false);
   const nullNew = spendPathIn();
   appendFileSync(nullNew, `${JSON.stringify({ model: 'deepseek-flash', costUsd: null, spendComplete: false, calls: 1, rounds: 0, price: { inPerM: 1, cachedInPerM: 0.1, outPerM: 4 } })}\n`);
   close(assertUnderGlobalCap(nullNew, 1e9), 32 * 0.001 + 16 * 0.004);
@@ -345,5 +344,5 @@ test('every new spend row carries provider and price (model step and draft row);
   assert.equal(dd.ok, true, JSON.stringify(dd.reds));
   const [drow] = readSpendRows(path.join(out, 'd', 'spend.jsonl'));
   assert.equal(drow.provider, 'deepseek');
-  assert.deepEqual(drow.price, priceRecord(resolvePrices('deepseek-flash', { slot: 'deepseek' })));
+  assert.deepEqual(drow.price, priceRecord(resolveUsableModel('deepseek', { config: readConfig({ home }) }).prices));
 });

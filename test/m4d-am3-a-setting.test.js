@@ -18,6 +18,9 @@ import { job2Fixture, validArgs } from './drafter-fixture.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
 const home = () => mkdtempSync(path.join(tmpdir(), 'fwdloop-m4d3a-'));
+// M4d am5: the drafting model, its prices and how its thinking turns off all come from its ticked Settings line.
+const LINE = { model: 'deepseek-flash', use: true, inPerM: 0.3, outPerM: 1.2, thinkingOff: 'disabled' };
+const tickedAt = (h, line = LINE) => updateConfig({ models: { deepseek: [line] } }, { home: h });
 const get = (s) => s.handle({ method: 'GET', pathname: '/api/settings/providers', query: new URLSearchParams(), body: null });
 const post = (s, body) => s.handle({ method: 'POST', pathname: '/api/settings/thinking', query: new URLSearchParams(), body });
 
@@ -40,9 +43,10 @@ test('config: draftThinking round-trips; absent = off; other fields are kept; a 
 
 test('route: the providers read says on/off and whether this model can change it; the post saves it', async () => {
   const h = home();
+  tickedAt(h);
   const s = createSettings({ home: h, env: {} });
   let g = (await get(s)).body;
-  assert.deepEqual(g.draftThinking, { on: false, canChange: true, model: 'deepseek-flash' });
+  assert.deepEqual(g.draftThinking, { on: false, canChange: true, model: 'deepseek-flash', why: null });
   const r = await post(s, { on: true });
   assert.equal(r.body.ok, true);
   assert.equal(readConfig({ home: h }).draftThinking, true);
@@ -52,15 +56,25 @@ test('route: the providers read says on/off and whether this model can change it
   assert.equal(readConfig({ home: h }).draftThinking, true, 'a bad body saves nothing');
 });
 
-test('route: a drafting model not on the allow-list says it cannot change this, and saves nothing', async () => {
+test('route: a drafting model whose line says "can\'t" says it cannot change this, and saves nothing (M4d am5 item 3: the line decides, no allow-list)', async () => {
   const h = home();
-  updateConfig({ providers: { deepseek: { model: 'some-local-model' } } }, { home: h });
+  tickedAt(h, { ...LINE, model: 'some-local-model', thinkingOff: 'cant' });
   const s = createSettings({ home: h, env: {} });
-  assert.deepEqual((await get(s)).body.draftThinking, { on: false, canChange: false, model: 'some-local-model' });
+  assert.deepEqual((await get(s)).body.draftThinking, { on: false, canChange: false, model: 'some-local-model', why: null });
   const r = await post(s, { on: true });
   assert.equal(r.body.ok, false);
   assert.match(r.body.say, /can't change this for this model/);
   assert.equal(readConfig({ home: h }).draftThinking, undefined);
+  // the same model name with the line set to "disabled" CAN change: the name alone decides nothing
+  tickedAt(h, { ...LINE, model: 'some-local-model', thinkingOff: 'disabled' });
+  assert.equal((await get(s)).body.draftThinking.canChange, true);
+});
+
+test('route: nothing ticked - the box cannot change and says what to do', async () => {
+  const s = createSettings({ home: home(), env: {} });
+  const d = (await get(s)).body.draftThinking;
+  assert.deepEqual([d.canChange, d.model], [false, null]);
+  assert.match(d.why, /^Tick a model in Settings > Providers/);
 });
 
 test('page: one tick-box "Thinking on (drafting)", wired to the route, with the cannot-change line', () => {
@@ -72,6 +86,7 @@ test('page: one tick-box "Thinking on (drafting)", wired to the route, with the 
 
 test('drafter reads the setting per draft from the config home: unticked sends disabled, ticked sends nothing', async () => {
   const h = home();
+  tickedAt(h);
   const saved = { cfg: process.env.FWDLOOP_CONFIG_HOME, key: process.env.DEEPSEEK_API_KEY };
   process.env.FWDLOOP_CONFIG_HOME = h;
   process.env.DEEPSEEK_API_KEY = 'sk-fake-test-key';

@@ -136,7 +136,7 @@ test('invented number: reported as not in the guardrail', async () => {
 
 test('cap: the ledger stops the run before the next job would pass the line; the short run is not a pass', async () => {
   const dir = outDir();
-  const ceiling = ceilingCostUsd(MODEL);
+  const ceiling = ceilingCostUsd(RATES);
   const provider = answering(rightAnswers());
   const r = await runBatch({ tag: 'cap', outDir: dir, env: {}, injected: inj(provider), stopUsd: ceiling * 2 + 0.0007, writeLine: quiet });
   assert.ok(r.summary.ran < 10, `ran ${r.summary.ran}`);

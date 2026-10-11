@@ -14,6 +14,8 @@ import {
 
 const KEY = 'sk-test-0123456789abcdef';
 const quiet = () => {};
+// M4d am5: a row records the price it was booked at; the ceiling of an unpriced round is read off it (no code table)
+const PRICE = { inPerM: RATES.in * 1000, outPerM: RATES.out * 1000 };
 const outDir = () => mkdtempSync(path.join(tmpdir(), 'fwdloop-m6a-out-'));
 const inj = (replies) => ({ provider: fakeProvider(replies), rates: RATES, modelId: MODEL });
 
@@ -65,7 +67,7 @@ test('(e) the cap refuses at $0: ledger + next draft budget over the cap -> no r
 test('(e2) an unpriced ledger row counts at its ceiling, never 0', () => {
   const dir = outDir();
   const p = path.join(dir, 'spend.jsonl');
-  writeFileSync(p, `${JSON.stringify({ runId: 'x', model: MODEL, costUsd: null })}\n`);
+  writeFileSync(p, `${JSON.stringify({ runId: 'x', model: MODEL, costUsd: null, price: PRICE })}\n`);
   assert.ok(ledgerTotalUsd(p) > 0.02, 'deepseek-flash ceiling is ~$0.0288');
 });
 
@@ -73,7 +75,7 @@ test('(e2b) an incomplete draft row counts its floor plus the unmetered ceiling,
   const dir = outDir();
   const p = path.join(dir, 'spend.jsonl');
   // round 1 priced $0.90, round 2 timed out unmetered: costUsd is only the floor
-  writeFileSync(p, `${JSON.stringify({ kind: 'draft', model: MODEL, costUsd: 0.9, rounds: 1, calls: 2, spendComplete: false })}\n`);
+  writeFileSync(p, `${JSON.stringify({ kind: 'draft', model: MODEL, costUsd: 0.9, rounds: 1, calls: 2, spendComplete: false, price: PRICE })}\n`);
   assert.ok(ledgerTotalUsd(p) >= 0.9 + 0.028, 'floor + one deepseek-flash ceiling');
   assert.throws(() => assertRoomForDraft(p, 1.0, 0.08), /cap: ledger/);
   // a complete row with the same floor would have been allowed

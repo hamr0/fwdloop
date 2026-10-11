@@ -144,7 +144,7 @@ export async function draftWithQuestions({
     : { schema: buildPocSchema(menu), system: baseSystem });
   const cat = loadCatalogue();
   if (!cat.ok) return { ...base, reds: [`catalogue: ${cat.reds.join('; ')}`] };
-  const roundCeiling = ceilingCostUsd(modelId);
+  const roundCeiling = ceilingCostUsd(rates);
   if (roundCeiling > budgetUsd) return { ...base, reds: [`budget: below one round's worst-case cost $${roundCeiling.toFixed(4)}`] };
 
   const meterings = [];

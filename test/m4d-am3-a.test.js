@@ -4,17 +4,20 @@ import { test } from 'node:test';
 import http from 'node:http';
 import { draft, MAX_STRUCTURE_RETRIES } from '../src/drafter.js';
 import { draftCallOptions, makeProvider } from '../src/provider.js';
+import { withTickedDoor } from './fixtures/m4d-ticked.mjs';
 import {
   RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply, truncatedReply,
 } from './drafter-fixture.mjs';
 
-const DS = { shape: 'openai-api', model: 'deepseek-flash' };
+const DS = { shape: 'openai-api', thinkingOff: 'disabled' };
 
-test('item 1: the allow-list — deepseek-flash off sends disabled; other model off sends nothing; on sends nothing; bad mode throws', () => {
+// M4d am5 item 3: the model line's own `thinkingOff` replaces the code allow-list (no model is named here or in src/).
+test('item 1: the line decides — "disabled" off sends disabled; "cant" off sends nothing; on sends nothing; bad mode throws', () => {
   assert.deepEqual(draftCallOptions(DS, 'off'), { thinking: { type: 'disabled' } });
   assert.deepEqual(draftCallOptions(DS), { thinking: { type: 'disabled' } }, 'default is off');
-  assert.deepEqual(draftCallOptions({ shape: 'openai-api', model: 'hf:Qwen/Qwen3.8-27B' }, 'off'), {});
-  assert.deepEqual(draftCallOptions({ shape: 'anthropic-api', model: 'deepseek-flash' }, 'off'), {});
+  assert.deepEqual(draftCallOptions({ shape: 'openai-api', thinkingOff: 'cant' }, 'off'), {});
+  assert.deepEqual(draftCallOptions({ shape: 'openai-api' }, 'off'), {}, 'no thinkingOff = "cant", the default');
+  assert.deepEqual(draftCallOptions({ shape: 'anthropic-api', thinkingOff: 'disabled' }, 'off'), {});
   assert.deepEqual(draftCallOptions(DS, 'on'), {});
   for (const bad of ['', 'ON', true, null, 'auto']) assert.throws(() => draftCallOptions(DS, bad), /draftThinking must be one of/);
 });
@@ -37,6 +40,7 @@ async function wireBody(extra) {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const saved = process.env.DEEPSEEK_API_KEY;
   process.env.DEEPSEEK_API_KEY = 'sk-fake-test-key';
+  const restoreDoor = withTickedDoor();
   try {
     const r = await draft({
       proseText: job2Fixture().prose,
@@ -46,6 +50,7 @@ async function wireBody(extra) {
     assert.equal(r.ok, true, JSON.stringify(r.reds));
     return body;
   } finally {
+    restoreDoor();
     if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved; else delete process.env.DEEPSEEK_API_KEY;
     await new Promise((resolve) => server.close(resolve));
   }

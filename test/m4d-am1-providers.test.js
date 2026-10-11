@@ -97,7 +97,7 @@ test('route: a good save is written under the slot, trailing slashes dropped; an
   assert.deepEqual(g.shapes.map((x) => x.id), ['anthropic-api', 'openai-api', 'gemini-api']);
   const row = g.rows.find((r) => r.slot === 'deepseek');
   assert.deepEqual([row.model, row.shape, row.baseUrl, row.savedBaseUrl], ['my-model', 'anthropic-api', 'https://proxy.example.com/v1', 'https://proxy.example.com/v1']);
-  assert.deepEqual(row.defaults, { model: 'deepseek-flash', shape: 'openai-api', baseUrl: 'https://api.anthropic.com/v1' });
+  assert.deepEqual(row.defaults, { shape: 'openai-api', baseUrl: 'https://api.anthropic.com/v1' }); // M4d am5 item 1: a slot's code default is a shape and an address, never a model
   assert.equal((await post(h.port, '/api/settings/provider', { slot: 'deepseek', baseUrl: '' })).json().ok, true);
   assert.equal(readConfig({ home }).providers.deepseek.baseUrl, undefined);
   const row2 = (await rq(h.port, { url: '/api/settings/providers' })).json().rows.find((r) => r.slot === 'deepseek');
@@ -116,35 +116,40 @@ test('config: a hand-edited bad providers block refuses by name on read; updateC
   assert.equal(cfgText(home2), before);
 });
 
-test('one lookup: a saved model id reaches the provider, the spend row and the price lookup; an id the table does not know books at the highest rate, never 0', async () => {
+test('one lookup: the ticked Settings model reaches the provider, the spend row and the price; an unticked one is refused by name and books nothing, never priced from code', async () => {
   const home = newHome();
   const spendPath = path.join(tmp('spend'), 'spend.jsonl');
   const run = () => makeLiveModelStep({ slot: 'deepseek', spendPath, env: { DEEPSEEK_API_KEY: KEY } })({ goal: 'g', primitives: [], reads: {}, gap: null }, {}, { class: 'hitl' });
+  const tick = (model, inPerM, outPerM) => updateConfig({ models: { deepseek: [{ model, use: true, inPerM, outPerM }] } }, { home });
   const restore = install({ inputTokens: 100, cacheReadTokens: 0, outputTokens: 50 });
   try {
     await withHome(home, async () => {
+      tick('first-model', 0.3, 1.2);
       const r1 = await run();
       assert.equal(r1.ok, true, r1.red);
-      updateConfig({ providers: { deepseek: { model: 'deepseek-v4-pro' } } }, { home });
+      tick('second-model', 1.32, 3.96);
       assert.equal((await run()).ok, true);
-      updateConfig({ providers: { deepseek: { model: 'some-model-the-table-never-heard-of' } } }, { home });
-      assert.equal((await run()).ok, true);
+      updateConfig({ models: { deepseek: [{ model: 'second-model', use: false, inPerM: 1.32, outPerM: 3.96 }] } }, { home });
+      const refused = await run();
+      assert.equal(refused.ok, false);
+      assert.equal(refused.red, 'Tick a model in Settings > Providers with both prices first.');
+      assert.equal(refused.model, null, 'no provider was built');
     });
   } finally { restore(); }
   const rows = readSpendRows(spendPath);
-  assert.deepEqual(rows.map((r) => r.model), ['deepseek-flash', 'deepseek-v4-pro', 'some-model-the-table-never-heard-of']);
-  assert.equal(rows[1].price.source.in, 'table');
-  assert.equal(rows[1].price.inPerM, 1.32, 'priced by the new model\'s own table row');
-  assert.equal(rows[2].price.source.in, 'ceiling');
-  assert.ok(rows[2].costUsd > 0 && rows[2].price.inPerM > 0, 'unknown model: never $0');
+  assert.deepEqual(rows.map((r) => r.model), ['first-model', 'second-model'], 'the refused call booked no row');
+  assert.equal(rows[1].price.source.in, 'model');
+  assert.equal(rows[1].price.inPerM, 1.32, 'priced by the ticked line\'s own typed price');
+  assert.ok(rows[1].costUsd > 0);
   // (c) the run booked before the change keeps its recorded model and price, byte for byte
   assert.equal(rows[0].price.inPerM, 0.3);
-  assert.equal(rows[0].price.source.in, 'table');
+  assert.equal(rows[0].price.source.in, 'model');
 });
 
 test('one lookup: a saved Base URL is the address the provider is called at (and a blank one is the code default)', async () => {
   const home = newHome();
   const seen = [];
+  updateConfig({ models: { deepseek: [{ model: 'm', use: true, inPerM: 1, outPerM: 1 }] } }, { home });
   const orig = OpenAI.prototype.generate;
   // no network: the call is replaced AFTER the provider is built, recording the address the built provider holds
   OpenAI.prototype.generate = async function fake() { seen.push(this.baseUrl); return { text: 'hi', toolCalls: [], usage: {}, model: 'm', stopReason: 'stop' }; };
@@ -161,6 +166,7 @@ test('one lookup: a saved Base URL is the address the provider is called at (and
 test('shape: makeProvider builds the class the shape names (Anthropic, Gemini); resolveSlot is the single reader', async () => {
   const home = newHome();
   updateConfig({ providers: { synthetic: { shape: 'anthropic-api' }, deepseek: { shape: 'gemini-api' } } }, { home });
+  for (const slot of ['synthetic', 'deepseek']) updateConfig({ models: { [slot]: [{ model: 'm', use: true, inPerM: 1, outPerM: 1 }] } }, { home });
   const config = readConfig({ home });
   assert.equal(resolveSlot('synthetic', { config }).baseUrl, 'https://api.anthropic.com/v1');
   assert.equal(resolveSlot('deepseek', { config }).baseUrl, '', 'Gemini: bare-agent\'s own address');

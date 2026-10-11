@@ -5,6 +5,7 @@ import http from 'node:http';
 import { draft, MAX_STRUCTURE_RETRIES, MAX_REVISIONS } from '../src/drafter.js';
 import { buildDeclarationSchema } from '../src/drafter.js';
 import { ceilingCostUsd, makeProvider } from '../src/provider.js';
+import { withTickedDoor } from './fixtures/m4d-ticked.mjs';
 import { wiredMenu } from '../src/primitives.js';
 import {
   RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply, textReply, truncatedReply, malformedReply,
@@ -102,7 +103,7 @@ test('(e1) the per-draft budget stops the next round, priced and returned', asyn
   const bad = validArgs();
   bad.steps[2].primitives = ['stash'];
   const p = fakeProvider([toolReply(bad)]);
-  const r = await run(p, { budgetUsd: ceilingCostUsd(MODEL) + 0.0002 }); // round 1 fits; one done ($0.0005) + another ceiling round would cross
+  const r = await run(p, { budgetUsd: ceilingCostUsd(RATES) + 0.0002 }); // round 1 fits; one done ($0.0005) + another ceiling round would cross
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'budget');
   assert.equal(r.rounds, 1);
@@ -152,6 +153,8 @@ test('draft() live path sends body.thinking = {type:"disabled"} on the request (
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const saved = process.env.DEEPSEEK_API_KEY;
   process.env.DEEPSEEK_API_KEY = 'sk-fake-test-key';
+  // M4d am5: the model, its prices and "how to turn thinking off" come from the ticked Settings line, not from code
+  const restoreDoor = withTickedDoor();
   try {
     const fx = job2Fixture();
     const r = await draft({
@@ -165,6 +168,7 @@ test('draft() live path sends body.thinking = {type:"disabled"} on the request (
     assert.equal(r.ok, true, JSON.stringify(r.reds));
     assert.deepEqual(body.thinking, { type: 'disabled' });
   } finally {
+    restoreDoor();
     if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved; else delete process.env.DEEPSEEK_API_KEY;
     await new Promise((resolve) => server.close(resolve));
   }
@@ -188,7 +192,7 @@ test('(e3) an unpriced round counts at its ceiling toward the budget, never as 0
   const bad = validArgs();
   bad.steps[2].primitives = ['stash'];
   const p = fakeProvider([{ ...toolReply(bad), usage: undefined }]);
-  const r = await run(p, { budgetUsd: ceilingCostUsd(MODEL) * 1.5 }); // one ceiling round fits, two cross; at 0 the loop would go on
+  const r = await run(p, { budgetUsd: ceilingCostUsd(RATES) * 1.5 }); // one ceiling round fits, two cross; at 0 the loop would go on
   assert.equal(r.stop, 'budget');
   assert.equal(p.calls.length, 1);
   assert.equal(r.costUsd, null);
@@ -201,7 +205,7 @@ test('(e4) a budget below one round\'s ceiling is refused at $0, before any prov
   assert.equal(r.stop, 'pre-flight');
   assert.equal(r.costUsd, 0);
   assert.equal(p.calls.length, 0);
-  assert.match(r.reds[0], new RegExp(`minimum budget is \\$${ceilingCostUsd(MODEL).toFixed(4)}`));
+  assert.match(r.reds[0], new RegExp(`minimum budget is \\$${ceilingCostUsd(RATES).toFixed(4)}`));
 });
 
 test('(f1) a structure retry after a validator revision keeps the validator reds and is logged as structure-retry', async () => {

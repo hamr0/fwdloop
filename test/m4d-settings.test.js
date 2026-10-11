@@ -490,6 +490,6 @@ test('amendment 2 (a) under am3 C: no Cached in column or box; the model line bu
   assert.doesNotMatch(head, /Cached/i);
   assert.doesNotMatch(head, /\$\/1M/, 'the price columns moved to the model lines');
   const line = PAGE.slice(PAGE.indexOf('function buildModelLine('), PAGE.indexOf('function paintModels('));
-  assert.deepEqual([...line.matchAll(/data-mf="(\w+)"/g)].map((m) => m[1]), ['use', 'inPerM', 'outPerM']);
+  assert.deepEqual([...line.matchAll(/data-mf="(\w+)"/g)].map((m) => m[1]), ['use', 'inPerM', 'outPerM', 'thinkingOff']); // + M4d am5 item 3: how this line turns its thinking off
   assert.doesNotMatch(PAGE.slice(PAGE.indexOf('function paintProviders('), PAGE.indexOf('pvRows.addEventListener("click"')), /cachedIn/);
 });

@@ -46,6 +46,10 @@ test('draft: a key that lives ONLY in the keys file reaches makeProvider (drafte
   assert.equal(loaded.ok, true);
   const saved = process.env.DEEPSEEK_API_KEY;
   delete process.env.DEEPSEEK_API_KEY; // the key is NOT in the shell: only the merged env has it
+  // M4d am5: the model and its prices come from Settings; a ticked line in this config home makes one usable
+  writeFileSync(path.join(home, 'config.json'), JSON.stringify({ models: { deepseek: [{ model: 'fake-ticked', use: true, inPerM: 0.3, outPerM: 1.2, thinkingOff: 'disabled' }] } }));
+  const savedHome = process.env.FWDLOOP_CONFIG_HOME;
+  process.env.FWDLOOP_CONFIG_HOME = home;
   const restore = install({ inputTokens: 100, outputTokens: 50 });
   try {
     const work = tmp('draft');
@@ -57,6 +61,7 @@ test('draft: a key that lives ONLY in the keys file reaches makeProvider (drafte
     assert.equal(r.ok, true, JSON.stringify(r.reds));
   } finally {
     restore();
+    if (savedHome === undefined) delete process.env.FWDLOOP_CONFIG_HOME; else process.env.FWDLOOP_CONFIG_HOME = savedHome;
     if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved;
   }
 });

@@ -16,6 +16,7 @@ import {
   parseKeysText, loadKeysEnv, keysForDoor, keysFilePath, chmodSentence, KEY_NAMES,
 } from '../src/keysfile.js';
 import { makeProvider, checkKeyPreflight } from '../src/provider.js';
+import { tickedHome } from './fixtures/m4d-ticked.mjs';
 import { createResumer } from '../src/panel/resume.js';
 import { createPanelServer } from '../src/panel/server.js';
 import { writeFlow } from '../src/flow.js';
@@ -145,7 +146,7 @@ test('(i) makeProvider and checkKeyPreflight take the merged env: the file key i
   const { env } = loadKeysEnv({ env: {}, home });
   assert.equal(process.env.DEEPSEEK_API_KEY === CANARY, false);
   assert.equal(checkKeyPreflight('deepseek', env).ok, true);
-  const built = makeProvider('deepseek', { env });
+  const built = makeProvider('deepseek', { env, configHome: tickedHome() });
   assert.equal(built.provider.apiKey, CANARY);
   // without the merged env the same call refuses (the shell has no key): the env option is what carries it
   const saved = process.env.DEEPSEEK_API_KEY;
