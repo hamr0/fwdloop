@@ -4498,10 +4498,14 @@
       byId("jf-err-flow").textContent = "";
       renderFlowSearch(); paintRunFlow(); refreshStartEnabled();
     }
-    function unpickFlow(){
-      if(cardLocked()) return;
+    // the one writer of the Run-a-signed-flow pick (the Change link and Clear both go through it)
+    function clearPick(){
       pickedFlow = null; pickedRun = null; pickedLabel = ""; againEntry = null; rwHl = 0;
       runFlowSel.value = "";
+    }
+    function unpickFlow(){
+      if(cardLocked()) return;
+      clearPick();
       renderFlowSearch(); paintRunFlow(); refreshStartEnabled();
     }
     function loadFlows(force){
@@ -4764,6 +4768,7 @@
       ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; });
       askWaitEl.value = "1h";
       thinkingEl.checked = false; // per job: unticked for the next one
+      clearPick(); // a flow picked in Run a signed flow (Run again too) goes with the rest
       refreshCapNote();
       openNewCard();
       loadFlows(mode === "run");
