@@ -872,6 +872,8 @@
                 <label>The job</label>
                 <div class="ro-lines" id="jf-run-job" data-testid="jf-run-job"></div>
                 <div class="hint" id="jf-run-model" data-testid="jf-run-model"></div>
+                <select id="jf-run-pick" data-testid="jf-run-pick" aria-label="Model to run this job with" hidden disabled><option value="">Reading your models…</option></select>
+                <div class="jf-err" id="jf-err-run-model" data-testid="jf-err-run-model"></div>
                 <div class="hint">Fixed by the signature (the steps, the job lines and the asks). To change them, edit the job: the AI drafts a new plan, and signing it replaces this job.</div>
                 <button class="btn" type="button" id="jf-run-edit" data-testid="jf-run-edit">Edit this job</button>
                 <div class="hint" id="jf-run-edit-why" data-testid="jf-run-edit-why"></div>
@@ -4185,7 +4187,9 @@
     function currentRun(){
       return {
         flow: pickedFlow || "", inputs: readRows(runInputsEl), runId: (byId("jf-run-id").value.trim() === autoRunId ? "" : byId("jf-run-id").value.trim()),
-        destination: runDestEl.value.trim(), capUsd: runCapEl.value.trim(), askWaits: runWaits()
+        destination: runDestEl.value.trim(), capUsd: runCapEl.value.trim(), askWaits: runWaits(),
+        // a flow with no recorded model runs with the pick (am7b); a flow with one sends none
+        ...(runPickEl.hidden ? {} : { provider: runPickChoice().provider, model: runPickChoice().model })
       };
     }
     // pure-ish (reads the boxes): does the Run form differ from the flow's own signed values? Only a convenience that picks the button's wording
@@ -4280,6 +4284,7 @@
         return row ? row.querySelector(".jf-err") : null;
       }
       if(field === "inputs") return byId(mode === "run" ? "jf-err-run-inputs" : "jf-err-inputs");
+      if(mode === "run" && field === "model") return byId("jf-err-run-model");
       if(mode === "run" && (field === "destination" || field === "capUsd")) return byId("jf-err-run-" + field);
       if(mode === "run" && /^askWaits/.test(field)) return byId("jf-err-run-askWaits");
       if(mode === "resume" && field === "capUsd") return byId("jf-err-resume-capUsd");
@@ -4385,7 +4390,8 @@
       paintedFlow = pickedKey();
       runSignInfo = null;
       paintJobDim(byId("jf-run-job"), f ? f.jobLines : []);
-      byId("jf-run-model").textContent = f && f.model ? "Model: " + f.model.label : (f ? "No model is recorded for this job. Run it from the command line with --model." : "");
+      byId("jf-run-model").textContent = f && f.model ? "Model: " + f.model.label : (f ? "No model is recorded for this job. Pick the one to run it with; it is then remembered for this job." : "");
+      runPickEl.hidden = !(f && !f.model);
       runDestEl.value = v && v.destination ? v.destination : "";
       runDestEl.readOnly = !(f && f.hasSend);
       runDestEl.classList.toggle("locked", !(f && f.hasSend));
@@ -4487,6 +4493,19 @@
       for(var i = 0; i < modelLines.length; i += 1){ if(modelLines[i].slot === provider && modelLines[i].model === model){ modelEl.value = String(i); break; } }
       paintThinking();
     }
+    // M4d amendment 7b: an old signed flow with no recorded model is run with the model picked here. This menu is the New job menu's twin:
+    // the same ticked lines (values are indexes into `modelLines`), the pick kept across a re-read. Shown only for a flow with no record (paintRunFlow).
+    var runPickEl = byId("jf-run-pick");
+    var runPicked = {provider: "", model: ""};   // what the person chose here, by identity (the indexes change when the list is re-read)
+    function runPickChoice(){
+      var l = runPickEl.hidden ? null : modelLines[Number(runPickEl.value)];
+      return l ? {provider: l.slot, model: l.model} : {provider: "", model: ""};
+    }
+    runPickEl.addEventListener("change", function(){ runPicked = runPickChoice(); });
+    function syncRunPick(){
+      runPickEl.innerHTML = modelEl.innerHTML; runPickEl.disabled = modelEl.disabled;
+      for(var i = 0; i < modelLines.length; i += 1){ if(modelLines[i].slot === runPicked.provider && modelLines[i].model === runPicked.model){ runPickEl.value = String(i); break; } }
+    }
     // `tries` counts the reads that failed in a row (a click passes an Event, which is not a number: that is a fresh read).
     // A failed read never leaves the menu blank: it says so and reads again by itself, a few times, so the first load fills it.
     function loadModel(tries){
@@ -4497,6 +4516,7 @@
         var o = document.createElement("option"); o.value = "";
         o.textContent = failed < 5 ? "Could not read your models. Trying again\u2026" : "Could not read your models. Reload the page.";
         modelEl.appendChild(o);
+        syncRunPick();
         if(failed < 5) setTimeout(function(){ loadModel(failed + 1); }, 1500);
       }
       authorGet("/api/author/models").then(function(j){
@@ -4512,6 +4532,7 @@
           modelLines.forEach(function(l, i){ var o = document.createElement("option"); o.value = String(i); o.textContent = l.label; modelEl.appendChild(o); });
         }
         setModelPick(was.provider, was.model);
+        syncRunPick();
       }).catch(function(){ failed += 1; unread(); });
     }
     function setMode(m){

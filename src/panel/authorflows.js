@@ -32,7 +32,7 @@ import {
 import { checkValues } from './authorvalues.js';
 import { getRunControls } from './data.js';
 import { providerKeys } from './spawn.js';
-import { readModelRecord } from '../flowmodel.js';
+import { readModelRecord, writeModelRecord } from '../flowmodel.js';
 
 /** M6 amendment 1: the sentence the page shows and the sign route refuses with, for a job with a run running or waiting at its ask. @param {string} runId */
 export const editBlockedSay = (runId) => `finish or stop ${runId} first`;
@@ -40,33 +40,35 @@ export const editBlockedSay = (runId) => `finish or stop ${runId} first`;
 export const EDIT_STARTING_SAY = 'a run is starting';
 const NO_LIMIT = 'no monthly limit set';
 /** The body keys a run start takes (amendment 5 item 2): the open boxes plus the hash of the second click. Any other key is refused by name. */
-const RUN_KEYS = ['flow', 'inputs', 'runId', 'destination', 'capUsd', 'askWaits', 'hash'];
+const RUN_KEYS = ['flow', 'inputs', 'runId', 'destination', 'capUsd', 'askWaits', 'hash', 'provider', 'model'];
 
 /**
  * What the Run / Resume forms show of a signed flow (read from its own files, never from a model): the job lines as the signed text has them
  * (an ask line carries its question and its wait), the values the open boxes start from, and the cap floor. Amendment 5 item 2: all the rest is dimmed.
  * @param {any} read `readFlow`'s ok result @param {string} [home] the config home Settings is read from @param {string} [flowDir] the signed flow's folder: the model recorded beside it is the one it runs with (M4d amendment 6)
+ * @param {{ slot: string, model: string }|null} [picked] a flow with no record runs with the model picked in Chat (M4d amendment 7b): its price is the cap floor
  */
-export function formFacts(read, home, flowDir) {
+export function formFacts(read, home, flowDir, picked = null) {
   const asks = new Map((read.arbiter.asks ?? []).map((a) => [a.line, a]));
   const values = flowValues(read.arbiter);
   const jobLines = read.lines.map((l) => ({
     n: l.n, text: l.text, guardrail: l.guardrail || null, ask: asks.has(l.n) ? { wait: values.askWaits[String(l.n)] } : null,
   }));
   const hasRound = read.declaration.steps.some((st) => !asks.has(st.fromLine));
-  const pick = flowDir === undefined ? null : readModelRecord(flowDir);
+  const recorded = flowDir === undefined ? null : readModelRecord(flowDir);
+  const pick = recorded ?? picked;
   return {
     values, jobLines, hasSend: values.destination !== null, capFloorUsd: capFloorFor(hasRound, home, pick), floorText: capFloorText(capFloorFor(hasRound, home, pick)),
-    model: pick === null ? null : { slot: pick.slot, model: pick.model, label: `${pick.slot} · ${pick.model}` },
+    model: recorded === null ? null : { slot: recorded.slot, model: recorded.model, label: `${recorded.slot} · ${recorded.model}` },
   };
 }
 
 /**
- * @param {{ root: string, home?: string, skipMonthly?: boolean, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null }, starter: ReturnType<typeof import('./authorstart.js').createStarter>, monthlyClaim: (usd: number) => any }} opts
+ * @param {{ root: string, home?: string, skipMonthly?: boolean, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null }, starter: ReturnType<typeof import('./authorstart.js').createStarter>, monthlyClaim: (usd: number) => any, modelRefusal: (card: any, loaded: any) => { field: string, say: string }[] }} opts
  */
 export function createFlowsDoor(opts) {
   const {
-    root, home, skipMonthly = false, loadEnv, starter, monthlyClaim,
+    root, home, skipMonthly = false, loadEnv, starter, monthlyClaim, modelRefusal,
   } = opts;
 
   /** What is left of the monthly limit, as a courtesy line: the limit minus this month's counted spend (holds are the CLI's business). */
@@ -166,9 +168,10 @@ export function createFlowsDoor(opts) {
   /**
    * Every $0 check of a run start, shared by `runPrepare` (the first click) and `run`. `{ok:false, reply}` or the facts a start needs.
    * Amendment 5 items 2-4: the open boxes are Inputs, Destination, Cap $ and each ask's wait; anything else in the body is refused by name.
-   * @param {any} body
+   * @param {any} body @param {any} loaded the keys load
    */
-  function inspect(body, keys) {
+  function inspect(body, loaded) {
+    const keys = providerKeys(loaded);
     const reply = (status, b) => ({ ok: /** @type {false} */ (false), reply: { status, body: { ok: false, ...b } } });
     const realRoot = realRootOrNull();
     if (realRoot === null) return reply(400, { refused: 'root', say: 'The flows folder this panel serves does not exist.' });
@@ -184,12 +187,16 @@ export function createFlowsDoor(opts) {
       const red = scrub(String(can.red), keys);
       return reply(409, { refused: 'flow', say: willNotRunSay(flow, red), refusals: [{ field: 'flow', say: willNotRunSay(flow, red) }] });
     }
+    // M4d amendment 7b: a flow with no recorded model takes the one picked in Chat (checked now, at the click); a flow with a record keeps it and ignores the body's pick
+    const noRecord = readModelRecord(join(realRoot, flow)) === null;
+    const modelReds = noRecord ? modelRefusal({ provider: body?.provider, model: body?.model }, loaded) : [];
+    const newPick = noRecord && modelReds.length === 0 ? { slot: body.provider, model: body.model } : null;
     const checked = checkValues({
-    allowedKeys: RUN_KEYS, body, base: flowValues(read.arbiter), realRoot, capOnly: false, floorUsd: formFacts(read, home, join(realRoot, flow)).capFloorUsd, monthlyClaim,
+    allowedKeys: RUN_KEYS, body, base: flowValues(read.arbiter), realRoot, capOnly: false, floorUsd: formFacts(read, home, join(realRoot, flow), newPick).capFloorUsd, monthlyClaim,
     });
     if (!checked.ok && checked.refused) return reply(checked.status, { refused: checked.refused, say: checked.say, refusals: checked.refusals });
     /** @type {{field: string, say: string}[]} */
-    const refusals = checked.ok ? [] : [...checked.refusals];
+    const refusals = checked.ok ? [...modelReds] : [...checked.refusals, ...modelReds];
     if (!checked.ok && checked.status === 409) return reply(409, { refused: 'monthly', say: checked.say });
     const rows = runInputRows(body?.inputs);
     refusals.push(...checkInputRows(rows));
@@ -210,7 +217,7 @@ export function createFlowsDoor(opts) {
     flow, flowSignatureHash: read.signature.flow, runId: null, version: 0, values: checked.values,
     });
     return {
-    ok: /** @type {true} */ (true), flow, read, declared, rows, runId, values: checked.values, differs: checked.differs, hash,
+    ok: /** @type {true} */ (true), flow, read, declared, rows, runId, values: checked.values, differs: checked.differs, hash, newPick, flowDir: join(realRoot, flow),
     };
   }
 
@@ -316,7 +323,7 @@ export function createFlowsDoor(opts) {
      * @param {any} body
      */
     runPrepare(body) {
-      const s = inspect(body, providerKeys(loadEnv()));
+      const s = inspect(body, loadEnv());
       if (!s.ok) return s.reply;
       return {
         status: 200, body: {
@@ -334,7 +341,7 @@ export function createFlowsDoor(opts) {
     run(body) {
       const loaded = loadEnv();
       if (!loaded.ok) return { status: 409, body: { ok: false, refused: 'keys-file', say: String(loaded.refusal) } };
-      const s = inspect(body, providerKeys(loaded));
+      const s = inspect(body, loaded);
       if (!s.ok) return s.reply;
       let values = null;
       if (s.differs) {
@@ -348,9 +355,14 @@ export function createFlowsDoor(opts) {
           flow: s.flow, flowSignatureHash: s.read.signature.flow, version: 0, values: s.values, hash: s.hash, signedBy: userInfo().username, at: new Date().toISOString(),
         };
       }
-      return starter.start({
-        kind: 'run', flow: s.flow, runId: s.runId, sources: s.declared.map((role) => ({ role, path: /** @type {{path: string}} */ (s.rows.find((r) => r.role === role)).path })), values,
+      const started = starter.start({
+        kind: 'run', flow: s.flow, runId: s.runId, sources: s.declared.map((role) => ({ role, path: /** @type {{path: string}} */ (s.rows.find((r) => r.role === role)).path })), values, pick: s.newPick,
       }, loaded);
+      // M4d amendment 7b: the pick of a flow that had no record is written only once the start succeeded (a refused start leaves none), beside the signed files, never in them
+      if (started.status === 202 && s.newPick !== null) {
+        try { writeModelRecord(s.flowDir, s.newPick); } catch { /* a record that appeared meanwhile stays: written once */ }
+      }
+      return started;
     },
   };
 }

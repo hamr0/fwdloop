@@ -100,7 +100,7 @@ export function createAuthor(opts) {
   // the ONE run-start path (sign and run both end in `starter.start`) and the Run-a-signed-flow door built on it
   const starter = createStarter({ root, bin });
   const flowsDoor = createFlowsDoor({
-    root, home, skipMonthly, loadEnv, starter, monthlyClaim: (usd) => monthlyClaim(usd),
+    root, home, skipMonthly, loadEnv, starter, monthlyClaim: (usd) => monthlyClaim(usd), modelRefusal: (card, loaded) => modelRefusal(card, loaded),
   });
 
   /** The ONE monthly check, defined below (a function declaration, so the doors above may take it now). */

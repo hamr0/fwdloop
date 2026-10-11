@@ -127,12 +127,12 @@ export function createStarter(opts) {
      * `runId` '' = no typed id: the start CLAIMS the next `run-<n>` itself (claimRunId, folder created exclusively; amendment 3).
      * `values` (M4e amendment 5 item 3): the human's signed values for THIS run (the page's second click), written once into the run's own
      * folder as `signed-values.json` BEFORE the spawn; the run then uses them (`pickRunValues`). None = the flow's own.
-     * @param {{ kind: 'run'|'sign', flow: string, runId: string, sources: {role: string, path: string}[], values?: any }} a
+     * @param {{ kind: 'run'|'sign', flow: string, runId: string, sources: {role: string, path: string}[], values?: any, pick?: {slot: string, model: string}|null }} a
      * @param {{ env: Record<string, string|undefined>, keyNames?: string[] }} loaded the keys load: its env is the child's env AND (with its key names) the scrub list
      * @returns {{ status: number, body: any }}
      */
     start({
-      kind, flow, runId, sources, values = null,
+      kind, flow, runId, sources, values = null, pick = null,
     }, loaded) {
       const { env } = loaded;
       const sd = startsDir();
@@ -175,7 +175,7 @@ export function createStarter(opts) {
       writeFileSync(join(dir, 'start.json'), `${JSON.stringify({
         kind, flow, runId, sources, startedAt: new Date().toISOString(),
       }, null, 2)}\n`, { mode: 0o600 });
-      const argv = ['run', flow, '--root', realpathSync(root), ...sources.flatMap((s) => ['--source', `${s.role}=${s.path}`]), '--run-id', runId];
+      const argv = ['run', flow, '--root', realpathSync(root), ...sources.flatMap((s) => ['--source', `${s.role}=${s.path}`]), '--run-id', runId, ...(pick ? ['--model', pick.model, '--provider', pick.slot] : [])]; // M4d am7b: a flow with no record runs with the model picked in Chat
       let child;
       try {
         child = spawnDetached({

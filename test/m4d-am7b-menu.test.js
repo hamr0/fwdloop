@@ -19,9 +19,9 @@ function harness(replies) {
   let n = 0;
   const authorGet = () => { const r = replies[Math.min(n, replies.length - 1)]; n += 1; return r === 'fail' ? Promise.reject(new Error('net')) : Promise.resolve(r); };
   const state = { modelLines: [], picks: [] };
-  const mk = new Function('modelEl', 'document', 'authorGet', 'modelPick', 'setModelPick', 'setTimeout', 'state',
+  const mk = new Function('modelEl', 'document', 'authorGet', 'modelPick', 'setModelPick', 'setTimeout', 'syncRunPick', 'state',
     `var modelLines = state.modelLines; ${SRC.replace('modelLines = j.lines || [];', 'modelLines = state.modelLines = j.lines || [];')}\n return loadModel;`);
-  const loadModel = mk(el, doc, authorGet, () => ({ provider: '', model: '' }), (p, m) => state.picks.push([p, m]), (f, ms) => { timers.push([f, ms]); return timers.length; }, state);
+  const loadModel = mk(el, doc, authorGet, () => ({ provider: '', model: '' }), (p, m) => state.picks.push([p, m]), (f, ms) => { timers.push([f, ms]); return timers.length; }, () => {}, state);
   const text = () => el.kids.map((k) => k.textContent).join('|');
   const settle = () => new Promise((r) => { setImmediate(r); });
   return { el, loadModel, timers, text, settle, calls: () => n };
