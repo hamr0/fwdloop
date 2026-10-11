@@ -93,3 +93,28 @@ test('A8: a draft that never got a plan (provider red) is drafted-failed with it
   assert.deepEqual(shape(l), ['inputs:done:inputs', 'drafted:failed:drafted with deepseek-flash']);
   assert.deepEqual(l[1].details.slice(-1), ['provider-red: timed out']);
 });
+
+// ---- piece B: where the inputs facts come from (one writer: readInputFacts), and that they ride in the draft's log.json ----
+import { writeFileSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
+import { readInputFacts } from '../src/input-facts.js';
+import { draft } from '../src/drafter.js';
+import { RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply } from './drafter-fixture.mjs';
+
+test('B1: readInputFacts lists one {role, detail} per input: a CSV says its columns, text says its headings', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'fwdloop-am10-'));
+  const csv = path.join(dir, 'aging.csv'); const md = path.join(dir, 'jd.md');
+  writeFileSync(csv, 'a,b,c\n1,2,3\n'); writeFileSync(md, '# One\n\n## Two\nx\n');
+  const r = readInputFacts([{ kind: 'file', role: 'aging', path: csv }, { kind: 'file', role: 'jd', path: md }]);
+  assert.deepEqual(r.list, [{ role: 'aging', detail: '3 columns' }, { role: 'jd', detail: '2 headings' }]);
+});
+
+test('B2: draft() returns the input list; the declaration (hashed) is unchanged by it', async () => {
+  const fx = job2Fixture();
+  const r = await draft({ proseText: fx.prose, provider: fakeProvider([toolReply(validArgs())]), rates: RATES, modelId: MODEL });
+  assert.equal(r.ok, true, r.reds.join('\n'));
+  assert.deepEqual(r.inputs.map((i) => i.role).sort(), ['jd', 'resume']);
+  assert.equal(Object.hasOwn(r.declaration, 'inputs'), false);
+});

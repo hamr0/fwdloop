@@ -13,15 +13,19 @@
 import { readFileSync } from 'node:fs';
 import { readDocxText, readDocxHeadings } from './docx.js';
 import { isCellsPath } from './closers.js';
+import { parseCsv } from './csv.js';
 
 /**
  * @param {Array<{kind?:string, role:string, path:string}>} sources arbiter.sources
- * @returns {{ok:boolean, inputFacts:Record<string,string[]>, info:string[], reds:string[]}}
+ * `list` (M4d am10) is one `{role, detail}` per readable input for the Chat card's list (a CSV: its columns; text: its headings); never hashed.
+ * @returns {{ok:boolean, inputFacts:Record<string,string[]>, info:string[], list:Array<{role:string, detail:string}>, reds:string[]}}
  */
 export function readInputFacts(sources) {
   /** @type {Record<string,string[]>} */
   const inputFacts = {};
   const info = [];
+  const list = [];
+  const headingsDetail = (n) => `${n} heading${n === 1 ? '' : 's'}`;
   const reds = [];
   for (const s of sources ?? []) {
     if (s.kind !== 'file') continue;
@@ -32,6 +36,7 @@ export function readInputFacts(sources) {
       if (!h.ok) { reds.push(`input "${s.role}": ${h.red}`); continue; }
       const words = r.text.trim() === '' ? 0 : r.text.trim().split(/\s+/).length;
       inputFacts[s.role] = h.headings;
+      list.push({ role: s.role, detail: headingsDetail(h.headings.length) });
       info.push(`- ${s.role}: a .docx file, ${r.paragraphs} paragraphs, ~${words} words, headings: ${h.headings.join(', ') || '(none)'} (read it with "readDocx")`);
     } else {
       let raw;
@@ -39,10 +44,11 @@ export function readInputFacts(sources) {
       if (raw.trim() === '') { reds.push(`input "${s.role}": "${s.path}" is empty`); continue; }
       const headings = raw.split(/\r?\n/).filter((l) => /^#{1,6}\s+\S/.test(l)).map((l) => l.replace(/^#{1,6}\s*/, '').trim());
       inputFacts[s.role] = headings;
+      list.push({ role: s.role, detail: isCellsPath(s.path) ? `${parseCsv(raw).header.length} columns` : headingsDetail(headings.length) });
       info.push(isCellsPath(s.path)
         ? `- ${s.role}: a CSV file with cells (a step reads it by listing "${s.role}" in its reads; or with "read")`
         : `- ${s.role}: a text/markdown file, ~${raw.trim().split(/\s+/).length} words, headings: ${headings.join(', ') || '(none)'} (read it with "read")`);
     }
   }
-  return { ok: reds.length === 0, inputFacts, info, reds };
+  return { ok: reds.length === 0, inputFacts, info, list, reds };
 }
