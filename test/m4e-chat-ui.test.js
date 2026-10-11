@@ -101,9 +101,9 @@ test('field set: the New job card has exactly the signed boxes (+ the Model menu
   assert.match(SECTION, /name="jf-mode" value="new" checked/);
   assert.match(SECTION, /Where the accepted result is placed/);
   assert.match(SECTION, /Only your click signs\./);
-  // amendment 2 item 4: Flow name, The job, Destination, Inputs, then Cap $ with Ask wait (default 1h) in one row
+  // amendment 2 item 4: Flow name, The job, Inputs, Destination (hamr 2026-10-11: Destination below Inputs), then Cap $ with Ask wait (default 1h) in one row
   const at = (needle) => SECTION.indexOf(needle);
-  assert.ok(at('id="jf-name"') < at('id="jf-job"') && at('id="jf-job"') < at('id="jf-dest-folder"') && at('id="jf-dest-folder"') < at('id="jf-inputs"') && at('id="jf-inputs"') < at('id="jf-cap-money"') && at('id="jf-cap-money"') < at('id="jf-ask-wait"'));
+  assert.ok(at('id="jf-name"') < at('id="jf-job"') && at('id="jf-job"') < at('id="jf-inputs"') && at('id="jf-inputs"') < at('id="jf-dest-folder"') && at('id="jf-dest-folder"') < at('id="jf-cap-money"') && at('id="jf-cap-money"') < at('id="jf-ask-wait"'));
   assert.match(SECTION, /id="jf-ask-wait" type="text" value="1h"/);
   assert.doesNotMatch(SECTION, /jf-dest-line|jf-add-input/);
   assert.match(CHAT, /borrowed-from: bareloop src\/panel\/index\.html@ca7195e/);
