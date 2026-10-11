@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import http from 'node:http';
-import { draft, MAX_STRUCTURE_RETRIES, MAX_REVISIONS, DRAFT_PROVIDER_OPTIONS } from '../src/drafter.js';
+import { draft, MAX_STRUCTURE_RETRIES, MAX_REVISIONS } from '../src/drafter.js';
 import { buildDeclarationSchema } from '../src/drafter.js';
 import { ceilingCostUsd, makeProvider } from '../src/provider.js';
 import { wiredMenu } from '../src/primitives.js';
@@ -70,11 +70,11 @@ test('(c) malformed JSON -> a structure retry, both rounds metered', async () =>
 
 test('(c2) truncation is named truncation, not "no tool call"; structure retries are capped', async () => {
   const p = fakeProvider([truncatedReply()]);
-  const r = await run(p);
+  const r = await run(p, { budgetUsd: 5 });
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'structure');
   assert.equal(r.structureRetries, MAX_STRUCTURE_RETRIES);
-  assert.equal(r.rounds, 1 + MAX_STRUCTURE_RETRIES);
+  assert.equal(r.rounds, MAX_REVISIONS + 1 + MAX_STRUCTURE_RETRIES, 'M4d am3 A3: two cut-offs are two failed tries, try 3 then has its structure retries');
   assert.match(r.reds[0], /^truncated:/);
 });
 
@@ -129,12 +129,6 @@ test('$0 gates: bad prose and an unreadable source refuse before any provider ca
   assert.match(gone.reds[0], /input "jd": cannot read file/);
   assert.equal(p.calls.length, 0);
   assert.equal(bad.costUsd, 0);
-});
-
-// F49: the drafter's live makeProvider options must disable DeepSeek thinking.
-test('drafter live-provider options disable thinking (F49) and keep the live timeouts', () => {
-  assert.deepEqual(DRAFT_PROVIDER_OPTIONS.thinking, { type: 'disabled' });
-  assert.equal(DRAFT_PROVIDER_OPTIONS.timeoutMs, 300_000);
 });
 
 // F49, end to end: draft()'s own live-provider path must put thinking:{type:'disabled'} on the wire.

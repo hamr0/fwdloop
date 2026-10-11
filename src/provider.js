@@ -415,6 +415,31 @@ export function checkKeyPreflight(slotName, env = process.env) {
 }
 
 /**
+ * The drafter's THINKING knob (M4d amendment 3, A1). A mode is an operator param, never model output.
+ * 'on' sends nothing; 'off' sends the allow-listed per-model options (F49: deepseek-flash 400s on a forced
+ * tool_choice in thinking mode, so its entry disables thinking). A model not listed gets nothing sent.
+ */
+export const DRAFT_THINKING_MODES = Object.freeze(['on', 'off']);
+// borrowed-from: bareloop src/providers.js@2330f1e
+const OPENAI_DRAFT_OFF_OPTIONS = Object.freeze({
+  'deepseek-flash': Object.freeze({ thinking: Object.freeze({ type: 'disabled' }) }),
+});
+
+/**
+ * The ONE owner of the options a DRAFTING call carries for thinking. Any mode but 'on' | 'off' throws.
+ * @param {{shape: string, model: string}} target
+ * @param {unknown} [mode] default 'off'
+ * @returns {Record<string, any>}
+ */
+export function draftCallOptions({ shape, model }, mode = 'off') {
+  if (!DRAFT_THINKING_MODES.includes(/** @type {any} */ (mode))) {
+    throw new Error(`draftThinking must be one of ${DRAFT_THINKING_MODES.join(' | ')}, got ${JSON.stringify(mode)}`);
+  }
+  if (mode === 'on' || shape !== 'openai-api') return {};
+  return Object.hasOwn(OPENAI_DRAFT_OFF_OPTIONS, model) ? { ...OPENAI_DRAFT_OFF_OPTIONS[model] } : {};
+}
+
+/**
  * Build a provider for the given slot. Throws (never defaults) on an
  * unknown slot, a missing/bad env key, or a model with no hand-entered
  * rate. Returns `{ provider, rates, modelId, suffix, slot }`.
@@ -425,15 +450,16 @@ export function checkKeyPreflight(slotName, env = process.env) {
  * values this project uses.
  *
  * @param {string} slotName
- * @param {{ model?: string, timeoutMs?: number, deadlineMs?: number, thinking?: object|null, env?: Record<string,string|undefined>, configHome?: string }} [options]
+ * @param {{ model?: string, timeoutMs?: number, deadlineMs?: number, thinking?: object|null, draftThinking?: 'on'|'off', env?: Record<string,string|undefined>, configHome?: string }} [options]
  *   `configHome` (a test) is where `config.json` prices are read; default: the door's home (`readPriceConfig`).
  *   `env` (M4d: the merged shell+keys-file env; default process.env) is where the key is read.
  *   `thinking` (bare-agent >=0.49) is sent verbatim as body.thinking; unset/null leaves the body unchanged.
+ *   `draftThinking` (drafting only) wins over `thinking` and is turned into it by `draftCallOptions`.
  * @returns {{ provider: any, rates: {in:number, out:number, cacheReadMult?:number}, modelId: string, suffix: string|null, slot: string, prices: ReturnType<typeof resolvePrices> }}
  */
 export function makeProvider(slotName, options = {}) {
   const {
-    model, timeoutMs, deadlineMs, thinking, env = process.env, configHome,
+    model, timeoutMs, deadlineMs, thinking: thinkingOpt, draftThinking, env = process.env, configHome,
   } = options;
   if (!Object.hasOwn(PROVIDER_SLOTS, slotName)) {
     throw new Error(`unknown provider slot "${slotName}" — known slots: ${Object.keys(PROVIDER_SLOTS).join(', ')}`);
@@ -454,6 +480,8 @@ export function makeProvider(slotName, options = {}) {
   const { rates } = prices;
   const suffix = prices.suffix;
 
+  // Drafting only: `draftThinking` ('on'|'off') is turned into the wire field by the ONE owner, draftCallOptions.
+  const thinking = draftThinking === undefined ? thinkingOpt : draftCallOptions({ shape: slot.shape, model: modelId }, draftThinking).thinking;
   const common = {
     apiKey,
     model: modelId,

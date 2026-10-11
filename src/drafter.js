@@ -21,7 +21,9 @@ import { validateDeclaration, SHAPE_KEYS, checkGuardrailSums, guardrailWordsPerS
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { readInputFacts } from './input-facts.js';
-import { makeProvider, sumMeterings, ceilingCostUsd, priceRecord } from './provider.js';
+import {
+  makeProvider, sumMeterings, ceilingCostUsd, priceRecord, draftCallOptions,
+} from './provider.js';
 import { LIVE_PROVIDER_OPTIONS } from './model-step.js';
 import { ConfigError } from './config.js';
 
@@ -260,9 +262,6 @@ function reviseMessage(reds) {
 
 function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 
-// F49: deepseek-flash 400s on a forced tool_choice in thinking mode; the drafter forces its tool, so disable thinking.
-export const DRAFT_PROVIDER_OPTIONS = Object.freeze({ ...LIVE_PROVIDER_OPTIONS, thinking: Object.freeze({ type: 'disabled' }) });
-
 /**
  * Draft one declaration. `provider`/`rates`/`modelId` may be injected (tests,
  * the batch); otherwise a live provider is built from `slot` (throws on a bad
@@ -279,13 +278,15 @@ export const DRAFT_PROVIDER_OPTIONS = Object.freeze({ ...LIVE_PROVIDER_OPTIONS, 
  */
 export async function draft({
   proseText, slot = 'deepseek', model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
-  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true,
+  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = 'off',
 }) {
   const fail = (reds, extra = {}) => ({
     ok: false, declaration: null, reds, rounds: 0, calls: 0, spendComplete: true, costUsd: 0, modelReturned: null, structureRetries: 0, revisions: 0, stop: 'pre-flight', log: [], ...extra,
   });
 
   // ---- $0 gates, before any provider is built -------------------------------
+  // `draftThinking` ('on'|'off', M4d am3 A1) is turned into the wire field by provider.js's draftCallOptions, the one owner (F49 lives there).
+  try { draftCallOptions({ shape: '', model: '' }, draftThinking); } catch (err) { return fail([`config: ${err.message}`]); }
   const parsed = parseSignedText(proseText);
   if (!parsed.ok) return fail(parsed.reds.map((r) => `signed-text: ${r}`));
   const { lines, arbiter } = parsed;
@@ -304,7 +305,7 @@ export async function draft({
     try {
       ({
         provider, rates, modelId, prices = null,
-      } = makeProviderFn(slot, { model, env, ...DRAFT_PROVIDER_OPTIONS }));
+      } = makeProviderFn(slot, { model, env, ...LIVE_PROVIDER_OPTIONS, draftThinking }));
     } catch (err) {
       return fail([`${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`]);
     }
@@ -399,6 +400,19 @@ export async function draft({
       entry.outcome = `structure: ${why}`;
       log.push(entry);
       lastReds = [why];
+      // M4d am3 A3: a round cut off at the output cap before tries 1 and 2 are spent is a FAILED TRY, advancing the same counter a
+      // validator red does, so the try-3 question can open. A cut-off names no line, so then every job line may be asked about.
+      if (result?.stopReason === 'max_tokens' && revisions < MAX_REVISIONS) {
+        revisions += 1;
+        nextKind = 'revision';
+        userText = `Your last reply was cut off at the output limit before a complete tool call. Call ${TOOL} now with a complete, valid JSON declaration.`;
+        if (validatorReds.length) userText += `\n\nThe last declaration you emitted was still refused by the validator; keep fixing these too:\n${validatorReds.map((r) => `- ${r}`).join('\n')}`;
+        if (offerQuestions && revisions === MAX_REVISIONS) {
+          failedLines = lineNums;
+          userText += `\n\n${QUESTIONS_PROMPT}`;
+        }
+        continue;
+      }
       if (structureRetries >= MAX_STRUCTURE_RETRIES) { stop = 'structure'; break; }
       structureRetries += 1;
       nextKind = 'structure-retry';
