@@ -44,9 +44,9 @@ const RUN_KEYS = ['flow', 'inputs', 'runId', 'destination', 'capUsd', 'askWaits'
 /**
  * What the Run / Resume forms show of a signed flow (read from its own files, never from a model): the job lines as the signed text has them
  * (an ask line carries its question and its wait), the values the open boxes start from, and the cap floor. Amendment 5 item 2: all the rest is dimmed.
- * @param {any} read `readFlow`'s ok result
+ * @param {any} read `readFlow`'s ok result @param {string} [home] the config home Settings is read from
  */
-export function formFacts(read) {
+export function formFacts(read, home) {
   const asks = new Map((read.arbiter.asks ?? []).map((a) => [a.line, a]));
   const values = flowValues(read.arbiter);
   const jobLines = read.lines.map((l) => ({
@@ -54,7 +54,7 @@ export function formFacts(read) {
   }));
   const hasRound = read.declaration.steps.some((st) => !asks.has(st.fromLine));
   return {
-    values, jobLines, hasSend: values.destination !== null, capFloorUsd: capFloorFor(hasRound), floorText: capFloorText(capFloorFor(hasRound)),
+    values, jobLines, hasSend: values.destination !== null, capFloorUsd: capFloorFor(hasRound, home), floorText: capFloorText(capFloorFor(hasRound, home)),
   };
 }
 
@@ -182,7 +182,7 @@ export function createFlowsDoor(opts) {
       return reply(409, { refused: 'flow', say: willNotRunSay(flow, red), refusals: [{ field: 'flow', say: willNotRunSay(flow, red) }] });
     }
     const checked = checkValues({
-    allowedKeys: RUN_KEYS, body, base: flowValues(read.arbiter), realRoot, capOnly: false, floorUsd: formFacts(read).capFloorUsd, monthlyClaim,
+    allowedKeys: RUN_KEYS, body, base: flowValues(read.arbiter), realRoot, capOnly: false, floorUsd: formFacts(read, home).capFloorUsd, monthlyClaim,
     });
     if (!checked.ok && checked.refused) return reply(checked.status, { refused: checked.refused, say: checked.say, refusals: checked.refusals });
     /** @type {{field: string, say: string}[]} */
@@ -239,7 +239,7 @@ export function createFlowsDoor(opts) {
     return {
       flow: name, capUsd: read.arbiter.capUsd, roles, nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
       runs: passed, stats,
-      ...formFacts(read),
+      ...formFacts(read, home),
       // M6: the job as a card to edit (`ok:true, card, flowHash` = the signature hash it is opened at), or why it cannot be (`ok:false, say`)
       edit: (() => {
         const blocked = editBlockOf(realRoot, name);

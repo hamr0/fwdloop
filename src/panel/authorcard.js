@@ -290,18 +290,18 @@ export function checkInputRows(rows) {
  * `spent + ceiling > cap` (`runStepRalph`), and every ordinary (non-ask) step is a model step, so the floor is the runner's own
  * per-round hold (the picked model's own Settings prices times the token bounds) as soon as the job has one such line; a job of only asks spends nothing before its stop.
  * ONE function: the card's Draft check, Sign, and the page's note all read it. Returns 0 when no step needs a round.
- * @param {string} jobText
+ * @param {string} jobText @param {string} [home] the config home the panel reads Settings from (default: the process door)
  */
-export function capFloorUsd(jobText) {
-  return capFloorFor(parseJobBox(jobText).steps.some((s) => s.ask === null));
+export function capFloorUsd(jobText, home) {
+  return capFloorFor(parseJobBox(jobText).steps.some((s) => s.ask === null), home);
 }
 
-/** The floor itself, for a caller that already knows whether the job has a step that is not an ask (a signed flow: any step off an ask line). @param {boolean} hasRoundStep */
-export function capFloorFor(hasRoundStep) {
+/** The floor itself, for a caller that already knows whether the job has a step that is not an ask (a signed flow: any step off an ask line). @param {boolean} hasRoundStep @param {string} [home] */
+export function capFloorFor(hasRoundStep, home) {
   if (!hasRoundStep) return 0;
   // No usable model (nothing ticked, a broken config): nothing is held here, and the run itself is refused by name (`resolveUsableModel`).
   try {
-    const u = resolveUsableModel(MODEL_SLOT, { config: readPriceConfig() });
+    const u = resolveUsableModel(MODEL_SLOT, { config: readPriceConfig(home) });
     return u.ok ? ceilingCostUsd(u.rates) : 0;
   } catch { return 0; }
 }
@@ -327,10 +327,10 @@ export function destinationRefusal(dest, root) {
 /**
  * Every $0 check on the card, before any spawn (scope 6). Collects all refusals so the page can name every box.
  * @param {ReturnType<typeof cardFields>} card
- * @param {{ root: string, env?: Record<string, string|undefined> }} ctx `env` = the merged keys env: a key value typed into any box is refused
+ * @param {{ root: string, env?: Record<string, string|undefined>, home?: string }} ctx `env` = the merged keys env: a key value typed into any box is refused; `home` = the config home Settings is read from (the cap floor)
  * @returns {{ ok: true, prose: string }|{ ok: false, refusals: {field: string, say: string}[] }}
  */
-export function checkCard(card, { root, env = {} }) {
+export function checkCard(card, { root, env = {}, home }) {
   /** @type {{field: string, say: string}[]} */
   const refusals = [];
   const no = (field, say) => refusals.push({ field, say });
@@ -361,7 +361,7 @@ export function checkCard(card, { root, env = {} }) {
   // cap
   if (typeof card.capUsd === 'string' || typeof card.capUsd === 'number') {
     if (!(Number.isFinite(Number(card.capUsd)) && Number(card.capUsd) > 0)) no('capUsd', 'The cap must be a number above 0 (dollars per run).');
-    else if (Number(card.capUsd) < capFloorUsd(card.job)) no('capUsd', capFloorText(capFloorUsd(card.job)));
+    else if (Number(card.capUsd) < capFloorUsd(card.job, home)) no('capUsd', capFloorText(capFloorUsd(card.job, home)));
   } else no('capUsd', 'The cap must be a number above 0 (dollars per run).');
 
   // destination: one folder, or empty for no send (it is sent at the last step)

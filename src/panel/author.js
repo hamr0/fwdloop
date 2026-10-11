@@ -100,7 +100,7 @@ export function createAuthor(opts) {
 
   /** The ONE monthly check, defined below (a function declaration, so the doors above may take it now). */
   const resumeDoor = createResumeDoor({
-    root, loadEnv, monthlyClaim: (usd) => monthlyClaim(usd), starter,
+    root, home, loadEnv, monthlyClaim: (usd) => monthlyClaim(usd), starter,
   });
 
   /** The drafts folder's real path, or null when the flows root does not exist. */
@@ -290,7 +290,7 @@ export function createAuthor(opts) {
    */
   function vetCard(body, loaded) {
     const card = cardFields(body);
-    const checked = checkCard(card, { root: realpathSync(root), env: loaded.env });
+    const checked = checkCard(card, { root: realpathSync(root), env: loaded.env, home });
     if (!checked.ok) return { ok: false, reply: { status: 400, body: { ok: false, refused: 'card', refusals: checked.refusals } } };
     // amendment 4 item 1: a cap that does not fit this month refuses here too, at $0, with the one refusal text (the page's red note is only a courtesy)
     const claim = monthlyClaim(Number(card.capUsd));
@@ -316,7 +316,7 @@ export function createAuthor(opts) {
      */
     monthlyCheck(cap, spent = null) {
       const n = Number(cap);
-      const floorUsd = capFloorUsd('x');
+      const floorUsd = capFloorUsd('x', home);
       if (typeof cap !== 'string' || cap.trim() === '' || !Number.isFinite(n) || n <= 0) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText: capFloorText(floorUsd) } };
       // a Resume (amendment 4 item 1): only what the run still has to spend is held, so the note asks for `cap - spent`; a cap not above
       // what is spent says so in the door's own words (red)
@@ -412,7 +412,7 @@ export function createAuthor(opts) {
       const { v, name, dir } = seen;
       const b = body && typeof body === 'object' ? body : {};
       // amendment 4 item 2: a cap that cannot fund one round of the first model step is never signed (it would cap-halt at $0 spent)
-      const floor = capFloorUsd(typeof v.card.job === 'string' ? v.card.job : '');
+      const floor = capFloorUsd(typeof v.card.job === 'string' ? v.card.job : '', home);
       if (Number(v.card.capUsd) < floor) return { status: 400, body: { ok: false, refused: 'cap-too-small', say: capFloorText(floor) } };
       if (typeof b.hash !== 'string' || b.hash !== v.hash) {
         return { status: 409, body: { ok: false, refused: 'stale-hash', say: 'The plan on disk is not the one you were shown (its hash differs). Nothing was signed. Reload and read the plan again.' } };

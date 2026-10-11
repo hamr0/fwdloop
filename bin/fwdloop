@@ -73,6 +73,8 @@ function keyedEnv() {
  * which settles it as "process gone").
  * @returns {{ addRunDir: (d: string) => void, nameRunDir: (d: string) => void }}
  */
+const NO_CONFIG_HOME_REFUSAL = 'NODE_ENV=test is set without FWDLOOP_CONFIG_HOME, so the keys file, prices and monthly limit would be skipped. Nothing spent. Unset NODE_ENV, or set FWDLOOP_CONFIG_HOME.';
+
 function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }) {
   const door = configDoorHome();
   const home = door.home;
@@ -82,7 +84,7 @@ function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }
     // a real provider call here would spend with no keys file, prices, limit or record.
     const hook = what === 'draft' ? 'FWDLOOP_TEST_DRAFT_PROVIDER' : 'FWDLOOP_TEST_MODEL_STEP';
     if (!(process.env.NODE_ENV === 'test' && process.env[hook])) {
-      fail('NODE_ENV=test is set without FWDLOOP_CONFIG_HOME, so the keys file, prices and monthly limit would be skipped. Nothing spent. Unset NODE_ENV, or set FWDLOOP_CONFIG_HOME.');
+      fail(NO_CONFIG_HOME_REFUSAL);
     }
     return { addRunDir: () => {}, nameRunDir: () => {} };
   }
@@ -161,12 +163,17 @@ async function resolveModelStep(spendPath, env) {
     if (typeof mod.default !== 'function') {
       throw new Error(`FWDLOOP_TEST_MODEL_STEP module "${modulePath}" has no default export function`);
     }
-    return { modelStep: await mod.default({ spendPath }) };
+    // A test double has no model of its own. When Settings has one model ticked with both prices its hold applies (so a cap-halt
+    // is exercised the way a live run's is); with none, the double holds nothing. It is never refused here: it spends nothing.
+    const modelStep = await mod.default({ spendPath });
+    const usable = configDoorHome().skip ? null : resolveUsableModel(MODEL_SLOT, { config: readPriceConfig() });
+    return { modelStep, ...(usable?.ok ? { ceilingUsd: ceilingCostUsd(usable.rates) } : {}) };
   }
   const keyCheck = checkKeyPreflight(MODEL_SLOT, env);
   if (!keyCheck.ok) throw new Error(keyCheck.message);
   // The ONE decision of which model runs and at what price (M4d amendment 5): refused by name, at $0, before a
   // run dir or a book row exists. The run's per-round hold is that model's own Settings price times the token bounds.
+  if (configDoorHome().skip) throw new Error(NO_CONFIG_HOME_REFUSAL); // a test process with no config home reads no Settings: say why, not "tick a model"
   const usable = resolveUsableModel(MODEL_SLOT, { config: readPriceConfig() });
   if (!usable.ok) throw new Error(usable.say);
   return {
@@ -798,6 +805,7 @@ async function cmdDraft(rest) {
   try {
     let rates = injected.rates;
     if (!rates) {
+      if (configDoorHome().skip) fail(NO_CONFIG_HOME_REFUSAL);
       const usable = resolveUsableModel(MODEL_SLOT, { config: readPriceConfig() });
       if (!usable.ok) fail(`draft refused at $0 — ${usable.say}`);
       rates = usable.rates;

@@ -31,11 +31,11 @@ import { providerKeys } from './spawn.js';
 const KEYS = ['flow', 'runId', 'capUsd', 'hash'];
 
 /**
- * @param {{ root: string, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null }, monthlyClaim: (usd: number) => any, starter: ReturnType<typeof import('./authorstart.js').createStarter> }} opts
+ * @param {{ root: string, home?: string, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null }, monthlyClaim: (usd: number) => any, starter: ReturnType<typeof import('./authorstart.js').createStarter> }} opts
  */
 export function createResumeDoor(opts) {
   const {
-    root, loadEnv, monthlyClaim, starter,
+    root, home, loadEnv, monthlyClaim, starter,
   } = opts;
 
   /**
@@ -74,7 +74,7 @@ export function createResumeDoor(opts) {
     const hasRound = read.declaration.steps.some((st) => !(read.arbiter.asks ?? []).some((a) => a.line === st.fromLine));
     if (formOnly) return { ok: /** @type {true} */ (true), flow, runId, runDir: rd.runDir, version, base, spentUsd: spent.total, read, hasRound };
     const checked = checkValues({
-      allowedKeys: KEYS, body: b, base, realRoot, capOnly: true, floorUsd: capFloorFor(hasRound), spentUsd: spent.total, monthlyClaim, always: true,
+      allowedKeys: KEYS, body: b, base, realRoot, capOnly: true, floorUsd: capFloorFor(hasRound, home), spentUsd: spent.total, monthlyClaim, always: true,
     });
     if (!checked.ok) {
       return no(checked.status, checked.refused ? { refused: checked.refused, say: checked.say, refusals: checked.refusals } : { refused: 'resume', refusals: checked.refusals, say: checked.refusals[0]?.say ?? 'Not resumed. Fix the marked box.' });
@@ -100,7 +100,7 @@ export function createResumeDoor(opts) {
       const inputsRead = readFileInside(s.runDir, 'inputs.json');
       let inputs = [];
       try { inputs = inputsRead.ok ? JSON.parse(inputsRead.text).map((m) => ({ role: String(m.id), path: String(m.source) })) : []; } catch { inputs = []; }
-      const floorUsd = capFloorFor(s.hasRound);
+      const floorUsd = capFloorFor(s.hasRound, home);
       return {
         status: 200,
         body: {
