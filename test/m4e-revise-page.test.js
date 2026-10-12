@@ -90,8 +90,7 @@ test('item 4: a red revise lists its reds, keeps the edits, and has no Sign & ru
   };
   const s = steps(view, { model: 'm', starting: false, signClicked: false });
   assert.deepEqual(s.map((x) => `${x.id}:${x.status}`), ['drafted:done', 'revise-1:failed'], 'no sign line: nothing is signable');
-  assert.deepEqual(s[1].raw, ['declaration: ask at line 4 is a stop only'], 'the reds once (raw, am41 item 7); the sentence is on the card error line');
-  assert.equal(s[1].details.length, 1);
+  assert.deepEqual([s[1].raw, s[1].details], [undefined, []], 'am15: one line, no details, no raw text; the sentence is on the card error line');
   const mb = load('mainButtonFor');
   const red = { ...green, phase: 'red', left: 1 };
   assert.notEqual(mb(red).action, 'sign-prepare');

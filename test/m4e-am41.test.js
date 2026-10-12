@@ -93,17 +93,16 @@ test('item 7: an unknown red gets the generic plain sentence and still carries i
   assert.equal(plain(null).raw, '');
 });
 
-test('item 7: stepsFor gives a failed step the plain sentences as details and the raw texts beside them; renderProgress folds the raw under "details"', () => {
+test('item 7 (replaced by am15): a failed list line carries no details and no raw text any more (the reason lives in the server\'s line, the history in Audit); renderProgress still draws a fold for any row that has one', () => {
   const plain = load('plainPlanCheck', RULES_PRELUDE);
   const steps = new Function(`${RULES_PRELUDE}\n${fnSrc('plainPlanCheck')}\n${fnSrc('failedDetails')}\n${fnSrc('stepsFor')}\nreturn stepsFor;`)();
   const reds = [KINDS[0], 'zzz'];
   const red = steps({ phase: 'red', reds }, { model: 'm', starting: false });
-  assert.deepEqual(red[1].details, reds.map((x) => plain(x).say));
-  assert.deepEqual(red[1].raw, reds);
+  assert.deepEqual([red[1].details, red[1].raw], [[], undefined]);
+  assert.equal(plain(reds[0]).say.length > 10, true);
   const rev = steps({ phase: 'red', card: {}, reds: [], revises: [{ n: 1, phase: 'red', reds: [KINDS[2]] }] }, { model: 'm', starting: false });
   const f = rev.find((s) => s.id === 'revise-1');
-  assert.deepEqual(f.details, [plain(KINDS[2]).say]);
-  assert.deepEqual(f.raw, [KINDS[2]]);
+  assert.deepEqual([f.details, f.raw], [[], undefined]);
   const rp = fnSrc('renderProgress');
   assert.match(rp, /<details class="step-raw" data-fold=.*<summary>details<\/summary>/);
   assert.match(rp, /escapeXml\(raw\[/);

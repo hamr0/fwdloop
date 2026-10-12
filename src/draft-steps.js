@@ -42,13 +42,14 @@ export function triesOf(rounds) {
 }
 
 /**
- * @param {{ log: any, declaration: any }} p `log` = the draft's log.json (parsed), `declaration` = declaration.json or declaration.rejected.json (parsed)
- * @returns {Array<{ id: string, label: string, status: 'done'|'failed', details: string[], note?: boolean }> | null}
+ * `questionOpen` (am15 item 3): the plan asked a question and the draft has NOT ended: its plan-checks line is not red and has no Fix ("red appears only on a draft that ended red").
+ * @param {{ log: any, declaration: any, questionOpen?: boolean }} p `log` = the draft's log.json (parsed), `declaration` = declaration.json or declaration.rejected.json (parsed)
+ * @returns {Array<{ id: string, label: string, status: 'done'|'failed'|'waiting', details: string[], note?: boolean }> | null}
  */
-export function draftStepList({ log, declaration }) {
+export function draftStepList({ log, declaration, questionOpen = false }) {
   if (log === null || typeof log !== 'object') return null;
   const rounds = Array.isArray(log.log) ? log.log : [];
-  /** @type {Array<{ id: string, label: string, status: 'done'|'failed', details: string[], note?: boolean }>} */
+  /** @type {Array<{ id: string, label: string, status: 'done'|'failed'|'waiting', details: string[], note?: boolean }>} */
   const out = [];
 
   const t = log.thinking;
@@ -83,6 +84,8 @@ export function draftStepList({ log, declaration }) {
       const tries = triesOf(rounds);
       const fixedAfter = tries.length > 0 && tries[tries.length - 1].passed ? tries.filter((x) => !x.again).length - 1 : 0;
       out.push({ id: 'checks', label: fixedAfter > 0 ? `plan checks · fixed by the AI after ${fixedAfter} ${fixedAfter === 1 ? 'try' : 'tries'}` : 'plan checks', status: 'done', details: [] });
+    } else if (questionOpen) {
+      out.push({ id: 'checks', label: 'plan checks · a question for you', status: 'waiting', details: [] });
     } else {
       // one plain reason and its one Fix line (every rule has fix wording): the first refusal
       const pick = checkReds.map(plainPlanCheck)[0];
@@ -99,4 +102,37 @@ export function draftStepList({ log, declaration }) {
   }
 
   return out;
+}
+
+/**
+ * M4d amendment 15, every line of the list: the line of ONE revise (or the redraft after answers), from that plan folder's own log.json. Same rules as `draftStepList`:
+ * one line, `<name> · <model> · <n rounds> · <cost>` and, for a plan that passed after refused tries, `fixed by the AI after N tries`; a red one carries one plain
+ * reason (and the Fix line under it), never details, folds or raw checker text. The try-by-try history is `triesOf` (the Audit Draft group). `null` = no log.
+ * @param {{ log: any, name: string }} p
+ * @returns {Array<{ id: string, label: string, status: 'done'|'failed'|'waiting', details: string[], note?: boolean }> | null}
+ */
+export function reviseStepList({ log, name }) {
+  if (log === null || typeof log !== 'object') return null;
+  const rounds = Array.isArray(log.log) ? log.log : [];
+  const n = typeof log.rounds === 'number' ? log.rounds : 0;
+  const who = typeof log.modelId === 'string' && log.modelId !== '' ? log.modelId : 'the drafter';
+  const facts = [name, who, `${n} round${n === 1 ? '' : 's'}`, money(log)];
+  const reds = Array.isArray(log.reds) ? log.reds.map(String) : [];
+  if (log.ok === true) {
+    const tries = triesOf(rounds);
+    const fixedAfter = tries.length > 0 && tries[tries.length - 1].passed ? tries.filter((x) => !x.again).length - 1 : 0;
+    if (fixedAfter > 0) facts.push(`fixed by the AI after ${fixedAfter} ${fixedAfter === 1 ? 'try' : 'tries'}`);
+    return [{ id: 'plan', label: facts.join(' · '), status: 'done', details: [] }];
+  }
+  const gotPlan = rounds.some((e) => e.outcome === 'valid' || String(e.outcome).startsWith('validator'));
+  const checkReds = reds.filter((r) => !REBUILD_RE.test(r));
+  if (!gotPlan || checkReds.length === 0) {
+    if (reds.length > 0) facts.push(reds[0]);
+    return [{ id: 'plan', label: facts.join(' · '), status: 'failed', details: [] }];
+  }
+  const pick = plainPlanCheck(checkReds[0]);
+  return [
+    { id: 'plan', label: [name, pick.reason].join(' · '), status: 'failed', details: [] },
+    { id: 'plan-fix', label: `Fix: ${pick.fix}`, status: 'done', details: [], note: true },
+  ];
 }

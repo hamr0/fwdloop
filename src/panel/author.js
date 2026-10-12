@@ -53,7 +53,7 @@ import {
 } from '../provider.js';
 import { thinkingSupport as bareagentThinkingSupport, THINKING_FIXED_SAY, THINKING_UNVERIFIED_SAY } from '../thinking.js';
 import { parseSignedText } from '../signed-text.js';
-import { draftStepList } from '../draft-steps.js';
+import { draftStepList, reviseStepList } from '../draft-steps.js';
 import {
   capTooSmallText, draftingSpent, potSplit, STARTED_OVER_FILE, usdText,
 } from '../draftspend.js';
@@ -164,11 +164,12 @@ export function createAuthor(opts) {
   /**
    * M4d am10: the Chat list of what this plan's draft really did, READ from its log.json and declaration (never from the readout, which is signed text),
    * built by the ONE function `draftStepList`; every string scrubbed. `null` when the draft left no log (the page then lists what it always did).
-   * @param {string} dir @param {string} rel @param {string[]} keys
+   * `questionOpen`: the plan asked a question and the draft has not ended (am15 item 3), so its plan-checks line is not red.
+   * @param {string} dir @param {string} rel @param {string[]} keys @param {boolean} [questionOpen]
    */
-  function stepListOf(dir, rel, keys) {
+  function stepListOf(dir, rel, keys, questionOpen = false) {
     const declaration = readJson(dir, `${rel}/declaration.json`) ?? readJson(dir, `${rel}/declaration.rejected.json`);
-    const list = draftStepList({ log: readJson(dir, `${rel}/log.json`), declaration });
+    const list = draftStepList({ log: readJson(dir, `${rel}/log.json`), declaration, questionOpen });
     if (list === null) return null;
     const sc = (x) => scrub(String(x), keys);
     return list.map((st) => ({ ...st, label: sc(st.label), details: st.details.map(sc) }));
@@ -233,14 +234,20 @@ export function createAuthor(opts) {
     const revisesLeft = Math.max(0, MAX_REVISES - used);
     const newest = ns.length > 0 ? ns[ns.length - 1] : 0;
     const card = newest > 0 ? (readJson(dir, `card-${newest}.json`) ?? base.card) : base.card;
+    let reviseNo = 0;
     const revises = ns.map((n) => {
       const kind = redrafts.has(n) ? 'answers' : 'revise';
+      if (kind === 'revise') reviseNo += 1;
+      // M4d am15 (every line of the list): this plan's own line, from its own log, built by `reviseStepList`; the try history is in the Audit Draft group
+      const name = kind === 'answers' ? 'drafted again with your answers' : `revise ${reviseNo}`;
+      const lines = reviseStepList({ log: readJson(dir, `draft-${n}/log.json`), name });
+      const scrubbed = lines === null ? null : lines.map((l) => ({ ...l, label: scrub(l.label, keys) }));
       const running = n === newest && childRunning(dir); // C9: running first, then the result
       const res = resultOf(dir, `draft-${n}`, keys);
-      if (res && res.phase === 'green') return { n, kind, phase: 'green', hash: res.hash };
-      if (res) return { n, kind, phase: 'red', reds: res.reds, say: kind === 'answers' ? REDRAFT_RED_SAY : REVISE_RED_SAY };
-      if (running) return { n, kind, phase: 'running' };
-      return { n, kind, phase: 'stopped', say: logTail(dir, `${kind === 'answers' ? 'redraft' : 'revise'}-${n}.log`, keys) || STOPPED_SAY };
+      if (res && res.phase === 'green') return { n, kind, phase: 'green', hash: res.hash, name, lines: scrubbed };
+      if (res) return { n, kind, phase: 'red', reds: res.reds, say: kind === 'answers' ? REDRAFT_RED_SAY : REVISE_RED_SAY, name, lines: scrubbed };
+      if (running) return { n, kind, phase: 'running', name };
+      return { n, kind, name, phase: 'stopped', say: logTail(dir, `${kind === 'answers' ? 'redraft' : 'revise'}-${n}.log`, keys) || STOPPED_SAY };
     });
     const cur = /** @type {{ phase: string, kind: string, say?: string }} */ (newest > 0 ? revises[revises.length - 1] : { phase: first.phase, kind: 'first' });
     const shared = { ...base, card, revises, revisesLeft, stepList: first.stepList ?? null };
@@ -253,7 +260,7 @@ export function createAuthor(opts) {
     if (q.open.length > 0) {
       const lineText = (line) => parseJobBox(typeof card?.job === 'string' ? card.job : '').steps[line - 1]?.text ?? null;
       const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null }));
-      return { ...shared, phase: 'questions-open', plan: rel, questions, openK: q.open[0].k, total: q.questions.length };
+      return { ...shared, stepList: stepListOf(dir, rel, keys, true), phase: 'questions-open', plan: rel, questions, openK: q.open[0].k, total: q.questions.length };
     }
     if (q.questions.length > 0) return { ...shared, phase: 'stopped', say: ANSWERS_NOT_DRAFTED_SAY };
     if (res.phase === 'green') {

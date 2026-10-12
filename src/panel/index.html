@@ -4115,7 +4115,7 @@
       function draftLines(fallback){
         if(!state || !Array.isArray(state.stepList) || state.stepList.length === 0) return fallback();
         state.stepList.forEach(function(st){
-          var row = {id: st.id, label: st.label, status: st.status === "failed" ? "failed" : "done", details: st.details || []};
+          var row = {id: st.id, label: st.label, status: st.status === "failed" ? "failed" : (st.status === "waiting" ? "waiting" : "done"), details: st.details || []};
           if(st.note === true) row.note = true;
           out.push(row);
         });
@@ -4130,11 +4130,18 @@
           draftLines(function(){ out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []}); });
           var reviseNo = 0;
           state.revises.forEach(function(rv){
-            // an answer redraft (amendment 24 item 4) is not a revise and is not counted as one
-            var label = rv.kind === "answers" ? "drafted again with your answers" : "revise " + (reviseNo += 1);
+            // an answer redraft (amendment 24 item 4) is not a revise and is not counted as one; the server names each one (`rv.name`) and, from the plan's own log,
+            // writes its line (`rv.lines`, src/draft-steps.js `reviseStepList`): one line, facts joined by " · ", a red one with one plain reason and a Fix line (am15)
+            var label = rv.name || (rv.kind === "answers" ? "drafted again with your answers" : "revise " + (reviseNo += 1));
             if(rv.phase === "running") out.push({id: "revise-" + rv.n, label: label, status: "running", details: []});
-            else if(rv.phase === "green") out.push({id: "revise-" + rv.n, label: label, status: "done", details: []});
-            else { var rf = failedDetails(rv.reds); out.push({id: "revise-" + rv.n, label: label, status: "failed", details: rf.details, raw: rf.raw}); }
+            else if(Array.isArray(rv.lines) && rv.lines.length){
+              rv.lines.forEach(function(l){
+                var row = {id: "revise-" + rv.n + "-" + l.id, label: l.label, status: l.status === "failed" ? "failed" : "done", details: []};
+                if(l.note === true) row.note = true;
+                out.push(row);
+              });
+            }
+            else out.push({id: "revise-" + rv.n, label: label, status: rv.phase === "green" ? "done" : "failed", details: []});
           });
           if(state.phase === "green"){
             if(ctx.starting) out.push({id: "signed", label: "signed", status: "done", details: []});
@@ -4144,8 +4151,7 @@
         } else if(state.phase === "red"){
           draftLines(function(){
             out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
-            var cf = failedDetails(state.reds);
-            out.push({id: "checks", label: "plan checks", status: "failed", details: cf.details, raw: cf.raw});
+            out.push({id: "checks", label: "plan checks", status: "failed", details: []});   // no log to read a reason from: the card's own sentence says it
           });
         } else if(state.phase === "stopped"){
           out.push({id: "drafting", label: "drafting with " + who + capPart, status: "failed", details: []});
