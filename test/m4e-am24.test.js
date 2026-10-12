@@ -22,7 +22,7 @@ function recProvider(replies) {
   return p;
 }
 /** Fails the validator; its red names steps[2] = job line 3. */
-const bad = (extra = {}) => { const a = validArgs(); a.steps[2].primitives = ['stash']; return { ...a, ...extra }; };
+const bad = (extra = {}) => { const a = validArgs(); a.steps[2].primitives = ['forget']; return { ...a, ...extra }; };
 const run = (provider, extra = {}) => draft({
   proseText: job2Fixture().prose, provider, rates: RATES, modelId: MODEL, ...extra,
 });

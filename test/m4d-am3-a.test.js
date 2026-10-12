@@ -83,7 +83,7 @@ test('item 3: a cap cut-off on tries 1 and 2 opens the try-3 question; a questio
 });
 
 test('item 3: a cut-off try 1 then a validator red on try 2 also opens try 3', async () => {
-  const bad = () => { const a = validArgs(); a.steps[2].primitives = ['stash']; return a; };
+  const bad = () => { const a = validArgs(); a.steps[2].primitives = ['forget']; return a; };
   const p = recProvider([truncatedReply(), toolReply(bad()), toolReply(validArgs())]);
   await run(p);
   assert.ok(p.schemas[2].properties.questions);

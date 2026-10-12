@@ -30,7 +30,7 @@ test('D1: a green plan renders the server list, then the signature wait; the lis
 });
 
 test('D2: a red draft: plan checks fails with each refusal as a plain sentence on its own detail line, the raw text folded', () => {
-  const reds = ['declaration: steps[2] grants "stash", which is not wired', 'declaration: line 3 is neither served by any step'];
+  const reds = ['declaration: steps[2] grants "forget", which is not wired', 'declaration: line 3 is neither served by any step'];
   const s = steps({ phase: 'red', card: {}, stepList: [list[2], { id: 'checks', label: 'plan checks', status: 'failed', details: [], reds }] }, ctx);
   const c = s.find((x) => x.id === 'checks');
   assert.equal(c.status, 'failed');

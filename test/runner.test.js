@@ -549,11 +549,11 @@ test('F46: a step granting an unwired verb (e.g. "compress") refuses runFlow at 
   const declaration = fixtureJson('job2.m1.declaration.json');
   const draftStep = declaration.steps.find((s) => s.emits === 'resume-summary');
   assert.ok(draftStep, 'expected job2.m1.declaration.json to carry a "resume-summary" step');
-  draftStep.primitives = ['compress'];
+  draftStep.primitives = ['forget'];
   const written = writeFlow({
     root,
     name: 'job2-unwired',
-    proseText: sandboxSend(fixture('job2-with-sources.signed.txt')),
+    proseText: `${sandboxSend(fixture('job2-with-sources.signed.txt'))}guardrail: skills core, memory\n`, // M7: `forget` needs the memory skill signed, and is still unwired
     declaration,
     signedBy: SIGNED_BY,
     signedAt: SIGNED_AT,
@@ -576,7 +576,7 @@ test('F46: a step granting an unwired verb (e.g. "compress") refuses runFlow at 
 
   assert.equal(result.outcome, 'preflight-red');
   assert.match(result.red, /resume-summary/, 'the refusal must name the step');
-  assert.match(result.red, /"compress"/, 'the refusal must name the verb');
+  assert.match(result.red, /"forget"/, 'the refusal must name the verb');
   assert.match(result.red, /no wired implementation/);
   assert.equal(result.spentUsd, 0);
 

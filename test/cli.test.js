@@ -523,11 +523,12 @@ test('cli: run refuses at preflight when a step grants an unwired verb (litectx\
   // via writeFlow (not the shared fixture file) so the signature actually
   // matches — editing declaration.json after signing would just trip the
   // (unrelated) signature-mismatch check instead of this one.
-  const base = sandboxSend(fixture('job2-with-sources.signed.txt'));
+  // M7: every core verb is wired now, so the unwired example is `forget` (memory lasts one run), with the memory skill signed.
+  const base = `${sandboxSend(fixture('job2-with-sources.signed.txt'))}guardrail: skills core, memory\n`;
   const declaration = fixtureJson('job2.m1.declaration.json');
   const draftStep = declaration.steps.find((s) => s.emits === 'resume-summary');
   assert.ok(draftStep, 'expected a "resume-summary" step');
-  draftStep.primitives = ['compress'];
+  draftStep.primitives = ['forget'];
   const written = writeFlow({
     root,
     name: 'job2-unwired',
@@ -548,7 +549,7 @@ test('cli: run refuses at preflight when a step grants an unwired verb (litectx\
 
   assert.notEqual(result.status, 0, result.stdout);
   assert.match(result.stderr, /resume-summary/, 'the refusal must name the step');
-  assert.match(result.stderr, /"compress"/, 'the refusal must name the verb');
+  assert.match(result.stderr, /"forget"/, 'the refusal must name the verb');
   assert.match(result.stderr, /no wired implementation/);
   assert.equal(existsSync(path.join(root, 'job2-unwired', 'runs', 'run-1')), false, 'no run dir may exist — refused before any run dir was created');
   // The refusal now lives in `runFlow` itself (F46, moved from bin/fwdloop so

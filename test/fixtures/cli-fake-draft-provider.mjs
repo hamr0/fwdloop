@@ -21,7 +21,7 @@ import { RATES, MODEL, validArgs, fakeProvider, toolReply } from '../drafter-fix
 export default function make() {
   const args = validArgs();
   if (process.env.FWDLOOP_TEST_DRAFT_NOTCHECKED) args.notChecked = JSON.parse(process.env.FWDLOOP_TEST_DRAFT_NOTCHECKED); // the drafter's own "not checked" list on every plan
-  if (process.env.FWDLOOP_TEST_DRAFT_MODE === 'bad') args.steps[2].primitives = ['stash'];
+  if (process.env.FWDLOOP_TEST_DRAFT_MODE === 'bad') args.steps[2].primitives = ['forget'];
   if (process.env.FWDLOOP_TEST_DRAFT_MODE === 'greedy') {
     Object.assign(args, { capUsd: 99, sends: [{ line: 1, target: 'file:/etc' }], asks: [{ line: 4, ttlMs: 1 }], sources: [{ role: 'x', path: '/etc/passwd' }] });
   }
@@ -37,7 +37,7 @@ export default function make() {
     return { provider, rates: RATES, modelId: MODEL };
   }
   if (process.env.FWDLOOP_TEST_DRAFT_MODE === 'hang') {
-    args.steps[2].primitives = ['stash'];
+    args.steps[2].primitives = ['forget'];
     const provider = fakeProvider([toolReply(args)]);
     const gen = provider.generate.bind(provider);
     provider.generate = async (...a) => {
@@ -47,7 +47,7 @@ export default function make() {
     return { provider, rates: RATES, modelId: MODEL };
   }
   if (process.env.FWDLOOP_TEST_DRAFT_MODE === 'timeout') {
-    args.steps[2].primitives = ['stash'];
+    args.steps[2].primitives = ['forget'];
     const provider = fakeProvider([toolReply(args)]);
     const gen = provider.generate.bind(provider);
     provider.generate = async (...a) => {
@@ -57,7 +57,7 @@ export default function make() {
     return { provider, rates: RATES, modelId: MODEL };
   }
   const redArgs = validArgs();
-  for (const i of (process.env.FWDLOOP_TEST_DRAFT_REDSTEP ?? '2').split(',').map(Number)) redArgs.steps[i].primitives = ['stash']; // FWDLOOP_TEST_DRAFT_REDSTEP=0,1 -> which steps of a QMARK/REDMARK red plan fail
+  for (const i of (process.env.FWDLOOP_TEST_DRAFT_REDSTEP ?? '2').split(',').map(Number)) redArgs.steps[i].primitives = ['forget']; // FWDLOOP_TEST_DRAFT_REDSTEP=0,1 -> which steps of a QMARK/REDMARK red plan fail
   const provider = fakeProvider([toolReply(args)]);
   const gen = provider.generate.bind(provider);
   let retriesDone = 0;

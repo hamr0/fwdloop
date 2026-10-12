@@ -21,10 +21,10 @@ const again = async (w, flow, runId) => (await w.get(`/api/author/run-again?flow
 function unwiredFlow(root, name) {
   const fx = (n) => path.join(HERE, 'fixtures', n);
   const declaration = JSON.parse(readFileSync(fx('job2.m1.declaration.json'), 'utf8'));
-  declaration.steps.find((s) => s.emits === 'resume-summary').primitives = ['compress'];
+  declaration.steps.find((s) => s.emits === 'resume-summary').primitives = ['forget'];
   const cat = loadCatalogue();
   const r = writeFlow({
-    root, name, proseText: sandboxSend(readFileSync(fx('job2-with-sources.signed.txt'), 'utf8')), declaration, signedBy: 'hamr', signedAt: '2026-09-24T12:00:00Z', catalogue: cat.primitives,
+    root, name, proseText: `${sandboxSend(readFileSync(fx('job2-with-sources.signed.txt'), 'utf8'))}guardrail: skills core, memory\n`, declaration, signedBy: 'hamr', signedAt: '2026-09-24T12:00:00Z', catalogue: cat.primitives,
   });
   assert.equal(r.ok, true, r.ok ? '' : r.reds.join('; '));
 }
@@ -96,7 +96,7 @@ test('(d) Run again on a flow the run\'s preflight would refuse says why in pref
   w.seedPassed('job2', 'run-1');
   const r = await again(w, 'job2-live-1', 'run-2');
   assert.equal(r.status, 409, r.text);
-  assert.match(r.json().say, /step "resume-summary" \(line 3\) grants verb "compress", which has no wired implementation/);
+  assert.match(r.json().say, /step "resume-summary" \(line 3\) grants verb "forget", which has no wired implementation/);
   for (const [flow, run, status] of [['job2', 'run-9', 404], ['nope', 'run-1', 404], ['job2', '../x', 400], ['', '', 400]]) {
     // eslint-disable-next-line no-await-in-loop
     assert.equal((await again(w, flow, run)).status, status, `${flow}/${run}`);

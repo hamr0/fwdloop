@@ -28,12 +28,12 @@ test('menu-is-inventory: a verb not in the catalogue is a red, not a stub, and s
   assert.ok(reds.some((r) => /not in the catalogue/.test(r)));
 });
 
-test('a catalogue-present but unimplemented verb (e.g. litectx\'s "compress") reds naming the gap, other verbs still resolve', () => {
+test('a catalogue-present but unimplemented verb (e.g. litectx\'s "forget", refused by M7: memory lasts one run) reds naming the gap, other verbs still resolve', () => {
   const runDir = tmpRunDir();
-  const { tools, reds } = resolvePrimitives(CATALOGUE, ['compress', 'read'], { runDir });
-  assert.equal(tools.compress, undefined);
+  const { tools, reds } = resolvePrimitives(CATALOGUE, ['forget', 'read'], { runDir });
+  assert.equal(tools.forget, undefined);
   assert.ok(tools.read);
-  assert.ok(reds.some((r) => /"compress".*no M2 implementation/.test(r)));
+  assert.ok(reds.some((r) => /"forget".*no M2 implementation/.test(r)));
 });
 
 test('read: a path inside the run dir succeeds', async () => {
@@ -429,6 +429,7 @@ test('M6a: wiredMenu returns only WIRED_VERBS entries, none unwired, and honours
   const menu = wiredMenu(['core']);
   assert.ok(menu.length > 0);
   assert.ok(menu.every((e) => WIRED_VERBS.has(e.verb)), 'every entry is wired');
-  assert.ok(!menu.some((e) => e.verb === 'compress'), 'compress (unwired) is absent');
+  assert.ok(!menu.some((e) => e.verb === 'remember' || e.verb === 'forget'), 'remember and forget (unwired) are absent');
+  assert.ok(menu.some((e) => e.verb === 'compress'), 'compress (wired by M7) is on the menu');
   assert.deepEqual(wiredMenu(['nosuchskill']), []);
 });

@@ -31,6 +31,7 @@ import { Gate } from 'bareguard';
 import { primitiveFor, loadCatalogue } from './catalogue.js';
 import { readDocxText } from './docx.js';
 import { parseCsv } from './csv.js';
+import { makeCtxTools } from './ctx-tools.js';
 
 // bare-agent >=0.47.0: `noFollowSymlinks: true` makes shell_read/write/edit/
 // grep throw `err.code === 'ELOOP'` when the path's FINAL component is a
@@ -259,7 +260,11 @@ function addressCellsPrimitiveTool(inputsByRole) {
  *  catalogue-present-but-unwired verb, e.g. litectx's `compress`, must
  *  refuse before any model call or spend) imports this SAME set rather than
  *  keeping a second copy of the list. */
-export const WIRED_VERBS = new Set(['read', 'grep', 'write', 'readDocx', 'addressCells']);
+/** M7: the in-run tools over this run's own store (src/ctx-tools.js). `remember`/`forget` are
+ *  deliberately absent: memory lasts one run (PRD: no learning between flows). */
+const CTX_VERBS = Object.freeze(['recall', 'get', 'recent', 'related', 'impact', 'compress', 'peek', 'stash']);
+
+export const WIRED_VERBS = new Set(['read', 'grep', 'write', 'readDocx', 'addressCells', ...CTX_VERBS]);
 
 /** The wired menu, one place: the catalogue entries whose verb is in
  *  WIRED_VERBS (and, when `skills` is given, in a signed skill). Absence,
@@ -308,6 +313,13 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
 
   const tools = {};
   const reds = [];
+  // Built on demand, once: nothing is opened or created here (the store is opened per call, inside a tool).
+  // A path a tool names goes through the SAME read gate as `read` before litectx sees it.
+  let ctxTools;
+  const ctxTool = (verb) => {
+    ctxTools ??= makeCtxTools({ runDir, gatePath: (v, rawPath) => resolveAndGate(gate, v, v, runDir, rawPath) });
+    return ctxTools[verb];
+  };
 
   for (const verb of grantedVerbs ?? []) {
     const entry = primitiveFor(catalogue, verb);
@@ -345,7 +357,8 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
         tools.addressCells = addressCellsPrimitiveTool(inputsByRole);
         break;
       default:
-        reds.push(`primitives: verb "${verb}" is in the catalogue but has no M2 implementation yet`);
+        if (CTX_VERBS.includes(verb)) tools[verb] = ctxTool(verb);
+        else reds.push(`primitives: verb "${verb}" is in the catalogue but has no M2 implementation yet`);
     }
   }
 

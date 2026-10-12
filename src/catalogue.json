@@ -14,13 +14,13 @@
       "verb": "grep", "component": "select", "package": "bare-agent/tools", "symbol": "createShellTools", "tool": "shell_grep", "class": "read", "skill": "core", "desc": "Find lines matching a pattern across files."
     },
     {
-      "verb": "recall", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "recall", "class": "read", "skill": "core", "desc": "Search saved notes by meaning; returns the best matches, not their full text."
+      "verb": "recall", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "recall", "class": "read", "skill": "core", "desc": "Search the text and code saved for this run (its inputs and its out folder) for a name or phrase; returns pointers to the best matches, not their full text."
     },
     {
-      "verb": "get", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "get", "class": "read", "skill": "core", "desc": "Fetch the full text of one saved note or parked item by its id."
+      "verb": "get", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "get", "class": "read", "skill": "core", "desc": "Fetch the full text of one parked item by its id, or one part of a file by the pointer recall gave."
     },
     {
-      "verb": "recent", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "recentMemory", "class": "read", "skill": "core", "desc": "List the most recently saved notes, newest first."
+      "verb": "recent", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "recentActivity", "class": "read", "skill": "core", "desc": "List the functions most recently changed in this run's saved files, newest first."
     },
     {
       "verb": "related", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "related", "class": "read", "skill": "core", "desc": "List the files a given file imports and the files that import it, from this run's indexed files."
