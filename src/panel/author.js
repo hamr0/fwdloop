@@ -45,7 +45,7 @@ import {
   checkMonthlyRoom, ConfigError, monthlyNote, monthlyRefusalText,
 } from '../monthly.js';
 import {
-  appendAnswersToJob, capFloorText, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
+  appendAnswersToJob, capFloorFor, capFloorText, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
 } from './authorcard.js';
 import { checkedLines, notCheckedBlock } from '../checked.js';
 import {
@@ -54,6 +54,8 @@ import {
 import { thinkingSupport as bareagentThinkingSupport, THINKING_FIXED_SAY, THINKING_UNVERIFIED_SAY } from '../thinking.js';
 import { parseSignedText } from '../signed-text.js';
 import { draftStepList } from '../draft-steps.js';
+import { draftingSpent, potSplit, usdText } from '../draftspend.js';
+import { flowValues, valuesHash } from '../runvalues.js';
 import { leastResumeCapUsd } from './authorvalues.js';
 import { createFlowsDoor } from './authorflows.js';
 import { createResumeDoor } from './authorresume.js';
@@ -169,6 +171,21 @@ export function createAuthor(opts) {
     if (list === null) return null;
     const sc = (x) => scrub(String(x), keys);
     return list.map((st) => ({ ...st, label: sc(st.label), details: st.details.map(sc) }));
+  }
+
+  /**
+   * M4d am16: the split of the card's Cap $ at Sign & run, from ALL of this job's drafting (the one writer of that total, `draftingSpent`). Unpriced rounds count at their
+   * worst case (the picked model's Settings ceiling). `refusal` = what is left cannot pay one run round at its worst case: refused at $0.
+   * @param {string} dir the draft folder @param {any} card
+   */
+  function potOf(dir, card) {
+    const ceilingUsd = capFloorFor(true, home, card);
+    const split = potSplit(Number(card.capUsd), draftingSpent(dir, { ceilingUsd }));
+    const floorUsd = capFloorUsd(typeof card.job === 'string' ? card.job : '', home, card);
+    const refusal = split.leftUsd < floorUsd
+      ? `${split.line}: not enough for one run round at its worst case, ${usdText(floorUsd)}. Raise Cap $.`
+      : null;
+    return { split, refusal };
   }
 
   /**
@@ -448,10 +465,12 @@ export function createAuthor(opts) {
     signPrepare(id) {
       const seen = greenDraft(id);
       if (!seen.ok) return seen.reply;
+      const pot = potOf(seen.dir, seen.v.card);
+      if (pot.refusal !== null) return { status: 400, body: { ok: false, refused: 'pot-empty', say: pot.refusal, split: pot.split } };
       return {
         status: 200,
         body: {
-          ok: true, draftId: id, hash: seen.v.hash, flowName: seen.name, capUsd: seen.v.card.capUsd, readout: seen.v.readout, answers: seen.v.answers, checked: seen.v.checked, notChecked: seen.v.notChecked, runId: nextRunId(join(root, seen.name)),
+          ok: true, split: pot.split, draftId: id, hash: seen.v.hash, flowName: seen.name, capUsd: seen.v.card.capUsd, readout: seen.v.readout, answers: seen.v.answers, checked: seen.v.checked, notChecked: seen.v.notChecked, runId: nextRunId(join(root, seen.name)),
         },
       };
     },
@@ -473,6 +492,8 @@ export function createAuthor(opts) {
       // amendment 4 item 2: a cap that cannot fund one round of the first model step is never signed (it would cap-halt at $0 spent)
       const floor = capFloorUsd(typeof v.card.job === 'string' ? v.card.job : '', home, v.card);
       if (Number(v.card.capUsd) < floor) return { status: 400, body: { ok: false, refused: 'cap-too-small', say: capFloorText(floor) } };
+      const pot = potOf(dir, v.card);
+      if (pot.refusal !== null) return { status: 400, body: { ok: false, refused: 'pot-empty', say: pot.refusal, split: pot.split } };
       if (typeof b.hash !== 'string' || b.hash !== v.hash) {
         return { status: 409, body: { ok: false, refused: 'stale-hash', say: 'The plan on disk is not the one you were shown (its hash differs). Nothing was signed. Reload and read the plan again.' } };
       }
@@ -503,8 +524,19 @@ export function createAuthor(opts) {
       writeFileSync(join(dir, 'signed.json'), `${JSON.stringify({
         at: new Date().toISOString(), signedBy, hash: v.hash, flow: name, runId: runId === '' ? null : runId,
       })}\n`, { mode: 0o600 });
+      // M4d am16 item 1: the first run gets what is LEFT of the card's cap after drafting, as its own signed values (the flow stays signed at the card's cap, and
+      // every later run that does not draft gets the whole of it). Nothing spent on drafting = no values file = the whole cap.
+      let values = null;
+      if (pot.split.spentUsd > 0) {
+        const prose = readFileInside(join(dir, v.plan), 'prose.txt');
+        const parsed = prose.ok ? parseSignedText(prose.text) : null;
+        if (parsed && parsed.ok) {
+          const vals = { ...flowValues(parsed.arbiter), capUsd: pot.split.leftUsd };
+          values = { flow: name, flowSignatureHash: result.signature.flow, version: 0, values: vals, hash: valuesHash({ flow: name, flowSignatureHash: result.signature.flow, runId: null, version: 0, values: vals }), signedBy, at: new Date().toISOString() };
+        }
+      }
       const started = starter.start({
-        kind: 'sign', flow: name, runId, sources: inputs.map((r) => ({ role: r.role, path: r.path })),
+        kind: 'sign', flow: name, runId, sources: inputs.map((r) => ({ role: r.role, path: r.path })), values,
       }, loaded);
       if (started.status !== 202) return { status: started.status, body: { ...started.body, signed: true, flow: name, say: `${started.body.say ?? 'The run did not start.'} The flow is signed; start it from "Run a signed flow".` } };
       return { status: 202, body: { ...started.body, signed: true } };

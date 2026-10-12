@@ -20,7 +20,8 @@ import { renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { readFileInside } from './flow.js';
-import { readSpendRows } from './provider.js';
+import { readSpendRows, rowCeilingUsd, spendRowCost, unmeteredCalls } from './provider.js';
+import { readdirInside } from './flow.js';
 
 export const DRAFT_SPEND_FILE = 'draft-spend.json';
 
@@ -67,4 +68,51 @@ export function readDirSpendRows(dir) {
   if (rows.length > 0) return rows;
   const live = readDraftSpend(dir);
   return live ? [live] : [];
+}
+
+const PLAN_DIR_RE = /^draft(?:-\d+)?$/;
+
+/**
+ * M4d amendment 16 item 1: what ALL of a job's drafting spent — the one writer of that total. A panel draft's session folder holds one plan
+ * folder per draft (`draft/`, `draft-<n>/` for each revise and the redraft after answers); each is read by `readDirSpendRows` and priced by
+ * `spendRowCost`, the one cost rule. A round whose cost is not known counts at its WORST CASE (item 5): its own booked price's ceiling, else
+ * `ceilingUsd` (Settings prices x the fixed token limits), never $0; `notPriced` counts those rounds and `complete` is false.
+ * @param {string} sessionDir the panel's draft folder
+ * @param {{ ceilingUsd?: number, exclude?: string }} [o] `exclude` = a plan folder name to leave out (the one being written now)
+ * @returns {{ usd: number, notPriced: number, complete: boolean }}
+ */
+export function draftingSpent(sessionDir, { ceilingUsd = 0, exclude } = {}) {
+  let usd = 0;
+  let notPriced = 0;
+  for (const name of readdirInside(sessionDir, '.')) {
+    if (!PLAN_DIR_RE.test(name) || name === exclude) continue;
+    for (const row of readDirSpendRows(join(sessionDir, name))) {
+      if (row.spendComplete === false) {
+        const n = unmeteredCalls(row);
+        const per = rowCeilingUsd(row) > 0 ? rowCeilingUsd(row) : ceilingUsd;
+        usd += (row.costUsd ?? 0) + n * per;
+        notPriced += n;
+      } else if (row.costUsd === null || row.costUsd === undefined) {
+        usd += rowCeilingUsd(row) > 0 ? rowCeilingUsd(row) : ceilingUsd;
+        notPriced += 1;
+      } else usd += spendRowCost(row).usd;
+    }
+  }
+  return { usd, notPriced, complete: notPriced === 0 };
+}
+
+/** Money to 4 places, trailing zeros kept to 2 (`0.05`, `0.0016`). @param {number} n */
+export const usdText = (n) => `$${String(Math.round(n * 1e4) / 1e4).replace(/^(\d+)$/, '$1.00').replace(/^(\d+\.\d)$/, '$10')}`;
+
+/**
+ * M4d amendment 16 items 1, 3, 5: the split of the card's Cap $ at Sign & run. `leftUsd` is what the first run may spend, rounded DOWN to 4 places (never
+ * more than is left). `line` is the sentence the page shows.
+ * @param {number} capUsd @param {{ usd: number, notPriced: number }} spent
+ */
+export function potSplit(capUsd, spent) {
+  const leftUsd = Math.max(0, Math.floor((capUsd - spent.usd) * 1e4 + 1e-6) / 1e4);
+  const drafting = spent.notPriced > 0
+    ? `drafting spent at most ${usdText(spent.usd)} (${spent.notPriced} round${spent.notPriced === 1 ? '' : 's'} not priced)`
+    : `drafting spent ${usdText(spent.usd)}`;
+  return { capUsd, spentUsd: spent.usd, notPriced: spent.notPriced, leftUsd, line: `Cap ${usdText(capUsd)} · ${drafting} · this run up to ${usdText(leftUsd)}` };
 }

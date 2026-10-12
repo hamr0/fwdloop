@@ -16,6 +16,7 @@
 // prices an unpriced round at the ceiling.
 
 import { Loop, HaltError } from 'bare-agent';
+import { usdText } from './draftspend.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, SHAPE_KEYS, checkGuardrailSums, guardrailWordsPerSection } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
@@ -294,7 +295,7 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
 /**
  * Draft one declaration. `provider`/`rates`/`modelId` may be injected (tests,
  * the batch); otherwise a live provider is built from `slot` (throws on a bad
- * key — the batch preflights first). The draft's hard cap is the cap signed in the prose (M4d am13): one cap for the draft and the run.
+ * key — the batch preflights first). The draft's hard cap is the cap signed in the prose (M4d am13); `priorSpend(ceilingUsd)` (am16) is what this job's earlier drafting already spent, so every round must fit what is LEFT of the cap.
  * `makeProviderFn` is a test seam: the live-provider factory (default `makeProvider`).
  * `onBook` (M4e piece 2a, scope 13): called right BEFORE each provider call (`inFlight: true`, the call counted in
  * `calls`) and right AFTER it (`inFlight: false`), with what is known so far, so the caller can book spend per call
@@ -307,7 +308,7 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
  */
 export async function draft({
   proseText, slot, model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
-  skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
+  priorSpend = /** @type {((ceilingUsd: number) => number)|null} */ (null), skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
 }) {
   // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
   const thinkingOf = () => {
@@ -358,10 +359,14 @@ export async function draft({
   const roundCeiling = ceilingCostUsd(rates);
   // M4d am13: the draft is capped by the card's Cap $ (the cap signed in the prose), the same number the run is capped at.
   // One round at its ceiling must fit that cap, or refuse at $0 before any provider call.
-  const budgetUsd = arbiter.capUsd;
+  // M4d am16 item 2: against the remaining money, not the whole cap. Spend by earlier drafts of this job (a revise, the redraft after answers) is taken off first.
+  const priorUsd = typeof priorSpend === 'function' ? priorSpend(roundCeiling) : 0;
+  const budgetUsd = arbiter.capUsd - priorUsd;
   if (roundCeiling > budgetUsd) {
-    const capText = Number.isInteger(Math.round(budgetUsd * 1e6) / 1e4) ? budgetUsd.toFixed(2) : String(budgetUsd);
-    return fail([`Cap $${capText} is below one drafting round's worst case for ${modelId}, $${roundCeiling.toFixed(4)}. Raise Cap $ or pick another model.`]);
+    const capText = usdText(arbiter.capUsd);
+    return fail([priorUsd > 0
+      ? `Cap ${capText} less ${usdText(priorUsd)} already spent on drafting leaves ${usdText(Math.max(0, budgetUsd))}, below one drafting round's worst case for ${modelId}, $${roundCeiling.toFixed(4)}. Raise Cap $ or pick another model.`
+      : `Cap ${capText} is below one drafting round's worst case for ${modelId}, $${roundCeiling.toFixed(4)}. Raise Cap $ or pick another model.`]);
   }
 
   const meterings = [];

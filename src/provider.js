@@ -284,12 +284,17 @@ export function appendSpendRow(path, row) {
 // (M4d: forward only — today's Settings price never re-prices an old row). A row that recorded no price at all (an
 // old row; the code table that once priced it is gone, M4d amendment 5) has no ceiling to add: 0 here, and the row
 // stays `complete: false`, so every total that holds it reads "at least", never as a clean figure.
-function rowCeilingUsd(row) {
+export function rowCeilingUsd(row) {
   const p = row.price;
   if (p && typeof p === 'object' && Number.isFinite(p.inPerM) && p.inPerM > 0 && Number.isFinite(p.outPerM) && p.outPerM > 0) {
     return (CEILING_INPUT_TOKENS / 1e6) * p.inPerM + (CEILING_OUTPUT_TOKENS / 1e6) * p.outPerM;
   }
   return 0;
+}
+
+/** How many calls of an incomplete row were never metered (at least one). @param {any} row */
+export function unmeteredCalls(row) {
+  return Number.isInteger(row.calls) && Number.isInteger(row.rounds) ? Math.max(1, row.calls - row.rounds) : 1;
 }
 
 /**
@@ -301,7 +306,7 @@ function rowCeilingUsd(row) {
  */
 export function spendRowCost(row) {
   if (row.spendComplete === false) {
-    const unmetered = Number.isInteger(row.calls) && Number.isInteger(row.rounds) ? Math.max(1, row.calls - row.rounds) : 1;
+    const unmetered = unmeteredCalls(row);
     return { usd: (row.costUsd ?? 0) + unmetered * rowCeilingUsd(row), complete: false };
   }
   if (row.costUsd === null || row.costUsd === undefined) return { usd: rowCeilingUsd(row), complete: false };
