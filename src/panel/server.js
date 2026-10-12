@@ -458,7 +458,7 @@ export function handleRequest(req, res, opts) {
     if (pathname === '/api/author/live') r = opts.author.live();
     else if (pathname === '/api/author/flows') r = opts.author.flows();
     else if (pathname === '/api/author/run-again') r = opts.author.runAgain(url.searchParams.get('flow'), url.searchParams.get('runId'));
-    else if (pathname === '/api/author/monthly-check') r = opts.author.monthlyCheck(url.searchParams.get('cap'), url.searchParams.get('spent'), { provider: url.searchParams.get('provider') ?? undefined, model: url.searchParams.get('model') ?? undefined, flow: url.searchParams.get('flow') ?? undefined });
+    else if (pathname === '/api/author/monthly-check') r = opts.author.monthlyCheck(url.searchParams.get('cap'), url.searchParams.get('spent'), { provider: url.searchParams.get('provider') ?? undefined, model: url.searchParams.get('model') ?? undefined, flow: url.searchParams.get('flow') ?? undefined }, url.searchParams.get('kind') ?? 'drafting');
     else if (pathname === '/api/author/models') r = opts.author.models();
     else if (pathname === '/api/author/resume-form') r = opts.author.resumeForm(url.searchParams.get('flow'), url.searchParams.get('runId'));
     else if (sm) r = opts.author.startGet(sm[1]);

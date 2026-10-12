@@ -132,7 +132,7 @@ test('(c) a refused destination, a too-small cap, a cap over the month, a malfor
     [{ destination: w.root }, 'destination', /flow root/],
     [{ destination: path.join(w.root, '.drafts') }, 'destination', /drafts|not an existing folder/],
     [{ destination: path.join(homedir(), '.config', 'fwdloop') }, 'destination', /config folder|not an existing folder/], // (the panel in this process reads the real config door; the refusal is the same function the card uses)
-    [{ capUsd: '0.02' }, 'capUsd', /needs at least \$0\.05 per run/],
+    [{ capUsd: '0.02' }, 'capUsd', /^Cap \$0\.02 is below one run round's worst case for fake-ticked, \$0\.0500\. Raise Cap \$ or pick another model\.$/],
     [{ capUsd: '0' }, 'capUsd', /above 0/],
     [{ capUsd: 'lots' }, 'capUsd', /above 0/],
     [{ capUsd: '9' }, 'capUsd', /left|month/i],
@@ -191,5 +191,5 @@ test('(e)+form facts: the flows list carries what the form dims and what it open
   assert.equal(f.jobLines[3].ask.wait, '30m');
   assert.equal(f.jobLines[0].ask, null);
   assert.equal(f.capFloorUsd, 0.05);
-  assert.match(f.floorText, /needs at least \$0\.05 per run/);
+  assert.equal(f.floorModel, 'fake-ticked');
 });

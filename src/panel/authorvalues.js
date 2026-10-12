@@ -5,7 +5,8 @@
 //
 // What a run can change without a new flow is exactly these values; a job line, an ask's words or position, or the steps are not a run
 // (the body may not even carry them: an unknown key is refused by name with the new-flow sentence).
-import { capFloorText, destinationRefusal } from './authorcard.js';
+import { destinationRefusal } from './authorcard.js';
+import { capTooSmallText } from '../draftspend.js';
 import { monthlyRefusalText } from '../monthly.js';
 import { parseWaitMs, valuesHash, sameValues } from '../runvalues.js';
 
@@ -33,6 +34,7 @@ const typed = (v) => (typeof v === 'string' ? v.trim() : v);
  * @param {{capUsd: number, destination: string|null, askWaits: Record<string,string>}} a.base the values in force now (the flow's own, or the run's newest signed version)
  * @param {string} a.realRoot the flows root (real path)
  * @param {boolean} a.capOnly Resume: destination and waits are never read from the body
+ * @param {string|null} [a.floorModel] the model id the floor was computed for (named in the refusal, M4d am20)
  * @param {number} a.floorUsd the smallest cap that funds one round of a step (amendment 4 item 2); 0 = none
  * @param {number} [a.spentUsd] what the run has already spent (Resume): the cap must be above it
  * @param {boolean} [a.always] Resume: the floor and the monthly check always apply. A Run applies them only when its cap differs from the
@@ -41,7 +43,7 @@ const typed = (v) => (typeof v === 'string' ? v.trim() : v);
  * @returns {{ ok: true, values: {capUsd: number, destination: string|null, askWaits: Record<string,string>}, differs: boolean, remainingUsd: number } | { ok: false, status: number, refusals: {field: string, say: string}[], refused?: string, say?: string }}
  */
 export function checkValues({
-  allowedKeys, body, base, realRoot, capOnly, floorUsd, spentUsd = 0, monthlyClaim, always = false,
+  allowedKeys, body, base, realRoot, capOnly, floorUsd, floorModel = null, spentUsd = 0, monthlyClaim, always = false,
 }) {
   /** @type {{field: string, say: string}[]} */
   const refusals = [];
@@ -64,7 +66,7 @@ export function checkValues({
   if (refusals.length === 0) {
     if (spentUsd > 0 && capUsd <= spentUsd + 1e-9) {
       no('capUsd', `The cap must be above what is already spent (at least $${leastResumeCapUsd(spentUsd, floorUsd).toFixed(2)}).`);
-    } else if (capUsd < floorUsd && (always || capUsd !== base.capUsd)) no('capUsd', capFloorText(floorUsd));
+    } else if (capUsd < floorUsd && (always || capUsd !== base.capUsd)) no('capUsd', capTooSmallText('run', capUsd, floorUsd, String(floorModel)));
   }
 
   let destination = base.destination;

@@ -178,7 +178,7 @@ test('am4 (e) door: Resume over HTTP — cap-halted run, same run id, the new ca
   const note = (await w.get('/api/author/monthly-check?cap=0.001&spent=0.001&flow=job2')).json();
   assert.match(note.text, /at least \$0\.05\)\.$/);
   const small = await w.post('/api/author/resume-prepare', { flow: 'job2', runId: 'r1', capUsd: '0.02' });
-  assert.match(small.json().refusals[0].say, /needs at least \$0\.05 per run/);
+  assert.equal(small.json().refusals[0].say, "Cap $0.02 is below one run round's worst case for fake-ticked, $0.0500. Raise Cap $ or pick another model.");
   const nan = await w.post('/api/author/resume-prepare', { flow: 'job2', runId: 'r1', capUsd: 'lots' });
   assert.equal(nan.status, 400);
   // a Resume that changes anything but the cap is refused as a resume and sends the human to a new run / a new flow

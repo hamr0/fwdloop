@@ -16,7 +16,7 @@
 // prices an unpriced round at the ceiling.
 
 import { Loop, HaltError } from 'bare-agent';
-import { usdText } from './draftspend.js';
+import { capTooSmallText, usdText } from './draftspend.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, SHAPE_KEYS, checkGuardrailSums, guardrailWordsPerSection } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
@@ -366,7 +366,7 @@ export async function draft({
     const capText = usdText(arbiter.capUsd);
     return fail([priorUsd > 0
       ? `Cap ${capText} less ${usdText(priorUsd)} already spent on drafting leaves ${usdText(Math.max(0, budgetUsd))}, below one drafting round's worst case for ${modelId}, $${roundCeiling.toFixed(4)}. Raise Cap $ or pick another model.`
-      : `Cap ${capText} is below one drafting round's worst case for ${modelId}, $${roundCeiling.toFixed(4)}. Raise Cap $ or pick another model.`]);
+      : capTooSmallText('drafting', arbiter.capUsd, roundCeiling, modelId)]);
   }
 
   const meterings = [];

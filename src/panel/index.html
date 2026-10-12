@@ -4374,9 +4374,12 @@
       var seq = ++capNoteSeq;
       if(cap === ""){ setMoneyNote("", false); return; }
       // a Resume holds only what the run has still to spend (amendment 4 item 1): the server is told what is already spent
-      var spent = (mode === "resume" && resumeCtx) ? "&spent=" + encodeURIComponent(String(resumeCtx.form.spentUsd)) + "&flow=" + encodeURIComponent(resumeCtx.flow) : "";
+      var spent = (mode === "resume" && resumeCtx) ? "&spent=" + encodeURIComponent(String(resumeCtx.form.spentUsd)) + "&flow=" + encodeURIComponent(resumeCtx.flow) + "&kind=run" : "";
       var pk = modelPick();
       var picked = (mode === "new" && pk.provider !== "") ? "&provider=" + encodeURIComponent(pk.provider) + "&model=" + encodeURIComponent(pk.model) : "";
+      // M4d am20: Run a signed flow does not draft: the server writes the same cap-too-small sentence with "run" (the flow's recorded model, else the one picked in Chat)
+      var sfNow = selectedFlow();
+      if(mode === "run" && sfNow) picked = "&kind=run&flow=" + encodeURIComponent(sfNow.flow) + (pk.provider !== "" ? "&provider=" + encodeURIComponent(pk.provider) + "&model=" + encodeURIComponent(pk.model) : "");
       authorGet("/api/author/monthly-check?cap=" + encodeURIComponent(cap) + spent + picked).then(function(j){
         if(seq !== capNoteSeq) return;
         if(!j || j.ok !== true){ setMoneyNote("", false); return; }
@@ -4384,8 +4387,8 @@
         if(mode === "new" && j.floorText && isFinite(v) && v > 0 && v < j.floorUsd && jobHasModelStep()){ setMoneyNote(j.floorText, true); return; }
         // a Run's own cap is never judged against the floor (an old flow signed lower still runs plain); a changed cap below it is red
         var sf = selectedFlow();
-        if(mode === "run" && sf && j.floorText && isFinite(v) && v > 0 && v !== sf.capUsd && v < sf.capFloorUsd){ setMoneyNote(sf.floorText, true); return; }
-        if(mode === "resume" && resumeCtx && j.floorText && isFinite(v) && v > resumeCtx.form.spentUsd && v < resumeCtx.form.floorUsd){ setMoneyNote(resumeCtx.form.floorText, true); return; }
+        if(mode === "run" && sf && j.floorText && isFinite(v) && v > 0 && v !== sf.capUsd && v < sf.capFloorUsd){ setMoneyNote(j.floorText, true); return; }
+        if(mode === "resume" && resumeCtx && j.floorText && isFinite(v) && v > resumeCtx.form.spentUsd && v < resumeCtx.form.floorUsd){ setMoneyNote(j.floorText, true); return; }
         setMoneyNote(typeof j.text === "string" ? j.text : "", j.red === true);
       }).catch(function(){ if(seq === capNoteSeq) setMoneyNote("", false); });
     }

@@ -156,3 +156,12 @@ export function draftHoldUsd(proseText, outDir, ceilingUsd) {
   const prior = sessionPriorSpend(outDir);
   return Math.max(0, parsed.arbiter.capUsd - (prior === null ? 0 : prior(ceilingUsd)));
 }
+
+/**
+ * M4d amendment 19 item 5 / amendment 20: the ONE sentence for a cap that cannot pay for one round. `kind` is "drafting" (the Chat card, the drafter) or "run"
+ * (Run a signed flow, Resume); nothing else differs. `modelId` is the model the minimum was computed for, `minUsd` its worst-case round.
+ * @param {'drafting'|'run'} kind @param {number} capUsd @param {number} minUsd @param {string} modelId
+ */
+export function capTooSmallText(kind, capUsd, minUsd, modelId) {
+  return `Cap ${usdText(capUsd)} is below one ${kind} round's worst case for ${modelId}, $${minUsd.toFixed(4)}. Raise Cap $ or pick another model.`;
+}

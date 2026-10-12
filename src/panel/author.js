@@ -45,7 +45,7 @@ import {
   checkMonthlyRoom, ConfigError, monthlyNote, monthlyRefusalText,
 } from '../monthly.js';
 import {
-  appendAnswersToJob, capFloorFor, capFloorText, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
+  appendAnswersToJob, capFloorFor, capFloorOf, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
 } from './authorcard.js';
 import { checkedLines, notCheckedBlock } from '../checked.js';
 import {
@@ -55,7 +55,7 @@ import { thinkingSupport as bareagentThinkingSupport, THINKING_FIXED_SAY, THINKI
 import { parseSignedText } from '../signed-text.js';
 import { draftStepList } from '../draft-steps.js';
 import {
-  draftingSpent, potSplit, STARTED_OVER_FILE, usdText,
+  capTooSmallText, draftingSpent, potSplit, STARTED_OVER_FILE, usdText,
 } from '../draftspend.js';
 import { flowValues, valuesHash } from '../runvalues.js';
 import { leastResumeCapUsd } from './authorvalues.js';
@@ -376,24 +376,27 @@ export function createAuthor(opts) {
     /**
      * `GET /api/author/monthly-check?cap=<usd>`: the note under Cap, one read-only check. `{ text, red }` is what to show (red =
      * the cap does not fit this month); `floorUsd` is the smallest cap that funds one round of a model step, for the page's
-     * `needs at least $X per run` line. A cap that is not a number above 0 gets no note. Never spends, never writes.
-     * @param {unknown} cap @param {string|null} [spent] what a resumed run has already spent (amendment 4 item 4) @param {{ provider?: string, model?: string, flow?: string }|null} [pick] the card's picked model, or (a Resume) the flow whose recorded model it is: its own prices are the floor (M4d am6)
+     * floor line (am20: `Cap $X is below one drafting|run round's worst case for <model>, $Y. …`, `kind` picks the word). A cap that is not a number above 0 gets no note. Never spends, never writes.
+     * @param {unknown} cap @param {string|null} [spent] what a resumed run has already spent (amendment 4 item 4) @param {{ provider?: string, model?: string, flow?: string }|null} [pick] the card's picked model, or (a Run / Resume) the flow whose recorded model it @param {string} [kind] 'run' for Run a signed flow and Resume, else the Chat card's 'drafting' is: its own prices are the floor (M4d am6)
      */
-    monthlyCheck(cap, spent = null, pick = null) {
+    monthlyCheck(cap, spent = null, pick = null, kind = 'drafting') {
       const n = Number(cap);
-      // a Resume names its flow: the model recorded beside the signed job is the one whose prices are the floor
+      // a Resume / Run names its flow: the model recorded beside the signed job is the one whose prices are the floor
       const recorded = pick?.flow !== undefined && checkFlowName(pick.flow).ok ? readModelRecord(join(root, pick.flow)) : null;
-      const floorUsd = capFloorUsd('x', home, recorded ?? pick);
-      if (typeof cap !== 'string' || cap.trim() === '' || !Number.isFinite(n) || n <= 0) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText: capFloorText(floorUsd) } };
+      const floor = capFloorOf(true, home, recorded ?? pick);
+      const floorUsd = floor.usd;
+      // M4d am20: the sentence names the typed cap, so it is written here per cap (one writer, `capTooSmallText`); '' when the cap is not under the floor
+      const floorText = Number.isFinite(n) && n > 0 && n < floorUsd ? capTooSmallText(kind === 'run' ? 'run' : 'drafting', n, floorUsd, String(floor.model)) : '';
+      if (typeof cap !== 'string' || cap.trim() === '' || !Number.isFinite(n) || n <= 0) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText } };
       // a Resume (amendment 4 item 1): only what the run still has to spend is held, so the note asks for `cap - spent`; a cap not above
       // what is spent says so in the door's own words (red)
       const spentUsd = typeof spent === 'string' && spent.trim() !== '' && Number.isFinite(Number(spent)) && Number(spent) > 0 ? Number(spent) : 0;
       if (spentUsd > 0 && n <= spentUsd + 1e-9) {
-        return { status: 200, body: { ok: true, text: `The cap must be above what is already spent (at least $${leastResumeCapUsd(spentUsd, floorUsd).toFixed(2)}).`, red: true, floorUsd, floorText: capFloorText(floorUsd) } };
+        return { status: 200, body: { ok: true, text: `The cap must be above what is already spent (at least $${leastResumeCapUsd(spentUsd, floorUsd).toFixed(2)}).`, red: true, floorUsd, floorText } };
       }
       const claim = monthlyClaim(n - spentUsd);
-      if (claim === null || 'problem' in claim) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText: capFloorText(floorUsd) } };
-      return { status: 200, body: { ok: true, ...monthlyNote(claim), floorUsd, floorText: capFloorText(floorUsd) } };
+      if (claim === null || 'problem' in claim) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText } };
+      return { status: 200, body: { ok: true, ...monthlyNote(claim), floorUsd, floorText } };
     },
 
     /**
@@ -497,8 +500,8 @@ export function createAuthor(opts) {
       const { v, name, dir } = seen;
       const b = body && typeof body === 'object' ? body : {};
       // amendment 4 item 2: a cap that cannot fund one round of the first model step is never signed (it would cap-halt at $0 spent)
-      const floor = capFloorUsd(typeof v.card.job === 'string' ? v.card.job : '', home, v.card);
-      if (Number(v.card.capUsd) < floor) return { status: 400, body: { ok: false, refused: 'cap-too-small', say: capFloorText(floor) } };
+      const floor = capFloorOf(parseJobBox(typeof v.card.job === 'string' ? v.card.job : '').steps.some((s) => s.ask === null), home, v.card);
+      if (Number(v.card.capUsd) < floor.usd) return { status: 400, body: { ok: false, refused: 'cap-too-small', say: capTooSmallText('drafting', Number(v.card.capUsd), floor.usd, String(floor.model)) } };
       const pot = potOf(dir, v.card);
       if (pot.refusal !== null) return { status: 400, body: { ok: false, refused: 'pot-empty', say: pot.refusal, split: pot.split } };
       if (typeof b.hash !== 'string' || b.hash !== v.hash) {
