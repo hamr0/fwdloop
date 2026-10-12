@@ -1398,6 +1398,12 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 5. **One message for a cap that is too small.** The card shows am13's signed sentence ("Cap $… is below one drafting round's worst case for <model>, $…. Raise Cap $ or pick another model."). The card's own "needs at least $… per run" words go. (Closes F67.)
 **Done when:** a test that fails first for each item; a $0 walk of the real panel showing item 5's sentence. **Cap:** $0.
 
+**M4d amendment 20 — SIGNED by hamr 2026-10-12 ("sign m4d am20"): the cap-too-small words for a run.**
+1. am19 item 5 stands for drafting: the Chat card shows am13's sentence.
+2. Running a signed job and Resume, which do not draft, say instead: **"Cap $… is below one run round's worst case for <model>, $…. Raise Cap $ or pick another model."** The "needs at least $… per run" words go everywhere.
+3. One function writes both sentences; only "drafting" / "run" differs.
+**Done when:** a test that fails first for each sentence; a $0 walk of the real panel showing both. **Cap:** $0.
+
 - **Built after signing — not signed text (2026-10-12), M4d amendments 3-11 (branch `m4d-am3`):**
   - bare-agent is `^0.52.0`. Each drafting round carries bareagent's `thinkingStatus`; the worst one across the rounds is what the Chat list says (am11's words), and the row's Base URL is passed to `thinkingSupport`. A `ValidationError` from the provider is an ordinary loud provider-red, counted as one unmetered call (the separate `thinking-refused` stop was removed as dead code).
   - A job's model is remembered in `model.json` beside the draft and then beside the signed flow. It is not one of the signed files; which model runs, and at what price, is still Settings' to say, and a line no longer ticked is refused by name. An old signed flow with no `model.json` runs with the model picked in Chat's "Run a signed flow" card, and the pick is recorded on a successful start.
