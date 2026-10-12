@@ -173,6 +173,11 @@ export function createAuthor(opts) {
     return list.map((st) => ({ ...st, label: sc(st.label), details: st.details.map(sc) }));
   }
 
+  /** M4d am19: what ALL of this job's drafting already spent (the session folder and any Start-over chain behind it), unpriced rounds at their worst case. @param {string} dir @param {any} card */
+  function draftedSoFar(dir, card) {
+    return draftingSpent(dir, { ceilingUsd: capFloorFor(true, home, card) }).usd;
+  }
+
   /**
    * M4d am16: the split of the card's Cap $ at Sign & run, from ALL of this job's drafting (the one writer of that total, `draftingSpent`). Unpriced rounds count at their
    * worst case (the picked model's Settings ceiling). `refusal` = what is left cannot pay one run round at its worst case: refused at $0.
@@ -342,16 +347,17 @@ export function createAuthor(opts) {
   /**
    * The $0 checks both a first draft and a revise run on the card as submitted: the card's own checks (a key value, the flow name,
    * every field), then the monthly room for its cap. `{ ok: true, card, prose }` or `{ ok: false, reply }`. Writes nothing.
-   * @param {any} body @param {{ ok: boolean, env: Record<string, string|undefined>, keyNames?: string[] }} loaded
+   * M4d am19 items 2-3: `priorUsd` = what this job's drafting already spent; the month is checked for what is LEFT of the cap, not the whole cap again.
+   * @param {any} body @param {{ ok: boolean, env: Record<string, string|undefined>, keyNames?: string[] }} loaded @param {number} [priorUsd]
    * @returns {{ ok: true, card: any, prose: string }|{ ok: false, reply: { status: number, body: any } }}
    */
-  function vetCard(body, loaded) {
+  function vetCard(body, loaded, priorUsd = 0) {
     const card = cardFields(body);
     const checked = checkCard(card, { root: realpathSync(root), keys: providerKeys(loaded), home });
     const modelSays = modelRefusal(card, loaded);
     if (!checked.ok || modelSays.length > 0) return { ok: false, reply: { status: 400, body: { ok: false, refused: 'card', refusals: [...(checked.ok ? [] : checked.refusals), ...modelSays] } } };
     // amendment 4 item 1: a cap that does not fit this month refuses here too, at $0, with the one refusal text (the page's red note is only a courtesy)
-    const claim = monthlyClaim(Number(card.capUsd));
+    const claim = monthlyClaim(Math.max(0, Number(card.capUsd) - priorUsd));
     if (claim && 'problem' in claim) return { ok: false, reply: { status: 409, body: { ok: false, refused: 'monthly', say: `${claim.problem} — refusing rather than guess the monthly limit. Nothing spent.` } } };
     if (claim && !claim.ok) return { ok: false, reply: { status: 400, body: { ok: false, refused: 'card', refusals: [{ field: 'capUsd', say: monthlyRefusalText(claim.room) }] } } };
     return { ok: true, card, prose: checked.prose };
@@ -567,7 +573,7 @@ export function createAuthor(opts) {
       if (!Array.isArray(v.revises)) return { status: 409, body: { ok: false, refused: 'not-revisable', say: `This draft is ${v.phase}, so it cannot be revised. Draft again from the card.` } };
       if (v.revisesLeft <= 0) return { status: 409, body: { ok: false, refused: 'no-revises-left', say: `This draft has used its ${MAX_REVISES} revises. Start over: it keeps the fields and gives ${MAX_REVISES} new revises.` } };
       if (childRunning(dir)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'The draft process is still finishing. Try again in a moment.' } };
-      const vet = vetCard(body, loaded);
+      const vet = vetCard(body, loaded, draftedSoFar(dir, v.card));
       if (!vet.ok) return vet.reply;
       for (const other of listIds()) {
         if (other === id) continue;
@@ -631,7 +637,7 @@ export function createAuthor(opts) {
         const all = readQuestions(planDir).questions.map((x) => ({ line: x.line, question: x.question, answer: x.k === v.openK ? answer : x.answer }));
         const grown = appendAnswersToJob(typeof v.card.job === 'string' ? v.card.job : '', /** @type {{line:number, answer:string}[]} */ (all));
         if (grown.added !== all.length) return { status: 409, body: { ok: false, refused: 'no-such-line', say: 'An answer is about a job line the card no longer has. Draft again from the card. Nothing was signed.' } };
-        const vet = vetCard({ ...v.card, job: grown.job }, loaded);
+        const vet = vetCard({ ...v.card, job: grown.job }, loaded, draftedSoFar(dir, v.card));
         if (!vet.ok) return vet.reply;
         for (const other of listIds()) {
           if (other === id) continue;
