@@ -83,3 +83,11 @@ test('page: a try row\'s raw text goes under its plain reason in the Gap cell, e
   assert.match(PAGE, /"<td data-label=\\"Gap\\">" \+ escapeXml\(isRejectRow \? "" : auditGapText\(r\)\) \+ auditRawHtml\(r\) \+ "<\/td>"/);
   assert.match(PAGE, /lines\.push\(\["raw", r\.raw\.join/);
 });
+
+test('a try row has no cost of its own: the Cost cell reads "—", never "unknown"', () => {
+  const cost = new Function('money', 'duration', `${fnOf('auditCostCellText')}\nreturn auditCostCellText;`)(() => 'unknown', () => '');
+  assert.equal(cost({ setup: true, tryRow: true, verdict: 'red' }), '—');
+  assert.equal(cost({ setup: true, tryRow: true, verdict: 'green' }), '—');
+  const { flowDir, runDir } = flowWithDraft();
+  assert.ok(getDraftBlock(flowDir, runDir).rows.filter((r) => /^try /.test(r.action ?? '')).every((r) => r.tryRow === true));
+});

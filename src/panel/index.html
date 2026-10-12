@@ -1288,7 +1288,7 @@
     return (r.gapHead || []).concat(["ask waits " + waits]).join(" · ");
   }
   function auditCostCellText(r){
-    if(r.setup && typeof r.usd !== "number" && r.verdict === "hitl") return "—";   // a setup row you wrote (card, note, sign) has no cost
+    if(r.setup && typeof r.usd !== "number" && (r.verdict === "hitl" || r.tryRow === true)) return "—";   // a try row has no cost of its own (its plan row has it)   // a setup row you wrote (card, note, sign) has no cost
     if(r.setup) return money(r.usd, r.spendComplete) + (typeof r.wallMs === "number" ? " \u00b7 " + duration(r.wallMs) : "");   // a draft/change row: its own booked cost ("unknown" when nobody booked it) and time (left out when not recorded)
     var bits = [money(r.usd, r.spendComplete)];
     var td = r.tokensDisplay;

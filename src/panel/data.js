@@ -1529,7 +1529,7 @@ export function getDraftBlock(flowDir, runDir) {
     const gap = t.passed ? '' : (reds.length > 0 ? `${plainPlanCheck(reds[0]).reason}${reds.length > 1 ? ` (and ${reds.length - 1} more)` : ''}` : String(t.outcome ?? ''));
     return {
       attempt: `${n}.${k + 1}`, step: 'drafting', class: null, verdict: t.passed ? 'green' : 'red', gap, at: r.at ?? null, setup: true, blocked: false,
-      action: `${t.label} ${t.passed ? '✓' : '✗'}`, tokensDisplay: { kind: 'no-model' },
+      action: `${t.label} ${t.passed ? '✓' : '✗'}`, tryRow: true, tokensDisplay: { kind: 'no-model' },
       ...(t.passed ? {} : { raw: reds.length > 0 ? reds : [String(t.rawOutcome ?? t.outcome ?? '')] }),
     };
   });
