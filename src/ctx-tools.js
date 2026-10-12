@@ -68,7 +68,7 @@ export function makeCtxTools({ runDir, gatePath }) {
   return {
     recall: {
       name: 'recall',
-      description: 'Search the text and code saved for this run (its frozen inputs and its out folder) for a name or phrase. '
+      description: 'Search this run\'s code and markdown files only (its frozen inputs and its out folder; a CSV or Word file is not searched) for a name or phrase. '
         + `Returns POINTERS (path, symbol, line range), not the text; pass one to get to read that part. ${LINE_SPACE}`,
       parameters: {
         type: 'object',
@@ -121,7 +121,7 @@ export function makeCtxTools({ runDir, gatePath }) {
     },
     impact: {
       name: 'impact',
-      description: 'Before changing a function, see what depends on it: callers, importers and mention sites among this run\'s indexed files. '
+      description: 'Before changing a function, see what depends on it: callers, importers and mention sites in code and markdown files only (a CSV or Word file has none). '
         + `${LINE_SPACE}`,
       parameters: {
         type: 'object',
@@ -143,7 +143,7 @@ export function makeCtxTools({ runDir, gatePath }) {
     },
     related: {
       name: 'related',
-      description: 'Walk the import links around one file: what it imports and what imports it (one hop).',
+      description: 'Walk the import links around one code or markdown file: what it imports and what imports it (one hop). Code and markdown files only.',
       parameters: {
         type: 'object',
         properties: { path: { type: 'string', description: 'A path inside this run, e.g. "out/helper.js".' } },
@@ -160,7 +160,7 @@ export function makeCtxTools({ runDir, gatePath }) {
     },
     recent: {
       name: 'recent',
-      description: 'List recently changed functions among this run\'s indexed files, most recent first.',
+      description: 'List recently changed functions among this run\'s code files, most recent first. A run is not a git repository, so it finds nothing inside a run.',
       parameters: { type: 'object', properties: {} },
       execute: async () => indexed('recent', (lc) => {
         const rows = lc.recentActivity() ?? [];
