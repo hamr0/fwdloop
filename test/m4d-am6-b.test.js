@@ -85,7 +85,7 @@ test('B3: a failed list says why in a plain sentence (the page then offers a typ
   const none = await world({}, ok({ data: [] }));
   assert.deepEqual((await none.rq('POST', '/api/settings/models', { slot: 'LIST_KEY' })).json(), { ok: false, why: 'Type a Base URL for LIST_KEY in Settings.' });
   assert.equal(none.calls.length, 0);
-  const stranger = await none.rq('POST', '/api/settings/models', { slot: 'NOT_A_ROW' });
+  const stranger = await none.rq('POST', '/api/settings/models', { slot: 'NOT_A_ROW_KEY' });
   assert.deepEqual([stranger.status, stranger.json().refused], [400, 'unknown-provider']);
 });
 

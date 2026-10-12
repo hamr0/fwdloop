@@ -99,7 +99,7 @@ test('A4: legacyMaxTokens is the row\'s own tick: on sends max_tokens, off sends
 test('A5: the keys file: every name with a value is a row; only a name that has a row set up reaches the env (a NODE_OPTIONS line never does)', () => {
   const h = home(`ACME_API_KEY=${KEY_A}\nOTHER_KEY=${KEY_B}\nNODE_OPTIONS=--require /tmp/x\nEMPTY_ONE=\n`);
   const a = loadKeysEnv({ env: {}, home: h, configured: ['ACME_API_KEY'] });
-  assert.deepEqual(a.names, ['ACME_API_KEY', 'NODE_OPTIONS', 'OTHER_KEY']);
+  assert.deepEqual(a.names, ['ACME_API_KEY', 'OTHER_KEY'], 'a NODE_OPTIONS line is not a key name: not listed');
   assert.equal(a.env.ACME_API_KEY, KEY_A);
   assert.equal(a.env.OTHER_KEY, undefined);
   assert.equal(a.env.NODE_OPTIONS, undefined);
@@ -131,7 +131,7 @@ test('A7: the provider route saves shape, Base URL and legacyMaxTokens for a row
   const ok = await rq(srv.port, { method: 'POST', url: '/api/settings/provider', body: { slot: 'ACME_API_KEY', shape: 'openai-api', baseUrl: 'http://127.0.0.1:9/v1/', legacyMaxTokens: true } });
   assert.equal(ok.json().ok, true);
   assert.deepEqual(readConfig({ home: h }).providers, { ACME_API_KEY: { shape: 'openai-api', baseUrl: 'http://127.0.0.1:9/v1', legacyMaxTokens: true } });
-  const stranger = await rq(srv.port, { method: 'POST', url: '/api/settings/provider', body: { slot: 'NOT_IN_THE_FILE', baseUrl: 'http://127.0.0.1:9' } });
+  const stranger = await rq(srv.port, { method: 'POST', url: '/api/settings/provider', body: { slot: 'NOT_IN_THE_FILE_KEY', baseUrl: 'http://127.0.0.1:9' } });
   assert.deepEqual([stranger.status, stranger.json().refused], [400, 'unknown-provider']);
   const bad = await rq(srv.port, { method: 'POST', url: '/api/settings/provider', body: { slot: 'ACME_API_KEY', legacyMaxTokens: 'yes' } });
   assert.equal(bad.json().refused, 'bad-provider');

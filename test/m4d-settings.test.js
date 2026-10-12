@@ -179,7 +179,7 @@ test('(xi) a bad model price (-1, text, NaN, Infinity, a half pair) is refused a
   const bad = [
     [{ ...M, inPerM: -1, outPerM: 1 }, /number, 0 or more/], [{ ...M, inPerM: 1, outPerM: '2' }, /number, 0 or more/],
     [{ ...M, inPerM: 1, outPerM: null }, /Fill both price boxes or clear both\./], [{ ...M, inPerM: [1], outPerM: 1 }, /number, 0 or more/],
-    [{ ...M, inPerM: 1, cachedInPerM: 0.05, outPerM: 2 }, /priced as input/], [{ slot: 'nope', model: 'x', use: false }, /not known/],
+    [{ ...M, inPerM: 1, cachedInPerM: 0.05, outPerM: 2 }, /priced as input/], [{ slot: 'NOPE_KEY', model: 'x', use: false }, /not known/],
   ];
   for (const [body, re] of bad) {
     const r = await post(h.port, '/api/settings/model', body);

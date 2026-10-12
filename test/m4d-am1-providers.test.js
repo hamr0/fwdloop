@@ -83,7 +83,7 @@ test('(a) route: a bad Base URL, an unknown shape, a non-boolean tick or a key n
     const r = await post(h.port, '/api/settings/provider', body);
     assert.equal(r.status, 400, JSON.stringify(body));
     assert.equal(r.json().ok, false);
-    assert.equal(r.json().refused, body.slot === 'nope' ? 'unknown-provider' : 'bad-provider', 'refused by the route\'s own value check, not by the config file\'s backstop');
+    assert.equal(r.json().refused, body.slot === 'nope' ? 'not-a-key-name' : 'bad-provider', 'refused by the route\'s own value check, not by the config file\'s backstop');
     assert.match(r.json().say, /\S+ \S+/, 'a plain sentence');
     assert.equal(cfgText(home), before, `config.json untouched after ${JSON.stringify(body)}`);
   }

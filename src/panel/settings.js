@@ -19,7 +19,7 @@ import {
   readConfig, updateConfig, ConfigError, providerFieldProblem, cleanBaseUrl, modelsProblem,
 } from '../config.js';
 import { SHAPES } from '../providershapes.js';
-import { keysForDoor } from '../keysfile.js';
+import { keysForDoor, isKeyName } from '../keysfile.js';
 import { spendSummary } from '../monthly.js';
 import { spawnOpener as realSpawn } from './spawn.js';
 import { dirname } from 'node:path';
@@ -49,8 +49,12 @@ export function createSettings(cfg) {
   /** The row names: every key in the file with a value, plus a set-up key only the shell holds (M4d amendment 6 item 1). */
   const rowNames = (k) => [...new Set([...k.names, ...k.shellOnly])].sort();
 
+  /** The plain-words refusal for a slot that is not a key name at all, or null (the one rule is `isKeyName`). @param {unknown} slot */
+  const notKeyName = (slot) => (typeof slot === 'string' && slot !== '' && !isKeyName(slot)
+    ? refuse('not-a-key-name', `${slot} is not a key name. A key name ends in _KEY, like MY_API_KEY. Nothing was saved.`) : null);
+
   /** The row named by a request, or null: only a key that is in the keys file (or the shell) is a row. @param {unknown} slot */
-  const slotOf = (slot) => (typeof slot === 'string' && rowNames(keys()).includes(slot) ? slot : null);
+  const slotOf = (slot) => (isKeyName(slot) && rowNames(keys()).includes(slot) ? slot : null);
 
   /** config.json, or `{problem}` in plain words when it is broken (never read as "nothing set"). */
   function config() {
@@ -196,12 +200,16 @@ export function createSettings(cfg) {
   }
 
   async function test(body) {
+    const bad = notKeyName(body?.slot);
+    if (bad) return bad;
     const r = await listModels(body?.slot);
     if (r.unknown) return refuse('unknown-provider', 'That provider is not known.');
     return reply(200, r.ok ? { ok: true, ms: r.ms } : r);
   }
 
   async function models(body) {
+    const bad = notKeyName(body?.slot);
+    if (bad) return bad;
     const r = await listModels(body?.slot);
     if (r.unknown) return refuse('unknown-provider', 'That provider is not known.');
     if (!r.ok) return reply(200, r);
@@ -216,6 +224,8 @@ export function createSettings(cfg) {
    * rule here is `modelsProblem` (tick needs both, 0 / 0 allowed, exact sentence).
    */
   function model(body) {
+    const bad = notKeyName(body?.slot);
+    if (bad) return bad;
     const slot = slotOf(body?.slot);
     if (!slot) return refuse('unknown-provider', 'That provider is not known.');
     const c = config();
@@ -247,6 +257,8 @@ export function createSettings(cfg) {
 
   /** Save a row's shape, Base URL and legacyMaxTokens tick. Validate EVERY field first; write only if all pass. */
   function provider(body) {
+    const bad = notKeyName(body?.slot);
+    if (bad) return bad;
     const slot = slotOf(body?.slot);
     if (!slot) return refuse('unknown-provider', 'That provider is not known.');
     const say = { shape: 'Pick an API shape from the list.', baseUrl: 'The Base URL must start with http:// or https://.', legacyMaxTokens: 'The legacy max_tokens tick must be on or off.' };

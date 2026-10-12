@@ -75,7 +75,7 @@ function fakeHome(lines) {
   return home;
 }
 
-test('C4: loadKeysEnv fills only set-up key names from the file; other names are still listed but never reach the env', () => {
+test('C4: loadKeysEnv fills only set-up key names from the file; other names are not listed and never reach the env', () => {
   const home = fakeHome(['NODE_OPTIONS=--require=/tmp/x', 'LD_PRELOAD=/tmp/y', `${KEY_NAMES[0]}=sk-fake-known-key`]);
   try {
     const r = loadKeysEnv({ env: { PATH: '/bin' }, home, configured: KEY_NAMES });
@@ -83,7 +83,7 @@ test('C4: loadKeysEnv fills only set-up key names from the file; other names are
     assert.equal(r.env[KEY_NAMES[0]], 'sk-fake-known-key', 'the known key gets through');
     assert.equal(r.env.NODE_OPTIONS, undefined, 'NODE_OPTIONS from the file never reaches the env');
     assert.equal(r.env.LD_PRELOAD, undefined);
-    assert.ok(r.names.includes('NODE_OPTIONS'), 'Settings still lists the name');
+    assert.ok(!r.names.includes('NODE_OPTIONS'), 'a non-key name is not listed');
     assert.ok(!JSON.stringify({ ...r, env: undefined }).includes('--require'), 'no value outside env');
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
