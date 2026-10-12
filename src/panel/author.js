@@ -241,10 +241,11 @@ export function createAuthor(opts) {
       if (kind === 'revise') reviseNo += 1;
       // M4d am15 (every line of the list): this plan's own line, from its own log, built by `reviseStepList`; the try history is in the Audit Draft group
       const name = kind === 'answers' ? 'drafted again with your answers' : `revise ${reviseNo}`;
+      const running = n === newest && childRunning(dir); // C9: running first, then the result
+      // the result BEFORE the log: the child writes log.json first and the result (spec.hash, or the red log itself) after, so a result we see has its log already on disk
+      const res = resultOf(dir, `draft-${n}`, keys);
       const lines = reviseStepList({ log: readJson(dir, `draft-${n}/log.json`), name });
       const scrubbed = lines === null ? null : lines.map((l) => ({ ...l, label: scrub(l.label, keys) }));
-      const running = n === newest && childRunning(dir); // C9: running first, then the result
-      const res = resultOf(dir, `draft-${n}`, keys);
       if (res && res.phase === 'green') return { n, kind, phase: 'green', hash: res.hash, name, lines: scrubbed };
       if (res) return { n, kind, phase: 'red', reds: res.reds, say: kind === 'answers' ? REDRAFT_RED_SAY : REVISE_RED_SAY, name, lines: scrubbed };
       if (running) return { n, kind, phase: 'running', name };
