@@ -16,17 +16,34 @@
   <img src="https://img.shields.io/badge/status-WIP-orange" alt="status: WIP">
 </p>
 
-**"Automate this job — it has humans in it."** [WIP]
+**"Automate this job — it has humans in it."**
 
-fwdloop builds workflows that automate jobs with a human in the loop. You describe the job
-as plain steps and a few guardrails: what to gather, what to work out, where to stop and
-check with a person, what to send when they say yes. An agent builds the workflow from that
-description. You dry-run it, accept it once, and then it runs on its trigger, pausing where
-you said, checking that every step actually happened, and staying under budgets it cannot
-change.
+There is no perfect workflow. The best one does the job by the shortest path, says plainly when it couldn't, and stops at the right places for a person to look.
 
-It is built mainly for that shape of work: gather, decide, pause, hand off, continue. Not a
-general agent. Not a chat bot. A workflow that a person can read, approve, rerun, and edit.
+fwdloop builds that workflow for you. Write the job in plain language, as steps. Under each step, say what counts as done and what it must never do, and where it must stop and ask you. The agent works out the steps and the tools; every step is checked before the next one starts, and the run pauses wherever you said a person decides.
+
+The harness (budget, time, what it may touch, where results may go) and the checks sit outside the agent loop. The agent can't judge itself or change its own limits. Every run is recorded, so you can see exactly what happened, step by step, and what it cost.
+
+## Three kinds of steps
+
+**Machine-checked:** code decides. The file exists, the numbers add up, every row is there.
+> "Total each customer's open invoices." · "Bucket these invoices by age."
+
+**Shape-checked:** a shape you declared decides. Three sections, each under 200 words, every heading present. No second AI grades the first.
+> "Summarize my resume against this job ad, three sections."
+
+**You check:** a person decides. The run stops, shows you the work, and waits. Accept and it continues; push back and it redoes the step with your note.
+> "Check it with me before anything goes out."
+
+## Runs on its own, stops for you
+
+Accept a job once, then let it run again on a trigger: by hand, on a schedule, when a file is updated, or when a new file arrives in a folder *(triggers: planned)*. Every run stays under the money cap you signed, and a month that can't pay for a whole run doesn't start one. When it reaches a step you check, it waits in the panel for you.
+
+## What it won't do
+
+fwdloop never sends anything out unless you named the destination and said yes in the same run. When a job needs no person at any point, that's [bareloop](https://github.com/hamr0/bareloop)'s job.
+
+Small tools, all local. Built on the bare suite (bareagent, bareguard, litectx), always LLM-agnostic, always on your machine, with a simple panel UI.
 
 ## Where it comes from
 
@@ -60,7 +77,7 @@ standalone.
 
 ## Status
 
-Work in progress. Nothing here is ready to install yet.
+Work in progress. Published on npm as `fwdloop`; the API has no stability promise yet.
 
 ## License
 
