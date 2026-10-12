@@ -44,6 +44,7 @@ import {
   basename, dirname, extname, isAbsolute, join, resolve, sep,
 } from 'node:path';
 import { parseCsv } from './csv.js';
+import { resetRunStore } from './run-store.js';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -1060,6 +1061,7 @@ export async function runFlow({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: fresh.red, spent: { value: 0 },
     });
   }
+  resetRunStore(runDir); // M7: a fresh run never inherits a store left by an earlier run of the same id
   mkdirSync(runDir, { recursive: true });
 
   // M6: the run keeps a write-once copy of the job it runs, from before its first step (its Job tab shows this, not the flow's later versions)

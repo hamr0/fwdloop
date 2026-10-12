@@ -22,6 +22,8 @@ import {
   runFlow, buildExecutorContext, findForbiddenInContext, STRIKE_LIMIT, MAX_ATTEMPTS, writeArtifact, readArtifact,
 } from '../src/runner.js';
 import { sandboxSend } from './send-sandbox.js';
+import { rmSync } from 'node:fs';
+import { runStoreDir, withRunStore } from '../src/run-store.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -1647,4 +1649,26 @@ test('audit + log.json: a modelStep result\'s refused list lands on the attempt\
   assert.ok(rows.slice(1).every((r) => Array.isArray(r.refused) && r.refused.length === 0), 'every other model row carries []');
   const logJson = JSON.parse(readFileSync(path.join(runDir, 'log.json'), 'utf8'));
   assert.deepEqual(logJson.attempts[0].refused, [refusal]);
+});
+
+// M7 (signed negative: "a second run can't see the first run's stash"): a run's store always starts empty. nextRunId is max+1, so
+// deleting the last run folder gives its id to the next run, and the store beside the old folder must not be inherited.
+test('M7: a new run that reuses a deleted run folder\'s id does not inherit the old run\'s stash', async () => {
+  const root = tmpRoot('m7-reuse');
+  writeJob1Flow(root);
+  const src = writeTempCsv(tmpRoot('m7-reuse-sources'));
+  const start = () => runFlow({
+    root, name: 'job1', runId: 'run-1', sources: [{ id: 'aging', path: src }], catalogue: CATALOGUE, modelStep: makeJob1ModelStep(), askStep: ACCEPT_ASK, sendStep: NOOP_SEND, primitives: {}, businessDate: BUSINESS_DATE,
+  });
+  const first = await start();
+  assert.equal(first.outcome, 'complete', first.red);
+  const runDir = path.join(root, 'job1', 'runs', 'run-1');
+  await withRunStore(runDir, (lc) => lc.stash('carry', 'run one wrote this'));
+  assert.ok((await withRunStore(runDir, (lc) => lc.peek('carry'))), 'the stash is there while the run exists');
+
+  rmSync(runDir, { recursive: true, force: true }); // the human deletes the last run folder ...
+  assert.ok(existsSync(runStoreDir(runDir)), 'the store beside it survives the delete (that is the hole)');
+  const second = await start(); // ... and the next run gets the same id
+  assert.equal(second.outcome, 'complete', second.red);
+  assert.equal(await withRunStore(runDir, (lc) => lc.peek('carry')), null, 'the new run-1 must not see the old run-1 stash');
 });

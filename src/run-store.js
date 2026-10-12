@@ -13,6 +13,7 @@
 // call, so a restarted process (resume) finds the same run's store on disk and a
 // different run never shares one.
 
+import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
@@ -36,4 +37,11 @@ export async function withRunStore(runDir, fn) {
   } finally {
     lc.close();
   }
+}
+
+/** A run STARTS with an empty store, never an inherited one: a run id can be reused (the next id is max+1, so deleting the last run
+ *  folder hands its id to the next run) and the store sits beside the run folder, not in it. Called by the one place a fresh run
+ *  begins (`runFlow`); resume and continue keep the run's own store. @param {string} runDir */
+export function resetRunStore(runDir) {
+  rmSync(runStoreDir(runDir), { recursive: true, force: true });
 }
