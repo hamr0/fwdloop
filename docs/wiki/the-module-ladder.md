@@ -1346,6 +1346,13 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 3. The ✗ lines stay red and loud, as am10 says. These words replace "am7's words" in am10 item 1 and the words the builder chose in piece 1c.
 **Done when:** a test that fails first for each line above, and the $0 browser walk shows them. **Cap:** $0.
 
+**M4d amendment 12 — SIGNED by hamr 2026-10-12 ("sign M4d am12"): earlier tries read as the AI fixing itself, not as a fault.**
+1. Each try is its own line, with its own result and its own reason: `try 1 ✗` `> <why try 1 was refused>`, `try 2 ✗` `> <why try 2 was refused>`, … the last `try N ✓`. Shown only when a retry happened (one try that passed shows no try lines, as today).
+2. The free retry after a broken reply is not a new try number: the broken one reads `try 3 ✗` `> the reply came back broken; one free retry`, and the retry reads `try 3 again ✓`. Never `try 4`.
+3. Try lines, their ✗ marks and their details are grey, like every other detail. One grey line sits above them: **"Earlier tries were refused by the checks and fixed by the AI. Nothing for you to do."** Red stays only for a draft that ends red (its last try failed), as today.
+4. Replaces am10 item 1's try bullet and, for try lines only, am10 item 3's "red under a ✗". The readout and its hash don't change.
+**Done when:** a test that fails first; a $0 browser walk at 1280, 390 and 320; and the m7-walk-1 draft's own log (4 rounds, 2026-10-12) shows try 1, 2, 3 grey and `try 3 again ✓`. **Cap:** $0.
+
 - **Built after signing — not signed text (2026-10-12), M4d amendments 3-11 (branch `m4d-am3`):**
   - bare-agent is `^0.52.0`. Each drafting round carries bareagent's `thinkingStatus`; the worst one across the rounds is what the Chat list says (am11's words), and the row's Base URL is passed to `thinkingSupport`. A `ValidationError` from the provider is an ordinary loud provider-red, counted as one unmetered call (the separate `thinking-refused` stop was removed as dead code).
   - A job's model is remembered in `model.json` beside the draft and then beside the signed flow. It is not one of the signed files; which model runs, and at what price, is still Settings' to say, and a line no longer ticked is refused by name. An old signed flow with no `model.json` runs with the model picked in Chat's "Run a signed flow" card, and the pick is recorded on a successful start.
@@ -2124,6 +2131,9 @@ through M5 (docs/archive/PRD.md:597-605).
   - **Done when:** a job2 flow that grants `compress` runs on deepseek-flash, and a real step uses one of the new tools and passes its check. Plus tests that fail first.
   - **Must fail when:** a step that isn't granted `recall` calls it, and is refused. A second run can't see the first run's `stash`.
   - **Cap:** $0.50.
+
+**M7 amendment 1 — SIGNED by hamr 2026-10-12 ("sign m7 am1"): the live test uses a tool that fits prose.**
+1. M7's "Done when" changes from "a job2 flow that grants `compress` runs on deepseek-flash, and a real step uses one of the new tools and passes its check" to: **a real step on deepseek-flash calls `stash`, `peek` or `get` and passes its check, and the Audit tab shows the call.** Plus tests that fail first (unchanged).
 
 Superseded 2026-10-11 by the signed scope above (skills and persona dropped by hamr). Kept so it is not re-derived.
 
