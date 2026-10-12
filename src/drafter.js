@@ -15,7 +15,7 @@
 // Unknown cost is never 0: sumMeterings gives null, and the budget check
 // prices an unpriced round at the ceiling.
 
-import { Loop, HaltError, ValidationError } from 'bare-agent';
+import { Loop, HaltError } from 'bare-agent';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, SHAPE_KEYS, checkGuardrailSums, guardrailWordsPerSection } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
@@ -296,7 +296,7 @@ export async function draft({
   // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
   const thinkingOf = () => {
     const status = worstThinkingStatus(log.map((e) => e.thinkingStatus));
-    return { asked: draftThinking, status, say: thinkingSay(draftThinking, status) };
+    return { asked: draftThinking, status, say: thinkingSay(status) };
   };
   const fail = (reds, extra = {}) => ({
     ok: false, declaration: null, reds, rounds: 0, calls: 0, spendComplete: true, costUsd: 0, modelReturned: null, structureRetries: 0, revisions: 0, stop: 'pre-flight', log: [], ...extra,
@@ -391,7 +391,6 @@ export async function draft({
       inFlight, calls, unmetered, metered: sumMeterings(meterings), modelId, price: priceRecord(prices, rates),
     });
     book(true);
-    let refusedThinking = false; // bareagent refused the thinking choice BEFORE sending (a ValidationError): nothing was sent, so nothing was spent
     try {
       result = await loop.run(
         [{ role: 'system', content: system }, { role: 'user', content: userText }],
@@ -402,20 +401,11 @@ export async function draft({
       );
     } catch (err) {
       threw = err;
-      refusedThinking = err instanceof ValidationError;
-      if (roundEvents.length === 0 && !refusedThinking) unmetered += 1;
+      if (roundEvents.length === 0) unmetered += 1;
     }
     book(false);
     const entry = { round: log.length + 1, kind: nextKind };
 
-    if (threw && refusedThinking) {
-      // M4d am7 item 3: loud, by name, never retried and never swallowed; a 400 walked by bareagent's ladder is free, so no round is metered or unmetered.
-      entry.outcome = `thinking-refused: ${threw.message}`;
-      log.push(entry);
-      stop = 'thinking-refused';
-      lastReds = [`thinking: ${threw.message}`];
-      break;
-    }
     if (result?.thinkingApplied !== undefined) entry.thinkingApplied = result.thinkingApplied; // bareagent's verdict on this round: true | false | null
     if (result?.thinkingStatus !== undefined) entry.thinkingStatus = result.thinkingStatus; // 'applied' | 'unsupported' | 'ignored' | 'unknown' (bare-agent >= 0.52)
 
@@ -506,9 +496,7 @@ export async function draft({
     }
   }
 
-  // A refusal before anything was sent, with no round metered, spent exactly $0 (not "unknown").
-  const m = stop === 'thinking-refused' && meterings.length === 0 && unmetered === 0
-    ? { ...sumMeterings(meterings), costUsd: 0 } : sumMeterings(meterings);
+  const m = sumMeterings(meterings);
   // Runner convention: `costUsd` is the priced sum (null when ANY round is unpriced, so the CLI prints UNKNOWN,
   // never a bare number), and `spendComplete:false` marks a call that failed unmetered or a round left unpriced.
   return {

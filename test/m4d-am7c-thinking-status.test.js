@@ -41,13 +41,11 @@ test('B2: the Chat menu asks the lookup with the row\'s own Base URL', async () 
 
 test('C1: the loud sentences, one function; applied says nothing', () => {
   // M4d am11: fixed strings, whatever was asked (they say what the model did)
-  for (const asked of ['on', 'off']) {
-    assert.equal(thinkingSay(asked, 'ignored'), 'thinking on (the model thought anyway)');
-    assert.equal(thinkingSay(asked, 'unsupported'), "thinking on (this model can't change it)");
-    assert.equal(thinkingSay(asked, 'unknown'), 'thinking off (not confirmed)');
-  }
-  assert.equal(thinkingSay('off', 'applied'), null);
-  assert.equal(thinkingSay('off', null), null);
+  assert.equal(thinkingSay('ignored'), 'thinking on (the model thought anyway)');
+  assert.equal(thinkingSay('unsupported'), "thinking on (this model can't change it)");
+  assert.equal(thinkingSay('unknown'), 'thinking off (not confirmed)');
+  assert.equal(thinkingSay('applied'), null);
+  assert.equal(thinkingSay(null), null);
 });
 
 test('C2: worst wins: ignored > unsupported > unknown > applied', () => {
@@ -77,13 +75,13 @@ test('D2: applied everywhere (or no status from the provider) means no sentence'
   assert.deepEqual(none.thinking, { asked: 'on', status: null, say: null });
 });
 
-test('D3: a ValidationError that still exists upstream (raw thinking + thinkingMode) stays the loud $0 refusal', async () => {
+test('D3: a ValidationError (raw thinking + thinkingMode) is a plain provider-red, loud with its message, counted unmetered', async () => {
   const { ValidationError } = await import('bare-agent');
   const provider = { async generate() { throw new ValidationError('[OpenAIProvider] both the raw thinking option and thinkingMode are set'); } };
   const r = await run(provider, { draftThinking: 'off' });
-  assert.equal(r.stop, 'thinking-refused');
-  assert.equal(r.costUsd, 0);
-  assert.match(r.reds[0], /^thinking: /);
+  assert.equal(r.stop, 'provider-red');
+  assert.equal(r.spendComplete, false);
+  assert.match(r.reds[0], /^provider-red: .*raw thinking option/);
 });
 
 test('E1: the page view of a green plan carries the thinking line in its step list (from log.json; M4d am10 moved it there); applied is a plain "thinking off"', async () => {

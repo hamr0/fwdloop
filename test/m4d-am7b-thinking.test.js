@@ -1,6 +1,6 @@
 // M4d amendment 7, piece 1 (docs/wiki/the-module-ladder.md "M4d amendment 7" items 2-4) on bare-agent 0.51.0:
 // bareagent decides and applies thinking. Our drafter says only 'on' or 'off' (`thinkingMode`), never a raw `thinking` field;
-// `src/thinking.js` asks the real `thinkingSupport(kind, model)`; a bareagent ValidationError is a loud refusal at $0.
+// `src/thinking.js` asks the real `thinkingSupport(kind, model)`; a bareagent ValidationError from the provider is an ordinary provider-red (loud, counted unmetered).
 // $0, no network: fake providers, or the REAL bareagent providers pointed at a dead port (the errors under test throw before any send).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -58,25 +58,23 @@ test('C2: the REAL bareagent answers: a measured not-switchable model is false, 
   assert.equal(thinkingSupport('openai-api', 'no-such-model'), 'unverified');
 });
 
-test('D1: a ValidationError from bareagent is a loud refusal by name at $0, one call, no structure retry, nothing unmetered', async () => {
+test('D1: ANY ValidationError from the provider (even an unrelated one) is a plain provider-red: loud with its message, one call, no structure retry, counted unmetered (cost never shown as 0)', async () => {
   let n = 0;
   const provider = {
-    async generate() { n += 1; throw new ValidationError('[AnthropicProvider] thinkingMode off is not supported by claude-opus-5-5'); },
+    async generate() { n += 1; throw new ValidationError('[AnthropicProvider] some unrelated bad option'); },
   };
   const r = await run(provider, { draftThinking: 'off' });
   assert.equal(r.ok, false);
-  assert.equal(r.stop, 'thinking-refused');
-  assert.match(r.reds[0], /^thinking: .*claude-opus-5-5/);
+  assert.equal(r.stop, 'provider-red');
+  assert.match(r.reds[0], /^provider-red: .*some unrelated bad option/);
   assert.equal(n, 1);
-  assert.equal(r.costUsd, 0);
-  assert.equal(r.spendComplete, true);
+  assert.equal(r.spendComplete, false); // counted unmetered, so the money is "at least", never a bare 0
   assert.equal(r.rounds, 0);
 });
 
 test('D2: the REAL Anthropic provider on a model that cannot turn thinking off (0.52): NOT refused for that - the call is sent (here it meets the dead port), never a thinking refusal', async () => {
   const provider = new Anthropic({ apiKey: 'k', model: 'claude-opus-5-5', baseUrl: DEAD });
   const r = await run(provider, { draftThinking: 'off' });
-  assert.notEqual(r.stop, 'thinking-refused');
   assert.equal(r.stop, 'provider-red');
 });
 
