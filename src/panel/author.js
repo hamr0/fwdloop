@@ -168,7 +168,7 @@ export function createAuthor(opts) {
     const list = draftStepList({ log: readJson(dir, `${rel}/log.json`), declaration });
     if (list === null) return null;
     const sc = (x) => scrub(String(x), keys);
-    return list.map((st) => ({ ...st, label: sc(st.label), details: st.details.map(sc), ...(st.reds ? { reds: st.reds.map(sc) } : {}) }));
+    return list.map((st) => ({ ...st, label: sc(st.label), details: st.details.map(sc) }));
   }
 
   /**

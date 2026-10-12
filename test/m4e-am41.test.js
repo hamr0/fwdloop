@@ -1,6 +1,7 @@
 // M4e amendment 41 (items 5-7): a job card shows at most its latest 7 sub-cards then "older runs: use search"; the Job tab has a "The job" title;
 // each failed plan check on the Chat card is one plain sentence with the raw checker text folded under it. $0. The layout is a browser walk.
 import assert from 'node:assert/strict';
+import { RULES_PRELUDE } from './plan-check-rules.mjs';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -48,7 +49,7 @@ function fnSrc(name) {
   assert.ok(start !== -1, `function ${name} not found in the Chat block`);
   return CHAT.slice(start, CHAT.indexOf('\n    }\n', start) + 7);
 }
-const load = (name) => new Function(`${fnSrc(name)}\nreturn ${name};`)();
+const load = (name, prelude = '') => new Function(`${prelude}\n${fnSrc(name)}\nreturn ${name};`)();
 
 // real checker texts, copied from the templates in src/declaration.js (one per red kind)
 const KINDS = [
@@ -71,7 +72,7 @@ const KINDS = [
 ];
 
 test('item 7: each known red kind reads as one plain sentence (no "declaration:" code words, one line), the raw text kept as is', () => {
-  const plain = load('plainPlanCheck');
+  const plain = load('plainPlanCheck', RULES_PRELUDE);
   const generic = plain('zzz unknown').say;
   for (const raw of KINDS) {
     const r = plain(raw);
@@ -84,7 +85,7 @@ test('item 7: each known red kind reads as one plain sentence (no "declaration:"
 });
 
 test('item 7: an unknown red gets the generic plain sentence and still carries its raw text; nothing is dropped', () => {
-  const plain = load('plainPlanCheck');
+  const plain = load('plainPlanCheck', RULES_PRELUDE);
   const r = plain('something the checker said that we never mapped');
   assert.ok(r.say.length > 10);
   assert.equal(r.raw, 'something the checker said that we never mapped');
@@ -93,8 +94,8 @@ test('item 7: an unknown red gets the generic plain sentence and still carries i
 });
 
 test('item 7: stepsFor gives a failed step the plain sentences as details and the raw texts beside them; renderProgress folds the raw under "details"', () => {
-  const plain = load('plainPlanCheck');
-  const steps = new Function(`${fnSrc('plainPlanCheck')}\n${fnSrc('failedDetails')}\n${fnSrc('stepsFor')}\nreturn stepsFor;`)();
+  const plain = load('plainPlanCheck', RULES_PRELUDE);
+  const steps = new Function(`${RULES_PRELUDE}\n${fnSrc('plainPlanCheck')}\n${fnSrc('failedDetails')}\n${fnSrc('stepsFor')}\nreturn stepsFor;`)();
   const reds = [KINDS[0], 'zzz'];
   const red = steps({ phase: 'red', reds }, { model: 'm', starting: false });
   assert.deepEqual(red[1].details, reds.map((x) => plain(x).say));

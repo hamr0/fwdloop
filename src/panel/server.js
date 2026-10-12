@@ -48,6 +48,7 @@
 
 import { createServer } from 'node:http';
 import { readFileSync, realpathSync } from 'node:fs';
+import { pageRules } from '../plain-checks.js';
 import path, { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -483,6 +484,7 @@ export function handleRequest(req, res, opts) {
       return;
     }
     html = html.replace(/__FWDLOOP_PANEL_PORT__/g, String(opts.port));
+    html = html.replace(/__FWDLOOP_PLAN_CHECK_RULES__/g, () => JSON.stringify(pageRules())); // M4d am15: the one copy of the plain words
     if (method === 'HEAD') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': Buffer.byteLength(html) });
       res.end();

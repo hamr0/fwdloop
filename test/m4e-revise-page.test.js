@@ -2,6 +2,7 @@
 // Source-level, like test/m4e-chat-ui.test.js: the Chat block's own pure functions are cut out of index.html and run, and the markup
 // and CSS are read for what must (not) be there. Real rendering at 1280/390/320 px is a browser walk the orchestrator still owes.
 import assert from 'node:assert/strict';
+import { RULES_PRELUDE } from './plan-check-rules.mjs';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -82,7 +83,7 @@ test('item 3: "2 revises left" / "1 revise left"; at 0 the button reads Start ov
 });
 
 test('item 4: a red revise lists its reds, keeps the edits, and has no Sign & run', () => {
-  const steps = new Function(`${fnSrc('plainPlanCheck')}\n${fnSrc('failedDetails')}\n${fnSrc('stepsFor')}\nreturn stepsFor;`)();
+  const steps = new Function(`${RULES_PRELUDE}\n${fnSrc('plainPlanCheck')}\n${fnSrc('failedDetails')}\n${fnSrc('stepsFor')}\nreturn stepsFor;`)();
   const view = {
     phase: 'red', card: { capUsd: '0.25' }, reds: ['declaration: ask at line 4 is a stop only'], say: 'The revised plan did not pass the checks.', revisesLeft: 1,
     revises: [{ n: 1, phase: 'red', reds: ['declaration: ask at line 4 is a stop only'], say: 'x' }],

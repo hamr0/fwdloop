@@ -2,6 +2,7 @@
 // the M4c/M4d page tests: the page's own pure functions are cut out of index.html and run, and the markup/script are read for
 // what must (not) be there. Real rendering is walked in a browser by the orchestrator.
 import assert from 'node:assert/strict';
+import { RULES_PRELUDE } from './plan-check-rules.mjs';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -130,7 +131,7 @@ test('#chat-action-error is written only by the click handlers: the poll path ne
 });
 
 test('progress list rules: waiting has no check, detail on its own lines, no repeated lines; scroll on change only, never focus', () => {
-  const steps = new Function(`${fnSrc('plainPlanCheck')}\n${fnSrc('failedDetails')}\n${fnSrc('stepsFor')}\nreturn stepsFor;`)();
+  const steps = new Function(`${RULES_PRELUDE}\n${fnSrc('plainPlanCheck')}\n${fnSrc('failedDetails')}\n${fnSrc('stepsFor')}\nreturn stepsFor;`)();
   const waiting = steps({ phase: 'green', card: { capUsd: 0.25 } }, { model: 'm', starting: false, signClicked: false });
   assert.deepEqual(waiting.map((s) => [s.id, s.status]), [['drafted', 'done'], ['sign', 'waiting']]);
   const drafting = steps({ phase: 'drafting', card: { capUsd: '0.25' } }, { model: 'deepseek-flash', starting: false });

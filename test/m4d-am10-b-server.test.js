@@ -21,8 +21,9 @@ test('C1: a green draft carries its list: thinking, inputs, drafted, plan checks
   assert.equal(j.phase, 'green');
   assert.deepEqual(lines(j.stepList), ['thinking:done', 'inputs:done', 'drafted:done', 'checks:done', 'rubrics:done']);
   assert.equal(j.stepList[0].label, 'thinking off');
-  assert.deepEqual(j.stepList[1].details, ['resume: 1 heading', 'jd: 1 heading']);
-  assert.deepEqual(j.stepList.at(-1).details, ['line 3: built']);
+  assert.equal(j.stepList[1].label, 'inputs · resume: 1 heading · jd: 1 heading');
+  assert.equal(j.stepList.at(-1).label, 'rubrics · line 3');
+  assert.ok(j.stepList.every((s) => s.details.length === 0));
 });
 
 test('C2: ignored thinking: the thinking line fails with am7\'s words; the old thinkingSay field is gone from the view', async () => {
@@ -32,27 +33,25 @@ test('C2: ignored thinking: the thinking line fails with am7\'s words; the old t
   assert.equal(Object.hasOwn(j, 'thinkingSay'), false);
 });
 
-test('C3: a refused (red) draft carries drafted + plan checks failed with the raw refusals', async () => {
+test('C3: a refused (red) draft carries drafted + a failed plan-checks line with ONE plain reason and a Fix line when it has one; no raw text, no try lines', async () => {
   const w = await world({ mode: 'bad' });
   const { j } = await finish(w);
   assert.equal(j.phase, 'red');
   const checks = j.stepList.find((s) => s.id === 'checks');
   assert.equal(checks.status, 'failed');
-  assert.ok(checks.reds.length > 0);
-  assert.ok(j.stepList.some((s) => s.id === 'try-2') && j.stepList.some((s) => s.id === 'try-3'));
+  assert.equal(checks.label, 'plan checks · A step uses a tool that is not available for this job');
+  assert.ok(j.stepList.every((s) => s.details.length === 0 && s.reds === undefined && !s.id.startsWith('try')));
+  assert.ok(!JSON.stringify(j.stepList).includes('declaration:'));
 });
 
-test('C4: a draft with a retry lists try 1 and try 2, each with its own reason; a clean draft lists none', async () => {
-  const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_RETRY: '1' } });
+test('C4: a draft that passed after refused tries says "fixed by the AI after 2 tries" on the plan-checks line, and has no try lines; a clean one says plain "plan checks"', async () => {
+  const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_RETRY: '2' } });
   const { j } = await finish(w);
   assert.equal(j.phase, 'green');
-  const t = j.stepList.find((s) => s.id === 'try-1');
-  assert.equal(t.label, 'try 1');
-  assert.ok(t.reds.length > 0);
-  assert.equal(j.stepList.find((s) => s.id === 'try-2').label, 'try 2');
-  assert.ok(!j.stepList.some((s) => s.id === 'try-3'));
+  assert.equal(j.stepList.find((s) => s.id === 'checks').label, 'plan checks · fixed by the AI after 2 tries');
+  assert.ok(!j.stepList.some((s) => s.id.startsWith('try')));
   const clean = await finish(await world());
-  assert.ok(!clean.j.stepList.some((s) => s.id.startsWith('try')));
+  assert.equal(clean.j.stepList.find((s) => s.id === 'checks').label, 'plan checks');
 });
 
 test('C5: item 5 - the readout and the plan hash are exactly the files on disk, the hash recomputes from the five hashed files, and the list words are not in the readout', async () => {
