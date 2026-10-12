@@ -13,6 +13,8 @@ test('a red revise: the revise line is one plain reason and a Fix line, no detai
   const id = (await w.post('/api/author/draft', w.card())).json().draftId;
   const g = await settle(w, id, ['green']);
   assert.equal(g.phase, 'green');
+  const pid = JSON.parse(readFileSync(`${w.dir(id)}/pid.json`, 'utf8'));
+  await until(() => isFwdloopAlive(pid.pid, pid.procStart) !== true); // the draft child must be gone before a revise is taken (else 409 draft-live)
   const card = w.card();
   const r = await w.post(`/api/author/${id}/revise`, { ...card, job: `${card.job}\nREDMARK` });
   assert.equal(r.status, 202, r.text);
