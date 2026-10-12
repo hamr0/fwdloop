@@ -49,6 +49,7 @@
 import { createServer } from 'node:http';
 import { readFileSync, realpathSync } from 'node:fs';
 import { pageRules } from '../plain-checks.js';
+import { readOwnVersion } from '../version.js';
 import path, { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -352,7 +353,7 @@ function authorPost(res, url, body, author) {
  * real listening socket where that is simpler.
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
- * @param {{ root: string, port: number, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings>, author: ReturnType<typeof createAuthor> }} opts
+ * @param {{ root: string, port: number, packagePath?: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings>, author: ReturnType<typeof createAuthor> }} opts
  */
 export function handleRequest(req, res, opts) {
   const method = req.method ?? 'GET';
@@ -484,6 +485,8 @@ export function handleRequest(req, res, opts) {
       return;
     }
     html = html.replace(/__FWDLOOP_PANEL_PORT__/g, String(opts.port));
+    const version = readOwnVersion(opts.packagePath); // M4d am17: the header's number, read from fwdloop's own package.json at serve time
+    html = version === null ? html.replace(/v__FWDLOOP_VERSION__/g, 'version unknown').replace(/__FWDLOOP_VERSION__/g, '') : html.replace(/__FWDLOOP_VERSION__/g, version);
     html = html.replace(/__FWDLOOP_PLAN_CHECK_RULES__/g, () => JSON.stringify(pageRules())); // M4d am15: the one copy of the plain words
     if (method === 'HEAD') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': Buffer.byteLength(html) });
@@ -572,7 +575,7 @@ export function handleRequest(req, res, opts) {
  * header). Resolves once actually listening; rejects on a bind error
  * (including `EADDRINUSE`) with a `.port` field on the error for the
  * caller's message.
- * @param {{ port?: number, root: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: Function, platform?: string }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number }, author?: { env?: Record<string,string|undefined>, loadEnv?: () => any, bin?: string } }} opts
+ * @param {{ port?: number, root: string, packagePath?: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: Function, platform?: string }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number }, author?: { env?: Record<string,string|undefined>, loadEnv?: () => any, bin?: string } }} opts
  *   `resume` and `author` are for tests only (a fake env/bin, a short retry window); the CLI passes none.
  * @returns {Promise<{ server: import('node:http').Server, port: number, close: () => Promise<void> }>}
  */
@@ -606,7 +609,7 @@ export function createPanelServer(opts) {
     const server = createServer((req, res) => {
       try {
         handleRequest(req, res, {
-          root, port: boundPort, resumer, settings, author,
+          root, port: boundPort, resumer, settings, author, packagePath: opts.packagePath,
         });
       } catch (e) {
         sendText(res, 500, 'internal error');

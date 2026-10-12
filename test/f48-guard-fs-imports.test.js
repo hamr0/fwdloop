@@ -334,6 +334,10 @@ const ALLOWLIST = {
     reason: "M7: the ONE remover of a run's litectx store folder (<runs>/.stores/<runId>), called when a fresh run starts so a reused run id never inherits an old store; the path comes only from runStoreDir(runDir). litectx itself opens and writes the store.",
     names: { rmSync: 1 },
   },
+  'src/version.js': {
+    reason: "M4d am17: the ONE reader of fwdloop's own package.json (the package's own file next to src/, or a copy a test passes), for the panel header's version; one read, JSON-parsed, nothing from a run or flow dir",
+    names: { readFileSync: 1 },
+  },
   'src/config.js': {
     reason: 'M4d: the ONE reader/writer of the per-person config.json (~/.config/fwdloop), a regular file OUTSIDE any run/flow dir, not a book. One read (ENOENT = nothing set); the atomic write is mkdir + tmp write + chmod 0600 + rename. Never follows into a run dir.',
     names: {

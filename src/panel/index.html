@@ -119,6 +119,8 @@
   .topbar > div:first-child{display:flex;align-items:baseline;gap:0;white-space:nowrap;overflow:hidden;}
   .topbar .brand{font-weight:700;font-size:17px;letter-spacing:0.06em;flex:none;}
   .topbar .brand::before{content:"■ ";}
+  .topbar .version{font-size:12px;color:var(--text-dim);margin-left:8px;flex:none;white-space:nowrap;}
+  .topbar .version::before{content:"· ";color:var(--text-faint);}
   .topbar .tagline{font-size:12px;color:var(--text-dim);margin-left:8px;overflow:hidden;text-overflow:ellipsis;}
   .topbar .tagline::before{content:"· ";color:var(--text-faint);}
   @media (max-width: 600px){ .topbar .tagline{display:none;} }
@@ -767,6 +769,7 @@
   <header class="topbar">
     <div>
       <span class="brand">fwdloop</span>
+      <span class="version" data-version="__FWDLOOP_VERSION__">v__FWDLOOP_VERSION__</span>
       <span class="tagline">automate a job — it has humans in it</span>
     </div>
     <div class="topbar-right">
