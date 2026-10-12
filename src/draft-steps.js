@@ -84,11 +84,10 @@ export function draftStepList({ log, declaration }) {
       const fixedAfter = tries.length > 0 && tries[tries.length - 1].passed ? tries.filter((x) => !x.again).length - 1 : 0;
       out.push({ id: 'checks', label: fixedAfter > 0 ? `plan checks · fixed by the AI after ${fixedAfter} ${fixedAfter === 1 ? 'try' : 'tries'}` : 'plan checks', status: 'done', details: [] });
     } else {
-      // one plain reason, and the fix words when the plain sentence has any: the first refusal that has a fix, else the first
-      const plain = checkReds.map(plainPlanCheck);
-      const pick = plain.find((p) => p.fix !== null) ?? plain[0];
+      // one plain reason and its one Fix line (every rule has fix wording): the first refusal
+      const pick = checkReds.map(plainPlanCheck)[0];
       out.push({ id: 'checks', label: pick ? `plan checks · ${pick.reason}` : 'plan checks', status: 'failed', details: [] });
-      if (pick?.fix) out.push({ id: 'checks-fix', label: `Fix: ${pick.fix}`, status: 'done', details: [], note: true });
+      if (pick) out.push({ id: 'checks-fix', label: `Fix: ${pick.fix}`, status: 'done', details: [], note: true });
     }
   }
 
