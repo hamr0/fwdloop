@@ -119,6 +119,9 @@
   .topbar > div:first-child{display:flex;align-items:baseline;gap:0;white-space:nowrap;overflow:hidden;}
   .topbar .brand{font-weight:700;font-size:17px;letter-spacing:0.06em;flex:none;}
   .topbar .brand::before{content:"■ ";}
+  .update-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 16px;background:var(--amber);color:#000;font-size:13px;}
+  .update-bar[hidden]{display:none;}
+  .update-bar .btn{color:#000;border-color:#000;}
   .topbar .version{font-size:12px;color:var(--text-dim);margin-left:8px;flex:none;white-space:nowrap;}
   .topbar .version::before{content:"· ";color:var(--text-faint);}
   .topbar .tagline{font-size:12px;color:var(--text-dim);margin-left:8px;overflow:hidden;text-overflow:ellipsis;}
@@ -765,6 +768,11 @@
 <body>
 
 <div id="FwdloopPanel">
+
+  <div id="update-bar" class="update-bar" data-testid="update-bar" role="status" hidden>
+    <span id="update-text"></span>
+    <button class="btn" type="button" id="update-reload" data-testid="update-reload">Reload</button>
+  </div>
 
   <header class="topbar">
     <div>
@@ -2992,6 +3000,19 @@
     el._say = say;
     say(timeLeftMs);
   }
+  // M4d am18: the page keeps the version it was served with (the header's data-version, am17); the Inbox poll reports the server's. A different one = the panel
+  // restarted on newer code under this open tab: say so. Pure text rule (null = no bar), one painter.
+  function updateBarText(pageVersion, serverVersion){
+    if(typeof pageVersion !== "string" || pageVersion === "" || typeof serverVersion !== "string" || serverVersion === "") return null;
+    return pageVersion === serverVersion ? null : "fwdloop was updated to v" + serverVersion + ". Reload this page.";
+  }
+  function paintUpdateBar(serverVersion){
+    var vEl = document.querySelector(".topbar .version");
+    var text = updateBarText(vEl ? vEl.getAttribute("data-version") : "", serverVersion);
+    document.getElementById("update-bar").hidden = text === null;
+    if(text !== null) document.getElementById("update-text").textContent = text;
+  }
+  document.getElementById("update-reload").addEventListener("click", function(){ location.reload(); });
   function tickLeft(){
     document.querySelectorAll(".live-left").forEach(function(el){ el._say(Math.max(0, el._endsAt - Date.now())); });
   }
@@ -3087,7 +3108,7 @@
   // Immediate (every user action that re-reads calls this); the tick uses `listsDue` to throttle.
   function reloadLists(){
     lastListsAt = Date.now();
-    getJSON("/api/inbox").then(function(r){ renderInbox(r.rows || [], r.openCount); }).catch(function(){});
+    getJSON("/api/inbox").then(function(r){ renderInbox(r.rows || [], r.openCount); paintUpdateBar(r.version); }).catch(function(){});
     getJSON("/api/runs").then(function(r){
       var rows = r.rows || [];
       var next = sig(rows);

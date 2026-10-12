@@ -513,7 +513,7 @@ export function handleRequest(req, res, opts) {
 
   if (pathname === '/api/inbox') {
     const rows = listStops({ root: opts.root, resumeAttempt, catalogue });
-    send(200, { rows, openCount: inboxOpenCount(rows) });
+    send(200, { rows, openCount: inboxOpenCount(rows), version: readOwnVersion(opts.packagePath) }); // M4d am18: the page compares it with the version it was served with
     return;
   }
 
