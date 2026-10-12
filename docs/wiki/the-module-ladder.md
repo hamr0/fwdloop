@@ -1354,6 +1354,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - The Chat list of a draft (am10) is built by one function, `draftStepList` (`src/draft-steps.js`), from the draft's own `log.json` and declaration; the draft's input facts ride in `log.json`, never in the hashed files.
   - The Ask tab no longer rebuilds on a refresh tick: `timeLeftMs` is left out of the page's change signature, "time left" counts down in place, and a real redraw keeps each evidence box's scroll position.
   - F64: a malformed tool call's raw arguments are shown as the first 2000 characters, then `… (N more chars)`.
+  - A key name is a name that ends in `_KEY`, capitals (`isKeyName` in `src/keysfile.js`, commit 1b15bfb). Only such lines of the keys file are listed as Settings rows; a configured name that is not one never reaches a child's env; and the provider, model, Test and models routes refuse any other slot by name (`not-a-key-name`, nothing saved). This replaces the "other names are still listed" words of amendment 16 item C4 and the "every name with a value is a row" words of amendment 6 (signed text, unchanged). A `config.json` that already names a slot without `_KEY` is not broken: that row is simply not shown and its keys-file line is not passed on.
 
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
