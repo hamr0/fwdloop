@@ -19,6 +19,11 @@ test('an empty cmdline on a zombie is still dead', () => {
   assert.equal(isFwdloopAlive(process.pid, '17970591', proc('', 'Z')), false);
 });
 
+test('an empty cmdline on a task that is exiting (state R, vsize 0: memory already released) is dead, not "cannot tell" (an Abandon test saw null right after a kill)', () => {
+  const exiting = { cmdline: () => '', stat: () => stat('R').replace(' 4096 0 18446744073709551615', ' 0 0 18446744073709551615') };
+  assert.equal(isFwdloopAlive(process.pid, '17970591', exiting), false);
+});
+
 test('a normal fwdloop cmdline is still alive, a foreign one still not', () => {
   assert.equal(isFwdloopAlive(process.pid, '17970591', proc('/usr/bin/node\0/x/bin/fwdloop\0draft\0', 'S')), true);
   assert.equal(isFwdloopAlive(process.pid, '17970591', proc('/usr/bin/node\0/x/other.js\0', 'S')), false);

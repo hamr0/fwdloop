@@ -59,7 +59,7 @@ const DEFAULT_SHAPE = 'openai-api';
  *  capitals): the same gate the keys file, the env pass-through and the log scrubber use, so a key a run can use is always one the scrubber knows. */
 export { isKeyName };
 /** The sentence part every refusal of a non-key name carries, so the rule is named wherever it is refused. */
-export const KEY_NAME_RULE_SAY = 'a key name is written like DEEPSEEK_API_KEY (capitals, ending in _KEY)';
+export const KEY_NAME_RULE_SAY = 'a key name is written in capitals and ends in _KEY';
 
 /**
  * THE one lookup of a row's API shape, address and legacy-token tick (M4d amendment 6). A row IS its key's env name, so the slot name and the

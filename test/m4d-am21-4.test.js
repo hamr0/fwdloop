@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 
-const RULE = /a key name is written like DEEPSEEK_API_KEY \(capitals, ending in _KEY\)/;
+const RULE = /a key name is written in capitals and ends in _KEY/;
 
 test('there is one rule: provider.js and keysfile.js export the very same function', () => {
   assert.equal(fromProvider, fromKeys);

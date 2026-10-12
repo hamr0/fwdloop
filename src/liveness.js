@@ -36,6 +36,9 @@ function startFromStat(stat) {
 /** Field 3 (state) of a /proc/<pid>/stat text. @param {string} stat */
 const stateFromStat = (stat) => stat.slice(stat.lastIndexOf(')') + 2, stat.lastIndexOf(')') + 3);
 
+/** Field 23 (vsize, bytes) of a /proc/<pid>/stat text: 0 for a task that has already released its memory (dying), > 0 for one that is alive (even in its exec window). @param {string} stat */
+const vsizeFromStat = (stat) => Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[20]);
+
 /** The two /proc files this module reads, as one seam so a test can hand it a snapshot. */
 const REAL_PROC = {
   cmdline: (/** @type {number} */ pid) => readFileSync(`/proc/${pid}/cmdline`, 'utf8'),
@@ -63,9 +66,11 @@ export function isFwdloopAlive(pid, procStart, proc = REAL_PROC) {
   if (cmdline === '') {
     // A zombie reads empty, but so does a LIVE child for a few ms after its exec (seen under load: state R, starttime equal, cmdline
     // empty), which used to read as dead and showed a fresh draft as "stopped". Only a state of Z/X is dead; otherwise we cannot tell yet.
+    // A task that is exiting also reads empty (and R/D) for an instant, but it has already let go of its memory: vsize 0. That is dead, not "cannot tell".
     let state = null;
-    try { state = stateFromStat(proc.stat(pid)); } catch { /* gone between the reads */ }
-    return state === 'Z' || state === 'X' || state === null ? false : null;
+    let vsize = 0;
+    try { const st = proc.stat(pid); state = stateFromStat(st); vsize = vsizeFromStat(st); } catch { /* gone between the reads */ }
+    return state === 'Z' || state === 'X' || state === null || !(vsize > 0) ? false : null;
   }
   const [argv0, ...rest] = cmdline.split('\0');
   let isFwdloop;
