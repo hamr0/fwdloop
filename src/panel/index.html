@@ -4386,7 +4386,9 @@
       // M4d am20: Run a signed flow does not draft: the server writes the same cap-too-small sentence with "run" (the flow's recorded model, else the one picked in Chat)
       var sfNow = selectedFlow();
       if(mode === "run" && sfNow) picked = "&kind=run&flow=" + encodeURIComponent(sfNow.flow) + (pk.provider !== "" ? "&provider=" + encodeURIComponent(pk.provider) + "&model=" + encodeURIComponent(pk.model) : "");
-      authorGet("/api/author/monthly-check?cap=" + encodeURIComponent(cap) + spent + picked).then(function(j){
+      // M4d am21 item 1: a card that belongs to a live draft (a revise, or the Start over about to be made) is checked for the pot left, as the doors do
+      var ofDraft = (mode === "new" && sessionLive && sessionId) ? "&draft=" + encodeURIComponent(sessionId) : "";
+      authorGet("/api/author/monthly-check?cap=" + encodeURIComponent(cap) + spent + picked + ofDraft).then(function(j){
         if(seq !== capNoteSeq) return;
         if(!j || j.ok !== true){ setMoneyNote("", false); return; }
         var v = Number(cap);

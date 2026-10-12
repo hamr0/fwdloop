@@ -55,7 +55,7 @@ import { thinkingSupport as bareagentThinkingSupport, THINKING_FIXED_SAY, THINKI
 import { parseSignedText } from '../signed-text.js';
 import { draftStepList, reviseStepList } from '../draft-steps.js';
 import {
-  capTooSmallText, draftingSpent, potSplit, STARTED_OVER_FILE, usdText,
+  capTooSmallText, draftingSpent, EARLIER_MISSING_SAY, potSplit, STARTED_OVER_FILE, usdText,
 } from '../draftspend.js';
 import { flowValues, valuesHash } from '../runvalues.js';
 import { leastResumeCapUsd } from './authorvalues.js';
@@ -187,9 +187,10 @@ export function createAuthor(opts) {
    */
   function potOf(dir, card) {
     const ceilingUsd = capFloorFor(true, home, card);
-    const split = potSplit(Number(card.capUsd), draftingSpent(dir, { ceilingUsd }));
+    const spentRead = draftingSpent(dir, { ceilingUsd });
+    const split = potSplit(Number(card.capUsd), spentRead);
     const floorUsd = capFloorUsd(typeof card.job === 'string' ? card.job : '', home, card);
-    const refusal = split.leftUsd < floorUsd
+    const refusal = spentRead.missingEarlier ? EARLIER_MISSING_SAY : split.leftUsd < floorUsd
       ? `${split.line}: not enough for one run round at its worst case, ${usdText(floorUsd)}. Raise Cap $.`
       : null;
     return { split, refusal };
@@ -388,7 +389,7 @@ export function createAuthor(opts) {
      * floor line (am20: `Cap $X is below one drafting|run round's worst case for <model>, $Y. …`, `kind` picks the word). A cap that is not a number above 0 gets no note. Never spends, never writes.
      * @param {unknown} cap @param {string|null} [spent] what a resumed run has already spent (amendment 4 item 4) @param {{ provider?: string, model?: string, flow?: string }|null} [pick] the card's picked model, or (a Run / Resume) the flow whose recorded model it @param {string} [kind] 'run' for Run a signed flow and Resume, else the Chat card's 'drafting' is: its own prices are the floor (M4d am6)
      */
-    monthlyCheck(cap, spent = null, pick = null, kind = 'drafting') {
+    monthlyCheck(cap, spent = null, pick = null, kind = 'drafting', draftId = /** @type {string|null} */ (null)) {
       const n = Number(cap);
       // a Resume / Run names its flow: the model recorded beside the signed job is the one whose prices are the floor
       const recorded = pick?.flow !== undefined && checkFlowName(pick.flow).ok ? readModelRecord(join(root, pick.flow)) : null;
@@ -403,7 +404,11 @@ export function createAuthor(opts) {
       if (spentUsd > 0 && n <= spentUsd + 1e-9) {
         return { status: 200, body: { ok: true, text: `The cap must be above what is already spent (at least $${leastResumeCapUsd(spentUsd, floorUsd).toFixed(2)}).`, red: true, floorUsd, floorText } };
       }
-      const claim = monthlyClaim(n - spentUsd);
+      // M4d am21 item 1: a card that belongs to a draft (a revise, or the Start over about to be made) is checked for the pot LEFT, as the doors do
+      const dd = draftsDir();
+      const priorDir = typeof draftId === 'string' && ID_RE.test(draftId) && dd !== null && listIds().includes(draftId) ? join(dd, draftId) : null;
+      const priorUsd = priorDir === null ? 0 : draftingSpent(priorDir, { ceilingUsd: floorUsd }).usd;
+      const claim = monthlyClaim(Math.max(0, n - spentUsd - priorUsd));
       if (claim === null || 'problem' in claim) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText } };
       return { status: 200, body: { ok: true, ...monthlyNote(claim), floorUsd, floorText } };
     },
@@ -441,7 +446,17 @@ export function createAuthor(opts) {
       if (!loaded.ok) return { status: 409, body: { ok: false, refused: 'keys-file', say: String(loaded.refusal) } };
       const dd = draftsDir();
       if (dd === null) return { status: 400, body: { ok: false, refused: 'root', say: 'The flows folder this panel serves does not exist.' } };
-      const vet = vetCard(body, loaded);
+      // M4d am19 item 3 / am21 items 1-2: a Start over keeps the pot. The month is checked for the cap LEFT after the earlier session's drafting (the chain behind it too);
+      // an earlier draft that is gone is never counted as $0: refused here, at $0, in words
+      const startedFrom = body?.startedOverFrom;
+      let priorUsd = 0;
+      if (typeof startedFrom === 'string' && startedFrom !== '') {
+        if (!ID_RE.test(startedFrom) || !listIds().includes(startedFrom)) return { status: 400, body: { ok: false, refused: 'earlier-missing', say: EARLIER_MISSING_SAY } };
+        const spent = draftingSpent(join(dd, startedFrom), { ceilingUsd: capFloorFor(true, home, cardFields(body)) });
+        if (spent.missingEarlier) return { status: 400, body: { ok: false, refused: 'earlier-missing', say: EARLIER_MISSING_SAY } };
+        priorUsd = spent.usd;
+      }
+      const vet = vetCard(body, loaded, priorUsd);
       if (!vet.ok) return vet.reply;
       const { card } = vet;
       for (const id of listIds()) {
@@ -586,6 +601,7 @@ export function createAuthor(opts) {
       if (!Array.isArray(v.revises)) return { status: 409, body: { ok: false, refused: 'not-revisable', say: `This draft is ${v.phase}, so it cannot be revised. Draft again from the card.` } };
       if (v.revisesLeft <= 0) return { status: 409, body: { ok: false, refused: 'no-revises-left', say: `This draft has used its ${MAX_REVISES} revises. Start over: it keeps the fields and gives ${MAX_REVISES} new revises.` } };
       if (childRunning(dir)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'The draft process is still finishing. Try again in a moment.' } };
+      if (draftingSpent(dir).missingEarlier) return { status: 400, body: { ok: false, refused: 'earlier-missing', say: EARLIER_MISSING_SAY } };
       const vet = vetCard(body, loaded, draftedSoFar(dir, v.card));
       if (!vet.ok) return vet.reply;
       for (const other of listIds()) {

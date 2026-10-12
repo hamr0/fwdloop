@@ -27,6 +27,7 @@ test('3: draftingSpent follows the Start-over chain (a session names the one it 
   const mk = (name, usd, from) => {
     const d = path.join(dd, name);
     mkdirSync(path.join(d, 'draft'), { recursive: true });
+    writeFileSync(path.join(d, 'card.json'), '{}'); // a session folder always has its card (am21: a link to a folder without one is a missing draft)
     writeFileSync(path.join(d, 'draft', 'spend.jsonl'), spendRow(usd));
     if (from) writeFileSync(path.join(d, 'started-over-from.json'), JSON.stringify({ startedOverFrom: from }));
   };

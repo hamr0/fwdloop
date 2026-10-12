@@ -72,7 +72,7 @@ function pageNote({ capText, mode = 'new', flowCap = null, job = 'one step', fet
   const els = { 'jf-cap-note': note(), 'jf-run-left': note(), 'jf-resume-left': note(), 'jf-cap-money': { value: capText }, 'jf-job': { value: job } };
   const src = [fnSrc(CHAT, 'setMoneyNote'), fnSrc(CHAT, 'jobHasModelStep'), fnSrc(CHAT, 'refreshCapNote')].join('\n');
   const f = new Function('els', 'mode', 'flowCap', 'fetchImpl', 'log', `
-    var moneyRed = false; var capNoteSeq = 0;
+    var moneyRed = false; var capNoteSeq = 0; var sessionLive = false; var sessionId = null;
     var capNoteEl = els["jf-cap-note"];
     function byId(id){ return els[id]; }
     function selectedFlow(){ return flowCap === null ? null : { capUsd: flowCap, capFloorUsd: 0.05 }; }

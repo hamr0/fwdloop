@@ -72,6 +72,9 @@ export function readDirSpendRows(dir) {
 }
 
 const PLAN_DIR_RE = /^draft(?:-\d+)?$/;
+/** M4d am21 item 2: the one sentence for a Start over (or revise, or sign) whose chain names an earlier draft that is gone. */
+export const EARLIER_MISSING_SAY = "An earlier draft of this job is missing, so its spend can't be counted.";
+
 /** The file a Start over's session folder carries to name the session it started over from (written once by src/panel/author.js). */
 export const STARTED_OVER_FILE = 'started-over-from.json';
 const SESSION_ID_RE = /^d-[0-9a-z]{10}-[0-9a-f]{4}$/;
@@ -83,12 +86,13 @@ const SESSION_ID_RE = /^d-[0-9a-z]{10}-[0-9a-f]{4}$/;
  * `ceilingUsd` (Settings prices x the fixed token limits), never $0; `notPriced` counts those rounds and `complete` is false.
  * @param {string} sessionDir the panel's draft folder
  * @param {{ ceilingUsd?: number, exclude?: string }} [o] `exclude` = a plan folder name to leave out (the one being written now)
- * @returns {{ usd: number, notPriced: number, complete: boolean }}
+ * @returns {{ usd: number, notPriced: number, complete: boolean, missingEarlier: boolean }}
  */
 export function draftingSpent(sessionDir, { ceilingUsd = 0, exclude } = {}, seen = new Set()) {
   seen.add(resolve(sessionDir));
   let usd = 0;
   let notPriced = 0;
+  let missingEarlier = false;
   for (const name of readdirInside(sessionDir, '.')) {
     if (!PLAN_DIR_RE.test(name) || name === exclude) continue;
     for (const row of readDirSpendRows(join(sessionDir, name))) {
@@ -110,12 +114,18 @@ export function draftingSpent(sessionDir, { ceilingUsd = 0, exclude } = {}, seen
     let from = null;
     try { from = JSON.parse(so.text)?.startedOverFrom; } catch { /* unreadable: no chain */ }
     if (typeof from === 'string' && SESSION_ID_RE.test(from) && !seen.has(resolve(dirname(sessionDir), from))) {
-      const before = draftingSpent(join(dirname(sessionDir), from), { ceilingUsd }, seen);
-      usd += before.usd;
-      notPriced += before.notPriced;
-    }
+      const prev = join(dirname(sessionDir), from);
+      // M4d am21 item 2: a link naming a folder that is gone is NOT $0: what it spent cannot be counted (`missingEarlier`, never a clean figure)
+      if (!readFileInside(prev, 'card.json').ok) missingEarlier = true;
+      else {
+        const before = draftingSpent(prev, { ceilingUsd }, seen);
+        usd += before.usd;
+        notPriced += before.notPriced;
+        missingEarlier = before.missingEarlier;
+      }
+    } else if (typeof from === 'string' && !SESSION_ID_RE.test(from)) missingEarlier = true;
   }
-  return { usd, notPriced, complete: notPriced === 0 };
+  return { usd, notPriced, complete: notPriced === 0 && !missingEarlier, missingEarlier };
 }
 
 /** Money to 4 places, trailing zeros kept to 2 (`0.05`, `0.0016`). @param {number} n */
