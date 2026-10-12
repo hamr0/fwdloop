@@ -1359,6 +1359,20 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 3. Unchanged: before any call, one round at its worst case (Settings prices × the fixed token limits) must fit the cap, or the draft is refused at $0 and the refusal names the cap and the minimum (e.g. "Cap $0.10 is below one drafting round's worst case for claude-sonnet-5-5, $0.2240. Raise Cap $ or pick another model."). The monthly check holds drafting spend as today.
 **Done when:** a test that fails first; with Cap $0.50, a draft on a model whose worst round is $0.224 is no longer refused; with Cap $0.10 it is refused at $0 with the words above. **Cap:** $0.
 
+**M4d amendment 15 — SIGNED by hamr 2026-10-12 ("sign m4d am15"): the Chat list is progress only; the try history lives in Audit.**
+1. The Chat card's draft list is one line per step: a ✓ or ✗, the step's name, then its facts joined with ` · `. For example:
+   - `✓ thinking off` (am11's words unchanged)
+   - `✓ inputs · aging: 11 columns`
+   - `✓ drafted · deepseek-flash · 3 rounds · $0.0013`
+   - `✓ plan checks · fixed by the AI after 2 tries` (or `✓ plan checks` when try 1 passed)
+   - `✓ rubrics · line 2`
+2. No detail lines, no `details` folds, no try lines, and no raw checker text (`declaration: …`) in the Chat list.
+3. A draft that ends red shows one plain reason on its ✗ line and one **Fix:** line under it saying what to do, for example `✗ plan checks · a section name isn't in your job line` / `Fix: put the section words you want in the job line, then Draft again.` Red appears only on a draft that ended red.
+4. The **Audit tab's Draft group** (collapsed by default, as every Audit group) gets one row per try: `try N ✗` or `try N ✓` with its plain reason, and the raw checker text under it. The free retry after a broken reply reads `try N again`, as am12 item 2.
+5. A draft that is never signed has no run, so no Audit. Its full try history stays on disk in the draft's `log.json`.
+6. Replaces am10 items 1 and 3 (the list's lines and its detail lines) and am12 items 1 and 3 (try lines and the grey note). am12 item 2 (`try N again`) moves to the Audit rows. The readout and its hash don't change.
+**Done when:** a test that fails first; a $0 walk of the **real panel** (not a harness page) at 1280, 390 and 320 showing a green draft with retries, a red draft, and a signed run's Audit Draft group with one row per try; screenshots read. **Cap:** $0.
+
 - **Built after signing — not signed text (2026-10-12), M4d amendments 3-11 (branch `m4d-am3`):**
   - bare-agent is `^0.52.0`. Each drafting round carries bareagent's `thinkingStatus`; the worst one across the rounds is what the Chat list says (am11's words), and the row's Base URL is passed to `thinkingSupport`. A `ValidationError` from the provider is an ordinary loud provider-red, counted as one unmetered call (the separate `thinking-refused` stop was removed as dead code).
   - A job's model is remembered in `model.json` beside the draft and then beside the signed flow. It is not one of the signed files; which model runs, and at what price, is still Settings' to say, and a line no longer ticked is refused by name. An old signed flow with no `model.json` runs with the model picked in Chat's "Run a signed flow" card, and the pick is recorded on a successful start.
