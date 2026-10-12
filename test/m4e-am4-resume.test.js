@@ -278,7 +278,7 @@ test('am4 (g): the only writers of a signed values version are the two human-has
   assert.deepEqual(callers, ['src/panel/authorresume.js', 'src/panel/authorstart.js']);
   // and nothing in the draft/revise doors or the drafter touches a values file
   // M4d am16 (reviewed): the Sign door in src/panel/author.js hands the FIRST run's values (the cap left after drafting) to the starter, which is still the only caller of
-  // writeRunValues (asserted above); it carries the hash of the human's second click. The draft and revise doors, the drafter and authoring.js still touch no values file.
+  // writeRunValues (asserted above); author.js computes that values hash itself (valuesHash over the machine-derived cap), so it is not scanned here. The drafter and authoring.js still touch no values file.
   for (const f of ['src/drafter.js', 'src/authoring.js']) {
     assert.doesNotMatch(readFileSync(path.join(HERE, '..', f), 'utf8'), /signed-values|runvalues/, f);
   }
