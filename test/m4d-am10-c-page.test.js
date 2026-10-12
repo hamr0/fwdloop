@@ -73,3 +73,22 @@ test('D6: a try line\'s validator refusals go through the SAME plain-sentence pa
   const u = steps({ phase: 'green', card: {}, revises: [], stepList: [{ id: 'try-2', label: 'try 2 of 3', status: 'done', details: ['no usable tool call'] }] }, ctx);
   assert.deepEqual([u[0].details, u[0].raw], [['no usable tool call'], undefined]);
 });
+
+test('D7 (am12): grey/note ride from the server list to the row; renderProgress draws an earlier try grey (its ✗ too), and a note has no sign', () => {
+  const tries = [
+    { id: 'tries-note', label: 'Earlier tries were refused by the checks and fixed by the AI. Nothing for you to do.', status: 'done', details: [], note: true },
+    { id: 'try-1', label: 'try 1', status: 'failed', details: ['why one'], grey: true },
+    { id: 'try-2', label: 'try 2', status: 'done', details: [], grey: true },
+  ];
+  const s = steps({ phase: 'green', card: {}, revises: [], stepList: [list[2], ...tries] }, ctx);
+  assert.deepEqual(s.filter((x) => x.grey).map((x) => x.id), ['try-1', 'try-2']);
+  assert.equal(s.find((x) => x.id === 'tries-note').note, true);
+  assert.match(PAGE, /\.chat-steps \.step\.grey \.step-label,\s*\.chat-steps \.step\.grey \.step-sign,\s*\.chat-steps \.step\.grey \.step-detail\{[^}]*color:var\(--text-faint\)/);
+  assert.match(PAGE, /\.chat-steps \.step\.note \.step-label\{[^}]*color:var\(--text-faint\)/);
+  const html = new Function('escapeXml', 'progressOpen', 'progressRow', `var progressHtml = "";\n${fn('renderProgress')}\nreturn renderProgress;`);
+  const row = { hidden: true, innerHTML: '' };
+  html((x) => String(x), {}, row)(s);
+  assert.match(row.innerHTML, /<li class="step bad grey" data-step="try-1">/);
+  assert.match(row.innerHTML, /<li class="step ok grey" data-step="try-2">/);
+  assert.match(row.innerHTML, /<li class="step ok note" data-step="tries-note"><div class="step-line"><span class="step-label">Earlier tries[^<]*<\/span><span class="step-sign"><\/span>/);
+});

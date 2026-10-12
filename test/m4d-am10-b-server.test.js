@@ -42,13 +42,14 @@ test('C3: a refused (red) draft carries drafted + plan checks failed with the ra
   assert.ok(j.stepList.some((s) => s.id === 'try-2') && j.stepList.some((s) => s.id === 'try-3'));
 });
 
-test('C4: a draft with a retry lists try 2 of 3 with the reason; a clean draft lists none', async () => {
+test('C4: a draft with a retry lists try 1 and try 2, each with its own reason; a clean draft lists none', async () => {
   const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_RETRY: '1' } });
   const { j } = await finish(w);
   assert.equal(j.phase, 'green');
-  const t = j.stepList.find((s) => s.id === 'try-2');
-  assert.equal(t.label, 'try 2 of 3');
+  const t = j.stepList.find((s) => s.id === 'try-1');
+  assert.equal(t.label, 'try 1');
   assert.ok(t.reds.length > 0);
+  assert.equal(j.stepList.find((s) => s.id === 'try-2').label, 'try 2');
   assert.ok(!j.stepList.some((s) => s.id === 'try-3'));
   const clean = await finish(await world());
   assert.ok(!clean.j.stepList.some((s) => s.id.startsWith('try')));

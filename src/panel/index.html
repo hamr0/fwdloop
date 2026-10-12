@@ -499,6 +499,10 @@
   .chat-steps .step.wait .step-label{color:var(--amber);}
   .chat-steps .step-detail{display:block;flex-basis:100%;min-width:0;padding-left:1.2em;color:var(--text-faint);word-break:break-word;white-space:pre-wrap;}
   .chat-steps .step.bad .step-detail{color:var(--red);}
+  .chat-steps .step.grey .step-label,
+  .chat-steps .step.grey .step-sign,
+  .chat-steps .step.grey .step-detail{color:var(--text-faint);}
+  .chat-steps .step.note .step-label{color:var(--text-faint);}
   .chat-steps .step[data-step="thinking"].bad .step-label{color:var(--red);font-weight:600;}
   .chat-steps .step-raw{margin-top:2px;color:var(--text-faint);}
   .chat-steps .step-raw summary{cursor:pointer;}
@@ -4105,6 +4109,8 @@
         if(!state || !Array.isArray(state.stepList) || state.stepList.length === 0) return fallback();
         state.stepList.forEach(function(st){
           var row = {id: st.id, label: st.label, status: st.status === "failed" ? "failed" : "done", details: st.details || []};
+          if(st.grey === true) row.grey = true;
+          if(st.note === true) row.note = true;
           if(Array.isArray(st.reds)){ var fd = failedDetails(st.reds); row.details = fd.details; row.raw = fd.raw; }
           out.push(row);
         });
@@ -4682,7 +4688,10 @@
       progressRow.hidden = steps.length === 0;
       var html = steps.map(function(st){
         var cls = st.status === "waiting" ? "wait" : (st.status === "running" ? "run" : (st.status === "failed" ? "bad" : "ok"));
-        var sign = cls === "ok" ? "✓" : (cls === "bad" ? "✗" : "");
+        var sign = st.note ? "" : (cls === "ok" ? "✓" : (cls === "bad" ? "✗" : ""));
+        // M4d am12: an earlier try (and the note above it) is grey; red stays only for a draft that ends red
+        if(st.grey) cls += " grey";
+        if(st.note) cls += " note";
         return '<li class="step ' + cls + '" data-step="' + escapeXml(st.id) + '"><div class="step-line"><span class="step-label">' + escapeXml(st.label) + '</span>' +
           '<span class="step-sign">' + sign + '</span></div>' +
           (st.details || []).map(function(d, k){

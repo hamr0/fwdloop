@@ -1,13 +1,12 @@
 // M4d amendment 10: the Chat card's list of what a draft really did. ONE function builds it (here), from the draft's own log.json and its
 // declaration; the page only renders it. It sits outside the readout (never signed, never hashed).
 //
-// Each entry: { id, label, status: 'done' | 'failed', details: string[], reds?: string[] }. `reds` (plan checks and try lines) are the checker's raw
+// Each entry: { id, label, status: 'done' | 'failed', details: string[], reds?: string[], grey?: true, note?: true } (grey = an earlier try, drawn grey; note = a line with no ✓/✗). `reds` (plan checks and try lines) are the checker's raw
 // refusals: the page turns each into its plain sentence (one function there). A step that didn't happen is not in the list.
 // Throws away: the log's per-round tokens, the model's replies and the questions; only the facts named in the amendment are kept.
 // Third outcomes: no log -> null (nothing to list); a cost that is null reads "cost unknown", an incomplete sum reads "at least $X", never 0.
 
 const REBUILD_RE = /^declaration: steps\[(\d+)\]\.close\.shape cannot be built into a check — (.*)$/s;
-const TRIES = 3;
 
 function money(log) {
   if (typeof log.costUsd !== 'number') return 'cost unknown';
@@ -23,12 +22,12 @@ function reasonOf(entry) {
 
 /**
  * @param {{ log: any, declaration: any }} p `log` = the draft's log.json (parsed), `declaration` = declaration.json or declaration.rejected.json (parsed)
- * @returns {Array<{ id: string, label: string, status: 'done'|'failed', details: string[], reds?: string[] }> | null}
+ * @returns {Array<{ id: string, label: string, status: 'done'|'failed', details: string[], reds?: string[], grey?: boolean, note?: boolean }> | null}
  */
 export function draftStepList({ log, declaration }) {
   if (log === null || typeof log !== 'object') return null;
   const rounds = Array.isArray(log.log) ? log.log : [];
-  /** @type {Array<{ id: string, label: string, status: 'done'|'failed', details: string[], reds?: string[] }>} */
+  /** @type {Array<{ id: string, label: string, status: 'done'|'failed', details: string[], reds?: string[], grey?: boolean, note?: boolean }>} */
   const out = [];
 
   const t = log.thinking;
@@ -70,10 +69,22 @@ export function draftStepList({ log, declaration }) {
     out.push({ id: 'rubrics', label: 'rubrics', status: 'failed', details: rubricReds });
   }
 
-  rounds.forEach((e, i) => {
-    if (i === 0) return;
-    const no = i + 1;
-    out.push({ id: `try-${no}`, label: no <= TRIES ? `try ${no} of ${TRIES}` : `try ${no}`, status: e.outcome === 'valid' ? 'done' : 'failed', ...reasonOf(rounds[i - 1]) });
-  });
+  // M4d am12: every try is its own line with its OWN result and reason, from try 1; shown only when a retry happened. The free retry
+  // after a broken reply (a `structure-retry` round) keeps the number of the broken try: "try N again", never a new number.
+  if (rounds.length > 1) {
+    const lastPassed = rounds[rounds.length - 1].outcome === 'valid';
+    let no = 0;
+    const tries = rounds.map((e, i) => {
+      const again = e.kind === 'structure-retry' && i > 0;
+      if (!again) no += 1;
+      const passed = e.outcome === 'valid';
+      const last = i === rounds.length - 1;
+      const brokenThenRetried = !passed && typeof e.outcome === 'string' && e.outcome.startsWith('structure: ') && rounds[i + 1]?.kind === 'structure-retry';
+      const why = brokenThenRetried ? { details: ['the reply came back broken; one free retry'] } : passed ? { details: [] } : reasonOf(e);
+      return { id: `try-${i + 1}`, label: again ? `try ${no} again` : `try ${no}`, status: /** @type {'done'|'failed'} */ (passed ? 'done' : 'failed'), grey: !(last && !passed), ...why };
+    });
+    if (lastPassed) out.push({ id: 'tries-note', label: 'Earlier tries were refused by the checks and fixed by the AI. Nothing for you to do.', status: 'done', details: [], note: true });
+    out.push(...tries);
+  }
   return out;
 }

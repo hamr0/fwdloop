@@ -48,22 +48,54 @@ test('A4: a red (refused) draft: each refusal is a plan-checks detail; drafted s
   assert.equal(l.find((s) => s.id === 'drafted').status, 'done');
 });
 
-test('A5: a retry: try 2 of 3 and try 3 of 3 only when they happened, each with the reason from the round before', () => {
+test('A5 (am12): a retry: every try is its own line with its OWN result and reason, from try 1; none when one try passed', () => {
   const reds1 = ['declaration: steps[0] bad'];
   const l = draftStepList({
     log: okLog({ revisions: 1, rounds: 2, log: [{ round: 1, kind: 'first', outcome: 'validator: 1 red(s)', reds: reds1 }, { round: 2, kind: 'revision', outcome: 'valid' }] }),
     declaration: decl(),
   });
-  assert.deepEqual(shape(l).slice(-2), ['checks:done:plan checks', 'try-2:done:try 2 of 3']);
-  const t2 = l.find((s) => s.id === 'try-2');
-  assert.deepEqual(t2.reds, reds1); // validator refusals ride as `reds`: the page's one translator turns them into plain sentences
-  assert.deepEqual(t2.details, []);
+  const tries = l.filter((s) => s.id.startsWith('try'));
+  assert.deepEqual(tries.map((s) => [s.label, s.status]), [['try 1', 'failed'], ['try 2', 'done']]);
+  assert.deepEqual(tries[0].reds, reds1); // try 1's OWN refusal sits on try 1 (the page's one translator makes it plain)
+  assert.deepEqual(tries[1].reds, undefined);
+  assert.deepEqual(tries[1].details, []);
   assert.equal(l.find((s) => s.id === 'drafted').details[0], '2 rounds · $0.0056');
-  const l3 = draftStepList({
-    log: okLog({ rounds: 3, log: [{ round: 1, kind: 'first', outcome: 'structure: no usable tool call (text instead of the tool)' }, { round: 2, kind: 'structure-retry', outcome: 'validator: 1 red(s)', reds: reds1 }, { round: 3, kind: 'revision', outcome: 'valid' }] }),
+  assert.ok(!draftStepList({ log: okLog(), declaration: decl() }).some((s) => s.id.startsWith('try')));
+});
+
+// the shape of hamr's real draft d-00mv548zrh-d6c7 (4 rounds: validator, validator, broken JSON, free retry ok); the text is scrubbed
+const REAL_SHAPE = {
+  revisions: 2, structureRetries: 1, rounds: 4,
+  log: [
+    { round: 1, kind: 'first', outcome: 'validator: 1 red(s)', reds: ['declaration: steps[2].close.shape.sections names "A" which is not a section'] },
+    { round: 2, kind: 'revision', outcome: 'validator: 2 red(s)', reds: ['declaration: steps[0] reads artifact "x" that no earlier step emits', 'declaration: steps[1] reads artifact "y" that no earlier step emits'] },
+    { round: 3, kind: 'revision', outcome: "structure: the tool call's arguments were not valid JSON (Expected ',' at position 846)" },
+    { round: 4, kind: 'structure-retry', outcome: 'valid' },
+  ],
+};
+
+test('A5b (am12): the free retry after a broken reply is "try 3 again", never "try 4"; earlier tries are grey and a grey note sits above them', () => {
+  const l = draftStepList({ log: okLog(REAL_SHAPE), declaration: decl() });
+  const tries = l.filter((s) => s.id.startsWith('try'));
+  assert.deepEqual(tries.map((s) => [s.label, s.status, s.grey === true]), [['try 1', 'failed', true], ['try 2', 'failed', true], ['try 3', 'failed', true], ['try 3 again', 'done', true]]);
+  assert.deepEqual(tries[2].details, ['the reply came back broken; one free retry']);
+  assert.equal(tries[0].reds.length, 1);
+  assert.equal(tries[1].reds.length, 2);
+  assert.ok(!l.some((s) => s.label === 'try 4'));
+  const note = l.find((s) => s.id === 'tries-note');
+  assert.equal(note.label, 'Earlier tries were refused by the checks and fixed by the AI. Nothing for you to do.');
+  assert.equal(l.indexOf(note) + 1, l.findIndex((s) => s.id.startsWith('try')), 'the note is directly above the first try');
+});
+
+test('A5c (am12): a draft that ends red keeps its LAST try red and shows no "fixed by the AI" note', () => {
+  const reds = ['declaration: steps[0] bad'];
+  const l = draftStepList({
+    log: okLog({ ok: false, stop: 'validator', reds, rounds: 2, log: [{ round: 1, kind: 'first', outcome: 'validator: 1 red(s)', reds }, { round: 2, kind: 'revision', outcome: 'validator: 1 red(s)', reds }] }),
     declaration: decl(),
   });
-  assert.deepEqual(l3.filter((s) => s.id.startsWith('try')).map((s) => [s.label, s.details, s.reds]), [['try 2 of 3', ['no usable tool call (text instead of the tool)'], undefined], ['try 3 of 3', [], reds1]]);
+  const tries = l.filter((s) => s.id.startsWith('try'));
+  assert.deepEqual(tries.map((s) => [s.label, s.status, s.grey === true]), [['try 1', 'failed', true], ['try 2', 'failed', false]]);
+  assert.ok(!l.some((s) => s.id === 'tries-note'));
 });
 
 test('A6: a softgreen step adds rubrics with "line N: built"; none when no step is shape-checked; a rubric that cannot be built fails with bareguard\'s reason', () => {
