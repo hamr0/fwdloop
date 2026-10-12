@@ -17,7 +17,7 @@
 //   { kind:'draft-live', provider, model, price, tokens, costUsd (metered floor, null when unpriced), rounds, calls,
 //     spendComplete (false while a call is in flight or any call is unmetered/unpriced), inFlight, at, startedAt, updatedAt }
 import { renameSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 import { readFileInside } from './flow.js';
 import { readSpendRows, rowCeilingUsd, spendRowCost, unmeteredCalls } from './provider.js';
@@ -115,4 +115,15 @@ export function potSplit(capUsd, spent) {
     ? `drafting spent at most ${usdText(spent.usd)} (${spent.notPriced} round${spent.notPriced === 1 ? '' : 's'} not priced)`
     : `drafting spent ${usdText(spent.usd)}`;
   return { capUsd, spentUsd: spent.usd, notPriced: spent.notPriced, leftUsd, line: `Cap ${usdText(capUsd)} · ${drafting} · this run up to ${usdText(leftUsd)}` };
+}
+
+/**
+ * The drafter's `priorSpend` for the plan folder `dir`: when it sits in a panel session folder (a `card.json` beside it), what the session's earlier plans spent;
+ * null for a plain CLI draft (no session, nothing earlier). The folder being written is left out.
+ * @param {string} dir @returns {((ceilingUsd: number) => number)|null}
+ */
+export function sessionPriorSpend(dir) {
+  const sessionDir = dirname(resolve(dir));
+  if (!readFileInside(sessionDir, 'card.json').ok) return null;
+  return (ceilingUsd) => draftingSpent(sessionDir, { ceilingUsd, exclude: basename(dir) }).usd;
 }

@@ -30,7 +30,7 @@ import { checkSendDestination } from './runner.js';
 import { checkKeyPreflight, appendSpendRow } from './provider.js';
 import { keyValues } from './keysfile.js';
 import { readModelRecord, writeModelRecord } from './flowmodel.js';
-import { draftingSpent, writeDraftSpend } from './draftspend.js';
+import { sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
 
 export const SPEC_HASH_FILE = 'spec.hash';
@@ -304,10 +304,7 @@ export async function draftToDir({
     }
   };
   // M4d am16: a panel draft folder (card.json beside this plan folder) is one job's session: what its earlier plans spent comes off the cap first.
-  const sessionDir = path.dirname(path.resolve(dir));
-  const priorSpend = existsSync(path.join(sessionDir, 'card.json'))
-    ? (/** @type {number} */ ceilingUsd) => draftingSpent(sessionDir, { ceilingUsd, exclude: path.basename(dir) }).usd
-    : null;
+  const priorSpend = sessionPriorSpend(dir);
   const result = await draft({
     proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking,
   });
