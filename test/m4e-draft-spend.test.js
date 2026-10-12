@@ -55,8 +55,12 @@ test('(xvi/xviii) a draft killed between rounds keeps the round it paid for, plu
   let rec;
   try {
     const t0 = Date.now();
-    while (!(read()?.inFlight === true && read()?.rounds === 1) && Date.now() - t0 < 20_000) await sleep(20); // eslint-disable-line no-await-in-loop
-    rec = read();
+    // ONE read per look: two reads could pair round 1's in-flight record (rounds 0) with the after-call record (rounds 1, not in flight) and leave the loop early
+    for (;;) {
+      rec = read();
+      if ((rec?.inFlight === true && rec?.rounds === 1) || Date.now() - t0 >= 20_000) break;
+      await sleep(20); // eslint-disable-line no-await-in-loop
+    }
     assert.equal(rec?.inFlight, true, 'round 2 is in flight');
   } finally {
     child.kill('SIGKILL'); // no exit hook runs: the monthly hold stays open, spend.jsonl is never written
