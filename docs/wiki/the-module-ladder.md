@@ -1353,6 +1353,12 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 4. Replaces am10 item 1's try bullet and, for try lines only, am10 item 3's "red under a ✗". The readout and its hash don't change.
 **Done when:** a test that fails first; a $0 browser walk at 1280, 390 and 320; and the m7-walk-1 draft's own log (4 rounds, 2026-10-12) shows try 1, 2, 3 grey and `try 3 again ✓`. **Cap:** $0.
 
+**M4d amendment 13 — SIGNED by hamr 2026-10-12 ("sign m4d am13"): one cap. The card's Cap $ also caps drafting.**
+1. The separate $0.10 draft limit (`DRAFT_BUDGET_USD`, `src/authoring.js:36`) is removed. Each drafting call (a draft, a revise, or the redraft after answers) may spend up to the card's **Cap $**, the same number the run is capped at. The CLI's `--budget` flag is removed; `fwdloop draft` uses the cap signed in the prose.
+2. The draft and the run each stay under that cap. What a draft spends is not taken from the run's cap.
+3. Unchanged: before any call, one round at its worst case (Settings prices × the fixed token limits) must fit the cap, or the draft is refused at $0 and the refusal names the cap and the minimum (e.g. "Cap $0.10 is below one drafting round's worst case for claude-sonnet-5-5, $0.2240. Raise Cap $ or pick another model."). The monthly check holds drafting spend as today.
+**Done when:** a test that fails first; with Cap $0.50, a draft on a model whose worst round is $0.224 is no longer refused; with Cap $0.10 it is refused at $0 with the words above. **Cap:** $0.
+
 - **Built after signing — not signed text (2026-10-12), M4d amendments 3-11 (branch `m4d-am3`):**
   - bare-agent is `^0.52.0`. Each drafting round carries bareagent's `thinkingStatus`; the worst one across the rounds is what the Chat list says (am11's words), and the row's Base URL is passed to `thinkingSupport`. A `ValidationError` from the provider is an ordinary loud provider-red, counted as one unmetered call (the separate `thinking-refused` stop was removed as dead code).
   - A job's model is remembered in `model.json` beside the draft and then beside the signed flow. It is not one of the signed files; which model runs, and at what price, is still Settings' to say, and a line no longer ticked is refused by name. An old signed flow with no `model.json` runs with the model picked in Chat's "Run a signed flow" card, and the pick is recorded on a successful start.
