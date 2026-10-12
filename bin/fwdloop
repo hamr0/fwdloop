@@ -810,7 +810,7 @@ async function cmdDraft(rest) {
   const { values, positionals } = parseArgs({
     args: rest,
     options: {
-      out: { type: 'string' }, root: { type: 'string' }, name: { type: 'string' }, budget: { type: 'string' },
+      out: { type: 'string' }, root: { type: 'string' }, name: { type: 'string' },
       // M4e amendment 24 item 4: the redraft after the human's answers never asks (the panel passes this; a plain draft may ask on try 3)
       'no-questions': { type: 'boolean' },
       // M4d amendment 6: the model that drafts (and then runs) the job - a line ticked in Settings > Providers; --provider only if two keys tick the same id.
@@ -822,7 +822,7 @@ async function cmdDraft(rest) {
   const keysLoad = keyedLoad();
   const { env } = keysLoad;
   const proseFile = positionals[0];
-  if (!proseFile) fail('draft: a prose file is required — fwdloop draft <prose.txt> --out <draftDir> --root <flowsDir> --name <flow> [--budget <usd>]');
+  if (!proseFile) fail('draft: a prose file is required — fwdloop draft <prose.txt> --out <draftDir> --root <flowsDir> --name <flow>');
   for (const req of ['out', 'root', 'name']) if (!values[req]) fail(`draft: --${req} is required`);
 
   let injected = {};
@@ -871,7 +871,6 @@ async function cmdDraft(rest) {
     dir: resolve(values.out),
     root: resolve(values.root),
     name: values.name,
-    budgetUsd: values.budget === undefined ? undefined : Number(values.budget),
     noQuestions: values['no-questions'] === true,
     draftThinking: values.thinking === true ? 'on' : 'off',
     env,

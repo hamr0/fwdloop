@@ -95,7 +95,7 @@ test('item 3: one cut-off then a finished try 2 never opens questions; a cut-off
   assert.equal(r.ok, true);
   assert.equal(p.schemas[1].properties.questions, undefined);
   const p2 = recProvider([truncatedReply()]);
-  const r2 = await run(p2, { budgetUsd: 5 });
+  const r2 = await run(p2);
   assert.equal(r2.ok, false);
   assert.equal(r2.stop, 'structure');
   assert.match(r2.reds[0], /^truncated:/);

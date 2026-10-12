@@ -33,7 +33,6 @@ import { readModelRecord, writeModelRecord } from './flowmodel.js';
 import { writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
 
-export const DRAFT_BUDGET_USD = 0.10;
 export const SPEC_HASH_FILE = 'spec.hash';
 /** The one folder under the flows root where the panel keeps its draft folders (M4e). Starts with a dot, so it is never a flow name. */
 export const PANEL_DRAFTS_DIR = '.drafts';
@@ -248,13 +247,12 @@ export function draftKeyRefusal(slot, env) {
  * Test seam: `provider`/`rates`/`modelId` are injected; without them a live provider is built.
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, budgetUsd = DRAFT_BUDGET_USD, env = process.env, provider, rates, modelId, noQuestions = false,
+  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false,
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
   const nameCheck = checkFlowName(name);
   if (!nameCheck.ok) return refuse([nameCheck.red]);
   if (typeof root !== 'string' || root === '') return refuse(['draft: --root <flows dir> is required']);
-  if (!(budgetUsd > 0)) return refuse(['draft: budget must be a positive number']);
   // An unsigned draft folder inside the flows root would list as a flow in the panel and Inbox (checked by realpath, at use time).
   const realRoot = realpathOfNew(root);
   const realDir = realpathOfNew(dir);
@@ -306,7 +304,7 @@ export async function draftToDir({
     }
   };
   const result = await draft({
-    proseText: prose.text, slot, model, budgetUsd, provider, rates, modelId, env, onBook, offerQuestions: !noQuestions, draftThinking,
+    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, offerQuestions: !noQuestions, draftThinking,
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }
@@ -370,7 +368,7 @@ export async function draftToDir({
       calls: result.calls,
       spendComplete: result.spendComplete,
       stop: result.stop,
-      budgetUsd,
+      budgetUsd: parsed.arbiter.capUsd, // the cap signed in the prose is the draft's limit too (M4d am13)
       // the draft's own time (amendment 7 item 2: the Draft's total time adds up from these); null when no call was booked
       startedAt,
       wallMs: startedAt === null ? null : Math.max(0, Date.now() - Date.parse(startedAt)),

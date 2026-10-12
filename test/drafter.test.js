@@ -11,9 +11,11 @@ import {
   RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply, textReply, truncatedReply, malformedReply,
 } from './drafter-fixture.mjs';
 
-const run = (provider, extra = {}) => {
+// M4d am13: the draft's limit is the cap signed in the prose, so a test sets it there (`capUsd`), not through an option.
+const withCap = (prose, cap) => prose.replace('guardrail: cap $0.25 per run', `guardrail: cap $${cap} per run`);
+const run = (provider, { capUsd, ...extra } = {}) => {
   const fx = job2Fixture();
-  return draft({ proseText: fx.prose, provider, rates: RATES, modelId: MODEL, ...extra });
+  return draft({ proseText: capUsd === undefined ? fx.prose : withCap(fx.prose, capUsd), provider, rates: RATES, modelId: MODEL, ...extra });
 };
 
 test('(a) a valid forced tool call is accepted as-is, one metered round, no converter', async () => {
@@ -71,7 +73,7 @@ test('(c) malformed JSON -> a structure retry, both rounds metered', async () =>
 
 test('(c2) truncation is named truncation, not "no tool call"; structure retries are capped', async () => {
   const p = fakeProvider([truncatedReply()]);
-  const r = await run(p, { budgetUsd: 5 });
+  const r = await run(p, { capUsd: 5 });
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'structure');
   assert.equal(r.structureRetries, MAX_STRUCTURE_RETRIES);
@@ -103,7 +105,7 @@ test('(e1) the per-draft budget stops the next round, priced and returned', asyn
   const bad = validArgs();
   bad.steps[2].primitives = ['forget'];
   const p = fakeProvider([toolReply(bad)]);
-  const r = await run(p, { budgetUsd: ceilingCostUsd(RATES) + 0.0002 }); // round 1 fits; one done ($0.0005) + another ceiling round would cross
+  const r = await run(p, { capUsd: ceilingCostUsd(RATES) + 0.0002 }); // round 1 fits; one done ($0.0005) + another ceiling round would cross
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'budget');
   assert.equal(r.rounds, 1);
@@ -195,7 +197,7 @@ test('(e3) an unpriced round counts at its ceiling toward the budget, never as 0
   const bad = validArgs();
   bad.steps[2].primitives = ['forget'];
   const p = fakeProvider([{ ...toolReply(bad), usage: undefined }]);
-  const r = await run(p, { budgetUsd: ceilingCostUsd(RATES) * 1.5 }); // one ceiling round fits, two cross; at 0 the loop would go on
+  const r = await run(p, { capUsd: ceilingCostUsd(RATES) * 1.5 }); // one ceiling round fits, two cross; at 0 the loop would go on
   assert.equal(r.stop, 'budget');
   assert.equal(p.calls.length, 1);
   assert.equal(r.costUsd, null);
@@ -203,12 +205,12 @@ test('(e3) an unpriced round counts at its ceiling toward the budget, never as 0
 
 test('(e4) a budget below one round\'s ceiling is refused at $0, before any provider call, naming the minimum', async () => {
   const p = fakeProvider([toolReply(validArgs())]);
-  const r = await run(p, { budgetUsd: 0.005 });
+  const r = await run(p, { capUsd: 0.005 });
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'pre-flight');
   assert.equal(r.costUsd, 0);
   assert.equal(p.calls.length, 0);
-  assert.match(r.reds[0], new RegExp(`minimum budget is \\$${ceilingCostUsd(RATES).toFixed(4)}`));
+  assert.match(r.reds[0], new RegExp(`^Cap \\$0\\.005 is below one drafting round's worst case for ${MODEL}, \\$${ceilingCostUsd(RATES).toFixed(4)}\\. Raise Cap`));
 });
 
 test('(f1) a structure retry after a validator revision keeps the validator reds and is logged as structure-retry', async () => {

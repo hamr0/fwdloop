@@ -294,7 +294,7 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
 /**
  * Draft one declaration. `provider`/`rates`/`modelId` may be injected (tests,
  * the batch); otherwise a live provider is built from `slot` (throws on a bad
- * key — the batch preflights first). `budgetUsd` is this draft's hard cap.
+ * key — the batch preflights first). The draft's hard cap is the cap signed in the prose (M4d am13): one cap for the draft and the run.
  * `makeProviderFn` is a test seam: the live-provider factory (default `makeProvider`).
  * `onBook` (M4e piece 2a, scope 13): called right BEFORE each provider call (`inFlight: true`, the call counted in
  * `calls`) and right AFTER it (`inFlight: false`), with what is known so far, so the caller can book spend per call
@@ -307,7 +307,7 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
  */
 export async function draft({
   proseText, slot, model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
-  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
+  skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
 }) {
   // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
   const thinkingOf = () => {
@@ -356,9 +356,12 @@ export async function draft({
   // The hold: the picked model's own Settings prices (or the rates a test injected) times the token bounds - never a table.
   if (!rates) return fail(['price: this round has no price to hold - tick a model in Settings > Providers with both prices first']);
   const roundCeiling = ceilingCostUsd(rates);
-  // One round at its ceiling must fit the budget, or refuse at $0 before any provider call.
+  // M4d am13: the draft is capped by the card's Cap $ (the cap signed in the prose), the same number the run is capped at.
+  // One round at its ceiling must fit that cap, or refuse at $0 before any provider call.
+  const budgetUsd = arbiter.capUsd;
   if (roundCeiling > budgetUsd) {
-    return fail([`budget: $${budgetUsd} is below one round's worst-case cost — the minimum budget is $${roundCeiling.toFixed(4)}`]);
+    const capText = Number.isInteger(Math.round(budgetUsd * 1e6) / 1e4) ? budgetUsd.toFixed(2) : String(budgetUsd);
+    return fail([`Cap $${capText} is below one drafting round's worst case for ${modelId}, $${roundCeiling.toFixed(4)}. Raise Cap $ or pick another model.`]);
   }
 
   const meterings = [];

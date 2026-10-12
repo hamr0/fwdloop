@@ -189,15 +189,16 @@ test('ceilingCostUsd follows the ticked line\'s price (the cap check and the boo
   // through the drafter: a budget that fits one low ceiling but not one higher-priced ceiling refuses at $0
   await withHome(homeB, async () => {
     const fx = job2Fixture();
-    const budgetUsd = (lowCeiling + withSet) / 2;
-    const r = await withFake(U, () => draft({ proseText: fx.prose, slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', env: { DEEPSEEK_API_KEY: KEY }, budgetUsd }));
+    const capUsd = ((lowCeiling + withSet) / 2).toFixed(4); // M4d am13: the limit is the cap signed in the prose
+    const r = await withFake(U, () => draft({ proseText: fx.prose.replace('guardrail: cap $0.25 per run', `guardrail: cap $${capUsd} per run`), slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', env: { DEEPSEEK_API_KEY: KEY } }));
     assert.equal(r.ok, false);
     assert.equal(r.stop, 'pre-flight');
-    assert.match(r.reds[0], new RegExp(`minimum budget is \\$${withSet.toFixed(4)}`));
+    assert.match(r.reds[0], new RegExp(`^Cap \\$${capUsd} is below one drafting round's worst case for .*, \\$${withSet.toFixed(4)}\\. Raise Cap`));
   });
   await withHome(homeA, async () => {
     const fx = job2Fixture();
-    const r = await withFake(U, () => draft({ proseText: fx.prose, slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', env: { DEEPSEEK_API_KEY: KEY }, budgetUsd: (lowCeiling + withSet) / 2 }));
+    const capUsd = ((lowCeiling + withSet) / 2).toFixed(4);
+    const r = await withFake(U, () => draft({ proseText: fx.prose.replace('guardrail: cap $0.25 per run', `guardrail: cap $${capUsd} per run`), slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', env: { DEEPSEEK_API_KEY: KEY } }));
     assert.equal(r.ok, true, JSON.stringify(r.reds));
   });
 });
