@@ -35,7 +35,9 @@ export async function launchChrome() {
     async open(url, width = 1280) {
       await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 600 });
       await send('Page.navigate', { url });
-      await new Promise((r) => setTimeout(r, 800));
+      // Wait for the real event, not a fixed sleep: the document is this url's and fully loaded (its inline script has attached the
+      // click listeners). Under load 800 ms is not enough and an early click is silently lost. Generous deadline; callers assert after.
+      await this.waitFor(`location.href.startsWith(${JSON.stringify(url.split('#')[0])}) && document.readyState === 'complete'`, 30000);
     },
     async waitFor(expr, ms = 8000) {
       const end = Date.now() + ms;
