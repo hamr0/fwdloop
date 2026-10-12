@@ -1390,6 +1390,14 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 1. The page remembers the version it was served with. If the panel restarts on newer code while your tab stays open, a bar shows at the top: **"fwdloop was updated to v0.17.0. Reload this page."** with a **Reload** button.
 **Done when:** a test that fails first, and the real panel at 3 widths. **Cap:** $0
 
+**M4d amendment 19 — SIGNED by hamr 2026-10-12 ("sign m4d am19"): one cap, counted once, everywhere; true tool words.**
+1. **A draft reserves what is left of the cap.** When a draft starts (the panel runs `fwdloop draft` behind the scenes), it reserves against the monthly limit what is left of the cap (cap minus drafting already spent), not one round.
+2. **A revise checks the month for what is left of the cap**, not the whole cap again.
+3. **Start over keeps the pot.** Drafting spent before a Start over still comes out of the cap; if what is left is too little, it says "Raise Cap $".
+4. **Tool words are true.** The tool list tells the AI that `recall`, `impact` and `related` search code and markdown files only, and that `recent` finds nothing inside a run. `get`, `peek` and `stash` are unchanged.
+5. **One message for a cap that is too small.** The card shows am13's signed sentence ("Cap $… is below one drafting round's worst case for <model>, $…. Raise Cap $ or pick another model."). The card's own "needs at least $… per run" words go. (Closes F67.)
+**Done when:** a test that fails first for each item; a $0 walk of the real panel showing item 5's sentence. **Cap:** $0.
+
 - **Built after signing — not signed text (2026-10-12), M4d amendments 3-11 (branch `m4d-am3`):**
   - bare-agent is `^0.52.0`. Each drafting round carries bareagent's `thinkingStatus`; the worst one across the rounds is what the Chat list says (am11's words), and the row's Base URL is passed to `thinkingSupport`. A `ValidationError` from the provider is an ordinary loud provider-red, counted as one unmetered call (the separate `thinking-refused` stop was removed as dead code).
   - A job's model is remembered in `model.json` beside the draft and then beside the signed flow. It is not one of the signed files; which model runs, and at what price, is still Settings' to say, and a line no longer ticked is refused by name. An old signed flow with no `model.json` runs with the model picked in Chat's "Run a signed flow" card, and the pick is recorded on a successful start.
