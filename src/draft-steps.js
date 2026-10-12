@@ -18,9 +18,9 @@ function money(log) {
 
 /**
  * The tries of a draft, one per round, oldest first. The free retry after a broken reply (a `structure-retry` round) keeps the number of the try it
- * retries: "try N again", never a new number. `reds` are the checker's raw refusals; `outcome` is a non-validator round's own words.
+ * retries: "try N again", never a new number. `reds` are the checker's raw refusals; `outcome` is a non-validator round's plain words, `rawOutcome` its own raw words.
  * @param {any[]} rounds the draft's log.json `log`
- * @returns {Array<{ label: string, passed: boolean, reds: string[], outcome: string, again: boolean }>}
+ * @returns {Array<{ label: string, passed: boolean, reds: string[], outcome: string, rawOutcome: string, again: boolean }>}
  */
 export function triesOf(rounds) {
   let no = 0;
@@ -35,6 +35,7 @@ export function triesOf(rounds) {
       passed,
       reds: Array.isArray(e?.reds) ? e.reds.map(String) : [],
       outcome: brokenThenRetried ? 'the reply came back broken; one free retry' : outcome,
+      rawOutcome: outcome,
       again,
     };
   });

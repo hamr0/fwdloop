@@ -501,6 +501,7 @@
   .chat-steps .step.bad .step-detail{color:var(--red);}
   .chat-steps .step.note .step-label{color:var(--text);padding-left:1.2em;}
   .chat-steps .step[data-step="thinking"].bad .step-label{color:var(--red);font-weight:600;}
+  .audit-raw{color:var(--text-faint);font-size:11px;word-break:break-word;white-space:pre-wrap;margin-top:2px;}
   .chat-steps .step-raw{margin-top:2px;color:var(--text-faint);}
   .chat-steps .step-raw summary{cursor:pointer;}
   .chat-steps .step.run .step-sign::after{content:"\2026";}
@@ -2469,6 +2470,7 @@
   function auditDetailHtml(r, word, actionText, isRejectRow){
     var lines = (typeof r.step === "string" && r.step.length > 0 ? [["step", r.step]] : []).concat([["result", word], ["action", actionText]]);
     if(!isRejectRow && r.gap) lines.push(["gap", auditGapText(r)]);
+    if(Array.isArray(r.raw) && r.raw.length > 0) lines.push(["raw", r.raw.join(" | ")]);
     if(Array.isArray(r.refused) && r.refused.length > 0){
       lines.push(["refused", r.refused.map(function(x){ return x.verb + " " + x.path + " (" + x.rule + ")"; }).join("; ")]);
     }
@@ -2489,6 +2491,11 @@
   // number and no close class — it shows nothing / "—", never "null", "unknown" or "#null".
   function auditAttemptText(r){ return (typeof r.attempt === "number" || (typeof r.attempt === "string" && r.attempt.length > 0)) ? String(r.attempt) : ""; }
   function auditCloseText(r){ return (r.setup || r.class === null || r.class === undefined) ? "—" : closeClassLabel(r.class); }
+  // M4d am15 item 4: a try row's raw checker text, under its plain reason (the Gap cell). Server data, always escaped.
+  function auditRawHtml(r){
+    if(!Array.isArray(r.raw) || r.raw.length === 0) return "";
+    return r.raw.map(function(t){ return "<div class=\"audit-raw\">" + escapeXml(String(t)) + "</div>"; }).join("");
+  }
   function buildAuditRowEl(r, includeStep){
     var tr = document.createElement("tr");
     var glyph = verdictGlyph(r.verdict, r.class);
@@ -2505,7 +2512,7 @@
       "<td data-label=\"Attempt\">" + escapeXml(auditAttemptText(r)) + "</td>" +
       (includeStep ? "<td data-label=\"Step\">" + escapeXml(r.stepName || r.step) + "</td>" : "") +
       "<td data-label=\"Action\">" + escapeXml(actionText) + "</td>" +
-      "<td data-label=\"Gap\">" + escapeXml(isRejectRow ? "" : auditGapText(r)) + "</td>" +
+      "<td data-label=\"Gap\">" + escapeXml(isRejectRow ? "" : auditGapText(r)) + auditRawHtml(r) + "</td>" +
       "<td data-label=\"Cost\">" + escapeXml(auditCostCellText(r)) + "</td>" +
       "<td data-label=\"Verdict\"><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
       "<td data-label=\"Close\">" + escapeXml(auditCloseText(r)) + "</td>" +
