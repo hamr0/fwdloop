@@ -327,8 +327,12 @@ const ALLOWLIST = {
     names: { appendFileSync: 1, mkdirSync: 1 },
   },
   'src/liveness.js': {
-    reason: 'M4c: /proc reads only (cmdline, stat field 22, a /proc existence probe) plus lstatSync mtime of the run\'s own book files for the 10-minute fallback (presence/mtime only, content never read, symlinks not followed) — pids.jsonl itself is read via books.js readPidRows (readFileInside); M4c amendment 2: resume.lock — lstat (a symlinked lock reads as empty, never followed), one read of its holder JSON, and writeSync of that holder into the fd resumeRun just created with wx',
-    names: { lstatSync: 2, readFileSync: 4, writeSync: 1 },
+    reason: 'M4c: /proc reads only (cmdline, stat, a /proc existence probe; the cmdline and stat reads go through the one REAL_PROC seam) plus lstatSync mtime of the run\'s own book files for the 10-minute fallback (presence/mtime only, content never read, symlinks not followed) — pids.jsonl itself is read via books.js readPidRows (readFileInside); M4c amendment 2: resume.lock — lstat (a symlinked lock reads as empty, never followed), one read of its holder JSON, and writeSync of that holder into the fd resumeRun just created with wx',
+    names: { lstatSync: 2, readFileSync: 5, writeSync: 1 },
+  },
+  'src/run-store.js': {
+    reason: "M7: the ONE remover of a run's litectx store folder (<runs>/.stores/<runId>), called when a fresh run starts so a reused run id never inherits an old store; the path comes only from runStoreDir(runDir). litectx itself opens and writes the store.",
+    names: { rmSync: 1 },
   },
   'src/config.js': {
     reason: 'M4d: the ONE reader/writer of the per-person config.json (~/.config/fwdloop), a regular file OUTSIDE any run/flow dir, not a book. One read (ENOENT = nothing set); the atomic write is mkdir + tmp write + chmod 0600 + rename. Never follows into a run dir.',
