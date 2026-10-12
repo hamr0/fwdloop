@@ -28,7 +28,7 @@ test('(a) a valid forced tool call is accepted as-is, one metered round, no conv
 test('(b1) the schema offers WIRED verbs only — "forget" is not on the enum or the menu', () => {
   const menu = wiredMenu(['core']);
   const enumVerbs = buildDeclarationSchema(menu).properties.steps.items.properties.primitives.items.enum;
-  assert.deepEqual([...enumVerbs].sort(), ['addressCells', 'compress', 'get', 'grep', 'impact', 'peek', 'read', 'readDocx', 'recall', 'recent', 'related', 'stash', 'write']);
+  assert.deepEqual([...enumVerbs].sort(), ['addressCells', 'compress', 'edit', 'get', 'grep', 'impact', 'peek', 'read', 'readDocx', 'recall', 'recent', 'related', 'stash', 'write']);
   assert.ok(!enumVerbs.includes('forget') && !enumVerbs.includes('remember'));
 });
 

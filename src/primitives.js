@@ -81,7 +81,8 @@ async function resolveAndGate(gate, verb, tool, runDir, rawPath) {
   }
   const joined = (rawPath.startsWith('~') || path.isAbsolute(rawPath)) ? rawPath : path.join(runDir, rawPath);
   const resolved = resolveToolPath(joined);
-  const type = verb === 'write' ? 'write' : 'read';
+  // `edit` is judged as bareguard's own 'edit' action type: the SAME fs.writeScope fence as `write` (M7 item 3)
+  const type = verb === 'write' || verb === 'edit' ? verb : 'read';
   const decision = await gate.check({ type, tool, path: resolved });
   if (decision.outcome !== 'allow') {
     throw new GateRefusal(verb, resolved, decision.rule);
@@ -215,6 +216,20 @@ function sandboxedWriteTool(gate, runDir, outDir) {
   };
 }
 
+function sandboxedEditTool(gate, runDir) {
+  const real = shellTool('shell_edit');
+  return {
+    name: 'edit',
+    description: `${real.description} Sandboxed exactly like write: only files under <runDir>/out can be edited; `
+      + 'the run records and the frozen inputs are never editable.',
+    parameters: real.parameters,
+    execute: async (args) => {
+      const resolvedPath = await resolveAndGate(gate, 'edit', 'edit', runDir, args?.path);
+      return real.execute({ ...args, path: resolvedPath });
+    },
+  };
+}
+
 /** `readDocx`/`addressCells` take a `role` naming one of the run's frozen
  *  inputs (never a raw path — the model is never handed a filesystem path
  *  to type back, so there is nothing to sandbox-check on the way in). */
@@ -264,7 +279,7 @@ function addressCellsPrimitiveTool(inputsByRole) {
  *  deliberately absent: memory lasts one run (PRD: no learning between flows). */
 const CTX_VERBS = Object.freeze(['recall', 'get', 'recent', 'related', 'impact', 'compress', 'peek', 'stash']);
 
-export const WIRED_VERBS = new Set(['read', 'grep', 'write', 'readDocx', 'addressCells', ...CTX_VERBS]);
+export const WIRED_VERBS = new Set(['read', 'grep', 'write', 'edit', 'readDocx', 'addressCells', ...CTX_VERBS]);
 
 /** The wired menu, one place: the catalogue entries whose verb is in
  *  WIRED_VERBS (and, when `skills` is given, in a signed skill). Absence,
@@ -349,6 +364,9 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
         // dir) — creating `out/` eagerly here would leave a run dir behind
         // even for a run `runFlow` goes on to refuse.
         tools.write = sandboxedWriteTool(gate, runDir, outDir);
+        break;
+      case 'edit':
+        tools.edit = sandboxedEditTool(gate, runDir);
         break;
       case 'readDocx':
         tools.readDocx = readDocxPrimitiveTool(inputsByRole);
