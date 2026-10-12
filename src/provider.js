@@ -434,7 +434,8 @@ export function makeProvider(slotName, options = {}) {
         ...common,
         legacyMaxTokens: slot.legacyMaxTokens,
         // bare-agent >=0.48: opt in to the raw broken tool-call arguments on
-        // `malformedToolCall` (capped upstream at 500 chars). Not exposeErrorBody.
+        // `malformedToolCall` (bare-agent >=0.50 hands over the full uncapped string; model-step.js
+        // bounds it, RAW_ARGS_BOUND). Not exposeErrorBody.
         exposeMalformedArgs: true,
       });
 
