@@ -69,8 +69,8 @@ function pageNote({ capText, mode = 'new', flowCap = null, job = 'one step', fet
   const log = { starts: 0, texts: {} };
   const note = () => ({ textContent: '', classList: { remove() {}, toggle() {} } });
   // amendment 5: the Run form's cap is a typed box (`runCapEl`), seeded with the flow's own cap; amendment 4: the Resume form has its own note
-  const els = { 'jf-cap-note': note(), 'jf-run-left': note(), 'jf-resume-left': note(), 'jf-cap-money': { value: capText }, 'jf-job': { value: job } };
-  const src = [fnSrc(CHAT, 'setMoneyNote'), fnSrc(CHAT, 'jobHasModelStep'), fnSrc(CHAT, 'refreshCapNote')].join('\n');
+  const els = { 'jf-cap-note': note(), 'jf-run-left': note(), 'jf-resume-left': note(), 'jf-cap-money': { value: capText }, 'jf-cap-job-note': { textContent: '' }, 'jf-job': { value: job } };
+  const src = [fnSrc(CHAT, 'setMoneyNote'), fnSrc(CHAT, 'jobHasModelStep'), fnSrc(CHAT, 'paintCapJobNote'), fnSrc(CHAT, 'refreshCapNote')].join('\n');
   const f = new Function('els', 'mode', 'flowCap', 'fetchImpl', 'log', `
     var moneyRed = false; var capNoteSeq = 0; var sessionLive = false; var sessionId = null;
     var capNoteEl = els["jf-cap-note"];

@@ -916,6 +916,7 @@
                   <label for="jf-cap-money">Cap $</label>
                   <input id="jf-cap-money" type="text" inputmode="decimal" placeholder="per run" data-testid="jf-cap-money">
                   <div class="hint" id="jf-cap-note" data-testid="cap-note"></div>
+                  <div class="hint" id="jf-cap-job-note" data-testid="jf-cap-job-note"></div>
                   <div class="jf-err" id="jf-err-capUsd" data-testid="jf-err-capUsd"></div>
                 </div>
                 <div class="cap-field">
@@ -4375,7 +4376,12 @@
     function jobHasModelStep(){
       return byId("jf-job").value.split("\n").some(function(l){ var t = l.trim(); return t !== "" && t.charAt(0) !== "~" && !/^ask\b/i.test(t); });
     }
+    // M4d am21 item 3: with no step that needs a model the cap cannot be checked against one yet: a grey line says so (the New job card only)
+    function paintCapJobNote(m){
+      byId("jf-cap-job-note").textContent = (m === "new" && !jobHasModelStep()) ? "The cap is checked against the model once the job has a step." : "";
+    }
     function refreshCapNote(){
+      paintCapJobNote(mode);
       var cap = mode === "run" ? runCapEl.value.trim() : (mode === "resume" ? resumeCapEl.value.trim() : byId("jf-cap-money").value.trim());
       var seq = ++capNoteSeq;
       if(cap === ""){ setMoneyNote("", false); return; }
