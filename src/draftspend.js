@@ -19,9 +19,8 @@
 import { renameSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 
-import { readFileInside } from './flow.js';
+import { readdirInside, readFileInside } from './flow.js';
 import { readSpendRows, rowCeilingUsd, spendRowCost, unmeteredCalls } from './provider.js';
-import { readdirInside } from './flow.js';
 import { parseSignedText } from './signed-text.js';
 
 export const DRAFT_SPEND_FILE = 'draft-spend.json';
