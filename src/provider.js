@@ -21,6 +21,7 @@ import {
 import { dirname, basename } from 'node:path';
 import { readFileInside } from './flow.js';
 import { readConfig, configDoorHome } from './config.js';
+import { isKeyName } from './keysfile.js';
 import { OpenAI, Anthropic, Gemini } from 'bare-agent/providers';
 
 /**
@@ -54,9 +55,11 @@ class MalformedToolCallTolerantOpenAI extends OpenAI {
 /** The API shape a row has until one is picked in Settings: the wire protocol most providers speak (a shape is a protocol, not a provider). */
 const DEFAULT_SHAPE = 'openai-api';
 
-/** A provider row is named by its key's env name (M4d amendment 6): letters, digits, underscore; not a place, not a model. */
-const KEY_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
-export const isKeyName = (v) => typeof v === 'string' && KEY_NAME_RE.test(v);
+/** A provider row is named by its key's env name (M4d amendment 6). M4d am21 item 4: ONE rule for what that name may be, `isKeyName` in src/keysfile.js (`…_KEY` in
+ *  capitals): the same gate the keys file, the env pass-through and the log scrubber use, so a key a run can use is always one the scrubber knows. */
+export { isKeyName };
+/** The sentence part every refusal of a non-key name carries, so the rule is named wherever it is refused. */
+export const KEY_NAME_RULE_SAY = 'a key name is written like DEEPSEEK_API_KEY (capitals, ending in _KEY)';
 
 /**
  * THE one lookup of a row's API shape, address and legacy-token tick (M4d amendment 6). A row IS its key's env name, so the slot name and the
@@ -68,7 +71,7 @@ export const isKeyName = (v) => typeof v === 'string' && KEY_NAME_RE.test(v);
  * @returns {{ slot: string, envVar: string, legacyMaxTokens: boolean, shape: string, baseUrl: string }}
  */
 export function resolveSlot(slotName, { config = {} } = {}) {
-  if (!isKeyName(slotName)) throw new Error(`unknown provider "${slotName}" — a provider is the name of a key in your keys file`);
+  if (!isKeyName(slotName)) throw new Error(`unknown provider "${slotName}" — a provider is the name of a key in your keys file; ${KEY_NAME_RULE_SAY}`);
   const saved = (config.providers && Object.hasOwn(config.providers, slotName)) ? config.providers[slotName] : {};
   const shape = saved.shape ?? DEFAULT_SHAPE;
   return {
@@ -364,7 +367,7 @@ export function assertUnderGlobalCap(path, capUsd) {
  * @param {Record<string,string|undefined>} [env]
  */
 export function checkKeyPreflight(slotName, env = process.env) {
-  if (!isKeyName(slotName)) return { ok: false, message: `key: unknown provider "${slotName}"` };
+  if (!isKeyName(slotName)) return { ok: false, message: `key: unknown provider "${slotName}" — ${KEY_NAME_RULE_SAY}` };
   const varName = slotName;
   const value = env[varName];
   if (value === undefined || value === '') {
