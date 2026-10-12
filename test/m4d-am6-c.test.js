@@ -70,7 +70,7 @@ test('C4: the panel passes the pick and the thinking tick to the draft child as 
   const file = path.join(w.work, 'argv.jsonl');
   w.env.ARGV_FILE = file;
   assert.equal((await w.post('/api/author/draft', w.card({}))).status, 202);
-  await until(() => existsSync(file));
+  await until(() => existsSync(file) && readFileSync(file, 'utf8').trim() !== ''); // the echo script writes the file in two steps: wait for its content, not just the file
   const first = JSON.parse(readFileSync(file, 'utf8').trim().split('\n')[0]);
   assert.deepEqual(first.slice(first.indexOf('--model')), ['--model', 'fake-ticked', '--provider', 'DEEPSEEK_API_KEY']);
   await until(async () => { const j = (await w.get('/api/author/live')).json(); return !j.draft || ['stopped', 'red', 'green'].includes(j.draft.phase); });
@@ -78,7 +78,7 @@ test('C4: the panel passes the pick and the thinking tick to the draft child as 
   const file2 = path.join(w2.work, 'argv.jsonl');
   w2.env.ARGV_FILE = file2;
   assert.equal((await w2.post('/api/author/draft', w2.card({ thinking: true }))).status, 202);
-  await until(() => existsSync(file2));
+  await until(() => existsSync(file2) && readFileSync(file2, 'utf8').trim() !== ''); // the echo script writes the file in two steps: wait for its content, not just the file
   const second = JSON.parse(readFileSync(file2, 'utf8').trim().split('\n')[0]);
   assert.deepEqual(second.slice(second.indexOf('--model')), ['--model', 'fake-ticked', '--provider', 'DEEPSEEK_API_KEY', '--thinking']);
 });
