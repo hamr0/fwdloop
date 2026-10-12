@@ -250,7 +250,9 @@ export function createAuthor(opts) {
       return { n, kind, name, phase: 'stopped', say: logTail(dir, `${kind === 'answers' ? 'redraft' : 'revise'}-${n}.log`, keys) || STOPPED_SAY };
     });
     const cur = /** @type {{ phase: string, kind: string, say?: string }} */ (newest > 0 ? revises[revises.length - 1] : { phase: first.phase, kind: 'first' });
-    const shared = { ...base, card, revises, revisesLeft, stepList: first.stepList ?? null };
+    // a first plan that asked questions did not end red, it ended by asking (open or answered): its plan-checks line is never the red one (am15 item 3)
+    const asked = readQuestions(join(dir, 'draft')).questions.length > 0;
+    const shared = { ...base, card, revises, revisesLeft, stepList: asked ? stepListOf(dir, 'draft', keys, true) : (first.stepList ?? null) };
     const rel = newest > 0 ? `draft-${newest}` : 'draft';
     if (cur.phase === 'running') return { ...shared, phase: cur.kind === 'answers' ? 'redrafting' : 'revising' };
     if (cur.phase === 'stopped') return { ...shared, phase: 'stopped', say: cur.say };
