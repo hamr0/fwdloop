@@ -2172,6 +2172,8 @@ through M5 (docs/archive/PRD.md:597-605).
 **M7 amendment 1 — SIGNED by hamr 2026-10-12 ("sign m7 am1"): the live test uses a tool that fits prose.**
 1. M7's "Done when" changes from "a job2 flow that grants `compress` runs on deepseek-flash, and a real step uses one of the new tools and passes its check" to: **a real step on deepseek-flash calls `stash`, `peek` or `get` and passes its check, and the Audit tab shows the call.** Plus tests that fail first (unchanged).
 
+**M7 EXIT SIGNED — hamr, 2026-10-12** ("sign m7 exit"). Evidence: am1's live test, flow `m7-walk-2` run-1 on deepseek-flash, green, $0.0124: steps 1-2 called `stash` (1 each), step 3 called `get` (4) and passed its shape check on try 2; the Audit tab shows the calls (hamr's paste). Must-fail cases as permanent tests (ungranted `recall` refused; run-2 cannot see run-1's stash, also after a deleted run's id is reused; stash over 64 KB refused). Exit walk `exit-walk-1` run-1 (green, $0.0035) also covered M4d am13, am15, am16 and am17 on the real panel. Open, not blocking: F67, F68. Self-review was not run before this signature.
+
 Superseded 2026-10-11 by the signed scope above (skills and persona dropped by hamr). Kept so it is not re-derived.
 
 Skill directories gate the drafter's visible primitive subset, and a signed persona line affects
