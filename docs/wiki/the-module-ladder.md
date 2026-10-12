@@ -1373,6 +1373,14 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 6. Replaces am10 items 1 and 3 (the list's lines and its detail lines) and am12 items 1 and 3 (try lines and the grey note). am12 item 2 (`try N again`) moves to the Audit rows. The readout and its hash don't change.
 **Done when:** a test that fails first; a $0 walk of the **real panel** (not a harness page) at 1280, 390 and 320 showing a green draft with retries, a red draft, and a signed run's Audit Draft group with one row per try; screenshots read. **Cap:** $0.
 
+**M4d amendment 16 — SIGNED by hamr 2026-10-12 ("sign m4d am16"): one shared pot. Drafting and the first run share the card's Cap $.**
+1. Replaces am13 item 2. Everything a job's drafting spends (the draft, each revise, the redraft after answers) comes out of the card's **Cap $**, and the first run gets what is left. Example: Cap $0.50, drafting spent $0.05, the first run's cap is $0.45.
+2. While drafting, each round must fit what is left of the cap (am13 item 3's worst-case check, against the remaining money, not the whole cap).
+3. **Sign & run** shows the split before it starts: `Cap $0.50 · drafting spent $0.05 · this run up to $0.45`. If what is left cannot pay for one run round at its worst case, Sign & run is refused at $0, naming the numbers and saying "Raise Cap $".
+4. Runs that do not draft (Run again, a trigger, a resume) get the whole cap, as today.
+5. If a drafting round's cost isn't known, it's counted at its **worst case** (Settings prices × the fixed token limits), never as $0, and Sign & run continues. The split line says so: `drafting spent at most $0.27 (1 round not priced)`.
+**Done when:** a test that fails first for each item; a $0 walk of the real panel showing the split line, and the refusal when drafting left too little. **Cap:** $0.
+
 - **Built after signing — not signed text (2026-10-12), M4d amendments 3-11 (branch `m4d-am3`):**
   - bare-agent is `^0.52.0`. Each drafting round carries bareagent's `thinkingStatus`; the worst one across the rounds is what the Chat list says (am11's words), and the row's Base URL is passed to `thinkingSupport`. A `ValidationError` from the provider is an ordinary loud provider-red, counted as one unmetered call (the separate `thinking-refused` stop was removed as dead code).
   - A job's model is remembered in `model.json` beside the draft and then beside the signed flow. It is not one of the signed files; which model runs, and at what price, is still Settings' to say, and a line no longer ticked is refused by name. An old signed flow with no `model.json` runs with the model picked in Chat's "Run a signed flow" card, and the pick is recorded on a successful start.
