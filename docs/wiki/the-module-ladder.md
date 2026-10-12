@@ -1386,6 +1386,10 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 2. The version is read from fwdloop's own `package.json` by the server when the page is served (one writer, never typed into the page), so it always matches the code that is running.
 **Done when:** a test that fails first (the header shows package.json's version; change the version in a test copy and the header follows); the real panel at 1280, 390 and 320 with no wrap or spill. **Cap:** $0.
 
+**M4d amendment 18 — SIGNED by hamr 2026-10-12 ("sign m4d am18"): a reload notice.**
+1. The page remembers the version it was served with. If the panel restarts on newer code while your tab stays open, a bar shows at the top: **"fwdloop was updated to v0.17.0. Reload this page."** with a **Reload** button.
+**Done when:** a test that fails first, and the real panel at 3 widths. **Cap:** $0
+
 - **Built after signing — not signed text (2026-10-12), M4d amendments 3-11 (branch `m4d-am3`):**
   - bare-agent is `^0.52.0`. Each drafting round carries bareagent's `thinkingStatus`; the worst one across the rounds is what the Chat list says (am11's words), and the row's Base URL is passed to `thinkingSupport`. A `ValidationError` from the provider is an ordinary loud provider-red, counted as one unmetered call (the separate `thinking-refused` stop was removed as dead code).
   - A job's model is remembered in `model.json` beside the draft and then beside the signed flow. It is not one of the signed files; which model runs, and at what price, is still Settings' to say, and a line no longer ticked is refused by name. An old signed flow with no `model.json` runs with the model picked in Chat's "Run a signed flow" card, and the pick is recorded on a successful start.
