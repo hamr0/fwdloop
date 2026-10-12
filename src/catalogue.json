@@ -23,6 +23,12 @@
       "verb": "recent", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "recentMemory", "class": "read", "skill": "core", "desc": "List the most recently saved notes, newest first."
     },
     {
+      "verb": "related", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "related", "class": "read", "skill": "core", "desc": "List the files a given file imports and the files that import it, from this run's indexed files."
+    },
+    {
+      "verb": "impact", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "impact", "class": "read", "skill": "core", "desc": "Name the callers and importers of one function or symbol in this run's indexed files, so you know what a change would touch."
+    },
+    {
       "verb": "compress", "component": "compress", "package": "litectx", "symbol": "compress", "class": "read", "skill": "core", "desc": "Shrink source code: keep each function header and its doc comment, drop the body (or reduce it to a name). Code only — prose and markdown come back unchanged."
     },
     {
