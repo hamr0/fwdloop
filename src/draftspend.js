@@ -22,6 +22,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { readFileInside } from './flow.js';
 import { readSpendRows, rowCeilingUsd, spendRowCost, unmeteredCalls } from './provider.js';
 import { readdirInside } from './flow.js';
+import { parseSignedText } from './signed-text.js';
 
 export const DRAFT_SPEND_FILE = 'draft-spend.json';
 
@@ -126,4 +127,16 @@ export function sessionPriorSpend(dir) {
   const sessionDir = dirname(resolve(dir));
   if (!readFileInside(sessionDir, 'card.json').ok) return null;
   return (ceilingUsd) => draftingSpent(sessionDir, { ceilingUsd, exclude: basename(dir) }).usd;
+}
+
+/**
+ * M4d amendment 19 item 1: what a draft reserves against the monthly limit: what is LEFT of the cap in its prose (cap minus what this job's drafting already
+ * spent, `sessionPriorSpend`), not one round. A prose that does not parse falls back to one round: the draft itself refuses it at $0.
+ * @param {string} proseText @param {string} outDir the plan folder the draft will write @param {number} ceilingUsd one round at its worst case
+ */
+export function draftHoldUsd(proseText, outDir, ceilingUsd) {
+  const parsed = parseSignedText(proseText);
+  if (!parsed.ok) return ceilingUsd;
+  const prior = sessionPriorSpend(outDir);
+  return Math.max(0, parsed.arbiter.capUsd - (prior === null ? 0 : prior(ceilingUsd)));
 }
