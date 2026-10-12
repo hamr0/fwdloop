@@ -141,7 +141,7 @@ So in fwdloop terms:
 ### Layer 5 — the screen
 
 - **Built on:** a local panel (Runs, Ask, Inbox, Job, Settings, Chat).
-- **Does:** describe, sign, run, answer, Stop, Resume, set keys and limits, all in a browser, and it works on a phone.
+- **Does:** describe, sign, run, answer, Stop, Resume, set keys, providers, models, prices and limits, all in a browser, and it works on a phone.
 - **Survives:** nothing of its own; it reads the books. It is a client of the arbiter, never a second arbiter.
 - **Status:** built.
 
@@ -160,6 +160,7 @@ So in fwdloop terms:
 | money spent | the books | nobody; unknown stays unknown |
 | the answer to an ask | you | once |
 | the monthly limit | Settings | you, up or down |
+| providers, models, prices, base URLs | Settings (none live in code) | you; a model is usable only when ticked with both prices |
 
 **One rule: the machine may not author, loosen, or hide any of it.**
 
@@ -252,7 +253,7 @@ M6b was folded into M4e. A rung starts only when its scope, exit and negative ar
 | M4b | answer doors, resume | released (0.9.0) |
 | M4c | answers read clearly, stuck runs | released (0.10.0) |
 | M4c-fix | the fix list, cleared | released (0.11.0) |
-| M4d | Settings | released (0.12.0) |
+| M4d | Settings | released (0.12.0); amendments 3-11 (providers from your keys, models and prices, thinking, plan-checker rules, Chat step list) built, not yet released |
 | M4e | Chat card: draft, sign, run | released (0.13.0); later amendments built, not yet released |
 | M6a | authoring backend (draft, sign) | released (0.8.0) |
 | **M5** | **dry-run, accept, versions** | **next** |

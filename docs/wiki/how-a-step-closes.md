@@ -157,6 +157,20 @@ rule stops being generic once it doesn't apply to all*. The cost is accepted —
 guardrail on each line where it applies. Explicit and repeated beats clever and mostly-true
 (docs/archive/PRD.md:329-335).
 
+### Two plan-checker rules about what a step reads (M4d am8, am9)
+
+Both are checked at draft time, at $0, and the drafter is told the same rule in its prompt.
+
+- **A green step must read an input with cells.** A green close makes every figure cite its source
+  cell, and only a spreadsheet input (a `.csv` file) has cells; a text output of an earlier step has
+  none. A plan whose green step reads only other steps is refused by name: "Line N's check needs
+  cells, but it reads only … Line N must read …". With no CSV input signed, the guardrail cannot be green.
+- **An ask step must show you something.** Its first read must be the output of an earlier step, the
+  thing you are asked to check. An ask that reads nothing, or something no earlier step makes, is refused
+  the same way. Reading is not a grant: the ask still grants no primitive.
+
+Neither rule refuses an already signed flow; they apply to a plan being drafted.
+
 ### Silence is hitl; invention is a red
 
 **A missing close IS `hitl`, not a red** — silence about how a step is proven done means a person
