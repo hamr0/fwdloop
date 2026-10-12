@@ -10,11 +10,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { OpenAI } from 'bare-agent/providers';
+import { tickedHome } from './fixtures/m4d-ticked.mjs';
 
 import {
-  PROVIDER_SLOTS, RATES_BY_SUFFIX, lookupRate, resolveModelRate, ceilingCostUsd,
+  ceilingCostUsd,
   classifyModelId, sumMeterings, appendSpendRow, assertUnderGlobalCap, checkKeyPreflight,
-  makeProvider,
+  makeProvider, spendRowCost,
 } from '../src/provider.js';
 
 function tmpFile(name) {
@@ -22,36 +23,17 @@ function tmpFile(name) {
   return path.join(dir, name);
 }
 
-test('lookupRate: known suffix resolves, unknown returns null (never a 0 rate)', () => {
-  assert.equal(lookupRate('deepseek-flash').suffix, 'deepseek-flash');
-  assert.equal(lookupRate('nonexistent-model-xyz'), null);
-  assert.equal(lookupRate('hf:Qwen/Qwen3.8-27B').suffix, 'Qwen/Qwen3.8-27B');
+// M4d am5 item 1/4: the code table, lookupRate and resolveModelRate are gone (their tests are replaced by the am5
+// tests in test/m4d-am5.test.js: no model/price in src/, one usable-model decision, the hold from a line's own prices).
+test('ceilingCostUsd: the hold is the rates it is given times the token bounds - no table, no fallback', () => {
+  assert.equal(ceilingCostUsd({ in: 0.001, out: 0.002 }), (32000 / 1000) * 0.001 + (16000 / 1000) * 0.002);
+  assert.equal(ceilingCostUsd({ in: 0, out: 0 }), 0); // a typed 0 / 0 is a chosen price
 });
 
-test('lookupRate: a suffix named after an inherited Object.prototype member is never treated as known', () => {
-  assert.equal(lookupRate('constructor'), null);
-  assert.equal(lookupRate('toString'), null);
-});
-
-test('resolveModelRate: throws on an unrated model rather than returning undefined', () => {
-  assert.throws(() => resolveModelRate('not-a-real-model'), /no hand-entered rate/);
-});
-
-test('ceilingCostUsd: an unknown model prices at the table\'s highest in/out rate, never 0', () => {
-  const known = ceilingCostUsd('deepseek-flash');
-  const unknown = ceilingCostUsd('totally-unknown-model-id');
-  assert.ok(known > 0);
-  assert.ok(unknown > 0);
-  const highestIn = Math.max(...Object.values(RATES_BY_SUFFIX).map((r) => r.in));
-  const highestOut = Math.max(...Object.values(RATES_BY_SUFFIX).map((r) => r.out));
-  const expected = (32000 / 1000) * highestIn + (16000 / 1000) * highestOut;
-  assert.equal(unknown, expected);
-});
-
-test('classifyModelId: match, prefix, alias, substituted, unreported', () => {
+test('classifyModelId: match, prefix, substituted, unreported (the syn: alias rule was a per-model rule, deleted by M4d am5)', () => {
   assert.equal(classifyModelId('deepseek-flash', 'deepseek-flash'), 'match');
   assert.equal(classifyModelId('hf:openai/x', 'openai/x'), 'prefix');
-  assert.equal(classifyModelId('syn:large:text', 'zai-org/GLM-5.2'), 'alias');
+  assert.equal(classifyModelId('some-alias', 'concrete-model'), 'substituted');
   assert.equal(classifyModelId('deepseek-flash', 'deepseek-v4-pro'), 'substituted');
   assert.equal(classifyModelId('deepseek-flash', null), 'unreported');
   assert.equal(classifyModelId(null, 'deepseek-flash'), 'unreported');
@@ -89,8 +71,15 @@ test('appendSpendRow: stamps modelMatch, never overwrites a caller-supplied fiel
 
 test('assertUnderGlobalCap: a null-cost row reprices at its ceiling and still counts toward the cap', () => {
   const spendPath = tmpFile('spend.jsonl');
-  appendSpendRow(spendPath, { model: 'deepseek-flash', modelReturned: null, costUsd: null });
+  appendSpendRow(spendPath, { model: 'deepseek-flash', modelReturned: null, costUsd: null, price: { inPerM: 0.3, outPerM: 1.2, source: { in: 'model', out: 'model' } } });
   assert.throws(() => assertUnderGlobalCap(spendPath, 0.000001), /global spend cap reached/);
+});
+
+// M4d am5 item 6: a null-cost row that recorded NO price (an old row) can no longer be priced from a code table. It
+// counts its floor only and reads incomplete, so every figure that holds it says "at least", never a clean total.
+test('spendRowCost: a null-cost row with no recorded price is incomplete (reads "at least"), not priced from code', () => {
+  assert.deepEqual(spendRowCost({ model: 'deepseek-flash', costUsd: null }), { usd: 0, complete: false });
+  assert.deepEqual(spendRowCost({ model: 'deepseek-flash', costUsd: 0.002, spendComplete: false, calls: 2, rounds: 1 }), { usd: 0.002, complete: false });
 });
 
 test('assertUnderGlobalCap: passes (does not throw) with plenty of headroom', () => {
@@ -100,36 +89,36 @@ test('assertUnderGlobalCap: passes (does not throw) with plenty of headroom', ()
 });
 
 test('checkKeyPreflight: refuses an unset key at $0, before any ledger write', () => {
-  const result = checkKeyPreflight('deepseek', {});
+  const result = checkKeyPreflight('DEEPSEEK_API_KEY', {});
   assert.equal(result.ok, false);
   assert.match(result.message, /DEEPSEEK_API_KEY is not set/);
 });
 
 test('checkKeyPreflight: refuses an empty-string key', () => {
-  const result = checkKeyPreflight('deepseek', { DEEPSEEK_API_KEY: '' });
+  const result = checkKeyPreflight('DEEPSEEK_API_KEY', { DEEPSEEK_API_KEY: '' });
   assert.equal(result.ok, false);
 });
 
 test('checkKeyPreflight: refuses a key with a trailing newline (F26 — a two-line pass entry)', () => {
-  const result = checkKeyPreflight('deepseek', { DEEPSEEK_API_KEY: 'sk-real-key\n' });
+  const result = checkKeyPreflight('DEEPSEEK_API_KEY', { DEEPSEEK_API_KEY: 'sk-real-key\n' });
   assert.equal(result.ok, false);
   assert.match(result.message, /newline/);
 });
 
 test('checkKeyPreflight: refuses a key with embedded whitespace', () => {
-  const result = checkKeyPreflight('deepseek', { DEEPSEEK_API_KEY: 'sk-real key' });
+  const result = checkKeyPreflight('DEEPSEEK_API_KEY', { DEEPSEEK_API_KEY: 'sk-real key' });
   assert.equal(result.ok, false);
   assert.match(result.message, /whitespace/);
 });
 
 test('checkKeyPreflight: refuses an unknown slot name', () => {
-  const result = checkKeyPreflight('not-a-slot', { DEEPSEEK_API_KEY: 'sk-x' });
+  const result = checkKeyPreflight('not a slot', { DEEPSEEK_API_KEY: 'sk-x' });
   assert.equal(result.ok, false);
-  assert.match(result.message, /unknown provider slot/);
+  assert.match(result.message, /unknown provider/);
 });
 
 test('checkKeyPreflight: accepts a clean key', () => {
-  const result = checkKeyPreflight('deepseek', { DEEPSEEK_API_KEY: 'sk-clean-key-value' });
+  const result = checkKeyPreflight('DEEPSEEK_API_KEY', { DEEPSEEK_API_KEY: 'sk-clean-key-value' });
   assert.equal(result.ok, true);
 });
 
@@ -137,33 +126,28 @@ test('makeProvider: throws (never silently proceeds) when the slot\'s key is mis
   const saved = process.env.DEEPSEEK_API_KEY;
   delete process.env.DEEPSEEK_API_KEY;
   try {
-    assert.throws(() => makeProvider('deepseek', {}), /DEEPSEEK_API_KEY is not set/);
+    assert.throws(() => makeProvider('DEEPSEEK_API_KEY', {}), /DEEPSEEK_API_KEY is not set/);
   } finally {
     if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved;
   }
 });
 
 test('makeProvider: throws on an unknown slot before touching any key', () => {
-  assert.throws(() => makeProvider('not-a-real-slot', {}), /unknown provider slot/);
+  assert.throws(() => makeProvider('not a real slot', {}), /unknown provider/);
 });
 
 test('makeProvider: with a key present, builds a provider for the requested model without any network call', () => {
   const saved = process.env.DEEPSEEK_API_KEY;
   process.env.DEEPSEEK_API_KEY = 'sk-fake-test-key';
   try {
-    const built = makeProvider('deepseek', { model: 'deepseek-flash' });
+    const built = makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', configHome: tickedHome() });
     assert.equal(built.modelId, 'deepseek-flash');
-    assert.equal(built.slot, 'deepseek');
+    assert.equal(built.slot, 'DEEPSEEK_API_KEY');
     assert.ok(built.provider);
     assert.ok(built.rates.in > 0);
   } finally {
     if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved; else delete process.env.DEEPSEEK_API_KEY;
   }
-});
-
-test('PROVIDER_SLOTS: deepseek carries legacyMaxTokens (F11 — it ignores max_completion_tokens)', () => {
-  assert.equal(PROVIDER_SLOTS.deepseek.legacyMaxTokens, true);
-  assert.equal(PROVIDER_SLOTS.synthetic.legacyMaxTokens, false);
 });
 
 // BA-27 / 0.48 validation: the REAL wrapper from makeProvider, pointed at a
@@ -200,7 +184,7 @@ const EMIT_X = [{ name: 'emit_x', description: 'd', parameters: { type: 'object'
 
 test('makeProvider("deepseek")\'s real wrapper: malformed args come back verbatim in lastMalformedToolCall.rawArguments, usage metered', async () => {
   await withMalformedServer('{"a":1}}', async (port) => {
-    const built = makeProvider('deepseek', { model: 'deepseek-flash' });
+    const built = makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', configHome: tickedHome() });
     built.provider.baseUrl = `http://127.0.0.1:${port}`;
     const result = await built.provider.generate([{ role: 'user', content: 'hi' }], EMIT_X);
     assert.deepEqual(result.toolCalls, []);
@@ -212,13 +196,13 @@ test('makeProvider("deepseek")\'s real wrapper: malformed args come back verbati
   });
 });
 
-test('makeProvider("deepseek")\'s real wrapper: 800-char malformed args are capped upstream at 500 with rawTruncated:true', async () => {
+test('makeProvider("deepseek")\'s real wrapper: 800-char malformed args now come back whole (bare-agent 0.50: uncapped, rawTruncated never set)', async () => {
   await withMalformedServer(`{"a":"${'x'.repeat(790)}"}}`, async (port) => {
-    const built = makeProvider('deepseek', { model: 'deepseek-flash' });
+    const built = makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', configHome: tickedHome() });
     built.provider.baseUrl = `http://127.0.0.1:${port}`;
     await built.provider.generate([{ role: 'user', content: 'hi' }], EMIT_X);
-    assert.equal(built.provider.lastMalformedToolCall.rawArguments.length, 500);
-    assert.equal(built.provider.lastMalformedToolCall.rawTruncated, true);
+    assert.equal(built.provider.lastMalformedToolCall.rawArguments.length, 799);
+    assert.ok(!built.provider.lastMalformedToolCall.rawTruncated);
   });
 });
 
@@ -252,7 +236,7 @@ async function sentBody(options) {
   const saved = process.env.DEEPSEEK_API_KEY;
   process.env.DEEPSEEK_API_KEY = 'sk-fake-test-key';
   try {
-    const built = makeProvider('deepseek', { model: 'deepseek-flash', ...options });
+    const built = makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', configHome: tickedHome(), ...options });
     built.provider.baseUrl = `http://127.0.0.1:${server.address().port}`;
     await built.provider.generate([{ role: 'user', content: 'hi' }], []);
   } finally {
@@ -267,17 +251,15 @@ test('makeProvider("deepseek") with no thinking option: the sent body has no thi
   assert.equal('thinking' in body, false);
 });
 
-test('makeProvider("deepseek", {thinking}) sends body.thinking verbatim', async () => {
-  const body = await sentBody({ thinking: { type: 'disabled' } });
-  assert.deepEqual(body.thinking, { type: 'disabled' });
-});
-
 // M4c-fix item 18 / negative (vii): an incomplete spend row never counts below the ceiling price.
 test('negative (vii): readSpendTotal counts a spendComplete:false row at floor + ceiling, never only its floor', () => {
   const spendPath = tmpFile('spend.jsonl');
-  appendSpendRow(spendPath, { model: 'deepseek-flash', modelReturned: 'deepseek-flash', costUsd: 0.000001, spendComplete: false, calls: 2, rounds: 1 });
+  // a live row records the price it was booked at (M4d), and its ceiling is read off THAT price
+  const price = { inPerM: 0.3, outPerM: 1.2, source: { in: 'model', out: 'model' } };
+  const ceiling = ceilingCostUsd({ in: 0.0003, out: 0.0012 });
+  appendSpendRow(spendPath, { model: 'deepseek-flash', modelReturned: 'deepseek-flash', costUsd: 0.000001, spendComplete: false, calls: 2, rounds: 1, price });
   // floor alone (1e-6) is far under this cap; floor + one unmetered ceiling is not
-  assert.throws(() => assertUnderGlobalCap(spendPath, ceilingCostUsd('deepseek-flash') / 2), /global spend cap reached/);
+  assert.throws(() => assertUnderGlobalCap(spendPath, ceiling / 2), /global spend cap reached/);
   const total = assertUnderGlobalCap(spendPath, 100);
-  assert.ok(total >= ceilingCostUsd('deepseek-flash'), `total ${total} must be at least one ceiling`);
+  assert.ok(total >= ceiling, `total ${total} must be at least one ceiling`);
 });

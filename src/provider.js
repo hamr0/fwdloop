@@ -1,16 +1,15 @@
 // M2 piece 2 (docs/wiki/the-module-ladder.md, "M2 — scope, exit, negative —
-// SIGNED", scope items 7/8): provider slots, hand-entered rates, the spend
-// ceiling, the key preflight, and `makeProvider`. Money honesty (project
-// rule, CLAUDE.md): unknown cost is NEVER rendered as 0 — an unknown model
-// prices at the rate table's HIGHEST entry and the row is stamped
-// `substituted`; `assertUnderGlobalCap`/`appendSpendRow` never coerce a null
-// cost to a number.
+// SIGNED", scope items 7/8): provider rows, the usable-model decision, the spend
+// ceiling, the key preflight, and `makeProvider`. Providers, models, prices and addresses live in Settings
+// only (M4d amendments 5 and 6): a provider is a key name in the keys file, nothing is built in. Money honesty (project rule,
+// CLAUDE.md): unknown cost is NEVER rendered as 0 — a row with no booked cost reads
+// "at least" (`spendRowCost`); `assertUnderGlobalCap`/`appendSpendRow` never coerce a
+// null cost to a number.
 //
-// borrowed-from: fwdloop poc/m0/provider.mjs@76a3607 (`PROVIDER_SLOTS`,
-// `makeProvider`, `resolveModelRate`, `MalformedToolCallTolerantOpenAI` —
-// F28's tolerant wrapper for a DeepSeek tool-call whose `arguments` is bad
-// JSON) and fwdloop poc/m0/spend.mjs@76a3607 (`RATES_BY_SUFFIX`,
-// `lookupRate`, `ceilingCostUsd`, `classifyModelId`, `appendSpendRow`,
+// borrowed-from: fwdloop poc/m0/provider.mjs@76a3607 (`makeProvider`, `MalformedToolCallTolerantOpenAI` —
+// F28's tolerant wrapper for a provider tool-call whose `arguments` is bad
+// JSON) and fwdloop poc/m0/spend.mjs@76a3607 (`ceilingCostUsd`,
+// `classifyModelId`, `appendSpendRow`,
 // `assertUnderGlobalCap`) and fwdloop poc/m1/slot-batch.mjs@76a3607
 // (`checkKeyPreflight`: refuse an unset/empty/whitespace/newline key at $0,
 // before any ledger write — F26/2026-09-21's live defect). Rewritten
@@ -23,24 +22,24 @@ import { dirname, basename } from 'node:path';
 import { readFileInside } from './flow.js';
 import { readConfig, configDoorHome } from './config.js';
 import { OpenAI, Anthropic, Gemini } from 'bare-agent/providers';
-import { SHAPES } from './providershapes.js';
 
 /**
- * F28 (2026-09-15) / BA-27 (bare-agent >=0.47.0): DeepSeek sometimes emits a
+ * F28 (2026-09-15) / BA-27 (bare-agent >=0.47.0): some providers sometimes emit a
  * tool-call whose `function.arguments` is not valid JSON. Before 0.47,
  * bare-agent's own `generate()` threw a bare `SyntaxError` AFTER the HTTP
  * round already succeeded — losing the billed round and hanging metering.
- * As of 0.47, `OpenAI.generate()` (bare-agent/src/provider-openai.js, via
+ * As of 0.47, `OpenAI.generate()` (bare-agent's OpenAI-protocol client, via
  * `provider-toolcalls.js`'s `parseToolCalls`) no longer throws: it resolves
  * normally with `toolCalls: []` and a `malformedToolCall: { name, error }`
  * field already on the result. As of 0.48 the constructor option
- * `exposeMalformedArgs: true` (set in `makeProvider`) adds `rawArguments`
- * (capped upstream at 500 chars, `rawTruncated: true` when clipped). `Loop.run()` does not forward unknown
+ * `exposeMalformedArgs: true` (set in `makeProvider`) adds `rawArguments`; since 0.50
+ * it is the FULL raw string, uncapped (`rawTruncated` is never set), so `model-step.js`
+ * bounds what it logs or shows. `Loop.run()` does not forward unknown
  * `generate()` fields into its own return, so this wrapper ALSO stashes the
  * marker on the instance (`this.lastMalformedToolCall`, reset at the top of
  * every `generate()` call) — the one channel `runModelStepOnPrimitives`
  * (same provider reference) can read after `loop.run()` returns. We require
- * bare-agent >=0.48 (package.json `^0.49.0`) and never patch around its
+ * bare-agent >=0.50 (package.json `^0.52.0`) and never patch around its
  * private response internals.
  */
 class MalformedToolCallTolerantOpenAI extends OpenAI {
@@ -52,110 +51,34 @@ class MalformedToolCallTolerantOpenAI extends OpenAI {
   }
 }
 
-/** Provider slots. Frozen — add a new slot here, never inline a baseUrl/env
- *  var elsewhere. `deepseek` is the baseline (F12); `synthetic` is second. */
-export const PROVIDER_SLOTS = Object.freeze({
-  synthetic: Object.freeze({
-    baseUrl: 'https://api.synthetic.new/openai/v1',
-    envVar: 'SYNTHETIC_API_KEY',
-    defaultModel: 'hf:Qwen/Qwen3.8-27B',
-    shape: 'openai-api',
-    legacyMaxTokens: false,
-  }),
-  deepseek: Object.freeze({
-    baseUrl: 'https://api.deepseek.com',
-    envVar: 'DEEPSEEK_API_KEY',
-    // F22: 'deepseek-v4-flash' is retired, routed to DeepSeek-V4.1-Flash —
-    // request the live name so request === served.
-    defaultModel: 'deepseek-flash',
-    shape: 'openai-api',
-    // F11: DeepSeek ignores `max_completion_tokens`; only the legacy
-    // `max_tokens` key bounds output.
-    legacyMaxTokens: true,
-  }),
-});
+/** The API shape a row has until one is picked in Settings: the wire protocol most providers speak (a shape is a protocol, not a provider). */
+const DEFAULT_SHAPE = 'openai-api';
+
+/** A provider row is named by its key's env name (M4d amendment 6): letters, digits, underscore; not a place, not a model. */
+const KEY_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+export const isKeyName = (v) => typeof v === 'string' && KEY_NAME_RE.test(v);
 
 /**
- * THE one lookup of a slot's model, API shape and address (M4d amendment 1). Every model call (run,
- * resume, model step, drafter), Test, Balance and the spend rows read the slot through this and nothing
- * else: a value saved on the Settings page (`config.providers[slot]`) wins per field, else the code
- * default above. A blank saved Base URL means the default FOR THE EFFECTIVE SHAPE: the slot's own code
- * address while the shape is the slot's code shape, else that shape's vendor address ('' = bare-agent's own).
- * Unknown slot throws. `config` is already-read config (see `readPriceConfig`); no I/O here.
+ * THE one lookup of a row's API shape, address and legacy-token tick (M4d amendment 6). A row IS its key's env name, so the slot name and the
+ * env var are the same word. What a row holds is only what the person typed in Settings (`config.providers[slot]`): nothing is built
+ * in, so a row nobody typed an address for has `baseUrl: ''` and cannot run or list models. Which model a call USES is decided by
+ * `resolveUsableModel`. An invalid name throws. `config` is already-read config (see `readPriceConfig`); no I/O here.
  * @param {string} slotName
  * @param {{ config?: Record<string, any> }} [opts]
- * @returns {{ slot: string, envVar: string, legacyMaxTokens: boolean,
- *   model: string, shape: string, baseUrl: string,
- *   defaults: { model: string, shape: string, baseUrl: string } }}
+ * @returns {{ slot: string, envVar: string, legacyMaxTokens: boolean, shape: string, baseUrl: string }}
  */
 export function resolveSlot(slotName, { config = {} } = {}) {
-  if (!Object.hasOwn(PROVIDER_SLOTS, slotName)) {
-    throw new Error(`unknown provider slot "${slotName}" — known slots: ${Object.keys(PROVIDER_SLOTS).join(', ')}`);
-  }
-  const def = PROVIDER_SLOTS[slotName];
+  if (!isKeyName(slotName)) throw new Error(`unknown provider "${slotName}" — a provider is the name of a key in your keys file`);
   const saved = (config.providers && Object.hasOwn(config.providers, slotName)) ? config.providers[slotName] : {};
-  const shape = saved.shape ?? def.shape;
-  const defaultBaseUrl = shape === def.shape ? def.baseUrl : (SHAPES.find((x) => x.id === shape)?.defaultUrl ?? '');
-  const savedUrl = typeof saved.baseUrl === 'string' ? saved.baseUrl.replace(/\/+$/, '') : '';
+  const shape = saved.shape ?? DEFAULT_SHAPE;
   return {
     slot: slotName,
-    envVar: def.envVar,
-    legacyMaxTokens: def.legacyMaxTokens === true && shape === 'openai-api',
-    model: saved.model ?? def.defaultModel,
+    envVar: slotName,
+    // F11: some providers ignore `max_completion_tokens`; only the legacy `max_tokens` key bounds their output. A per-row tick in Settings.
+    legacyMaxTokens: saved.legacyMaxTokens === true && shape === 'openai-api',
     shape,
-    baseUrl: savedUrl !== '' ? savedUrl : defaultBaseUrl,
-    defaults: { model: def.defaultModel, shape: def.shape, baseUrl: defaultBaseUrl },
+    baseUrl: typeof saved.baseUrl === 'string' ? saved.baseUrl.replace(/\/+$/, '') : '',
   };
-}
-
-/**
- * List-rate ceilings (USD/1K tokens), hand-entered — see
- * poc/m0/spend.mjs@76a3607 for sourcing notes per row. This table is the DEFAULT
- * price: a price set in Settings (`~/.config/fwdloop/config.json` `prices`, per
- * provider slot) wins over a row here, per field, through `resolvePrices` below —
- * the one lookup every model call is booked and cap-checked by (M4d, signed
- * 2026-10-05; that REPLACES the 2026-09-21 "edit a row here, never a runtime
- * flag" ruling). Cached input is priced as input
- * (M4d amendment 2): a row has no cache rate.
- */
-export const RATES_BY_SUFFIX = {
-  'zai-org/GLM-5.2': { in: 0.0006, out: 0.0022, source: 'published' },
-  'moonshotai/Kimi-K3': { in: 0.0006, out: 0.0025, source: 'published' },
-  'zai-org/GLM-5.3-Flash': { in: 0.00015, out: 0.0005, source: 'published' },
-  'zai-org/GLM-4.7-Flash': { in: 0.00006, out: 0.0004, source: 'published' },
-  'Qwen/Qwen3.8-27B': { in: 0.00015, out: 0.002, source: 'published' },
-  'openai/gpt-oss-120b': { in: 0.00003, out: 0.00017, source: 'published' },
-  'nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4': { in: 0.000085, out: 0.0004, source: 'published' },
-  'syn:large:text': { in: 0.0006, out: 0.0025, source: 'ceiling' },
-  'syn:small:text': { in: 0.0006, out: 0.0025, source: 'ceiling' },
-  'deepseek-v4-flash': { in: 0.00044, out: 0.00132, source: 'published' }, // F22: retired name, historical rows only
-  // DeepSeek-V4.1-Flash, peak. Source: https://api-docs.deepseek.com/quick_start/pricing/ (fetched
-  // 2026-10-05: cache miss $0.30, output $1.20 per 1M). The cache-hit
-  // price is deliberately not used: cached input books at `in` (M4d amendment 2, signed 2026-10-06).
-  'deepseek-flash': { in: 0.0003, out: 0.0012, source: 'published' },
-  'deepseek-v4-pro': { in: 0.00132, out: 0.00396, source: 'published' },
-};
-
-/**
- * Strip an `hf:` routing prefix and look up `suffix` with `Object.hasOwn` —
- * never plain truthiness/`in`, which would let a suffix like `"constructor"`
- * resolve to an inherited `Object.prototype` member.
- * @param {string|null|undefined} modelId
- * @param {Record<string, any>} [ratesTable]
- */
-export function lookupRate(modelId, ratesTable = RATES_BY_SUFFIX) {
-  if (!modelId) return null;
-  const suffix = String(modelId).replace(/^hf:/, '');
-  if (!Object.hasOwn(ratesTable, suffix)) return null;
-  return { suffix, rates: ratesTable[suffix] };
-}
-
-/** Resolve a modelId to its hand-entered rate row, or throw — a caller here
- *  must never carry forward a 0 rate. */
-export function resolveModelRate(modelId, ratesTable = RATES_BY_SUFFIX) {
-  const resolved = lookupRate(modelId, ratesTable);
-  if (!resolved) throw new Error(`no hand-entered rate for model suffix "${String(modelId).replace(/^hf:/, '')}"`);
-  return resolved;
 }
 
 // The two hard bounds a round is priced against when its real cost is
@@ -168,47 +91,89 @@ export const CEILING_OUTPUT_TOKENS = 16000;
 
 const perM = (per1K) => Number((per1K * 1000).toPrecision(12));
 
+const isPriced = (l) => l.use === true && typeof l.inPerM === 'number' && Number.isFinite(l.inPerM) && typeof l.outPerM === 'number' && Number.isFinite(l.outPerM);
+
 /**
- * THE one price lookup (M4d scope item 6): every model call — run, resume, model step, drafter —
- * is booked and cap-checked from this. Per field: a Settings price (`config.prices[slot]`, USD per
- * 1M -> per 1K) wins, else the code table's row, else the table's HIGHEST entry for that field
- * (an unknown model; unknown cost is never 0). M4d amendment 2: cached input is priced AS input —
- * `cacheReadMult` is always 1; a saved `cachedInPerM` and a row's `cacheIn` are never read here.
- *
- * @param {string} modelId
- * @param {{ slot?: string, config?: Record<string, any>, ratesTable?: Record<string, any> }} [opts]
- * @returns {{
- *   rates: { in: number, out: number, cacheReadMult?: number },
- *   perM: { inPerM: number, cachedInPerM: number, outPerM: number },
- *   source: { in: 'settings'|'table'|'ceiling', cachedIn: 'input', out: 'settings'|'table'|'ceiling' },
- *   suffix: string|null,
- * }}
+ * A row's saved model lines (`config.models[slot]`) as Settings shows them; none saved = no lines. Nothing is built in
+ * and nothing is migrated: a line exists only because a person typed or ticked it.
+ * @param {string} slot
+ * @param {Record<string, any>} [config]
+ * @returns {Array<{ model: string, use: boolean, inPerM?: number, outPerM?: number }>}
  */
-export function resolvePrices(modelId, { slot, config = {}, ratesTable = RATES_BY_SUFFIX } = {}) {
-  const resolved = lookupRate(modelId, ratesTable);
-  const row = resolved ? resolved.rates : null;
-  const set = (slot !== undefined && config.prices && Object.hasOwn(config.prices, slot)) ? config.prices[slot] : {};
-  const ceilingOf = (field) => Math.max(...Object.values(ratesTable).map((r) => r[field]));
-  const field = (settingsKey, rowField) => {
-    if (set[settingsKey] !== undefined) return { v: set[settingsKey] / 1000, src: 'settings' };
-    if (row) return { v: row[rowField], src: 'table' };
-    return { v: ceilingOf(rowField), src: 'ceiling' };
-  };
-  const inF = field('inPerM', 'in');
-  const outF = field('outPerM', 'out');
-  /** @type {{ in: number, out: number, cacheReadMult: number }} */
-  const rates = { in: inF.v, out: outF.v, cacheReadMult: 1 };
+export function effectiveModels(slot, config = {}) {
+  return config.models && Object.hasOwn(config.models, slot) ? config.models[slot] : [];
+}
+
+/**
+ * Every ticked, priced line of the given rows, in row order: what Chat's model menu offers and what a run may use (M4d amendment 6
+ * item 6). `rows` limits it to providers that still have a key (a model whose key is gone cannot run).
+ * @param {Record<string, any>} config @param {string[]} rows key names
+ * @returns {{ slot: string, model: string, label: string }[]}
+ */
+export function tickedLines(config, rows) {
+  /** @type {{ slot: string, model: string, label: string }[]} */
+  const out = [];
+  for (const slot of rows) {
+    for (const l of effectiveModels(slot, config)) if (isPriced(l)) out.push({ slot, model: l.model, label: `${slot} · ${l.model}` });
+  }
+  return out;
+}
+
+/**
+ * The ticked, priced line a person names by model id (the command line): `--model <id>`, and `--provider <KEY>` when two keys tick the same id.
+ * Reads only the lines Settings holds. @param {Record<string, any>} config @param {{ model?: string, provider?: string }} [named]
+ * @returns {{ ok: true, slot: string, model: string } | { ok: false, say: string }}
+ */
+export function pickTicked(config, { model, provider } = {}) {
+  const ticked = tickedLines(config, Object.keys(config.models ?? {}));
+  if (model === undefined || model === '') {
+    return { ok: false, say: ticked.length === 0 ? 'Tick a model in Settings > Providers with both prices first.' : 'Name the model with --model <id>: one ticked in Settings > Providers with both prices.' };
+  }
+  const hits = ticked.filter((l) => l.model === model && (provider === undefined || l.slot === provider));
+  if (hits.length === 0) return { ok: false, say: `Tick ${model} in Settings > Providers with both prices first.` };
+  if (hits.length > 1) return { ok: false, say: `${model} is ticked under more than one key (${hits.map((h) => h.slot).join(', ')}). Add --provider <KEY> to say which.` };
+  return { ok: true, slot: hits[0].slot, model };
+}
+
+/**
+ * THE one decision of "usable model" (M4d amendments 5 and 6): a model is usable only if it is ticked in Settings with both prices,
+ * under the named provider. Every model call - the drafter, a run, resume / continue, the command line, the panel - asks this and
+ * nothing else; no model name, price or switch lives in code. Returns the model, its provider and its prices (USD per 1M, and per 1K
+ * for the Loop; 0 / 0 is a chosen price), or a plain refusal in `say`.
+ * No model named: "Tick a model in Settings > Providers with both prices first." Pure: `config` is already-read config, no I/O.
+ *
+ * @param {string} slotName
+ * @param {{ config?: Record<string, any>, model?: string }} [opts]
+ * @returns {{
+ *   ok: true, slot: string, model: string,
+ *   rates: { in: number, out: number, cacheReadMult: number },
+ *   prices: { perM: { inPerM: number, cachedInPerM: number, outPerM: number }, source: { in: 'model', cachedIn: 'input', out: 'model' } },
+ * } | { ok: false, say: string }}
+ */
+export function resolveUsableModel(slotName, { config = {}, model } = {}) {
+  if (model === undefined || model === '') return { ok: false, say: 'Tick a model in Settings > Providers with both prices first.' };
+  const line = effectiveModels(slotName, config).find((l) => l.model === model && isPriced(l));
+  if (!line) return { ok: false, say: `Tick ${model} in Settings > Providers with both prices first.` };
+  const inPerM = /** @type {number} */ (line.inPerM);
+  const outPerM = /** @type {number} */ (line.outPerM);
+  const inPer1K = inPerM / 1000;
+  const outPer1K = outPerM / 1000;
   return {
-    rates,
-    perM: { inPerM: perM(inF.v), cachedInPerM: perM(inF.v), outPerM: perM(outF.v) },
-    source: { in: /** @type {any} */ (inF.src), cachedIn: 'input', out: /** @type {any} */ (outF.src) },
-    suffix: resolved ? resolved.suffix : null,
+    ok: true,
+    slot: slotName,
+    model: line.model,
+    // cached input is priced AS input (M4d amendment 2): `cacheReadMult` is always 1
+    rates: { in: inPer1K, out: outPer1K, cacheReadMult: 1 },
+    prices: {
+      perM: { inPerM, cachedInPerM: inPerM, outPerM },
+      source: { in: 'model', cachedIn: 'input', out: 'model' },
+    },
   };
 }
 
 /**
  * The `price` object a spend row records: the per-1M numbers the call was booked at and where each
- * came from. From a `resolvePrices` result; or from INJECTED rates (tests) with source "injected".
+ * came from. From a `resolveUsableModel` result's `prices`; or from INJECTED rates (tests) with source "injected".
  * @param {{ perM: any, source: any }|null|undefined} prices
  * @param {{ in: number, out: number, cacheReadMult?: number }|null|undefined} [injectedRates]
  */
@@ -236,21 +201,17 @@ export function readPriceConfig(home) {
 }
 
 /**
- * The ceiling cost (USD) of one round of `modelId` — never 0, never null.
- * A known model prices at its own rate; an unknown/missing model prices at
- * the HIGHEST in/out rate anywhere in `ratesTable`. `opts.prices` (a
- * `resolvePrices` result, e.g. from `makeProvider`) makes the cap check use the
- * SAME price the round is booked at.
+ * The money hold (USD) of one round: the picked model's OWN Settings prices (`rates`, per 1K tokens, from
+ * `resolveUsableModel`) times the two token bounds above. Not a table, not a fallback.
+ * @param {{ in: number, out: number }} rates
  */
-export function ceilingCostUsd(modelId, ratesTable = RATES_BY_SUFFIX, opts = {}) {
-  const { rates } = opts.prices ?? resolvePrices(modelId, { ratesTable });
+export function ceilingCostUsd(rates) {
   return (CEILING_INPUT_TOKENS / 1000) * rates.in + (CEILING_OUTPUT_TOKENS / 1000) * rates.out;
 }
 
 /**
  * Compare the model asked for against the model actually served.
  * `match` identical; `prefix` identical once a routing prefix is stripped;
- * `alias` a declared `syn:` alias resolving to a concrete model (expected);
  * `substituted` a concrete request served by a DIFFERENT concrete model
  * (the one that matters — the signed hash records the request, not what
  * ran); `unreported` the provider told us nothing.
@@ -260,7 +221,6 @@ export function classifyModelId(requested, returned) {
   if (returned === null || returned === undefined || returned === '') return 'unreported';
   if (requested === returned) return 'match';
   if (String(requested).replace(/^[a-z]+:/, '') === returned) return 'prefix';
-  if (/^syn:/.test(requested)) return 'alias';
   return 'substituted';
 }
 
@@ -321,13 +281,15 @@ export function appendSpendRow(path, row) {
 // "missing", never as some outside file's content folded into a cap check
 // or shown on the panel.
 // A row with no booked cost is repriced at ITS OWN booked price's ceiling when it recorded one
-// (M4d: forward only — today's Settings price never re-prices an old row), else at the code table's.
+// (M4d: forward only — today's Settings price never re-prices an old row). A row that recorded no price at all (an
+// old row; the code table that once priced it is gone, M4d amendment 5) has no ceiling to add: 0 here, and the row
+// stays `complete: false`, so every total that holds it reads "at least", never as a clean figure.
 function rowCeilingUsd(row) {
   const p = row.price;
   if (p && typeof p === 'object' && Number.isFinite(p.inPerM) && p.inPerM > 0 && Number.isFinite(p.outPerM) && p.outPerM > 0) {
     return (CEILING_INPUT_TOKENS / 1e6) * p.inPerM + (CEILING_OUTPUT_TOKENS / 1e6) * p.outPerM;
   }
-  return ceilingCostUsd(row.model);
+  return 0;
 }
 
 /**
@@ -387,7 +349,7 @@ export function assertUnderGlobalCap(path, capUsd) {
 
 /**
  * $0 preflight before any draft round and before any ledger write: the key
- * env var for `slotName` must be set, non-empty, and free of any
+ * env var named `slotName` must be set, non-empty, and free of any
  * whitespace/control character (F26, 2026-09-21: a two-line `pass` entry
  * exported a key with a trailing newline — still truthy, so a bare
  * `if (!apiKey)` never caught it). Never throws — `{ ok:true }` or
@@ -397,9 +359,8 @@ export function assertUnderGlobalCap(path, capUsd) {
  * @param {Record<string,string|undefined>} [env]
  */
 export function checkKeyPreflight(slotName, env = process.env) {
-  const slotDef = Object.hasOwn(PROVIDER_SLOTS, slotName) ? PROVIDER_SLOTS[slotName] : null;
-  if (!slotDef) return { ok: false, message: `key: unknown provider slot "${slotName}"` };
-  const varName = slotDef.envVar;
+  if (!isKeyName(slotName)) return { ok: false, message: `key: unknown provider "${slotName}"` };
+  const varName = slotName;
   const value = env[varName];
   if (value === undefined || value === '') {
     return { ok: false, message: `key: ${varName} is not set — export it before running` };
@@ -414,10 +375,13 @@ export function checkKeyPreflight(slotName, env = process.env) {
   return { ok: true };
 }
 
+/** A model that is not usable (`resolveUsableModel`): its message is the plain sentence, shown as it is (no "key:" or "config:" prefix). */
+export class ModelRefusal extends Error {}
+
 /**
- * Build a provider for the given slot. Throws (never defaults) on an
- * unknown slot, a missing/bad env key, or a model with no hand-entered
- * rate. Returns `{ provider, rates, modelId, suffix, slot }`.
+ * Build a provider for the given row (the name of a key). Throws (never defaults) on an
+ * unknown name, a row with no Base URL (typed in Settings), a missing/bad env key, or a model that is not usable (`resolveUsableModel`: ticked in Settings with
+ * both prices - the message is its plain sentence). Returns `{ provider, rates, modelId, slot, prices }`.
  *
  * `timeoutMs`/`deadlineMs` bound a silent socket (BA-18 idle) and a
  * zombie-stream total wall clock (BA-19), respectively — see
@@ -425,42 +389,36 @@ export function checkKeyPreflight(slotName, env = process.env) {
  * values this project uses.
  *
  * @param {string} slotName
- * @param {{ model?: string, timeoutMs?: number, deadlineMs?: number, thinking?: object|null, env?: Record<string,string|undefined>, configHome?: string }} [options]
+ * @param {{ model?: string, timeoutMs?: number, deadlineMs?: number, env?: Record<string,string|undefined>, configHome?: string }} [options]
  *   `configHome` (a test) is where `config.json` prices are read; default: the door's home (`readPriceConfig`).
  *   `env` (M4d: the merged shell+keys-file env; default process.env) is where the key is read.
- *   `thinking` (bare-agent >=0.49) is sent verbatim as body.thinking; unset/null leaves the body unchanged.
- * @returns {{ provider: any, rates: {in:number, out:number, cacheReadMult?:number}, modelId: string, suffix: string|null, slot: string, prices: ReturnType<typeof resolvePrices> }}
+ * @returns {{ provider: any, rates: {in:number, out:number, cacheReadMult?:number}, modelId: string, slot: string, prices: { perM: any, source: any } }}
  */
 export function makeProvider(slotName, options = {}) {
   const {
-    model, timeoutMs, deadlineMs, thinking, env = process.env, configHome,
+    model, timeoutMs, deadlineMs, env = process.env, configHome,
   } = options;
-  if (!Object.hasOwn(PROVIDER_SLOTS, slotName)) {
-    throw new Error(`unknown provider slot "${slotName}" — known slots: ${Object.keys(PROVIDER_SLOTS).join(', ')}`);
-  }
-
   const keyCheck = checkKeyPreflight(slotName, env);
   if (!keyCheck.ok) throw new Error(keyCheck.message);
 
-  // A broken config throws by name here; it never falls back to the code defaults or the table, so a
-  // run's model, address or charge cannot change silently.
+  // A broken config throws by name here; it never falls back to a default, so a run's model, address or
+  // charge cannot change silently.
   const config = readPriceConfig(configHome);
   const slot = resolveSlot(slotName, { config });
   const apiKey = env[slot.envVar];
-  const modelId = model ?? slot.model;
-  // The ONE price lookup (a Settings price wins over the table; a model the table doesn't know prices
-  // at the table's highest rate, suffix null — unknown cost is never 0).
-  const prices = resolvePrices(modelId, { slot: slotName, config });
-  const { rates } = prices;
-  const suffix = prices.suffix;
+  if (slot.baseUrl === '') throw new ModelRefusal(`Type a Base URL for ${slotName} in Settings.`);
+  // The ONE decision of which model may be used, and at what price (M4d amendment 5).
+  const usable = resolveUsableModel(slotName, { config, model });
+  if (!usable.ok) throw new ModelRefusal(usable.say);
+  const modelId = usable.model;
+  const { rates, prices } = usable;
 
   const common = {
     apiKey,
     model: modelId,
-    ...(slot.baseUrl !== '' ? { baseUrl: slot.baseUrl } : {}),
+    baseUrl: slot.baseUrl,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
     ...(deadlineMs !== undefined ? { deadlineMs } : {}),
-    ...(thinking != null ? { thinking } : {}),
   };
   const provider = slot.shape === 'anthropic-api' ? new Anthropic(common)
     : slot.shape === 'gemini-api' ? new Gemini(common)
@@ -473,6 +431,6 @@ export function makeProvider(slotName, options = {}) {
       });
 
   return {
-    provider, rates, modelId, suffix, slot: slotName, prices,
+    provider, rates, modelId, slot: slotName, prices,
   };
 }

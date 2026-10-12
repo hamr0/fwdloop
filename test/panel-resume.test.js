@@ -616,6 +616,8 @@ test('amendment 1 (e)(3): a refusing child that quotes the provider key — the 
   const run = parkRun();
   const { port, logDir } = await start(run, {
     windowMs: 30000, maxTries: 1, bin: path.join(REPO, 'scripts', 'panel-fixtures', 'panel-resume-echo-key-fail.mjs'),
+    // M4d am6: the scrub list is the keys load's own key names
+    loadEnv: () => ({ ok: true, env: serverEnv(), refusal: null, keyNames: ['DEEPSEEK_API_KEY'] }),
   });
   const token = await pageToken(port);
   assert.equal((await answer(port, token, run, 'redo', 'scrub')).status, 202);

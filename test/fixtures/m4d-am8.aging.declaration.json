@@ -1,0 +1,63 @@
+{
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [],
+      "emits": "aging_text",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Read the aging report"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "aging_text"
+      ],
+      "emits": "bucket_assignment",
+      "fromLine": 2,
+      "close": {
+        "class": "green"
+      },
+      "goal": "Put each invoice in its overdue bucket as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90+"
+    },
+    {
+      "primitives": [],
+      "reads": [],
+      "emits": "human_ok",
+      "fromLine": 3,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me"
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "bucket_assignment",
+        "human_ok"
+      ],
+      "emits": "bucket_report",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Write it out"
+    }
+  ],
+  "guardrailClasses": {
+    "2": "green"
+  },
+  "unjudgeable": {},
+  "refused": [],
+  "inputFacts": {
+    "aging": []
+  }
+}

@@ -38,7 +38,8 @@ import { fileURLToPath } from 'node:url';
 import {
   ANSWER_FILE, NOT_CHECKED_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, readQuestions, readoutHeadIndexes, scrub, signDraft,
 } from '../authoring.js';
-import { nextRunId, readFileInside, readdirInside } from '../flow.js';
+import { checkFlowName, nextRunId, readFileInside, readdirInside } from '../flow.js';
+import { readModelRecord } from '../flowmodel.js';
 import { isFwdloopAlive } from '../liveness.js';
 import {
   checkMonthlyRoom, ConfigError, monthlyNote, monthlyRefusalText,
@@ -47,7 +48,12 @@ import {
   appendAnswersToJob, capFloorText, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
 } from './authorcard.js';
 import { checkedLines, notCheckedBlock } from '../checked.js';
+import {
+  readPriceConfig, resolveSlot, resolveUsableModel, tickedLines,
+} from '../provider.js';
+import { thinkingSupport as bareagentThinkingSupport, THINKING_FIXED_SAY, THINKING_UNVERIFIED_SAY } from '../thinking.js';
 import { parseSignedText } from '../signed-text.js';
+import { draftStepList } from '../draft-steps.js';
 import { leastResumeCapUsd } from './authorvalues.js';
 import { createFlowsDoor } from './authorflows.js';
 import { createResumeDoor } from './authorresume.js';
@@ -84,23 +90,23 @@ const KILL_HARD_WAIT_MS = 2000;
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
 /**
- * @param {{ root: string, home?: string, skipMonthly?: boolean, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null }, bin?: string, childRunning?: (dir: string) => boolean }} opts
+ * @param {{ root: string, home?: string, skipMonthly?: boolean, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null, keyNames?: string[] }, bin?: string, childRunning?: (dir: string) => boolean, thinkingSupport?: typeof bareagentThinkingSupport }} opts
  *   `loadEnv` is the keys-file door (`keysForDoor`): called before EVERY spawn and every reply that quotes a log, so editing
  *   the file needs no restart. Its `env` is BOTH the child's spawn env AND the scrub list (POC (a), M4d wiring rule).
  */
 export function createAuthor(opts) {
   const {
-    root, loadEnv, home, skipMonthly = false, bin = BIN, childRunning = childRunningNow,
+    root, loadEnv, home, skipMonthly = false, bin = BIN, childRunning = childRunningNow, thinkingSupport = bareagentThinkingSupport,
   } = opts;
   // the ONE run-start path (sign and run both end in `starter.start`) and the Run-a-signed-flow door built on it
   const starter = createStarter({ root, bin });
   const flowsDoor = createFlowsDoor({
-    root, home, skipMonthly, loadEnv, starter, monthlyClaim: (usd) => monthlyClaim(usd),
+    root, home, skipMonthly, loadEnv, starter, monthlyClaim: (usd) => monthlyClaim(usd), modelRefusal: (card, loaded) => modelRefusal(card, loaded),
   });
 
   /** The ONE monthly check, defined below (a function declaration, so the doors above may take it now). */
   const resumeDoor = createResumeDoor({
-    root, loadEnv, monthlyClaim: (usd) => monthlyClaim(usd), starter,
+    root, home, loadEnv, monthlyClaim: (usd) => monthlyClaim(usd), starter,
   });
 
   /** The drafts folder's real path, or null when the flows root does not exist. */
@@ -153,6 +159,19 @@ export function createAuthor(opts) {
   }
 
   /**
+   * M4d am10: the Chat list of what this plan's draft really did, READ from its log.json and declaration (never from the readout, which is signed text),
+   * built by the ONE function `draftStepList`; every string scrubbed. `null` when the draft left no log (the page then lists what it always did).
+   * @param {string} dir @param {string} rel @param {string[]} keys
+   */
+  function stepListOf(dir, rel, keys) {
+    const declaration = readJson(dir, `${rel}/declaration.json`) ?? readJson(dir, `${rel}/declaration.rejected.json`);
+    const list = draftStepList({ log: readJson(dir, `${rel}/log.json`), declaration });
+    if (list === null) return null;
+    const sc = (x) => scrub(String(x), keys);
+    return list.map((st) => ({ ...st, label: sc(st.label), details: st.details.map(sc), ...(st.reds ? { reds: st.reds.map(sc) } : {}) }));
+  }
+
+  /**
    * One plan folder's result, READ from its files: green (spec.hash), red (a log that says not ok, or a leak marker), or null (no result yet).
    * @param {string} dir the draft folder @param {string} rel `draft` or `draft-<n>` @param {string[]} keys
    * @returns {any}
@@ -162,14 +181,14 @@ export function createAuthor(opts) {
     if (hashFile.ok && hashFile.text.trim() !== '') {
       const readout = readFileInside(dir, `${rel}/readout.txt`);
       const text = readout.ok ? scrub(readout.text, keys) : '';
-      return { phase: 'green', hash: hashFile.text.trim(), readout: text, readoutHeads: readoutHeadIndexes(text) };
+      return { phase: 'green', hash: hashFile.text.trim(), readout: text, readoutHeads: readoutHeadIndexes(text), stepList: stepListOf(dir, rel, keys) };
     }
     const leak = readFileInside(dir, `${rel}/scrub-leak.red`);
     const log = readJson(dir, `${rel}/log.json`);
     if (leak.ok || (log && log.ok === false)) {
       const reds = Array.isArray(log?.reds) ? log.reds.map((r) => scrub(String(r), keys)) : [];
       if (leak.ok) reds.push(scrub(leak.text.trim(), keys));
-      return { phase: 'red', reds, say: RED_SAY };
+      return { phase: 'red', reds, say: RED_SAY, stepList: stepListOf(dir, rel, keys) };
     }
     return null;
   }
@@ -201,7 +220,7 @@ export function createAuthor(opts) {
       return { n, kind, phase: 'stopped', say: logTail(dir, `${kind === 'answers' ? 'redraft' : 'revise'}-${n}.log`, keys) || STOPPED_SAY };
     });
     const cur = /** @type {{ phase: string, kind: string, say?: string }} */ (newest > 0 ? revises[revises.length - 1] : { phase: first.phase, kind: 'first' });
-    const shared = { ...base, card, revises, revisesLeft };
+    const shared = { ...base, card, revises, revisesLeft, stepList: first.stepList ?? null };
     const rel = newest > 0 ? `draft-${newest}` : 'draft';
     if (cur.phase === 'running') return { ...shared, phase: cur.kind === 'answers' ? 'redrafting' : 'revising' };
     if (cur.phase === 'stopped') return { ...shared, phase: 'stopped', say: cur.say };
@@ -257,7 +276,7 @@ export function createAuthor(opts) {
   /** The one request-time read of the keys door: the merged env (scrub list + child env) or null on its refusal. */
   const keysNow = () => {
     const loaded = loadEnv();
-    return { loaded, keys: providerKeys(loaded.env) };
+    return { loaded, keys: providerKeys(loaded) };
   };
 
   /**
@@ -283,15 +302,37 @@ export function createAuthor(opts) {
   }
 
   /**
+   * M4d amendment 6 item 6: the model the card picked must still be a ticked, priced line of a provider that has its key set up; nothing ticked says
+   * what to do. `[]` = fine. Reads Settings now, at the click: a line unticked since Chat drew its menu is refused by name, at $0.
+   * @param {any} card @param {{ keyNames?: string[] }} loaded @returns {{ field: string, say: string }[]}
+   */
+  function modelRefusal(card, loaded) {
+    const no = (say) => [{ field: 'model', say }];
+    let config;
+    try { config = readPriceConfig(home); } catch { return no('Your settings file (config.json) cannot be read. Fix or remove it, then look again. Nothing was spent.'); }
+    const rows = loaded.keyNames ?? [];
+    if (typeof card.provider !== 'string' || card.provider === '' || typeof card.model !== 'string' || card.model === '') {
+      return no(tickedLines(config, rows).length === 0 ? 'Tick a model in Settings > Providers. Nothing was spent.' : 'Pick a model. Nothing was spent.');
+    }
+    if (!rows.includes(card.provider)) return no(`${card.provider} is not set up: put its key in your keys file and type its Base URL in Settings > Providers. Nothing was spent.`);
+    const u = resolveUsableModel(card.provider, { config, model: card.model });
+    return u.ok ? [] : no(`${u.say} Nothing was spent.`);
+  }
+
+  /** The flags that make a draft child use the card's model and thinking choice. @param {any} card */
+  const modelArgv = (card) => ['--model', card.model, '--provider', card.provider, ...(card.thinking === true ? ['--thinking'] : [])];
+
+  /**
    * The $0 checks both a first draft and a revise run on the card as submitted: the card's own checks (a key value, the flow name,
    * every field), then the monthly room for its cap. `{ ok: true, card, prose }` or `{ ok: false, reply }`. Writes nothing.
-   * @param {any} body @param {{ ok: boolean, env: Record<string, string|undefined> }} loaded
+   * @param {any} body @param {{ ok: boolean, env: Record<string, string|undefined>, keyNames?: string[] }} loaded
    * @returns {{ ok: true, card: any, prose: string }|{ ok: false, reply: { status: number, body: any } }}
    */
   function vetCard(body, loaded) {
     const card = cardFields(body);
-    const checked = checkCard(card, { root: realpathSync(root), env: loaded.env });
-    if (!checked.ok) return { ok: false, reply: { status: 400, body: { ok: false, refused: 'card', refusals: checked.refusals } } };
+    const checked = checkCard(card, { root: realpathSync(root), keys: providerKeys(loaded), home });
+    const modelSays = modelRefusal(card, loaded);
+    if (!checked.ok || modelSays.length > 0) return { ok: false, reply: { status: 400, body: { ok: false, refused: 'card', refusals: [...(checked.ok ? [] : checked.refusals), ...modelSays] } } };
     // amendment 4 item 1: a cap that does not fit this month refuses here too, at $0, with the one refusal text (the page's red note is only a courtesy)
     const claim = monthlyClaim(Number(card.capUsd));
     if (claim && 'problem' in claim) return { ok: false, reply: { status: 409, body: { ok: false, refused: 'monthly', say: `${claim.problem} — refusing rather than guess the monthly limit. Nothing spent.` } } };
@@ -312,11 +353,13 @@ export function createAuthor(opts) {
      * `GET /api/author/monthly-check?cap=<usd>`: the note under Cap, one read-only check. `{ text, red }` is what to show (red =
      * the cap does not fit this month); `floorUsd` is the smallest cap that funds one round of a model step, for the page's
      * `needs at least $X per run` line. A cap that is not a number above 0 gets no note. Never spends, never writes.
-     * @param {unknown} cap @param {string|null} [spent] what a resumed run has already spent (amendment 4 item 4)
+     * @param {unknown} cap @param {string|null} [spent] what a resumed run has already spent (amendment 4 item 4) @param {{ provider?: string, model?: string, flow?: string }|null} [pick] the card's picked model, or (a Resume) the flow whose recorded model it is: its own prices are the floor (M4d am6)
      */
-    monthlyCheck(cap, spent = null) {
+    monthlyCheck(cap, spent = null, pick = null) {
       const n = Number(cap);
-      const floorUsd = capFloorUsd('x');
+      // a Resume names its flow: the model recorded beside the signed job is the one whose prices are the floor
+      const recorded = pick?.flow !== undefined && checkFlowName(pick.flow).ok ? readModelRecord(join(root, pick.flow)) : null;
+      const floorUsd = capFloorUsd('x', home, recorded ?? pick);
       if (typeof cap !== 'string' || cap.trim() === '' || !Number.isFinite(n) || n <= 0) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText: capFloorText(floorUsd) } };
       // a Resume (amendment 4 item 1): only what the run still has to spend is held, so the note asks for `cap - spent`; a cap not above
       // what is spent says so in the door's own words (red)
@@ -327,6 +370,22 @@ export function createAuthor(opts) {
       const claim = monthlyClaim(n - spentUsd);
       if (claim === null || 'problem' in claim) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText: capFloorText(floorUsd) } };
       return { status: 200, body: { ok: true, ...monthlyNote(claim), floorUsd, floorText: capFloorText(floorUsd) } };
+    },
+
+    /**
+     * `GET /api/author/models` (M4d amendment 6 item 6): what Chat's Model menu offers - every ticked, priced line of a provider whose key is set up, as
+     * "provider · model" - and, per line, whether "Thinking on" can change (`canChange`; bareagent's answer through `src/thinking.js`, am7). Read-only.
+     */
+    models() {
+      const { loaded } = keysNow();
+      let config;
+      try { config = readPriceConfig(home); } catch { return { status: 200, body: { ok: true, lines: [], say: 'Your settings file (config.json) cannot be read. Fix or remove it, then look again.' } }; }
+      const lines = tickedLines(config, loaded.keyNames ?? []).map((l) => {
+        const row = resolveSlot(l.slot, { config });
+        const support = thinkingSupport(row.shape, l.model, { baseUrl: row.baseUrl }); // the Base URL lets bareagent resolve the row by its host, as its request path does
+        return { ...l, thinking: { support, canChange: support !== false, say: support === false ? THINKING_FIXED_SAY : (support === 'unverified' ? THINKING_UNVERIFIED_SAY : '') } };
+      });
+      return { status: 200, body: { ok: true, lines, say: lines.length === 0 ? 'Tick a model in Settings > Providers.' : '' } };
     },
 
     /** `GET /api/author/start/:startId`: the start's phase, read from its files. @param {string} id */
@@ -370,7 +429,7 @@ export function createAuthor(opts) {
       let child;
       try {
         child = spawnDetached({
-          bin, argv: ['draft', proseFile, '--out', join(dir, 'draft'), '--root', realpathSync(root), '--name', card.flowName], env: loaded.env, logPath: join(dir, 'child.log'),
+          bin, argv: ['draft', proseFile, '--out', join(dir, 'draft'), '--root', realpathSync(root), '--name', card.flowName, ...modelArgv(card)], env: loaded.env, logPath: join(dir, 'child.log'),
         });
       } catch (e) {
         return { status: 500, body: { ok: false, refused: 'spawn', say: `The draft could not be started (${/** @type {any} */ (e)?.code ?? 'error'}). Nothing was spent.`, draftId: id } };
@@ -412,7 +471,7 @@ export function createAuthor(opts) {
       const { v, name, dir } = seen;
       const b = body && typeof body === 'object' ? body : {};
       // amendment 4 item 2: a cap that cannot fund one round of the first model step is never signed (it would cap-halt at $0 spent)
-      const floor = capFloorUsd(typeof v.card.job === 'string' ? v.card.job : '');
+      const floor = capFloorUsd(typeof v.card.job === 'string' ? v.card.job : '', home, v.card);
       if (Number(v.card.capUsd) < floor) return { status: 400, body: { ok: false, refused: 'cap-too-small', say: capFloorText(floor) } };
       if (typeof b.hash !== 'string' || b.hash !== v.hash) {
         return { status: 409, body: { ok: false, refused: 'stale-hash', say: 'The plan on disk is not the one you were shown (its hash differs). Nothing was signed. Reload and read the plan again.' } };
@@ -435,10 +494,10 @@ export function createAuthor(opts) {
       const editBlock = editOf !== null ? flowsDoor.editBlock(name) : null;
       if (editBlock !== null) return { status: 409, body: { ok: false, refused: 'run-live', say: editBlock } };
       const result = signDraft({
-        dir: join(dir, v.plan), approve: v.hash, signedBy, env: loaded.env, sessionDir: dir, replaces: editOf !== null ? { flowHash: String(editOf.flowHash) } : undefined,
+        dir: join(dir, v.plan), approve: v.hash, signedBy, env: loaded.env, keyNames: loaded.keyNames, sessionDir: dir, replaces: editOf !== null ? { flowHash: String(editOf.flowHash) } : undefined,
       });
       if (!result.ok) {
-        const keys = providerKeys(loaded.env);
+        const keys = providerKeys(loaded);
         return { status: 409, body: { ok: false, refused: 'sign-refused', say: 'The draft did not pass the signing checks. Nothing was signed.', reds: result.reds.map((r) => scrub(String(r), keys)) } };
       }
       writeFileSync(join(dir, 'signed.json'), `${JSON.stringify({
@@ -446,7 +505,7 @@ export function createAuthor(opts) {
       })}\n`, { mode: 0o600 });
       const started = starter.start({
         kind: 'sign', flow: name, runId, sources: inputs.map((r) => ({ role: r.role, path: r.path })),
-      }, loaded.env);
+      }, loaded);
       if (started.status !== 202) return { status: started.status, body: { ...started.body, signed: true, flow: name, say: `${started.body.say ?? 'The run did not start.'} The flow is signed; start it from "Run a signed flow".` } };
       return { status: 202, body: { ...started.body, signed: true } };
     },
@@ -493,7 +552,7 @@ export function createAuthor(opts) {
       try {
         child = spawnDetached({
           bin,
-          argv: ['draft', proseFile, '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', vet.card.flowName],
+          argv: ['draft', proseFile, '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', vet.card.flowName, ...modelArgv(vet.card)],
           env: loaded.env,
           logPath: join(dir, `revise-${n}.log`),
         });
@@ -565,7 +624,7 @@ export function createAuthor(opts) {
         writeFileSync(files[2], `${JSON.stringify({ fromPlan: v.plan, answers: redraft.all.map((x) => ({ line: x.line, question: x.question, answer: x.answer })) })}\n`, { mode: 0o600, flag: 'wx' });
         child = spawnDetached({
           bin,
-          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions'],
+          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions', ...modelArgv(redraft.vet.card)],
           env: loaded.env,
           logPath: join(dir, `redraft-${n}.log`),
         });

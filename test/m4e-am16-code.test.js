@@ -13,7 +13,8 @@ import { spawnSync } from 'node:child_process';
 
 import * as authoring from '../src/authoring.js';
 import * as monthly from '../src/monthly.js';
-import { loadKeysEnv, keysForDoor, KEY_NAMES } from '../src/keysfile.js';
+import { tickedHome } from './fixtures/m4d-ticked.mjs';
+import { loadKeysEnv, keysForDoor } from '../src/keysfile.js';
 import { spawnDetached } from '../src/panel/spawn.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -30,9 +31,9 @@ const BAD_KEYS = [
 
 test('C3: authoring exports the ONE draft-key check; a clean key passes, a bad one returns the sentence (never the value)', () => {
   assert.equal(typeof authoring.draftKeyRefusal, 'function', 'draftKeyRefusal is exported by src/authoring.js');
-  assert.equal(authoring.draftKeyRefusal('deepseek', { DEEPSEEK_API_KEY: 'sk-fake-clean-value' }), null);
+  assert.equal(authoring.draftKeyRefusal('DEEPSEEK_API_KEY', { DEEPSEEK_API_KEY: 'sk-fake-clean-value' }), null);
   for (const [what, env] of BAD_KEYS) {
-    const said = authoring.draftKeyRefusal('deepseek', env);
+    const said = authoring.draftKeyRefusal('DEEPSEEK_API_KEY', env);
     assert.match(String(said), /^key: DEEPSEEK_API_KEY /, what);
     assert.ok(!String(said).includes('sk-fake'), `${what}: the value is never in the sentence`);
   }
@@ -47,14 +48,14 @@ test('C3: the CLI and draftToDir refuse the same way, at $0, with no dir (both c
     for (const [what, env] of BAD_KEYS) {
       const out = path.join(work, `draft-${what}`);
       const viaAuthoring = await authoring.draftToDir({
-        proseFile: prose, dir: out, root: path.join(work, 'flows'), name: 'job', env,
+        proseFile: prose, dir: out, root: path.join(work, 'flows'), name: 'job', env, slot: 'DEEPSEEK_API_KEY',
       });
       assert.equal(viaAuthoring.wrote, false, what);
       assert.equal(viaAuthoring.costUsd, 0, what);
-      const said = authoring.draftKeyRefusal('deepseek', env);
+      const said = authoring.draftKeyRefusal('DEEPSEEK_API_KEY', env);
       assert.deepEqual(viaAuthoring.reds, [said], `${what}: draftToDir's refusal is the one function's sentence`);
-      const cli = spawnSync(process.execPath, [BIN, 'draft', prose, '--out', path.join(work, `cli-${what}`), '--root', path.join(work, 'flows'), '--name', 'job'], {
-        encoding: 'utf8', env: { PATH: process.env.PATH ?? '', NODE_TEST_CONTEXT: 'child-v8', ...env },
+      const cli = spawnSync(process.execPath, [BIN, 'draft', prose, '--out', path.join(work, `cli-${what}`), '--root', path.join(work, 'flows'), '--name', 'job', '--model', 'deepseek-flash'], {
+        encoding: 'utf8', env: { PATH: process.env.PATH ?? '', NODE_TEST_CONTEXT: 'child-v8', FWDLOOP_CONFIG_HOME: tickedHome(), ...env },
       });
       assert.notEqual(cli.status, 0, what);
       assert.equal(cli.stderr, `fwdloop: draft refused at $0 — ${said}\n`, `${what}: the CLI says the same sentence`);
@@ -64,7 +65,8 @@ test('C3: the CLI and draftToDir refuse the same way, at $0, with no dir (both c
   } finally { rmSync(work, { recursive: true, force: true }); }
 });
 
-// ---- C4: the keys file passes only KEY_NAMES to a child ----------------------------------------------------------------------------
+const KEY_NAMES = ['DEEPSEEK_API_KEY']; // a key name that has a row set up (M4d am6: nothing is built in)
+// ---- C4: the keys file passes only set-up key names to a child ----------------------------------------------------------------------------
 function fakeHome(lines) {
   const home = scratch('c4');
   mkdirSync(home, { recursive: true, mode: 0o700 });
@@ -73,15 +75,15 @@ function fakeHome(lines) {
   return home;
 }
 
-test('C4: loadKeysEnv fills only KEY_NAMES from the file; other names are still listed but never reach the env', () => {
+test('C4: loadKeysEnv fills only set-up key names from the file; other names are not listed and never reach the env', () => {
   const home = fakeHome(['NODE_OPTIONS=--require=/tmp/x', 'LD_PRELOAD=/tmp/y', `${KEY_NAMES[0]}=sk-fake-known-key`]);
   try {
-    const r = loadKeysEnv({ env: { PATH: '/bin' }, home });
+    const r = loadKeysEnv({ env: { PATH: '/bin' }, home, configured: KEY_NAMES });
     assert.equal(r.ok, true);
     assert.equal(r.env[KEY_NAMES[0]], 'sk-fake-known-key', 'the known key gets through');
     assert.equal(r.env.NODE_OPTIONS, undefined, 'NODE_OPTIONS from the file never reaches the env');
     assert.equal(r.env.LD_PRELOAD, undefined);
-    assert.ok(r.names.includes('NODE_OPTIONS'), 'Settings still lists the name');
+    assert.ok(!r.names.includes('NODE_OPTIONS'), 'a non-key name is not listed');
     assert.ok(!JSON.stringify({ ...r, env: undefined }).includes('--require'), 'no value outside env');
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
@@ -93,6 +95,7 @@ test('C4: a spawned child (the panel spawn helper, fed by the keys door) sees th
     const bin = path.join(work, 'probe.mjs');
     const outFile = path.join(work, 'seen.json');
     writeFileSync(bin, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(outFile)}, JSON.stringify({ opts: process.env.NODE_OPTIONS ?? null, key: process.env[${JSON.stringify(KEY_NAMES[0])}] ?? null }));\n`);
+    writeFileSync(path.join(home, 'config.json'), JSON.stringify({ providers: { DEEPSEEK_API_KEY: { baseUrl: 'http://127.0.0.1:9' } } }));
     const door = keysForDoor({ env: { PATH: process.env.PATH }, keysHome: home });
     assert.equal(door.ok, true);
     const child = spawnDetached({ bin, argv: [], env: door.env, logPath: path.join(work, 'child.log') });

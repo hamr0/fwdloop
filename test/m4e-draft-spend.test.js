@@ -42,7 +42,7 @@ function proseFile() {
 }
 /** The cost of ONE round at the fake provider's usage (1000 in / 200 out at RATES, per 1k tokens). */
 const ROUND_USD = (1000 / 1000) * RATES.in + (200 / 1000) * RATES.out;
-const ceiling = () => ceilingCostUsd(MODEL, undefined, { prices: { rates: RATES } });
+const ceiling = () => ceilingCostUsd(RATES);
 
 test('(xvi/xviii) a draft killed between rounds keeps the round it paid for, plus one ceiling for the call in flight; Money and the monthly check count it', async () => {
   const home = newHome(5);

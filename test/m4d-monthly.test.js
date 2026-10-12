@@ -42,21 +42,26 @@ test('draft: a key that lives ONLY in the keys file reaches makeProvider (drafte
   mkdirSync(home, { recursive: true, mode: 0o700 });
   writeFileSync(keysFilePath(home), `DEEPSEEK_API_KEY=${FILE_KEY}\n`, { mode: 0o600 });
   chmodSync(keysFilePath(home), 0o600);
-  const loaded = loadKeysEnv({ env: {}, home });
+  const loaded = loadKeysEnv({ env: {}, home, configured: ['DEEPSEEK_API_KEY'] });
   assert.equal(loaded.ok, true);
   const saved = process.env.DEEPSEEK_API_KEY;
   delete process.env.DEEPSEEK_API_KEY; // the key is NOT in the shell: only the merged env has it
+  // M4d am5: the model and its prices come from Settings; a ticked line in this config home makes one usable
+  writeFileSync(path.join(home, 'config.json'), JSON.stringify({ providers: { DEEPSEEK_API_KEY: { baseUrl: 'http://127.0.0.1:9' } }, models: { DEEPSEEK_API_KEY: [{ model: 'fake-ticked', use: true, inPerM: 0.3, outPerM: 1.2 }] } }));
+  const savedHome = process.env.FWDLOOP_CONFIG_HOME;
+  process.env.FWDLOOP_CONFIG_HOME = home;
   const restore = install({ inputTokens: 100, outputTokens: 50 });
   try {
     const work = tmp('draft');
     const proseFile = path.join(work, 'prose.txt');
     writeFileSync(proseFile, job2Fixture().prose);
     const r = await draftToDir({
-      proseFile, dir: path.join(work, 'd'), root: path.join(work, 'flows'), name: 'x', env: loaded.env,
+      proseFile, dir: path.join(work, 'd'), root: path.join(work, 'flows'), name: 'x', env: loaded.env, slot: 'DEEPSEEK_API_KEY', model: 'fake-ticked',
     });
     assert.equal(r.ok, true, JSON.stringify(r.reds));
   } finally {
     restore();
+    if (savedHome === undefined) delete process.env.FWDLOOP_CONFIG_HOME; else process.env.FWDLOOP_CONFIG_HOME = savedHome;
     if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved;
   }
 });

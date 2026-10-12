@@ -87,23 +87,23 @@ test('(h) the main button label for a 0.25 cap and an 8-char hash is short enoug
   assert.match(PAGE, /#chat-main-btn\{white-space:nowrap;/);
 });
 
-test('field set: the New job card has exactly the signed boxes; bareloop-only boxes are gone; the card box is captioned Destination', () => {
+test('field set: the New job card has exactly the signed boxes (+ the Model menu and Thinking tick, M4d am6/am7); bareloop-only boxes are gone; the card box is captioned Destination', () => {
   for (const id of ['jf-name', 'jf-job', 'jf-job-gut', 'jf-cap-money', 'jf-ask-wait', 'jf-dest-folder', 'jf-inputs', 'jf-inputs-gut', 'jf-run-flow', 'jf-run-cap', 'jf-run-left', 'jf-run-inputs', 'jf-run-id', 'chat-main-btn', 'chat-action-error', 'chat-card-error', 'chat-clear-btn']) {
     assert.ok(SECTION.includes(`id="${id}"`), `#${id} missing`);
   }
   const labels = [...SECTION.matchAll(/<label[^>]*>([\s\S]*?)<\/label>/g)].map((m) => m[1].replace(/<[^>]+>/g, '').trim());
-  for (const cap of ['Flow name', 'The job', 'Cap $', 'Ask wait', 'Destination', 'Inputs', 'New job', 'Run a signed flow']) assert.ok(labels.includes(cap), `caption "${cap}" missing`);
+  for (const cap of ['Model', 'Thinking on', 'Flow name', 'The job', 'Cap $', 'Ask wait', 'Destination', 'Inputs', 'New job', 'Run a signed flow']) assert.ok(labels.includes(cap), `caption "${cap}" missing`);
   assert.doesNotMatch(SECTION, />\s*Send to\s*</);
-  for (const gone of ['jf-goal', 'jf-source', 'jf-success', 'jf-guardrails', 'jf-judge', 'jf-model', 'jf-verdict', 'jf-cap-time', 'startfrom', 'Check type', 'Time cap', 'Judge examples', 'Reuse']) {
+  for (const gone of ['jf-goal', 'jf-source', 'jf-success', 'jf-guardrails', 'jf-judge', 'jf-verdict', 'jf-cap-time', 'startfrom', 'Check type', 'Time cap', 'Judge examples', 'Reuse']) {
     assert.ok(!SECTION.includes(gone), `${gone} must not be on the card`);
     assert.ok(!CHAT.replace(/^\s*\/\/.*$/gm, '').includes(gone), `${gone} must not be in the Chat script`);
   }
   assert.match(SECTION, /name="jf-mode" value="new" checked/);
   assert.match(SECTION, /Where the accepted result is placed/);
   assert.match(SECTION, /Only your click signs\./);
-  // amendment 2 item 4: Flow name, The job, Destination, Inputs, then Cap $ with Ask wait (default 1h) in one row
+  // amendment 2 item 4: Flow name, The job, Inputs, Destination (hamr 2026-10-11: Destination below Inputs), then Cap $ with Ask wait (default 1h) in one row
   const at = (needle) => SECTION.indexOf(needle);
-  assert.ok(at('id="jf-name"') < at('id="jf-job"') && at('id="jf-job"') < at('id="jf-dest-folder"') && at('id="jf-dest-folder"') < at('id="jf-inputs"') && at('id="jf-inputs"') < at('id="jf-cap-money"') && at('id="jf-cap-money"') < at('id="jf-ask-wait"'));
+  assert.ok(at('id="jf-name"') < at('id="jf-job"') && at('id="jf-job"') < at('id="jf-inputs"') && at('id="jf-inputs"') < at('id="jf-dest-folder"') && at('id="jf-dest-folder"') < at('id="jf-cap-money"') && at('id="jf-cap-money"') < at('id="jf-ask-wait"'));
   assert.match(SECTION, /id="jf-ask-wait" type="text" value="1h"/);
   assert.doesNotMatch(SECTION, /jf-dest-line|jf-add-input/);
   assert.match(CHAT, /borrowed-from: bareloop src\/panel\/index\.html@ca7195e/);
@@ -220,4 +220,15 @@ test('walk fix 2: the "Fix the marked boxes" banner goes when the last marked bo
   other.fn();
   assert.equal(other.actionErrEl.textContent, 'A run is already live.', 'a refusal with no box is not this banner');
   assert.match(CHAT, /x\.textContent = ""; \}\);\n\s+dropFixBoxesBanner\(\);/, 'the per-box clear on input calls it');
+});
+
+test('Clear after Run again (or a picked flow) unpicks the flow: resetCard clears the pick through the one writer', () => {
+  assert.match(fnSrc('resetCard'), /clearPick\(\)/, 'resetCard must clear pickedFlow/pickedRun/againEntry and the search box');
+  assert.match(fnSrc('unpickFlow'), /clearPick\(\)/, 'unpickFlow and resetCard share one writer of the pick');
+});
+
+test('New job card: Destination comes below Inputs (field order only)', () => {
+  const at = (id) => SECTION.indexOf(`id="${id}"`);
+  assert.ok(at('jf-job') < at('jf-inputs') && at('jf-inputs') < at('jf-dest-folder') && at('jf-dest-folder') < at('jf-cap-money'),
+    'order: the job, Inputs, Destination, Cap');
 });

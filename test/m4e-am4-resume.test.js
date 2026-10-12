@@ -175,7 +175,7 @@ test('am4 (e) door: Resume over HTTP — cap-halted run, same run id, the new ca
   assert.match(low.json().refusals[0].say, /^The cap must be above what is already spent \(at least \$0\.05\)\.$/);
   const ok = await w.post('/api/author/resume-prepare', { flow: 'job2', runId: 'r1', capUsd: '0.05' });
   assert.equal(ok.status, 200, 'the "at least" sum named above is itself accepted');
-  const note = (await w.get('/api/author/monthly-check?cap=0.001&spent=0.001')).json();
+  const note = (await w.get('/api/author/monthly-check?cap=0.001&spent=0.001&flow=job2')).json();
   assert.match(note.text, /at least \$0\.05\)\.$/);
   const small = await w.post('/api/author/resume-prepare', { flow: 'job2', runId: 'r1', capUsd: '0.02' });
   assert.match(small.json().refusals[0].say, /needs at least \$0\.05 per run/);

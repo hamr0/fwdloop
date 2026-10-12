@@ -13,7 +13,10 @@
 import { existsSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkKeyPreflight, appendSpendRow, ceilingCostUsd } from '../../src/provider.js';
+import {
+  checkKeyPreflight, appendSpendRow, ceilingCostUsd, priceRecord,
+} from '../../src/provider.js';
+import { ratesFor } from '../rates.mjs';
 import { ledgerTotalUsd, scrub, secretsFromEnv } from '../m6a/batch.mjs';
 import { guardrailWordsPerSection } from '../../src/declaration.js';
 import { draftOnce, POC_STRUCTURE_RETRIES } from './draft.mjs';
@@ -74,14 +77,14 @@ export async function runBatch({
   // ---- $0 gates, before any ledger write -------------------------------------------
   if (!tag || /[^A-Za-z0-9._-]/.test(tag)) throw new Error('run: --tag is required (letters, digits, . _ - only)');
   if (!injected) {
-    const key = checkKeyPreflight('deepseek', env);
+    const key = checkKeyPreflight('DEEPSEEK_API_KEY', env);
     if (!key.ok) throw new Error(key.message);
   }
   const resultsPath = join(outDir, `results-${tag}.json`);
   if (existsSync(resultsPath)) throw new Error(`run: tag "${tag}" already has results — use a new --tag, never overwrite evidence`);
   const secrets = secretsFromEnv(env.DEEPSEEK_API_KEY);
   // A job may use a first round plus the structure retries; the stop line and an unpriced job both use that worst case.
-  const roundCeiling = ceilingCostUsd(injected?.modelId ?? model) * (1 + POC_STRUCTURE_RETRIES);
+  const roundCeiling = ceilingCostUsd(ratesFor(injected, model)) * (1 + POC_STRUCTURE_RETRIES);
 
   writeLine(BAR_TEXT);
   const records = [];
@@ -106,7 +109,7 @@ export async function runBatch({
     // Booked even when red/crashed; an unknown cost is null (the ledger reprices it at the ceiling), never 0.
     appendSpendRow(spendPath, {
       runId: `am28-${tag}-${job.id}`, step: 'draft-am28', model, modelReturned: r.modelReturned ?? null,
-      costUsd: r.costUsd, rounds: r.rounds, calls: r.calls, spendComplete: r.spendComplete, wallMs,
+      costUsd: r.costUsd, rounds: r.rounds, calls: r.calls, spendComplete: r.spendComplete, wallMs, price: priceRecord(null, ratesFor(injected, model)),
     });
     const wrote = extractWrote(r.steps, job.guardrailLine);
     const score = r.stop === null ? scoreJob(job, wrote) : { maxOk: false, perOk: codePerSection(job) === job.expect.wordsPerSection, pass: false };

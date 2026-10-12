@@ -18,9 +18,10 @@ import {
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  checkKeyPreflight, appendSpendRow, readSpendRows, ceilingCostUsd,
+  checkKeyPreflight, appendSpendRow, readSpendRows, ceilingCostUsd, spendRowCost, priceRecord,
 } from '../../src/provider.js';
 import { draft } from './draft.mjs';
+import { ratesFor } from '../rates.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..');
@@ -49,16 +50,11 @@ export function secretsFromEnv(value) {
 /**
  * One row's cost, never under-counted. A row with `spendComplete === false` (src/authoring.js: some call died
  * unmetered) counts its priced floor PLUS one round ceiling per unmetered call — `calls - rounds` when both are
- * numbers, at least 1. A null cost is an unpriced row at its ceiling, as in src/provider.js. Rows without the
- * field behave as before.
+ * numbers, at least 1. A null cost is an unpriced row at its ceiling, read off the price the row recorded (this batch
+ * records its round price on every row it books). One rule: `spendRowCost` in src/provider.js.
  */
 export function rowCostUsd(r) {
-  const ceiling = ceilingCostUsd(r.model ?? DEFAULT_MODEL);
-  if (r.spendComplete === false) {
-    const unmetered = Number.isInteger(r.calls) && Number.isInteger(r.rounds) ? Math.max(1, r.calls - r.rounds) : 1;
-    return (r.costUsd ?? 0) + unmetered * ceiling;
-  }
-  return r.costUsd ?? ceiling;
+  return spendRowCost(r).usd;
 }
 
 /** Ledger total: unpriced rows at ceiling, incomplete rows at floor + unmetered ceilings (see rowCostUsd). */
@@ -90,7 +86,7 @@ export async function runBatch({
   if (!Number.isInteger(n) || n < 1) throw new Error(`batch: --n must be a positive integer, got "${n}"`);
   if (!tag || /[^A-Za-z0-9._-]/.test(tag)) throw new Error('batch: --tag is required (letters, digits, . _ - only)');
   if (!injected) {
-    const key = checkKeyPreflight('deepseek', env);
+    const key = checkKeyPreflight('DEEPSEEK_API_KEY', env);
     if (!key.ok) throw new Error(key.message);
   }
   const jsonl = join(outDir, `${tag}.jsonl`);
@@ -101,6 +97,7 @@ export async function runBatch({
   assertRoomForDraft(spendPath, capUsd, draftBudgetUsd);
   mkdirSync(draftsDir, { recursive: true });
   const secrets = secretsFromEnv(env.DEEPSEEK_API_KEY);
+  const rates = ratesFor(injected, model); // the price every round of this batch is held and booked at (Settings, or the test's injected rates)
   const write = (path, text, flag) => (flag === 'a' ? appendFileSync : writeFileSync)(path, scrub(text, secrets));
   write(join(draftsDir, 'prose.txt'), proseText);
 
@@ -113,7 +110,7 @@ export async function runBatch({
     let r;
     try {
       // eslint-disable-next-line no-await-in-loop
-      r = await withDeadline(draft({ proseText, model, budgetUsd: draftBudgetUsd, ...(injected ?? {}) }), deadlineMs);
+      r = await withDeadline(draft({ proseText, slot: 'DEEPSEEK_API_KEY', model, budgetUsd: draftBudgetUsd, ...(injected ?? {}) }), deadlineMs);
     } catch (err) {
       r = { ok: false, declaration: null, reds: [`crash: ${err.message}`], rounds: null, costUsd: null, stop: 'crash', log: [] };
     }
@@ -122,7 +119,7 @@ export async function runBatch({
     // Booked even when red/crashed; an unknown cost is null (the ledger reprices it at the ceiling), never 0.
     appendSpendRow(spendPath, {
       runId: `m6a-${tag}-${i}`, step: 'draft-m6a', model, modelReturned: r.modelReturned ?? null,
-      costUsd: r.costUsd, rounds: r.rounds, wallMs,
+      costUsd: r.costUsd, rounds: r.rounds, wallMs, price: priceRecord(null, rates),
     });
     const rec = {
       i, ok: r.ok, stop: r.stop, rounds: r.rounds, structureRetries: r.structureRetries ?? null, revisions: r.revisions ?? null,
@@ -137,7 +134,7 @@ export async function runBatch({
   // ---- summary + key sweep -----------------------------------------------------------
   const valid = records.filter((x) => x.ok).length;
   const unknown = records.some((x) => x.costUsd === null);
-  const cost = records.reduce((s, x) => s + (x.costUsd ?? ceilingCostUsd(model)), 0);
+  const cost = records.reduce((s, x) => s + (x.costUsd ?? ceilingCostUsd(rates)), 0);
   const summary = {
     tag, n, ran: records.length, valid, bar: n === BAR.n ? `${BAR.valid}/${BAR.n}` : 'n/a (bar is defined for n=20)',
     barMet: n === BAR.n && records.length === n ? valid >= BAR.valid : null,

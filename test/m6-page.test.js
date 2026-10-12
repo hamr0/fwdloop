@@ -13,7 +13,7 @@ test('every element id in the page is unique (the Edit button, its note and the 
 });
 
 test('the card sends editOf with every draft and revise (currentCard is the one reader), and a draft re-attached from disk gets it back', () => {
-  assert.match(PAGE, /askWait: askWaitEl\.value\.trim\(\),\s*editOf: editOf/);
+  assert.match(PAGE, /askWait: askWaitEl\.value\.trim\(\),[\s\S]*?editOf: editOf/);
   assert.match(PAGE, /if\(c\.editOf && typeof c\.editOf\.flow === "string"\)\{\s*editOf = /);
 });
 

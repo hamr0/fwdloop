@@ -456,7 +456,8 @@ export function handleRequest(req, res, opts) {
     if (pathname === '/api/author/live') r = opts.author.live();
     else if (pathname === '/api/author/flows') r = opts.author.flows();
     else if (pathname === '/api/author/run-again') r = opts.author.runAgain(url.searchParams.get('flow'), url.searchParams.get('runId'));
-    else if (pathname === '/api/author/monthly-check') r = opts.author.monthlyCheck(url.searchParams.get('cap'), url.searchParams.get('spent'));
+    else if (pathname === '/api/author/monthly-check') r = opts.author.monthlyCheck(url.searchParams.get('cap'), url.searchParams.get('spent'), { provider: url.searchParams.get('provider') ?? undefined, model: url.searchParams.get('model') ?? undefined, flow: url.searchParams.get('flow') ?? undefined });
+    else if (pathname === '/api/author/models') r = opts.author.models();
     else if (pathname === '/api/author/resume-form') r = opts.author.resumeForm(url.searchParams.get('flow'), url.searchParams.get('runId'));
     else if (sm) r = opts.author.startGet(sm[1]);
     else if (am) r = opts.author.get(am[1]);
@@ -569,7 +570,7 @@ export function handleRequest(req, res, opts) {
  * header). Resolves once actually listening; rejects on a bind error
  * (including `EADDRINUSE`) with a `.port` field on the error for the
  * caller's message.
- * @param {{ port?: number, root: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number }, author?: { env?: Record<string,string|undefined>, loadEnv?: () => any, bin?: string } }} opts
+ * @param {{ port?: number, root: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: Function, platform?: string }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number }, author?: { env?: Record<string,string|undefined>, loadEnv?: () => any, bin?: string } }} opts
  *   `resume` and `author` are for tests only (a fake env/bin, a short retry window); the CLI passes none.
  * @returns {Promise<{ server: import('node:http').Server, port: number, close: () => Promise<void> }>}
  */
@@ -591,7 +592,7 @@ export function createPanelServer(opts) {
   // Settings reads and writes only under the one config home: an injected one (tests), else the door's — under a test
   // process with no FWDLOOP_CONFIG_HOME, Settings is switched off rather than touch the real ~/.config/fwdloop.
   const settings = createSettings({
-    home: opts.settings?.home ?? door.home, skip: opts.settings?.home === undefined && door.skip, env: opts.settings?.env, fetch: opts.settings?.fetch, now: opts.settings?.now,
+    home: opts.settings?.home ?? door.home, skip: opts.settings?.home === undefined && door.skip, env: opts.settings?.env, fetch: opts.settings?.fetch, now: opts.settings?.now, openFolderSpawn: opts.settings?.openFolderSpawn, platform: opts.settings?.platform,
   });
   return new Promise((resolve, reject) => {
     // Bound port is resolved from the live socket (`server.address().port`)

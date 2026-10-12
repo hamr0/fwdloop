@@ -13,7 +13,10 @@
 import { existsSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkKeyPreflight, appendSpendRow, ceilingCostUsd } from '../../src/provider.js';
+import {
+  checkKeyPreflight, appendSpendRow, ceilingCostUsd, priceRecord,
+} from '../../src/provider.js';
+import { ratesFor } from '../rates.mjs';
 import { ledgerTotalUsd, scrub, secretsFromEnv } from '../m6a/batch.mjs';
 import { draftWithQuestions, ARMS } from './draft.mjs';
 import { JOBS } from './jobs.mjs';
@@ -91,13 +94,13 @@ export async function runBatch({
   if (!ARMS.includes(arm)) throw new Error(`run: --arm must be try3 or first, got "${arm}"`);
   if (!tag || /[^A-Za-z0-9._-]/.test(tag)) throw new Error('run: --tag is required (letters, digits, . _ - only)');
   if (!injected) {
-    const key = checkKeyPreflight('deepseek', env);
+    const key = checkKeyPreflight('DEEPSEEK_API_KEY', env);
     if (!key.ok) throw new Error(key.message);
   }
   const resultsPath = join(outDir, `results-${tag}.json`);
   if (existsSync(resultsPath)) throw new Error(`run: tag "${tag}" already has results — use a new --tag, never overwrite evidence`);
   const secrets = secretsFromEnv(env.DEEPSEEK_API_KEY);
-  const roundCeiling = ceilingCostUsd(injected?.modelId ?? model);
+  const roundCeiling = ceilingCostUsd(ratesFor(injected, model));
 
   if (arm === 'first') writeLine(BAR_FIRST_TEXT);
   const records = [];
@@ -123,7 +126,7 @@ export async function runBatch({
     // Booked even when red/crashed; an unknown cost is null (the ledger reprices it at the ceiling), never 0.
     appendSpendRow(spendPath, {
       runId: `am25-${tag}-${job.id}`, step: 'draft-am25', model, modelReturned: r.modelReturned ?? null,
-      costUsd: r.costUsd, rounds: r.rounds, calls: r.calls, spendComplete: r.spendComplete, wallMs,
+      costUsd: r.costUsd, rounds: r.rounds, calls: r.calls, spendComplete: r.spendComplete, wallMs, price: priceRecord(null, ratesFor(injected, model)),
     });
     const rec = {
       id: job.id, arm, kind: job.kind, why: job.why, questions: r.questions, droppedQuestions: r.droppedQuestions,

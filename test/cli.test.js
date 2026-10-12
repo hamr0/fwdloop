@@ -23,6 +23,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { sandboxSend } from './send-sandbox.js';
+import { tickedHome } from './fixtures/m4d-ticked.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
@@ -293,8 +294,8 @@ test('cli: an unset DEEPSEEK_API_KEY refuses "run" at $0, before any run dir or 
   const { resume, jd } = writeSources(srcDir);
 
   const result = runCli([
-    'run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-no-key',
-  ], noKeyEnv());
+    'run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-no-key', '--model', 'deepseek-flash',
+  ], { ...noKeyEnv(), FWDLOOP_CONFIG_HOME: tickedHome() });
 
   assert.notEqual(result.status, 0, result.stdout);
   assert.match(result.stderr, /DEEPSEEK_API_KEY is not set/);
@@ -317,7 +318,7 @@ test('cli: a node --test child (NODE_TEST_CONTEXT, no NODE_ENV, no FWDLOOP_CONFI
       'run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', `jd=${jd}`, '--run-id', 'run-canary',
     ], { ...noKeyEnv(), HOME: home });
     assert.notEqual(result.status, 0, result.stdout);
-    assert.match(result.stderr, /DEEPSEEK_API_KEY is not set/);
+    assert.match(result.stderr, /without FWDLOOP_CONFIG_HOME/, 'no config home under a test process: Settings and the keys file are not read at all');
     assert.ok(!`${result.stdout}${result.stderr}`.includes(canary), 'the canary key must never surface');
     assert.equal(existsSync(path.join(root, 'job2', 'runs', 'run-canary')), false, 'no run dir at $0');
   } finally {

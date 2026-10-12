@@ -200,7 +200,7 @@ test('batch: runs, books every job, writes results-<tag>.json; an existing tag r
 test('batch: the spend stop halts before the next job would pass the line, and says so', async () => {
   const { prose } = job2Fixture();
   const jobs = ['a', 'b', 'c', 'd'].map((id) => ({ id, kind: 'clear', prose, why: '' }));
-  const ceiling = ceilingCostUsd(MODEL);
+  const ceiling = ceilingCostUsd(RATES);
   const probe = await runBatch({ tag: 'p', jobs: jobs.slice(0, 1), outDir: outDir(), injected: inj([toolReply(withQ([]))]), writeLine: quiet, env: {} });
   const one = probe.records[0].costUsd;
   assert.ok(one > 0);

@@ -1251,10 +1251,110 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - **4.** Runs already booked keep their recorded costs; this applies from the next model call on.
   - **Negatives:** (a) the Providers table has no Cached in column or box at 1280, 390 and 320 px; (b) with input $0.40/1M and a saved `cachedInPerM` of 0.04, a round with cached tokens books them at $0.40/1M; (c) with In $/1M empty, cached tokens book at the table's input price, never its cached rate; (d) a POST that sets `cachedInPerM` is refused and saves nothing.
   - **Cap:** $0 (build and tests with stub providers).
+
 - **Built after signing — not signed text (2026-10-05):**
   - F55 fix: every run, resume and draft now writes a record row to `runs.jsonl` even with no monthly limit set ($0 hold, nothing held), so its spend is counted; a row that cannot be written refuses by name.
   - A shell with `NODE_ENV=test` (or a `node --test` child) and no `FWDLOOP_CONFIG_HOME` refuses a real run, resume or draft at $0 with "fwdloop: NODE_ENV=test is set without FWDLOOP_CONFIG_HOME, so the keys file, prices and monthly limit would be skipped. Nothing spent. Unset NODE_ENV, or set FWDLOOP_CONFIG_HOME."
   - Test and Balance never follow a redirect with the key; a 3xx reads "The provider answered with a redirect; the key was not sent on. Check the Base URL."
+
+**M4d amendment 3 — SIGNED by hamr 2026-10-11 ("sign m4d am3"): models, prices and thinking, as bareloop.**
+- **A. Thinking (drafting only; run steps unchanged)**
+  1. Drafting sends "thinking off" only to models on one allow-list. Today that's deepseek-flash. Any other model gets nothing sent.
+  2. Settings gets one tick-box, "Thinking on (drafting)", unticked by default, for all jobs. For a model not on the list, it reads "can't change this for this model".
+  3. A draft cut off at the length limit counts as a failed try, so the try-3 question can open. *(This changes amendment 25's "only after tries 1 and 2 both failed their checks".)*
+- **B. Models**
+  4. Each provider row in Settings lists its models from the provider's free list call, with a "Refresh models" button. If the call fails, you type the model name.
+  5. Each model has a "Use" tick. Only ticked models show in a new Chat model menu, as "provider · model". The picked model drafts the plan and runs the job, and the Job tab shows which one.
+  6. Still no adding or removing providers. A row's Name, shape and Base URL stay editable, so a row can point at a local server.
+- **C. Prices**
+  7. Each model line has its own price, in and out per 1M tokens. You can't tick a model without both. A half-filled price saves nothing: "Fill both price boxes or clear both."
+  8. 0 / 0 is allowed when you type it, for local models. It counts as a chosen price, not an unknown one.
+  9. A ticked model is always priced. The "highest rate in the table" fallback stays only for a model nobody ticked, like an old run or the CLI.
+  10. Moving over: each row's current price moves to its current model, already ticked.
+  11. Key values never show on the page. Only names and found / not set.
+- **This replaces** these M4d lines: ruling 2A's "model stays in code", scope 2's "one row per provider" and "a price above 0", scope 6 and amendment 1's "highest rate" for ticked models, and negative (xi)'s refusal of 0.
+- **Done when:** tests that fail first; a $0 walk at 1280, 390 and 320 px; and one live draft on deepseek-flash with thinking off, then with it on.
+- **Must fail when:** ticking a model with one price box empty saves nothing, and that model never shows in the Chat menu.
+- **Cap:** $0.10.
+
+**M4d amendment 4 — SIGNED by hamr 2026-10-11 ("sign m4d am4"): thinking on means no forced tool.** When "Thinking on (drafting)" is ticked, the drafter does not force the AI to answer through the tool, same as bareloop. A reply with no tool call is retried as today. With the box unticked, the tool is still forced, so M6a is unchanged. **Done when:** a test that fails first, and one live deepseek-flash draft with the box ticked, which reaches the plan with no provider error. **Cap:** inside am3's $0.10.
+
+**M4d amendment 5 — SIGNED by hamr 2026-10-11 ("sign m4d am5"): Settings > Providers is the only place for models and prices (hamr 2026-10-11).**
+1. No model name, price, default model or thinking switch lives in code. The code table, its "highest rate" fallback, the per-model run hold and the default models are deleted.
+2. A model can be used anywhere (Chat, a run, the command line) only if it's ticked in Settings with both prices. Anything else is refused by name: "Tick <model> in Settings > Providers with both prices first."
+3. Each model line in Settings says how to turn its thinking off: "can't" (the default) or "send thinking: disabled". The one "Thinking on (drafting)" box uses that line. "can't" shows "can't change this for this model".
+4. The money hold before a run is worked out from the run's own ticked model price. A cost already booked on an old run stays as it was.
+5. A fresh install with nothing ticked says "Tick a model in Settings > Providers" and spends nothing.
+**Done when:** a grep of `src/` finds no model name or price, there are tests that fail first, and one live draft runs priced from Settings only. **Cap:** inside am3's $0.10 ($0.028 used).
+
+**M4d amendment 6 — SIGNED by hamr 2026-10-11 ("sign m4d am6"): Settings is the only place for providers, models and prices. Nothing is hardcoded.**
+1. Providers come only from your keys. Every key with a value in `.env` gets a row in Settings. The two built-in rows (deepseek and synthetic) are deleted.
+2. Each row's API shape and Base URL are typed in Settings. No default web address lives in code. A row with no Base URL can't list or run models, and says so: "Type a Base URL for <KEY> in Settings."
+3. Models come from the provider. Settings asks for the model list, for free. It does this when the page opens, on "Reload keys", and on a "Refresh models" button per key. If the call fails, you type the model name.
+4. One line per provider and model. Each line has: a tick box, Price in $/1M, Price out $/1M, and Thinking off ("can't" / "send thinking: disabled").
+5. A ticked line needs both prices. An empty one is refused: "Fill both prices to tick this model." 0 is accepted, for local models. An unticked line can stay empty.
+6. Chat lists only ticked lines, as "provider · model". The picked model drafts and runs the job, and the Job tab shows which one. With nothing ticked: "Tick a model in Settings > Providers", and $0 is spent.
+7. "Thinking on" is a tick box in Chat, one per job, unticked by default. It applies to that job's drafting only; run steps don't change. The Settings box is deleted.
+8. Everything below is deleted from the code: the fixed "draft on deepseek" setting (`MODEL_SLOT`); the built-in provider rows and their web addresses; the "balance only on api.deepseek.com" rule and deepseek's balance address; the deepseek-only `legacyMaxTokens` quirk, which becomes a per-row choice in Settings.
+9. This finishes am3 part B and replaces: am3 C10 (the price moving over), am3 A2 (the Thinking box in Settings), and M4d am1's built-in rows.
+**Done when:** a search of `src/` finds no provider name, model name, web address or price; tests that fail first; I walk hamr's real panel at 1280, 390 and 320 px (your key loads, the models list, you tick deepseek-flash with prices, and Chat shows it with the Thinking box); then one live draft with thinking off and one with thinking on. **Cap:** inside am3's $0.10, with about $0.038 left.
+
+**M4d amendment 7 — SIGNED by hamr 2026-10-11 ("sign m4d am7"): bareagent decides thinking.**
+1. "Thinking on" is only in Chat. Settings has nothing about thinking. The per-model "Thinking off" menu is deleted.
+2. The Chat "Thinking on" box asks bareagent's `thinkingSupport(provider, model)`. If it says false, the box is greyed out with "can't change this for this model". If it says true or "unverified", the box works. A refusal from the model is a loud error, never silent.
+3. Turning thinking on or off is done by bareagent, not our code.
+4. Until bareagent publishes `thinkingSupport`, the box treats every model as "unverified".
+5. This replaces am5 item 3 and the "Thinking off" part of am6 item 4.
+**Done when:** a test that fails first, and the Chat box greys out when the answer is false. **Cap:** $0.
+
+**M4d amendment 8 — SIGNED by hamr 2026-10-11 ("sign m4d am8"): a cell-checked step must read cells.**
+1. A step whose check is "green" (every figure must cite its source cell) has to read an input with cells, such as a CSV or a spreadsheet. A text summary from an earlier step doesn't count.
+2. If a plan breaks this, the plan checker refuses it at draft time, by name, with $0 spent: "Line N's check needs cells, but it reads only <step output>. Line N must read <input>."
+3. The drafter is told the same rule, so it plans a green step to read the input file directly. (That's our rule: a new check rule is always told to the drafter too.)
+4. Runs and rules stay the same otherwise. The cell check isn't loosened.
+**Done when:** a test that fails first (the `aging-live-1` plan, as it was drafted, is refused at $0); one live re-draft of the same job passes the checker; and a run of it reaches "check it with me". **Cap:** $0.05 of its own, because am3's $0.10 is almost used up.
+
+**M4d amendment 9 — SIGNED by hamr 2026-10-11 ("sign m4d am9"): an ask must show you something.**
+1. An ask step ("check it with me") has to read the output of an earlier step, the thing you're being asked to check. Its first read is what you see at the ask.
+2. If a plan has an ask step that reads nothing, or reads something no earlier step makes, the plan checker refuses it at draft time, by name, with $0 spent: "Line N asks you to check something, but it reads nothing. Line N must read <earlier step output>."
+3. The drafter is told the same rule.
+4. Runs, asks and sends work the same otherwise.
+**Done when:** a test that fails first (the `aging-live-1` ask, as drafted, is refused at $0); then one live re-draft of the aging job passes the checker, and a run reaches "check it with me" showing the buckets. **Cap:** inside am8's $0.05.
+
+**M4d amendment 10 — SIGNED by hamr 2026-10-11 ("sign m4d am10"): the Chat list shows every step of a draft.**
+1. The Chat card's step list (copied from bareloop in M4e) gets one line for each thing a draft really does, in this order. Each line ends in ✓ or ✗.
+   - **thinking on ✓** or **thinking off ✓** when bareagent did what you asked. If the model ignored it, can't switch it, or didn't confirm it, the line gets ✗ and shows am7's words, loud, in red.
+   - **inputs ✓**, with one detail line per input, for example `> aging: 11 columns`.
+   - **drafted with <model> ✓**, with a detail line such as `> 1 round · $0.0056`.
+   - **plan checks ✓**, shown on a passed draft too, not only on a refused one. A ✗ puts each refusal on its own detail line.
+   - **rubrics ✓**, only when a step is checked by shape, with a detail line `> line N: built`. A ✗ shows bareguard's reason.
+   - **try 2 of 3** and **try 3 of 3**, only when a retry happened, each with its reason on a detail line.
+2. A step that didn't happen is not shown.
+3. Details appear only when a step has some. Each detail sits on its own line under the step, starts with `> `, and is grey (red under a ✗). A step with no details is one line.
+4. While the draft runs, the list shows "drafting with <model>" as today. The full list appears when the draft ends.
+5. The list sits outside the readout. The readout and its hash don't change.
+6. The thinking line now shown next to the plan moves into this list, so it is in one place.
+**Done when:** a test that fails first; a $0 browser walk at 1280, 390 and 320; and one live deepseek-flash draft with Thinking ticked shows the list. **Cap:** inside am8's $0.05.
+
+**M4d amendment 11 — SIGNED by hamr 2026-10-11 ("sign m4d am11"): thinking uses bareloop's words.**
+1. The thinking line in am10's list uses the same words as bareloop (hamr OK'd them for bareloop 2026-10-11):
+   - did what you asked → **thinking on ✓** or **thinking off ✓**
+   - the model can't change it → **thinking on (this model can't change it) ✗**
+   - the model thought anyway → **thinking on (the model thought anyway) ✗**
+   - not confirmed → **thinking off (not confirmed) ✗**
+2. Next to the Chat "Thinking on" box, before any draft, a model that bareagent hasn't checked shows **thinking off (not verified for this model)**.
+3. The ✗ lines stay red and loud, as am10 says. These words replace "am7's words" in am10 item 1 and the words the builder chose in piece 1c.
+**Done when:** a test that fails first for each line above, and the $0 browser walk shows them. **Cap:** $0.
+
+- **Built after signing — not signed text (2026-10-12), M4d amendments 3-11 (branch `m4d-am3`):**
+  - bare-agent is `^0.52.0`. Each drafting round carries bareagent's `thinkingStatus`; the worst one across the rounds is what the Chat list says (am11's words), and the row's Base URL is passed to `thinkingSupport`. A `ValidationError` from the provider is an ordinary loud provider-red, counted as one unmetered call (the separate `thinking-refused` stop was removed as dead code).
+  - A job's model is remembered in `model.json` beside the draft and then beside the signed flow. It is not one of the signed files; which model runs, and at what price, is still Settings' to say, and a line no longer ticked is refused by name. An old signed flow with no `model.json` runs with the model picked in Chat's "Run a signed flow" card, and the pick is recorded on a successful start.
+  - Settings > Providers is one block per key: API shape and Base URL sit on the key row and save together on change; each model line shows its own tokens. A **Test** button on the key row and the per-key **Refresh** make the same free `GET <Base URL>/models` (4 s deadline, key in the header only, a redirect is never followed); neither makes a completion nor writes a spend row. **Open keys folder** (next to Reload keys) opens the folder of the server's own keys file in the OS file manager from one spawn site; the request can name no path, and where it cannot open it shows the folder as text.
+  - A green step must read an input with cells (am8) and an ask step's first read must be an earlier step's output (am9). Both are plan-checker rules at draft time, told to the drafter in its prompt; neither changes how a signed flow runs. A frozen CSV input read by role gives a step its cells, checked against the sha256 recorded at freeze.
+  - The Chat list of a draft (am10) is built by one function, `draftStepList` (`src/draft-steps.js`), from the draft's own `log.json` and declaration; the draft's input facts ride in `log.json`, never in the hashed files.
+  - The Ask tab no longer rebuilds on a refresh tick: `timeLeftMs` is left out of the page's change signature, "time left" counts down in place, and a real redraw keeps each evidence box's scroll position.
+  - F64: a malformed tool call's raw arguments are shown as the first 2000 characters, then `… (N more chars)`.
+  - A key name is a name that ends in `_KEY`, capitals (`isKeyName` in `src/keysfile.js`, commit 1b15bfb). Only such lines of the keys file are listed as Settings rows; a configured name that is not one never reaches a child's env; and the provider, model, Test and models routes refuse any other slot by name (`not-a-key-name`, nothing saved). This replaces the "other names are still listed" words of amendment 16 item C4 and the "every name with a value is a row" words of amendment 6 (signed text, unchanged). A `config.json` that already names a slot without `_KEY` is not broken: that row is simply not shown and its keys-file line is not passed on.
 
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 

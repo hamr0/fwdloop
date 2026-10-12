@@ -74,6 +74,11 @@ const FORMULAS = Object.freeze({
   sub: (vals) => vals[0] - vals[1],
 });
 
+/** An input with cells (M4d amendment 8): a file whose name ends `.csv`. The one decider for "this input can be cited". */
+export function isCellsPath(p) {
+  return typeof p === 'string' && p.toLowerCase().endsWith('.csv');
+}
+
 const CELL_RE = /^([a-zA-Z0-9_-]+)!([A-Za-z]+)(\d+)$/;
 const FORMULA_RE = /^(sum|count|min|max|sub|daysBetween)\((.*)\)$/;
 const FIELD_REF_RE = /^#([A-Za-z0-9_]+)$/;

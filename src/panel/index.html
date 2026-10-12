@@ -499,6 +499,7 @@
   .chat-steps .step.wait .step-label{color:var(--amber);}
   .chat-steps .step-detail{display:block;flex-basis:100%;min-width:0;padding-left:1.2em;color:var(--text-faint);word-break:break-word;white-space:pre-wrap;}
   .chat-steps .step.bad .step-detail{color:var(--red);}
+  .chat-steps .step[data-step="thinking"].bad .step-label{color:var(--red);font-weight:600;}
   .chat-steps .step-raw{margin-top:2px;color:var(--text-faint);}
   .chat-steps .step-raw summary{cursor:pointer;}
   .chat-steps .step.run .step-sign::after{content:"\2026";}
@@ -668,20 +669,92 @@
   .keyfile-strip{position:relative;border:1px solid var(--border-strong);padding:12px 12px 8px;background:var(--panel2);margin:14px 0;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
   .keyfile-strip::before{content:"┤ KEYS ├";position:absolute;top:-9px;left:10px;background:var(--panel2);padding:0 4px;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;}
   .keyfile-strip-main{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;overflow-wrap:anywhere;}
-  .keyfile-strip-actions{display:flex;gap:6px;flex:none;}
+  .keyfile-strip-actions{display:flex;flex-wrap:wrap;gap:6px;flex:none;max-width:100%;}
   .keyfile-strip code{background:var(--bg);border:1px solid var(--border-strong);padding:1px 5px;font-size:11px;color:var(--amber);overflow-wrap:anywhere;}
   .settings-view input,.settings-view select{font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);}
-  .pv-table td,.pv-table th{white-space:nowrap;vertical-align:top;}
-  .pv-table select,.pv-table input{min-height:32px;max-width:190px;box-sizing:border-box;}
-  .pv-table .hint{display:block;margin-top:3px;}
-  /* the Test cell keeps ONE width whatever the result says ("testing…", "OK · 312 ms", a long failure note) */
-  .pv-table td.pv-test-cell{width:180px;min-width:180px;max-width:180px;}
-  .pv-table .pv-test-result,.pv-table .pv-msg,.pv-table .pv-balance-result{white-space:normal;overflow-wrap:anywhere;}
-  .pv-table td.pv-price-cell{width:170px;min-width:170px;max-width:170px;}
+  /* M4d Providers layout F (hamr approved 2026-10-11, the design lab's Variant F): ONE shared grid, so a key row, the model sub-head and
+     every model row sit on the same column edges. Key band: KEY | API SHAPE | BASE URL (two columns) | OLD MAX_TOKENS | TOKENS | refresh.
+     Model row: [USE 44px][MODEL] under KEY, IN + OUT side by side under BASE URL, TOKENS on the key band's TOKENS edge. A key row has a
+     solid 1px line, a model row a dotted 1px hairline. Below 1280px every row collapses to stacked label : value lines. */
+  .pv-grid{--pv-cols:minmax(0,2.8fr) minmax(0,1.5fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.9fr) minmax(0,.6fr) 272px;font-size:13px;}
+  .pv-head,.pv-krow,.pv-mhead,.pv-mrow{display:grid;grid-template-columns:var(--pv-cols);column-gap:8px;align-items:center;padding:0 8px;min-width:0;}
+  .pv-head > *,.pv-krow > *,.pv-mhead > *,.pv-mrow > *{min-width:0;}
+  .pv-head,.pv-mhead{font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:0.04em;min-height:26px;}
+  .pv-head{background:var(--panel2);border-bottom:1px solid var(--border-strong);}
+  .pv-mhead{background:var(--bg);border-bottom:1px dotted var(--border-strong);}
+  .pv-key{border-top:1px solid var(--border-strong);}
+  .pv-krow{min-height:40px;padding-top:4px;padding-bottom:4px;}
+  .pv-c-url{grid-column:3 / span 2;}
+  .pv-lbl{display:none;}
+  .pv-name{display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px;min-width:0;overflow-wrap:anywhere;}
+  .pv-name code{font-weight:700;}
+  .pv-ok{color:var(--green);font-weight:700;}
+  .pv-fold{border:0;background:none;color:var(--text);font:inherit;padding:0 4px 0 0;min-width:22px;min-height:24px;cursor:pointer;text-align:left;}
+  .pv-krow select,.pv-krow input[type=text]{width:100%;max-width:100%;min-height:28px;box-sizing:border-box;}
+  .pv-grid select,.pv-grid input[type=text]{font-size:12px;height:28px;padding:2px 6px;}
+  .pv-legacy{display:inline-flex;align-items:center;gap:6px;cursor:pointer;min-height:28px;text-transform:none;letter-spacing:0;font-weight:400;font-size:12px;}
+  .pv-legacy input,.pv-m-use input{width:16px;height:16px;margin:0;accent-color:var(--accent);cursor:pointer;}
+  .pv-tok{text-align:right;font-variant-numeric:tabular-nums;}
+  .pv-refcell{display:flex;justify-content:flex-end;}
+  .pv-refbox{display:flex;flex-direction:column;align-items:flex-start;max-width:100%;}
+  .pv-refbtns{display:flex;gap:6px;}
+  .pv-refbox .pv-msg{width:0;min-width:100%;overflow-wrap:anywhere;margin:2px 0 0;}
+  .pv-refbox .pv-msg:empty{display:none;}
+  .pv-refbtn{white-space:nowrap;flex:0 0 auto;}
+  .pv-refbtn:disabled{opacity:.5;cursor:not-allowed;}
+  .pv-sum{color:var(--text-faint);font-size:11px;font-weight:400;}
+  .pv-key[data-open="1"] .pv-sum{display:none;}
+  .pv-knote{padding:0 8px 4px 34px;margin:0;}
+  .pv-knote:empty{display:none;}
+  .pv-knote > .hint:empty{display:none;}
+  .pv-key[data-open="0"] .pv-models{display:none;}
+  .pv-mrow{border-top:1px dotted var(--border-strong);min-height:32px;}
+  .pv-mrow:hover,.pv-mrow:focus-within{background:var(--panel2);}
+  .pv-um{grid-column:1;display:flex;align-items:center;gap:0;min-width:0;}
+  .pv-uh,.pv-m-use{flex:0 0 44px;width:44px;display:flex;align-items:center;justify-content:center;}
+  .pv-m-use{min-height:32px;}
+  .pv-m-name{min-width:0;overflow-wrap:anywhere;font-size:12px;}
+  .pv-pair{grid-column:3 / span 2;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:8px;align-items:center;min-width:0;}
+  .pv-pair > *{min-width:0;}
+  .pv-pair input[type=text]{width:100%;text-align:right;}
+  .pv-mhead .pv-tok{text-align:right;}
+  .pv-mhead .pv-tok,.pv-m-tok{grid-column:6;}
+  .pv-m-msg{grid-column:1 / -1;padding:2px 8px 2px 52px;margin:0;}
+  .pv-m-msg:empty{display:none;}
+  .pv-more{padding:3px 8px 3px 34px;border-top:1px dotted var(--border-strong);}
+  .pv-more:empty{display:none;}
+  .pv-more .pv-add{border:0;background:none;color:var(--accent);font:inherit;font-size:12px;padding:2px 0;min-height:24px;cursor:pointer;text-decoration:underline;}
+  .pv-more.pv-failed{color:var(--amber);background:var(--amber-bg);font-size:12px;}
+  .pv-typed{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:4px;}
+  .pv-typed input{flex:1 1 160px;min-width:0;max-width:260px;min-height:28px;box-sizing:border-box;}
+  .pv-typed .hint{flex:1 1 100%;margin:0;}
+  .field label.jf-thinking{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:6px;margin-top:6px;font-size:12px;text-transform:none;letter-spacing:0;}
+  .field label.jf-thinking input{width:auto;min-height:0;margin:0;}
   .hint.bad{color:var(--red);}
   .table-wrap{overflow-x:auto;border:1px solid var(--border-strong);background:var(--panel2);max-width:100%;}
   @media (max-width: 899px){
     .money-strip{grid-template-columns:1fr 1fr;}
+    .keyfile-strip-main{flex:1 1 100%;}
+  }
+  @media (max-width: 1279px){
+    .pv-head,.pv-mhead{display:none;}
+    .pv-krow,.pv-mrow{display:block;padding:2px 8px;}
+    .pv-cell{display:grid;grid-template-columns:104px minmax(0,1fr);gap:8px;align-items:center;min-height:44px;border-top:1px dotted var(--border);}
+    .pv-cell:first-child{border-top:none;}
+    .pv-lbl{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);font-weight:700;}
+    .pv-cell.nolbl{display:flex;}
+    .pv-tok{text-align:left;}
+    .pv-grid select,.pv-grid input[type=text]{height:44px;font-size:14px;}
+    .pv-krow select,.pv-krow input[type=text]{min-height:44px;}
+    .pv-legacy{min-height:44px;gap:10px;}
+    .pv-legacy input,.pv-m-use input{width:24px;height:24px;}
+    .pv-um{min-height:44px;}
+    .pv-uh,.pv-m-use{min-height:44px;}
+    .pv-cell.pv-pair{display:grid;grid-template-columns:104px minmax(0,1fr) minmax(0,1fr);}
+    .pv-cell.pv-pair::before{content:"In / Out $/1M";font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);font-weight:700;}
+    .pv-fold,.pv-refbtn,.pv-more .pv-add{min-height:44px;min-width:44px;}
+    .pv-knote,.pv-more{padding-left:8px;}
+    .pv-m-msg{padding-left:8px;}
   }
 </style>
 </head>
@@ -717,20 +790,20 @@
           <div class="keyfile-strip-main">
             <span>Put <code>NAME=key</code> lines in <code id="keys-path" data-testid="keys-path">~/.config/fwdloop/.env</code>, then Reload keys &mdash; each row below says whether its key is set. Only names are listed; keys never reach this page.</span>
             <span class="hint bad" id="keys-refusal" data-testid="keys-refusal"></span>
+            <span class="hint" id="keys-open-note" data-testid="keys-open-note"></span>
           </div>
           <div class="keyfile-strip-actions">
+            <button class="btn small" id="open-keys-folder" type="button" data-testid="open-keys-folder" aria-label="Open keys folder">Open keys folder</button>
             <button class="btn small" id="reload-keys" type="button" data-testid="reload-keys">Reload keys</button>
           </div>
         </div>
         <div class="table-wrap" data-testid="provider-table-wrap">
-          <table class="pv-table" data-testid="provider-table">
-            <thead>
-              <tr><th>Key</th><th>Name</th><th>API shape</th><th>Base URL</th><th>Test</th><th>Tokens used</th><th>Balance</th><th>In $/1M</th><th>Out $/1M</th></tr>
-            </thead>
-            <tbody id="pv-rows"></tbody>
-          </table>
+          <div class="pv-grid" data-testid="provider-table">
+            <div class="pv-head" aria-hidden="true"><span>KEY</span><span>API SHAPE</span><span class="pv-c-url">BASE URL</span><span>OLD MAX_TOKENS</span><span class="pv-tok">TOKENS</span><span></span></div>
+            <div id="pv-rows"></div>
+          </div>
         </div>
-        <div class="hint" id="pv-note" data-testid="pv-note" style="margin-top:6px;">Test asks the provider for its model list &mdash; it costs nothing. A price left empty uses the default; a typed price applies from the next model call on.</div>
+        <div class="hint" id="pv-note" data-testid="pv-note" style="margin-top:6px;">⟳ refresh models (free) · old max_tokens: tick if the server wants the old field name</div>
       </section>
       <section id="spanel-money" class="tabpanel" role="tabpanel" aria-labelledby="stab-money" hidden>
         <div class="money-strip" data-testid="money-strip">
@@ -790,6 +863,13 @@
             <div id="jf-new" data-testid="jf-new">
               <div class="hint edit-banner" id="jf-edit-banner" data-testid="jf-edit-banner" hidden></div>
               <div class="field">
+                <label for="jf-model">Model</label>
+                <select id="jf-model" data-testid="jf-model" disabled><option value="">Reading your models…</option></select>
+                <label class="jf-thinking"><input type="checkbox" id="jf-thinking" data-testid="jf-thinking"> Thinking on</label>
+                <div class="hint" id="jf-thinking-note" data-testid="jf-thinking-note"></div>
+                <div class="jf-err" id="jf-err-model" data-testid="jf-err-model"></div>
+              </div>
+              <div class="field">
                 <label for="jf-name">Flow name</label>
                 <input id="jf-name" type="text" placeholder="lowercase letters, digits, - or _" autocomplete="off" spellcheck="false" data-testid="jf-name">
                 <div class="jf-err" id="jf-err-flowName" data-testid="jf-err-flowName"></div>
@@ -800,14 +880,8 @@
                   <div class="jf-gut" id="jf-job-gut" data-testid="jf-job-gut" aria-hidden="true"><div class="jf-gut-in"></div></div>
                   <textarea class="jf-wrap" id="jf-job" rows="6" data-testid="jf-job" autocomplete="off" spellcheck="false" placeholder="Read my resume&#10;~keep it under 600 words&#10;Ask: check it with me&#10;Write it out"></textarea>
                 </div>
-                <div class="hint">One step per line. A line starting with <code>~</code> is a guardrail of the step above it. <code>Ask:</code> stops for you; <code>Ask 2h:</code> sets that ask's own wait.</div>
+                <div class="hint">One step per line. A line starting with <code>~</code> is a guardrail of the step above it. <code>Ask:</code> stops for you; <code>Ask 2h:</code> sets that ask's own wait. With a Destination, the last line writes the result there.</div>
                 <div class="jf-err" id="jf-err-job" data-testid="jf-err-job"></div>
-              </div>
-              <div class="field">
-                <label for="jf-dest-folder">Destination</label>
-                <input id="jf-dest-folder" type="text" placeholder="/full/path/to/a/folder" autocomplete="off" spellcheck="false" data-testid="jf-dest-folder">
-                <div class="hint">Where the accepted result is placed, at the last step. Leave empty for no send.</div>
-                <div class="jf-err" id="jf-err-destination" data-testid="jf-err-destination"></div>
               </div>
               <div class="field">
                 <label for="jf-inputs">Inputs</label>
@@ -817,6 +891,12 @@
                 </div>
                 <div class="hint">One line per file: a name, a colon, its full path starting with /. The page never reads the file.</div>
                 <div class="jf-err" id="jf-err-inputs" data-testid="jf-err-inputs"></div>
+              </div>
+              <div class="field">
+                <label for="jf-dest-folder">Destination</label>
+                <input id="jf-dest-folder" type="text" placeholder="/full/path/to/a/folder" autocomplete="off" spellcheck="false" data-testid="jf-dest-folder">
+                <div class="hint">Where the accepted result is placed, at the last step. Leave empty for no send.</div>
+                <div class="jf-err" id="jf-err-destination" data-testid="jf-err-destination"></div>
               </div>
               <div class="cap-row" data-testid="cap-row">
                 <div class="cap-field">
@@ -849,6 +929,9 @@
               <div class="field dimmed" data-testid="jf-run-job-field">
                 <label>The job</label>
                 <div class="ro-lines" id="jf-run-job" data-testid="jf-run-job"></div>
+                <div class="hint" id="jf-run-model" data-testid="jf-run-model"></div>
+                <select id="jf-run-pick" data-testid="jf-run-pick" aria-label="Model to run this job with" hidden disabled><option value="">Reading your models…</option></select>
+                <div class="jf-err" id="jf-err-run-model" data-testid="jf-err-run-model"></div>
                 <div class="hint">Fixed by the signature (the steps, the job lines and the asks). To change them, edit the job: the AI drafts a new plan, and signing it replaces this job.</div>
                 <button class="btn" type="button" id="jf-run-edit" data-testid="jf-run-edit">Edit this job</button>
                 <div class="hint" id="jf-run-edit-why" data-testid="jf-run-edit-why"></div>
@@ -886,6 +969,7 @@
               <div class="field dimmed" data-testid="jf-resume-job-field">
                 <label>The job</label>
                 <div class="ro-lines" id="jf-resume-job" data-testid="jf-resume-job"></div>
+                <div class="hint" id="jf-resume-model" data-testid="jf-resume-model"></div>
               </div>
               <div class="field dimmed">
                 <label>Destination</label>
@@ -2882,8 +2966,22 @@
   // One last-payload signature per render. Equal payload = the DOM is not touched. `selectRun` resets
   // the ones a different selection invalidates.
   var lastSig = { inbox: null, runs: null, detail: null, asks: null, audit: null };
+  // `timeLeftMs` differs on every poll and is not part of what a page draw is built from (the words move in place: `liveLeft`/`tickLeft`),
+  // so it is left out: a poll that changed nothing else is "unchanged" and rebuilds nothing (a rebuild resets every scrolled box).
   function sig(obj){
-    try { return JSON.stringify(obj); } catch(e){ return null; }
+    try { return JSON.stringify(obj, function(k, v){ return k === "timeLeftMs" ? undefined : v; }); } catch(e){ return null; }
+  }
+  // "time left" counts down IN PLACE. ONE writer: `liveLeft` stamps the element with when its time ends and how to say it; `tickLeft` (the page's
+  // 2 s tick) says it again. Nothing else re-draws these words, so the countdown never costs a rebuild over what the human is reading.
+  function liveLeft(el, timeLeftMs, say){
+    if(typeof timeLeftMs !== "number") { say(timeLeftMs); return; }
+    el.classList.add("live-left");
+    el._endsAt = Date.now() + timeLeftMs;
+    el._say = say;
+    say(timeLeftMs);
+  }
+  function tickLeft(){
+    document.querySelectorAll(".live-left").forEach(function(el){ el._say(Math.max(0, el._endsAt - Date.now())); });
   }
   // Saves/restores scrollTop of the given element ids around a re-render.
   function withScrollPreserved(ids, fn){
@@ -2939,9 +3037,9 @@
       document.getElementById("run-content").hidden = true;
     });
     // the same late-reply guard on audit, job and asks: a reply for a run the user already left paints nothing
-    getJSON(base + "/audit").then(function(a){ if(still()) renderAudit(a); }).catch(function(){ if(still()) renderAudit(null); });
+    getJSON(base + "/audit").then(function(a){ if(still()){ lastSig.audit = sig(a); renderAudit(a); } }).catch(function(){ if(still()) renderAudit(null); });
     getJSON(base + "/job").then(function(j){ if(still()) renderJob(j); }).catch(function(){ if(still()) renderJob(null); });
-    getJSON(base + "/asks").then(function(result){ if(still()) renderAsk(result, focusAskId || null); }).catch(function(e){
+    getJSON(base + "/asks").then(function(result){ if(still()) paintAsks(result, focusAskId || null); }).catch(function(e){
       if(still()) renderAsk(null, null, loadFailureText(e));
     });
   }
@@ -2986,17 +3084,21 @@
       withScrollPreserved(["left-pane-body"], function(){ runsFilterBar.setItems(rows); runsFilterBar.refresh(); });
     }).catch(function(){});
   }
+  // The ONE way the Ask tab is drawn from the books: the Ask tab is drawn from the books AND the page's own pending answer ("working…" block).
+  // The signature is stamped only when renderAsk REALLY drew (it returns false when held over a typed reason): a held redraw leaves the stamp
+  // unset, so the next tick retries it against the same payload. Both the selection's first draw and every poll come through here, so the
+  // first poll after a click finds the stamp and rebuilds nothing (an unstamped first draw was a second, needless rebuild 2 s later).
+  function paintAsks(a, focusAskId){
+    var next = sig({ asks: a, pending: pendingAnswer });
+    if(focusAskId || next === null || next !== lastSig.asks){ lastSig.asks = renderAsk(a, focusAskId) ? next : null; }
+  }
   function reloadRun(flow, runId, skipLists){
     var base = "/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId);
     var still = function(){ return currentFlow === flow && currentRunId === runId; };
     var detailP = getJSON(base).then(function(d){ if(still()) paintRun(d); return d; }).catch(function(){ if(still()) openRunLive = false; return null; });   // unreadable books: the list rate, not 2 s forever
     var asksP = getJSON(base + "/asks").then(function(a){
       if(still()){
-        // the Ask tab is drawn from the books AND the page's own pending answer ("working…" block)
-        var next = sig({ asks: a, pending: pendingAnswer });
-        // the signature is stamped only when renderAsk REALLY drew (it returns false when held over a typed
-        // reason): a held redraw leaves the stamp unset, so the next tick retries it against the same payload
-        if(next === null || next !== lastSig.asks){ lastSig.asks = renderAsk(a, null) ? next : null; }
+        paintAsks(a, null);
       }
       return a;
     }).catch(function(e){ if(still()){ lastSig.asks = null; renderAsk(null, null, loadFailureText(e)); } return null; });
@@ -3016,6 +3118,7 @@
     if(document.hidden){ wasHidden = true; schedulePoll(LIVE_POLL_MS); return; }
     var catchUp = wasHidden;   // first tick after the tab came back: force both
     wasHidden = false;
+    tickLeft();
     var watch = live;
     var sel = currentFlow !== null && currentRunId !== null;
     var watchIsSelected = watch && sel && watch.flow === currentFlow && watch.runId === currentRunId;
@@ -3167,7 +3270,11 @@
     wrap.appendChild(head);
     var meta = textDiv("wf-sign-line", "");
     meta.setAttribute("data-testid", "inbox-sign-word");
-    meta.innerHTML = signHtml(row.word, stopStatusLine(row), stopStatusLine(row));
+    if(row.waiting){
+      liveLeft(meta, row.timeLeftMs, function(ms){ var h = signHtml(row.word, "time left: " + duration(ms), "time left: " + duration(ms)); if(meta._h !== h){ meta._h = h; meta.innerHTML = h; } });
+    } else {
+      meta.innerHTML = signHtml(row.word, stopStatusLine(row), stopStatusLine(row));
+    }
     wrap.appendChild(meta);
     if(typeof row.question === "string"){
       wrap.appendChild(textDiv("step-meta", "question: " + row.question));
@@ -3224,7 +3331,11 @@
   // role="button" (never a real <button>), same posture as the step-map's
   // own SVG nodes elsewhere on this page. ----
   function askStatusBlock(ask){
-    if(ask.waiting) return textDiv("wf-meta", "time left: " + duration(ask.timeLeftMs));
+    if(ask.waiting){
+      var left = textDiv("wf-meta", "");
+      liveLeft(left, ask.timeLeftMs, function(ms){ var t = "time left: " + duration(ms); if(left.textContent !== t) left.textContent = t; });
+      return left;
+    }
     // an open ask with a saved answer: the header meta line already says the resume label (stuck or starting) — once.
     if(ask.open && ask.resume) return null;
     var bits = [ask.statusText || ask.status];
@@ -3722,7 +3833,17 @@
         kept[w.getAttribute("data-testid")] = { open: w.getAttribute("data-open"), expanded: w.firstChild.getAttribute("aria-expanded") === "true" };
       });
     }
+    // A redraw (the books really changed) must not move what the human is reading either: every evidence box keeps its scrollTop (same run only),
+    // and so does the pane. The rebuilt boxes are filled below, per block, once they are in the page.
+    var sameRun = askDrawnFor === result.flow + "/" + result.runId;
+    var tops = {};
+    if(sameRun){
+      list.querySelectorAll("[data-testid^='ask-block-']").forEach(function(w){
+        tops[w.getAttribute("data-testid")] = Array.prototype.map.call(w.querySelectorAll(".scroll"), function(b){ return b.scrollTop; });
+      });
+    }
     askDrawnFor = result.flow + "/" + result.runId;
+    var paneTop = (document.getElementById("right-pane-body") || {}).scrollTop;
     list.innerHTML = "";
     // Default expansion: the block holding the ask a click from the Inbox
     // (`focusAskId`) named wins; otherwise a block with an open ask expands;
@@ -3745,6 +3866,8 @@
         row.classList.add("audit-group-highlight");
       }
       list.appendChild(row);
+      var savedTops = tops[row.getAttribute("data-testid")];
+      if(savedTops) Array.prototype.forEach.call(row.querySelectorAll(".scroll"), function(b, i){ if(savedTops[i]) b.scrollTop = savedTops[i]; });
       if(expanded){
         // Scroll the focused ask into view (M4a-1 design: clicking a stop
         // on the left "focuses" it on the right) — never on a run's own
@@ -3754,6 +3877,7 @@
         }
       }
     });
+    if(sameRun && paneTop){ var pane = document.getElementById("right-pane-body"); if(pane) pane.scrollTop = paneTop; }
     return true;
   }
 
@@ -3975,6 +4099,16 @@
     function stepsFor(state, ctx){
       var out = [];
       var who = ctx.model ? ctx.model : "the drafter";
+      // M4d am10: when the server sent the draft's own list (state.stepList, built by one function in src/draft-steps.js) it is rendered as it is,
+      // each ✗ plan-check refusal turned into its plain sentence; a draft with no log lists what it always did (`fallback`).
+      function draftLines(fallback){
+        if(!state || !Array.isArray(state.stepList) || state.stepList.length === 0) return fallback();
+        state.stepList.forEach(function(st){
+          var row = {id: st.id, label: st.label, status: st.status === "failed" ? "failed" : "done", details: st.details || []};
+          if(Array.isArray(st.reds)){ var fd = failedDetails(st.reds); row.details = fd.details; row.raw = fd.raw; }
+          out.push(row);
+        });
+      }
       var cap = state && state.card && state.card.capUsd !== undefined && state.card.capUsd !== "" ? state.card.capUsd : "";
       var capPart = cap !== "" ? ", run cap $" + cap : "";
       if(state){
@@ -3982,7 +4116,7 @@
           out.push({id: "drafting", label: "drafting with " + who + capPart, status: "running", details: []});
         } else if(Array.isArray(state.revises)){
           // amendment 14: a draft whose first plan was green. One line per revise with its result; a red one shows its reds (its sentence is on the card error line).
-          out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
+          draftLines(function(){ out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []}); });
           var reviseNo = 0;
           state.revises.forEach(function(rv){
             // an answer redraft (amendment 24 item 4) is not a revise and is not counted as one
@@ -3997,13 +4131,15 @@
           }
           if(state.phase === "questions-open") out.push({id: "question", label: "waiting for your answer (" + state.openK + " of " + state.total + ")", status: "waiting", details: []});
         } else if(state.phase === "red"){
-          out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
-          var cf = failedDetails(state.reds);
-          out.push({id: "checks", label: "plan checks", status: "failed", details: cf.details, raw: cf.raw});
+          draftLines(function(){
+            out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
+            var cf = failedDetails(state.reds);
+            out.push({id: "checks", label: "plan checks", status: "failed", details: cf.details, raw: cf.raw});
+          });
         } else if(state.phase === "stopped"){
           out.push({id: "drafting", label: "drafting with " + who + capPart, status: "failed", details: []});
         } else if(state.phase === "green" || state.phase === "revising"){
-          out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
+          draftLines(function(){ out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []}); });
           if(ctx.starting){
             out.push({id: "signed", label: "signed", status: "done", details: []});
           } else if(state.phase !== "revising"){
@@ -4147,6 +4283,9 @@
         inputs: inputsBox.value,
         capUsd: byId("jf-cap-money").value.trim(),
         askWait: askWaitEl.value.trim(),
+        provider: modelPick().provider,
+        model: modelPick().model,
+        thinking: thinkingEl.checked && !thinkingEl.disabled,
         editOf: editOf
       };
     }
@@ -4158,7 +4297,9 @@
     function currentRun(){
       return {
         flow: pickedFlow || "", inputs: readRows(runInputsEl), runId: (byId("jf-run-id").value.trim() === autoRunId ? "" : byId("jf-run-id").value.trim()),
-        destination: runDestEl.value.trim(), capUsd: runCapEl.value.trim(), askWaits: runWaits()
+        destination: runDestEl.value.trim(), capUsd: runCapEl.value.trim(), askWaits: runWaits(),
+        // a flow with no recorded model runs with the pick (am7b); a flow with one sends none
+        ...(runPickEl.hidden ? {} : { provider: runPickChoice().provider, model: runPickChoice().model })
       };
     }
     // pure-ish (reads the boxes): does the Run form differ from the flow's own signed values? Only a convenience that picks the button's wording
@@ -4222,8 +4363,10 @@
       var seq = ++capNoteSeq;
       if(cap === ""){ setMoneyNote("", false); return; }
       // a Resume holds only what the run has still to spend (amendment 4 item 1): the server is told what is already spent
-      var spent = (mode === "resume" && resumeCtx) ? "&spent=" + encodeURIComponent(String(resumeCtx.form.spentUsd)) : "";
-      authorGet("/api/author/monthly-check?cap=" + encodeURIComponent(cap) + spent).then(function(j){
+      var spent = (mode === "resume" && resumeCtx) ? "&spent=" + encodeURIComponent(String(resumeCtx.form.spentUsd)) + "&flow=" + encodeURIComponent(resumeCtx.flow) : "";
+      var pk = modelPick();
+      var picked = (mode === "new" && pk.provider !== "") ? "&provider=" + encodeURIComponent(pk.provider) + "&model=" + encodeURIComponent(pk.model) : "";
+      authorGet("/api/author/monthly-check?cap=" + encodeURIComponent(cap) + spent + picked).then(function(j){
         if(seq !== capNoteSeq) return;
         if(!j || j.ok !== true){ setMoneyNote("", false); return; }
         var v = Number(cap);
@@ -4251,6 +4394,7 @@
         return row ? row.querySelector(".jf-err") : null;
       }
       if(field === "inputs") return byId(mode === "run" ? "jf-err-run-inputs" : "jf-err-inputs");
+      if(mode === "run" && field === "model") return byId("jf-err-run-model");
       if(mode === "run" && (field === "destination" || field === "capUsd")) return byId("jf-err-run-" + field);
       if(mode === "run" && /^askWaits/.test(field)) return byId("jf-err-run-askWaits");
       if(mode === "resume" && field === "capUsd") return byId("jf-err-resume-capUsd");
@@ -4356,6 +4500,8 @@
       paintedFlow = pickedKey();
       runSignInfo = null;
       paintJobDim(byId("jf-run-job"), f ? f.jobLines : []);
+      byId("jf-run-model").textContent = f && f.model ? "Model: " + f.model.label : (f ? "No model is recorded for this job. Pick the one to run it with; it is then remembered for this job." : "");
+      runPickEl.hidden = !(f && !f.model);
       runDestEl.value = v && v.destination ? v.destination : "";
       runDestEl.readOnly = !(f && f.hasSend);
       runDestEl.classList.toggle("locked", !(f && f.hasSend));
@@ -4412,10 +4558,14 @@
       byId("jf-err-flow").textContent = "";
       renderFlowSearch(); paintRunFlow(); refreshStartEnabled();
     }
-    function unpickFlow(){
-      if(cardLocked()) return;
+    // the one writer of the Run-a-signed-flow pick (the Change link and Clear both go through it)
+    function clearPick(){
       pickedFlow = null; pickedRun = null; pickedLabel = ""; againEntry = null; rwHl = 0;
       runFlowSel.value = "";
+    }
+    function unpickFlow(){
+      if(cardLocked()) return;
+      clearPick();
       renderFlowSearch(); paintRunFlow(); refreshStartEnabled();
     }
     function loadFlows(force){
@@ -4430,12 +4580,76 @@
         refreshStartEnabled();
       }).catch(function(){ /* the card keeps what it had */ });
     }
-    // the drafting line names the model the drafter really uses (Settings' deepseek row), never a guess
-    function loadModel(){
-      authorGet("/api/settings/providers").then(function(j){
-        var rows = (j && j.ok === true && Array.isArray(j.rows)) ? j.rows : [];
-        for(var i = 0; i < rows.length; i++){ if(rows[i].slot === "deepseek" && rows[i].model){ drafterModel = String(rows[i].model); } }
-      }).catch(function(){ /* the line then says "the drafter" */ });
+    // ---- the Model menu and the per-job "Thinking on" box (M4d amendments 6 and 7) ----
+    // The menu is the ticked lines of Settings > Providers, "provider · model"; the server decides what is listed (GET /api/author/models) and
+    // whether Thinking can change for a line (one function over bareagent's answer, src/thinking.js). The page decides nothing.
+    var modelEl = byId("jf-model");
+    var thinkingEl = byId("jf-thinking");
+    var modelLines = [];
+    function modelPick(){
+      var l = modelLines[Number(modelEl.value)];
+      return l ? {provider: l.slot, model: l.model} : {provider: "", model: ""};
+    }
+    // the box's state for a menu line: unticked by default; greyed with the server's sentence when thinking cannot change for that model
+    function thinkingBoxState(line, wasChecked){
+      if(!line || !line.thinking) return {disabled: true, checked: false, note: ""};
+      if(line.thinking.canChange !== true) return {disabled: true, checked: false, note: line.thinking.say || ""};
+      // an unchecked model's note (am11 item 2) says "thinking off"; ticked, it would be wrong, so it goes
+      return {disabled: false, checked: wasChecked === true, note: wasChecked === true ? "" : (line.thinking.say || "")};
+    }
+    function paintThinking(){
+      var st = thinkingBoxState(modelLines[Number(modelEl.value)], thinkingEl.checked);
+      thinkingEl.disabled = st.disabled; thinkingEl.checked = st.checked;
+      byId("jf-thinking-note").textContent = st.note;
+      drafterModel = modelPick().model;
+    }
+    modelEl.addEventListener("change", function(){ paintThinking(); refreshCapNote(); });
+    thinkingEl.addEventListener("change", paintThinking);
+    function setModelPick(provider, model){
+      for(var i = 0; i < modelLines.length; i += 1){ if(modelLines[i].slot === provider && modelLines[i].model === model){ modelEl.value = String(i); break; } }
+      paintThinking();
+    }
+    // M4d amendment 7b: an old signed flow with no recorded model is run with the model picked here. This menu is the New job menu's twin:
+    // the same ticked lines (values are indexes into `modelLines`), the pick kept across a re-read. Shown only for a flow with no record (paintRunFlow).
+    var runPickEl = byId("jf-run-pick");
+    var runPicked = {provider: "", model: ""};   // what the person chose here, by identity (the indexes change when the list is re-read)
+    function runPickChoice(){
+      var l = runPickEl.hidden ? null : modelLines[Number(runPickEl.value)];
+      return l ? {provider: l.slot, model: l.model} : {provider: "", model: ""};
+    }
+    runPickEl.addEventListener("change", function(){ runPicked = runPickChoice(); });
+    function syncRunPick(){
+      runPickEl.innerHTML = modelEl.innerHTML; runPickEl.disabled = modelEl.disabled;
+      for(var i = 0; i < modelLines.length; i += 1){ if(modelLines[i].slot === runPicked.provider && modelLines[i].model === runPicked.model){ runPickEl.value = String(i); break; } }
+    }
+    // `tries` counts the reads that failed in a row (a click passes an Event, which is not a number: that is a fresh read).
+    // A failed read never leaves the menu blank: it says so and reads again by itself, a few times, so the first load fills it.
+    function loadModel(tries){
+      var failed = typeof tries === "number" ? tries : 0;
+      function unread(){
+        if(modelLines.length > 0) return;   // a menu that was filled keeps what it had
+        modelEl.innerHTML = ""; modelEl.disabled = true;
+        var o = document.createElement("option"); o.value = "";
+        o.textContent = failed < 5 ? "Could not read your models. Trying again\u2026" : "Could not read your models. Reload the page.";
+        modelEl.appendChild(o);
+        syncRunPick();
+        if(failed < 5) setTimeout(function(){ loadModel(failed + 1); }, 1500);
+      }
+      authorGet("/api/author/models").then(function(j){
+        if(!j || j.ok !== true){ failed += 1; unread(); return; }
+        var was = modelPick();
+        modelLines = j.lines || [];
+        modelEl.innerHTML = "";
+        if(modelLines.length === 0){
+          var none = document.createElement("option"); none.value = ""; none.textContent = j.say || "Tick a model in Settings > Providers."; modelEl.appendChild(none);
+          modelEl.disabled = true;
+        } else {
+          modelEl.disabled = false;
+          modelLines.forEach(function(l, i){ var o = document.createElement("option"); o.value = String(i); o.textContent = l.label; modelEl.appendChild(o); });
+        }
+        setModelPick(was.provider, was.model);
+        syncRunPick();
+      }).catch(function(){ failed += 1; unread(); });
     }
     function setMode(m){
       mode = m;
@@ -4524,7 +4738,7 @@
       var v = extrasFor(state);
       var html = v ? v.blocks.map(function(b){
         return '<div class="msg" id="' + b.id + '" data-testid="' + b.id + '"><b class="readout-head">' + escapeXml(b.head) + '</b>' +
-          (b.sub ? ' <span class="hint">(' + escapeXml(b.sub) + ')</span>' : '') + '\n' + b.lines.map(escapeXml).join("\n") + '</div>';
+          (b.sub ? ' <span class="hint">(' + escapeXml(b.sub) + ')</span>' : '') + (b.lines.length ? '\n' + b.lines.map(escapeXml).join("\n") : '') + '</div>';
       }).join("") : "";
       if(html !== extrasKey){ extrasKey = html; extrasEl.innerHTML = html; }
     }
@@ -4615,6 +4829,8 @@
       leaveEdit();
       ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; });
       askWaitEl.value = "1h";
+      thinkingEl.checked = false; // per job: unticked for the next one
+      clearPick(); // a flow picked in Run a signed flow (Run again too) goes with the rest
       refreshCapNote();
       openNewCard();
       loadFlows(mode === "run");
@@ -4808,6 +5024,7 @@
         resumeCtx = {flow: detail.flow, runId: detail.runId, form: j};
         chatActionOk();
         paintJobDim(byId("jf-resume-job"), j.jobLines);
+        byId("jf-resume-model").textContent = j.model ? "Model: " + j.model.label : "No model is recorded for this job.";
         byId("jf-resume-dest").textContent = j.values.destination || "no send step";
         byId("jf-resume-inputs").innerHTML = "";
         (j.inputs || []).forEach(function(i){ var d = document.createElement("div"); d.className = "ro-line"; d.textContent = i.role + ": " + i.path; byId("jf-resume-inputs").appendChild(d); });
@@ -4909,6 +5126,7 @@
       openNewCard();
       setMode("new");
       setVal("jf-name", c.flowName); setVal("jf-job", c.job); setVal("jf-cap-money", c.capUsd);
+      setModelPick(c.provider || "", c.model || ""); thinkingEl.checked = c.thinking === true && !thinkingEl.disabled;
       refreshCapNote();
       setVal("jf-dest-folder", typeof c.destination === "string" ? c.destination : ""); setVal("jf-inputs", typeof c.inputs === "string" ? c.inputs : ""); setVal("jf-ask-wait", c.askWait || "1h");
       if(c.editOf && typeof c.editOf.flow === "string"){
@@ -4997,6 +5215,8 @@
     document.addEventListener("fwdloop-limit-changed", function(){ refreshCapNote(); });
 
     loadModel();
+    document.getElementById("settings-back").addEventListener("click", loadModel); // the menu re-reads after Settings changed what is ticked
+    document.getElementById("tab-chat").addEventListener("click", loadModel);
     loadFlows();
     reattachLive();
     refreshStartEnabled();
@@ -5039,7 +5259,7 @@
   var PV_NOTE_DEFAULT = pvNote.textContent;
   document.getElementById("settings-open").addEventListener("click", function(){
     mainView.hidden = true; settingsView.hidden = false;
-    loadProviders(); loadMoney();
+    loadProviders(true); loadMoney();
   });
   document.getElementById("settings-back").addEventListener("click", function(){
     settingsView.hidden = true; mainView.hidden = false;
@@ -5048,114 +5268,247 @@
   document.getElementById("stab-money").addEventListener("click", function(){ loadMoney(); });
   document.getElementById("stab-providers").addEventListener("click", function(){ loadProviders(); });
 
-  function loadProviders(){
-    return getJSON("/api/settings/providers").then(paintProviders, function(e){
+  // `list` true = also ask each provider for its model list (free): on page open, on Reload keys. A save repaints without asking again.
+  function loadProviders(list){
+    return getJSON("/api/settings/providers").then(function(d){ paintProviders(d, list === true); }, function(e){
       setNote(document.getElementById("keys-refusal"), true, loadFailureText(e));
     });
   }
-  document.getElementById("reload-keys").addEventListener("click", function(){ loadProviders(); });
+  // borrowed-from: bareloop src/panel/index.html@07c298f (Open keys folder): the server opens the FOLDER in the file manager; if it cannot, the path shows as text.
+  document.getElementById("open-keys-folder").addEventListener("click", function(){
+    var out = document.getElementById("keys-open-note");
+    out.textContent = "";
+    postJSON("/api/settings/open-keys-folder", {}).then(function(r){
+      var b = r.body || {};
+      if(b.ok === true) out.textContent = b.opened ? "" : "Could not open it here. Your keys folder: " + (b.path || "(unknown)");
+      else out.textContent = settingsRefusal(r);
+    }, function(){ out.textContent = networkText(); });
+  });
+  document.getElementById("reload-keys").addEventListener("click", function(){ loadProviders(true); });
 
-  function sourceWord(src){
-    if(src === "table") return "default";
-    if(src === "ceiling") return "highest known rate, the model has no listed price";
-    return "set here";
-  }
-  var PRICE_FIELDS = ["inPerM", "outPerM"];
-  // Name, API shape and Base URL are editable (M4d amendment 1), saved on change one field at a time.
-  var PROV_FIELDS = ["name", "shape", "baseUrl"];
+  // M4d Providers layout F. One parent block per key (.pv-key): its key band (name, API shape select, Base URL box, the legacy tick, tokens,
+  // the Refresh button), a folded summary, and its model lines as child rows (.pv-mrow). The key row owns shape, Base URL and the legacy
+  // tick, so a model line can never drift from them. Shape and Base URL are always editable; a change of either saves both (judged together).
+  var folds = {};      // slot -> true (unfolded) / false (folded): set once, on first paint (a key with a ticked model starts unfolded), then only the person changes it
+  var typedOpen = {};  // slot -> true while "+ type a model name" is open
   function buildProviderRow(row){
-    var tr = document.createElement("tr");
-    tr.setAttribute("data-slot", row.slot);
-    tr.setAttribute("data-testid", "provider-row-" + row.slot);
-    var balance = row.canBalance
-      ? '<button class="btn small" type="button" data-act="balance" data-testid="prov-balance">Check</button><div class="hint pv-balance-result" data-f="balance-result"></div>'
-      : '<span class="hint">not offered by this provider</span>';
-    var prices = PRICE_FIELDS.map(function(f){
-      return '<td class="pv-price-cell"><input type="text" inputmode="decimal" data-field="' + f + '" data-testid="price-' + f + '" aria-label="' + escapeXml(row.label + " " + f) + '">' +
-        '<div class="hint pv-msg" data-f="msg-' + f + '" data-testid="price-msg-' + f + '"></div></td>';
-    }).join("");
-    tr.innerHTML =
-      '<td><code>' + escapeXml(row.envVar) + '</code><div class="hint" data-f="status" data-testid="pv-status-' + escapeXml(row.slot) + '"></div></td>' +
-      '<td class="pv-price-cell"><input type="text" data-prov="name" data-testid="prov-name" aria-label="' + escapeXml(row.label + " name") + '" autocomplete="off" spellcheck="false"><div class="hint pv-msg" data-f="msg-name" data-testid="prov-msg-name"></div></td>' +
-      '<td class="pv-price-cell"><select data-prov="shape" data-testid="prov-shape" aria-label="' + escapeXml(row.label + " API shape") + '"></select><div class="hint pv-msg" data-f="msg-shape" data-testid="prov-msg-shape"></div></td>' +
-      '<td class="pv-price-cell"><input type="text" data-prov="baseUrl" data-testid="prov-baseurl" aria-label="' + escapeXml(row.label + " Base URL") + '" autocomplete="off" spellcheck="false"><div class="hint pv-msg" data-f="msg-baseUrl" data-testid="prov-msg-baseUrl"></div></td>' +
-      '<td class="pv-test-cell"><button class="btn small" type="button" data-act="test" data-testid="prov-test">Test</button><div class="hint pv-test-result" data-f="test" data-testid="prov-test-result"></div></td>' +
-      '<td data-f="tokens" data-testid="pv-tokens-' + escapeXml(row.slot) + '"></td>' +
-      '<td>' + balance + '</td>' + prices;
-    tr.querySelectorAll("input").forEach(function(inp){
+    var key = document.createElement("div");
+    key.className = "pv-key";
+    key.setAttribute("data-slot", row.slot);
+    key.setAttribute("data-testid", "provider-row-" + row.slot);
+    key.innerHTML =
+      '<div class="pv-krow">' +
+        '<div class="pv-cell pv-name nolbl"><button class="pv-fold" type="button" data-act="fold" data-testid="pv-fold"></button><code></code><span class="pv-status" data-f="status" data-testid="pv-status-' + escapeXml(row.slot) + '"></span><span class="pv-sum" data-f="sum" data-testid="pv-sum"></span></div>' +
+        '<div class="pv-cell"><span class="pv-lbl">API shape</span><select data-prov="shape" data-testid="prov-shape" aria-label="' + escapeXml(row.label + " API shape") + '"></select></div>' +
+        '<div class="pv-cell pv-c-url"><span class="pv-lbl">Base URL</span><input type="text" data-prov="baseUrl" data-testid="prov-baseurl" aria-label="' + escapeXml(row.label + " Base URL") + '" autocomplete="off" spellcheck="false" placeholder="type the Base URL"></div>' +
+        '<div class="pv-cell"><span class="pv-lbl">Old max_tokens</span><label class="pv-legacy"><input type="checkbox" data-prov="legacyMaxTokens" data-testid="prov-legacy" aria-label="' + escapeXml(row.label + " legacy max_tokens") + '"><span data-f="legacy-word">off</span></label></div>' +
+        '<div class="pv-cell pv-tok pv-ktok"><span class="pv-lbl">Tokens</span><span data-f="tokens" data-testid="pv-tokens-' + escapeXml(row.slot) + '"></span></div>' +
+        '<div class="pv-cell pv-refcell nolbl"><div class="pv-refbox"><div class="pv-refbtns"><button class="btn small pv-refbtn" type="button" data-act="test-key" data-testid="prov-test" aria-label="' + escapeXml("Test " + row.envVar) + '">Test</button><button class="btn small pv-refbtn" type="button" data-act="refresh-models" data-testid="prov-refresh" aria-label="' + escapeXml("Refresh models for " + row.label) + '">&#10227; Refresh</button></div><div class="hint pv-msg" data-f="msg-test" data-testid="prov-msg-test" role="status"></div></div></div>' +
+      '</div>' +
+      '<div class="pv-knote"><div class="hint bad pv-msg" data-f="msg-edit" data-testid="prov-msg-edit"></div><div class="hint pv-msg" data-f="msg-legacyMaxTokens" data-testid="prov-msg-legacyMaxTokens"></div></div>' +
+      '<div class="pv-models" data-models-for="' + escapeXml(row.slot) + '" data-testid="models-row-' + escapeXml(row.slot) + '">' +
+        '<div class="pv-mhead" aria-hidden="true"><span class="pv-um"><span class="pv-uh">USE</span><span>MODEL</span></span><span class="pv-pair"><span>IN $/1M</span><span>OUT $/1M</span></span><span class="pv-tok">TOKENS</span></div>' +
+        '<div data-f="models"></div>' +
+        '<div class="pv-more"><button class="pv-add" type="button" data-act="typed-open" data-testid="model-typed-open">+ type a model name</button>' +
+        '<div class="pv-typed" data-f="typed" hidden><input type="text" data-typed="1" data-testid="model-typed" autocomplete="off" spellcheck="false" aria-label="' + escapeXml(row.label + " model name") + '" placeholder="type a model name"> ' +
+        '<button class="btn small" type="button" data-act="add-model" data-testid="model-add">Add</button><div class="hint pv-msg" data-f="typed-msg" data-testid="model-typed-msg"></div></div></div>' +
+      '</div>';
+    key.querySelector("code").textContent = row.envVar;
+    key.querySelectorAll("input").forEach(function(inp){
       inp.addEventListener("input", function(){ inp.setAttribute("data-dirty", "1"); });
     });
-    return tr;
+    key.querySelector("select").addEventListener("change", function(ev){ ev.target.setAttribute("data-dirty", "1"); });
+    return key;
+  }
+  // One child row per model: [Use][name], In + Out side by side, Tokens. The price pair is both-or-neither; the server's one rule says why not.
+  function buildModelLine(slot, m){
+    var d = document.createElement("div");
+    d.className = "pv-mrow";
+    d.setAttribute("data-model", m.model);
+    d.setAttribute("data-testid", "model-line");
+    d.innerHTML =
+      '<div class="pv-cell pv-um nolbl"><span class="pv-m-use"><input type="checkbox" data-mf="use" data-testid="model-use"></span><code class="pv-m-name"></code></div>' +
+      '<div class="pv-cell pv-pair"><label><input type="text" inputmode="decimal" data-mf="inPerM" data-testid="model-in" autocomplete="off"></label>' +
+      '<label><input type="text" inputmode="decimal" data-mf="outPerM" data-testid="model-out" autocomplete="off"></label></div>' +
+      '<div class="pv-cell pv-tok pv-m-tok"><span class="pv-lbl">Tokens</span><span data-f="model-tokens" data-testid="model-tokens"></span></div>' +
+      '<div class="hint pv-msg pv-m-msg" data-f="msg-model" data-testid="model-msg"></div>';
+    d.querySelector(".pv-m-name").textContent = m.model;
+    d.querySelector("[data-mf=use]").setAttribute("aria-label", slot + " " + m.model + " use");
+    d.querySelector("[data-mf=inPerM]").setAttribute("aria-label", m.model + " price in per 1M tokens");
+    d.querySelector("[data-mf=outPerM]").setAttribute("aria-label", m.model + " price out per 1M tokens");
+    d.querySelectorAll("input[type=text]").forEach(function(inp){
+      inp.addEventListener("input", function(){ inp.setAttribute("data-dirty", "1"); });
+    });
+    return d;
+  }
+  // The provider's own model list per key (asked on page open, Reload keys, Refresh models): { models: [ids] } or { why }. Not saved: only ticked or typed lines are.
+  var listed = {};
+  var lastData = null;
+  function linesFor(row){
+    var l = listed[row.slot];
+    var have = {};
+    row.models.forEach(function(m){ have[m.model] = true; });
+    var extra = (l && l.models ? l.models : []).filter(function(id){ return !have[id]; }).map(function(id){ return { model: id, use: false }; });
+    return row.models.concat(extra);
+  }
+  // "3 models · none ticked", "2 models · 1 ticked"; a list that failed with nothing saved says so.
+  function sumText(row){
+    var l = listed[row.slot];
+    var lines = linesFor(row);
+    if(l && l.why && lines.length === 0) return "failed — type a name";
+    var ticked = lines.filter(function(m){ return m.use === true; }).length;
+    return lines.length + (lines.length === 1 ? " model" : " models") + " · " + (ticked === 0 ? "none ticked" : ticked + " ticked");
+  }
+  function paintModels(row, mr){
+    var box = mr.querySelector("[data-f=models]");
+    var lines = linesFor(row);
+    var l = listed[row.slot];
+    var typed = mr.querySelector("[data-f=typed]");
+    typed.hidden = typedOpen[row.slot] !== true;
+    var wanted = lines.map(function(m){ return m.model; });
+    Array.prototype.slice.call(box.querySelectorAll(".pv-mrow")).forEach(function(el){
+      if(wanted.indexOf(el.getAttribute("data-model")) < 0) box.removeChild(el);
+    });
+    var note = box.querySelector("[data-f=models-note]");
+    lines.forEach(function(m){
+      var line = Array.prototype.find.call(box.querySelectorAll(".pv-mrow"), function(el){ return el.getAttribute("data-model") === m.model; });
+      if(!line){ line = buildModelLine(row.slot, m); box.insertBefore(line, note); }
+      var use = line.querySelector("[data-mf=use]");
+      use.checked = m.use === true;
+      ["inPerM", "outPerM"].forEach(function(f){
+        var inp = line.querySelector('[data-mf="' + f + '"]');
+        inp.placeholder = "—";
+        if(inp.getAttribute("data-dirty") !== "1") inp.value = typeof m[f] === "number" ? String(m[f]) : "";
+      });
+      line.querySelector("[data-f=model-tokens]").textContent = typeof m.tokens === "number" ? tokensText(m.tokens) : "—";
+    });
+    note = box.querySelector("[data-f=models-note]");
+    if(!note){ note = document.createElement("div"); note.className = "hint pv-more"; note.setAttribute("data-f", "models-note"); note.setAttribute("data-testid", "models-note"); box.appendChild(note); }
+    setNote(note, false, l && l.why ? l.why + " Type the model name below." : (lines.length === 0 ? "No models yet. Press ⟳ to refresh models, or type a name." : ""));
+    note.className += " pv-more" + (l && l.why ? " pv-failed" : "");
+    box.parentNode.querySelector(".pv-mhead").hidden = lines.length === 0;
   }
   var STATUS_WORD = { "set in file": "set in file", "found in shell": "found in shell", "not set": "not set", "refused": "refused — see above" };
-  function paintProviders(data){
+  // The Refresh button: "[ ⟳ Refresh ]", disabled "[ ⟳ refreshing… ]" while the free list call is out.
+  function setRefreshBtn(key, pending){
+    var b = key.querySelector("[data-act=refresh-models]");
+    b.disabled = pending === true;
+    b.innerHTML = pending === true ? "&#10227; refreshing&hellip;" : "&#10227; Refresh";
+  }
+  // The Test button: "[ Test ]", disabled "[ testing… ]" while the free call is out. The route says ok + ms or a plain-words why; written on the key row's own note.
+  function testKey(slot, key){
+    var b = key.querySelector("[data-act=test-key]");
+    var msg = key.querySelector("[data-f=msg-test]");
+    var row = lastData && lastData.rows.filter(function(r){ return r.slot === slot; })[0];
+    if(row && row.baseUrl === ""){
+      setNote(msg, true, "Type a Base URL for " + row.envVar + " in Settings.");
+      return;
+    }
+    b.disabled = true;
+    b.innerHTML = "testing&hellip;";
+    setNote(msg, false, "");
+    postJSON("/api/settings/test", { slot: slot }).then(function(r){
+      var d = r.body;
+      if(d && d.ok === true) setNote(msg, false, "OK \u00b7 " + d.ms + " ms");
+      else setNote(msg, true, d && d.why ? d.why : settingsRefusal(r));
+    }, function(){ setNote(msg, true, networkText()); }).then(function(){
+      b.disabled = false;
+      b.innerHTML = "Test";
+    });
+  }
+  function refreshModels(slot, tr){
+    listed[slot] = { pending: true };
+    setRefreshBtn(tr, true);
+    return postJSON("/api/settings/models", { slot: slot }).then(function(r){
+      var b = r.body;
+      listed[slot] = b && b.ok ? { models: b.models } : { why: (b && b.why) ? b.why : settingsRefusal(r) };
+    }, function(){ listed[slot] = { why: networkText() }; }).then(function(){
+      if(lastData) paintProviders(lastData, false);
+    });
+  }
+  function paintProviders(data, list){
+    lastData = data;
     var path = data.keysFile && data.keysFile.path ? data.keysFile.path : "~/.config/fwdloop/.env";
     document.getElementById("keys-path").textContent = path;
     setNote(document.getElementById("keys-refusal"), true, data.keysFile && data.keysFile.refusal);
     setNote(pvNote, !!data.configProblem, data.configProblem || PV_NOTE_DEFAULT);
     data.rows.forEach(function(row){
-      var tr = pvRows.querySelector('[data-slot="' + row.slot + '"]');
-      if(!tr){ tr = buildProviderRow(row); pvRows.appendChild(tr); }
-      tr.querySelector("[data-f=status]").textContent = STATUS_WORD[row.keyStatus] || row.keyStatus;
-      var nameIn = tr.querySelector('[data-prov=name]');
-      var shapeSel = tr.querySelector('[data-prov=shape]');
-      var urlIn = tr.querySelector('[data-prov=baseUrl]');
-      if(shapeSel.options.length !== data.shapes.length){
-        shapeSel.innerHTML = "";
-        data.shapes.forEach(function(sh){
-          var o = document.createElement("option");
-          o.value = sh.id; o.textContent = sh.label; shapeSel.appendChild(o);
-        });
+      var key = pvRows.querySelector('.pv-key[data-slot="' + row.slot + '"]');
+      if(!key){ key = buildProviderRow(row); pvRows.appendChild(key); }
+      if(folds[row.slot] === undefined) folds[row.slot] = row.models.some(function(m){ return m.use === true; });
+      key.setAttribute("data-open", folds[row.slot] ? "1" : "0");
+      var fold = key.querySelector("[data-act=fold]");
+      fold.textContent = folds[row.slot] ? "▾" : "▸";
+      fold.setAttribute("aria-expanded", folds[row.slot] ? "true" : "false");
+      fold.setAttribute("aria-label", (folds[row.slot] ? "Fold " : "Unfold ") + row.label + " models");
+      paintModels(row, key.querySelector(".pv-models"));
+      setRefreshBtn(key, !!(listed[row.slot] && listed[row.slot].pending));
+      key.querySelector("[data-f=sum]").textContent = sumText(row);
+      var st = key.querySelector("[data-f=status]");
+      var word = STATUS_WORD[row.keyStatus] || row.keyStatus;
+      st.className = row.keyStatus === "set in file" || row.keyStatus === "found in shell" ? "pv-status pv-ok" : "pv-status hint";
+      st.textContent = st.className.indexOf("pv-ok") >= 0 ? "✓" : word;
+      st.setAttribute("title", word);
+      if(st.className.indexOf("pv-ok") >= 0) st.setAttribute("aria-label", word); else st.removeAttribute("aria-label");
+      var legacyIn = key.querySelector('[data-prov=legacyMaxTokens]');
+      if(document.activeElement !== legacyIn) legacyIn.checked = row.legacyMaxTokens === true;
+      key.querySelector("[data-f=legacy-word]").textContent = legacyIn.checked ? "on" : "off";
+      // shape + Base URL: the key row's own boxes, written from the server's row unless the person has typed in them (a refused value stays typed, with its sentence)
+      var sel = key.querySelector("[data-prov=shape]");
+      if(sel.options.length !== data.shapes.length || data.shapes.some(function(sh, i){ return sel.options[i].value !== sh.id; })){
+        sel.textContent = "";
+        data.shapes.forEach(function(sh){ var o = document.createElement("option"); o.value = sh.id; o.textContent = sh.label; sel.appendChild(o); });
       }
-      nameIn.placeholder = row.defaults.model;
-      urlIn.placeholder = row.defaults.baseUrl !== "" ? row.defaults.baseUrl : "the vendor's own address";
-      // a box the person is typing in is never overwritten by a repaint
-      if(nameIn.getAttribute("data-dirty") !== "1") nameIn.value = row.model;
-      if(urlIn.getAttribute("data-dirty") !== "1") urlIn.value = row.savedBaseUrl;
-      if(document.activeElement !== shapeSel) shapeSel.value = row.shape;
-      tr.querySelector("[data-f=tokens]").textContent = tokensText(row.tokens);
-      PRICE_FIELDS.forEach(function(f){
-        var inp = tr.querySelector('input[data-field="' + f + '"]');
-        var pr = row.price[f];
-        inp.placeholder = String(pr.value) + " (" + sourceWord(pr.source) + ")";
-        inp.title = inp.placeholder;
-        // a box the person has typed in is never overwritten by a repaint
-        if(inp.getAttribute("data-dirty") !== "1") inp.value = pr.source === "settings" ? String(pr.value) : "";
-      });
+      if(sel.getAttribute("data-dirty") !== "1") sel.value = row.shape;
+      var urlIn = key.querySelector("[data-prov=baseUrl]");
+      if(urlIn.getAttribute("data-dirty") !== "1" && document.activeElement !== urlIn) urlIn.value = row.baseUrl;
+      key.querySelector("[data-f=tokens]").textContent = tokensText(row.tokens);
     });
+    // rows that left the keys file leave the page
+    Array.prototype.slice.call(pvRows.querySelectorAll(".pv-key")).forEach(function(key){
+      if(!data.rows.some(function(r){ return r.slot === key.getAttribute("data-slot"); })) pvRows.removeChild(key);
+    });
+    if(list) data.rows.forEach(function(row){
+      var key = pvRows.querySelector('.pv-key[data-slot="' + row.slot + '"]');
+      if(row.baseUrl === ""){ listed[row.slot] = { why: "Type a Base URL for " + row.slot + " in Settings." }; paintProviders(lastData, false); }
+      else refreshModels(row.slot, key);
+    });
+  }
+  // Shape and Base URL save together, on change of either (blur / Enter / pick); the server judges them as a pair and says which sentence on
+  // a refusal (nothing saved, the typed value stays so the person can fix it).
+  function saveEndpoint(key){
+    var msg = key.querySelector("[data-f=msg-edit]");
+    var payload = { slot: key.getAttribute("data-slot"), shape: key.querySelector("[data-prov=shape]").value, baseUrl: key.querySelector("[data-prov=baseUrl]").value.trim() };
+    postJSON("/api/settings/provider", payload).then(function(r){
+      if(r.body && r.body.ok){
+        key.querySelector("[data-prov=shape]").removeAttribute("data-dirty");
+        key.querySelector("[data-prov=baseUrl]").removeAttribute("data-dirty");
+        setNote(msg, true, "");
+        loadProviders();
+      } else setNote(msg, true, settingsRefusal(r));
+    }, function(){ setNote(msg, true, networkText()); });
   }
   pvRows.addEventListener("click", function(ev){
     var b = ev.target.closest && ev.target.closest("button[data-act]");
     if(!b) return;
-    var tr = b.closest("tr");
-    if(b.getAttribute("data-act") === "test") runTest(tr, tr.getAttribute("data-slot"));
-    else if(b.getAttribute("data-act") === "balance") runBalance(tr, tr.getAttribute("data-slot"));
+    var key = b.closest(".pv-key");
+    var slot = key.getAttribute("data-slot");
+    var act = b.getAttribute("data-act");
+    if(act === "refresh-models") refreshModels(slot, key);
+    else if(act === "test-key") testKey(slot, key);
+    else if(act === "fold"){ folds[slot] = !folds[slot]; paintProviders(lastData, false); }
+    else if(act === "typed-open"){ typedOpen[slot] = !typedOpen[slot]; paintProviders(lastData, false); }
+    else if(act === "add-model") addTypedModel(slot, b.closest("[data-f=typed]"));
   });
-  // Saved like bareloop saves a row field: on change (blur or Enter), no Save button.
+  // Saved like bareloop saves a row field: on change (blur or Enter), no Save button. The legacy tick saves alone; shape and Base URL save as a pair.
   pvRows.addEventListener("change", function(ev){
     var inp = ev.target;
     if(!inp.getAttribute) return;
-    if(inp.getAttribute("data-prov")){ saveProvider(inp.closest("tr"), inp); return; }
-    if(!inp.getAttribute("data-field")) return;
-    savePrice(inp.closest("tr"), inp.getAttribute("data-field"));
+    if(inp.getAttribute("data-prov") === "legacyMaxTokens"){ saveProvider(inp.closest(".pv-key"), inp); return; }
+    if(inp.getAttribute("data-prov") === "shape" || inp.getAttribute("data-prov") === "baseUrl"){ saveEndpoint(inp.closest(".pv-key")); return; }
+    if(!inp.getAttribute("data-mf")) return;
+    saveModel(inp.closest(".pv-models") ? inp.closest(".pv-models").getAttribute("data-models-for") : "", inp.closest(".pv-mrow"));
   });
-  function runTest(tr, slot){
-    var out = tr.querySelector("[data-f=test]");
-    out.textContent = "testing…";
-    postJSON("/api/settings/test", { slot: slot }).then(function(r){
-      var b = r.body;
-      out.textContent = b && b.ok ? "OK · " + b.ms + " ms" : (b && b.why ? b.why : settingsRefusal(r));
-    }, function(){ out.textContent = networkText(); });
-  }
-  // Balance is read on a click, never on render (signed M4d: "read on a click").
-  function runBalance(tr, slot){
-    var out = tr.querySelector("[data-f=balance-result]");
-    out.textContent = "checking…";
-    getJSON("/api/settings/balance?slot=" + encodeURIComponent(slot)).then(function(b){
-      if(b.ok) out.textContent = b.balances.map(function(x){ return x.total + " " + x.currency; }).join(" + ");
-      else out.textContent = b.why || "Could not check the balance.";
-    }, function(e){ out.textContent = loadFailureText(e); });
-  }
   // A box the person typed: empty = back to the default (null); a number is sent as a number; anything else is
   // sent as the text typed, so the server refuses it by naming the box.
   function priceValue(text){
@@ -5164,25 +5517,42 @@
     var n = Number(t);
     return isFinite(n) ? n : t;
   }
-  function savePrice(tr, changed){
-    var msg = tr.querySelector("[data-f=msg-" + changed + "]");
-    var payload = { slot: tr.getAttribute("data-slot") };
-    tr.querySelectorAll("input[data-field]").forEach(function(inp){ payload[inp.getAttribute("data-field")] = priceValue(inp.value); });
-    postJSON("/api/settings/price", payload).then(function(r){
+  // One model line per save: {slot, model, use, inPerM, outPerM}. A refusal is the line's hint (the server's one rule),
+  // and nothing was saved: the repaint puts the tick back.
+  function saveModel(slot, line){
+    var msg = line.querySelector("[data-f=msg-model]");
+    var payload = {
+      slot: slot,
+      model: line.getAttribute("data-model"),
+      use: line.querySelector("[data-mf=use]").checked,
+      inPerM: priceValue(line.querySelector("[data-mf=inPerM]").value),
+      outPerM: priceValue(line.querySelector("[data-mf=outPerM]").value)
+    };
+    postJSON("/api/settings/model", payload).then(function(r){
       if(r.body && r.body.ok){
-        tr.querySelectorAll("input[data-field]").forEach(function(inp){ inp.removeAttribute("data-dirty"); });
+        line.querySelectorAll("input[type=text]").forEach(function(inp){ inp.removeAttribute("data-dirty"); });
         loadProviders();
         setNote(msg, false, "saved — applies from the next model call");
-      } else setNote(msg, true, settingsRefusal(r));
+      } else { setNote(msg, true, settingsRefusal(r)); loadProviders(); }
     }, function(){ setNote(msg, true, networkText()); });
   }
 
-  // One field per save: {slot, name|shape|baseUrl}. An empty Base URL means the default; a refusal is the cell's hint line.
-  function saveProvider(tr, inp){
-    var key = inp.getAttribute("data-prov");
-    var msg = tr.querySelector("[data-f=msg-" + key + "]");
-    var payload = { slot: tr.getAttribute("data-slot") };
-    payload[key] = inp.value.trim();
+  // A model name typed because the list failed: saved as an unticked, empty line (typed lines are saved); the person then fills the prices and ticks it.
+  function addTypedModel(slot, box){
+    var inp = box.querySelector("input");
+    var msg = box.querySelector("[data-f=typed-msg]");
+    postJSON("/api/settings/model", { slot: slot, model: inp.value.trim(), use: false }).then(function(r){
+      if(r.body && r.body.ok){ inp.value = ""; setNote(msg, false, "added"); loadProviders(); }
+      else setNote(msg, true, settingsRefusal(r));
+    }, function(){ setNote(msg, true, networkText()); });
+  }
+
+  // The legacy tick saves alone: {slot, legacyMaxTokens}. A refusal is the cell's hint line.
+  function saveProvider(key, inp){
+    var field = inp.getAttribute("data-prov");
+    var msg = key.querySelector("[data-f=msg-" + field + "]");
+    var payload = { slot: key.getAttribute("data-slot") };
+    payload[field] = inp.checked;
     postJSON("/api/settings/provider", payload).then(function(r){
       if(r.body && r.body.ok){
         inp.removeAttribute("data-dirty");

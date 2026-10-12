@@ -29,15 +29,20 @@ import { GateRefusal } from './primitives.js';
 import { ConfigError } from './config.js';
 
 import {
-  makeProvider, sumMeterings, appendSpendRow, classifyModelId, priceRecord,
+  makeProvider, ModelRefusal, sumMeterings, appendSpendRow, classifyModelId, priceRecord,
 } from './provider.js';
 
-// F27: DeepSeek's `chat/completions` can send HTTP 200 + headers + one byte
+// F27: a provider's `chat/completions` can send HTTP 200 + headers + one byte
 // then nothing — a "zombie stream" that `timeoutMs`'s idle bound never
 // trips on. `deadlineMs` is bare-agent's TOTAL wall-clock ceiling
 // (`code: 'EDEADLINE'`, `retryable: false`) — deliberately shorter than
 // `timeoutMs` so a hung request reds well inside the idle bound. Frozen +
 // exported so a test can assert on the live call's actual config.
+/** How much of a malformed tool call's raw arguments is logged/shown (bare-agent hands over all of it). */
+const RAW_ARGS_BOUND = 2000;
+/** The raw text cut at `RAW_ARGS_BOUND` chars with the cut said out loud, never silently. @param {string} raw */
+const boundRaw = (raw) => (raw.length > RAW_ARGS_BOUND ? `${raw.slice(0, RAW_ARGS_BOUND)}… (${raw.length - RAW_ARGS_BOUND} more chars)` : raw);
+
 export const LIVE_PROVIDER_OPTIONS = Object.freeze({ timeoutMs: 300_000, deadlineMs: 240_000 });
 
 const TRANSPORT_CODES = Object.freeze([
@@ -236,7 +241,7 @@ function stoppedResult(cumulative, modelId, modelMatch) {
 
 /**
  * @param {object} opts
- * @param {string} [opts.slot] - a `src/provider.js` PROVIDER_SLOTS name; required when `provider` isn't injected.
+ * @param {string} [opts.slot] - a provider row (the name of a key in the keys file); required when `provider` isn't injected.
  * @param {string} [opts.model] - overrides the slot's default model.
  * @param {string} opts.spendPath - the run's spend.jsonl (never a second ledger).
  * @param {any} [opts.provider] - an injected provider (tests only; production always builds live via `slot`).
@@ -260,7 +265,7 @@ export function makeLiveModelStep({
     let prices = null;
     if (live) {
       // makeProvider throws synchronously on a missing/bad key, an unknown
-      // slot, or an unrated model — never let that escape as an unhandled
+      // slot, or a model that is not ticked in Settings with both prices — never let that escape as an unhandled
       // rejection out of the ralph loop; a step's own model failure is
       // always a red, never a crash (rule 5).
       try {
@@ -275,7 +280,7 @@ export function makeLiveModelStep({
         // a call that never happened). A row that names a model must carry its
         // tokens (appendAudit refuses it otherwise), so the model is not named.
         return {
-          ok: false, red: `${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`, costUsd: null, model: null, tokens: null, tools: null,
+          ok: false, red: err instanceof ModelRefusal ? err.message : `${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`, costUsd: null, model: null, tokens: null, tools: null,
         };
       }
     }
@@ -451,12 +456,9 @@ export function makeLiveModelStep({
         if (noToolCallStreak >= 2) {
           const malformed = provider?.lastMalformedToolCall ?? null;
           if (malformed) {
-            // bare-agent >=0.48 delivers `rawArguments` only when the provider
-            // was built with `exposeMalformedArgs: true`; upstream caps it and
-            // sets `rawTruncated` when clipped. Absent -> no "; raw:" suffix.
-            const rawSuffix = malformed.rawArguments !== undefined
-              ? `; raw: ${malformed.rawArguments}${malformed.rawTruncated === true ? ' (truncated)' : ''}`
-              : '';
+            // bare-agent >=0.50 delivers the FULL `rawArguments` (verbatim, uncapped; `rawTruncated` is never set), and only when the provider was
+            // built with `exposeMalformedArgs: true`. We bound what is logged and shown, with the cut said out loud. Absent -> no "; raw:" suffix.
+            const rawSuffix = malformed.rawArguments !== undefined ? `; raw: ${boundRaw(malformed.rawArguments)}` : '';
             return {
               ok: false,
               red: `the tool call's arguments were not valid JSON twice in a row (${malformed.error})${rawSuffix}`,

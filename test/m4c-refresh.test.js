@@ -51,7 +51,7 @@ function harness(world, { selected = true, typed = null } = {}) {
     },
   };
   const textarea = typed === null ? null : { value: typed, getAttribute: () => 'a1' };
-  const doc = { hidden: false, activeElement: null, getElementById: (id) => els[id], querySelector: () => textarea };
+  const doc = { hidden: false, activeElement: null, getElementById: (id) => els[id], querySelector: () => textarea, querySelectorAll: () => [] };
   const getJSON = async (p) => {
     seen.fetched.push(p);
     if (p === '/api/runs') return { rows: world.runs };
@@ -73,7 +73,7 @@ function harness(world, { selected = true, typed = null } = {}) {
     function renderAskRow(){ seen.asksDrawn++; return { classList: { add: function(){} } }; }
     function say(){} function sayLive(){} function endPending(){} function stopLive(){ live = null; }
     function liveOutcome(){ return { done: false }; }
-    ${['sig', 'withScrollPreserved', 'paintRun', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick', 'watchStep', 'holdAskRender', 'readReasonBox', 'renderAsk'].map(fnSrc).join('\n')}
+    ${['sig', 'tickLeft', 'withScrollPreserved', 'paintRun', 'paintAsks', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick', 'watchStep', 'holdAskRender', 'readReasonBox', 'renderAsk'].map(fnSrc).join('\n')}
     return { pageTick: pageTick, schedulePoll: schedulePoll, get pollTimer(){ return pollTimer; } };
   `)(getJSON, doc, (fn) => { timers.push(fn); return timers.length; }, () => {}, seen, selected, { now: () => clock.now });
   /** Fire the pending tick, as the browser would after LIVE_POLL_MS, and let its fetches land. */

@@ -41,8 +41,9 @@ import {
 } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import {
-  dirname, extname, isAbsolute, join, resolve, sep,
+  basename, dirname, extname, isAbsolute, join, resolve, sep,
 } from 'node:path';
+import { parseCsv } from './csv.js';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -55,7 +56,7 @@ import {
   findUnwiredVerbStep, unwiredRed, findUnbuildableCheckStep, unbuildableRed,
 } from './canrun.js'; // M4e am7 item 7: the ONE decider (F46 refusal lives there)
 import { configHome, configDoorHome } from './config.js';
-import { closeByClass } from './closers.js';
+import { closeByClass, isCellsPath } from './closers.js';
 import {
   appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
 } from './books.js';
@@ -83,7 +84,7 @@ export const MAX_ATTEMPTS = 4;
  *  (audit.jsonl) stay the source of truth; this tolerance only absorbs
  *  summation-order noise, not a real gap. A billionth of a dollar is ~6
  *  orders of magnitude below the cheapest real round (audit rows here run
- *  $0.0006+), so nothing a real tamper produces can hide inside it. */
+ *  a few hundredths of a cent and up), so nothing a real tamper produces can hide inside it. */
 export const SPEND_TOLERANCE_USD = 1e-9;
 
 // ---------------------------------------------------------------------------
@@ -188,23 +189,17 @@ export function readHaltRecord(runDir) {
 }
 
 // ---------------------------------------------------------------------------
-// Money — piece 2 wires live provider rates; this piece takes a per-attempt
-// ceiling as injected data, defaulting to a frozen table's highest entry for
-// an unknown model id (never a silent $0/unbounded assumption).
+// Money - the per-attempt hold is injected data: the caller works it out from the
+// picked model's own Settings prices (`ceilingCostUsd(rates)`, src/provider.js) and passes
+// it as `ceilingUsd`. No model name or price lives here (M4d amendment 5 item 4).
 // ---------------------------------------------------------------------------
 
-const CEILING_TABLE_USD = Object.freeze({
-  'deepseek-flash': 0.02,
-  'synthetic-default': 0.05,
-});
-
-/** @param {string|null|undefined} modelId */
-export function resolveCeilingUsd(modelId) {
-  if (typeof modelId === 'string' && Object.prototype.hasOwnProperty.call(CEILING_TABLE_USD, modelId)) {
-    return CEILING_TABLE_USD[modelId];
-  }
-  return Math.max(...Object.values(CEILING_TABLE_USD));
-}
+/**
+ * The hold one model round must fit under the cap. A caller with a model passes the number from Settings prices;
+ * a caller with no model prices (a test double) holds nothing.
+ * @param {number|undefined} ceilingUsd
+ */
+const holdOf = (ceilingUsd) => (Number.isFinite(ceilingUsd) && /** @type {number} */ (ceilingUsd) >= 0 ? /** @type {number} */ (ceilingUsd) : 0);
 
 // ---------------------------------------------------------------------------
 // The executor — "goal in, gap back", constructed WITHOUT its close and
@@ -574,9 +569,30 @@ function readArtifactsMapChecked(runDir, ids) {
     if (!result.ok && !result.missing) {
       return { ok: false, red: `artifact "${id}" — ${result.red}` };
     }
+    if (!result.ok && result.missing) {
+      // M4d amendment 8: an id no step wrote may name a frozen CSV input; a step reads it as cells, so a green check can cite it.
+      const input = readInputCells(runDir, id);
+      if (!input.ok && !input.missing) return { ok: false, red: `input "${id}" — ${input.red}` };
+      if (input.ok) { map[id] = input.value; continue; }
+    }
     map[id] = result.ok ? result.value : undefined;
   }
   return { ok: true, map };
+}
+
+/** A frozen CSV input as `{kind:'cells', header, rows}` (the shape `addressCells` gives), checked against the sha256 recorded at freeze.
+ *  Same three outcomes as `readArtifactResult`: not an input of this run (`missing`), refused (`red`), or the cells. */
+function readInputCells(runDir, id) {
+  const manifest = readFileInside(runDir, 'inputs.json');
+  if (!manifest.ok) return manifest.missing ? { ok: false, missing: true } : { ok: false, missing: false, red: manifest.red };
+  let entries;
+  try { entries = JSON.parse(manifest.text); } catch (err) { return { ok: false, missing: false, red: `inputs.json is not valid JSON — ${err.message}` }; }
+  const entry = Array.isArray(entries) ? entries.find((e) => e?.id === id) : undefined;
+  if (!entry || !isCellsPath(entry.frozen)) return { ok: false, missing: true };
+  const file = readFileInside(runDir, `inputs/${basename(entry.frozen)}`);
+  if (!file.ok) return file.missing ? { ok: false, missing: false, red: 'the frozen copy is missing' } : { ok: false, missing: false, red: file.red };
+  if (createHash('sha256').update(file.text).digest('hex') !== entry.sha256) return { ok: false, missing: false, red: 'the frozen copy changed since it was frozen' };
+  return { ok: true, value: { kind: 'cells', ...parseCsv(file.text) } };
 }
 
 // ---------------------------------------------------------------------------
@@ -940,7 +956,7 @@ async function runStepRalph({
  * @param {string[]} [opts.primitiveReds] - `resolvePrimitives`'s own `reds` (e.g. bareguard refusing a symlinked file scope); any entry refuses the run at $0 like an unwired verb, before the run dir exists.
  * @param {() => string} [opts.clock] - returns the current ISO timestamp; defaults to the wall clock.
  * @param {string} opts.businessDate - the run's explicit "as of today", never the wall clock.
- * @param {number} [opts.ceilingUsd] - per-attempt ceiling override; defaults to `resolveCeilingUsd(null)`.
+ * @param {number} [opts.ceilingUsd] - per-attempt ceiling override; the model's hold from Settings prices (`ceilingCostUsd`); absent = no hold.
  * @param {string|null} [opts.initialGap] - M3 scope item 7 (rerun as a fresh
  *   run): a human's rerun reason, carried as the FIRST ordinary step's
  *   starting gap. Never used by a plain `runFlow` call outside `resumeRun`'s
@@ -1003,7 +1019,7 @@ export async function runFlow({
   const { arbiter } = applied;
   const capUsd = arbiter.capUsd;
   const redoCap = arbiter.redoCap ?? 3;
-  const effectiveCeilingUsd = ceilingUsd ?? resolveCeilingUsd(null);
+  const effectiveCeilingUsd = holdOf(ceilingUsd);
   const askLines = new Map((arbiter.asks ?? []).map((a) => [a.line, a]));
   const sendLines = new Map((arbiter.sends ?? []).map((s) => [s.line, s]));
 
@@ -2234,7 +2250,7 @@ export async function resumeRun({
 
     const capUsd = arbiter.capUsd;
     const redoCap = arbiter.redoCap ?? 3;
-    const effectiveCeilingUsd = ceilingUsd ?? resolveCeilingUsd(null);
+    const effectiveCeilingUsd = holdOf(ceilingUsd);
 
     const step = steps[state.stepIndex];
     const askSlot = askLines.get(step.fromLine);
@@ -2518,7 +2534,7 @@ export async function continueRun({
       inputsManifest: halt.inputsManifest,
       capUsd,
       redoCap: arbiter.redoCap ?? 3,
-      effectiveCeilingUsd: ceilingUsd ?? resolveCeilingUsd(null),
+      effectiveCeilingUsd: holdOf(ceilingUsd),
       primitives,
       businessDate,
       modelStep,

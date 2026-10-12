@@ -21,9 +21,13 @@ import { validateDeclaration, SHAPE_KEYS, checkGuardrailSums, guardrailWordsPerS
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { readInputFacts } from './input-facts.js';
-import { makeProvider, sumMeterings, ceilingCostUsd, priceRecord } from './provider.js';
+import { isCellsPath } from './closers.js';
+import {
+  makeProvider, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord,
+} from './provider.js';
 import { LIVE_PROVIDER_OPTIONS } from './model-step.js';
 import { ConfigError } from './config.js';
+import { thinkingSay, worstThinkingStatus } from './thinking.js';
 
 export const MAX_STRUCTURE_RETRIES = 2;
 export const MAX_REVISIONS = 2;
@@ -63,7 +67,7 @@ export function buildDeclarationSchema(menu) {
               items: { type: 'string', enum: menu.map((e) => e.verb) },
               description: 'verbs this step is granted, from the menu only; [] for a pure stop',
             },
-            reads: { type: 'array', items: { type: 'string' }, description: 'artifact ids emitted by EARLIER steps only' },
+            reads: { type: 'array', items: { type: 'string' }, description: 'artifact ids emitted by EARLIER steps only (an ask step lists the earlier output to be checked FIRST), or the role of a CSV input (a step whose line has a green guardrail must list a CSV input role here)' },
             emits: { type: 'string', minLength: 1, description: 'the ONE new artifact id this step declares (unique)' },
             fromLine: { type: ['integer', 'null'], description: 'the ONE numbered job line this step serves' },
             picks: {
@@ -214,6 +218,15 @@ function jobLinesText(lines, asks) {
     .join('\n');
 }
 
+/** M4d amendment 8: the green step must read an input with cells, so the drafter is told the rule and which inputs have cells. */
+function greenReadRule(sources) {
+  const csvRoles = (sources ?? []).filter((s) => s.kind === 'file' && isCellsPath(s.path)).map((s) => s.role);
+  const rule = '- A step whose line has a "green" guardrail must list the CSV input\'s role in its reads (for example reads: ["aging"]), because only an input with cells can be cited; a text output of an earlier step has no cells. A green step that reads only other steps is refused.';
+  return [csvRoles.length
+    ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}.`
+    : `${rule} This job signs no CSV input, so a guardrail that needs cited cells cannot be classed green here: class it "hitl".`];
+}
+
 export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
   const askLines = arbiter.asks.map((a) => a.line);
   const sendLines = arbiter.sends.map((s) => s.line);
@@ -224,14 +237,16 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
     ...menu.map((e) => `- ${e.verb}: ${e.desc} (class: ${e.class})`),
     '',
     'Rules:',
-    '- Steps share one artifact space. Each step: primitives (verbs it needs, [] if none), reads (artifact ids emitted by an EARLIER step only), emits (ONE new unique artifact id), fromLine (the ONE job line it serves), close. The machine fills each step\'s goal with that signed line, verbatim — you never write a goal.',
+    '- Steps share one artifact space. Each step: primitives (verbs it needs, [] if none), reads (artifact ids emitted by an EARLIER step, or the role of a CSV input listed under Inputs), emits (ONE new unique artifact id), fromLine (the ONE job line it serves), close. The machine fills each step\'s goal with that signed line, verbatim — you never write a goal.',
     '- Every numbered job line must be served by a step (fromLine = that line) or listed in "refused" with a reason.',
     '- guardrailClasses: for each job line that HAS a guardrail, classify its wording once: "green" (every figure must cite its source cell), "softgreen" (the human declared a SHAPE the output must take), "hitl" (an ask/accept/review gate, or anything you are not sure of). When unsure, "hitl".',
     '- close.class MUST equal the class of the guardrail on that step\'s fromLine (guardrailClasses[fromLine]); a line with no guardrail is "hitl". A step cannot claim a class its own line does not earn.',
+    ...greenReadRule(arbiter.sources),
     '- close.shape only on a softgreen step; it is the human\'s declared shape in structured form.',
     '- A step whose check reads its reply (softgreen) answers in its reply text and is never granted `write`, `edit` or any other write-class verb; only the send step at the end writes files out.',
     `- Signed ask line(s): ${askLines.length ? askLines.join(', ') : 'none'}. For each, emit EXACTLY ONE step: fromLine = that line, close.class "hitl", primitives []. It is a stop only — never grant a primitive on it, and never emit a pause at any other line.`,
     `- Signed send line(s): ${sendLines.length ? sendLines.join(', ') : 'none'}. That step is drafted like any other: grant the write primitive and read the artifact of the ask step that comes before it. Its target and position are signed, not yours.`,
+    '- An ask step must read the output of an earlier step, the thing you are asked to check: its FIRST read is what the human sees at the ask (for example reads: ["bucket_assignment"], the nearest earlier step\'s emits). An ask that reads nothing, or reads something no earlier step makes, is refused. Reading is not a grant: the ask still grants no primitive.',
     '- Nothing hitl may come after the last signed ask except the send step.',
     '- You never author a trigger, cap, ask position or TTL, allow-list, send target, or what "done" means.',
     '',
@@ -260,9 +275,6 @@ function reviseMessage(reds) {
 
 function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 
-// F49: deepseek-flash 400s on a forced tool_choice in thinking mode; the drafter forces its tool, so disable thinking.
-export const DRAFT_PROVIDER_OPTIONS = Object.freeze({ ...LIVE_PROVIDER_OPTIONS, thinking: Object.freeze({ type: 'disabled' }) });
-
 /**
  * Draft one declaration. `provider`/`rates`/`modelId` may be injected (tests,
  * the batch); otherwise a live provider is built from `slot` (throws on a bad
@@ -275,17 +287,24 @@ export const DRAFT_PROVIDER_OPTIONS = Object.freeze({ ...LIVE_PROVIDER_OPTIONS, 
  *
  * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number, calls:number, spendComplete:boolean,
  *   costUsd:number|null, modelReturned:string|null, modelId?:string, price?:object|null, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[],
- *   questions?:{line:number, question:string}[], droppedQuestions?:object[], notChecked?:string[]}>}
+ *   questions?:{line:number, question:string}[], droppedQuestions?:object[], notChecked?:string[], thinking?:{asked:string, status:string|null, say:string|null}, inputs?:{role:string, detail:string}[]}>}
  */
 export async function draft({
-  proseText, slot = 'deepseek', model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
-  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true,
+  proseText, slot, model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
+  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
 }) {
+  // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
+  const thinkingOf = () => {
+    const status = worstThinkingStatus(log.map((e) => e.thinkingStatus));
+    return { asked: draftThinking, status, say: thinkingSay(status) };
+  };
   const fail = (reds, extra = {}) => ({
     ok: false, declaration: null, reds, rounds: 0, calls: 0, spendComplete: true, costUsd: 0, modelReturned: null, structureRetries: 0, revisions: 0, stop: 'pre-flight', log: [], ...extra,
   });
 
   // ---- $0 gates, before any provider is built -------------------------------
+  // `draftThinking` ('on'|'off', M4d am6 item 7 / am7: the Chat tick-box, per job) is an intent only: turning thinking on or off on the wire is bareagent's (am7 item 3).
+  if (draftThinking !== 'on' && draftThinking !== 'off') return fail([`config: draftThinking must be on | off, got ${JSON.stringify(draftThinking)}`]);
   const parsed = parseSignedText(proseText);
   if (!parsed.ok) return fail(parsed.reds.map((r) => `signed-text: ${r}`));
   const { lines, arbiter } = parsed;
@@ -304,9 +323,9 @@ export async function draft({
     try {
       ({
         provider, rates, modelId, prices = null,
-      } = makeProviderFn(slot, { model, env, ...DRAFT_PROVIDER_OPTIONS }));
+      } = makeProviderFn(slot, { model, env, ...LIVE_PROVIDER_OPTIONS }));
     } catch (err) {
-      return fail([`${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`]);
+      return fail([err instanceof ModelRefusal ? err.message : `${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`]);
     }
   }
 
@@ -318,7 +337,9 @@ export async function draft({
   const cat = loadCatalogue();
   if (!cat.ok) return fail([`catalogue: ${cat.reds.join('; ')}`]);
   const validationCatalogue = cat.primitives;
-  const roundCeiling = ceilingCostUsd(modelId, undefined, prices ? { prices } : {});
+  // The hold: the picked model's own Settings prices (or the rates a test injected) times the token bounds - never a table.
+  if (!rates) return fail(['price: this round has no price to hold - tick a model in Settings > Providers with both prices first']);
+  const roundCeiling = ceilingCostUsd(rates);
   // One round at its ceiling must fit the budget, or refuse at $0 before any provider call.
   if (roundCeiling > budgetUsd) {
     return fail([`budget: $${budgetUsd} is below one round's worst-case cost — the minimum budget is $${roundCeiling.toFixed(4)}`]);
@@ -374,7 +395,9 @@ export async function draft({
       result = await loop.run(
         [{ role: 'system', content: system }, { role: 'user', content: userText }],
         [tool],
-        { maxTokens: DRAFT_MAX_TOKENS, toolChoice: { name: TOOL } },
+        // M4d am4: thinking 'on' forces no tool (provider default 'auto'; a text reply goes to the structure retry); 'off' forces it.
+        // M4d am7 item 3: `thinkingMode` is bareagent's switch ('on' | 'off'); we send no raw `thinking` field anywhere.
+        { maxTokens: DRAFT_MAX_TOKENS, thinkingMode: draftThinking, ...(draftThinking === 'on' ? {} : { toolChoice: { name: TOOL } }) },
       );
     } catch (err) {
       threw = err;
@@ -382,6 +405,9 @@ export async function draft({
     }
     book(false);
     const entry = { round: log.length + 1, kind: nextKind };
+
+    if (result?.thinkingApplied !== undefined) entry.thinkingApplied = result.thinkingApplied; // bareagent's verdict on this round: true | false | null
+    if (result?.thinkingStatus !== undefined) entry.thinkingStatus = result.thinkingStatus; // 'applied' | 'unsupported' | 'ignored' | 'unknown' (bare-agent >= 0.52)
 
     if (threw) {
       entry.outcome = `provider-red: ${threw.message}`;
@@ -399,6 +425,19 @@ export async function draft({
       entry.outcome = `structure: ${why}`;
       log.push(entry);
       lastReds = [why];
+      // M4d am3 A3: a round cut off at the output cap before tries 1 and 2 are spent is a FAILED TRY, advancing the same counter a
+      // validator red does, so the try-3 question can open. A cut-off names no line, so then every job line may be asked about.
+      if (result?.stopReason === 'max_tokens' && revisions < MAX_REVISIONS) {
+        revisions += 1;
+        nextKind = 'revision';
+        userText = `Your last reply was cut off at the output limit before a complete tool call. Call ${TOOL} now with a complete, valid JSON declaration.`;
+        if (validatorReds.length) userText += `\n\nThe last declaration you emitted was still refused by the validator; keep fixing these too:\n${validatorReds.map((r) => `- ${r}`).join('\n')}`;
+        if (offerQuestions && revisions === MAX_REVISIONS) {
+          failedLines = lineNums;
+          userText += `\n\n${QUESTIONS_PROMPT}`;
+        }
+        continue;
+      }
       if (structureRetries >= MAX_STRUCTURE_RETRIES) { stop = 'structure'; break; }
       structureRetries += 1;
       nextKind = 'structure-retry';
@@ -439,7 +478,7 @@ export async function draft({
       log.push(entry);
       const m = sumMeterings(meterings);
       return {
-        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log, ...extras,
+        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log, thinking: thinkingOf(), inputs: facts.list, ...extras,
       };
     }
     lastReds = [...verdict.reds];
@@ -461,6 +500,6 @@ export async function draft({
   // Runner convention: `costUsd` is the priced sum (null when ANY round is unpriced, so the CLI prints UNKNOWN,
   // never a bare number), and `spendComplete:false` marks a call that failed unmetered or a round left unpriced.
   return {
-    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop, log, ...extras,
+    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop, log, thinking: thinkingOf(), inputs: facts.list, ...extras,
   };
 }

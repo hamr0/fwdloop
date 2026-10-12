@@ -5,6 +5,61 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-10-12
+
+M4d amendments 3-11: Settings > Providers becomes the only place for providers, models, prices and
+thinking; bare-agent 0.52.0 decides thinking; the plan checker refuses two more hollow shapes at $0;
+the Chat card lists every step of a draft.
+
+### Added
+- Settings > Providers: every `*_KEY` name in the keys file is a provider row, named by its env name.
+  Each row carries an API shape, a Base URL and a legacy max_tokens setting, a model list with
+  Refresh, a Use tick, and In/Out prices per model, with each model line showing its own tokens
+  spent (amendments 3, 5, 6).
+- A [ Test ] button on each key row asks the provider's free model list, and an [ Open keys folder ]
+  button next to Reload keys opens the folder of the server's own keys file; the request carries no
+  path.
+- The model a job was drafted with is recorded in `model.json` (draft folder, then flow folder) and
+  the job runs with it; `bin/fwdloop draft` takes `--model`, `--provider` and `--thinking`. An old
+  signed flow with no `model.json` takes the model picked in Chat's "Run a signed flow" card and
+  records it on a successful start. Chat's Model menu says it is reading, and a failed read says so
+  and reads again by itself (amendments 6, 7).
+- Thinking is decided by bare-agent 0.52.0 (0.51.0 first): the drafter sends thinking on or off per
+  model, the thinking status is kept per round and the worst one per draft, and the page says it
+  loudly. The thinking words are bareloop's, one function; an unverified model shows "thinking off
+  (not verified for this model)" beside the box (amendments 4, 7, 11).
+- The plan checker refuses, at $0, a green step that reads no input with cells (amendment 8, a run
+  reads the frozen CSV as cells) and an ask step that reads no earlier step's output (amendment 9);
+  the drafter is told both rules.
+- The Chat card shows every step of a draft as a list: thinking, inputs, drafted, plan checks,
+  rubrics and tries. The thinking block beside the plan is gone; a thinking failure is red
+  (amendment 10).
+- The New job card shows Destination below Inputs, and the job hint says the last line writes to
+  Destination.
+
+### Changed
+- Providers, models, prices, the default model and the thinking switch live only in Settings; the
+  built-in provider rows, the code price table and the per-model thinking allow-list are deleted. A
+  ticked model's prices are only what was typed; a half-typed line becomes an unticked line. The cap
+  floor and the test-double hold read the ticked model's price. A broken config is refused by name
+  with "Nothing spent" (amendments 3, 5, 6).
+- Thinking on forces no tool choice; thinking off still forces it. A cap cut-off during drafting is a
+  failed try (amendments 3, 4).
+- A try line's validator reasons read as plain sentences, the same path as plan checks, with the raw
+  text folded under details (amendment 10).
+- Any ValidationError from the provider is a loud provider-red counted unmetered; the dead
+  thinking-refused branch is removed.
+- Only API-key-looking names (ending `_KEY`) are a Settings row, reach a child env, or are accepted
+  as a slot, at every gate; other names are refused by name at $0.
+- A step's raw tool arguments are bounded on display at 2000 characters plus "… (N more chars)",
+  since bare-agent hands over all of them (F64).
+
+### Fixed
+- A refresh tick no longer rebuilds the Ask tab: time left counts down in place and every box keeps
+  its scroll position.
+- Clear on the Chat card also unpicks the flow chosen in "Run a signed flow".
+- The KEYS strip text is never crushed at any width, and the Test result sits under its button.
+
 ## [0.15.0] - 2026-10-10
 
 M6: edit a signed job from the Chat card. Signing the edit replaces the job all or nothing, and each

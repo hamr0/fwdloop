@@ -11,10 +11,9 @@ import { fileURLToPath } from 'node:url';
 
 import { REFUSAL_SENTENCE } from '../src/monthly.js';
 import { capFloorText, capFloorUsd } from '../src/panel/authorcard.js';
-import { resolveCeilingUsd } from '../src/runner.js';
+import { ceilingCostUsd } from '../src/provider.js';
 import {
-  JOB, killChildrenAfter, until, world,
-} from './m4e-world.mjs';
+  JOB, killChildrenAfter, until, world, tickedConfig } from './m4e-world.mjs';
 
 killChildrenAfter();
 
@@ -26,7 +25,8 @@ function fnSrc(src, name, indent = '    ') {
   assert.ok(start !== -1, `function ${name} not found`);
   return src.slice(start, src.indexOf(`\n${indent}}\n`, start) + indent.length + 2);
 }
-const check = (w, cap) => w.get(`/api/author/monthly-check?cap=${encodeURIComponent(cap)}`);
+const PICK = { provider: 'DEEPSEEK_API_KEY', model: 'fake-ticked' };
+const check = (w, cap) => w.get(`/api/author/monthly-check?cap=${encodeURIComponent(cap)}&provider=DEEPSEEK_API_KEY&model=fake-ticked`);
 
 // ---- item 1 / negative (a): the money note, its numbers, the button, the forced POST -----------------------------------------
 test('am4 (a): with $0.10 left and cap $0.50 the note is red `needs $0.50 ($0.10 left monthly)`; raise the limit and it turns plain with no reload; a forced draft POST refuses at $0', async () => {
@@ -43,7 +43,7 @@ test('am4 (a): with $0.10 left and cap $0.50 the note is red `needs $0.50 ($0.10
   assert.ok(cap.say.includes(REFUSAL_SENTENCE) && cap.say.includes('Max $0.10 left this month') && cap.say.includes('this needs $0.50'), cap.say);
   assert.equal(existsSync(path.join(w.root, '.drafts')) ? readdirSync(path.join(w.root, '.drafts')).length : 0, 0, 'nothing created');
   // Settings raises the limit: the very next read is plain (no restart, no reload)
-  writeFileSync(path.join(w.home, 'config.json'), JSON.stringify({ monthlyLimitUsd: 5 }));
+  writeFileSync(path.join(w.home, 'config.json'), JSON.stringify(tickedConfig({ monthlyLimitUsd: 5 })));
   const plain = (await check(w, '0.50')).json();
   assert.deepEqual([plain.text, plain.red], ['$5.00 left monthly', false]);
   assert.equal((await w.post('/api/author/draft', w.card({ capUsd: '0.50' }))).status, 202, 'and the draft now goes through');
@@ -77,6 +77,7 @@ function pageNote({ capText, mode = 'new', flowCap = null, job = 'one step', fet
     function byId(id){ return els[id]; }
     function selectedFlow(){ return flowCap === null ? null : { capUsd: flowCap, capFloorUsd: 0.05, floorText: 'needs at least $0.05 per run' }; }
     var runCapEl = { value: flowCap === null ? '' : String(flowCap) }; var resumeCapEl = { value: '' }; var resumeCtx = null;
+    function modelPick(){ return { provider: '', model: '' }; }
     function authorGet(p){ return fetchImpl(p); }
     function refreshStartEnabled(){ log.starts++; }
     ${src}
@@ -135,11 +136,12 @@ test('am4 item 1 page: the note re-reads on typing (debounced 250ms), on card op
 });
 
 // ---- item 2 / negative (b) --------------------------------------------------------------------------------------------------
-test('am4 (b): a cap below one ceiling round is refused at Draft at $0 with the sentence; at sign too; the floor is the runner\'s own ceiling', async () => {
-  assert.equal(capFloorUsd(JOB), resolveCeilingUsd(null), 'one function: the runner\'s per-round ceiling');
-  assert.equal(capFloorUsd('Ask: is this ok?'), 0, 'a job of only asks spends no round');
-  assert.equal(capFloorText(0.05), 'needs at least $0.05 per run');
+test('am4 (b): a cap below one ceiling round is refused at Draft at $0 with the sentence; at sign too; the floor is the ticked model\'s own hold (M4d am5)', async () => {
   const w = await world();
+  assert.equal(capFloorUsd(JOB, w.home, PICK), ceilingCostUsd({ in: 0.00075, out: 0.001625 }), 'one function: the ticked Settings line\'s per-round hold');
+  assert.equal(capFloorUsd('Ask: is this ok?', w.home, PICK), 0, 'a job of only asks spends no round');
+  assert.equal(capFloorUsd(JOB, path.join(w.work, 'no-settings-here'), PICK), 0, 'nothing ticked: no model, nothing held (the run itself is refused by name)');
+  assert.equal(capFloorText(0.05), 'needs at least $0.05 per run');
   const small = await w.post('/api/author/draft', w.card({ capUsd: '0.01' }));
   assert.equal(small.status, 400, small.text);
   assert.deepEqual(small.json().refusals.filter((x) => x.field === 'capUsd').map((x) => x.say), ['needs at least $0.05 per run']);

@@ -42,7 +42,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scrub } from '../authoring.js';
-import { PROVIDER_SLOTS } from '../provider.js';
+import { keyValues } from '../keysfile.js';
 import { spawnDetached } from './spawn.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -76,7 +76,7 @@ function ensureLogDir(dir) {
 }
 
 /**
- * @param {{ root: string, env?: Record<string, string|undefined>, loadEnv?: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null }, bin?: string, logDir?: string,
+ * @param {{ root: string, env?: Record<string, string|undefined>, loadEnv?: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null, keyNames?: string[] }, bin?: string, logDir?: string,
  *   maxTries?: number, windowMs?: number, slotMs?: number }} opts
  *   `loadEnv` (M4d: the keys-file door, called before EVERY spawn so editing the file needs no panel restart) returns the merged env
  *   that is BOTH the child's spawn env AND its scrub list, or a refusal sentence that becomes the attempt's refusal (nothing spawns).
@@ -123,7 +123,7 @@ export function createResumer(opts) {
     child.once('error', release);
     // The child's output is quoted in a refusal (`reason`) that reaches HTTP responses and the books: the
     // provider key(s) of this panel's env are scrubbed here, the one place that reads the log slice (amendment 1 (e)(3)).
-    const keys = Object.values(PROVIDER_SLOTS).map((p) => runEnv[p.envVar]).filter(Boolean);
+    const keys = keyValues(runEnv, loaded.keyNames);
     const sliceOfLog = () => {
       try { return scrub(readFileSync(logPath).subarray(offset).toString('utf8').trim(), keys); } catch { return ''; } // offset is in BYTES
     };

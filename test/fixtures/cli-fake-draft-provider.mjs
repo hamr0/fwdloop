@@ -12,6 +12,8 @@
 //   returns a valid plan plus questions (default: two about line 3; FWDLOOP_TEST_DRAFT_QUESTIONS=<json array> replaces them). Once the prompt carries
 //   ANSMARK (an answer, which the panel adds as a guardrail line) it returns a valid plan and asks nothing.
 //   FWDLOOP_TEST_DRAFT_OFFERED_LOG=<file> -> one line per provider call: "offered" or "not-offered" (was `questions` in the tool schema).
+// FWDLOOP_TEST_DRAFT_THINKING_STATUS=<applied|unsupported|ignored|unknown> -> every reply carries that bareagent `thinkingStatus` (M4d am7).
+// FWDLOOP_TEST_DRAFT_RETRY=<n> -> the first n provider calls return a validator-red plan, the next is valid (M4d am10: a draft with retries).
 // FWDLOOP_TEST_DRAFT_MODE=bad -> the model always grants an unwired verb (a red draft).
 import { appendFileSync } from 'node:fs';
 import { RATES, MODEL, validArgs, fakeProvider, toolReply } from '../drafter-fixture.mjs';
@@ -58,11 +60,13 @@ export default function make() {
   for (const i of (process.env.FWDLOOP_TEST_DRAFT_REDSTEP ?? '2').split(',').map(Number)) redArgs.steps[i].primitives = ['stash']; // FWDLOOP_TEST_DRAFT_REDSTEP=0,1 -> which steps of a QMARK/REDMARK red plan fail
   const provider = fakeProvider([toolReply(args)]);
   const gen = provider.generate.bind(provider);
+  let retriesDone = 0;
   provider.generate = async (messages, ...rest) => {
     const offered = !!rest[0]?.[0]?.parameters?.properties?.questions;
     if (process.env.FWDLOOP_TEST_DRAFT_OFFERED_LOG) appendFileSync(process.env.FWDLOOP_TEST_DRAFT_OFFERED_LOG, `${offered ? 'offered' : 'not-offered'}\n`);
     if (process.env.FWDLOOP_TEST_DRAFT_LOG) appendFileSync(process.env.FWDLOOP_TEST_DRAFT_LOG, `${JSON.stringify(messages)}\n`);
     const system = String(messages.find((m) => m.role === 'system')?.content ?? '');
+    if (Number(process.env.FWDLOOP_TEST_DRAFT_RETRY ?? 0) > retriesDone) { retriesDone += 1; return toolReply(redArgs); }
     if (system.includes('HANGMARK')) return new Promise((r) => { setTimeout(r, 3_600_000); });
     if (system.includes('REDMARK')) return toolReply(redArgs);
     if (system.includes('QMARK') && !system.includes('ANSMARK')) {
@@ -75,5 +79,10 @@ export default function make() {
     if (system.includes('ANSMARK')) return toolReply({ ...args, guardrailClasses: { ...args.guardrailClasses, 1: 'hitl', 2: 'hitl' } });
     return gen(messages, ...rest);
   };
+  const status = process.env.FWDLOOP_TEST_DRAFT_THINKING_STATUS;
+  if (status) {
+    const inner = provider.generate.bind(provider);
+    provider.generate = async (...a) => ({ ...(await inner(...a)), thinkingStatus: status });
+  }
   return { provider, rates: RATES, modelId: MODEL };
 }

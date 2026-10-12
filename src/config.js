@@ -4,7 +4,11 @@
 // Shape (unknown top-level fields are kept, never dropped):
 //   { "monthlyLimitUsd": <number > 0>,            // absent = no limit (piece 3 reads it)
 //     "prices": { "<slot>": { "inPerM": n, "cachedInPerM": n, "outPerM": n } },    // USD per 1M tokens, each optional; a saved "cachedInPerM" is tolerated, never read (M4d amendment 2)
-//     "providers": { "<slot>": { "model": "<id>", "shape": "<shape id>", "baseUrl": "" | "http(s)://…" } } }   // each optional (M4d amendment 1)
+//     "providers": { "<KEY_NAME>": { "shape": "<shape id>", "baseUrl": "http(s)://…", "legacyMaxTokens": true|false } },   // each optional; a row is a key name from the keys file (M4d amendment 6). An older file's "model" is tolerated and read by nothing.
+//     "models": { "<KEY_NAME>": [ { "model": "<id>", "use": true|false, "inPerM": n, "outPerM": n } ] } }          // M4d amendment 3 C: a price per model
+// A models line's price is a PAIR or nothing (`modelsProblem` is the one rule): 0 / 0 typed is a chosen price, a
+// ticked line needs both, a half pair is refused. A slot with no list is migrated on READ (`effectiveModels` in
+// src/provider.js); the file is only rewritten when the person saves.
 // A price is a finite number above 0; 0, a negative, NaN, Infinity or text is a ConfigError
 // naming the slot and field — on write AND on read, so a hand-edited 0 can never price a call at $0.
 // Key VALUES never live here (keys file / shell only): a secret-shaped string is refused on write.
@@ -84,7 +88,7 @@ function secretPaths(node, at, out) {
   }
 }
 
-export const PROVIDER_FIELDS = Object.freeze(['model', 'shape', 'baseUrl']);
+export const PROVIDER_FIELDS = Object.freeze(['model', 'shape', 'baseUrl', 'legacyMaxTokens']);
 
 /** One provider field's value problem in plain words, or null when fine. Shared by validateDoc and the route. */
 export function providerFieldProblem(field, v) {
@@ -92,6 +96,8 @@ export function providerFieldProblem(field, v) {
     if (typeof v !== 'string' || v.length === 0 || v.length > 200 || /\s/.test(v)) return 'must be a model id: 1 to 200 characters, no spaces';
   } else if (field === 'shape') {
     if (!SHAPE_IDS.includes(v)) return `must be one of ${SHAPE_IDS.join(', ')}`;
+  } else if (field === 'legacyMaxTokens') {
+    if (typeof v !== 'boolean') return 'must be true or false';
   } else if (field === 'baseUrl') {
     if (typeof v !== 'string' || !(v === '' || /^https?:\/\/\S+$/.test(v))) return 'must be empty (the default) or an http(s) address';
   } else return 'is not a provider field';
@@ -102,6 +108,45 @@ export function providerFieldProblem(field, v) {
 export const cleanBaseUrl = (v) => v.replace(/\/+$/, '');
 
 const isPrice = (v) => typeof v === 'number' && Number.isFinite(v) && v > 0;
+
+/**
+ * THE one rule for a slot's model lines (M4d amendment 3 items 7-8), used by config validation and the Settings
+ * route. A price is a PAIR (`inPerM` and `outPerM`, each a finite number >= 0 — 0 / 0 typed is a chosen price,
+ * recorded so it is never unknown) or neither (null / absent). A ticked line (`use`) needs both. Plain words, or null.
+ * @param {any} list
+ * @returns {string|null}
+ */
+export function modelsProblem(list) {
+  if (!Array.isArray(list)) return 'The model list must be a list of lines.';
+  const seen = new Set();
+  for (const line of list) {
+    if (line === null || typeof line !== 'object' || Array.isArray(line)) return 'Each model line must be an object.';
+    const bad = providerFieldProblem('model', line.model);
+    if (bad) return `The model name ${bad}.`;
+    if (seen.has(line.model)) return `The model "${line.model}" is listed twice.`;
+    seen.add(line.model);
+    if (typeof line.use !== 'boolean') return 'Use must be on or off.';
+    const has = (f) => line[f] !== undefined && line[f] !== null;
+    const isNum = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+    if (has('inPerM') !== has('outPerM')) return 'Fill both price boxes or clear both.';
+    if (has('inPerM') && !(isNum(line.inPerM) && isNum(line.outPerM))) return 'A price must be a number, 0 or more.';
+    if (line.use && !has('inPerM')) return 'Fill both prices to tick this model.';
+    // `thinkingOff` is an older file's field (M4d amendment 5): tolerated so the file loads, read by nothing, dropped on the next save of the list (amendment 7).
+    for (const k of Object.keys(line)) if (!['model', 'use', 'inPerM', 'outPerM', 'thinkingOff'].includes(k)) return `A model line has no "${k}" field.`;
+  }
+  return null;
+}
+
+/** @param {any} models */
+function validateModels(models) {
+  if (models === undefined) return;
+  if (models === null || typeof models !== 'object' || Array.isArray(models)) throw new ConfigError('models must be an object of provider slots');
+  for (const [slot, list] of Object.entries(models)) {
+    if (!SLOT_RE.test(slot)) throw new ConfigError(`models: "${slot}" is not a provider slot name`);
+    const problem = modelsProblem(list);
+    if (problem) throw new ConfigError(`models.${slot}: ${problem}`);
+  }
+}
 
 /** @param {any} providers */
 function validateProviders(providers) {
@@ -129,6 +174,7 @@ function validateDoc(doc) {
     throw new ConfigError('monthlyLimitUsd must be a number above 0 (remove the limit to have none)');
   }
   validateProviders(doc.providers);
+  validateModels(doc.models);
   if (doc.prices === undefined) return;
   if (doc.prices === null || typeof doc.prices !== 'object' || Array.isArray(doc.prices)) {
     throw new ConfigError('prices must be an object of provider slots');
@@ -177,7 +223,7 @@ export function readConfig(opts = {}) {
 
 /**
  * Apply a patch and write. `null` deletes a field. Top-level fields shallow-merge; `prices` merges
- * per slot, then per field (`prices.<slot> = null` clears the slot, `prices.<slot>.<field> = null`
+ * per slot, then per field; `models.<slot>` is replaced whole (`prices.<slot> = null` clears the slot, `prices.<slot>.<field> = null`
  * clears the field). Everything is validated before anything is written; a refusal leaves the file
  * untouched.
  * @param {Record<string, any>} patch
@@ -189,7 +235,7 @@ export function updateConfig(patch, opts = {}) {
   /** @type {Record<string, any>} */
   const next = { ...cur };
   for (const [k, v] of Object.entries(patch)) {
-    if (k === 'prices' || k === 'providers') continue;
+    if (k === 'prices' || k === 'providers' || k === 'models') continue;
     if (v === null) delete next[k];
     else next[k] = v;
   }
@@ -237,6 +283,22 @@ export function updateConfig(patch, opts = {}) {
       }
       if (Object.keys(providers).length === 0) delete next.providers;
       else next.providers = providers;
+    }
+  }
+  if (patch.models !== undefined) {
+    const p = patch.models;
+    if (p === null) {
+      delete next.models;
+    } else {
+      if (typeof p !== 'object' || Array.isArray(p)) throw new ConfigError('models must be an object of provider slots');
+      // a slot's list is replaced whole (`null` clears the slot); other slots are kept
+      const models = { ...(next.models ?? {}) };
+      for (const [slot, list] of Object.entries(p)) {
+        if (list === null) delete models[slot];
+        else models[slot] = list;
+      }
+      if (Object.keys(models).length === 0) delete next.models;
+      else next.models = models;
     }
   }
   validateDoc(next);

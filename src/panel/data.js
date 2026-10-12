@@ -466,8 +466,8 @@ function spendFloorDisplay(spendRows) {
  * never a stale first-attempt value. `null` (never a guess) when no row in
  * this run ever named one (e.g. every step is `hitl`, no model step ran).
  * No provider/API-kind field exists in ANY book (`src/provider.js`'s
- * `PROVIDER_SLOTS` maps a slot name to a model, but nothing writes which
- * slot served a given run back to `audit.jsonl`/`spend.jsonl`) — provider is
+ * a provider row maps to a model, but nothing writes which
+ * row served a given run back to `audit.jsonl`/`spend.jsonl`) — provider is
  * never shown alongside it (hamr's own instruction: "if the provider isn't
  * in any book, show model only").
  * @param {any[]} auditRows
@@ -1334,7 +1334,7 @@ export function getRunDetail({
   // a whole finished clean. Checking `historyRow.outcome === 'complete'`
   // FIRST, before ever looking at `auditRows`, is what keeps a passed run
   // from reporting a stale, superseded failure as its own "why" (found live
-  // against `flows/`, M4a piece 3 fix #1 — a real run, not a synthetic
+  // against `flows/`, M4a piece 3 fix #1 — a real run, not a staged
   // fixture, is what caught this).
   //
   // hamr's 2026-09-27 browser-walk bug #1: the SAME staleness bug also hit a

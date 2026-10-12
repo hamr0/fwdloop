@@ -30,7 +30,9 @@ async function setup({ keys = `DEEPSEEK_API_KEY=${CANARY}\n`, config, fetchImpl 
   const home = path.join(tmp('home'), 'fwdloop');
   mkdirSync(home, { recursive: true, mode: 0o700 });
   if (keys !== null) writeFileSync(keysFilePath(home), keys, { mode: 0o600 });
-  if (config !== undefined) writeFileSync(configPath(home), typeof config === 'string' ? config : JSON.stringify(config));
+  // M4d am6: a row runs and lists only with a Base URL typed; the helper types one unless the test says otherwise
+  if (config !== undefined) writeFileSync(configPath(home), typeof config === 'string' ? config : JSON.stringify({ providers: { DEEPSEEK_API_KEY: { baseUrl: 'https://models.example.test/v1' } }, ...config }));
+  else writeFileSync(configPath(home), JSON.stringify({ providers: { DEEPSEEK_API_KEY: { baseUrl: 'https://models.example.test/v1' } } }));
   const calls = [];
   const fake = fetchImpl ?? (async (url, opts) => ({ ok: true, status: 200, json: async () => ({ data: [] }), url, opts }));
   const root = tmp('root');
@@ -85,11 +87,11 @@ test('(i)(ii) a canary key in the keys file is in no settings response and not o
   const keysBefore = readFileSync(keysFilePath(home), 'utf8');
   const bodies = [];
   for (const [method, url, body] of [
-    ['GET', '/api/settings/providers'], ['GET', '/api/settings/money'], ['GET', '/api/settings/balance?slot=deepseek'],
-    ['POST', '/api/settings/test', { slot: 'deepseek' }], ['POST', '/api/settings/test', { slot: 'synthetic' }],
-    ['POST', '/api/settings/price', { slot: 'deepseek', inPerM: 0.5 }], ['POST', '/api/settings/money', { monthlyLimitUsd: 7 }],
+    ['GET', '/api/settings/providers'], ['GET', '/api/settings/money'], ['GET', '/api/settings/balance?slot=DEEPSEEK_API_KEY'],
+    ['POST', '/api/settings/test', { slot: 'DEEPSEEK_API_KEY' }], ['POST', '/api/settings/test', { slot: 'SYNTHETIC_API_KEY' }],
+    ['POST', '/api/settings/model', { slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', use: true, inPerM: 0.5, outPerM: 1 }], ['POST', '/api/settings/money', { monthlyLimitUsd: 7 }],
     ['POST', '/api/settings/keys', { DEEPSEEK_API_KEY: 'x' }], ['POST', '/api/settings/keys', { name: 'DEEPSEEK_API_KEY', value: CANARY }],
-    ['POST', '/api/settings/providers', { slot: 'deepseek' }], ['PUT', '/api/settings/keys', {}],
+    ['POST', '/api/settings/providers', { slot: 'DEEPSEEK_API_KEY' }], ['PUT', '/api/settings/keys', {}],
   ]) {
     const r = await rq(h.port, { method, url, body });
     bodies.push(r.text);
@@ -99,8 +101,7 @@ test('(i)(ii) a canary key in the keys file is in no settings response and not o
   for (const t of [...bodies, page.text]) assert.ok(!t.includes(CANARY), 'the canary key is in no response body or page');
   // the status is shown by name only
   const prov = (await rq(h.port, { url: '/api/settings/providers' })).json();
-  assert.equal(prov.rows.find((r) => r.slot === 'deepseek').keyStatus, 'set in file');
-  assert.equal(prov.rows.find((r) => r.slot === 'synthetic').keyStatus, 'not set');
+  assert.deepEqual(prov.rows.map((r) => [r.slot, r.keyStatus]), [['DEEPSEEK_API_KEY', 'set in file']], 'a row per key in the file, nothing built in');
   for (const url of ['/api/settings/keys', '/api/settings/keys/DEEPSEEK_API_KEY', '/api/settings/reload', '/api/settings/']) {
     const r = await post(h.port, url, { value: 'x' });
     assert.equal(r.status, 404, url);
@@ -110,35 +111,28 @@ test('(i)(ii) a canary key in the keys file is in no settings response and not o
   assert.equal(readFileSync(keysFilePath(home), 'utf8'), keysBefore, 'the keys file is byte-identical');
 });
 
-test('(i) the 1A refusal is shown as a plain sentence in the keys strip data, and a refused file marks every row "refused"', async () => {
+test('(i) the 1A refusal is shown as a plain sentence in the keys strip data, and a refused file lists no rows', async () => {
   const { h, home } = await setup();
   chmodSync(keysFilePath(home), 0o644);
   const prov = (await rq(h.port, { url: '/api/settings/providers' })).json();
   assert.match(prov.keysFile.refusal, /can be read by other users\. Run: chmod 600/);
-  assert.ok(prov.rows.every((r) => r.keyStatus === 'refused'));
+  assert.deepEqual(prov.rows, [], 'a refused file lists no rows: nothing was read from it (M4d am6)');
   assert.ok(!JSON.stringify(prov).includes(CANARY));
-  const t = (await post(h.port, '/api/settings/test', { slot: 'deepseek' })).json();
-  assert.equal(t.ok, false);
-  assert.match(t.why, /chmod 600/);
   chmodSync(keysFilePath(home), 0o600);
   const again = (await rq(h.port, { url: '/api/settings/providers' })).json();
   assert.equal(again.keysFile.refusal, null, 'Reload keys = ask again; the file is re-read each call');
 });
 
 // ---- (ix) Test and Balance -------------------------------------------------------------------------------------------
-test('(ix) Test and Balance GET only the models / balance URLs with the key in the header only; no completion, no spend row', async () => {
-  const fetchImpl = async (url) => (String(url).endsWith('/user/balance')
-    ? { ok: true, status: 200, json: async () => ({ balance_infos: [{ currency: 'USD', total_balance: '12.34' }] }) }
-    : { ok: true, status: 200, json: async () => ({ data: [{ id: 'deepseek-flash' }] }) });
+test('(ix) Test GETs only the models URL with the key in the header only; no completion, no spend row', async () => {
+  const fetchImpl = async () => ({ ok: true, status: 200, json: async () => ({ data: [{ id: 'deepseek-flash' }] }) });
   const { h, home, root, calls } = await setup({ fetchImpl });
   const homeBefore = snapshot(home);
   const rootBefore = snapshot(root);
-  const t = (await post(h.port, '/api/settings/test', { slot: 'deepseek' })).json();
+  const t = (await post(h.port, '/api/settings/test', { slot: 'DEEPSEEK_API_KEY' })).json();
   assert.equal(t.ok, true);
   assert.ok(Number.isInteger(t.ms) && t.ms >= 0);
-  const b = (await rq(h.port, { url: '/api/settings/balance?slot=deepseek' })).json();
-  assert.deepEqual(b, { ok: true, balances: [{ currency: 'USD', total: '12.34' }] });
-  assert.deepEqual(calls.map((c) => [c.method, c.url]), [['GET', 'https://api.deepseek.com/models'], ['GET', 'https://api.deepseek.com/user/balance']]);
+  assert.deepEqual(calls.map((c) => [c.method, c.url]), [['GET', 'https://models.example.test/v1/models']]);
   for (const c of calls) {
     assert.doesNotMatch(c.url, /completion|chat|messages/);
     assert.equal(c.headers.Authorization, `Bearer ${CANARY}`, 'the key travels in the header only');
@@ -147,11 +141,10 @@ test('(ix) Test and Balance GET only the models / balance URLs with the key in t
   assert.deepEqual(snapshot(home), homeBefore, 'no file under the config home changed (no spend row, no hold)');
   assert.deepEqual(snapshot(root), rootBefore, 'no file under the root changed');
   assert.ok(!existsSync(path.join(home, 'runs.jsonl')));
-  // synthetic Test: its own models URL; a provider without a balance call says so
-  await post(h.port, '/api/settings/test', { slot: 'synthetic' });
-  assert.equal(calls.length, 2, 'a slot with no key never reaches the network');
-  assert.deepEqual((await rq(h.port, { url: '/api/settings/balance?slot=synthetic' })).json(), { ok: false, why: 'Not offered by this provider.' });
-  assert.equal(calls.length, 2);
+  // a name that is not a row never reaches the network, and Balance is gone (M4d am6)
+  await post(h.port, '/api/settings/test', { slot: 'SYNTHETIC_API_KEY' });
+  assert.equal(calls.length, 1);
+  assert.equal((await rq(h.port, { url: '/api/settings/balance?slot=DEEPSEEK_API_KEY' })).status, 404);
 });
 
 test('(ix) Test says why in plain sentences: no key, refused key, timeout-shaped, unreachable — never a code or the key', async () => {
@@ -161,14 +154,14 @@ test('(ix) Test says why in plain sentences: no key, refused key, timeout-shaped
     down: async () => { throw new TypeError(`fetch failed ${CANARY}`); },
     abort: async (url, opts) => new Promise((_, rej) => { opts.signal.addEventListener('abort', () => rej(Object.assign(new Error('x'), { name: 'AbortError' }))); }),
   };
-  const run = async (mode) => { const { h } = await setup({ fetchImpl: modes[mode] }); return (await post(h.port, '/api/settings/test', { slot: 'deepseek' })).json(); };
+  const run = async (mode) => { const { h } = await setup({ fetchImpl: modes[mode] }); return (await post(h.port, '/api/settings/test', { slot: 'DEEPSEEK_API_KEY' })).json(); };
   assert.equal((await run('refused')).why, 'The provider refused the key.');
   assert.equal((await run('error')).why, 'The provider answered with an error.');
   const down = await run('down');
   assert.equal(down.why, 'Could not reach the provider.');
   assert.ok(!JSON.stringify(down).includes(CANARY));
   const nokey = await setup({ keys: '# nothing\n' });
-  assert.deepEqual((await post(nokey.h.port, '/api/settings/test', { slot: 'deepseek' })).json(), { ok: false, why: 'No key set for this provider.' });
+  assert.equal((await post(nokey.h.port, '/api/settings/test', { slot: 'DEEPSEEK_API_KEY' })).json().refused, 'unknown-provider', 'no key in the file = no row');
   assert.deepEqual((await post(nokey.h.port, '/api/settings/test', { slot: 'nope' })).json().ok, false);
   // the 4 s deadline: an unanswered fetch is abandoned (checked with a short real wait on a fake that honours the abort signal)
   const t0 = Date.now();
@@ -178,39 +171,31 @@ test('(ix) Test says why in plain sentences: no key, refused key, timeout-shaped
 });
 
 // ---- (xi) price and limit validation ---------------------------------------------------------------------------------
-test('(xi) a bad price (0, -1, text, NaN, a mix) is refused naming the field and NOTHING is saved; null clears; a valid one saves', async () => {
-  const { h, home } = await setup({ config: { monthlyLimitUsd: 9, prices: { deepseek: { inPerM: 0.4 } } } });
+test('(xi) a bad model price (-1, text, NaN, Infinity, a half pair) is refused and NOTHING is saved; a valid pair saves — 0 / 0 too (am3 items 7-8 replace the old "0 is refused")', async () => {
+  const { h, home } = await setup({ config: { monthlyLimitUsd: 9, models: { DEEPSEEK_API_KEY: [{ model: 'deepseek-flash', use: true, inPerM: 0.4, outPerM: 1.2 }] } } });
   const file = configPath(home);
   const before = readFileSync(file, 'utf8');
+  const M = { slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', use: true };
   const bad = [
-    [{ slot: 'deepseek', inPerM: 0 }, /Input price/], [{ slot: 'deepseek', outPerM: -1 }, /Output price/],
-    [{ slot: 'deepseek', inPerM: '0.5' }, /Input price/],
-    [{ slot: 'deepseek', inPerM: 1, outPerM: 0 }, /Output price/], [{ slot: 'deepseek', cachedInPerM: 0.01 }, /priced as input/], [{ slot: 'deepseek', inPerM: 1, cachedInPerM: 0.05, outPerM: 2 }, /priced as input/],
-    [{ slot: 'deepseek', inPerM: [1] }, /Input price/], [{ slot: 'deepseek' }, /Nothing to save/], [{ slot: 'nope', inPerM: 1 }, /not known/],
+    [{ ...M, inPerM: -1, outPerM: 1 }, /number, 0 or more/], [{ ...M, inPerM: 1, outPerM: '2' }, /number, 0 or more/],
+    [{ ...M, inPerM: 1, outPerM: null }, /Fill both price boxes or clear both\./], [{ ...M, inPerM: [1], outPerM: 1 }, /number, 0 or more/],
+    [{ ...M, inPerM: 1, cachedInPerM: 0.05, outPerM: 2 }, /priced as input/], [{ slot: 'NOPE_KEY', model: 'x', use: false }, /not known/],
   ];
   for (const [body, re] of bad) {
-    const r = await post(h.port, '/api/settings/price', body);
+    const r = await post(h.port, '/api/settings/model', body);
     assert.equal(r.status, 400, JSON.stringify(body));
     assert.match(r.json().say, re);
     assert.equal(readFileSync(file, 'utf8'), before, `config.json unchanged after ${JSON.stringify(body)}`);
   }
-  const nan = await post(h.port, '/api/settings/price', '{"slot":"deepseek","inPerM":NaN}');
+  const nan = await post(h.port, '/api/settings/model', '{"slot":"deepseek","model":"deepseek-flash","use":true,"inPerM":NaN,"outPerM":1}');
   assert.equal(nan.status, 400);
-  assert.equal(readFileSync(file, 'utf8'), before);
-  const inf = await post(h.port, '/api/settings/price', '{"slot":"deepseek","inPerM":1e999}'); // parses to Infinity
+  const inf = await post(h.port, '/api/settings/model', '{"slot":"deepseek","model":"deepseek-flash","use":true,"inPerM":1e999,"outPerM":1}'); // parses to Infinity
   assert.equal(inf.status, 400);
-  assert.equal(readFileSync(file, 'utf8'), before);
-  const ok = await post(h.port, '/api/settings/price', { slot: 'deepseek', outPerM: 1.5 });
+  const ok = await post(h.port, '/api/settings/model', { ...M, inPerM: 0, outPerM: 0 });
   assert.equal(ok.json().ok, true);
-  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).prices.deepseek, { inPerM: 0.4, outPerM: 1.5 });
-  assert.equal(JSON.parse(readFileSync(file, 'utf8')).monthlyLimitUsd, 9, 'other settings are kept');
-  const prov = (await rq(h.port, { url: '/api/settings/providers' })).json().rows.find((r) => r.slot === 'deepseek');
-  assert.deepEqual(prov.price.outPerM, { value: 1.5, source: 'settings' });
-  await post(h.port, '/api/settings/price', { slot: 'deepseek', inPerM: null, outPerM: null });
-  assert.equal(JSON.parse(readFileSync(file, 'utf8')).prices, undefined, 'null clears back to the table default');
-  const back = (await rq(h.port, { url: '/api/settings/providers' })).json().rows.find((r) => r.slot === 'deepseek');
-  assert.equal(back.price.inPerM.source, 'table');
-  assert.equal(back.price.cachedInPerM, undefined, 'no cached-input price is offered or shown');
+  const saved = JSON.parse(readFileSync(file, 'utf8'));
+  assert.ok(saved.models.DEEPSEEK_API_KEY.some((l) => l.model === 'deepseek-flash' && l.inPerM === 0 && l.outPerM === 0), '0 / 0 typed is saved as a chosen price');
+  assert.equal(saved.monthlyLimitUsd, 9, 'other settings are kept');
 });
 
 test('(xi) the monthly limit: 0, negative, text refused and nothing saved; empty/null clears; a number saves', async () => {
@@ -290,8 +275,8 @@ test('(xiv) no settings route reads or writes a flow: a flow dir is byte-identic
   writeFileSync(path.join(flow, 'runs', 'r1', 'spend.jsonl'), '{"costUsd":0.01}\n');
   const before = snapshot(root);
   for (const [url, body] of [
-    ['/api/settings/test', { slot: 'deepseek' }], ['/api/settings/price', { slot: 'deepseek', inPerM: 0.7 }], ['/api/settings/money', { monthlyLimitUsd: 3 }],
-    ['/api/settings/price', { slot: 'deepseek', inPerM: 0 }], ['/api/settings/keys', {}], ['/api/settings/flows', { flow: 'myflow', cap: 99 }],
+    ['/api/settings/test', { slot: 'DEEPSEEK_API_KEY' }], ['/api/settings/model', { slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', use: true, inPerM: 0.7, outPerM: 1 }], ['/api/settings/money', { monthlyLimitUsd: 3 }],
+    ['/api/settings/model', { slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', use: true, inPerM: 0, outPerM: 0 }], ['/api/settings/keys', {}], ['/api/settings/flows', { flow: 'myflow', cap: 99 }],
     ['/api/settings/money', { monthlyLimitUsd: 3, flow: 'myflow', maxUsd: 99, cap: 99 }],
   ]) await post(h.port, url, body);
   assert.deepEqual(snapshot(root), before);
@@ -305,11 +290,11 @@ test('gates: settings routes need the own Host; a POST needs the own Origin and 
   const { h, home } = await setup({ config: { monthlyLimitUsd: 5 } });
   const file = configPath(home);
   const before = readFileSync(file, 'utf8');
-  for (const url of ['/api/settings/providers', '/api/settings/money', '/api/settings/balance?slot=deepseek']) {
+  for (const url of ['/api/settings/providers', '/api/settings/money', '/api/settings/balance?slot=DEEPSEEK_API_KEY']) {
     assert.equal((await rq(h.port, { url, headers: { host: 'evil.example' } })).status, 403, `${url} with a foreign Host`);
   }
-  for (const url of ['/api/settings/test', '/api/settings/price', '/api/settings/money', '/api/settings/keys']) {
-    const body = { slot: 'deepseek', inPerM: 9, monthlyLimitUsd: 99 };
+  for (const url of ['/api/settings/test', '/api/settings/model', '/api/settings/money', '/api/settings/keys']) {
+    const body = { slot: 'DEEPSEEK_API_KEY', inPerM: 9, monthlyLimitUsd: 99 };
     assert.equal((await post(h.port, url, body, { origin: null })).status, 403, `${url} without Origin`);
     assert.equal((await post(h.port, url, body, { origin: 'http://evil.example' })).status, 403, `${url} with a foreign Origin`);
   }
@@ -356,44 +341,34 @@ test('page: the Settings button, header, tabs and signed sentences; no per-run c
   assert.match(PAGE, /\.keyfile-strip::before\{content:"┤ KEYS ├";/);
   assert.match(PAGE, /\.keyfile-strip code\{[^}]*color:var\(--amber\)/);
   assert.match(SETTINGS_VIEW, /Put <code>NAME=key<\/code> lines in <code id="keys-path"[^>]*>~\/\.config\/fwdloop\/\.env<\/code>, then Reload keys[^<]*keys never reach this page\./);
-  assert.match(SETTINGS_VIEW, /<div class="keyfile-strip-actions">\s*<button[^>]*id="reload-keys"[^>]*>Reload keys</);
+  assert.match(SETTINGS_VIEW, /<div class="keyfile-strip-actions">\s*<button[^>]*id="open-keys-folder"[^>]*>Open keys folder<\/button>\s*<button[^>]*id="reload-keys"[^>]*>Reload keys</);
   // the hint lines
-  assert.match(SETTINGS_VIEW, /Test asks the provider for its model list &mdash; it costs nothing\. A price left empty uses the default; a typed price applies from the next model call on\./);
+  // layout F: the hint under the grid is the footnote (no Test button; Test and the model list were one free GET; no pencil, shape and Base URL are always editable)
+  assert.match(SETTINGS_VIEW, /⟳ refresh models \(free\) · old max_tokens: tick if the server wants the old field name/);
   assert.match(SETTINGS_VIEW, /Limits are yours\. The agent can never change them\. A run whose cap is more than what is left this month does not start\./);
   assert.match(PAGE, /Runs from before Settings existed are not counted here\./);
   assert.match(PAGE, /saved — applies from the next model call/);
-  assert.match(PAGE, /not offered by this provider/);
-  // only the monthly limit is a static input; the price boxes are built per row; no Save button, no cap, no key input
+  // only the monthly limit is a static input (Settings has nothing about thinking, M4d am7); the model price boxes are built per model line; no Save button, no cap, no key input
   assert.deepEqual([...SETTINGS_VIEW.matchAll(/<input[^>]*id="([^"]+)"/g)].map((m) => m[1]), ['ml-money']);
   assert.doesNotMatch(SETTINGS_VIEW.replace(/<!--[\s\S]*?-->/g, ''), /\bcap\b(?! is more)|maxUsd|type="password"|>Save</i);
   assert.doesNotMatch(PAGE, /prov-card|break-card|set-card|set-strip|set-prices|money-grid|limit-save|price-save|set-limit/);
 });
 
-test('page: Providers is ONE table, columns in bareloop order then the two price columns (amendment 2); Name/shape/URL are text/select/text (amendment 1)', () => {
+test('page: Providers is ONE grid, columns in layout-A order, prices on a child row per model under each key; shape/URL are the pencil\'s select/text and the legacy tick is the key row\'s (amendments 1, 6, layout A)', () => {
   const tables = [...SETTINGS_VIEW.matchAll(/<table[\s\S]*?<\/table>/g)].map((m) => m[0]);
-  assert.equal(tables.length, 2, 'the provider table and the breakdown table, no cards');
-  assert.deepEqual(th(tables[0]), ['Key', 'Name', 'API shape', 'Base URL', 'Test', 'Tokens used', 'Balance', 'In $/1M', 'Out $/1M']);
-  assert.match(tables[0], /<table class="pv-table"/);
-  assert.match(SETTINGS_VIEW, /<div class="table-wrap"[^>]*>\s*<table class="pv-table"/);
-  // the row builder (M4d amendment 1, replaces ruling 2A): Name = text box, API shape = dropdown, Base URL = text box
-  const build = PAGE.slice(PAGE.indexOf('function buildProviderRow('), PAGE.indexOf('var STATUS_WORD'));
-  assert.match(build, /<input type="text" data-prov="name"/);
-  assert.match(build, /<select data-prov="shape"/);
-  assert.match(build, /<input type="text" data-prov="baseUrl"/);
-  assert.doesNotMatch(build, /API_SHAPE|data-f="model"|data-f="addr"/);
-  // inputs in a row: name + Base URL + the price loop (one source, 2 fields), each saved on change with a hint line under it
-  assert.equal((build.match(/<input/g) || []).length, 3);
+  assert.equal(tables.length, 1, 'only the breakdown is a table; Providers is a grid, no cards');
+  const head = SETTINGS_VIEW.match(/<div class="pv-head"[\s\S]*?<\/div>/)[0];
+  assert.deepEqual([...head.matchAll(/<span[^>]*>([^<]*)<\/span>/g)].map((m) => m[1]), ['KEY', 'API SHAPE', 'BASE URL', 'OLD MAX_TOKENS', 'TOKENS', '']);
+  assert.match(SETTINGS_VIEW, /<div class="table-wrap"[^>]*>\s*<div class="pv-grid"/);
+  const build = PAGE.slice(PAGE.indexOf('function buildProviderRow('), PAGE.indexOf('function buildModelLine('));
+  assert.doesNotMatch(build, /API_SHAPE|data-f="model"|data-f="addr"|cachedIn|PRICE_FIELDS/);
+  assert.equal((build.match(/<input/g) || []).length, 3, 'Base URL, the legacy tick and the typed-name box (shape is the one <select>)');
+  assert.equal((build.match(/<select/g) || []).length, 1);
   assert.doesNotMatch(PAGE, /cachedIn|Cached in/i, 'amendment 2 (a): no Cached in column or box anywhere on the page');
-  assert.match(build, /PRICE_FIELDS\.map\(function\(f\)/);
-  assert.match(PAGE, /var PRICE_FIELDS = \["inPerM", "outPerM"\];/);
   assert.match(PAGE, /pvRows\.addEventListener\("change"/);
   assert.match(build, /class="hint pv-msg"/);
-  // the Test cell has one fixed width; the wrap scrolls inside its own box
-  assert.match(PAGE, /\.pv-table td\.pv-test-cell\{width:180px;min-width:180px;max-width:180px;\}/);
   assert.match(PAGE, /\.table-wrap\{overflow-x:auto;/);
-  // Balance stays a click (signed "read on a click"): the render never calls the balance route
-  const paint = PAGE.slice(PAGE.indexOf('function paintProviders('), PAGE.indexOf('pvRows.addEventListener("click"'));
-  assert.doesNotMatch(paint, /\/api\/settings\/balance|runBalance/);
+  assert.doesNotMatch(PAGE, /\/api\/settings\/balance|runBalance/, 'the balance check is gone (M4d am6)');
 });
 
 /** paintMoney run against a tiny fake DOM, with the page's own helpers cut out of index.html. */
@@ -461,10 +436,9 @@ test('page: a typed price/limit box survives a repaint, the limit saves on chang
 test('page: phone rules — wraps scroll in their own box, the strip collapses, inputs and selects use the bareloop look, nothing is wider than its box', () => {
   assert.match(PAGE, /\.settings-view input,\.settings-view select\{font:inherit;padding:6px 8px;border:1px solid var\(--border-strong\);border-radius:0;background:var\(--bg\);color:var\(--text\);\}/);
   assert.doesNotMatch(PAGE, /\.settings-view input\[type=text\]\{[^}]*font-size:16px/);
-  assert.match(PAGE, /\.pv-table select,\.pv-table input\{min-height:32px;max-width:190px;box-sizing:border-box;\}/);
+  assert.match(PAGE, /\.pv-krow select,\.pv-krow input\[type=text\]\{width:100%;max-width:100%;min-height:28px;box-sizing:border-box;\}/);
   assert.match(PAGE, /\.money-item input\{width:100%;height:44px;box-sizing:border-box;\}/);
   assert.match(PAGE, /\.keyfile-strip-main\{[^}]*min-width:0;overflow-wrap:anywhere;/);
-  assert.match(PAGE, /\.pv-table \.pv-test-result,[^{]*\{white-space:normal;overflow-wrap:anywhere;\}/);
   assert.match(PAGE, /\.table-wrap\{overflow-x:auto;[^}]*max-width:100%;/);
   assert.match(PAGE, /name="viewport"/);
 });
@@ -472,7 +446,7 @@ test('page: phone rules — wraps scroll in their own box, the strip collapses, 
 // Self-review fix: a redirect never carries the key on. Real local servers, real fetch: server A answers 302 to server B
 // (another port = another origin); B records every header it gets. undici strips only Authorization cross-origin, so
 // x-api-key (anthropic shape) would reach B without `redirect: 'manual'`.
-test('settings: Test never follows a redirect (Balance shares getWithKey) with the key; a plain sentence, and nothing booked', async () => {
+test('settings: Test never follows a redirect with the key; a plain sentence, and nothing booked', async () => {
   const hits = [];
   const b = http.createServer((req, res) => { hits.push(req.headers); res.end('{}'); });
   await new Promise((r) => b.listen(0, '127.0.0.1', r));
@@ -480,11 +454,11 @@ test('settings: Test never follows a redirect (Balance shares getWithKey) with t
   await new Promise((r) => a.listen(0, '127.0.0.1', r));
   try {
     const { h, home } = await setup({
-      config: { providers: { deepseek: { shape: 'anthropic-api', baseUrl: `http://127.0.0.1:${a.address().port}` } } },
+      config: { providers: { DEEPSEEK_API_KEY: { shape: 'anthropic-api', baseUrl: `http://127.0.0.1:${a.address().port}` } } },
       fetchImpl: (u, o) => globalThis.fetch(u, o),
     });
     const before = snapshot(home);
-    const t = (await post(h.port, '/api/settings/test', { slot: 'deepseek' }));
+    const t = (await post(h.port, '/api/settings/test', { slot: 'DEEPSEEK_API_KEY' }));
     assert.deepEqual(t.json(), { ok: false, why: 'The provider answered with a redirect; the key was not sent on. Check the Base URL.' });
     assert.ok(!t.text.includes('/steal') && !t.text.includes(CANARY));
     assert.deepEqual(hits.filter((x) => x['x-api-key'] !== undefined || x.authorization !== undefined), [], 'the second origin must never see the key');
@@ -494,11 +468,12 @@ test('settings: Test never follows a redirect (Balance shares getWithKey) with t
   }
 });
 
-test('amendment 2 (a): the Providers table has no Cached in column or box; the row builder makes exactly one cell per signed price field (source-level; browser walk at 1280/390/320 owed)', () => {
-  const head = SETTINGS_VIEW.match(/<table class="pv-table"[\s\S]*?<\/thead>/)[0];
+test('amendment 2 (a) under am3 C: no Cached in column or box; the model line builder makes exactly one box per signed price field (Price in, Price out); source-level, browser walk separate', () => {
+  const head = SETTINGS_VIEW.match(/<div class="pv-head"[\s\S]*?<\/div>/)[0];
   assert.doesNotMatch(head, /Cached/i);
-  assert.equal((head.match(/\$\/1M/g) || []).length, 2);
-  const m = PAGE.match(/var PRICE_FIELDS = (\[[^\]]*\]);/);
-  assert.deepEqual(JSON.parse(m[1]), ['inPerM', 'outPerM']);
+  const mh = PAGE.match(/<div class="pv-mhead"[\s\S]*?<\/div>/)[0];
+  assert.match(mh, /IN \$\/1M[\s\S]*OUT \$\/1M/, 'layout F: the price columns sit on the child rows, headed once');
+  const line = PAGE.slice(PAGE.indexOf('function buildModelLine('), PAGE.indexOf('function paintModels('));
+  assert.deepEqual([...line.matchAll(/data-mf="(\w+)"/g)].map((m) => m[1]), ['use', 'inPerM', 'outPerM']); // M4d am7: nothing about thinking in Settings
   assert.doesNotMatch(PAGE.slice(PAGE.indexOf('function paintProviders('), PAGE.indexOf('pvRows.addEventListener("click"')), /cachedIn/);
 });

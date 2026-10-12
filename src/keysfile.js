@@ -7,6 +7,10 @@
 // `export ` prefix, `#` full-line comments, one pair of matching quotes around the
 // value); no dependency.
 //
+// Every key-looking name (`isKeyName`: …_KEY) with a value is a Settings row (M4d amendment 6): fwdloop knows no key name of its own.
+// A name reaches the env (and so a child) only once its row is set up in Settings (`configured`): a `NODE_OPTIONS` line is not a key
+// name, so it is neither listed nor passed on, even if config.json names it.
+//
 // Precedence: the SHELL wins. An exported `FOO=…` beats the file; the file only fills
 // names the shell leaves unset (or empty). The merged env is a NEW object —
 // `process.env` is never mutated.
@@ -21,13 +25,19 @@ import {
   openSync, fstatSync, readFileSync, closeSync, writeFileSync, mkdirSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { PROVIDER_SLOTS } from './provider.js';
-import { configHome, configDoorHome } from './config.js';
+import { configHome, configDoorHome, readConfig } from './config.js';
 
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const KEY_NAME_RE = /^[A-Z][A-Z0-9_]*_KEY$/;
 
-/** The key names fwdloop knows (one per provider slot). */
-export const KEY_NAMES = Object.freeze(Object.values(PROVIDER_SLOTS).map((p) => p.envVar));
+/**
+ * THE rule for what may be a key name (hamr's ruling, branch-review): it looks like an API key, `…_KEY` in capitals. Used at every gate:
+ * the `names` Settings lists, the env pass-through, and the routes that take a slot name. A `NODE_OPTIONS` line is not a key.
+ * @param {unknown} name @returns {name is string}
+ */
+export function isKeyName(name) {
+  return typeof name === 'string' && KEY_NAME_RE.test(name);
+}
 
 const DEFAULT_SHOWN = '~/.config/fwdloop/.env';
 
@@ -92,7 +102,7 @@ export function parseKeysText(text) {
 function createKeysFile(home) {
   mkdirSync(keysHome(home), { recursive: true, mode: 0o700 });
   const body = '# fwdloop keys — type NAME=value by hand; this file is never shown or written by fwdloop.\n'
-    + `${KEY_NAMES.map((n) => `# ${n}=`).join('\n')}\n`;
+    + '# One line per provider key, e.g. MY_PROVIDER_API_KEY=... ; each key becomes a row in Settings > Providers.\n';
   try {
     writeFileSync(keysFilePath(home), body, { mode: 0o600, flag: 'wx' });
   } catch (/** @type {any} */ e) {
@@ -108,7 +118,8 @@ function createKeysFile(home) {
  * @property {string} path the keys file's path as shown to people
  * @property {boolean} exists the file is there (true after a create)
  * @property {string[]} names the NAMES the file defines with a value (sorted; never values)
- * @property {string[]} shellOnly the known key names that only the shell sets (file empty/absent)
+ * @property {string[]} shellOnly the configured key names that only the shell sets (file empty/absent)
+ * @property {string[]} keyNames the NAMES of the keys that are set up in Settings and hold a value in `env` (the scrub list's names; never values)
  * @property {string|null} refusal a plain sentence when `ok` is false, else null
  * @property {Record<string,string|undefined>} env shell env with the file filling the names the
  *   shell does not set; on a refusal just a copy of the shell env (no file value). THE ONLY
@@ -116,18 +127,32 @@ function createKeysFile(home) {
  */
 
 /**
- * Load the keys file over an env. A missing file is created (0600) and is not a refusal.
- * @param {{ env?: Record<string,string|undefined>, home?: string }} [opts]
+ * The key VALUES of the named keys in an env: the scrub list. The names come from a load's `keyNames`.
+ * @param {Record<string,string|undefined>} env @param {readonly string[]|undefined} names
+ * @returns {string[]}
+ */
+export function keyValues(env, names) {
+  /** @type {string[]} */
+  const out = [];
+  for (const n of names ?? []) { const v = env[n]; if (typeof v === 'string' && v !== '') out.push(v); }
+  return out;
+}
+
+/**
+ * Load the keys file over an env. A missing file is created (0600) and is not a refusal. `configured` = the key names that have a row
+ * set up in Settings (`config.providers`): only those file values reach `env`.
+ * @param {{ env?: Record<string,string|undefined>, home?: string, configured?: string[] }} [opts]
  * @returns {KeysLoad}
  */
 export function loadKeysEnv(opts = {}) {
   const base = opts.env ?? process.env;
   const file = keysFilePath(opts.home);
   const path = shownPath(opts.home);
-  const knownShell = (parsed) => KEY_NAMES.filter((n) => base[n] && !parsed[n]);
+  const configured = (opts.configured ?? []).filter(isKeyName); // defence in depth: a non-key name in config.json never reaches env
+  const knownShell = (parsed) => configured.filter((n) => base[n] && !parsed[n]);
   /** @param {string} refusal @param {boolean} exists @returns {KeysLoad} */
   const refused = (refusal, exists) => ({
-    ok: false, path, exists, names: [], shellOnly: [], refusal, env: { ...base },
+    ok: false, path, exists, names: [], shellOnly: [], keyNames: [], refusal, env: { ...base },
   });
   let fd;
   let created = false;
@@ -145,19 +170,29 @@ export function loadKeysEnv(opts = {}) {
     const parsed = parseKeysText(readFileSync(fd, 'utf8'));
     /** @type {Record<string,string|undefined>} */
     const env = { ...base };
-    // C4 (amendment 16): only the known key names reach the env (and so a child). Any other name in the file is listed in `names`
-    // for Settings but its value stays here — a `NODE_OPTIONS` line must never reach a run, resume or draft child.
-    for (const name of KEY_NAMES) {
+    // C4 (amendment 16), M4d amendment 6: only a name whose row is set up in Settings reaches the env (and so a child). Any other name in the
+    // file stays here (a non-key name is not even listed) — a `NODE_OPTIONS` line must never reach a run, resume or draft child.
+    for (const name of configured) {
       if (!env[name] && Object.hasOwn(parsed, name)) env[name] = parsed[name];
     }
     return {
-      ok: true, path, exists: true, names: Object.entries(parsed).filter(([, v]) => v !== '').map(([n]) => n).sort(), shellOnly: knownShell(parsed), refusal: null, env,
+      ok: true, path, exists: true, names: Object.entries(parsed).filter(([n, v]) => v !== '' && isKeyName(n)).map(([n]) => n).sort(), shellOnly: knownShell(parsed), keyNames: [...new Set(configured)].filter((n) => env[n]).sort(), refusal: null, env,
     };
   } catch (/** @type {any} */ e) {
     return refused(`Your keys file ${path} could not be read (${e?.code ?? 'error'}).`, created || e?.code !== 'ENOENT');
   } finally {
     if (fd !== undefined) closeSync(fd);
   }
+}
+
+/**
+ * The key names that have a row set up in Settings (a `config.providers` entry). A broken config reads as none here: the file is
+ * still listed, and whoever reads the config refuses it by name.
+ * @param {string|undefined} home
+ * @returns {string[]}
+ */
+function configuredNames(home) {
+  try { return Object.keys(readConfig({ home }).providers ?? {}); } catch { return []; }
 }
 
 /**
@@ -175,8 +210,8 @@ export function keysForDoor(deps = {}) {
   const testNoHome = door.skip && home === undefined;
   if ((deps.env !== undefined && home === undefined) || testNoHome) {
     return {
-      ok: true, skipped: true, path: shownPath(undefined), exists: false, names: [], shellOnly: [], refusal: null, env: { ...(deps.env ?? shell) },
+      ok: true, skipped: true, path: shownPath(undefined), exists: false, names: [], shellOnly: [], keyNames: [], refusal: null, env: { ...(deps.env ?? shell) },
     };
   }
-  return { ...loadKeysEnv({ env: deps.env, home }), skipped: false };
+  return { ...loadKeysEnv({ env: deps.env, home, configured: configuredNames(home) }), skipped: false };
 }
