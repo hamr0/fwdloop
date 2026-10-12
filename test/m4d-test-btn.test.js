@@ -16,6 +16,8 @@ import { configPath } from '../src/config.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
+// Screenshots are evidence for humans, not assertions; tmp-track's mkdtempSync removes this folder at process exit.
+const shotDir = mkdtempSync(path.join(tmpdir(), 'fwdloop-m4d-test-'));
 const tmp = (p) => mkdtempSync(path.join(tmpdir(), `fwdloop-testbtn-${p}-`));
 const HANDLES = [];
 const CLOSERS = [];
@@ -157,6 +159,6 @@ test('browser: a Test result sits directly BELOW the [ Test ] button, inside the
     })()`);
     assert.match(g.text, expect);
     assert.ok(g.leftOk && g.topOk && g.inCell && g.sw, `result below the Test button at ${w} ${slot}: ${JSON.stringify(g)}`);
-    if (w === 1280 || w === 390) await chrome.screenshot(`/tmp/claude-1000/m4d-test/result-${w}-${slot}.png`);
+    if (w === 1280 || w === 390) await chrome.screenshot(path.join(shotDir, `result-${w}-${slot}.png`));
   }
 });
