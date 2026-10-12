@@ -258,7 +258,7 @@ M6b was folded into M4e. A rung starts only when its scope, exit and negative ar
 | M6a | authoring backend (draft, sign) | released (0.8.0) |
 | **M5** | **dry-run, accept, versions** | **next** |
 | M6 | edit a flow, add turns | planned (the authoring screen is done; edit waits on M5) |
-| M7 | skills and persona | planned |
+| M7 | in-run tools (one run's memory) | signed, in build |
 | M8 | case library | planned |
 | M9 | triggers, flow handover | planned |
 | M10 | real IO (mail, chat, browse) | planned |

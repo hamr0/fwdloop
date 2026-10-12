@@ -2117,6 +2117,16 @@ through M5 (docs/archive/PRD.md:597-605).
 
 ## M7 — skills and persona
 
+- **M7 scope — SIGNED by hamr 2026-10-11 ("sign m7"): in-run tools (replaces skills and persona, dropped by hamr 2026-10-11 as adding no measured value).**
+  1. Connect the tools bareloop's worker has, copied from bareloop: `edit`, `recall`, `get`, `recent`, `related`, `impact`, `compress`, `peek`, `stash`. A step can use one only if it's granted.
+  2. Memory lasts one run only. Each run gets its own fresh store, and nothing carries into the next run. `remember` and `forget` stay refused (PRD: no learning between flows).
+  3. `stash` holds at most 64 KB per item, as bareloop. `edit` may only change files where `write` may.
+  - **Done when:** a job2 flow that grants `compress` runs on deepseek-flash, and a real step uses one of the new tools and passes its check. Plus tests that fail first.
+  - **Must fail when:** a step that isn't granted `recall` calls it, and is refused. A second run can't see the first run's `stash`.
+  - **Cap:** $0.50.
+
+Superseded 2026-10-11 by the signed scope above (skills and persona dropped by hamr). Kept so it is not re-derived.
+
 Skill directories gate the drafter's visible primitive subset, and a signed persona line affects
 `compose` wording only. Menu-is-inventory: a checkbox with no skill directory is a validation red
 (docs/archive/PRD.md:611-614).
