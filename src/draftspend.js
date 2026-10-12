@@ -72,6 +72,9 @@ export function readDirSpendRows(dir) {
 }
 
 const PLAN_DIR_RE = /^draft(?:-\d+)?$/;
+/** The file a Start over's session folder carries to name the session it started over from (written once by src/panel/author.js). */
+export const STARTED_OVER_FILE = 'started-over-from.json';
+const SESSION_ID_RE = /^d-[0-9a-z]{10}-[0-9a-f]{4}$/;
 
 /**
  * M4d amendment 16 item 1: what ALL of a job's drafting spent — the one writer of that total. A panel draft's session folder holds one plan
@@ -82,7 +85,8 @@ const PLAN_DIR_RE = /^draft(?:-\d+)?$/;
  * @param {{ ceilingUsd?: number, exclude?: string }} [o] `exclude` = a plan folder name to leave out (the one being written now)
  * @returns {{ usd: number, notPriced: number, complete: boolean }}
  */
-export function draftingSpent(sessionDir, { ceilingUsd = 0, exclude } = {}) {
+export function draftingSpent(sessionDir, { ceilingUsd = 0, exclude } = {}, seen = new Set()) {
+  seen.add(resolve(sessionDir));
   let usd = 0;
   let notPriced = 0;
   for (const name of readdirInside(sessionDir, '.')) {
@@ -97,6 +101,18 @@ export function draftingSpent(sessionDir, { ceilingUsd = 0, exclude } = {}) {
         usd += rowCeilingUsd(row) > 0 ? rowCeilingUsd(row) : ceilingUsd;
         notPriced += 1;
       } else usd += spendRowCost(row).usd;
+    }
+  }
+  // M4d am19 item 3: a Start over opens a new session folder that names the one it started over from (`started-over-from.json`, written once by the panel):
+  // what the earlier session spent is still this job's drafting, so the chain is followed (a name that points back at a folder already counted is not).
+  const so = readFileInside(sessionDir, STARTED_OVER_FILE);
+  if (so.ok) {
+    let from = null;
+    try { from = JSON.parse(so.text)?.startedOverFrom; } catch { /* unreadable: no chain */ }
+    if (typeof from === 'string' && SESSION_ID_RE.test(from) && !seen.has(resolve(dirname(sessionDir), from))) {
+      const before = draftingSpent(join(dirname(sessionDir), from), { ceilingUsd }, seen);
+      usd += before.usd;
+      notPriced += before.notPriced;
     }
   }
   return { usd, notPriced, complete: notPriced === 0 };

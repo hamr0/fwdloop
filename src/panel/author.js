@@ -54,7 +54,9 @@ import {
 import { thinkingSupport as bareagentThinkingSupport, THINKING_FIXED_SAY, THINKING_UNVERIFIED_SAY } from '../thinking.js';
 import { parseSignedText } from '../signed-text.js';
 import { draftStepList } from '../draft-steps.js';
-import { draftingSpent, potSplit, usdText } from '../draftspend.js';
+import {
+  draftingSpent, potSplit, STARTED_OVER_FILE, usdText,
+} from '../draftspend.js';
 import { flowValues, valuesHash } from '../runvalues.js';
 import { leastResumeCapUsd } from './authorvalues.js';
 import { createFlowsDoor } from './authorflows.js';
@@ -68,7 +70,6 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = join(HERE, '..', '..', 'bin', 'fwdloop');
 
 /** A draft id: `d-` + the start time in base 36 (so ids sort oldest to newest) + 4 random hex. */
-const STARTED_OVER_FILE = 'started-over-from.json';
 const ID_RE = /^d-[0-9a-z]{10}-[0-9a-f]{4}$/;
 const newId = () => `d-${Date.now().toString(36).padStart(10, '0')}-${randomBytes(2).toString('hex')}`;
 /** The phases that end a card's life: Abandon or a sign. Everything else is still on the card (to read, to sign, to retry). */
