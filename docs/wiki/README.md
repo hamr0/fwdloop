@@ -5,6 +5,6 @@ has settled into a rule the code now follows — never before. Each page carries
 frontmatter (`type`, `title`, `status`, `sources`) and cites the findings it distils. If a
 later finding contradicts a page, the page changes and says which finding moved it.
 
-Nothing here yet: M0 has not run. Candidate first pages, once evidence exists: the citation
-schema and its close (§2 go/no-go), money honesty as applied to a per-run + monthly cap
-(PRD §10), the ask door (`human-confirms` as copied).
+Pages so far: `the-module-ladder.md`, `how-a-step-closes.md`, `playbook.md` and
+`playbook-and-open-questions.md`. Candidate next pages: the citation schema and its close,
+money honesty as applied to a per-run + monthly cap (PRD §10), the ask door.
