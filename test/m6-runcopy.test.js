@@ -100,7 +100,8 @@ test('a real run saves its copy at start; after the job is edited and signed, th
   const oldTab = await jobOf(w, 'one');
   const newTab = await jobOf(w, 'two');
   assert.equal(oldTab.capUsd, 0.25, 'the old run still shows the job it ran');
-  assert.equal(newTab.capUsd, 0.30);
+  // M4d am16: this run is the first run of a job that was just drafted, so it gets the card's 0.30 less what the drafting spent (a few hundredths of a cent)
+  assert.ok(newTab.capUsd < 0.30 && newTab.capUsd > 0.29, `the first run's cap is what is left of 0.30: ${newTab.capUsd}`);
   assert.equal(oldTab.jobFrom, 'run');
   assert.equal(oldTab.signature.hash, oldHash);
   assert.notEqual(newTab.signature.hash, oldHash);
