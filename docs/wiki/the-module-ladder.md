@@ -2238,6 +2238,7 @@ monthly wall is enforced **by the trigger**, before a run starts.
   - **Done when:** on a job with one green run, a time two minutes ahead starts it by itself; it reaches its ask, waits, and finishes green on deepseek-flash when the human answers; a file dropped in a watched folder starts a run with that file; and both runs show ENDED / NEXT, the job shows SCHEDULED / NEXT. Plus tests that fail first.
   - **Must fail when:** the trigger dropdown is refused on a job with no green run; a trigger firing while the job waits at an ask records `busy` and starts nothing; a month that cannot fund a run records `monthly-exhausted` at $0 and NEXT says so; the same file dropped twice runs once; three times missed while the panel was off give one catch-up run, not three.
   - **Cap:** $0.20.
+- **M9 amendment 1 — SIGNED by hamr 2026-10-13 ("sign m9 am1"): a trigger is cleared when its job is edited.** Signing an Edit replaces the job (M6). The trigger goes back to By hand. It can be set again only after the new job has one green run, as in item 1. An edited job never fires by itself before it has been tested. **Must fail when:** a job with a trigger is edited and signed, the trigger's time comes, and nothing starts.
 
 ## M10 — real IO
 
