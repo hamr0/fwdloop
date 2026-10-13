@@ -1260,7 +1260,7 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   const t = typeof triggerRead === 'function' ? triggerRead(ctx.flowName) : null;
   if (t && t.trigger) {
     scheduled = {
-      text: scheduledWords(t.trigger, home),
+      text: String(scheduledWords(t.trigger, home)),
       next: scheduledNext({
         trigger: t.trigger, armed: t.armed, nextSlotMs: t.nextSlotMs, lastOutcome: t.lastOutcome, waitingLine: jobWaitingLine(root, ctx.flowDir, ctx.flowName, catalogue), now: now(),
       }),

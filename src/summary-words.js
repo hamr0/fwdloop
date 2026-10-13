@@ -38,7 +38,7 @@ export function scheduledWords(t, home) {
   if (t.kind === 'weekdays') return `Weekdays at ${hhmm(t)}`;
   if (t.kind === 'weekly') return `${DAY_PLURAL[/** @type {keyof typeof DAY_PLURAL} */ (t.day)] ?? t.day} at ${hhmm(t)}`;
   if (t.kind === 'file-updated') return `When ${basename(t.path)} is updated`;
-  const folder = tilde(t.folder, home);
+  const folder = tilde(/** @type {{folder: string}} */ (t).folder, home);
   return `When a new file arrives in ${folder.endsWith('/') ? folder : `${folder}/`}`;
 }
 

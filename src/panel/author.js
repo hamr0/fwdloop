@@ -390,7 +390,7 @@ export function createAuthor(opts) {
     },
     /** `GET /api/author/run-again`, its flow entry carrying the trigger card like the list's entries do. @param {string|null} flow @param {string|null} runId */
     runAgain(flow, runId) {
-      const r = flowsDoor.runAgain(flow, runId);
+      const r = /** @type {any} */ (flowsDoor.runAgain(flow, runId));
       if (r.status !== 200 || !r.body.flow) return r;
       return { ...r, body: { ...r.body, flow: { ...r.body.flow, trigger: triggerDoor.card(r.body.flow.flow) } } };
     },
