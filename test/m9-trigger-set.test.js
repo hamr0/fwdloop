@@ -93,6 +93,35 @@ test('F2 a trigger-only re-sign (set, change, cancel) keeps the Job tab reading 
   assert.deepEqual(await plan('after-set'), first);
 });
 
+test('F3 a legacy green run (no job copy, signatureHash = the signature) stays green through trigger-only re-signs, until a real Edit; Cancel is never refused for no-green-run (am5)', async () => {
+  const w = await world({ limit: 5 });
+  await w.signedFlow();
+  const flowDir = path.join(w.root, 'job2');
+  const read = () => readFlow({ root: w.root, name: 'job2', catalogue: CAT });
+  w.seedPassed('job2', 'legacy', { signatureHash: read().signature.flow });
+  assert.equal(hasGreenRunForJob(flowDir), true, 'legacy run counts for the job it ran');
+  assert.equal((await setTrigger(w, DAILY)).status, 200);
+  assert.equal(hasGreenRunForJob(flowDir), true, 'after Sign schedule');
+  assert.equal((await setTrigger(w, { kind: 'weekdays', hour: 8, minute: 30 })).status, 200);
+  assert.equal(hasGreenRunForJob(flowDir), true, 'after modify');
+  // no green run at all (history gone): Cancel is still allowed, both clicks
+  writeFileSync(path.join(flowDir, 'history.jsonl'), '');
+  assert.equal(hasGreenRunForJob(flowDir), false);
+  assert.equal((await setTrigger(w, DAILY)).json().refused, 'no-green-run', 'setting still needs the green run');
+  const c = await setTrigger(w, null);
+  assert.equal(c.status, 200, c.text);
+  assert.equal(read().arbiter.trigger, null);
+  // a real Edit (the steps changed) clears green (am1)
+  writeFileSync(path.join(flowDir, 'history.jsonl'), `${JSON.stringify({ runId: 'legacy', at: '2026-10-06T10:00:00.000Z', outcome: 'complete', spentUsd: 0.02, spendComplete: true, capUsd: 0.25, wallMs: 1, signatureHash: read().signature.flow })}\n`);
+  assert.equal(hasGreenRunForJob(flowDir), true, 'after Cancel schedule');
+  const changed = writeFlow({
+    root: w.root, name: 'job2', proseText: text(path.join(flowDir, 'prose.txt')).replace('write it out.', 'write it out, then tidy it.'),
+    declaration: JSON.parse(text(path.join(flowDir, 'declaration.json'))), signedBy: 'else', signedAt: '2026-10-10T12:00:00Z', catalogue: CAT, replaces: { flowHash: read().signature.flow },
+  });
+  assert.equal(changed.ok, true, JSON.stringify(changed.reds));
+  assert.equal(hasGreenRunForJob(flowDir), false, 'a real Edit clears it');
+});
+
 test('Must fail (item 2): changing only the trigger keeps the green run; an edit of the steps does not (one function, both directions)', async () => {
   const { w, flowDir, read } = await greenWorld();
   assert.equal(hasGreenRunForJob(flowDir), true);

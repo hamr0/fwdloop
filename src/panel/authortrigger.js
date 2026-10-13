@@ -32,7 +32,7 @@ import { parseSignedText } from '../signed-text.js';
 import { editClearsWords, scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
 import { checkTarget, createFileTrigger } from '../trigger-files.js';
-import { carrySetup } from '../setup.js';
+import { carrySetup, readSetup } from '../setup.js';
 import {
   proseWithTrigger, stripTrigger, triggerHash, triggerLine,
 } from '../trigger-line.js';
@@ -65,10 +65,26 @@ export function appendOutcome(flowDir, row) {
 }
 
 /**
+ * The signature hashes that are this job: the current one plus every one it is a trigger-only re-sign of (the `trigger-resign` rows `set` appends to
+ * setup.jsonl, followed back by `resignOf`). A real Edit writes a new setup.jsonl with no such rows, so it starts a new chain (am1).
+ * @param {string} flowDir @param {string} sig
+ */
+function signingsOf(flowDir, sig) {
+  const out = new Set([sig]);
+  const s = readSetup(flowDir);
+  if (!s.present) return out;
+  for (let h = sig; ;) {
+    const prev = s.rows.findLast((r) => r.kind === 'trigger-resign' && r.flowHash === h)?.resignOf;
+    if (typeof prev !== 'string' || out.has(prev)) return out;
+    out.add(prev); h = prev;
+  }
+}
+
+/**
  * M9 item 1 and 2: does this job have "one green run"? The ONE function that decides it. A passed run counts when the job it ran (its own
  * `job/` copy) is the current job WITHOUT its trigger line: so changing only the trigger keeps the run (item 2), and an Edit that changes
  * the steps, a guardrail or the cap does not (am1). A run from before runs kept a job copy has none to compare, so it counts only when its
- * history row's signature is the job's current one (a job signed since then is not the job it ran).
+ * history row's signature is the job's current one (a job signed since then is not the job it ran, unless that signing only added or changed its trigger line: see signingsOf).
  * @param {string} flowDir
  */
 export function hasGreenRunForJob(flowDir) {
@@ -82,6 +98,7 @@ export function hasGreenRunForJob(flowDir) {
   try { sig = JSON.parse(cur['signature.json']).flow; } catch { return false; }
   const key = (/** @type {string} */ prose, /** @type {string} */ decl) => `${stripTrigger(prose).trimEnd()}\n\u0000${decl}`;
   const want = key(cur['prose.txt'], cur['declaration.json']);
+  const signings = signingsOf(flowDir, sig);
   const history = readHistory(flowDir);
   for (const id of listRunIds(flowDir)) {
     const r = resolveRunDir(flowDir, id);
@@ -90,7 +107,7 @@ export function hasGreenRunForJob(flowDir) {
     if (end === null || end.outcome !== 'complete') continue;
     const prose = readFileInside(r.runDir, 'job/prose.txt');
     const decl = readFileInside(r.runDir, 'job/declaration.json');
-    if (prose.ok && decl.ok) { if (key(prose.text, decl.text) === want) return true; } else if (!prose.ok && prose.missing && end.signatureHash === sig) return true;
+    if (prose.ok && decl.ok) { if (key(prose.text, decl.text) === want) return true; } else if (!prose.ok && prose.missing && signings.has(end.signatureHash)) return true;
   }
   return false;
 }
@@ -171,7 +188,7 @@ export function createTriggerDoor(opts) {
     if (!shaped.ok) return reply(400, { refused: 'bad-trigger', say: shaped.say });
     const { trigger } = shaped;
     const flowDir = join(realRoot, flow);
-    if (!hasGreenRunForJob(flowDir)) return reply(409, { refused: 'no-green-run', say: NO_GREEN_SAY });
+    if (trigger !== null && !hasGreenRunForJob(flowDir)) return reply(409, { refused: 'no-green-run', say: NO_GREEN_SAY });
     const blocked = flowsDoor.editBlock(flow);   // the same rule Edit uses: a run starting, running or waiting at its ask
     if (blocked !== null) return reply(409, { refused: 'run-live', say: `${blocked}. Nothing was changed.` });
     if (trigger !== null && 'role' in trigger) {
