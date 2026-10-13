@@ -10,7 +10,7 @@ import {
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
-import { createFileTrigger, readSeen, recordArrived, recordRan, STABLE_POLLS } from '../src/trigger-files.js';
+import { queueOf as queueOfSync, createFileTrigger, readSeen, recordArrived, recordDropped, recordRan, STABLE_POLLS } from '../src/trigger-files.js';
 
 const root = () => mkdtempSync(path.join(tmpdir(), 'm9files-'));
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -143,9 +143,53 @@ test('file-updated: the current version does not run; a change after arming does
   stamp(f); // touch only
   assert.equal(pollN(w).length, 0, 'mtime moved, sha same');
   writeFileSync(f, 'v1'); stamp(f);
-  assert.equal(pollN(w).length, 0, 'back to a sha that already ran/baselined');
+  assert.equal(pollN(w).length, 1, 'the baseline version coming back after a change is a change (item 6: only a sha that RAN is never run again)');
+  writeFileSync(f, 'v1'); stamp(f);
+  assert.equal(pollN(w).length, 0, 'now v1 has run: never again');
   writeFileSync(f, 'v3'); stamp(f);
   assert.equal(pollN(w).length, 1);
+});
+
+test('F1 file-updated: A (baseline) -> B (runs) -> A arrives; A again after it ran does not', () => {
+  const { base, ledger } = setup();
+  const f = path.join(base, 'f.txt'); writeFileSync(f, 'AAAA'); stamp(f);
+  const w = mkTrigger({ mode: 'updated', target: f, ledger }); w.arm();
+  assert.equal(pollN(w, 8).length, 0, 'armed on A: nothing');
+  writeFileSync(f, 'BBBBB'); stamp(f);
+  assert.deepEqual(pollN(w).map((r) => r.sha), [sha('BBBBB')]);
+  writeFileSync(f, 'AAAA'); stamp(f);
+  assert.deepEqual(pollN(w).map((r) => r.sha), [sha('AAAA')], 'A is a change away from B');
+  writeFileSync(f, 'BBBBB'); stamp(f);
+  assert.equal(pollN(w).length, 0, 'B ran: never again');
+});
+
+test('F1 a version that arrived and is still queued does not arrive twice; one that was dropped (never ran) may arrive again', () => {
+  const { base, ledger } = setup();
+  const f = path.join(base, 'f.txt'); writeFileSync(f, 'AAAA'); stamp(f);
+  const w = mkTrigger({ mode: 'updated', target: f, ledger }); w.arm();
+  writeFileSync(f, 'BBBBB'); stamp(f);
+  const [b] = (() => { let r; for (let i = 0; i < 4 && !(r = w.poll().arrived).length; i++); return r; })();
+  recordArrived(ledger, b, Date.now()); // queued, not run
+  stamp(f);
+  assert.equal(w.poll().arrived.length + w.poll().arrived.length + w.poll().arrived.length, 0, 'queued: not twice');
+  recordDropped(ledger, { ...b, ...readSeen(ledger).find((r) => r.kind === 'arrived') }, 'changed', Date.now());
+  stamp(f);
+  const again = (() => { let r = []; for (let i = 0; i < 4 && !r.length; i++) r = w.poll().arrived; return r; })();
+  assert.deepEqual(again.map((r) => r.sha), [sha('BBBBB')], 'dropped never ran: arrives again');
+  recordArrived(ledger, again[0], Date.now());
+  assert.equal(readSeen(ledger).filter((r) => r.kind === 'arrived').length, 2, 'a second arrived row is written');
+  assert.deepEqual(queueOfSync(readSeen(ledger)).map((r) => r.sha), [sha('BBBBB')], 'queued again once');
+});
+
+test('F1 new-file: a baseline file sitting in the folder never arrives; its content under a NEW name does (it never ran)', () => {
+  const { dir, ledger } = setup();
+  writeFileSync(path.join(dir, 'old.csv'), 'same\n');
+  const w = mkTrigger({ mode: 'new', target: dir, ledger }); w.arm();
+  for (let i = 0; i < 20; i++) assert.equal(record(w, w.poll().arrived).length, 0, `poll ${i}: the baseline file never runs`);
+  const f2 = path.join(dir, 'copy.csv'); writeFileSync(f2, 'same\n'); stamp(f2);
+  assert.deepEqual(pollN(w).map((r) => path.basename(r.path)), ['copy.csv'], 'baseline is keyed name+sha: a new name is a new file');
+  const f3 = path.join(dir, 'third.csv'); writeFileSync(f3, 'same\n'); stamp(f3);
+  assert.equal(pollN(w).length, 0, 'that sha has now run: never again');
 });
 
 test('file-updated: file missing at arm, then created, is a change and runs', () => {
