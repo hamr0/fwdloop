@@ -17,6 +17,7 @@ refusals in words.
   use them over one fresh store per run, kept outside every read scope. `edit` goes through the same
   write fence as `write`. `get` also reads a stashed item by id. `remember` and `forget` stay
   refused, since memory lasts one run.
+- `impact` needs ripgrep (`rg`) on PATH; without it the tool is refused in words, and CI installs it.
 - A stash holds at most 64 KB (65536 bytes) per payload, measured after known secret shapes are
   masked; a larger one is refused with nothing parked, and the refusal says what to do. Run 2 cannot
   see run 1's stash, even when a run reuses a deleted run's id (it starts empty).

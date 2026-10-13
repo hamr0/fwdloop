@@ -62,6 +62,8 @@ standalone.
 
 Work in progress. Nothing here is ready to install yet.
 
+The in-run `impact` tool needs ripgrep (`rg`) on PATH; without it the tool is refused with a message, never a wrong answer.
+
 ## License
 
 Apache-2.0. See `LICENSE` and `NOTICE`.
