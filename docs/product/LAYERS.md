@@ -57,7 +57,7 @@ ENDED:  passed · failed · stopped · expired
   expired          → a person must reopen it
   │
   ▼
-NEXT TIME: a trigger reruns the same signed job.  [PLANNED. Today you start it by hand.]
+NEXT TIME: a trigger reruns the same signed job.  [BUILT in M9, not yet released: set When on the Run card of a job with one good run; the panel starts it while it is open.]
 ```
 
 ---
@@ -260,7 +260,7 @@ M6b was folded into M4e. A rung starts only when its scope, exit and negative ar
 | M6 | edit a flow, add turns | released (0.15.0) |
 | M7 | in-run tools (one run's memory) | exit signed 2026-10-12, not yet released |
 | M8 | case library | planned |
-| M9 | triggers, flow handover | planned |
+| M9 | triggers (clock, file watch) and the run summary | exit signed 2026-10-13, not yet released; inbox-poll and flow handover not built |
 | M10 | real IO (mail, chat, browse) | planned |
 
 ---
