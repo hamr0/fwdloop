@@ -110,7 +110,7 @@ export function createAuthor(opts) {
 
   // M9: the trigger door (set the signed trigger, read it) and the one fire path the panel's scheduler calls
   const triggerDoor = createTriggerDoor({
-    root, flowsDoor, starter, loadEnv, monthlyClaim: (usd) => monthlyClaim(usd), now,
+    root, flowsDoor, starter, loadEnv, monthlyClaim: (usd) => monthlyClaim(usd), modelRefusal: (card, loaded) => modelRefusal(card, loaded), now,
   });
 
   /** The ONE monthly check, defined below (a function declaration, so the doors above may take it now). */

@@ -216,3 +216,69 @@ test('the real timer ticks by itself and stops with the server: no tick after cl
   await sleep(150);
   assert.equal(readOutcomes(g.flowDir).length, n, 'closed: no timer left');
 });
+
+test('F4 a fire runs the Run door\'s model checks: no model record -> one refused row, nothing started (clock slot spent); unticked model -> refused', async () => {
+  const f = await fireWorld();
+  assert.equal((await setTrigger(f.w, DAILY)).status, 200);
+  const { rmSync } = await import('node:fs');
+  const rec = readFileSync(path.join(f.flowDir, 'model.json'), 'utf8');
+  rmSync(path.join(f.flowDir, 'model.json'));
+  f.clock.t = at(13, 9, 0, 10); f.tick();
+  let rows = f.rows();
+  assert.equal(rows.length, 1, JSON.stringify(rows));
+  assert.equal(rows[0].outcome, 'refused');
+  assert.match(rows[0].why, /model/i);
+  assert.deepEqual(f.w.starts(), [], 'nothing started');
+  assert.deepEqual(f.runs(), []);
+  f.tick();
+  assert.equal(f.rows().length, 1, 'the slot is spent: no retry');
+  // the record is back but its model is no longer ticked in Settings
+  writeFileSync(path.join(f.flowDir, 'model.json'), rec);
+  const { slot, model } = JSON.parse(rec);
+  writeFileSync(path.join(f.w.home, 'config.json'), JSON.stringify(tickedConfig({ models: { [slot]: [{ model, use: false, inPerM: 0.75, outPerM: 1.625 }] } })));
+  f.clock.t = at(14, 9, 0, 10); f.tick();
+  rows = f.rows();
+  assert.equal(rows.length, 2, JSON.stringify(rows));
+  assert.equal(rows[1].outcome, 'refused');
+  assert.deepEqual(f.w.starts(), []);
+});
+
+test('F4 a file whose job has no model record stays queued (no ran row), is told once, and starts once the model is back', async () => {
+  const f = await fireWorld();
+  const inbox = path.join(f.w.work, 'inbox'); mkdirSync(inbox);
+  assert.equal((await setTrigger(f.w, { kind: 'new-file', role: 'jd', folder: inbox })).status, 200);
+  const { rmSync } = await import('node:fs');
+  const rec = readFileSync(path.join(f.flowDir, 'model.json'), 'utf8');
+  rmSync(path.join(f.flowDir, 'model.json'));
+  writeFileSync(path.join(inbox, 'd.md'), '# jd\n');
+  pollFiles(f); pollFiles(f);
+  assert.equal(f.rows().filter((r) => r.outcome === 'refused').length, 1, `told once: ${JSON.stringify(f.rows())}`);
+  assert.deepEqual(f.w.starts(), []);
+  const led = readJsonl(path.join(f.flowDir, 'triggers', f.read().signature.flow, 'seen.jsonl'));
+  assert.equal(led.some((r) => r.kind === 'ran'), false, 'no ran row: it stays queued');
+  assert.equal(led.some((r) => r.kind === 'arrived'), true);
+  writeFileSync(path.join(f.flowDir, 'model.json'), rec);
+  pollFiles(f);
+  assert.equal(f.rows().at(-1).outcome, 'started');
+});
+
+test('F4 a start the starter refuses (409) is one refused row with its say, never started', async () => {
+  const { createTriggerDoor } = await import('../src/panel/authortrigger.js');
+  const f = await fireWorld();
+  assert.equal((await setTrigger(f.w, DAILY)).status, 200);
+  const slot = JSON.parse(readFileSync(path.join(f.flowDir, 'model.json'), 'utf8')).slot;
+  const door = createTriggerDoor({
+    root: f.w.root,
+    flowsDoor: { editBlock: () => null, lastSourcesOf: () => ({ sources: { resume: path.join(f.w.inDir, 'resume.md'), jd: path.join(f.w.inDir, 'jd.md') } }) },
+    starter: { start: () => ({ status: 409, body: { ok: false, refused: 'start-live', say: 'A run of this flow is already starting. Wait for it.' } }) },
+    loadEnv: () => ({ ok: true, env: {}, keyNames: [slot] }),
+    monthlyClaim: () => null,
+    modelRefusal: () => [],
+    now: () => at(13, 9, 0, 10),
+  });
+  const [job] = door.scan();
+  const row = door.fire(job, { kind: 'clock', slot: at(13, 9), catchUp: false, missed: 0 });
+  assert.equal(row.outcome, 'refused');
+  assert.match(row.why, /already starting/);
+  assert.deepEqual(f.rows().map((r) => r.outcome), ['refused']);
+});

@@ -32,6 +32,7 @@ import { parseSignedText } from '../signed-text.js';
 import { editClearsWords, scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
 import { checkTarget, createFileTrigger } from '../trigger-files.js';
+import { readModelRecord } from '../flowmodel.js';
 import { carrySetup, readSetup } from '../setup.js';
 import {
   proseWithTrigger, stripTrigger, triggerHash, triggerLine,
@@ -154,11 +155,11 @@ function shapeOf(t, roles) {
 }
 
 /**
- * @param {{ root: string, flowsDoor: ReturnType<typeof import('./authorflows.js').createFlowsDoor>, starter: ReturnType<typeof import('./authorstart.js').createStarter>, loadEnv: () => any, monthlyClaim: (usd: number) => any, now?: () => number }} opts
+ * @param {{ root: string, flowsDoor: ReturnType<typeof import('./authorflows.js').createFlowsDoor>, starter: ReturnType<typeof import('./authorstart.js').createStarter>, loadEnv: () => any, monthlyClaim: (usd: number) => any, modelRefusal: (card: any, loaded: any) => { field: string, say: string }[], now?: () => number }} opts
  */
 export function createTriggerDoor(opts) {
   const {
-    root, flowsDoor, starter, loadEnv, monthlyClaim, now = Date.now,
+    root, flowsDoor, starter, loadEnv, monthlyClaim, modelRefusal, now = Date.now,
   } = opts;
 
   const realRootOrNull = () => { try { return realpathSync(root); } catch { return null; } };
@@ -322,6 +323,12 @@ export function createTriggerDoor(opts) {
       }
       const loaded = loadEnv();
       if (!loaded.ok) return done({ outcome: 'refused', why: String(loaded.refusal) });
+      // the Run door's model check (its one `modelRefusal`), on the job's recorded model: a trigger picks no model, so a job without a record, or whose
+      // line is no longer ticked / priced / keyed in Settings, is refused here at $0, never started
+      const rec = readModelRecord(flowDir);
+      if (rec === null) return done({ outcome: 'refused', why: 'This job has no model recorded, so it cannot start by itself. Run it by hand once from the Chat card and pick a model. Nothing started.' });
+      const modelSays = modelRefusal({ provider: rec.slot, model: rec.model }, loaded);
+      if (modelSays.length > 0) return done({ outcome: 'refused', why: modelSays[0].say.replace(/ Nothing was spent\.$/, '. Nothing started.') });
       const catchUp = base.catchUp === true;
       const record = {
         kind: cause.kind, trigger: desc, reason: `Started by the trigger: ${desc}${catchUp ? ' (catch-up)' : ''}`, catchUp, ...(cause.kind === 'clock' ? { slot: new Date(cause.slot).toISOString(), missed: cause.missed } : { file: cause.path, sha: cause.sha }),
