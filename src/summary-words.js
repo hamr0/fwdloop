@@ -61,24 +61,34 @@ export function editClearsWords(t, home) {
  *  2. the latest outcome this month is `monthly-exhausted` (the signed sentence, amounts from the row);
  *  3. a clock kind with a next slot; 4. a file kind that is armed; 5. not armed yet.
  * A last outcome of `refused` goes in front of 3-5, so a trigger that cannot start is never silent.
+ * `red` is the typed flag for "the human must act": monthly-exhausted and the refused lead. The page paints it; it never guesses from the text.
  * @param {{trigger: Trigger, armed: boolean, nextSlotMs: number|null, lastOutcome: any, waitingLine: number|null, now: number}} f
+ * @returns {{text: string, red: boolean}}
  */
-export function scheduledNext(f) {
+export function scheduledNextFor(f) {
   const { trigger, armed, nextSlotMs, lastOutcome, waitingLine, now } = f;
-  if (waitingLine !== null) return `Waiting for your answer at line ${waitingLine}; the next run waits too.`;
+  /** @param {string} text @param {boolean} [red] */
+  const say = (text, red = false) => ({ text, red });
+  if (waitingLine !== null) return say(`Waiting for your answer at line ${waitingLine}; the next run waits too.`);
   const last = lastOutcome && typeof lastOutcome === 'object' ? lastOutcome : null;
   const sameMonth = last !== null && typeof last.at === 'string' && Number.isFinite(Date.parse(last.at))
     && new Date(Date.parse(last.at)).getFullYear() === new Date(now).getFullYear() && new Date(Date.parse(last.at)).getMonth() === new Date(now).getMonth();
   if (last !== null && last.outcome === 'monthly-exhausted' && sameMonth && typeof last.leftUsd === 'number' && typeof last.needUsd === 'number') {
     const left = last.atLeast === true ? `at most ${money(last.leftUsd)} left` : `${money(last.leftUsd)} left`;
-    return `Paused: not enough money left this month (${left}, a run needs up to ${money(last.needUsd)}). Raise the monthly limit in Settings, or it starts again on the 1st.`;
+    return say(`Paused: not enough money left this month (${left}, a run needs up to ${money(last.needUsd)}). Raise the monthly limit in Settings, or it starts again on the 1st.`, true);
   }
   const lead = last !== null && last.outcome === 'refused' && typeof last.why === 'string' && last.why !== '' ? `The last try did not start: ${last.why} ` : '';
-  if (!armed) return `${lead}Not armed yet: the panel arms it on its next check.`;
-  if (trigger.kind === 'file-updated') return `${lead}Watching for it. A run starts when its contents change.`;
-  if (trigger.kind === 'new-file') return `${lead}Watching for it. A run starts for each new file.`;
-  if (nextSlotMs === null) return `${lead}Not armed yet: the panel arms it on its next check.`;
-  return `${lead}Next run ${slotWords(nextSlotMs)}.`;
+  const red = lead !== '';
+  if (!armed) return say(`${lead}Not armed yet: the panel arms it on its next check.`, red);
+  if (trigger.kind === 'file-updated') return say(`${lead}Watching for it. A run starts when its contents change.`, red);
+  if (trigger.kind === 'new-file') return say(`${lead}Watching for it. A run starts for each new file.`, red);
+  if (nextSlotMs === null) return say(`${lead}Not armed yet: the panel arms it on its next check.`, red);
+  return say(`${lead}Next run ${slotWords(nextSlotMs)}.`, red);
+}
+
+/** The NEXT sentence alone. @param {Parameters<typeof scheduledNextFor>[0]} f */
+export function scheduledNext(f) {
+  return scheduledNextFor(f).text;
 }
 
 /** Fixed catch-up sentence (am2 item 1) from a run's `trigger.json`. @param {any} rec */

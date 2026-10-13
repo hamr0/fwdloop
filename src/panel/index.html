@@ -287,6 +287,7 @@
   .ended-block{position:relative;border:1px solid var(--border-strong);padding:12px;margin-bottom:12px;background:var(--panel2);font-size:13px;}
   .ended-block.magenta{border-color:var(--magenta);}
   .ended-block.red{border-color:var(--red);}
+  .ended-text.is-red{color:var(--red);}
   .ended-block.green{border-color:var(--green);}
   .ended-block.amber{border-color:var(--amber);}
   .ended-row{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px;}
@@ -2238,8 +2239,9 @@
     } else { ended.hidden = true; ended.innerHTML = ""; }
     if(sm.scheduled){
       sched.hidden = false;
-      sched.className = "ended-block";
+      sched.className = "ended-block" + (sm.scheduled.nextRed === true ? " red" : "");
       sched.innerHTML = summaryRows(["SCHEDULED", sm.scheduled.text, "sched-text"], ["NEXT", sm.scheduled.next, "sched-next"]);
+      if(sm.scheduled.nextRed === true) sched.querySelector('[data-testid="sched-next"]').classList.add("is-red");
     } else { sched.hidden = true; sched.innerHTML = ""; }
     note.hidden = !sm.catchUp;
     note.textContent = sm.catchUp || "";

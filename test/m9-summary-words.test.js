@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-  catchUpWords, editClearsWords, endedWords, scheduledNext, scheduledWords, slotWords,
+  catchUpWords, editClearsWords, endedWords, scheduledNext, scheduledNextFor, scheduledWords, slotWords,
 } from '../src/summary-words.js';
 
 test('SCHEDULED words, the signed examples', () => {
@@ -34,6 +34,12 @@ test('NEXT of a scheduled job: next run, paused, waiting, file kinds, not armed'
   assert.equal(scheduledNext({ ...base, lastOutcome: { ...paused, at: new Date(2026, 8, 30, 9, 0).toISOString() } }), 'Next run Mon 19 Oct, 09:00.');
   assert.match(scheduledNext({ ...base, lastOutcome: { at: paused.at, outcome: 'refused', why: 'The input "jd" is not there. Nothing started.' } }), /^The last try did not start: The input "jd" is not there\. Nothing started\. Next run /);
   assert.match(scheduledNext({ ...base, armed: false }), /^Not armed yet/);
+  // the typed red flag: the human must act (paused for money, a refused try); a normal next run is not red
+  assert.equal(scheduledNextFor(base).red, false);
+  assert.equal(scheduledNextFor({ ...base, waitingLine: 4 }).red, false);
+  assert.equal(scheduledNextFor({ ...base, lastOutcome: paused }).red, true);
+  assert.equal(scheduledNextFor({ ...base, lastOutcome: { at: paused.at, outcome: 'refused', why: 'The input "jd" is not there. Nothing started.' } }).red, true);
+  assert.equal(scheduledNextFor({ ...base, lastOutcome: { ...paused, at: new Date(2026, 8, 30, 9, 0).toISOString() } }).red, false);
   assert.match(scheduledNext({ ...base, trigger: { kind: 'file-updated', role: 'a', path: '/x/a.md' }, nextSlotMs: null }), /^Watching for it\. A run starts when its contents change\.$/);
   assert.match(scheduledNext({ ...base, trigger: { kind: 'new-file', role: 'a', folder: '/x' }, nextSlotMs: null }), /^Watching for it\. A run starts for each new file\.$/);
 });

@@ -39,7 +39,7 @@ import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../r
 import { readSetup } from '../setup.js';
 import { checkedLines, notCheckedBlock, NOT_CHECKED_LABEL } from '../checked.js';
 import {
-  catchUpWords, endedWords, scheduledNext, scheduledWords,
+  catchUpWords, endedWords, scheduledNextFor, scheduledWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import {
@@ -1264,12 +1264,10 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   let scheduled = null;
   const t = typeof triggerRead === 'function' ? triggerRead(ctx.flowName) : null;
   if (t && t.trigger) {
-    scheduled = {
-      text: String(scheduledWords(t.trigger, home)),
-      next: scheduledNext({
-        trigger: t.trigger, armed: t.armed, nextSlotMs: t.nextSlotMs, lastOutcome: t.lastOutcome, waitingLine: jobWaitingLine(root, ctx.flowDir, ctx.flowName, catalogue), now: now(),
-      }),
-    };
+    const nx = scheduledNextFor({
+      trigger: t.trigger, armed: t.armed, nextSlotMs: t.nextSlotMs, lastOutcome: t.lastOutcome, waitingLine: jobWaitingLine(root, ctx.flowDir, ctx.flowName, catalogue), now: now(),
+    });
+    scheduled = { text: String(scheduledWords(t.trigger, home)), next: nx.text, nextRed: nx.red };
   }
   let rec = null;
   const f = readFileInside(ctx.runDir, 'trigger.json');
