@@ -2307,4 +2307,7 @@ same run. Scope is stated when its turn comes.
   4. **Job card:** line 1 `[sign] job  k runs`; line 2 `word · why` of its newest run. It is highlighted when the selected run is one of its runs. Box F also shows a job type (rubric / deterministic); fwdloop has no job types, so it is left out.
   5. **Run card (inside a job):** line 1 `[sign] run-N  date · model`; line 2 `word — why · $cost · wall`. Selected: blue border and blue fill.
   - **Taken out of M11 as signed, because box F does not have it:** the tags Answer / Continue / Reopen; clicking a Scheduled card; the red paused NEXT in Scheduled; Needs you moving the left side to the Inbox.
+- **M11 amendment 2 — SIGNED by hamr 2026-10-13 ("sign m11 am2"): stopped runs you can Resume are in Needs you.** hamr 2026-10-13 picked "A": box F's own Resume example is a capped run that can resume ("time cap 20m · can resume from step 2"). Adds to amendment 1 item 2; nothing else changes.
+  1. A stopped run `[■]` whose Run tab shows the Resume button (the same `runControls` answer, `canResume`) is in Needs you with the tag **Resume**, as a stuck `[II]` run is.
+  2. A stopped run `[■]` with no Resume button (e.g. "stopped — the job was edited; start a new run") is not in Needs you; it shows only under Jobs.
 - *Built after signing — not signed text:* the mockup hamr signed am1 against is `docs/product/m11-runs-list-mock.html` (left: bareloop box F unchanged; right: fwdloop's version).
