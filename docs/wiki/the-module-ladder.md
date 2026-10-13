@@ -2251,6 +2251,9 @@ monthly wall is enforced **by the trigger**, before a run starts.
   5. If a queued file is deleted or changed before its turn, it doesn't run, and its row says why. A changed file arrives again as a new version.
   6. Missed clock times are still skipped, as now.
   - **Must fail when:** 3 files land at once and fewer than 3 runs happen, in arrival order; or the panel restarts and a queued file never runs.
+- **M9 amendment 4 — SIGNED by hamr 2026-10-13 ("sign m9 am4"): one button on the Run card.**
+  The Run card has one main button. When **When** shows the signed trigger (or By hand), it reads **Run now — spends up to $X** and runs once, now. When **When** is changed, it reads **Sign schedule**: two clicks, $0, it saves the trigger and starts nothing, then it reads Run now again. No separate trigger button.
+  - **Must fail when:** changing When and clicking the button starts a run; or there are two buttons.
 
 ## M10 — real IO
 
