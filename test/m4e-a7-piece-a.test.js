@@ -49,16 +49,15 @@ test('(c) the page renders exactly those lines bold, the rest escaped plain', ()
   assert.equal(readoutHtml({ readout: '<script>', readoutHeads: [] }), '&lt;script&gt;', 'no head list = plain text, escaped');
 });
 
-test('(c) a Runs card\'s last line: spend, time in plain units, date, "1 run" — real separator text on the job card and the sub-card', () => {
-  const src = ['escapeXml', 'money', 'duration', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText', 'runMetaLineHtml'].map(fn).join('\n');
-  const { runMetaLineHtml } = new Function(`${src}\nreturn { runMetaLineHtml };`)();
-  const r = { spend: '$0.0616', wallMs: 383000, at: '2026-10-06T10:00:00Z' };
-  const text = (h) => h.replace(/<[^>]+>/g, '');
-  assert.equal(text(runMetaLineHtml(r, '1 run')), '$0.0616 · 6m23s · 2026-10-06 · 1 run');
-  assert.equal(text(runMetaLineHtml(r, null)), '$0.0616 · 6m23s · 2026-10-06');
-  assert.equal(text(runMetaLineHtml({ ...r, wallMs: null }, '2 runs')), '$0.0616 · 2026-10-06 · 2 runs', 'unrecorded time is left out, never invented');
+test('(c) a run card\'s spend, time in plain units and date are real separator text (M11: the one runs list)', () => {
+  const src = ['escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText', 'rlRunCardHtml'].map(fn).join('\n');
+  const { rlRunCardHtml } = new Function(`${src}\nreturn { rlRunCardHtml };`)();
+  const r = { flow: 'f', runId: 'run-1', glyph: '[✓]', word: 'passed', line: null, label: 'passed', spend: '$0.0616', wallMs: 383000, at: '2026-10-06T10:00:00Z', model: null };
+  const text = (h) => h.replace(/<[^>]+>/g, '').replace(/&middot;/g, '·').replace(/&mdash;/g, '—');
+  assert.match(text(rlRunCardHtml(r, false)), /passed — goal met · \$0\.0616 · 6m23s$/);
+  assert.match(text(rlRunCardHtml({ ...r, wallMs: null }, false)), /passed — goal met · \$0\.0616$/, 'unrecorded time is left out, never invented');
+  assert.match(text(rlRunCardHtml(r, false)), /^run-1 2026-10-06/);
   assert.doesNotMatch(PAGE, /\.wf-meta \+ \.wf-meta::before/, 'no CSS-only separator');
-  assert.doesNotMatch(PAGE, /wf-meta">' \+ g\.runCount/, 'the job card builds its line through the one builder');
 });
 
 test('(c) data.js hands the page the history row\'s wallMs (null when unrecorded)', () => {

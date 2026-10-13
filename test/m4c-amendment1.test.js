@@ -255,9 +255,8 @@ test('issue 4: a late reply for a run the user already left changes nothing; unr
   assert.deepEqual(bad.right(), ['tab-run']);
 });
 
-test('(a) all three Runs rows (Workflows parent, child, History) go through that one function', () => {
-  assert.match(fnSrc('buildRunRowEl'), /openRunFromRuns\(r, row\)/);
-  assert.match(fnSrc('renderWorkflows'), /openRunFromRuns\(/);
+test('(a) a run card in the one runs list goes through that one function (M11: the Workflows parent and History rows are gone)', () => {
+  assert.match(fnSrc('rlClick'), /openRunFromRuns\(row, null\)/);
 });
 
 test('(b) an Inbox card click opens the Ask tab — waiting card and old answered/expired card alike', () => {

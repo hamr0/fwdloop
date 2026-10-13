@@ -89,10 +89,11 @@ function loopHarness(world) {
     var LIVE_POLL_MS = 2000, LISTS_POLL_MS = 10000, LIVE_MAX_MS = 300000, live = null, pollTimer = null, askDrawnFor = null;
     var lastListsAt = 0, openRunLive = true, wasHidden = false, pendingAnswer = null;
     var lastSig = { inbox: null, runs: null, detail: null, asks: null, audit: null };
+    var rlData = { rows: [], jobs: [], scheduled: [], limits: {} }; function tickSince(){}
     var runsFilterBar = { setItems: function(){}, refresh: function(){} };
     function renderInbox(){ seen.inbox++; } function renderRun(){} function renderAudit(){} function renderAsk(r){ return seen.renderAsk ? seen.renderAsk(r) : undefined; }
     function watchStep(){}
-    ${['holdAskRender', 'sig', 'tickLeft', 'withScrollPreserved', 'paintRun', 'paintAsks', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick'].map(fnSrc).join('\n')}
+    ${['holdAskRender', 'sig', 'tickLeft', 'setRunsData', 'withScrollPreserved', 'paintRun', 'paintAsks', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick'].map(fnSrc).join('\n')}
     return { schedulePoll: schedulePoll, hold: holdAskRender, state: { get openRunLive(){ return openRunLive; } } };
   `)(getJSON, doc, (fn) => { timers.push(fn); return timers.length; }, () => {}, seen, { now: () => clock.now });
   const tick = async () => { clock.now += 2000; const fn = timers.pop(); assert.ok(fn, 'a tick was scheduled'); fn(); await sleep(20); };

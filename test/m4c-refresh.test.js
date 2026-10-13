@@ -66,6 +66,8 @@ function harness(world, { selected = true, typed = null } = {}) {
     var LIVE_POLL_MS = 2000, LISTS_POLL_MS = 10000, LIVE_MAX_MS = 300000, live = null, pollTimer = null, askDrawnFor = null;
     var lastListsAt = 0, openRunLive = true, wasHidden = false, pendingAnswer = null, currentAskId = null;
     var lastSig = { inbox: null, runs: null, detail: null, asks: null, audit: null };
+    var rlData = { rows: [], jobs: [], scheduled: [], limits: {} };
+    function tickSince(){}
     var runsFilterBar = { setItems: function(r){ seen.runs = r; }, refresh: function(){} };
     function renderInbox(rows, n){ seen.inboxCount = n; }
     function renderRun(d){ seen.detail = d; }
@@ -73,7 +75,7 @@ function harness(world, { selected = true, typed = null } = {}) {
     function renderAskRow(){ seen.asksDrawn++; return { classList: { add: function(){} } }; }
     function say(){} function sayLive(){} function endPending(){} function stopLive(){ live = null; }
     function liveOutcome(){ return { done: false }; }
-    ${['sig', 'tickLeft', 'withScrollPreserved', 'paintRun', 'paintAsks', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick', 'watchStep', 'holdAskRender', 'readReasonBox', 'renderAsk'].map(fnSrc).join('\n')}
+    ${['sig', 'tickLeft', 'setRunsData', 'withScrollPreserved', 'paintRun', 'paintAsks', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick', 'watchStep', 'holdAskRender', 'readReasonBox', 'renderAsk'].map(fnSrc).join('\n')}
     return { pageTick: pageTick, schedulePoll: schedulePoll, get pollTimer(){ return pollTimer; } };
   `)(getJSON, doc, (fn) => { timers.push(fn); return timers.length; }, () => {}, seen, selected, { now: () => clock.now });
   /** Fire the pending tick, as the browser would after LIVE_POLL_MS, and let its fetches land. */
@@ -138,18 +140,16 @@ test('ONE loop: startLive owns no timer of its own, and the page starts the tick
   assert.match(page, /\n  schedulePoll\(LIVE_POLL_MS\);\n/, 'the page arms the first tick at load');
 });
 
-test('the Workflows card and every run row say the same words, from the run\'s own fields: a running run reads "started ...", never "unknown"', () => {
+test('every card of the runs list says the same words, from the run\'s own fields: a running run reads "started ...", never "unknown"', () => {
   const words = new Function('readableDateTime', `${['runSpendText', 'runAtText'].map(fnSrc).join('\n')}; return { spend: runSpendText, at: runAtText };`)((iso) => `T(${iso})`);
   const running = { glyph: '[▶]', spend: null, spendWhy: 'running — no priced spend yet', at: null, askedAt: null, startedAt: '2026-10-01T09:00:00Z', atWhy: null };
   assert.equal(words.at(running), 'started T(2026-10-01T09:00:00Z)');
   assert.equal(words.spend(running), 'running — no priced spend yet');
   assert.equal(words.at({ at: '2026-09-30T12:00:00Z' }), '2026-09-30');
   assert.equal(words.at({ askedAt: '2026-10-01T09:00:00Z' }), 'asked T(2026-10-01T09:00:00Z)');
-  // both cards go through them (the Workflows card used to read only `at`, so a running or parked flow said "unknown")
-  const wf = page.slice(page.indexOf('var wfFullName'), page.indexOf('row.addEventListener("click"', page.indexOf('var wfFullName')));
-  assert.match(wf, /runMetaLineHtml\(g\.lastRow, /);
-  assert.match(fnSrc('runMetaLineHtml'), /runSpendText\(r\)[\s\S]*runAtText\(r\)/);
-  assert.match(fnSrc('buildRunRowEl'), /runMetaLineHtml\(r, null\)/);
+  // every card of the one runs list goes through them (M11): the run card, and the Running now / Needs you cards
+  assert.match(fnSrc('rlRunCardHtml'), /runSpendText\(r\)[\s\S]*runAtText\(r\)/);
+  assert.match(fnSrc('rlJumpCardHtml'), /runSpendText\(r\)[\s\S]*runAtText\(r\)/);
 });
 
 // ---- a running run's words -----------------------------------------------------------------------
