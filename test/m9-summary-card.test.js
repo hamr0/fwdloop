@@ -55,12 +55,14 @@ test('a job with a trigger: SCHEDULED and NEXT (next run); monthly-exhausted row
   const d = await detail(w);
   assert.equal(d.summary.scheduled.text, 'Every day at 09:00');
   assert.match(d.summary.scheduled.next, /^Next run (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec), 09:00\.$/);
+  assert.equal(d.summary.scheduled.nextRed, false);
   appendFileSync(path.join(flowDir, 'triggers.jsonl'), `${JSON.stringify({
     at: new Date().toISOString(), flow: 'job2', trigger: 'daily 09:00', outcome: 'monthly-exhausted', leftUsd: 0.12, needUsd: 0.5, atLeast: false,
   })}\n`);
   const d2 = await detail(w);
   assert.equal(d2.summary.scheduled.next,
     'Paused: not enough money left this month ($0.12 left, a run needs up to $0.50). Raise the monthly limit in Settings, or it starts again on the 1st.');
+  assert.equal(d2.summary.scheduled.nextRed, true);
 });
 
 test('a catch-up run says so; an unknown ending gets the fixed fallback; a stopped run names how to go on', async () => {
