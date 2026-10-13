@@ -427,8 +427,8 @@ const ALLOWLIST = {
     names: { writeFileSync: 1 },
   },
   'src/setup.js': {
-    reason: 'M4e amendment 6 item 4: the ONE writer of `<flow>/setup.jsonl` — one exclusive create (flag wx, 0600) of a file in the flow folder `signDraft` just wrote; lstatSync of a draft folder\'s own card/note file for its modified time only (a symlink is not followed, nothing is read). Every READ (the draft folder, the flow\'s setup.jsonl) goes through readFileInside/readdirInside/readSpendRows.',
-    names: { lstatSync: 1, writeFileSync: 1 },
+    reason: 'M4e amendment 6 item 4: the ONE writer of `<flow>/setup.jsonl` — one exclusive create (flag wx, 0600) of a file in the flow folder `signDraft` just wrote; a second one in `carrySetup`: the old bytes written back plus one `trigger-resign` row after a trigger-only re-sign (wx; the sign moved the old file away); lstatSync of a draft folder\'s own card/note file for its modified time only (a symlink is not followed, nothing is read). Every READ (the draft folder, the flow\'s setup.jsonl) goes through readFileInside/readdirInside/readSpendRows.',
+    names: { lstatSync: 1, writeFileSync: 2 },
   },
   'src/draftspend.js': {
     reason: 'M4e piece 2a: the draft folder\'s own per-call spend record (`draft-spend.json`) — one atomic write (tmp + rename) of the file the drafter just booked into, in the draft dir `draftToDir` itself created. Every READ goes through readFileInside/readSpendRows.',
@@ -447,9 +447,9 @@ const ALLOWLIST = {
     },
   },
   'src/panel/authortrigger.js': {
-    reason: "M9 pieces 3-4: the trigger door. Appends ONE line per fire outcome to `<flow>/triggers.jsonl` (append-only, 0600) and makes the per-signed-trigger ledger folder (`<flow>/triggers/<hash>/`, 0700); writes once the job's `setup.jsonl` back after a replace-sign (wx; the sign moved the old one away); realpathSync of the typed --root, of a file trigger's folder and of each input path a fire starts a run with, at use time. Every READ of a job, a run, its copy and the outcome file goes through readFileInside / readFlow / the ledgers' own readers, never fs directly.",
+    reason: "M9 pieces 3-4: the trigger door. Appends ONE line per fire outcome to `<flow>/triggers.jsonl` (append-only, 0600) and makes the per-signed-trigger ledger folder (`<flow>/triggers/<hash>/`, 0700); realpathSync of the typed --root, of a file trigger's folder and of each input path a fire starts a run with, at use time. Every READ of a job, a run, its copy and the outcome file goes through readFileInside / readFlow / the ledgers' own readers, never fs directly.",
     names: {
-      appendFileSync: 1, mkdirSync: 1, realpathSync: 3, writeFileSync: 1,
+      appendFileSync: 1, mkdirSync: 1, realpathSync: 3,
     },
   },
   'src/panel/authorresume.js': {

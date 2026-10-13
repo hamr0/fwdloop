@@ -19,7 +19,7 @@ import {
 import { basename, dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 
-/** @typedef {{id:string, kind:'baseline'|'arrived'|'ran'|'dropped', sha:string, name:string, size:number, at:number, path?:string, why?:string}} SeenRow */
+/** @typedef {{id:string, kind:'baseline'|'arrived'|'ran'|'dropped', sha:string, name:string, size:number, at:number, path?:string, why?:string, of?:string}} SeenRow */
 /** @typedef {{path:string, sha:string, size:number}} ToRun */
 /** @typedef {{path:string, why:string}} Refused */
 
