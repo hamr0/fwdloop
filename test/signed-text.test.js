@@ -34,6 +34,7 @@ describe('real fixtures parse green', () => {
       skills: ['core'],
       sources: [],
       roundBudgetMs: 120000,
+      trigger: null,
     });
     assert.deepEqual(
       result.lines.map((l) => l.n),
@@ -54,6 +55,7 @@ describe('real fixtures parse green', () => {
       skills: ['core'],
       sources: [],
       roundBudgetMs: 120000,
+      trigger: null,
     });
     assert.deepEqual(
       result.lines.map((l) => l.n),
@@ -75,6 +77,7 @@ describe('real fixtures parse green', () => {
         { role: 'jd', kind: 'file', path: '/home/hamr/Documents/resumes/jd-anthropic-applied-ai-architect.md' },
       ],
       roundBudgetMs: 120000,
+      trigger: null,
     });
   });
 
@@ -132,6 +135,7 @@ const BASE_EXPECTED_ARBITER = {
   skills: ['core', 'custom'],
   sources: [{ role: 'resume', kind: 'file', path: '/tmp/resume.docx' }],
   roundBudgetMs: 90000,
+  trigger: null,
 };
 
 const HEADING = 'Arbiter guardrails (belong to no line; human-signed, tighten-only):';
@@ -271,6 +275,13 @@ describe('mutation suite', () => {
   mutationCase('roundBudgetMs', 'retyped int->decimal', withMutation('roundBudgetMs', 'guardrail: round budget 1.5m'));
   mutationCase('roundBudgetMs', 'duplicated', buildText(withDuplicate('roundBudgetMs', 'guardrail: round budget 30s')));
 
+  // --- trigger (M9; the grammar's own cases are in m9-trigger-grammar.test.js) ----
+  const baseLines = BASE_ARBITER_ORDER.map((k) => BASE_ARBITER[k]);
+  mutationCase('trigger', 'time out of range', buildText([...baseLines, 'guardrail: trigger daily 25:00']));
+  mutationCase('trigger', 'cron text', buildText([...baseLines, 'guardrail: trigger 0 9 * * *']));
+  mutationCase('trigger', 'names an input the job does not have', buildText([...baseLines, 'guardrail: trigger new-file nope = file:/tmp/inbox']));
+  mutationCase('trigger', 'duplicated', buildText([...baseLines, 'guardrail: trigger daily 09:00', 'guardrail: trigger daily 10:00']));
+
   test('the suite mutates every field the grammar defines (ARBITER_FIELDS)', () => {
     assert.deepEqual([...covered].sort(), [...ARBITER_FIELDS].sort());
   });
@@ -361,7 +372,7 @@ describe('source path comma/semicolon false-positive (M1 review correction b)', 
 // ---------------------------------------------------------------------------
 
 test('unrecognised arbiter keyword is a red naming the line and the grammar', () => {
-  const text = buildText([...BASE_ARBITER_ORDER.map((k) => BASE_ARBITER[k]), 'guardrail: trigger on friday']);
+  const text = buildText([...BASE_ARBITER_ORDER.map((k) => BASE_ARBITER[k]), 'guardrail: tripwire on friday']);
   const result = parseSignedText(text);
   assert.equal(result.ok, false);
   assert.ok(result.reds.some((r) => /is not in the grammar/.test(r)));
