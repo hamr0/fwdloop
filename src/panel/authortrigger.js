@@ -17,7 +17,7 @@
 //     seen.jsonl                         tagged by hash: nothing to filter, nothing to forget to filter). `clock.jsonl`'s `armed` row is
 //                                        the one "this trigger was set" fact for BOTH kinds; `seen.jsonl` is the file kinds' sha ledger.
 import {
-  appendFileSync, mkdirSync, realpathSync, writeFileSync,
+  appendFileSync, mkdirSync, realpathSync,
 } from 'node:fs';
 import { userInfo } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
@@ -32,6 +32,7 @@ import { parseSignedText } from '../signed-text.js';
 import { editClearsWords, scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
 import { checkTarget, createFileTrigger } from '../trigger-files.js';
+import { carrySetup } from '../setup.js';
 import {
   proseWithTrigger, stripTrigger, triggerHash, triggerLine,
 } from '../trigger-line.js';
@@ -227,7 +228,7 @@ export function createTriggerDoor(opts) {
         root: s.realRoot, name: s.flow, proseText: s.proseText, declaration: s.declaration, signedBy, signedAt: new Date(now()).toISOString(), catalogue: cat.primitives, replaces: { flowHash: s.read.signature.flow },
       });
       if (!written.ok) return { status: 409, body: { ok: false, refused: 'sign-refused', say: 'The trigger was not signed. Nothing was changed.', reds: written.reds.map((r) => scrub(String(r), [])) } };
-      if (setup.ok) { try { writeFileSync(join(s.flowDir, 'setup.jsonl'), setup.text, { flag: 'wx', mode: 0o600 }); } catch { /* the record is a courtesy; the job is signed */ } }
+      if (setup.ok) carrySetup({ flowDir: s.flowDir, oldText: setup.text, oldFlowHash: s.read.signature.flow, newFlowHash: written.signature.flow, at: new Date(now()).toISOString() }); // the record is a courtesy; the job is signed
       let armed = true; let armSay = null;
       if (s.trigger !== null) {
         try { armFor(s.flowDir, written.signature.flow, s.trigger, now()); } catch (e) { armed = false; armSay = /** @type {Error} */ (e).message; }

@@ -1729,7 +1729,10 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null) {
     };
   });
   const setup = readSetup(flowDir);
-  const signRow = setup.present ? setup.rows.find((r) => r.kind === 'sign') : undefined;
+  // the signing of THIS job: the sign / trigger-only re-sign row carrying its flow hash; else the first sign row (which then reads as another signing)
+  const signRow = setup.present
+    ? (setup.rows.findLast((r) => (r.kind === 'sign' || r.kind === 'trigger-resign') && flowHash !== null && r.flowHash === flowHash) ?? setup.rows.find((r) => r.kind === 'sign'))
+    : undefined;
   const ofThisJob = !!signRow && (typeof signRow.flowHash !== 'string' || flowHash === null || signRow.flowHash === flowHash);
   const nc = ofThisJob ? signRow?.notChecked : undefined;
   const recorded = !!nc && Array.isArray(nc.items);

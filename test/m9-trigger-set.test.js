@@ -76,6 +76,23 @@ test('set: two clicks, hash-bound; re-signs the SAME plan with only the trigger 
   assert.ok(readJsonl(path.join(led, 'clock.jsonl')).some((r) => r.kind === 'armed'));
 });
 
+test('F2 a trigger-only re-sign (set, change, cancel) keeps the Job tab reading this job\'s record: same "Not checked" list, recorded:true; setup.jsonl only grows', async () => {
+  const { w, flowDir } = await greenWorld();
+  const plan = async (runId) => (await w.get(`/api/runs/job2/${runId}/job`)).json().plan.notChecked;
+  const first = await plan('seed-pass');
+  assert.equal(first.recorded, true, 'before: the signing wrote its record');
+  const old = text(path.join(flowDir, 'setup.jsonl'));
+  assert.equal((await setTrigger(w, DAILY)).status, 200);
+  assert.ok(text(path.join(flowDir, 'setup.jsonl')).startsWith(old), 'append-only: the old bytes are kept as they were');
+  seedGreen(w, 'job2', 'after-set');
+  assert.deepEqual(await plan('after-set'), first, 'a run of the schedule-signed job reads the same record');
+  assert.deepEqual(await plan('seed-pass'), first, 'and so does the run before it');
+  assert.equal((await setTrigger(w, null)).status, 200, 'cancel');
+  seedGreen(w, 'job2', 'after-cancel');
+  assert.deepEqual(await plan('after-cancel'), first, 'after Cancel schedule too');
+  assert.deepEqual(await plan('after-set'), first);
+});
+
 test('Must fail (item 2): changing only the trigger keeps the green run; an edit of the steps does not (one function, both directions)', async () => {
   const { w, flowDir, read } = await greenWorld();
   assert.equal(hasGreenRunForJob(flowDir), true);
