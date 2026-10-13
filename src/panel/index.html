@@ -4723,6 +4723,7 @@
         whenLocked = true; setTimeout(function(){ whenLocked = false; renderMain(); }, 1500);
         var say = typeof r.body.say === "string" ? r.body.say : "";
         resetCard();
+        setMode("new"); // the default empty card a fresh page load shows, not Run a signed flow with the pick emptied
         if(say) chatActionFailed(say);
       }).catch(function(){ whenBusy = false; whenHash = null; byId("jf-err-when").textContent = NETWORK_SAY; whenSyncButton(); });
     }

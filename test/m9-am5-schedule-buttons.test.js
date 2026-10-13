@@ -42,6 +42,8 @@ const pick = (chrome, v) => chrome.ev(`(function(){ var s = ${WHEN}; s.value = "
 const label = (chrome) => chrome.ev(`${BTN}.textContent`);
 const runPosts = (chrome) => chrome.ev('window.__posts.filter(function(p){ return /\\/api\\/author\\/run/.test(p); })');
 const cleared = (chrome) => chrome.waitFor('document.getElementById("rw-picked").hidden === true && document.getElementById("jf-run-flow").value === ""', 6000);
+// the default empty card a fresh page load shows: New job checked, the Run-a-signed-flow fields hidden
+const newJobCard = (chrome) => chrome.waitFor('document.querySelector(\'input[name="jf-mode"][value="new"]\').checked === true && document.getElementById("jf-run").hidden === true', 6000);
 
 test('the By hand option reads Cancel schedule only on a scheduled job', { skip: SKIP && 'no browser' }, async (t) => {
   const plain = await open();
@@ -68,6 +70,7 @@ test('Sign schedule: click 1 makes the button read Confirm: <words>; click 2 sig
   assert.equal(await chrome.ev('document.getElementById("chat-main-hint").textContent'), '', 'the hint lines are gone');
   assert.equal(await chrome.ev(`(function(){ ${BTN}.click(); return ${BTN}.disabled; })()`), true, 'dimmed on click 2');
   assert.ok(await cleared(chrome), 'the card is cleared after click 2');
+  assert.ok(await newJobCard(chrome), 'the card is back to New job, not Run a signed flow');
   assert.equal(await chrome.ev('document.getElementById("chat-main-hint").textContent'), '');
   await new Promise((r) => setTimeout(r, 400));
   assert.deepEqual(await runPosts(chrome), [], 'no run-route POST');
@@ -87,6 +90,7 @@ test('Cancel schedule: the choice makes the button Cancel schedule; click 1 read
   assert.ok(await chrome.waitFor(`${BTN}.textContent === "Confirm: cancel schedule"`), `button after click 1: ${await label(chrome)}`);
   await chrome.ev(`${BTN}.click()`);
   assert.ok(await cleared(chrome), 'the card is cleared after click 2');
+  assert.ok(await newJobCard(chrome), 'the card is back to New job, not Run a signed flow');
   await new Promise((r) => setTimeout(r, 400));
   assert.deepEqual(await runPosts(chrome), [], 'no run-route POST');
   assert.deepEqual(w.starts(), [], 'no start folder');
