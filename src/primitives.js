@@ -31,6 +31,7 @@ import { Gate } from 'bareguard';
 import { primitiveFor, loadCatalogue } from './catalogue.js';
 import { readDocxText } from './docx.js';
 import { parseCsv } from './csv.js';
+import { makeCtxTools } from './ctx-tools.js';
 
 // bare-agent >=0.47.0: `noFollowSymlinks: true` makes shell_read/write/edit/
 // grep throw `err.code === 'ELOOP'` when the path's FINAL component is a
@@ -80,7 +81,8 @@ async function resolveAndGate(gate, verb, tool, runDir, rawPath) {
   }
   const joined = (rawPath.startsWith('~') || path.isAbsolute(rawPath)) ? rawPath : path.join(runDir, rawPath);
   const resolved = resolveToolPath(joined);
-  const type = verb === 'write' ? 'write' : 'read';
+  // `edit` is judged as bareguard's own 'edit' action type: the SAME fs.writeScope fence as `write` (M7 item 3)
+  const type = verb === 'write' || verb === 'edit' ? verb : 'read';
   const decision = await gate.check({ type, tool, path: resolved });
   if (decision.outcome !== 'allow') {
     throw new GateRefusal(verb, resolved, decision.rule);
@@ -214,6 +216,20 @@ function sandboxedWriteTool(gate, runDir, outDir) {
   };
 }
 
+function sandboxedEditTool(gate, runDir) {
+  const real = shellTool('shell_edit');
+  return {
+    name: 'edit',
+    description: `${real.description} Sandboxed exactly like write: only files under <runDir>/out can be edited; `
+      + 'the run records and the frozen inputs are never editable.',
+    parameters: real.parameters,
+    execute: async (args) => {
+      const resolvedPath = await resolveAndGate(gate, 'edit', 'edit', runDir, args?.path);
+      return real.execute({ ...args, path: resolvedPath });
+    },
+  };
+}
+
 /** `readDocx`/`addressCells` take a `role` naming one of the run's frozen
  *  inputs (never a raw path — the model is never handed a filesystem path
  *  to type back, so there is nothing to sandbox-check on the way in). */
@@ -259,7 +275,11 @@ function addressCellsPrimitiveTool(inputsByRole) {
  *  catalogue-present-but-unwired verb, e.g. litectx's `compress`, must
  *  refuse before any model call or spend) imports this SAME set rather than
  *  keeping a second copy of the list. */
-export const WIRED_VERBS = new Set(['read', 'grep', 'write', 'readDocx', 'addressCells']);
+/** M7: the in-run tools over this run's own store (src/ctx-tools.js). `remember`/`forget` are
+ *  deliberately absent: memory lasts one run (PRD: no learning between flows). */
+const CTX_VERBS = Object.freeze(['recall', 'get', 'recent', 'related', 'impact', 'compress', 'peek', 'stash']);
+
+export const WIRED_VERBS = new Set(['read', 'grep', 'write', 'edit', 'readDocx', 'addressCells', ...CTX_VERBS]);
 
 /** The wired menu, one place: the catalogue entries whose verb is in
  *  WIRED_VERBS (and, when `skills` is given, in a signed skill). Absence,
@@ -308,6 +328,13 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
 
   const tools = {};
   const reds = [];
+  // Built on demand, once: nothing is opened or created here (the store is opened per call, inside a tool).
+  // A path a tool names goes through the SAME read gate as `read` before litectx sees it.
+  let ctxTools;
+  const ctxTool = (verb) => {
+    ctxTools ??= makeCtxTools({ runDir, gatePath: (v, rawPath) => resolveAndGate(gate, v, v, runDir, rawPath) });
+    return ctxTools[verb];
+  };
 
   for (const verb of grantedVerbs ?? []) {
     const entry = primitiveFor(catalogue, verb);
@@ -338,6 +365,9 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
         // even for a run `runFlow` goes on to refuse.
         tools.write = sandboxedWriteTool(gate, runDir, outDir);
         break;
+      case 'edit':
+        tools.edit = sandboxedEditTool(gate, runDir);
+        break;
       case 'readDocx':
         tools.readDocx = readDocxPrimitiveTool(inputsByRole);
         break;
@@ -345,7 +375,8 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
         tools.addressCells = addressCellsPrimitiveTool(inputsByRole);
         break;
       default:
-        reds.push(`primitives: verb "${verb}" is in the catalogue but has no M2 implementation yet`);
+        if (CTX_VERBS.includes(verb)) tools[verb] = ctxTool(verb);
+        else reds.push(`primitives: verb "${verb}" is in the catalogue but has no M2 implementation yet`);
     }
   }
 

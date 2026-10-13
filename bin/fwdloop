@@ -18,7 +18,8 @@ import { parseArgs } from 'node:util';
 import {
   existsSync, readdirSync, realpathSync, rmdirSync,
 } from 'node:fs';
-import { extname, join, resolve } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
+import { draftHoldUsd } from '../src/draftspend.js';
 import { pathToFileURL } from 'node:url';
 
 import {
@@ -810,7 +811,7 @@ async function cmdDraft(rest) {
   const { values, positionals } = parseArgs({
     args: rest,
     options: {
-      out: { type: 'string' }, root: { type: 'string' }, name: { type: 'string' }, budget: { type: 'string' },
+      out: { type: 'string' }, root: { type: 'string' }, name: { type: 'string' },
       // M4e amendment 24 item 4: the redraft after the human's answers never asks (the panel passes this; a plain draft may ask on try 3)
       'no-questions': { type: 'boolean' },
       // M4d amendment 6: the model that drafts (and then runs) the job - a line ticked in Settings > Providers; --provider only if two keys tick the same id.
@@ -822,7 +823,7 @@ async function cmdDraft(rest) {
   const keysLoad = keyedLoad();
   const { env } = keysLoad;
   const proseFile = positionals[0];
-  if (!proseFile) fail('draft: a prose file is required — fwdloop draft <prose.txt> --out <draftDir> --root <flowsDir> --name <flow> [--budget <usd>]');
+  if (!proseFile) fail('draft: a prose file is required — fwdloop draft <prose.txt> --out <draftDir> --root <flowsDir> --name <flow>');
   for (const req of ['out', 'root', 'name']) if (!values[req]) fail(`draft: --${req} is required`);
 
   let injected = {};
@@ -846,7 +847,7 @@ async function cmdDraft(rest) {
     const refusal = draftKeyRefusal(pick.slot, env);
     if (refusal !== null) fail(`draft refused at $0 — ${refusal}`);
   } else if (values.model !== undefined) pick = { slot: values.provider, model: values.model };
-  // M4d piece 3: the monthly check — a draft has no signed cap, so it holds one ceiling round, priced from the
+  // M4d piece 3: the monthly check — one ceiling round, priced from the
   // picked model's own Settings prices (an injected test provider carries its own rates). A model that is not
   // ticked with both prices is refused here by name, at $0, before the monthly hold or any draft folder (M4d amendment 5).
   let ceiling;
@@ -863,15 +864,16 @@ async function cmdDraft(rest) {
     if (!(err instanceof ConfigError)) throw err;
     fail(`${err.message} — refusing to draft rather than guess the price. Nothing spent.`);
   }
+  // M4d am19 item 1: the hold is what is left of the cap (cap minus this job's drafting so far), the most the draft may spend, not one round
+  const proseRead = readFileInside(dirname(resolve(proseFile)), basename(resolve(proseFile)));
   takeMonthlyHold({
-    what: 'draft', flow: values.name, runId: null, runDir: resolve(values.out), holdUsd: ceiling,
+    what: 'draft', flow: values.name, runId: null, runDir: resolve(values.out), holdUsd: draftHoldUsd(proseRead.ok ? proseRead.text : '', resolve(values.out), ceiling),
   });
   const result = await draftToDir({
     proseFile: resolve(proseFile),
     dir: resolve(values.out),
     root: resolve(values.root),
     name: values.name,
-    budgetUsd: values.budget === undefined ? undefined : Number(values.budget),
     noQuestions: values['no-questions'] === true,
     draftThinking: values.thinking === true ? 'on' : 'off',
     env,

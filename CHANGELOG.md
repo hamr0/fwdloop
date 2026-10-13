@@ -5,6 +5,61 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-10-12
+
+M7 in-run tools: a step can use recall, get, recent, related, impact, compress, peek and stash over a
+store that belongs to its own run. M4d amendments 12-21: one cap and one pot for drafting and
+running, plain one-line Chat step lists with a Fix line, a version header and reload bar, and
+refusals in words.
+
+### Added
+- In-run tools (M7): a step granted recall, get, recent, related, impact, compress, peek or stash can
+  use them over one fresh store per run, kept outside every read scope. `edit` goes through the same
+  write fence as `write`. `get` also reads a stashed item by id. `remember` and `forget` stay
+  refused, since memory lasts one run.
+- `impact` needs ripgrep (`rg`) on PATH; without it the tool is refused in words, and CI installs it.
+- A stash holds at most 64 KB (65536 bytes) per payload, measured after known secret shapes are
+  masked; a larger one is refused with nothing parked, and the refusal says what to do. Run 2 cannot
+  see run 1's stash, even when a run reuses a deleted run's id (it starts empty).
+- The drafter is told when to use compress, peek and stash. The tool words are true: recall, impact
+  and related search code and markdown files only; recent finds nothing inside a run (amendment 19).
+- One cap, one pot (amendments 13, 16, 19, 21): the card's Cap $ also caps drafting, and drafting
+  spend comes off it. Each round must fit what is left; a draft reserves what is left of the cap
+  against the monthly limit, not one round; a revise and the redraft after answers check the month
+  for what is left, not the whole cap again. Sign & run shows the split and refuses at $0 when one
+  run round cannot be paid. Start over keeps the pot: drafting spent before it still comes out of the
+  cap, and the Cap note counts the pot left.
+- The panel header shows fwdloop's version, read from its own package.json at serve time, and a
+  reload bar appears when the panel restarted on a different version under an open page
+  (amendments 17, 18).
+- An empty job box gets a grey line under the Cap note (amendment 21).
+- The Audit Draft group gets one row per try with its plain reason and the raw text under it; a try
+  row has no cost of its own, its Cost cell reads a dash (amendment 15).
+
+### Changed
+- The Chat step list is one line per step, facts joined by " · ". Each try is its own grey line, the
+  free retry reads "try N again", with one grey note above. A red step shows one plain reason and a
+  Fix line (every plan-check reason has its own Fix sentence); the revise and redraft lines are one
+  line, with no details or raw text. Plain words live in `src/plain-checks.js` (amendments 12, 15).
+- An open question is not red, and a first plan that asked a question never reads red after it is
+  answered (amendment 15).
+- One function writes the cap-too-small sentence, for drafting on the card, in the drafter, and for
+  Run a signed flow and Resume; "needs at least" is gone (amendments 19, 20).
+- One key-name rule: `provider.js` uses `keysfile.js`'s `..._KEY` rule, so a slot like GROQ_TOKEN is
+  refused with the rule named (amendment 21).
+
+### Removed
+- `DRAFT_BUDGET_USD` and `--budget`: the card's Cap $ is the one cap (amendment 13).
+
+### Fixed
+- A made-up Start-over id is refused; a missing earlier draft is never read as $0, and Start over is
+  refused in words (amendment 21).
+- A live child whose cmdline reads empty in its exec window, or an exiting task with an empty
+  cmdline, is no longer misread (the draft "stopped" flake): the first reads "cannot tell", the
+  second reads dead.
+- The am15 revise line reads the result before its log, so a settled line never has `lines` null (a
+  two-read race).
+
 ## [0.16.0] - 2026-10-12
 
 M4d amendments 3-11: Settings > Providers becomes the only place for providers, models, prices and

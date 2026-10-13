@@ -38,7 +38,7 @@ const gone = (w, id) => until(() => {
   try { const p = JSON.parse(readFileSync(path.join(w.dir(id), 'pid.json'), 'utf8')); return isFwdloopAlive(p.pid, p.procStart) !== true; } catch { return true; }
 });
 
-test('(6) a Start over POST naming the previous draft records startedOverFrom once; a plain draft or a made-up id records nothing; the setup row reads "start over"', async () => {
+test('(6) a Start over POST naming the previous draft records startedOverFrom once; a plain draft records nothing and a made-up id is refused; the setup row reads "start over"', async () => {
   const w = await world({ limit: 5 });
   const id = (await w.post('/api/author/draft', w.card())).json().draftId;
   await settled(w, id); await gone(w, id);
@@ -51,11 +51,10 @@ test('(6) a Start over POST naming the previous draft records startedOverFrom on
   const rec = JSON.parse(readFileSync(path.join(w.dir(id2), 'started-over-from.json'), 'utf8'));
   assert.deepEqual(rec, { startedOverFrom: id });
 
+  // M4d am21 item 2: a made-up id is a draft that is missing, so its spend cannot be counted: refused in words (it used to be ignored), nothing recorded
   const fake = await w.post('/api/author/draft', { ...w.card(), startedOverFrom: 'd-0000000000-0000' });
-  assert.equal(fake.status, 202, fake.text);
-  const id3 = fake.json().draftId;
-  await settled(w, id3); await gone(w, id3);
-  assert.equal(existsSync(path.join(w.dir(id3), 'started-over-from.json')), false, 'an id that is no draft of this panel is ignored');
+  assert.equal(fake.status, 400, fake.text);
+  assert.equal(fake.json().say, "An earlier draft of this job is missing, so its spend can't be counted.");
 
   // the setup rows of the start-over draft, and what Audit draws
   const rows = buildSetupRows({ sessionDir: w.dir(id2), planDir: path.join(w.dir(id2), 'draft'), hash: 'h', signedBy: 'hamr', signedAt: '2026-10-08T00:00:00.000Z' });

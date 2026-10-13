@@ -16,6 +16,7 @@
 // prices an unpriced round at the ceiling.
 
 import { Loop, HaltError } from 'bare-agent';
+import { capTooSmallText, usdText } from './draftspend.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, SHAPE_KEYS, checkGuardrailSums, guardrailWordsPerSection } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
@@ -227,6 +228,21 @@ function greenReadRule(sources) {
     : `${rule} This job signs no CSV input, so a guardrail that needs cited cells cannot be classed green here: class it "hitl".`];
 }
 
+/** M7 piece 6 (signed scope item 1): a granted verb ships WITH the line that says when to reach for it, or the
+ *  model keeps using the familiar one. Only these three get a line; each only when it is on the menu. No number
+ *  (the tool itself tells a step its size limit). Borrowed in spirit from bareloop src/tools.js@dc06660 strategyFor. */
+const WHEN_TO_USE = Object.freeze({
+  compress: '- Use compress when a step only needs what a function IS (its signature and doc) rather than how it works: it returns the head without the body, far cheaper than reading the file. Code only.',
+  stash: '- Use stash to park a bulky intermediate result under an id instead of carrying it from step to step; it lasts this run only and each parked item has a size limit.',
+  peek: '- Use peek to look at the start and end of something parked with stash without loading all of it.',
+});
+
+/** @param {Array<{verb: string}>} menu */
+function whenToUse(menu) {
+  const on = new Set(menu.map((e) => e.verb));
+  return Object.entries(WHEN_TO_USE).filter(([verb]) => on.has(verb)).map(([, line]) => line);
+}
+
 export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
   const askLines = arbiter.asks.map((a) => a.line);
   const sendLines = arbiter.sends.map((s) => s.line);
@@ -236,6 +252,7 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
     'Primitive menu (a grant list; a verb not listed does not exist):',
     ...menu.map((e) => `- ${e.verb}: ${e.desc} (class: ${e.class})`),
     '',
+    ...(whenToUse(menu).length ? ['When to use them:', ...whenToUse(menu), ''] : []),
     'Rules:',
     '- Steps share one artifact space. Each step: primitives (verbs it needs, [] if none), reads (artifact ids emitted by an EARLIER step, or the role of a CSV input listed under Inputs), emits (ONE new unique artifact id), fromLine (the ONE job line it serves), close. The machine fills each step\'s goal with that signed line, verbatim — you never write a goal.',
     '- Every numbered job line must be served by a step (fromLine = that line) or listed in "refused" with a reason.',
@@ -278,7 +295,7 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
 /**
  * Draft one declaration. `provider`/`rates`/`modelId` may be injected (tests,
  * the batch); otherwise a live provider is built from `slot` (throws on a bad
- * key — the batch preflights first). `budgetUsd` is this draft's hard cap.
+ * key — the batch preflights first). The draft's hard cap is the cap signed in the prose (M4d am13); `priorSpend(ceilingUsd)` (am16) is what this job's earlier drafting already spent, so every round must fit what is LEFT of the cap.
  * `makeProviderFn` is a test seam: the live-provider factory (default `makeProvider`).
  * `onBook` (M4e piece 2a, scope 13): called right BEFORE each provider call (`inFlight: true`, the call counted in
  * `calls`) and right AFTER it (`inFlight: false`), with what is known so far, so the caller can book spend per call
@@ -291,7 +308,7 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
  */
 export async function draft({
   proseText, slot, model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
-  budgetUsd = 0.10, skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
+  priorSpend = /** @type {((ceilingUsd: number) => number)|null} */ (null), skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
 }) {
   // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
   const thinkingOf = () => {
@@ -340,9 +357,16 @@ export async function draft({
   // The hold: the picked model's own Settings prices (or the rates a test injected) times the token bounds - never a table.
   if (!rates) return fail(['price: this round has no price to hold - tick a model in Settings > Providers with both prices first']);
   const roundCeiling = ceilingCostUsd(rates);
-  // One round at its ceiling must fit the budget, or refuse at $0 before any provider call.
+  // M4d am13: the draft is capped by the card's Cap $ (the cap signed in the prose), the same number the run is capped at.
+  // One round at its ceiling must fit that cap, or refuse at $0 before any provider call.
+  // M4d am16 item 2: against the remaining money, not the whole cap. Spend by earlier drafts of this job (a revise, the redraft after answers) is taken off first.
+  const priorUsd = typeof priorSpend === 'function' ? priorSpend(roundCeiling) : 0;
+  const budgetUsd = arbiter.capUsd - priorUsd;
   if (roundCeiling > budgetUsd) {
-    return fail([`budget: $${budgetUsd} is below one round's worst-case cost — the minimum budget is $${roundCeiling.toFixed(4)}`]);
+    const capText = usdText(arbiter.capUsd);
+    return fail([priorUsd > 0
+      ? `Cap ${capText} less ${usdText(priorUsd)} already spent on drafting leaves ${usdText(Math.max(0, budgetUsd))}, below one drafting round's worst case for ${modelId}, $${roundCeiling.toFixed(4)}. Raise Cap $ or pick another model.`
+      : capTooSmallText('drafting', arbiter.capUsd, roundCeiling, modelId)]);
   }
 
   const meterings = [];

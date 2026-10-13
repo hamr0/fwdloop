@@ -14,13 +14,19 @@
       "verb": "grep", "component": "select", "package": "bare-agent/tools", "symbol": "createShellTools", "tool": "shell_grep", "class": "read", "skill": "core", "desc": "Find lines matching a pattern across files."
     },
     {
-      "verb": "recall", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "recall", "class": "read", "skill": "core", "desc": "Search saved notes by meaning; returns the best matches, not their full text."
+      "verb": "recall", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "recall", "class": "read", "skill": "core", "desc": "Search this run's code and markdown files only (its inputs and out folder, .md .js .py .ts); a CSV or Word file is not searched. Returns pointers to the best matches, not their full text."
     },
     {
-      "verb": "get", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "get", "class": "read", "skill": "core", "desc": "Fetch the full text of one saved note or parked item by its id."
+      "verb": "get", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "get", "class": "read", "skill": "core", "desc": "Fetch the full text of one parked item by its id, or one part of a file by the pointer recall gave."
     },
     {
-      "verb": "recent", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "recentMemory", "class": "read", "skill": "core", "desc": "List the most recently saved notes, newest first."
+      "verb": "recent", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "recentActivity", "class": "read", "skill": "core", "desc": "List the functions most recently changed in this run's code files, newest first. This is not a git repository, so it finds nothing inside a run."
+    },
+    {
+      "verb": "related", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "related", "class": "read", "skill": "core", "desc": "List the files a given code or markdown file imports and the files that import it, in code and markdown files only; a CSV or Word file has none."
+    },
+    {
+      "verb": "impact", "component": "select", "package": "litectx", "symbol": "LiteCtx", "method": "impact", "class": "read", "skill": "core", "desc": "Name the callers and importers of one function or symbol, in code and markdown files only; a CSV or Word file has none, so it finds nothing there."
     },
     {
       "verb": "compress", "component": "compress", "package": "litectx", "symbol": "compress", "class": "read", "skill": "core", "desc": "Shrink source code: keep each function header and its doc comment, drop the body (or reduce it to a name). Code only — prose and markdown come back unchanged."

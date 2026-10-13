@@ -23,13 +23,27 @@ const NAME = 'fwdloop';
  * @returns {string|null}
  */
 export function procStartOf(pid) {
-  try {
-    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
-    const after = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
-    const v = after[19]; // field 3 is after[0], so field 22 is after[19]
-    return v !== undefined && /^\d+$/.test(v) ? v : null;
-  } catch { return null; }
+  try { return startFromStat(readFileSync(`/proc/${pid}/stat`, 'utf8')); } catch { return null; }
 }
+
+/** Field 22 of a /proc/<pid>/stat text, or null. @param {string} stat */
+function startFromStat(stat) {
+  const after = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+  const v = after[19]; // field 3 is after[0], so field 22 is after[19]
+  return v !== undefined && /^\d+$/.test(v) ? v : null;
+}
+
+/** Field 3 (state) of a /proc/<pid>/stat text. @param {string} stat */
+const stateFromStat = (stat) => stat.slice(stat.lastIndexOf(')') + 2, stat.lastIndexOf(')') + 3);
+
+/** Field 23 (vsize, bytes) of a /proc/<pid>/stat text: 0 for a task that has already released its memory (dying), > 0 for one that is alive (even in its exec window). @param {string} stat */
+const vsizeFromStat = (stat) => Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[20]);
+
+/** The two /proc files this module reads, as one seam so a test can hand it a snapshot. */
+const REAL_PROC = {
+  cmdline: (/** @type {number} */ pid) => readFileSync(`/proc/${pid}/cmdline`, 'utf8'),
+  stat: (/** @type {number} */ pid) => readFileSync(`/proc/${pid}/stat`, 'utf8'),
+};
 
 /**
  * Is `pid` a live fwdloop process — and, when `procStart` is given, the SAME
@@ -39,16 +53,25 @@ export function procStartOf(pid) {
  *   null  - cannot tell (no /proc, or not ours to read): caller falls back to the 10-minute rule
  * @param {number} pid
  * @param {string|null} [procStart] the starttime recorded by the process itself; absent/null = not compared
+ * @param {typeof REAL_PROC} [proc] where /proc is read from (tests pass a snapshot)
  * @returns {boolean|null}
  */
-export function isFwdloopAlive(pid, procStart) {
+export function isFwdloopAlive(pid, procStart, proc = REAL_PROC) {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try { process.kill(pid, 0); } catch (e) { if (e?.code !== 'EPERM') return false; /* EPERM: exists, not ours */ }
   let cmdline;
-  try { cmdline = readFileSync(`/proc/${pid}/cmdline`, 'utf8'); } catch (e) {
+  try { cmdline = proc.cmdline(pid); } catch (e) {
     return e?.code === 'ENOENT' && process.platform === 'linux' && hasProc() ? false : null; // died between the two calls vs no /proc
   }
-  if (cmdline === '') return false; // zombie (or kernel thread): not a runner
+  if (cmdline === '') {
+    // A zombie reads empty, but so does a LIVE child for a few ms after its exec (seen under load: state R, starttime equal, cmdline
+    // empty), which used to read as dead and showed a fresh draft as "stopped". Only a state of Z/X is dead; otherwise we cannot tell yet.
+    // A task that is exiting also reads empty (and R/D) for an instant, but it has already let go of its memory: vsize 0. That is dead, not "cannot tell".
+    let state = null;
+    let vsize = 0;
+    try { const st = proc.stat(pid); state = stateFromStat(st); vsize = vsizeFromStat(st); } catch { /* gone between the reads */ }
+    return state === 'Z' || state === 'X' || state === null || !(vsize > 0) ? false : null;
+  }
   const [argv0, ...rest] = cmdline.split('\0');
   let isFwdloop;
   if (basename(argv0) === NAME) isFwdloop = true; // direct exec of a renamed/compiled bin
@@ -60,7 +83,8 @@ export function isFwdloopAlive(pid, procStart) {
   }
   if (!isFwdloop) return false;
   if (typeof procStart === 'string') {
-    const live = procStartOf(pid);
+    let live = null;
+    try { live = startFromStat(proc.stat(pid)); } catch { /* unreadable */ }
     if (live === null) return null; // cannot compare: never a silent true
     if (live !== procStart) return false; // a different fwdloop process reusing the pid
   }

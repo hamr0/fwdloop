@@ -16,13 +16,15 @@ function resign(flowDir, mut) {
   const decl = JSON.parse(readFileSync(path.join(flowDir, 'declaration.json'), 'utf8'));
   mut(decl);
   const declarationText = `${JSON.stringify(decl, null, 2)}\n`;
-  const proseText = readFileSync(path.join(flowDir, 'prose.txt'), 'utf8');
+  // M7: `forget` is unwired but needs the memory skill signed to get as far as the preflight
+  const proseText = `${readFileSync(path.join(flowDir, 'prose.txt'), 'utf8').trimEnd()}\nguardrail: skills core, memory\n`;
+  writeFileSync(path.join(flowDir, 'prose.txt'), proseText);
   const sig = signFlow({ proseText, declarationText, signedBy: 'hamr', signedAt: '2026-10-06T00:00:00Z' });
   assert.equal(sig.ok, true);
   writeFileSync(path.join(flowDir, 'declaration.json'), declarationText);
   writeFileSync(path.join(flowDir, 'signature.json'), `${JSON.stringify(sig.signature, null, 2)}\n`);
 }
-const unwire = (d) => { d.steps[0].primitives = [...(d.steps[0].primitives ?? []), 'compress']; };
+const unwire = (d) => { d.steps[0].primitives = [...(d.steps[0].primitives ?? []), 'forget']; };
 
 test('22 a signed flow the preflight refuses is NOT in the Run-a-signed-flow list; a runnable one with a passed run is', async () => {
   const w = await world();
@@ -36,7 +38,7 @@ test('22 a signed flow the preflight refuses is NOT in the Run-a-signed-flow lis
   // its reason still shows on Run again
   const run = await w.get('/api/author/run-again?flow=bad&runId=seed');
   assert.equal(run.status, 409, run.text);
-  assert.match(run.json().say, /^"bad" will not run: preflight: step ".*" \(line \d+\) grants verb "compress"/);
+  assert.match(run.json().say, /^"bad" will not run: preflight: step ".*" \(line \d+\) grants verb "forget"/);
 });
 
 test('22 the run door still refuses a refused flow up front: 409, nothing is created', async () => {

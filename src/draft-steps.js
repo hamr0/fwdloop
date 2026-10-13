@@ -1,34 +1,55 @@
-// M4d amendment 10: the Chat card's list of what a draft really did. ONE function builds it (here), from the draft's own log.json and its
-// declaration; the page only renders it. It sits outside the readout (never signed, never hashed).
+// M4d amendment 15: the Chat card's list of what a draft really did, as PROGRESS only. ONE function builds it (here), from the draft's own log.json and
+// its declaration; the page only renders it. It sits outside the readout (never signed, never hashed).
 //
-// Each entry: { id, label, status: 'done' | 'failed', details: string[], reds?: string[] }. `reds` (plan checks and try lines) are the checker's raw
-// refusals: the page turns each into its plain sentence (one function there). A step that didn't happen is not in the list.
-// Throws away: the log's per-round tokens, the model's replies and the questions; only the facts named in the amendment are kept.
+// One line per step: { id, label, status: 'done' | 'failed', details: [] } where the label is the step's name with its facts joined by " · ". No detail
+// lines, folds, try lines or raw checker text. A draft that ends red has one plain reason on its plan-checks line and, when the plain words say what
+// to do, one `checks-fix` line (`note: true`: no ✓/✗) under it. The try-by-try history is `triesOf` (the Audit Draft group reads the same function).
+// Throws away: the log's per-round tokens, the model's replies, the questions, and every try but the count of refused ones.
 // Third outcomes: no log -> null (nothing to list); a cost that is null reads "cost unknown", an incomplete sum reads "at least $X", never 0.
 
+import { plainPlanCheck } from './plain-checks.js';
+
 const REBUILD_RE = /^declaration: steps\[(\d+)\]\.close\.shape cannot be built into a check — (.*)$/s;
-const TRIES = 3;
 
 function money(log) {
   if (typeof log.costUsd !== 'number') return 'cost unknown';
   return `${log.spendComplete === false ? 'at least ' : ''}$${log.costUsd.toFixed(4)}`;
 }
 
-/** Why a round did not give a plan: its validator reds (raw, as `reds`: the page's one translator makes them plain), else its outcome as a detail line. */
-function reasonOf(entry) {
-  if (Array.isArray(entry?.reds) && entry.reds.length > 0) return { details: [], reds: entry.reds.map(String) };
-  const o = typeof entry?.outcome === 'string' ? entry.outcome : '';
-  return { details: o === '' ? [] : [o.replace(/^structure: /, '')] };
+/**
+ * The tries of a draft, one per round, oldest first. The free retry after a broken reply (a `structure-retry` round) keeps the number of the try it
+ * retries: "try N again", never a new number. `reds` are the checker's raw refusals; `outcome` is a non-validator round's plain words, `rawOutcome` its own raw words.
+ * @param {any[]} rounds the draft's log.json `log`
+ * @returns {Array<{ label: string, passed: boolean, reds: string[], outcome: string, rawOutcome: string, again: boolean }>}
+ */
+export function triesOf(rounds) {
+  let no = 0;
+  return (Array.isArray(rounds) ? rounds : []).map((e, i, all) => {
+    const again = e?.kind === 'structure-retry' && i > 0;
+    if (!again) no += 1;
+    const passed = e?.outcome === 'valid';
+    const outcome = typeof e?.outcome === 'string' ? e.outcome.replace(/^structure: /, '') : '';
+    const brokenThenRetried = !passed && String(e?.outcome).startsWith('structure: ') && all[i + 1]?.kind === 'structure-retry';
+    return {
+      label: again ? `try ${no} again` : `try ${no}`,
+      passed,
+      reds: Array.isArray(e?.reds) ? e.reds.map(String) : [],
+      outcome: brokenThenRetried ? 'the reply came back broken; one free retry' : outcome,
+      rawOutcome: outcome,
+      again,
+    };
+  });
 }
 
 /**
- * @param {{ log: any, declaration: any }} p `log` = the draft's log.json (parsed), `declaration` = declaration.json or declaration.rejected.json (parsed)
- * @returns {Array<{ id: string, label: string, status: 'done'|'failed', details: string[], reds?: string[] }> | null}
+ * `questionOpen` (am15 item 3): the plan asked a question and the draft has NOT ended: its plan-checks line is not red and has no Fix ("red appears only on a draft that ended red").
+ * @param {{ log: any, declaration: any, questionOpen?: boolean }} p `log` = the draft's log.json (parsed), `declaration` = declaration.json or declaration.rejected.json (parsed)
+ * @returns {Array<{ id: string, label: string, status: 'done'|'failed'|'waiting', details: string[], note?: boolean }> | null}
  */
-export function draftStepList({ log, declaration }) {
+export function draftStepList({ log, declaration, questionOpen = false }) {
   if (log === null || typeof log !== 'object') return null;
   const rounds = Array.isArray(log.log) ? log.log : [];
-  /** @type {Array<{ id: string, label: string, status: 'done'|'failed', details: string[], reds?: string[] }>} */
+  /** @type {Array<{ id: string, label: string, status: 'done'|'failed'|'waiting', details: string[], note?: boolean }>} */
   const out = [];
 
   const t = log.thinking;
@@ -38,18 +59,18 @@ export function draftStepList({ log, declaration }) {
   }
 
   if (Array.isArray(log.inputs) && log.inputs.length > 0) {
-    out.push({ id: 'inputs', label: 'inputs', status: 'done', details: log.inputs.map((i) => `${i.role}: ${i.detail}`) });
+    out.push({ id: 'inputs', label: ['inputs', ...log.inputs.map((i) => `${i.role}: ${i.detail}`)].join(' · '), status: 'done', details: [] });
   }
 
   // a plan came back (valid or refused by the checker) vs. a round that never gave one (provider red, cut off, budget)
   const gotPlan = rounds.some((e) => e.outcome === 'valid' || String(e.outcome).startsWith('validator'));
   const n = typeof log.rounds === 'number' ? log.rounds : 0;
   const who = typeof log.modelId === 'string' && log.modelId !== '' ? log.modelId : 'the drafter';
-  const drafted = { id: 'drafted', label: `drafted with ${who}`, status: /** @type {'done'|'failed'} */ (gotPlan ? 'done' : 'failed'), details: [`${n} round${n === 1 ? '' : 's'} · ${money(log)}`] };
-  if (!gotPlan) drafted.details.push(...(Array.isArray(log.reds) ? log.reds.map(String) : []));
-  out.push(drafted);
-
   const reds = Array.isArray(log.reds) ? log.reds.map(String) : [];
+  const facts = ['drafted', who, `${n} round${n === 1 ? '' : 's'}`, money(log)];
+  if (!gotPlan && reds.length > 0) facts.push(reds[0]); // no plan at all (provider red, cut off): its own words, there is no checker text
+  out.push({ id: 'drafted', label: facts.join(' · '), status: /** @type {'done'|'failed'} */ (gotPlan ? 'done' : 'failed'), details: [] });
+
   const steps = Array.isArray(declaration?.steps) ? declaration.steps : [];
   const rubricReds = [];
   const checkReds = [];
@@ -58,22 +79,60 @@ export function draftStepList({ log, declaration }) {
     if (m) rubricReds.push(`line ${steps[Number(m[1])]?.fromLine ?? '?'}: ${m[2]}`); else checkReds.push(r);
   }
   if (gotPlan) {
-    out.push(log.ok === true
-      ? { id: 'checks', label: 'plan checks', status: 'done', details: [] }
-      : { id: 'checks', label: 'plan checks', status: 'failed', details: [], reds: checkReds });
+    if (log.ok === true) {
+      // N = the number of the try that passed, minus one (a free retry after a broken reply keeps its try's number)
+      const tries = triesOf(rounds);
+      const fixedAfter = tries.length > 0 && tries[tries.length - 1].passed ? tries.filter((x) => !x.again).length - 1 : 0;
+      out.push({ id: 'checks', label: fixedAfter > 0 ? `plan checks · fixed by the AI after ${fixedAfter} ${fixedAfter === 1 ? 'try' : 'tries'}` : 'plan checks', status: 'done', details: [] });
+    } else if (questionOpen) {
+      out.push({ id: 'checks', label: 'plan checks · a question for you', status: 'waiting', details: [] });
+    } else {
+      // one plain reason and its one Fix line (every rule has fix wording): the first refusal
+      const pick = checkReds.map(plainPlanCheck)[0];
+      out.push({ id: 'checks', label: pick ? `plan checks · ${pick.reason}` : 'plan checks', status: 'failed', details: [] });
+      if (pick) out.push({ id: 'checks-fix', label: `Fix: ${pick.fix}`, status: 'done', details: [], note: true });
+    }
   }
 
   if (log.ok === true) {
     const soft = steps.filter((s) => s?.close?.class === 'softgreen');
-    if (soft.length > 0) out.push({ id: 'rubrics', label: 'rubrics', status: 'done', details: soft.map((s) => `line ${s.fromLine}: built`) });
+    if (soft.length > 0) out.push({ id: 'rubrics', label: ['rubrics', ...soft.map((s) => `line ${s.fromLine}`)].join(' · '), status: 'done', details: [] });
   } else if (rubricReds.length > 0) {
-    out.push({ id: 'rubrics', label: 'rubrics', status: 'failed', details: rubricReds });
+    out.push({ id: 'rubrics', label: ['rubrics', ...rubricReds].join(' · '), status: 'failed', details: [] });
   }
 
-  rounds.forEach((e, i) => {
-    if (i === 0) return;
-    const no = i + 1;
-    out.push({ id: `try-${no}`, label: no <= TRIES ? `try ${no} of ${TRIES}` : `try ${no}`, status: e.outcome === 'valid' ? 'done' : 'failed', ...reasonOf(rounds[i - 1]) });
-  });
   return out;
+}
+
+/**
+ * M4d amendment 15, every line of the list: the line of ONE revise (or the redraft after answers), from that plan folder's own log.json. Same rules as `draftStepList`:
+ * one line, `<name> · <model> · <n rounds> · <cost>` and, for a plan that passed after refused tries, `fixed by the AI after N tries`; a red one carries one plain
+ * reason (and the Fix line under it), never details, folds or raw checker text. The try-by-try history is `triesOf` (the Audit Draft group). `null` = no log.
+ * @param {{ log: any, name: string }} p
+ * @returns {Array<{ id: string, label: string, status: 'done'|'failed'|'waiting', details: string[], note?: boolean }> | null}
+ */
+export function reviseStepList({ log, name }) {
+  if (log === null || typeof log !== 'object') return null;
+  const rounds = Array.isArray(log.log) ? log.log : [];
+  const n = typeof log.rounds === 'number' ? log.rounds : 0;
+  const who = typeof log.modelId === 'string' && log.modelId !== '' ? log.modelId : 'the drafter';
+  const facts = [name, who, `${n} round${n === 1 ? '' : 's'}`, money(log)];
+  const reds = Array.isArray(log.reds) ? log.reds.map(String) : [];
+  if (log.ok === true) {
+    const tries = triesOf(rounds);
+    const fixedAfter = tries.length > 0 && tries[tries.length - 1].passed ? tries.filter((x) => !x.again).length - 1 : 0;
+    if (fixedAfter > 0) facts.push(`fixed by the AI after ${fixedAfter} ${fixedAfter === 1 ? 'try' : 'tries'}`);
+    return [{ id: 'plan', label: facts.join(' · '), status: 'done', details: [] }];
+  }
+  const gotPlan = rounds.some((e) => e.outcome === 'valid' || String(e.outcome).startsWith('validator'));
+  const checkReds = reds.filter((r) => !REBUILD_RE.test(r));
+  if (!gotPlan || checkReds.length === 0) {
+    if (reds.length > 0) facts.push(reds[0]);
+    return [{ id: 'plan', label: facts.join(' · '), status: 'failed', details: [] }];
+  }
+  const pick = plainPlanCheck(checkReds[0]);
+  return [
+    { id: 'plan', label: [name, pick.reason].join(' · '), status: 'failed', details: [] },
+    { id: 'plan-fix', label: `Fix: ${pick.fix}`, status: 'done', details: [], note: true },
+  ];
 }

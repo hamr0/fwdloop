@@ -8,6 +8,7 @@
 // carry `note` / `change` kinds; they are only ever READ back, from the flow's own setup.jsonl.
 // Third outcomes: a draft with no result is `stopped`; a cost nobody booked is `null` (shown "unknown", never $0).
 import { lstatSync, writeFileSync } from 'node:fs';
+import { triesOf } from './draft-steps.js';
 import { join } from 'node:path';
 
 import { scrub } from './authoring.js';
@@ -52,6 +53,8 @@ function planRow(sessionDir, rel, kind, n) {
     // retries the drafter spent on structure (log.json); null = not recorded (a plan from before it), never 0
     structureRetries: Number.isInteger(log?.structureRetries) ? log.structureRetries : null,
     verdict, hash, gap,
+    // M4d am15: every try of this plan (label, passed, the checker's raw refusals, the round's words), for the Audit Draft group; only when a retry happened
+    ...(Array.isArray(log?.log) && log.log.length > 1 ? { tries: triesOf(log.log) } : {}),
   };
 }
 

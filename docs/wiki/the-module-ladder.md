@@ -1346,6 +1346,71 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
 3. The ✗ lines stay red and loud, as am10 says. These words replace "am7's words" in am10 item 1 and the words the builder chose in piece 1c.
 **Done when:** a test that fails first for each line above, and the $0 browser walk shows them. **Cap:** $0.
 
+**M4d amendment 12 — SIGNED by hamr 2026-10-12 ("sign M4d am12"): earlier tries read as the AI fixing itself, not as a fault.**
+1. Each try is its own line, with its own result and its own reason: `try 1 ✗` `> <why try 1 was refused>`, `try 2 ✗` `> <why try 2 was refused>`, … the last `try N ✓`. Shown only when a retry happened (one try that passed shows no try lines, as today).
+2. The free retry after a broken reply is not a new try number: the broken one reads `try 3 ✗` `> the reply came back broken; one free retry`, and the retry reads `try 3 again ✓`. Never `try 4`.
+3. Try lines, their ✗ marks and their details are grey, like every other detail. One grey line sits above them: **"Earlier tries were refused by the checks and fixed by the AI. Nothing for you to do."** Red stays only for a draft that ends red (its last try failed), as today.
+4. Replaces am10 item 1's try bullet and, for try lines only, am10 item 3's "red under a ✗". The readout and its hash don't change.
+**Done when:** a test that fails first; a $0 browser walk at 1280, 390 and 320; and the m7-walk-1 draft's own log (4 rounds, 2026-10-12) shows try 1, 2, 3 grey and `try 3 again ✓`. **Cap:** $0.
+
+**M4d amendment 13 — SIGNED by hamr 2026-10-12 ("sign m4d am13"): one cap. The card's Cap $ also caps drafting.**
+1. The separate $0.10 draft limit (`DRAFT_BUDGET_USD`, `src/authoring.js:36`) is removed. Each drafting call (a draft, a revise, or the redraft after answers) may spend up to the card's **Cap $**, the same number the run is capped at. The CLI's `--budget` flag is removed; `fwdloop draft` uses the cap signed in the prose.
+2. The draft and the run each stay under that cap. What a draft spends is not taken from the run's cap.
+3. Unchanged: before any call, one round at its worst case (Settings prices × the fixed token limits) must fit the cap, or the draft is refused at $0 and the refusal names the cap and the minimum (e.g. "Cap $0.10 is below one drafting round's worst case for claude-sonnet-5-5, $0.2240. Raise Cap $ or pick another model."). The monthly check holds drafting spend as today.
+**Done when:** a test that fails first; with Cap $0.50, a draft on a model whose worst round is $0.224 is no longer refused; with Cap $0.10 it is refused at $0 with the words above. **Cap:** $0.
+
+**M4d amendment 15 — SIGNED by hamr 2026-10-12 ("sign m4d am15"): the Chat list is progress only; the try history lives in Audit.**
+1. The Chat card's draft list is one line per step: a ✓ or ✗, the step's name, then its facts joined with ` · `. For example:
+   - `✓ thinking off` (am11's words unchanged)
+   - `✓ inputs · aging: 11 columns`
+   - `✓ drafted · deepseek-flash · 3 rounds · $0.0013`
+   - `✓ plan checks · fixed by the AI after 2 tries` (or `✓ plan checks` when try 1 passed)
+   - `✓ rubrics · line 2`
+2. No detail lines, no `details` folds, no try lines, and no raw checker text (`declaration: …`) in the Chat list.
+3. A draft that ends red shows one plain reason on its ✗ line and one **Fix:** line under it saying what to do, for example `✗ plan checks · a section name isn't in your job line` / `Fix: put the section words you want in the job line, then Draft again.` Red appears only on a draft that ended red.
+4. The **Audit tab's Draft group** (collapsed by default, as every Audit group) gets one row per try: `try N ✗` or `try N ✓` with its plain reason, and the raw checker text under it. The free retry after a broken reply reads `try N again`, as am12 item 2.
+5. A draft that is never signed has no run, so no Audit. Its full try history stays on disk in the draft's `log.json`.
+6. Replaces am10 items 1 and 3 (the list's lines and its detail lines) and am12 items 1 and 3 (try lines and the grey note). am12 item 2 (`try N again`) moves to the Audit rows. The readout and its hash don't change.
+**Done when:** a test that fails first; a $0 walk of the **real panel** (not a harness page) at 1280, 390 and 320 showing a green draft with retries, a red draft, and a signed run's Audit Draft group with one row per try; screenshots read. **Cap:** $0.
+
+**M4d amendment 16 — SIGNED by hamr 2026-10-12 ("sign m4d am16"): one shared pot. Drafting and the first run share the card's Cap $.**
+1. Replaces am13 item 2. Everything a job's drafting spends (the draft, each revise, the redraft after answers) comes out of the card's **Cap $**, and the first run gets what is left. Example: Cap $0.50, drafting spent $0.05, the first run's cap is $0.45.
+2. While drafting, each round must fit what is left of the cap (am13 item 3's worst-case check, against the remaining money, not the whole cap).
+3. **Sign & run** shows the split before it starts: `Cap $0.50 · drafting spent $0.05 · this run up to $0.45`. If what is left cannot pay for one run round at its worst case, Sign & run is refused at $0, naming the numbers and saying "Raise Cap $".
+4. Runs that do not draft (Run again, a trigger, a resume) get the whole cap, as today.
+5. If a drafting round's cost isn't known, it's counted at its **worst case** (Settings prices × the fixed token limits), never as $0, and Sign & run continues. The split line says so: `drafting spent at most $0.27 (1 round not priced)`.
+**Done when:** a test that fails first for each item; a $0 walk of the real panel showing the split line, and the refusal when drafting left too little. **Cap:** $0.
+
+**M4d amendment 17 — SIGNED by hamr 2026-10-12 ("sign m4d am17"): the version in the header.**
+1. The panel header reads **fwdloop · v0.16.0 · automate a job — it has humans in it**.
+2. The version is read from fwdloop's own `package.json` by the server when the page is served (one writer, never typed into the page), so it always matches the code that is running.
+**Done when:** a test that fails first (the header shows package.json's version; change the version in a test copy and the header follows); the real panel at 1280, 390 and 320 with no wrap or spill. **Cap:** $0.
+
+**M4d amendment 18 — SIGNED by hamr 2026-10-12 ("sign m4d am18"): a reload notice.**
+1. The page remembers the version it was served with. If the panel restarts on newer code while your tab stays open, a bar shows at the top: **"fwdloop was updated to v0.17.0. Reload this page."** with a **Reload** button.
+**Done when:** a test that fails first, and the real panel at 3 widths. **Cap:** $0
+
+**M4d amendment 19 — SIGNED by hamr 2026-10-12 ("sign m4d am19"): one cap, counted once, everywhere; true tool words.**
+1. **A draft reserves what is left of the cap.** When a draft starts (the panel runs `fwdloop draft` behind the scenes), it reserves against the monthly limit what is left of the cap (cap minus drafting already spent), not one round.
+2. **A revise checks the month for what is left of the cap**, not the whole cap again.
+3. **Start over keeps the pot.** Drafting spent before a Start over still comes out of the cap; if what is left is too little, it says "Raise Cap $".
+4. **Tool words are true.** The tool list tells the AI that `recall`, `impact` and `related` search code and markdown files only, and that `recent` finds nothing inside a run. `get`, `peek` and `stash` are unchanged.
+5. **One message for a cap that is too small.** The card shows am13's signed sentence ("Cap $… is below one drafting round's worst case for <model>, $…. Raise Cap $ or pick another model."). The card's own "needs at least $… per run" words go. (Closes F67.)
+**Done when:** a test that fails first for each item; a $0 walk of the real panel showing item 5's sentence. **Cap:** $0.
+
+**M4d amendment 20 — SIGNED by hamr 2026-10-12 ("sign m4d am20"): the cap-too-small words for a run.**
+1. am19 item 5 stands for drafting: the Chat card shows am13's sentence.
+2. Running a signed job and Resume, which do not draft, say instead: **"Cap $… is below one run round's worst case for <model>, $…. Raise Cap $ or pick another model."** The "needs at least $… per run" words go everywhere.
+3. One function writes both sentences; only "drafting" / "run" differs.
+**Done when:** a test that fails first for each sentence; a $0 walk of the real panel showing both. **Cap:** $0.
+
+**M4d amendment 21 — SIGNED by hamr 2026-10-12 ("sign m4d am21"): the pot everywhere, and one key-name rule.**
+1. **Start over and the Cap note count what's left of the cap**, the same as a revise. One cap, counted once.
+2. **A missing earlier draft is never counted as $0.** Start over is refused: "An earlier draft of this job is missing, so its spend can't be counted."
+3. **Empty job box:** a grey line, "The cap is checked against the model once the job has a step."
+4. **One key-name rule.** Two different `isKeyName` functions exist. With a key named like `GROQ_TOKEN`, the run uses it but the log scrubber doesn't know about it, so it could leak into a log. One function fixes that.
+**Done when:** a test that fails first for each item; a $0 walk of the real panel for items 1 and 3. **Cap:** $0.
+
 - **Built after signing — not signed text (2026-10-12), M4d amendments 3-11 (branch `m4d-am3`):**
   - bare-agent is `^0.52.0`. Each drafting round carries bareagent's `thinkingStatus`; the worst one across the rounds is what the Chat list says (am11's words), and the row's Base URL is passed to `thinkingSupport`. A `ValidationError` from the provider is an ordinary loud provider-red, counted as one unmetered call (the separate `thinking-refused` stop was removed as dead code).
   - A job's model is remembered in `model.json` beside the draft and then beside the signed flow. It is not one of the signed files; which model runs, and at what price, is still Settings' to say, and a line no longer ticked is refused by name. An old signed flow with no `model.json` runs with the model picked in Chat's "Run a signed flow" card, and the pick is recorded on a successful start.
@@ -2116,6 +2181,21 @@ through M5 (docs/archive/PRD.md:597-605).
   - *Known limits, not fixed:* a hard kill (SIGKILL) in the middle of a replacing sign leaves the old files in `.replace-old-<pid>-<ms>/` and the job refused until they are moved back by hand. The Run, Map and Audit tabs read the flow's current job, not the run's copy; only the Job tab reads the copy.
 
 ## M7 — skills and persona
+
+- **M7 scope — SIGNED by hamr 2026-10-11 ("sign m7"): in-run tools (replaces skills and persona, dropped by hamr 2026-10-11 as adding no measured value).**
+  1. Connect the tools bareloop's worker has, copied from bareloop: `edit`, `recall`, `get`, `recent`, `related`, `impact`, `compress`, `peek`, `stash`. A step can use one only if it's granted.
+  2. Memory lasts one run only. Each run gets its own fresh store, and nothing carries into the next run. `remember` and `forget` stay refused (PRD: no learning between flows).
+  3. `stash` holds at most 64 KB per item, as bareloop. `edit` may only change files where `write` may.
+  - **Done when:** a job2 flow that grants `compress` runs on deepseek-flash, and a real step uses one of the new tools and passes its check. Plus tests that fail first.
+  - **Must fail when:** a step that isn't granted `recall` calls it, and is refused. A second run can't see the first run's `stash`.
+  - **Cap:** $0.50.
+
+**M7 amendment 1 — SIGNED by hamr 2026-10-12 ("sign m7 am1"): the live test uses a tool that fits prose.**
+1. M7's "Done when" changes from "a job2 flow that grants `compress` runs on deepseek-flash, and a real step uses one of the new tools and passes its check" to: **a real step on deepseek-flash calls `stash`, `peek` or `get` and passes its check, and the Audit tab shows the call.** Plus tests that fail first (unchanged).
+
+**M7 EXIT SIGNED — hamr, 2026-10-12** ("sign m7 exit"). Evidence: am1's live test, flow `m7-walk-2` run-1 on deepseek-flash, green, $0.0124: steps 1-2 called `stash` (1 each), step 3 called `get` (4) and passed its shape check on try 2; the Audit tab shows the calls (hamr's paste). Must-fail cases as permanent tests (ungranted `recall` refused; run-2 cannot see run-1's stash, also after a deleted run's id is reused; stash over 64 KB refused). Exit walk `exit-walk-1` run-1 (green, $0.0035) also covered M4d am13, am15, am16 and am17 on the real panel. Open, not blocking: F67, F68. Self-review was not run before this signature.
+
+Superseded 2026-10-11 by the signed scope above (skills and persona dropped by hamr). Kept so it is not re-derived.
 
 Skill directories gate the drafter's visible primitive subset, and a signed persona line affects
 `compose` wording only. Menu-is-inventory: a checkbox with no skill directory is a validation red

@@ -25,34 +25,34 @@ test('(a) a valid forced tool call is accepted as-is, one metered round, no conv
   assert.deepEqual(r.declaration.inputFacts.jd, ['About the role', 'Responsibilities']);
 });
 
-test('(b1) the schema offers WIRED verbs only — "stash" is not on the enum or the menu', () => {
+test('(b1) the schema offers WIRED verbs only — "forget" is not on the enum or the menu', () => {
   const menu = wiredMenu(['core']);
   const enumVerbs = buildDeclarationSchema(menu).properties.steps.items.properties.primitives.items.enum;
-  assert.deepEqual([...enumVerbs].sort(), ['addressCells', 'grep', 'read', 'readDocx', 'write']);
-  assert.ok(!enumVerbs.includes('stash') && !enumVerbs.includes('recall'));
+  assert.deepEqual([...enumVerbs].sort(), ['addressCells', 'compress', 'edit', 'get', 'grep', 'impact', 'peek', 'read', 'readDocx', 'recall', 'recent', 'related', 'stash', 'write']);
+  assert.ok(!enumVerbs.includes('forget') && !enumVerbs.includes('remember'));
 });
 
 test('(b2) if the model grants an unwired verb anyway, the validator reds it by name (and it is fed back)', async () => {
   const bad = validArgs();
-  bad.steps[2].primitives = ['stash'];
+  bad.steps[2].primitives = ['forget'];
   const p = fakeProvider([toolReply(bad), toolReply(validArgs())]);
   const r = await run(p);
   assert.equal(r.ok, true);
   assert.equal(r.revisions, 1);
   const revisionPrompt = p.calls[1].messages.at(-1).content;
-  assert.match(revisionPrompt, /primitives names "stash", which is not in the catalogue/);
+  assert.match(revisionPrompt, /primitives names "forget", which is not in the catalogue/);
 });
 
 test('(b3) an unwired verb that never gets fixed ends red after MAX_REVISIONS, declaration not ok', async () => {
   const bad = validArgs();
-  bad.steps[2].primitives = ['stash'];
+  bad.steps[2].primitives = ['forget'];
   const p = fakeProvider([toolReply(bad)]);
   const r = await run(p);
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'validator');
   assert.equal(r.revisions, MAX_REVISIONS);
   assert.equal(r.rounds, 1 + MAX_REVISIONS);
-  assert.ok(r.reds.some((x) => x.includes('"stash"')));
+  assert.ok(r.reds.some((x) => x.includes('"forget"')));
 });
 
 test('(c) malformed JSON -> a structure retry, both rounds metered', async () => {
@@ -97,7 +97,7 @@ test('(d) a validator red -> a revision whose prompt carries the reds; a fixed d
 
 test('(e1) the per-draft budget stops the next round, priced and returned', async () => {
   const bad = validArgs();
-  bad.steps[2].primitives = ['stash'];
+  bad.steps[2].primitives = ['forget'];
   const p = fakeProvider([toolReply(bad)]);
   const r = await run(p, { budgetUsd: 0.02 }); // one round done ($0.0005); another at the ceiling ($0.0288) would cross
   assert.equal(r.ok, false);

@@ -119,6 +119,11 @@
   .topbar > div:first-child{display:flex;align-items:baseline;gap:0;white-space:nowrap;overflow:hidden;}
   .topbar .brand{font-weight:700;font-size:17px;letter-spacing:0.06em;flex:none;}
   .topbar .brand::before{content:"■ ";}
+  .update-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 16px;background:var(--amber);color:#000;font-size:13px;}
+  .update-bar[hidden]{display:none;}
+  .update-bar .btn{color:#000;border-color:#000;}
+  .topbar .version{font-size:12px;color:var(--text-dim);margin-left:8px;flex:none;white-space:nowrap;}
+  .topbar .version::before{content:"· ";color:var(--text-faint);}
   .topbar .tagline{font-size:12px;color:var(--text-dim);margin-left:8px;overflow:hidden;text-overflow:ellipsis;}
   .topbar .tagline::before{content:"· ";color:var(--text-faint);}
   @media (max-width: 600px){ .topbar .tagline{display:none;} }
@@ -499,7 +504,9 @@
   .chat-steps .step.wait .step-label{color:var(--amber);}
   .chat-steps .step-detail{display:block;flex-basis:100%;min-width:0;padding-left:1.2em;color:var(--text-faint);word-break:break-word;white-space:pre-wrap;}
   .chat-steps .step.bad .step-detail{color:var(--red);}
+  .chat-steps .step.note .step-label{color:var(--text);padding-left:1.2em;}
   .chat-steps .step[data-step="thinking"].bad .step-label{color:var(--red);font-weight:600;}
+  .audit-raw{color:var(--text-faint);font-size:11px;word-break:break-word;white-space:pre-wrap;margin-top:2px;}
   .chat-steps .step-raw{margin-top:2px;color:var(--text-faint);}
   .chat-steps .step-raw summary{cursor:pointer;}
   .chat-steps .step.run .step-sign::after{content:"\2026";}
@@ -762,9 +769,15 @@
 
 <div id="FwdloopPanel">
 
+  <div id="update-bar" class="update-bar" data-testid="update-bar" role="status" hidden>
+    <span id="update-text"></span>
+    <button class="btn" type="button" id="update-reload" data-testid="update-reload">Reload</button>
+  </div>
+
   <header class="topbar">
     <div>
       <span class="brand">fwdloop</span>
+      <span class="version" data-version="__FWDLOOP_VERSION__">v__FWDLOOP_VERSION__</span>
       <span class="tagline">automate a job — it has humans in it</span>
     </div>
     <div class="topbar-right">
@@ -903,6 +916,7 @@
                   <label for="jf-cap-money">Cap $</label>
                   <input id="jf-cap-money" type="text" inputmode="decimal" placeholder="per run" data-testid="jf-cap-money">
                   <div class="hint" id="jf-cap-note" data-testid="cap-note"></div>
+                  <div class="hint" id="jf-cap-job-note" data-testid="jf-cap-job-note"></div>
                   <div class="jf-err" id="jf-err-capUsd" data-testid="jf-err-capUsd"></div>
                 </div>
                 <div class="cap-field">
@@ -1192,6 +1206,7 @@
   "use strict";
 
   var PORT = "__FWDLOOP_PANEL_PORT__";
+  var PLAN_CHECK_RULES = __FWDLOOP_PLAN_CHECK_RULES__;
   // No token, no cookie (M4e amendment 4 item 8): the panel is local and trusted; the server checks Host and, on a POST, Origin.
   document.getElementById("host-line").textContent = "127.0.0.1:" + PORT;
 
@@ -1285,7 +1300,7 @@
     return (r.gapHead || []).concat(["ask waits " + waits]).join(" · ");
   }
   function auditCostCellText(r){
-    if(r.setup && typeof r.usd !== "number" && r.verdict === "hitl") return "—";   // a setup row you wrote (card, note, sign) has no cost
+    if(r.setup && typeof r.usd !== "number" && (r.verdict === "hitl" || r.tryRow === true)) return "—";   // a try row (its plan row has the cost) or a setup row you wrote (card, note, sign) has no cost of its own
     if(r.setup) return money(r.usd, r.spendComplete) + (typeof r.wallMs === "number" ? " \u00b7 " + duration(r.wallMs) : "");   // a draft/change row: its own booked cost ("unknown" when nobody booked it) and time (left out when not recorded)
     var bits = [money(r.usd, r.spendComplete)];
     var td = r.tokensDisplay;
@@ -2467,6 +2482,7 @@
   function auditDetailHtml(r, word, actionText, isRejectRow){
     var lines = (typeof r.step === "string" && r.step.length > 0 ? [["step", r.step]] : []).concat([["result", word], ["action", actionText]]);
     if(!isRejectRow && r.gap) lines.push(["gap", auditGapText(r)]);
+    if(Array.isArray(r.raw) && r.raw.length > 0) lines.push(["raw", r.raw.join(" | ")]);
     if(Array.isArray(r.refused) && r.refused.length > 0){
       lines.push(["refused", r.refused.map(function(x){ return x.verb + " " + x.path + " (" + x.rule + ")"; }).join("; ")]);
     }
@@ -2487,6 +2503,11 @@
   // number and no close class — it shows nothing / "—", never "null", "unknown" or "#null".
   function auditAttemptText(r){ return (typeof r.attempt === "number" || (typeof r.attempt === "string" && r.attempt.length > 0)) ? String(r.attempt) : ""; }
   function auditCloseText(r){ return (r.setup || r.class === null || r.class === undefined) ? "—" : closeClassLabel(r.class); }
+  // M4d am15 item 4: a try row's raw checker text, under its plain reason (the Gap cell). Server data, always escaped.
+  function auditRawHtml(r){
+    if(!Array.isArray(r.raw) || r.raw.length === 0) return "";
+    return r.raw.map(function(t){ return "<div class=\"audit-raw\">" + escapeXml(String(t)) + "</div>"; }).join("");
+  }
   function buildAuditRowEl(r, includeStep){
     var tr = document.createElement("tr");
     var glyph = verdictGlyph(r.verdict, r.class);
@@ -2503,7 +2524,7 @@
       "<td data-label=\"Attempt\">" + escapeXml(auditAttemptText(r)) + "</td>" +
       (includeStep ? "<td data-label=\"Step\">" + escapeXml(r.stepName || r.step) + "</td>" : "") +
       "<td data-label=\"Action\">" + escapeXml(actionText) + "</td>" +
-      "<td data-label=\"Gap\">" + escapeXml(isRejectRow ? "" : auditGapText(r)) + "</td>" +
+      "<td data-label=\"Gap\">" + escapeXml(isRejectRow ? "" : auditGapText(r)) + auditRawHtml(r) + "</td>" +
       "<td data-label=\"Cost\">" + escapeXml(auditCostCellText(r)) + "</td>" +
       "<td data-label=\"Verdict\"><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
       "<td data-label=\"Close\">" + escapeXml(auditCloseText(r)) + "</td>" +
@@ -2980,6 +3001,19 @@
     el._say = say;
     say(timeLeftMs);
   }
+  // M4d am18: the page keeps the version it was served with (the header's data-version, am17); the Inbox poll reports the server's. A different one = the panel
+  // restarted on newer code under this open tab: say so. Pure text rule (null = no bar), one painter.
+  function updateBarText(pageVersion, serverVersion){
+    if(typeof pageVersion !== "string" || pageVersion === "" || typeof serverVersion !== "string" || serverVersion === "") return null;
+    return pageVersion === serverVersion ? null : "fwdloop was updated to v" + serverVersion + ". Reload this page.";
+  }
+  function paintUpdateBar(serverVersion){
+    var vEl = document.querySelector(".topbar .version");
+    var text = updateBarText(vEl ? vEl.getAttribute("data-version") : "", serverVersion);
+    document.getElementById("update-bar").hidden = text === null;
+    if(text !== null) document.getElementById("update-text").textContent = text;
+  }
+  document.getElementById("update-reload").addEventListener("click", function(){ location.reload(); });
   function tickLeft(){
     document.querySelectorAll(".live-left").forEach(function(el){ el._say(Math.max(0, el._endsAt - Date.now())); });
   }
@@ -3075,7 +3109,7 @@
   // Immediate (every user action that re-reads calls this); the tick uses `listsDue` to throttle.
   function reloadLists(){
     lastListsAt = Date.now();
-    getJSON("/api/inbox").then(function(r){ renderInbox(r.rows || [], r.openCount); }).catch(function(){});
+    getJSON("/api/inbox").then(function(r){ renderInbox(r.rows || [], r.openCount); paintUpdateBar(r.version); }).catch(function(){});
     getJSON("/api/runs").then(function(r){
       var rows = r.rows || [];
       var next = sig(rows);
@@ -3938,7 +3972,7 @@
     var sessionId = null;        // the draft's id (GET /api/author/<id>)
     var sessionLive = false;     // a draft exists that is not abandoned or signed
     var lastState = null;        // the draft as the server last described it
-    var signInfo = null;         // the first Sign click's reply: { hash, flowName, capUsd, runId }
+    var signInfo = null;         // the first Sign click's reply: { hash, flowName, capUsd, runId, split }
     var signClickedOnce = false;
     var reviseOpen = false;      // amendment 14 item 2: Revise was pressed on a green plan, so every card field is open (ONE writer: setReviseOpen)
     var qKey = "";               // which question the box is showing (draft id + k): the answer box is rewritten only when this changes
@@ -4059,33 +4093,11 @@
     // am41 item 7: ONE function turns a checker's red (the text src/declaration.js writes) into one plain sentence for the card. The raw text rides
     // along unchanged and is folded under "details"; a red no rule below knows gets the generic sentence and still shows its raw text. This reads
     // the checker's own fixed wording, never the model's prose.
+    // M4d am15: the plain words are src/plain-checks.js, handed to the page by the server (PLAN_CHECK_RULES, top of this script): one copy.
     function plainPlanCheck(raw){
-      var PLAN_CHECK_RULES = [
-        [/which is not in the job line's words/, "A section name in the plan's check is not in your job line. Change the job line to use the section words you want."],
-        [/the job line says .*; the check says/, "The sections in the plan's check come in a different order than your job line. Change the job line to change the order."],
-        [/the guardrail says \d+ sections; the check has/, "The number of sections in your guardrail is not the number in the plan's check."],
-        [/section name is a short phrase|which is the job line or most of it/, "A section name in the plan's check is too long; it must be a short phrase from your job line."],
-        [/one section name may not contain another/, "One section name in the plan's check contains another, which cannot be checked."],
-        [/wordsPerSection/, "The words for each section in your guardrail and in the plan's check do not match."],
-        [/work as a pair/, "The plan's check has one part of a pair without the other, so it cannot be checked."],
-        [/is blank|characters; the most one entry|ends in ":"/, "A name in the plan's check is empty, too long or ends in a colon, so it cannot be matched."],
-        [/cannot be built into a check/, "The plan's check cannot be built from what the AI wrote."],
-        [/is not its signed line/, "A step does not use your job line word for word as its goal."],
-        [/not in the catalogue|not wired|which is not signed|checkpoint/, "A step uses a tool that is not available for this job."],
-        [/reads artifact|is a duplicate|\.reads must|\.emits must/, "The steps do not pass their results to each other in a workable order."],
-        [/ask at line \d+|signed ask at line|ask slot/, "The ask on one of your lines is not set up as a plain stop where you decide."],
-        [/send at line \d+|signed send at line|send slot/, "The send step is not set up to follow your accept and write only to your destination."],
-        [/hitl after the last signed ask/, "A step after your last ask would leave without your seeing it, so it is refused."],
-        [/is a pause .* unsigned line/, "A step pauses at a line you did not sign as an ask."],
-        [/neither served by any step/, "A line of your job is not covered by any step."],
-        [/picks|inputFacts|invented name/, "The plan names a field that is not in your input."],
-        [/guardrailClasses|unjudgeable|refused/, "The AI's notes on which lines it can check are not in a form the checker accepts."],
-        [/^line \d+'s (guardrail|check)|can't write files/, null],
-        [/must be an? |is required|must name|does not name/, "The plan the AI wrote is not in the shape the checker needs."]
-      ];
       var text = typeof raw === "string" ? raw : "";
       for(var i = 0; i < PLAN_CHECK_RULES.length; i++){
-        if(PLAN_CHECK_RULES[i][0].test(text)) return {say: PLAN_CHECK_RULES[i][1] === null ? text.replace(/^declaration: /, "") : PLAN_CHECK_RULES[i][1], raw: text};
+        if(new RegExp(PLAN_CHECK_RULES[i].re).test(text)) return {say: PLAN_CHECK_RULES[i].say === null ? text.replace(/^declaration: /, "") : PLAN_CHECK_RULES[i].say, raw: text};
       }
       return {say: "One of the checks on the plan failed.", raw: text};
     }
@@ -4104,8 +4116,8 @@
       function draftLines(fallback){
         if(!state || !Array.isArray(state.stepList) || state.stepList.length === 0) return fallback();
         state.stepList.forEach(function(st){
-          var row = {id: st.id, label: st.label, status: st.status === "failed" ? "failed" : "done", details: st.details || []};
-          if(Array.isArray(st.reds)){ var fd = failedDetails(st.reds); row.details = fd.details; row.raw = fd.raw; }
+          var row = {id: st.id, label: st.label, status: st.status === "failed" ? "failed" : (st.status === "waiting" ? "waiting" : "done"), details: st.details || []};
+          if(st.note === true) row.note = true;
           out.push(row);
         });
       }
@@ -4119,11 +4131,18 @@
           draftLines(function(){ out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []}); });
           var reviseNo = 0;
           state.revises.forEach(function(rv){
-            // an answer redraft (amendment 24 item 4) is not a revise and is not counted as one
-            var label = rv.kind === "answers" ? "drafted again with your answers" : "revise " + (reviseNo += 1);
+            // an answer redraft (amendment 24 item 4) is not a revise and is not counted as one; the server names each one (`rv.name`) and, from the plan's own log,
+            // writes its line (`rv.lines`, src/draft-steps.js `reviseStepList`): one line, facts joined by " · ", a red one with one plain reason and a Fix line (am15)
+            var label = rv.name || (rv.kind === "answers" ? "drafted again with your answers" : "revise " + (reviseNo += 1));
             if(rv.phase === "running") out.push({id: "revise-" + rv.n, label: label, status: "running", details: []});
-            else if(rv.phase === "green") out.push({id: "revise-" + rv.n, label: label, status: "done", details: []});
-            else { var rf = failedDetails(rv.reds); out.push({id: "revise-" + rv.n, label: label, status: "failed", details: rf.details, raw: rf.raw}); }
+            else if(Array.isArray(rv.lines) && rv.lines.length){
+              rv.lines.forEach(function(l){
+                var row = {id: "revise-" + rv.n + "-" + l.id, label: l.label, status: l.status === "failed" ? "failed" : "done", details: []};
+                if(l.note === true) row.note = true;
+                out.push(row);
+              });
+            }
+            else out.push({id: "revise-" + rv.n, label: label, status: rv.phase === "green" ? "done" : "failed", details: []});
           });
           if(state.phase === "green"){
             if(ctx.starting) out.push({id: "signed", label: "signed", status: "done", details: []});
@@ -4133,8 +4152,7 @@
         } else if(state.phase === "red"){
           draftLines(function(){
             out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []});
-            var cf = failedDetails(state.reds);
-            out.push({id: "checks", label: "plan checks", status: "failed", details: cf.details, raw: cf.raw});
+            out.push({id: "checks", label: "plan checks", status: "failed", details: []});   // no log to read a reason from: the card's own sentence says it
           });
         } else if(state.phase === "stopped"){
           out.push({id: "drafting", label: "drafting with " + who + capPart, status: "failed", details: []});
@@ -4358,23 +4376,33 @@
     function jobHasModelStep(){
       return byId("jf-job").value.split("\n").some(function(l){ var t = l.trim(); return t !== "" && t.charAt(0) !== "~" && !/^ask\b/i.test(t); });
     }
+    // M4d am21 item 3: with no step that needs a model the cap cannot be checked against one yet: a grey line says so (the New job card only)
+    function paintCapJobNote(m){
+      byId("jf-cap-job-note").textContent = (m === "new" && !jobHasModelStep()) ? "The cap is checked against the model once the job has a step." : "";
+    }
     function refreshCapNote(){
+      paintCapJobNote(mode);
       var cap = mode === "run" ? runCapEl.value.trim() : (mode === "resume" ? resumeCapEl.value.trim() : byId("jf-cap-money").value.trim());
       var seq = ++capNoteSeq;
       if(cap === ""){ setMoneyNote("", false); return; }
       // a Resume holds only what the run has still to spend (amendment 4 item 1): the server is told what is already spent
-      var spent = (mode === "resume" && resumeCtx) ? "&spent=" + encodeURIComponent(String(resumeCtx.form.spentUsd)) + "&flow=" + encodeURIComponent(resumeCtx.flow) : "";
+      var spent = (mode === "resume" && resumeCtx) ? "&spent=" + encodeURIComponent(String(resumeCtx.form.spentUsd)) + "&flow=" + encodeURIComponent(resumeCtx.flow) + "&kind=run" : "";
       var pk = modelPick();
       var picked = (mode === "new" && pk.provider !== "") ? "&provider=" + encodeURIComponent(pk.provider) + "&model=" + encodeURIComponent(pk.model) : "";
-      authorGet("/api/author/monthly-check?cap=" + encodeURIComponent(cap) + spent + picked).then(function(j){
+      // M4d am20: Run a signed flow does not draft: the server writes the same cap-too-small sentence with "run" (the flow's recorded model, else the one picked in Chat)
+      var sfNow = selectedFlow();
+      if(mode === "run" && sfNow) picked = "&kind=run&flow=" + encodeURIComponent(sfNow.flow) + (pk.provider !== "" ? "&provider=" + encodeURIComponent(pk.provider) + "&model=" + encodeURIComponent(pk.model) : "");
+      // M4d am21 item 1: a card that belongs to a live draft (a revise, or the Start over about to be made) is checked for the pot left, as the doors do
+      var ofDraft = (mode === "new" && sessionLive && sessionId) ? "&draft=" + encodeURIComponent(sessionId) : "";
+      authorGet("/api/author/monthly-check?cap=" + encodeURIComponent(cap) + spent + picked + ofDraft).then(function(j){
         if(seq !== capNoteSeq) return;
         if(!j || j.ok !== true){ setMoneyNote("", false); return; }
         var v = Number(cap);
         if(mode === "new" && j.floorText && isFinite(v) && v > 0 && v < j.floorUsd && jobHasModelStep()){ setMoneyNote(j.floorText, true); return; }
         // a Run's own cap is never judged against the floor (an old flow signed lower still runs plain); a changed cap below it is red
         var sf = selectedFlow();
-        if(mode === "run" && sf && j.floorText && isFinite(v) && v > 0 && v !== sf.capUsd && v < sf.capFloorUsd){ setMoneyNote(sf.floorText, true); return; }
-        if(mode === "resume" && resumeCtx && j.floorText && isFinite(v) && v > resumeCtx.form.spentUsd && v < resumeCtx.form.floorUsd){ setMoneyNote(resumeCtx.form.floorText, true); return; }
+        if(mode === "run" && sf && j.floorText && isFinite(v) && v > 0 && v !== sf.capUsd && v < sf.capFloorUsd){ setMoneyNote(j.floorText, true); return; }
+        if(mode === "resume" && resumeCtx && j.floorText && isFinite(v) && v > resumeCtx.form.spentUsd && v < resumeCtx.form.floorUsd){ setMoneyNote(j.floorText, true); return; }
         setMoneyNote(typeof j.text === "string" ? j.text : "", j.red === true);
       }).catch(function(){ if(seq === capNoteSeq) setMoneyNote("", false); });
     }
@@ -4682,7 +4710,9 @@
       progressRow.hidden = steps.length === 0;
       var html = steps.map(function(st){
         var cls = st.status === "waiting" ? "wait" : (st.status === "running" ? "run" : (st.status === "failed" ? "bad" : "ok"));
-        var sign = cls === "ok" ? "✓" : (cls === "bad" ? "✗" : "");
+        var sign = st.note ? "" : (cls === "ok" ? "✓" : (cls === "bad" ? "✗" : ""));
+        // M4d am15: a line with no ✓/✗ (the Fix line under a red plan check)
+        if(st.note) cls += " note";
         return '<li class="step ' + cls + '" data-step="' + escapeXml(st.id) + '"><div class="step-line"><span class="step-label">' + escapeXml(st.label) + '</span>' +
           '<span class="step-sign">' + sign + '</span></div>' +
           (st.details || []).map(function(d, k){
@@ -4770,6 +4800,8 @@
       mainAction = b.action; mainStartOver = !!b.startOver;
       // amendment 14 item 3: the count shows while a draft has revises to count; at 0 the way on is Start over
       mainHint.textContent = (mode === "new" && sessionLive && st.revisable && st.phase !== "signed" && st.phase !== "questions-open") ? (st.left > 0 ? revisesLeftText(st.left) : "No revises left: Start over keeps the fields and gives 2 new ones.") : "";
+      // M4d am16 item 3: the first Sign click shows how the card's Cap $ is split between drafting and this run, before the second click starts it
+      if(mode === "new" && sessionLive && signInfo && signInfo.split && signClickedOnce) mainHint.textContent = signInfo.split.line;
       reviseBtn.hidden = !reviseShownFor(st);
       reviseBtn.disabled = !!st.busy;
       startOverBtn.hidden = !startOverShownFor(st);
@@ -5063,7 +5095,7 @@
           var o = chatPostOutcome(r);
           if(!o.ok){ failFrom(r); refreshStartEnabled(); return; }
           chatActionOk();
-          signInfo = {hash: r.body.hash, flowName: r.body.flowName, capUsd: r.body.capUsd, runId: r.body.runId};
+          signInfo = {hash: r.body.hash, flowName: r.body.flowName, capUsd: r.body.capUsd, runId: r.body.runId, split: r.body.split || null};
           signClickedOnce = true;
           if(lastState) renderActions(lastState); else refreshStartEnabled();
         }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });

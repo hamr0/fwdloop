@@ -32,7 +32,7 @@ test('happy path: n drafts, each booked in the ledger, summary counts valid', as
   const dir = outDir();
   const { prose } = job2Fixture();
   const bad = validArgs();
-  bad.steps[2].primitives = ['stash'];
+  bad.steps[2].primitives = ['forget'];
   const provider = fakeProvider([toolReply(validArgs())]);
   const { records, summary } = await runBatch({
     n: 1, tag: 't1', proseText: prose, outDir: dir, injected: { provider, rates: RATES, modelId: MODEL }, writeLine: quiet, env: {},

@@ -83,7 +83,7 @@ test('item 3: a cap cut-off on tries 1 and 2 opens the try-3 question; a questio
 });
 
 test('item 3: a cut-off try 1 then a validator red on try 2 also opens try 3', async () => {
-  const bad = () => { const a = validArgs(); a.steps[2].primitives = ['stash']; return a; };
+  const bad = () => { const a = validArgs(); a.steps[2].primitives = ['forget']; return a; };
   const p = recProvider([truncatedReply(), toolReply(bad()), toolReply(validArgs())]);
   await run(p);
   assert.ok(p.schemas[2].properties.questions);
@@ -95,7 +95,7 @@ test('item 3: one cut-off then a finished try 2 never opens questions; a cut-off
   assert.equal(r.ok, true);
   assert.equal(p.schemas[1].properties.questions, undefined);
   const p2 = recProvider([truncatedReply()]);
-  const r2 = await run(p2, { budgetUsd: 5 });
+  const r2 = await run(p2);
   assert.equal(r2.ok, false);
   assert.equal(r2.stop, 'structure');
   assert.match(r2.reds[0], /^truncated:/);

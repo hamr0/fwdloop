@@ -22,6 +22,7 @@
 import {
   existsSync, realpathSync,
 } from 'node:fs';
+import { plainPlanCheck } from '../plain-checks.js';
 import { join, basename, sep } from 'node:path';
 
 import {
@@ -1521,6 +1522,17 @@ export function getDraftBlock(flowDir, runDir) {
     usd: typeof r.costUsd === 'number' ? r.costUsd : undefined, spendComplete: r.spendComplete === true, tokensDisplay: { kind: 'no-model' },
     ...(typeof r.wallMs === 'number' ? { wallMs: r.wallMs } : {}),
   });
+  // M4d am15 item 4: one row per try under the draft's plan row: `try N ✗|✓`, its plain reason (the first refusal, "and k more"), the raw checker text under it.
+  // The free retry after a broken reply reads `try N again`. A flow signed before am15 recorded no tries: nothing is added.
+  const tryRows = (r, n) => (Array.isArray(r.tries) ? r.tries : []).map((t, k) => {
+    const reds = Array.isArray(t.reds) ? t.reds.map(String) : [];
+    const gap = t.passed ? '' : (reds.length > 0 ? `${plainPlanCheck(reds[0]).reason}${reds.length > 1 ? ` (and ${reds.length - 1} more)` : ''}` : String(t.outcome ?? ''));
+    return {
+      attempt: `${n}.${k + 1}`, step: 'drafting', class: null, verdict: t.passed ? 'green' : 'red', gap, at: r.at ?? null, setup: true, blocked: false,
+      action: `${t.label} ${t.passed ? '✓' : '✗'}`, tryRow: true, tokensDisplay: { kind: 'no-model' },
+      ...(t.passed ? {} : { raw: reds.length > 0 ? reds : [String(t.rawOutcome ?? t.outcome ?? '')] }),
+    };
+  });
   // M4e amendment 8 item 1, line 4: one short phrase per Draft row, in order (the drafting card joins them with ` · `)
   const happened = [];
   const retry = (r) => (Number.isInteger(r.structureRetries) && r.structureRetries >= 1 ? ` (retry ${r.structureRetries} of ${MAX_STRUCTURE_RETRIES})` : '');
@@ -1541,11 +1553,11 @@ export function getDraftBlock(flowDir, runDir) {
           typeof c.inputs === 'string' && c.inputs.trim() ? `inputs: ${c.inputs.trim().replace(/\n+/g, ' / ')}` : null, `job: ${String(c.job ?? '').trim().replace(/\n+/g, ' / ')}`].filter(Boolean).join(' · ');
         rows.push(human(r, n, { action: 'card (you)', gap }));
       } else if (r.kind === 'note') rows.push(human(r, n, { action: 'note (you)', gap: String(r.text ?? '') }));
-      else if (r.kind === 'draft') rows.push(model(r, n, 'draft'));
-      else if (r.kind === 'change') rows.push(model(r, n, `change ${r.n}`));
-      else if (r.kind === 'startover') rows.push(model(r, n, 'start over'));
-      else if (r.kind === 'revise') rows.push(model(r, n, `revise ${r.n}`));
-      else if (r.kind === 'redraft') rows.push(model(r, n, `answers redraft ${r.n}`));
+      else if (r.kind === 'draft') { rows.push(model(r, n, 'draft')); rows.push(...tryRows(r, n)); }
+      else if (r.kind === 'change') { rows.push(model(r, n, `change ${r.n}`)); rows.push(...tryRows(r, n)); }
+      else if (r.kind === 'startover') { rows.push(model(r, n, 'start over')); rows.push(...tryRows(r, n)); }
+      else if (r.kind === 'revise') { rows.push(model(r, n, `revise ${r.n}`)); rows.push(...tryRows(r, n)); }
+      else if (r.kind === 'redraft') { rows.push(model(r, n, `answers redraft ${r.n}`)); rows.push(...tryRows(r, n)); }
       else if (r.kind === 'sign') rows.push(human(r, n, { action: `sign (${r.signedBy ?? 'you'})`, gap: `plan ${String(r.hash ?? '').slice(0, 12)}` }));
     });
   }

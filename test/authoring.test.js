@@ -22,11 +22,11 @@ const tmp = (p) => mkdtempSync(path.join(tmpdir(), `fwdloop-auth-${p}-`));
 const readJson = (f) => JSON.parse(readFileSync(f, 'utf8'));
 
 /** Draft job #2 into a fresh dir with a fake provider; returns everything a test needs. */
-async function makeDraft({ replies = [toolReply(validArgs())], extra = {}, prose } = {}) {
+async function makeDraft({ replies = [toolReply(validArgs())], extra = {}, prose, capUsd } = {}) {
   const fx = job2Fixture();
   const work = tmp('w');
   const proseFile = path.join(work, 'prose.txt');
-  writeFileSync(proseFile, prose ?? fx.prose);
+  writeFileSync(proseFile, capUsd === undefined ? (prose ?? fx.prose) : (prose ?? fx.prose).replace('guardrail: cap $0.25 per run', `guardrail: cap $${capUsd} per run`)); // M4d am13: the draft's limit is the signed cap
   const provider = fakeProvider(replies);
   const dir = path.join(work, 'draft');
   const root = path.join(work, 'flows');
@@ -70,7 +70,7 @@ test('draft: green draft writes prose(verbatim)/declaration/facts/readout/log/sp
 
 test('draft: a red draft still writes its dir (reds, cost, booked) but no spec.hash', async () => {
   const bad = validArgs();
-  bad.steps[2].primitives = ['stash'];
+  bad.steps[2].primitives = ['forget'];
   const { r, dir } = await makeDraft({ replies: [toolReply(bad)] });
   assert.equal(r.ok, false);
   assert.equal(r.wrote, true);
@@ -79,7 +79,7 @@ test('draft: a red draft still writes its dir (reds, cost, booked) but no spec.h
   assert.ok(!existsSync(path.join(dir, 'declaration.json')));
   assert.ok(existsSync(path.join(dir, 'declaration.rejected.json')));
   const log = readJson(path.join(dir, 'log.json'));
-  assert.ok(log.reds.some((x) => x.includes('"stash"')));
+  assert.ok(log.reds.some((x) => x.includes('"forget"')));
   const rows = readSpendRows(path.join(dir, 'spend.jsonl'));
   assert.equal(rows.length, 1);
   assert.equal(rows[0].rounds, 3);
@@ -119,15 +119,15 @@ test('draft: $0 refusals write nothing and spend nothing (bad key, missing input
 
 test('draft: budget exceeded stops, is priced, and is booked', async () => {
   const bad = validArgs();
-  bad.steps[2].primitives = ['stash']; // never valid -> keeps asking for another round
-  const { r, dir, provider } = await makeDraft({ replies: [toolReply(bad)], extra: { budgetUsd: ceilingCostUsd(RATES) + 0.0002 } });
+  bad.steps[2].primitives = ['forget']; // never valid -> keeps asking for another round
+  const { r, dir, provider } = await makeDraft({ replies: [toolReply(bad)], capUsd: ceilingCostUsd(RATES) + 0.0002 });
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'budget');
   assert.equal(provider.calls.length, 1, 'stopped before a second round');
   const row = readSpendRows(path.join(dir, 'spend.jsonl'))[0];
   assert.equal(row.stop, 'budget');
   assert.ok(row.costUsd > 0);
-  assert.equal(row.budgetUsd, ceilingCostUsd(RATES) + 0.0002);
+  assert.equal(row.budgetUsd, Number(String(ceilingCostUsd(RATES) + 0.0002)), 'the row records the signed cap');
 });
 
 test('draft: an unpriced round is booked null, never 0', async () => {
@@ -286,14 +286,14 @@ test('sign: a hand-edited declaration granting an unwired verb is refused, no fl
   const { r, root, dir } = await makeDraft();
   const df = path.join(dir, 'declaration.json');
   const d = readJson(df);
-  d.steps[2].primitives = ['stash'];
+  d.steps[2].primitives = ['forget'];
   writeFileSync(df, `${JSON.stringify(d, null, 2)}\n`);
   // (1) edit alone: the hash catches it
   assert.match(signDraft({ dir, approve: r.hash, signedBy: 'alice' }).reds[0], /does not match/);
   // (2) someone who re-hashes: the validator (wired set) still refuses, by name
   const s = signDraft({ dir, approve: rehash(dir), signedBy: 'alice' });
   assert.equal(s.ok, false);
-  assert.match(s.reds.join(' '), /"stash" is in the catalogue but not wired/);
+  assert.match(s.reds.join(' '), /"forget" is in the catalogue but not wired/);
   noFlow(root);
 });
 
@@ -326,7 +326,7 @@ test('sign: a send target inside the flow root is refused at sign by name, no fl
 
 test('sign: a red draft dir (no spec.hash / no declaration.json) can never be signed', async () => {
   const bad = validArgs();
-  bad.steps[2].primitives = ['stash'];
+  bad.steps[2].primitives = ['forget'];
   const { r, root, dir } = await makeDraft({ replies: [toolReply(bad)] });
   assert.equal(r.ok, false);
   const s = signDraft({ dir, approve: 'a'.repeat(64), signedBy: 'alice' });
@@ -646,11 +646,12 @@ test('draft: the dir is claimed BEFORE the paid round — a racing second draft 
 
 test('draft: a $0 pre-flight refusal after the claim leaves no dir behind', async () => {
   const s = draftSetup('pre');
+  writeFileSync(s.proseFile, readFileSync(s.proseFile, 'utf8').replace('guardrail: cap $0.25 per run', 'guardrail: cap $0.005 per run'));
   const r = await draftToDir({
-    ...s, name: 'job2', provider: fakeProvider([toolReply(validArgs())]), rates: RATES, modelId: MODEL, env: {}, budgetUsd: 0.005,
+    ...s, name: 'job2', provider: fakeProvider([toolReply(validArgs())]), rates: RATES, modelId: MODEL, env: {},
   });
   assert.equal(r.wrote, false);
-  assert.match(r.reds[0], /minimum budget/);
+  assert.match(r.reds[0], /^Cap \$0\.005 is below one drafting round's worst case for/);
   assert.ok(!existsSync(s.dir), 'claimed dir removed on a $0 refusal');
 });
 
@@ -691,7 +692,7 @@ test('draft: validator-red then a thrown provider call books spendComplete:false
 
 test('draft: a thrown call after a priced round returns spendComplete:false (drafter level); a green draft is complete', async () => {
   const bad = validArgs();
-  bad.steps[2].primitives = ['stash'];
+  bad.steps[2].primitives = ['forget'];
   const p = fakeProvider([toolReply(bad)]);
   const gen = p.generate.bind(p);
   p.generate = async (...a) => { if (p.calls.length >= 1) throw Object.assign(new Error('x'), { code: 'ETIMEDOUT' }); return gen(...a); };

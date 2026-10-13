@@ -45,7 +45,7 @@ import {
   checkMonthlyRoom, ConfigError, monthlyNote, monthlyRefusalText,
 } from '../monthly.js';
 import {
-  appendAnswersToJob, capFloorText, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
+  appendAnswersToJob, capFloorFor, capFloorOf, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
 } from './authorcard.js';
 import { checkedLines, notCheckedBlock } from '../checked.js';
 import {
@@ -53,7 +53,11 @@ import {
 } from '../provider.js';
 import { thinkingSupport as bareagentThinkingSupport, THINKING_FIXED_SAY, THINKING_UNVERIFIED_SAY } from '../thinking.js';
 import { parseSignedText } from '../signed-text.js';
-import { draftStepList } from '../draft-steps.js';
+import { draftStepList, reviseStepList } from '../draft-steps.js';
+import {
+  capTooSmallText, draftingSpent, EARLIER_MISSING_SAY, potSplit, STARTED_OVER_FILE, usdText,
+} from '../draftspend.js';
+import { flowValues, valuesHash } from '../runvalues.js';
 import { leastResumeCapUsd } from './authorvalues.js';
 import { createFlowsDoor } from './authorflows.js';
 import { createResumeDoor } from './authorresume.js';
@@ -66,7 +70,6 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = join(HERE, '..', '..', 'bin', 'fwdloop');
 
 /** A draft id: `d-` + the start time in base 36 (so ids sort oldest to newest) + 4 random hex. */
-const STARTED_OVER_FILE = 'started-over-from.json';
 const ID_RE = /^d-[0-9a-z]{10}-[0-9a-f]{4}$/;
 const newId = () => `d-${Date.now().toString(36).padStart(10, '0')}-${randomBytes(2).toString('hex')}`;
 /** The phases that end a card's life: Abandon or a sign. Everything else is still on the card (to read, to sign, to retry). */
@@ -161,14 +164,36 @@ export function createAuthor(opts) {
   /**
    * M4d am10: the Chat list of what this plan's draft really did, READ from its log.json and declaration (never from the readout, which is signed text),
    * built by the ONE function `draftStepList`; every string scrubbed. `null` when the draft left no log (the page then lists what it always did).
-   * @param {string} dir @param {string} rel @param {string[]} keys
+   * `questionOpen`: the plan asked a question and the draft has not ended (am15 item 3), so its plan-checks line is not red.
+   * @param {string} dir @param {string} rel @param {string[]} keys @param {boolean} [questionOpen]
    */
-  function stepListOf(dir, rel, keys) {
+  function stepListOf(dir, rel, keys, questionOpen = false) {
     const declaration = readJson(dir, `${rel}/declaration.json`) ?? readJson(dir, `${rel}/declaration.rejected.json`);
-    const list = draftStepList({ log: readJson(dir, `${rel}/log.json`), declaration });
+    const list = draftStepList({ log: readJson(dir, `${rel}/log.json`), declaration, questionOpen });
     if (list === null) return null;
     const sc = (x) => scrub(String(x), keys);
-    return list.map((st) => ({ ...st, label: sc(st.label), details: st.details.map(sc), ...(st.reds ? { reds: st.reds.map(sc) } : {}) }));
+    return list.map((st) => ({ ...st, label: sc(st.label), details: st.details.map(sc) }));
+  }
+
+  /** M4d am19: what ALL of this job's drafting already spent (the session folder and any Start-over chain behind it), unpriced rounds at their worst case. @param {string} dir @param {any} card */
+  function draftedSoFar(dir, card) {
+    return draftingSpent(dir, { ceilingUsd: capFloorFor(true, home, card) }).usd;
+  }
+
+  /**
+   * M4d am16: the split of the card's Cap $ at Sign & run, from ALL of this job's drafting (the one writer of that total, `draftingSpent`). Unpriced rounds count at their
+   * worst case (the picked model's Settings ceiling). `refusal` = what is left cannot pay one run round at its worst case: refused at $0.
+   * @param {string} dir the draft folder @param {any} card
+   */
+  function potOf(dir, card) {
+    const ceilingUsd = capFloorFor(true, home, card);
+    const spentRead = draftingSpent(dir, { ceilingUsd });
+    const split = potSplit(Number(card.capUsd), spentRead);
+    const floorUsd = capFloorUsd(typeof card.job === 'string' ? card.job : '', home, card);
+    const refusal = spentRead.missingEarlier ? EARLIER_MISSING_SAY : split.leftUsd < floorUsd
+      ? `${split.line}: not enough for one run round at its worst case, ${usdText(floorUsd)}. Raise Cap $.`
+      : null;
+    return { split, refusal };
   }
 
   /**
@@ -210,17 +235,26 @@ export function createAuthor(opts) {
     const revisesLeft = Math.max(0, MAX_REVISES - used);
     const newest = ns.length > 0 ? ns[ns.length - 1] : 0;
     const card = newest > 0 ? (readJson(dir, `card-${newest}.json`) ?? base.card) : base.card;
+    let reviseNo = 0;
     const revises = ns.map((n) => {
       const kind = redrafts.has(n) ? 'answers' : 'revise';
+      if (kind === 'revise') reviseNo += 1;
+      // M4d am15 (every line of the list): this plan's own line, from its own log, built by `reviseStepList`; the try history is in the Audit Draft group
+      const name = kind === 'answers' ? 'drafted again with your answers' : `revise ${reviseNo}`;
       const running = n === newest && childRunning(dir); // C9: running first, then the result
+      // the result BEFORE the log: the child writes log.json first and the result (spec.hash, or the red log itself) after, so a result we see has its log already on disk
       const res = resultOf(dir, `draft-${n}`, keys);
-      if (res && res.phase === 'green') return { n, kind, phase: 'green', hash: res.hash };
-      if (res) return { n, kind, phase: 'red', reds: res.reds, say: kind === 'answers' ? REDRAFT_RED_SAY : REVISE_RED_SAY };
-      if (running) return { n, kind, phase: 'running' };
-      return { n, kind, phase: 'stopped', say: logTail(dir, `${kind === 'answers' ? 'redraft' : 'revise'}-${n}.log`, keys) || STOPPED_SAY };
+      const lines = reviseStepList({ log: readJson(dir, `draft-${n}/log.json`), name });
+      const scrubbed = lines === null ? null : lines.map((l) => ({ ...l, label: scrub(l.label, keys) }));
+      if (res && res.phase === 'green') return { n, kind, phase: 'green', hash: res.hash, name, lines: scrubbed };
+      if (res) return { n, kind, phase: 'red', reds: res.reds, say: kind === 'answers' ? REDRAFT_RED_SAY : REVISE_RED_SAY, name, lines: scrubbed };
+      if (running) return { n, kind, phase: 'running', name };
+      return { n, kind, name, phase: 'stopped', say: logTail(dir, `${kind === 'answers' ? 'redraft' : 'revise'}-${n}.log`, keys) || STOPPED_SAY };
     });
     const cur = /** @type {{ phase: string, kind: string, say?: string }} */ (newest > 0 ? revises[revises.length - 1] : { phase: first.phase, kind: 'first' });
-    const shared = { ...base, card, revises, revisesLeft, stepList: first.stepList ?? null };
+    // a first plan that asked questions did not end red, it ended by asking (open or answered): its plan-checks line is never the red one (am15 item 3)
+    const asked = readQuestions(join(dir, 'draft')).questions.length > 0;
+    const shared = { ...base, card, revises, revisesLeft, stepList: asked ? stepListOf(dir, 'draft', keys, true) : (first.stepList ?? null) };
     const rel = newest > 0 ? `draft-${newest}` : 'draft';
     if (cur.phase === 'running') return { ...shared, phase: cur.kind === 'answers' ? 'redrafting' : 'revising' };
     if (cur.phase === 'stopped') return { ...shared, phase: 'stopped', say: cur.say };
@@ -230,7 +264,7 @@ export function createAuthor(opts) {
     if (q.open.length > 0) {
       const lineText = (line) => parseJobBox(typeof card?.job === 'string' ? card.job : '').steps[line - 1]?.text ?? null;
       const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null }));
-      return { ...shared, phase: 'questions-open', plan: rel, questions, openK: q.open[0].k, total: q.questions.length };
+      return { ...shared, stepList: stepListOf(dir, rel, keys, true), phase: 'questions-open', plan: rel, questions, openK: q.open[0].k, total: q.questions.length };
     }
     if (q.questions.length > 0) return { ...shared, phase: 'stopped', say: ANSWERS_NOT_DRAFTED_SAY };
     if (res.phase === 'green') {
@@ -325,16 +359,17 @@ export function createAuthor(opts) {
   /**
    * The $0 checks both a first draft and a revise run on the card as submitted: the card's own checks (a key value, the flow name,
    * every field), then the monthly room for its cap. `{ ok: true, card, prose }` or `{ ok: false, reply }`. Writes nothing.
-   * @param {any} body @param {{ ok: boolean, env: Record<string, string|undefined>, keyNames?: string[] }} loaded
+   * M4d am19 items 2-3: `priorUsd` = what this job's drafting already spent; the month is checked for what is LEFT of the cap, not the whole cap again.
+   * @param {any} body @param {{ ok: boolean, env: Record<string, string|undefined>, keyNames?: string[] }} loaded @param {number} [priorUsd]
    * @returns {{ ok: true, card: any, prose: string }|{ ok: false, reply: { status: number, body: any } }}
    */
-  function vetCard(body, loaded) {
+  function vetCard(body, loaded, priorUsd = 0) {
     const card = cardFields(body);
     const checked = checkCard(card, { root: realpathSync(root), keys: providerKeys(loaded), home });
     const modelSays = modelRefusal(card, loaded);
     if (!checked.ok || modelSays.length > 0) return { ok: false, reply: { status: 400, body: { ok: false, refused: 'card', refusals: [...(checked.ok ? [] : checked.refusals), ...modelSays] } } };
     // amendment 4 item 1: a cap that does not fit this month refuses here too, at $0, with the one refusal text (the page's red note is only a courtesy)
-    const claim = monthlyClaim(Number(card.capUsd));
+    const claim = monthlyClaim(Math.max(0, Number(card.capUsd) - priorUsd));
     if (claim && 'problem' in claim) return { ok: false, reply: { status: 409, body: { ok: false, refused: 'monthly', say: `${claim.problem} — refusing rather than guess the monthly limit. Nothing spent.` } } };
     if (claim && !claim.ok) return { ok: false, reply: { status: 400, body: { ok: false, refused: 'card', refusals: [{ field: 'capUsd', say: monthlyRefusalText(claim.room) }] } } };
     return { ok: true, card, prose: checked.prose };
@@ -352,24 +387,31 @@ export function createAuthor(opts) {
     /**
      * `GET /api/author/monthly-check?cap=<usd>`: the note under Cap, one read-only check. `{ text, red }` is what to show (red =
      * the cap does not fit this month); `floorUsd` is the smallest cap that funds one round of a model step, for the page's
-     * `needs at least $X per run` line. A cap that is not a number above 0 gets no note. Never spends, never writes.
-     * @param {unknown} cap @param {string|null} [spent] what a resumed run has already spent (amendment 4 item 4) @param {{ provider?: string, model?: string, flow?: string }|null} [pick] the card's picked model, or (a Resume) the flow whose recorded model it is: its own prices are the floor (M4d am6)
+     * floor line (am20: `Cap $X is below one drafting|run round's worst case for <model>, $Y. …`, `kind` picks the word). A cap that is not a number above 0 gets no note. Never spends, never writes.
+     * @param {unknown} cap @param {string|null} [spent] what a resumed run has already spent (amendment 4 item 4) @param {{ provider?: string, model?: string, flow?: string }|null} [pick] the card's picked model, or (a Run / Resume) the flow whose recorded model it @param {string} [kind] 'run' for Run a signed flow and Resume, else the Chat card's 'drafting' is: its own prices are the floor (M4d am6)
      */
-    monthlyCheck(cap, spent = null, pick = null) {
+    monthlyCheck(cap, spent = null, pick = null, kind = 'drafting', draftId = /** @type {string|null} */ (null)) {
       const n = Number(cap);
-      // a Resume names its flow: the model recorded beside the signed job is the one whose prices are the floor
+      // a Resume / Run names its flow: the model recorded beside the signed job is the one whose prices are the floor
       const recorded = pick?.flow !== undefined && checkFlowName(pick.flow).ok ? readModelRecord(join(root, pick.flow)) : null;
-      const floorUsd = capFloorUsd('x', home, recorded ?? pick);
-      if (typeof cap !== 'string' || cap.trim() === '' || !Number.isFinite(n) || n <= 0) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText: capFloorText(floorUsd) } };
+      const floor = capFloorOf(true, home, recorded ?? pick);
+      const floorUsd = floor.usd;
+      // M4d am20: the sentence names the typed cap, so it is written here per cap (one writer, `capTooSmallText`); '' when the cap is not under the floor
+      const floorText = Number.isFinite(n) && n > 0 && n < floorUsd ? capTooSmallText(kind === 'run' ? 'run' : 'drafting', n, floorUsd, String(floor.model)) : '';
+      if (typeof cap !== 'string' || cap.trim() === '' || !Number.isFinite(n) || n <= 0) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText } };
       // a Resume (amendment 4 item 1): only what the run still has to spend is held, so the note asks for `cap - spent`; a cap not above
       // what is spent says so in the door's own words (red)
       const spentUsd = typeof spent === 'string' && spent.trim() !== '' && Number.isFinite(Number(spent)) && Number(spent) > 0 ? Number(spent) : 0;
       if (spentUsd > 0 && n <= spentUsd + 1e-9) {
-        return { status: 200, body: { ok: true, text: `The cap must be above what is already spent (at least $${leastResumeCapUsd(spentUsd, floorUsd).toFixed(2)}).`, red: true, floorUsd, floorText: capFloorText(floorUsd) } };
+        return { status: 200, body: { ok: true, text: `The cap must be above what is already spent (at least $${leastResumeCapUsd(spentUsd, floorUsd).toFixed(2)}).`, red: true, floorUsd, floorText } };
       }
-      const claim = monthlyClaim(n - spentUsd);
-      if (claim === null || 'problem' in claim) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText: capFloorText(floorUsd) } };
-      return { status: 200, body: { ok: true, ...monthlyNote(claim), floorUsd, floorText: capFloorText(floorUsd) } };
+      // M4d am21 item 1: a card that belongs to a draft (a revise, or the Start over about to be made) is checked for the pot LEFT, as the doors do
+      const dd = draftsDir();
+      const priorDir = typeof draftId === 'string' && ID_RE.test(draftId) && dd !== null && listIds().includes(draftId) ? join(dd, draftId) : null;
+      const priorUsd = priorDir === null ? 0 : draftingSpent(priorDir, { ceilingUsd: floorUsd }).usd;
+      const claim = monthlyClaim(Math.max(0, n - spentUsd - priorUsd));
+      if (claim === null || 'problem' in claim) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText } };
+      return { status: 200, body: { ok: true, ...monthlyNote(claim), floorUsd, floorText } };
     },
 
     /**
@@ -405,7 +447,17 @@ export function createAuthor(opts) {
       if (!loaded.ok) return { status: 409, body: { ok: false, refused: 'keys-file', say: String(loaded.refusal) } };
       const dd = draftsDir();
       if (dd === null) return { status: 400, body: { ok: false, refused: 'root', say: 'The flows folder this panel serves does not exist.' } };
-      const vet = vetCard(body, loaded);
+      // M4d am19 item 3 / am21 items 1-2: a Start over keeps the pot. The month is checked for the cap LEFT after the earlier session's drafting (the chain behind it too);
+      // an earlier draft that is gone is never counted as $0: refused here, at $0, in words
+      const startedFrom = body?.startedOverFrom;
+      let priorUsd = 0;
+      if (typeof startedFrom === 'string' && startedFrom !== '') {
+        if (!ID_RE.test(startedFrom) || !listIds().includes(startedFrom)) return { status: 400, body: { ok: false, refused: 'earlier-missing', say: EARLIER_MISSING_SAY } };
+        const spent = draftingSpent(join(dd, startedFrom), { ceilingUsd: capFloorFor(true, home, cardFields(body)) });
+        if (spent.missingEarlier) return { status: 400, body: { ok: false, refused: 'earlier-missing', say: EARLIER_MISSING_SAY } };
+        priorUsd = spent.usd;
+      }
+      const vet = vetCard(body, loaded, priorUsd);
       if (!vet.ok) return vet.reply;
       const { card } = vet;
       for (const id of listIds()) {
@@ -448,10 +500,12 @@ export function createAuthor(opts) {
     signPrepare(id) {
       const seen = greenDraft(id);
       if (!seen.ok) return seen.reply;
+      const pot = potOf(seen.dir, seen.v.card);
+      if (pot.refusal !== null) return { status: 400, body: { ok: false, refused: 'pot-empty', say: pot.refusal, split: pot.split } };
       return {
         status: 200,
         body: {
-          ok: true, draftId: id, hash: seen.v.hash, flowName: seen.name, capUsd: seen.v.card.capUsd, readout: seen.v.readout, answers: seen.v.answers, checked: seen.v.checked, notChecked: seen.v.notChecked, runId: nextRunId(join(root, seen.name)),
+          ok: true, split: pot.split, draftId: id, hash: seen.v.hash, flowName: seen.name, capUsd: seen.v.card.capUsd, readout: seen.v.readout, answers: seen.v.answers, checked: seen.v.checked, notChecked: seen.v.notChecked, runId: nextRunId(join(root, seen.name)),
         },
       };
     },
@@ -471,8 +525,10 @@ export function createAuthor(opts) {
       const { v, name, dir } = seen;
       const b = body && typeof body === 'object' ? body : {};
       // amendment 4 item 2: a cap that cannot fund one round of the first model step is never signed (it would cap-halt at $0 spent)
-      const floor = capFloorUsd(typeof v.card.job === 'string' ? v.card.job : '', home, v.card);
-      if (Number(v.card.capUsd) < floor) return { status: 400, body: { ok: false, refused: 'cap-too-small', say: capFloorText(floor) } };
+      const floor = capFloorOf(parseJobBox(typeof v.card.job === 'string' ? v.card.job : '').steps.some((s) => s.ask === null), home, v.card);
+      if (Number(v.card.capUsd) < floor.usd) return { status: 400, body: { ok: false, refused: 'cap-too-small', say: capTooSmallText('drafting', Number(v.card.capUsd), floor.usd, String(floor.model)) } };
+      const pot = potOf(dir, v.card);
+      if (pot.refusal !== null) return { status: 400, body: { ok: false, refused: 'pot-empty', say: pot.refusal, split: pot.split } };
       if (typeof b.hash !== 'string' || b.hash !== v.hash) {
         return { status: 409, body: { ok: false, refused: 'stale-hash', say: 'The plan on disk is not the one you were shown (its hash differs). Nothing was signed. Reload and read the plan again.' } };
       }
@@ -503,8 +559,19 @@ export function createAuthor(opts) {
       writeFileSync(join(dir, 'signed.json'), `${JSON.stringify({
         at: new Date().toISOString(), signedBy, hash: v.hash, flow: name, runId: runId === '' ? null : runId,
       })}\n`, { mode: 0o600 });
+      // M4d am16 item 1: the first run gets what is LEFT of the card's cap after drafting, as its own signed values (the flow stays signed at the card's cap, and
+      // every later run that does not draft gets the whole of it). Nothing spent on drafting = no values file = the whole cap.
+      let values = null;
+      if (pot.split.spentUsd > 0) {
+        const prose = readFileInside(join(dir, v.plan), 'prose.txt');
+        const parsed = prose.ok ? parseSignedText(prose.text) : null;
+        if (parsed && parsed.ok) {
+          const vals = { ...flowValues(parsed.arbiter), capUsd: pot.split.leftUsd };
+          values = { flow: name, flowSignatureHash: result.signature.flow, version: 0, values: vals, hash: valuesHash({ flow: name, flowSignatureHash: result.signature.flow, runId: null, version: 0, values: vals }), signedBy, at: new Date().toISOString() };
+        }
+      }
       const started = starter.start({
-        kind: 'sign', flow: name, runId, sources: inputs.map((r) => ({ role: r.role, path: r.path })),
+        kind: 'sign', flow: name, runId, sources: inputs.map((r) => ({ role: r.role, path: r.path })), values,
       }, loaded);
       if (started.status !== 202) return { status: started.status, body: { ...started.body, signed: true, flow: name, say: `${started.body.say ?? 'The run did not start.'} The flow is signed; start it from "Run a signed flow".` } };
       return { status: 202, body: { ...started.body, signed: true } };
@@ -535,7 +602,8 @@ export function createAuthor(opts) {
       if (!Array.isArray(v.revises)) return { status: 409, body: { ok: false, refused: 'not-revisable', say: `This draft is ${v.phase}, so it cannot be revised. Draft again from the card.` } };
       if (v.revisesLeft <= 0) return { status: 409, body: { ok: false, refused: 'no-revises-left', say: `This draft has used its ${MAX_REVISES} revises. Start over: it keeps the fields and gives ${MAX_REVISES} new revises.` } };
       if (childRunning(dir)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'The draft process is still finishing. Try again in a moment.' } };
-      const vet = vetCard(body, loaded);
+      if (draftingSpent(dir).missingEarlier) return { status: 400, body: { ok: false, refused: 'earlier-missing', say: EARLIER_MISSING_SAY } };
+      const vet = vetCard(body, loaded, draftedSoFar(dir, v.card));
       if (!vet.ok) return vet.reply;
       for (const other of listIds()) {
         if (other === id) continue;
@@ -599,7 +667,7 @@ export function createAuthor(opts) {
         const all = readQuestions(planDir).questions.map((x) => ({ line: x.line, question: x.question, answer: x.k === v.openK ? answer : x.answer }));
         const grown = appendAnswersToJob(typeof v.card.job === 'string' ? v.card.job : '', /** @type {{line:number, answer:string}[]} */ (all));
         if (grown.added !== all.length) return { status: 409, body: { ok: false, refused: 'no-such-line', say: 'An answer is about a job line the card no longer has. Draft again from the card. Nothing was signed.' } };
-        const vet = vetCard({ ...v.card, job: grown.job }, loaded);
+        const vet = vetCard({ ...v.card, job: grown.job }, loaded, draftedSoFar(dir, v.card));
         if (!vet.ok) return vet.reply;
         for (const other of listIds()) {
           if (other === id) continue;

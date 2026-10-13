@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { REFUSAL_SENTENCE } from '../src/monthly.js';
-import { capFloorText, capFloorUsd } from '../src/panel/authorcard.js';
+import { capFloorUsd } from '../src/panel/authorcard.js';
 import { ceilingCostUsd } from '../src/provider.js';
 import {
   JOB, killChildrenAfter, until, world, tickedConfig } from './m4e-world.mjs';
@@ -69,13 +69,13 @@ function pageNote({ capText, mode = 'new', flowCap = null, job = 'one step', fet
   const log = { starts: 0, texts: {} };
   const note = () => ({ textContent: '', classList: { remove() {}, toggle() {} } });
   // amendment 5: the Run form's cap is a typed box (`runCapEl`), seeded with the flow's own cap; amendment 4: the Resume form has its own note
-  const els = { 'jf-cap-note': note(), 'jf-run-left': note(), 'jf-resume-left': note(), 'jf-cap-money': { value: capText }, 'jf-job': { value: job } };
-  const src = [fnSrc(CHAT, 'setMoneyNote'), fnSrc(CHAT, 'jobHasModelStep'), fnSrc(CHAT, 'refreshCapNote')].join('\n');
+  const els = { 'jf-cap-note': note(), 'jf-run-left': note(), 'jf-resume-left': note(), 'jf-cap-money': { value: capText }, 'jf-cap-job-note': { textContent: '' }, 'jf-job': { value: job } };
+  const src = [fnSrc(CHAT, 'setMoneyNote'), fnSrc(CHAT, 'jobHasModelStep'), fnSrc(CHAT, 'paintCapJobNote'), fnSrc(CHAT, 'refreshCapNote')].join('\n');
   const f = new Function('els', 'mode', 'flowCap', 'fetchImpl', 'log', `
-    var moneyRed = false; var capNoteSeq = 0;
+    var moneyRed = false; var capNoteSeq = 0; var sessionLive = false; var sessionId = null;
     var capNoteEl = els["jf-cap-note"];
     function byId(id){ return els[id]; }
-    function selectedFlow(){ return flowCap === null ? null : { capUsd: flowCap, capFloorUsd: 0.05, floorText: 'needs at least $0.05 per run' }; }
+    function selectedFlow(){ return flowCap === null ? null : { capUsd: flowCap, capFloorUsd: 0.05 }; }
     var runCapEl = { value: flowCap === null ? '' : String(flowCap) }; var resumeCapEl = { value: '' }; var resumeCtx = null;
     function modelPick(){ return { provider: '', model: '' }; }
     function authorGet(p){ return fetchImpl(p); }
@@ -84,10 +84,12 @@ function pageNote({ capText, mode = 'new', flowCap = null, job = 'one step', fet
     return { refreshCapNote: refreshCapNote, red: function(){ return moneyRed; } };`)(els, mode, flowCap, fetchImpl, log);
   return { ...f, els, log };
 }
+/** The one cap-too-small sentence (M4d am19 item 5) for Cap $0.01 on the world's ticked model. */
+const SENT = `Cap $0.01 is below one drafting round's worst case for fake-ticked, $0.0500. Raise Cap $ or pick another model.`;
 const tick = () => new Promise((r) => { setTimeout(r, 5); });
 
 test('am4 (a) page: red note turns the main button off (startReady) and a plain one turns it back on; a fetch error clears the note and the block', async () => {
-  const redJson = { ok: true, text: 'needs $0.50 ($0.10 left monthly)', red: true, floorUsd: 0.05, floorText: 'needs at least $0.05 per run' };
+  const redJson = { ok: true, text: 'needs $0.50 ($0.10 left monthly)', red: true, floorUsd: 0.05, floorText: SENT };
   const p = pageNote({ capText: '0.50', fetchImpl: () => Promise.resolve(redJson) });
   p.refreshCapNote();
   await tick();
@@ -141,16 +143,15 @@ test('am4 (b): a cap below one ceiling round is refused at Draft at $0 with the 
   assert.equal(capFloorUsd(JOB, w.home, PICK), ceilingCostUsd({ in: 0.00075, out: 0.001625 }), 'one function: the ticked Settings line\'s per-round hold');
   assert.equal(capFloorUsd('Ask: is this ok?', w.home, PICK), 0, 'a job of only asks spends no round');
   assert.equal(capFloorUsd(JOB, path.join(w.work, 'no-settings-here'), PICK), 0, 'nothing ticked: no model, nothing held (the run itself is refused by name)');
-  assert.equal(capFloorText(0.05), 'needs at least $0.05 per run');
   const small = await w.post('/api/author/draft', w.card({ capUsd: '0.01' }));
   assert.equal(small.status, 400, small.text);
-  assert.deepEqual(small.json().refusals.filter((x) => x.field === 'capUsd').map((x) => x.say), ['needs at least $0.05 per run']);
+  assert.deepEqual(small.json().refusals.filter((x) => x.field === 'capUsd').map((x) => x.say), [SENT]);
   assert.equal(existsSync(path.join(w.root, '.drafts')) ? readdirSync(path.join(w.root, '.drafts')).length : 0, 0, 'nothing created');
   const exact = await w.post('/api/author/draft', w.card({ capUsd: '0.05' }));
   assert.equal(exact.status, 202, 'exactly one round fits (the runner halts only when spent + ceiling > cap)');
   // the page note: the floor line comes from the server's numbers
   const note = (await check(w, '0.01')).json();
-  assert.deepEqual([note.floorUsd, note.floorText], [0.05, 'needs at least $0.05 per run']);
+  assert.deepEqual([note.floorUsd, note.floorText], [0.05, SENT]);
   // sign: a green draft whose card cap is below the floor (edited on disk) is never signed
   const id = exact.json().draftId;
   const g = await until(async () => { const j = (await w.get(`/api/author/${id}`)).json(); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });
@@ -160,18 +161,18 @@ test('am4 (b): a cap below one ceiling round is refused at Draft at $0 with the 
   const before = readdirSync(w.root).sort();
   const s = await w.post(`/api/author/${id}/sign`, { hash: g.hash });
   assert.equal(s.status, 400, s.text);
-  assert.deepEqual([s.json().refused, s.json().say], ['cap-too-small', 'needs at least $0.05 per run']);
+  assert.deepEqual([s.json().refused, s.json().say], ['cap-too-small', SENT]);
   assert.deepEqual(readdirSync(w.root).sort(), before, 'nothing signed, no flow written');
   assert.equal(existsSync(path.join(w.dir(id), 'signed.json')), false);
   assert.deepEqual(w.starts(), [], 'no run started');
 });
 
 test('am4 item 2 page: the floor line shows red under Cap only when the cap is below the server\'s floor and the job has a step that is not an Ask', async () => {
-  const body = { ok: true, text: '$5.00 left monthly', red: false, floorUsd: 0.05, floorText: 'needs at least $0.05 per run' };
+  const body = { ok: true, text: '$5.00 left monthly', red: false, floorUsd: 0.05, floorText: SENT };
   const small = pageNote({ capText: '0.01', fetchImpl: () => Promise.resolve(body) });
   small.refreshCapNote();
   await tick();
-  assert.deepEqual([small.els['jf-cap-note'].textContent, small.red()], ['needs at least $0.05 per run', true]);
+  assert.deepEqual([small.els['jf-cap-note'].textContent, small.red()], [SENT, true]);
   const fits = pageNote({ capText: '0.05', fetchImpl: () => Promise.resolve(body) });
   fits.refreshCapNote();
   await tick();

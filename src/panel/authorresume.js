@@ -22,7 +22,7 @@ import { auditSpend } from '../runner.js';
 import {
   flowValues, pickRunValues, valuesHash, writeRunValues,
 } from '../runvalues.js';
-import { capFloorFor, capFloorText } from './authorcard.js';
+import { capFloorFor, capFloorOf } from './authorcard.js';
 import { formFacts } from './authorflows.js';
 import { checkValues } from './authorvalues.js';
 import { getRunControls } from './data.js';
@@ -75,7 +75,7 @@ export function createResumeDoor(opts) {
     const hasRound = read.declaration.steps.some((st) => !(read.arbiter.asks ?? []).some((a) => a.line === st.fromLine));
     if (formOnly) return { ok: /** @type {true} */ (true), flow, runId, runDir: rd.runDir, version, base, spentUsd: spent.total, read, hasRound };
     const checked = checkValues({
-      allowedKeys: KEYS, body: b, base, realRoot, capOnly: true, floorUsd: capFloorFor(hasRound, home, readModelRecord(join(realRoot, flow))), spentUsd: spent.total, monthlyClaim, always: true,
+      allowedKeys: KEYS, body: b, base, realRoot, capOnly: true, floorUsd: capFloorFor(hasRound, home, readModelRecord(join(realRoot, flow))), floorModel: capFloorOf(hasRound, home, readModelRecord(join(realRoot, flow))).model, spentUsd: spent.total, monthlyClaim, always: true,
     });
     if (!checked.ok) {
       return no(checked.status, checked.refused ? { refused: checked.refused, say: checked.say, refusals: checked.refusals } : { refused: 'resume', refusals: checked.refusals, say: checked.refusals[0]?.say ?? 'Not resumed. Fix the marked box.' });
@@ -101,11 +101,12 @@ export function createResumeDoor(opts) {
       const inputsRead = readFileInside(s.runDir, 'inputs.json');
       let inputs = [];
       try { inputs = inputsRead.ok ? JSON.parse(inputsRead.text).map((m) => ({ role: String(m.id), path: String(m.source) })) : []; } catch { inputs = []; }
-      const floorUsd = capFloorFor(s.hasRound, home, readModelRecord(dirname(dirname(s.runDir))));
+      const floor = capFloorOf(s.hasRound, home, readModelRecord(dirname(dirname(s.runDir))));
+      const floorUsd = floor.usd;
       return {
         status: 200,
         body: {
-          ok: true, flow: s.flow, runId: s.runId, version: s.version, values: s.base, spentUsd: s.spentUsd, inputs, floorUsd, floorText: capFloorText(floorUsd), jobLines: formFacts(s.read, home, dirname(dirname(s.runDir))).jobLines, model: formFacts(s.read, home, dirname(dirname(s.runDir))).model,
+          ok: true, flow: s.flow, runId: s.runId, version: s.version, values: s.base, spentUsd: s.spentUsd, inputs, floorUsd, floorModel: floor.model, jobLines: formFacts(s.read, home, dirname(dirname(s.runDir))).jobLines, model: formFacts(s.read, home, dirname(dirname(s.runDir))).model,
         },
       };
     },

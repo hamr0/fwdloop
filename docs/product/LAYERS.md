@@ -148,7 +148,7 @@ So in fwdloop terms:
 ### Layer 6 and on — versions, dry-run, skills, triggers, real mail
 
 - **Does:** edit with re-accept and rollback; dry-run; skills and persona; case library; triggers; real IO.
-- **Status:** planned, in order, on the ladder below. Next is M5.
+- **Status:** in progress, in order, on the ladder below. M5 is closed and M6 is released; see the table.
 
 ### Who keeps what
 
@@ -253,12 +253,12 @@ M6b was folded into M4e. A rung starts only when its scope, exit and negative ar
 | M4b | answer doors, resume | released (0.9.0) |
 | M4c | answers read clearly, stuck runs | released (0.10.0) |
 | M4c-fix | the fix list, cleared | released (0.11.0) |
-| M4d | Settings | released (0.12.0); amendments 3-11 (providers from your keys, models and prices, thinking, plan-checker rules, Chat step list) built, not yet released |
-| M4e | Chat card: draft, sign, run | released (0.13.0); later amendments built, not yet released |
+| M4d | Settings | released (0.12.0); amendments 3-11 (providers from your keys, models and prices, thinking, plan-checker rules, Chat step list) released (0.16.0); amendments 12-21 (one cap and one shared pot for drafting and the run, plain one-line Chat steps, version header and reload bar, Start over keeps the pot, one key-name rule) built, not yet released |
+| M4e | Chat card: draft, sign, run | released (0.13.0, 0.14.0) |
 | M6a | authoring backend (draft, sign) | released (0.8.0) |
-| **M5** | **dry-run, accept, versions** | **next** |
-| M6 | edit a flow, add turns | planned (the authoring screen is done; edit waits on M5) |
-| M7 | skills and persona | planned |
+| M5 | dry-run, accept, versions | closed, signed 2026-10-10 (Accept is sign; dry run waits for a real outside send) |
+| M6 | edit a flow, add turns | released (0.15.0) |
+| M7 | in-run tools (one run's memory) | exit signed 2026-10-12, not yet released |
 | M8 | case library | planned |
 | M9 | triggers, flow handover | planned |
 | M10 | real IO (mail, chat, browse) | planned |

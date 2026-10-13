@@ -53,8 +53,8 @@ export function createSettings(cfg) {
   const notKeyName = (slot) => (typeof slot === 'string' && slot !== '' && !isKeyName(slot)
     ? refuse('not-a-key-name', `${slot} is not a key name. A key name ends in _KEY, like MY_API_KEY. Nothing was saved.`) : null);
 
-  /** The row named by a request, or null: only a key that is in the keys file (or the shell) is a row. @param {unknown} slot */
-  const slotOf = (slot) => (isKeyName(slot) && rowNames(keys()).includes(slot) ? slot : null);
+  /** The row named by a request, or null: only a key that is in the keys file (or the shell) is a row. @param {any} slot */
+  const slotOf = (slot) => (rowNames(keys()).includes(slot) ? slot : null);
 
   /** config.json, or `{problem}` in plain words when it is broken (never read as "nothing set"). */
   function config() {

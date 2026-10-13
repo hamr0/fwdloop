@@ -17,6 +17,7 @@ import { isAbsolute, join } from 'node:path';
 import { checkFlowName, signedHashOf } from '../flow.js';
 import { checkSendDestination } from '../runner.js';
 import { parseSignedText } from '../signed-text.js';
+import { capTooSmallText } from '../draftspend.js';
 import { readPriceConfig, resolveUsableModel, ceilingCostUsd } from '../provider.js';
 
 /** The heading line the prose files use (flows/job2-m6a-3/prose.txt); the parser matches `/^arbiter guardrails\b/i`. */
@@ -300,18 +301,18 @@ export function capFloorUsd(jobText, home, pick) {
 
 /** The floor itself, for a caller that already knows whether the job has a step that is not an ask (a signed flow: any step off an ask line). @param {boolean} hasRoundStep @param {string} [home] @param {{ slot?: string, provider?: string, model?: string }|null} [pick] */
 export function capFloorFor(hasRoundStep, home, pick) {
+  return capFloorOf(hasRoundStep, home, pick).usd;
+}
+
+/** The floor and the model id it was computed for (M4d am20: the refusal sentence names it). `{ usd: 0, model: null }` when there is nothing to hold. @param {boolean} hasRoundStep @param {string} [home] @param {{ slot?: string, provider?: string, model?: string }|null} [pick] */
+export function capFloorOf(hasRoundStep, home, pick) {
   const slot = pick?.slot ?? pick?.provider;
-  if (!hasRoundStep || !slot) return 0;
+  if (!hasRoundStep || !slot) return { usd: 0, model: null };
   // No usable model (nothing picked or ticked, a broken config): nothing is held here, and the run itself is refused by name (`resolveUsableModel`).
   try {
     const u = resolveUsableModel(slot, { config: readPriceConfig(home), model: pick?.model });
-    return u.ok ? ceilingCostUsd(u.rates) : 0;
-  } catch { return 0; }
-}
-
-/** The one sentence for a cap under the floor (red under Cap, and the Draft / sign refusal). @param {number} floorUsd */
-export function capFloorText(floorUsd) {
-  return `needs at least $${(Math.ceil(floorUsd * 100 - 1e-6) / 100).toFixed(2)} per run`;
+    return u.ok ? { usd: ceilingCostUsd(u.rates), model: String(u.model) } : { usd: 0, model: null };
+  } catch { return { usd: 0, model: null }; }
 }
 
 /**
@@ -364,7 +365,10 @@ export function checkCard(card, { root, keys = [], home }) {
   // cap
   if (typeof card.capUsd === 'string' || typeof card.capUsd === 'number') {
     if (!(Number.isFinite(Number(card.capUsd)) && Number(card.capUsd) > 0)) no('capUsd', 'The cap must be a number above 0 (dollars per run).');
-    else if (Number(card.capUsd) < capFloorUsd(card.job, home, card)) no('capUsd', capFloorText(capFloorUsd(card.job, home, card)));
+    else {
+      const floor = capFloorOf(parseJobBox(card.job).steps.some((s) => s.ask === null), home, card);
+      if (Number(card.capUsd) < floor.usd) no('capUsd', capTooSmallText('drafting', Number(card.capUsd), floor.usd, String(floor.model)));
+    }
   } else no('capUsd', 'The cap must be a number above 0 (dollars per run).');
 
   // destination: one folder, or empty for no send (it is sent at the last step)

@@ -1,6 +1,7 @@
 // M4d amendment 10 piece D: the page only renders the server's step list (state.stepList); the thinking line is in the list and no longer a block
 // beside the plan. $0.
 import assert from 'node:assert/strict';
+import { RULES_PRELUDE } from './plan-check-rules.mjs';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -12,7 +13,7 @@ function fn(name) {
   assert.ok(start !== -1, name);
   return PAGE.slice(start, PAGE.indexOf('\n    }\n', start) + 7);
 }
-const steps = new Function(`${fn('plainPlanCheck')}\n${fn('failedDetails')}\n${fn('stepsFor')}\nreturn stepsFor;`)();
+const steps = new Function(`${RULES_PRELUDE}\n${fn('plainPlanCheck')}\n${fn('failedDetails')}\n${fn('stepsFor')}\nreturn stepsFor;`)();
 const ctx = { model: 'm', starting: false, signClicked: false };
 const list = [
   { id: 'thinking', label: 'thinking on (the model thought anyway)', status: 'failed', details: [] },
@@ -29,13 +30,13 @@ test('D1: a green plan renders the server list, then the signature wait; the lis
   assert.deepEqual(s[2].details, ['1 round · $0.0056']);
 });
 
-test('D2: a red draft: plan checks fails with each refusal as a plain sentence on its own detail line, the raw text folded', () => {
-  const reds = ['declaration: steps[2] grants "stash", which is not wired', 'declaration: line 3 is neither served by any step'];
-  const s = steps({ phase: 'red', card: {}, stepList: [list[2], { id: 'checks', label: 'plan checks', status: 'failed', details: [], reds }] }, ctx);
-  const c = s.find((x) => x.id === 'checks');
-  assert.equal(c.status, 'failed');
-  assert.equal(c.details.length, 2);
-  assert.deepEqual(c.raw, reds);
+test('D2 (am15): a red draft renders the server list as it is: a ✗ plan-checks line and the Fix line under it; no details, no raw', () => {
+  const l = [list[2], { id: 'checks', label: "plan checks · A line of your job is not covered by any step", status: 'failed', details: [] },
+    { id: 'checks-fix', label: 'Fix: put it in the job line.', status: 'done', details: [], note: true }];
+  const s = steps({ phase: 'red', card: {}, stepList: l }, ctx);
+  assert.deepEqual(s.map((x) => `${x.id}:${x.status}${x.note ? ':note' : ''}`), ['drafted:done', 'checks:failed', 'checks-fix:done:note']);
+  assert.deepEqual(s.map((x) => x.details), [[...list[2].details], [], []]);
+  assert.ok(s.every((x) => x.raw === undefined));
   assert.ok(s.every((x) => x.id !== 'sign'));
 });
 
@@ -60,16 +61,16 @@ test('D5: item 6 - the thinking sentence is no longer a block beside the plan (o
   assert.match(PAGE, /\.chat-steps \.step\.bad \.step-detail\{color:var\(--red\);\}/);
 });
 
-test('D6: a try line\'s validator refusals go through the SAME plain-sentence path as plan checks, raw folded beside them (one translator)', () => {
-  const a = 'declaration: line 2 is marked unjudgeable but guardrailClasses proposes "softgreen" — pick one';
-  const b = 'declaration: steps[1].close.shape.sections names "Total Owed", which is not in the job line\'s words — use words from the line';
-  const s = steps({ phase: 'green', card: {}, revises: [], stepList: [list[2], { id: 'try-2', label: 'try 2 of 3', status: 'done', details: [], reds: [a, b] }] }, ctx);
-  const t = s.find((x) => x.id === 'try-2');
-  assert.deepEqual(t.raw, [a, b]);
-  assert.equal(t.details.length, 2);
-  for (const d of t.details) assert.doesNotMatch(d, /^declaration:/);
-  assert.match(t.details[1], /section name in the plan's check is not in your job line/i);
-  // a structure reason (no reds) stays a plain detail
-  const u = steps({ phase: 'green', card: {}, revises: [], stepList: [{ id: 'try-2', label: 'try 2 of 3', status: 'done', details: ['no usable tool call'] }] }, ctx);
-  assert.deepEqual([u[0].details, u[0].raw], [['no usable tool call'], undefined]);
+test('D7 (am15): the Fix line is a note (no ✓/✗) and red only comes from the status of the line above; renderProgress draws both', () => {
+  const html = new Function('escapeXml', 'progressOpen', 'progressRow', `var progressHtml = "";\n${fn('renderProgress')}\nreturn renderProgress;`);
+  const row = { hidden: true, innerHTML: '' };
+  html((x) => String(x), {}, row)([
+    { id: 'checks', label: 'plan checks · x', status: 'failed', details: [] },
+    { id: 'checks-fix', label: 'Fix: y', status: 'done', details: [], note: true },
+    { id: 'drafted', label: 'drafted · m · 1 round · $0.0001', status: 'done', details: [] },
+  ]);
+  assert.match(row.innerHTML, /<li class="step bad" data-step="checks"><div class="step-line"><span class="step-label">plan checks · x<\/span><span class="step-sign">✗<\/span>/);
+  assert.match(row.innerHTML, /<li class="step ok note" data-step="checks-fix"><div class="step-line"><span class="step-label">Fix: y<\/span><span class="step-sign"><\/span>/);
+  assert.doesNotMatch(row.innerHTML, /step-detail|grey/);
+  assert.match(PAGE, /\.chat-steps \.step\.note \.step-label\{[^}]*color:var\(--text\)/);
 });

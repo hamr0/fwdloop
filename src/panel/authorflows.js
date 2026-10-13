@@ -27,7 +27,7 @@ import {
   applyRunValues, flowValues, pickRunValues, valuesHash,
 } from '../runvalues.js';
 import {
-  capFloorFor, capFloorText, cardFromSigned, checkInputRows, runInputRows,
+  capFloorOf, cardFromSigned, checkInputRows, runInputRows,
 } from './authorcard.js';
 import { checkValues } from './authorvalues.js';
 import { getRunControls } from './data.js';
@@ -58,7 +58,7 @@ export function formFacts(read, home, flowDir, picked = null) {
   const recorded = flowDir === undefined ? null : readModelRecord(flowDir);
   const pick = recorded ?? picked;
   return {
-    values, jobLines, hasSend: values.destination !== null, capFloorUsd: capFloorFor(hasRound, home, pick), floorText: capFloorText(capFloorFor(hasRound, home, pick)),
+    values, jobLines, hasSend: values.destination !== null, capFloorUsd: capFloorOf(hasRound, home, pick).usd, floorModel: capFloorOf(hasRound, home, pick).model,
     model: recorded === null ? null : { slot: recorded.slot, model: recorded.model, label: `${recorded.slot} · ${recorded.model}` },
   };
 }
@@ -192,7 +192,7 @@ export function createFlowsDoor(opts) {
     const modelReds = noRecord ? modelRefusal({ provider: body?.provider, model: body?.model }, loaded) : [];
     const newPick = noRecord && modelReds.length === 0 ? { slot: body.provider, model: body.model } : null;
     const checked = checkValues({
-    allowedKeys: RUN_KEYS, body, base: flowValues(read.arbiter), realRoot, capOnly: false, floorUsd: formFacts(read, home, join(realRoot, flow), newPick).capFloorUsd, monthlyClaim,
+    allowedKeys: RUN_KEYS, body, base: flowValues(read.arbiter), realRoot, capOnly: false, floorUsd: formFacts(read, home, join(realRoot, flow), newPick).capFloorUsd, floorModel: formFacts(read, home, join(realRoot, flow), newPick).floorModel, monthlyClaim,
     });
     if (!checked.ok && checked.refused) return reply(checked.status, { refused: checked.refused, say: checked.say, refusals: checked.refusals });
     /** @type {{field: string, say: string}[]} */

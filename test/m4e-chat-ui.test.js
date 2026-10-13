@@ -2,6 +2,7 @@
 // the M4c/M4d page tests: the page's own pure functions are cut out of index.html and run, and the markup/script are read for
 // what must (not) be there. Real rendering is walked in a browser by the orchestrator.
 import assert from 'node:assert/strict';
+import { RULES_PRELUDE } from './plan-check-rules.mjs';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -130,14 +131,13 @@ test('#chat-action-error is written only by the click handlers: the poll path ne
 });
 
 test('progress list rules: waiting has no check, detail on its own lines, no repeated lines; scroll on change only, never focus', () => {
-  const steps = new Function(`${fnSrc('plainPlanCheck')}\n${fnSrc('failedDetails')}\n${fnSrc('stepsFor')}\nreturn stepsFor;`)();
+  const steps = new Function(`${RULES_PRELUDE}\n${fnSrc('plainPlanCheck')}\n${fnSrc('failedDetails')}\n${fnSrc('stepsFor')}\nreturn stepsFor;`)();
   const waiting = steps({ phase: 'green', card: { capUsd: 0.25 } }, { model: 'm', starting: false, signClicked: false });
   assert.deepEqual(waiting.map((s) => [s.id, s.status]), [['drafted', 'done'], ['sign', 'waiting']]);
   const drafting = steps({ phase: 'drafting', card: { capUsd: '0.25' } }, { model: 'deepseek-flash', starting: false });
   assert.deepEqual(drafting, [{ id: 'drafting', label: 'drafting with deepseek-flash, run cap $0.25', status: 'running', details: [] }]);
   const red = steps({ phase: 'red', reds: ['a', 'b'] }, { model: 'm', starting: false });
-  assert.deepEqual(red[1].raw, ['a', 'b'], 'am41 item 7: the raw texts ride along; details are the plain sentences');
-  assert.equal(red[1].details.length, 2);
+  assert.deepEqual([red[1].details, red[1].raw], [[], undefined], 'am15: no details and no raw text on a list line');
   const dup = steps({ phase: 'drafting' }, { model: '', starting: true });
   assert.equal(new Set(dup.map((s) => JSON.stringify(s))).size, dup.length);
   // rendering: a waiting step is class wait with no check sign; the detail is a "> " line of its own

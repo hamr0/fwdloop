@@ -158,7 +158,7 @@ test('(v) draft over the limit refuses with the amount and the sentence: nonzero
   const out = path.join(work, 'd');
   const r = cli(['draft', prose, '--out', out, '--root', path.join(work, 'flows'), '--name', 'x'], envFor(home, { FWDLOOP_TEST_DRAFT_PROVIDER: FAKE_DRAFT }));
   assert.notEqual(r.status, 0);
-  assert.ok(r.stderr.includes('Max $0.01 left this month (monthly limit $0.01); this needs $0.03.'), r.stderr);
+  assert.ok(r.stderr.includes('Max $0.01 left this month (monthly limit $0.01); this needs $0.25.'), r.stderr);
   assert.ok(r.stderr.includes(SENTENCE));
   assert.ok(!existsSync(out), 'no draft dir');
   const roomy = newHome(5);

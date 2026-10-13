@@ -3056,3 +3056,25 @@ The redraft (`aging-live-4`) was correct. The run passed live on 2026-10-11 at $
 
 Ruling: log only. No code change for F66.
 
+
+## F67 — one rule, two refusal wordings: the card's cap-floor words win, and am13's signed sentence is never shown (2026-10-12)
+
+In hamr's walk of `exit-walk-1` (2026-10-12), claude-sonnet-5-5 at Cap $0.01 and at Cap $0.20, and deepseek-flash at Cap $0.01, were all refused at $0 with the card-level words ("needs at least $0.23 per run" / "needs at least $0.02 per run"). None showed M4d am13's signed sentence ("Cap $… is below one drafting round's worst case for <model>, $…. Raise Cap $ or pick another model.").
+
+Cause: the card check runs before the drafter is ever started, so the drafter's check is never reached for these caps. The same rule, "one drafting round at its worst case must fit the cap", has two writers with two wordings:
+- `src/panel/authorcard.js:367` (`checkCard`, the cap-floor check; the words come from `capFloorText`, `src/panel/authorcard.js:313-314`; the same words are used at sign, `src/panel/author.js:474`, and in the monthly-note line, `src/panel/author.js:380`).
+- `src/drafter.js:365-369` (the signed sentence; am16 added its "less $X already spent" variant at `src/drafter.js:367`).
+
+Both compute the same figure (`ceilingCostUsd` of the picked model's Settings prices) and refuse at $0; only the sentence differs. A human at the card sees the shorter words; the signed sentence only appears for a draft started some other way (the CLI, or a revise whose card passed the floor).
+
+Not fixed. Whether the card should show am13's sentence, or am13's words should be changed to the card's, is hamr's to rule.
+
+## F68 — the Fix line points at nothing when the AI invents the sections (2026-10-12)
+
+In hamr's walk of 2026-10-12 a deepseek-flash draft of a job whose job lines name no sections ended red with "A section name in the plan's check is not in your job line" and the Fix line "Change the job line to use the section words you want."
+
+The human named no sections, so the AI made them up. The Fix points at a job line that has nothing to change; "Draft again" is the fitting words. The same shape can happen for other rules where the AI, not the human's text, is the source of the fault.
+
+The words are in `src/plain-checks.js` (the first rule, `fix`: "Change the job line to use the section words you want."; it was already the wording the page had shown since M4e am41). The am15 item 3 requirement is one Fix line on every red draft; it does not say which words suit which cause.
+
+Not fixed. A fix that depends on whether the job line names sections at all would need the checker to say which of the two it is.

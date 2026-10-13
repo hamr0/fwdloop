@@ -11,9 +11,11 @@ import {
   RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply, textReply, truncatedReply, malformedReply,
 } from './drafter-fixture.mjs';
 
-const run = (provider, extra = {}) => {
+// M4d am13: the draft's limit is the cap signed in the prose, so a test sets it there (`capUsd`), not through an option.
+const withCap = (prose, cap) => prose.replace('guardrail: cap $0.25 per run', `guardrail: cap $${cap} per run`);
+const run = (provider, { capUsd, ...extra } = {}) => {
   const fx = job2Fixture();
-  return draft({ proseText: fx.prose, provider, rates: RATES, modelId: MODEL, ...extra });
+  return draft({ proseText: capUsd === undefined ? fx.prose : withCap(fx.prose, capUsd), provider, rates: RATES, modelId: MODEL, ...extra });
 };
 
 test('(a) a valid forced tool call is accepted as-is, one metered round, no converter', async () => {
@@ -29,34 +31,34 @@ test('(a) a valid forced tool call is accepted as-is, one metered round, no conv
   assert.deepEqual(r.declaration.inputFacts.jd, ['About the role', 'Responsibilities']);
 });
 
-test('(b1) the schema offers WIRED verbs only — "stash" is not on the enum or the menu', () => {
+test('(b1) the schema offers WIRED verbs only — "forget" is not on the enum or the menu', () => {
   const menu = wiredMenu(['core']);
   const enumVerbs = buildDeclarationSchema(menu).properties.steps.items.properties.primitives.items.enum;
-  assert.deepEqual([...enumVerbs].sort(), ['addressCells', 'grep', 'read', 'readDocx', 'write']);
-  assert.ok(!enumVerbs.includes('stash') && !enumVerbs.includes('recall'));
+  assert.deepEqual([...enumVerbs].sort(), ['addressCells', 'compress', 'edit', 'get', 'grep', 'impact', 'peek', 'read', 'readDocx', 'recall', 'recent', 'related', 'stash', 'write']);
+  assert.ok(!enumVerbs.includes('forget') && !enumVerbs.includes('remember'));
 });
 
 test('(b2) if the model grants an unwired verb anyway, the validator reds it by name (and it is fed back)', async () => {
   const bad = validArgs();
-  bad.steps[2].primitives = ['stash'];
+  bad.steps[2].primitives = ['forget'];
   const p = fakeProvider([toolReply(bad), toolReply(validArgs())]);
   const r = await run(p);
   assert.equal(r.ok, true);
   assert.equal(r.revisions, 1);
   const revisionPrompt = p.calls[1].messages.at(-1).content;
-  assert.match(revisionPrompt, /primitives "stash" is in the catalogue but not wired/);
+  assert.match(revisionPrompt, /primitives "forget" is in the catalogue but not wired/);
 });
 
 test('(b3) an unwired verb that never gets fixed ends red after MAX_REVISIONS, declaration not ok', async () => {
   const bad = validArgs();
-  bad.steps[2].primitives = ['stash'];
+  bad.steps[2].primitives = ['forget'];
   const p = fakeProvider([toolReply(bad)]);
   const r = await run(p);
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'validator');
   assert.equal(r.revisions, MAX_REVISIONS);
   assert.equal(r.rounds, 1 + MAX_REVISIONS);
-  assert.ok(r.reds.some((x) => x.includes('"stash"')));
+  assert.ok(r.reds.some((x) => x.includes('"forget"')));
 });
 
 test('(c) malformed JSON -> a structure retry, both rounds metered', async () => {
@@ -71,7 +73,7 @@ test('(c) malformed JSON -> a structure retry, both rounds metered', async () =>
 
 test('(c2) truncation is named truncation, not "no tool call"; structure retries are capped', async () => {
   const p = fakeProvider([truncatedReply()]);
-  const r = await run(p, { budgetUsd: 5 });
+  const r = await run(p, { capUsd: 5 });
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'structure');
   assert.equal(r.structureRetries, MAX_STRUCTURE_RETRIES);
@@ -101,9 +103,9 @@ test('(d) a validator red -> a revision whose prompt carries the reds; a fixed d
 
 test('(e1) the per-draft budget stops the next round, priced and returned', async () => {
   const bad = validArgs();
-  bad.steps[2].primitives = ['stash'];
+  bad.steps[2].primitives = ['forget'];
   const p = fakeProvider([toolReply(bad)]);
-  const r = await run(p, { budgetUsd: ceilingCostUsd(RATES) + 0.0002 }); // round 1 fits; one done ($0.0005) + another ceiling round would cross
+  const r = await run(p, { capUsd: ceilingCostUsd(RATES) + 0.0002 }); // round 1 fits; one done ($0.0005) + another ceiling round would cross
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'budget');
   assert.equal(r.rounds, 1);
@@ -193,9 +195,9 @@ test('the schema lets a step carry `picks` (source role -> heading names); a val
 
 test('(e3) an unpriced round counts at its ceiling toward the budget, never as 0', async () => {
   const bad = validArgs();
-  bad.steps[2].primitives = ['stash'];
+  bad.steps[2].primitives = ['forget'];
   const p = fakeProvider([{ ...toolReply(bad), usage: undefined }]);
-  const r = await run(p, { budgetUsd: ceilingCostUsd(RATES) * 1.5 }); // one ceiling round fits, two cross; at 0 the loop would go on
+  const r = await run(p, { capUsd: ceilingCostUsd(RATES) * 1.5 }); // one ceiling round fits, two cross; at 0 the loop would go on
   assert.equal(r.stop, 'budget');
   assert.equal(p.calls.length, 1);
   assert.equal(r.costUsd, null);
@@ -203,29 +205,29 @@ test('(e3) an unpriced round counts at its ceiling toward the budget, never as 0
 
 test('(e4) a budget below one round\'s ceiling is refused at $0, before any provider call, naming the minimum', async () => {
   const p = fakeProvider([toolReply(validArgs())]);
-  const r = await run(p, { budgetUsd: 0.005 });
+  const r = await run(p, { capUsd: 0.005 });
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'pre-flight');
   assert.equal(r.costUsd, 0);
   assert.equal(p.calls.length, 0);
-  assert.match(r.reds[0], new RegExp(`minimum budget is \\$${ceilingCostUsd(RATES).toFixed(4)}`));
+  assert.match(r.reds[0], new RegExp(`^Cap \\$0\\.005 is below one drafting round's worst case for ${MODEL}, \\$${ceilingCostUsd(RATES).toFixed(4)}\\. Raise Cap`));
 });
 
 test('(f1) a structure retry after a validator revision keeps the validator reds and is logged as structure-retry', async () => {
   const bad = validArgs();
-  bad.steps[2].primitives = ['stash'];
+  bad.steps[2].primitives = ['forget'];
   const p = fakeProvider([toolReply(bad), textReply(), toolReply(validArgs())]);
   const r = await run(p);
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.deepEqual(r.log.map((e) => e.kind), ['first', 'revision', 'structure-retry']);
   const retryUser = p.calls[2].messages.find((m) => m.role === 'user').content;
   assert.match(retryUser, /not a usable tool call/);
-  assert.match(retryUser, /"stash"/, 'the validator red is still in the retry prompt');
+  assert.match(retryUser, /"forget"/, 'the validator red is still in the retry prompt');
 });
 
 test('(f2) a structure retry with no prior validator reds carries none, and a revision after a structure retry is logged revision', async () => {
   const bad = validArgs();
-  bad.steps[2].primitives = ['stash'];
+  bad.steps[2].primitives = ['forget'];
   const p = fakeProvider([textReply(), toolReply(bad), toolReply(validArgs())]);
   const r = await run(p);
   assert.deepEqual(r.log.map((e) => e.kind), ['first', 'structure-retry', 'revision']);
