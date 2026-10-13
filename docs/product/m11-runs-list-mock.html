@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M11 runs list</title>
+<style>
+  :root{
+    --bg:#1a1b26; --panel:#1f2335; --panel2:#24283b; --border:#292e42; --border-strong:#3b4261;
+    --text:#c0caf5; --text-dim:#a9b1d6; --text-faint:#565f89;
+    --green:#9ece6a; --red:#f7768e; --amber:#e0af68; --grey-dot:#878eac; --magenta:#bb9af7;
+    --accent:#7aa2f7; --accent-bg:rgba(122,162,247,.12); --accent-bg-strong:rgba(122,162,247,.2);
+    font:14px/1.5 "Courier Prime","Courier New",Courier,ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text)}
+  body{padding:16px;overflow-x:hidden}
+  button,select,input{font:inherit;color:inherit}
+  h1{font-size:18px;margin:0 0 4px}
+  .lead{color:var(--text-dim);font-size:13px;margin:0 0 8px;max-width:900px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:20px;align-items:start}
+  .vbox{border:1px solid var(--border-strong);background:var(--panel);padding:12px}
+  .vhead{margin-bottom:8px}
+  .vtag{color:var(--accent);font-weight:700}
+  .why{font-size:12px;color:var(--text-dim)}
+  .diff{font-size:12px;color:var(--text-faint);margin:8px 0 0;padding-left:16px}
+  .side{background:var(--bg);border:1px solid var(--border);padding:8px;max-width:380px}
+  .phone{width:min(390px,100%);border:2px solid var(--border-strong);border-radius:14px;padding:10px;background:var(--bg);margin-top:12px}
+  .phone-cap{font-size:11px;color:var(--text-faint);margin:12px 0 4px}
+
+  /* shared bits, from the panel */
+  .chips{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+  .chip{padding:3px 7px;min-height:28px;border:1px solid var(--border-strong);background:var(--panel2);font-size:12px;color:var(--text-dim)}
+  .chip[aria-pressed=true]{background:var(--panel);color:var(--accent);border-color:var(--accent);font-weight:700}
+  .search{width:100%;padding:6px 8px;border:1px solid var(--border-strong);background:var(--bg);margin-bottom:8px}
+  .g{font-weight:700;font-size:12px;margin-right:6px}
+  .g.passed{color:var(--green)} .g.failed,.g.capped,.g.stopped{color:var(--red)} .g.running{color:var(--amber)} .g.died{color:var(--magenta)} .g.waiting{color:var(--grey-dot)}
+  .g.running{animation:pulse 1.2s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.35}}
+  @media (prefers-reduced-motion:reduce){.g.running{animation:none}}
+  .w{font-weight:700} .w.passed{color:var(--green)} .w.failed,.w.capped,.w.stopped{color:var(--red)} .w.running{color:var(--amber)} .w.died{color:var(--magenta)}
+  .dim{color:var(--text-dim);font-size:12px} .faint{color:var(--text-faint);font-size:12px}
+  .card{display:block;width:100%;text-align:left;background:var(--panel2);border:1px solid var(--border);padding:6px 8px;margin:0 0 6px;cursor:pointer;min-height:44px}
+  .card:hover{border-color:var(--accent);background:var(--accent-bg)}
+  .card.sel{border:2px solid var(--accent);border-radius:4px;background:var(--accent-bg-strong)}
+  .card:focus-visible,.fold:focus-visible,.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .l1{display:flex;gap:6px;align-items:center;min-width:0}
+  .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rn{color:var(--accent)}
+  .l2{display:block;font-size:12px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .runs{margin:-2px 0 8px 14px;padding-left:8px;border-left:2px solid var(--border)}
+  .runs .card{background:var(--bg)}
+  .fold{background:none;border:0;color:var(--text-dim);font-size:12px;padding:4px 0;cursor:pointer;min-height:32px}
+  .fold:hover{color:var(--accent)}
+  .hint{font-size:12px;color:var(--text-faint);padding:2px 0 6px}
+  .sect{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint);margin:8px 0 4px}
+  .live{border-color:var(--amber)}
+  .pill{font-size:11px;border:1px solid var(--amber);color:var(--amber);padding:0 5px;margin-left:auto}
+  .tbl{width:100%;border-collapse:collapse;font-size:12px}
+  .tbl td{padding:5px 4px;border-bottom:1px dotted var(--border-strong);vertical-align:top}
+  .tbl tr{cursor:pointer} .tbl tr:hover td{background:var(--accent-bg)} .tbl tr.sel td{background:var(--accent-bg-strong)}
+  .tbl tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+  .sub td{padding-left:18px;color:var(--text-dim)}
+  .split{display:grid;grid-template-columns:150px 1fr;gap:8px}
+  .split .card{min-height:40px}
+  .sel-row{display:flex;gap:6px;margin-bottom:8px} .sel-row select{flex:1;padding:8px;border:1px solid var(--border-strong);background:var(--bg);min-height:44px}
+  .ref{opacity:.85}
+</style>
+</head>
+<body>
+<h1>M11 amendment 1 — fwdloop's runs list, drawn from box F</h1>
+<p class="lead">Left: bareloop's box F as you picked it (copied unchanged). Right: the same list with fwdloop's jobs, signs and words. Cards and folds work. Open "older runs" on aging-live-4 to see 7 then "use search".</p>
+<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(360px,100%),1fr))">
+<section class="vbox ref"><div class="vhead"><span class="vtag">F · bareloop (signed design)</span></div><div class="side" id="vf"></div><div class="phone-cap">phone (390px)</div><div class="phone" id="pf"></div></section>
+<section class="vbox" style="border-color:var(--accent)"><div class="vhead"><span class="vtag">F · fwdloop (am1)</span> <span class="why">same cards; only fwdloop's data and words</span></div><div class="side" id="vw"></div><div class="phone-cap">phone (390px)</div><div class="phone" id="pw"></div>
+<ul class="diff">
+<li>Needs you tags: only F's two words. <b>Accept</b> = waiting at an ask [·]. <b>Resume</b> = stuck [II].</li>
+<li>Expired asks [!] are not in Needs you (F has no word for them); they stay in the Inbox.</li>
+<li>Job card: no "rubric / deterministic" (fwdloop has no job types).</li>
+<li>Signs and words are fwdloop's own (running, waiting, stuck, expired, crashed, passed, failed).</li>
+<li>Filter chips and search box: today's fwdloop ones, moved here unchanged.</li>
+<li>Scheduled card: not clickable, as in F.</li>
+</ul></section>
+</div>
+<script>
+var JOBS = [
+  {job:"rubric-2", type:"rubric", runs:[
+    {n:3,k:"running",why:"step 1 of 2 · drafting done",cost:"$0.01",wall:"2m",date:"10/13 13:02",model:"deepseek-flash"},
+    {n:2,k:"passed",why:"goal met",cost:"$0.02",wall:"1m",date:"10/12 17:09",model:"deepseek-flash"},
+    {n:1,k:"failed",why:"line 2 over 30 words",cost:"$0.05",wall:"4m",date:"10/12 14:03",model:"deepseek-flash"}]},
+  {job:"flights-b", type:"rubric", runs:(function(){var a=[],ks=["failed","passed","failed","capped","failed","passed","stopped","failed","passed","failed","died","passed"];for(var i=12;i>=1;i--){var k=ks[12-i];a.push({n:i,k:k,why:{passed:"goal met",failed:"price over $450 on result 2",capped:"money cap $0.50",stopped:"you stopped it",died:"runner gone"}[k],cost:"$0."+(10+i),wall:i+"m",date:"10/"+(1+i)+" 11:"+(10+i),model:"deepseek-flash"});}return a;})()},
+  {job:"changelog-a", type:"rubric", runs:[{n:1,k:"passed",why:"goal met",cost:"$0.03",wall:"2m",date:"10/11 09:40",model:"deepseek-flash"}]},
+  {job:"p6-worktree", type:"deterministic", runs:[
+    {n:3,k:"capped",why:"time cap 20m",cost:"$0.41",wall:"20m",date:"10/06 16:20",model:"deepseek-flash"},
+    {n:2,k:"died",why:"runner gone",cost:"$0.12",wall:"6m",date:"10/06 12:01",model:"deepseek-flash"},
+    {n:1,k:"stopped",why:"you stopped it",cost:"$0.08",wall:"3m",date:"10/05 18:44",model:"deepseek-flash"}]}
+];
+var SIGN={running:"▶",waiting:"·",passed:"✓",failed:"✗",capped:"✗",stopped:"■",died:"?"};
+var CAP=7, state={A:{sel:"rubric-2#3",open:{}},B:{sel:"rubric-2#3",open:{}},C:{sel:"rubric-2#3",open:{}},D:{sel:"rubric-2#3",job:"rubric-2"},NOW:{sel:"rubric-2#3",open:{}},F:{sel:"rubric-2#3",open:{}}};
+function e(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function g(k){return '<span class="g '+k+'">['+SIGN[k]+']</span>'}
+function w(k){return '<span class="w '+k+'">'+k+'</span>'}
+function filters(){return '<div class="chips"><button class="chip" aria-pressed="true">all</button><button class="chip">✓</button><button class="chip">✗</button><button class="chip">▶</button><button class="chip">rubric</button><button class="chip">deterministic</button></div><input class="search" placeholder="search job, run-N, run id or model…">'}
+function jobState(j){var k=j.runs[0].k;return k}
+function runCard(v,j,r){var id=j.job+"#"+r.n,sel=state[v].sel===id;return '<button class="card'+(sel?" sel":"")+(r.k==="running"?" live":"")+'" data-v="'+v+'" data-sel="'+id+'" aria-pressed="'+sel+'"><span class="l1">'+g(r.k)+'<span class="rn">run-'+r.n+'</span> <span class="faint">'+e(r.date)+' · '+e(r.model)+'</span></span><span class="l2">'+w(r.k)+' — '+e(r.why)+' · '+r.cost+' · '+r.wall+'</span></button>'}
+function foldBtn(v,j,n,open){return '<button class="fold" data-v="'+v+'" data-fold="'+j.job+'" aria-expanded="'+open+'">'+(open?"▾":"▸")+' older runs ('+n+')</button>'}
+function capped(v,j,older){var selN=state[v].sel;var list=older.slice(0,CAP),extra=older.slice(CAP).filter(function(r){return j.job+"#"+r.n===selN});return {list:list.concat(extra),hidden:older.length-CAP-extra.length}}
+
+function renderNow(){var v="NOW",h=filters();JOBS.forEach(function(j){var r=j.runs[0],open=!!state[v].open[j.job],id=j.job+"#"+r.n,sel=state[v].sel===id;
+  h+='<button class="card'+(sel?" sel":"")+'" data-v="NOW" data-sel="'+id+'"><span class="l1"><span class="faint" data-fold="'+j.job+'" data-v="NOW">'+(j.runs.length>1?(open?"▼":"▶"):"&nbsp;")+'</span>'+g(r.k)+'<span class="nm">'+e(j.job)+' (run-'+r.n+')</span></span><span class="l2">'+w(r.k)+' — '+e(r.why)+'</span><span class="l2">'+j.type+' · '+r.cost+' · '+r.wall+' · '+r.date+'</span></button>';
+  if(open){h+='<div class="runs">'+j.runs.slice(1).map(function(x){return runCard(v,j,x)}).join("")+'</div>'}});
+  document.getElementById("now").innerHTML=h}
+
+function renderA(phone){var v="A",h=filters();
+  if(phone){var cur=state[v].sel.split("#"),jb=JOBS.filter(function(j){return j.job===cur[0]})[0];
+    h+='<div class="sel-row"><select aria-label="Select job">'+JOBS.map(function(j){return '<option'+(j.job===cur[0]?" selected":"")+'>['+SIGN[jobState(j)]+'] '+e(j.job)+' — '+j.runs.length+' runs</option>'}).join("")+'</select></div>';
+    h+='<div class="sel-row"><select aria-label="Select run">'+jb.runs.map(function(r){return '<option'+(String(r.n)===cur[1]?" selected":"")+'>['+SIGN[r.k]+'] run-'+r.n+' — '+r.k+' · '+r.date+'</option>'}).join("")+'</select></div>';
+    var r=jb.runs.filter(function(x){return String(x.n)===cur[1]})[0];return h+runCard(v,jb,r)}
+  JOBS.forEach(function(j){var head=j.runs[0],older=j.runs.slice(1),open=!!state[v].open[j.job];
+    h+='<div class="card" style="cursor:default"><span class="l1">'+g(jobState(j))+'<span class="nm">'+e(j.job)+'</span> <span class="faint">'+j.runs.length+' run'+(j.runs.length>1?"s":"")+' · '+j.type+'</span></span><span class="l2">last run '+w(head.k)+' · '+head.date+'</span></div>';
+    h+='<div class="runs">'+runCard(v,j,head);
+    if(older.length){h+=foldBtn(v,j,older.length,open);if(open){var c=capped(v,j,older);h+=c.list.map(function(x){return runCard(v,j,x)}).join("")+(c.hidden>0?'<div class="hint">(and '+c.hidden+' older: use search)</div>':"")}}
+    h+='</div>'});return h}
+
+function renderB(phone){var v="B",h=filters(),live=[];JOBS.forEach(function(j){j.runs.forEach(function(r){if(r.k==="running")live.push([j,r])})});
+  h+='<div class="sect">Running now ('+live.length+')</div>'+(live.length?live.map(function(p){var id=p[0].job+"#"+p[1].n,sel=state[v].sel===id;return '<button class="card live'+(sel?" sel":"")+'" data-v="B" data-sel="'+id+'"><span class="l1">'+g("running")+'<span class="nm">'+e(p[0].job)+'</span> <span class="rn">run-'+p[1].n+'</span><span class="pill">live</span></span><span class="l2">'+e(p[1].why)+' · '+p[1].cost+' so far · '+p[1].wall+'</span></button>'}).join(""):'<div class="hint">nothing running</div>');
+  h+='<div class="sect">Jobs ('+JOBS.length+')</div>';
+  JOBS.forEach(function(j){var r=j.runs[0],open=!!state[v].open[j.job];
+    h+='<button class="card" data-v="B" data-fold="'+j.job+'" aria-expanded="'+open+'"><span class="l1"><span class="faint">'+(open?"▾":"▸")+'</span>'+g(jobState(j))+'<span class="nm">'+e(j.job)+'</span> <span class="faint">'+j.runs.length+' run'+(j.runs.length>1?"s":"")+'</span></span><span class="l2">run-'+r.n+' '+w(r.k)+' — '+e(r.why)+' · '+r.date+'</span></button>';
+    if(open){var c=capped(v,j,j.runs);h+='<div class="runs">'+c.list.map(function(x){return runCard(v,j,x)}).join("")+(c.hidden>0?'<div class="hint">(and '+c.hidden+' older: use search)</div>':"")+'</div>'}});
+  return h}
+
+function renderC(phone){var v="C",h=filters()+'<table class="tbl"><tbody>';
+  var order=JOBS.slice().sort(function(a,b){return (b.runs[0].k==="running")-(a.runs[0].k==="running")});
+  order.forEach(function(j){var r=j.runs[0],open=!!state[v].open[j.job],id=j.job+"#"+r.n,sel=state[v].sel===id;
+    h+='<tr class="'+(sel?"sel":"")+'" data-v="C" data-sel="'+id+'"><td style="width:22px"><span class="faint" data-v="C" data-fold="'+j.job+'">'+(j.runs.length>1?(open?"▾":"▸"):"")+'</span></td><td>'+g(r.k)+'<b>'+e(j.job)+'</b> <span class="rn">run-'+r.n+'</span>'+(phone?'<br>':' ')+w(r.k)+' <span class="faint">'+r.date+'</span></td><td class="dim" style="text-align:right">'+(j.runs.length>1?j.runs.length+'×':'')+'</td></tr>';
+    if(open){var c=capped(v,j,j.runs.slice(1));c.list.forEach(function(x){var xid=j.job+"#"+x.n;h+='<tr class="sub'+(state[v].sel===xid?" sel":"")+'" data-v="C" data-sel="'+xid+'"><td></td><td>'+g(x.k)+'<span class="rn">run-'+x.n+'</span> '+w(x.k)+' — '+e(x.why)+' <span class="faint">'+x.date+'</span></td><td></td></tr>'});if(c.hidden>0)h+='<tr class="sub"><td></td><td class="faint">(and '+c.hidden+' older: use search)</td><td></td></tr>'}});
+  return h+'</tbody></table>'}
+
+function renderD(phone){var v="D",h=filters(),j=JOBS.filter(function(x){return x.job===state[v].job})[0];
+  var jobs=JOBS.map(function(x){var on=x.job===state[v].job;return '<button class="card'+(on?" sel":"")+'" data-v="D" data-job="'+x.job+'"><span class="l1">'+g(jobState(x))+'<span class="nm">'+e(x.job)+'</span></span><span class="l2">'+x.runs.length+' run'+(x.runs.length>1?"s":"")+'</span></button>'}).join("");
+  var c=capped(v,j,j.runs);var runs='<div class="sect">'+e(j.job)+' · runs</div>'+c.list.map(function(x){return runCard(v,j,x)}).join("")+(c.hidden>0?'<div class="hint">(and '+c.hidden+' older: use search)</div>':"");
+  if(phone){return h+(state[v].phoneRuns?'<button class="fold" data-v="D" data-back="1">‹ all jobs</button>'+runs:jobs)}
+  return h+'<div class="split"><div>'+jobs+'</div><div>'+runs+'</div></div>'}
+
+
+var QUIET=[
+  {job:"jsdoc-rubric",type:"rubric",runs:[{n:4,k:"passed",why:"goal met",cost:"$0.04",wall:"3m",date:"08/30 10:12",model:"deepseek-flash"},{n:3,k:"failed",why:"line 1 not quoted",cost:"$0.06",wall:"5m",date:"08/29 15:40",model:"deepseek-flash"}]},
+  {job:"litectx-maint",type:"deterministic",runs:[{n:9,k:"passed",why:"goal met",cost:"$1.20",wall:"14m",date:"08/12 09:01",model:"deepseek-flash"}]},
+  {job:"readme-sweep",type:"rubric",runs:[{n:2,k:"capped",why:"money cap $0.50",cost:"$0.50",wall:"9m",date:"07/30 18:20",model:"deepseek-flash"}]}];
+var NEEDS=[
+  {job:"changelog-a",n:1,k:"passed",act:"Accept",why:"passed · waiting for your Accept",date:"10/11 09:40"},
+  {job:"p6-worktree",n:3,k:"capped",act:"Resume",why:"time cap 20m · can resume from step 2",date:"10/06 16:20"}];
+function jobBlock(v,j){var head=j.runs[0],older=j.runs.slice(1),open=!!state[v].open[j.job],h='';
+  h+='<div class="card'+(state[v].sel.split("#")[0]===j.job?" sel":"")+'" style="cursor:default" id="F-'+j.job+'"><span class="l1">'+g(jobState(j))+'<span class="nm">'+e(j.job)+'</span> <span class="faint">'+j.runs.length+' run'+(j.runs.length>1?"s":"")+' · '+j.type+'</span></span><span class="l2">'+w(head.k)+' · '+e(head.why)+'</span>';
+  h+='<div class="runs" style="margin:6px 0 0 6px">'+runCard(v,j,head);
+  if(older.length){h+=foldBtn(v,j,older.length,open);if(open){var c=capped(v,j,older);h+=c.list.map(function(x){return runCard(v,j,x)}).join("")+(c.hidden>0?'<div class="hint">(and '+c.hidden+' older: use search)</div>':"")}}
+  return h+'</div></div>'}
+function sect(label,n,note){return '<div class="sect">'+label+' ('+n+')'+(note?' <span style="text-transform:none;letter-spacing:0">· '+note+'</span>':'')+'</div>'}
+function renderF(phone){var v="F",h="",live=[];JOBS.forEach(function(j){j.runs.forEach(function(r){if(r.k==="running")live.push([j,r])})});
+  if(live.length)h+=sect("Running now",live.length)+live.map(function(p){var id=p[0].job+"#"+p[1].n;return '<button class="card live" data-v="F" data-jump="'+id+'"><span class="l1">'+g("running")+'<span class="nm">'+e(p[0].job)+'</span> <span class="rn">run-'+p[1].n+'</span> <span class="faint">'+p[1].wall+' · '+p[1].cost+'</span></span><span class="l2">'+e(p[1].why)+'</span></button>'}).join("");
+  if(NEEDS.length)h+=sect("Needs you",NEEDS.length)+NEEDS.map(function(x){var id=x.job+"#"+x.n;return '<button class="card" style="border-color:var(--accent)" data-v="F" data-jump="'+id+'"><span class="l1">'+g(x.k)+'<span class="nm">'+e(x.job)+'</span> <span class="rn">run-'+x.n+'</span><span class="pill" style="border-color:var(--accent);color:var(--accent)">'+x.act+'</span></span><span class="l2">'+e(x.why)+' · '+x.date+'</span></button>'}).join("");
+  h+=sect("Scheduled",1,"fwdloop only")+'<div class="card" style="cursor:default"><span class="l1">'+g("waiting")+'<span class="nm">daily-standup</span> <span class="faint">today 17:00</span></span><span class="l2">next in 3h · every weekday</span></div>';
+  h+='<div style="border-top:1px dashed var(--border-strong);margin:10px 0 6px"></div><div class="faint" style="margin-bottom:4px">filters below act on Jobs and quiet jobs only</div>'+filters();
+  h+=sect("Jobs",JOBS.length,"run in the last 30 days")+JOBS.map(function(j){return jobBlock(v,j)}).join("");
+  var qo=!!state[v].open["__quiet"];
+  h+='<button class="fold" data-v="F" data-fold="__quiet" aria-expanded="'+qo+'">'+(qo?"▾":"▸")+' quiet jobs ('+QUIET.length+') · no run in 30 days</button>';
+  if(qo)h+=QUIET.map(function(j){return jobBlock(v,j)}).join("");
+  return h}
+document.addEventListener("click",function(ev){
+  if(ev.target.closest("#lc-root,[data-live-canvas]"))return;
+  var f=ev.target.closest("[data-fold]"),s=ev.target.closest("[data-sel]"),jb=ev.target.closest("[data-job]"),bk=ev.target.closest("[data-back]");
+  if(f){var v=f.getAttribute("data-v");state[v].open[f.getAttribute("data-fold")]=!state[v].open[f.getAttribute("data-fold")];render();return}
+  if(jb){state.D.job=jb.getAttribute("data-job");state.D.phoneRuns=!!jb.closest(".phone");render();return}
+  if(bk){state.D.phoneRuns=false;render();return}
+  var jp=ev.target.closest("[data-jump]");if(jp){state.F.sel=jp.getAttribute("data-jump");render();var t=document.getElementById("F-"+jp.getAttribute("data-jump").split("#")[0]);if(t)t.scrollIntoView({block:"nearest"});return}
+  if(s){state[s.getAttribute("data-v")].sel=s.getAttribute("data-sel");render()}
+});
+
+/* ---- fwdloop version of F (M11 amendment 1 draft) ---- */
+var FSIGN={running:"▶",waiting:"·",stuck:"II",expired:"!",crashed:"?",passed:"✓",failed:"✗"};
+function fg(k){var c={running:"running",waiting:"waiting",stuck:"failed",expired:"capped",crashed:"died",passed:"passed",failed:"failed"}[k];return '<span class="g '+c+'">['+FSIGN[k]+']</span>'}
+function fw(k){var c={running:"running",waiting:"waiting",stuck:"failed",expired:"capped",crashed:"died",passed:"passed",failed:"failed"}[k];return '<span class="w '+c+'">'+k+'</span>'}
+var FJOBS=[
+ {job:"aging-live-4",runs:(function(){var a=[{n:12,k:"running",why:"step 2 of 4 · drafting done",cost:"$0.004",wall:"1m",date:"10/13 21:40",model:"deepseek-flash"}];
+   var ks=["passed","passed","passed","passed","failed","passed","passed","expired","passed","failed","passed"];
+   for(var i=11;i>=1;i--){var k=ks[11-i];a.push({n:i,k:k,why:{passed:"goal met",failed:"line 3 over 120 words",expired:"ask expired"}[k],cost:"$0.00"+(i%9+1),wall:(i%5+1)+"m",date:"10/"+(i<6?12:13)+" "+(8+i)+":05",model:"deepseek-flash"})}return a})()},
+ {job:"invoice-check",runs:[{n:2,k:"waiting",why:"waiting at line 3: check the totals",cost:"$0.011",wall:"2m",date:"10/13 19:12",model:"deepseek-flash"},{n:1,k:"passed",why:"goal met",cost:"$0.012",wall:"3m",date:"10/12 10:01",model:"deepseek-flash"}]},
+ {job:"kyc-check",runs:[{n:3,k:"stuck",why:"your answer is saved; the run stopped before using it",cost:"$0.020",wall:"4m",date:"10/13 11:30",model:"deepseek-flash"},{n:2,k:"crashed",why:"runner gone",cost:"$0.006",wall:"1m",date:"10/12 16:44",model:"deepseek-flash"},{n:1,k:"passed",why:"goal met",cost:"$0.018",wall:"3m",date:"10/10 09:20",model:"deepseek-flash"}]}];
+var FQUIET=[{job:"resume-tailor",runs:[{n:4,k:"passed",why:"goal met",cost:"$0.061",wall:"7m",date:"09/02 14:10",model:"deepseek-flash"},{n:3,k:"failed",why:"3 sections; the check has 1",cost:"$0.051",wall:"6m",date:"09/01 12:00",model:"deepseek-flash"}]}];
+var FNEEDS=[{job:"invoice-check",n:2,k:"waiting",act:"Accept",why:"waiting at line 3: check the totals",date:"10/13 19:12"},
+ {job:"kyc-check",n:3,k:"stuck",act:"Resume",why:"your answer is saved; the run stopped before using it",date:"10/13 11:30"}];
+var FSCHED=[{job:"aging-live-4",at:"tomorrow 09:00",next:"next in 11h",words:"every weekday at 09:00"}];
+state.FW={sel:"aging-live-4#12",open:{}};
+function frunCard(j,r){var id=j.job+"#"+r.n,sel=state.FW.sel===id;return '<button class="card'+(sel?" sel":"")+(r.k==="running"?" live":"")+'" data-fsel="'+id+'"><span class="l1">'+fg(r.k)+'<span class="rn">run-'+r.n+'</span> <span class="faint">'+e(r.date)+' · '+e(r.model)+'</span></span><span class="l2">'+fw(r.k)+' — '+e(r.why)+' · '+r.cost+' · '+r.wall+'</span></button>'}
+function fjobBlock(j,pre){var head=j.runs[0],older=j.runs.slice(1),open=!!state.FW.open[j.job],h='';
+ h+='<div class="card'+(state.FW.sel.split("#")[0]===j.job?" sel":"")+'" style="cursor:default" id="'+pre+'-'+j.job+'"><span class="l1">'+fg(head.k)+'<span class="nm">'+e(j.job)+'</span> <span class="faint">'+j.runs.length+' run'+(j.runs.length>1?"s":"")+'</span></span><span class="l2">'+fw(head.k)+' · '+e(head.why)+'</span>';
+ h+='<div class="runs" style="margin:6px 0 0 6px">'+frunCard(j,head);
+ if(older.length){h+='<button class="fold" data-ffold="'+j.job+'" aria-expanded="'+open+'">'+(open?"▾":"▸")+' older runs ('+older.length+')</button>';
+  if(open){var list=older.slice(0,CAP),extra=older.slice(CAP).filter(function(r){return j.job+"#"+r.n===state.FW.sel}),hid=older.length-CAP-extra.length;
+   h+=list.concat(extra).map(function(x){return frunCard(j,x)}).join("")+(hid>0?'<div class="hint">(and '+hid+' older: use search)</div>':"")}}
+ return h+'</div></div>'}
+function ffilters(){return '<div class="chips"><button class="chip" aria-pressed="false">✓</button><button class="chip">✗</button><button class="chip">■</button><button class="chip">·</button><button class="chip">▶</button><button class="chip">?</button><button class="chip">7d</button><button class="chip">30d</button><button class="chip" aria-pressed="true">all</button><button class="chip">clear</button></div><input class="search" placeholder="search flow or run id…">'}
+function renderFW(pre){var h="",live=[];FJOBS.forEach(function(j){j.runs.forEach(function(r){if(r.k==="running")live.push([j,r])})});
+ if(live.length)h+=sect("Running now",live.length)+live.map(function(p){var id=p[0].job+"#"+p[1].n;return '<button class="card live" data-fjump="'+id+'"><span class="l1">'+fg("running")+'<span class="nm">'+e(p[0].job)+'</span> <span class="rn">run-'+p[1].n+'</span> <span class="faint">'+p[1].wall+' · '+p[1].cost+'</span></span><span class="l2">'+e(p[1].why)+'</span></button>'}).join("");
+ if(FNEEDS.length)h+=sect("Needs you",FNEEDS.length)+FNEEDS.map(function(x){var id=x.job+"#"+x.n;return '<button class="card" style="border-color:var(--accent)" data-fjump="'+id+'"><span class="l1">'+fg(x.k)+'<span class="nm">'+e(x.job)+'</span> <span class="rn">run-'+x.n+'</span><span class="pill" style="border-color:var(--accent);color:var(--accent)">'+x.act+'</span></span><span class="l2">'+e(x.why)+' · '+x.date+'</span></button>'}).join("");
+ if(FSCHED.length)h+=sect("Scheduled",FSCHED.length)+FSCHED.map(function(s){return '<div class="card" style="cursor:default"><span class="l1">'+fg("waiting")+'<span class="nm">'+e(s.job)+'</span> <span class="faint">'+s.at+'</span></span><span class="l2">'+s.next+' · '+s.words+'</span></div>'}).join("");
+ h+='<div style="border-top:1px dashed var(--border-strong);margin:10px 0 6px"></div><div class="faint" style="margin-bottom:4px">filters below act on Jobs and quiet jobs only</div>'+ffilters();
+ h+=sect("Jobs",FJOBS.length,"run in the last 30 days")+FJOBS.map(function(j){return fjobBlock(j,pre)}).join("");
+ var qo=!!state.FW.open["__quiet"];
+ h+='<button class="fold" data-ffold="__quiet" aria-expanded="'+qo+'">'+(qo?"▾":"▸")+' quiet jobs ('+FQUIET.length+') · no run in 30 days</button>';
+ if(qo)h+=FQUIET.map(function(j){return fjobBlock(j,pre)}).join("");
+ return h}
+function render(){document.getElementById("vf").innerHTML=renderF(false);document.getElementById("pf").innerHTML=renderF(true);
+ document.getElementById("vw").innerHTML=renderFW("W");document.getElementById("pw").innerHTML=renderFW("PW")}
+document.addEventListener("click",function(ev){
+ var f=ev.target.closest("[data-ffold]"),s=ev.target.closest("[data-fsel]"),jp=ev.target.closest("[data-fjump]");
+ if(f){var k=f.getAttribute("data-ffold");state.FW.open[k]=!state.FW.open[k];render();return}
+ if(jp){var id=jp.getAttribute("data-fjump");state.FW.sel=id;render();var box=jp.closest(".phone")?"PW":"W";var t=document.getElementById(box+"-"+id.split("#")[0]);if(t)t.scrollIntoView({block:"nearest"});return}
+ if(s){state.FW.sel=s.getAttribute("data-fsel");render()}});
+render();
+</script>
+</body>
+</html>

@@ -2307,3 +2307,4 @@ same run. Scope is stated when its turn comes.
   4. **Job card:** line 1 `[sign] job  k runs`; line 2 `word · why` of its newest run. It is highlighted when the selected run is one of its runs. Box F also shows a job type (rubric / deterministic); fwdloop has no job types, so it is left out.
   5. **Run card (inside a job):** line 1 `[sign] run-N  date · model`; line 2 `word — why · $cost · wall`. Selected: blue border and blue fill.
   - **Taken out of M11 as signed, because box F does not have it:** the tags Answer / Continue / Reopen; clicking a Scheduled card; the red paused NEXT in Scheduled; Needs you moving the left side to the Inbox.
+- *Built after signing — not signed text:* the mockup hamr signed am1 against is `docs/product/m11-runs-list-mock.html` (left: bareloop box F unchanged; right: fwdloop's version).
