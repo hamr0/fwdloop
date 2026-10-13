@@ -16,6 +16,8 @@
 // is only ever matched against these fixed patterns — never used to build a
 // pattern. This file never constructs a RegExp dynamically at runtime.
 
+import { parseTrigger, isTriggerLine } from './trigger-line.js';
+
 /** @typedef {import('./types.js').SignedTextResult} SignedTextResult */
 
 /** The arbiter fields this grammar defines — kept in sync with the parser
@@ -28,6 +30,7 @@ export const ARBITER_FIELDS = Object.freeze([
   'skills',
   'sources',
   'roundBudgetMs',
+  'trigger',
 ]);
 
 const HEADING_RE = /^arbiter guardrails\b/i;
@@ -243,6 +246,9 @@ function parseArbiter(arbiterRawLines, lineNumbers, reds, asks) {
   const sourceRolesSeen = new Set();
   let roundBudgetMs;
   let roundSeen = 0;
+  // M9: the trigger (By hand = null). One line at most; typed by `parseTrigger`.
+  let trigger = null;
+  let triggerSeen = 0;
 
   for (const { fileLine, text } of arbiterRawLines) {
     const lower = text.toLowerCase();
@@ -385,6 +391,21 @@ function parseArbiter(arbiterRawLines, lineNumbers, reds, asks) {
       continue;
     }
 
+    if (isTriggerLine(`guardrail: ${text}`)) {
+      triggerSeen += 1;
+      const m = parseTrigger(text.replace(/^trigger\b/i, ''));
+      if (!m.ok) {
+        reds.push(`arbiter: line ${fileLine} field "trigger" ${m.error}: "${text}"`);
+        continue;
+      }
+      if (triggerSeen > 1) {
+        reds.push(`arbiter: line ${fileLine} field "trigger" is duplicated (allowed at most once)`);
+        continue;
+      }
+      trigger = m.trigger;
+      continue;
+    }
+
     if (lower.startsWith('round budget')) {
       roundSeen += 1;
       const m = ROUND_RE.exec(text);
@@ -407,6 +428,10 @@ function parseArbiter(arbiterRawLines, lineNumbers, reds, asks) {
     reds.push('arbiter: field "capUsd" is required ("cap $<decimal> per run") and is missing');
   }
 
+  if (trigger && 'role' in trigger && !sourceRolesSeen.has(trigger.role)) {
+    reds.push(`arbiter: field "trigger" names the input "${trigger.role}", which is not one of the job's inputs (inputs: [${[...sourceRolesSeen].join(', ')}])`);
+  }
+
   for (const s of sends) {
     if (!asks.some((a) => a.line < s.line)) {
       reds.push(`arbiter: field "sends" send at line ${s.line} has no ask at an earlier line (asks: [${asks.map((a) => a.line).join(', ')}])`);
@@ -421,6 +446,7 @@ function parseArbiter(arbiterRawLines, lineNumbers, reds, asks) {
     skills: skills ?? DEFAULT_SKILLS.slice(),
     sources,
     roundBudgetMs: roundBudgetMs ?? DEFAULT_ROUND_BUDGET_MS,
+    trigger,
   };
 }
 

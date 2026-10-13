@@ -2222,6 +2222,55 @@ monthly wall is enforced **by the trigger**, before a run starts.
 - **Exit:** a trigger refuses to fire when the month cannot fund a whole run, recording
   `monthly-exhausted` rather than starting and halting mid-way.
 
+*The paragraph and Exit above are superseded by the signed scope below (hamr, 2026-10-12).*
+
+- **M9 scope — SIGNED by hamr 2026-10-12 ("sign m9"): triggers (what starts a run), and the summary at the top of a run.**
+  1. **Where it's set.** A trigger can be set only on a job that has had one green run, from the Run card, with one dropdown: **When: [By hand ▾]**. Chat (making a new job) does not show it. Choices: **By hand**, **Every day at HH:MM**, **Weekdays at HH:MM**, **Every <day> at HH:MM**, **When <file> is updated**, **When a new file arrives in <folder>**. No raw cron text. The trigger is signed data; the AI never sets it.
+  2. Changing only the trigger reuses the same plan: no drafter call, $0, sign again.
+  3. The panel's server runs the clock and the file watch. When the panel is off, nothing fires. Times missed while it was off run **once** when it comes back (never more than once, however many were missed), and that run's history row says it was a catch-up.
+  4. One run at a time per job. If a run is still going or waiting at an ask when the trigger fires, nothing starts and a `busy` row is recorded.
+  5. Before any start, the monthly check runs, as today for Run: if the month cannot fund a whole run, nothing starts and a `monthly-exhausted` row is recorded.
+  6. **File updated:** the job runs when that file's sha256 changes, using the new version. **New file:** each new file in the folder starts one run, with that file as the input. A file version whose sha256 already ran is never run again. A file still being written is not taken until its size stops changing. Both pin the input as today (frozen copy + sha256).
+  7. **The summary block** (borrowed from bareloop's ENDED block, P5), first thing on the run page, two labelled lines, words set by code:
+     - A finished run: **ENDED** (e.g. "Goal met." / "Stopped at line 4: you rejected it.") and **NEXT** (what to do now, e.g. "The result is in ~/fwdloop-out/aging.json." / "Resume from the Chat card.").
+     - A job with a trigger: **SCHEDULED** ("Mondays at 09:00" / "When invoices.xlsx is updated" / "When a new file arrives in ~/inbox/") and **NEXT** ("Next run Mon 13 Oct, 09:00." / "Paused: not enough money left this month ($0.12 left, a run needs up to $0.50). Raise the monthly limit in Settings, or it starts again on the 1st." / "Waiting for your answer at line 4; the next run waits too.").
+  8. **Inbox-poll (barebrowse)** is the last kind, scoped and signed on its own when the others are done.
+  - **Done when:** on a job with one green run, a time two minutes ahead starts it by itself; it reaches its ask, waits, and finishes green on deepseek-flash when the human answers; a file dropped in a watched folder starts a run with that file; and both runs show ENDED / NEXT, the job shows SCHEDULED / NEXT. Plus tests that fail first.
+  - **Must fail when:** the trigger dropdown is refused on a job with no green run; a trigger firing while the job waits at an ask records `busy` and starts nothing; a month that cannot fund a run records `monthly-exhausted` at $0 and NEXT says so; the same file dropped twice runs once; three times missed while the panel was off give one catch-up run, not three.
+  - **Cap:** $0.20.
+- **M9 amendment 1 — SIGNED by hamr 2026-10-13 ("sign m9 am1"): a trigger is cleared when its job is edited.** Signing an Edit replaces the job (M6). The trigger goes back to By hand. It can be set again only after the new job has one green run, as in item 1. An edited job never fires by itself before it has been tested. **Must fail when:** a job with a trigger is edited and signed, the trigger's time comes, and nothing starts.
+- **M9 amendment 2 — SIGNED by hamr 2026-10-13 ("sign m9 am2"): catch-up and the starting point.**
+  1. A run that starts more than 2 minutes after its set time is a catch-up. Its history row says so.
+  2. When a file trigger is set, what's already there is the starting point, and nothing runs. For **New file**, files already in the folder never run. For **File updated**, the file's current version doesn't run. Only a new file, or a change after the trigger was set, starts a run.
+  - **Must fail when:** a folder holds 3 files when its trigger is set, and no run starts. A job that starts 5 minutes late shows "catch-up" in its history.
+- **M9 amendment 3 — SIGNED by hamr 2026-10-13 ("sign m9 am3"): files queue by arrival.**
+  1. The panel's scheduler is the only writer of the file ledger. It writes an **arrived** row the first time it sees a finished file, and a **ran** row when that file's run starts.
+  2. The queue is the files that have arrived but haven't run yet, oldest arrival first. When the job is free, the first one runs. One at a time.
+  3. A file that arrives while the job is busy gets one `busy` row and waits in the queue.
+  4. The ledger is on disk, so a restart keeps the queue.
+  5. If a queued file is deleted or changed before its turn, it doesn't run, and its row says why. A changed file arrives again as a new version.
+  6. Missed clock times are still skipped, as now.
+  - **Must fail when:** 3 files land at once and fewer than 3 runs happen, in arrival order; or the panel restarts and a queued file never runs.
+- **M9 amendment 4 — SIGNED by hamr 2026-10-13 ("sign m9 am4"): one button on the Run card.**
+  The Run card has one main button. When **When** shows the signed trigger (or By hand), it reads **Run now — spends up to $X** and runs once, now. When **When** is changed, it reads **Sign schedule**: two clicks, $0, it saves the trigger and starts nothing, then it reads Run now again. No separate trigger button.
+  - **Must fail when:** changing When and clicking the button starts a run; or there are two buttons.
+- **M9 amendment 5 — SIGNED by hamr 2026-10-13 ("sign m9 am5"): schedule buttons.** (It replaces amendment 4's button words.)
+  1. On the Run card, the button follows **When**:
+     - unchanged: **Run now — spends up to $X**
+     - changed to a schedule: **Sign schedule**
+     - on a scheduled job, **By hand** reads **Cancel schedule**, and choosing it makes the button **Cancel schedule**
+  2. Signing or cancelling takes two clicks. Click 2 reads **Confirm: every day at 13:15**, or **Confirm: cancel schedule**. The button dims on each press. After click 2 the card clears, and nothing runs.
+  3. A scheduled job's Run tab shows **Cancel / modify schedule** next to **Run again**. It opens the Chat Run card for that job, showing the schedule.
+  - **Must fail when:** signing or cancelling starts a run; the card still shows after click 2; or a scheduled job's Run tab has no Cancel / modify button.
+
+**M9 EXIT SIGNED — hamr, 2026-10-13** ("sign m9 exit"). Evidence, all on hamr's real panel (`--root flows`), flow `aging-live-4`, deepseek-flash, $0.0559 in total (runs 2-11; cap $0.20): a trigger set 2 minutes ahead started run-6 by itself, it waited at its ask and finished green when hamr answered; a file copied into `~/fwdloop-in` started run-7 with that file, green; the same content again started nothing; firing while a run waited at its ask recorded `busy` and started nothing (12:06, 13:15); a monthly limit below the cap recorded `monthly-exhausted` at $0 and NEXT said so in red (20:52); a time missed while the panel was off gave one run marked catch-up when it came back (run-8, 10 minutes late); three files landed at once and ran one after another in arrival order (runs 9-11), the two waiting ones with one `busy` row each; Cancel schedule took the job back to By hand. ENDED / NEXT and SCHEDULED / NEXT shown on the run page. Amendments 1-5 built test-first. Not walked live: am1 (an edited job's trigger is cleared) and the no-green-run refusal — permanent tests only. Self-review and branch-review were not run before this signature.
+
+- **Built after signing — not signed text (2026-10-13), M9 fixes after the exit (`3ec548b`..`4d4324c`):**
+  - *File ledger (`3ec548b`):* only a file version whose sha256 has RUN is never run again. A `baseline` row blocks a version only while it is still the starting point (File updated: until the file has changed away; New file: for that name and sha). A version that was dropped (deleted or changed before its turn) may arrive again.
+  - *Trigger-only re-sign (`3873b02`, `b20c5e5`):* setting, changing or cancelling a schedule writes the old `setup.jsonl` back and appends one `trigger-resign` row (the plan hash and Not checked list of the signing it continues, under the new flow hash, naming the old one in `resignOf`), so the Job tab keeps this job's Not checked list. A green run from before runs kept a job copy still counts through trigger-only re-signs, until a real Edit. Cancel schedule is never refused for "no good run yet".
+  - *A fire checks the model (`b379d99`):* a trigger fire runs the Run door's model checks at $0 (no recorded model, or a model no longer ticked, priced or keyed in Settings): it writes a `refused` row and starts nothing. A refused start stays a `refused` row, not `started`.
+  - *Known limits, not fixed:* a queued file's `ran` row is written just before the start, so a start refused at that moment leaves the file marked run; a job with no `setup.jsonl` and only pre-job-copy runs reads as having no good run after a trigger re-sign, until a run finishes. Both are in the fix ledger.
+
 ## M10 — real IO
 
 Mail in and out, chat, browse — each behind the signed allow-list and a prior `ask` accept in the

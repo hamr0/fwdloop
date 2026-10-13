@@ -62,6 +62,7 @@ import {
   listRuns, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
 import { createResumer } from './resume.js';
+import { createScheduler } from './scheduler.js';
 import { createAuthor } from './author.js';
 import { keysForDoor } from '../keysfile.js';
 import { configDoorHome } from '../config.js';
@@ -321,7 +322,7 @@ function resumeRoute(res, body, root, resumer) {
 }
 
 /**
- * `POST /api/author/{draft,run,resume-prepare,resume,<id>/sign-prepare,<id>/sign,<id>/revise,<id>/answer,<id>/abandon,start/<id>/clear}` — run after the same gates as every other POST.
+ * `POST /api/author/{draft,run,trigger-prepare,trigger,resume-prepare,resume,<id>/sign-prepare,<id>/sign,<id>/revise,<id>/answer,<id>/abandon,start/<id>/clear}` — run after the same gates as every other POST.
  * Anything else under `/api/author/` is a 404 by name.
  * @param {any} res @param {string} url @param {any} body @param {ReturnType<typeof createAuthor>} author
  */
@@ -330,6 +331,8 @@ function authorPost(res, url, body, author) {
   if (url === '/api/author/draft') { send(author.start(body)); return; }
   if (url === '/api/author/run') { send(author.run(body)); return; }
   if (url === '/api/author/run-prepare') { send(author.runPrepare(body)); return; }
+  if (url === '/api/author/trigger-prepare') { send(author.trigger.prepare(body)); return; }
+  if (url === '/api/author/trigger') { send(author.trigger.set(body)); return; }
   if (url === '/api/author/resume-prepare') { send(author.resumePrepare(body)); return; }
   if (url === '/api/author/resume') { send(author.resume(body)); return; }
   const sp = /^\/api\/author\/([^/]+)\/sign-prepare$/.exec(url);
@@ -353,7 +356,7 @@ function authorPost(res, url, body, author) {
  * real listening socket where that is simpler.
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
- * @param {{ root: string, port: number, packagePath?: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings>, author: ReturnType<typeof createAuthor> }} opts
+ * @param {{ root: string, port: number, packagePath?: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings>, author: ReturnType<typeof createAuthor>, now?: () => number }} opts
  */
 export function handleRequest(req, res, opts) {
   const method = req.method ?? 'GET';
@@ -505,9 +508,10 @@ export function handleRequest(req, res, opts) {
   }
   const catalogue = loaded.primitives;
   const resumeAttempt = (f, r) => opts.resumer.get(f, r);
+  const startingRun = (f, r) => opts.author?.startingRun?.(f, r) === true;
 
   if (pathname === '/api/runs') {
-    send(200, { rows: listRuns({ root: opts.root, catalogue, resumeAttempt }) });
+    send(200, { rows: listRuns({ root: opts.root, catalogue, resumeAttempt, startingRun }) });
     return;
   }
 
@@ -559,7 +563,7 @@ export function handleRequest(req, res, opts) {
       return;
     }
     const result = getRunDetail({
-      root: opts.root, flow, runId, catalogue, resumeAttempt,
+      root: opts.root, flow, runId, catalogue, resumeAttempt, startingRun, triggerRead: (f) => opts.author?.trigger?.read(f) ?? null, now: opts.now,
     });
     if (!result) { sendText(res, 404, 'no such run'); return; }
     send(200, result);
@@ -575,9 +579,9 @@ export function handleRequest(req, res, opts) {
  * header). Resolves once actually listening; rejects on a bind error
  * (including `EADDRINUSE`) with a `.port` field on the error for the
  * caller's message.
- * @param {{ port?: number, root: string, packagePath?: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: Function, platform?: string }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number }, author?: { env?: Record<string,string|undefined>, loadEnv?: () => any, bin?: string } }} opts
+ * @param {{ port?: number, root: string, packagePath?: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: Function, platform?: string }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number }, author?: { env?: Record<string,string|undefined>, loadEnv?: () => any, bin?: string, now?: () => number }, scheduler?: { intervalMs?: number } }} opts
  *   `resume` and `author` are for tests only (a fake env/bin, a short retry window); the CLI passes none.
- * @returns {Promise<{ server: import('node:http').Server, port: number, close: () => Promise<void> }>}
+ * @returns {Promise<{ server: import('node:http').Server, port: number, tick: () => void, close: () => Promise<void> }>}
  */
 export function createPanelServer(opts) {
   if (typeof opts?.root !== 'string' || opts.root.length === 0) {
@@ -594,6 +598,9 @@ export function createPanelServer(opts) {
   const author = createAuthor({
     root, home: opts.settings?.home ?? door.home, skipMonthly: opts.settings?.home === undefined && door.skip, loadEnv: () => keysForDoor({ env: opts.author?.env }), ...opts.author,
   });
+  // M9: the scheduler runs the clock and the file watch while this server is up (item 3). The clock is the author's `now` (tests inject one);
+  // `scheduler.intervalMs` 0 = no timer, a test calls `tick`. Stopped on close.
+  const scheduler = createScheduler({ door: author.trigger, now: opts.author?.now, intervalMs: opts.scheduler?.intervalMs });
   // Settings reads and writes only under the one config home: an injected one (tests), else the door's — under a test
   // process with no FWDLOOP_CONFIG_HOME, Settings is switched off rather than touch the real ~/.config/fwdloop.
   const settings = createSettings({
@@ -609,7 +616,7 @@ export function createPanelServer(opts) {
     const server = createServer((req, res) => {
       try {
         handleRequest(req, res, {
-          root, port: boundPort, resumer, settings, author, packagePath: opts.packagePath,
+          root, port: boundPort, resumer, settings, author, packagePath: opts.packagePath, now: opts.author?.now,
         });
       } catch (e) {
         sendText(res, 500, 'internal error');
@@ -623,10 +630,12 @@ export function createPanelServer(opts) {
     server.listen(requestedPort, '127.0.0.1', () => {
       const addr = server.address();
       boundPort = typeof addr === 'object' && addr !== null ? addr.port : requestedPort;
+      scheduler.start();
       resolve({
         server,
         port: boundPort,
-        close: () => new Promise((res2) => { server.close(() => res2(undefined)); }),
+        tick: scheduler.tick,
+        close: () => new Promise((res2) => { scheduler.stop(); server.close(() => res2(undefined)); }),
       });
     });
   });

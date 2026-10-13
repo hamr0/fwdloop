@@ -5,6 +5,42 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-10-13
+
+M9 triggers: a signed job can rerun on a clock or when a file appears or changes, from the panel, with
+no human click per run. A run's page opens with an ENDED or SCHEDULED summary block.
+
+### Added
+- A When dropdown on the Run card: by hand, every day, weekdays, every <day> at HH:MM, file updated,
+  or new file in folder. The trigger is typed data in the signed arbiter block, set from a job that
+  has one green run, in two clicks, at $0. The drafter never authors it.
+- The panel runs the clock and a poll-based file watch. After the panel was off, a due slot runs once
+  as a catch-up; more than 2 minutes late reads as a catch-up. A file counts only once it is stable.
+- Every fire that does not start is a row in `triggers.jsonl` (append-only): busy (a run is already
+  going), monthly limit exhausted, or refused. A refused start stays a refused row.
+- File triggers queue by arrival, oldest first. The scheduler is the only writer of the file ledger
+  (arrived, ran, dropped). A version (sha) that ran never runs again; files already present when the
+  trigger is armed never run; a dropped version may arrive again.
+- One button on the Run card: Run now, or Sign schedule when a trigger is chosen. Click 1 shows
+  Confirm: <words>, click 2 saves and the card returns to its New job state. The Run tab gets
+  Cancel / modify schedule. The card dims on press and ignores click-through for 1.5 s after a sign.
+- A summary block on the run page: ENDED / NEXT for a finished run, SCHEDULED / NEXT for a job with a
+  schedule; the NEXT line is red for a paused or refused trigger.
+- A trigger-only re-sign appends a `trigger-resign` setup row under the new flow hash.
+
+### Changed
+- Editing a signed job clears its trigger back to by hand; the card says so.
+- A trigger fire runs the Run door's model checks at $0 first: no record or an unticked model gives a
+  refused row and nothing starts.
+- A run whose start is still spawning reads `[▶] starting`, not `[?]` (one rule, `starter.startingFor`).
+
+### Fixed
+- A legacy green run survives trigger-only re-signs, so the one-green-run rule still holds; Cancel
+  schedule is never refused for lack of a green run.
+- The Job tab keeps reading this job's Not checked list after a trigger-only re-sign.
+- Only a file version that ran is blocked from running again; a baseline blocks only while it is the
+  starting point.
+
 ## [0.17.0] - 2026-10-12
 
 M7 in-run tools: a step can use recall, get, recent, related, impact, compress, peek and stash over a

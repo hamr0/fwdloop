@@ -95,7 +95,7 @@ export const tickedConfig = (extra = {}) => ({
 });
 
 export async function world({
-  limit, mode, keysMode = 0o600, step = FAKE_STEP, bin, extraEnv = {}, authorOpts = {},
+  limit, mode, keysMode = 0o600, step = FAKE_STEP, bin, extraEnv = {}, authorOpts = {}, scheduler,
 } = {}) {
   const work = tmp('w');
   const root = path.join(work, 'flows');
@@ -117,7 +117,7 @@ export async function world({
   };
   const open = async ({ bin: binOverride } = {}) => {
     const h = remember(await createPanelServer({
-      port: 0, root, settings: { home, env: {} }, author: { loadEnv: () => keysForDoor({ env, keysHome: home }), ...(binOverride ?? bin ? { bin: binOverride ?? bin } : {}), ...authorOpts },
+      port: 0, root, settings: { home, env: {} }, ...(scheduler === undefined ? {} : { scheduler }), author: { loadEnv: () => keysForDoor({ env, keysHome: home }), ...(binOverride ?? bin ? { bin: binOverride ?? bin } : {}), ...authorOpts },
     }));
     HANDLES.push(h);
     return h;

@@ -60,6 +60,7 @@ import {
 import { flowValues, valuesHash } from '../runvalues.js';
 import { leastResumeCapUsd } from './authorvalues.js';
 import { createFlowsDoor } from './authorflows.js';
+import { createTriggerDoor } from './authortrigger.js';
 import { createResumeDoor } from './authorresume.js';
 import { createStarter } from './authorstart.js';
 import {
@@ -93,18 +94,23 @@ const KILL_HARD_WAIT_MS = 2000;
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
 /**
- * @param {{ root: string, home?: string, skipMonthly?: boolean, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null, keyNames?: string[] }, bin?: string, childRunning?: (dir: string) => boolean, thinkingSupport?: typeof bareagentThinkingSupport }} opts
+ * @param {{ root: string, home?: string, skipMonthly?: boolean, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null, keyNames?: string[] }, bin?: string, childRunning?: (dir: string) => boolean, thinkingSupport?: typeof bareagentThinkingSupport, now?: () => number }} opts
  *   `loadEnv` is the keys-file door (`keysForDoor`): called before EVERY spawn and every reply that quotes a log, so editing
  *   the file needs no restart. Its `env` is BOTH the child's spawn env AND the scrub list (POC (a), M4d wiring rule).
  */
 export function createAuthor(opts) {
   const {
-    root, loadEnv, home, skipMonthly = false, bin = BIN, childRunning = childRunningNow, thinkingSupport = bareagentThinkingSupport,
+    root, loadEnv, home, skipMonthly = false, bin = BIN, childRunning = childRunningNow, thinkingSupport = bareagentThinkingSupport, now = Date.now,
   } = opts;
   // the ONE run-start path (sign and run both end in `starter.start`) and the Run-a-signed-flow door built on it
   const starter = createStarter({ root, bin });
   const flowsDoor = createFlowsDoor({
     root, home, skipMonthly, loadEnv, starter, monthlyClaim: (usd) => monthlyClaim(usd), modelRefusal: (card, loaded) => modelRefusal(card, loaded),
+  });
+
+  // M9: the trigger door (set the signed trigger, read it) and the one fire path the panel's scheduler calls
+  const triggerDoor = createTriggerDoor({
+    root, flowsDoor, starter, loadEnv, monthlyClaim: (usd) => monthlyClaim(usd), modelRefusal: (card, loaded) => modelRefusal(card, loaded), now,
   });
 
   /** The ONE monthly check, defined below (a function declaration, so the doors above may take it now). */
@@ -376,10 +382,21 @@ export function createAuthor(opts) {
   }
 
   return {
-    flows: flowsDoor.flows,
-    runAgain: flowsDoor.runAgain,
+    /** `GET /api/author/flows`, each listed job carrying its trigger card (M9 piece 5): the typed trigger, its words, and why it cannot be set (no good run yet). */
+    flows() {
+      const r = flowsDoor.flows();
+      if (r.status !== 200 || !Array.isArray(r.body.flows)) return r;
+      return { ...r, body: { ...r.body, flows: r.body.flows.map((f) => ({ ...f, trigger: triggerDoor.card(f.flow) })) } };
+    },
+    /** `GET /api/author/run-again`, its flow entry carrying the trigger card like the list's entries do. @param {string|null} flow @param {string|null} runId */
+    runAgain(flow, runId) {
+      const r = /** @type {any} */ (flowsDoor.runAgain(flow, runId));
+      if (r.status !== 200 || !r.body.flow) return r;
+      return { ...r, body: { ...r.body, flow: { ...r.body.flow, trigger: triggerDoor.card(r.body.flow.flow) } } };
+    },
     run: flowsDoor.run,
     runPrepare: flowsDoor.runPrepare,
+    trigger: triggerDoor,
     resumePrepare: resumeDoor.prepare,
     resumeForm: resumeDoor.form,
     resume: resumeDoor.resume,
@@ -429,6 +446,9 @@ export function createAuthor(opts) {
       });
       return { status: 200, body: { ok: true, lines, say: lines.length === 0 ? 'Tick a model in Settings > Providers.' : '' } };
     },
+
+    /** The starter's "this run's start is in phase `starting`" for the Runs list and a run's page (`startingFor`, the ONE rule). @param {string} flow @param {string} runId */
+    startingRun(flow, runId) { return starter.startingFor(flow, keysNow().keys, runId) !== null; },
 
     /** `GET /api/author/start/:startId`: the start's phase, read from its files. @param {string} id */
     startGet(id) { return starter.get(id, keysNow().keys); },

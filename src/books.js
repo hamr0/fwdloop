@@ -22,6 +22,7 @@ import { appendFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { readFileInside, readdirInside } from './flow.js';
+import { TRIGGER_RECORD_FILE } from './trigger-line.js';
 
 function appendLine(filePath, row) {
   mkdirSync(dirname(filePath), { recursive: true });
@@ -288,7 +289,11 @@ export function readAudit(runDir) {
  */
 export function appendHistory(flowDir, row) {
   checkCostField(row, 'spentUsd', 'appendHistory');
-  appendLine(join(flowDir, 'history.jsonl'), row);
+  // M9 (am2 item 1): a run a trigger started says so in its history row, read from the record the start wrote into the run's own folder
+  const rec = typeof row.runId === 'string' && row.trigger === undefined ? readFileInside(join(flowDir, 'runs', row.runId), TRIGGER_RECORD_FILE) : null;
+  let trigger;
+  if (rec !== null && rec.ok) { try { trigger = JSON.parse(rec.text); } catch { trigger = undefined; } }
+  appendLine(join(flowDir, 'history.jsonl'), trigger === undefined ? row : { ...row, trigger });
 }
 
 /**

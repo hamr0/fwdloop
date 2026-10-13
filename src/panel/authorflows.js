@@ -266,6 +266,12 @@ export function createFlowsDoor(opts) {
       return realRoot === null ? null : editBlockOf(realRoot, name);
     },
 
+    /** M9: the source paths the newest run of this job used, role -> path (blank = none), for a start a trigger fires. @param {string} name @param {string[]} roles */
+    lastSourcesOf(name, roles) {
+      const realRoot = realRootOrNull();
+      return realRoot === null ? { runId: null, sources: Object.fromEntries(roles.map((r) => [r, ''])) } : lastSources(join(realRoot, name), roles);
+    },
+
     /** `GET /api/author/flows`. */
     flows() {
       const realRoot = realRootOrNull();

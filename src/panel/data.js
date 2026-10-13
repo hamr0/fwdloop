@@ -38,6 +38,9 @@ import { readSpendRows } from '../provider.js';
 import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
 import { readSetup } from '../setup.js';
 import { checkedLines, notCheckedBlock, NOT_CHECKED_LABEL } from '../checked.js';
+import {
+  catchUpWords, endedWords, scheduledNextFor, scheduledWords,
+} from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import {
   runLiveness, booksFresh, readResumeLock,
@@ -360,13 +363,14 @@ export function glyphPulses(g) {
  *  - `[II]` stuck (M4c amendment 2, `isStuck`) — the answer is saved, not taken,
  *    and no live process (pid row or resume lock holder) carries the run on.
  *    A saved answer with a live process is `[▶]` working on your answer.
+ *  - `[▶]` starting (live-walk fix) — no end row, no open ask, no pid row yet, and the starter reads this run's start folder as phase `starting` (`ctx.starting`).
  *  - `[?]` crashed after taking your answer (amendment 2 (f)) — the answer was
  *    consumed, the process is gone, no end row: cannot be carried on.
- * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string, resumable?: boolean, stoppedAtAsk?: string|null, jobEdited?: boolean}} ctx
+ * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string, resumable?: boolean, stoppedAtAsk?: string|null, jobEdited?: boolean, starting?: boolean}} ctx
  * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]'|'[II]'|'[■]', label: string}}
  */
 export function computeGlyph({
-  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock, resumable, stoppedAtAsk, jobEdited,
+  historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock, resumable, stoppedAtAsk, jobEdited, starting,
 }) {
   if (historyRow) {
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
@@ -411,6 +415,8 @@ export function computeGlyph({
   // (`liveness`, src/liveness.js); with no row or no /proc (`unknown`), the
   // 10-minute books rule. Never `[▶]` off a parked ask (branches above).
   if (liveness === 'running') return { glyph: '[▶]', label: 'running' };
+  // The starter's own word (`startingFor`): the start folder is alive and the run has no pid row yet — not a crash.
+  if (starting === true && liveness !== 'gone') return { glyph: '[▶]', label: 'starting' };
   if (liveness === 'gone') return { glyph: '[?]', label: 'the process working on this run is gone (no end row was written)' };
   if (booksFresh) return { glyph: '[▶]', label: 'running (no pid record; its books changed in the last 10 minutes)' };
   if (hasStateJson && !askJson) {
@@ -883,9 +889,10 @@ const JOB_EDITED_LINE = 'stopped — the job was edited; start a new run';
  * @param {string} runId
  * @param {any} catalogue
  * @param {any} [attempt] the panel's in-memory resume-attempt record for this run, or null
+ * @param {(flow: string, runId: string) => boolean} [startingRun] the starter's "this run's start is in phase `starting`" (absent = no)
  * @returns {any}
  */
-function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attempt = null) {
+function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attempt = null, startingRun = undefined) {
   const flowRead = readFlow({ root, name: flowName, catalogue });
   // M4e amendment 5 item 3 / amendment 4 item 6: the run's own signed values (its newest version) lie over the flow's
   const inForce = flowRead.ok ? applyRunValues(flowRead.arbiter, flowName, flowRead.signature.flow, pickRunValues(runDir)) : null;
@@ -934,6 +941,7 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     // M4c exit walk: when the process that is working on the run started (its newest pid row's
     // own `startedAt`), so a `[▶]` run has a real time and never "parked or died". Not a book change.
     startedAt: historyRow ? null : lastPidStartedAt(runDir),
+    starting: !historyRow && !askJson && startingRun?.(flowName, runId) === true,
   };
 }
 
@@ -1039,11 +1047,11 @@ export function getRunControls({
  * null`, an explicit `why`) — no flow is silently missing from the list.
  * Ordered by `orderRuns` (waiting on you, running, then newest `at` first; a row
  * with no `at` is never given a guessed one).
- * @param {{root: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any}} opts
- *   `resumeAttempt`: the panel's in-memory resume-attempt lookup (M4b piece 2); absent = none.
+ * @param {{root: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any, startingRun?: (flow: string, runId: string) => boolean}} opts
+ *   `startingRun`: the starter's phase-`starting` rule for one run (absent = no). `resumeAttempt`: the panel's in-memory resume-attempt lookup (M4b piece 2); absent = none.
  * @returns {any[]}
  */
-export function listRuns({ root, catalogue, resumeAttempt }) {
+export function listRuns({ root, catalogue, resumeAttempt, startingRun }) {
   const rows = [];
   for (const flowName of listFlowNames(root)) {
     const flowDir = join(root, flowName);
@@ -1063,7 +1071,7 @@ export function listRuns({ root, catalogue, resumeAttempt }) {
         });
         continue;
       }
-      const ctx = loadRunContext(root, run.flowDir, run.runDir, flowName, runId, catalogue, resumeAttempt?.(flowName, runId) ?? null);
+      const ctx = loadRunContext(root, run.flowDir, run.runDir, flowName, runId, catalogue, resumeAttempt?.(flowName, runId) ?? null, startingRun);
       const { glyph, label } = computeGlyph(ctx);
       // M4c amendment 1 (c): the ask waiting on the human, by the same rule
       // listStops uses (deriveAskOpenFields) — the least time left if several.
@@ -1204,6 +1212,69 @@ function computeTryCount(closeClass, listAll) {
   return list.length;
 }
 
+/** The job line a step of this run came from (`fromLine` of the declared step that emits `emits`), or null when the books cannot say. */
+function lineOfStep(ctx, emits) {
+  if (!ctx.flowRead.ok || typeof emits !== 'string') return null;
+  const st = (ctx.flowRead.declaration.steps ?? []).find((x) => x.emits === emits);
+  return st && Number.isInteger(st.fromLine) ? st.fromLine : null;
+}
+
+/** The job line of the ask a waiting run is parked at: its newest `paused` audit row's step. */
+function waitingLineOf(ctx) {
+  let emits = null;
+  for (const r of ctx.auditRows) if (r.verdict === 'paused') emits = r.step;
+  return lineOfStep(ctx, emits);
+}
+
+/**
+ * M9 piece 6: the line of the ask this JOB is waiting at (any of its runs, the newest first), or null. Reads each run that holds an ask
+ * through the same `runControls` the Stop door uses (`atAsk`), so "waiting" is one decision.
+ */
+function jobWaitingLine(root, flowDir, flow, catalogue) {
+  const ids = listRunIds(flowDir).sort((a, b) => (Number(b.replace(/\D/g, '')) || 0) - (Number(a.replace(/\D/g, '')) || 0));
+  for (const id of ids) {
+    const run = resolveRunDir(flowDir, id);
+    if (!run.ok || !readAsk(run.runDir)) continue; // eslint-disable-line no-continue
+    const ctx = loadRunContext(root, flowDir, run.runDir, flow, id, catalogue, null);
+    const g = computeGlyph(ctx);
+    if (runControls(ctx, g.glyph, g.label).atAsk) return waitingLineOf(ctx);
+  }
+  return null;
+}
+
+/**
+ * M9 piece 6 (ladder M9 item 7): the summary block at the top of a run page, as data. Words come from `src/summary-words.js` only, built
+ * from typed facts (the history row's outcome, the declared step's line, the signed trigger and its ledger). `ended` is null while the run
+ * is live; `scheduled` is null when the job has no trigger; `catchUp` is a fixed sentence when this run was started late (am2 item 1).
+ * @returns {{ended: {reason: string, next: string}|null, scheduled: {text: string, next: string, nextRed: boolean}|null, catchUp: string|null}}
+ */
+function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
+  const died = !ctx.historyRow && glyph === '[?]';
+  const outcome = ctx.historyRow ? ctx.historyRow.outcome ?? null : null;
+  let line = null;
+  if (outcome !== null && outcome !== 'complete') {
+    let emits = null;
+    for (const r of ctx.auditRows) if (isBlockedVerdict(r.verdict)) emits = r.step;
+    line = lineOfStep(ctx, emits);
+  }
+  const send = ctx.arbiter && Array.isArray(ctx.arbiter.sends) ? ctx.arbiter.sends.find((x) => x.target && typeof x.target.path === 'string') : undefined;
+  const ended = endedWords({
+    outcome, died, line, destination: send ? send.target.path : null, canResume: ctx.resumable === true && ctx.sameJob === true, home,
+  });
+  let scheduled = null;
+  const t = typeof triggerRead === 'function' ? triggerRead(ctx.flowName) : null;
+  if (t && t.trigger) {
+    const nx = scheduledNextFor({
+      trigger: t.trigger, armed: t.armed, nextSlotMs: t.nextSlotMs, lastOutcome: t.lastOutcome, waitingLine: jobWaitingLine(root, ctx.flowDir, ctx.flowName, catalogue), now: now(),
+    });
+    scheduled = { text: String(scheduledWords(t.trigger, home)), next: nx.text, nextRed: nx.red };
+  }
+  let rec = null;
+  const f = readFileInside(ctx.runDir, 'trigger.json');
+  if (f.ok) { try { rec = JSON.parse(f.text); } catch { rec = null; } }
+  return { ended, scheduled, catchUp: catchUpWords(rec) };
+}
+
 /**
  * `GET /api/runs/:flow/:runId` — the Run tab (M4a scope item 2): the step
  * map from `declaration.steps`, step cards -> attempts from `audit.jsonl`
@@ -1211,17 +1282,17 @@ function computeTryCount(closeClass, listAll) {
  * `log.json`. `null` when the flow/runId doesn't resolve to a real run
  * directory at all (caller renders 404); a `red` field names why a
  * sub-derivation couldn't fill (never invented).
- * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any}} opts
+ * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any, startingRun?: (flow: string, runId: string) => boolean, triggerRead?: (flow: string) => any, now?: () => number, home?: string}} opts
  * @returns {any|null}
  */
 export function getRunDetail({
-  root, flow, runId, catalogue, resumeAttempt,
+  root, flow, runId, catalogue, resumeAttempt, startingRun, triggerRead, now = Date.now, home,
 }) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
 
-  const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, resumeAttempt?.(flow, runId) ?? null);
+  const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, resumeAttempt?.(flow, runId) ?? null, startingRun);
   const { glyph, label } = computeGlyph(ctx);
 
   // hamr's 2026-09-27 step-card review: the Run tab's step cards reuse the
@@ -1438,6 +1509,8 @@ export function getRunDetail({
     signWords: SIGN_WORDS,
     pulse: glyphPulses({ glyph, label }),
     controls: runControls(ctx, glyph, label),
+    // M9 piece 6: the block at the top of the run page (ENDED / NEXT, SCHEDULED / NEXT), words set by code
+    summary: runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }),
     resume: ctx.resume,
     outcome: ctx.historyRow ? ctx.historyRow.outcome : null,
     outcomeWhy: ctx.historyRow ? null : (isRunningNow(ctx, glyph) ? RUNNING_WHY : 'no history row (parked or died before completion)'),
@@ -1656,7 +1729,10 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null) {
     };
   });
   const setup = readSetup(flowDir);
-  const signRow = setup.present ? setup.rows.find((r) => r.kind === 'sign') : undefined;
+  // the signing of THIS job: the sign / trigger-only re-sign row carrying its flow hash; else the first sign row (which then reads as another signing)
+  const signRow = setup.present
+    ? (setup.rows.findLast((r) => (r.kind === 'sign' || r.kind === 'trigger-resign') && flowHash !== null && r.flowHash === flowHash) ?? setup.rows.find((r) => r.kind === 'sign'))
+    : undefined;
   const ofThisJob = !!signRow && (typeof signRow.flowHash !== 'string' || flowHash === null || signRow.flowHash === flowHash);
   const nc = ofThisJob ? signRow?.notChecked : undefined;
   const recorded = !!nc && Array.isArray(nc.items);

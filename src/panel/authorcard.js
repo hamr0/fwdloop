@@ -238,7 +238,8 @@ export function cardFromSigned({ lines, arbiter }) {
     askWait: firstWait ?? '1h',
   };
   const again = parseSignedText(cardToProse(cardFields({ ...card, flowName: 'x' })));
-  const norm = (a) => JSON.stringify({ ...a, asks: (a.asks ?? []).map(({ ttlSigned, ...rest }) => rest) });
+  // M9 am1: the trigger is not a box on the card, and signing an Edit clears it (By hand again), so it is not part of the fidelity check
+  const norm = (a) => JSON.stringify({ ...a, trigger: null, asks: (a.asks ?? []).map(({ ttlSigned, ...rest }) => rest) });
   const sameLines = again.ok && JSON.stringify(again.lines) === JSON.stringify(lines);
   if (!sameLines || norm(again.arbiter) !== norm(arbiter)) return no();
   return { ok: true, card };

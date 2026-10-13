@@ -1,0 +1,260 @@
+// M9 piece 2 (docs/wiki/the-module-ladder.md, "M9" item 6, amendment 2 item 2): the file triggers.
+// $0, no network, no sleeps: poll() is driven by hand, and mtimes are set explicitly so filesystem
+// timestamp granularity cannot make a case flake.
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import path from 'node:path';
+import {
+  writeFileSync, appendFileSync, mkdirSync, symlinkSync, unlinkSync, utimesSync, readFileSync, existsSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
+import { queueOf as queueOfSync, createFileTrigger, readSeen, recordArrived, recordDropped, recordRan, STABLE_POLLS } from '../src/trigger-files.js';
+
+const root = () => mkdtempSync(path.join(tmpdir(), 'm9files-'));
+const sha = (s) => createHash('sha256').update(s).digest('hex');
+/** @returns {{dir:string, ledger:string, base:string}} */
+function setup() {
+  const base = root(); const dir = path.join(base, 'inbox'); mkdirSync(dir);
+  return { base, dir, ledger: path.join(base, 'seen.jsonl') };
+}
+const LEDGERS = new WeakMap();
+const mkTrigger = (o) => { const w = createFileTrigger(o); LEDGERS.set(w, o.ledger); return w; };
+/** What the scheduler does with a poll (M9 am3: the scheduler is the ledger's only writer): arrived, then ran, each file taken. */
+function record(w, items) {
+  for (const it of items) { recordArrived(LEDGERS.get(w), it, Date.now()); recordRan(LEDGERS.get(w), it, Date.now()); }
+  return items;
+}
+/** Poll `n` times, recording like the scheduler; returns every taken item. */
+function pollN(w, n = STABLE_POLLS + 2) {
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(...record(w, w.poll().arrived));
+  return out;
+}
+let mt = 1_700_000_000;
+const stamp = (p) => { mt += 10; utimesSync(p, mt, mt); };
+
+test('stable for 2 consecutive polls: taken at the poll where size AND mtime match twice in a row', () => {
+  assert.equal(STABLE_POLLS, 2);
+  const { dir, ledger } = setup();
+  const w = mkTrigger({ mode: 'new', target: dir, ledger }); w.arm();
+  const f = path.join(dir, 'a.csv'); writeFileSync(f, 'x,1\n'); stamp(f);
+  assert.equal(w.poll().arrived.length, 0, 'first sight');
+  assert.equal(w.poll().arrived.length, 0, 'one match');
+  const r = w.poll().arrived;
+  assert.equal(r.length, 1, 'two matches');
+  assert.equal(r[0].sha, sha('x,1\n'));
+  assert.equal(r[0].size, 4);
+  assert.equal(path.basename(r[0].path), 'a.csv');
+  assert.equal(pollN(w).length, 0, 'never re-taken');
+});
+
+test('a file still being written is not taken until it stops changing', () => {
+  const { dir, ledger } = setup();
+  const w = mkTrigger({ mode: 'new', target: dir, ledger }); w.arm();
+  const f = path.join(dir, 'big.csv'); writeFileSync(f, 'chunk0\n');
+  const taken = [];
+  for (let i = 1; i <= 8; i++) { // grows between EVERY poll
+    appendFileSync(f, `chunk${i}\n`); stamp(f);
+    taken.push(...w.poll().arrived); taken.push(...w.poll().arrived); // two polls on the same state is still only 1 match
+    appendFileSync(f, 'more\n'); stamp(f);
+  }
+  assert.equal(taken.length, 0, 'growing file never taken');
+  stamp(f);
+  const done = pollN(w);
+  assert.equal(done.length, 1);
+  assert.equal(done[0].sha, sha(readFileSync(f)));
+  assert.equal(done[0].size, readFileSync(f).length, 'whole file, not a prefix');
+});
+
+test('same size but new mtime counts as changing (in-place rewrite)', () => {
+  const { dir, ledger } = setup();
+  const w = mkTrigger({ mode: 'new', target: dir, ledger }); w.arm();
+  const f = path.join(dir, 'a.csv'); writeFileSync(f, 'aaaa'); stamp(f);
+  w.poll(); w.poll();
+  writeFileSync(f, 'bbbb'); stamp(f); // same size, different mtime, one poll before it would be taken
+  assert.equal(w.poll().arrived.length, 0, 'counter restarted');
+  assert.equal(w.poll().arrived.length, 0);
+  const r = w.poll().arrived;
+  assert.equal(r.length, 1);
+  assert.equal(r[0].sha, sha('bbbb'));
+});
+
+test('same file dropped twice runs once (same name, and another name)', () => {
+  const { dir, ledger } = setup();
+  const w = mkTrigger({ mode: 'new', target: dir, ledger }); w.arm();
+  const x = path.join(dir, 'X.csv');
+  writeFileSync(x, 'invoice,100\n');
+  assert.equal(pollN(w).length, 1);
+  writeFileSync(path.join(dir, 'X-copy.csv'), 'invoice,100\n');
+  assert.equal(pollN(w).length, 0, 'same content, other name');
+  unlinkSync(x); writeFileSync(x, 'invoice,100\n'); stamp(x);
+  assert.equal(pollN(w).length, 0, 're-dropped under the same name');
+  writeFileSync(path.join(dir, 'Y.csv'), 'invoice,200\n');
+  const y = pollN(w);
+  assert.deepEqual(y.map((r) => path.basename(r.path)), ['Y.csv'], 'a different file still runs');
+});
+
+test('never twice across restart: a fresh trigger on the same ledger rereads it', () => {
+  const { dir, ledger } = setup();
+  let w = mkTrigger({ mode: 'new', target: dir, ledger }); w.arm();
+  writeFileSync(path.join(dir, 'X.csv'), 'invoice,100\n');
+  assert.equal(pollN(w).length, 1);
+  w = mkTrigger({ mode: 'new', target: dir, ledger }); // restart: no process state
+  const x = path.join(dir, 'X.csv'); unlinkSync(x); writeFileSync(x, 'invoice,100\n');
+  writeFileSync(path.join(dir, 'again.csv'), 'invoice,100\n');
+  assert.equal(pollN(w, 8).length, 0);
+  assert.deepEqual(readSeen(ledger).filter((r) => r.sha === sha('invoice,100\n')).map((r) => r.kind), ['arrived', 'ran'], 'one arrived and one ran row per sha');
+});
+
+test('poll() writes nothing; arrived and ran are the caller\'s rows (a poll that was never recorded is handed out again after a restart)', () => {
+  const { dir, ledger } = setup();
+  const w = mkTrigger({ mode: 'new', target: dir, ledger }); w.arm();
+  writeFileSync(path.join(dir, 'X.csv'), 'q\n');
+  w.poll(); w.poll();
+  const r = w.poll().arrived;
+  assert.equal(r.length, 1);
+  assert.deepEqual(readSeen(ledger), [], 'no row yet: the scheduler writes them');
+  const w2 = mkTrigger({ mode: 'new', target: dir, ledger });
+  assert.equal(pollN(w2, 8).length, 1, 'never recorded: it arrives again');
+  assert.equal(pollN(mkTrigger({ mode: 'new', target: dir, ledger }), 8).length, 0, 'recorded: it never does');
+});
+
+test('a folder holding 3 files at arm: no run (am2 item 2)', () => {
+  const { dir, ledger } = setup();
+  for (const n of ['a.csv', 'b.csv', 'c.csv']) writeFileSync(path.join(dir, n), `${n}\n`);
+  const w = mkTrigger({ mode: 'new', target: dir, ledger }); w.arm();
+  assert.equal(pollN(w, 10).length, 0);
+  assert.equal(readSeen(ledger).filter((r) => r.kind === 'baseline').length, 3);
+  writeFileSync(path.join(dir, 'd.csv'), 'd\n');
+  assert.deepEqual(pollN(w).map((r) => path.basename(r.path)), ['d.csv'], 'only a new file runs');
+});
+
+test('file-updated: the current version does not run; a change after arming does; touch/same content does not', () => {
+  const { base, ledger } = setup();
+  const f = path.join(base, 'invoices.xlsx'); writeFileSync(f, 'v1'); stamp(f);
+  const w = mkTrigger({ mode: 'updated', target: f, ledger }); w.arm();
+  assert.equal(pollN(w, 8).length, 0, 'current version is the baseline');
+  writeFileSync(f, 'version two'); stamp(f);
+  const r = pollN(w);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].sha, sha('version two'));
+  stamp(f); // touch only
+  assert.equal(pollN(w).length, 0, 'mtime moved, sha same');
+  writeFileSync(f, 'v1'); stamp(f);
+  assert.equal(pollN(w).length, 1, 'the baseline version coming back after a change is a change (item 6: only a sha that RAN is never run again)');
+  writeFileSync(f, 'v1'); stamp(f);
+  assert.equal(pollN(w).length, 0, 'now v1 has run: never again');
+  writeFileSync(f, 'v3'); stamp(f);
+  assert.equal(pollN(w).length, 1);
+});
+
+test('F1 file-updated: A (baseline) -> B (runs) -> A arrives; A again after it ran does not', () => {
+  const { base, ledger } = setup();
+  const f = path.join(base, 'f.txt'); writeFileSync(f, 'AAAA'); stamp(f);
+  const w = mkTrigger({ mode: 'updated', target: f, ledger }); w.arm();
+  assert.equal(pollN(w, 8).length, 0, 'armed on A: nothing');
+  writeFileSync(f, 'BBBBB'); stamp(f);
+  assert.deepEqual(pollN(w).map((r) => r.sha), [sha('BBBBB')]);
+  writeFileSync(f, 'AAAA'); stamp(f);
+  assert.deepEqual(pollN(w).map((r) => r.sha), [sha('AAAA')], 'A is a change away from B');
+  writeFileSync(f, 'BBBBB'); stamp(f);
+  assert.equal(pollN(w).length, 0, 'B ran: never again');
+});
+
+test('F1 a version that arrived and is still queued does not arrive twice; one that was dropped (never ran) may arrive again', () => {
+  const { base, ledger } = setup();
+  const f = path.join(base, 'f.txt'); writeFileSync(f, 'AAAA'); stamp(f);
+  const w = mkTrigger({ mode: 'updated', target: f, ledger }); w.arm();
+  writeFileSync(f, 'BBBBB'); stamp(f);
+  const [b] = (() => { let r; for (let i = 0; i < 4 && !(r = w.poll().arrived).length; i++); return r; })();
+  recordArrived(ledger, b, Date.now()); // queued, not run
+  stamp(f);
+  assert.equal(w.poll().arrived.length + w.poll().arrived.length + w.poll().arrived.length, 0, 'queued: not twice');
+  recordDropped(ledger, { ...b, ...readSeen(ledger).find((r) => r.kind === 'arrived') }, 'changed', Date.now());
+  stamp(f);
+  const again = (() => { let r = []; for (let i = 0; i < 4 && !r.length; i++) r = w.poll().arrived; return r; })();
+  assert.deepEqual(again.map((r) => r.sha), [sha('BBBBB')], 'dropped never ran: arrives again');
+  recordArrived(ledger, again[0], Date.now());
+  assert.equal(readSeen(ledger).filter((r) => r.kind === 'arrived').length, 2, 'a second arrived row is written');
+  assert.deepEqual(queueOfSync(readSeen(ledger)).map((r) => r.sha), [sha('BBBBB')], 'queued again once');
+});
+
+test('F1 new-file: a baseline file sitting in the folder never arrives; its content under a NEW name does (it never ran)', () => {
+  const { dir, ledger } = setup();
+  writeFileSync(path.join(dir, 'old.csv'), 'same\n');
+  const w = mkTrigger({ mode: 'new', target: dir, ledger }); w.arm();
+  for (let i = 0; i < 20; i++) assert.equal(record(w, w.poll().arrived).length, 0, `poll ${i}: the baseline file never runs`);
+  const f2 = path.join(dir, 'copy.csv'); writeFileSync(f2, 'same\n'); stamp(f2);
+  assert.deepEqual(pollN(w).map((r) => path.basename(r.path)), ['copy.csv'], 'baseline is keyed name+sha: a new name is a new file');
+  const f3 = path.join(dir, 'third.csv'); writeFileSync(f3, 'same\n'); stamp(f3);
+  assert.equal(pollN(w).length, 0, 'that sha has now run: never again');
+});
+
+test('file-updated: file missing at arm, then created, is a change and runs', () => {
+  const { base, ledger } = setup();
+  const f = path.join(base, 'later.csv');
+  const w = mkTrigger({ mode: 'updated', target: f, ledger }); w.arm();
+  assert.equal(pollN(w).length, 0, 'absent is quiet, not an error');
+  writeFileSync(f, 'hello'); stamp(f);
+  assert.equal(pollN(w).length, 1);
+});
+
+test('new-file: top level, regular files only; subfolders and symlinks are not taken', () => {
+  const { base, dir, ledger } = setup();
+  const w = mkTrigger({ mode: 'new', target: dir, ledger }); w.arm();
+  mkdirSync(path.join(dir, 'sub')); writeFileSync(path.join(dir, 'sub', 'deep.csv'), 'deep\n');
+  const outside = path.join(base, 'secret.txt'); writeFileSync(outside, 'secret\n');
+  symlinkSync(outside, path.join(dir, 'link.txt'));
+  symlinkSync(path.join(base), path.join(dir, 'dirlink'));
+  writeFileSync(path.join(dir, 'ok.csv'), 'ok\n');
+  const out = [];
+  for (let i = 0; i < 8; i++) out.push(...record(w, w.poll().arrived));
+  assert.deepEqual(out.map((r) => path.basename(r.path)), ['ok.csv']);
+});
+
+test('refused symlinks are reported by name, once', () => {
+  const { base, dir, ledger } = setup();
+  const w = mkTrigger({ mode: 'new', target: dir, ledger }); w.arm();
+  const outside = path.join(base, 'secret.txt'); writeFileSync(outside, 's\n');
+  symlinkSync(outside, path.join(dir, 'link.txt'));
+  const first = w.poll();
+  assert.equal(first.refused.length, 1);
+  assert.match(first.refused[0].why, /symlink/);
+  assert.equal(path.basename(first.refused[0].path), 'link.txt');
+  assert.equal(w.poll().refused.length, 0, 'said once');
+});
+
+test('file-updated refuses a symlink target', () => {
+  const { base, ledger } = setup();
+  const real = path.join(base, 'real.csv'); writeFileSync(real, 'a');
+  const link = path.join(base, 'link.csv'); symlinkSync(real, link);
+  const w = mkTrigger({ mode: 'updated', target: link, ledger });
+  assert.throws(() => w.arm(), /symlink/);
+  const w2 = mkTrigger({ mode: 'updated', target: link, ledger });
+  const r = w2.poll();
+  assert.equal(r.arrived.length, 0);
+  assert.match(r.refused[0].why, /symlink/);
+});
+
+test('modes and targets are validated by name', () => {
+  const { dir, ledger } = setup();
+  assert.throws(() => mkTrigger({ mode: 'watch', target: dir, ledger }), /mode "watch"/);
+  assert.throws(() => mkTrigger({ mode: 'new', target: path.join(dir, 'nope'), ledger }).arm(), /folder/);
+  const f = path.join(dir, 'f.csv'); writeFileSync(f, '1');
+  assert.throws(() => mkTrigger({ mode: 'new', target: f, ledger }).arm(), /folder/);
+  assert.throws(() => mkTrigger({ mode: 'updated', target: dir, ledger }).arm(), /file/);
+});
+
+test('ledger is JSONL, write-once per sha, no mutable latest file', () => {
+  const { base, dir, ledger } = setup();
+  const w = mkTrigger({ mode: 'new', target: dir, ledger }); w.arm();
+  writeFileSync(path.join(dir, 'a'), '1'); writeFileSync(path.join(dir, 'b'), '2');
+  pollN(w);
+  const rows = readFileSync(ledger, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  assert.equal(new Set(rows.map((r) => r.id)).size, 4);
+  assert.equal(rows.length, 4, 'one arrived and one ran row per sha');
+  assert.ok(rows.every((r) => r.id === `${r.kind}:${r.sha}`));
+  assert.deepEqual(readSeen(path.join(base, 'none.jsonl')), []);
+});
