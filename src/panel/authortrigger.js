@@ -204,7 +204,7 @@ export function createTriggerDoor(opts) {
     prepare(body) {
       const s = inspect(body);
       if (!s.ok) return s.reply;
-      return { status: 200, body: { ok: true, flow: s.flow, trigger: s.trigger, hash: s.hash } };
+      return { status: 200, body: { ok: true, flow: s.flow, trigger: s.trigger, words: scheduledWords(s.trigger), hash: s.hash } };
     },
 
     /**
@@ -232,7 +232,7 @@ export function createTriggerDoor(opts) {
       if (s.trigger !== null) {
         try { armFor(s.flowDir, written.signature.flow, s.trigger, now()); } catch (e) { armed = false; armSay = /** @type {Error} */ (e).message; }
       }
-      return { status: 200, body: { ok: true, flow: s.flow, trigger: s.trigger, flowHash: written.signature.flow, armed, ...(armSay === null ? {} : { say: `The trigger is signed but not armed yet: ${armSay}.` }) } };
+      return { status: 200, body: { ok: true, flow: s.flow, trigger: s.trigger, words: scheduledWords(s.trigger), flowHash: written.signature.flow, armed, ...(armSay === null ? {} : { say: `The trigger is signed but not armed yet: ${armSay}.` }) } };
     },
 
     /** Every signed job that has a trigger, as the scheduler needs it: `{flow, flowDir, read, trigger}`. Reads each job the way the CLI will (signature verified). */

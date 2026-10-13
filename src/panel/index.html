@@ -4080,7 +4080,7 @@
       if(st.mode === "run"){
         // M9 am4: When changed from the signed value = the one button is Sign schedule (two clicks, $0, starts nothing); it never reaches the run routes
         if(st.whenChanged){
-          return {text: "Sign schedule", action: st.whenSigning ? "when-sign" : "when-sign-prepare", disabled: !!st.whenBusy || !!st.busy};
+          return {text: "Sign schedule", action: st.whenSigning ? "when-sign" : "when-sign-prepare", disabled: !!st.whenBusy || !!st.busy || !!st.whenLocked};
         }
         // amendment 5 item 3: inputs alone = Run (one click); a Destination, Cap $ or ask wait different from the flow's = Sign & run (two clicks, bound to a hash)
         if(st.runDiffers){
@@ -4090,7 +4090,7 @@
           }
           return {text: "Sign & run", action: "run-sign-prepare", disabled: blocked};
         }
-        return {text: "Run now" + spends, action: "run", disabled: blocked};
+        return {text: "Run now" + spends, action: "run", disabled: blocked || !!st.whenLocked};
       }
       if(st.mode === "resume"){
         if(st.runSignClicked){
@@ -4634,6 +4634,9 @@
     // A job with no good run gets the dropdown refused with the SERVER's sentence (`trigger.refusal`); the page writes no sentence of its own.
     var whenHash = null;
     var whenBusy = false;
+    var whenNote = "";        // the line under the button: "Click again to sign: ..." after click 1, "Saved. ..." after click 2 (cleared by a When edit or a run)
+    var whenNoteFlow = "";
+    var whenLocked = false;   // ~1.5 s after a successful sign the main button is disabled, so a fast extra click cannot start a run
     var whenReady = false;   // the lock sync can run before this block has
     function whenCanon(t){ return t === null ? "null" : JSON.stringify(Object.keys(t).sort().map(function(k){ return [k, t[k]]; })); }
     function whenTriggerFromBoxes(){
@@ -4672,6 +4675,7 @@
       var c = f ? f.trigger : null;
       var sel = byId("jf-when");
       whenHash = null; whenBusy = false;
+      if(!f || whenNoteFlow !== f.flow){ whenNote = ""; whenNoteFlow = ""; }
       byId("jf-err-when").textContent = "";
       var roleSel = byId("jf-when-role");
       roleSel.innerHTML = "";
@@ -4688,7 +4692,7 @@
       byId("jf-when-now").textContent = !c ? "" : (c.refusal ? c.refusal : (c.words ? "Now: " + c.words : ""));
       whenShowSubs(); whenSyncButton();
     }
-    function whenEdited(){ whenHash = null; byId("jf-err-when").textContent = ""; whenShowSubs(); whenSyncButton(); }
+    function whenEdited(){ whenHash = null; whenNote = ""; byId("jf-err-when").textContent = ""; whenShowSubs(); whenSyncButton(); }
     ["jf-when", "jf-when-day", "jf-when-time", "jf-when-role"].forEach(function(id){ document.getElementById(id).addEventListener("change", whenEdited); });
     document.getElementById("jf-when-path").addEventListener("input", whenEdited);
     function doWhenSign(){
@@ -4701,14 +4705,21 @@
       authorPost(second ? "/api/author/trigger" : "/api/author/trigger-prepare", body).then(function(r){
         whenBusy = false;
         if(!(r.status >= 200 && r.status < 300 && r.body && r.body.ok === true)){
-          whenHash = null; byId("jf-err-when").textContent = refusalText(r); whenSyncButton(); return;
+          whenHash = null; whenNote = ""; byId("jf-err-when").textContent = refusalText(r); whenSyncButton(); return;
         }
-        if(!second){ whenHash = r.body.hash; byId("jf-err-when").textContent = ""; whenSyncButton(); return; }
-        whenHash = null;
+        var words = typeof r.body.words === "string" ? r.body.words : "";
+        if(!second){
+          whenHash = r.body.hash; whenNoteFlow = f.flow;
+          whenNote = "Click again to sign: " + (words || "By hand") + ". Nothing will run now.";
+          byId("jf-err-when").textContent = ""; whenSyncButton(); return;
+        }
+        whenHash = null; whenNoteFlow = f.flow;
+        whenNote = words ? "Saved. It runs by itself " + words.charAt(0).toLowerCase() + words.slice(1) + ". Nothing ran." : "Saved. It no longer runs by itself. Nothing ran.";
+        whenLocked = true; setTimeout(function(){ whenLocked = false; renderMain(); }, 1500);
         var say = typeof r.body.say === "string" ? r.body.say : "";
         loadFlows(true);
         if(say) byId("jf-err-when").textContent = say;
-      }).catch(function(){ whenBusy = false; whenHash = null; byId("jf-err-when").textContent = NETWORK_SAY; whenSyncButton(); });
+      }).catch(function(){ whenBusy = false; whenHash = null; whenNote = ""; byId("jf-err-when").textContent = NETWORK_SAY; whenSyncButton(); });
     }
     whenReady = true;
     // borrowed-from: bareloop src/panel/index.html@b5e37b8 — the Reuse workflow picker: ONE function shows the search box + list before a pick and the
@@ -4945,6 +4956,7 @@
         st.whenChanged = whenChanged();
         st.whenSigning = whenHash !== null;
         st.whenBusy = whenBusy;
+        st.whenLocked = whenLocked;
       } else if(mode === "resume"){
         st.capUsd = resumeCapEl.value.trim();
         st.runSignClicked = !!resumeSignInfo;
@@ -4962,6 +4974,8 @@
       mainHint.textContent = (mode === "new" && sessionLive && st.revisable && st.phase !== "signed" && st.phase !== "questions-open") ? (st.left > 0 ? revisesLeftText(st.left) : "No revises left: Start over keeps the fields and gives 2 new ones.") : "";
       // M4d am16 item 3: the first Sign click shows how the card's Cap $ is split between drafting and this run, before the second click starts it
       if(mode === "new" && sessionLive && signInfo && signInfo.split && signClickedOnce) mainHint.textContent = signInfo.split.line;
+      // M9 am4: the Sign schedule clicks speak under the button (the server's trigger words): after click 1 and after the save
+      if(mode === "run" && whenNote) mainHint.textContent = whenNote;
       reviseBtn.hidden = !reviseShownFor(st);
       reviseBtn.disabled = !!st.busy;
       startOverBtn.hidden = !startOverShownFor(st);
@@ -5140,6 +5154,7 @@
       }).catch(function(){ busy = false; chatActionFailed(NETWORK_SAY); refreshStartEnabled(); });
     }
     function doRun(){
+      whenNote = "";
       clearFieldErrors();
       chatActionOk();
       busy = true;

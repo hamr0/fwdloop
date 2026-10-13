@@ -48,12 +48,24 @@ test('browser: changing When turns the main button into Sign schedule; two click
   assert.match(await label(), /^Run now — spends up to \$/, 'unchanged When: the main button runs');
   await chrome.ev('(function(){ var s = document.getElementById("jf-when"); s.value = "daily"; s.dispatchEvent(new Event("change", {bubbles: true})); })()');
   assert.equal(await label(), 'Sign schedule');
-  await chrome.ev('document.getElementById("chat-main-btn").click()');
+  const btn = 'document.getElementById("chat-main-btn")';
+  assert.equal(await chrome.ev(`(function(){ ${btn}.click(); return ${btn}.disabled; })()`), true, 'dimmed at once on click 1');
   assert.ok(await chrome.waitFor('window.__posts.some(function(p){ return p.indexOf("trigger-prepare") !== -1; })'), 'click 1 = prepare');
+  assert.ok(await chrome.waitFor(`!${btn}.disabled`), 'click 1 returns: undimmed');
   assert.equal(await label(), 'Sign schedule');
-  await chrome.ev('document.getElementById("chat-main-btn").click()');
+  const hint = 'document.getElementById("chat-main-hint")';
+  assert.ok(await chrome.waitFor(`/Click again to sign: Every day at \\d\\d:\\d\\d\\. Nothing will run now\\./.test(${hint}.textContent)`), 'confirm line shown after click 1');
+  assert.equal(await chrome.ev(`(function(){ ${btn}.click(); return ${btn}.disabled; })()`), true, 'dimmed at once on click 2');
   assert.ok(await chrome.waitFor('window.__posts.some(function(p){ return /author\\/trigger$/.test(p); })'), 'click 2 = sign');
-  assert.ok(await chrome.waitFor('/^Run now/.test(document.getElementById("chat-main-btn").textContent)'), 'after success it reads Run again');
+  assert.ok(await chrome.waitFor(`/^Saved\\. It runs by itself every day at \\d\\d:\\d\\d\\. Nothing ran\\./.test(${hint}.textContent)`), 'saved line shown');
+  assert.ok(await chrome.waitFor(`/^Run now/.test(${btn}.textContent)`), 'after success it reads Run again');
+  assert.equal(await chrome.ev(`${btn}.disabled`), true, 'still dimmed in the post-sign window');
+  await chrome.ev(`${btn}.click()`); // a fast third click: disabled, starts nothing
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal((await chrome.ev('window.__posts')).filter((p) => /\/api\/author\/run/.test(p)).length, 0, 'the click-through starts no run');
+  assert.deepEqual(w.starts(), [], 'no start folder after the third click');
+  assert.ok(await chrome.waitFor(`!${btn}.disabled`, 5000), 'undimmed after the window');
+  assert.match(await chrome.ev(`${hint}.textContent`), /^Saved\./, 'saved line stays after reload');
   const posts = await chrome.ev('window.__posts');
   assert.equal(posts.filter((p) => /\/api\/author\/run/.test(p)).length, 0, `no run route hit: ${posts}`);
   assert.deepEqual(w.starts(), [], 'no start folder');
