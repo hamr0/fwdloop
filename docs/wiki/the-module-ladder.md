@@ -2239,6 +2239,10 @@ monthly wall is enforced **by the trigger**, before a run starts.
   - **Must fail when:** the trigger dropdown is refused on a job with no green run; a trigger firing while the job waits at an ask records `busy` and starts nothing; a month that cannot fund a run records `monthly-exhausted` at $0 and NEXT says so; the same file dropped twice runs once; three times missed while the panel was off give one catch-up run, not three.
   - **Cap:** $0.20.
 - **M9 amendment 1 — SIGNED by hamr 2026-10-13 ("sign m9 am1"): a trigger is cleared when its job is edited.** Signing an Edit replaces the job (M6). The trigger goes back to By hand. It can be set again only after the new job has one green run, as in item 1. An edited job never fires by itself before it has been tested. **Must fail when:** a job with a trigger is edited and signed, the trigger's time comes, and nothing starts.
+- **M9 amendment 2 — SIGNED by hamr 2026-10-13 ("sign m9 am2"): catch-up and the starting point.**
+  1. A run that starts more than 2 minutes after its set time is a catch-up. Its history row says so.
+  2. When a file trigger is set, what's already there is the starting point, and nothing runs. For **New file**, files already in the folder never run. For **File updated**, the file's current version doesn't run. Only a new file, or a change after the trigger was set, starts a run.
+  - **Must fail when:** a folder holds 3 files when its trigger is set, and no run starts. A job that starts 5 minutes late shows "catch-up" in its history.
 
 ## M10 — real IO
 
