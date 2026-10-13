@@ -447,6 +447,9 @@ export function createAuthor(opts) {
       return { status: 200, body: { ok: true, lines, say: lines.length === 0 ? 'Tick a model in Settings > Providers.' : '' } };
     },
 
+    /** The starter's "this run's start is in phase `starting`" for the Runs list and a run's page (`startingFor`, the ONE rule). @param {string} flow @param {string} runId */
+    startingRun(flow, runId) { return starter.startingFor(flow, keysNow().keys, runId) !== null; },
+
     /** `GET /api/author/start/:startId`: the start's phase, read from its files. @param {string} id */
     startGet(id) { return starter.get(id, keysNow().keys); },
 

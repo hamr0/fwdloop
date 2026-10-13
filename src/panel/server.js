@@ -508,9 +508,10 @@ export function handleRequest(req, res, opts) {
   }
   const catalogue = loaded.primitives;
   const resumeAttempt = (f, r) => opts.resumer.get(f, r);
+  const startingRun = (f, r) => opts.author?.startingRun?.(f, r) === true;
 
   if (pathname === '/api/runs') {
-    send(200, { rows: listRuns({ root: opts.root, catalogue, resumeAttempt }) });
+    send(200, { rows: listRuns({ root: opts.root, catalogue, resumeAttempt, startingRun }) });
     return;
   }
 
@@ -562,7 +563,7 @@ export function handleRequest(req, res, opts) {
       return;
     }
     const result = getRunDetail({
-      root: opts.root, flow, runId, catalogue, resumeAttempt, triggerRead: (f) => opts.author?.trigger?.read(f) ?? null, now: opts.now,
+      root: opts.root, flow, runId, catalogue, resumeAttempt, startingRun, triggerRead: (f) => opts.author?.trigger?.read(f) ?? null, now: opts.now,
     });
     if (!result) { sendText(res, 404, 'no such run'); return; }
     send(200, result);

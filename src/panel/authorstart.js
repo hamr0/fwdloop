@@ -107,13 +107,17 @@ export function createStarter(opts) {
     return d === null ? null : readStart(join(d, id), id, keys);
   };
 
-  /** M6 amendment 3: the ONE rule for "a run of this flow is starting": the newest start folder of the flow in phase `starting`, or null. @param {string} flow @param {string[]} keys */
-  function startingFor(flow, keys) {
+  /**
+   * M6 amendment 3: the ONE rule for "a run of this flow is starting": the newest start folder of the flow in phase `starting`, or null.
+   * With `runId`, only a start of that run (the Runs list reads a run folder as `[▶]` starting by this same rule).
+   * @param {string} flow @param {string[]} keys @param {string} [runId]
+   */
+  function startingFor(flow, keys, runId) {
     const sd = startsDir();
     if (sd === null) return null;
     for (const id of readdirInside(sd, '.').filter((n) => ID_RE.test(n)).sort().reverse()) {
       const v = readStart(join(sd, id), id, keys);
-      if (v && v.flow === flow && v.phase === 'starting') return id;
+      if (v && v.flow === flow && (runId === undefined || v.runId === runId) && v.phase === 'starting') return id;
     }
     return null;
   }
