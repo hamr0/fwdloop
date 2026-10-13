@@ -356,6 +356,18 @@ const ALLOWLIST = {
       appendFileSync: 1, mkdirSync: 1, readFileSync: 1, realpathSync: 1,
     },
   },
+  'src/trigger-clock.js': {
+    reason: "M9 piece 1: the ONE reader/writer of a trigger's clock ledger (append-only JSONL: armed/fire rows), a regular file OUTSIDE any run/flow dir, not a book: one read of it, one append, mkdir of its folder.",
+    names: {
+      appendFileSync: 1, existsSync: 1, mkdirSync: 1, readFileSync: 1,
+    },
+  },
+  'src/trigger-files.js': {
+    reason: "M9 piece 2: watches ONE caller-signed BUSINESS file or folder (not a run/flow-dir book): realpathSync on the folder at use time, lstatSync per file (symlinks refused, never followed), readdirSync of the top level, readFileSync of the stable file to hash it; plus the one seen-sha ledger (append-only JSONL, outside any run dir): one read, one append, mkdir.",
+    names: {
+      appendFileSync: 1, existsSync: 3, lstatSync: 7, mkdirSync: 1, readFileSync: 3, readdirSync: 1, realpathSync: 3,
+    },
+  },
   'src/provider.js': {
     reason: 'append-only spend-log writer — writes only, no reads',
     names: { appendFileSync: 1, mkdirSync: 1 },
