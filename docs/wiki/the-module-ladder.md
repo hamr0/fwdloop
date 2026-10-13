@@ -2254,6 +2254,14 @@ monthly wall is enforced **by the trigger**, before a run starts.
 - **M9 amendment 4 — SIGNED by hamr 2026-10-13 ("sign m9 am4"): one button on the Run card.**
   The Run card has one main button. When **When** shows the signed trigger (or By hand), it reads **Run now — spends up to $X** and runs once, now. When **When** is changed, it reads **Sign schedule**: two clicks, $0, it saves the trigger and starts nothing, then it reads Run now again. No separate trigger button.
   - **Must fail when:** changing When and clicking the button starts a run; or there are two buttons.
+- **M9 amendment 5 — SIGNED by hamr 2026-10-13 ("sign m9 am5"): schedule buttons.** (It replaces amendment 4's button words.)
+  1. On the Run card, the button follows **When**:
+     - unchanged: **Run now — spends up to $X**
+     - changed to a schedule: **Sign schedule**
+     - on a scheduled job, **By hand** reads **Cancel schedule**, and choosing it makes the button **Cancel schedule**
+  2. Signing or cancelling takes two clicks. Click 2 reads **Confirm: every day at 13:15**, or **Confirm: cancel schedule**. The button dims on each press. After click 2 the card clears, and nothing runs.
+  3. A scheduled job's Run tab shows **Cancel / modify schedule** next to **Run again**. It opens the Chat Run card for that job, showing the schedule.
+  - **Must fail when:** signing or cancelling starts a run; the card still shows after click 2; or a scheduled job's Run tab has no Cancel / modify button.
 
 ## M10 — real IO
 
