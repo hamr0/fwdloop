@@ -40,7 +40,9 @@ async function open(width = 1280) {
   return { chrome, w };
 }
 
-test('browser: changing When turns the main button into Sign schedule; two clicks sign the trigger and start NOTHING; then it reads Run now again', { skip: SKIP && 'no browser' }, async (t) => {
+// am5 replaced am4's "Click again to sign..." / "Saved..." lines and the Run-now-again-after-sign end state: click 1 now makes the button read
+// "Confirm: <words>", click 2 clears the card. The full two-click walks (sign, cancel) live in m9-am5-schedule-buttons.test.js.
+test('browser: changing When turns the main button into Sign schedule; click 1 dims it and prepares (no hint line); no run route is hit', { skip: SKIP && 'no browser' }, async (t) => {
   const o = await open();
   if (!o) { t.skip('no chromium installed'); return; }
   const { chrome, w } = o;
@@ -52,25 +54,10 @@ test('browser: changing When turns the main button into Sign schedule; two click
   assert.equal(await chrome.ev(`(function(){ ${btn}.click(); return ${btn}.disabled; })()`), true, 'dimmed at once on click 1');
   assert.ok(await chrome.waitFor('window.__posts.some(function(p){ return p.indexOf("trigger-prepare") !== -1; })'), 'click 1 = prepare');
   assert.ok(await chrome.waitFor(`!${btn}.disabled`), 'click 1 returns: undimmed');
-  assert.equal(await label(), 'Sign schedule');
-  const hint = 'document.getElementById("chat-main-hint")';
-  assert.ok(await chrome.waitFor(`/Click again to sign: Every day at \\d\\d:\\d\\d\\. Nothing will run now\\./.test(${hint}.textContent)`), 'confirm line shown after click 1');
-  assert.equal(await chrome.ev(`(function(){ ${btn}.click(); return ${btn}.disabled; })()`), true, 'dimmed at once on click 2');
-  assert.ok(await chrome.waitFor('window.__posts.some(function(p){ return /author\\/trigger$/.test(p); })'), 'click 2 = sign');
-  assert.ok(await chrome.waitFor(`/^Saved\\. It runs by itself every day at \\d\\d:\\d\\d\\. Nothing ran\\./.test(${hint}.textContent)`), 'saved line shown');
-  assert.ok(await chrome.waitFor(`/^Run now/.test(${btn}.textContent)`), 'after success it reads Run again');
-  assert.equal(await chrome.ev(`${btn}.disabled`), true, 'still dimmed in the post-sign window');
-  await chrome.ev(`${btn}.click()`); // a fast third click: disabled, starts nothing
-  await new Promise((r) => setTimeout(r, 200));
-  assert.equal((await chrome.ev('window.__posts')).filter((p) => /\/api\/author\/run/.test(p)).length, 0, 'the click-through starts no run');
-  assert.deepEqual(w.starts(), [], 'no start folder after the third click');
-  assert.ok(await chrome.waitFor(`!${btn}.disabled`, 5000), 'undimmed after the window');
-  assert.match(await chrome.ev(`${hint}.textContent`), /^Saved\./, 'saved line stays after reload');
+  assert.match(await label(), /^Confirm: every day at \d\d:\d\d$/);
   const posts = await chrome.ev('window.__posts');
   assert.equal(posts.filter((p) => /\/api\/author\/run/.test(p)).length, 0, `no run route hit: ${posts}`);
   assert.deepEqual(w.starts(), [], 'no start folder');
-  const card = (await w.get('/api/author/flows')).json().flows.find((f) => f.flow === 'job2').trigger;
-  assert.equal(card.trigger.kind, 'daily', 'the trigger is signed');
   assert.equal(existsSync(path.join(w.root, 'job2', 'runs', 'run-1')), false, 'no run');
 });
 
