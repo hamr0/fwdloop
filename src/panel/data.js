@@ -39,7 +39,7 @@ import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../r
 import { readSetup } from '../setup.js';
 import { checkedLines, notCheckedBlock, NOT_CHECKED_LABEL } from '../checked.js';
 import {
-  catchUpWords, endedWords, scheduledNextFor, scheduledWords,
+  catchUpWords, endedWords, nextInWords, nextTimeWords, scheduledNextFor, scheduledWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import {
@@ -1073,6 +1073,7 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun }) {
       }
       const ctx = loadRunContext(root, run.flowDir, run.runDir, flowName, runId, catalogue, resumeAttempt?.(flowName, runId) ?? null, startingRun);
       const { glyph, label } = computeGlyph(ctx);
+      const controls = runControls(ctx, glyph, label);
       // M4c amendment 1 (c): the ask waiting on the human, by the same rule
       // listStops uses (deriveAskOpenFields) — the least time left if several.
       const waitingAsk = runAsksInOrder(run.runDir, !!ctx.historyRow)
@@ -1103,7 +1104,10 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun }) {
         ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
         pulse: glyphPulses({ glyph, label }),
         stuck: glyph === '[II]',
-        controls: runControls(ctx, glyph, label),
+        controls,
+        needs: needsYouTag(glyph, controls),
+        live: isRunningNow(ctx, glyph),
+        model: deriveRunModel(ctx.auditRows),
         resume: ctx.resume,
         spend,
         spendWhy: (!ctx.historyRow && spend === null)
@@ -1161,6 +1165,77 @@ export function orderRuns(rows) {
       return a.index - b.index;
     })
     .map(({ row }) => row);
+}
+
+/**
+ * M11 am1 item 2 + am2: the ONE rule for a run's Needs-you tag, read off the sign and `runControls` (no second rule). `Accept`: waiting at an open ask.
+ * `Resume`: stuck `[II]`, or stopped `[■]` whose Run tab shows the Resume button. An expired ask `[!]` is never here (it stays in the Inbox).
+ * @param {string} glyph a `computeGlyph` sign @param {{atAsk: boolean, canResume: boolean}} controls `runControls`' answer
+ * @returns {'Accept'|'Resume'|null}
+ */
+export function needsYouTag(glyph, controls) {
+  if (glyph === '[·]' && controls.atAsk) return 'Accept';
+  if (glyph === '[II]') return 'Resume';
+  if (glyph === '[■]' && controls.canResume) return 'Resume';
+  return null;
+}
+
+/** M11 scope item 2.5/2.6 and rules: the two named limits of the runs list, in ONE place. The page reads them from `GET /api/runs`. */
+export const RUNS_LIST_LIMITS = Object.freeze({ quietDays: 30, olderRuns: 7 });
+
+/**
+ * M11: one entry per job (flow), newest activity first. A job's activity is its newest KNOWN run time (`at`, else `askedAt`, else `startedAt`);
+ * `quiet` only when that time is known and older than the quiet limit: an unknown age is never guessed into quiet, and a job with no runs is not quiet.
+ * @param {any[]} rows `listRuns` rows @param {number} nowMs
+ * @returns {{flow: string, quiet: boolean, activityMs: number|null}[]}
+ */
+export function summarizeJobs(rows, nowMs) {
+  /** @type {Map<string, number|null>} */
+  const byFlow = new Map();
+  for (const r of rows) {
+    if (!byFlow.has(r.flow)) byFlow.set(r.flow, null);
+    if (r.runId === null) continue; // eslint-disable-line no-continue
+    const t = [r.at, r.askedAt, r.startedAt].map((x) => (typeof x === 'string' ? Date.parse(x) : NaN)).find((x) => Number.isFinite(x));
+    if (t !== undefined && (byFlow.get(r.flow) === null || t > /** @type {number} */ (byFlow.get(r.flow)))) byFlow.set(r.flow, t);
+  }
+  const quietMs = RUNS_LIST_LIMITS.quietDays * 86_400_000;
+  return [...byFlow.entries()]
+    .map(([flow, activityMs]) => ({ flow, quiet: activityMs !== null && nowMs - activityMs > quietMs, activityMs }))
+    .sort((a, b) => {
+      if (a.activityMs !== b.activityMs) {
+        if (a.activityMs === null) return 1;
+        if (b.activityMs === null) return -1;
+        return b.activityMs - a.activityMs;
+      }
+      return a.flow < b.flow ? -1 : a.flow > b.flow ? 1 : 0;
+    });
+}
+
+/**
+ * M11 am1 item 3: every job with a trigger, soonest next run first (a job with no clock slot — a file trigger, or not armed yet — after those that
+ * have one, by name). Built from the owners the run page's SCHEDULED block uses (`triggerRead`, `scheduledWords`); `at` / `in` are null when
+ * there is no next time (nothing is invented). A job that cannot be read, or has no trigger, is absent.
+ * @param {{root: string, triggerRead: (flow: string) => any, now?: () => number, home?: string}} opts
+ * @returns {{flow: string, at: string|null, in: string|null, words: string}[]}
+ */
+export function listScheduled({
+  root, triggerRead, now = Date.now, home,
+}) {
+  const t0 = now();
+  const out = [];
+  for (const flow of listFlowNames(root)) {
+    const t = triggerRead(flow);
+    if (!t || !t.trigger) continue; // eslint-disable-line no-continue
+    const ms = t.armed && typeof t.nextSlotMs === 'number' ? t.nextSlotMs : null;
+    out.push({
+      ms, flow, at: ms === null ? null : nextTimeWords(ms, t0), in: ms === null ? null : nextInWords(ms, t0), words: String(scheduledWords(t.trigger, home)),
+    });
+  }
+  out.sort((a, b) => {
+    if (a.ms !== b.ms) return a.ms === null ? 1 : b.ms === null ? -1 : a.ms - b.ms;
+    return a.flow < b.flow ? -1 : a.flow > b.flow ? 1 : 0;
+  });
+  return out.map(({ ms, ...card }) => card);
 }
 
 /**

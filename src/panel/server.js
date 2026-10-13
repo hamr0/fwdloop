@@ -59,7 +59,7 @@ import { readHistory, endRow } from '../books.js';
 import { resolveRunDir } from '../flow.js';
 import { readAsk, requestStop, stopParkedRun } from '../runner.js';
 import {
-  listRuns, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
+  listRuns, listScheduled, summarizeJobs, RUNS_LIST_LIMITS, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
 import { createResumer } from './resume.js';
 import { createScheduler } from './scheduler.js';
@@ -511,7 +511,15 @@ export function handleRequest(req, res, opts) {
   const startingRun = (f, r) => opts.author?.startingRun?.(f, r) === true;
 
   if (pathname === '/api/runs') {
-    send(200, { rows: listRuns({ root: opts.root, catalogue, resumeAttempt, startingRun }) });
+    // M11: the page is given every state; it works none out. `jobs` is the order and the quiet split, `scheduled` the Scheduled cards, `limits` the two named numbers.
+    const rows = listRuns({ root: opts.root, catalogue, resumeAttempt, startingRun });
+    const now = opts.now ?? Date.now;
+    send(200, {
+      rows,
+      jobs: summarizeJobs(rows, now()),
+      scheduled: listScheduled({ root: opts.root, triggerRead: (f) => opts.author?.trigger?.read(f) ?? null, now }),
+      limits: RUNS_LIST_LIMITS,
+    });
     return;
   }
 

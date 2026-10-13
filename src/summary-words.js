@@ -48,6 +48,27 @@ export function slotWords(ms) {
   return `${DAY_SHORT[d.getDay()]} ${d.getDate()} ${MONTH_SHORT[d.getMonth()]}, ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 
+/**
+ * M11 am1 item 3, the Scheduled card's first line: "today 17:00", "tomorrow 09:00", else the date the NEXT line already says ("Tue 20 Oct, 09:05").
+ * Local time, by calendar day. @param {number} ms the next run @param {number} now
+ */
+export function nextTimeWords(ms, now) {
+  const d = new Date(ms);
+  const day = (/** @type {Date} */ x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const apart = Math.round((day(d) - day(new Date(now))) / 86_400_000);
+  if (apart === 0) return `today ${two(d.getHours())}:${two(d.getMinutes())}`;
+  if (apart === 1) return `tomorrow ${two(d.getHours())}:${two(d.getMinutes())}`;
+  return slotWords(ms);
+}
+
+/** M11 am1 item 3, the Scheduled card's second line start: "next in 20m" / "next in 3h" / "next in 3d" (whole units, rounded down, never "0m"). @param {number} ms @param {number} now */
+export function nextInWords(ms, now) {
+  const mins = Math.max(1, Math.floor((ms - now) / 60_000));
+  if (mins < 60) return `next in ${mins}m`;
+  const hours = Math.floor(mins / 60);
+  return hours < 48 ? `next in ${hours}h` : `next in ${Math.floor(hours / 24)}d`;
+}
+
 /** am1, said before a human signs an edit of a job that has a trigger. @param {Trigger|null} t @param {string} [home] */
 export function editClearsWords(t, home) {
   const w = scheduledWords(t, home);
