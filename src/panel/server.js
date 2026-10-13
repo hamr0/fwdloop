@@ -62,6 +62,7 @@ import {
   listRuns, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
 import { createResumer } from './resume.js';
+import { createScheduler } from './scheduler.js';
 import { createAuthor } from './author.js';
 import { keysForDoor } from '../keysfile.js';
 import { configDoorHome } from '../config.js';
@@ -577,9 +578,9 @@ export function handleRequest(req, res, opts) {
  * header). Resolves once actually listening; rejects on a bind error
  * (including `EADDRINUSE`) with a `.port` field on the error for the
  * caller's message.
- * @param {{ port?: number, root: string, packagePath?: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: Function, platform?: string }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number }, author?: { env?: Record<string,string|undefined>, loadEnv?: () => any, bin?: string } }} opts
+ * @param {{ port?: number, root: string, packagePath?: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: Function, platform?: string }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number }, author?: { env?: Record<string,string|undefined>, loadEnv?: () => any, bin?: string, now?: () => number }, scheduler?: { intervalMs?: number } }} opts
  *   `resume` and `author` are for tests only (a fake env/bin, a short retry window); the CLI passes none.
- * @returns {Promise<{ server: import('node:http').Server, port: number, close: () => Promise<void> }>}
+ * @returns {Promise<{ server: import('node:http').Server, port: number, tick: () => void, close: () => Promise<void> }>}
  */
 export function createPanelServer(opts) {
   if (typeof opts?.root !== 'string' || opts.root.length === 0) {
@@ -596,6 +597,9 @@ export function createPanelServer(opts) {
   const author = createAuthor({
     root, home: opts.settings?.home ?? door.home, skipMonthly: opts.settings?.home === undefined && door.skip, loadEnv: () => keysForDoor({ env: opts.author?.env }), ...opts.author,
   });
+  // M9: the scheduler runs the clock and the file watch while this server is up (item 3). The clock is the author's `now` (tests inject one);
+  // `scheduler.intervalMs` 0 = no timer, a test calls `tick`. Stopped on close.
+  const scheduler = createScheduler({ door: author.trigger, now: opts.author?.now, intervalMs: opts.scheduler?.intervalMs });
   // Settings reads and writes only under the one config home: an injected one (tests), else the door's — under a test
   // process with no FWDLOOP_CONFIG_HOME, Settings is switched off rather than touch the real ~/.config/fwdloop.
   const settings = createSettings({
@@ -625,10 +629,12 @@ export function createPanelServer(opts) {
     server.listen(requestedPort, '127.0.0.1', () => {
       const addr = server.address();
       boundPort = typeof addr === 'object' && addr !== null ? addr.port : requestedPort;
+      scheduler.start();
       resolve({
         server,
         port: boundPort,
-        close: () => new Promise((res2) => { server.close(() => res2(undefined)); }),
+        tick: scheduler.tick,
+        close: () => new Promise((res2) => { scheduler.stop(); server.close(() => res2(undefined)); }),
       });
     });
   });

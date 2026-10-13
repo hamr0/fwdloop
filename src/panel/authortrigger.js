@@ -26,14 +26,19 @@ import { scrub } from '../authoring.js';
 import { endRow, readHistory } from '../books.js';
 import { loadCatalogue } from '../catalogue.js';
 import {
-  FLOW_FILES, checkFlowName, listRunIds, readFileInside, readFlow, resolveRunDir, writeFlow,
+  FLOW_FILES, checkFlowName, listFlowNames, listRunIds, readFileInside, readFlow, resolveRunDir, writeFlow,
 } from '../flow.js';
 import { parseSignedText } from '../signed-text.js';
 import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
 import { checkTarget, createFileTrigger } from '../trigger-files.js';
-import { proseWithTrigger, stripTrigger, triggerHash } from '../trigger-line.js';
+import {
+  proseWithTrigger, stripTrigger, triggerHash, triggerLine,
+} from '../trigger-line.js';
 
 /** @typedef {import('../trigger-line.js').Trigger} Trigger */
+
+/** A trigger in the words a row and a run reason use: `daily 09:00`, `new-file jd = file:/home/you/inbox`. @param {Trigger} t */
+const describe = (t) => triggerLine(t).replace('guardrail: trigger ', '');
 
 const NO_GREEN_SAY = 'This job has not had a good run yet. Run it once by hand and get it right first; then you can set when it runs. Nothing was changed.';
 const HISTORY_FILE = 'triggers.jsonl';
@@ -227,6 +232,73 @@ export function createTriggerDoor(opts) {
         try { armFor(s.flowDir, written.signature.flow, s.trigger, now()); } catch (e) { armed = false; armSay = /** @type {Error} */ (e).message; }
       }
       return { status: 200, body: { ok: true, flow: s.flow, trigger: s.trigger, flowHash: written.signature.flow, armed, ...(armSay === null ? {} : { say: `The trigger is signed but not armed yet: ${armSay}.` }) } };
+    },
+
+    /** Every signed job that has a trigger, as the scheduler needs it: `{flow, flowDir, read, trigger}`. Reads each job the way the CLI will (signature verified). */
+    scan() {
+      const realRoot = realRootOrNull();
+      if (realRoot === null) return [];
+      const jobs = [];
+      for (const flow of listFlowNames(realRoot)) {
+        const read = readSigned(realRoot, flow);
+        if (read.ok && read.arbiter.trigger !== null) jobs.push({ flow, flowDir: join(realRoot, flow), read, trigger: /** @type {Trigger} */ (read.arbiter.trigger) });
+      }
+      return jobs;
+    },
+
+    /** Arm this job's signed trigger if it is not armed yet (a crash between the sign and the arm). Idempotent; throws naming why. @param {{flowDir: string, read: any, trigger: Trigger}} job */
+    ensureArmed(job) {
+      return armFor(job.flowDir, job.read.signature.flow, job.trigger, now());
+    },
+
+    /**
+     * One row in `triggers.jsonl` that is not a fire (the trigger could not be watched). @param {{flow: string, flowDir: string, trigger: Trigger}} job @param {string} why
+     */
+    refuse(job, why) {
+      appendOutcome(job.flowDir, {
+        at: new Date(now()).toISOString(), flow: job.flow, trigger: describe(job.trigger), outcome: 'refused', why,
+      });
+    },
+
+    /**
+     * M9 item 3-5: one fire, in this order, each outcome ONE row in `triggers.jsonl`: busy -> monthly-exhausted -> refused (an input or the keys
+     * are missing) -> started through the ONE start path (kind `trigger`; the reason and the catch-up mark go into the run's own folder first).
+     * The fire / ran ledger row was written by the caller BEFORE this, so a crash loses a run and never doubles one.
+     * @param {{flow: string, flowDir: string, read: any, trigger: Trigger}} job
+     * @param {{kind: 'clock', slot: number, catchUp: boolean, missed: number} | {kind: 'file', path: string, sha: string}} cause
+     */
+    fire(job, cause) {
+      const { flow, flowDir, read, trigger } = job;
+      const desc = describe(trigger);
+      const base = {
+        at: new Date(now()).toISOString(), flow, trigger: desc,
+        ...(cause.kind === 'clock' ? { slot: new Date(cause.slot).toISOString(), catchUp: cause.catchUp, missed: cause.missed } : { file: cause.path, sha: cause.sha, catchUp: false }),
+      };
+      const done = (/** @type {Record<string, any>} */ r) => { const row = { ...base, ...r }; appendOutcome(flowDir, row); return row; };
+      const busy = flowsDoor.editBlock(flow);   // one run at a time per job: starting, running, or waiting at its ask
+      if (busy !== null) return done({ outcome: 'busy', say: busy });
+      const claim = monthlyClaim(read.arbiter.capUsd);   // the same check the Run door decides on
+      if (claim && 'problem' in claim) return done({ outcome: 'refused', why: `${claim.problem}. Nothing spent.` });
+      if (claim && !claim.ok) return done({ outcome: 'monthly-exhausted', leftUsd: claim.room.leftUsd, needUsd: claim.room.needUsd, atLeast: claim.room.atLeast === true });
+      const roles = (read.arbiter.sources ?? []).map((x) => x.role);
+      const last = flowsDoor.lastSourcesOf(flow, roles).sources;
+      const sources = [];
+      for (const role of roles) {
+        const p = 'role' in trigger && trigger.role === role && cause.kind === 'file' ? cause.path : last[role];
+        if (!p) return done({ outcome: 'refused', why: `There is no earlier run of this job to take the input "${role}" from. Run it by hand once with that input. Nothing started.` });
+        try { sources.push({ role, path: realpathSync(p) }); } catch { return done({ outcome: 'refused', why: `The input "${role}" is not there (${p}). Nothing started.` }); }
+      }
+      const loaded = loadEnv();
+      if (!loaded.ok) return done({ outcome: 'refused', why: String(loaded.refusal) });
+      const catchUp = base.catchUp === true;
+      const record = {
+        kind: cause.kind, trigger: desc, reason: `Started by the trigger: ${desc}${catchUp ? ' (catch-up)' : ''}`, catchUp, ...(cause.kind === 'clock' ? { slot: new Date(cause.slot).toISOString(), missed: cause.missed } : { file: cause.path, sha: cause.sha }),
+      };
+      const started = starter.start({
+        kind: 'trigger', flow, runId: '', sources, trigger: record,
+      }, loaded);
+      if (started.status !== 202) return done({ outcome: 'refused', why: String(started.body.say ?? 'The run did not start.') });
+      return done({ outcome: 'started', runId: started.body.runId, startId: started.body.startId });
     },
 
     /**

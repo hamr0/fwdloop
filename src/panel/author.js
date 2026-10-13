@@ -94,13 +94,13 @@ const KILL_HARD_WAIT_MS = 2000;
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
 /**
- * @param {{ root: string, home?: string, skipMonthly?: boolean, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null, keyNames?: string[] }, bin?: string, childRunning?: (dir: string) => boolean, thinkingSupport?: typeof bareagentThinkingSupport }} opts
+ * @param {{ root: string, home?: string, skipMonthly?: boolean, loadEnv: () => { ok: boolean, env: Record<string, string|undefined>, refusal: string|null, keyNames?: string[] }, bin?: string, childRunning?: (dir: string) => boolean, thinkingSupport?: typeof bareagentThinkingSupport, now?: () => number }} opts
  *   `loadEnv` is the keys-file door (`keysForDoor`): called before EVERY spawn and every reply that quotes a log, so editing
  *   the file needs no restart. Its `env` is BOTH the child's spawn env AND the scrub list (POC (a), M4d wiring rule).
  */
 export function createAuthor(opts) {
   const {
-    root, loadEnv, home, skipMonthly = false, bin = BIN, childRunning = childRunningNow, thinkingSupport = bareagentThinkingSupport,
+    root, loadEnv, home, skipMonthly = false, bin = BIN, childRunning = childRunningNow, thinkingSupport = bareagentThinkingSupport, now = Date.now,
   } = opts;
   // the ONE run-start path (sign and run both end in `starter.start`) and the Run-a-signed-flow door built on it
   const starter = createStarter({ root, bin });
@@ -110,7 +110,7 @@ export function createAuthor(opts) {
 
   // M9: the trigger door (set the signed trigger, read it) and the one fire path the panel's scheduler calls
   const triggerDoor = createTriggerDoor({
-    root, flowsDoor, starter, loadEnv, monthlyClaim: (usd) => monthlyClaim(usd),
+    root, flowsDoor, starter, loadEnv, monthlyClaim: (usd) => monthlyClaim(usd), now,
   });
 
   /** The ONE monthly check, defined below (a function declaration, so the doors above may take it now). */
