@@ -2222,6 +2222,23 @@ monthly wall is enforced **by the trigger**, before a run starts.
 - **Exit:** a trigger refuses to fire when the month cannot fund a whole run, recording
   `monthly-exhausted` rather than starting and halting mid-way.
 
+*The paragraph and Exit above are superseded by the signed scope below (hamr, 2026-10-12).*
+
+- **M9 scope — SIGNED by hamr 2026-10-12 ("sign m9"): triggers (what starts a run), and the summary at the top of a run.**
+  1. **Where it's set.** A trigger can be set only on a job that has had one green run, from the Run card, with one dropdown: **When: [By hand ▾]**. Chat (making a new job) does not show it. Choices: **By hand**, **Every day at HH:MM**, **Weekdays at HH:MM**, **Every <day> at HH:MM**, **When <file> is updated**, **When a new file arrives in <folder>**. No raw cron text. The trigger is signed data; the AI never sets it.
+  2. Changing only the trigger reuses the same plan: no drafter call, $0, sign again.
+  3. The panel's server runs the clock and the file watch. When the panel is off, nothing fires. Times missed while it was off run **once** when it comes back (never more than once, however many were missed), and that run's history row says it was a catch-up.
+  4. One run at a time per job. If a run is still going or waiting at an ask when the trigger fires, nothing starts and a `busy` row is recorded.
+  5. Before any start, the monthly check runs, as today for Run: if the month cannot fund a whole run, nothing starts and a `monthly-exhausted` row is recorded.
+  6. **File updated:** the job runs when that file's sha256 changes, using the new version. **New file:** each new file in the folder starts one run, with that file as the input. A file version whose sha256 already ran is never run again. A file still being written is not taken until its size stops changing. Both pin the input as today (frozen copy + sha256).
+  7. **The summary block** (borrowed from bareloop's ENDED block, P5), first thing on the run page, two labelled lines, words set by code:
+     - A finished run: **ENDED** (e.g. "Goal met." / "Stopped at line 4: you rejected it.") and **NEXT** (what to do now, e.g. "The result is in ~/fwdloop-out/aging.json." / "Resume from the Chat card.").
+     - A job with a trigger: **SCHEDULED** ("Mondays at 09:00" / "When invoices.xlsx is updated" / "When a new file arrives in ~/inbox/") and **NEXT** ("Next run Mon 13 Oct, 09:00." / "Paused: not enough money left this month ($0.12 left, a run needs up to $0.50). Raise the monthly limit in Settings, or it starts again on the 1st." / "Waiting for your answer at line 4; the next run waits too.").
+  8. **Inbox-poll (barebrowse)** is the last kind, scoped and signed on its own when the others are done.
+  - **Done when:** on a job with one green run, a time two minutes ahead starts it by itself; it reaches its ask, waits, and finishes green on deepseek-flash when the human answers; a file dropped in a watched folder starts a run with that file; and both runs show ENDED / NEXT, the job shows SCHEDULED / NEXT. Plus tests that fail first.
+  - **Must fail when:** the trigger dropdown is refused on a job with no green run; a trigger firing while the job waits at an ask records `busy` and starts nothing; a month that cannot fund a run records `monthly-exhausted` at $0 and NEXT says so; the same file dropped twice runs once; three times missed while the panel was off give one catch-up run, not three.
+  - **Cap:** $0.20.
+
 ## M10 — real IO
 
 Mail in and out, chat, browse — each behind the signed allow-list and a prior `ask` accept in the
