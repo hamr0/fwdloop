@@ -140,16 +140,18 @@ test('ONE loop: startLive owns no timer of its own, and the page starts the tick
   assert.match(page, /\n  schedulePoll\(LIVE_POLL_MS\);\n/, 'the page arms the first tick at load');
 });
 
-test('every card of the runs list says the same words, from the run\'s own fields: a running run reads "started ...", never "unknown"', () => {
-  const words = new Function('readableDateTime', `${['runSpendText', 'runAtText'].map(fnSrc).join('\n')}; return { spend: runSpendText, at: runAtText };`)((iso) => `T(${iso})`);
+test('every card of the runs list says the date the same way (one short formatter MM/DD HH:MM), from the run\'s own fields: a running run reads its start time, never "unknown"', () => {
+  const words = new Function(`${['runSpendText', 'rlShortDate', 'runAtText'].map(fnSrc).join('\n')}; return { spend: runSpendText, at: runAtText };`)();
+  const short = (iso) => { const d = new Date(iso); const t = (n) => String(n).padStart(2, '0'); return `${t(d.getMonth() + 1)}/${t(d.getDate())} ${t(d.getHours())}:${t(d.getMinutes())}`; };
   const running = { glyph: '[▶]', spend: null, spendWhy: 'running — no priced spend yet', at: null, askedAt: null, startedAt: '2026-10-01T09:00:00Z', atWhy: null };
-  assert.equal(words.at(running), 'started T(2026-10-01T09:00:00Z)');
+  assert.equal(words.at(running), short('2026-10-01T09:00:00Z'));
   assert.equal(words.spend(running), 'running — no priced spend yet');
-  assert.equal(words.at({ at: '2026-09-30T12:00:00Z' }), '2026-09-30');
-  assert.equal(words.at({ askedAt: '2026-10-01T09:00:00Z' }), 'asked T(2026-10-01T09:00:00Z)');
-  // every card of the one runs list goes through them (M11): the run card, and the Running now / Needs you cards
+  assert.equal(words.at({ at: '2026-09-30T12:00:00Z' }), short('2026-09-30T12:00:00Z'));
+  assert.equal(words.at({ askedAt: '2026-10-01T09:00:00Z' }), short('2026-10-01T09:00:00Z'));
+  assert.equal(words.at({ at: null, askedAt: null, startedAt: null, atWhy: 'no history row yet' }), 'no history row yet');
+  // every card of the one runs list goes through them (M11): the run card, and the Needs you card
   assert.match(fnSrc('rlRunCardHtml'), /runSpendText\(r\)[\s\S]*runAtText\(r\)/);
-  assert.match(fnSrc('rlJumpCardHtml'), /runSpendText\(r\)[\s\S]*runAtText\(r\)/);
+  assert.match(fnSrc('rlJumpCardHtml'), /runAtText\(r\)/);
 });
 
 // ---- a running run's words -----------------------------------------------------------------------

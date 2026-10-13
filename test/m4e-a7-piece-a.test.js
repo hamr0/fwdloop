@@ -50,13 +50,14 @@ test('(c) the page renders exactly those lines bold, the rest escaped plain', ()
 });
 
 test('(c) a run card\'s spend, time in plain units and date are real separator text (M11: the one runs list)', () => {
-  const src = ['escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText', 'rlRunCardHtml'].map(fn).join('\n');
+  const src = ['escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'rlShortDate', 'runAtText', 'rlRunCardHtml'].map(fn).join('\n');
   const { rlRunCardHtml } = new Function(`${src}\nreturn { rlRunCardHtml };`)();
   const r = { flow: 'f', runId: 'run-1', glyph: '[✓]', word: 'passed', line: null, label: 'passed', spend: '$0.0616', wallMs: 383000, at: '2026-10-06T10:00:00Z', model: null };
   const text = (h) => h.replace(/<[^>]+>/g, '').replace(/&middot;/g, '·').replace(/&mdash;/g, '—');
   assert.match(text(rlRunCardHtml(r, false)), /passed — goal met · \$0\.0616 · 6m23s$/);
   assert.match(text(rlRunCardHtml({ ...r, wallMs: null }, false)), /passed — goal met · \$0\.0616$/, 'unrecorded time is left out, never invented');
-  assert.match(text(rlRunCardHtml(r, false)), /^run-1 2026-10-06/);
+  const d = new Date('2026-10-06T10:00:00Z'); const two = (n) => String(n).padStart(2, '0');
+  assert.match(text(rlRunCardHtml(r, false)), new RegExp(`^run-1 ${two(d.getMonth() + 1)}/${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`), 'the one short date MM/DD HH:MM');
   assert.doesNotMatch(PAGE, /\.wf-meta \+ \.wf-meta::before/, 'no CSS-only separator');
 });
 
