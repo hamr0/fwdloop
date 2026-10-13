@@ -38,6 +38,9 @@ import { readSpendRows } from '../provider.js';
 import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
 import { readSetup } from '../setup.js';
 import { checkedLines, notCheckedBlock, NOT_CHECKED_LABEL } from '../checked.js';
+import {
+  catchUpWords, endedWords, scheduledNext, scheduledWords,
+} from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import {
   runLiveness, booksFresh, readResumeLock,
@@ -1204,6 +1207,71 @@ function computeTryCount(closeClass, listAll) {
   return list.length;
 }
 
+/** The job line a step of this run came from (`fromLine` of the declared step that emits `emits`), or null when the books cannot say. */
+function lineOfStep(ctx, emits) {
+  if (!ctx.flowRead.ok || typeof emits !== 'string') return null;
+  const st = (ctx.flowRead.declaration.steps ?? []).find((x) => x.emits === emits);
+  return st && Number.isInteger(st.fromLine) ? st.fromLine : null;
+}
+
+/** The job line of the ask a waiting run is parked at: its newest `paused` audit row's step. */
+function waitingLineOf(ctx) {
+  let emits = null;
+  for (const r of ctx.auditRows) if (r.verdict === 'paused') emits = r.step;
+  return lineOfStep(ctx, emits);
+}
+
+/**
+ * M9 piece 6: the line of the ask this JOB is waiting at (any of its runs, the newest first), or null. Reads each run that holds an ask
+ * through the same `runControls` the Stop door uses (`atAsk`), so "waiting" is one decision.
+ */
+function jobWaitingLine(root, flowDir, flow, catalogue) {
+  const ids = listRunIds(flowDir).sort((a, b) => (Number(b.replace(/\D/g, '')) || 0) - (Number(a.replace(/\D/g, '')) || 0));
+  for (const id of ids) {
+    const run = resolveRunDir(flowDir, id);
+    if (!run.ok || !readAsk(run.runDir)) continue; // eslint-disable-line no-continue
+    const ctx = loadRunContext(root, flowDir, run.runDir, flow, id, catalogue, null);
+    const g = computeGlyph(ctx);
+    if (runControls(ctx, g.glyph, g.label).atAsk) return waitingLineOf(ctx);
+  }
+  return null;
+}
+
+/**
+ * M9 piece 6 (ladder M9 item 7): the summary block at the top of a run page, as data. Words come from `src/summary-words.js` only, built
+ * from typed facts (the history row's outcome, the declared step's line, the signed trigger and its ledger). `ended` is null while the run
+ * is live; `scheduled` is null when the job has no trigger; `catchUp` is a fixed sentence when this run was started late (am2 item 1).
+ * @returns {{ended: {reason: string, next: string}|null, scheduled: {text: string, next: string}|null, catchUp: string|null}}
+ */
+function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
+  const died = !ctx.historyRow && glyph === '[?]';
+  const outcome = ctx.historyRow ? ctx.historyRow.outcome ?? null : null;
+  let line = null;
+  if (outcome !== null && outcome !== 'complete') {
+    let emits = null;
+    for (const r of ctx.auditRows) if (isBlockedVerdict(r.verdict)) emits = r.step;
+    line = lineOfStep(ctx, emits);
+  }
+  const send = ctx.arbiter && Array.isArray(ctx.arbiter.sends) ? ctx.arbiter.sends.find((x) => x.target && typeof x.target.path === 'string') : undefined;
+  const ended = endedWords({
+    outcome, died, line, destination: send ? send.target.path : null, canResume: ctx.resumable === true && ctx.sameJob === true, home,
+  });
+  let scheduled = null;
+  const t = typeof triggerRead === 'function' ? triggerRead(ctx.flowName) : null;
+  if (t && t.trigger) {
+    scheduled = {
+      text: scheduledWords(t.trigger, home),
+      next: scheduledNext({
+        trigger: t.trigger, armed: t.armed, nextSlotMs: t.nextSlotMs, lastOutcome: t.lastOutcome, waitingLine: jobWaitingLine(root, ctx.flowDir, ctx.flowName, catalogue), now: now(),
+      }),
+    };
+  }
+  let rec = null;
+  const f = readFileInside(ctx.runDir, 'trigger.json');
+  if (f.ok) { try { rec = JSON.parse(f.text); } catch { rec = null; } }
+  return { ended, scheduled, catchUp: catchUpWords(rec) };
+}
+
 /**
  * `GET /api/runs/:flow/:runId` — the Run tab (M4a scope item 2): the step
  * map from `declaration.steps`, step cards -> attempts from `audit.jsonl`
@@ -1211,11 +1279,11 @@ function computeTryCount(closeClass, listAll) {
  * `log.json`. `null` when the flow/runId doesn't resolve to a real run
  * directory at all (caller renders 404); a `red` field names why a
  * sub-derivation couldn't fill (never invented).
- * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any}} opts
+ * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any, triggerRead?: (flow: string) => any, now?: () => number, home?: string}} opts
  * @returns {any|null}
  */
 export function getRunDetail({
-  root, flow, runId, catalogue, resumeAttempt,
+  root, flow, runId, catalogue, resumeAttempt, triggerRead, now = Date.now, home,
 }) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
@@ -1438,6 +1506,8 @@ export function getRunDetail({
     signWords: SIGN_WORDS,
     pulse: glyphPulses({ glyph, label }),
     controls: runControls(ctx, glyph, label),
+    // M9 piece 6: the block at the top of the run page (ENDED / NEXT, SCHEDULED / NEXT), words set by code
+    summary: runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }),
     resume: ctx.resume,
     outcome: ctx.historyRow ? ctx.historyRow.outcome : null,
     outcomeWhy: ctx.historyRow ? null : (isRunningNow(ctx, glyph) ? RUNNING_WHY : 'no history row (parked or died before completion)'),

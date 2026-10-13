@@ -29,6 +29,7 @@ import {
   FLOW_FILES, checkFlowName, listFlowNames, listRunIds, readFileInside, readFlow, resolveRunDir, writeFlow,
 } from '../flow.js';
 import { parseSignedText } from '../signed-text.js';
+import { editClearsWords, scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
 import { checkTarget, createFileTrigger } from '../trigger-files.js';
 import {
@@ -40,7 +41,7 @@ import {
 /** A trigger in the words a row and a run reason use: `daily 09:00`, `new-file jd = file:/home/you/inbox`. @param {Trigger} t */
 const describe = (t) => triggerLine(t).replace('guardrail: trigger ', '');
 
-const NO_GREEN_SAY = 'This job has not had a good run yet. Run it once by hand and get it right first; then you can set when it runs. Nothing was changed.';
+export const NO_GREEN_SAY = 'This job has not had a good run yet. Run it once by hand and get it right first; then you can set when it runs. Nothing was changed.';
 const HISTORY_FILE = 'triggers.jsonl';
 const HASH_RE = /^[0-9a-f]{64}$/;
 
@@ -322,6 +323,21 @@ export function createTriggerDoor(opts) {
         nextSlotMs: clockKind && armed ? nextSlot(/** @type {any} */ (trigger), now()) : null,
         lastOutcome: outcomes.length > 0 ? outcomes[outcomes.length - 1] : null,
         hasGreenRun: hasGreenRunForJob(flowDir),
+      };
+    },
+
+    /**
+     * What the Run card's dropdown needs of one job (M9 piece 5): the typed trigger, its words, whether it is armed, and, when the job has had
+     * no good run, the server's refusal sentence (the page shows it and disables the dropdown; it invents no words). `editNote` is am1's
+     * warning, set only when the job has a trigger. `null` when the job is not a readable signed job.
+     * @param {string} flow
+     */
+    card(flow) {
+      const r = this.read(flow);
+      if (r === null) return null;
+      return {
+        trigger: r.trigger, words: scheduledWords(r.trigger), armed: r.armed, hasGreenRun: r.hasGreenRun,
+        refusal: r.hasGreenRun ? null : NO_GREEN_SAY, editNote: editClearsWords(r.trigger),
       };
     },
   };

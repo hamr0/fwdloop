@@ -382,7 +382,12 @@ export function createAuthor(opts) {
   }
 
   return {
-    flows: flowsDoor.flows,
+    /** `GET /api/author/flows`, each listed job carrying its trigger card (M9 piece 5): the typed trigger, its words, and why it cannot be set (no good run yet). */
+    flows() {
+      const r = flowsDoor.flows();
+      if (r.status !== 200 || !Array.isArray(r.body.flows)) return r;
+      return { ...r, body: { ...r.body, flows: r.body.flows.map((f) => ({ ...f, trigger: triggerDoor.card(f.flow) })) } };
+    },
     runAgain: flowsDoor.runAgain,
     run: flowsDoor.run,
     runPrepare: flowsDoor.runPrepare,

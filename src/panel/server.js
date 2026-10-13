@@ -356,7 +356,7 @@ function authorPost(res, url, body, author) {
  * real listening socket where that is simpler.
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
- * @param {{ root: string, port: number, packagePath?: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings>, author: ReturnType<typeof createAuthor> }} opts
+ * @param {{ root: string, port: number, packagePath?: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings>, author: ReturnType<typeof createAuthor>, now?: () => number }} opts
  */
 export function handleRequest(req, res, opts) {
   const method = req.method ?? 'GET';
@@ -562,7 +562,7 @@ export function handleRequest(req, res, opts) {
       return;
     }
     const result = getRunDetail({
-      root: opts.root, flow, runId, catalogue, resumeAttempt,
+      root: opts.root, flow, runId, catalogue, resumeAttempt, triggerRead: (f) => opts.author?.trigger?.read(f) ?? null, now: opts.now,
     });
     if (!result) { sendText(res, 404, 'no such run'); return; }
     send(200, result);
@@ -615,7 +615,7 @@ export function createPanelServer(opts) {
     const server = createServer((req, res) => {
       try {
         handleRequest(req, res, {
-          root, port: boundPort, resumer, settings, author, packagePath: opts.packagePath,
+          root, port: boundPort, resumer, settings, author, packagePath: opts.packagePath, now: opts.author?.now,
         });
       } catch (e) {
         sendText(res, 500, 'internal error');
