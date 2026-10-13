@@ -2243,6 +2243,14 @@ monthly wall is enforced **by the trigger**, before a run starts.
   1. A run that starts more than 2 minutes after its set time is a catch-up. Its history row says so.
   2. When a file trigger is set, what's already there is the starting point, and nothing runs. For **New file**, files already in the folder never run. For **File updated**, the file's current version doesn't run. Only a new file, or a change after the trigger was set, starts a run.
   - **Must fail when:** a folder holds 3 files when its trigger is set, and no run starts. A job that starts 5 minutes late shows "catch-up" in its history.
+- **M9 amendment 3 — SIGNED by hamr 2026-10-13 ("sign m9 am3"): files queue by arrival.**
+  1. The panel's scheduler is the only writer of the file ledger. It writes an **arrived** row the first time it sees a finished file, and a **ran** row when that file's run starts.
+  2. The queue is the files that have arrived but haven't run yet, oldest arrival first. When the job is free, the first one runs. One at a time.
+  3. A file that arrives while the job is busy gets one `busy` row and waits in the queue.
+  4. The ledger is on disk, so a restart keeps the queue.
+  5. If a queued file is deleted or changed before its turn, it doesn't run, and its row says why. A changed file arrives again as a new version.
+  6. Missed clock times are still skipped, as now.
+  - **Must fail when:** 3 files land at once and fewer than 3 runs happen, in arrival order; or the panel restarts and a queued file never runs.
 
 ## M10 — real IO
 
