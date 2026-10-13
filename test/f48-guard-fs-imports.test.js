@@ -363,9 +363,9 @@ const ALLOWLIST = {
     },
   },
   'src/trigger-files.js': {
-    reason: "M9 piece 2: watches ONE caller-signed BUSINESS file or folder (not a run/flow-dir book): realpathSync on the folder at use time, lstatSync per file (symlinks refused, never followed), readdirSync of the top level, readFileSync of the stable file to hash it; plus the one seen-sha ledger (append-only JSONL, outside any run dir): one read, one append, mkdir.",
+    reason: "M9 piece 2: watches ONE caller-signed BUSINESS file or folder (not a run/flow-dir book): realpathSync on the folder at use time, lstatSync per file (symlinks refused, never followed), readdirSync of the top level, readFileSync of the stable file to hash it; plus the one seen-sha ledger (append-only JSONL, outside any run dir): one read, one append, mkdir. M9 am3: `recheck` looks at a queued file again at its turn (realpathSync on its folder, lstatSync, readFileSync to re-hash).",
     names: {
-      appendFileSync: 1, existsSync: 3, lstatSync: 7, mkdirSync: 1, readFileSync: 3, readdirSync: 1, realpathSync: 3,
+      appendFileSync: 1, existsSync: 3, lstatSync: 8, mkdirSync: 1, readFileSync: 4, readdirSync: 1, realpathSync: 4,
     },
   },
   'src/provider.js': {

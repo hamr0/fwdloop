@@ -16,8 +16,10 @@
 import { join } from 'node:path';
 
 import { due, readRows, recordFire } from '../trigger-clock.js';
-import { createFileTrigger } from '../trigger-files.js';
-import { triggerLedgerDir } from './authortrigger.js';
+import {
+  createFileTrigger, queueOf, readSeen, recheck, recordArrived, recordDropped, recordRan,
+} from '../trigger-files.js';
+import { readOutcomes, triggerLedgerDir } from './authortrigger.js';
 
 /**
  * @param {{ door: ReturnType<typeof import('./authortrigger.js').createTriggerDoor>, now?: () => number, intervalMs?: number }} opts
@@ -31,6 +33,39 @@ export function createScheduler(opts) {
   const told = new Set();
   /** @type {ReturnType<typeof setInterval>|null} */
   let timer = null;
+
+  /**
+   * M9 am3: the queue of a file trigger (arrived minus ran, oldest first). Busy: every queued file is told ONCE (`busy`) and waits. Free: the
+   * head is looked at again at use time (deleted / changed -> one row, dropped, the next head), then goes through the fire checks; `ran` is
+   * written right before the start. A head that is not started (month, keys, input) stays queued, told once, and blocks the ones behind it.
+   * @param {any} job @param {string} ledger @param {number} nowMs
+   */
+  function runQueue(job, ledger, nowMs) {
+    let queue = queueOf(readSeen(ledger));
+    if (queue.length === 0) return;
+    const spoken = new Set(readOutcomes(job.flowDir).filter((r) => typeof r.sha === 'string').map((r) => `${r.sha}|${r.outcome}`));
+    const cause = (/** @type {any} */ q) => ({ kind: /** @type {'file'} */ ('file'), path: q.path, sha: q.sha });
+    const told = (/** @type {any} */ q) => (/** @type {string} */ outcome) => { const k = `${q.sha}|${outcome}`; const had = spoken.has(k); spoken.add(k); return had; };
+    if (door.busy(job)) {
+      for (const q of queue) door.fire(job, cause(q), { told: told(q) });
+      return;
+    }
+    while (queue.length > 0) {
+      const q = queue[0];
+      const seen = recheck(q);
+      if (seen.state !== 'ok') {
+        const why = seen.state === 'deleted' ? 'deleted' : 'changed';
+        recordDropped(ledger, q, why, nowMs);
+        door.note(job, {
+          outcome: why, file: q.path, sha: q.sha, say: seen.state === 'deleted' ? `${q.name} did not run: ${seen.say}.` : `${q.name} did not run: it changed before its turn; the new version arrives again.`,
+        });
+        queue = queue.slice(1);
+        continue;
+      }
+      door.fire(job, cause({ ...q, path: seen.path }), { told: told(q), beforeStart: () => recordRan(ledger, seen, nowMs) });
+      return;
+    }
+  }
 
   function tick() {
     const nowMs = now();
@@ -51,9 +86,11 @@ export function createScheduler(opts) {
             });
             watchers.set(key, w);
           }
-          const { run, refused } = w.poll();
+          const ledger = join(dir, 'seen.jsonl');
+          const { arrived, refused } = w.poll();
           for (const r of refused) door.refuse(job, `${r.path}: ${r.why}`);
-          for (const f of run) door.fire(job, { kind: 'file', path: f.path, sha: f.sha });
+          for (const f of arrived) recordArrived(ledger, f, nowMs);   // THE writer of the file ledger: arrival time is this clock, never the file's mtime
+          runQueue(job, ledger, nowMs);
         } else {
           const clock = join(dir, 'clock.jsonl');
           const d = due(trigger, readRows(clock), nowMs);

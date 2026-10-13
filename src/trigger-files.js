@@ -6,18 +6,20 @@
 // Modes:   'updated' — one file;   'new' — one folder, top level only, regular files only.
 // Symlinks are refused, checked at use time (realpathSync on the folder, lstat on the file), never lexically.
 // A file is taken only after its size AND mtime were unchanged for STABLE_POLLS consecutive polls.
-// Seen ledger (append-only JSONL, write-once rows keyed `sha:<sha256>`, re-read from disk, so it survives restart):
-//   { id, kind:'baseline'|'ran', sha, name, size, at }
-// 'baseline' = present when the trigger was set (am2 item 2): never runs. 'ran' = handed out; the row is written
-// BEFORE poll() returns it, so a crash loses a run and never doubles one. A sha in the ledger never runs again,
-// whatever its name, whatever its mtime.
+// Seen ledger (append-only JSONL, write-once rows keyed by id, re-read from disk, so it survives restart). M9 am3: THE SCHEDULER is its only
+// writer after `arm`; this file only says what the rows are and how to read the queue out of them:
+//   { id, kind:'baseline'|'arrived'|'ran'|'dropped', sha, name, size, at }  (+ `path` on arrived, `why` on dropped)
+// 'baseline' = present when the trigger was set (am2 item 2): never runs. 'arrived' = a finished file with a never-seen sha was seen
+// (`at` = the scheduler's clock). 'ran' = written immediately BEFORE that file's run is started, so a crash loses a run and never doubles
+// one. 'dropped' = it was deleted / changed before its turn. A sha in the ledger (any kind) never arrives again, whatever its name or mtime.
+// poll() writes nothing: it only reports finished files whose sha is new.
 import {
   appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync,
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 
-/** @typedef {{id:string, kind:'baseline'|'ran', sha:string, name:string, size:number, at:number}} SeenRow */
+/** @typedef {{id:string, kind:'baseline'|'arrived'|'ran'|'dropped', sha:string, name:string, size:number, at:number, path?:string, why?:string}} SeenRow */
 /** @typedef {{path:string, sha:string, size:number}} ToRun */
 /** @typedef {{path:string, why:string}} Refused */
 
@@ -30,10 +32,48 @@ export function readSeen(file) {
   return readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
 }
 
-/** @param {string} file @param {SeenRow} row */
+/** The ONE appender: write-once by id (a second row with the same id is not written). @param {string} file @param {SeenRow} row @returns {boolean} written */
 function appendSeen(file, row) {
+  if (readSeen(file).some((r) => r.id === row.id)) return false;
   mkdirSync(dirname(file), { recursive: true });
   appendFileSync(file, `${JSON.stringify(row)}\n`);
+  return true;
+}
+
+/** @param {string} ledger @param {ToRun & {name?:string}} item @param {number} at the scheduler's clock, never the file's mtime */
+export const recordArrived = (ledger, item, at) => appendSeen(ledger, { id: `arrived:${item.sha}`, kind: 'arrived', sha: item.sha, name: basename(item.path), size: item.size, path: item.path, at });
+/** Call immediately before the run is started. @param {string} ledger @param {{sha:string, path:string, size:number}} item @param {number} at */
+export const recordRan = (ledger, item, at) => appendSeen(ledger, { id: `ran:${item.sha}`, kind: 'ran', sha: item.sha, name: basename(item.path), size: item.size, at });
+/** @param {string} ledger @param {{sha:string, path:string, size:number}} item @param {'deleted'|'changed'} why @param {number} at */
+export const recordDropped = (ledger, item, why, at) => appendSeen(ledger, { id: `dropped:${item.sha}`, kind: 'dropped', sha: item.sha, name: basename(item.path), size: item.size, why, at });
+
+/**
+ * The queue: arrived and neither ran nor dropped, oldest arrival first. Identical arrival times: by name, then by sha (deterministic).
+ * @param {SeenRow[]} rows @returns {(SeenRow & {path:string})[]}
+ */
+export function queueOf(rows) {
+  const out = new Set(rows.filter((r) => r.kind === 'ran' || r.kind === 'dropped').map((r) => r.sha));
+  const cmp = (/** @type {string} */ x, /** @type {string} */ y) => (x < y ? -1 : x > y ? 1 : 0);
+  return /** @type {any} */ (rows.filter((r) => r.kind === 'arrived' && !out.has(r.sha)))
+    .sort((x, y) => x.at - y.at || cmp(x.name, y.name) || cmp(x.sha, y.sha));
+}
+
+/**
+ * At a queued file's turn, look at it again, at use time: lstat (no symlink, a regular file), realpath of its folder, re-hash.
+ * @param {{path:string, sha:string}} item
+ * @returns {{state:'ok', path:string, sha:string, size:number} | {state:'deleted', say:string} | {state:'changed', sha:string}}
+ */
+export function recheck(item) {
+  let parent;
+  try { parent = realpathSync(dirname(item.path)); } catch { return { state: 'deleted', say: 'its folder is gone' }; }
+  const p = join(parent, basename(item.path));
+  let st;
+  try { st = lstatSync(p); } catch { return { state: 'deleted', say: 'it was deleted' }; }
+  if (st.isSymbolicLink() || !st.isFile()) return { state: 'deleted', say: 'it is no longer a regular file (a symlink is refused)' };
+  let buf;
+  try { buf = readFileSync(p); } catch { return { state: 'deleted', say: 'it was deleted' }; }
+  const sha = sha256(buf);
+  return sha === item.sha ? { state: 'ok', path: p, sha, size: buf.length } : { state: 'changed', sha };
 }
 
 /** @param {Buffer} buf */
@@ -112,18 +152,17 @@ export function createFileTrigger({ mode, target, ledger }) {
     const st2 = lstatSync(p);
     if (`${st2.size}:${st2.mtimeMs}` !== t.key) return 'changed'; // changed while reading: retry next poll
     const sha = sha256(buf);
-    if (readSeen(ledger).some((r) => r.sha === sha)) return null; // this version already ran (or was baseline)
-    appendSeen(ledger, { id: `sha:${sha}`, kind: 'ran', sha, name: basename(p), size: buf.length, at: Date.now() });
+    if (readSeen(ledger).some((r) => r.sha === sha)) return null; // this version was seen before (baseline, arrived, ran or dropped)
     return { path: p, sha, size: buf.length };
   }
 
   /**
    * One poll. Synchronous, so a caller drives it from setInterval and a test drives it by hand.
-   * @returns {{run: ToRun[], refused: Refused[]}} refused paths are told once per trigger object
+   * @returns {{arrived: ToRun[], refused: Refused[]}} finished files with a never-seen sha (the caller records them); refused paths are told once per trigger object
    */
   function poll() {
     const { files, refused } = candidates();
-    const run = [];
+    const arrived = [];
     const present = new Set(files);
     for (const p of [...track.keys()]) if (!present.has(p)) track.delete(p);
     for (const p of files) {
@@ -137,12 +176,12 @@ export function createFileTrigger({ mode, target, ledger }) {
         try { got = take(p, t); } catch { continue; } // vanished while reading
         if (got === 'changed') continue;
         t.takenKey = key;
-        if (got) run.push(got);
+        if (got) arrived.push(got);
       }
     }
     const told = refused.filter((r) => !toldRefused.has(r.path));
     for (const r of told) toldRefused.add(r.path);
-    return { run, refused: told };
+    return { arrived, refused: told };
   }
 
   return { arm, poll };

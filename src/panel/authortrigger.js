@@ -252,6 +252,16 @@ export function createTriggerDoor(opts) {
       return armFor(job.flowDir, job.read.signature.flow, job.trigger, now());
     },
 
+    /** M9 am3: is a run of this job starting, running or waiting at an ask? (the same check `fire` makes first) @param {{flow: string}} job */
+    busy(job) {
+      return flowsDoor.editBlock(job.flow) !== null;
+    },
+
+    /** M9 am3: one row for a queued file that is not a fire (deleted / changed before its turn). @param {{flow: string, flowDir: string, trigger: Trigger}} job @param {Record<string, any>} row */
+    note(job, row) {
+      appendOutcome(job.flowDir, { at: new Date(now()).toISOString(), flow: job.flow, trigger: describe(job.trigger), ...row });
+    },
+
     /**
      * One row in `triggers.jsonl` that is not a fire (the trigger could not be watched). @param {{flow: string, flowDir: string, trigger: Trigger}} job @param {string} why
      */
@@ -267,15 +277,18 @@ export function createTriggerDoor(opts) {
      * The fire / ran ledger row was written by the caller BEFORE this, so a crash loses a run and never doubles one.
      * @param {{flow: string, flowDir: string, read: any, trigger: Trigger}} job
      * @param {{kind: 'clock', slot: number, catchUp: boolean, missed: number} | {kind: 'file', path: string, sha: string}} cause
+     * @param {{ told?: (outcome: string) => boolean, beforeStart?: () => void }} [hooks] M9 am3 (a queued file): `told(outcome)` true = this file
+     *   already has a row for that outcome, so none is written again (the outcome is still returned); `beforeStart` runs right before the ONE
+     *   start, once every check has passed: the scheduler writes the file's `ran` row there.
      */
-    fire(job, cause) {
+    fire(job, cause, hooks = {}) {
       const { flow, flowDir, read, trigger } = job;
       const desc = describe(trigger);
       const base = {
         at: new Date(now()).toISOString(), flow, trigger: desc,
         ...(cause.kind === 'clock' ? { slot: new Date(cause.slot).toISOString(), catchUp: cause.catchUp, missed: cause.missed } : { file: cause.path, sha: cause.sha, catchUp: false }),
       };
-      const done = (/** @type {Record<string, any>} */ r) => { const row = { ...base, ...r }; appendOutcome(flowDir, row); return row; };
+      const done = (/** @type {Record<string, any>} */ r) => { const row = /** @type {Record<string, any>} */ ({ ...base, ...r }); if (!(row.outcome !== 'started' && hooks.told?.(row.outcome))) appendOutcome(flowDir, row); return row; };
       const busy = flowsDoor.editBlock(flow);   // one run at a time per job: starting, running, or waiting at its ask
       if (busy !== null) return done({ outcome: 'busy', say: busy });
       const claim = monthlyClaim(read.arbiter.capUsd);   // the same check the Run door decides on
@@ -295,6 +308,7 @@ export function createTriggerDoor(opts) {
       const record = {
         kind: cause.kind, trigger: desc, reason: `Started by the trigger: ${desc}${catchUp ? ' (catch-up)' : ''}`, catchUp, ...(cause.kind === 'clock' ? { slot: new Date(cause.slot).toISOString(), missed: cause.missed } : { file: cause.path, sha: cause.sha }),
       };
+      hooks.beforeStart?.();
       const started = starter.start({
         kind: 'trigger', flow, runId: '', sources, trigger: record,
       }, loaded);
