@@ -24,8 +24,8 @@ no human click per run. A run's page opens with an ENDED or SCHEDULED summary bl
 - One button on the Run card: Run now, or Sign schedule when a trigger is chosen. Click 1 shows
   Confirm: <words>, click 2 saves and the card returns to its New job state. The Run tab gets
   Cancel / modify schedule. The card dims on press and ignores click-through for 1.5 s after a sign.
-- A summary block on the run page: ENDED / NEXT for a finished run, SCHEDULED / NEXT for a job not
-  yet run; the NEXT line is red for a paused or refused trigger.
+- A summary block on the run page: ENDED / NEXT for a finished run, SCHEDULED / NEXT for a job with a
+  schedule; the NEXT line is red for a paused or refused trigger.
 - A trigger-only re-sign appends a `trigger-resign` setup row under the new flow hash.
 
 ### Changed
