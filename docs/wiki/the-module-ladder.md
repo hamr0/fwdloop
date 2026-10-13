@@ -2263,6 +2263,8 @@ monthly wall is enforced **by the trigger**, before a run starts.
   3. A scheduled job's Run tab shows **Cancel / modify schedule** next to **Run again**. It opens the Chat Run card for that job, showing the schedule.
   - **Must fail when:** signing or cancelling starts a run; the card still shows after click 2; or a scheduled job's Run tab has no Cancel / modify button.
 
+**M9 EXIT SIGNED — hamr, 2026-10-13** ("sign m9 exit"). Evidence, all on hamr's real panel (`--root flows`), flow `aging-live-4`, deepseek-flash, $0.0559 in total (runs 2-11; cap $0.20): a trigger set 2 minutes ahead started run-6 by itself, it waited at its ask and finished green when hamr answered; a file copied into `~/fwdloop-in` started run-7 with that file, green; the same content again started nothing; firing while a run waited at its ask recorded `busy` and started nothing (12:06, 13:15); a monthly limit below the cap recorded `monthly-exhausted` at $0 and NEXT said so in red (20:52); a time missed while the panel was off gave one run marked catch-up when it came back (run-8, 10 minutes late); three files landed at once and ran one after another in arrival order (runs 9-11), the two waiting ones with one `busy` row each; Cancel schedule took the job back to By hand. ENDED / NEXT and SCHEDULED / NEXT shown on the run page. Amendments 1-5 built test-first. Not walked live: am1 (an edited job's trigger is cleared) and the no-green-run refusal — permanent tests only. Self-review and branch-review were not run before this signature.
+
 ## M10 — real IO
 
 Mail in and out, chat, browse — each behind the signed allow-list and a prior `ask` accept in the
