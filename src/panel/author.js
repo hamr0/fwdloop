@@ -388,7 +388,12 @@ export function createAuthor(opts) {
       if (r.status !== 200 || !Array.isArray(r.body.flows)) return r;
       return { ...r, body: { ...r.body, flows: r.body.flows.map((f) => ({ ...f, trigger: triggerDoor.card(f.flow) })) } };
     },
-    runAgain: flowsDoor.runAgain,
+    /** `GET /api/author/run-again`, its flow entry carrying the trigger card like the list's entries do. @param {string|null} flow @param {string|null} runId */
+    runAgain(flow, runId) {
+      const r = flowsDoor.runAgain(flow, runId);
+      if (r.status !== 200 || !r.body.flow) return r;
+      return { ...r, body: { ...r.body, flow: { ...r.body.flow, trigger: triggerDoor.card(r.body.flow.flow) } } };
+    },
     run: flowsDoor.run,
     runPrepare: flowsDoor.runPrepare,
     trigger: triggerDoor,

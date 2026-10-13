@@ -283,6 +283,19 @@
   .counters{display:block;padding:9px 12px;border:none;border-bottom:2px solid var(--border-strong);background:var(--panel2);color:var(--text-dim);margin:-12px -12px 14px;font-size:12px;font-weight:700;white-space:normal;overflow-wrap:break-word;}
   .counters b,.counters span{color:var(--accent);}
 
+  /* borrowed-from: bareloop src/panel/index.html@f845ee7 (the ENDED block, P5); amber added for stopped/expired, a SCHEDULED twin */
+  .ended-block{position:relative;border:1px solid var(--border-strong);padding:12px;margin-bottom:12px;background:var(--panel2);font-size:13px;}
+  .ended-block.magenta{border-color:var(--magenta);}
+  .ended-block.red{border-color:var(--red);}
+  .ended-block.green{border-color:var(--green);}
+  .ended-block.amber{border-color:var(--amber);}
+  .ended-row{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px;}
+  .ended-row:last-child{margin-bottom:0;}
+  .ended-label{color:var(--text-faint);font-size:11px;letter-spacing:0.08em;min-width:84px;}
+  .ended-text{flex:1 1 220px;min-width:0;overflow-wrap:anywhere;}
+  .when-sub{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+  .when-sub > *{flex:1 1 120px;min-width:0;}
+  .when-sub[hidden]{display:none;}
   .summary-box{position:relative;border:1px solid var(--border-strong);padding:16px 12px 12px;margin-top:16px;background:var(--panel2);font-size:12px;}
   .summary-box.red{border-color:var(--red);}
   .summary-box.amber{border-color:var(--amber);}
@@ -961,6 +974,31 @@
                 <div id="jf-run-inputs" data-testid="jf-run-inputs"></div>
                 <div class="jf-err" id="jf-err-run-inputs" data-testid="jf-err-run-inputs"></div>
               </div>
+              <div class="field" id="jf-when-field" data-testid="jf-when-field">
+                <label for="jf-when">When</label>
+                <select id="jf-when" data-testid="jf-when" aria-label="When this job runs">
+                  <option value="hand">By hand</option>
+                  <option value="daily">Every day at HH:MM</option>
+                  <option value="weekdays">Weekdays at HH:MM</option>
+                  <option value="weekly">Every &lt;day&gt; at HH:MM</option>
+                  <option value="file-updated">When &lt;file&gt; is updated</option>
+                  <option value="new-file">When a new file arrives in &lt;folder&gt;</option>
+                </select>
+                <div class="when-sub" id="jf-when-clock" hidden>
+                  <select id="jf-when-day" data-testid="jf-when-day" aria-label="Day of the week">
+                    <option value="mon">Monday</option><option value="tue">Tuesday</option><option value="wed">Wednesday</option><option value="thu">Thursday</option>
+                    <option value="fri">Friday</option><option value="sat">Saturday</option><option value="sun">Sunday</option>
+                  </select>
+                  <input id="jf-when-time" type="time" value="09:00" data-testid="jf-when-time" aria-label="Time, HH:MM">
+                </div>
+                <div class="when-sub" id="jf-when-filebox" hidden>
+                  <select id="jf-when-role" data-testid="jf-when-role" aria-label="Which of the job's inputs"></select>
+                  <input id="jf-when-path" type="text" autocomplete="off" spellcheck="false" data-testid="jf-when-path" aria-label="File or folder">
+                </div>
+                <div class="hint" id="jf-when-now" data-testid="jf-when-now"></div>
+                <div class="jf-err" id="jf-err-when" data-testid="jf-err-when"></div>
+                <button class="btn" type="button" id="jf-when-set" data-testid="jf-when-set" hidden>Set when</button>
+              </div>
               <div class="cap-row">
                 <div class="cap-field">
                   <label for="jf-run-cap">Cap $</label>
@@ -1091,6 +1129,11 @@
         <section id="panel-run" class="tabpanel active" role="tabpanel" aria-labelledby="tab-run">
           <div id="run-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run from Workflows or History</div>
           <div id="run-content" hidden>
+            <div id="summary-blocks" data-testid="summary-blocks">
+              <div id="ended-block" class="ended-block" data-testid="ended-block" hidden></div>
+              <div id="sched-block" class="ended-block" data-testid="sched-block" hidden></div>
+              <div class="hint" id="catchup-note" data-testid="catchup-note" hidden></div>
+            </div>
             <div class="run-actions" id="run-actions" data-testid="run-actions" hidden></div>
             <div class="counters" id="run-counters" data-testid="live-counters"></div>
             <div class="summary-box" id="run-summary" data-testid="run-summary"></div>
@@ -2177,6 +2220,31 @@
   // (ruling A, 2026-09-26: "no per-round parts") — built off getRunDetail's
   // `steps[]` (declaration.steps joined with audit.jsonl attempts), never a
   // second client-side re-derivation of the step list. ----
+  // ---- M9 piece 6: the summary block, first thing on the run page. The sentences are CODE-OWNED on the server (`summary` of the run detail,
+  // src/summary-words.js); this only paints them. ENDED / NEXT while a finished run; SCHEDULED / NEXT for a job with a trigger.
+  // borrowed-from: bareloop src/panel/index.html@f845ee7 (renderEnded)
+  function summaryRows(a, b){
+    return '<div class="ended-row"><span class="ended-label">' + a[0] + '</span><span class="ended-text" data-testid="' + a[2] + '">' + escapeXml(a[1]) + '</span></div>' +
+      '<div class="ended-row"><span class="ended-label">' + b[0] + '</span><span class="ended-text" data-testid="' + b[2] + '">' + escapeXml(b[1]) + '</span></div>';
+  }
+  function renderSummary(detail){
+    var sm = detail.summary || {};
+    var ended = document.getElementById("ended-block");
+    var sched = document.getElementById("sched-block");
+    var note = document.getElementById("catchup-note");
+    if(sm.ended){
+      ended.hidden = false;
+      ended.className = "ended-block " + (detail.glyph === "[✓]" ? "green" : (detail.glyph === "[?]" ? "magenta" : ((detail.glyph === "[■]" || detail.glyph === "[!]") ? "amber" : "red")));
+      ended.innerHTML = summaryRows(["ENDED", sm.ended.reason, "ended-reason"], ["NEXT", sm.ended.next, "ended-next"]);
+    } else { ended.hidden = true; ended.innerHTML = ""; }
+    if(sm.scheduled){
+      sched.hidden = false;
+      sched.className = "ended-block";
+      sched.innerHTML = summaryRows(["SCHEDULED", sm.scheduled.text, "sched-text"], ["NEXT", sm.scheduled.next, "sched-next"]);
+    } else { sched.hidden = true; sched.innerHTML = ""; }
+    note.hidden = !sm.catchUp;
+    note.textContent = sm.catchUp || "";
+  }
   function renderRun(detail){
     var name = document.getElementById("active-wf-name");
     var dot = document.getElementById("active-wf-dot");
@@ -2196,6 +2264,7 @@
 
     document.getElementById("run-empty").hidden = true;
     document.getElementById("run-content").hidden = false;
+    renderSummary(detail);
 
     // "took Xs" for a finished run, straight off the history row's own
     // wallMs (never derived/guessed) — a died/parked run or one whose
@@ -4448,6 +4517,7 @@
     }
     function syncCardLock(){
       var on = cardLocked();
+      whenSyncButton();
       card.querySelectorAll("input[type=text], textarea").forEach(function(el){ el.readOnly = on; el.classList.toggle("locked", on); });
       if(editOf !== null){ byId("jf-name").readOnly = true; byId("jf-name").classList.add("locked"); }   // M6: an edit keeps its job's name
       runFlowSel.disabled = on;
@@ -4510,7 +4580,8 @@
       setMode("new");
       setVal("jf-name", f.flow); setVal("jf-job", c.job); setVal("jf-cap-money", c.capUsd);
       setVal("jf-dest-folder", c.destination); setVal("jf-inputs", c.inputs); setVal("jf-ask-wait", c.askWait || "1h");
-      editBannerEl.textContent = "Editing \u201c" + f.flow + "\u201d. Draft it, read the new plan, then sign: signing replaces this job. Clear leaves it exactly as it was.";
+      // M9 am1: a job with a trigger is told, before it signs, that the edit clears the trigger back to By hand (the sentence is the server's)
+      editBannerEl.textContent = "Editing \u201c" + f.flow + "\u201d. Draft it, read the new plan, then sign: signing replaces this job. Clear leaves it exactly as it was." + (f.trigger && f.trigger.editNote ? " " + f.trigger.editNote : "");
       editBannerEl.hidden = false;
       chatActionOk();
       refreshCapNote(); fitCardBoxes(); refreshStartEnabled();
@@ -4553,7 +4624,89 @@
       clearFieldErrors();
       refreshCapNote();
       syncEditBtn();
+      paintWhen();
     }
+    // ---- M9 piece 5: When [By hand v] on the Run card (ladder M9 item 1, item 2). One dropdown, no cron text. Changing it asks the server what
+    // would be signed (click 1, signs nothing, returns a hash), click 2 signs it with that hash: the Run door's two clicks. $0, no drafter.
+    // A job with no good run gets the dropdown refused with the SERVER's sentence (`trigger.refusal`); the page writes no sentence of its own.
+    var whenHash = null;
+    var whenBusy = false;
+    var whenReady = false;   // the lock sync can run before this block has
+    function whenCanon(t){ return t === null ? "null" : JSON.stringify(Object.keys(t).sort().map(function(k){ return [k, t[k]]; })); }
+    function whenTriggerFromBoxes(){
+      var kind = byId("jf-when").value;
+      if(kind === "hand") return null;
+      if(kind === "daily" || kind === "weekdays" || kind === "weekly"){
+        var m = /^(\d{2}):(\d{2})$/.exec(byId("jf-when-time").value);
+        var o = m ? {kind: kind, hour: Number(m[1]), minute: Number(m[2])} : {kind: kind};   // an empty time goes to the server, which says so
+        if(kind === "weekly") o.day = byId("jf-when-day").value;
+        return o;
+      }
+      var q = {kind: kind, role: byId("jf-when-role").value};
+      q[kind === "new-file" ? "folder" : "path"] = byId("jf-when-path").value.trim();
+      return q;
+    }
+    function whenShowSubs(){
+      var kind = byId("jf-when").value;
+      byId("jf-when-clock").hidden = !(kind === "daily" || kind === "weekdays" || kind === "weekly");
+      byId("jf-when-day").hidden = kind !== "weekly";
+      byId("jf-when-filebox").hidden = !(kind === "file-updated" || kind === "new-file");
+      byId("jf-when-path").placeholder = kind === "new-file" ? "/full/path/to/folder" : "/full/path/to/file";
+    }
+    function whenSyncButton(){
+      if(!whenReady) return;
+      var f = selectedFlow();
+      var c = f && f.trigger;
+      var btn = byId("jf-when-set");
+      var changed = !!c && !c.refusal && whenCanon(whenTriggerFromBoxes()) !== whenCanon(c.trigger);
+      btn.hidden = !changed && whenHash === null;
+      btn.disabled = whenBusy || cardLocked();
+      btn.textContent = whenHash === null ? "Set when" : "Sign this trigger";
+    }
+    function paintWhen(){
+      var f = selectedFlow();
+      var c = f ? f.trigger : null;
+      var sel = byId("jf-when");
+      whenHash = null; whenBusy = false;
+      byId("jf-err-when").textContent = "";
+      var roleSel = byId("jf-when-role");
+      roleSel.innerHTML = "";
+      ((f && f.roles) || []).forEach(function(r){ var o = document.createElement("option"); o.value = r; o.textContent = r; roleSel.appendChild(o); });
+      var t = c ? c.trigger : null;
+      sel.value = t ? t.kind : "hand";
+      if(t && t.hour !== undefined){ byId("jf-when-time").value = ("0" + t.hour).slice(-2) + ":" + ("0" + t.minute).slice(-2); }
+      if(t && t.day) byId("jf-when-day").value = t.day;
+      if(t && t.role) roleSel.value = t.role;
+      byId("jf-when-path").value = t ? (t.path || t.folder || "") : "";
+      var refused = !f || !c || !!c.refusal;
+      sel.disabled = refused;
+      byId("jf-when-day").disabled = byId("jf-when-time").disabled = roleSel.disabled = byId("jf-when-path").disabled = refused;
+      byId("jf-when-now").textContent = !c ? "" : (c.refusal ? c.refusal : (c.words ? "Now: " + c.words : ""));
+      whenShowSubs(); whenSyncButton();
+    }
+    function whenEdited(){ whenHash = null; byId("jf-err-when").textContent = ""; whenShowSubs(); whenSyncButton(); }
+    ["jf-when", "jf-when-day", "jf-when-time", "jf-when-role"].forEach(function(id){ document.getElementById(id).addEventListener("change", whenEdited); });
+    document.getElementById("jf-when-path").addEventListener("input", whenEdited);
+    document.getElementById("jf-when-set").addEventListener("click", function(){
+      var f = selectedFlow();
+      if(!f || whenBusy || cardLocked()) return;
+      var body = {flow: f.flow, trigger: whenTriggerFromBoxes()};
+      var second = whenHash !== null;
+      if(second) body.hash = whenHash;
+      whenBusy = true; whenSyncButton();
+      authorPost(second ? "/api/author/trigger" : "/api/author/trigger-prepare", body).then(function(r){
+        whenBusy = false;
+        if(!(r.status >= 200 && r.status < 300 && r.body && r.body.ok === true)){
+          whenHash = null; byId("jf-err-when").textContent = refusalText(r); whenSyncButton(); return;
+        }
+        if(!second){ whenHash = r.body.hash; byId("jf-err-when").textContent = ""; whenSyncButton(); return; }
+        whenHash = null;
+        var say = typeof r.body.say === "string" ? r.body.say : "";
+        loadFlows(true);
+        if(say) byId("jf-err-when").textContent = say;
+      }).catch(function(){ whenBusy = false; whenHash = null; byId("jf-err-when").textContent = NETWORK_SAY; whenSyncButton(); });
+    });
+    whenReady = true;
     // borrowed-from: bareloop src/panel/index.html@b5e37b8 — the Reuse workflow picker: ONE function shows the search box + list before a pick and the
     // picked box after; a row is the name (the typed part marked) over the flow's track record line.
     function rwMark(name, q){
