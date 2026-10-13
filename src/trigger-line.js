@@ -51,7 +51,8 @@ export function triggerLine(t) {
   if (t.kind === 'daily' || t.kind === 'weekdays') return `guardrail: trigger ${t.kind} ${hhmm(t)}`;
   if (t.kind === 'weekly') return `guardrail: trigger weekly ${t.day} ${hhmm(t)}`;
   if (t.kind === 'file-updated') return `guardrail: trigger file-updated ${t.role} = file:${t.path}`;
-  return `guardrail: trigger new-file ${t.role} = file:${t.folder}`;
+  const f = /** @type {{role: string, folder: string}} */ (t);
+  return `guardrail: trigger new-file ${f.role} = file:${f.folder}`;
 }
 
 /** Is this signed-text line a trigger line (so the grammar sees it, and `stripTrigger` removes it)? @param {string} line */
@@ -80,3 +81,6 @@ export function proseWithTrigger(prose, trigger) {
 export function triggerHash({ flow, flowSignatureHash, trigger }) {
   return createHash('sha256').update(JSON.stringify({ m9: 'trigger', flow, flowSignatureHash, trigger })).digest('hex');
 }
+
+/** M9: the file a triggered start writes (once, before the spawn) into the run's own folder: why this run started. `appendHistory` copies it into the run's history row. */
+export const TRIGGER_RECORD_FILE = 'trigger.json';

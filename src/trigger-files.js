@@ -40,6 +40,22 @@ function appendSeen(file, row) {
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 
 /**
+ * The target is usable NOW, or an Error naming why: a file that is not a symlink and not something else (a file that does not exist yet
+ * is allowed: it may arrive), a folder that exists, resolved with realpathSync. The one rule `arm` and a door's set-time check share.
+ * @param {'new'|'updated'} mode @param {string} target
+ */
+export function checkTarget(mode, target) {
+  if (mode === 'updated') {
+    if (existsSync(target) && lstatSync(target).isSymbolicLink()) throw new Error(`file to watch ${target} is a symlink; a symlink is refused`);
+    if (existsSync(target) && !lstatSync(target).isFile()) throw new Error(`${target} is not a file`);
+  } else {
+    let real;
+    try { real = realpathSync(target); } catch { throw new Error(`folder to watch ${target} does not exist`); }
+    if (!lstatSync(real).isDirectory()) throw new Error(`${target} is not a folder`);
+  }
+}
+
+/**
  * @param {{mode:'new'|'updated', target:string, ledger:string}} opts target = folder (new) or file (updated)
  */
 export function createFileTrigger({ mode, target, ledger }) {
@@ -79,14 +95,7 @@ export function createFileTrigger({ mode, target, ledger }) {
 
   /** Validate the target now and record what is already there as the baseline: it never runs. */
   function arm() {
-    if (mode === 'updated') {
-      if (existsSync(target) && lstatSync(target).isSymbolicLink()) throw new Error(`file to watch ${target} is a symlink; a symlink is refused`);
-      if (existsSync(target) && !lstatSync(target).isFile()) throw new Error(`${target} is not a file`);
-    } else {
-      let real;
-      try { real = realpathSync(target); } catch { throw new Error(`folder to watch ${target} does not exist`); }
-      if (!lstatSync(real).isDirectory()) throw new Error(`${target} is not a folder`);
-    }
+    checkTarget(mode, target);
     const seen = new Set(readSeen(ledger).map((r) => r.sha));
     for (const p of candidates().files) {
       const buf = readFileSync(p);

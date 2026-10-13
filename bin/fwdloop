@@ -30,6 +30,7 @@ import {
   runFlow, resumeRun, continueRun, auditSpend, makeParkingAskStep, readAsk, readRunState,
 } from '../src/runner.js';
 import { applyRunValues, pickRunValues, dropUnstartedValues } from '../src/runvalues.js';
+import { TRIGGER_RECORD_FILE } from '../src/trigger-line.js';
 import { makeLiveModelStep } from '../src/model-step.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
@@ -352,7 +353,7 @@ async function cmdRun(rest) {
     if (!runIdCheck.ok) fail(runIdCheck.red);
     runDir = runIdCheck.runDir;
     // M4e amendment 5: the panel's Sign & run puts the run's signed values in the folder BEFORE the start; that one file is not "a run".
-    if (existsSync(runDir) && readdirSync(runDir).filter((n) => n !== 'signed-values.json').length > 0) fail(`run: run dir "${runDir}" already exists — use a new --run-id`);
+    if (existsSync(runDir) && readdirSync(runDir).filter((n) => n !== 'signed-values.json' && n !== TRIGGER_RECORD_FILE).length > 0) fail(`run: run dir "${runDir}" already exists — use a new --run-id`);
   }
   // M4e amendment 5 item 3: the cap this run was signed with (its own values file, else the flow's) is what the monthly hold is for.
   const applied = applyRunValues(read.arbiter, flowName, read.signature.flow, pickRunValues(runDir));

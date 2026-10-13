@@ -34,6 +34,7 @@ import {
 } from '../flow.js';
 import { booksFresh, runLiveness } from '../liveness.js';
 import { dropUnstartedValues, writeRunValues } from '../runvalues.js';
+import { TRIGGER_RECORD_FILE } from '../trigger-line.js';
 import {
   childRunning, providerKeys, readJsonFile, spawnDetached, writePidFile,
 } from './spawn.js';
@@ -127,12 +128,14 @@ export function createStarter(opts) {
      * `runId` '' = no typed id: the start CLAIMS the next `run-<n>` itself (claimRunId, folder created exclusively; amendment 3).
      * `values` (M4e amendment 5 item 3): the human's signed values for THIS run (the page's second click), written once into the run's own
      * folder as `signed-values.json` BEFORE the spawn; the run then uses them (`pickRunValues`). None = the flow's own.
-     * @param {{ kind: 'run'|'sign', flow: string, runId: string, sources: {role: string, path: string}[], values?: any, pick?: {slot: string, model: string}|null }} a
+     * `trigger` (M9): `{kind, reason, catchUp, ...}` for a start a trigger fired (kind 'trigger'): written once into the run's own folder as `trigger.json`
+     * BEFORE the spawn; `appendHistory` copies it into the run's history row (the catch-up mark, am2 item 1).
+     * @param {{ kind: 'run'|'sign'|'trigger', flow: string, runId: string, sources: {role: string, path: string}[], values?: any, pick?: {slot: string, model: string}|null, trigger?: Record<string, any>|null }} a
      * @param {{ env: Record<string, string|undefined>, keyNames?: string[] }} loaded the keys load: its env is the child's env AND (with its key names) the scrub list
      * @returns {{ status: number, body: any }}
      */
     start({
-      kind, flow, runId, sources, values = null, pick = null,
+      kind, flow, runId, sources, values = null, pick = null, trigger = null,
     }, loaded) {
       const { env } = loaded;
       const sd = startsDir();
@@ -150,16 +153,21 @@ export function createStarter(opts) {
       }
       const runDirOf = () => claimedDir ?? join(realpathSync(root), flow, 'runs', runId);
       const unclaim = () => {
-        if (claimedDir === null && values === null) return;
+        if (claimedDir === null && values === null && trigger === null) return;
         dropUnstartedValues(runDirOf());
         try { rmdirSync(runDirOf()); } catch { /* not empty / gone */ }
       };
-      if (values !== null) {
-        // the run folder holds its signed values from before the first step: a claimed one already exists, a typed id's is made here
-        // (exclusively: a folder that appeared meanwhile refuses)
+      if (values !== null || trigger !== null) {
+        // the run folder holds its signed values (and a triggered start's reason) from before the first step: a claimed one already exists,
+        // a typed id's is made here (exclusively: a folder that appeared meanwhile refuses)
         try { if (claimedDir === null) mkdirSync(runDirOf()); } catch { return { status: 400, body: { ok: false, refused: 'run-id', say: `There is already a run "${runId}" of this flow. Use a new run id.` } }; }
+      }
+      if (values !== null) {
         const w = writeRunValues(runDirOf(), { ...values, runId });
         if (!w.ok) { unclaim(); return { status: 500, body: { ok: false, refused: 'values', say: `The signed values could not be saved. ${NOTHING_SPENT}` } }; }
+      }
+      if (trigger !== null) {
+        try { writeFileSync(join(runDirOf(), TRIGGER_RECORD_FILE), `${JSON.stringify(trigger)}\n`, { flag: 'wx', mode: 0o600 }); } catch { unclaim(); return { status: 500, body: { ok: false, refused: 'trigger', say: `The reason this run started could not be saved. ${NOTHING_SPENT}` } }; }
       }
       const keys = providerKeys(loaded);
       // one start at a time while one is still spawning for this flow (a double click, two tabs)

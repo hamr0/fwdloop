@@ -18,6 +18,7 @@ import { unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { readFileInside, readdirInside } from './flow.js';
+import { TRIGGER_RECORD_FILE } from './trigger-line.js';
 
 export const VALUES_FILE_RE = /^signed-values(?:-r(\d+))?\.json$/;
 
@@ -168,11 +169,12 @@ export function applyRunValues(arbiter, flow, flowSignatureHash, picked) {
 
 /**
  * A start that refused before the run began (monthly limit, empty key ...) leaves a run folder holding nothing but its signed values
- * file: remove that one file so the folder can be removed too and the run name is not burned. Never touches a folder with anything else.
+ * file and/or its trigger record: remove those so the folder can be removed too and the run name is not burned. Never touches a folder with anything else.
  * @param {string} runDir @returns {boolean} true when the file was removed
  */
 export function dropUnstartedValues(runDir) {
   const names = readdirInside(runDir, '.');
-  if (names.length !== 1 || names[0] !== valuesFileName(0)) return false;
-  try { unlinkSync(join(runDir, names[0])); return true; } catch { return false; }
+  const own = [valuesFileName(0), TRIGGER_RECORD_FILE];   // M9: a triggered start also writes its reason file before the spawn
+  if (names.length === 0 || names.some((n) => !own.includes(n))) return false;
+  try { for (const n of names) unlinkSync(join(runDir, n)); return true; } catch { return false; }
 }

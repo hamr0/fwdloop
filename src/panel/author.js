@@ -60,6 +60,7 @@ import {
 import { flowValues, valuesHash } from '../runvalues.js';
 import { leastResumeCapUsd } from './authorvalues.js';
 import { createFlowsDoor } from './authorflows.js';
+import { createTriggerDoor } from './authortrigger.js';
 import { createResumeDoor } from './authorresume.js';
 import { createStarter } from './authorstart.js';
 import {
@@ -105,6 +106,11 @@ export function createAuthor(opts) {
   const starter = createStarter({ root, bin });
   const flowsDoor = createFlowsDoor({
     root, home, skipMonthly, loadEnv, starter, monthlyClaim: (usd) => monthlyClaim(usd), modelRefusal: (card, loaded) => modelRefusal(card, loaded),
+  });
+
+  // M9: the trigger door (set the signed trigger, read it) and the one fire path the panel's scheduler calls
+  const triggerDoor = createTriggerDoor({
+    root, flowsDoor, starter, loadEnv, monthlyClaim: (usd) => monthlyClaim(usd),
   });
 
   /** The ONE monthly check, defined below (a function declaration, so the doors above may take it now). */
@@ -380,6 +386,7 @@ export function createAuthor(opts) {
     runAgain: flowsDoor.runAgain,
     run: flowsDoor.run,
     runPrepare: flowsDoor.runPrepare,
+    trigger: triggerDoor,
     resumePrepare: resumeDoor.prepare,
     resumeForm: resumeDoor.form,
     resume: resumeDoor.resume,

@@ -441,9 +441,15 @@ const ALLOWLIST = {
     },
   },
   'src/panel/authorstart.js': {
-    reason: 'M4e piece 2b: the ONE run-start path — creates ITS OWN start folder `<root>/.starts/<id>/` (mkdir 0700) and writes the one file it owns there (start.json 0600; cleared.json 0600, once, when the human dismisses a refused start; pid.json and child.log go through spawn.js); realpathSync of the typed --root at use time; existsSync of the new run dir (presence only, to refuse an id already used); rmdirSync of a run dir this start just claimed when the start is refused before the child runs (rmdir removes only an EMPTY folder). Every READ of a start folder and of the run dir (pids.jsonl, ask.json) goes through readFileInside/readPidRows/readdirInside, never fs directly.',
+    reason: 'M4e piece 2b: the ONE run-start path — creates ITS OWN start folder `<root>/.starts/<id>/` (mkdir 0700) and writes the one file it owns there (start.json 0600; M9: trigger.json 0600, once, the reason a triggered start has, inside the run folder it just claimed; cleared.json 0600, once, when the human dismisses a refused start; pid.json and child.log go through spawn.js); realpathSync of the typed --root at use time; existsSync of the new run dir (presence only, to refuse an id already used); rmdirSync of a run dir this start just claimed when the start is refused before the child runs (rmdir removes only an EMPTY folder). Every READ of a start folder and of the run dir (pids.jsonl, ask.json) goes through readFileInside/readPidRows/readdirInside, never fs directly.',
     names: {
-      existsSync: 1, mkdirSync: 5, realpathSync: 7, rmdirSync: 1, writeFileSync: 3,
+      existsSync: 1, mkdirSync: 5, realpathSync: 7, rmdirSync: 1, writeFileSync: 4,
+    },
+  },
+  'src/panel/authortrigger.js': {
+    reason: "M9 pieces 3-4: the trigger door. Appends ONE line per fire outcome to `<flow>/triggers.jsonl` (append-only, 0600) and makes the per-signed-trigger ledger folder (`<flow>/triggers/<hash>/`, 0700); writes once the job's `setup.jsonl` back after a replace-sign (wx; the sign moved the old one away); realpathSync of the typed --root and of a file trigger's folder at use time. Every READ of a job, a run, its copy and the outcome file goes through readFileInside / readFlow / the ledgers' own readers, never fs directly.",
+    names: {
+      appendFileSync: 1, mkdirSync: 1, realpathSync: 2, writeFileSync: 1,
     },
   },
   'src/panel/authorresume.js': {
