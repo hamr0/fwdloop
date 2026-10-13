@@ -997,7 +997,6 @@
                 </div>
                 <div class="hint" id="jf-when-now" data-testid="jf-when-now"></div>
                 <div class="jf-err" id="jf-err-when" data-testid="jf-err-when"></div>
-                <button class="btn" type="button" id="jf-when-set" data-testid="jf-when-set" hidden>Set when</button>
               </div>
               <div class="cap-row">
                 <div class="cap-field">
@@ -4079,6 +4078,10 @@
       var spends = (cap !== undefined && cap !== null && cap !== "") ? " — spends up to $" + cap : "";
       var blocked = !st.startOk || !!st.busy;
       if(st.mode === "run"){
+        // M9 am4: When changed from the signed value = the one button is Sign schedule (two clicks, $0, starts nothing); it never reaches the run routes
+        if(st.whenChanged){
+          return {text: "Sign schedule", action: st.whenSigning ? "when-sign" : "when-sign-prepare", disabled: !!st.whenBusy || !!st.busy};
+        }
         // amendment 5 item 3: inputs alone = Run (one click); a Destination, Cap $ or ask wait different from the flow's = Sign & run (two clicks, bound to a hash)
         if(st.runDiffers){
           if(st.runSignClicked){
@@ -4087,7 +4090,7 @@
           }
           return {text: "Sign & run", action: "run-sign-prepare", disabled: blocked};
         }
-        return {text: "Run" + spends, action: "run", disabled: blocked};
+        return {text: "Run now" + spends, action: "run", disabled: blocked};
       }
       if(st.mode === "resume"){
         if(st.runSignClicked){
@@ -4653,15 +4656,16 @@
       byId("jf-when-filebox").hidden = !(kind === "file-updated" || kind === "new-file");
       byId("jf-when-path").placeholder = kind === "new-file" ? "/full/path/to/folder" : "/full/path/to/file";
     }
-    function whenSyncButton(){
-      if(!whenReady) return;
+    // M9 am4: is When changed from the signed value? The ONE reader; the main button turns into Sign schedule while it is.
+    function whenChanged(){
+      if(!whenReady) return false;
       var f = selectedFlow();
       var c = f && f.trigger;
-      var btn = byId("jf-when-set");
-      var changed = !!c && !c.refusal && whenCanon(whenTriggerFromBoxes()) !== whenCanon(c.trigger);
-      btn.hidden = !changed && whenHash === null;
-      btn.disabled = whenBusy || cardLocked();
-      btn.textContent = whenHash === null ? "Set when" : "Sign this trigger";
+      return !!c && !c.refusal && whenCanon(whenTriggerFromBoxes()) !== whenCanon(c.trigger);
+    }
+    function whenSyncButton(){
+      if(!whenReady) return;
+      renderMain();
     }
     function paintWhen(){
       var f = selectedFlow();
@@ -4687,7 +4691,7 @@
     function whenEdited(){ whenHash = null; byId("jf-err-when").textContent = ""; whenShowSubs(); whenSyncButton(); }
     ["jf-when", "jf-when-day", "jf-when-time", "jf-when-role"].forEach(function(id){ document.getElementById(id).addEventListener("change", whenEdited); });
     document.getElementById("jf-when-path").addEventListener("input", whenEdited);
-    document.getElementById("jf-when-set").addEventListener("click", function(){
+    function doWhenSign(){
       var f = selectedFlow();
       if(!f || whenBusy || cardLocked()) return;
       var body = {flow: f.flow, trigger: whenTriggerFromBoxes()};
@@ -4705,7 +4709,7 @@
         loadFlows(true);
         if(say) byId("jf-err-when").textContent = say;
       }).catch(function(){ whenBusy = false; whenHash = null; byId("jf-err-when").textContent = NETWORK_SAY; whenSyncButton(); });
-    });
+    }
     whenReady = true;
     // borrowed-from: bareloop src/panel/index.html@b5e37b8 — the Reuse workflow picker: ONE function shows the search box + list before a pick and the
     // picked box after; a row is the name (the typed part marked) over the flow's track record line.
@@ -4938,6 +4942,9 @@
         st.runDiffers = runDiffers();
         st.runSignClicked = !!runSignInfo;
         st.hash = runSignInfo ? runSignInfo.hash : "";
+        st.whenChanged = whenChanged();
+        st.whenSigning = whenHash !== null;
+        st.whenBusy = whenBusy;
       } else if(mode === "resume"){
         st.capUsd = resumeCapEl.value.trim();
         st.runSignClicked = !!resumeSignInfo;
@@ -5360,6 +5367,7 @@
     mainBtn.addEventListener("click", function(){
       if(mainBtn.disabled) return;
       if(mainAction === "draft") doDraft(mainStartOver ? sessionId : null);
+      else if(mainAction === "when-sign-prepare" || mainAction === "when-sign") doWhenSign();
       else if(mainAction === "run") doRun();
       else if(mainAction === "run-sign-prepare" || mainAction === "run-sign") doRunSign();
       else if(mainAction === "resume-sign-prepare" || mainAction === "resume-sign") doResumeSign();

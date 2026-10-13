@@ -31,10 +31,10 @@ test('mainButtonFor: every state gives its label, action and enabled state', () 
   want({ ...base, startOk: false }, true, 'Draft', 'draft', true);
   want({ ...base, busy: true }, true, 'Draft', 'draft', true);
   // Run a signed flow: the cap is on the label
-  want({ ...base, mode: 'run', capUsd: 0.25 }, true, 'Run \u2014 spends up to $0.25', 'run', false);
-  want({ ...base, mode: 'run', capUsd: 0.25, startOk: false }, true, 'Run \u2014 spends up to $0.25', 'run', true);
-  want({ ...base, mode: 'run', capUsd: 0.25, busy: true }, true, 'Run \u2014 spends up to $0.25', 'run', true);
-  want({ ...base, mode: 'run' }, true, 'Run', 'run', false);
+  want({ ...base, mode: 'run', capUsd: 0.25 }, true, 'Run now \u2014 spends up to $0.25', 'run', false);
+  want({ ...base, mode: 'run', capUsd: 0.25, startOk: false }, true, 'Run now \u2014 spends up to $0.25', 'run', true);
+  want({ ...base, mode: 'run', capUsd: 0.25, busy: true }, true, 'Run now \u2014 spends up to $0.25', 'run', true);
+  want({ ...base, mode: 'run' }, true, 'Run now', 'run', false);
   // drafting: disabled
   want({ ...base, session: true, phase: 'drafting' }, true, 'Draft', 'none', true);
   // red / stopped: draft again

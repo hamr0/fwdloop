@@ -35,7 +35,7 @@ const base = { mode: 'run', session: false, startOk: true, busy: false, capUsd: 
 
 test('am5 item 3: the Run form\'s button is Run (one click) for inputs alone, Sign & run (two clicks, the hash on the label) when the destination, cap or an ask wait differs', () => {
   const mb = load('mainButtonFor');
-  assert.deepEqual(mb({ ...base, runDiffers: false }), { text: 'Run — spends up to $0.25', action: 'run', disabled: false });
+  assert.deepEqual(mb({ ...base, runDiffers: false }), { text: 'Run now — spends up to $0.25', action: 'run', disabled: false });
   assert.deepEqual(mb({ ...base, runDiffers: true }), { text: 'Sign & run', action: 'run-sign-prepare', disabled: false });
   assert.deepEqual(mb({ ...base, runDiffers: true, startOk: false }), { text: 'Sign & run', action: 'run-sign-prepare', disabled: true });
   const clicked = mb({ ...base, runDiffers: true, runSignClicked: true, hash: '7cc0122f0f3058b12a57', capUsd: '0.40' });
