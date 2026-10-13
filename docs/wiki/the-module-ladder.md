@@ -2275,3 +2275,28 @@ monthly wall is enforced **by the trigger**, before a run starts.
 
 Mail in and out, chat, browse — each behind the signed allow-list and a prior `ask` accept in the
 same run. Scope is stated when its turn comes.
+
+## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
+
+- **M11 scope — SIGNED by hamr 2026-10-13 ("sign m11").**
+  Design: bareloop `design/runs-list-mock.html`, box **F** (desktop + 390 px phone), picked by hamr 2026-10-13 ("F is it"). Spec borrowed by copy from bareloop `docs/product/PANEL-BUILD.md` P9 (DRAFT there), plus fwdloop's own ruling of 2026-10-08 (job card + latest 7 runs, older via search, no archive) and a Scheduled section for M9.
+  1. **The left Runs list becomes one list**, top to bottom. A section with 0 items is not shown at all.
+     1. **Running now (N)** — every `[▶]` run, one card each: `[▶] job (run-N) · time so far · $ so far` / its current step. Click: selects that run and scrolls to its job card. Not filtered, not searched.
+     2. **Needs you (N)** — every run M4c-fix amendment 2 (i) already calls "needs you": waiting `[·]`, stuck `[II]`, expired with Reopen `[!]`. Each card has a tag (`Answer`, `Continue`, `Reopen`) that is a label, never a button. Click: does exactly what (i) does today (Inbox on the left, Ask tab on the right). Not filtered.
+     3. **Scheduled (N)** — every job with a trigger, soonest next run first: `job` / the SCHEDULED and NEXT words M9 already shows (e.g. "Mondays at 09:00 · next Mon 13 Oct, 09:00"; a paused one keeps its red). Click: opens that job's newest run on the Run tab. Not filtered.
+     4. A dashed line, a faint line "filters below act on Jobs and quiet jobs only", then today's search box and filter chips, moved here unchanged.
+     5. **Jobs (N) · run in the last 30 days** — one card per job, newest activity first: `[sign] job  k runs` / **word** — why of its newest run. Inside it, the newest run's card (as today's run rows). Then `▸ older runs (k)`: open shows at most **7**, then "(and k older: use search)". A selected run past the 7 is still shown.
+     6. **`▸ quiet jobs (N) · no run in 30 days`** — one folded line; open shows those job cards, same shape as 5.
+  2. **Rules.**
+     - Search and filters act on Jobs and quiet jobs only. A job shows if any of its runs match; when the match is an older run, the job opens on it.
+     - The **Workflows / History** switch goes: one list. The flat History view goes; search covers it. The Audit tab's own Grouped / Flat stays.
+     - 30 days and 7 are named constants in one place.
+     - Signs, words, run names, colours, font: unchanged (one table, as today). The selected card keeps today's highlight.
+     - The left list has no buttons that act on a run. The real controls stay on the Run and Ask tabs.
+     - The server gives the page every state (live, needs-you, next scheduled time, last run time) from the functions that own them today (`computeGlyph`, the (i) rule, `scheduledNextFor`). The page never works out a state itself.
+     - Phone: the same stacked list (F's phone column). 44 px touch targets. No sideways scroll at 1280, 390 or 320 px.
+     - The Inbox tab is not changed.
+  - **Not in M11:** any change to runs on disk (display only, nothing is deleted or archived); new filters; the Inbox; bareloop's rubric Accept tag.
+  - **Done when:** on hamr's real panel (`--root flows`), with aging-live-4 scheduled and one run waiting at an ask: Running now shows a live run while it runs; Needs you shows the waiting run and its click opens the Ask tab; Scheduled shows aging-live-4 with its next time; a job with more than 8 runs shows 1 + 7 and "use search"; a search for an older run opens its job on it; checked at 1280, 390 and 320 px. Plus tests that fail first.
+  - **Must fail when:** a filter or search hides a Running now, Needs you or Scheduled card; a job's 9th-newest run shows without search (unless selected); a section with 0 items draws a header; the page and the server disagree on whether a run needs you.
+  - **Cap:** $0.05 (the build makes no model calls; the money is only for the live walk's runs on aging-live-4).
