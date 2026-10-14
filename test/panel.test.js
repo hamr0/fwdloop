@@ -2442,7 +2442,7 @@ describe('index.html — page source', () => {
   test('re-walk #4: the run header\'s date never borrows outcomeWhy, and shows a parked run\'s own askedAt when the books hold one', () => {
     assert.doesNotMatch(source, /detail\.at \? readableDateTime\(detail\.at\) : \(detail\.outcomeWhy/);
     assert.match(source, /detail\.askedAt \? "asked " \+ readableDateTime\(detail\.askedAt\)/);
-    assert.match(source, /r\.askedAt \? "asked " \+ readableDateTime\(r\.askedAt\)/);
+    assert.match(source, /var when = r\.at \|\| r\.askedAt \|\| r\.startedAt;/, "the list date falls back to the run's own askedAt");
   });
 
   test('hamr 2026-09-27 browser-walk bug #3: glyphClass maps the new [!] "ask expired" glyph to a real color, never the grey/red/magenta bucket', () => {

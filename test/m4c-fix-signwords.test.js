@@ -35,7 +35,7 @@ test('(g) one table: each of the eight signs maps to its one word, and a plain l
 });
 
 test('(g) the page draws the word on all three surfaces (Runs, Inbox, run header) off the server\'s word, never its own table', () => {
-  assert.match(PAGE, /signHtml\(r\.word, r\.line, r\.label\)/, 'Runs row');
+  assert.match(PAGE, /signHtml\(r\.word, why, r\.label\)/, 'Runs row');
   assert.match(PAGE, /signHtml\(row\.word, stopStatusLine\(row\), stopStatusLine\(row\)\)/, 'Inbox row');
   assert.match(PAGE, /verdict\.innerHTML = signHtml\(detail\.word, detail\.line, detail\.label\)/, 'run header badge');
   assert.match(PAGE, /signHtml\(detail\.word, detail\.line, detail\.label\) \+ ' &middot;/, 'run header summary');
