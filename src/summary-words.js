@@ -107,11 +107,6 @@ export function scheduledNextFor(f) {
   return say(`${lead}Next run ${slotWords(nextSlotMs)}.`, red);
 }
 
-/** The NEXT sentence alone. @param {Parameters<typeof scheduledNextFor>[0]} f */
-export function scheduledNext(f) {
-  return scheduledNextFor(f).text;
-}
-
 /** Fixed catch-up sentence (am2 item 1) from a run's `trigger.json`. @param {any} rec */
 export function catchUpWords(rec) {
   return rec && typeof rec === 'object' && rec.catchUp === true ? 'This run was a catch-up: it started more than 2 minutes after its set time (the panel was off).' : null;

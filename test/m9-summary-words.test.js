@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-  catchUpWords, editClearsWords, endedWords, scheduledNext, scheduledNextFor, scheduledWords, slotWords,
+  catchUpWords, editClearsWords, endedWords, scheduledNextFor, scheduledWords, slotWords,
 } from '../src/summary-words.js';
+
+// the NEXT sentence alone
+const scheduledNext = (f) => scheduledNextFor(f).text;
 
 test('SCHEDULED words, the signed examples', () => {
   assert.equal(scheduledWords(null), null);
