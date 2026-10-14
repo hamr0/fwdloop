@@ -274,15 +274,15 @@ test('the limits are the server\'s: 3 shown when the payload says 3, and the fol
   assert.match(text(lib.rlJobsHtml(m)), /Jobs \(1\) · run in the last 45 days/);
 });
 
-test('card shapes: a job card is `[sign] job · k runs` / `word · why` of its newest run; a run card is `[sign] run-N  date · model` / `word — why · $ · wall`', () => {
+test('card shapes: a job card is `[sign] job · k runs` / `word · why` of its newest run; a run card is `[sign] run-N · date · model` (M11 am5 item 6) / `word — why · $ · wall`', () => {
   const rows = [run('flights', 2, { glyph: '[✗]', word: 'failed', line: 'price over $450', label: 'failed (halt)', spend: '$0.0500', wallMs: 240_000, at: '2026-10-12T14:03:00.000Z' }), run('flights', 1)];
   const m = model(payload(rows, [meta('flights')]), { open: { flights: true } });
   const job = lib.rlJobCardHtml(m.jobs[0]);
   const lines = text(job).replace(/\s+/g, ' ');
   assert.match(lines, /^\[✗\]flights · 2 runs\s*failed · price over \$450/);
   assert.match(job, /<div class="rl-card[^"]*" id="rl-job-flights"/, 'the job card is not a button and is not clickable');
-  assert.ok(lines.includes(`[✗]run-2 ${short('2026-10-12T14:03:00.000Z')} · deepseek-flash`) && /deepseek-flash\s*failed — price over \$450 · \$0\.0500 · 4m00s/.test(lines), lines);
-  assert.ok(lines.includes(`[✓]run-1 ${short('2026-10-12T10:00:00.000Z')} · deepseek-flash`) && /deepseek-flash\s*passed — goal met · \$0\.0100 · 1m00s/.test(lines), lines);
+  assert.ok(lines.includes(`[✗]run-2 · ${short('2026-10-12T14:03:00.000Z')} · deepseek-flash`) && /deepseek-flash\s*failed — price over \$450 · \$0\.0500 · 4m00s/.test(lines), lines);
+  assert.ok(lines.includes(`[✓]run-1 · ${short('2026-10-12T10:00:00.000Z')} · deepseek-flash`) && /deepseek-flash\s*passed — goal met · \$0\.0100 · 1m00s/.test(lines), lines);
 });
 
 test('a job with no run yet is one plain card with the server\'s sentence (never a made-up row)', () => {
