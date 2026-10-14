@@ -30,7 +30,7 @@ import {
 } from '../flow.js';
 import { parseSignedText } from '../signed-text.js';
 import { editClearsWords, scheduledWords } from '../summary-words.js';
-import { armTrigger, nextSlot, parseJsonl, readRows, validateSchedule } from '../trigger-clock.js';
+import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
 import { checkTarget, createFileTrigger } from '../trigger-files.js';
 import { readModelRecord } from '../flowmodel.js';
 import { carrySetup, readSetup } from '../setup.js';
@@ -57,7 +57,7 @@ export function triggerLedgerDir(flowDir, flowHash) {
 export function readOutcomes(flowDir) {
   const f = readFileInside(flowDir, HISTORY_FILE);
   if (!f.ok) return [];
-  return parseJsonl(f.text);
+  return f.text.split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
 }
 
 /** The ONE writer of `triggers.jsonl`: append-only, one line per fire outcome. @param {string} flowDir @param {Record<string, any>} row */
