@@ -906,7 +906,8 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
   const stateJson = readRunState(runDir);
   const consumedAnswerExists = hasConsumedAnswer(runDir, askJson && typeof askJson.askId === 'string' ? askJson.askId : null);
   // A finished run has no resume to report (its history row says how it ended).
-  const resume = historyRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(runDir), attempt, ask: askJson });
+  const savedAnswer = historyRow ? null : readSavedAnswer(runDir);
+  const resume = historyRow ? null : deriveResumeState({ savedAnswer, attempt, ask: askJson });
   const stuckInputs = historyRow ? { liveness: 'unknown', lock: 'none' } : readStuckInputs(runDir);
 
   return {
@@ -934,6 +935,8 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     consumedAnswerExists,
     hasStateJson: stateJson !== null,
     resume,
+    // M11 am4 item 1: when the saved answer was written (a stuck run has no stop time; its 7 days in Needs you count from here), or null
+    savedAnswerAt: savedAnswer ? savedAnswer.answeredAt : null,
     // M4c: only read for a run with no end row (an end row always wins).
     liveness: stuckInputs.liveness,
     lock: stuckInputs.lock,
@@ -1105,7 +1108,7 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun, now = Da
         pulse: glyphPulses({ glyph, label }),
         stuck: glyph === '[II]',
         controls,
-        needs: needsYouTag(glyph, controls, ctx.historyRow ? ctx.historyRow.at : null, now()),
+        needs: needsYouTag(glyph, controls, glyph === '[II]' ? ctx.savedAnswerAt : (ctx.historyRow ? ctx.historyRow.at : null), now()),
         live: isRunningNow(ctx, glyph),
         model: deriveRunModel(ctx.auditRows),
         resume: ctx.resume,
@@ -1171,7 +1174,7 @@ export function orderRuns(rows) {
  * M11 am1 item 2 + am2: the ONE rule for a run's Needs-you tag, read off the sign and `runControls` (no second rule). `Accept`: waiting at an open ask.
  * `Resume`: stuck `[II]`, or stopped `[■]` whose Run tab shows the Resume button. An expired ask `[!]` is never here (it stays in the Inbox).
  * M11 am3 item 5: a Resume run leaves Needs you once its stop time (`at`, the history row's) is `RUNS_LIST_LIMITS.needsYouDays` old; exactly that old is out.
- * A run with no readable time stays in. An Accept run is never dropped by age (its ask has its own wait).
+ * M11 am4 item 1: a stuck `[II]` run has no stop time; the caller passes the time its saved answer was written. A run with no readable time stays in. An Accept run is never dropped by age (its ask has its own wait).
  * @param {string} glyph a `computeGlyph` sign @param {{atAsk: boolean, canResume: boolean}} controls `runControls`' answer
  * @param {string|null} [at] the run's stop time from the books @param {number} [nowMs]
  * @returns {'Accept'|'Resume'|null}

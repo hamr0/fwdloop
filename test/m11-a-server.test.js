@@ -235,3 +235,22 @@ test('GET /api/runs carries rows, scheduled, jobs and limits (real HTTP); a job 
   assert.match(s.in, /^next in \d+[mhd]$/);
   assert.ok(Array.isArray(after.rows) && after.rows.length > 0);
 });
+
+test('listRuns am4 item 1: a stuck run leaves Needs you 7 days after its saved answer was written; 6d23h stays', async () => {
+  const D = 86_400_000;
+  const w = await parkedRun('stuck-age');
+  const ask = JSON.parse(readFileSync(path.join(w.runDir, 'ask.json'), 'utf8'));
+  const base = Date.parse(ask.askedAt) + 60_000; // an on-time answer, written one minute after the ask
+  let NOW = base;
+  const tagAt = (answeredAt) => {
+    writeFileSync(path.join(w.runDir, 'answer.json'), JSON.stringify({ askId: ask.askId, decision: 'accept', answeredAt }));
+    const r = listRuns({ root: w.root, catalogue: CAT, now: () => NOW }).find((x) => x.runId === 'run-1');
+    assert.equal(r.glyph, '[II]', r.label);
+    return r.needs;
+  };
+  const saved = new Date(base).toISOString();
+  NOW = base + 7 * D;
+  assert.equal(tagAt(saved), null, 'saved answer 7d ago: out');
+  NOW = base + 7 * D - 3_600_000;
+  assert.equal(tagAt(saved), 'Resume', '6d23h: in');
+});
