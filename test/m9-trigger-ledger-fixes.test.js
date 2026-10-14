@@ -70,3 +70,15 @@ test('a queued file refused for a NEW reason is told again; the same reason over
   assert.deepEqual(f.rows().map((r) => r.why), ['Base URL is not set.', 'The model is not ticked in Settings.'], 'a different reason is a new row');
   assert.equal(f.ctl.starts, 0);
 });
+
+test('lastOutcome reads only the current signed trigger: a red from an older trigger does not lead a newly signed schedule', async () => {
+  const f = await stubWorld();
+  f.door.refuse(f.door.scan()[0], 'folder gone');   // the old file trigger's refusal
+  assert.equal(f.door.read('job2').lastOutcome.outcome, 'refused', 'it is the current trigger\'s own row now');
+  f.clock.t = at(13, 9);
+  assert.equal((await setTrigger(f.w, { kind: 'daily', hour: 10, minute: 0 })).status, 200);
+  assert.equal(f.door.read('job2').lastOutcome, null, 'the new schedule has had no outcome yet');
+  f.clock.t = at(13, 9, 5);
+  f.door.refuse(f.door.scan()[0], 'again');
+  assert.equal(f.door.read('job2').lastOutcome.why, 'again', 'its own outcome counts');
+});

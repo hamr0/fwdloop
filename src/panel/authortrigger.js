@@ -356,7 +356,9 @@ export function createTriggerDoor(opts) {
       const { trigger } = r.arbiter;
       const clock = readRows(join(triggerLedgerDir(flowDir, r.signature.flow), 'clock.jsonl'));
       const armed = clock.find((x) => x.kind === 'armed');
-      const outcomes = readOutcomes(flowDir);
+      // triggers.jsonl spans every trigger the job ever had and its rows carry words, not the hash: only rows from this signing on are this trigger's
+      const since = Date.parse(r.signature.signedAt);
+      const outcomes = readOutcomes(flowDir).filter((o) => Date.parse(o.at) >= since);
       const clockKind = trigger !== null && (trigger.kind === 'daily' || trigger.kind === 'weekdays' || trigger.kind === 'weekly');
       return {
         flow, trigger, flowHash: r.signature.flow, armed: armed !== undefined, armedAt: armed ? armed.at : null,
