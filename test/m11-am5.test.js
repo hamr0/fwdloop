@@ -139,25 +139,25 @@ test('item 4: a chip filter counts as a search: only matching older runs', () =>
   assert.deepEqual(card.older.shown.map((r) => r.runId), ['run-15', 'run-10', 'run-5']);
 });
 
-test('item 5: no search: the line after the 7 reads `(and k older · <oldest> to <newest> of those k · search above)` with the dates of those k', () => {
+test('item 5 (words replaced by am7 item 4): no search: several days = `k more older runs, MM/DD to MM/DD. Search to find one.`', () => {
   const rows = runsOf('f', 12, (n) => ({ at: local(2026, 9, n) })); // run-n on 09/n
   const html = lib.rlJobsHtml(model(payload(rows, [meta('f')]), { open: { f: true } }));
   // 11 older, 7 shown (run-11..run-5); the k = 4 hidden are run-4..run-1: 09/04 down to 09/01
-  assert.match(text(html), /\(and 4 older · 09\/01 to 09\/04 of those 4 · search above\)/);
-  assert.doesNotMatch(html, /use search/);
+  assert.match(text(html), /4 more older runs, 09\/01 to 09\/04\. Search to find one\./);
+  assert.doesNotMatch(html, /use search|search above|of those/);
 });
 
-test('item 5: while searching: `(and k more matches · add a day or a run)`, k = matches not shown', () => {
+test('item 5 (words replaced by am7 item 4): while searching: `k more match. Add a date or run number to narrow it.`, k = matches not shown', () => {
   const rows = runsOf('f', 30);
   const html = text(lib.rlJobsHtml(model(payload(rows, [meta('f')]), { filters: S('f') })));
-  assert.match(html, /\(and 22 more matches · add a day or a run\)/, '29 older matches, 7 shown');
-  assert.doesNotMatch(html, /search above|older ·/);
+  assert.match(html, /22 more match\. Add a date or run number to narrow it\./, '29 older matches, 7 shown');
+  assert.doesNotMatch(html, /Search to find one|add a day or a run/);
   const none = text(lib.rlJobsHtml(model(payload(runsOf('f', 3), [meta('f')]), { filters: S('f') })));
   assert.doesNotMatch(none, /more matches/, 'nothing hidden, no line');
 });
 
-test('item 5: the Runs search box reads `job, run-23, or a day 10/12`; the Inbox hint is untouched', () => {
-  assert.match(lib.filterBarHTML('runs'), /placeholder="job, run-23, or a day 10\/12"/);
+test('item 5 (words replaced by am7 item 4): the Runs search box reads `search: job name, run-23, or a date 10/13`; the Inbox hint is untouched', () => {
+  assert.match(lib.filterBarHTML('runs'), /placeholder="search: job name, run-23, or a date 10\/13"/);
   assert.match(lib.filterBarHTML('inbox', true), /placeholder="search job, run, status, question or reason…"/);
 });
 
@@ -183,4 +183,44 @@ test('M11 am6: Running now and Scheduled line 1: the time, cost and next-run tex
   assert.equal(text(l1(lib.rlScheduledCardHtml({ flow: 'k', at: null, in: null, words: 'file', runId: null }))), 'k');
   // Needs you keeps its pill
   assert.match(lib.rlJumpCardHtml(run('x', 1, { needs: 'Accept' }), true), /rl-pill-need/);
+});
+
+test('M11 am7 item 1: 10-13, 10/13 and 2026-10-13 mean the same local day', () => {
+  const rows = [run('a', 1, { at: local(2026, 10, 13) }), run('a', 2, { at: local(2026, 10, 12) }), run('a', 3, { at: local(2025, 10, 13) })];
+  assert.deepEqual(hit(rows, '10-13'), hit(rows, '10/13'));
+  assert.deepEqual(hit(rows, '10-13'), ['a/run-1', 'a/run-3']);
+  assert.deepEqual(hit(rows, '2026-10-13'), ['a/run-1']);
+  assert.deepEqual(hit(rows, '10-1'), [], 'a part date still matches nothing');
+  assert.deepEqual(hit(rows, '13-45'), []);
+});
+
+test('M11 am7 item 2: brackets are ignored: `aging-live-4 (run-2)` finds what `aging-live-4 run-2` finds', () => {
+  const rows = [run('aging-live-4', 2), run('aging-live-4', 20), run('kyc', 2)];
+  assert.deepEqual(hit(rows, 'aging-live-4 (run-2)'), ['aging-live-4/run-2']);
+  assert.deepEqual(hit(rows, 'aging-live-4 run-2'), ['aging-live-4/run-2']);
+  assert.deepEqual(hit(rows, '(run-2)'), hit(rows, 'run-2'));
+  assert.deepEqual(hit(rows, '(10/12)'), hit(rows, '10/12'));
+  assert.deepEqual(hit(rows, '()'), hit(rows, ''), 'a word that is only brackets is no word');
+});
+
+test('M11 am7 item 3: the range is the oldest to the newest real start day of ALL hidden runs, whatever order they are listed in (hamr\'s aging-live-4)', () => {
+  // listed newest-first by the server, but run-5 has only askedAt (10/13) and sorts last; run-1..3 are 10/11
+  const rows = [
+    ...[12, 11, 10, 9, 8, 7, 6, 4].map((n) => run('aging-live-4', n, { at: local(2026, 10, 12) })),
+    run('aging-live-4', 3, { at: local(2026, 10, 11) }),
+    run('aging-live-4', 2, { at: local(2026, 10, 11) }),
+    run('aging-live-4', 1, { at: local(2026, 10, 11) }),
+    run('aging-live-4', 5, { at: null, askedAt: local(2026, 10, 13) }),
+  ];
+  const html = text(lib.rlJobsHtml(model(payload(rows, [meta('aging-live-4')]), { open: { 'aging-live-4': true } })));
+  assert.match(html, /4 more older runs, 10\/11 to 10\/13\. Search to find one\./);
+});
+
+test('M11 am7 item 3: one day shows `k more runs on MM/DD`, never `10/11 to 10/11`; a hidden run with no date drops the date part', () => {
+  const one = text(lib.rlJobsHtml(model(payload(runsOf('f', 14, { at: local(2026, 10, 11) }), [meta('f')]), { open: { f: true } })));
+  assert.match(one, /6 more runs on 10\/11\. Search to find one\./);
+  assert.doesNotMatch(one, /10\/11 to 10\/11/);
+  const none = text(lib.rlJobsHtml(model(payload(runsOf('f', 12, (n) => (n === 1 ? { at: null } : { at: local(2026, 10, 11) })), [meta('f')]), { open: { f: true } })));
+  assert.match(none, /4 more older runs\. Search to find one\./);
+  assert.doesNotMatch(none, /more older runs, \d|more runs on/, 'no date part, nothing invented');
 });

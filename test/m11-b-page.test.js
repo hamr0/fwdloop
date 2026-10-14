@@ -138,7 +138,7 @@ test('a Scheduled card with no clock slot draws no invented time', () => {
   assert.doesNotMatch(t, /next in|today|tomorrow/);
 });
 
-test('Must fail when a job\'s 9th-newest run shows without search: 9 runs = the newest + 7 older, then "(and 1 older: use search)"', () => {
+test('Must fail when a job\'s 9th-newest run shows without search: 9 runs = the newest + 7 older, then the fold line', () => {
   const data = payload(runsOf('flights', 9), [meta('flights')]);
   const m = model(data, { open: { flights: true } });
   const card = m.jobs[0];
@@ -147,7 +147,7 @@ test('Must fail when a job\'s 9th-newest run shows without search: 9 runs = the 
   assert.deepEqual(card.older.shown.map((r) => r.runId), ['run-8', 'run-7', 'run-6', 'run-5', 'run-4', 'run-3', 'run-2']);
   assert.equal(card.older.hidden, 1);
   const html = text(lib.rlJobsHtml(m));
-  assert.match(html, /\(and 1 older · \d\d\/\d\d to \d\d\/\d\d of those 1 · search above\)/, 'M11 am5 item 5: the no-search fold line');
+  assert.match(html, /1 more runs on \d\d\/\d\d\. Search to find one\./, 'M11 am7 item 4 (replaces am5 item 5): the no-search fold line, one day');
   assert.doesNotMatch(html, /run-1\b/, 'the 9th-newest run is not shown');
   // closed fold: the older runs are not listed at all, and the fold line says how many
   const closed = text(lib.rlJobsHtml(model(data)));
