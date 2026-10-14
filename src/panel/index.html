@@ -1835,16 +1835,6 @@
     ));
   }
 
-  // Pure rule: when filters/search are active, a flow whose LATEST run
-  // doesn't match but an older one does auto-expands so the matching run is
-  // visible without an extra click; inactive filters never force an expand.
-  function autoExpandFlow(group, matchingRuns, active){
-    if(!active || !matchingRuns.length) return false;
-    var latestId = group.runs.length ? group.runs[0].runId : null;
-    var latestIncluded = matchingRuns.some(function(r){ return r.runId === latestId; });
-    return !latestIncluded;
-  }
-
   // ---- M11: ONE runs list (docs/wiki/the-module-ladder.md "M11 scope", amendments 1 and 2; docs/product/m11-runs-list-mock.html, the right box).
   // Top to bottom: Running now, Needs you, Scheduled (never filtered), a dashed line and the filters (they act on Jobs and quiet jobs only), Jobs, the
   // quiet fold. The page works out NOTHING: `live`, the Needs-you tag (`needs`), the job order and quiet split (`jobs`), the Scheduled cards and the two
@@ -1871,9 +1861,12 @@
       var matching = active ? filterRuns(g.runs, filters, Date.now()) : g.runs;
       var older = g.runs.slice(1);
       var isSel = function(r){ return sel.flow === g.flow && r.runId === sel.runId; };
-      // the fold is capped; past the cap only the selected run stays, and (search or filter active) every older run that matches
-      var shown = older.slice(0, limits.olderRuns).concat(older.slice(limits.olderRuns).filter(function(r){ return isSel(r) || (active && matching.indexOf(r) !== -1); }));
-      var auto = autoExpandFlow(g, matching, active) || older.some(isSel);
+      // the fold is capped; past the cap only the selected run stays, plus (search or filter active) the ONE newest older run that matches (when it is past the cap)
+      var past = older.slice(limits.olderRuns);
+      var firstMatch = active ? older.filter(function(r){ return matching.indexOf(r) !== -1; })[0] : undefined;
+      var shown = older.slice(0, limits.olderRuns).concat(past.filter(function(r){ return isSel(r) || r === firstMatch; }));
+      // the fold opens by itself when any older run matches (even if the head matches too), or when the selected run is an older one
+      var auto = (active && older.some(function(r){ return matching.indexOf(r) !== -1; })) || older.some(isSel);
       return {
         flow: g.flow, group: g, head: head, empty: false, quiet: quiet, count: g.runCount, sel: sel,
         selected: g.runs.some(isSel),

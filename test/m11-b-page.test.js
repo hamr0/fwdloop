@@ -11,11 +11,16 @@ const PAGE = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url))
 function fnSrc(name) {
   const start = PAGE.indexOf(`  function ${name}(`);
   assert.ok(start !== -1, `function ${name} not found`);
-  return PAGE.slice(start, PAGE.indexOf('\n  }\n', start) + 5);
+  let depth = 0;
+  for (let i = PAGE.indexOf('{', start); i < PAGE.length; i++) {
+    if (PAGE[i] === '{') depth++;
+    else if (PAGE[i] === '}' && --depth === 0) return PAGE.slice(start, i + 1);
+  }
+  assert.fail(`function ${name} has no closing brace`);
 }
 const NAMES = [
   'escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText',
-  'rlShortDate', 'groupRunsByFlow', 'matchesSearch', 'filterRuns', 'filterWorkflows', 'filtersActive', 'autoExpandFlow',
+  'rlShortDate', 'groupRunsByFlow', 'matchesSearch', 'filterRuns', 'filterWorkflows', 'filtersActive',
   'rlModel', 'rlSectHtml', 'rlJumpCardHtml', 'rlScheduledCardHtml', 'rlRunCardHtml', 'rlJobCardHtml', 'rlTopHtml', 'rlJobsHtml',
 ];
 const lib = new Function(`${NAMES.map(fnSrc).join('\n')}\nreturn {${NAMES.join(',')}};`)();
@@ -179,10 +184,10 @@ test('search for an older run opens its job ON that run: the fold is capped at 7
   assert.equal(card.older.hidden, 3, 'the rest stay behind "use search"');
   assert.equal(card.head.runId, 'run-12', 'the card line 2 is the newest run, not the match');
   assert.equal(model(data, { filters: { results: [], time: 'all', search: 'nope' } }).jobs.length, 0, 'a job with no matching run is gone');
-  // a filter keeps every older run it matches (a chip matching all 11 older runs shows all 11)
+  // a filter is capped the same way: a chip matching all 11 older runs shows the 7, the newest match is already inside them (M11 am1, hamr ruled A)
   const all = model(data, { filters: { results: ['[✓]'], time: 'all', search: '' } }).jobs[0];
-  assert.equal(all.older.shown.length, 11, 'every matching older run stays');
-  assert.equal(all.older.hidden, 0);
+  assert.equal(all.older.shown.length, 7, 'the cap holds under a chip');
+  assert.equal(all.older.hidden, 4);
 });
 
 test('search: when the head run also matches, an older matching run past the 7 stays shown; non-matching runs past the 7 stay hidden', () => {
@@ -196,6 +201,44 @@ test('search: when the head run also matches, an older matching run past the 7 s
   const plain = model(data, { open: { flights: true } }).jobs[0];
   assert.equal(plain.older.shown.length, 7);
   assert.equal(plain.older.hidden, 12);
+});
+
+test('20-run job, search `run-2`: the fold opens by itself even though the head (run-20) matches; 7 + run-2 shown, hint counts 11', () => {
+  const data = payload(runsOf('flights', 20), [meta('flights')]);
+  const card = model(data, { filters: { results: [], time: 'all', search: 'run-2' } }).jobs[0];
+  assert.equal(card.older.open, true);
+  assert.ok(card.older.shown.some((r) => r.runId === 'run-2'));
+  assert.equal(card.older.shown.length, 8);
+  assert.equal(card.older.total - card.older.shown.length, 11);
+  assert.equal(card.older.hidden, 11);
+  assert.equal(model(data, { filters: { results: [], time: 'all', search: 'run-2' }, open: { flights: false } }).jobs[0].older.open, false, 'a manual close still wins');
+});
+
+test('300-run job, search `run`: every run matches, still only 7 shown (the newest match is inside the 7), hint 292; a chip most runs match is capped the same', () => {
+  const data = payload(runsOf('big', 300), [meta('big')]);
+  const card = model(data, { filters: { results: [], time: 'all', search: 'run' } }).jobs[0];
+  assert.equal(card.older.shown.length, 7);
+  assert.equal(card.older.hidden, 292);
+  const rows = Array.from({ length: 300 }, (_, i) => run('big', 300 - i, i === 0 ? {} : { glyph: '[✗]', word: 'failed', label: 'failed' }));
+  const chip = model(payload(rows, [meta('big')]), { filters: { results: ['[✗]'], time: 'all', search: '' } }).jobs[0];
+  assert.equal(chip.older.shown.length, 7);
+  assert.equal(chip.older.hidden, 292);
+});
+
+test('the selected run past the 7 AND a different newest match past the 7: both shown (9), the rest hidden', () => {
+  const data = payload(runsOf('flights', 20), [meta('flights')]);
+  const card = model(data, { filters: { results: [], time: 'all', search: 'run-2' }, sel: { flow: 'flights', runId: 'run-5' } }).jobs[0];
+  const ids = card.older.shown.map((r) => r.runId);
+  assert.equal(ids.length, 9);
+  assert.ok(ids.includes('run-5') && ids.includes('run-2'));
+  assert.equal(card.older.hidden, 10);
+});
+
+test('no search: 7 older runs shown and the fold is not auto-opened', () => {
+  const card = model(payload(runsOf('flights', 20), [meta('flights')])).jobs[0];
+  assert.equal(card.older.shown.length, 7);
+  assert.equal(card.older.hidden, 12);
+  assert.equal(card.older.open, false);
 });
 
 test('the card lines clip on one line with an ellipsis, as the mockup CSS does (nowrap + ellipsis on line 2 and the name)', () => {
@@ -287,7 +330,7 @@ function listHarness() {
     function tickSince(){}
     function currentRunsFilters(){ return NONE; }
     function withFocusPreserved(el, fn){ fn(); }
-    ${['escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText', 'rlShortDate', 'groupRunsByFlow', 'matchesSearch', 'filterRuns', 'filterWorkflows', 'filtersActive', 'autoExpandFlow', 'rlModel', 'rlSectHtml', 'rlJumpCardHtml', 'rlScheduledCardHtml', 'rlRunCardHtml', 'rlJobCardHtml', 'rlTopHtml', 'rlJobsHtml', 'paintRunsList'].map(fnSrc).join('\n')}
+    ${['escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText', 'rlShortDate', 'groupRunsByFlow', 'matchesSearch', 'filterRuns', 'filterWorkflows', 'filtersActive', 'rlModel', 'rlSectHtml', 'rlJumpCardHtml', 'rlScheduledCardHtml', 'rlRunCardHtml', 'rlJobCardHtml', 'rlTopHtml', 'rlJobsHtml', 'paintRunsList'].map(fnSrc).join('\n')}
     return { paintRunsList, setSel: function(f, r){ currentFlow = f; currentRunId = r; } };`;
   const rows = runsOf('f', 3);
   const api = new Function('document', 'ROWS', 'JOBS', 'LIMITS', 'NONE', body)({ getElementById: (id) => els[id] }, rows, [meta('f')], LIMITS, NONE);
