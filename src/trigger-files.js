@@ -47,8 +47,8 @@ const ofSha = (rows, sha) => rows.filter((r) => r.sha === sha);
 /** A sha has run: a `ran` row no `unran` row voids. (`unran` = the start was refused after `ran` was written: the file never ran, it is still queued.) @param {SeenRow[]} rows @param {string} sha */
 const hasRan = (rows, sha) => rows.some((r) => r.kind === 'ran' && r.sha === sha && !rows.some((u) => u.kind === 'unran' && u.of === r.id));
 /** An arrived row is still waiting: neither its sha ran nor a dropped row names it. @param {SeenRow[]} rows @param {SeenRow} a */
-const waiting = (rows, a) => a.kind === 'arrived'
-  && !rows.some((r) => hasRan(rows, a.sha) || (r.kind === 'dropped' && ((/** @type {any} */ (r)).of ?? `arrived:${r.sha}`) === a.id));
+const waiting = (rows, a) => a.kind === 'arrived' && !hasRan(rows, a.sha)
+  && !rows.some((r) => (r.kind === 'dropped' && ((/** @type {any} */ (r)).of ?? `arrived:${r.sha}`) === a.id));
 
 /**
  * Does this finished version arrive? Item 6 + am2: only a sha that already RAN never arrives again; one already arrived and still queued does not
