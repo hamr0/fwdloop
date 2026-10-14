@@ -3409,12 +3409,18 @@
   function inboxHeadText(section, n){ return (INBOX_HEADS[section] || "") + " (" + n + ")"; }
   // M11 am3 item 4: the Inbox filters act on "answered and expired" (section 3) only; sections 1 and 2 are never hidden.
   // A row's time is its answer, else its expiry (the server orders section 3 by the same two). No date + a time chip = out, as in Runs.
+  // M11 am4 item 3: the Inbox search reads the whole row — job, run, status word, question, answer reason — case-insensitive. (`matchesSearch` stays Runs': job and run only.)
+  function inboxMatchesSearch(r, query){
+    var q = String(query || "").trim().toLowerCase();
+    if(!q) return true;
+    return [r.flow, r.runId, r.status, r.question, r.reason].some(function(x){ return typeof x === "string" && x.toLowerCase().indexOf(q) !== -1; });
+  }
   function inboxFilterRows(rows, filters, nowMs){
     var time = (filters && filters.time) || "all";
     var q = (filters && filters.search) || "";
     return (rows || []).filter(function(r){
       if(r.section !== 3) return true;
-      if(!matchesSearch(r.flow, r.runId, q)) return false;
+      if(!inboxMatchesSearch(r, q)) return false;
       if(time !== "all"){
         var days = time === "7d" ? 7 : 30;
         var t = Date.parse(r.answeredAt || r.expiresAt);
