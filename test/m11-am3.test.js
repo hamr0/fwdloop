@@ -18,7 +18,7 @@ function fnSrc(name) {
   return PAGE.slice(start, PAGE.indexOf('\n  }\n', start) + 5);
 }
 const NAMES = ['matchesSearch', 'inboxHeadText', 'inboxFilterRows'];
-const HEADS = PAGE.match(/ {2}var INBOX_HEADS = [^\n]*/)[0];
+const HEADS = [/ {2}var INBOX_HEADS = [^\n]*/, / {2}var INBOX_CHIP_WORD = [^\n]*/].map((re) => PAGE.match(re)[0]).join('\n');
 const lib = new Function(`${HEADS}\n${NAMES.map(fnSrc).join('\n')}\nreturn {${NAMES.join(',')}};`)();
 const NONE = { results: [], time: 'all', search: '' };
 const DAY = 86_400_000;
@@ -71,7 +71,7 @@ test('item 4: the Inbox has the filter bar without the sign chips, and the faint
   assert.match(PAGE, /filterBarHTML\("inbox", true\)/);
   assert.match(PAGE, /filters below act on answered and expired only/);
   assert.match(PAGE, /createFilterBar\(\{\s*scope: "inbox"/);
-  assert.match(fnSrc('filterBarHTML'), /noSigns \?\s*'<button/); // am4 item 4: the Inbox gets status chips in their place
+  assert.match(fnSrc('filterBarHTML'), /noSigns \?\s*Object\.keys\(INBOX_CHIP_WORD\)/); // am4 item 4: the Inbox gets status chips in their place
 });
 
 // ---- item 2: the job card's first line ----

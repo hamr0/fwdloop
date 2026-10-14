@@ -2026,6 +2026,8 @@
   // rows, src/liveness.js).
   // `noSigns`: M11 am3 item 4 — the Inbox has no sign chips; M11 am4 item 4 — it has the status chips instead (accepted / redo / rerun / expired, the
   // row status the server sends; the rerun chip is the status `reran`), picked into the same `results` list.
+  // The ONE map of an Inbox row's status to the word on its chip (`reran` reads "rerun"); the Inbox search matches the chip word too.
+  var INBOX_CHIP_WORD = { accepted: "accepted", redo: "redo", reran: "rerun", expired: "expired" };
   function filterBarHTML(scope, noSigns){
     return (
       '<div class="filterbar" data-scope="' + scope + '" data-testid="' + scope + '-filters">' +
@@ -2033,10 +2035,10 @@
           'id="' + scope + '-filter-search" data-testid="' + scope + '-filter-search" autocomplete="off">' +
         '<div class="chips" role="group" aria-label="Filter">' +
           (noSigns ?
-          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="accepted" title="accepted" data-testid="chip-' + scope + '-st-accepted">accepted</button>' +
-          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="redo" title="redo" data-testid="chip-' + scope + '-st-redo">redo</button>' +
-          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="reran" title="rerun" data-testid="chip-' + scope + '-st-rerun">rerun</button>' +
-          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="expired" title="expired" data-testid="chip-' + scope + '-st-expired">expired</button>' :
+          Object.keys(INBOX_CHIP_WORD).map(function(st){
+            var w = INBOX_CHIP_WORD[st];
+            return '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="' + st + '" title="' + w + '" data-testid="chip-' + scope + '-st-' + w + '">' + w + '</button>';
+          }).join('') :
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✓]" title="passed" data-testid="chip-' + scope + '-res-pass">✓</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✗]" title="stopped" data-testid="chip-' + scope + '-res-fail">✗</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[■]" title="stopped, can be resumed" data-testid="chip-' + scope + '-res-stopped">■</button>' +
@@ -3412,7 +3414,7 @@
   function inboxMatchesSearch(r, query){
     var q = String(query || "").trim().toLowerCase();
     if(!q) return true;
-    return [r.flow, r.runId, r.status, r.question, r.reason].some(function(x){ return typeof x === "string" && x.toLowerCase().indexOf(q) !== -1; });
+    return [r.flow, r.runId, r.status, INBOX_CHIP_WORD[r.status], r.question, r.reason].some(function(x){ return typeof x === "string" && x.toLowerCase().indexOf(q) !== -1; });
   }
   function inboxFilterRows(rows, filters, nowMs){
     var time = (filters && filters.time) || "all";

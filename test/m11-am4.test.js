@@ -13,7 +13,8 @@ function fnSrc(name) {
   return PAGE.slice(start, PAGE.indexOf('\n  }\n', start) + 5);
 }
 const NAMES = ['matchesSearch', 'inboxMatchesSearch', 'inboxFilterRows', 'filterBarHTML'];
-const lib = new Function(`${NAMES.map(fnSrc).join('\n')}\nreturn {${NAMES.join(',')}};`)();
+const CHIP_WORDS = PAGE.match(/ {2}var INBOX_CHIP_WORD = [^\n]*/)?.[0] ?? '';
+const lib = new Function(`${CHIP_WORDS}\n${NAMES.map(fnSrc).join('\n')}\nreturn {${NAMES.join(',')}};`)();
 const NONE = { results: [], time: 'all', search: '' };
 const DAY = 86_400_000;
 const NOW = Date.parse('2026-10-14T12:00:00Z');
@@ -44,6 +45,13 @@ test('item 3: Runs search is unchanged: matchesSearch still reads the job name a
   assert.equal(lib.matchesSearch('kyc', 'run-1', 'vendor'), false);
   assert.equal(lib.matchesSearch('kyc', 'run-1', 'RUN-1'), true);
   assert.doesNotMatch(fnSrc('matchesSearch'), /status|question|reason/);
+});
+
+test('item 3: a reran row is found by the chip word `rerun` and by the status `reran`', () => {
+  const rows = [row('run-1', { status: 'reran' }), row('run-2', { status: 'accepted' })];
+  assert.deepEqual(ids(rows, { search: 'rerun' }), ['run-1']);
+  assert.deepEqual(ids(rows, { search: 'reran' }), ['run-1']);
+  assert.equal(rows[0].status, 'reran', 'the row keeps its status word');
 });
 
 test('item 4: status chips pick one or more of accepted / redo / reran; none = all; section 3 only', () => {
