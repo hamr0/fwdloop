@@ -71,7 +71,7 @@ test('item 4: the Inbox has the filter bar without the sign chips, and the faint
   assert.match(PAGE, /filterBarHTML\("inbox", true\)/);
   assert.match(PAGE, /filters below act on answered and expired only/);
   assert.match(PAGE, /createFilterBar\(\{\s*scope: "inbox"/);
-  assert.match(fnSrc('filterBarHTML'), /noSigns \? ''/);
+  assert.match(fnSrc('filterBarHTML'), /noSigns \?\s*'<button/); // am4 item 4: the Inbox gets status chips in their place
 });
 
 // ---- item 2: the job card's first line ----

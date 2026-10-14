@@ -2031,14 +2031,19 @@
   // has no such concept; the result chips use fwdloop's own glyph
   // vocabulary ([✓]/[✗]/[·]/[▶]/[?] — `[▶]` running is known from M4c's pid
   // rows, src/liveness.js).
-  // `noSigns`: M11 am3 item 4 — the Inbox has the search box and the time chips only, no sign chips
+  // `noSigns`: M11 am3 item 4 — the Inbox has no sign chips; M11 am4 item 4 — it has the status chips instead (accepted / redo / rerun / expired, the
+  // row status the server sends; the rerun chip is the status `reran`), picked into the same `results` list.
   function filterBarHTML(scope, noSigns){
     return (
       '<div class="filterbar" data-scope="' + scope + '" data-testid="' + scope + '-filters">' +
-        '<input type="text" class="search-input" placeholder="search flow or run id…" ' +
+        '<input type="text" class="search-input" placeholder="' + (noSigns ? 'search job, run, status, question or reason…' : 'search flow or run id…') + '" ' +
           'id="' + scope + '-filter-search" data-testid="' + scope + '-filter-search" autocomplete="off">' +
         '<div class="chips" role="group" aria-label="Filter">' +
-          (noSigns ? '' :
+          (noSigns ?
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="accepted" title="accepted" data-testid="chip-' + scope + '-st-accepted">accepted</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="redo" title="redo" data-testid="chip-' + scope + '-st-redo">redo</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="reran" title="rerun" data-testid="chip-' + scope + '-st-rerun">rerun</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="expired" title="expired" data-testid="chip-' + scope + '-st-expired">expired</button>' :
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✓]" title="passed" data-testid="chip-' + scope + '-res-pass">✓</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✗]" title="stopped" data-testid="chip-' + scope + '-res-fail">✗</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[■]" title="stopped, can be resumed" data-testid="chip-' + scope + '-res-stopped">■</button>' +
@@ -3407,7 +3412,8 @@
   var INBOX_HEADS = { 1: "waiting on you", 2: "working on your answer", 3: "answered and expired" };
   // M11 am3 item 3: every Inbox header carries its count, counted off the rows the server sent (after the filters, for section 3)
   function inboxHeadText(section, n){ return (INBOX_HEADS[section] || "") + " (" + n + ")"; }
-  // M11 am3 item 4: the Inbox filters act on "answered and expired" (section 3) only; sections 1 and 2 are never hidden.
+  // M11 am3 item 4: the Inbox filters act on "answered and expired" (section 3) only; sections 1 and 2 are never hidden. M11 am4 item 4: the status chips
+  // (`results`, none = all) match the row's `status`.
   // A row's time is its answer, else its expiry (the server orders section 3 by the same two). No date + a time chip = out, as in Runs.
   // M11 am4 item 3: the Inbox search reads the whole row — job, run, status word, question, answer reason — case-insensitive. (`matchesSearch` stays Runs': job and run only.)
   function inboxMatchesSearch(r, query){
@@ -3418,8 +3424,10 @@
   function inboxFilterRows(rows, filters, nowMs){
     var time = (filters && filters.time) || "all";
     var q = (filters && filters.search) || "";
+    var rs = (filters && filters.results) || [];
     return (rows || []).filter(function(r){
       if(r.section !== 3) return true;
+      if(rs.length && rs.indexOf(r.status) === -1) return false;
       if(!inboxMatchesSearch(r, q)) return false;
       if(time !== "all"){
         var days = time === "7d" ? 7 : 30;
