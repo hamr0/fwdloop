@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.1] - 2026-10-14
+
+Trigger fixes: a file that was already in the folder never runs, a new refusal reason is told, and a
+new schedule no longer opens with an old trigger's red line.
+
+### Fixed
+- New file trigger: a file already in the folder when the trigger was set never runs, even when it is
+  renamed or copied. The starting point is matched by the file's content (sha) alone, not by name.
+- A queued file that is refused again for a different reason is told again. A refusal is told once per
+  reason, not once per file.
+- A newly signed schedule's NEXT line no longer leads with an older trigger's red "The last try did not
+  start". Only tries from the current signing on count.
+
 ## [0.19.0] - 2026-10-14
 
 M11 one runs list: the left Runs list is now one list (Running now, Needs you, Scheduled, Jobs), cards
