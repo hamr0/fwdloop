@@ -110,7 +110,7 @@ test('cards: Running now / Needs you jump; the tag is a label; the Scheduled car
   const cards = html.split(/(?=<(?:button|div) class="rl-card)/).filter((c) => /^<(button|div) class="rl-card/.test(c));
   const [run1, need, sched] = [cards[0], cards[1], cards[2]];
   assert.match(run1, /^<button[^>]*data-rl-jump="aging\|run-12"/);
-  assert.match(text(run1), /^\[▶\]aging run-12\s*· at least \$0\.0042\s*running/s, 'line 1: sign job run-N wall · cost; line 2: the why');
+  assert.match(text(run1), /^\[▶\]aging run-12\s*·\s*·\s*at least \$0\.0042\s*running/s, 'line 1: sign job run-N · since (filled by the page) · cost (M11 am6); line 2: the why');
   assert.doesNotMatch(run1.slice(0, run1.indexOf('</button>')), /sign-word/, 'line 2 of Running now has no sign word in front');
   assert.match(run1, /data-rl-since="2026-10-13T10:00:00\.000Z"/, 'time so far ticks in place from the start time');
   assert.match(need, /^<button[^>]*data-rl-jump="inv\|run-2"/);
@@ -119,7 +119,7 @@ test('cards: Running now / Needs you jump; the tag is a label; the Scheduled car
   assert.doesNotMatch(need.slice(0, need.indexOf('</button>')), /sign-word/);
   assert.match(sched, /^<button class="rl-card"[^>]*type="button"[^>]*data-rl-jump="aging\|run-12"/, 'same click as Running now: a button, keyboard reachable');
   assert.doesNotMatch(sched, /data-rl-run/);
-  assert.equal(text(sched).replace(/\s+/g, ' ').trim(), '[·]aging tomorrow 09:00next in 11h · Weekdays at 09:00');
+  assert.equal(text(sched).replace(/\s+/g, ' ').trim(), '[·]aging · tomorrow 09:00next in 11h · Weekdays at 09:00');
   const bare = lib.rlTopHtml(model(payload(rows, [meta('aging'), meta('inv')], [{ flow: 'x', at: null, in: null, words: 'When in.csv is updated', runId: null }])));
   assert.match(bare, /<div class="rl-card" data-testid="rl-sched-x"/, 'a job with no run has nothing to open: not a button');
 });

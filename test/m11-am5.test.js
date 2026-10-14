@@ -175,7 +175,7 @@ test('M11 am6: Running now and Scheduled line 1: the time, cost and next-run tex
   const live = lib.rlJumpCardHtml(run('aging-live-4', 7, { live: true, glyph: '[▶]', startedAt: local(2026, 10, 12) }), false);
   assert.doesNotMatch(l1(live), /rl-faint/);
   assert.match(l1(live), /<span class="rl-rest">&middot; /);
-  assert.equal(text(l1(live)).replace(/\s+/g, ' ').replace(/^.*?aging-live-4 run-7/, 'aging-live-4 run-7').replace(/ · .*? · /, ' · X · '), 'aging-live-4 run-7 · X · $0.0100');
+  assert.equal(text(l1(live)).replace(/\s+/g, ' '), 'aging-live-4 run-7 · · $0.0100', 'the since text (2m) is written into the empty span by the page at run time');
   const sch = lib.rlScheduledCardHtml({ flow: 'aging-live-4', at: 'Mon 09:00', in: 'in 2d', words: 'weekly', runId: 'run-7' });
   assert.doesNotMatch(l1(sch), /rl-faint/);
   assert.equal(text(l1(sch)), 'aging-live-4 · Mon 09:00');
