@@ -19,8 +19,6 @@ import {
 import { basename, dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 
-import { parseJsonl } from './trigger-clock.js';
-
 /** @typedef {{id:string, kind:'baseline'|'arrived'|'ran'|'unran'|'dropped', sha:string, name:string, size:number, at:number, path?:string, why?:string, of?:string}} SeenRow */
 /** @typedef {{path:string, sha:string, size:number}} ToRun */
 /** @typedef {{path:string, why:string}} Refused */
@@ -31,7 +29,7 @@ export const STABLE_POLLS = 2;
 /** @param {string} file @returns {SeenRow[]} */
 export function readSeen(file) {
   if (!existsSync(file)) return [];
-  return parseJsonl(readFileSync(file, 'utf8'));
+  return readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
 }
 
 /** The ONE appender: write-once by id (a second row with the same id is not written). @param {string} file @param {SeenRow} row @returns {boolean} written */

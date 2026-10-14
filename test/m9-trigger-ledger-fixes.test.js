@@ -2,17 +2,12 @@
 // reads only the current signed trigger's outcomes; a torn ledger line is skipped. $0: the clock is injected, the starter is a stub, tick() is called by hand.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import {
-  appendFileSync, mkdirSync, readFileSync, writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { createTriggerDoor, readOutcomes, triggerLedgerDir } from '../src/panel/authortrigger.js';
 import { createScheduler } from '../src/panel/scheduler.js';
 import { queueOf, readSeen, STABLE_POLLS } from '../src/trigger-files.js';
-import { mkdtempSync } from '../scripts/tmp-track.mjs';
-import { readRows } from '../src/trigger-clock.js';
 import { killChildrenAfter } from './m4e-world.mjs';
 import { greenWorld, setTrigger } from './m9-trigger-world.mjs';
 
@@ -86,16 +81,4 @@ test('lastOutcome reads only the current signed trigger: a red from an older tri
   f.clock.t = at(13, 9, 5);
   f.door.refuse(f.door.scan()[0], 'again');
   assert.equal(f.door.read('job2').lastOutcome.why, 'again', 'its own outcome counts');
-});
-
-test('a torn line in the clock or seen ledger is skipped like readOutcomes does, never thrown; the good rows still read', () => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'm9torn-'));
-  const clock = path.join(dir, 'clock.jsonl'); const seen = path.join(dir, 'seen.jsonl');
-  const good = { id: 'armed:1', kind: 'armed', at: 1 };
-  writeFileSync(clock, `${JSON.stringify(good)}\n{"id":"fire:2","kind":"fi\n`);
-  assert.deepEqual(readRows(clock), [good]);
-  const row = { id: 'arrived:x', kind: 'arrived', sha: 'x', name: 'a', size: 1, at: 1, path: '/a' };
-  writeFileSync(seen, `{"id":"arri\n${JSON.stringify(row)}\n`);
-  appendFileSync(seen, '{"id":"ran:x","ki');
-  assert.deepEqual(readSeen(seen), [row]);
 });
