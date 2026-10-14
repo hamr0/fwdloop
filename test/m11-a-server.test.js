@@ -78,6 +78,34 @@ test('needsYouTag: one rule, every sign (am1 item 2, am2)', () => {
   for (const g of ['[✓]', '[✗]', '[▶]', '[?]']) assert.equal(needsYouTag(g, { atAsk: true, canResume: true }), null, g);
 });
 
+test('needsYouTag am3 item 5: a Resume run leaves Needs you 7 days after it stopped (exactly 7 days = out); Accept never; no readable time stays', () => {
+  const NOW = Date.parse('2026-10-14T12:00:00Z');
+  const at = (ms) => new Date(NOW - ms).toISOString();
+  const D = 86_400_000;
+  const stoppable = { atAsk: false, canResume: true };
+  assert.equal(RUNS_LIST_LIMITS.needsYouDays, 7, 'named with the 30 and the 7');
+  assert.equal(needsYouTag('[■]', stoppable, at(7 * D - 3_600_000), NOW), 'Resume', '6d23h is in');
+  assert.equal(needsYouTag('[■]', stoppable, at(7 * D), NOW), null, '7d0h is out');
+  assert.equal(needsYouTag('[II]', { atAsk: false, canResume: false }, at(8 * D), NOW), null, 'stuck, 8 days: out');
+  assert.equal(needsYouTag('[II]', { atAsk: false, canResume: false }, at(D), NOW), 'Resume', 'stuck, 1 day: in');
+  assert.equal(needsYouTag('[·]', { atAsk: true, canResume: false }, at(30 * D), NOW), 'Accept', 'Accept is never dropped by age');
+  assert.equal(needsYouTag('[■]', stoppable, null, NOW), 'Resume', 'no time: stays in');
+  assert.equal(needsYouTag('[■]', stoppable, 'not a date', NOW), 'Resume', 'unreadable time: stays in');
+});
+
+test('listRuns am3 item 5: now is injectable; an old stopped run carries no tag but its Run tab still has Resume', async () => {
+  const w = await parkedRun('old-stop');
+  requestStop(w.runDir);
+  const stop = await stopParkedRun({ root: w.root, name: 'job2', runId: 'run-1', catalogue: CAT });
+  assert.equal(stop.outcome, 'stopped', stop.red);
+  const fresh = rowOf(w);
+  assert.equal(fresh.needs, 'Resume');
+  assert.equal(typeof fresh.at, 'string', 'the books hold a stop time');
+  const later = listRuns({ root: w.root, catalogue: CAT, now: () => Date.parse(fresh.at) + 7 * 86_400_000 }).find((x) => x.runId === 'run-1');
+  assert.equal(later.needs, null, 'out at 7 days');
+  assert.equal(later.controls.canResume, true, 'Resume itself is unchanged');
+});
+
 test('listRuns: a run waiting at its ask carries Accept; the same run past its expiry is [!] and carries none', async () => {
   const w = await parkedRun('wait');
   const row = rowOf(w);
@@ -186,15 +214,15 @@ test('summarizeJobs: newest activity first; quiet only when the newest run is kn
   assert.deepEqual(q, { parked: false, fresh: false, edge: false, old: true, empty: false, unknown: false });
 });
 
-test('limits: 30 days and 7 runs are named once on the server', () => {
-  assert.deepEqual(RUNS_LIST_LIMITS, { quietDays: 30, olderRuns: 7 });
+test('limits: 30 days, 7 runs and 7 days in Needs you are named once on the server', () => {
+  assert.deepEqual(RUNS_LIST_LIMITS, { quietDays: 30, olderRuns: 7, needsYouDays: 7 });
 });
 
 test('GET /api/runs carries rows, scheduled, jobs and limits (real HTTP); a job with a trigger is in scheduled, one without is not', async () => {
   const { w } = await greenWorld();
   const before = (await w.get('/api/runs')).json();
   assert.deepEqual(before.scheduled, []);
-  assert.deepEqual(before.limits, { quietDays: 30, olderRuns: 7 });
+  assert.deepEqual(before.limits, { quietDays: 30, olderRuns: 7, needsYouDays: 7 });
   assert.deepEqual(before.jobs.map((j) => j.flow), ['job2']);
   const set = await setTrigger(w, DAILY);
   assert.equal(set.status, 200, set.text);

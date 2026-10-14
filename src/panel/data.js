@@ -1047,11 +1047,11 @@ export function getRunControls({
  * null`, an explicit `why`) — no flow is silently missing from the list.
  * Ordered by `orderRuns` (waiting on you, running, then newest `at` first; a row
  * with no `at` is never given a guessed one).
- * @param {{root: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any, startingRun?: (flow: string, runId: string) => boolean}} opts
- *   `startingRun`: the starter's phase-`starting` rule for one run (absent = no). `resumeAttempt`: the panel's in-memory resume-attempt lookup (M4b piece 2); absent = none.
+ * @param {{root: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any, startingRun?: (flow: string, runId: string) => boolean, now?: () => number}} opts
+ *   `now`: the clock for Needs you's 7-day rule (absent = Date.now). `startingRun`: the starter's phase-`starting` rule for one run (absent = no). `resumeAttempt`: the panel's in-memory resume-attempt lookup (M4b piece 2); absent = none.
  * @returns {any[]}
  */
-export function listRuns({ root, catalogue, resumeAttempt, startingRun }) {
+export function listRuns({ root, catalogue, resumeAttempt, startingRun, now = Date.now }) {
   const rows = [];
   for (const flowName of listFlowNames(root)) {
     const flowDir = join(root, flowName);
@@ -1105,7 +1105,7 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun }) {
         pulse: glyphPulses({ glyph, label }),
         stuck: glyph === '[II]',
         controls,
-        needs: needsYouTag(glyph, controls),
+        needs: needsYouTag(glyph, controls, ctx.historyRow ? ctx.historyRow.at : null, now()),
         live: isRunningNow(ctx, glyph),
         model: deriveRunModel(ctx.auditRows),
         resume: ctx.resume,
@@ -1170,18 +1170,22 @@ export function orderRuns(rows) {
 /**
  * M11 am1 item 2 + am2: the ONE rule for a run's Needs-you tag, read off the sign and `runControls` (no second rule). `Accept`: waiting at an open ask.
  * `Resume`: stuck `[II]`, or stopped `[■]` whose Run tab shows the Resume button. An expired ask `[!]` is never here (it stays in the Inbox).
+ * M11 am3 item 5: a Resume run leaves Needs you once its stop time (`at`, the history row's) is `RUNS_LIST_LIMITS.needsYouDays` old; exactly that old is out.
+ * A run with no readable time stays in. An Accept run is never dropped by age (its ask has its own wait).
  * @param {string} glyph a `computeGlyph` sign @param {{atAsk: boolean, canResume: boolean}} controls `runControls`' answer
+ * @param {string|null} [at] the run's stop time from the books @param {number} [nowMs]
  * @returns {'Accept'|'Resume'|null}
  */
-export function needsYouTag(glyph, controls) {
+export function needsYouTag(glyph, controls, at = null, nowMs = Date.now()) {
   if (glyph === '[·]' && controls.atAsk) return 'Accept';
-  if (glyph === '[II]') return 'Resume';
-  if (glyph === '[■]' && controls.canResume) return 'Resume';
-  return null;
+  if (glyph !== '[II]' && !(glyph === '[■]' && controls.canResume)) return null;
+  const t = typeof at === 'string' ? Date.parse(at) : NaN;
+  if (Number.isFinite(t) && nowMs - t >= RUNS_LIST_LIMITS.needsYouDays * 86_400_000) return null;
+  return 'Resume';
 }
 
-/** M11 scope item 2.5/2.6 and rules: the two named limits of the runs list, in ONE place. The page reads them from `GET /api/runs`. */
-export const RUNS_LIST_LIMITS = Object.freeze({ quietDays: 30, olderRuns: 7 });
+/** M11 scope item 2.5/2.6 and rules, am3 item 5: the named limits of the runs list, in ONE place (30 quiet days, 7 older runs, 7 days in Needs you for a Resume run). The page reads them from `GET /api/runs`. */
+export const RUNS_LIST_LIMITS = Object.freeze({ quietDays: 30, olderRuns: 7, needsYouDays: 7 });
 
 /**
  * M11: one entry per job (flow), newest activity first. A job's activity is its newest KNOWN run time (`at`, else `askedAt`, else `startedAt`);

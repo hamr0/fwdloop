@@ -512,8 +512,8 @@ export function handleRequest(req, res, opts) {
 
   if (pathname === '/api/runs') {
     // M11: the page is given every state; it works none out. `jobs` is the order and the quiet split, `scheduled` the Scheduled cards, `limits` the two named numbers.
-    const rows = listRuns({ root: opts.root, catalogue, resumeAttempt, startingRun });
     const now = opts.now ?? Date.now;
+    const rows = listRuns({ root: opts.root, catalogue, resumeAttempt, startingRun, now });
     send(200, {
       rows,
       jobs: summarizeJobs(rows, now()),
