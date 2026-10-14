@@ -2327,3 +2327,16 @@ same run. Scope is stated when its turn comes.
 - *Built after signing — not signed text:* the older-runs fold (scope item 1.5) shows the newest 7 older runs, the selected run, and, while a search or chip is active, only the ONE newest older run that matches past the 7; it opens by itself when any older run matches, even when the job's newest run matches too (commit 564bb0a).
 
 **M11 EXIT SIGNED — hamr, 2026-10-14** ("sign m11 exit"). Evidence, on hamr's real panel (`--root flows`), 2026-10-14: walk 1 ("all ran clean") — aging-live-4 scheduled, Running now showed the live run, it moved to Needs you with Accept at its ask, Scheduled showed its next time, older runs showed 7 then "use search", a search for an older run opened its job on it, no sideways scroll at 390 and 320; walk 2 after amendment 3 ("changes look good"); walk 3 after amendment 4 ("all pass") — a Scheduled card opens its job's newest run, Inbox status chips and whole-row search work, no sideways scroll. Amendments 1-4 built test-first, each fix shown red with its code reverted. Suite 2992/2992, typecheck clean, at cab4516. Not yet run before this signature: self-review and branch-review. Left as built, not signed text: the chip says "rerun" while an Inbox row says "reran"; the Inbox search hint is cut at 320 px.
+
+- **M11 amendment 5 — SIGNED by hamr 2026-10-14 ("sign m11 am5"): search finds older runs, and the run card line.**
+  1. **Search by words.** The Runs search splits what you type at spaces. A run matches only when every word matches its job name, its run, or its day. `aging run-23` finds run-23 of aging-live-4.
+  2. **A run word is exact.** A word shaped `run-N` matches only that run. `run-2` never matches run-20 or run-230.
+  3. **A day word.** A word shaped `MM/DD` (as the run card shows it, e.g. `10/12`) or `YYYY-MM-DD` (e.g. `2026-10-12`) matches the runs that started on that local day. `MM/DD` matches that day in any year. A part date like `10/1` matches nothing.
+  4. **While searching, the older runs show matches only.** With a search or chip on, a job's older-runs fold shows only the runs that match, newest first, at most **7**. The selected run is still shown, as today.
+  5. **Hints.**
+     - The search box's grey text reads: `job, run-23, or a day 10/12`.
+     - The line after the 7, with no search: `(and k older · <oldest date> to <newest date> of those k · search above)`.
+     - The line after the 7, while searching: `(and k more matches · add a day or a run)`.
+  6. **Run card line 1.** `run-2 · 10/12 13:46 · deepseek-flash` on one line: the date and model use the same size and baseline as `run-2` (not raised or smaller), with ` · ` between the parts.
+  - **Must fail when:** `run-2` shows run-20; `aging run-23` finds nothing when aging-live-4 has a run-23; `10/12` misses a run started that day or shows one from another day; a search shows a non-matching older run (other than the selected one); the fold shows more than 7 older runs plus the selected one; or the date on a run card sits raised or smaller than `run-2`.
+  - **Done when:** on your real panel (`--root flows`), each of the above is checked by hand. You type the job name, `run-2`, the job name with a run number, and a day, and you look at one run card's line 1.
