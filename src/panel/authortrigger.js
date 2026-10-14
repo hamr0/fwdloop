@@ -296,8 +296,8 @@ export function createTriggerDoor(opts) {
      * The fire / ran ledger row was written by the caller BEFORE this, so a crash loses a run and never doubles one.
      * @param {{flow: string, flowDir: string, read: any, trigger: Trigger}} job
      * @param {{kind: 'clock', slot: number, catchUp: boolean, missed: number} | {kind: 'file', path: string, sha: string}} cause
-     * @param {{ told?: (outcome: string) => boolean, beforeStart?: () => void, notStarted?: () => void }} [hooks] M9 am3 (a queued file): `told(outcome)` true = this file
-     *   already has a row for that outcome, so none is written again (the outcome is still returned); `beforeStart` runs right before the ONE
+     * @param {{ told?: (row: Record<string, any>) => boolean, beforeStart?: () => void, notStarted?: () => void }} [hooks] M9 am3 (a queued file): `told(row)` true = this file
+     *   already has a row for that outcome and reason (`why`), so none is written again (the outcome is still returned); `beforeStart` runs right before the ONE
      *   start, once every check has passed: the scheduler writes the file's `ran` row there; `notStarted` runs when that start was refused, and the
      *   scheduler voids the `ran` row (the file was not run, so it stays queued).
      */
@@ -308,7 +308,7 @@ export function createTriggerDoor(opts) {
         at: new Date(now()).toISOString(), flow, trigger: desc,
         ...(cause.kind === 'clock' ? { slot: new Date(cause.slot).toISOString(), catchUp: cause.catchUp, missed: cause.missed } : { file: cause.path, sha: cause.sha, catchUp: false }),
       };
-      const done = (/** @type {Record<string, any>} */ r) => { const row = /** @type {Record<string, any>} */ ({ ...base, ...r }); if (!(row.outcome !== 'started' && hooks.told?.(row.outcome))) appendOutcome(flowDir, row); return row; };
+      const done = (/** @type {Record<string, any>} */ r) => { const row = /** @type {Record<string, any>} */ ({ ...base, ...r }); if (!(row.outcome !== 'started' && hooks.told?.(row))) appendOutcome(flowDir, row); return row; };
       const busy = flowsDoor.editBlock(flow);   // one run at a time per job: starting, running, or waiting at its ask
       if (busy !== null) return done({ outcome: 'busy', say: busy });
       const claim = monthlyClaim(read.arbiter.capUsd);   // the same check the Run door decides on

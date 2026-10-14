@@ -43,9 +43,10 @@ export function createScheduler(opts) {
   function runQueue(job, ledger, nowMs) {
     let queue = queueOf(readSeen(ledger));
     if (queue.length === 0) return;
-    const spoken = new Set(readOutcomes(job.flowDir).filter((r) => typeof r.sha === 'string').map((r) => `${r.sha}|${r.outcome}`));
+    const key = (/** @type {string} */ sha, /** @type {Record<string, any>} */ r) => `${sha}|${r.outcome}|${r.why ?? ''}`;   // a refusal is told once PER REASON; busy / monthly carry no `why`
+    const spoken = new Set(readOutcomes(job.flowDir).filter((r) => typeof r.sha === 'string').map((r) => key(r.sha, r)));
     const cause = (/** @type {any} */ q) => ({ kind: /** @type {'file'} */ ('file'), path: q.path, sha: q.sha });
-    const told = (/** @type {any} */ q) => (/** @type {string} */ outcome) => { const k = `${q.sha}|${outcome}`; const had = spoken.has(k); spoken.add(k); return had; };
+    const told = (/** @type {any} */ q) => (/** @type {Record<string, any>} */ row) => { const k = key(q.sha, row); const had = spoken.has(k); spoken.add(k); return had; };
     if (door.busy(job)) {
       for (const q of queue) door.fire(job, cause(q), { told: told(q) });
       return;

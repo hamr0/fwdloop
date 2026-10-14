@@ -58,3 +58,15 @@ test('a start the starter refuses (409) leaves the file queued, not ran: it runs
   assert.equal(f.ctl.starts, before + 1, 'and only once');
   assert.equal(queueOf(f.ledger()).length, 0);
 });
+
+test('a queued file refused for a NEW reason is told again; the same reason over many ticks is told once', async () => {
+  const f = await stubWorld();
+  writeFileSync(path.join(f.inbox, 'd.md'), '# jd\n');
+  f.ctl.model = [{ say: 'Base URL is not set.' }];
+  f.polls(); f.polls();
+  assert.deepEqual(f.rows().map((r) => r.why), ['Base URL is not set.'], 'same reason: one row');
+  f.ctl.model = [{ say: 'The model is not ticked in Settings.' }];
+  f.polls(); f.polls();
+  assert.deepEqual(f.rows().map((r) => r.why), ['Base URL is not set.', 'The model is not ticked in Settings.'], 'a different reason is a new row');
+  assert.equal(f.ctl.starts, 0);
+});
