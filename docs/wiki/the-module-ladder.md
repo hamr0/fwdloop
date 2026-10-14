@@ -2343,3 +2343,14 @@ same run. Scope is stated when its turn comes.
 - **M11 amendment 6 — SIGNED by hamr 2026-10-14 ("sign m11 am6"): the top cards' line 1.**
   1. **Running now and Scheduled cards, line 1.** The time, cost and next-run text after the job and run use the same size and baseline as the job name (not raised or smaller), with ` · ` between the parts: `aging-live-4 run-7 · 2m · $0.0100` and `aging-live-4 · Mon 09:00`. The same treatment as amendment 5 item 6.
   - **Must fail when:** any text on line 1 of a Running now or Scheduled card sits raised or smaller than the job name, or has no ` · ` before it.
+- **M11 amendment 7 — SIGNED by hamr 2026-10-14 ("sign m11 am7"): plainer search and hints.**
+  1. **Any day form.** A day can be typed `10/13`, `10-13` or `2026-10-13`; all three mean the same local day.
+  2. **Brackets are ignored.** `aging-live-4 (run-2)`, as a run's title shows it, finds the same run as `aging-live-4 run-2`.
+  3. **The date range comes from the hidden runs' real start days**: the oldest to the newest, whatever order they are listed in.
+  4. **Plainer words.**
+     - Search box: `search: job name, run-23, or a date 10/13`
+     - Under the 7, no search, hidden runs over several days: `4 more older runs, 10/11 to 10/13. Search to find one.`
+     - Under the 7, no search, all on one day: `6 more runs on 10/11. Search to find one.`
+     - Under the 7, while searching: `3 more match. Add a date or run number to narrow it.`
+     These replace amendment 5 item 5's words.
+  - **Must fail when:** `10-13` and `10/13` give different results; `(run-2)` finds nothing where `run-2` does; the range misses a hidden run's day; one day shows as "10/11 to 10/11"; or a hint still uses the old words.
