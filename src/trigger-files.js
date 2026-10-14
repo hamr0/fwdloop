@@ -49,13 +49,13 @@ const waiting = (rows, a) => a.kind === 'arrived'
 /**
  * Does this finished version arrive? Item 6 + am2: only a sha that already RAN never arrives again; one already arrived and still queued does not
  * arrive twice; one that was dropped (never ran) may. A `baseline` blocks only while it is still the starting point: file-updated = until the file
- * has changed away (any later arrived/ran/dropped row of ANOTHER sha); new-file = for that name + sha (a copy under a new name is a new file).
- * @param {SeenRow[]} rows @param {{sha:string, name:string}} it @param {'new'|'updated'} mode
+ * has changed away (any later arrived/ran/dropped row of ANOTHER sha); new-file = for that sha for good (hamr 2026-10-13: content present at arm never runs, so a renamed or copied baseline file is not new).
+ * @param {SeenRow[]} rows @param {{sha:string}} it @param {'new'|'updated'} mode
  */
 function arrives(rows, it, mode) {
   const mine = ofSha(rows, it.sha);
   if (mine.some((r) => r.kind === 'ran' || waiting(rows, r))) return false;
-  const bi = rows.findLastIndex((r) => r.kind === 'baseline' && r.sha === it.sha && (mode === 'updated' || r.name === it.name));
+  const bi = rows.findLastIndex((r) => r.kind === 'baseline' && r.sha === it.sha);
   if (bi < 0) return true;
   return mode === 'updated' && rows.slice(bi + 1).some((r) => r.kind !== 'baseline' && r.sha !== it.sha);
 }
@@ -176,7 +176,7 @@ export function createFileTrigger({ mode, target, ledger }) {
     const st2 = lstatSync(p);
     if (`${st2.size}:${st2.mtimeMs}` !== t.key) return 'changed'; // changed while reading: retry next poll
     const sha = sha256(buf);
-    if (!arrives(readSeen(ledger), { sha, name: basename(p) }, mode)) return null; // ran, still queued, or still the starting point
+    if (!arrives(readSeen(ledger), { sha }, mode)) return null; // ran, still queued, or still the starting point
     return { path: p, sha, size: buf.length };
   }
 

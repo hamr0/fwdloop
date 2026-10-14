@@ -181,15 +181,15 @@ test('F1 a version that arrived and is still queued does not arrive twice; one t
   assert.deepEqual(queueOfSync(readSeen(ledger)).map((r) => r.sha), [sha('BBBBB')], 'queued again once');
 });
 
-test('F1 new-file: a baseline file sitting in the folder never arrives; its content under a NEW name does (it never ran)', () => {
+test('new-file: a baseline file sitting in the folder never arrives, nor does its content under a NEW name (hamr 2026-10-13: content present at arm never runs)', () => {
   const { dir, ledger } = setup();
   writeFileSync(path.join(dir, 'old.csv'), 'same\n');
   const w = mkTrigger({ mode: 'new', target: dir, ledger }); w.arm();
   for (let i = 0; i < 20; i++) assert.equal(record(w, w.poll().arrived).length, 0, `poll ${i}: the baseline file never runs`);
   const f2 = path.join(dir, 'copy.csv'); writeFileSync(f2, 'same\n'); stamp(f2);
-  assert.deepEqual(pollN(w).map((r) => path.basename(r.path)), ['copy.csv'], 'baseline is keyed name+sha: a new name is a new file');
-  const f3 = path.join(dir, 'third.csv'); writeFileSync(f3, 'same\n'); stamp(f3);
-  assert.equal(pollN(w).length, 0, 'that sha has now run: never again');
+  assert.deepEqual(pollN(w).map((r) => path.basename(r.path)), [], 'a renamed or copied baseline file is not new: its sha was there at arm');
+  const f4 = path.join(dir, 'fresh.csv'); writeFileSync(f4, 'other\n'); stamp(f4);
+  assert.deepEqual(pollN(w).map((r) => path.basename(r.path)), ['fresh.csv'], 'different content still arrives');
 });
 
 test('file-updated: file missing at arm, then created, is a change and runs', () => {
