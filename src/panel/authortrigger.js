@@ -216,9 +216,6 @@ export function createTriggerDoor(opts) {
   }
 
   return {
-    inspect,
-    now,
-
     /** `POST /api/author/trigger-prepare`: the first click. Checks, signs and writes nothing. @param {any} body */
     prepare(body) {
       const s = inspect(body);
