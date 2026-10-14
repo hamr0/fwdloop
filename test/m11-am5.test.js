@@ -169,3 +169,18 @@ test('item 6: run card line 1 is `run-2 · 10/12 13:46 · deepseek-flash`, the d
   assert.doesNotMatch(PAGE, /\.rl-rest\{[^}]*(font-size|margin)/, 'the rest of line 1 sets no size or margin of its own');
   assert.equal(text(l1(run('aging', 2, { at: null, askedAt: null, startedAt: null, atWhy: 'no stamp', model: null }))), 'run-2 · no stamp');
 });
+
+test('M11 am6: Running now and Scheduled line 1: the time, cost and next-run text sit in the same-size .rl-rest span after ` · `, not in .rl-faint', () => {
+  const l1 = (html) => html.match(/<span class="rl-l1">([\s\S]*?)<\/span><span class="rl-l2">/)[1];
+  const live = lib.rlJumpCardHtml(run('aging-live-4', 7, { live: true, glyph: '[▶]', startedAt: local(2026, 10, 12) }), false);
+  assert.doesNotMatch(l1(live), /rl-faint/);
+  assert.match(l1(live), /<span class="rl-rest">&middot; /);
+  assert.equal(text(l1(live)).replace(/\s+/g, ' ').replace(/^.*?aging-live-4 run-7/, 'aging-live-4 run-7').replace(/ · .*? · /, ' · X · '), 'aging-live-4 run-7 · X · $0.0100');
+  const sch = lib.rlScheduledCardHtml({ flow: 'aging-live-4', at: 'Mon 09:00', in: 'in 2d', words: 'weekly', runId: 'run-7' });
+  assert.doesNotMatch(l1(sch), /rl-faint/);
+  assert.equal(text(l1(sch)), 'aging-live-4 · Mon 09:00');
+  // no next-run time (a file trigger): nothing is made up
+  assert.equal(text(l1(lib.rlScheduledCardHtml({ flow: 'k', at: null, in: null, words: 'file', runId: null }))), 'k');
+  // Needs you keeps its pill
+  assert.match(lib.rlJumpCardHtml(run('x', 1, { needs: 'Accept' }), true), /rl-pill-need/);
+});
