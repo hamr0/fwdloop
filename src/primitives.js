@@ -269,16 +269,15 @@ function addressCellsPrimitiveTool(inputsByRole) {
   };
 }
 
-/** The verbs this piece actually implements (the switch below, as data) —
- *  one writer for "is this verb wired": `resolvePrimitives`'s own reds use
- *  it, and `src/runner.js`'s preflight (F46: a step granted a
- *  catalogue-present-but-unwired verb, e.g. litectx's `compress`, must
- *  refuse before any model call or spend) imports this SAME set rather than
- *  keeping a second copy of the list. */
 /** M7: the in-run tools over this run's own store (src/ctx-tools.js). `remember`/`forget` are
  *  deliberately absent: memory lasts one run (PRD: no learning between flows). */
 const CTX_VERBS = Object.freeze(['recall', 'get', 'recent', 'related', 'impact', 'compress', 'peek', 'stash']);
 
+/** The verbs this piece actually implements (the switch below, as data) —
+ *  one writer for "is this verb wired": `resolvePrimitives`'s own reds use
+ *  it, and `src/runner.js`'s preflight (F46: a step granted a
+ *  catalogue-present-but-unwired verb must refuse before any model call or
+ *  spend) imports this SAME set rather than keeping a second copy of the list. */
 export const WIRED_VERBS = new Set(['read', 'grep', 'write', 'edit', 'readDocx', 'addressCells', ...CTX_VERBS]);
 
 /** The wired menu, one place: the catalogue entries whose verb is in
