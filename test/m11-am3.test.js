@@ -15,9 +15,14 @@ const PAGE = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url))
 function fnSrc(name) {
   const start = PAGE.indexOf(`  function ${name}(`);
   assert.ok(start !== -1, `function ${name} not found`);
-  return PAGE.slice(start, PAGE.indexOf('\n  }\n', start) + 5);
+  let depth = 0;
+  for (let i = PAGE.indexOf('{', start); i < PAGE.length; i++) {
+    if (PAGE[i] === '{') depth++;
+    else if (PAGE[i] === '}' && --depth === 0) return PAGE.slice(start, i + 1);
+  }
+  assert.fail(`function ${name} has no closing brace`);
 }
-const NAMES = ['matchesSearch', 'inboxHeadText', 'inboxFilterRows'];
+const NAMES = ['matchesSearch', 'inboxHeadText', 'inboxMatchesSearch', 'inboxFilterRows'];
 const HEADS = [/ {2}var INBOX_HEADS = [^\n]*/, / {2}var INBOX_CHIP_WORD = [^\n]*/].map((re) => PAGE.match(re)[0]).join('\n');
 const lib = new Function(`${HEADS}\n${NAMES.map(fnSrc).join('\n')}\nreturn {${NAMES.join(',')}};`)();
 const NONE = { results: [], time: 'all', search: '' };
@@ -29,6 +34,12 @@ after(() => { CLOSERS.forEach((c) => c()); });
 const SKIP = process.env.FWDLOOP_NO_BROWSER === '1';
 
 // ---- item 3 and 4: headers with counts, Inbox filters on section 3 only ----
+test('fnSrc cuts a one-line function at its own end: inboxHeadText is exactly one function', () => {
+  const src = fnSrc('inboxHeadText');
+  assert.equal(src.match(/function /g).length, 1, src);
+  assert.match(src.trimEnd(), /\}$/);
+});
+
 test('item 3: an Inbox header carries its count: `waiting on you (2)`', () => {
   assert.equal(lib.inboxHeadText(1, 2), 'waiting on you (2)');
   assert.equal(lib.inboxHeadText(2, 0), 'working on your answer (0)');
