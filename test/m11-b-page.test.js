@@ -15,7 +15,7 @@ function fnSrc(name) {
 }
 const NAMES = [
   'escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText',
-  'rlShortDate', 'representedRun', 'rlShortDate', 'representedRun', 'groupRunsByFlow', 'matchesSearch', 'filterRuns', 'filterWorkflows', 'filtersActive', 'autoExpandFlow',
+  'rlShortDate', 'groupRunsByFlow', 'matchesSearch', 'filterRuns', 'filterWorkflows', 'filtersActive', 'autoExpandFlow',
   'rlModel', 'rlSectHtml', 'rlJumpCardHtml', 'rlScheduledCardHtml', 'rlRunCardHtml', 'rlJobCardHtml', 'rlTopHtml', 'rlJobsHtml',
 ];
 const lib = new Function(`${NAMES.map(fnSrc).join('\n')}\nreturn {${NAMES.join(',')}};`)();
@@ -179,9 +179,23 @@ test('search for an older run opens its job ON that run: the fold is capped at 7
   assert.equal(card.older.hidden, 3, 'the rest stay behind "use search"');
   assert.equal(card.head.runId, 'run-12', 'the card line 2 is the newest run, not the match');
   assert.equal(model(data, { filters: { results: [], time: 'all', search: 'nope' } }).jobs.length, 0, 'a job with no matching run is gone');
-  // a filter that matches many older runs never lifts the cap: only the newest match is added
+  // a filter keeps every older run it matches (a chip matching all 11 older runs shows all 11)
   const all = model(data, { filters: { results: ['[✓]'], time: 'all', search: '' } }).jobs[0];
-  assert.ok(all.older.shown.length <= 7, 'a chip does not list every match');
+  assert.equal(all.older.shown.length, 11, 'every matching older run stays');
+  assert.equal(all.older.hidden, 0);
+});
+
+test('search: when the head run also matches, an older matching run past the 7 stays shown; non-matching runs past the 7 stay hidden', () => {
+  const data = payload(runsOf('flights', 20), [meta('flights')]);
+  const card = model(data, { filters: { results: [], time: 'all', search: 'run-2' } }).jobs[0];
+  const ids = card.older.shown.map((r) => r.runId);
+  assert.ok(ids.includes('run-2'), 'run-2 (position 18) is shown');
+  assert.deepEqual(ids, ['run-19', 'run-18', 'run-17', 'run-16', 'run-15', 'run-14', 'run-13', 'run-2'], 'the first 7, plus the matching run past them (run-20 is the head)');
+  assert.equal(card.older.hidden, 11, 'only non-matching runs past the 7 are counted by the hint');
+  // no search: unchanged, 7 older runs + the hint
+  const plain = model(data, { open: { flights: true } }).jobs[0];
+  assert.equal(plain.older.shown.length, 7);
+  assert.equal(plain.older.hidden, 12);
 });
 
 test('the card lines clip on one line with an ellipsis, as the mockup CSS does (nowrap + ellipsis on line 2 and the name)', () => {
@@ -273,7 +287,7 @@ function listHarness() {
     function tickSince(){}
     function currentRunsFilters(){ return NONE; }
     function withFocusPreserved(el, fn){ fn(); }
-    ${['escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText', 'rlShortDate', 'representedRun', 'rlShortDate', 'representedRun', 'groupRunsByFlow', 'matchesSearch', 'filterRuns', 'filterWorkflows', 'filtersActive', 'autoExpandFlow', 'rlModel', 'rlSectHtml', 'rlJumpCardHtml', 'rlScheduledCardHtml', 'rlRunCardHtml', 'rlJobCardHtml', 'rlTopHtml', 'rlJobsHtml', 'paintRunsList'].map(fnSrc).join('\n')}
+    ${['escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText', 'rlShortDate', 'groupRunsByFlow', 'matchesSearch', 'filterRuns', 'filterWorkflows', 'filtersActive', 'autoExpandFlow', 'rlModel', 'rlSectHtml', 'rlJumpCardHtml', 'rlScheduledCardHtml', 'rlRunCardHtml', 'rlJobCardHtml', 'rlTopHtml', 'rlJobsHtml', 'paintRunsList'].map(fnSrc).join('\n')}
     return { paintRunsList, setSel: function(f, r){ currentFlow = f; currentRunId = r; } };`;
   const rows = runsOf('f', 3);
   const api = new Function('document', 'ROWS', 'JOBS', 'LIMITS', 'NONE', body)({ getElementById: (id) => els[id] }, rows, [meta('f')], LIMITS, NONE);

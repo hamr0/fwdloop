@@ -1820,12 +1820,6 @@
     });
   }
 
-  // ONE owner for "which run does a search hit stand on": with filters active and the newest run not a match, the NEWEST MATCHING run; else null.
-  function representedRun(group, candidateRuns, active){
-    if(active && candidateRuns.length && !candidateRuns.some(function(r){ return r.runId === group.lastRunId; })) return candidateRuns[0].runId;
-    return null;
-  }
-
   // Matches a flow if ANY of its runs match the filters (not only the
   // latest) — a one-line adapter over filterRuns, never a reimplementation
   // of the AND/OR/time/search semantics.
@@ -1878,10 +1872,9 @@
       var head = g.runs[0];
       var matching = active ? filterRuns(g.runs, filters, Date.now()) : g.runs;
       var older = g.runs.slice(1);
-      var hit = representedRun(g, matching, active);
       var isSel = function(r){ return sel.flow === g.flow && r.runId === sel.runId; };
-      // the fold is capped always; past the cap only the selected run and a search hit stay
-      var shown = older.slice(0, limits.olderRuns).concat(older.slice(limits.olderRuns).filter(function(r){ return isSel(r) || r.runId === hit; }));
+      // the fold is capped; past the cap only the selected run stays, and (search or filter active) every older run that matches
+      var shown = older.slice(0, limits.olderRuns).concat(older.slice(limits.olderRuns).filter(function(r){ return isSel(r) || (active && matching.indexOf(r) !== -1); }));
       var auto = autoExpandFlow(g, matching, active) || older.some(isSel);
       return {
         flow: g.flow, group: g, head: head, empty: false, quiet: quiet, count: g.runCount, sel: sel,
