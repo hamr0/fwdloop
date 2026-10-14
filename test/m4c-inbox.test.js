@@ -213,7 +213,7 @@ test('pulse: only [▶], [II] stuck and waiting [·]; placeholder dots, answered
   assert.doesNotMatch(PAGE, /\.dot\.(grey|amber)::before\{animation/);
   assert.match(PAGE, /\.dot\.pulse::before\{animation:signPulse/);
   assert.match(PAGE, /<span class="dot grey" id="active-wf-dot">/, 'placeholder header dot carries no pulse');
-  assert.match(PAGE, /<span class="dot grey"><\/span>'/, 'no-runs placeholder carries no pulse');
+  assert.match(PAGE, /<span class="dot grey"><\/span><span class="rl-nm"/, 'no-runs placeholder carries no pulse');
   assert.match(PAGE, /prefers-reduced-motion: reduce\)\{\s*\.dot\.pulse::before\{animation:none/);
 });
 

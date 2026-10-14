@@ -347,3 +347,8 @@ found during this same review pass: the Audit tab's "Raw log" leaking an EARLIER
 run's rows when a gate-audit sidecar is shared across runs (now windowed to this run's own
 ts range, same rule as the parsed `rows`), and a `~2`-backfill-collision run's header/lookups
 echoing the wrong (unsuffixed) runid.
+
+Superseded in part (M11, 2026-10-14): the Workflows / History toggle above is gone. The Runs tab is one list
+(Running now, Needs you, Scheduled, then Jobs with their runs and a quiet-jobs fold), built from the one
+`/api/runs` payload; search and filters act on Jobs and quiet jobs only. The Audit tab's Grouped / Flat toggle
+stays. The text above is left as written; see "M11" in `docs/wiki/the-module-ladder.md`.

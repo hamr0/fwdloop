@@ -39,7 +39,7 @@ import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../r
 import { readSetup } from '../setup.js';
 import { checkedLines, notCheckedBlock, NOT_CHECKED_LABEL } from '../checked.js';
 import {
-  catchUpWords, endedWords, scheduledNextFor, scheduledWords,
+  catchUpWords, endedWords, nextInWords, nextTimeWords, scheduledNextFor, scheduledWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import {
@@ -906,7 +906,8 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
   const stateJson = readRunState(runDir);
   const consumedAnswerExists = hasConsumedAnswer(runDir, askJson && typeof askJson.askId === 'string' ? askJson.askId : null);
   // A finished run has no resume to report (its history row says how it ended).
-  const resume = historyRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(runDir), attempt, ask: askJson });
+  const savedAnswer = historyRow ? null : readSavedAnswer(runDir);
+  const resume = historyRow ? null : deriveResumeState({ savedAnswer, attempt, ask: askJson });
   const stuckInputs = historyRow ? { liveness: 'unknown', lock: 'none' } : readStuckInputs(runDir);
 
   return {
@@ -934,6 +935,8 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     consumedAnswerExists,
     hasStateJson: stateJson !== null,
     resume,
+    // M11 am4 item 1: when the saved answer was written (a stuck run has no stop time; its 7 days in Needs you count from here), or null
+    savedAnswerAt: savedAnswer ? savedAnswer.answeredAt : null,
     // M4c: only read for a run with no end row (an end row always wins).
     liveness: stuckInputs.liveness,
     lock: stuckInputs.lock,
@@ -1047,11 +1050,11 @@ export function getRunControls({
  * null`, an explicit `why`) — no flow is silently missing from the list.
  * Ordered by `orderRuns` (waiting on you, running, then newest `at` first; a row
  * with no `at` is never given a guessed one).
- * @param {{root: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any, startingRun?: (flow: string, runId: string) => boolean}} opts
- *   `startingRun`: the starter's phase-`starting` rule for one run (absent = no). `resumeAttempt`: the panel's in-memory resume-attempt lookup (M4b piece 2); absent = none.
+ * @param {{root: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any, startingRun?: (flow: string, runId: string) => boolean, now?: () => number}} opts
+ *   `now`: the clock for Needs you's 7-day rule (absent = Date.now). `startingRun`: the starter's phase-`starting` rule for one run (absent = no). `resumeAttempt`: the panel's in-memory resume-attempt lookup (M4b piece 2); absent = none.
  * @returns {any[]}
  */
-export function listRuns({ root, catalogue, resumeAttempt, startingRun }) {
+export function listRuns({ root, catalogue, resumeAttempt, startingRun, now = Date.now }) {
   const rows = [];
   for (const flowName of listFlowNames(root)) {
     const flowDir = join(root, flowName);
@@ -1073,6 +1076,7 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun }) {
       }
       const ctx = loadRunContext(root, run.flowDir, run.runDir, flowName, runId, catalogue, resumeAttempt?.(flowName, runId) ?? null, startingRun);
       const { glyph, label } = computeGlyph(ctx);
+      const controls = runControls(ctx, glyph, label);
       // M4c amendment 1 (c): the ask waiting on the human, by the same rule
       // listStops uses (deriveAskOpenFields) — the least time left if several.
       const waitingAsk = runAsksInOrder(run.runDir, !!ctx.historyRow)
@@ -1103,7 +1107,10 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun }) {
         ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
         pulse: glyphPulses({ glyph, label }),
         stuck: glyph === '[II]',
-        controls: runControls(ctx, glyph, label),
+        controls,
+        needs: needsYouTag(glyph, controls, glyph === '[II]' ? ctx.savedAnswerAt : (ctx.historyRow ? ctx.historyRow.at : null), now()),
+        live: isRunningNow(ctx, glyph),
+        model: deriveRunModel(ctx.auditRows),
         resume: ctx.resume,
         spend,
         spendWhy: (!ctx.historyRow && spend === null)
@@ -1161,6 +1168,83 @@ export function orderRuns(rows) {
       return a.index - b.index;
     })
     .map(({ row }) => row);
+}
+
+/**
+ * M11 am1 item 2 + am2: the ONE rule for a run's Needs-you tag, read off the sign and `runControls` (no second rule). `Accept`: waiting at an open ask.
+ * `Resume`: stuck `[II]`, or stopped `[■]` whose Run tab shows the Resume button. An expired ask `[!]` is never here (it stays in the Inbox).
+ * M11 am3 item 5: a Resume run leaves Needs you once its stop time (`at`, the history row's) is `RUNS_LIST_LIMITS.needsYouDays` old; exactly that old is out.
+ * M11 am4 item 1: a stuck `[II]` run has no stop time; the caller passes the time its saved answer was written. A run with no readable time stays in. An Accept run is never dropped by age (its ask has its own wait).
+ * @param {string} glyph a `computeGlyph` sign @param {{atAsk: boolean, canResume: boolean}} controls `runControls`' answer
+ * @param {string|null} [at] the run's stop time from the books @param {number} [nowMs]
+ * @returns {'Accept'|'Resume'|null}
+ */
+export function needsYouTag(glyph, controls, at = null, nowMs = Date.now()) {
+  if (glyph === '[·]' && controls.atAsk) return 'Accept';
+  if (glyph !== '[II]' && !(glyph === '[■]' && controls.canResume)) return null;
+  const t = typeof at === 'string' ? Date.parse(at) : NaN;
+  if (Number.isFinite(t) && nowMs - t >= RUNS_LIST_LIMITS.needsYouDays * 86_400_000) return null;
+  return 'Resume';
+}
+
+/** M11 scope item 2.5/2.6 and rules, am3 item 5: the named limits of the runs list, in ONE place (30 quiet days, 7 older runs, 7 days in Needs you for a Resume run). The page reads them from `GET /api/runs`. */
+export const RUNS_LIST_LIMITS = Object.freeze({ quietDays: 30, olderRuns: 7, needsYouDays: 7 });
+
+/**
+ * M11: one entry per job (flow), newest activity first. A job's activity is its newest KNOWN run time (`at`, else `askedAt`, else `startedAt`);
+ * `quiet` only when that time is known and older than the quiet limit: an unknown age is never guessed into quiet, and a job with no runs is not quiet.
+ * @param {any[]} rows `listRuns` rows @param {number} nowMs
+ * @returns {{flow: string, quiet: boolean, activityMs: number|null}[]}
+ */
+export function summarizeJobs(rows, nowMs) {
+  /** @type {Map<string, number|null>} */
+  const byFlow = new Map();
+  for (const r of rows) {
+    if (!byFlow.has(r.flow)) byFlow.set(r.flow, null);
+    if (r.runId === null) continue; // eslint-disable-line no-continue
+    const t = [r.at, r.askedAt, r.startedAt].map((x) => (typeof x === 'string' ? Date.parse(x) : NaN)).find((x) => Number.isFinite(x));
+    if (t !== undefined && (byFlow.get(r.flow) === null || t > /** @type {number} */ (byFlow.get(r.flow)))) byFlow.set(r.flow, t);
+  }
+  const quietMs = RUNS_LIST_LIMITS.quietDays * 86_400_000;
+  return [...byFlow.entries()]
+    .map(([flow, activityMs]) => ({ flow, quiet: activityMs !== null && nowMs - activityMs > quietMs, activityMs }))
+    .sort((a, b) => {
+      if (a.activityMs !== b.activityMs) {
+        if (a.activityMs === null) return 1;
+        if (b.activityMs === null) return -1;
+        return b.activityMs - a.activityMs;
+      }
+      return a.flow < b.flow ? -1 : a.flow > b.flow ? 1 : 0;
+    });
+}
+
+/**
+ * M11 am1 item 3: every job with a trigger, soonest next run first (a job with no clock slot — a file trigger, or not armed yet — after those that
+ * have one, by name). Built from the owners the run page's SCHEDULED block uses (`triggerRead`, `scheduledWords`); `at` / `in` are null when
+ * there is no next time (nothing is invented). A job that cannot be read, or has no trigger, is absent.
+ * M11 am4 item 2: each card carries `runId`, the job's newest run (the first row `listRuns` gives that job, the one the runs list heads its job card with), or null when it has none.
+ * @param {{root: string, triggerRead: (flow: string) => any, now?: () => number, home?: string, rows?: {flow: string, runId: string|null}[]}} opts
+ * @returns {{flow: string, at: string|null, in: string|null, words: string, runId: string|null}[]}
+ */
+export function listScheduled({
+  root, triggerRead, now = Date.now, home, rows = [],
+}) {
+  const t0 = now();
+  const out = [];
+  for (const flow of listFlowNames(root)) {
+    const t = triggerRead(flow);
+    if (!t || !t.trigger) continue; // eslint-disable-line no-continue
+    const ms = t.armed && typeof t.nextSlotMs === 'number' ? t.nextSlotMs : null;
+    out.push({
+      ms, flow, at: ms === null ? null : nextTimeWords(ms, t0), in: ms === null ? null : nextInWords(ms, t0), words: String(scheduledWords(t.trigger, home)),
+      runId: rows.find((r) => r.flow === flow)?.runId ?? null,
+    });
+  }
+  out.sort((a, b) => {
+    if (a.ms !== b.ms) return a.ms === null ? 1 : b.ms === null ? -1 : a.ms - b.ms;
+    return a.flow < b.flow ? -1 : a.flow > b.flow ? 1 : 0;
+  });
+  return out.map(({ ms, ...card }) => card);
 }
 
 /**
@@ -1245,8 +1329,8 @@ function jobWaitingLine(root, flowDir, flow, catalogue) {
 /**
  * M9 piece 6 (ladder M9 item 7): the summary block at the top of a run page, as data. Words come from `src/summary-words.js` only, built
  * from typed facts (the history row's outcome, the declared step's line, the signed trigger and its ledger). `ended` is null while the run
- * is live; `scheduled` is null when the job has no trigger; `catchUp` is a fixed sentence when this run was started late (am2 item 1).
- * @returns {{ended: {reason: string, next: string}|null, scheduled: {text: string, next: string, nextRed: boolean}|null, catchUp: string|null}}
+ * is live; `scheduled` is null when the job has no trigger; `canSchedule` (am3 item 1) is the trigger door's own `hasGreenRun` answer; `catchUp` is a fixed sentence when this run was started late (am2 item 1).
+ * @returns {{ended: {reason: string, next: string}|null, scheduled: {text: string, next: string, nextRed: boolean}|null, canSchedule: boolean, catchUp: string|null}}
  */
 function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   const died = !ctx.historyRow && glyph === '[?]';
@@ -1272,7 +1356,7 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   let rec = null;
   const f = readFileInside(ctx.runDir, 'trigger.json');
   if (f.ok) { try { rec = JSON.parse(f.text); } catch { rec = null; } }
-  return { ended, scheduled, catchUp: catchUpWords(rec) };
+  return { ended, scheduled, canSchedule: !!(t && t.hasGreenRun), catchUp: catchUpWords(rec) };
 }
 
 /**

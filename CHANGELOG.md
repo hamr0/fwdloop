@@ -5,6 +5,43 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] - 2026-10-14
+
+M11 one runs list: the left Runs list is now one list (Running now, Needs you, Scheduled, Jobs), cards
+match the signed mockup, and the Inbox gets its own filters. Display only: nothing on disk changes.
+
+### Added
+- One runs list, top to bottom: Running now (N), Needs you (N), Scheduled (N), then Jobs (N) · run in
+  the last 30 days and a folded "quiet jobs" line (no run in 30 days). A section with 0 items is not
+  shown. Search and filters act on Jobs and quiet jobs only; the top three sections are never hidden.
+- Needs you holds a run waiting at an ask (tag Accept) and a stuck or stopped run you can resume
+  (tag Resume). The tag is a label, not a button. A click opens that run on the Run tab and scrolls to its job card, as Running now does.
+- A Scheduled card shows the next time and the schedule words. A click opens that job's newest run on
+  the Run tab, where Cancel / modify schedule is.
+- A Schedule run button on the Run tab, next to Run again, for a job with a green run and no schedule.
+  Once a schedule is set it reads Cancel / modify schedule.
+- Each job card reads `[sign] job · k runs` with the word and why of its newest run. Older runs fold
+  under "older runs (k)": the newest 7, the selected run, then "(and k older: use search)".
+- The Inbox gets the search box and the 7d / 30d / all / clear chips, plus status chips accepted,
+  redo, rerun and expired (pick any; none picked = all). They act on "answered and expired" only;
+  "waiting on you" and "working on your answer" are never hidden.
+- Inbox search reads the whole row: job name, run, status word, the question and your reason.
+- `GET /api/runs` answers `{rows, jobs, scheduled, limits}`: the server decides every state, the page
+  works none out. The 30 days, 7 older runs and 7 days in Needs you are named constants in one place.
+
+### Changed
+- The Workflows / History switch is gone. One list; search covers old runs. The Audit tab's Grouped /
+  Flat stays.
+- Every section header in Runs and Inbox uses one style (bold, normal case) and carries its count.
+- A Resume run leaves Needs you 7 days after it stopped. A stuck run counts the 7 days from when its
+  saved answer was written. It stays under Jobs and its Run tab still has Resume.
+- Cards follow the signed mockup: one short date (`10/13 19:12`), and each card line stays on one line, cut with … when too long.
+
+### Fixed
+- A search that matches an older run opens the job's fold on it, even when the job's newest run
+  matches too, and keeps only the one newest older match past the 7.
+- The Inbox search finds a row by its status word (searching rerun finds a reran row).
+
 ## [0.18.0] - 2026-10-13
 
 M9 triggers: a signed job can rerun on a clock or when a file appears or changes, from the panel, with

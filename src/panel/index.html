@@ -182,8 +182,8 @@
 
   /* M4c inbox: section 1 (waiting on you) carries the page's amber accent
      treatment; section 3 (answered/expired) is dimmed. Tokens only. */
-  .inbox-h{font-size:12px;color:var(--text-dim);font-weight:700;margin:12px 0 6px;}
-  .inbox-h:first-child{margin-top:0;}
+  .rl-sect,.inbox-h{font-size:12px;color:var(--text-dim);font-weight:700;margin:12px 0 6px;}
+  .rl-sect:first-child,.inbox-h:first-child{margin-top:0;}
   .inbox-row.s1{border-left:4px solid var(--amber);background:var(--amber-bg);}
   .inbox-row.s3{opacity:.6;}
   .inbox-row .wf-line1{min-width:0;}
@@ -221,13 +221,11 @@
   .answer-msg.stuck{border-color:var(--amber);}
   .answer-msg.info::before{content:"[·] ";color:var(--amber);font-weight:700;}
 
-  .wf-row,.hist-row{
+  .hist-row{
     display:flex;flex-direction:column;row-gap:4px;min-width:0;
     padding:8px 8px 8px 18px;position:relative;border:1px solid var(--border);margin-bottom:6px;background:var(--panel2);cursor:pointer;
   }
-  .wf-row::before{content:" ";position:absolute;left:6px;top:8px;color:var(--accent);font-weight:700;}
-  .wf-row:hover,.hist-row:hover{border-color:var(--border-strong);}
-  .wf-row.selected::before{content:">";}
+  .hist-row:hover{border-color:var(--border-strong);}
   /* line 1: glyph + name, kept on ONE line — truncated with an ellipsis
      (never wrapped) when the job/runid text is longer than the row; the
      full text is still reachable via the span's own title attribute. */
@@ -246,15 +244,37 @@
   .hdr-verdict{font-size:12px;color:var(--text-dim);min-width:0;overflow-wrap:anywhere;}
   .wf-meta{font-size:12px;color:var(--text-dim);}
   .wf-sep{font-size:12px;color:var(--text-faint);}
-  .wf-row.selected,.hist-row.selected{border:2px solid var(--accent);border-radius:4px;}
-  /* item 2 (2026-09-26 merge): a Workflows-view job row expands inline to
-     list ALL its runs (build spec's own design) — the caret glyph on the
-     job row, and the indent wrapper the expanded runs render into. */
-  .wf-job{margin-bottom:6px;}
-  .wf-job .wf-row{margin-bottom:0;}
-  .wf-caret{display:inline-block;width:11px;flex:none;color:var(--text-faint);font-size:10px;}
-  .wf-runs{margin:4px 0 8px 16px;padding-left:8px;border-left:2px solid var(--border);}
-  .wf-runs .hist-row{margin-bottom:4px;}
+  .hist-row.selected{border:2px solid var(--accent);border-radius:4px;}
+  /* M11: the one runs list. Copied from docs/product/m11-runs-list-mock.html (the right box, "F - fwdloop"); only the class names carry the rl- prefix
+     (the page already has .chip, .hint, .live ...), a card's lines clip with an ellipsis exactly as the mockup does (the full text is on the run page). */
+  :root{--rl-accent-bg:rgba(122,162,247,.12);--rl-accent-bg-strong:rgba(122,162,247,.2);}
+  .rl-card{display:block;width:100%;text-align:left;background:var(--panel2);border:1px solid var(--border);padding:6px 8px;margin:0 0 6px;cursor:pointer;min-height:44px;color:inherit;font:inherit;}
+  div.rl-card{cursor:default;}
+  .rl-card:hover{border-color:var(--accent);background:var(--rl-accent-bg);}
+  div.rl-card:hover{border-color:var(--border);background:var(--panel2);}
+  .rl-card.rl-sel,div.rl-card.rl-sel:hover{border:2px solid var(--accent);border-radius:4px;background:var(--rl-accent-bg-strong);}
+  .rl-card:focus-visible,.rl-fold:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .rl-card.rl-live{border-color:var(--amber);}
+  .rl-card.rl-need{border-color:var(--accent);}
+  .rl-l1{display:flex;gap:6px;align-items:center;min-width:0;overflow:hidden;}
+  .rl-nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  .rl-rn{color:var(--accent);flex:none;}
+  .rl-l2{display:block;font-size:12px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .rl-l2 .sign-word{color:var(--text);}
+  .rl-dim{color:var(--text-dim);font-size:12px;flex:none;}
+  .rl-faint{color:var(--text-faint);font-size:12px;}
+  .rl-cnt{color:var(--text-faint);font-size:inherit;flex:none;}
+  .rl-runs{margin:6px 0 0 6px;padding-left:8px;border-left:2px solid var(--border);}
+  .rl-runs .rl-card{background:var(--bg);}
+  .rl-runs .rl-card.rl-sel{background:var(--rl-accent-bg-strong);}
+  .rl-fold{background:none;border:0;color:var(--text-dim);font:inherit;font-size:12px;padding:4px 0;cursor:pointer;min-height:32px;}
+  .rl-fold:hover{color:var(--accent);}
+  .rl-hint{font-size:12px;color:var(--text-faint);padding:2px 0 6px;}
+  .rl-pill{font-size:11px;border:1px solid var(--amber);color:var(--amber);padding:0 5px;margin-left:auto;flex:none;}
+  .rl-pill-need{border-color:var(--accent);color:var(--accent);}
+  .rl-dash{border-top:1px dashed var(--border-strong);margin:10px 0 6px;}
+  #panel-runs .rl-faint{margin-bottom:4px;}
+  @media (max-width:899px){ .rl-fold{min-height:44px;} }
 
   .rp-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:2px solid var(--border-strong);background:var(--panel);flex-wrap:wrap;gap:8px;}
   .rp-header h2{margin:0;font-size:15px;min-width:0;overflow-wrap:anywhere;text-transform:none;letter-spacing:normal;}
@@ -354,7 +374,7 @@
   .chip::before{content:"[ ";color:var(--text-faint);}
   .chip::after{content:" ]";color:var(--text-faint);}
   .chip[aria-pressed="true"]{background:var(--panel);color:var(--accent);border-color:var(--accent);font-weight:700;}
-  /* Compact filter-bar chips (History + Workflows, shared component): single
+  /* Compact filter-bar chips (the runs list's filter bar): single
      letters/bare glyphs, no "[ ]" brackets — hamr's 2026-09-25 feedback on
      the live panel ("icons are taking too much space", "one letter without
      brackets"). */
@@ -1091,16 +1111,19 @@
                — the wide right pane is where the evidence lives now. The
                answer doors are in the Ask tab, not here (M4b). -->
           <div id="inbox-list" data-testid="inbox-list"></div>
+          <div class="rl-dash"></div>
+          <div class="rl-faint" data-testid="inbox-filter-note">filters below act on answered and expired only</div>
+          <div id="inbox-filterbar-anchor"></div>
+          <div id="inbox-list-old" data-testid="inbox-list-old"></div>
         </section>
 
         <section id="panel-runs" class="tabpanel" role="tabpanel" aria-labelledby="tab-runs" hidden>
-          <div class="chips" role="group" aria-label="Runs view" style="margin-bottom:8px;">
-            <button class="chip" type="button" aria-pressed="true" data-runs-view="workflows" data-testid="runs-view-workflows">Workflows</button>
-            <button class="chip" type="button" aria-pressed="false" data-runs-view="history" data-testid="runs-view-history">History</button>
-          </div>
+          <!-- M11: ONE list. Running now, Needs you and Scheduled are not filtered; the filters below act on Jobs and quiet jobs only. -->
+          <div id="rl-top" data-testid="rl-top"></div>
+          <div class="rl-dash"></div>
+          <div class="rl-faint" data-testid="rl-filter-note">filters below act on Jobs and quiet jobs only</div>
           <div id="runs-filterbar-anchor"></div>
           <div id="wf-list" data-testid="wf-list"></div>
-          <div id="history-list" data-testid="history-list" hidden></div>
         </section>
 
       </div>
@@ -1127,7 +1150,7 @@
       <div class="pane-body" id="right-pane-body">
 
         <section id="panel-run" class="tabpanel active" role="tabpanel" aria-labelledby="tab-run">
-          <div id="run-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run from Workflows or History</div>
+          <div id="run-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run from the list</div>
           <div id="run-content" hidden>
             <div id="summary-blocks" data-testid="summary-blocks">
               <div id="ended-block" class="ended-block" data-testid="ended-block" hidden></div>
@@ -1576,9 +1599,9 @@
   // says this sign is [▶] running or [·] waiting on you (data.js glyphPulses).
   // M4c-fix amendment 2 (g): one bold word after every sign, then " — " and the plain line. The word comes from the
   // server's one sign->word table (data.js SIGN_WORDS) on `word`; this only draws it, the same in Runs, Inbox and the header.
-  function signHtml(word, line, fallback){
+  function signHtml(word, line, fallback, sep){
     if(!word) return escapeXml(fallback || "unknown");
-    return '<b class="sign-word">' + escapeXml(word) + '</b>' + (line ? " &mdash; " + escapeXml(line) : "");
+    return '<b class="sign-word">' + escapeXml(word) + '</b>' + (line ? (sep || " &mdash; ") + escapeXml(line) : "");
   }
   function dotClass(g, pulse){ return "dot " + glyphClass(g) + (pulse ? " pulse" : ""); }
   function glyphClass(g){
@@ -1722,56 +1745,6 @@
     window.addEventListener("resize", reflowMapSoon);
   }
 
-  // ---- Runs tab: ONE run-row builder shared by History (flat) and the
-  // Workflows view's per-flow expansion — the two never drift on how a run
-  // row reads. Rekeyed from bareloop's job/runid to fwdloop's flow/runId
-  // (GET /api/runs row shape: src/panel/data.js's listRuns).
-  // opts.sub (amendment 12): a Workflows sub-card drops the flow name from its visible text; no other caller passes opts.
-  function buildRunRowEl(r, opts){
-    var row = document.createElement("div");
-    // Selected state is computed here, off the module's own `currentRunId`,
-    // so a row freshly built by a RE-RENDER (switching Runs view mode, or a
-    // Workflows parent auto-expanding onto an older run picked from
-    // History) shows selected without needing a click on this exact
-    // element — `selectRun`'s imperative class toggle (used when a click
-    // passes its own `rowEl`) stays layered on top of this, never replaced.
-    var selected = r.flow === currentFlow && r.runId === currentRunId;
-    row.className = "hist-row" + (selected ? " selected" : "");
-    row.setAttribute("data-testid", "hist-row-" + r.flow + "-" + (r.runId || "none"));
-    row.setAttribute("tabindex", "0");
-    row.setAttribute("role", "button");
-    row.setAttribute("aria-pressed", selected ? "true" : "false");
-    var fullName = r.flow + (r.runId ? ' (' + r.runId + ')' : '');
-    if(r.runId === null){
-      // this flow has no runs yet — empty state names why, never a made-up row.
-      row.innerHTML =
-        '<span class="wf-line1"><span class="dot grey"></span>' +
-        '<span class="wf-name" title="' + escapeXml(fullName) + '">' + escapeXml(fullName) + '</span></span>' +
-        '<span class="wf-meta-line"><span class="wf-meta">' + escapeXml(r.why || "no runs yet") + '</span></span>';
-      row.removeAttribute("tabindex");
-      row.removeAttribute("role");
-      return row;
-    }
-    if(opts && opts.sub){
-      // amendment 12: line 1 `(run-<n>) <word> — <label>`; the flow name stays in title/aria only
-      row.setAttribute("aria-label", fullName);
-      row.innerHTML =
-        '<span class="wf-line1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span>' +
-        '<span class="wf-name" title="' + escapeXml(fullName) + '">(' + escapeXml(r.runId) + ')</span> ' +
-        '<span class="wf-sign-line" data-testid="run-sign-word">' + signHtml(r.word, (r.word === 'passed' && r.glyph === '[✓]' && !r.line) ? 'goal met' : r.line, r.label) + '</span></span>' +
-        runMetaLineHtml(r, null);
-    } else {
-      row.innerHTML =
-        '<span class="wf-line1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span>' +
-        '<span class="wf-name" title="' + escapeXml(fullName) + '">' + escapeXml(fullName) + '</span></span>' +
-        '<span class="wf-sign-line" data-testid="run-sign-word">' + signHtml(r.word, r.line, r.label) + '</span>' +
-        runMetaLineHtml(r, null);
-    }
-    row.addEventListener("click", function(){ openRunFromRuns(r, row); });
-    row.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); } });
-    return row;
-  }
-
   // M4c amendment 1 (a): the ONE place a click on a run in Runs decides where it lands.
   // Right side: that run, on the Run tab, at once. Whether the run has an ask waiting on the human (or is
   // stuck, which counts as waiting: M4c amendment 2 (b)) is decided from THAT RUN's own asks, fetched on
@@ -1803,22 +1776,10 @@
     }).catch(function(){ /* unreadable books: the run stays open on the Run tab, the left side stays on Runs */ });
   }
 
-  // ---- History view: every row exactly as /api/runs returned it. ----
-  function renderHistory(runs){
-    var el = document.getElementById("history-list");
-    el.innerHTML = "";
-    if(!(runs || []).length){
-      el.innerHTML = '<div class="hint">no runs listed yet — no flow under this root has been run</div>';
-      return;
-    }
-    runs.forEach(function(r){ el.appendChild(buildRunRowEl(r)); });
-  }
-
-  // ---- Workflows view: groups the ONE /api/runs payload by flow name
-  // client-side. Runs arrive newest-first within a flow (server contract,
-  // listRuns), so the first run seen for a flow is its latest.
-  // The words for a run row's spend and time cells — the Workflows card (a flow's latest run) and
-  // every History/expanded row say the same thing, from the same server fields.
+  // ---- Jobs: groups the ONE /api/runs payload by flow name client-side. Runs arrive in
+  // the server's order within a flow (listRuns), so the first run seen for a flow is its head.
+  // The words for a run card's spend and time — every card of the runs list says the same
+  // thing, from the same server fields.
   function runSpendText(r){
     return r.spend || r.spendWhy || "unknown";
   }
@@ -1826,14 +1787,16 @@
   function runWallText(r){
     return typeof r.wallMs === "number" ? duration(r.wallMs) : null;
   }
-  // ONE builder for a Runs card's last line, job card and sub-card alike: "$0.0616 · 6m23s · 2026-10-06 · 1 run". The separators are real
-  // text between the parts (a CSS ::before is not text: a text read of the card ran "2026-10-061 run" together).
-  function runMetaLineHtml(r, extra){
-    var bits = [runSpendText(r), runWallText(r), runAtText(r), extra].filter(function(b){ return b !== null && b !== undefined; });
-    return '<span class="wf-meta-line">' + bits.map(function(b){ return '<span class="wf-meta">' + escapeXml(b) + '</span>'; }).join('<span class="wf-sep"> · </span>') + '</span>';
+  // The ONE date of every card in the runs list: local `MM/DD HH:MM` (the mockup's "10/13 19:12"). An unparseable stamp is shown raw, never blank.
+  function rlShortDate(iso){
+    var d = new Date(iso);
+    if(isNaN(d.getTime())) return String(iso);
+    var t = function(n){ return ("0" + n).slice(-2); };
+    return t(d.getMonth() + 1) + "/" + t(d.getDate()) + " " + t(d.getHours()) + ":" + t(d.getMinutes());
   }
   function runAtText(r){
-    return r.at ? r.at.slice(0,10) : (r.askedAt ? "asked " + readableDateTime(r.askedAt) : (r.startedAt ? "started " + readableDateTime(r.startedAt) : (r.atWhy || "unknown")));
+    var when = r.at || r.askedAt || r.startedAt;
+    return when ? rlShortDate(when) : (r.atWhy || "unknown");
   }
   function groupRunsByFlow(runs){
     var byFlow = {};
@@ -1850,8 +1813,6 @@
         runs: flowRuns,
         runCount: last.runId === null ? 0 : flowRuns.length,
         lastRunId: last.runId,
-        lastGlyph: last.glyph,
-        lastLabel: last.label,
         lastRow: last,
       };
     });
@@ -1874,137 +1835,207 @@
     ));
   }
 
-  // Pure rule: when filters/search are active, a flow whose LATEST run
-  // doesn't match but an older one does auto-expands so the matching run is
-  // visible without an extra click; inactive filters never force an expand.
-  function autoExpandFlow(group, matchingRuns, active){
-    if(!active || !matchingRuns.length) return false;
-    var latestId = group.runs.length ? group.runs[0].runId : null;
-    var latestIncluded = matchingRuns.some(function(r){ return r.runId === latestId; });
-    return !latestIncluded;
+  // ---- M11: ONE runs list (docs/wiki/the-module-ladder.md "M11 scope", amendments 1 and 2; docs/product/m11-runs-list-mock.html, the right box).
+  // Top to bottom: Running now, Needs you, Scheduled (never filtered), a dashed line and the filters (they act on Jobs and quiet jobs only), Jobs, the
+  // quiet fold. The page works out NOTHING: `live`, the Needs-you tag (`needs`), the job order and quiet split (`jobs`), the Scheduled cards and the two
+  // limits all come from GET /api/runs (src/panel/data.js). `rlModel` is pure (payload in, cards out); the rl*Html functions only draw it.
+  var rlData = { rows: [], jobs: [], scheduled: [], limits: { quietDays: 0, olderRuns: 0 } };
+  // manual fold memory, keyed by flow ("__quiet" is the quiet fold): a per-viewer convenience, reset on reload. A manual click wins over an automatic open.
+  var rlOpen = {};
+  // the last markup written into each box: an identical repaint (every poll) writes nothing, so focus, scroll and a half-read card survive it
+  var rlLast = { top: null, jobs: null };
+  // The ONE writer of `rlData`: the whole /api/runs payload, as the server sent it.
+  function setRunsData(r){
+    rlData = { rows: r.rows || [], jobs: r.jobs || [], scheduled: r.scheduled || [], limits: r.limits || rlData.limits };
   }
-
-  // ONE owner for "which run does this parent row stand for" — both its own
-  // selected state and what its click opens read this, never two separate
-  // rules that could drift. Unfiltered (or when the latest still matches),
-  // a flow's parent always stands for its latest run. With a filter/search
-  // that matches an OLDER run but excludes the latest, the parent stands
-  // for the newest MATCHING run instead.
-  function representedRun(group, candidateRuns, active){
-    if(active && candidateRuns.length){
-      var latestIncluded = candidateRuns.some(function(r){ return r.runId === group.lastRunId; });
-      if(!latestIncluded) return candidateRuns[0].runId;
+  function rlModel(data, groups, filters, limits, sel, open){
+    var active = filtersActive(filters);
+    var place = {};
+    (data.jobs || []).forEach(function(j, i){ place[j.flow] = { quiet: j.quiet === true, at: i }; });
+    var cards = groups.slice().sort(function(a, b){
+      return (place[a.flow] ? place[a.flow].at : Infinity) - (place[b.flow] ? place[b.flow].at : Infinity);
+    }).map(function(g){
+      var quiet = !!(place[g.flow] && place[g.flow].quiet);
+      if(g.lastRunId === null) return { flow: g.flow, group: g, head: g.lastRow, empty: true, quiet: quiet, selected: false, count: 0, sel: sel, older: { open: false, shown: [], hidden: 0, total: 0 } };
+      var head = g.runs[0];
+      var matching = active ? filterRuns(g.runs, filters, Date.now()) : g.runs;
+      var older = g.runs.slice(1);
+      var isSel = function(r){ return sel.flow === g.flow && r.runId === sel.runId; };
+      // the fold is capped; past the cap only the selected run stays, plus (search or filter active) the ONE newest older run that matches (when it is past the cap)
+      var past = older.slice(limits.olderRuns);
+      var firstMatch = active ? older.filter(function(r){ return matching.indexOf(r) !== -1; })[0] : undefined;
+      var shown = older.slice(0, limits.olderRuns).concat(past.filter(function(r){ return isSel(r) || r === firstMatch; }));
+      // the fold opens by itself when any older run matches (even if the head matches too), or when the selected run is an older one
+      var auto = (active && older.some(function(r){ return matching.indexOf(r) !== -1; })) || older.some(isSel);
+      return {
+        flow: g.flow, group: g, head: head, empty: false, quiet: quiet, count: g.runCount, sel: sel,
+        selected: g.runs.some(isSel),
+        older: { open: Object.prototype.hasOwnProperty.call(open, g.flow) ? open[g.flow] : auto, shown: shown, hidden: older.length - shown.length, total: older.length },
+      };
+    });
+    var quietCards = cards.filter(function(c){ return c.quiet; });
+    return {
+      running: data.rows.filter(function(r){ return r.live === true; }),
+      needs: data.rows.filter(function(r){ return typeof r.needs === "string" && r.needs !== ""; }),
+      scheduled: data.scheduled || [],
+      jobs: cards.filter(function(c){ return !c.quiet; }),
+      quiet: quietCards,
+      quietOpen: Object.prototype.hasOwnProperty.call(open, "__quiet") ? open.__quiet : quietCards.some(function(c){ return c.selected; }),
+      limits: limits,
+      noRows: data.rows.length === 0,
+    };
+  }
+  function rlSectHtml(label, n, note){
+    return '<div class="rl-sect">' + label + ' (' + n + ')' + (note ? ' ' + note : '') + '</div>';
+  }
+  // line 1 and 2 of a Running now / Needs you card; both jump to the run (rlJump). The tag is a label (a span), never a button.
+  function rlJumpCardHtml(r, need){
+    var cost = r.spend || "unknown";
+    var faint = r.startedAt ? '<span data-rl-since="' + escapeXml(r.startedAt) + '"></span>' : 'time unknown';
+    return '<button class="rl-card ' + (need ? 'rl-need' : 'rl-live') + '" type="button" data-rl-jump="' + escapeXml(r.flow + "|" + r.runId) + '" data-testid="rl-' + (need ? 'need' : 'live') + '-' + escapeXml(r.flow) + '-' + escapeXml(r.runId) + '">' +
+      '<span class="rl-l1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span><span class="rl-nm" title="' + escapeXml(r.flow) + '">' + escapeXml(r.flow) + '</span> <span class="rl-rn">' + escapeXml(r.runId) + '</span>' +
+      (need ? '<span class="rl-pill rl-pill-need">' + escapeXml(r.needs) + '</span>' : ' <span class="rl-faint">' + faint + ' &middot; ' + escapeXml(cost) + '</span>') + '</span>' +
+      '<span class="rl-l2">' + escapeXml(r.label || "unknown") + (need ? ' &middot; ' + escapeXml(runAtText(r)) : '') + '</span></button>';
+  }
+  // Scheduled: a click does what Running now does (rlJump to the job's newest run, `runId` from the server). `at` / `in` are null when the job has no next clock time (a file trigger): nothing is made up.
+  // A job with no run has nothing to open: that card stays a plain box.
+  function rlScheduledCardHtml(s){
+    var body = '<span class="rl-l1"><span class="dot grey"></span><span class="rl-nm" title="' + escapeXml(s.flow) + '">' + escapeXml(s.flow) + '</span>' +
+      (s.at ? ' <span class="rl-faint">' + escapeXml(s.at) + '</span>' : '') + '</span>' +
+      '<span class="rl-l2">' + escapeXml([s.in, s.words].filter(function(x){ return x; }).join(" · ")) + '</span>';
+    if(typeof s.runId !== "string" || s.runId === "") return '<div class="rl-card" data-testid="rl-sched-' + escapeXml(s.flow) + '">' + body + '</div>';
+    return '<button class="rl-card" type="button" data-rl-jump="' + escapeXml(s.flow + "|" + s.runId) + '" data-testid="rl-sched-' + escapeXml(s.flow) + '">' + body + '</button>';
+  }
+  function rlTopHtml(m){
+    var h = "";
+    if(m.running.length) h += rlSectHtml("Running now", m.running.length) + m.running.map(function(r){ return rlJumpCardHtml(r, false); }).join("");
+    if(m.needs.length) h += rlSectHtml("Needs you", m.needs.length) + m.needs.map(function(r){ return rlJumpCardHtml(r, true); }).join("");
+    if(m.scheduled.length) h += rlSectHtml("Scheduled", m.scheduled.length) + m.scheduled.map(rlScheduledCardHtml).join("");
+    return h;
+  }
+  // a run card inside a job: `[sign] run-N  date · model` / `word — why · $cost · wall`
+  function rlRunCardHtml(r, selected){
+    var why = (r.word === "passed" && r.glyph === "[✓]" && !r.line) ? "goal met" : r.line;
+    var bits = [runSpendText(r), runWallText(r)].filter(function(b){ return b !== null && b !== undefined; });
+    return '<button class="rl-card' + (selected ? ' rl-sel' : '') + (r.live ? ' rl-live' : '') + '" type="button" data-rl-run="' + escapeXml(r.flow + "|" + r.runId) + '" data-testid="rl-run-' + escapeXml(r.flow) + '-' + escapeXml(r.runId) + '" aria-pressed="' + (selected ? 'true' : 'false') + '" title="' + escapeXml(r.flow + " (" + r.runId + ")") + '">' +
+      '<span class="rl-l1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span><span class="rl-rn">' + escapeXml(r.runId) + '</span> <span class="rl-faint">' + escapeXml([runAtText(r), r.model].filter(function(b){ return b; }).join(" · ")) + '</span></span>' +
+      '<span class="rl-l2">' + signHtml(r.word, why, r.label) + ' &middot; ' + escapeXml(bits.join(" · ")) + '</span></button>';
+  }
+  // a job card: `[sign] job  k runs` / `word · why` of its newest run, highlighted when the selected run is one of its runs; not clickable. Inside: the newest run's card, then the older-runs fold.
+  function rlJobCardHtml(c){
+    var h = c.head;
+    var top = '<div class="rl-card' + (c.selected ? ' rl-sel' : '') + '" id="rl-job-' + escapeXml(c.flow) + '" data-testid="rl-job-' + escapeXml(c.flow) + '">';
+    if(c.empty){
+      return top + '<span class="rl-l1"><span class="dot grey"></span><span class="rl-nm" title="' + escapeXml(c.flow) + '">' + escapeXml(c.flow) + '</span></span><span class="rl-l2">' + escapeXml(h.why || "no runs yet") + '</span></div>';
     }
-    return group.lastRunId;
-  }
-
-  // Is `currentRunId` one of this flow's OLDER runs (i.e. a run that
-  // belongs to this flow but isn't its latest)? Selecting a run from
-  // History and switching to Workflows lands here: the flow must
-  // auto-expand and its matching child row must carry the selected marker
-  // even though no filter/search is active.
-  function activeOlderRun(group){
-    if(currentFlow !== group.flow || !currentRunId || currentRunId === group.lastRunId) return null;
-    var found = group.runs.some(function(r){ return r.runId === currentRunId; });
-    return found ? currentRunId : null;
-  }
-
-  // manual expand/collapse memory, keyed by flow name — survives a
-  // re-render triggered by a filter/search change within the same page
-  // load, reset on full page reload (per-viewer convenience only, never
-  // persisted). A manual collapse click still wins over auto-expand-for-
-  // selection on the next render.
-  var wfExpanded = {};
-
-  // am41 item 5: a job card shows its latest 7 sub-cards (`runs` is newest first); the rest are reached by search.
-  function capChildRuns(runs){
-    return {shown: runs.slice(0, 7), hidden: Math.max(0, runs.length - 7)};
-  }
-
-  function renderWorkflows(flows){
-    var el = document.getElementById("wf-list");
-    el.innerHTML = "";
-    if(!flows.length){
-      el.innerHTML = '<div class="hint">no runs listed yet — no flow under this root has been run</div>';
-      return;
-    }
-    var active = filtersActive(currentRunsFilters());
-    flows.forEach(function(g){
-      if(g.lastRunId === null){ el.appendChild(buildRunRowEl(g.lastRow)); return; } // "this flow has no runs yet"
-      // the parent row IS the flow's latest run (clicking it opens that
-      // run), so the inline child list must be the flow's OTHER runs only.
-      // Expand affordance (caret, aria-expanded, toggle) is gated on there
-      // being a child to actually show.
-      var candidateRuns = active ? filterRuns(g.runs, currentRunsFilters(), Date.now()) : g.runs;
-      var childRuns = candidateRuns.filter(function(r){ return r.runId !== g.lastRunId; });
-      var hasOtherRuns = childRuns.length > 0;
-      var olderSelected = activeOlderRun(g);
-      var autoExpand = hasOtherRuns && (autoExpandFlow(g, candidateRuns, active) || !!olderSelected);
-      var expanded = hasOtherRuns && (Object.prototype.hasOwnProperty.call(wfExpanded, g.flow) ? wfExpanded[g.flow] : autoExpand);
-      var targetRunId = representedRun(g, candidateRuns, active);
-
-      var wrap = document.createElement("div");
-      wrap.className = "wf-job";
-
-      var row = document.createElement("div");
-      // a flow (parent) row also opens its latest run in the Run tab, same
-      // as a child row — computed HERE, at render time (this function tears
-      // down and rebuilds every row on every click).
-      var isSelected = currentFlow === g.flow && currentRunId === targetRunId;
-      row.className = "wf-row" + (isSelected ? " selected" : "");
-      row.setAttribute("data-wf", g.flow);
-      row.setAttribute("data-testid", "wf-row-" + g.flow);
-      row.setAttribute("tabindex", "0");
-      row.setAttribute("role", "button");
-      row.setAttribute("aria-expanded", expanded ? "true" : "false");
-      row.setAttribute("aria-pressed", isSelected ? "true" : "false");
-      var wfFullName = g.flow + ' (' + g.lastRunId + ')';
-      row.innerHTML =
-        '<span class="wf-line1"><span class="wf-caret">' + (hasOtherRuns ? (expanded ? "▼" : "▶") : "") + '</span><span class="' + dotClass(g.lastGlyph, g.lastRow.pulse) + '"></span>' +
-        '<span class="wf-name" title="' + escapeXml(wfFullName) + '">' + escapeXml(wfFullName) + '</span></span>' +
-        '<span class="wf-sign-line" data-testid="run-sign-word">' + signHtml(g.lastRow.word, g.lastRow.line, g.lastLabel) + '</span>' +
-        runMetaLineHtml(g.lastRow, g.runCount + ' run' + (g.runCount === 1 ? '' : 's'));
-      row.addEventListener("click", function(){
-        // a single-run flow has nothing to expand — the click still opens
-        // the run, it just never toggles `wfExpanded` for it.
-        if(hasOtherRuns) wfExpanded[g.flow] = !expanded;
-        openRunFromRuns(g.runs.filter(function(x){ return x.runId === targetRunId; })[0] || g.lastRow, null);
-        renderWorkflows(flows);
-      });
-      row.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); row.click(); } });
-      wrap.appendChild(row);
-
-      if(expanded){
-        var runsWrap = document.createElement("div");
-        runsWrap.className = "wf-runs";
-        var capped = capChildRuns(childRuns);
-        capped.shown.forEach(function(r){ runsWrap.appendChild(buildRunRowEl(r, { sub: true })); });
-        if(capped.hidden > 0) runsWrap.appendChild(textDiv("hint wf-older", "older runs: use search"));
-        wrap.appendChild(runsWrap);
+    var why = (h.word === "passed" && h.glyph === "[✓]" && !h.line) ? "goal met" : h.line;
+    var isSel = function(r){ return c.sel.flow === c.flow && r.runId === c.sel.runId; };
+    var out = top + '<span class="rl-l1"><span class="' + dotClass(h.glyph, h.pulse) + '"></span><span class="rl-nm" title="' + escapeXml(c.flow) + '">' + escapeXml(c.flow) + '</span> <span class="rl-cnt">&middot; ' + c.count + ' run' + (c.count === 1 ? '' : 's') + '</span></span>' +
+      '<span class="rl-l2">' + signHtml(h.word, why, h.label, " &middot; ") + '</span>' +
+      '<div class="rl-runs">' + rlRunCardHtml(h, isSel(h));
+    if(c.older.total > 0){
+      out += '<button class="rl-fold" type="button" data-rl-fold="' + escapeXml(c.flow) + '" data-testid="rl-fold-' + escapeXml(c.flow) + '" aria-expanded="' + (c.older.open ? 'true' : 'false') + '">' + (c.older.open ? '▾' : '▸') + ' older runs (' + c.older.total + ')</button>';
+      if(c.older.open){
+        out += c.older.shown.map(function(r){ return rlRunCardHtml(r, isSel(r)); }).join("");
+        if(c.older.hidden > 0) out += '<div class="rl-hint">(and ' + c.older.hidden + ' older: use search)</div>';
       }
-      el.appendChild(wrap);
+    }
+    return out + '</div></div>';
+  }
+  function rlJobsHtml(m){
+    var h = "";
+    if(m.jobs.length) h += rlSectHtml("Jobs", m.jobs.length, "· run in the last " + m.limits.quietDays + " days") + m.jobs.map(rlJobCardHtml).join("");
+    if(m.quiet.length){
+      h += '<button class="rl-fold" type="button" data-rl-fold="__quiet" data-testid="rl-fold-quiet" aria-expanded="' + (m.quietOpen ? 'true' : 'false') + '">' + (m.quietOpen ? '▾' : '▸') + ' quiet jobs (' + m.quiet.length + ') · no run in ' + m.limits.quietDays + ' days</button>';
+      if(m.quietOpen) h += m.quiet.map(rlJobCardHtml).join("");
+    }
+    if(h === "" && m.noRows) h = '<div class="hint">no runs listed yet — no flow under this root has been run</div>';
+    return h;
+  }
+  // Running now / Needs you: "time so far" counts up IN PLACE from the run's start time (no rebuild): the page's 2 s tick calls this.
+  function tickSince(){
+    document.querySelectorAll("[data-rl-since]").forEach(function(el){
+      var t = Date.parse(el.getAttribute("data-rl-since"));
+      el.textContent = isNaN(t) ? "time unknown" : duration(Math.max(0, Date.now() - t));
     });
   }
+  // The ONE painter of the list. Called by the filter bar (a poll, a chip, the search box) and by every click here; it writes a box only when its markup changed.
+  function paintRunsList(){
+    var filters = currentRunsFilters();
+    var groups = filterWorkflows(groupRunsByFlow(rlData.rows), filters, Date.now());
+    var m = rlModel(rlData, groups, filters, rlData.limits, { flow: currentFlow, runId: currentRunId }, rlOpen);
+    var topEl = document.getElementById("rl-top");
+    var listEl = document.getElementById("wf-list");
+    var top = rlTopHtml(m);
+    var jobs = rlJobsHtml(m);
+    if(top !== rlLast.top){ rlLast.top = top; withFocusPreserved(topEl, function(){ topEl.innerHTML = top; }); }
+    if(jobs !== rlLast.jobs){ rlLast.jobs = jobs; withFocusPreserved(listEl, function(){ listEl.innerHTML = jobs; }); }
+    tickSince();
+  }
+  // Running now / Needs you / Scheduled click: select that run, show it on the Run tab and scroll its job card into view. (A run card inside a job is the old click, `openRunFromRuns`.)
+  function rlJump(flow, runId){
+    selectRun(flow, runId, null, ".inbox-row");
+    document.getElementById("tab-run").click();
+    paintRunsList();
+    var card = document.getElementById("rl-job-" + flow);
+    if(card && card.scrollIntoView) card.scrollIntoView({ block: "nearest" });
+  }
+  function rlRowOf(key){
+    var p = String(key).split("|");
+    return rlData.rows.find(function(r){ return r.flow === p[0] && r.runId === p[1]; }) || null;
+  }
+  // one delegated click handler for the whole list: a fold, a jump card or a run card
+  function rlClick(ev){
+    var t = ev.target && ev.target.closest ? ev.target : null;
+    if(!t) return;
+    var fold = t.closest("[data-rl-fold]");
+    if(fold){
+      rlOpen[fold.getAttribute("data-rl-fold")] = fold.getAttribute("aria-expanded") !== "true";
+      paintRunsList();
+      return;
+    }
+    var jump = t.closest("[data-rl-jump]");
+    if(jump){
+      var j = String(jump.getAttribute("data-rl-jump")).split("|");
+      rlJump(j[0], j[1]);
+      return;
+    }
+    var card = t.closest("[data-rl-run]");
+    var row = card ? rlRowOf(card.getAttribute("data-rl-run")) : null;
+    if(row){
+      openRunFromRuns(row, null);
+      paintRunsList();
+    }
+  }
+  document.getElementById("panel-runs").addEventListener("click", rlClick);
 
   // ---- Filter bar — ONE component, ONE state shape ({results, time,
-  // search}), used by BOTH the History tab (filters individual runs) and
-  // the Workflows tab (filters by each flow's OWN latest-run fields).
+  // search}), used by the one runs list (a job stays when ANY of its runs match).
   // bareloop's checkType (deterministic/rubric) chips are dropped — fwdloop
   // has no such concept; the result chips use fwdloop's own glyph
   // vocabulary ([✓]/[✗]/[·]/[▶]/[?] — `[▶]` running is known from M4c's pid
   // rows, src/liveness.js).
-  function filterBarHTML(scope){
+  // `noSigns`: M11 am3 item 4 — the Inbox has no sign chips; M11 am4 item 4 — it has the status chips instead (accepted / redo / rerun / expired, the
+  // row status the server sends; the rerun chip is the status `reran`), picked into the same `results` list.
+  // The ONE map of an Inbox row's status to the word on its chip (`reran` reads "rerun"); the Inbox search matches the chip word too.
+  var INBOX_CHIP_WORD = { accepted: "accepted", redo: "redo", reran: "rerun", expired: "expired" };
+  function filterBarHTML(scope, noSigns){
     return (
       '<div class="filterbar" data-scope="' + scope + '" data-testid="' + scope + '-filters">' +
-        '<input type="text" class="search-input" placeholder="search flow or run id…" ' +
+        '<input type="text" class="search-input" placeholder="' + (noSigns ? 'search job, run, status, question or reason…' : 'search flow or run id…') + '" ' +
           'id="' + scope + '-filter-search" data-testid="' + scope + '-filter-search" autocomplete="off">' +
         '<div class="chips" role="group" aria-label="Filter">' +
+          (noSigns ?
+          Object.keys(INBOX_CHIP_WORD).map(function(st){
+            var w = INBOX_CHIP_WORD[st];
+            return '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="' + st + '" title="' + w + '" data-testid="chip-' + scope + '-st-' + w + '">' + w + '</button>';
+          }).join('') :
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✓]" title="passed" data-testid="chip-' + scope + '-res-pass">✓</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✗]" title="stopped" data-testid="chip-' + scope + '-res-fail">✗</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[■]" title="stopped, can be resumed" data-testid="chip-' + scope + '-res-stopped">■</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[·]" title="waiting on a human" data-testid="chip-' + scope + '-res-waiting">&middot;</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[▶]" title="running" data-testid="chip-' + scope + '-res-running">▶</button>' +
-          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[?]" title="died or unknown" data-testid="chip-' + scope + '-res-unknown">?</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[?]" title="died or unknown" data-testid="chip-' + scope + '-res-unknown">?</button>') +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="7d" title="last 7 days" data-testid="chip-' + scope + '-time-7d">7d</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="30d" title="last 30 days" data-testid="chip-' + scope + '-time-30d">30d</button>' +
           '<button class="chip fchip" type="button" aria-pressed="true" data-filter-group="time" data-filter-value="all" title="all time" data-testid="chip-' + scope + '-time-all">all</button>' +
@@ -2052,7 +2083,7 @@
    * One filter-bar instance: its own localStorage key, its own DOM scope
    * (`.filterbar[data-scope="..."]`), its own item list — but the same
    * wiring as every other instance.
-   * @param {{scope:string, storageKey:string, filterFn:Function, applyFn:Function}} opts
+   * @param {{scope:string, storageKey:string, noun?:string, filterFn:Function, applyFn:Function}} opts
    */
   function createFilterBar(opts){
     var scope = opts.scope;
@@ -2092,7 +2123,7 @@
       var filtered = opts.filterFn(allItems, state, Date.now());
       opts.applyFn(filtered);
       var countEl = document.getElementById(scope + "-filter-count");
-      if(countEl) countEl.textContent = "showing " + filtered.length + " of " + allItems.length + " runs";
+      if(countEl) countEl.textContent = "showing " + filtered.length + " of " + allItems.length + " " + (opts.noun || "runs");
     }
     document.querySelectorAll('.filterbar[data-scope="' + scope + '"] .chip[data-filter-group]').forEach(function(chip){
       chip.addEventListener("click", function(){
@@ -2136,33 +2167,14 @@
     };
   }
 
-  // Workflows/History view-mode memory — same per-viewer-convenience
-  // posture as every other localStorage read/write on this page.
-  var RUNS_VIEW_KEY = "fwdloop-panel-runs-view";
-  function loadRunsViewMode(){
-    try{
-      var v = localStorage.getItem(RUNS_VIEW_KEY);
-      if(v === "workflows" || v === "history") return v;
-    }catch(e){ /* per-viewer convenience only */ }
-    return "workflows";
-  }
-  function saveRunsViewMode(v){
-    try{ localStorage.setItem(RUNS_VIEW_KEY, v); }catch(e){ /* best-effort only */ }
-  }
-
-  // ONE shared filter bar drives whichever view (Workflows/History) is
-  // currently on — one scope, one localStorage key, so switching views
-  // never loses the search/chip state.
+  // ONE filter bar, mounted between the unfiltered sections and Jobs (M11). It acts on Jobs and quiet jobs only: `runsFilterFn` keeps a job when ANY of its runs match.
   document.getElementById("runs-filterbar-anchor").innerHTML = filterBarHTML("runs");
 
-  var runsViewMode = loadRunsViewMode();
   function runsFilterFn(items, filters, nowMs){
-    if(runsViewMode === "history") return filterRuns(items, filters, nowMs);
     return filterWorkflows(groupRunsByFlow(items), filters, nowMs);
   }
-  function runsApplyFn(filtered){
-    if(runsViewMode === "history") renderHistory(filtered);
-    else renderWorkflows(filtered);
+  function runsApplyFn(){
+    paintRunsList();
   }
   var runsFilterBar = createFilterBar({
     scope: "runs",
@@ -2173,24 +2185,6 @@
   function currentRunsFilters(){
     return runsFilterBar ? runsFilterBar.getState() : { results: [], time: "all", search: "" };
   }
-  function paintRunsViewToggle(){
-    document.querySelectorAll('.chip[data-runs-view]').forEach(function(c){
-      c.setAttribute("aria-pressed", c.getAttribute("data-runs-view") === runsViewMode ? "true" : "false");
-    });
-    document.getElementById("wf-list").hidden = runsViewMode !== "workflows";
-    document.getElementById("history-list").hidden = runsViewMode !== "history";
-  }
-  document.querySelectorAll('.chip[data-runs-view]').forEach(function(chip){
-    chip.addEventListener("click", function(){
-      var next = chip.getAttribute("data-runs-view");
-      if(next === runsViewMode) return;
-      runsViewMode = next;
-      saveRunsViewMode(runsViewMode);
-      paintRunsViewToggle();
-      runsFilterBar.refresh();
-    });
-  });
-  paintRunsViewToggle();
 
   // item 4: phone-only "scroll the run view into view" on row select, and
   // the matching "↑ list" jump back. Desktop never runs either — both panes
@@ -2213,7 +2207,7 @@
   }
 
   function clearSelection(selector){
-    document.querySelectorAll(".wf-row, .hist-row, .inbox-row").forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
+    document.querySelectorAll(".inbox-row").forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
   }
 
   // ---- Run tab: header + summary + step map + one card per step ATTEMPT
@@ -2358,7 +2352,10 @@
     // amendment 7 item 6: Run again sits first, with Stop and Resume — every run control in this one row
     el.appendChild(makeButton("Run again", "run-again", function(){ if(window.fwdloopRunAgain) window.fwdloopRunAgain(detail); }));
     // M9 am5 item 3: a scheduled job's Run tab offers the schedule's own door, next to Run again: the same route, the Run card showing When
-    if(detail.summary && detail.summary.scheduled) el.appendChild(makeButton("Cancel / modify schedule", "run-cancel-schedule", function(){ if(window.fwdloopRunAgain) window.fwdloopRunAgain(detail); }));
+    // M11 am3 item 1: a job with a green run and no schedule reads Schedule run (the server's `canSchedule`); the same door either way
+    var schedDoor = function(){ if(window.fwdloopRunAgain) window.fwdloopRunAgain(detail); };
+    if(detail.summary && detail.summary.scheduled) el.appendChild(makeButton("Cancel / modify schedule", "run-cancel-schedule", schedDoor));
+    else if(detail.summary && detail.summary.canSchedule) el.appendChild(makeButton("Schedule run", "run-schedule", schedDoor));
     if(stopSay && stopSay.key !== detail.flow + "/" + detail.runId) stopSay = null;
     if(c.canStop){
       var stopBtn = makeButton(c.stopRequested ? "stopping after this step\u2026" : "Stop", "run-stop", function(){
@@ -3153,7 +3150,7 @@
   // ---- The ONE refresh loop (M4b piece 4, widened by the M4c exit walk). The page used to load
   // once, so a run that parked after load kept `[▶]`, Inbox stayed (0) and the run header kept its
   // first words. Now `pageTick` runs every LIVE_POLL_MS for the whole life of the page: it re-reads
-  // the Runs list, History/Workflows, the Inbox list + (N), and the selected run's detail, asks and
+  // the Runs list, the Inbox list + (N), and the selected run's detail, asks and
   // audit — all through the SAME render functions, so the same guards hold (`holdAskRender` never
   // redraws over a typed reason; a refusal lives in `answerMsg` and is repainted). `startLive` no
   // longer owns a timer: it only names the answer being watched, and the tick judges it from the
@@ -3183,11 +3180,11 @@
     lastListsAt = Date.now();
     getJSON("/api/inbox").then(function(r){ renderInbox(r.rows || [], r.openCount); paintUpdateBar(r.version); }).catch(function(){});
     getJSON("/api/runs").then(function(r){
-      var rows = r.rows || [];
-      var next = sig(rows);
+      var next = sig(r);
       if(next !== null && next === lastSig.runs) return;
       lastSig.runs = next;
-      withScrollPreserved(["left-pane-body"], function(){ runsFilterBar.setItems(rows); runsFilterBar.refresh(); });
+      setRunsData(r);
+      withScrollPreserved(["left-pane-body"], function(){ runsFilterBar.setItems(rlData.rows); runsFilterBar.refresh(); });
     }).catch(function(){});
   }
   // The ONE way the Ask tab is drawn from the books: the Ask tab is drawn from the books AND the page's own pending answer ("working…" block).
@@ -3225,6 +3222,7 @@
     var catchUp = wasHidden;   // first tick after the tab came back: force both
     wasHidden = false;
     tickLeft();
+    tickSince();
     var watch = live;
     var sel = currentFlow !== null && currentRunId !== null;
     var watchIsSelected = watch && sel && watch.flow === currentFlow && watch.runId === currentRunId;
@@ -3296,12 +3294,13 @@
   });
 
   getJSON("/api/runs").then(function(result){
-    var runs = result.rows || [];
+    setRunsData(result);
+    var runs = rlData.rows;
     runsFilterBar.setItems(runs);
     var first = runs.find(function(r){ return r.runId !== null; });
     if(first){
       // the LEFT side is not switched here: a load or refresh always opens on the Chat tab (hamr 2026-10-06)
-      // newest run overall, opened directly — the Workflows view starts
+      // newest run overall, opened directly — the job's older runs start
       // collapsed, but its flow row still renders "selected" since
       // `runsFilterBar.refresh()` re-renders AFTER currentFlow/currentRunId
       // are set.
@@ -3311,7 +3310,6 @@
     }
   }).catch(function(e){
     document.getElementById("wf-list").innerHTML = '<div class="hint">' + escapeXml(loadFailureText(e)) + '</div>';
-    document.getElementById("history-list").innerHTML = '<div class="hint">' + escapeXml(loadFailureText(e)) + '</div>';
   });
 
   // ---- shared text-node helper — book text (question/draft/artifact
@@ -3398,28 +3396,72 @@
     return wrap;
   }
   var INBOX_HEADS = { 1: "waiting on you", 2: "working on your answer", 3: "answered and expired" };
+  // M11 am3 item 3: every Inbox header carries its count, counted off the rows the server sent (after the filters, for section 3)
+  function inboxHeadText(section, n){ return (INBOX_HEADS[section] || "") + " (" + n + ")"; }
+  // M11 am3 item 4: the Inbox filters act on "answered and expired" (section 3) only; sections 1 and 2 are never hidden. M11 am4 item 4: the status chips
+  // (`results`, none = all) match the row's `status`.
+  // A row's time is its answer, else its expiry (the server orders section 3 by the same two). No date + a time chip = out, as in Runs.
+  // M11 am4 item 3: the Inbox search reads the whole row — job, run, status word, question, answer reason — case-insensitive. (`matchesSearch` stays Runs': job and run only.)
+  function inboxMatchesSearch(r, query){
+    var q = String(query || "").trim().toLowerCase();
+    if(!q) return true;
+    return [r.flow, r.runId, r.status, INBOX_CHIP_WORD[r.status], r.question, r.reason].some(function(x){ return typeof x === "string" && x.toLowerCase().indexOf(q) !== -1; });
+  }
+  function inboxFilterRows(rows, filters, nowMs){
+    var time = (filters && filters.time) || "all";
+    var q = (filters && filters.search) || "";
+    var rs = (filters && filters.results) || [];
+    return (rows || []).filter(function(r){
+      if(r.section !== 3) return true;
+      if(rs.length && rs.indexOf(r.status) === -1) return false;
+      if(!inboxMatchesSearch(r, q)) return false;
+      if(time !== "all"){
+        var days = time === "7d" ? 7 : 30;
+        var t = Date.parse(r.answeredAt || r.expiresAt);
+        if(!isFinite(t) || nowMs - t > days * 24 * 60 * 60 * 1000) return false;
+      }
+      return true;
+    });
+  }
+  document.getElementById("inbox-filterbar-anchor").innerHTML = filterBarHTML("inbox", true);
+  var inboxOpenN = 0, inboxTotal = 0;
+  var inboxBar = createFilterBar({
+    scope: "inbox",
+    storageKey: "fwdloop-panel-inbox-filters",
+    noun: "asks",
+    filterFn: inboxFilterRows,
+    applyFn: function(shown){ buildInbox(document.getElementById("inbox-list"), shown, inboxOpenN); },
+  });
   // N comes from the server (data.js inboxOpenCount); the page only shows it.
   function renderInbox(rows, openCount){
     var el = document.getElementById("inbox-list");
     var next = sig({ rows: rows, openCount: openCount });
     if(next !== null && next === lastSig.inbox) return; // unchanged payload — never rebuild the DOM for nothing
     lastSig.inbox = next;
-    withScrollPreserved(["left-pane-body"], function(){ withFocusPreserved(el, function(){ buildInbox(el, rows, openCount); }); });
+    inboxOpenN = openCount;
+    inboxTotal = rows ? rows.length : 0;
+    var old = document.getElementById("inbox-list-old");
+    withScrollPreserved(["left-pane-body"], function(){ withFocusPreserved(old, function(){ withFocusPreserved(el, function(){ inboxBar.setItems(rows); }); }); });
   }
   function buildInbox(el, rows, openCount){
+    var old = document.getElementById("inbox-list-old");
     el.innerHTML = "";
+    old.innerHTML = "";
     document.getElementById("inbox-count-label").textContent = " (" + (typeof openCount === "number" ? openCount : 0) + ")";
-    if(!rows || !rows.length){
+    if(!inboxTotal){
       el.innerHTML = '<div class="hint">nothing waiting on you — no stops recorded under this root</div>';
       return;
     }
+    var counts = {};
+    rows.forEach(function(row){ counts[row.section] = (counts[row.section] || 0) + 1; });
     var lastSection = 0;
     rows.forEach(function(row){
+      var into = row.section === 3 ? old : el;
       if(row.section !== lastSection){
         lastSection = row.section;
-        el.appendChild(textDiv("inbox-h", INBOX_HEADS[row.section] || ""));
+        into.appendChild(textDiv("inbox-h", inboxHeadText(row.section, counts[row.section])));
       }
-      el.appendChild(renderStopRow(row));
+      into.appendChild(renderStopRow(row));
     });
   }
   getJSON("/api/inbox").then(function(result){ renderInbox(result.rows || [], result.openCount); }).catch(function(e){

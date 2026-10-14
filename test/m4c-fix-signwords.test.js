@@ -35,7 +35,7 @@ test('(g) one table: each of the eight signs maps to its one word, and a plain l
 });
 
 test('(g) the page draws the word on all three surfaces (Runs, Inbox, run header) off the server\'s word, never its own table', () => {
-  assert.match(PAGE, /signHtml\(r\.word, r\.line, r\.label\)/, 'Runs row');
+  assert.match(PAGE, /signHtml\(r\.word, why, r\.label\)/, 'Runs row');
   assert.match(PAGE, /signHtml\(row\.word, stopStatusLine\(row\), stopStatusLine\(row\)\)/, 'Inbox row');
   assert.match(PAGE, /verdict\.innerHTML = signHtml\(detail\.word, detail\.line, detail\.label\)/, 'run header badge');
   assert.match(PAGE, /signHtml\(detail\.word, detail\.line, detail\.label\) \+ ' &middot;/, 'run header summary');
@@ -79,9 +79,9 @@ test('(g) a step\'s own word comes from the same table: [✓] passed, [✗] fail
 });
 
 test('(g) layout: a Runs row is sign + name, then **word** — why, then the meta line; the header follows (k): sign + name, then word — why', () => {
-  const row = /wf-line1[\s\S]{0,400}?wf-sign-line" data-testid="run-sign-word">' \+ signHtml\(r\.word[\s\S]{0,120}?runMetaLineHtml\(r, null\)/.exec(PAGE);
-  assert.ok(row, 'Runs row order');
-  assert.match(PAGE, /wf-sign-line" data-testid="run-sign-word">' \+ signHtml\(g\.lastRow\.word/, 'grouped Runs row');
+  // M11: the run card is `[sign] run-N  date · model` then `word — why · $ · wall`; the job card is `[sign] job  k runs` then `word · why`
+  assert.match(PAGE, /rl-l1"><span class="' \+ dotClass\(r\.glyph, r\.pulse\)[\s\S]{0,400}?rl-l2">' \+ signHtml\(r\.word, why, r\.label\)/, 'run card order');
+  assert.match(PAGE, /rl-l1"><span class="' \+ dotClass\(h\.glyph, h\.pulse\)[\s\S]{0,400}?rl-l2">' \+ signHtml\(h\.word, why, h\.label, " &middot; "\)/, 'job card order');
   const hdr = PAGE.indexOf('id="active-wf-verdict"');
   assert.ok(hdr > 0 && hdr > PAGE.indexOf('id="active-wf-name"'), 'name (with its sign) before the verdict, as (k)');
 });

@@ -60,7 +60,9 @@ function inboxHarness(state = {}) {
     function duration(ms){ return ms + "ms"; } function readableDateTime(x){ return x; }
     function selectRun(){}
     var INBOX_HEADS = { 1: "waiting on you", 2: "working", 3: "answered" };
-    ${['sig', 'escapeXml', 'signHtml', 'withScrollPreserved', 'withFocusPreserved', 'textDiv', 'liveLeft', 'stopStatusLine', 'renderStopRow', 'renderInbox', 'buildInbox'].map(fnSrc).join('\n')}
+    var inboxOpenN = 0, inboxTotal = 0;
+    var inboxBar = { setItems: function(r){ buildInbox(document.getElementById("inbox-list"), r, inboxOpenN); } };
+    ${['sig', 'escapeXml', 'signHtml', 'withScrollPreserved', 'withFocusPreserved', 'textDiv', 'liveLeft', 'stopStatusLine', 'renderStopRow', 'inboxHeadText', 'renderInbox', 'buildInbox'].map(fnSrc).join('\n')}
     return { renderInbox: renderInbox, pick: function(f, r, a){ currentFlow = f; currentRunId = r; currentAskId = a; } };
   `)(doc, state);
   const list = doc.getElementById('inbox-list');
@@ -89,10 +91,11 @@ function loopHarness(world) {
     var LIVE_POLL_MS = 2000, LISTS_POLL_MS = 10000, LIVE_MAX_MS = 300000, live = null, pollTimer = null, askDrawnFor = null;
     var lastListsAt = 0, openRunLive = true, wasHidden = false, pendingAnswer = null;
     var lastSig = { inbox: null, runs: null, detail: null, asks: null, audit: null };
+    var rlData = { rows: [], jobs: [], scheduled: [], limits: {} }; function tickSince(){}
     var runsFilterBar = { setItems: function(){}, refresh: function(){} };
     function renderInbox(){ seen.inbox++; } function renderRun(){} function renderAudit(){} function renderAsk(r){ return seen.renderAsk ? seen.renderAsk(r) : undefined; }
     function watchStep(){}
-    ${['holdAskRender', 'sig', 'tickLeft', 'withScrollPreserved', 'paintRun', 'paintAsks', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick'].map(fnSrc).join('\n')}
+    ${['holdAskRender', 'sig', 'tickLeft', 'setRunsData', 'withScrollPreserved', 'paintRun', 'paintAsks', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick'].map(fnSrc).join('\n')}
     return { schedulePoll: schedulePoll, hold: holdAskRender, state: { get openRunLive(){ return openRunLive; } } };
   `)(getJSON, doc, (fn) => { timers.push(fn); return timers.length; }, () => {}, seen, { now: () => clock.now });
   const tick = async () => { clock.now += 2000; const fn = timers.pop(); assert.ok(fn, 'a tick was scheduled'); fn(); await sleep(20); };
