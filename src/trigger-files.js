@@ -8,7 +8,7 @@
 // A file is taken only after its size AND mtime were unchanged for STABLE_POLLS consecutive polls.
 // Seen ledger (append-only JSONL, write-once rows keyed by id, re-read from disk, so it survives restart). M9 am3: THE SCHEDULER is its only
 // writer after `arm`; this file only says what the rows are and how to read the queue out of them:
-//   { id, kind:'baseline'|'arrived'|'ran'|'unran'|'dropped', sha, name, size, at }  (+ `path` on arrived, `why` and `of` (the arrived id it cancels) on dropped, `of` (the ran id it voids) on unran)
+//   { id, kind:'baseline'|'arrived'|'ran'|'dropped', sha, name, size, at }  (+ `path` on arrived, `why` and `of` (the arrived id it cancels) on dropped)
 // 'baseline' = present when the trigger was set (am2 item 2): never runs. 'arrived' = a finished file with a never-seen sha was seen
 // (`at` = the scheduler's clock; a 2nd arrival of a dropped sha gets id `arrived:<sha>:<n>`). 'ran' = written immediately BEFORE that file's run is started, so a crash loses a run and never doubles
 // one. 'dropped' = it was deleted / changed before its turn. A sha with a `ran` row never arrives again, whatever its name or mtime; see `arrives` for baseline / queued / dropped.
@@ -19,7 +19,7 @@ import {
 import { basename, dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 
-/** @typedef {{id:string, kind:'baseline'|'arrived'|'ran'|'unran'|'dropped', sha:string, name:string, size:number, at:number, path?:string, why?:string, of?:string}} SeenRow */
+/** @typedef {{id:string, kind:'baseline'|'arrived'|'ran'|'dropped', sha:string, name:string, size:number, at:number, path?:string, why?:string, of?:string}} SeenRow */
 /** @typedef {{path:string, sha:string, size:number}} ToRun */
 /** @typedef {{path:string, why:string}} Refused */
 
@@ -42,11 +42,9 @@ function appendSeen(file, row) {
 
 /** Rows of one sha, file order. @param {SeenRow[]} rows @param {string} sha */
 const ofSha = (rows, sha) => rows.filter((r) => r.sha === sha);
-/** A sha has run: a `ran` row no `unran` row voids. (`unran` = the start was refused after `ran` was written: the file never ran, it is still queued.) @param {SeenRow[]} rows @param {string} sha */
-const hasRan = (rows, sha) => rows.some((r) => r.kind === 'ran' && r.sha === sha && !rows.some((u) => u.kind === 'unran' && u.of === r.id));
 /** An arrived row is still waiting: neither its sha ran nor a dropped row names it. @param {SeenRow[]} rows @param {SeenRow} a */
 const waiting = (rows, a) => a.kind === 'arrived'
-  && !rows.some((r) => hasRan(rows, a.sha) || (r.kind === 'dropped' && ((/** @type {any} */ (r)).of ?? `arrived:${r.sha}`) === a.id));
+  && !rows.some((r) => (r.kind === 'ran' && r.sha === a.sha) || (r.kind === 'dropped' && ((/** @type {any} */ (r)).of ?? `arrived:${r.sha}`) === a.id));
 
 /**
  * Does this finished version arrive? Item 6 + am2: only a sha that already RAN never arrives again; one already arrived and still queued does not
@@ -56,7 +54,7 @@ const waiting = (rows, a) => a.kind === 'arrived'
  */
 function arrives(rows, it, mode) {
   const mine = ofSha(rows, it.sha);
-  if (hasRan(rows, it.sha) || mine.some((r) => waiting(rows, r))) return false;
+  if (mine.some((r) => r.kind === 'ran' || waiting(rows, r))) return false;
   const bi = rows.findLastIndex((r) => r.kind === 'baseline' && r.sha === it.sha);
   if (bi < 0) return true;
   return mode === 'updated' && rows.slice(bi + 1).some((r) => r.kind !== 'baseline' && r.sha !== it.sha);
@@ -65,22 +63,12 @@ function arrives(rows, it, mode) {
 /** Arrived rows are never overwritten: the 2nd arrival of a sha (after a drop) gets its own id. @param {string} ledger @param {ToRun & {name?:string}} item @param {number} at the scheduler's clock, never the file's mtime */
 export function recordArrived(ledger, item, at) {
   const rows = readSeen(ledger);
-  if (hasRan(rows, item.sha) || rows.some((r) => r.sha === item.sha && waiting(rows, r))) return false; // one writer decides: ran or already queued
+  if (rows.some((r) => r.sha === item.sha && (r.kind === 'ran' || waiting(rows, r)))) return false; // one writer decides: ran or already queued
   const n = rows.filter((r) => r.kind === 'arrived' && r.sha === item.sha).length;
   return appendSeen(ledger, { id: n ? `arrived:${item.sha}:${n}` : `arrived:${item.sha}`, kind: 'arrived', sha: item.sha, name: basename(item.path), size: item.size, path: item.path, at });
 }
 /** Call immediately before the run is started. @param {string} ledger @param {{sha:string, path:string, size:number}} item @param {number} at */
-export function recordRan(ledger, item, at) {
-  const n = readSeen(ledger).filter((r) => r.kind === 'ran' && r.sha === item.sha).length; // a ran row an unran voided leaves its id taken
-  return appendSeen(ledger, { id: n ? `ran:${item.sha}:${n}` : `ran:${item.sha}`, kind: 'ran', sha: item.sha, name: basename(item.path), size: item.size, at });
-}
-/** The start was refused after `recordRan`: void that ran row, so the file is queued again (append-only: a new row, nothing rewritten). @param {string} ledger @param {{sha:string, path:string, size:number}} item @param {number} at */
-export function recordUnran(ledger, item, at) {
-  const rows = readSeen(ledger);
-  const ran = rows.findLast((r) => r.kind === 'ran' && r.sha === item.sha && !rows.some((u) => u.kind === 'unran' && u.of === r.id));
-  if (!ran) return false;
-  return appendSeen(ledger, { id: `unran:${ran.id}`, kind: 'unran', sha: item.sha, name: basename(item.path), size: item.size, of: ran.id, at });
-}
+export const recordRan = (ledger, item, at) => appendSeen(ledger, { id: `ran:${item.sha}`, kind: 'ran', sha: item.sha, name: basename(item.path), size: item.size, at });
 /** `of` = the arrived row it cancels (item.id when a queue row is passed). @param {string} ledger @param {{sha:string, path:string, size:number, id?:string}} item @param {'deleted'|'changed'} why @param {number} at */
 export function recordDropped(ledger, item, why, at) {
   const of = item.id ?? `arrived:${item.sha}`;

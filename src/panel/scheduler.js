@@ -17,7 +17,7 @@ import { join } from 'node:path';
 
 import { due, readRows, recordFire } from '../trigger-clock.js';
 import {
-  createFileTrigger, queueOf, readSeen, recheck, recordArrived, recordDropped, recordRan, recordUnran,
+  createFileTrigger, queueOf, readSeen, recheck, recordArrived, recordDropped, recordRan,
 } from '../trigger-files.js';
 import { readOutcomes, triggerLedgerDir } from './authortrigger.js';
 
@@ -63,7 +63,7 @@ export function createScheduler(opts) {
         queue = queue.slice(1);
         continue;
       }
-      door.fire(job, cause({ ...q, path: seen.path }), { told: told(q), beforeStart: () => recordRan(ledger, seen, nowMs), notStarted: () => recordUnran(ledger, seen, nowMs) });
+      door.fire(job, cause({ ...q, path: seen.path }), { told: told(q), beforeStart: () => recordRan(ledger, seen, nowMs) });
       return;
     }
   }

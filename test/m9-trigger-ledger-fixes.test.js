@@ -1,5 +1,5 @@
-// Trigger/scheduler ledger fixes (fix/trigger-ledger): a refused start does not spend the file; the told-once key includes the reason; the NEXT line
-// reads only the current signed trigger's outcomes; a torn ledger line is skipped. $0: the clock is injected, the starter is a stub, tick() is called by hand.
+// Trigger/scheduler ledger fixes (fix/trigger-ledger): the told-once key includes the reason; the NEXT line
+// reads only the current signed trigger's outcomes. $0: the clock is injected, the starter is a stub, tick() is called by hand.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -7,7 +7,7 @@ import path from 'node:path';
 
 import { createTriggerDoor, readOutcomes, triggerLedgerDir } from '../src/panel/authortrigger.js';
 import { createScheduler } from '../src/panel/scheduler.js';
-import { queueOf, readSeen, STABLE_POLLS } from '../src/trigger-files.js';
+import { readSeen, STABLE_POLLS } from '../src/trigger-files.js';
 import { killChildrenAfter } from './m4e-world.mjs';
 import { greenWorld, setTrigger } from './m9-trigger-world.mjs';
 
@@ -36,28 +36,6 @@ async function stubWorld(o = {}) {
   const polls = (n = STABLE_POLLS + 2) => { for (let i = 0; i < n; i++) sched.tick(); };
   return { ...g, clock, inbox, ctl, door, sched, ledger, polls, rows: () => readOutcomes(g.flowDir), ...o };
 }
-
-test('a start the starter refuses (409) leaves the file queued, not ran: it runs on the next free tick; and ran is on disk BEFORE the start', async () => {
-  const f = await stubWorld();
-  writeFileSync(path.join(f.inbox, 'd.md'), '# jd\n');
-  let ranBeforeStart = null;
-  f.ctl.start = () => {
-    ranBeforeStart = f.ledger().some((r) => r.kind === 'ran');
-    return { status: 409, body: { ok: false, refused: 'start-live', say: 'A run of this flow is already starting. Wait for it.' } };
-  };
-  f.polls();
-  assert.equal(ranBeforeStart, true, 'a crash between the ran row and the start loses a run, never doubles one');
-  assert.deepEqual(f.rows().map((r) => r.outcome), ['refused'], 'one refused row, told once over many ticks');
-  assert.equal(queueOf(f.ledger()).length, 1, 'the refused file is still in the queue');
-  f.ctl.start = () => ({ status: 202, body: { ok: true, runId: 'run-9', startId: 's' } });
-  const before = f.ctl.starts;
-  f.polls(1);
-  assert.equal(f.ctl.starts, before + 1, 'started on the next tick');
-  assert.equal(f.rows().at(-1).outcome, 'started');
-  f.polls(3);
-  assert.equal(f.ctl.starts, before + 1, 'and only once');
-  assert.equal(queueOf(f.ledger()).length, 0);
-});
 
 test('a queued file refused for a NEW reason is told again; the same reason over many ticks is told once', async () => {
   const f = await stubWorld();
