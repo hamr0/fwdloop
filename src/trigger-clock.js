@@ -114,10 +114,13 @@ export function nextSlot(schedule, afterMs) {
   return /** @type {number} */ (found);
 }
 
+/** The ledgers' one line reader: a line that does not parse (a torn append after a crash) is skipped, as `readOutcomes` does; the ledger is never rewritten. @param {string} text @returns {any[]} */
+export const parseJsonl = (text) => text.split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
+
 /** @param {string} file @returns {ClockRow[]} every row on disk, oldest first; a missing file is no rows. */
 export function readRows(file) {
   if (!existsSync(file)) return [];
-  return readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  return parseJsonl(readFileSync(file, 'utf8'));
 }
 
 /** Append one row; a row whose id is already on disk is refused (write-once). @param {string} file @param {ClockRow} row */
