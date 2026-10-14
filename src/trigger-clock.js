@@ -123,11 +123,17 @@ export function readRows(file) {
   return parseJsonl(readFileSync(file, 'utf8'));
 }
 
+/** The ledgers' one appender: a crash mid-append leaves a line with no newline, so the next row starts on a fresh line and is never glued to the fragment (a glued `ran` row would be skipped and the file would run twice). @param {string} file @param {object} row */
+export function appendRow(file, row) {
+  const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
+  appendFileSync(file, `${text !== '' && !text.endsWith('\n') ? '\n' : ''}${JSON.stringify(row)}\n`);
+}
+
 /** Append one row; a row whose id is already on disk is refused (write-once). @param {string} file @param {ClockRow} row */
 function appendOnce(file, row) {
   if (readRows(file).some((r) => r.id === row.id)) throw new Error(`ledger row ${row.id} already written`);
   mkdirSync(dirname(file), { recursive: true });
-  appendFileSync(file, `${JSON.stringify(row)}\n`);
+  appendRow(file, row);
 }
 
 /** The trigger was set at `now`: no slot before this ever fires. @param {string} file @param {number} now */
