@@ -147,7 +147,7 @@ test('Must fail when a job\'s 9th-newest run shows without search: 9 runs = the 
   assert.deepEqual(card.older.shown.map((r) => r.runId), ['run-8', 'run-7', 'run-6', 'run-5', 'run-4', 'run-3', 'run-2']);
   assert.equal(card.older.hidden, 1);
   const html = text(lib.rlJobsHtml(m));
-  assert.match(html, /\(and 1 older: use search\)/);
+  assert.match(html, /\(and 1 older · \d\d\/\d\d to \d\d\/\d\d of those 1 · search above\)/, 'M11 am5 item 5: the no-search fold line');
   assert.doesNotMatch(html, /run-1\b/, 'the 9th-newest run is not shown');
   // closed fold: the older runs are not listed at all, and the fold line says how many
   const closed = text(lib.rlJobsHtml(model(data)));
@@ -175,13 +175,13 @@ test('with the older fold shut, a selected older run opens it (nothing selected 
   assert.equal(manualShut.jobs[0].older.open, false, 'a manual close wins, as today');
 });
 
-test('search for an older run opens its job ON that run: the fold is capped at 7 as always, plus the matched run past the 7; the job card still describes its newest run', () => {
+test('search for an older run opens its job ON that run: only the matching older runs show (M11 am5 item 4); the job card still describes its newest run', () => {
   const data = payload(runsOf('flights', 12), [meta('flights')]);
   const m = model(data, { filters: { results: [], time: 'all', search: 'run-2' } });
   const card = m.jobs[0];
   assert.equal(card.older.open, true);
-  assert.deepEqual(card.older.shown.map((r) => r.runId), ['run-11', 'run-10', 'run-9', 'run-8', 'run-7', 'run-6', 'run-5', 'run-2'], 'the signed 7, plus the hit past them');
-  assert.equal(card.older.hidden, 3, 'the rest stay behind "use search"');
+  assert.deepEqual(card.older.shown.map((r) => r.runId), ['run-2'], 'only the hit');
+  assert.equal(card.older.hidden, 0, 'nothing else matches, so nothing is counted');
   assert.equal(card.head.runId, 'run-12', 'the card line 2 is the newest run, not the match');
   assert.equal(model(data, { filters: { results: [], time: 'all', search: 'nope' } }).jobs.length, 0, 'a job with no matching run is gone');
   // a filter is capped the same way: a chip matching all 11 older runs shows the 7, the newest match is already inside them (M11 am1, hamr ruled A)
@@ -190,27 +190,26 @@ test('search for an older run opens its job ON that run: the fold is capped at 7
   assert.equal(all.older.hidden, 4);
 });
 
-test('search: when the head run also matches, an older matching run past the 7 stays shown; non-matching runs past the 7 stay hidden', () => {
+test('search: an older matching run is shown; non-matching older runs are never shown (M11 am5 item 4)', () => {
   const data = payload(runsOf('flights', 20), [meta('flights')]);
   const card = model(data, { filters: { results: [], time: 'all', search: 'run-2' } }).jobs[0];
   const ids = card.older.shown.map((r) => r.runId);
   assert.ok(ids.includes('run-2'), 'run-2 (position 18) is shown');
-  assert.deepEqual(ids, ['run-19', 'run-18', 'run-17', 'run-16', 'run-15', 'run-14', 'run-13', 'run-2'], 'the first 7, plus the matching run past them (run-20 is the head)');
-  assert.equal(card.older.hidden, 11, 'only non-matching runs past the 7 are counted by the hint');
+  assert.deepEqual(ids, ['run-2'], 'run-2 is exact: not run-20 (the head), not run-12');
+  assert.equal(card.older.hidden, 0);
   // no search: unchanged, 7 older runs + the hint
   const plain = model(data, { open: { flights: true } }).jobs[0];
   assert.equal(plain.older.shown.length, 7);
   assert.equal(plain.older.hidden, 12);
 });
 
-test('20-run job, search `run-2`: the fold opens by itself even though the head (run-20) matches; 7 + run-2 shown, hint counts 11', () => {
+test('20-run job, search `run-2`: the fold opens by itself even though the head (run-20) is not the match; run-2 only', () => {
   const data = payload(runsOf('flights', 20), [meta('flights')]);
   const card = model(data, { filters: { results: [], time: 'all', search: 'run-2' } }).jobs[0];
   assert.equal(card.older.open, true);
   assert.ok(card.older.shown.some((r) => r.runId === 'run-2'));
-  assert.equal(card.older.shown.length, 8);
-  assert.equal(card.older.total - card.older.shown.length, 11);
-  assert.equal(card.older.hidden, 11);
+  assert.equal(card.older.shown.length, 1);
+  assert.equal(card.older.hidden, 0);
   assert.equal(model(data, { filters: { results: [], time: 'all', search: 'run-2' }, open: { flights: false } }).jobs[0].older.open, false, 'a manual close still wins');
 });
 
@@ -225,13 +224,12 @@ test('300-run job, search `run`: every run matches, still only 7 shown (the newe
   assert.equal(chip.older.hidden, 292);
 });
 
-test('the selected run past the 7 AND a different newest match past the 7: both shown (9), the rest hidden', () => {
+test('the selected run AND a different match: both shown, nothing else (M11 am5 item 4)', () => {
   const data = payload(runsOf('flights', 20), [meta('flights')]);
   const card = model(data, { filters: { results: [], time: 'all', search: 'run-2' }, sel: { flow: 'flights', runId: 'run-5' } }).jobs[0];
   const ids = card.older.shown.map((r) => r.runId);
-  assert.equal(ids.length, 9);
-  assert.ok(ids.includes('run-5') && ids.includes('run-2'));
-  assert.equal(card.older.hidden, 10);
+  assert.deepEqual(ids.slice().sort(), ['run-2', 'run-5']);
+  assert.equal(card.older.hidden, 0);
 });
 
 test('no search: 7 older runs shown and the fold is not auto-opened', () => {
