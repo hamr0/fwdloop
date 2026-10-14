@@ -296,9 +296,10 @@ export function createTriggerDoor(opts) {
      * The fire / ran ledger row was written by the caller BEFORE this, so a crash loses a run and never doubles one.
      * @param {{flow: string, flowDir: string, read: any, trigger: Trigger}} job
      * @param {{kind: 'clock', slot: number, catchUp: boolean, missed: number} | {kind: 'file', path: string, sha: string}} cause
-     * @param {{ told?: (outcome: string) => boolean, beforeStart?: () => void }} [hooks] M9 am3 (a queued file): `told(outcome)` true = this file
+     * @param {{ told?: (outcome: string) => boolean, beforeStart?: () => void, notStarted?: () => void }} [hooks] M9 am3 (a queued file): `told(outcome)` true = this file
      *   already has a row for that outcome, so none is written again (the outcome is still returned); `beforeStart` runs right before the ONE
-     *   start, once every check has passed: the scheduler writes the file's `ran` row there.
+     *   start, once every check has passed: the scheduler writes the file's `ran` row there; `notStarted` runs when that start was refused, and the
+     *   scheduler voids the `ran` row (the file was not run, so it stays queued).
      */
     fire(job, cause, hooks = {}) {
       const { flow, flowDir, read, trigger } = job;
@@ -337,7 +338,7 @@ export function createTriggerDoor(opts) {
       const started = starter.start({
         kind: 'trigger', flow, runId: '', sources, trigger: record,
       }, loaded);
-      if (started.status !== 202) return done({ outcome: 'refused', why: String(started.body.say ?? 'The run did not start.') });
+      if (started.status !== 202) { hooks.notStarted?.(); return done({ outcome: 'refused', why: String(started.body.say ?? 'The run did not start.') }); }
       return done({ outcome: 'started', runId: started.body.runId, startId: started.body.startId });
     },
 
