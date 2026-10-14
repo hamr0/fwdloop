@@ -1940,16 +1940,22 @@
       if(c.older.open){
         out += c.older.shown.map(function(r){ return rlRunCardHtml(r, isSel(r)); }).join("");
         if(c.older.hidden > 0){
-          // M11 am5 item 5, the line after the 7: searching, `(and k more matches · add a day or a run)`; else `(and k older · <oldest> to <newest> of those k · search above)`,
-          // the dates (MM/DD, as the cards show them) of those k hidden runs (`left`, newest first). A hidden run with no date drops the range; nothing is made up.
-          var day = function(x){
+          // M11 am7 item 4, the line after the 7: searching, `k more match. Add a date or run number to narrow it.`; else the range of the hidden runs' real start days
+          // (the time the card shows), the MIN to the MAX over ALL of `left` whatever its order: `k more older runs, MM/DD to MM/DD. Search to find one.`, or one day
+          // `k more runs on MM/DD. Search to find one.`. A hidden run with no date drops the date part; nothing is made up.
+          var days = c.older.left.map(function(x){
             var w = x.at || x.askedAt || x.startedAt;
             var d = w ? new Date(w) : null;
-            return d && !isNaN(d.getTime()) ? ("0" + (d.getMonth() + 1)).slice(-2) + "/" + ("0" + d.getDate()).slice(-2) : null;
-          };
-          var from = day(c.older.left[c.older.left.length - 1]), to = day(c.older.left[0]);
-          out += '<div class="rl-hint">' + (c.older.active ? '(and ' + c.older.hidden + ' more matches &middot; add a day or a run)' :
-            '(and ' + c.older.hidden + ' older &middot; ' + (from && to ? from + ' to ' + to + ' of those ' + c.older.hidden + ' &middot; ' : '') + 'search above)') + '</div>';
+            return d && !isNaN(d.getTime()) ? new Date(d.getFullYear(), d.getMonth(), d.getDate()) : null;
+          });
+          var md = function(d){ return ("0" + (d.getMonth() + 1)).slice(-2) + "/" + ("0" + d.getDate()).slice(-2); };
+          var dated = days.indexOf(null) === -1 && days.length > 0;
+          var lo = dated ? new Date(Math.min.apply(null, days)) : null, hi = dated ? new Date(Math.max.apply(null, days)) : null;
+          var k = c.older.hidden;
+          out += '<div class="rl-hint">' + (c.older.active ? k + ' more match. Add a date or run number to narrow it.' :
+            !dated ? k + ' more older runs. Search to find one.' :
+            md(lo) === md(hi) && lo.getFullYear() === hi.getFullYear() ? k + ' more runs on ' + md(lo) + '. Search to find one.' :
+            k + ' more older runs, ' + md(lo) + ' to ' + md(hi) + '. Search to find one.') + '</div>';
         }
       }
     }
@@ -2035,7 +2041,7 @@
   function filterBarHTML(scope, noSigns){
     return (
       '<div class="filterbar" data-scope="' + scope + '" data-testid="' + scope + '-filters">' +
-        '<input type="text" class="search-input" placeholder="' + (noSigns ? 'search job, run, status, question or reason…' : 'job, run-23, or a day 10/12') + '" ' +
+        '<input type="text" class="search-input" placeholder="' + (noSigns ? 'search job, run, status, question or reason…' : 'search: job name, run-23, or a date 10/13') + '" ' +
           'id="' + scope + '-filter-search" data-testid="' + scope + '-filter-search" autocomplete="off">' +
         '<div class="chips" role="group" aria-label="Filter">' +
           (noSigns ?
@@ -2064,10 +2070,10 @@
   // group). `time` is single-select, default "all". `nowMs` is injectable
   // for tests. Field names (flow/runId/glyph/at) match a run row's own
   // shape (src/panel/data.js's listRuns). M11 am5: the search splits at spaces and EVERY word must match, case-insensitive. A word shaped run-N is
-  // that run exactly; a word shaped MM/DD or YYYY-MM-DD (a real day) is the run's LOCAL start day (`when`, the time the card shows; MM/DD = any year);
+  // that run exactly; a word shaped MM/DD, MM-DD or YYYY-MM-DD (a real day) is the run's LOCAL start day (`when`, the time the card shows; MM/DD = any year);
   // any other word (a part date like 10/1 too) is a substring of the flow name or the runId.
   function matchesSearch(flow, runId, query, when){
-    var words = String(query || "").trim().toLowerCase().split(/\s+/).filter(function(w){ return w; });
+    var words = String(query || "").toLowerCase().replace(/[()]/g, "").split(/\s+/).filter(function(w){ return w; });
     if(!words.length) return true;
     var f = String(flow || "").toLowerCase();
     var r = String(runId || "").toLowerCase();
@@ -2076,7 +2082,7 @@
     return words.every(function(w){
       if(/^run-\d+$/.test(w)) return r === w;
       var day = /^(?:(\d{4})-)?(\d\d)[-\/](\d\d)$/.exec(w);
-      if(day && (day[1] ? w.charAt(4) === "-" && w.charAt(7) === "-" : w.charAt(2) === "/")){
+      if(day && (day[1] ? w.charAt(4) === "-" && w.charAt(7) === "-" : w.charAt(2) === "/" || w.charAt(2) === "-")){
         var mo = Number(day[2]), da = Number(day[3]);
         if(mo >= 1 && mo <= 12 && da >= 1 && da <= 31){
           return !!ok && d.getMonth() + 1 === mo && d.getDate() === da && (!day[1] || d.getFullYear() === Number(day[1]));
