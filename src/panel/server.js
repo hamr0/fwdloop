@@ -517,7 +517,7 @@ export function handleRequest(req, res, opts) {
     send(200, {
       rows,
       jobs: summarizeJobs(rows, now()),
-      scheduled: listScheduled({ root: opts.root, triggerRead: (f) => opts.author?.trigger?.read(f) ?? null, now }),
+      scheduled: listScheduled({ root: opts.root, triggerRead: (f) => opts.author?.trigger?.read(f) ?? null, now, rows }),
       limits: RUNS_LIST_LIMITS,
     });
     return;

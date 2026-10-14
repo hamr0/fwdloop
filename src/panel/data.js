@@ -1222,11 +1222,12 @@ export function summarizeJobs(rows, nowMs) {
  * M11 am1 item 3: every job with a trigger, soonest next run first (a job with no clock slot — a file trigger, or not armed yet — after those that
  * have one, by name). Built from the owners the run page's SCHEDULED block uses (`triggerRead`, `scheduledWords`); `at` / `in` are null when
  * there is no next time (nothing is invented). A job that cannot be read, or has no trigger, is absent.
- * @param {{root: string, triggerRead: (flow: string) => any, now?: () => number, home?: string}} opts
- * @returns {{flow: string, at: string|null, in: string|null, words: string}[]}
+ * M11 am4 item 2: each card carries `runId`, the job's newest run (the first row `listRuns` gives that job, the one the runs list heads its job card with), or null when it has none.
+ * @param {{root: string, triggerRead: (flow: string) => any, now?: () => number, home?: string, rows?: {flow: string, runId: string|null}[]}} opts
+ * @returns {{flow: string, at: string|null, in: string|null, words: string, runId: string|null}[]}
  */
 export function listScheduled({
-  root, triggerRead, now = Date.now, home,
+  root, triggerRead, now = Date.now, home, rows = [],
 }) {
   const t0 = now();
   const out = [];
@@ -1236,6 +1237,7 @@ export function listScheduled({
     const ms = t.armed && typeof t.nextSlotMs === 'number' ? t.nextSlotMs : null;
     out.push({
       ms, flow, at: ms === null ? null : nextTimeWords(ms, t0), in: ms === null ? null : nextInWords(ms, t0), words: String(scheduledWords(t.trigger, home)),
+      runId: rows.find((r) => r.flow === flow)?.runId ?? null,
     });
   }
   out.sort((a, b) => {

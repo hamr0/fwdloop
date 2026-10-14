@@ -188,7 +188,7 @@ test('listScheduled: only jobs with a trigger, soonest first; a job with no slot
   };
   const got = listScheduled({ root, triggerRead: (f) => reads[f], now: () => now, home: '/h' });
   assert.deepEqual(got.map((s) => s.flow), ['ccc', 'aaa', 'ddd']);
-  assert.deepEqual(got[0], { flow: 'ccc', at: 'today 17:00', in: 'next in 3h', words: 'Every day at 17:00' });
+  assert.deepEqual(got[0], { flow: 'ccc', at: 'today 17:00', in: 'next in 3h', words: 'Every day at 17:00', runId: null });
   assert.equal(got[2].at, null, 'no clock slot: no invented time');
   assert.equal(got[2].in, null);
   assert.equal(got[2].words, 'When in.csv is updated');
@@ -253,4 +253,14 @@ test('listRuns am4 item 1: a stuck run leaves Needs you 7 days after its saved a
   assert.equal(tagAt(saved), null, 'saved answer 7d ago: out');
   NOW = base + 7 * D - 3_600_000;
   assert.equal(tagAt(saved), 'Resume', '6d23h: in');
+});
+
+test('listScheduled am4 item 2: each card carries its job\'s newest run (the first row listRuns gives it); null when the job has none', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'fwdloop-m11a-schedrun-'));
+  for (const f of ['aaa', 'bbb']) mkdirSync(path.join(root, f));
+  const daily = { kind: 'daily', hour: 20, minute: 0 };
+  const read = () => ({ trigger: daily, armed: true, nextSlotMs: new Date(2026, 9, 13, 20, 0).getTime(), lastOutcome: null });
+  const rows = [{ flow: 'aaa', runId: 'run-9' }, { flow: 'aaa', runId: 'run-8' }, { flow: 'bbb', runId: null }];
+  const got = listScheduled({ root, triggerRead: read, now: () => new Date(2026, 9, 13, 14, 0).getTime(), rows });
+  assert.deepEqual(got.map((s) => [s.flow, s.runId]), [['aaa', 'run-9'], ['bbb', null]]);
 });

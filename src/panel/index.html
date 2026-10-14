@@ -1913,11 +1913,14 @@
       (need ? '<span class="rl-pill rl-pill-need">' + escapeXml(r.needs) + '</span>' : ' <span class="rl-faint">' + faint + ' &middot; ' + escapeXml(cost) + '</span>') + '</span>' +
       '<span class="rl-l2">' + escapeXml(r.label || "unknown") + (need ? ' &middot; ' + escapeXml(runAtText(r)) : '') + '</span></button>';
   }
-  // Scheduled: not clickable. `at` / `in` are null when the job has no next clock time (a file trigger): nothing is made up.
+  // Scheduled: a click does what Running now does (rlJump to the job's newest run, `runId` from the server). `at` / `in` are null when the job has no next clock time (a file trigger): nothing is made up.
+  // A job with no run has nothing to open: that card stays a plain box.
   function rlScheduledCardHtml(s){
-    return '<div class="rl-card" data-testid="rl-sched-' + escapeXml(s.flow) + '"><span class="rl-l1"><span class="dot grey"></span><span class="rl-nm" title="' + escapeXml(s.flow) + '">' + escapeXml(s.flow) + '</span>' +
+    var body = '<span class="rl-l1"><span class="dot grey"></span><span class="rl-nm" title="' + escapeXml(s.flow) + '">' + escapeXml(s.flow) + '</span>' +
       (s.at ? ' <span class="rl-faint">' + escapeXml(s.at) + '</span>' : '') + '</span>' +
-      '<span class="rl-l2">' + escapeXml([s.in, s.words].filter(function(x){ return x; }).join(" · ")) + '</span></div>';
+      '<span class="rl-l2">' + escapeXml([s.in, s.words].filter(function(x){ return x; }).join(" · ")) + '</span>';
+    if(typeof s.runId !== "string" || s.runId === "") return '<div class="rl-card" data-testid="rl-sched-' + escapeXml(s.flow) + '">' + body + '</div>';
+    return '<button class="rl-card" type="button" data-rl-jump="' + escapeXml(s.flow + "|" + s.runId) + '" data-testid="rl-sched-' + escapeXml(s.flow) + '">' + body + '</button>';
   }
   function rlTopHtml(m){
     var h = "";
@@ -1985,7 +1988,7 @@
     if(jobs !== rlLast.jobs){ rlLast.jobs = jobs; withFocusPreserved(listEl, function(){ listEl.innerHTML = jobs; }); }
     tickSince();
   }
-  // Running now / Needs you click: select that run, show it on the Run tab and scroll its job card into view. (A run card inside a job is the old click, `openRunFromRuns`.)
+  // Running now / Needs you / Scheduled click: select that run, show it on the Run tab and scroll its job card into view. (A run card inside a job is the old click, `openRunFromRuns`.)
   function rlJump(flow, runId){
     selectRun(flow, runId, null, ".inbox-row");
     document.getElementById("tab-run").click();
