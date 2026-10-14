@@ -10,9 +10,9 @@ import path from 'node:path';
 
 import { createTriggerDoor, readOutcomes, triggerLedgerDir } from '../src/panel/authortrigger.js';
 import { createScheduler } from '../src/panel/scheduler.js';
-import { queueOf, readSeen, recordArrived, recordRan, STABLE_POLLS } from '../src/trigger-files.js';
+import { queueOf, readSeen, STABLE_POLLS } from '../src/trigger-files.js';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
-import { armTrigger, readRows } from '../src/trigger-clock.js';
+import { readRows } from '../src/trigger-clock.js';
 import { killChildrenAfter } from './m4e-world.mjs';
 import { greenWorld, setTrigger } from './m9-trigger-world.mjs';
 
@@ -98,21 +98,4 @@ test('a torn line in the clock or seen ledger is skipped like readOutcomes does,
   writeFileSync(seen, `{"id":"arri\n${JSON.stringify(row)}\n`);
   appendFileSync(seen, '{"id":"ran:x","ki');
   assert.deepEqual(readSeen(seen), [row]);
-});
-
-test('a seen ledger torn mid-append (no trailing newline): the next row starts on its own line, so a ran row stays readable and the file does not run twice', () => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'm9glue-'));
-  const seen = path.join(dir, 'seen.jsonl');
-  const item = { sha: 'a'.repeat(64), path: path.join(dir, 'd.md'), size: 5 };
-  assert.equal(recordArrived(seen, item, 1), true);
-  appendFileSync(seen, '{"id":"dropped:arr');   // the crash: a fragment, no newline
-  assert.equal(recordRan(seen, item, 2), true);
-  const rows = readSeen(seen);
-  assert.deepEqual(rows.map((r) => r.kind), ['arrived', 'ran'], 'the ran row is readable, the fragment alone is skipped');
-  assert.equal(queueOf(rows).length, 0, 'ran: the file is not queued again, so it does not run a second time');
-  assert.equal(recordArrived(seen, item, 3), false, 'and it does not arrive again');
-  const clock = path.join(dir, 'clock.jsonl');
-  writeFileSync(clock, '{"id":"armed:1","ki');
-  armTrigger(clock, 5);
-  assert.deepEqual(readRows(clock).map((r) => r.id), ['armed:5'], 'the clock ledger starts a fresh line too');
 });

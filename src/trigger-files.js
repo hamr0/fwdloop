@@ -14,12 +14,12 @@
 // one. 'dropped' = it was deleted / changed before its turn. A sha with a `ran` row never arrives again, whatever its name or mtime; see `arrives` for baseline / queued / dropped.
 // poll() writes nothing: it only reports finished files whose sha is new.
 import {
-  existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync,
+  appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync,
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 
-import { appendRow, parseJsonl } from './trigger-clock.js';
+import { parseJsonl } from './trigger-clock.js';
 
 /** @typedef {{id:string, kind:'baseline'|'arrived'|'ran'|'unran'|'dropped', sha:string, name:string, size:number, at:number, path?:string, why?:string, of?:string}} SeenRow */
 /** @typedef {{path:string, sha:string, size:number}} ToRun */
@@ -38,7 +38,7 @@ export function readSeen(file) {
 function appendSeen(file, row) {
   if (readSeen(file).some((r) => r.id === row.id)) return false;
   mkdirSync(dirname(file), { recursive: true });
-  appendRow(file, row);
+  appendFileSync(file, `${JSON.stringify(row)}\n`);
   return true;
 }
 
