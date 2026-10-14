@@ -182,8 +182,8 @@
 
   /* M4c inbox: section 1 (waiting on you) carries the page's amber accent
      treatment; section 3 (answered/expired) is dimmed. Tokens only. */
-  .inbox-h{font-size:12px;color:var(--text-dim);font-weight:700;margin:12px 0 6px;}
-  .inbox-h:first-child{margin-top:0;}
+  .rl-sect,.inbox-h{font-size:12px;color:var(--text-dim);font-weight:700;margin:12px 0 6px;}
+  .rl-sect:first-child,.inbox-h:first-child{margin-top:0;}
   .inbox-row.s1{border-left:4px solid var(--amber);background:var(--amber-bg);}
   .inbox-row.s3{opacity:.6;}
   .inbox-row .wf-line1{min-width:0;}
@@ -263,14 +263,13 @@
   .rl-l2 .sign-word{color:var(--text);}
   .rl-dim{color:var(--text-dim);font-size:12px;flex:none;}
   .rl-faint{color:var(--text-faint);font-size:12px;}
+  .rl-cnt{color:var(--text-faint);font-size:inherit;flex:none;}
   .rl-runs{margin:6px 0 0 6px;padding-left:8px;border-left:2px solid var(--border);}
   .rl-runs .rl-card{background:var(--bg);}
   .rl-runs .rl-card.rl-sel{background:var(--rl-accent-bg-strong);}
   .rl-fold{background:none;border:0;color:var(--text-dim);font:inherit;font-size:12px;padding:4px 0;cursor:pointer;min-height:32px;}
   .rl-fold:hover{color:var(--accent);}
   .rl-hint{font-size:12px;color:var(--text-faint);padding:2px 0 6px;}
-  .rl-sect{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint);margin:8px 0 4px;}
-  .rl-sect:first-child{margin-top:0;}
   .rl-pill{font-size:11px;border:1px solid var(--amber);color:var(--amber);padding:0 5px;margin-left:auto;flex:none;}
   .rl-pill-need{border-color:var(--accent);color:var(--accent);}
   .rl-dash{border-top:1px dashed var(--border-strong);margin:10px 0 6px;}
@@ -1112,6 +1111,10 @@
                — the wide right pane is where the evidence lives now. The
                answer doors are in the Ask tab, not here (M4b). -->
           <div id="inbox-list" data-testid="inbox-list"></div>
+          <div class="rl-dash"></div>
+          <div class="rl-faint" data-testid="inbox-filter-note">filters below act on answered and expired only</div>
+          <div id="inbox-filterbar-anchor"></div>
+          <div id="inbox-list-old" data-testid="inbox-list-old"></div>
         </section>
 
         <section id="panel-runs" class="tabpanel" role="tabpanel" aria-labelledby="tab-runs" hidden>
@@ -1899,7 +1902,7 @@
     };
   }
   function rlSectHtml(label, n, note){
-    return '<div class="rl-sect">' + label + ' (' + n + ')' + (note ? ' <span style="text-transform:none;letter-spacing:0">' + note + '</span>' : '') + '</div>';
+    return '<div class="rl-sect">' + label + ' (' + n + ')' + (note ? ' ' + note : '') + '</div>';
   }
   // line 1 and 2 of a Running now / Needs you card; both jump to the run (rlJump). The tag is a label (a span), never a button.
   function rlJumpCardHtml(r, need){
@@ -1940,7 +1943,7 @@
     }
     var why = (h.word === "passed" && h.glyph === "[✓]" && !h.line) ? "goal met" : h.line;
     var isSel = function(r){ return c.sel.flow === c.flow && r.runId === c.sel.runId; };
-    var out = top + '<span class="rl-l1"><span class="' + dotClass(h.glyph, h.pulse) + '"></span><span class="rl-nm" title="' + escapeXml(c.flow) + '">' + escapeXml(c.flow) + '</span> <span class="rl-faint">' + c.count + ' run' + (c.count === 1 ? '' : 's') + '</span></span>' +
+    var out = top + '<span class="rl-l1"><span class="' + dotClass(h.glyph, h.pulse) + '"></span><span class="rl-nm" title="' + escapeXml(c.flow) + '">' + escapeXml(c.flow) + '</span> <span class="rl-cnt">&middot; ' + c.count + ' run' + (c.count === 1 ? '' : 's') + '</span></span>' +
       '<span class="rl-l2">' + signHtml(h.word, why, h.label, " &middot; ") + '</span>' +
       '<div class="rl-runs">' + rlRunCardHtml(h, isSel(h));
     if(c.older.total > 0){
@@ -2025,18 +2028,20 @@
   // has no such concept; the result chips use fwdloop's own glyph
   // vocabulary ([✓]/[✗]/[·]/[▶]/[?] — `[▶]` running is known from M4c's pid
   // rows, src/liveness.js).
-  function filterBarHTML(scope){
+  // `noSigns`: M11 am3 item 4 — the Inbox has the search box and the time chips only, no sign chips
+  function filterBarHTML(scope, noSigns){
     return (
       '<div class="filterbar" data-scope="' + scope + '" data-testid="' + scope + '-filters">' +
         '<input type="text" class="search-input" placeholder="search flow or run id…" ' +
           'id="' + scope + '-filter-search" data-testid="' + scope + '-filter-search" autocomplete="off">' +
         '<div class="chips" role="group" aria-label="Filter">' +
+          (noSigns ? '' :
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✓]" title="passed" data-testid="chip-' + scope + '-res-pass">✓</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[✗]" title="stopped" data-testid="chip-' + scope + '-res-fail">✗</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[■]" title="stopped, can be resumed" data-testid="chip-' + scope + '-res-stopped">■</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[·]" title="waiting on a human" data-testid="chip-' + scope + '-res-waiting">&middot;</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[▶]" title="running" data-testid="chip-' + scope + '-res-running">▶</button>' +
-          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[?]" title="died or unknown" data-testid="chip-' + scope + '-res-unknown">?</button>' +
+          '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="result" data-filter-value="[?]" title="died or unknown" data-testid="chip-' + scope + '-res-unknown">?</button>') +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="7d" title="last 7 days" data-testid="chip-' + scope + '-time-7d">7d</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="30d" title="last 30 days" data-testid="chip-' + scope + '-time-30d">30d</button>' +
           '<button class="chip fchip" type="button" aria-pressed="true" data-filter-group="time" data-filter-value="all" title="all time" data-testid="chip-' + scope + '-time-all">all</button>' +
@@ -2084,7 +2089,7 @@
    * One filter-bar instance: its own localStorage key, its own DOM scope
    * (`.filterbar[data-scope="..."]`), its own item list — but the same
    * wiring as every other instance.
-   * @param {{scope:string, storageKey:string, filterFn:Function, applyFn:Function}} opts
+   * @param {{scope:string, storageKey:string, noun?:string, filterFn:Function, applyFn:Function}} opts
    */
   function createFilterBar(opts){
     var scope = opts.scope;
@@ -2124,7 +2129,7 @@
       var filtered = opts.filterFn(allItems, state, Date.now());
       opts.applyFn(filtered);
       var countEl = document.getElementById(scope + "-filter-count");
-      if(countEl) countEl.textContent = "showing " + filtered.length + " of " + allItems.length + " runs";
+      if(countEl) countEl.textContent = "showing " + filtered.length + " of " + allItems.length + " " + (opts.noun || "runs");
     }
     document.querySelectorAll('.filterbar[data-scope="' + scope + '"] .chip[data-filter-group]').forEach(function(chip){
       chip.addEventListener("click", function(){
@@ -2353,7 +2358,10 @@
     // amendment 7 item 6: Run again sits first, with Stop and Resume — every run control in this one row
     el.appendChild(makeButton("Run again", "run-again", function(){ if(window.fwdloopRunAgain) window.fwdloopRunAgain(detail); }));
     // M9 am5 item 3: a scheduled job's Run tab offers the schedule's own door, next to Run again: the same route, the Run card showing When
-    if(detail.summary && detail.summary.scheduled) el.appendChild(makeButton("Cancel / modify schedule", "run-cancel-schedule", function(){ if(window.fwdloopRunAgain) window.fwdloopRunAgain(detail); }));
+    // M11 am3 item 1: a job with a green run and no schedule reads Schedule run (the server's `canSchedule`); the same door either way
+    var schedDoor = function(){ if(window.fwdloopRunAgain) window.fwdloopRunAgain(detail); };
+    if(detail.summary && detail.summary.scheduled) el.appendChild(makeButton("Cancel / modify schedule", "run-cancel-schedule", schedDoor));
+    else if(detail.summary && detail.summary.canSchedule) el.appendChild(makeButton("Schedule run", "run-schedule", schedDoor));
     if(stopSay && stopSay.key !== detail.flow + "/" + detail.runId) stopSay = null;
     if(c.canStop){
       var stopBtn = makeButton(c.stopRequested ? "stopping after this step\u2026" : "Stop", "run-stop", function(){
@@ -3394,28 +3402,63 @@
     return wrap;
   }
   var INBOX_HEADS = { 1: "waiting on you", 2: "working on your answer", 3: "answered and expired" };
+  // M11 am3 item 3: every Inbox header carries its count, counted off the rows the server sent (after the filters, for section 3)
+  function inboxHeadText(section, n){ return (INBOX_HEADS[section] || "") + " (" + n + ")"; }
+  // M11 am3 item 4: the Inbox filters act on "answered and expired" (section 3) only; sections 1 and 2 are never hidden.
+  // A row's time is its answer, else its expiry (the server orders section 3 by the same two). No date + a time chip = out, as in Runs.
+  function inboxFilterRows(rows, filters, nowMs){
+    var time = (filters && filters.time) || "all";
+    var q = (filters && filters.search) || "";
+    return (rows || []).filter(function(r){
+      if(r.section !== 3) return true;
+      if(!matchesSearch(r.flow, r.runId, q)) return false;
+      if(time !== "all"){
+        var days = time === "7d" ? 7 : 30;
+        var t = Date.parse(r.answeredAt || r.expiresAt);
+        if(!isFinite(t) || nowMs - t > days * 24 * 60 * 60 * 1000) return false;
+      }
+      return true;
+    });
+  }
+  document.getElementById("inbox-filterbar-anchor").innerHTML = filterBarHTML("inbox", true);
+  var inboxOpenN = 0, inboxTotal = 0;
+  var inboxBar = createFilterBar({
+    scope: "inbox",
+    storageKey: "fwdloop-panel-inbox-filters",
+    noun: "asks",
+    filterFn: inboxFilterRows,
+    applyFn: function(shown){ buildInbox(document.getElementById("inbox-list"), shown, inboxOpenN); },
+  });
   // N comes from the server (data.js inboxOpenCount); the page only shows it.
   function renderInbox(rows, openCount){
     var el = document.getElementById("inbox-list");
     var next = sig({ rows: rows, openCount: openCount });
     if(next !== null && next === lastSig.inbox) return; // unchanged payload — never rebuild the DOM for nothing
     lastSig.inbox = next;
-    withScrollPreserved(["left-pane-body"], function(){ withFocusPreserved(el, function(){ buildInbox(el, rows, openCount); }); });
+    inboxOpenN = openCount;
+    inboxTotal = rows ? rows.length : 0;
+    var old = document.getElementById("inbox-list-old");
+    withScrollPreserved(["left-pane-body"], function(){ withFocusPreserved(old, function(){ withFocusPreserved(el, function(){ inboxBar.setItems(rows); }); }); });
   }
   function buildInbox(el, rows, openCount){
+    var old = document.getElementById("inbox-list-old");
     el.innerHTML = "";
+    old.innerHTML = "";
     document.getElementById("inbox-count-label").textContent = " (" + (typeof openCount === "number" ? openCount : 0) + ")";
-    if(!rows || !rows.length){
+    if(!inboxTotal){
       el.innerHTML = '<div class="hint">nothing waiting on you — no stops recorded under this root</div>';
       return;
     }
+    var counts = {};
+    rows.forEach(function(row){ counts[row.section] = (counts[row.section] || 0) + 1; });
     var lastSection = 0;
     rows.forEach(function(row){
+      var into = row.section === 3 ? old : el;
       if(row.section !== lastSection){
         lastSection = row.section;
-        el.appendChild(textDiv("inbox-h", INBOX_HEADS[row.section] || ""));
+        into.appendChild(textDiv("inbox-h", inboxHeadText(row.section, counts[row.section])));
       }
-      el.appendChild(renderStopRow(row));
+      into.appendChild(renderStopRow(row));
     });
   }
   getJSON("/api/inbox").then(function(result){ renderInbox(result.rows || [], result.openCount); }).catch(function(e){

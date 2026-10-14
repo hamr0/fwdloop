@@ -1324,8 +1324,8 @@ function jobWaitingLine(root, flowDir, flow, catalogue) {
 /**
  * M9 piece 6 (ladder M9 item 7): the summary block at the top of a run page, as data. Words come from `src/summary-words.js` only, built
  * from typed facts (the history row's outcome, the declared step's line, the signed trigger and its ledger). `ended` is null while the run
- * is live; `scheduled` is null when the job has no trigger; `catchUp` is a fixed sentence when this run was started late (am2 item 1).
- * @returns {{ended: {reason: string, next: string}|null, scheduled: {text: string, next: string, nextRed: boolean}|null, catchUp: string|null}}
+ * is live; `scheduled` is null when the job has no trigger; `canSchedule` (am3 item 1) is the trigger door's own `hasGreenRun` answer; `catchUp` is a fixed sentence when this run was started late (am2 item 1).
+ * @returns {{ended: {reason: string, next: string}|null, scheduled: {text: string, next: string, nextRed: boolean}|null, canSchedule: boolean, catchUp: string|null}}
  */
 function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   const died = !ctx.historyRow && glyph === '[?]';
@@ -1351,7 +1351,7 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   let rec = null;
   const f = readFileInside(ctx.runDir, 'trigger.json');
   if (f.ok) { try { rec = JSON.parse(f.text); } catch { rec = null; } }
-  return { ended, scheduled, catchUp: catchUpWords(rec) };
+  return { ended, scheduled, canSchedule: !!(t && t.hasGreenRun), catchUp: catchUpWords(rec) };
 }
 
 /**
