@@ -316,11 +316,6 @@
   .ended-label{color:var(--text-faint);font-size:11px;letter-spacing:0.08em;min-width:84px;}
   .ended-text{flex:1 1 220px;min-width:0;overflow-wrap:anywhere;}
   .audit-sched-start{padding:6px 10px;margin-bottom:8px;border:1px solid var(--border-strong);background:var(--panel2);font-size:12px;overflow-wrap:anywhere;}
-  .audit-sched-rows{margin:8px 0 0;font-size:12px;}
-  .audit-sched-rows[hidden]{display:none !important;}
-  .audit-sched-row{display:grid;grid-template-columns:5.5em 7.5em minmax(0,1fr);gap:0 8px;margin-bottom:4px;}
-  .audit-sched-row > span{min-width:0;overflow-wrap:anywhere;}
-  @media (max-width:560px){ .audit-sched-row{grid-template-columns:5.5em minmax(0,1fr);} .audit-sched-row > .c2{grid-column:1 / -1;} }
   .when-sub{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
   .when-sub > *{flex:1 1 120px;min-width:0;}
   .when-sub[hidden]{display:none;}
@@ -2669,7 +2664,10 @@
       "<td class=\"am am-time\">" + escapeXml(auditShortTime(r)) + "</td>" +
       "<td class=\"am am-detail\">" + auditDetailHtml(r, word, actionText, isRejectRow) + "</td>";
     tr.innerHTML = cells;
-    // every entry opens on a tap, by finger or keyboard; only the phone layout shows what opening reveals
+    return wireAuditRowEl(tr);
+  }
+  // every entry opens on a tap, by finger or keyboard; only the phone layout shows what opening reveals. The ONE place a row gets its class and tap: the step sections and the schedule section both end here.
+  function wireAuditRowEl(tr){
     tr.className = "audit-tap";
     tr.tabIndex = 0;
     tr.setAttribute("aria-expanded", "false");
@@ -2677,6 +2675,34 @@
     tr.addEventListener("click", toggle);
     tr.addEventListener("keydown", function(ev){ if(ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); toggle(); } });
     return tr;
+  }
+  // M9 am9 item 1: a schedule row in the Audit row family. Desktop: label | stamp | words (the Step, Action and Verdict cells, the same dotted cells as a step's table).
+  // Phone: the same one line (glyph, label, words, time) and a tap opens the full words, through the same `.am-*` cells. `r` is the server's {label, stamp, text}.
+  function buildAuditScheduleRowEl(r){
+    var tr = document.createElement("tr");
+    var shortStamp = (typeof r.stamp === "string" && r.stamp.length > 0) ? r.stamp.slice(-5) : "\u2014";   // "10/15 13:20" -> "13:20"
+    var cells = [
+      ["", "Step", r.label], ["", "Action", r.stamp], ["", "Verdict", r.text],
+      ["am am-glyph", null, "\u00b7"], ["am am-time", null, shortStamp],
+      ["am am-detail", null, null]
+    ];
+    cells.forEach(function(c, i){
+      var td = document.createElement("td");
+      if(c[0]) td.className = c[0];
+      if(c[1]) td.setAttribute("data-label", c[1]);
+      if(c[0].indexOf("am-glyph") >= 0) td.setAttribute("aria-hidden", "true");
+      if(c[2] === null){
+        [["", r.label], ["when", r.stamp], ["words", r.text]].forEach(function(l){
+          if(!l[1]) return;
+          var d = document.createElement("div"); d.className = "am-d";
+          if(l[0]){ var b = document.createElement("b"); b.textContent = l[0] + ":"; d.appendChild(b); d.appendChild(document.createTextNode(" ")); }
+          d.appendChild(document.createTextNode(l[1])); td.appendChild(d);
+        });
+      } else td.textContent = c[2];
+      tr.appendChild(td);
+      if(i < cells.length - 1) tr.appendChild(document.createTextNode(" "));   // a gap between label, stamp and words in the text too
+    });
+    return wireAuditRowEl(tr);
   }
   // ---- hamr's 2026-09-27 exit-check review #2: the Audit tab's All/Human/
   // Blocked filter — ONE predicate, applied identically to the Grouped and
@@ -2836,13 +2862,11 @@
       ssign.className = "badge sign-badge " + (sc.sign === "[\u25B6]" ? "amber" : sc.sign === "[\u2717]" ? "red" : "grey");
       ssign.setAttribute("data-testid", "audit-schedule-sign"); ssign.textContent = sc.sign; sh.appendChild(ssign);
       var stail = document.createElement("span"); stail.className = "audit-fold-tail"; stail.setAttribute("data-testid", "audit-schedule-head"); stail.textContent = sc.head; sh.appendChild(stail);
-      var sl = document.createElement("div");
-      sl.className = "audit-sched-rows"; sl.hidden = true;
-      sc.rows.forEach(function(r){
-        var line = document.createElement("div"); line.className = "audit-sched-row";
-        [r.label, r.stamp, r.text].forEach(function(t, i){ var c = document.createElement("span"); c.className = "c" + i; c.textContent = t; line.appendChild(c); });
-        sl.appendChild(line);
-      });
+      var sl = document.createElement("table");
+      sl.setAttribute("data-testid", "audit-table-schedule"); sl.hidden = true;
+      sl.innerHTML = "<thead><tr><th>Row</th><th>When</th><th>What</th></tr></thead><tbody></tbody>";
+      var sbody = sl.querySelector("tbody");
+      sc.rows.forEach(function(r){ sbody.appendChild(buildAuditScheduleRowEl(r)); });
       function paintSched(open){ sl.hidden = !open; sw.classList.toggle("closed", !open); sh.setAttribute("aria-expanded", open ? "true" : "false"); }
       function toggleSched(){ var open = sl.hidden; auditExpanded["\u0000schedule"] = open; paintSched(open); }   // folded on open; a re-render keeps what you chose for this run
       if(auditExpanded["\u0000schedule"] === true) paintSched(true);

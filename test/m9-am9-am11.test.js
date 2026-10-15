@@ -151,15 +151,44 @@ for (const width of [1280, 390, 320]) {
     const q = (e) => chrome.ev(e);
     assert.equal(await q('document.getElementById("audit-groups").firstElementChild.getAttribute("data-testid")'), 'audit-group-schedule', 'first section');
     assert.equal(await q('document.querySelector("[data-testid=audit-group-schedule] [role=button]").getAttribute("aria-expanded")'), 'false');
-    assert.equal(await q('document.querySelector(".audit-sched-rows").hidden'), true, 'folded on open');
+    assert.equal(await q('document.querySelector("[data-testid=audit-table-schedule]").hidden'), true, 'folded on open');
     assert.equal(await q('document.querySelector("[data-testid=audit-schedule-sign]").textContent'), '[✗]');
     assert.match(await q('document.querySelector("[data-testid=audit-schedule-head]").textContent'), /^every day at 09:00 · from seed-pass · 1 try started nothing$/);
     await q('document.querySelector("[data-testid=audit-group-schedule] [role=button]").click()');
-    assert.equal(await q('document.querySelector(".audit-sched-rows").hidden'), false, 'opens on click');
-    assert.match(await q('document.querySelector(".audit-sched-rows").textContent'), /refused: The input "jd" is not there/);
+    assert.equal(await q('document.querySelector("[data-testid=audit-table-schedule]").hidden'), false, 'opens on click');
+    assert.match(await q('document.querySelector("[data-testid=audit-table-schedule]").textContent'), /refused: The input "jd" is not there/);
     const spill = await q('document.documentElement.scrollWidth - document.documentElement.clientWidth');
     assert.ok(spill <= 0, `sideways scroll ${spill}px at ${width}`);
     const box = await q('(function(){ var r = document.querySelector("[data-testid=audit-group-schedule]").getBoundingClientRect(); return {right: r.right, vw: document.documentElement.clientWidth}; })()');
     assert.ok(box.right <= box.vw, JSON.stringify(box));
+  });
+}
+
+// am9 item 1 ("It looks like the drafting and step sections"): the schedule rows are rows of the SAME Audit row family as a step section's (one class, the dotted
+// separators, aligned columns), and the unfolded text keeps a gap between label, stamp and words.
+for (const width of [1280, 390, 320]) {
+  test(`am9 page ${width}px: schedule rows use the Audit row class of a step section, with a gap between label, stamp and words, no spill`, { skip: SKIP && 'no browser' }, async (t) => {
+    const o = await openAudit(width);
+    if (!o) { t.skip('no chromium installed'); return; }
+    const { chrome } = o;
+    const q = (e) => chrome.ev(e);
+    await q('document.querySelector("[data-testid=audit-group-schedule] [role=button]").click()');
+    const sel = '[data-testid=audit-group-schedule] tbody tr';
+    const stepCls = await q('(function(){ var r = document.querySelector("[data-testid^=audit-table-grouped-] tbody tr"); return r ? r.className : null; })()');
+    assert.equal(stepCls, 'audit-tap', 'a step section row is the audit-tap row');
+    assert.equal(await q(`document.querySelectorAll("${sel}")[0].className`), stepCls, 'schedule row class is the step section row class');
+    assert.ok(await q(`document.querySelectorAll("${sel}").length`) >= 2, 'this run + the try: each its own row');
+    const txt = await q('document.querySelector("[data-testid=audit-group-schedule]").innerText');
+    assert.doesNotMatch(txt, /this run\d|tries\d|\d\d:\d\d[A-Za-z]/, `no run-together words: ${JSON.stringify(txt)}`);
+    const raw = await q('document.querySelector("[data-testid=audit-group-schedule]").textContent');
+    assert.doesNotMatch(raw, /this run\d|tries\d/, 'a gap in the markup text too');
+    // desktop: label, stamp, words. Phone: the step rows' one line (label, words, time), the stamp's HH:MM at the end, as a step row
+    assert.match(txt, width === 1280 ? /tries\s+10\/14 09:00\s+refused/ : /tries\s+refused[\s\S]*09:00/, 'label, then the stamp, then the words');
+    const spill = await q('document.documentElement.scrollWidth - document.documentElement.clientWidth');
+    assert.ok(spill <= 0, `sideways scroll ${spill}px at ${width}`);
+    const rows = await q(`Array.from(document.querySelectorAll("${sel}")).map(function(r){ return r.scrollWidth - r.clientWidth; })`);
+    assert.ok(rows.every((n) => n <= 1), `a row spills: ${JSON.stringify(rows)}`);
+    const dotted = await q(`getComputedStyle(document.querySelector("${sel.split(',')[0]} td")||document.body).borderBottomStyle`);
+    if (width === 1280) assert.equal(dotted, 'dotted', 'the dotted separator between rows');
   });
 }
