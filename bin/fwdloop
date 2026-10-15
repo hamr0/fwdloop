@@ -354,7 +354,7 @@ async function cmdRun(rest) {
     if (!runIdCheck.ok) fail(runIdCheck.red);
     runDir = runIdCheck.runDir;
     // M4e amendment 5: the panel's Sign & run puts the run's signed values in the folder BEFORE the start; that one file is not "a run".
-    if (existsSync(runDir) && readdirSync(runDir).filter((n) => n !== 'signed-values.json' && n !== TRIGGER_RECORD_FILE).length > 0) fail(`run: run dir "${runDir}" already exists — use a new --run-id`);
+    if (existsSync(runDir) && readdirSync(runDir).filter((n) => n !== 'signed-values.json' && n !== TRIGGER_RECORD_FILE && n !== 'job' && n !== 'plan.json' && n !== 'setup.jsonl').length > 0) fail(`run: run dir "${runDir}" already exists — use a new --run-id`);
   }
   // M4e amendment 5 item 3: the cap this run was signed with (its own values file, else the flow's) is what the monthly hold is for.
   const applied = applyRunValues(read.arbiter, flowName, read.signature.flow, pickRunValues(runDir));
@@ -907,7 +907,7 @@ async function cmdDraft(rest) {
 async function cmdSign(rest) {
   const { values, positionals } = parseArgs({
     args: rest,
-    options: { approve: { type: 'string' }, 'signed-by': { type: 'string' } },
+    options: { approve: { type: 'string' }, 'signed-by': { type: 'string' }, 'run-of': { type: 'string' } },
     allowPositionals: true,
   });
   const keysLoad = keyedLoad(); // sign takes no key, but its leak sweep must know the file's keys too
@@ -928,8 +928,14 @@ async function cmdSign(rest) {
   if (!typed.ok) fail(`sign refused — ${typed.red}`);
   const result = signDraft({
     dir: resolve(dir), approve: values.approve, signedBy: values['signed-by'] ?? userInfo().username, env, keyNames: keysLoad.keyNames,
+    // M6 am9: a red run's redraft of an unchanged job is signed as the plan of a new run of that workflow (--run-of <workflow>); the same TTY and typed name above
+    ...(values['run-of'] ? { asRunOf: { flow: values['run-of'] } } : {}),
   });
   if (!result.ok) fail(`sign refused — ${result.reds.join('; ')}`);
+  if (result.runId) {
+    process.stdout.write(`signed: ${result.runDir} as ${result.runId} of ${values['run-of']} (by ${result.signature.signedBy})\nrun it: fwdloop run ${values['run-of']} --root <dir> --run-id ${result.runId} --source <role>=<path> ...\n`);
+    return;
+  }
   process.stdout.write(`signed: ${result.flowDir} (by ${result.signature.signedBy})\n`);
 }
 

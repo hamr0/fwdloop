@@ -636,6 +636,51 @@ function replaceSigned({
 }
 
 /**
+ * M6 am9 ("a red run always drafts"): sign a plan as the plan of a NEW run of an existing workflow. Same checks and the same `signFlow` as `writeFlow`,
+ * but nothing of the workflow is written: the run folder is claimed (`claimRunId`) and receives `job/{prose.txt,declaration.json,signature.json}` write-once,
+ * then `plan.json` last (the file that makes the run execute it). A failure removes the run folder this call claimed. The caller proves the job is unchanged.
+ * @param {{root: unknown, name: unknown, proseText: unknown, declaration: unknown, signedBy: unknown, signedAt: unknown, catalogue: unknown}} a
+ * @returns {{ok: true, runId: string, runDir: string, signature: any} | {ok: false, reds: string[]}}
+ */
+export function writeRunPlan({
+  root, name, proseText, declaration, signedBy, signedAt, catalogue,
+}) {
+  const nameCheck = checkFlowName(name);
+  if (!nameCheck.ok) return { ok: false, reds: [nameCheck.red] };
+  if (typeof root !== 'string' || root.length === 0) return { ok: false, reds: ['flow: "root" must be a non-empty string'] };
+  const flowDir = path.join(root, /** @type {string} */ (name));
+  if (signedHashOf(flowDir) === null) return { ok: false, reds: [`flow: "${name}" has no signed workflow here, so a plan cannot be signed as a run of it`] };
+  const signed = parseSignedText(proseText);
+  if (!signed.ok) return { ok: false, reds: signed.reds };
+  const validated = validateDeclaration(declaration, { arbiter: signed.arbiter, lines: signed.lines, catalogue });
+  if (!validated.ok) return { ok: false, reds: validated.reds };
+  let declarationText;
+  try { declarationText = `${JSON.stringify(declaration, null, 2)}\n`; } catch (err) { return { ok: false, reds: [`flow: declaration could not be serialised — ${err.message}`] }; }
+  const signResult = signFlow({ proseText, declarationText, signedBy, signedAt });
+  if (!signResult.ok) return { ok: false, reds: signResult.reds };
+  const claimed = claimRunId(flowDir);
+  if (!claimed.ok) return { ok: false, reds: [claimed.red] };
+  const { runDir, runId } = claimed;
+  try {
+    const jobDir = path.join(runDir, RUN_JOB_DIR);
+    mkdirSync(jobDir);
+    writeFileSync(path.join(jobDir, 'prose.txt'), /** @type {string} */ (proseText), { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(path.join(jobDir, 'declaration.json'), declarationText, { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(path.join(jobDir, 'signature.json'), `${JSON.stringify(signResult.signature, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(path.join(runDir, RUN_PLAN_MARKER), `${JSON.stringify({ own: true })}\n`, { encoding: 'utf8', flag: 'wx' });
+  } catch (err) {
+    try { rmSync(runDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+    return { ok: false, reds: [`flow: could not write the run's plan — ${err.message}. Nothing was signed.`] };
+  }
+  const proof = readPlan({ root, name, catalogue, runDir });
+  if (!proof.ok) {
+    try { rmSync(runDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+    return { ok: false, reds: [`flow: the run's plan does not verify (${proof.reds.join('; ')})`] };
+  }
+  return { ok: true, runId, runDir, signature: signResult.signature };
+}
+
+/**
  * Read and verify a signed flow from `<root>/<name>/`. Verifies the bytes on
  * disk against the signature FIRST — before anything in the flow is
  * trusted — then parses the signed text, then validates the declaration.
