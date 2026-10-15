@@ -249,7 +249,7 @@ test('F4 a start the starter refuses (409) is one refused row with its say, neve
   const slot = JSON.parse(readFileSync(path.join(f.flowDir, 'model.json'), 'utf8')).slot;
   const door = createTriggerDoor({
     root: f.w.root,
-    flowsDoor: { editBlock: () => null, lastSourcesOf: () => ({ sources: { resume: path.join(f.w.inDir, 'resume.md'), jd: path.join(f.w.inDir, 'jd.md') } }) },
+    flowsDoor: { editBlock: () => null, scheduleBusy: () => null, lastSourcesOf: () => ({ sources: { resume: path.join(f.w.inDir, 'resume.md'), jd: path.join(f.w.inDir, 'jd.md') } }) },
     starter: { start: () => ({ status: 409, body: { ok: false, refused: 'start-live', say: 'A run of this flow is already starting. Wait for it.' } }) },
     loadEnv: () => ({ ok: true, env: {}, keyNames: [slot] }),
     monthlyClaim: () => null,

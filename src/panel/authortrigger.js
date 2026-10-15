@@ -348,9 +348,9 @@ export function createTriggerDoor(opts) {
       return armFor(job.flowDir, job.read.signature.flow, job.trigger, now());
     },
 
-    /** M9 am3: is a run of this job starting, running or waiting at an ask? (the same check `fire` makes first) @param {{flow: string}} job */
+    /** M9 am3/am8: is a run of this job starting or still working? A run waiting at its ask is not busy. (the same check `fire` makes first) @param {{flow: string}} job */
     busy(job) {
-      return flowsDoor.editBlock(job.flow) !== null;
+      return flowsDoor.scheduleBusy(job.flow) !== null;
     },
 
     /** M9 am3: one row for a queued file that is not a fire (deleted / changed before its turn). @param {{flow: string, flowDir: string, trigger: Trigger}} job @param {Record<string, any>} row */
@@ -386,7 +386,7 @@ export function createTriggerDoor(opts) {
         ...(cause.kind === 'clock' ? { slot: new Date(cause.slot).toISOString(), catchUp: cause.catchUp, missed: cause.missed } : { file: cause.path, sha: cause.sha, catchUp: false }),
       };
       const done = (/** @type {Record<string, any>} */ r) => { const row = /** @type {Record<string, any>} */ ({ ...base, ...r }); if (!(row.outcome !== 'started' && hooks.told?.(row))) appendOutcome(flowDir, row); return row; };
-      const busy = flowsDoor.editBlock(flow);   // one run at a time per job: starting, running, or waiting at its ask
+      const busy = flowsDoor.scheduleBusy(flow);   // M9 am8: one WORKING run at a time per job; a run waiting at its ask does not block
       if (busy !== null) return done({ outcome: 'busy', say: busy });
       // M6 am9: a schedule set from a run that kept another plan runs THAT plan; it is re-verified now, against what the second click signed
       let planRun = null;

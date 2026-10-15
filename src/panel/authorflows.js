@@ -32,6 +32,7 @@ import {
 } from './authorcard.js';
 import { checkValues } from './authorvalues.js';
 import { getRunControls, getRunGlyph } from './data.js';
+import { SCHEDULE_BUSY_SAY } from '../summary-words.js';
 import { providerKeys } from './spawn.js';
 import { readModelRecord, writeModelRecord } from '../flowmodel.js';
 
@@ -262,6 +263,22 @@ export function createFlowsDoor(opts) {
     return null;
   }
 
+  /**
+   * M9 am8 item 1: is a run of this job starting or still working? The SCHEDULE's own one decision (clock fires and the file queue), NOT Edit's: a run
+   * waiting at its ask (`atAsk`) is not busy here, where `editBlockOf` still counts it (M6). Returns the sentence the busy row carries, or null.
+   * @param {string} realRoot @param {string} name @returns {string|null}
+   */
+  function scheduleBusyOf(realRoot, name) {
+    const cat = loadCatalogue();
+    if (!cat.ok) return null;
+    if (starter.startingFor(name, []) !== null) return SCHEDULE_BUSY_SAY;
+    for (const id of listRunIds(join(realRoot, name)).filter((x) => /^run-\d+$/.test(x))) {
+      const c = getRunControls({ root: realRoot, flow: name, runId: id, catalogue: cat.primitives });
+      if (c?.canStop === true && c.atAsk !== true) return SCHEDULE_BUSY_SAY;
+    }
+    return null;
+  }
+
   /** One flow's record for the page: its signed values and facts, its last run's inputs, its passed runs and its track record. @param {string} realRoot @param {string} name @param {any} read @param {any} left */
   function entryFor(realRoot, name, read, left) {
     const roles = (read.arbiter.sources ?? []).map((s) => s.role);
@@ -282,6 +299,12 @@ export function createFlowsDoor(opts) {
     editBlock(name) {
       const realRoot = realRootOrNull();
       return realRoot === null ? null : editBlockOf(realRoot, name);
+    },
+
+    /** M9 am8 item 1: the sentence that says why the SCHEDULE cannot start a run now (one is starting or still working; a run waiting at its ask does not count), or null. @param {string} name */
+    scheduleBusy(name) {
+      const realRoot = realRootOrNull();
+      return realRoot === null ? null : scheduleBusyOf(realRoot, name);
     },
 
     /**

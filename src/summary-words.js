@@ -245,10 +245,13 @@ export function auditStartedWords(rec, home) {
   return parts.join(' · ');
 }
 
+/** M9 am8 item 3: the busy sentence, in the busy row of `triggers.jsonl` and in the SCHEDULE block. One owner; the scheduler writes it, the words read it. */
+export const SCHEDULE_BUSY_SAY = 'a run of this job was still working';
+
 /** One fire that started nothing, in plain words, for the Audit's folded schedule group: `10/14 08:15 · busy · <why>`. @param {any} row a triggers.jsonl row */
 export function fireRowWords(row) {
   const when = shortStamp(row.at);
-  if (row.outcome === 'busy') return `${when} · busy · ${String(row.say ?? 'a run of this job was already going').replace(/\.$/, '')}.`;
+  if (row.outcome === 'busy') return `${when} · busy · ${String(row.say ?? SCHEDULE_BUSY_SAY).replace(/\.$/, '')}.`;
   if (row.outcome === 'monthly-exhausted') {
     const left = typeof row.leftUsd === 'number' ? `${row.atLeast === true ? 'at most ' : ''}${money(row.leftUsd)} left` : 'not enough left';
     const need = typeof row.needUsd === 'number' ? `, a run needs up to ${money(row.needUsd)}` : '';
@@ -257,29 +260,44 @@ export function fireRowWords(row) {
   return `${when} · refused · ${String(row.why ?? 'it was refused').trim()}`;
 }
 
-/** The plain reason of a fire that started nothing, without the time (the SCHEDULE block's line 2). @param {any} row */
-export function fireReasonWords(row) {
-  return fireRowWords(row).replace(/^\S+ \S+ · (busy|month used up|refused) · /, '').trim();
+/** A month-used-up fire in the SCHEDULE block's words (am8 item 5): `month used up: $0.01 left, needs $0.50`. @param {any} row */
+function monthUsedUpWords(row) {
+  const left = typeof row.leftUsd === 'number' ? `${row.atLeast === true ? 'at most ' : ''}${money(row.leftUsd)} left` : 'not enough left';
+  return `month used up: ${left}${typeof row.needUsd === 'number' ? `, needs ${money(row.needUsd)}` : ''}`;
 }
 
 /**
- * The Run tab's SCHEDULE block (am7 item 3-4): `{line1, line2, red}`. Line 1 = the schedule words or `By hand`. Line 2 (only with a schedule):
- * `last <stamp> · <run-N> · <outcome>[ · catch-up] · next <day stamp>`, or `... next: waiting for a new file` for a file schedule. A last fire that
- * started nothing is a problem: red, and line 2 says its reason, then `next: fix it in Cancel / modify schedule`.
- * @param {{trigger: Trigger|null, home?: string, last: {at: string, runId: string, outcome: string, catchUp: boolean}|null, nextSlotMs: number|null, armed: boolean, problem: any}} f
+ * The Run tab's SCHEDULE block (am7 item 3, am8 items 2-8): `{line1, line2, red}`. Line 1 = the schedule words or `By hand`. Line 2 (only with a schedule):
+ * `no run yet` before any fire; else `last <stamp> · ` then the newest fire's words, then `next ...`:
+ *  - a start: `<run-N> · <outcome>[ · catch-up]` (a run waiting at its ask: `<run-N> · waiting for your answer (the next run does not wait)`), normal;
+ *  - busy: `busy: a run of this job was still working`, normal (it clears by itself);
+ *  - month used up: `month used up: $0.01 left, needs $0.50 · next: raise the limit in Settings, or it starts on the 1st`, red only while `nowMs` is still that month;
+ *  - refused: `refused: <why> · next: fix it in Cancel / modify schedule`, red until a later good start.
+ * `next` otherwise: `next <day stamp>`, `next: waiting for a new file` (file schedule) or `next: not armed yet`.
+ * @param {{trigger: Trigger|null, home?: string, last: {at: string, runId: string, outcome: string, catchUp: boolean}|null, nextSlotMs: number|null, armed: boolean, problem: any, nowMs?: number}} f
+ *   `problem`: the newest fire when it started nothing (busy, monthly-exhausted, refused), else null.
  * @returns {{line1: string, line2: string|null, red: boolean}}
  */
 export function scheduleBlockWords(f) {
   const head = scheduleHead(f.trigger, f.home);
   const tr = f.trigger;
   if (head === null || tr === null) return { line1: 'By hand', line2: null, red: false };
-  if (f.problem) return { line1: head, line2: `${fireReasonWords(f.problem)} · next: fix it in Cancel / modify schedule`, red: true };
-  const last = f.last
-    ? `last ${shortStamp(f.last.at)} · ${f.last.runId} · ${f.last.outcome}${f.last.catchUp ? ' · catch-up' : ''}`
-    : 'no run yet';
   const file = tr.kind === 'new-file' || tr.kind === 'file-updated';
   const next = file ? 'next: waiting for a new file' : (f.nextSlotMs !== null && f.armed ? `next ${dayStamp(f.nextSlotMs)}` : 'next: not armed yet');
-  return { line1: head, line2: `${last} · ${next}`, red: false };
+  const p = f.problem;
+  if (p) {
+    const stamp = `last ${shortStamp(p.at)}`;
+    if (p.outcome === 'busy') return { line1: head, line2: `${stamp} · busy: ${SCHEDULE_BUSY_SAY} · ${next}`, red: false };
+    if (p.outcome === 'monthly-exhausted') {
+      const month = (/** @type {number} */ ms) => { const d = new Date(ms); return d.getFullYear() * 12 + d.getMonth(); };
+      const still = month(Date.parse(p.at)) === month(f.nowMs ?? Date.now());
+      return { line1: head, line2: `${stamp} · ${monthUsedUpWords(p)} · ${still ? 'next: raise the limit in Settings, or it starts on the 1st' : next}`, red: still };
+    }
+    return { line1: head, line2: `${stamp} · refused: ${String(p.why ?? 'it was refused').trim()} · next: fix it in Cancel / modify schedule`, red: true };
+  }
+  if (!f.last) return { line1: head, line2: `no run yet · ${next}`, red: false };
+  const outcome = f.last.outcome === 'waiting' ? 'waiting for your answer (the next run does not wait)' : `${f.last.outcome}${f.last.catchUp ? ' · catch-up' : ''}`;
+  return { line1: head, line2: `last ${shortStamp(f.last.at)} · ${f.last.runId} · ${outcome} · ${next}`, red: false };
 }
 
 /** ENDED (am7 item 1): `10/14 08:16 · passed · Goal met.`. The stamp is the run's local end time; the word is the run's outcome word (none for a run ended on purpose). @param {string|null} at ISO @param {string|null} word @param {string} reason */

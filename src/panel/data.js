@@ -1395,7 +1395,7 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   const schedule = scheduleBlockWords({
     trigger: t && t.trigger ? t.trigger : null, home,
     last: lastStart ? { at: lastStart.at, runId: lastStart.runId, outcome: lastGlyph ? (SIGN_WORDS[lastGlyph.glyph] ?? 'ended') : 'ended', catchUp: !!(lastRec && lastRec.catchUp === true) } : null,
-    nextSlotMs: t ? t.nextSlotMs : null, armed: !!(t && t.armed),
+    nextSlotMs: t ? t.nextSlotMs : null, armed: !!(t && t.armed), nowMs: now(),
     problem: latest && latest.outcome !== 'started' && ['busy', 'monthly-exhausted', 'refused'].includes(latest.outcome) ? latest : null,
   });
   return { ended, scheduled, schedule, canSchedule: !!(t && t.hasGreenRun), catchUp: catchUpWords(rec) };
