@@ -2434,3 +2434,8 @@ same run. Scope is stated when its turn comes.
      - all on one day: `50 more matches on 10/09. Add a run number to narrow it.`
      These replace amendment 7 item 4's searching words.
   - **Must fail when:** the searching line has no dates when every hidden match has one; the range misses a hidden match's day; or one day shows as "10/09 to 10/09".
+- **M11 amendment 10 — SIGNED by hamr 2026-10-15 ("sign m11 am10"): a Needs you click shows the run, and the Inbox when it is at an ask.**
+  1. Clicking a **Needs you** card always opens that run on the **Run** tab (right side).
+  2. If the run is at an ask (waiting `[·]` or stuck `[II]`), the left side also moves to the **Inbox** with its ask selected. A stopped run `[■]` leaves the left side on Runs.
+  3. **Replaces** amendment 1 item 2's "Click: as Running now", and takes "Needs you moving the left side to the Inbox" off amendment 1's "taken out" list.
+  - **Must fail when:** a Needs you card opens any tab but Run; a waiting or stuck card leaves the left side on Runs; a stopped card moves the left side to the Inbox.
