@@ -300,11 +300,12 @@ function scanFsUsage(text) {
  */
 const ALLOWLIST = {
   'src/flow.js': {
+    // M6 am9 (reviewed): `writeRunPlan` and `copyRunPlan` write a run's own kept plan (`<run>/job/*` + `plan.json`, write-once) and remove it again on a failed write; `readPlan`/`runOwnsPlan` test the marker.
     reason: 'M6: `replaceSigned` (the all-or-nothing swap of a signed job: stage folder, backup folder, renames both ways, rollback, cleanup) and `writeRunJobCopy`/`readRunJobCopy` (the run\'s write-once copy of its job: one mkdir, three `wx` writes, one existsSync); M6 am5: `suggestFlowName` (one read-only lstat of a candidate name); M4e amendment 43: writeFlow also makes the write-once signed/ copy (one mkdir, two `wx` writes, one existsSync refusing an existing signed/); the safe-read implementation itself (readFileInside/readdirInside/writeFlow/readFlow) — the one gateway every book reader is expected to route through, plus its own symlink-guard checks and atomic-write plumbing, plus claimRunId (M4e amendment 3: the exclusive mkdir of the next run-<n> folder, and the runs/ folder above it)',
     names: {
-      accessSync: 1, constants: 2, existsSync: 10, lstatSync: 6, mkdirSync: 9,
-      readdirSync: 3, readFileSync: 2, realpathSync: 5, renameSync: 4, rmSync: 6,
-      writeFileSync: 9,
+      accessSync: 1, constants: 2, existsSync: 11, lstatSync: 6, mkdirSync: 11,
+      readdirSync: 3, readFileSync: 2, realpathSync: 5, renameSync: 4, rmSync: 10,
+      writeFileSync: 15,
     },
   },
   'src/runner.js': {
@@ -404,7 +405,7 @@ const ALLOWLIST = {
   },
   'src/panel/data.js': {
     reason: 'read-only checks (existsSync/realpathSync symlink guards) — actual book content is read via the imported readFlow/readAudit/readHistory/readAsk/etc. helpers, never fs directly',
-    names: { existsSync: 7, realpathSync: 2 },
+    names: { existsSync: 8, realpathSync: 2 },
   },
   'src/panel/resume.js': {
     reason: 'M4b piece 2: the panel\'s resume launcher — creates/opens its OWN private log dir and log file (outside the flows root and every run dir), reads back that log to quote the resume\'s refusal, deletes that log when the resume exits 0 (and a stale attempt log when a newer attempt starts), and existsSync-checks the `answer.<askId>.consumed.json` marker (presence only, never its content) to see that the resume took over. No run/flow-dir book is read or written.',
@@ -437,13 +438,13 @@ const ALLOWLIST = {
   'src/panel/author.js': {
     reason: 'M4e piece 2a: the panel\'s draft door — creates ITS OWN draft folder `<root>/.drafts/<id>/` (mkdir 0700) and writes the files it owns there (card.json, prose.txt, pid.json, abandoned.json, all 0600; and, M4e amendment 14, per revise a `card-<n>.json` and `prose-<n>.txt`, each write-once (exclusive create), 0600, the card as submitted, never a key; and, amendment 14 item 6, `started-over-from.json`, write-once, 0600, only the previous draft\'s id when a Start over names one; and, M4e amendments 24/25, per plan-question an `answer-<k>.json` in the plan folder, write-once, 0600, and, for the redraft after the last answer, `card-<n>.json`, `prose-<n>.txt` and `redraft-<n>.json`, each write-once, 0600; rmSync (force) removes ONLY those files this same call just created when the redraft child cannot be spawned, so a refusal leaves no half-written redraft); realpathSync of the typed --root at use time. Every READ of a draft folder (its own files and the CLI child\'s output under draft/) goes through readFileInside/readdirInside (src/flow.js), never fs directly.',
     names: {
-      mkdirSync: 2, realpathSync: 5, rmSync: 1, writeFileSync: 11,
+      mkdirSync: 2, realpathSync: 5, rmSync: 1, writeFileSync: 12,
     },
   },
   'src/panel/authorstart.js': {
     reason: 'M4e piece 2b: the ONE run-start path — creates ITS OWN start folder `<root>/.starts/<id>/` (mkdir 0700) and writes the one file it owns there (start.json 0600; M9: trigger.json 0600, once, the reason a triggered start has, inside the run folder it just claimed; cleared.json 0600, once, when the human dismisses a refused start; pid.json and child.log go through spawn.js); realpathSync of the typed --root at use time; existsSync of the new run dir (presence only, to refuse an id already used); rmdirSync of a run dir this start just claimed when the start is refused before the child runs (rmdir removes only an EMPTY folder). Every READ of a start folder and of the run dir (pids.jsonl, ask.json) goes through readFileInside/readPidRows/readdirInside, never fs directly.',
     names: {
-      existsSync: 1, mkdirSync: 5, realpathSync: 7, rmdirSync: 1, writeFileSync: 4,
+      existsSync: 1, mkdirSync: 5, realpathSync: 9, rmSync: 2, rmdirSync: 1, writeFileSync: 4,
     },
   },
   'src/panel/authortrigger.js': {
