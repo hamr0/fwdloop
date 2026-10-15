@@ -166,6 +166,24 @@ So in fwdloop terms:
 
 ---
 
+## Workflow or run
+
+A workflow is the job: its lines, guardrails, asks and steps. A run is one go at it,
+with its own inputs, destination, cap, ask wait, model and plan. Reuse workflow, on
+any run, opens every box; what you change decides the rest.
+
+| the run you start from | the job | you get | it drafts a new plan? |
+|---|---|---|---|
+| red | changed | a new workflow `<name>-N` | yes |
+| red | same | `run-N` of the same workflow | yes, the old plan failed |
+| green | changed | a new workflow `<name>-N` | yes |
+| green | same | `run-N` of the same workflow | no, it reuses that run's plan |
+
+The old workflow is never changed. A new workflow has no schedule until its first green.
+A stopped run uses Resume instead.
+
+---
+
 ## When something goes wrong
 
 | what happened | what it does | what you see | who decides |
