@@ -22,22 +22,20 @@ test('Must fail: the dropdown is refused on a job with no green run, with the se
   assert.equal(c.refusal, NO_GREEN_SAY);
   assert.equal(c.trigger, null);
   assert.equal(c.words, null);
-  assert.equal(c.editNote, null);
   const p = await w.post('/api/author/trigger-prepare', { flow: 'job2', trigger: DAILY });
   assert.equal(p.json().refused, 'no-green-run');
 });
 
-test('a job with one green run: card is open, then carries the trigger words and the am1 edit warning once set', async () => {
+test('a job with one green run: card is open, then carries the trigger words once set', async () => {
   const { w } = await greenWorld();
   const c0 = await cardOf(w);
-  assert.deepEqual([c0.hasGreenRun, c0.refusal, c0.trigger, c0.words, c0.editNote], [true, null, null, null, null]);
+  assert.deepEqual([c0.hasGreenRun, c0.refusal, c0.trigger, c0.words], [true, null, null, null]);
   const r = await setTrigger(w, { kind: 'weekly', day: 'mon', hour: 9, minute: 0 });
   assert.equal(r.status, 200, r.text);
   const c1 = await cardOf(w);
   assert.equal(c1.words, 'Mondays at 09:00');
   assert.deepEqual(c1.trigger, { kind: 'weekly', day: 'mon', hour: 9, minute: 0 });
   assert.equal(c1.hasGreenRun, true, 'changing only the trigger keeps the green run');
-  assert.match(c1.editNote, /^This job runs by itself \(Mondays at 09:00\)\. Signing this edit clears that back to By hand\./);
 });
 
 test('a passed run: ENDED "Goal met." / NEXT names the destination; no trigger = no SCHEDULED', async () => {

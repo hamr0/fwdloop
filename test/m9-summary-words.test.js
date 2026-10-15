@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-  catchUpWords, editClearsWords, endedWords, scheduledNextFor, scheduledWords, slotWords,
+  catchUpWords, endedWords, scheduledNextFor, scheduledWords, slotWords,
 } from '../src/summary-words.js';
 
 // the NEXT sentence alone
@@ -74,10 +74,8 @@ test('an unknown ending gets the honest fixed fallback, never a guess', () => {
   assert.equal(endedWords({ outcome: '<b>x</b> y z', line: null, destination: null, canResume: false }).reason, 'It ended with "bxbyz", which this panel has no sentence for.');
 });
 
-test('catch-up and the am1 edit warning', () => {
+test('catch-up words', () => {
   assert.match(catchUpWords({ catchUp: true }), /catch-up/);
   assert.equal(catchUpWords({ catchUp: false }), null);
   assert.equal(catchUpWords(null), null);
-  assert.equal(editClearsWords(null), null);
-  assert.match(editClearsWords({ kind: 'weekly', day: 'mon', hour: 9, minute: 0 }), /Mondays at 09:00.*clears that back to By hand/);
 });

@@ -69,13 +69,6 @@ export function nextInWords(ms, now) {
   return hours < 48 ? `next in ${hours}h` : `next in ${Math.floor(hours / 24)}d`;
 }
 
-/** am1, said before a human signs an edit of a job that has a trigger. @param {Trigger|null} t @param {string} [home] */
-export function editClearsWords(t, home) {
-  const w = scheduledWords(t, home);
-  if (w === null) return null;
-  return `This job runs by itself (${w}). Signing this edit clears that back to By hand. You can set it again once the new job has had one good run.`;
-}
-
 /**
  * NEXT of a job with a trigger. One sentence, first match wins:
  *  1. a run of this job is waiting at its ask (the next run waits too);
