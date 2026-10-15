@@ -19,6 +19,7 @@
 import {
   appendFileSync, mkdirSync, realpathSync, writeFileSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { userInfo } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
 
@@ -28,7 +29,7 @@ import { destinationRefusal, checkInputRows, runInputRows } from './authorcard.j
 import { endRow, readHistory } from '../books.js';
 import { loadCatalogue } from '../catalogue.js';
 import {
-  FLOW_FILES, checkFlowName, listFlowNames, listRunIds, readFileInside, readFlow, resolveRunDir, writeFlow,
+  FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, readFileInside, readFlow, readRunJobCopy, resolveRunDir, writeFlow,
 } from '../flow.js';
 import { parseSignedText } from '../signed-text.js';
 import { scheduledWords } from '../summary-words.js';
@@ -51,6 +52,8 @@ const HISTORY_FILE = 'triggers.jsonl';
 const SCHEDULE_MODEL_FILE = 'schedule-model.json';
 const SCHEDULE_DESTINATION_FILE = 'schedule-destination.json';
 const SCHEDULE_INPUTS_FILE = 'schedule-inputs.json';
+/** M6 am9: the plan a schedule runs, when it is a kept plan of the run the schedule was set from (not the workflow's own): `{run, flowHash, declSha}`. Written once by `set`. */
+const SCHEDULE_PLAN_FILE = 'schedule-plan.json';
 const HASH_RE = /^[0-9a-f]{64}$/;
 
 /** The folder holding the ledgers of ONE signed trigger. @param {string} flowDir @param {string} flowHash */
@@ -242,6 +245,23 @@ export function createTriggerDoor(opts) {
         scheduledInputs = declared.map((role) => ({ role, path: /** @type {{path: string}} */ (rows.find((r) => r.role === role)).path }));
       }
     }
+    // M6 am9: the schedule uses the plan of the run it was set from. The workflow's own plan = nothing to bind; a different kept plan is verified now and
+    // bound into the hash (the run, that plan's signature and the sha of its declaration), so the second click signs exactly this plan.
+    let scheduledPlan = null;
+    const planOf = typeof body?.planOf === 'string' ? body.planOf.trim() : '';
+    if (trigger !== null && planOf !== '') {
+      const rr = resolveRunDir(flowDir, planOf);
+      if (!rr.ok) return reply(400, { refused: 'plan', say: `"${planOf}" is not a run name. Nothing was changed.` });
+      const cat = loadCatalogue();
+      if (!cat.ok) return reply(500, { refused: 'catalogue', say: 'The catalogue could not be read. Nothing was changed.' });
+      const pf = planForReuse({ root: realRoot, name: flow, runDir: rr.runDir, catalogue: cat.primitives });
+      if (!pf.ok) return reply(409, { refused: 'plan', say: pf.red.replace('Nothing was started.', 'Nothing was changed.') });
+      if (!pf.same) {
+        const decl = readFileInside(rr.runDir, 'job/declaration.json');
+        if (!decl.ok) return reply(409, { refused: 'plan', say: `The plan ${planOf} kept cannot be read. Nothing was changed.` });
+        scheduledPlan = { run: planOf, flowHash: String(pf.read.signature.flow), declSha: createHash('sha256').update(decl.text).digest('hex') };
+      }
+    }
     const proseNow = readFileInside(flowDir, 'prose.txt');
     const declNow = readFileInside(flowDir, 'declaration.json');
     if (!proseNow.ok || !declNow.ok) return reply(400, { refused: 'flow', say: `"${flow}" cannot be read. Nothing was changed.` });
@@ -250,8 +270,8 @@ export function createTriggerDoor(opts) {
     if (!parsed.ok) return reply(400, { refused: 'bad-trigger', say: `That trigger does not fit the signed text (${parsed.reds[0]}). Nothing was changed.` });
     return {
       ok: /** @type {true} */ (true), flow, read, trigger, flowDir, realRoot, proseText, declaration: JSON.parse(declNow.text),
-      model: scheduledModel, destination: scheduledDestination, inputs: scheduledInputs,
-      hash: triggerHash({ flow, flowSignatureHash: read.signature.flow, trigger, model: scheduledModel, destination: scheduledDestination, inputs: scheduledInputs }),
+      model: scheduledModel, destination: scheduledDestination, inputs: scheduledInputs, plan: scheduledPlan,
+      hash: triggerHash({ flow, flowSignatureHash: read.signature.flow, trigger, model: scheduledModel, destination: scheduledDestination, inputs: scheduledInputs, plan: scheduledPlan }),
     };
   }
 
@@ -293,6 +313,7 @@ export function createTriggerDoor(opts) {
           if (s.model) once(SCHEDULE_MODEL_FILE, s.model);
           if (s.destination) once(SCHEDULE_DESTINATION_FILE, { destination: s.destination });
           if (s.inputs) once(SCHEDULE_INPUTS_FILE, s.inputs);
+          if (s.plan) once(SCHEDULE_PLAN_FILE, s.plan);
         } catch (e) { armed = false; armSay = /** @type {Error} */ (e).message; }
       }
       return { status: 200, body: { ok: true, flow: s.flow, trigger: s.trigger, words: scheduledWords(s.trigger), flowHash: written.signature.flow, armed, ...(armSay === null ? {} : { say: `The trigger is signed but not armed yet: ${armSay}.` }) } };
@@ -345,7 +366,8 @@ export function createTriggerDoor(opts) {
      *   start, once every check has passed: the scheduler writes the file's `ran` row there.
      */
     fire(job, cause, hooks = {}) {
-      const { flow, flowDir, read, trigger } = job;
+      const { flow, flowDir, read: flowRead, trigger } = job;
+      let read = flowRead;   // the plan this fire runs: the workflow's own, or (M6 am9) the kept plan of the run the schedule was set from
       const desc = describe(trigger);
       const base = {
         at: new Date(now()).toISOString(), flow, trigger: desc,
@@ -354,13 +376,28 @@ export function createTriggerDoor(opts) {
       const done = (/** @type {Record<string, any>} */ r) => { const row = /** @type {Record<string, any>} */ ({ ...base, ...r }); if (!(row.outcome !== 'started' && hooks.told?.(row))) appendOutcome(flowDir, row); return row; };
       const busy = flowsDoor.editBlock(flow);   // one run at a time per job: starting, running, or waiting at its ask
       if (busy !== null) return done({ outcome: 'busy', say: busy });
+      // M6 am9: a schedule set from a run that kept another plan runs THAT plan; it is re-verified now, against what the second click signed
+      let planRun = null;
+      const sp = readFileInside(triggerLedgerDir(flowDir, flowRead.signature.flow), SCHEDULE_PLAN_FILE);
+      if (sp.ok) {
+        let rec = null;
+        try { rec = JSON.parse(sp.text); } catch { /* unreadable: refused below */ }
+        const cat = loadCatalogue();
+        const rr = rec && typeof rec.run === 'string' ? resolveRunDir(flowDir, rec.run) : null;
+        const kept = rr && rr.ok && cat.ok ? readRunJobCopy(rr.runDir, cat.primitives) : null;
+        const decl = rr && rr.ok ? readFileInside(rr.runDir, 'job/declaration.json') : null;
+        const good = kept && kept.present && kept.ok && kept.signature.flow === rec.flowHash && decl && decl.ok && createHash('sha256').update(decl.text).digest('hex') === rec.declSha;
+        if (!good) return done({ outcome: 'refused', why: `The plan of ${rec && typeof rec.run === 'string' ? rec.run : 'the run this schedule was set from'} is no longer the one that was signed, so nothing started. Set the schedule again.` });
+        read = /** @type {any} */ (kept);
+        planRun = rec.run;
+      }
       const claim = monthlyClaim(read.arbiter.capUsd);   // the same check the Run door decides on
       if (claim && 'problem' in claim) return done({ outcome: 'refused', why: `${claim.problem}. Nothing spent.` });
       if (claim && !claim.ok) return done({ outcome: 'monthly-exhausted', leftUsd: claim.room.leftUsd, needUsd: claim.room.needUsd, atLeast: claim.room.atLeast === true });
       const roles = (read.arbiter.sources ?? []).map((x) => x.role);
       // M6 am5 item 3: the scheduled run's inputs, when the schedule carries them; else the newest run's (as before). A file trigger's own role is always the arriving file.
       let last = flowsDoor.lastSourcesOf(flow, roles).sources;
-      const sin = readFileInside(triggerLedgerDir(flowDir, read.signature.flow), SCHEDULE_INPUTS_FILE);
+      const sin = readFileInside(triggerLedgerDir(flowDir, flowRead.signature.flow), SCHEDULE_INPUTS_FILE);
       if (sin.ok) {
         try { const rows = JSON.parse(sin.text); last = { ...last, ...Object.fromEntries(rows.filter((r) => typeof r?.role === 'string' && typeof r?.path === 'string').map((r) => [r.role, r.path])) }; } catch { /* unreadable: the newest run's */ }
       }
@@ -378,12 +415,12 @@ export function createTriggerDoor(opts) {
       if (jobRec === null) return done({ outcome: 'refused', why: 'This job has no model recorded, so it cannot start by itself. Run it by hand once from the Chat card and pick a model. Nothing started.' });
       // M6 am5 item 3: the model this schedule was signed with (a run field) wins over the job's recorded one; it is signed into the run's own values
       let rec = jobRec; let values = null;
-      const sm = readFileInside(triggerLedgerDir(flowDir, read.signature.flow), SCHEDULE_MODEL_FILE);
+      const sm = readFileInside(triggerLedgerDir(flowDir, flowRead.signature.flow), SCHEDULE_MODEL_FILE);
       if (sm.ok) {
         try { const j = JSON.parse(sm.text); if (typeof j?.slot === 'string' && typeof j?.model === 'string' && j.model !== '') rec = { slot: j.slot, model: j.model }; } catch { /* unreadable: the job's own */ }
       }
       let destination = null;
-      const sd = readFileInside(triggerLedgerDir(flowDir, read.signature.flow), SCHEDULE_DESTINATION_FILE);
+      const sd = readFileInside(triggerLedgerDir(flowDir, flowRead.signature.flow), SCHEDULE_DESTINATION_FILE);
       if (sd.ok) {
         try { const j = JSON.parse(sd.text); if (typeof j?.destination === 'string' && j.destination !== '') destination = j.destination; } catch { /* unreadable: the flow's */ }
       }
@@ -403,7 +440,7 @@ export function createTriggerDoor(opts) {
       };
       hooks.beforeStart?.();
       const started = starter.start({
-        kind: 'trigger', flow, runId: '', sources, trigger: record, values,
+        kind: 'trigger', flow, runId: '', sources, trigger: record, values, planOf: planRun,
       }, loaded);
       if (started.status !== 202) return done({ outcome: 'refused', why: String(started.body.say ?? 'The run did not start.') });
       return done({ outcome: 'started', runId: started.body.runId, startId: started.body.startId });

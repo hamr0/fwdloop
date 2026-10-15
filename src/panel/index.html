@@ -4844,6 +4844,8 @@
       if(body.trigger !== null && rp.provider !== ""){ body.provider = rp.provider; body.model = rp.model; }
       // ... and so are its destination and inputs (the card's boxes, as filled from the run or changed here); the server drops a destination equal to the job's
       if(body.trigger !== null){ body.destination = runDestEl.value.trim(); body.inputs = readRows(runInputsEl); }
+      // M6 am9: the schedule uses the plan of the run whose Run tab it was set from (the server binds it only when that plan differs from the workflow's own)
+      if(body.trigger !== null && pickedRun){ body.planOf = pickedRun.runId; }
       var second = whenHash !== null;
       if(second) body.hash = whenHash;
       whenBusy = true; whenSyncButton();
