@@ -2344,6 +2344,16 @@ monthly wall is enforced **by the trigger**, before a run starts.
   4. **A problem turns the SCHEDULE block red: its label, both lines and its frame.** A problem is a last fire that started nothing (busy, month used up, refused). Line 2 shows its reason in plain words, then `next: fix it in Cancel / modify schedule`. When the next fire works, the block goes back to normal.
   5. The Job tab's **Started** line (amendment 6) ends with the run's start `MM/DD HH:MM`: `By hand · 10/15 13:46`.
   - **Must fail when:** ENDED or Started has no date and time; there is no SCHEDULE line (`By hand` included); a problem leaves the block's label, lines or frame not red; a fixed schedule stays red; or SCHEDULE disagrees with the Job tab's Schedule field.
+- **M9 amendment 8 — SIGNED by hamr 2026-10-15 ("sign m9 am8"): a run waiting at its ask doesn't block the next; the SCHEDULE line 2 words, matched with bareloop.**
+  1. **A run waiting at its ask no longer makes the job busy.** When a file arrives or the time comes, the next run starts and works up to its own ask. Waiting runs line up in the Inbox; you answer them one by one (Accept, Redo, and the rest). A run that is still working (or starting) keeps the job busy for the **schedule**: a file waits in the queue, a time slot records `busy`. **Your answer is never held back:** it goes on right away, even if another run of the job is working. **Replaces** M9 item 4's "or waiting at an ask" and its must-fail clause about it. A folder of several new files starts one run per file, one after another, each waiting at its own ask; only the monthly limit stops them, since each run holds its full cap when it starts.
+  2. **Every line 2 starts with** `last <MM/DD HH:MM>`, also for a fire that started nothing. Before the first fire it reads `no run yet`.
+  3. **Busy is not a problem.** Normal colour, no "fix it"; it clears by itself: `last 10/15 08:15 · busy: a run of this job was still working · next Fri 10/16 08:15`.
+  4. **A run waiting at its ask** (normal colour): `last 10/15 08:15 · run-15 · waiting for your answer (the next run does not wait) · next Fri 10/16 08:15`.
+  5. **Month used up** (red): `last 10/15 08:15 · month used up: $0.01 left, needs $0.50 · next: raise the limit in Settings, or it starts on the 1st`.
+  6. **Refused** (red): `last 10/15 08:15 · refused: <why> · next: fix it in Cancel / modify schedule`.
+  7. A schedule signed but not armed yet ends `next: not armed yet`.
+  8. **Red = refused, or month used up while it is still that month.** A later good start, or the 1st of the next month, clears it. **Replaces** amendment 7 item 4's "busy" as a problem, and its single `fix it` ending.
+  - **Must fail when:** a run waiting at its ask stops a new file's or time's run from starting; the schedule starts a run while another run of the job is working; your answer at an ask is held back because another run is working; busy turns the block red or says "fix it"; month used up points to Cancel / modify schedule; a line 2 has no `last` stamp after a fire.
 
 ## M10 — real IO
 
@@ -2439,3 +2449,10 @@ same run. Scope is stated when its turn comes.
   2. If the run is at an ask (waiting `[·]` or stuck `[II]`), the left side also moves to the **Inbox** with its ask selected. A stopped run `[■]` leaves the left side on Runs.
   3. **Replaces** amendment 1 item 2's "Click: as Running now", and takes "Needs you moving the left side to the Inbox" off amendment 1's "taken out" list.
   - **Must fail when:** a Needs you card opens any tab but Run; a waiting or stuck card leaves the left side on Runs; a stopped card moves the left side to the Inbox.
+- **M11 amendment 11 — SIGNED by hamr 2026-10-15 ("sign m11 am11"): Needs you: tags, expired asks, and leaving the pile.**
+  1. A run waiting at an ask carries the tag **Answer** (replaces **Accept** in amendment 1 item 2). **Resume** stays.
+  2. A run whose ask expired and can still be reopened is in Needs you with the tag **Reopen** (takes it off amendment 1's "not in Needs you" line). Its click works as amendment 10: Run on the right, the Inbox on the left.
+  3. An expired-ask run (on its Ask tab) and a stopped `[■]` or stuck `[II]` run (on its Run tab) show a button **Remove from Needs you**. It only takes the card out of Needs you: the run's status, its Inbox row, its Jobs card, Reopen and Resume all stay. It is written once, and Audit shows `removed from Needs you by you · <MM/DD HH:MM>`.
+  4. Such a card also leaves Needs you by itself 7 days after it joined (when the ask expired, or the run stopped). Audit shows `removed from Needs you after 7 days`.
+  5. Reopening or resuming a run that was removed puts it back only when it needs you again.
+  - **Must fail when:** a waiting run's tag reads anything but Answer; a reopenable expired ask is missing from Needs you; Remove changes the run's status or hides it from the Inbox or Jobs; a removed or 7-day-old card stays in Needs you; a run waiting at a live ask shows Remove.
