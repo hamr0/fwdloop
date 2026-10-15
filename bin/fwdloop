@@ -609,7 +609,7 @@ async function cmdResume(rest) {
   const catalogue = loaded.primitives;
 
   const planRunDir = (id) => { if (typeof id !== 'string') return null; const c = resolveRunDir(join(root, flowName), id); return c.ok ? c.runDir : null; }; // am9: a run that keeps its own plan reads it
-  const read = readRunPlan({ root, name: flowName, catalogue, runDir: planRunDir(runId) ?? '' }); // M9 am12: the run's own saved job
+  const read = planRunDir(runId) === null ? readPlan({ root, name: flowName, catalogue, runDir: null }) : readRunPlan({ root, name: flowName, catalogue, runDir: /** @type {string} */ (planRunDir(runId)) }); // M9 am12: the run's own saved job (a bad runId is refused by name just below)
   if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
   const { declaration } = read;
 
@@ -712,7 +712,7 @@ async function cmdContinue(rest) {
   const catalogue = loaded.primitives;
 
   const planRunDir = (id) => { if (typeof id !== 'string') return null; const c = resolveRunDir(join(root, flowName), id); return c.ok ? c.runDir : null; }; // am9: a run that keeps its own plan reads it
-  const read = readRunPlan({ root, name: flowName, catalogue, runDir: planRunDir(runId) ?? '' }); // M9 am12: the run's own saved job
+  const read = planRunDir(runId) === null ? readPlan({ root, name: flowName, catalogue, runDir: null }) : readRunPlan({ root, name: flowName, catalogue, runDir: /** @type {string} */ (planRunDir(runId)) }); // M9 am12: the run's own saved job (a bad runId is refused by name just below)
   if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
   const { declaration } = read;
 

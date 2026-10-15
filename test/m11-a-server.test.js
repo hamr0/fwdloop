@@ -129,7 +129,7 @@ test('listRuns: an answer saved and not taken, nothing carrying it on, is stuck 
   assert.equal(row.needs, 'Resume');
 });
 
-test('listRuns: a stopped run with the Resume button carries Resume; once the job is edited (no button) it carries none', async () => {
+test('listRuns: a stopped run with the Resume button carries Resume; once the workflow is re-signed it still does (M9 am12: it resumes from its own copy)', async () => {
   const w = await parkedRun('stop');
   requestStop(w.runDir);
   const stop = await stopParkedRun({ root: w.root, name: 'job2', runId: 'run-1', catalogue: CAT });
@@ -141,9 +141,9 @@ test('listRuns: a stopped run with the Resume button carries Resume; once the jo
   replaceJob(w, 'cap $0.25', 'cap $0.30');
   const edited = rowOf(w);
   assert.equal(edited.glyph, '[■]');
-  assert.equal(edited.label, EDITED);
-  assert.equal(edited.controls.canResume, false);
-  assert.equal(edited.needs, null);
+  assert.notEqual(edited.label, EDITED);
+  assert.equal(edited.controls.canResume, true);
+  assert.equal(edited.needs, 'Resume');
 });
 
 test('listRuns: a cap-halted run that can continue carries Resume (the same canResume answer)', async () => {
