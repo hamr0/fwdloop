@@ -2354,6 +2354,21 @@ monthly wall is enforced **by the trigger**, before a run starts.
   7. A schedule signed but not armed yet ends `next: not armed yet`.
   8. **Red = refused, or month used up while it is still that month.** A later good start, or the 1st of the next month, clears it. **Replaces** amendment 7 item 4's "busy" as a problem, and its single `fix it` ending.
   - **Must fail when:** a run waiting at its ask stops a new file's or time's run from starting; the schedule starts a run while another run of the job is working; your answer at an ask is held back because another run is working; busy turns the block red or says "fix it"; month used up points to Cancel / modify schedule; a line 2 has no `last` stamp after a fire.
+- **M9 amendment 9 — SIGNED by hamr 2026-10-15 ("sign m9 am9"): the schedule is its own section in Audit.** Replaces amendment 6 items 3 and 4.
+  1. Every run of a job that has a schedule gets one **schedule** section at the top of its Audit tab. It looks like the drafting and step sections, and it's **always folded** when the page opens. No schedule now means no section.
+  2. Folded: `▸ schedule  <sign> new file in ~/fwdloop-in · from run-7 · 2 tries started nothing`
+  3. Unfolded, on a run the schedule started:
+     `this run    10/15 20:43  started by the schedule · new file aging-oct.csv`
+     `tries       10/15 20:57  refused: <why>. Nothing started.`
+     `            10/15 20:43  busy: a run of this job was still working. Nothing started.`
+     On a hand run: `this run  10/15 13:20  by hand.` On the run the schedule was set from, it adds: ` The schedule was set from this run.`
+  4. `tries` lists the fires that started nothing (busy, month used up, refused): newest first, at most 7, across every signing. If there are none, it reads `none`.
+  5. The head words come from the same place as the Run tab's SCHEDULE line 1. The sign turns red when SCHEDULE is red.
+  - **Must fail when:** the section is missing on a run of a scheduled job; it opens unfolded; it shows on a job with no schedule; tries shows more than 7 or a fire that started a run.
+- **M9 amendment 10 — SIGNED by hamr 2026-10-15 ("sign m9 am10"): Cancel schedule always works.** **Cancel** in Cancel / modify schedule works even while a run of the job is starting, working or waiting at its ask. It only stops future runs from starting: runs already going or waiting stay as they are. Changing the schedule to a new one stays refused until no run is starting, working or waiting (as M6).
+  - **Must fail when:** Cancel is refused because a run is waiting or working; Cancel changes or stops a run that already started; a new schedule is accepted while a run waits.
+- **M9 amendment 11 — SIGNED by hamr 2026-10-15 ("sign m9 am11"): the sign in the Audit schedule head.** Fills amendment 9's `<sign>`: **`[▶]`** amber while a run of the job is running; **`[✗]`** red when the Run tab's SCHEDULE block is red; otherwise **`[·]`** grey (the schedule is on and waiting). Same rule as bareloop.
+  - **Must fail when:** the head shows `[▶]` with no run running; it isn't `[✗]` while SCHEDULE is red.
 
 ## M10 — real IO
 
@@ -2456,3 +2471,5 @@ same run. Scope is stated when its turn comes.
   4. Such a card also leaves Needs you by itself 7 days after it joined (when the ask expired, or the run stopped). Audit shows `removed from Needs you after 7 days`.
   5. Reopening or resuming a run that was removed puts it back only when it needs you again.
   - **Must fail when:** a waiting run's tag reads anything but Answer; a reopenable expired ask is missing from Needs you; Remove changes the run's status or hides it from the Inbox or Jobs; a removed or 7-day-old card stays in Needs you; a run waiting at a live ask shows Remove.
+- **M11 amendment 12 — SIGNED by hamr 2026-10-15 ("sign m11 am12"): job · run in the top lists.** In **Running now**, **Needs you** and **Scheduled** only, a run reads `aging-live-4 · run-15` (job, a middle dot, run-N). Everything else stays as it is. Search still finds `run-15` and `(run-15)`.
+  - **Must fail when:** a top card shows the run without the dot; a Jobs card changes; a search for `run-15` stops finding it.
