@@ -2439,6 +2439,7 @@
     } else if(c.canResume){
       el.appendChild(makeButton("Resume", "run-resume", function(){ if(window.fwdloopOpenResume) window.fwdloopOpenResume(detail); }));
     }
+    else if(c.noCopySay){ var nc = document.createElement("div"); nc.className = "answer-msg refused"; nc.setAttribute("data-testid", "run-no-copy-say"); nc.textContent = c.noCopySay; el.appendChild(nc); }
     // M11 am11 item 3: a stopped / stuck run in Needs you can leave it; the Run tab's own button, shown only when the server says it is removable
     if(detail.needsYou && detail.needsYou.removable) el.appendChild(makeRemoveNeedsButton(detail.flow, detail.runId, function(){ return reloadRun(detail.flow, detail.runId); }));
     if(stopSay){ var m = document.createElement("div"); m.className = "answer-msg refused"; m.setAttribute("data-testid", "run-stop-say"); m.textContent = stopSay.text; el.appendChild(m); }

@@ -333,3 +333,6 @@ export function endedLineWords(at, word, reason) {
   const stamp = at ? shortStamp(at) : '';
   return [stamp || null, word || null, reason].filter((x) => x !== null).join(' · ');
 }
+
+/** M9 am12: what a stopped run with no kept copy of its job says where Resume would be (a run made before runs kept one). The one owner of these words. */
+export const NO_COPY_SAY = 'This run started before runs kept their own copy of the job, so it cannot carry on. Start a new run.';

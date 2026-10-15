@@ -40,7 +40,7 @@ import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../r
 import { readSetup } from '../setup.js';
 import { checkedLines, notCheckedBlock, NOT_CHECKED_LABEL } from '../checked.js';
 import {
-  catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
+  NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import {
@@ -928,6 +928,7 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     flowDir,
     runDir,
     flowRead,
+    ownCopy,
     // the arbiter this run executes under (the flow's own unless the run has signed values), or null when the flow does not read
     arbiter: inForce && inForce.ok ? inForce.arbiter : (flowRead.ok ? flowRead.arbiter : null),
     historyRow,
@@ -1032,7 +1033,7 @@ const isRunningNow = (ctx, glyph) => !ctx.historyRow && glyph === '[▶]';
  * same object, so the page never offers what the door would refuse). `running` is the glyph's own rule (`isRunningNow`);
  * a run with no process record yet is `starting`; a parked run (`[·]`/`[!]`, an open ask) is neither.
  * @param {any} ctx `loadRunContext`'s result @param {string} glyph `computeGlyph`'s sign
- * @returns {{canStop: boolean, atAsk: boolean, stopRequested: boolean, starting: boolean, canResume: boolean, resumeOutcome: string|null, spentUsd: number|null, spendComplete: boolean|null, capUsd: number|null}}
+ * @returns {{canStop: boolean, atAsk: boolean, stopRequested: boolean, starting: boolean, canResume: boolean, noCopySay: string|null, resumeOutcome: string|null, spentUsd: number|null, spendComplete: boolean|null, capUsd: number|null}}
  */
 export function runControls(ctx, glyph, label = '') {
   // M6 F1: ask.json stays on disk once the human has answered, so it blocks `running` only while the ask is unanswered
@@ -1048,6 +1049,8 @@ export function runControls(ctx, glyph, label = '') {
     stopRequested: running && stopPending(ctx.runDir),
     starting,
     canResume,
+    // M9 am12: a run that would be resumable but has no kept copy says why, never silence
+    noCopySay: ctx.resumable === true && ctx.ownCopy === false ? NO_COPY_SAY : null,
     resumeOutcome: canResume ? ctx.historyRow.outcome : null,
     spentUsd: canResume && typeof ctx.historyRow.spentUsd === 'number' ? ctx.historyRow.spentUsd : null,
     spendComplete: canResume ? ctx.historyRow.spendComplete !== false : null,

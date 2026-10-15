@@ -100,3 +100,19 @@ test('Must fail: a stopped run whose workflow was re-signed loses Resume, or Con
   const r = await continueRun({ ...w.args, askStep: makeParkingAskStep() });
   assert.ok(!/signature mismatch|saved copy of its job/.test(String(r.red ?? '')), `carried on from its own copy: ${r.red}`);
 });
+
+test('Must fail: a stopped run with no saved copy shows no Resume AND no sentence (it must say why, one owner for the words)', async () => {
+  const { rmSync } = await import('node:fs');
+  const { NO_COPY_SAY } = await import('../src/summary-words.js');
+  const w = await parkedRun('nocopysay', { stopAtAsk: true });
+  const own = getRunControls({ root: w.root, flow: 'job2', runId: 'run-1', catalogue: CAT });
+  assert.equal(own.canResume, true, 'a run with its copy resumes');
+  assert.equal(own.noCopySay, null, 'and says nothing');
+  rmSync(path.join(w.runDir, 'job'), { recursive: true, force: true });
+  const c = getRunControls({ root: w.root, flow: 'job2', runId: 'run-1', catalogue: CAT });
+  assert.equal(c.canResume, false);
+  assert.equal(c.noCopySay, 'This run started before runs kept their own copy of the job, so it cannot carry on. Start a new run.');
+  assert.equal(c.noCopySay, NO_COPY_SAY);
+  const page = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
+  assert.match(page, /c\.noCopySay[\s\S]{0,300}run-no-copy-say/, 'the Run tab draws it where Resume would be');
+});
