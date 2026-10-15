@@ -295,20 +295,21 @@ export function createFlowsDoor(opts) {
 
     /**
      * `POST /api/author/reuse-check` (M6 am6 item 2): what the ONE Reuse card's button is for the fields as typed, decided here, at $0, writes nothing.
-     * Any job field changed (lines, guardrails, asks, steps) = `draft` (with the next free name); else a destination, cap or ask wait different from the
-     * signed value = `sign-run` (with the hash the second click carries); else `run`. The run's colour never enters. `fromRun` (the run the card was
-     * opened from) is the page's own key and is dropped before the run checks; `job` is read here and never reaches the run door.
+     * Any job field changed (lines, guardrails, asks, steps) = `draft` (with the next free name); else a RED source run (`[✗]`, M6 am9) = `draft` with `runOf: true`; else a destination, cap or ask wait different from the
+     * signed value = `sign-run` (with the hash the second click carries); else `run`. Only a red run's colour enters, and the server reads it. `fromRun` (the run the card was
+     * opened from) is dropped before the run checks; `job` is read here and never reaches the run door.
      * @param {any} body
      */
     reuseCheck(body) {
       const { job, fromRun, ...rest } = body && typeof body === 'object' ? body : /** @type {any} */ ({});
-      void fromRun;
       const realRoot = realRootOrNull();
       if (realRoot !== null && typeof job === 'string' && typeof rest.flow === 'string' && checkFlowName(rest.flow).ok) {
         const read = readSigned(realRoot, rest.flow);
         if (read.ok && jobKeyOfCard(job) !== jobKeyOfSigned(read)) {
           return { status: 200, body: { ok: true, kind: 'draft', suggestedName: suggestFlowName(realRoot, rest.flow) } };
         }
+        // M6 am9: a RED run always drafts. The job is unchanged here, so the new plan is the next run of the SAME workflow (no new name). Only `[✗]` is red.
+        if (read.ok && this.runIsRed(rest.flow, fromRun)) return { status: 200, body: { ok: true, kind: 'draft', runOf: true } };
       }
       const r = this.runPrepare(rest);
       if (r.status !== 200) return r;

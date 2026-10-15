@@ -4123,6 +4123,7 @@
     var reuseOf = null;          // M6 am5/am6: the signed workflow this New card drafts a CHANGED job from: { flow } (ONE writer each: startReuseDraft sets it, leaveReuse clears it); null = a new job
     var reuseKind = null;        // the server's answer for the Reuse card: "run" | "sign-run" | "draft" (null = not asked yet); ONE writer: checkReuse
     var reuseName = "";          // the next free name the server suggested for a "draft"
+    var reuseRunOf = false;      // M6 am9: the "draft" is a RED run's redraft of an unchanged job: a run of the SAME workflow, no new name (ONE writer: checkReuse)
     var reuseSeq = 0, reuseTimer = null;
     var reuseBusy = false;       // an edit was made and the server has not answered yet: the main button waits, so it never shows a stale label
     var mode = "new";            // "new" | "run" | "resume"
@@ -4517,7 +4518,7 @@
     function startReady(){
       if(moneyRed) return false;   // amendment 4 item 1: a cap that does not fit this month stops you before the click (the server still refuses)
       if(mode === "run"){
-        return !!selectedFlow() && readRows(runInputsEl).every(function(r){ return r.path !== ""; }) && capValid(runCapEl.value.trim()) && (reuseKind !== "draft" || newNameEl.value.trim() !== "");
+        return !!selectedFlow() && readRows(runInputsEl).every(function(r){ return r.path !== ""; }) && capValid(runCapEl.value.trim()) && (reuseKind !== "draft" || reuseRunOf || newNameEl.value.trim() !== "");
       }
       if(mode === "resume"){
         return !!resumeCtx && capValid(resumeCapEl.value.trim());
@@ -4675,7 +4676,7 @@
       return b;
     }
     function paintReuseKind(){
-      newNameField.hidden = !(mode === "run" && reuseKind === "draft");
+      newNameField.hidden = !(mode === "run" && reuseKind === "draft" && !reuseRunOf);
     }
     function checkReuse(){
       if(mode !== "run" || !selectedFlow()){ reuseKind = null; reuseBusy = false; paintReuseKind(); return; }
@@ -4685,7 +4686,9 @@
         if(seq !== reuseSeq) return;   // a newer edit asked again: only the last answer is shown
         reuseBusy = false;
         reuseKind = (r.status === 200 && r.body && r.body.ok === true) ? r.body.kind : null;
-        if(reuseKind === "draft"){ if(r.body.suggestedName !== reuseName){ reuseName = r.body.suggestedName; newNameEl.value = reuseName; } }
+        reuseRunOf = reuseKind === "draft" && r.body.runOf === true;
+        if(reuseRunOf){ newNameEl.value = ""; reuseName = ""; }
+        else if(reuseKind === "draft"){ if(r.body.suggestedName !== reuseName){ reuseName = r.body.suggestedName; newNameEl.value = reuseName; } }
         else { newNameEl.value = ""; reuseName = ""; }
         paintReuseKind(); refreshStartEnabled();
       }).catch(function(){ if(seq === reuseSeq){ reuseBusy = false; reuseKind = null; paintReuseKind(); refreshStartEnabled(); } });
@@ -4700,16 +4703,18 @@
     function startReuseDraft(){
       var f = selectedFlow();
       if(!f || mode !== "run" || cardLocked() || sessionLive) return;
-      reuseOf = {flow: f.flow};
+      reuseOf = reuseRunOf ? {flow: f.flow, fromRun: pickedRun ? pickedRun.runId : ""} : {flow: f.flow, fromRun: pickedRun ? pickedRun.runId : undefined};
       var rows = readRows(runInputsEl);
       var waits = runWaits();
       var firstWait = Object.keys(waits).map(function(k){ return waits[k]; }).filter(function(w){ return w !== ""; })[0] || "1h";
       var pk = runPickChoice();
       setMode("new");
-      setVal("jf-name", newNameEl.value.trim()); setVal("jf-job", jobBoxEl.value); setVal("jf-cap-money", runCapEl.value.trim());
+      setVal("jf-name", reuseRunOf ? f.flow : newNameEl.value.trim()); setVal("jf-job", jobBoxEl.value); setVal("jf-cap-money", runCapEl.value.trim());
       setVal("jf-dest-folder", runDestEl.value.trim()); setVal("jf-inputs", rows.map(function(r){ return r.role + ": " + r.path; }).join("\n")); setVal("jf-ask-wait", firstWait);
       if(pk.provider !== "") setModelPick(pk.provider, pk.model);
-      editBannerEl.textContent = "Reusing \u201c" + f.flow + "\u201d with a changed job. Draft it, read the new plan, then sign: it becomes a new workflow and \u201c" + f.flow + "\u201d is not touched.";
+      editBannerEl.textContent = reuseRunOf
+        ? "Reusing \u201c" + f.flow + "\u201d after a failed run. Draft a new plan, read it, then sign: it becomes the next run of \u201c" + f.flow + "\u201d, which is not changed."
+        : "Reusing \u201c" + f.flow + "\u201d with a changed job. Draft it, read the new plan, then sign: it becomes a new workflow and \u201c" + f.flow + "\u201d is not touched.";
       editBannerEl.hidden = false;
       chatActionOk();
       refreshCapNote(); fitCardBoxes();
@@ -4738,7 +4743,7 @@
       var pm = (pickedRun && pickedRun.model) ? pickedRun.model : (f && f.model ? f.model : null);
       if(pm){ runPicked = {provider: pm.slot, model: pm.model}; }
       syncRunPick();
-      reuseKind = null; reuseName = ""; newNameEl.value = ""; paintReuseKind();
+      reuseKind = null; reuseRunOf = false; reuseName = ""; newNameEl.value = ""; paintReuseKind();
       runDestEl.value = v && v.destination ? v.destination : "";
       runDestEl.readOnly = !(f && f.hasSend);
       runDestEl.classList.toggle("locked", !(f && f.hasSend));

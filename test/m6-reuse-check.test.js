@@ -25,16 +25,16 @@ async function reuseBody(w, over = {}) {
 }
 const check = (w, body) => w.post('/api/author/reuse-check', body);
 
-test('reuse-check: nothing changed, or inputs only = run (one click); a red run decides nothing', async () => {
+test('reuse-check: nothing changed, or inputs only = run (one click); a stopped run decides nothing', async () => {
   const w = await signedWorld();
   const a = await check(w, await reuseBody(w));
   assert.equal(a.status, 200, a.text);
   assert.equal(a.json().kind, 'run');
   const b = await check(w, await reuseBody(w, { inputs: [{ role: 'resume', path: path.join(w.inDir, 'jd.md') }, { role: 'jd', path: path.join(w.inDir, 'resume.md') }] }));
   assert.equal(b.json().kind, 'run', 'inputs alone are a Run');
-  w.seedPassed('job2', 'seed-red', { outcome: 'red' });
-  const c = await check(w, await reuseBody(w, { fromRun: 'seed-red' }));
-  assert.equal(c.json().kind, 'run', 'a red run with only inputs changed is not forced to draft');
+  w.seedPassed('job2', 'seed-stop', { outcome: 'stopped' });
+  const c = await check(w, await reuseBody(w, { fromRun: 'seed-stop' }));
+  assert.equal(c.json().kind, 'run', 'a stopped run decides nothing (M6 am9 replaced the red-run clause: see m6-am9-reuse-check)');
 });
 
 test('reuse-check: destination, cap or an ask wait changed = sign-run with a hash (no drafting)', async () => {
