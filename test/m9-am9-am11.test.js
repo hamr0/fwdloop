@@ -183,7 +183,11 @@ for (const width of [1280, 390, 320]) {
     const raw = await q('document.querySelector("[data-testid=audit-group-schedule]").textContent');
     assert.doesNotMatch(raw, /this run\d|tries\d/, 'a gap in the markup text too');
     // desktop: label, stamp, words. Phone: the step rows' one line (label, words, time), the stamp's HH:MM at the end, as a step row
-    assert.match(txt, width === 1280 ? /tries\s+10\/14 09:00\s+refused/ : /tries\s+refused[\s\S]*09:00/, 'label, then the stamp, then the words');
+    assert.match(txt, width === 1280 ? /tries\s+10\/14 09:00\s+refused/ : /tries\s+refused[\s\S]*10\/14 09:00/, 'label, then the stamp, then the words');
+    const cut = await q('(function(){ var n = document.querySelector("[data-testid=audit-group-schedule] .audit-fold-name"); return {text: n.textContent, over: n.scrollWidth - n.clientWidth}; })()');
+    assert.deepEqual(cut, { text: 'schedule', over: 0 }, `the title word is shown in full at ${width}`);
+    const stamps = await q('Array.from(document.querySelectorAll("[data-testid=audit-table-schedule] td.am-time")).map(function(n){ return n.textContent; })');
+    assert.ok(stamps.includes('10/14 09:00'), `the date shows at every width: ${JSON.stringify(stamps)}`);
     const spill = await q('document.documentElement.scrollWidth - document.documentElement.clientWidth');
     assert.ok(spill <= 0, `sideways scroll ${spill}px at ${width}`);
     const rows = await q(`Array.from(document.querySelectorAll("${sel}")).map(function(r){ return r.scrollWidth - r.clientWidth; })`);

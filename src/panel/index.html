@@ -423,6 +423,9 @@
   .audit-fold-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .audit-fold-tail{flex:none;white-space:nowrap;}
   .audit-fold-dot{flex:none;}
+  /* the schedule head: the title word always shows in full; its long head words wrap instead */
+  .audit-group.audit-fold h4.audit-status-header > .audit-fold-name.keep{flex:none;overflow:visible;}
+  .audit-group.audit-fold h4.audit-status-header > .audit-fold-tail.wrap{flex:0 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;}
   .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6  ";color:var(--text-faint);}
   .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC  ";}
   .audit-group.audit-fold h4.audit-status-header::after{content:none;}
@@ -2681,7 +2684,7 @@
   // Phone: the same one line (glyph, label, words, time) and a tap opens the full words, through the same `.am-*` cells. `r` is the server's {label, stamp, text}.
   function buildAuditScheduleRowEl(r){
     var tr = document.createElement("tr");
-    var shortStamp = (typeof r.stamp === "string" && r.stamp.length > 0) ? r.stamp.slice(-5) : "\u2014";   // "10/15 13:20" -> "13:20"
+    var shortStamp = (typeof r.stamp === "string" && r.stamp.length > 0) ? r.stamp : "\u2014";   // the signed `MM/DD HH:MM`, date included, at every width
     var cells = [
       ["", "Step", r.label], ["", "Action", r.stamp], ["", "Verdict", r.text],
       ["am am-glyph", null, "\u00b7"], ["am am-time", null, shortStamp],
@@ -2858,11 +2861,11 @@
       sh.className = "audit-status-header";
       sh.setAttribute("role", "button"); sh.setAttribute("tabindex", "0"); sh.setAttribute("aria-expanded", "false");
       sh.style.cursor = "pointer";
-      var sname = document.createElement("span"); sname.className = "audit-fold-name"; sname.textContent = "schedule"; sh.appendChild(sname);
+      var sname = document.createElement("span"); sname.className = "audit-fold-name keep"; sname.textContent = "schedule"; sh.appendChild(sname);
       var ssign = document.createElement("span");
       ssign.className = "badge sign-badge " + (sc.sign === "[\u25B6]" ? "amber" : sc.sign === "[\u2717]" ? "red" : "grey");
       ssign.setAttribute("data-testid", "audit-schedule-sign"); ssign.textContent = sc.sign; sh.appendChild(ssign);
-      var stail = document.createElement("span"); stail.className = "audit-fold-tail"; stail.setAttribute("data-testid", "audit-schedule-head"); stail.textContent = sc.head; sh.appendChild(stail);
+      var stail = document.createElement("span"); stail.className = "audit-fold-tail wrap"; stail.setAttribute("data-testid", "audit-schedule-head"); stail.textContent = sc.head; sh.appendChild(stail);
       var sl = document.createElement("table");
       sl.setAttribute("data-testid", "audit-table-schedule"); sl.hidden = true;
       sl.innerHTML = "<thead><tr><th>Row</th><th>When</th><th>What</th></tr></thead><tbody></tbody>";
