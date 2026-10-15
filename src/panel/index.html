@@ -2441,6 +2441,8 @@
     } else if(c.canResume){
       el.appendChild(makeButton("Resume", "run-resume", function(){ if(window.fwdloopOpenResume) window.fwdloopOpenResume(detail); }));
     }
+    // M11 am11 item 3: a stopped / stuck run in Needs you can leave it; the Run tab's own button, shown only when the server says it is removable
+    if(detail.needsYou && detail.needsYou.removable) el.appendChild(makeRemoveNeedsButton(detail.flow, detail.runId, function(){ return reloadRun(detail.flow, detail.runId); }));
     if(stopSay){ var m = document.createElement("div"); m.className = "answer-msg refused"; m.setAttribute("data-testid", "run-stop-say"); m.textContent = stopSay.text; el.appendChild(m); }
     el.hidden = el.children.length === 0;
   }
@@ -2825,6 +2827,15 @@
       container.appendChild(srow);
       anyVisible = true;
     }
+    // M11 am11 items 3-4: why the card left Needs you, in the server's words
+    if(result.needsLeft){
+      var nrow = document.createElement("div");
+      nrow.className = "audit-sched-start";
+      nrow.setAttribute("data-testid", "audit-needs-left");
+      nrow.textContent = result.needsLeft;
+      container.appendChild(nrow);
+      anyVisible = true;
+    }
     if(result.scheduleGroup){
       var sg = result.scheduleGroup;
       var sw = document.createElement("div");
@@ -2962,7 +2973,7 @@
     var content = document.getElementById("audit-content");
     lastAuditResult = result;
     // a run with no audit rows yet still has its Draft: say so in words, and show the card
-    var hasDraft = !!(result && (result.draft || result.scheduleStarted || result.scheduleGroup));
+    var hasDraft = !!(result && (result.draft || result.scheduleStarted || result.scheduleGroup || result.needsLeft));
     if(!result || (result.empty && !hasDraft)){
       empty.hidden = false;
       empty.textContent = (result && result.why) || "no audit rows for this run";
@@ -3783,6 +3794,14 @@
       return reloadRun(ctx.flow, ctx.runId);
     }).then(function(){ if(root.isConnected) setBusy(root, false); });
   }
+  // M11 am11 item 3: Remove from Needs you. One door for the Ask tab (expired ask) and the Run tab (stopped / stuck): the server writes the marker and changes nothing else.
+  function makeRemoveNeedsButton(flow, runId, after){
+    var b = makeButton("Remove from Needs you", "needs-remove", function(){
+      b.disabled = true;
+      postJSON("/api/needs-remove", { flow: flow, runId: runId }).then(function(){ reloadLists(); return after(); }).catch(function(){ b.disabled = false; });
+    });
+    return b;
+  }
   function makeButton(label, testid, onClick){
     var b = document.createElement("button");
     b.type = "button";
@@ -3845,6 +3864,8 @@
       var bar3 = document.createElement("div");
       bar3.className = "actions-row";
       bar3.appendChild(makeButton("Reopen for another " + waitText(model.waitMs), "btn-reopen", function(){ sendReopen(root, ctx, ask.askId); }));
+      // M11 am11 item 3: an expired-ask run that is in Needs you can leave it; the server (`needsYou.removable`) says so, never a live ask
+      if(ctx.removable) bar3.appendChild(makeRemoveNeedsButton(ctx.flow, ctx.runId, function(){ return reloadRun(ctx.flow, ctx.runId); }));
       root.appendChild(bar3);
       root.appendChild(textDiv("hint", model.line));
     } else if(model.kind === "stuck"){
@@ -3995,7 +4016,7 @@
   // One block per signed ask line (M4c item 5), drawn from the server's `blocks`.
   function renderAskRow(block, expanded, ctx){
     var ask = block.current;
-    ctx = { flow: ctx.flow, runId: ctx.runId, resume: ctx.resume, draftNo: block.draftNo };
+    ctx = { flow: ctx.flow, runId: ctx.runId, resume: ctx.resume, removable: ctx.removable, draftNo: block.draftNo };
     var wrap = document.createElement("div");
     wrap.className = "audit-group";
     wrap.setAttribute("data-testid", "ask-block-" + (block.stepName || "no-step"));
@@ -4093,7 +4114,7 @@
       var expanded = focusAskId ? block.askIds.indexOf(focusAskId) !== -1 : (ask.open || blocks.length === 1);
       var prev = kept["ask-block-" + (block.stepName || "no-step")];
       if(prev && prev.open === String(!!ask.open)) expanded = prev.expanded;
-      var row = renderAskRow(block, expanded, { flow: result.flow, runId: result.runId, resume: result.resume || null });
+      var row = renderAskRow(block, expanded, { flow: result.flow, runId: result.runId, resume: result.resume || null, removable: !!(result.needsYou && result.needsYou.removable) });
       // hamr's 2026-09-27 exit-check review #3: "the ask opened from the
       // Inbox gets a visible highlight" — a REAL Inbox click (`focusAskId`
       // set) on THIS ask, never a run's own default open-ask expansion

@@ -182,7 +182,7 @@ test('M11 am6: Running now and Scheduled line 1: the time, cost and next-run tex
   // no next-run time (a file trigger): nothing is made up
   assert.equal(text(l1(lib.rlScheduledCardHtml({ flow: 'k', at: null, in: null, words: 'file', runId: null }))), 'k');
   // Needs you keeps its pill
-  assert.match(lib.rlJumpCardHtml(run('x', 1, { needs: 'Accept' }), true), /rl-pill-need/);
+  assert.match(lib.rlJumpCardHtml(run('x', 1, { needs: 'Answer' }), true), /rl-pill-need/);
 });
 
 test('M11 am7 item 1: 10-13, 10/13 and 2026-10-13 mean the same local day', () => {

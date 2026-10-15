@@ -50,7 +50,7 @@ const text = (html) => html.replace(/<span class="dot (\w+)[^"]*"><\/span>/g, (_
 test('order and hiding: Running now, Needs you, Scheduled, then Jobs, then the quiet fold; a section with 0 items draws nothing', () => {
   const rows = [
     run('aging', 5, { glyph: '[▶]', live: true, word: 'running', label: 'running', startedAt: '2026-10-13T10:00:00.000Z', at: null }),
-    run('inv', 2, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Accept' }),
+    run('inv', 2, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Answer' }),
     run('old', 1, { at: '2026-08-01T00:00:00.000Z' }),
   ];
   const data = payload(rows, [meta('aging'), meta('inv'), meta('old', true)], [{ flow: 'aging', at: 'today 17:00', in: 'next in 3h', words: 'Weekdays at 17:00' }]);
@@ -72,7 +72,7 @@ test('order and hiding: Running now, Needs you, Scheduled, then Jobs, then the q
 test('Must fail when a filter or search hides a Running now, Needs you or Scheduled card: they never read the filters', () => {
   const rows = [
     run('aging', 5, { glyph: '[▶]', live: true, word: 'running', label: 'running', startedAt: '2026-10-13T10:00:00.000Z' }),
-    run('inv', 2, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Accept' }),
+    run('inv', 2, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Answer' }),
     run('kyc', 3, { glyph: '[II]', word: 'stuck', label: 'stuck', needs: 'Resume' }),
   ];
   const data = payload(rows, [meta('aging'), meta('inv'), meta('kyc')], [{ flow: 'aging', at: 'today 17:00', in: 'next in 3h', words: 'Weekdays at 17:00' }]);
@@ -88,14 +88,14 @@ test('Must fail when a filter or search hides a Running now, Needs you or Schedu
 test('the Needs-you tag is the server\'s: the page shows what `needs` says and works out nothing from the sign', () => {
   const rows = [
     run('a', 1, { glyph: '[II]', word: 'stuck', label: 'stuck', needs: null }), // the server said no: not in Needs you
-    run('b', 1, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Accept' }),
+    run('b', 1, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Answer' }),
     run('c', 1, { glyph: '[■]', word: 'stopped', label: 'stopped', needs: 'Resume' }),
     run('d', 1, { glyph: '[!]', word: 'expired', label: 'expired', needs: null }),
   ];
   const m = model(payload(rows, rows.map((r) => meta(r.flow))));
-  assert.deepEqual(m.needs.map((r) => [r.flow, r.needs]), [['b', 'Accept'], ['c', 'Resume']]);
+  assert.deepEqual(m.needs.map((r) => [r.flow, r.needs]), [['b', 'Answer'], ['c', 'Resume']]);
   const html = lib.rlTopHtml(m);
-  assert.match(html, /class="rl-pill rl-pill-need"[^>]*>Accept</);
+  assert.match(html, /class="rl-pill rl-pill-need"[^>]*>Answer</);
   assert.match(html, /class="rl-pill rl-pill-need"[^>]*>Resume</);
   assert.doesNotMatch(html.replace(/<span class="rl-pill[^>]*>[^<]*<\/span>/g, ''), /Accept|Resume/, 'the tag is a label, not a button');
 });
@@ -103,7 +103,7 @@ test('the Needs-you tag is the server\'s: the page shows what `needs` says and w
 test('cards: Running now / Needs you jump; the tag is a label; the Scheduled card jumps to the newest run of its job (am4 item 2); lines per am1', () => {
   const rows = [
     run('aging', 12, { glyph: '[▶]', live: true, word: 'running', label: 'running', startedAt: '2026-10-13T10:00:00.000Z', at: null, spend: 'at least $0.0042' }),
-    run('inv', 2, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Accept', askedAt: null, at: '2026-10-13T19:12:00.000Z' }),
+    run('inv', 2, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Answer', askedAt: null, at: '2026-10-13T19:12:00.000Z' }),
   ];
   const data = payload(rows, [meta('aging'), meta('inv')], [{ flow: 'aging', at: 'tomorrow 09:00', in: 'next in 11h', words: 'Weekdays at 09:00', runId: 'run-12' }]);
   const html = lib.rlTopHtml(model(data));
@@ -115,7 +115,7 @@ test('cards: Running now / Needs you jump; the tag is a label; the Scheduled car
   assert.match(run1, /data-rl-since="2026-10-13T10:00:00\.000Z"/, 'time so far ticks in place from the start time');
   assert.match(need, /^<button[^>]*data-rl-jump="inv\|run-2"/);
   assert.match(need, /class="[^"]*rl-need/);
-  assert.equal(text(need.slice(0, need.indexOf('</button>'))), `[·]inv run-2Acceptwaiting on you · ${short('2026-10-13T19:12:00.000Z')}`, 'why · date, no sign word');
+  assert.equal(text(need.slice(0, need.indexOf('</button>'))), `[·]inv run-2Answerwaiting on you · ${short('2026-10-13T19:12:00.000Z')}`, 'why · date, no sign word');
   assert.doesNotMatch(need.slice(0, need.indexOf('</button>')), /sign-word/);
   assert.match(sched, /^<button class="rl-card"[^>]*type="button"[^>]*data-rl-jump="aging\|run-12"/, 'same click as Running now: a button, keyboard reachable');
   assert.doesNotMatch(sched, /data-rl-run/);

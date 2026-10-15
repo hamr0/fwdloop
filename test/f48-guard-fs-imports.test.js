@@ -405,7 +405,11 @@ const ALLOWLIST = {
   },
   'src/panel/data.js': {
     reason: 'read-only checks (existsSync/realpathSync symlink guards) — actual book content is read via the imported readFlow/readAudit/readHistory/readAsk/etc. helpers, never fs directly',
-    names: { existsSync: 8, realpathSync: 2 },
+    names: { existsSync: 9, realpathSync: 2 },   // M11 am11: +1 existsSync in getRunNeeds (run folder presence, read-only, like getRunControls); the marker is WRITTEN by src/panel/needsyou.js
+  },
+  'src/panel/needsyou.js': {
+    reason: 'M11 am11 item 3: the ONE writer of the "Remove from Needs you" marker (`needs-removed-<hash>.json`, 0600, once via `wx`) inside a run folder the route resolved through resolveRunDir; the run folder is realpathed at use time. Nothing is read here (every read is data.js through readFileInside).',
+    names: { realpathSync: 1, writeFileSync: 1 },
   },
   'src/panel/resume.js': {
     reason: 'M4b piece 2: the panel\'s resume launcher — creates/opens its OWN private log dir and log file (outside the flows root and every run dir), reads back that log to quote the resume\'s refusal, deletes that log when the resume exits 0 (and a stale attempt log when a newer attempt starts), and existsSync-checks the `answer.<askId>.consumed.json` marker (presence only, never its content) to see that the resume took over. No run/flow-dir book is read or written.',

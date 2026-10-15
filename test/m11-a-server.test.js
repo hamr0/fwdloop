@@ -69,7 +69,7 @@ function replaceJob(w, from, to) {
 
 test('needsYouTag: one rule, every sign (am1 item 2, am2)', () => {
   const none = { atAsk: false, canResume: false };
-  assert.equal(needsYouTag('[·]', { atAsk: true, canResume: false }), 'Accept', 'waiting at an open ask');
+  assert.equal(needsYouTag('[·]', { atAsk: true, canResume: false }), 'Answer', 'waiting at an open ask');
   assert.equal(needsYouTag('[·]', none), null, 'answered, not resumed: not waiting on you');
   assert.equal(needsYouTag('[II]', none), 'Resume', 'stuck');
   assert.equal(needsYouTag('[■]', { atAsk: false, canResume: true }), 'Resume', 'stopped and the Resume button shows (am2 item 1)');
@@ -88,7 +88,7 @@ test('needsYouTag am3 item 5: a Resume run leaves Needs you 7 days after it stop
   assert.equal(needsYouTag('[■]', stoppable, at(7 * D), NOW), null, '7d0h is out');
   assert.equal(needsYouTag('[II]', { atAsk: false, canResume: false }, at(8 * D), NOW), null, 'stuck, 8 days: out');
   assert.equal(needsYouTag('[II]', { atAsk: false, canResume: false }, at(D), NOW), 'Resume', 'stuck, 1 day: in');
-  assert.equal(needsYouTag('[·]', { atAsk: true, canResume: false }, at(30 * D), NOW), 'Accept', 'Accept is never dropped by age');
+  assert.equal(needsYouTag('[·]', { atAsk: true, canResume: false }, at(30 * D), NOW), 'Answer', 'Accept is never dropped by age');
   assert.equal(needsYouTag('[■]', stoppable, null, NOW), 'Resume', 'no time: stays in');
   assert.equal(needsYouTag('[■]', stoppable, 'not a date', NOW), 'Resume', 'unreadable time: stays in');
 });
@@ -106,11 +106,11 @@ test('listRuns am3 item 5: now is injectable; an old stopped run carries no tag 
   assert.equal(later.controls.canResume, true, 'Resume itself is unchanged');
 });
 
-test('listRuns: a run waiting at its ask carries Accept; the same run past its expiry is [!] and carries none', async () => {
+test('listRuns: a run waiting at its ask carries Answer; the same run past its expiry (fabricated in ask.json alone) is [!] and carries none', async () => {
   const w = await parkedRun('wait');
   const row = rowOf(w);
   assert.equal(row.glyph, '[·]');
-  assert.equal(row.needs, 'Accept');
+  assert.equal(row.needs, 'Answer');
   assert.equal(row.live, false);
   const askPath = path.join(w.runDir, 'ask.json');
   const ask = JSON.parse(readFileSync(askPath, 'utf8'));

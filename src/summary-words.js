@@ -300,6 +300,15 @@ export function scheduleBlockWords(f) {
   return { line1: head, line2: `last ${shortStamp(f.last.at)} · ${f.last.runId} · ${outcome} · ${next}`, red: false };
 }
 
+/**
+ * M11 am11 items 3-4: the Audit row that says why a card left Needs you: `removed from Needs you by you · 10/15 08:15`, or `removed from Needs you after 7 days`. `null` when it did not.
+ * @param {{by: 'you', at: string}|{by: 'age'}|null} left
+ */
+export function needsLeftWords(left) {
+  if (left === null) return null;
+  return left.by === 'you' ? `removed from Needs you by you \u00b7 ${shortStamp(left.at)}` : 'removed from Needs you after 7 days';
+}
+
 /** ENDED (am7 item 1): `10/14 08:16 · passed · Goal met.`. The stamp is the run's local end time; the word is the run's outcome word (none for a run ended on purpose). @param {string|null} at ISO @param {string|null} word @param {string} reason */
 export function endedLineWords(at, word, reason) {
   const stamp = at ? shortStamp(at) : '';

@@ -22,6 +22,7 @@
 import {
   existsSync, realpathSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { plainPlanCheck } from '../plain-checks.js';
 import { join, basename, sep } from 'node:path';
 
@@ -39,7 +40,7 @@ import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../r
 import { readSetup } from '../setup.js';
 import { checkedLines, notCheckedBlock, NOT_CHECKED_LABEL } from '../checked.js';
 import {
-  auditStartedWords, catchUpWords, endedLineWords, endedWords, fireRowWords, nextInWords, nextTimeWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
+  auditStartedWords, catchUpWords, endedLineWords, endedWords, fireRowWords, needsLeftWords, nextInWords, nextTimeWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import {
@@ -1134,7 +1135,9 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun, now = Da
         pulse: glyphPulses({ glyph, label }),
         stuck: glyph === '[II]',
         controls,
-        needs: needsYouTag(glyph, controls, glyph === '[II]' ? ctx.savedAnswerAt : (ctx.historyRow ? ctx.historyRow.at : null), now()),
+        needs: needsYouOf({
+          runDir: run.runDir, ctx, glyph, controls, nowMs: now(), reopenAt: reopenableAt(run.runDir, ctx),
+        }).tag,
         live: isRunningNow(ctx, glyph),
         model: deriveRunModel(ctx.auditRows),
         resume: ctx.resume,
@@ -1197,23 +1200,100 @@ export function orderRuns(rows) {
 }
 
 /**
- * M11 am1 item 2 + am2: the ONE rule for a run's Needs-you tag, read off the sign and `runControls` (no second rule). `Accept`: waiting at an open ask.
- * `Resume`: stuck `[II]`, or stopped `[■]` whose Run tab shows the Resume button. An expired ask `[!]` is never here (it stays in the Inbox).
- * M11 am3 item 5: a Resume run leaves Needs you once its stop time (`at`, the history row's) is `RUNS_LIST_LIMITS.needsYouDays` old; exactly that old is out.
- * M11 am4 item 1: a stuck `[II]` run has no stop time; the caller passes the time its saved answer was written. A run with no readable time stays in. An Accept run is never dropped by age (its ask has its own wait).
- * @param {string} glyph a `computeGlyph` sign @param {{atAsk: boolean, canResume: boolean}} controls `runControls`' answer
- * @param {string|null} [at] the run's stop time from the books @param {number} [nowMs]
- * @returns {'Accept'|'Resume'|null}
+ * The ONE rule for a run's Needs-you tag, read off the sign and `runControls` (no second rule). M11 am11 item 1-2: `Answer`: waiting at an open ask (was `Accept`).
+ * `Reopen`: an expired ask that can still be reopened (`reopenAt`, its expiry time, is given). `Resume`: stuck `[II]`, or stopped `[■]` whose Run tab shows the Resume button.
+ * An expired ask that cannot be reopened is never here. This is the tag BEFORE it leaves: see `needsYouOf` for the 7 days and Remove.
+ * @param {string} glyph a `computeGlyph` sign @param {{atAsk: boolean, canResume: boolean}} controls `runControls`' answer @param {string|null} [reopenAt] expiry of a reopenable expired ask
+ * @returns {'Answer'|'Reopen'|'Resume'|null}
  */
-export function needsYouTag(glyph, controls, at = null, nowMs = Date.now()) {
-  if (glyph === '[·]' && controls.atAsk) return 'Accept';
+function needsYouKind(glyph, controls, reopenAt = null) {
+  if (glyph === '[·]' && controls.atAsk) return 'Answer';
+  if (reopenAt !== null) return 'Reopen';
   if (glyph !== '[II]' && !(glyph === '[■]' && controls.canResume)) return null;
-  const t = typeof at === 'string' ? Date.parse(at) : NaN;
-  if (Number.isFinite(t) && nowMs - t >= RUNS_LIST_LIMITS.needsYouDays * 86_400_000) return null;
   return 'Resume';
 }
 
-/** M11 scope item 2.5/2.6 and rules, am3 item 5: the named limits of the runs list, in ONE place (30 quiet days, 7 older runs, 7 days in Needs you for a Resume run). The page reads them from `GET /api/runs`. */
+/** M11 am3 item 5 / am11 item 4: exactly `needsYouDays` old (since the card joined) is out; no readable time stays in. @param {string|null|undefined} at @param {number} nowMs */
+const needsYouAged = (at, nowMs) => {
+  const t = typeof at === 'string' ? Date.parse(at) : NaN;
+  return Number.isFinite(t) && nowMs - t >= RUNS_LIST_LIMITS.needsYouDays * 86_400_000;
+};
+
+/**
+ * The tag with the 7-day rule (M11 am3 item 5, am4 item 1, am11 item 4): the card leaves Needs you `needsYouDays` after it joined. `at` is when it joined: the run's stop time
+ * (a stuck `[II]` run has none; the caller passes the time its saved answer was written) or the ask's expiry for `Reopen`. An `Answer` run is never dropped by age (its ask has its own wait).
+ * @param {string} glyph @param {{atAsk: boolean, canResume: boolean}} controls @param {string|null} [at] @param {number} [nowMs] @param {string|null} [reopenAt]
+ * @returns {'Answer'|'Reopen'|'Resume'|null}
+ */
+export function needsYouTag(glyph, controls, at = null, nowMs = Date.now(), reopenAt = null) {
+  const kind = needsYouKind(glyph, controls, reopenAt);
+  if (kind === null || kind === 'Answer') return kind;
+  return needsYouAged(kind === 'Reopen' ? reopenAt : at, nowMs) ? null : kind;
+}
+
+/** The marker file of one Needs-you episode: write-once, named by a hash of the episode key (a reopen / resume starts a NEW episode with another key). @param {string} key */
+export const needsRemovedFile = (key) => `needs-removed-${createHash('sha256').update(key).digest('hex').slice(0, 16)}.json`;
+
+/** M11 am11 item 3: the human's Remove, written once for the episode it was written for, or null. @param {string} runDir @param {string} key @returns {{at: string}|null} */
+function readNeedsRemoval(runDir, key) {
+  const f = readFileInside(runDir, needsRemovedFile(key));
+  if (!f.ok) return null;
+  try {
+    const j = JSON.parse(f.text);
+    return j && j.key === key && typeof j.at === 'string' ? { at: j.at } : null;
+  } catch { return null; }
+}
+
+/**
+ * M11 am11: where a run stands in Needs you, by the ONE rule (the runs list, the Remove route and the Audit all read it).
+ * `tag`: what the card carries now, or null. `removable`: Remove from Needs you is offered (`Reopen` and `Resume`, never `Answer`). `left`: why a card that would be here is not
+ * (item 3 `{by: 'you', at}`, item 4 `{by: 'age'}`). `key`: the episode a Remove is written for (item 5): the ask and its expiry for `Reopen`, the stop time for a stopped run, the saved-answer
+ * time for a stuck one, so a reopened or resumed run that needs you again is a NEW episode and comes back.
+ * @param {{runDir: string, ctx: any, glyph: string, controls: {atAsk: boolean, canResume: boolean}, nowMs: number, reopenAt: string|null}} o
+ * @returns {{tag: 'Answer'|'Reopen'|'Resume'|null, removable: boolean, left: {by: 'you', at: string}|{by: 'age'}|null, key: string|null}}
+ */
+export function needsYouOf({
+  runDir, ctx, glyph, controls, nowMs, reopenAt,
+}) {
+  const kind = needsYouKind(glyph, controls, reopenAt);
+  if (kind === null) return { tag: null, removable: false, left: null, key: null };
+  if (kind === 'Answer') return { tag: 'Answer', removable: false, left: null, key: null };
+  const stuck = glyph === '[II]';
+  const at = kind === 'Reopen' ? reopenAt : (stuck ? ctx.savedAnswerAt : (ctx.historyRow ? ctx.historyRow.at : null));
+  const key = kind === 'Reopen' ? `ask:${ctx.askJson.askId}@${reopenAt}` : `${stuck ? 'stuck' : 'stop'}:${at ?? ''}`;
+  const removed = readNeedsRemoval(runDir, key);
+  if (removed) return { tag: null, removable: false, left: { by: 'you', at: removed.at }, key };
+  if (needsYouAged(at, nowMs)) return { tag: null, removable: false, left: { by: 'age' }, key };
+  return { tag: kind, removable: true, left: null, key };
+}
+
+/**
+ * M11 am11 item 2: the expiry time of this run's ask when it has expired and can still be reopened (the Ask tab's own `reopenOffer` rule), else null.
+ * @param {string} runDir @param {any} ctx `loadRunContext`'s result
+ */
+function reopenableAt(runDir, ctx) {
+  if (ctx.historyRow || !ctx.askJson) return null;
+  const savedAskId = readSavedAnswer(runDir)?.askId;
+  const hit = runAsksInOrder(runDir, false).find((a) => reopenOffer(a, ctx.askJson, ctx.resume, savedAskId === a.askId) !== null);
+  return hit && typeof ctx.askJson.expiresAt === 'string' ? ctx.askJson.expiresAt : null;
+}
+
+/**
+ * M11 am11: `needsYouOf` for one run, read straight from the books (the Remove route's and the Audit's read; the runs list calls `needsYouOf` itself with the context it already has).
+ * `null` when the run does not resolve.
+ * @param {{root: string, flow: string, runId: string, catalogue: any, nowMs?: number, resumeAttempt?: (flow: string, runId: string) => any}} o
+ */
+export function getRunNeeds({
+  root, flow, runId, catalogue, nowMs = Date.now(), resumeAttempt,
+}) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok || !existsSync(run.runDir)) return null;
+  const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, resumeAttempt?.(flow, runId) ?? null);
+  const { glyph, label } = computeGlyph(ctx);
+  const controls = runControls(ctx, glyph, label);
+  return { runDir: run.runDir, ...needsYouOf({ runDir: run.runDir, ctx, glyph, controls, nowMs, reopenAt: reopenableAt(run.runDir, ctx) }) };
+}
+
 export const RUNS_LIST_LIMITS = Object.freeze({ quietDays: 30, olderRuns: 7, needsYouDays: 7 });
 
 /**
@@ -1635,6 +1715,10 @@ export function getRunDetail({
     signWords: SIGN_WORDS,
     pulse: glyphPulses({ glyph, label }),
     controls: runControls(ctx, glyph, label),
+    // M11 am11 item 3: where this run stands in Needs you now; the page shows Remove from Needs you only when `removable`
+    needsYou: (({ tag, removable }) => ({ tag, removable }))(needsYouOf({
+      runDir: run.runDir, ctx, glyph, controls: runControls(ctx, glyph, label), nowMs: now(), reopenAt: reopenableAt(run.runDir, ctx),
+    })),
     // M9 piece 6: the block at the top of the run page (ENDED / NEXT, SCHEDULED / NEXT), words set by code
     summary: runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }),
     resume: ctx.resume,
@@ -1800,11 +1884,11 @@ export function getDraftBlock(flowDir, runDir) {
  * own `audit.jsonl` file already carries only its own rows — there is no
  * shared-sidecar contamination risk here the way bareloop's gate-audit
  * sidecar had). `null` when the flow/runId doesn't resolve (404).
- * @param {{root: string, flow: string, runId: string, scheduleRead?: (flow: string) => any, home?: string}} opts
- * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, scheduleStarted: string|null, scheduleGroup: {label: string, total: number, items: string[]}|null, empty:boolean, why:string|null}|null}
+ * @param {{root: string, flow: string, runId: string, scheduleRead?: (flow: string) => any, home?: string, catalogue?: any, resumeAttempt?: (flow: string, runId: string) => any, now?: () => number}} opts
+ * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, needsLeft: string|null, scheduleStarted: string|null, scheduleGroup: {label: string, total: number, items: string[]}|null, empty:boolean, why:string|null}|null}
  */
 export function getRunAudit({
-  root, flow, runId, scheduleRead, home,
+  root, flow, runId, scheduleRead, home, catalogue, resumeAttempt, now = Date.now,
 }) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
@@ -1826,6 +1910,10 @@ export function getRunAudit({
     // never a second, client-side re-grouping.
     groups: deriveAuditGroups(rows),
     draft: getDraftBlock(run.flowDir, run.runDir),
+    // M11 am11 items 3-4: the one row that says why the card left Needs you (by your Remove, or after 7 days); words: src/summary-words.js
+    needsLeft: catalogue ? needsLeftWords(getRunNeeds({
+      root, flow, runId, catalogue, nowMs: now(), resumeAttempt,
+    })?.left ?? null) : null,
     // M9 am6 items 3-4: the first row of a run a schedule started, and (on the run the schedule was set from) the folded group of fires that started nothing
     scheduleStarted: auditStartedWords(readTriggerRecord(run.runDir), home),
     scheduleGroup: (() => {
@@ -2399,7 +2487,7 @@ export function groupAskBlocks(asks) {
  * @returns {{flow:string, runId:string, asks:any[], resume: any, blocks: any[]}|null}
  */
 export function getRunAsks({
-  root, flow, runId, catalogue, resumeAttempt,
+  root, flow, runId, catalogue, resumeAttempt, now = Date.now,
 }) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
@@ -2445,8 +2533,12 @@ export function getRunAsks({
     stepLine: stepInfo[i].line,
     stepWhy: stepInfo[i].why,
   }));
+  // M11 am11 item 3: the Ask tab of an expired-ask run offers Remove from Needs you when the card is in Needs you now
+  const needs = getRunNeeds({
+    root, flow, runId, catalogue, resumeAttempt, nowMs: now(),
+  });
   return {
-    flow, runId, asks, resume, blocks: groupAskBlocks(asks),
+    flow, runId, asks, resume, blocks: groupAskBlocks(asks), needsYou: { tag: needs?.tag ?? null, removable: needs?.removable === true },
   };
 }
 
