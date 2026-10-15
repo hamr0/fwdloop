@@ -846,14 +846,12 @@ function explainEdit(dir, signature, proseText, declarationText) {
  */
 export function suggestFlowName(root, name) {
   const taken = (/** @type {string} */ n) => { try { lstatSync(path.join(root, n)); return true; } catch { return false; } };
-  // a trailing -N is stripped only when what is left is itself a workflow here (aging-live-4-2 -> aging-live-4); a name that merely ends in a number (aging-live-4) keeps it
+  // a trailing -N is stripped only when what is left is itself a workflow here (aging-live-4-2 -> aging-live-4); a name that merely ends in a number keeps it
   const stripped = name.replace(/-[0-9]+$/, '');
   const base = stripped !== name && stripped !== '' && taken(stripped) ? stripped : name;
   for (let n = 2; ; n += 1) {
     const tail = `-${n}`;
     const candidate = `${base.slice(0, 64 - tail.length)}${tail}`;
-    let there = true;
-    try { lstatSync(path.join(root, candidate)); } catch { there = false; }
-    if (!there) return candidate;
+    if (!taken(candidate)) return candidate;
   }
 }

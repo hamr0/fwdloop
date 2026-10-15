@@ -65,7 +65,7 @@ test('(d) Run again, Stop and Resume sit in the ONE action row, Run again first,
   const body = cut('  ', 'renderRunActions');
   const at = (t) => body.indexOf(t);
   assert.ok(at('"run-again"') > 0 && at('"run-again"') < at('"run-stop"') && at('"run-stop"') < at('"run-resume"'), 'order: Run again, Stop, Resume');
-  assert.match(body, /el\.appendChild\(makeButton\("Run again"/);
+  assert.match(body, /el\.appendChild\(makeButton\("Reuse workflow"/);
   assert.equal((PAGE.match(/data-testid="run-actions"/g) || []).length, 1, 'one action row');
   assert.match(PAGE, /\/api\/author\/run-again\?flow=/);
   assert.match(PAGE, /window\.fwdloopRunAgain = openRunAgain/);

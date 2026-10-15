@@ -95,7 +95,7 @@ test('field set: the New job card has exactly the signed boxes (+ the Model menu
   const labels = [...SECTION.matchAll(/<label[^>]*>([\s\S]*?)<\/label>/g)].map((m) => m[1].replace(/<[^>]+>/g, '').trim());
   for (const cap of ['Model', 'Thinking on', 'Flow name', 'The job', 'Cap $', 'Ask wait', 'Destination', 'Inputs', 'New job', 'Run a signed flow']) assert.ok(labels.includes(cap), `caption "${cap}" missing`);
   assert.doesNotMatch(SECTION, />\s*Send to\s*</);
-  for (const gone of ['jf-goal', 'jf-source', 'jf-success', 'jf-guardrails', 'jf-judge', 'jf-verdict', 'jf-cap-time', 'startfrom', 'Check type', 'Time cap', 'Judge examples', 'Reuse']) {
+  for (const gone of ['jf-goal', 'jf-source', 'jf-success', 'jf-guardrails', 'jf-judge', 'jf-verdict', 'jf-cap-time', 'startfrom', 'Check type', 'Time cap', 'Judge examples']) {   // M6 am7: 'Reuse' left this list: Reuse workflow is the one door and the Run card's script names it
     assert.ok(!SECTION.includes(gone), `${gone} must not be on the card`);
     assert.ok(!CHAT.replace(/^\s*\/\/.*$/gm, '').includes(gone), `${gone} must not be in the Chat script`);
   }
@@ -154,7 +154,7 @@ test('the Chat tab keeps the page rules: no token on the page, every POST goes t
   assert.doesNotMatch(code, /\bTOKEN\b|x-fwdloop-token/);
   assert.doesNotMatch(code, /\bfetch\([^)]*POST/);
   const paths = [...code.matchAll(/authorPost\(\s*"([^"]+)"/g)].map((m) => m[1]).filter((x) => !x.endsWith('/')).sort();
-  assert.deepEqual(paths, ['/api/author/draft', '/api/author/resume', '/api/author/resume-prepare', '/api/author/run', '/api/author/run', '/api/author/run-prepare']);
+  assert.deepEqual(paths, ['/api/author/draft', '/api/author/resume', '/api/author/resume-prepare', '/api/author/reuse-check', '/api/author/run', '/api/author/run', '/api/author/run-prepare']);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign-prepare"/);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign", \{hash: signInfo\.hash\}/);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/abandon"/);

@@ -170,26 +170,6 @@ test('file-updated: runs when the sha changes, with the new version; the current
   assert.equal(start.sources.find((s) => s.role === 'resume').path, watched);
 });
 
-test('Must fail: a job with a trigger is edited and signed, the time comes, and nothing starts', async () => {
-  const f = await fireWorld();
-  assert.equal((await setTrigger(f.w, DAILY)).status, 200);
-  const entry = (await f.w.get('/api/author/flows')).json().flows.find((x) => x.flow === 'job2');
-  const d = await f.w.post('/api/author/draft', { ...f.w.card(), ...entry.edit.card, flowName: 'job2', editOf: { flow: 'job2', flowHash: entry.edit.flowHash }, capUsd: '0.30' });
-  const id = d.json().draftId;
-  const g = await until(async () => { const j = (await f.w.get(`/api/author/${id}`)).json(); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });
-  assert.equal(g.phase, 'green');
-  // signing an Edit also starts a run (Sign & run); the counts are taken after it, so only a TRIGGER could add to them
-  const s = await f.w.post(`/api/author/${id}/sign`, { hash: g.hash });
-  assert.equal(s.status, 202, s.text);
-  const runsAfterSign = f.runs().length;
-  const startsAfterSign = f.w.starts().length;
-  f.clock.t = at(13, 9, 0, 10); f.tick();
-  f.clock.t = at(14, 9, 0, 10); f.tick();
-  assert.deepEqual(f.rows(), [], 'By hand again: no trigger, no row, no run');
-  assert.equal(f.runs().length, runsAfterSign);
-  assert.equal(f.w.starts().length, startsAfterSign);
-});
-
 test('a trigger changed while the panel was off does not inherit the old ledger: the missed slots of the old trigger do not run, its first slot is after it was set', async () => {
   const f = await fireWorld();
   assert.equal((await setTrigger(f.w, DAILY)).status, 200);

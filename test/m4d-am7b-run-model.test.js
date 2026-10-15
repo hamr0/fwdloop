@@ -76,14 +76,16 @@ test('R6: a start that is refused leaves no record', async () => {
   assert.equal(existsSync(path.join(flowDir, 'model.json')), false);
 });
 
-test('R7: a flow WITH a record keeps its record: a pick in the body changes nothing and is not needed', async () => {
+test('R7: a flow WITH a record keeps its record: the same pick runs plainly; a different model is a run field (M6 am5: Sign & run) and never rewrites the record', async () => {
   const w = await world();
   const { flowDir, flow } = await w.signedFlow();
   const rec = readModelRecord(flowDir);
   assert.ok(rec);
   updateConfig({ models: { DEEPSEEK_API_KEY: [{ model: 'fake-ticked', use: true, inPerM: 0.75, outPerM: 1.625 }, { model: 'other', use: true, inPerM: 1, outPerM: 1 }] } }, { home: w.home });
-  const r = await w.post('/api/author/run', { flow, inputs: w.inputs(), provider: PICK.provider, model: 'other' });
+  const r = await w.post('/api/author/run', { flow, inputs: w.inputs(), provider: rec.slot, model: rec.model });
   assert.equal(r.status, 202, r.text);
+  const other = await w.post('/api/author/run', { flow, inputs: w.inputs(), provider: PICK.provider, model: 'other' });
+  assert.equal(other.status, 409, 'a different model needs the second click');
   assert.deepEqual(readModelRecord(flowDir), rec);
 });
 
@@ -102,6 +104,6 @@ test('P1: the page gives a flow with no recorded model the same ticked-lines men
   assert.match(PAGE, /id="jf-err-run-model"/);
   const body = PAGE.slice(PAGE.indexOf('function currentRun('), PAGE.indexOf('function runDiffers('));
   assert.match(body, /provider: runPickChoice\(\)\.provider/);
-  assert.match(PAGE, /runPickEl\.hidden = !\(f && !f\.model\)/);
+  assert.match(PAGE, /runPickEl\.hidden = !f;/);
   assert.doesNotMatch(PAGE, /Run it from the command line with --model/);
 });

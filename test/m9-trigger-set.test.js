@@ -140,26 +140,6 @@ test('Must fail (item 2): changing only the trigger keeps the green run; an edit
   assert.equal(r.json().refused, 'no-green-run', 'and the door is shut again');
 });
 
-test('Must fail (am1): a job with a trigger is edited and signed: it is By hand again, and the door is shut until a new green run', async () => {
-  const { w, flowDir, read } = await greenWorld();
-  assert.equal((await setTrigger(w, DAILY)).status, 200);
-  const entry = (await w.get('/api/author/flows')).json().flows.find((f) => f.flow === 'job2');
-  assert.equal(entry.edit.ok, true, JSON.stringify(entry.edit));
-  const card = { ...w.card(), ...entry.edit.card, flowName: 'job2', editOf: { flow: 'job2', flowHash: entry.edit.flowHash }, capUsd: '0.30' };
-  const d = await w.post('/api/author/draft', card);
-  assert.equal(d.status, 202, d.text);
-  const id = d.json().draftId;
-  const g = await until(async () => { const j = (await w.get(`/api/author/${id}`)).json(); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });
-  assert.equal(g.phase, 'green', JSON.stringify(g));
-  const s = await w.post(`/api/author/${id}/sign`, { hash: g.hash });
-  assert.equal(s.status, 202, s.text);
-  assert.equal(read().arbiter.trigger, null, 'By hand again');
-  assert.doesNotMatch(text(path.join(flowDir, 'prose.txt')), /trigger/);
-  assert.equal(hasGreenRunForJob(flowDir), false);
-  const r = await w.post('/api/author/trigger-prepare', { flow: 'job2', trigger: DAILY });
-  assert.equal(r.json().refused, 'no-green-run');
-});
-
 test('refused while a run of the job is waiting at its ask, with the Edit sentence; nothing signed', async () => {
   const { w, flowDir, read } = await greenWorld();
   const run = await w.post('/api/author/run', { flow: 'job2', inputs: w.inputs(), runId: '' });

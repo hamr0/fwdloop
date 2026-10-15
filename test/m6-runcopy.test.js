@@ -86,21 +86,19 @@ test('a real run saves its copy at start; after the job is edited and signed, th
   const oldHash = JSON.parse(readFileSync(path.join(flowDir, 'signature.json'), 'utf8')).flow;
   assert.equal(JSON.parse(readFileSync(path.join(flowDir, 'runs', 'one', 'job', 'signature.json'), 'utf8')).flow, oldHash);
 
-  // edit through the panel: cap 0.25 -> 0.30, sign (replace)
+  // M6 am5: a changed job is a NEW workflow job2-2; the old run's Job tab (and the old workflow) is not touched
   const entry = (await w.get('/api/author/flows')).json().flows.find((f) => f.flow === 'job2');
-  const d = await w.post('/api/author/draft', { ...w.card(), ...entry.edit.card, flowName: 'job2', capUsd: '0.30', editOf: { flow: 'job2', flowHash: entry.edit.flowHash } });
+  const d = await w.post('/api/author/draft', { ...w.card(), ...entry.edit.card, job: entry.edit.card.job.replace('nothing goes out before I accept', 'nothing goes out before I say so'), flowName: 'job2-2', capUsd: '0.30', reuseOf: { flow: 'job2' } });
   assert.equal(d.status, 202, d.text);
   const id = d.json().draftId;
   const g = await until(async () => { const j = (await w.get(`/api/author/${id}`)).json(); return j?.phase === 'green' ? j : null; });
-  // the first run is parked on its ask: the replaced job must not disturb what it shows
   const s = await w.post(`/api/author/${id}/sign`, { hash: g.hash, runId: 'two' });
   assert.equal(s.status, 202, s.text);
   await waitParked(w, s.json().startId);
 
   const oldTab = await jobOf(w, 'one');
-  const newTab = await jobOf(w, 'two');
+  const newTab = (await w.get('/api/runs/job2-2/two/job')).json();
   assert.equal(oldTab.capUsd, 0.25, 'the old run still shows the job it ran');
-  // M4d am16: this run is the first run of a job that was just drafted, so it gets the card's 0.30 less what the drafting spent (a few hundredths of a cent)
   assert.ok(newTab.capUsd < 0.30 && newTab.capUsd > 0.29, `the first run's cap is what is left of 0.30: ${newTab.capUsd}`);
   assert.equal(oldTab.jobFrom, 'run');
   assert.equal(oldTab.signature.hash, oldHash);
@@ -109,7 +107,7 @@ test('a real run saves its copy at start; after the job is edited and signed, th
   const before = await jobOf(w, 'seed-pass');
   assert.equal(before.jobFrom, 'current', 'a run from before M6 has no copy');
   assert.match(before.jobFromWhy, /started before runs kept a copy of their job/);
-  assert.equal(before.capUsd, 0.30, 'and shows the job as it is now');
+  assert.equal(before.capUsd, 0.25, 'and shows the job as it is now (job2 is never changed)');
   assert.equal(oldTab.jobFromWhy, null);
 });
 

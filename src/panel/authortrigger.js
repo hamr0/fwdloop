@@ -29,7 +29,7 @@ import {
   FLOW_FILES, checkFlowName, listFlowNames, listRunIds, readFileInside, readFlow, resolveRunDir, writeFlow,
 } from '../flow.js';
 import { parseSignedText } from '../signed-text.js';
-import { editClearsWords, scheduledWords } from '../summary-words.js';
+import { scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
 import { checkTarget, createFileTrigger } from '../trigger-files.js';
 import { readModelRecord } from '../flowmodel.js';
@@ -366,8 +366,7 @@ export function createTriggerDoor(opts) {
 
     /**
      * What the Run card's dropdown needs of one job (M9 piece 5): the typed trigger, its words, whether it is armed, and, when the job has had
-     * no good run, the server's refusal sentence (the page shows it and disables the dropdown; it invents no words). `editNote` is am1's
-     * warning, set only when the job has a trigger. `null` when the job is not a readable signed job.
+     * no good run, the server's refusal sentence (the page shows it and disables the dropdown; it invents no words). `null` when the job is not a readable signed job.
      * @param {string} flow
      */
     card(flow) {
@@ -375,7 +374,7 @@ export function createTriggerDoor(opts) {
       if (r === null) return null;
       return {
         trigger: r.trigger, words: scheduledWords(r.trigger), armed: r.armed, hasGreenRun: r.hasGreenRun,
-        refusal: r.hasGreenRun ? null : NO_GREEN_SAY, editNote: editClearsWords(r.trigger),
+        refusal: r.hasGreenRun ? null : NO_GREEN_SAY,
       };
     },
   };

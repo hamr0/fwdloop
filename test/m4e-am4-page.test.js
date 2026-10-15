@@ -67,11 +67,12 @@ test('am5 (e) / am4 (e): the Resume form has exactly ONE open box (Cap $); every
   assert.match(fnSrc('refreshClearBtn'), /"Cancel"/);
 });
 
-test('am5 item 2: the Run form opens Inputs, Destination, Cap $ and each ask\'s wait; the job lines, ask words and steps are dimmed (no control inside)', () => {
+test('am5 item 2: the Run form opens Inputs, Destination, Cap $ and each ask\'s wait; M6 am6 item 4: the job is open too (a textarea), never dimmed', () => {
   const run = block('jf-run');
   const job = block('jf-run-job');
   assert.doesNotMatch(job, /<(input|textarea|select)/);
-  assert.match(run, /class="field dimmed"[^>]*data-testid="jf-run-job-field"/);
+  assert.match(run, /id="jf-run-jobbox"/);
+  assert.doesNotMatch(run, /class="field dimmed"[^>]*data-testid="jf-run-job-field"/);
   for (const id of ['jf-run-dest', 'jf-run-cap', 'jf-run-waits', 'jf-run-inputs', 'jf-run-id', 'jf-run-flow']) assert.match(run, new RegExp(`id="${id}"`), id);
   // the old read-only "Cap $ (signed)" box is gone: the cap is typed
   assert.doesNotMatch(run, /Cap \$ \(signed\)/);

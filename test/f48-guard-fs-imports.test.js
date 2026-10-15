@@ -300,9 +300,9 @@ function scanFsUsage(text) {
  */
 const ALLOWLIST = {
   'src/flow.js': {
-    reason: 'M6: `replaceSigned` (the all-or-nothing swap of a signed job: stage folder, backup folder, renames both ways, rollback, cleanup) and `writeRunJobCopy`/`readRunJobCopy` (the run\'s write-once copy of its job: one mkdir, three `wx` writes, one existsSync); M4e amendment 43: writeFlow also makes the write-once signed/ copy (one mkdir, two `wx` writes, one existsSync refusing an existing signed/); the safe-read implementation itself (readFileInside/readdirInside/writeFlow/readFlow) — the one gateway every book reader is expected to route through, plus its own symlink-guard checks and atomic-write plumbing, plus claimRunId (M4e amendment 3: the exclusive mkdir of the next run-<n> folder, and the runs/ folder above it)',
+    reason: 'M6: `replaceSigned` (the all-or-nothing swap of a signed job: stage folder, backup folder, renames both ways, rollback, cleanup) and `writeRunJobCopy`/`readRunJobCopy` (the run\'s write-once copy of its job: one mkdir, three `wx` writes, one existsSync); M6 am5: `suggestFlowName` (one read-only lstat of a candidate name); M4e amendment 43: writeFlow also makes the write-once signed/ copy (one mkdir, two `wx` writes, one existsSync refusing an existing signed/); the safe-read implementation itself (readFileInside/readdirInside/writeFlow/readFlow) — the one gateway every book reader is expected to route through, plus its own symlink-guard checks and atomic-write plumbing, plus claimRunId (M4e amendment 3: the exclusive mkdir of the next run-<n> folder, and the runs/ folder above it)',
     names: {
-      accessSync: 1, constants: 2, existsSync: 10, lstatSync: 5, mkdirSync: 9,
+      accessSync: 1, constants: 2, existsSync: 10, lstatSync: 6, mkdirSync: 9,
       readdirSync: 3, readFileSync: 2, realpathSync: 5, renameSync: 4, rmSync: 6,
       writeFileSync: 9,
     },
