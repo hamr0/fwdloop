@@ -1915,7 +1915,7 @@
     var cost = r.spend || "unknown";
     var faint = r.startedAt ? '<span data-rl-since="' + escapeXml(r.startedAt) + '"></span>' : 'time unknown';
     return '<button class="rl-card ' + (need ? 'rl-need' : 'rl-live') + '" type="button" data-rl-jump="' + escapeXml(r.flow + "|" + r.runId) + '"' + (need ? ' data-rl-need="1"' : '') + ' data-testid="rl-' + (need ? 'need' : 'live') + '-' + escapeXml(r.flow) + '-' + escapeXml(r.runId) + '">' +
-      '<span class="rl-l1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span><span class="rl-nm" title="' + escapeXml(r.flow) + '">' + escapeXml(r.flow) + '</span> <span class="rl-rn">' + escapeXml(r.runId) + '</span>' +
+      '<span class="rl-l1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span><span class="rl-nm" title="' + escapeXml(r.flow) + '">' + escapeXml(r.flow) + '</span> <span class="rl-rest">&middot;</span> <span class="rl-rn">' + escapeXml(r.runId) + '</span>' +   // M11 am12: job, a middle dot, run-N (Running now and Needs you only)
       (need ? '<span class="rl-pill rl-pill-need">' + escapeXml(r.needs) + '</span>' : ' <span class="rl-rest">&middot; ' + faint + ' &middot; ' + escapeXml(cost) + '</span>') + '</span>' +
       '<span class="rl-l2">' + escapeXml(r.label || "unknown") + (need ? ' &middot; ' + escapeXml(runAtText(r)) : '') + '</span></button>';
   }
