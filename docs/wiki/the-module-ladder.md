@@ -2331,6 +2331,12 @@ monthly wall is enforced **by the trigger**, before a run starts.
   - *A fire checks the model (`b379d99`):* a trigger fire runs the Run door's model checks at $0 (no recorded model, or a model no longer ticked, priced or keyed in Settings): it writes a `refused` row and starts nothing. A refused start stays a `refused` row, not `started`.
   - *Ledger fixes (`fix/trigger-ledger`):* a queued file's refusal is told once per reason, not once per outcome (`1584697`: a new reason is a new row; busy and monthly carry no reason). The job's last outcome (the NEXT line) counts only rows from the current signing on (`481f7fb`), so an older trigger's red no longer leads a newly signed schedule.
   - *Known limits, not fixed:* a queued file's `ran` row is written just before the start, so a start refused at that moment leaves the file marked run; a job with no `setup.jsonl` and only pre-job-copy runs reads as having no good run after a trigger re-sign, until a run finishes. Both are in the fix ledger.
+- **M9 amendment 6 — SIGNED by hamr 2026-10-15 ("sign m9 am6"): schedules on the Job tab and in Audit.**
+  1. **Job tab, "Started"** (right under Model): how this run began. `By hand`; `By the schedule: every day at 08:15` (plus `· catch-up, 10 min late` when it was); `By a new file: aging-oct.csv` or `By a file update: aging.csv`.
+  2. **Job tab, "Schedule"** (under Started): the workflow's schedule now, with what it's bound to, e.g. `every day at 08:15 · from run-7 · deepseek-flash · ~/fwdloop-out · aging-oct.csv`, or `none`.
+  3. **Audit, first row of a run that a schedule started:** `started by the schedule · every day at 08:15 · slot 08:15 · from run-7`, plus `catch-up` when it was. A hand run has no such row.
+  4. **Fires that started nothing** (busy, month used up, refused) show in the Audit of the run the schedule was set from, in a folded `▸ schedule (k)` group, newest first, at most 7. Each shows its time, outcome and reason in plain words.
+  - **Must fail when:** a scheduled run's Job tab or Audit doesn't say it was scheduled; a hand run says it was; Started or Schedule isn't right under Model; the Schedule field disagrees with the Run tab's SCHEDULED line; or a refused fire is missing from the schedule group.
 
 ## M10 — real IO
 
