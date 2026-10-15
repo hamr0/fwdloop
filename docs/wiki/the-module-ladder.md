@@ -2199,6 +2199,10 @@ through M5 (docs/archive/PRD.md:597-605).
   3. A red run is treated the same as a green one: the changes decide, never the run's color.
   4. **Replaces** M4e amendment 5 item 2's "everything else shows dimmed".
   - **Must fail when:** a job field is dimmed in Run again; changing only run fields starts drafting or spends drafting money; the button doesn't flip to "Start drafting" when a job field changes; or a red run with only inputs changed is forced to draft.
+- **M6 amendment 7 — SIGNED by hamr 2026-10-15 ("sign m6 am7"): one name for the one door.**
+  1. The one door (amendments 5 and 6) is a single button named **Reuse workflow**. It replaces both **Run again** and **Edit this job**. It sits where Run again is today, first in the Run tab's action row.
+  2. Every signed text that says "Run again" or "Edit this job" now means this button (M4e amendment 7 item 6, M9 amendment 5 item 3, M11 amendment 3 item 1).
+  - **Must fail when:** a page still shows "Run again" or "Edit this job"; or there are two buttons that open the same card.
 
 ## M7 — skills and persona
 
