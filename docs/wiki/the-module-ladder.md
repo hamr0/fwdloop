@@ -2369,6 +2369,8 @@ monthly wall is enforced **by the trigger**, before a run starts.
   - **Must fail when:** Cancel is refused because a run is waiting or working; Cancel changes or stops a run that already started; a new schedule is accepted while a run waits.
 - **M9 amendment 11 — SIGNED by hamr 2026-10-15 ("sign m9 am11"): the sign in the Audit schedule head.** Fills amendment 9's `<sign>`: **`[▶]`** amber while a run of the job is running; **`[✗]`** red when the Run tab's SCHEDULE block is red; otherwise **`[·]`** grey (the schedule is on and waiting). Same rule as bareloop.
   - **Must fail when:** the head shows `[▶]` with no run running; it isn't `[✗]` while SCHEDULE is red.
+- **M9 amendment 12 — SIGNED by hamr 2026-10-15 ("sign m9 am12"): a waiting run answers from its own copy.** When you answer, Resume or Reopen, the run checks and carries on from **its own kept copy of the job and plan** (M6, M6 am9), against that copy's own signature. It no longer checks the workflow's current signature. A copy that fails its signature is still refused by name. This lets amendment 10's Cancel go through without touching a waiting run.
+  - **Must fail when:** a run waiting at its ask can't carry on after a Cancel; a run whose own copy fails its signature carries on; a resumed run uses the workflow's current job instead of its own copy.
 
 ## M10 — real IO
 
