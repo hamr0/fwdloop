@@ -2179,6 +2179,16 @@ through M5 (docs/archive/PRD.md:597-605).
   - *F3 (`86cabf9`):* the run's job copy is written only if the job on disk still has the signature hash the run verified; if the job was replaced while the run was starting, the run stops `preflight-red` and writes no copy.
   - *F5 (`a8a9d8b`):* a run halted under a job that was later replaced offers no Resume button (the runner would refuse it as a signature mismatch); amendment 4 added the words.
   - *Known limits, not fixed:* a hard kill (SIGKILL) in the middle of a replacing sign leaves the old files in `.replace-old-<pid>-<ms>/` and the job refused until they are moved back by hand. The Run, Map and Audit tabs read the flow's current job, not the run's copy; only the Job tab reads the copy.
+- **M6 amendment 5 — SIGNED by hamr 2026-10-15 ("sign m6 am5"): one Edit door; a changed job is a new workflow.**
+  1. **One door.** "Edit this job" opens every field.
+  2. **Signing decides.**
+     - If the job lines, guardrails, ask words or positions, or steps changed, signing makes a **new workflow**. Its name is suggested as `<name>-N` (the next free number), and you can type a different name before signing. The old workflow is never changed: its signed job, runs and schedule stay as they were.
+     - If only inputs, destination, cap, time cap, ask wait or model changed, it is a **new run `run-N`** of the same workflow. No new workflow and no new workflow hash.
+  3. **Schedule from a run.** "Schedule run" on a good run uses that run's inputs, destination and **model**. Any of them can be changed when scheduling, and none of that makes a new workflow.
+  4. **A new workflow has no schedule** until its first green run (M9 item 1).
+  5. **Replaces:** M6 scope item 2 ("Signing replaces the job"), M4e amendment 5 item 5 (the separate New job door), and M9 amendment 1 (edit clears the schedule). M6 amendment 4 no longer applies, because the old job never changes.
+  - **Must fail when:** signing a changed job line alters the old workflow's signed files, runs or schedule; changing only the destination or model makes a new workflow; the suggested name clashes with an existing workflow; or the new workflow starts with a schedule.
+  - **Done when:** on your real panel, you edit a guardrail of aging-live-4 and sign. You get `aging-live-4-2` with no runs and no schedule, and aging-live-4 is still scheduled. Then you change only the model and sign, and it's a new `run-N` of aging-live-4.
 
 ## M7 — skills and persona
 
