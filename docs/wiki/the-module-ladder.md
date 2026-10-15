@@ -2207,6 +2207,31 @@ through M5 (docs/archive/PRD.md:597-605).
   1. The schedule button (it reads **Schedule run**, or **Cancel / modify schedule** once a schedule is set) stays as signed in M11 amendment 3 item 1. It is not one of the "two buttons" amendment 7 forbids.
   2. M6 amendments 1 and 3 (no editing while a run is starting, running or waiting) no longer apply. Reuse workflow is open while a run waits: a changed job signs as a new workflow, and the waiting run is untouched.
   - **Must fail when:** the schedule button is removed or changed; Reuse workflow is greyed while a run waits; or changing the job while a run waits alters that run or its workflow.
+- **M6 amendment 9 — SIGNED by hamr 2026-10-15 ("sign m6 am9"): a red run always drafts; the plan belongs to the run.**
+  1. **A red run (`[✗]`) always drafts.** Its Reuse workflow reads **Start drafting**, changed job or not. If the job is unchanged, the new plan runs as a new `run-N` of the same workflow. If the job changed, it is a new workflow `<name>-N` (amendment 5).
+  2. **Each run keeps the plan it ran.** Reuse workflow on a green run, with the job unchanged, runs that run's plan with no drafting. A schedule set from a run uses that run's plan (with amendment 5 item 3).
+  3. On any other run (green, stopped or waiting), amendment 6 item 2 decides as today.
+  4. **Replaces** amendment 6 item 3 ("A red run is treated the same as a green one") and its must-fail clause about a red run being forced to draft.
+  5. **LAYERS.md gets a "Workflow or run" section**, placed after "Who keeps what", in the same plain style:
+
+     ```
+     ## Workflow or run
+
+     A workflow is the job: its lines, guardrails, asks and steps. A run is one go at it,
+     with its own inputs, destination, cap, ask wait, model and plan. Reuse workflow, on
+     any run, opens every box; what you change decides the rest.
+
+     | the run you start from | the job | you get | it drafts a new plan? |
+     |---|---|---|---|
+     | red | changed | a new workflow `<name>-N` | yes |
+     | red | same | `run-N` of the same workflow | yes, the old plan failed |
+     | green | changed | a new workflow `<name>-N` | yes |
+     | green | same | `run-N` of the same workflow | no, it reuses that run's plan |
+
+     The old workflow is never changed. A new workflow has no schedule until its first green.
+     A stopped run uses Resume instead.
+     ```
+  - **Must fail when:** Reuse on a red run shows Run or Sign & run; a red run's redraft with the job unchanged makes a new workflow; a green run's reuse drafts or runs a different plan than that run's; or a schedule runs a plan other than its run's.
 
 ## M7 — skills and persona
 
