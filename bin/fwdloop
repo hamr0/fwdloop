@@ -23,7 +23,7 @@ import { draftHoldUsd } from '../src/draftspend.js';
 import { pathToFileURL } from 'node:url';
 
 import {
-  readFlow, checkFlowName, resolveRunDir, listFlowNames, listRunIds, readFileInside, claimRunId,
+  readPlan, checkFlowName, resolveRunDir, listFlowNames, listRunIds, readFileInside, claimRunId,
 } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import {
@@ -311,7 +311,8 @@ async function cmdRun(rest) {
   if (!loaded.ok) fail(`catalogue: ${loaded.reds.join('; ')}`);
   const catalogue = loaded.primitives;
 
-  const read = readFlow({ root, name: flowName, catalogue });
+  const planRunDir = (id) => { if (typeof id !== 'string') return null; const c = resolveRunDir(join(root, flowName), id); return c.ok ? c.runDir : null; }; // am9: a run that keeps its own plan reads it
+  const read = readPlan({ root, name: flowName, catalogue, runDir: planRunDir(values['run-id']) });
   if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
   const { declaration } = read;
 
@@ -607,7 +608,8 @@ async function cmdResume(rest) {
   if (!loaded.ok) fail(`catalogue: ${loaded.reds.join('; ')}`);
   const catalogue = loaded.primitives;
 
-  const read = readFlow({ root, name: flowName, catalogue });
+  const planRunDir = (id) => { if (typeof id !== 'string') return null; const c = resolveRunDir(join(root, flowName), id); return c.ok ? c.runDir : null; }; // am9: a run that keeps its own plan reads it
+  const read = readPlan({ root, name: flowName, catalogue, runDir: planRunDir(runId) });
   if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
   const { declaration } = read;
 
@@ -709,7 +711,8 @@ async function cmdContinue(rest) {
   if (!loaded.ok) fail(`catalogue: ${loaded.reds.join('; ')}`);
   const catalogue = loaded.primitives;
 
-  const read = readFlow({ root, name: flowName, catalogue });
+  const planRunDir = (id) => { if (typeof id !== 'string') return null; const c = resolveRunDir(join(root, flowName), id); return c.ok ? c.runDir : null; }; // am9: a run that keeps its own plan reads it
+  const read = readPlan({ root, name: flowName, catalogue, runDir: planRunDir(runId) });
   if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
   const { declaration } = read;
 

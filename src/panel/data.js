@@ -26,7 +26,7 @@ import { plainPlanCheck } from '../plain-checks.js';
 import { join, basename, sep } from 'node:path';
 
 import {
-  readFlow, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
+  readFlow, readPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
 } from '../flow.js';
 import {
   readAudit, readHistory, endRow, readPidRows, auditRowTokens, auditRowAt, auditRowTools,
@@ -893,7 +893,7 @@ const JOB_EDITED_LINE = 'stopped — the job was edited; start a new run';
  * @returns {any}
  */
 function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attempt = null, startingRun = undefined) {
-  const flowRead = readFlow({ root, name: flowName, catalogue });
+  const flowRead = readPlan({ root, name: flowName, catalogue, runDir });
   // M4e amendment 5 item 3 / amendment 4 item 6: the run's own signed values (its newest version) lie over the flow's
   const inForce = flowRead.ok ? applyRunValues(flowRead.arbiter, flowName, flowRead.signature.flow, pickRunValues(runDir)) : null;
   const historyRows = readHistory(flowDir);
@@ -2350,8 +2350,8 @@ export function getRunAsks({
   // Inbox — otherwise an open ask's Ask-tab header/body falls back to the
   // raw status word "unanswered" and no time-left, disagreeing with the
   // Inbox row for that exact same ask.
-  const flowRead = readFlow({
-    root, name: flow, catalogue,
+  const flowRead = readPlan({
+    root, name: flow, catalogue, runDir: run.runDir,
   });
   const ordered = runAsksInOrder(run.runDir, hasHistoryRow, histRow?.outcome === 'ask-expired', runJobEdited(readHaltRecord(run.runDir), histRow ?? null, flowRead));
   const auditRows = readAudit(run.runDir);
@@ -2425,7 +2425,7 @@ export function listStops({ root, resumeAttempt, catalogue }) {
       const savedAskId = readSavedAnswer(run.runDir)?.askId;
       // M6 amendment 4: read the job only for a run that ended stopped / cap-halted (and only when the caller gave the catalogue to read it with)
       const jobEdited = end !== null && (end.outcome === 'stopped' || end.outcome === 'cap-halt') && catalogue !== undefined
-        && runJobEdited(readHaltRecord(run.runDir), end, readFlow({ root, name: flowName, catalogue }));
+        && runJobEdited(readHaltRecord(run.runDir), end, readPlan({ root, name: flowName, catalogue, runDir: run.runDir }));
       const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, end?.outcome === 'ask-expired', jobEdited).map((ask) => ({
         flow: flowName,
         runId,

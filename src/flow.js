@@ -788,6 +788,30 @@ export function writeRunJobCopy(flowDir, runDir, expectedFlowHash) {
   return { ok: true };
 }
 
+/** M6 am9: a run's folder holds this file when the run executes the plan it keeps (`<run>/job/`), not the flow folder's. Written once, by the run's plan writer. */
+export const RUN_PLAN_MARKER = 'plan.json';
+
+/** M6 am9: does this run execute its own kept plan? The ONE test (no marker = the flow folder's plan, as every run before am9). @param {string} runDir */
+export function runOwnsPlan(runDir) {
+  return existsSync(path.join(runDir, RUN_PLAN_MARKER));
+}
+
+/**
+ * M6 am9: the ONE reader of the plan a run executes. A run whose folder holds `plan.json` reads its own verified copy (`<run>/job/`); every other
+ * run (and a read with no run) reads the flow folder exactly as `readFlow` does. Never throws; a kept plan that does not verify is a red, never swapped for the flow's.
+ * @param {{root: unknown, name: unknown, catalogue: unknown, runDir?: string|null}} a
+ * @returns {ReadFlowResult}
+ */
+export function readPlan({ root, name, catalogue, runDir }) {
+  if (typeof runDir !== 'string' || !runOwnsPlan(runDir)) return readFlow({ root, name, catalogue });
+  const c = readRunJobCopy(runDir, catalogue);
+  if (!c.present) return { ok: false, reds: [`plan: ${runDir} is marked as running its own plan but holds no job/ copy`] };
+  if (!c.ok) return { ok: false, reds: c.reds.map((r) => `plan: this run's kept plan — ${r}`) };
+  const { present, ...rest } = c;
+  void present;
+  return /** @type {ReadFlowResult} */ (rest);
+}
+
 /**
  * M6: the job a run ran, from its own copy. `{present:false}` = the run has none (it started before M6). `{present:true, ok:true, ...}` = the same
  * shape as a good `readFlow` (lines, arbiter, declaration, signature, classes), after the copy was verified against the copied signature.
