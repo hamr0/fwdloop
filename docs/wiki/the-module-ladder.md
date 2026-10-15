@@ -2232,6 +2232,13 @@ through M5 (docs/archive/PRD.md:597-605).
      A stopped run uses Resume instead.
      ```
   - **Must fail when:** Reuse on a red run shows Run or Sign & run; a red run's redraft with the job unchanged makes a new workflow; a green run's reuse drafts or runs a different plan than that run's; or a schedule runs a plan other than its run's.
+- **Built after signing — not signed text (2026-10-15), M6 amendment 9 (branch `m11-am5`):**
+  - Where a run's plan lives: `runs/run-N/job/` (the three signed files, write-once, verified) plus a `plan.json` marker in the run folder. No marker = the run reads the workflow's folder, exactly as every run before am9. The ONE reader is `readPlan` in `src/flow.js`; the runner, `fwdloop run/resume/continue`, the Resume button and the run views all use it.
+  - A red (`[✗]`) run's redraft of an unchanged job: the draft door accepts it only when the server reads the source run as `[✗]` itself (never the page's word), names the draft for the SAME workflow, and records `run-of.json` in the draft folder. Sign calls `signDraft` with `asRunOf` (CLI: `fwdloop sign --run-of <workflow>`, same TTY and typed name): the plan's job key must equal the workflow's, then `writeRunPlan` claims `run-N` and writes the plan there. The workflow's files are never written.
+  - Green same-job reuse: the run door takes `planOf` (the run the card was opened from). `planForReuse` says whether that run's kept plan is the workflow's own (a trigger line aside): then a plain run; otherwise the new run gets a verified copy of it (`plan.json {planOf}`). A kept plan that does not verify refuses by name. A run with no kept plan (made before M6) reads as the workflow's plan, as its Job tab already says.
+  - A schedule: `schedule-plan.json` `{run, flowHash, declSha}` beside the trigger's ledgers, written once, bound into the second click's hash and re-verified at every fire (a changed plan refuses the fire and starts nothing). The workflow's declaration is unchanged; the trigger line is signed into the workflow's prose as before. The Schedule button uses the plan of the run whose Run tab it was clicked on.
+  - Narrowing of amendment 6 item 2's draft guard (409 `job-unchanged`, "nothing needs drafting"): it now holds for green, stopped, waiting and unknown source runs; a `[✗]` source run passes it (amendment 9 item 4). A run ended by "rerun" also wears `[✗]` and counts as red (hamr's ruling).
+  - If sign succeeds and the start is refused, the refused start reads as refused with today's Clear; nothing new was added.
 
 ## M7 — skills and persona
 
