@@ -837,3 +837,20 @@ function explainEdit(dir, signature, proseText, declarationText) {
   if (changes.length === 0) return [CHANGED_PREFIX + 'the files match the saved copy; signature.json itself was changed'];
   return changes.map((c) => `${CHANGED_PREFIX}${c}`);
 }
+
+/**
+ * M6 am5 item 2: the name suggested for the new workflow a changed job becomes: `<base>-N`, N the first free number from 2. A trailing `-N` of
+ * `name` is stripped first (aging-live-4-2 -> base aging-live-4). "Free" = nothing at all by that name under root (a folder or a file), the same
+ * test the card's name check makes. Pure read; the sign still refuses a name taken meanwhile (writeFlow never overwrites).
+ * @param {string} root @param {string} name
+ */
+export function suggestFlowName(root, name) {
+  const base = name.replace(/-[0-9]+$/, '') || name;
+  for (let n = 2; ; n += 1) {
+    const tail = `-${n}`;
+    const candidate = `${base.slice(0, 64 - tail.length)}${tail}`;
+    let there = true;
+    try { lstatSync(path.join(root, candidate)); } catch { there = false; }
+    if (!there) return candidate;
+  }
+}
