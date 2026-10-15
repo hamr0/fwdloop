@@ -208,7 +208,7 @@ export function createTriggerDoor(opts) {
     const { trigger } = shaped;
     const flowDir = join(realRoot, flow);
     if (trigger !== null && !hasGreenRunForJob(flowDir)) return reply(409, { refused: 'no-green-run', say: NO_GREEN_SAY });
-    const blocked = flowsDoor.editBlock(flow);   // the same rule Edit uses: a run starting, running or waiting at its ask
+    const blocked = trigger === null ? null : flowsDoor.editBlock(flow);   // M9 am10: Cancel always works (it only stops future runs; a waiting run carries on from its own copy, am12); a new schedule keeps Edit's rule: a run starting, running or waiting at its ask
     if (blocked !== null) return reply(409, { refused: 'run-live', say: `${blocked}. Nothing was changed.` });
     if (trigger !== null && 'role' in trigger) {
       try {
