@@ -316,8 +316,11 @@
   .ended-label{color:var(--text-faint);font-size:11px;letter-spacing:0.08em;min-width:84px;}
   .ended-text{flex:1 1 220px;min-width:0;overflow-wrap:anywhere;}
   .audit-sched-start{padding:6px 10px;margin-bottom:8px;border:1px solid var(--border-strong);background:var(--panel2);font-size:12px;overflow-wrap:anywhere;}
-  .audit-sched-list{margin:6px 0 0;padding:0 0 0 18px;font-size:12px;}
-  .audit-sched-list li{overflow-wrap:anywhere;margin-bottom:4px;}
+  .audit-sched-rows{margin:8px 0 0;font-size:12px;}
+  .audit-sched-rows[hidden]{display:none !important;}
+  .audit-sched-row{display:grid;grid-template-columns:5.5em 7.5em minmax(0,1fr);gap:0 8px;margin-bottom:4px;}
+  .audit-sched-row > span{min-width:0;overflow-wrap:anywhere;}
+  @media (max-width:560px){ .audit-sched-row{grid-template-columns:5.5em minmax(0,1fr);} .audit-sched-row > .c2{grid-column:1 / -1;} }
   .when-sub{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
   .when-sub > *{flex:1 1 120px;min-width:0;}
   .when-sub[hidden]{display:none;}
@@ -2818,13 +2821,35 @@
     var anyVisible = false;
     // amendment 7 item 2: the Draft is the first group, a normal card (collapsed by default); a run with no audit rows yet still has it
     var draftG = draftGroupFor(result);
-    // M9 am6 items 3-4: the schedule's first row (a run it started) and its folded "schedule (k)" group (on the run the schedule was set from); words from the server
-    if(result.scheduleStarted){
-      var srow = document.createElement("div");
-      srow.className = "audit-sched-start";
-      srow.setAttribute("data-testid", "audit-sched-started");
-      srow.textContent = result.scheduleStarted;
-      container.appendChild(srow);
+    // M9 am9 / am11: the `schedule` section, first in the Audit of every run of a job that has a schedule; always folded on open; the words and the sign come from the server
+    if(result.schedule){
+      var sc = result.schedule;
+      var sw = document.createElement("div");
+      sw.className = "audit-group audit-fold closed";
+      sw.setAttribute("data-testid", "audit-group-schedule");
+      var sh = document.createElement("h4");
+      sh.className = "audit-status-header";
+      sh.setAttribute("role", "button"); sh.setAttribute("tabindex", "0"); sh.setAttribute("aria-expanded", "false");
+      sh.style.cursor = "pointer";
+      var sname = document.createElement("span"); sname.className = "audit-fold-name"; sname.textContent = "schedule"; sh.appendChild(sname);
+      var ssign = document.createElement("span");
+      ssign.className = "badge sign-badge " + (sc.sign === "[\u25B6]" ? "amber" : sc.sign === "[\u2717]" ? "red" : "grey");
+      ssign.setAttribute("data-testid", "audit-schedule-sign"); ssign.textContent = sc.sign; sh.appendChild(ssign);
+      var stail = document.createElement("span"); stail.className = "audit-fold-tail"; stail.setAttribute("data-testid", "audit-schedule-head"); stail.textContent = sc.head; sh.appendChild(stail);
+      var sl = document.createElement("div");
+      sl.className = "audit-sched-rows"; sl.hidden = true;
+      sc.rows.forEach(function(r){
+        var line = document.createElement("div"); line.className = "audit-sched-row";
+        [r.label, r.stamp, r.text].forEach(function(t, i){ var c = document.createElement("span"); c.className = "c" + i; c.textContent = t; line.appendChild(c); });
+        sl.appendChild(line);
+      });
+      function paintSched(open){ sl.hidden = !open; sw.classList.toggle("closed", !open); sh.setAttribute("aria-expanded", open ? "true" : "false"); }
+      function toggleSched(){ var open = sl.hidden; auditExpanded["\u0000schedule"] = open; paintSched(open); }   // folded on open; a re-render keeps what you chose for this run
+      if(auditExpanded["\u0000schedule"] === true) paintSched(true);
+      sh.addEventListener("click", toggleSched);
+      sh.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); toggleSched(); } });
+      sw.appendChild(sh); sw.appendChild(sl);
+      container.appendChild(sw);
       anyVisible = true;
     }
     // M11 am11 items 3-4: why the card left Needs you, in the server's words
@@ -2834,27 +2859,6 @@
       nrow.setAttribute("data-testid", "audit-needs-left");
       nrow.textContent = result.needsLeft;
       container.appendChild(nrow);
-      anyVisible = true;
-    }
-    if(result.scheduleGroup){
-      var sg = result.scheduleGroup;
-      var sw = document.createElement("div");
-      sw.className = "audit-group audit-fold closed";
-      sw.setAttribute("data-testid", "audit-group-schedule");
-      var sh = document.createElement("div");
-      sh.className = "audit-group-header";
-      sh.setAttribute("role", "button"); sh.setAttribute("tabindex", "0"); sh.setAttribute("aria-expanded", "false");
-      sh.style.cursor = "pointer";
-      var sl = document.createElement("ul");
-      sl.className = "audit-sched-list"; sl.hidden = true;
-      sg.items.forEach(function(s){ var li = document.createElement("li"); li.textContent = s; sl.appendChild(li); });
-      function paintSchedHead(open){ sh.textContent = (open ? "\u25BE " : "\u25B8 ") + sg.label + " (" + sg.total + ")"; sh.setAttribute("aria-expanded", open ? "true" : "false"); }
-      paintSchedHead(false);
-      function toggleSched(){ sl.hidden = !sl.hidden; sw.classList.toggle("closed", sl.hidden); paintSchedHead(!sl.hidden); }
-      sh.addEventListener("click", toggleSched);
-      sh.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); toggleSched(); } });
-      sw.appendChild(sh); sw.appendChild(sl);
-      container.appendChild(sw);
       anyVisible = true;
     }
     var groups = (draftG ? [draftG] : []).concat(result.empty ? [] : (result.groups || []));
@@ -2973,7 +2977,7 @@
     var content = document.getElementById("audit-content");
     lastAuditResult = result;
     // a run with no audit rows yet still has its Draft: say so in words, and show the card
-    var hasDraft = !!(result && (result.draft || result.scheduleStarted || result.scheduleGroup || result.needsLeft));
+    var hasDraft = !!(result && (result.draft || result.schedule || result.needsLeft));
     if(!result || (result.empty && !hasDraft)){
       empty.hidden = false;
       empty.textContent = (result && result.why) || "no audit rows for this run";

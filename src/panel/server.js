@@ -572,7 +572,7 @@ export function handleRequest(req, res, opts) {
 
     if (sub === 'audit') {
       const result = getRunAudit({
-        root: opts.root, flow, runId, scheduleRead: (f) => opts.author?.trigger?.facts(f) ?? null, catalogue, resumeAttempt, now: opts.now,
+        root: opts.root, flow, runId, scheduleRead: (f) => opts.author?.trigger?.facts(f) ?? null, catalogue, resumeAttempt, startingRun, now: opts.now,
       });
       if (!result) { sendText(res, 404, 'no such run'); return; }
       send(200, result);

@@ -516,6 +516,7 @@ export function createTriggerDoor(opts) {
         destination: sd && typeof sd.destination === 'string' ? sd.destination : (read.ok ? flowValues(read.arbiter).destination : null),
         inputs: sources.map((p) => basename(String(p))),
         fires,
+        allFires: readOutcomes(flowDir),   // M9 am9 item 4: the Audit's `tries` span every signing
       };
     },
 

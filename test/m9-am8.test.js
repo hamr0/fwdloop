@@ -8,7 +8,7 @@ import path from 'node:path';
 
 import { readOutcomes } from '../src/panel/authortrigger.js';
 import { STABLE_POLLS } from '../src/trigger-files.js';
-import { scheduleBlockWords, fireRowWords } from '../src/summary-words.js';
+import { scheduleBlockWords } from '../src/summary-words.js';
 import {
   GATED_STEP, killChildrenAfter, until,
 } from './m4e-world.mjs';
@@ -132,8 +132,4 @@ test('am8 words: refused is red with the reason, then the fix-it ending (item 6)
 test('am8 words: before any fire "no run yet"; a schedule not armed ends "next: not armed yet" (items 2, 7)', () => {
   assert.equal(scheduleBlockWords(base).line2, `no run yet · ${NEXT}`);
   assert.equal(scheduleBlockWords({ ...base, armed: false }).line2, 'no run yet · next: not armed yet');
-});
-
-test('am8: the Audit schedule group\'s busy row says "still working" when the books hold no sentence', () => {
-  assert.match(fireRowWords({ at: iso(at(15, 8, 15)), outcome: 'busy' }), /still working/);
 });

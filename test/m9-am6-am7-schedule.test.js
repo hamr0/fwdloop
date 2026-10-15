@@ -13,7 +13,7 @@ import { killChildrenAfter, tickedConfig } from './m4e-world.mjs';
 import { DAILY, greenWorld } from './m9-trigger-world.mjs';
 import { readOutcomes } from '../src/panel/authortrigger.js';
 import {
-  auditStartedWords, fireRowWords, scheduleBlockWords, scheduleFieldWords, scheduleHead, shortStamp, startedWords,
+  scheduleBlockWords, scheduleFieldWords, scheduleHead, shortStamp, startedWords,
 } from '../src/summary-words.js';
 
 killChildrenAfter();
@@ -53,11 +53,8 @@ test('words (pure): Started / Audit first row / Schedule field / fire rows, the 
   assert.equal(startedWords(rec, at(15, 8, 25)), `By the schedule: every day at 08:15 · catch-up, 10 min late · ${stamp(at(15, 8, 25))}`);
   assert.equal(startedWords({ kind: 'file', triggerKind: 'new-file', file: '/in/aging-oct.csv' }, null), 'By a new file: aging-oct.csv');
   assert.equal(startedWords({ kind: 'file', triggerKind: 'file-updated', file: '/in/aging.csv' }, null), 'By a file update: aging.csv');
-  assert.equal(auditStartedWords(rec), 'started by the schedule · every day at 08:15 · slot 08:15 · from run-7 · catch-up');
-  assert.equal(auditStartedWords(null), null);
   assert.equal(scheduleFieldWords({ trigger: null }), 'none');
   assert.equal(scheduleFieldWords({ trigger: d, from: 'run-7', model: 'deepseek-flash', destination: '/x/out', inputs: ['aging-oct.csv'], home: '/x' }), 'every day at 08:15 · from run-7 · deepseek-flash · ~/out · aging-oct.csv');
-  assert.match(fireRowWords({ at: new Date(at(14, 8, 15)).toISOString(), outcome: 'monthly-exhausted', leftUsd: 0.12, needUsd: 0.5 }), /^10\/14 08:15 · month used up · \$0\.12 left this month, a run needs up to \$0\.50\.$/);
   assert.equal(shortStamp(at(5, 9, 5)), '10/05 09:05');
 });
 
@@ -69,10 +66,10 @@ test('am6 must fail: a scheduled run\'s Job tab and Audit say it was scheduled, 
   const j = await job(f.w, row.runId);
   assert.match(j.started, /^By the schedule: every day at 09:00( · .*)?$/);
   const a = await audit(f.w, row.runId);
-  assert.equal(a.scheduleStarted, 'started by the schedule · every day at 09:00 · slot 09:00 · from seed-pass');
+  assert.equal(a.schedule.rows[0].text, 'started by the schedule · every day at 09:00', 'M9 am9: the Audit says it in the schedule section');
   const hand = await job(f.w, 'seed-pass');
   assert.match(hand.started, /^By hand/);
-  assert.equal((await audit(f.w, 'seed-pass')).scheduleStarted, null);
+  assert.match((await audit(f.w, 'seed-pass')).schedule.rows[0].text, /^by hand\./);
 });
 
 test('am6 must fail: the Job tab Schedule field is the workflow\'s schedule with what it is bound to, or none; it AGREES with the Run tab SCHEDULE line 1', async () => {
@@ -83,21 +80,6 @@ test('am6 must fail: the Job tab Schedule field is the workflow\'s schedule with
   assert.match(j.schedule, /^every day at 09:00 · from seed-pass · /);
   const d = await detail(f.w, 'seed-pass');
   assert.ok(j.schedule.startsWith(d.summary.schedule.line1), `Schedule field "${j.schedule}" must start with SCHEDULE line 1 "${d.summary.schedule.line1}"`);
-});
-
-test('am6 must fail: fires that started nothing show in the Audit of the run the schedule was set from, folded, newest first, at most 7 — and on no other run', async () => {
-  const f = await fireWorld();
-  await setSchedule(f.w);
-  for (let i = 0; i < 9; i += 1) addFire(f.flowDir, { at: new Date(at(13, 9 + (i % 3), i)).toISOString(), outcome: 'refused', why: `reason ${i}.` });
-  addFire(f.flowDir, { at: new Date(at(13, 20)).toISOString(), outcome: 'busy', say: 'run-3 is running; finish or stop it first' });
-  const a = await audit(f.w, 'seed-pass');
-  assert.equal(a.scheduleGroup.label, 'schedule');
-  assert.equal(a.scheduleGroup.items.length, 7);
-  assert.equal(a.scheduleGroup.total, 7);
-  assert.match(a.scheduleGroup.items[0], /^10\/13 20:00 · busy · run-3 is running; finish or stop it first\.$/, 'newest first');
-  assert.match(a.scheduleGroup.items[1], /refused · reason 8\.$/);
-  f.w.seedPassed('job2', 'other');
-  assert.equal((await audit(f.w, 'other')).scheduleGroup, null, 'only on the run the schedule was set from');
 });
 
 test('am7 must fail: ENDED has the end date and time; SCHEDULE exists even By hand; Started has the start time when the books hold one', async () => {

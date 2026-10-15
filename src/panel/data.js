@@ -40,7 +40,7 @@ import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../r
 import { readSetup } from '../setup.js';
 import { checkedLines, notCheckedBlock, NOT_CHECKED_LABEL } from '../checked.js';
 import {
-  auditStartedWords, catchUpWords, endedLineWords, endedWords, fireRowWords, needsLeftWords, nextInWords, nextTimeWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
+  catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import {
@@ -1433,6 +1433,40 @@ function jobWaitingLine(root, flowDir, flow, catalogue) {
 }
 
 /**
+ * The Run tab's SCHEDULE block for one job, from the job's schedule facts `t` (`trigger.facts`, or null). ONE builder: the Run tab and the Audit's
+ * `schedule` section (its red sign, M9 am11) both call it, so they cannot disagree.
+ * @param {{root: string, flowDir: string, flow: string, catalogue: any, t: any, home?: string, now: () => number}} o
+ */
+function scheduleBlockOf({ root, flowDir, flow, catalogue, t, home, now }) {
+  const fires = t && Array.isArray(t.fires) ? t.fires : [];
+  const lastStart = fires.findLast((x) => x.outcome === 'started' && typeof x.runId === 'string');
+  const lastRec = lastStart ? readTriggerRecord(join(flowDir, 'runs', lastStart.runId)) : null;
+  const lastGlyph = lastStart ? getRunGlyph({ root, flow, runId: lastStart.runId, catalogue }) : null;
+  const latest = fires.length > 0 ? fires[fires.length - 1] : null;
+  return scheduleBlockWords({
+    trigger: t && t.trigger ? t.trigger : null, home,
+    last: lastStart ? { at: lastStart.at, runId: lastStart.runId, outcome: lastGlyph ? (SIGN_WORDS[lastGlyph.glyph] ?? 'ended') : 'ended', catchUp: !!(lastRec && lastRec.catchUp === true) } : null,
+    nextSlotMs: t ? t.nextSlotMs : null, armed: !!(t && t.armed), nowMs: now(),
+    problem: latest && latest.outcome !== 'started' && ['busy', 'monthly-exhausted', 'refused'].includes(latest.outcome) ? latest : null,
+  });
+}
+
+/**
+ * M9 am11: is a run of this job running now? The runs list's own rule (`isRunningNow`: no end row and the glyph `[▶]`), not a run waiting at its ask.
+ * @param {{root: string, flow: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any, startingRun?: (flow: string, runId: string) => boolean}} o
+ */
+function jobHasRunningRun({ root, flow, catalogue, resumeAttempt, startingRun }) {
+  const flowDir = join(root, flow);
+  for (const runId of listRunIds(flowDir)) {
+    const run = resolveRunPath(root, flow, runId);
+    if (!run.ok) continue;
+    const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, resumeAttempt?.(flow, runId) ?? null, startingRun);
+    if (isRunningNow(ctx, computeGlyph(ctx).glyph)) return true;
+  }
+  return false;
+}
+
+/**
  * M9 piece 6 (ladder M9 item 7): the summary block at the top of a run page, as data. Words come from `src/summary-words.js` only, built
  * from typed facts (the history row's outcome, the declared step's line, the signed trigger and its ledger). `ended` is null while the run
  * is live; `scheduled` is null when the job has no trigger; `canSchedule` (am3 item 1) is the trigger door's own `hasGreenRun` answer; `catchUp` is a fixed sentence when this run was started late (am2 item 1).
@@ -1467,17 +1501,7 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   const f = readFileInside(ctx.runDir, 'trigger.json');
   if (f.ok) { try { rec = JSON.parse(f.text); } catch { rec = null; } }
   // M9 am7 items 3-4: the SCHEDULE block replaces the SCHEDULED / NEXT rows. Words: src/summary-words.js, the same owner as the Job tab's Schedule field.
-  const fires = t && Array.isArray(t.fires) ? t.fires : [];
-  const lastStart = fires.findLast((x) => x.outcome === 'started' && typeof x.runId === 'string');
-  const lastRec = lastStart ? readTriggerRecord(join(ctx.flowDir, 'runs', lastStart.runId)) : null;
-  const lastGlyph = lastStart ? getRunGlyph({ root, flow: ctx.flowName, runId: lastStart.runId, catalogue }) : null;
-  const latest = fires.length > 0 ? fires[fires.length - 1] : null;
-  const schedule = scheduleBlockWords({
-    trigger: t && t.trigger ? t.trigger : null, home,
-    last: lastStart ? { at: lastStart.at, runId: lastStart.runId, outcome: lastGlyph ? (SIGN_WORDS[lastGlyph.glyph] ?? 'ended') : 'ended', catchUp: !!(lastRec && lastRec.catchUp === true) } : null,
-    nextSlotMs: t ? t.nextSlotMs : null, armed: !!(t && t.armed), nowMs: now(),
-    problem: latest && latest.outcome !== 'started' && ['busy', 'monthly-exhausted', 'refused'].includes(latest.outcome) ? latest : null,
-  });
+  const schedule = scheduleBlockOf({ root, flowDir: ctx.flowDir, flow: ctx.flowName, catalogue, t, home, now });
   return { ended, scheduled, schedule, canSchedule: !!(t && t.hasGreenRun), catchUp: catchUpWords(rec) };
 }
 
@@ -1884,11 +1908,11 @@ export function getDraftBlock(flowDir, runDir) {
  * own `audit.jsonl` file already carries only its own rows — there is no
  * shared-sidecar contamination risk here the way bareloop's gate-audit
  * sidecar had). `null` when the flow/runId doesn't resolve (404).
- * @param {{root: string, flow: string, runId: string, scheduleRead?: (flow: string) => any, home?: string, catalogue?: any, resumeAttempt?: (flow: string, runId: string) => any, now?: () => number}} opts
- * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, needsLeft: string|null, scheduleStarted: string|null, scheduleGroup: {label: string, total: number, items: string[]}|null, empty:boolean, why:string|null}|null}
+ * @param {{root: string, flow: string, runId: string, scheduleRead?: (flow: string) => any, home?: string, catalogue?: any, resumeAttempt?: (flow: string, runId: string) => any, startingRun?: (flow: string, runId: string) => boolean, now?: () => number}} opts
+ * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, needsLeft: string|null, schedule: ReturnType<typeof scheduleAuditWords>, empty:boolean, why:string|null}|null}
  */
 export function getRunAudit({
-  root, flow, runId, scheduleRead, home, catalogue, resumeAttempt, now = Date.now,
+  root, flow, runId, scheduleRead, home, catalogue, resumeAttempt, startingRun, now = Date.now,
 }) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
@@ -1914,14 +1938,18 @@ export function getRunAudit({
     needsLeft: catalogue ? needsLeftWords(getRunNeeds({
       root, flow, runId, catalogue, nowMs: now(), resumeAttempt,
     })?.left ?? null) : null,
-    // M9 am6 items 3-4: the first row of a run a schedule started, and (on the run the schedule was set from) the folded group of fires that started nothing
-    scheduleStarted: auditStartedWords(readTriggerRecord(run.runDir), home),
-    scheduleGroup: (() => {
-      const f = typeof scheduleRead === 'function' ? scheduleRead(flow) : null;
-      if (!f || f.from !== runId || !Array.isArray(f.fires)) return null;
-      const items = f.fires.filter((x) => x.outcome !== 'started').reverse();
-      const shown = items.slice(0, 7);   // at most 7, newest first; the label counts what is listed
-      return shown.length === 0 ? null : { label: 'schedule', total: shown.length, items: shown.map(fireRowWords) };
+    // M9 am9 / am11: the `schedule` section, one for every run of a job that has a schedule now (null otherwise); words: src/summary-words.js
+    schedule: (() => {
+      const t = typeof scheduleRead === 'function' ? scheduleRead(flow) : null;
+      if (!t || !t.trigger) return null;
+      const rec = readTriggerRecord(run.runDir);
+      const at = firstPidStartedAt(run.runDir) ?? (rec && typeof rec.at === 'string' ? rec.at : null);   // the fire's own stamp when the run kept no pid row yet
+      return scheduleAuditWords({
+        trigger: t.trigger, runId, from: t.from ?? null, rec, startMs: at === null || Number.isNaN(Date.parse(at)) ? null : Date.parse(at),
+        block: scheduleBlockOf({ root, flowDir: run.flowDir, flow, catalogue, t, home, now }),
+        running: jobHasRunningRun({ root, flow, catalogue, resumeAttempt, startingRun }),
+        fires: Array.isArray(t.allFires) ? t.allFires : [],
+      });
     })(),
     empty: rows.length === 0,
     why: rows.length === 0 ? 'audit.jsonl is empty or missing — no attempt has been made yet' : null,

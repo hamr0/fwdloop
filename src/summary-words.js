@@ -227,38 +227,8 @@ export function startedWords(rec, startMs, home) {
   return stamp ? `${head} · ${stamp}` : head;
 }
 
-/**
- * The Audit's first row of a run a schedule started: `started by the schedule · every day at 08:15 · slot 08:15 · from run-7` (+ ` · catch-up`).
- * A file trigger names the file where a clock names the slot. `null` for a hand run. @param {any} rec @param {string} [home]
- */
-export function auditStartedWords(rec, home) {
-  const kind = startedKind(rec);
-  if (kind === null) return null;
-  const parts = ['started by the schedule', rec.words ?? String(rec.trigger ?? '')];
-  if (kind === 'clock' && Number.isFinite(Date.parse(rec.slot))) {
-    const d = new Date(Date.parse(rec.slot));
-    parts.push(`slot ${two(d.getHours())}:${two(d.getMinutes())}`);
-  } else if (kind === 'file' && typeof rec.file === 'string') parts.push(`file ${basename(rec.file)}`);
-  if (typeof rec.fromRun === 'string' && rec.fromRun !== '') parts.push(`from ${rec.fromRun}`);
-  if (rec.catchUp === true) parts.push('catch-up');
-  void home;
-  return parts.join(' · ');
-}
-
 /** M9 am8 item 3: the busy sentence, in the busy row of `triggers.jsonl` and in the SCHEDULE block. One owner; the scheduler writes it, the words read it. */
 export const SCHEDULE_BUSY_SAY = 'a run of this job was still working';
-
-/** One fire that started nothing, in plain words, for the Audit's folded schedule group: `10/14 08:15 · busy · <why>`. @param {any} row a triggers.jsonl row */
-export function fireRowWords(row) {
-  const when = shortStamp(row.at);
-  if (row.outcome === 'busy') return `${when} · busy · ${String(row.say ?? SCHEDULE_BUSY_SAY).replace(/\.$/, '')}.`;
-  if (row.outcome === 'monthly-exhausted') {
-    const left = typeof row.leftUsd === 'number' ? `${row.atLeast === true ? 'at most ' : ''}${money(row.leftUsd)} left` : 'not enough left';
-    const need = typeof row.needUsd === 'number' ? `, a run needs up to ${money(row.needUsd)}` : '';
-    return `${when} · month used up · ${left} this month${need}.`;
-  }
-  return `${when} · refused · ${String(row.why ?? 'it was refused').trim()}`;
-}
 
 /** A month-used-up fire in the SCHEDULE block's words (am8 item 5): `month used up: $0.01 left, needs $0.50`. @param {any} row */
 function monthUsedUpWords(row) {
@@ -298,6 +268,55 @@ export function scheduleBlockWords(f) {
   if (!f.last) return { line1: head, line2: `no run yet · ${next}`, red: false };
   const outcome = f.last.outcome === 'waiting' ? 'waiting for your answer (the next run does not wait)' : `${f.last.outcome}${f.last.catchUp ? ' · catch-up' : ''}`;
   return { line1: head, line2: `last ${shortStamp(f.last.at)} · ${f.last.runId} · ${outcome} · ${next}`, red: false };
+}
+
+/** M9 am9 item 3: a `refused` fire's reason ends `Nothing started.` once, whether the scheduler already said so or not. @param {unknown} why */
+function refusedWords(why) {
+  const w = String(why ?? 'it was refused').trim().replace(/\s*Nothing started\.?$/, '').replace(/\.$/, '');
+  return `refused: ${w || 'it was refused'}. Nothing started.`;
+}
+
+/** Fires that started nothing (the three outcomes of am8), the only rows `tries` may hold. @param {any} row */
+export const startedNothing = (row) => row && (row.outcome === 'busy' || row.outcome === 'monthly-exhausted' || row.outcome === 'refused');
+
+/** M9 am9 item 3: one `tries` row's words, after its stamp; the am8 owners' sentences. @param {any} row a triggers.jsonl row that started nothing */
+function triesRowWords(row) {
+  if (row.outcome === 'busy') return `busy: ${String(row.say ?? SCHEDULE_BUSY_SAY).replace(/\.$/, '')}. Nothing started.`;
+  if (row.outcome === 'monthly-exhausted') return `${monthUsedUpWords(row)}. Nothing started.`;
+  return refusedWords(row.why);
+}
+
+/** M9 am9 item 4: at most this many `tries` show. */
+export const SCHEDULE_TRIES_SHOWN = 7;
+
+/**
+ * M9 am9 / am11: a run's Audit `schedule` section (one for every run of a job that has a schedule NOW; `null` when it has none). Folded head
+ * `<sign> <schedule words> · from run-7 · 2 tries started nothing`; unfolded rows `this run` and `tries` (stamp + words each).
+ * The schedule words are the SAME `line1` the Run tab's SCHEDULE block carries; the sign is `[▶]` while a run of the job is running, `[✗]` when that block is red, else `[·]` (am11).
+ * @param {{trigger: Trigger|null, runId: string, from: string|null, rec: any, startMs: number|null, block: {line1: string, red: boolean}, running: boolean, fires: any[]}} f
+ *   `rec`: this run's trigger.json or null (a hand run); `fires`: every triggers.jsonl row of the job, across every signing.
+ * @returns {{sign: string, head: string, rows: Array<{label: string, stamp: string, text: string}>}|null}
+ */
+export function scheduleAuditWords(f) {
+  if (f.trigger === null) return null;
+  const tries = f.fires.filter(startedNothing).reverse();
+  const sign = f.running ? '[\u25B6]' : (f.block.red ? '[\u2717]' : '[\u00B7]');
+  const k = tries.length;
+  const head = [f.block.line1, f.from ? `from ${f.from}` : null, k > 0 ? `${k} ${k === 1 ? 'try' : 'tries'} started nothing` : null].filter((x) => x !== null).join(' \u00b7 ');
+  const kind = startedKind(f.rec);
+  let what = 'by hand.';
+  if (kind === 'clock') what = `started by the schedule \u00b7 ${f.rec.words ?? f.rec.trigger ?? 'a schedule'}${f.rec.catchUp === true ? ' \u00b7 catch-up' : ''}`;
+  else if (kind === 'file') {
+    const name = typeof f.rec.file === 'string' ? basename(f.rec.file) : '';
+    what = `started by the schedule \u00b7 ${f.rec.triggerKind === 'file-updated' ? 'file update' : 'new file'}${name ? ` ${name}` : ''}`;
+  }
+  if (f.from !== null && f.from === f.runId) what += kind === null ? ' The schedule was set from this run.' : '. The schedule was set from this run.';
+  /** @type {Array<{label: string, stamp: string, text: string}>} */
+  const rows = [{ label: 'this run', stamp: f.startMs === null ? '' : shortStamp(f.startMs), text: what }];
+  const shown = tries.slice(0, SCHEDULE_TRIES_SHOWN);
+  if (shown.length === 0) rows.push({ label: 'tries', stamp: '', text: 'none' });
+  else shown.forEach((r, i) => rows.push({ label: i === 0 ? 'tries' : '', stamp: shortStamp(r.at), text: triesRowWords(r) }));
+  return { sign, head, rows };
 }
 
 /**
