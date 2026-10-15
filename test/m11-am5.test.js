@@ -147,11 +147,11 @@ test('item 5 (words replaced by am7 item 4): no search: several days = `k more o
   assert.doesNotMatch(html, /use search|search above|of those/);
 });
 
-test('item 5 (words replaced by am7 item 4): while searching: `k more match. Add a date or run number to narrow it.`, k = matches not shown', () => {
+test('item 5 (words replaced by am9): while searching, one day: `k more matches on MM/DD. Add a run number to narrow it.`, k = matches not shown', () => {
   const rows = runsOf('f', 30);
   const html = text(lib.rlJobsHtml(model(payload(rows, [meta('f')]), { filters: S('f') })));
-  assert.match(html, /22 more match\. Add a date or run number to narrow it\./, '29 older matches, 7 shown');
-  assert.doesNotMatch(html, /Search to find one|add a day or a run/);
+  assert.match(html, /22 more matches on 10\/12\. Add a run number to narrow it\./, '29 older matches, 7 shown, all on one day (am9)');
+  assert.doesNotMatch(html, /Search to find one|add a day or a run|more match\./);
   const none = text(lib.rlJobsHtml(model(payload(runsOf('f', 3), [meta('f')]), { filters: S('f') })));
   assert.doesNotMatch(none, /more matches/, 'nothing hidden, no line');
 });
@@ -229,4 +229,21 @@ test('M11 am8: the Runs placeholder fits a 320 px phone: at most 32 characters',
   // measured: the input's text room at 320 px is about 270 px; the font is 14px Courier Prime monospace, about 8.4 px per character; 270 / 8.4 = 32.
   const ph = lib.filterBarHTML('runs').match(/placeholder="([^"]*)"/)[1];
   assert.ok(ph.length <= 32, `placeholder is ${ph.length} chars: "${ph}"`);
+});
+
+test('M11 am9: while searching, the line carries the real start days of the hidden matches: several days = a range, in any list order', () => {
+  // 20 runs, search `aging`: 7 shown; the 12 hidden older matches are on 10/11 and 10/12, one is askedAt-only on 10/13
+  const rows = runsOf('aging', 20, (n) => (n === 5 ? { at: null, askedAt: local(2026, 10, 13) } : n <= 4 ? { at: local(2026, 10, 11) } : { at: local(2026, 10, 12) }));
+  const html = text(lib.rlJobsHtml(model(payload(rows, [meta('aging')]), { filters: S('aging') })));
+  assert.match(html, /12 more matches, 10\/11 to 10\/13\. Add a date or run number to narrow it\./);
+  assert.doesNotMatch(html, /more match\./);
+});
+
+test('M11 am9: while searching, one day is `k more matches on MM/DD`, never `10/09 to 10/09`; a hidden match with no date drops the date part', () => {
+  const one = text(lib.rlJobsHtml(model(payload(runsOf('f', 59, { at: local(2026, 10, 9) }), [meta('f')]), { filters: S('f') })));
+  assert.match(one, /51 more matches on 10\/09\. Add a run number to narrow it\./);
+  assert.doesNotMatch(one, /10\/09 to 10\/09/);
+  const none = text(lib.rlJobsHtml(model(payload(runsOf('f', 12, (n) => (n === 1 ? { at: null } : { at: local(2026, 10, 11) })), [meta('f')]), { filters: S('f') })));
+  assert.match(none, /4 more matches\. Add a date or run number to narrow it\./);
+  assert.doesNotMatch(none, /\d\d\/\d\d/);
 });
