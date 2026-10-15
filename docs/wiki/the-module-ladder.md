@@ -2189,6 +2189,16 @@ through M5 (docs/archive/PRD.md:597-605).
   5. **Replaces:** M6 scope item 2 ("Signing replaces the job"), M4e amendment 5 item 5 (the separate New job door), and M9 amendment 1 (edit clears the schedule). M6 amendment 4 no longer applies, because the old job never changes.
   - **Must fail when:** signing a changed job line alters the old workflow's signed files, runs or schedule; changing only the destination or model makes a new workflow; the suggested name clashes with an existing workflow; or the new workflow starts with a schedule.
   - **Done when:** on your real panel, you edit a guardrail of aging-live-4 and sign. You get `aging-live-4-2` with no runs and no schedule, and aging-live-4 is still scheduled. Then you change only the model and sign, and it's a new `run-N` of aging-live-4.
+- **M6 amendment 6 — SIGNED by hamr 2026-10-15 ("sign m6 am6"): Run again is the one door.**
+  1. **Run again opens every field** on every run: the job lines, guardrails, asks, steps, inputs, destination, cap, time cap, ask wait and model.
+  2. **The button shows the cost before the click:**
+     - only inputs changed: **Run** (one click, as today)
+     - only destination, cap, time cap, ask wait or model changed: **Sign & run** (two clicks, no drafting, a new `run-N`)
+     - any job field changed: **Start drafting**. It drafts again, then signs as a new workflow `<name>-N` (amendment 5).
+     The label flips as soon as a job field changes, and flips back if you undo it.
+  3. A red run is treated the same as a green one: the changes decide, never the run's color.
+  4. **Replaces** M4e amendment 5 item 2's "everything else shows dimmed".
+  - **Must fail when:** a job field is dimmed in Run again; changing only run fields starts drafting or spends drafting money; the button doesn't flip to "Start drafting" when a job field changes; or a red run with only inputs changed is forced to draft.
 
 ## M7 — skills and persona
 
