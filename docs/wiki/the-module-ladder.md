@@ -2239,6 +2239,8 @@ through M5 (docs/archive/PRD.md:597-605).
   - A schedule: `schedule-plan.json` `{run, flowHash, declSha}` beside the trigger's ledgers, written once, bound into the second click's hash and re-verified at every fire (a changed plan refuses the fire and starts nothing). The workflow's declaration is unchanged; the trigger line is signed into the workflow's prose as before. The Schedule button uses the plan of the run whose Run tab it was clicked on.
   - Narrowing of amendment 6 item 2's draft guard (409 `job-unchanged`, "nothing needs drafting"): it now holds for green, stopped, waiting and unknown source runs; a `[✗]` source run passes it (amendment 9 item 4). A run ended by "rerun" also wears `[✗]` and counts as red (hamr's ruling).
   - If sign succeeds and the start is refused, the refused start reads as refused with today's Clear; nothing new was added.
+- **M6 amendment 10 — SIGNED by hamr 2026-10-15 ("sign m6 am10"): a run is its own thing.** A run is one run of a workflow, kept on its own: its own copy of the job and its plan. **Resume, an answer or Reopen always carries on that same run, from its own copy.** Editing the workflow afterwards changes only new runs. A schedule set from a run takes its own copy of that run, and each run the schedule starts is its own run (M6 am9 item 2). **Replaces** M6 F5 ("a stopped run whose job was replaced has no Resume button") and the example in M11 amendment 2 item 2 ("stopped — the job was edited; start a new run").
+  - **Must fail when:** a stopped run loses Resume because its workflow was edited; a resumed run carries on with the workflow's current job instead of its own copy.
 
 ## M7 — skills and persona
 
