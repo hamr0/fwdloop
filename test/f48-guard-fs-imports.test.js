@@ -447,9 +447,9 @@ const ALLOWLIST = {
     },
   },
   'src/panel/authortrigger.js': {
-    reason: "M9 pieces 3-4: the trigger door. Appends ONE line per fire outcome to `<flow>/triggers.jsonl` (append-only, 0600) and makes the per-signed-trigger ledger folder (`<flow>/triggers/<hash>/`, 0700); realpathSync of the typed --root, of a file trigger's folder and of each input path a fire starts a run with, at use time. Every READ of a job, a run, its copy and the outcome file goes through readFileInside / readFlow / the ledgers' own readers, never fs directly.",
+    reason: "M6 am5 item 3: writes ONE write-once `schedule-model.json` (0600) in the signed trigger's ledger folder. M9 pieces 3-4: the trigger door. Appends ONE line per fire outcome to `<flow>/triggers.jsonl` (append-only, 0600) and makes the per-signed-trigger ledger folder (`<flow>/triggers/<hash>/`, 0700); realpathSync of the typed --root, of a file trigger's folder and of each input path a fire starts a run with, at use time. Every READ of a job, a run, its copy and the outcome file goes through readFileInside / readFlow / the ledgers' own readers, never fs directly.",
     names: {
-      appendFileSync: 1, mkdirSync: 1, realpathSync: 3,
+      appendFileSync: 1, mkdirSync: 1, realpathSync: 3, writeFileSync: 1,
     },
   },
   'src/panel/authorresume.js': {
