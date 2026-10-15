@@ -156,8 +156,8 @@ test('item 5 (words replaced by am7 item 4): while searching: `k more match. Add
   assert.doesNotMatch(none, /more matches/, 'nothing hidden, no line');
 });
 
-test('item 5 (words replaced by am7 item 4): the Runs search box reads `search: job name, run-23, or a date 10/13`; the Inbox hint is untouched', () => {
-  assert.match(lib.filterBarHTML('runs'), /placeholder="search: job name, run-23, or a date 10\/13"/);
+test('item 5 (words replaced by am8): the Runs search box reads `job, run-23, or date 10/13`; the Inbox hint is untouched', () => {
+  assert.match(lib.filterBarHTML('runs'), /placeholder="job, run-23, or date 10\/13"/);
   assert.match(lib.filterBarHTML('inbox', true), /placeholder="search job, run, status, question or reason…"/);
 });
 
@@ -223,4 +223,10 @@ test('M11 am7 item 3: one day shows `k more runs on MM/DD`, never `10/11 to 10/1
   const none = text(lib.rlJobsHtml(model(payload(runsOf('f', 12, (n) => (n === 1 ? { at: null } : { at: local(2026, 10, 11) })), [meta('f')]), { open: { f: true } })));
   assert.match(none, /4 more older runs\. Search to find one\./);
   assert.doesNotMatch(none, /more older runs, \d|more runs on/, 'no date part, nothing invented');
+});
+
+test('M11 am8: the Runs placeholder fits a 320 px phone: at most 32 characters', () => {
+  // measured: the input's text room at 320 px is about 270 px; the font is 14px Courier Prime monospace, about 8.4 px per character; 270 / 8.4 = 32.
+  const ph = lib.filterBarHTML('runs').match(/placeholder="([^"]*)"/)[1];
+  assert.ok(ph.length <= 32, `placeholder is ${ph.length} chars: "${ph}"`);
 });
