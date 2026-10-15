@@ -330,10 +330,10 @@ export function destinationRefusal(dest, root) {
 /**
  * Every $0 check on the card, before any spawn (scope 6). Collects all refusals so the page can name every box.
  * @param {ReturnType<typeof cardFields>} card
- * @param {{ root: string, keys?: string[], home?: string }} ctx `keys` = the provider key values (the keys load's scrub list): a key value typed into any box is refused; `home` = the config home Settings is read from (the cap floor)
+ * @param {{ root: string, keys?: string[], home?: string, runOf?: string }} ctx `keys` = the provider key values (the keys load's scrub list): a key value typed into any box is refused; `home` = the config home Settings is read from (the cap floor)
  * @returns {{ ok: true, prose: string }|{ ok: false, refusals: {field: string, say: string}[] }}
  */
-export function checkCard(card, { root, keys = [], home }) {
+export function checkCard(card, { root, keys = [], home, runOf }) {
   /** @type {{field: string, say: string}[]} */
   const refusals = [];
   const no = (field, say) => refusals.push({ field, say });
@@ -344,7 +344,8 @@ export function checkCard(card, { root, keys = [], home }) {
   else {
     let there = true;
     try { lstatSync(join(root, card.flowName)); } catch { there = false; }
-    if (there) no('flowName', `There is already a flow named "${card.flowName}" here. Pick a name that is not used yet.`);
+    // M6 am9: a red run's redraft of an unchanged job is a run of THIS workflow, so its own name is the one name that is allowed to be taken
+    if (there && card.flowName !== runOf) no('flowName', `There is already a flow named "${card.flowName}" here. Pick a name that is not used yet.`);
   }
 
   // job

@@ -31,7 +31,7 @@ import {
   capFloorOf, cardFromSigned, checkInputRows, runInputRows,
 } from './authorcard.js';
 import { checkValues } from './authorvalues.js';
-import { getRunControls } from './data.js';
+import { getRunControls, getRunGlyph } from './data.js';
 import { providerKeys } from './spawn.js';
 import { readModelRecord, writeModelRecord } from '../flowmodel.js';
 
@@ -267,6 +267,19 @@ export function createFlowsDoor(opts) {
     editBlock(name) {
       const realRoot = realRootOrNull();
       return realRoot === null ? null : editBlockOf(realRoot, name);
+    },
+
+    /**
+     * M6 am9: is this run red, as the panel's glyph rule reads it (`[✗]` and nothing else; stopped `[■]` and waiting are not)? The server decides this itself,
+     * never from the page's word. False for a run that does not resolve.
+     * @param {string} flow @param {unknown} runId
+     */
+    runIsRed(flow, runId) {
+      const realRoot = realRootOrNull();
+      if (realRoot === null || !checkFlowName(flow).ok || typeof runId !== 'string' || runId === '') return false;
+      const cat = loadCatalogue();
+      if (!cat.ok) return false;
+      return getRunGlyph({ root: realRoot, flow, runId, catalogue: cat.primitives })?.glyph === '[✗]';
     },
 
     /**

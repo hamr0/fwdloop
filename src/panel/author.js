@@ -78,6 +78,8 @@ const newId = () => `d-${Date.now().toString(36).padStart(10, '0')}-${randomByte
 const FINISHED = new Set(['abandoned', 'signed']);
 const LOG_TAIL_CHARS = 1500;
 const STOPPED_SAY = 'The draft process ended before it finished (it was stopped from outside). Nothing was signed and nothing was sent. Draft again.';
+/** M6 am9: written once into a draft folder when the draft is a red run's redraft of an UNCHANGED job: `{flow, fromRun}`. Sign reads it; nothing else decides. */
+const RUN_OF_FILE = 'run-of.json';
 const RED_SAY = 'The drafter\'s plan did not pass the checks. Nothing was signed and nothing was sent. Fix the job and draft again; this draft is kept on disk and is never reused.';
 /** Up to 2 revises per draft (amendment 14 item 3); a revise is used once its `draft-<n>/` exists (a refusal at $0 makes none). */
 export const MAX_REVISES = 2;
@@ -370,9 +372,9 @@ export function createAuthor(opts) {
    * @param {any} body @param {{ ok: boolean, env: Record<string, string|undefined>, keyNames?: string[] }} loaded @param {number} [priorUsd]
    * @returns {{ ok: true, card: any, prose: string }|{ ok: false, reply: { status: number, body: any } }}
    */
-  function vetCard(body, loaded, priorUsd = 0) {
+  function vetCard(body, loaded, priorUsd = 0, runOf = /** @type {string|undefined} */ (undefined)) {
     const card = cardFields(body);
-    const checked = checkCard(card, { root: realpathSync(root), keys: providerKeys(loaded), home });
+    const checked = checkCard(card, { root: realpathSync(root), keys: providerKeys(loaded), home, runOf });
     const modelSays = modelRefusal(card, loaded);
     if (!checked.ok || modelSays.length > 0) return { ok: false, reply: { status: 400, body: { ok: false, refused: 'card', refusals: [...(checked.ok ? [] : checked.refusals), ...modelSays] } } };
     // amendment 4 item 1: a cap that does not fit this month refuses here too, at $0, with the one refusal text (the page's red note is only a courtesy)
@@ -465,11 +467,18 @@ export function createAuthor(opts) {
      * @returns {{ status: number, body: any }}
      */
     start(body) {
+      /** @type {{flow: string, fromRun: string}|null} */
+      let runOf = null;
       // M6 am6: a Reuse card drafts only when a job field changed; the server compares the card's job with the signed one, here, before any money or folder
       if (body?.reuseOf && typeof body.reuseOf.flow === 'string') {
         const signedKey = flowsDoor.signedJobKey(body.reuseOf.flow);
         if (signedKey === null) return { status: 400, body: { ok: false, refused: 'reuse-flow', say: `"${body.reuseOf.flow}" is not a signed flow that reads, so it cannot be reused. Nothing was spent.` } };
-        if (jobKeyOfCard(String(body.job ?? '')) === signedKey) return { status: 409, body: { ok: false, refused: 'job-unchanged', say: 'No job field changed, so nothing needs drafting. Use Run or Sign & run. Nothing was spent.' } };
+        if (jobKeyOfCard(String(body.job ?? '')) === signedKey) {
+          // M6 am9: a RED run (`[✗]`, by the panel's own glyph rule, read here) always drafts, job changed or not; the unchanged job's new plan is a run of the SAME workflow
+          if (!flowsDoor.runIsRed(body.reuseOf.flow, body.reuseOf.fromRun)) return { status: 409, body: { ok: false, refused: 'job-unchanged', say: 'No job field changed, so nothing needs drafting. Use Run or Sign & run. Nothing was spent.' } };
+          runOf = { flow: body.reuseOf.flow, fromRun: body.reuseOf.fromRun };
+          body = { ...body, flowName: runOf.flow };
+        }
       }
       const { loaded, keys } = keysNow();
       if (!loaded.ok) return { status: 409, body: { ok: false, refused: 'keys-file', say: String(loaded.refusal) } };
@@ -485,7 +494,7 @@ export function createAuthor(opts) {
         if (spent.missingEarlier) return { status: 400, body: { ok: false, refused: 'earlier-missing', say: EARLIER_MISSING_SAY } };
         priorUsd = spent.usd;
       }
-      const vet = vetCard(body, loaded, priorUsd);
+      const vet = vetCard(body, loaded, priorUsd, runOf?.flow);
       if (!vet.ok) return vet.reply;
       const { card } = vet;
       for (const id of listIds()) {
@@ -505,6 +514,7 @@ export function createAuthor(opts) {
       if (typeof from === 'string' && ID_RE.test(from) && listIds().includes(from)) {
         writeFileSync(join(dir, STARTED_OVER_FILE), `${JSON.stringify({ startedOverFrom: from })}\n`, { mode: 0o600, flag: 'wx' });
       }
+      if (runOf !== null) writeFileSync(join(dir, RUN_OF_FILE), `${JSON.stringify(runOf)}\n`, { mode: 0o600, flag: 'wx' });
       writeFileSync(proseFile, vet.prose, { mode: 0o600 });
       let child;
       try {
@@ -565,19 +575,24 @@ export function createAuthor(opts) {
       const bad = checkInputRows(inputs);
       if (bad.length > 0) return { status: 400, body: { ok: false, refused: 'inputs', refusals: bad } };
       // '' = no typed id: the start claims the next `run-<n>` (M4e amendment 3); a typed one is checked here, before signing
-      const runId = typeof b.runId === 'string' ? b.runId : '';
+      let runId = typeof b.runId === 'string' ? b.runId : '';
       if (runId !== '') {
         const run = starter.checkRun(name, runId);
         if (!run.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: run.say } };
       }
       const signedBy = userInfo().username;
+      // M6 am9: a red run's redraft of an unchanged job is signed as the plan of a NEW run of the same workflow (the workflow's files are not written)
+      const runOfRec = readJson(dir, RUN_OF_FILE);
+      const asRunOf = typeof runOfRec?.flow === 'string' ? { flow: runOfRec.flow } : undefined;
+      if (asRunOf !== undefined && runId !== '') return { status: 400, body: { ok: false, refused: 'run-id', say: 'This plan becomes the next run of its workflow by itself; a run name cannot be typed. Nothing was signed.' } };
       const result = signDraft({
-        dir: join(dir, v.plan), approve: v.hash, signedBy, env: loaded.env, keyNames: loaded.keyNames, sessionDir: dir,
+        dir: join(dir, v.plan), approve: v.hash, signedBy, env: loaded.env, keyNames: loaded.keyNames, sessionDir: dir, ...(asRunOf ? { asRunOf } : {}),
       });
       if (!result.ok) {
         const keys = providerKeys(loaded);
         return { status: 409, body: { ok: false, refused: 'sign-refused', say: 'The draft did not pass the signing checks. Nothing was signed.', reds: result.reds.map((r) => scrub(String(r), keys)) } };
       }
+      if (asRunOf !== undefined) runId = result.runId;
       writeFileSync(join(dir, 'signed.json'), `${JSON.stringify({
         at: new Date().toISOString(), signedBy, hash: v.hash, flow: name, runId: runId === '' ? null : runId,
       })}\n`, { mode: 0o600 });
@@ -593,7 +608,7 @@ export function createAuthor(opts) {
         }
       }
       const started = starter.start({
-        kind: 'sign', flow: name, runId, sources: inputs.map((r) => ({ role: r.role, path: r.path })), values,
+        kind: 'sign', flow: name, runId, sources: inputs.map((r) => ({ role: r.role, path: r.path })), values, ...(asRunOf ? { planRun: true, pick: result.modelPick ?? null } : {}),
       }, loaded);
       if (started.status !== 202) return { status: started.status, body: { ...started.body, signed: true, flow: name, say: `${started.body.say ?? 'The run did not start.'} The flow is signed; start it from "Run a signed flow".` } };
       return { status: 202, body: { ...started.body, signed: true } };
@@ -625,7 +640,7 @@ export function createAuthor(opts) {
       if (v.revisesLeft <= 0) return { status: 409, body: { ok: false, refused: 'no-revises-left', say: `This draft has used its ${MAX_REVISES} revises. Start over: it keeps the fields and gives ${MAX_REVISES} new revises.` } };
       if (childRunning(dir)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'The draft process is still finishing. Try again in a moment.' } };
       if (draftingSpent(dir).missingEarlier) return { status: 400, body: { ok: false, refused: 'earlier-missing', say: EARLIER_MISSING_SAY } };
-      const vet = vetCard(body, loaded, draftedSoFar(dir, v.card));
+      const vet = vetCard(body, loaded, draftedSoFar(dir, v.card), readJson(dir, RUN_OF_FILE)?.flow);
       if (!vet.ok) return vet.reply;
       for (const other of listIds()) {
         if (other === id) continue;

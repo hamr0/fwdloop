@@ -1045,6 +1045,19 @@ export function getRunControls({
 }
 
 /**
+ * M6 am9: the glyph and label of one run, by the panel's ONE rule (`computeGlyph`), read straight from the books. `null` when the run does not resolve.
+ * "Red" in the signed text is exactly `glyph === '[✗]'`.
+ * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
+ */
+export function getRunGlyph({
+  root, flow, runId, catalogue,
+}) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok || !existsSync(run.runDir)) return null;
+  return computeGlyph(loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null));
+}
+
+/**
  * `GET /api/runs` — every flow under `root`, every run under each flow
  * (M4a scope item 2). A flow with zero runs still gets one row (`runId:
  * null`, an explicit `why`) — no flow is silently missing from the list.

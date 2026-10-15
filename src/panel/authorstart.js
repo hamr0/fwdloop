@@ -30,7 +30,7 @@ import { fileURLToPath } from 'node:url';
 import { scrub } from '../authoring.js';
 import { readPidRows } from '../books.js';
 import {
-  PANEL_STARTS_DIR, checkRunId, claimRunId, readFileInside, readdirInside, resolveRunDir,
+  PANEL_STARTS_DIR, checkRunId, claimRunId, readFileInside, readdirInside, resolveRunDir, runOwnsPlan,
 } from '../flow.js';
 import { booksFresh, runLiveness } from '../liveness.js';
 import { dropUnstartedValues, writeRunValues } from '../runvalues.js';
@@ -134,12 +134,12 @@ export function createStarter(opts) {
      * folder as `signed-values.json` BEFORE the spawn; the run then uses them (`pickRunValues`). None = the flow's own.
      * `trigger` (M9): `{kind, reason, catchUp, ...}` for a start a trigger fired (kind 'trigger'): written once into the run's own folder as `trigger.json`
      * BEFORE the spawn; `appendHistory` copies it into the run's history row (the catch-up mark, am2 item 1).
-     * @param {{ kind: 'run'|'sign'|'trigger', flow: string, runId: string, sources: {role: string, path: string}[], values?: any, pick?: {slot: string, model: string}|null, trigger?: Record<string, any>|null }} a
+     * @param {{ kind: 'run'|'sign'|'trigger', flow: string, runId: string, sources: {role: string, path: string}[], planRun?: boolean, values?: any, pick?: {slot: string, model: string}|null, trigger?: Record<string, any>|null }} a
      * @param {{ env: Record<string, string|undefined>, keyNames?: string[] }} loaded the keys load: its env is the child's env AND (with its key names) the scrub list
      * @returns {{ status: number, body: any }}
      */
     start({
-      kind, flow, runId, sources, values = null, pick = null, trigger = null,
+      kind, flow, runId, sources, values = null, pick = null, trigger = null, planRun = false,
     }, loaded) {
       const { env } = loaded;
       const sd = startsDir();
@@ -151,12 +151,18 @@ export function createStarter(opts) {
         if (!c.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: `${c.red.replace(/^run: /, '')}.` } };
         ({ runId } = c);
         claimedDir = c.runDir;
+      } else if (planRun) {
+        // M6 am9: the run's folder already exists (signing claimed it and put its plan there); it is a run that keeps its plan, or nothing starts
+        const r = resolveRunDir(join(realpathSync(root), flow), runId);
+        if (!r.ok || !runOwnsPlan(r.runDir)) return { status: 400, body: { ok: false, refused: 'run-id', say: `"${runId}" is not a run that holds its own plan. ${NOTHING_SPENT}` } };
+        claimedDir = r.runDir;
       } else {
         const run = checkRun(flow, runId);
         if (!run.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: run.say } };
       }
       const runDirOf = () => claimedDir ?? join(realpathSync(root), flow, 'runs', runId);
       const unclaim = () => {
+        if (planRun) return; // a signed plan's run folder is never removed here
         if (claimedDir === null && values === null && trigger === null) return;
         dropUnstartedValues(runDirOf());
         try { rmdirSync(runDirOf()); } catch { /* not empty / gone */ }
