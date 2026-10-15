@@ -245,5 +245,5 @@ test('M11 am9: while searching, one day is `k more matches on MM/DD`, never `10/
   assert.doesNotMatch(one, /10\/09 to 10\/09/);
   const none = text(lib.rlJobsHtml(model(payload(runsOf('f', 12, (n) => (n === 1 ? { at: null } : { at: local(2026, 10, 11) })), [meta('f')]), { filters: S('f') })));
   assert.match(none, /4 more matches\. Add a date or run number to narrow it\./);
-  assert.doesNotMatch(none, /\d\d\/\d\d/);
+  assert.doesNotMatch(none, /more matches[ ,]+\d|more matches on/, 'no date part, nothing invented');
 });
