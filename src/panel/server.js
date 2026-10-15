@@ -330,6 +330,7 @@ function authorPost(res, url, body, author) {
   const send = (r) => sendJson(res, r.status, r.body);
   if (url === '/api/author/draft') { send(author.start(body)); return; }
   if (url === '/api/author/run') { send(author.run(body)); return; }
+  if (url === '/api/author/reuse-check') { send(author.reuseCheck(body)); return; }
   if (url === '/api/author/run-prepare') { send(author.runPrepare(body)); return; }
   if (url === '/api/author/trigger-prepare') { send(author.trigger.prepare(body)); return; }
   if (url === '/api/author/trigger') { send(author.trigger.set(body)); return; }

@@ -57,6 +57,7 @@ import { draftStepList, reviseStepList } from '../draft-steps.js';
 import {
   capTooSmallText, draftingSpent, EARLIER_MISSING_SAY, potSplit, STARTED_OVER_FILE, usdText,
 } from '../draftspend.js';
+import { jobKeyOfCard } from '../jobkey.js';
 import { flowValues, valuesHash } from '../runvalues.js';
 import { leastResumeCapUsd } from './authorvalues.js';
 import { createFlowsDoor } from './authorflows.js';
@@ -395,6 +396,7 @@ export function createAuthor(opts) {
       return { ...r, body: { ...r.body, flow: { ...r.body.flow, trigger: triggerDoor.card(r.body.flow.flow) } } };
     },
     run: flowsDoor.run,
+    reuseCheck: (b) => flowsDoor.reuseCheck(b),
     runPrepare: flowsDoor.runPrepare,
     trigger: triggerDoor,
     resumePrepare: resumeDoor.prepare,
@@ -463,6 +465,12 @@ export function createAuthor(opts) {
      * @returns {{ status: number, body: any }}
      */
     start(body) {
+      // M6 am6: a Reuse card drafts only when a job field changed; the server compares the card's job with the signed one, here, before any money or folder
+      if (body?.reuseOf && typeof body.reuseOf.flow === 'string') {
+        const signedKey = flowsDoor.signedJobKey(body.reuseOf.flow);
+        if (signedKey === null) return { status: 400, body: { ok: false, refused: 'reuse-flow', say: `"${body.reuseOf.flow}" is not a signed flow that reads, so it cannot be reused. Nothing was spent.` } };
+        if (jobKeyOfCard(String(body.job ?? '')) === signedKey) return { status: 409, body: { ok: false, refused: 'job-unchanged', say: 'No job field changed, so nothing needs drafting. Use Run or Sign & run. Nothing was spent.' } };
+      }
       const { loaded, keys } = keysNow();
       if (!loaded.ok) return { status: 409, body: { ok: false, refused: 'keys-file', say: String(loaded.refusal) } };
       const dd = draftsDir();

@@ -19,8 +19,9 @@ import { canFlowRun, willNotRunSay } from '../canrun.js';
 import { loadCatalogue } from '../catalogue.js';
 import { ConfigError, readConfig } from '../config.js';
 import {
-  changeSentence, checkFlowName, listFlowNames, listRunIds, nextRunId, readFileInside, readFlow, resolveRunDir,
+  changeSentence, checkFlowName, listFlowNames, listRunIds, nextRunId, readFileInside, readFlow, resolveRunDir, suggestFlowName,
 } from '../flow.js';
+import { jobKeyOfCard, jobKeyOfSigned } from '../jobkey.js';
 import { spendSummary } from '../monthly.js';
 import { userInfo } from 'node:os';
 import {
@@ -264,6 +265,39 @@ export function createFlowsDoor(opts) {
     editBlock(name) {
       const realRoot = realRootOrNull();
       return realRoot === null ? null : editBlockOf(realRoot, name);
+    },
+
+    /**
+     * M6 am5/am6: the job key of the signed flow `name` (see src/jobkey.js), or null when it is not a signed flow that reads. The draft door compares a Reuse card with it.
+     * @param {string} name
+     */
+    signedJobKey(name) {
+      const realRoot = realRootOrNull();
+      if (realRoot === null || !checkFlowName(name).ok) return null;
+      const read = readSigned(realRoot, name);
+      return read.ok ? jobKeyOfSigned(read) : null;
+    },
+
+    /**
+     * `POST /api/author/reuse-check` (M6 am6 item 2): what the ONE Reuse card's button is for the fields as typed, decided here, at $0, writes nothing.
+     * Any job field changed (lines, guardrails, asks, steps) = `draft` (with the next free name); else a destination, cap or ask wait different from the
+     * signed value = `sign-run` (with the hash the second click carries); else `run`. The run's colour never enters. `fromRun` (the run the card was
+     * opened from) is the page's own key and is dropped before the run checks; `job` is read here and never reaches the run door.
+     * @param {any} body
+     */
+    reuseCheck(body) {
+      const { job, fromRun, ...rest } = body && typeof body === 'object' ? body : /** @type {any} */ ({});
+      void fromRun;
+      const realRoot = realRootOrNull();
+      if (realRoot !== null && typeof job === 'string' && typeof rest.flow === 'string' && checkFlowName(rest.flow).ok) {
+        const read = readSigned(realRoot, rest.flow);
+        if (read.ok && jobKeyOfCard(job) !== jobKeyOfSigned(read)) {
+          return { status: 200, body: { ok: true, kind: 'draft', suggestedName: suggestFlowName(realRoot, rest.flow) } };
+        }
+      }
+      const r = this.runPrepare(rest);
+      if (r.status !== 200) return r;
+      return { status: 200, body: { ...r.body, kind: r.body.needsSign ? 'sign-run' : 'run' } };
     },
 
     /** M9: the source paths the newest run of this job used, role -> path (blank = none), for a start a trigger fires. @param {string} name @param {string[]} roles */
