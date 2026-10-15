@@ -2354,3 +2354,4 @@ same run. Scope is stated when its turn comes.
      - Under the 7, while searching: `3 more match. Add a date or run number to narrow it.`
      These replace amendment 5 item 5's words.
   - **Must fail when:** `10-13` and `10/13` give different results; `(run-2)` finds nothing where `run-2` does; the range misses a hidden run's day; one day shows as "10/11 to 10/11"; or a hint still uses the old words.
+- **M11 amendment 8 — SIGNED by hamr 2026-10-15 ("sign m11 am8"):** The Runs search box reads `job, run-23, or date 10/13` (replaces amendment 7 item 4's search-box words, which clip at 320 px). **Must fail when:** the search-box words are cut off at 320 px.
