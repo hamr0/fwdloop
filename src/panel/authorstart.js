@@ -22,15 +22,16 @@
 // arrive together run one after the other and the second sees the first's `starting` start and is refused.
 import { randomBytes } from 'node:crypto';
 import {
-  existsSync, mkdirSync, realpathSync, rmdirSync, writeFileSync,
+  existsSync, mkdirSync, realpathSync, rmdirSync, rmSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { loadCatalogue } from '../catalogue.js';
 import { scrub } from '../authoring.js';
 import { readPidRows } from '../books.js';
 import {
-  PANEL_STARTS_DIR, checkRunId, claimRunId, readFileInside, readdirInside, resolveRunDir, runOwnsPlan,
+  PANEL_STARTS_DIR, checkRunId, claimRunId, readFileInside, readdirInside, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER,
 } from '../flow.js';
 import { booksFresh, runLiveness } from '../liveness.js';
 import { dropUnstartedValues, writeRunValues } from '../runvalues.js';
@@ -134,12 +135,12 @@ export function createStarter(opts) {
      * folder as `signed-values.json` BEFORE the spawn; the run then uses them (`pickRunValues`). None = the flow's own.
      * `trigger` (M9): `{kind, reason, catchUp, ...}` for a start a trigger fired (kind 'trigger'): written once into the run's own folder as `trigger.json`
      * BEFORE the spawn; `appendHistory` copies it into the run's history row (the catch-up mark, am2 item 1).
-     * @param {{ kind: 'run'|'sign'|'trigger', flow: string, runId: string, sources: {role: string, path: string}[], planRun?: boolean, values?: any, pick?: {slot: string, model: string}|null, trigger?: Record<string, any>|null }} a
+     * @param {{ kind: 'run'|'sign'|'trigger', flow: string, runId: string, sources: {role: string, path: string}[], planRun?: boolean, planOf?: string|null, values?: any, pick?: {slot: string, model: string}|null, trigger?: Record<string, any>|null }} a
      * @param {{ env: Record<string, string|undefined>, keyNames?: string[] }} loaded the keys load: its env is the child's env AND (with its key names) the scrub list
      * @returns {{ status: number, body: any }}
      */
     start({
-      kind, flow, runId, sources, values = null, pick = null, trigger = null, planRun = false,
+      kind, flow, runId, sources, values = null, pick = null, trigger = null, planRun = false, planOf = null,
     }, loaded) {
       const { env } = loaded;
       const sd = startsDir();
@@ -163,14 +164,22 @@ export function createStarter(opts) {
       const runDirOf = () => claimedDir ?? join(realpathSync(root), flow, 'runs', runId);
       const unclaim = () => {
         if (planRun) return; // a signed plan's run folder is never removed here
-        if (claimedDir === null && values === null && trigger === null) return;
+        if (claimedDir === null && values === null && trigger === null && planOf === null) return;
+        if (planOf !== null) { try { rmSync(join(runDirOf(), 'job'), { recursive: true, force: true }); rmSync(join(runDirOf(), RUN_PLAN_MARKER), { force: true }); } catch { /* best-effort */ } }
         dropUnstartedValues(runDirOf());
         try { rmdirSync(runDirOf()); } catch { /* not empty / gone */ }
       };
-      if (values !== null || trigger !== null) {
+      if (values !== null || trigger !== null || planOf !== null) {
         // the run folder holds its signed values (and a triggered start's reason) from before the first step: a claimed one already exists,
         // a typed id's is made here (exclusively: a folder that appeared meanwhile refuses)
         try { if (claimedDir === null) mkdirSync(runDirOf()); } catch { return { status: 400, body: { ok: false, refused: 'run-id', say: `There is already a run "${runId}" of this flow. Use a new run id.` } }; }
+      }
+      if (planOf !== null) {
+        // M6 am9: this run executes the plan another run kept: a verified copy goes into its folder BEFORE the spawn (the source is read through the same safe door)
+        const src = resolveRunDir(join(realpathSync(root), flow), planOf);
+        const cat = loadCatalogue();
+        const c = src.ok && cat.ok ? copyRunPlan({ fromRunDir: src.runDir, runDir: runDirOf(), catalogue: cat.primitives }) : { ok: false, red: 'The plan to reuse cannot be read.' };
+        if (!c.ok) { unclaim(); return { status: 409, body: { ok: false, refused: 'plan', say: `${c.red} ${NOTHING_SPENT}` } }; }
       }
       if (values !== null) {
         const w = writeRunValues(runDirOf(), { ...values, runId });

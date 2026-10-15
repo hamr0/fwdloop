@@ -29,6 +29,7 @@ import { parseSignedText } from './signed-text.js';
 import { signFlow, verifyFlow } from './signature.js';
 import { validateDeclaration } from './declaration.js';
 import { describeChange } from './signed-diff.js';
+import { stripTrigger } from './trigger-line.js';
 
 /** @typedef {import('./types.js').WriteFlowResult} WriteFlowResult */
 /** @typedef {import('./types.js').ReadFlowResult} ReadFlowResult */
@@ -633,6 +634,58 @@ function replaceSigned({
   if (!proof.ok) return fail(`the replaced job does not verify (${proof.reds.join('; ')})`);
   cleanup();
   return { ok: true, dir, signature };
+}
+
+/**
+ * M6 am9 ("Each run keeps the plan it ran"): which plan does a reuse of run `runDir` run? `{same:true}` = the workflow's own plan (the run kept no copy, as a run made
+ * before M6, or its kept plan is byte-equal to the workflow's declaration and prose, a trigger line aside). `{same:false, read}` = a different kept plan, already verified.
+ * `{ok:false, red}` = a kept plan that does not verify: refused by name, never swapped for the workflow's.
+ * @param {{root: string, name: string, runDir: string, catalogue: unknown}} a
+ * @returns {{ok: true, same: true} | {ok: true, same: false, read: ReadFlowResult & {ok: true}} | {ok: false, red: string}}
+ */
+export function planForReuse({
+  root, name, runDir, catalogue,
+}) {
+  const kept = readRunJobCopy(runDir, catalogue);
+  if (!kept.present) return { ok: true, same: true };
+  const runId = path.basename(runDir);
+  if (!kept.ok) return { ok: false, red: `The plan ${runId} kept does not match its signature (${kept.reds[0]}), so it cannot be reused. Nothing was started.` };
+  const flowDir = path.join(root, name);
+  const a = readFileInside(runDir, `${RUN_JOB_DIR}/declaration.json`);
+  const b = readFileInside(flowDir, 'declaration.json');
+  const ap = readFileInside(runDir, `${RUN_JOB_DIR}/prose.txt`);
+  const bp = readFileInside(flowDir, 'prose.txt');
+  if (a.ok && b.ok && ap.ok && bp.ok && a.text === b.text && stripTrigger(ap.text) === stripTrigger(bp.text)) return { ok: true, same: true };
+  const { present, ...rest } = kept;
+  void present;
+  return { ok: true, same: false, read: /** @type {any} */ (rest) };
+}
+
+/**
+ * M6 am9: give the run folder `runDir` a verified copy of the plan run `fromRunDir` kept (`job/` write-once, then `plan.json {planOf}`), so the run executes
+ * it. Nothing is signed: the bytes already carry a signature, proved here. A failure removes what this call wrote.
+ * @param {{fromRunDir: string, runDir: string, catalogue: unknown}} a
+ * @returns {{ok: true} | {ok: false, red: string}}
+ */
+export function copyRunPlan({ fromRunDir, runDir, catalogue }) {
+  const kept = readRunJobCopy(fromRunDir, catalogue);
+  if (!kept.present || !kept.ok) return { ok: false, red: `The plan ${path.basename(fromRunDir)} kept is not there or does not verify, so it cannot be reused.` };
+  const texts = {};
+  for (const f of FLOW_FILES) {
+    const r = readFileInside(fromRunDir, `${RUN_JOB_DIR}/${f}`);
+    if (!r.ok) return { ok: false, red: `The plan ${path.basename(fromRunDir)} kept cannot be read (${f}).` };
+    texts[f] = r.text;
+  }
+  const jobDir = path.join(runDir, RUN_JOB_DIR);
+  try {
+    mkdirSync(jobDir);
+    for (const f of FLOW_FILES) writeFileSync(path.join(jobDir, f), texts[f], { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(path.join(runDir, RUN_PLAN_MARKER), `${JSON.stringify({ planOf: path.basename(fromRunDir) })}\n`, { encoding: 'utf8', flag: 'wx' });
+  } catch (err) {
+    try { rmSync(jobDir, { recursive: true, force: true }); rmSync(path.join(runDir, RUN_PLAN_MARKER), { force: true }); } catch { /* best-effort */ }
+    return { ok: false, red: `The plan could not be copied into the new run (${err.code ?? err.message}). Nothing was started.` };
+  }
+  return { ok: true };
 }
 
 /**

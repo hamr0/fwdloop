@@ -19,7 +19,7 @@ import { canFlowRun, willNotRunSay } from '../canrun.js';
 import { loadCatalogue } from '../catalogue.js';
 import { ConfigError, readConfig } from '../config.js';
 import {
-  changeSentence, checkFlowName, listFlowNames, listRunIds, nextRunId, readFileInside, readFlow, resolveRunDir, suggestFlowName,
+  changeSentence, checkFlowName, listFlowNames, listRunIds, nextRunId, planForReuse, readFileInside, readFlow, resolveRunDir, suggestFlowName,
 } from '../flow.js';
 import { jobKeyOfCard, jobKeyOfSigned } from '../jobkey.js';
 import { spendSummary } from '../monthly.js';
@@ -41,7 +41,7 @@ export const editBlockedSay = (runId) => `finish or stop ${runId} first`;
 export const EDIT_STARTING_SAY = 'a run is starting';
 const NO_LIMIT = 'no monthly limit set';
 /** The body keys a run start takes (amendment 5 item 2): the open boxes plus the hash of the second click. Any other key is refused by name. */
-const RUN_KEYS = ['flow', 'inputs', 'runId', 'destination', 'capUsd', 'askWaits', 'hash', 'provider', 'model'];
+const RUN_KEYS = ['flow', 'inputs', 'runId', 'destination', 'capUsd', 'askWaits', 'hash', 'provider', 'model', 'planOf'];
 
 /**
  * What the Run / Resume forms show of a signed flow (read from its own files, never from a model): the job lines as the signed text has them
@@ -179,10 +179,25 @@ export function createFlowsDoor(opts) {
     const flow = typeof body?.flow === 'string' ? body.flow : '';
     const named = checkFlowName(flow);
     if (!named.ok) return reply(400, { refused: 'flow', refusals: [{ field: 'flow', say: `${named.red}.` }] });
-    const read = readSigned(realRoot, flow);
-    if (!read.ok) {
-    return reply(400, { refused: 'flow', refusals: [{ field: 'flow', say: `"${flow}" is not a signed flow that passes its checks, so it will not run.${changeSentence(read.reds.map((r) => scrub(String(r), keys)))}` }], reds: read.reds.map((r) => scrub(String(r), keys)) });
+    const read0 = readSigned(realRoot, flow);
+    if (!read0.ok) {
+    return reply(400, { refused: 'flow', refusals: [{ field: 'flow', say: `"${flow}" is not a signed flow that passes its checks, so it will not run.${changeSentence(read0.reds.map((r) => scrub(String(r), keys)))}` }], reds: read0.reds.map((r) => scrub(String(r), keys)) });
     }
+    // M6 am9: a reuse of a run runs THAT run's plan. A plan that is the workflow's own changes nothing; a different kept plan is read (verified) and everything below
+    // (the roles, the values, the hash the second click carries) is that plan's; the start then gives the new run a verified copy of it. One that does not verify refuses.
+    let planFrom = null;
+    let planRead = null;
+    const planOf = typeof body?.planOf === 'string' ? body.planOf.trim() : '';
+    if (planOf !== '') {
+      const rr = resolveRunDir(join(realRoot, flow), planOf);
+      if (!rr.ok) return reply(400, { refused: 'plan', say: `"${planOf}" is not a run name. Nothing was started.` });
+      const cat = loadCatalogue();
+      if (!cat.ok) return reply(500, { refused: 'catalogue', say: 'The catalogue could not be read. Nothing was started.' });
+      const pf = planForReuse({ root: realRoot, name: flow, runDir: rr.runDir, catalogue: cat.primitives });
+      if (!pf.ok) return reply(409, { refused: 'plan', say: scrub(pf.red, keys) });
+      if (!pf.same) { planRead = pf.read; planFrom = planOf; }
+    }
+    const read = planRead ?? read0;
     const can = canFlowRun(read);   // amendment 21 item 1: a flow the list shows refused is refused here too, in the same sentence
     if (!can.ok) {
       const red = scrub(String(can.red), keys);
@@ -224,7 +239,7 @@ export function createFlowsDoor(opts) {
     flow, flowSignatureHash: read.signature.flow, runId: null, version: 0, values,
     });
     return {
-    ok: /** @type {true} */ (true), flow, read, declared, rows, runId, values, differs: checked.differs || runModel !== null, hash, newPick, flowDir: join(realRoot, flow),
+    ok: /** @type {true} */ (true), flow, read, declared, rows, runId, values, differs: checked.differs || runModel !== null, hash, newPick, flowDir: join(realRoot, flow), planFrom,
     };
   }
 
@@ -412,7 +427,7 @@ export function createFlowsDoor(opts) {
         };
       }
       const started = starter.start({
-        kind: 'run', flow: s.flow, runId: s.runId, sources: s.declared.map((role) => ({ role, path: /** @type {{path: string}} */ (s.rows.find((r) => r.role === role)).path })), values, pick: s.newPick,
+        kind: 'run', flow: s.flow, runId: s.runId, sources: s.declared.map((role) => ({ role, path: /** @type {{path: string}} */ (s.rows.find((r) => r.role === role)).path })), values, pick: s.newPick, planOf: s.planFrom,
       }, loaded);
       // M4d amendment 7b: the pick of a flow that had no record is written only once the start succeeded (a refused start leaves none), beside the signed files, never in them
       if (started.status === 202 && s.newPick !== null) {

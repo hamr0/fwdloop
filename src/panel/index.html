@@ -4490,7 +4490,9 @@
         flow: pickedFlow || "", inputs: readRows(runInputsEl), runId: (byId("jf-run-id").value.trim() === autoRunId ? "" : byId("jf-run-id").value.trim()),
         destination: runDestEl.value.trim(), capUsd: runCapEl.value.trim(), askWaits: runWaits(),
         // a flow with no recorded model runs with the pick (am7b); a flow with one sends none
-        ...(runPickEl.hidden ? {} : { provider: runPickChoice().provider, model: runPickChoice().model })
+        ...(runPickEl.hidden ? {} : { provider: runPickChoice().provider, model: runPickChoice().model }),
+        // M6 am9: a run picked from the list is reused WITH its plan; the server decides whether that plan is the workflow's own (a plain run) or a different kept one
+        planOf: pickedRun ? pickedRun.runId : undefined
       };
     }
     // pure-ish (reads the boxes): does the Run form differ from the flow's own signed values? Only a convenience that picks the button's wording
