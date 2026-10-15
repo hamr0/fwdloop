@@ -53,12 +53,14 @@ export function flowValues(arbiter) {
   return { capUsd: arbiter.capUsd, destination, askWaits };
 }
 
-/** @param {{capUsd: number, destination: string|null, askWaits: Record<string,string>}} v the values in canonical key order */
+/** @param {{capUsd: number, destination: string|null, askWaits: Record<string,string>, model?: {slot: string, model: string}|null}} v the values in canonical key order */
 function canonValues(v) {
   return {
     capUsd: v.capUsd,
     destination: v.destination ?? null,
     askWaits: Object.fromEntries(Object.entries(v.askWaits ?? {}).sort(([a], [b]) => Number(a) - Number(b))),
+    // M6 am5/am6: the model THIS run uses, only when it differs from the flow's recorded one. Absent = no key at all, so every record signed before this keeps its hash.
+    ...(v.model ? { model: { slot: v.model.slot, model: v.model.model } } : {}),
   };
 }
 
@@ -77,6 +79,11 @@ export function valuesHash({
 /** True when `a` and `b` are the same values (cap, destination, every wait). */
 export function sameValues(a, b) {
   return JSON.stringify(canonValues(a)) === JSON.stringify(canonValues(b));
+}
+
+/** The model a run was signed to use instead of its flow's recorded one, or null (the flow's). The ONE reader. @param {ReturnType<typeof pickRunValues>} picked */
+export function runModelOf(picked) {
+  return picked.ok && !picked.none && picked.record.values.model ? { slot: picked.record.values.model.slot, model: picked.record.values.model.model } : null;
 }
 
 /** File name of a version. @param {number} version */
@@ -126,7 +133,8 @@ export function pickRunValues(runDir) {
   const shaped = record && typeof record === 'object' && record.version === best.version && typeof record.flow === 'string' && typeof record.flowSignatureHash === 'string'
     && typeof record.hash === 'string' && v && typeof v === 'object' && Number.isFinite(v.capUsd) && v.capUsd > 0
     && (v.destination === null || (typeof v.destination === 'string' && v.destination !== ''))
-    && v.askWaits && typeof v.askWaits === 'object' && Object.values(v.askWaits).every((w) => parseWaitMs(w) !== null);
+    && v.askWaits && typeof v.askWaits === 'object' && Object.values(v.askWaits).every((w) => parseWaitMs(w) !== null)
+    && (v.model === undefined || (v.model && typeof v.model.slot === 'string' && v.model.slot !== '' && typeof v.model.model === 'string' && v.model.model !== ''));
   if (!shaped) return { ok: false, red: `signed values: ${best.name} does not have the shape of a signed values record` };
   const want = valuesHash({
     flow: record.flow, flowSignatureHash: record.flowSignatureHash, runId: best.version === 0 ? null : (record.runId ?? null), version: best.version, values: v,

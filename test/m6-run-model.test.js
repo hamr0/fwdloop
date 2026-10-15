@@ -95,7 +95,7 @@ test('the CLI run uses the run\'s signed model, not the flow\'s: a run model tha
   const wr = writeRunValues(runDir, { ...rec, runId: 'ghost-run', hash: valuesHash(rec) });
   assert.equal(wr.ok, true, JSON.stringify(wr));
   const r = spawnSync(process.execPath, [BIN, 'run', 'job2', '--root', w.root, '--run-id', 'ghost-run', ...w.inputs().flatMap((i) => ['--source', `${i.role}=${i.path}`])], {
-    encoding: 'utf8', timeout: 30000, env: { ...w.env, DEEPSEEK_API_KEY: 'sk-test-0123456789' },
+    encoding: 'utf8', timeout: 30000, env: { ...w.env, FWDLOOP_TEST_MODEL_STEP: '', DEEPSEEK_API_KEY: 'sk-test-0123456789' },   // the live model path, not the test double
   });
   assert.notEqual(r.status, 0, `${r.stdout}${r.stderr}`);
   assert.match(`${r.stdout}${r.stderr}`, /ghost-model/);

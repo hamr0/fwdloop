@@ -188,12 +188,17 @@ export function createFlowsDoor(opts) {
       const red = scrub(String(can.red), keys);
       return reply(409, { refused: 'flow', say: willNotRunSay(flow, red), refusals: [{ field: 'flow', say: willNotRunSay(flow, red) }] });
     }
-    // M4d amendment 7b: a flow with no recorded model takes the one picked in Chat (checked now, at the click); a flow with a record keeps it and ignores the body's pick
-    const noRecord = readModelRecord(join(realRoot, flow)) === null;
-    const modelReds = noRecord ? modelRefusal({ provider: body?.provider, model: body?.model }, loaded) : [];
+    // M4d amendment 7b: a flow with no recorded model takes the one picked in Chat (checked now, at the click) and records it.
+    // M6 am5/am6: a flow WITH a record keeps it unless the body names a different model: that is this run's own model (a run field, Sign & run).
+    const record = readModelRecord(join(realRoot, flow));
+    const noRecord = record === null;
+    const namedModel = typeof body?.provider === 'string' && body.provider !== '' && typeof body?.model === 'string' && body.model !== '';
+    const modelReds = noRecord || namedModel ? modelRefusal({ provider: body?.provider, model: body?.model }, loaded) : [];
     const newPick = noRecord && modelReds.length === 0 ? { slot: body.provider, model: body.model } : null;
+    const runModel = !noRecord && namedModel && modelReds.length === 0 && (body.provider !== record.slot || body.model !== record.model) ? { slot: body.provider, model: body.model } : null;
+    const floorFacts = formFacts(read, home, runModel === null ? join(realRoot, flow) : undefined, runModel ?? newPick);
     const checked = checkValues({
-    allowedKeys: RUN_KEYS, body, base: flowValues(read.arbiter), realRoot, capOnly: false, floorUsd: formFacts(read, home, join(realRoot, flow), newPick).capFloorUsd, floorModel: formFacts(read, home, join(realRoot, flow), newPick).floorModel, monthlyClaim,
+    allowedKeys: RUN_KEYS, body, base: flowValues(read.arbiter), realRoot, capOnly: false, floorUsd: floorFacts.capFloorUsd, floorModel: floorFacts.floorModel, monthlyClaim,
     });
     if (!checked.ok && checked.refused) return reply(checked.status, { refused: checked.refused, say: checked.say, refusals: checked.refusals });
     /** @type {{field: string, say: string}[]} */
@@ -214,11 +219,12 @@ export function createFlowsDoor(opts) {
     if (!run.ok) refusals.push({ field: 'runId', say: String(run.say) });
     }
     if (refusals.length > 0 || !checked.ok) return reply(400, { refused: 'run', refusals });
+    const values = runModel === null ? checked.values : { ...checked.values, model: runModel };   // the run's own model is part of what the second click signs
     const hash = valuesHash({
-    flow, flowSignatureHash: read.signature.flow, runId: null, version: 0, values: checked.values,
+    flow, flowSignatureHash: read.signature.flow, runId: null, version: 0, values,
     });
     return {
-    ok: /** @type {true} */ (true), flow, read, declared, rows, runId, values: checked.values, differs: checked.differs, hash, newPick, flowDir: join(realRoot, flow),
+    ok: /** @type {true} */ (true), flow, read, declared, rows, runId, values, differs: checked.differs || runModel !== null, hash, newPick, flowDir: join(realRoot, flow),
     };
   }
 

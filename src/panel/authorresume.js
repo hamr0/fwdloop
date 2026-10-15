@@ -80,11 +80,13 @@ export function createResumeDoor(opts) {
     if (!checked.ok) {
       return no(checked.status, checked.refused ? { refused: checked.refused, say: checked.say, refusals: checked.refusals } : { refused: 'resume', refusals: checked.refusals, say: checked.refusals[0]?.say ?? 'Not resumed. Fix the marked box.' });
     }
+    // M6 am5/am6: a resume carries the run's own model forward (the record is the FULL set in force, never a patch)
+    const values = base.model ? { ...checked.values, model: base.model } : checked.values;
     const hash = valuesHash({
-      flow, flowSignatureHash: read.signature.flow, runId, version, values: checked.values,
+      flow, flowSignatureHash: read.signature.flow, runId, version, values,
     });
     return {
-      ok: /** @type {true} */ (true), flow, runId, runDir: rd.runDir, version, values: checked.values, hash, spentUsd: spent.total, remainingUsd: checked.remainingUsd, signatureHash: read.signature.flow, hashGiven: b.hash,
+      ok: /** @type {true} */ (true), flow, runId, runDir: rd.runDir, version, values, hash, spentUsd: spent.total, remainingUsd: checked.remainingUsd, signatureHash: read.signature.flow, hashGiven: b.hash,
     };
   }
 

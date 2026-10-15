@@ -29,7 +29,7 @@ import { loadCatalogue } from '../src/catalogue.js';
 import {
   runFlow, resumeRun, continueRun, auditSpend, makeParkingAskStep, readAsk, readRunState,
 } from '../src/runner.js';
-import { applyRunValues, pickRunValues, dropUnstartedValues } from '../src/runvalues.js';
+import { applyRunValues, pickRunValues, dropUnstartedValues, runModelOf } from '../src/runvalues.js';
 import { TRIGGER_RECORD_FILE } from '../src/trigger-line.js';
 import { makeLiveModelStep } from '../src/model-step.js';
 import { sendViaPrimitive } from '../src/send.js';
@@ -160,7 +160,7 @@ function today() {
  * be hit by a user typing `--something`. This is how the test suite drives
  * every CLI scenario at $0 with zero chance of a real network call.
  */
-async function resolveModelStep(spendPath, env, flowDir, named = {}) {
+async function resolveModelStep(spendPath, env, flowDir, named = {}, runModel = null) {
   if (process.env.NODE_ENV === 'test' && process.env.FWDLOOP_TEST_MODEL_STEP) {
     const modulePath = resolve(process.env.FWDLOOP_TEST_MODEL_STEP);
     const mod = await import(pathToFileURL(modulePath).href);
@@ -172,7 +172,7 @@ async function resolveModelStep(spendPath, env, flowDir, named = {}) {
     const modelStep = await mod.default({ spendPath });
     let usable = null;
     try {
-      const rec = configDoorHome().skip ? null : readModelRecord(flowDir);
+      const rec = configDoorHome().skip ? null : (runModel ?? readModelRecord(flowDir));
       usable = rec === null ? null : resolveUsableModel(rec.slot, { config: readPriceConfig(), model: rec.model });
     } catch (err) {
       if (!(err instanceof ConfigError)) throw err; // a broken config is refused by name at the monthly hold, right after this
@@ -187,7 +187,7 @@ async function resolveModelStep(spendPath, env, flowDir, named = {}) {
   let slot;
   try {
     const config = readPriceConfig();
-    const rec = readModelRecord(flowDir);
+    const rec = runModel ?? readModelRecord(flowDir);   // M6 am5/am6: the model signed for THIS run, else the one recorded with the job
     if (rec !== null && named.model !== undefined && (named.model !== rec.model || (named.provider !== undefined && named.provider !== rec.slot))) {
       throw new Error(`This job already has its model recorded (${rec.slot} · ${rec.model}); --model cannot change it.`);
     }
@@ -368,7 +368,7 @@ async function cmdRun(rest) {
   let modelStep;
   let ceilingUsd;
   try {
-    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values));
+    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values, runModelOf(pickRunValues(runDir))));
   } catch (err) {
     fail(err.message);
     return;
@@ -624,7 +624,7 @@ async function cmdResume(rest) {
   let modelStep;
   let ceilingUsd;
   try {
-    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values));
+    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values, runModelOf(pickRunValues(runDir))));
   } catch (err) {
     fail(err.message);
     return;
@@ -724,7 +724,7 @@ async function cmdContinue(rest) {
   let modelStep;
   let ceilingUsd;
   try {
-    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values));
+    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values, runModelOf(pickRunValues(runDir))));
   } catch (err) {
     fail(err.message);
     return;
