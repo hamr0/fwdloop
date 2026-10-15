@@ -2203,6 +2203,10 @@ through M5 (docs/archive/PRD.md:597-605).
   1. The one door (amendments 5 and 6) is a single button named **Reuse workflow**. It replaces both **Run again** and **Edit this job**. It sits where Run again is today, first in the Run tab's action row.
   2. Every signed text that says "Run again" or "Edit this job" now means this button (M4e amendment 7 item 6, M9 amendment 5 item 3, M11 amendment 3 item 1).
   - **Must fail when:** a page still shows "Run again" or "Edit this job"; or there are two buttons that open the same card.
+- **M6 amendment 8 — SIGNED by hamr 2026-10-15 ("sign m6 am8"): two leftovers from amendment 7.**
+  1. The schedule button (it reads **Schedule run**, or **Cancel / modify schedule** once a schedule is set) stays as signed in M11 amendment 3 item 1. It is not one of the "two buttons" amendment 7 forbids.
+  2. M6 amendments 1 and 3 (no editing while a run is starting, running or waiting) no longer apply. Reuse workflow is open while a run waits: a changed job signs as a new workflow, and the waiting run is untouched.
+  - **Must fail when:** the schedule button is removed or changed; Reuse workflow is greyed while a run waits; or changing the job while a run waits alters that run or its workflow.
 
 ## M7 — skills and persona
 
