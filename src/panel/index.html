@@ -975,15 +975,21 @@
                 <div class="hint" id="jf-run-empty" data-testid="jf-run-empty"></div>
                 <div class="jf-err" id="jf-err-flow" data-testid="jf-err-flow"></div>
               </div>
-              <div class="field dimmed" data-testid="jf-run-job-field">
-                <label>The job</label>
+              <div class="field" data-testid="jf-run-job-field">
+                <label for="jf-run-jobbox">The job</label>
+                <textarea id="jf-run-jobbox" data-testid="jf-run-jobbox" rows="6" spellcheck="false" hidden></textarea>
                 <div class="ro-lines" id="jf-run-job" data-testid="jf-run-job"></div>
+                <div class="jf-err" id="jf-err-run-job" data-testid="jf-err-run-job"></div>
+                <div class="hint" id="jf-run-job-hint" data-testid="jf-run-job-hint">Change anything here. A changed job line, guardrail, ask or step drafts a new workflow; a changed destination, cap, wait or model signs a new run; new files just run.</div>
                 <div class="hint" id="jf-run-model" data-testid="jf-run-model"></div>
                 <select id="jf-run-pick" data-testid="jf-run-pick" aria-label="Model to run this job with" hidden disabled><option value="">Reading your models…</option></select>
                 <div class="jf-err" id="jf-err-run-model" data-testid="jf-err-run-model"></div>
-                <div class="hint">Fixed by the signature (the steps, the job lines and the asks). To change them, edit the job: the AI drafts a new plan, and signing it replaces this job.</div>
-                <button class="btn" type="button" id="jf-run-edit" data-testid="jf-run-edit">Edit this job</button>
-                <div class="hint" id="jf-run-edit-why" data-testid="jf-run-edit-why"></div>
+              </div>
+              <div class="field" id="jf-run-newname-field" data-testid="jf-run-newname-field" hidden>
+                <label for="jf-run-newname">Name of the new workflow</label>
+                <input id="jf-run-newname" type="text" autocomplete="off" spellcheck="false" data-testid="jf-run-newname">
+                <div class="hint">A changed job is a new workflow. This is the next free name; type another if you like.</div>
+                <div class="jf-err" id="jf-err-run-flowName" data-testid="jf-err-run-flowName"></div>
               </div>
               <div class="field">
                 <label for="jf-run-dest">Destination</label>
@@ -2385,8 +2391,8 @@
     var el = document.getElementById("run-actions");
     var c = detail.controls || {};
     el.innerHTML = "";
-    // amendment 7 item 6: Run again sits first, with Stop and Resume — every run control in this one row
-    el.appendChild(makeButton("Run again", "run-again", function(){ if(window.fwdloopRunAgain) window.fwdloopRunAgain(detail); }));
+    // M6 am7: Reuse workflow (the one door: it replaced Run again and Edit this job) sits first, with Stop and Resume — every run control in this one row
+    el.appendChild(makeButton("Reuse workflow", "run-again", function(){ if(window.fwdloopRunAgain) window.fwdloopRunAgain(detail); }));
     // M9 am5 item 3: a scheduled job's Run tab offers the schedule's own door, next to Run again: the same route, the Run card showing When
     // M11 am3 item 1: a job with a green run and no schedule reads Schedule run (the server's `canSchedule`); the same door either way
     var schedDoor = function(){ if(window.fwdloopRunAgain) window.fwdloopRunAgain(detail); };
@@ -4110,7 +4116,11 @@
     var modeRow = document.getElementById("jf-mode-row");
     var titleEl = document.getElementById("job-card-title");
 
-    var editOf = null;           // M6: the signed job this card EDITS: { flow, flowHash } (ONE writer each: startEdit sets it, leaveEdit clears it); null = a new job
+    var reuseOf = null;          // M6 am5/am6: the signed workflow this New card drafts a CHANGED job from: { flow } (ONE writer each: startReuseDraft sets it, leaveReuse clears it); null = a new job
+    var reuseKind = null;        // the server's answer for the Reuse card: "run" | "sign-run" | "draft" (null = not asked yet); ONE writer: checkReuse
+    var reuseName = "";          // the next free name the server suggested for a "draft"
+    var reuseSeq = 0, reuseTimer = null;
+    var reuseBusy = false;       // an edit was made and the server has not answered yet: the main button waits, so it never shows a stale label
     var mode = "new";            // "new" | "run" | "resume"
     var runSignInfo = null;      // Run form, first Sign & run click: { hash } (cleared by any edit)
     var resumeCtx = null;        // the run being resumed: { flow, runId, form }
@@ -4160,6 +4170,8 @@
       var spends = (cap !== undefined && cap !== null && cap !== "") ? " — spends up to $" + cap : "";
       var blocked = !st.startOk || !!st.busy;
       if(st.mode === "run"){
+        // M6 am6 item 2: the server said a job field changed: the button costs drafting, then signs a NEW workflow (checked before When: a changed job is not a schedule)
+        if(st.reuseKind === "draft") return {text: "Start drafting", action: "reuse-draft", disabled: blocked};
         // M9 am5: When changed from the signed value = the one button is Sign schedule (or Cancel schedule when the choice is By hand), two clicks, $0,
         // starts nothing; after click 1 it reads "Confirm: <words>". It never reaches the run routes.
         if(st.whenChanged){
@@ -4460,7 +4472,7 @@
         provider: modelPick().provider,
         model: modelPick().model,
         thinking: thinkingEl.checked && !thinkingEl.disabled,
-        editOf: editOf
+        ...(reuseOf !== null ? {reuseOf: reuseOf} : {})
       };
     }
     function runWaits(){
@@ -4501,7 +4513,7 @@
     function startReady(){
       if(moneyRed) return false;   // amendment 4 item 1: a cap that does not fit this month stops you before the click (the server still refuses)
       if(mode === "run"){
-        return !!selectedFlow() && readRows(runInputsEl).every(function(r){ return r.path !== ""; }) && capValid(runCapEl.value.trim());
+        return !!selectedFlow() && readRows(runInputsEl).every(function(r){ return r.path !== ""; }) && capValid(runCapEl.value.trim()) && (reuseKind !== "draft" || newNameEl.value.trim() !== "");
       }
       if(mode === "resume"){
         return !!resumeCtx && capValid(resumeCapEl.value.trim());
@@ -4606,10 +4618,8 @@
       var on = cardLocked();
       whenSyncButton();
       card.querySelectorAll("input[type=text], textarea").forEach(function(el){ el.readOnly = on; el.classList.toggle("locked", on); });
-      if(editOf !== null){ byId("jf-name").readOnly = true; byId("jf-name").classList.add("locked"); }   // M6: an edit keeps its job's name
       runFlowSel.disabled = on;
       runFlowSel.classList.toggle("locked", on);
-      syncEditBtn();
       rwPickedEl.classList.toggle("locked", on);
       card.querySelectorAll('input[name="jf-mode"]').forEach(function(r){ r.disabled = on || sessionLive; });
     }
@@ -4647,47 +4657,84 @@
         el.appendChild(row);
       });
     }
-    // ---- M6: Edit a signed job. The list entry carries the job as a card (`edit`); Edit fills the New-job boxes from it and keeps the job's name and
-    // the signature hash it was opened at. Nothing is written until the normal Draft -> Sign. Clear / Abandon leave the job exactly as it was.
-    var editBtn = document.getElementById("jf-run-edit");
-    var editWhyEl = document.getElementById("jf-run-edit-why");
+    // ---- M6 am5/am6/am7: Reuse workflow. The Run card opens EVERY field of the signed job. The SERVER says what the one button is (reuse-check):
+    // Run (files only), Sign & run (destination, cap, wait or model), or Start drafting (a job field changed: it drafts again and signs as a NEW
+    // workflow, the old one untouched). The page decides nothing: it asks after every edit and shows the answer; undoing the edit asks again.
     var editBannerEl = document.getElementById("jf-edit-banner");
-    function syncEditBtn(){
-      if(!editBtn) return;   // called by the first lock sync, before this block has run
-      var f = selectedFlow();
-      var can = !!(f && f.edit && f.edit.ok === true);
-      editBtn.disabled = !can || cardLocked() || sessionLive || startId !== null;
-      editWhyEl.textContent = (f && f.edit && f.edit.ok === false) ? f.edit.say : "";
+    var jobBoxEl = document.getElementById("jf-run-jobbox");
+    var newNameEl = document.getElementById("jf-run-newname");
+    var newNameField = document.getElementById("jf-run-newname-field");
+    function reuseBody(){
+      var b = currentRun();
+      delete b.runId;
+      b.job = jobBoxEl.hidden ? undefined : jobBoxEl.value;
+      b.fromRun = pickedRun ? pickedRun.runId : undefined;
+      return b;
     }
-    function startEdit(){
+    function paintReuseKind(){
+      newNameField.hidden = !(mode === "run" && reuseKind === "draft");
+    }
+    function checkReuse(){
+      if(mode !== "run" || !selectedFlow()){ reuseKind = null; reuseBusy = false; paintReuseKind(); return; }
+      var seq = ++reuseSeq;
+      reuseBusy = true;
+      authorPost("/api/author/reuse-check", reuseBody()).then(function(r){
+        if(seq !== reuseSeq) return;   // a newer edit asked again: only the last answer is shown
+        reuseBusy = false;
+        reuseKind = (r.status === 200 && r.body && r.body.ok === true) ? r.body.kind : null;
+        if(reuseKind === "draft"){ if(r.body.suggestedName !== reuseName){ reuseName = r.body.suggestedName; newNameEl.value = reuseName; } }
+        else { newNameEl.value = ""; reuseName = ""; }
+        paintReuseKind(); refreshStartEnabled();
+      }).catch(function(){ if(seq === reuseSeq){ reuseBusy = false; reuseKind = null; paintReuseKind(); refreshStartEnabled(); } });
+    }
+    function scheduleReuseCheck(){
+      if(reuseTimer) clearTimeout(reuseTimer);
+      reuseBusy = true;   // until the server answers the main button waits; the page never guesses the label
+      reuseTimer = setTimeout(checkReuse, 200);
+    }
+    // Start drafting: the New card is filled from the Reuse card (job, boxes, the new name) and the normal draft starts; `reuseOf` makes the server
+    // refuse it if no job field changed. Nothing is written to the signed workflow.
+    function startReuseDraft(){
       var f = selectedFlow();
-      if(!f || !f.edit || f.edit.ok !== true || cardLocked() || sessionLive) return;
-      var c = f.edit.card;
-      editOf = {flow: f.flow, flowHash: f.edit.flowHash};
+      if(!f || mode !== "run" || cardLocked() || sessionLive) return;
+      reuseOf = {flow: f.flow};
+      var rows = readRows(runInputsEl);
+      var waits = runWaits();
+      var firstWait = Object.keys(waits).map(function(k){ return waits[k]; }).filter(function(w){ return w !== ""; })[0] || "1h";
+      var pk = runPickChoice();
       setMode("new");
-      setVal("jf-name", f.flow); setVal("jf-job", c.job); setVal("jf-cap-money", c.capUsd);
-      setVal("jf-dest-folder", c.destination); setVal("jf-inputs", c.inputs); setVal("jf-ask-wait", c.askWait || "1h");
-      // M9 am1: a job with a trigger is told, before it signs, that the edit clears the trigger back to By hand (the sentence is the server's)
-      editBannerEl.textContent = "Editing \u201c" + f.flow + "\u201d. Draft it, read the new plan, then sign: signing replaces this job. Clear leaves it exactly as it was." + (f.trigger && f.trigger.editNote ? " " + f.trigger.editNote : "");
+      setVal("jf-name", newNameEl.value.trim()); setVal("jf-job", jobBoxEl.value); setVal("jf-cap-money", runCapEl.value.trim());
+      setVal("jf-dest-folder", runDestEl.value.trim()); setVal("jf-inputs", rows.map(function(r){ return r.role + ": " + r.path; }).join("\n")); setVal("jf-ask-wait", firstWait);
+      if(pk.provider !== "") setModelPick(pk.provider, pk.model);
+      editBannerEl.textContent = "Reusing \u201c" + f.flow + "\u201d with a changed job. Draft it, read the new plan, then sign: it becomes a new workflow and \u201c" + f.flow + "\u201d is not touched.";
       editBannerEl.hidden = false;
       chatActionOk();
-      refreshCapNote(); fitCardBoxes(); refreshStartEnabled();
+      refreshCapNote(); fitCardBoxes();
+      doDraft(null);
     }
-    // the card stops editing a job: the name box is free again
-    function leaveEdit(){
-      editOf = null;
+    // the card stops reusing: the name box is free again
+    function leaveReuse(){
+      reuseOf = null;
       editBannerEl.hidden = true; editBannerEl.textContent = "";
-      var nm = byId("jf-name"); nm.readOnly = false; nm.classList.remove("locked");
     }
-    editBtn.addEventListener("click", startEdit);
     function paintRunFlow(){
       var f = selectedFlow();
       var v = f ? (pickedRun ? pickedRun.values : f.values) : null;   // a picked run's own values, else the flow's own
       paintedFlow = pickedKey();
       runSignInfo = null;
       paintJobDim(byId("jf-run-job"), f ? f.jobLines : []);
-      byId("jf-run-model").textContent = f && f.model ? "Model: " + f.model.label : (f ? "No model is recorded for this job. Pick the one to run it with; it is then remembered for this job." : "");
-      runPickEl.hidden = !(f && !f.model);
+      // M6 am6 item 1: the job opens like every other field (the card the server built from the signed job); a job with a setting the card has no box for keeps the read-only lines and says why
+      var jobOpen = !!(f && f.edit && f.edit.ok === true);
+      jobBoxEl.hidden = !jobOpen; byId("jf-run-job").hidden = jobOpen;
+      jobBoxEl.value = jobOpen ? f.edit.card.job : "";
+      byId("jf-err-run-job").textContent = (f && f.edit && f.edit.ok === false) ? f.edit.say : "";
+      byId("jf-run-job-hint").hidden = !jobOpen;
+      byId("jf-run-model").textContent = f && f.model ? "Model: " + f.model.label + ". Pick another to run it with that model (signed with the run)." : (f ? "No model is recorded for this job. Pick the one to run it with; it is then remembered for this job." : "");
+      runPickEl.hidden = !f;
+      var pm = (pickedRun && pickedRun.model) ? pickedRun.model : (f && f.model ? f.model : null);
+      if(pm){ runPicked = {provider: pm.slot, model: pm.model}; }
+      syncRunPick();
+      reuseKind = null; reuseName = ""; newNameEl.value = ""; paintReuseKind();
       runDestEl.value = v && v.destination ? v.destination : "";
       runDestEl.readOnly = !(f && f.hasSend);
       runDestEl.classList.toggle("locked", !(f && f.hasSend));
@@ -4710,8 +4757,8 @@
       byId("jf-run-id").value = autoRunId;
       clearFieldErrors();
       refreshCapNote();
-      syncEditBtn();
       paintWhen();
+      if(f) checkReuse();
     }
     // ---- M9 piece 5: When [By hand v] on the Run card (ladder M9 item 1, item 2). One dropdown, no cron text. Changing it asks the server what
     // would be signed (click 1, signs nothing, returns a hash), click 2 signs it with that hash: the Run door's two clicks. $0, no drafter.
@@ -4853,7 +4900,7 @@
         if(!j || j.ok !== true) return;
         flows = j.flows || [];
         if(pickedFlow !== null && !selectedFlow()){ pickedFlow = null; pickedRun = null; againEntry = null; pickedLabel = ""; runFlowSel.value = ""; }
-        byId("jf-run-empty").textContent = flows.length ? "" : "No signed flow has a passed run yet. Run a job first, or use Run again on one of its runs.";
+        byId("jf-run-empty").textContent = flows.length ? "" : "No signed flow has a passed run yet. Run a job first, or use Reuse workflow on one of its runs.";
         renderFlowSearch();
         if(force || paintedFlow !== pickedKey() || (flows.length === 0 && runInputsEl.children.length > 0)) paintRunFlow();
         refreshCapNote();
@@ -5025,7 +5072,7 @@
       if(html !== extrasKey){ extrasKey = html; extrasEl.innerHTML = html; }
     }
     function renderMain(){
-      var st = {mode: mode, session: sessionLive, startOk: startOk, busy: busy || startId !== null, signClicked: signClickedOnce, reviseOpen: reviseOpen};
+      var st = {mode: mode, session: sessionLive, startOk: startOk, busy: busy || startId !== null || (mode === "run" && reuseBusy), signClicked: signClickedOnce, reviseOpen: reviseOpen};
       if(sessionLive && lastState){
         st.phase = lastState.phase;
         st.hash = signInfo ? signInfo.hash : lastState.hash;
@@ -5034,7 +5081,8 @@
       }
       if(mode === "run"){
         st.capUsd = runCapEl.value.trim();
-        st.runDiffers = runDiffers();
+        st.reuseKind = reuseKind;
+        st.runDiffers = reuseKind !== null ? reuseKind === "sign-run" : runDiffers();
         st.runSignClicked = !!runSignInfo;
         st.hash = runSignInfo ? runSignInfo.hash : "";
         st.whenChanged = whenChanged();
@@ -5116,7 +5164,7 @@
     // back to a fresh empty card: every box, the inputs, the progress list, the ask box
     function resetCard(){
       if(mode === "resume"){ resumeCtx = null; setMode(modeBeforeResume === "resume" ? "new" : modeBeforeResume); }
-      leaveEdit();
+      leaveReuse();
       ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; });
       askWaitEl.value = "1h";
       thinkingEl.checked = false; // per job: unticked for the next one
@@ -5192,7 +5240,7 @@
           window.fwdloopResuming = null; // a refused start leaves the run stopped: Resume is offered again
           refusedStartId = j.startId;
           chatActionFailed(signed ? j.say + " The flow is signed; start it from \"Run a signed flow\"." : j.say);
-          if(signed){ leaveEdit(); endSession(); loadFlows(true); } else { progressRow.hidden = true; progressRow.innerHTML = ""; progressHtml = ""; refreshStartEnabled(); }
+          if(signed){ leaveReuse(); endSession(); loadFlows(true); } else { progressRow.hidden = true; progressRow.innerHTML = ""; progressHtml = ""; refreshStartEnabled(); }
           return;
         }
         if(j.ok === false && j.refused === "no-such-start"){
@@ -5331,8 +5379,8 @@
     function openRunAgain(detail){
       authorGet("/api/author/run-again?flow=" + encodeURIComponent(detail.flow) + "&runId=" + encodeURIComponent(detail.runId)).then(function(j){
         document.getElementById("tab-chat").click();
-        if(!j || j.ok !== true){ chatActionFailed((j && j.say) || "This run cannot be run again."); return; }
-        if(startId !== null || sessionLive || mode === "resume"){ chatActionFailed("Finish or clear what is on the card first, then Run again."); return; }
+        if(!j || j.ok !== true){ chatActionFailed((j && j.say) || "This run cannot be reused."); return; }
+        if(startId !== null || sessionLive || mode === "resume"){ chatActionFailed("Finish or clear what is on the card first, then Reuse workflow."); return; }
         chatActionOk();
         againEntry = j.flow; pickedFlow = j.flow.flow; pickedRun = j.pick; pickedLabel = j.flow.flow + " (" + j.pick.runId + ")";
         runFlowSel.value = pickedLabel;
@@ -5367,7 +5415,7 @@
         if(!o.ok){
           busy = false;
           failFrom(r);
-          if(r.body && r.body.signed === true){ leaveEdit(); endSession(); loadFlows(true); } else { refreshStartEnabled(); }
+          if(r.body && r.body.signed === true){ leaveReuse(); endSession(); loadFlows(true); } else { refreshStartEnabled(); }
           return;
         }
         chatActionOk();
@@ -5419,11 +5467,6 @@
       setModelPick(c.provider || "", c.model || ""); thinkingEl.checked = c.thinking === true && !thinkingEl.disabled;
       refreshCapNote();
       setVal("jf-dest-folder", typeof c.destination === "string" ? c.destination : ""); setVal("jf-inputs", typeof c.inputs === "string" ? c.inputs : ""); setVal("jf-ask-wait", c.askWait || "1h");
-      if(c.editOf && typeof c.editOf.flow === "string"){
-        editOf = {flow: c.editOf.flow, flowHash: c.editOf.flowHash};
-        editBannerEl.textContent = "Editing \u201c" + c.editOf.flow + "\u201d. Draft it, read the new plan, then sign: signing replaces this job. Clear leaves it exactly as it was.";
-        editBannerEl.hidden = false;
-      }
       sessionId = d.draftId;
       sessionLive = CLIENT_TERMINAL_PHASES.indexOf(d.phase) === -1;
       renderThread(d);
@@ -5466,6 +5509,7 @@
       if(mainBtn.disabled) return;
       if(mainAction === "draft") doDraft(mainStartOver ? sessionId : null);
       else if(mainAction === "when-sign-prepare" || mainAction === "when-sign") doWhenSign();
+      else if(mainAction === "reuse-draft") startReuseDraft();
       else if(mainAction === "run") doRun();
       else if(mainAction === "run-sign-prepare" || mainAction === "run-sign") doRunSign();
       else if(mainAction === "resume-sign-prepare" || mainAction === "resume-sign") doResumeSign();
@@ -5477,6 +5521,7 @@
       if(grp) grp.querySelectorAll(".jf-err").forEach(function(x){ x.textContent = ""; });
       dropFixBoxesBanner();
       fitCardBoxes();
+      if(mode === "run" && e.target && e.target.id !== "jf-run-flow" && e.target.id !== "jf-run-newname" && e.target.closest && e.target.closest("#jf-run")) scheduleReuseCheck();
       if(e.target && (e.target.id === "jf-cap-money" || e.target.id === "jf-job" || e.target.id === "jf-run-cap" || e.target.id === "jf-resume-cap")) scheduleCapNote();
       // any edit voids the first Sign click of the Run / Resume form: what is shown must be what is signed
       runSignInfo = null; resumeSignInfo = null;
@@ -5484,7 +5529,7 @@
     });
     document.querySelectorAll('input[name="jf-mode"]').forEach(function(r){
       r.addEventListener("change", function(){
-        if(r.checked && editOf !== null && r.value !== "new" && !sessionLive){ leaveEdit(); ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; }); }
+        if(r.checked && reuseOf !== null && r.value !== "new" && !sessionLive){ leaveReuse(); ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; }); }
         if(r.checked) setMode(r.value);
       });
     });

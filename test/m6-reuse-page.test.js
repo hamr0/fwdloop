@@ -77,9 +77,8 @@ test('changing only the cap is Sign & run (no drafting, no draft POST); Start dr
   await typeIn(chrome, 'jf-run-jobbox', original.replace('nothing goes out before I accept', 'nothing goes out before I say so'));
   assert.ok(await chrome.waitFor(`${BTN}.textContent === "Start drafting"`));
   await chrome.ev(`${BTN}.click()`);
-  assert.ok(await chrome.waitFor('document.querySelector("[data-testid=jf-new]") ? !document.querySelector("[data-testid=jf-new]").hidden : !document.getElementById("jf-name").closest("[hidden]")'), 'the New card shows');
+  assert.ok(await chrome.waitFor('!document.getElementById("jf-new").hidden'), 'the New card shows');
   assert.equal(await chrome.ev('document.getElementById("jf-name").value'), 'job2-2');
-  assert.ok(await chrome.waitFor('document.querySelectorAll("#chat-progress li").length > 0 || document.getElementById("chat-main-btn").textContent !== "Start drafting"'));
   const { readdirSync } = await import('node:fs');
   assert.ok(await new Promise((r) => { const t0 = Date.now(); const i = setInterval(() => { try { if (readdirSync(path.join(w.root, '.drafts')).length > 0) { clearInterval(i); r(true); } } catch { /* none yet */ } if (Date.now() - t0 > 8000) { clearInterval(i); r(false); } }, 200); }), 'a draft started');
 });

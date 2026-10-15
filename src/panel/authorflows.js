@@ -25,7 +25,7 @@ import { jobKeyOfCard, jobKeyOfSigned } from '../jobkey.js';
 import { spendSummary } from '../monthly.js';
 import { userInfo } from 'node:os';
 import {
-  applyRunValues, flowValues, pickRunValues, valuesHash,
+  applyRunValues, flowValues, pickRunValues, runModelOf, valuesHash,
 } from '../runvalues.js';
 import {
   capFloorOf, cardFromSigned, checkInputRows, runInputRows,
@@ -119,7 +119,7 @@ export function createFlowsDoor(opts) {
   /** The values one run ran with: the flow's own, with the run's newest signed version laid over (`applyRunValues`). Unreadable = the flow's own. @param {any} read @param {string} name @param {string} runDir */
   function runValuesOf(read, name, runDir) {
     const applied = applyRunValues(read.arbiter, name, read.signature.flow, pickRunValues(runDir));
-    return { values: flowValues(applied.ok ? applied.arbiter : read.arbiter) };
+    return { values: flowValues(applied.ok ? applied.arbiter : read.arbiter), model: runModelOf(pickRunValues(runDir)) };
   }
 
   /**
@@ -257,12 +257,8 @@ export function createFlowsDoor(opts) {
       flow: name, capUsd: read.arbiter.capUsd, roles, nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
       runs: passed, stats,
       ...formFacts(read, home, flowDir),
-      // M6: the job as a card to edit (`ok:true, card, flowHash` = the signature hash it is opened at), or why it cannot be (`ok:false, say`)
-      edit: (() => {
-        const blocked = editBlockOf(realRoot, name);
-        if (blocked !== null) return { ok: false, say: blocked };
-        const c = cardFromSigned(read); return c.ok ? { ok: true, card: c.card, flowHash: read.signature.flow } : c;
-      })(),
+      // M6 am5/am6: the job as the card Reuse workflow opens (`ok:true, card`), or why the card cannot hold it (`ok:false, say`). Nothing blocks it: a reuse never changes the job it is opened from.
+      edit: (() => { const c = cardFromSigned(read); return c.ok ? { ok: true, card: c.card } : c; })(),
     };
   }
 
