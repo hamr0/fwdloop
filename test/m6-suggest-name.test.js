@@ -20,13 +20,13 @@ test('suggestFlowName: the first free -N from 2, never an existing entry (folder
   assert.equal(suggestFlowName(r, 'aging'), 'aging-4');
 });
 
-test('suggestFlowName: a trailing -N is stripped (aging-live-4-2 -> aging-live-4-3), a gap is not reused backwards', () => {
+test('suggestFlowName: a trailing -N is stripped (aging-live-4-2 -> aging-live-4-3)', () => {
   const r = root();
   for (const n of ['aging-live-4', 'aging-live-4-2']) mkdirSync(path.join(r, n));
   assert.equal(suggestFlowName(r, 'aging-live-4-2'), 'aging-live-4-3');
   assert.equal(suggestFlowName(r, 'aging-live-4'), 'aging-live-4-3');
   mkdirSync(path.join(r, 'x-5'));
-  assert.equal(suggestFlowName(r, 'x-5'), 'x-2', 'base x has no x entry required; first free of x-2.. is x-2');
+  assert.equal(suggestFlowName(r, 'x-5'), 'x-5-2', 'x does not exist here, so the 5 is part of the name, not a version');
 });
 
 test('suggestFlowName: the suggestion always passes the name check (length 64 base is shortened)', () => {
