@@ -23,7 +23,7 @@ import { draftHoldUsd } from '../src/draftspend.js';
 import { pathToFileURL } from 'node:url';
 
 import {
-  readPlan, checkFlowName, resolveRunDir, listFlowNames, listRunIds, readFileInside, claimRunId,
+  readPlan, readRunPlan, checkFlowName, resolveRunDir, listFlowNames, listRunIds, readFileInside, claimRunId,
 } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import {
@@ -609,7 +609,7 @@ async function cmdResume(rest) {
   const catalogue = loaded.primitives;
 
   const planRunDir = (id) => { if (typeof id !== 'string') return null; const c = resolveRunDir(join(root, flowName), id); return c.ok ? c.runDir : null; }; // am9: a run that keeps its own plan reads it
-  const read = readPlan({ root, name: flowName, catalogue, runDir: planRunDir(runId) });
+  const read = readRunPlan({ root, name: flowName, catalogue, runDir: planRunDir(runId) ?? '' }); // M9 am12: the run's own saved job
   if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
   const { declaration } = read;
 
@@ -712,7 +712,7 @@ async function cmdContinue(rest) {
   const catalogue = loaded.primitives;
 
   const planRunDir = (id) => { if (typeof id !== 'string') return null; const c = resolveRunDir(join(root, flowName), id); return c.ok ? c.runDir : null; }; // am9: a run that keeps its own plan reads it
-  const read = readPlan({ root, name: flowName, catalogue, runDir: planRunDir(runId) });
+  const read = readRunPlan({ root, name: flowName, catalogue, runDir: planRunDir(runId) ?? '' }); // M9 am12: the run's own saved job
   if (!read.ok) fail(`flow "${flowName}": ${read.reds.join('; ')}`);
   const { declaration } = read;
 

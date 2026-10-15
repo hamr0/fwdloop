@@ -10,13 +10,13 @@
 //
 // One writer of each field: `writeRunValues` writes the version file (this door is its only caller for versions >= 1); the runner reads the
 // highest version through `pickRunValues` and nothing else. The agent, the chat notes and the drafter have no path here.
-import { realpathSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { userInfo } from 'node:os';
 
 import { scrub } from '../authoring.js';
 import { loadCatalogue } from '../catalogue.js';
-import { changeSentence, checkFlowName, readFileInside, readPlan, resolveRunDir } from '../flow.js';
+import { changeSentence, checkFlowName, readFileInside, readPlan, readRunPlan, resolveRunDir } from '../flow.js';
 import { readResumeLock } from '../liveness.js';
 import { auditSpend } from '../runner.js';
 import {
@@ -56,7 +56,8 @@ export function createResumeDoor(opts) {
     if (!rd.ok) return no(400, { refused: 'run-id', say: `${rd.red.replace(/^run: /, '')}.` });
     const cat = loadCatalogue();
     if (!cat.ok) return no(500, { refused: 'catalogue', say: 'The catalogue could not be loaded. Nothing was signed.' });
-    const read = readPlan({ root: realRoot, name: flow, catalogue: cat.primitives, runDir: rd.runDir });
+    // am12: the run's own copy; a run folder that does not exist yet is answered below (404), after the flow itself reads
+    const read = (existsSync(rd.runDir) ? readRunPlan : readPlan)({ root: realRoot, name: flow, catalogue: cat.primitives, runDir: rd.runDir });
     if (!read.ok) return no(400, { refused: 'flow', say: `"${flow}" is not a signed flow that passes its checks, so a run of it will not resume.${changeSentence(read.reds)}` });
     const controls = getRunControls({
       root: realRoot, flow, runId, catalogue: cat.primitives,

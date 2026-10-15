@@ -27,7 +27,7 @@ import { plainPlanCheck } from '../plain-checks.js';
 import { join, basename, sep } from 'node:path';
 
 import {
-  readFlow, readPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
+  readFlow, readPlan, readRunPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
 } from '../flow.js';
 import {
   readAudit, readHistory, endRow, readPidRows, auditRowTokens, auditRowAt, auditRowTools,
@@ -875,6 +875,17 @@ export function summarizeSpendRows(spendRows) {
 
 /** M6 F5: the ONE comparison of a run's halt record with the job on disk (`sameJob`; the runner refuses a Resume otherwise). */
 const haltMatchesJob = (halt, flowRead) => halt.ok && flowRead.ok && halt.halt.signatureHash === flowRead.signature.flow;
+
+/**
+ * M9 am12: the job a run is read against on the page = the one it resumes against (`readRunPlan`, its own kept copy). Only a run with no copy at
+ * all (before M6) falls back to the workflow's job, for DISPLAY; `ownCopy` is false there and the run cannot be resumed (the runner refuses it by name).
+ * @param {{root: string, name: string, catalogue: any, runDir: string}} a
+ */
+function readRunJob(a) {
+  const own = readRunPlan(a);
+  if (!own.ok && 'noCopy' in own) return { read: readPlan(a), ownCopy: false };
+  return { read: own, ownCopy: true };
+}
 /** M6 amendment 4: a stopped / cap-halted run (its halt record agrees with its end row) whose readable job is not the one it halted under. */
 const runJobEdited = (halt, historyRow, flowRead) => halt.ok && flowRead.ok && historyRow !== null && historyRow.outcome === halt.halt.outcome && !haltMatchesJob(halt, flowRead);
 /** The whole line (Runs, Ask and Inbox alike) of a stopped run whose job was edited since: no Resume is offered. */
@@ -894,7 +905,7 @@ const JOB_EDITED_LINE = 'stopped — the job was edited; start a new run';
  * @returns {any}
  */
 function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attempt = null, startingRun = undefined) {
-  const flowRead = readPlan({ root, name: flowName, catalogue, runDir });
+  const { read: flowRead, ownCopy } = readRunJob({ root, name: flowName, catalogue, runDir });
   // M4e amendment 5 item 3 / amendment 4 item 6: the run's own signed values (its newest version) lie over the flow's
   const inForce = flowRead.ok ? applyRunValues(flowRead.arbiter, flowName, flowRead.signature.flow, pickRunValues(runDir)) : null;
   const historyRows = readHistory(flowDir);
@@ -923,7 +934,7 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     // M4e amendment 4 item 4: a cap-halted or stopped run that can be continued (`halt.json` is the runner's record)
     resumable: halt.ok && historyRow !== null && historyRow.outcome === halt.halt.outcome,
     // M6 F5: the job on disk is still the one the run halted under (the runner refuses a Resume otherwise: "signature mismatch")
-    sameJob: haltMatchesJob(halt, flowRead),
+    sameJob: ownCopy && haltMatchesJob(halt, flowRead),
     // M6 amendment 4: the stopped / cap-halted run whose job was edited since (the opposite of `sameJob`, only where the job could be read)
     jobEdited: runJobEdited(halt, historyRow, flowRead),
     // amendment 16 I4: how a stopped run was stopped, in the runner's own words (`stopped at the ask of step N`), or null (stopped after a step)
@@ -2527,7 +2538,7 @@ export function getRunAsks({
   // Inbox — otherwise an open ask's Ask-tab header/body falls back to the
   // raw status word "unanswered" and no time-left, disagreeing with the
   // Inbox row for that exact same ask.
-  const flowRead = readPlan({
+  const { read: flowRead } = readRunJob({
     root, name: flow, catalogue, runDir: run.runDir,
   });
   const ordered = runAsksInOrder(run.runDir, hasHistoryRow, histRow?.outcome === 'ask-expired', runJobEdited(readHaltRecord(run.runDir), histRow ?? null, flowRead));
@@ -2606,7 +2617,7 @@ export function listStops({ root, resumeAttempt, catalogue }) {
       const savedAskId = readSavedAnswer(run.runDir)?.askId;
       // M6 amendment 4: read the job only for a run that ended stopped / cap-halted (and only when the caller gave the catalogue to read it with)
       const jobEdited = end !== null && (end.outcome === 'stopped' || end.outcome === 'cap-halt') && catalogue !== undefined
-        && runJobEdited(readHaltRecord(run.runDir), end, readPlan({ root, name: flowName, catalogue, runDir: run.runDir }));
+        && runJobEdited(readHaltRecord(run.runDir), end, readRunJob({ root, name: flowName, catalogue, runDir: run.runDir }).read);
       const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, end?.outcome === 'ask-expired', jobEdited).map((ask) => ({
         flow: flowName,
         runId,

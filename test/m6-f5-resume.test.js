@@ -56,7 +56,7 @@ test('F5: a stopped run with the job untouched keeps its Resume button', async (
   assert.equal(controls(w).canResume, true);
 });
 
-test('F5: a stopped run whose job was replaced since has no Resume button', async () => {
+test('F5 (after M9 am12): a stopped run whose workflow was replaced since keeps its Resume button (it resumes from its own copy)', async () => {
   const w = await stoppedRun('swapped');
   const oldHash = readFlow({ root: w.root, name: 'job2', catalogue: CAT }).signature.flow;
   const r = writeFlow({
@@ -64,6 +64,6 @@ test('F5: a stopped run whose job was replaced since has no Resume button', asyn
   });
   assert.equal(r.ok, true, r.ok ? '' : r.reds.join('\n'));
   const c = controls(w);
-  assert.equal(c.canResume, false, JSON.stringify(c));
-  assert.equal(c.resumeOutcome, null);
+  assert.equal(c.canResume, true, JSON.stringify(c));
+  assert.equal(c.resumeOutcome, 'stopped');
 });

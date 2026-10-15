@@ -911,6 +911,25 @@ export function readPlan({ root, name, catalogue, runDir }) {
 }
 
 /**
+ * M9 am12: the ONE reader of "the job this run resumes against" (an answer, Resume, Reopen, continue-after-cap, the panel's resume controls).
+ * Always the run's OWN kept copy, verified against that copy's own signature (a run with `plan.json` reads it through `readPlan`, the same
+ * `<run>/job/`); never the workflow's current job, so a Cancel or an Edit of the workflow does not strand a waiting run. A copy that fails its
+ * signature is a red naming it; a run with no copy (it started before M6) is a red with `noCopy: true`, never the flow's job. Never throws.
+ * @param {{root: unknown, name: unknown, catalogue: unknown, runDir: string}} a
+ * @returns {ReadFlowResult | {ok: false, reds: string[], noCopy: true}}
+ */
+export function readRunPlan({ root, name, catalogue, runDir }) {
+  if (typeof runDir !== 'string' || runDir === '') return { ok: false, noCopy: true, reds: ['this run has no saved copy of its job (no such run folder)'] };
+  if (runOwnsPlan(runDir)) return readPlan({ root, name, catalogue, runDir });
+  const c = readRunJobCopy(runDir, catalogue);
+  if (!c.present) return { ok: false, noCopy: true, reds: ['this run has no saved copy of its job (it started before runs kept one), so it cannot carry on; start a new run'] };
+  if (!c.ok) return { ok: false, reds: c.reds.map((r) => `this run's saved copy of its job — ${r}`) };
+  const { present, ...rest } = c;
+  void present;
+  return /** @type {ReadFlowResult} */ (rest);
+}
+
+/**
  * M6: the job a run ran, from its own copy. `{present:false}` = the run has none (it started before M6). `{present:true, ok:true, ...}` = the same
  * shape as a good `readFlow` (lines, arbiter, declaration, signature, classes), after the copy was verified against the copied signature.
  * `{present:true, ok:false, reds}` = a copy that was edited or is incomplete: refused, never shown as the job.
