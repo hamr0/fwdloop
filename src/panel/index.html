@@ -2041,7 +2041,7 @@
   function filterBarHTML(scope, noSigns){
     return (
       '<div class="filterbar" data-scope="' + scope + '" data-testid="' + scope + '-filters">' +
-        '<input type="text" class="search-input" placeholder="' + (noSigns ? 'search job, run, status, question or reason…' : 'search: job name, run-23, or a date 10/13') + '" ' +
+        '<input type="text" class="search-input" placeholder="' + (noSigns ? 'search job, run, status, question or reason…' : 'job, run-23, or date 10/13') + '" ' +
           'id="' + scope + '-filter-search" data-testid="' + scope + '-filter-search" autocomplete="off">' +
         '<div class="chips" role="group" aria-label="Filter">' +
           (noSigns ?
