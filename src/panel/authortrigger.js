@@ -24,6 +24,7 @@ import { dirname, isAbsolute, join } from 'node:path';
 
 import { scrub } from '../authoring.js';
 import { flowValues, valuesHash } from '../runvalues.js';
+import { destinationRefusal, checkInputRows, runInputRows } from './authorcard.js';
 import { endRow, readHistory } from '../books.js';
 import { loadCatalogue } from '../catalogue.js';
 import {
@@ -48,6 +49,8 @@ export const NO_GREEN_SAY = 'This job has not had a good run yet. Run it once by
 const HISTORY_FILE = 'triggers.jsonl';
 /** M6 am5 item 3: the model a schedule was signed with, in the folder of that trigger's ledgers; absent = the job's recorded model. Written once, by `set`. */
 const SCHEDULE_MODEL_FILE = 'schedule-model.json';
+const SCHEDULE_DESTINATION_FILE = 'schedule-destination.json';
+const SCHEDULE_INPUTS_FILE = 'schedule-inputs.json';
 const HASH_RE = /^[0-9a-f]{64}$/;
 
 /** The folder holding the ledgers of ONE signed trigger. @param {string} flowDir @param {string} flowHash */
@@ -217,6 +220,28 @@ export function createTriggerDoor(opts) {
       const rec0 = readModelRecord(flowDir);
       if (rec0 === null || rec0.slot !== body.provider || rec0.model !== body.model) scheduledModel = { slot: body.provider, model: body.model };
     }
+    // M6 am5 item 3, the rest: the scheduled run's DESTINATION and INPUTS, bound the same way (hash, then a file beside the ledgers, then each fired run's values).
+    // A destination equal to the flow's is no change. The same checks as Sign & run (M4e am5 item 4); the input roles are exactly the job's.
+    let scheduledDestination = null;
+    let scheduledInputs = null;
+    if (trigger !== null) {
+      const own = flowValues(read.arbiter).destination;
+      if (typeof body?.destination === 'string' && body.destination.trim() !== '' && body.destination.trim() !== own) {
+        if (own === null) return reply(400, { refused: 'bad-destination', say: 'This flow has no send step, so there is no destination to schedule. Nothing was changed.' });
+        const why = destinationRefusal(body.destination.trim(), realRoot);
+        if (why !== null) return reply(400, { refused: 'bad-destination', say: `${why} Nothing was changed.` });
+        scheduledDestination = body.destination.trim();
+      }
+      if (Array.isArray(body?.inputs)) {
+        const rows = runInputRows(body.inputs);
+        const declared = roles;
+        const bad = [...checkInputRows(rows)];
+        for (const role of declared) if (!rows.some((r) => r.role === role)) bad.push({ field: 'inputs', say: `This flow needs an input named "${role}". Add it.` });
+        for (const r of rows) if (!declared.includes(r.role)) bad.push({ field: 'inputs', say: `This flow has no input named "${r.role}" (it takes: ${declared.join(', ') || 'none'}).` });
+        if (bad.length > 0) return reply(400, { refused: 'bad-inputs', say: `${bad[0].say} Nothing was changed.`, refusals: bad });
+        scheduledInputs = declared.map((role) => ({ role, path: /** @type {{path: string}} */ (rows.find((r) => r.role === role)).path }));
+      }
+    }
     const proseNow = readFileInside(flowDir, 'prose.txt');
     const declNow = readFileInside(flowDir, 'declaration.json');
     if (!proseNow.ok || !declNow.ok) return reply(400, { refused: 'flow', say: `"${flow}" cannot be read. Nothing was changed.` });
@@ -225,8 +250,8 @@ export function createTriggerDoor(opts) {
     if (!parsed.ok) return reply(400, { refused: 'bad-trigger', say: `That trigger does not fit the signed text (${parsed.reds[0]}). Nothing was changed.` });
     return {
       ok: /** @type {true} */ (true), flow, read, trigger, flowDir, realRoot, proseText, declaration: JSON.parse(declNow.text),
-      model: scheduledModel,
-      hash: triggerHash({ flow, flowSignatureHash: read.signature.flow, trigger, model: scheduledModel }),
+      model: scheduledModel, destination: scheduledDestination, inputs: scheduledInputs,
+      hash: triggerHash({ flow, flowSignatureHash: read.signature.flow, trigger, model: scheduledModel, destination: scheduledDestination, inputs: scheduledInputs }),
     };
   }
 
@@ -263,7 +288,11 @@ export function createTriggerDoor(opts) {
       if (s.trigger !== null) {
         try {
           armFor(s.flowDir, written.signature.flow, s.trigger, now());
-          if (s.model) writeFileSync(join(triggerLedgerDir(s.flowDir, written.signature.flow), SCHEDULE_MODEL_FILE), `${JSON.stringify(s.model)}\n`, { mode: 0o600, flag: 'wx' });
+          const led = triggerLedgerDir(s.flowDir, written.signature.flow);
+          const once = (/** @type {string} */ f, /** @type {unknown} */ v) => writeFileSync(join(led, f), `${JSON.stringify(v)}\n`, { mode: 0o600, flag: 'wx' });
+          if (s.model) once(SCHEDULE_MODEL_FILE, s.model);
+          if (s.destination) once(SCHEDULE_DESTINATION_FILE, { destination: s.destination });
+          if (s.inputs) once(SCHEDULE_INPUTS_FILE, s.inputs);
         } catch (e) { armed = false; armSay = /** @type {Error} */ (e).message; }
       }
       return { status: 200, body: { ok: true, flow: s.flow, trigger: s.trigger, words: scheduledWords(s.trigger), flowHash: written.signature.flow, armed, ...(armSay === null ? {} : { say: `The trigger is signed but not armed yet: ${armSay}.` }) } };
@@ -329,7 +358,12 @@ export function createTriggerDoor(opts) {
       if (claim && 'problem' in claim) return done({ outcome: 'refused', why: `${claim.problem}. Nothing spent.` });
       if (claim && !claim.ok) return done({ outcome: 'monthly-exhausted', leftUsd: claim.room.leftUsd, needUsd: claim.room.needUsd, atLeast: claim.room.atLeast === true });
       const roles = (read.arbiter.sources ?? []).map((x) => x.role);
-      const last = flowsDoor.lastSourcesOf(flow, roles).sources;
+      // M6 am5 item 3: the scheduled run's inputs, when the schedule carries them; else the newest run's (as before). A file trigger's own role is always the arriving file.
+      let last = flowsDoor.lastSourcesOf(flow, roles).sources;
+      const sin = readFileInside(triggerLedgerDir(flowDir, read.signature.flow), SCHEDULE_INPUTS_FILE);
+      if (sin.ok) {
+        try { const rows = JSON.parse(sin.text); last = { ...last, ...Object.fromEntries(rows.filter((r) => typeof r?.role === 'string' && typeof r?.path === 'string').map((r) => [r.role, r.path])) }; } catch { /* unreadable: the newest run's */ }
+      }
       const sources = [];
       for (const role of roles) {
         const p = 'role' in trigger && trigger.role === role && cause.kind === 'file' ? cause.path : last[role];
@@ -348,8 +382,17 @@ export function createTriggerDoor(opts) {
       if (sm.ok) {
         try { const j = JSON.parse(sm.text); if (typeof j?.slot === 'string' && typeof j?.model === 'string' && j.model !== '') rec = { slot: j.slot, model: j.model }; } catch { /* unreadable: the job's own */ }
       }
-      if (rec !== jobRec) {
-        const vals = { ...flowValues(read.arbiter), model: rec };
+      let destination = null;
+      const sd = readFileInside(triggerLedgerDir(flowDir, read.signature.flow), SCHEDULE_DESTINATION_FILE);
+      if (sd.ok) {
+        try { const j = JSON.parse(sd.text); if (typeof j?.destination === 'string' && j.destination !== '') destination = j.destination; } catch { /* unreadable: the flow's */ }
+      }
+      if (destination !== null) {
+        const why = destinationRefusal(destination, realpathSync(root));   // the Sign & run checks, again at the moment of use
+        if (why !== null) return done({ outcome: 'refused', why: `${why} Nothing started.` });
+      }
+      if (rec !== jobRec || destination !== null) {
+        const vals = { ...flowValues(read.arbiter), ...(destination !== null ? { destination } : {}), ...(rec !== jobRec ? { model: rec } : {}) };
         values = { flow, flowSignatureHash: read.signature.flow, version: 0, values: vals, hash: valuesHash({ flow, flowSignatureHash: read.signature.flow, runId: null, version: 0, values: vals }), signedBy: userInfo().username, at: new Date(now()).toISOString() };
       }
       const modelSays = modelRefusal({ provider: rec.slot, model: rec.model }, loaded);
