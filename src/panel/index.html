@@ -977,7 +977,10 @@
               </div>
               <div class="field" data-testid="jf-run-job-field">
                 <label for="jf-run-jobbox">The job</label>
-                <textarea id="jf-run-jobbox" data-testid="jf-run-jobbox" rows="6" spellcheck="false" hidden></textarea>
+                <div class="jf-gutbox" id="jf-run-jobwrap" hidden>
+                  <div class="jf-gut" id="jf-run-jobbox-gut" data-testid="jf-run-jobbox-gut" aria-hidden="true"><div class="jf-gut-in"></div></div>
+                  <textarea class="jf-wrap" id="jf-run-jobbox" rows="6" data-testid="jf-run-jobbox" autocomplete="off" spellcheck="false" hidden></textarea>
+                </div>
                 <div class="ro-lines" id="jf-run-job" data-testid="jf-run-job"></div>
                 <div class="jf-err" id="jf-err-run-job" data-testid="jf-err-run-job"></div>
                 <div class="hint" id="jf-run-job-hint" data-testid="jf-run-job-hint">Change anything here. A changed job line, guardrail, ask or step drafts a new workflow; a changed destination, cap, wait or model signs a new run; new files just run.</div>
@@ -4081,6 +4084,7 @@
     var clearBtn = document.getElementById("chat-clear-btn");
     var thread = document.getElementById("chat-thread");
     var jobEl = document.getElementById("jf-job");
+    var jobBoxEl = document.getElementById("jf-run-jobbox");   // the Reuse card's job box: the SAME component as #jf-job
     var inputsBox = document.getElementById("jf-inputs");        // the New-job inputs textarea (`name: path` per line)
     var destEl = document.getElementById("jf-dest-folder");
     var askWaitEl = document.getElementById("jf-ask-wait");
@@ -4419,10 +4423,10 @@
       inner.style.transform = "translateY(" + (-ta.scrollTop) + "px)";
     }
     function fitCardBoxes(){
-      fitBox(jobEl); fitBox(inputsBox);
-      paintGutter(jobEl, "job"); paintGutter(inputsBox, "inputs");
+      fitBox(jobEl); fitBox(inputsBox); fitBox(jobBoxEl);
+      paintGutter(jobEl, "job"); paintGutter(inputsBox, "inputs"); paintGutter(jobBoxEl, "job");
     }
-    [[jobEl, "job"], [inputsBox, "inputs"]].forEach(function(pair){
+    [[jobEl, "job"], [inputsBox, "inputs"], [jobBoxEl, "job"]].forEach(function(pair){
       pair[0].addEventListener("scroll", function(){
         var inner = document.getElementById(pair[0].id + "-gut").firstChild;
         inner.style.transform = "translateY(" + (-pair[0].scrollTop) + "px)";
@@ -4661,7 +4665,6 @@
     // Run (files only), Sign & run (destination, cap, wait or model), or Start drafting (a job field changed: it drafts again and signs as a NEW
     // workflow, the old one untouched). The page decides nothing: it asks after every edit and shows the answer; undoing the edit asks again.
     var editBannerEl = document.getElementById("jf-edit-banner");
-    var jobBoxEl = document.getElementById("jf-run-jobbox");
     var newNameEl = document.getElementById("jf-run-newname");
     var newNameField = document.getElementById("jf-run-newname-field");
     function reuseBody(){
@@ -4725,8 +4728,9 @@
       paintJobDim(byId("jf-run-job"), f ? f.jobLines : []);
       // M6 am6 item 1: the job opens like every other field (the card the server built from the signed job); a job with a setting the card has no box for keeps the read-only lines and says why
       var jobOpen = !!(f && f.edit && f.edit.ok === true);
-      jobBoxEl.hidden = !jobOpen; byId("jf-run-job").hidden = jobOpen;
+      jobBoxEl.hidden = !jobOpen; byId("jf-run-jobwrap").hidden = !jobOpen; byId("jf-run-job").hidden = jobOpen;
       jobBoxEl.value = jobOpen ? f.edit.card.job : "";
+      fitCardBoxes();
       byId("jf-err-run-job").textContent = (f && f.edit && f.edit.ok === false) ? f.edit.say : "";
       byId("jf-run-job-hint").hidden = !jobOpen;
       byId("jf-run-model").textContent = f && f.model ? "Model: " + f.model.label + ". Pick another to run it with that model (signed with the run)." : (f ? "No model is recorded for this job. Pick the one to run it with; it is then remembered for this job." : "");
