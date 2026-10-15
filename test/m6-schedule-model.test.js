@@ -5,10 +5,11 @@ import { test } from 'node:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { tickedConfig } from './m4e-world.mjs';
+import { killChildrenAfter, tickedConfig } from './m4e-world.mjs';
 import { DAILY, greenWorld } from './m9-trigger-world.mjs';
 import { readOutcomes } from '../src/panel/authortrigger.js';
 
+killChildrenAfter();
 const at = (day, hh = 0, mm = 0, ss = 0) => new Date(2026, 9, day, hh, mm, ss).getTime();
 async function fireWorld() {
   const clock = { t: at(13, 8) };

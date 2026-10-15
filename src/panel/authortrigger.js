@@ -17,12 +17,13 @@
 //     seen.jsonl                         tagged by hash: nothing to filter, nothing to forget to filter). `clock.jsonl`'s `armed` row is
 //                                        the one "this trigger was set" fact for BOTH kinds; `seen.jsonl` is the file kinds' sha ledger.
 import {
-  appendFileSync, mkdirSync, realpathSync,
+  appendFileSync, mkdirSync, realpathSync, writeFileSync,
 } from 'node:fs';
 import { userInfo } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
 
 import { scrub } from '../authoring.js';
+import { flowValues, valuesHash } from '../runvalues.js';
 import { endRow, readHistory } from '../books.js';
 import { loadCatalogue } from '../catalogue.js';
 import {
@@ -45,6 +46,8 @@ const describe = (t) => triggerLine(t).replace('guardrail: trigger ', '');
 
 export const NO_GREEN_SAY = 'This job has not had a good run yet. Run it once by hand and get it right first; then you can set when it runs. Nothing was changed.';
 const HISTORY_FILE = 'triggers.jsonl';
+/** M6 am5 item 3: the model a schedule was signed with, in the folder of that trigger's ledgers; absent = the job's recorded model. Written once, by `set`. */
+const SCHEDULE_MODEL_FILE = 'schedule-model.json';
 const HASH_RE = /^[0-9a-f]{64}$/;
 
 /** The folder holding the ledgers of ONE signed trigger. @param {string} flowDir @param {string} flowHash */
@@ -203,6 +206,17 @@ export function createTriggerDoor(opts) {
         try { realpathSync(dirname(trigger.path)); } catch { return reply(400, { refused: 'bad-trigger', say: `The folder of ${trigger.path} does not exist. Nothing was changed.` }); }
       }
     }
+    // M6 am5 item 3: a schedule may carry the model of the run it was made from (a run field). Checked now by the Run door's own model check; the same as
+    // the job's recorded model is no change (null). It is bound into the hash, written beside the trigger's ledger, and read by the fire.
+    let scheduledModel = null;
+    if (trigger !== null && (typeof body?.provider === 'string' || typeof body?.model === 'string') && (body.provider !== '' || body.model !== '')) {
+      const loaded = loadEnv();
+      if (!loaded.ok) return reply(409, { refused: 'keys-file', say: String(loaded.refusal) });
+      const says = modelRefusal({ provider: body.provider, model: body.model }, loaded);
+      if (says.length > 0) return reply(400, { refused: 'bad-model', say: says[0].say, refusals: says });
+      const rec0 = readModelRecord(flowDir);
+      if (rec0 === null || rec0.slot !== body.provider || rec0.model !== body.model) scheduledModel = { slot: body.provider, model: body.model };
+    }
     const proseNow = readFileInside(flowDir, 'prose.txt');
     const declNow = readFileInside(flowDir, 'declaration.json');
     if (!proseNow.ok || !declNow.ok) return reply(400, { refused: 'flow', say: `"${flow}" cannot be read. Nothing was changed.` });
@@ -211,7 +225,8 @@ export function createTriggerDoor(opts) {
     if (!parsed.ok) return reply(400, { refused: 'bad-trigger', say: `That trigger does not fit the signed text (${parsed.reds[0]}). Nothing was changed.` });
     return {
       ok: /** @type {true} */ (true), flow, read, trigger, flowDir, realRoot, proseText, declaration: JSON.parse(declNow.text),
-      hash: triggerHash({ flow, flowSignatureHash: read.signature.flow, trigger }),
+      model: scheduledModel,
+      hash: triggerHash({ flow, flowSignatureHash: read.signature.flow, trigger, model: scheduledModel }),
     };
   }
 
@@ -246,7 +261,10 @@ export function createTriggerDoor(opts) {
       if (setup.ok) carrySetup({ flowDir: s.flowDir, oldText: setup.text, oldFlowHash: s.read.signature.flow, newFlowHash: written.signature.flow, at: new Date(now()).toISOString() }); // the record is a courtesy; the job is signed
       let armed = true; let armSay = null;
       if (s.trigger !== null) {
-        try { armFor(s.flowDir, written.signature.flow, s.trigger, now()); } catch (e) { armed = false; armSay = /** @type {Error} */ (e).message; }
+        try {
+          armFor(s.flowDir, written.signature.flow, s.trigger, now());
+          if (s.model) writeFileSync(join(triggerLedgerDir(s.flowDir, written.signature.flow), SCHEDULE_MODEL_FILE), `${JSON.stringify(s.model)}\n`, { mode: 0o600, flag: 'wx' });
+        } catch (e) { armed = false; armSay = /** @type {Error} */ (e).message; }
       }
       return { status: 200, body: { ok: true, flow: s.flow, trigger: s.trigger, words: scheduledWords(s.trigger), flowHash: written.signature.flow, armed, ...(armSay === null ? {} : { say: `The trigger is signed but not armed yet: ${armSay}.` }) } };
     },
@@ -322,8 +340,18 @@ export function createTriggerDoor(opts) {
       if (!loaded.ok) return done({ outcome: 'refused', why: String(loaded.refusal) });
       // the Run door's model check (its one `modelRefusal`), on the job's recorded model: a trigger picks no model, so a job without a record, or whose
       // line is no longer ticked / priced / keyed in Settings, is refused here at $0, never started
-      const rec = readModelRecord(flowDir);
-      if (rec === null) return done({ outcome: 'refused', why: 'This job has no model recorded, so it cannot start by itself. Run it by hand once from the Chat card and pick a model. Nothing started.' });
+      const jobRec = readModelRecord(flowDir);
+      if (jobRec === null) return done({ outcome: 'refused', why: 'This job has no model recorded, so it cannot start by itself. Run it by hand once from the Chat card and pick a model. Nothing started.' });
+      // M6 am5 item 3: the model this schedule was signed with (a run field) wins over the job's recorded one; it is signed into the run's own values
+      let rec = jobRec; let values = null;
+      const sm = readFileInside(triggerLedgerDir(flowDir, read.signature.flow), SCHEDULE_MODEL_FILE);
+      if (sm.ok) {
+        try { const j = JSON.parse(sm.text); if (typeof j?.slot === 'string' && typeof j?.model === 'string' && j.model !== '') rec = { slot: j.slot, model: j.model }; } catch { /* unreadable: the job's own */ }
+      }
+      if (rec !== jobRec) {
+        const vals = { ...flowValues(read.arbiter), model: rec };
+        values = { flow, flowSignatureHash: read.signature.flow, version: 0, values: vals, hash: valuesHash({ flow, flowSignatureHash: read.signature.flow, runId: null, version: 0, values: vals }), signedBy: userInfo().username, at: new Date(now()).toISOString() };
+      }
       const modelSays = modelRefusal({ provider: rec.slot, model: rec.model }, loaded);
       if (modelSays.length > 0) return done({ outcome: 'refused', why: modelSays[0].say.replace(/ Nothing was spent\.$/, '. Nothing started.') });
       const catchUp = base.catchUp === true;
@@ -332,7 +360,7 @@ export function createTriggerDoor(opts) {
       };
       hooks.beforeStart?.();
       const started = starter.start({
-        kind: 'trigger', flow, runId: '', sources, trigger: record,
+        kind: 'trigger', flow, runId: '', sources, trigger: record, values,
       }, loaded);
       if (started.status !== 202) return done({ outcome: 'refused', why: String(started.body.say ?? 'The run did not start.') });
       return done({ outcome: 'started', runId: started.body.runId, startId: started.body.startId });

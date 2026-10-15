@@ -76,10 +76,11 @@ export function proseWithTrigger(prose, trigger) {
 
 /**
  * What the human's second click carries: binds the job, the exact signature it was shown at and the trigger.
- * @param {{flow: string, flowSignatureHash: string, trigger: Trigger|null}} a
+ * @param {{flow: string, flowSignatureHash: string, trigger: Trigger|null, model?: {slot: string, model: string}|null}} a
  */
-export function triggerHash({ flow, flowSignatureHash, trigger }) {
-  return createHash('sha256').update(JSON.stringify({ m9: 'trigger', flow, flowSignatureHash, trigger })).digest('hex');
+export function triggerHash({ flow, flowSignatureHash, trigger, model = null }) {
+  // M6 am5 item 3: the scheduled model is part of what the click signs; absent = the exact bytes (and hashes) a trigger had before
+  return createHash('sha256').update(JSON.stringify({ m9: 'trigger', flow, flowSignatureHash, trigger, ...(model ? { model } : {}) })).digest('hex');
 }
 
 /** M9: the file a triggered start writes (once, before the spawn) into the run's own folder: why this run started. `appendHistory` copies it into the run's history row. */

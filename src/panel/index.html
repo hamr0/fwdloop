@@ -4829,6 +4829,8 @@
       var f = selectedFlow();
       if(!f || whenBusy || cardLocked()) return;
       var body = {flow: f.flow, trigger: whenTriggerFromBoxes()};
+      var rp = runPickChoice();   // M6 am5 item 3: the model picked on this card (the run's own, by default) is scheduled with it; the server drops one equal to the job's
+      if(body.trigger !== null && rp.provider !== ""){ body.provider = rp.provider; body.model = rp.model; }
       var second = whenHash !== null;
       if(second) body.hash = whenHash;
       whenBusy = true; whenSyncButton();
