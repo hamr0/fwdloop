@@ -2337,6 +2337,13 @@ monthly wall is enforced **by the trigger**, before a run starts.
   3. **Audit, first row of a run that a schedule started:** `started by the schedule · every day at 08:15 · slot 08:15 · from run-7`, plus `catch-up` when it was. A hand run has no such row.
   4. **Fires that started nothing** (busy, month used up, refused) show in the Audit of the run the schedule was set from, in a folded `▸ schedule (k)` group, newest first, at most 7. Each shows its time, outcome and reason in plain words.
   - **Must fail when:** a scheduled run's Job tab or Audit doesn't say it was scheduled; a hand run says it was; Started or Schedule isn't right under Model; the Schedule field disagrees with the Run tab's SCHEDULED line; or a refused fire is missing from the schedule group.
+- **M9 amendment 7 — SIGNED by hamr 2026-10-15 ("sign m9 am7"): the Run tab summary with date and time.**
+  1. **ENDED** starts with the run's local end date and time, `MM/DD HH:MM`, then the outcome word, then today's reason: `10/14 08:16 · passed · Goal met.`
+  2. **NEXT** stays as today.
+  3. **SCHEDULE** replaces the SCHEDULED / NEXT rows. Line 1: the schedule words, or `By hand`. Line 2, when there is a schedule: `last <MM/DD HH:MM> · <run-N> · <outcome>` (plus `· catch-up` when it was) `· next <day MM/DD HH:MM>`, or `next: waiting for a new file` for a file schedule.
+  4. **A problem turns the SCHEDULE block red: its label, both lines and its frame.** A problem is a last fire that started nothing (busy, month used up, refused). Line 2 shows its reason in plain words, then `next: fix it in Cancel / modify schedule`. When the next fire works, the block goes back to normal.
+  5. The Job tab's **Started** line (amendment 6) ends with the run's start `MM/DD HH:MM`: `By hand · 10/15 13:46`.
+  - **Must fail when:** ENDED or Started has no date and time; there is no SCHEDULE line (`By hand` included); a problem leaves the block's label, lines or frame not red; a fixed schedule stays red; or SCHEDULE disagrees with the Job tab's Schedule field.
 
 ## M10 — real IO
 
