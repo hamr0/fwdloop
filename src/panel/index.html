@@ -1774,22 +1774,27 @@
     ((result && result.asks) || []).forEach(function(a){ if(a.waiting || a.stuck || (!a.open && a.reopen)) found = a; });
     return found;
   }
+  // The ONE place that judges a click from that run's fresh asks. `rightTab` is where the right side lands when the
+  // run is at an ask: the Jobs run card says "tab-ask" (its buttons are there); a Needs you card says "tab-run" (M11 am10).
+  function followAsk(flow, runId, rightTab){
+    getJSON("/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId) + "/asks").then(function(result){
+      // the user already clicked another run: this answer is for a run they left
+      if(currentFlow !== flow || currentRunId !== runId) return;
+      var ask = askNeedingYou(result);
+      if(!ask) return;
+      reloadLists();
+      var inboxId = "inbox-row-" + flow + "-" + runId + "-" + ask.askId;
+      var inboxRow = Array.prototype.find.call(document.querySelectorAll(".inbox-row"), function(el){ return el.getAttribute("data-testid") === inboxId; }) || null;
+      selectRun(flow, runId, inboxRow, ".inbox-row", ask.askId);
+      document.getElementById("tab-inbox").click();
+      document.getElementById(rightTab).click();
+    }).catch(function(){ /* unreadable books: the run stays open on the Run tab, the left side stays on Runs */ });
+  }
   function openRunFromRuns(r, rowEl){
     selectRun(r.flow, r.runId, rowEl, ".hist-row");
     document.getElementById("tab-run").click();
     scrollRunIntoViewMobile();
-    getJSON("/api/runs/" + encodeURIComponent(r.flow) + "/" + encodeURIComponent(r.runId) + "/asks").then(function(result){
-      // the user already clicked another run: this answer is for a run they left
-      if(currentFlow !== r.flow || currentRunId !== r.runId) return;
-      var ask = askNeedingYou(result);
-      if(!ask) return;
-      reloadLists();
-      var inboxId = "inbox-row-" + r.flow + "-" + r.runId + "-" + ask.askId;
-      var inboxRow = Array.prototype.find.call(document.querySelectorAll(".inbox-row"), function(el){ return el.getAttribute("data-testid") === inboxId; }) || null;
-      selectRun(r.flow, r.runId, inboxRow, ".inbox-row", ask.askId);
-      document.getElementById("tab-inbox").click();
-      document.getElementById("tab-ask").click();
-    }).catch(function(){ /* unreadable books: the run stays open on the Run tab, the left side stays on Runs */ });
+    followAsk(r.flow, r.runId, "tab-ask");
   }
 
   // ---- Jobs: groups the ONE /api/runs payload by flow name client-side. Runs arrive in
@@ -1909,7 +1914,7 @@
   function rlJumpCardHtml(r, need){
     var cost = r.spend || "unknown";
     var faint = r.startedAt ? '<span data-rl-since="' + escapeXml(r.startedAt) + '"></span>' : 'time unknown';
-    return '<button class="rl-card ' + (need ? 'rl-need' : 'rl-live') + '" type="button" data-rl-jump="' + escapeXml(r.flow + "|" + r.runId) + '" data-testid="rl-' + (need ? 'need' : 'live') + '-' + escapeXml(r.flow) + '-' + escapeXml(r.runId) + '">' +
+    return '<button class="rl-card ' + (need ? 'rl-need' : 'rl-live') + '" type="button" data-rl-jump="' + escapeXml(r.flow + "|" + r.runId) + '"' + (need ? ' data-rl-need="1"' : '') + ' data-testid="rl-' + (need ? 'need' : 'live') + '-' + escapeXml(r.flow) + '-' + escapeXml(r.runId) + '">' +
       '<span class="rl-l1"><span class="' + dotClass(r.glyph, r.pulse) + '"></span><span class="rl-nm" title="' + escapeXml(r.flow) + '">' + escapeXml(r.flow) + '</span> <span class="rl-rn">' + escapeXml(r.runId) + '</span>' +
       (need ? '<span class="rl-pill rl-pill-need">' + escapeXml(r.needs) + '</span>' : ' <span class="rl-rest">&middot; ' + faint + ' &middot; ' + escapeXml(cost) + '</span>') + '</span>' +
       '<span class="rl-l2">' + escapeXml(r.label || "unknown") + (need ? ' &middot; ' + escapeXml(runAtText(r)) : '') + '</span></button>';
@@ -2012,9 +2017,11 @@
     tickSince();
   }
   // Running now / Needs you / Scheduled click: select that run, show it on the Run tab and scroll its job card into view. (A run card inside a job is the old click, `openRunFromRuns`.)
-  function rlJump(flow, runId){
+  // A Needs you card (`need`) also moves the left side to the Inbox when the run is at an ask (M11 am10); the right side stays on Run.
+  function rlJump(flow, runId, need){
     selectRun(flow, runId, null, ".inbox-row");
     document.getElementById("tab-run").click();
+    if(need) followAsk(flow, runId, "tab-run");
     paintRunsList();
     var card = document.getElementById("rl-job-" + flow);
     if(card && card.scrollIntoView) card.scrollIntoView({ block: "nearest" });
@@ -2036,7 +2043,7 @@
     var jump = t.closest("[data-rl-jump]");
     if(jump){
       var j = String(jump.getAttribute("data-rl-jump")).split("|");
-      rlJump(j[0], j[1]);
+      rlJump(j[0], j[1], jump.getAttribute("data-rl-need") === "1");
       return;
     }
     var card = t.closest("[data-rl-run]");
