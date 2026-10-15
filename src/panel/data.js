@@ -2483,8 +2483,8 @@ export function groupAskBlocks(asks) {
  * M4b piece 4: also carries `resume` (the SAME `deriveResumeState` the run
  * detail carries, `null` for a finished run or nothing to say) so the Ask tab
  * can tell "open, answerable" from "answer saved" without a second fetch.
- * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any}} opts
- * @returns {{flow:string, runId:string, asks:any[], resume: any, blocks: any[]}|null}
+ * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any, now?: () => number}} opts
+ * @returns {{flow:string, runId:string, asks:any[], resume: any, blocks: any[], needsYou: {tag: string|null, removable: boolean}}|null}
  */
 export function getRunAsks({
   root, flow, runId, catalogue, resumeAttempt, now = Date.now,
