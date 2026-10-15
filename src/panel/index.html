@@ -308,13 +308,16 @@
   .ended-block{position:relative;border:1px solid var(--border-strong);padding:12px;margin-bottom:12px;background:var(--panel2);font-size:13px;}
   .ended-block.magenta{border-color:var(--magenta);}
   .ended-block.red{border-color:var(--red);}
-  .ended-text.is-red{color:var(--red);}
+  .ended-text.is-red,.ended-label.is-red{color:var(--red);}
   .ended-block.green{border-color:var(--green);}
   .ended-block.amber{border-color:var(--amber);}
   .ended-row{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px;}
   .ended-row:last-child{margin-bottom:0;}
   .ended-label{color:var(--text-faint);font-size:11px;letter-spacing:0.08em;min-width:84px;}
   .ended-text{flex:1 1 220px;min-width:0;overflow-wrap:anywhere;}
+  .audit-sched-start{padding:6px 10px;margin-bottom:8px;border:1px solid var(--border-strong);background:var(--panel2);font-size:12px;overflow-wrap:anywhere;}
+  .audit-sched-list{margin:6px 0 0;padding:0 0 0 18px;font-size:12px;}
+  .audit-sched-list li{overflow-wrap:anywhere;margin-bottom:4px;}
   .when-sub{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
   .when-sub > *{flex:1 1 120px;min-width:0;}
   .when-sub[hidden]{display:none;}
@@ -1233,6 +1236,9 @@
             <h4 id="details-title">Job card — signed</h4>
             <div class="hint" id="details-jobfrom" data-testid="details-jobfrom"></div>
             <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
+            <!-- M9 am6: how this run began, then the workflow's schedule now; both are words built on the server (src/summary-words.js) -->
+            <div class="field"><label>Started</label><div class="ro-value" id="details-started" data-testid="details-started">—</div></div>
+            <div class="field"><label>Schedule</label><div class="ro-value" id="details-schedule" data-testid="details-schedule">—</div></div>
             <!-- am41 item 6: the same "The job" label the Chat card carries, over the signed lines -->
             <div class="field" style="margin-bottom:0"><label id="details-job-title">The job</label></div>
             <!-- M4e amendment 37: ONE column. #details-prose holds one wrapper per signed line (the line, its ~ rows, its steps folded under it);
@@ -2276,11 +2282,13 @@
       ended.className = "ended-block " + (detail.glyph === "[✓]" ? "green" : (detail.glyph === "[?]" ? "magenta" : ((detail.glyph === "[■]" || detail.glyph === "[!]") ? "amber" : "red")));
       ended.innerHTML = summaryRows(["ENDED", sm.ended.reason, "ended-reason"], ["NEXT", sm.ended.next, "ended-next"]);
     } else { ended.hidden = true; ended.innerHTML = ""; }
-    if(sm.scheduled){
+    if(sm.schedule){
+      // M9 am7: SCHEDULE replaces the SCHEDULED / NEXT rows. Both lines come from the server; a problem (sm.schedule.red) turns the label, both lines and the frame red.
+      var sc = sm.schedule;
       sched.hidden = false;
-      sched.className = "ended-block" + (sm.scheduled.nextRed === true ? " red" : "");
-      sched.innerHTML = summaryRows(["SCHEDULED", sm.scheduled.text, "sched-text"], ["NEXT", sm.scheduled.next, "sched-next"]);
-      if(sm.scheduled.nextRed === true) sched.querySelector('[data-testid="sched-next"]').classList.add("is-red");
+      sched.className = "ended-block" + (sc.red === true ? " red" : "");
+      sched.innerHTML = '<div class="ended-row"><span class="ended-label' + (sc.red ? ' is-red' : '') + '">SCHEDULE</span><span class="ended-text' + (sc.red ? ' is-red' : '') + '" data-testid="sched-line1">' + escapeXml(sc.line1) + '</span></div>' +
+        (sc.line2 ? '<div class="ended-row"><span class="ended-label' + (sc.red ? ' is-red' : '') + '"></span><span class="ended-text' + (sc.red ? ' is-red' : '') + '" data-testid="sched-line2">' + escapeXml(sc.line2) + '</span></div>' : '');
     } else { sched.hidden = true; sched.innerHTML = ""; }
     note.hidden = !sm.catchUp;
     note.textContent = sm.catchUp || "";
@@ -2801,6 +2809,36 @@
     var anyVisible = false;
     // amendment 7 item 2: the Draft is the first group, a normal card (collapsed by default); a run with no audit rows yet still has it
     var draftG = draftGroupFor(result);
+    // M9 am6 items 3-4: the schedule's first row (a run it started) and its folded "schedule (k)" group (on the run the schedule was set from); words from the server
+    if(result.scheduleStarted){
+      var srow = document.createElement("div");
+      srow.className = "audit-sched-start";
+      srow.setAttribute("data-testid", "audit-sched-started");
+      srow.textContent = result.scheduleStarted;
+      container.appendChild(srow);
+      anyVisible = true;
+    }
+    if(result.scheduleGroup){
+      var sg = result.scheduleGroup;
+      var sw = document.createElement("div");
+      sw.className = "audit-group audit-fold closed";
+      sw.setAttribute("data-testid", "audit-group-schedule");
+      var sh = document.createElement("div");
+      sh.className = "audit-group-header";
+      sh.setAttribute("role", "button"); sh.setAttribute("tabindex", "0"); sh.setAttribute("aria-expanded", "false");
+      sh.style.cursor = "pointer";
+      var sl = document.createElement("ul");
+      sl.className = "audit-sched-list"; sl.hidden = true;
+      sg.items.forEach(function(s){ var li = document.createElement("li"); li.textContent = s; sl.appendChild(li); });
+      function paintSchedHead(open){ sh.textContent = (open ? "\u25BE " : "\u25B8 ") + sg.label + " (" + sg.total + ")"; sh.setAttribute("aria-expanded", open ? "true" : "false"); }
+      paintSchedHead(false);
+      function toggleSched(){ sl.hidden = !sl.hidden; sw.classList.toggle("closed", sl.hidden); paintSchedHead(!sl.hidden); }
+      sh.addEventListener("click", toggleSched);
+      sh.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); toggleSched(); } });
+      sw.appendChild(sh); sw.appendChild(sl);
+      container.appendChild(sw);
+      anyVisible = true;
+    }
     var groups = (draftG ? [draftG] : []).concat(result.empty ? [] : (result.groups || []));
     groups.forEach(function(g){
       var rows = (g.rows || []).filter(auditRowMatchesFilter);
@@ -2917,7 +2955,7 @@
     var content = document.getElementById("audit-content");
     lastAuditResult = result;
     // a run with no audit rows yet still has its Draft: say so in words, and show the card
-    var hasDraft = !!(result && result.draft);
+    var hasDraft = !!(result && (result.draft || result.scheduleStarted || result.scheduleGroup));
     if(!result || (result.empty && !hasDraft)){
       empty.hidden = false;
       empty.textContent = (result && result.why) || "no audit rows for this run";
@@ -3066,6 +3104,8 @@
     document.getElementById("details-model").textContent = job.model
       ? ("model used: " + job.model + " (from this run's rows)")
       : (job.modelWhy || "no model call recorded yet");
+    document.getElementById("details-started").textContent = job.started || "—";
+    document.getElementById("details-schedule").textContent = job.schedule || "none";
     // M4e amendment 6 item 5 + amendment 7 item 4: "$<cap> per run · 1h wait · redo up to <n>"; several asks: "waits 1h, 30m", each through plainWait.
     // fwdloop has no run-wide time limit (each ask has its own wait), so no ask means no wait part at all.
     var waitParts = (job.asks || []).filter(function(ak){ return typeof ak.waitMs === "number"; }).map(function(ak){ return plainWait(ak.waitMs); });

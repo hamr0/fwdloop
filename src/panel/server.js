@@ -550,14 +550,14 @@ export function handleRequest(req, res, opts) {
     if (!fd.ok && fd.why === 'outside-root') { refuse(res, 403, 'flow-outside-root', cleanPaths(fd.red, opts.root)); return; }
 
     if (sub === 'audit') {
-      const result = getRunAudit({ root: opts.root, flow, runId });
+      const result = getRunAudit({ root: opts.root, flow, runId, scheduleRead: (f) => opts.author?.trigger?.facts(f) ?? null });
       if (!result) { sendText(res, 404, 'no such run'); return; }
       send(200, result);
       return;
     }
     if (sub === 'job') {
       const result = getRunJob({
-        root: opts.root, flow, runId, catalogue,
+        root: opts.root, flow, runId, catalogue, scheduleRead: (f) => opts.author?.trigger?.facts(f) ?? null,
       });
       if (!result) { sendText(res, 404, 'no such run'); return; }
       send(200, result);
@@ -572,7 +572,7 @@ export function handleRequest(req, res, opts) {
       return;
     }
     const result = getRunDetail({
-      root: opts.root, flow, runId, catalogue, resumeAttempt, startingRun, triggerRead: (f) => opts.author?.trigger?.read(f) ?? null, now: opts.now,
+      root: opts.root, flow, runId, catalogue, resumeAttempt, startingRun, triggerRead: (f) => opts.author?.trigger?.facts(f) ?? null, now: opts.now,
     });
     if (!result) { sendText(res, 404, 'no such run'); return; }
     send(200, result);

@@ -21,7 +21,7 @@ import {
 } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { userInfo } from 'node:os';
-import { dirname, isAbsolute, join } from 'node:path';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 
 import { scrub } from '../authoring.js';
 import { flowValues, valuesHash } from '../runvalues.js';
@@ -32,7 +32,7 @@ import {
   FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, readFileInside, readFlow, readRunJobCopy, resolveRunDir, writeFlow,
 } from '../flow.js';
 import { parseSignedText } from '../signed-text.js';
-import { scheduledWords } from '../summary-words.js';
+import { scheduleHead, scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
 import { checkTarget, createFileTrigger } from '../trigger-files.js';
 import { readModelRecord } from '../flowmodel.js';
@@ -54,7 +54,16 @@ const SCHEDULE_DESTINATION_FILE = 'schedule-destination.json';
 const SCHEDULE_INPUTS_FILE = 'schedule-inputs.json';
 /** M6 am9: the plan a schedule runs, when it is a kept plan of the run the schedule was set from (not the workflow's own): `{run, flowHash, declSha}`. Written once by `set`. */
 const SCHEDULE_PLAN_FILE = 'schedule-plan.json';
+/** M9 am6: the run the schedule was set from (`{run}`), whatever its plan: shown as "from run-7" and stamped on each fired run's trigger.json. Written once by `set`. Display only: not in the signed hash. */
+const SCHEDULE_FROM_FILE = 'schedule-from.json';
 const HASH_RE = /^[0-9a-f]{64}$/;
+
+/** M9 am6: the run a signed schedule was set from, or null. @param {string} flowDir @param {string} flowHash */
+function fromRunOf(flowDir, flowHash) {
+  const f = readFileInside(triggerLedgerDir(flowDir, flowHash), SCHEDULE_FROM_FILE);
+  if (!f.ok) return null;
+  try { const j = JSON.parse(f.text); return typeof j?.run === 'string' && j.run !== '' ? j.run : null; } catch { return null; }
+}
 
 /** The folder holding the ledgers of ONE signed trigger. @param {string} flowDir @param {string} flowHash */
 export function triggerLedgerDir(flowDir, flowHash) {
@@ -248,6 +257,7 @@ export function createTriggerDoor(opts) {
     // M6 am9: the schedule uses the plan of the run it was set from. The workflow's own plan = nothing to bind; a different kept plan is verified now and
     // bound into the hash (the run, that plan's signature and the sha of its declaration), so the second click signs exactly this plan.
     let scheduledPlan = null;
+    let scheduledFrom = null;
     const planOf = typeof body?.planOf === 'string' ? body.planOf.trim() : '';
     if (trigger !== null && planOf !== '') {
       const rr = resolveRunDir(flowDir, planOf);
@@ -256,6 +266,7 @@ export function createTriggerDoor(opts) {
       if (!cat.ok) return reply(500, { refused: 'catalogue', say: 'The catalogue could not be read. Nothing was changed.' });
       const pf = planForReuse({ root: realRoot, name: flow, runDir: rr.runDir, catalogue: cat.primitives });
       if (!pf.ok) return reply(409, { refused: 'plan', say: pf.red.replace('Nothing was started.', 'Nothing was changed.') });
+      scheduledFrom = planOf;
       if (!pf.same) {
         const decl = readFileInside(rr.runDir, 'job/declaration.json');
         if (!decl.ok) return reply(409, { refused: 'plan', say: `The plan ${planOf} kept cannot be read. Nothing was changed.` });
@@ -270,7 +281,7 @@ export function createTriggerDoor(opts) {
     if (!parsed.ok) return reply(400, { refused: 'bad-trigger', say: `That trigger does not fit the signed text (${parsed.reds[0]}). Nothing was changed.` });
     return {
       ok: /** @type {true} */ (true), flow, read, trigger, flowDir, realRoot, proseText, declaration: JSON.parse(declNow.text),
-      model: scheduledModel, destination: scheduledDestination, inputs: scheduledInputs, plan: scheduledPlan,
+      model: scheduledModel, destination: scheduledDestination, inputs: scheduledInputs, plan: scheduledPlan, from: scheduledFrom,
       hash: triggerHash({ flow, flowSignatureHash: read.signature.flow, trigger, model: scheduledModel, destination: scheduledDestination, inputs: scheduledInputs, plan: scheduledPlan }),
     };
   }
@@ -314,6 +325,7 @@ export function createTriggerDoor(opts) {
           if (s.destination) once(SCHEDULE_DESTINATION_FILE, { destination: s.destination });
           if (s.inputs) once(SCHEDULE_INPUTS_FILE, s.inputs);
           if (s.plan) once(SCHEDULE_PLAN_FILE, s.plan);
+          if (s.from) once(SCHEDULE_FROM_FILE, { run: s.from });
         } catch (e) { armed = false; armSay = /** @type {Error} */ (e).message; }
       }
       return { status: 200, body: { ok: true, flow: s.flow, trigger: s.trigger, words: scheduledWords(s.trigger), flowHash: written.signature.flow, armed, ...(armSay === null ? {} : { say: `The trigger is signed but not armed yet: ${armSay}.` }) } };
@@ -437,6 +449,9 @@ export function createTriggerDoor(opts) {
       const catchUp = base.catchUp === true;
       const record = {
         kind: cause.kind, trigger: desc, reason: `Started by the trigger: ${desc}${catchUp ? ' (catch-up)' : ''}`, catchUp, ...(cause.kind === 'clock' ? { slot: new Date(cause.slot).toISOString(), missed: cause.missed } : { file: cause.path, sha: cause.sha }),
+        // M9 am6: typed facts for the run's Job tab and Audit (their words are built from these, in src/summary-words.js, never here)
+        triggerKind: trigger.kind, words: scheduleHead(trigger), at: base.at, ...(cause.kind === 'clock' ? { lateMin: Math.max(0, Math.round((now() - cause.slot) / 60_000)) } : {}),
+        ...(fromRunOf(flowDir, flowRead.signature.flow) ? { fromRun: fromRunOf(flowDir, flowRead.signature.flow) } : {}),
       };
       hooks.beforeStart?.();
       const started = starter.start({
@@ -469,6 +484,38 @@ export function createTriggerDoor(opts) {
         nextSlotMs: clockKind && armed ? nextSlot(/** @type {any} */ (trigger), now()) : null,
         lastOutcome: outcomes.length > 0 ? outcomes[outcomes.length - 1] : null,
         hasGreenRun: hasGreenRunForJob(flowDir),
+      };
+    },
+
+    /**
+     * M9 am6/am7: every fact the Job tab's Schedule field, a run's Audit schedule rows and the Run tab's SCHEDULE block are built from, for one job: the
+     * signed trigger, what it is bound to (the run it was set from, model, destination, inputs: the same files the fire reads), the fires since this signing
+     * (each one `triggers.jsonl` row) and the newest one. Data only; the words are `src/summary-words.js`'s. `null` when the job is not a readable signed job.
+     * @param {string} flow
+     */
+    facts(flow) {
+      const base = this.read(flow);
+      if (base === null) return null;
+      const realRoot = /** @type {string} */ (realRootOrNull());
+      const flowDir = join(realRoot, flow);
+      const dir = triggerLedgerDir(flowDir, base.flowHash);
+      const json = (/** @type {string} */ f) => { const r = readFileInside(dir, f); if (!r.ok) return null; try { return JSON.parse(r.text); } catch { return null; } };
+      const read = readSigned(realRoot, flow);
+      const rec = readModelRecord(flowDir);
+      const sm = json(SCHEDULE_MODEL_FILE);
+      const sd = json(SCHEDULE_DESTINATION_FILE);
+      const si = json(SCHEDULE_INPUTS_FILE);
+      const since = read.ok ? Date.parse(read.signature.signedAt) : 0;
+      const fires = readOutcomes(flowDir).filter((o) => Date.parse(o.at) >= since);
+      const roles = read.ok ? (read.arbiter.sources ?? []).map((x) => x.role) : [];
+      const sources = Array.isArray(si) ? si.map((x) => x.path) : Object.values(flowsDoor.lastSourcesOf(flow, roles).sources).filter(Boolean);
+      return {
+        ...base,
+        from: fromRunOf(flowDir, base.flowHash),
+        model: sm && typeof sm.model === 'string' ? sm.model : (rec ? rec.model : null),
+        destination: sd && typeof sd.destination === 'string' ? sd.destination : (read.ok ? flowValues(read.arbiter).destination : null),
+        inputs: sources.map((p) => basename(String(p))),
+        fires,
       };
     },
 

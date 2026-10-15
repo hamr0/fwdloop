@@ -162,3 +162,128 @@ export function endedWords(f) {
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// M9 am6 / am7 (docs/wiki/the-module-ladder.md): the words of "how did this run begin", "what schedule does the workflow have", the Audit's schedule rows and
+// the Run tab's SCHEDULE block. ONE owner: the Job tab's Schedule field and the Run tab's SCHEDULE line 1 are built by `scheduleHead`, the run's
+// Started line and the Audit's first row by `startedParts`. Pure: typed facts in, a fixed sentence out; no model text reaches any of it.
+// ---------------------------------------------------------------------------
+
+/** "MM/DD HH:MM", local time: the same form as the run cards' `rlShortDate`. @param {number|string} when epoch ms or an ISO string */
+export function shortStamp(when) {
+  const d = new Date(typeof when === 'string' ? Date.parse(when) : when);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${two(d.getMonth() + 1)}/${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`;
+}
+
+/** "Tue 10/20 09:05": the day name then the short stamp. @param {number} ms */
+export function dayStamp(ms) {
+  return `${DAY_SHORT[new Date(ms).getDay()]} ${shortStamp(ms)}`;
+}
+
+/**
+ * The schedule in words, lower-case first ("every day at 08:15"): the SINGLE line-1 of the Run tab's SCHEDULE block and the first part of the Job tab's
+ * Schedule field. `null` (no schedule) has no sentence. @param {Trigger|null} t @param {string} [home]
+ */
+export function scheduleHead(t, home) {
+  const w = scheduledWords(t, home);
+  return w === null ? null : `${w.charAt(0).toLowerCase()}${w.slice(1)}`;
+}
+
+/**
+ * The Job tab's "Schedule" field: the workflow's schedule now and what it is bound to, parts joined by " · ", or `none`.
+ * @param {{trigger: Trigger|null, from?: string|null, model?: string|null, destination?: string|null, inputs?: string[]|null, home?: string}} f
+ */
+export function scheduleFieldWords(f) {
+  const head = scheduleHead(f.trigger, f.home);
+  if (head === null) return 'none';
+  return [head, f.from ? `from ${f.from}` : null, f.model || null, f.destination ? tilde(f.destination, f.home) : null, f.inputs && f.inputs.length > 0 ? f.inputs.join(', ') : null]
+    .filter((x) => x !== null).join(' · ');
+}
+
+/** A run's `trigger.json` record -> the typed pieces of "how it began", or `null` for a hand run. @param {any} rec */
+function startedKind(rec) {
+  if (!rec || typeof rec !== 'object') return null;
+  return rec.kind === 'file' || rec.kind === 'clock' ? rec.kind : null;
+}
+
+/**
+ * The Job tab's Started line: `By hand · 10/15 13:46`, `By the schedule: every day at 08:15 · catch-up, 10 min late · 10/15 08:16`,
+ * `By a new file: aging-oct.csv · …`, `By a file update: aging.csv · …`. The trailing stamp is the run's start (am7 item 5); absent when the books do not hold one.
+ * @param {any} rec the run's trigger.json or null @param {number|null} startMs @param {string} [home]
+ */
+export function startedWords(rec, startMs, home) {
+  const stamp = startMs === null || startMs === undefined ? null : shortStamp(startMs);
+  const kind = startedKind(rec);
+  let head = 'By hand';
+  if (kind === 'clock') {
+    const late = rec.catchUp === true ? (Number.isFinite(rec.lateMin) ? `catch-up, ${rec.lateMin} min late` : 'catch-up') : null;
+    head = `By the schedule: ${rec.words ?? rec.trigger ?? 'a schedule'}${late ? ` · ${late}` : ''}`;
+  } else if (kind === 'file') {
+    const name = typeof rec.file === 'string' ? basename(rec.file) : '';
+    const updated = rec.triggerKind === 'file-updated';
+    head = `${updated ? 'By a file update' : 'By a new file'}${name ? `: ${name}` : ''}`;
+  }
+  return stamp ? `${head} · ${stamp}` : head;
+}
+
+/**
+ * The Audit's first row of a run a schedule started: `started by the schedule · every day at 08:15 · slot 08:15 · from run-7` (+ ` · catch-up`).
+ * A file trigger names the file where a clock names the slot. `null` for a hand run. @param {any} rec @param {string} [home]
+ */
+export function auditStartedWords(rec, home) {
+  const kind = startedKind(rec);
+  if (kind === null) return null;
+  const parts = ['started by the schedule', rec.words ?? String(rec.trigger ?? '')];
+  if (kind === 'clock' && Number.isFinite(Date.parse(rec.slot))) {
+    const d = new Date(Date.parse(rec.slot));
+    parts.push(`slot ${two(d.getHours())}:${two(d.getMinutes())}`);
+  } else if (kind === 'file' && typeof rec.file === 'string') parts.push(`file ${basename(rec.file)}`);
+  if (typeof rec.fromRun === 'string' && rec.fromRun !== '') parts.push(`from ${rec.fromRun}`);
+  if (rec.catchUp === true) parts.push('catch-up');
+  void home;
+  return parts.join(' · ');
+}
+
+/** One fire that started nothing, in plain words, for the Audit's folded schedule group: `10/14 08:15 · busy · <why>`. @param {any} row a triggers.jsonl row */
+export function fireRowWords(row) {
+  const when = shortStamp(row.at);
+  if (row.outcome === 'busy') return `${when} · busy · ${String(row.say ?? 'a run of this job was already going').replace(/\.$/, '')}.`;
+  if (row.outcome === 'monthly-exhausted') {
+    const left = typeof row.leftUsd === 'number' ? `${row.atLeast === true ? 'at most ' : ''}${money(row.leftUsd)} left` : 'not enough left';
+    const need = typeof row.needUsd === 'number' ? `, a run needs up to ${money(row.needUsd)}` : '';
+    return `${when} · month used up · ${left} this month${need}.`;
+  }
+  return `${when} · refused · ${String(row.why ?? 'it was refused').trim()}`;
+}
+
+/** The plain reason of a fire that started nothing, without the time (the SCHEDULE block's line 2). @param {any} row */
+export function fireReasonWords(row) {
+  return fireRowWords(row).replace(/^\S+ \S+ · (busy|month used up|refused) · /, '').trim();
+}
+
+/**
+ * The Run tab's SCHEDULE block (am7 item 3-4): `{line1, line2, red}`. Line 1 = the schedule words or `By hand`. Line 2 (only with a schedule):
+ * `last <stamp> · <run-N> · <outcome>[ · catch-up] · next <day stamp>`, or `... next: waiting for a new file` for a file schedule. A last fire that
+ * started nothing is a problem: red, and line 2 says its reason, then `next: fix it in Cancel / modify schedule`.
+ * @param {{trigger: Trigger|null, home?: string, last: {at: string, runId: string, outcome: string, catchUp: boolean}|null, nextSlotMs: number|null, armed: boolean, problem: any}} f
+ * @returns {{line1: string, line2: string|null, red: boolean}}
+ */
+export function scheduleBlockWords(f) {
+  const head = scheduleHead(f.trigger, f.home);
+  const tr = f.trigger;
+  if (head === null || tr === null) return { line1: 'By hand', line2: null, red: false };
+  if (f.problem) return { line1: head, line2: `${fireReasonWords(f.problem)} · next: fix it in Cancel / modify schedule`, red: true };
+  const last = f.last
+    ? `last ${shortStamp(f.last.at)} · ${f.last.runId} · ${f.last.outcome}${f.last.catchUp ? ' · catch-up' : ''}`
+    : 'no run yet';
+  const file = tr.kind === 'new-file' || tr.kind === 'file-updated';
+  const next = file ? 'next: waiting for a new file' : (f.nextSlotMs !== null && f.armed ? `next ${dayStamp(f.nextSlotMs)}` : 'next: not armed yet');
+  return { line1: head, line2: `${last} · ${next}`, red: false };
+}
+
+/** ENDED (am7 item 1): `10/14 08:16 · passed · Goal met.`. The stamp is the run's local end time; the word is the run's outcome word (none for a run ended on purpose). @param {string|null} at ISO @param {string|null} word @param {string} reason */
+export function endedLineWords(at, word, reason) {
+  const stamp = at ? shortStamp(at) : '';
+  return [stamp || null, word || null, reason].filter((x) => x !== null).join(' · ');
+}
