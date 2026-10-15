@@ -82,18 +82,16 @@ test('a job that starts 5 minutes late shows catch-up; on time does not (am2 ite
   assert.equal(f.rows()[0].catchUp, true);
 });
 
-test('Must fail: a trigger firing while the job waits at its ask records busy and starts nothing', async () => {
+test('M9 am8: a trigger firing while the job waits at its ask starts the next run (the waiting run does not block); it is busy only while a run works', async () => {
   const f = await fireWorld();
   assert.equal((await setTrigger(f.w, DAILY)).status, 200);
   f.clock.t = at(13, 9, 0, 10); f.tick();
   await until(async () => { const v = (await f.w.get(`/api/author/start/${f.w.starts()[0]}`)).json(); return v.state === 'parked' ? v : null; });
   f.clock.t = at(14, 9, 0, 10); f.tick();
   const rows = f.rows();
-  assert.equal(rows.length, 2);
-  assert.equal(rows[1].outcome, 'busy');
-  assert.match(rows[1].say, /finish or stop run-1 first/);
-  assert.deepEqual(f.runs(), ['run-1'], 'nothing started');
-  assert.equal(f.w.starts().length, 1);
+  assert.deepEqual(rows.map((r) => r.outcome), ['started', 'started'], JSON.stringify(rows));
+  assert.deepEqual(f.runs(), ['run-1', 'run-2']);
+  assert.equal(f.w.starts().length, 2);
 });
 
 test('Must fail: a month that cannot fund a run records monthly-exhausted with what is left and what is needed, starts nothing, spends $0', async () => {

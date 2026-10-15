@@ -122,7 +122,7 @@ test('am7: SCHEDULE line 2 = last <stamp> · <run> · <outcome> · next <day sta
   addFire(f.flowDir, { at: new Date(at(14, 9)).toISOString(), outcome: 'refused', why: 'The input "jd" is not there (/x/jd.md). Nothing started.' });
   d = await detail(f.w, 'seed-pass');
   assert.equal(d.summary.schedule.red, true);
-  assert.equal(d.summary.schedule.line2, 'The input "jd" is not there (/x/jd.md). Nothing started. · next: fix it in Cancel / modify schedule');
+  assert.equal(d.summary.schedule.line2, `last ${stamp(at(14, 9))} · refused: The input "jd" is not there (/x/jd.md). Nothing started. · next: fix it in Cancel / modify schedule`);
   addFire(f.flowDir, { at: new Date(at(15, 9)).toISOString(), outcome: 'started', runId: row.runId });
   d = await detail(f.w, 'seed-pass');
   assert.equal(d.summary.schedule.red, false, 'a schedule whose last fire worked is not red');

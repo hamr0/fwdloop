@@ -3,10 +3,11 @@
 // No real waits: the clock is injected, tick() is called by hand, the runs are the real `fwdloop run` child with the test model step ($0).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { unlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { readOutcomes } from '../src/panel/authortrigger.js';
+import { STABLE_POLLS } from '../src/trigger-files.js';
 import { scheduleBlockWords, fireRowWords } from '../src/summary-words.js';
 import {
   GATED_STEP, killChildrenAfter, until,
@@ -76,6 +77,21 @@ test('Must fail: your answer at an ask is held back because another run of the j
   assert.ok(askId, JSON.stringify(ask).slice(0, 300));
   const a = await f.w.post('/api/answer', { flow: 'job2', runId: 'run-1', askId, decision: 'accept' });
   assert.equal(a.status, 202, a.text);
+});
+
+test('Must fail: a folder of several new files starts one run per file, one after another, each waiting at its own ask (am8 item 1)', async () => {
+  const f = await gatedWorld(true);
+  const inbox = path.join(f.w.work, 'inbox'); mkdirSync(inbox);
+  assert.equal((await setTrigger(f.w, { kind: 'new-file', role: 'jd', folder: inbox })).status, 200);
+  for (const n of ['a.md', 'b.md', 'c.md']) writeFileSync(path.join(inbox, n), `# ${n}\n`);
+  for (let i = 0; i < 3; i++) {
+    for (let k = 0; k < STABLE_POLLS + 2; k++) f.tick();
+    // eslint-disable-next-line no-await-in-loop
+    await until(async () => { const v = await f.state(i); return v?.state === 'parked' ? v : null; });
+  }
+  for (let k = 0; k < STABLE_POLLS + 2; k++) f.tick();
+  assert.deepEqual(f.rows().filter((r) => r.outcome === 'started').map((r) => path.basename(r.file)), ['a.md', 'b.md', 'c.md']);
+  assert.deepEqual(f.runs(), ['run-1', 'run-2', 'run-3']);
 });
 
 // ---- the words -------------------------------------------------------------------------------------------------------------------------------

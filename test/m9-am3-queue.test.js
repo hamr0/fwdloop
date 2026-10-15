@@ -11,15 +11,18 @@ import path from 'node:path';
 
 import { readOutcomes, triggerLedgerDir } from '../src/panel/authortrigger.js';
 import { readSeen, STABLE_POLLS } from '../src/trigger-files.js';
-import { killChildrenAfter, until } from './m4e-world.mjs';
+import { GATED_STEP, killChildrenAfter, until } from './m4e-world.mjs';
+import { existsSync, unlinkSync } from 'node:fs';
 import { greenWorld, ls, setTrigger } from './m9-trigger-world.mjs';
 
 killChildrenAfter();
 const at = (day, hh = 0, mm = 0, ss = 0) => new Date(2026, 9, day, hh, mm, ss).getTime();
 
+// M9 am8: a run waiting at its ask no longer blocks the next file, only a run still WORKING does. So these runs are held working (the gated model step,
+// gate file absent) and `endRun` lets the held run reach its ask and Stops it there.
 async function qWorld() {
   const clock = { t: at(13, 8) };
-  const g = await greenWorld({ authorOpts: { now: () => clock.t }, scheduler: { intervalMs: 0 } });
+  const g = await greenWorld({ step: GATED_STEP, authorOpts: { now: () => clock.t }, scheduler: { intervalMs: 0 } });
   const inbox = path.join(g.w.work, 'inbox'); mkdirSync(inbox);
   assert.equal((await setTrigger(g.w, { kind: 'new-file', role: 'jd', folder: inbox })).status, 200);
   const rows = () => readOutcomes(g.flowDir);
@@ -32,8 +35,10 @@ async function qWorld() {
   /** Stop the newest run (it is parked at its ask) and wait until the job is free again. */
   const endRun = async () => {
     const id = runs().at(-1);
+    writeFileSync(g.w.gate, 'go');
     await until(async () => ((await g.w.post('/api/stop', { flow: 'job2', runId: id })).status === 202 ? true : null));
     await until(async () => ((await g.w.get('/api/author/flows')).json().flows.find((x) => x.flow === 'job2').edit.ok === true ? true : null));
+    if (existsSync(g.w.gate)) unlinkSync(g.w.gate);
   };
   return { ...g, clock, inbox, rows, started, runs, tick, polls, ledger, drop, endRun };
 }
@@ -148,7 +153,7 @@ test('changed before its turn -> the old version never runs, the new version arr
 
 test('file-updated: a queued version replaced before its turn is "changed"; the new version runs', async () => {
   const clock = { t: at(13, 8) };
-  const g = await greenWorld({ authorOpts: { now: () => clock.t }, scheduler: { intervalMs: 0 } });
+  const g = await greenWorld({ step: GATED_STEP, authorOpts: { now: () => clock.t }, scheduler: { intervalMs: 0 } });
   const watched = path.join(g.w.work, 'watched.md'); writeFileSync(watched, 'v0\n');
   assert.equal((await setTrigger(g.w, { kind: 'file-updated', role: 'resume', path: watched })).status, 200);
   const tick = () => g.w.h.tick();
@@ -161,8 +166,10 @@ test('file-updated: a queued version replaced before its turn is "changed"; the 
   writeFileSync(watched, 'v3 third version\n');   // replaced before its turn
   polls();
   const id = ls(path.join(g.flowDir, 'runs')).filter((n) => /^run-\d+$/.test(n)).at(-1);
+  writeFileSync(g.w.gate, 'go');
   await until(async () => ((await g.w.post('/api/stop', { flow: 'job2', runId: id })).status === 202 ? true : null));
   await until(async () => ((await g.w.get('/api/author/flows')).json().flows.find((x) => x.flow === 'job2').edit.ok === true ? true : null));
+  unlinkSync(g.w.gate);
   polls(); polls();
   assert.equal(started(), 2, 'v2 never ran, v3 ran once');
   const rows = readOutcomes(g.flowDir);
