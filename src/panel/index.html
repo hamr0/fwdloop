@@ -1940,9 +1940,9 @@
       if(c.older.open){
         out += c.older.shown.map(function(r){ return rlRunCardHtml(r, isSel(r)); }).join("");
         if(c.older.hidden > 0){
-          // M11 am7 item 4, the line after the 7: searching, `k more match. Add a date or run number to narrow it.`; else the range of the hidden runs' real start days
+          // M11 am7 item 4 + am9, the line after the 7: the range of the hidden runs' real start days
           // (the time the card shows), the MIN to the MAX over ALL of `left` whatever its order: `k more older runs, MM/DD to MM/DD. Search to find one.`, or one day
-          // `k more runs on MM/DD. Search to find one.`. A hidden run with no date drops the date part; nothing is made up.
+          // `k more runs on MM/DD. Search to find one.`; searching, the same days with `matches` and `Add a date or run number to narrow it.` (one day: `Add a run number`). A hidden run with no date drops the date part; nothing is made up.
           var days = c.older.left.map(function(x){
             var w = x.at || x.askedAt || x.startedAt;
             var d = w ? new Date(w) : null;
@@ -1952,10 +1952,15 @@
           var dated = days.indexOf(null) === -1 && days.length > 0;
           var lo = dated ? new Date(Math.min.apply(null, days)) : null, hi = dated ? new Date(Math.max.apply(null, days)) : null;
           var k = c.older.hidden;
-          out += '<div class="rl-hint">' + (c.older.active ? k + ' more match. Add a date or run number to narrow it.' :
-            !dated ? k + ' more older runs. Search to find one.' :
-            md(lo) === md(hi) && lo.getFullYear() === hi.getFullYear() ? k + ' more runs on ' + md(lo) + '. Search to find one.' :
-            k + ' more older runs, ' + md(lo) + ' to ' + md(hi) + '. Search to find one.') + '</div>';
+          var one = dated && md(lo) === md(hi) && lo.getFullYear() === hi.getFullYear();
+          var hint = c.older.active ?
+            (!dated ? k + ' more matches. Add a date or run number to narrow it.' :
+              one ? k + ' more matches on ' + md(lo) + '. Add a run number to narrow it.' :
+              k + ' more matches, ' + md(lo) + ' to ' + md(hi) + '. Add a date or run number to narrow it.') :
+            (!dated ? k + ' more older runs. Search to find one.' :
+              one ? k + ' more runs on ' + md(lo) + '. Search to find one.' :
+              k + ' more older runs, ' + md(lo) + ' to ' + md(hi) + '. Search to find one.');
+          out += '<div class="rl-hint">' + hint + '</div>';
         }
       }
     }
