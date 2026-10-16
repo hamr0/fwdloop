@@ -59,7 +59,7 @@ const paint = async (chrome, d0, key) => {
   var col = function(sel){ var e = box.querySelector(sel); return e ? getComputedStyle(e).color : null; };
   var frames = document.querySelectorAll("#summary-blocks .ended-block").length;
   var tok = function(n){ var p = document.createElement("span"); p.style.borderTop = "2px solid var(--" + n + ")"; document.body.appendChild(p); var c = getComputedStyle(p).borderTopColor; p.remove(); return c; };
-  return { present: true, frames: frames, border: getComputedStyle(box).borderTopColor, none: tok("border-strong"), green: tok("green"), red: tok("red"), magenta: tok("magenta"), grey: tok("grey-dot"), amber: tok("amber"),
+  return { present: true, frames: frames, border: getComputedStyle(box).borderTopColor, summaryBorder: getComputedStyle(document.getElementById("summary-box")).borderTopColor, none: tok("border-strong"), green: tok("green"), red: tok("red"), magenta: tok("magenta"), grey: tok("grey-dot"), amber: tok("amber"),
     endedRed: col("[data-testid=ended-reason]") === red || col("[data-testid=ended-next]") === red,
     schedRed: col("[data-testid=sched-line1]") === red && col("[data-testid=sched-line2]") === red && getComputedStyle(box.querySelector(".ended-label.is-red") || document.body).color === red,
     schedAnyRed: col("[data-testid=sched-line1]") === red || col("[data-testid=sched-line2]") === red,
@@ -89,6 +89,16 @@ test('am13 at 1280: one box, frame by the run\'s sign, ENDED/NEXT never red, SCH
   assert.equal(r.failedProblem.schedRed, true, 'problem: label and both lines red');
   assert.equal(r.failedHealthy.schedAnyRed, false, 'a failed run with a fine schedule: SCHEDULE is not red');
   for (const k of Object.keys(CASES)) assert.equal(r[k].endedRed, false, `ENDED/NEXT never red: ${J(k)}`);
+});
+
+test('am19 at 1280: the older SUMMARY box takes the same colour as the frame above it, for every glyph (one rule, glyphClass)', async (t) => {
+  const chrome = await world(t, 1280);
+  if (!chrome) return;
+  const want = { passedHealthy: 'green', failedHealthy: 'red', crashed: 'magenta', stopped: 'grey', runningSched: 'amber', waiting: 'grey', expired: 'amber', stuck: 'amber' };
+  for (const [k, colour] of Object.entries(want)) {
+    const r = await paint(chrome, CASES[k], k);
+    assert.equal(r.summaryBorder, r[colour], `SUMMARY box of ${k} is ${colour}: ${JSON.stringify(r)}`);
+  }
 });
 
 for (const width of [1280, 390, 320]) {

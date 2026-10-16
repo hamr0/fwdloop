@@ -326,7 +326,9 @@
   .when-sub[hidden]{display:none;}
   .summary-box{position:relative;border:1px solid var(--border-strong);padding:16px 12px 12px;margin-top:16px;background:var(--panel2);font-size:12px;}
   .summary-box.red{border-color:var(--red);}
-  .summary-box.amber{border-color:var(--amber);}
+  .summary-box.green{border-color:var(--green);}
+  .summary-box.grey,.summary-box.stopped{border-color:var(--grey-dot);}
+  .summary-box.amber,.summary-box.expired,.summary-box.stuck{border-color:var(--amber);}
   .summary-box.magenta{border-color:var(--magenta);}
   .summary-box::before{content:"┤ SUMMARY ├";position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;}
   .summary-headline{font-weight:700;margin-bottom:8px;font-size:13px;}
@@ -2285,8 +2287,7 @@
   // ---- M9 piece 6: the summary block, first thing on the run page. The sentences are CODE-OWNED on the server (`summary` of the run detail,
   // src/summary-words.js); this only paints them. ENDED / NEXT while a finished run; SCHEDULED / NEXT for a job with a trigger.
   // borrowed-from: bareloop src/panel/index.html@f845ee7 (renderEnded)
-  // M9 am13: ONE framed box, rows `label | value`. Frame: red on a SCHEDULE problem (sm.schedule.red, the one owner is scheduleBlockOf), else the run's own sign
-  // ([✓] green, [✗] red, [?] magenta, [■] grey; running / waiting / other: no colour). ENDED and NEXT text are never red; only a problem reddens SCHEDULE.
+  // M9 am13: ONE framed box, rows `label | value`. Frame: red on a SCHEDULE problem (sm.schedule.red, the one owner is scheduleBlockOf), else the colour of the run's card (glyphClass; M9 am14). ENDED and NEXT text are never red; only a problem reddens SCHEDULE.
   function summaryRow(label, value, testid, red){
     var c = red ? ' is-red' : '';
     return '<div class="ended-row"><span class="ended-label' + c + '">' + label + '</span><span class="ended-text' + c + '"' + (testid ? ' data-testid="' + testid + '"' : '') + '>' + escapeXml(value) + '</span></div>';
@@ -2338,7 +2339,7 @@
       escapeXml(spendText) + " of " + escapeXml(capText) + " cap &middot; " + escapeXml(wallText);
 
     var box = document.getElementById("summary-box");
-    box.className = "summary-box " + (detail.glyph === "[✗]" ? "red" : ((detail.glyph === "[·]" || detail.glyph === "[▶]" || detail.glyph === "[II]") ? "amber" : (detail.glyph === "[?]" ? "magenta" : "")));
+    box.className = "summary-box " + glyphClass(detail.glyph);   // M9 am19: the same colour rule as the frame above (glyphClass, the card dot's)
     var stepBoxes = buildStepBoxes(detail.steps);
     var stepsDone = stepBoxes.filter(function(s){ return s.state === "done"; }).length;
     var stepsText = stepBoxes.length === 0
