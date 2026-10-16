@@ -93,3 +93,43 @@ for (const [label, expired] of [['waiting', false], ['expired (Reopen)', true]])
     assert.equal(after2.bg, jobsBg);
   });
 }
+
+// hamr's walk after 7c7415d: the selected Inbox card must look like a selected Jobs card (border colour AND width AND overlay, both themes)
+// and be in the viewport after a Needs you click.
+const look = (chrome) => chrome.ev(`(function(){
+  var r = document.querySelector(${JSON.stringify(INBOX_ROW + '.selected')});
+  var d = document.createElement("div"); d.className = "rl-card rl-sel"; document.getElementById("panel-runs").appendChild(d);
+  var j = getComputedStyle(d), i = r && getComputedStyle(r), rect = r && r.getBoundingClientRect();
+  var out = { inbox: i && { bc: i.borderTopColor, bl: i.borderLeftColor, bw: i.borderTopWidth, blw: i.borderLeftWidth, bg: i.backgroundColor },
+    jobs: { bc: j.borderTopColor, bw: j.borderTopWidth, bg: j.backgroundColor },
+    inView: !!rect && rect.top >= 0 && rect.bottom <= window.innerHeight };
+  d.remove(); return out; })()`);
+
+for (const theme of ['light', 'dark']) {
+  test(`Needs you click (${theme}): the selected Inbox card has the border colour, width and overlay of a selected Jobs card and is in view`, async (t) => {
+    const w = await parkedRun(`look-${theme}`);
+    const g = await walk(w, t);
+    if (!g) return;
+    const { chrome } = g;
+    await chrome.ev(`document.documentElement.setAttribute("data-theme", ${JSON.stringify(theme)})`);
+    // a short window: the Inbox card sits below the fold until the click scrolls it into view
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 200, deviceScaleFactor: 1, mobile: false });
+    await chrome.ev('document.getElementById("tab-runs").click()');
+    await chrome.ev('document.querySelector("[data-testid=rl-need-job2-run-1]").click()');
+    assert.ok(await chrome.waitFor(`!!document.querySelector(${JSON.stringify(INBOX_ROW + '.selected')})`), 'Inbox card selected');
+    await new Promise((r) => { setTimeout(r, 600); });
+    const s = await look(chrome);
+    if (process.env.SHOT_DIR) {
+      mkdirSync(process.env.SHOT_DIR, { recursive: true });
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 600, deviceScaleFactor: 1, mobile: false });
+      await chrome.screenshot(path.join(process.env.SHOT_DIR, `inbox-sel-${theme}.png`));
+      if (theme === 'light') { await chrome.ev('document.getElementById("tab-runs").click()'); await chrome.screenshot(path.join(process.env.SHOT_DIR, 'jobs-sel-light.png')); }
+    }
+    assert.equal(s.inbox.bc, s.jobs.bc, `border colour ${JSON.stringify(s)}`);
+    assert.equal(s.inbox.bl, s.jobs.bc, `left border colour ${JSON.stringify(s)}`);
+    assert.equal(s.inbox.bw, s.jobs.bw, 'border width');
+    assert.equal(s.inbox.blw, s.jobs.bw, 'left border width');
+    assert.equal(s.inbox.bg, s.jobs.bg, 'overlay');
+    assert.equal(s.inView, true, 'the card is within the viewport');
+  });
+}
