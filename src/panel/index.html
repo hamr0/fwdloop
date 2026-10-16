@@ -1127,9 +1127,11 @@
                — the wide right pane is where the evidence lives now. The
                answer doors are in the Ask tab, not here (M4b). -->
           <div id="inbox-list" data-testid="inbox-list"></div>
+          <div id="inbox-filters">
           <div class="rl-dash"></div>
           <div class="rl-faint" data-testid="inbox-filter-note">filters below act on answered and expired only</div>
           <div id="inbox-filterbar-anchor"></div>
+          </div>
           <div id="inbox-list-old" data-testid="inbox-list-old"></div>
         </section>
 
@@ -3582,6 +3584,7 @@
     el.innerHTML = "";
     old.innerHTML = "";
     document.getElementById("inbox-count-label").textContent = " (" + (typeof openCount === "number" ? openCount : 0) + ")";
+    document.getElementById("inbox-filters").hidden = !inboxTotal; // am14: no rows, no dashed line, note or search/chips
     if(!inboxTotal){
       el.innerHTML = '<div class="hint">nothing waiting on you — no stops recorded under this root</div>';
       return;
