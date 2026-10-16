@@ -1169,12 +1169,12 @@
           <div id="run-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run from the list</div>
           <div id="run-content" hidden>
             <div id="summary-blocks" data-testid="summary-blocks">
-              <div id="summary-box" class="ended-block" data-testid="summary-box" hidden></div>
+              <div id="ended-block" class="ended-block" data-testid="summary-box" hidden></div>
               <div class="hint" id="catchup-note" data-testid="catchup-note" hidden></div>
             </div>
             <div class="run-actions" id="run-actions" data-testid="run-actions" hidden></div>
             <div class="counters" id="run-counters" data-testid="live-counters"></div>
-            <div class="summary-box" id="run-summary" data-testid="run-summary"></div>
+            <div class="summary-box" id="summary-box" data-testid="run-summary"></div>
             <div class="map-box" data-testid="step-map" id="map-box"><div id="map-mount"></div></div>
             <div id="step-list"></div>
           </div>
@@ -2286,7 +2286,7 @@
   }
   function renderSummary(detail){
     var sm = detail.summary || {};
-    var box = document.getElementById("summary-box");
+    var box = document.getElementById("ended-block");
     var note = document.getElementById("catchup-note");
     var sc = sm.schedule || null;
     if(sm.ended || sc){
@@ -2330,7 +2330,7 @@
     document.getElementById("run-counters").innerHTML =
       escapeXml(spendText) + " of " + escapeXml(capText) + " cap &middot; " + escapeXml(wallText);
 
-    var box = document.getElementById("run-summary");
+    var box = document.getElementById("summary-box");
     box.className = "summary-box " + (detail.glyph === "[✗]" ? "red" : ((detail.glyph === "[·]" || detail.glyph === "[▶]" || detail.glyph === "[II]") ? "amber" : (detail.glyph === "[?]" ? "magenta" : "")));
     var stepBoxes = buildStepBoxes(detail.steps);
     var stepsDone = stepBoxes.filter(function(s){ return s.state === "done"; }).length;
