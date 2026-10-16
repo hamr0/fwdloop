@@ -2404,6 +2404,14 @@ monthly wall is enforced **by the trigger**, before a run starts.
 
 - **M9 amendment 19 — SIGNED by hamr 2026-10-16 ("sign m9 am19").** Amendment 14 replaces amendment 13 item 2's "a run that is still running or waiting has no frame colour": every run's frame takes its card colour. The older SUMMARY box on the Run tab uses the same colour rule.
 
+- **M9 amendment 20 — SIGNED by hamr 2026-10-16 ("sign m9 am20"): schedules live in their own signed file.**
+  1. A job's schedule lives in its own file, `flows/<job>/schedule.json`, signed by you with the same two clicks. It is no longer a line inside the job. Setting, changing or cancelling a schedule never changes the job or its signature.
+  2. Each job has one queue file, `flows/<job>/schedule-ledger.jsonl`, for as long as the job exists. Each row notes which signing of the schedule wrote it. A schedule change never leaves waiting files behind; amendment 16's rule and words apply in the same click.
+  3. Cancel never touches a run: a run that is starting, working or waiting carries on (amendment 10). Changing to a new schedule is also allowed while a run is going; the next fire uses the new one. This replaces amendment 10's last sentence.
+  4. The rest stays as signed: the AI never sets a schedule, setting one needs a green run, Cancel never does, and a fire uses the plan, inputs, model and destination it was set from (M6 am5, am9).
+  5. Schedule lines inside jobs signed before this stop working. Set those schedules again by hand.
+  - **Must fail when:** a schedule change changes the job's signature; Cancel stops or changes a starting run; a change leaves a waiting file behind; an old schedule line still fires.
+
 ## M10 — real IO
 
 Mail in and out, chat, browse — each behind the signed allow-list and a prior `ask` accept in the
