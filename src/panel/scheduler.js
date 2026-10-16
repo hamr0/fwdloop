@@ -15,9 +15,10 @@
 // A failure on one job (a folder that went away) is written once to `triggers.jsonl` as `refused` and never stops the other jobs.
 import { join } from 'node:path';
 
+import { readdirInside } from '../flow.js';
 import { due, readRows, recordFire } from '../trigger-clock.js';
 import {
-  createFileTrigger, queueOf, readSeen, recheck, recordArrived, recordDropped, recordRan,
+  createFileTrigger, queueOf, readSeen, recheck, recordArrived, recordDropped, recordRan, watches,
 } from '../trigger-files.js';
 import { readOutcomes, triggerLedgerDir } from './authortrigger.js';
 
@@ -68,6 +69,29 @@ export function createScheduler(opts) {
     }
   }
 
+  /**
+   * M9 am16: the files still waiting in an OLDER signing's ledger (a trigger change opens a new ledger folder; a cancel leaves none). THE one place that carries or tells them:
+   * the trigger still watches the same folder (file) -> the file is queued in the current ledger with its old arrival time, and dropped from the old one (`carried`, no row); else
+   * (the folder changed, or the trigger is cancelled) it is dropped from the old ledger and ONE row says so. The drop is written BEFORE the row: a crash loses the row, never doubles it.
+   * @param {{flow: string, flowDir: string, trigger: any}} job `trigger` null = cancelled @param {string|null} hash the current signing's hash @param {number} nowMs
+   */
+  function settleOlderQueues(job, hash, nowMs) {
+    const triggers = join(job.flowDir, 'triggers');
+    const file = job.trigger && (job.trigger.kind === 'new-file' || job.trigger.kind === 'file-updated') ? job.trigger : null;
+    for (const name of readdirInside(triggers, '.').filter((n) => /^[0-9a-f]{64}$/.test(n) && n !== hash)) {
+      const old = join(triggers, name, 'seen.jsonl');
+      for (const q of queueOf(readSeen(old))) {
+        if (file !== null && hash !== null && watches(file.kind === 'new-file' ? 'new' : 'updated', file.kind === 'new-file' ? file.folder : file.path, q.path)) {
+          recordArrived(join(triggers, hash, 'seen.jsonl'), q, q.at);
+          recordDropped(old, q, 'carried', nowMs);
+        } else {
+          recordDropped(old, q, 'schedule-changed', nowMs);
+          door.note(job, { outcome: 'schedule-changed', file: q.path, sha: q.sha, say: `${q.name} was waiting when the schedule changed, so it will not run. Drop it in again to run it.` });
+        }
+      }
+    }
+  }
+
   function tick() {
     const nowMs = now();
     const live = new Set();
@@ -77,6 +101,7 @@ export function createScheduler(opts) {
       live.add(key);
       try {
         door.ensureArmed(job);
+        settleOlderQueues(job, hash, nowMs);
         const dir = triggerLedgerDir(job.flowDir, hash);
         const { trigger } = job;
         if (trigger.kind === 'file-updated' || trigger.kind === 'new-file') {
@@ -106,6 +131,9 @@ export function createScheduler(opts) {
         const why = /** @type {Error} */ (e).message;
         if (!told.has(`${key}|${why}`)) { told.add(`${key}|${why}`); door.refuse(job, why); }
       }
+    }
+    for (const job of door.untriggered()) {
+      try { settleOlderQueues(job, null, nowMs); } catch { /* one job's ledger never stops the others; tried again next tick */ }
     }
     for (const k of [...watchers.keys()]) if (!live.has(k)) watchers.delete(k);
   }

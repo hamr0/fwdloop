@@ -344,6 +344,18 @@ export function createTriggerDoor(opts) {
       return jobs;
     },
 
+    /** M9 am16: every signed job with NO trigger now (a cancelled one may still have files waiting in an older ledger): `{flow, flowDir, trigger: null}`. */
+    untriggered() {
+      const realRoot = realRootOrNull();
+      if (realRoot === null) return [];
+      const jobs = [];
+      for (const flow of listFlowNames(realRoot)) {
+        const read = readSigned(realRoot, flow);
+        if (read.ok && read.arbiter.trigger === null) jobs.push({ flow, flowDir: join(realRoot, flow), read, trigger: /** @type {null} */ (null) });
+      }
+      return jobs;
+    },
+
     /** Arm this job's signed trigger if it is not armed yet (a crash between the sign and the arm). Idempotent; throws naming why. @param {{flowDir: string, read: any, trigger: Trigger}} job */
     ensureArmed(job) {
       return armFor(job.flowDir, job.read.signature.flow, job.trigger, now());
@@ -354,9 +366,9 @@ export function createTriggerDoor(opts) {
       return flowsDoor.scheduleBusy(job.flow) !== null;
     },
 
-    /** M9 am3: one row for a queued file that is not a fire (deleted / changed before its turn). @param {{flow: string, flowDir: string, trigger: Trigger}} job @param {Record<string, any>} row */
+    /** M9 am3: one row for a queued file that is not a fire (deleted / changed before its turn). @param {{flow: string, flowDir: string, trigger: Trigger|null}} job (`null` = the trigger was cancelled) @param {Record<string, any>} row */
     note(job, row) {
-      appendOutcome(job.flowDir, { at: new Date(now()).toISOString(), flow: job.flow, trigger: describe(job.trigger), ...row });
+      appendOutcome(job.flowDir, { at: new Date(now()).toISOString(), flow: job.flow, trigger: job.trigger ? describe(job.trigger) : 'By hand', ...row });
     },
 
     /**
@@ -377,7 +389,7 @@ export function createTriggerDoor(opts) {
      * @param {{ told?: (row: Record<string, any>) => boolean, beforeStart?: () => void, holdIfCannotStart?: boolean }} [hooks] M9 am3 (a queued file): `told(row)` true = this file
      *   already has a row for that outcome and reason (`why`), so none is written again (the outcome is still returned); `beforeStart` runs right before the ONE
      *   start, once every check has passed: the scheduler writes the file's `ran` row there. `holdIfCannotStart` (a queued file, M9 am17): the starter's `canStart` is asked first, and a no writes nothing
-     *   (no row, no `beforeStart`) and returns outcome `waiting`.
+     *   (no row, no `beforeStart`) and returns outcome `cannot-start`.
      */
     fire(job, cause, hooks = {}) {
       const { flow, flowDir, read: flowRead, trigger } = job;
@@ -455,7 +467,7 @@ export function createTriggerDoor(opts) {
         triggerKind: trigger.kind, words: scheduleHead(trigger), at: base.at, ...(cause.kind === 'clock' ? { lateMin: Math.max(0, Math.round((now() - cause.slot) / 60_000)) } : {}),
         ...(fromRunOf(flowDir, flowRead.signature.flow) ? { fromRun: fromRunOf(flowDir, flowRead.signature.flow) } : {}),
       };
-      if (hooks.holdIfCannotStart === true && starter.canStart({ flow, runId: '', planRun: false }, loaded) !== null) return { ...base, outcome: 'waiting' };   // M9 am17: nothing written, the file stays queued for the next turn
+      if (hooks.holdIfCannotStart === true && starter.canStart({ flow, runId: '', planRun: false }, loaded) !== null) return { ...base, outcome: 'cannot-start' };   // M9 am17: nothing written, the file stays queued for the next turn
       hooks.beforeStart?.();
       const started = starter.start({
         kind: 'trigger', flow, runId: '', sources, trigger: record, values, planOf: planRun,

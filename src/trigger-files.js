@@ -70,7 +70,7 @@ export function recordArrived(ledger, item, at) {
 }
 /** Call immediately before the run is started. @param {string} ledger @param {{sha:string, path:string, size:number}} item @param {number} at */
 export const recordRan = (ledger, item, at) => appendSeen(ledger, { id: `ran:${item.sha}`, kind: 'ran', sha: item.sha, name: basename(item.path), size: item.size, at });
-/** `of` = the arrived row it cancels (item.id when a queue row is passed). @param {string} ledger @param {{sha:string, path:string, size:number, id?:string}} item @param {'deleted'|'changed'} why @param {number} at */
+/** `of` = the arrived row it cancels (item.id when a queue row is passed). @param {string} ledger @param {{sha:string, path:string, size:number, id?:string}} item @param {'deleted'|'changed'|'schedule-changed'|'carried'} why @param {number} at */
 export function recordDropped(ledger, item, why, at) {
   const of = item.id ?? `arrived:${item.sha}`;
   return appendSeen(ledger, { id: `dropped:${of}`, kind: 'dropped', sha: item.sha, name: basename(item.path), size: item.size, why, at, of });
@@ -121,6 +121,17 @@ export function checkTarget(mode, target) {
     try { real = realpathSync(target); } catch { throw new Error(`folder to watch ${target} does not exist`); }
     if (!lstatSync(real).isDirectory()) throw new Error(`${target} is not a folder`);
   }
+}
+
+/**
+ * M9 am16: does a trigger on this target still watch this file? New: the file sits directly in the same (real) folder. Updated: it is the same (real) file. False when the target cannot be resolved.
+ * @param {'new'|'updated'} mode @param {string} target @param {string} filePath a queued file's path as the watcher recorded it (a real path)
+ */
+export function watches(mode, target, filePath) {
+  try {
+    if (mode === 'new') return realpathSync(target) === dirname(filePath);
+    return join(realpathSync(dirname(target)), basename(target)) === filePath;
+  } catch { return false; }
 }
 
 /**
