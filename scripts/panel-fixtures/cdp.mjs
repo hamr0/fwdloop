@@ -1,18 +1,59 @@
 // Test helper (never imported by src/): a headless chromium driven over the DevTools protocol, so a test can click the real panel.
 // `launchChrome()` resolves null when no chromium is installed (the caller skips). `close()` kills the process by PID.
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { mkdtempSync } from '../tmp-track.mjs';
 
 const BINS = ['/usr/bin/chromium-browser', '/usr/bin/chromium', '/usr/bin/google-chrome'];
 
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+
+/** Pids whose command line carries this exact --user-data-dir (so only OUR chromium is ever killed, never a reused pid). */
+function chromiumsOf(dir) {
+  const out = [];
+  let pids = [];
+  try { pids = readdirSync('/proc').filter((n) => /^\d+$/.test(n)); } catch { return out; }
+  for (const n of pids) {
+    // chromium rewrites its own title, so the args may be space- not NUL-separated: match the flag with a boundary after it.
+    try { if ((readFileSync(`/proc/${n}/cmdline`, 'utf8') + '\0').match(/--user-data-dir=([^\0 ]*)/)?.[1] === dir) out.push(Number(n)); } catch { /* gone */ }
+  }
+  return out;
+}
+
+/**
+ * Remove profile dirs (and the chromium on them) whose owner process is dead: a killed or crashed test/walk never ran its cleanup.
+ * A dir with a live owner is never touched. A dir with no owner file is a pre-sweep leftover or a launch in progress: removed only
+ * once it is older than `graceMs` AND no chromium still runs on it (its owner is unknown, so it may be live). Returns the dirs removed.
+ */
+export function sweepOrphans(root = tmpdir(), graceMs = 120000) {
+  const removed = [];
+  for (const name of readdirSync(root)) {
+    if (!name.startsWith('fwdloop-cdp-')) continue;
+    const dir = path.join(root, name);
+    try {
+      let owner = 0;
+      try { owner = Number(readFileSync(path.join(dir, 'owner.pid'), 'utf8').trim()); } catch { /* none */ }
+      if (owner ? alive(owner) : Date.now() - statSync(dir).mtimeMs < graceMs) continue;
+      const pids = chromiumsOf(dir);
+      if (!owner && pids.length) continue;
+      for (const pid of pids) { try { process.kill(pid, 'SIGKILL'); } catch { /* gone */ } }
+      rmSync(dir, { recursive: true, force: true });
+      removed.push(dir);
+    } catch { /* best effort */ }
+  }
+  return removed;
+}
+
 export async function launchChrome() {
   const bin = BINS.find((b) => existsSync(b));
   if (!bin) return null;
+  sweepOrphans();
   const dir = mkdtempSync(path.join(tmpdir(), 'fwdloop-cdp-'));
+  writeFileSync(path.join(dir, 'owner.pid'), String(process.pid));
   const child = spawn(bin, ['--headless=new', '--no-sandbox', '--disable-gpu', '--remote-debugging-port=0', `--user-data-dir=${dir}`, 'about:blank'], { stdio: 'ignore' });
+  process.on('exit', () => { try { child.kill('SIGKILL'); } catch { /* gone */ } });
   const portFile = path.join(dir, 'DevToolsActivePort');
   let port = 0;
   for (let i = 0; i < 100 && !port; i += 1) {
