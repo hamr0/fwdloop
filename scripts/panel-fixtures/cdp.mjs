@@ -1,12 +1,15 @@
 // Test helper (never imported by src/): a headless chromium driven over the DevTools protocol, so a test can click the real panel.
-// `launchChrome()` resolves null when no chromium is installed (the caller skips). `close()` kills the process by PID.
+// `launchChrome()` resolves null ONLY when no chromium is installed (the caller skips); a chromium that is installed but did not start in time
+// THROWS, loud, so a slow start can never read as "skipped" (a pass). `close()` kills the process by PID.
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { mkdtempSync } from '../tmp-track.mjs';
 
-const BINS = ['/usr/bin/chromium-browser', '/usr/bin/chromium', '/usr/bin/google-chrome'];
+// FWDLOOP_CDP_BIN / FWDLOOP_CDP_START_MS exist so a test can aim the launcher at a fake binary and a short deadline.
+const BINS = process.env.FWDLOOP_CDP_BIN ? [process.env.FWDLOOP_CDP_BIN] : ['/usr/bin/chromium-browser', '/usr/bin/chromium', '/usr/bin/google-chrome'];
+const START_MS = Number(process.env.FWDLOOP_CDP_START_MS) || 10000;
 
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 
@@ -56,11 +59,14 @@ export async function launchChrome() {
   process.on('exit', () => { try { child.kill('SIGKILL'); } catch { /* gone */ } });
   const portFile = path.join(dir, 'DevToolsActivePort');
   let port = 0;
-  for (let i = 0; i < 100 && !port; i += 1) {
+  for (let i = 0; i < START_MS / 100 && !port; i += 1) {
     await new Promise((r) => setTimeout(r, 100));
     if (existsSync(portFile)) port = Number(readFileSync(portFile, 'utf8').split('\n')[0]);
   }
-  if (!port) { child.kill('SIGKILL'); return null; }
+  if (!port) {
+    child.kill('SIGKILL');
+    throw new Error(`chromium is installed (${bin}) but did not start within ${START_MS / 1000}s (no DevToolsActivePort): the machine is overloaded or the browser is broken. This is a FAILURE, not a skip.`);
+  }
   const list = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json();
   const ws = new WebSocket(list.webSocketDebuggerUrl);
   await new Promise((r) => ws.addEventListener('open', r));
