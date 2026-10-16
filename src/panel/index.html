@@ -245,6 +245,8 @@
   .wf-meta{font-size:12px;color:var(--text-dim);}
   .wf-sep{font-size:12px;color:var(--text-faint);}
   .hist-row.selected{border:2px solid var(--accent);border-radius:4px;}
+  /* M11 am10: the selected Inbox card wears the same blue overlay as a selected Jobs run card (.rl-sel); after .inbox-row.s1 so it wins over the amber fill */
+  .inbox-row.selected,.inbox-row.s1.selected{background:var(--rl-accent-bg-strong);}
   /* M11: the one runs list. Copied from docs/product/m11-runs-list-mock.html (the right box, "F - fwdloop"); only the class names carry the rl- prefix
      (the page already has .chip, .hint, .live ...), a card's lines clip with an ellipsis exactly as the mockup does (the full text is on the run page). */
   :root{--rl-accent-bg:rgba(122,162,247,.12);--rl-accent-bg-strong:rgba(122,162,247,.2);}
