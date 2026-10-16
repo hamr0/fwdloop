@@ -1437,9 +1437,10 @@ function waitingLineOf(ctx) {
  */
 function jobWaitingLine(root, flowDir, flow, catalogue) {
   const ids = listRunIds(flowDir).sort((a, b) => (Number(b.replace(/\D/g, '')) || 0) - (Number(a.replace(/\D/g, '')) || 0));
+  const history = readHistory(flowDir);   // `atAsk` needs no end row (`runControls`), so an ended run is skipped by the same `endRow` rule before a context is built for it
   for (const id of ids) {
     const run = resolveRunDir(flowDir, id);
-    if (!run.ok || !readAsk(run.runDir)) continue; // eslint-disable-line no-continue
+    if (!run.ok || endRow(history, run.runDir, id) !== null || !readAsk(run.runDir)) continue; // eslint-disable-line no-continue
     const ctx = loadRunContext(root, flowDir, run.runDir, flow, id, catalogue, null);
     const g = computeGlyph(ctx);
     if (runControls(ctx, g.glyph, g.label).atAsk) return waitingLineOf(ctx);
