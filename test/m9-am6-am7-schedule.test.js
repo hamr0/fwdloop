@@ -136,7 +136,7 @@ async function openRun(width) {
   await chrome.open(`http://127.0.0.1:${f.w.h.port}/`, width);
   assert.ok(await chrome.waitFor('document.querySelectorAll(".rl-card").length > 0', 15000));
   await chrome.ev('Array.from(document.querySelectorAll(".rl-card")).filter(function(e){ return /seed-pass/.test(e.textContent); })[0].click()');
-  assert.ok(await chrome.waitFor('!document.getElementById("sched-block").hidden', 15000));
+  assert.ok(await chrome.waitFor('!document.getElementById("summary-box").hidden', 15000));
   return { chrome, f };
 }
 
@@ -145,16 +145,16 @@ for (const width of [1280, 390, 320]) {
     const o = await openRun(width);
     if (!o) { t.skip('no chromium installed'); return; }
     const { chrome } = o;
-    const red = await chrome.ev(`(function(){ var b = document.getElementById("sched-block"); var red = getComputedStyle(document.documentElement).getPropertyValue("--red").trim();
+    const red = await chrome.ev(`(function(){ var b = document.getElementById("summary-box"); var red = getComputedStyle(document.documentElement).getPropertyValue("--red").trim();
       var c = function(e){ return getComputedStyle(e).color; };
-      var l = b.querySelector(".ended-label"), a = b.querySelector('[data-testid=sched-line1]'), z = b.querySelector('[data-testid=sched-line2]');
+      var l = b.querySelector(".ended-label.is-red"), a = b.querySelector('[data-testid=sched-line1]'), z = b.querySelector('[data-testid=sched-line2]');
       var probe = document.createElement("span"); probe.style.color = "var(--red)"; document.body.appendChild(probe); var want = c(probe); probe.remove();
-      return {frame: b.classList.contains("red"), label: c(l) === want, l1: c(a) === want, l2: c(z) === want, text2: z.textContent}; })()`);
+      return {frame: b.classList.contains("red"), label: !!l && c(l) === want, l1: c(a) === want, l2: c(z) === want, text2: z.textContent}; })()`);
     assert.deepEqual([red.frame, red.label, red.l1, red.l2], [true, true, true, true], JSON.stringify(red));
     assert.match(red.text2, /next: fix it in Cancel \/ modify schedule$/);
     const spill = await chrome.ev('document.documentElement.scrollWidth - document.documentElement.clientWidth');
     assert.ok(spill <= 0, `sideways scroll ${spill}px at ${width}`);
-    const box = await chrome.ev('(function(){ var b = document.getElementById("sched-block").getBoundingClientRect(); var z = document.querySelector("[data-testid=sched-line2]").getBoundingClientRect(); return {right: b.right, zr: z.right, vw: document.documentElement.clientWidth}; })()');
+    const box = await chrome.ev('(function(){ var b = document.getElementById("summary-box").getBoundingClientRect(); var z = document.querySelector("[data-testid=sched-line2]").getBoundingClientRect(); return {right: b.right, zr: z.right, vw: document.documentElement.clientWidth}; })()');
     assert.ok(box.zr <= box.vw && box.right <= box.vw, JSON.stringify(box));
   });
 }

@@ -313,6 +313,7 @@
   .ended-text.is-red,.ended-label.is-red{color:var(--red);}
   .ended-block.green{border-color:var(--green);}
   .ended-block.amber{border-color:var(--amber);}
+  .ended-block.grey{border-color:var(--grey-dot);}
   .ended-row{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px;}
   .ended-row:last-child{margin-bottom:0;}
   .ended-label{color:var(--text-faint);font-size:11px;letter-spacing:0.08em;min-width:84px;}
@@ -1169,8 +1170,7 @@
           <div id="run-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run from the list</div>
           <div id="run-content" hidden>
             <div id="summary-blocks" data-testid="summary-blocks">
-              <div id="ended-block" class="ended-block" data-testid="ended-block" hidden></div>
-              <div id="sched-block" class="ended-block" data-testid="sched-block" hidden></div>
+              <div id="summary-box" class="ended-block" data-testid="summary-box" hidden></div>
               <div class="hint" id="catchup-note" data-testid="catchup-note" hidden></div>
             </div>
             <div class="run-actions" id="run-actions" data-testid="run-actions" hidden></div>
@@ -2287,28 +2287,25 @@
   // ---- M9 piece 6: the summary block, first thing on the run page. The sentences are CODE-OWNED on the server (`summary` of the run detail,
   // src/summary-words.js); this only paints them. ENDED / NEXT while a finished run; SCHEDULED / NEXT for a job with a trigger.
   // borrowed-from: bareloop src/panel/index.html@f845ee7 (renderEnded)
-  function summaryRows(a, b){
-    return '<div class="ended-row"><span class="ended-label">' + a[0] + '</span><span class="ended-text" data-testid="' + a[2] + '">' + escapeXml(a[1]) + '</span></div>' +
-      '<div class="ended-row"><span class="ended-label">' + b[0] + '</span><span class="ended-text" data-testid="' + b[2] + '">' + escapeXml(b[1]) + '</span></div>';
+  // M9 am13: ONE framed box, rows `label | value`. Frame: red on a SCHEDULE problem (sm.schedule.red, the one owner is scheduleBlockOf), else the run's own sign
+  // ([✓] green, [✗] red, [?] magenta, [■] grey; running / waiting / other: no colour). ENDED and NEXT text are never red; only a problem reddens SCHEDULE.
+  function summaryRow(label, value, testid, red){
+    var c = red ? ' is-red' : '';
+    return '<div class="ended-row"><span class="ended-label' + c + '">' + label + '</span><span class="ended-text' + c + '"' + (testid ? ' data-testid="' + testid + '"' : '') + '>' + escapeXml(value) + '</span></div>';
   }
   function renderSummary(detail){
     var sm = detail.summary || {};
-    var ended = document.getElementById("ended-block");
-    var sched = document.getElementById("sched-block");
+    var box = document.getElementById("summary-box");
     var note = document.getElementById("catchup-note");
-    if(sm.ended){
-      ended.hidden = false;
-      ended.className = "ended-block " + (detail.glyph === "[✓]" ? "green" : (detail.glyph === "[?]" ? "magenta" : ((detail.glyph === "[■]" || detail.glyph === "[!]") ? "amber" : "red")));
-      ended.innerHTML = summaryRows(["ENDED", sm.ended.reason, "ended-reason"], ["NEXT", sm.ended.next, "ended-next"]);
-    } else { ended.hidden = true; ended.innerHTML = ""; }
-    if(sm.schedule){
-      // M9 am7: SCHEDULE replaces the SCHEDULED / NEXT rows. Both lines come from the server; a problem (sm.schedule.red) turns the label, both lines and the frame red.
-      var sc = sm.schedule;
-      sched.hidden = false;
-      sched.className = "ended-block" + (sc.red === true ? " red" : "");
-      sched.innerHTML = '<div class="ended-row"><span class="ended-label' + (sc.red ? ' is-red' : '') + '">SCHEDULE</span><span class="ended-text' + (sc.red ? ' is-red' : '') + '" data-testid="sched-line1">' + escapeXml(sc.line1) + '</span></div>' +
-        (sc.line2 ? '<div class="ended-row"><span class="ended-label' + (sc.red ? ' is-red' : '') + '"></span><span class="ended-text' + (sc.red ? ' is-red' : '') + '" data-testid="sched-line2">' + escapeXml(sc.line2) + '</span></div>' : '');
-    } else { sched.hidden = true; sched.innerHTML = ""; }
+    var sc = sm.schedule || null;
+    if(sm.ended || sc){
+      var tone = { "[✓]": "green", "[✗]": "red", "[?]": "magenta", "[■]": "grey" }[detail.glyph] || "";
+      if(sc && sc.red === true) tone = "red";
+      box.hidden = false;
+      box.className = "ended-block" + (tone ? " " + tone : "");
+      box.innerHTML = (sm.ended ? summaryRow("ENDED", sm.ended.reason, "ended-reason") + summaryRow("NEXT", sm.ended.next, "ended-next") : "") +
+        (sc ? summaryRow("SCHEDULE", sc.line1, "sched-line1", sc.red === true) + (sc.line2 ? summaryRow("", sc.line2, "sched-line2", sc.red === true) : "") : "");
+    } else { box.hidden = true; box.innerHTML = ""; }
     note.hidden = !sm.catchUp;
     note.textContent = sm.catchUp || "";
   }
