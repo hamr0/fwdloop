@@ -17,7 +17,7 @@
 //     seen.jsonl                         tagged by hash: nothing to filter, nothing to forget to filter). `clock.jsonl`'s `armed` row is
 //                                        the one "this trigger was set" fact for BOTH kinds; `seen.jsonl` is the file kinds' sha ledger.
 import {
-  appendFileSync, mkdirSync, realpathSync, writeFileSync,
+  mkdirSync, realpathSync, writeFileSync,
 } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { userInfo } from 'node:os';
@@ -27,6 +27,7 @@ import { scrub } from '../authoring.js';
 import { flowValues, valuesHash } from '../runvalues.js';
 import { destinationRefusal, checkInputRows, runInputRows } from './authorcard.js';
 import { endRow, readHistory } from '../books.js';
+import { appendRow } from '../jsonl-append.js';
 import { loadCatalogue } from '../catalogue.js';
 import {
   FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, readFileInside, readFlow, readRunJobCopy, resolveRunDir, writeFlow,
@@ -80,7 +81,7 @@ export function readOutcomes(flowDir) {
 
 /** The ONE writer of `triggers.jsonl`: append-only, one line per fire outcome. @param {string} flowDir @param {Record<string, any>} row */
 export function appendOutcome(flowDir, row) {
-  appendFileSync(join(flowDir, HISTORY_FILE), `${JSON.stringify(row)}\n`, { mode: 0o600 });
+  appendRow(join(flowDir, HISTORY_FILE), row, { mode: 0o600 });
 }
 
 /**

@@ -324,8 +324,8 @@ const ALLOWLIST = {
     },
   },
   'src/books.js': {
-    reason: 'append-only book writer (audit.jsonl/history.jsonl) — writes only, no reads',
-    names: { appendFileSync: 1, mkdirSync: 1 },
+    reason: 'append-only book writer (audit.jsonl/history.jsonl) — mkdir only; the append itself goes through src/jsonl-append.js',
+    names: { mkdirSync: 1 },
   },
   'src/liveness.js': {
     reason: 'M4c: /proc reads only (cmdline, stat, a /proc existence probe; the cmdline and stat reads go through the one REAL_PROC seam) plus lstatSync mtime of the run\'s own book files for the 10-minute fallback (presence/mtime only, content never read, symlinks not followed) — pids.jsonl itself is read via books.js readPidRows (readFileInside); M4c amendment 2: resume.lock — lstat (a symlinked lock reads as empty, never followed), one read of its holder JSON, and writeSync of that holder into the fd resumeRun just created with wx',
@@ -358,15 +358,19 @@ const ALLOWLIST = {
     },
   },
   'src/trigger-clock.js': {
-    reason: "M9 piece 1: the ONE reader/writer of a trigger's clock ledger (append-only JSONL: armed/fire rows), a regular file OUTSIDE any run/flow dir, not a book: one read of it, one append, mkdir of its folder.",
-    names: {
-      appendFileSync: 1, existsSync: 1, mkdirSync: 1, readFileSync: 1,
-    },
+    reason: "M9 piece 1: the ONE reader/writer of a trigger's clock ledger (append-only JSONL: armed/fire rows), a regular file OUTSIDE any run/flow dir, not a book: mkdir of its folder; the read and the append go through src/jsonl-append.js.",
+    names: { mkdirSync: 1 },
   },
   'src/trigger-files.js': {
-    reason: "M9 piece 2: watches ONE caller-signed BUSINESS file or folder (not a run/flow-dir book): realpathSync on the folder at use time, lstatSync per file (symlinks refused, never followed), readdirSync of the top level, readFileSync of the stable file to hash it; plus the one seen-sha ledger (append-only JSONL, outside any run dir): one read, one append, mkdir. M9 am3: `recheck` looks at a queued file again at its turn (realpathSync on its folder, lstatSync, readFileSync to re-hash).",
+    reason: "M9 piece 2: watches ONE caller-signed BUSINESS file or folder (not a run/flow-dir book): realpathSync on the folder at use time, lstatSync per file (symlinks refused, never followed), readdirSync of the top level, readFileSync of the stable file to hash it; plus the one seen-sha ledger (append-only JSONL, outside any run dir): mkdir (the read and the append go through src/jsonl-append.js). M9 am3: `recheck` looks at a queued file again at its turn (realpathSync on its folder, lstatSync, readFileSync to re-hash).",
     names: {
-      appendFileSync: 1, existsSync: 3, lstatSync: 8, mkdirSync: 1, readFileSync: 4, readdirSync: 1, realpathSync: 4,
+      existsSync: 2, lstatSync: 8, mkdirSync: 1, readFileSync: 3, readdirSync: 1, realpathSync: 4,
+    },
+  },
+  'src/jsonl-append.js': {
+    reason: "The ONE fresh-line append for every append-only JSONL file (books, trigger ledgers, triggers.jsonl): reads the file's LAST BYTE (openSync/fstatSync/readSync/closeSync) to see whether a crash tore the last line, then appendFileSync; `ledgerText` is the one whole-file read of a trigger ledger (existsSync + readFileSync). Files outside any run/flow-dir book reader are the callers' business; the books' own reads still go through readFileInside.",
+    names: {
+      appendFileSync: 1, closeSync: 1, existsSync: 1, fstatSync: 1, openSync: 1, readFileSync: 1, readSync: 1,
     },
   },
   'src/provider.js': {
@@ -452,9 +456,9 @@ const ALLOWLIST = {
     },
   },
   'src/panel/authortrigger.js': {
-    reason: "M6 am5 item 3: realpathSync of the flows root for the scheduled destination check at fire time; writes the write-once `schedule-model.json` (0600) in the signed trigger's ledger folder. M9 pieces 3-4: the trigger door. Appends ONE line per fire outcome to `<flow>/triggers.jsonl` (append-only, 0600) and makes the per-signed-trigger ledger folder (`<flow>/triggers/<hash>/`, 0700); realpathSync of the typed --root, of a file trigger's folder and of each input path a fire starts a run with, at use time. Every READ of a job, a run, its copy and the outcome file goes through readFileInside / readFlow / the ledgers' own readers, never fs directly.",
+    reason: "M6 am5 item 3: realpathSync of the flows root for the scheduled destination check at fire time; writes the write-once `schedule-model.json` (0600) in the signed trigger's ledger folder. M9 pieces 3-4: the trigger door. Appends ONE line per fire outcome to `<flow>/triggers.jsonl` (append-only, 0600, through src/jsonl-append.js) and makes the per-signed-trigger ledger folder (`<flow>/triggers/<hash>/`, 0700); realpathSync of the typed --root, of a file trigger's folder and of each input path a fire starts a run with, at use time. Every READ of a job, a run, its copy and the outcome file goes through readFileInside / readFlow / the ledgers' own readers, never fs directly.",
     names: {
-      appendFileSync: 1, mkdirSync: 1, realpathSync: 4, writeFileSync: 1,
+      mkdirSync: 1, realpathSync: 4, writeFileSync: 1,
     },
   },
   'src/panel/authorresume.js': {

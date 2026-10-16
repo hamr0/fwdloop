@@ -12,9 +12,11 @@
 //   { id:'fire:<slotMs>', kind:'fire', slot, at, catchUp, missed } one run started for that slot
 // Starting a run is NOT this file; the caller does it after `recordFire`.
 import {
-  appendFileSync, existsSync, mkdirSync, readFileSync,
+  mkdirSync,
 } from 'node:fs';
 import { dirname } from 'node:path';
+
+import { appendRow, ledgerText } from './jsonl-append.js';
 
 /** @typedef {{kind:'daily'|'weekdays', hour:number, minute:number} | {kind:'weekly', day:string, hour:number, minute:number}} Schedule */
 /** @typedef {{id:string, kind:'armed'|'fire', at:number, slot?:number, catchUp?:boolean, missed?:number}} ClockRow */
@@ -114,20 +116,16 @@ export function nextSlot(schedule, afterMs) {
   return /** @type {number} */ (found);
 }
 
-/** The ledger's text, '' when there is no file yet. @param {string} file */
-const rawOf = (file) => (existsSync(file) ? readFileSync(file, 'utf8') : '');
-
 /** @param {string} file @returns {ClockRow[]} every row on disk that parses, oldest first; a missing file is no rows; a line a crash tore mid-append is skipped (`appendOnce` starts each append on a fresh line, so it never glues onto the next row). */
 export function readRows(file) {
-  return rawOf(file).split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
+  return ledgerText(file).split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
 }
 
 /** Append one row; a row whose id is already on disk is refused (write-once). @param {string} file @param {ClockRow} row */
 function appendOnce(file, row) {
   if (readRows(file).some((r) => r.id === row.id)) throw new Error(`ledger row ${row.id} already written`);
   mkdirSync(dirname(file), { recursive: true });
-  const raw = rawOf(file);
-  appendFileSync(file, `${raw !== '' && !raw.endsWith('\n') ? '\n' : ''}${JSON.stringify(row)}\n`);
+  appendRow(file, row);
 }
 
 /** The trigger was set at `now`: no slot before this ever fires. @param {string} file @param {number} now */

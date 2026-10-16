@@ -14,10 +14,12 @@
 // one. 'dropped' = it was deleted / changed before its turn. A sha with a `ran` row never arrives again, whatever its name or mtime; see `arrives` for baseline / queued / dropped.
 // poll() writes nothing: it only reports finished files whose sha is new.
 import {
-  appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync,
+  existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync,
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
+
+import { appendRow, ledgerText } from './jsonl-append.js';
 
 /** @typedef {{id:string, kind:'baseline'|'arrived'|'ran'|'dropped', sha:string, name:string, size:number, at:number, path?:string, why?:string, of?:string}} SeenRow */
 /** @typedef {{path:string, sha:string, size:number}} ToRun */
@@ -26,20 +28,16 @@ import { createHash } from 'node:crypto';
 /** Consecutive polls with the same size and mtime before a file is taken. (Two matches in a row = taken on the third sighting.) */
 export const STABLE_POLLS = 2;
 
-/** The ledger's text, '' when there is no file yet. @param {string} file */
-const rawOf = (file) => (existsSync(file) ? readFileSync(file, 'utf8') : '');
-
 /** Every row that parses; a line a crash tore mid-append is skipped (it counts as not written). `appendSeen` starts each append on a fresh line, so a torn line can never glue onto the next row. @param {string} file @returns {SeenRow[]} */
 export function readSeen(file) {
-  return rawOf(file).split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
+  return ledgerText(file).split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
 }
 
 /** The ONE appender: write-once by id (a second row with the same id is not written). Starts on a fresh line when the file does not end in a newline (a torn last line). @param {string} file @param {SeenRow} row @returns {boolean} written */
 function appendSeen(file, row) {
   if (readSeen(file).some((r) => r.id === row.id)) return false;
   mkdirSync(dirname(file), { recursive: true });
-  const raw = rawOf(file);
-  appendFileSync(file, `${raw !== '' && !raw.endsWith('\n') ? '\n' : ''}${JSON.stringify(row)}\n`);
+  appendRow(file, row);
   return true;
 }
 
