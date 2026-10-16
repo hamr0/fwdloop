@@ -59,7 +59,7 @@ function arrives(rows, it, mode) {
   if (mine.some((r) => r.kind === 'ran' || waiting(rows, r))) return false;
   const bi = rows.findLastIndex((r) => r.kind === 'baseline' && r.sha === it.sha);
   if (bi < 0) return true;
-  return mode === 'updated' && rows.slice(bi + 1).some((r) => r.kind !== 'baseline' && r.sha !== it.sha);
+  return mode === 'updated' && rows.slice(bi + 1).some((r) => (r.kind === 'arrived' || r.kind === 'ran' || r.kind === 'dropped') && r.sha !== it.sha);   // file rows only: the ledger also holds `armed` / `fire` / `cancelled` rows (M9 am20)
 }
 
 /** Arrived rows are never overwritten: the 2nd arrival of a sha (after a drop) gets its own id. @param {string} ledger @param {ToRun & {name?:string}} item @param {number} at the scheduler's clock, never the file's mtime @param {string} [sig] */

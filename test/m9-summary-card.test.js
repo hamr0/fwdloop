@@ -7,7 +7,7 @@ import path from 'node:path';
 
 import { NO_GREEN_SAY } from '../src/panel/authortrigger.js';
 import { killChildrenAfter, world } from './m4e-world.mjs';
-import { DAILY, greenWorld, setTrigger } from './m9-trigger-world.mjs';
+import { DAILY, greenWorld, setTrigger, sigNow } from './m9-trigger-world.mjs';
 
 killChildrenAfter();
 const cardOf = async (w) => (await w.get('/api/author/flows')).json().flows.find((f) => f.flow === 'job2').trigger;
@@ -58,7 +58,7 @@ test('a job with a trigger: SCHEDULED and NEXT (next run); monthly-exhausted row
   assert.match(d.summary.scheduled.next, /^Next run (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec), 09:00\.$/);
   assert.equal(d.summary.scheduled.nextRed, false);
   appendFileSync(path.join(flowDir, 'triggers.jsonl'), `${JSON.stringify({
-    at: new Date().toISOString(), flow: 'job2', trigger: 'daily 09:00', outcome: 'monthly-exhausted', leftUsd: 0.12, needUsd: 0.5, atLeast: false,
+    at: new Date().toISOString(), flow: 'job2', trigger: 'daily 09:00', sig: sigNow(flowDir), outcome: 'monthly-exhausted', leftUsd: 0.12, needUsd: 0.5, atLeast: false,
   })}\n`);
   const d2 = await detail(w);
   assert.equal(d2.summary.scheduled.next,

@@ -28,7 +28,7 @@ test('must fail: signing a changed job leaves every byte of the old workflow (fi
   assert.equal((await setTrigger(w, DAILY)).status, 200);
   const oldHash = read().signature.flow;
   const before = snapshot(flowDir);
-  assert.ok(Object.keys(before).some((f) => f.startsWith('triggers')), 'the old job really is scheduled');
+  assert.ok(Object.keys(before).some((f) => f === 'schedule.json'), 'the old job really is scheduled');
   const e = (await w.get('/api/author/flows')).json().flows.find((f) => f.flow === 'job2');
   const job = e.edit.card.job.replace('nothing goes out before I accept', 'nothing goes out before I say so');
   const d = await w.post('/api/author/draft', { ...w.card({ flowName: 'job2-2', job }), reuseOf: { flow: 'job2' } });
@@ -44,7 +44,7 @@ test('must fail: signing a changed job leaves every byte of the old workflow (fi
   assert.equal(nu.ok, true, JSON.stringify(nu));
   assert.equal(nu.arbiter.trigger, null, 'a new workflow has no schedule');
   const nd = path.join(w.root, 'job2-2');
-  assert.equal(readdirSync(nd).includes('triggers'), false);
+  assert.deepEqual(readdirSync(nd).filter((n) => n.startsWith('schedule')), [], 'a new workflow has no schedule file and no queue file');
   assert.ok(readdirSync(path.join(nd, 'runs')).length <= 1, 'no earlier runs (only the run the sign itself starts)');
   assert.equal(readFileSync(path.join(nd, 'model.json'), 'utf8'), readFileSync(path.join(flowDir, 'model.json'), 'utf8'), 'the model carries over');
 });

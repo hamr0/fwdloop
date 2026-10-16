@@ -1,5 +1,6 @@
 // M9 piece 3 (docs/wiki/the-module-ladder.md, "M9" item 1, am1): the trigger as typed data in the signed arbiter block.
-// Pure text: the grammar of the one `guardrail: trigger ...` line, and the ONE place a prose text gains, changes or loses it.
+// Pure text: the grammar of the one `guardrail: trigger ...` line. M9 am20: a schedule is its own signed file (src/schedule.js); NOTHING writes this line any more.
+// The signed-text parser still accepts it so a job signed before am20 still reads and verifies, but nothing acts on it: such a job is By hand.
 //
 //   guardrail: trigger daily 09:00
 //   guardrail: trigger weekdays 09:00
@@ -61,17 +62,6 @@ export const isTriggerLine = (line) => LINE_RE.test(line);
 /** The prose without any trigger line. Everything else is byte-for-byte what it was. @param {string} prose */
 export function stripTrigger(prose) {
   return prose.split('\n').filter((l) => !LINE_RE.test(l)).join('\n');
-}
-
-/**
- * The ONE writer of the trigger line: the prose with its trigger line replaced by this trigger's (or removed for null). With no trigger
- * in and none asked for, the text is returned unchanged. The arbiter block is last in a signed text, so the line goes at the end.
- * @param {string} prose @param {Trigger|null} trigger
- */
-export function proseWithTrigger(prose, trigger) {
-  const stripped = stripTrigger(prose);
-  if (trigger === null) return stripped;
-  return `${stripped.replace(/\s*$/, '')}\n${triggerLine(trigger)}\n`;
 }
 
 /**

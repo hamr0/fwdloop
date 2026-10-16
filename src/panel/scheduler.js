@@ -8,19 +8,18 @@
 //   each job's signed files (small, hash-checked) and does no more.
 // No leaked timer: `start` is idempotent, the timer is unref'd, and the server's close calls `stop`.
 //
-// What a tick does for one job with a signed trigger (the trigger itself is read from the job, never from here):
-//   1. arm it if it is not armed yet (a crash between the sign and the arm);
-//   2. clock kinds: `due` against the clock ledger; a due slot is written to the ledger (`recordFire`) BEFORE the fire;
-//   3. file kinds: `poll` of this job's file trigger; each file taken is already in the seen ledger (`ran`) BEFORE the fire.
+// What a tick does for one job with a signed schedule (M9 am20: the schedule is the job's own `schedule.json`, read by the door, never a line in the job):
+//   0. a schedule whose job was Edited since is cancelled the way Cancel does it (`retireStale`);
+//   1. clock kinds: `due` against this signing's rows of the job's one schedule ledger; a due slot is written to the ledger (`recordFire`) BEFORE the fire;
+//   2. file kinds: `poll` of this job's file trigger; each file taken is already in the ledger (`ran`) BEFORE the fire.
+// A schedule change or a Cancel settles the queue in its own click (src/schedule.js `dropQueue` / `carryQueue`): no tick settles anything.
 // A failure on one job (a folder that went away) is written once to `triggers.jsonl` as `refused` and never stops the other jobs.
-import { join } from 'node:path';
-
-import { readdirInside } from '../flow.js';
 import { due, readRows, recordFire } from '../trigger-clock.js';
 import {
-  createFileTrigger, queueOf, readSeen, recheck, recordArrived, recordDropped, recordRan, watches,
+  createFileTrigger, queueOf, readSeen, recheck, recordArrived, recordDropped, recordRan,
 } from '../trigger-files.js';
-import { readOutcomes, triggerLedgerDir } from './authortrigger.js';
+import { ledgerOf } from '../schedule.js';
+import { readOutcomes } from './authortrigger.js';
 
 /**
  * @param {{ door: ReturnType<typeof import('./authortrigger.js').createTriggerDoor>, now?: () => number, intervalMs?: number }} opts
@@ -42,10 +41,11 @@ export function createScheduler(opts) {
    * @param {any} job @param {string} ledger @param {number} nowMs
    */
   function runQueue(job, ledger, nowMs) {
-    let queue = queueOf(readSeen(ledger));
+    const { sig } = job;
+    let queue = queueOf(readSeen(ledger, sig));
     if (queue.length === 0) return;
     const key = (/** @type {string} */ sha, /** @type {Record<string, any>} */ r) => `${sha}|${r.outcome}|${r.why ?? ''}`;   // a refusal is told once PER REASON; busy / monthly carry no `why`
-    const spoken = new Set(readOutcomes(job.flowDir).filter((r) => typeof r.sha === 'string').map((r) => key(r.sha, r)));
+    const spoken = new Set(readOutcomes(job.flowDir).filter((r) => typeof r.sha === 'string' && r.sig === sig).map((r) => key(r.sha, r)));
     const cause = (/** @type {any} */ q) => ({ kind: /** @type {'file'} */ ('file'), path: q.path, sha: q.sha });
     const told = (/** @type {any} */ q) => (/** @type {Record<string, any>} */ row) => { const k = key(q.sha, row); const had = spoken.has(k); spoken.add(k); return had; };
     if (door.busy(job)) {
@@ -57,71 +57,45 @@ export function createScheduler(opts) {
       const seen = recheck(q);
       if (seen.state !== 'ok') {
         const why = seen.state === 'deleted' ? 'deleted' : 'changed';
-        recordDropped(ledger, q, why, nowMs);
+        recordDropped(ledger, q, why, nowMs, sig);
         door.note(job, {
           outcome: why, file: q.path, sha: q.sha, say: seen.state === 'deleted' ? `${q.name} did not run: ${seen.say}.` : `${q.name} did not run: it changed before its turn; the new version arrives again.`,
         });
         queue = queue.slice(1);
         continue;
       }
-      door.fire(job, cause({ ...q, path: seen.path }), { told: told(q), holdIfCannotStart: true, beforeStart: () => recordRan(ledger, seen, nowMs) });
+      door.fire(job, cause({ ...q, path: seen.path }), { told: told(q), holdIfCannotStart: true, beforeStart: () => recordRan(ledger, seen, nowMs, sig) });
       return;
-    }
-  }
-
-  /**
-   * M9 am16: the files still waiting in an OLDER signing's ledger (a trigger change opens a new ledger folder; a cancel leaves none). THE one place that carries or tells them:
-   * the trigger still watches the same folder (file) -> the file is queued in the current ledger with its old arrival time, and dropped from the old one (`carried`, no row); else
-   * (the folder changed, or the trigger is cancelled) it is dropped from the old ledger and ONE row says so. The drop is written BEFORE the row: a crash loses the row, never doubles it.
-   * @param {{flow: string, flowDir: string, trigger: any}} job `trigger` null = cancelled @param {string|null} hash the current signing's hash @param {number} nowMs
-   */
-  function settleOlderQueues(job, hash, nowMs) {
-    const triggers = join(job.flowDir, 'triggers');
-    const file = job.trigger && (job.trigger.kind === 'new-file' || job.trigger.kind === 'file-updated') ? job.trigger : null;
-    for (const name of readdirInside(triggers, '.').filter((n) => /^[0-9a-f]{64}$/.test(n) && n !== hash)) {
-      const old = join(triggers, name, 'seen.jsonl');
-      for (const q of queueOf(readSeen(old))) {
-        if (file !== null && hash !== null && watches(file.kind === 'new-file' ? 'new' : 'updated', file.kind === 'new-file' ? file.folder : file.path, q.path)) {
-          recordArrived(join(triggers, hash, 'seen.jsonl'), q, q.at);
-          recordDropped(old, q, 'carried', nowMs);
-        } else {
-          recordDropped(old, q, 'schedule-changed', nowMs);
-          door.note(job, { outcome: 'schedule-changed', file: q.path, sha: q.sha, say: `${q.name} was waiting when the schedule changed, so it will not run. Drop it in again to run it.` });
-        }
-      }
     }
   }
 
   function tick() {
     const nowMs = now();
     const live = new Set();
+    try { door.retireStale(); } catch { /* one job's files never stop the others; tried again next tick */ }
     for (const job of door.scan()) {
-      const hash = job.read.signature.flow;
-      const key = `${job.flow}|${hash}`;
+      const { sig } = job;
+      const key = `${job.flow}|${sig}`;
       live.add(key);
       try {
-        door.ensureArmed(job);
-        settleOlderQueues(job, hash, nowMs);
-        const dir = triggerLedgerDir(job.flowDir, hash);
+        const ledger = ledgerOf(job.flowDir);
         const { trigger } = job;
         if (trigger.kind === 'file-updated' || trigger.kind === 'new-file') {
           let w = watchers.get(key);
           if (!w) {
             w = createFileTrigger({
-              mode: trigger.kind === 'new-file' ? 'new' : 'updated', target: trigger.kind === 'new-file' ? trigger.folder : trigger.path, ledger: join(dir, 'seen.jsonl'),
+              mode: trigger.kind === 'new-file' ? 'new' : 'updated', target: trigger.kind === 'new-file' ? trigger.folder : trigger.path, ledger, sig,
             });
             watchers.set(key, w);
           }
-          const ledger = join(dir, 'seen.jsonl');
           const { arrived, refused } = w.poll();
           for (const r of refused) door.refuse(job, `${r.path}: ${r.why}`);
-          for (const f of arrived) recordArrived(ledger, f, nowMs);   // THE writer of the file ledger: arrival time is this clock, never the file's mtime
+          for (const f of arrived) recordArrived(ledger, f, nowMs, sig);   // THE writer of the file ledger: arrival time is this clock, never the file's mtime
           runQueue(job, ledger, nowMs);
         } else {
-          const clock = join(dir, 'clock.jsonl');
-          const d = due(trigger, readRows(clock), nowMs);
+          const d = due(trigger, readRows(ledger, sig), nowMs);
           if (d.fire) {
-            recordFire(clock, d, nowMs);   // BEFORE the fire: a crash loses a run, never doubles one
+            recordFire(ledger, d, nowMs, sig);   // BEFORE the fire: a crash loses a run, never doubles one
             door.fire(job, {
               kind: 'clock', slot: /** @type {number} */ (d.slot), catchUp: d.catchUp, missed: d.missed,
             });
@@ -131,9 +105,6 @@ export function createScheduler(opts) {
         const why = /** @type {Error} */ (e).message;
         if (!told.has(`${key}|${why}`)) { told.add(`${key}|${why}`); door.refuse(job, why); }
       }
-    }
-    for (const job of door.untriggered()) {
-      try { settleOlderQueues(job, null, nowMs); } catch { /* one job's ledger never stops the others; tried again next tick */ }
     }
     for (const k of [...watchers.keys()]) if (!live.has(k)) watchers.delete(k);
   }

@@ -1,5 +1,5 @@
 // M9 amendment 8 (docs/wiki/the-module-ladder.md): a run waiting at its ask does not make the job busy for the SCHEDULE; a run still working does.
-// Edit's own refusal is unchanged (M6). The answer at an ask is never held back by another run of the job. The SCHEDULE line 2 words.
+// (M9 am20 item 3: a schedule is no longer refused while a run waits; Edit's own refusal, M6, is the Edit door's.) The answer at an ask is never held back by another run of the job. The SCHEDULE line 2 words.
 // No real waits: the clock is injected, tick() is called by hand, the runs are the real `fwdloop run` child with the test model step ($0).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -53,14 +53,13 @@ test('Must fail: the schedule starts a run while another run of the job is worki
   assert.deepEqual(f.runs(), ['run-1'], 'nothing started');
 });
 
-test('Edit\'s refusal is unchanged: a run waiting at its ask still refuses setting a trigger with the Edit sentence (M6)', async () => {
+test('M9 am20 item 3 replaces this (was: Edit\'s refusal also refused a schedule): a run waiting at its ask no longer refuses setting a schedule; Edit\'s own refusal is the Edit door\'s (M6)', async () => {
   const f = await gatedWorld(true);
   const run = await f.w.post('/api/author/run', { flow: 'job2', inputs: f.w.inputs(), runId: '' });
   assert.equal(run.status, 202, run.text);
   await until(async () => { const v = (await f.w.get(`/api/author/start/${run.json().startId}`)).json(); return v.state === 'parked' ? v : null; });
   const p = await f.w.post('/api/author/trigger-prepare', { flow: 'job2', trigger: DAILY });
-  assert.equal(p.status, 409, p.text);
-  assert.match(p.json().say, /finish or stop run-1 first/);
+  assert.equal(p.status, 200, p.text);
 });
 
 test('Must fail: your answer at an ask is held back because another run of the job is working (am8 item 1)', async () => {

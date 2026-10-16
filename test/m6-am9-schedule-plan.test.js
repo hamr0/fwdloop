@@ -1,5 +1,5 @@
-// M6 am9 piece 6: "A schedule set from a run uses that run's plan." The plan is bound by the second click's hash, written once beside the trigger's ledgers
-// (`schedule-plan.json`), re-verified at every fire; the fire starts the run on a verified copy of that plan. The workflow's declaration is never changed.
+// M6 am9 piece 6: "A schedule set from a run uses that run's plan." The plan is bound by the second click's hash, written once in the schedule's own file
+// (the `plan` field of `schedule.json`), re-verified at every fire; the fire starts the run on a verified copy of that plan. The workflow's declaration is never changed.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
@@ -11,7 +11,7 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { writeFlow } from '../src/flow.js';
 import { killChildrenAfter, until } from './m4e-world.mjs';
 import { DAILY, greenWorld } from './m9-trigger-world.mjs';
-import { readOutcomes, triggerLedgerDir } from '../src/panel/authortrigger.js';
+import { readOutcomes } from '../src/panel/authortrigger.js';
 
 killChildrenAfter();
 const CAT = loadCatalogue().primitives;
@@ -41,7 +41,7 @@ const schedule = async (w, extra = {}) => {
   if (p.status !== 200) return p;
   return w.post('/api/author/trigger', { flow: 'job2', trigger: DAILY, hash: p.json().hash, ...extra });
 };
-const planFile = (f) => path.join(triggerLedgerDir(f.flowDir, f.read().signature.flow), 'schedule-plan.json');
+const savedPlan = (f) => JSON.parse(readFileSync(path.join(f.flowDir, 'schedule.json'), 'utf8')).plan;   // M9 am20: the plan is a field of the schedule's own file
 
 test('must fail: a schedule set from a run that kept another plan fires a run on THAT plan (verified copy, plan.json planOf); the workflow\'s declaration is untouched', async () => {
   const f = await fireWorld();
@@ -49,7 +49,7 @@ test('must fail: a schedule set from a run that kept another plan fires a run on
   const declBefore = readFileSync(path.join(f.flowDir, 'declaration.json'), 'utf8');
   const r = await schedule(f.w, { planOf: 'seed-b' });
   assert.equal(r.status, 200, r.text);
-  assert.equal(JSON.parse(readFileSync(planFile(f), 'utf8')).run, 'seed-b');
+  assert.equal(savedPlan(f).run, 'seed-b');
   f.clock.t = at(13, 9, 0, 30); f.w.h.tick();
   const row = readOutcomes(f.flowDir).at(-1);
   assert.equal(row.outcome, 'started', JSON.stringify(row));
@@ -82,7 +82,7 @@ test('must fail: if the kept plan is changed after the schedule was signed, the 
   assert.equal(f.w.starts().length, startsBefore);
 });
 
-test('a plan that does not verify is refused at the first click; a plan that is the workflow\'s own writes no plan file and fires a plain run', async () => {
+test('a plan that does not verify is refused at the first click; a plan that is the workflow\'s own saves no plan and fires a plain run', async () => {
   const f = await fireWorld();
   const b = f.keepPlanB();
   writeFileSync(path.join(b.runDir, 'job', 'prose.txt'), 'tampered');
@@ -91,7 +91,7 @@ test('a plan that does not verify is refused at the first click; a plan that is 
   assert.equal(bad.json().refused, 'plan');
   const g = await fireWorld();
   assert.equal((await schedule(g.w, { planOf: 'seed-pass' })).status, 200);
-  assert.equal(existsSync(planFile(g)), false);
+  assert.equal(savedPlan(g), null);
   g.clock.t = at(13, 9, 0, 30); g.w.h.tick();
   const row = readOutcomes(g.flowDir).at(-1);
   assert.equal(row.outcome, 'started', JSON.stringify(row));

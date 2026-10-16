@@ -1,8 +1,9 @@
 // M9 amendment 10 (docs/wiki/the-module-ladder.md): Cancel schedule always works, even while a run is starting, working or waiting at its ask;
-// it only stops future runs. A NEW schedule stays refused while a run is live (M6). Real HTTP, the gated model step, $0.
+// it only stops future runs. M9 am20 (signed) replaces the last sentence: a NEW schedule is allowed while a run is going too (it never touches the job).
+// Real HTTP, the gated model step, $0.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { readHistory } from '../src/books.js';
@@ -34,8 +35,8 @@ test('Must fail: Cancel is refused because a run is waiting at its ask; the run 
   const before = g.read().signature.flow;
   const c = await setTrigger(g.w, null);
   assert.equal(c.status, 200, c.text);
-  assert.equal(g.read().arbiter.trigger, null, 'the schedule is gone');
-  assert.notEqual(g.read().signature.flow, before, 'the job was re-signed without its trigger line');
+  assert.equal(existsSync(path.join(g.flowDir, 'schedule.json')), false, 'the schedule is gone');
+  assert.equal(g.read().signature.flow, before, 'the job was not touched (am20)');
   const ask = (await g.w.get('/api/runs/job2/run-1/asks')).json().asks?.[0];
   assert.ok(ask?.askId, 'the waiting run still shows its ask');
   const a = await g.w.post('/api/answer', { flow: 'job2', runId: 'run-1', askId: ask.askId, decision: 'accept' });
@@ -51,18 +52,25 @@ test('Must fail: Cancel is refused because a run is working, or Cancel stops/cha
   await until(async () => { const v = (await g.w.get(`/api/author/start/${sid}`)).json(); return v.phase === 'started' && v.state === 'working' ? v : null; });
   const c = await setTrigger(g.w, null);
   assert.equal(c.status, 200, c.text);
-  assert.equal(g.read().arbiter.trigger, null);
+  assert.equal(existsSync(path.join(g.flowDir, 'schedule.json')), false);
   const v = (await g.w.get(`/api/author/start/${sid}`)).json();
   assert.equal(v.state, 'working', 'the run was not stopped');
   writeFileSync(g.w.gate, 'go');
   await until(async () => { const s = (await g.w.get(`/api/author/start/${sid}`)).json(); return s.state === 'parked' || s.state === 'done' ? s : null; });
 });
 
-test('Must fail: a new schedule is accepted while a run waits (am10 keeps M6 for set)', async () => {
+test('Must fail: a new schedule is refused because a run waits at its ask: it is accepted, the job is untouched, the run finishes (am20 item 3)', async () => {
   const g = await gated(true);
   const sid = await startRun(g);
   await until(async () => { const v = (await g.w.get(`/api/author/start/${sid}`)).json(); return v.state === 'parked' ? v : null; });
-  const p = await g.w.post('/api/author/trigger-prepare', { flow: 'job2', trigger: DAILY });
-  assert.equal(p.status, 409, p.text);
-  assert.equal(p.json().refused, 'run-live');
+  const before = g.read().signature.flow;
+  const p = await setTrigger(g.w, DAILY);
+  assert.equal(p.status, 200, p.text);
+  assert.equal(existsSync(path.join(g.flowDir, 'schedule.json')), true);
+  assert.equal(g.read().signature.flow, before);
+  const ask = (await g.w.get('/api/runs/job2/run-1/asks')).json().asks?.[0];
+  const a = await g.w.post('/api/answer', { flow: 'job2', runId: 'run-1', askId: ask.askId, decision: 'accept' });
+  assert.equal(a.status, 202, a.text);
+  const row = await until(() => readHistory(g.flowDir).find((r) => String(r.runId) === 'run-1' && r.outcome) ?? null, 30_000);
+  assert.equal(row.outcome, 'complete', JSON.stringify(row));
 });

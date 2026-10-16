@@ -8,7 +8,7 @@ import path from 'node:path';
 
 import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
 import { GATED_STEP, killChildrenAfter, tickedConfig, until } from './m4e-world.mjs';
-import { DAILY, greenWorld } from './m9-trigger-world.mjs';
+import { DAILY, greenWorld, sigNow } from './m9-trigger-world.mjs';
 import { scheduleAuditWords } from '../src/summary-words.js';
 
 killChildrenAfter();
@@ -35,7 +35,7 @@ const setSchedule = async (w) => {
   assert.equal(s.status, 200, s.text);
 };
 const audit = async (w, id) => (await w.get(`/api/runs/job2/${id}/audit`)).json();
-const addFire = (flowDir, over) => appendFileSync(path.join(flowDir, 'triggers.jsonl'), `${JSON.stringify({ at: iso(at(13, 12)), flow: 'job2', trigger: 'daily 09:00', ...over })}\n`);
+const addFire = (flowDir, over) => appendFileSync(path.join(flowDir, 'triggers.jsonl'), `${JSON.stringify({ at: iso(at(13, 12)), flow: 'job2', trigger: 'daily 09:00', sig: sigNow(flowDir), ...over })}\n`);
 
 const block = { line1: 'new file in ~/fwdloop-in', red: false };
 const base = { trigger: { kind: 'new-file' }, runId: 'run-9', from: 'run-7', rec: null, startMs: at(15, 13, 20), block, running: false, fires: [] };

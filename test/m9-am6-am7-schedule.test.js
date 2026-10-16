@@ -10,7 +10,7 @@ import path from 'node:path';
 
 import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
 import { killChildrenAfter, tickedConfig } from './m4e-world.mjs';
-import { DAILY, greenWorld } from './m9-trigger-world.mjs';
+import { DAILY, greenWorld, sigNow } from './m9-trigger-world.mjs';
 import { readOutcomes } from '../src/panel/authortrigger.js';
 import {
   scheduleBlockWords, scheduleFieldWords, scheduleHead, shortStamp, startedWords,
@@ -41,7 +41,7 @@ const job = async (w, id) => (await w.get(`/api/runs/job2/${id}/job`)).json();
 const audit = async (w, id) => (await w.get(`/api/runs/job2/${id}/audit`)).json();
 const detail = async (w, id) => (await w.get(`/api/runs/job2/${id}`)).json();
 const fire = (f, hh = 9) => { f.clock.t = at(13, hh, 0, 30); f.w.h.tick(); return readOutcomes(f.flowDir).at(-1); };
-const addFire = (flowDir, over) => appendFileSync(path.join(flowDir, 'triggers.jsonl'), `${JSON.stringify({ at: new Date(at(13, 12)).toISOString(), flow: 'job2', trigger: 'daily 09:00', ...over })}\n`);
+const addFire = (flowDir, over) => appendFileSync(path.join(flowDir, 'triggers.jsonl'), `${JSON.stringify({ at: new Date(at(13, 12)).toISOString(), flow: 'job2', trigger: 'daily 09:00', sig: sigNow(flowDir), ...over })}\n`);
 
 test('words (pure): Started / Audit first row / Schedule field / fire rows, the signed examples', () => {
   const d = { kind: 'daily', hour: 8, minute: 15 };

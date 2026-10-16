@@ -9,11 +9,11 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 
-import { readOutcomes, triggerLedgerDir } from '../src/panel/authortrigger.js';
-import { readSeen, STABLE_POLLS } from '../src/trigger-files.js';
+import { readOutcomes } from '../src/panel/authortrigger.js';
+import { STABLE_POLLS } from '../src/trigger-files.js';
 import { GATED_STEP, killChildrenAfter, until } from './m4e-world.mjs';
 import { existsSync, unlinkSync } from 'node:fs';
-import { greenWorld, ls, setTrigger } from './m9-trigger-world.mjs';
+import { greenWorld, ls, setTrigger, seenOf } from './m9-trigger-world.mjs';
 
 killChildrenAfter();
 const at = (day, hh = 0, mm = 0, ss = 0) => new Date(2026, 9, day, hh, mm, ss).getTime();
@@ -30,7 +30,7 @@ async function qWorld() {
   const runs = () => ls(path.join(g.flowDir, 'runs')).filter((n) => /^run-\d+$/.test(n));
   const tick = () => g.w.h.tick();
   const polls = (n = STABLE_POLLS + 2) => { for (let i = 0; i < n; i++) tick(); };
-  const ledger = () => readSeen(path.join(triggerLedgerDir(g.flowDir, g.read().signature.flow), 'seen.jsonl'));
+  const ledger = () => seenOf(g.flowDir);
   const drop = (n, body = `# ${n}\n`) => writeFileSync(path.join(inbox, n), body);
   /** Stop the newest run (it is parked at its ask) and wait until the job is free again. */
   const endRun = async () => {
@@ -175,7 +175,7 @@ test('file-updated: a queued version replaced before its turn is "changed"; the 
   assert.equal(started(), 2, 'v2 never ran, v3 ran once');
   const rows = readOutcomes(g.flowDir);
   assert.equal(rows.filter((r) => r.outcome === 'changed').length, 1);
-  const seen = readSeen(path.join(triggerLedgerDir(g.flowDir, g.read().signature.flow), 'seen.jsonl'));
+  const seen = seenOf(g.flowDir);
   assert.equal(seen.filter((r) => r.kind === 'ran').length, 2);
 });
 

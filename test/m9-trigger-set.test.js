@@ -8,11 +8,11 @@ import {
 import path from 'node:path';
 
 import { readFlow, writeFlow } from '../src/flow.js';
-import { stripTrigger } from '../src/trigger-line.js';
-import { hasGreenRunForJob, triggerLedgerDir } from '../src/panel/authortrigger.js';
+import { hasGreenRunForJob } from '../src/panel/authortrigger.js';
+import { readSchedule } from '../src/schedule.js';
 import { killChildrenAfter, until } from './m4e-world.mjs';
 import {
-  CAT, DAILY, greenWorld, ls, readJsonl, seedGreen, setTrigger,
+  CAT, DAILY, clockOf, greenWorld, ls, seedGreen, seenOf, setTrigger,
 } from './m9-trigger-world.mjs';
 import { world } from './m4e-world.mjs';
 
@@ -35,7 +35,7 @@ test('Must fail: the trigger door is refused, at $0, on a job with no green run,
   assert.deepEqual([text(path.join(flowDir, 'prose.txt')), text(path.join(flowDir, 'signature.json'))], before, 'nothing signed');
   assert.deepEqual(ls(path.join(w.root, '.drafts')), draftsBefore, 'no drafter call');
   assert.deepEqual(w.starts(), [], 'nothing started');
-  assert.equal(existsSync(path.join(flowDir, 'triggers')), false, 'nothing armed');
+  assert.equal(existsSync(path.join(flowDir, 'schedule.json')) || existsSync(path.join(flowDir, 'schedule-ledger.jsonl')), false, 'nothing armed');
 });
 
 test('a run that passed an older, different job is not "one green run" either (seeded pre-copy run with another signature)', async () => {
@@ -46,9 +46,9 @@ test('a run that passed an older, different job is not "one green run" either (s
   assert.equal(r.json().refused, 'no-green-run');
 });
 
-test('set: two clicks, hash-bound; re-signs the SAME plan with only the trigger line added; $0; runs and steps untouched', async () => {
+test('set: two clicks, hash-bound; writes schedule.json and arms it; the job (prose, steps, signature) is byte-identical; $0; runs untouched (M9 am20)', async () => {
   const { w, flowDir, read } = await greenWorld();
-  const before = { prose: text(path.join(flowDir, 'prose.txt')), decl: text(path.join(flowDir, 'declaration.json')), hash: read().signature.flow };
+  const before = { prose: text(path.join(flowDir, 'prose.txt')), decl: text(path.join(flowDir, 'declaration.json')), sigFile: text(path.join(flowDir, 'signature.json')), hash: read().signature.flow };
   const draftsBefore = ls(path.join(w.root, '.drafts'));
   const runsBefore = ls(path.join(flowDir, 'runs'));
   const p = await w.post('/api/author/trigger-prepare', { flow: 'job2', trigger: DAILY });
@@ -63,27 +63,27 @@ test('set: two clicks, hash-bound; re-signs the SAME plan with only the trigger 
   assert.equal(s.status, 200, s.text);
   const after = read();
   assert.equal(after.ok, true);
-  assert.deepEqual(after.arbiter.trigger, DAILY);
-  assert.notEqual(after.signature.flow, before.hash);
-  assert.equal(stripTrigger(text(path.join(flowDir, 'prose.txt'))).trimEnd(), before.prose.trimEnd(), 'the prose differs by the trigger line only');
+  assert.deepEqual(readSchedule(flowDir).trigger, DAILY, 'the schedule is its own signed file');
+  assert.equal(after.signature.flow, before.hash, 'the job keeps its signature');
+  assert.equal(text(path.join(flowDir, 'prose.txt')), before.prose, 'the prose is byte-identical');
+  assert.equal(text(path.join(flowDir, 'signature.json')), before.sigFile);
   assert.equal(text(path.join(flowDir, 'declaration.json')), before.decl, 'the steps are byte-identical');
   assert.deepEqual(ls(path.join(flowDir, 'runs')), runsBefore);
   assert.deepEqual(ls(path.join(w.root, '.drafts')), draftsBefore, 'no drafter call');
   assert.deepEqual(w.starts(), [], 'nothing started');
   assert.ok(existsSync(path.join(flowDir, 'setup.jsonl')), 'the job\'s setup record is kept');
-  // armed for THIS signed trigger
-  const led = triggerLedgerDir(flowDir, after.signature.flow);
-  assert.ok(readJsonl(path.join(led, 'clock.jsonl')).some((r) => r.kind === 'armed'));
+  // armed for THIS signing
+  assert.ok(clockOf(flowDir).some((r) => r.kind === 'armed'));
 });
 
-test('F2 a trigger-only re-sign (set, change, cancel) keeps the Job tab reading this job\'s record: same "Not checked" list, recorded:true; setup.jsonl only grows', async () => {
+test('F2 a schedule action (set, change, cancel) keeps the Job tab reading this job\'s record: same "Not checked" list, recorded:true; setup.jsonl is not touched', async () => {
   const { w, flowDir } = await greenWorld();
   const plan = async (runId) => (await w.get(`/api/runs/job2/${runId}/job`)).json().plan.notChecked;
   const first = await plan('seed-pass');
   assert.equal(first.recorded, true, 'before: the signing wrote its record');
   const old = text(path.join(flowDir, 'setup.jsonl'));
   assert.equal((await setTrigger(w, DAILY)).status, 200);
-  assert.ok(text(path.join(flowDir, 'setup.jsonl')).startsWith(old), 'append-only: the old bytes are kept as they were');
+  assert.equal(text(path.join(flowDir, 'setup.jsonl')), old, 'setup.jsonl is byte-identical: no re-sign, no row');
   seedGreen(w, 'job2', 'after-set');
   assert.deepEqual(await plan('after-set'), first, 'a run of the schedule-signed job reads the same record');
   assert.deepEqual(await plan('seed-pass'), first, 'and so does the run before it');
@@ -93,7 +93,7 @@ test('F2 a trigger-only re-sign (set, change, cancel) keeps the Job tab reading 
   assert.deepEqual(await plan('after-set'), first);
 });
 
-test('F3 a legacy green run (no job copy, signatureHash = the signature) stays green through trigger-only re-signs, until a real Edit; Cancel is never refused for no-green-run (am5)', async () => {
+test('F3 a legacy green run (no job copy, signatureHash = the signature) stays green through schedule actions, until a real Edit; Cancel is never refused for no-green-run (am5)', async () => {
   const w = await world({ limit: 5 });
   await w.signedFlow();
   const flowDir = path.join(w.root, 'job2');
@@ -110,7 +110,7 @@ test('F3 a legacy green run (no job copy, signatureHash = the signature) stays g
   assert.equal((await setTrigger(w, DAILY)).json().refused, 'no-green-run', 'setting still needs the green run');
   const c = await setTrigger(w, null);
   assert.equal(c.status, 200, c.text);
-  assert.equal(read().arbiter.trigger, null);
+  assert.equal(existsSync(path.join(flowDir, 'schedule.json')), false);
   // a real Edit (the steps changed) clears green (am1)
   writeFileSync(path.join(flowDir, 'history.jsonl'), `${JSON.stringify({ runId: 'legacy', at: '2026-10-06T10:00:00.000Z', outcome: 'complete', spentUsd: 0.02, spendComplete: true, capUsd: 0.25, wallMs: 1, signatureHash: read().signature.flow })}\n`);
   assert.equal(hasGreenRunForJob(flowDir), true, 'after Cancel schedule');
@@ -122,7 +122,7 @@ test('F3 a legacy green run (no job copy, signatureHash = the signature) stays g
   assert.equal(hasGreenRunForJob(flowDir), false, 'a real Edit clears it');
 });
 
-test('Must fail (item 2): changing only the trigger keeps the green run; an edit of the steps does not (one function, both directions)', async () => {
+test('Must fail (item 2): changing only the schedule keeps the green run; an edit of the steps does not (one function, both directions)', async () => {
   const { w, flowDir, read } = await greenWorld();
   assert.equal(hasGreenRunForJob(flowDir), true);
   assert.equal((await setTrigger(w, DAILY)).status, 200);
@@ -140,18 +140,17 @@ test('Must fail (item 2): changing only the trigger keeps the green run; an edit
   assert.equal(r.json().refused, 'no-green-run', 'and the door is shut again');
 });
 
-test('refused while a run of the job is waiting at its ask, with the Edit sentence; nothing signed', async () => {
+test('M9 am20 item 3: a run waiting at its ask does not refuse a new schedule (it used to, with the Edit sentence); the job and the waiting run are untouched', async () => {
   const { w, flowDir, read } = await greenWorld();
   const run = await w.post('/api/author/run', { flow: 'job2', inputs: w.inputs(), runId: '' });
   assert.equal(run.status, 202, run.text);
   await until(async () => { const v = (await w.get(`/api/author/start/${run.json().startId}`)).json(); return v.state === 'parked' ? v : null; });
   const hash = read().signature.flow;
-  const p = await w.post('/api/author/trigger-prepare', { flow: 'job2', trigger: DAILY });
-  assert.equal(p.status, 409, p.text);
-  assert.equal(p.json().refused, 'run-live');
-  assert.match(p.json().say, /finish or stop run-1 first/);
+  const s = await setTrigger(w, DAILY);
+  assert.equal(s.status, 200, s.text);
   assert.equal(read().signature.flow, hash);
-  assert.equal(existsSync(path.join(flowDir, 'triggers')), false);
+  assert.deepEqual(readSchedule(flowDir).trigger, DAILY);
+  assert.equal((await w.get(`/api/author/start/${run.json().startId}`)).json().state, 'parked', 'the waiting run is still waiting');
 });
 
 test('a file trigger: the role must be one of the job\'s inputs; a missing folder, a folder where a file goes and a symlink are refused by name', async () => {
@@ -179,20 +178,24 @@ test('a file trigger: the role must be one of the job\'s inputs; a missing folde
   // good ones: the existing file; the folder, whose files at arm are the baseline (nothing in the seen ledger runs)
   writeFileSync(path.join(sub, 'a.csv'), 'a\n'); writeFileSync(path.join(sub, 'b.csv'), 'b\n'); writeFileSync(path.join(sub, 'c.csv'), 'c\n');
   assert.equal((await setTrigger(w, { kind: 'new-file', role: 'jd', folder: sub })).status, 200);
-  const led = triggerLedgerDir(path.join(w.root, 'job2'), read().signature.flow);
-  assert.equal(readJsonl(path.join(led, 'seen.jsonl')).filter((r) => r.kind === 'baseline').length, 3);
+  assert.equal(seenOf(path.join(w.root, 'job2')).filter((r) => r.kind === 'baseline').length, 3);
   assert.equal((await setTrigger(w, { kind: 'file-updated', role: 'resume', path: f })).status, 200);
-  assert.deepEqual(read().arbiter.trigger, { kind: 'file-updated', role: 'resume', path: f });
+  assert.deepEqual(readSchedule(path.join(w.root, 'job2')).trigger, { kind: 'file-updated', role: 'resume', path: f });
 });
 
-test('By hand (null) puts the job back to no trigger through the same two clicks, and a re-signed trigger gets a fresh ledger folder', async () => {
+test('By hand (null) removes schedule.json through the same two clicks, and a re-signed schedule is a NEW signing: an older one\'s rows never carry into it', async () => {
   const { w, flowDir, read } = await greenWorld();
+  const sigBefore = read().signature.flow;
   assert.equal((await setTrigger(w, DAILY)).status, 200);
-  const first = triggerLedgerDir(flowDir, read().signature.flow);
+  const first = readSchedule(flowDir).sig;
   assert.equal((await setTrigger(w, { ...DAILY, hour: 10 })).status, 200);
-  const second = triggerLedgerDir(flowDir, read().signature.flow);
-  assert.notEqual(first, second, 'an older trigger\'s ledger never carries into a new one');
+  const second = readSchedule(flowDir).sig;
+  assert.notEqual(first, second, 'a new signing');
+  assert.equal(clockOf(flowDir).filter((r) => r.kind === 'armed').length, 1, 'this signing\'s own armed row only');
   assert.equal((await setTrigger(w, null)).status, 200);
-  assert.equal(read().arbiter.trigger, null);
+  assert.equal(existsSync(path.join(flowDir, 'schedule.json')), false);
+  assert.equal(read().signature.flow, sigBefore);
   assert.doesNotMatch(text(path.join(flowDir, 'prose.txt')), /trigger/);
+  assert.equal((await setTrigger(w, { ...DAILY, hour: 10 })).status, 200, 'the same schedule again after a Cancel');
+  assert.notEqual(readSchedule(flowDir).sig, second, 'is a new signing, not the old one back');
 });

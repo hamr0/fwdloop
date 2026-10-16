@@ -367,6 +367,10 @@ const ALLOWLIST = {
       existsSync: 2, lstatSync: 8, mkdirSync: 1, readFileSync: 3, readdirSync: 1, realpathSync: 6,
     },
   },
+  'src/schedule.js': {
+    reason: "M9 am20: the ONE writer of `<flow>/schedule.json` (temp file + rename, 0600: a reader sees the old file or the new one) and its ONE remover (rmSync). The job's own files are never opened here. Every READ goes through readFileInside; the queue file goes through src/trigger-files.js and src/jsonl-append.js.",
+    names: { renameSync: 1, rmSync: 1, writeFileSync: 1 },
+  },
   'src/jsonl-append.js': {
     reason: "The ONE fresh-line append for every append-only JSONL file (books, trigger ledgers, triggers.jsonl): reads the file's LAST BYTE (openSync/fstatSync/readSync/closeSync) to see whether a crash tore the last line, then appendFileSync; `ledgerText` is the one whole-file read of a trigger ledger (existsSync + readFileSync). Files outside any run/flow-dir book reader are the callers' business; the books' own reads still go through readFileInside.",
     names: {
@@ -437,7 +441,7 @@ const ALLOWLIST = {
   },
   'src/setup.js': {
     reason: 'M4e amendment 6 item 4: the ONE writer of `<flow>/setup.jsonl` — one exclusive create (flag wx, 0600) of a file in the flow folder `signDraft` just wrote; a second one in `carrySetup`: the old bytes written back plus one `trigger-resign` row after a trigger-only re-sign (wx; the sign moved the old file away); lstatSync of a draft folder\'s own card/note file for its modified time only (a symlink is not followed, nothing is read). Every READ (the draft folder, the flow\'s setup.jsonl) goes through readFileInside/readdirInside/readSpendRows.',
-    names: { lstatSync: 1, writeFileSync: 2 },
+    names: { lstatSync: 1, writeFileSync: 1 },
   },
   'src/draftspend.js': {
     reason: 'M4e piece 2a: the draft folder\'s own per-call spend record (`draft-spend.json`) — one atomic write (tmp + rename) of the file the drafter just booked into, in the draft dir `draftToDir` itself created. Every READ goes through readFileInside/readSpendRows.',
@@ -456,10 +460,8 @@ const ALLOWLIST = {
     },
   },
   'src/panel/authortrigger.js': {
-    reason: "M6 am5 item 3: realpathSync of the flows root for the scheduled destination check at fire time; writes the write-once `schedule-model.json` (0600) in the signed trigger's ledger folder. M9 pieces 3-4: the trigger door. Appends ONE line per fire outcome to `<flow>/triggers.jsonl` (append-only, 0600, through src/jsonl-append.js) and makes the per-signed-trigger ledger folder (`<flow>/triggers/<hash>/`, 0700); realpathSync of the typed --root, of a file trigger's folder and of each input path a fire starts a run with, at use time. Every READ of a job, a run, its copy and the outcome file goes through readFileInside / readFlow / the ledgers' own readers, never fs directly.",
-    names: {
-      mkdirSync: 1, realpathSync: 4, writeFileSync: 1,
-    },
+    reason: "M9 pieces 3-4 and am20: the schedule door. realpathSync of the flows root, of a file trigger's folder and of each input path a fire starts a run with, and of the scheduled destination at fire time (all at use time). Appends ONE line per fire outcome to `<flow>/triggers.jsonl` (append-only, 0600, through src/jsonl-append.js). It writes nothing else itself: the schedule file and the queue go through src/schedule.js. Every READ of a job, a run, its copy and the outcome file goes through readFileInside / readFlow / the ledgers' own readers, never fs directly.",
+    names: { realpathSync: 4 },
   },
   'src/panel/authorresume.js': {
     reason: 'M4e amendment 4 items 4 and 6: the Resume door — realpathSync of the typed --root at use time. Writes nothing itself: the new signed cap version goes through `writeRunValues` (src/runvalues.js, write-once) and the continue through authorstart.js; every book it reads goes through readFlow/readdirInside/readFileInside.',

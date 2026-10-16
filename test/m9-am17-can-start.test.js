@@ -6,11 +6,11 @@ import { test } from 'node:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { createTriggerDoor, readOutcomes, triggerLedgerDir } from '../src/panel/authortrigger.js';
+import { createTriggerDoor, readOutcomes } from '../src/panel/authortrigger.js';
 import { createScheduler } from '../src/panel/scheduler.js';
-import { readSeen, STABLE_POLLS } from '../src/trigger-files.js';
+import { STABLE_POLLS } from '../src/trigger-files.js';
 import { killChildrenAfter } from './m4e-world.mjs';
-import { greenWorld, ls, setTrigger } from './m9-trigger-world.mjs';
+import { greenWorld, ls, setTrigger, seenOf } from './m9-trigger-world.mjs';
 
 killChildrenAfter();
 const at = (day, hh = 0, mm = 0, ss = 0) => new Date(2026, 9, day, hh, mm, ss).getTime();
@@ -33,7 +33,7 @@ async function world() {
     now: () => clock.t,
   });
   const sched = createScheduler({ door, now: () => clock.t, intervalMs: 0 });
-  const ledger = () => readSeen(path.join(triggerLedgerDir(g.flowDir, g.read().signature.flow), 'seen.jsonl'));
+  const ledger = () => seenOf(g.flowDir);
   const kinds = () => ledger().filter((r) => r.kind !== 'baseline').map((r) => r.kind);
   const polls = (n = STABLE_POLLS + 2) => { for (let i = 0; i < n; i++) sched.tick(); };
   return { ...g, clock, inbox, ctl, ledger, kinds, polls, rows: () => readOutcomes(g.flowDir) };

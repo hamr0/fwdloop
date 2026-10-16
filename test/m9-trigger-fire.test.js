@@ -15,7 +15,7 @@ import {
   killChildrenAfter, until, sleep, tickedConfig,
 } from './m4e-world.mjs';
 import {
-  DAILY, greenWorld, ls, readJsonl, setTrigger,
+  DAILY, greenWorld, ls, readJsonl, seenOf, setTrigger,
 } from './m9-trigger-world.mjs';
 import { STABLE_POLLS } from '../src/trigger-files.js';
 
@@ -232,7 +232,7 @@ test('F4 a file whose job has no model record stays queued (no ran row), is told
   pollFiles(f); pollFiles(f);
   assert.equal(f.rows().filter((r) => r.outcome === 'refused').length, 1, `told once: ${JSON.stringify(f.rows())}`);
   assert.deepEqual(f.w.starts(), []);
-  const led = readJsonl(path.join(f.flowDir, 'triggers', f.read().signature.flow, 'seen.jsonl'));
+  const led = seenOf(f.flowDir);
   assert.equal(led.some((r) => r.kind === 'ran'), false, 'no ran row: it stays queued');
   assert.equal(led.some((r) => r.kind === 'arrived'), true);
   writeFileSync(path.join(f.flowDir, 'model.json'), rec);

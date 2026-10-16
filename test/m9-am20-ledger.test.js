@@ -37,3 +37,20 @@ test('file rows are stamped and the queue is the queue of ONE signing', () => {
   assert.deepEqual(readSeen(f).map((r) => r.sig), ['S1', 'S1', 'S2']);
   assert.ok(readFileSync(f, 'utf8').endsWith('\n'));
 });
+
+test('a file-updated baseline still blocks its own version when the ledger also holds `armed` / `fire` rows: they are not "the file changed away"', async () => {
+  const { writeFileSync } = await import('node:fs');
+  const { createFileTrigger } = await import('../src/trigger-files.js');
+  const d = dir();
+  const watched = path.join(d, 'w.md'); writeFileSync(watched, 'v1\n');
+  const ledger = path.join(d, 'schedule-ledger.jsonl');
+  const t = createFileTrigger({ mode: 'updated', target: watched, ledger, sig: 'S1' });
+  t.arm();
+  armTrigger(ledger, 1, 'S1');
+  const arrived = [];
+  for (let i = 0; i < 6; i++) arrived.push(...t.poll().arrived);
+  assert.deepEqual(arrived, [], 'the version present at arm never runs');
+  writeFileSync(watched, 'v2 changed\n');
+  for (let i = 0; i < 6; i++) arrived.push(...t.poll().arrived);
+  assert.equal(arrived.length, 1, 'the changed version does');
+});
