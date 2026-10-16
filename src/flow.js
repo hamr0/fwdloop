@@ -569,6 +569,11 @@ function pidAlive(pid) {
   try { process.kill(pid, 0); return true; } catch (err) { return err.code === 'EPERM'; }
 }
 
+/** Is there a `.replace-old-*` / `.replace-new-*` folder in the flow folder? @param {string} dir */
+function hasSwapLeftover(dir) {
+  try { return readdirSync(dir).some((n) => /^\.replace-(?:old|new)-\d+-\d+$/.test(n)); } catch { return false; }
+}
+
 /**
  * Recover a swap that a hard kill (SIGKILL, power loss) cut short: `.replace-old-<pid>-<ms>` / `.replace-new-<pid>-<ms>` of a process that is gone.
  * The signature is placed LAST, so while the staged `signature.json` is still in `.replace-new-*` the swap never finished: every moved-away old file
@@ -785,8 +790,11 @@ export function writeRunPlan({
  */
 export function readFlow({ root, name, catalogue }) {
   const r = readFlowOnce({ root, name, catalogue });
-  if (r.ok || typeof root !== 'string' || root.length === 0 || !checkFlowName(name).ok) return r;
-  // a red may be a swap a hard kill cut short (the job refused until files were moved by hand): recover it, read once more
+  if (typeof root !== 'string' || root.length === 0 || !checkFlowName(name).ok) return r;
+  // a red may be a swap a hard kill cut short (the job refused until files were moved by hand): recover it, read once more.
+  // A green read can hold a dead pid's leftover too (killed after the signature landed: the OLD signed job sits in `.replace-old-*`): clear it
+  // (only looked for when such a folder exists; a live pid's folders are never touched).
+  if (r.ok && !hasSwapLeftover(path.join(root, name))) return r;
   return recoverSwap(path.join(root, /** @type {string} */ (name))) ? readFlowOnce({ root, name, catalogue }) : r;
 }
 

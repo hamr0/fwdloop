@@ -139,7 +139,7 @@ test('replace: SIGKILL after ANY swap step leaves a job that reads and verifies 
     assert.equal(r.ok, true, `after a kill following "${step}" the job must read: ${JSON.stringify(r.reds)}`);
     const complete = step === 'signature.json';
     assert.notEqual(r.signature.flow === x.hash, complete, `after "${step}": ${complete ? 'the new job' : 'the old job'}`);
-    // once the signature has landed the job is whole and reads fine, so nothing triggers a recovery: the dead process's leftovers wait for the next replace to clear them
-    if (!complete) assert.deepEqual(readdirSync(x.dir).filter((n) => n.startsWith('.replace-')), [], `after "${step}" no staging or backup folder is left`);
+    // even once the signature has landed (the job reads green) the dead process's old-job backup must not outlive the next read ("no old version is kept anywhere")
+    assert.deepEqual(readdirSync(x.dir).filter((n) => n.startsWith('.replace-')), [], `after "${step}" no staging or backup folder is left`);
   }
 });
