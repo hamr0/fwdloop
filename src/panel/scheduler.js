@@ -37,7 +37,7 @@ export function createScheduler(opts) {
   /**
    * M9 am3: the queue of a file trigger (arrived minus ran, oldest first). Busy: every queued file is told ONCE (`busy`) and waits. Free: the
    * head is looked at again at use time (deleted / changed -> one row, dropped, the next head), then goes through the fire checks; `ran` is
-   * written right before the start. A head that is not started (month, keys, input) stays queued, told once, and blocks the ones behind it.
+   * written right before the start. A head refused BEFORE `ran` is written (month, keys, input) stays queued, told once, and blocks the ones behind it; a refusal by the starter itself lands after `ran`, so that file is then marked run and leaves the queue.
    * @param {any} job @param {string} ledger @param {number} nowMs
    */
   function runQueue(job, ledger, nowMs) {
