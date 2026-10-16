@@ -108,6 +108,9 @@ export function createStarter(opts) {
     return d === null ? null : readStart(join(d, id), id, keys);
   };
 
+  /** @type {Set<string>} start ids whose child is dead for good: `startingFor` skips them (cost does not grow with old finished starts) */
+  const deadStarts = new Set();
+
   /**
    * M6 amendment 3: the ONE rule for "a run of this flow is starting": the newest start folder of the flow in phase `starting`, or null.
    * With `runId`, only a start of that run (the Runs list reads a run folder as `[▶]` starting by this same rule).
@@ -117,6 +120,14 @@ export function createStarter(opts) {
     const sd = startsDir();
     if (sd === null) return null;
     for (const id of readdirInside(sd, '.').filter((n) => ID_RE.test(n)).sort().reverse()) {
+      if (deadStarts.has(id)) continue;
+      // phase `starting` needs a live child (readStart's `alive`), and a child that has a pid.json and is not running never runs again (a pid recorded with its
+      // procStart; the no-/proc fallback is a 10-minute window that only closes), so that folder can never be `starting`: it is not read again, nothing is pruned.
+      // A folder with no pid.json yet is NOT remembered (a start still being written).
+      if (!childRunning(join(sd, id))) {
+        if (readJsonFile(join(sd, id), 'pid.json') !== null) deadStarts.add(id);
+        continue;
+      }
       const v = readStart(join(sd, id), id, keys);
       if (v && v.flow === flow && (runId === undefined || v.runId === runId) && v.phase === 'starting') return id;
     }
