@@ -80,3 +80,27 @@ test('am16 (c): the trigger cancelled -> the same: one row each, never runs, no 
   assert.deepEqual(told(f).map((r) => r.say).sort(), [SAY('q1.md'), SAY('q2.md')]);
   assert.deepEqual(f.ctl.starts, ['one.md']);
 });
+
+test('am18 (signed): the am16 row shows in that job\'s Audit schedule list with the other trigger rows, also after the schedule is cancelled', async () => {
+  const f = await world();
+  f.clock.t = at(13, 9);
+  assert.equal((await setTrigger(f.w, null)).status, 200);
+  f.polls(); f.ctl.busy = false; f.polls(20);
+  const a = (await f.w.get('/api/runs/job2/seed-pass/audit')).json();
+  assert.ok(a.schedule, 'a cancelled job still has the schedule section while such rows exist');
+  const texts = a.schedule.rows.map((r) => r.text);
+  assert.ok(texts.includes(SAY('q1.md')) && texts.includes(SAY('q2.md')), JSON.stringify(texts));
+  assert.equal(a.schedule.rows.filter((r) => r.text === SAY('q1.md')).length, 1, 'one row each');
+});
+
+test('am18 (pure): a schedule-changed row is listed with the tries, newest first, counted in the 7 shown but not in "tries started nothing"; no section without a schedule and without such a row', async () => {
+  const { scheduleAuditWords } = await import('../src/summary-words.js');
+  const base = { trigger: null, runId: 'run-9', from: null, rec: null, startMs: null, block: { line1: 'By hand', red: false }, running: false, fires: [] };
+  assert.equal(scheduleAuditWords(base), null);
+  const iso = (n) => new Date(at(13, 8, n)).toISOString();
+  const w = scheduleAuditWords({ ...base, fires: [{ at: iso(1), outcome: 'busy' }, { at: iso(2), outcome: 'schedule-changed', say: SAY('a.md') }] });
+  assert.ok(w);
+  assert.equal(w.head, 'By hand · 1 try started nothing');
+  assert.equal(w.rows[1].text, SAY('a.md'));
+  assert.match(w.rows[2].text, /^busy:/);
+});

@@ -279,8 +279,12 @@ function refusedWords(why) {
 /** Fires that started nothing (the three outcomes of am8), the only rows `tries` may hold. @param {any} row */
 export const startedNothing = (row) => row && (row.outcome === 'busy' || row.outcome === 'monthly-exhausted' || row.outcome === 'refused');
 
+/** M9 am16/am18: a file that waited when the schedule changed and so will not run; its row carries the signed sentence in `say`. @param {any} row */
+const droppedByChange = (row) => !!row && row.outcome === 'schedule-changed' && typeof row.say === 'string';
+
 /** M9 am9 item 3: one `tries` row's words, after its stamp; the am8 owners' sentences. @param {any} row a triggers.jsonl row that started nothing */
 function triesRowWords(row) {
+  if (droppedByChange(row)) return row.say;
   if (row.outcome === 'busy') return `busy: ${String(row.say ?? SCHEDULE_BUSY_SAY).replace(/\.$/, '')}. Nothing started.`;
   if (row.outcome === 'monthly-exhausted') return `${monthUsedUpWords(row)}. Nothing started.`;
   return refusedWords(row.why);
@@ -298,8 +302,10 @@ export const SCHEDULE_TRIES_SHOWN = 7;
  * @returns {{sign: string, head: string, rows: Array<{label: string, stamp: string, text: string}>}|null}
  */
 export function scheduleAuditWords(f) {
-  if (f.trigger === null) return null;
+  // M9 am18: the am16 `schedule-changed` rows are listed with the tries, also after the schedule is cancelled (no trigger now, such rows exist)
+  if (f.trigger === null && !f.fires.some(droppedByChange)) return null;
   const tries = f.fires.filter(startedNothing).reverse();
+  const listed = f.fires.filter((r) => startedNothing(r) || droppedByChange(r)).reverse();
   const sign = f.running ? '[\u25B6]' : (f.block.red ? '[\u2717]' : '[\u00B7]');
   const k = tries.length;
   const head = [f.block.line1, f.from ? `from ${f.from}` : null, k > 0 ? `${k} ${k === 1 ? 'try' : 'tries'} started nothing` : null].filter((x) => x !== null).join(' \u00b7 ');
@@ -313,7 +319,7 @@ export function scheduleAuditWords(f) {
   if (f.from !== null && f.from === f.runId) what += kind === null ? ' The schedule was set from this run.' : '. The schedule was set from this run.';
   /** @type {Array<{label: string, stamp: string, text: string}>} */
   const rows = [{ label: 'this run', stamp: f.startMs === null ? '' : shortStamp(f.startMs), text: what }];
-  const shown = tries.slice(0, SCHEDULE_TRIES_SHOWN);
+  const shown = listed.slice(0, SCHEDULE_TRIES_SHOWN);
   if (shown.length === 0) rows.push({ label: 'tries', stamp: '', text: 'none' });
   else shown.forEach((r, i) => rows.push({ label: i === 0 ? 'tries' : '', stamp: shortStamp(r.at), text: triesRowWords(r) }));
   return { sign, head, rows };

@@ -1957,7 +1957,7 @@ export function getRunAudit({
     // M9 am9 / am11: the `schedule` section, one for every run of a job that has a schedule now (null otherwise); words: src/summary-words.js
     schedule: (() => {
       const t = typeof scheduleRead === 'function' ? scheduleRead(flow) : null;
-      if (!t || !t.trigger) return null;
+      if (!t) return null;   // no schedule now: scheduleAuditWords still answers for a cancelled job that has am16 rows (M9 am18), else null
       const rec = readTriggerRecord(run.runDir);
       const at = firstPidStartedAt(run.runDir) ?? (rec && typeof rec.at === 'string' ? rec.at : null);   // the fire's own stamp when the run kept no pid row yet
       return scheduleAuditWords({
