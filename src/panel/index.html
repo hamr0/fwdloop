@@ -1779,13 +1779,6 @@
   }
   // The ONE place that judges a click from that run's fresh asks. `rightTab` is where the right side lands when the
   // run is at an ask: the Jobs run card says "tab-ask" (its buttons are there); a Needs you card says "tab-run" (M11 am10).
-  var inboxScrollPending = false;
-  function scrollInboxSelIntoView(){
-    var row = document.querySelector(".inbox-row.selected");
-    if(!row || !row.scrollIntoView) return;
-    inboxScrollPending = false;
-    row.scrollIntoView({ block: "nearest" });
-  }
   function followAsk(flow, runId, rightTab){
     getJSON("/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId) + "/asks").then(function(result){
       // the user already clicked another run: this answer is for a run they left
@@ -1797,8 +1790,7 @@
       var inboxRow = Array.prototype.find.call(document.querySelectorAll(".inbox-row"), function(el){ return el.getAttribute("data-testid") === inboxId; }) || null;
       selectRun(flow, runId, inboxRow, ".inbox-row", ask.askId);
       document.getElementById("tab-inbox").click();
-      inboxScrollPending = true;   // the list rebuilds from reloadLists above: buildInbox scrolls the selected card into view when it lands
-      scrollInboxSelIntoView();
+      if(inboxRow && inboxRow.scrollIntoView) inboxRow.scrollIntoView({ block: "nearest" });   // the card is in focus; a rebuild keeps the list's scroll (withScrollPreserved)
       document.getElementById(rightTab).click();
     }).catch(function(){ /* unreadable books: the run stays open on the Run tab, the left side stays on Runs */ });
   }
@@ -3606,7 +3598,6 @@
       }
       into.appendChild(renderStopRow(row));
     });
-    if(inboxScrollPending) scrollInboxSelIntoView();
   }
   getJSON("/api/inbox").then(function(result){ renderInbox(result.rows || [], result.openCount); }).catch(function(e){
     lastSig.inbox = null;
