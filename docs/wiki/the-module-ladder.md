@@ -1427,6 +1427,9 @@ The **thinking off (not verified for this model)** note next to the Chat "Thinki
 **M4d amendment 23 — SIGNED by hamr 2026-10-16 ("sign m4d am23").**
 A Cap at or below what the earlier draft already spent is red: 'The cap must be above what is already spent (at least $X).', the same words as a Resume.
 
+**M4d amendment 24 — SIGNED by hamr 2026-10-16 ("sign m4d am24").**
+When the Cap is at or below what the earlier draft already spent, Draft is refused with the same red words as the Cap note, and no draft starts.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
@@ -2396,6 +2399,10 @@ monthly wall is enforced **by the trigger**, before a run starts.
 
 - **M9 amendment 17 — SIGNED by hamr 2026-10-16 ("sign m9 am17").** Before a queued file is marked as run, the panel checks it can start: no run of this job is starting, the root exists, the run number is free. If not, the file stays queued and tries again next turn. A refusal after the run has begun (for example a bad Destination) still counts as its run, and is shown as a refused start, as today.
   - *Built after signing — not signed text:* the signed example "a bad Destination" is wrong: the panel checks the Destination before it writes `ran`, so a file with a bad Destination is not counted as run; it stays queued and is told once, as before am17. A refusal that really lands after `ran` (for example the run could not be spawned) counts as its run and shows as a refused start. Ruled by hamr 2026-10-16 (option A).
+
+- **M9 amendment 18 — SIGNED by hamr 2026-10-16 ("sign m9 am18").** The am16 row ('<file> was waiting when the schedule changed, so it will not run. Drop it in again to run it.') shows in that job's Audit schedule list, with the other trigger rows, also after the schedule is cancelled.
+
+- **M9 amendment 19 — SIGNED by hamr 2026-10-16 ("sign m9 am19").** Amendment 14 replaces amendment 13 item 2's "a run that is still running or waiting has no frame colour": every run's frame takes its card colour. The older SUMMARY box on the Run tab uses the same colour rule.
 
 ## M10 — real IO
 
