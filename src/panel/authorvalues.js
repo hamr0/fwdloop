@@ -24,6 +24,17 @@ export function leastResumeCapUsd(spentUsd, floorUsd) {
   return Math.max(aboveSpent, Math.ceil(floorUsd * 100 - 1e-6) / 100);
 }
 
+/** The one decider (M4d am23/am24): is a cap at or below what is already spent? Used by the Cap note, Draft and a Resume. @param {number} capUsd @param {number} alreadyUsd */
+export const capNotAboveSpent = (capUsd, alreadyUsd) => alreadyUsd > 0 && capUsd <= alreadyUsd + 1e-9;
+
+/**
+ * The one sentence for a cap that is not above what is already spent (a Resume's door and note, and the Cap note of a card that belongs to a draft, M4d am23).
+ * @param {number} spentUsd @param {number} floorUsd
+ */
+export function capAboveSpentText(spentUsd, floorUsd) {
+  return `The cap must be above what is already spent (at least $${leastResumeCapUsd(spentUsd, floorUsd).toFixed(2)}).`;
+}
+
 /** @param {unknown} v */
 const typed = (v) => (typeof v === 'string' ? v.trim() : v);
 
@@ -64,8 +75,8 @@ export function checkValues({
     else capUsd = n;
   }
   if (refusals.length === 0) {
-    if (spentUsd > 0 && capUsd <= spentUsd + 1e-9) {
-      no('capUsd', `The cap must be above what is already spent (at least $${leastResumeCapUsd(spentUsd, floorUsd).toFixed(2)}).`);
+    if (capNotAboveSpent(capUsd, spentUsd)) {
+      no('capUsd', capAboveSpentText(spentUsd, floorUsd));
     } else if (capUsd < floorUsd && (always || capUsd !== base.capUsd)) no('capUsd', capTooSmallText('run', capUsd, floorUsd, String(floorModel)));
   }
 

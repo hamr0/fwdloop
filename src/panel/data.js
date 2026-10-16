@@ -22,11 +22,12 @@
 import {
   existsSync, realpathSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { plainPlanCheck } from '../plain-checks.js';
 import { join, basename, sep } from 'node:path';
 
 import {
-  readFlow, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
+  readFlow, readPlan, readRunPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
 } from '../flow.js';
 import {
   readAudit, readHistory, endRow, readPidRows, auditRowTokens, auditRowAt, auditRowTools,
@@ -39,7 +40,7 @@ import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../r
 import { readSetup } from '../setup.js';
 import { checkedLines, notCheckedBlock, NOT_CHECKED_LABEL } from '../checked.js';
 import {
-  catchUpWords, endedWords, nextInWords, nextTimeWords, scheduledNextFor, scheduledWords,
+  NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import {
@@ -874,6 +875,17 @@ export function summarizeSpendRows(spendRows) {
 
 /** M6 F5: the ONE comparison of a run's halt record with the job on disk (`sameJob`; the runner refuses a Resume otherwise). */
 const haltMatchesJob = (halt, flowRead) => halt.ok && flowRead.ok && halt.halt.signatureHash === flowRead.signature.flow;
+
+/**
+ * M9 am12: the job a run is read against on the page = the one it resumes against (`readRunPlan`, its own kept copy). Only a run with no copy at
+ * all (before M6) falls back to the workflow's job, for DISPLAY; `ownCopy` is false there and the run cannot be resumed (the runner refuses it by name).
+ * @param {{root: string, name: string, catalogue: any, runDir: string}} a
+ */
+function readRunJob(a) {
+  const own = readRunPlan(a);
+  if (!own.ok && 'noCopy' in own) return { read: readPlan(a), ownCopy: false };
+  return { read: own, ownCopy: true };
+}
 /** M6 amendment 4: a stopped / cap-halted run (its halt record agrees with its end row) whose readable job is not the one it halted under. */
 const runJobEdited = (halt, historyRow, flowRead) => halt.ok && flowRead.ok && historyRow !== null && historyRow.outcome === halt.halt.outcome && !haltMatchesJob(halt, flowRead);
 /** The whole line (Runs, Ask and Inbox alike) of a stopped run whose job was edited since: no Resume is offered. */
@@ -893,7 +905,7 @@ const JOB_EDITED_LINE = 'stopped — the job was edited; start a new run';
  * @returns {any}
  */
 function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attempt = null, startingRun = undefined) {
-  const flowRead = readFlow({ root, name: flowName, catalogue });
+  const { read: flowRead, ownCopy } = readRunJob({ root, name: flowName, catalogue, runDir });
   // M4e amendment 5 item 3 / amendment 4 item 6: the run's own signed values (its newest version) lie over the flow's
   const inForce = flowRead.ok ? applyRunValues(flowRead.arbiter, flowName, flowRead.signature.flow, pickRunValues(runDir)) : null;
   const historyRows = readHistory(flowDir);
@@ -916,13 +928,14 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     flowDir,
     runDir,
     flowRead,
+    ownCopy,
     // the arbiter this run executes under (the flow's own unless the run has signed values), or null when the flow does not read
     arbiter: inForce && inForce.ok ? inForce.arbiter : (flowRead.ok ? flowRead.arbiter : null),
     historyRow,
     // M4e amendment 4 item 4: a cap-halted or stopped run that can be continued (`halt.json` is the runner's record)
     resumable: halt.ok && historyRow !== null && historyRow.outcome === halt.halt.outcome,
     // M6 F5: the job on disk is still the one the run halted under (the runner refuses a Resume otherwise: "signature mismatch")
-    sameJob: haltMatchesJob(halt, flowRead),
+    sameJob: ownCopy && haltMatchesJob(halt, flowRead),
     // M6 amendment 4: the stopped / cap-halted run whose job was edited since (the opposite of `sameJob`, only where the job could be read)
     jobEdited: runJobEdited(halt, historyRow, flowRead),
     // amendment 16 I4: how a stopped run was stopped, in the runner's own words (`stopped at the ask of step N`), or null (stopped after a step)
@@ -996,6 +1009,19 @@ function lastPidStartedAt(runDir) {
   return typeof at === 'string' && !Number.isNaN(Date.parse(at)) ? at : null;
 }
 
+/** M9 am7 item 5: when the run's FIRST process began (a resumed run keeps its first start), or null when no pid row names one. @param {string} runDir */
+function firstPidStartedAt(runDir) {
+  for (const r of readPidRows(runDir)) if (typeof r.startedAt === 'string' && !Number.isNaN(Date.parse(r.startedAt))) return r.startedAt;
+  return null;
+}
+
+/** The run's own `trigger.json` (why it started), or null for a hand run. @param {string} runDir */
+function readTriggerRecord(runDir) {
+  const f = readFileInside(runDir, 'trigger.json');
+  if (!f.ok) return null;
+  try { const j = JSON.parse(f.text); return j && typeof j === 'object' ? j : null; } catch { return null; }
+}
+
 /** The ONE running rule for wording is the glyph's own (`computeGlyph` -> `[▶]`, which already
  *  folds in `runLiveness`): a run with no end row whose glyph is `[▶]` is running. */
 const RUNNING_WHY = 'still running — not finished yet';
@@ -1007,7 +1033,7 @@ const isRunningNow = (ctx, glyph) => !ctx.historyRow && glyph === '[▶]';
  * same object, so the page never offers what the door would refuse). `running` is the glyph's own rule (`isRunningNow`);
  * a run with no process record yet is `starting`; a parked run (`[·]`/`[!]`, an open ask) is neither.
  * @param {any} ctx `loadRunContext`'s result @param {string} glyph `computeGlyph`'s sign
- * @returns {{canStop: boolean, atAsk: boolean, stopRequested: boolean, starting: boolean, canResume: boolean, resumeOutcome: string|null, spentUsd: number|null, spendComplete: boolean|null, capUsd: number|null}}
+ * @returns {{canStop: boolean, atAsk: boolean, stopRequested: boolean, starting: boolean, canResume: boolean, noCopySay: string|null, resumeOutcome: string|null, spentUsd: number|null, spendComplete: boolean|null, capUsd: number|null}}
  */
 export function runControls(ctx, glyph, label = '') {
   // M6 F1: ask.json stays on disk once the human has answered, so it blocks `running` only while the ask is unanswered
@@ -1023,6 +1049,8 @@ export function runControls(ctx, glyph, label = '') {
     stopRequested: running && stopPending(ctx.runDir),
     starting,
     canResume,
+    // M9 am12: a run that would be resumable but has no kept copy says why, never silence
+    noCopySay: ctx.resumable === true && ctx.ownCopy === false ? NO_COPY_SAY : null,
     resumeOutcome: canResume ? ctx.historyRow.outcome : null,
     spentUsd: canResume && typeof ctx.historyRow.spentUsd === 'number' ? ctx.historyRow.spentUsd : null,
     spendComplete: canResume ? ctx.historyRow.spendComplete !== false : null,
@@ -1042,6 +1070,19 @@ export function getRunControls({
   const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null);
   const g = computeGlyph(ctx);
   return runControls(ctx, g.glyph, g.label);
+}
+
+/**
+ * M6 am9: the glyph and label of one run, by the panel's ONE rule (`computeGlyph`), read straight from the books. `null` when the run does not resolve.
+ * "Red" in the signed text is exactly `glyph === '[✗]'`.
+ * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
+ */
+export function getRunGlyph({
+  root, flow, runId, catalogue,
+}) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok || !existsSync(run.runDir)) return null;
+  return computeGlyph(loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null));
 }
 
 /**
@@ -1108,7 +1149,9 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun, now = Da
         pulse: glyphPulses({ glyph, label }),
         stuck: glyph === '[II]',
         controls,
-        needs: needsYouTag(glyph, controls, glyph === '[II]' ? ctx.savedAnswerAt : (ctx.historyRow ? ctx.historyRow.at : null), now()),
+        needs: needsYouOf({
+          runDir: run.runDir, ctx, glyph, controls, nowMs: now(), reopenAt: reopenableAt(run.runDir, ctx),
+        }).tag,
         live: isRunningNow(ctx, glyph),
         model: deriveRunModel(ctx.auditRows),
         resume: ctx.resume,
@@ -1138,7 +1181,7 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun, now = Da
  * order given (M4c amendment 1 (c)); a flow's top row is therefore the first
  * run of that flow here, so a waiting run is the parent with no second rule:
  *  1 waiting on you — least time left first; a stuck run (`[II]`, amendment 2)
- *    after the ones with a timer;
+ *    after the ones with a timer, only while it is still in Needs you (M11 am15: a stuck run past its 7 days is section 3);
  *  2 running (`[▶]`, the glyph's own liveness rule);
  *  3 everything else — finish time `at`, newest first.
  * A row with no known time keeps input order at the end of its section.
@@ -1146,7 +1189,8 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun, now = Da
  * @returns {any[]}
  */
 export function orderRuns(rows) {
-  const sectionOf = (r) => ((r.waiting || r.stuck) ? 1 : r.glyph === '[▶]' ? 2 : 3);
+  // M11 am15: a stuck run that has left Needs you (`needs` null: the 7 days, `needsYouOf`) is no longer a top row; it sorts by time like the rest.
+  const sectionOf = (r) => ((r.waiting || (r.stuck && r.needs !== null)) ? 1 : r.glyph === '[▶]' ? 2 : 3);
   return rows
     .map((row, index) => ({ row, index }))
     .sort((a, b) => {
@@ -1171,23 +1215,100 @@ export function orderRuns(rows) {
 }
 
 /**
- * M11 am1 item 2 + am2: the ONE rule for a run's Needs-you tag, read off the sign and `runControls` (no second rule). `Accept`: waiting at an open ask.
- * `Resume`: stuck `[II]`, or stopped `[■]` whose Run tab shows the Resume button. An expired ask `[!]` is never here (it stays in the Inbox).
- * M11 am3 item 5: a Resume run leaves Needs you once its stop time (`at`, the history row's) is `RUNS_LIST_LIMITS.needsYouDays` old; exactly that old is out.
- * M11 am4 item 1: a stuck `[II]` run has no stop time; the caller passes the time its saved answer was written. A run with no readable time stays in. An Accept run is never dropped by age (its ask has its own wait).
- * @param {string} glyph a `computeGlyph` sign @param {{atAsk: boolean, canResume: boolean}} controls `runControls`' answer
- * @param {string|null} [at] the run's stop time from the books @param {number} [nowMs]
- * @returns {'Accept'|'Resume'|null}
+ * The ONE rule for a run's Needs-you tag, read off the sign and `runControls` (no second rule). M11 am11 item 1-2: `Answer`: waiting at an open ask (was `Accept`).
+ * `Reopen`: an expired ask that can still be reopened (`reopenAt`, its expiry time, is given). `Resume`: stuck `[II]`, or stopped `[■]` whose Run tab shows the Resume button.
+ * An expired ask that cannot be reopened is never here. This is the tag BEFORE it leaves: see `needsYouOf` for the 7 days and Remove.
+ * @param {string} glyph a `computeGlyph` sign @param {{atAsk: boolean, canResume: boolean}} controls `runControls`' answer @param {string|null} [reopenAt] expiry of a reopenable expired ask
+ * @returns {'Answer'|'Reopen'|'Resume'|null}
  */
-export function needsYouTag(glyph, controls, at = null, nowMs = Date.now()) {
-  if (glyph === '[·]' && controls.atAsk) return 'Accept';
+function needsYouKind(glyph, controls, reopenAt = null) {
+  if (glyph === '[·]' && controls.atAsk) return 'Answer';
+  if (reopenAt !== null) return 'Reopen';
   if (glyph !== '[II]' && !(glyph === '[■]' && controls.canResume)) return null;
-  const t = typeof at === 'string' ? Date.parse(at) : NaN;
-  if (Number.isFinite(t) && nowMs - t >= RUNS_LIST_LIMITS.needsYouDays * 86_400_000) return null;
   return 'Resume';
 }
 
-/** M11 scope item 2.5/2.6 and rules, am3 item 5: the named limits of the runs list, in ONE place (30 quiet days, 7 older runs, 7 days in Needs you for a Resume run). The page reads them from `GET /api/runs`. */
+/** M11 am3 item 5 / am11 item 4: exactly `needsYouDays` old (since the card joined) is out; no readable time stays in. @param {string|null|undefined} at @param {number} nowMs */
+const needsYouAged = (at, nowMs) => {
+  const t = typeof at === 'string' ? Date.parse(at) : NaN;
+  return Number.isFinite(t) && nowMs - t >= RUNS_LIST_LIMITS.needsYouDays * 86_400_000;
+};
+
+/**
+ * The tag with the 7-day rule (M11 am3 item 5, am4 item 1, am11 item 4): the card leaves Needs you `needsYouDays` after it joined. `at` is when it joined: the run's stop time
+ * (a stuck `[II]` run has none; the caller passes the time its saved answer was written) or the ask's expiry for `Reopen`. An `Answer` run is never dropped by age (its ask has its own wait).
+ * @param {string} glyph @param {{atAsk: boolean, canResume: boolean}} controls @param {string|null} [at] @param {number} [nowMs] @param {string|null} [reopenAt]
+ * @returns {'Answer'|'Reopen'|'Resume'|null}
+ */
+export function needsYouTag(glyph, controls, at = null, nowMs = Date.now(), reopenAt = null) {
+  const kind = needsYouKind(glyph, controls, reopenAt);
+  if (kind === null || kind === 'Answer') return kind;
+  return needsYouAged(kind === 'Reopen' ? reopenAt : at, nowMs) ? null : kind;
+}
+
+/** The marker file of one Needs-you episode: write-once, named by a hash of the episode key (a reopen / resume starts a NEW episode with another key). @param {string} key */
+export const needsRemovedFile = (key) => `needs-removed-${createHash('sha256').update(key).digest('hex').slice(0, 16)}.json`;
+
+/** M11 am11 item 3: the human's Remove, written once for the episode it was written for, or null. @param {string} runDir @param {string} key @returns {{at: string}|null} */
+function readNeedsRemoval(runDir, key) {
+  const f = readFileInside(runDir, needsRemovedFile(key));
+  if (!f.ok) return null;
+  try {
+    const j = JSON.parse(f.text);
+    return j && j.key === key && typeof j.at === 'string' ? { at: j.at } : null;
+  } catch { return null; }
+}
+
+/**
+ * M11 am11: where a run stands in Needs you, by the ONE rule (the runs list, the Remove route and the Audit all read it).
+ * `tag`: what the card carries now, or null. `removable`: Remove from Needs you is offered (`Reopen` and `Resume`, never `Answer`). `left`: why a card that would be here is not
+ * (item 3 `{by: 'you', at}`, item 4 `{by: 'age'}`). `key`: the episode a Remove is written for (item 5): the ask and its expiry for `Reopen`, the stop time for a stopped run, the saved-answer
+ * time for a stuck one, so a reopened or resumed run that needs you again is a NEW episode and comes back.
+ * @param {{runDir: string, ctx: any, glyph: string, controls: {atAsk: boolean, canResume: boolean}, nowMs: number, reopenAt: string|null}} o
+ * @returns {{tag: 'Answer'|'Reopen'|'Resume'|null, removable: boolean, left: {by: 'you', at: string}|{by: 'age'}|null, key: string|null}}
+ */
+export function needsYouOf({
+  runDir, ctx, glyph, controls, nowMs, reopenAt,
+}) {
+  const kind = needsYouKind(glyph, controls, reopenAt);
+  if (kind === null) return { tag: null, removable: false, left: null, key: null };
+  if (kind === 'Answer') return { tag: 'Answer', removable: false, left: null, key: null };
+  const stuck = glyph === '[II]';
+  const at = kind === 'Reopen' ? reopenAt : (stuck ? ctx.savedAnswerAt : (ctx.historyRow ? ctx.historyRow.at : null));
+  const key = kind === 'Reopen' ? `ask:${ctx.askJson.askId}@${reopenAt}` : `${stuck ? 'stuck' : 'stop'}:${at ?? ''}`;
+  const removed = readNeedsRemoval(runDir, key);
+  if (removed) return { tag: null, removable: false, left: { by: 'you', at: removed.at }, key };
+  if (needsYouAged(at, nowMs)) return { tag: null, removable: false, left: { by: 'age' }, key };
+  return { tag: kind, removable: true, left: null, key };
+}
+
+/**
+ * M11 am11 item 2: the expiry time of this run's ask when it has expired and can still be reopened (the Ask tab's own `reopenOffer` rule), else null.
+ * @param {string} runDir @param {any} ctx `loadRunContext`'s result
+ */
+function reopenableAt(runDir, ctx) {
+  if (ctx.historyRow || !ctx.askJson) return null;
+  const savedAskId = readSavedAnswer(runDir)?.askId;
+  const hit = runAsksInOrder(runDir, false).find((a) => reopenOffer(a, ctx.askJson, ctx.resume, savedAskId === a.askId) !== null);
+  return hit && typeof ctx.askJson.expiresAt === 'string' ? ctx.askJson.expiresAt : null;
+}
+
+/**
+ * M11 am11: `needsYouOf` for one run, read straight from the books (the Remove route's and the Audit's read; the runs list calls `needsYouOf` itself with the context it already has).
+ * `null` when the run does not resolve.
+ * @param {{root: string, flow: string, runId: string, catalogue: any, nowMs?: number, resumeAttempt?: (flow: string, runId: string) => any}} o
+ */
+export function getRunNeeds({
+  root, flow, runId, catalogue, nowMs = Date.now(), resumeAttempt,
+}) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok || !existsSync(run.runDir)) return null;
+  const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, resumeAttempt?.(flow, runId) ?? null);
+  const { glyph, label } = computeGlyph(ctx);
+  const controls = runControls(ctx, glyph, label);
+  return { runDir: run.runDir, ...needsYouOf({ runDir: run.runDir, ctx, glyph, controls, nowMs, reopenAt: reopenableAt(run.runDir, ctx) }) };
+}
+
 export const RUNS_LIST_LIMITS = Object.freeze({ quietDays: 30, olderRuns: 7, needsYouDays: 7 });
 
 /**
@@ -1316,9 +1437,10 @@ function waitingLineOf(ctx) {
  */
 function jobWaitingLine(root, flowDir, flow, catalogue) {
   const ids = listRunIds(flowDir).sort((a, b) => (Number(b.replace(/\D/g, '')) || 0) - (Number(a.replace(/\D/g, '')) || 0));
+  const history = readHistory(flowDir);   // `atAsk` needs no end row (`runControls`), so an ended run is skipped by the same `endRow` rule before a context is built for it
   for (const id of ids) {
     const run = resolveRunDir(flowDir, id);
-    if (!run.ok || !readAsk(run.runDir)) continue; // eslint-disable-line no-continue
+    if (!run.ok || endRow(history, run.runDir, id) !== null || !readAsk(run.runDir)) continue; // eslint-disable-line no-continue
     const ctx = loadRunContext(root, flowDir, run.runDir, flow, id, catalogue, null);
     const g = computeGlyph(ctx);
     if (runControls(ctx, g.glyph, g.label).atAsk) return waitingLineOf(ctx);
@@ -1327,10 +1449,44 @@ function jobWaitingLine(root, flowDir, flow, catalogue) {
 }
 
 /**
+ * The Run tab's SCHEDULE block for one job, from the job's schedule facts `t` (`trigger.facts`, or null). ONE builder: the Run tab and the Audit's
+ * `schedule` section (its red sign, M9 am11) both call it, so they cannot disagree.
+ * @param {{root: string, flowDir: string, flow: string, catalogue: any, t: any, home?: string, now: () => number}} o
+ */
+function scheduleBlockOf({ root, flowDir, flow, catalogue, t, home, now }) {
+  const fires = t && Array.isArray(t.fires) ? t.fires : [];
+  const lastStart = fires.findLast((x) => x.outcome === 'started' && typeof x.runId === 'string');
+  const lastRec = lastStart ? readTriggerRecord(join(flowDir, 'runs', lastStart.runId)) : null;
+  const lastGlyph = lastStart ? getRunGlyph({ root, flow, runId: lastStart.runId, catalogue }) : null;
+  const latest = fires.length > 0 ? fires[fires.length - 1] : null;
+  return scheduleBlockWords({
+    trigger: t && t.trigger ? t.trigger : null, home,
+    last: lastStart ? { at: lastStart.at, runId: lastStart.runId, outcome: lastGlyph ? (SIGN_WORDS[lastGlyph.glyph] ?? 'ended') : 'ended', catchUp: !!(lastRec && lastRec.catchUp === true) } : null,
+    nextSlotMs: t ? t.nextSlotMs : null, armed: !!(t && t.armed), nowMs: now(),
+    problem: latest && latest.outcome !== 'started' && ['busy', 'monthly-exhausted', 'refused'].includes(latest.outcome) ? latest : null,
+  });
+}
+
+/**
+ * M9 am11: is a run of this job running now? The runs list's own rule (`isRunningNow`: no end row and the glyph `[▶]`), not a run waiting at its ask.
+ * @param {{root: string, flow: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any, startingRun?: (flow: string, runId: string) => boolean}} o
+ */
+function jobHasRunningRun({ root, flow, catalogue, resumeAttempt, startingRun }) {
+  const flowDir = join(root, flow);
+  for (const runId of listRunIds(flowDir)) {
+    const run = resolveRunPath(root, flow, runId);
+    if (!run.ok) continue;
+    const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, resumeAttempt?.(flow, runId) ?? null, startingRun);
+    if (isRunningNow(ctx, computeGlyph(ctx).glyph)) return true;
+  }
+  return false;
+}
+
+/**
  * M9 piece 6 (ladder M9 item 7): the summary block at the top of a run page, as data. Words come from `src/summary-words.js` only, built
  * from typed facts (the history row's outcome, the declared step's line, the signed trigger and its ledger). `ended` is null while the run
  * is live; `scheduled` is null when the job has no trigger; `canSchedule` (am3 item 1) is the trigger door's own `hasGreenRun` answer; `catchUp` is a fixed sentence when this run was started late (am2 item 1).
- * @returns {{ended: {reason: string, next: string}|null, scheduled: {text: string, next: string, nextRed: boolean}|null, canSchedule: boolean, catchUp: string|null}}
+ * @returns {{ended: {reason: string, next: string}|null, scheduled: {text: string, next: string, nextRed: boolean}|null, schedule: {line1: string, line2: string|null, red: boolean}, canSchedule: boolean, catchUp: string|null}}
  */
 function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   const died = !ctx.historyRow && glyph === '[?]';
@@ -1342,9 +1498,13 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
     line = lineOfStep(ctx, emits);
   }
   const send = ctx.arbiter && Array.isArray(ctx.arbiter.sends) ? ctx.arbiter.sends.find((x) => x.target && typeof x.target.path === 'string') : undefined;
-  const ended = endedWords({
+  const endedPlain = endedWords({
     outcome, died, line, destination: send ? send.target.path : null, canResume: ctx.resumable === true && ctx.sameJob === true, home,
   });
+  // M9 am7 item 1: ENDED opens with the run's local end date and time, then its outcome word, then today's reason (NEXT stays as it was)
+  const ended = endedPlain === null ? null : {
+    ...endedPlain, reason: endedLineWords(ctx.historyRow && typeof ctx.historyRow.at === 'string' ? ctx.historyRow.at : null, outcome === 'rerun' ? null : (SIGN_WORDS[glyph] ?? null), endedPlain.reason),
+  };
   let scheduled = null;
   const t = typeof triggerRead === 'function' ? triggerRead(ctx.flowName) : null;
   if (t && t.trigger) {
@@ -1356,7 +1516,9 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   let rec = null;
   const f = readFileInside(ctx.runDir, 'trigger.json');
   if (f.ok) { try { rec = JSON.parse(f.text); } catch { rec = null; } }
-  return { ended, scheduled, canSchedule: !!(t && t.hasGreenRun), catchUp: catchUpWords(rec) };
+  // M9 am7 items 3-4: the SCHEDULE block replaces the SCHEDULED / NEXT rows. Words: src/summary-words.js, the same owner as the Job tab's Schedule field.
+  const schedule = scheduleBlockOf({ root, flowDir: ctx.flowDir, flow: ctx.flowName, catalogue, t, home, now });
+  return { ended, scheduled, schedule, canSchedule: !!(t && t.hasGreenRun), catchUp: catchUpWords(rec) };
 }
 
 /**
@@ -1593,6 +1755,10 @@ export function getRunDetail({
     signWords: SIGN_WORDS,
     pulse: glyphPulses({ glyph, label }),
     controls: runControls(ctx, glyph, label),
+    // M11 am11 item 3: where this run stands in Needs you now; the page shows Remove from Needs you only when `removable`
+    needsYou: (({ tag, removable }) => ({ tag, removable }))(needsYouOf({
+      runDir: run.runDir, ctx, glyph, controls: runControls(ctx, glyph, label), nowMs: now(), reopenAt: reopenableAt(run.runDir, ctx),
+    })),
     // M9 piece 6: the block at the top of the run page (ENDED / NEXT, SCHEDULED / NEXT), words set by code
     summary: runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }),
     resume: ctx.resume,
@@ -1758,10 +1924,12 @@ export function getDraftBlock(flowDir, runDir) {
  * own `audit.jsonl` file already carries only its own rows — there is no
  * shared-sidecar contamination risk here the way bareloop's gate-audit
  * sidecar had). `null` when the flow/runId doesn't resolve (404).
- * @param {{root: string, flow: string, runId: string}} opts
- * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, empty:boolean, why:string|null}|null}
+ * @param {{root: string, flow: string, runId: string, scheduleRead?: (flow: string) => any, home?: string, catalogue?: any, resumeAttempt?: (flow: string, runId: string) => any, startingRun?: (flow: string, runId: string) => boolean, now?: () => number}} opts
+ * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, needsLeft: string|null, schedule: ReturnType<typeof scheduleAuditWords>, empty:boolean, why:string|null}|null}
  */
-export function getRunAudit({ root, flow, runId }) {
+export function getRunAudit({
+  root, flow, runId, scheduleRead, home, catalogue, resumeAttempt, startingRun, now = Date.now,
+}) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
@@ -1782,6 +1950,23 @@ export function getRunAudit({ root, flow, runId }) {
     // never a second, client-side re-grouping.
     groups: deriveAuditGroups(rows),
     draft: getDraftBlock(run.flowDir, run.runDir),
+    // M11 am11 items 3-4: the one row that says why the card left Needs you (by your Remove, or after 7 days); words: src/summary-words.js
+    needsLeft: catalogue ? needsLeftWords(getRunNeeds({
+      root, flow, runId, catalogue, nowMs: now(), resumeAttempt,
+    })?.left ?? null) : null,
+    // M9 am9 / am11: the `schedule` section, one for every run of a job that has a schedule now (null otherwise); words: src/summary-words.js
+    schedule: (() => {
+      const t = typeof scheduleRead === 'function' ? scheduleRead(flow) : null;
+      if (!t) return null;   // no schedule now: scheduleAuditWords still answers for a cancelled job that has am16 rows (M9 am18), else null
+      const rec = readTriggerRecord(run.runDir);
+      const at = firstPidStartedAt(run.runDir) ?? (rec && typeof rec.at === 'string' ? rec.at : null);   // the fire's own stamp when the run kept no pid row yet
+      return scheduleAuditWords({
+        trigger: t.trigger, runId, from: t.from ?? null, rec, startMs: at === null || Number.isNaN(Date.parse(at)) ? null : Date.parse(at),
+        block: scheduleBlockOf({ root, flowDir: run.flowDir, flow, catalogue, t, home, now }),
+        running: jobHasRunningRun({ root, flow, catalogue, resumeAttempt, startingRun }),
+        fires: Array.isArray(t.allFires) ? t.allFires : [],
+      });
+    })(),
     empty: rows.length === 0,
     why: rows.length === 0 ? 'audit.jsonl is empty or missing — no attempt has been made yet' : null,
   };
@@ -1832,11 +2017,11 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null) {
  * name carries its own why, never a blank or a guess. Field order (server
  * order matches the page's own render order): prose, asks, model, cap
  * (+redo cap), sources, sends, guardrails, plan (one row per step, amendment 34), signature.
- * @param {{root: string, flow: string, runId: string, catalogue: any}} opts
+ * @param {{root: string, flow: string, runId: string, catalogue: any, scheduleRead?: (flow: string) => any, home?: string}} opts
  * @returns {any|null}
  */
 export function getRunJob({
-  root, flow, runId, catalogue,
+  root, flow, runId, catalogue, scheduleRead, home,
 }) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
@@ -1875,6 +2060,14 @@ export function getRunJob({
     flow,
     runId,
     resolved: true,
+    // M9 am6 items 1-2 / am7 item 5: how this run began and the workflow's schedule now; words from src/summary-words.js, the same owner as the Run tab's SCHEDULE block
+    started: startedWords(readTriggerRecord(run.runDir), (() => { const at = firstPidStartedAt(run.runDir); return at === null ? null : Date.parse(at); })(), home),
+    schedule: (() => {
+      const f = typeof scheduleRead === 'function' ? scheduleRead(flow) : null;
+      return scheduleFieldWords({
+        trigger: f && f.trigger ? f.trigger : null, from: f?.from ?? null, model: f?.model ?? null, destination: f?.destination ?? null, inputs: f?.inputs ?? null, home,
+      });
+    })(),
     jobFrom: copy.present ? 'run' : 'current',
     jobFromWhy: copy.present ? null : NO_JOB_COPY_WORDS,
     model,
@@ -2334,11 +2527,11 @@ export function groupAskBlocks(asks) {
  * M4b piece 4: also carries `resume` (the SAME `deriveResumeState` the run
  * detail carries, `null` for a finished run or nothing to say) so the Ask tab
  * can tell "open, answerable" from "answer saved" without a second fetch.
- * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any}} opts
- * @returns {{flow:string, runId:string, asks:any[], resume: any, blocks: any[]}|null}
+ * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any, now?: () => number}} opts
+ * @returns {{flow:string, runId:string, asks:any[], resume: any, blocks: any[], needsYou: {tag: string|null, removable: boolean}}|null}
  */
 export function getRunAsks({
-  root, flow, runId, catalogue, resumeAttempt,
+  root, flow, runId, catalogue, resumeAttempt, now = Date.now,
 }) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
@@ -2350,8 +2543,8 @@ export function getRunAsks({
   // Inbox — otherwise an open ask's Ask-tab header/body falls back to the
   // raw status word "unanswered" and no time-left, disagreeing with the
   // Inbox row for that exact same ask.
-  const flowRead = readFlow({
-    root, name: flow, catalogue,
+  const { read: flowRead } = readRunJob({
+    root, name: flow, catalogue, runDir: run.runDir,
   });
   const ordered = runAsksInOrder(run.runDir, hasHistoryRow, histRow?.outcome === 'ask-expired', runJobEdited(readHaltRecord(run.runDir), histRow ?? null, flowRead));
   const auditRows = readAudit(run.runDir);
@@ -2384,8 +2577,12 @@ export function getRunAsks({
     stepLine: stepInfo[i].line,
     stepWhy: stepInfo[i].why,
   }));
+  // M11 am11 item 3: the Ask tab of an expired-ask run offers Remove from Needs you when the card is in Needs you now
+  const needs = getRunNeeds({
+    root, flow, runId, catalogue, resumeAttempt, nowMs: now(),
+  });
   return {
-    flow, runId, asks, resume, blocks: groupAskBlocks(asks),
+    flow, runId, asks, resume, blocks: groupAskBlocks(asks), needsYou: { tag: needs?.tag ?? null, removable: needs?.removable === true },
   };
 }
 
@@ -2425,7 +2622,7 @@ export function listStops({ root, resumeAttempt, catalogue }) {
       const savedAskId = readSavedAnswer(run.runDir)?.askId;
       // M6 amendment 4: read the job only for a run that ended stopped / cap-halted (and only when the caller gave the catalogue to read it with)
       const jobEdited = end !== null && (end.outcome === 'stopped' || end.outcome === 'cap-halt') && catalogue !== undefined
-        && runJobEdited(readHaltRecord(run.runDir), end, readFlow({ root, name: flowName, catalogue }));
+        && runJobEdited(readHaltRecord(run.runDir), end, readRunJob({ root, name: flowName, catalogue, runDir: run.runDir }).read);
       const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, end?.outcome === 'ask-expired', jobEdited).map((ask) => ({
         flow: flowName,
         runId,

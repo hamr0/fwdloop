@@ -48,7 +48,7 @@ import { resetRunStore } from './run-store.js';
 import { fileURLToPath } from 'node:url';
 
 import {
-  readFlow, resolveRunDir, readFileInside, readdirInside, resolveInside, FLOW_FILES, PANEL_STARTS_DIR, writeRunJobCopy,
+  readPlan, readRunPlan, runOwnsPlan, resolveRunDir, readFileInside, readdirInside, resolveInside, FLOW_FILES, PANEL_STARTS_DIR, writeRunJobCopy,
 } from './flow.js';
 import {
   writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen, setAsideAnswer,
@@ -993,7 +993,7 @@ export async function runFlow({
     return { outcome: 'refused', red: runIdCheck.red };
   }
 
-  const read = readFlow({ root, name, catalogue });
+  const read = readPlan({ root, name, catalogue, runDir: runIdCheck.runDir });
   if (!read.ok) {
     // Negative iv: a flow whose files don't hash to the signature (or is
     // otherwise unreadable) is refused by name, at $0. No run dir exists to
@@ -1065,7 +1065,7 @@ export async function runFlow({
   mkdirSync(runDir, { recursive: true });
 
   // M6: the run keeps a write-once copy of the job it runs, from before its first step (its Job tab shows this, not the flow's later versions)
-  const jobCopy = writeRunJobCopy(flowDir, runDir, signature.flow);
+  const jobCopy = runOwnsPlan(runDir) ? { ok: /** @type {true} */ (true) } : writeRunJobCopy(flowDir, runDir, signature.flow); // am9: a run that keeps its own plan already holds its verified copy
   if (!jobCopy.ok) {
     return haltRun({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: jobCopy.red, spent: { value: 0 },
@@ -1886,7 +1886,7 @@ export async function resumeRun({
   // below (inside the lock): if this pre-read itself fails, that failure is
   // reported properly by the definitive read further down, under the lock,
   // exactly as before this check existed.
-  const preflightRead = readFlow({ root, name, catalogue });
+  const preflightRead = readRunPlan({ root, name, catalogue, runDir });
   if (preflightRead.ok) {
     const unwiredVerb = findUnwiredVerbStep(preflightRead.declaration);
     if (unwiredVerb) {
@@ -1949,7 +1949,7 @@ export async function resumeRun({
       };
     }
 
-    const read = readFlow({ root, name, catalogue });
+    const read = readRunPlan({ root, name, catalogue, runDir });
     if (!read.ok) {
       return { outcome: 'refused', red: `resume: flow re-read failed for run "${runId}": ${read.reds.join('; ')}` };
     }
@@ -1960,7 +1960,7 @@ export async function resumeRun({
     const { arbiter } = applied;
 
     if (signature.flow !== state.signatureHash) {
-      return { outcome: 'refused', red: `resume: signature mismatch for run "${runId}" — the flow changed while parked` };
+      return { outcome: 'refused', red: `resume: signature mismatch for run "${runId}" — its saved copy of the job is not the job it was parked under` };
     }
 
     for (const entry of state.inputsManifest ?? []) {
@@ -2410,7 +2410,7 @@ export async function continueRun({
   if (!runIdCheck.ok) return { outcome: 'refused', red: runIdCheck.red };
   const runDir = runIdCheck.runDir;
 
-  const preflightRead = readFlow({ root, name, catalogue });
+  const preflightRead = readRunPlan({ root, name, catalogue, runDir });
   if (preflightRead.ok) {
     const unwiredVerb = findUnwiredVerbStep(preflightRead.declaration);
     if (unwiredVerb) return refused(unwiredRed(unwiredVerb));
@@ -2437,10 +2437,10 @@ export async function continueRun({
     }
     if (!Number.isInteger(halt.stepIndex) || halt.stepIndex < 0) return refused(`run "${runId}" halt.json field "stepIndex" is not a step number`);
 
-    const read = readFlow({ root, name, catalogue });
+    const read = readRunPlan({ root, name, catalogue, runDir });
     if (!read.ok) return refused(`flow re-read failed for run "${runId}": ${read.reds.join('; ')}`);
     const { declaration, signature } = read;
-    if (signature.flow !== halt.signatureHash) return refused(`signature mismatch for run "${runId}" — the flow changed while it was halted`);
+    if (signature.flow !== halt.signatureHash) return refused(`signature mismatch for run "${runId}" — its saved copy of the job is not the job it was halted under`);
     // the human's signed values for this run (its highest version): the new cap is read from here, nowhere else
     const applied = applyRunValues(read.arbiter, name, signature.flow, pickRunValues(runDir));
     if (!applied.ok) return refused(`run "${runId}" — ${applied.red}`);
@@ -2638,7 +2638,7 @@ export async function stopParkedRun({
     const audit = auditSpend(runDir);
     if (!audit.ok) return refused(`run "${runId}" ${audit.red}`);
     requestStop(runDir); // 'exists' when the door (or a race) wrote it already
-    const read = readFlow({ root, name, catalogue });
+    const read = readRunPlan({ root, name, catalogue, runDir });
     let capUsd = null;
     if (read.ok) {
       const applied = applyRunValues(read.arbiter, name, read.signature.flow, pickRunValues(runDir));

@@ -19,18 +19,20 @@ import { canFlowRun, willNotRunSay } from '../canrun.js';
 import { loadCatalogue } from '../catalogue.js';
 import { ConfigError, readConfig } from '../config.js';
 import {
-  changeSentence, checkFlowName, listFlowNames, listRunIds, nextRunId, readFileInside, readFlow, resolveRunDir,
+  changeSentence, checkFlowName, listFlowNames, listRunIds, nextRunId, planForReuse, readFileInside, readFlow, resolveRunDir, suggestFlowName,
 } from '../flow.js';
+import { jobKeyOfCard, jobKeyOfSigned } from '../jobkey.js';
 import { spendSummary } from '../monthly.js';
 import { userInfo } from 'node:os';
 import {
-  applyRunValues, flowValues, pickRunValues, valuesHash,
+  applyRunValues, flowValues, pickRunValues, runModelOf, valuesHash,
 } from '../runvalues.js';
 import {
   capFloorOf, cardFromSigned, checkInputRows, runInputRows,
 } from './authorcard.js';
 import { checkValues } from './authorvalues.js';
-import { getRunControls } from './data.js';
+import { getRunControls, getRunGlyph } from './data.js';
+import { SCHEDULE_BUSY_SAY } from '../summary-words.js';
 import { providerKeys } from './spawn.js';
 import { readModelRecord, writeModelRecord } from '../flowmodel.js';
 
@@ -40,7 +42,7 @@ export const editBlockedSay = (runId) => `finish or stop ${runId} first`;
 export const EDIT_STARTING_SAY = 'a run is starting';
 const NO_LIMIT = 'no monthly limit set';
 /** The body keys a run start takes (amendment 5 item 2): the open boxes plus the hash of the second click. Any other key is refused by name. */
-const RUN_KEYS = ['flow', 'inputs', 'runId', 'destination', 'capUsd', 'askWaits', 'hash', 'provider', 'model'];
+const RUN_KEYS = ['flow', 'inputs', 'runId', 'destination', 'capUsd', 'askWaits', 'hash', 'provider', 'model', 'planOf'];
 
 /**
  * What the Run / Resume forms show of a signed flow (read from its own files, never from a model): the job lines as the signed text has them
@@ -118,7 +120,7 @@ export function createFlowsDoor(opts) {
   /** The values one run ran with: the flow's own, with the run's newest signed version laid over (`applyRunValues`). Unreadable = the flow's own. @param {any} read @param {string} name @param {string} runDir */
   function runValuesOf(read, name, runDir) {
     const applied = applyRunValues(read.arbiter, name, read.signature.flow, pickRunValues(runDir));
-    return { values: flowValues(applied.ok ? applied.arbiter : read.arbiter) };
+    return { values: flowValues(applied.ok ? applied.arbiter : read.arbiter), model: runModelOf(pickRunValues(runDir)) };
   }
 
   /**
@@ -178,21 +180,41 @@ export function createFlowsDoor(opts) {
     const flow = typeof body?.flow === 'string' ? body.flow : '';
     const named = checkFlowName(flow);
     if (!named.ok) return reply(400, { refused: 'flow', refusals: [{ field: 'flow', say: `${named.red}.` }] });
-    const read = readSigned(realRoot, flow);
-    if (!read.ok) {
-    return reply(400, { refused: 'flow', refusals: [{ field: 'flow', say: `"${flow}" is not a signed flow that passes its checks, so it will not run.${changeSentence(read.reds.map((r) => scrub(String(r), keys)))}` }], reds: read.reds.map((r) => scrub(String(r), keys)) });
+    const read0 = readSigned(realRoot, flow);
+    if (!read0.ok) {
+    return reply(400, { refused: 'flow', refusals: [{ field: 'flow', say: `"${flow}" is not a signed flow that passes its checks, so it will not run.${changeSentence(read0.reds.map((r) => scrub(String(r), keys)))}` }], reds: read0.reds.map((r) => scrub(String(r), keys)) });
     }
+    // M6 am9: a reuse of a run runs THAT run's plan. A plan that is the workflow's own changes nothing; a different kept plan is read (verified) and everything below
+    // (the roles, the values, the hash the second click carries) is that plan's; the start then gives the new run a verified copy of it. One that does not verify refuses.
+    let planFrom = null;
+    let planRead = null;
+    const planOf = typeof body?.planOf === 'string' ? body.planOf.trim() : '';
+    if (planOf !== '') {
+      const rr = resolveRunDir(join(realRoot, flow), planOf);
+      if (!rr.ok) return reply(400, { refused: 'plan', say: `"${planOf}" is not a run name. Nothing was started.` });
+      const cat = loadCatalogue();
+      if (!cat.ok) return reply(500, { refused: 'catalogue', say: 'The catalogue could not be read. Nothing was started.' });
+      const pf = planForReuse({ root: realRoot, name: flow, runDir: rr.runDir, catalogue: cat.primitives });
+      if (!pf.ok) return reply(409, { refused: 'plan', say: scrub(pf.red, keys) });
+      if (!pf.same) { planRead = pf.read; planFrom = planOf; }
+    }
+    const read = planRead ?? read0;
     const can = canFlowRun(read);   // amendment 21 item 1: a flow the list shows refused is refused here too, in the same sentence
     if (!can.ok) {
       const red = scrub(String(can.red), keys);
       return reply(409, { refused: 'flow', say: willNotRunSay(flow, red), refusals: [{ field: 'flow', say: willNotRunSay(flow, red) }] });
     }
-    // M4d amendment 7b: a flow with no recorded model takes the one picked in Chat (checked now, at the click); a flow with a record keeps it and ignores the body's pick
-    const noRecord = readModelRecord(join(realRoot, flow)) === null;
-    const modelReds = noRecord ? modelRefusal({ provider: body?.provider, model: body?.model }, loaded) : [];
+    // M4d amendment 7b: a flow with no recorded model takes the one picked in Chat (checked now, at the click) and records it.
+    // M6 am5/am6: a flow WITH a record keeps it unless the body names a different model: that is this run's own model (a run field, Sign & run).
+    const record = readModelRecord(join(realRoot, flow));
+    const noRecord = record === null;
+    const namedModel = typeof body?.provider === 'string' && body.provider !== '' && typeof body?.model === 'string' && body.model !== '';
+    const modelReds = noRecord || namedModel ? modelRefusal({ provider: body?.provider, model: body?.model }, loaded) : [];
     const newPick = noRecord && modelReds.length === 0 ? { slot: body.provider, model: body.model } : null;
+    const runModel = !noRecord && namedModel && modelReds.length === 0 && (body.provider !== record.slot || body.model !== record.model) ? { slot: body.provider, model: body.model } : null;
+    const floorFacts = formFacts(read, home, runModel === null ? join(realRoot, flow) : undefined, runModel ?? newPick);
     const checked = checkValues({
-    allowedKeys: RUN_KEYS, body, base: flowValues(read.arbiter), realRoot, capOnly: false, floorUsd: formFacts(read, home, join(realRoot, flow), newPick).capFloorUsd, floorModel: formFacts(read, home, join(realRoot, flow), newPick).floorModel, monthlyClaim,
+    allowedKeys: RUN_KEYS, body, base: flowValues(read.arbiter), realRoot, capOnly: false, floorUsd: floorFacts.capFloorUsd, floorModel: floorFacts.floorModel, monthlyClaim,
     });
     if (!checked.ok && checked.refused) return reply(checked.status, { refused: checked.refused, say: checked.say, refusals: checked.refusals });
     /** @type {{field: string, say: string}[]} */
@@ -213,11 +235,12 @@ export function createFlowsDoor(opts) {
     if (!run.ok) refusals.push({ field: 'runId', say: String(run.say) });
     }
     if (refusals.length > 0 || !checked.ok) return reply(400, { refused: 'run', refusals });
+    const values = runModel === null ? checked.values : { ...checked.values, model: runModel };   // the run's own model is part of what the second click signs
     const hash = valuesHash({
-    flow, flowSignatureHash: read.signature.flow, runId: null, version: 0, values: checked.values,
+    flow, flowSignatureHash: read.signature.flow, runId: null, version: 0, values,
     });
     return {
-    ok: /** @type {true} */ (true), flow, read, declared, rows, runId, values: checked.values, differs: checked.differs, hash, newPick, flowDir: join(realRoot, flow),
+    ok: /** @type {true} */ (true), flow, read, declared, rows, runId, values, differs: checked.differs || runModel !== null, hash, newPick, flowDir: join(realRoot, flow), planFrom,
     };
   }
 
@@ -229,13 +252,35 @@ export function createFlowsDoor(opts) {
    * @param {string} realRoot @param {string} name @returns {string|null}
    */
   function editBlockOf(realRoot, name) {
+    return liveRunBlock(realRoot, name, EDIT_STARTING_SAY, editBlockedSay, (c) => c?.canStop === true);
+  }
+
+  /**
+   * M9 am8 item 1: is a run of this job starting or still working? The SCHEDULE's own one decision (clock fires and the file queue), NOT Edit's: a run
+   * waiting at its ask (`atAsk`) is not busy here, where `editBlockOf` still counts it (M6). Returns the sentence the busy row carries, or null.
+   * @param {string} realRoot @param {string} name @returns {string|null}
+   */
+  function scheduleBusyOf(realRoot, name) {
+    return liveRunBlock(realRoot, name, SCHEDULE_BUSY_SAY, () => SCHEDULE_BUSY_SAY, (c) => c?.canStop === true && c.atAsk !== true);
+  }
+
+  /**
+   * The one walk both questions share: a start folder still `starting` for this flow answers `startingSay`; else the newest run whose controls satisfy `counts`
+   * answers `sayFor(runId)`; else null. The callers differ only in what counts as live (the schedule does not count a run waiting at its ask).
+   * @param {string} realRoot @param {string} name @param {string} startingSay @param {(id: string) => string} sayFor @param {(c: any) => boolean} counts @returns {string|null}
+   */
+  function liveRunBlock(realRoot, name, startingSay, sayFor, counts) {
     const cat = loadCatalogue();
     if (!cat.ok) return null;
-    if (starter.startingFor(name, []) !== null) return EDIT_STARTING_SAY;
+    if (starter.startingFor(name, []) !== null) return startingSay;
     const ids = listRunIds(join(realRoot, name)).filter((id) => /^run-\d+$/.test(id)).sort((a, b) => Number(b.slice(4)) - Number(a.slice(4)));
+    // `canStop` is false for any run with an end row (`runControls`: running and atAsk both need none), so a run that has ended is skipped by the
+    // same `endRow` rule `loadRunContext` uses, read fresh each call (no cache), before a whole run context is built for it.
+    const flowDir = join(realRoot, name);
+    const history = readHistory(flowDir);
     for (const id of ids) {
-      const c = getRunControls({ root: realRoot, flow: name, runId: id, catalogue: cat.primitives });
-      if (c?.canStop === true) return editBlockedSay(id);
+      if (endRow(history, join(flowDir, 'runs', id), id) !== null) continue;
+      if (counts(getRunControls({ root: realRoot, flow: name, runId: id, catalogue: cat.primitives }))) return sayFor(id);
     }
     return null;
   }
@@ -250,12 +295,8 @@ export function createFlowsDoor(opts) {
       flow: name, capUsd: read.arbiter.capUsd, roles, nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
       runs: passed, stats,
       ...formFacts(read, home, flowDir),
-      // M6: the job as a card to edit (`ok:true, card, flowHash` = the signature hash it is opened at), or why it cannot be (`ok:false, say`)
-      edit: (() => {
-        const blocked = editBlockOf(realRoot, name);
-        if (blocked !== null) return { ok: false, say: blocked };
-        const c = cardFromSigned(read); return c.ok ? { ok: true, card: c.card, flowHash: read.signature.flow } : c;
-      })(),
+      // M6 am5/am6: the job as the card Reuse workflow opens (`ok:true, card`), or why the card cannot hold it (`ok:false, say`). Nothing blocks it: a reuse never changes the job it is opened from.
+      edit: (() => { const c = cardFromSigned(read); return c.ok ? { ok: true, card: c.card } : c; })(),
     };
   }
 
@@ -264,6 +305,59 @@ export function createFlowsDoor(opts) {
     editBlock(name) {
       const realRoot = realRootOrNull();
       return realRoot === null ? null : editBlockOf(realRoot, name);
+    },
+
+    /** M9 am8 item 1: the sentence that says why the SCHEDULE cannot start a run now (one is starting or still working; a run waiting at its ask does not count), or null. @param {string} name */
+    scheduleBusy(name) {
+      const realRoot = realRootOrNull();
+      return realRoot === null ? null : scheduleBusyOf(realRoot, name);
+    },
+
+    /**
+     * M6 am9: is this run red, as the panel's glyph rule reads it (`[✗]` and nothing else; stopped `[■]` and waiting are not)? The server decides this itself,
+     * never from the page's word. False for a run that does not resolve.
+     * @param {string} flow @param {unknown} runId
+     */
+    runIsRed(flow, runId) {
+      const realRoot = realRootOrNull();
+      if (realRoot === null || !checkFlowName(flow).ok || typeof runId !== 'string' || runId === '') return false;
+      const cat = loadCatalogue();
+      if (!cat.ok) return false;
+      return getRunGlyph({ root: realRoot, flow, runId, catalogue: cat.primitives })?.glyph === '[✗]';
+    },
+
+    /**
+     * M6 am5/am6: the job key of the signed flow `name` (see src/jobkey.js), or null when it is not a signed flow that reads. The draft door compares a Reuse card with it.
+     * @param {string} name
+     */
+    signedJobKey(name) {
+      const realRoot = realRootOrNull();
+      if (realRoot === null || !checkFlowName(name).ok) return null;
+      const read = readSigned(realRoot, name);
+      return read.ok ? jobKeyOfSigned(read) : null;
+    },
+
+    /**
+     * `POST /api/author/reuse-check` (M6 am6 item 2): what the ONE Reuse card's button is for the fields as typed, decided here, at $0, writes nothing.
+     * Any job field changed (lines, guardrails, asks, steps) = `draft` (with the next free name); else a RED source run (`[✗]`, M6 am9) = `draft` with `runOf: true`; else a destination, cap or ask wait different from the
+     * signed value = `sign-run` (with the hash the second click carries); else `run`. Only a red run's colour enters, and the server reads it. `fromRun` (the run the card was
+     * opened from) is dropped before the run checks; `job` is read here and never reaches the run door.
+     * @param {any} body
+     */
+    reuseCheck(body) {
+      const { job, fromRun, ...rest } = body && typeof body === 'object' ? body : /** @type {any} */ ({});
+      const realRoot = realRootOrNull();
+      if (realRoot !== null && typeof job === 'string' && typeof rest.flow === 'string' && checkFlowName(rest.flow).ok) {
+        const read = readSigned(realRoot, rest.flow);
+        if (read.ok && jobKeyOfCard(job) !== jobKeyOfSigned(read)) {
+          return { status: 200, body: { ok: true, kind: 'draft', suggestedName: suggestFlowName(realRoot, rest.flow) } };
+        }
+        // M6 am9: a RED run always drafts. The job is unchanged here, so the new plan is the next run of the SAME workflow (no new name). Only `[✗]` is red.
+        if (read.ok && this.runIsRed(rest.flow, fromRun)) return { status: 200, body: { ok: true, kind: 'draft', runOf: true } };
+      }
+      const r = this.runPrepare(rest);
+      if (r.status !== 200) return r;
+      return { status: 200, body: { ...r.body, kind: r.body.needsSign ? 'sign-run' : 'run' } };
     },
 
     /** M9: the source paths the newest run of this job used, role -> path (blank = none), for a start a trigger fires. @param {string} name @param {string[]} roles */
@@ -362,7 +456,7 @@ export function createFlowsDoor(opts) {
         };
       }
       const started = starter.start({
-        kind: 'run', flow: s.flow, runId: s.runId, sources: s.declared.map((role) => ({ role, path: /** @type {{path: string}} */ (s.rows.find((r) => r.role === role)).path })), values, pick: s.newPick,
+        kind: 'run', flow: s.flow, runId: s.runId, sources: s.declared.map((role) => ({ role, path: /** @type {{path: string}} */ (s.rows.find((r) => r.role === role)).path })), values, pick: s.newPick, planOf: s.planFrom,
       }, loaded);
       // M4d amendment 7b: the pick of a flow that had no record is written only once the start succeeded (a refused start leaves none), beside the signed files, never in them
       if (started.status === 202 && s.newPick !== null) {

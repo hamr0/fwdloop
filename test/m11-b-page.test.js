@@ -50,7 +50,7 @@ const text = (html) => html.replace(/<span class="dot (\w+)[^"]*"><\/span>/g, (_
 test('order and hiding: Running now, Needs you, Scheduled, then Jobs, then the quiet fold; a section with 0 items draws nothing', () => {
   const rows = [
     run('aging', 5, { glyph: '[▶]', live: true, word: 'running', label: 'running', startedAt: '2026-10-13T10:00:00.000Z', at: null }),
-    run('inv', 2, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Accept' }),
+    run('inv', 2, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Answer' }),
     run('old', 1, { at: '2026-08-01T00:00:00.000Z' }),
   ];
   const data = payload(rows, [meta('aging'), meta('inv'), meta('old', true)], [{ flow: 'aging', at: 'today 17:00', in: 'next in 3h', words: 'Weekdays at 17:00' }]);
@@ -72,7 +72,7 @@ test('order and hiding: Running now, Needs you, Scheduled, then Jobs, then the q
 test('Must fail when a filter or search hides a Running now, Needs you or Scheduled card: they never read the filters', () => {
   const rows = [
     run('aging', 5, { glyph: '[▶]', live: true, word: 'running', label: 'running', startedAt: '2026-10-13T10:00:00.000Z' }),
-    run('inv', 2, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Accept' }),
+    run('inv', 2, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Answer' }),
     run('kyc', 3, { glyph: '[II]', word: 'stuck', label: 'stuck', needs: 'Resume' }),
   ];
   const data = payload(rows, [meta('aging'), meta('inv'), meta('kyc')], [{ flow: 'aging', at: 'today 17:00', in: 'next in 3h', words: 'Weekdays at 17:00' }]);
@@ -88,14 +88,14 @@ test('Must fail when a filter or search hides a Running now, Needs you or Schedu
 test('the Needs-you tag is the server\'s: the page shows what `needs` says and works out nothing from the sign', () => {
   const rows = [
     run('a', 1, { glyph: '[II]', word: 'stuck', label: 'stuck', needs: null }), // the server said no: not in Needs you
-    run('b', 1, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Accept' }),
+    run('b', 1, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Answer' }),
     run('c', 1, { glyph: '[■]', word: 'stopped', label: 'stopped', needs: 'Resume' }),
     run('d', 1, { glyph: '[!]', word: 'expired', label: 'expired', needs: null }),
   ];
   const m = model(payload(rows, rows.map((r) => meta(r.flow))));
-  assert.deepEqual(m.needs.map((r) => [r.flow, r.needs]), [['b', 'Accept'], ['c', 'Resume']]);
+  assert.deepEqual(m.needs.map((r) => [r.flow, r.needs]), [['b', 'Answer'], ['c', 'Resume']]);
   const html = lib.rlTopHtml(m);
-  assert.match(html, /class="rl-pill rl-pill-need"[^>]*>Accept</);
+  assert.match(html, /class="rl-pill rl-pill-need"[^>]*>Answer</);
   assert.match(html, /class="rl-pill rl-pill-need"[^>]*>Resume</);
   assert.doesNotMatch(html.replace(/<span class="rl-pill[^>]*>[^<]*<\/span>/g, ''), /Accept|Resume/, 'the tag is a label, not a button');
 });
@@ -103,23 +103,23 @@ test('the Needs-you tag is the server\'s: the page shows what `needs` says and w
 test('cards: Running now / Needs you jump; the tag is a label; the Scheduled card jumps to the newest run of its job (am4 item 2); lines per am1', () => {
   const rows = [
     run('aging', 12, { glyph: '[▶]', live: true, word: 'running', label: 'running', startedAt: '2026-10-13T10:00:00.000Z', at: null, spend: 'at least $0.0042' }),
-    run('inv', 2, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Accept', askedAt: null, at: '2026-10-13T19:12:00.000Z' }),
+    run('inv', 2, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Answer', askedAt: null, at: '2026-10-13T19:12:00.000Z' }),
   ];
   const data = payload(rows, [meta('aging'), meta('inv')], [{ flow: 'aging', at: 'tomorrow 09:00', in: 'next in 11h', words: 'Weekdays at 09:00', runId: 'run-12' }]);
   const html = lib.rlTopHtml(model(data));
   const cards = html.split(/(?=<(?:button|div) class="rl-card)/).filter((c) => /^<(button|div) class="rl-card/.test(c));
   const [run1, need, sched] = [cards[0], cards[1], cards[2]];
   assert.match(run1, /^<button[^>]*data-rl-jump="aging\|run-12"/);
-  assert.match(text(run1), /^\[▶\]aging run-12\s*· at least \$0\.0042\s*running/s, 'line 1: sign job run-N wall · cost; line 2: the why');
+  assert.match(text(run1), /^\[▶\]aging · run-12\s*·\s*·\s*at least \$0\.0042\s*running/s, 'line 1: sign job run-N · since (filled by the page) · cost (M11 am6); line 2: the why');
   assert.doesNotMatch(run1.slice(0, run1.indexOf('</button>')), /sign-word/, 'line 2 of Running now has no sign word in front');
   assert.match(run1, /data-rl-since="2026-10-13T10:00:00\.000Z"/, 'time so far ticks in place from the start time');
   assert.match(need, /^<button[^>]*data-rl-jump="inv\|run-2"/);
   assert.match(need, /class="[^"]*rl-need/);
-  assert.equal(text(need.slice(0, need.indexOf('</button>'))), `[·]inv run-2Acceptwaiting on you · ${short('2026-10-13T19:12:00.000Z')}`, 'why · date, no sign word');
+  assert.equal(text(need.slice(0, need.indexOf('</button>'))), `[·]inv · run-2Answerwaiting on you · ${short('2026-10-13T19:12:00.000Z')}`, 'why · date, no sign word');
   assert.doesNotMatch(need.slice(0, need.indexOf('</button>')), /sign-word/);
   assert.match(sched, /^<button class="rl-card"[^>]*type="button"[^>]*data-rl-jump="aging\|run-12"/, 'same click as Running now: a button, keyboard reachable');
   assert.doesNotMatch(sched, /data-rl-run/);
-  assert.equal(text(sched).replace(/\s+/g, ' ').trim(), '[·]aging tomorrow 09:00next in 11h · Weekdays at 09:00');
+  assert.equal(text(sched).replace(/\s+/g, ' ').trim(), '[·]aging · tomorrow 09:00next in 11h · Weekdays at 09:00');
   const bare = lib.rlTopHtml(model(payload(rows, [meta('aging'), meta('inv')], [{ flow: 'x', at: null, in: null, words: 'When in.csv is updated', runId: null }])));
   assert.match(bare, /<div class="rl-card" data-testid="rl-sched-x"/, 'a job with no run has nothing to open: not a button');
 });
@@ -138,7 +138,7 @@ test('a Scheduled card with no clock slot draws no invented time', () => {
   assert.doesNotMatch(t, /next in|today|tomorrow/);
 });
 
-test('Must fail when a job\'s 9th-newest run shows without search: 9 runs = the newest + 7 older, then "(and 1 older: use search)"', () => {
+test('Must fail when a job\'s 9th-newest run shows without search: 9 runs = the newest + 7 older, then the fold line', () => {
   const data = payload(runsOf('flights', 9), [meta('flights')]);
   const m = model(data, { open: { flights: true } });
   const card = m.jobs[0];
@@ -147,7 +147,7 @@ test('Must fail when a job\'s 9th-newest run shows without search: 9 runs = the 
   assert.deepEqual(card.older.shown.map((r) => r.runId), ['run-8', 'run-7', 'run-6', 'run-5', 'run-4', 'run-3', 'run-2']);
   assert.equal(card.older.hidden, 1);
   const html = text(lib.rlJobsHtml(m));
-  assert.match(html, /\(and 1 older: use search\)/);
+  assert.match(html, /1 more runs on \d\d\/\d\d\. Search to find one\./, 'M11 am7 item 4 (replaces am5 item 5): the no-search fold line, one day');
   assert.doesNotMatch(html, /run-1\b/, 'the 9th-newest run is not shown');
   // closed fold: the older runs are not listed at all, and the fold line says how many
   const closed = text(lib.rlJobsHtml(model(data)));
@@ -175,13 +175,13 @@ test('with the older fold shut, a selected older run opens it (nothing selected 
   assert.equal(manualShut.jobs[0].older.open, false, 'a manual close wins, as today');
 });
 
-test('search for an older run opens its job ON that run: the fold is capped at 7 as always, plus the matched run past the 7; the job card still describes its newest run', () => {
+test('search for an older run opens its job ON that run: only the matching older runs show (M11 am5 item 4); the job card still describes its newest run', () => {
   const data = payload(runsOf('flights', 12), [meta('flights')]);
   const m = model(data, { filters: { results: [], time: 'all', search: 'run-2' } });
   const card = m.jobs[0];
   assert.equal(card.older.open, true);
-  assert.deepEqual(card.older.shown.map((r) => r.runId), ['run-11', 'run-10', 'run-9', 'run-8', 'run-7', 'run-6', 'run-5', 'run-2'], 'the signed 7, plus the hit past them');
-  assert.equal(card.older.hidden, 3, 'the rest stay behind "use search"');
+  assert.deepEqual(card.older.shown.map((r) => r.runId), ['run-2'], 'only the hit');
+  assert.equal(card.older.hidden, 0, 'nothing else matches, so nothing is counted');
   assert.equal(card.head.runId, 'run-12', 'the card line 2 is the newest run, not the match');
   assert.equal(model(data, { filters: { results: [], time: 'all', search: 'nope' } }).jobs.length, 0, 'a job with no matching run is gone');
   // a filter is capped the same way: a chip matching all 11 older runs shows the 7, the newest match is already inside them (M11 am1, hamr ruled A)
@@ -190,27 +190,26 @@ test('search for an older run opens its job ON that run: the fold is capped at 7
   assert.equal(all.older.hidden, 4);
 });
 
-test('search: when the head run also matches, an older matching run past the 7 stays shown; non-matching runs past the 7 stay hidden', () => {
+test('search: an older matching run is shown; non-matching older runs are never shown (M11 am5 item 4)', () => {
   const data = payload(runsOf('flights', 20), [meta('flights')]);
   const card = model(data, { filters: { results: [], time: 'all', search: 'run-2' } }).jobs[0];
   const ids = card.older.shown.map((r) => r.runId);
   assert.ok(ids.includes('run-2'), 'run-2 (position 18) is shown');
-  assert.deepEqual(ids, ['run-19', 'run-18', 'run-17', 'run-16', 'run-15', 'run-14', 'run-13', 'run-2'], 'the first 7, plus the matching run past them (run-20 is the head)');
-  assert.equal(card.older.hidden, 11, 'only non-matching runs past the 7 are counted by the hint');
+  assert.deepEqual(ids, ['run-2'], 'run-2 is exact: not run-20 (the head), not run-12');
+  assert.equal(card.older.hidden, 0);
   // no search: unchanged, 7 older runs + the hint
   const plain = model(data, { open: { flights: true } }).jobs[0];
   assert.equal(plain.older.shown.length, 7);
   assert.equal(plain.older.hidden, 12);
 });
 
-test('20-run job, search `run-2`: the fold opens by itself even though the head (run-20) matches; 7 + run-2 shown, hint counts 11', () => {
+test('20-run job, search `run-2`: the fold opens by itself even though the head (run-20) is not the match; run-2 only', () => {
   const data = payload(runsOf('flights', 20), [meta('flights')]);
   const card = model(data, { filters: { results: [], time: 'all', search: 'run-2' } }).jobs[0];
   assert.equal(card.older.open, true);
   assert.ok(card.older.shown.some((r) => r.runId === 'run-2'));
-  assert.equal(card.older.shown.length, 8);
-  assert.equal(card.older.total - card.older.shown.length, 11);
-  assert.equal(card.older.hidden, 11);
+  assert.equal(card.older.shown.length, 1);
+  assert.equal(card.older.hidden, 0);
   assert.equal(model(data, { filters: { results: [], time: 'all', search: 'run-2' }, open: { flights: false } }).jobs[0].older.open, false, 'a manual close still wins');
 });
 
@@ -225,13 +224,12 @@ test('300-run job, search `run`: every run matches, still only 7 shown (the newe
   assert.equal(chip.older.hidden, 292);
 });
 
-test('the selected run past the 7 AND a different newest match past the 7: both shown (9), the rest hidden', () => {
+test('the selected run AND a different match: both shown, nothing else (M11 am5 item 4)', () => {
   const data = payload(runsOf('flights', 20), [meta('flights')]);
   const card = model(data, { filters: { results: [], time: 'all', search: 'run-2' }, sel: { flow: 'flights', runId: 'run-5' } }).jobs[0];
   const ids = card.older.shown.map((r) => r.runId);
-  assert.equal(ids.length, 9);
-  assert.ok(ids.includes('run-5') && ids.includes('run-2'));
-  assert.equal(card.older.hidden, 10);
+  assert.deepEqual(ids.slice().sort(), ['run-2', 'run-5']);
+  assert.equal(card.older.hidden, 0);
 });
 
 test('no search: 7 older runs shown and the fold is not auto-opened', () => {
@@ -276,15 +274,15 @@ test('the limits are the server\'s: 3 shown when the payload says 3, and the fol
   assert.match(text(lib.rlJobsHtml(m)), /Jobs \(1\) · run in the last 45 days/);
 });
 
-test('card shapes: a job card is `[sign] job · k runs` / `word · why` of its newest run; a run card is `[sign] run-N  date · model` / `word — why · $ · wall`', () => {
+test('card shapes: a job card is `[sign] job · k runs` / `word · why` of its newest run; a run card is `[sign] run-N · date · model` (M11 am5 item 6) / `word — why · $ · wall`', () => {
   const rows = [run('flights', 2, { glyph: '[✗]', word: 'failed', line: 'price over $450', label: 'failed (halt)', spend: '$0.0500', wallMs: 240_000, at: '2026-10-12T14:03:00.000Z' }), run('flights', 1)];
   const m = model(payload(rows, [meta('flights')]), { open: { flights: true } });
   const job = lib.rlJobCardHtml(m.jobs[0]);
   const lines = text(job).replace(/\s+/g, ' ');
   assert.match(lines, /^\[✗\]flights · 2 runs\s*failed · price over \$450/);
   assert.match(job, /<div class="rl-card[^"]*" id="rl-job-flights"/, 'the job card is not a button and is not clickable');
-  assert.ok(lines.includes(`[✗]run-2 ${short('2026-10-12T14:03:00.000Z')} · deepseek-flash`) && /deepseek-flash\s*failed — price over \$450 · \$0\.0500 · 4m00s/.test(lines), lines);
-  assert.ok(lines.includes(`[✓]run-1 ${short('2026-10-12T10:00:00.000Z')} · deepseek-flash`) && /deepseek-flash\s*passed — goal met · \$0\.0100 · 1m00s/.test(lines), lines);
+  assert.ok(lines.includes(`[✗]run-2 · ${short('2026-10-12T14:03:00.000Z')} · deepseek-flash`) && /deepseek-flash\s*failed — price over \$450 · \$0\.0500 · 4m00s/.test(lines), lines);
+  assert.ok(lines.includes(`[✓]run-1 · ${short('2026-10-12T10:00:00.000Z')} · deepseek-flash`) && /deepseek-flash\s*passed — goal met · \$0\.0100 · 1m00s/.test(lines), lines);
 });
 
 test('a job with no run yet is one plain card with the server\'s sentence (never a made-up row)', () => {

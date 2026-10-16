@@ -25,7 +25,8 @@ import { validateDeclaration } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
 import { canonicalBytes } from './signature.js';
-import { writeFlow, readFileInside, readdirInside, checkFlowName } from './flow.js';
+import { writeFlow, writeRunPlan, readFlow, readFileInside, readdirInside, checkFlowName } from './flow.js';
+import { jobKeyOfSigned } from './jobkey.js';
 import { checkSendDestination } from './runner.js';
 import { checkKeyPreflight, appendSpendRow } from './provider.js';
 import { keyValues } from './keysfile.js';
@@ -398,10 +399,12 @@ export async function draftToDir({
  * `sessionDir` (the panel's draft folder: card, notes, every change) widens the setup record; the CLI has none, so its record is the one plan folder.
  * M6: `replaces: {flowHash}` (a draft opened from an existing signed job, carrying that job's signature hash) makes this sign REPLACE that job
  * (`writeFlow` checks the hash is still the job's); without it a taken name is refused as ever.
- * @param {{dir: any, approve?: any, signedBy: any, signedAt?: string, env?: Record<string, string|undefined>, keyNames?: string[], sessionDir?: string, replaces?: {flowHash: string}}} a
+ * M6 am9: `asRunOf: {flow}` (a red run's redraft of an UNCHANGED job) signs the plan as the plan of a NEW run of that existing workflow: the workflow's own files are
+ * never written (`writeRunPlan`), and a plan whose job key is not the workflow's is refused here, at sign time.
+ * @param {{dir: any, approve?: any, signedBy: any, signedAt?: string, env?: Record<string, string|undefined>, keyNames?: string[], sessionDir?: string, replaces?: {flowHash: string}, asRunOf?: {flow: string}}} a
  */
 export function signDraft({
-  dir, approve, signedBy, signedAt = new Date().toISOString(), env = process.env, keyNames, sessionDir, replaces,
+  dir, approve, signedBy, signedAt = new Date().toISOString(), env = process.env, keyNames, sessionDir, replaces, asRunOf,
 }) {
   const refuse = (...reds) => ({ ok: false, reds });
   if (readFileInside(dir, LEAK_MARKER_FILE).ok) return refuse(`sign: "${dir}" carries a key-leak marker (${LEAK_MARKER_FILE}) — never signed`);
@@ -455,6 +458,23 @@ export function signDraft({
   }
   if (reds.length) return { ok: false, reds };
 
+  if (asRunOf !== undefined) {
+    if (target.name !== asRunOf.flow) return refuse(`sign: this draft is named "${target.name}", not the workflow "${asRunOf.flow}" it was drafted as a run of — nothing signed`);
+    const existing = readFlow({ root: target.root, name: asRunOf.flow, catalogue: cat.primitives });
+    if (!existing.ok) return refuse(`sign: the workflow "${asRunOf.flow}" is not a signed flow that reads (${existing.reds[0]}) — nothing signed`);
+    if (jobKeyOfSigned(signed) !== jobKeyOfSigned(existing)) return refuse(`sign: the job in this plan is not the job of "${asRunOf.flow}", so it cannot be a run of it (a changed job is a new workflow) — nothing signed`);
+    const ran = writeRunPlan({
+      root: target.root, name: target.name, proseText: parts['prose.txt'], declaration, signedBy, signedAt, catalogue: cat.primitives,
+    });
+    if (!ran.ok) return { ok: false, reds: ran.reds };
+    const runSetup = writeSetup({
+      flowDir: ran.runDir, sessionDir, planDir: dir, hash: h.hash, signedBy, signedAt, flowHash: ran.signature?.flow, secrets: /** @type {string[]} */ (keys.filter((k) => typeof k === 'string' && k.length >= 8)),
+    });
+    // the draft's model pick is NOT written to the workflow (its files stay untouched): it is returned for the run that follows (`--model/--provider`)
+    return {
+      ok: true, flowDir: path.join(target.root, target.name), runId: ran.runId, runDir: ran.runDir, signature: ran.signature, setup: runSetup, modelRecord: { ok: true, recorded: false }, modelPick: readModelRecord(dir),
+    };
+  }
   const written = writeFlow({
     root: target.root, name: target.name, proseText: parts['prose.txt'], declaration, signedBy, signedAt, catalogue: cat.primitives, replaces,
   });

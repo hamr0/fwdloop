@@ -89,13 +89,6 @@ test('cardFromSigned: a job with something the card has no box for is refused in
   }
 });
 
-test('cardFields: editOf is {flow, flowHash} or absent, nothing else', () => {
-  assert.deepEqual(cardFields({ editOf: { flow: 'a', flowHash: 'h', extra: 1 } }).editOf, { flow: 'a', flowHash: 'h' });
-  for (const bad of [undefined, null, 'a', 3, {}, { flow: 'a' }, { flow: 1, flowHash: 'h' }, { flow: 'a', flowHash: '' }]) {
-    assert.equal('editOf' in cardFields({ editOf: bad }), false, JSON.stringify(bad));
-  }
-});
-
 function signedFlow() {
   const s = scene();
   const prose = readFileSync(new URL('./fixtures/job1.m1.signed.txt', import.meta.url), 'utf8');
@@ -105,26 +98,3 @@ function signedFlow() {
   return { ...s, hash: w.signature.flow };
 }
 
-test('checkCard with editOf: the same name is allowed while the job is still at that hash; a taken name without editOf is still refused', () => {
-  const s = signedFlow();
-  const mk = (over) => s.card({ flowName: 'f', ...over });
-  const taken = checkCard(mk({}), { root: s.root });
-  assert.equal(taken.ok, false);
-  assert.ok(taken.refusals.some((r) => r.field === 'flowName' && /already a flow named/.test(r.say)));
-  const edit = checkCard(mk({ editOf: { flow: 'f', flowHash: s.hash } }), { root: s.root });
-  assert.equal(edit.ok, true, JSON.stringify(edit));
-});
-
-test('checkCard with editOf: another name, a job signed again meanwhile, and a vanished job are each refused by name on flowName', () => {
-  const s = signedFlow();
-  const say = (editOf, flowName = 'f') => {
-    const r = checkCard(s.card({ flowName, editOf }), { root: s.root });
-    assert.equal(r.ok, false);
-    const x = r.refusals.find((q) => q.field === 'flowName');
-    assert.ok(x, JSON.stringify(r.refusals));
-    return x.say;
-  };
-  assert.match(say({ flow: 'f', flowHash: s.hash }, 'g'), /name of a job being edited cannot change/);
-  assert.match(say({ flow: 'f', flowHash: 'e'.repeat(64) }), /"f" was signed again since you opened it/);
-  assert.match(say({ flow: 'zz', flowHash: s.hash }, 'zz'), /is no longer here/);
-});

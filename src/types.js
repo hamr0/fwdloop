@@ -49,7 +49,7 @@
  * @property {string[]} skills - `skills <name>[, <name>...]`. Default ['core'].
  * @property {SourceSlot[]} sources - zero or more `source <role> = file:<path>`.
  * @property {number} roundBudgetMs - `round budget <int><s|m|h>`. Default 120000.
- * @property {import("./trigger-line.js").Trigger|null} trigger - `trigger <kind> ...` (M9). Default null = By hand.
+ * @property {import("./trigger-line.js").Trigger|null} trigger - `trigger <kind> ...` (M9). Default null = By hand. M9 am20: read for jobs signed before, NEVER acted on (a schedule is `schedule.json`).
  */
 
 /**

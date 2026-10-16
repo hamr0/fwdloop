@@ -5,11 +5,11 @@ import { test } from 'node:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { createTriggerDoor, readOutcomes, triggerLedgerDir } from '../src/panel/authortrigger.js';
+import { createTriggerDoor, readOutcomes } from '../src/panel/authortrigger.js';
 import { createScheduler } from '../src/panel/scheduler.js';
-import { readSeen, STABLE_POLLS } from '../src/trigger-files.js';
+import { STABLE_POLLS } from '../src/trigger-files.js';
 import { killChildrenAfter } from './m4e-world.mjs';
-import { greenWorld, setTrigger } from './m9-trigger-world.mjs';
+import { greenWorld, setTrigger, seenOf } from './m9-trigger-world.mjs';
 
 killChildrenAfter();
 const at = (day, hh = 0, mm = 0, ss = 0) => new Date(2026, 9, day, hh, mm, ss).getTime();
@@ -24,15 +24,15 @@ async function stubWorld(o = {}) {
   const ctl = { start: () => ({ status: 202, body: { ok: true, runId: 'run-9', startId: 's' } }), model: /** @type {any[]} */ ([]), starts: 0 };
   const door = createTriggerDoor({
     root: g.w.root,
-    flowsDoor: { editBlock: () => null, lastSourcesOf: () => ({ sources: { resume: path.join(g.w.inDir, 'resume.md'), jd: path.join(g.w.inDir, 'jd.md') } }) },
-    starter: { start: (/** @type {any} */ a) => { ctl.starts++; return ctl.start(a); } },
+    flowsDoor: { editBlock: () => null, scheduleBusy: () => null, lastSourcesOf: () => ({ sources: { resume: path.join(g.w.inDir, 'resume.md'), jd: path.join(g.w.inDir, 'jd.md') } }) },
+    starter: { canStart: () => null, start: (/** @type {any} */ a) => { ctl.starts++; return ctl.start(a); } },
     loadEnv: () => ({ ok: true, env: {}, keyNames: [slot] }),
     monthlyClaim: () => null,
     modelRefusal: () => ctl.model,
     now: () => clock.t,
   });
   const sched = createScheduler({ door, now: () => clock.t, intervalMs: 0 });
-  const ledger = () => readSeen(path.join(triggerLedgerDir(g.flowDir, g.read().signature.flow), 'seen.jsonl'));
+  const ledger = () => seenOf(g.flowDir);
   const polls = (n = STABLE_POLLS + 2) => { for (let i = 0; i < n; i++) sched.tick(); };
   return { ...g, clock, inbox, ctl, door, sched, ledger, polls, rows: () => readOutcomes(g.flowDir), ...o };
 }

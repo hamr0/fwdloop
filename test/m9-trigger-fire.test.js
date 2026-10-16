@@ -15,7 +15,7 @@ import {
   killChildrenAfter, until, sleep, tickedConfig,
 } from './m4e-world.mjs';
 import {
-  DAILY, greenWorld, ls, readJsonl, setTrigger,
+  DAILY, greenWorld, ls, readJsonl, seenOf, setTrigger,
 } from './m9-trigger-world.mjs';
 import { STABLE_POLLS } from '../src/trigger-files.js';
 
@@ -82,18 +82,16 @@ test('a job that starts 5 minutes late shows catch-up; on time does not (am2 ite
   assert.equal(f.rows()[0].catchUp, true);
 });
 
-test('Must fail: a trigger firing while the job waits at its ask records busy and starts nothing', async () => {
+test('M9 am8: a trigger firing while the job waits at its ask starts the next run (the waiting run does not block); it is busy only while a run works', async () => {
   const f = await fireWorld();
   assert.equal((await setTrigger(f.w, DAILY)).status, 200);
   f.clock.t = at(13, 9, 0, 10); f.tick();
   await until(async () => { const v = (await f.w.get(`/api/author/start/${f.w.starts()[0]}`)).json(); return v.state === 'parked' ? v : null; });
   f.clock.t = at(14, 9, 0, 10); f.tick();
   const rows = f.rows();
-  assert.equal(rows.length, 2);
-  assert.equal(rows[1].outcome, 'busy');
-  assert.match(rows[1].say, /finish or stop run-1 first/);
-  assert.deepEqual(f.runs(), ['run-1'], 'nothing started');
-  assert.equal(f.w.starts().length, 1);
+  assert.deepEqual(rows.map((r) => r.outcome), ['started', 'started'], JSON.stringify(rows));
+  assert.deepEqual(f.runs(), ['run-1', 'run-2']);
+  assert.equal(f.w.starts().length, 2);
 });
 
 test('Must fail: a month that cannot fund a run records monthly-exhausted with what is left and what is needed, starts nothing, spends $0', async () => {
@@ -170,26 +168,6 @@ test('file-updated: runs when the sha changes, with the new version; the current
   assert.equal(start.sources.find((s) => s.role === 'resume').path, watched);
 });
 
-test('Must fail: a job with a trigger is edited and signed, the time comes, and nothing starts', async () => {
-  const f = await fireWorld();
-  assert.equal((await setTrigger(f.w, DAILY)).status, 200);
-  const entry = (await f.w.get('/api/author/flows')).json().flows.find((x) => x.flow === 'job2');
-  const d = await f.w.post('/api/author/draft', { ...f.w.card(), ...entry.edit.card, flowName: 'job2', editOf: { flow: 'job2', flowHash: entry.edit.flowHash }, capUsd: '0.30' });
-  const id = d.json().draftId;
-  const g = await until(async () => { const j = (await f.w.get(`/api/author/${id}`)).json(); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });
-  assert.equal(g.phase, 'green');
-  // signing an Edit also starts a run (Sign & run); the counts are taken after it, so only a TRIGGER could add to them
-  const s = await f.w.post(`/api/author/${id}/sign`, { hash: g.hash });
-  assert.equal(s.status, 202, s.text);
-  const runsAfterSign = f.runs().length;
-  const startsAfterSign = f.w.starts().length;
-  f.clock.t = at(13, 9, 0, 10); f.tick();
-  f.clock.t = at(14, 9, 0, 10); f.tick();
-  assert.deepEqual(f.rows(), [], 'By hand again: no trigger, no row, no run');
-  assert.equal(f.runs().length, runsAfterSign);
-  assert.equal(f.w.starts().length, startsAfterSign);
-});
-
 test('a trigger changed while the panel was off does not inherit the old ledger: the missed slots of the old trigger do not run, its first slot is after it was set', async () => {
   const f = await fireWorld();
   assert.equal((await setTrigger(f.w, DAILY)).status, 200);
@@ -254,7 +232,7 @@ test('F4 a file whose job has no model record stays queued (no ran row), is told
   pollFiles(f); pollFiles(f);
   assert.equal(f.rows().filter((r) => r.outcome === 'refused').length, 1, `told once: ${JSON.stringify(f.rows())}`);
   assert.deepEqual(f.w.starts(), []);
-  const led = readJsonl(path.join(f.flowDir, 'triggers', f.read().signature.flow, 'seen.jsonl'));
+  const led = seenOf(f.flowDir);
   assert.equal(led.some((r) => r.kind === 'ran'), false, 'no ran row: it stays queued');
   assert.equal(led.some((r) => r.kind === 'arrived'), true);
   writeFileSync(path.join(f.flowDir, 'model.json'), rec);
@@ -269,8 +247,8 @@ test('F4 a start the starter refuses (409) is one refused row with its say, neve
   const slot = JSON.parse(readFileSync(path.join(f.flowDir, 'model.json'), 'utf8')).slot;
   const door = createTriggerDoor({
     root: f.w.root,
-    flowsDoor: { editBlock: () => null, lastSourcesOf: () => ({ sources: { resume: path.join(f.w.inDir, 'resume.md'), jd: path.join(f.w.inDir, 'jd.md') } }) },
-    starter: { start: () => ({ status: 409, body: { ok: false, refused: 'start-live', say: 'A run of this flow is already starting. Wait for it.' } }) },
+    flowsDoor: { editBlock: () => null, scheduleBusy: () => null, lastSourcesOf: () => ({ sources: { resume: path.join(f.w.inDir, 'resume.md'), jd: path.join(f.w.inDir, 'jd.md') } }) },
+    starter: { canStart: () => null, start: () => ({ status: 409, body: { ok: false, refused: 'start-live', say: 'A run of this flow is already starting. Wait for it.' } }) },
     loadEnv: () => ({ ok: true, env: {}, keyNames: [slot] }),
     monthlyClaim: () => null,
     modelRefusal: () => [],

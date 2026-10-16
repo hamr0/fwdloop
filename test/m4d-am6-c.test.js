@@ -136,10 +136,10 @@ test('C7 (amendment 7): the "Thinking on" box asks ONE function over bareagent\'
   const state = new Function(`${fn}\nreturn thinkingBoxState;`)();
   assert.deepEqual(state({ thinking: { canChange: false, say: "can't change this for this model" } }), { disabled: true, checked: false, note: "can't change this for this model" });
   assert.deepEqual(state({ thinking: { canChange: true, say: '' } }, true), { disabled: false, checked: true, note: '' });
-  // M4d am11 item 2: an unverified model, box unticked: the note says so; ticked: no note (it would say off while on)
+  // M4d am11 item 2 + am22: an unverified model: the note shows whether the box is ticked or not
   const unv = { thinking: { canChange: true, say: 'thinking off (not verified for this model)' } };
   assert.deepEqual(state(unv, false), { disabled: false, checked: false, note: 'thinking off (not verified for this model)' });
-  assert.deepEqual(state(unv, true), { disabled: false, checked: true, note: '' });
+  assert.deepEqual(state(unv, true), { disabled: false, checked: true, note: 'thinking off (not verified for this model)' });
   assert.deepEqual(state(null), { disabled: true, checked: false, note: '' });
   assert.match(PAGE, /<input type="checkbox" id="jf-thinking"(?![^>]*checked)[^>]*> Thinking on/);
 });

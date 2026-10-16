@@ -96,7 +96,7 @@ test('am4 (a) page: red note turns the main button off (startReady) and a plain 
   assert.equal(p.els['jf-cap-note'].textContent, 'needs $0.50 ($0.10 left monthly)');
   assert.equal(p.red(), true);
   // startReady: the page's own function, with the red flag as its only input
-  const startReady = (moneyRed) => new Function('moneyRed', `var mode = "run"; function selectedFlow(){ return {}; } function readRows(){ return []; } function currentCard(){ return {}; } var runInputsEl = {}; var runCapEl = { value: "0.25" }; var resumeCapEl = { value: "" }; var resumeCtx = null;
+  const startReady = (moneyRed) => new Function('moneyRed', `var mode = "run"; var reuseKind = null; function selectedFlow(){ return {}; } function readRows(){ return []; } function currentCard(){ return {}; } var runInputsEl = {}; var runCapEl = { value: "0.25" }; var resumeCapEl = { value: "" }; var resumeCtx = null;
     ${fnSrc(CHAT, 'capValid')}\n${fnSrc(CHAT, 'startReady')}\nreturn startReady();`)(moneyRed);
   assert.equal(startReady(true), false, 'red: the button is off');
   assert.equal(startReady(false), true, 'plain: the button is on');

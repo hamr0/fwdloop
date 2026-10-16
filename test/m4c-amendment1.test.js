@@ -158,6 +158,7 @@ function pageHarness(world = {}) {
     function getJSON(p){ calls.fetched.push(p); var id = decodeURIComponent(p.split("/")[4]); return world.fail ? Promise.reject(new Error('books unreadable')) : Promise.resolve(world.asks[id]); }
     ${fnSrc('wireTabs')}
     ${fnSrc('askNeedingYou')}
+    ${fnSrc('followAsk')}
     ${fnSrc('openRunFromRuns')}
     wireTabs([document.getElementById("tab-chat"), document.getElementById("tab-runs"), document.getElementById("tab-inbox")]);
     wireTabs([document.getElementById("tab-run"), document.getElementById("tab-audit"), document.getElementById("tab-details"), document.getElementById("tab-ask")]);

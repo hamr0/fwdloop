@@ -22,15 +22,16 @@
 // arrive together run one after the other and the second sees the first's `starting` start and is refused.
 import { randomBytes } from 'node:crypto';
 import {
-  existsSync, mkdirSync, realpathSync, rmdirSync, writeFileSync,
+  existsSync, mkdirSync, realpathSync, rmdirSync, rmSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { loadCatalogue } from '../catalogue.js';
 import { scrub } from '../authoring.js';
 import { readPidRows } from '../books.js';
 import {
-  PANEL_STARTS_DIR, checkRunId, claimRunId, readFileInside, readdirInside, resolveRunDir,
+  PANEL_STARTS_DIR, checkRunId, claimRunId, nextRunId, readFileInside, readdirInside, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER,
 } from '../flow.js';
 import { booksFresh, runLiveness } from '../liveness.js';
 import { dropUnstartedValues, writeRunValues } from '../runvalues.js';
@@ -107,6 +108,9 @@ export function createStarter(opts) {
     return d === null ? null : readStart(join(d, id), id, keys);
   };
 
+  /** @type {Set<string>} start ids whose child is dead for good: `startingFor` skips them (cost does not grow with old finished starts) */
+  const deadStarts = new Set();
+
   /**
    * M6 amendment 3: the ONE rule for "a run of this flow is starting": the newest start folder of the flow in phase `starting`, or null.
    * With `runId`, only a start of that run (the Runs list reads a run folder as `[▶]` starting by this same rule).
@@ -116,15 +120,50 @@ export function createStarter(opts) {
     const sd = startsDir();
     if (sd === null) return null;
     for (const id of readdirInside(sd, '.').filter((n) => ID_RE.test(n)).sort().reverse()) {
+      if (deadStarts.has(id)) continue;
+      // phase `starting` needs a live child (readStart's `alive`), and a child that has a pid.json and is not running never runs again (a pid recorded with its
+      // procStart; the no-/proc fallback is a 10-minute window that only closes), so that folder can never be `starting`: it is not read again, nothing is pruned.
+      // A folder with no pid.json yet is NOT remembered (a start still being written).
+      if (!childRunning(join(sd, id))) {
+        if (readJsonFile(join(sd, id), 'pid.json') !== null) deadStarts.add(id);
+        continue;
+      }
       const v = readStart(join(sd, id), id, keys);
       if (v && v.flow === flow && (runId === undefined || v.runId === runId) && v.phase === 'starting') return id;
     }
     return null;
   }
 
+  /**
+   * The ONE decider of whether a start can begin, for `start` and for a trigger's pre-check: only the three checks that need no side effect. The flows root exists, the run
+   * id is one the CLI would take (`runId` '' = the next `run-<n>`, looked at and NOT claimed; a signed plan's run folder already exists and is not looked at), and no run of
+   * this flow is starting. Nothing is written. A refusal is the `{status, body}` `start` returns; null = it can start.
+   * @param {{ flow: string, runId: string, planRun?: boolean }} a @param {{ env: Record<string, string|undefined>, keyNames?: string[] }} loaded
+   * @returns {{ status: number, body: any }|null}
+   */
+  function canStart({ flow, runId, planRun = false }, loaded) {
+    if (startsDir() === null) return { status: 400, body: { ok: false, refused: 'root', say: 'The flows folder this panel serves does not exist.' } };
+    if (!planRun) {
+      const flowDir = join(realpathSync(root), flow);
+      if (runId === '') {
+        const next = nextRunId(flowDir);
+        const r = resolveRunDir(flowDir, next);
+        if (!r.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: `${r.red.replace(/^run: /, '')}.` } };
+        if (existsSync(r.runDir)) return { status: 400, body: { ok: false, refused: 'run-id', say: `There is already a run "${next}" of this flow. Use a new run id.` } };
+      } else {
+        const run = checkRun(flow, runId);
+        if (!run.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: run.say } };
+      }
+    }
+    const startingId = startingFor(flow, providerKeys(loaded));
+    if (startingId !== null) return { status: 409, body: { ok: false, refused: 'start-live', startId: startingId, say: 'A run of this flow is already starting. Wait for it.' } };
+    return null;
+  }
+
   return {
     checkRun,
     startingFor,
+    canStart,
 
     /**
      * Start `fwdloop run` for a flow whose every $0 check already passed at the calling door. Re-checks the run id here (nothing
@@ -134,16 +173,17 @@ export function createStarter(opts) {
      * folder as `signed-values.json` BEFORE the spawn; the run then uses them (`pickRunValues`). None = the flow's own.
      * `trigger` (M9): `{kind, reason, catchUp, ...}` for a start a trigger fired (kind 'trigger'): written once into the run's own folder as `trigger.json`
      * BEFORE the spawn; `appendHistory` copies it into the run's history row (the catch-up mark, am2 item 1).
-     * @param {{ kind: 'run'|'sign'|'trigger', flow: string, runId: string, sources: {role: string, path: string}[], values?: any, pick?: {slot: string, model: string}|null, trigger?: Record<string, any>|null }} a
+     * @param {{ kind: 'run'|'sign'|'trigger', flow: string, runId: string, sources: {role: string, path: string}[], planRun?: boolean, planOf?: string|null, values?: any, pick?: {slot: string, model: string}|null, trigger?: Record<string, any>|null }} a
      * @param {{ env: Record<string, string|undefined>, keyNames?: string[] }} loaded the keys load: its env is the child's env AND (with its key names) the scrub list
      * @returns {{ status: number, body: any }}
      */
     start({
-      kind, flow, runId, sources, values = null, pick = null, trigger = null,
+      kind, flow, runId, sources, values = null, pick = null, trigger = null, planRun = false, planOf = null,
     }, loaded) {
       const { env } = loaded;
-      const sd = startsDir();
-      if (sd === null) return { status: 400, body: { ok: false, refused: 'root', say: 'The flows folder this panel serves does not exist.' } };
+      const refused = canStart({ flow, runId, planRun }, loaded);
+      if (refused !== null) return refused;
+      const sd = /** @type {string} */ (startsDir());
       /** @type {string|null} */
       let claimedDir = null;
       if (runId === '') {
@@ -151,20 +191,31 @@ export function createStarter(opts) {
         if (!c.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: `${c.red.replace(/^run: /, '')}.` } };
         ({ runId } = c);
         claimedDir = c.runDir;
-      } else {
-        const run = checkRun(flow, runId);
-        if (!run.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: run.say } };
+      } else if (planRun) {
+        // M6 am9: the run's folder already exists (signing claimed it and put its plan there); it is a run that keeps its plan, or nothing starts
+        const r = resolveRunDir(join(realpathSync(root), flow), runId);
+        if (!r.ok || !runOwnsPlan(r.runDir)) return { status: 400, body: { ok: false, refused: 'run-id', say: `"${runId}" is not a run that holds its own plan. ${NOTHING_SPENT}` } };
+        claimedDir = r.runDir;
       }
       const runDirOf = () => claimedDir ?? join(realpathSync(root), flow, 'runs', runId);
       const unclaim = () => {
-        if (claimedDir === null && values === null && trigger === null) return;
+        if (planRun) return; // a signed plan's run folder is never removed here
+        if (claimedDir === null && values === null && trigger === null && planOf === null) return;
+        if (planOf !== null) { try { rmSync(join(runDirOf(), 'job'), { recursive: true, force: true }); rmSync(join(runDirOf(), RUN_PLAN_MARKER), { force: true }); } catch { /* best-effort */ } }
         dropUnstartedValues(runDirOf());
         try { rmdirSync(runDirOf()); } catch { /* not empty / gone */ }
       };
-      if (values !== null || trigger !== null) {
+      if (values !== null || trigger !== null || planOf !== null) {
         // the run folder holds its signed values (and a triggered start's reason) from before the first step: a claimed one already exists,
         // a typed id's is made here (exclusively: a folder that appeared meanwhile refuses)
         try { if (claimedDir === null) mkdirSync(runDirOf()); } catch { return { status: 400, body: { ok: false, refused: 'run-id', say: `There is already a run "${runId}" of this flow. Use a new run id.` } }; }
+      }
+      if (planOf !== null) {
+        // M6 am9: this run executes the plan another run kept: a verified copy goes into its folder BEFORE the spawn (the source is read through the same safe door)
+        const src = resolveRunDir(join(realpathSync(root), flow), planOf);
+        const cat = loadCatalogue();
+        const c = src.ok && cat.ok ? copyRunPlan({ fromRunDir: src.runDir, runDir: runDirOf(), catalogue: cat.primitives }) : { ok: false, red: 'The plan to reuse cannot be read.' };
+        if (!c.ok) { unclaim(); return { status: 409, body: { ok: false, refused: 'plan', say: `${c.red} ${NOTHING_SPENT}` } }; }
       }
       if (values !== null) {
         const w = writeRunValues(runDirOf(), { ...values, runId });
@@ -173,13 +224,7 @@ export function createStarter(opts) {
       if (trigger !== null) {
         try { writeFileSync(join(runDirOf(), TRIGGER_RECORD_FILE), `${JSON.stringify(trigger)}\n`, { flag: 'wx', mode: 0o600 }); } catch { unclaim(); return { status: 500, body: { ok: false, refused: 'trigger', say: `The reason this run started could not be saved. ${NOTHING_SPENT}` } }; }
       }
-      const keys = providerKeys(loaded);
-      // one start at a time while one is still spawning for this flow (a double click, two tabs)
-      const startingId = startingFor(flow, keys);
-      if (startingId !== null) {
-        unclaim();
-        return { status: 409, body: { ok: false, refused: 'start-live', startId: startingId, say: 'A run of this flow is already starting. Wait for it.' } };
-      }
+      // one start at a time while one is still spawning for this flow (a double click, two tabs): `canStart` above decided it, and nothing between it and the spawn awaits or starts anything
       const id = newId();
       const dir = join(sd, id);
       mkdirSync(sd, { recursive: true, mode: 0o700 });

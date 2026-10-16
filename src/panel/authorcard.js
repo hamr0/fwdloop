@@ -14,7 +14,7 @@ import {
 } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 
-import { checkFlowName, signedHashOf } from '../flow.js';
+import { checkFlowName } from '../flow.js';
 import { checkSendDestination } from '../runner.js';
 import { parseSignedText } from '../signed-text.js';
 import { capTooSmallText } from '../draftspend.js';
@@ -174,8 +174,6 @@ export function cardFields(body) {
     // M4d amendment 6: the picked model (a key name and a model id from Chat's menu) and the per-job "Thinking on" tick; present only when sent
     ...(str(b.provider).trim() !== '' || str(b.model).trim() !== '' ? { provider: str(b.provider).trim(), model: str(b.model).trim() } : {}),
     ...(b.thinking === true ? { thinking: true } : {}),
-    // M6: present only when this card EDITS a signed job: which job, and the signature hash it was opened at
-    ...(typeof b.editOf?.flow === 'string' && typeof b.editOf?.flowHash === 'string' && b.editOf.flowHash !== '' ? { editOf: { flow: b.editOf.flow, flowHash: b.editOf.flowHash } } : {}),
   };
 }
 
@@ -332,26 +330,22 @@ export function destinationRefusal(dest, root) {
 /**
  * Every $0 check on the card, before any spawn (scope 6). Collects all refusals so the page can name every box.
  * @param {ReturnType<typeof cardFields>} card
- * @param {{ root: string, keys?: string[], home?: string }} ctx `keys` = the provider key values (the keys load's scrub list): a key value typed into any box is refused; `home` = the config home Settings is read from (the cap floor)
+ * @param {{ root: string, keys?: string[], home?: string, runOf?: string }} ctx `keys` = the provider key values (the keys load's scrub list): a key value typed into any box is refused; `home` = the config home Settings is read from (the cap floor)
  * @returns {{ ok: true, prose: string }|{ ok: false, refusals: {field: string, say: string}[] }}
  */
-export function checkCard(card, { root, keys = [], home }) {
+export function checkCard(card, { root, keys = [], home, runOf }) {
   /** @type {{field: string, say: string}[]} */
   const refusals = [];
   const no = (field, say) => refusals.push({ field, say });
 
-  // flow name: the CLI's own check, and not an existing flow (M6: unless this card edits that very job, still at the hash it was opened at)
+  // flow name: the CLI's own check, and not an existing flow (a changed job is a NEW workflow, M6 am5, so a taken name is always refused)
   const name = checkFlowName(card.flowName);
   if (!name.ok) no('flowName', `${name.red}. Use lowercase letters, digits, "-" or "_".`);
-  else if (card.editOf) {
-    const was = signedHashOf(join(root, card.editOf.flow));
-    if (card.flowName !== card.editOf.flow) no('flowName', `The name of a job being edited cannot change. It stays "${card.editOf.flow}".`);
-    else if (was === null) no('flowName', `The job "${card.editOf.flow}" is no longer here, so it cannot be edited. Clear the card and start a new job.`);
-    else if (was !== card.editOf.flowHash) no('flowName', `"${card.editOf.flow}" was signed again since you opened it for editing. Open it again to edit the new version. Nothing was changed.`);
-  } else {
+  else {
     let there = true;
     try { lstatSync(join(root, card.flowName)); } catch { there = false; }
-    if (there) no('flowName', `There is already a flow named "${card.flowName}" here. Pick a name that is not used yet.`);
+    // M6 am9: a red run's redraft of an unchanged job is a run of THIS workflow, so its own name is the one name that is allowed to be taken
+    if (there && card.flowName !== runOf) no('flowName', `There is already a flow named "${card.flowName}" here. Pick a name that is not used yet.`);
   }
 
   // job

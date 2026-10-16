@@ -57,17 +57,17 @@ function mk(tag) {
 }
 
 /** Re-sign the flow with the step-3 shape changed: a flow signed before amendment 18 (the sign-time validator would refuse it now). */
-function resignWithShape(w, mut) {
-  const declPath = path.join(w.flowDir, 'declaration.json');
+function resignWithShape(w, mut, dir = w.flowDir) {
+  const declPath = path.join(dir, 'declaration.json');
   const decl = JSON.parse(readFileSync(declPath, 'utf8'));
   mut(decl.steps.find((x) => x.close?.shape?.sections).close.shape);
   const declarationText = `${JSON.stringify(decl, null, 2)}\n`;
   const sig = signFlow({
-    proseText: readFileSync(path.join(w.flowDir, 'prose.txt'), 'utf8'), declarationText, signedBy: 'hamr', signedAt: '2026-10-06T00:00:00Z',
+    proseText: readFileSync(path.join(dir, 'prose.txt'), 'utf8'), declarationText, signedBy: 'hamr', signedAt: '2026-10-06T00:00:00Z',
   });
   assert.equal(sig.ok, true);
   writeFileSync(declPath, declarationText);
-  writeFileSync(path.join(w.flowDir, 'signature.json'), `${JSON.stringify(sig.signature, null, 2)}\n`);
+  writeFileSync(path.join(dir, 'signature.json'), `${JSON.stringify(sig.signature, null, 2)}\n`);
 }
 
 const auditUsd = (dir) => readAudit(dir).reduce((a, r) => a + (typeof r.usd === 'number' ? r.usd : 0), 0);
@@ -105,7 +105,8 @@ for (const [name, mut, firstOutcome] of SHAPES) {
       const callsBefore = w.calls;
       const usdBefore = auditUsd(w.runDir);
       assert.ok(near(usdBefore, first.spentUsd), 'the paused run reports what the audit holds');
-      resignWithShape(w, mut);
+      // M9 am12: a waiting run carries on from ITS OWN saved copy, so the old-green/new-crash shape goes into that copy (a re-signed workflow no longer reaches it)
+      resignWithShape(w, mut, path.join(w.runDir, 'job'));
       for (const fn of [resumeRun, continueRun]) {
         const r = await fn(w.args());
         assert.equal(r.outcome, 'refused', `${fn.name}: ${JSON.stringify(r).slice(0, 300)}`);

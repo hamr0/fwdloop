@@ -33,5 +33,12 @@ jobs:
         run: npm run typecheck --if-present
       - name: Install ripgrep (litectx impact needs rg)
         run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Warm up chromium (the first start on a fresh runner is slow; browser tests allow 10 s per start)
+        run: |
+          for i in 1 2; do
+            s=$(date +%s%N)
+            timeout 120 /usr/bin/chromium-browser --headless=new --no-sandbox --disable-gpu --dump-dom about:blank > /dev/null 2>&1 || echo "chromium start $i exited non-zero"
+            echo "chromium start $i: $(( ($(date +%s%N) - s) / 1000000 )) ms"
+          done
       - name: Test
         run: npm test --if-present

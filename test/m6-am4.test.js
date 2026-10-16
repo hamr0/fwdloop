@@ -68,31 +68,32 @@ const askRows = (w) => getRunAsks({ root: w.root, flow: 'job2', runId: 'run-1', 
 const inboxRows = (w) => listStops({ root: w.root, catalogue: CAT }).filter((x) => x.runId === 'run-1');
 const controls = (w) => getRunControls({ root: w.root, flow: 'job2', runId: 'run-1', catalogue: CAT });
 
-test('am4: a run stopped at its ask, job replaced since: Runs, Ask and Inbox all say the new sentence, no Resume, glyph stays [■]', async () => {
+// M9 amendment 12 supersedes the rest of am4 in practice: a stopped run resumes from its OWN kept copy of the job, so re-signing the workflow
+// leaves it exactly as it was, Resume and old words included (M6's later "the old job never changes" says the same).
+test('am4 (after M9 am12): a run stopped at its ask, workflow re-signed since: keeps its old words and its Resume', async () => {
   const w = await haltedRun('stop-edit', 'stop');
   replaceJob(w, 'cap $0.25', 'cap $0.30');
   const row = runsRow(w);
   assert.equal(row.glyph, '[■]');
-  assert.equal(row.label, EDITED);
-  assert.equal(controls(w).canResume, false);
+  assert.notEqual(row.label, EDITED);
+  assert.equal(controls(w).canResume, true);
   const asks = askRows(w).filter((a) => a.status === 'stopped');
   assert.ok(asks.length > 0, 'the stopped ask is listed');
-  for (const a of asks) assert.equal(a.statusText, EDITED);
+  for (const a of asks) assert.notEqual(a.statusText, EDITED);
   const stops = inboxRows(w).filter((a) => a.status === 'stopped');
   assert.ok(stops.length > 0);
-  for (const a of stops) assert.equal(a.statusText, EDITED);
+  for (const a of stops) assert.notEqual(a.statusText, EDITED);
 });
 
-test('am4: a cap-halted run, job replaced since: Runs says the new sentence, no Resume, glyph stays [■]', async () => {
+test('am4 (after M9 am12): a cap-halted run, workflow re-signed since: keeps its old words and its Resume', async () => {
   const w = await haltedRun('cap-edit', 'cap');
   assert.match(runsRow(w).label, /money cap was reached/, 'unedited baseline');
   assert.equal(controls(w).canResume, true);
   replaceJob(w, 'cap $0.0105', 'cap $0.0106');
   const row = runsRow(w);
   assert.equal(row.glyph, '[■]');
-  assert.equal(row.label, EDITED);
-  assert.equal(controls(w).canResume, false);
-  for (const a of [...askRows(w), ...inboxRows(w)]) assert.notEqual(a.statusText, 'stopped — Resume to go on', 'no ask row offers a Resume either');
+  assert.match(row.label, /money cap was reached/);
+  assert.equal(controls(w).canResume, true);
 });
 
 test('am4: the same runs with the job untouched keep their old words and their Resume', async () => {

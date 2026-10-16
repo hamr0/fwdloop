@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { parseSignedText, ARBITER_FIELDS } from '../src/signed-text.js';
 import {
-  triggerLine, proseWithTrigger, stripTrigger, triggerHash,
+  triggerLine, stripTrigger, triggerHash,
 } from '../src/trigger-line.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -51,17 +51,12 @@ test('refusals name the field: bad time, bad day, undeclared role, empty path, a
   assert.equal(parseSignedText(`${PROSE.trimEnd()}\nguardrail: trigger daily 09:00\nguardrail: trigger daily 10:00\n`).ok, false);
 });
 
-test('proseWithTrigger adds, replaces and removes the line; null gives back the original text, so an old job hash cannot move', () => {
-  const t1 = { kind: 'daily', hour: 9, minute: 0 };
-  const t2 = { kind: 'weekdays', hour: 8, minute: 15 };
-  const a = proseWithTrigger(PROSE, t1);
-  assert.equal(parseSignedText(a).arbiter.trigger.kind, 'daily');
-  const b = proseWithTrigger(a, t2);
-  assert.deepEqual(parseSignedText(b).arbiter.trigger, t2);
-  assert.equal(b.split('\n').filter((l) => /trigger/.test(l)).length, 1);
-  assert.equal(proseWithTrigger(b, null).trimEnd(), PROSE.trimEnd());
-  assert.equal(stripTrigger(b).trimEnd(), PROSE.trimEnd());
-  assert.equal(proseWithTrigger(PROSE, null), PROSE, 'no trigger in, no trigger out: byte-identical');
+test('M9 am20: nothing writes a trigger line any more; the parser still reads one (an old job verifies) and `stripTrigger` removes it', async () => {
+  const mod = await import('../src/trigger-line.js');
+  assert.equal(mod.proseWithTrigger, undefined, 'the ONE writer of the line is gone');
+  const old = `${PROSE.trimEnd()}\nguardrail: trigger daily 09:00\n`;
+  assert.equal(parseSignedText(old).arbiter.trigger.kind, 'daily', 'read, for a job signed before am20');
+  assert.equal(stripTrigger(old).trimEnd(), PROSE.trimEnd());
 });
 
 test('the hash binds the flow, its signature and the trigger: any one changed changes it', () => {

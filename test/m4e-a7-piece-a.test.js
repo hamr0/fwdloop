@@ -57,7 +57,7 @@ test('(c) a run card\'s spend, time in plain units and date are real separator t
   assert.match(text(rlRunCardHtml(r, false)), /passed — goal met · \$0\.0616 · 6m23s$/);
   assert.match(text(rlRunCardHtml({ ...r, wallMs: null }, false)), /passed — goal met · \$0\.0616$/, 'unrecorded time is left out, never invented');
   const d = new Date('2026-10-06T10:00:00Z'); const two = (n) => String(n).padStart(2, '0');
-  assert.match(text(rlRunCardHtml(r, false)), new RegExp(`^run-1 ${two(d.getMonth() + 1)}/${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`), 'the one short date MM/DD HH:MM');
+  assert.match(text(rlRunCardHtml(r, false)), new RegExp(`^run-1 · ${two(d.getMonth() + 1)}/${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`), 'the one short date MM/DD HH:MM');
   assert.doesNotMatch(PAGE, /\.wf-meta \+ \.wf-meta::before/, 'no CSS-only separator');
 });
 

@@ -18,15 +18,16 @@
 // history); both throw (never silently coerce) on a violation, so a bad
 // caller fails loudly at the one place that would otherwise hide it.
 
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { readFileInside, readdirInside } from './flow.js';
+import { appendRow } from './jsonl-append.js';
 import { TRIGGER_RECORD_FILE } from './trigger-line.js';
 
 function appendLine(filePath, row) {
   mkdirSync(dirname(filePath), { recursive: true });
-  appendFileSync(filePath, `${JSON.stringify(row)}\n`);
+  appendRow(filePath, row);
 }
 
 /**

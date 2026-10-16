@@ -1,5 +1,6 @@
 // M9 piece 3 (docs/wiki/the-module-ladder.md, "M9" item 1, am1): the trigger as typed data in the signed arbiter block.
-// Pure text: the grammar of the one `guardrail: trigger ...` line, and the ONE place a prose text gains, changes or loses it.
+// Pure text: the grammar of the one `guardrail: trigger ...` line. M9 am20: a schedule is its own signed file (src/schedule.js); NOTHING writes this line any more.
+// The signed-text parser still accepts it so a job signed before am20 still reads and verifies, but nothing acts on it: such a job is By hand.
 //
 //   guardrail: trigger daily 09:00
 //   guardrail: trigger weekdays 09:00
@@ -64,22 +65,12 @@ export function stripTrigger(prose) {
 }
 
 /**
- * The ONE writer of the trigger line: the prose with its trigger line replaced by this trigger's (or removed for null). With no trigger
- * in and none asked for, the text is returned unchanged. The arbiter block is last in a signed text, so the line goes at the end.
- * @param {string} prose @param {Trigger|null} trigger
- */
-export function proseWithTrigger(prose, trigger) {
-  const stripped = stripTrigger(prose);
-  if (trigger === null) return stripped;
-  return `${stripped.replace(/\s*$/, '')}\n${triggerLine(trigger)}\n`;
-}
-
-/**
  * What the human's second click carries: binds the job, the exact signature it was shown at and the trigger.
- * @param {{flow: string, flowSignatureHash: string, trigger: Trigger|null}} a
+ * @param {{flow: string, flowSignatureHash: string, trigger: Trigger|null, model?: {slot: string, model: string}|null, destination?: string|null, inputs?: {role: string, path: string}[]|null, plan?: {run: string, flowHash: string, declSha: string}|null}} a
  */
-export function triggerHash({ flow, flowSignatureHash, trigger }) {
-  return createHash('sha256').update(JSON.stringify({ m9: 'trigger', flow, flowSignatureHash, trigger })).digest('hex');
+export function triggerHash({ flow, flowSignatureHash, trigger, model = null, destination = null, inputs = null, plan = null }) {
+  // M6 am5 item 3: the scheduled model is part of what the click signs; absent = the exact bytes (and hashes) a trigger had before
+  return createHash('sha256').update(JSON.stringify({ m9: 'trigger', flow, flowSignatureHash, trigger, ...(model ? { model } : {}), ...(destination ? { destination } : {}), ...(inputs ? { inputs } : {}), ...(plan ? { plan } : {}) })).digest('hex');
 }
 
 /** M9: the file a triggered start writes (once, before the spawn) into the run's own folder: why this run started. `appendHistory` copies it into the run's history row. */

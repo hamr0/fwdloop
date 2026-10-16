@@ -113,27 +113,6 @@ export function writeSetup({ flowDir, secrets = [], ...rest }) {
 }
 
 /**
- * M9 item 2: a trigger-only re-sign signs the same plan under a new flow hash. The old `setup.jsonl` bytes are written back untouched (append-only)
- * and ONE row is added: kind `trigger-resign`, the record of the signing it continues (its plan hash and "Not checked" list, copied) under the new
- * `flowHash`, naming the old one in `resignOf`. A reader that wants this job's record looks for the row whose `flowHash` is the job's. Never throws.
- * @param {{ flowDir: string, oldText: string, oldFlowHash: string, newFlowHash: string, at: string }} a
- * @returns {{ ok: true } | { ok: false, red: string }}
- */
-export function carrySetup({ flowDir, oldText, oldFlowHash, newFlowHash, at }) {
-  try {
-    const rows = oldText.split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
-    const signs = rows.filter((r) => r.kind === 'sign' || r.kind === 'trigger-resign');
-    const from = signs.findLast((r) => r.flowHash === oldFlowHash) ?? signs.at(-1);
-    const keep = oldText.endsWith('\n') ? oldText : `${oldText}\n`;
-    const extra = from ? `${JSON.stringify({ ...from, kind: 'trigger-resign', at, flowHash: newFlowHash, resignOf: oldFlowHash })}\n` : '';
-    writeFileSync(join(flowDir, SETUP_FILE), keep + extra, { flag: 'wx', mode: 0o600 });
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, red: `setup: could not carry ${SETUP_FILE} over (${err.code ?? err.message})` };
-  }
-}
-
-/**
  * The flow's setup rows, through the one safe gateway. `present:false` = a flow signed before amendment 6 (or a file that cannot be read).
  * @param {string} flowDir
  * @returns {{ present: false } | { present: true, rows: any[], unreadable: number }}

@@ -58,6 +58,7 @@ import { answerAsk, reopenAsk, normalizeDecision } from '../ask.js';
 import { readHistory, endRow } from '../books.js';
 import { resolveRunDir } from '../flow.js';
 import { readAsk, requestStop, stopParkedRun } from '../runner.js';
+import { removeFromNeedsYou } from './needsyou.js';
 import {
   listRuns, listScheduled, summarizeJobs, RUNS_LIST_LIMITS, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
@@ -297,6 +298,24 @@ async function stopRoute(res, body, root) {
 }
 
 /**
+ * `POST /api/needs-remove` — runs after the same gates as the answer. The human's "Remove from Needs you" (M11 am11 item 3): writes the removal marker for the card's
+ * current episode, once, and nothing else. Refused 409 for a run that is not in Needs you with a removable card (a run waiting at a live ask is never removable).
+ * @param {any} res @param {any} body @param {string} root @param {ReturnType<typeof createResumer>} resumer @param {(() => number)|undefined} now
+ */
+function needsRemoveRoute(res, body, root, resumer, now) {
+  const b = body !== null && typeof body === 'object' ? body : {};
+  const { flow, runId } = b;
+  if (resolveRun(res, root, flow, runId) === null) return;
+  const loaded = loadCatalogue();
+  if (!loaded.ok) { refuse(res, 500, 'catalogue', 'the catalogue failed to load'); return; }
+  const r = removeFromNeedsYou({
+    root, flow, runId, catalogue: loaded.primitives, nowMs: (now ?? Date.now)(), resumeAttempt: (f, id) => resumer.get(f, id),
+  });
+  if (!r.ok) { sendJson(res, r.refused === 'no-such-run' ? 404 : 409, { ok: false, refused: r.refused, say: r.say }); return; }
+  sendJson(res, 200, { ok: true });
+}
+
+/**
  * `POST /api/resume` — runs after the same gates as the answer. Starts a
  * resume ONLY for a run that has a saved, unconsumed answer; it takes no
  * decision or reason and can answer nothing. Same start path as the answer.
@@ -330,6 +349,7 @@ function authorPost(res, url, body, author) {
   const send = (r) => sendJson(res, r.status, r.body);
   if (url === '/api/author/draft') { send(author.start(body)); return; }
   if (url === '/api/author/run') { send(author.run(body)); return; }
+  if (url === '/api/author/reuse-check') { send(author.reuseCheck(body)); return; }
   if (url === '/api/author/run-prepare') { send(author.runPrepare(body)); return; }
   if (url === '/api/author/trigger-prepare') { send(author.trigger.prepare(body)); return; }
   if (url === '/api/author/trigger') { send(author.trigger.set(body)); return; }
@@ -382,11 +402,12 @@ export function handleRequest(req, res, opts) {
   const isSettingsPost = method === 'POST' && String(req.url).startsWith('/api/settings/');
   // M4e piece 2a: every `/api/author/...` POST goes through the SAME door (own Host, own Origin, body cap) — no second guard.
   const isAuthorPost = method === 'POST' && String(req.url).startsWith('/api/author/');
-  if (method === 'POST' && (isSettingsPost || isAuthorPost || req.url === '/api/answer' || req.url === '/api/resume' || req.url === '/api/reopen' || req.url === '/api/remove-lock' || req.url === '/api/stop')) {
+  if (method === 'POST' && (isSettingsPost || isAuthorPost || req.url === '/api/answer' || req.url === '/api/resume' || req.url === '/api/reopen' || req.url === '/api/remove-lock' || req.url === '/api/stop' || req.url === '/api/needs-remove')) {
     const isResume = req.url === '/api/resume';
     const isReopen = req.url === '/api/reopen';
     const isRemoveLock = req.url === '/api/remove-lock';
     const isStop = req.url === '/api/stop';
+    const isNeedsRemove = req.url === '/api/needs-remove';
     const origin = req.headers.origin;
     if (origin !== `http://127.0.0.1:${opts.port}` && origin !== `http://localhost:${opts.port}`) {
       refuse(res, 403, 'origin-not-own', String(origin));
@@ -417,6 +438,7 @@ export function handleRequest(req, res, opts) {
         if (isResume) resumeRoute(res, body, opts.root, opts.resumer);
         else if (isReopen) reopenRoute(res, body, opts.root, opts.resumer);
         else if (isRemoveLock) removeLockRoute(res, body, opts.root, opts.resumer);
+        else if (isNeedsRemove) needsRemoveRoute(res, body, opts.root, opts.resumer, opts.now);
         else if (isStop) {
           stopRoute(res, body, opts.root).catch(() => {
             if (!res.headersSent) sendJson(res, 500, { ok: false, refused: 'internal', red: 'internal error' });
@@ -431,7 +453,7 @@ export function handleRequest(req, res, opts) {
   }
 
   if (method !== 'GET' && method !== 'HEAD') {
-    sendText(res, 405, 'method not allowed — GET/HEAD for reads; the only writes are POST /api/answer, POST /api/resume, POST /api/reopen, POST /api/remove-lock, POST /api/stop, POST /api/settings/... and POST /api/author/...');
+    sendText(res, 405, 'method not allowed — GET/HEAD for reads; the only writes are POST /api/answer, POST /api/resume, POST /api/reopen, POST /api/remove-lock, POST /api/stop, POST /api/needs-remove, POST /api/settings/... and POST /api/author/...');
     return;
   }
 
@@ -549,14 +571,16 @@ export function handleRequest(req, res, opts) {
     if (!fd.ok && fd.why === 'outside-root') { refuse(res, 403, 'flow-outside-root', cleanPaths(fd.red, opts.root)); return; }
 
     if (sub === 'audit') {
-      const result = getRunAudit({ root: opts.root, flow, runId });
+      const result = getRunAudit({
+        root: opts.root, flow, runId, scheduleRead: (f) => opts.author?.trigger?.facts(f) ?? null, catalogue, resumeAttempt, startingRun, now: opts.now,
+      });
       if (!result) { sendText(res, 404, 'no such run'); return; }
       send(200, result);
       return;
     }
     if (sub === 'job') {
       const result = getRunJob({
-        root: opts.root, flow, runId, catalogue,
+        root: opts.root, flow, runId, catalogue, scheduleRead: (f) => opts.author?.trigger?.facts(f) ?? null,
       });
       if (!result) { sendText(res, 404, 'no such run'); return; }
       send(200, result);
@@ -564,14 +588,14 @@ export function handleRequest(req, res, opts) {
     }
     if (sub === 'asks') {
       const result = getRunAsks({
-        root: opts.root, flow, runId, catalogue, resumeAttempt,
+        root: opts.root, flow, runId, catalogue, resumeAttempt, now: opts.now,
       });
       if (!result) { sendText(res, 404, 'no such run'); return; }
       send(200, result);
       return;
     }
     const result = getRunDetail({
-      root: opts.root, flow, runId, catalogue, resumeAttempt, startingRun, triggerRead: (f) => opts.author?.trigger?.read(f) ?? null, now: opts.now,
+      root: opts.root, flow, runId, catalogue, resumeAttempt, startingRun, triggerRead: (f) => opts.author?.trigger?.facts(f) ?? null, now: opts.now,
     });
     if (!result) { sendText(res, 404, 'no such run'); return; }
     send(200, result);

@@ -6,6 +6,9 @@ import path from 'node:path';
 
 import { loadCatalogue } from '../src/catalogue.js';
 import { readFlow, writeRunJobCopy } from '../src/flow.js';
+import { ledgerOf, readSchedule } from '../src/schedule.js';
+import { readSeen } from '../src/trigger-files.js';
+import { readRows } from '../src/trigger-clock.js';
 import { world } from './m4e-world.mjs';
 
 export const CAT = loadCatalogue().primitives;
@@ -45,3 +48,10 @@ export async function setTrigger(w, trigger, flow = 'job2') {
 
 export const readJsonl = (f) => { try { return readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch { return []; } };
 export const ls = (d) => { try { return readdirSync(d).sort(); } catch { return []; } };
+
+/** M9 am20: the file rows (baseline / arrived / ran / dropped) of the job's CURRENT schedule signing, from its one schedule ledger. */
+export const seenOf = (flowDir) => { const sc = readSchedule(flowDir); return sc === null ? [] : readSeen(ledgerOf(flowDir), sc.sig).filter((r) => ['baseline', 'arrived', 'ran', 'dropped'].includes(r.kind)); };
+/** The clock rows (armed / fire) of the CURRENT signing. */
+export const clockOf = (flowDir) => { const sc = readSchedule(flowDir); return sc === null ? [] : readRows(ledgerOf(flowDir), sc.sig).filter((r) => r.kind === 'armed' || r.kind === 'fire'); };
+/** M9 am20: the `sig` a hand-written `triggers.jsonl` row needs to count as a row of the job's CURRENT schedule signing. */
+export const sigNow = (flowDir) => readSchedule(flowDir)?.sig;

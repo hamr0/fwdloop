@@ -1421,6 +1421,15 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - F64: a malformed tool call's raw arguments are shown as the first 2000 characters, then `… (N more chars)`.
   - A key name is a name that ends in `_KEY`, capitals (`isKeyName` in `src/keysfile.js`, commit 1b15bfb). Only such lines of the keys file are listed as Settings rows; a configured name that is not one never reaches a child's env; and the provider, model, Test and models routes refuse any other slot by name (`not-a-key-name`, nothing saved). This replaces the "other names are still listed" words of amendment 16 item C4 and the "every name with a value is a row" words of amendment 6 (signed text, unchanged). A `config.json` that already names a slot without `_KEY` is not broken: that row is simply not shown and its keys-file line is not passed on.
 
+**M4d amendment 22 — SIGNED by hamr 2026-10-16 ("sign m4d am22").**
+The **thinking off (not verified for this model)** note next to the Chat "Thinking on" box shows whether the box is ticked or not.
+
+**M4d amendment 23 — SIGNED by hamr 2026-10-16 ("sign m4d am23").**
+A Cap at or below what the earlier draft already spent is red: 'The cap must be above what is already spent (at least $X).', the same words as a Resume.
+
+**M4d amendment 24 — SIGNED by hamr 2026-10-16 ("sign m4d am24").**
+When the Cap is at or below what the earlier draft already spent, Draft is refused with the same red words as the Cap note, and no draft starts.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
@@ -2179,6 +2188,68 @@ through M5 (docs/archive/PRD.md:597-605).
   - *F3 (`86cabf9`):* the run's job copy is written only if the job on disk still has the signature hash the run verified; if the job was replaced while the run was starting, the run stops `preflight-red` and writes no copy.
   - *F5 (`a8a9d8b`):* a run halted under a job that was later replaced offers no Resume button (the runner would refuse it as a signature mismatch); amendment 4 added the words.
   - *Known limits, not fixed:* a hard kill (SIGKILL) in the middle of a replacing sign leaves the old files in `.replace-old-<pid>-<ms>/` and the job refused until they are moved back by hand. The Run, Map and Audit tabs read the flow's current job, not the run's copy; only the Job tab reads the copy.
+- **M6 amendment 5 — SIGNED by hamr 2026-10-15 ("sign m6 am5"): one Edit door; a changed job is a new workflow.**
+  1. **One door.** "Edit this job" opens every field.
+  2. **Signing decides.**
+     - If the job lines, guardrails, ask words or positions, or steps changed, signing makes a **new workflow**. Its name is suggested as `<name>-N` (the next free number), and you can type a different name before signing. The old workflow is never changed: its signed job, runs and schedule stay as they were.
+     - If only inputs, destination, cap, time cap, ask wait or model changed, it is a **new run `run-N`** of the same workflow. No new workflow and no new workflow hash.
+  3. **Schedule from a run.** "Schedule run" on a good run uses that run's inputs, destination and **model**. Any of them can be changed when scheduling, and none of that makes a new workflow.
+  4. **A new workflow has no schedule** until its first green run (M9 item 1).
+  5. **Replaces:** M6 scope item 2 ("Signing replaces the job"), M4e amendment 5 item 5 (the separate New job door), and M9 amendment 1 (edit clears the schedule). M6 amendment 4 no longer applies, because the old job never changes.
+  - **Must fail when:** signing a changed job line alters the old workflow's signed files, runs or schedule; changing only the destination or model makes a new workflow; the suggested name clashes with an existing workflow; or the new workflow starts with a schedule.
+  - **Done when:** on your real panel, you edit a guardrail of aging-live-4 and sign. You get `aging-live-4-2` with no runs and no schedule, and aging-live-4 is still scheduled. Then you change only the model and sign, and it's a new `run-N` of aging-live-4.
+- **M6 amendment 6 — SIGNED by hamr 2026-10-15 ("sign m6 am6"): Run again is the one door.**
+  1. **Run again opens every field** on every run: the job lines, guardrails, asks, steps, inputs, destination, cap, time cap, ask wait and model.
+  2. **The button shows the cost before the click:**
+     - only inputs changed: **Run** (one click, as today)
+     - only destination, cap, time cap, ask wait or model changed: **Sign & run** (two clicks, no drafting, a new `run-N`)
+     - any job field changed: **Start drafting**. It drafts again, then signs as a new workflow `<name>-N` (amendment 5).
+     The label flips as soon as a job field changes, and flips back if you undo it.
+  3. A red run is treated the same as a green one: the changes decide, never the run's color.
+  4. **Replaces** M4e amendment 5 item 2's "everything else shows dimmed".
+  - **Must fail when:** a job field is dimmed in Run again; changing only run fields starts drafting or spends drafting money; the button doesn't flip to "Start drafting" when a job field changes; or a red run with only inputs changed is forced to draft.
+- **M6 amendment 7 — SIGNED by hamr 2026-10-15 ("sign m6 am7"): one name for the one door.**
+  1. The one door (amendments 5 and 6) is a single button named **Reuse workflow**. It replaces both **Run again** and **Edit this job**. It sits where Run again is today, first in the Run tab's action row.
+  2. Every signed text that says "Run again" or "Edit this job" now means this button (M4e amendment 7 item 6, M9 amendment 5 item 3, M11 amendment 3 item 1).
+  - **Must fail when:** a page still shows "Run again" or "Edit this job"; or there are two buttons that open the same card.
+- **M6 amendment 8 — SIGNED by hamr 2026-10-15 ("sign m6 am8"): two leftovers from amendment 7.**
+  1. The schedule button (it reads **Schedule run**, or **Cancel / modify schedule** once a schedule is set) stays as signed in M11 amendment 3 item 1. It is not one of the "two buttons" amendment 7 forbids.
+  2. M6 amendments 1 and 3 (no editing while a run is starting, running or waiting) no longer apply. Reuse workflow is open while a run waits: a changed job signs as a new workflow, and the waiting run is untouched.
+  - **Must fail when:** the schedule button is removed or changed; Reuse workflow is greyed while a run waits; or changing the job while a run waits alters that run or its workflow.
+- **M6 amendment 9 — SIGNED by hamr 2026-10-15 ("sign m6 am9"): a red run always drafts; the plan belongs to the run.**
+  1. **A red run (`[✗]`) always drafts.** Its Reuse workflow reads **Start drafting**, changed job or not. If the job is unchanged, the new plan runs as a new `run-N` of the same workflow. If the job changed, it is a new workflow `<name>-N` (amendment 5).
+  2. **Each run keeps the plan it ran.** Reuse workflow on a green run, with the job unchanged, runs that run's plan with no drafting. A schedule set from a run uses that run's plan (with amendment 5 item 3).
+  3. On any other run (green, stopped or waiting), amendment 6 item 2 decides as today.
+  4. **Replaces** amendment 6 item 3 ("A red run is treated the same as a green one") and its must-fail clause about a red run being forced to draft.
+  5. **LAYERS.md gets a "Workflow or run" section**, placed after "Who keeps what", in the same plain style:
+
+     ```
+     ## Workflow or run
+
+     A workflow is the job: its lines, guardrails, asks and steps. A run is one go at it,
+     with its own inputs, destination, cap, ask wait, model and plan. Reuse workflow, on
+     any run, opens every box; what you change decides the rest.
+
+     | the run you start from | the job | you get | it drafts a new plan? |
+     |---|---|---|---|
+     | red | changed | a new workflow `<name>-N` | yes |
+     | red | same | `run-N` of the same workflow | yes, the old plan failed |
+     | green | changed | a new workflow `<name>-N` | yes |
+     | green | same | `run-N` of the same workflow | no, it reuses that run's plan |
+
+     The old workflow is never changed. A new workflow has no schedule until its first green.
+     A stopped run uses Resume instead.
+     ```
+  - **Must fail when:** Reuse on a red run shows Run or Sign & run; a red run's redraft with the job unchanged makes a new workflow; a green run's reuse drafts or runs a different plan than that run's; or a schedule runs a plan other than its run's.
+- **Built after signing — not signed text (2026-10-15), M6 amendment 9 (branch `m11-am5`):**
+  - Where a run's plan lives: `runs/run-N/job/` (the three signed files, write-once, verified) plus a `plan.json` marker in the run folder. No marker = the run reads the workflow's folder, exactly as every run before am9. The ONE reader is `readPlan` in `src/flow.js`; the runner, `fwdloop run/resume/continue`, the Resume button and the run views all use it.
+  - A red (`[✗]`) run's redraft of an unchanged job: the draft door accepts it only when the server reads the source run as `[✗]` itself (never the page's word), names the draft for the SAME workflow, and records `run-of.json` in the draft folder. Sign calls `signDraft` with `asRunOf` (CLI: `fwdloop sign --run-of <workflow>`, same TTY and typed name): the plan's job key must equal the workflow's, then `writeRunPlan` claims `run-N` and writes the plan there. The workflow's files are never written.
+  - Green same-job reuse: the run door takes `planOf` (the run the card was opened from). `planForReuse` says whether that run's kept plan is the workflow's own (a trigger line aside): then a plain run; otherwise the new run gets a verified copy of it (`plan.json {planOf}`). A kept plan that does not verify refuses by name. A run with no kept plan (made before M6) reads as the workflow's plan, as its Job tab already says.
+  - A schedule: `schedule-plan.json` `{run, flowHash, declSha}` beside the trigger's ledgers, written once, bound into the second click's hash and re-verified at every fire (a changed plan refuses the fire and starts nothing). The workflow's declaration is unchanged; the trigger line is signed into the workflow's prose as before. The Schedule button uses the plan of the run whose Run tab it was clicked on.
+  - Narrowing of amendment 6 item 2's draft guard (409 `job-unchanged`, "nothing needs drafting"): it now holds for green, stopped, waiting and unknown source runs; a `[✗]` source run passes it (amendment 9 item 4). A run ended by "rerun" also wears `[✗]` and counts as red (hamr's ruling).
+  - If sign succeeds and the start is refused, the refused start reads as refused with today's Clear; nothing new was added.
+- **M6 amendment 10 — SIGNED by hamr 2026-10-15 ("sign m6 am10"): a run is its own thing.** A run is one run of a workflow, kept on its own: its own copy of the job and its plan. **Resume, an answer or Reopen always carries on that same run, from its own copy.** Editing the workflow afterwards changes only new runs. A schedule set from a run takes its own copy of that run, and each run the schedule starts is its own run (M6 am9 item 2). **Replaces** M6 F5 ("a stopped run whose job was replaced has no Resume button") and the example in M11 amendment 2 item 2 ("stopped — the job was edited; start a new run").
+  - **Must fail when:** a stopped run loses Resume because its workflow was edited; a resumed run carries on with the workflow's current job instead of its own copy.
 
 ## M7 — skills and persona
 
@@ -2271,6 +2342,75 @@ monthly wall is enforced **by the trigger**, before a run starts.
   - *A fire checks the model (`b379d99`):* a trigger fire runs the Run door's model checks at $0 (no recorded model, or a model no longer ticked, priced or keyed in Settings): it writes a `refused` row and starts nothing. A refused start stays a `refused` row, not `started`.
   - *Ledger fixes (`fix/trigger-ledger`):* a queued file's refusal is told once per reason, not once per outcome (`1584697`: a new reason is a new row; busy and monthly carry no reason). The job's last outcome (the NEXT line) counts only rows from the current signing on (`481f7fb`), so an older trigger's red no longer leads a newly signed schedule.
   - *Known limits, not fixed:* a queued file's `ran` row is written just before the start, so a start refused at that moment leaves the file marked run; a job with no `setup.jsonl` and only pre-job-copy runs reads as having no good run after a trigger re-sign, until a run finishes. Both are in the fix ledger.
+- **M9 amendment 6 — SIGNED by hamr 2026-10-15 ("sign m9 am6"): schedules on the Job tab and in Audit.**
+  1. **Job tab, "Started"** (right under Model): how this run began. `By hand`; `By the schedule: every day at 08:15` (plus `· catch-up, 10 min late` when it was); `By a new file: aging-oct.csv` or `By a file update: aging.csv`.
+  2. **Job tab, "Schedule"** (under Started): the workflow's schedule now, with what it's bound to, e.g. `every day at 08:15 · from run-7 · deepseek-flash · ~/fwdloop-out · aging-oct.csv`, or `none`.
+  3. **Audit, first row of a run that a schedule started:** `started by the schedule · every day at 08:15 · slot 08:15 · from run-7`, plus `catch-up` when it was. A hand run has no such row.
+  4. **Fires that started nothing** (busy, month used up, refused) show in the Audit of the run the schedule was set from, in a folded `▸ schedule (k)` group, newest first, at most 7. Each shows its time, outcome and reason in plain words.
+  - **Must fail when:** a scheduled run's Job tab or Audit doesn't say it was scheduled; a hand run says it was; Started or Schedule isn't right under Model; the Schedule field disagrees with the Run tab's SCHEDULED line; or a refused fire is missing from the schedule group.
+- **M9 amendment 7 — SIGNED by hamr 2026-10-15 ("sign m9 am7"): the Run tab summary with date and time.**
+  1. **ENDED** starts with the run's local end date and time, `MM/DD HH:MM`, then the outcome word, then today's reason: `10/14 08:16 · passed · Goal met.`
+  2. **NEXT** stays as today.
+  3. **SCHEDULE** replaces the SCHEDULED / NEXT rows. Line 1: the schedule words, or `By hand`. Line 2, when there is a schedule: `last <MM/DD HH:MM> · <run-N> · <outcome>` (plus `· catch-up` when it was) `· next <day MM/DD HH:MM>`, or `next: waiting for a new file` for a file schedule.
+  4. **A problem turns the SCHEDULE block red: its label, both lines and its frame.** A problem is a last fire that started nothing (busy, month used up, refused). Line 2 shows its reason in plain words, then `next: fix it in Cancel / modify schedule`. When the next fire works, the block goes back to normal.
+  5. The Job tab's **Started** line (amendment 6) ends with the run's start `MM/DD HH:MM`: `By hand · 10/15 13:46`.
+  - **Must fail when:** ENDED or Started has no date and time; there is no SCHEDULE line (`By hand` included); a problem leaves the block's label, lines or frame not red; a fixed schedule stays red; or SCHEDULE disagrees with the Job tab's Schedule field.
+- **M9 amendment 8 — SIGNED by hamr 2026-10-15 ("sign m9 am8"): a run waiting at its ask doesn't block the next; the SCHEDULE line 2 words, matched with bareloop.**
+  1. **A run waiting at its ask no longer makes the job busy.** When a file arrives or the time comes, the next run starts and works up to its own ask. Waiting runs line up in the Inbox; you answer them one by one (Accept, Redo, and the rest). A run that is still working (or starting) keeps the job busy for the **schedule**: a file waits in the queue, a time slot records `busy`. **Your answer is never held back:** it goes on right away, even if another run of the job is working. **Replaces** M9 item 4's "or waiting at an ask" and its must-fail clause about it. A folder of several new files starts one run per file, one after another, each waiting at its own ask; only the monthly limit stops them, since each run holds its full cap when it starts.
+  2. **Every line 2 starts with** `last <MM/DD HH:MM>`, also for a fire that started nothing. Before the first fire it reads `no run yet`.
+  3. **Busy is not a problem.** Normal colour, no "fix it"; it clears by itself: `last 10/15 08:15 · busy: a run of this job was still working · next Fri 10/16 08:15`.
+  4. **A run waiting at its ask** (normal colour): `last 10/15 08:15 · run-15 · waiting for your answer (the next run does not wait) · next Fri 10/16 08:15`.
+  5. **Month used up** (red): `last 10/15 08:15 · month used up: $0.01 left, needs $0.50 · next: raise the limit in Settings, or it starts on the 1st`.
+  6. **Refused** (red): `last 10/15 08:15 · refused: <why> · next: fix it in Cancel / modify schedule`.
+  7. A schedule signed but not armed yet ends `next: not armed yet`.
+  8. **Red = refused, or month used up while it is still that month.** A later good start, or the 1st of the next month, clears it. **Replaces** amendment 7 item 4's "busy" as a problem, and its single `fix it` ending.
+  - **Must fail when:** a run waiting at its ask stops a new file's or time's run from starting; the schedule starts a run while another run of the job is working; your answer at an ask is held back because another run is working; busy turns the block red or says "fix it"; month used up points to Cancel / modify schedule; a line 2 has no `last` stamp after a fire.
+- **M9 amendment 9 — SIGNED by hamr 2026-10-15 ("sign m9 am9"): the schedule is its own section in Audit.** Replaces amendment 6 items 3 and 4.
+  1. Every run of a job that has a schedule gets one **schedule** section at the top of its Audit tab. It looks like the drafting and step sections, and it's **always folded** when the page opens. No schedule now means no section.
+  2. Folded: `▸ schedule  <sign> new file in ~/fwdloop-in · from run-7 · 2 tries started nothing`
+  3. Unfolded, on a run the schedule started:
+     `this run    10/15 20:43  started by the schedule · new file aging-oct.csv`
+     `tries       10/15 20:57  refused: <why>. Nothing started.`
+     `            10/15 20:43  busy: a run of this job was still working. Nothing started.`
+     On a hand run: `this run  10/15 13:20  by hand.` On the run the schedule was set from, it adds: ` The schedule was set from this run.`
+  4. `tries` lists the fires that started nothing (busy, month used up, refused): newest first, at most 7, across every signing. If there are none, it reads `none`.
+  5. The head words come from the same place as the Run tab's SCHEDULE line 1. The sign turns red when SCHEDULE is red.
+  - **Must fail when:** the section is missing on a run of a scheduled job; it opens unfolded; it shows on a job with no schedule; tries shows more than 7 or a fire that started a run.
+- **M9 amendment 10 — SIGNED by hamr 2026-10-15 ("sign m9 am10"): Cancel schedule always works.** **Cancel** in Cancel / modify schedule works even while a run of the job is starting, working or waiting at its ask. It only stops future runs from starting: runs already going or waiting stay as they are. Changing the schedule to a new one stays refused until no run is starting, working or waiting (as M6).
+  - **Must fail when:** Cancel is refused because a run is waiting or working; Cancel changes or stops a run that already started; a new schedule is accepted while a run waits.
+- **M9 amendment 11 — SIGNED by hamr 2026-10-15 ("sign m9 am11"): the sign in the Audit schedule head.** Fills amendment 9's `<sign>`: **`[▶]`** amber while a run of the job is running; **`[✗]`** red when the Run tab's SCHEDULE block is red; otherwise **`[·]`** grey (the schedule is on and waiting). Same rule as bareloop.
+  - **Must fail when:** the head shows `[▶]` with no run running; it isn't `[✗]` while SCHEDULE is red.
+- **M9 amendment 12 — SIGNED by hamr 2026-10-15 ("sign m9 am12"): a waiting run answers from its own copy.** When you answer, Resume or Reopen, the run checks and carries on from **its own kept copy of the job and plan** (M6, M6 am9), against that copy's own signature. It no longer checks the workflow's current signature. A copy that fails its signature is still refused by name. This lets amendment 10's Cancel go through without touching a waiting run.
+  - **Must fail when:** a run waiting at its ask can't carry on after a Cancel; a run whose own copy fails its signature carries on; a resumed run uses the workflow's current job instead of its own copy.
+- **M9 amendment 13 — SIGNED by hamr 2026-10-16 ("sign m9 am13"): the Run tab summary is one box.** Replaces the two separate boxes from amendment 7.
+  1. **One framed box, the same shape every time**, rows as `label | value`:
+     `ENDED     10/16 06:31 · failed · Stopped at line 1: the step said it did not finish.`
+     `NEXT      Run it again from the Chat card.`
+     `SCHEDULE  when a new file arrives in ~/fwdloop-in/`
+     `          last 10/16 06:31 · run-4 · failed · next: waiting for a new file`
+     SCHEDULE line 2 sits under line 1, in the value column. A running run still shows SCHEDULE.
+  2. **The frame's colour:** red when SCHEDULE has a problem (amendment 8). Otherwise it follows the run's own sign: `[✓]` green, `[✗]` red, `[?]` magenta, `[■]` grey. A run that is still running or waiting has no frame colour.
+  3. **The text's colour:** ENDED and NEXT text are never red. Only the SCHEDULE label and its two lines turn red, and only when SCHEDULE has a problem.
+  - **Must fail when:** ENDED, NEXT and SCHEDULE are not in one box; a passed run with a healthy schedule has a red frame; a stopped run has a red frame; ENDED or NEXT text turns red; SCHEDULE turns red on a run that failed while the schedule is fine.
+
+- **M9 amendment 14 — SIGNED by hamr 2026-10-16 ("sign m9 am14").** The Run tab summary box frame uses the same colour as that run's card in the runs list, for every glyph. That includes `[!]` expired and `[II]` stuck.
+
+- **M9 amendment 16 — SIGNED by hamr 2026-10-16 ("sign m9 am16").** When a New file trigger is changed or cancelled while files wait in its queue: if it still watches the same folder, the waiting files stay queued and run in their turn. If the folder changed, or the trigger is cancelled, each waiting file gets one row: '<file> was waiting when the schedule changed, so it will not run. Drop it in again to run it.'
+
+- **M9 amendment 17 — SIGNED by hamr 2026-10-16 ("sign m9 am17").** Before a queued file is marked as run, the panel checks it can start: no run of this job is starting, the root exists, the run number is free. If not, the file stays queued and tries again next turn. A refusal after the run has begun (for example a bad Destination) still counts as its run, and is shown as a refused start, as today.
+  - *Built after signing — not signed text:* the signed example "a bad Destination" is wrong: the panel checks the Destination before it writes `ran`, so a file with a bad Destination is not counted as run; it stays queued and is told once, as before am17. A refusal that really lands after `ran` (for example the run could not be spawned) counts as its run and shows as a refused start. Ruled by hamr 2026-10-16 (option A).
+
+- **M9 amendment 18 — SIGNED by hamr 2026-10-16 ("sign m9 am18").** The am16 row ('<file> was waiting when the schedule changed, so it will not run. Drop it in again to run it.') shows in that job's Audit schedule list, with the other trigger rows, also after the schedule is cancelled.
+
+- **M9 amendment 19 — SIGNED by hamr 2026-10-16 ("sign m9 am19").** Amendment 14 replaces amendment 13 item 2's "a run that is still running or waiting has no frame colour": every run's frame takes its card colour. The older SUMMARY box on the Run tab uses the same colour rule.
+
+- **M9 amendment 20 — SIGNED by hamr 2026-10-16 ("sign m9 am20"): schedules live in their own signed file.**
+  1. A job's schedule lives in its own file, `flows/<job>/schedule.json`, signed by you with the same two clicks. It is no longer a line inside the job. Setting, changing or cancelling a schedule never changes the job or its signature.
+  2. Each job has one queue file, `flows/<job>/schedule-ledger.jsonl`, for as long as the job exists. Each row notes which signing of the schedule wrote it. A schedule change never leaves waiting files behind; amendment 16's rule and words apply in the same click.
+  3. Cancel never touches a run: a run that is starting, working or waiting carries on (amendment 10). Changing to a new schedule is also allowed while a run is going; the next fire uses the new one. This replaces amendment 10's last sentence.
+  4. The rest stays as signed: the AI never sets a schedule, setting one needs a green run, Cancel never does, and a fire uses the plan, inputs, model and destination it was set from (M6 am5, am9).
+  5. Schedule lines inside jobs signed before this stop working. Set those schedules again by hand.
+  - **Must fail when:** a schedule change changes the job's signature; Cancel stops or changes a starting run; a change leaves a waiting file behind; an old schedule line still fires.
 
 ## M10 — real IO
 
@@ -2327,3 +2467,55 @@ same run. Scope is stated when its turn comes.
 - *Built after signing — not signed text:* the older-runs fold (scope item 1.5) shows the newest 7 older runs, the selected run, and, while a search or chip is active, only the ONE newest older run that matches past the 7; it opens by itself when any older run matches, even when the job's newest run matches too (commit 564bb0a).
 
 **M11 EXIT SIGNED — hamr, 2026-10-14** ("sign m11 exit"). Evidence, on hamr's real panel (`--root flows`), 2026-10-14: walk 1 ("all ran clean") — aging-live-4 scheduled, Running now showed the live run, it moved to Needs you with Accept at its ask, Scheduled showed its next time, older runs showed 7 then "use search", a search for an older run opened its job on it, no sideways scroll at 390 and 320; walk 2 after amendment 3 ("changes look good"); walk 3 after amendment 4 ("all pass") — a Scheduled card opens its job's newest run, Inbox status chips and whole-row search work, no sideways scroll. Amendments 1-4 built test-first, each fix shown red with its code reverted. Suite 2992/2992, typecheck clean, at cab4516. Not yet run before this signature: self-review and branch-review. Left as built, not signed text: the chip says "rerun" while an Inbox row says "reran"; the Inbox search hint is cut at 320 px.
+
+- **M11 amendment 5 — SIGNED by hamr 2026-10-14 ("sign m11 am5"): search finds older runs, and the run card line.**
+  1. **Search by words.** The Runs search splits what you type at spaces. A run matches only when every word matches its job name, its run, or its day. `aging run-23` finds run-23 of aging-live-4.
+  2. **A run word is exact.** A word shaped `run-N` matches only that run. `run-2` never matches run-20 or run-230.
+  3. **A day word.** A word shaped `MM/DD` (as the run card shows it, e.g. `10/12`) or `YYYY-MM-DD` (e.g. `2026-10-12`) matches the runs that started on that local day. `MM/DD` matches that day in any year. A part date like `10/1` matches nothing.
+  4. **While searching, the older runs show matches only.** With a search or chip on, a job's older-runs fold shows only the runs that match, newest first, at most **7**. The selected run is still shown, as today.
+  5. **Hints.**
+     - The search box's grey text reads: `job, run-23, or a day 10/12`.
+     - The line after the 7, with no search: `(and k older · <oldest date> to <newest date> of those k · search above)`.
+     - The line after the 7, while searching: `(and k more matches · add a day or a run)`.
+  6. **Run card line 1.** `run-2 · 10/12 13:46 · deepseek-flash` on one line: the date and model use the same size and baseline as `run-2` (not raised or smaller), with ` · ` between the parts.
+  - **Must fail when:** `run-2` shows run-20; `aging run-23` finds nothing when aging-live-4 has a run-23; `10/12` misses a run started that day or shows one from another day; a search shows a non-matching older run (other than the selected one); the fold shows more than 7 older runs plus the selected one; or the date on a run card sits raised or smaller than `run-2`.
+  - **Done when:** on your real panel (`--root flows`), each of the above is checked by hand. You type the job name, `run-2`, the job name with a run number, and a day, and you look at one run card's line 1.
+- **M11 amendment 6 — SIGNED by hamr 2026-10-14 ("sign m11 am6"): the top cards' line 1.**
+  1. **Running now and Scheduled cards, line 1.** The time, cost and next-run text after the job and run use the same size and baseline as the job name (not raised or smaller), with ` · ` between the parts: `aging-live-4 run-7 · 2m · $0.0100` and `aging-live-4 · Mon 09:00`. The same treatment as amendment 5 item 6.
+  - **Must fail when:** any text on line 1 of a Running now or Scheduled card sits raised or smaller than the job name, or has no ` · ` before it.
+- **M11 amendment 7 — SIGNED by hamr 2026-10-14 ("sign m11 am7"): plainer search and hints.**
+  1. **Any day form.** A day can be typed `10/13`, `10-13` or `2026-10-13`; all three mean the same local day.
+  2. **Brackets are ignored.** `aging-live-4 (run-2)`, as a run's title shows it, finds the same run as `aging-live-4 run-2`.
+  3. **The date range comes from the hidden runs' real start days**: the oldest to the newest, whatever order they are listed in.
+  4. **Plainer words.**
+     - Search box: `search: job name, run-23, or a date 10/13`
+     - Under the 7, no search, hidden runs over several days: `4 more older runs, 10/11 to 10/13. Search to find one.`
+     - Under the 7, no search, all on one day: `6 more runs on 10/11. Search to find one.`
+     - Under the 7, while searching: `3 more match. Add a date or run number to narrow it.`
+     These replace amendment 5 item 5's words.
+  - **Must fail when:** `10-13` and `10/13` give different results; `(run-2)` finds nothing where `run-2` does; the range misses a hidden run's day; one day shows as "10/11 to 10/11"; or a hint still uses the old words.
+- **M11 amendment 8 — SIGNED by hamr 2026-10-15 ("sign m11 am8"):** The Runs search box reads `job, run-23, or date 10/13` (replaces amendment 7 item 4's search-box words, which clip at 320 px). **Must fail when:** the search-box words are cut off at 320 px.
+- **M11 amendment 9 — SIGNED by hamr 2026-10-15 ("sign m11 am9"): dates on the "more matches" line.**
+  1. While searching, the line after the 7 shows the real start days of the matches it hides, the same way as amendment 7 item 3:
+     - several days: `5 more matches, 10/11 to 10/12. Add a date or run number to narrow it.`
+     - all on one day: `50 more matches on 10/09. Add a run number to narrow it.`
+     These replace amendment 7 item 4's searching words.
+  - **Must fail when:** the searching line has no dates when every hidden match has one; the range misses a hidden match's day; or one day shows as "10/09 to 10/09".
+- **M11 amendment 10 — SIGNED by hamr 2026-10-15 ("sign m11 am10"): a Needs you click shows the run, and the Inbox when it is at an ask.**
+  1. Clicking a **Needs you** card always opens that run on the **Run** tab (right side).
+  2. If the run is at an ask (waiting `[·]` or stuck `[II]`), the left side also moves to the **Inbox** with its ask selected. A stopped run `[■]` leaves the left side on Runs.
+  3. **Replaces** amendment 1 item 2's "Click: as Running now", and takes "Needs you moving the left side to the Inbox" off amendment 1's "taken out" list.
+  - **Must fail when:** a Needs you card opens any tab but Run; a waiting or stuck card leaves the left side on Runs; a stopped card moves the left side to the Inbox.
+- **M11 amendment 11 — SIGNED by hamr 2026-10-15 ("sign m11 am11"): Needs you: tags, expired asks, and leaving the pile.**
+  1. A run waiting at an ask carries the tag **Answer** (replaces **Accept** in amendment 1 item 2). **Resume** stays.
+  2. A run whose ask expired and can still be reopened is in Needs you with the tag **Reopen** (takes it off amendment 1's "not in Needs you" line). Its click works as amendment 10: Run on the right, the Inbox on the left.
+  3. An expired-ask run (on its Ask tab) and a stopped `[■]` or stuck `[II]` run (on its Run tab) show a button **Remove from Needs you**. It only takes the card out of Needs you: the run's status, its Inbox row, its Jobs card, Reopen and Resume all stay. It is written once, and Audit shows `removed from Needs you by you · <MM/DD HH:MM>`.
+  4. Such a card also leaves Needs you by itself 7 days after it joined (when the ask expired, or the run stopped). Audit shows `removed from Needs you after 7 days`.
+  5. Reopening or resuming a run that was removed puts it back only when it needs you again.
+  - **Must fail when:** a waiting run's tag reads anything but Answer; a reopenable expired ask is missing from Needs you; Remove changes the run's status or hides it from the Inbox or Jobs; a removed or 7-day-old card stays in Needs you; a run waiting at a live ask shows Remove.
+- **M11 amendment 12 — SIGNED by hamr 2026-10-15 ("sign m11 am12"): job · run in the top lists.** In **Running now**, **Needs you** and **Scheduled** only, a run reads `aging-live-4 · run-15` (job, a middle dot, run-N). Everything else stays as it is. Search still finds `run-15` and `(run-15)`.
+  - **Must fail when:** a top card shows the run without the dot; a Jobs card changes; a search for `run-15` stops finding it.
+- **M11 amendment 13 — SIGNED by hamr 2026-10-16 ("sign m11 am13").** When a search matches an older run, the fold opens and each matching run card is highlighted. The highlight is not the selected look.
+
+- **M11 amendment 14 — SIGNED by hamr 2026-10-16 ("sign m11 am14").** When the Inbox has no rows, it shows only 'nothing waiting on you — no stops recorded under this root'. The dashed line, the filter note and the search/chips appear once there is at least one row.
+- **M11 amendment 15 — SIGNED by hamr 2026-10-16 ("sign m11 am15").** A job's top row is its waiting run, if it has one. A stuck run that has left Needs you (7 days, M11 am3 item 5) is no longer the top row. The newest run by time is.

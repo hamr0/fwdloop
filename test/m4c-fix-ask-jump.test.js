@@ -38,6 +38,7 @@ function harness(asks) {
     function getJSON(p){ return Promise.resolve({ asks: p.indexOf("/r2/") === -1 ? asks : [] }); }
     ${fnSrc('wireTabs')}
     ${fnSrc('askNeedingYou')}
+    ${fnSrc('followAsk')}
     ${fnSrc('openRunFromRuns')}
     wireTabs([document.getElementById("tab-chat"), document.getElementById("tab-runs"), document.getElementById("tab-inbox")]);
     wireTabs([document.getElementById("tab-run"), document.getElementById("tab-audit"), document.getElementById("tab-details"), document.getElementById("tab-ask")]);

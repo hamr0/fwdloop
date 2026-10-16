@@ -120,6 +120,10 @@ scoped: the use needs its own module with a signed scope/exit/negative (the bare
 prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 0.49 for the M6a drafter's `thinking` option)). Source: `../bareagent/src/provider-jev.js`,
 `provider-jev-calibration.js`, bare-agent README "Fast gut check — Jev".
 
+**Parked, not scheduled: two panel asks** (hamr, 2026-10-16, raised during the m11-am5 live walk; after the m11-am5 release). Not signed, not drafted; each needs its own amendment signed by hamr before it is built.
+1. The Run tab summary shows how long the run took: `passed · $0.0047` becomes `passed · $0.0047 1m56s`.
+2. The runs list Scheduled section gets its own filter/search, like the other sections.
+
 **No CLI as a product surface.** `npm install`, one command, a localhost server starts and **the
 browser is the product**; the server owns the scheduler. A CLI exists for M0–M4 and M6a (`fwdloop draft`, `fwdloop sign` — sign needs an interactive terminal and a typed flow name, M6a amendment 2) but is
 undocumented and carries no stability promise (docs/archive/PRD.md:427-431).

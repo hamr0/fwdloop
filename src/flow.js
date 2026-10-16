@@ -29,6 +29,7 @@ import { parseSignedText } from './signed-text.js';
 import { signFlow, verifyFlow } from './signature.js';
 import { validateDeclaration } from './declaration.js';
 import { describeChange } from './signed-diff.js';
+import { stripTrigger } from './trigger-line.js';
 
 /** @typedef {import('./types.js').WriteFlowResult} WriteFlowResult */
 /** @typedef {import('./types.js').ReadFlowResult} ReadFlowResult */
@@ -560,13 +561,58 @@ export function signedHashOf(flowDir) {
 /** M6: the names `replaceSigned` swaps, signature last (the file that makes the folder a signed flow). `setup.jsonl` is only moved away: the caller writes the new one. */
 const SWAP_NAMES = ['prose.txt', 'declaration.json', SIGNED_COPY_DIR, 'setup.jsonl', 'signature.json'];
 
+/** The names `replaceSigned` stages (signature last); `setup.jsonl` is only ever moved away, never staged. */
+const STAGE_NAMES = ['prose.txt', 'declaration.json', SIGNED_COPY_DIR, 'signature.json'];
+
+/** Is a process with this pid alive? (EPERM = alive, owned by someone else.) @param {number} pid */
+function pidAlive(pid) {
+  try { process.kill(pid, 0); return true; } catch (err) { return err.code === 'EPERM'; }
+}
+
+/** Is there a `.replace-old-*` / `.replace-new-*` folder in the flow folder? @param {string} dir */
+function hasSwapLeftover(dir) {
+  try { return readdirSync(dir).some((n) => /^\.replace-(?:old|new)-\d+-\d+$/.test(n)); } catch { return false; }
+}
+
+/**
+ * Recover a swap that a hard kill (SIGKILL, power loss) cut short: `.replace-old-<pid>-<ms>` / `.replace-new-<pid>-<ms>` of a process that is gone.
+ * The signature is placed LAST, so while the staged `signature.json` is still in `.replace-new-*` the swap never finished: every moved-away old file
+ * goes back and every new file already placed is removed (the old job again, byte for byte). Once the signature has landed the swap was whole: the
+ * leftovers are just deleted. Idempotent (a crash inside the recovery is recovered by the next call); a live pid's folders are never touched.
+ * @param {string} dir the flow folder @returns {boolean} true when something was recovered or cleaned
+ */
+function recoverSwap(dir) {
+  let names;
+  try { names = readdirSync(dir); } catch { return false; }
+  const stamps = new Set(names.map((n) => /^\.replace-(?:old|new)-(\d+-\d+)$/.exec(n)?.[1]).filter((x) => x !== undefined));
+  let did = false;
+  for (const stamp of stamps) {
+    if (pidAlive(Number(String(stamp).split('-')[0]))) continue;
+    const stage = path.join(dir, `.replace-new-${stamp}`);
+    const backup = path.join(dir, `.replace-old-${stamp}`);
+    try {
+      if (existsSync(path.join(stage, 'signature.json'))) {
+        for (const n of SWAP_NAMES) {
+          const placed = STAGE_NAMES.includes(n) && !existsSync(path.join(stage, n));
+          if (placed) rmSync(path.join(dir, n), { recursive: true, force: true });
+          if (existsSync(path.join(backup, n))) renameSync(path.join(backup, n), path.join(dir, n));
+        }
+      }
+      rmSync(stage, { recursive: true, force: true });
+      rmSync(backup, { recursive: true, force: true });
+      did = true;
+    } catch { /* left for the next call */ }
+  }
+  return did;
+}
+
 /**
  * M6 ("Signing replaces the job"): replace the signed job in `<root>/<name>/`, ALL OR NOTHING, keeping the name, `runs/` and the flow's books.
  * Refuses (touching nothing) unless the folder holds a signed job whose `signature.json` `flow` hash is `replaces.flowHash` (a draft opened from an
  * older version of the job, or a job signed again meanwhile, is refused by name). The new files are staged inside the folder first; the swap then moves
  * each old file into a backup folder and its new one into place (signature last); ANY failure, or a proof read that does not verify, moves everything
- * back. On success the backup is deleted — no old version is kept anywhere (hamr's ruling). Only a hard kill inside the swap leaves the backup
- * (`.replace-old-*`) holding the old files; nothing recovers it automatically.
+ * back. On success the backup is deleted — no old version is kept anywhere (hamr's ruling). A hard kill inside the swap leaves
+ * `.replace-old-*` / `.replace-new-*`; `recoverSwap` puts the old job back (or finishes the cleanup) the next time `readFlow` reds or a replace starts.
  * @param {{root: string, name: string, dir: string, proseText: string, declarationText: string, signature: any, replaces: {flowHash: string}, catalogue: unknown, onReplaceStep?: (step: string) => void}} a
  * @returns {WriteFlowResult}
  */
@@ -577,6 +623,7 @@ function replaceSigned({
   let dirStat;
   try { dirStat = lstatSync(dir); } catch { return red(`flow: nothing signed to replace — "${name}" has no folder here`); }
   if (dirStat.isSymbolicLink() || !dirStat.isDirectory()) return red(`flow: "${dir}" is not a plain folder, refused`);
+  recoverSwap(dir);   // a swap cut short by a hard kill is put right before this one reads the folder
   const current = signedHashOf(dir);
   if (current === null) return red(`flow: nothing signed to replace — "${name}" has no readable signature.json`);
   if (typeof replaces?.flowHash !== 'string' || current !== replaces.flowHash) {
@@ -636,6 +683,103 @@ function replaceSigned({
 }
 
 /**
+ * M6 am9 ("Each run keeps the plan it ran"): which plan does a reuse of run `runDir` run? `{same:true}` = the workflow's own plan (the run kept no copy, as a run made
+ * before M6, or its kept plan is byte-equal to the workflow's declaration and prose, a trigger line aside). `{same:false, read}` = a different kept plan, already verified.
+ * `{ok:false, red}` = a kept plan that does not verify: refused by name, never swapped for the workflow's.
+ * @param {{root: string, name: string, runDir: string, catalogue: unknown}} a
+ * @returns {{ok: true, same: true} | {ok: true, same: false, read: ReadFlowResult & {ok: true}} | {ok: false, red: string}}
+ */
+export function planForReuse({
+  root, name, runDir, catalogue,
+}) {
+  const kept = readRunJobCopy(runDir, catalogue);
+  if (!kept.present) return { ok: true, same: true };
+  const runId = path.basename(runDir);
+  if (!kept.ok) return { ok: false, red: `The plan ${runId} kept does not match its signature (${kept.reds[0]}), so it cannot be reused. Nothing was started.` };
+  const flowDir = path.join(root, name);
+  const a = readFileInside(runDir, `${RUN_JOB_DIR}/declaration.json`);
+  const b = readFileInside(flowDir, 'declaration.json');
+  const ap = readFileInside(runDir, `${RUN_JOB_DIR}/prose.txt`);
+  const bp = readFileInside(flowDir, 'prose.txt');
+  if (a.ok && b.ok && ap.ok && bp.ok && a.text === b.text && stripTrigger(ap.text) === stripTrigger(bp.text)) return { ok: true, same: true };
+  const { present, ...rest } = kept;
+  void present;
+  return { ok: true, same: false, read: /** @type {any} */ (rest) };
+}
+
+/**
+ * M6 am9: give the run folder `runDir` a verified copy of the plan run `fromRunDir` kept (`job/` write-once, then `plan.json {planOf}`), so the run executes
+ * it. Nothing is signed: the bytes already carry a signature, proved here. A failure removes what this call wrote.
+ * @param {{fromRunDir: string, runDir: string, catalogue: unknown}} a
+ * @returns {{ok: true} | {ok: false, red: string}}
+ */
+export function copyRunPlan({ fromRunDir, runDir, catalogue }) {
+  const kept = readRunJobCopy(fromRunDir, catalogue);
+  if (!kept.present || !kept.ok) return { ok: false, red: `The plan ${path.basename(fromRunDir)} kept is not there or does not verify, so it cannot be reused.` };
+  const texts = {};
+  for (const f of FLOW_FILES) {
+    const r = readFileInside(fromRunDir, `${RUN_JOB_DIR}/${f}`);
+    if (!r.ok) return { ok: false, red: `The plan ${path.basename(fromRunDir)} kept cannot be read (${f}).` };
+    texts[f] = r.text;
+  }
+  const jobDir = path.join(runDir, RUN_JOB_DIR);
+  try {
+    mkdirSync(jobDir);
+    for (const f of FLOW_FILES) writeFileSync(path.join(jobDir, f), texts[f], { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(path.join(runDir, RUN_PLAN_MARKER), `${JSON.stringify({ planOf: path.basename(fromRunDir) })}\n`, { encoding: 'utf8', flag: 'wx' });
+  } catch (err) {
+    try { rmSync(jobDir, { recursive: true, force: true }); rmSync(path.join(runDir, RUN_PLAN_MARKER), { force: true }); } catch { /* best-effort */ }
+    return { ok: false, red: `The plan could not be copied into the new run (${err.code ?? err.message}). Nothing was started.` };
+  }
+  return { ok: true };
+}
+
+/**
+ * M6 am9 ("a red run always drafts"): sign a plan as the plan of a NEW run of an existing workflow. Same checks and the same `signFlow` as `writeFlow`,
+ * but nothing of the workflow is written: the run folder is claimed (`claimRunId`) and receives `job/{prose.txt,declaration.json,signature.json}` write-once,
+ * then `plan.json` last (the file that makes the run execute it). A failure removes the run folder this call claimed. The caller proves the job is unchanged.
+ * @param {{root: unknown, name: unknown, proseText: unknown, declaration: unknown, signedBy: unknown, signedAt: unknown, catalogue: unknown}} a
+ * @returns {{ok: true, runId: string, runDir: string, signature: any} | {ok: false, reds: string[]}}
+ */
+export function writeRunPlan({
+  root, name, proseText, declaration, signedBy, signedAt, catalogue,
+}) {
+  const nameCheck = checkFlowName(name);
+  if (!nameCheck.ok) return { ok: false, reds: [nameCheck.red] };
+  if (typeof root !== 'string' || root.length === 0) return { ok: false, reds: ['flow: "root" must be a non-empty string'] };
+  const flowDir = path.join(root, /** @type {string} */ (name));
+  if (signedHashOf(flowDir) === null) return { ok: false, reds: [`flow: "${name}" has no signed workflow here, so a plan cannot be signed as a run of it`] };
+  const signed = parseSignedText(proseText);
+  if (!signed.ok) return { ok: false, reds: signed.reds };
+  const validated = validateDeclaration(declaration, { arbiter: signed.arbiter, lines: signed.lines, catalogue });
+  if (!validated.ok) return { ok: false, reds: validated.reds };
+  let declarationText;
+  try { declarationText = `${JSON.stringify(declaration, null, 2)}\n`; } catch (err) { return { ok: false, reds: [`flow: declaration could not be serialised — ${err.message}`] }; }
+  const signResult = signFlow({ proseText, declarationText, signedBy, signedAt });
+  if (!signResult.ok) return { ok: false, reds: signResult.reds };
+  const claimed = claimRunId(flowDir);
+  if (!claimed.ok) return { ok: false, reds: [claimed.red] };
+  const { runDir, runId } = claimed;
+  try {
+    const jobDir = path.join(runDir, RUN_JOB_DIR);
+    mkdirSync(jobDir);
+    writeFileSync(path.join(jobDir, 'prose.txt'), /** @type {string} */ (proseText), { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(path.join(jobDir, 'declaration.json'), declarationText, { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(path.join(jobDir, 'signature.json'), `${JSON.stringify(signResult.signature, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(path.join(runDir, RUN_PLAN_MARKER), `${JSON.stringify({ own: true })}\n`, { encoding: 'utf8', flag: 'wx' });
+  } catch (err) {
+    try { rmSync(runDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+    return { ok: false, reds: [`flow: could not write the run's plan — ${err.message}. Nothing was signed.`] };
+  }
+  const proof = readPlan({ root, name, catalogue, runDir });
+  if (!proof.ok) {
+    try { rmSync(runDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+    return { ok: false, reds: [`flow: the run's plan does not verify (${proof.reds.join('; ')})`] };
+  }
+  return { ok: true, runId, runDir, signature: signResult.signature };
+}
+
+/**
  * Read and verify a signed flow from `<root>/<name>/`. Verifies the bytes on
  * disk against the signature FIRST — before anything in the flow is
  * trusted — then parses the signed text, then validates the declaration.
@@ -645,6 +789,17 @@ function replaceSigned({
  * @returns {ReadFlowResult}
  */
 export function readFlow({ root, name, catalogue }) {
+  const r = readFlowOnce({ root, name, catalogue });
+  if (typeof root !== 'string' || root.length === 0 || !checkFlowName(name).ok) return r;
+  // a red may be a swap a hard kill cut short (the job refused until files were moved by hand): recover it, read once more.
+  // A green read can hold a dead pid's leftover too (killed after the signature landed: the OLD signed job sits in `.replace-old-*`): clear it
+  // (only looked for when such a folder exists; a live pid's folders are never touched).
+  if (r.ok && !hasSwapLeftover(path.join(root, /** @type {string} */ (name)))) return r;
+  return recoverSwap(path.join(root, /** @type {string} */ (name))) ? readFlowOnce({ root, name, catalogue }) : r;
+}
+
+/** @param {{root: unknown, name: unknown, catalogue: unknown}} input @returns {ReadFlowResult} */
+function readFlowOnce({ root, name, catalogue }) {
   const nameCheck = checkFlowName(name);
   if (!nameCheck.ok) return { ok: false, reds: [nameCheck.red] };
   const safeName = /** @type {string} */ (name);
@@ -788,6 +943,49 @@ export function writeRunJobCopy(flowDir, runDir, expectedFlowHash) {
   return { ok: true };
 }
 
+/** M6 am9: a run's folder holds this file when the run executes the plan it keeps (`<run>/job/`), not the flow folder's. Written once, by the run's plan writer. */
+export const RUN_PLAN_MARKER = 'plan.json';
+
+/** M6 am9: does this run execute its own kept plan? The ONE test (no marker = the flow folder's plan, as every run before am9). @param {string} runDir */
+export function runOwnsPlan(runDir) {
+  return existsSync(path.join(runDir, RUN_PLAN_MARKER));
+}
+
+/**
+ * M6 am9: the ONE reader of the plan a run executes. A run whose folder holds `plan.json` reads its own verified copy (`<run>/job/`); every other
+ * run (and a read with no run) reads the flow folder exactly as `readFlow` does. Never throws; a kept plan that does not verify is a red, never swapped for the flow's.
+ * @param {{root: unknown, name: unknown, catalogue: unknown, runDir?: string|null}} a
+ * @returns {ReadFlowResult}
+ */
+export function readPlan({ root, name, catalogue, runDir }) {
+  if (typeof runDir !== 'string' || !runOwnsPlan(runDir)) return readFlow({ root, name, catalogue });
+  const c = readRunJobCopy(runDir, catalogue);
+  if (!c.present) return { ok: false, reds: [`plan: ${runDir} is marked as running its own plan but holds no job/ copy`] };
+  if (!c.ok) return { ok: false, reds: c.reds.map((r) => `plan: this run's kept plan — ${r}`) };
+  const { present, ...rest } = c;
+  void present;
+  return /** @type {ReadFlowResult} */ (rest);
+}
+
+/**
+ * M9 am12: the ONE reader of "the job this run resumes against" (an answer, Resume, Reopen, continue-after-cap, the panel's resume controls).
+ * Always the run's OWN kept copy, verified against that copy's own signature (a run with `plan.json` reads it through `readPlan`, the same
+ * `<run>/job/`); never the workflow's current job, so a Cancel or an Edit of the workflow does not strand a waiting run. A copy that fails its
+ * signature is a red naming it; a run with no copy (it started before M6) is a red with `noCopy: true`, never the flow's job. Never throws.
+ * @param {{root: unknown, name: unknown, catalogue: unknown, runDir: string}} a
+ * @returns {ReadFlowResult | {ok: false, reds: string[], noCopy: true}}
+ */
+export function readRunPlan({ root, name, catalogue, runDir }) {
+  if (typeof runDir !== 'string' || runDir === '') return { ok: false, noCopy: true, reds: ['this run has no saved copy of its job (no such run folder)'] };
+  if (runOwnsPlan(runDir)) return readPlan({ root, name, catalogue, runDir });
+  const c = readRunJobCopy(runDir, catalogue);
+  if (!c.present) return { ok: false, noCopy: true, reds: ['this run has no saved copy of its job (it started before runs kept one), so it cannot carry on; start a new run'] };
+  if (!c.ok) return { ok: false, reds: c.reds.map((r) => `this run's saved copy of its job — ${r}`) };
+  const { present, ...rest } = c;
+  void present;
+  return /** @type {ReadFlowResult} */ (rest);
+}
+
 /**
  * M6: the job a run ran, from its own copy. `{present:false}` = the run has none (it started before M6). `{present:true, ok:true, ...}` = the same
  * shape as a good `readFlow` (lines, arbiter, declaration, signature, classes), after the copy was verified against the copied signature.
@@ -836,4 +1034,22 @@ function explainEdit(dir, signature, proseText, declarationText) {
   const changes = describeChange({ oldProse: oldProse.text, newProse: proseText, oldDecl: oldDecl.text, newDecl: declarationText });
   if (changes.length === 0) return [CHANGED_PREFIX + 'the files match the saved copy; signature.json itself was changed'];
   return changes.map((c) => `${CHANGED_PREFIX}${c}`);
+}
+
+/**
+ * M6 am5 item 2: the name suggested for the new workflow a changed job becomes: `<base>-N`, N the first free number from 2. A trailing `-N` of
+ * `name` is stripped first when what is left is itself a workflow here (aging-live-4-2 -> base aging-live-4; aging-live-4 keeps its 4). "Free" = nothing at all by that name under root (a folder or a file), the same
+ * test the card's name check makes. Pure read; the sign still refuses a name taken meanwhile (writeFlow never overwrites).
+ * @param {string} root @param {string} name
+ */
+export function suggestFlowName(root, name) {
+  const taken = (/** @type {string} */ n) => { try { lstatSync(path.join(root, n)); return true; } catch { return false; } };
+  // a trailing -N is stripped only when what is left is itself a workflow here (aging-live-4-2 -> aging-live-4); a name that merely ends in a number keeps it
+  const stripped = name.replace(/-[0-9]+$/, '');
+  const base = stripped !== name && stripped !== '' && taken(stripped) ? stripped : name;
+  for (let n = 2; ; n += 1) {
+    const tail = `-${n}`;
+    const candidate = `${base.slice(0, 64 - tail.length)}${tail}`;
+    if (!taken(candidate)) return candidate;
+  }
 }

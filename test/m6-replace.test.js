@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import {
   existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync,
 } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -115,4 +116,30 @@ test('replace: a replacement that does not pass the checks changes nothing', () 
   const r = replaceWith(x, { proseText: 'not a signed text' });
   assert.equal(r.ok, false);
   assert.deepEqual(snapshot(x.dir), before);
+});
+
+// F2 (fix ledger): a HARD KILL inside the swap (SIGKILL: no catch, no finally) must not leave the job refused. The child process runs the real
+// replace and kills itself after the named step; the parent then reads the folder the way the CLI / panel does.
+test('replace: SIGKILL after ANY swap step leaves a job that reads and verifies (the old one until the signature lands, then the new one), no stray files', () => {
+  const steps = [];
+  replaceWith(signedOld(), { onReplaceStep: (s) => steps.push(s) });
+  const flowUrl = new URL('../src/flow.js', import.meta.url).href;
+  const catUrl = new URL('../src/catalogue.js', import.meta.url).href;
+  for (const step of steps) {
+    const x = signedOld();
+    const child = spawnSync(process.execPath, ['--input-type=module', '-e', `
+      import { writeFlow } from ${JSON.stringify(flowUrl)};
+      import { loadCatalogue } from ${JSON.stringify(catUrl)};
+      const j = JSON.parse(process.env.KILL_JOB);
+      writeFlow({ root: j.root, name: 'f', proseText: j.prose, declaration: j.decl, signedBy: 'hamr', signedAt: '2026-10-10T11:00:00Z',
+        catalogue: loadCatalogue().primitives, replaces: { flowHash: j.hash }, onReplaceStep: (s) => { if (s === j.step) process.kill(process.pid, 'SIGKILL'); } });
+    `], { env: { ...process.env, KILL_JOB: JSON.stringify({ root: x.root, prose: NEW.prose, decl: NEW.decl, hash: x.hash, step }) }, timeout: 20_000 });
+    assert.equal(child.signal, 'SIGKILL', `the child was killed after "${step}" (${child.stderr})`);
+    const r = readOk(x.root);
+    assert.equal(r.ok, true, `after a kill following "${step}" the job must read: ${JSON.stringify(r.reds)}`);
+    const complete = step === 'signature.json';
+    assert.notEqual(r.signature.flow === x.hash, complete, `after "${step}": ${complete ? 'the new job' : 'the old job'}`);
+    // even once the signature has landed (the job reads green) the dead process's old-job backup must not outlive the next read ("no old version is kept anywhere")
+    assert.deepEqual(readdirSync(x.dir).filter((n) => n.startsWith('.replace-')), [], `after "${step}" no staging or backup folder is left`);
+  }
 });

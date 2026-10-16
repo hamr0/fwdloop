@@ -5,6 +5,74 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.0] - 2026-10-16
+
+M11 runs list amendments 5-15, M9 schedules in their own signed file (amendments 13-20), M6 Reuse
+workflow (amendments 5-10), and the Cap and Thinking notes of M4d (amendments 22-24).
+
+### Added
+- Runs search by words. Every word must match a job name, a run or a day; `run-2` never matches
+  run-20; a day can be typed `10/13`, `10-13` or `2026-10-13`; brackets are ignored. While searching,
+  a job's older-runs fold shows matching runs only (newest 7), and a line under it counts the rest
+  with their real start days. A search that matches an older run highlights each matching run card.
+- Reuse workflow, one button that replaces both Run again and Edit this job. It opens every field and
+  the button names its cost before the click: Run (only inputs changed), Sign & run (only destination,
+  cap, time cap, ask wait or model changed), Start drafting (a job field changed). A changed job signs
+  as a new workflow `<name>-N` and never touches the old one; otherwise it is a new `run-N`. A red run
+  always drafts. Each run keeps its own copy of the job and its plan: Resume, an answer or Reopen carries
+  on that run from its own copy, and editing the workflow afterwards changes only new runs. A schedule
+  set from a run uses that run's plan, model, destination and inputs.
+- Needs you: the tags read Answer (a run at its ask) and Resume; an expired ask that can be reopened
+  is listed with the tag Reopen. A Needs you click opens the run on the Run tab and, for a run at an
+  ask, moves the left side to the Inbox. A button "Remove from Needs you" takes an expired, stopped or
+  stuck card out of the pile (written once, shown in Audit); a card also leaves after 7 days.
+- Running now, Needs you and Scheduled cards read `job · run-N`.
+- Schedules are their own signed file, `flows/<job>/schedule.json`, with one queue file,
+  `schedule-ledger.jsonl`. Setting, changing or cancelling a schedule never re-signs the job.
+- A folded "schedule" section at the top of the Audit of a job with a schedule (tries across every
+  signing, newest 7), with a sign: `[▶]` running, `[✗]` red, `[·]` waiting. The Job tab shows Started
+  and Schedule, and the Run tab shows a SCHEDULE block and the end date and time.
+- When a New file schedule changes folder or is cancelled, each waiting file gets one row ("was waiting
+  when the schedule changed, so it will not run. Drop it in again to run it."), shown in Audit also
+  after the cancel. Files waiting under the same folder stay queued.
+- The Chat Thinking-off note is always shown next to the box, ticked or not.
+- A run with no saved copy says why it cannot carry on.
+
+### Changed
+- The Run tab summary is one box, and its frame takes the colour of that run's card in the runs list
+  for every glyph, including expired and stuck. The older SUMMARY box uses the same rule.
+- A schedule's busy check: a run waiting at its ask does not block the next one.
+- Cancel schedule works at any time and only stops future runs; a run that is starting, working or
+  waiting is never touched. Changing to a new schedule is also allowed while a run is going; the next fire uses the new one. A Set that
+  cannot be armed changes nothing: the earlier signing's queue rows are written only after the new
+  schedule is armed and written.
+- The panel checks that a queued file can start (no run starting, root exists, run number free) before
+  marking it run; if not, it stays queued and tries again next turn.
+- A Cap at or below what the earlier draft already spent is red with the Resume words, and Draft is
+  refused with the same words before any draft folder or child starts.
+- Faster panel tick and runs list: ended runs are skipped by the end-row rule in the scheduler's busy
+  check and the job's waiting line, and dead starts are remembered instead of re-read.
+- Development only (not in the package): the browser test helper reports a headless browser that is
+  installed but starts too slowly instead of reading it as a skip, and sweeps dead owners' leftovers on
+  launch.
+
+### Fixed
+- An empty Inbox shows only the nothing-waiting line.
+- A stuck run that has left Needs you is no longer the top row of its job.
+- A selected Inbox card looks like a selected Jobs card and scrolls into view.
+- Appended books (history, audit, pids, runs, provider spend, triggers) start each row on a fresh line,
+  so a torn last line no longer glues the next row and loses a run's end row. A torn trigger-ledger
+  line is skipped.
+- A job replace cut short by a kill (SIGKILL) is recovered: the old job reads again.
+
+### Removed
+- Edit this job and Run again (replaced by Reuse workflow). M6 amendments 1 and 3 no longer apply:
+  Reuse workflow is open while a run waits.
+
+### Known
+- Schedule lines inside jobs signed before this release are read but no longer act. Set the schedule
+  again by hand.
+
 ## [0.19.1] - 2026-10-14
 
 Trigger fixes: a file that was already in the folder never runs, a new refusal reason is told, and a

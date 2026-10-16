@@ -23,7 +23,7 @@
 // resumed) counts in "to date" only and is counted in `undatedRows`. Model time is the sum of rows' `wallMs`;
 // a row without one (a draft row) adds nothing and marks that figure "at least"; none at all = null.
 import {
-  appendFileSync, mkdirSync, readFileSync, realpathSync,
+  mkdirSync, readFileSync, realpathSync,
 } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -31,6 +31,7 @@ import { randomUUID } from 'node:crypto';
 import { readConfig, configHome, ConfigError } from './config.js';
 import { isFwdloopAlive, procStartOf } from './liveness.js';
 import { spendRowCost } from './provider.js';
+import { appendRow as appendLine } from './jsonl-append.js';
 import { readDirSpendRows } from './draftspend.js';
 
 export { ConfigError };
@@ -56,7 +57,7 @@ export function realpathLoose(p) {
 
 function appendRow(home, row) {
   mkdirSync(configHome(home), { recursive: true, mode: 0o700 });
-  appendFileSync(runsPath(home), `${JSON.stringify(row)}\n`, { mode: 0o600 });
+  appendLine(runsPath(home), row, { mode: 0o600 });
 }
 
 /** @param {string} [home] @returns {any[]} every well-formed row in file order (a torn line is skipped) */

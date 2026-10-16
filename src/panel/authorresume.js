@@ -16,7 +16,7 @@ import { userInfo } from 'node:os';
 
 import { scrub } from '../authoring.js';
 import { loadCatalogue } from '../catalogue.js';
-import { changeSentence, checkFlowName, readFileInside, readFlow, resolveRunDir } from '../flow.js';
+import { changeSentence, checkFlowName, readFileInside, readPlan, readRunPlan, resolveRunDir } from '../flow.js';
 import { readResumeLock } from '../liveness.js';
 import { auditSpend } from '../runner.js';
 import {
@@ -56,7 +56,9 @@ export function createResumeDoor(opts) {
     if (!rd.ok) return no(400, { refused: 'run-id', say: `${rd.red.replace(/^run: /, '')}.` });
     const cat = loadCatalogue();
     if (!cat.ok) return no(500, { refused: 'catalogue', say: 'The catalogue could not be loaded. Nothing was signed.' });
-    const read = readFlow({ root: realRoot, name: flow, catalogue: cat.primitives });
+    // am12: the run's own saved copy. A run with none (before M6, or not there yet) reads the flow here only for the refusal words or the 404 below; its controls say canResume false
+    const own = readRunPlan({ root: realRoot, name: flow, catalogue: cat.primitives, runDir: rd.runDir });
+    const read = !own.ok && 'noCopy' in own ? readPlan({ root: realRoot, name: flow, catalogue: cat.primitives, runDir: rd.runDir }) : own;
     if (!read.ok) return no(400, { refused: 'flow', say: `"${flow}" is not a signed flow that passes its checks, so a run of it will not resume.${changeSentence(read.reds)}` });
     const controls = getRunControls({
       root: realRoot, flow, runId, catalogue: cat.primitives,
@@ -80,11 +82,13 @@ export function createResumeDoor(opts) {
     if (!checked.ok) {
       return no(checked.status, checked.refused ? { refused: checked.refused, say: checked.say, refusals: checked.refusals } : { refused: 'resume', refusals: checked.refusals, say: checked.refusals[0]?.say ?? 'Not resumed. Fix the marked box.' });
     }
+    // M6 am5/am6: a resume carries the run's own model forward (the record is the FULL set in force, never a patch)
+    const values = base.model ? { ...checked.values, model: base.model } : checked.values;
     const hash = valuesHash({
-      flow, flowSignatureHash: read.signature.flow, runId, version, values: checked.values,
+      flow, flowSignatureHash: read.signature.flow, runId, version, values,
     });
     return {
-      ok: /** @type {true} */ (true), flow, runId, runDir: rd.runDir, version, values: checked.values, hash, spentUsd: spent.total, remainingUsd: checked.remainingUsd, signatureHash: read.signature.flow, hashGiven: b.hash,
+      ok: /** @type {true} */ (true), flow, runId, runDir: rd.runDir, version, values, hash, spentUsd: spent.total, remainingUsd: checked.remainingUsd, signatureHash: read.signature.flow, hashGiven: b.hash,
     };
   }
 
