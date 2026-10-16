@@ -222,6 +222,7 @@
  * @property {Record<string, any>} declaration
  * @property {Signature} signature
  * @property {Record<string, string>} classes
+ * @property {string} proseText the signed prose exactly as read
  */
 
 /**
