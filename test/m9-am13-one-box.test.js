@@ -47,10 +47,10 @@ const paint = async (chrome, d0, key) => {
   const d = JSON.parse(JSON.stringify(d0)); const tag = ` [${key}]`;
   if (d.summary.ended) d.summary.ended.reason += tag; else d.summary.schedule.line1 += tag;
   await chrome.ev(`window.__patch = ${JSON.stringify(d)}; document.getElementById("tab-runs").click(); window.__sel = Array.from(document.querySelectorAll(".rl-card")).filter(function(e){ return /seed-pass/.test(e.textContent); }); window.__sel.length ? (window.__sel[window.__sel.length - 1].click(), true) : false`);
-  await chrome.waitFor(`(function(){ var b = document.querySelector("[data-testid=summary-box]"); return !!b && (${JSON.stringify(!!(d.summary.ended || d.summary.schedule))} ? !b.hidden && b.innerHTML.indexOf(${JSON.stringify(tag)}) >= 0 : true); })()`, 8000);
+  await chrome.waitFor(`(function(){ var b = document.querySelector("[data-testid=ended-block]"); return !!b && (${JSON.stringify(!!(d.summary.ended || d.summary.schedule))} ? !b.hidden && b.innerHTML.indexOf(${JSON.stringify(tag)}) >= 0 : true); })()`, 8000);
   await new Promise((r) => { setTimeout(r, 150); });
   return chrome.ev(`(function(){ try{
-  var box = document.querySelector("[data-testid=summary-box]"); if(!box || box.hidden) return { present: !!box };
+  var box = document.querySelector("[data-testid=ended-block]"); if(!box || box.hidden) return { present: !!box };
   var red = (function(){ var p = document.createElement("span"); p.style.color = "var(--red)"; document.body.appendChild(p); var c = getComputedStyle(p).color; p.remove(); return c; })();
   var col = function(sel){ var e = box.querySelector(sel); return e ? getComputedStyle(e).color : null; };
   var frames = document.querySelectorAll("#summary-blocks .ended-block").length;
