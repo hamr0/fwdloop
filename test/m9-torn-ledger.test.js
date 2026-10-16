@@ -9,7 +9,7 @@ import path from 'node:path';
 
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import {
-  createFileTrigger, queueOf, readSeen, recordArrived, recordRan,
+  STABLE_POLLS, createFileTrigger, queueOf, readSeen, recordArrived, recordRan,
 } from '../src/trigger-files.js';
 import { armTrigger, due, readRows, recordFire } from '../src/trigger-clock.js';
 
@@ -53,12 +53,15 @@ test('a ledger whose torn line is the only content: appends still work and read 
   assert.equal(readSeen(ledger).length, 1);
 });
 
-test('file trigger poll over a ledger with a torn line does not throw', () => {
+test('file trigger poll over a ledger with a torn line still reports a new file (poll reads the ledger when it takes a file)', () => {
   const dir = tmp();
   const inbox = path.join(dir, 'in'); mkdirSync(inbox);
   const ledger = path.join(dir, 'seen.jsonl');
   const t = createFileTrigger({ mode: 'new', target: inbox, ledger });
   t.arm();
-  appendFileSync(ledger, '{"id":"ran:');
-  assert.doesNotThrow(() => t.poll());
+  appendFileSync(ledger, '{"id":"ran:');   // torn
+  writeFileSync(path.join(inbox, 'new.md'), 'hello');
+  let arrived = [];
+  for (let i = 0; i <= STABLE_POLLS; i++) arrived = arrived.concat(t.poll().arrived);   // a file is taken on its third sighting, and taking it reads the ledger
+  assert.deepEqual(arrived.map((a) => path.basename(a.path)), ['new.md']);
 });
