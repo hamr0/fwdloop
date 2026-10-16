@@ -561,13 +561,53 @@ export function signedHashOf(flowDir) {
 /** M6: the names `replaceSigned` swaps, signature last (the file that makes the folder a signed flow). `setup.jsonl` is only moved away: the caller writes the new one. */
 const SWAP_NAMES = ['prose.txt', 'declaration.json', SIGNED_COPY_DIR, 'setup.jsonl', 'signature.json'];
 
+/** The names `replaceSigned` stages (signature last); `setup.jsonl` is only ever moved away, never staged. */
+const STAGE_NAMES = ['prose.txt', 'declaration.json', SIGNED_COPY_DIR, 'signature.json'];
+
+/** Is a process with this pid alive? (EPERM = alive, owned by someone else.) @param {number} pid */
+function pidAlive(pid) {
+  try { process.kill(pid, 0); return true; } catch (err) { return err.code === 'EPERM'; }
+}
+
+/**
+ * Recover a swap that a hard kill (SIGKILL, power loss) cut short: `.replace-old-<pid>-<ms>` / `.replace-new-<pid>-<ms>` of a process that is gone.
+ * The signature is placed LAST, so while the staged `signature.json` is still in `.replace-new-*` the swap never finished: every moved-away old file
+ * goes back and every new file already placed is removed (the old job again, byte for byte). Once the signature has landed the swap was whole: the
+ * leftovers are just deleted. Idempotent (a crash inside the recovery is recovered by the next call); a live pid's folders are never touched.
+ * @param {string} dir the flow folder @returns {boolean} true when something was recovered or cleaned
+ */
+function recoverSwap(dir) {
+  let names;
+  try { names = readdirSync(dir); } catch { return false; }
+  const stamps = new Set(names.map((n) => /^\.replace-(?:old|new)-(\d+-\d+)$/.exec(n)?.[1]).filter((x) => x !== undefined));
+  let did = false;
+  for (const stamp of stamps) {
+    if (pidAlive(Number(String(stamp).split('-')[0]))) continue;
+    const stage = path.join(dir, `.replace-new-${stamp}`);
+    const backup = path.join(dir, `.replace-old-${stamp}`);
+    try {
+      if (existsSync(path.join(stage, 'signature.json'))) {
+        for (const n of SWAP_NAMES) {
+          const placed = STAGE_NAMES.includes(n) && !existsSync(path.join(stage, n));
+          if (placed) rmSync(path.join(dir, n), { recursive: true, force: true });
+          if (existsSync(path.join(backup, n))) renameSync(path.join(backup, n), path.join(dir, n));
+        }
+      }
+      rmSync(stage, { recursive: true, force: true });
+      rmSync(backup, { recursive: true, force: true });
+      did = true;
+    } catch { /* left for the next call */ }
+  }
+  return did;
+}
+
 /**
  * M6 ("Signing replaces the job"): replace the signed job in `<root>/<name>/`, ALL OR NOTHING, keeping the name, `runs/` and the flow's books.
  * Refuses (touching nothing) unless the folder holds a signed job whose `signature.json` `flow` hash is `replaces.flowHash` (a draft opened from an
  * older version of the job, or a job signed again meanwhile, is refused by name). The new files are staged inside the folder first; the swap then moves
  * each old file into a backup folder and its new one into place (signature last); ANY failure, or a proof read that does not verify, moves everything
- * back. On success the backup is deleted — no old version is kept anywhere (hamr's ruling). Only a hard kill inside the swap leaves the backup
- * (`.replace-old-*`) holding the old files; nothing recovers it automatically.
+ * back. On success the backup is deleted — no old version is kept anywhere (hamr's ruling). A hard kill inside the swap leaves
+ * `.replace-old-*` / `.replace-new-*`; `recoverSwap` puts the old job back (or finishes the cleanup) the next time `readFlow` reds or a replace starts.
  * @param {{root: string, name: string, dir: string, proseText: string, declarationText: string, signature: any, replaces: {flowHash: string}, catalogue: unknown, onReplaceStep?: (step: string) => void}} a
  * @returns {WriteFlowResult}
  */
@@ -578,6 +618,7 @@ function replaceSigned({
   let dirStat;
   try { dirStat = lstatSync(dir); } catch { return red(`flow: nothing signed to replace — "${name}" has no folder here`); }
   if (dirStat.isSymbolicLink() || !dirStat.isDirectory()) return red(`flow: "${dir}" is not a plain folder, refused`);
+  recoverSwap(dir);   // a swap cut short by a hard kill is put right before this one reads the folder
   const current = signedHashOf(dir);
   if (current === null) return red(`flow: nothing signed to replace — "${name}" has no readable signature.json`);
   if (typeof replaces?.flowHash !== 'string' || current !== replaces.flowHash) {
@@ -743,6 +784,14 @@ export function writeRunPlan({
  * @returns {ReadFlowResult}
  */
 export function readFlow({ root, name, catalogue }) {
+  const r = readFlowOnce({ root, name, catalogue });
+  if (r.ok || typeof root !== 'string' || root.length === 0 || !checkFlowName(name).ok) return r;
+  // a red may be a swap a hard kill cut short (the job refused until files were moved by hand): recover it, read once more
+  return recoverSwap(path.join(root, /** @type {string} */ (name))) ? readFlowOnce({ root, name, catalogue }) : r;
+}
+
+/** @param {{root: unknown, name: unknown, catalogue: unknown}} input @returns {ReadFlowResult} */
+function readFlowOnce({ root, name, catalogue }) {
   const nameCheck = checkFlowName(name);
   if (!nameCheck.ok) return { ok: false, reds: [nameCheck.red] };
   const safeName = /** @type {string} */ (name);
