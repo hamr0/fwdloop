@@ -252,15 +252,7 @@ export function createFlowsDoor(opts) {
    * @param {string} realRoot @param {string} name @returns {string|null}
    */
   function editBlockOf(realRoot, name) {
-    const cat = loadCatalogue();
-    if (!cat.ok) return null;
-    if (starter.startingFor(name, []) !== null) return EDIT_STARTING_SAY;
-    const ids = listRunIds(join(realRoot, name)).filter((id) => /^run-\d+$/.test(id)).sort((a, b) => Number(b.slice(4)) - Number(a.slice(4)));
-    for (const id of ids) {
-      const c = getRunControls({ root: realRoot, flow: name, runId: id, catalogue: cat.primitives });
-      if (c?.canStop === true) return editBlockedSay(id);
-    }
-    return null;
+    return liveRunBlock(realRoot, name, EDIT_STARTING_SAY, editBlockedSay, (c) => c?.canStop === true);
   }
 
   /**
@@ -269,12 +261,21 @@ export function createFlowsDoor(opts) {
    * @param {string} realRoot @param {string} name @returns {string|null}
    */
   function scheduleBusyOf(realRoot, name) {
+    return liveRunBlock(realRoot, name, SCHEDULE_BUSY_SAY, () => SCHEDULE_BUSY_SAY, (c) => c?.canStop === true && c.atAsk !== true);
+  }
+
+  /**
+   * The one walk both questions share: a start folder still `starting` for this flow answers `startingSay`; else the newest run whose controls satisfy `counts`
+   * answers `sayFor(runId)`; else null. The callers differ only in what counts as live (the schedule does not count a run waiting at its ask).
+   * @param {string} realRoot @param {string} name @param {string} startingSay @param {(id: string) => string} sayFor @param {(c: any) => boolean} counts @returns {string|null}
+   */
+  function liveRunBlock(realRoot, name, startingSay, sayFor, counts) {
     const cat = loadCatalogue();
     if (!cat.ok) return null;
-    if (starter.startingFor(name, []) !== null) return SCHEDULE_BUSY_SAY;
-    for (const id of listRunIds(join(realRoot, name)).filter((x) => /^run-\d+$/.test(x))) {
-      const c = getRunControls({ root: realRoot, flow: name, runId: id, catalogue: cat.primitives });
-      if (c?.canStop === true && c.atAsk !== true) return SCHEDULE_BUSY_SAY;
+    if (starter.startingFor(name, []) !== null) return startingSay;
+    const ids = listRunIds(join(realRoot, name)).filter((id) => /^run-\d+$/.test(id)).sort((a, b) => Number(b.slice(4)) - Number(a.slice(4)));
+    for (const id of ids) {
+      if (counts(getRunControls({ root: realRoot, flow: name, runId: id, catalogue: cat.primitives }))) return sayFor(id);
     }
     return null;
   }
