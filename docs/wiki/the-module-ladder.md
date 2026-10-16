@@ -2373,6 +2373,16 @@ monthly wall is enforced **by the trigger**, before a run starts.
   - **Must fail when:** the head shows `[▶]` with no run running; it isn't `[✗]` while SCHEDULE is red.
 - **M9 amendment 12 — SIGNED by hamr 2026-10-15 ("sign m9 am12"): a waiting run answers from its own copy.** When you answer, Resume or Reopen, the run checks and carries on from **its own kept copy of the job and plan** (M6, M6 am9), against that copy's own signature. It no longer checks the workflow's current signature. A copy that fails its signature is still refused by name. This lets amendment 10's Cancel go through without touching a waiting run.
   - **Must fail when:** a run waiting at its ask can't carry on after a Cancel; a run whose own copy fails its signature carries on; a resumed run uses the workflow's current job instead of its own copy.
+- **M9 amendment 13 — SIGNED by hamr 2026-10-16 ("sign m9 am13"): the Run tab summary is one box.** Replaces the two separate boxes from amendment 7.
+  1. **One framed box, the same shape every time**, rows as `label | value`:
+     `ENDED     10/16 06:31 · failed · Stopped at line 1: the step said it did not finish.`
+     `NEXT      Run it again from the Chat card.`
+     `SCHEDULE  when a new file arrives in ~/fwdloop-in/`
+     `          last 10/16 06:31 · run-4 · failed · next: waiting for a new file`
+     SCHEDULE line 2 sits under line 1, in the value column. A running run still shows SCHEDULE.
+  2. **The frame's colour:** red when SCHEDULE has a problem (amendment 8). Otherwise it follows the run's own sign: `[✓]` green, `[✗]` red, `[?]` magenta, `[■]` grey. A run that is still running or waiting has no frame colour.
+  3. **The text's colour:** ENDED and NEXT text are never red. Only the SCHEDULE label and its two lines turn red, and only when SCHEDULE has a problem.
+  - **Must fail when:** ENDED, NEXT and SCHEDULE are not in one box; a passed run with a healthy schedule has a red frame; a stopped run has a red frame; ENDED or NEXT text turns red; SCHEDULE turns red on a run that failed while the schedule is fine.
 
 ## M10 — real IO
 
