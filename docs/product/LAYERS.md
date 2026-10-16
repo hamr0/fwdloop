@@ -57,7 +57,7 @@ ENDED:  passed · failed · stopped · expired
   expired          → a person must reopen it
   │
   ▼
-NEXT TIME: a trigger reruns the same signed job.  [BUILT in M9, not yet released: set When on the Run card of a job with one good run; the panel starts it while it is open.]
+NEXT TIME: a trigger reruns the same signed job.  [M9, released in 0.18.0: set When on a job with one good run; the panel starts it while it is open. Built after, not yet released: a schedule is its own signed file (`schedule.json` beside the job, with one queue file), so setting or cancelling one never re-signs the job (M9 am20).]
 ```
 
 ---
@@ -72,8 +72,9 @@ The fixed frame around every step. The agent can never touch it. Two words you w
 holds the money cap, and writes the records. *Example: the model says "I wrote the file"; the
 harness looks, and the file is empty, so the step is red.*
 
-**The arbiter** is the signed, typed block the agent never writes: the trigger, the cap, where
-asks sit and how long they wait, the allow-list, the send target. *Example: the drafter may add
+**The arbiter** is the signed, typed block the agent never writes: the cap, where asks sit and
+how long they wait, the allow-list, the send target. (The schedule is typed data a human signs too,
+but since M9 am20 it lives in its own `schedule.json`, not in this block.) *Example: the drafter may add
 a step, but it cannot add a second send folder; only a signed arbiter line names one.*
 
 Harness = how it runs. Arbiter = what you allowed. The harness obeys the arbiter.
@@ -155,7 +156,8 @@ So in fwdloop terms:
 | thing | kept by | changed by |
 |---|---|---|
 | steps | the drafter | you, by redraft |
-| trigger, cap, asks, TTL, allow-list, send target | the arbiter (signed) | you, tighter only |
+| cap, asks, TTL, allow-list, send target | the arbiter (signed) | you, tighter only |
+| trigger (the schedule) | `schedule.json` (signed by you in two clicks) | you |
 | "did it happen" | the harness | nobody mid-run |
 | money spent | the books | nobody; unknown stays unknown |
 | the answer to an ask | you | once |
@@ -255,7 +257,7 @@ still be wrong. So it hears "crooked", never "2mm off".
 
 ## How many rungs
 
-There are **20 rungs** on `docs/wiki/the-module-ladder.md`: 11 main modules (M0 to M10) and 9
+There are **21 rungs** on `docs/wiki/the-module-ladder.md`: 12 main modules (M0 to M11) and 9
 sub-rungs (M0a, M0b, M4a, M4b, M4c, M4c-fix, M4d, M4e, M6a). Counted with grep on its headings.
 M6b was folded into M4e. A rung starts only when its scope, exit and negative are signed by hamr.
 
@@ -271,15 +273,16 @@ M6b was folded into M4e. A rung starts only when its scope, exit and negative ar
 | M4b | answer doors, resume | released (0.9.0) |
 | M4c | answers read clearly, stuck runs | released (0.10.0) |
 | M4c-fix | the fix list, cleared | released (0.11.0) |
-| M4d | Settings | released (0.12.0); amendments 3-11 (providers from your keys, models and prices, thinking, plan-checker rules, Chat step list) released (0.16.0); amendments 12-21 (one cap and one shared pot for drafting and the run, plain one-line Chat steps, version header and reload bar, Start over keeps the pot, one key-name rule) built, not yet released |
+| M4d | Settings | released (0.12.0); amendments 3-11 (providers from your keys, models and prices, thinking, plan-checker rules, Chat step list) released (0.16.0); amendments 12-21 (one cap and one shared pot for drafting and the run, plain one-line Chat steps, version header and reload bar, Start over keeps the pot, one key-name rule) released (0.17.0); amendments 22-24 (the thinking note shows ticked or not, a Cap at or below what the earlier draft spent is red and refuses Draft) built, not yet released |
 | M4e | Chat card: draft, sign, run | released (0.13.0, 0.14.0) |
 | M6a | authoring backend (draft, sign) | released (0.8.0) |
 | M5 | dry-run, accept, versions | closed, signed 2026-10-10 (Accept is sign; dry run waits for a real outside send) |
-| M6 | edit a flow, add turns | released (0.15.0) |
-| M7 | in-run tools (one run's memory) | exit signed 2026-10-12, not yet released |
+| M6 | edit a flow, add turns | released (0.15.0); amendments 5-10 (a changed job is a new workflow, Run again is the one door, a red run always drafts, each run keeps its own plan) built, not yet released |
+| M7 | in-run tools (one run's memory) | released (0.17.0) |
 | M8 | case library | planned |
-| M9 | triggers (clock, file watch) and the run summary | exit signed 2026-10-13, not yet released; inbox-poll and flow handover not built |
+| M9 | triggers (clock, file watch) and the run summary | released (0.18.0); amendments 6-20 (schedule on the Job tab and in Audit, a run at its ask is not busy, the schedule's own signed file) built, not yet released; inbox-poll and flow handover not built |
 | M10 | real IO (mail, chat, browse) | planned |
+| M11 | one runs list (Running now, Needs you, Scheduled, Jobs) | released (0.19.0, 0.19.1); amendments 5-15 (search finds older runs, Needs you tags and Remove, job · run in the top lists, empty Inbox) built, not yet released |
 
 ---
 
