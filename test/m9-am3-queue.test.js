@@ -37,7 +37,8 @@ async function qWorld() {
     const id = runs().at(-1);
     writeFileSync(g.w.gate, 'go');
     await until(async () => ((await g.w.post('/api/stop', { flow: 'job2', runId: id })).status === 202 ? true : null));
-    await until(async () => ((await g.w.get('/api/author/flows')).json().flows.find((x) => x.flow === 'job2').edit.ok === true ? true : null));
+    // a 202 only says the stop was asked for; the run is over when Stop answers "not running" (the one decision the scheduler's busy check also reads). `edit.ok` is the Reuse card, not a block: it never waited.
+    await until(async () => ((await g.w.post('/api/stop', { flow: 'job2', runId: id })).status === 409 ? true : null));
     if (existsSync(g.w.gate)) unlinkSync(g.w.gate);
   };
   return { ...g, clock, inbox, rows, started, runs, tick, polls, ledger, drop, endRun };
