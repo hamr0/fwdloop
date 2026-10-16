@@ -5040,8 +5040,8 @@
     function thinkingBoxState(line, wasChecked){
       if(!line || !line.thinking) return {disabled: true, checked: false, note: ""};
       if(line.thinking.canChange !== true) return {disabled: true, checked: false, note: line.thinking.say || ""};
-      // an unchecked model's note (am11 item 2) says "thinking off"; ticked, it would be wrong, so it goes
-      return {disabled: false, checked: wasChecked === true, note: wasChecked === true ? "" : (line.thinking.say || "")};
+      // M4d am22: the note shows whether the box is ticked or not
+      return {disabled: false, checked: wasChecked === true, note: line.thinking.say || ""};
     }
     function paintThinking(){
       var st = thinkingBoxState(modelLines[Number(modelEl.value)], thinkingEl.checked);
