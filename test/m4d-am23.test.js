@@ -41,3 +41,24 @@ test('ledger: a non-string startedOverFrom (123, {}) is refused by name, 400, no
     await until(async () => ['green', 'red', 'stopped'].includes((await w.get(`/api/author/${r.json().draftId}`)).json()?.phase));
   }
 });
+
+test('am24 (signed): Start over with a Cap at or below what the earlier draft spent is refused 400 with the Cap note\'s words; no draft folder, no child; above it, it starts', async () => {
+  const { readdirSync } = await import('node:fs');
+  const w = await world({ limit: 0.3 });
+  const { id } = await finish(w);
+  writeFileSync(path.join(w.dir(id), 'draft', 'spend.jsonl'), spendRow(0.12));
+  const before = readdirSync(path.join(w.root, '.drafts')).sort();
+  for (const cap of [0.12, 0.05]) {
+    const r = await w.post('/api/author/draft', { ...w.card({ capUsd: cap }), startedOverFrom: id });
+    assert.equal(r.status, 400, `${cap}: ${r.text}`);
+    const note = (await w.get(url(String(cap), id))).json();
+    const refusals = r.json().refusals;
+    assert.equal(refusals.length, 1);
+    assert.equal(refusals[0].field, 'capUsd');
+    assert.equal(refusals[0].say, note.text, 'the same red words as the Cap note');
+    assert.match(refusals[0].say, /^The cap must be above what is already spent \(at least \$\d+\.\d\d\)\.$/);
+    assert.deepEqual(readdirSync(path.join(w.root, '.drafts')).sort(), before, 'no draft folder was made');
+  }
+  const ok = await w.post('/api/author/draft', { ...w.card({ capUsd: 0.25 }), startedOverFrom: id });
+  assert.equal(ok.status, 202, ok.text);
+});

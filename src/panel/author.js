@@ -59,7 +59,7 @@ import {
 } from '../draftspend.js';
 import { jobKeyOfCard } from '../jobkey.js';
 import { flowValues, valuesHash } from '../runvalues.js';
-import { capAboveSpentText } from './authorvalues.js';
+import { capAboveSpentText, capNotAboveSpent } from './authorvalues.js';
 import { createFlowsDoor } from './authorflows.js';
 import { createTriggerDoor } from './authortrigger.js';
 import { createResumeDoor } from './authorresume.js';
@@ -377,6 +377,10 @@ export function createAuthor(opts) {
     const checked = checkCard(card, { root: realpathSync(root), keys: providerKeys(loaded), home, runOf });
     const modelSays = modelRefusal(card, loaded);
     if (!checked.ok || modelSays.length > 0) return { ok: false, reply: { status: 400, body: { ok: false, refused: 'card', refusals: [...(checked.ok ? [] : checked.refusals), ...modelSays] } } };
+    // M4d am24: a Cap at or below what the earlier draft already spent is refused with the Cap note's words, before anything is made
+    if (capNotAboveSpent(Number(card.capUsd), priorUsd)) {
+      return { ok: false, reply: { status: 400, body: { ok: false, refused: 'card', refusals: [{ field: 'capUsd', say: capAboveSpentText(priorUsd, capFloorFor(true, home, card)) }] } } };
+    }
     // amendment 4 item 1: a cap that does not fit this month refuses here too, at $0, with the one refusal text (the page's red note is only a courtesy)
     const claim = monthlyClaim(Math.max(0, Number(card.capUsd) - priorUsd));
     if (claim && 'problem' in claim) return { ok: false, reply: { status: 409, body: { ok: false, refused: 'monthly', say: `${claim.problem} — refusing rather than guess the monthly limit. Nothing spent.` } } };
@@ -429,7 +433,7 @@ export function createAuthor(opts) {
       const priorUsd = priorDir === null ? 0 : draftingSpent(priorDir, { ceilingUsd: floorUsd }).usd;
       // M4d am23: a cap at or below what is already spent (a Resume's run, or the earlier draft's drafting) is red in the one sentence
       const alreadyUsd = spentUsd + priorUsd;
-      if (alreadyUsd > 0 && n <= alreadyUsd + 1e-9) {
+      if (capNotAboveSpent(n, alreadyUsd)) {
         return { status: 200, body: { ok: true, text: capAboveSpentText(alreadyUsd, floorUsd), red: true, floorUsd, floorText } };
       }
       const claim = monthlyClaim(Math.max(0, n - alreadyUsd));
