@@ -374,9 +374,10 @@ export function createTriggerDoor(opts) {
      * The fire / ran ledger row was written by the caller BEFORE this, so a crash loses a run and never doubles one.
      * @param {{flow: string, flowDir: string, read: any, trigger: Trigger}} job
      * @param {{kind: 'clock', slot: number, catchUp: boolean, missed: number} | {kind: 'file', path: string, sha: string}} cause
-     * @param {{ told?: (row: Record<string, any>) => boolean, beforeStart?: () => void }} [hooks] M9 am3 (a queued file): `told(row)` true = this file
+     * @param {{ told?: (row: Record<string, any>) => boolean, beforeStart?: () => void, holdIfCannotStart?: boolean }} [hooks] M9 am3 (a queued file): `told(row)` true = this file
      *   already has a row for that outcome and reason (`why`), so none is written again (the outcome is still returned); `beforeStart` runs right before the ONE
-     *   start, once every check has passed: the scheduler writes the file's `ran` row there.
+     *   start, once every check has passed: the scheduler writes the file's `ran` row there. `holdIfCannotStart` (a queued file, M9 am17): the starter's `canStart` is asked first, and a no writes nothing
+     *   (no row, no `beforeStart`) and returns outcome `waiting`.
      */
     fire(job, cause, hooks = {}) {
       const { flow, flowDir, read: flowRead, trigger } = job;
@@ -454,6 +455,7 @@ export function createTriggerDoor(opts) {
         triggerKind: trigger.kind, words: scheduleHead(trigger), at: base.at, ...(cause.kind === 'clock' ? { lateMin: Math.max(0, Math.round((now() - cause.slot) / 60_000)) } : {}),
         ...(fromRunOf(flowDir, flowRead.signature.flow) ? { fromRun: fromRunOf(flowDir, flowRead.signature.flow) } : {}),
       };
+      if (hooks.holdIfCannotStart === true && starter.canStart({ flow, runId: '', planRun: false }, loaded) !== null) return { ...base, outcome: 'waiting' };   // M9 am17: nothing written, the file stays queued for the next turn
       hooks.beforeStart?.();
       const started = starter.start({
         kind: 'trigger', flow, runId: '', sources, trigger: record, values, planOf: planRun,

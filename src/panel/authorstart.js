@@ -31,7 +31,7 @@ import { loadCatalogue } from '../catalogue.js';
 import { scrub } from '../authoring.js';
 import { readPidRows } from '../books.js';
 import {
-  PANEL_STARTS_DIR, checkRunId, claimRunId, readFileInside, readdirInside, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER,
+  PANEL_STARTS_DIR, checkRunId, claimRunId, nextRunId, readFileInside, readdirInside, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER,
 } from '../flow.js';
 import { booksFresh, runLiveness } from '../liveness.js';
 import { dropUnstartedValues, writeRunValues } from '../runvalues.js';
@@ -134,9 +134,36 @@ export function createStarter(opts) {
     return null;
   }
 
+  /**
+   * The ONE decider of whether a start can begin, for `start` and for a trigger's pre-check: only the three checks that need no side effect. The flows root exists, the run
+   * id is one the CLI would take (`runId` '' = the next `run-<n>`, looked at and NOT claimed; a signed plan's run folder already exists and is not looked at), and no run of
+   * this flow is starting. Nothing is written. A refusal is the `{status, body}` `start` returns; null = it can start.
+   * @param {{ flow: string, runId: string, planRun?: boolean }} a @param {{ env: Record<string, string|undefined>, keyNames?: string[] }} loaded
+   * @returns {{ status: number, body: any }|null}
+   */
+  function canStart({ flow, runId, planRun = false }, loaded) {
+    if (startsDir() === null) return { status: 400, body: { ok: false, refused: 'root', say: 'The flows folder this panel serves does not exist.' } };
+    if (!planRun) {
+      const flowDir = join(realpathSync(root), flow);
+      if (runId === '') {
+        const next = nextRunId(flowDir);
+        const r = resolveRunDir(flowDir, next);
+        if (!r.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: `${r.red.replace(/^run: /, '')}.` } };
+        if (existsSync(r.runDir)) return { status: 400, body: { ok: false, refused: 'run-id', say: `There is already a run "${next}" of this flow. Use a new run id.` } };
+      } else {
+        const run = checkRun(flow, runId);
+        if (!run.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: run.say } };
+      }
+    }
+    const startingId = startingFor(flow, providerKeys(loaded));
+    if (startingId !== null) return { status: 409, body: { ok: false, refused: 'start-live', startId: startingId, say: 'A run of this flow is already starting. Wait for it.' } };
+    return null;
+  }
+
   return {
     checkRun,
     startingFor,
+    canStart,
 
     /**
      * Start `fwdloop run` for a flow whose every $0 check already passed at the calling door. Re-checks the run id here (nothing
@@ -154,8 +181,9 @@ export function createStarter(opts) {
       kind, flow, runId, sources, values = null, pick = null, trigger = null, planRun = false, planOf = null,
     }, loaded) {
       const { env } = loaded;
-      const sd = startsDir();
-      if (sd === null) return { status: 400, body: { ok: false, refused: 'root', say: 'The flows folder this panel serves does not exist.' } };
+      const refused = canStart({ flow, runId, planRun }, loaded);
+      if (refused !== null) return refused;
+      const sd = /** @type {string} */ (startsDir());
       /** @type {string|null} */
       let claimedDir = null;
       if (runId === '') {
@@ -168,9 +196,6 @@ export function createStarter(opts) {
         const r = resolveRunDir(join(realpathSync(root), flow), runId);
         if (!r.ok || !runOwnsPlan(r.runDir)) return { status: 400, body: { ok: false, refused: 'run-id', say: `"${runId}" is not a run that holds its own plan. ${NOTHING_SPENT}` } };
         claimedDir = r.runDir;
-      } else {
-        const run = checkRun(flow, runId);
-        if (!run.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: run.say } };
       }
       const runDirOf = () => claimedDir ?? join(realpathSync(root), flow, 'runs', runId);
       const unclaim = () => {
@@ -199,13 +224,7 @@ export function createStarter(opts) {
       if (trigger !== null) {
         try { writeFileSync(join(runDirOf(), TRIGGER_RECORD_FILE), `${JSON.stringify(trigger)}\n`, { flag: 'wx', mode: 0o600 }); } catch { unclaim(); return { status: 500, body: { ok: false, refused: 'trigger', say: `The reason this run started could not be saved. ${NOTHING_SPENT}` } }; }
       }
-      const keys = providerKeys(loaded);
-      // one start at a time while one is still spawning for this flow (a double click, two tabs)
-      const startingId = startingFor(flow, keys);
-      if (startingId !== null) {
-        unclaim();
-        return { status: 409, body: { ok: false, refused: 'start-live', startId: startingId, say: 'A run of this flow is already starting. Wait for it.' } };
-      }
+      // one start at a time while one is still spawning for this flow (a double click, two tabs): `canStart` above decided it, and nothing between it and the spawn awaits or starts anything
       const id = newId();
       const dir = join(sd, id);
       mkdirSync(sd, { recursive: true, mode: 0o700 });

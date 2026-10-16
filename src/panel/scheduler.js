@@ -63,7 +63,7 @@ export function createScheduler(opts) {
         queue = queue.slice(1);
         continue;
       }
-      door.fire(job, cause({ ...q, path: seen.path }), { told: told(q), beforeStart: () => recordRan(ledger, seen, nowMs) });
+      door.fire(job, cause({ ...q, path: seen.path }), { told: told(q), holdIfCannotStart: true, beforeStart: () => recordRan(ledger, seen, nowMs) });
       return;
     }
   }

@@ -25,7 +25,7 @@ async function stubWorld(o = {}) {
   const door = createTriggerDoor({
     root: g.w.root,
     flowsDoor: { editBlock: () => null, scheduleBusy: () => null, lastSourcesOf: () => ({ sources: { resume: path.join(g.w.inDir, 'resume.md'), jd: path.join(g.w.inDir, 'jd.md') } }) },
-    starter: { start: (/** @type {any} */ a) => { ctl.starts++; return ctl.start(a); } },
+    starter: { canStart: () => null, start: (/** @type {any} */ a) => { ctl.starts++; return ctl.start(a); } },
     loadEnv: () => ({ ok: true, env: {}, keyNames: [slot] }),
     monthlyClaim: () => null,
     modelRefusal: () => ctl.model,
