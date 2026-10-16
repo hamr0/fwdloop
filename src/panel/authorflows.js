@@ -274,7 +274,12 @@ export function createFlowsDoor(opts) {
     if (!cat.ok) return null;
     if (starter.startingFor(name, []) !== null) return startingSay;
     const ids = listRunIds(join(realRoot, name)).filter((id) => /^run-\d+$/.test(id)).sort((a, b) => Number(b.slice(4)) - Number(a.slice(4)));
+    // `canStop` is false for any run with an end row (`runControls`: running and atAsk both need none), so a run that has ended is skipped by the
+    // same `endRow` rule `loadRunContext` uses, read fresh each call (no cache), before a whole run context is built for it.
+    const flowDir = join(realRoot, name);
+    const history = readHistory(flowDir);
     for (const id of ids) {
+      if (endRow(history, join(flowDir, 'runs', id), id) !== null) continue;
       if (counts(getRunControls({ root: realRoot, flow: name, runId: id, catalogue: cat.primitives }))) return sayFor(id);
     }
     return null;
