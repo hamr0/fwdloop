@@ -314,7 +314,8 @@
   .ended-block.red{border-color:var(--red);}
   .ended-text.is-red,.ended-label.is-red{color:var(--red);}
   .ended-block.green{border-color:var(--green);}
-  .ended-block.grey{border-color:var(--grey-dot);}
+  .ended-block.grey,.ended-block.stopped{border-color:var(--grey-dot);}
+  .ended-block.amber,.ended-block.expired,.ended-block.stuck{border-color:var(--amber);}
   .ended-row{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px;}
   .ended-row:last-child{margin-bottom:0;}
   .ended-label{color:var(--text-faint);font-size:11px;letter-spacing:0.08em;min-width:84px;}
@@ -2296,7 +2297,7 @@
     var note = document.getElementById("catchup-note");
     var sc = sm.schedule || null;
     if(sm.ended || sc){
-      var tone = { "[✓]": "green", "[✗]": "red", "[?]": "magenta", "[■]": "grey" }[detail.glyph] || "";
+      var tone = glyphClass(detail.glyph); // M9 am14: the colour of that run's card in the runs list, one decider (its dot)
       if(sc && sc.red === true) tone = "red";
       box.hidden = false;
       box.className = "ended-block" + (tone ? " " + tone : "");

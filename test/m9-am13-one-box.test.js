@@ -1,5 +1,6 @@
 // M9 amendment 13: the Run tab summary is ONE framed box (ENDED, NEXT, SCHEDULE as label | value). Frame: red on a SCHEDULE problem, else the run's own
-// sign ([✓] green, [✗] red, [?] magenta, [■] grey; running/waiting none). ENDED/NEXT text never red; SCHEDULE label+lines red only on a problem.
+// sign ([✓] green, [✗] red, [?] magenta, [■] grey). M9 am14 (signed 2026-10-16) amends item 2: the frame is the colour of that run's card in the runs list
+// for every glyph, so a running run is amber, a waiting one grey, [!] expired and [II] stuck amber (the card's dot colours). ENDED/NEXT text never red; SCHEDULE label+lines red only on a problem.
 // The page's own renderSummary is driven with synthetic run details in headless chromium over the real panel page (skips when none). $0.
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
@@ -26,6 +27,9 @@ const CASES = {
   crashed: { glyph: '[?]', summary: { ended: ENDED } },
   stopped: { glyph: '[■]', summary: { ended: ENDED, schedule: SCHED(false) } },
   runningSched: { glyph: '[▶]', summary: { schedule: SCHED(false) } },
+  waiting: { glyph: '[·]', summary: { schedule: SCHED(false) } },
+  expired: { glyph: '[!]', summary: { ended: ENDED } },
+  stuck: { glyph: '[II]', summary: { ended: ENDED } },
 };
 
 async function world(t, width) {
@@ -55,7 +59,7 @@ const paint = async (chrome, d0, key) => {
   var col = function(sel){ var e = box.querySelector(sel); return e ? getComputedStyle(e).color : null; };
   var frames = document.querySelectorAll("#summary-blocks .ended-block").length;
   var tok = function(n){ var p = document.createElement("span"); p.style.borderTop = "2px solid var(--" + n + ")"; document.body.appendChild(p); var c = getComputedStyle(p).borderTopColor; p.remove(); return c; };
-  return { present: true, frames: frames, border: getComputedStyle(box).borderTopColor, none: tok("border-strong"), green: tok("green"), red: tok("red"), magenta: tok("magenta"), grey: tok("grey-dot"),
+  return { present: true, frames: frames, border: getComputedStyle(box).borderTopColor, none: tok("border-strong"), green: tok("green"), red: tok("red"), magenta: tok("magenta"), grey: tok("grey-dot"), amber: tok("amber"),
     endedRed: col("[data-testid=ended-reason]") === red || col("[data-testid=ended-next]") === red,
     schedRed: col("[data-testid=sched-line1]") === red && col("[data-testid=sched-line2]") === red && getComputedStyle(box.querySelector(".ended-label.is-red") || document.body).color === red,
     schedAnyRed: col("[data-testid=sched-line1]") === red || col("[data-testid=sched-line2]") === red,
@@ -76,7 +80,10 @@ test('am13 at 1280: one box, frame by the run\'s sign, ENDED/NEXT never red, SCH
   assert.equal(r.failedHealthy.border, r.failedHealthy.red, J('failedHealthy'));
   assert.equal(r.crashed.border, r.crashed.magenta, J('crashed'));
   assert.equal(r.stopped.border, r.stopped.grey, `stopped is grey, never red: ${J('stopped')}`);
-  assert.equal(r.runningSched.border, r.runningSched.none, `running has no frame colour: ${J('runningSched')}`);
+  assert.equal(r.runningSched.border, r.runningSched.amber, `am14: running takes its card colour (amber): ${J('runningSched')}`);
+  assert.equal(r.waiting.border, r.waiting.grey, `am14: waiting takes its card colour (grey): ${J('waiting')}`);
+  assert.equal(r.expired.border, r.expired.amber, `am14: [!] expired is amber like its card: ${J('expired')}`);
+  assert.equal(r.stuck.border, r.stuck.amber, `am14: [II] stuck is amber like its card: ${J('stuck')}`);
   assert.deepEqual(r.runningSched.labels, ['SCHEDULE', ''], 'a running run still shows SCHEDULE');
   assert.equal(r.failedProblem.border, r.failedProblem.red, 'a schedule problem is a red frame');
   assert.equal(r.failedProblem.schedRed, true, 'problem: label and both lines red');
