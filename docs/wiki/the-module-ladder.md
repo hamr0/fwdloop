@@ -1421,6 +1421,12 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - F64: a malformed tool call's raw arguments are shown as the first 2000 characters, then `… (N more chars)`.
   - A key name is a name that ends in `_KEY`, capitals (`isKeyName` in `src/keysfile.js`, commit 1b15bfb). Only such lines of the keys file are listed as Settings rows; a configured name that is not one never reaches a child's env; and the provider, model, Test and models routes refuse any other slot by name (`not-a-key-name`, nothing saved). This replaces the "other names are still listed" words of amendment 16 item C4 and the "every name with a value is a row" words of amendment 6 (signed text, unchanged). A `config.json` that already names a slot without `_KEY` is not broken: that row is simply not shown and its keys-file line is not passed on.
 
+**M4d amendment 22 — SIGNED by hamr 2026-10-16 ("sign m4d am22").**
+The **thinking off (not verified for this model)** note next to the Chat "Thinking on" box shows whether the box is ticked or not.
+
+**M4d amendment 23 — SIGNED by hamr 2026-10-16 ("sign m4d am23").**
+A Cap at or below what the earlier draft already spent is red: 'The cap must be above what is already spent (at least $X).', the same words as a Resume.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
@@ -2384,6 +2390,12 @@ monthly wall is enforced **by the trigger**, before a run starts.
   3. **The text's colour:** ENDED and NEXT text are never red. Only the SCHEDULE label and its two lines turn red, and only when SCHEDULE has a problem.
   - **Must fail when:** ENDED, NEXT and SCHEDULE are not in one box; a passed run with a healthy schedule has a red frame; a stopped run has a red frame; ENDED or NEXT text turns red; SCHEDULE turns red on a run that failed while the schedule is fine.
 
+- **M9 amendment 14 — SIGNED by hamr 2026-10-16 ("sign m9 am14").** The Run tab summary box frame uses the same colour as that run's card in the runs list, for every glyph. That includes `[!]` expired and `[II]` stuck.
+
+- **M9 amendment 16 — SIGNED by hamr 2026-10-16 ("sign m9 am16").** When a New file trigger is changed or cancelled while files wait in its queue: if it still watches the same folder, the waiting files stay queued and run in their turn. If the folder changed, or the trigger is cancelled, each waiting file gets one row: '<file> was waiting when the schedule changed, so it will not run. Drop it in again to run it.'
+
+- **M9 amendment 17 — SIGNED by hamr 2026-10-16 ("sign m9 am17").** Before a queued file is marked as run, the panel checks it can start: no run of this job is starting, the root exists, the run number is free. If not, the file stays queued and tries again next turn. A refusal after the run has begun (for example a bad Destination) still counts as its run, and is shown as a refused start, as today.
+
 ## M10 — real IO
 
 Mail in and out, chat, browse — each behind the signed allow-list and a prior `ask` accept in the
@@ -2487,5 +2499,7 @@ same run. Scope is stated when its turn comes.
   - **Must fail when:** a waiting run's tag reads anything but Answer; a reopenable expired ask is missing from Needs you; Remove changes the run's status or hides it from the Inbox or Jobs; a removed or 7-day-old card stays in Needs you; a run waiting at a live ask shows Remove.
 - **M11 amendment 12 — SIGNED by hamr 2026-10-15 ("sign m11 am12"): job · run in the top lists.** In **Running now**, **Needs you** and **Scheduled** only, a run reads `aging-live-4 · run-15` (job, a middle dot, run-N). Everything else stays as it is. Search still finds `run-15` and `(run-15)`.
   - **Must fail when:** a top card shows the run without the dot; a Jobs card changes; a search for `run-15` stops finding it.
+- **M11 amendment 13 — SIGNED by hamr 2026-10-16 ("sign m11 am13").** When a search matches an older run, the fold opens and each matching run card is highlighted. The highlight is not the selected look.
+
 - **M11 amendment 14 — SIGNED by hamr 2026-10-16 ("sign m11 am14").** When the Inbox has no rows, it shows only 'nothing waiting on you — no stops recorded under this root'. The dashed line, the filter note and the search/chips appear once there is at least one row.
 - **M11 amendment 15 — SIGNED by hamr 2026-10-16 ("sign m11 am15").** A job's top row is its waiting run, if it has one. A stuck run that has left Needs you (7 days, M11 am3 item 5) is no longer the top row. The newest run by time is.
