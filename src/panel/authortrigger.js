@@ -291,8 +291,6 @@ export function createTriggerDoor(opts) {
         model: s.model, destination: s.destination, inputs: s.inputs, plan: s.plan, from: s.from,
       };
       const keep = cur !== null && sameTarget(cur.trigger, s.trigger);
-      // a changed folder drops the queue of the earlier signing, with am16's row, in this same click (before anything new is written)
-      if (cur !== null && !keep) dropQueue(s.flowDir, cur.sig, at, (row) => appendOutcome(s.flowDir, { at: signedAt, flow: s.flow, trigger: describe(cur.trigger), sig: cur.sig, ...row }));
       try {
         if (cur !== null && keep) carryQueue(s.flowDir, cur.sig, schedule.sig);
         armFor(s.flowDir, schedule, at, { baseline: !keep });
@@ -301,6 +299,10 @@ export function createTriggerDoor(opts) {
       }
       writeSchedule(s.flowDir, schedule);
       if (cur !== null && keep) finishCarry(s.flowDir, cur.sig, at);
+      // a changed folder drops the queue of the earlier signing, with am16's row, in this same click, but only now that the new schedule is armed and
+      // written: everything that can refuse (arm) came first, so "Nothing was changed" is true. A crash between the write and the drop leaves the old
+      // signing's files unrun (the old sig is not live) without their row; it never runs one twice and never fires unsigned.
+      if (cur !== null && !keep) dropQueue(s.flowDir, cur.sig, at, (row) => appendOutcome(s.flowDir, { at: signedAt, flow: s.flow, trigger: describe(cur.trigger), sig: cur.sig, ...row }));
       return { status: 200, body: { ok: true, flow: s.flow, trigger: s.trigger, words: scheduledWords(s.trigger), flowHash: s.read.signature.flow, sig: schedule.sig, armed: true } };
     },
 

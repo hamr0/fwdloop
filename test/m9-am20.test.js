@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync,
+  chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
 
@@ -206,4 +206,23 @@ test('a schedule.json changed after it was signed is not a schedule: it reads as
   clock.t = at(13, 10, 0, 30); g.w.h.tick();
   assert.deepEqual(readOutcomes(g.flowDir), [], 'nothing fired');
   assert.equal((await g.w.get('/api/author/flows')).json().flows.find((x) => x.flow === 'job2').trigger.trigger, null);
+});
+
+// ---------------------------------------------------------------- a Set that cannot arm changes nothing ("Nothing was changed" must be true)
+
+test('Must fail: a Set to a folder that cannot be armed says "Nothing was changed" and the old schedule, its waiting files and its ledger are untouched', { skip: process.getuid?.() === 0 && 'root reads a chmod 000 folder' }, async () => {
+  const f = await queueWorld();
+  const closed = path.join(f.w.work, 'closed'); mkdirSync(closed); chmodSync(closed, 0o000);
+  try {
+    const schedBefore = readFileSync(path.join(f.flowDir, 'schedule.json'), 'utf8');
+    const ledgerBefore = readFileSync(path.join(f.flowDir, 'schedule-ledger.jsonl'), 'utf8');
+    f.clock.t = at(13, 9);
+    const r = await setTrigger(f.w, { kind: 'new-file', role: 'jd', folder: closed });
+    assert.equal(r.status, 409, JSON.stringify(r.json()));
+    assert.match(r.json().say, /Nothing was changed/);
+    assert.equal(readFileSync(path.join(f.flowDir, 'schedule.json'), 'utf8'), schedBefore, 'the old schedule stands');
+    assert.deepEqual(waitingAnywhere(f.flowDir), ['q1.md', 'q2.md'], 'the waiting files still wait');
+    assert.equal(f.rows().length, 0, 'no "will not run" row');
+    assert.equal(readFileSync(path.join(f.flowDir, 'schedule-ledger.jsonl'), 'utf8'), ledgerBefore, 'the ledger is byte-identical');
+  } finally { chmodSync(closed, 0o700); }
 });
