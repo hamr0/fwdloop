@@ -301,10 +301,10 @@ function scanFsUsage(text) {
 const ALLOWLIST = {
   'src/flow.js': {
     // M6 am9 (reviewed): `writeRunPlan` and `copyRunPlan` write a run's own kept plan (`<run>/job/*` + `plan.json`, write-once) and remove it again on a failed write; `readPlan`/`runOwnsPlan` test the marker.
-    reason: 'M6: `replaceSigned` (the all-or-nothing swap of a signed job: stage folder, backup folder, renames both ways, rollback, cleanup) and `recoverSwap` (F2: after a hard kill, the .replace-* folders of a dead pid: readdir, existsSync, rename back, rm) and `writeRunJobCopy`/`readRunJobCopy` (the run\'s write-once copy of its job: one mkdir, three `wx` writes, one existsSync); M6 am5: `suggestFlowName` (one read-only lstat of a candidate name); M4e amendment 43: writeFlow also makes the write-once signed/ copy (one mkdir, two `wx` writes, one existsSync refusing an existing signed/); the safe-read implementation itself (readFileInside/readdirInside/writeFlow/readFlow) — the one gateway every book reader is expected to route through, plus its own symlink-guard checks and atomic-write plumbing, plus claimRunId (M4e amendment 3: the exclusive mkdir of the next run-<n> folder, and the runs/ folder above it)',
+    reason: 'M6: `replaceSigned` (the all-or-nothing swap of a signed job: stage folder, backup folder, renames both ways, rollback, cleanup) and `recoverSwap` (F2: after a hard kill, the .replace-* folders of a dead pid: readdir, existsSync, rename back, rm) and `hasSwapLeftover` (one readdir of the flow folder to look for such folders on a green read) and `writeRunJobCopy`/`readRunJobCopy` (the run\'s write-once copy of its job: one mkdir, three `wx` writes, one existsSync); M6 am5: `suggestFlowName` (one read-only lstat of a candidate name); M4e amendment 43: writeFlow also makes the write-once signed/ copy (one mkdir, two `wx` writes, one existsSync refusing an existing signed/); the safe-read implementation itself (readFileInside/readdirInside/writeFlow/readFlow) — the one gateway every book reader is expected to route through, plus its own symlink-guard checks and atomic-write plumbing, plus claimRunId (M4e amendment 3: the exclusive mkdir of the next run-<n> folder, and the runs/ folder above it)',
     names: {
       accessSync: 1, constants: 2, existsSync: 14, lstatSync: 6, mkdirSync: 11,
-      readdirSync: 4, readFileSync: 2, realpathSync: 5, renameSync: 5, rmSync: 13,
+      readdirSync: 5, readFileSync: 2, realpathSync: 5, renameSync: 5, rmSync: 13,
       writeFileSync: 15,
     },
   },
@@ -352,9 +352,9 @@ const ALLOWLIST = {
     },
   },
   'src/monthly.js': {
-    reason: 'M4d piece 3: the ONE writer/reader of the per-person runs.jsonl (~/.config/fwdloop), a regular file OUTSIDE any run/flow dir, not a book: one append (0600, dir 0700), one read of that file, and realpathSync to record a run dir by its real path (longest existing prefix). Every run/draft dir\'s own spend.jsonl is read through readSpendRows (readFileInside), never fs directly.',
+    reason: 'M4d piece 3: the ONE writer/reader of the per-person runs.jsonl (~/.config/fwdloop), a regular file OUTSIDE any run/flow dir, not a book: one read of that file, mkdir (dir 0700) and the append (0600) through src/jsonl-append.js, and realpathSync to record a run dir by its real path (longest existing prefix). Every run/draft dir\'s own spend.jsonl is read through readSpendRows (readFileInside), never fs directly.',
     names: {
-      appendFileSync: 1, mkdirSync: 1, readFileSync: 1, realpathSync: 1,
+      mkdirSync: 1, readFileSync: 1, realpathSync: 1,
     },
   },
   'src/trigger-clock.js': {
@@ -374,8 +374,8 @@ const ALLOWLIST = {
     },
   },
   'src/provider.js': {
-    reason: 'append-only spend-log writer — writes only, no reads',
-    names: { appendFileSync: 1, mkdirSync: 1 },
+    reason: 'append-only spend-log writer — mkdir only; the append itself goes through src/jsonl-append.js',
+    names: { mkdirSync: 1 },
   },
   'src/send.js': {
     reason: 'the write itself goes through bare-agent\'s shell_write tool, never a raw fs write (see the borrowed-from note) — this reads back the bytes ACTUALLY on disk after that write, to prove it landed (M2 "happened" re-read), not a run/flow-dir book read; M4e amendment 1: one lstat of the destination file name (presence only, nothing read, symlinks not followed) so a send never overwrites',

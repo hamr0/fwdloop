@@ -16,10 +16,11 @@
 // against src/'s ESM style; src never imports from poc/.
 
 import {
-  appendFileSync, mkdirSync,
+  mkdirSync,
 } from 'node:fs';
 import { dirname, basename } from 'node:path';
 import { readFileInside } from './flow.js';
+import { appendRow } from './jsonl-append.js';
 import { readConfig, configDoorHome } from './config.js';
 import { isKeyName } from './keysfile.js';
 import { OpenAI, Anthropic, Gemini } from 'bare-agent/providers';
@@ -273,7 +274,7 @@ export function appendSpendRow(path, row) {
   }
   // M4d piece 3: the writer stamps `at` (after the spread: a caller can never set it) so month spend can be read
   // off each run's own books. Rows written before M4d carry none.
-  appendFileSync(path, `${JSON.stringify({ ...row, at: new Date().toISOString(), modelMatch })}\n`);
+  appendRow(path, { ...row, at: new Date().toISOString(), modelMatch });
 }
 
 // F48 round 3: both readers below take a full path (`<runDir>/spend.jsonl`,
