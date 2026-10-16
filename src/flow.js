@@ -794,7 +794,7 @@ export function readFlow({ root, name, catalogue }) {
   // a red may be a swap a hard kill cut short (the job refused until files were moved by hand): recover it, read once more.
   // A green read can hold a dead pid's leftover too (killed after the signature landed: the OLD signed job sits in `.replace-old-*`): clear it
   // (only looked for when such a folder exists; a live pid's folders are never touched).
-  if (r.ok && !hasSwapLeftover(path.join(root, name))) return r;
+  if (r.ok && !hasSwapLeftover(path.join(root, /** @type {string} */ (name)))) return r;
   return recoverSwap(path.join(root, /** @type {string} */ (name))) ? readFlowOnce({ root, name, catalogue }) : r;
 }
 
