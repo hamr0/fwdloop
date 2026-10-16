@@ -906,7 +906,6 @@ function interpretSigned({
     declaration: declarationJson,
     signature: signatureJson,
     classes: validated.classes,
-    proseText,
   };
 }
 
@@ -918,12 +917,9 @@ const RUN_JOB_DIR = 'job';
  * the flow's own signature first (a flow that does not verify is never copied), then writes them write-once (`wx`). `{ok:false, red}` writes nothing
  * it did not finish (a half-written copy is removed). Never throws.
  * @param {string} flowDir @param {string} runDir @param {string} [expectedFlowHash] the `signature.flow` the caller read; a different job on disk is refused
- * @param {{proseText: string, declarationSha: string}} [started] the job as the run read it. M9 am10: a job on disk that differs from it ONLY by its trigger line
- *   (a Cancel or a new schedule landed while the run was starting) is still the same job (the `planForReuse` rule: declaration byte-equal, prose equal once `stripTrigger`ed)
- *   and is copied; any other difference is refused as before.
- * @returns {{ok: true, flowHash: string} | {ok: false, red: string}} `flowHash`: the signature of the copy written (the run's own, which a trigger-only re-sign may have moved on from)
+ * @returns {{ok: true} | {ok: false, red: string}}
  */
-export function writeRunJobCopy(flowDir, runDir, expectedFlowHash, started) {
+export function writeRunJobCopy(flowDir, runDir, expectedFlowHash) {
   const texts = {};
   for (const f of FLOW_FILES) {
     const r = readFileInside(flowDir, f);
@@ -935,8 +931,7 @@ export function writeRunJobCopy(flowDir, runDir, expectedFlowHash, started) {
   const verified = verifyFlow({ proseText: texts['prose.txt'], declarationText: texts['declaration.json'], signature });
   if (!verified.ok) return { ok: false, red: `job copy: the flow does not match its signature (${verified.reds[0]})` };
   // M6 F3: the copy must be the job the run verified at its start; a job replaced since is never copied (nothing is written)
-  const triggerOnly = started !== undefined && signature.files?.['declaration.json'] === started.declarationSha && stripTrigger(texts['prose.txt']) === stripTrigger(started.proseText);
-  if (typeof expectedFlowHash === 'string' && signature.flow !== expectedFlowHash && !triggerOnly) return { ok: false, red: 'the job was replaced while this run was starting' };
+  if (typeof expectedFlowHash === 'string' && signature.flow !== expectedFlowHash) return { ok: false, red: 'the job was replaced while this run was starting' };
   const dir = path.join(runDir, RUN_JOB_DIR);
   try {
     mkdirSync(dir);
@@ -945,7 +940,7 @@ export function writeRunJobCopy(flowDir, runDir, expectedFlowHash, started) {
     try { if (err.code !== 'EEXIST') rmSync(dir, { recursive: true, force: true }); } catch { /* best-effort */ }
     return { ok: false, red: err.code === 'EEXIST' ? 'job copy: this run already has its copy — never overwritten' : `job copy: could not write (${err.code ?? err.message})` };
   }
-  return { ok: true, flowHash: signature.flow };
+  return { ok: true };
 }
 
 /** M6 am9: a run's folder holds this file when the run executes the plan it keeps (`<run>/job/`), not the flow folder's. Written once, by the run's plan writer. */

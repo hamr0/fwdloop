@@ -1008,8 +1008,7 @@ export async function runFlow({
     return { outcome: 'refused', red: read.reds[0], reds: read.reds };
   }
 
-  const { declaration } = read;
-  let { signature } = read;   // moves only once, to its own kept copy's signature, when a trigger-only re-sign landed while the run was starting (M9 am10)
+  const { declaration, signature } = read;
   const runDir = runIdCheck.runDir;
   // M4e amendment 5 item 3: the values THIS run was signed with (cap, send folder, ask waits) lie over the flow's own — one decision (`pickRunValues`).
   const applied = applyRunValues(read.arbiter, name, signature.flow, pickRunValues(runDir));
@@ -1066,14 +1065,12 @@ export async function runFlow({
   mkdirSync(runDir, { recursive: true });
 
   // M6: the run keeps a write-once copy of the job it runs, from before its first step (its Job tab shows this, not the flow's later versions)
-  const jobCopy = runOwnsPlan(runDir) ? { ok: /** @type {true} */ (true) } : writeRunJobCopy(flowDir, runDir, signature.flow, { proseText: read.proseText, declarationSha: signature.files['declaration.json'] }); // am9: a run that keeps its own plan already holds its verified copy
+  const jobCopy = runOwnsPlan(runDir) ? { ok: /** @type {true} */ (true) } : writeRunJobCopy(flowDir, runDir, signature.flow); // am9: a run that keeps its own plan already holds its verified copy
   if (!jobCopy.ok) {
     return haltRun({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: jobCopy.red, spent: { value: 0 },
     });
   }
-  // M9 am10: the run carries on from its own copy (am12), so its books carry the copy's signature, which resume proves the copy against
-  if ('flowHash' in jobCopy && jobCopy.flowHash !== signature.flow) signature = { ...signature, flow: jobCopy.flowHash };
 
   const frozen = freezeInputs(runDir, sources ?? []);
   if (!frozen.ok) {

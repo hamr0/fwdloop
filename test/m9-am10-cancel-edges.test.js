@@ -51,43 +51,22 @@ function cancel(w) {
   assert.equal(r.ok, true, r.ok ? '' : r.reds.join('\n'));
 }
 
-// M9 am10 (ruled 2026-10-16): Cancel "only stops future runs from starting: runs already going or waiting stay as they are". A Cancel that lands between the run's
-// read of the job and its job copy (a trigger-only re-sign) must NOT stop that run. M6 F3 stays: any other change to the job in that window still halts it.
-test('Cancel while a run is STARTING: the run is not stopped, keeps a job copy, reaches its ask; the schedule is gone', async () => {
+// Current behaviour, recorded: a Cancel that lands between the run's read of the job and its job copy halts that run (M6 F3, "if the job was replaced while
+// the run was starting, the run stops preflight-red"). What the red says to do next is NOT signed wording: see the report, no wording is invented here.
+test('Cancel while a run is STARTING: the schedule is gone, the starting run halts preflight-red at $0, keeps no copy, and the job still reads', async () => {
   const w = scheduledJob('starting');
   let cancelled = false;
   // the existing seam (m6-runcopy F3): runFlow reads `primitiveReds.length` after reading the job and before writing its copy
   const primitiveReds = { get length() { cancel(w); cancelled = true; return 0; } };
   const r = await runFlow({ ...w.args, primitiveReds, askStep: makeParkingAskStep(), sources: w.sources });
   assert.equal(cancelled, true, 'the Cancel landed while the run was starting');
-  assert.equal(r.outcome, 'paused', JSON.stringify(r));
-  assert.equal(existsSync(path.join(w.runDir, 'job', 'prose.txt')), true, 'the run kept its job copy');
-  const now = readFlow({ root: w.root, name: 'job2', catalogue: CAT });
-  assert.equal(now.ok, true, 'the cancelled job reads and verifies');
-  assert.equal(now.arbiter.trigger, null, 'the schedule is cancelled');
-  assert.equal(answerAsk({ runDir: w.runDir, askId: r.askId, decision: 'accept' }).ok, true);
-  const done = await resumeRun({ ...w.args, askStep: makeParkingAskStep() });
-  assert.equal(done.outcome, 'complete', done.red);
-});
-
-// M6 F3 stays: a real change to the steps while the run is starting still stops it preflight-red, at $0, keeping no copy.
-test('a real step edit while a run is STARTING still halts it preflight-red (M6 F3), keeping no copy', async () => {
-  const w = scheduledJob('starting-edit');
-  let edited = false;
-  const primitiveReds = {
-    get length() {
-      const oldHash = readFlow({ root: w.root, name: 'job2', catalogue: CAT }).signature.flow;
-      const r = writeFlow({ root: w.root, name: 'job2', proseText: w.prose.replace('cap $0.25 per run', 'cap $0.20 per run'), declaration: w.decl, signedBy: 'hamr', signedAt: '2026-10-10T11:00:00Z', catalogue: CAT, replaces: { flowHash: oldHash } });
-      edited = r.ok;
-      return 0;
-    },
-  };
-  const r = await runFlow({ ...w.args, primitiveReds, askStep: makeParkingAskStep(), sources: w.sources });
-  assert.equal(edited, true, 'the edit landed while the run was starting');
   assert.equal(r.outcome, 'preflight-red', JSON.stringify(r));
   assert.match(r.red, /the job was replaced while this run was starting/);
   assert.equal(existsSync(path.join(w.runDir, 'job')), false, 'no mismatched copy is kept');
   assert.equal(readHistory(w.flowDir).at(-1).spentUsd ?? 0, 0, 'nothing was spent');
+  const now = readFlow({ root: w.root, name: 'job2', catalogue: CAT });
+  assert.equal(now.ok, true, 'the cancelled job reads and verifies');
+  assert.equal(now.arbiter.trigger, null, 'the schedule is cancelled');
 });
 
 test('Cancel while a run is [II] stuck (answer saved, no process): the stuck run still resumes from its own copy and completes', async () => {
