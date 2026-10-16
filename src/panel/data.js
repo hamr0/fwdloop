@@ -1181,7 +1181,7 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun, now = Da
  * order given (M4c amendment 1 (c)); a flow's top row is therefore the first
  * run of that flow here, so a waiting run is the parent with no second rule:
  *  1 waiting on you — least time left first; a stuck run (`[II]`, amendment 2)
- *    after the ones with a timer;
+ *    after the ones with a timer, only while it is still in Needs you (M11 am15: a stuck run past its 7 days is section 3);
  *  2 running (`[▶]`, the glyph's own liveness rule);
  *  3 everything else — finish time `at`, newest first.
  * A row with no known time keeps input order at the end of its section.
@@ -1189,7 +1189,8 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun, now = Da
  * @returns {any[]}
  */
 export function orderRuns(rows) {
-  const sectionOf = (r) => ((r.waiting || r.stuck) ? 1 : r.glyph === '[▶]' ? 2 : 3);
+  // M11 am15: a stuck run that has left Needs you (`needs` null: the 7 days, `needsYouOf`) is no longer a top row; it sorts by time like the rest.
+  const sectionOf = (r) => ((r.waiting || (r.stuck && r.needs !== null)) ? 1 : r.glyph === '[▶]' ? 2 : 3);
   return rows
     .map((row, index) => ({ row, index }))
     .sort((a, b) => {
