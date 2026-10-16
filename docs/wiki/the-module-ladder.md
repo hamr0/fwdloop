@@ -2395,6 +2395,7 @@ monthly wall is enforced **by the trigger**, before a run starts.
 - **M9 amendment 16 — SIGNED by hamr 2026-10-16 ("sign m9 am16").** When a New file trigger is changed or cancelled while files wait in its queue: if it still watches the same folder, the waiting files stay queued and run in their turn. If the folder changed, or the trigger is cancelled, each waiting file gets one row: '<file> was waiting when the schedule changed, so it will not run. Drop it in again to run it.'
 
 - **M9 amendment 17 — SIGNED by hamr 2026-10-16 ("sign m9 am17").** Before a queued file is marked as run, the panel checks it can start: no run of this job is starting, the root exists, the run number is free. If not, the file stays queued and tries again next turn. A refusal after the run has begun (for example a bad Destination) still counts as its run, and is shown as a refused start, as today.
+  - *Built after signing — not signed text:* the signed example "a bad Destination" is wrong: the panel checks the Destination before it writes `ran`, so a file with a bad Destination is not counted as run; it stays queued and is told once, as before am17. A refusal that really lands after `ran` (for example the run could not be spawned) counts as its run and shows as a refused start. Ruled by hamr 2026-10-16 (option A).
 
 ## M10 — real IO
 
