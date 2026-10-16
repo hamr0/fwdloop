@@ -59,7 +59,7 @@ import {
 } from '../draftspend.js';
 import { jobKeyOfCard } from '../jobkey.js';
 import { flowValues, valuesHash } from '../runvalues.js';
-import { leastResumeCapUsd } from './authorvalues.js';
+import { capAboveSpentText } from './authorvalues.js';
 import { createFlowsDoor } from './authorflows.js';
 import { createTriggerDoor } from './authortrigger.js';
 import { createResumeDoor } from './authorresume.js';
@@ -423,14 +423,16 @@ export function createAuthor(opts) {
       // a Resume (amendment 4 item 1): only what the run still has to spend is held, so the note asks for `cap - spent`; a cap not above
       // what is spent says so in the door's own words (red)
       const spentUsd = typeof spent === 'string' && spent.trim() !== '' && Number.isFinite(Number(spent)) && Number(spent) > 0 ? Number(spent) : 0;
-      if (spentUsd > 0 && n <= spentUsd + 1e-9) {
-        return { status: 200, body: { ok: true, text: `The cap must be above what is already spent (at least $${leastResumeCapUsd(spentUsd, floorUsd).toFixed(2)}).`, red: true, floorUsd, floorText } };
-      }
       // M4d am21 item 1: a card that belongs to a draft (a revise, or the Start over about to be made) is checked for the pot LEFT, as the doors do
       const dd = draftsDir();
       const priorDir = typeof draftId === 'string' && ID_RE.test(draftId) && dd !== null && listIds().includes(draftId) ? join(dd, draftId) : null;
       const priorUsd = priorDir === null ? 0 : draftingSpent(priorDir, { ceilingUsd: floorUsd }).usd;
-      const claim = monthlyClaim(Math.max(0, n - spentUsd - priorUsd));
+      // M4d am23: a cap at or below what is already spent (a Resume's run, or the earlier draft's drafting) is red in the one sentence
+      const alreadyUsd = spentUsd + priorUsd;
+      if (alreadyUsd > 0 && n <= alreadyUsd + 1e-9) {
+        return { status: 200, body: { ok: true, text: capAboveSpentText(alreadyUsd, floorUsd), red: true, floorUsd, floorText } };
+      }
+      const claim = monthlyClaim(Math.max(0, n - alreadyUsd));
       if (claim === null || 'problem' in claim) return { status: 200, body: { ok: true, text: '', red: false, floorUsd, floorText } };
       return { status: 200, body: { ok: true, ...monthlyNote(claim), floorUsd, floorText } };
     },
@@ -488,6 +490,9 @@ export function createAuthor(opts) {
       // an earlier draft that is gone is never counted as $0: refused here, at $0, in words
       const startedFrom = body?.startedOverFrom;
       let priorUsd = 0;
+      if (startedFrom !== undefined && startedFrom !== null && startedFrom !== '' && typeof startedFrom !== 'string') {
+        return { status: 400, body: { ok: false, refused: 'started-over-from', say: 'startedOverFrom must be the id of an earlier draft (a string).' } };
+      }
       if (typeof startedFrom === 'string' && startedFrom !== '') {
         if (!ID_RE.test(startedFrom) || !listIds().includes(startedFrom)) return { status: 400, body: { ok: false, refused: 'earlier-missing', say: EARLIER_MISSING_SAY } };
         const spent = draftingSpent(join(dd, startedFrom), { ceilingUsd: capFloorFor(true, home, cardFields(body)) });
