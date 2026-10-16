@@ -26,17 +26,20 @@ import { createHash } from 'node:crypto';
 /** Consecutive polls with the same size and mtime before a file is taken. (Two matches in a row = taken on the third sighting.) */
 export const STABLE_POLLS = 2;
 
-/** @param {string} file @returns {SeenRow[]} */
+/** The ledger's text, '' when there is no file yet. @param {string} file */
+const rawOf = (file) => (existsSync(file) ? readFileSync(file, 'utf8') : '');
+
+/** Every row that parses; a line a crash tore mid-append is skipped (it counts as not written). `appendSeen` starts each append on a fresh line, so a torn line can never glue onto the next row. @param {string} file @returns {SeenRow[]} */
 export function readSeen(file) {
-  if (!existsSync(file)) return [];
-  return readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  return rawOf(file).split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
 }
 
-/** The ONE appender: write-once by id (a second row with the same id is not written). @param {string} file @param {SeenRow} row @returns {boolean} written */
+/** The ONE appender: write-once by id (a second row with the same id is not written). Starts on a fresh line when the file does not end in a newline (a torn last line). @param {string} file @param {SeenRow} row @returns {boolean} written */
 function appendSeen(file, row) {
   if (readSeen(file).some((r) => r.id === row.id)) return false;
   mkdirSync(dirname(file), { recursive: true });
-  appendFileSync(file, `${JSON.stringify(row)}\n`);
+  const raw = rawOf(file);
+  appendFileSync(file, `${raw !== '' && !raw.endsWith('\n') ? '\n' : ''}${JSON.stringify(row)}\n`);
   return true;
 }
 
