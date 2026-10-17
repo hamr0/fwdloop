@@ -47,12 +47,12 @@ test('am21: the SUMMARY top line carries the time after the cost, the same as th
   const r = {};
   for (const [k, d] of Object.entries(CASES)) r[k] = await paint(chrome, d, k);
   const J = (k) => `${k}: ${JSON.stringify(r[k])}`;
-  assert.match(r.finishedTimed.head, /\$0\.0047 1m56s$/, `time after cost: ${J('finishedTimed')}`);
+  assert.match(r.finishedTimed.head, /\$0\.0047 · 1m56s$/, `am22 middle dot before the time: ${J('finishedTimed')}`);
   assert.match(r.finishedTimed.counters, /took 1m56s/, J('finishedTimed'));
-  assert.match(r.finishedNoTime.head, /\$0\.0047 time not recorded$/, `unknown time: ${J('finishedNoTime')}`);
+  assert.match(r.finishedNoTime.head, /\$0\.0047 · time not recorded$/, `unknown time: ${J('finishedNoTime')}`);
   assert.doesNotMatch(r.finishedNoTime.head, /0\.0s|\b0s\b/, `unknown never 0: ${J('finishedNoTime')}`);
   const m = r.finishedZero.counters.match(/took (\S+)/);
-  assert.ok(r.finishedZero.head.endsWith(` ${m[1]}`), `headline time equals took line: ${J('finishedZero')}`);
+  assert.ok(r.finishedZero.head.endsWith(` · ${m[1]}`), `headline time equals took line: ${J('finishedZero')}`);
   for (const k of ['running', 'waiting']) {
     assert.match(r[k].head, /\$0\.0047$/, `${k}: no time on the line: ${J(k)}`);
     assert.doesNotMatch(r[k].head, /time not recorded|\d s\b/, J(k));
