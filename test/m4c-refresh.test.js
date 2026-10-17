@@ -75,7 +75,7 @@ function harness(world, { selected = true, typed = null } = {}) {
     function renderAskRow(){ seen.asksDrawn++; return { classList: { add: function(){} } }; }
     function say(){} function sayLive(){} function endPending(){} function stopLive(){ live = null; }
     function liveOutcome(){ return { done: false }; }
-    ${['sig', 'tickLeft', 'setRunsData', 'withScrollPreserved', 'paintRun', 'paintAsks', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick', 'watchStep', 'holdAskRender', 'readReasonBox', 'renderAsk'].map(fnSrc).join('\n')}
+    ${['sig', 'tickLeft', 'setRunsData', 'withScrollPreserved', 'runFinished', 'paintRun', 'paintAsks', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick', 'watchStep', 'holdAskRender', 'readReasonBox', 'renderAsk'].map(fnSrc).join('\n')}
     return { pageTick: pageTick, schedulePoll: schedulePoll, get pollTimer(){ return pollTimer; } };
   `)(getJSON, doc, (fn) => { timers.push(fn); return timers.length; }, () => {}, seen, selected, { now: () => clock.now });
   /** Fire the pending tick, as the browser would after LIVE_POLL_MS, and let its fetches land. */

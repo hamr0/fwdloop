@@ -324,7 +324,7 @@ function listHarness() {
   mk('rl-top'); mk('wf-list');
   const body = `
     var rlData = { rows: ROWS, jobs: JOBS, scheduled: [], limits: LIMITS };
-    var rlOpen = {}; var rlLast = { top: null, jobs: null }; var currentFlow = null; var currentRunId = null;
+    var rlOpen = {}; var rlLast = { top: null, jobs: null }; var rlSchedQ = ""; var currentFlow = null; var currentRunId = null;
     function tickSince(){}
     function currentRunsFilters(){ return NONE; }
     function withFocusPreserved(el, fn){ fn(); }

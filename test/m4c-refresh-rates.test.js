@@ -95,7 +95,7 @@ function loopHarness(world) {
     var runsFilterBar = { setItems: function(){}, refresh: function(){} };
     function renderInbox(){ seen.inbox++; } function renderRun(){} function renderAudit(){} function renderAsk(r){ return seen.renderAsk ? seen.renderAsk(r) : undefined; }
     function watchStep(){}
-    ${['holdAskRender', 'sig', 'tickLeft', 'setRunsData', 'withScrollPreserved', 'paintRun', 'paintAsks', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick'].map(fnSrc).join('\n')}
+    ${['holdAskRender', 'sig', 'tickLeft', 'setRunsData', 'withScrollPreserved', 'runFinished', 'paintRun', 'paintAsks', 'reloadLists', 'reloadRun', 'schedulePoll', 'pageTick'].map(fnSrc).join('\n')}
     return { schedulePoll: schedulePoll, hold: holdAskRender, state: { get openRunLive(){ return openRunLive; } } };
   `)(getJSON, doc, (fn) => { timers.push(fn); return timers.length; }, () => {}, seen, { now: () => clock.now });
   const tick = async () => { clock.now += 2000; const fn = timers.pop(); assert.ok(fn, 'a tick was scheduled'); fn(); await sleep(20); };
