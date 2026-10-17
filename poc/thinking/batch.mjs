@@ -26,6 +26,17 @@ const CLI_TIMEOUT_MS = 15 * 60 * 1000;
 const MAX_ASKS = 10;
 const RUN_BASE = 1000;
 
+/** First run number of a job's batch: above every `<job>-run-N-*` already in the send dirs (read only), arms in blocks of 100. */
+export function runBaseFor(job, sendDirs) {
+  let top = 0;
+  const re = new RegExp(`^${job.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-run-(\\d+)-`);
+  for (const d of sendDirs) {
+    if (!existsSync(d)) continue;
+    for (const f of readdirSync(d)) { const m = re.exec(f); if (m) top = Math.max(top, Number(m[1])); }
+  }
+  return Math.max(RUN_BASE, (Math.floor(top / 100) + 1) * 100);
+}
+
 const readJsonl = (p) => (existsSync(p) ? readFileSync(p, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
 const die = (m) => { process.stderr.write(`batch: ${m}\n`); process.exit(2); };
 
@@ -126,7 +137,8 @@ async function main() {
     if (!read.ok) die(`job "${job}": ${read.reds.join('; ')}`);
     const capUsd = read.arbiter.capUsd;
     if (typeof capUsd !== 'number') die(`job "${job}" has no numeric cap`);
-    jobInfo[job] = { sources, capUsd };
+    const sendDirs = a.fake ? [join(a.out, 'send-sink')] : (read.arbiter.sends ?? []).filter((s) => s.target?.kind === 'file').map((s) => s.target.path);
+    jobInfo[job] = { sources, capUsd, runBase: runBaseFor(job, sendDirs) };
   }
   for (const arm of a.arms) for (const job of a.jobs) copyJob(a.flows, job, join(a.out, arm, job));
 
@@ -139,11 +151,11 @@ async function main() {
   for (let i = 1; i <= a.n && !stopped; i += 1) {
     for (const arm of a.arms) {
       for (const job of a.jobs) {
-        const { sources, capUsd } = jobInfo[job];
+        const { sources, capUsd, runBase } = jobInfo[job];
         if (spent + capUsd > a.budget) { stopped = `budget: spent $${spent} + ${job} cap $${capUsd} would exceed --budget-usd ${a.budget}`; break; }
         const root = join(a.out, arm);
         const flowDir = join(root, job);
-        const runId = `run-${RUN_BASE + a.arms.indexOf(arm) * 100 + i}`; // clear of earlier run ids: the signed send never overwrites a name that exists
+        const runId = `run-${runBase + a.arms.indexOf(arm) * 100 + i}`; // clear of earlier run ids: the signed send never overwrites a name that exists
         const runDir = join(flowDir, 'runs', runId);
         const callsPath = join(a.out, 'calls', `${job}-${arm}-${runId}.jsonl`);
         const env = { ...baseEnv, FWDLOOP_POC_ARM: arm, FWDLOOP_POC_CALLS: callsPath };

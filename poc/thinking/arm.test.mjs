@@ -1,11 +1,12 @@
 // POC test (run: node --test poc/thinking/arm.test.mjs). Fails if the arm mapping is wrong, at the pure function AND at the provider.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { thinkingModeFor } from './arm.mjs';
 import { makeEngine } from './make-engine.mjs';
+import { runBaseFor } from './batch.mjs';
 import { median, summarize, f69Verdict } from './score.mjs';
 
 test('arm mapping: today sends nothing, on always on, retry off then on', () => {
@@ -49,4 +50,16 @@ test('F69 verdict follows the written win rule', () => {
   assert.equal(mk([...base, row('a', 'retry', false, 1, 10), row('b', 'retry', true, 1, 10)]), 'NO BUILD'); // fewer passes on one job
   assert.equal(mk([...base, row('a', 'retry', true, 2, 20), row('b', 'retry', true, 3, 30)]), 'NO BUILD'); // not faster or cheaper anywhere
   assert.equal(mk([...base, row('a', 'retry', true, null, 10), row('b', 'retry', true, 1, 10)]), 'INCOMPLETE');
+});
+
+test('run numbers start above existing sends in the destination (read only)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'poc-sends-'));
+  try {
+    assert.equal(runBaseFor('aging-live-4', [dir]), 1000); // empty
+    for (const f of ['aging-live-4-run-1001-x.json', 'aging-live-4-run-1203-x.json', 'other-run-5000-x.json', 'aging-live-4-run-7-x.json']) writeFileSync(join(dir, f), '{}');
+    const base = runBaseFor('aging-live-4', [dir]);
+    assert.ok(base + 1 > 1203, `first id ${base + 1} must clear run-1203`);
+    assert.equal(base, 1300);
+    assert.equal(runBaseFor('aging-live-4', [join(dir, 'missing')]), 1000);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
