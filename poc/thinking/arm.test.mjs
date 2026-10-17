@@ -1,13 +1,13 @@
 // POC test (run: node --test poc/thinking/arm.test.mjs). Fails if the arm mapping is wrong, at the pure function AND at the provider.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { thinkingModeFor } from './arm.mjs';
 import { makeEngine } from './make-engine.mjs';
-import { runBaseFor } from './batch.mjs';
-import { median, summarize, f69Verdict } from './score.mjs';
+import { runBaseFor, jobSources } from './batch.mjs';
+import { median, summarize, f69Verdict, f70Verdict } from './score.mjs';
 
 test('arm mapping: today sends nothing, on always on, retry off then on', () => {
   for (const a of [1, 2, 3]) assert.equal(thinkingModeFor('today', a), undefined);
@@ -61,5 +61,32 @@ test('run numbers start above existing sends in the destination (read only)', ()
     assert.ok(base + 1 > 1203, `first id ${base + 1} must clear run-1203`);
     assert.equal(base, 1300);
     assert.equal(runBaseFor('aging-live-4', [join(dir, 'missing')]), 1000);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('F70 verdict compares retry against today on m7-walk-2', () => {
+  const mk = (rows) => f70Verdict(summarize(rows)).verdict;
+  const J = 'm7-walk-2';
+  const today = [row(J, 'today', true, 2, 20), row(J, 'today', true, 2, 20)];
+  assert.equal(mk([...today, row(J, 'retry', true, 1, 30), row(J, 'retry', true, 1, 30)]), 'BUILD'); // cheaper only
+  assert.equal(mk([...today, row(J, 'retry', true, 3, 10), row(J, 'retry', true, 3, 10)]), 'BUILD'); // faster only
+  assert.equal(mk([...today, row(J, 'retry', true, 1, 10), row(J, 'retry', false, 1, 10)]), 'NO BUILD'); // fewer passes
+  assert.equal(mk([...today, row(J, 'retry', true, 2, 20), row(J, 'retry', true, 2, 20)]), 'NO BUILD'); // ties are not lower
+  assert.equal(mk([...today, row(J, 'retry', true, null, 10), row(J, 'retry', true, 1, 10)]), 'INCOMPLETE');
+  assert.equal(mk(today), 'INCOMPLETE'); // a batch with no retry rows
+  assert.equal(mk([row(J, 'on', true, 1, 1), row(J, 'retry', true, 1, 1)]), 'INCOMPLETE'); // `on` is not `today`
+});
+
+test('--inputs-from picks that run\'s frozen inputs, default is the latest run', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'poc-inputs-'));
+  try {
+    for (const [run, files] of [['run-1', ['resume.docx', 'jd.md']], ['run-3', ['resume.csv', 'jd.md']]]) {
+      mkdirSync(join(dir, 'j', 'runs', run, 'inputs'), { recursive: true });
+      for (const f of files) writeFileSync(join(dir, 'j', 'runs', run, 'inputs', f), 'x');
+      writeFileSync(join(dir, 'j', 'runs', run, 'inputs.json'), JSON.stringify(files.map((f) => ({ id: f.split('.')[0], frozen: `/x/${f}` }))));
+    }
+    const names = (s) => s.map((x) => `${x.role}:${basename(x.path)}`).sort();
+    assert.deepEqual(names(jobSources(dir, 'j', 'run-1')), ['jd:jd.md', 'resume:resume.docx']);
+    assert.deepEqual(names(jobSources(dir, 'j')), ['jd:jd.md', 'resume:resume.csv']);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

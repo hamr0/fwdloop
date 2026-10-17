@@ -4,7 +4,7 @@
 // to <out>/<arm>/<job> and the runs happen there. One JSON line per run -> <out>/results.jsonl.
 //
 //   node poc/thinking/batch.mjs --job aging-live-4,am29-walk-2 --arm today,on,retry --n 5 \
-//        --out ~/thinking-batch-1 --budget-usd 0.50 [--flows ./flows] [--model <id>] [--fake]
+//        --out ~/thinking-batch-1 --budget-usd 0.50 [--flows ./flows] [--model <id>] [--inputs-from run-<n>] [--fake]
 //
 // Arms are interleaved per iteration (today, on, retry, today, ...) so provider drift hits each arm alike.
 // Every ask is answered `accept` through the real `answer` verb, then the real `resume` verb. Nothing is redone, so the
@@ -46,7 +46,7 @@ export function parseBatchArgs(argv) {
     options: {
       job: { type: 'string' }, arm: { type: 'string', default: ARMS.join(',') }, n: { type: 'string', default: '1' },
       out: { type: 'string' }, 'budget-usd': { type: 'string' }, flows: { type: 'string', default: join(repo, 'flows') },
-      fake: { type: 'boolean', default: false }, model: { type: 'string' },
+      fake: { type: 'boolean', default: false }, model: { type: 'string' }, 'inputs-from': { type: 'string' },
     },
   });
   const jobs = (values.job ?? '').split(',').filter(Boolean);
@@ -63,14 +63,17 @@ export function parseBatchArgs(argv) {
   const flows = resolve(values.flows);
   if (existsSync(join(out, 'results.jsonl')) || (existsSync(out) && readdirSync(out).length > 0)) die(`--out ${out} already has content; use a new --out (consumed batches are never overwritten)`);
   for (const j of jobs) if (!existsSync(join(flows, j, 'signature.json'))) die(`job "${j}" has no signature.json under ${flows}`);
-  return { jobs, arms, n, budget, out, flows, fake: values.fake, model: values.model };
+  const inputsFrom = values['inputs-from'];
+  if (inputsFrom !== undefined && !/^run-\d+$/.test(inputsFrom)) die('--inputs-from must look like run-<n>');
+  return { jobs, arms, n, budget, out, flows, fake: values.fake, model: values.model, inputsFrom };
 }
 
-/** The job's source roles -> file paths: the frozen inputs of its latest run (read-only). */
-function jobSources(flows, job) {
+/** The job's source roles -> file paths: the frozen inputs of `from` (e.g. run-1) or, by default, its latest run (read-only). */
+export function jobSources(flows, job, from) {
   const runsDir = join(flows, job, 'runs');
   const ids = existsSync(runsDir) ? readdirSync(runsDir).filter((r) => /^run-\d+$/.test(r) && existsSync(join(runsDir, r, 'inputs.json'))) : [];
   ids.sort((a, b) => Number(b.slice(4)) - Number(a.slice(4)));
+  if (from !== undefined) { if (!ids.includes(from)) die(`job "${job}": ${from} has no inputs.json to take its sources from`); ids.splice(0, ids.length, from); }
   if (ids.length === 0) die(`job "${job}" has no earlier run with inputs.json to take its sources from`);
   const manifest = JSON.parse(readFileSync(join(runsDir, ids[0], 'inputs.json'), 'utf8'));
   return manifest.map((m) => {
@@ -129,7 +132,7 @@ async function main() {
   const resultsPath = join(a.out, 'results.jsonl');
   const jobInfo = {};
   for (const job of a.jobs) {
-    const sources = jobSources(a.flows, job);
+    const sources = jobSources(a.flows, job, a.inputsFrom);
     const probeRoot = join(a.out, '.probe');
     copyJob(a.flows, job, join(probeRoot, job));
     const read = readPlan({ root: probeRoot, name: job, catalogue: cat.primitives });

@@ -47,9 +47,29 @@ export function f69Verdict(sum, jobs = F69_JOBS) {
     : { verdict: 'NO BUILD', why: 'retry is neither faster nor cheaper than on on either job' };
 }
 
+export const F70_JOBS = Object.freeze(['m7-walk-2']);
+
+/** F70 rule (FINDINGS F70): BUILD `retry` if it passes at least as many runs as `today` AND its median wall or median cost is lower. */
+export function f70Verdict(sum, jobs = F70_JOBS) {
+  let better = false;
+  for (const j of jobs) {
+    const today = sum[j]?.today; const retry = sum[j]?.retry;
+    if (!today || !retry) return { verdict: 'INCOMPLETE', why: `no today/retry rows for ${j}` };
+    if (retry.passes < today.passes) return { verdict: 'NO BUILD', why: `${j}: retry passes ${retry.passes} < today ${today.passes}` };
+    if (retry.medWall === null || today.medWall === null || retry.medCost === null || today.medCost === null) return { verdict: 'INCOMPLETE', why: `${j}: a median is unknown (null cost)` };
+    if (retry.medWall < today.medWall || retry.medCost < today.medCost) better = true;
+  }
+  return better ? { verdict: 'BUILD', why: 'retry passes >= today and is faster or cheaper' }
+    : { verdict: 'NO BUILD', why: 'retry is neither faster nor cheaper than today' };
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const p = process.argv[2];
-  if (!p) { process.stderr.write('usage: node poc/thinking/score.mjs <out>/results.jsonl\n'); process.exit(2); }
+  const args = process.argv.slice(2);
+  const ri = args.indexOf('--rule');
+  const rule = ri >= 0 ? args.splice(ri, 2)[1] : 'f69';
+  if (rule !== 'f69' && rule !== 'f70') { process.stderr.write('--rule must be f69 or f70\n'); process.exit(2); }
+  const p = args[0];
+  if (!p) { process.stderr.write('usage: node poc/thinking/score.mjs <out>/results.jsonl [--rule f69|f70]\n'); process.exit(2); }
   const rows = readFileSync(p, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
   const sum = summarize(rows);
   const f = (x, d) => (x === null ? 'unknown' : x.toFixed(d));
@@ -58,6 +78,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       process.stdout.write(`${job.padEnd(14)} ${arm.padEnd(6)} pass ${g.passes}/${g.n}  median cost $${f(g.medCost, 5)}  wall ${f(g.medWall === null ? null : g.medWall / 1000, 1)}s  turns ${f(g.medTurns, 1)}\n`);
     }
   }
-  const v = f69Verdict(sum);
-  process.stdout.write(`F69 verdict: ${v.verdict} (${v.why})\n`);
+  const v = rule === 'f70' ? f70Verdict(sum) : f69Verdict(sum);
+  process.stdout.write(`${rule.toUpperCase()} verdict: ${v.verdict} (${v.why})\n`);
 }
