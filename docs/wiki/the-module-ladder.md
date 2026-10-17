@@ -1430,6 +1430,15 @@ A Cap at or below what the earlier draft already spent is red: 'The cap must be 
 **M4d amendment 24 — SIGNED by hamr 2026-10-16 ("sign m4d am24").**
 When the Cap is at or below what the earlier draft already spent, Draft is refused with the same red words as the Cap note, and no draft starts.
 
+**M4d amendment 25 — SIGNED by hamr 2026-10-17 ("sign m4d am25"): thinking per step, with the Chat box as the hatch.**
+1. Code decides thinking for each step call of a run, never the model. A step's 1st try thinks **off**. Its 2nd and later tries, and a step redone after **Redo**, think **on**.
+2. The Chat **Thinking on** box (am7) now also covers the job's runs. When it's ticked, every step thinks on every try. The box's state when you sign is kept with the job.
+3. Drafting still follows the box, as am7 says.
+4. Each step call's audit row records the thinking it asked for and what bareagent reported back.
+- **Must fail when:** with the box off, a 1st try asks for thinking on; with the box off, a 2nd try or a Redo asks for thinking off; with the box on, any call asks for thinking off; a step call's audit row has no thinking record.
+- **Done when:** tests that fail first, plus one live run of m7-walk-2 whose audit shows a 1st try off.
+- **Cap:** $0.10.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
