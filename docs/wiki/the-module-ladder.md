@@ -2418,6 +2418,9 @@ monthly wall is enforced **by the trigger**, before a run starts.
   3. A run that is still going or waiting shows no time on this line.
   - **Must fail when:** a finished run with a recorded time shows no time; an unknown time shows as 0; this time differs from the `took …` line.
 
+- **M9 amendment 22 — SIGNED by hamr 2026-10-17 ("sign m9 am22").** The time on the SUMMARY top line has a middle dot before it: `passed · $0.0062 · 3m28s`. This replaces the form in amendment 21 item 1. Everything else in am21 stays.
+  - **Must fail when:** the time has no `·` before it.
+
 ## M10 — real IO
 
 Mail in and out, chat, browse — each behind the signed allow-list and a prior `ask` accept in the
@@ -2531,3 +2534,11 @@ same run. Scope is stated when its turn comes.
   2. When nothing matches, it says `no scheduled job matches`.
   3. The main search and filters still never hide a Scheduled card, so M11 item 3 stays as signed. This amendment is an exception to M11's "Not in M11: new filters".
   - **Must fail when:** the main search hides a Scheduled card; the Scheduled search hides any card outside Scheduled; no match leaves an empty section with nothing said.
+
+- **M11 amendment 17 — SIGNED by hamr 2026-10-17 ("sign m11 am17"): Scheduled is searched by the one search box, plus a `scheduled` chip.** This replaces amendment 16. It also replaces M11 item 3's "Not filtered" and item 5's "Search and filters act on Jobs and quiet jobs only", for Scheduled only.
+  1. **There is no separate Scheduled search box.** The one search box narrows the Scheduled cards by job name, along with Jobs. A run number or a date narrows only Jobs.
+  2. **The ✓ ✗ ■ · ▶ ? and 7d / 30d / all chips never touch Scheduled.**
+  3. **A new `scheduled` chip sits in the filter bar.** When it's pressed, the list shows only Scheduled, Jobs and the quiet fold hide, and the search box narrows only Scheduled. Press it again to go back.
+  4. **Running now and Needs you are never filtered or searched,** chip or not, as signed.
+  5. **If Scheduled has no matching card, it draws nothing,** header included, as for any empty section. With the `scheduled` chip pressed and no match, the list says `no scheduled job matches`.
+  - **Must fail when:** a separate Scheduled search box is drawn; a search for a job name leaves a non-matching Scheduled card shown; a result or time chip hides a Scheduled card; the `scheduled` chip leaves Jobs shown; a search or chip hides a Running now or Needs you card; the `scheduled` chip with no match shows an empty list with nothing said.
