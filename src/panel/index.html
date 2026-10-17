@@ -396,6 +396,8 @@
   .filterbar .chips{gap:4px;margin-bottom:4px;}
   .chip.fchip{padding:3px 7px;min-height:28px;min-width:28px;font-size:12px;text-align:center;}
   .chip.fchip::before,.chip.fchip::after{content:"";}
+  /* M11 am20 item 4: the ◷ glyph is drawn smaller than ✓ and ✗ at the same font-size (a fallback font); this chip alone is scaled up to match. */
+  .chip.fchip[data-filter-value="scheduled"]{font-size:16px;}
   .row-blocked{background:var(--red-bg);}
 
   /* hamr review #5/#6: Audit tab grouped-by-step sections. */
@@ -1141,11 +1143,12 @@
         </section>
 
         <section id="panel-runs" class="tabpanel" role="tabpanel" aria-labelledby="tab-runs" hidden>
-          <!-- M11: ONE list. Running now and Needs you are never filtered; the search also finds Scheduled (am17); the ◷ chip shows only Scheduled (am19). -->
+          <!-- M11: ONE list. Running now and Needs you are never filtered and sit above the grey line; Scheduled (the search also finds it, am17; the ◷ chip shows only it, am19) sits BELOW the search box and chips, above Jobs (am20). -->
           <div id="rl-top" data-testid="rl-top"></div>
           <div class="rl-dash"></div>
           <div class="rl-faint" data-testid="rl-filter-note">search also finds Scheduled; ◷ shows only Scheduled</div>
           <div id="runs-filterbar-anchor"></div>
+          <div id="rl-sched" data-testid="rl-sched"></div>
           <div id="wf-list" data-testid="wf-list"></div>
         </section>
 
@@ -1867,14 +1870,14 @@
   }
 
   // ---- M11: ONE runs list (docs/wiki/the-module-ladder.md "M11 scope", amendments 1 and 2; docs/product/m11-runs-list-mock.html, the right box).
-  // Top to bottom: Running now, Needs you, Scheduled (never filtered), a dashed line and the filters (they act on Jobs and quiet jobs only), Jobs, the
+  // Top to bottom: Running now, Needs you (never filtered), a dashed line, the search box and chips, Scheduled (am20: the search narrows it), Jobs, the
   // quiet fold. The page works out NOTHING: `live`, the Needs-you tag (`needs`), the job order and quiet split (`jobs`), the Scheduled cards and the two
   // limits all come from GET /api/runs (src/panel/data.js). `rlModel` is pure (payload in, cards out); the rl*Html functions only draw it.
   var rlData = { rows: [], jobs: [], scheduled: [], limits: { quietDays: 0, olderRuns: 0 } };
   // manual fold memory, keyed by flow ("__quiet" is the quiet fold): a per-viewer convenience, reset on reload. A manual click wins over an automatic open.
   var rlOpen = {};
   // the last markup written into each box: an identical repaint (every poll) writes nothing, so focus, scroll and a half-read card survive it
-  var rlLast = { top: null, jobs: null };
+  var rlLast = { top: null, sched: null, jobs: null };
   // The ONE writer of `rlData`: the whole /api/runs payload, as the server sent it.
   function setRunsData(r){
     rlData = { rows: r.rows || [], jobs: r.jobs || [], scheduled: r.scheduled || [], limits: r.limits || rlData.limits };
@@ -1941,15 +1944,25 @@
   }
   // M11 am17: the ONE search box narrows the Scheduled cards by job name (matchesSearch in nameOnly mode: a run number or a date word is skipped, so it narrows only Jobs).
   // The result and time chips never touch Scheduled. With the `scheduled` chip pressed and nothing matching, the list says so; otherwise an empty Scheduled draws nothing, header included.
+  // M11 am20: Running now and Needs you only (never filtered); they sit above the search box. Scheduled is drawn by rlSchedHtml, below it.
   function rlTopHtml(m, filters){
     var h = "";
     if(m.running.length) h += rlSectHtml("Running now", m.running.length) + m.running.map(function(r){ return rlJumpCardHtml(r, false); }).join("");
     if(m.needs.length) h += rlSectHtml("Needs you", m.needs.length) + m.needs.map(function(r){ return rlJumpCardHtml(r, true); }).join("");
-    var q = filters && filters.search ? filters.search : "";
-    var shown = m.scheduled.filter(function(s){ return matchesSearch(s.flow, null, q, null, true); });
-    if(shown.length) h += rlSectHtml("Scheduled", shown.length) + shown.map(rlScheduledCardHtml).join("");
-    else if(filters && filters.scheduled === true) h += '<div class="rl-hint">no scheduled job matches</div>';
     return h;
+  }
+  // the Scheduled cards the search leaves (the ONE place that narrows them); the count line and rlSchedHtml both read it
+  function rlSchedShown(scheduled, q){
+    return (scheduled || []).filter(function(s){ return matchesSearch(s.flow, null, q, null, true); });
+  }
+  function rlSchedCountText(n){
+    return "showing " + n + " scheduled job" + (n === 1 ? "" : "s");
+  }
+  function rlSchedHtml(m, filters){
+    var shown = rlSchedShown(m.scheduled, filters && filters.search ? filters.search : "");
+    if(shown.length) return rlSectHtml("Scheduled", shown.length) + shown.map(rlScheduledCardHtml).join("");
+    if(filters && filters.scheduled === true) return '<div class="rl-hint">no scheduled job matches</div>';
+    return "";
   }
   // a run card inside a job: `[sign] run-N  date · model` / `word — why · $cost · wall`
   function rlRunCardHtml(r, selected, hit){
@@ -2026,10 +2039,13 @@
     var groups = filterWorkflows(groupRunsByFlow(rlData.rows), filters, Date.now());
     var m = rlModel(rlData, groups, filters, rlData.limits, { flow: currentFlow, runId: currentRunId }, rlOpen);
     var topEl = document.getElementById("rl-top");
+    var schedEl = document.getElementById("rl-sched");
     var listEl = document.getElementById("wf-list");
     var top = rlTopHtml(m, filters);
+    var sched = rlSchedHtml(m, filters);
     var jobs = filters.scheduled === true ? "" : rlJobsHtml(m);   // M11 am17: the scheduled chip hides Jobs and the quiet fold
     if(top !== rlLast.top){ rlLast.top = top; withFocusPreserved(topEl, function(){ topEl.innerHTML = top; }); }
+    if(sched !== rlLast.sched){ rlLast.sched = sched; withFocusPreserved(schedEl, function(){ schedEl.innerHTML = sched; }); }
     if(jobs !== rlLast.jobs){ rlLast.jobs = jobs; withFocusPreserved(listEl, function(){ listEl.innerHTML = jobs; }); }
     tickSince();
   }
@@ -2201,7 +2217,7 @@
       var filtered = opts.filterFn(allItems, state, Date.now());
       opts.applyFn(filtered);
       var countEl = document.getElementById(scope + "-filter-count");
-      if(countEl) countEl.textContent = "showing " + filtered.length + " of " + allItems.length + " " + (opts.noun || "runs");
+      if(countEl) countEl.textContent = (opts.countFn && opts.countFn(state)) || ("showing " + filtered.length + " of " + allItems.length + " " + (opts.noun || "runs"));
     }
     document.querySelectorAll('.filterbar[data-scope="' + scope + '"] .chip[data-filter-group]').forEach(function(chip){
       chip.addEventListener("click", function(){
@@ -2247,7 +2263,7 @@
     };
   }
 
-  // ONE filter bar, mounted between the unfiltered sections and Jobs (M11). It acts on Jobs and quiet jobs only: `runsFilterFn` keeps a job when ANY of its runs match.
+  // ONE filter bar, mounted below the unfiltered sections (Running now, Needs you); Scheduled and Jobs sit below it (M11 am20). The search narrows Scheduled; the chips act on Jobs and quiet jobs only: `runsFilterFn` keeps a job when ANY of its runs match.
   document.getElementById("runs-filterbar-anchor").innerHTML = filterBarHTML("runs");
 
   function runsFilterFn(items, filters, nowMs){
@@ -2261,6 +2277,7 @@
     storageKey: "fwdloop-panel-runs-filters",
     filterFn: runsFilterFn,
     applyFn: runsApplyFn,
+    countFn: function(st){ return st.scheduled === true ? rlSchedCountText(rlSchedShown(rlData.scheduled, st.search).length) : null; },   // M11 am20: ◷ pressed, the line counts scheduled jobs
   });
   function currentRunsFilters(){
     return runsFilterBar ? runsFilterBar.getState() : { results: [], time: "all", search: "", scheduled: false };

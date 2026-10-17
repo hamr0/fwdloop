@@ -31,7 +31,7 @@ function fnSrc(name) {
 const NAMES = [
   'escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText',
   'rlShortDate', 'groupRunsByFlow', 'matchesSearch', 'filterRuns', 'filterWorkflows', 'filtersActive',
-  'rlModel', 'rlSectHtml', 'rlJumpCardHtml', 'rlScheduledCardHtml', 'rlRunCardHtml', 'rlJobCardHtml', 'rlTopHtml', 'rlJobsHtml', 'filterBarHTML',
+  'rlModel', 'rlSectHtml', 'rlJumpCardHtml', 'rlScheduledCardHtml', 'rlRunCardHtml', 'rlJobCardHtml', 'rlTopHtml', 'rlSchedShown', 'rlSchedHtml', 'rlJobsHtml', 'filterBarHTML',
 ];
 const CHIP_WORDS = PAGE.match(/ {2}var INBOX_CHIP_WORD = [^\n]*/)?.[0] ?? '';
 const lib = new Function(`${CHIP_WORDS}\n${NAMES.map(fnSrc).join('\n')}\nreturn {${NAMES.join(',')}};`)();
@@ -49,7 +49,8 @@ const SCHED = [
 const ROWS = [run('payroll', 1), run('other', 1), run('busy', 4, { glyph: '[▶]', live: true }), run('asker', 2, { glyph: '[·]', needs: 'Answer' })];
 const data = (scheduled) => ({ rows: ROWS, jobs: ['payroll', 'other', 'busy', 'asker'].map((flow) => ({ flow, quiet: false, activityMs: 1 })), scheduled, limits: LIMITS });
 const model = (d, filters = F()) => lib.rlModel(d, lib.filterWorkflows(lib.groupRunsByFlow(d.rows), filters, Date.now()), filters, LIMITS, { flow: null, runId: null }, {});
-const top = (filters, sched = SCHED) => lib.rlTopHtml(model(data(sched), filters), filters);
+// am20: Running now / Needs you (rlTopHtml) sit above the search box, Scheduled (rlSchedHtml) below it; the pair is everything the old top box held
+const top = (filters, sched = SCHED) => { const m = model(data(sched), filters); return lib.rlTopHtml(m, filters) + lib.rlSchedHtml(m, filters); };
 const names = (html) => [...html.matchAll(/data-testid="rl-sched-([^"]+)"/g)].map((x) => x[1]);
 
 test('am17 item 1: no separate Scheduled search box exists anywhere', () => {
@@ -141,14 +142,14 @@ test('am17 on the real panel: one box only; the main search narrows Scheduled; t
   assert.deepEqual(await cards(chrome), ['rl-sched-kyc']);
   await typeMain(chrome, 'zzz-nothing');
   assert.deepEqual(await cards(chrome), []);
-  assert.equal(await chrome.ev('document.getElementById("rl-top").textContent.indexOf("Scheduled") >= 0'), false, 'no header');
+  assert.equal(await chrome.ev('document.getElementById("rl-sched").textContent.indexOf("Scheduled") >= 0'), false, 'no header');
   await typeMain(chrome, '');
   await chip(chrome);
   assert.equal(await chrome.ev('document.querySelector("[data-testid=chip-runs-scheduled]").getAttribute("aria-pressed")'), 'true');
   assert.equal(await jobsHtml(chrome), '', 'Jobs and the quiet fold hidden');
   assert.equal((await cards(chrome)).length, 3);
   await typeMain(chrome, 'zzz-nothing');
-  assert.equal(await chrome.ev('document.getElementById("rl-top").textContent.indexOf("no scheduled job matches") >= 0'), true);
+  assert.equal(await chrome.ev('document.getElementById("rl-sched").textContent.indexOf("no scheduled job matches") >= 0'), true);
   await typeMain(chrome, '');
   await chip(chrome);
   assert.equal(await chrome.ev('document.querySelector("[data-testid=chip-runs-scheduled]").getAttribute("aria-pressed")'), 'false');
