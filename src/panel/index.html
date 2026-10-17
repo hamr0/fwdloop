@@ -1875,7 +1875,6 @@
   var rlOpen = {};
   // the last markup written into each box: an identical repaint (every poll) writes nothing, so focus, scroll and a half-read card survive it
   var rlLast = { top: null, jobs: null };
-  var rlSchedQ = "";   // M11 am16: what is typed in the Scheduled box; its one writer is the input handler below
   // The ONE writer of `rlData`: the whole /api/runs payload, as the server sent it.
   function setRunsData(r){
     rlData = { rows: r.rows || [], jobs: r.jobs || [], scheduled: r.scheduled || [], limits: r.limits || rlData.limits };
@@ -1940,18 +1939,16 @@
     if(typeof s.runId !== "string" || s.runId === "") return '<div class="rl-card" data-testid="rl-sched-' + escapeXml(s.flow) + '">' + body + '</div>';
     return '<button class="rl-card" type="button" data-rl-jump="' + escapeXml(s.flow + "|" + s.runId) + '" data-testid="rl-sched-' + escapeXml(s.flow) + '">' + body + '</button>';
   }
-  // M11 am16: the Scheduled section's own search box sits under its header and narrows ONLY its cards, by job name (case-insensitive substring); the main search and filters never touch it.
-  function rlTopHtml(m, schedQ){
+  // M11 am17: the ONE search box narrows the Scheduled cards by job name (matchesSearch in nameOnly mode: a run number or a date word is skipped, so it narrows only Jobs).
+  // The result and time chips never touch Scheduled. With the `scheduled` chip pressed and nothing matching, the list says so; otherwise an empty Scheduled draws nothing, header included.
+  function rlTopHtml(m, filters){
     var h = "";
     if(m.running.length) h += rlSectHtml("Running now", m.running.length) + m.running.map(function(r){ return rlJumpCardHtml(r, false); }).join("");
     if(m.needs.length) h += rlSectHtml("Needs you", m.needs.length) + m.needs.map(function(r){ return rlJumpCardHtml(r, true); }).join("");
-    if(m.scheduled.length){
-      var q = String(schedQ || "").toLowerCase();
-      var shown = m.scheduled.filter(function(s){ return String(s.flow).toLowerCase().indexOf(q) !== -1; });
-      h += rlSectHtml("Scheduled", m.scheduled.length) +
-        '<input type="text" class="search-input" id="rl-sched-q" data-testid="rl-scheduled-search" value="' + escapeXml(schedQ || "") + '" placeholder="search scheduled jobs" aria-label="search scheduled jobs" autocomplete="off">' +
-        (shown.length ? shown.map(rlScheduledCardHtml).join("") : '<div class="rl-hint">no scheduled job matches</div>');
-    }
+    var q = filters && filters.search ? filters.search : "";
+    var shown = m.scheduled.filter(function(s){ return matchesSearch(s.flow, null, q, null, true); });
+    if(shown.length) h += rlSectHtml("Scheduled", shown.length) + shown.map(rlScheduledCardHtml).join("");
+    else if(filters && filters.scheduled === true) h += '<div class="rl-hint">no scheduled job matches</div>';
     return h;
   }
   // a run card inside a job: `[sign] run-N  date · model` / `word — why · $cost · wall`
@@ -2030,16 +2027,9 @@
     var m = rlModel(rlData, groups, filters, rlData.limits, { flow: currentFlow, runId: currentRunId }, rlOpen);
     var topEl = document.getElementById("rl-top");
     var listEl = document.getElementById("wf-list");
-    var top = rlTopHtml(m, rlSchedQ);
-    var jobs = rlJobsHtml(m);
-    if(top !== rlLast.top){
-      rlLast.top = top;
-      var qa = document.activeElement, qBox = qa && qa.id === "rl-sched-q" ? qa : null;
-      var qCaret = qBox ? [qBox.selectionStart, qBox.selectionEnd] : null;   // the box is rebuilt with its section: put the caret back
-      withFocusPreserved(topEl, function(){ topEl.innerHTML = top; });
-      var qNow = document.getElementById("rl-sched-q");
-      if(qCaret && qNow && document.activeElement === qNow){ try{ qNow.setSelectionRange(qCaret[0], qCaret[1]); }catch(e){} }
-    }
+    var top = rlTopHtml(m, filters);
+    var jobs = filters.scheduled === true ? "" : rlJobsHtml(m);   // M11 am17: the scheduled chip hides Jobs and the quiet fold
+    if(top !== rlLast.top){ rlLast.top = top; withFocusPreserved(topEl, function(){ topEl.innerHTML = top; }); }
     if(jobs !== rlLast.jobs){ rlLast.jobs = jobs; withFocusPreserved(listEl, function(){ listEl.innerHTML = jobs; }); }
     tickSince();
   }
@@ -2081,9 +2071,6 @@
     }
   }
   document.getElementById("panel-runs").addEventListener("click", rlClick);
-  document.getElementById("panel-runs").addEventListener("input", function(ev){
-    if(ev.target && ev.target.id === "rl-sched-q"){ rlSchedQ = ev.target.value; paintRunsList(); }
-  });
 
   // ---- Filter bar — ONE component, ONE state shape ({results, time,
   // search}), used by the one runs list (a job stays when ANY of its runs match).
@@ -2115,6 +2102,7 @@
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="7d" title="last 7 days" data-testid="chip-' + scope + '-time-7d">7d</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="30d" title="last 30 days" data-testid="chip-' + scope + '-time-30d">30d</button>' +
           '<button class="chip fchip" type="button" aria-pressed="true" data-filter-group="time" data-filter-value="all" title="all time" data-testid="chip-' + scope + '-time-all">all</button>' +
+          (noSigns ? '' : '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="view" data-filter-value="scheduled" title="scheduled jobs only" data-testid="chip-' + scope + '-scheduled">scheduled</button>') +
           '<button class="chip fchip" type="button" id="' + scope + '-filter-clear" data-testid="' + scope + '-filter-clear">clear</button>' +
         '</div>' +
         '<div class="hint" id="' + scope + '-filter-count" data-testid="' + scope + '-filter-count"></div>' +
@@ -2129,7 +2117,7 @@
   // shape (src/panel/data.js's listRuns). M11 am5: the search splits at spaces and EVERY word must match, case-insensitive. A word shaped run-N is
   // that run exactly; a word shaped MM/DD, MM-DD or YYYY-MM-DD (a real day) is the run's LOCAL start day (`when`, the time the card shows; MM/DD = any year);
   // any other word (a part date like 10/1 too) is a substring of the flow name or the runId.
-  function matchesSearch(flow, runId, query, when){
+  function matchesSearch(flow, runId, query, when, nameOnly){
     var words = String(query || "").toLowerCase().replace(/[()]/g, "").split(/\s+/).filter(function(w){ return w; });
     if(!words.length) return true;
     var f = String(flow || "").toLowerCase();
@@ -2137,15 +2125,16 @@
     var d = when ? new Date(when) : null;
     var ok = d && !isNaN(d.getTime());
     return words.every(function(w){
-      if(/^run-\d+$/.test(w)) return r === w;
+      if(/^run-\d+$/.test(w)) return nameOnly ? true : r === w;
       var day = /^(?:(\d{4})-)?(\d\d)[-\/](\d\d)$/.exec(w);
       if(day && (day[1] ? w.charAt(4) === "-" && w.charAt(7) === "-" : w.charAt(2) === "/" || w.charAt(2) === "-")){
         var mo = Number(day[2]), da = Number(day[3]);
         if(mo >= 1 && mo <= 12 && da >= 1 && da <= 31){
+          if(nameOnly) return true;
           return !!ok && d.getMonth() + 1 === mo && d.getDate() === da && (!day[1] || d.getFullYear() === Number(day[1]));
         }
       }
-      return f.indexOf(w) !== -1 || r.indexOf(w) !== -1;
+      return f.indexOf(w) !== -1 || (!nameOnly && r.indexOf(w) !== -1);
     });
   }
   function filterRuns(runs, filters, nowMs){
@@ -2176,7 +2165,7 @@
   function createFilterBar(opts){
     var scope = opts.scope;
     var storageKey = opts.storageKey;
-    var state = { results: [], time: "all", search: "" };
+    var state = { results: [], time: "all", search: "", scheduled: false };
     var allItems = [];
 
     function load(){
@@ -2189,6 +2178,7 @@
               results: Array.isArray(parsed.results) ? parsed.results : [],
               time: typeof parsed.time === "string" ? parsed.time : "all",
               search: typeof parsed.search === "string" ? parsed.search : "",
+              scheduled: parsed.scheduled === true,
             };
           }
         }
@@ -2201,7 +2191,7 @@
       document.querySelectorAll('.filterbar[data-scope="' + scope + '"] .chip[data-filter-group]').forEach(function(chip){
         var group = chip.getAttribute("data-filter-group");
         var value = chip.getAttribute("data-filter-value");
-        var active = group === "time" ? state.time === value : state.results.indexOf(value) !== -1;
+        var active = group === "time" ? state.time === value : group === "view" ? state.scheduled : state.results.indexOf(value) !== -1;
         chip.setAttribute("aria-pressed", active ? "true" : "false");
       });
       var searchEl = document.getElementById(scope + "-filter-search");
@@ -2219,6 +2209,8 @@
         var value = chip.getAttribute("data-filter-value");
         if(group === "time"){
           state.time = value; // single-select within time
+        } else if(group === "view"){
+          state.scheduled = !state.scheduled; // M11 am17: the scheduled chip, the one writer of state.scheduled
         } else {
           var idx = state.results.indexOf(value);
           if(idx === -1) state.results.push(value); else state.results.splice(idx, 1);
@@ -2231,7 +2223,7 @@
     var clearBtn = document.getElementById(scope + "-filter-clear");
     if(clearBtn){
       clearBtn.addEventListener("click", function(){
-        state = { results: [], time: "all", search: "" };
+        state = { results: [], time: "all", search: "", scheduled: false };
         paint();
         save();
         apply();
@@ -2271,7 +2263,7 @@
     applyFn: runsApplyFn,
   });
   function currentRunsFilters(){
-    return runsFilterBar ? runsFilterBar.getState() : { results: [], time: "all", search: "" };
+    return runsFilterBar ? runsFilterBar.getState() : { results: [], time: "all", search: "", scheduled: false };
   }
 
   // item 4: phone-only "scroll the run view into view" on row select, and
