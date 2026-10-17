@@ -2412,6 +2412,12 @@ monthly wall is enforced **by the trigger**, before a run starts.
   5. Schedule lines inside jobs signed before this stop working. Set those schedules again by hand.
   - **Must fail when:** a schedule change changes the job's signature; Cancel stops or changes a starting run; a change leaves a waiting file behind; an old schedule line still fires.
 
+- **M9 amendment 21 — SIGNED by hamr 2026-10-17 ("sign m9 am21"): the Run tab summary shows how long the run took.**
+  1. The SUMMARY box's top line adds the run's time after its cost: `passed · $0.0047` becomes `passed · $0.0047 1m56s`. The time is the same number the `took …` line already uses, formatted the same way.
+  2. If the time isn't recorded, the line says `time not recorded`. It never says 0.
+  3. A run that is still going or waiting shows no time on this line.
+  - **Must fail when:** a finished run with a recorded time shows no time; an unknown time shows as 0; this time differs from the `took …` line.
+
 ## M10 — real IO
 
 Mail in and out, chat, browse — each behind the signed allow-list and a prior `ask` accept in the
@@ -2519,3 +2525,9 @@ same run. Scope is stated when its turn comes.
 
 - **M11 amendment 14 — SIGNED by hamr 2026-10-16 ("sign m11 am14").** When the Inbox has no rows, it shows only 'nothing waiting on you — no stops recorded under this root'. The dashed line, the filter note and the search/chips appear once there is at least one row.
 - **M11 amendment 15 — SIGNED by hamr 2026-10-16 ("sign m11 am15").** A job's top row is its waiting run, if it has one. A stuck run that has left Needs you (7 days, M11 am3 item 5) is no longer the top row. The newest run by time is.
+
+- **M11 amendment 16 — SIGNED by hamr 2026-10-17 ("sign m11 am16"): Scheduled gets its own search.**
+  1. The Scheduled section has its own search box under its header. Typing in it narrows the Scheduled cards by job name. When it's empty, every card shows.
+  2. When nothing matches, it says `no scheduled job matches`.
+  3. The main search and filters still never hide a Scheduled card, so M11 item 3 stays as signed. This amendment is an exception to M11's "Not in M11: new filters".
+  - **Must fail when:** the main search hides a Scheduled card; the Scheduled search hides any card outside Scheduled; no match leaves an empty section with nothing said.
