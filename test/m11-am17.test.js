@@ -87,7 +87,10 @@ test('am17 item 2: result chips and 7d/30d never hide a Scheduled card', () => {
 
 test('am17 item 3: the scheduled chip sits in the runs filter bar with its word, title and a unique testid; the Inbox bar has none', () => {
   const runs = lib.filterBarHTML('runs');
-  assert.match(runs, /<button[^>]*title="scheduled jobs only"[^>]*data-testid="chip-runs-scheduled"[^>]*>scheduled<\/button>/);
+  // am19: the label is ◷, the hover words stay `scheduled jobs only`, and the same words are the aria-label
+  assert.match(runs, /<button[^>]*title="scheduled jobs only"[^>]*data-testid="chip-runs-scheduled"[^>]*>◷<\/button>/);
+  assert.match(runs, /<button[^>]*aria-label="scheduled jobs only"[^>]*data-testid="chip-runs-scheduled"/);
+  assert.doesNotMatch(runs, /data-testid="chip-runs-scheduled"[^>]*>scheduled</);
   assert.equal((runs.match(/data-testid="chip-runs-scheduled"/g) || []).length, 1);
   assert.doesNotMatch(lib.filterBarHTML('inbox', true), /scheduled/);
 });
@@ -169,5 +172,10 @@ for (const width of [1280, 390, 320]) {
     assert.ok(r.spill <= 0, `sideways scroll ${JSON.stringify(r)}`);
     assert.ok(r.cl >= 0 && r.cr <= r.w && r.br <= r.w, `chip and bar inside the screen ${JSON.stringify(r)}`);
     assert.ok(r.ch > 0, 'chip is drawn');
+    const n = await chrome.ev('(function(){ var e = document.querySelector("[data-testid=rl-filter-note]"); var b = e.getBoundingClientRect(); var c = document.querySelector("[data-testid=chip-runs-scheduled]"); return { text: e.textContent, right: b.right, w: window.innerWidth, h: b.height, sw: e.scrollWidth, cw: e.clientWidth, chipText: c.textContent, title: c.title, aria: c.getAttribute("aria-label") }; })()');
+    assert.equal(n.text, 'search also finds Scheduled; ◷ shows only Scheduled');
+    assert.ok(n.right <= n.w && n.sw <= n.cw, `the note is not clipped: ${JSON.stringify(n)}`);
+    console.log(`# note at ${width}: height ${n.h}px (${n.h > 24 ? 'wraps' : 'one line'})`);
+    assert.deepEqual([n.chipText, n.title, n.aria], ['◷', 'scheduled jobs only', 'scheduled jobs only']);
   });
 }

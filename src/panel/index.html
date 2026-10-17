@@ -1141,10 +1141,10 @@
         </section>
 
         <section id="panel-runs" class="tabpanel" role="tabpanel" aria-labelledby="tab-runs" hidden>
-          <!-- M11: ONE list. Running now and Needs you are never filtered; the search also finds Scheduled (am17); the chips act on Jobs only. -->
+          <!-- M11: ONE list. Running now and Needs you are never filtered; the search also finds Scheduled (am17); the ◷ chip shows only Scheduled (am19). -->
           <div id="rl-top" data-testid="rl-top"></div>
           <div class="rl-dash"></div>
-          <div class="rl-faint" data-testid="rl-filter-note">search also finds Scheduled; the chips act on Jobs only</div>
+          <div class="rl-faint" data-testid="rl-filter-note">search also finds Scheduled; ◷ shows only Scheduled</div>
           <div id="runs-filterbar-anchor"></div>
           <div id="wf-list" data-testid="wf-list"></div>
         </section>
@@ -2102,7 +2102,7 @@
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="7d" title="last 7 days" data-testid="chip-' + scope + '-time-7d">7d</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="30d" title="last 30 days" data-testid="chip-' + scope + '-time-30d">30d</button>' +
           '<button class="chip fchip" type="button" aria-pressed="true" data-filter-group="time" data-filter-value="all" title="all time" data-testid="chip-' + scope + '-time-all">all</button>' +
-          (noSigns ? '' : '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="view" data-filter-value="scheduled" title="scheduled jobs only" data-testid="chip-' + scope + '-scheduled">scheduled</button>') +
+          (noSigns ? '' : '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="view" data-filter-value="scheduled" title="scheduled jobs only" aria-label="scheduled jobs only" data-testid="chip-' + scope + '-scheduled">◷</button>') +
           '<button class="chip fchip" type="button" id="' + scope + '-filter-clear" data-testid="' + scope + '-filter-clear">clear</button>' +
         '</div>' +
         '<div class="hint" id="' + scope + '-filter-count" data-testid="' + scope + '-filter-count"></div>' +
