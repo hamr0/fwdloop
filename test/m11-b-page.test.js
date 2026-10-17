@@ -304,7 +304,7 @@ test('the old view is gone: no Workflows / History switch, no History list, no s
   assert.doesNotMatch(PAGE, /data-runs-view|runs-view-|id="history-list"|RUNS_VIEW_KEY|renderHistory|loadRunsViewMode|capChildRuns|buildRunRowEl|renderWorkflows/);
   assert.doesNotMatch(PAGE, /select a run from Workflows or History/);
   const panel = PAGE.slice(PAGE.indexOf('<section id="panel-runs"'), PAGE.indexOf('</section>', PAGE.indexOf('<section id="panel-runs"')));
-  const order = ['id="rl-top"', 'data-testid="rl-filter-note">filters below act on Jobs and quiet jobs only', 'id="runs-filterbar-anchor"', 'id="wf-list"'].map((s) => panel.indexOf(s));
+  const order = ['id="rl-top"', 'data-testid="rl-filter-note">search also finds Scheduled; the chips act on Jobs only', 'id="runs-filterbar-anchor"', 'id="wf-list"'].map((s) => panel.indexOf(s));
   assert.ok(order.every((i) => i !== -1), `panel-runs parts missing: ${order}`);
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'top sections, the dashed note, the filter bar, then Jobs');
   assert.match(panel, /rl-dash/);
