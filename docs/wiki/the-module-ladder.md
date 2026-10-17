@@ -2548,3 +2548,10 @@ same run. Scope is stated when its turn comes.
 
 - **M11 amendment 19 — SIGNED by hamr 2026-10-17 ("sign m11 am19").** The `scheduled` chip (am17 item 3) shows `◷`, and hovering it shows `scheduled jobs only`. The faint line becomes `search also finds Scheduled; ◷ shows only Scheduled`. This replaces am18's line.
   - **Must fail when:** the chip shows the word instead of `◷`; the chip has no hover words.
+
+- **M11 amendment 20 — SIGNED by hamr 2026-10-17 ("sign m11 am20"): Scheduled moves below the search box.**
+  1. The list, top to bottom: Running now, Needs you, then the grey line, the search box and the chips, then **Scheduled**, then Jobs and the quiet fold.
+  2. Above the search box are only the sections that are never filtered. Everything the search or chips act on sits below it.
+  3. With ◷ pressed, the count line says `showing 1 scheduled job` (the real number, `jobs` when there's more than one).
+  4. ◷ is drawn at the same size as ✓ and ✗.
+  - **Must fail when:** a Scheduled card shows above the search box; ◷ is pressed and the count line still counts runs; ◷ is smaller than the other chip symbols.
