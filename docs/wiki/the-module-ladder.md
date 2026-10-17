@@ -2545,3 +2545,6 @@ same run. Scope is stated when its turn comes.
   - *Built after signing — not signed text:* "item 5's" above points to the wrong place: the words "Search and filters act on Jobs and quiet jobs only" are in the bullet under M11's item 6, not in item 5.
 
 - **M11 amendment 18 — SIGNED by hamr 2026-10-17 ("sign m11 am18").** The faint line above the search box (M11 item 4) reads `search also finds Scheduled; the chips act on Jobs only`.
+
+- **M11 amendment 19 — SIGNED by hamr 2026-10-17 ("sign m11 am19").** The `scheduled` chip (am17 item 3) shows `◷`, and hovering it shows `scheduled jobs only`. The faint line becomes `search also finds Scheduled; ◷ shows only Scheduled`. This replaces am18's line.
+  - **Must fail when:** the chip shows the word instead of `◷`; the chip has no hover words.
