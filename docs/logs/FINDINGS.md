@@ -3113,3 +3113,19 @@ Not fixed. A fix that depends on whether the job line names sections at all woul
 - On am29-walk-2 thinking off on the first try failed more often, and thinking on for the retries did not recover it.
 - n=4 per arm is small; 1 vs 2 passes may be chance. Not rerun to flip the verdict; a follow-up is a new pre-registered question.
 - Two earlier batches stopped before a fair run and are not counted: `~/fwdloop-think-1` (am29 had no model recorded; refused at $0) and `~/fwdloop-think-2` (monthly limit too low for am29's $1 hold; and a send-name collision made one aging run red, fixed in 256416c). Spent in them: $0.0082.
+
+## F70 — thinking only on retries vs today, on a second resume job: pre-registered before any run (2026-10-17)
+
+**Question.** Follow-up to F69 (a new question, not a rerun). On a resume-shaped job, does thinking only on retries (attempt 1 off; attempt 2+ and a Redo on) beat today's setting (no thinking setting sent)?
+
+**Set up (written before any data, hamr 2026-10-17).**
+- Model: deepseek-flash. Run steps only; drafting is not part of this test.
+- Job: `m7-walk-2` (resume + JD → a 3-section summary resume; in-run park/recall). Inputs: the real resume.docx and jd.md of its run-1 (runs 3 and 4 used a CSV as the resume and failed at step 1, so they are not used).
+- Arms, n=8 runs each (16 runs): `today` (no thinking setting sent) and `retry` (attempt 1 off; attempt 2+ on; Redo on).
+- Asks are answered `accept` by the harness. Budget: $3 hard stop (a run starts only if spend so far plus the job's $0.5 cap fits); an unknown cost stops the batch.
+- Measured per run: pass (green), cost, wall time, turns (model calls) per step and total, attempts per step, thinkingStatus per call, tools called.
+- Harness: `poc/thinking/` (throwaway, never shipped).
+
+**Win rule (hamr 2026-10-17, same as F69).** BUILD `retry` if it passes at least as many runs as `today`, AND it is faster (median wall time) or cheaper (median cost) than `today`. Otherwise NO BUILD. Turns are counted and reported; they do not decide.
+
+**Result.** (not run yet)
