@@ -53,3 +53,14 @@ export function thinkingSay(status) {
   if (status === 'unknown') return 'thinking off (not confirmed)';
   return null;
 }
+
+/**
+ * M4d am25 item 1/2: the ONE owner of what thinking a step's model call asks for. Code decides, never the model.
+ * Box ticked (the job's Chat "Thinking on" box, kept with the job): every try 'on'. Box off: the 1st try 'off'; the 2nd and later tries 'on'.
+ * A step redone after a human Redo is numbered from its redo count (the runner's `attemptOffset`), so it is always a 2nd-or-later try and thinks 'on'.
+ * @param {{boxOn: boolean, attempt: number}} a the runner's 1-based attempt number for this step
+ * @returns {'on'|'off'}
+ */
+export function stepThinkingMode({ boxOn, attempt }) {
+  return boxOn === true || (Number.isInteger(attempt) && attempt >= 2) ? 'on' : 'off';
+}

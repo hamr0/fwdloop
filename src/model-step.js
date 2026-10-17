@@ -27,6 +27,7 @@
 import { Loop, HaltError } from 'bare-agent';
 import { GateRefusal } from './primitives.js';
 import { ConfigError } from './config.js';
+import { worstThinkingStatus } from './thinking.js';
 
 import {
   makeProvider, ModelRefusal, sumMeterings, appendSpendRow, classifyModelId, priceRecord,
@@ -173,7 +174,7 @@ function addMeter(cumulative, metered) {
   // faulted — caught live: `toolFields` threw on `cumulative.ungranted`
   // being undefined the very first time a transport fault hit round 1.
   return {
-    costUsd, rounds, tokens, tools: cumulative.tools, ungranted: cumulative.ungranted, refused: cumulative.refused,
+    costUsd, rounds, tokens, tools: cumulative.tools, ungranted: cumulative.ungranted, refused: cumulative.refused, thinking: cumulative.thinking,
   };
 }
 
@@ -223,6 +224,7 @@ function toolFields(cumulative) {
     // M4e amendment 7 item 8: model calls (turns) this attempt made, so a Stop can say "after turn T of try K".
     turns: cumulative.rounds,
     tools: cumulative.tools,
+    thinking: cumulative.thinking,
     // Gate refusals this attempt — always present (empty array when none) so
     // absence can never be confused with "none".
     refused: cumulative.refused,
@@ -248,7 +250,7 @@ function stoppedResult(cumulative, modelId, modelMatch) {
  * @param {{in:number,out:number}} [opts.rates]
  * @param {string} [opts.modelId]
  * @param {Record<string,string|undefined>} [opts.env] - the merged shell+keys-file env the key is read from (default process.env).
- * @returns {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class?:string}, seam?:{stopRequested?:() => boolean}) => Promise<any>}
+ * @returns {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class?:string, attempt?:number, thinkingMode?:'on'|'off'}, seam?:{stopRequested?:() => boolean}) => Promise<any>}
  */
 export function makeLiveModelStep({
   slot, model, spendPath, provider: injectedProvider, rates: injectedRates, modelId: injectedModelId, env,
@@ -286,6 +288,7 @@ export function makeLiveModelStep({
     }
 
     const toolSchema = buildEmitArtifactSchema(stepMeta.class);
+    const thinkingMode = stepMeta.thinkingMode === 'on' || stepMeta.thinkingMode === 'off' ? stepMeta.thinkingMode : null;
     const systemPrompt = 'You are executing one step of a signed, human-authored automation. '
       + 'Call emit_artifact exactly once with this step\'s result. Ground every value in the '
       + 'reads you were handed or the tools you were granted — never invent a figure.';
@@ -329,6 +332,9 @@ export function makeLiveModelStep({
       tools: /** @type {Record<string, number>} */ ({}),
       ungranted: /** @type {string[]} */ ([]),
       refused,
+      // M4d am25 item 4: what this attempt asked of thinking (the runner's decision, `stepMeta.thinkingMode`; null = it asked nothing) and the WORST status
+      // bareagent reported across its rounds (null = none reported). The ONE place this record is built; `toolFields` hands it to every return.
+      thinking: /** @type {{asked: string|null, status: string|null}} */ ({ asked: thinkingMode ?? null, status: null }),
     };
     let noToolCallStreak = 0;
 
@@ -352,7 +358,8 @@ export function makeLiveModelStep({
       let result;
       try {
         // eslint-disable-next-line no-await-in-loop
-        result = await loop.run(messages, tools, { maxTokens: 16000 });
+        // M4d am25: the thinking switch is the runner's decision (`stepMeta.thinkingMode`, 'on' | 'off'); bareagent sends it. Absent = send none (a caller that decides nothing).
+        result = await loop.run(messages, tools, { maxTokens: 16000, ...(thinkingMode ? { thinkingMode } : {}) });
       } catch (err) {
         const wallMs = Date.now() - startedAt;
         const partial = sumMeterings(roundMeterings);
@@ -419,6 +426,7 @@ export function makeLiveModelStep({
       const metered = sumMeterings(roundMeterings);
       cumulative = addMeter(cumulative, metered);
       cumulative = { ...cumulative, ...addToolCounts(cumulative, result.metrics?.byTool, grantedNames) };
+      if (result.thinkingStatus !== undefined) cumulative.thinking = { asked: cumulative.thinking.asked, status: worstThinkingStatus([cumulative.thinking.status, result.thinkingStatus]) };
       appendSpendRow(spendPath, {
         provider: slot ?? null,
         price: priceRecord(prices, rates),

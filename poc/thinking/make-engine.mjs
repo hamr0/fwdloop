@@ -28,14 +28,14 @@ export function makeEngine() {
     writeFileSync(p, s.replace(from, () => to));
   };
   patch('src/runner.js',
-    'const stepMeta = Object.freeze({ class: step.close?.class ?? null });',
-    'const stepMeta = Object.freeze({ class: step.close?.class ?? null, attempt, stepId: step.emits ?? step.goal ?? null }); // POC patch');
+    'const stepMeta = Object.freeze({ class: step.close?.class ?? null, attempt, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });',
+    'const stepMeta = Object.freeze({ class: step.close?.class ?? null, attempt, stepId: step.emits ?? step.goal ?? null }); // POC patch (src now carries attempt + thinkingMode since M4d am25; the POC arm overrides the mode)');
   patch('src/model-step.js',
     'const toolSchema = buildEmitArtifactSchema(stepMeta.class);',
     "const poc = pocBegin(provider, stepMeta); // POC patch\n    const toolSchema = buildEmitArtifactSchema(stepMeta.class);");
   patch('src/model-step.js',
-    'result = await loop.run(messages, tools, { maxTokens: 16000 });',
-    'result = await loop.run(messages, tools, { maxTokens: 16000, ...poc.opts }); // POC patch');
+    "result = await loop.run(messages, tools, { maxTokens: 16000, ...(thinkingMode ? { thinkingMode } : {}) });",
+    'result = await loop.run(messages, tools, { maxTokens: 16000, ...poc.opts }); // POC patch (the arm decides, not src\'s am25 mode)');
   patch('src/send.js', 'const destination = checkSendDestination(target, ctx);', "const destination = checkSendDestination(pocSendTarget(target), ctx); // POC patch");
   patch('src/send.js', /^import .*$/m.exec(readFileSync(join(repo, 'src/send.js'), 'utf8'))[0], /^import .*$/m.exec(readFileSync(join(repo, 'src/send.js'), 'utf8'))[0] + "\nimport { pocSendTarget } from '../../hook.mjs'; // POC patch");
   patch('src/model-step.js', "import { Loop, HaltError } from 'bare-agent';", "import { Loop, HaltError } from 'bare-agent';\nimport { pocBegin } from '../../hook.mjs'; // POC patch");
