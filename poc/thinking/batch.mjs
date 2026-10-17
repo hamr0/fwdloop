@@ -4,7 +4,7 @@
 // to <out>/<arm>/<job> and the runs happen there. One JSON line per run -> <out>/results.jsonl.
 //
 //   node poc/thinking/batch.mjs --job aging-live-4,am29-walk-2 --arm today,on,retry --n 5 \
-//        --out ~/thinking-batch-1 --budget-usd 0.50 [--flows ./flows] [--fake]
+//        --out ~/thinking-batch-1 --budget-usd 0.50 [--flows ./flows] [--model <id>] [--fake]
 //
 // Arms are interleaved per iteration (today, on, retry, today, ...) so provider drift hits each arm alike.
 // Every ask is answered `accept` through the real `answer` verb, then the real `resume` verb. Nothing is redone, so the
@@ -35,7 +35,7 @@ export function parseBatchArgs(argv) {
     options: {
       job: { type: 'string' }, arm: { type: 'string', default: ARMS.join(',') }, n: { type: 'string', default: '1' },
       out: { type: 'string' }, 'budget-usd': { type: 'string' }, flows: { type: 'string', default: join(repo, 'flows') },
-      fake: { type: 'boolean', default: false },
+      fake: { type: 'boolean', default: false }, model: { type: 'string' },
     },
   });
   const jobs = (values.job ?? '').split(',').filter(Boolean);
@@ -52,7 +52,7 @@ export function parseBatchArgs(argv) {
   const flows = resolve(values.flows);
   if (existsSync(join(out, 'results.jsonl')) || (existsSync(out) && readdirSync(out).length > 0)) die(`--out ${out} already has content; use a new --out (consumed batches are never overwritten)`);
   for (const j of jobs) if (!existsSync(join(flows, j, 'signature.json'))) die(`job "${j}" has no signature.json under ${flows}`);
-  return { jobs, arms, n, budget, out, flows, fake: values.fake };
+  return { jobs, arms, n, budget, out, flows, fake: values.fake, model: values.model };
 }
 
 /** The job's source roles -> file paths: the frozen inputs of its latest run (read-only). */
@@ -148,7 +148,8 @@ async function main() {
         const callsPath = join(a.out, 'calls', `${job}-${arm}-${runId}.jsonl`);
         const env = { ...baseEnv, FWDLOOP_POC_ARM: arm, FWDLOOP_POC_CALLS: callsPath };
         let wallMs = 0; let note = null;
-        let r = cli(engineBin, ['run', job, '--root', root, '--run-id', runId, ...sources.flatMap((s) => ['--source', `${s.role}=${s.path}`])], env);
+        const modelArgs = a.model ? ['--model', a.model] : []; // for a job with no model recorded; the same id on run and resume
+        let r = cli(engineBin, ['run', job, ...modelArgs, '--root', root, '--run-id', runId, ...sources.flatMap((s) => ['--source', `${s.role}=${s.path}`])], env);
         wallMs += r.wallMs;
         for (let k = 0; k < MAX_ASKS; k += 1) {
           const m = /parked: askId=(\S+)/.exec(r.out);
@@ -156,7 +157,7 @@ async function main() {
           const ans = cli(engineBin, ['answer', m[1], 'accept', '--root', root], env);
           wallMs += ans.wallMs;
           if (ans.status !== 0) { note = `answer failed: ${ans.err.trim().slice(0, 200)}`; break; }
-          r = cli(engineBin, ['resume', runId, '--flow', job, '--root', root], env);
+          r = cli(engineBin, ['resume', runId, '--flow', job, ...modelArgs, '--root', root], env);
           wallMs += r.wallMs;
         }
         if (r.timedOut) note = 'cli timed out';
@@ -164,7 +165,7 @@ async function main() {
         const row = rollup({ job, arm, runId, flowDir, runDir, callsPath, wallMs, note });
         appendFileSync(resultsPath, `${JSON.stringify(row)}\n`);
         process.stdout.write(`${job} ${arm} ${runId}: ${row.outcome} cost=${row.costUsd} turns=${row.turns}\n`);
-        if (row.costUsd === null) { stopped = `unknown cost on ${job} ${arm} ${runId}: batch stopped`; break; }
+        if (row.costUsd === null) { stopped = `unknown cost on ${job} ${arm} ${runId}: batch stopped${row.note ? ` (${row.note})` : ''}`; break; }
         spent += row.costUsd;
       }
       if (stopped) break;
