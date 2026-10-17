@@ -3096,4 +3096,20 @@ Not fixed. A fix that depends on whether the job line names sections at all woul
 
 **Win rule (hamr 2026-10-17, option A).** BUILD `retry` if, on both jobs, it passes at least as many runs as `on`, AND it is faster (median wall time) or cheaper (median cost) than `on` on at least one job. Otherwise NO BUILD. Turns are counted and reported; they do not decide.
 
-**Result.** (not run yet)
+**Result (2026-10-17): NO BUILD.** Batch `~/fwdloop-think-3` (outside the repo), 24 live runs on deepseek-flash, $0.307 spent, harness `poc/thinking/` at 256416c, scored by `poc/thinking/score.mjs` with the win rule above.
+
+| job | arm | passed | median cost | median wall | median turns |
+|---|---|---|---|---|---|
+| aging-live-4 | today | 4/4 | $0.00427 | 17.1s | 5.5 |
+| aging-live-4 | on | 4/4 | $0.00470 | 18.2s | 5.5 |
+| aging-live-4 | retry | 4/4 | $0.00229 | 12.4s | 6.0 |
+| am29-walk-2 | today | 3/4 | $0.01983 | 82.7s | 14.0 |
+| am29-walk-2 | on | 2/4 | $0.01883 | 76.3s | 14.0 |
+| am29-walk-2 | retry | 1/4 | $0.02224 | 82.9s | 14.0 |
+
+- Verdict by the written rule: NO BUILD (am29-walk-2: retry passes 1 < on 2). Every red was `attempt-fallback` on am29-walk-2 (the step ran out of tries on its checks).
+- `today` (no thinking setting sent) costs about the same as `on`: the provider appears to think by default. Not proven: bare-agent reports no thinkingStatus when no mode is sent.
+- On aging-live-4 no step needed a second try, so `retry` there is "thinking off": about half the cost and 30% less time than `today`/`on`, same passes.
+- On am29-walk-2 thinking off on the first try failed more often, and thinking on for the retries did not recover it.
+- n=4 per arm is small; 1 vs 2 passes may be chance. Not rerun to flip the verdict; a follow-up is a new pre-registered question.
+- Two earlier batches stopped before a fair run and are not counted: `~/fwdloop-think-1` (am29 had no model recorded; refused at $0) and `~/fwdloop-think-2` (monthly limit too low for am29's $1 hold; and a send-name collision made one aging run red, fixed in 256416c). Spent in them: $0.0082.
