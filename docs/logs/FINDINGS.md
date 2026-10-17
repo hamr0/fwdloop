@@ -3078,3 +3078,22 @@ The human named no sections, so the AI made them up. The Fix points at a job lin
 The words are in `src/plain-checks.js` (the first rule, `fix`: "Change the job line to use the section words you want."; it was already the wording the page had shown since M4e am41). The am15 item 3 requirement is one Fix line on every red draft; it does not say which words suit which cause.
 
 Not fixed. A fix that depends on whether the job line names sections at all would need the checker to say which of the two it is.
+
+## F69 — thinking only on retries vs thinking everywhere: pre-registered before any run (2026-10-17)
+
+**Question.** Does turning thinking on only for retries (a step's 2nd+ attempt, and a step redone after Redo) beat thinking on for every step call, on fwdloop's real jobs? Borrowed idea: bareloop F230-F233 (code decides by phase and attempt; per-job tick = on everywhere; on medium code jobs retry-only was cheaper and faster at equal or better pass rate).
+
+**Set up (written before any data, hamr 2026-10-17).**
+- Model: deepseek-flash. Run steps only; drafting is not part of this test (jobs already signed).
+- Jobs: `aging-live-4` (4 steps, short) and `am29-walk-2` (5 steps, retried on its word/heading checks today).
+- Arms, n=4 runs per job per arm (24 runs):
+  1. `today`: no thinking setting sent (what fwdloop does now); record what the provider actually did.
+  2. `on`: thinking on for every step call.
+  3. `retry`: attempt 1 off; attempt 2+ on; a step redone after a human Redo on.
+- Asks are answered `accept` by the harness. Budget: $3 hard stop (hamr 2026-10-17, option A: a run starts only if spend so far plus the job's cap fits; am29-walk-2's cap is $1); an unknown cost stops the batch.
+- Measured per run: pass (green), cost, wall time, turns (model calls) per step and total, attempts per step, thinkingStatus per call, tools called.
+- Harness: `poc/thinking/` (throwaway, never shipped).
+
+**Win rule (hamr 2026-10-17, option A).** BUILD `retry` if, on both jobs, it passes at least as many runs as `on`, AND it is faster (median wall time) or cheaper (median cost) than `on` on at least one job. Otherwise NO BUILD. Turns are counted and reported; they do not decide.
+
+**Result.** (not run yet)
