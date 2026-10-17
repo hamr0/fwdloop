@@ -124,7 +124,7 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 1. The Run tab summary shows how long the run took: `passed · $0.0047` becomes `passed · $0.0047 1m56s`.
 2. The runs list Scheduled section gets its own filter/search, like the other sections.
 
-**Tested, not built: thinking per step** (hamr, 2026-10-17). Idea borrowed from bareloop F230-F233: thinking off on a step's first try, on for retries and Redo, with thinking on everywhere kept as an escape hatch for hard jobs. Pre-registered and run as F69 in `docs/logs/FINDINGS.md`: NO BUILD (am29-walk-2: retries-only passed 1 of 4 vs thinking-on-everywhere 2 of 4). Follow-up F70 (today vs retries only on `m7-walk-2`, n=8) is pre-registered; result pending.
+**Tested, not built: thinking per step** (hamr, 2026-10-17). Idea borrowed from bareloop F230-F233: thinking off on a step's first try, on for retries and Redo, with thinking on everywhere kept as an escape hatch for hard jobs. Pre-registered and run as F69 in `docs/logs/FINDINGS.md`: NO BUILD (am29-walk-2: retries-only passed 1 of 4 vs thinking-on-everywhere 2 of 4). Follow-up F70 (today vs retries only on `m7-walk-2`, n=8): BUILD (8/8 both; retries only about 15% cheaper and 9% faster). F69 and F70 disagree on the job whose first tries fail often; nothing is built until hamr signs an amendment.
 
 **No CLI as a product surface.** `npm install`, one command, a localhost server starts and **the
 browser is the product**; the server owns the scheduler. A CLI exists for M0–M4 and M6a (`fwdloop draft`, `fwdloop sign` — sign needs an interactive terminal and a typed flow name, M6a amendment 2) but is

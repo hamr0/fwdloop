@@ -3128,4 +3128,13 @@ Not fixed. A fix that depends on whether the job line names sections at all woul
 
 **Win rule (hamr 2026-10-17, same as F69).** BUILD `retry` if it passes at least as many runs as `today`, AND it is faster (median wall time) or cheaper (median cost) than `today`. Otherwise NO BUILD. Turns are counted and reported; they do not decide.
 
-**Result.** (not run yet)
+**Result (2026-10-17): BUILD.** Batch `~/fwdloop-think-f70` (outside the repo), 16 live runs on deepseek-flash, $0.186 spent, inputs from `m7-walk-2` run-1 (resume.docx, jd.md), harness `poc/thinking/` at a51bb43, scored by `poc/thinking/score.mjs --rule f70`.
+
+| job | arm | passed | median cost | median wall | median turns |
+|---|---|---|---|---|---|
+| m7-walk-2 | today | 8/8 | $0.01200 | 55.3s | 14.0 |
+| m7-walk-2 | retry | 8/8 | $0.01024 | 50.2s | 14.0 |
+
+- Verdict by the written rule: BUILD (retry passes 8 = today 8, and is both cheaper, about 15%, and faster, about 9%).
+- Only one run needed a retry (retry run-1102: 20 turns, $0.0183); every other run took 14-15 turns.
+- Read with F69: on am29-walk-2 retries-only passed fewer runs (1/4 vs 2/4, NO BUILD); on m7-walk-2 and aging-live-4 it passed all and cost less. The two results disagree on the job where first tries fail often; n is small in both.
