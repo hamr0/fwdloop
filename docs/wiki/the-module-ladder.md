@@ -2542,3 +2542,6 @@ same run. Scope is stated when its turn comes.
   4. **Running now and Needs you are never filtered or searched,** chip or not, as signed.
   5. **If Scheduled has no matching card, it draws nothing,** header included, as for any empty section. With the `scheduled` chip pressed and no match, the list says `no scheduled job matches`.
   - **Must fail when:** a separate Scheduled search box is drawn; a search for a job name leaves a non-matching Scheduled card shown; a result or time chip hides a Scheduled card; the `scheduled` chip leaves Jobs shown; a search or chip hides a Running now or Needs you card; the `scheduled` chip with no match shows an empty list with nothing said.
+  - *Built after signing — not signed text:* "item 5's" above points to the wrong place: the words "Search and filters act on Jobs and quiet jobs only" are in the bullet under M11's item 6, not in item 5.
+
+- **M11 amendment 18 — SIGNED by hamr 2026-10-17 ("sign m11 am18").** The faint line above the search box (M11 item 4) reads `search also finds Scheduled; the chips act on Jobs only`.
