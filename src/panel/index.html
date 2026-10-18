@@ -455,6 +455,24 @@
   }
   .audit-group.audit-fold table{margin-top:8px;}
   .audit-group.audit-fold table[hidden]{display:none !important;}
+  /* M4d am29 (design lab C): the step fold's body - tally, a line per try with its checks, then the Round table. The marker ends the header. */
+  .audit-fold-body[hidden]{display:none !important;}
+  .audit-fold-body{margin-top:8px;font-size:12px;min-width:0;max-width:100%;}
+  .audit-fold-who{flex:none;margin-left:auto;font-weight:700;font-size:11px;white-space:nowrap;}
+  .audit-fold-who.model{color:var(--cyan);} .audit-fold-who.human{color:var(--magenta,#9854f1);}
+  .audit-tally{color:var(--text-dim);margin:2px 0 4px;}
+  .audit-try{margin:4px 0 2px;overflow-wrap:anywhere;}
+  .audit-checks{margin:2px 0 6px 14px;}
+  .audit-chk{overflow-wrap:anywhere;}
+  .audit-chk > span{margin-right:6px;}
+  .audit-chk .src,.audit-judged{color:var(--text-faint);}
+  .audit-fold-label{color:var(--text-faint);text-transform:uppercase;font-size:10px;letter-spacing:.05em;margin-top:8px;}
+  .audit-fold-body table.rounds-table{width:100%;border-collapse:collapse;margin-top:4px;}
+  .audit-fold-body table.rounds-table th{position:sticky;top:0;z-index:1;}
+  .audit-fold-body table.rounds-table tr.trysep td{border-top:1px solid var(--border-strong);}
+  .rounds-pager{color:var(--text-faint);font-size:11px;margin-top:4px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .step-card .step-head .who{font-weight:700;font-size:11px;}
+  .step-card .step-head .who.model{color:var(--cyan);} .step-card .step-head .who.human{color:var(--magenta,#9854f1);}
   /* hamr's 2026-09-27 review: the group header's own state word (g.state,
      rendered as a <span class="badge STATE">) and its per-try marks
      (<span class="mark STATE">) reuse the SAME color vocabulary the runs
@@ -705,6 +723,12 @@
     }
     td.am-detail .am-d{margin:0 0 3px;}
     td.am-detail .am-d b{color:var(--text);font-weight:600;}
+    /* the Round table keeps its real table layout on a phone and scrolls inside its own box (.audit-table-scroll), never the page */
+    .audit-group table.rounds-table{display:table;width:max-content;min-width:100%;max-width:none;}
+    .audit-group table.rounds-table thead{position:static;width:auto;height:auto;overflow:visible;clip:auto;white-space:normal;}
+    .audit-group table.rounds-table tbody{display:table-row-group;}
+    .audit-group table.rounds-table tr{display:table-row;padding:0;overflow:visible;}
+    .audit-group table.rounds-table td{display:table-cell;padding:4px 6px;white-space:normal;overflow-wrap:anywhere;border-right:1px dotted var(--border);}
   }
 
   /* M4d piece 4: the Settings view (a sibling of #main-view, opened from the header). Layout borrowed from bareloop:
@@ -1698,6 +1722,7 @@
         // book-derived list, never guessed from `primitives` by exclusion.
         toolsTotal: s.toolsTotal || null, toolsWhy: s.toolsWhy || null, ungranted: s.ungranted || [],
         stoppedReason: s.stoppedReason || null,
+        who: s.who || null, newLine: typeof s.newLine === "string" ? s.newLine : "\u2014", lastAnswerAt: s.lastAnswerAt || null,
         state: s.groupState || "pending",   // the server's one decider (deriveStepGroupState); no group = no row yet = not started
       };
     });
@@ -2393,7 +2418,9 @@
       '<div class="summary-row"><span class="sum-label">steps:</span><span class="sum-val">' + stepsText + '</span></div>' +
       '<div class="summary-row" data-testid="summary-why"><span class="sum-label">why:</span><span class="sum-val">' + escapeXml(detail.stopReason || detail.stopReasonWhy || "not recorded") + '</span></div>' +
       '<div class="summary-row" data-testid="summary-close"><span class="sum-label">close:</span><span class="sum-val">' + escapeXml(closeText) + '</span></div>' +
-      '<div class="summary-row" data-testid="summary-spend"><span class="sum-label">spend:</span><span class="sum-val">' + spendSummaryText(detail.spendSummary) + '</span></div>';
+      '<div class="summary-row" data-testid="summary-spend"><span class="sum-label">spend:</span><span class="sum-val">' + spendSummaryText(detail.spendSummary) + '</span></div>' +
+      '<div class="summary-row" data-testid="summary-calls"><span class="sum-label">calls:</span><span class="sum-val">' + escapeXml((detail.runLines && detail.runLines.calls) || "\u2014") + '</span></div>' +
+      '<div class="summary-row" data-testid="summary-checks"><span class="sum-label">checks:</span><span class="sum-val">' + escapeXml((detail.runLines && detail.runLines.checks) || "\u2014") + '</span></div>';
 
     renderRunActions(detail);
     // amendment 7 item 2: the Draft is the first box of the Map (an arrow runs on to step 1); the steps keep their own numbers
@@ -2414,6 +2441,8 @@
       // unknown" row.
       if(box.attempts.length) card.appendChild(buildStepActionsLineEl(box, idx));
       else card.appendChild(textLineEl("hint", "not attempted yet", "step-card-actions-" + idx));
+      // M4d am29 item 6: the one new line, the server's words (`—` with no record); a human step's answer time is formatted here, in the viewer's clock
+      card.appendChild(textLineEl("step-meta", box.newLine + (box.who === "human" && box.lastAnswerAt ? " \u00b7 " + (new Date(box.lastAnswerAt).toLocaleTimeString()) : ""), "step-card-new-" + idx));
       // Amendment M4a-3 (hamr's request): "tools: read 3 · write 1" (this
       // step's own tool tally, `summarizeStepTools`) plus "allowed: read,
       // write" (the signed grant, unchanged from the old "granted:" line) —
@@ -2548,6 +2577,14 @@
     closeBadge.className = "badge cyan";
     closeBadge.textContent = closeClassLabel(box.closeClass);
     head.appendChild(closeBadge);
+    // M4d am29 item 6: the same marker as the Audit header; only a step with a record has one
+    if(box.who){
+      var who = document.createElement("span");
+      who.className = "who " + box.who;
+      who.setAttribute("data-testid", "step-card-who-" + idx);
+      who.textContent = foldWhoWords(box.who);
+      head.appendChild(who);
+    }
     return head;
   }
   // The actions line: "<time> · <cost> · [N tokens ·] try N <marks>" — every
@@ -2638,7 +2675,7 @@
     // hamr's 2026-09-27 review item (b): a jump from the Run tab must land
     // on an OPEN group even if a human had folded it — never scroll to a
     // collapsed section with nothing visible in it.
-    var table = row.querySelector("table");
+    var table = row.querySelector("table, .audit-fold-body");
     var header = row.querySelector("h4");
     if(table && table.hidden){
       table.hidden = false;
@@ -2799,6 +2836,7 @@
     if(g.draft) return draftLineText(g.summary);
     var line = [p.status, p.name, p.cost].join(" " + p.dot + " ");
     if(p.tries) line += " \u00b7 try " + p.tries.n + " " + p.tries.marks.join("");
+    if(g.fold) line += " " + foldWhoWords(g.fold.who);
     return line;
   }
   // hamr's 2026-09-27 review: the header's status word gets the SAME color
@@ -2876,12 +2914,106 @@
       });
     }
     h4.appendChild(tail);
+    // M4d am29 item 4: the header ends with who acted on the step; only a step with a fold (a run with records) has it
+    if(g.fold){
+      var who = document.createElement("span");
+      who.className = "audit-fold-who " + g.fold.who;
+      who.setAttribute("data-testid", "audit-group-who");
+      who.textContent = foldWhoWords(g.fold.who);
+      h4.appendChild(who);
+    }
     return h4;
   }
   // Grouped view: one section per step, server order preserved (first-seen
   // order of `r.step` across this run's own rows — never re-sorted).
   // review item #1: COLLAPSED by default — a map/step-card click
   // (`openAuditGroup`) is the only thing that force-expands one.
+  // M4d am29 (items 4-6): the step fold's words, all from the server's `fold` (src/audit-fold.js); this page only draws them.
+  function foldWhoWords(who){ return who === "human" ? "[human \u00b7 ask]" : "[model]"; }
+  function foldSize(n){ return n < 1024 ? n + " B" : (n < 1048576 ? (n / 1024).toFixed(1) + " KB" : (n / 1048576).toFixed(1) + " MB"); }
+  function foldEl(tag, cls, text, testId){
+    var e = document.createElement(tag);
+    if(cls) e.className = cls;
+    if(text !== null && text !== undefined) e.textContent = text;
+    if(testId) e.setAttribute("data-testid", testId);
+    return e;
+  }
+  function foldTryEl(t, human){
+    var wrap = document.createElement("div");
+    var line = foldEl("div", "audit-try", null, "audit-try-line");
+    line.appendChild(document.createTextNode("try " + t.n + " "));
+    line.appendChild(foldEl("span", "mark " + auditMarkClass(t.mark), t.mark));
+    var rest = human
+      ? [t.answer, t.about ? "about " + t.about : null]
+      : [t.thinking, t.gap];
+    rest.forEach(function(x){ if(x) line.appendChild(document.createTextNode(" \u00b7 " + x)); });
+    wrap.appendChild(line);
+    if(!human && t.checks && t.checks.length){
+      var box = foldEl("div", "audit-checks", null, "audit-checks");
+      t.checks.forEach(function(c){
+        var row = foldEl("div", "audit-chk", null, "audit-check");
+        row.appendChild(foldEl("span", "mark " + (c.ok ? "green" : "red"), c.ok ? "\u2713" : "\u2717"));
+        row.appendChild(foldEl("span", null, "#" + c.n + " " + c.text + (c.result ? " (" + c.result + ")" : "")));
+        row.appendChild(foldEl("span", "src", "\u00b7 from " + c.source));
+        box.appendChild(row);
+      });
+      if(t.output){
+        var sha = String(t.output.sha256);
+        box.appendChild(foldEl("div", "audit-judged", "output judged: " + t.output.file + " \u00b7 " + foldSize(t.output.bytes) + " \u00b7 sha256 " + sha.slice(0, 4) + "\u2026" + sha.slice(-2), "audit-judged"));
+      }
+      wrap.appendChild(box);
+    }
+    return wrap;
+  }
+  var ROUNDS_PAGE = 20;
+  function foldRowEl(r, prevTry){
+    var tr = document.createElement("tr");
+    if(prevTry !== null && r.try !== prevTry) tr.className = "trysep";
+    [r.round === null || r.round === undefined ? "\u2014" : String(r.round), r.try === null || r.try === undefined ? "\u2014" : String(r.try), r.action, r.path || "\u2014", r.decision, auditShortTime(r)].forEach(function(t){
+      tr.appendChild(foldEl("td", null, t));
+    });
+    return tr;
+  }
+  // the Round table, 20 rows at a time (bareloop's "showing A\u2013B of N" + load more), table scrolling inside its own box
+  function foldRoundsEl(g){
+    var rows = g.fold.rows || [];
+    var wrap = document.createElement("div");
+    wrap.appendChild(foldEl("div", "audit-fold-label", "rounds"));
+    var scroll = foldEl("div", "audit-table-scroll");
+    var table = document.createElement("table");
+    table.className = "rounds-table";
+    table.setAttribute("data-testid", "rounds-table-" + g.step);
+    table.innerHTML = "<thead><tr><th>Round</th><th>Try</th><th>Action</th><th>Path</th><th>Decision</th><th>Time</th></tr></thead><tbody></tbody>";
+    var tbody = table.querySelector("tbody");
+    scroll.appendChild(table);
+    wrap.appendChild(scroll);
+    var pager = foldEl("div", "rounds-pager", null, "rounds-pager");
+    wrap.appendChild(pager);
+    var shown = 0;
+    function more(){
+      var to = Math.min(rows.length, shown + ROUNDS_PAGE);
+      for(var i = shown; i < to; i += 1) tbody.appendChild(foldRowEl(rows[i], i === 0 ? null : rows[i - 1].try));
+      shown = to;
+      pager.innerHTML = "";
+      pager.appendChild(foldEl("span", null, rows.length === 0 ? "no rows" : "showing 1\u2013" + shown + " of " + rows.length));
+      if(shown < rows.length){
+        var b = foldEl("button", "btn small", "load more", "rounds-load-more");
+        b.type = "button";
+        b.addEventListener("click", function(ev){ ev.stopPropagation(); more(); });
+        pager.appendChild(b);
+      }
+    }
+    more();
+    return wrap;
+  }
+  function buildFoldBodyEl(g){
+    var f = g.fold, human = f.who === "human";
+    var body = foldEl("div", "audit-fold-body", null, "audit-fold-body-" + g.step);
+    if(f.tally) body.appendChild(foldEl("div", "audit-tally", f.tally, "audit-tally"));
+    (f.tries || []).forEach(function(t){ body.appendChild(foldTryEl(t, human)); });
+    body.appendChild(foldRoundsEl(g));
+    return body;
+  }
   var auditExpanded = {}; // step -> true/false once a human toggled it; reset when the run changes
   var auditExpandedRun = null;
   function renderAuditGroups(result){
@@ -2967,17 +3099,24 @@
       header.style.cursor = "pointer";
       wrap.appendChild(header);
       if(noRecord){ container.appendChild(wrap); return; }   // nothing to open: the header already says "no draft record"
-      var table = document.createElement("table");
-      table.hidden = !isOpen;
-      table.innerHTML = "<thead><tr><th>Attempt</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th><th>Time</th></tr></thead><tbody></tbody>";
-      var tbody = table.querySelector("tbody");
-      rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, false)); });
-      table.setAttribute("data-testid", "audit-table-grouped-" + g.step);
+      // M4d am29: a step with a fold draws it (design lab C); a step without one (an older run, the Draft, the run's own group) keeps its table as before
+      var table, tbody;
+      if(g.fold){
+        table = buildFoldBodyEl(g);
+        table.hidden = !isOpen;
+      } else {
+        table = document.createElement("table");
+        table.hidden = !isOpen;
+        table.innerHTML = "<thead><tr><th>Attempt</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th><th>Time</th></tr></thead><tbody></tbody>";
+        tbody = table.querySelector("tbody");
+        rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, false)); });
+        table.setAttribute("data-testid", "audit-table-grouped-" + g.step);
+      }
       wrap.appendChild(table);
       // M4c-fix amendment 2 (j): a step with exactly one try opens that try's detail with the group, closes with it
       // (the same `.open` tap-detail the row's own tap toggles; only the phone layout shows it).
       function syncSingleRow(open){
-        if(rows.length !== 1) return;
+        if(g.fold || rows.length !== 1) return;
         var only = tbody.firstChild;
         only.classList.toggle("open", open);
         only.setAttribute("aria-expanded", open ? "true" : "false");

@@ -63,7 +63,7 @@ import {
 } from './books.js';
 import { applyRunValues, pickRunValues } from './runvalues.js';
 import { stepThinkingMode } from './thinking.js';
-import { appendChecks } from './diary.js';
+import { appendChecks, nextRound } from './diary.js';
 import {
   doneRecord, happenedRecord, outputRecord, closeRecords,
 } from './try-checks.js';
@@ -894,7 +894,7 @@ async function runStepRalph({
     const saveTry = () => {
       if (runDir === null) return;
       appendChecks(runDir, {
-        step: step?.emits ?? step?.goal ?? null, try: attempt, at: now(), checks: [...tryChecks].sort((a, b) => a.n - b.n), output: judged,
+        step: step?.emits ?? step?.goal ?? null, try: attempt, at: now(), lastRound: nextRound(runDir, step?.emits ?? step?.goal ?? null) - 1, checks: [...tryChecks].sort((a, b) => a.n - b.n), output: judged,
       });
     };
 
