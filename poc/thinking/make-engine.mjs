@@ -28,7 +28,7 @@ export function makeEngine() {
     writeFileSync(p, s.replace(from, () => to));
   };
   patch('src/runner.js',
-    'const stepMeta = Object.freeze({ class: step.close?.class ?? null, attempt, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });',
+    'const stepMeta = Object.freeze({ class: step.close?.class ?? null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });',
     'const stepMeta = Object.freeze({ class: step.close?.class ?? null, attempt, stepId: step.emits ?? step.goal ?? null }); // POC patch (src now carries attempt + thinkingMode since M4d am25; the POC arm overrides the mode)');
   patch('src/model-step.js',
     'const toolSchema = buildEmitArtifactSchema(stepMeta.class);',

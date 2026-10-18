@@ -24,8 +24,10 @@
 // (green/softgreen/anything else) — never from the step's `shape` — the
 // executor context (M2 scope item 3) carries neither.
 
+import { dirname } from 'node:path';
 import { Loop, HaltError } from 'bare-agent';
 import { GateRefusal } from './primitives.js';
+import { appendCall, appendTool, nextRound } from './diary.js';
 import { ConfigError } from './config.js';
 import { worstThinkingStatus } from './thinking.js';
 
@@ -232,6 +234,42 @@ function toolFields(cumulative) {
   };
 }
 
+/**
+ * M4d am29 item 1: the thinking status of ONE provider result, read the way bare-agent's Loop reads it for the whole run (`thinkingStatus`; a custom
+ * provider's legacy `thinkingApplied` true/false/null maps to applied/ignored/unknown); `null` when the result carried neither.
+ * @param {any} r
+ */
+function thinkingStatusOf(r) {
+  if (typeof r?.thinkingStatus === 'string') return r.thinkingStatus;
+  if (r?.thinkingApplied === true) return 'applied';
+  if (r?.thinkingApplied === false) return 'ignored';
+  if (r?.thinkingApplied === null) return 'unknown';
+  return null;
+}
+
+/**
+ * The provider with one addition: each `generate` result is handed to `seen` before the Loop meters that call, so the call's diary row can say what bare-agent
+ * reported for THAT call (thinking status, the tool names it asked for); the Loop's own `onLlmResult` payload carries neither. Everything else reads through.
+ * @param {any} provider @param {(result: any) => void} seen
+ */
+function watchCalls(provider, seen) {
+  const watched = Object.create(provider);
+  watched.generate = async (...a) => {
+    const r = await provider.generate(...a);
+    seen(r);
+    return r;
+  };
+  return watched;
+}
+
+/** The path a tool call's diary row names: the path it was given, else the frozen input role, else the stash key. Never a query, a text or a symbol. @param {any} args */
+function toolRowPath(args) {
+  if (typeof args?.path === 'string') return args.path;
+  if (typeof args?.role === 'string') return args.role;
+  if (typeof args?.id === 'string') return `stash: ${args.id}`;
+  return null;
+}
+
 const STOP_RULE = 'stop-requested';
 
 /** The attempt result for a Stop that landed mid-attempt: every call made is already summed into `cumulative`. */
@@ -287,6 +325,10 @@ export function makeLiveModelStep({
       }
     }
 
+    // M4d am29: the three diaries live in the run's own folder, beside spend.jsonl; a row names its step and try from the runner's `stepMeta`
+    const runDir = dirname(spendPath);
+    const diaryStep = stepMeta.step ?? null;
+    const diaryTry = Number.isInteger(stepMeta.attempt) ? stepMeta.attempt : null;
     const toolSchema = buildEmitArtifactSchema(stepMeta.class);
     const thinkingMode = stepMeta.thinkingMode === 'on' || stepMeta.thinkingMode === 'off' ? stepMeta.thinkingMode : null;
     const systemPrompt = 'You are executing one step of a signed, human-authored automation. '
@@ -306,12 +348,32 @@ export function makeLiveModelStep({
     // wrapped so a typed GateRefusal is recorded, then rethrown unchanged so
     // the model still sees the refusal as its tool result.
     const refused = /** @type {Array<{verb:string, path:string, rule:string}>} */ ([]);
+    // M4d am29 item 1: every call a granted tool takes also gets its diary row - the guard's decision (`allow`, the `deny` and its rule, or `no check` for a
+    // call that never reached the gate) - written whether the call worked or not. `round` is the model call that asked for it (set by onLlmResult below).
+    let currentRound = 0;
     const primitiveTools = Object.values(grantedTools ?? {}).filter(Boolean).map((tool) => ({
       ...tool,
       execute: async (...a) => {
+        const askedBefore = tool.gateSeen?.n ?? 0;
+        /** @type {GateRefusal|null} */
+        let refusal = null;
         try { return await tool.execute(...a); } catch (err) {
-          if (err instanceof GateRefusal) refused.push({ verb: err.verb, path: err.path, rule: err.rule });
+          if (err instanceof GateRefusal) {
+            refusal = err;
+            refused.push({ verb: err.verb, path: err.path, rule: err.rule });
+          }
           throw err;
+        } finally {
+          appendTool(runDir, {
+            step: diaryStep,
+            try: diaryTry,
+            round: currentRound,
+            at: new Date().toISOString(),
+            tool: tool.name,
+            path: toolRowPath(a[0]),
+            decision: refusal ? 'deny' : ((tool.gateSeen?.n ?? 0) > askedBefore ? 'allow' : 'no check'),
+            rule: refusal ? refusal.rule : null,
+          });
         }
       },
     }));
@@ -348,11 +410,39 @@ export function makeLiveModelStep({
       };
       const tools = [...primitiveTools, emitTool];
       const roundMeterings = [];
+      let lastCall = /** @type {any} */ (null);
       const stopRequested = seam?.stopRequested;
       const stopSeam = typeof stopRequested === 'function'
         ? { assemble: async (msgs) => { if (stopRequested()) throw new HaltError('stop requested', { rule: STOP_RULE }); return msgs; } }
         : {};
-      const loop = new Loop({ provider, rates, onLlmResult: async (ev) => { roundMeterings.push(ev); }, ...stopSeam });
+      // M4d am29 item 1: each model call gets its diary row the moment it is metered (round = this step's next, counted across its tries)
+      const onLlmResult = async (ev) => {
+        roundMeterings.push(ev);
+        currentRound = nextRound(runDir, diaryStep);
+        appendCall(runDir, {
+          step: diaryStep,
+          try: diaryTry,
+          round: currentRound,
+          at: new Date().toISOString(),
+          model: typeof ev?.model === 'string' ? ev.model : null,
+          costUsd: typeof ev?.costUsd === 'number' ? ev.costUsd : null,   // an unpriced call stays null, never 0
+          tokens: ev?.usage ? { in: ev.usage.inputTokens ?? 0, out: ev.usage.outputTokens ?? 0, cache: ev.usage.cacheReadTokens ?? 0 } : null,
+          ms: typeof ev?.durationMs === 'number' ? ev.durationMs : null,
+          stopReason: typeof ev?.stopReason === 'string' ? ev.stopReason : null,
+          thinking: { asked: thinkingMode, status: thinkingStatusOf(lastCall) },
+        });
+        // a name the model asked for that was never offered reaches no tool (the Loop answers "Unknown tool"): it still gets its own denied row.
+        // A call cut at the output cap runs none of its tool calls, so it gets none.
+        if (ev?.stopReason !== 'max_tokens') {
+          for (const tc of lastCall?.toolCalls ?? []) {
+            if (tc?.name === 'emit_artifact' || primitiveTools.some((t) => t.name === tc?.name)) continue;
+            appendTool(runDir, {
+              step: diaryStep, try: diaryTry, round: currentRound, at: new Date().toISOString(), tool: String(tc?.name), path: null, decision: 'deny', rule: 'not granted',
+            });
+          }
+        }
+      };
+      const loop = new Loop({ provider: watchCalls(provider, (r) => { lastCall = r; }), rates, onLlmResult, ...stopSeam });
 
       const startedAt = Date.now();
       let result;

@@ -791,7 +791,7 @@ async function runStepRalph({
     // scope item 3's own invariant: the schema is class-only, and the
     // construction test below proves the context itself stays clean).
     // M4d am25: `thinkingMode` is the ONE decision of what this try asks of thinking (`stepThinkingMode`); the model step only passes it on.
-    const stepMeta = Object.freeze({ class: step.close?.class ?? null, attempt, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });
+    const stepMeta = Object.freeze({ class: step.close?.class ?? null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });
 
     const stopSeam = readStop ? Object.freeze({ stopRequested: readStop }) : undefined;
 

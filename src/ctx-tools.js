@@ -38,7 +38,7 @@ const SECRET_PATTERNS = [
 ];
 
 /** Mask known secret shapes. @param {unknown} raw */
-const redactSecrets = (raw) => redact(String(raw ?? ''), { patterns: SECRET_PATTERNS });
+export const redactSecrets = (raw) => redact(String(raw ?? ''), { patterns: SECRET_PATTERNS });
 
 const LINE_SPACE = 'Line numbers are 0-based; copy them between recall and get as printed.';
 

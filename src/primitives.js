@@ -32,6 +32,7 @@ import { primitiveFor, loadCatalogue } from './catalogue.js';
 import { readDocxText } from './docx.js';
 import { parseCsv } from './csv.js';
 import { makeCtxTools } from './ctx-tools.js';
+import { diaryPaths } from './diary.js';
 
 // bare-agent >=0.47.0: `noFollowSymlinks: true` makes shell_read/write/edit/
 // grep throw `err.code === 'ELOOP'` when the path's FINAL component is a
@@ -181,7 +182,10 @@ function sandboxedGrepTool(gate, runDir, inputsByRole) {
     parameters: roleParameters(real, textRoles),
     execute: async (args) => {
       const resolvedPath = await resolveRoleOrPath(gate, 'grep', 'grep', runDir, args, inputsByRole, textRoles);
-      return real.execute({ ...args, path: resolvedPath });
+      const found = await real.execute({ ...args, path: resolvedPath });
+      // M4d am29 item 3: a grep over the run folder walks into the diaries, which the gate only denies by name. Their hits are dropped here.
+      const diaries = new Set(diaryPaths(runDir).map((p) => path.resolve(p)));
+      return found && Array.isArray(found.hits) ? { ...found, hits: found.hits.filter((h) => !diaries.has(path.resolve(String(h?.file)))) } : found;
     },
   };
 }
@@ -320,10 +324,22 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
   // and a red naming bareguard's own message, so the caller refuses the run.
   let gate;
   try {
-    gate = new Gate({ fs: { readScope, writeScope: [outDir] } });
+    // M4d am29 item 3: the diaries are denied to the model by name (bareloop's `fs.deny` of its audit sidecar path)
+    gate = new Gate({ fs: { readScope, writeScope: [outDir], deny: diaryPaths(runDir) } });
   } catch (err) {
     return { tools: {}, reds: [`primitives: bareguard refused the step's file scope — ${err.message}`] };
   }
+
+  // M4d am29 item 1: what the gate last decided and how many times it was asked, so a tool call's diary row can say `allow`, the deny and its rule,
+  // or `no check` (a call that never reached the gate: readDocx, addressCells, a litectx verb with no path). Every tool below carries it as `gateSeen`.
+  const gateSeen = { n: 0, last: /** @type {{outcome:string, rule:string|null}|null} */ (null) };
+  const askGate = gate.check.bind(gate);
+  gate.check = async (action) => {
+    const decision = await askGate(action);
+    gateSeen.n += 1;
+    gateSeen.last = { outcome: decision.outcome, rule: decision.rule ?? null };
+    return decision;
+  };
 
   const tools = {};
   const reds = [];
@@ -379,5 +395,6 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
     }
   }
 
+  for (const verb of Object.keys(tools)) tools[verb] = { ...tools[verb], gateSeen };
   return { tools, reds };
 }
