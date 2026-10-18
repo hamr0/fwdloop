@@ -44,7 +44,6 @@ async function thinkWorld(kind) {
   return g;
 }
 const auditOf = async (g) => (await g.w.get('/api/runs/job2/seed-pass/audit')).json();
-const jobOf = async (g) => (await g.w.get('/api/runs/job2/seed-pass/job')).json();
 const phrases = (a) => a.rows.filter((r) => r.step.startsWith('s_')).map((r) => [r.step, r.attempt, r.thinkingPhrase ?? null]);
 
 test('am26 item 1/2 (server): each try row carries its thinking words: applied -> thinking <asked>; other statuses -> thinkingSay; nothing reported -> (no reply), am27', async () => {
@@ -65,11 +64,8 @@ test('am26 item 4 (server): a run from before am25 has no thinking words on any 
   assert.ok(p.every((x) => x[2] === null), JSON.stringify(p));
 });
 
-test('am26 item 3/4 (server): the Job tab row is the run\'s own rule; no thinking.json means no row, whatever model.json says', async () => {
-  assert.equal((await jobOf(await thinkWorld('off'))).thinkingRule, 'Thinking: on retries (the default)');
-  assert.equal((await jobOf(await thinkWorld('ticked'))).thinkingRule, 'Thinking: on everywhere (ticked)');
-  assert.equal((await jobOf(await thinkWorld('old'))).thinkingRule, null);
-});
+// am28 replaced am26 items 3 and 4's Job tab words and hidden row; the Job tab server and page tests for it are in test/m4d-am28.test.js
+
 
 async function open(g, width, tab) {
   const chrome = await launchChrome();
@@ -113,22 +109,3 @@ test('am26 page: an old run\'s Audit shows no thinking word anywhere', { skip: S
   assert.match(txt, /failed/);
   assert.doesNotMatch(txt, /thinking/i, txt);
 });
-
-for (const width of [1280, 390, 320]) {
-  test(`am26 page ${width}px: the Job tab has one Thinking row with the run's rule; an old run has none; no sideways scroll`, { skip: SKIP && 'no browser' }, async (t) => {
-    const ready = 'document.querySelector("[data-testid=details-thinking]") && document.querySelector("[data-testid=details-thinking]").textContent !== ""';
-    const a = await open(await thinkWorld('off'), width, 'tab-details');
-    if (!a) { t.skip('no chromium installed'); return; }
-    assert.ok(await a.waitFor(ready, 15000));
-    assert.equal(await a.ev('document.querySelector("[data-testid=details-thinking]").textContent'), 'Thinking: on retries (the default)');
-    assert.equal(await a.ev('document.querySelectorAll("[data-testid=details-thinking]").length'), 1);
-    assert.notEqual(await a.ev('getComputedStyle(document.querySelector("[data-testid=details-thinking]").closest(".field")).display'), 'none');
-    await noSpill(a, width);
-    const b = await open(await thinkWorld('ticked'), width, 'tab-details');
-    assert.ok(await b.waitFor(ready, 15000));
-    assert.equal(await b.ev('document.querySelector("[data-testid=details-thinking]").textContent'), 'Thinking: on everywhere (ticked)');
-    const c = await open(await thinkWorld('old'), width, 'tab-details');
-    assert.ok(await c.waitFor('!document.getElementById("job-card").hidden && document.getElementById("details-title").textContent.indexOf("job2") >= 0', 15000));
-    assert.equal(await c.ev('getComputedStyle(document.querySelector("[data-testid=details-thinking]").closest(".field")).display'), 'none', 'no row for a run with no thinking.json');
-  });
-}

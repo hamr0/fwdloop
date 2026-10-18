@@ -455,7 +455,6 @@
   }
   .audit-group.audit-fold table{margin-top:8px;}
   .audit-group.audit-fold table[hidden]{display:none !important;}
-  #details-thinking-field[hidden]{display:none;}
   /* hamr's 2026-09-27 review: the group header's own state word (g.state,
      rendered as a <span class="badge STATE">) and its per-try marks
      (<span class="mark STATE">) reuse the SAME color vocabulary the runs
@@ -1248,12 +1247,14 @@
           <div class="job-card" id="job-card" hidden data-testid="job-card-readonly">
             <h4 id="details-title">Job card — signed</h4>
             <div class="hint" id="details-jobfrom" data-testid="details-jobfrom"></div>
-            <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
+            <!-- M4d am28: Model and Thinking side by side on one row (.field-row, the paired-field row bareloop's Job tab uses for its caps) -->
+            <div class="field-row">
+              <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
+              <div class="field" id="details-thinking-field"><label>Thinking</label><div class="ro-value" id="details-thinking" data-testid="details-thinking">—</div></div>
+            </div>
             <!-- M9 am6: how this run began, then the workflow's schedule now; both are words built on the server (src/summary-words.js) -->
             <div class="field"><label>Started</label><div class="ro-value" id="details-started" data-testid="details-started">—</div></div>
             <div class="field"><label>Schedule</label><div class="ro-value" id="details-schedule" data-testid="details-schedule">—</div></div>
-            <!-- M4d am26: the run's thinking rule, the server's words (`thinkingRule`); no row at all for a run with no thinking.json -->
-            <div class="field" id="details-thinking-field" hidden><div class="ro-value" id="details-thinking" data-testid="details-thinking"></div></div>
             <!-- am41 item 6: the same "The job" label the Chat card carries, over the signed lines -->
             <div class="field" style="margin-bottom:0"><label id="details-job-title">The job</label></div>
             <!-- M4e amendment 37: ONE column. #details-prose holds one wrapper per signed line (the line, its ~ rows, its steps folded under it);
@@ -3197,8 +3198,7 @@
     document.getElementById("details-model").textContent = job.model
       ? ("model used: " + job.model + " (from this run's rows)")
       : (job.modelWhy || "no model call recorded yet");
-    document.getElementById("details-thinking").textContent = job.thinkingRule || "";
-    document.getElementById("details-thinking-field").hidden = !job.thinkingRule;
+    document.getElementById("details-thinking").textContent = typeof job.thinkingRule === "string" ? job.thinkingRule : "—";
     document.getElementById("details-started").textContent = job.started || "—";
     document.getElementById("details-schedule").textContent = job.schedule || "none";
     // M4e amendment 6 item 5 + amendment 7 item 4: "$<cap> per run · 1h wait · redo up to <n>"; several asks: "waits 1h, 30m", each through plainWait.

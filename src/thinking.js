@@ -70,9 +70,16 @@ export function thinkingTryWords(thinking) {
   return thinkingSay(status);
 }
 
-/** M4d am26 item 3: the Job tab's one row, the run's rule from its own record (`boxOn` = the Chat "Thinking on" box as the run started). @param {boolean} boxOn */
+/**
+ * M4d am28 items 2-4 (replaces am26 item 3's words and the hidden row): the Job tab's Thinking value, from the run's own record
+ * (`boxOn` = the Chat "Thinking on" box as the run started). A run with no record (before am25) is `null` and reads `—`, never a guess from model.json.
+ * Words: bareloop's `thinkingJobText`.
+ * // borrowed-from: bareloop src/thinking.js@b79e7d9
+ * @param {boolean|null} boxOn
+ */
 export function thinkingRuleWords(boxOn) {
-  return boxOn ? 'Thinking: on everywhere (ticked)' : 'Thinking: on retries (the default)';
+  if (boxOn === null) return '—';
+  return boxOn ? 'always on' : 'on retries';
 }
 
 /**

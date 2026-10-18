@@ -2072,8 +2072,8 @@ export function getRunJob({
         trigger: f && f.trigger ? f.trigger : null, from: f?.from ?? null, model: f?.model ?? null, destination: f?.destination ?? null, inputs: f?.inputs ?? null, home,
       });
     })(),
-    // M4d am26 item 3/4: the run's rule from its own thinking.json; a run with none (before am25) has no row
-    thinkingRule: (() => { const on = readRunThinking(run.runDir); return on === null ? null : thinkingRuleWords(on); })(),
+    // M4d am28: the run's rule from its own thinking.json; a run with none (before am25) reads `—` (thinkingRuleWords(null)); the row always shows
+    thinkingRule: thinkingRuleWords(readRunThinking(run.runDir)),
     jobFrom: copy.present ? 'run' : 'current',
     jobFromWhy: copy.present ? null : NO_JOB_COPY_WORDS,
     model,
