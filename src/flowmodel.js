@@ -45,11 +45,17 @@ export const RUN_THINKING_FILE = 'thinking.json';
  * @param {string} flowDir @param {string|null} runDir @returns {boolean}
  */
 export function readJobThinking(flowDir, runDir) {
+  return readRunThinking(runDir) ?? (readModelRecord(flowDir)?.thinking === true);
+}
+
+/**
+ * M4d am26: the run's OWN record of the box (`<run>/thinking.json`) and nothing else: `true`/`false`, or `null` when the run has none (a run from before am25).
+ * An unreadable record is box off, as `readJobThinking` has always read it. @param {string|null} runDir @returns {boolean|null}
+ */
+export function readRunThinking(runDir) {
   const own = typeof runDir === 'string' ? readFileInside(runDir, RUN_THINKING_FILE) : null;
-  if (own?.ok) {
-    try { return JSON.parse(own.text)?.thinking === true; } catch { return false; }
-  }
-  return readModelRecord(flowDir)?.thinking === true;
+  if (!own?.ok) return null;
+  try { return JSON.parse(own.text)?.thinking === true; } catch { return false; }
 }
 
 /**

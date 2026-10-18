@@ -43,6 +43,8 @@ import {
   NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
+import { thinkingRuleWords, thinkingTryWords } from '../thinking.js';
+import { readRunThinking } from '../flowmodel.js';
 import {
   runLiveness, booksFresh, readResumeLock,
 } from '../liveness.js';
@@ -1385,6 +1387,7 @@ function enrichAuditRows(rawRows) {
     action: deriveAuditAction(row),
     tokensDisplay: deriveAuditTokensDisplay(row),
     toolsPhrase: deriveAuditToolsPhrase(row),
+    thinkingPhrase: thinkingTryWords(row.thinking),   // M4d am26: null for a row that kept no thinking record
     atWhy: deriveAuditAtWhy(row),
     blocked: isBlockedVerdict(row.verdict),
   }));
@@ -2069,6 +2072,8 @@ export function getRunJob({
         trigger: f && f.trigger ? f.trigger : null, from: f?.from ?? null, model: f?.model ?? null, destination: f?.destination ?? null, inputs: f?.inputs ?? null, home,
       });
     })(),
+    // M4d am26 item 3/4: the run's rule from its own thinking.json; a run with none (before am25) has no row
+    thinkingRule: (() => { const on = readRunThinking(run.runDir); return on === null ? null : thinkingRuleWords(on); })(),
     jobFrom: copy.present ? 'run' : 'current',
     jobFromWhy: copy.present ? null : NO_JOB_COPY_WORDS,
     model,

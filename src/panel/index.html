@@ -1248,6 +1248,8 @@
             <h4 id="details-title">Job card — signed</h4>
             <div class="hint" id="details-jobfrom" data-testid="details-jobfrom"></div>
             <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
+            <!-- M4d am26: the run's thinking rule, the server's words (`thinkingRule`); no row at all for a run with no thinking.json -->
+            <div class="field" id="details-thinking-field" style="display:none"><div class="ro-value" id="details-thinking" data-testid="details-thinking"></div></div>
             <!-- M9 am6: how this run began, then the workflow's schedule now; both are words built on the server (src/summary-words.js) -->
             <div class="field"><label>Started</label><div class="ro-value" id="details-started" data-testid="details-started">—</div></div>
             <div class="field"><label>Schedule</label><div class="ro-value" id="details-schedule" data-testid="details-schedule">—</div></div>
@@ -2677,6 +2679,8 @@
     if(!Array.isArray(r.raw) || r.raw.length === 0) return "";
     return r.raw.map(function(t){ return "<div class=\"audit-raw\">" + escapeXml(String(t)) + "</div>"; }).join("");
   }
+  // M4d am26: ` · thinking off` after a model try's verdict, the server's words (`r.thinkingPhrase`); nothing for a row that has none
+  function auditThinkingHtml(r){ return typeof r.thinkingPhrase === "string" && r.thinkingPhrase.length > 0 ? " \u00b7 " + escapeXml(r.thinkingPhrase) : ""; }
   function buildAuditRowEl(r, includeStep){
     var tr = document.createElement("tr");
     var glyph = verdictGlyph(r.verdict, r.class);
@@ -2695,7 +2699,7 @@
       "<td data-label=\"Action\">" + escapeXml(actionText) + "</td>" +
       "<td data-label=\"Gap\">" + escapeXml(isRejectRow ? "" : auditGapText(r)) + auditRawHtml(r) + "</td>" +
       "<td data-label=\"Cost\">" + escapeXml(auditCostCellText(r)) + "</td>" +
-      "<td data-label=\"Verdict\"><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
+      "<td data-label=\"Verdict\"><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span>" + auditThinkingHtml(r) + "</td>" +
       "<td data-label=\"Close\">" + escapeXml(auditCloseText(r)) + "</td>" +
       "<td data-label=\"Time\">" + auditTimeCellHtml(r) + "</td>" +
       // phone-only one-line cells (CSS shows these and hides the rest below 640px; hidden on desktop)
@@ -3192,6 +3196,8 @@
     document.getElementById("details-model").textContent = job.model
       ? ("model used: " + job.model + " (from this run's rows)")
       : (job.modelWhy || "no model call recorded yet");
+    document.getElementById("details-thinking").textContent = job.thinkingRule || "";
+    document.getElementById("details-thinking-field").style.display = job.thinkingRule ? "" : "none";
     document.getElementById("details-started").textContent = job.started || "—";
     document.getElementById("details-schedule").textContent = job.schedule || "none";
     // M4e amendment 6 item 5 + amendment 7 item 4: "$<cap> per run · 1h wait · redo up to <n>"; several asks: "waits 1h, 30m", each through plainWait.

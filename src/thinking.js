@@ -55,6 +55,24 @@ export function thinkingSay(status) {
 }
 
 /**
+ * M4d am26 items 1-2: the words after a try line in the Audit, from that try's audit-row `thinking` {asked, status} (am25). bareagent confirmed it
+ * ('applied'): `thinking on` / `thinking off`. Any other status: `thinkingSay`'s words above, the same ones Chat uses. A row with no `thinking` (before am25,
+ * or no model call) and a row bareagent reported nothing for (status null) have no words: nothing is guessed.
+ * @param {{asked?: unknown, status?: unknown}|null|undefined} thinking @returns {string|null}
+ */
+export function thinkingTryWords(thinking) {
+  if (thinking === null || typeof thinking !== 'object') return null;
+  const status = typeof thinking.status === 'string' ? thinking.status : null;
+  if (status === 'applied') return thinking.asked === 'on' || thinking.asked === 'off' ? `thinking ${thinking.asked}` : null;
+  return thinkingSay(status);
+}
+
+/** M4d am26 item 3: the Job tab's one row, the run's rule from its own record (`boxOn` = the Chat "Thinking on" box as the run started). @param {boolean} boxOn */
+export function thinkingRuleWords(boxOn) {
+  return boxOn ? 'Thinking: on everywhere (ticked)' : 'Thinking: on retries (the default)';
+}
+
+/**
  * M4d am25 item 1/2: the ONE owner of what thinking a step's model call asks for. Code decides, never the model.
  * Box ticked (the job's Chat "Thinking on" box, kept with the job): every try 'on'. Box off: the 1st try 'off'; the 2nd and later tries 'on'.
  * A step redone after a human Redo is numbered from its redo count (the runner's `attemptOffset`), so it is always a 2nd-or-later try and thinks 'on'.
