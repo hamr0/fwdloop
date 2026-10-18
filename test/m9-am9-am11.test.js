@@ -152,7 +152,7 @@ for (const width of [1280, 390, 320]) {
     assert.equal(await q('document.getElementById("audit-groups").firstElementChild.getAttribute("data-testid")'), 'audit-group-schedule', 'first section');
     assert.equal(await q('document.querySelector("[data-testid=audit-group-schedule] [role=button]").getAttribute("aria-expanded")'), 'false');
     assert.equal(await q('document.querySelector("[data-testid=audit-table-schedule]").hidden'), true, 'folded on open');
-    assert.equal(await q('document.querySelector("[data-testid=audit-schedule-sign]").textContent'), '[✗]');
+    assert.equal(await q('document.querySelector("[data-testid=audit-schedule-sign]").textContent'), '[✗] failed'); // M9 am23: the sign badge now carries the word too
     assert.match(await q('document.querySelector("[data-testid=audit-schedule-head]").textContent'), /^every day at 09:00 · from seed-pass · 1 try started nothing$/);
     await q('document.querySelector("[data-testid=audit-group-schedule] [role=button]").click()');
     assert.equal(await q('document.querySelector("[data-testid=audit-table-schedule]").hidden'), false, 'opens on click');

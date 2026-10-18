@@ -1960,12 +1960,13 @@ export function getRunAudit({
       if (!t) return null;   // no schedule now: scheduleAuditWords still answers for a cancelled job that has am16 rows (M9 am18), else null
       const rec = readTriggerRecord(run.runDir);
       const at = firstPidStartedAt(run.runDir) ?? (rec && typeof rec.at === 'string' ? rec.at : null);   // the fire's own stamp when the run kept no pid row yet
-      return scheduleAuditWords({
+      const sched = scheduleAuditWords({
         trigger: t.trigger, runId, from: t.from ?? null, rec, startMs: at === null || Number.isNaN(Date.parse(at)) ? null : Date.parse(at),
         block: scheduleBlockOf({ root, flowDir: run.flowDir, flow, catalogue, t, home, now }),
         running: jobHasRunningRun({ root, flow, catalogue, resumeAttempt, startingRun }),
         fires: Array.isArray(t.allFires) ? t.allFires : [],
       });
+      return sched === null ? null : { ...sched, word: SIGN_WORDS[sched.sign] ?? null };   // M9 am23: the header's word, from the one sign->word table
     })(),
     empty: rows.length === 0,
     why: rows.length === 0 ? 'audit.jsonl is empty or missing — no attempt has been made yet' : null,
