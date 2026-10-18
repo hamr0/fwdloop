@@ -1439,6 +1439,18 @@ When the Cap is at or below what the earlier draft already spent, Draft is refus
 - **Done when:** tests that fail first, plus one live run of m7-walk-2 whose audit shows a 1st try off.
 - **Cap:** $0.10.
 
+**M4d amendment 26 — SIGNED by hamr 2026-10-18 ("sign m4d am26"): thinking shows in Audit and on the Job tab.**
+1. In Audit, each try line inside a step shows its thinking:
+   ```
+   ▾ [✓] passed summary_resume · $0.005 · 3 tries
+       try 1 [✗] · thinking off
+       try 2 [✓] · thinking on
+   ```
+2. When bareagent confirms the setting, the line says `thinking on` or `thinking off`. When it isn't sure, the line uses the same words Chat already uses, from the one place they're kept, for example `thinking on (this model can't change it)` or `thinking off (not confirmed)`.
+3. The Job tab gets one row with the run's rule: `Thinking: on retries (the default)` or `Thinking: on everywhere (ticked)`.
+4. Runs from before am25 show no thinking words. They're never guessed.
+- **Must fail when:** a try line of an am25 run has no thinking word; the word on the page differs from the audit file; an older run shows a thinking word; the Job tab row is missing or names the wrong rule.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
@@ -2429,6 +2441,13 @@ monthly wall is enforced **by the trigger**, before a run starts.
 
 - **M9 amendment 22 — SIGNED by hamr 2026-10-17 ("sign m9 am22").** The time on the SUMMARY top line has a middle dot before it: `passed · $0.0062 · 3m28s`. This replaces the form in amendment 21 item 1. Everything else in am21 stays.
   - **Must fail when:** the time has no `·` before it.
+
+- **M9 amendment 23 — SIGNED by hamr 2026-10-18 ("sign m9 am23"): the schedule header reads like the other part headers.**
+  1. The header goes sign, then word, then `schedule`, then the parts separated by ` · `:
+     `▾ [✗] failed schedule · when a new file arrives in ~/fwdloop-in/ · from run-1 · 5 tries started nothing`
+  2. The word comes from the same sign-to-word table as the other headers (`[✗]` failed, `[▶]` running, `[·]` waiting). It's never typed by hand.
+  3. This replaces the order in am9 item 2. The sign rule from am11 stays.
+  - **Must fail when:** `schedule` comes before the sign; the word is missing; the word doesn't match the table.
 
 ## M10 — real IO
 
