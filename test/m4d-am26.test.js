@@ -28,7 +28,7 @@ const AM25 = [
   row('s_other', 1, 'red', { asked: 'on', status: 'ignored' }),
   row('s_other', 2, 'red', { asked: 'on', status: 'unsupported' }),
   row('s_other', 3, 'green', { asked: 'off', status: 'unknown' }),
-  row('s_silent', 1, 'green', { asked: 'off', status: null }),
+  row('s_silent', 1, 'green', { asked: 'off', status: null }),   // am27: no reply -> `thinking off (no reply)`
 ];
 const OLD = [row('s_applied', 1, 'red'), row('s_applied', 2, 'green')];   // before am25: no `thinking` field on any row
 const put = (runDir, rows) => writeFileSync(path.join(runDir, 'audit.jsonl'), rows.map((r) => JSON.stringify(r)).join('\n') + '\n');
@@ -47,12 +47,12 @@ const auditOf = async (g) => (await g.w.get('/api/runs/job2/seed-pass/audit')).j
 const jobOf = async (g) => (await g.w.get('/api/runs/job2/seed-pass/job')).json();
 const phrases = (a) => a.rows.filter((r) => r.step.startsWith('s_')).map((r) => [r.step, r.attempt, r.thinkingPhrase ?? null]);
 
-test('am26 item 1/2 (server): each try row carries its thinking words: applied -> thinking <asked>; other statuses -> thinkingSay; nothing reported -> none', async () => {
+test('am26 item 1/2 (server): each try row carries its thinking words: applied -> thinking <asked>; other statuses -> thinkingSay; nothing reported -> (no reply), am27', async () => {
   const g = await thinkWorld('off');
   assert.deepEqual(phrases(await auditOf(g)), [
     ['s_applied', 1, 'thinking off'], ['s_applied', 2, 'thinking on'],
     ['s_other', 1, thinkingSay('ignored')], ['s_other', 2, thinkingSay('unsupported')], ['s_other', 3, thinkingSay('unknown')],
-    ['s_silent', 1, null],
+    ['s_silent', 1, 'thinking off (no reply)'],   // am27 (was null in am26): nothing reported now reads (no reply)
   ]);
   assert.equal(thinkingSay('unsupported'), "thinking on (this model can't change it)", 'the signed example words');
   assert.equal(thinkingSay('unknown'), 'thinking off (not confirmed)', 'the signed example words');
@@ -95,7 +95,7 @@ for (const width of [1280, 390, 320]) {
     await chrome.ev('Array.from(document.querySelectorAll("[data-testid^=audit-group-s_] h4")).forEach(function(h){ if(h.getAttribute("aria-expanded") !== "true") h.click(); })');
     const rows = JSON.parse(await chrome.ev('JSON.stringify(Array.from(document.querySelectorAll("[data-testid^=audit-table-grouped-s_] tbody tr")).map(function(tr){ return tr.querySelector("td[data-label=Verdict]").innerText.replace(/\\s+/g, " ").trim(); }))'));
     assert.equal(rows.length, 6);
-    const want = ['failed · thinking off', 'passed · thinking on', `failed · ${thinkingSay('ignored')}`, `failed · ${thinkingSay('unsupported')}`, `passed · ${thinkingSay('unknown')}`, 'passed'];
+    const want = ['failed · thinking off', 'passed · thinking on', `failed · ${thinkingSay('ignored')}`, `failed · ${thinkingSay('unsupported')}`, `passed · ${thinkingSay('unknown')}`, 'passed · thinking off (no reply)'];
     assert.deepEqual(rows, want);
     await noSpill(chrome, width);
     const cells = JSON.parse(await chrome.ev('JSON.stringify(Array.from(document.querySelectorAll("[data-testid^=audit-table-grouped-s_] tbody tr")).map(function(tr){ return tr.scrollWidth - tr.clientWidth; }))'));

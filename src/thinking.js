@@ -57,12 +57,15 @@ export function thinkingSay(status) {
 /**
  * M4d am26 items 1-2: the words after a try line in the Audit, from that try's audit-row `thinking` {asked, status} (am25). bareagent confirmed it
  * ('applied'): `thinking on` / `thinking off`. Any other status: `thinkingSay`'s words above, the same ones Chat uses. A row with no `thinking` (before am25,
- * or no model call) and a row bareagent reported nothing for (status null) have no words: nothing is guessed.
+ * or no model call) has no words: nothing is guessed.
+ * M4d am27: a row with a `thinking` record but no status (the model sent no reply: an error, the time limit, a Stop before the first reply) reads
+ * `thinking <asked> (no reply)`, from what was ASKED; the words never say thinking happened. Nothing asked (asked null) has no words.
  * @param {{asked?: unknown, status?: unknown}|null|undefined} thinking @returns {string|null}
  */
 export function thinkingTryWords(thinking) {
   if (thinking === null || typeof thinking !== 'object') return null;
   const status = typeof thinking.status === 'string' ? thinking.status : null;
+  if (status === null) return thinking.asked === 'on' || thinking.asked === 'off' ? `thinking ${thinking.asked} (no reply)` : null;
   if (status === 'applied') return thinking.asked === 'on' || thinking.asked === 'off' ? `thinking ${thinking.asked}` : null;
   return thinkingSay(status);
 }
