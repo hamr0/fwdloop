@@ -1468,6 +1468,25 @@ When the Cap is at or below what the earlier draft already spent, Draft is refus
 4. The words are kept in one place in the code.
 - **Must fail when:** Model and Thinking are on separate rows; the row is missing on any run; an old run shows `on retries` or `always on`; the words differ from item 2.
 
+**M4d amendment 29 — SIGNED by hamr 2026-10-18 ("sign m4d am29"): the Audit shows every round, every check and every answer, read from disk ($0 replay).** From the design lab: C, F and G.
+1. **Two new diaries per run, add-only, like bareloop's.** In the run's folder:
+   - one row per model call: step, try, round, cost, tokens (in, out, cache), time, stop reason, thinking asked and status;
+   - one row per tool call: step, try, round, tool, path, and the guard's decision (allow, or deny with its rule). A tool call that doesn't pass through the guard still gets a row, marked `no check`. A denied call keeps its own row.
+2. **Each try saves its checks and its output.** Every check the try ran, numbered, with ✓ or ✗, its result (for example `412 words`), and where it comes from (`every step`, or a job line such as `line 3 ~`). Plus the output it judged: file name, size, sha256.
+3. **Never saved:** what the model said, and what was in any file. Secrets are scrubbed before a row is written. The model can never read these diaries.
+4. **Audit step fold (C).** The header ends with `[model]` or `[human · ask]`. Opened, it shows, in order:
+   - the tool tally (`get 8`);
+   - one line per try: `try 1 ✗ · thinking off · <gap>`;
+   - under each try, every check, e.g. `✓ #1 the output exists and isn't empty (7.9 KB) · from every step`, then `output judged: <file> · <size> · sha256 <short>`;
+   - a Round table: `Round · Try · Action · Path · Decision · Time`, paged like bareloop's (`showing 1–20 of N`). Rounds count from 1 in each step. Action names who acted: `model call`, `model · <tool>`, `check`, `human`. A human row's Decision is `paused for you`, `you said redo: "<your text>"`, `you accepted` or `you cancelled`. A row with no model call shows `—` for Round.
+
+   This replaces M4e amendment 7 item 2's "fwdloop's own columns" for step groups. The Draft group stays as it is.
+5. **Run tab summary (F).** Two new lines: `calls: <n> model · <n> tool · <n> denied` and `checks: <n> run · <n> passed · <n> failed (<step> tries <n>)`.
+6. **Run tab step cards (G).** Each card gets the same `[model]` or `[human · ask]` marker and one new line. A model step: `<n> rounds · checks on the last try <passed>/<run> ✓|✗`. A human step: `last answer: <answer> · <time>`.
+7. **$0 replay.** Everything in Audit and in these new lines is read from files on disk. Opening them never calls a model.
+8. **Old runs.** Runs from before am29 show what they show today. No rounds, checks or outputs are made up. A new line with no record shows `—`.
+- **Must fail when:** a model call or tool call has no row; a denied call is missing; a check that ran is not listed; a check names the wrong job line; an unknown cost shows $0; the model can read a diary; a secret, file content or model text is in one; a model step shows `[human · ask]` or the other way round; the summary or card numbers don't match the Audit rows; an old run shows made-up rounds or checks.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
