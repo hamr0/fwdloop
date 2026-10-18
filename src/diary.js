@@ -30,11 +30,11 @@ function scrub(v) {
 /** The ONE writer of a diary row. @param {string} runDir @param {keyof typeof DIARY_FILES} kind @param {Record<string, any>} row */
 function write(runDir, kind, row) { appendRow(join(runDir, DIARY_FILES[kind]), scrub(row)); }
 
-/** @param {string} runDir @param {{step:string|null, try:number, round:number, at:string, model:string|null, costUsd:number|null, tokens:{in:number,out:number,cache:number}|null, ms:number|null, stopReason:string|null, thinking:{asked:string|null,status:string|null}}} row */
+/** @param {string} runDir @param {{step:string|null, try:number|null, round:number, at:string, model:string|null, costUsd:number|null, tokens:{in:number,out:number,cache:number}|null, ms:number|null, stopReason:string|null, thinking:{asked:string|null,status:string|null}}} row */
 export const appendCall = (runDir, row) => write(runDir, 'calls', row);
-/** @param {string} runDir @param {{step:string|null, try:number, round:number, at:string, tool:string, path:string|null, decision:'allow'|'deny'|'no check', rule:string|null}} row */
+/** @param {string} runDir @param {{step:string|null, try:number|null, round:number, at:string, tool:string, path:string|null, decision:'allow'|'deny'|'no check', rule:string|null}} row */
 export const appendTool = (runDir, row) => write(runDir, 'tools', row);
-/** @param {string} runDir @param {{step:string|null, try:number, at:string, checks:Array<{n:number, text:string, ok:boolean, result:string|null, source:string}>, output:{file:string, bytes:number, sha256:string}|null}} row */
+/** @param {string} runDir @param {{step:string|null, try:number, at:string, lastRound:number, checks:Array<{n:number, text:string, ok:boolean, result:string|null, source:string}>, output:{file:string, bytes:number, sha256:string}|null}} row */
 export const appendChecks = (runDir, row) => write(runDir, 'checks', row);
 
 /** @param {string} runDir @returns {any[]} */

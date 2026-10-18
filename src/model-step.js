@@ -288,7 +288,7 @@ function stoppedResult(cumulative, modelId, modelMatch) {
  * @param {{in:number,out:number}} [opts.rates]
  * @param {string} [opts.modelId]
  * @param {Record<string,string|undefined>} [opts.env] - the merged shell+keys-file env the key is read from (default process.env).
- * @returns {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class?:string, attempt?:number, thinkingMode?:'on'|'off'}, seam?:{stopRequested?:() => boolean}) => Promise<any>}
+ * @returns {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class?:string, attempt?:number, step?:string|null, thinkingMode?:'on'|'off'}, seam?:{stopRequested?:() => boolean}) => Promise<any>}
  */
 export function makeLiveModelStep({
   slot, model, spendPath, provider: injectedProvider, rates: injectedRates, modelId: injectedModelId, env,
@@ -328,7 +328,7 @@ export function makeLiveModelStep({
     // M4d am29: the three diaries live in the run's own folder, beside spend.jsonl; a row names its step and try from the runner's `stepMeta`
     const runDir = dirname(spendPath);
     const diaryStep = stepMeta.step ?? null;
-    const diaryTry = Number.isInteger(stepMeta.attempt) ? stepMeta.attempt : null;
+    const diaryTry = typeof stepMeta.attempt === 'number' ? stepMeta.attempt : null;
     const toolSchema = buildEmitArtifactSchema(stepMeta.class);
     const thinkingMode = stepMeta.thinkingMode === 'on' || stepMeta.thinkingMode === 'off' ? stepMeta.thinkingMode : null;
     const systemPrompt = 'You are executing one step of a signed, human-authored automation. '

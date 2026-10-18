@@ -1,11 +1,7 @@
 // M4d am29 items 4-8: the Audit step fold, the Run summary's two lines and the step card's one line, all derived HERE from the run's files on disk
 // (audit.jsonl's try rows + the three diaries in src/diary.js). Nothing here calls a model ($0 replay), and the page only draws what this returns,
 // so the Audit rows, the summary and the cards can only agree. A run from before am29 has no diaries: no fold, `—` on the new lines, nothing made up.
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-import {
-  DIARY_FILES, readCalls, readTools, readChecks,
-} from './diary.js';
+import { readCalls, readTools, readChecks } from './diary.js';
 
 /** A Stop's notes are not tries: the asked/not-honoured rows, and a `stopped` row that cut no try (no attempt number). @param {any} r */
 export function isTryRow(r) {
@@ -14,11 +10,12 @@ export function isTryRow(r) {
 
 /** @param {string} runDir */
 export function loadDiaries(runDir) {
+  const calls = readCalls(runDir);
+  const tools = readTools(runDir);
+  const checks = readChecks(runDir);
+  // a diary file only ever exists with a row in it, so "this run has diaries" is "a diary holds a row" (read through the safe gateway, no fs here)
   return {
-    present: Object.values(DIARY_FILES).some((f) => existsSync(join(runDir, f))),
-    calls: readCalls(runDir),
-    tools: readTools(runDir),
-    checks: readChecks(runDir),
+    present: calls.length + tools.length + checks.length > 0, calls, tools, checks,
   };
 }
 
