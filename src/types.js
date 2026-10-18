@@ -261,6 +261,7 @@
  * @property {'green'|'red'|'hitl'|'unparseable'|'crash'} verdict
  * @property {string|null} [red]
  * @property {string[]} [reds]
+ * @property {Array<{id:string, text:string, ok:boolean, result:string|null}>} [checks] a softgreen close: every check it ran (M4d am29 item 2)
  */
 
 /**

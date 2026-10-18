@@ -338,6 +338,52 @@ export function renderSoftgreenGaps(gaps, shape) {
   return { red: reds.join('; '), reds };
 }
 
+/** The words each softgreen check is listed under (M4d am29 item 2), by its rubric id; the numbers and names come from the signed shape. @param {Record<string, any>} c a check of `softgreenSpec` */
+function softgreenCheckText(c) {
+  if (c.id === 'keys') return 'the answer has only a "text" field';
+  if (c.id === 'words') return `at most ${c.value} words`;
+  if (c.id === 'sections') return `the sections are there, in order: ${c.names.join(', ')}`;
+  if (c.id === 'perSection') return `each section is about ${c.wordsPerSection} words`;
+  return `${c.size ?? 'its'} lines per block, each carrying: ${(c.phrases ?? []).join(', ')}`;
+}
+
+/**
+ * How many words bareguard counts in `text`, asked of bareguard itself (a `minWords` check no text can meet, whose gap carries the measured count) so the
+ * number listed beside a passing `maxWords` check is the one the check used. `null` when it cannot be read.
+ * @param {string} text @returns {Promise<number|null>}
+ */
+async function countWordsWithBareguard(text) {
+  try {
+    const rubric = createRubric({ schema: 1, goal: 'count', checkpoints: { count: { gating: true, checks: [{ id: 'n', rule: 'minWords', field: 'text', value: 100_000_000 }] } } });
+    const res = await checkStep(rubric, 'count', { text });
+    const measured = res.gaps?.[0]?.measured;
+    return typeof measured === 'number' ? measured : null;
+  } catch { return null; }
+}
+
+/**
+ * M4d am29 item 2: every check the softgreen close ran, in the order of `softgreenSpec`, each `{ id, text, ok, result }`. `result` is the word count beside the
+ * words check (met or not), the plain-English reason beside any other check that failed, and `null` beside a check that passed with nothing to measure.
+ * @param {Record<string, any>} shape @param {any[]} gaps bareguard's gaps (empty when green) @param {string} text
+ */
+async function softgreenCheckResults(shape, gaps, text) {
+  const out = [];
+  for (const c of softgreenSpec(shape).checkpoints.close.checks) {
+    const mine = gaps.filter((g) => g.id === c.id);
+    let result = null;
+    if (c.id === 'words') {
+      const n = mine[0]?.measured ?? await countWordsWithBareguard(text);
+      result = typeof n === 'number' ? `${n} words` : null;
+    } else if (mine.length > 0) {
+      result = renderSoftgreenGaps(mine, shape).reds.join('; ');
+    }
+    out.push({
+      id: c.id, text: softgreenCheckText(c), ok: mine.length === 0, result,
+    });
+  }
+  return out;
+}
+
 /** What the artifact looks like in a message, without ever throwing on a hostile object. */
 function describeArtifact(artifact) {
   try { return JSON.stringify(artifact); } catch { return '[an object that cannot be read]'; }
@@ -372,8 +418,9 @@ export async function closeSoftgreen(artifact, shape) {
       const fault = /** @type {NonNullable<typeof res.fault>} */ (res.fault);
       return { verdict: 'crash', red: `softgreen close crashed: the ${fault.id} check stopped (${fault.kind}${fault.detail ? `: ${fault.detail}` : ''})` };
     }
-    if (res.verdict === 'red') return { verdict: 'red', ...renderSoftgreenGaps(res.gaps, shape) };
-    return { verdict: 'green', red: null, reds: [] };
+    const checks = await softgreenCheckResults(shape, res.verdict === 'red' ? res.gaps : [], text);
+    if (res.verdict === 'red') return { verdict: 'red', ...renderSoftgreenGaps(res.gaps, shape), checks };
+    return { verdict: 'green', red: null, reds: [], checks };
   } catch (err) {
     return { verdict: 'crash', red: `softgreen close crashed: ${err.message}` };
   }

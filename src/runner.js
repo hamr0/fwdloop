@@ -63,6 +63,10 @@ import {
 } from './books.js';
 import { applyRunValues, pickRunValues } from './runvalues.js';
 import { stepThinkingMode } from './thinking.js';
+import { appendChecks } from './diary.js';
+import {
+  doneRecord, happenedRecord, outputRecord, closeRecords,
+} from './try-checks.js';
 import { readJobThinking, writeRunThinking } from './flowmodel.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
@@ -737,6 +741,8 @@ async function runStepRalph({
   // cut this step short of (their numbering is in `attemptOffset`; a try the Stop cut mid-way is replaced by the new one, never counted
   // against the limit, so Resume always gets at least one new try).
   readStop = null, stepNo = 0, triesDone = 0,
+  // M4d am29 item 2: the run's folder, where each try saves its checks (`checks.jsonl`, src/diary.js)
+  runDir = null,
   // the id of step stepNo-1 (null for step 1): a Stop before this step's first call words itself "after step N-1" and is filed under that step
   prevStepId = null,
 }) {
@@ -882,13 +888,25 @@ async function runStepRalph({
     spent.value += result.costUsd;
     const attemptUsd = sumKnownUsd(attemptFloorUsd, result.costUsd);
 
+    // M4d am29 item 2: this try's checks, in the order they run; `saveTry` writes them (and the output they judged) once, just before the try's audit row
+    const tryChecks = /** @type {any[]} */ ([]);
+    let judged = null;
+    const saveTry = () => {
+      if (runDir === null) return;
+      appendChecks(runDir, {
+        step: step?.emits ?? step?.goal ?? null, try: attempt, at: now(), checks: [...tryChecks].sort((a, b) => a.n - b.n), output: judged,
+      });
+    };
+
     // The model's own word, taken at face value — before the happened check,
     // before any close, no exception (M2 amendment 1 item 1). A halt, not a
     // strike, not a retry: `recordAudit`'s modelOutput arg keeps the RAW
     // `result.artifact` (done/blocker included) for log.json; everything
     // downstream of a `done: true` gets the STRIPPED artifact.
     const doneCheck = checkDoneBlocker(step, result.artifact);
+    tryChecks.push(doneRecord(doneCheck, result.artifact));
     if (doneCheck.verdict === 'not-done') {
+      saveTry();
       recordAudit(makeAuditRow({
         step, attempt, verdict: 'not-done', gap: doneCheck.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }), result.artifact ?? null);
@@ -897,7 +915,10 @@ async function runStepRalph({
     const artifact = stripDoneBlocker(result.artifact);
 
     const happened = checkArtifactHappened(step, artifact);
+    tryChecks.push(happenedRecord(happened, artifact));
+    judged = outputRecord(step, artifact);
     if (happened.verdict === 'red') {
+      saveTry();
       // Item 5: "or wrote no artifact" strikes unconditionally, every time
       // (never gated by novelty — an empty artifact is always the same
       // failure) — matches poc/m2/gapback.mjs's own rule exactly.
@@ -913,6 +934,8 @@ async function runStepRalph({
     }
 
     const closed = await closeByClass(step, artifact, { reads: readsMap, businessDate });
+    tryChecks.push(...closeRecords(step, artifact, closed));
+    saveTry();
 
     if (closed.verdict === 'green' || closed.verdict === 'hitl') {
       recordAudit(makeAuditRow({
@@ -1435,7 +1458,7 @@ async function runAskSlot({
       }
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
-        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone, thinkingBox: readJobThinking(flowDir, runDir), now,
+        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone, thinkingBox: readJobThinking(flowDir, runDir), now, runDir,
         readStop: () => stopPending(runDir), stepNo: priorStepNo, prevStepId: priorPrevStepId,
       });
       if (!redoResult.ok) {
@@ -1690,7 +1713,7 @@ async function foldFromStep({
     // redo's `initialGap` above.
     // eslint-disable-next-line no-await-in-loop
     const stepResult = await runStepRalph({
-      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null, thinkingBox: readJobThinking(flowDir, runDir), now,
+      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null, thinkingBox: readJobThinking(flowDir, runDir), now, runDir,
       readStop: () => stopPending(runDir), stepNo: i + 1, prevStepId: i > 0 ? (steps[i - 1].emits ?? steps[i - 1].goal ?? null) : null, attemptOffset: i === i0 ? resumeTries.numbered : 0, triesDone: i === i0 ? resumeTries.done : 0,
     });
     if (!stepResult.ok) {
