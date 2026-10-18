@@ -1451,6 +1451,16 @@ When the Cap is at or below what the earlier draft already spent, Draft is refus
 4. Runs from before am25 show no thinking words. They're never guessed.
 - **Must fail when:** a try line of an am25 run has no thinking word; the word on the page differs from the audit file; an older run shows a thinking word; the Job tab row is missing or names the wrong rule.
 
+**M4d amendment 27 — SIGNED by hamr 2026-10-18 ("sign m4d am27"): a thinking word when the model sends no reply.**
+1. When a try ends with no reply from the model (an error, the time limit, or a Stop before the first reply), the try line names what was asked, plus `(no reply)`:
+   ```
+   try 1 [✗] · thinking off (no reply)
+   try 2 [✓] · thinking on
+   ```
+2. This covers a try that came back empty and a try whose error stopped it outright.
+3. The words are kept in the same one place as the other thinking words. They never say thinking happened; they only say what was asked.
+- **Must fail when:** a try with no reply has no thinking word; it shows `thinking on` or `thinking off` without `(no reply)`; the word on the page differs from the audit file.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
