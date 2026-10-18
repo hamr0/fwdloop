@@ -1461,6 +1461,13 @@ When the Cap is at or below what the earlier draft already spent, Draft is refus
 3. The words are kept in the same one place as the other thinking words. They never say thinking happened; they only say what was asked.
 - **Must fail when:** a try with no reply has no thinking word; it shows `thinking on` or `thinking off` without `(no reply)`; the word on the page differs from the audit file.
 
+**M4d amendment 28 — SIGNED by hamr 2026-10-18 ("sign m4d am28"): Model and Thinking share one row on the Job tab.**
+1. On the Job tab, Model and Thinking sit side by side on one row, laid out like the `$ cap / Time cap` row.
+2. The Thinking label is `Thinking`. The value is `on retries` (box not ticked) or `always on` (box ticked). This replaces the words in am26 item 3.
+3. The row always shows. A run from before am25 has no record, so it shows `—`, never a guess. This replaces the part of am26 item 4 that hid the row.
+4. The words are kept in one place in the code.
+- **Must fail when:** Model and Thinking are on separate rows; the row is missing on any run; an old run shows `on retries` or `always on`; the words differ from item 2.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
