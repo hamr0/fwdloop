@@ -23,7 +23,7 @@
 // signed-scope gap for hamr's ruling (job #2's step 3 declares `compress`,
 // which this piece cannot yet honour).
 
-import { readFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { createShellTools, resolveToolPath } from 'bare-agent/tools';
 import { Gate } from 'bareguard';
@@ -173,6 +173,9 @@ function sandboxedReadTool(gate, runDir, inputsByRole) {
   };
 }
 
+/** bare-agent's shell_grep default cap (DEFAULT_GREP_MAX_MATCHES, not exported) — mirrored for the entry-by-entry grep. */
+const GREP_DEFAULT_MAX_MATCHES = 200;
+
 function sandboxedGrepTool(gate, runDir, inputsByRole) {
   const real = shellTool('shell_grep');
   const textRoles = Object.keys(inputsByRole).filter((r) => rolePrimitiveFor(inputsByRole[r]) === 'read');
@@ -182,9 +185,29 @@ function sandboxedGrepTool(gate, runDir, inputsByRole) {
     parameters: roleParameters(real, textRoles),
     execute: async (args) => {
       const resolvedPath = await resolveRoleOrPath(gate, 'grep', 'grep', runDir, args, inputsByRole, textRoles);
-      const found = await real.execute({ ...args, path: resolvedPath });
-      // M4d am29 item 3: a grep over the run folder walks into the diaries, which the gate only denies by name. Their hits are dropped here.
+      // M4d am29 item 3: the gate only denies the diaries by name, and bare-agent's grep stops at its cap with no exclude option. A folder that holds a diary
+      // (the run folder itself) is therefore grepped entry by entry, diaries left out BEFORE the cap, each entry through the same gate.
       const diaries = new Set(diaryPaths(runDir).map((p) => path.resolve(p)));
+      const dir = path.resolve(resolvedPath);
+      let found;
+      if ([...diaries].some((d) => path.dirname(d) === dir) && statSync(dir).isDirectory()) {
+        const cap = args.maxMatches || GREP_DEFAULT_MAX_MATCHES;
+        const hits = [];
+        let fileCount = 0;
+        for (const name of readdirSync(dir).sort()) {
+          const entry = path.join(dir, name);
+          if (diaries.has(entry) || hits.length >= cap) continue;
+          if (args.recursive === false && !statSync(entry).isFile()) continue;
+          const gated = await resolveAndGate(gate, 'grep', 'grep', runDir, entry);
+          const part = await real.execute({ ...args, path: gated, maxMatches: cap - hits.length });
+          hits.push(...(part?.hits ?? []));
+          fileCount += part?.fileCount ?? 0;
+        }
+        found = { hits, truncated: hits.length >= cap, fileCount };
+      } else {
+        found = await real.execute({ ...args, path: resolvedPath });
+      }
+      // safety net for any other path shape: a diary hit never reaches the model
       return found && Array.isArray(found.hits) ? { ...found, hits: found.hits.filter((h) => !diaries.has(path.resolve(String(h?.file)))) } : found;
     },
   };

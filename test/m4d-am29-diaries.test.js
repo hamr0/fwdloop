@@ -144,3 +144,16 @@ test('A5: the model can read none of the diaries - by read, by grep on the file,
   const ok = await tools.grep.execute({ path: '.', pattern: FILE_WORDS });
   assert.ok(ok.hits.some((h) => h.file.endsWith('note.md')));
 });
+
+test('A5b: a big diary cannot eat the grep cap - the diaries are left out before the cap, not after', async () => {
+  const runDir = tmp('cap');
+  mkdirSync(path.join(runDir, 'out'), { recursive: true });
+  writeFileSync(path.join(runDir, 'out', 'a.md'), 'the step is here\n');
+  writeFileSync(path.join(runDir, DIARY_FILES.calls), '{"step":"s"}\n'.repeat(3000));
+  const { tools, reds } = resolvePrimitives(CAT, ['grep'], { runDir, inputs: [] });
+  assert.deepEqual(reds, []);
+  const found = await tools.grep.execute({ path: '.', pattern: 'step' });
+  assert.deepEqual(found.hits.map((h) => path.relative(runDir, h.file)), [path.join('out', 'a.md')]);
+  assert.equal(found.truncated, false);
+  assert.equal(found.fileCount, 1);
+});
