@@ -1439,6 +1439,8 @@ When the Cap is at or below what the earlier draft already spent, Draft is refus
 - **Done when:** tests that fail first, plus one live run of m7-walk-2 whose audit shows a 1st try off.
 - **Cap:** $0.10.
 
+- **Built after signing — not signed text (2026-10-17), M4d am25:** built in `a3ea43f` (`src/thinking.js`, `src/model-step.js`, `src/runner.js`, `src/flowmodel.js`, `src/authoring.js`); test `test/m4d-am25.test.js`. Live-proven on m7-walk-2 (try 1 off, try 2 on).
+
 **M4d amendment 26 — SIGNED by hamr 2026-10-18 ("sign m4d am26"): thinking shows in Audit and on the Job tab.**
 1. In Audit, each try line inside a step shows its thinking:
    ```
@@ -1451,6 +1453,8 @@ When the Cap is at or below what the earlier draft already spent, Draft is refus
 4. Runs from before am25 show no thinking words. They're never guessed.
 - **Must fail when:** a try line of an am25 run has no thinking word; the word on the page differs from the audit file; an older run shows a thinking word; the Job tab row is missing or names the wrong rule.
 
+- **Built after signing — not signed text (2026-10-18), M4d am26:** built in `5cd4d92`, with `d8f8009` (the Job-tab row placed under Schedule, as the page tests pin) and `fc44ba5` (row-builder tests list the new helper); test `test/m4d-am26.test.js`. Choice where the text was silent: the try words sit in the Audit Verdict cell, after the verdict badge. Item 3's Job-tab words and item 4's hiding of the row are replaced by am28.
+
 **M4d amendment 27 — SIGNED by hamr 2026-10-18 ("sign m4d am27"): a thinking word when the model sends no reply.**
 1. When a try ends with no reply from the model (an error, the time limit, or a Stop before the first reply), the try line names what was asked, plus `(no reply)`:
    ```
@@ -1461,12 +1465,16 @@ When the Cap is at or below what the earlier draft already spent, Draft is refus
 3. The words are kept in the same one place as the other thinking words. They never say thinking happened; they only say what was asked.
 - **Must fail when:** a try with no reply has no thinking word; it shows `thinking on` or `thinking off` without `(no reply)`; the word on the page differs from the audit file.
 
+- **Built after signing — not signed text (2026-10-18), M4d am27:** built in `204764f`; test `test/m4d-am27.test.js` (and `test/m4d-am26.test.js` updated). Choice: the `(no reply)` words are keyed on a thinking record with no status, not on the verdict; the drafter and Chat words are untouched.
+
 **M4d amendment 28 — SIGNED by hamr 2026-10-18 ("sign m4d am28"): Model and Thinking share one row on the Job tab.**
 1. On the Job tab, Model and Thinking sit side by side on one row, laid out like the `$ cap / Time cap` row.
 2. The Thinking label is `Thinking`. The value is `on retries` (box not ticked) or `always on` (box ticked). This replaces the words in am26 item 3.
 3. The row always shows. A run from before am25 has no record, so it shows `—`, never a guess. This replaces the part of am26 item 4 that hid the row.
 4. The words are kept in one place in the code.
 - **Must fail when:** Model and Thinking are on separate rows; the row is missing on any run; an old run shows `on retries` or `always on`; the words differ from item 2.
+
+- **Built after signing — not signed text (2026-10-18), M4d am28:** built in `b5423db`; test `test/m4d-am28.test.js` (`test/m4d-am26.test.js` trimmed). Choices: fwdloop has no `$ cap / Time cap` row, so the existing `.field-row` (bareloop's Model + Thinking layout) is used; at 320px Thinking wraps under Model; the server field keeps the name `thinkingRule`.
 
 **M4d amendment 29 — SIGNED by hamr 2026-10-18 ("sign m4d am29"): the Audit shows every round, every check and every answer, read from disk ($0 replay).** From the design lab: C, F and G.
 1. **Two new diaries per run, add-only, like bareloop's.** In the run's folder:
@@ -1486,6 +1494,16 @@ When the Cap is at or below what the earlier draft already spent, Draft is refus
 7. **$0 replay.** Everything in Audit and in these new lines is read from files on disk. Opening them never calls a model.
 8. **Old runs.** Runs from before am29 show what they show today. No rounds, checks or outputs are made up. A new line with no record shows `—`.
 - **Must fail when:** a model call or tool call has no row; a denied call is missing; a check that ran is not listed; a check names the wrong job line; an unknown cost shows $0; the model can read a diary; a secret, file content or model text is in one; a model step shows `[human · ask]` or the other way round; the summary or card numbers don't match the Audit rows; an old run shows made-up rounds or checks.
+
+- **Built after signing — not signed text (2026-10-18), M4d am29:** built in `3b1ebeb` (part 1, diaries: `src/diary.js`), `9536956` (part 2, checks: `src/try-checks.js`, `src/closers.js`), `fe60fc1` (parts 3-4, `src/audit-fold.js`, Run summary and cards) and `1ab6a7e` (fixes: no fs in audit-fold, one-try row sync untouched, types); tests `test/m4d-am29-diaries.test.js`, `test/m4d-am29-checks.test.js`, `test/m4d-am29-audit.test.js` (fixture `test/m4d-am29-world.mjs`). Choices where the text was silent or differs:
+  - The text says "two new diaries"; there are three files in the run folder: `calls.jsonl`, `tools.jsonl` and `checks.jsonl`. Checks are kept out of `audit.jsonl` because the model can read it; all three are denied to the model.
+  - The send step has no `[model]` / `[human · ask]` marker.
+  - Rounds keep counting across a step's tries (1, 2, 3 ... within the step).
+  - The per-call thinking status comes from a thin wrapper around the provider call.
+  - `emit_artifact` gets no tool row (it is the step's own output call, not a granted tool).
+  - Paging of the Round table is client-side: 20 rows at a time, with load more.
+  - `you cancelled` maps to a stopped row.
+  - Old runs show `—`; nothing is made up.
 
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
@@ -2484,11 +2502,46 @@ monthly wall is enforced **by the trigger**, before a run starts.
   2. The word comes from the same sign-to-word table as the other headers (`[✗]` failed, `[▶]` running, `[·]` waiting). It's never typed by hand.
   3. This replaces the order in am9 item 2. The sign rule from am11 stays.
   - **Must fail when:** `schedule` comes before the sign; the word is missing; the word doesn't match the table.
+- *Built after signing — not signed text:* M9 am23 built in `97981d9` (`src/panel/data.js`, `src/panel/index.html`); test `test/m9-am23.test.js` (`test/m9-am9-am11.test.js` updated for the new order). The word comes from the one sign-to-word table.
 
 ## M10 — real IO
 
 Mail in and out, chat, browse — each behind the signed allow-list and a prior `ask` accept in the
 same run. Scope is stated when its turn comes.
+
+*The paragraph above is superseded by the signed scope below (hamr, 2026-10-18).*
+
+- **M10 scope — SIGNED by hamr 2026-10-18 ("sign m10"): read a page or a sheet, turn every guardrail into a code check, ask while drafting.**
+  0. **Test first.** Before any M10 code is built:
+     - bareloop's Stage A: 3 drafts of a flights-page job, about 1 cent.
+     - Stage B: a $0 replay of the ask triggers.
+     - One local CSV case, where the job's word differs from the column name.
+
+     The pass marks are written into FINDINGS before anything runs. Nothing is built until it passes.
+  1. **A web page as an input.** A signed web address, fetched with barebrowse.
+     - We wait (with a time limit) until the page has finished loading, then freeze it with a fingerprint. This happens at drafting and again at each run start, and a run is checked against its own copy.
+     - An empty page stops at $0, with a plain reason.
+     - A site that blocks us is written down as a finding, never worked around.
+  2. **green grows.** A value points to its source: a cell (as today), a quote on the saved page, or a quote in a doc.
+     - It may also carry a number rule (under, over, between) and a result count ("3 results").
+     - Code checks the quote is word for word in the frozen copy and that the value passes the rule. No model grades.
+  3. **The source's own words.** While drafting, one AI call suggests the page's or sheet's own words for each guardrail. Code keeps only words that are really there and read a value of the right kind. The rules are copied from bareloop: found-on-page, N2, R1, U1/R1L, S1, the currency and unit lists. Plus one more: a label that reads no value is dropped.
+  4. **Reshape and ask, decided by code, never by the model.**
+     - Before paid drafting, at most 2 asks: for a number the AI made up, or a guardrail the source has no words for. A third trigger (a page label that isn't one of the job's words) is used only if the test in item 0 proves it works.
+     - The words are set by code: `Line n, guardrail "<…>": I propose <…>.` Choices: use it, your own words, or leave it Not checked.
+     - Your own words become a `~` rule on that line, word for word.
+     - After two failed drafts, one more ask in the same shape, once.
+  5. **Not checked, shown.** A guardrail that can't become a check shows `Not checked: <reason>` on the plan card, the signed job and the Audit. Never silent. hitl means only Ask lines. This replaces the PRD line "Anything that fits no class falls to hitl".
+  6. **Recorded.** Every question, answer, and the guardrail it settled is in three places: the draft log, the Audit (am29's fold), and the signed job ("you confirmed …"). Code writes it, never the drafter.
+  7. **Sheets and docs.** The same for CSV and .docx. When a job word isn't a column or a heading, code finds one that passes the same tests and asks, e.g. "no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it?"
+  8. **Borrowed by copy** from bareloop, with headers. Page actions (click, book) and chat in/out are not in this scope; each gets its own signed scope later.
+  - **Done when:**
+    - A flights job, on a route bareloop never used, drafts with at most 2 code asks, signs, and runs green on deepseek-flash.
+    - Its 3 results' quotes are on the run's own saved page, and their values pass the rules. A separate script checks this, not our own checker.
+    - Every question and answer is in all 3 places.
+    - The CSV case asks once and runs green.
+  - **Must fail when:** a kept word isn't on the page; a signed label reads no value; a guardrail is dropped with no reason; an ask comes from the model choosing; more than 2 asks before drafting; an answer is missing from any of the 3 places; a run is checked against the drafting copy instead of its own; a cheat page (reversed route, "Pay $0") passes.
+  - **Cap:** first test about 2 cents; build $0 (tests only); the exit walk at most 50 cents per run, with your go for each run.
 
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
