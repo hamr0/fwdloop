@@ -23,7 +23,7 @@
 // signed-scope gap for hamr's ruling (job #2's step 3 declares `compress`,
 // which this piece cannot yet honour).
 
-import { readFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { createShellTools, resolveToolPath } from 'bare-agent/tools';
 import { Gate } from 'bareguard';
@@ -33,6 +33,7 @@ import { readDocxText } from './docx.js';
 import { parseCsv } from './csv.js';
 import { makeCtxTools } from './ctx-tools.js';
 import { diaryPaths } from './diary.js';
+import { readdirInside } from './flow.js';
 
 // bare-agent >=0.47.0: `noFollowSymlinks: true` makes shell_read/write/edit/
 // grep throw `err.code === 'ELOOP'` when the path's FINAL component is a
@@ -190,14 +191,15 @@ function sandboxedGrepTool(gate, runDir, inputsByRole) {
       const diaries = new Set(diaryPaths(runDir).map((p) => path.resolve(p)));
       const dir = path.resolve(resolvedPath);
       let found;
-      if ([...diaries].some((d) => path.dirname(d) === dir) && statSync(dir).isDirectory()) {
+      if (dir === path.resolve(runDir)) {
         const cap = args.maxMatches || GREP_DEFAULT_MAX_MATCHES;
         const hits = [];
         let fileCount = 0;
-        for (const name of readdirSync(dir).sort()) {
+        for (const name of readdirInside(runDir, '').sort()) {
           const entry = path.join(dir, name);
           if (diaries.has(entry) || hits.length >= cap) continue;
-          if (args.recursive === false && !statSync(entry).isFile()) continue;
+          // not recursive: top-level files only; readdirInside lists a directory's entries and nothing for a file
+          if (args.recursive === false && readdirInside(runDir, name).length) continue;
           const gated = await resolveAndGate(gate, 'grep', 'grep', runDir, entry);
           const part = await real.execute({ ...args, path: gated, maxMatches: cap - hits.length });
           hits.push(...(part?.hits ?? []));
