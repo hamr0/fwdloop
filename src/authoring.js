@@ -246,9 +246,10 @@ export function draftKeyRefusal(slot, env) {
  * writer (appendSpendRow); an unpriced round books null, never 0.
  *
  * Test seam: `provider`/`rates`/`modelId` are injected; without them a live provider is built.
+ * `onResult({ ok })` (M4d am32): called once, after the spend is booked and just before the result files are written (the CLI gives its monthly hold back there).
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false,
+  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult,
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
   const nameCheck = checkFlowName(name);
@@ -376,6 +377,8 @@ export async function draftToDir({
       startedAt,
       wallMs: startedAt === null ? null : Math.max(0, Date.now() - Date.parse(startedAt)),
     });
+    // M4d am32: the spend is booked, and the result files are about to be written: the monthly hold is given back now, so a draft never reads done while its hold is still held
+    if (typeof onResult === 'function') onResult({ ok: result.ok });
     for (const [f, text] of Object.entries(files)) writeFileSync(path.join(dir, f), text);
     if (pick !== null) writeModelRecord(dir, pick);
     leaks = sweepForSecrets(dir, secrets);

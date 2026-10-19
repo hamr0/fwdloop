@@ -75,7 +75,9 @@ const keyedEnv = () => keyedLoad().env;
  * that does not fit refuses at $0 with the one refusal text. A hold that fits is given back when this
  * process ends or parks (the `exit` hook runs on every exit path; a SIGKILL leaves it for the next check,
  * which settles it as "process gone").
- * @returns {{ addRunDir: (d: string) => void, nameRunDir: (d: string) => void }}
+ * M4d am32: the draft door also gets `settle(why)`, called when the draft's result is written: the hold is given back then, not at exit. The exit hook calls the same
+ * function as a backstop; it settles once (a second call is a no-op), so a hold is never settled twice.
+ * @returns {{ addRunDir: (d: string) => void, nameRunDir: (d: string) => void, settle: (why: string) => void }}
  */
 const NO_CONFIG_HOME_REFUSAL = 'NODE_ENV=test is set without FWDLOOP_CONFIG_HOME, so the keys file, prices and monthly limit would be skipped. Nothing spent. Unset NODE_ENV, or set FWDLOOP_CONFIG_HOME.';
 
@@ -90,7 +92,7 @@ function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }
     if (!(process.env.NODE_ENV === 'test' && process.env[hook])) {
       fail(NO_CONFIG_HOME_REFUSAL);
     }
-    return { addRunDir: () => {}, nameRunDir: () => {} };
+    return { addRunDir: () => {}, nameRunDir: () => {}, settle: () => {} };
   }
   let claim;
   try {
@@ -102,12 +104,17 @@ function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }
     fail(`${err.message} — refusing to start rather than guess the monthly limit. Nothing spent.`);
   }
   if (!claim.ok) fail(monthlyRefusalText(claim.room));
-  if (claim.holdId !== null) {
-    process.on('exit', () => settleHold({
-      holdId: claim.holdId, why: process.exitCode ? 'ended (red)' : 'ended or parked', home, alsoRunDirs: also,
-    }));
-  }
+  let settled = false;
+  const settle = (why) => {
+    if (settled || claim.holdId === null) return;
+    settled = true;
+    settleHold({
+      holdId: claim.holdId, why, home, alsoRunDirs: also,
+    });
+  };
+  if (claim.holdId !== null) process.on('exit', () => settle(process.exitCode ? 'ended (red)' : 'ended or parked'));
   return {
+    settle,
     addRunDir: (d) => also.push(d),
     // C2: a rerun's new run dir is named in the money record the moment it starts.
     nameRunDir: (d) => { also.push(d); nameRunDir({ holdId: claim.holdId, runDir: d, home }); },
@@ -870,10 +877,12 @@ async function cmdDraft(rest) {
   }
   // M4d am19 item 1: the hold is what is left of the cap (cap minus this job's drafting so far), the most the draft may spend, not one round
   const proseRead = readFileInside(dirname(resolve(proseFile)), basename(resolve(proseFile)));
-  takeMonthlyHold({
+  const hold = takeMonthlyHold({
     what: 'draft', flow: values.name, runId: null, runDir: resolve(values.out), holdUsd: draftHoldUsd(proseRead.ok ? proseRead.text : '', resolve(values.out), ceiling),
   });
   const result = await draftToDir({
+    // M4d am32: the hold is given back when the draft's result is written, not when this process exits (the exit hook stays as the backstop)
+    onResult: ({ ok }) => hold.settle(ok ? 'ended or parked' : 'ended (red)'),
     proseFile: resolve(proseFile),
     dir: resolve(values.out),
     root: resolve(values.root),
