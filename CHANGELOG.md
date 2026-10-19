@@ -8,8 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.21.0] - 2026-10-19
 
 M4d amendments 25-29 (thinking per step, run diaries and the Audit step fold), M9 amendments 21-23
-(run time in the Run tab summary, the schedule header) and M11 amendments 16-20 (Scheduled found by the
-one search box).
+(run time in the Run tab summary, the schedule header) and M11 amendments 16-21 (Scheduled found by the
+one search box, the ◷ chip sized to match ✓).
 
 ### Added
 - Thinking per step. A step's 1st try thinks off; its 2nd and later tries, and a step redone after
@@ -56,10 +56,15 @@ one search box).
 ### Fixed
 - A grep over the run folder no longer spends its match cap on the diaries: the diaries are left out
   before the cap, and each entry still goes through the same guard.
+- The `◷` chip is sized by measurement: the page measures ✓ and sizes ◷ so its ink is as tall as
+  ✓'s, within 1px, whatever font draws it (M11 am21). Before, a fixed size tuned on one machine drew
+  it a third too big on others.
 
 ### Development only (not in the package)
 - A $0 harness for the thinking POCs (`poc/thinking`); F69 (thinking on retries vs everywhere, NO
   BUILD) and F70 (thinking on retries vs today, BUILD) are recorded in `docs/logs/FINDINGS.md`.
+- `test/m11-am20.test.js` forces symbol fonts and needs at least two of them installed. On
+  Debian/Ubuntu: `sudo apt-get install fonts-symbola fonts-freefont-ttf` (CI installs them).
 
 ## [0.20.0] - 2026-10-16
 
