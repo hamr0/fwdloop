@@ -32,7 +32,7 @@
     "bare-suite"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "test": "node --test",
@@ -50,7 +50,7 @@
   ],
   "dependencies": {
     "bare-agent": "^0.52.0",
-    "bareguard": "^0.21.2",
+    "bareguard": "^0.25.1",
     "litectx": "^0.32.0"
   },
   "devDependencies": {
