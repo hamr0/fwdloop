@@ -282,7 +282,7 @@ M6b was folded into M4e. A rung starts only when its scope, exit and negative ar
 | M8 | case library | planned |
 | M9 | triggers (clock, file watch) and the run summary | released (0.18.0); amendments 6-20 (schedule on the Job tab and in Audit, a run at its ask is not busy, the schedule's own signed file) released (0.20.0); amendments 21-23 (run time in the Run tab summary, the schedule header) built, not yet released; inbox-poll and flow handover not built |
 | M10 | real IO (mail, chat, browse) | planned |
-| M11 | one runs list (Running now, Needs you, Scheduled, Jobs) | released (0.19.0, 0.19.1); amendments 5-15 (search finds older runs, Needs you tags and Remove, job · run in the top lists, empty Inbox) released (0.20.0); amendments 16-20 (Scheduled has its own search, the scheduled chip, Scheduled below the search box) built, not yet released |
+| M11 | one runs list (Running now, Needs you, Scheduled, Jobs) | released (0.19.0, 0.19.1); amendments 5-15 (search finds older runs, Needs you tags and Remove, job · run in the top lists, empty Inbox) released (0.20.0); amendments 16-21 (Scheduled has its own search, the scheduled chip, Scheduled below the search box, the chip's size measured to match ✓ by ink height) built, not yet released |
 
 ---
 
