@@ -2560,6 +2560,15 @@ same run. Scope is stated when its turn comes.
   - **Must fail when:** a kept word isn't on the page; a signed label reads no value; a guardrail is dropped with no reason; an ask comes from the model choosing; more than 2 asks before drafting; an answer is missing from any of the 3 places; a run is checked against the drafting copy instead of its own; a cheat page (reversed route, "Pay $0") passes.
   - **Cap:** first test about 2 cents; build $0 (tests only); the exit walk at most 50 cents per run, with your go for each run.
 
+- **M10 amendment 1 — SIGNED by hamr 2026-10-19 ("sign m10 am1"): up to 3 asks before drafting; more than 3 means rewrite the job.** Copied from bareloop (`MAX_QUESTIONS` 3, `tooManyAsksText`).
+  - **Item 4:** "at most 2 asks" becomes **at most 3 asks**.
+    - If code finds more than 3, nothing is asked. Drafting stops at $0 and says: "Your job has N rules I can't check or had to guess. Please rewrite it." Each of those rules is listed, with code's reading of it.
+    - An answer is needed for each ask. There's no skip.
+    - The one extra ask after two failed drafts stays as it is. It comes after drafting, so it isn't one of the 3.
+  - **Done when:** "drafts with at most 2 code asks" becomes "drafts with at most 3 code asks".
+  - **Must fail when:** "more than 2 asks before drafting" becomes "more than 3 asks before drafting, or a 4th rule is asked instead of stopping at $0".
+  - **Why:** F71. Many asks means weak guardrails, so the person rewrites the job instead of code asking more. Same as bareloop.
+
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
 - **M11 scope — SIGNED by hamr 2026-10-13 ("sign m11").**
