@@ -1515,6 +1515,7 @@ When the Cap is at or below what the earlier draft already spent, Draft is refus
 1. If a line in the spend log can't be read (a crash cut it in half), every model call stops at $0 with: `spend log line <n> is torn — fix or remove that line`.
 2. The torn line is never skipped and never counted as $0.
 - **Must fail when:** a torn line throws a raw error; a call goes ahead past a torn line; the total leaves the torn line out.
+- **Not built — not signed text (hamr, 2026-10-19):** parked until a torn spend line is actually seen. Reading the code found the cap check named in the ledger (`readSpendTotal`) has no caller, and `readSpendRows` skips a torn line (counted as $0). A first build touched 17 files for a case never seen, so it was discarded; the finding stays in the fix ledger.
 
 **M4d amendment 32 — SIGNED by hamr 2026-10-19 ("sign m4d am32"): a draft frees its cap when its result is written.**
 1. A draft's hold on the monthly limit is freed as soon as the draft's result (green or red) is written. It doesn't wait for the process to exit.
