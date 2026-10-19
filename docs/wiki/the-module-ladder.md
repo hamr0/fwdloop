@@ -1505,6 +1505,22 @@ When the Cap is at or below what the earlier draft already spent, Draft is refus
   - `you cancelled` maps to a stopped row.
   - Old runs show `—`; nothing is made up.
 
+**M4d amendment 30 — SIGNED by hamr 2026-10-19 ("sign m4d am30"): try numbers keep counting after a Redo.** This fixes am29.
+1. In one step, try numbers never restart. Try 1 and try 2, then Redo, then try 3 and try 4. Each number is used once in a step.
+2. The Audit, the diaries and the step card all use that same number. Each try's checks and output are matched to it, never guessed.
+3. How many tries a Redo allows stays the same. Only the number shown changes.
+- **Must fail when:** a step shows the same try number twice; a try shows another try's checks or output; a try that saved no checks borrows a later try's.
+
+**M4d amendment 31 — SIGNED by hamr 2026-10-19 ("sign m4d am31"): a torn spend line stops the run by name.**
+1. If a line in the spend log can't be read (a crash cut it in half), every model call stops at $0 with: `spend log line <n> is torn — fix or remove that line`.
+2. The torn line is never skipped and never counted as $0.
+- **Must fail when:** a torn line throws a raw error; a call goes ahead past a torn line; the total leaves the torn line out.
+
+**M4d amendment 32 — SIGNED by hamr 2026-10-19 ("sign m4d am32"): a draft frees its cap when its result is written.**
+1. A draft's hold on the monthly limit is freed as soon as the draft's result (green or red) is written. It doesn't wait for the process to exit.
+2. So when a draft shows done, a new Draft or Start over is never refused with "held by a run in progress".
+- **Must fail when:** a draft reads done but its hold is still there; a Draft posted right after one finishes is refused.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
