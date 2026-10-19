@@ -55,13 +55,13 @@ test('an empty page stops the freeze with a plain reason that names the input; n
   } finally { await srv.close(); }
 });
 
-test('a page that never settles, or a site that blocks us, stops the freeze with a reason and is fetched once (no retry around it)', async () => {
+test('a cap-hit page with real content is frozen as it stands; a site that blocks us stops the freeze and is fetched once (no retry around it)', async () => {
   const srv = await startPageServer({ '/busy': { body: pageText() }, '/bot': { body: `${pageText()}\n[BOT CHALLENGE DETECTED]\n` } });
   try {
     const busy = fakeConnect({ idle: 'reject' });
     const a = await freezeInputs(tmp('run'), [{ id: 'p', path: `${srv.base}/busy` }], { fetchPage: seam(busy) });
-    assert.equal(a.ok, false);
-    assert.match(a.ok ? '' : a.red, /did not finish loading/);
+    assert.equal(a.ok, true, a.ok ? '' : a.red);
+    assert.equal(a.manifest[0].sha256, sha(Buffer.from(pageText())));
     assert.equal(busy.calls.connect.length, 1);
     const bot = fakeConnect();
     const b = await freezeInputs(tmp('run'), [{ id: 'p', path: `${srv.base}/bot` }], { fetchPage: seam(bot) });

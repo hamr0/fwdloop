@@ -1,4 +1,4 @@
-// borrowed-from: bareloop src/pagefetch.js@56dc096 (adapted: secret check uses src/redact.js; a page that never goes quiet STOPS with a reason, it is not read as it stands)
+// borrowed-from: bareloop src/pagefetch.js@56dc096 (adapted: secret check uses src/redact.js)
 // URL inputs (PART 1c, docs/product/ITEM33-BUILD.md "4. URL inputs" + live fix L1, PRD item 33 RF21/RF22): an Inputs line may be a web
 // address the person pastes (a results page). bareloop fetches it with barebrowse, READ ONLY, headless and incognito, as published:
 //
@@ -21,7 +21,7 @@ export const SNAPSHOT_OPTIONS = Object.freeze({ mode: 'act' });
 /** the page's network must be quiet this long (ms) before we read it: long enough to span the gap between a page's first load and the
  *  script requests that fill the results, short enough not to stretch a plain page */
 export const NETWORK_IDLE_MS = 1500;
-/** the most we wait for the network to go quiet (ms); a page that never settles (polling, streaming) stops the fetch after this */
+/** the most we wait for the network to go quiet (ms); a page that never settles (polling, streaming) is read as it stands after this */
 export const NETWORK_IDLE_TIMEOUT_MS = 20_000;
 /** the most we wait for the page to load at all (ms) */
 export const GOTO_TIMEOUT_MS = 30_000;
@@ -126,9 +126,8 @@ export async function fetchPageText(url, { connect, timeoutMs = PAGE_FETCH_TIMEO
       (async () => {
         const p = await page;
         await p.goto(u.href, GOTO_TIMEOUT_MS);
-        // M10 item 1: we wait (with a time limit) until the page has finished loading. A page that never goes quiet is NOT frozen half-filled
-        // (bareloop L1: the same address gave 77,951 / 8,801 / 719 characters): it stops here, with the reason.
-        try { await p.waitForNetworkIdle({ idle: idleMs, timeout: idleTimeoutMs }); } catch { throw new Error(`the page did not finish loading inside ${Math.round(idleTimeoutMs / 1000)} seconds, so it was not saved`); }
+        // bounded: a page that never goes quiet (polling, streaming) is read as it stands (bareloop); the size and chrome floors below then decide
+        try { await p.waitForNetworkIdle({ idle: idleMs, timeout: idleTimeoutMs }); } catch { /* read what is there */ }
         return p.snapshot({ ...SNAPSHOT_OPTIONS });
       })(),
       new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`no answer inside ${Math.round(timeoutMs / 1000)} seconds`)), timeoutMs); }),

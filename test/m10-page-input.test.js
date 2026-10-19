@@ -32,15 +32,18 @@ test('an empty page stops with a plain reason, and nothing is asked of a model',
   } finally { await srv.close(); }
 });
 
-test('a page that never goes quiet hits the time limit and stops with a reason, it is not frozen half-filled', async () => {
-  const srv = await startPageServer({ '/busy': { body: pageText() } });
+test('a page that never goes quiet is read as it stands at the cap (bareloop): real content is kept, near-empty stops with the reason', async () => {
+  const srv = await startPageServer({ '/busy': { body: pageText() }, '/busy-empty': { body: 'Loading...' } });
   try {
     const fc = fakeConnect({ idle: 'reject' });
     const r = await fetchPageText(`${srv.base}/busy`, { connect: fc.connect, ...FAST });
-    assert.equal(r.ok, false);
-    assert.match(!r.ok ? r.error : '', /did not finish loading inside/);
-    assert.equal(fc.calls.snapshot, 0, 'no look at a page that has not settled');
+    assert.equal(r.ok, true);
+    assert.equal(r.ok && r.text, pageText());
+    assert.equal(fc.calls.snapshot, 1);
     assert.equal(fc.calls.closed, 1);
+    const e = await fetchPageText(`${srv.base}/busy-empty`, { connect: fakeConnect({ idle: 'reject' }).connect, ...FAST });
+    assert.equal(e.ok, false);
+    assert.match(!e.ok ? e.error : '', /only 10 characters/);
   } finally { await srv.close(); }
 });
 
