@@ -5,6 +5,62 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.0] - 2026-10-19
+
+M4d amendments 25-29 (thinking per step, run diaries and the Audit step fold), M9 amendments 21-23
+(run time in the Run tab summary, the schedule header) and M11 amendments 16-20 (Scheduled found by the
+one search box).
+
+### Added
+- Thinking per step. A step's 1st try thinks off; its 2nd and later tries, and a step redone after
+  Redo, think on. The Chat "Thinking on" box now also covers the job's runs: ticked, every step
+  thinks on every try, and the box's state at signing is kept with the job. Code decides this, never
+  the model. Each step call's audit row records the thinking it asked for and what bareagent reported.
+- Thinking in Audit. Each try line inside a step ends with its thinking: `thinking on` or
+  `thinking off` when bareagent confirms it, otherwise the same words Chat uses. A try that ends with
+  no reply from the model names what was asked plus `(no reply)`. Runs from before this show no
+  thinking words.
+- The Job tab shows Model and Thinking side by side on one row. Thinking reads `on retries` or
+  `always on`, and `—` for a run from before thinking per step.
+- Run diaries, written next to the run and never readable by the model: `calls.jsonl` (one row per
+  model call: step, try, round, cost, tokens, time, stop reason, thinking asked and status),
+  `tools.jsonl` (one row per tool call with the guard's decision; a call that did not pass the guard
+  is marked `no check`, a denied call keeps its own row) and `checks.jsonl` (each try's numbered
+  checks with ✓ or ✗, result and where the check comes from, plus the output it judged: file name,
+  size, sha256). What the model said and what was in a file are never saved.
+- Audit step fold. A step header ends with `[model]` or `[human · ask]`. Opened, it shows the tool
+  tally, one line per try with its thinking and gap, every check under its try, the output judged, and
+  a Round table (Round, Try, Action, Path, Decision, Time) paged 20 at a time. A human row reads
+  `paused for you`, `you said redo: "..."`, `you accepted` or `you cancelled`. Read from disk; opening
+  it never calls a model. Runs from before this show what they showed before.
+- Run tab summary lines `calls: <n> model · <n> tool · <n> denied` and `checks: <n> run · <n> passed ·
+  <n> failed (<step> tries <n>)`; `—` for a run with no diaries. Step cards carry the same
+  `[model]` / `[human · ask]` marker and one line: `<n> rounds · checks on the last try <passed>/<run>`
+  for a model step, `last answer: <answer> · <time>` for a human step.
+- The Run tab summary's top line shows how long the run took after its cost, behind a middle dot
+  (`passed · $0.0062 · 3m28s`), the same time as the `took ...` line; `time not recorded` when it is
+  not recorded, and nothing for a run still going or waiting.
+- The one search box also narrows the Scheduled cards, by job name. A new `◷` chip (hover: `scheduled
+  jobs only`) shows only Scheduled; with no match the list says `no scheduled job matches`, and with
+  `◷` pressed the count line reads `showing 1 scheduled job`. The result and time chips never touch
+  Scheduled. The faint line above the search box reads `search also finds Scheduled; ◷ shows only
+  Scheduled`.
+
+### Changed
+- Scheduled sits below the search box, above Jobs; Running now and Needs you stay above it, never
+  filtered.
+- The schedule header in Audit reads sign, word, `schedule`, then the parts separated by ` · `, for
+  example `▾ [✗] failed schedule · when a new file arrives in ~/fwdloop-in/ · from run-1 · 5 tries
+  started nothing`. The word comes from the one sign-to-word table.
+
+### Fixed
+- A grep over the run folder no longer spends its match cap on the diaries: the diaries are left out
+  before the cap, and each entry still goes through the same guard.
+
+### Development only (not in the package)
+- A $0 harness for the thinking POCs (`poc/thinking`); F69 (thinking on retries vs everywhere, NO
+  BUILD) and F70 (thinking on retries vs today, BUILD) are recorded in `docs/logs/FINDINGS.md`.
+
 ## [0.20.0] - 2026-10-16
 
 M11 runs list amendments 5-15, M9 schedules in their own signed file (amendments 13-20), M6 Reuse
