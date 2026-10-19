@@ -32,7 +32,7 @@ jobs:
       - name: Typecheck
         run: npm run typecheck --if-present
       - name: Install ripgrep (litectx impact needs rg)
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep fonts-symbola fonts-freefont-ttf
       - name: Warm up chromium (the first start on a fresh runner is slow; browser tests allow 10 s per start)
         run: |
           for i in 1 2; do

@@ -119,7 +119,7 @@ for (const width of [1280, 390, 320]) {
       ' var sc = "[data-testid=chip-runs-scheduled]"; var own = h(sc);' +
       ' var big = function(f){ cv.font = "100px " + f; var m = cv.measureText("◷"); return m.width + "/" + m.actualBoundingBoxAscent + "/" + m.actualBoundingBoxDescent; };' +
       ' return { sched: own, pass: h("[data-testid=chip-runs-res-pass]"), fail: h("[data-testid=chip-runs-res-fail]"), fs: getComputedStyle(document.querySelector(sc)).fontSize, installed: !fam || big(JSON.stringify(fam)) !== big("NoSuchFontAnywhere123") }; })()');
-    const fonts = ['', 'Noto Sans Mono Condensed', 'Symbola', 'Adwaita Mono'];
+    const fonts = ['', 'Noto Sans Mono Condensed', 'Symbola', 'FreeSans', 'Adwaita Mono'];
     const ran = [];
     for (const family of fonts) {
       const m = await measure(family);
