@@ -3196,5 +3196,7 @@ Cap: 2 cents for Test 1, $0 for Tests 2-3, per hamr's signed cap. Re-run only as
 - (c) T1 and T2 are bareloop's two code-decided ask kinds (reading ask, can't-check ask), taken from the copied `askableFromLook`, rendered in our signed form `Line n, guardrail "<...>": I propose <...>.`. T3 compares a label only with the words of the one guardrail it serves (fwd's own; not in bareloop).
 - (d) A7: the cap is checked before each call and after each round, so one call may overshoot slightly.
 - (e) New gate G0 ($0, before the paid run): replay mvez8s54's saved raw map (bareloop session `~/.config/bareloop/panel-sessions/smvez1a4asm7k`, draft-log) through our copied `parseMapAnswer` + `applyPageRules` + `askableFromLook`. Kept facts, drops (with reasons) and asks must equal what bareloop recorded in that draft-log, else the copy is wrong and NO paid run happens. Caveat: that run's 3 rules sat on one `~` line.
+- (f) A1 bar: hamr ruled 2026-10-19, after seeing the AMS-LHR page with 19 results (sha256 `c56f6fd47677a19c18cc015728c733b28508dfbe08ac4bc8edbab40d2c923f9a`, flight date 2026-11-18), that 19 is fine for this test; A1 is scored as met by hamr's ruling, not by the >=20 bar.
+- (g) G0 caveat: bareloop's draft-log for mvez8s54 records no kept/drop lists and that run had no drops, so G0 proves keep and ask, not drops.
 
 **Result.**
