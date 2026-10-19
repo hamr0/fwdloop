@@ -10,16 +10,13 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const page = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
-function fnSrc(name) {
-  const start = page.indexOf(`function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found`);
-  return page.slice(start, page.indexOf('\n  }', start) + 4);
-}
+const fnSrc = (name) => cutFn(page, name, '');
 
 // ---- a tiny fake DOM: just what the Inbox list builders touch --------------------------------------
 function makeDoc() {

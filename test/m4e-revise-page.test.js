@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
@@ -14,11 +15,7 @@ const CHAT = PAGE.slice(PAGE.indexOf('// ---- Chat tab: describe, draft, sign an
 const SECTION = PAGE.slice(PAGE.indexOf('<section id="panel-chat"'), PAGE.indexOf('</section>', PAGE.indexOf('<section id="panel-chat"')));
 const CODE = CHAT.replace(/^\s*\/\/.*$/gm, '');
 
-function fnSrc(name) {
-  const start = CHAT.indexOf(`    function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found in the Chat block`);
-  return CHAT.slice(start, CHAT.indexOf('\n    }\n', start) + 7);
-}
+const fnSrc = (name) => cutFn(CHAT, name, '    ');
 const load = (name, prelude = '') => new Function(`${prelude}\n${fnSrc(name)}\nreturn ${name};`)();
 const green = { mode: 'new', session: true, startOk: true, busy: false, phase: 'green', revisable: true, left: 2 };
 

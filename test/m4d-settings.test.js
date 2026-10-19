@@ -16,6 +16,7 @@ import { createPanelServer } from '../src/panel/server.js';
 import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
 import { keysFilePath } from '../src/keysfile.js';
 import { configPath } from '../src/config.js';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
@@ -260,11 +261,7 @@ test('(xiii) money route: an unknown-cost spend row gives atLeast true (never 0)
 });
 
 /** Cut `function name(` .. its closing "\n  }" out of the page. */
-function fnSrc(name) {
-  const start = PAGE.indexOf(`function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found in index.html`);
-  return PAGE.slice(start, PAGE.indexOf('\n  }', start) + 4);
-}
+const fnSrc = (name) => cutFn(PAGE, name, '');
 
 // ---- (xiv) no flow, no cap -------------------------------------------------------------------------------------------
 test('(xiv) no settings route reads or writes a flow: a flow dir is byte-identical across every settings POST', async () => {

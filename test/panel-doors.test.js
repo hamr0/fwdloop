@@ -8,17 +8,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
 
 /** Cut `function name(` .. its closing "\n  }" out of the page. */
-function fnSrc(name) {
-  const start = source.indexOf(`function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found in index.html`);
-  const end = source.indexOf('\n  }', start);
-  return source.slice(start, end + 4);
-}
+const fnSrc = (name) => cutFn(source, name, '');
 const load = (names, ret) => new Function(`${names.map(fnSrc).join('\n')}\nreturn ${ret};`)();
 
 const answerControls = load(['answerControls'], 'answerControls');

@@ -6,16 +6,13 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
 const CHAT = PAGE.slice(PAGE.indexOf('// ---- Chat tab: describe, draft, sign and run'), PAGE.indexOf('// ---- M4d piece 4: Settings.'));
 
-function fnSrc(name) {
-  const start = CHAT.indexOf(`    function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found in the Chat block`);
-  return CHAT.slice(start, CHAT.indexOf('\n    }\n', start) + 7);
-}
+const fnSrc = (name) => cutFn(CHAT, name, '    ');
 const load = (name) => new Function(`${fnSrc(name)}\nreturn ${name};`)();
 /** The element block starting at `<div id="…"` through its matching close. */
 function block(id) {

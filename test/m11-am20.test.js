@@ -10,22 +10,14 @@ import { fileURLToPath } from 'node:url';
 import { greenWorld } from './m9-trigger-world.mjs';
 import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
 import { killChildrenAfter } from './m4e-world.mjs';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 killChildrenAfter();
 const CLOSERS = [];
 after(async () => { for (const c of CLOSERS) await c(); });
 
 const PAGE = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'panel', 'index.html'), 'utf8');
-function fnSrc(name) {
-  const start = PAGE.indexOf(`  function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found`);
-  let depth = 0;
-  for (let i = PAGE.indexOf('{', start); i < PAGE.length; i++) {
-    if (PAGE[i] === '{') depth++;
-    else if (PAGE[i] === '}' && --depth === 0) return PAGE.slice(start, i + 1);
-  }
-  assert.fail(`function ${name} has no closing brace`);
-}
+const fnSrc = (name) => cutFn(PAGE, name, '  ');
 const NAMES = [
   'escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText',
   'rlShortDate', 'groupRunsByFlow', 'matchesSearch', 'filterRuns', 'filterWorkflows', 'filtersActive',

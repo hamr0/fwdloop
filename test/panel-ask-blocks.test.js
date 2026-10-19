@@ -23,6 +23,7 @@ import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
 import { answerAsk } from '../src/ask.js';
 import { getRunAsks, getRunDetail, groupAskBlocks } from '../src/panel/data.js';
 import { sandboxSend } from './send-sandbox.js';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
@@ -195,11 +196,7 @@ test('groupAskBlocks: an expired earlier draft is a line too; the open newest dr
 });
 
 // ---- page functions, cut out by name and run ---------------------------------------------------
-function fnSrc(name) {
-  const start = page.indexOf(`function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found`);
-  return page.slice(start, page.indexOf('\n  }', start) + 4);
-}
+const fnSrc = (name) => cutFn(page, name, '');
 /** The click path (sendAnswer) with its collaborators stubbed; `post` decides the HTTP answer. */
 function clickHarness(post) {
   const calls = { live: [], said: [], reload: 0 };

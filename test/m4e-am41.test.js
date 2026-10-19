@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
@@ -26,11 +27,7 @@ test('item 6: the Job tab has a "The job" title (a field label, like the Chat ca
 
 // ---- item 7: the Chat card's failed plan checks ----
 const CHAT = PAGE.slice(PAGE.indexOf('// ---- Chat tab: describe, draft, sign and run'), PAGE.indexOf('// ---- M4d piece 4: Settings.'));
-function fnSrc(name) {
-  const start = CHAT.indexOf(`    function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found in the Chat block`);
-  return CHAT.slice(start, CHAT.indexOf('\n    }\n', start) + 7);
-}
+const fnSrc = (name) => cutFn(CHAT, name, '    ');
 const load = (name, prelude = '') => new Function(`${prelude}\n${fnSrc(name)}\nreturn ${name};`)();
 
 // real checker texts, copied from the templates in src/declaration.js (one per red kind)
