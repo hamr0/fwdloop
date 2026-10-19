@@ -14,7 +14,8 @@ const repo = join(here, '..', '..');
 const engine = join(here, 'engine');
 
 export function makeEngine() {
-  const sha = execFileSync('git', ['-C', repo, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
+  let sha = 'no-git'; // a tracked-files-only copy (git archive) has no .git; the header only
+  try { sha = execFileSync('git', ['-C', repo, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { /* keep no-git */ }
   const header = `// POC copy of src/ @${sha} — throwaway, never shipped\n`;
   rmSync(engine, { recursive: true, force: true });
   mkdirSync(engine, { recursive: true });
