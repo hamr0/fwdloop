@@ -2300,7 +2300,6 @@
     if(!ok || !sc || !ink(sc)) return;
     sc.style.fontSize = (parseFloat(getComputedStyle(ok).fontSize) * ink(ok) / ink(sc)) + "px";
   }
-  window.fwdloopFitChips = fitChips;
   fitChips();
 
   function runsFilterFn(items, filters, nowMs){

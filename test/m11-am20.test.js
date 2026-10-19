@@ -117,14 +117,28 @@ for (const width of [1280, 390, 320]) {
     assert.equal(await countText(chrome), 'showing 0 scheduled jobs');
     // M11 am21: the ink you see. ◷'s ink HEIGHT (canvas measureText of the chip's own font) is within 1px of ✓'s, under the default font AND under forced fonts
     // (a fixed size fits one font and not another). The empty space around a mark is not judged.
-    const measure = (family) => chrome.ev('(function(){ var fam = ' + JSON.stringify(family) + '; var id = "am21-force"; var st = document.getElementById(id); if(st) st.remove();' +
-      ' if(fam){ st = document.createElement("style"); st.id = id; st.textContent = \'.chip.fchip[data-filter-value="scheduled"]{font-family:"\' + fam + \'" !important;}\'; document.head.appendChild(st); }' +
-      ' document.querySelector("[data-testid=chip-runs-scheduled]").style.fontSize = ""; window.fwdloopFitChips();' +
-      ' var cv = document.createElement("canvas").getContext("2d"); var h = function(sel, f){ var e = document.querySelector(sel); var cs = getComputedStyle(e);' +
-      ' cv.font = cs.fontWeight + " " + cs.fontSize + " " + (f || cs.fontFamily); var m = cv.measureText(e.textContent); return m.actualBoundingBoxAscent + m.actualBoundingBoxDescent; };' +
-      ' var sc = "[data-testid=chip-runs-scheduled]"; var own = h(sc);' +
-      ' var big = function(f){ cv.font = "100px " + f; var m = cv.measureText("◷"); return m.width + "/" + m.actualBoundingBoxAscent + "/" + m.actualBoundingBoxDescent; };' +
-      ' return { sched: own, pass: h("[data-testid=chip-runs-res-pass]"), fail: h("[data-testid=chip-runs-res-fail]"), fs: getComputedStyle(document.querySelector(sc)).fontSize, installed: !fam || big(JSON.stringify(fam)) !== big("NoSuchFontAnywhere123") }; })()');
+    // The page's OWN fitChips does the fit: each forced font is injected before the page's scripts run (Page.addScriptToEvaluateOnNewDocument) and the page is reloaded.
+    const measure = async (family) => {
+      const seen = await chrome.ev('(function(){ var cv = document.createElement("canvas").getContext("2d"); var big = function(f){ cv.font = "100px " + f; var m = cv.measureText("◷"); return m.width + "/" + m.actualBoundingBoxAscent + "/" + m.actualBoundingBoxDescent; };' +
+        ' return ' + JSON.stringify(!family) + ' || big(' + JSON.stringify(JSON.stringify(family)) + ') !== big("NoSuchFontAnywhere123"); })()');
+      if (!seen) return { installed: false };
+      if (forceId) { await chrome.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: forceId }); forceId = null; }
+      if (family) {
+        await chrome.send('Page.enable'); // without it the new-document script does not run on reload
+        const css = `.chip.fchip[data-filter-value="scheduled"]{font-family:"${family}" !important;}`;
+        const src = `(function(){ var add = function(){ var st = document.createElement("style"); st.textContent = ${JSON.stringify(css)}; document.documentElement.appendChild(st); };` +
+          ' if(document.documentElement) add(); else new MutationObserver(function(_, o){ if(document.documentElement){ o.disconnect(); add(); } }).observe(document, { childList: true }); })()';
+        forceId = (await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: src })).identifier;
+      }
+      await chrome.ev('window.__beforeReload = 1; true');
+      await chrome.send('Page.reload');
+      assert.ok(await chrome.waitFor('!window.__beforeReload && document.readyState === "complete" && !!document.querySelector("[data-testid=chip-runs-scheduled]")', 30000), `page reloaded under "${family || 'default'}"`);
+      return chrome.ev('(function(){ var cv = document.createElement("canvas").getContext("2d"); var h = function(sel){ var e = document.querySelector(sel); var cs = getComputedStyle(e);' +
+        ' cv.font = cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily; var m = cv.measureText(e.textContent); return m.actualBoundingBoxAscent + m.actualBoundingBoxDescent; };' +
+        ' var sc = "[data-testid=chip-runs-scheduled]";' +
+        ' return { sched: h(sc), pass: h("[data-testid=chip-runs-res-pass]"), fail: h("[data-testid=chip-runs-res-fail]"), fs: getComputedStyle(document.querySelector(sc)).fontSize, installed: true }; })()');
+    };
+    let forceId = null;
     const fonts = ['', 'Noto Sans Mono Condensed', 'Symbola', 'FreeSans', 'Adwaita Mono'];
     const ran = [];
     for (const family of fonts) {
