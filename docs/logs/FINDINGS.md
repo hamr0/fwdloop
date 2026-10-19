@@ -3199,4 +3199,28 @@ Cap: 2 cents for Test 1, $0 for Tests 2-3, per hamr's signed cap. Re-run only as
 - (f) A1 bar: hamr ruled 2026-10-19, after seeing the AMS-LHR page with 19 results (sha256 `c56f6fd47677a19c18cc015728c733b28508dfbe08ac4bc8edbab40d2c923f9a`, flight date 2026-11-18), that 19 is fine for this test; A1 is scored as met by hamr's ruling, not by the >=20 bar.
 - (g) G0 caveat: bareloop's draft-log for mvez8s54 records no kept/drop lists and that run had no drops, so G0 proves keep and ask, not drops.
 
-**Result.**
+**Result.** Page AMS-LHR, 2026-11-18, sha256 `c56f6fd4...`, 19 results. Total spend $0.020014. **Verdict: BUILD M10
+with T1+T2 only (no third trigger).**
+
+- **G0 PASS.** Our copy replaying bareloop's mvez8s54 matched its kept facts and asks exactly. Drops
+  are not proven: that run had none and its log has no drop list.
+- **Test 1.** A1 met by hamr's ruling (19 results). A2-A5 PASS. A6 PASS but weak: only draft 3 had real
+  green rows (7 real, 0 on either cheat); drafts 1 and 2 had 0 real rows because "Departure time:" is
+  not on the result line. **A7 FAIL by the letter:** $0.020014 against $0.02 (drafts $0.006666 /
+  $0.006667 / $0.006680), wall times under 2 s. hamr accepted the overshoot 2026-10-19 ("prices
+  adjusted, it's fine").
+- **B5 FAIL, so T3 is dropped** per the frozen rule. T3 fired on "From" 3/3, but also on "Departure
+  time:" 3/3 and on "Leaves Amsterdam Airport Schiphol at" 1/3. The bareloop `loop` session
+  (2026-10-19) confirmed T3 was its unproven proposal: code cannot spot a meaning ambiguity from
+  strings, and bareloop has no T3.
+- **B1:** 3 / 3 / 4 asks counting T3 (FAIL as measured). With T3 dropped, the win rule's "T1+T2 only", it
+  is 1 ask per draft (PASS). Both numbers stand.
+- **B2 PASS:** T1 fired 3/3 on "not a red-eye" (read as 05:00-23:59; bareloop's run-1 read 05:00-21:59,
+  which is model spread and why it is an ask). B3, B4, B6 PASS. T2 never fired, as expected: every
+  rule was tied to a page word.
+- **Test 3 (CSV), $0:** C1-C4 all PASS; the forced red at FIT_RATIO 0.4 was seen on C3.
+- **Side finding.** The copied r1l drops `US dollars` / `$` with a self-comparing Not-checked sentence
+  ("does not show the same amounts as 'US dollars'"). Bareloop was told to loop on it. fwd's port must
+  not show that sentence.
+- **Open.** hamr asked for a 3-ask limit; that needs a signed amendment and is not in force until
+  signed.
