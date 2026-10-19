@@ -2672,3 +2672,9 @@ same run. Scope is stated when its turn comes.
   3. With ◷ pressed, the count line says `showing 1 scheduled job` (the real number, `jobs` when there's more than one).
   4. ◷ is drawn at the same size as ✓ and ✗.
   - **Must fail when:** a Scheduled card shows above the search box; ◷ is pressed and the count line still counts runs; ◷ is smaller than the other chip symbols.
+
+- **M11 amendment 21 — SIGNED by hamr 2026-10-19 ("sign m11 am21"): ◷ size means the ink you see.** This makes am20 item 4 clear.
+  1. "◷ is drawn at the same size as ✓ and ✗" means the mark you see: ◷'s ink is as tall as ✓'s ink, within 1px, whatever font the computer uses to draw it.
+  2. The page measures ✓ and sizes ◷ to match. There is no fixed size tuned on one machine.
+  3. The empty space around a mark is not judged.
+  - **Must fail when:** ◷'s ink is more than 1px taller or shorter than ✓'s; the test runs with only one font. It must force at least two fonts, one of them a font where a fixed size fails.
