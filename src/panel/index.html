@@ -397,7 +397,6 @@
   .chip.fchip{padding:3px 7px;min-height:28px;min-width:28px;font-size:12px;text-align:center;}
   .chip.fchip::before,.chip.fchip::after{content:"";}
   /* M11 am20 item 4: the ◷ glyph is drawn smaller than ✓ and ✗ at the same font-size (a fallback font); this chip alone is scaled up to match. */
-  .chip.fchip[data-filter-value="scheduled"]{font-size:16px;}
   .row-blocked{background:var(--red-bg);}
 
   /* hamr review #5/#6: Audit tab grouped-by-step sections. */
@@ -2294,6 +2293,16 @@
 
   // ONE filter bar, mounted below the unfiltered sections (Running now, Needs you); Scheduled and Jobs sit below it (M11 am20). The search narrows Scheduled; the chips act on Jobs and quiet jobs only: `runsFilterFn` keeps a job when ANY of its runs match.
   document.getElementById("runs-filterbar-anchor").innerHTML = filterBarHTML("runs");
+  // M11 am21: ◷'s ink is as tall as ✓'s, whatever font draws it. Canvas measureText of each chip's own font (works in a hidden tab) at 100px; ◷ gets the size that makes its ink match ✓'s.
+  function fitChips(){
+    var cv = document.createElement("canvas").getContext("2d");
+    var ink = function(e){ var cs = getComputedStyle(e); cv.font = cs.fontWeight + " 100px " + cs.fontFamily; var m = cv.measureText(e.textContent); return m.actualBoundingBoxAscent + m.actualBoundingBoxDescent; };
+    var ok = document.querySelector('[data-testid="chip-runs-res-pass"]'), sc = document.querySelector('[data-testid="chip-runs-scheduled"]');
+    if(!ok || !sc || !ink(sc)) return;
+    sc.style.fontSize = (parseFloat(getComputedStyle(ok).fontSize) * ink(ok) / ink(sc)) + "px";
+  }
+  window.fwdloopFitChips = fitChips;
+  fitChips();
 
   function runsFilterFn(items, filters, nowMs){
     return filterWorkflows(groupRunsByFlow(items), filters, nowMs);

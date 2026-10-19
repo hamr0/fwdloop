@@ -1,5 +1,5 @@
 // M11 amendment 20 (signed 2026-10-17): Scheduled sits BELOW the search box and chips (above Jobs); Running now and Needs you stay above the grey line.
-// With the ◷ chip pressed the count line counts scheduled jobs; ◷ is drawn at the size of ✓ and ✗. Part 1 drives the page's own functions;
+// With the ◷ chip pressed the count line counts scheduled jobs; ◷'s ink is as tall as ✓'s (am21), under forced fonts. Part 1 drives the page's own functions;
 // part 2 drives the real panel in headless chromium at 1280/390/320 (skips when none). $0.
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
@@ -109,17 +109,27 @@ for (const width of [1280, 390, 320]) {
     assert.equal(await countText(chrome), 'showing 1 scheduled job');
     await typeMain(chrome, 'zzz');
     assert.equal(await countText(chrome), 'showing 0 scheduled jobs');
-    // the glyph's INK box (canvas measureText of the chip's own font), not the line box: a fallback font's line box is taller than its drawn mark
-    const g = await chrome.ev('(function(){ var cv = document.createElement("canvas").getContext("2d"); var w = function(sel){ var e = document.querySelector(sel); var cs = getComputedStyle(e);' +
-      ' cv.font = cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily; var m = cv.measureText(e.textContent); var r = document.createRange(); r.selectNodeContents(e.firstChild); var b = r.getBoundingClientRect();' +
-      ' return { w: m.actualBoundingBoxLeft + m.actualBoundingBoxRight, h: m.actualBoundingBoxAscent + m.actualBoundingBoxDescent, rangeW: b.width, fs: cs.fontSize }; };' +
-      ' return { sched: w("[data-testid=chip-runs-scheduled]"), pass: w("[data-testid=chip-runs-res-pass]"), fail: w("[data-testid=chip-runs-res-fail]"), spill: document.documentElement.scrollWidth - document.documentElement.clientWidth }; })()');
-    console.log(`# glyph boxes at ${width}: ${JSON.stringify(g)}`);
-    for (const ref of [g.pass, g.fail]) {
-      assert.ok(Math.abs(g.sched.rangeW - ref.rangeW) / ref.rangeW <= 0.1, `◷ glyph box width ${g.sched.rangeW} vs ${ref.rangeW}: ${JSON.stringify(g)}`);
-      // the ink is whole pixels, and ✓ and ✗ differ from each other by 1-2px: the ink must land within 2px
-      for (const k of ['w', 'h']) assert.ok(Math.abs(g.sched[k] - ref[k]) <= 2, `◷ ink ${k} ${g.sched[k]} vs ${ref[k]}: ${JSON.stringify(g)}`);
+    // M11 am21: the ink you see. ◷'s ink HEIGHT (canvas measureText of the chip's own font) is within 1px of ✓'s, under the default font AND under forced fonts
+    // (a fixed size fits one font and not another). The empty space around a mark is not judged.
+    const measure = (family) => chrome.ev('(function(){ var fam = ' + JSON.stringify(family) + '; var id = "am21-force"; var st = document.getElementById(id); if(st) st.remove();' +
+      ' if(fam){ st = document.createElement("style"); st.id = id; st.textContent = \'.chip.fchip[data-filter-value="scheduled"]{font-family:"\' + fam + \'" !important;}\'; document.head.appendChild(st); }' +
+      ' document.querySelector("[data-testid=chip-runs-scheduled]").style.fontSize = ""; window.fwdloopFitChips();' +
+      ' var cv = document.createElement("canvas").getContext("2d"); var h = function(sel, f){ var e = document.querySelector(sel); var cs = getComputedStyle(e);' +
+      ' cv.font = cs.fontWeight + " " + cs.fontSize + " " + (f || cs.fontFamily); var m = cv.measureText(e.textContent); return m.actualBoundingBoxAscent + m.actualBoundingBoxDescent; };' +
+      ' var sc = "[data-testid=chip-runs-scheduled]"; var own = h(sc);' +
+      ' var big = function(f){ cv.font = "100px " + f; var m = cv.measureText("◷"); return m.width + "/" + m.actualBoundingBoxAscent + "/" + m.actualBoundingBoxDescent; };' +
+      ' return { sched: own, pass: h("[data-testid=chip-runs-res-pass]"), fail: h("[data-testid=chip-runs-res-fail]"), fs: getComputedStyle(document.querySelector(sc)).fontSize, installed: !fam || big(JSON.stringify(fam)) !== big("NoSuchFontAnywhere123") }; })()');
+    const fonts = ['', 'Noto Sans Mono Condensed', 'Symbola', 'Adwaita Mono'];
+    const ran = [];
+    for (const family of fonts) {
+      const m = await measure(family);
+      if (!m.installed) { console.log(`# am21 at ${width}: forced font "${family}" is not installed here`); continue; }
+      if (family) ran.push(family);
+      console.log(`# am21 at ${width} ${family || '(default)'}: ${JSON.stringify(m)}`);
+      assert.ok(Math.abs(m.sched - m.pass) <= 1, `◷ ink height ${m.sched} vs ✓ ${m.pass} under "${family || 'default'}": ${JSON.stringify(m)}`);
     }
+    assert.ok(ran.length >= 2, `am21 needs at least two forced fonts installed; only ${JSON.stringify(ran)} of ${JSON.stringify(fonts.slice(1))} found`);
+    const g = await chrome.ev('({ spill: document.documentElement.scrollWidth - document.documentElement.clientWidth })');
     assert.ok(g.spill <= 0, `sideways scroll ${JSON.stringify(g)}`);
   });
 }
