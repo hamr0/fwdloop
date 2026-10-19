@@ -396,6 +396,8 @@
   .filterbar .chips{gap:4px;margin-bottom:4px;}
   .chip.fchip{padding:3px 7px;min-height:28px;min-width:28px;font-size:12px;text-align:center;}
   .chip.fchip::before,.chip.fchip::after{content:"";}
+  /* M11 am20 item 4: the ◷ glyph is drawn smaller than ✓ and ✗ at the same font-size (a fallback font); this chip alone is scaled up to match. */
+  .chip.fchip[data-filter-value="scheduled"]{font-size:16px;}
   .row-blocked{background:var(--red-bg);}
 
   /* hamr review #5/#6: Audit tab grouped-by-step sections. */
@@ -2292,22 +2294,6 @@
 
   // ONE filter bar, mounted below the unfiltered sections (Running now, Needs you); Scheduled and Jobs sit below it (M11 am20). The search narrows Scheduled; the chips act on Jobs and quiet jobs only: `runsFilterFn` keeps a job when ANY of its runs match.
   document.getElementById("runs-filterbar-anchor").innerHTML = filterBarHTML("runs");
-  // M11 am20 item 4: "◷ is drawn at the same size as ✓ and ✗." Whatever font draws ◷, this chip's font-size alone is picked so its advance box and its ink stay as near ✓ and ✗ as one size allows:
-  // measured per em (canvas measureText of the chip's own font at 100px, so no pixel rounding), the size with the smallest worst miss against the box of ✓ (±10%) and the ink of ✓ and ✗ (±1px wide, ±1.5px tall around their midpoint).
-  (function fitSchedChip(){
-    var s = document.querySelector('[data-testid="chip-runs-scheduled"]'), p = document.querySelector('[data-testid="chip-runs-res-pass"]'), f = document.querySelector('[data-testid="chip-runs-res-fail"]');
-    if(!s || !p || !f) return;
-    var cv = document.createElement("canvas").getContext("2d");
-    function em(e){ var cs = getComputedStyle(e); cv.font = cs.fontWeight + " 100px " + cs.fontFamily; var m = cv.measureText(e.textContent); return { box: m.width / 100, w: (m.actualBoundingBoxLeft + m.actualBoundingBoxRight) / 100, h: (m.actualBoundingBoxAscent + m.actualBoundingBoxDescent) / 100 }; }
-    var a = em(p), c = em(f), b = em(s), fs = parseFloat(getComputedStyle(p).fontSize);
-    if(!(fs > 0 && a.box > 0 && b.box > 0 && b.w > 0 && b.h > 0)) return;
-    var w = (a.w + c.w) / 2 * fs, h = (a.h + c.h) / 2 * fs, best = fs, bestMiss = Infinity;
-    for(var x = fs / 2; x <= fs * 2; x += 0.05){
-      var miss = Math.max(Math.abs(x * b.box / (a.box * fs) - 1) / 0.1, Math.abs(x * b.w - w), Math.abs(x * b.h - h) / 1.5);
-      if(miss < bestMiss){ bestMiss = miss; best = x; }
-    }
-    s.style.fontSize = best + "px";
-  })();
 
   function runsFilterFn(items, filters, nowMs){
     return filterWorkflows(groupRunsByFlow(items), filters, nowMs);
