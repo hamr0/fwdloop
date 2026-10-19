@@ -2569,6 +2569,24 @@ same run. Scope is stated when its turn comes.
   - **Must fail when:** "more than 2 asks before drafting" becomes "more than 3 asks before drafting, or a 4th rule is asked instead of stopping at $0".
   - **Why:** F71. Many asks means weak guardrails, so the person rewrites the job instead of code asking more. Same as bareloop.
 
+- **M10 amendment 2 — SIGNED by hamr 2026-10-19 ("sign m10 am2"): how an ask shows up, copied from bareloop.** This changes item 4's choices and item 6's "you confirmed".
+  1. **While drafting.** An ask is a plain chat message: `A question the plan raised (K of N), about job line L: <question>`. Reading asks come first, then can't-check asks, in line order.
+     - You type the answer in the chat box. There are no buttons.
+     - A blank answer gets: `An answer is needed here — there is no skip. Type it in the box below and press Send.`
+  2. **Answer words, as bareloop.** These replace item 4's "use it, your own words, or leave it Not checked".
+     - `agree` (or `yes`) takes code's reading.
+     - Your own words are taken word for word.
+     - `drop it` (can't-check asks only) leaves the rule Not checked.
+  3. **In the job and the approved plan.** An agreed reading, or your own words, becomes a new `~` line under that job line. Your original rule stays. Example:
+     ```
+     1. List 3 flights from Boston to Chicago
+     ~ under $450; not a red-eye; nonstop
+     ~ departure time between 05:00 and 21:59
+     ```
+     The signed job and the approved plan both show the new `~` line. `drop it` adds no line, and the plan card shows `not checked · "<rule>" — You chose to leave it Not checked.`
+  4. **Draft log and Audit.** One row per question and answer: the question, the answer, the line, the time, plus the proposal and the rule it added as their own fields (never cut out of the question text). The Audit shows it under the drafting step as `you were asked: …` / `you said: …`. This replaces item 6's "you confirmed …" in the signed job: the new `~` line is what you confirmed.
+  5. **Too many asks (am1).** The normal draft-stop message, then the rewrite list, then `Spent so far: <spend or unknown>.`
+
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
 - **M11 scope — SIGNED by hamr 2026-10-13 ("sign m11").**
