@@ -124,6 +124,10 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 1. The Run tab summary shows how long the run took: `passed · $0.0047` becomes `passed · $0.0047 1m56s`.
 2. The runs list Scheduled section gets its own filter/search, like the other sections.
 
+**Parked, not scheduled: two hitl ideas** (hamr, 2026-10-19, raised by hamr 2026-10-19, unsigned). Not drafted; each needs its own amendment signed by hamr before it is built.
+1. A guardrail code cannot check becomes a human review item instead of only a "Not checked" line. It complements the rubric and removes nothing that works.
+2. A code-forced mid-run stop: when a step's check could not be judged by code and a later step reads that step's output, the run pauses for a human before the dependent step runs, even if the job signed no ask there. Open points: (a) it would need a signed amendment, because ask positions are human-signed today and this is a code-decided stop like M10's code-forced asks; (b) how it relates to today's rule that unjudged hitl output rides as evidence to the next signed ask; (c) scheduled runs would wait on a human; (d) measure how often it would fire on existing runs before designing.
+
 **Signed as M10 scope: rubric checks and asks for jobs that check a page or a sheet** (hamr, 2026-10-18; M10 scope input, after v0.21.0). Signed by hamr 2026-10-18 as the M10 scope (docs/wiki/the-module-ladder.md, M10); starts after v0.21.0. hamr's goal: an automation job that checks something online (the shape of bareloop's flights job) with actions and asks, and the same for a local sheet when a citation isn't found: "hitl is rubric with hitl", borrow what fits. From bareloop (F226-F228, F234-F238 in `../bareloop/docs/wiki/FINDINGS.md`; build spec `../bareloop/docs/product/ITEM33-BUILD.md` "Idea A core"):
 1. Page words must read a value of the right kind, not just be on the page (run mvdg1xo3 signed `StaticText` and `O` and could never pass).
 2. An AI proposes the page's own words per fact; code keeps only words really on the page and applies small frozen rules; every dropped check is shown as "Not checked" with a plain reason, never dropped silently.
