@@ -68,6 +68,7 @@ import {
   doneRecord, happenedRecord, outputRecord, closeRecords,
 } from './try-checks.js';
 import { readJobThinking, writeRunThinking } from './flowmodel.js';
+import { fetchPageText, isWebUrl } from './pagefetch.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
 } from './liveness.js';
@@ -390,14 +391,38 @@ export function checkFreshRunDir(runDir) {
   return { ok: true };
 }
 
+/** M10 item 1: fetch a web page and freeze its text as `<dir>/<id>.txt`; the sha256 is of the FROZEN bytes, like a file input. The ONE writer of a
+ *  page's frozen copy: drafting calls it with its draft folder, a run start (via `freezeInputs`) with the run's `inputs/`, so the two are
+ *  separate files and a run is only ever checked against its own. The fetch is tried once; a refusal names the input and says why in plain words.
+ *  @param {string} dir @param {string} id @param {string} url
+ *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>}} [o]
+ *  @returns {Promise<{ok: true, entry: {id: string, source: string, frozen: string, sha256: string, bytes: number}}|{ok: false, red: string}>} */
+export async function freezePage(dir, id, url, { fetchPage = fetchPageText } = {}) {
+  const got = await fetchPage(url);
+  if (!got.ok) return { ok: false, red: `freeze: input "${id}": ${got.error}` };
+  mkdirSync(dir, { recursive: true });
+  const frozen = join(dir, `${id}.txt`);
+  writeFileSync(frozen, got.text, 'utf8');
+  return { ok: true, entry: { id, source: url, frozen, sha256: hashFile(frozen), bytes: statSync(frozen).size } };
+}
+
 /** Copy each named source into `<runDir>/inputs/`, hash the FROZEN copy
  *  (never the original again after this), write `inputs.json`. An
- *  unreadable source refuses by name. */
-export function freezeInputs(runDir, sources) {
+ *  unreadable source refuses by name. A source that is a web address
+ *  (M10 item 1) is fetched and frozen by `freezePage`, in the same manifest.
+ *  @param {string} runDir @param {Array<{id: string, path: string}>} sources
+ *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>}} [o] */
+export async function freezeInputs(runDir, sources, { fetchPage } = {}) {
   const inputsDir = join(runDir, 'inputs');
   mkdirSync(inputsDir, { recursive: true });
   const manifest = [];
   for (const { id, path: sourcePath } of sources ?? []) {
+    if (isWebUrl(sourcePath)) {
+      const page = await freezePage(inputsDir, id, sourcePath, { fetchPage });
+      if (!page.ok) return page;
+      manifest.push(page.entry);
+      continue;
+    }
     if (!existsSync(sourcePath)) {
       return { ok: false, red: `freeze: input "${id}" is unreadable at ${sourcePath}` };
     }
@@ -995,12 +1020,13 @@ async function runStepRalph({
  *   run): a human's rerun reason, carried as the FIRST ordinary step's
  *   starting gap. Never used by a plain `runFlow` call outside `resumeRun`'s
  *   own rerun path.
+ * @param {(url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>} [opts.fetchPage] - M10: the web-page fetch (default barebrowse via src/pagefetch.js); a test injects one.
  * @param {() => number} [opts.nowMs] - F45 finding 3: returns the current
  *   epoch ms; defaults to the wall clock. Mirrors `clock` (ISO) so a test
  *   can advance wall time across a park/resume boundary without a real wait.
  */
 export async function runFlow({
-  root, name, runId, sources, catalogue, modelStep, askStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd, initialGap,
+  root, name, runId, sources, catalogue, modelStep, askStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd, initialGap, fetchPage,
   // F45 finding 3's test needs to advance wall time across a park/resume
   // boundary without a real wait, exactly like `clock` already does for ISO
   // timestamps — `nowMs` is the same idea for epoch-ms wall-clock reads.
@@ -1108,7 +1134,7 @@ export async function runFlow({
   // M4d am25: the run keeps the job's "Thinking on" box as it is now (read by `readJobThinking` on every try and every resume)
   writeRunThinking(flowDir, runDir);
 
-  const frozen = freezeInputs(runDir, sources ?? []);
+  const frozen = await freezeInputs(runDir, sources ?? [], { fetchPage });
   if (!frozen.ok) {
     return haltRun({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: frozen.red, spent: { value: 0 },
