@@ -355,14 +355,13 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
     return { tools: {}, reds: [`primitives: bareguard refused the step's file scope — ${err.message}`] };
   }
 
-  // M4d am29 item 1: what the gate last decided and how many times it was asked, so a tool call's diary row can say `allow`, the deny and its rule,
+  // M4d am29 item 1: how many times the gate was asked, so a tool call's diary row can say `allow`, the deny and its rule,
   // or `no check` (a call that never reached the gate: readDocx, addressCells, a litectx verb with no path). Every tool below carries it as `gateSeen`.
-  const gateSeen = { n: 0, last: /** @type {{outcome:string, rule:string|null}|null} */ (null) };
+  const gateSeen = { n: 0 };
   const askGate = gate.check.bind(gate);
   gate.check = async (action) => {
     const decision = await askGate(action);
     gateSeen.n += 1;
-    gateSeen.last = { outcome: decision.outcome, rule: decision.rule ?? null };
     return decision;
   };
 
