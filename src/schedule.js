@@ -28,10 +28,10 @@ import { triggerHash } from './trigger-line.js';
  * }} Schedule
  */
 
-export const SCHEDULE_FILE = 'schedule.json';
-export const LEDGER_FILE = 'schedule-ledger.jsonl';
+const SCHEDULE_FILE = 'schedule.json';
+const LEDGER_FILE = 'schedule-ledger.jsonl';
 /** The words of the am16 row (also for a Cancel): signed text, M9 am16. @param {string} name */
-export const droppedSay = (name) => `${name} was waiting when the schedule changed, so it will not run. Drop it in again to run it.`;
+const droppedSay = (name) => `${name} was waiting when the schedule changed, so it will not run. Drop it in again to run it.`;
 
 /** @param {string} flowDir */
 export const scheduleFileOf = (flowDir) => join(flowDir, SCHEDULE_FILE);
